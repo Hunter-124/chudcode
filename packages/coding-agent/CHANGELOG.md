@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- Added a schema guard against settings UI conditions that do not resolve to visibility predicates.
+
 ## [18.0.8] - 2026-08-27
 
 ### Added
