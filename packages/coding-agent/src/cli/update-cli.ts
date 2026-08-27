@@ -32,6 +32,7 @@ const MISE_TOOL = "github:can1357/oh-my-pi";
 const NPM_REGISTRY = "https://registry.npmjs.org/";
 const RELEASE_METADATA_TIMEOUT_MS = 30_000;
 const BINARY_DOWNLOAD_TIMEOUT_MS = 15 * 60_000;
+const GITHUB_API = "https://api.github.com";
 
 /**
  * Core native addon package. Bumped in lock-step with {@link PACKAGE} so the
@@ -63,6 +64,19 @@ function currentNativeTag(): string {
 interface ReleaseInfo {
 	tag: string;
 	version: string;
+}
+
+interface ReleaseAsset {
+	name: string;
+	digest?: string;
+}
+
+export type AutomaticUpdateResult = { status: "staged"; method: UpdateMethod } | { status: "skipped"; reason: string };
+
+interface ApplyUpdateOptions {
+	force?: boolean;
+	quiet?: boolean;
+	strictVerification?: boolean;
 }
 
 /** Result from running the installed binary and parsing its reported version. */
@@ -647,16 +661,24 @@ function formatVerificationFailure(result: InstalledVersionVerification, expecte
 }
 
 /**
- * Print post-update verification result.
+ * Verify the package manager's result. Automatic updates fail closed instead
+ * of claiming that the next launch is ready when PATH still resolves the old
+ * installation.
  */
-async function printVerification(expectedVersion: string): Promise<void> {
+async function printVerification(expectedVersion: string, options: ApplyUpdateOptions = {}): Promise<void> {
 	const result = await verifyInstalledVersion(expectedVersion);
 	if (result.ok) {
-		printVerifiedVersion(expectedVersion);
+		if (!options.quiet) printVerifiedVersion(expectedVersion);
 		return;
 	}
-	console.log(chalk.yellow(`\nWarning: ${formatVerificationFailure(result, expectedVersion)}`));
-	console.log(chalk.yellow(`You may need to reinstall: curl -fsSL https://omp.sh/install | sh`));
+	const failure = formatVerificationFailure(result, expectedVersion);
+	if (options.strictVerification) {
+		throw new Error(failure);
+	}
+	if (!options.quiet) {
+		console.log(chalk.yellow(`\nWarning: ${failure}`));
+		console.log(chalk.yellow(`You may need to reinstall: curl -fsSL https://omp.sh/install | sh`));
+	}
 }
 
 async function unlinkIfExists(filePath: string): Promise<void> {
@@ -826,79 +848,121 @@ export function buildMiseForceInstallArgs(expectedVersion: string): string[] {
 /**
  * Update via package manager.
  */
-async function updateViaBun(expectedVersion: string): Promise<void> {
-	console.log(chalk.dim("Updating via bun..."));
+async function updateViaBun(expectedVersion: string, options: ApplyUpdateOptions = {}): Promise<void> {
+	if (!options.quiet) console.log(chalk.dim("Updating via bun..."));
 	const args = buildBunInstallArgs(expectedVersion);
-	const result = await $`bun ${args}`.nothrow();
+	const command = $`bun ${args}`.nothrow();
+	if (options.quiet) command.quiet();
+	const result = await command;
 	if (result.exitCode !== 0) {
 		throw new Error(`bun install failed with exit code ${result.exitCode}`);
 	}
 
-	await printVerification(expectedVersion);
+	await printVerification(expectedVersion, options);
 	try {
 		const pruneResult = await pruneBunCacheAfterGlobalInstall();
-		if (pruneResult && pruneResult.removedEntries > 0) {
+		if (!options.quiet && pruneResult && pruneResult.removedEntries > 0) {
 			console.log(chalk.dim(`Pruned ${pruneResult.removedEntries} stale Bun cache entries`));
 		}
 	} catch (err) {
-		console.log(chalk.yellow(`Warning: could not prune stale Bun cache entries: ${err}`));
+		if (!options.quiet) console.log(chalk.yellow(`Warning: could not prune stale Bun cache entries: ${err}`));
 	}
 }
 
-async function updateViaNpm(expectedVersion: string): Promise<void> {
-	console.log(chalk.dim("Updating via npm..."));
+async function updateViaNpm(expectedVersion: string, options: ApplyUpdateOptions = {}): Promise<void> {
+	if (!options.quiet) console.log(chalk.dim("Updating via npm..."));
 	const args = buildNpmInstallArgs(expectedVersion);
-	const result = await $`npm ${args}`.nothrow();
+	const command = $`npm ${args}`.nothrow();
+	if (options.quiet) command.quiet();
+	const result = await command;
 	if (result.exitCode !== 0) {
 		throw new Error(`npm install failed with exit code ${result.exitCode}`);
 	}
 
-	await printVerification(expectedVersion);
+	await printVerification(expectedVersion, options);
 }
 
-async function updateViaHomebrew(expectedVersion: string, force: boolean): Promise<void> {
-	console.log(chalk.dim("Updating Homebrew formulae..."));
-	const update = await $`brew update`.nothrow();
+async function updateViaHomebrew(expectedVersion: string, options: ApplyUpdateOptions = {}): Promise<void> {
+	if (!options.quiet) console.log(chalk.dim("Updating Homebrew formulae..."));
+	const updateCommand = $`brew update`.nothrow();
+	if (options.quiet) updateCommand.quiet();
+	const update = await updateCommand;
 	if (update.exitCode !== 0) {
 		throw new Error(`brew update failed with exit code ${update.exitCode}`);
 	}
 
-	console.log(chalk.dim("Updating via Homebrew..."));
-	const args = buildHomebrewUpdateArgs(force);
-	const result = await $`brew ${args}`.nothrow();
+	if (!options.quiet) console.log(chalk.dim("Updating via Homebrew..."));
+	const args = buildHomebrewUpdateArgs(options.force === true);
+	const command = $`brew ${args}`.nothrow();
+	if (options.quiet) command.quiet();
+	const result = await command;
 	if (result.exitCode !== 0) {
 		throw new Error(`brew ${args[0]} failed with exit code ${result.exitCode}`);
 	}
 
-	await printVerification(expectedVersion);
+	await printVerification(expectedVersion, options);
 }
 
-async function updateViaMise(expectedVersion: string, force: boolean): Promise<void> {
-	console.log(chalk.dim("Updating via mise..."));
+async function updateViaMise(expectedVersion: string, options: ApplyUpdateOptions = {}): Promise<void> {
+	if (!options.quiet) console.log(chalk.dim("Updating via mise..."));
 	const args = buildMiseUpgradeArgs();
-	const result = await $`mise ${args}`.nothrow();
+	const command = $`mise ${args}`.nothrow();
+	if (options.quiet) command.quiet();
+	const result = await command;
 	if (result.exitCode !== 0) {
 		throw new Error(`mise upgrade failed with exit code ${result.exitCode}`);
 	}
 
-	if (force) {
+	if (options.force) {
 		const forceArgs = buildMiseForceInstallArgs(expectedVersion);
-		const forceResult = await $`mise ${forceArgs}`.nothrow();
+		const forceCommand = $`mise ${forceArgs}`.nothrow();
+		if (options.quiet) forceCommand.quiet();
+		const forceResult = await forceCommand;
 		if (forceResult.exitCode !== 0) {
 			throw new Error(`mise install --force failed with exit code ${forceResult.exitCode}`);
 		}
 	}
 
-	await printVerification(expectedVersion);
+	await printVerification(expectedVersion, options);
+}
+
+async function getReleaseAssetSha256(tag: string, binaryName: string): Promise<string> {
+	let response: Response;
+	try {
+		response = await fetch(`${GITHUB_API}/repos/${REPO}/releases/tags/${encodeURIComponent(tag)}`, {
+			headers: { Accept: "application/vnd.github+json" },
+			signal: withTimeoutSignal(RELEASE_METADATA_TIMEOUT_MS),
+		});
+	} catch (err) {
+		if (isTimeoutError(err)) {
+			throw new Error("Timed out fetching release checksum after 30s", { cause: err });
+		}
+		throw err;
+	}
+	if (!response.ok) {
+		throw new Error(`Failed to fetch release checksum: ${response.statusText || response.status}`);
+	}
+	const release = (await response.json()) as { assets?: ReleaseAsset[] };
+	const asset = release.assets?.find(candidate => candidate.name === binaryName);
+	const digest = asset?.digest;
+	if (!digest?.startsWith("sha256:") || !/^[0-9a-f]{64}$/i.test(digest.slice("sha256:".length))) {
+		throw new Error(`Release asset ${binaryName} has no valid SHA-256 digest; refusing binary update`);
+	}
+	return digest.slice("sha256:".length).toLowerCase();
 }
 
 /**
  * Download a release binary to a target path, replacing an existing file.
  */
-async function updateViaBinaryAt(targetPath: string, expectedVersion: string): Promise<void> {
+async function updateViaBinaryAt(
+	targetPath: string,
+	expectedVersion: string,
+	options: ApplyUpdateOptions = {},
+): Promise<void> {
 	const binaryName = getBinaryName();
 	const tag = `v${expectedVersion}`;
 	const url = `https://github.com/${REPO}/releases/download/${tag}/${binaryName}`;
+	const expectedSha256 = await getReleaseAssetSha256(tag, binaryName);
 
 	const tempPath = `${targetPath}.new`;
 	// Unique per attempt: a stale backup from an earlier update may still be
@@ -906,7 +970,7 @@ async function updateViaBinaryAt(targetPath: string, expectedVersion: string): P
 	// would force the move-aside rename to overwrite it. pid + timestamp keeps
 	// two forced updates in the same millisecond from colliding.
 	const backupPath = `${targetPath}.${Date.now()}.${process.pid}.bak`;
-	console.log(chalk.dim(`Downloading ${binaryName}…`));
+	if (!options.quiet) console.log(chalk.dim(`Downloading ${binaryName}…`));
 
 	let response: Response;
 	try {
@@ -923,10 +987,27 @@ async function updateViaBinaryAt(targetPath: string, expectedVersion: string): P
 	if (!response.ok || !response.body) {
 		throw new Error(`Download failed: ${response.statusText}`);
 	}
-	const fileStream = fs.createWriteStream(tempPath, { mode: 0o755 });
-	await pipeline(response.body, fileStream);
 
-	console.log(chalk.dim("Installing update..."));
+	const hasher = new Bun.CryptoHasher("sha256");
+	const hashingStream = new TransformStream<Uint8Array, Uint8Array>({
+		transform(chunk, controller) {
+			hasher.update(chunk);
+			controller.enqueue(chunk);
+		},
+	});
+	try {
+		const fileStream = fs.createWriteStream(tempPath, { mode: 0o755 });
+		await pipeline(response.body.pipeThrough(hashingStream), fileStream);
+		const actualSha256 = hasher.digest("hex");
+		if (actualSha256 !== expectedSha256) {
+			throw new Error(`SHA-256 mismatch for ${binaryName}: expected ${expectedSha256}, received ${actualSha256}`);
+		}
+	} catch (err) {
+		await unlinkIfExists(tempPath);
+		throw err;
+	}
+
+	if (!options.quiet) console.log(chalk.dim("Installing update..."));
 	await replaceBinaryForUpdate({
 		targetPath,
 		tempPath,
@@ -936,8 +1017,55 @@ async function updateViaBinaryAt(targetPath: string, expectedVersion: string): P
 	});
 	// Reclaim backups from earlier updates whose owning process has since exited.
 	await sweepStaleBackups(targetPath);
-	printVerifiedVersion(expectedVersion);
-	console.log(chalk.dim(`Restart ${APP_NAME} to use the new version`));
+	if (!options.quiet) {
+		printVerifiedVersion(expectedVersion);
+		console.log(chalk.dim(`Restart ${APP_NAME} to use the new version`));
+	}
+}
+async function applyUpdateTarget(
+	target: UpdateTarget,
+	expectedVersion: string,
+	options: ApplyUpdateOptions = {},
+): Promise<void> {
+	if (target.method === "brew") {
+		await updateViaHomebrew(expectedVersion, options);
+	} else if (target.method === "mise") {
+		await updateViaMise(expectedVersion, options);
+	} else if (target.method === "bun") {
+		await updateViaBun(expectedVersion, options);
+	} else if (target.method === "npm") {
+		await updateViaNpm(expectedVersion, options);
+	} else {
+		await updateViaBinaryAt(target.path, expectedVersion, options);
+	}
+}
+
+/**
+ * Update the installed artifact while the current process keeps executing its
+ * already-loaded version. The new artifact is observed only by the next launch.
+ */
+export async function stageAutomaticUpdate(expectedVersion: string): Promise<AutomaticUpdateResult> {
+	// Published npm/bun installs execute dist/cli.js and release binaries execute
+	// from Bun's virtual filesystem. src/cli.ts therefore identifies a source
+	// install, including bun link, whose owning Git checkout must never be mutated.
+	const entryPath = tryRealpath(Bun.main) ?? path.resolve(Bun.main);
+	if (path.basename(entryPath).toLowerCase() === "cli.ts" && path.basename(path.dirname(entryPath)) === "src") {
+		return {
+			status: "skipped",
+			reason: "source and bun link checkouts are user-managed and cannot be auto-updated",
+		};
+	}
+
+	try {
+		const target = await resolveUpdateTarget();
+		await applyUpdateTarget(target, expectedVersion, {
+			quiet: true,
+			strictVerification: true,
+		});
+		return { status: "staged", method: target.method };
+	} catch (err) {
+		return { status: "skipped", reason: err instanceof Error ? err.message : String(err) };
+	}
 }
 
 /**
@@ -976,17 +1104,7 @@ export async function runUpdateCommand(opts: { force: boolean; check: boolean })
 	// Choose update method based on the prioritized omp binary in PATH
 	try {
 		const target = await resolveUpdateTarget();
-		if (target.method === "brew") {
-			await updateViaHomebrew(release.version, opts.force);
-		} else if (target.method === "mise") {
-			await updateViaMise(release.version, opts.force);
-		} else if (target.method === "bun") {
-			await updateViaBun(release.version);
-		} else if (target.method === "npm") {
-			await updateViaNpm(release.version);
-		} else {
-			await updateViaBinaryAt(target.path, release.version);
-		}
+		await applyUpdateTarget(target, release.version, { force: opts.force });
 	} catch (err) {
 		console.error(chalk.red(`Update failed: ${err}`));
 		process.exit(1);

@@ -722,18 +722,14 @@ export class UiHelpers {
 	}
 
 	showNewVersionNotification(newVersion: string): void {
+		const automatic = settings.get("startup.checkUpdate") && settings.get("startup.autoUpdate") === "auto";
+		const title = automatic ? "Update Staged" : "Update Available";
+		const message = automatic
+			? theme.fg("muted", `Version ${newVersion} was staged and will be used on the next launch.`)
+			: theme.fg("muted", `New version ${newVersion} is available. Run: `) + theme.fg("accent", "omp update");
 		const block = new TranscriptBlock();
 		block.addChild(new DynamicBorder(text => theme.fg("warning", text)));
-		block.addChild(
-			new Text(
-				theme.bold(theme.fg("warning", "Update Available")) +
-					"\n" +
-					theme.fg("muted", `New version ${newVersion} is available. Run: `) +
-					theme.fg("accent", "omp update"),
-				1,
-				0,
-			),
-		);
+		block.addChild(new Text(theme.bold(theme.fg("warning", title)) + "\n" + message, 1, 0));
 		block.addChild(new DynamicBorder(text => theme.fg("warning", text)));
 		this.ctx.present(block);
 	}
