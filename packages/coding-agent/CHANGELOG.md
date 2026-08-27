@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Added
+
+- Added cross-platform sleep prevention: `power.sleepPrevention` now inhibits sleep on Linux (a systemd-logind inhibitor lock via `systemd-inhibit`, plus a best-effort `org.freedesktop.ScreenSaver` inhibit at the `display` level) and Windows (`SetThreadExecutionState` via `bun:ffi`), not just macOS `caffeinate`; previously the setting was gated to `darwin` only and silently did nothing elsewhere, so the machine could sleep mid-turn. Release is idempotent, runs from a process exit hook, and each backend self-releases if omp is killed outright.
+
 ## [18.0.8] - 2026-08-27
 
 ### Added
