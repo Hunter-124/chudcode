@@ -86,6 +86,11 @@ verify_bundle() {
 
 	symlinks=$(find "$bundle" -type l -print)
 	[ -z "$symlinks" ] || die "GUI bundle contains untracked symlink(s): $symlinks"
+	source_files=$(find "$bundle" -type f \( \
+		-name '*.c' -o -name '*.cc' -o -name '*.cpp' -o -name '*.h' -o -name '*.hpp' -o \
+		-name '*.m' -o -name '*.mm' -o -name '*.py' -o -name '*.rs' -o \
+		-name '*.ts' -o -name '*.tsx' -o -name '*.js' -o -name '*.jsx' \) -print)
+	[ -z "$source_files" ] || die "GUI bundle contains private source file(s): $source_files"
 	recorded=$(mktemp "${TMPDIR:-/tmp}/chudcode-gui-recorded.XXXXXX")
 	actual=$(mktemp "${TMPDIR:-/tmp}/chudcode-gui-actual.XXXXXX")
 	sed -n '/^file /p' "$lock" > "$recorded"
@@ -156,11 +161,22 @@ source_bin="$CAD_ROOT/host/build-linux/bin"
 stage_root=$(mktemp -d "${TMPDIR:-/tmp}/chudcode-gui-stage.XXXXXX")
 trap 'rm -rf "$stage_root"' EXIT HUP INT TERM
 bundle="$stage_root/$bundle_name"
-mkdir -p "$bundle/packaging/linux" "$bundle/icons/hicolor"
+mkdir -p "$bundle/packaging/linux" "$bundle/icons/hicolor" \
+	"$bundle/assets/fonts" "$bundle/assets/icons" "$bundle/assets/appicon"
 cp "$source_bin/chudware" "$bundle/$GUI_NAME"
 chmod 755 "$bundle/$GUI_NAME"
-cp -R "$source_bin/assets" "$bundle/assets"
+# Runtime-only whitelist. Never copy CAD's complete assets directory: it also contains
+# generator/test sources and atlas recipes that are not needed by the application.
+cp "$source_bin"/assets/fonts/*.ttf "$bundle/assets/fonts/"
+cp "$source_bin/assets/icons/atlas.json" \
+	"$source_bin/assets/icons/atlas_dark.png" \
+	"$source_bin/assets/icons/atlas_light.png" "$bundle/assets/icons/"
+cp "$source_bin/assets/logo_icon.png" \
+	"$source_bin/assets/logo_wordmark.png" \
+	"$source_bin/assets/logo_wordmark_dark.png" "$bundle/assets/"
+cp "$source_bin"/assets/appicon/*.png "$bundle/assets/appicon/"
 cp "$repo_root/packaging/linux/chudcode.desktop" "$bundle/packaging/linux/chudcode.desktop"
+cp "$repo_root/LICENSE" "$repo_root/NOTICE" "$bundle/"
 
 for size in 16 24 32 48 64 128 256; do
 	source_icon="$repo_root/assets/appicon/$size.png"
