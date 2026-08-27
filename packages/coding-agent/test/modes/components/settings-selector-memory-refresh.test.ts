@@ -13,6 +13,7 @@ let geometryStub: { restore(): void } | undefined;
 beforeEach(async () => {
 	resetSettingsForTest();
 	await Settings.init({ inMemory: true });
+	Settings.instance.set("settings.tier", "advanced");
 	geometryStub = stubStdoutGeometry(120);
 });
 

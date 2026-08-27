@@ -47,6 +47,8 @@ interface BaseSettingDef {
 	 * enums, submenus, and text inputs.
 	 */
 	condition?: () => boolean;
+	/** Settings read by the visibility predicate; used to prevent Basic controls from depending on hidden controls. */
+	conditionDependencies: readonly SettingPath[];
 }
 
 export interface BooleanSettingDef extends BaseSettingDef {
@@ -65,6 +67,12 @@ export interface SubmenuSettingDef extends BaseSettingDef {
 	options: OptionList;
 	onPreview?: (value: string) => void;
 	onPreviewCancel?: (originalValue: string) => void;
+}
+
+export interface NumberSettingDef extends BaseSettingDef {
+	type: "number";
+	/** Presets shown before the Custom… entry. Empty means open the numeric editor directly. */
+	options: OptionList;
 }
 
 export interface TextInputSettingDef extends BaseSettingDef {
@@ -87,6 +95,7 @@ export type SettingDef =
 	| BooleanSettingDef
 	| EnumSettingDef
 	| SubmenuSettingDef
+	| NumberSettingDef
 	| TextInputSettingDef
 	| ProviderLimitsSettingDef
 	| MultiSelectSettingDef;
@@ -95,66 +104,110 @@ export type SettingDef =
 // Condition Functions
 // ═══════════════════════════════════════════════════════════════════════════
 
-const CONDITIONS: Record<string, () => boolean> = {
-	macOS: () => process.platform === "darwin",
-	hasImageProtocol: () => !!TERMINAL.imageProtocol,
-	advisorEnabled: () => {
-		try {
-			return Settings.instance.get("advisor.enabled") === true;
-		} catch {
-			return false;
-		}
+interface ConditionDefinition {
+	test: () => boolean;
+	dependsOn?: SettingPath;
+}
+
+const CONDITIONS: Record<string, ConditionDefinition> = {
+	advancedSettings: {
+		dependsOn: "settings.tier",
+		test: () => {
+			try {
+				return Settings.instance.get("settings.tier") === "advanced";
+			} catch {
+				return false;
+			}
+		},
 	},
-	hindsightActive: () => {
-		try {
-			return Settings.instance.get("memory.backend") === "hindsight";
-		} catch {
-			return false;
-		}
+	macOS: { test: () => process.platform === "darwin" },
+	hasImageProtocol: { test: () => !!TERMINAL.imageProtocol },
+	advisorEnabled: {
+		dependsOn: "advisor.enabled",
+		test: () => {
+			try {
+				return Settings.instance.get("advisor.enabled") === true;
+			} catch {
+				return false;
+			}
+		},
 	},
-	mnemopiActive: () => {
-		try {
-			return Settings.instance.get("memory.backend") === "mnemopi";
-		} catch {
-			return false;
-		}
+	hindsightActive: {
+		dependsOn: "memory.backend",
+		test: () => {
+			try {
+				return Settings.instance.get("memory.backend") === "hindsight";
+			} catch {
+				return false;
+			}
+		},
 	},
-	autolearnActive: () => {
-		try {
-			return Settings.instance.get("autolearn.enabled") === true;
-		} catch {
-			return false;
-		}
+	mnemopiActive: {
+		dependsOn: "memory.backend",
+		test: () => {
+			try {
+				return Settings.instance.get("memory.backend") === "mnemopi";
+			} catch {
+				return false;
+			}
+		},
 	},
-	autoThinkingActive: () => {
-		try {
-			return Settings.instance.get("defaultThinkingLevel") === "auto";
-		} catch {
-			return false;
-		}
+	autolearnActive: {
+		dependsOn: "autolearn.enabled",
+		test: () => {
+			try {
+				return Settings.instance.get("autolearn.enabled") === true;
+			} catch {
+				return false;
+			}
+		},
 	},
-	usageAwareFallbackEnabled: () => {
-		try {
-			return Settings.instance.get("retry.usageAwareFallback") === true;
-		} catch {
-			return false;
-		}
+	autoThinkingActive: {
+		dependsOn: "defaultThinkingLevel",
+		test: () => {
+			try {
+				return Settings.instance.get("defaultThinkingLevel") === "auto";
+			} catch {
+				return false;
+			}
+		},
 	},
-	planModeEnabled: () => {
-		try {
-			return Settings.instance.get("plan.enabled");
-		} catch {
-			return false;
-		}
+	usageAwareFallbackEnabled: {
+		dependsOn: "retry.usageAwareFallback",
+		test: () => {
+			try {
+				return Settings.instance.get("retry.usageAwareFallback") === true;
+			} catch {
+				return false;
+			}
+		},
 	},
-	unexpectedStopSmart: () => {
-		try {
-			return Settings.instance.get("features.unexpectedStopDetection") === "smart";
-		} catch {
-			return false;
-		}
+	planModeEnabled: {
+		dependsOn: "plan.enabled",
+		test: () => {
+			try {
+				return Settings.instance.get("plan.enabled");
+			} catch {
+				return false;
+			}
+		},
+	},
+	unexpectedStopSmart: {
+		dependsOn: "features.unexpectedStopDetection",
+		test: () => {
+			try {
+				return Settings.instance.get("features.unexpectedStopDetection") === "smart";
+			} catch {
+				return false;
+			}
+		},
 	},
 };
+
+/** Whether every predicate in a composed schema visibility condition is registered. */
+export function isSettingConditionResolvable(name: string): boolean {
+	return name.split("&").every(part => CONDITIONS[part] !== undefined);
+}
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Schema to UI Conversion
@@ -166,12 +219,24 @@ function resolveOptions(ui: AnyUiMetadata): OptionList | "runtime" | undefined {
 	return ui.options;
 }
 
+function resolveCondition(
+	name: string | undefined,
+): { test: (() => boolean) | undefined; dependencies: readonly SettingPath[] } {
+	if (!name) return { test: undefined, dependencies: [] };
+	if (!isSettingConditionResolvable(name)) return { test: undefined, dependencies: [] };
+	const definitions = name.split("&").map(part => CONDITIONS[part]);
+	return {
+		test: () => definitions.every(definition => definition?.test() === true),
+		dependencies: definitions.flatMap(definition => (definition?.dependsOn ? [definition.dependsOn] : [])),
+	};
+}
+
 function pathToSettingDef(path: SettingPath): SettingDef | null {
 	const ui = getUi(path);
 	if (!ui) return null;
 
 	const schemaType = getType(path);
-	const condition = ui.condition ? CONDITIONS[ui.condition] : undefined;
+	const condition = resolveCondition(ui.condition);
 	const base = {
 		path,
 		label: ui.label,
@@ -179,7 +244,8 @@ function pathToSettingDef(path: SettingPath): SettingDef | null {
 		warning: ui.warning,
 		tab: ui.tab,
 		group: ui.group,
-		condition,
+		condition: condition.test,
+		conditionDependencies: condition.dependencies,
 	};
 
 	if (schemaType === "boolean") {
@@ -198,9 +264,7 @@ function pathToSettingDef(path: SettingPath): SettingDef | null {
 	}
 
 	if (schemaType === "number") {
-		// Numbers without options are intentionally hidden from the UI.
-		if (!options || options === "runtime") return null;
-		return { ...base, type: "submenu", options };
+		return { ...base, type: "number", options: !options || options === "runtime" ? [] : options };
 	}
 
 	if (schemaType === "string") {

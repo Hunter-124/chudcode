@@ -57,7 +57,7 @@ import { getPreset } from "./status-line/presets";
  * A submenu component for selecting from a list of options.
  */
 /**
- * Submenu component for free-text string settings.
+ * Submenu component for free-form setting values.
  * Mirrors the ConfigInputSubmenu pattern from plugin-settings.ts.
  */
 class TextInputSubmenu extends Container {
@@ -71,6 +71,7 @@ class TextInputSubmenu extends Container {
 		secret: boolean,
 		private readonly onSubmit: (value: string) => void,
 		private readonly onCancel: () => void,
+		private readonly allowEmpty = true,
 	) {
 		super();
 
@@ -98,7 +99,10 @@ class TextInputSubmenu extends Container {
 		this.addChild(this.#input);
 		this.addChild(new Spacer(1));
 		this.addChild(this.#error);
-		this.addChild(new Text(theme.fg("dim", "  Enter to save · Esc to cancel · Clear field to unset"), 0, 0));
+		const hint = allowEmpty
+			? "  Enter to save · Esc to cancel · Clear field to unset"
+			: "  Enter to save · Esc to cancel";
+		this.addChild(new Text(theme.fg("dim", hint), 0, 0));
 	}
 
 	handleInput(data: string): void {
@@ -221,6 +225,83 @@ class SelectSubmenu extends Container {
 
 	handleInput(data: string): void {
 		this.#selectList.handleInput(data);
+	}
+}
+
+const CUSTOM_NUMBER_VALUE = "__custom_number_value__";
+
+/** Preset picker with an in-place Custom… editor for numeric settings. */
+class NumberInputSubmenu extends Container {
+	#active!: SelectSubmenu | TextInputSubmenu;
+
+	constructor(
+		private readonly label: string,
+		private readonly description: string,
+		private readonly presets: ReadonlyArray<SelectItem>,
+		private readonly currentValue: string,
+		private readonly onSubmit: (value: string) => void,
+		private readonly onCancel: () => void,
+	) {
+		super();
+		if (presets.length > 0) {
+			this.#showPresets();
+		} else {
+			this.#showEditor(onCancel);
+		}
+	}
+
+	#replaceActive(component: SelectSubmenu | TextInputSubmenu): void {
+		if (this.#active) this.removeChild(this.#active);
+		this.#active = component;
+		this.addChild(component);
+	}
+
+	#showPresets(): void {
+		const options = [
+			...this.presets,
+			{ value: CUSTOM_NUMBER_VALUE, label: "Custom…", description: "Type any finite number" },
+		];
+		const selectedValue = this.presets.some(option => option.value === this.currentValue)
+			? this.currentValue
+			: CUSTOM_NUMBER_VALUE;
+		this.#replaceActive(
+			new SelectSubmenu(
+				this.label,
+				this.description,
+				options,
+				selectedValue,
+				value => {
+					if (value === CUSTOM_NUMBER_VALUE) {
+						this.#showEditor(() => this.#showPresets());
+					} else {
+						this.onSubmit(value);
+					}
+				},
+				this.onCancel,
+			),
+		);
+	}
+
+	#showEditor(onCancel: () => void): void {
+		this.#replaceActive(
+			new TextInputSubmenu(
+				`${this.label} — Custom`,
+				this.description,
+				this.currentValue,
+				false,
+				this.onSubmit,
+				onCancel,
+				false,
+			),
+		);
+	}
+
+	routeMouse(event: SgrMouseEvent, line: number, col: number): void {
+		if (this.#active instanceof SelectSubmenu) this.#active.routeMouse(event, line, col);
+	}
+
+	handleInput(data: string): void {
+		this.#active.handleInput(data);
 	}
 }
 
@@ -1006,6 +1087,13 @@ export class SettingsSelectorComponent implements Component {
 					submenu: (cv, done) => this.#createSubmenu(def, cv, done),
 				};
 
+			case "number":
+				return {
+					...item,
+					currentValue: this.#formatNumberValue(def, currentValue),
+					submenu: (_cv, done) => this.#createNumberInput(def, done),
+				};
+
 			case "text":
 				return {
 					...item,
@@ -1200,6 +1288,23 @@ export class SettingsSelectorComponent implements Component {
 		);
 	}
 
+	#createNumberInput(def: SettingDef & { type: "number" }, done: (value?: string) => void): Container {
+		const currentValue = this.#formatTextInputEditValue(def.path, settings.get(def.path));
+		return new NumberInputSubmenu(
+			def.label,
+			def.description,
+			def.options,
+			currentValue,
+			value => {
+				this.#setSettingValue(def.path, value);
+				const stored = settings.get(def.path);
+				this.callbacks.onChange(def.path, stored);
+				done(this.#formatNumberValue(def, stored));
+			},
+			() => done(),
+		);
+	}
+
 	#createProviderLimitsInput(done: (value?: string) => void): Container {
 		return new ProviderLimitsSubmenu(
 			this.context.providers,
@@ -1264,6 +1369,11 @@ export class SettingsSelectorComponent implements Component {
 		return this.#formatTextInputEditValue(def.path, value);
 	}
 
+	#formatNumberValue(def: SettingDef & { type: "number" }, value: unknown): string {
+		const rawValue = String(value ?? "");
+		return def.options.find(option => option.value === rawValue)?.label ?? rawValue;
+	}
+
 	#formatTextInputEditValue(_path: SettingPath, value: unknown): string {
 		if (value === undefined || value === null) return "";
 		if (typeof value === "object") return JSON.stringify(value);
@@ -1294,8 +1404,13 @@ export class SettingsSelectorComponent implements Component {
 				parsed = validateProviderMaxInFlightRequests(parsed);
 			}
 			settings.set(path, parsed as never);
-		} else if (typeof currentValue === "number") {
-			settings.set(path, Number(value) as never);
+		} else if (schemaType === "number") {
+			const input = value.trim();
+			const numericValue = Number(input);
+			if (input.length === 0 || !Number.isFinite(numericValue)) {
+				throw new Error(`${path} must be a finite number`);
+			}
+			settings.set(path, numericValue as never);
 		} else if (typeof currentValue === "boolean") {
 			settings.set(path, (value === "true") as never);
 		} else {
@@ -1348,7 +1463,12 @@ export class SettingsSelectorComponent implements Component {
 			() => this.callbacks.onCancel(),
 			// The selector owns type-to-search and the footer hint; pin the
 			// split sidebar width so the divider never jumps between tabs.
-			{ typeToSearch: false, hint: "", sidebarWidth: settingsSidebarWidth() },
+			{
+				typeToSearch: false,
+				hint: "",
+				sidebarWidth: settingsSidebarWidth(),
+				layout: settings.get("settings.tier") === "basic" ? "flat" : undefined,
+			},
 		);
 	}
 

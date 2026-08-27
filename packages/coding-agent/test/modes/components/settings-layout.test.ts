@@ -8,7 +8,11 @@ import {
 	type SettingTab,
 	TAB_GROUPS,
 } from "@oh-my-pi/pi-coding-agent/config/settings-schema";
-import { getSettingDef, getSettingsForTab } from "@oh-my-pi/pi-coding-agent/modes/components/settings-defs";
+import {
+	getSettingDef,
+	getSettingsForTab,
+	isSettingConditionResolvable,
+} from "@oh-my-pi/pi-coding-agent/modes/components/settings-defs";
 
 interface UiShape {
 	tab: SettingTab;
@@ -19,6 +23,7 @@ describe("settings layout", () => {
 	beforeEach(async () => {
 		resetSettingsForTest();
 		await Settings.init({ inMemory: true });
+		Settings.instance.set("settings.tier", "advanced");
 	});
 
 	afterEach(() => {
@@ -43,7 +48,7 @@ describe("settings layout", () => {
 		const missing = new Set<string>();
 		for (const path in SETTINGS_SCHEMA) {
 			const condition = getUi(path as SettingPath)?.condition;
-			if (condition && !getSettingDef(path as SettingPath)?.condition) {
+			if (condition && !isSettingConditionResolvable(condition)) {
 				missing.add(condition);
 			}
 		}

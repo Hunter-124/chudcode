@@ -48,6 +48,14 @@ omp config reset steeringMode   # restore a key to its schema default
 omp config path                 # print the active agent directory
 ```
 
+### Interactive panel: Basic and Advanced
+
+The `/settings` panel starts at `settings.tier: basic`. Basic keeps roughly the everyday controls visible — model behavior, themes, keybindings, notifications, cache/cost posture, and safety switches — and renders each tab as one flat list with group headings. Choose **Settings Detail → Advanced** on the Interaction tab to reveal the complete expert catalog and its section sidebar. The tier changes only panel visibility; hidden settings keep their configured values and remain available through `omp config`.
+
+Typing anywhere in the panel searches across every tab. Search matches a setting's label, description, and full path, so queries such as `timeout` or `ask.timeout` find **Ask Timeout** without navigating to its group.
+
+Numeric rows keep their preset choices for quick selection and add **Custom…** for any finite numeric value. Numeric settings without presets open the same editor directly. Invalid input such as `NaN` or `Infinity` shows an error and does not replace the stored value.
+
 For users who want the full first-run animation on normal launches, set `startup.showSplash`:
 
 ```bash
@@ -697,7 +705,7 @@ For a custom status line, set `statusLine.preset: custom` and configure `statusL
 | `autoResume`           | boolean | `false`         | Auto-resume the most recent session in the cwd.                                                         |
 | `plan.enabled`         | boolean | `true`          | Enable plan mode.                                                                                       |
 | `plan.defaultOnStartup` | boolean | `false`         | Start each fresh interactive session in plan mode when plan mode is enabled. Print/JSON (`--print`) mode ignores this and prints a note; use `--plan-yolo` for a headless plan flow. |
-| `ask.timeout`          | number  | `0`             | Seconds before an `ask` prompt times out; `0` = no timeout. (Legacy ms values are migrated to seconds.) |
+| `ask.timeout`          | number  | `0`             | Seconds before an `ask` prompt times out; `0` = no timeout. Presets are available in `/settings`, and **Custom…** accepts any finite number such as `45`. (Legacy ms values are migrated to seconds.) |
 | `ask.notify`           | enum    | `on`            | `on`, `off`.                                                                                            |
 
 The `windows` preset changes these bindings. All other actions keep their built-in defaults.
