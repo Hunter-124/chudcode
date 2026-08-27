@@ -126,7 +126,7 @@ if [ "$#" -gt 1 ]; then
 fi
 if [ "$#" -eq 1 ]; then TARGET=$1; bundle_name="${GUI_NAME}-${TARGET}"; archive_name="${bundle_name}.tar.gz"; fi
 [ "$TARGET" = "linux-x64" ] || die "GUI release target is currently linux-x64 only"
-[ -d "$CAD_ROOT/.git" ] || die "CHUDCODE_CAD_ROOT is not a Git checkout: $CAD_ROOT"
+[ -e "$CAD_ROOT/.git" ] || die "CHUDCODE_CAD_ROOT is not a Git checkout: $CAD_ROOT"
 
 cad_head=$(git -C "$CAD_ROOT" rev-parse HEAD)
 if [ -n "$CAD_REF" ]; then

@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Chudcode
+Comment=Chudware's private coding workspace
+Exec=chudcode-gui
+Icon=chudcode
+StartupWMClass=chudcode
+Categories=Development;IDE;
+Terminal=false
