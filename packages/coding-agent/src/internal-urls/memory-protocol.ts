@@ -267,9 +267,22 @@ function renderMnemopiMemory(url: InternalUrl, hit: MnemopiScopedMemoryHit): Int
 		(row.importance != null ? `importance: ${row.importance}\n` : "") +
 		(row.veracity ? `veracity: ${row.veracity}\n` : "") +
 		(row.session_id ? `session_id: ${row.session_id}\n` : "") +
+		(row.history.length > 0 ? `history_events: ${row.history.length}\n` : "") +
 		meta +
 		"---\n\n";
-	const content = `${header}${row.content}`;
+	const history =
+		row.history.length === 0
+			? ""
+			: `\n\n## Mutation history (newest first)\n\n${row.history
+					.map(
+						event =>
+							`- ${event.created_at} · ${event.event} · ${event.memory_store}` +
+							(event.replacement_id ? ` · replacement \`${event.replacement_id}\`` : "") +
+							`\n  - old: \`${event.old_content_sha256 ?? "none"}\` ${JSON.stringify(event.old_content_preview)}` +
+							`\n  - new: \`${event.new_content_sha256 ?? "none"}\` ${JSON.stringify(event.new_content_preview)}`,
+					)
+					.join("\n")}`;
+	const content = `${header}${row.content}${history}`;
 	return {
 		url: url.href,
 		content,

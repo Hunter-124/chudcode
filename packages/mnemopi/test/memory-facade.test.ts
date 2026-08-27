@@ -88,8 +88,16 @@ describe("Mnemopi facade", () => {
 				content: "Dark mode preference updated",
 				importance: 0.95,
 			});
+			expect(memory.history(id)).toEqual([
+				expect.objectContaining({
+					event: "update",
+					old_content_preview: "Dark mode preference",
+					new_content_preview: "Dark mode preference updated",
+				}),
+			]);
 			expect(memory.forget(id)).toBe(true);
 			expect(memory.get(id)).toBeNull();
+			expect(memory.history(id)).toEqual([]);
 		} finally {
 			memory.close();
 		}

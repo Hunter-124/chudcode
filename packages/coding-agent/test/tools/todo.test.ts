@@ -102,6 +102,61 @@ describe("TodoTool auto-start behavior", () => {
 	});
 });
 
+describe("TodoTool project context curation", () => {
+	it("refreshes the Mnemopi digest after a successful state change", async () => {
+		const session = createSession();
+		const refreshes: TodoPhase[][] = [];
+		session.getMnemopiSessionState = () =>
+			({
+				refreshProjectDigest: async (phases: TodoPhase[]) => {
+					refreshes.push(phases);
+					return {
+						status: "created",
+						fingerprint: "digest-sha",
+						memoryId: "digest-id",
+						activeCount: 1,
+						completedCount: 0,
+						abandonedCount: 0,
+					};
+				},
+			}) as never;
+		const tool = new TodoTool(session);
+
+		const result = await tool.execute("call-project-context", {
+			op: "init",
+			list: [{ phase: "Context", items: ["curate project"] }],
+		});
+
+		expect(refreshes).toHaveLength(1);
+		expect(refreshes[0]?.[0]?.tasks[0]).toEqual({ content: "curate project", status: "in_progress" });
+		expect(result.details?.projectContext).toEqual({
+			status: "created",
+			fingerprint: "digest-sha",
+			memoryId: "digest-id",
+			activeCount: 1,
+			completedCount: 0,
+			abandonedCount: 0,
+		});
+	});
+
+	it("does not refresh the digest for read-only views", async () => {
+		const session = createSession([{ name: "Context", tasks: [{ content: "curate project", status: "pending" }] }]);
+		let refreshes = 0;
+		session.getMnemopiSessionState = () =>
+			({
+				refreshProjectDigest: async () => {
+					refreshes++;
+					return { status: "updated" };
+				},
+			}) as never;
+
+		const result = await new TodoTool(session).execute("call-project-context-view", { op: "view" });
+
+		expect(refreshes).toBe(0);
+		expect(result.details?.projectContext).toBeUndefined();
+	});
+});
+
 describe("nextActionableTask", () => {
 	it("returns the in-progress task before the first pending task across phases", () => {
 		const task = nextActionableTask([

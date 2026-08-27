@@ -136,6 +136,8 @@ export const mnemopiBackend: MemoryBackend = {
 		const state = getMnemopiSessionState(session);
 		const primary = state?.aliasOf ?? state;
 		const parts = [STATIC_INSTRUCTIONS];
+		const digest = primary?.getProjectDigestContext();
+		if (digest) parts.push(digest);
 		if (primary?.lastRecallSnippet) parts.push(primary.lastRecallSnippet);
 		const rendered = parts.join("\n\n").trim();
 		if (!rendered) return undefined;
@@ -312,7 +314,13 @@ export const mnemopiBackend: MemoryBackend = {
 
 	async preCompactionContext(messages, _settings, session): Promise<string | undefined> {
 		const state = getMnemopiSessionState(session);
-		return await state?.recallForCompaction(messages);
+		const primary = state?.aliasOf ?? state;
+		if (!primary) return undefined;
+		await primary.refreshProjectDigest(primary.session.getTodoPhases?.() ?? []);
+		const digest = primary.getProjectDigestContext();
+		const recalled = await primary.recallForCompaction(messages);
+		const context = [digest, recalled].filter((value): value is string => Boolean(value)).join("\n\n");
+		return context || undefined;
 	},
 };
 

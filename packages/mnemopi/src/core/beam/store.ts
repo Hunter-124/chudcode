@@ -1,4 +1,5 @@
 import type { Database, SQLQueryBindings } from "bun:sqlite";
+import { createHash } from "node:crypto";
 import { logger } from "@oh-my-pi/pi-utils";
 import { transaction } from "../../db";
 import { toUtcIso } from "../../util/datetime";
@@ -14,6 +15,7 @@ import type {
 	BeamMemoryState,
 	BeamStats,
 	ImportStats,
+	MemoryHistoryRow,
 	Metadata,
 	RememberBatchItem,
 	RememberBatchOptions,
@@ -46,6 +48,75 @@ type StoreRememberBatchOptions = RememberBatchOptions & {
 	forceVeracity?: boolean;
 	force_veracity?: boolean;
 };
+
+interface MemoryMutationRow {
+	content: string;
+	importance: number | null;
+}
+
+const MEMORY_HISTORY_PREVIEW_CHARS = 512;
+
+function memoryHistoryPreview(content: string | null): string | null {
+	return content === null ? null : content.slice(0, MEMORY_HISTORY_PREVIEW_CHARS);
+}
+
+function memoryHistoryDigest(content: string | null): string | null {
+	return content === null ? null : createHash("sha256").update(content).digest("hex");
+}
+
+function appendMemoryHistory(
+	beam: BeamMemoryState,
+	input: {
+		memoryId: string;
+		memoryStore: "working" | "episodic";
+		event: "update" | "invalidate";
+		oldContent: string | null;
+		newContent: string | null;
+		oldImportance: number | null;
+		newImportance: number | null;
+		replacementId?: string | null;
+	},
+): void {
+	const oldDigest = memoryHistoryDigest(input.oldContent);
+	const newDigest = memoryHistoryDigest(input.newContent);
+	const createdAt = toUtcIso();
+	const eventId = `mh_${generateId(
+		JSON.stringify([
+			input.memoryId,
+			input.memoryStore,
+			input.event,
+			oldDigest,
+			newDigest,
+			input.replacementId ?? null,
+			createdAt,
+		]),
+		new Date(createdAt),
+	)}`;
+	beam.db.run(
+		`INSERT INTO memory_history
+		 (event_id, memory_id, memory_store, event, old_content_preview, new_content_preview,
+		  old_content_sha256, new_content_sha256, old_importance, new_importance,
+		  replacement_id, session_id, actor_id, actor_type, created_at)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		[
+			eventId,
+			input.memoryId,
+			input.memoryStore,
+			input.event,
+			memoryHistoryPreview(input.oldContent),
+			memoryHistoryPreview(input.newContent),
+			oldDigest,
+			newDigest,
+			input.oldImportance,
+			input.newImportance,
+			input.replacementId ?? null,
+			beam.sessionId,
+			beam.authorId,
+			beam.authorType,
+			createdAt,
+		],
+	);
+}
 
 const CANONICAL_VERACITY: Record<string, true> = {
 	true: true,
@@ -205,6 +276,8 @@ function purgeWorkingMemoryArtifacts(db: BeamMemoryState["db"], ids: readonly st
 
 	db.run(`DELETE FROM annotations WHERE memory_id IN (${placeholders})`, [...ids]);
 	db.run(`DELETE FROM memory_embeddings WHERE memory_id IN (${placeholders})`, [...ids]);
+	db.run(`DELETE FROM memory_history WHERE memory_id IN (${placeholders})`, [...ids]);
+	db.run(`DELETE FROM memory_validations WHERE memory_id IN (${placeholders})`, [...ids]);
 	for (const table of MEMORIA_SOURCE_TABLES) {
 		db.run(`DELETE FROM ${table} WHERE source_memory_id IN (${placeholders})`, [...ids]);
 	}
@@ -643,24 +716,67 @@ export function getContext(beam: BeamMemoryState, limit = 10): Row[] {
 
 export function invalidate(beam: BeamMemoryState, memoryId: string, replacementId: string | null = null): boolean {
 	const now = toUtcIso();
-	const working = beam.db.run(
-		`
-			UPDATE working_memory
-			SET valid_until = ?, superseded_by = ?
-			WHERE id = ? AND (session_id = ? OR scope = 'global')
-		`,
-		[now, replacementId, memoryId, beam.sessionId],
-	);
-	if (working.changes > 0) return true;
-	const episodic = beam.db.run(
-		`
-			UPDATE episodic_memory
-			SET valid_until = ?, superseded_by = ?
-			WHERE id = ? AND (session_id = ? OR scope = 'global')
-		`,
-		[now, replacementId, memoryId, beam.sessionId],
-	);
-	return episodic.changes > 0;
+	let invalidated = false;
+	transaction(beam.db, () => {
+		const working = beam.db
+			.query(
+				`SELECT content, importance
+				 FROM working_memory
+				 WHERE id = ? AND (session_id = ? OR scope = 'global')`,
+			)
+			.get(memoryId, beam.sessionId) as MemoryMutationRow | null;
+		if (working) {
+			const result = beam.db.run(
+				`UPDATE working_memory
+				 SET valid_until = ?, superseded_by = ?
+				 WHERE id = ? AND (session_id = ? OR scope = 'global')`,
+				[now, replacementId, memoryId, beam.sessionId],
+			);
+			if (result.changes > 0) {
+				appendMemoryHistory(beam, {
+					memoryId,
+					memoryStore: "working",
+					event: "invalidate",
+					oldContent: working.content,
+					newContent: working.content,
+					oldImportance: working.importance,
+					newImportance: working.importance,
+					replacementId,
+				});
+				invalidated = true;
+			}
+			return;
+		}
+		const episodic = beam.db
+			.query(
+				`SELECT content, importance
+				 FROM episodic_memory
+				 WHERE id = ? AND (session_id = ? OR scope = 'global')`,
+			)
+			.get(memoryId, beam.sessionId) as MemoryMutationRow | null;
+		if (!episodic) return;
+		const result = beam.db.run(
+			`UPDATE episodic_memory
+			 SET valid_until = ?, superseded_by = ?
+			 WHERE id = ? AND (session_id = ? OR scope = 'global')`,
+			[now, replacementId, memoryId, beam.sessionId],
+		);
+		if (result.changes > 0) {
+			appendMemoryHistory(beam, {
+				memoryId,
+				memoryStore: "episodic",
+				event: "invalidate",
+				oldContent: episodic.content,
+				newContent: episodic.content,
+				oldImportance: episodic.importance,
+				newImportance: episodic.importance,
+				replacementId,
+			});
+			invalidated = true;
+		}
+	});
+	if (invalidated) invalidateCaches(beam);
+	return invalidated;
 }
 
 export function getWorkingStats(
@@ -716,16 +832,50 @@ export function updateWorking(
 		params.push(importance);
 	}
 	if (assignments.length === 0) return false;
-	params.push(memoryId, beam.sessionId);
-	const result = beam.db.run(
-		`UPDATE working_memory SET ${assignments.join(", ")} WHERE id = ? AND session_id = ?`,
-		params,
-	);
-	if (result.changes > 0) {
+	let updated = false;
+	transaction(beam.db, () => {
+		const previous = beam.db
+			.query("SELECT content, importance FROM working_memory WHERE id = ? AND session_id = ?")
+			.get(memoryId, beam.sessionId) as MemoryMutationRow | null;
+		if (!previous) return;
+		const result = beam.db.run(
+			`UPDATE working_memory SET ${assignments.join(", ")} WHERE id = ? AND session_id = ?`,
+			[...params, memoryId, beam.sessionId],
+		);
+		if (result.changes === 0) return;
+		appendMemoryHistory(beam, {
+			memoryId,
+			memoryStore: "working",
+			event: "update",
+			oldContent: previous.content,
+			newContent: content ?? previous.content,
+			oldImportance: previous.importance,
+			newImportance: importance ?? previous.importance,
+		});
+		updated = true;
+	});
+	if (updated) {
 		invalidateCaches(beam);
 		if (content !== null) scheduleEmbedding(beam, [{ memoryId, content }]);
 	}
-	return result.changes > 0;
+	return updated;
+}
+
+export function getMemoryHistory(beam: BeamMemoryState, memoryId: string, limit = 100): MemoryHistoryRow[] {
+	const boundedLimit = Math.max(1, Math.min(1_000, Math.floor(limit)));
+	return beam.db
+		.query(
+			`SELECT history_id, event_id, memory_id, memory_store, event,
+			        old_content_preview, new_content_preview,
+			        old_content_sha256, new_content_sha256,
+			        old_importance, new_importance, replacement_id,
+			        session_id, actor_id, actor_type, created_at
+			 FROM memory_history
+			 WHERE memory_id = ?
+			 ORDER BY history_id DESC
+			 LIMIT ?`,
+		)
+		.all(memoryId, boundedLimit) as MemoryHistoryRow[];
 }
 
 export function get(beam: BeamMemoryState, memoryId: string): Row | null {
@@ -861,6 +1011,15 @@ export function exportToDict(beam: BeamMemoryState): Record<string, unknown> {
 		FROM scratchpad
 		ORDER BY session_id, updated_at
 	`);
+	using historyStatement = db.prepare(`
+		SELECT event_id, memory_id, memory_store, event,
+		       old_content_preview, new_content_preview,
+		       old_content_sha256, new_content_sha256,
+		       old_importance, new_importance, replacement_id,
+		       session_id, actor_id, actor_type, created_at
+		FROM memory_history
+		ORDER BY history_id
+	`);
 	using consolidationStatement = db.prepare(`
 		SELECT id, session_id, items_consolidated, summary_preview, created_at
 		FROM consolidation_log
@@ -877,6 +1036,7 @@ export function exportToDict(beam: BeamMemoryState): Record<string, unknown> {
 		episodic_memory: episodicStatement.all(),
 		episodic_embeddings: [],
 		scratchpad: scratchpadStatement.all(),
+		memory_history: historyStatement.all(),
 		consolidation_log: consolidationStatement.all(),
 	};
 }
@@ -886,6 +1046,7 @@ export function importFromDict(beam: BeamMemoryState, data: Record<string, unkno
 		working_memory: { inserted: 0, skipped: 0, overwritten: 0 },
 		episodic_memory: { inserted: 0, skipped: 0, overwritten: 0, embeddings_inserted: 0 },
 		scratchpad: { inserted: 0, updated: 0 },
+		memory_history: { inserted: 0, skipped: 0 },
 		consolidation_log: { inserted: 0 },
 	} satisfies ImportStats;
 	const db: Database = beam.db;
@@ -1062,6 +1223,42 @@ export function importFromDict(beam: BeamMemoryState, data: Record<string, unkno
 				]);
 				stats.scratchpad.inserted++;
 			}
+		}
+
+		for (const raw of Array.isArray(data.memory_history) ? data.memory_history : []) {
+			const item = jsonObject(raw);
+			const eventId = String(item.event_id ?? "");
+			const memoryId = String(item.memory_id ?? "");
+			const event = item.event === "update" || item.event === "invalidate" ? item.event : null;
+			const memoryStore =
+				item.memory_store === "working" || item.memory_store === "episodic" ? item.memory_store : null;
+			if (!eventId || !memoryId || !event || !memoryStore) continue;
+			const result = db.run(
+				`INSERT OR IGNORE INTO memory_history
+				 (event_id, memory_id, memory_store, event, old_content_preview, new_content_preview,
+				  old_content_sha256, new_content_sha256, old_importance, new_importance,
+				  replacement_id, session_id, actor_id, actor_type, created_at)
+				 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+				[
+					eventId,
+					memoryId,
+					memoryStore,
+					event,
+					sqlBinding(item.old_content_preview, null),
+					sqlBinding(item.new_content_preview, null),
+					sqlBinding(item.old_content_sha256, null),
+					sqlBinding(item.new_content_sha256, null),
+					sqlBinding(item.old_importance, null),
+					sqlBinding(item.new_importance, null),
+					sqlBinding(item.replacement_id, null),
+					sqlBinding(item.session_id, "default"),
+					sqlBinding(item.actor_id, null),
+					sqlBinding(item.actor_type, null),
+					sqlBinding(item.created_at, null),
+				],
+			);
+			if (result.changes > 0) stats.memory_history.inserted++;
+			else stats.memory_history.skipped++;
 		}
 
 		for (const raw of Array.isArray(data.consolidation_log) ? data.consolidation_log : []) {

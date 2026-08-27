@@ -273,6 +273,25 @@ export type RecallResult = RecallRowFields & {
 	metadata?: Metadata;
 };
 
+export interface MemoryHistoryRow {
+	history_id: number;
+	event_id: string;
+	memory_id: string;
+	memory_store: "working" | "episodic";
+	event: "update" | "invalidate";
+	old_content_preview: string | null;
+	new_content_preview: string | null;
+	old_content_sha256: string | null;
+	new_content_sha256: string | null;
+	old_importance: number | null;
+	new_importance: number | null;
+	replacement_id: string | null;
+	session_id: string;
+	actor_id: string | null;
+	actor_type: string | null;
+	created_at: string;
+}
+
 export interface BeamStats {
 	count: number;
 	by_source?: Record<string, number>;
@@ -299,5 +318,6 @@ export interface ImportStats {
 	working_memory: Record<string, number>;
 	episodic_memory: Record<string, number>;
 	scratchpad: Record<string, number>;
+	memory_history: Record<string, number>;
 	consolidation_log: Record<string, number>;
 }

@@ -60,6 +60,14 @@ export interface TodoToolDetails {
 	phases: TodoPhase[];
 	storage: "session" | "memory";
 	completedTasks?: TodoCompletionTransition[];
+	projectContext?: {
+		status: "created" | "updated" | "unchanged" | "review_required" | "skipped" | "failed";
+		fingerprint?: string;
+		memoryId?: string;
+		activeCount?: number;
+		completedCount?: number;
+		abandonedCount?: number;
+	};
 }
 
 // =============================================================================
@@ -887,9 +895,16 @@ export class TodoTool implements AgentTool<typeof todoSchema, TodoToolDetails> {
 		const failed = errors.length > 0;
 		const effective = failed ? previousPhases : updated;
 		const completedTasks = readOnly || failed ? [] : getCompletionTransitions(previousPhases, updated);
-		if (!readOnly && !failed) this.session.setTodoPhases?.(updated);
+		let projectContext: TodoToolDetails["projectContext"];
+		if (!readOnly && !failed) {
+			this.session.setTodoPhases?.(updated);
+			projectContext = await this.session
+				.getMnemopiSessionState?.()
+				?.refreshProjectDigest(updated, { refreshPrompt: true });
+		}
 		const details: TodoToolDetails = { op, phases: effective, storage };
 		if (completedTasks.length > 0) details.completedTasks = completedTasks;
+		if (projectContext) details.projectContext = projectContext;
 
 		return {
 			content: [{ type: "text", text: formatSummary(effective, errors, readOnly) }],

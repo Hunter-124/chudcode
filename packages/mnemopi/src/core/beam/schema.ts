@@ -343,6 +343,31 @@ export function initBeam(db: Database): void {
 	]);
 
 	db.run(`
+		CREATE TABLE IF NOT EXISTS memory_history (
+			history_id INTEGER PRIMARY KEY AUTOINCREMENT,
+			event_id TEXT NOT NULL UNIQUE,
+			memory_id TEXT NOT NULL,
+			memory_store TEXT NOT NULL,
+			event TEXT NOT NULL CHECK (event IN ('update', 'invalidate')),
+			old_content_preview TEXT,
+			new_content_preview TEXT,
+			old_content_sha256 TEXT,
+			new_content_sha256 TEXT,
+			old_importance REAL,
+			new_importance REAL,
+			replacement_id TEXT,
+			session_id TEXT NOT NULL,
+			actor_id TEXT,
+			actor_type TEXT,
+			created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+		)
+	`);
+	runAll(db, [
+		"CREATE INDEX IF NOT EXISTS idx_memory_history_memory ON memory_history(memory_id, history_id)",
+		"CREATE INDEX IF NOT EXISTS idx_memory_history_created ON memory_history(created_at)",
+	]);
+
+	db.run(`
 		CREATE TABLE IF NOT EXISTS facts (
 			fact_id TEXT PRIMARY KEY,
 			session_id TEXT NOT NULL,

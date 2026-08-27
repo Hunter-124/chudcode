@@ -473,6 +473,7 @@ describe("MemoryProtocolHandler — mnemopi bridge (issue #4443)", () => {
 			const full = `${head}${body}${tail}`;
 			const id = state.rememberInScope(full, { importance: 0.9 });
 			expect(id).toBeTruthy();
+			expect(state.editScopedMemory("update", id as string, { content: `${full} Updated.` }).status).toBe("updated");
 
 			const router = InternalUrlRouter.instance();
 			const resource = await router.resolve(`memory://${id}`);
@@ -482,6 +483,9 @@ describe("MemoryProtocolHandler — mnemopi bridge (issue #4443)", () => {
 			expect(resource.content).toContain(`id: ${id}`);
 			expect(resource.content).toContain("bank: test-bank");
 			expect(resource.content).toContain("store: working");
+			expect(resource.content).toContain("history_events: 1");
+			expect(resource.content).toContain("## Mutation history (newest first)");
+			expect(resource.content).toContain("· update · working");
 		});
 	});
 

@@ -4,6 +4,7 @@ import type * as MnemopiNs from "@oh-my-pi/pi-mnemopi";
 import type { Mnemopi, RecallResult } from "@oh-my-pi/pi-mnemopi";
 import type * as MnemopiCoreNs from "@oh-my-pi/pi-mnemopi/core";
 import type { LocalModelInitializer } from "@oh-my-pi/pi-mnemopi/core";
+import type { MemoryHistoryRow } from "@oh-my-pi/pi-mnemopi/core/beam/types";
 import { logger, toError } from "@oh-my-pi/pi-utils";
 import {
 	composeRecallQuery,
@@ -16,8 +17,17 @@ import {
 } from "../hindsight/content";
 import { extractMessages } from "../hindsight/transcript";
 import type { AgentSession, AgentSessionEvent } from "../session/agent-session";
+import type { TodoPhase } from "../tools/todo";
 import type { MnemopiBackendConfig, MnemopiScoping } from "./config";
 import { mnemopiEmbedClient } from "./embed-client";
+import {
+	buildProjectDigest,
+	decideProjectDigestMutation,
+	PROJECT_DIGEST_MEMORY_TYPE,
+	PROJECT_DIGEST_SOURCE,
+	type ProjectDigestSnapshot,
+	renderProjectDigestContext,
+} from "./project-digest";
 
 // The mnemopi package pulls the embeddings stack; keep it off the CLI startup
 // module graph by loading it lazily at the async boundaries that need it.
@@ -145,6 +155,7 @@ export interface MnemopiScopedMemoryHit {
 	row: {
 		id: string;
 		content: string;
+		history: MemoryHistoryRow[];
 		source: string | null;
 		timestamp: string | null;
 		importance: number | null;
@@ -162,6 +173,23 @@ interface MnemopiRetentionCursorRow {
 	content: string;
 	sourceId: string | null;
 	retainedThroughUserTurn: number | null;
+}
+
+interface ProjectDigestDbRow {
+	id: string;
+	content: string;
+	source: string | null;
+	memoryType: string | null;
+	projectKey: string | null;
+}
+
+export interface ProjectDigestRefreshResult {
+	status: "created" | "updated" | "unchanged" | "review_required" | "skipped" | "failed";
+	fingerprint?: string;
+	memoryId?: string;
+	activeCount?: number;
+	completedCount?: number;
+	abandonedCount?: number;
 }
 
 function countRetainedUserTurns(transcript: string): number {
@@ -242,6 +270,7 @@ export class MnemopiSessionState {
 	lastRecallSnippet?: string;
 	unsubscribe?: () => void;
 	#retentionCursorLoaded = false;
+	#projectDigestSnapshot: ProjectDigestSnapshot | undefined;
 
 	constructor(options: MnemopiSessionStateOptions) {
 		this.sessionId = options.sessionId;
@@ -315,6 +344,7 @@ export class MnemopiSessionState {
 					session_id: typeof raw.session_id === "string" ? raw.session_id : null,
 					memory_type: typeof raw.memory_type === "string" ? raw.memory_type : null,
 					metadata: raw.metadata ?? raw.metadata_json ?? null,
+					history: target.memory.history(id, 20),
 				},
 			};
 		}
@@ -367,6 +397,106 @@ export class MnemopiSessionState {
 			ineligible ??= { status: "not_found", ...resultContext };
 		}
 		return ineligible ?? { status: "not_found" };
+	}
+
+	getProjectDigestContext(): string | undefined {
+		return this.#projectDigestSnapshot ? renderProjectDigestContext(this.#projectDigestSnapshot) : undefined;
+	}
+
+	async refreshProjectDigest(
+		phases: readonly TodoPhase[],
+		options: { refreshPrompt?: boolean } = {},
+	): Promise<ProjectDigestRefreshResult> {
+		if (this.aliasOf) return { status: "skipped" };
+		const snapshot = buildProjectDigest({
+			cwd: this.session.sessionManager.getCwd(),
+			phases,
+			planReferencePath: this.session.getPlanReferencePath?.(),
+		});
+		this.#projectDigestSnapshot = snapshot;
+		try {
+			const row = this.memory.beam.db
+				.prepare<ProjectDigestDbRow, [string]>(`
+					SELECT
+						id,
+						content,
+						source,
+						memory_type AS memoryType,
+						json_extract(metadata_json, '$.project_key') AS projectKey
+					FROM working_memory
+					WHERE json_extract(metadata_json, '$.project_key') = ?
+					  AND superseded_by IS NULL
+					ORDER BY rowid DESC
+					LIMIT 1
+				`)
+				.get(snapshot.projectKey);
+			const mutation = decideProjectDigestMutation(row ?? null, snapshot);
+			let status: ProjectDigestRefreshResult["status"];
+			let memoryId: string | undefined;
+			if (mutation.action === "create") {
+				memoryId = this.rememberScoped(snapshot.content, {
+					source: PROJECT_DIGEST_SOURCE,
+					importance: 0.9,
+					metadata: {
+						project_key: snapshot.projectKey,
+						cwd: snapshot.cwd,
+						plan_reference_path: snapshot.planReferencePath ?? null,
+						digest_version: 1,
+					},
+					scope: "bank",
+					extract: false,
+					extractEntities: false,
+					veracity: "tool",
+					memoryType: PROJECT_DIGEST_MEMORY_TYPE,
+				});
+				status = memoryId ? "created" : "failed";
+			} else if (mutation.action === "update") {
+				memoryId = mutation.id;
+				status =
+					this.editScopedMemory("update", mutation.id, {
+						content: snapshot.content,
+						importance: 0.9,
+					}).status === "updated"
+						? "updated"
+						: "failed";
+			} else if (mutation.action === "review") {
+				memoryId = mutation.id;
+				status = "review_required";
+				logger.warn("Mnemopi: project digest conflicts with an unmanaged memory row; leaving it untouched.", {
+					memoryId,
+					projectKey: snapshot.projectKey,
+				});
+			} else {
+				memoryId = mutation.id;
+				status = "unchanged";
+			}
+			if (options.refreshPrompt && (status === "created" || status === "updated")) {
+				try {
+					await this.session.refreshBaseSystemPrompt?.();
+				} catch (error) {
+					if (this.config.debug) {
+						logger.debug("Mnemopi: prompt refresh after project digest update failed", { error: String(error) });
+					}
+				}
+			}
+			return {
+				status,
+				fingerprint: snapshot.fingerprint,
+				...(memoryId ? { memoryId } : {}),
+				activeCount: snapshot.activeCount,
+				completedCount: snapshot.completedCount,
+				abandonedCount: snapshot.abandonedCount,
+			};
+		} catch (error) {
+			this.#logLifecycleFailure("project digest refresh", [this.scoped.retain.bank], error);
+			return {
+				status: "failed",
+				fingerprint: snapshot.fingerprint,
+				activeCount: snapshot.activeCount,
+				completedCount: snapshot.completedCount,
+				abandonedCount: snapshot.abandonedCount,
+			};
+		}
 	}
 
 	formatScopedRecallWithIds(results: readonly RecallResult[]): string {
@@ -470,18 +600,20 @@ export class MnemopiSessionState {
 	}
 
 	async beforeAgentStartPrompt(promptText: string): Promise<string | undefined> {
-		if (!this.config.autoRecall || this.hasRecalledForFirstTurn) return undefined;
+		await this.refreshProjectDigest(this.session.getTodoPhases?.() ?? []);
+		const digest = this.getProjectDigestContext();
+		if (!this.config.autoRecall || this.hasRecalledForFirstTurn) return digest;
 		const latestPrompt = promptText.trim();
-		if (!latestPrompt) return undefined;
+		if (!latestPrompt) return digest;
 		const history = extractMessages(this.session.sessionManager);
 		const queryMessages = [...history, { role: "user" as const, content: latestPrompt }];
 		const query = composeRecallQuery(latestPrompt, queryMessages, this.config.recallContextTurns);
 		const truncated = truncateRecallQuery(query, latestPrompt, this.config.recallMaxQueryChars);
 		const context = await this.recallForContext(truncated);
 		this.hasRecalledForFirstTurn = true;
-		if (!context) return undefined;
+		if (!context) return digest;
 		this.lastRecallSnippet = context;
-		return context;
+		return [digest, context].filter((value): value is string => Boolean(value)).join("\n\n");
 	}
 
 	async recallForCompaction(messages: AgentMessage[]): Promise<string | undefined> {

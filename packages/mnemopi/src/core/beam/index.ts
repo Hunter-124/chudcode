@@ -27,6 +27,7 @@ import {
 	get,
 	getContext,
 	getGlobalWorkingStats,
+	getMemoryHistory,
 	getWorkingStats,
 	importFromDict,
 	invalidate,
@@ -46,6 +47,7 @@ import type {
 	BeamStats,
 	ImportStats,
 	MemoriaRetrieveResult,
+	MemoryHistoryRow,
 	Metadata,
 	RecallEnhancedOptions,
 	RecallOptions,
@@ -235,6 +237,10 @@ export class BeamMemory implements BeamMemoryState {
 
 	updateWorking(memoryId: string, content: string | null = null, importance: number | null = null): boolean {
 		return updateWorking(this, memoryId, content, importance);
+	}
+
+	history(memoryId: string, limit = 100): MemoryHistoryRow[] {
+		return getMemoryHistory(this, memoryId, limit);
 	}
 
 	get(memoryId: string): unknown | null {

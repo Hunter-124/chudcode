@@ -8,7 +8,7 @@ import { AnnotationStore } from "./annotations";
 import { BankManager } from "./banks";
 import { BeamMemory, initBeam } from "./beam/index";
 import { reconcileEmbeddingModel } from "./beam/store";
-import type { RecallEnhancedOptions, RecallOptions, RecallResult, SleepResult } from "./beam/types";
+import type { MemoryHistoryRow, RecallEnhancedOptions, RecallOptions, RecallResult, SleepResult } from "./beam/types";
 import { EpisodicGraph } from "./episodic-graph";
 import {
 	isPiAiModel,
@@ -509,6 +509,10 @@ export class Mnemopi {
 		return this.#withRuntimeOptions(() => this.beam.get(memoryId));
 	}
 
+	history(memoryId: string, limit = 100): MemoryHistoryRow[] {
+		return this.#withRuntimeOptions(() => this.beam.history(memoryId, limit));
+	}
+
 	forget(memoryId: string): boolean {
 		return this.#withRuntimeOptions(() => this.beam.forgetWorking(memoryId));
 	}
@@ -605,6 +609,10 @@ export function getStats(bank: string | null = null): MemoryFacadeStats {
 
 export function get(memoryId: string, bank: string | null = null): unknown | null {
 	return defaultFor(bank).get(memoryId);
+}
+
+export function history(memoryId: string, limit = 100, bank: string | null = null): MemoryHistoryRow[] {
+	return defaultFor(bank).history(memoryId, limit);
 }
 
 export function forget(memoryId: string, bank: string | null = null): boolean {

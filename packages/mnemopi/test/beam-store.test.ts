@@ -7,6 +7,7 @@ import {
 	get,
 	getContext,
 	getGlobalWorkingStats,
+	getMemoryHistory,
 	getWorkingStats,
 	importFromDict,
 	invalidate,
@@ -146,6 +147,19 @@ describe("beam store free functions", () => {
 
 		expect(updateWorking(beam, id, "New wording", 0.6)).toBe(true);
 		expect(get(beam, id)?.content).toBe("New wording");
+		expect(getMemoryHistory(beam, id)).toEqual([
+			expect.objectContaining({
+				memory_id: id,
+				memory_store: "working",
+				event: "update",
+				old_content_preview: "Old wording",
+				new_content_preview: "New wording",
+				old_importance: 0.2,
+				new_importance: 0.6,
+				actor_id: "author-a",
+				actor_type: "user",
+			}),
+		]);
 		expect(
 			(
 				beam.db.prepare("SELECT id FROM fts_working WHERE fts_working MATCH ?").all("New") as {
@@ -157,12 +171,31 @@ describe("beam store free functions", () => {
 		expect(getWorkingStats(beam, "author-a", "user", "channel-a")).toMatchObject({ total: 1 });
 		expect(invalidate(beam, id, "replacement-1")).toBe(true);
 		expect(getContext(beam, 10).some(row => row.id === id)).toBe(false);
+		expect(getMemoryHistory(beam, id).map(row => row.event)).toEqual(["invalidate", "update"]);
+		expect(getMemoryHistory(beam, id)[0]).toMatchObject({ replacement_id: "replacement-1" });
 		expect(forgetWorking(beam, id)).toBe(true);
 		expect(get(beam, id)).toBeNull();
 		expect(beam.db.prepare("SELECT COUNT(*) AS count FROM annotations WHERE memory_id = ?").get(id)).toEqual({
 			count: 0,
 		});
+		expect(getMemoryHistory(beam, id)).toEqual([]);
 		expect(forgetWorking(beam, id)).toBe(false);
+	});
+
+	it("bounds mutation-history content while retaining full-content digests", () => {
+		const beam = makeState();
+		const oldContent = "a".repeat(700);
+		const newContent = "b".repeat(700);
+		const id = remember(beam, oldContent);
+
+		expect(updateWorking(beam, id, newContent)).toBe(true);
+
+		const [history] = getMemoryHistory(beam, id);
+		expect(history?.old_content_preview).toHaveLength(512);
+		expect(history?.new_content_preview).toHaveLength(512);
+		expect(history?.old_content_sha256).toHaveLength(64);
+		expect(history?.new_content_sha256).toHaveLength(64);
+		expect(history?.old_content_sha256).not.toBe(history?.new_content_sha256);
 	});
 
 	it("keeps scratchpad scoped to the active session", () => {
@@ -178,9 +211,10 @@ describe("beam store free functions", () => {
 		expect(scratchpadRead(second).map(row => row.content)).toEqual(["other session note"]);
 	});
 
-	it("exports and imports working memory, episodic memory, scratchpad, and consolidation log idempotently", () => {
+	it("exports and imports memory mutation history with project state idempotently", () => {
 		const source = makeState("source-session");
 		const id = remember(source, "Exported working memory", { veracity: "tool", importance: 0.75 });
+		expect(updateWorking(source, id, "Exported working memory v2")).toBe(true);
 		scratchpadWrite(source, "portable scratch");
 		source.db
 			.prepare(
@@ -196,25 +230,30 @@ describe("beam store free functions", () => {
 		const exported = exportToDict(source);
 		expect(exported.working_memory as unknown[]).toHaveLength(1);
 		expect(exported.scratchpad as unknown[]).toHaveLength(1);
+		expect(exported.memory_history as unknown[]).toHaveLength(1);
 
 		const dest = makeState("dest-session");
 		expect(importFromDict(dest, exported)).toEqual({
 			working_memory: { inserted: 1, skipped: 0, overwritten: 0 },
 			episodic_memory: { inserted: 1, skipped: 0, overwritten: 0, embeddings_inserted: 0 },
 			scratchpad: { inserted: 1, updated: 0 },
+			memory_history: { inserted: 1, skipped: 0 },
 			consolidation_log: { inserted: 1 },
 		});
 		expect(importFromDict(dest, exported)).toMatchObject({
 			working_memory: { inserted: 0, skipped: 1, overwritten: 0 },
 			episodic_memory: { inserted: 0, skipped: 1, overwritten: 0 },
 			scratchpad: { inserted: 0, updated: 1 },
+			memory_history: { inserted: 0, skipped: 1 },
 			consolidation_log: { inserted: 1 },
 		});
 		expect(importFromDict(dest, exported, true)).toMatchObject({
 			working_memory: { inserted: 0, skipped: 0, overwritten: 1 },
 			episodic_memory: { inserted: 0, skipped: 0, overwritten: 1 },
+			memory_history: { inserted: 1, skipped: 0 },
 		});
-		expect(get(dest, id)?.content).toBe("Exported working memory");
+		expect(get(dest, id)?.content).toBe("Exported working memory v2");
+		expect(getMemoryHistory(dest, id)).toHaveLength(1);
 		expect(dest.db.prepare("SELECT COUNT(*) AS count FROM scratchpad").get()).toEqual({ count: 1 });
 		expect(scratchpadRead(dest).map(row => row.content)).toEqual([]);
 	});

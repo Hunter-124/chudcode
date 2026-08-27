@@ -187,6 +187,9 @@ function registerMnemopiState(
 				getEntries: options.entries ?? (() => []),
 				getCwd: () => options.cwd ?? "/tmp",
 			} as never,
+			getPlanReferencePath: () => "local://PLAN.md",
+			getTodoPhases: () => [],
+			refreshBaseSystemPrompt: async () => {},
 			emitNotice: () => {},
 			getHindsightSessionState: () => undefined,
 			subscribe: (listener: AgentSessionEventListener) => {
@@ -468,6 +471,33 @@ describe("Mnemopi backend lifecycle", () => {
 		await tempDbDir?.remove().catch(() => {});
 		tempDbDir = undefined;
 		tempDbPath = undefined;
+	});
+
+	it("keeps one evolving project digest row across task transitions", async () => {
+		const state = registerMnemopiState(makeMnemopiConfig({ autoRecall: false }), {
+			cwd: "/work/project-alpha",
+		});
+		const pending = [{ name: "Build", tasks: [{ content: "ship feature", status: "in_progress" as const }] }];
+
+		const created = await state.refreshProjectDigest(pending);
+		const unchanged = await state.refreshProjectDigest(pending);
+		const updated = await state.refreshProjectDigest([
+			{ name: "Build", tasks: [{ content: "ship feature", status: "completed" }] },
+		]);
+		const rows = state.memory.beam.db
+			.query("SELECT id, content, source, memory_type FROM working_memory WHERE memory_type = 'project_digest'")
+			.all() as Array<{ id: string; content: string; source: string; memory_type: string }>;
+
+		expect(created.status).toBe("created");
+		expect(unchanged).toMatchObject({ status: "unchanged", memoryId: created.memoryId });
+		expect(updated).toMatchObject({ status: "updated", memoryId: created.memoryId });
+		expect(rows).toHaveLength(1);
+		expect(rows[0]).toMatchObject({
+			id: created.memoryId,
+			source: "coding-agent-project-digest",
+			memory_type: "project_digest",
+		});
+		expect(rows[0]?.content).toContain("[completed] Build: ship feature");
 	});
 
 	it("keeps background auto-recall engine failures from escaping", async () => {
