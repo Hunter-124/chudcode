@@ -1,0 +1,25 @@
+{
+  "name": "@cloudcastle/discord-bot",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./archive": "./src/archive.ts"
+  },
+  "scripts": {
+    "export": "bun src/export-cli.ts",
+    "check": "tsgo -p tsconfig.check.json --noEmit",
+    "test": "bun test test"
+  },
+  "dependencies": {
+    "@oh-my-pi/pi-coding-agent": "catalog:",
+    "discord.js": "14.27.0"
+  },
+  "devDependencies": {
+    "@types/bun": "catalog:"
+  },
+  "engines": {
+    "node": ">=22.12.0",
+    "bun": ">=1.3.14"
+  }
+}
