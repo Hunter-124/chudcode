@@ -15,6 +15,7 @@
  *   - Questions may time out and auto-select the recommended option (configurable, disabled in plan mode)
  */
 
+import { PRODUCT_NAME } from "../brand";
 import { type as arkType } from "@oh-my-pi/omptype";
 import type { AgentTool, AgentToolContext, AgentToolResult, AgentToolUpdateCallback } from "@oh-my-pi/pi-agent-core";
 import type { ToolExample } from "@oh-my-pi/pi-ai";
@@ -839,7 +840,7 @@ export class AskTool implements AgentTool<typeof askSchema, AskToolDetails> {
 		const method = this.session.settings.get("ask.notify");
 		if (method === "off") return;
 		TERMINAL.sendNotification({
-			title: "Oh My Pi",
+			title: PRODUCT_NAME,
 			body: "Waiting for input",
 			type: "ask",
 			urgency: "normal",

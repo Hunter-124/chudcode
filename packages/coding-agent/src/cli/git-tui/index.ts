@@ -1,5 +1,5 @@
 /**
- * `omp git` — fullscreen repository TUI.
+ * `chudware-code git` — fullscreen repository TUI.
  *
  * Layout: header (file path, encoding, stage-file button, close), toolbar
  * (scope chip, file/diff toggle, hunk navigation, hunk/inline/split view
@@ -790,7 +790,7 @@ export async function showGitOverlay(ui: TUI, options: GitTuiOptions = {}): Prom
 	}
 }
 
-/** Run the fullscreen git TUI standalone (`omp git`) until the user quits. */
+/** Run the fullscreen git TUI standalone (`chudware-code git`) until the user quits. */
 export async function runGitTui(options: GitTuiOptions = {}): Promise<void> {
 	const ui = new TUI(new ProcessTerminal());
 	ui.start();

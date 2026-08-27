@@ -421,9 +421,9 @@ export interface LaunchHeadlessOptions {
 export interface LaunchHeadlessResult {
 	browser: Browser;
 	/**
-	 * OMP-owned temporary Chromium profile directory to remove after the browser
+	 * Chudware Code-owned temporary Chromium profile directory to remove after the browser
 	 * process tree exits, or `undefined` when the caller supplied its own
-	 * `--user-data-dir` (which OMP must not delete).
+	 * `--user-data-dir` (which Chudware Code must not delete).
 	 */
 	userDataDir?: string;
 }
@@ -535,7 +535,7 @@ export async function resolveSharedBrowserLaunchSpec(opts: {
 }
 
 /**
- * Remove an OMP-owned headless Chromium profile directory, tolerating the brief
+ * Remove a Chudware Code-owned headless Chromium profile directory, tolerating the brief
  * window on Windows in which Chromium (or an orphaned browser subprocess) still
  * holds the profile lock. The shared temp remover centralizes retry handling
  * for EBUSY/EPERM/ENOTEMPTY; if the directory is still busy afterwards we warn

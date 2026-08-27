@@ -16,17 +16,11 @@ try {
  */
 import { parentPort } from "node:worker_threads";
 import type { CliConfig, CommandMetadata } from "@oh-my-pi/pi-utils/cli";
-import {
-	APP_NAME,
-	getActiveProfile,
-	MIN_BUN_VERSION,
-	resolveProfileEnv,
-	setProfile,
-	VERSION,
-} from "@oh-my-pi/pi-utils/dirs";
+import { getActiveProfile, MIN_BUN_VERSION, resolveProfileEnv, setProfile } from "@oh-my-pi/pi-utils/dirs";
 import { interceptUnhandledRejections } from "@oh-my-pi/pi-utils/postmortem";
 import { setProcessName } from "@oh-my-pi/pi-utils/process-name";
 import { declareWorkerHostEntry, installWorkerInbox, isWorkerHostSelector } from "@oh-my-pi/pi-utils/worker-host";
+import { PRODUCT_CLI_NAME, PRODUCT_CLI_VERSION, PRODUCT_NAME, PRODUCT_VERSION } from "./brand";
 import { BLOB_BROKER_WORKER_ARG } from "./blob-broker/protocol";
 import { installProfileAlias, resolveProfileAliasCommandFromProcess } from "./cli/profile-alias";
 import { extractProfileFlags } from "./cli/profile-bootstrap";
@@ -48,7 +42,7 @@ if (Bun.semver.order(Bun.version, MIN_BUN_VERSION) < 0) {
 	process.exit(1);
 }
 
-setProcessName(APP_NAME);
+setProcessName(PRODUCT_CLI_NAME);
 
 // `Bun.build`-API compiled Windows executables report `import.meta.main ===
 // false`: the standalone loader keys the entry module with native backslashes
@@ -59,7 +53,7 @@ setProcessName(APP_NAME);
 const isProcessEntry = import.meta.main || process.env.PI_COMPILED === "true";
 
 function formatLicenseOutput(): string {
-	return `OMP License and Third-Party Notices\n\n${rootLicense.trimEnd()}\n\n${thirdPartyNotices.trimEnd()}\n`;
+	return `${PRODUCT_NAME} License and Third-Party Notices\n\n${rootLicense.trimEnd()}\n\n${thirdPartyNotices.trimEnd()}\n`;
 }
 
 // Worker-host entry declaration (Worker threads and worker subprocesses
@@ -353,7 +347,7 @@ export async function runCli(argv: string[]): Promise<void> {
 			// invalid value to avoid an uncaught throw before this try/catch is in
 			// scope (see `readProfileFromEnvSafe` in dirs.ts), and callers may set
 			// OMP_PROFILE after importing this module (profile aliases/tests). Surfacing
-			// validation here turns `OMP_PROFILE=.. omp --version` into a clean error;
+			// validation here turns `OMP_PROFILE=.. chudware-code --version` into a clean error;
 			// calling setProfile keeps every later path helper on the env-selected
 			// profile instead of the default agent directory.
 			setProfile(resolveProfileEnv(process.env.OMP_PROFILE, process.env.PI_PROFILE));
@@ -406,6 +400,10 @@ export async function runCli(argv: string[]): Promise<void> {
 	// poison `workerHostEntry()` for the whole test process, forcing eval/stats/
 	// browser workers onto the same-realm inline fallback.
 	if (isProcessEntry) declareWorkerHostEntry();
+	if (resolvedArgv.length === 1 && (resolvedArgv[0] === "--version" || resolvedArgv[0] === "-v")) {
+		process.stdout.write(`${PRODUCT_VERSION}\n`);
+		return;
+	}
 
 	// `PI_PROXY` must reach the bare global `fetch` before any provider call:
 	// OAuth refresh/login and usage probes never pass through
@@ -436,7 +434,7 @@ export async function runCli(argv: string[]): Promise<void> {
 		// keeps the TUI graph out of worker, subcommand, help, and version launches.
 		// Loading it statically would erase the measured cold-start improvement.
 		const { beginStartupComposer, stopPendingStartupComposer } = await import("./modes/startup-composer");
-		beginStartupComposer({ version: VERSION });
+		beginStartupComposer({ version: PRODUCT_VERSION });
 		stopStartupComposer = stopPendingStartupComposer;
 	}
 
@@ -445,7 +443,8 @@ export async function runCli(argv: string[]): Promise<void> {
 			import("@oh-my-pi/pi-utils/cli"),
 			import("./cli-commands"),
 		]);
-		// --help and --version are handled by run() directly; --license returned above.
+		// Root version flags return the canonical product string above; help and
+		// command dispatch remain delegated to the shared runner.
 		// Everything else that isn't a known subcommand routes to "launch".
 		const resolved = resolveCliArgv(resolvedArgv);
 		if ("error" in resolved) {
@@ -453,7 +452,13 @@ export async function runCli(argv: string[]): Promise<void> {
 			process.exitCode = 1;
 			return;
 		}
-		await run({ bin: APP_NAME, version: VERSION, argv: resolved.argv, commands, metadataHelp: showHelp });
+		await run({
+			bin: PRODUCT_CLI_NAME,
+			version: PRODUCT_CLI_VERSION,
+			argv: resolved.argv,
+			commands,
+			metadataHelp: showHelp,
+		});
 	} finally {
 		stopStartupComposer?.();
 	}

@@ -61,7 +61,7 @@ providers:
         api: openai-completions
         reasoning: false
         input: [text]
-        imageInputDecoder: stb # local STB decoder; OMP converts WebP before dispatch
+        imageInputDecoder: stb # local STB decoder; Chudware Code converts WebP before dispatch
         cost:
           input: 0
           output: 0
@@ -101,8 +101,8 @@ providers:
 
 - `auth`: `apiKey` (default), `none`, or `oauth`; for `models.yml` custom models, `oauth` is accepted by schema but does not waive the `apiKey` requirement
 - `discovery.type`: `ollama`, `llama.cpp`, `lm-studio`, `openai-models-list`, `proxy`, or `litellm`
-- `transport`: `pi-native` only. When set, every model under that provider is sent to an `omp auth-gateway` compatible `baseUrl` via `POST /v1/pi/stream`; `apiKey` is the gateway bearer.
-- `imageInputDecoder`: `stb` only. Set this on a custom model or `modelOverrides` entry when the serving backend uses an STB-compatible image decoder that cannot accept WebP; OMP converts attached and historical WebP images before provider dispatch.
+- `transport`: `pi-native` only. When set, every model under that provider is sent to an `chudware-code auth-gateway` compatible `baseUrl` via `POST /v1/pi/stream`; `apiKey` is the gateway bearer.
+- `imageInputDecoder`: `stb` only. Set this on a custom model or `modelOverrides` entry when the serving backend uses an STB-compatible image decoder that cannot accept WebP; Chudware Code converts attached and historical WebP images before provider dispatch.
 - `tokenizer`: opt into a specific embedded local tokenizer when a proxy's model id is ambiguous or noncanonical. Allowed values: `claude-v3`, `claude-v47`, `claude-v5`, `claude-v5-sonnet`, `qwen3`, `deepseek-v3`, `kimi-k2`, and `glm5`. Omit it to use catalog identity policy; unknown models retain the fast local estimate.
 
 ## Validation rules (current)
@@ -185,11 +185,11 @@ property, so repeated cold-start calls do not re-hash.
 
 ### Shared catalog refresh
 
-The bundled catalog remains the startup and offline baseline. After startup loads bundled and cached rows synchronously, the existing background refresh lifecycle fetches the current shared models.dev catalog for known providers. New model IDs are merged additively into each provider's bundled slice, normalized through that provider's catalog descriptor, and persisted in the model-cache database. This allows newly published models to appear without waiting for a new OMP binary.
+The bundled catalog remains the startup and offline baseline. After startup loads bundled and cached rows synchronously, the existing background refresh lifecycle fetches the current shared models.dev catalog for known providers. New model IDs are merged additively into each provider's bundled slice, normalized through that provider's catalog descriptor, and persisted in the model-cache database. This allows newly published models to appear without waiting for a new Chudware Code binary.
 
 Remote rows can supply current limits, pricing, modalities, and capability flags for newly added IDs, but they cannot introduce code, arbitrary headers, or an unregistered provider. A successful provider endpoint discovery remains authoritative for account availability. The shared catalog is not authoritative: it does not remove bundled models when a remote row disappears.
 
-Fresh cached snapshots avoid a network request. If refresh fails, OMP keeps the last usable cached snapshot and marks it stale; without a cache, it falls back to the bundled catalog. Provider discovery state records `source` (`bundled`, `models.dev`, `provider`, or `cache`) and `fetchedAt` so callers can distinguish current remote data from an offline fallback.
+Fresh cached snapshots avoid a network request. If refresh fails, Chudware Code keeps the last usable cached snapshot and marks it stale; without a cache, it falls back to the bundled catalog. Provider discovery state records `source` (`bundled`, `models.dev`, `provider`, or `cache`) and `fetchedAt` so callers can distinguish current remote data from an offline fallback.
 
 ## Provider and model identity
 
@@ -435,7 +435,7 @@ disabledProviders:
 
 String entries apply everywhere. Scoped entries apply when the current working directory is the configured path or one of its subdirectories. Use `path`, `paths`, `pathPrefix`, or `pathPrefixes`; use `models` for `enabledModels`, `providers` for `disabledProviders`, or `values` for either.
 
-## `/model` and `omp models`
+## `/model` and `chudware-code models`
 
 Both surfaces keep provider-prefixed concrete models visible and selectable. Selecting a provider
 row stores its explicit `provider/modelId`.
@@ -571,7 +571,7 @@ The same `compat` slot accepts `promptCacheMode` (`none`, `automatic`, or `expli
 
 ### Strict tool schemas (`disableStrictTools`)
 
-Anthropic's API supports a `strict` field on tool definitions that forces the model to always follow the provided schema exactly. OMP enables it by default for a small allowlist of high-frequency built-in `anthropic-messages` tools (`bash`, `python`, `edit`, and `find`) whose schemas fit Anthropic's strict grammar limits; other tools still send normalized schemas but omit `strict`.
+Anthropic's API supports a `strict` field on tool definitions that forces the model to always follow the provided schema exactly. Chudware Code enables it by default for a small allowlist of high-frequency built-in `anthropic-messages` tools (`bash`, `python`, `edit`, and `find`) whose schemas fit Anthropic's strict grammar limits; other tools still send normalized schemas but omit `strict`.
 
 Third-party providers that front the Anthropic API (AWS Bedrock, Azure, self-hosted proxies) do not always implement this field and will reject requests that include it. Set `disableStrictTools: true` at the provider level to opt out of strict mode for the allowlisted tools:
 
@@ -595,7 +595,7 @@ providers:
           cacheWrite: 3.75
 ```
 
-`disableStrictTools` is a provider-level flag that applies to all models in the provider. It disables the Anthropic `strict` marker only for tools that OMP would otherwise mark strict; it does not change runtime tool argument validation. OMP can automatically retry without strict tools after Anthropic reports a strict-grammar-too-large error before the first streamed token, but proxies that reject the `strict` field for other reasons should set this flag explicitly.
+`disableStrictTools` is a provider-level flag that applies to all models in the provider. It disables the Anthropic `strict` marker only for tools that Chudware Code would otherwise mark strict; it does not change runtime tool argument validation. Chudware Code can automatically retry without strict tools after Anthropic reports a strict-grammar-too-large error before the first streamed token, but proxies that reject the `strict` field for other reasons should set this flag explicitly.
 
 Tool schemas going on the wire are normalized by the unified flow in
 `packages/ai/src/utils/schema/normalize.ts` (Google/CCA/MCP dispatchers
@@ -632,7 +632,7 @@ providers:
       type: openai-models-list
 ```
 
-The built-in vLLM provider can be pointed at a non-default endpoint without declaring a custom discovery type. OMP uses vLLM's `/v1/models` metadata and preserves vLLM's `max_model_len` field as the discovered context window.
+The built-in vLLM provider can be pointed at a non-default endpoint without declaring a custom discovery type. Chudware Code uses vLLM's `/v1/models` metadata and preserves vLLM's `max_model_len` field as the discovered context window.
 
 ```yaml
 providers:

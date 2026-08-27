@@ -1,10 +1,10 @@
 /**
  * Agent discovery from filesystem.
  *
- * Discovers agent definitions from OMP-native task-agent roots:
+ * Discovers agent definitions from Chudware Code-native task-agent roots:
  *   - ~/.omp/agent/agents/*.md (user-level)
  *   - .omp/agents/*.md (project-level)
- *   - <ext>/agents/*.md for every OMP extension package wired through
+ *   - <ext>/agents/*.md for every Chudware Code extension package wired through
  *     `listOmpExtensionRoots` (CLI `--extension` roots, `extensions:` in
  *     settings, and enabled npm/link plugins under `<plugins>/node_modules/`).
  *     Mirrors the same sub-discovery convention applied to `skills/`,
@@ -12,7 +12,7 @@
  *
  * Claude Code marketplace plugin agents are discovered separately via the
  * claude-plugins provider. Direct cross-harness roots such as .claude/agents
- * are intentionally skipped because their frontmatter schema is not the OMP
+ * are intentionally skipped because their frontmatter schema is not the Chudware Code
  * task-agent contract.
  *
  * Agent files use markdown with YAML frontmatter.
@@ -62,7 +62,7 @@ async function loadAgentsFromDir(dir: string, source: AgentSource): Promise<Agen
 /**
  * Discover agents from filesystem and merge with bundled agents.
  * Precedence (highest wins): project `.omp/agents`, user `.omp/agents`,
- * OMP extension-package agents from the effective `extensions` setting,
+ * Chudware Code extension-package agents from the effective `extensions` setting,
  * installed npm/link plugins, Claude marketplace plugin agents (project scope
  * before user), then bundled.
  * @param cwd - Current working directory for project agent discovery

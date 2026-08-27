@@ -1,8 +1,8 @@
 /**
  * Update CLI command handler.
  *
- * Handles `omp update` to check for and install updates.
- * Uses the installer that owns the active omp executable when it can be detected.
+ * Handles `chudware-code update` to check for and install updates.
+ * Uses the installer that owns the active chudware-code executable when it can be detected.
  */
 import { createHash } from "node:crypto";
 import * as fs from "node:fs";
@@ -10,10 +10,11 @@ import * as os from "node:os";
 import * as path from "node:path";
 import { Transform } from "node:stream";
 import { pipeline } from "node:stream/promises";
-import { $env, $which, APP_NAME, compareVersions, isEnoent, VERSION } from "@oh-my-pi/pi-utils";
+import { $env, $which, compareVersions, isEnoent, VERSION } from "@oh-my-pi/pi-utils";
 import chalk from "@oh-my-pi/pi-utils/chalk";
 import { withFileLock } from "@oh-my-pi/pi-utils/file-lock";
 import { $ } from "bun";
+import { PRODUCT_CLI_NAME } from "../brand";
 import { settings } from "../config/settings";
 import { theme } from "../modes/theme/theme";
 import {
@@ -416,7 +417,7 @@ async function getNpmGlobalBinDir(): Promise<string | undefined> {
 
 async function getHomebrewFormulaPrefix(): Promise<string | undefined> {
 	if (!$which("brew")) return undefined;
-	for (const formula of [HOMEBREW_FORMULA, APP_NAME]) {
+	for (const formula of [HOMEBREW_FORMULA, PRODUCT_CLI_NAME]) {
 		try {
 			const result = await $`brew --prefix ${formula}`.quiet().nothrow();
 			if (result.exitCode !== 0) continue;
@@ -502,7 +503,7 @@ function isPathInDirectory(filePath: string, directoryPath: string): boolean {
 	if (isPathInDirectoryLexical(filePath, directoryPath)) return true;
 	// Layer realpath resolution on top of the lexical guard. On Windows, ~/.bun
 	// is a junction when Bun is installed via Scoop, so `bun pm bin -g` and the
-	// PATH-resolved omp path can refer to the same directory through different
+	// PATH-resolved chudware-code path can refer to the same directory through different
 	// strings. path.resolve does not traverse junctions/symlinks; realpath does.
 	// Resolve both the file and its parent directory: the file catches manager
 	// links like Homebrew's `bin/omp -> Cellar/.../bin/omp`; the parent fallback
@@ -548,7 +549,7 @@ interface UpdateMethodResolutionOptions {
 	/** Bun's configured global package directory, independent of its bin directory. */
 	bunGlobalDir?: string;
 	/**
-	 * Whether the resolved omp path is a plain file (the standalone binary)
+	 * Whether the resolved chudware-code path is a plain file (the standalone binary)
 	 * rather than a package-manager symlink. Stops a binary install from being
 	 * misrouted to npm/bun when the global bin dir overlaps the installer's
 	 * target directory.
@@ -613,7 +614,7 @@ function resolveUpdateMethod(
 	// a binary install through npm/bun, whose reinstall then collides with the
 	// existing file (npm EEXIST). Fall through to binary replacement instead.
 	// On Windows every launcher is a regular file, so ownership keys off the
-	// manager's own artifacts instead: npm's script shims (`omp`, `omp.cmd`,
+	// manager's own artifacts instead: npm's script shims (`chudware-code`, `omp.cmd`,
 	// `omp.ps1`) and bun's `omp.bunx` sidecar. A bare `.exe` with neither is the
 	// standalone binary a binary-only release installed over the launcher —
 	// routing that back through bun reinstalls a package which no longer owns
@@ -752,7 +753,7 @@ async function resolveUpdateTarget(options: { allowPackageManagers: boolean }): 
 
 	if (bunBinDir) return { method: "bun" };
 
-	throw new Error(`Could not resolve ${APP_NAME} binary path in PATH`);
+	throw new Error(`Could not resolve ${PRODUCT_CLI_NAME} binary path in PATH`);
 }
 
 /** Bound on `omp.rename` hops so a broken pointer chain cannot loop forever. */
@@ -779,7 +780,7 @@ async function fetchLatestManifest(
 	}
 	if (!response.ok) {
 		if (response.status === 404 && channel === "canary") {
-			throw new Error(`No canary release has been published for ${pkg} yet. Try \`${APP_NAME} update --stable\`.`);
+			throw new Error(`No canary release has been published for ${pkg} yet. Try \`${PRODUCT_CLI_NAME} update --stable\`.`);
 		}
 		throw new Error(`Failed to fetch release info for ${pkg}: ${response.statusText}`);
 	}
@@ -944,7 +945,7 @@ async function removeCacheEntries(paths: string[]): Promise<number> {
  *
  * Bun stores package cache entries as both a package marker directory
  * (`react/19.2.6@@@1`) and a materialized package directory
- * (`react@19.2.6@@@1`). Global `omp` updates can leave one full copy per
+ * (`react@19.2.6@@@1`). Global `chudware-code` updates can leave one full copy per
  * release. The marker and materialized entries are removed together so the
  * cache stays internally consistent.
  */
@@ -1116,20 +1117,20 @@ function getBinaryName(): string {
 	}
 
 	if (os === "windows") {
-		return `${APP_NAME}-${os}-${archName}.exe`;
+		return `${PRODUCT_CLI_NAME}-${os}-${archName}.exe`;
 	}
-	return `${APP_NAME}-${os}-${archName}`;
+	return `${PRODUCT_CLI_NAME}-${os}-${archName}`;
 }
 
 /**
- * Resolve the path that `omp` maps to in the user's PATH.
+ * Resolve the path that `chudware-code` maps to in the user's PATH.
  */
 function resolveOmpPath(): string | undefined {
-	return $which(APP_NAME) ?? undefined;
+	return $which(PRODUCT_CLI_NAME) ?? undefined;
 }
 
 /**
- * Parse the version a launcher reports from `omp --version` output
+ * Parse the version a launcher reports from `chudware-code --version` output
  * (`omp/X.Y.Z`, or a prerelease such as `omp/X.Y.Z-canary.1`).
  *
  * The prerelease suffix is preserved so a correctly installed canary build
@@ -1155,7 +1156,7 @@ async function verifyBinaryAtPath(binaryPath: string, expectedVersion: string): 
 }
 
 /**
- * Run the PATH-resolved omp binary and check if it reports the expected version.
+ * Run the PATH-resolved chudware-code binary and check if it reports the expected version.
  */
 async function verifyInstalledVersion(expectedVersion: string): Promise<InstalledVersionVerification> {
 	const ompPath = resolveOmpPath();
@@ -1170,7 +1171,7 @@ function printVerifiedVersion(expectedVersion: string): void {
 
 function formatVerificationFailure(result: InstalledVersionVerification, expectedVersion: string): string {
 	if (result.actual) {
-		return `${APP_NAME} at ${result.path} still reports ${result.actual} (expected ${expectedVersion})`;
+		return `${PRODUCT_CLI_NAME} at ${result.path} still reports ${result.actual} (expected ${expectedVersion})`;
 	}
 	return `could not verify updated version${result.path ? ` at ${result.path}` : ""}`;
 }
@@ -1293,7 +1294,7 @@ export async function replaceBinaryForUpdate(options: BinaryReplacementOptions):
 		const verification = await options.verifyInstalledVersion(options.expectedVersion);
 		if (!verification.ok) {
 			throw new Error(
-				`${formatVerificationFailure(verification, options.expectedVersion)}; restored previous ${APP_NAME} binary`,
+				`${formatVerificationFailure(verification, options.expectedVersion)}; restored previous ${PRODUCT_CLI_NAME} binary`,
 			);
 		}
 
@@ -1326,7 +1327,7 @@ function buildVersionedPackageInstallArgs(
 }
 
 /**
- * Build the bun argv used to globally install a specific omp version.
+ * Build the bun argv used to globally install a specific chudware-code version.
  *
  * The version is selected by hitting {@link NPM_REGISTRY} directly in
  * {@link getLatestRelease}, so the install MUST observe the same catalog:
@@ -1338,7 +1339,7 @@ function buildVersionedPackageInstallArgs(
  * - `--no-cache` tells bun to ignore its on-disk manifest snapshot so it
  *   re-fetches metadata from that registry on every invocation.
  *
- * Together these two flags make `omp update` produce exactly the registry
+ * Together these two flags make `chudware-code update` produce exactly the registry
  * lookup the version check just performed. See #1686.
  *
  * Also pins {@link NATIVES_PACKAGE} and the platform-specific
@@ -1372,10 +1373,10 @@ export function buildBunInstallArgs(
 /**
  * Build the npm argv used to update npm-managed global installs.
  *
- * `force` is set only for rename migrations: npm refuses to write the `omp`
+ * `force` is set only for rename migrations: npm refuses to write the `chudware-code`
  * bin while the old package still owns it (`EEXIST`), and the migration
  * installs the new package BEFORE removing the old one so a failed install
- * never leaves the user without a working `omp`.
+ * never leaves the user without a working `chudware-code`.
  */
 export function buildNpmInstallArgs(
 	expectedVersion: string,
@@ -1426,11 +1427,11 @@ export function buildRenameCleanupPackages(
 
 /** Injectable shell steps for {@link migrateRenamedInstall}; commands return process exit codes. */
 export interface RenameMigrationSteps {
-	/** Globally install the new package names. MUST be idempotent: re-running re-links the `omp` bin. */
+	/** Globally install the new package names. MUST be idempotent: re-running re-links the `chudware-code` bin. */
 	install(): Promise<number>;
 	/** Remove the old-name globals. */
 	removeOld(): Promise<number>;
-	/** Check the PATH-resolved `omp` against the expected version. */
+	/** Check the PATH-resolved `chudware-code` against the expected version. */
 	verify(): Promise<InstalledVersionVerification>;
 }
 
@@ -1466,13 +1467,13 @@ function packageManagerMigrationSteps(manager: "bun" | "npm", release: ReleaseIn
 
 /**
  * Migrate a package-manager install across an `omp.rename` hop without a
- * window where no working `omp` exists:
+ * window where no working `chudware-code` exists:
  *
  * 1. Install the new package FIRST. Nothing has been removed yet, so a
  *    failure here leaves the old install fully functional.
  * 2. Remove the old-name globals. Failure is non-fatal: a stale package
  *    wastes disk, but the bin already points at the new install.
- * 3. Verify the PATH-resolved `omp`. If the removal deleted the shared bin
+ * 3. Verify the PATH-resolved `chudware-code`. If the removal deleted the shared bin
  *    link (manager-dependent), re-run the idempotent install to restore it
  *    and verify again; only a repeated failure aborts, with a recovery hint.
  */
@@ -1635,7 +1636,7 @@ export async function updateViaManager(
 	}
 	console.log(
 		chalk.yellow(
-			`\n${steps.manager} did not install a working ${APP_NAME} ${release.version} launcher (${formatVerificationFailure(result, release.version)}); installing the standalone binary at ${launcherPath}.`,
+			`\n${steps.manager} did not install a working ${PRODUCT_CLI_NAME} ${release.version} launcher (${formatVerificationFailure(result, release.version)}); installing the standalone binary at ${launcherPath}.`,
 		),
 	);
 	try {
@@ -1708,7 +1709,7 @@ export async function updateViaBinaryAt(
 	} = {},
 ): Promise<void> {
 	const binaryName = options.binaryName ?? getBinaryName();
-	// Unique per attempt so two overlapping `omp update` runs never share a temp
+	// Unique per attempt so two overlapping `chudware-code update` runs never share a temp
 	// or backup path. A fixed temp name (`<binary>.new`) let the second run's
 	// pre-download unlink delete the first run's still-downloading temp file; the
 	// first kept writing to its open fd (size + digest still passed), then chmod
@@ -1738,7 +1739,7 @@ export async function updateViaBinaryAt(
 	console.log(chalk.dim(`Verified ${asset.digest}`));
 
 	// Serialize the target swap and stale-artifact sweep per target so two
-	// overlapping `omp update` runs never replace the same binary concurrently
+	// overlapping `chudware-code update` runs never replace the same binary concurrently
 	// or reclaim each other's live backup/temp files. The download above writes
 	// to a unique temp path and is safe to overlap; only the swap is shared.
 	await withFileLock(targetPath, async () => {
@@ -1764,7 +1765,7 @@ export async function updateViaBinaryAt(
 		await sweepStaleUpdateArtifacts(targetPath);
 	});
 	printVerifiedVersion(expectedVersion);
-	console.log(chalk.dim(`Restart ${APP_NAME} to use the new version`));
+	console.log(chalk.dim(`Restart ${PRODUCT_CLI_NAME} to use the new version`));
 }
 
 /**
@@ -1776,17 +1777,17 @@ export async function updateViaBinaryAt(
  * launching the replaced install.
  */
 const SHIM_FORWARDERS: Record<string, string> = {
-	"": `#!/bin/sh\nexec "$(dirname "$0")/${APP_NAME}.exe" "$@"\n`,
-	".cmd": `@"%~dp0${APP_NAME}.exe" %*\r\n`,
-	".bat": `@"%~dp0${APP_NAME}.exe" %*\r\n`,
-	".ps1": `& "$PSScriptRoot\\${APP_NAME}.exe" @args\nexit $LASTEXITCODE\n`,
+	"": `#!/bin/sh\nexec "$(dirname "$0")/${PRODUCT_CLI_NAME}.exe" "$@"\n`,
+	".cmd": `@"%~dp0${PRODUCT_CLI_NAME}.exe" %*\r\n`,
+	".bat": `@"%~dp0${PRODUCT_CLI_NAME}.exe" %*\r\n`,
+	".ps1": `& "$PSScriptRoot\\${PRODUCT_CLI_NAME}.exe" @args\nexit $LASTEXITCODE\n`,
 };
 
 /**
  * Take over a Windows script-launcher install for a binary-only release.
  *
  * npm-managed Windows installs are launched through script shims
- * (`omp`/`omp.cmd`/`omp.ps1`) that cannot be overwritten with a native
+ * (`chudware-code`/`omp.cmd`/`omp.ps1`) that cannot be overwritten with a native
  * executable. The release binary is installed as `omp.exe` beside them and
  * the shims are then renamed aside: cmd.exe would already prefer `.exe` via
  * PATHEXT, but PowerShell resolves `.ps1` first, so the takeover only sticks
@@ -1809,7 +1810,7 @@ export async function updateViaShimTakeover(
 ): Promise<void> {
 	const binaryName = options.binaryName ?? getBinaryName();
 	const launcherDir = path.dirname(shimPath);
-	const exePath = path.join(launcherDir, `${APP_NAME}.exe`);
+	const exePath = path.join(launcherDir, `${PRODUCT_CLI_NAME}.exe`);
 	const attempt = `${Date.now()}.${process.pid}.${updateAttemptSeq++}`;
 	const tempPath = `${exePath}.${attempt}.new`;
 	const asset = await getReleaseBinaryAsset(
@@ -1834,7 +1835,7 @@ export async function updateViaShimTakeover(
 	// never retire the same shims or reclaim a live run's backup before its
 	// verification can roll it back.
 	await withFileLock(exePath, async () => {
-		console.log(chalk.dim(`Installing ${APP_NAME}.exe beside the script launcher...`));
+		console.log(chalk.dim(`Installing ${PRODUCT_CLI_NAME}.exe beside the script launcher...`));
 		await fs.promises.rename(tempPath, exePath);
 		// Retire the shims so PATH resolution lands on the new exe. Renamed, not
 		// deleted: restorable on verification failure, and Windows permits
@@ -1845,7 +1846,7 @@ export async function updateViaShimTakeover(
 		const backupSuffix = `${attempt}.bak`;
 		const retired: Array<{ launcher: string; backup: string }> = [];
 		for (const ext of ["", ".cmd", ".ps1", ".bat"]) {
-			const launcher = path.join(launcherDir, `${APP_NAME}${ext}`);
+			const launcher = path.join(launcherDir, `${PRODUCT_CLI_NAME}${ext}`);
 			const backup = `${launcher}.${backupSuffix}`;
 			try {
 				await fs.promises.rename(launcher, backup);
@@ -1880,7 +1881,7 @@ export async function updateViaShimTakeover(
 			}
 			await unlinkIfExists(exePath);
 			throw new Error(
-				`${formatVerificationFailure(verification, expectedVersion)}; restored previous ${APP_NAME} launcher`,
+				`${formatVerificationFailure(verification, expectedVersion)}; restored previous ${PRODUCT_CLI_NAME} launcher`,
 			);
 		}
 		for (const { backup } of retired) {
@@ -1888,7 +1889,7 @@ export async function updateViaShimTakeover(
 		}
 		// Reclaim exe backups and retired-shim leftovers from earlier attempts.
 		for (const ext of [".exe", "", ".cmd", ".ps1", ".bat"]) {
-			await sweepStaleUpdateArtifacts(path.join(launcherDir, `${APP_NAME}${ext}`));
+			await sweepStaleUpdateArtifacts(path.join(launcherDir, `${PRODUCT_CLI_NAME}${ext}`));
 		}
 	});
 	for (const { launcher } of forwarded) {
@@ -1902,7 +1903,7 @@ export async function updateViaShimTakeover(
 		);
 	}
 	printVerifiedVersion(expectedVersion);
-	console.log(chalk.dim(`Restart ${APP_NAME} to use the new version`));
+	console.log(chalk.dim(`Restart ${PRODUCT_CLI_NAME} to use the new version`));
 }
 
 /**
@@ -1987,7 +1988,7 @@ export async function runUpdateCommand(opts: {
 		return;
 	}
 
-	// Choose update method based on the prioritized omp binary in PATH. For
+	// Choose update method based on the prioritized chudware-code binary in PATH. For
 	// binary-only releases the package managers are never consulted: a bun/npm
 	// symlink resolves to method "binary" and is replaced in place, keeping the
 	// same PATH entry live.
@@ -2012,7 +2013,7 @@ export async function runUpdateCommand(opts: {
 				// Reachable in forced mode only through a Windows script
 				// launcher resolved from PATH (the bun/npm bin-dir probes are
 				// skipped), so the launcher path is always known.
-				if (!target.path) throw new Error(`Could not resolve ${APP_NAME} launcher path in PATH`);
+				if (!target.path) throw new Error(`Could not resolve ${PRODUCT_CLI_NAME} launcher path in PATH`);
 				console.log(chalk.dim("This release ships as a standalone binary; replacing the script launcher."));
 				await updateViaShimTakeover(target.path, release.version, { allowPrerelease });
 				console.log(
@@ -2051,10 +2052,10 @@ export async function runUpdateCommand(opts: {
  * Print update command help.
  */
 export function printUpdateHelp(): void {
-	console.log(`${chalk.bold(`${APP_NAME} update`)} - Check for and install updates
+	console.log(`${chalk.bold(`${PRODUCT_CLI_NAME} update`)} - Check for and install updates
 
 ${chalk.bold("Usage:")}
-  ${APP_NAME} update [options]
+  ${PRODUCT_CLI_NAME} update [options]
 
 ${chalk.bold("Options:")}
   -c, --check     Check for updates without installing
@@ -2064,10 +2065,10 @@ ${chalk.bold("Options:")}
   --stable        Switch back to the stable channel
 
 ${chalk.bold("Examples:")}
-  ${APP_NAME} update              Update to latest version
-  ${APP_NAME} update --check      Check if updates are available
-  ${APP_NAME} update --force      Force reinstall
-  ${APP_NAME} update -l           Update installed plugins
-  ${APP_NAME} update --canary    Switch to the canary channel and update
+  ${PRODUCT_CLI_NAME} update              Update to latest version
+  ${PRODUCT_CLI_NAME} update --check      Check if updates are available
+  ${PRODUCT_CLI_NAME} update --force      Force reinstall
+  ${PRODUCT_CLI_NAME} update -l           Update installed plugins
+  ${PRODUCT_CLI_NAME} update --canary    Switch to the canary channel and update
 `);
 }

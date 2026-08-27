@@ -20,11 +20,11 @@ export default class DryBalance extends Command {
 	};
 
 	static examples = [
-		"# Dry-run the configured default model with 100 random session ids\n  omp dry-balance",
-		"# Dry-run a specific model\n  omp dry-balance anthropic/claude-sonnet-4-5",
-		"# Larger run with bounded concurrency\n  omp dry-balance --model openai-codex/gpt-5-codex --count 1000 --concurrency 64",
-		"# Benchmark every OAuth account in parallel\n  omp dry-balance --bench",
-		"# Machine-readable output\n  omp dry-balance --json",
+		"# Dry-run the configured default model with 100 random session ids\n  chudware-code dry-balance",
+		"# Dry-run a specific model\n  chudware-code dry-balance anthropic/claude-sonnet-4-5",
+		"# Larger run with bounded concurrency\n  chudware-code dry-balance --model openai-codex/gpt-5-codex --count 1000 --concurrency 64",
+		"# Benchmark every OAuth account in parallel\n  chudware-code dry-balance --bench",
+		"# Machine-readable output\n  chudware-code dry-balance --json",
 	];
 
 	async run(): Promise<void> {

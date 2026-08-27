@@ -25,15 +25,15 @@ Primary implementation:
 1. `<cwd>/.omp/<file>`, `<cwd>/.claude/<file>`, `<cwd>/.codex/<file>`, `<cwd>/.gemini/<file>`
 2. `~/.omp/agent/<file>`, `~/.claude/<file>`, `~/.codex/<file>`, `~/.gemini/<file>`
 
-The native user path follows the active profile: with `omp --profile work`, `~/.omp/agent` becomes `~/.omp/profiles/work/agent`. `PI_CONFIG_DIR` changes the native config-directory name. This shared config lookup does not use `PI_CODING_AGENT_DIR` as an arbitrary replacement base.
+The native user path follows the active profile: with `chudware-code --profile work`, `~/.omp/agent` becomes `~/.omp/profiles/work/agent`. `PI_CONFIG_DIR` changes the native config-directory name. This shared config lookup does not use `PI_CODING_AGENT_DIR` as an arbitrary replacement base.
 
-Discovery does **not** walk ancestors. Starting OMP in `<repo>/packages/api` does not discover `<repo>/.omp/SYSTEM.md`; launch from `<repo>`, put the file under the current directory's config base, or use a user-level file. See [Configuration usage](./config-usage.md) for the shared config-directory contract.
+Discovery does **not** walk ancestors. Starting Chudware Code in `<repo>/packages/api` does not discover `<repo>/.omp/SYSTEM.md`; launch from `<repo>`, put the file under the current directory's config base, or use a user-level file. See [Configuration usage](./config-usage.md) for the shared config-directory contract.
 
 A flag wins over every discovered file. For each filename, project scope wins over user scope and the first config base in the order above wins within that scope.
 
 ### Text or file resolution
 
-For a single-line value, OMP first tries to read that value as a file path. If reading fails because the path does not exist (or is too long to be a path), the value is used literally. A value containing a newline is used literally without a file read. Other file-read failures are logged and the original value is still used literally.
+For a single-line value, Chudware Code first tries to read that value as a file path. If reading fails because the path does not exist (or is too long to be a path), the value is used literally. A value containing a newline is used literally without a file read. Other file-read failures are logged and the original value is still used literally.
 
 ## What `SYSTEM.md` replaces
 
@@ -103,7 +103,7 @@ You are a code reviewer. Read changes, surface concrete issues, and never edit f
 Cite paths with backticks.
 ```
 
-OMP still adds the generated context, skills, rules, and project/environment footer, but not the default instruction template's tool and workflow guidance.
+Chudware Code still adds the generated context, skills, rules, and project/environment footer, but not the default instruction template's tool and workflow guidance.
 
 ### Replace the personality block
 
@@ -126,10 +126,10 @@ Generate a session name using lowercase `<type>:<primary-objective>`.
 If the message has no concrete task, output exactly `none`.
 ```
 
-`TITLE_SYSTEM.md` uses the same project-first, config-base discovery and no-ancestor-walk behavior. When absent, OMP uses its bundled title prompt. The override is used for both initial automatic titles and replan-driven title refreshes.
+`TITLE_SYSTEM.md` uses the same project-first, config-base discovery and no-ancestor-walk behavior. When absent, Chudware Code uses its bundled title prompt. The override is used for both initial automatic titles and replan-driven title refreshes.
 
 Generated title output has an enforced normalization contract even with a
-custom prompt. OMP considers only the first trimmed line, strips surrounding
+custom prompt. Chudware Code considers only the first trimmed line, strips surrounding
 quotes, `<title>...</title>` markers, and terminal punctuation, and treats
 `none` or `<title/>` as “no title yet.” A result longer than 80 characters or
 12 words is rejected rather than truncated. Empty, deferred, or rejected output
@@ -152,5 +152,5 @@ The CLI flags and files do **not** set this property: they set `customSystemProm
 | Replace the personality block while keeping the rest of the default prompt            | `PERSONALITY.md`                                                         |
 | Use `{{cwd}}` or other internal variables in a user file                               | Not supported; user content is inserted verbatim                         |
 | Inherit selected default-template sections                                             | Not supported; append to the default or copy the required text           |
-| Per-directory override                                                                 | A supported config base directly under the cwd used to launch OMP        |
+| Per-directory override                                                                 | A supported config base directly under the cwd used to launch Chudware Code        |
 | Global override                                                                        | The active native agent directory, or another supported user config base |

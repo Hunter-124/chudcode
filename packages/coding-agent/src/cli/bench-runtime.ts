@@ -1,5 +1,5 @@
 /**
- * Shared plumbing for the benchmark-style CLI commands (`omp bench`, `omp if-bench`).
+ * Shared plumbing for the benchmark-style CLI commands (`chudware-code bench`, `chudware-code if-bench`).
  *
  * Owns the three pieces every benchmark command needs before it can talk to a
  * provider: the auth/settings/model-registry runtime, selector → model

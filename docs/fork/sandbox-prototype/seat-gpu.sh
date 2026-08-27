@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # GPU-accelerated variant of the seat: a headless wlroots compositor (cage) for
-# GPU rendering, hosting a *rootful* Xwayland so that omp's X11 backend still
+# GPU rendering, hosting a *rootful* Xwayland so that Chudware Code's X11 backend still
 # sees a readable root window, real XTEST input and EWMH windows.
 #
 #   ./seat-gpu.sh start <name>   ./seat-gpu.sh stop <name>
@@ -54,8 +54,8 @@ cmd_start() {
 		[[ $waited -gt 150 ]] && { tail -20 "$dir/cage.log" >&2; die "Xwayland :$num never appeared"; }
 	done
 
-	# The socket existing is not readiness: omp needs the root window to be a
-	# readable drawable. Probing it here removes a startup race in which omp's
+	# The socket existing is not readiness: Chudware Code needs the root window to be a
+	# readable drawable. Probing it here removes a startup race in which Chudware Code's
 	# capabilities getter silently reports backend "unavailable"
 	# (crates/pi-natives/src/desktop/mod.rs:742 swallows the error).
 	waited=0

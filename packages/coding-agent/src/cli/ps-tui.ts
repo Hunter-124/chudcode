@@ -1,5 +1,5 @@
 /**
- * Interactive alt-screen monitor for `omp ps` (btop idiom): a live process
+ * Interactive alt-screen monitor for `chudware-code ps` (btop idiom): a live process
  * table over every selected broker scope with in-place actions.
  *
  * Keys — table: `↑/↓`/`j/k` select, `enter`/`i` info, `l` logs, `s` stop,
@@ -282,7 +282,7 @@ class PsTopComponent implements Component {
 
 	#header(width: number, title: string): string {
 		const age = this.#lastRefresh ? `updated ${formatDuration(Date.now() - this.#lastRefresh)} ago` : "updating…";
-		const left = ` ${chalk.bold("omp ps")} ${chalk.dim("·")} ${title}`;
+		const left = ` ${chalk.bold("chudware-code ps")} ${chalk.dim("·")} ${title}`;
 		const right = chalk.dim(age);
 		const pad = Math.max(1, width - Bun.stringWidth(left) - Bun.stringWidth(right) - 1);
 		return truncateToWidth(`${left}${" ".repeat(pad)}${right}`, width);

@@ -1,7 +1,8 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 import type { AgentState } from "@oh-my-pi/pi-agent-core";
-import { APP_NAME, isEnoent } from "@oh-my-pi/pi-utils";
+import { isEnoent } from "@oh-my-pi/pi-utils";
+import { PRODUCT_CLI_NAME } from "../../brand";
 import { getResolvedThemeColors, getThemeExportColors } from "../../modes/theme/theme";
 import type { SessionEntry, SessionHeader } from "../../session/session-entries";
 import { loadEntriesFromFile } from "../../session/session-loader";
@@ -47,7 +48,7 @@ export function getTemplate(): string {
 
 export interface ExportOptions {
 	outputPath?: string;
-	/** `"web"` bundles the omp web themes; `"theme"` bundles TUI themes. */
+	/** `"web"` bundles the chudware-code web themes; `"theme"` bundles TUI themes. */
 	palette?: "web" | "theme";
 	/** Legacy single TUI theme name. Prefer `themeNames` for dual-theme exports. */
 	themeName?: string;
@@ -283,7 +284,7 @@ export async function exportSessionToHtml(
 
 	const palette = opts.palette ?? (opts.themeName ? "theme" : "web");
 	const html = await generateHtml(sessionData, palette, opts.themeNames, opts.themeName);
-	const outputPath = opts.outputPath || `${APP_NAME}-session-${path.basename(sessionFile, ".jsonl")}.html`;
+	const outputPath = opts.outputPath || `${PRODUCT_CLI_NAME}-session-${path.basename(sessionFile, ".jsonl")}.html`;
 
 	await Bun.write(outputPath, html);
 	return outputPath;
@@ -313,7 +314,7 @@ export async function exportFromFile(inputPath: string, options?: ExportOptions 
 
 	const palette = opts.palette ?? (opts.themeName ? "theme" : "web");
 	const html = await generateHtml(sessionData, palette, opts.themeNames, opts.themeName);
-	const outputPath = opts.outputPath || `${APP_NAME}-session-${path.basename(inputPath, ".jsonl")}.html`;
+	const outputPath = opts.outputPath || `${PRODUCT_CLI_NAME}-session-${path.basename(inputPath, ".jsonl")}.html`;
 
 	await Bun.write(outputPath, html);
 	return outputPath;

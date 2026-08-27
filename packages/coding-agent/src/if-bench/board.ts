@@ -1,5 +1,5 @@
 /**
- * Live board and scoreboard for `omp if-bench`.
+ * Live board and scoreboard for `chudware-code if-bench`.
  *
  * Interactive terminals get one repainted row per model — a turn ladder that
  * fills as turns pass, the in-flight turn as a spinner cell, and the live
@@ -28,7 +28,7 @@ const FAILURE_TEXT: Record<IfBenchFailure, string> = {
 	provider: "provider error",
 };
 
-/** Rendering surface for one `omp if-bench` run. */
+/** Rendering surface for one `chudware-code if-bench` run. */
 export interface IfBenchBoard extends IfBenchObserver {
 	readonly interactive: boolean;
 	/** Print a permanent line above the live rows (plain write when non-TTY). */

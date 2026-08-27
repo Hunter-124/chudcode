@@ -14,7 +14,7 @@ export default class Worktree extends Command {
 
 	static args = {
 		// `list` (default) inspects the worktree dir; `clear` removes entries.
-		// A positional action keeps `omp worktree` (the no-arg form) useful.
+		// A positional action keeps `chudware-code worktree` (the no-arg form) useful.
 		action: Args.string({
 			description: "list (default) or clear",
 			required: false,
@@ -37,11 +37,11 @@ export default class Worktree extends Command {
 	};
 
 	static examples = [
-		"omp worktree",
-		"omp worktree list --json",
-		"omp worktree clear",
-		"omp worktree clear --dry-run",
-		"omp worktree clear --all",
+		"chudware-code worktree",
+		"chudware-code worktree list --json",
+		"chudware-code worktree clear",
+		"chudware-code worktree clear --dry-run",
+		"chudware-code worktree clear --all",
 	];
 
 	async run(): Promise<void> {

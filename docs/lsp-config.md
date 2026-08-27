@@ -1,6 +1,6 @@
-# LSP configuration in OMP
+# LSP configuration in Chudware Code
 
-This guide explains how to configure language servers for the OMP coding agent.
+This guide explains how to configure language servers for the Chudware Code coding agent.
 
 Source of truth in code:
 
@@ -10,7 +10,7 @@ Source of truth in code:
 
 ## Auto-detection
 
-When no config file contributes a server override, OMP auto-detects built-in servers by intersecting two conditions:
+When no config file contributes a server override, Chudware Code auto-detects built-in servers by intersecting two conditions:
 
 1. The current working directory contains at least one of the server's `rootMarkers`.
 2. The server binary is available — checked in supported project-local bin directories first (for example `node_modules/.bin/`, Python virtual environments, Ruby binstubs, and project `bin/` for Go), then `$PATH`.
@@ -19,7 +19,7 @@ Root-marker detection at startup is cwd-only; it does not search parent director
 
 ## Config file locations
 
-OMP merges LSP config from multiple sources, lowest to highest precedence:
+Chudware Code merges LSP config from multiple sources, lowest to highest precedence:
 
 | Precedence | Location                                                                                                     |
 | ---------: | ------------------------------------------------------------------------------------------------------------ |
@@ -40,7 +40,7 @@ The native user config directory follows `PI_CONFIG_DIR` and active profiles; `~
 - User-wide preferences → active native agent directory's `lsp.json`
 - Project-specific overrides → `<cwd>/.omp/lsp.json`
 
-> **Note:** Auto-detection mode is skipped only when at least one readable config contributes a non-empty server map. A config that only sets `idleTimeoutMs` still uses built-in auto-detection. With server overrides, OMP first merges them onto all defaults, then keeps servers whose root markers match the cwd, whose binary resolves, and whose merged config is not `disabled`.
+> **Note:** Auto-detection mode is skipped only when at least one readable config contributes a non-empty server map. A config that only sets `idleTimeoutMs` still uses built-in auto-detection. With server overrides, Chudware Code first merges them onto all defaults, then keeps servers whose root markers match the cwd, whose binary resolves, and whose merged config is not `disabled`.
 
 ## File shape
 
@@ -92,7 +92,7 @@ The required fields may be omitted from an override of a built-in server because
 
 ### Capabilities
 
-The `capabilities` object enables optional server-specific features that OMP supports on a per-server basis:
+The `capabilities` object enables optional server-specific features that Chudware Code supports on a per-server basis:
 
 ```json
 {

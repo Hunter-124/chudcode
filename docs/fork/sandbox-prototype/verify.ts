@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
 /**
- * End-to-end proof that omp's real desktop backend (@oh-my-pi/pi-natives 18.0.6)
+ * End-to-end proof that Chudware Code's real desktop backend (@oh-my-pi/pi-natives 18.0.6)
  * drives an isolated Xvfb seat: enumerate -> capture -> click -> type -> capture,
  * with the app's own window title as an independent oracle for input delivery.
  *
@@ -13,7 +13,7 @@ import { createDesktopSession } from "@oh-my-pi/pi-natives/desktop";
 const EVIDENCE = path.join(import.meta.dir, "evidence");
 const APP_URL = `file://${path.join(import.meta.dir, "page.html")}`;
 
-if (process.env.WAYLAND_DISPLAY) throw new Error("WAYLAND_DISPLAY is set; omp would pick the Wayland backend");
+if (process.env.WAYLAND_DISPLAY) throw new Error("WAYLAND_DISPLAY is set; Chudware Code would pick the Wayland backend");
 const display = process.env.DISPLAY;
 if (!display || display === ":0") throw new Error(`refusing to run against DISPLAY=${display}`);
 
@@ -51,11 +51,11 @@ const brave = Bun.spawn(
 );
 console.log(`brave pid=${brave.pid}`);
 
-step("waiting for the window to appear in omp's window list");
+step("waiting for the window to appear in Chudware Code's window list");
 let target: DesktopWindow | undefined;
 for (let i = 0; i < 200; i++) {
 	const windows = await session.listWindows();
-	target = windows.find(w => w.title?.startsWith("OMP-SEAT"));
+	target = windows.find(w => w.title?.startsWith("Chudware Code-SEAT"));
 	if (target) break;
 	await sleep(100);
 }
@@ -76,7 +76,7 @@ console.log(
 );
 await sleep(600); // let first paint settle
 
-step("capture BEFORE (omp native X11 capture)");
+step("capture BEFORE (Chudware Code native X11 capture)");
 const before = await session.capture("desktop");
 console.log(
 	`desktop capture: ${before.width}x${before.height} backend=${before.backend} displayServer=${before.displayServer} bytes=${before.data.byteLength}`,

@@ -28,7 +28,7 @@ export interface BlobBrokerSavingsCounters {
 	readonly savedBytes: number;
 }
 
-/** Durable savings summary exposed by `omp images status`. */
+/** Durable savings summary exposed by `chudware-code images status`. */
 export interface BlobBrokerSavingsStatus extends BlobBrokerSavingsCounters {
 	readonly journalPath: string;
 	readonly byDestination: Readonly<Record<string, BlobBrokerSavingsCounters>>;

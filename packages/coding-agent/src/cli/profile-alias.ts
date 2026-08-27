@@ -1,6 +1,7 @@
 import * as os from "node:os";
 import * as path from "node:path";
 import { normalizeProfileName } from "@oh-my-pi/pi-utils/dirs";
+import { PRODUCT_NAME } from "../brand";
 
 export type ProfileAliasShell = "bash" | "zsh" | "fish" | "powershell" | "pwsh";
 
@@ -289,7 +290,7 @@ function renderAliasBlock(
 	switch (shell) {
 		case "fish":
 			body = [
-				`function ${aliasName} --wraps omp --description 'OMP profile ${profile}'`,
+				`function ${aliasName} --wraps omp --description '${PRODUCT_NAME} profile ${profile}'`,
 				`    command ${command.fish} --profile=${profile} $argv`,
 				"end",
 			].join("\n");
