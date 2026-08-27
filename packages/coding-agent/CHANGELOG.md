@@ -5,6 +5,9 @@
 ### Fixed
 
 - Fixed status-line background-work counts to keep queued tasks and eval jobs visible without double-counting running subagents.
+### Added
+
+- Added account quota usage to the `full` and `nerd` status-line presets ([#9929](https://github.com/can1357/oh-my-pi/issues/9929)).
 
 ## [18.0.8] - 2026-08-27
 
