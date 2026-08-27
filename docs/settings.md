@@ -693,11 +693,39 @@ For a custom status line, set `statusLine.preset: custom` and configure `statusL
 | `followUpMode`         | enum    | `one-at-a-time` | `all`, `one-at-a-time`.                                                                                 |
 | `interruptMode`        | enum    | `immediate`     | `immediate`, `wait`.                                                                                    |
 | `doubleEscapeAction`   | enum    | `tree`          | `branch`, `tree`, `none`.                                                                               |
+| `keybindings.preset`   | enum    | `default`       | `default`, `windows`. Select built-in keybinding defaults; explicit entries in `keybindings.yml` take precedence. |
 | `autoResume`           | boolean | `false`         | Auto-resume the most recent session in the cwd.                                                         |
 | `plan.enabled`         | boolean | `true`          | Enable plan mode.                                                                                       |
 | `plan.defaultOnStartup` | boolean | `false`         | Start each fresh interactive session in plan mode when plan mode is enabled. Print/JSON (`--print`) mode ignores this and prints a note; use `--plan-yolo` for a headless plan flow. |
 | `ask.timeout`          | number  | `0`             | Seconds before an `ask` prompt times out; `0` = no timeout. (Legacy ms values are migrated to seconds.) |
 | `ask.notify`           | enum    | `on`            | `on`, `off`.                                                                                            |
+
+The `windows` preset changes these bindings. All other actions keep their built-in defaults.
+
+| Action | Default | `windows` |
+| --- | --- | --- |
+| `tui.input.copy` | `ctrl+c` | `ctrl+c` |
+| `app.clear` | `ctrl+c` | `ctrl+shift+k`, `alt+k` |
+| `app.interrupt` | `escape` | `escape` |
+| `tui.editor.undo` | `ctrl+-`, `ctrl+_` | `ctrl+z`, `ctrl+-`, `ctrl+_` |
+| `tui.editor.redo` | unbound | `ctrl+y`, `ctrl+shift+z`, `alt+-` |
+| `app.suspend` | `ctrl+z` | `ctrl+alt+z` |
+| `tui.editor.yank` | `ctrl+y` | unbound |
+| `tui.editor.cursorLineStart` | `home`, `ctrl+a` | `home` |
+| `tui.editor.selectAll` | unbound | `ctrl+a` |
+| `tui.editor.cut` | unbound | `ctrl+x` |
+| `tui.editor.paste` | unbound | `ctrl+v` |
+| `tui.editor.selectLeft` / `selectRight` / `selectUp` / `selectDown` | unbound | `shift+left` / `shift+right` / `shift+up` / `shift+down` |
+| `tui.editor.selectWordLeft` / `selectWordRight` | unbound | `ctrl+shift+left` / `ctrl+shift+right` |
+| `tui.editor.selectToLineStart` / `selectToLineEnd` | unbound | `shift+home` / `shift+end` |
+| `app.copy.picker` | unbound | `ctrl+shift+c`, `alt+c` |
+| `app.draft.restore` | unbound | `alt+z` |
+| `app.exit` | `ctrl+d` | `ctrl+d`, `ctrl+q` |
+| `app.message.followUp` | `ctrl+q`, `ctrl+enter` | `alt+q`, `ctrl+enter` |
+| `app.message.dequeue` | `alt+up`, `shift+up` | `alt+up` |
+| `app.clipboard.pasteImage` | platform-dependent | `alt+v` |
+
+`alt+k` and `alt+c` are legacy-terminal fallbacks for primary `ctrl+shift+letter` bindings. Follow-up, dequeue, and image paste move because the preset assigns `ctrl+q`, `shift+up`, and `ctrl+v` to exit, selection, and editor paste.
 
 ### Providers and services
 

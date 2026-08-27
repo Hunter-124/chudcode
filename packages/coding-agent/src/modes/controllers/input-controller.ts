@@ -468,6 +468,26 @@ export class InputController {
 
 		this.ctx.editor.setActionKeys("app.clear", this.ctx.keybindings.getKeys("app.clear"));
 		this.ctx.editor.onClear = () => this.handleCtrlC();
+		// Ctrl+C is copy/no-op when the resolved clear action moved elsewhere.
+		// The one exception is the raw-mode emergency exit while shutdown is stuck.
+		this.ctx.editor.onCtrlC = () => {
+			if (!this.ctx.isShuttingDown) return false;
+			this.handleCtrlC();
+			return true;
+		};
+		this.ctx.editor.setActionKeys("app.draft.restore", this.ctx.keybindings.getKeys("app.draft.restore"));
+		this.ctx.editor.onRestoreDraft = () => {
+			if (this.ctx.editor.restoreDraft()) {
+				this.ctx.showStatus("Restored cleared draft");
+				this.ctx.ui.requestRender();
+			} else {
+				this.ctx.showStatus(
+					this.ctx.editor.getText().length > 0 ? "Clear the current draft before restoring" : "No cleared draft to restore",
+				);
+			}
+		};
+		this.ctx.editor.setActionKeys("app.copy.picker", this.ctx.keybindings.getKeys("app.copy.picker"));
+		this.ctx.editor.onCopyPicker = () => this.ctx.showCopySelector();
 		this.ctx.editor.setActionKeys("app.exit", this.ctx.keybindings.getKeys("app.exit"));
 		this.ctx.editor.setActionKeys("app.display.reset", this.ctx.keybindings.getKeys("app.display.reset"));
 		this.ctx.editor.onDisplayReset = () => {
@@ -509,6 +529,10 @@ export class InputController {
 			this.ctx.keybindings.getKeys("app.clipboard.pasteImage"),
 		);
 		this.ctx.editor.onPasteImage = () => this.handleImagePaste();
+		// Base-editor selection actions stay clipboard-backend agnostic; the host
+		// supplies the existing cross-platform clipboard implementation here.
+		this.ctx.editor.onCopy = text => void copyToClipboard(text);
+		this.ctx.editor.onPaste = () => void this.handleImagePaste();
 		this.ctx.editor.onPasteImagePath = path => this.handleImagePathPaste(path);
 		this.ctx.editor.setActionKeys(
 			"app.clipboard.pasteTextRaw",
