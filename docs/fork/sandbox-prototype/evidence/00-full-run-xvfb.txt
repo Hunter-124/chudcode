@@ -1,0 +1,104 @@
+=== USER SESSION BEFORE (2026-08-27T05:47:51-04:00)
+  pointer(:0):         x:2081 y:779 screen:0 window:914
+  kwin currentDesktop: (1,)
+  kwin activeOutput:   ('HDMI-A-2',)
+  ESTAB conns to user X0: 11
+  clients on user a11y bus (omp wayland backend): 1
+
+=== SEAT START
+OMP_SEAT_NAME=proof
+OMP_SEAT_DIR=/run/user/1000/omp-seats/proof
+DISPLAY=:90
+XAUTHORITY=/run/user/1000/omp-seats/proof/Xauthority
+UNSET=WAYLAND_DISPLAY
+
+=== OMP BACKEND ON THE SEAT
+{
+  "env": {
+    "DISPLAY": ":90",
+    "WAYLAND_DISPLAY": null,
+    "XDG_SESSION_TYPE": "wayland"
+  },
+  "capabilities": {
+    "backend": "x11",
+    "capture": true,
+    "input": true,
+    "ax": true,
+    "backgroundWindowInput": true,
+    "deliveryModes": [
+      "background",
+      "foreground"
+    ],
+    "capturePermission": "granted",
+    "inputPermission": "granted",
+    "axPermission": "granted",
+    "displayCount": 1,
+    "displayServer": ":90"
+  }
+}
+windows: []
+displays: [{"id":"241","name":"screen","x":0,"y":0,"width":1920,"height":1080,"scale":1,"pixelX":0,"pixelY":0,"pixelWidth":1920,"pixelHeight":1080,"isPrimary":false}]
+
+=== END-TO-END RENDER + INPUT
+
+### capabilities on the isolated seat
+{"backend":"x11","capture":true,"input":true,"ax":true,"backgroundWindowInput":true,"deliveryModes":["background","foreground"],"capturePermission":"granted","inputPermission":"granted","axPermission":"granted","displayCount":1,"displayServer":":90"}
+
+### launching brave-browser into :90
+brave pid=3987783
+
+### waiting for the window to appear in omp's window list
+{"id":"6291459","app":"Brave-browser","title":"OMP-SEAT clicks=0 typed=","x":0,"y":0,"width":1280,"height":800}
+
+### capture BEFORE (omp native X11 capture)
+desktop capture: 1920x1080 backend=x11 displayServer=:90 bytes=65600
+saved: /home/hunter/Repositories/omp-inspection/sandbox-prototype/evidence/05-before.png
+window capture: 1280x800 bytes=44502
+saved: /home/hunter/Repositories/omp-inspection/sandbox-prototype/evidence/06-window-before.png
+
+### synthesizing a click on the button (XTEST at root, target=desktop)
+click at desktop (400, 300)
+title after click: "OMP-SEAT clicks=1 typed="
+
+### synthesizing keystrokes (typeText + keyChord)
+title after typing: "OMP-SEAT clicks=1 typed=omp-seat-ok<CR>"
+
+### capture AFTER
+saved: /home/hunter/Repositories/omp-inspection/sandbox-prototype/evidence/07-after.png
+saved: /home/hunter/Repositories/omp-inspection/sandbox-prototype/evidence/08-window-after.png
+
+### pixel oracle: count state-marker colours across the whole capture
+button-red   #CC2222: before=77784px after=0px
+button-green #00CC44: before=0px after=77393px
+probe-blue   #0000FF: before=3600px after=0px
+probe-yellow #FFFF00: before=0px after=3600px
+
+### process isolation of the seat app (read while it is still alive)
+brave pid 3987783: DISPLAY=:90 WAYLAND_DISPLAY=<unset>
+  11 conns  X0 served by Xwayland pid 4882
+  8 conns  X90 served by Xvfb pid 3987688
+
+### accessibility tree of the isolated seat (AT-SPI)
+ax: ERROR Error: WindowNotFound: no focused window was found
+
+### verdict
+PASS: click and keystrokes reached the app inside the isolated seat
+
+=== USER SESSION AFTER (2026-08-27T05:47:56-04:00)
+  pointer(:0):         x:2081 y:779 screen:0 window:914
+  kwin currentDesktop: (1,)
+  kwin activeOutput:   ('HDMI-A-2',)
+  ESTAB conns to user X0: 11
+  clients on user a11y bus (omp wayland backend): 1
+
+=== DIFF OF USER SESSION STATE
+IDENTICAL: user session state unchanged
+
+=== TEARDOWN
+seat GUI pids before stop: 3987783 3987789 3987799 3987800 3987820 3987908 3987910 3987935 3987966 3987967 
+seat: stopped proof
+seat GUI pids after stop:  
+omp-seat-shim procs:       
+Xvfb procs:                
+X sockets:                 X0 
+seat dirs:                 

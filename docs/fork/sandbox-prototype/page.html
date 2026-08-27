@@ -1,0 +1,85 @@
+<!doctype html>
+<html>
+	<head>
+		<meta charset="utf-8" />
+		<title>OMP-SEAT idle</title>
+		<style>
+			html,
+			body {
+				margin: 0;
+				padding: 0;
+				width: 100%;
+				height: 100%;
+				background: #101820;
+				overflow: hidden;
+				font: 28px/1.3 monospace;
+				color: #f0f0f0;
+			}
+			#btn {
+				position: absolute;
+				left: 200px;
+				top: 200px;
+				width: 400px;
+				height: 200px;
+				background: #cc2222;
+				border: 8px solid #ffffff;
+				display: flex;
+				align-items: center;
+				justify-content: center;
+				font-size: 40px;
+				user-select: none;
+			}
+			#typed {
+				position: absolute;
+				left: 200px;
+				top: 450px;
+				width: 800px;
+				height: 90px;
+				background: #202830;
+				border: 4px solid #888;
+				padding: 8px;
+				box-sizing: border-box;
+				white-space: pre;
+			}
+			#probe {
+				position: absolute;
+				left: 40px;
+				top: 40px;
+				width: 60px;
+				height: 60px;
+				background: #0000ff;
+			}
+		</style>
+	</head>
+	<body>
+		<div id="probe"></div>
+		<div id="btn">CLICK ME</div>
+		<div id="typed"></div>
+		<script>
+			let clicks = 0;
+			let typed = "";
+			const btn = document.getElementById("btn");
+			const out = document.getElementById("typed");
+			const probe = document.getElementById("probe");
+			function retitle() {
+				document.title = `OMP-SEAT clicks=${clicks} typed=${typed}`;
+			}
+			btn.addEventListener("mousedown", () => {
+				clicks += 1;
+				btn.style.background = "#00cc44";
+				btn.textContent = `CLICKED x${clicks}`;
+				probe.style.background = "#00ff00";
+				retitle();
+			});
+			window.addEventListener("keydown", event => {
+				if (event.key.length === 1) typed += event.key;
+				else if (event.key === "Enter") typed += "<CR>";
+				else return;
+				out.textContent = typed;
+				probe.style.background = "#ffff00";
+				retitle();
+			});
+			retitle();
+		</script>
+	</body>
+</html>

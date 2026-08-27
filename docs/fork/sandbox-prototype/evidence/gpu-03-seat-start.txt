@@ -1,0 +1,4 @@
+OMP_SEAT_NAME=gproof
+OMP_SEAT_DIR=/run/user/1000/omp-seats/gproof
+DISPLAY=:120
+UNSET=WAYLAND_DISPLAY

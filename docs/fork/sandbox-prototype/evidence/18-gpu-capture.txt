@@ -1,0 +1,2 @@
+window: New Tab - Brave 1400x900
+saved: GPU Internals - Brave 1400x900

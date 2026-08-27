@@ -1,0 +1,15 @@
+=== GPU: DRM render node fds held by seat brave processes
+pid 3576547 dri-fds=0 cmd=
+pid 3576553 dri-fds=0 cmd=
+pid 3576563 dri-fds=0 cmd=--type=zygote
+pid 3576564 dri-fds=0 cmd=--type=zygote
+pid 3576567 dri-fds=0 cmd=--type=zygote
+pid 3576595 dri-fds=1 cmd=--type=gpu-process
+pid 3576597 dri-fds=0 cmd=--type=utility
+pid 3576609 dri-fds=0 cmd=--type=utility
+pid 3576620 dri-fds=0 cmd=--type=renderer
+pid 3576621 dri-fds=0 cmd=--type=renderer
+
+=== CONTROL: user's real brave on Wayland
+pid 3015210 dri-fds=1 cmd=
+pid 3015305 dri-fds=11 cmd=--type=gpu-process

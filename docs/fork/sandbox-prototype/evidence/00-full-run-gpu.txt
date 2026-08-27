@@ -1,0 +1,41 @@
+=== USER SESSION BEFORE (2026-08-27T05:24:06-04:00)
+  pointer(:0):         x:2081 y:779 screen:0 window:914
+  kwin currentDesktop: (1,)
+  kwin activeOutput:   ('DP-2',)
+  ESTAB conns to user X0: 16
+  clients on user a11y bus (omp wayland backend): 1
+
+=== SEAT START
+OMP_SEAT_NAME=gproof
+OMP_SEAT_DIR=/run/user/1000/omp-seats/gproof
+DISPLAY=:120
+UNSET=WAYLAND_DISPLAY
+
+=== OMP BACKEND ON THE SEAT
+{
+  "env": {
+    "DISPLAY": ":120",
+    "WAYLAND_DISPLAY": null,
+    "XDG_SESSION_TYPE": "wayland"
+  },
+  "capabilities": {
+    "backend": "unavailable",
+    "capture": false,
+    "input": false,
+    "ax": false,
+    "backgroundWindowInput": false,
+    "deliveryModes": [],
+    "capturePermission": "unavailable",
+    "inputPermission": "unavailable",
+    "axPermission": "unavailable",
+    "displayCount": 0
+  }
+}
+windows: ERROR Error: Timeout: native desktop operation did not complete: timed out waiting on a channel
+displays: ERROR Error: Timeout: native desktop operation did not complete: timed out waiting on a channel
+error: Timeout: timed out closing native desktop worker: timed out waiting on a channel
+ code: "GenericFailure"
+
+
+Bun v1.3.14 (Linux x64)
+seat-gpu: stopped gproof

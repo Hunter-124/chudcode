@@ -1,0 +1,5 @@
+  pointer(:0):         x:2081 y:779 screen:0 window:914
+  kwin currentDesktop: (1,)
+  kwin activeOutput:   ('HDMI-A-2',)
+  ESTAB conns to user X0: 11
+  clients on user a11y bus (omp wayland backend): 1

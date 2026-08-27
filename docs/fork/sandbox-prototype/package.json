@@ -1,0 +1,8 @@
+{
+  "name": "omp-seat-prototype",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@oh-my-pi/pi-natives": "18.0.6"
+  }
+}

@@ -1,0 +1,5 @@
+seat GUI pids after stop:  
+omp-seat-shim procs:       
+Xvfb procs:                
+X sockets:                 X0 
+seat dirs:                 

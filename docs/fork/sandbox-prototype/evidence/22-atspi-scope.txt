@@ -1,0 +1,7 @@
+=== AT-SPI scope: does the seat's ax tree come from the SEAT or the USER session bus?
+-- seat :92, DBUS_SESSION_BUS_ADDRESS inherited from the user session:
+    "ax": true,
+    "axPermission": "granted",
+-- same seat, DBUS_SESSION_BUS_ADDRESS stripped:
+    "ax": false,
+    "axPermission": "unavailable",

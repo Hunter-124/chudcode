@@ -1,0 +1,51 @@
+OMP_SEAT_NAME=g2
+OMP_SEAT_DIR=/run/user/1000/omp-seats/g2
+DISPLAY=:120
+UNSET=WAYLAND_DISPLAY
+seat-gpu start: 0.21 s
+
+### capabilities on the isolated seat
+{"backend":"unavailable","capture":false,"input":false,"ax":false,"backgroundWindowInput":false,"deliveryModes":[],"capturePermission":"unavailable","inputPermission":"unavailable","axPermission":"unavailable","displayCount":0}
+
+### launching brave-browser into :120
+brave pid=3710391
+
+### waiting for the window to appear in omp's window list
+{"id":"6291459","app":"Brave-browser","title":"OMP-SEAT clicks=0 typed=","x":0,"y":0,"width":1280,"height":800}
+
+### capture BEFORE (omp native X11 capture)
+desktop capture: 1280x672 backend=x11 displayServer=:120 bytes=40171
+saved: /home/hunter/Repositories/omp-inspection/sandbox-prototype/evidence/05-before.png
+window capture: 1280x672 bytes=40171
+saved: /home/hunter/Repositories/omp-inspection/sandbox-prototype/evidence/06-window-before.png
+
+### synthesizing a click on the button (XTEST at root, target=desktop)
+click at desktop (400, 300)
+title after click: "OMP-SEAT clicks=1 typed="
+
+### synthesizing keystrokes (typeText + keyChord)
+title after typing: "OMP-SEAT clicks=1 typed=omp-seat-ok<CR>"
+
+### capture AFTER
+saved: /home/hunter/Repositories/omp-inspection/sandbox-prototype/evidence/07-after.png
+saved: /home/hunter/Repositories/omp-inspection/sandbox-prototype/evidence/08-window-after.png
+
+### pixel oracle: count state-marker colours across the whole capture
+button-red   #CC2222: before=78165px after=0px
+button-green #00CC44: before=0px after=77804px
+probe-blue   #0000FF: before=3600px after=0px
+probe-yellow #FFFF00: before=0px after=3600px
+
+### process isolation of the seat app (read while it is still alive)
+brave pid 3710391: DISPLAY=:120 WAYLAND_DISPLAY=<unset>
+  16 conns  X0 served by Xwayland pid 4882
+  7 conns  X120 served by Xwayland pid 3696405
+  7 conns  X90 served by Xvfb pid 3574326
+  1 conns  X91 served by Xvfb pid 3574347
+  1 conns  X92 served by Xvfb pid 3664968
+
+### accessibility tree of the isolated seat (AT-SPI)
+ax: ERROR Error: WindowNotFound: no focused window was found
+
+### verdict
+PASS: click and keystrokes reached the app inside the isolated seat

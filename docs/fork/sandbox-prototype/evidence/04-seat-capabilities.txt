@@ -1,0 +1,25 @@
+{
+  "env": {
+    "DISPLAY": ":90",
+    "WAYLAND_DISPLAY": null,
+    "XDG_SESSION_TYPE": "wayland"
+  },
+  "capabilities": {
+    "backend": "x11",
+    "capture": true,
+    "input": true,
+    "ax": true,
+    "backgroundWindowInput": true,
+    "deliveryModes": [
+      "background",
+      "foreground"
+    ],
+    "capturePermission": "granted",
+    "inputPermission": "granted",
+    "axPermission": "granted",
+    "displayCount": 1,
+    "displayServer": ":90"
+  }
+}
+windows: []
+displays: [{"id":"241","name":"screen","x":0,"y":0,"width":1920,"height":1080,"scale":1,"pixelX":0,"pixelY":0,"pixelWidth":1920,"pixelHeight":1080,"isPrimary":false}]

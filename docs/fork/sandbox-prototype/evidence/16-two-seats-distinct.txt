@@ -1,0 +1,9 @@
+seat m1 -> :90 ; seat m2 -> :91
+--- omp on :90
+    "backend": "x11",
+    "capture": true,
+    "displayServer": ":90"
+--- omp on :91
+    "backend": "x11",
+    "capture": true,
+    "displayServer": ":91"

@@ -1,0 +1,9 @@
+=== startup cost
+UNSET=WAYLAND_DISPLAY
+seat.sh start: 0.06 s
+UNSET=WAYLAND_DISPLAY
+seat.sh start: 0.06 s
+
+=== two concurrent seats
+m1	display=:90	pid=3574326	live
+m2	display=:91	pid=3574347	live

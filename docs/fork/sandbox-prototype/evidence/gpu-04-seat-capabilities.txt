@@ -1,0 +1,21 @@
+{
+  "env": {
+    "DISPLAY": ":120",
+    "WAYLAND_DISPLAY": null,
+    "XDG_SESSION_TYPE": "wayland"
+  },
+  "capabilities": {
+    "backend": "unavailable",
+    "capture": false,
+    "input": false,
+    "ax": false,
+    "backgroundWindowInput": false,
+    "deliveryModes": [],
+    "capturePermission": "unavailable",
+    "inputPermission": "unavailable",
+    "axPermission": "unavailable",
+    "displayCount": 0
+  }
+}
+windows: ERROR Error: Timeout: native desktop operation did not complete: timed out waiting on a channel
+displays: ERROR Error: Timeout: native desktop operation did not complete: timed out waiting on a channel

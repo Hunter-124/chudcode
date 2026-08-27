@@ -1,0 +1,1 @@
+cage+Xwayland, no X auth: ok=0 fail=4

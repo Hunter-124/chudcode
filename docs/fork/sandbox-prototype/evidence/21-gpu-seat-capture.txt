@@ -1,0 +1,3 @@
+4194307 Brave-browser 1240x640 New Tab - Brave
+saved 1240x640 New Tab - Brave
+title: GPU Internals - Brave 1240x640

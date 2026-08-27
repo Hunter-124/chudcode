@@ -1,0 +1,20 @@
+This repository is a private derivative work of oh-my-pi.
+
+Upstream project:  https://github.com/can1357/oh-my-pi
+Upstream license:  MIT (see LICENSE)
+
+Copyright (c) 2025 Mario Zechner
+Copyright (c) 2025-2026 Can Bölük
+
+The MIT License permits private modification and redistribution provided the
+above copyright notice and the permission notice are retained. LICENSE is
+therefore kept intact and unmodified, and must stay that way. Do not delete,
+rewrite, or relicense it, and do not remove upstream copyright lines from files
+that carry them.
+
+Modifications in this repository are copyright (c) 2026 Hunter and contributors,
+and are likewise made available under the MIT License.
+
+Fixes developed here that are generally useful are contributed back upstream as
+pull requests rather than kept private. See docs/fork/ONBOARDING.md for the
+current state of that effort and docs/fork/HANDOFF.md for the detailed record.
