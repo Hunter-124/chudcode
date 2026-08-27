@@ -1,3 +1,4 @@
+import { basename } from "node:path";
 import {
 	type Component,
 	Container,
@@ -93,6 +94,49 @@ function tokenizeSessionQuery(query: string): string[] {
 
 function compareSessionRecency(a: SessionInfo, b: SessionInfo): number {
 	return b.modified.getTime() - a.modified.getTime();
+}
+
+/** Ten one-line rows fit in a 24-row terminal with the picker chrome and footer. */
+export const RECENT_SESSION_LIMIT = 10;
+
+export type SessionTimeGroup = "Today" | "Yesterday" | "Previous 7 days" | "Older";
+
+/** Calendar-day grouping for the default recency view. */
+export function getSessionTimeGroup(date: Date, now: Date = new Date()): SessionTimeGroup {
+	const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+	const yesterday = new Date(today);
+	yesterday.setDate(yesterday.getDate() - 1);
+	const previousWeek = new Date(today);
+	previousWeek.setDate(previousWeek.getDate() - 7);
+	const timestamp = date.getTime();
+	if (timestamp >= today.getTime()) return "Today";
+	if (timestamp >= yesterday.getTime()) return "Yesterday";
+	if (timestamp >= previousWeek.getTime()) return "Previous 7 days";
+	return "Older";
+}
+
+/** Stable newest-first slice used by the `/recent` picker. */
+export function selectRecentSessions(sessions: readonly SessionInfo[], limit = RECENT_SESSION_LIMIT): SessionInfo[] {
+	return [...sessions].sort(compareSessionRecency).slice(0, Math.max(0, limit));
+}
+
+/** Compact relative timestamp used by the one-line recent-session rows. */
+export function formatSessionRelativeTime(date: Date, now: Date = new Date()): string {
+	const group = getSessionTimeGroup(date, now);
+	if (group === "Yesterday") return "yesterday";
+	const diffMs = Math.max(0, now.getTime() - date.getTime());
+	const diffMins = Math.floor(diffMs / 60_000);
+	if (group === "Today") {
+		if (diffMins < 1) return "just now";
+		if (diffMins < 60) return `${diffMins}m ago`;
+		return `${Math.floor(diffMins / 60)}h ago`;
+	}
+	if (group === "Previous 7 days") return `${Math.max(2, Math.floor(diffMs / 86_400_000))}d ago`;
+	return date.toLocaleDateString();
+}
+
+function sessionDisplayTitle(session: SessionInfo): string {
+	return session.title?.trim() || session.firstMessage.replace(/\s+/g, " ").trim() || "Untitled session";
 }
 
 const MIN_PURE_FUZZY_TOKEN_SCORE = -20;
@@ -278,11 +322,16 @@ class SessionList implements Component {
 	readonly #getTerminalRows: () => number;
 
 	onDeleteRequest?: (session: SessionInfo) => void;
+	onForkRequest?: (session: SessionInfo) => void;
+	onRenameRequest?: (session: SessionInfo) => void;
+	onTogglePinRequest?: (session: SessionInfo) => void;
+	onCopyPathRequest?: (session: SessionInfo) => void;
 
 	#allSessions: SessionInfo[];
 	#showCwd: boolean;
 	#pinnedIds: ReadonlySet<string>;
 	readonly #historyMatcher?: SessionHistoryMatcher;
+	readonly #mode: "full" | "recent";
 	#historyMergeTimer: NodeJS.Timeout | undefined;
 	/** Re-render hook for async list updates (fuzzy scan chunks, history merge). */
 	onRequestRender?: () => void;
@@ -313,13 +362,15 @@ class SessionList implements Component {
 		historyMatcher?: SessionHistoryMatcher,
 		getTerminalRows: () => number = () => 24,
 		pinnedIds: ReadonlySet<string> = new Set(),
+		mode: "full" | "recent" = "full",
 	) {
 		this.#getTerminalRows = getTerminalRows;
-		this.#allSessions = sessions;
 		this.#showCwd = showCwd;
 		this.#pinnedIds = pinnedIds;
 		this.#historyMatcher = historyMatcher;
-		this.#filteredSessions = sessions;
+		this.#mode = mode;
+		this.#allSessions = this.#orderSessions(sessions);
+		this.#filteredSessions = this.#allSessions;
 		this.#searchInput = new Input();
 
 		// Handle Enter in search input - select current item
@@ -337,30 +388,57 @@ class SessionList implements Component {
 	 *
 	 * Chrome (7) is the panel's top border, one spacer, the list's search line
 	 * and its blank, and the pinned footer minus its leading blank (hint,
-	 * blank, bottom border) — the last visible session's separator blank is
-	 * never rendered, so the footer's own blank stands in for it. The reserve
-	 * covers below-editor hook widgets / cursor. The floor of 8 always admits
-	 * two titled sessions (the tallest item at 4 lines: title + preview +
-	 * metadata + separator).
+	 * blank, bottom border). Session heights include their separator and an
+	 * optional time-group header. The reserve covers below-editor hook widgets
+	 * and the cursor; the floor admits two titled sessions in one group.
 	 */
 	#lineBudget(): number {
-		const CHROME = 7;
-		const RESERVE = 1;
-		return Math.max(8, this.#getTerminalRows() - CHROME - RESERVE);
+		const chrome = this.#mode === "recent" ? 5 : 7;
+		const reserve = 1;
+		const minimum = this.#mode === "recent" ? 1 : 9;
+		return Math.max(minimum, this.#getTerminalRows() - chrome - reserve);
 	}
 
-	/** PageUp/PageDown jump, approximated from the worst-case session height. */
+	/** PageUp/PageDown jump, accounting for the tallest possible rendered item. */
 	#pageSize(): number {
-		return Math.max(2, Math.floor(this.#lineBudget() / 4));
+		return Math.max(2, Math.floor(this.#lineBudget() / (this.#mode === "recent" ? 1 : 5)));
+	}
+
+	#orderSessions(sessions: readonly SessionInfo[]): SessionInfo[] {
+		const recency = [...sessions].sort(compareSessionRecency);
+		if (this.#mode === "recent" || this.#pinnedIds.size === 0) return recency;
+		const pinned: SessionInfo[] = [];
+		const unpinned: SessionInfo[] = [];
+		for (const session of recency) (this.#pinnedIds.has(session.id) ? pinned : unpinned).push(session);
+		return [...pinned, ...unpinned];
 	}
 
 	/** Replace the visible dataset, e.g. when toggling folder/all-projects scope. */
 	setSessions(sessions: SessionInfo[], showCwd: boolean, pinnedIds?: ReadonlySet<string>): void {
-		this.#allSessions = sessions;
 		this.#showCwd = showCwd;
 		if (pinnedIds !== undefined) this.#pinnedIds = pinnedIds;
+		this.#allSessions = this.#orderSessions(sessions);
 		this.#selectedIndex = 0;
 		this.#filterSessions(this.#searchInput.getValue());
+	}
+
+	updateSessionTitle(sessionPath: string, title: string): void {
+		const session = this.#allSessions.find(candidate => candidate.path === sessionPath);
+		if (session) session.title = title;
+	}
+
+	setPinned(sessionId: string, pinned: boolean): void {
+		const selectedPath = this.#filteredSessions[this.#selectedIndex]?.path;
+		const next = new Set(this.#pinnedIds);
+		if (pinned) next.add(sessionId);
+		else next.delete(sessionId);
+		this.#pinnedIds = next;
+		this.#allSessions = this.#orderSessions(this.#allSessions);
+		this.#filterSessions(this.#searchInput.getValue());
+		if (selectedPath) {
+			const selectedIndex = this.#filteredSessions.findIndex(session => session.path === selectedPath);
+			if (selectedIndex >= 0) this.#selectedIndex = selectedIndex;
+		}
 	}
 
 	#filterSessions(query: string): void {
@@ -530,15 +608,17 @@ class SessionList implements Component {
 		const lines: string[] = [];
 		this.#hitRows = [];
 
-		// Render search input
-		lines.push(...this.#searchInput.render(width));
-		lines.push(""); // Blank line after search
+		if (this.#mode === "full") {
+			lines.push(...this.#searchInput.render(width));
+			lines.push("");
+		}
 
 		if (this.#filteredSessions.length === 0) {
-			if (this.#showCwd) {
+			if (this.#mode === "recent") {
+				lines.push(truncateToWidth(theme.fg("muted", "No recent sessions found"), width));
+			} else if (this.#showCwd) {
 				lines.push(truncateToWidth(theme.fg("muted", "No sessions found"), width));
 			} else {
-				// "Current folder" scope - hint to try "all"
 				lines.push(
 					truncateToWidth(theme.fg("muted", "No sessions in current folder. Press Tab to view all."), width),
 				);
@@ -546,143 +626,139 @@ class SessionList implements Component {
 			return lines;
 		}
 
-		// Format dates
-		const formatDate = (date: Date): string => {
-			const now = new Date();
-			const diffMs = now.getTime() - date.getTime();
-			const diffMins = Math.floor(diffMs / 60000);
-			const diffHours = Math.floor(diffMs / 3600000);
-			const diffDays = Math.floor(diffMs / 86400000);
-
-			if (diffMins < 1) return "just now";
-			if (diffMins < 60) return `${diffMins} minute${diffMins !== 1 ? "s" : ""} ago`;
-			if (diffHours < 24) return `${diffHours} hour${diffHours !== 1 ? "s" : ""} ago`;
-			if (diffDays === 1) return "1 day ago";
-			if (diffDays < 7) return `${diffDays} days ago`;
-
-			return date.toLocaleDateString();
+		const filtered = this.#filteredSessions;
+		const now = new Date();
+		const grouping = this.#mode === "full" && this.#searchInput.getValue().trim().length === 0;
+		const groupLabel = (session: SessionInfo): string =>
+			this.#pinnedIds.has(session.id) ? "Pinned" : getSessionTimeGroup(session.modified, now);
+		const hasGroupHeader = (index: number): boolean =>
+			grouping && (index === 0 || groupLabel(filtered[index]!) !== groupLabel(filtered[index - 1]!));
+		const itemHeight = (index: number): number => {
+			if (this.#mode === "recent") return 1;
+			return (filtered[index]!.title ? 4 : 3) + (hasGroupHeader(index) ? 1 : 0);
 		};
 
-		// Pack the window around the selection by actual line height (3 lines
-		// per session, 4 when a title adds a preview line) until the viewport
-		// budget is spent, so short sessions never strand blank rows a
-		// worst-case count-based window would leave (then padded by
-		// fill-height).
-		const filtered = this.#filteredSessions;
-		const itemHeight = (session: SessionInfo): number => (session.title ? 4 : 3);
 		const budget = this.#lineBudget();
 		let startIndex = this.#selectedIndex;
 		let endIndex = this.#selectedIndex + 1;
-		let used = itemHeight(filtered[this.#selectedIndex]!);
-		// Alternate growth below/above the selection to keep it roughly centered.
+		let used = itemHeight(this.#selectedIndex);
 		for (let preferDown = true; ; preferDown = !preferDown) {
-			const canDown = endIndex < filtered.length && used + itemHeight(filtered[endIndex]!) <= budget;
-			const canUp = startIndex > 0 && used + itemHeight(filtered[startIndex - 1]!) <= budget;
+			const canDown = endIndex < filtered.length && used + itemHeight(endIndex) <= budget;
+			const canUp = startIndex > 0 && used + itemHeight(startIndex - 1) <= budget;
 			if (!canDown && !canUp) break;
 			if (canDown && (preferDown || !canUp)) {
-				used += itemHeight(filtered[endIndex]!);
+				used += itemHeight(endIndex);
 				endIndex++;
 			} else {
 				startIndex--;
-				used += itemHeight(filtered[startIndex]!);
+				used += itemHeight(startIndex);
 			}
 		}
 
-		// Each session block is built into sessionLines, then wrapped by ScrollView
-		// so the right-edge scrollbar is proportional at the physical-line level.
 		const sessionLines: string[] = [];
-		const sessionRowIndex: number[] = [];
+		const sessionRowIndex: (number | undefined)[] = [];
 		const overflow = startIndex > 0 || endIndex < filtered.length;
 		const rowWidth = Math.max(0, width - (overflow ? 1 : 0));
 		for (let i = startIndex; i < endIndex; i++) {
-			const blockStart = sessionLines.length;
-			const session = this.#filteredSessions[i];
+			const session = filtered[i]!;
+			if (hasGroupHeader(i)) {
+				sessionLines.push(theme.bold(theme.fg("accent", groupLabel(session))));
+				sessionRowIndex.push(undefined);
+			}
+			const selectableStart = sessionLines.length;
 			const isSelected = i === this.#selectedIndex;
-
-			// Normalize first message to single line
-			const normalizedMessage = session.firstMessage.replace(/\n/g, " ").trim();
-
-			// First line: cursor + optional pin icon + title (or first message if no title)
 			const cursorSymbol = `${theme.nav.cursor} `;
 			const cursorWidth = visibleWidth(cursorSymbol);
 			const cursor = isSelected ? theme.fg("accent", cursorSymbol) : padding(cursorWidth);
-			const maxWidth = rowWidth - cursorWidth; // Account for cursor width
-
 			const isPinned = this.#pinnedIds.has(session.id);
 			const pinPrefix = isPinned ? `${theme.fg("accent", theme.icon.pin)} ` : "";
 			const pinPrefixWidth = isPinned ? visibleWidth(`${theme.icon.pin} `) : 0;
-			const maxTextWidth = Math.max(0, maxWidth - pinPrefixWidth);
 
-			if (session.title) {
-				// Has title: show title on first line, dimmed first message on second line
-				const truncatedTitle = truncateToWidth(session.title, maxTextWidth);
-				const titleLine = `${cursor}${pinPrefix}${isSelected ? theme.bold(truncatedTitle) : truncatedTitle}`;
-				sessionLines.push(titleLine);
-
-				// Second line: dimmed first message preview
-				const truncatedPreview = truncateToWidth(normalizedMessage, maxWidth);
-				sessionLines.push(`  ${theme.fg("dim", truncatedPreview)}`);
+			if (this.#mode === "recent") {
+				const dim = (value: string) => theme.fg("dim", value);
+				const dot = dim(theme.sep.dot);
+				const project = session.cwd ? basename(session.cwd) || session.cwd : "unknown project";
+				const messages = `${session.messageCount} ${session.messageCount === 1 ? "msg" : "msgs"}`;
+				let metadata = `${dim(formatSessionRelativeTime(session.modified, now))} ${dot} ${dim(project)} ${dot} ${dim(messages)}`;
+				const status = formatSessionStatus(session.status);
+				if (status) metadata += ` ${dot} ${status}`;
+				const titleWidth = Math.max(
+					0,
+					rowWidth - cursorWidth - pinPrefixWidth - visibleWidth(metadata) - visibleWidth(` ${theme.sep.dot} `),
+				);
+				const title = truncateToWidth(sessionDisplayTitle(session), titleWidth);
+				sessionLines.push(
+					truncateToWidth(
+						`${cursor}${pinPrefix}${isSelected ? theme.bold(title) : title} ${dot} ${metadata}`,
+						rowWidth,
+					),
+				);
 			} else {
-				// No title: show first message as main line
-				const truncatedMsg = truncateToWidth(normalizedMessage, maxTextWidth);
-				const messageLine = `${cursor}${pinPrefix}${isSelected ? theme.bold(truncatedMsg) : truncatedMsg}`;
-				sessionLines.push(messageLine);
-			}
+				const normalizedMessage = session.firstMessage.replace(/\n/g, " ").trim();
+				const maxWidth = rowWidth - cursorWidth;
+				const maxTextWidth = Math.max(0, maxWidth - pinPrefixWidth);
+				if (session.title) {
+					const truncatedTitle = truncateToWidth(session.title, maxTextWidth);
+					sessionLines.push(`${cursor}${pinPrefix}${isSelected ? theme.bold(truncatedTitle) : truncatedTitle}`);
+					const truncatedPreview = truncateToWidth(normalizedMessage, maxWidth);
+					sessionLines.push(`  ${theme.fg("dim", truncatedPreview)}`);
+				} else {
+					const truncatedMsg = truncateToWidth(normalizedMessage, maxTextWidth);
+					sessionLines.push(`${cursor}${pinPrefix}${isSelected ? theme.bold(truncatedMsg) : truncatedMsg}`);
+				}
 
-			// Metadata line: date + file size + lifecycle status (+ project dir in
-			// all-projects scope). The status segment carries its own color, so each
-			// segment is dimmed individually rather than wrapping the whole line.
-			const dim = (s: string) => theme.fg("dim", s);
-			const dot = dim(theme.sep.dot);
-			const modified = formatDate(session.modified);
-			let metadata = `  ${dim(modified)} ${dot} ${dim(formatBytes(session.size))}`;
-			const status = formatSessionStatus(session.status);
-			if (status) {
-				metadata += ` ${dot} ${status}`;
+				const dim = (value: string) => theme.fg("dim", value);
+				const dot = dim(theme.sep.dot);
+				let metadata = `  ${dim(formatSessionRelativeTime(session.modified, now))} ${dot} ${dim(formatBytes(session.size))}`;
+				const status = formatSessionStatus(session.status);
+				if (status) metadata += ` ${dot} ${status}`;
+				if (session.parentSessionPath) metadata += ` ${dot} ${dim(`${theme.icon.branch} fork`)}`;
+				if (this.#showCwd && session.cwd) metadata += ` ${dot} ${dim(shortenPath(session.cwd))}`;
+				sessionLines.push(truncateToWidth(metadata, rowWidth));
+				if (i < endIndex - 1) sessionLines.push("");
 			}
-			if (session.parentSessionPath) {
-				metadata += ` ${dot} ${dim(`${theme.icon.branch} fork`)}`;
-			}
-			if (this.#showCwd && session.cwd) {
-				metadata += ` ${dot} ${dim(shortenPath(session.cwd))}`;
-			}
-			const metadataLine = truncateToWidth(metadata, rowWidth);
-
-			sessionLines.push(metadataLine);
-			// Blank separator between sessions; the last block ends flush against
-			// the footer, whose leading blank provides the same gap.
-			if (i < endIndex - 1) sessionLines.push("");
-			for (let k = blockStart; k < sessionLines.length; k++) sessionRowIndex[k] = i;
+			for (let k = selectableStart; k < sessionLines.length; k++) sessionRowIndex[k] = i;
 		}
 
-		// Wrap the rendered window in a ScrollView for a proportional right-edge
-		// bar, with exact physical-line totals from the per-session heights.
 		let totalRows = 0;
 		let offsetRows = 0;
 		for (let i = 0; i < filtered.length; i++) {
 			if (i === startIndex) offsetRows = totalRows;
-			totalRows += itemHeight(filtered[i]!);
+			totalRows += itemHeight(i);
 		}
-		// The last session's separator blank is never rendered (see the block
-		// loop above), so exclude it or a fully visible list would still show a
-		// scrollbar.
-		totalRows -= 1;
-		const sv = new ScrollView(sessionLines, {
+		if (this.#mode === "full") totalRows -= 1;
+		const scrollView = new ScrollView(sessionLines, {
 			height: sessionLines.length,
 			scrollbar: "auto",
 			totalRows,
-			theme: { track: t => theme.fg("muted", t), thumb: t => theme.fg("accent", t) },
+			theme: { track: value => theme.fg("muted", value), thumb: value => theme.fg("accent", value) },
 		});
-		sv.setScrollOffset(offsetRows);
+		scrollView.setScrollOffset(offsetRows);
 		const sessionRegionStart = lines.length;
-		const svLines = sv.render(width);
-		for (let k = 0; k < svLines.length; k++) this.#hitRows[sessionRegionStart + k] = sessionRowIndex[k];
-		lines.push(...svLines);
-
+		const rendered = scrollView.render(width);
+		for (let k = 0; k < rendered.length; k++) this.#hitRows[sessionRegionStart + k] = sessionRowIndex[k];
+		lines.push(...rendered);
 		return lines;
 	}
 
 	handleInput(keyData: string): void {
+		const actionSession = this.#filteredSessions[this.#selectedIndex];
+		if (matchesKey(keyData, "ctrl+f")) {
+			if (actionSession) this.onForkRequest?.(actionSession);
+			return;
+		}
+		if (matchesKey(keyData, "ctrl+r")) {
+			if (actionSession) this.onRenameRequest?.(actionSession);
+			return;
+		}
+		if (matchesKey(keyData, "ctrl+p")) {
+			if (actionSession) this.onTogglePinRequest?.(actionSession);
+			return;
+		}
+		if (matchesKey(keyData, "ctrl+y")) {
+			if (actionSession) this.onCopyPathRequest?.(actionSession);
+			return;
+		}
 		// Delete key — or Backspace on an empty search query — request delete
 		// confirmation from the parent. macOS laptops have no dedicated Forward
 		// Delete key: Fn+Backspace is the only way to send \e[3~, and many macOS
@@ -749,14 +825,48 @@ class SessionList implements Component {
 			this.onToggleScope?.();
 			return;
 		}
-		// Pass everything else to search input
+		if (this.#mode === "recent") return;
 		this.#searchInput.handleInput(keyData);
 		this.#filterSessions(this.#searchInput.getValue());
 	}
 }
 
+class SessionRenameInput implements Component {
+	readonly #input = new Input();
+	onSubmit?: (title: string) => void;
+	onCancel?: () => void;
+
+	constructor(currentTitle: string | undefined) {
+		if (currentTitle) this.#input.setValue(currentTitle);
+	}
+
+	invalidate(): void {}
+
+	render(width: number): readonly string[] {
+		return [
+			truncateToWidth(theme.fg("muted", "Session title:"), width),
+			...this.#input.render(width),
+			truncateToWidth(theme.fg("dim", "Enter save · Esc cancel"), width),
+		];
+	}
+
+	handleInput(keyData: string): void {
+		if (matchesKey(keyData, "enter") || matchesKey(keyData, "return") || keyData === "\n") {
+			this.onSubmit?.(this.#input.getValue().trim());
+		} else if (matchesAppInterrupt(keyData)) {
+			this.onCancel?.();
+		} else {
+			this.#input.handleInput(keyData);
+		}
+	}
+}
+
 export interface SessionSelectorOptions {
 	onDelete?: (session: SessionInfo) => Promise<boolean>;
+	onFork?: (session: SessionInfo) => Promise<boolean>;
+	onRename?: (session: SessionInfo, title: string) => Promise<boolean>;
+	onTogglePin?: (session: SessionInfo) => Promise<boolean>;
+	onCopyPath?: (session: SessionInfo) => Promise<void>;
 	historyMatcher?: SessionHistoryMatcher;
 	/** Loads sessions across all projects for the all-projects scope toggle (Tab). */
 	loadAllSessions?: () => Promise<SessionInfo[]>;
@@ -782,6 +892,8 @@ export interface SessionSelectorOptions {
 	fillHeight?: boolean;
 	/** Set of pinned session ids to display with a pin indicator. */
 	pinnedIds?: ReadonlySet<string>;
+	/** Dense one-line presentation used by `/recent`; the full picker remains the default. */
+	mode?: "full" | "recent";
 }
 
 /**
@@ -790,6 +902,7 @@ export interface SessionSelectorOptions {
 export class SessionSelectorComponent extends OverlayPanel {
 	#sessionList: SessionList;
 	#confirmationDialog: HookSelectorComponent | null = null;
+	#renameInput: SessionRenameInput | null = null;
 	// Hosts whichever of `#sessionList` / `#confirmationDialog` is live this
 	// frame. The delete dialog REPLACES the list in this slot rather than being
 	// appended below the picker chrome, so the picker is always
@@ -799,6 +912,11 @@ export class SessionSelectorComponent extends OverlayPanel {
 	#contentSlot: Container;
 	#messageContainer: Container;
 	#onDelete?: (session: SessionInfo) => Promise<boolean>;
+	readonly #onFork?: (session: SessionInfo) => Promise<boolean>;
+	readonly #onRename?: (session: SessionInfo, title: string) => Promise<boolean>;
+	readonly #onTogglePin?: (session: SessionInfo) => Promise<boolean>;
+	readonly #onCopyPath?: (session: SessionInfo) => Promise<void>;
+	readonly #close: () => void;
 	#onRequestRender?: () => void;
 	readonly #loadAllSessions?: () => Promise<SessionInfo[]>;
 	#folderSessions: SessionInfo[];
@@ -819,6 +937,7 @@ export class SessionSelectorComponent extends OverlayPanel {
 	readonly #fillHeight: boolean;
 	readonly #title: string;
 	readonly #scopeLabel: string | false | undefined;
+	readonly #mode: "full" | "recent";
 
 	constructor(
 		sessions: SessionInfo[],
@@ -831,6 +950,11 @@ export class SessionSelectorComponent extends OverlayPanel {
 
 		this.#messageContainer = new Container();
 		this.#onDelete = options.onDelete;
+		this.#onFork = options.onFork;
+		this.#onRename = options.onRename;
+		this.#onTogglePin = options.onTogglePin;
+		this.#onCopyPath = options.onCopyPath;
+		this.#close = onCancel;
 		this.#loadAllSessions = options.loadAllSessions;
 		this.#folderSessions = sessions;
 		this.#globalSessions = options.allSessions ?? null;
@@ -838,6 +962,7 @@ export class SessionSelectorComponent extends OverlayPanel {
 		this.#fillHeight = options.fillHeight ?? false;
 		this.#title = options.title ?? "Resume Session";
 		this.#scopeLabel = options.scopeLabel;
+		this.#mode = options.mode ?? "full";
 		this.title = this.#headerLabel();
 		// One spacer of breathing room; OverlayPanel supplies the two outer
 		// border rows and the horizontal inset.
@@ -852,6 +977,7 @@ export class SessionSelectorComponent extends OverlayPanel {
 			options.historyMatcher,
 			options.getTerminalRows,
 			options.pinnedIds,
+			this.#mode,
 		);
 		// Every exit path cancels the list's pending history merge, so a stale
 		// debounce timer can never run its SQLite lookup after the picker closed.
@@ -871,6 +997,24 @@ export class SessionSelectorComponent extends OverlayPanel {
 		this.#sessionList.onDeleteRequest = (session: SessionInfo) => {
 			this.#showDeleteConfirmation(session);
 		};
+		if (this.#onFork) {
+			this.#sessionList.onForkRequest = session => {
+				void this.#forkSession(session);
+			};
+		}
+		if (this.#onRename) {
+			this.#sessionList.onRenameRequest = session => this.#showRenameInput(session);
+		}
+		if (this.#onTogglePin) {
+			this.#sessionList.onTogglePinRequest = session => {
+				void this.#togglePin(session);
+			};
+		}
+		if (this.#onCopyPath) {
+			this.#sessionList.onCopyPathRequest = session => {
+				void this.#copyPath(session);
+			};
+		}
 		if (this.#loadAllSessions || this.#globalSessions) {
 			this.#sessionList.onToggleScope = () => {
 				void this.#toggleScope();
@@ -956,6 +1100,102 @@ export class SessionSelectorComponent extends OverlayPanel {
 		this.#messageContainer.addChild(new Spacer(1));
 	}
 
+	#showMessage(message: string): void {
+		this.#messageContainer.clear();
+		this.#messageContainer.addChild(new Text(theme.fg("success", message), 0, 0));
+		this.#onRequestRender?.();
+	}
+
+	async #forkSession(session: SessionInfo): Promise<void> {
+		const fork = this.#onFork;
+		if (!fork || this.#inputLocked) return;
+		this.#inputLocked = true;
+		this.#clearError();
+		try {
+			if (await fork(session)) {
+				this.#sessionList.dispose();
+				this.#close();
+				return;
+			}
+		} catch (error) {
+			this.#showError(error instanceof Error ? error.message : String(error));
+		}
+		this.#inputLocked = false;
+		this.#onRequestRender?.();
+	}
+
+	#showRenameInput(session: SessionInfo): void {
+		const rename = this.#onRename;
+		if (!rename || this.#renameInput) return;
+		const input = new SessionRenameInput(session.title);
+		const close = () => {
+			this.#renameInput = null;
+			this.#contentSlot.clear();
+			this.#contentSlot.addChild(this.#sessionList);
+			this.#onRequestRender?.();
+		};
+		input.onCancel = close;
+		input.onSubmit = title => {
+			if (!title) {
+				this.#showError("Session title cannot be empty.");
+				this.#onRequestRender?.();
+				return;
+			}
+			this.#inputLocked = true;
+			void (async () => {
+				try {
+					if (await rename(session, title)) {
+						this.#sessionList.updateSessionTitle(session.path, title);
+						close();
+						this.#showMessage(`Renamed session to "${title}".`);
+					}
+				} catch (error) {
+					this.#showError(error instanceof Error ? error.message : String(error));
+				} finally {
+					this.#inputLocked = false;
+					this.#onRequestRender?.();
+				}
+			})();
+		};
+		this.#renameInput = input;
+		this.#contentSlot.clear();
+		this.#contentSlot.addChild(input);
+		this.#onRequestRender?.();
+	}
+
+	async #togglePin(session: SessionInfo): Promise<void> {
+		const togglePin = this.#onTogglePin;
+		if (!togglePin || this.#inputLocked) return;
+		this.#inputLocked = true;
+		this.#clearError();
+		try {
+			const pinned = await togglePin(session);
+			this.#sessionList.setPinned(session.id, pinned);
+			this.#showMessage(`${pinned ? "Pinned" : "Unpinned"} session.`);
+		} catch (error) {
+			this.#showError(error instanceof Error ? error.message : String(error));
+		} finally {
+			this.#inputLocked = false;
+			this.#onRequestRender?.();
+		}
+	}
+
+	async #copyPath(session: SessionInfo): Promise<void> {
+		const copyPath = this.#onCopyPath;
+		if (!copyPath || this.#inputLocked) return;
+		this.#inputLocked = true;
+		this.#clearError();
+		try {
+			await copyPath(session);
+			this.#showMessage("Copied session path.");
+		} catch (error) {
+			this.#showError(error instanceof Error ? error.message : String(error));
+		} finally {
+			this.#inputLocked = false;
+			this.#onRequestRender?.();
+		}
+	}
+
 	#showDeleteConfirmation(session: SessionInfo): void {
 		const displayName = session.title || session.firstMessage.slice(0, 40) || session.id;
 		const closeDialog = () => {
@@ -1022,8 +1262,17 @@ export class SessionSelectorComponent extends OverlayPanel {
 
 	/** Blank · keybinding hint · bottom border. Rendered by {@link render}. */
 	#footerLines(width: number): string[] {
-		const scopeHint = this.#scope === "all" ? "current folder" : "all projects";
-		const hint = theme.fg("muted", `[Del/⌫ delete · Enter select · Tab ${scopeHint} · Esc cancel]`);
+		const hints: string[] = ["Enter select"];
+		if (this.#onDelete) hints.push("Del/⌫ delete");
+		if (this.#onFork) hints.push("Ctrl+F fork");
+		if (this.#onRename) hints.push("Ctrl+R rename");
+		if (this.#onTogglePin) hints.push("Ctrl+P pin/unpin");
+		if (this.#onCopyPath) hints.push("Ctrl+Y copy path");
+		if (this.#mode === "full" && (this.#loadAllSessions || this.#globalSessions)) {
+			hints.push(`Tab ${this.#scope === "all" ? "current folder" : "all projects"}`);
+		}
+		hints.push("Esc cancel");
+		const hint = theme.fg("muted", `[${hints.join(" · ")}]`);
 		return [row("", width), row(hint, width), row("", width), bottomBorder(width)];
 	}
 
@@ -1035,6 +1284,8 @@ export class SessionSelectorComponent extends OverlayPanel {
 		}
 		if (this.#confirmationDialog) {
 			this.#confirmationDialog.handleInput(keyData);
+		} else if (this.#renameInput) {
+			this.#renameInput.handleInput(keyData);
 		} else {
 			this.#sessionList.handleInput(keyData);
 		}
@@ -1047,7 +1298,7 @@ export class SessionSelectorComponent extends OverlayPanel {
 	 * pointer. Mouse is inert while the delete-confirmation dialog is open.
 	 */
 	#handleMouse(data: string): void {
-		if (this.#confirmationDialog) return;
+		if (this.#confirmationDialog || this.#renameInput) return;
 		routeSgrMouseInput(data, event => {
 			if (event.wheel !== null) {
 				this.#sessionList.handleWheel(event.wheel);

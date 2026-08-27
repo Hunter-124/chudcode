@@ -54,7 +54,7 @@ import type { ForeignSessionInfo, ForeignSessionSource } from "../../session/for
 import type { SessionEntry } from "../../session/session-entries";
 import type { SessionInfo } from "../../session/session-listing";
 import { SessionManager } from "../../session/session-manager";
-import { loadPinnedSessionIds } from "../../session/session-pins";
+import { loadPinnedSessionIds, toggleSessionPin } from "../../session/session-pins";
 import { FileSessionStorage } from "../../session/session-storage";
 import { type LogoutAccount, toLogoutAccounts } from "../../slash-commands/helpers/logout";
 import {
@@ -100,7 +100,11 @@ import { ReadToolGroupComponent } from "../components/read-tool-group";
 import { ResetUsageSelectorComponent } from "../components/reset-usage-selector";
 import { renderSegmentTrack } from "../components/segment-track";
 import { SessionAccountSelectorComponent } from "../components/session-account-selector";
-import { SessionSelectorComponent, type SessionSelectorOptions } from "../components/session-selector";
+import {
+	selectRecentSessions,
+	SessionSelectorComponent,
+	type SessionSelectorOptions,
+} from "../components/session-selector";
 import { SettingsSelectorComponent } from "../components/settings-selector";
 import { ToolExecutionComponent } from "../components/tool-execution";
 import { TranscriptBlock } from "../components/transcript-container";
@@ -1539,7 +1543,11 @@ export class SelectorController {
 		return result;
 	}
 
-	async showSessionSelector(source?: ForeignSessionSource): Promise<void> {
+	async showRecentSessionSelector(): Promise<void> {
+		await this.showSessionSelector(undefined, true);
+	}
+
+	async showSessionSelector(source?: ForeignSessionSource, recentOnly = false): Promise<void> {
 		let sessions: SessionInfo[];
 		let onSelectSession: (session: SessionInfo) => Promise<boolean>;
 		let selectorOptions: SessionSelectorOptions;
@@ -1589,14 +1597,15 @@ export class SelectorController {
 			};
 		} else {
 			const [loadedSessions, pinnedIds] = await Promise.all([
-				SessionManager.list(this.ctx.sessionManager.getCwd(), this.ctx.sessionManager.getSessionDir()),
+				recentOnly
+					? SessionManager.listAll()
+					: SessionManager.list(this.ctx.sessionManager.getCwd(), this.ctx.sessionManager.getSessionDir()),
 				loadPinnedSessionIds(),
 			]);
-			sessions = loadedSessions;
+			sessions = recentOnly ? selectRecentSessions(loadedSessions) : loadedSessions;
 			const historyStorage = this.ctx.historyStorage;
-			const historyMatcher = historyStorage
-				? (query: string) => historyStorage.matchingSessionIds(query)
-				: undefined;
+			const historyMatcher =
+				!recentOnly && historyStorage ? (query: string) => historyStorage.matchingSessionIds(query) : undefined;
 			onSelectSession = session => this.handleResumeSession(session.path);
 			selectorOptions = {
 				onDelete: async (session: SessionInfo) => {
@@ -1614,8 +1623,42 @@ export class SelectorController {
 						);
 					}
 				},
-				historyMatcher,
-				loadAllSessions: () => SessionManager.listAll(),
+				onFork: async (session: SessionInfo) => {
+					if (this.ctx.session.isStreaming) throw new Error("Wait for the current response to finish before forking.");
+					if (!(await this.handleResumeSession(session.path))) return false;
+					const forked = await this.ctx.session.fork();
+					if (!forked) throw new Error("Fork failed (session not persisted or cancelled).");
+					this.ctx.statusLine.invalidate();
+					this.ctx.showStatus("Session forked.");
+					return true;
+				},
+				onRename: async (session: SessionInfo, title: string) => {
+					const isActive = this.ctx.sessionManager.getSessionFile() === session.path;
+					const manager = isActive
+						? this.ctx.sessionManager
+						: await SessionManager.open(session.path, undefined, new FileSessionStorage(), {
+								initialCwd: session.cwd,
+								suppressBreadcrumb: true,
+							});
+					try {
+						return await manager.setSessionName(title, "user");
+					} finally {
+						if (!isActive) await manager.close();
+					}
+				},
+				onTogglePin: session => toggleSessionPin(session.id),
+				onCopyPath: session => copyToClipboard(session.path),
+				...(recentOnly
+					? {
+							title: "Recent Sessions",
+							scopeLabel: false,
+							showCwd: true,
+							mode: "recent" as const,
+						}
+					: {
+							historyMatcher,
+							loadAllSessions: () => SessionManager.listAll(),
+						}),
 				pinnedIds,
 			};
 		}

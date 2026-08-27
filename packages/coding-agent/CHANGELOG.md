@@ -9,6 +9,10 @@
 
 - Added account quota usage to the `full` and `nerd` status-line presets ([#9929](https://github.com/can1357/oh-my-pi/issues/9929)).
 - Added a schema guard against settings UI conditions that do not resolve to visibility predicates.
+### Added
+
+- Added `/recent`, a compact ten-session resume picker showing recency, project, message count, and lifecycle status.
+- Grouped the full resume picker by Today, Yesterday, Previous 7 days, and Older, with inline fork, rename, pin/unpin, and copy-path actions.
 
 ## [18.0.8] - 2026-08-27
 

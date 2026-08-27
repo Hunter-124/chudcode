@@ -5523,6 +5523,10 @@ export class InteractiveMode implements InteractiveModeContext {
 		void this.#selectorController.showSessionSelector(source);
 	}
 
+	showRecentSessionSelector(): void {
+		void this.#selectorController.showRecentSessionSelector();
+	}
+
 	async handleResumeSession(sessionPath: string): Promise<void> {
 		// Flush pending settings writes *before* disposing controllers or resetting
 		// observers: a save failure must leave the session, process project dir,
