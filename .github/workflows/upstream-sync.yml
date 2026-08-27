@@ -1,0 +1,74 @@
+name: Upstream sync (oh-my-pi)
+
+# Mirrors can1357/oh-my-pi's main branch into `upstream-mirror` and opens/updates
+# a PR of upstream-mirror -> main so new upstream commits are visible for review.
+# This never auto-merges: main is a heavily customized fork (see
+# docs/fork/HANDOFF.md and docs/fork/ONBOARDING.md) and blind merges have broken
+# rewritten regions before. A human or an agent still has to read the diff and
+# cherry-pick what's worth taking, per CONTRIBUTING.md.
+
+on:
+  schedule:
+    - cron: "0 13 * * 1" # Monday 13:00 UTC
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: main
+
+      - name: Fetch upstream
+        id: fetch
+        run: |
+          git remote add upstream https://github.com/can1357/oh-my-pi.git
+          git fetch upstream main
+          echo "sha=$(git rev-parse upstream/main)" >> "$GITHUB_OUTPUT"
+          echo "short_sha=$(git rev-parse --short upstream/main)" >> "$GITHUB_OUTPUT"
+          echo "behind=$(git rev-list --count main..upstream/main)" >> "$GITHUB_OUTPUT"
+          echo "ahead=$(git rev-list --count upstream/main..main)" >> "$GITHUB_OUTPUT"
+
+      - name: Skip if already in sync
+        if: steps.fetch.outputs.behind == '0'
+        run: echo "main already contains upstream/main @ ${{ steps.fetch.outputs.short_sha }}; nothing to mirror."
+
+      - name: Push mirror branch
+        if: steps.fetch.outputs.behind != '0'
+        run: |
+          git branch -f upstream-mirror upstream/main
+          git push origin upstream-mirror --force
+
+      - name: Open or update sync PR
+        if: steps.fetch.outputs.behind != '0'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TITLE="Upstream sync: oh-my-pi main @ ${{ steps.fetch.outputs.short_sha }} (${{ steps.fetch.outputs.behind }} commits)"
+          BODY=$(cat <<EOF
+          Automated mirror of \`can1357/oh-my-pi\`'s \`main\` branch, opened for review only.
+
+          - Upstream HEAD: \`${{ steps.fetch.outputs.sha }}\`
+          - Commits we are behind: ${{ steps.fetch.outputs.behind }}
+          - Commits we are ahead (fork-only): ${{ steps.fetch.outputs.ahead }}
+
+          **Do not merge this as-is.** \`main\` is a customized fork; prior attempts
+          to merge stale branches wholesale broke rewritten regions (see
+          \`docs/fork/HANDOFF.md\`, \`docs/fork/ONBOARDING.md\`). Read the diff,
+          pull the commits/hunks that are actually valuable, and land those as
+          normal focused PRs. Close this once triaged.
+          EOF
+          )
+          EXISTING=$(gh pr list --state open --base main --head upstream-mirror --json number --jq '.[0].number // empty')
+          if [ -n "$EXISTING" ]; then
+            gh pr edit "$EXISTING" --title "$TITLE" --body "$BODY"
+          else
+            gh pr create --base main --head upstream-mirror --title "$TITLE" --body "$BODY"
+          fi
