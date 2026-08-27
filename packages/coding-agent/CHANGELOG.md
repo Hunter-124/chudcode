@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+### Added
+
+- Added `/recent`, a compact ten-session resume picker showing recency, project, message count, and lifecycle status.
+- Grouped the full resume picker by Today, Yesterday, Previous 7 days, and Older, with inline fork, rename, pin/unpin, and copy-path actions.
+
 ## [18.0.8] - 2026-08-27
 
 ### Added

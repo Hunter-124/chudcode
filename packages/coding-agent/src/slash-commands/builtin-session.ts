@@ -176,6 +176,15 @@ export const BUILTIN_SESSION_SLASH_COMMANDS: ReadonlyArray<SlashCommandSpec> = [
 		},
 	},
 	{
+		name: "recent",
+		icon: "history",
+		description: "Resume one of the 10 most recently modified sessions",
+		handleTui: async (_command, runtime) => {
+			runtime.ctx.editor.setText("");
+			runtime.ctx.showRecentSessionSelector();
+		},
+	},
+	{
 		name: "session",
 		icon: "session",
 		description: "Session management commands",
