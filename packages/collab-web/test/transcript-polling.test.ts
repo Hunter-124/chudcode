@@ -9,6 +9,7 @@ import { describe, expect, it, vi } from "bun:test";
 import type { HostFrame, SessionEntry } from "@oh-my-pi/pi-wire";
 import { GuestClient } from "../src/lib/client";
 import { encodeBase64Url } from "../src/lib/link";
+import type { TranscriptResult } from "../src/lib/session-client";
 import { decideTranscriptPoll } from "../src/lib/transcript-poll";
 
 const LINK = `roomroomroom1234#${encodeBase64Url(new Uint8Array(32))}`;
@@ -32,7 +33,7 @@ describe("GuestClient.fetchTranscript", () => {
 		const client = new GuestClient(LINK, "tester");
 		const promise = client.fetchTranscript("agent-1", 128);
 		client.applyFrameForTest(transcriptFrame(1, "", 128, "transcript entry exceeds transcript fetch cap"));
-		const result = await promise;
+		const result: TranscriptResult | null = await promise;
 		expect(result).toEqual({ kind: "error", message: "transcript entry exceeds transcript fetch cap" });
 	});
 
@@ -40,7 +41,7 @@ describe("GuestClient.fetchTranscript", () => {
 		const client = new GuestClient(LINK, "tester");
 		const promise = client.fetchTranscript("agent-1", 0);
 		client.applyFrameForTest(transcriptFrame(1, '{"type":"message"}\n', 19));
-		const result = await promise;
+		const result: TranscriptResult | null = await promise;
 		expect(result).toEqual({ kind: "rows", text: '{"type":"message"}\n', newSize: 19 });
 	});
 

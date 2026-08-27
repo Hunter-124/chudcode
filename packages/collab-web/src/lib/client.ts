@@ -2,7 +2,7 @@
  * Guest-side session replica for the collab web client.
  *
  * Owns the relay socket, applies host frames in strict arrival order, and
- * exposes an immutable {@link GuestSnapshot} through a
+ * exposes an immutable {@link SessionSnapshot} through a
  * `useSyncExternalStore`-compatible subscribe/getSnapshot pair. The snapshot
  * object (and every replaced collection inside it) gets a new reference per
  * applied frame, so React change detection is reference equality all the way.
@@ -14,6 +14,7 @@ import type {
 	CollabUiRequest,
 	CollabUiResponseValue,
 	HostFrame,
+	ImageContent,
 	SessionEntry,
 	SessionHeader,
 	SessionState,
@@ -22,50 +23,19 @@ import type {
 } from "@oh-my-pi/pi-wire";
 import { importRoomKey } from "./codec";
 import { COLLAB_PROTO, encodeBase64Url, parseCollabLink } from "./link";
+import type {
+	ActiveTool,
+	ConnectionPhase,
+	Notice,
+	SessionClient,
+	SessionSnapshot,
+	TranscriptResult,
+} from "./session-client";
 import { CollabSocket } from "./socket";
 
-export type ConnectionPhase = "connecting" | "waiting" | "live" | "reconnecting" | "ended";
-
-export interface ActiveTool {
-	toolCallId: string;
-	toolName: string;
-	args: unknown;
-	intent?: string;
-	partialResult?: unknown;
-	startedAt: number;
-}
-
-export interface Notice {
-	id: number;
-	level: "info" | "warning" | "error";
-	message: string;
-	at: number;
-}
-
-export interface GuestSnapshot {
-	phase: ConnectionPhase;
-	endedReason: string | null;
-	header: SessionHeader | null;
-	entries: readonly SessionEntry[];
-	state: SessionState | null;
-	agents: readonly AgentSnapshot[];
-	/** Keyed by `payload.progress.id`. */
-	progress: ReadonlyMap<string, SubagentProgressPayload>;
-	/** Keyed by `payload.id`. */
-	lifecycle: ReadonlyMap<string, SubagentLifecyclePayload>;
-	/** Streaming assistant ghost; held until the matching entry lands. */
-	stream: AssistantMessage | null;
-	streamDone: boolean;
-	activeTools: ReadonlyMap<string, ActiveTool>;
-	/** agent_start..agent_end, reconciled by state.isStreaming. */
-	working: boolean;
-	/** True when this guest joined through a read-only (view) link. */
-	readOnly: boolean;
-	/** Pending host-side UI request (`ask` select/editor) this guest can answer. */
-	uiRequest: CollabUiRequest | null;
-	/** Capped at 50, newest last. */
-	notices: readonly Notice[];
-}
+export type { ActiveTool, ConnectionPhase, Notice, TranscriptResult } from "./session-client";
+/** Relay-era name retained for consumers that still construct a {@link GuestClient}. */
+export type GuestSnapshot = SessionSnapshot;
 
 const MAX_NOTICES = 50;
 const TRANSCRIPT_TIMEOUT_MS = 10_000;
@@ -74,21 +44,12 @@ const WELCOME_TIMEOUT_MS = 30_000;
 /** Mirrors the TUI guest's SNAPSHOT_PROGRESS_TIMEOUT_MS: every snapshot chunk must make progress. */
 const SNAPSHOT_PROGRESS_TIMEOUT_MS = 30_000;
 
-/**
- * One fetch-transcript round trip.
- * - `rows`: decoded JSONL from `fromByte`; `newSize` is the next offset base.
- * - `error`: terminal read failure reported by the host (unchanged cursor);
- *   callers must surface it and stop polling instead of hot retrying.
- * Transient failures (timeout, session end) resolve `null` and are retryable.
- */
-export type TranscriptResult = { kind: "rows"; text: string; newSize: number } | { kind: "error"; message: string };
-
 interface PendingTranscript {
 	resolve: (result: TranscriptResult | null) => void;
 	timer: Timer;
 }
 
-export class GuestClient {
+export class GuestClient implements SessionClient {
 	readonly #socket: CollabSocket;
 	readonly #name: string;
 	/** base64url write token from a full link; absent when joined via a view link. */
@@ -118,7 +79,7 @@ export class GuestClient {
 	#uiRequest: CollabUiRequest | null = null;
 	#uiRequestQueue: CollabUiRequest[] = [];
 	#notices: readonly Notice[] = [];
-	#snapshot: GuestSnapshot;
+	#snapshot: SessionSnapshot;
 
 	/** @throws Error when the link does not parse. */
 	constructor(link: string, displayName: string) {
@@ -165,12 +126,14 @@ export class GuestClient {
 	}
 
 	/** Cached stable reference; replaced (with fresh collection refs) per applied frame. */
-	getSnapshot(): GuestSnapshot {
+	getSnapshot(): SessionSnapshot {
 		return this.#snapshot;
 	}
 
-	sendPrompt(text: string): void {
-		this.#socket.send({ t: "prompt", text });
+	sendPrompt(text: string, images?: ImageContent[]): void {
+		const frame =
+			images && images.length > 0 ? { t: "prompt" as const, text, images } : { t: "prompt" as const, text };
+		this.#socket.send(frame);
 	}
 
 	sendUiResponse(reqId: number, value?: CollabUiResponseValue): void {
@@ -503,7 +466,7 @@ export class GuestClient {
 		this.#uiRequestQueue = rest;
 	}
 
-	#buildSnapshot(): GuestSnapshot {
+	#buildSnapshot(): SessionSnapshot {
 		return {
 			phase: this.#phase,
 			endedReason: this.#endedReason,

@@ -1,0 +1,10 @@
+{
+  "extends": "../tsconfig.workspace.json",
+  "include": ["src/*.ts", "src/services", "test"],
+  "exclude": ["src/web"],
+  "compilerOptions": {
+    "lib": ["ES2024"],
+    "noEmit": true,
+    "types": ["bun", "assets"]
+  }
+}

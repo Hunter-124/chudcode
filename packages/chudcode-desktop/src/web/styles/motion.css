@@ -1,0 +1,244 @@
+/* Chudcode motion vocabulary. Durations scale through one runtime authority. */
+:root {
+	--motion-scale: 1;
+	--motion-instant: calc(80ms * var(--motion-scale));
+	--motion-fast: calc(140ms * var(--motion-scale));
+	--motion-base: calc(220ms * var(--motion-scale));
+	--motion-slow: calc(380ms * var(--motion-scale));
+	--motion-stagger: calc(20ms * var(--motion-scale));
+	--motion-breathe: calc(2400ms * var(--motion-scale));
+	--motion-march: calc(1100ms * var(--motion-scale));
+	--motion-recent: calc(30000ms * var(--motion-scale));
+	--ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+	--ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+	--ease-out-back: cubic-bezier(0.34, 1.3, 0.64, 1);
+	--ease-spring: cubic-bezier(0.22, 0.72, 0.24, 1);
+}
+
+/* Streaming transcript rows: cap the wave in markup at eight animated rows. */
+.motion-stream-row-enter {
+	animation: chud-stream-row-enter var(--motion-fast) var(--ease-out) both;
+	animation-delay: calc(var(--motion-index, 0) * var(--motion-stagger));
+}
+
+.motion-stream-row-static {
+	animation: none;
+}
+
+.motion-stream-thinking {
+	transition: block-size var(--motion-base) var(--ease-out);
+}
+
+.motion-stream-live-edge {
+	animation: chud-live-edge var(--motion-breathe) var(--ease-in-out) infinite;
+}
+
+/* Filesystem edit events. */
+.motion-file-created {
+	animation: chud-file-created var(--motion-base) var(--ease-out-back) both;
+	transform-origin: top;
+}
+
+.motion-file-modified {
+	animation: chud-file-modified calc(var(--motion-breathe) * 2) var(--ease-in-out) both;
+}
+
+.motion-file-recent {
+	animation: chud-file-recent var(--motion-recent) linear both;
+}
+
+.motion-file-deleted {
+	animation:
+		chud-file-delete-fade var(--motion-fast) var(--ease-out) both,
+		chud-file-delete-collapse var(--motion-base) var(--ease-out) var(--motion-fast) both;
+	transform-origin: top;
+}
+
+.motion-file-moved {
+	transition: transform var(--motion-base) var(--ease-spring);
+}
+
+.motion-file-burst-summary {
+	animation: none;
+}
+
+/* Diffs: only background wash animates; text color is intentionally absent. */
+.motion-diff-hunk {
+	transition: block-size var(--motion-base) var(--ease-out), opacity var(--motion-base) var(--ease-out);
+}
+
+.motion-diff-line-enter {
+	animation: chud-diff-line-enter var(--motion-fast) var(--ease-out) both;
+	animation-delay: calc(min(var(--motion-index, 0), 9) * var(--motion-stagger));
+}
+
+.motion-diff-navigate {
+	scroll-behavior: smooth;
+	scroll-timeline: none;
+	--motion-scroll-duration: var(--motion-slow);
+	--motion-scroll-easing: var(--ease-in-out);
+}
+
+/* Graph insertion, removal, layout settling, and ambient flow. */
+.motion-graph-node-insert {
+	animation: chud-graph-node-insert var(--motion-slow) var(--ease-out-back) both;
+	transform-origin: center;
+	animation-delay: calc(var(--motion-graph-distance, 0) * var(--motion-stagger));
+}
+
+.motion-graph-edge-insert {
+	animation: chud-graph-edge-insert var(--motion-base) var(--ease-out) both;
+}
+
+.motion-graph-node-remove {
+	animation: chud-graph-node-remove var(--motion-base) var(--ease-out) both;
+	transform-origin: center;
+}
+
+.motion-graph-settle {
+	transition: transform var(--motion-base) var(--ease-spring);
+}
+
+.motion-graph-changed {
+	animation: chud-graph-changed var(--motion-breathe) var(--ease-in-out) infinite;
+}
+
+.motion-graph-flow {
+	animation: chud-graph-flow var(--motion-march) linear infinite;
+}
+
+/* Tabs crossfade content; horizontal content slides are intentionally absent. */
+.motion-tab-underline {
+	transition: transform var(--motion-fast) var(--ease-out), inline-size var(--motion-fast) var(--ease-out);
+}
+
+.motion-tab-content-enter {
+	animation: chud-tab-content var(--motion-base) var(--ease-out) both;
+}
+
+.motion-tab-dirty {
+	transition: opacity var(--motion-instant) var(--ease-out);
+}
+
+.motion-tab-close {
+	transition: opacity var(--motion-fast) var(--ease-out), background-color var(--motion-fast) var(--ease-out);
+}
+
+/* Toasts use one coherent opacity so all glass layers dim together. */
+.motion-toast-enter {
+	animation: chud-toast-enter var(--motion-slow) var(--ease-out-back) both;
+}
+
+.motion-toast-exit {
+	animation: chud-toast-exit var(--motion-base) var(--ease-out) both;
+}
+
+.motion-toast-countdown {
+	transition: stroke-dashoffset var(--motion-base) linear;
+}
+
+@keyframes chud-stream-row-enter {
+	from { opacity: 0; transform: translateY(4px); }
+	to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes chud-live-edge {
+	0%, 100% { opacity: 0.55; }
+	50% { opacity: 1; }
+}
+
+@keyframes chud-file-created {
+	from { opacity: 0; transform: scaleY(0); }
+	to { opacity: 1; transform: scaleY(1); }
+}
+
+@keyframes chud-file-modified {
+	0%, 50%, 100% { box-shadow: inset 0 0 0 999px var(--color-transparent); }
+	25%, 75% { box-shadow: inset 0 0 0 999px var(--accent-soft); }
+}
+
+@keyframes chud-file-recent {
+	from { opacity: 1; }
+	to { opacity: 0.45; }
+}
+
+@keyframes chud-file-delete-fade {
+	from { opacity: 1; }
+	to { opacity: 0; }
+}
+
+@keyframes chud-file-delete-collapse {
+	from { block-size: var(--motion-row-height, auto); }
+	to { block-size: 0; margin-block: 0; padding-block: 0; }
+}
+
+@keyframes chud-diff-line-enter {
+	from { opacity: 0; background-color: var(--color-transparent); }
+	to { opacity: 1; background-color: var(--motion-diff-wash, var(--color-transparent)); }
+}
+
+@keyframes chud-graph-node-insert {
+	from { opacity: 0; transform: scale(0); }
+	to { opacity: 1; transform: scale(1); }
+}
+
+@keyframes chud-graph-edge-insert {
+	from { stroke-dashoffset: 1; opacity: 0; }
+	to { stroke-dashoffset: 0; opacity: 1; }
+}
+
+@keyframes chud-graph-node-remove {
+	from { opacity: 1; transform: scale(1); }
+	to { opacity: 0; transform: scale(0.6); }
+}
+
+@keyframes chud-graph-changed {
+	0%, 100% { opacity: 0.5; }
+	50% { opacity: 1; }
+}
+
+@keyframes chud-graph-flow {
+	from { stroke-dashoffset: 0; }
+	to { stroke-dashoffset: -1; }
+}
+
+@keyframes chud-tab-content {
+	from { opacity: 0; }
+	to { opacity: 1; }
+}
+
+@keyframes chud-toast-enter {
+	from { opacity: 0; transform: translateY(12px); }
+	to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes chud-toast-exit {
+	from { opacity: 1; transform: translateY(0); }
+	to { opacity: 0; transform: translateY(12px); }
+}
+
+/* OS reduced-motion is authoritative until the runtime writes an explicit scale. */
+@media (prefers-reduced-motion: reduce) {
+	:root:not([data-motion-scale]) {
+		--motion-scale: 0;
+	}
+
+	:root:not([data-motion-scale]) *,
+	:root:not([data-motion-scale]) *::before,
+	:root:not([data-motion-scale]) *::after {
+		animation-duration: 0s !important;
+		animation-delay: 0s !important;
+		transition-duration: 0s !important;
+		scroll-behavior: auto !important;
+	}
+}
+
+/* Runtime reduced motion has the same output regardless of OS preference. */
+:root[data-motion-scale="0"] *,
+:root[data-motion-scale="0"] *::before,
+:root[data-motion-scale="0"] *::after {
+	animation-duration: 0s !important;
+	animation-delay: 0s !important;
+	transition-duration: 0s !important;
+	scroll-behavior: auto !important;
+}

@@ -1,11 +1,11 @@
 import { SendHorizontal, Square } from "lucide-react";
 import type { KeyboardEvent, ReactNode, RefObject } from "react";
 import { useCallback, useLayoutEffect, useRef, useState } from "react";
-import type { GuestClient, GuestSnapshot } from "../../lib/client";
+import type { SessionClient, SessionSnapshot } from "../../lib/session-client";
 
 export interface ComposerProps {
-	client: GuestClient;
-	snapshot: GuestSnapshot;
+	client: SessionClient;
+	snapshot: SessionSnapshot;
 }
 
 /** Textarea metrics: line-height 20px + 8px vertical padding × 2 (kept in sync with shell.css). */

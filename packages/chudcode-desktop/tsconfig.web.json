@@ -1,0 +1,10 @@
+{
+  "extends": "../tsconfig.workspace.json",
+  "include": ["src/web", "src/protocol.ts"],
+  "compilerOptions": {
+    "jsx": "react-jsx",
+    "lib": ["ES2024", "DOM", "DOM.Iterable"],
+    "noEmit": true,
+    "types": ["bun", "assets", "react", "react-dom"]
+  }
+}

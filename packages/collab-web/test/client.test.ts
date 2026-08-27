@@ -4,6 +4,7 @@ import type {
 	AssistantMessage,
 	GuestFrame,
 	HostFrame,
+	ImageContent,
 	SessionEntry,
 	SessionHeader,
 	SessionState,
@@ -66,6 +67,45 @@ function liveClient(entries: SessionEntry[] = []): GuestClient {
 	if (entries.length > 0) client.applyFrameForTest(snapshotChunk(entries));
 	return client;
 }
+
+describe("GuestClient prompt wire", () => {
+	it("keeps text-only and empty-image prompts on the exact text-only frame", () => {
+		const sent: GuestFrame[] = [];
+		const sendSpy = vi.spyOn(CollabSocket.prototype, "send").mockImplementation((frame: GuestFrame) => {
+			sent.push(frame);
+		});
+		try {
+			const client = new GuestClient(LINK, "tester");
+			client.sendPrompt("plain");
+			client.sendPrompt("empty images", []);
+
+			expect(sent).toEqual([
+				{ t: "prompt", text: "plain" },
+				{ t: "prompt", text: "empty images" },
+			]);
+			expect(sent.every(frame => !Object.hasOwn(frame, "images"))).toBe(true);
+		} finally {
+			sendSpy.mockRestore();
+		}
+	});
+
+	it("forwards a non-empty image array unchanged", () => {
+		const sent: GuestFrame[] = [];
+		const sendSpy = vi.spyOn(CollabSocket.prototype, "send").mockImplementation((frame: GuestFrame) => {
+			sent.push(frame);
+		});
+		try {
+			const client = new GuestClient(LINK, "tester");
+			const images: ImageContent[] = [{ type: "image", data: "cGl4ZWxz", mimeType: "image/png" }];
+			client.sendPrompt("inspect this", images);
+
+			expect(sent).toEqual([{ t: "prompt", text: "inspect this", images }]);
+			expect((sent[0] as Extract<GuestFrame, { t: "prompt" }>).images).toBe(images);
+		} finally {
+			sendSpy.mockRestore();
+		}
+	});
+});
 
 describe("GuestClient frame apply", () => {
 	it("throws on an invalid link", () => {
