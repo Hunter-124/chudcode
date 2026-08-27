@@ -133,8 +133,8 @@ import { type RepeatedToolCallDetection, ToolCallLoopGuard } from "@oh-my-pi/pi-
 import { isFireworksFastModelId, toFireworksBaseModelId } from "@oh-my-pi/pi-catalog/fireworks-model-id";
 import { getSupportedEfforts } from "@oh-my-pi/pi-catalog/model-thinking";
 import { modelsAreEqual } from "@oh-my-pi/pi-catalog/models";
-import { MacOSPowerAssertion } from "@oh-my-pi/pi-natives";
 import {
+	APP_NAME,
 	escapeXmlText,
 	extractHttpStatusFromError,
 	extractRetryHint,
@@ -272,6 +272,7 @@ import { containsWorkflow, renderWorkflowNotice } from "../modes/workflow";
 import { type PlanApprovalDetails, resolveApprovedPlan } from "../plan-mode/approved-plan";
 import { createPlanReadMatcher } from "../plan-mode/plan-protection";
 import type { PlanModeState } from "../plan-mode/state";
+import { SleepInhibitor } from "../power";
 import advisorSystemPrompt from "../prompts/advisor/system.md" with { type: "text" };
 import goalModeContextPrompt from "../prompts/goals/goal-mode-context.md" with { type: "text" };
 import goalTodoContextPrompt from "../prompts/goals/goal-todo-context.md" with { type: "text" };
@@ -1907,7 +1908,13 @@ export class AgentSession {
 	fileSnapshotStore?: InMemorySnapshotStore;
 	#autoApprove: boolean;
 
-	#powerAssertion: MacOSPowerAssertion | undefined;
+	/** Keeps the machine awake while a prompt is in flight. Cross-platform:
+	 *  macOS power assertions, systemd-logind inhibitor locks, Win32
+	 *  execution state. Failure to inhibit is never fatal. */
+	readonly #sleepInhibitor = new SleepInhibitor({
+		who: APP_NAME,
+		why: "agent turn in progress",
+	});
 
 	readonly configWarnings: string[] = [];
 
@@ -2254,33 +2261,17 @@ export class AgentSession {
 	}
 
 	#acquirePowerAssertion(): void {
-		if (process.platform !== "darwin") return;
+		// `bun test` must never spawn an inhibitor holder or touch the user's
+		// real power state.
 		if (isBunTestRuntime()) return;
-		if (this.#powerAssertion) return;
-		const mode = this.settings.get("power.sleepPrevention");
-		if (mode === "off") return;
-		try {
-			this.#powerAssertion = MacOSPowerAssertion.start({
-				reason: "Oh My Pi agent session",
-				idle: true,
-				display: mode === "display" || mode === "system",
-				system: mode === "system",
-				user: mode === "system",
-			});
-		} catch (error) {
-			logger.warn("Failed to acquire macOS power assertion", { error: String(error) });
-		}
+		this.#sleepInhibitor.acquire(this.settings.get("power.sleepPrevention"));
 	}
 
+	/** Idempotent — every settle path (#endInFlight, #resetInFlight, dispose)
+	 *  calls it, and a process `exit` hook inside SleepInhibitor backstops a
+	 *  teardown that never runs. */
 	#releasePowerAssertion(): void {
-		const assertion = this.#powerAssertion;
-		this.#powerAssertion = undefined;
-		if (!assertion) return;
-		try {
-			assertion.stop();
-		} catch (error) {
-			logger.warn("Failed to release macOS power assertion", { error: String(error) });
-		}
+		this.#sleepInhibitor.release();
 	}
 
 	#beginInFlight(): void {

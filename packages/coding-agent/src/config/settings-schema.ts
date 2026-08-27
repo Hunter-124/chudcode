@@ -128,7 +128,6 @@ export const TAB_GROUPS: Record<SettingTab, readonly string[]> = {
 		"Collab",
 		"Magic Keywords",
 		"Startup & Updates",
-		"Power (macOS)",
 		"Agent",
 		"Git",
 	],
@@ -381,40 +380,18 @@ export const SETTINGS_SCHEMA = {
 		},
 	},
 
-	// macOS power assertions (caffeinate flags). No-op on other platforms.
+	// Sleep/idle inhibition held while a prompt is in flight. Cumulative: each
+	// level adds what every lower level asks for.
+	//   idle    — macOS `caffeinate -i`, logind `idle` inhibitor, ES_SYSTEM_REQUIRED
+	//   display — additionally `caffeinate -d`, org.freedesktop.ScreenSaver, ES_DISPLAY_REQUIRED
+	//   system  — additionally `caffeinate -s -u`, logind `sleep` inhibitor
+	// On by default and intentionally not in the settings UI: it is a
+	// config-file escape hatch (`power.sleepPrevention: off`), not a decision
+	// the user has to make. See src/power/.
 	"power.sleepPrevention": {
 		type: "enum",
 		values: ["off", "idle", "display", "system"] as const,
 		default: "idle",
-		ui: {
-			tab: "interaction",
-			group: "Power (macOS)",
-			label: "Sleep Prevention",
-			description:
-				"Prevent macOS sleep during active sessions. Each level is cumulative — it adds the flags of all lower levels.",
-			options: [
-				{
-					value: "off",
-					label: "Off",
-					description: "Do not prevent any sleep",
-				},
-				{
-					value: "idle",
-					label: "Prevent Idle Sleep",
-					description: "Keep the system awake while a session is open (caffeinate -i)",
-				},
-				{
-					value: "display",
-					label: "Prevent Display Sleep",
-					description: "Also keep the display from idle-sleeping (caffeinate -i -d)",
-				},
-				{
-					value: "system",
-					label: "Prevent System Sleep",
-					description: "Also block all system sleep on AC and declare the user active (caffeinate -i -d -s -u)",
-				},
-			],
-		},
 	},
 	"advisor.enabled": {
 		type: "boolean",
