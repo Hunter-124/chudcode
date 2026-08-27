@@ -379,8 +379,12 @@ export class ExtensionDashboard implements Component {
 			return;
 		}
 
-		// Escape - clear search first, then close
+		// Escape - close immediately when opted in; otherwise preserve query clearing.
 		if (matchesAppInterrupt(data)) {
+			if ((this.settings ?? Settings.instance)?.get("tui.escapeClosesOverlay")) {
+				this.onClose?.();
+				return;
+			}
 			if (this.#state.searchQuery.length > 0) {
 				this.#state.searchQuery = "";
 				this.#state.searchFiltered = this.#state.tabFiltered;

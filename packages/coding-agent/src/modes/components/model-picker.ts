@@ -10,6 +10,7 @@ import type { ModelRegistry } from "../../config/model-registry";
 import type { Settings } from "../../config/settings";
 import type { ResolvedRoleModel } from "../../session/agent-session";
 import { theme } from "../theme/theme";
+import { matchesSelectCancel } from "../utils/keybinding-matchers";
 import {
 	buildBrowserItems,
 	ModelBrowser,
@@ -68,6 +69,7 @@ export class ModelPickerComponent implements Component {
 	#registry: ModelRegistry;
 	#scopedModels: ReadonlyArray<ScopedModelItem>;
 	#browser: ModelBrowser;
+	#onCancel: () => void;
 	#configError: string | undefined;
 	#currentSelector: string | undefined;
 	#currentQuickRoleSelector: string | undefined;
@@ -88,6 +90,7 @@ export class ModelPickerComponent implements Component {
 		this.#settings = settings;
 		this.#registry = registry;
 		this.#scopedModels = scopedModels;
+		this.#onCancel = callbacks.onCancel;
 		this.#currentSelector = options.currentSelector;
 		this.#currentQuickRoleSelector = options.currentQuickRole ? `@${options.currentQuickRole}` : undefined;
 		this.#quickRoleItems = this.#buildQuickRoleItems(
@@ -207,6 +210,10 @@ export class ModelPickerComponent implements Component {
 		// Mouse tracking is off outside fullscreen overlays; drop any stray SGR
 		// reports instead of feeding them to the search input.
 		if (data.startsWith("\x1b[<")) return;
+		if (matchesSelectCancel(data) && this.#settings.get("tui.escapeClosesOverlay")) {
+			this.#onCancel();
+			return;
+		}
 		this.#browser.handleInput(data);
 	}
 

@@ -1239,8 +1239,12 @@ export class SettingsSelectorComponent implements Component {
 	#handleSearchModeInput(data: string, list: SettingsList): void {
 		const kb = getKeybindings();
 		if (kb.matches(data, "tui.select.cancel")) {
-			// Exit search, landing on the tab of the selected result.
-			this.#endSearch(true);
+			if (settings.get("tui.escapeClosesOverlay")) {
+				this.callbacks.onCancel();
+			} else {
+				// Exit search, landing on the tab of the selected result.
+				this.#endSearch(true);
+			}
 			return;
 		}
 		if (matchesKey(data, "tab") || matchesKey(data, "shift+tab")) {

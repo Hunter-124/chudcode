@@ -1188,6 +1188,10 @@ export class AgentDashboard extends Container {
 		}
 
 		if (matchesAppInterrupt(data)) {
+			if (this.#settingsManager?.get("tui.escapeClosesOverlay")) {
+				this.onClose?.();
+				return;
+			}
 			if (this.#searchQuery.length > 0) {
 				this.#searchQuery = "";
 				this.#applyFilters();
