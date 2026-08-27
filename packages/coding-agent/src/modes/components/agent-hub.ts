@@ -23,6 +23,7 @@ import { AgentLifecycleManager } from "../../registry/agent-lifecycle";
 import { type AgentRef, AgentRegistry, type AgentStatus, MAIN_AGENT_ID } from "../../registry/agent-registry";
 import { registerPersistedSubagents } from "../../registry/persisted-agents";
 import { USER_INTERRUPT_LABEL } from "../../session/messages";
+import { sanitizeTaskLabel } from "../../task/label";
 import { parseThinkingLevel } from "../../thinking";
 import { replaceTabs, TRUNCATE_LENGTHS, truncateToWidth } from "../../tools/render-utils";
 import type { ObservableSession, SessionObserverRegistry } from "../session-observer-registry";
@@ -42,9 +43,11 @@ function contentWidth(): number {
 	return Math.max(TRUNCATE_LENGTHS.SHORT, (process.stdout.columns || 80) - 6);
 }
 
-/** Sanitize a line for TUI display: replace tabs, then truncate to viewport width. */
+/** Sanitize a line for TUI display before truncating it to the viewport. */
 function sanitizeLine(text: string, maxWidth?: number): string {
-	const singleLine = replaceTabs(text).replace(/[\r\n]+/g, " ");
+	// Hub labels are UI chrome, so strip residual model markup instead of
+	// rendering escaped tag noise if an upstream generator regresses.
+	const singleLine = replaceTabs(sanitizeTaskLabel(text)).replace(/[\r\n]+/g, " ");
 	return truncateToWidth(singleLine, maxWidth ?? contentWidth());
 }
 
