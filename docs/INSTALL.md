@@ -32,6 +32,8 @@ The installer downloads the matching checked release asset, verifies its SHA-256
 
 The compiled release contains its matching native addon archive and extracts the addon to `~/.omp/natives/18.0.8/` when native functionality is first used. A `.node` file does not need to be placed beside the CLI.
 
+When the Linux x64 GUI bundle is present in the release, the same installer also installs `chudcode-gui`, its CAD asset tree under `~/.local/share/chudcode/`, the desktop entry, and hicolor icons. A release without the optional GUI archive remains a valid CLI-only install.
+
 If `~/.local/bin` is not already on `PATH`, follow the command printed by the installer, then open a new shell.
 
 ## Verify
@@ -57,10 +59,14 @@ Re-run the install command. Installing the same version is an idempotent no-op a
 
 ```sh
 rm -f ~/.local/bin/chudcode ~/.local/bin/chudware-code ~/.local/bin/chcode ~/.local/bin/omp
+rm -f ~/.local/bin/chudcode-gui ~/.local/bin/assets
+rm -f ~/.local/share/applications/chudcode.desktop
+rm -rf ~/.local/share/chudcode
+find ~/.local/share/icons/hicolor -path '*/apps/chudcode.png' -delete
 ```
 
 This deliberately leaves configuration, credentials, profiles, session history, and extracted native files in `~/.omp`. Remove that directory separately only if you intend to erase all local Chudcode state.
 
 ## GUI status
 
-The `chudcode-gui` GUI is not included in v0.1.0. The earlier local-fixture shell was rejected; desktop work is blocked until Chudcode reuses and stays synchronized with the actual CAD/Chudware copilot Code workspace. Use the CLI for real work.
+`chudcode-gui` is the actual CAD/Chudware copilot Code workspace, connected to the Chudcode CLI over ACP; it is not a fixture or a separate reimplementation. In v0.1.0 it supports the live conversation path but does not yet expose rename, delete, pin, artifact enumeration, or jobs.

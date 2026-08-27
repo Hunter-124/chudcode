@@ -8,6 +8,7 @@ CLI_NAME="chudcode"
 LEGACY_BINARY_NAME="omp"
 VERIFIED_TARGETS="${CHUDCODE_VERIFIED_TARGETS:-linux-x64}"
 DIST_DIR="${CHUDCODE_DIST_DIR:-dist/chudcode-v${PRODUCT_VERSION}}"
+STAGE_GUI="${CHUDCODE_STAGE_GUI:-1}"
 EXPECTED_VERSION_OUTPUT="${PRODUCT_NAME} v${PRODUCT_VERSION} (based on ${LEGACY_BINARY_NAME} ${UPSTREAM_VERSION})"
 
 repo_root=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)
@@ -82,6 +83,9 @@ cp "$source_artifact" "$DIST_DIR/$artifact_name"
 chmod 755 "$DIST_DIR/$artifact_name"
 bun scripts/ci-release-checksums.ts "$DIST_DIR/SHA256SUMS.txt" "$DIST_DIR/$artifact_name"
 cp install.sh scripts/release-v01/notes.md "$DIST_DIR/"
+if [ "$target" = "linux-x64" ] && [ "$STAGE_GUI" = "1" ]; then
+	CHUDCODE_DIST_DIR="$DIST_DIR" scripts/release-v01/stage-gui.sh "$target"
+fi
 
 # fix-dt-verdef.ts is intentionally not run here: it is required only after a
 # Linux packaging chain changes ELF dynamic entries with patchelf. These raw Bun
