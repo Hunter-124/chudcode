@@ -7,7 +7,6 @@ Chudcode is Hunter's internal coding-agent build, based on omp 18.0.8. This rele
 - The full terminal coding-agent CLI is available as `chudcode`, with compatibility aliases `chudware-code`, `chcode`, and `omp`.
 - The Linux x64 compiled binary starts without Bun or Node installed. Its native addon is packaged inside the executable and extracted under `~/.omp/natives/18.0.8/` on first native use.
 - The no-root installer selects the host artifact, verifies its checksum and version, and installs under `~/.local/bin`.
-- On Linux x64, `chudcode-gui` packages the actual CAD/Chudware copilot Code workspace and connects it to the CLI over ACP.
 - Existing credentials, profiles, configuration, sessions, shell aliases, and scripts using `~/.omp` or `omp` remain compatible.
 
 ## New in this internal build
@@ -29,6 +28,6 @@ Chudcode is Hunter's internal coding-agent build, based on omp 18.0.8. This rele
 
 ## Known incomplete
 
-- The v0.1 GUI conversation path does not yet expose rename, delete, pin, artifact enumeration, or jobs.
+- The graphical IDE is not included in v0.1.0. The initial CAD-host/ACP implementation was rejected; Chudcode's GUI is being implemented directly on OMP's runtime and web surfaces so it remains an independent product rather than a CAD sidecar.
 - Linux x64 on glibc is the only v0.1.0 binary verified on matching hardware and libc. Darwin arm64/x64, Linux arm64, musl Linux x64/arm64, and Windows x64 remain unpublished until each matching native addon and compiled executable can be built and started on its target platform.
 - The installer detects all upstream build targets, but it fails loudly when the corresponding verified release asset is unavailable rather than substituting another platform's binary.
