@@ -28,9 +28,22 @@ import {
 	visibleWidth,
 } from "@oh-my-pi/pi-tui";
 import type { ModelRegistry } from "../../config/model-registry";
-import { type ModelRoleLookup, type ResolvedModelRoleValue, resolveModelRoleValue } from "../../config/model-resolver";
+import {
+	describeModelSettingProvenance,
+	type EffectiveModelSettings,
+	type ModelRoleLookup,
+	type ResolvedModelRoleValue,
+	resolveEffectiveModelSettings,
+	resolveModelRoleValue,
+} from "../../config/model-resolver";
 import { getKnownRoleIds, getRoleInfo } from "../../config/model-roles";
-import type { Settings } from "../../config/settings";
+import type {
+	ModelSettingsProfileField,
+	ModelSettingsProfileTarget,
+	ModelSettingsStorageScope,
+	Settings,
+} from "../../config/settings";
+import type { CacheRetentionSetting } from "../../config/settings-schema";
 import { AUTO_THINKING, type ConfiguredThinkingLevel, getConfiguredThinkingLevelMetadata } from "../../thinking";
 import { theme } from "../theme/theme";
 import { matchesSelectCancel, matchesSelectDown, matchesSelectUp } from "../utils/keybinding-matchers";
@@ -77,6 +90,7 @@ export interface ScopedModelItem {
 }
 
 export type ModelRoleSelectionScope = "global" | "project";
+export type ModelSettingsEditValue = ConfiguredThinkingLevel | CacheRetentionSetting;
 
 export interface ModelHubCallbacks {
 	/** Persist a role assignment. */
@@ -89,6 +103,19 @@ export interface ModelHubCallbacks {
 	) => void;
 	/** Clear a configured role back to auto-selection. */
 	onUnassign: (role: string, scope?: ModelRoleSelectionScope) => void;
+	/** Persist one legal model-profile leaf. Supplying both settings callbacks enables Customize controls. */
+	onSetModelSettingsField?: (
+		scope: ModelSettingsStorageScope,
+		target: ModelSettingsProfileTarget,
+		field: ModelSettingsProfileField,
+		value: ModelSettingsEditValue,
+	) => void;
+	/** Delete one model-profile leaf so lower-precedence settings inherit immediately. */
+	onResetModelSettingsField?: (
+		scope: ModelSettingsStorageScope,
+		target: ModelSettingsProfileTarget,
+		field: ModelSettingsProfileField,
+	) => void;
 	/** Persist a `retry.fallbackChains` entry — keyed by a role, `provider/model-id`, or `provider/*`; an empty chain clears the key. */
 	onFallbackChainChange?: (role: string, chain: string[]) => void;
 	/** Locked provider activation: forward to the /login flow. */
@@ -101,6 +128,39 @@ export interface ModelHubCallbacks {
 export interface ModelHubOptions {
 	/** Preselect this provider's sidebar entry (e.g. when reopening after /login). */
 	initialProviderId?: string;
+}
+
+const CACHE_RETENTION_LABELS: Readonly<Record<EffectiveModelSettings["cacheRetention"]["value"], string>> = {
+	auto: "Auto",
+	short: "Short",
+	long: "Long",
+	none: "None",
+};
+
+/** Pure copy builder shared by the Basic compact line and Advanced disclosure. */
+export function formatEffectiveModelSettingsLines(
+	effective: EffectiveModelSettings,
+	tier: "basic" | "advanced",
+): string[] {
+	const thinking =
+		effective.thinking.value === undefined
+			? "Provider default"
+			: getConfiguredThinkingLevelMetadata(effective.thinking.value).label;
+	const thinkingLabel = thinking.charAt(0).toUpperCase() + thinking.slice(1);
+	const cacheLabel = CACHE_RETENTION_LABELS[effective.cacheRetention.value];
+	if (tier === "basic") {
+		return [`Effective: Thinking ${thinkingLabel} · Prompt cache ${cacheLabel}`];
+	}
+
+	const adjusted =
+		effective.thinking.adjustedFrom === undefined
+			? ""
+			: ` (clamped from ${getConfiguredThinkingLevelMetadata(effective.thinking.adjustedFrom).label})`;
+	return [
+		"Effective settings",
+		`Thinking: ${thinkingLabel}${adjusted} — ${describeModelSettingProvenance(effective.thinking.provenance)}`,
+		`Prompt cache: ${cacheLabel} — ${describeModelSettingProvenance(effective.cacheRetention.provenance)}`,
+	];
 }
 
 interface SidebarEntry {
@@ -119,28 +179,144 @@ interface StripChip {
 	label: string;
 	/** Pre-styled label body (without selection decoration). */
 	styled: string;
-	role?: string;
-	action: "assign" | "unassign" | "fallback" | "fallbackModel" | "fallbackProvider" | "scope" | "thinking";
-	thinkingLevel?: ConfiguredThinkingLevel;
+}
+
+type RoleStripChip =
+	| (StripChip & {
+			action: "assign";
+			role: string;
+			scope: ModelRoleSelectionScope;
+	  })
+	| (StripChip & {
+			action: "unassign";
+			role: string;
+			scope: ModelRoleSelectionScope;
+	  })
+	| (StripChip & {
+			action: "fallback";
+	  })
+	| (StripChip & {
+			action: "fallbackModel";
+	  })
+	| (StripChip & {
+			action: "fallbackProvider";
+	  });
+
+type ScopeStripChip = StripChip & {
+	action: "scope";
+	scope: ModelRoleSelectionScope;
+};
+
+type ThinkingStripChip = StripChip & {
+	action: "thinking";
+	thinkingLevel: ConfiguredThinkingLevel;
+};
+
+type SettingsTargetStripChip = StripChip & {
+	action: "settingsTarget";
+	settingsTarget: ModelSettingsProfileTarget;
+};
+
+type SettingsScopeStripChip = StripChip & {
+	action: "settingsScope";
+	scope: ModelSettingsStorageScope;
+};
+
+type SettingsFieldStripChip = StripChip & {
+	action: "settingsField";
+	settingsField: ModelSettingsProfileField;
+};
+
+type SettingsValueStripChip =
+	| (StripChip & {
+			action: "settingsReset";
+	  })
+	| (StripChip & {
+			action: "settingsValue";
+			settingsValue: ModelSettingsEditValue;
+	  });
+
+interface RoleStripState {
+	kind: "role";
+	item: ModelBrowserItem;
+	chips: RoleStripChip[];
+	index: number;
+	returnToRoles: boolean;
+}
+
+interface ScopeStripState {
+	kind: "scope";
+	item: ModelBrowserItem;
+	role: string;
+	chips: ScopeStripChip[];
+	index: number;
+	returnToRoles: boolean;
+}
+
+interface ThinkingStripState {
+	kind: "thinking";
+	item: ModelBrowserItem;
+	role: string;
 	scope?: ModelRoleSelectionScope;
+	chips: ThinkingStripChip[];
+	index: number;
+	returnToRoles: boolean;
+}
+
+interface SettingsTargetStripState {
+	kind: "settingsTarget";
+	item: ModelBrowserItem;
+	role?: string;
+	chips: SettingsTargetStripChip[];
+	index: number;
+	returnToRoles: boolean;
+}
+
+interface SettingsScopeStripState {
+	kind: "settingsScope";
+	item: ModelBrowserItem;
+	target: ModelSettingsProfileTarget;
+	chips: SettingsScopeStripChip[];
+	index: number;
+	returnToRoles: boolean;
+}
+
+interface SettingsFieldStripState {
+	kind: "settingsField";
+	item: ModelBrowserItem;
+	target: ModelSettingsProfileTarget;
+	scope: ModelSettingsStorageScope;
+	chips: SettingsFieldStripChip[];
+	index: number;
+	returnToRoles: boolean;
+}
+
+interface SettingsValueStripState {
+	kind: "settingsValue";
+	item: ModelBrowserItem;
+	target: ModelSettingsProfileTarget;
+	scope: ModelSettingsStorageScope;
+	field: ModelSettingsProfileField;
+	chips: SettingsValueStripChip[];
+	index: number;
+	returnToRoles: boolean;
+}
+
+interface RoleNameStripState {
+	/** Footer text input naming a new custom role. */
+	kind: "roleName";
+	input: Input;
 }
 
 type StripState =
-	| {
-			kind: "role" | "scope" | "thinking";
-			item: ModelBrowserItem;
-			role?: string;
-			scope?: ModelRoleSelectionScope;
-			chips: StripChip[];
-			index: number;
-			/** Where to land when a scope or thinking strip closes. */
-			returnToRoles: boolean;
-	  }
-	| {
-			/** Footer text input naming a new custom role. */
-			kind: "roleName";
-			input: Input;
-	  };
+	| RoleStripState
+	| ScopeStripState
+	| ThinkingStripState
+	| SettingsTargetStripState
+	| SettingsScopeStripState
+	| SettingsFieldStripState
+	| SettingsValueStripState
+	| RoleNameStripState;
 
 /** Recorded chip hit-range on the footer row (columns relative to frame col 0). */
 interface ChipRange {
@@ -291,6 +467,27 @@ export class ModelHubComponent implements Component {
 	}
 
 	invalidate(): void {}
+
+	#canCustomizeModelSettings(): boolean {
+		return (
+			this.#callbacks.onSetModelSettingsField !== undefined &&
+			this.#callbacks.onResetModelSettingsField !== undefined
+		);
+	}
+
+	#effectiveModelSettingsLines(model: Model, role: string | undefined, editable: boolean): string[] {
+		const tier = this.#settings.get("settings.tier");
+		const effective = resolveEffectiveModelSettings({
+			model,
+			role,
+			sources: this.#settings.getModelSettingsSourceLayers(model, role),
+		});
+		const lines = formatEffectiveModelSettingsLines(effective, tier);
+		if (tier === "advanced" && editable && this.#canCustomizeModelSettings()) {
+			lines.push("Ctrl+E Customize settings");
+		}
+		return lines;
+	}
 
 	// ═══════════════════════════════════════════════════════════════════════
 	// Data pipeline
@@ -834,7 +1031,7 @@ export class ModelHubComponent implements Component {
 	}
 
 	#openRoleStrip(item: ModelBrowserItem): void {
-		const chips: StripChip[] = [];
+		const chips: RoleStripChip[] = [];
 		const scopedStorage = this.#settings.get("modelRoleStorage") === "project";
 		const scopes: readonly ModelRoleSelectionScope[] = scopedStorage ? ["project", "global"] : ["global"];
 		for (const role of this.#visibleRoleIds()) {
@@ -850,19 +1047,18 @@ export class ModelHubComponent implements Component {
 					!!scopedModel && scopedModel.provider === item.model.provider && scopedModel.id === item.model.id;
 				const roleLabel = (info.tag ?? info.name ?? role).toLowerCase();
 				const label = scopedStorage ? `${scope} ${roleLabel}` : roleLabel;
-				chips.push({
-					label,
-					styled: assignedHere
-						? // Separator required: under the `nerd` preset this glyph is a
-							// two-cell-wide PUA icon that `visibleWidth` counts as one, so
-							// without it the icon overhangs and eats `label`'s first char.
-							theme.fg(info.color ?? "muted", `${theme.status.enabled} ${label}`) +
-							theme.fg("dim", ` ${theme.status.success}`)
-						: theme.fg(info.color ?? "muted", label),
-					role,
-					scope,
-					action: assignedHere ? "unassign" : "assign",
-				});
+				const styled = assignedHere
+					? // Separator required: under the `nerd` preset this glyph is a
+						// two-cell-wide PUA icon that `visibleWidth` counts as one, so
+						// without it the icon overhangs and eats `label`'s first char.
+						theme.fg(info.color ?? "muted", `${theme.status.enabled} ${label}`) +
+						theme.fg("dim", ` ${theme.status.success}`)
+					: theme.fg(info.color ?? "muted", label);
+				if (assignedHere) {
+					chips.push({ label, styled, role, scope, action: "unassign" });
+				} else {
+					chips.push({ label, styled, role, scope, action: "assign" });
+				}
 			}
 		}
 		chips.push({
@@ -880,7 +1076,7 @@ export class ModelHubComponent implements Component {
 	}
 
 	#openScopeStrip(item: ModelBrowserItem, role: string, returnToRoles: boolean): void {
-		const chips: StripChip[] = [
+		const chips: ScopeStripChip[] = [
 			{ label: "project", styled: theme.fg("accent", "project"), action: "scope", scope: "project" },
 			{ label: "global", styled: theme.fg("muted", "global"), action: "scope", scope: "global" },
 		];
@@ -898,7 +1094,7 @@ export class ModelHubComponent implements Component {
 			this.#settings.get("modelRoleStorage") === "project" && scope !== undefined
 				? this.#thinkingLevelForScope(role, scope)
 				: (this.#roles[role]?.thinkingLevel ?? ThinkingLevel.Inherit);
-		const chips: StripChip[] = options.map(level => {
+		const chips: ThinkingStripChip[] = options.map(level => {
 			const label = getConfiguredThinkingLevelMetadata(level).label;
 			const glyph = thinkingLevelGlyph(level);
 			return {
@@ -920,11 +1116,124 @@ export class ModelHubComponent implements Component {
 		};
 	}
 
+	#openModelSettingsTargetStrip(item: ModelBrowserItem, role: string | undefined, returnToRoles: boolean): void {
+		if (!this.#canCustomizeModelSettings()) return;
+		const modelTarget: ModelSettingsProfileTarget = {
+			kind: "model",
+			model: `${item.model.provider}/${item.model.id}`,
+		};
+		if (!role) {
+			this.#openModelSettingsScopeStrip(item, modelTarget, returnToRoles);
+			return;
+		}
+		const roleTarget: ModelSettingsProfileTarget = { kind: "role", role };
+		const roleInfo = getRoleInfo(role, this.#settings);
+		const roleLabel = roleInfo.tag ?? roleInfo.name ?? role;
+		const chips: SettingsTargetStripChip[] = [
+			{
+				label: `current role ${role}`,
+				styled: theme.fg(roleInfo.color ?? "accent", `current role ${roleLabel}`),
+				action: "settingsTarget",
+				settingsTarget: roleTarget,
+			},
+			{
+				label: `exact model ${modelTarget.model}`,
+				styled: theme.fg("muted", `exact model ${modelTarget.model}`),
+				action: "settingsTarget",
+				settingsTarget: modelTarget,
+			},
+		];
+		this.#strip = { kind: "settingsTarget", item, role, chips, index: 0, returnToRoles };
+	}
+
+	#openModelSettingsScopeStrip(
+		item: ModelBrowserItem,
+		target: ModelSettingsProfileTarget,
+		returnToRoles: boolean,
+	): void {
+		const scopes: readonly ModelSettingsStorageScope[] =
+			this.#settings.get("modelRoleStorage") === "project" ? ["project", "global"] : ["global"];
+		const chips: SettingsScopeStripChip[] = scopes.map(scope => ({
+			label: scope,
+			styled: theme.fg(scope === "project" ? "accent" : "muted", scope),
+			action: "settingsScope",
+			scope,
+		}));
+		this.#strip = { kind: "settingsScope", item, target, chips, index: 0, returnToRoles };
+	}
+
+	#openModelSettingsFieldStrip(
+		item: ModelBrowserItem,
+		target: ModelSettingsProfileTarget,
+		scope: ModelSettingsStorageScope,
+		returnToRoles: boolean,
+	): void {
+		const fields: readonly ModelSettingsProfileField[] =
+			target.kind === "role" ? ["cacheRetention"] : ["thinking", "cacheRetention"];
+		const chips: SettingsFieldStripChip[] = fields.map(field => {
+			const label = field === "thinking" ? "Thinking" : "Prompt cache";
+			return {
+				label,
+				styled: theme.fg(field === "thinking" ? "accent" : "muted", label),
+				action: "settingsField",
+				settingsField: field,
+			};
+		});
+		this.#strip = { kind: "settingsField", item, target, scope, chips, index: 0, returnToRoles };
+	}
+
+	#openModelSettingsValueStrip(
+		item: ModelBrowserItem,
+		target: ModelSettingsProfileTarget,
+		scope: ModelSettingsStorageScope,
+		field: ModelSettingsProfileField,
+		returnToRoles: boolean,
+	): void {
+		const chips: SettingsValueStripChip[] = [
+			{
+				label: "reset to inherited",
+				styled: theme.fg("muted", "Reset to inherited"),
+				action: "settingsReset",
+			},
+		];
+		if (field === "thinking") {
+			for (const level of [ThinkingLevel.Off, AUTO_THINKING, ...getSupportedEfforts(item.model)]) {
+				const label = getConfiguredThinkingLevelMetadata(level).label;
+				const glyph = thinkingLevelGlyph(level);
+				chips.push({
+					label,
+					styled: glyph ? `${theme.fg("accent", glyph)} ${label}` : label,
+					action: "settingsValue",
+					settingsValue: level,
+				});
+			}
+		} else {
+			for (const value of ["auto", "short", "long", "none"] as const) {
+				chips.push({
+					label: CACHE_RETENTION_LABELS[value],
+					styled: theme.fg(value === "auto" ? "accent" : "muted", CACHE_RETENTION_LABELS[value]),
+					action: "settingsValue",
+					settingsValue: value,
+				});
+			}
+		}
+		this.#strip = {
+			kind: "settingsValue",
+			item,
+			target,
+			scope,
+			field,
+			chips,
+			index: 0,
+			returnToRoles,
+		};
+	}
+
 	#closeStrip(): void {
 		const strip = this.#strip;
 		this.#strip = null;
 		this.#chipRanges = [];
-		if ((strip?.kind === "scope" || strip?.kind === "thinking") && strip.returnToRoles) {
+		if (strip && strip.kind !== "roleName" && strip.returnToRoles) {
 			this.#setActiveEntry("roles");
 			this.#focus = "list";
 		}
@@ -932,25 +1241,51 @@ export class ModelHubComponent implements Component {
 
 	#activateStripChip(): void {
 		const strip = this.#strip;
-		if (!strip || strip.kind === "roleName") return;
+		if (!strip) return;
+		switch (strip.kind) {
+			case "role":
+				this.#activateRoleStripChip(strip);
+				return;
+			case "scope":
+				this.#activateScopeStripChip(strip);
+				return;
+			case "thinking":
+				this.#activateThinkingStripChip(strip);
+				return;
+			case "settingsTarget":
+				this.#activateSettingsTargetStripChip(strip);
+				return;
+			case "settingsScope":
+				this.#activateSettingsScopeStripChip(strip);
+				return;
+			case "settingsField":
+				this.#activateSettingsFieldStripChip(strip);
+				return;
+			case "settingsValue":
+				this.#activateSettingsValueStripChip(strip);
+				return;
+			case "roleName":
+				return;
+		}
+		const unhandled: never = strip;
+		return unhandled;
+	}
+
+	#activateRoleStripChip(strip: RoleStripState): void {
 		const chip = strip.chips[strip.index];
 		if (!chip) return;
 		switch (chip.action) {
 			case "assign":
-				if (chip.role) {
-					this.#strip = null;
-					this.#assignRole(strip.item, chip.role, false, chip.scope);
-				}
+				this.#strip = null;
+				this.#assignRole(strip.item, chip.role, false, chip.scope);
 				return;
 			case "unassign":
-				if (chip.role) {
-					if (this.#settings.get("modelRoleStorage") === "project") {
-						this.#callbacks.onUnassign(chip.role, chip.scope);
-					} else {
-						this.#callbacks.onUnassign(chip.role);
-					}
-					this.#refreshAfterMutation();
+				if (this.#settings.get("modelRoleStorage") === "project") {
+					this.#callbacks.onUnassign(chip.role, chip.scope);
+				} else {
+					this.#callbacks.onUnassign(chip.role);
 				}
+				this.#refreshAfterMutation();
 				this.#closeStrip();
 				return;
 			case "fallback":
@@ -965,26 +1300,69 @@ export class ModelHubComponent implements Component {
 				this.#closeStrip();
 				this.#startAssignFallback(`${strip.item.model.provider}/*`, null);
 				return;
-			case "scope":
-				if (strip.role && chip.scope) {
-					this.#strip = null;
-					this.#assignRole(strip.item, strip.role, strip.returnToRoles, chip.scope);
-				}
-				return;
-			case "thinking":
-				if (strip.role && chip.thinkingLevel !== undefined) {
-					this.#callbacks.onAssign(
-						strip.item.model,
-						strip.role,
-						chip.thinkingLevel,
-						strip.item.selector,
-						strip.scope,
-					);
+		}
+		const unhandled: never = chip;
+		return unhandled;
+	}
+
+	#activateScopeStripChip(strip: ScopeStripState): void {
+		const chip = strip.chips[strip.index];
+		if (!chip) return;
+		this.#strip = null;
+		this.#assignRole(strip.item, strip.role, strip.returnToRoles, chip.scope);
+	}
+
+	#activateThinkingStripChip(strip: ThinkingStripState): void {
+		const chip = strip.chips[strip.index];
+		if (!chip) return;
+		this.#callbacks.onAssign(strip.item.model, strip.role, chip.thinkingLevel, strip.item.selector, strip.scope);
+		this.#refreshAfterMutation();
+		this.#closeStrip();
+	}
+
+	#activateSettingsTargetStripChip(strip: SettingsTargetStripState): void {
+		const chip = strip.chips[strip.index];
+		if (!chip) return;
+		this.#openModelSettingsScopeStrip(strip.item, chip.settingsTarget, strip.returnToRoles);
+	}
+
+	#activateSettingsScopeStripChip(strip: SettingsScopeStripState): void {
+		const chip = strip.chips[strip.index];
+		if (!chip) return;
+		this.#openModelSettingsFieldStrip(strip.item, strip.target, chip.scope, strip.returnToRoles);
+	}
+
+	#activateSettingsFieldStripChip(strip: SettingsFieldStripState): void {
+		const chip = strip.chips[strip.index];
+		if (!chip) return;
+		this.#openModelSettingsValueStrip(strip.item, strip.target, strip.scope, chip.settingsField, strip.returnToRoles);
+	}
+
+	#activateSettingsValueStripChip(strip: SettingsValueStripState): void {
+		const chip = strip.chips[strip.index];
+		if (!chip) return;
+		switch (chip.action) {
+			case "settingsReset": {
+				const onReset = this.#callbacks.onResetModelSettingsField;
+				if (onReset) {
+					onReset(strip.scope, strip.target, strip.field);
 					this.#refreshAfterMutation();
 				}
 				this.#closeStrip();
 				return;
+			}
+			case "settingsValue": {
+				const onSet = this.#callbacks.onSetModelSettingsField;
+				if (onSet) {
+					onSet(strip.scope, strip.target, strip.field, chip.settingsValue);
+					this.#refreshAfterMutation();
+				}
+				this.#closeStrip();
+				return;
+			}
 		}
+		const unhandled: never = chip;
+		return unhandled;
 	}
 
 	/** Switch the body into assign mode for `role`: full catalog, cleared query, current model preselected. */
@@ -1024,7 +1402,7 @@ export class ModelHubComponent implements Component {
 
 	/** Second step of "+ New fallback…": key the chain by the picked model or its whole provider. */
 	#openFallbackKeyStrip(item: ModelBrowserItem): void {
-		const chips: StripChip[] = [
+		const chips: RoleStripChip[] = [
 			{
 				label: `for ${item.selector}`,
 				styled: theme.fg("muted", `for ${item.selector}`),
@@ -1186,6 +1564,33 @@ export class ModelHubComponent implements Component {
 		const entry = this.#activeEntry();
 		const rolesView = entry.kind === "roles" && this.#assigning === null;
 		const lockedView = entry.kind === "provider" && entry.locked && this.#assigning === null;
+
+		if (this.#settings.get("settings.tier") === "advanced" && this.#focus === "list" && matchesKey(data, "ctrl+e")) {
+			if (!this.#canCustomizeModelSettings()) return;
+			if (rolesView) {
+				const row = this.#rolesRows[this.#roleIndex];
+				const role = row?.kind === "role" ? row.role : undefined;
+				const assignment = role ? this.#roles[role] : undefined;
+				if (role && assignment) {
+					this.#openModelSettingsTargetStrip(
+						{
+							provider: assignment.model.provider,
+							id: assignment.model.id,
+							model: assignment.model,
+							selector: `${assignment.model.provider}/${assignment.model.id}`,
+						},
+						role,
+						true,
+					);
+				}
+				return;
+			}
+			if (this.#assigning === null && this.#isBrowserView(entry)) {
+				const item = this.#browser.getSelected();
+				if (item) this.#openModelSettingsTargetStrip(item, undefined, false);
+				return;
+			}
+		}
 
 		if (matchesKey(data, "tab") || matchesKey(data, "shift+tab")) {
 			this.#focus = this.#focus === "scope" ? "list" : "scope";
@@ -1764,10 +2169,17 @@ export class ModelHubComponent implements Component {
 
 		const cycleOrder = this.#cycleOrder();
 		const listFocused = this.#focus === "list";
+		const tier = this.#settings.get("settings.tier");
+		const selectedRoleRow = this.#rolesRows[this.#roleIndex];
+		const selectedRole = selectedRoleRow?.kind === "role" ? selectedRoleRow.role : undefined;
+		const selectedAssignment = selectedRole ? this.#roles[selectedRole] : undefined;
+		const effectiveLines = selectedAssignment
+			? this.#effectiveModelSettingsLines(selectedAssignment.model, selectedRole, true)
+			: [];
 		// Window the list around the cursor so entries past the panel height stay
 		// reachable; the trailing indicator line steals one row when clipped.
 		const total = this.#rolesRows.length;
-		const capacity = Math.max(0, rows - 2 - this.#rolesRowStart);
+		const capacity = Math.max(0, rows - 2 - this.#rolesRowStart - effectiveLines.length);
 		const overflow = total > capacity;
 		const viewHeight = overflow ? Math.max(0, capacity - 1) : capacity;
 		this.#roleScrollStart = this.#ensureRoleVisible(viewHeight, total);
@@ -1868,27 +2280,29 @@ export class ModelHubComponent implements Component {
 
 		// Live preview of the quick-switch cycle, rendered with the exact
 		// segment track the ctrl+p status uses; the selected role's chip fills.
-		while (lines.length < rows - 1) lines.push("");
-		if (rows >= 2) {
+		const cycleRow = rows - effectiveLines.length - 1;
+		while (lines.length <= cycleRow) lines.push("");
+		if (cycleRow >= 0) {
 			const cycleKey = getKeybindings().getKeys("app.model.cycleForward")[0] ?? "ctrl+p";
 			if (cycleOrder.length > 0) {
-				const selectedRow = this.#rolesRows[this.#roleIndex];
-				const selectedRole =
-					selectedRow && (selectedRow.kind === "role" || selectedRow.kind === "fallback") ? selectedRow.role : "";
-				const activeIndex = cycleOrder.indexOf(selectedRole);
+				const activeIndex = cycleOrder.indexOf(selectedRole ?? "");
 				const track = renderSegmentTrack(
 					cycleOrder.map(role => ({ label: role })),
 					activeIndex,
 				);
-				lines[rows - 1] = truncateToWidth(`  ${theme.fg("dim", `${cycleKey} cycle:`)} ${track}`, width);
+				lines[cycleRow] = truncateToWidth(`  ${theme.fg("dim", `${cycleKey} cycle:`)} ${track}`, width);
 			} else {
-				lines[rows - 1] = truncateToWidth(
+				lines[cycleRow] = truncateToWidth(
 					theme.fg("dim", `  ${cycleKey} cycle is empty — press c on a role to add it`),
 					width,
 				);
 			}
 		}
-		return lines;
+		for (let i = 0; i < effectiveLines.length; i++) {
+			const color = tier === "advanced" && i === 0 ? "accent" : "dim";
+			lines.push(truncateToWidth(theme.fg(color, `  ${effectiveLines[i]}`), width));
+		}
+		return lines.slice(0, rows);
 	}
 
 	#renderLockedView(entry: SidebarEntry, width: number, rows: number): string[] {
@@ -1935,7 +2349,9 @@ export class ModelHubComponent implements Component {
 			}
 			if (strip.kind === "role") return "←/→ choose · Enter assign/clear · Esc cancel";
 			if (strip.kind === "scope") return "←/→ save scope · Enter choose · Esc cancel";
-			return "←/→ thinking level · Enter apply · Esc keep";
+			if (strip.kind === "thinking") return "←/→ thinking level · Enter apply · Esc keep";
+			if (strip.kind === "settingsValue") return "←/→ value · Enter apply/reset · Esc cancel";
+			return "←/→ choose · Enter continue · Esc cancel";
 		}
 		if (this.#assigning !== null) {
 			switch (this.#assigning.kind) {
@@ -1962,14 +2378,25 @@ export class ModelHubComponent implements Component {
 			if (row?.kind === "newFallback") {
 				return "↑/↓ rows · Enter new model/provider fallback chain · ← providers";
 			}
-			return "↑/↓ rows · Enter pick · f fallback · x clear · t thinking · c cycle · [/] reorder · n new";
+			const base = "↑/↓ rows · Enter pick · f fallback · x clear · t thinking · c cycle · [/] reorder · n new";
+			const assignment = row?.kind === "role" ? this.#roles[row.role] : undefined;
+			return this.#canCustomizeModelSettings() && this.#settings.get("settings.tier") === "advanced" && assignment
+				? `${base} · Ctrl+E customize`
+				: base;
 		}
 		if (entry.kind === "provider" && entry.locked) {
 			return entry.oauth ? "Enter log in · ↑/↓ providers · Esc close" : "↑/↓ providers · Esc close";
 		}
 		const arrows = this.#focus === "scope" ? "↑/↓ providers · → models" : "↑/↓ models · ← providers";
 		const refresh = entry.kind === "provider" ? " · F5 refresh" : "";
-		return `Enter assign roles · ${arrows} · type to search${refresh} · Esc close`;
+		const customize =
+			this.#canCustomizeModelSettings() &&
+			this.#settings.get("settings.tier") === "advanced" &&
+			this.#focus === "list" &&
+			this.#browser.getSelected()
+				? " · Ctrl+E customize"
+				: "";
+		return `Enter assign roles · ${arrows} · type to search${refresh}${customize} · Esc close`;
 	}
 
 	/** Footer row: active strip (chips) or the contextual hint line. */
@@ -1987,10 +2414,36 @@ export class ModelHubComponent implements Component {
 			return truncateToWidth(`${label} ${inputLine} ${theme.fg("dim", "(letters, digits, - and _)")}`, width);
 		}
 
-		const prefix =
-			strip.kind === "role"
-				? `${theme.fg("accent", strip.item.id)}${theme.fg("dim", " →")} `
-				: `${theme.fg(getRoleInfo(strip.role ?? "", this.#settings).color ?? "muted", (getRoleInfo(strip.role ?? "", this.#settings).tag ?? strip.role ?? "").toLowerCase())}${theme.fg("dim", ` · ${strip.item.id} →`)} `;
+		let prefix: string;
+		switch (strip.kind) {
+			case "role":
+				prefix = `${theme.fg("accent", strip.item.id)}${theme.fg("dim", " →")} `;
+				break;
+			case "scope":
+			case "thinking": {
+				const info = getRoleInfo(strip.role ?? "", this.#settings);
+				prefix = `${theme.fg(info.color ?? "muted", (info.tag ?? strip.role ?? "").toLowerCase())}${theme.fg("dim", ` · ${strip.item.id} →`)} `;
+				break;
+			}
+			case "settingsTarget":
+				prefix = `${theme.fg("accent", "Customize")}${theme.fg("dim", ` · ${strip.item.id} → target`)} `;
+				break;
+			case "settingsScope":
+			case "settingsField":
+			case "settingsValue": {
+				const targetLabel = strip.target.kind === "role" ? `role ${strip.target.role}` : strip.target.model;
+				const step =
+					strip.kind === "settingsScope"
+						? "scope"
+						: strip.kind === "settingsField"
+							? "field"
+							: strip.field === "thinking"
+								? "Thinking"
+								: "Prompt cache";
+				prefix = `${theme.fg("accent", targetLabel)}${theme.fg("dim", ` · ${step} →`)} `;
+				break;
+			}
+		}
 
 		// Horizontal window: once the strip overflows, drop leading chips behind
 		// a dim ellipsis so the selected chip (plus one chip of lookahead when it
@@ -2056,9 +2509,19 @@ export class ModelHubComponent implements Component {
 		} else if (entry.kind === "provider" && entry.locked && this.#assigning === null) {
 			bodyLines.push(...this.#renderLockedView(entry, bodyWidth, contentRows - 1));
 		} else {
-			this.#browser.setMaxVisible(contentRows - 1 - 5);
+			const selected = this.#browser.getSelected();
+			const role = this.#assigning?.kind === "role" ? this.#assigning.role : undefined;
+			const tier = this.#settings.get("settings.tier");
+			const effectiveLines = selected
+				? this.#effectiveModelSettingsLines(selected.model, role, this.#assigning === null)
+				: [];
+			this.#browser.setMaxVisible(contentRows - 1 - 5 - effectiveLines.length);
 			this.#browser.setFocused(this.#focus === "list");
 			bodyLines.push(...this.#browser.render(bodyWidth));
+			for (let i = 0; i < effectiveLines.length; i++) {
+				const color = tier === "advanced" && i === 0 ? "accent" : "dim";
+				bodyLines.push(truncateToWidth(theme.fg(color, `  ${effectiveLines[i]}`), bodyWidth));
+			}
 		}
 
 		const sidebarLines = this.#renderSidebar(sidebarWidth, contentRows);

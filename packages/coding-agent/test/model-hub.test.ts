@@ -8,7 +8,13 @@ import type { Model } from "@oh-my-pi/pi-ai";
 import { buildModel } from "@oh-my-pi/pi-catalog/build";
 import { getBundledModel } from "@oh-my-pi/pi-catalog/models";
 import type { ModelRegistry } from "@oh-my-pi/pi-coding-agent/config/model-registry";
-import { Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
+import {
+	type ModelSettingsProfileField,
+	type ModelSettingsProfileTarget,
+	type ModelSettingsStorageScope,
+	Settings,
+} from "@oh-my-pi/pi-coding-agent/config/settings";
+import type { CacheRetentionSetting } from "@oh-my-pi/pi-coding-agent/config/settings-schema";
 import {
 	type ModelHubCallbacks,
 	ModelHubComponent,
@@ -16,7 +22,11 @@ import {
 	resetProviderAutoRefreshGuard,
 } from "@oh-my-pi/pi-coding-agent/modes/components/model-hub";
 import { getThemeByName, setThemeInstance, theme } from "@oh-my-pi/pi-coding-agent/modes/theme/theme";
-import { AUTO_THINKING } from "@oh-my-pi/pi-coding-agent/thinking";
+import {
+	AUTO_THINKING,
+	type ConfiguredThinkingLevel,
+	parseConfiguredThinkingLevel,
+} from "@oh-my-pi/pi-coding-agent/thinking";
 import type { TUI } from "@oh-my-pi/pi-tui";
 
 function normalize(lines: readonly string[]): string {
@@ -78,6 +88,8 @@ interface HubHarness {
 	hub: ModelHubComponent;
 	onAssign: ReturnType<typeof vi.fn>;
 	onUnassign: ReturnType<typeof vi.fn>;
+	onSetModelSettingsField: Mock<NonNullable<ModelHubCallbacks["onSetModelSettingsField"]>>;
+	onResetModelSettingsField: Mock<NonNullable<ModelHubCallbacks["onResetModelSettingsField"]>>;
 	onLoginRequest: ReturnType<typeof vi.fn>;
 	onCancel: ReturnType<typeof vi.fn>;
 	onFallbackChainChange: Mock<(role: string, chain: string[]) => void>;
@@ -92,6 +104,7 @@ function createHub(options: {
 	registry?: RegistryOverrides;
 	hub?: ModelHubOptions;
 	callbacks?: Partial<ModelHubCallbacks>;
+	modelSettingsPersistence?: boolean;
 	terminalRows?: number;
 }): HubHarness {
 	installTestTheme();
@@ -103,6 +116,42 @@ function createHub(options: {
 	const onUnassign = vi.fn();
 	const onLoginRequest = vi.fn();
 	const onCancel = vi.fn();
+	const onSetModelSettingsField = vi.fn(
+		(
+			scope: ModelSettingsStorageScope,
+			target: ModelSettingsProfileTarget,
+			field: ModelSettingsProfileField,
+			value: ConfiguredThinkingLevel | CacheRetentionSetting,
+		) => {
+			if (field === "cacheRetention") {
+				if (value !== "auto" && value !== "short" && value !== "long" && value !== "none") {
+					throw new Error(`Invalid prompt cache value: ${value}`);
+				}
+				if (target.kind === "role") {
+					settings.setModelSettingsField(scope, target, field, value);
+				} else {
+					settings.setModelSettingsField(scope, target, field, value);
+				}
+			} else {
+				if (target.kind !== "model") throw new Error("Role model settings only support prompt cache");
+				const thinkingValue = parseConfiguredThinkingLevel(value);
+				if (thinkingValue === undefined || thinkingValue !== value) {
+					throw new Error(`Invalid thinking value: ${value}`);
+				}
+				settings.setModelSettingsField(scope, target, field, thinkingValue);
+			}
+		},
+	);
+	const onResetModelSettingsField = vi.fn(
+		(scope: ModelSettingsStorageScope, target: ModelSettingsProfileTarget, field: ModelSettingsProfileField) => {
+			if (target.kind === "role") {
+				if (field !== "cacheRetention") throw new Error("Role model settings only support prompt cache");
+				settings.resetModelSettingsField(scope, target, field);
+			} else {
+				settings.resetModelSettingsField(scope, target, field);
+			}
+		},
+	);
 	// Mirror the controller: persist chain edits so the hub's re-read sees them.
 	const onFallbackChainChange = vi.fn((role: string, chain: string[]) => {
 		const chains = { ...settings.get("retry.fallbackChains") };
@@ -113,29 +162,45 @@ function createHub(options: {
 		}
 		settings.override("retry.fallbackChains", chains);
 	});
+	const hubCallbacks: ModelHubCallbacks = {
+		onAssign: options.callbacks?.onAssign ?? onAssign,
+		onUnassign: options.callbacks?.onUnassign ?? onUnassign,
+		onLoginRequest: options.callbacks?.onLoginRequest ?? onLoginRequest,
+		onCycleOrderChange: options.callbacks?.onCycleOrderChange,
+		onFallbackChainChange: options.callbacks?.onFallbackChainChange ?? onFallbackChainChange,
+		onCancel: options.callbacks?.onCancel ?? onCancel,
+	};
+	if (options.modelSettingsPersistence !== false) {
+		hubCallbacks.onSetModelSettingsField = options.callbacks?.onSetModelSettingsField ?? onSetModelSettingsField;
+		hubCallbacks.onResetModelSettingsField =
+			options.callbacks?.onResetModelSettingsField ?? onResetModelSettingsField;
+	}
 	const hub = new ModelHubComponent(
 		ui,
 		settings,
 		registry,
 		options.scoped ? modelsFn().map(model => ({ model })) : [],
-		{
-			onAssign: options.callbacks?.onAssign ?? onAssign,
-			onUnassign: options.callbacks?.onUnassign ?? onUnassign,
-			onLoginRequest: options.callbacks?.onLoginRequest ?? onLoginRequest,
-			onCycleOrderChange: options.callbacks?.onCycleOrderChange,
-			onFallbackChainChange: options.callbacks?.onFallbackChainChange ?? onFallbackChainChange,
-			onCancel: options.callbacks?.onCancel ?? onCancel,
-		},
+		hubCallbacks,
 		options.hub,
 	);
 	openHubs.push(hub);
-	return { hub, onAssign, onUnassign, onLoginRequest, onCancel, onFallbackChainChange };
+	return {
+		hub,
+		onAssign,
+		onUnassign,
+		onSetModelSettingsField,
+		onResetModelSettingsField,
+		onLoginRequest,
+		onCancel,
+		onFallbackChainChange,
+	};
 }
 
 const DOWN = "\x1b[B";
 const UP = "\x1b[A";
 const LEFT = "\x1b[D";
 const ESC = "\x1b";
+const CTRL_E = "\x05";
 
 describe("ModelHub", () => {
 	beforeAll(async () => {
@@ -1113,6 +1178,191 @@ describe("ModelHub", () => {
 			hub.handleInput(LEFT);
 			hub.handleInput(DOWN);
 			expect(normalize(hub.render(220))).toContain("prov-a ·");
+		});
+	});
+
+	describe("advanced model settings", () => {
+		test("renders source-aware effective disclosure while Basic remains compact and read-only", () => {
+			const model = getBundledModel("openai", "gpt-5.6");
+			if (!model) throw new Error("Expected bundled OpenAI model");
+			const selector = `${model.provider}/${model.id}`;
+
+			const advanced = Settings.isolated({ modelRoles: { default: selector } });
+			advanced.set("settings.tier", "advanced");
+			advanced.setModelSettingsField("global", { kind: "role", role: "default" }, "cacheRetention", "long");
+			advanced.setModelSettingsField("global", { kind: "model", model: selector }, "thinking", ThinkingLevel.High);
+			const advancedHub = createHub({ models: [model], scoped: true, settings: advanced }).hub;
+			advancedHub.handleInput(UP);
+			advancedHub.handleInput("\t");
+			const advancedRender = normalize(advancedHub.render(220));
+			expect(advancedRender).toContain("Effective settings");
+			expect(advancedRender).toContain("Thinking: High — Global model rule");
+			expect(advancedRender).toContain("Prompt cache: Long — Global role “default”");
+			expect(advancedRender).toContain("Ctrl+E Customize settings");
+
+			const basic = Settings.isolated({ modelRoles: { default: selector } });
+			basic.setModelSettingsField("global", { kind: "role", role: "default" }, "cacheRetention", "long");
+			basic.setModelSettingsField("global", { kind: "model", model: selector }, "thinking", ThinkingLevel.High);
+			const basicHub = createHub({ models: [model], scoped: true, settings: basic }).hub;
+			basicHub.handleInput(UP);
+			basicHub.handleInput("\t");
+			const basicRender = normalize(basicHub.render(220));
+			expect(basicRender).toContain("Effective: Thinking High · Prompt cache Long");
+			expect(basicRender).not.toContain("Effective settings");
+			expect(basicRender).not.toContain("Customize");
+			expect(basicRender).not.toContain("Global model rule");
+		});
+
+		test("keeps effective disclosure read-only when persistence callbacks are absent", () => {
+			const model = getBundledModel("openai", "gpt-5.6");
+			if (!model) throw new Error("Expected bundled OpenAI model");
+			const selector = `${model.provider}/${model.id}`;
+			const settings = Settings.isolated({ modelRoles: { default: selector } });
+			settings.set("settings.tier", "advanced");
+			settings.setModelSettingsField("global", { kind: "model", model: selector }, "thinking", ThinkingLevel.High);
+			const { hub } = createHub({
+				models: [model],
+				scoped: true,
+				settings,
+				modelSettingsPersistence: false,
+			});
+			hub.handleInput(UP);
+			hub.handleInput("\t");
+
+			const before = normalize(hub.render(220));
+			expect(before).toContain("Effective settings");
+			expect(before).toContain("Thinking: High — Global model rule");
+			expect(before).not.toContain("Customize");
+			expect(before).not.toContain("Ctrl+E customize");
+
+			hub.handleInput(CTRL_E);
+			expect(normalize(hub.render(220))).toBe(before);
+		});
+
+		test("walks target, global scope, legal fields, and persistence callbacks", () => {
+			const model = getBundledModel("openai", "gpt-5.6");
+			if (!model) throw new Error("Expected bundled OpenAI model");
+			const selector = `${model.provider}/${model.id}`;
+			const settings = Settings.isolated({ modelRoles: { default: selector } });
+			settings.set("settings.tier", "advanced");
+			const { hub, onSetModelSettingsField } = createHub({
+				models: [model],
+				scoped: true,
+				settings,
+			});
+			hub.handleInput(UP);
+			hub.handleInput("\t");
+
+			hub.handleInput(CTRL_E);
+			const target = normalize([footerLine(hub.render(220))]);
+			expect(target.toLowerCase()).toContain("current role default");
+			expect(target).toContain(`exact model ${selector}`);
+			hub.handleInput("\n");
+
+			const roleScope = normalize([footerLine(hub.render(220))]);
+			expect(roleScope).toContain("global");
+			expect(roleScope).not.toContain("project");
+			hub.handleInput("\n");
+			const roleFields = normalize([footerLine(hub.render(220))]);
+			expect(roleFields).toContain("Prompt cache");
+			expect(roleFields).not.toContain("Thinking");
+			hub.handleInput("\n");
+			hub.handleInput(DOWN); // Reset → Auto.
+			hub.handleInput(DOWN); // Auto → Short.
+			hub.handleInput("\n");
+			expect(onSetModelSettingsField).toHaveBeenLastCalledWith(
+				"global",
+				{ kind: "role", role: "default" },
+				"cacheRetention",
+				"short",
+			);
+			expect(normalize(hub.render(220))).toContain("Prompt cache: Short — Global role “default”");
+
+			hub.handleInput(CTRL_E);
+			hub.handleInput(DOWN); // Current role → exact model.
+			hub.handleInput("\n");
+			hub.handleInput("\n"); // Global scope.
+			const modelFields = normalize([footerLine(hub.render(220))]);
+			expect(modelFields).toContain("Thinking");
+			expect(modelFields).toContain("Prompt cache");
+			hub.handleInput("\n");
+			hub.handleInput(DOWN); // Reset → Off.
+			hub.handleInput("\n");
+			expect(onSetModelSettingsField).toHaveBeenLastCalledWith(
+				"global",
+				{ kind: "model", model: selector },
+				"thinking",
+				ThinkingLevel.Off,
+			);
+			expect(normalize(hub.render(220))).toContain("Thinking: Off — Global model rule");
+		});
+
+		test("offers project scope only when project storage is writable", () => {
+			const model = makeModel("test", "project-settings-model");
+			const selector = `${model.provider}/${model.id}`;
+			const settings = Settings.isolated({
+				modelRoleStorage: "project",
+				modelRoles: { default: selector },
+			});
+			settings.set("settings.tier", "advanced");
+			const { hub, onSetModelSettingsField } = createHub({
+				models: [model],
+				scoped: true,
+				settings,
+			});
+			hub.handleInput(UP);
+			hub.handleInput("\t");
+			hub.handleInput(CTRL_E);
+			hub.handleInput("\n"); // Current role.
+			const scope = normalize([footerLine(hub.render(220))]);
+			expect(scope).toContain("project");
+			expect(scope).toContain("global");
+			hub.handleInput(DOWN); // Project → Global.
+			hub.handleInput("\n");
+			hub.handleInput("\n"); // Prompt cache.
+			hub.handleInput(DOWN); // Reset → Auto.
+			hub.handleInput("\n");
+			expect(onSetModelSettingsField).toHaveBeenCalledWith(
+				"global",
+				{ kind: "role", role: "default" },
+				"cacheRetention",
+				"auto",
+			);
+		});
+
+		test("reset deletes the selected leaf and recomputes inherited settings immediately", () => {
+			const model = getBundledModel("openai", "gpt-5.6");
+			if (!model) throw new Error("Expected bundled OpenAI model");
+			const selector = `${model.provider}/${model.id}`;
+			const settings = Settings.isolated({ modelRoles: { default: selector } });
+			settings.set("settings.tier", "advanced");
+			settings.setModelSettingsField("global", { kind: "model", model: selector }, "cacheRetention", "long");
+			const { hub, onResetModelSettingsField } = createHub({
+				models: [model],
+				scoped: true,
+				settings,
+			});
+			hub.handleInput(UP);
+			hub.handleInput("\t");
+			expect(normalize(hub.render(220))).toContain("Prompt cache: Long — Global model rule");
+
+			hub.handleInput(CTRL_E);
+			hub.handleInput(DOWN); // Current role → exact model.
+			hub.handleInput("\n");
+			hub.handleInput("\n"); // Global scope.
+			hub.handleInput(DOWN); // Thinking → Prompt cache.
+			hub.handleInput("\n");
+			expect(normalize([footerLine(hub.render(220))])).toContain("Reset to inherited");
+			hub.handleInput("\n");
+
+			expect(onResetModelSettingsField).toHaveBeenCalledWith(
+				"global",
+				{ kind: "model", model: selector },
+				"cacheRetention",
+			);
+			expect(settings.get("modelSettings").models?.[selector]?.cacheRetention).toBeUndefined();
+			expect(settings.get("modelSettings").models?.[selector]?.cacheRetention).not.toBeNull();
+			expect(normalize(hub.render(220))).toContain("Prompt cache: Auto — Default setting");
 		});
 	});
 

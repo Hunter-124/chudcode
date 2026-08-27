@@ -9,6 +9,7 @@
 - Added a schema guard against settings UI conditions that do not resolve to visibility predicates.
 - Added a Basic settings tier with flat navigation for common controls; Advanced reveals the full settings catalog, and global search matches setting paths.
 - Added a `Custom…` editor for numeric settings while retaining preset choices, with finite-number validation that leaves invalid entries unsaved.
+- Added per-role prompt-cache and exact-model thinking/cache profiles, with source-aware effective-setting provenance and Advanced customization in the model hub.
 - Enabled the proven prompt-cache miss marker by default so costly warm-to-cold transitions are visible.
 - Added `/cache` with cache hit rate, token classes, honest price coverage, net cache savings, retention/TTL and idle-time reporting; the default cost status now shows cache savings, and cache misses explain that expiry or prompt-prefix changes caused reprocessing.
 - Added `/recent`, a compact ten-session resume picker showing recency, project, message count, and lifecycle status.

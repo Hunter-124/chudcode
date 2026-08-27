@@ -8,6 +8,7 @@ import {
 	type AgentTool,
 	AppendOnlyContextManager,
 	filterProviderReplayMessages,
+	type StreamFn,
 	type ThinkingLevel,
 } from "@oh-my-pi/pi-agent-core";
 import type {
@@ -169,6 +170,7 @@ import {
 	resolveRetryFallbackChainKey,
 } from "./session/retry-fallback-chains";
 import { getRestorableSessionModels } from "./session/session-context";
+import { EPHEMERAL_MODEL_CHANGE_ROLE } from "./session/session-entries";
 import { SessionManager } from "./session/session-manager";
 import { collectMountedMCPToolRoutes, projectMountedMCPXdevGuidance } from "./session/session-tools";
 import { createSettingsAwareStreamFn } from "./session/settings-stream-fn";
@@ -387,6 +389,12 @@ export interface CreateAgentSessionOptions {
 
 	/** Model to use. Default: from settings, else first available */
 	model?: Model;
+	/**
+	 * Semantic role that selected `model` (for example `task` or `advisor`).
+	 * This identity is carried separately from the resolved model because one
+	 * model may serve multiple roles.
+	 */
+	modelRole?: string;
 	/** Raw model pattern(s) (e.g. from --model CLI flag) to resolve after extensions load.
 	 * Used when model lookup is deferred because extension-provided models aren't registered yet. */
 	modelPattern?: string | string[];
@@ -3399,17 +3407,30 @@ async function createAgentSessionScoped(options: CreateAgentSessionOptions): Pro
 		// One-shot launch-latency marker: fired the first time the loop dispatches
 		// a chat request to the provider transport. See onFirstChatDispatch.
 		let notifyFirstChatDispatch = options.onFirstChatDispatch;
-		// Shared, settings-aware stream wrapper used by the main agent, advisor,
-		// and side-channel requests (`/btw`, `/omfg`, IRC auto-replies, handoff).
-		// Keeps OpenRouter sticky-routing variants, antigravity endpoint routing,
-		// in-flight caps, and the loop guard consistent across every provider call
-		// the session drives. Wrapped in a per-provider concurrency limiter so
-		// each LLM HTTP request — not the whole subagent lifecycle — holds the
-		// slot, preventing the nested-spawn deadlock from issue #3749.
-		const settingsAwareStreamFn = wrapStreamFnWithBlobUrlFallback(
-			wrapStreamFnWithProviderConcurrency(settings, createSettingsAwareStreamFn(settings)),
-			blobBroker,
-		);
+		// The main loop, advisor, and side channels share provider shaping but
+		// carry different semantic role contexts. Role identity comes from model
+		// resolution/session model-change entries, never by reverse-matching the
+		// final model (the same model may serve several roles).
+		const activePrimaryModelRole = (): string | undefined => {
+			const recordedRole = sessionManager.getLastModelChangeRole();
+			if (recordedRole === "temporary" || recordedRole === EPHEMERAL_MODEL_CHANGE_ROLE) return undefined;
+			return options.modelRole ?? recordedRole ?? "default";
+		};
+		const createSessionStreamFn = (resolveRole?: () => string | undefined): StreamFn =>
+			wrapStreamFnWithBlobUrlFallback(
+				wrapStreamFnWithProviderConcurrency(
+					settings,
+					createSettingsAwareStreamFn(settings, undefined, {
+						resolveRole,
+					}),
+				),
+				blobBroker,
+			);
+		// Side-channel requests have no role-bearing selection event. They still
+		// recompute exact-model settings from their request model.
+		const primarySettingsAwareStreamFn = createSessionStreamFn(activePrimaryModelRole);
+		const sideSettingsAwareStreamFn = createSessionStreamFn();
+		const advisorSettingsAwareStreamFn = createSessionStreamFn(() => "advisor");
 		const codeModeState: { namespacesInfo?: unknown } = {};
 		const transformToolCallArguments = (args: Record<string, unknown>): Record<string, unknown> => {
 			let result = args;
@@ -3477,7 +3498,7 @@ async function createAgentSessionScoped(options: CreateAgentSessionOptions): Pro
 					settings.get("externalThinking") &&
 					agent.state.tools.some(tool => tool.name === "think") &&
 					supportsExternalThinking(streamModel);
-				return settingsAwareStreamFn(streamModel, context, {
+				return primarySettingsAwareStreamFn(streamModel, context, {
 					...streamOptions,
 					anthropicCacheRefresh: true,
 					forceReasoningOff: externalThinking || streamOptions?.forceReasoningOff,
@@ -3517,7 +3538,7 @@ async function createAgentSessionScoped(options: CreateAgentSessionOptions): Pro
 		} else {
 			// Save initial model, thinking level, and service tier for new sessions so they can be restored on resume.
 			if (model) {
-				sessionManager.appendModelChange(`${model.provider}/${model.id}`);
+				sessionManager.appendModelChange(`${model.provider}/${model.id}`, options.modelRole);
 			}
 			if (!autoThinking) {
 				// Do not write the `auto` selector before the first turn resolves; auto
@@ -3662,8 +3683,8 @@ async function createAgentSessionScoped(options: CreateAgentSessionOptions): Pro
 			transformProviderContext,
 			onPayload,
 			onResponse,
-			sideStreamFn: settingsAwareStreamFn,
-			advisorStreamFn: settingsAwareStreamFn,
+			sideStreamFn: sideSettingsAwareStreamFn,
+			advisorStreamFn: advisorSettingsAwareStreamFn,
 			preferWebsockets: preferOpenAICodexWebsockets,
 			convertToLlm: convertToLlmFinal,
 			rebuildSystemPrompt,
@@ -4047,7 +4068,7 @@ async function createAgentSessionScoped(options: CreateAgentSessionOptions): Pro
 					kimiApiFormat,
 					preferWebsockets: preferOpenAICodexWebsockets,
 					getToolContext: toolCall => toolContextStore.getContext(toolCall),
-					streamFn: settingsAwareStreamFn,
+					streamFn: sideSettingsAwareStreamFn,
 					transformToolCallArguments,
 					resolveFallbackTool: resolveDeviceTool,
 					intentTracing: !!intentField,

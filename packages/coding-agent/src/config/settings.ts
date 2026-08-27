@@ -15,6 +15,8 @@ import { randomUUID } from "node:crypto";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
+import { ThinkingLevel } from "@oh-my-pi/pi-agent-core";
+import type { Model } from "@oh-my-pi/pi-ai";
 import { configureCredentialRedaction } from "@oh-my-pi/pi-ai/providers/transform-messages";
 import { configureProviderMaxInFlightRequests } from "@oh-my-pi/pi-ai/stream";
 import {
@@ -32,22 +34,28 @@ import { withFileLock } from "@oh-my-pi/pi-utils/file-lock";
 import { JSONC, YAML } from "bun";
 import { invalidate as invalidateCapabilityFsCache } from "../capability/fs";
 import { type Settings as SettingsCapabilityItem, settingsCapability } from "../capability/settings";
-import type { ModelRole } from "../config/model-roles";
+import { LEGACY_MODEL_ROLE_ALIAS_PREFIX, MODEL_ROLE_ALIAS_PREFIX, type ModelRole } from "../config/model-roles";
 import { loadCapability } from "../discovery";
 import { isLightTheme, setAutoThemeMapping, setColorBlindMode, setSymbolPreset } from "../modes/theme/theme";
 import { AgentStorage } from "../session/agent-storage";
 import { type CompactionMethod, DEFAULT_COMPACTION_METHOD_ORDER } from "../session/compaction-methods";
+import { AUTO_THINKING, type ConfiguredThinkingLevel, parseThinkingLevel } from "../thinking";
 import { AUTO_IMAGE_PROVIDER_ORDER, isImageProviderId } from "../tools/image-providers";
 import { replaceFileAtomically } from "../utils/atomic-file";
 import { type EditMode, normalizeEditMode } from "../utils/edit-mode";
 import { INSPECT_IMAGE_MODES } from "../utils/inspect-image-mode";
 import { isSearchProviderId, SEARCH_PROVIDER_ORDER } from "../web/search/types";
 import { stringifyYamlConfig } from "./config-file";
+import type { ModelSettingsSourceLayer, ModelSettingsSourceLayers } from "./model-resolver";
 import {
 	type BashInterceptorRule,
+	type CacheRetentionSetting,
+	type ExactModelSettings,
 	type GroupPrefix,
 	type GroupTypeMap,
 	getDefault,
+	type ModelSettings,
+	type RoleModelSettings,
 	SETTINGS_SCHEMA,
 	type SettingPath,
 	type SettingValue,
@@ -65,6 +73,17 @@ export * from "./settings-schema";
 export interface RawSettings {
 	[key: string]: unknown;
 }
+
+/** Persisted config layer edited by model-profile APIs. */
+export type ModelSettingsStorageScope = "global" | "project";
+
+/** One role or exact canonical provider/model profile under `modelSettings`. */
+export type ModelSettingsProfileTarget = { kind: "role"; role: string } | { kind: "model"; model: string };
+
+/** Selectively persisted leaf fields supported by model profiles. */
+export type ModelSettingsProfileField = keyof ExactModelSettings;
+
+type ModelSettingsProfileFieldValue = NonNullable<ExactModelSettings[ModelSettingsProfileField]> | null;
 
 type YamlContentGeneration = {
 	kind: "content";
@@ -192,6 +211,56 @@ function setByPath(obj: RawSettings, segments: string[], value: unknown): void {
 	current[segments[segments.length - 1]] = value;
 }
 
+/** Delete one leaf and remove only ancestors left empty by that deletion. */
+function deleteByPathAndPrune(obj: RawSettings, segments: readonly string[]): void {
+	const parents: Array<{ object: RawSettings; key: string }> = [];
+	let current = obj;
+	for (let i = 0; i < segments.length - 1; i++) {
+		const key = segments[i];
+		const child = current[key];
+		if (!isRecord(child)) return;
+		parents.push({ object: current, key });
+		current = child;
+	}
+	delete current[segments[segments.length - 1]];
+	for (let i = parents.length - 1; i >= 0; i--) {
+		const { object, key } = parents[i];
+		const child = object[key];
+		if (!isRecord(child) || Object.keys(child).length > 0) break;
+		delete object[key];
+	}
+}
+
+function applyPathValue(obj: RawSettings, segments: readonly string[], value: unknown): void {
+	if (value === undefined) {
+		deleteByPathAndPrune(obj, segments);
+		return;
+	}
+	setByPath(obj, [...segments], value);
+}
+
+function freezeSnapshot<T>(value: T): T {
+	if (!value || typeof value !== "object" || Object.isFrozen(value)) return value;
+	for (const child of Object.values(value)) freezeSnapshot(child);
+	return Object.freeze(value) as T;
+}
+
+const NESTED_YAML_MUTATION_PREFIX = "nested:";
+
+function nestedYamlMutationKey(segments: readonly string[]): string {
+	return `${NESTED_YAML_MUTATION_PREFIX}${JSON.stringify(segments)}`;
+}
+
+function yamlMutationSegments(key: string): string[] {
+	return key.startsWith(NESTED_YAML_MUTATION_PREFIX)
+		? (JSON.parse(key.slice(NESTED_YAML_MUTATION_PREFIX.length)) as string[])
+		: key.split(".");
+}
+
+function yamlMutationLabel(key: string): string {
+	return yamlMutationSegments(key).join(".");
+}
+
 /**
  * Dotted-path prefixes that name settings groups (e.g. "tui" for "tui.*").
  * A prefix may simultaneously be a schema leaf; those accept their declared
@@ -297,6 +366,48 @@ function stringArrayFromUnknown(value: unknown): string[] {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
 	return !!value && typeof value === "object" && !Array.isArray(value);
+}
+
+/**
+ * Extract one source-local role selector without consulting higher/lower
+ * settings layers. This mirrors the resolver's suffix rules while keeping the
+ * foundational settings module free of a runtime dependency on model-resolver.
+ */
+function modelRoleThinkingFromLayer(
+	roles: Readonly<Record<string, string>>,
+	role: string,
+	model: Pick<Model, "provider" | "id">,
+): ConfiguredThinkingLevel | undefined {
+	let current = roles[role]?.trim();
+	if (!current) return undefined;
+	const selectedModelKey = `${model.provider}/${model.id}`;
+	const visited = new Set<string>();
+	while (current && !visited.has(current)) {
+		visited.add(current);
+		const aliasPrefix = current.startsWith(MODEL_ROLE_ALIAS_PREFIX)
+			? MODEL_ROLE_ALIAS_PREFIX
+			: current.startsWith(LEGACY_MODEL_ROLE_ALIAS_PREFIX)
+				? LEGACY_MODEL_ROLE_ALIAS_PREFIX
+				: undefined;
+		const colon = current.lastIndexOf(":");
+		if (colon > (aliasPrefix?.length ?? LEGACY_MODEL_ROLE_ALIAS_PREFIX.length)) {
+			const selector = current.slice(colon + 1);
+			const parsed = parseThinkingLevel(selector);
+			if (parsed !== undefined && parsed !== ThinkingLevel.Max) return parsed;
+			const guarded = parsed === ThinkingLevel.Max ? parsed : selector === AUTO_THINKING ? AUTO_THINKING : undefined;
+			if (guarded !== undefined && (aliasPrefix !== undefined || current !== selectedModelKey)) {
+				return guarded;
+			}
+		}
+
+		if (current === "default") {
+			current = roles.default?.trim();
+			continue;
+		}
+		if (!aliasPrefix) break;
+		current = roles[current.slice(aliasPrefix.length)]?.trim();
+	}
+	return undefined;
 }
 
 /**
@@ -464,11 +575,14 @@ export class Settings {
 	#modified = new Set<string>();
 	/** Individual project model roles modified during this session */
 	#modifiedProjectModelRoles = new Set<string>();
+	/** Exact `modelSettings` leaf paths modified in the native project config. */
+	#modifiedProjectModelSettings = new Set<string>();
 	/** Individual global model roles modified during this session (for partial save) */
 	#modifiedGlobalModelRoles = new Set<string>();
 	/** On-disk generations and prior values observed before each pending global mutation. */
 	#modifiedPathMutations = new Map<string, PendingYamlMutation>();
 	#modifiedGlobalModelRoleMutations = new Map<string, PendingYamlMutation>();
+	#modifiedProjectModelSettingsMutations = new Map<string, PendingYamlMutation>();
 	/** Changes whenever a live API mutates a persisted layer. */
 	#persistedMutationGeneration = 0;
 	/**
@@ -735,7 +849,7 @@ export class Settings {
 		if (this.#modified.size > 0 || this.#modifiedGlobalModelRoles.size > 0) {
 			await this.#saveNow();
 		}
-		if (this.#modifiedProjectModelRoles.size > 0) {
+		if (this.#modifiedProjectModelRoles.size > 0 || this.#modifiedProjectModelSettings.size > 0) {
 			await this.#saveProjectNow();
 		}
 	}
@@ -1248,6 +1362,140 @@ export class Settings {
 		return normalized;
 	}
 
+	#modelSettingsSourceLayer(
+		layer: RawSettings,
+		model: Pick<Model, "provider" | "id">,
+		role?: string,
+	): ModelSettingsSourceLayer {
+		const result: ModelSettingsSourceLayer = {};
+		const thinking = getByPath(layer, ["defaultThinkingLevel"]);
+		const cacheRetention = getByPath(layer, ["providers", "cacheRetention"]);
+		if (thinking !== undefined || cacheRetention !== undefined) {
+			result.base = {};
+			if (thinking !== undefined) {
+				result.base.thinking = thinking as NonNullable<ModelSettingsSourceLayer["base"]>["thinking"];
+			}
+			if (cacheRetention !== undefined) {
+				result.base.cacheRetention = cacheRetention as CacheRetentionSetting;
+			}
+		}
+
+		if (role) {
+			const roles = this.#modelRolesFromLayer(layer);
+			const roleThinking = modelRoleThinkingFromLayer(roles, role, model);
+			if (roleThinking !== undefined) result.roleThinking = roleThinking;
+		}
+
+		const modelSettings = getByPath(layer, ["modelSettings"]);
+		if (isRecord(modelSettings)) {
+			result.modelSettings = modelSettings as ModelSettings;
+		}
+		return result;
+	}
+
+	/**
+	 * Immutable source-local inputs for {@link resolveEffectiveModelSettings}.
+	 * Keys are inserted in established low-to-high precedence order. Schema
+	 * defaults remain the resolver's base and are therefore not duplicated.
+	 */
+	getModelSettingsSourceLayers(
+		model: Pick<Model, "provider" | "id">,
+		role?: string,
+	): Readonly<ModelSettingsSourceLayers> {
+		const layers: ModelSettingsSourceLayers = {
+			global: this.#modelSettingsSourceLayer(this.#global, model, role),
+			project: this.#modelSettingsSourceLayer(this.#projectSettingsForMerge(), model, role),
+			overlay: this.#modelSettingsSourceLayer(this.#configOverlay, model, role),
+			runtime: this.#modelSettingsSourceLayer(this.#overrides, model, role),
+		};
+		return freezeSnapshot(structuredClone(layers));
+	}
+
+	#modelSettingsFieldSegments(
+		target: ModelSettingsProfileTarget,
+		field: ModelSettingsProfileField,
+	): readonly string[] {
+		if (target.kind === "role") {
+			if (field !== "cacheRetention") {
+				throw new Error(`Role model settings do not support ${field}`);
+			}
+			if (!target.role) throw new Error("Model settings role must not be empty");
+			return ["modelSettings", "roles", target.role, field];
+		}
+		if (!target.model) throw new Error("Model settings model must not be empty");
+		return ["modelSettings", "models", target.model, field];
+	}
+
+	#updateModelSettingsField(
+		scope: ModelSettingsStorageScope,
+		target: ModelSettingsProfileTarget,
+		field: ModelSettingsProfileField,
+		value: ModelSettingsProfileFieldValue | undefined,
+	): void {
+		const segments = this.#modelSettingsFieldSegments(target, field);
+		const mutationPath = nestedYamlMutationKey(segments);
+		const layer = scope === "global" ? this.#global : this.#project;
+		if (scope === "global") {
+			this.#captureGlobalMutation(mutationPath, this.#modifiedPathMutations, getByPath(layer, segments));
+			this.#modified.add(mutationPath);
+		} else {
+			const projectConfigPath = path.join(this.#cwd, ".omp", "config.yml");
+			this.#captureYamlMutation(
+				projectConfigPath,
+				mutationPath,
+				this.#modifiedProjectModelSettingsMutations,
+				getByPath(this.#projectFileSettings, segments),
+			);
+			this.#modifiedProjectModelSettings.add(mutationPath);
+		}
+		applyPathValue(layer, segments, value);
+		this.#persistedMutationGeneration++;
+		this.#rebuildMerged();
+		if (scope === "global") this.#queueSave();
+		else this.#queueProjectSave();
+	}
+
+	setModelSettingsField(
+		scope: ModelSettingsStorageScope,
+		target: Extract<ModelSettingsProfileTarget, { kind: "role" }>,
+		field: keyof RoleModelSettings,
+		value: NonNullable<RoleModelSettings[keyof RoleModelSettings]> | null,
+	): void;
+	setModelSettingsField(
+		scope: ModelSettingsStorageScope,
+		target: Extract<ModelSettingsProfileTarget, { kind: "model" }>,
+		field: keyof ExactModelSettings,
+		value: NonNullable<ExactModelSettings[keyof ExactModelSettings]> | null,
+	): void;
+	/** Set one persisted model-profile leaf without replacing sibling profiles or fields. */
+	setModelSettingsField(
+		scope: ModelSettingsStorageScope,
+		target: ModelSettingsProfileTarget,
+		field: ModelSettingsProfileField,
+		value: ModelSettingsProfileFieldValue,
+	): void {
+		this.#updateModelSettingsField(scope, target, field, value);
+	}
+
+	resetModelSettingsField(
+		scope: ModelSettingsStorageScope,
+		target: Extract<ModelSettingsProfileTarget, { kind: "role" }>,
+		field: keyof RoleModelSettings,
+	): void;
+	resetModelSettingsField(
+		scope: ModelSettingsStorageScope,
+		target: Extract<ModelSettingsProfileTarget, { kind: "model" }>,
+		field: keyof ExactModelSettings,
+	): void;
+	/** Delete one persisted model-profile leaf and prune only empty ancestors. */
+	resetModelSettingsField(
+		scope: ModelSettingsStorageScope,
+		target: ModelSettingsProfileTarget,
+		field: ModelSettingsProfileField,
+	): void {
+		this.#updateModelSettingsField(scope, target, field, undefined);
+	}
+
 	/*
 	 * Override model roles (helper for modelRoles record).
 	 */
@@ -1339,12 +1587,22 @@ export class Settings {
 		}
 	}
 
-	#captureGlobalMutation(key: string, mutations: Map<string, PendingYamlMutation>, baseValue: unknown): void {
-		if (!this.#persist || !this.#configPath) return;
+	#captureYamlMutation(
+		filePath: string,
+		key: string,
+		mutations: Map<string, PendingYamlMutation>,
+		baseValue: unknown,
+	): void {
+		if (!this.#persist) return;
 		mutations.set(key, {
-			generation: this.#readYamlGeneration(this.#configPath),
+			generation: this.#readYamlGeneration(filePath),
 			baseValue: structuredClone(baseValue),
 		});
+	}
+
+	#captureGlobalMutation(key: string, mutations: Map<string, PendingYamlMutation>, baseValue: unknown): void {
+		if (!this.#configPath) return;
+		this.#captureYamlMutation(this.#configPath, key, mutations, baseValue);
 	}
 
 	async #loadYaml(filePath: string): Promise<RawSettings> {
@@ -1530,8 +1788,8 @@ export class Settings {
 			}
 		} catch {
 			shellPathSource = undefined;
-			// Capability discovery is best-effort; the native project config below
-			// remains authoritative for its model-role layer and must not be hidden.
+			// Capability discovery is best-effort; the native project config
+			// remains authoritative for model roles and model settings.
 		}
 		const projectConfigPath = path.join(this.#cwd, ".omp", "config.yml");
 		const nativeProject = quarantineInvalid
@@ -1541,6 +1799,10 @@ export class Settings {
 		const nativeModelRoles = getByPath(nativeProject, ["modelRoles"]);
 		if (nativeModelRoles !== undefined) {
 			merged = this.#deepMerge(merged, { modelRoles: nativeModelRoles });
+		}
+		const nativeModelSettings = getByPath(nativeProject, ["modelSettings"]);
+		if (nativeModelSettings !== undefined) {
+			merged = this.#deepMerge(merged, { modelSettings: nativeModelSettings });
 		}
 		return {
 			settings: this.#migrateRawSettings(merged, quarantineInvalid),
@@ -2427,7 +2689,7 @@ export class Settings {
 				// Apply pending changes unless a newer file generation also
 				// changed that setting. Disjoint external edits still merge.
 				for (const modPath of modifiedPaths) {
-					const segments = modPath.split(".");
+					const segments = yamlMutationSegments(modPath);
 					const mutation = modifiedPathMutations.get(modPath);
 					const canApply =
 						mutation !== undefined &&
@@ -2437,12 +2699,12 @@ export class Settings {
 					if (!canApply) {
 						logger.warn("Settings: skipped stale change after external config edit", {
 							path: configPath,
-							setting: modPath,
+							setting: yamlMutationLabel(modPath),
 						});
 						continue;
 					}
 					const value = getByPath(this.#global, segments);
-					setByPath(current, segments, value);
+					applyPathValue(current, segments, value);
 					shouldWrite = true;
 				}
 
@@ -2593,11 +2855,21 @@ export class Settings {
 	}
 
 	async #saveProjectNow(): Promise<void> {
-		if (this.#savesCancelled || !this.#persist || this.#modifiedProjectModelRoles.size === 0) return;
+		if (
+			this.#savesCancelled ||
+			!this.#persist ||
+			(this.#modifiedProjectModelRoles.size === 0 && this.#modifiedProjectModelSettings.size === 0)
+		) {
+			return;
+		}
 
 		const projectConfigPath = path.join(this.#cwd, ".omp", "config.yml");
 		const modifiedModelRoles = [...this.#modifiedProjectModelRoles];
+		const modifiedModelSettings = [...this.#modifiedProjectModelSettings];
+		const modifiedModelSettingsMutations = new Map(this.#modifiedProjectModelSettingsMutations);
 		this.#modifiedProjectModelRoles.clear();
+		this.#modifiedProjectModelSettings.clear();
+		this.#modifiedProjectModelSettingsMutations.clear();
 
 		try {
 			await fs.promises.mkdir(path.dirname(projectConfigPath), { recursive: true });
@@ -2606,14 +2878,36 @@ export class Settings {
 				const projectSettings =
 					loaded.settings ??
 					(this.#quarantinedYamlTargets.has(projectConfigPath) ? structuredClone(this.#projectFileSettings) : {});
+				let shouldWrite = modifiedModelRoles.length > 0;
 
 				const projectRoles = getByPath(this.#project, ["modelRoles"]);
 				for (const role of modifiedModelRoles) {
 					const value = isRecord(projectRoles) ? projectRoles[role] : undefined;
-					setByPath(projectSettings, ["modelRoles", role], value);
+					applyPathValue(projectSettings, ["modelRoles", role], value);
 				}
 
-				await this.#writeYamlAtomically(writePath, projectSettings);
+				for (const mutationPath of modifiedModelSettings) {
+					const segments = yamlMutationSegments(mutationPath);
+					const mutation = modifiedModelSettingsMutations.get(mutationPath);
+					const canApply =
+						mutation !== undefined &&
+						mutation.generation.kind !== "unreadable" &&
+						(yamlGenerationsMatch(mutation.generation, loaded.generation) ||
+							Bun.deepEquals(getByPath(projectSettings, segments), mutation.baseValue));
+					if (!canApply) {
+						logger.warn("Settings: skipped stale change after external project config edit", {
+							path: projectConfigPath,
+							setting: yamlMutationLabel(mutationPath),
+						});
+						continue;
+					}
+					applyPathValue(projectSettings, segments, getByPath(this.#project, segments));
+					shouldWrite = true;
+				}
+
+				if (shouldWrite) {
+					await this.#writeYamlAtomically(writePath, projectSettings);
+				}
 				this.#projectFileSettings = structuredClone(projectSettings);
 				this.#quarantinedYamlTargets.delete(projectConfigPath);
 			});
@@ -2621,6 +2915,13 @@ export class Settings {
 		} catch (error) {
 			for (const role of modifiedModelRoles) {
 				this.#modifiedProjectModelRoles.add(role);
+			}
+			for (const mutationPath of modifiedModelSettings) {
+				this.#modifiedProjectModelSettings.add(mutationPath);
+				const mutation = modifiedModelSettingsMutations.get(mutationPath);
+				if (mutation && !this.#modifiedProjectModelSettingsMutations.has(mutationPath)) {
+					this.#modifiedProjectModelSettingsMutations.set(mutationPath, mutation);
+				}
 			}
 			throw error;
 		}

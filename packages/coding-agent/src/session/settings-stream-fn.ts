@@ -11,8 +11,9 @@
  * and OpenRouter response-cache hits across advisor calls.
  */
 import type { StreamFn } from "@oh-my-pi/pi-agent-core";
-import { type SimpleStreamOptions, streamSimple } from "@oh-my-pi/pi-ai";
+import { type Context, type Model, type SimpleStreamOptions, streamSimple } from "@oh-my-pi/pi-ai";
 import { isAnthropicFableOrMythosModel } from "@oh-my-pi/pi-catalog/identity";
+import { resolveMergedModelSettings } from "../config/model-resolver";
 import { type Settings, validateProviderMaxInFlightRequests } from "../config/settings";
 
 function timeoutSecondsToMs(value: number): number | undefined {
@@ -21,13 +22,22 @@ function timeoutSecondsToMs(value: number): number | undefined {
 	return Math.max(1, Math.trunc(value * 1000));
 }
 
+export interface SettingsAwareModelContext {
+	/** Semantic request role captured before model resolution. */
+	resolveRole?: (model: Model, context: Context, options: SimpleStreamOptions | undefined) => string | undefined;
+}
+
 /**
  * Build a {@link StreamFn} that reads provider routing/guard settings from
  * `settings` per call and forwards to `base` (defaults to `streamSimple`).
  *
  * Caller-supplied `streamOptions` always win — the helper only fills holes.
  */
-export function createSettingsAwareStreamFn(settings: Settings, base: StreamFn = streamSimple): StreamFn {
+export function createSettingsAwareStreamFn(
+	settings: Settings,
+	base: StreamFn = streamSimple,
+	modelContext: SettingsAwareModelContext = {},
+): StreamFn {
 	return (model, context, streamOptions) => {
 		const openrouterRoutingPreset = settings.get("providers.openrouterVariant");
 		const openrouterVariant =
@@ -41,12 +51,20 @@ export function createSettingsAwareStreamFn(settings: Settings, base: StreamFn =
 				: model.api === "openai-responses"
 					? settings.get("textVerbosity")
 					: undefined;
+		// Resolve cache behavior from the exact request model and its semantic
+		// role without changing Settings. A temporary model selection supplies no
+		// role: exact-model settings still recompute from `model`, while role
+		// settings cannot leak from the model it temporarily replaced.
+		const role = modelContext.resolveRole?.(model, context, streamOptions);
+		const effectiveModelSettings = resolveMergedModelSettings(settings, model, role);
 		// "auto" leaves the option unset so provider defaults and the
 		// PI_CACHE_RETENTION env override keep working; anything else is an
 		// explicit per-request retention (long restores 1h Anthropic TTLs and
 		// implicitly disables the short-entry keep-alive refresh loop).
-		const cacheRetentionSetting = settings.get("providers.cacheRetention");
-		const cacheRetention = cacheRetentionSetting === "auto" ? undefined : cacheRetentionSetting;
+		const cacheRetention =
+			effectiveModelSettings.cacheRetention.value === "auto"
+				? undefined
+				: effectiveModelSettings.cacheRetention.value;
 		const streamFirstEventTimeoutMs = timeoutSecondsToMs(settings.get("providers.streamFirstEventTimeoutSeconds"));
 		const streamIdleTimeoutMs = timeoutSecondsToMs(settings.get("providers.streamIdleTimeoutSeconds"));
 		// Server-side fallback (opt-in): when the user enables it AND the

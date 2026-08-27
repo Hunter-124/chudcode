@@ -15,7 +15,12 @@ import {
 } from "../session/compaction-methods";
 import { DEFAULT_STT_MODEL_KEY, STT_MODEL_OPTIONS, STT_MODEL_VALUES } from "../stt/models";
 import { STT_SUBMIT_TRIGGER_OPTIONS, STT_SUBMIT_TRIGGER_VALUES } from "../stt/submit-trigger";
-import { AUTO_THINKING, getConfiguredThinkingLevelMetadata, getThinkingLevelMetadata } from "../thinking";
+import {
+	AUTO_THINKING,
+	type ConfiguredThinkingLevel,
+	getConfiguredThinkingLevelMetadata,
+	getThinkingLevelMetadata,
+} from "../thinking";
 import {
 	TINY_MODEL_DEVICE_DEFAULT,
 	TINY_MODEL_DEVICE_SETTING_OPTIONS,
@@ -379,6 +384,25 @@ type SettingDef =
 // Schema Definition
 // ═══════════════════════════════════════════════════════════════════════════
 
+export type CacheRetentionSetting = "auto" | "short" | "long" | "none";
+
+export interface RoleModelSettings {
+	cacheRetention?: CacheRetentionSetting;
+}
+
+export interface ExactModelSettings extends RoleModelSettings {
+	thinking?: ConfiguredThinkingLevel;
+}
+
+/**
+ * Runtime behavior profiles. Model selection remains exclusively in
+ * `modelRoles`; exact model keys are canonical `provider/id` strings.
+ */
+export interface ModelSettings {
+	roles?: Record<string, RoleModelSettings>;
+	models?: Record<string, ExactModelSettings>;
+}
+
 export interface ModelTagDef {
 	name: string;
 	color?: string;
@@ -398,6 +422,7 @@ const EMPTY_NUMBER_RECORD: Record<string, number> = {};
 const DEFAULT_CYCLE_ORDER: string[] = ["smol", "default", "slow"];
 const DEFAULT_TOOL_CALL_LOOP_EXEMPT_TOOLS: string[] = ["hub"];
 const EMPTY_MODEL_TAGS_RECORD: ModelTagsSettings = {};
+const EMPTY_MODEL_SETTINGS: ModelSettings = {};
 const HINDSIGHT_RECALL_TYPES_DEFAULT: string[] = ["world", "experience"];
 export const DEFAULT_BASH_INTERCEPTOR_RULES: BashInterceptorRule[] = [
 	{
@@ -677,6 +702,8 @@ export const SETTINGS_SCHEMA = {
 	},
 
 	modelRoles: { type: "record", default: EMPTY_STRING_RECORD },
+
+	modelSettings: { type: "record", default: EMPTY_MODEL_SETTINGS },
 
 	modelTags: { type: "record", default: EMPTY_MODEL_TAGS_RECORD },
 
@@ -6414,6 +6441,7 @@ export interface GroupTypeMap {
 	thinkingBudgets: ThinkingBudgetsSettings;
 	stt: SttSettings;
 	modelRoles: Record<string, string>;
+	modelSettings: ModelSettings;
 	modelTags: ModelTagsSettings;
 	cycleOrder: string[];
 	shellMinimizer: ShellMinimizerSettings;
