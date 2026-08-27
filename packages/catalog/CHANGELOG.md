@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Added
+
+- Added optional model release dates from models.dev and a conservative calendar-month recency predicate for user-controlled filtering
+
 ## [18.0.8] - 2026-08-27
 
 ### Fixed
