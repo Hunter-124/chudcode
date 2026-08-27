@@ -12,6 +12,7 @@ import {
 import { getActiveProfile, getAgentDir, getProfileRootDir, isEnoent, logger } from "@oh-my-pi/pi-utils";
 import { JSONC, YAML } from "bun";
 import { stringifyYamlConfig } from "./config-file";
+import { settings } from "./settings";
 
 /**
  * Application-level keybindings (coding agent specific).
@@ -22,6 +23,8 @@ interface AppKeybindings {
 	"app.clear": true;
 	"app.exit": true;
 	"app.suspend": true;
+	"app.draft.restore": true;
+	"app.copy.picker": true;
 	"app.display.reset": true;
 	"app.thinking.cycle": true;
 	"app.thinking.toggle": true;
@@ -93,6 +96,14 @@ export const KEYBINDINGS = {
 	"app.suspend": {
 		defaultKeys: "ctrl+z",
 		description: "Suspend application",
+	},
+	"app.draft.restore": {
+		defaultKeys: [],
+		description: "Restore the most recently cleared draft",
+	},
+	"app.copy.picker": {
+		defaultKeys: [],
+		description: "Open the clean-copy picker",
 	},
 	"app.display.reset": {
 		defaultKeys: "alt+l",
@@ -236,6 +247,60 @@ export const KEYBINDINGS = {
 		description: "Start or stop live voice mode (/live)",
 	},
 } as const satisfies KeybindingDefinitions;
+
+export type KeybindingPreset = "default" | "windows";
+
+/**
+ * Windows-style overrides. Entries not listed here continue to use their
+ * built-in defaults, while an explicit keybindings.yml entry always wins.
+ *
+ * Alt+K and Alt+C keep actions with Ctrl+Shift+letter primary chords reachable
+ * on legacy terminals, where Shift cannot be distinguished from Ctrl+letter.
+ */
+export const WINDOWS_KEYBINDINGS = {
+	"tui.input.copy": "ctrl+c",
+	"app.clear": ["ctrl+shift+k", "alt+k"],
+	"app.interrupt": "escape",
+	"tui.editor.undo": ["ctrl+z", "ctrl+-", "ctrl+_"],
+	"tui.editor.redo": ["ctrl+y", "ctrl+shift+z", "alt+-"],
+	"app.suspend": "ctrl+alt+z",
+	"tui.editor.yank": [],
+	"tui.editor.cursorLineStart": "home",
+	"tui.editor.selectAll": "ctrl+a",
+	"tui.editor.cut": "ctrl+x",
+	"tui.editor.paste": "ctrl+v",
+	"tui.editor.selectLeft": "shift+left",
+	"tui.editor.selectRight": "shift+right",
+	"tui.editor.selectUp": "shift+up",
+	"tui.editor.selectDown": "shift+down",
+	"tui.editor.selectWordLeft": "ctrl+shift+left",
+	"tui.editor.selectWordRight": "ctrl+shift+right",
+	"tui.editor.selectToLineStart": "shift+home",
+	"tui.editor.selectToLineEnd": "shift+end",
+	"app.copy.picker": ["ctrl+shift+c", "alt+c"],
+	"app.draft.restore": "alt+z",
+	"app.exit": ["ctrl+d", "ctrl+q"],
+	// Ctrl+Q is reclaimed for app.exit; Alt+Q preserves the legacy-terminal
+	// fallback for follow-up messages while Ctrl+Enter remains available.
+	"app.message.followUp": ["alt+q", "ctrl+enter"],
+	// Shift+Up is Windows selection; dequeue retains its primary Alt+Up chord.
+	"app.message.dequeue": "alt+up",
+	// The editor owns Ctrl+V under this preset; image paste remains on Alt+V.
+	"app.clipboard.pasteImage": "alt+v",
+} as const satisfies KeybindingsConfig;
+
+function getPresetBindings(preset: KeybindingPreset): KeybindingsConfig {
+	return preset === "windows" ? WINDOWS_KEYBINDINGS : {};
+}
+
+function getConfiguredPreset(): KeybindingPreset {
+	try {
+		return settings.get("keybindings.preset");
+	} catch {
+		// In-memory/test callers can construct keybindings before Settings.init().
+		return "default";
+	}
+}
 
 /**
  * Migration map from old keybinding names to new namespaced IDs.
@@ -392,6 +457,8 @@ interface KeybindingsConfigPaths {
 export interface KeybindingsCreateOptions {
 	/** Default-profile agent directory whose keybindings are merged before profile-specific bindings. */
 	inheritedAgentDir?: string;
+	/** Override the settings-selected preset (primarily for isolated callers and tests). */
+	preset?: KeybindingPreset;
 }
 
 /**
@@ -569,12 +636,19 @@ export class KeybindingsManager extends TuiKeybindingsManager {
 	#configPath: string | undefined;
 	#inheritedConfigPath: string | undefined;
 	#userBindings: KeybindingsConfig;
+	#preset: KeybindingPreset;
 
-	constructor(userBindings: KeybindingsConfig = {}, configPath?: string, inheritedConfigPath?: string) {
-		super(KEYBINDINGS, userBindings);
+	constructor(
+		userBindings: KeybindingsConfig = {},
+		configPath?: string,
+		inheritedConfigPath?: string,
+		preset: KeybindingPreset = "default",
+	) {
+		super(KEYBINDINGS, userBindings, getPresetBindings(preset));
 		this.#configPath = configPath;
 		this.#inheritedConfigPath = inheritedConfigPath;
 		this.#userBindings = userBindings;
+		this.#preset = preset;
 	}
 
 	/**
@@ -583,7 +657,8 @@ export class KeybindingsManager extends TuiKeybindingsManager {
 	 */
 	static create(agentDir: string = getAgentDir(), options: KeybindingsCreateOptions = {}): KeybindingsManager {
 		const { config: userBindings, profilePath, inheritedPath } = loadMergedKeybindingsConfig(agentDir, options);
-		const manager = new KeybindingsManager(userBindings, profilePath, inheritedPath);
+		const preset = options.preset ?? getConfiguredPreset();
+		const manager = new KeybindingsManager(userBindings, profilePath, inheritedPath, preset);
 		// Set globally so getKeybindings() returns this manager
 		setKeybindings(manager);
 		return manager;
@@ -592,8 +667,11 @@ export class KeybindingsManager extends TuiKeybindingsManager {
 	/**
 	 * Create an in-memory keybindings manager without file persistence.
 	 */
-	static inMemory(userBindings: KeybindingsConfig = {}): KeybindingsManager {
-		return new KeybindingsManager(userBindings);
+	static inMemory(
+		userBindings: KeybindingsConfig = {},
+		preset: KeybindingPreset = "default",
+	): KeybindingsManager {
+		return new KeybindingsManager(userBindings, undefined, undefined, preset);
 	}
 
 	/**
@@ -611,6 +689,10 @@ export class KeybindingsManager extends TuiKeybindingsManager {
 	override setUserBindings(userBindings: KeybindingsConfig): void {
 		this.#userBindings = userBindings;
 		super.setUserBindings(userBindings);
+	}
+
+	getPreset(): KeybindingPreset {
+		return this.#preset;
 	}
 
 	override getKeys(keybinding: Keybinding): KeyId[] {

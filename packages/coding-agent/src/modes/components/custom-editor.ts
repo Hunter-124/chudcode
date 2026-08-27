@@ -29,6 +29,8 @@ type ConfigurableEditorAction = Extract<
 	AppKeybinding,
 	| "app.interrupt"
 	| "app.clear"
+	| "app.draft.restore"
+	| "app.copy.picker"
 	| "app.exit"
 	| "app.suspend"
 	| "app.display.reset"
@@ -51,6 +53,8 @@ type ConfigurableEditorAction = Extract<
 const DEFAULT_ACTION_KEYS: Record<ConfigurableEditorAction, KeyId[]> = {
 	"app.interrupt": ["escape"],
 	"app.clear": ["ctrl+c"],
+	"app.draft.restore": [],
+	"app.copy.picker": [],
 	"app.exit": ["ctrl+d"],
 	"app.suspend": ["ctrl+z"],
 	"app.display.reset": ["alt+l"],
@@ -394,6 +398,16 @@ export interface TextAttachment {
 	charCount: number;
 }
 
+interface ClearedDraft {
+	text: string;
+	imageLinks: readonly (string | undefined)[] | undefined;
+	pendingImages: ImageContent[];
+	pendingImageLinks: (string | undefined)[];
+	pendingTexts: TextAttachment[];
+	atoms: [string, string][];
+	textAttachmentCounter: number;
+}
+
 /** One visible composer attachment, in band order (images first, then text pastes). */
 export type ComposerChipDescriptor =
 	| { kind: "image"; n: number; image: ImageContent; link: string | undefined }
@@ -417,6 +431,10 @@ export class CustomEditor extends Editor {
 	 *  (labels key the atom table). */
 	pendingTexts: TextAttachment[] = [];
 	#textAttachmentCounter = 0;
+	/** Mirror of the base editor's private atom table, needed for lossless draft snapshots. */
+	#draftAtoms = new Map<string, string>();
+	/** One recoverable plain discard. Submission clears carry `historyText` and never replace it. */
+	#clearedDraft: ClearedDraft | undefined;
 	/** Host-wired producer of per-image `file://` links (session blob store); drives clickable
 	 *  chip tokens for restored drafts (esc-esc, `/tree`, branch). */
 	draftImageLinkMaterializer?: (images: readonly ImageContent[]) => Promise<(string | undefined)[] | undefined>;
@@ -460,11 +478,39 @@ export class CustomEditor extends Editor {
 		this.#spelling.setFeatures(features);
 	}
 
+	override registerAtom(label: string, expansion: string): void {
+		super.registerAtom(label, expansion);
+		this.#draftAtoms.set(label, expansion);
+	}
+
+	override clearAtoms(): void {
+		super.clearAtoms();
+		this.#draftAtoms.clear();
+	}
+
 	/** Clear the composer draft: optionally commit `historyText` to history, then
-	 *  reset the editor text and all pending draft-image state. The shared tail of
-	 *  every "message submitted" path; pass no argument for a plain discard. */
+	 *  reset the editor text and every pending attachment. Plain discards retain
+	 *  one lossless snapshot for {@link restoreDraft}; submitted prompts already
+	 *  live in message history and must not overwrite that recovery slot. */
 	clearDraft(historyText?: string): void {
-		if (historyText !== undefined) this.addToHistory(historyText);
+		if (historyText !== undefined) {
+			this.addToHistory(historyText);
+		} else if (
+			this.getText().length > 0 ||
+			this.pendingImages.length > 0 ||
+			this.pendingImageLinks.length > 0 ||
+			this.pendingTexts.length > 0
+		) {
+			this.#clearedDraft = {
+				text: this.getText(),
+				imageLinks: this.imageLinks ? [...this.imageLinks] : undefined,
+				pendingImages: [...this.pendingImages],
+				pendingImageLinks: [...this.pendingImageLinks],
+				pendingTexts: this.pendingTexts.map(attachment => ({ ...attachment })),
+				atoms: [...this.#draftAtoms],
+				textAttachmentCounter: this.#textAttachmentCounter,
+			};
+		}
 		this.setText("");
 		this.clearAtoms();
 		this.imageLinks = undefined;
@@ -472,6 +518,33 @@ export class CustomEditor extends Editor {
 		this.pendingImageLinks = [];
 		this.pendingTexts = [];
 		this.#textAttachmentCounter = 0;
+	}
+
+	/** Restore and consume the most recently plain-cleared draft. Refuse to
+	 *  replace a new in-progress draft, preserving the same no-data-loss rule. */
+	restoreDraft(): boolean {
+		const draft = this.#clearedDraft;
+		if (
+			!draft ||
+			this.getText().length > 0 ||
+			this.pendingImages.length > 0 ||
+			this.pendingImageLinks.length > 0 ||
+			this.pendingTexts.length > 0
+		) {
+			return false;
+		}
+		this.#clearedDraft = undefined;
+		this.clearAtoms();
+		this.imageLinks = draft.imageLinks ? [...draft.imageLinks] : undefined;
+		this.pendingImages = [...draft.pendingImages];
+		this.pendingImageLinks = [...draft.pendingImageLinks];
+		this.pendingTexts = draft.pendingTexts.map(attachment => ({ ...attachment }));
+		this.#textAttachmentCounter = draft.textAttachmentCounter;
+		for (const [label, expansion] of draft.atoms) {
+			this.registerAtom(label, expansion);
+		}
+		this.setText(draft.text);
+		return true;
 	}
 
 	/** Replace the composer draft with a restored historical prompt: re-attaches the message's
@@ -687,6 +760,10 @@ export class CustomEditor extends Editor {
 	}
 	onEscape?: () => void;
 	onClear?: () => void;
+	/** Ctrl+C preflight. Return true only when the controller consumed a hard abort. */
+	onCtrlC?: () => boolean;
+	onRestoreDraft?: () => void;
+	onCopyPicker?: () => void;
 	onExit?: () => void;
 	onDisplayReset?: () => void;
 	onCycleThinkingLevel?: () => void;
@@ -977,6 +1054,10 @@ export class CustomEditor extends Editor {
 		const parsedKey = parseKey(data);
 		const canonical = parsedKey !== undefined ? canonicalKeyId(parsedKey) : undefined;
 
+		// Ctrl+C normally falls through to the resolved clear or copy action.
+		// During shutdown only, the controller consumes it as the raw-mode hard abort.
+		if (canonical === "ctrl+c" && this.onCtrlC?.()) return;
+
 		// Left-arrow on an empty editor: surface for the agent-hub double-tap
 		// gesture. Plain "left" only — modified arrows and any in-text cursor
 		// movement fall through to normal handling.
@@ -1087,6 +1168,16 @@ export class CustomEditor extends Editor {
 			// Intercept configured clear shortcut
 			if (this.#matchesAction(canonical, "app.clear") && this.onClear) {
 				this.onClear();
+				return;
+			}
+
+			if (this.#matchesAction(canonical, "app.draft.restore") && this.onRestoreDraft) {
+				this.onRestoreDraft();
+				return;
+			}
+
+			if (this.#matchesAction(canonical, "app.copy.picker") && this.onCopyPicker) {
+				this.onCopyPicker();
 				return;
 			}
 

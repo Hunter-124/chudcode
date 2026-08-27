@@ -378,6 +378,16 @@ interface EditorState {
 	cursorCol: number;
 }
 
+export interface EditorPosition {
+	line: number;
+	col: number;
+}
+
+export interface EditorSelection {
+	anchor: EditorPosition;
+	cursor: EditorPosition;
+}
+
 interface LayoutLine {
 	text: string;
 	/** Exact `visibleWidth(text)` carried from wrap/layout, never re-derived. */
@@ -470,6 +480,14 @@ export class Editor implements Component, Focusable {
 		cursorLine: 0,
 		cursorCol: 0,
 	};
+	/**
+	 * Selection uses logical line/code-unit positions, matching the editor cursor.
+	 * Keeping both in the same coordinate space avoids flattening the buffer on
+	 * every movement; grapheme-aware movement still guarantees valid boundaries.
+	 * `undefined` is no selection, while an anchor equal to the cursor is an
+	 * intentional zero-width selection.
+	 */
+	#selectionAnchor: EditorPosition | undefined;
 	/** Focusable interface - set by TUI when focus changes */
 	focused: boolean = false;
 
@@ -577,6 +595,9 @@ export class Editor implements Component, Focusable {
 	onSubmit?: (text: string) => void | Promise<void>;
 	onAltEnter?: (text: string) => void;
 	onChange?: (text: string) => void;
+	/** Host clipboard hooks keep this dependency-free TUI component platform-agnostic. */
+	onCopy?: (text: string) => void;
+	onPaste?: () => void;
 	/** Called for a "marker-sized" paste — the point where the editor would otherwise collapse it
 	 *  into a `[Paste #N]` token (> 10 lines or > 1000 characters). Return `true` to intercept:
 	 *  the editor inserts nothing and records no undo state, leaving insertion to the host (e.g. a
@@ -789,6 +810,7 @@ export class Editor implements Component, Focusable {
 	}
 	/** Internal setText that doesn't reset history state - used by navigateHistory */
 	#setTextInternal(text: string, cursorAnchor: HistoryCursorAnchor = "end"): void {
+		this.#clearSelection();
 		this.#undoStack.length = 0;
 		this.#redoStack.length = 0;
 		this.#pendingUndoState = undefined;
@@ -875,22 +897,65 @@ export class Editor implements Component, Focusable {
 		if (this.#maxHeight === undefined) return contentLines;
 		return Math.max(1, this.#maxHeight - this.#effectiveStyle().verticalChrome);
 	}
-	/** Apply the optional input decorator to a plain (ANSI-free) text segment.
-	 *  Decoration only adds zero-width SGR codes, so visible width is unchanged.
-	 *  Splits around CURSOR_MARKER so each user-text segment is decorated in
-	 *  isolation: the marker begins with ESC, and a keyword regex that pins
-	 *  the right boundary with `(?!\S)` would otherwise reject an otherwise-
-	 *  valid match at the cursor seam (e.g. `ultrathink` immediately followed
-	 *  by the marker stops glowing until a trailing character is typed). */
-	#decorate(text: string, context: EditorTextDecorationContext): string {
+	/** Decorate source text and visibly style the selected subrange. Layout stays
+	 * in logical coordinates, so wrapped segments naturally receive only their
+	 * intersecting part of a multi-line selection. */
+	#decorateSourceSegment(text: string, context: EditorTextDecorationContext): string {
+		if (text.length === 0) return text;
 		const decorate = this.decorateText;
-		if (decorate === undefined || text.length === 0) return text;
+		const applyDecoration = (part: string, startCol: number): string => {
+			if (part.length === 0 || decorate === undefined) return part;
+			return decorate(part, { ...context, startCol, endCol: startCol + part.length });
+		};
+		const bounds = this.#selectionBounds(true);
+		if (bounds === undefined || context.line < bounds.start.line || context.line > bounds.end.line) {
+			return applyDecoration(text, context.startCol);
+		}
+
+		const selectedStart = bounds.start.line === context.line ? bounds.start.col : 0;
+		const selectedEnd =
+			bounds.end.line === context.line ? bounds.end.col : (this.#state.lines[context.line] ?? "").length;
+		const overlapStart = Math.max(context.startCol, selectedStart);
+		const overlapEnd = Math.min(context.endCol, selectedEnd);
+		if (overlapStart >= overlapEnd) return applyDecoration(text, context.startCol);
+
+		const localStart = overlapStart - context.startCol;
+		const localEnd = overlapEnd - context.startCol;
+		const before = applyDecoration(text.slice(0, localStart), context.startCol);
+		const selected = applyDecoration(text.slice(localStart, localEnd), overlapStart);
+		const after = applyDecoration(text.slice(localEnd), overlapEnd);
+		return before + this.#styleSelectedText(selected) + after;
+	}
+
+	/**
+	 * Style a run of selected text. `SelectListTheme.hovered` is optional, so a theme that
+	 * does not define a hover band would otherwise crash here the moment a selection exists.
+	 * Reverse video is the fallback because the selection MUST stay visible — an invisible
+	 * selection defeats the feature — and it is already this file's convention for the
+	 * cursor glyph, so it renders correctly on every terminal we support.
+	 */
+	#styleSelectedText(text: string): string {
+		const hovered = this.#theme.selectList.hovered;
+		return hovered !== undefined ? hovered(text) : `\x1b[7m${text}\x1b[0m`;
+	}
+
+	#sourceRangeIsSelected(line: number, startCol: number, endCol: number): boolean {
+		const bounds = this.#selectionBounds(true);
+		if (bounds === undefined || startCol >= endCol || line < bounds.start.line || line > bounds.end.line) return false;
+		const selectedStart = bounds.start.line === line ? bounds.start.col : 0;
+		const selectedEnd = bounds.end.line === line ? bounds.end.col : (this.#state.lines[line] ?? "").length;
+		return startCol < selectedEnd && endCol > selectedStart;
+	}
+
+	/** Split around CURSOR_MARKER before styling so source columns never count its escape bytes. */
+	#decorate(text: string, context: EditorTextDecorationContext): string {
+		if (text.length === 0) return text;
 		const idx = text.indexOf(CURSOR_MARKER);
 		const sourceLength = Math.max(0, context.endCol - context.startCol);
 		if (idx === -1) {
 			const decoratedLength = Math.min(text.length, sourceLength);
 			return (
-				decorate(text.slice(0, decoratedLength), {
+				this.#decorateSourceSegment(text.slice(0, decoratedLength), {
 					...context,
 					endCol: context.startCol + decoratedLength,
 				}) + text.slice(decoratedLength)
@@ -902,16 +967,14 @@ export class Editor implements Component, Focusable {
 		const afterLength = Math.min(after.length, sourceLength - beforeLength);
 		const cursorCol = context.startCol + beforeLength;
 		return (
-			(beforeLength > 0 ? decorate(before.slice(0, beforeLength), { ...context, endCol: cursorCol }) : "") +
+			this.#decorateSourceSegment(before.slice(0, beforeLength), { ...context, endCol: cursorCol }) +
 			before.slice(beforeLength) +
 			CURSOR_MARKER +
-			(afterLength > 0
-				? decorate(after.slice(0, afterLength), {
-						...context,
-						startCol: cursorCol,
-						endCol: cursorCol + afterLength,
-					})
-				: "") +
+			this.#decorateSourceSegment(after.slice(0, afterLength), {
+				...context,
+				startCol: cursorCol,
+				endCol: cursorCol + afterLength,
+			}) +
 			after.slice(afterLength)
 		);
 	}
@@ -1175,7 +1238,15 @@ export class Editor implements Component, Focusable {
 					const afterGraphemes = [...segmenter.segment(after)];
 					const firstGrapheme = afterGraphemes[0]?.segment || "";
 					const restAfter = after.slice(firstGrapheme.length);
-					const cursor = `\x1b[7m${firstGrapheme}\x1b[0m`;
+					const cursorCol = decorationContext.startCol + before.length;
+					const cursorText = this.#sourceRangeIsSelected(
+						decorationContext.line,
+						cursorCol,
+						cursorCol + firstGrapheme.length,
+					)
+						? this.#styleSelectedText(firstGrapheme)
+						: firstGrapheme;
+					const cursor = `\x1b[7m${cursorText}\x1b[0m`;
 					// Decorate the plain text on each side of the cursor glyph. The reverse-video
 					// reset (\x1b[0m) ends in "m" (a word char), so a boundary match on restAfter
 					// would fail in the whole-line fallback below — decorate the segments here.
@@ -1340,6 +1411,57 @@ export class Editor implements Component, Focusable {
 					return paste.remaining;
 				}
 			}
+			return;
+		}
+
+		if (kb.matchesCanonical(canonical, "tui.editor.selectAll")) {
+			this.#selectionAnchor = { line: 0, col: 0 };
+			this.#state.cursorLine = this.#state.lines.length - 1;
+			this.#setCursorCol(this.#state.lines[this.#state.cursorLine]?.length ?? 0);
+			return;
+		}
+		if (kb.matchesCanonical(canonical, "tui.editor.selectLeft")) {
+			this.#extendSelection(() => this.#moveCursor(0, -1, true));
+			return;
+		}
+		if (kb.matchesCanonical(canonical, "tui.editor.selectRight")) {
+			this.#extendSelection(() => this.#moveCursor(0, 1, true));
+			return;
+		}
+		if (kb.matchesCanonical(canonical, "tui.editor.selectUp")) {
+			this.#extendSelection(() => this.#moveCursor(-1, 0, true));
+			return;
+		}
+		if (kb.matchesCanonical(canonical, "tui.editor.selectDown")) {
+			this.#extendSelection(() => this.#moveCursor(1, 0, true));
+			return;
+		}
+		if (kb.matchesCanonical(canonical, "tui.editor.selectWordLeft")) {
+			this.#extendSelection(() => this.#moveWordBackwards(true));
+			return;
+		}
+		if (kb.matchesCanonical(canonical, "tui.editor.selectWordRight")) {
+			this.#extendSelection(() => this.#moveWordForwards(true));
+			return;
+		}
+		if (kb.matchesCanonical(canonical, "tui.editor.selectToLineStart")) {
+			this.#extendSelection(() => this.#moveToLineStart(true));
+			return;
+		}
+		if (kb.matchesCanonical(canonical, "tui.editor.selectToLineEnd")) {
+			this.#extendSelection(() => this.#moveToLineEnd(true));
+			return;
+		}
+		if (kb.matchesCanonical(canonical, "tui.input.copy") && this.hasSelection()) {
+			this.#copySelection();
+			return;
+		}
+		if (kb.matchesCanonical(canonical, "tui.editor.cut")) {
+			this.#cutSelection();
+			return;
+		}
+		if (kb.matchesCanonical(canonical, "tui.editor.paste")) {
+			this.onPaste?.();
 			return;
 		}
 
@@ -1934,6 +2056,128 @@ export class Editor implements Component, Focusable {
 		return [...this.#state.lines];
 	}
 
+
+	getSelection(): EditorSelection | undefined {
+		const anchor = this.#selectionAnchor;
+		if (anchor === undefined) return undefined;
+		return {
+			anchor: { ...anchor },
+			cursor: { line: this.#state.cursorLine, col: this.#state.cursorCol },
+		};
+	}
+
+	hasSelection(): boolean {
+		const anchor = this.#selectionAnchor;
+		return (
+			anchor !== undefined &&
+			(anchor.line !== this.#state.cursorLine || anchor.col !== this.#state.cursorCol)
+		);
+	}
+
+	/** Selected buffer text, preserving logical newlines and never slicing an atomic token. */
+	getSelectedText(): string | undefined {
+		const bounds = this.#selectionBounds(true);
+		if (bounds === undefined || this.#positionsEqual(bounds.start, bounds.end)) return undefined;
+		if (bounds.start.line === bounds.end.line) {
+			return (this.#state.lines[bounds.start.line] ?? "").slice(bounds.start.col, bounds.end.col);
+		}
+		const selected = [(this.#state.lines[bounds.start.line] ?? "").slice(bounds.start.col)];
+		for (let line = bounds.start.line + 1; line < bounds.end.line; line++) {
+			selected.push(this.#state.lines[line] ?? "");
+		}
+		selected.push((this.#state.lines[bounds.end.line] ?? "").slice(0, bounds.end.col));
+		return selected.join("\n");
+	}
+
+	#positionsEqual(a: EditorPosition, b: EditorPosition): boolean {
+		return a.line === b.line && a.col === b.col;
+	}
+
+	#positionBefore(a: EditorPosition, b: EditorPosition): boolean {
+		return a.line < b.line || (a.line === b.line && a.col < b.col);
+	}
+
+	#selectionBounds(expandAtomicTokens: boolean): { start: EditorPosition; end: EditorPosition } | undefined {
+		const anchor = this.#selectionAnchor;
+		if (anchor === undefined) return undefined;
+		const cursor = { line: this.#state.cursorLine, col: this.#state.cursorCol };
+		let start = this.#positionBefore(anchor, cursor) ? { ...anchor } : cursor;
+		let end = this.#positionBefore(anchor, cursor) ? cursor : { ...anchor };
+		if (!expandAtomicTokens || this.#positionsEqual(start, end)) return { start, end };
+
+		if (start.line === end.line) {
+			const expanded = this.#expandRangeOverAtomicTokens(
+				this.#state.lines[start.line] ?? "",
+				start.col,
+				end.col,
+			);
+			start = { line: start.line, col: expanded.start };
+			end = { line: end.line, col: expanded.end };
+		} else {
+			const startLine = this.#state.lines[start.line] ?? "";
+			const startRange = this.#expandRangeOverAtomicTokens(startLine, start.col, startLine.length);
+			start = { line: start.line, col: startRange.start };
+			const endLine = this.#state.lines[end.line] ?? "";
+			const endRange = this.#expandRangeOverAtomicTokens(endLine, 0, end.col);
+			end = { line: end.line, col: endRange.end };
+		}
+		return { start, end };
+	}
+
+	#clearSelection(): void {
+		this.#selectionAnchor = undefined;
+	}
+
+	#extendSelection(move: () => void): void {
+		this.#selectionAnchor ??= { line: this.#state.cursorLine, col: this.#state.cursorCol };
+		move();
+	}
+
+	/** Delete the selected range without recording undo or notifying observers. */
+	#deleteSelection(): string | undefined {
+		const bounds = this.#selectionBounds(true);
+		if (bounds === undefined) return undefined;
+		this.#clearSelection();
+		if (this.#positionsEqual(bounds.start, bounds.end)) return undefined;
+		const deleted = this.#textInRange(bounds.start, bounds.end);
+		const prefix = (this.#state.lines[bounds.start.line] ?? "").slice(0, bounds.start.col);
+		const suffix = (this.#state.lines[bounds.end.line] ?? "").slice(bounds.end.col);
+		this.#state.lines.splice(bounds.start.line, bounds.end.line - bounds.start.line + 1, prefix + suffix);
+		this.#state.cursorLine = bounds.start.line;
+		this.#setCursorCol(bounds.start.col);
+		return deleted;
+	}
+
+	#deleteSelectionForCommand(): boolean {
+		if (this.#deleteSelection() === undefined) return false;
+		this.onChange?.(this.getText());
+		this.#retriggerAutocompleteAtCursor();
+		return true;
+	}
+	#textInRange(start: EditorPosition, end: EditorPosition): string {
+		if (start.line === end.line) {
+			return (this.#state.lines[start.line] ?? "").slice(start.col, end.col);
+		}
+		const parts = [(this.#state.lines[start.line] ?? "").slice(start.col)];
+		for (let line = start.line + 1; line < end.line; line++) parts.push(this.#state.lines[line] ?? "");
+		parts.push((this.#state.lines[end.line] ?? "").slice(0, end.col));
+		return parts.join("\n");
+	}
+
+	#copySelection(): void {
+		const selected = this.getSelectedText();
+		if (selected !== undefined && selected.length > 0) this.onCopy?.(selected);
+	}
+
+	#cutSelection(): void {
+		const selected = this.getSelectedText();
+		if (selected === undefined || selected.length === 0) return;
+		this.onCopy?.(selected);
+		this.#historyIndex = -1;
+		this.#resetKillSequence();
+		this.#recordUndoState();
+		this.#deleteSelectionForCommand();
+	}
 	getCursor(): { line: number; col: number } {
 		return { line: this.#state.cursorLine, col: this.#state.cursorCol };
 	}
@@ -2039,6 +2283,14 @@ export class Editor implements Component, Focusable {
 	 *  optimistically inserts before it recognizes the hold. Capped at the cursor column so it
 	 *  never crosses a line boundary or under-runs the line. */
 	deleteBeforeCursor(count: number): void {
+		if (this.hasSelection()) {
+			this.#exitHistoryForEditing();
+			this.#recordUndoState();
+			this.#deleteSelectionForCommand();
+			this.#lastAction = null;
+			return;
+		}
+		this.#clearSelection();
 		const removable = Math.min(count, this.#state.cursorCol);
 		if (removable <= 0) return;
 		this.#exitHistoryForEditing();
@@ -2157,9 +2409,11 @@ export class Editor implements Component, Focusable {
 		// Undo coalescing: consecutive word typing collapses into one undo unit
 		// (mirrors Input); any other action resets the run via #lastAction.
 		const isWordChunk = [...segmenter.segment(char)].every(seg => getWordNavKind(seg.segment) !== "whitespace");
-		if (!isWordChunk || this.#lastAction !== "type-word") {
+		const replacingSelection = this.hasSelection();
+		if (replacingSelection || !isWordChunk || this.#lastAction !== "type-word") {
 			this.#recordUndoState();
 		}
+		this.#deleteSelection();
 		this.#lastAction = isWordChunk ? "type-word" : null;
 
 		const line = this.#state.lines[this.#state.cursorLine] || "";
@@ -2260,7 +2514,7 @@ export class Editor implements Component, Focusable {
 
 		// If pasting a file path (starts with /, ~, or .) and the character before
 		// the cursor is a word character, prepend a space for better readability.
-		if (/^[/~.]/.test(filteredText)) {
+		if (!this.hasSelection() && /^[/~.]/.test(filteredText)) {
 			const currentLine = this.#state.lines[this.#state.cursorLine] || "";
 			const charBeforeCursor = this.#state.cursorCol > 0 ? currentLine[this.#state.cursorCol - 1] : "";
 			if (charBeforeCursor && /\w/.test(charBeforeCursor)) {
@@ -2286,6 +2540,7 @@ export class Editor implements Component, Focusable {
 		this.#recordUndoState();
 
 		this.#withUndoSuspended(() => {
+			this.#deleteSelection();
 			if (isMarkerSized) {
 				this.#storePasteMarker(filteredText, pastedLines.length);
 				return;
@@ -2367,6 +2622,7 @@ export class Editor implements Component, Focusable {
 		this.#historyIndex = -1; // Exit history browsing mode
 		this.#resetKillSequence();
 		this.#recordUndoState();
+		this.#deleteSelection();
 
 		const currentLine = this.#state.lines[this.#state.cursorLine] || "";
 
@@ -2398,6 +2654,7 @@ export class Editor implements Component, Focusable {
 	}
 
 	#submitValue(): void {
+		this.#clearSelection();
 		this.#resetKillSequence();
 
 		const result = this.#expandPasteMarkers(this.#state.lines.join("\n")).trim();
@@ -2474,6 +2731,11 @@ export class Editor implements Component, Focusable {
 		this.#historyIndex = -1; // Exit history browsing mode
 		this.#resetKillSequence();
 		this.#recordUndoState();
+		if (this.#deleteSelection() !== undefined) {
+			this.onChange?.(this.getText());
+			this.#retriggerAutocompleteAtCursor();
+			return;
+		}
 
 		let removedSlashTrigger = false;
 
@@ -2578,7 +2840,6 @@ export class Editor implements Component, Focusable {
 			const sourceText = sourceLine.slice(currentVL.startCol, currentVL.startCol + currentVL.length);
 			const currentVisualCol = visualColAtOffset(sourceText, this.#state.cursorCol - currentVL.startCol);
 
-			// For non-last segments, clamp before the segment end to stay within the segment
 			const isLastSourceSegment =
 				currentVisualLine === visualLines.length - 1 ||
 				visualLines[currentVisualLine + 1]?.logicalLine !== currentVL.logicalLine;
@@ -2597,7 +2858,6 @@ export class Editor implements Component, Focusable {
 				targetMaxVisualCol,
 			);
 
-			// Set cursor position, snapping to a grapheme boundary in the target text
 			this.#state.cursorLine = targetVL.logicalLine;
 			const targetCol = targetVL.startCol + offsetAtVisualCol(targetText, moveToVisualCol);
 			this.#state.cursorCol = Math.min(targetCol, targetLine.length);
@@ -2636,24 +2896,28 @@ export class Editor implements Component, Focusable {
 		return result;
 	}
 
-	#moveToLineStart(): void {
+	#moveToLineStart(preserveSelection = false): void {
+		if (!preserveSelection) this.#clearSelection();
 		this.#resetKillSequence();
 		this.#setCursorCol(0);
 	}
 
-	#moveToLineEnd(): void {
+	#moveToLineEnd(preserveSelection = false): void {
+		if (!preserveSelection) this.#clearSelection();
 		this.#resetKillSequence();
 		const currentLine = this.#state.lines[this.#state.cursorLine] || "";
 		this.#setCursorCol(currentLine.length);
 	}
 
 	#moveToMessageStart(): void {
+		this.#clearSelection();
 		this.#resetKillSequence();
 		this.#state.cursorLine = 0;
 		this.#setCursorCol(0);
 	}
 
 	#moveToMessageEnd(): void {
+		this.#clearSelection();
 		this.#resetKillSequence();
 		this.#state.cursorLine = this.#state.lines.length - 1;
 		const currentLine = this.#state.lines[this.#state.cursorLine] || "";
@@ -2736,6 +3000,9 @@ export class Editor implements Component, Focusable {
 	}
 
 	#restoreState(snapshot: EditorState): void {
+		// History movement invalidates any selection: the anchor may point past the end of a
+		// shorter restored buffer.
+		this.#clearSelection();
 		this.#historyIndex = -1;
 		this.#resetKillSequence();
 		this.#preferredVisualCol = null;
@@ -2796,6 +3063,7 @@ export class Editor implements Component, Focusable {
 		this.#historyIndex = -1;
 		this.#resetKillSequence();
 		this.#recordUndoState();
+		this.#deleteSelection();
 
 		const normalized = text.replace(/\r\n?/g, "\n");
 		const lines = normalized.split("\n");
@@ -2915,6 +3183,7 @@ export class Editor implements Component, Focusable {
 	#deleteToStartOfLine(): void {
 		this.#historyIndex = -1; // Exit history browsing mode
 		this.#recordUndoState();
+		if (this.#deleteSelectionForCommand()) return;
 
 		const currentLine = this.#state.lines[this.#state.cursorLine] || "";
 		let deletedText = "";
@@ -2947,6 +3216,7 @@ export class Editor implements Component, Focusable {
 	#deleteToEndOfLine(): void {
 		this.#historyIndex = -1; // Exit history browsing mode
 		this.#recordUndoState();
+		if (this.#deleteSelectionForCommand()) return;
 
 		const currentLine = this.#state.lines[this.#state.cursorLine] || "";
 		let deletedText = "";
@@ -2979,6 +3249,7 @@ export class Editor implements Component, Focusable {
 	#deleteWordBackwards(): void {
 		this.#historyIndex = -1; // Exit history browsing mode
 		this.#recordUndoState();
+		if (this.#deleteSelectionForCommand()) return;
 
 		const currentLine = this.#state.lines[this.#state.cursorLine] || "";
 
@@ -3014,6 +3285,7 @@ export class Editor implements Component, Focusable {
 	#deleteWordForwards(): void {
 		this.#historyIndex = -1; // Exit history browsing mode
 		this.#recordUndoState();
+		if (this.#deleteSelectionForCommand()) return;
 
 		const currentLine = this.#state.lines[this.#state.cursorLine] || "";
 
@@ -3047,6 +3319,7 @@ export class Editor implements Component, Focusable {
 		this.#historyIndex = -1; // Exit history browsing mode
 		this.#resetKillSequence();
 		this.#recordUndoState();
+		if (this.#deleteSelectionForCommand()) return;
 
 		const currentLine = this.#state.lines[this.#state.cursorLine] || "";
 
@@ -3120,12 +3393,10 @@ export class Editor implements Component, Focusable {
 			const line = this.#state.lines[i] || "";
 			const lineVisWidth = this.#lineEntry(line, width).width;
 			if (line.length === 0) {
-				// Empty line still takes one visual line
 				visualLines.push({ logicalLine: i, startCol: 0, length: 0 });
 			} else if (lineVisWidth <= width) {
 				visualLines.push({ logicalLine: i, startCol: 0, length: line.length });
 			} else {
-				// Line needs wrapping - use word-aware wrapping
 				const chunks = this.#wrapLine(line, width);
 				for (const chunk of chunks) {
 					visualLines.push({
@@ -3140,19 +3411,12 @@ export class Editor implements Component, Focusable {
 		return visualLines;
 	}
 
-	/**
-	 * Find the visual line index for the current cursor position.
-	 */
 	#findCurrentVisualLine(visualLines: Array<{ logicalLine: number; startCol: number; length: number }>): number {
 		for (let i = 0; i < visualLines.length; i++) {
 			const vl = visualLines[i];
 			if (!vl) continue;
 			if (vl.logicalLine === this.#state.cursorLine) {
 				const colInSegment = this.#state.cursorCol - vl.startCol;
-				// Cursor is in this segment if it's within range
-				// For the last segment of a logical line, cursor can be at length (end position)
-				// The first segment also owns any leading whitespace the wrapper skipped
-				// (its startCol can be > 0), so a negative colInSegment maps there.
 				const isLastSegmentOfLine =
 					i === visualLines.length - 1 || visualLines[i + 1]?.logicalLine !== vl.logicalLine;
 				const isFirstSegmentOfLine = i === 0 || visualLines[i - 1]?.logicalLine !== vl.logicalLine;
@@ -3164,18 +3428,17 @@ export class Editor implements Component, Focusable {
 				}
 			}
 		}
-		// Fallback: return last visual line
 		return visualLines.length - 1;
 	}
 
-	#moveCursor(deltaLine: number, deltaCol: number): void {
+	#moveCursor(deltaLine: number, deltaCol: number, preserveSelection = false): void {
+		if (!preserveSelection) this.#clearSelection();
 		this.#resetKillSequence();
 		const visualLines = this.#buildVisualLineMap(this.#lastLayoutWidth);
 		const currentVisualLine = this.#findCurrentVisualLine(visualLines);
 
 		if (deltaLine !== 0) {
 			const targetVisualLine = currentVisualLine + deltaLine;
-
 			if (targetVisualLine >= 0 && targetVisualLine < visualLines.length) {
 				this.#moveToVisualLine(visualLines, currentVisualLine, targetVisualLine);
 			}
@@ -3183,44 +3446,37 @@ export class Editor implements Component, Focusable {
 
 		if (deltaCol !== 0) {
 			const currentLine = this.#state.lines[this.#state.cursorLine] || "";
-
 			if (deltaCol > 0) {
-				// Moving right - move by one grapheme (handles emojis, combining characters, etc.)
 				if (this.#state.cursorCol < currentLine.length) {
 					const afterCursor = currentLine.slice(this.#state.cursorCol);
 					const graphemes = [...segmenter.segment(afterCursor)];
 					const firstGrapheme = graphemes[0];
 					this.#setCursorCol(this.#state.cursorCol + (firstGrapheme ? firstGrapheme.segment.length : 1));
 				} else if (this.#state.cursorLine < this.#state.lines.length - 1) {
-					// Wrap to start of next logical line
 					this.#state.cursorLine++;
 					this.#setCursorCol(0);
 				} else {
-					// At end of last line - can't move, but set preferredVisualCol for up/down navigation
 					const currentVL = visualLines[currentVisualLine];
 					if (currentVL) {
 						const segmentText = currentLine.slice(currentVL.startCol, currentVL.startCol + currentVL.length);
 						this.#preferredVisualCol = visualColAtOffset(segmentText, this.#state.cursorCol - currentVL.startCol);
 					}
 				}
-			} else {
-				// Moving left - move by one grapheme (handles emojis, combining characters, etc.)
-				if (this.#state.cursorCol > 0) {
-					const beforeCursor = currentLine.slice(0, this.#state.cursorCol);
-					const graphemes = [...segmenter.segment(beforeCursor)];
-					const lastGrapheme = graphemes[graphemes.length - 1];
-					this.#setCursorCol(this.#state.cursorCol - (lastGrapheme ? lastGrapheme.segment.length : 1));
-				} else if (this.#state.cursorLine > 0) {
-					// Wrap to end of previous logical line
-					this.#state.cursorLine--;
-					const prevLine = this.#state.lines[this.#state.cursorLine] || "";
-					this.#setCursorCol(prevLine.length);
-				}
+			} else if (this.#state.cursorCol > 0) {
+				const beforeCursor = currentLine.slice(0, this.#state.cursorCol);
+				const graphemes = [...segmenter.segment(beforeCursor)];
+				const lastGrapheme = graphemes[graphemes.length - 1];
+				this.#setCursorCol(this.#state.cursorCol - (lastGrapheme ? lastGrapheme.segment.length : 1));
+			} else if (this.#state.cursorLine > 0) {
+				this.#state.cursorLine--;
+				const prevLine = this.#state.lines[this.#state.cursorLine] || "";
+				this.#setCursorCol(prevLine.length);
 			}
 		}
 	}
 
 	#pageScroll(direction: -1 | 1): void {
+		this.#clearSelection();
 		this.#resetKillSequence();
 		const visualLines = this.#buildVisualLineMap(this.#lastLayoutWidth);
 		const currentVisualLine = this.#findCurrentVisualLine(visualLines);
@@ -3230,10 +3486,9 @@ export class Editor implements Component, Focusable {
 		this.#moveToVisualLine(visualLines, currentVisualLine, targetVisualLine);
 	}
 
-	#moveWordBackwards(): void {
+	#moveWordBackwards(preserveSelection = false): void {
+		if (!preserveSelection) this.#clearSelection();
 		const currentLine = this.#state.lines[this.#state.cursorLine] || "";
-
-		// If at start of line, move to end of previous line
 		if (this.#state.cursorCol === 0) {
 			if (this.#state.cursorLine > 0) {
 				this.#state.cursorLine--;
@@ -3242,48 +3497,37 @@ export class Editor implements Component, Focusable {
 			}
 			return;
 		}
-
 		this.#setCursorCol(moveWordLeft(currentLine, this.#state.cursorCol));
 	}
 
-	/**
-	 * Jump to the first occurrence of a character in the specified direction.
-	 * Multi-line search. Case-sensitive. Skips the current cursor position.
-	 */
 	#jumpToChar(char: string, direction: "forward" | "backward"): void {
+		this.#clearSelection();
 		this.#resetKillSequence();
 		const isForward = direction === "forward";
 		const lines = this.#state.lines;
-
 		const end = isForward ? lines.length : -1;
 		const step = isForward ? 1 : -1;
 
 		for (let lineIdx = this.#state.cursorLine; lineIdx !== end; lineIdx += step) {
 			const line = lines[lineIdx] || "";
 			const isCurrentLine = lineIdx === this.#state.cursorLine;
-
-			// Current line: start after/before cursor; other lines: search full line
 			const searchFrom = isCurrentLine
 				? isForward
 					? this.#state.cursorCol + 1
 					: this.#state.cursorCol - 1
 				: undefined;
-
 			const idx = isForward ? line.indexOf(char, searchFrom) : line.lastIndexOf(char, searchFrom);
-
 			if (idx !== -1) {
 				this.#state.cursorLine = lineIdx;
 				this.#setCursorCol(idx);
 				return;
 			}
 		}
-		// No match found - cursor stays in place
 	}
 
-	#moveWordForwards(): void {
+	#moveWordForwards(preserveSelection = false): void {
+		if (!preserveSelection) this.#clearSelection();
 		const currentLine = this.#state.lines[this.#state.cursorLine] || "";
-
-		// If at end of line, move to start of next line
 		if (this.#state.cursorCol >= currentLine.length) {
 			if (this.#state.cursorLine < this.#state.lines.length - 1) {
 				this.#state.cursorLine++;
@@ -3291,7 +3535,6 @@ export class Editor implements Component, Focusable {
 			}
 			return;
 		}
-
 		this.#setCursorCol(moveWordRight(currentLine, this.#state.cursorCol));
 	}
 

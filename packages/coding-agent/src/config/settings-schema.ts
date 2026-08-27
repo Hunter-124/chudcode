@@ -1921,6 +1921,22 @@ export const SETTINGS_SCHEMA = {
 	// Interaction
 	// ────────────────────────────────────────────────────────────────────────
 
+	"keybindings.preset": {
+		type: "enum",
+		values: ["default", "windows"] as const,
+		default: "default",
+		ui: {
+			tab: "interaction",
+			group: "Input",
+			label: "Keybinding Preset",
+			description: "Choose the default or Windows-style keyboard shortcuts",
+			options: [
+				{ value: "default", label: "Default", description: "Use the standard terminal keybindings" },
+				{ value: "windows", label: "Windows", description: "Use Windows-style editing keybindings" },
+			],
+		},
+	},
+
 	// Conversation flow
 	steeringMode: {
 		type: "enum",

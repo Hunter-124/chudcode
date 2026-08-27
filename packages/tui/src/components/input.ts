@@ -27,6 +27,8 @@ interface InputState {
 export class Input implements Component, Focusable {
 	#value: string = "";
 	#cursor: number = 0; // Cursor position in the value
+	/** Flat UTF-16 offset matches this single-line component's cursor coordinate. */
+	#selectionAnchor: number | undefined;
 	#useTerminalCursor = false;
 	/** Rendered before the editable area; set to "" for chrome-less embedding. */
 	prompt = "> ";
@@ -34,6 +36,8 @@ export class Input implements Component, Focusable {
 	mask = false;
 	onSubmit?: (value: string) => void;
 	onEscape?: () => void;
+	onCopy?: (text: string) => void;
+	onPaste?: () => void;
 
 	/** Focusable interface - set by TUI when focus changes */
 	focused: boolean = false;
@@ -54,6 +58,36 @@ export class Input implements Component, Focusable {
 		return this.#value;
 	}
 
+	getSelection(): { anchor: number; cursor: number } | undefined {
+		return this.#selectionAnchor === undefined
+			? undefined
+			: { anchor: this.#selectionAnchor, cursor: this.#cursor };
+	}
+
+	getSelectedText(): string | undefined {
+		const anchor = this.#selectionAnchor;
+		if (anchor === undefined || anchor === this.#cursor) return undefined;
+		return this.#value.slice(Math.min(anchor, this.#cursor), Math.max(anchor, this.#cursor));
+	}
+
+	#clearSelection(): void {
+		this.#selectionAnchor = undefined;
+	}
+
+	#deleteSelection(): boolean {
+		const selected = this.getSelectedText();
+		if (selected === undefined) {
+			this.#clearSelection();
+			return false;
+		}
+		const start = Math.min(this.#selectionAnchor!, this.#cursor);
+		const end = Math.max(this.#selectionAnchor!, this.#cursor);
+		this.#value = this.#value.slice(0, start) + this.#value.slice(end);
+		this.#cursor = start;
+		this.#clearSelection();
+		return true;
+	}
+
 	setValue(value: string): void {
 		this.#value = value;
 		// Callers seed or replace the value wholesale; typing continues at the end.
@@ -61,6 +95,7 @@ export class Input implements Component, Focusable {
 		this.#undoStack.length = 0;
 		this.#redoStack.length = 0;
 		this.#lastAction = null;
+		this.#clearSelection();
 	}
 
 	setUseTerminalCursor(useTerminalCursor: boolean): void {
@@ -87,7 +122,10 @@ export class Input implements Component, Focusable {
 		const kb = getKeybindings();
 
 		// Escape/Cancel
-		if (kb.matches(data, "tui.select.cancel")) {
+		if (
+			kb.matches(data, "tui.select.cancel") &&
+			!(kb.matches(data, "tui.input.copy") && this.getSelectedText() !== undefined)
+		) {
 			if (this.onEscape) this.onEscape();
 			return;
 		}
@@ -101,6 +139,62 @@ export class Input implements Component, Focusable {
 		// Redo
 		if (kb.matches(data, "tui.editor.redo")) {
 			this.#redo();
+			return;
+		}
+		if (kb.matches(data, "tui.editor.selectAll")) {
+			this.#selectionAnchor = 0;
+			this.#cursor = this.#value.length;
+			return;
+		}
+		if (kb.matches(data, "tui.editor.selectLeft")) {
+			this.#selectionAnchor ??= this.#cursor;
+			this.#moveLeft(true);
+			return;
+		}
+		if (kb.matches(data, "tui.editor.selectRight")) {
+			this.#selectionAnchor ??= this.#cursor;
+			this.#moveRight(true);
+			return;
+		}
+		if (kb.matches(data, "tui.editor.selectUp") || kb.matches(data, "tui.editor.selectToLineStart")) {
+			this.#selectionAnchor ??= this.#cursor;
+			this.#cursor = 0;
+			return;
+		}
+		if (kb.matches(data, "tui.editor.selectDown") || kb.matches(data, "tui.editor.selectToLineEnd")) {
+			this.#selectionAnchor ??= this.#cursor;
+			this.#cursor = this.#value.length;
+			return;
+		}
+		if (kb.matches(data, "tui.editor.selectWordLeft")) {
+			this.#selectionAnchor ??= this.#cursor;
+			this.#moveWordBackwards(true);
+			return;
+		}
+		if (kb.matches(data, "tui.editor.selectWordRight")) {
+			this.#selectionAnchor ??= this.#cursor;
+			this.#moveWordForwards(true);
+			return;
+		}
+		if (kb.matches(data, "tui.input.copy")) {
+			const selected = this.getSelectedText();
+			if (selected !== undefined) {
+				this.onCopy?.(selected);
+				return;
+			}
+		}
+		if (kb.matches(data, "tui.editor.cut")) {
+			const selected = this.getSelectedText();
+			if (selected !== undefined) {
+				this.onCopy?.(selected);
+				this.#pushUndo();
+				this.#deleteSelection();
+				this.#lastAction = null;
+			}
+			return;
+		}
+		if (kb.matches(data, "tui.editor.paste")) {
+			this.onPaste?.();
 			return;
 		}
 
@@ -153,34 +247,24 @@ export class Input implements Component, Focusable {
 
 		// Cursor movement
 		if (kb.matches(data, "tui.editor.cursorLeft")) {
-			this.#lastAction = null;
-			if (this.#cursor > 0) {
-				const beforeCursor = this.#value.slice(0, this.#cursor);
-				const graphemes = [...segmenter.segment(beforeCursor)];
-				const lastGrapheme = graphemes[graphemes.length - 1];
-				this.#cursor -= lastGrapheme ? lastGrapheme.segment.length : 1;
-			}
+			this.#moveLeft();
 			return;
 		}
 
 		if (kb.matches(data, "tui.editor.cursorRight")) {
-			this.#lastAction = null;
-			if (this.#cursor < this.#value.length) {
-				const afterCursor = this.#value.slice(this.#cursor);
-				const graphemes = [...segmenter.segment(afterCursor)];
-				const firstGrapheme = graphemes[0];
-				this.#cursor += firstGrapheme ? firstGrapheme.segment.length : 1;
-			}
+			this.#moveRight();
 			return;
 		}
 
 		if (kb.matches(data, "tui.editor.cursorLineStart")) {
+			this.#clearSelection();
 			this.#lastAction = null;
 			this.#cursor = 0;
 			return;
 		}
 
 		if (kb.matches(data, "tui.editor.cursorLineEnd")) {
+			this.#clearSelection();
 			this.#lastAction = null;
 			this.#cursor = this.#value.length;
 			return;
@@ -211,10 +295,11 @@ export class Input implements Component, Focusable {
 
 	#insertCharacter(text: string): void {
 		const isWordChunk = [...segmenter.segment(text)].every(seg => getWordNavKind(seg.segment) !== "whitespace");
-		// Undo coalescing: consecutive word typing coalesces into one undo unit.
-		if (!isWordChunk || this.#lastAction !== "type-word") {
+		// Replacing a selection starts its own undo unit even after a typing run.
+		if (this.getSelectedText() !== undefined || !isWordChunk || this.#lastAction !== "type-word") {
 			this.#pushUndo();
 		}
+		this.#deleteSelection();
 		this.#lastAction = "type-word";
 
 		this.#value = this.#value.slice(0, this.#cursor) + text + this.#value.slice(this.#cursor);
@@ -222,6 +307,12 @@ export class Input implements Component, Focusable {
 	}
 
 	#handleBackspace(): void {
+		if (this.getSelectedText() !== undefined) {
+			this.#pushUndo();
+			this.#deleteSelection();
+			return;
+		}
+		this.#clearSelection();
 		this.#lastAction = null;
 		if (this.#cursor <= 0) {
 			return;
@@ -239,6 +330,12 @@ export class Input implements Component, Focusable {
 	}
 
 	#handleForwardDelete(): void {
+		if (this.getSelectedText() !== undefined) {
+			this.#pushUndo();
+			this.#deleteSelection();
+			return;
+		}
+		this.#clearSelection();
 		this.#lastAction = null;
 		if (this.#cursor >= this.#value.length) {
 			return;
@@ -255,6 +352,13 @@ export class Input implements Component, Focusable {
 	}
 
 	#deleteToLineStart(): void {
+		if (this.getSelectedText() !== undefined) {
+			this.#pushUndo();
+			this.#deleteSelection();
+			this.#lastAction = null;
+			return;
+		}
+		this.#clearSelection();
 		if (this.#cursor === 0) {
 			return;
 		}
@@ -269,6 +373,13 @@ export class Input implements Component, Focusable {
 	}
 
 	#deleteToLineEnd(): void {
+		if (this.getSelectedText() !== undefined) {
+			this.#pushUndo();
+			this.#deleteSelection();
+			this.#lastAction = null;
+			return;
+		}
+		this.#clearSelection();
 		if (this.#cursor >= this.#value.length) {
 			return;
 		}
@@ -282,6 +393,13 @@ export class Input implements Component, Focusable {
 	}
 
 	#deleteWordBackwards(): void {
+		if (this.getSelectedText() !== undefined) {
+			this.#pushUndo();
+			this.#deleteSelection();
+			this.#lastAction = null;
+			return;
+		}
+		this.#clearSelection();
 		if (this.#cursor === 0) {
 			return;
 		}
@@ -304,6 +422,13 @@ export class Input implements Component, Focusable {
 	}
 
 	#deleteWordForward(): void {
+		if (this.getSelectedText() !== undefined) {
+			this.#pushUndo();
+			this.#deleteSelection();
+			this.#lastAction = null;
+			return;
+		}
+		this.#clearSelection();
 		if (this.#cursor >= this.#value.length) {
 			return;
 		}
@@ -331,6 +456,7 @@ export class Input implements Component, Focusable {
 		}
 
 		this.#pushUndo();
+		this.#deleteSelection();
 		this.#value = this.#value.slice(0, this.#cursor) + text + this.#value.slice(this.#cursor);
 		this.#cursor += text.length;
 		this.#lastAction = "yank";
@@ -366,6 +492,7 @@ export class Input implements Component, Focusable {
 			return;
 		}
 		this.#redoStack.push({ value: this.#value, cursor: this.#cursor });
+		this.#clearSelection();
 		this.#value = snapshot.value;
 		this.#cursor = snapshot.cursor;
 		this.#lastAction = null;
@@ -377,12 +504,34 @@ export class Input implements Component, Focusable {
 			return;
 		}
 		this.#undoStack.push({ value: this.#value, cursor: this.#cursor });
+		this.#clearSelection();
 		this.#value = snapshot.value;
 		this.#cursor = snapshot.cursor;
 		this.#lastAction = null;
 	}
 
-	#moveWordBackwards(): void {
+	#moveLeft(preserveSelection = false): void {
+		if (!preserveSelection) this.#clearSelection();
+		this.#lastAction = null;
+		if (this.#cursor <= 0) return;
+		const beforeCursor = this.#value.slice(0, this.#cursor);
+		const graphemes = [...segmenter.segment(beforeCursor)];
+		const lastGrapheme = graphemes[graphemes.length - 1];
+		this.#cursor -= lastGrapheme ? lastGrapheme.segment.length : 1;
+	}
+
+	#moveRight(preserveSelection = false): void {
+		if (!preserveSelection) this.#clearSelection();
+		this.#lastAction = null;
+		if (this.#cursor >= this.#value.length) return;
+		const afterCursor = this.#value.slice(this.#cursor);
+		const graphemes = [...segmenter.segment(afterCursor)];
+		const firstGrapheme = graphemes[0];
+		this.#cursor += firstGrapheme ? firstGrapheme.segment.length : 1;
+	}
+
+	#moveWordBackwards(preserveSelection = false): void {
+		if (!preserveSelection) this.#clearSelection();
 		if (this.#cursor === 0) {
 			return;
 		}
@@ -390,7 +539,8 @@ export class Input implements Component, Focusable {
 		this.#cursor = moveWordLeft(this.#value, this.#cursor);
 	}
 
-	#moveWordForwards(): void {
+	#moveWordForwards(preserveSelection = false): void {
+		if (!preserveSelection) this.#clearSelection();
 		if (this.#cursor >= this.#value.length) {
 			return;
 		}
@@ -399,6 +549,7 @@ export class Input implements Component, Focusable {
 	}
 
 	#handlePaste(pastedText: string): void {
+
 		// Clean the pasted text — decode tmux's re-encoded control bytes (both
 		// extended-keys formats, e.g. Ctrl+J → "\n") back to literal bytes so the escape
 		// tail does not leak in, remove newlines/carriage returns, expand tabs, NFC-normalize,
@@ -428,6 +579,10 @@ export class Input implements Component, Focusable {
 		if (cleanText.length === 0) return;
 		this.#lastAction = null;
 		this.#pushUndo();
+		// Replace an active selection. Ordered after #pushUndo() so a single undo restores
+		// the selected text, and after the empty-payload guard so a no-op paste does not
+		// silently delete the selection.
+		this.#deleteSelection();
 
 		// Insert at cursor position
 		this.#value = this.#value.slice(0, this.#cursor) + cleanText + this.#value.slice(this.#cursor);
@@ -448,13 +603,21 @@ export class Input implements Component, Focusable {
 		}
 
 		let cursorIndex = this.#cursor;
+		let selectionAnchorIndex = this.#selectionAnchor;
 		// Ensure we always have a grapheme to invert at the cursor (space at end).
 		let visibleValue = this.#value;
 		if (this.mask) {
 			const graphemes = [...segmenter.segment(this.#value)];
 			visibleValue = "•".repeat(graphemes.length);
 			cursorIndex = graphemes.filter(grapheme => grapheme.index < this.#cursor).length;
+			if (selectionAnchorIndex !== undefined) {
+				selectionAnchorIndex = graphemes.filter(grapheme => grapheme.index < selectionAnchorIndex!).length;
+			}
 		}
+		const selectionStart =
+			selectionAnchorIndex === undefined ? undefined : Math.min(selectionAnchorIndex, cursorIndex);
+		const selectionEnd =
+			selectionAnchorIndex === undefined ? undefined : Math.max(selectionAnchorIndex, cursorIndex);
 		const displayValue = this.#cursor >= this.#value.length ? `${visibleValue} ` : visibleValue;
 
 		const totalCols = visibleWidth(displayValue);
@@ -483,6 +646,7 @@ export class Input implements Component, Focusable {
 		const prefixText = sliceWithWidth(displayValue, startCol, Math.max(0, cursorCols - startCol), true).text;
 		let cursorDisplay = prefixText.length;
 		cursorDisplay = Math.max(0, Math.min(cursorDisplay, visibleText.length));
+		const displayStartIndex = sliceWithWidth(displayValue, 0, startCol, true).text.length;
 
 		// Build the visible line and insert the cursor marker at the buffer cursor.
 		const graphemes = [...segmenter.segment(visibleText.slice(cursorDisplay))];
@@ -501,8 +665,28 @@ export class Input implements Component, Focusable {
 		const cursorWidth = this.#useTerminalCursor ? visibleWidth(atCursor) : visibleWidth(atCursor || " ");
 		const remainingAfterWidth = Math.max(0, availableWidth - beforeWidth - cursorWidth);
 		const clampedAfterCursor = sliceWithWidth(afterCursor, 0, remainingAfterWidth, true).text;
-		const renderedNoMarker = beforeCursor + cursorChar + clampedAfterCursor;
-		const textWithCursor = beforeCursor + marker + cursorChar + clampedAfterCursor;
+		const styleSelected = (text: string, absoluteStart: number): string => {
+			if (selectionStart === undefined || selectionEnd === undefined || text.length === 0) return text;
+			const localStart = Math.max(0, selectionStart - absoluteStart);
+			const localEnd = Math.min(text.length, selectionEnd - absoluteStart);
+			if (localStart >= localEnd) return text;
+			return `${text.slice(0, localStart)}\x1b[7m${text.slice(localStart, localEnd)}\x1b[27m${text.slice(localEnd)}`;
+		};
+		const styledBeforeCursor = styleSelected(beforeCursor, displayStartIndex);
+		const cursorAbsoluteStart = displayStartIndex + cursorDisplay;
+		const selectedCursor =
+			selectionStart !== undefined &&
+			selectionEnd !== undefined &&
+			cursorAbsoluteStart < selectionEnd &&
+			cursorAbsoluteStart + atCursor.length > selectionStart;
+		const styledCursorChar =
+			this.#useTerminalCursor && selectedCursor ? `\x1b[7m${cursorChar}\x1b[27m` : cursorChar;
+		const styledAfterCursor = styleSelected(
+			clampedAfterCursor,
+			cursorAbsoluteStart + atCursor.length,
+		);
+		const renderedNoMarker = styledBeforeCursor + styledCursorChar + styledAfterCursor;
+		const textWithCursor = styledBeforeCursor + marker + styledCursorChar + styledAfterCursor;
 
 		const visualLength = visibleWidth(renderedNoMarker);
 		const pad = padding(Math.max(0, availableWidth - visualLength));
