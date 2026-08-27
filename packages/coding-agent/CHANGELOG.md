@@ -2,9 +2,6 @@
 
 ## [Unreleased]
 
-### Fixed
-
-- Fixed status-line background-work counts to keep queued tasks and eval jobs visible without double-counting running subagents.
 ### Added
 
 - Added account quota usage to the `full` and `nerd` status-line presets ([#9929](https://github.com/can1357/oh-my-pi/issues/9929)).
@@ -13,10 +10,12 @@
 - Added a `Custom…` editor for numeric settings while retaining preset choices, with finite-number validation that leaves invalid entries unsaved.
 - Enabled the proven prompt-cache miss marker by default so costly warm-to-cold transitions are visible.
 - Added `/cache` with cache hit rate, token classes, honest price coverage, net cache savings, retention/TTL and idle-time reporting; the default cost status now shows cache savings, and cache misses explain that expiry or prompt-prefix changes caused reprocessing.
-### Added
-
 - Added `/recent`, a compact ten-session resume picker showing recency, project, message count, and lifecycle status.
 - Grouped the full resume picker by Today, Yesterday, Previous 7 days, and Older, with inline fork, rename, pin/unpin, and copy-path actions.
+
+### Fixed
+
+- Fixed status-line background-work counts to keep queued tasks and eval jobs visible without double-counting running subagents.
 
 ## [18.0.8] - 2026-08-27
 
