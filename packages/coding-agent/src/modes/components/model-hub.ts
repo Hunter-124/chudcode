@@ -1174,8 +1174,7 @@ export class ModelHubComponent implements Component {
 				this.#cancelAssign();
 				return;
 			}
-			const entry = this.#activeEntry();
-			if (this.#isBrowserView(entry) && this.#browser.query.length > 0) {
+			if (!this.#settings.get("tui.escapeClosesOverlay") && this.#browser.query.length > 0) {
 				this.#browser.handleCancel();
 				return;
 			}

@@ -859,7 +859,7 @@ export class AgentsHubComponent implements Component {
 				this.#cancelAssign();
 				return;
 			}
-			if (this.#searchQuery.length > 0) {
+			if (this.#searchQuery.length > 0 && !this.#settings.get("tui.escapeClosesOverlay")) {
 				this.#searchQuery = "";
 				this.#buildRows();
 				this.#clampRowIndex();

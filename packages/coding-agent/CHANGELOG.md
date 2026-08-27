@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Added
+
+- Added `tui.escapeClosesOverlay` (off by default): when enabled, a single Escape closes `/models`, `/switch`, `/agents`, `/extensions`, and the settings search overlay immediately instead of clearing an active search query first. Escape still cancels genuine in-flight work (a model assignment, the role strip, the agent create/model-edit flows) before closing in every case.
+
 ## [18.0.8] - 2026-08-27
 
 ### Added

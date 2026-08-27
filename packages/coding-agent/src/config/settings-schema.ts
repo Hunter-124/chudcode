@@ -1996,6 +1996,17 @@ export const SETTINGS_SCHEMA = {
 		},
 	},
 
+	"tui.escapeClosesOverlay": {
+		type: "boolean",
+		default: false,
+		ui: {
+			tab: "interaction",
+			group: "Input",
+			label: "Single-Escape Overlay Dismissal",
+			description: "Close overlays with one Escape instead of clearing their search first",
+		},
+	},
+
 	treeFilterMode: {
 		type: "enum",
 		values: ["default", "no-tools", "user-only", "labeled-only", "all"] as const,
