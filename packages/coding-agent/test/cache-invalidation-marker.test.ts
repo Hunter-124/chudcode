@@ -90,5 +90,7 @@ describe("CacheInvalidationMarkerComponent", () => {
 		const dividerWidth = Bun.stringWidth(lines[1]);
 		expect(dividerWidth).toBeGreaterThan(0);
 		expect(dividerWidth).toBeLessThan(80);
+		expect(lines[1]).toContain("TTL/model/tool/context");
+		expect(lines[1]).toContain("tokens reprocessed");
 	});
 });

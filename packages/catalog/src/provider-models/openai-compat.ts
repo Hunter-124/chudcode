@@ -6290,6 +6290,10 @@ export function mapModelsDevToModels(
 			const resolved = desc.resolveApi?.(modelId, m) ?? { api: desc.api, baseUrl: desc.baseUrl };
 			if (!resolved) continue;
 
+			const inputCost = toNumber(m.cost?.input);
+			const outputCost = toNumber(m.cost?.output);
+			const pricingKnown = inputCost !== undefined && outputCost !== undefined;
+
 			const mapped: ModelSpec<Api> = {
 				id: modelId,
 				name: toModelName(m.name, modelId),
@@ -6299,11 +6303,12 @@ export function mapModelsDevToModels(
 				reasoning: m.reasoning === true,
 				input: toInputCapabilities(m.modalities?.input),
 				cost: {
-					input: toNumber(m.cost?.input) ?? 0,
-					output: toNumber(m.cost?.output) ?? 0,
+					input: inputCost ?? 0,
+					output: outputCost ?? 0,
 					cacheRead: toNumber(m.cost?.cache_read) ?? 0,
 					cacheWrite: toNumber(m.cost?.cache_write) ?? 0,
 				},
+				pricingKnown,
 				contextWindow: toPositiveNumber(m.limit?.context, desc.defaultContextWindow ?? null),
 				maxTokens: toPositiveNumber(m.limit?.output, desc.defaultMaxTokens ?? null),
 				...(m.tool_call === false ? { supportsTools: false } : {}),

@@ -27,6 +27,7 @@ import {
 	type CodexResetUsageSnapshot,
 	detectCodexResetFireworks,
 } from "../codex-reset-fireworks";
+import { calculateCacheMetrics, type CacheMetrics } from "./cache-metrics";
 import { canReuseCachedPr, createPrCacheContext, isSamePrCacheContext, type PrCacheContext } from "./git-utils";
 import { getPreset } from "./presets";
 import { renderSegment, type SegmentContext } from "./segments";
@@ -222,6 +223,13 @@ interface ContextUsageMemo {
 	systemPromptRef: readonly string[] | undefined;
 	toolsRef: readonly any[] | undefined;
 	skillsRef: readonly any[] | undefined;
+}
+
+interface CacheMetricsMemo {
+	messagesRef: readonly AgentMessage[];
+	length: number;
+	lastFingerprint: string | undefined;
+	metrics: CacheMetrics;
 }
 
 interface ActiveRepoCache {
@@ -472,6 +480,7 @@ export class StatusLineComponent implements Component {
 	// count (matching the provider and the `/context` panel), so a stable
 	// message list + model window yields a stable result we can return verbatim.
 	#contextUsageCache: ContextUsageMemo | undefined;
+	#cacheMetricsMemo: CacheMetricsMemo | undefined;
 
 	constructor(private session: AgentSession) {
 		this.#settings = {
@@ -813,6 +822,7 @@ export class StatusLineComponent implements Component {
 		this.#usageFetchedAt = 0;
 		this.#usageInFlight = false;
 		this.#contextUsageCache = undefined;
+		this.#cacheMetricsMemo = undefined;
 		this.#lastTokensPerSecond = null;
 		this.#lastTokensPerSecondTimestamp = null;
 	}
@@ -1659,6 +1669,26 @@ export class StatusLineComponent implements Component {
 		return { usedTokens, contextWindow };
 	}
 
+	#getCacheMetrics(): CacheMetrics {
+		const messages = this.session.state.messages;
+		const length = messages.length;
+		const lastFingerprint = length > 0 ? messageFingerprint(messages[length - 1]!) : undefined;
+		const memo = this.#cacheMetricsMemo;
+		if (
+			memo &&
+			memo.messagesRef === messages &&
+			memo.length === length &&
+			memo.lastFingerprint === lastFingerprint
+		) {
+			return memo.metrics;
+		}
+		const metrics = calculateCacheMetrics(messages, (provider, modelId) =>
+			this.session.modelRegistry.find(provider, modelId),
+		);
+		this.#cacheMetricsMemo = { messagesRef: messages, length, lastFingerprint, metrics };
+		return metrics;
+	}
+
 	#buildSegmentContext(
 		width: number,
 		segmentOptions: StatusLineSettings["segmentOptions"],
@@ -1748,6 +1778,7 @@ export class StatusLineComponent implements Component {
 			vibeMode: this.#vibeModeStatus,
 			collab: this.#collabStatus,
 			usageStats,
+			cacheMetrics: this.#getCacheMetrics(),
 			contextPercent,
 			contextTokens,
 			contextWindow,

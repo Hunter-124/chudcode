@@ -8,6 +8,7 @@ import type {
 import type { AgentSession } from "../../../session/agent-session";
 import type { ActiveRepoContext } from "../../../utils/active-repo-context";
 import type { LoopLimitRuntime } from "../../loop-limit";
+import type { CacheMetrics } from "./cache-metrics";
 
 export type { ContextLineMode, StatusLinePreset, StatusLineSegmentId, StatusLineSeparatorStyle };
 
@@ -103,6 +104,7 @@ export interface SegmentContext {
 		cost: number;
 		tokensPerSecond: number | null;
 	};
+	cacheMetrics?: CacheMetrics;
 	/** Context usage percent, or null when unknown (e.g. right after compaction). */
 	contextPercent: number | null;
 	contextTokens: number;

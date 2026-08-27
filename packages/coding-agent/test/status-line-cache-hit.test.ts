@@ -49,6 +49,30 @@ describe("cache_hit status-line segment", () => {
 		expect(plain(result.content)).toContain("60.00%");
 	});
 
+	it("adds a quiet idle/TTL cue near configured short-cache expiry", () => {
+		const ctx = ctxWith({ cacheRead: 800, input: 200 });
+		ctx.cacheMetrics = {
+			input: 200,
+			output: 0,
+			cacheRead: 800,
+			cacheWrite: 0,
+			promptTokens: 1_000,
+			hitRate: 0.8,
+			pricedSpend: 0,
+			savings: 0,
+			pricedModels: 1,
+			totalModels: 1,
+			lastResponseAt: Date.now() - 4.5 * 60_000,
+		};
+		ctx.session = {
+			settings: { get: () => "short" },
+			model: { provider: "anthropic" },
+		} as unknown as SegmentContext["session"];
+
+		const result = renderSegment("cache_hit", ctx);
+		expect(plain(result.content)).toContain("idle / 5m TTL");
+	});
+
 	it("is hidden until there is a cache read, even with uncached input", () => {
 		const result = renderSegment("cache_hit", ctxWith({ cacheRead: 0, cacheWrite: 0, input: 5_000 }));
 		expect(result.visible).toBe(false);

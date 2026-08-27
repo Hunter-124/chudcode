@@ -99,8 +99,12 @@ export class CacheInvalidationMarkerComponent implements Component {
 	#divider(width: number): string {
 		const icon = theme.icon.cacheMiss;
 		const head = icon ? `${icon} cache miss` : "cache miss";
+		const cause = "TTL/model/tool/context";
 		const tokens = this.info.reprocessedTokens;
-		const label = tokens > 0 ? `${head} ${theme.sep.dot.trim()} ${formatNumber(tokens)} tokens` : head;
+		const label =
+			tokens > 0
+				? `${head} ${theme.sep.dot.trim()} ${cause} ${theme.sep.dot.trim()} ${formatNumber(tokens)} tokens reprocessed`
+				: `${head} ${theme.sep.dot.trim()} ${cause}`;
 		const labelWidth = Bun.stringWidth(label, { countAnsiEscapeCodes: false });
 		const ruleWidth = Math.min(CACHE_INVALIDATION_RULE_WIDTH, width - labelWidth - 1);
 		if (ruleWidth < 1) {

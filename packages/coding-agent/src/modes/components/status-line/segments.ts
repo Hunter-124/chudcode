@@ -8,6 +8,7 @@ import { shortenPath, TRUNCATE_LENGTHS, truncateToWidth } from "../../../tools/r
 import { fileHyperlink } from "../../../tui/hyperlink";
 import { getSessionAccentAnsi, getSessionAccentHex } from "../../../utils/session-color";
 import { sanitizeStatusText } from "../../shared";
+import { describeCacheRetention } from "./cache-metrics";
 import { formatContextUsage, getContextUsageLevel, getContextUsageThemeColor } from "./context-thresholds";
 import type { RenderedSegment, SegmentContext, StatusLineSegment, StatusLineSegmentId } from "./types";
 
@@ -475,6 +476,13 @@ const costSegment: StatusLineSegment = {
 			const prefix = billingParts.length ? "+ " : "";
 			billingParts.push(`${prefix}${formatAdvisorSpend(advisorCost, advisorUsingSubscription, theme)}`);
 		}
+		const cacheMetrics = ctx.cacheMetrics;
+		if (cacheMetrics?.hitRate !== undefined && cacheMetrics.cacheRead > 0) {
+			billingParts.push(`cache ${(cacheMetrics.hitRate * 100).toFixed(0)}%`);
+			if (cacheMetrics.savings !== undefined && cacheMetrics.savings > 0) {
+				billingParts.push(`saved ${formatSpend(cacheMetrics.savings, false, theme)}`);
+			}
+		}
 		if (billingParts.length === 0) return { content: "", visible: false };
 
 		return { content: theme.fg("statusLineCost", billingParts.join(" ")), visible: true };
@@ -617,13 +625,30 @@ const cacheHitSegment: StatusLineSegment = {
 		// for Anthropic/OpenRouter; DeepSeek reports its miss as input with
 		// cacheWrite 0, so this still yields hit/(hit+miss).
 		const total = cacheRead + cacheWrite + input;
-
 		const rate = (cacheRead / total) * 100;
-		const rateStr = rate.toFixed(2);
+		const parts: string[] = [theme.icon.cache, theme.fg("statusLineSpend", `${rate.toFixed(2)}%`)];
 
-		const parts: string[] = [theme.icon.cache];
-		parts.push(theme.fg("statusLineSpend", `${rateStr}%`));
-		return { content: parts.join(" "), visible: true };
+		// A quiet, inline TTL cue is less disruptive than a notification. It
+		// appears only in the final 20% of a configured TTL and reports elapsed
+		// idle time rather than claiming the provider-side cache is warm/cold.
+		const lastResponseAt = ctx.cacheMetrics?.lastResponseAt;
+		if (lastResponseAt !== undefined) {
+			const mode = ctx.session.settings.get("providers.cacheRetention");
+			const ttlMs =
+				mode === "long"
+					? 60 * 60_000
+					: mode === "short" || (mode === "auto" && ctx.session.model?.provider === "anthropic")
+						? 5 * 60_000
+						: undefined;
+			if (ttlMs !== undefined) {
+				const idleMs = Math.max(0, Date.now() - lastResponseAt);
+				if (idleMs >= ttlMs * 0.8) {
+					const retention = describeCacheRetention(mode);
+					parts.push(theme.fg("warning", `${formatDuration(idleMs)} idle / ${retention.ttlLabel} TTL`));
+				}
+			}
+		}
+		return { content: parts.filter(Boolean).join(" "), visible: true };
 	},
 };
 

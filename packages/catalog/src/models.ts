@@ -78,6 +78,24 @@ export function calculateCost<TApi extends Api>(model: Model<TApi>, usage: Usage
 }
 
 /**
+ * Compare one prompt's actual cached-input charge with the same prompt priced
+ * as entirely uncached input. Cache-write premiums are included, so the result
+ * is the net cache benefit for the request rather than gross read savings.
+ */
+export function calculatePromptCacheSavings(cost: ModelCost, usage: Usage): number {
+	const orchestration = usage.orchestration;
+	const promptInputTokens =
+		usage.input + usage.cacheRead + usage.cacheWrite + (orchestration?.input ?? 0) + (orchestration?.cacheRead ?? 0);
+	const rates = resolveTokenCost(cost, promptInputTokens);
+	const uncachedCost = (rates.input / 1_000_000) * promptInputTokens;
+	const actualCost =
+		(rates.input / 1_000_000) * (usage.input + (orchestration?.input ?? 0)) +
+		(rates.cacheRead / 1_000_000) * (usage.cacheRead + (orchestration?.cacheRead ?? 0)) +
+		cacheWriteCost(rates, usage);
+	return uncachedCost - actualCost;
+}
+
+/**
  * Price cache-write tokens, honoring the TTL breakdown when the provider reports one.
  *
  * `rates.cacheWrite` is the 5-minute write rate (Anthropic bills 5m writes at
