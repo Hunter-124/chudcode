@@ -61,7 +61,7 @@ export interface ComposerWelcomeUpdate {
 /** Optional dependencies and initial state for a standalone composer. */
 export interface ComposerOptions {
 	readonly terminal?: Terminal;
-	/** Extra TUI construction options (render scheduler injection for tests and `chudware-code render`). */
+	/** Extra TUI construction options (render scheduler injection for tests and `chudcode render`). */
 	readonly tuiOptions?: TUIOptions;
 	readonly preferences?: Partial<ComposerPreferences>;
 	readonly welcome?: ComposerWelcomeUpdate;

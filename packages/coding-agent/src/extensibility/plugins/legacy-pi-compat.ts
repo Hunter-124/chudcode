@@ -1162,7 +1162,7 @@ function toImportSpecifier(resolvedPath: string): string {
 }
 
 /**
- * Rewrite the extension-owned specifiers Chudware Code must host-resolve — legacy
+ * Rewrite the extension-owned specifiers Chudcode must host-resolve — legacy
  * `@(scope)/pi-*`, bare TypeBox packages, package `imports` aliases like
  * `#src/*`, and extension-local bare dependencies — to absolute `file://` URLs
  * or compiled-mode virtual specifiers. Relative siblings and built-in modules
@@ -2212,7 +2212,7 @@ interface ExtensionModuleGraph {
 
 /**
  * Walk the extension's import graph starting at `entryRealPath`, returning the
- * realpath of every reachable source module Chudware Code must rewrite at load time.
+ * realpath of every reachable source module Chudcode must rewrite at load time.
  * Relative imports, package `imports` aliases, and ESM bare dependencies are
  * graph-owned recursively because compiled Bun cannot resolve runtime
  * `node_modules` from those modules. Graph-owned CommonJS modules also own
@@ -2569,7 +2569,7 @@ function synthesizeCommonJsDefaultModule(modulePath: string, source: string, tar
 }
 
 /**
- * Linkedom's canvas bridge uses its bundled fallback because Chudware Code does not ship
+ * Linkedom's canvas bridge uses its bundled fallback because Chudcode does not ship
  * native canvas.
  */
 async function prepareCommonJsDefaultModule(modulePath: string, source: string): Promise<string> {

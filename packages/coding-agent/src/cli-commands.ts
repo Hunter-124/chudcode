@@ -227,35 +227,35 @@ export const commands: CommandEntry[] = [
 ];
 
 // Documented-looking plugin/marketplace verbs that are NOT registered top-level
-// commands. Without a guard `resolveCliArgv` rewrites e.g. `chudware-code marketplace add
-// xyz` to `chudware-code launch marketplace add xyz`, silently forwarding the argv to the
+// commands. Without a guard `resolveCliArgv` rewrites e.g. `chudcode marketplace add
+// xyz` to `chudcode launch marketplace add xyz`, silently forwarding the argv to the
 // model as a prompt instead of managing plugins (#4845; same class as the
 // `list`/`remove` leak fixed in #2935 and the `install` leak in #1496/#1498).
-// The real commands live under `chudware-code plugin <action>`; each entry maps a verb to
+// The real commands live under `chudcode plugin <action>`; each entry maps a verb to
 // a hint pointing there. See {@link reservedTopLevelWordMessage} for when a hint
 // fires vs. when the argv still falls through to `launch`.
 const RESERVED_TOP_LEVEL_WORDS: Record<string, string> = {
 	extensions:
-		'`chudware-code extensions` is not a management command. Use `chudware-code plugin list` / `chudware-code plugin install`, or run `chudware-code launch extensions` if you meant to send "extensions" as a prompt.',
-	list: '`chudware-code list` is not a top-level command. Use `chudware-code plugin list` to list installed plugins, or run `chudware-code launch list` if you meant to send "list" as a prompt.',
+		'`chudcode extensions` is not a management command. Use `chudcode plugin list` / `chudcode plugin install`, or run `chudcode launch extensions` if you meant to send "extensions" as a prompt.',
+	list: '`chudcode list` is not a top-level command. Use `chudcode plugin list` to list installed plugins, or run `chudcode launch list` if you meant to send "list" as a prompt.',
 	remove:
-		'`chudware-code remove` is not a top-level command. Use `chudware-code plugin uninstall <name>` to remove a plugin, or run `chudware-code launch remove` if you meant to send "remove" as a prompt.',
+		'`chudcode remove` is not a top-level command. Use `chudcode plugin uninstall <name>` to remove a plugin, or run `chudcode launch remove` if you meant to send "remove" as a prompt.',
 	uninstall:
-		'`chudware-code uninstall` is not a top-level command. Use `chudware-code plugin uninstall <name@marketplace>` to remove a plugin, or run `chudware-code launch uninstall` if you meant to send "uninstall" as a prompt.',
+		'`chudcode uninstall` is not a top-level command. Use `chudcode plugin uninstall <name@marketplace>` to remove a plugin, or run `chudcode launch uninstall` if you meant to send "uninstall" as a prompt.',
 	marketplace:
-		'`chudware-code marketplace` is not a top-level command. Use `chudware-code plugin marketplace <add|remove|update|list>` to manage marketplaces, or run `chudware-code launch marketplace` if you meant to send "marketplace" as a prompt.',
+		'`chudcode marketplace` is not a top-level command. Use `chudcode plugin marketplace <add|remove|update|list>` to manage marketplaces, or run `chudcode launch marketplace` if you meant to send "marketplace" as a prompt.',
 	discover:
-		'`chudware-code discover` is not a top-level command. Use `chudware-code plugin discover [marketplace]` to browse available plugins, or run `chudware-code launch discover` if you meant to send "discover" as a prompt.',
+		'`chudcode discover` is not a top-level command. Use `chudcode plugin discover [marketplace]` to browse available plugins, or run `chudcode launch discover` if you meant to send "discover" as a prompt.',
 	upgrade:
-		'`chudware-code upgrade` is not a top-level command. Use `chudware-code plugin upgrade [name@marketplace]` to upgrade plugins, or run `chudware-code launch upgrade` if you meant to send "upgrade" as a prompt.',
+		'`chudcode upgrade` is not a top-level command. Use `chudcode plugin upgrade [name@marketplace]` to upgrade plugins, or run `chudcode launch upgrade` if you meant to send "upgrade" as a prompt.',
 	enable:
-		'`chudware-code enable` is not a top-level command. Use `chudware-code plugin enable <name@marketplace>` to enable a plugin, or run `chudware-code launch enable` if you meant to send "enable" as a prompt.',
+		'`chudcode enable` is not a top-level command. Use `chudcode plugin enable <name@marketplace>` to enable a plugin, or run `chudcode launch enable` if you meant to send "enable" as a prompt.',
 	disable:
-		'`chudware-code disable` is not a top-level command. Use `chudware-code plugin disable <name@marketplace>` to disable a plugin, or run `chudware-code launch disable` if you meant to send "disable" as a prompt.',
+		'`chudcode disable` is not a top-level command. Use `chudcode plugin disable <name@marketplace>` to disable a plugin, or run `chudcode launch disable` if you meant to send "disable" as a prompt.',
 };
 
-// Sub-actions that make `chudware-code marketplace <sub>` unambiguously a management
-// command even when multi-word (the reporter's `chudware-code marketplace add xyz`,
+// Sub-actions that make `chudcode marketplace <sub>` unambiguously a management
+// command even when multi-word (the reporter's `chudcode marketplace add xyz`,
 // #4845). Mirrors the switch in `handleMarketplace` (cli/plugin-cli.ts).
 const MARKETPLACE_SUBCOMMANDS: Record<string, true> = { add: true, remove: true, rm: true, update: true, list: true };
 
@@ -263,11 +263,11 @@ const MARKETPLACE_SUBCOMMANDS: Record<string, true> = { add: true, remove: true,
  * Hint for a reserved plugin/marketplace verb used as a top-level command, or
  * `undefined` when the argv should fall through to `launch`.
  *
- * A bare verb (`chudware-code marketplace`) always hints. A multi-word invocation only
+ * A bare verb (`chudcode marketplace`) always hints. A multi-word invocation only
  * hints when the arguments follow the documented plugin grammar — a marketplace
- * sub-action (`chudware-code marketplace add …`) or a `name@marketplace` plugin id
- * (`chudware-code uninstall foo@bar`) — so genuine prompts that merely begin with one of
- * these words (`chudware-code list all my files`, `chudware-code upgrade the deps`) still launch.
+ * sub-action (`chudcode marketplace add …`) or a `name@marketplace` plugin id
+ * (`chudcode uninstall foo@bar`) — so genuine prompts that merely begin with one of
+ * these words (`chudcode list all my files`, `chudcode upgrade the deps`) still launch.
  *
  * Flags (`-…`) and `@file` arguments in the verb slot are never management
  * commands; those fall through to the default `launch` command.
@@ -375,11 +375,11 @@ export function resolveCliArgv(argv: string[]): ResolvedCliArgv {
 	}
 	if (isSubcommand(first)) return { argv };
 	// A subcommand can hide behind leading global option flags
-	// (`chudware-code --approval-mode=yolo acp`). `run` dispatches strictly on argv[0], so
+	// (`chudcode --approval-mode=yolo acp`). `run` dispatches strictly on argv[0], so
 	// hoist the subcommand to the front. Launch-shaped commands share the launch
 	// flag surface, so their leading flags are forwarded and applied; every other
 	// subcommand parses only its own flags, so launch-global flags placed before
-	// it (`chudware-code --cwd <dir> update`) are stripped rather than forwarded into a
+	// it (`chudcode --cwd <dir> update`) are stripped rather than forwarded into a
 	// crash (#8891). Genuine launch prompts (no trailing subcommand) are untouched.
 	const subIndex = leadingSubcommandIndex(argv);
 	if (subIndex >= 0) {

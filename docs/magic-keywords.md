@@ -36,12 +36,12 @@ Open `/settings` and use **Interaction → Magic Keywords**, or change the setti
 
 ```bash
 # Disable every magic keyword
-chudware-code config set magicKeywords.enabled false
+chudcode config set magicKeywords.enabled false
 
 # Disable one keyword while leaving the others enabled
-chudware-code config set magicKeywords.ultrathink false
-chudware-code config set magicKeywords.orchestrate false
-chudware-code config set magicKeywords.workflow false
+chudcode config set magicKeywords.ultrathink false
+chudcode config set magicKeywords.orchestrate false
+chudcode config set magicKeywords.workflow false
 ```
 
-The global switch and three per-keyword switches default to `true`. The global switch gates every hidden notice; a per-keyword switch gates only that notice (and ultrathink's maximum-auto-thinking override). These settings do not currently disable the editor/message gradient. Run `chudware-code config list` to inspect every setting and its current value. See [Settings](./settings.md) for configuration scopes, precedence, and project-local overrides.
+The global switch and three per-keyword switches default to `true`. The global switch gates every hidden notice; a per-keyword switch gates only that notice (and ultrathink's maximum-auto-thinking override). These settings do not currently disable the editor/message gradient. Run `chudcode config list` to inspect every setting and its current value. See [Settings](./settings.md) for configuration scopes, precedence, and project-local overrides.

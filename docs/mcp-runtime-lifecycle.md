@@ -136,7 +136,7 @@ Each pending `toolsPromise` also has a background continuation that eventually:
 
 `createAgentSession()` then pushes these tools into `customTools`, which are wrapped and added to the runtime tool registry with names like `mcp__<server>_<tool>`.
 
-Server and tool name components are lowercased and sanitized to letters/underscores. If two distinct origins mint the same runtime name, Chudware Code logs the collision and keeps a deterministic winner based on the original server/tool identity, so reconnect ordering cannot change ownership.
+Server and tool name components are lowercased and sanitized to letters/underscores. If two distinct origins mint the same runtime name, Chudcode logs the collision and keeps a deterministic winner based on the original server/tool identity, so reconnect ordering cannot change ownership.
 
 ### Tool calls
 

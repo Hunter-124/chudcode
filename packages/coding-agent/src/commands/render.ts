@@ -25,10 +25,10 @@ export default class Render extends Command {
 	};
 
 	static examples = [
-		"chudware-code render",
-		"chudware-code render 01a0285c --plain",
-		"chudware-code render ~/.omp/agent/sessions/--work-pi--/big.jsonl -q -t --repaint 5",
-		"chudware-code render -w 200 > thread.ansi",
+		"chudcode render",
+		"chudcode render 01a0285c --plain",
+		"chudcode render ~/.omp/agent/sessions/--work-pi--/big.jsonl -q -t --repaint 5",
+		"chudcode render -w 200 > thread.ansi",
 	];
 
 	async run(): Promise<void> {

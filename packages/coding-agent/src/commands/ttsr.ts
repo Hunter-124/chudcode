@@ -1,10 +1,10 @@
 import { existsSync } from "node:fs";
 import * as path from "node:path";
 /**
- * `chudware-code ttsr` — inspect and test Time-Traveling Stream Rules.
+ * `chudcode ttsr` — inspect and test Time-Traveling Stream Rules.
  *
- * `chudware-code ttsr test` feeds a snippet (inline, --file, or stdin) through the real
- * TTSR matching pipeline and reports which rules would trigger. `chudware-code ttsr list`
+ * `chudcode ttsr test` feeds a snippet (inline, --file, or stdin) through the real
+ * TTSR matching pipeline and reports which rules would trigger. `chudcode ttsr list`
  * shows every TTSR-registered rule the current project/user config would load.
  */
 import { Args, Command, Flags } from "@oh-my-pi/pi-utils/cli";
@@ -59,17 +59,17 @@ export default class Ttsr extends Command {
 	};
 
 	static examples = [
-		"chudware-code ttsr list",
-		"chudware-code ttsr test 'const x: any = 1'",
-		"chudware-code ttsr test src/foo.ts",
-		"chudware-code ttsr test --file src/foo.ts",
-		"chudware-code ttsr test --file src/foo.ts --source text",
-		"chudware-code ttsr test --rule .omp/rules/no-any.md --source tool --path src/foo.ts 'const x: any = 1'",
-		"echo 'Box::leak(&mut v)' | chudware-code ttsr test --file - --path src/lib.rs",
-		"chudware-code ttsr test --source tool --tool edit --path src/foo.ts 'const x: any = 1'",
-		"chudware-code ttsr scan",
-		"chudware-code ttsr scan src/",
-		"chudware-code ttsr scan -r .omp/rules/no-any.md src/",
+		"chudcode ttsr list",
+		"chudcode ttsr test 'const x: any = 1'",
+		"chudcode ttsr test src/foo.ts",
+		"chudcode ttsr test --file src/foo.ts",
+		"chudcode ttsr test --file src/foo.ts --source text",
+		"chudcode ttsr test --rule .omp/rules/no-any.md --source tool --path src/foo.ts 'const x: any = 1'",
+		"echo 'Box::leak(&mut v)' | chudcode ttsr test --file - --path src/lib.rs",
+		"chudcode ttsr test --source tool --tool edit --path src/foo.ts 'const x: any = 1'",
+		"chudcode ttsr scan",
+		"chudcode ttsr scan src/",
+		"chudcode ttsr scan -r .omp/rules/no-any.md src/",
 	];
 
 	async run(): Promise<void> {
@@ -77,7 +77,7 @@ export default class Ttsr extends Command {
 		const action = (args.action ?? "list") as (typeof TTSR_ACTIONS)[number];
 
 		// A positional that resolves to an existing file is a snippet file, not
-		// inline text — so `chudware-code ttsr test src/foo.ts` works without --file.
+		// inline text — so `chudcode ttsr test src/foo.ts` works without --file.
 		// --file always wins over the positional.
 		let file = flags.file;
 		let snippet = args.snippet;

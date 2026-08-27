@@ -6,7 +6,7 @@ found while working, and it needs you present to validate CAD's runtime.
 
 ## What CAD actually consumes
 
-CAD does **not** run the `chudware-code` CLI. It vendors a curated subset of Chudware Code source and
+CAD does **not** run the `chudcode` CLI. It vendors a curated subset of Chudcode source and
 talks to it over a private bun sidecar (`vendor/omp/bridge/src/bridge.ts`,
 newline-delimited JSON-RPC on stdio, spawned by CAD's own C++ `OmpBridgeClient`
 and Python `omp_bridge.py`).
@@ -35,7 +35,7 @@ Almost everything we changed cannot affect CAD:
 | **Cursor effort + releaseDate** | **`catalog`** | **Yes** |
 
 CAD's `ai_roles`, `agent.prewalk`, its own status bar and its own Sessions
-directory are independently invented and not wire-compatible with Chudware Code's, so the
+directory are independently invented and not wire-compatible with Chudcode's, so the
 `/agents`+`/models/roles` merge, the settings consolidation and the status-bar
 work are all safe by construction.
 
@@ -116,7 +116,7 @@ If `--verify` reports anything else, stop — the base moved.
 ## CloudCastle
 
 Not audited this session. Before migrating it, run the same three checks: how it
-consumes Chudware Code (vendored source vs spawned binary vs npm), which packages it
-depends on, and whether it pins a native. If it spawns the `chudware-code` CLI rather than
+consumes Chudcode (vendored source vs spawned binary vs npm), which packages it
+depends on, and whether it pins a native. If it spawns the `chudcode` CLI rather than
 vendoring, the calculus is completely different — a CLI consumer is affected by
 the `coding-agent` changes that CAD is immune to.

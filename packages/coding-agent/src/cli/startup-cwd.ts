@@ -55,7 +55,7 @@ export async function applyStartupCwd(parsed: Args): Promise<void> {
 			const code = (error as NodeJS.ErrnoException | null)?.code;
 			const hint =
 				code === "EACCES" || code === "EPERM"
-					? " On macOS, grant chudware-code Files & Folders or Full Disk Access permission for the target directory."
+					? " On macOS, grant chudcode Files & Folders or Full Disk Access permission for the target directory."
 					: "";
 			throw new Error(`Cannot change working directory to ${parsed.cwd}: ${reason}.${hint}`);
 		}

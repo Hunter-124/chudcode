@@ -1,46 +1,46 @@
-# Chudware Code CLI reference
+# Chudcode CLI reference
 
-`chudware-code` is invoked as:
+`chudcode` is invoked as:
 
 ```sh
-chudware-code [command] [flags] [messages...]
+chudcode [command] [flags] [messages...]
 ```
 
-When the first non-flag argument is **not** a registered subcommand, `chudware-code`
+When the first non-flag argument is **not** a registered subcommand, `chudcode`
 routes to the default [`launch`](#launch-the-default-command) command and treats
-the arguments as the initial prompt. So `chudware-code "fix the build"` launches a session
-with that message, while `chudware-code models` runs the `models` subcommand.
+the arguments as the initial prompt. So `chudcode "fix the build"` launches a session
+with that message, while `chudcode models` runs the `models` subcommand.
 
 Runtime help is also available:
 
-- `chudware-code --help` lists user-facing subcommands and common launch flags.
-- `chudware-code <command> --help` prints that command's public flags and examples.
+- `chudcode --help` lists user-facing subcommands and common launch flags.
+- `chudcode <command> --help` prints that command's public flags and examples.
 
 This page is the consolidated reference for the shared **launch surface** (the
-flags accepted by `chudware-code` / `chudware-code launch`) and every top-level **subcommand**.
-Per-subcommand flags (for example `chudware-code auth-broker --json`) are documented by
+flags accepted by `chudcode` / `chudcode launch`) and every top-level **subcommand**.
+Per-subcommand flags (for example `chudcode auth-broker --json`) are documented by
 each command's `--help`.
 
 ## Launch (the default command)
 
-`chudware-code` and `chudware-code launch` start a coding session. Positional arguments become the
+`chudcode` and `chudcode launch` start a coding session. Positional arguments become the
 initial message(s):
 
 ```sh
 # Interactive session
-chudware-code
+chudcode
 
 # Interactive session with an initial prompt
-chudware-code "List all .ts files in src/"
+chudcode "List all .ts files in src/"
 
 # Attach files/images to the initial message (prefix with @)
-chudware-code @prompt.md @image.png "What color is the sky?"
+chudcode @prompt.md @image.png "What color is the sky?"
 
 # Non-interactive: process the prompt and exit (headless / print mode)
-chudware-code -p "List all .ts files in src/"
+chudcode -p "List all .ts files in src/"
 
 # Continue the previous session
-chudware-code --continue "What did we discuss?"
+chudcode --continue "What did we discuss?"
 ```
 
 Argument handling:
@@ -73,8 +73,8 @@ Argument handling:
 | `--continue`, `-c` | Continue the previous session. |
 | `--resume [id]`, `-r`, `--session [id]` | Resume a session by ID prefix or path, or open the picker when no value is given. |
 | `--fork <session>` | Fork a saved session (by ID prefix or path) into a new session. See [session operations](./session-operations-export-share-fork-resume.md). |
-| `--from-claude` | Import a Claude Code session into Chudware Code. |
-| `--from-codex` | Import a Codex session into Chudware Code. |
+| `--from-claude` | Import a Claude Code session into Chudcode. |
+| `--from-codex` | Import a Codex session into Chudcode. |
 | `--export <session>` | Export a session file to HTML and exit. |
 | `--no-title` | Disable title auto-generation (equivalent to the `PI_NO_TITLE` [environment variable](./environment-variables.md)). |
 
@@ -157,27 +157,27 @@ See [providers](./providers.md) and [models](./models.md) for model resolution.
 
 | Flag | Description |
 | --- | --- |
-| `--help`, `-h` | Show help for `chudware-code` or a subcommand and exit. |
+| `--help`, `-h` | Show help for `chudcode` or a subcommand and exit. |
 | `--version`, `-v` | Print the installed version and exit. |
 
 ### Headless / print mode
 
-`--print` / `-p` runs `chudware-code` non-interactively: it processes the prompt, streams
+`--print` / `-p` runs `chudcode` non-interactively: it processes the prompt, streams
 the result to stdout, and exits without entering the TUI. This is the entry point
 for scripting and automation.
 
 ```sh
 # Print the answer and exit
-chudware-code -p "Summarize the changes in the last commit"
+chudcode -p "Summarize the changes in the last commit"
 
 # Include the model's thinking blocks in the printed text
-chudware-code -p --print-thoughts "Explain your reasoning for this refactor"
+chudcode -p --print-thoughts "Explain your reasoning for this refactor"
 
 # Machine-readable output for pipelines
-chudware-code -p --mode json "List every TODO in src/" > todos.json
+chudcode -p --mode json "List every TODO in src/" > todos.json
 
 # Pipe a prompt via stdin
-echo "review this diff" | Chudware Code -p
+echo "review this diff" | Chudcode -p
 ```
 
 Related flags for headless runs:
@@ -202,13 +202,13 @@ print-mode disposal semantics when the advisor runtime is enabled.
 
 ## Subcommands
 
-Run `chudware-code <command> --help` for each command's own flags and examples.
+Run `chudcode <command> --help` for each command's own flags and examples.
 
 | Command | Purpose | See also |
 | --- | --- | --- |
 | `launch` | Start a coding session (the default command). | [Launch flags](#launch-flags) |
-| `acp` | Run Chudware Code as an ACP (Agent Client Protocol) server over stdio. | [approval mode](./approval-mode.md#acp-sessions) |
-| `auth-broker` | Manage the Chudware Code auth-broker (credential vault). | [auth broker / gateway](./auth-broker-gateway.md) |
+| `acp` | Run Chudcode as an ACP (Agent Client Protocol) server over stdio. | [approval mode](./approval-mode.md#acp-sessions) |
+| `auth-broker` | Manage the Chudcode auth-broker (credential vault). | [auth broker / gateway](./auth-broker-gateway.md) |
 | `auth-gateway` | Run an auth-gateway forward proxy backed by the configured broker. | [auth broker / gateway](./auth-broker-gateway.md) |
 | `agents` | Manage bundled task agents. | [task agent discovery](./task-agent-discovery.md) |
 | `bench` | Benchmark models with the same prompt: time-to-first-token and generation throughput (tokens/s). | |

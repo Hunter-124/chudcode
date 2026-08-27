@@ -123,8 +123,8 @@ export async function describeAuthBrokerStartupError(error: unknown): Promise<st
 	return (
 		`Auth broker${target} is unreachable (${error.message}). ` +
 		"omp is configured to use this broker for credentials and will not fall back to local credentials automatically.\n" +
-		"Start the broker with `chudware-code auth-broker serve`, or disable it with " +
-		"`chudware-code config reset auth.broker.url` and `chudware-code config reset auth.broker.token` " +
+		"Start the broker with `chudcode auth-broker serve`, or disable it with " +
+		"`chudcode config reset auth.broker.url` and `chudcode config reset auth.broker.token` " +
 		"(or unset OMP_AUTH_BROKER_URL / OMP_AUTH_BROKER_TOKEN)."
 	);
 }

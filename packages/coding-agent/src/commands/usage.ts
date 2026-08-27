@@ -32,14 +32,14 @@ export default class Usage extends Command {
 	};
 
 	static examples = [
-		"# Detailed per-account usage breakdown across all providers\n  chudware-code usage",
-		"# Only Anthropic accounts\n  chudware-code usage --provider anthropic",
-		"# Redact account identifiers for screenshots\n  chudware-code usage --redact",
-		"# Machine-readable output\n  chudware-code usage --json",
-		"# Usage-limit trend over the last 30 days\n  chudware-code usage --history --days 30",
-		"# Per-client token burn (which machine/app spent what) over the last 30 days\n  chudware-code usage clients --days 30",
-		"# Invalidate cached usage reports for all providers\n  chudware-code usage invalidate",
-		"# Invalidate cached usage reports for a specific provider\n  chudware-code usage invalidate --provider anthropic",
+		"# Detailed per-account usage breakdown across all providers\n  chudcode usage",
+		"# Only Anthropic accounts\n  chudcode usage --provider anthropic",
+		"# Redact account identifiers for screenshots\n  chudcode usage --redact",
+		"# Machine-readable output\n  chudcode usage --json",
+		"# Usage-limit trend over the last 30 days\n  chudcode usage --history --days 30",
+		"# Per-client token burn (which machine/app spent what) over the last 30 days\n  chudcode usage clients --days 30",
+		"# Invalidate cached usage reports for all providers\n  chudcode usage invalidate",
+		"# Invalidate cached usage reports for a specific provider\n  chudcode usage invalidate --provider anthropic",
 	];
 
 	async run(): Promise<void> {

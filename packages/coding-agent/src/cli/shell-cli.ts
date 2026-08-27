@@ -1,7 +1,7 @@
 /**
  * Shell CLI command handlers.
  *
- * Handles `chudware-code shell` subcommand for testing the native brush-core shell.
+ * Handles `chudcode shell` subcommand for testing the native brush-core shell.
  */
 import * as path from "node:path";
 import { createInterface } from "node:readline/promises";

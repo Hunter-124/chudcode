@@ -10,7 +10,7 @@ export default class Grievances extends Command {
 	static description = commandHelp.description;
 	static args = {
 		// Positional action: "list" (default), "clean", or "push". A positional
-		// arg keeps the historical `chudware-code grievances` invocation working unchanged
+		// arg keeps the historical `chudcode grievances` invocation working unchanged
 		// while reusing the same command surface for the clean/push verbs.
 		action: Args.string({
 			description: "list (default), clean, or push",
@@ -29,12 +29,12 @@ export default class Grievances extends Command {
 	};
 
 	static examples = [
-		"chudware-code grievances",
-		"chudware-code grievances list --tool find",
-		"chudware-code grievances clean --id 209",
-		"chudware-code grievances clean --tool find",
-		"chudware-code grievances clean --all",
-		"chudware-code grievances push",
+		"chudcode grievances",
+		"chudcode grievances list --tool find",
+		"chudcode grievances clean --id 209",
+		"chudcode grievances clean --tool find",
+		"chudcode grievances clean --all",
+		"chudcode grievances push",
 	];
 
 	async run(): Promise<void> {

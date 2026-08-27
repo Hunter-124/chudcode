@@ -1,7 +1,7 @@
 /**
  * Agents CLI command handlers.
  *
- * Handles `chudware-code agents unpack` for writing bundled agent definitions to disk.
+ * Handles `chudcode agents unpack` for writing bundled agent definitions to disk.
  */
 import * as fs from "node:fs/promises";
 import * as path from "node:path";

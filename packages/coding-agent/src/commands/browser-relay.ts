@@ -1,5 +1,5 @@
 /**
- * `chudware-code browser-relay` — drive the user's own Chrome tabs.
+ * `chudcode browser-relay` — drive the user's own Chrome tabs.
  */
 import { Args, Command, Flags } from "@oh-my-pi/pi-utils/cli";
 import {
@@ -34,9 +34,9 @@ export default class BrowserRelay extends Command {
 	};
 
 	static examples = [
-		"chudware-code browser-relay install    # write the Chrome extension to disk + setup steps",
-		"chudware-code browser-relay            # serve the relay on the default port",
-		"chudware-code browser-relay -p 9333 --token s3cret",
+		"chudcode browser-relay install    # write the Chrome extension to disk + setup steps",
+		"chudcode browser-relay            # serve the relay on the default port",
+		"chudcode browser-relay -p 9333 --token s3cret",
 	];
 
 	async run(): Promise<void> {

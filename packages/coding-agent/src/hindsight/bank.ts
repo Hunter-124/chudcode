@@ -8,7 +8,7 @@
  *                              tag and recall filters on it but still surfaces
  *                              untagged ("global") memories alongside.
  *
- * The base bank id is `bankIdPrefix-bankId` (default `chudware-code`). Per-project mode
+ * The base bank id is `bankIdPrefix-bankId` (default `chudcode`). Per-project mode
  * appends `-<project>`; tagged mode leaves the bank untouched and uses tags.
  *
  * Bank existence is idempotent at module level — a banksSet keeps track of

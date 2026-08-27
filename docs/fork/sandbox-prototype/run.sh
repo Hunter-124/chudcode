@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# One-shot proof: isolated seat -> real GUI app -> Chudware Code native capture + input,
+# One-shot proof: isolated seat -> real GUI app -> Chudcode native capture + input,
 # with before/after snapshots of the user's live KDE Wayland session.
 set -euo pipefail
 cd "$(dirname "$(readlink -f "$0")")"
@@ -27,7 +27,7 @@ user_state() {
 	printf '  kwin currentDesktop: %s\n' "$(gdbus call --session --dest org.kde.KWin --object-path /KWin --method org.kde.KWin.currentDesktop 2>&1)"
 	printf '  kwin activeOutput:   %s\n' "$(gdbus call --session --dest org.kde.KWin --object-path /KWin --method org.kde.KWin.activeOutputName 2>&1)"
 	printf '  ESTAB conns to user X0: %s\n' "$(ss -x 2>/dev/null | grep -c '@/tmp/\.X11-unix/X0')"
-	printf '  clients on user a11y bus (Chudware Code wayland backend): %s\n' \
+	printf '  clients on user a11y bus (Chudcode wayland backend): %s\n' \
 		"$(env -u XAUTHORITY DISPLAY=:0 bun probe.ts 2>/dev/null | grep -c '"app"' || true)"
 }
 
@@ -48,7 +48,7 @@ done <<<"$seat_env"
 printf '%s\n' "$seat_env"
 
 echo
-echo "=== Chudware Code BACKEND ON THE SEAT"
+echo "=== Chudcode BACKEND ON THE SEAT"
 env -u WAYLAND_DISPLAY bun probe.ts | tee "$EV/${EV_PREFIX}04-seat-capabilities.txt"
 
 echo

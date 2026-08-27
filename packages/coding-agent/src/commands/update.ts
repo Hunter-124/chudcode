@@ -20,10 +20,10 @@ export default class Update extends Command {
 	};
 
 	static examples = [
-		"chudware-code update",
-		"chudware-code update --check",
-		"chudware-code update --canary",
-		"# If GitHub rate-limits release metadata, set GITHUB_TOKEN or GH_TOKEN\n  GITHUB_TOKEN=... chudware-code update",
+		"chudcode update",
+		"chudcode update --check",
+		"chudcode update --canary",
+		"# If GitHub rate-limits release metadata, set GITHUB_TOKEN or GH_TOKEN\n  GITHUB_TOKEN=... chudcode update",
 	];
 
 	async run(): Promise<void> {

@@ -2,7 +2,7 @@
 <html lang="en">
 	<head>
 		<meta charset="utf-8" />
-		<title>Chudware Code Browser Relay settings</title>
+		<title>Chudcode Browser Relay settings</title>
 		<style>
 			body {
 				font-family: system-ui, sans-serif;
@@ -38,7 +38,7 @@
 		</style>
 	</head>
 	<body>
-		<h1>Chudware Code Browser Relay</h1>
+		<h1>Chudcode Browser Relay</h1>
 		<p class="hint">
 			The extension connects to a local <code>omp-browser-relay</code> process. Values here must match the flags the
 			relay was started with.

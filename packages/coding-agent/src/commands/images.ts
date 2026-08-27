@@ -22,12 +22,12 @@ export default class Images extends Command {
 		timeout: Flags.integer({ description: "External health probe timeout in seconds" }),
 	};
 	static examples = [
-		"chudware-code images",
-		"chudware-code images status --json",
-		"chudware-code images doctor",
-		"chudware-code images probe --timeout 15",
-		"chudware-code images purge",
-		"chudware-code images purge --all --apply",
+		"chudcode images",
+		"chudcode images status --json",
+		"chudcode images doctor",
+		"chudcode images probe --timeout 15",
+		"chudcode images purge",
+		"chudcode images purge --all --apply",
 	];
 
 	async run(): Promise<void> {

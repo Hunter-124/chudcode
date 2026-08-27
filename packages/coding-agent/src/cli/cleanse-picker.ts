@@ -1,5 +1,5 @@
 /**
- * Standalone TUI pickers for `chudware-code cleanse`.
+ * Standalone TUI pickers for `chudcode cleanse`.
  *
  * Mirrors {@link ./setup-model-picker.ts}: one-shot {@link TUI} instances over a
  * {@link SelectList} or {@link Input}, resolved on select/submit/cancel and torn

@@ -4,7 +4,7 @@
 
 ### Added
 
-- Added the Chudware Code v0.1.0 product identity, `chudware-code` and `chcode` commands, and continued `omp` legacy-command compatibility.
+- Finalized the product identity as Chudcode v0.1.0, replacing the prior Chudware Code name; `chudcode` is now the primary command, with `chudware-code`, `chcode`, and `omp` retained as compatibility aliases.
 - Added account quota usage to the `full` and `nerd` status-line presets ([#9929](https://github.com/can1357/oh-my-pi/issues/9929)).
 - Added a schema guard against settings UI conditions that do not resolve to visibility predicates.
 - Added a Basic settings tier with flat navigation for common controls; Advanced reveals the full settings catalog, and global search matches setting paths.

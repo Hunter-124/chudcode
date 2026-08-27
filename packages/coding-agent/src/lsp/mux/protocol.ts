@@ -3,7 +3,7 @@
  *
  * One mux daemon runs per project scope (launched through the same daemon
  * broker that owns the shared Chromium and `hub start` processes). It assigns
- * each concurrent Chudware Code link its own language-server process, then retains idle
+ * each concurrent Chudcode link its own language-server process, then retains idle
  * processes briefly for reuse by later links. The link speaks plain
  * Content-Length-framed LSP JSON-RPC after a one-request handshake
  * ({@link MUX_CONNECT_METHOD}); everything below is shared by the worker
@@ -24,11 +24,11 @@ export const LSP_MUX_PROJECT_DIR_ENV = "OMP_LSP_MUX_PROJECT_DIR";
 export const LSP_MUX_DAEMON_NAME = "omp.lsp.mux";
 
 /** Broker readiness regex matched against the banner printed by the worker. */
-export const LSP_MUX_READY_PATTERN = String.raw`chudware-code lsp mux listening on \S+`;
+export const LSP_MUX_READY_PATTERN = String.raw`chudcode lsp mux listening on \S+`;
 
 /** Banner printed on stdout once the mux socket accepts connections. */
 export function lspMuxReadyBanner(endpoint: string): string {
-	return `chudware-code lsp mux listening on ${endpoint}`;
+	return `chudcode lsp mux listening on ${endpoint}`;
 }
 
 /** Resolve the Unix socket or Windows named pipe for one project scope. */

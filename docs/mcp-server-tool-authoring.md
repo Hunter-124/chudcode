@@ -81,7 +81,7 @@ Key behavior:
 
 ### Environment expansion during discovery
 
-Chudware Code-native MCP config (`.omp/mcp.json`, `~/.omp/agent/mcp.json`, plus their `.mcp.json` variants) expands `${VAR}` and `${VAR:-default}` placeholders recursively before converting to runtime config. It also accepts boolean/string forms for `enabled` (`true`, `false`, `1`, `0`) and numeric strings for `timeout`. `requestIdFormat` accepts only `"number"` or `"string"`; other values warn and fall back to numeric IDs.
+Chudcode-native MCP config (`.omp/mcp.json`, `~/.omp/agent/mcp.json`, plus their `.mcp.json` variants) expands `${VAR}` and `${VAR:-default}` placeholders recursively before converting to runtime config. It also accepts boolean/string forms for `enabled` (`true`, `false`, `1`, `0`) and numeric strings for `timeout`. `requestIdFormat` accepts only `"number"` or `"string"`; other values warn and fall back to numeric IDs.
 
 The standalone fallback provider in `src/discovery/mcp-json.ts` reads project-root `mcp.json` and `.mcp.json`, expands the same `${...}` placeholders, and type-checks `enabled`/`timeout` without coercing string values. It applies the same `requestIdFormat` validation.
 
@@ -94,12 +94,12 @@ Invalid `enabled`/`timeout` values are ignored with warnings rather than failing
 ### OAuth credential injection
 
 For `http`/`sse` servers, an `auth: { type: "oauth", credentialId: "..." }`
-block is optional. Chudware Code honors an explicit arbitrary or legacy credential ID when
+block is optional. Chudcode honors an explicit arbitrary or legacy credential ID when
 it resolves. A managed, profile-scoped
 `mcp_oauth:profile:<profile>:<url>` ID is accepted only when its profile is
 active and its URL matches the server's expanded or literal URL; a mismatch is
 ignored. If the accepted explicit ID does not resolve—or if there is no `auth`
-block—Chudware Code looks for a credential under deterministic IDs derived from the
+block—Chudcode looks for a credential under deterministic IDs derived from the
 expanded and literal server URL. These URL-keyed credentials are scoped to the
 active profile, so a shared, definition-only server entry can use each
 profile's independently stored OAuth credential.
@@ -114,8 +114,8 @@ When lookup succeeds:
 - `http`/`sse`: injects `Authorization: Bearer <access_token>` header
 - `stdio`: injects `OAUTH_ACCESS_TOKEN` env var
 
-If no credential resolves, Chudware Code connects without injecting an OAuth value.
-Refresh or credential-resolution failures are logged; when possible, Chudware Code
+If no credential resolves, Chudcode connects without injecting an OAuth value.
+Refresh or credential-resolution failures are logged; when possible, Chudcode
 continues with the existing access token.
 
 ### Header/env value resolution

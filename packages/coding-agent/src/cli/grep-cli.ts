@@ -1,7 +1,7 @@
 /**
  * Grep CLI command handlers.
  *
- * Handles `chudware-code grep` subcommand for testing grep tool on Windows.
+ * Handles `chudcode grep` subcommand for testing grep tool on Windows.
  */
 import * as path from "node:path";
 import { GrepOutputMode, grep } from "@oh-my-pi/pi-natives";

@@ -1,5 +1,5 @@
 /**
- * `chudware-code browser-relay` implementation: serve the local CDP relay and install
+ * `chudcode browser-relay` implementation: serve the local CDP relay and install
  * its Chrome extension. Standalone CLI command — console output here is
  * intentional user-facing output.
  */
@@ -54,15 +54,15 @@ async function runInstall(dirOverride: string | undefined): Promise<void> {
 	for (const name in EXTENSION_FILES) {
 		await Bun.write(path.join(dir, name), EXTENSION_FILES[name]!);
 	}
-	console.log(`Installed the Chudware Code Browser Relay extension to ${dir}`);
+	console.log(`Installed the Chudcode Browser Relay extension to ${dir}`);
 	console.log("");
 	console.log("Finish setup in Chrome:");
 	console.log("  1. Open chrome://extensions and enable Developer mode.");
 	console.log(`  2. Click "Load unpacked" and select: ${dir}`);
-	console.log("  3. Enable the mode:  chudware-code config set browser.relay true");
+	console.log("  3. Enable the mode:  chudcode config set browser.relay true");
 	console.log("");
-	console.log("chudware-code starts the relay automatically when the browser tool needs it;");
-	console.log("run `chudware-code browser-relay` yourself only for --token or --no-group.");
+	console.log("chudcode starts the relay automatically when the browser tool needs it;");
+	console.log("run `chudcode browser-relay` yourself only for --token or --no-group.");
 	console.log("The extension badge shows 'on' once it reaches a relay.");
 }
 
@@ -80,31 +80,31 @@ async function runServe(args: BrowserRelayCommandArgs): Promise<void> {
 		// broker (or by hand): losing the bind to a live relay is success.
 		if (err instanceof Error && "code" in err && err.code === "EADDRINUSE") {
 			if (await probeRelayServer(`http://127.0.0.1:${args.port}`)) {
-				console.log(`chudware-code browser relay already running on http://127.0.0.1:${args.port}; nothing to do.`);
+				console.log(`chudcode browser relay already running on http://127.0.0.1:${args.port}; nothing to do.`);
 				return;
 			}
-			console.error(`Port ${args.port} is in use by something that is not an chudware-code browser relay.`);
+			console.error(`Port ${args.port} is in use by something that is not an chudcode browser relay.`);
 			process.exit(1);
 		}
 		throw err;
 	}
 
-	console.log(`chudware-code browser relay listening on http://127.0.0.1:${args.port}`);
+	console.log(`chudcode browser relay listening on http://127.0.0.1:${args.port}`);
 	console.log(`  extension endpoint  ws://127.0.0.1:${args.port}/ext${args.token ? "?token=***" : ""}`);
 	if (args.port === DEFAULT_RELAY_PORT) {
-		console.log("  enable with         chudware-code config set browser.relay true");
+		console.log("  enable with         chudcode config set browser.relay true");
 	} else {
 		console.log(
-			`  enable with         chudware-code config set browser.relay true && chudware-code config set browser.relayUrl http://127.0.0.1:${args.port}`,
+			`  enable with         chudcode config set browser.relay true && chudcode config set browser.relayUrl http://127.0.0.1:${args.port}`,
 		);
 	}
-	console.log("Waiting for the Chudware Code Browser Relay extension to connect (chudware-code browser-relay install)...");
+	console.log("Waiting for the Chudcode Browser Relay extension to connect (chudcode browser-relay install)...");
 
 	let announced = false;
 	const readiness = setInterval(() => {
 		if (relay.bridge.ready && !announced) {
 			announced = true;
-			console.log("Extension connected. The chudware-code browser tool can now drive your tabs.");
+			console.log("Extension connected. The chudcode browser tool can now drive your tabs.");
 		} else if (!relay.bridge.ready && announced) {
 			announced = false;
 			console.log("Extension disconnected; waiting for it to reconnect...");

@@ -1,5 +1,5 @@
 /**
- * Data layer shared by the `chudware-code ps` renderers (plain CLI and interactive TUI):
+ * Data layer shared by the `chudcode ps` renderers (plain CLI and interactive TUI):
  * broker-scope discovery, daemon snapshot collection, and display cells.
  *
  * Collection never spawns a broker: live scopes are queried over the broker

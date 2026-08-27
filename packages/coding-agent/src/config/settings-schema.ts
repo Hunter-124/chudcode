@@ -453,7 +453,7 @@ export const DEFAULT_BASH_INTERCEPTOR_RULES: BashInterceptorRule[] = [
 			"^\\s*(?:(?:bun|npm|pnpm|yarn)\\s+(?:run\\s+)?(?:dev|start)(?:\\s|$)|(?:vite|next\\s+dev|nuxt\\s+dev|nodemon|lldb|gdb|tail\\s+-f)(?:\\s|$)|docker\\s+compose\\s+up(?!.*(?:\\s-d(?:\\s|$)|--detach))(?:\\s|$))",
 		tool: "hub",
 		message:
-			'Use the `hub` tool (`op:"start"`) for services, watchers, and debuggers so other chudware-code instances can observe and control them.',
+			'Use the `hub` tool (`op:"start"`) for services, watchers, and debuggers so other chudcode instances can observe and control them.',
 	},
 	{
 		pattern:
@@ -487,7 +487,7 @@ export const SETTINGS_SCHEMA = {
 		},
 	},
 
-	// Auth broker — credentials proxied through a remote `chudware-code auth-broker serve`
+	// Auth broker — credentials proxied through a remote `chudcode auth-broker serve`
 	// host. Hidden from the UI; populate via env vars or hand-edited config.yml.
 	// Env (`OMP_AUTH_BROKER_URL` / `OMP_AUTH_BROKER_TOKEN`) takes precedence so
 	// per-machine overrides remain trivial.
@@ -621,7 +621,7 @@ export const SETTINGS_SCHEMA = {
 			group: "Services",
 			label: "Max In-Flight Requests",
 			description:
-				'Maximum concurrent LLM requests per provider id (for example "openai" or "anthropic"), shared across local Chudware Code processes with this config root. Omitted providers are unlimited.',
+				'Maximum concurrent LLM requests per provider id (for example "openai" or "anthropic"), shared across local Chudcode processes with this config root. Omitted providers are unlimited.',
 		},
 	},
 
@@ -2166,7 +2166,7 @@ export const SETTINGS_SCHEMA = {
 			tab: "interaction",
 			group: "Startup & Updates",
 			label: "Check for Updates",
-			description: "Check for chudware-code updates on startup",
+			description: "Check for chudcode updates on startup",
 		},
 	},
 	"update.channel": {
@@ -2177,7 +2177,7 @@ export const SETTINGS_SCHEMA = {
 			tab: "interaction",
 			group: "Startup & Updates",
 			label: "Update Channel",
-			description: "Update channel used by chudware-code update and the startup update check",
+			description: "Update channel used by chudcode update and the startup update check",
 			options: [
 				{ value: "stable", label: "Stable" },
 				{ value: "canary", label: "Canary" },
@@ -3784,7 +3784,7 @@ export const SETTINGS_SCHEMA = {
 			group: "LSP",
 			label: "Shared Language Servers",
 			description:
-				"Share one language server per project across chudware-code instances via the daemon broker (falls back to private servers when unavailable)",
+				"Share one language server per project across chudcode instances via the daemon broker (falls back to private servers when unavailable)",
 		},
 	},
 
@@ -4476,7 +4476,7 @@ export const SETTINGS_SCHEMA = {
 			group: "Available Tools",
 			label: "Security",
 			description:
-				"Enable Chudware Code-native security scan planning, execution, and the read-only security:// resource namespace",
+				"Enable Chudcode-native security scan planning, execution, and the read-only security:// resource namespace",
 		},
 	},
 
@@ -4522,7 +4522,7 @@ export const SETTINGS_SCHEMA = {
 			group: "Grep & Browser",
 			label: "Browser Relay",
 			description:
-				"Drive your own Chrome tabs through the chudware-code browser relay. Install the extension once (`chudware-code browser-relay install`); the relay server auto-starts when the browser tool needs it. Takes precedence over Browser CDP URL; set PI_BROWSER_RELAY=0 or PI_BROWSER_RELAY=1 to override.",
+				"Drive your own Chrome tabs through the chudcode browser relay. Install the extension once (`chudcode browser-relay install`); the relay server auto-starts when the browser tool needs it. Takes precedence over Browser CDP URL; set PI_BROWSER_RELAY=0 or PI_BROWSER_RELAY=1 to override.",
 		},
 	},
 
@@ -4533,7 +4533,7 @@ export const SETTINGS_SCHEMA = {
 			tab: "tools",
 			group: "Grep & Browser",
 			label: "Browser Relay URL",
-			description: "chudware-code browser relay endpoint (default http://127.0.0.1:9224).",
+			description: "chudcode browser relay endpoint (default http://127.0.0.1:9224).",
 		},
 	},
 
@@ -4940,7 +4940,7 @@ export const SETTINGS_SCHEMA = {
 			group: "Isolation",
 			label: "Worktree Base Directory",
 			description:
-				"Base directory for agent-managed worktrees — task-isolation copies, `github` PR checkouts, and `chudware-code worktree` cleanup all live here. Unset uses ~/.omp/wt. Must be an absolute or ~-relative path; relative paths are ignored. The OMP_WORKTREE_DIR env var overrides this.",
+				"Base directory for agent-managed worktrees — task-isolation copies, `github` PR checkouts, and `chudcode worktree` cleanup all live here. Unset uses ~/.omp/wt. Must be an absolute or ~-relative path; relative paths are ignored. The OMP_WORKTREE_DIR env var overrides this.",
 		},
 	},
 
@@ -5947,7 +5947,7 @@ export const SETTINGS_SCHEMA = {
 			group: "Extensions",
 			label: "Tool Call Handler Timeout (ms)",
 			description:
-				"Positive finite active-work timeout for extension tool_call handlers; invalid values use 30000ms, and time awaiting Chudware Code-owned dialogs does not count",
+				"Positive finite active-work timeout for extension tool_call handlers; invalid values use 30000ms, and time awaiting Chudcode-owned dialogs does not count",
 		},
 	},
 
@@ -6056,7 +6056,7 @@ export type SettingValue<P extends SettingPath> = Schema[P] extends { type: "boo
 
 /**
  * Everyday controls shown by the Basic settings tier. All other UI-backed
- * settings remain available in Advanced and through `chudware-code config`.
+ * settings remain available in Advanced and through `chudcode config`.
  */
 const BASIC_SETTING_PATHS = {
 	"settings.tier": true,

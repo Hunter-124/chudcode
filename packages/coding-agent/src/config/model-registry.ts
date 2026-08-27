@@ -491,7 +491,7 @@ export class ModelRegistry {
 	 *
 	 * Unlike {@link refreshProvider}, this does no static reload and never
 	 * re-fetches the other runtime managers, so restoring a saved
-	 * discovery-backed model (e.g. on `chudware-code --resume`) cannot wait on — or
+	 * discovery-backed model (e.g. on `chudcode --resume`) cannot wait on — or
 	 * duplicate — an unrelated provider's network/OAuth work. Ids that are not
 	 * configured discovery providers are ignored by the underlying filter.
 	 */

@@ -564,7 +564,7 @@ export class SecurityCoordinator {
 			if (signal.aborted) throw signal.reason ?? new Error("Security scan cancelled");
 			await prepareSecurityOutputDirectory(plan.output, record.snapshot.scanId);
 			this.#update(record, "preparing");
-			await reportProgress?.("Preparing Chudware Code-native security scan");
+			await reportProgress?.("Preparing Chudcode-native security scan");
 			executionTarget = await prepareSecurityExecutionTarget(
 				plan,
 				store,
@@ -614,7 +614,7 @@ export class SecurityCoordinator {
 			try {
 				if (signal.aborted) throw signal.reason ?? new Error("Security scan cancelled");
 				this.#update(record, "reviewing");
-				await reportProgress?.("Reviewing repository with Chudware Code security workers");
+				await reportProgress?.("Reviewing repository with Chudcode security workers");
 				await session.prompt(requestText(plan, executionTarget.cwd, executionTarget.diffText), {
 					expandPromptTemplates: false,
 					synthetic: true,

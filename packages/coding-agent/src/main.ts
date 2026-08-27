@@ -174,7 +174,7 @@ const RPC_BACKGROUND_DEFAULTED_SETTING_PATHS: SettingPath[] = [
 ];
 
 // Protocol-mode hosts opt into a small set of paths whose host-default we
-// re-apply at startup so embedders inherit Chudware Code's neutral defaults instead of
+// re-apply at startup so embedders inherit Chudcode's neutral defaults instead of
 // the local user's globally-persisted preferences for interactive use. The
 // guard preserves any explicit configuration — caller `Settings.isolated`
 // overrides, project `.claude/settings.yml`, `--config` overlays, or global
@@ -595,7 +595,7 @@ async function runInteractiveMode(
 		}
 	}
 
-	// `chudware-code join <link>`: dispatch through the same builtin path as a typed
+	// `chudcode join <link>`: dispatch through the same builtin path as a typed
 	// `/join` so collab guards and error rendering stay in one place.
 	if (joinLink !== undefined) {
 		await executeBuiltinSlashCommand(`/join ${joinLink}`, { ctx: mode });
@@ -865,7 +865,7 @@ export interface ScopedModelSink {
  * whose model first materializes through runtime discovery (e.g.
  * `opencode-go/ox-alpha-free` on a fresh launch with no cache row) is absent from
  * the frozen scoped `/models` list even though it is in `enabledModels`, invokable
- * via `--model`, and listed by `chudware-code models find`. Once the initial refresh settles,
+ * via `--model`, and listed by `chudcode models find`. Once the initial refresh settles,
  * re-resolve the scope and, when the set changed, push the fuller list into the
  * session so the scoped picker and Ctrl+P cycle include it. A scope that resolved
  * to zero models may become active here when the startup discovery pass returned
@@ -948,7 +948,7 @@ export async function createSessionManager(
 		if (!match) {
 			throw new SessionResolutionError(
 				`Session "${forkSource}" not found.`,
-				"Run `chudware-code --resume` without an argument to pick from recent sessions, or `chudware-code` to start a new one.",
+				"Run `chudcode --resume` without an argument to pick from recent sessions, or `chudcode` to start a new one.",
 			);
 		}
 		return await SessionManager.forkFrom(match.session.path, cwd, parsed.sessionDir);
@@ -968,7 +968,7 @@ export async function createSessionManager(
 		if (!match) {
 			throw new SessionResolutionError(
 				`Session "${sessionArg}" not found.`,
-				"Run `chudware-code --resume` without an argument to pick from recent sessions, or `chudware-code` to start a new one.",
+				"Run `chudcode --resume` without an argument to pick from recent sessions, or `chudcode` to start a new one.",
 			);
 		}
 		if (match.scope === "local") {
@@ -1607,7 +1607,7 @@ export async function runRootCommand(
 		normalizeContinueSessionArgs(parsedArgs, rawArgs);
 
 		// Resolve native resume/fork flags or import one foreign transcript into a
-		// fresh persisted Chudware Code session before constructing the AgentSession.
+		// fresh persisted Chudcode session before constructing the AgentSession.
 		let sessionManager: SessionManager | undefined;
 		let foreignSource: ForeignSessionSource | undefined;
 		try {
@@ -1901,7 +1901,7 @@ export async function runRootCommand(
 					process.stderr.write(`${chalk.yellow(`${message}\n`)}`);
 				}
 			}
-			// Fail fast on stale/typo flags (e.g. `chudware-code --list-models`) now that we
+			// Fail fast on stale/typo flags (e.g. `chudcode --list-models`) now that we
 			// know the real extension flag set. Without this check the unrecognized
 			// token gets silently consumed and any following positional leaks as the
 			// initial prompt — kicking off a real LLM session, MCP connection, and

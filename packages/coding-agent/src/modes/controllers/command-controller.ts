@@ -1244,7 +1244,7 @@ export class CommandController {
 				if (shouldPersistCwd) await this.#applyBashResultCwd(result);
 			} catch (error) {
 				this.ctx.showError(
-					`Bash command completed, but Chudware Code failed to update its working directory: ${
+					`Bash command completed, but Chudcode failed to update its working directory: ${
 						error instanceof Error ? error.message : "Unknown error"
 					}`,
 				);
@@ -1983,7 +1983,7 @@ export function renderUsageReports(
 			}
 		}
 
-		// Provider-wide disclaimers (e.g. "Chudware Code-observed spend only") render once
+		// Provider-wide disclaimers (e.g. "Chudcode-observed spend only") render once
 		// above the per-account sections instead of duplicating onto every limit.
 		const providerNotes = [...new Set(providerReports.flatMap(report => report.notes ?? []))];
 		if (providerNotes.length > 0) {

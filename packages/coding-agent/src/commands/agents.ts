@@ -28,10 +28,10 @@ export default class Agents extends Command {
 	};
 
 	static examples = [
-		"# Export bundled agents into user config (default)\n  chudware-code agents unpack",
-		"# Export bundled agents into project config\n  chudware-code agents unpack --project",
-		"# Overwrite existing local agent files\n  chudware-code agents unpack --project --force",
-		"# Export into a custom directory\n  chudware-code agents unpack --dir ./tmp/agents --json",
+		"# Export bundled agents into user config (default)\n  chudcode agents unpack",
+		"# Export bundled agents into project config\n  chudcode agents unpack --project",
+		"# Overwrite existing local agent files\n  chudcode agents unpack --project --force",
+		"# Export into a custom directory\n  chudcode agents unpack --dir ./tmp/agents --json",
 	];
 
 	async run(): Promise<void> {

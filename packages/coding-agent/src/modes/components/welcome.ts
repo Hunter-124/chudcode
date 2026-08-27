@@ -135,7 +135,7 @@ export interface LspServerInfo {
 }
 
 /**
- * Premium welcome screen with block-based Chudware Code logo and two-column layout.
+ * Premium welcome screen with block-based Chudcode logo and two-column layout.
  */
 export class WelcomeComponent implements Component {
 	#animStart: number | null = null;

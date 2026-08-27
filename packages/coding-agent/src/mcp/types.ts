@@ -75,8 +75,8 @@ interface MCPServerConfigBase {
 	 * ids instead of per-transport integers. See `RequestIdAllocator` in
 	 * `./request-id`.
 	 *
-	 * Chudware Code-specific, so only the Chudware Code-owned discovery providers parse it (native,
-	 * standalone `mcp.json`, Chudware Code plugins). Providers that translate another
+	 * Chudcode-specific, so only the Chudcode-owned discovery providers parse it (native,
+	 * standalone `mcp.json`, Chudcode plugins). Providers that translate another
 	 * tool's config do not, since the key is not part of those formats.
 	 */
 	requestIdFormat?: MCPRequestIdFormat;

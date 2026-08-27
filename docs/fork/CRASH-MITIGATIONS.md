@@ -1,6 +1,6 @@
 # Host crash mitigations
 
-Why Hunter's workstation was stalling during multi-session Chudware Code use, and what was
+Why Hunter's workstation was stalling during multi-session Chudcode use, and what was
 changed. Every state claim below was re-verified on 2026-08-27 against the live
 host; the verification command is given so you can re-check rather than trust it.
 
@@ -15,17 +15,17 @@ The near-freeze was **not** primarily omp. Measured at the time:
 - 6.89 GiB of committed anonymous memory across 9 omp-family processes on a
   30.75 GiB box.
 
-So Chudware Code was not the proximate cause, but its resting footprint left almost no
+So Chudcode was not the proximate cause, but its resting footprint left almost no
 headroom. That distinction is why the upstream issue
 ([#9908](https://github.com/can1357/oh-my-pi/issues/9908)) was filed as an
 accounting/admission-control report and explicitly **not** as a leak — no heap
 snapshot was taken, and the one worker that dominates is flat, not growing.
 
-## Chudware Code's contribution, measured
+## Chudcode's contribution, measured
 
 | Component | Figure | Nature |
 | --- | --- | --- |
-| `__omp_worker_mnemopi_embed` | 780 MB, dead flat over 50 s | Loaded ONNX runtime + embedding model. One per Chudware Code process, no idle teardown |
+| `__omp_worker_mnemopi_embed` | 780 MB, dead flat over 50 s | Loaded ONNX runtime + embedding model. One per Chudcode process, no idle teardown |
 | Per interactive session | 0.63–1.47 GiB committed | vs. the 39–49 MB idle baseline in upstream #8003 |
 | Subagents | in-process | `task.maxConcurrency` (default 32, kept at 32 by choice) admits up to 32 `AgentSession` objects into **one** Bun heap |
 
@@ -80,7 +80,7 @@ Verify: `systemctl --user is-enabled omp-tmp-prune.timer` → `enabled`.
 
 Corrected locally at the time. Not omp-related; recorded here only because it
 was half the memory pressure and would otherwise look like an unexplained gap
-between Chudware Code's footprint and the observed stall.
+between Chudcode's footprint and the observed stall.
 
 ## What is deliberately NOT changed
 

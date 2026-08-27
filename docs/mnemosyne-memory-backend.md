@@ -1,6 +1,6 @@
 # Mnemopi memory backend
 
-Chudware Code can use `@oh-my-pi/pi-mnemopi` as a local long-term memory backend.
+Chudcode can use `@oh-my-pi/pi-mnemopi` as a local long-term memory backend.
 
 Set:
 

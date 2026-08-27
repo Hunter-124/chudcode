@@ -241,14 +241,14 @@ function findDirectoryIndex(dir: string): string | null {
 }
 
 interface DeclaredManifestEntries {
-	/** True when the directory's package.json declares a non-empty `chudware-code`/`pi` `extensions` array. */
+	/** True when the directory's package.json declares a non-empty `chudcode`/`pi` `extensions` array. */
 	declared: boolean;
 	/** Resolved, existing module files for the declared entries (may be empty when declared files are missing). */
 	files: string[];
 }
 
 /**
- * Read the extension entries declared by `dir`'s own package.json `chudware-code`/`pi`
+ * Read the extension entries declared by `dir`'s own package.json `chudcode`/`pi`
  * manifest. `declared` distinguishes "a manifest explicitly lists extensions"
  * (authoritative — callers must not fall back to index/scan, so a missing
  * declared file surfaces as a missing entry instead of silently loading a stale
@@ -297,7 +297,7 @@ function readDeclaredManifestEntries(dir: string): DeclaredManifestEntries {
 /**
  * Resolve a directory to its loadable extension module files, mirroring the
  * configured-directory (`-e`) scanner in extensions/loader.ts:
- *   1. the directory's own package.json `chudware-code`/`pi` `extensions` entries —
+ *   1. the directory's own package.json `chudcode`/`pi` `extensions` entries —
  *      authoritative: a manifest that lists extensions suppresses the index/scan
  *      fallback, so a missing declared file is reported rather than silently
  *      replaced by a decoy index
@@ -348,12 +348,12 @@ function resolveDirectoryEntries(dir: string): string[] {
  * - a file entry → that file
  * - a directory:
  *   - when `expandDirectory` (the `extensions` key), resolved by
- *     {@link resolveDirectoryEntries} — its own package.json `chudware-code`/`pi`
+ *     {@link resolveDirectoryEntries} — its own package.json `chudcode`/`pi`
  *     `extensions`, then a direct index, then a one-level scan of
  *     sub-extensions — matching the pi `extensions/<name>/index.ts` convention
- *     and Chudware Code's configured-directory (`-e`) extension loader
+ *     and Chudcode's configured-directory (`-e`) extension loader
  *   - otherwise (tools/hooks/commands) only a direct index.{ts,js,mjs,cjs}.
- *     The sub-extension scan and the `chudware-code`/`pi` `extensions` manifest are
+ *     The sub-extension scan and the `chudcode`/`pi` `extensions` manifest are
  *     extensions-specific and must not hijack a non-extension directory entry
  *     (e.g. a `tools: "."` entry must still resolve `./index.ts`).
  *

@@ -47,7 +47,7 @@ export const CHANGELOG_CATEGORIES: ChangelogCategory[] = [
 	"Security",
 ];
 
-/** Arguments accepted by the `chudware-code commit` command. */
+/** Arguments accepted by the `chudcode commit` command. */
 export interface CommitCommandArgs {
 	/** Push after commit */
 	push: boolean;

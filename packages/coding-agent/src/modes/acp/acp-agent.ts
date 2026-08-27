@@ -643,8 +643,8 @@ export class AcpAgent implements Agent {
 			authMethods.push({
 				type: "terminal",
 				id: "terminal",
-				name: "Set up Chudware Code in terminal",
-				description: "Launch the chudware-code TUI to add provider keys and select models.",
+				name: "Set up Chudcode in terminal",
+				description: "Launch the chudcode TUI to add provider keys and select models.",
 				args: [ACP_TERMINAL_AUTH_FLAG],
 			});
 		}

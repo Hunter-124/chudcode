@@ -1,5 +1,5 @@
 /**
- * `chudware-code __complete <kind> [-- <prefix>]` — dynamic completion candidates.
+ * `chudcode __complete <kind> [-- <prefix>]` — dynamic completion candidates.
  *
  * Hidden helper invoked by the generated shell completion scripts to resolve
  * values that can't be baked into the script: the live model catalog and

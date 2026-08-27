@@ -306,10 +306,10 @@ export const getModelsConfigSchemaBundle = once(() => {
 		/** Bedrock guardrail trace verbosity. */
 		"guardrailTrace?": '"enabled" | "disabled" | "enabled_full"',
 		/**
-		 * Streaming transport override. When set to `"pi-native"`, chudware-code dispatches
+		 * Streaming transport override. When set to `"pi-native"`, chudcode dispatches
 		 * every model under this provider via the auth-gateway's
 		 * `POST /v1/pi/stream` endpoint instead of the per-provider SDK. The
-		 * provider's `baseUrl` must point at a compatible `chudware-code auth-gateway`
+		 * provider's `baseUrl` must point at a compatible `chudcode auth-gateway`
 		 * and `apiKey` must carry the gateway bearer.
 		 */
 		"transport?": '"pi-native"',

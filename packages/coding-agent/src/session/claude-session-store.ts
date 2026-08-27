@@ -301,7 +301,7 @@ function uniqueEntryId(base: string, used: Set<string>): string {
 	return id;
 }
 
-/** Imports Claude Code JSONL sessions into non-persistent Chudware Code session managers. */
+/** Imports Claude Code JSONL sessions into non-persistent Chudcode session managers. */
 export class ClaudeSessionStore implements ForeignSessionStore {
 	readonly source = "claude";
 	readonly #root: string;

@@ -946,7 +946,7 @@ export function registerPluginCacheInvalidator(invalidator: () => void): void {
  * List all installed Claude Code plugin roots from its active plugin cache and
  * ~/.omp/plugins/installed_plugins.json, plus the nearest project registry when present.
  *
- * Results are cached per Claude and Chudware Code config directories, project registry, and canonical active project.
+ * Results are cached per Claude and Chudcode config directories, project registry, and canonical active project.
  */
 export async function listClaudePluginRoots(
 	home: string,
@@ -1028,12 +1028,12 @@ export async function listClaudePluginRoots(
 		}
 	}
 
-	// ── Chudware Code installed plugins registry ───────────────────────────────────────
-	// Chudware Code registry is authoritative: its entries replace Claude's entries for the same plugin ID.
+	// ── Chudcode installed plugins registry ───────────────────────────────────────
+	// Chudcode registry is authoritative: its entries replace Claude's entries for the same plugin ID.
 	// In production `home` is `os.homedir()`, so `getPluginsDir(home)` resolves to the
 	// same XDG-aware path the marketplace writer uses (reads and writes always agree).
 	// Tests pass a temp dir, which short-circuits the resolver for deterministic isolation.
-	// Computed before the cache lookup because isolated SDK homes select distinct Chudware Code registries.
+	// Computed before the cache lookup because isolated SDK homes select distinct Chudcode registries.
 	const ompContent = await readFile(ompRegistryPath);
 	if (ompContent) {
 		const ompRegistry = parseClaudePluginsRegistry(ompContent);
@@ -1049,7 +1049,7 @@ export async function listClaudePluginRoots(
 				const pluginName = pluginId.slice(0, atIndex);
 				const marketplace = pluginId.slice(atIndex + 1);
 
-				// Chudware Code is authoritative: drop all Claude-sourced entries for this plugin ID
+				// Chudcode is authoritative: drop all Claude-sourced entries for this plugin ID
 				const filtered = roots.filter(r => r.id !== pluginId);
 				roots.length = 0;
 				roots.push(...filtered);
@@ -1074,11 +1074,11 @@ export async function listClaudePluginRoots(
 				}
 			}
 		} else {
-			warnings.push(`Failed to parse Chudware Code plugin registry: ${ompRegistryPath}`);
+			warnings.push(`Failed to parse Chudcode plugin registry: ${ompRegistryPath}`);
 		}
 	}
 
-	// ── Project-scoped Chudware Code registry ────────────────────────────────────────
+	// ── Project-scoped Chudcode registry ────────────────────────────────────────
 	// Loaded from the nearest .omp/plugins/installed_plugins.json relative to cwd.
 	// Project entries take precedence over user entries for the same plugin ID.
 	if (resolvedProjectPath) {
@@ -1194,7 +1194,7 @@ export function getPreloadedPluginRoots(): readonly ClaudePluginRoot[] {
 
 /**
  * Inject synthetic plugin roots from --plugin-dir paths.
- * These are prepended to the cache with highest precedence (before Chudware Code/Claude entries).
+ * These are prepended to the cache with highest precedence (before Chudcode/Claude entries).
  * Must be called before any listClaudePluginRoots() access.
  */
 export async function injectPluginDirRoots(home: string, dirs: string[], cwd?: string): Promise<void> {

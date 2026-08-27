@@ -34,9 +34,9 @@ export default class Say extends Command {
 	};
 
 	static examples = [
-		'chudware-code say "hello world"',
-		"chudware-code say --file notes.md --voice bm_fable",
-		'chudware-code say "hello world" --out /tmp/hello.wav',
+		'chudcode say "hello world"',
+		"chudcode say --file notes.md --voice bm_fable",
+		'chudcode say "hello world" --out /tmp/hello.wav',
 	];
 
 	async run(): Promise<void> {
@@ -139,7 +139,7 @@ export default class Say extends Command {
 	#synthesisFailed(model: string): void {
 		process.stderr.write(
 			chalk.red(
-				`error: could not synthesize with local TTS model "${model}". Run \`chudware-code setup speech\` to install it.\n`,
+				`error: could not synthesize with local TTS model "${model}". Run \`chudcode setup speech\` to install it.\n`,
 			),
 		);
 	}

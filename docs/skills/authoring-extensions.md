@@ -1,11 +1,11 @@
 ---
 name: authoring-extensions
-description: Use when creating a new Chudware Code extension. Covers ExtensionAPI, factory signature, tool/command/event registration, and local-dev testing.
+description: Use when creating a new Chudcode extension. Covers ExtensionAPI, factory signature, tool/command/event registration, and local-dev testing.
 ---
 
 # Authoring Extensions
 
-Extensions are the primary way to add capabilities to `Chudware Code`. A single extension module can register tools the LLM can call, slash commands users can invoke, and event handlers that run throughout the session lifecycle — all from one TypeScript file. Its default factory may initialize synchronously or return a promise.
+Extensions are the primary way to add capabilities to `Chudcode`. A single extension module can register tools the LLM can call, slash commands users can invoke, and event handlers that run throughout the session lifecycle — all from one TypeScript file. Its default factory may initialize synchronously or return a promise.
 
 ## Minimum viable extension
 
@@ -19,7 +19,7 @@ export default function (pi: ExtensionAPI) {
 }
 ```
 
-That is a working extension. Drop it into `~/.omp/agent/extensions/hello.ts` and restart Chudware Code to see the notification.
+That is a working extension. Drop it into `~/.omp/agent/extensions/hello.ts` and restart Chudcode to see the notification.
 
 ## Full example
 
@@ -75,37 +75,37 @@ export default function myExtension(pi: ExtensionAPI) {
 
 ## Discovery paths
 
-chudware-code loads extension modules from these sources:
+chudcode loads extension modules from these sources:
 
 1. Native `.omp` locations discovered through the capability system:
    - `<cwd>/.omp/extensions/`
    - `~/.omp/agent/extensions/`
    - legacy extension paths listed in `.omp/settings.json#extensions` or `~/.omp/agent/settings.json#extensions`
-2. Enabled installed plugins under `~/.omp/plugins/node_modules` or a project plugin root — including npm, marketplace, and `chudware-code plugin link` installs — via their `omp.extensions`/`pi.extensions` manifests.
-3. Explicit configured paths passed by the CLI (`chudware-code --extension ./my-ext.ts`, also `-e`; `--hook` is treated as an alias) and by the `extensions:` setting in config.
+2. Enabled installed plugins under `~/.omp/plugins/node_modules` or a project plugin root — including npm, marketplace, and `chudcode plugin link` installs — via their `omp.extensions`/`pi.extensions` manifests.
+3. Explicit configured paths passed by the CLI (`chudcode --extension ./my-ext.ts`, also `-e`; `--hook` is treated as an alias) and by the `extensions:` setting in config.
 
 The runtime de-duplicates by resolved absolute path — first seen wins.
 
-The user directory is the active profile's agent directory: the default is `~/.omp/agent`, while `chudware-code --profile <name>` uses `~/.omp/profiles/<name>/agent` (and `PI_CODING_AGENT_DIR` overrides it).
+The user directory is the active profile's agent directory: the default is `~/.omp/agent`, while `chudcode --profile <name>` uses `~/.omp/profiles/<name>/agent` (and `PI_CODING_AGENT_DIR` overrides it).
 
-When a path points to a directory, Chudware Code resolves the entry point in this order:
+When a path points to a directory, Chudcode resolves the entry point in this order:
 
 1. `package.json` with `omp.extensions` (or legacy `pi.extensions`) field
 2. `index.ts`
 3. `index.js`
 
-When scanning an `extensions/` directory, Chudware Code also loads direct `*.ts`/`*.js` files and one-level subdirectories that have `index.ts`, `index.js`, or a manifest.
+When scanning an `extensions/` directory, Chudcode also loads direct `*.ts`/`*.js` files and one-level subdirectories that have `index.ts`, `index.js`, or a manifest.
 
 Extension packages can also bundle sibling capability directories. When a package is loaded through `extensions:` or `--extension`/`-e`, the `omp-plugins` provider discovers its `skills/`, `hooks/pre|post/`, `tools/`, `commands/`, `rules/`, `prompts/`, and `.mcp.json`.
 
 ## package.json manifest
 
-To package an extension as an installable plugin, add an `chudware-code` field to `package.json`:
+To package an extension as an installable plugin, add an `chudcode` field to `package.json`:
 
 ```json
 {
   "name": "my-omp-extension",
-  "Chudware Code": {
+  "Chudcode": {
     "extensions": ["./src/main.ts"]
   }
 }
@@ -125,7 +125,7 @@ Multiple entry points are supported:
 
 ```json
 {
-  "Chudware Code": {
+  "Chudcode": {
     "extensions": ["./src/safety.ts", "./src/tools.ts"]
   }
 }
@@ -232,7 +232,7 @@ Extensions are a strict superset of hooks. New authoring should use `ExtensionAP
 
 ## Debugging
 
-chudware-code writes structured logs under the active state root's `logs/` directory (by default `~/.omp/logs/`; debug level is always on, and nothing is written to the console because that would corrupt the TUI). Each filename includes the process ID. Tail today's default-profile logs to see extension load diagnostics:
+chudcode writes structured logs under the active state root's `logs/` directory (by default `~/.omp/logs/`; debug level is always on, and nothing is written to the console because that would corrupt the TUI). Each filename includes the process ID. Tail today's default-profile logs to see extension load diagnostics:
 
 ```
 tail -f ~/.omp/logs/omp.$(date +%F).*.log

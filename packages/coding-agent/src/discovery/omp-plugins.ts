@@ -1,15 +1,15 @@
 /**
- * Chudware Code extension-package sub-discovery provider.
+ * Chudcode extension-package sub-discovery provider.
  *
  * When a user configures an extension via `extensions:` (in settings) or
  * `--extension`/`-e` (on the CLI), the docs promise that the package's
  * sibling directories — `skills/`, `hooks/pre|post/`, `tools/`, `commands/`,
  * `rules/`, `prompts/`, and `.mcp.json` — are picked up by omp's standard
- * discovery surfaces. The native `chudware-code` provider in `builtin.ts` only walks
+ * discovery surfaces. The native `chudcode` provider in `builtin.ts` only walks
  * `.omp/` and `~/.omp/agent/`, so without this provider those sub-trees are
  * silently ignored.
  *
- * Provider priority is set below the native `chudware-code` provider (100) so an
+ * Provider priority is set below the native `chudcode` provider (100) so an
  * extension package never shadows the user's own `.omp/` configuration on
  * dedup.
  *
@@ -41,7 +41,7 @@ import { listOmpExtensionRoots, type OmpExtensionRoot } from "./omp-extension-ro
 import { resolvePluginStdioPaths } from "./substitute-plugin-root";
 
 const PROVIDER_ID = "omp-plugins";
-const DISPLAY_NAME = "Chudware Code Extension Packages";
+const DISPLAY_NAME = "Chudcode Extension Packages";
 const DESCRIPTION =
 	"Sub-discovery (skills, hooks, tools, commands, rules, prompts, .mcp.json) inside extension packages";
 const PRIORITY = 90;

@@ -1,7 +1,7 @@
 /**
  * Web search CLI command handlers.
  *
- * Handles `chudware-code q`/`chudware-code web-search` subcommands for testing web search providers.
+ * Handles `chudcode q`/`chudcode web-search` subcommands for testing web search providers.
  */
 
 import { getProjectDir } from "@oh-my-pi/pi-utils";

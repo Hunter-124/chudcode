@@ -1,7 +1,7 @@
 /**
  * Setup CLI command handler.
  *
- * Handles `chudware-code setup` for onboarding and `chudware-code setup <component>` for optional dependencies.
+ * Handles `chudcode setup` for onboarding and `chudcode setup <component>` for optional dependencies.
  */
 import * as path from "node:path";
 import { getProjectDir, getPythonEnvDir } from "@oh-my-pi/pi-utils";
@@ -97,7 +97,7 @@ export async function checkPythonSetup(cwd: string, interpreter?: string): Promi
  * Install Python packages using uv (preferred) or pip.
  */
 // Python installation helper removed: the subprocess runner has no Python
-// package dependencies beyond a working interpreter. `chudware-code setup python --check`
+// package dependencies beyond a working interpreter. `chudcode setup python --check`
 // remains as a probe; users install optional libs (pandas, matplotlib, ...)
 // directly via pip or the in-process `%pip` magic.
 
@@ -218,7 +218,7 @@ function buildSpeechComponents(): SpeechComponent[] {
 }
 
 /**
- * Unified `chudware-code setup speech` flow. Drives every {@link SpeechComponent} through
+ * Unified `chudcode setup speech` flow. Drives every {@link SpeechComponent} through
  * one path: report (`--json`/`--check`) or install (interactive pick + ensure
  * with single-line progress; non-TTY skips pickers and installs configured
  * values).

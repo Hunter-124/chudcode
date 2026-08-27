@@ -1,6 +1,6 @@
 ---
 name: authoring-hooks
-description: Use when creating a new Chudware Code hook. Covers HookAPI, event catalog, blocking/overriding tool calls, and context modification.
+description: Use when creating a new Chudcode hook. Covers HookAPI, event catalog, blocking/overriding tool calls, and context modification.
 ---
 
 # Authoring Hooks
@@ -14,7 +14,7 @@ Hooks are event-driven interceptors that run alongside the agent loop. They are 
 ```ts
 import type { HookAPI } from "@oh-my-pi/pi-coding-agent/extensibility/hooks";
 
-export default function myHook(Chudware Code: HookAPI): void {
+export default function myHook(Chudcode: HookAPI): void {
   omp.on("tool_call", async (event, ctx) => {
     // intercept every tool call
   });
@@ -154,7 +154,7 @@ Contract:
 ```ts
 import type { HookAPI } from "@oh-my-pi/pi-coding-agent/extensibility/hooks";
 
-export default function rmRfBlocker(Chudware Code: HookAPI): void {
+export default function rmRfBlocker(Chudcode: HookAPI): void {
   omp.on("tool_call", async (event, ctx) => {
     if (event.toolName !== "bash") return;
 
@@ -192,7 +192,7 @@ const SECRET_PATTERNS = [
   /\b[a-zA-Z0-9_-]{20,}\s*=\s*["']?[a-zA-Z0-9._/+=-]{20,}["']?/g,
 ];
 
-export default function apiKeyRedactor(Chudware Code: HookAPI): void {
+export default function apiKeyRedactor(Chudcode: HookAPI): void {
   omp.on("tool_result", async (event) => {
     if (event.isError) return;
 
@@ -217,7 +217,7 @@ export default function apiKeyRedactor(Chudware Code: HookAPI): void {
 ```ts
 import type { HookAPI } from "@oh-my-pi/pi-coding-agent/extensibility/hooks";
 
-export default function contextFilter(Chudware Code: HookAPI): void {
+export default function contextFilter(Chudcode: HookAPI): void {
   omp.on("context", async (event) => {
     const MAX_TOOL_OUTPUT_CHARS = 8_000;
 

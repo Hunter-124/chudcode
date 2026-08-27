@@ -530,11 +530,11 @@ export interface ExtensionContext {
 	 * here; extensions written against that API (e.g. Plannotator) feature-detect this method to
 	 * decide whether project-local config is safe to load, and warn when it is absent.
 	 *
-	 * Chudware Code has no equivalent per-directory trust gate: `.omp/extensions`, `.omp/config.yml`, and
+	 * Chudcode has no equivalent per-directory trust gate: `.omp/extensions`, `.omp/config.yml`, and
 	 * other project-local inputs are already discovered and loaded unconditionally (see
 	 * `docs/extension-loading.md`). This method exists for compatibility with that upstream surface
-	 * and always returns `true`, truthfully reflecting that Chudware Code already trusts project-local inputs
-	 * by default -- it does not narrow or widen Chudware Code's own security model.
+	 * and always returns `true`, truthfully reflecting that Chudcode already trusts project-local inputs
+	 * by default -- it does not narrow or widen Chudcode's own security model.
 	 */
 	isProjectTrusted(): boolean;
 }

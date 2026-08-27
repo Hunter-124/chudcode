@@ -21,7 +21,7 @@ export interface SessionPickerOptions {
 
 /**
  * Show the TUI session selector and return the selected session, or null if
- * cancelled. The default Chudware Code picker supports deletion, transcript-history
+ * cancelled. The default Chudcode picker supports deletion, transcript-history
  * search, and an all-projects scope; foreign import pickers disable those
  * source-owned capabilities.
  */

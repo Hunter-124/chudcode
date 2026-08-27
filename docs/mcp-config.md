@@ -1,6 +1,6 @@
-# MCP configuration in Chudware Code
+# MCP configuration in Chudcode
 
-This guide explains how to add, edit, and validate MCP servers for the Chudware Code coding agent.
+This guide explains how to add, edit, and validate MCP servers for the Chudcode coding agent.
 
 Source of truth in code:
 
@@ -12,23 +12,23 @@ Source of truth in code:
 
 ## Preferred config locations
 
-Chudware Code can discover MCP servers from multiple tools (`.claude/`, `.cursor/`, `.vscode/`, `opencode.json`, and more), but for Chudware Code-native configuration you should usually use one of these primary files:
+Chudcode can discover MCP servers from multiple tools (`.claude/`, `.cursor/`, `.vscode/`, `opencode.json`, and more), but for Chudcode-native configuration you should usually use one of these primary files:
 
 - Project: `.omp/mcp.json`
 - User: `~/.omp/agent/mcp.json` (or `~/.omp/profiles/<name>/agent/mcp.json` when a named profile is active — see [Profiles](#profiles))
 
-The native provider also reads `.omp/.mcp.json` and `~/.omp/agent/.mcp.json` for compatibility, but Chudware Code writes to the primary `mcp.json` paths above.
+The native provider also reads `.omp/.mcp.json` and `~/.omp/agent/.mcp.json` for compatibility, but Chudcode writes to the primary `mcp.json` paths above.
 
-Chudware Code also accepts fallback standalone files in the project root:
+Chudcode also accepts fallback standalone files in the project root:
 
 - `mcp.json`
 - `.mcp.json`
 
-Use `.omp/mcp.json` or `~/.omp/agent/mcp.json` when you want Chudware Code to own the configuration. Use root `mcp.json` / `.mcp.json` only when you want a portable fallback file that other MCP clients may also read.
+Use `.omp/mcp.json` or `~/.omp/agent/mcp.json` when you want Chudcode to own the configuration. Use root `mcp.json` / `.mcp.json` only when you want a portable fallback file that other MCP clients may also read.
 
 ### Imported tool configs
 
-Chudware Code also translates these current tool-native sources:
+Chudcode also translates these current tool-native sources:
 
 - Claude Code: `~/.claude.json`, `~/.claude/mcp.json`, and project `.claude/.mcp.json` / `.claude/mcp.json`
 - Codex: `~/.codex/config.toml` and `.codex/config.toml` (`[mcp_servers.*]`)
@@ -37,22 +37,22 @@ Chudware Code also translates these current tool-native sources:
 - Cursor: `~/.cursor/mcp.json` and `.cursor/mcp.json`
 - Windsurf: `~/.codeium/windsurf/mcp_config.json` and `.windsurf/mcp_config.json`
 - VS Code: project-only `.vscode/mcp.json` using `mcp.servers`
-- installed Claude marketplace plugins and Chudware Code extension packages that declare MCP servers
+- installed Claude marketplace plugins and Chudcode extension packages that declare MCP servers
 
-For Claude Code, Codex, Gemini CLI, Cursor, and Windsurf, the project entry is encountered before its same-named user entry — matching Chudware Code-native config, whose project entry precedes its active-profile user entry — so a project `enabled: false` suppresses a same-named user server. OpenCode currently encounters the user entry first. Cross-provider priority is listed in [Discovery and precedence](#discovery-and-precedence).
+For Claude Code, Codex, Gemini CLI, Cursor, and Windsurf, the project entry is encountered before its same-named user entry — matching Chudcode-native config, whose project entry precedes its active-profile user entry — so a project `enabled: false` suppresses a same-named user server. OpenCode currently encounters the user entry first. Cross-provider priority is listed in [Discovery and precedence](#discovery-and-precedence).
 
 ### Profiles
 
-Named profiles (`chudware-code --profile <name>`, the `--alias` shortcut, or `OMP_PROFILE`/`PI_PROFILE`) isolate user-level MCP config. When a profile is active, the **user** scope resolves to the profile's agent directory instead of the default one:
+Named profiles (`chudcode --profile <name>`, the `--alias` shortcut, or `OMP_PROFILE`/`PI_PROFILE`) isolate user-level MCP config. When a profile is active, the **user** scope resolves to the profile's agent directory instead of the default one:
 
 - Default profile: `~/.omp/agent/mcp.json`
 - Profile `<name>`: `~/.omp/profiles/<name>/agent/mcp.json`
 
-Discovery, the `/mcp` commands, and the config writer all follow the active profile, so a profile sees **only** its own user-level servers — never the default profile's `~/.omp/agent/mcp.json`. Add a server to a profile by launching under it (`chudware-code --profile <name>`) and running `/mcp add` → User level, or by editing `~/.omp/profiles/<name>/agent/mcp.json` directly.
+Discovery, the `/mcp` commands, and the config writer all follow the active profile, so a profile sees **only** its own user-level servers — never the default profile's `~/.omp/agent/mcp.json`. Add a server to a profile by launching under it (`chudcode --profile <name>`) and running `/mcp add` → User level, or by editing `~/.omp/profiles/<name>/agent/mcp.json` directly.
 
-Project-scoped MCP config (`.omp/mcp.json`) is keyed to the working directory, not the profile, so it applies under every profile. External-tool configs (`.claude/`, `.cursor/`, etc.) are also profile-independent because they belong to those tools rather than to a Chudware Code profile.
+Project-scoped MCP config (`.omp/mcp.json`) is keyed to the working directory, not the profile, so it applies under every profile. External-tool configs (`.claude/`, `.cursor/`, etc.) are also profile-independent because they belong to those tools rather than to a Chudcode profile.
 
-MCP follows the same profile rules as the rest of Chudware Code-native config; see [Configuration Discovery → Profiles](./config-usage.md#profiles).
+MCP follows the same profile rules as the rest of Chudcode-native config; see [Configuration Discovery → Profiles](./config-usage.md#profiles).
 
 ## Add a schema reference
 
@@ -65,11 +65,11 @@ Add this line at the top of the file for editor autocomplete and validation:
 }
 ```
 
-Chudware Code now writes this automatically when `/mcp add`, `/mcp enable`, `/mcp disable`, `/mcp reauth`, or other config-writing flows create or update a Chudware Code-managed MCP file.
+Chudcode now writes this automatically when `/mcp add`, `/mcp enable`, `/mcp disable`, `/mcp reauth`, or other config-writing flows create or update a Chudcode-managed MCP file.
 
 ## File shape
 
-Chudware Code supports this top-level structure:
+Chudcode supports this top-level structure:
 
 ```json
 {
@@ -92,7 +92,7 @@ Top-level keys:
 - `disabledServers` — active-profile user denylist; it hides a discovered server by name regardless of the source entry's `enabled` value
 - `enabledServers` — active-profile user allowlist; it can force-enable a same-named entry whose source says `enabled: false`, but `disabledServers` still wins
 
-The config writer accepts names up to 100 characters containing letters, numbers, `_`, `-`, `.`, and `:`. The bundled schema currently omits `:` from its name pattern, so a Chudware Code-managed namespaced plugin entry such as `cloudflare:cloudflare-api` may be valid at runtime while an editor reports a schema error.
+The config writer accepts names up to 100 characters containing letters, numbers, `_`, `-`, `.`, and `:`. The bundled schema currently omits `:` from its name pattern, so a Chudcode-managed namespaced plugin entry such as `cloudflare:cloudflare-api` may be valid at runtime while an editor reports a schema error.
 
 ## Supported server fields
 
@@ -100,11 +100,11 @@ Shared fields for every transport:
 
 - `enabled?: boolean` — skip this server when `false`, unless the active-profile user `enabledServers` allowlist names it
 - `timeout?: number` — MCP request timeout in milliseconds; `0` disables client-side MCP timeouts
-- `requestIdFormat?: "number" | "string"` — outgoing JSON-RPC request-id encoding; defaults to per-transport integers. `"string"` uses collision-resistant snowflake IDs. This Chudware Code-specific field is read only from Chudware Code-native files, root `mcp.json` / `.mcp.json`, and Chudware Code extension packages; configs translated from other tools ignore it.
+- `requestIdFormat?: "number" | "string"` — outgoing JSON-RPC request-id encoding; defaults to per-transport integers. `"string"` uses collision-resistant snowflake IDs. This Chudcode-specific field is read only from Chudcode-native files, root `mcp.json` / `.mcp.json`, and Chudcode extension packages; configs translated from other tools ignore it.
 - `auth?: { ... }` — stored-credential metadata; managed credential injection is implemented for OAuth
 - `oauth?: { ... }` — explicit OAuth client and callback settings used during auth/reauth
 
-`OMP_MCP_TIMEOUT_MS` has process-wide precedence over every per-server `timeout`. Set it to `0` to disable client-side timeouts, or to a positive millisecond value such as `120000`. If it is unset or invalid, Chudware Code uses the server value and then the 30-second default; invalid values are logged and ignored.
+`OMP_MCP_TIMEOUT_MS` has process-wide precedence over every per-server `timeout`. Set it to `0` to disable client-side timeouts, or to a positive millisecond value such as `120000`. If it is unset or invalid, Chudcode uses the server value and then the 30-second default; invalid values are logged and ignored.
 
 ### `stdio` transport
 
@@ -198,7 +198,7 @@ Example:
 
 ## Auth fields
 
-Chudware Code understands two auth-related objects.
+Chudcode understands two auth-related objects.
 
 ### `auth`
 
@@ -213,16 +213,16 @@ Chudware Code understands two auth-related objects.
 }
 ```
 
-For managed OAuth, `auth` tells Chudware Code how to find and refresh a stored credential. Although `"apikey"` is an accepted `type`, it does not load or inject an API key from auth storage. Put API keys directly in stdio `env` or remote `headers` (prefer an environment-variable or `!command` indirection described below).
+For managed OAuth, `auth` tells Chudcode how to find and refresh a stored credential. Although `"apikey"` is an accepted `type`, it does not load or inject an API key from auth storage. Put API keys directly in stdio `env` or remote `headers` (prefer an environment-variable or `!command` indirection described below).
 
-You normally do not need to write this block: when Chudware Code completes an OAuth flow for an `http`/`sse` server, it stores the credential under a deterministic id derived from the active profile and server URL (`mcp_oauth:profile:<profile>:<url>`), with the refresh material embedded. Any
+You normally do not need to write this block: when Chudcode completes an OAuth flow for an `http`/`sse` server, it stores the credential under a deterministic id derived from the active profile and server URL (`mcp_oauth:profile:<profile>:<url>`), with the refresh material embedded. Any
 config that points at the same URL — including a _definition-only_ entry in a
 shared project `mcp.json` with no `auth` block at all — resolves the active
 profile's own credential automatically, including when auth storage is backed by
 a shared auth broker. This is what makes project-scoped servers safe across
 profiles: commit the definition, and each profile authorizes (and stays signed
 in as) its own account via `/mcp reauth <name>`. An explicit `credentialId` is
-still honored when it resolves; if it points at another profile's row, Chudware Code falls
+still honored when it resolves; if it points at another profile's row, Chudcode falls
 back to the profile-scoped url-keyed binding.
 
 `/mcp reauth` on a definition-only entry leaves the file untouched — the
@@ -254,7 +254,7 @@ profile for untrusted checkouts.
 
 Use `oauth` when the MCP server requires explicit OAuth client or callback settings. The callback listener defaults to port `3000` and path `/callback`; an HTTP loopback `redirectUri` supplies its own port/path unless explicitly overridden. An HTTPS loopback redirect requires a distinct `callbackPort` for the local HTTP listener behind your TLS terminator.
 
-`prompt` controls the OAuth `prompt` authorization parameter. By default Chudware Code omits it, except that a requested `offline_access` scope defaults to `"consent"` so the provider can issue refresh access. Set it explicitly to a provider-supported value such as `"consent"` or `"select_account"`, or to `""` to force omission.
+`prompt` controls the OAuth `prompt` authorization parameter. By default Chudcode omits it, except that a requested `offline_access` scope defaults to `"consent"` so the provider can issue refresh access. Set it explicitly to a provider-supported value such as `"consent"` or `"select_account"`, or to `""` to force omission.
 
 Example:
 
@@ -377,7 +377,7 @@ This is the part that usually trips people up.
 
 ### Discovery-time `${...}` expansion
 
-Chudware Code expands `${VAR}` and `${VAR:-default}` placeholders while discovering MCP configs from Chudware Code-native files and standalone fallback files. Expansion applies recursively to string values in `command`, `args`, `env`, `cwd`, `url`, `headers`, `auth`, and `oauth`; unresolved placeholders remain literal strings.
+Chudcode expands `${VAR}` and `${VAR:-default}` placeholders while discovering MCP configs from Chudcode-native files and standalone fallback files. Expansion applies recursively to string values in `command`, `args`, `env`, `cwd`, `url`, `headers`, `auth`, and `oauth`; unresolved placeholders remain literal strings.
 
 Example:
 
@@ -397,12 +397,12 @@ Example:
 
 ### Pre-connect env/header resolution
 
-Before Chudware Code launches a stdio server or makes an HTTP/SSE request, it resolves stdio `env` values and HTTP/SSE `headers` values like this:
+Before Chudcode launches a stdio server or makes an HTTP/SSE request, it resolves stdio `env` values and HTTP/SSE `headers` values like this:
 
-1. If a value starts with `!`, Chudware Code runs the rest as a shell command with a 10s timeout and uses trimmed stdout. Successful results are cached for the lifetime of the process.
+1. If a value starts with `!`, Chudcode runs the rest as a shell command with a 10s timeout and uses trimmed stdout. Successful results are cached for the lifetime of the process.
 2. If the command fails, times out, or prints only whitespace, that `env`/`headers` entry is omitted.
-3. Otherwise Chudware Code checks whether the whole value names an environment variable.
-4. If that environment variable is set to a non-empty value, Chudware Code uses the environment value; otherwise it uses the string literally.
+3. Otherwise Chudcode checks whether the whole value names an environment variable.
+4. If that environment variable is set to a non-empty value, Chudcode uses the environment value; otherwise it uses the string literally.
 
 Examples:
 
@@ -438,7 +438,7 @@ The active profile's user file supplies two cross-source overrides:
 }
 ```
 
-`/mcp enable` and `/mcp disable` update `enabled` directly when the definition is in a Chudware Code-owned writable file. Chudware Code does not mutate another tool's config: for such sources, those commands maintain the user-level allowlist or denylist instead and remove a conflicting stale override.
+`/mcp enable` and `/mcp disable` update `enabled` directly when the definition is in a Chudcode-owned writable file. Chudcode does not mutate another tool's config: for such sources, those commands maintain the user-level allowlist or denylist instead and remove a conflicting stale override.
 
 ## `/mcp add` vs editing JSON directly
 
@@ -459,7 +459,7 @@ After editing, use:
 - `/mcp reauth <name>` to replace managed OAuth credentials, or `/mcp unauth <name>` to remove them
 - `/mcp resources`, `/mcp prompts`, and `/mcp notifications` to inspect non-tool MCP capabilities
 
-## Validation rules Chudware Code enforces
+## Validation rules Chudcode enforces
 
 From `validateServerConfig()` in `packages/coding-agent/src/mcp/config.ts`:
 
@@ -471,15 +471,15 @@ From `validateServerConfig()` in `packages/coding-agent/src/mcp/config.ts`:
 Practical implications:
 
 - Omitting `type` means `stdio`
-- If you paste a remote server config and forget `"type": "http"`, Chudware Code will treat it as `stdio` and complain that `command` is missing
+- If you paste a remote server config and forget `"type": "http"`, Chudcode will treat it as `stdio` and complain that `command` is missing
 - `sse` remains valid for compatibility, but new hosted servers should usually be configured as `http`
 
 ## Discovery and precedence
 
-Chudware Code loads providers in descending priority. The MCP-capable order is:
+Chudcode loads providers in descending priority. The MCP-capable order is:
 
-1. Chudware Code native config
-2. Chudware Code extension packages
+1. Chudcode native config
+2. Chudcode extension packages
 3. Claude Code
 4. Claude marketplace plugins and Codex
 5. Gemini CLI
@@ -490,9 +490,9 @@ Chudware Code loads providers in descending priority. The MCP-capable order is:
 
 The first definition wins. Duplicate names are not merged. A differently named definition is also shadowed when its transport, endpoint/command inputs, auth, and request-id mode are equivalent to a higher-priority definition.
 
-Within Chudware Code native config, project `.omp/mcp.json` precedes `.omp/.mcp.json`, then the active profile's user `mcp.json` and `.mcp.json`. Root fallback `mcp.json` precedes root `.mcp.json`. In practice:
+Within Chudcode native config, project `.omp/mcp.json` precedes `.omp/.mcp.json`, then the active profile's user `mcp.json` and `.mcp.json`. Root fallback `mcp.json` precedes root `.mcp.json`. In practice:
 
-- prefer `.omp/mcp.json` or the active profile's user `mcp.json` for a Chudware Code-specific override
+- prefer `.omp/mcp.json` or the active profile's user `mcp.json` for a Chudcode-specific override
 - keep names and endpoint definitions unique across tools when possible
 - use the user `disabledServers` list when a third-party config keeps reintroducing an unwanted server
 - set `mcp.enableProjectConfig: false` to exclude every project-level source before deduplication, allowing a same-named user entry to survive
@@ -505,7 +505,7 @@ You probably omitted `type: "http"` on a remote server.
 
 ### `Server "name": both "command" and "url" are set`
 
-Pick one transport. Chudware Code treats `command` as stdio and `url` as http/sse.
+Pick one transport. Chudcode treats `command` as stdio and `url` as http/sse.
 
 ### `/mcp add` worked but the server still does not connect
 
@@ -516,9 +516,9 @@ The JSON is valid, but the server may still be unreachable. Use `/mcp test <name
 - the remote URL is reachable
 - the OAuth or API token is valid
 
-### The server exists in another tool's config but not in Chudware Code
+### The server exists in another tool's config but not in Chudcode
 
-Run `/mcp list`. Chudware Code discovers many third-party MCP files, but project-level loading can also be disabled via the `mcp.enableProjectConfig` setting, and a user-level `disabledServers` entry can suppress a server by name.
+Run `/mcp list`. Chudcode discovers many third-party MCP files, but project-level loading can also be disabled via the `mcp.enableProjectConfig` setting, and a user-level `disabledServers` entry can suppress a server by name.
 
 ### A namespaced server works but the editor rejects its name
 
@@ -526,7 +526,7 @@ The runtime/config writer accepts `:` in names used by marketplace plugins. The 
 
 ### A config file is silently absent from the list
 
-Malformed JSON or a missing/invalid server map makes that provider contribute no entries from the file; depending on the provider, Chudware Code records a discovery warning or logs the parse failure rather than failing the session. Correct the JSON shape, then run `/mcp reload` and `/mcp list`.
+Malformed JSON or a missing/invalid server map makes that provider contribute no entries from the file; depending on the provider, Chudcode records a discovery warning or logs the parse failure rather than failing the session. Correct the JSON shape, then run `/mcp reload` and `/mcp list`.
 
 ## References
 

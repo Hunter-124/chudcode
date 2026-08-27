@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
 /**
- * Read-only capability probe for Chudware Code's real desktop backend (@oh-my-pi/pi-natives).
+ * Read-only capability probe for Chudcode's real desktop backend (@oh-my-pi/pi-natives).
  * Prints capabilities + enumerable windows for whatever display the *environment*
  * points at. No capture, no input: safe to run against the user's live session.
  */

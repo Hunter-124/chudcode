@@ -1,4 +1,4 @@
-# PR bodies — ready to submit from Hunter-124/oh-my-pi
+# PR bodies — ready to submit from Hunter-124/chudcode
 
 Five branches are pushed and verified on the fork. Each is one logical change
 with tests.
@@ -37,7 +37,7 @@ gh pr create --repo can1357/oh-my-pi \
 
 **Title:** `feat(tui): add editor redo`
 
-**Exercise:** run `chudware-code`, type a few words, press `ctrl+-` to undo, then `alt+-`
+**Exercise:** run `chudcode`, type a few words, press `ctrl+-` to undo, then `alt+-`
 to redo. Confirm the text comes back and the cursor lands where it was. Then
 type something new after an undo and confirm `alt+-` does not resurrect the
 discarded branch. Also confirm `ctrl+z` still suspends omp.
@@ -73,7 +73,7 @@ discarded branch. Also confirm `ctrl+z` still suspends omp.
 
 **Title:** `fix(ai): degrade the OAuth close button when the tab is not script-closable`
 
-**Exercise:** run `chudware-code login` for any OAuth provider, complete the flow in a
+**Exercise:** run `chudcode login` for any OAuth provider, complete the flow in a
 Chromium-based browser, and confirm the success page no longer shows a dead
 "Close Window" button — after a moment it tells you to close the tab yourself.
 
@@ -168,7 +168,7 @@ original sighting was a real subagent label rendering as
 **Title:** `feat(coding-agent): opt-in automatic update staging`
 
 **Exercise:** set `startup.autoUpdate` to each of `off` / `notify` / `auto` and
-launch Chudware Code; confirm `notify` behaves exactly as before, `off` skips the check,
+launch Chudcode; confirm `notify` behaves exactly as before, `off` skips the check,
 and `auto` stages an update and reports that it applies next launch. Confirm a
 second launch inside the throttle window does not re-hit the registry.
 
@@ -176,15 +176,15 @@ second launch inside the throttle window does not re-hit the registry.
 behavior, which is security-sensitive. The branch adds SHA-256 verification
 against GitHub's published asset digests for raw-binary updates and fails
 closed, because auto-applying an unverified binary would be worse than requiring
-a manual `chudware-code update`. Package-manager flavors delegate integrity to the package
+a manual `chudcode update`. Package-manager flavors delegate integrity to the package
 manager. Source / `bun link` checkouts are excluded entirely.
 
 **Body:**
 
 > YOUR SENTENCE HERE
 >
-> Chudware Code notified about new versions but never applied them, while a complete
-> self-updater already existed behind `chudware-code update` and was simply never wired to
+> Chudcode notified about new versions but never applied them, while a complete
+> self-updater already existed behind `chudcode update` and was simply never wired to
 > the notifier. The startup check also re-hit the npm registry on every launch
 > with no caching.
 >

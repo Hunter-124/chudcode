@@ -18,14 +18,14 @@ export default class Read extends Command {
 	};
 
 	static examples = [
-		"chudware-code read src/foo.ts",
-		"chudware-code read src/foo.ts:50-100",
-		"chudware-code read src/foo.ts:raw",
-		"chudware-code read https://example.com",
-		"chudware-code read omp://",
-		"chudware-code read issue://123",
-		"chudware-code read path/to/archive.zip:dir/file.ts",
-		"chudware-code read path/to/db.sqlite:users:42",
+		"chudcode read src/foo.ts",
+		"chudcode read src/foo.ts:50-100",
+		"chudcode read src/foo.ts:raw",
+		"chudcode read https://example.com",
+		"chudcode read omp://",
+		"chudcode read issue://123",
+		"chudcode read path/to/archive.zip:dir/file.ts",
+		"chudcode read path/to/db.sqlite:users:42",
 	];
 
 	async run(): Promise<void> {

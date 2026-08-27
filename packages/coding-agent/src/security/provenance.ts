@@ -14,7 +14,7 @@ export const OMP_SECURITY_WORKFLOW_VERSION = "1.0.0";
 export function createNativeSecurityProducer(): SecurityProducer {
 	return {
 		kind: "omp-native",
-		name: "Chudware Code Native Security",
+		name: "Chudcode Native Security",
 		version: OMP_SECURITY_WORKFLOW_VERSION,
 	};
 }

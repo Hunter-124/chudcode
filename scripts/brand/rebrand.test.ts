@@ -1,26 +1,31 @@
 import { describe, expect, test } from "bun:test";
 import { transformText } from "./rebrand";
 
-describe("Chudware Code brand codemod", () => {
-	test("leaves homonyms, URLs, package names, env names, and persisted paths unchanged", () => {
+describe("Chudcode brand codemod", () => {
+	test("leaves homonyms, URLs, package names, env names, persisted paths, and compatibility commands unchanged", () => {
 		const fixture = [
 			"compile component comparison composer",
+			"Chudware chudware-hostd /home/hunter/Repositories/CAD/vendor/omp",
+			"--from https://github.com/Hunter-124/oh-my-pi.git",
 			"https://omp.sh https://github.com/can1357/oh-my-pi",
 			"@oh-my-pi/omp-stats @oh-my-pi/pi-coding-agent",
 			"PI_PROFILE OMP_PROFILE ~/.omp/agent/LICENSE OMP.claimTarget",
 			"nix build .#omp",
+			"`chudware-code` compatibility command",
+			"`chcode` short compatibility alias",
 			"omp legacy alias",
 			"`omp`-based scripts",
-			"Chudware Code v0.1.0 (based on omp 18.0.8)",
+			"Chudcode v0.1.0 (based on omp 18.0.8)",
 		].join("\n");
 
 		expect(transformText(fixture, "docs/homonym-fixture.md").text).toBe(fixture);
 	});
 
-	test("rebrands product prose and command examples", () => {
-		const fixture = "# Oh My Pi\nOMP is useful. Pick a model — omp will run it.\n`omp models`\n$ omp --version\n";
+	test("rebrands intermediate and upstream product prose and command examples", () => {
+		const fixture =
+			"# Chudware Code\nChudware Code replaces Oh My Pi.\nRepository: Hunter-124/oh-my-pi\nPick a model — omp will run it.\n`chudware-code models`\n$ omp --version\n";
 		expect(transformText(fixture, "docs/example.md").text).toBe(
-			"# Chudware Code\nChudware Code is useful. Pick a model — Chudware Code will run it.\n`chudware-code models`\n$ chudware-code --version\n",
+			"# Chudcode\nChudcode replaces Chudcode.\nRepository: Hunter-124/chudcode\nPick a model — Chudcode will run it.\n`chudcode models`\n$ chudcode --version\n",
 		);
 	});
 });

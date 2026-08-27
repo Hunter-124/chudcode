@@ -1,7 +1,7 @@
 /**
  * Stats CLI command handlers.
  *
- * Handles `chudware-code stats` subcommand for viewing AI usage statistics.
+ * Handles `chudcode stats` subcommand for viewing AI usage statistics.
  */
 
 import { truncateToWidth } from "@oh-my-pi/pi-tui/utils";

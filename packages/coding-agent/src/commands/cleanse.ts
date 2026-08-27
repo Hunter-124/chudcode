@@ -36,13 +36,13 @@ export default class Cleanse extends Command {
 	};
 
 	static examples = [
-		"chudware-code cleanse",
-		"chudware-code cleanse --all",
-		'chudware-code cleanse "ts errors"',
-		"chudware-code cleanse -n 8",
-		"chudware-code cleanse -m opus",
-		"chudware-code cleanse -t",
-		"chudware-code cleanse --agents 12 --model anthropic/claude-opus-4-6",
+		"chudcode cleanse",
+		"chudcode cleanse --all",
+		'chudcode cleanse "ts errors"',
+		"chudcode cleanse -n 8",
+		"chudcode cleanse -m opus",
+		"chudcode cleanse -t",
+		"chudcode cleanse --agents 12 --model anthropic/claude-opus-4-6",
 	];
 
 	async run(): Promise<void> {

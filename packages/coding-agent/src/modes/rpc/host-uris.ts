@@ -16,7 +16,7 @@ import type {
 
 type RpcHostUriOutput = (frame: RpcHostUriRequest | RpcHostUriCancelRequest) => void;
 
-/** Chudware Code-owned namespaces that RPC hosts may not replace. */
+/** Chudcode-owned namespaces that RPC hosts may not replace. */
 const RESERVED_HOST_URI_SCHEMES: ReadonlySet<string> = new Set(["security"]);
 
 type PendingUriRequest = {
@@ -98,7 +98,7 @@ export class RpcHostUriBridge {
 				throw new Error(`Host URI scheme contains invalid characters: ${raw.scheme}`);
 			}
 			if (RESERVED_HOST_URI_SCHEMES.has(scheme)) {
-				throw new Error(`Host URI scheme is reserved by Chudware Code: ${scheme}://`);
+				throw new Error(`Host URI scheme is reserved by Chudcode: ${scheme}://`);
 			}
 			normalized.set(scheme, {
 				scheme,

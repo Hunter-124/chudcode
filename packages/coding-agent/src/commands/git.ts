@@ -24,12 +24,12 @@ export default class Git extends Command {
 		dir: Flags.string({ char: "C", description: "Run in another directory instead of the current one" }),
 	};
 
-	static examples = ["chudware-code git", "chudware-code git HEAD~2", "chudware-code git -C ~/projects/app"];
+	static examples = ["chudcode git", "chudcode git HEAD~2", "chudcode git -C ~/projects/app"];
 
 	async run(): Promise<void> {
 		const { args, flags } = await this.parse(Git);
 		if (process.stdout.isTTY !== true || process.stdin.isTTY !== true) {
-			console.error("chudware-code git is interactive and requires a TTY");
+			console.error("chudcode git is interactive and requires a TTY");
 			process.exit(1);
 		}
 		// Load settings first so the user's configured theme/symbol preset apply

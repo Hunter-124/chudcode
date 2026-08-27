@@ -66,7 +66,7 @@ cmd_start() {
 		[[ $waited -gt 100 ]] && die "Xvfb on $disp never created its socket"
 	done
 
-	# Socket existence is not readiness: Chudware Code needs a readable root drawable.
+	# Socket existence is not readiness: Chudcode needs a readable root drawable.
 	waited=0
 	until DISPLAY="$disp" XAUTHORITY="$auth" import -window root -crop 1x1+0+0 png:- >/dev/null 2>&1; do
 		sleep 0.05
@@ -74,7 +74,7 @@ cmd_start() {
 		[[ $waited -gt 100 ]] && die "root window on $disp never became readable"
 	done
 
-	# Chudware Code reads the window list from EWMH root properties only, so a bare Xvfb
+	# Chudcode reads the window list from EWMH root properties only, so a bare Xvfb
 	# reports zero windows. The shim (or any EWMH WM) supplies them. Its lifetime
 	# is bound to the X server: when Xvfb dies, Xlib's default I/O error handler
 	# exits the shim, so it can never outlive its seat.
@@ -94,7 +94,7 @@ cmd_env() {
 	dir="$(seat_dir "$1")"
 	[[ -f "$dir/display" ]] || die "no such seat '$1'"
 	disp="$(cat "$dir/display")"
-	# WAYLAND_DISPLAY must be *unset*, not empty: Chudware Code's backend picker tests
+	# WAYLAND_DISPLAY must be *unset*, not empty: Chudcode's backend picker tests
 	# presence (var_os().is_some()), so an empty value still selects Wayland.
 	cat <<-EOF
 		OMP_SEAT_NAME=$1

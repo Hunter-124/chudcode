@@ -18,11 +18,11 @@ export default class Compress extends Command {
 	};
 
 	static examples = [
-		"chudware-code compress prompts/tools/read.md",
-		"chudware-code compress notes.md -o notes.compressed.md",
-		"chudware-code compress 'src/prompts/**/*.md' -i",
-		"chudware-code compress a.md b.md c.md -i -n 8",
-		"chudware-code compress spec.md -r 5 -m opus",
+		"chudcode compress prompts/tools/read.md",
+		"chudcode compress notes.md -o notes.compressed.md",
+		"chudcode compress 'src/prompts/**/*.md' -i",
+		"chudcode compress a.md b.md c.md -i -n 8",
+		"chudcode compress spec.md -r 5 -m opus",
 	];
 
 	async run(): Promise<void> {

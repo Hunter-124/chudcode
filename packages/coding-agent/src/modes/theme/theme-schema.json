@@ -1,7 +1,7 @@
 {
 	"$schema": "https://json-schema.org/draft/2020-12/schema",
-	"title": "Chudware Code Coding Agent Theme",
-	"description": "Theme schema for the Chudware Code coding agent",
+	"title": "Chudcode Coding Agent Theme",
+	"description": "Theme schema for the Chudcode coding agent",
 	"type": "object",
 	"required": ["name", "colors"],
 	"properties": {

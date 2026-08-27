@@ -25,7 +25,7 @@ export async function canonicalProjectDir(projectDir: string): Promise<string> {
 
 /**
  * Record the scope's canonical project directory inside its runtime dir.
- * Written by the broker at startup so out-of-process inspectors (`chudware-code ps`)
+ * Written by the broker at startup so out-of-process inspectors (`chudcode ps`)
  * can map a hash-keyed runtime dir back to its project.
  */
 export async function writeDaemonScopeMeta(runtimeDir: string, projectDir: string): Promise<void> {

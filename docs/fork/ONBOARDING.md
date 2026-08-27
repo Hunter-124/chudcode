@@ -1,10 +1,10 @@
-# Chudware Code fork — handoff for Garrison
+# Chudcode fork — handoff for Garrison
 
 **Written for:** Simon Garrison ([@garrisonsimon](https://github.com/garrisonsimon)) and his coding agent.
 **From:** the session of 2026-08-27 (Hunter orchestrating).
 **Assume zero prior context.** Everything you need is here or linked from here.
 
-You already have **write access** to `Hunter-124/oh-my-pi`.
+You already have **write access** to `Hunter-124/chudcode`.
 
 ---
 
@@ -26,7 +26,7 @@ You already have **write access** to `Hunter-124/oh-my-pi`.
 5. **Several "missing features" turned out to already exist**, just unwired.
    Check before building. Examples: editor undo existed (bound to `ctrl+-`, which
    nobody discovers); the `usage` status-bar segment existed but was in zero
-   presets; `chudware-code update` implements a full self-updater the notifier never calls;
+   presets; `chudcode update` implements a full self-updater the notifier never calls;
    `hub` already implements agent messaging. Grep first, build second.
 
 ---
@@ -35,14 +35,14 @@ You already have **write access** to `Hunter-124/oh-my-pi`.
 
 | Path | What |
 | --- | --- |
-| `~/Repositories/omp-inspection/oh-my-pi` | The working checkout. `origin` = upstream, `fork` = `Hunter-124/oh-my-pi` |
+| `~/Repositories/omp-inspection/oh-my-pi` | The working checkout. `origin` = upstream, `fork` = `Hunter-124/chudcode` |
 | `~/Repositories/omp-inspection/HANDOFF.md` | The detailed record — every request, its status, and why |
 | `~/Repositories/omp-inspection/REQUIREMENTS.md` | The full requirement set with priorities |
 | `~/Repositories/omp-inspection/PR-BODIES.md` | PR bodies ready for submission |
-| `~/Repositories/omp-inspection/CAD-CLOUDCASTLE-MIGRATION.md` | How CAD consumes Chudware Code, the safe path, the blocker |
+| `~/Repositories/omp-inspection/CAD-CLOUDCASTLE-MIGRATION.md` | How CAD consumes Chudcode, the safe path, the blocker |
 | `~/Repositories/omp-inspection/CRASH-MITIGATIONS.md` | Why the machine was dying and what was fixed |
 | `~/Repositories/omp-inspection/sandbox-prototype/` | Isolated-display prototype + 29 evidence artifacts |
-| `~/.local/bin/omp-seat` | Working command: run Chudware Code on its own isolated display |
+| `~/.local/bin/omp-seat` | Working command: run Chudcode on its own isolated display |
 | `~/Repositories/CAD` | Hunter's **private** CAD project. Vendors part of omp. Keep it private |
 
 Build/test commands (from the repo root):
@@ -142,7 +142,7 @@ Each of these was exercised, not just compiled.
 | Cursor effort normalization + `releaseDate` | `feat/catalog-cursor-effort-and-release-date` | 478 catalog tests pass |
 | Single-Esc overlay dismissal (**opt-in**) | `feat/opt-in-escape-dismiss` | Opt-in because upstream has a **test asserting** the two-step behavior — flipping the default would break their contract |
 | Prompt draft autosave | `fix/pending-image-reconcile` | Proven by actually `SIGKILL`ing a child process and resuming the text |
-| Anti-sleep for Linux/Windows | `feat/cross-platform-antisleep` | Proven live: `chudware-code … idle … block` in `systemd-inhibit --list` while held, absent after release |
+| Anti-sleep for Linux/Windows | `feat/cross-platform-antisleep` | Proven live: `chudcode … idle … block` in `systemd-inhibit --list` while held, absent after release |
 
 Host fixes applied directly (not code): `/tmp` reclaimed 7.54 GB and capped at
 2 GiB; disk-backed `TMPDIR` + weekly prune installed; `usage` segment added to
@@ -172,7 +172,7 @@ Ranked by value, with reasoning rather than vibes.
 
 ### Tier 2 — highest user value, buildable now
 4. **Isolated display seats (Option B).** Option A already works
-   (`omp-seat run`), but subagents inside one Chudware Code process share the parent's seat.
+   (`omp-seat run`), but subagents inside one Chudcode process share the parent's seat.
    Option B needs a small native plumb: add `display_server` to
    `DesktopSessionOptions`, carry it into `SessionCore` and the backend selector,
    and change `x11rb::connect(None)` to take it. **Do not** use
@@ -224,7 +224,7 @@ Ranked by value, with reasoning rather than vibes.
 
 CAD is **private**. Keep it that way.
 
-CAD does not run the `chudware-code` CLI. It vendors `ai`, `catalog`, `utils`, `wire`,
+CAD does not run the `chudcode` CLI. It vendors `ai`, `catalog`, `utils`, `wire`,
 `mnemopi`, `snapcompact` at a pinned SHA and talks to them over a bun sidecar.
 It deliberately does **not** vendor `pi-coding-agent` or `pi-tui`, so most of our
 work cannot affect it. Only the OAuth fix (`ai`) and Cursor classification
@@ -254,7 +254,7 @@ native in the same commit across 5400+ commits of drift, and it can't be
 validated without CAD's C++ core running.
 
 **CloudCastle was never audited.** Before migrating it, check whether it vendors
-source or spawns the `chudware-code` CLI — a CLI consumer *is* affected by all the
+source or spawns the `chudcode` CLI — a CLI consumer *is* affected by all the
 `coding-agent` changes CAD is immune to.
 
 ---

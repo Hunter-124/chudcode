@@ -365,8 +365,8 @@ async function loadHooks(ctx: LoadContext): Promise<LoadResult<Hook>> {
 	const codexDir = getProjectCodexDir(ctx);
 	const projectHooksDir = path.join(codexDir, "hooks");
 
-	// Chudware Code hooks must be named `pre-<tool>.<ts|js>` or `post-<tool>.<ts|js>`.
-	// Files without that prefix are not Chudware Code hooks (e.g. the standalone Codex
+	// Chudcode hooks must be named `pre-<tool>.<ts|js>` or `post-<tool>.<ts|js>`.
+	// Files without that prefix are not Chudcode hooks (e.g. the standalone Codex
 	// hook scripts users keep alongside) — silently dropping the prefix and
 	// defaulting to `pre:<basename>` caused those scripts to be imported as
 	// extension factories and any top-level `process.exit()` killed startup

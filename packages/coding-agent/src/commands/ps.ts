@@ -37,12 +37,12 @@ export default class Ps extends Command {
 	};
 
 	static examples = [
-		"chudware-code ps",
-		"chudware-code ps --all",
-		"chudware-code ps logs web --follow",
-		"chudware-code ps stop web",
-		"chudware-code ps kill web",
-		"chudware-code ps info relay --global browser-relay",
+		"chudcode ps",
+		"chudcode ps --all",
+		"chudcode ps logs web --follow",
+		"chudcode ps stop web",
+		"chudcode ps kill web",
+		"chudcode ps info relay --global browser-relay",
 	];
 
 	async run(): Promise<void> {

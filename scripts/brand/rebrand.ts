@@ -53,70 +53,88 @@ const SKIPPED_SEGMENTS: Record<string, true> = {
 	vendor: true,
 };
 
-// Ordered, most-specific first. Lowercase source replacement requires following
-// whitespace, protects the explicit upstream version phrase, and excludes the
-// two files whose literal `omp` values are persisted path/alias markers.
-// Backticked commands include the opening delimiter in the match so package
-// names, URLs, and glued homonyms cannot match.
+// Ordered, most-specific first. The intermediate Chudware Code identity is
+// migrated before upstream names so rerunning the codemod on either baseline
+// converges on the same Chudcode result. Explicitly labelled compatibility
+// commands remain untouched, as do persisted paths, package names, upstream
+// URLs, CAD vendoring imports, and glued homonyms.
 const BRAND_RULES: readonly BrandRule[] = [
+	{
+		name: "legacy-display-name",
+		pattern: /\bChudware Code\b/g,
+		replacement: "Chudcode",
+		scope: "all",
+	},
+	{
+		name: "legacy-cli-command",
+		pattern: /\bchudware-code\b(?![^\n]*\b(?:compatibility (?:alias(?:es)?|command(?:s)?)|legacy alias)\b)/g,
+		replacement: "chudcode",
+		scope: "all",
+	},
+	{
+		name: "private-repository",
+		pattern: /(?<!--from https:\/\/github\.com\/)Hunter-124\/(?:omp|oh-my-pi)\b/g,
+		replacement: "Hunter-124/chudcode",
+		scope: "docs",
+	},
 	{
 		name: "cli-command-backtick",
 		pattern: /`omp(?=\s|`)(?!`(?:-based|\s+legacy))/g,
-		replacement: "`chudware-code",
+		replacement: "`chudcode",
 		scope: "all",
 	},
 	{
 		name: "cli-command-subshell",
 		pattern: /(\$\()omp(?=\s)/g,
-		replacement: "$1chudware-code",
+		replacement: "$1chudcode",
 		scope: "docs",
 	},
 	{
 		name: "cli-command-shell",
 		pattern: /^(\s*(?:\$ )?)omp(?!\s+legacy alias)(?=\s|$)/gm,
-		replacement: "$1chudware-code",
+		replacement: "$1chudcode",
 		scope: "docs",
 	},
 	{
 		name: "display-name-title",
 		pattern: /\bOh My Pi\b/g,
-		replacement: "Chudware Code",
+		replacement: "Chudcode",
 		scope: "all",
 	},
 	{
 		name: "display-name-slug",
 		pattern: /(?<![\/.@])\boh-my-pi\b(?!\/)/g,
-		replacement: "Chudware Code",
+		replacement: "Chudcode",
 		scope: "docs",
 	},
 	{
 		name: "cli-command-source-token",
 		pattern: /(?<!based on )(?<![\/.@-])\bomp\b(?=\s)/g,
-		replacement: "chudware-code",
+		replacement: "chudcode",
 		scope: "source",
 	},
 	{
 		name: "display-name-uppercase",
 		pattern: /\bOMP\b(?![._A-Za-z0-9])/g,
-		replacement: "Chudware Code",
+		replacement: "Chudcode",
 		scope: "all",
 	},
 	{
 		name: "display-name-lowercase-docs",
 		pattern: /(?<!based on )(?<![\/.@#`-])\bomp\b(?![\/._-]|\s+legacy alias)/g,
-		replacement: "Chudware Code",
+		replacement: "Chudcode",
 		scope: "docs",
 	},
 	{
 		name: "display-article-lowercase",
-		pattern: /\ban Chudware Code\b/g,
-		replacement: "a Chudware Code",
+		pattern: /\ban Chudcode\b/g,
+		replacement: "a Chudcode",
 		scope: "all",
 	},
 	{
 		name: "display-article-title",
-		pattern: /\bAn Chudware Code\b/g,
-		replacement: "A Chudware Code",
+		pattern: /\bAn Chudcode\b/g,
+		replacement: "A Chudcode",
 		scope: "all",
 	},
 ];
@@ -131,6 +149,7 @@ const PRESERVE_PATTERNS: readonly PreservePattern[] = [
 	{ name: "@oh-my-pi/", pattern: /@oh-my-pi\//g },
 	{ name: "pi-coding-agent", pattern: /pi-coding-agent/g },
 	{ name: "PI_", pattern: /\bPI_/g },
+	{ name: "OMP_", pattern: /\bOMP_/g },
 	{ name: ".omp", pattern: /\.omp\b/g },
 	{ name: "can1357/oh-my-pi", pattern: /can1357\/oh-my-pi/g },
 	{ name: "omp-stats", pattern: /omp-stats/g },
@@ -139,6 +158,7 @@ const PRESERVE_PATTERNS: readonly PreservePattern[] = [
 ];
 
 function applies(rule: BrandRule, relativePath: string): boolean {
+	if (rule.name === "legacy-cli-command" && relativePath === "packages/coding-agent/src/brand.ts") return false;
 	if (rule.scope === "all") return true;
 	const docsPath = relativePath === "README.md" || relativePath.startsWith("docs/");
 	if (rule.scope === "docs") return docsPath;

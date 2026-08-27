@@ -1,6 +1,6 @@
 # mini-marketplace
 
-A minimal `Chudware Code` marketplace catalog that demonstrates the `marketplace.json` format. It lists one plugin (`my-plugin`) using a relative path source.
+A minimal `Chudcode` marketplace catalog that demonstrates the `marketplace.json` format. It lists one plugin (`my-plugin`) using a relative path source.
 
 ## Install command
 
@@ -12,8 +12,8 @@ A minimal `Chudware Code` marketplace catalog that demonstrates the `marketplace
 Or from the CLI:
 
 ```
-chudware-code plugin marketplace add ./docs/skills/examples/mini-marketplace
-chudware-code plugin install my-plugin@example-marketplace
+chudcode plugin marketplace add ./docs/skills/examples/mini-marketplace
+chudcode plugin install my-plugin@example-marketplace
 ```
 
 ## What it demonstrates
@@ -35,4 +35,4 @@ mini-marketplace/
     index.ts              ← extension entry point
 ```
 
-Published and local marketplaces use the same catalog location. Chudware Code loads `.omp-plugin/marketplace.json` first and falls back to `.claude-plugin/marketplace.json` (the Claude Code-compatible path this example ships) inside the marketplace root. Point `/marketplace add` at this folder to load the example.
+Published and local marketplaces use the same catalog location. Chudcode loads `.omp-plugin/marketplace.json` first and falls back to `.claude-plugin/marketplace.json` (the Claude Code-compatible path this example ships) inside the marketplace root. Point `/marketplace add` at this folder to load the example.

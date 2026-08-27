@@ -1,5 +1,5 @@
 /**
- * Live status board for `chudware-code cleanse`.
+ * Live status board for `chudcode cleanse`.
  *
  * Interactive terminals get a transient board repainted in place: a phase
  * spinner (model resolution, checker discovery), one row per running checker,
@@ -21,7 +21,7 @@ const BAR_WIDTH = 16;
 const ACTIVITY_WIDTH = 96;
 const ERROR_WIDTH = 300;
 
-/** Rendering surface for one `chudware-code cleanse` run. */
+/** Rendering surface for one `chudcode cleanse` run. */
 export interface CleanseStatusBoard {
 	readonly interactive: boolean;
 	/** Print a permanent line above the live area (plain write when non-TTY). */

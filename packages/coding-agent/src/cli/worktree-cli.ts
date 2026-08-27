@@ -1,5 +1,5 @@
 /**
- * CLI handler for `chudware-code worktree` — list and clean up agent-managed worktrees.
+ * CLI handler for `chudcode worktree` — list and clean up agent-managed worktrees.
  *
  * Layout under `~/.omp/wt/`:
  *
@@ -9,7 +9,7 @@
  *   - **Task-isolation dirs** (`task/worktree.ts`): a wrapper dir with a
  *     compact `m` subdir mounted/cloned by `natives.isoStart`. Legacy `merged`
  *     subdirs are still recognized. `ensureIsolation` writes an ownership
- *     marker naming the live chudware-code process; a
+ *     marker naming the live chudcode process; a
  *     sandbox whose owner is still running is reported `live` and never
  *     removed without `--all`, so `clear` reclaims only crashed leftovers.
  *
@@ -36,7 +36,7 @@ export interface WorktreeEntry {
 	parentRepo?: string;
 	/** Branch name extracted from the parent's tracking file, when available. */
 	branch?: string;
-	/** When set, the entry is unhealthy and `chudware-code worktree clear` will remove it. */
+	/** When set, the entry is unhealthy and `chudcode worktree clear` will remove it. */
 	orphanReason?: string;
 }
 

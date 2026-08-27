@@ -1,5 +1,5 @@
 /**
- * Shared commit-execution helpers for the agentic and legacy `chudware-code commit`
+ * Shared commit-execution helpers for the agentic and legacy `chudcode commit`
  * pipelines: readable failure reporting for refusing git hooks and a push
  * wrapper that keeps a requested `--push` honest.
  */

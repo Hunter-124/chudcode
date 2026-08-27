@@ -1,6 +1,6 @@
 # hello-extension
 
-A minimal `Chudware Code` extension that demonstrates the two most common authoring patterns: subscribing to `session_start` to notify on load, and registering a `/hello` slash command that sends a greeting into the conversation. It is intentionally small — use it as a copy-paste starting point for your own extension.
+A minimal `Chudcode` extension that demonstrates the two most common authoring patterns: subscribing to `session_start` to notify on load, and registering a `/hello` slash command that sends a greeting into the conversation. It is intentionally small — use it as a copy-paste starting point for your own extension.
 
 ## Install
 
@@ -10,9 +10,9 @@ A minimal `Chudware Code` extension that demonstrates the two most common author
 cp -r . ~/.omp/agent/extensions/hello-extension
 ```
 
-Restart `chudware-code`. You will see the startup notification immediately.
+Restart `chudcode`. You will see the startup notification immediately.
 
-With `chudware-code --profile <name>`, use `~/.omp/profiles/<name>/agent/extensions/hello-extension` instead. `PI_CODING_AGENT_DIR` likewise changes the agent directory.
+With `chudcode --profile <name>`, use `~/.omp/profiles/<name>/agent/extensions/hello-extension` instead. `PI_CODING_AGENT_DIR` likewise changes the agent directory.
 
 **Option B — point the settings `extensions` array at it:**
 
@@ -25,12 +25,12 @@ extensions:
 **Option C — load once via CLI flag:**
 
 ```
-chudware-code --extension ./hello-extension
+chudcode --extension ./hello-extension
 ```
 
 ## Usage
 
-After loading, type `/hello` or `/hello Ada` in the Chudware Code prompt. The command sends a visible greeting custom message into the conversation and shows a "Message sent!" notification.
+After loading, type `/hello` or `/hello Ada` in the Chudcode prompt. The command sends a visible greeting custom message into the conversation and shows a "Message sent!" notification.
 
 ## What it demonstrates
 

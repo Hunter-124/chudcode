@@ -1,5 +1,5 @@
 /**
- * Types for `chudware-code gallery` sample data. See {@link ./index} for the aggregated
+ * Types for `chudcode gallery` sample data. See {@link ./index} for the aggregated
  * fixture registry and the contract each fixture must satisfy.
  */
 import type { EditMode } from "../../edit";

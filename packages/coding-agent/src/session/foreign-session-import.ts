@@ -32,7 +32,7 @@ export function foreignSessionInfoToSessionInfo(info: ForeignSessionInfo): Sessi
 	};
 }
 
-/** Import and persist one foreign session under a fresh Chudware Code session identity. */
+/** Import and persist one foreign session under a fresh Chudcode session identity. */
 export async function persistForeignSession(
 	store: ForeignSessionStore,
 	info: ForeignSessionInfo,

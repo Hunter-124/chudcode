@@ -1,8 +1,8 @@
 /**
  * Browser relay mode: drive the user's own Chrome tabs through the local CDP
- * relay served by `chudware-code browser-relay` (sibling `server.ts`/`bridge.ts`) plus
+ * relay served by `chudcode browser-relay` (sibling `server.ts`/`bridge.ts`) plus
  * its companion extension (`packages/browser-relay`, installed via
- * `chudware-code browser-relay install`). The relay impersonates Chrome's CDP discovery
+ * `chudcode browser-relay install`). The relay impersonates Chrome's CDP discovery
  * endpoint, so beyond kind resolution the entire connected-browser machinery
  * (registry, tab supervisor, tab workers) applies unchanged.
  */

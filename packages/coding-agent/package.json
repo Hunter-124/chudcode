@@ -28,6 +28,7 @@
   "main": "./src/index.ts",
   "types": "./src/index.ts",
   "bin": {
+    "chudcode": "src/cli.ts",
     "chudware-code": "src/cli.ts",
     "chcode": "src/cli.ts",
     "omp": "src/cli.ts"

@@ -1,5 +1,5 @@
 /**
- * Standalone TUI model picker used by `chudware-code setup speech`.
+ * Standalone TUI model picker used by `chudcode setup speech`.
  *
  * Mirrors {@link ./session-picker.ts} for the standalone-TUI lifecycle: spin up
  * a one-shot {@link TUI} over a {@link SelectList}, resolve on select/cancel, and

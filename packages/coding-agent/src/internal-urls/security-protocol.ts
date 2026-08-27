@@ -126,7 +126,7 @@ export class SecurityProtocolHandler implements ProtocolHandler {
 				content: [
 					"# Security",
 					"",
-					"Chudware Code-owned software-security analysis resources. The namespace is read-only; use explicit security commands or tools for mutations.",
+					"Chudcode-owned software-security analysis resources. The namespace is read-only; use explicit security commands or tools for mutations.",
 					"",
 					"- `security://scans` — list scans",
 					"",

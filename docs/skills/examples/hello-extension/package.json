@@ -1,9 +1,9 @@
 {
   "name": "hello-extension",
   "version": "1.0.0",
-  "description": "Minimal Chudware Code extension example",
+  "description": "Minimal Chudcode extension example",
   "homepage": "https://omp.sh",
-  "Chudware Code": {
+  "Chudcode": {
     "extensions": ["./index.ts"]
   }
 }

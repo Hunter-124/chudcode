@@ -1,7 +1,7 @@
 /**
  * Anchored overlay panel for `/cleanse`, mounted above the editor like the
  * `/omfg` panel. Implements {@link CleanseStatusBoard}, so the shared cleanse
- * core renders the exact live view `chudware-code cleanse` shows on stdout: transient
+ * core renders the exact live view `chudcode cleanse` shows on stdout: transient
  * checker/repair/agent rows from {@link CleanseBoardModel} animate in place while
  * permanent log lines accumulate above them.
  */

@@ -1,5 +1,5 @@
 /**
- * `chudware-code auth-broker` — manage the chudware-code credential vault.
+ * `chudcode auth-broker` — manage the chudcode credential vault.
  */
 
 import { Args, Command, Flags, renderCommandHelp } from "@oh-my-pi/pi-utils/cli";
@@ -53,20 +53,20 @@ export default class AuthBroker extends Command {
 	};
 
 	static examples = [
-		"# Boot the broker against the local SQLite store\n  chudware-code auth-broker serve",
-		"# Boot on a non-default port\n  chudware-code auth-broker serve --bind=127.0.0.1:9000",
-		"# Print the bearer token\n  chudware-code auth-broker token",
-		"# Rotate the bearer token\n  chudware-code auth-broker token --regenerate",
-		"# List supported OAuth providers\n  chudware-code auth-broker list",
-		"# Local login (run on the broker host)\n  chudware-code auth-broker login anthropic",
-		"# Interactive provider selection\n  chudware-code auth-broker login",
-		"# Remote login over SSH tunnel\n  chudware-code auth-broker login anthropic --via=user@broker",
-		"# Log out of a provider (interactive without provider arg)\n  chudware-code auth-broker logout anthropic",
-		"# Import a CLIProxyAPI auth dump\n  chudware-code auth-broker import ~/.cliproxy/auth",
-		"# Import a single CLIProxyAPI JSON, overriding the provider mapping\n  chudware-code auth-broker import ~/.cliproxy/auth/claude-foo.json --provider anthropic",
-		"# Preview a migration from local store + env vars to the configured broker\n  chudware-code auth-broker migrate --from-local --include-env --dry-run",
-		"# Apply the migration\n  chudware-code auth-broker migrate --from-local --include-env",
-		"# Health-check the configured remote broker\n  chudware-code auth-broker status",
+		"# Boot the broker against the local SQLite store\n  chudcode auth-broker serve",
+		"# Boot on a non-default port\n  chudcode auth-broker serve --bind=127.0.0.1:9000",
+		"# Print the bearer token\n  chudcode auth-broker token",
+		"# Rotate the bearer token\n  chudcode auth-broker token --regenerate",
+		"# List supported OAuth providers\n  chudcode auth-broker list",
+		"# Local login (run on the broker host)\n  chudcode auth-broker login anthropic",
+		"# Interactive provider selection\n  chudcode auth-broker login",
+		"# Remote login over SSH tunnel\n  chudcode auth-broker login anthropic --via=user@broker",
+		"# Log out of a provider (interactive without provider arg)\n  chudcode auth-broker logout anthropic",
+		"# Import a CLIProxyAPI auth dump\n  chudcode auth-broker import ~/.cliproxy/auth",
+		"# Import a single CLIProxyAPI JSON, overriding the provider mapping\n  chudcode auth-broker import ~/.cliproxy/auth/claude-foo.json --provider anthropic",
+		"# Preview a migration from local store + env vars to the configured broker\n  chudcode auth-broker migrate --from-local --include-env --dry-run",
+		"# Apply the migration\n  chudcode auth-broker migrate --from-local --include-env",
+		"# Health-check the configured remote broker\n  chudcode auth-broker status",
 	];
 
 	async run(): Promise<void> {

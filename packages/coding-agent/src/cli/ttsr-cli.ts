@@ -1,13 +1,13 @@
 /**
  * TTSR CLI command handlers.
  *
- * `chudware-code ttsr test` — feed a snippet (inline text, `--file`, or stdin) through the
+ * `chudcode ttsr test` — feed a snippet (inline text, `--file`, or stdin) through the
  * real TTSR matching pipeline (`TtsrManager.checkSnapshot` for regex conditions,
  * `checkAstSnapshot` for ast-grep conditions) and report which rules would
  * trigger. The match context (`--source`, `--tool`, `--path`) is honored so
  * glob/AST/scope-scoped rules evaluate the same way they do in a live session.
  *
- * `chudware-code ttsr list` — show every TTSR-registered rule the current project/user
+ * `chudcode ttsr list` — show every TTSR-registered rule the current project/user
  * config would load, with its conditions, scope, and source.
  */
 import * as fs from "node:fs";
