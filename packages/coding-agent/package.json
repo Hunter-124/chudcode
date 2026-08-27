@@ -28,6 +28,8 @@
   "main": "./src/index.ts",
   "types": "./src/index.ts",
   "bin": {
+    "chudware-code": "src/cli.ts",
+    "chcode": "src/cli.ts",
     "omp": "src/cli.ts"
   },
   "scripts": {

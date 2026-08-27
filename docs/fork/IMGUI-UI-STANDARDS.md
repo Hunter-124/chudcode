@@ -1,8 +1,8 @@
-# omp GUI — UI element standards
+# Chudware Code GUI — UI element standards
 
 Authority for the ImGui direction. Extracted from the maintained CAD GUI
 (`~/Repositories/CAD`, ~152k lines across 253 files under `host/src/ui/`,
-including 26 copilot files already wired to omp via the Bun bridge), then
+including 26 copilot files already wired to Chudware Code via the Bun bridge), then
 filtered to what a coding-agent client actually needs.
 
 CAD citations are given as `file:line` so each rule can be checked against a
@@ -53,7 +53,7 @@ Follow CAD, which is proven on Linux/Windows/macOS **and** WASM:
 **Decide up front, because CAD never did:** multi-viewport (detached windows) is
 **not** enabled in CAD — no `ImGuiConfigFlags_ViewportsEnable`,
 `UpdatePlatformWindows`, or `RenderPlatformWindowsDefault` anywhere. Pick a
-policy for omp and write it down here.
+policy for Chudware Code and write it down here.
 
 ## 2. Theme — semantic roles only
 
@@ -129,7 +129,7 @@ live-stream cap 420, code/diff cap 220 (`metrics.h:65-106`).
 ## 4. Widget vocabulary — the part to actually reuse
 
 `host/src/ui/widgets/kit.h` is the shared composite vocabulary. Adopt these
-signatures as omp's baseline; domain code **forwards** to them and never
+signatures as Chudware Code's baseline; domain code **forwards** to them and never
 redraws card/header/chip chrome itself (`kit.h:1-27`).
 
 - **Containers:** `cardBegin(id, title?, icon?, open?, tint?)` / `cardEnd()` /
@@ -166,7 +166,7 @@ merge** (`kit.cpp:468-473,547-551`).
 
 CAD has **no panel base class or registration table** — panels are imperative
 `drawX(AppState&)` functions invoked in app-frame order (`copilot.h:30-36`).
-That is a gap, not a model: **omp should define a panel contract** (panel id,
+That is a gap, not a model: **Chudware Code should define a panel contract** (panel id,
 title, state owner, draw entry, persistence key) instead of copying the ad hoc
 call order.
 
@@ -266,10 +266,10 @@ Each of these exists in CAD because it was a bug:
 2. **Widget consolidation is incomplete.** `kit.h:5-18` records an audit that
    found *eight* independent toolkits with duplicated empty states, section
    headers, chips and progress indicators. Verify a widget is not still
-   duplicated before declaring it the omp convention.
+   duplicated before declaring it the Chudware Code convention.
 3. **The referenced style guide does not exist.** `metrics.h:3-8` cites
    `docs/GUI_STYLE_GUIDE.md` as the design authority; no such file is in the
-   checkout. **This document is that file for omp** — keep it current.
+   checkout. **This document is that file for Chudware Code** — keep it current.
 4. **No panel lifecycle contract** (see §5).
 5. **No multi-viewport decision** (see §1).
 6. **Copilot internals are private** (`copilot_internal.h:1-4`). Promote only

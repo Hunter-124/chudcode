@@ -1,4 +1,4 @@
-# Hunter's oh-my-pi requirement set
+# Hunter's Chudware Code requirement set
 
 Source: Hunter (Hunter-124), with ideas contributed by his brothers
 (github.com/iamnotyobabydaddy, github.com/CharlesEdmonds). Captured verbatim in
@@ -6,13 +6,13 @@ intent, reorganized for execution. This is the authoritative statement of what
 we are trying to achieve; workers should read this before designing anything.
 
 Two consumer projects must eventually adopt these changes: `Hunter-124/CloudCastle`
-and `Hunter-124/CAD` (both PRIVATE, must stay private). Both embed OMP sidecars.
+and `Hunter-124/CAD` (both PRIVATE, must stay private). Both embed Chudware Code sidecars.
 CAD in particular also supports software-development workflows inside itself, so
 UI/UX and agent-model changes need to be portable there.
 
 ## Guiding intent
 
-- omp is meant to be customizable, but the surface has grown far past useful.
+- Chudware Code is meant to be customizable, but the surface has grown far past useful.
   Fewer, better defaults; everything still reachable via config file or an
   explicit "advanced" mode. Removing a setting must never remove a capability.
 - Transparency over cleverness: the user must be able to see what model is
@@ -69,7 +69,7 @@ UI/UX and agent-model changes need to be portable there.
 ## P2 — capability
 
 10. **Auto-update.** An update notifier exists but never applies anything; a full
-    `omp update` self-updater also already exists and is simply not wired to it.
+    `chudware-code update` self-updater also already exists and is simply not wired to it.
     Wanted: opt-in automatic download/build+apply. Live mid-session hot-swap is
     not feasible (frozen module graph in the compiled binary, in-memory session
     state); stage-and-apply-on-next-launch is the realistic design.

@@ -1,12 +1,13 @@
 /**
  * Config CLI command handlers.
  *
- * Handles `omp config <command>` subcommands for managing settings.
+ * Handles `chudware-code config <command>` subcommands for managing settings.
  * Uses the settings schema as the source of truth for available settings.
  */
 
-import { APP_NAME, getAgentDir } from "@oh-my-pi/pi-utils";
+import { getAgentDir } from "@oh-my-pi/pi-utils";
 import chalk from "@oh-my-pi/pi-utils/chalk";
+import { PRODUCT_CLI_NAME } from "../brand";
 import {
 	getDefault,
 	getEnumValues,
@@ -337,15 +338,15 @@ async function handleList(flags: { json?: boolean }): Promise<void> {
 
 function handleGet(key: string | undefined, flags: { json?: boolean }): void {
 	if (!key) {
-		console.error(chalk.red(`Usage: ${APP_NAME} config get <key>`));
-		console.error(chalk.dim(`\nRun '${APP_NAME} config list' to see available keys`));
+		console.error(chalk.red(`Usage: ${PRODUCT_CLI_NAME} config get <key>`));
+		console.error(chalk.dim(`\nRun '${PRODUCT_CLI_NAME} config list' to see available keys`));
 		process.exit(1);
 	}
 
 	const def = findSettingDef(key);
 	if (!def) {
 		console.error(chalk.red(`Unknown setting: ${key}`));
-		console.error(chalk.dim(`\nRun '${APP_NAME} config list' to see available keys`));
+		console.error(chalk.dim(`\nRun '${PRODUCT_CLI_NAME} config list' to see available keys`));
 		process.exit(1);
 	}
 
@@ -361,15 +362,15 @@ function handleGet(key: string | undefined, flags: { json?: boolean }): void {
 
 async function handleSet(key: string | undefined, value: string | undefined, flags: { json?: boolean }): Promise<void> {
 	if (!key || value === undefined) {
-		console.error(chalk.red(`Usage: ${APP_NAME} config set <key> <value>`));
-		console.error(chalk.dim(`\nRun '${APP_NAME} config list' to see available keys`));
+		console.error(chalk.red(`Usage: ${PRODUCT_CLI_NAME} config set <key> <value>`));
+		console.error(chalk.dim(`\nRun '${PRODUCT_CLI_NAME} config list' to see available keys`));
 		process.exit(1);
 	}
 
 	const def = findSettingDef(key);
 	if (!def) {
 		console.error(chalk.red(`Unknown setting: ${key}`));
-		console.error(chalk.dim(`\nRun '${APP_NAME} config list' to see available keys`));
+		console.error(chalk.dim(`\nRun '${PRODUCT_CLI_NAME} config list' to see available keys`));
 		process.exit(1);
 	}
 
@@ -392,15 +393,15 @@ async function handleSet(key: string | undefined, value: string | undefined, fla
 
 async function handleReset(key: string | undefined, flags: { json?: boolean }): Promise<void> {
 	if (!key) {
-		console.error(chalk.red(`Usage: ${APP_NAME} config reset <key>`));
-		console.error(chalk.dim(`\nRun '${APP_NAME} config list' to see available keys`));
+		console.error(chalk.red(`Usage: ${PRODUCT_CLI_NAME} config reset <key>`));
+		console.error(chalk.dim(`\nRun '${PRODUCT_CLI_NAME} config list' to see available keys`));
 		process.exit(1);
 	}
 
 	const def = findSettingDef(key);
 	if (!def) {
 		console.error(chalk.red(`Unknown setting: ${key}`));
-		console.error(chalk.dim(`\nRun '${APP_NAME} config list' to see available keys`));
+		console.error(chalk.dim(`\nRun '${PRODUCT_CLI_NAME} config list' to see available keys`));
 		process.exit(1);
 	}
 
@@ -430,7 +431,7 @@ function handlePath(): void {
 // =============================================================================
 
 export function printConfigHelp(): void {
-	console.log(`${chalk.bold(`${APP_NAME} config`)} - Manage settings
+	console.log(`${chalk.bold(`${PRODUCT_CLI_NAME} config`)} - Manage settings
 
 ${chalk.bold("Commands:")}
   list               List all settings with current values
@@ -444,14 +445,14 @@ ${chalk.bold("Options:")}
   --json             Output as JSON
 
 ${chalk.bold("Examples:")}
-  ${APP_NAME} config list
-  ${APP_NAME} config get theme
-  ${APP_NAME} config set theme catppuccin-mocha
-  ${APP_NAME} config set compaction.enabled false
-  ${APP_NAME} config set defaultThinkingLevel medium
-  ${APP_NAME} config reset steeringMode
-  ${APP_NAME} config list --json
-  ${APP_NAME} config init-xdg
+  ${PRODUCT_CLI_NAME} config list
+  ${PRODUCT_CLI_NAME} config get theme
+  ${PRODUCT_CLI_NAME} config set theme catppuccin-mocha
+  ${PRODUCT_CLI_NAME} config set compaction.enabled false
+  ${PRODUCT_CLI_NAME} config set defaultThinkingLevel medium
+  ${PRODUCT_CLI_NAME} config reset steeringMode
+  ${PRODUCT_CLI_NAME} config list --json
+  ${PRODUCT_CLI_NAME} config init-xdg
 
 ${chalk.bold("Boolean Values:")}
   true, false, yes, no, on, off, 1, 0

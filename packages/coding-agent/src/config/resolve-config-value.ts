@@ -93,7 +93,7 @@ export async function runShellCommand(command: string, timeoutMs: number): Promi
 		}
 	}
 	try {
-		// Absolute OS shell, not a PATH-resolved name: a launcher may hand omp a
+		// Absolute OS shell, not a PATH-resolved name: a launcher may hand chudware-code a
 		// minimal tool-only PATH (same shape as execSync's default shell).
 		const result = await ptree.exec(["/bin/sh", "-c", command], {
 			timeout: timeoutMs,

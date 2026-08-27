@@ -364,7 +364,7 @@ export function extractImagePathFromText(text: string): string | undefined {
 
 /**
  * Resolve the {@link EditorTheme} from a `CustomEditor`/`Editor` constructor
- * argument list, tolerating both the omp `(theme)` and upstream-pi
+ * argument list, tolerating both the chudware-code `(theme)` and upstream-pi
  * `(tui, theme, keybindings)` conventions (see {@link CustomEditor}'s
  * constructor). A real `EditorTheme` is identified structurally — it exposes a
  * `borderColor` function and a `symbols` object — so a `TUI` passed in the first
@@ -449,7 +449,7 @@ export class CustomEditor extends Editor {
 	tui?: TUI;
 
 	/**
-	 * Accept both the omp constructor convention — `new CustomEditor(theme)` —
+	 * Accept both the chudware-code constructor convention — `new CustomEditor(theme)` —
 	 * and the upstream-pi `Editor` convention — `new Editor(tui, theme, keybindings)`
 	 * — that {@link ExtensionUIContext.setEditorComponent}'s factory contract
 	 * advertises `(tui, theme, keybindings)`. Plugins written against upstream pi

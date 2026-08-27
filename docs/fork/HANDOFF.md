@@ -1,4 +1,4 @@
-# Handoff — oh-my-pi fork effort, 2026-08-27
+# Handoff — Chudware Code fork effort, 2026-08-27
 
 Complete record of everything raised in this session. Nothing here is dropped
 silently: every item is either DONE, FILED upstream, BLOCKED on a named person,
@@ -81,7 +81,7 @@ whoever submits it — upstream closes PRs that lack it.
 | Cursor model classification | `feat/catalog-cursor-effort-and-release-date` |
 | Model pruning by age | Same branch — `releaseDate` + recency predicate (catalog had **no** date field; models.dev publishes one) |
 | `/models` needing multiple Esc | `feat/opt-in-escape-dismiss`, opt-in because upstream has a **test asserting** the two-step behaviour |
-| Anti-sleep on Linux/Windows | `feat/cross-platform-antisleep`. Proven live: `omp … idle … block` in `systemd-inhibit --list` while held, absent after release |
+| Anti-sleep on Linux/Windows | `feat/cross-platform-antisleep`. Proven live: `chudware-code … idle … block` in `systemd-inhibit --list` while held, absent after release |
 | Your `/tmp` crashes | 7.54 GB reclaimed; disk-backed `TMPDIR` + weekly prune timer installed. `CRASH-MITIGATIONS.md` |
 | Your status bar missing usage | `~/.omp/agent/config.yml` — added `usage`, `context_pct`, `context_total`, `cost`. The segment was in **zero presets** upstream |
 | Fork + collaborators | `Hunter-124/oh-my-pi`; Michael, Charles, Simon invited with write |
@@ -103,7 +103,7 @@ whoever submits it — upstream closes PRs that lack it.
 | **Chat history corruption** | Mostly fixed upstream already | Orphaned `tool_use`/`tool_result` pairs **are** repaired at the wire layer; compaction cannot orphan them by construction. Remaining: no user-invocable session repair/doctor command, and `/tree` is the only user-reachable recovery |
 | **Windows crash on login** | Not diagnosed | Needs a real stack trace or log from one of the affected Windows machines. Cannot responsibly file without it |
 | **Perf audit of our fork** | **NOT RUN** — I dropped it | It was in a dispatch that got interrupted and I re-sent the batch without it. Re-dispatch: startup cost, per-render work, per-render git, repeated I/O, `structuredClone` on the undo path, subprocess churn |
-| **CloudCastle + CAD onto our fork** | Audited, not executed | CAD is **insulated**: it vendors only `ai`/`catalog`/`utils`/`wire`/`mnemopi`/`snapcompact` at a pinned SHA — deliberately not omp's agent/role/TUI engine. So the roles merge, settings work and status-bar work cannot break it. It *does* inherit the OAuth bug verbatim, so re-vendoring fixes that free. Run `scripts/vendor_omp.py` against the fork |
+| **CloudCastle + CAD onto our fork** | Audited, not executed | CAD is **insulated**: it vendors only `ai`/`catalog`/`utils`/`wire`/`mnemopi`/`snapcompact` at a pinned SHA — deliberately not Chudware Code's agent/role/TUI engine. So the roles merge, settings work and status-bar work cannot break it. It *does* inherit the OAuth bug verbatim, so re-vendoring fixes that free. Run `scripts/vendor_omp.py` against the fork |
 
 ### Blocked on a person
 
@@ -112,21 +112,21 @@ whoever submits it — upstream closes PRs that lack it.
 | **Discord post** | You | Message is **staged and verified** in `#💡-feature-requests` on `bruh_button`: 1729 chars, under the 2000 limit. **Click the tab and press Enter.** I cannot: Discord rejects synthetic keys, and your session blocks every fallback (`capture:false`, `backgroundWindowInput:false`, Brave is native Wayland so `xdotool` can't reach it, `ydotool`/`wtype` absent, `/dev/uinput` root-only). It also folds in your own 4:33 AM ctrl+z/y request |
 | **Submit remaining PRs** | Michael | 5 branches + bodies in `PR-BODIES.md`. Each needs one sentence in his own words |
 | **tmpfs cap** | You | `sudo systemctl edit tmp.mount` → `Options=mode=1777,strictatime,nosuid,nodev,size=2G,nr_inodes=1m` |
-| **`task.maxConcurrency`** | You | Left at 32 per your call. It means up to 32 full agent sessions in **one** Bun heap, and nesting gives each level a fresh 32. If crashes continue, wrap heavy sessions: `systemd-run --user --scope -p MemoryMax=8G omp` |
+| **`task.maxConcurrency`** | You | Left at 32 per your call. It means up to 32 full agent sessions in **one** Bun heap, and nesting gives each level a fresh 32. If crashes continue, wrap heavy sessions: `systemd-run --user --scope -p MemoryMax=8G Chudware Code` |
 
-### 4b. Pseudosandbox — working today, zero omp changes
+### 4b. Pseudosandbox — working today, zero Chudware Code changes
 
 This came out better than expected. **Display targeting is purely
 environment-driven**, so an isolated agent desktop needs no code change at all.
 
 `crates/pi-natives/src/desktop/linux/mod.rs:11-21` presence-tests
 `WAYLAND_DISPLAY`, then `DISPLAY`; X11 connects via `x11rb::connect(None)`, i.e.
-`$DISPLAY`. So pointing omp at a nested X server is sufficient.
+`$DISPLAY`. So pointing Chudware Code at a nested X server is sufficient.
 
 **Why X11 and not a nested Wayland compositor:** the shipped native is built
 without `wayland-pipewire`, so `capture` is `false`, and
 `background_window_input` is hardcoded `false` for *any* Wayland compositor. A
-nested Wayland seat would give omp nothing. A nested X11 seat gives it the full
+nested Wayland seat would give Chudware Code nothing. A nested X11 seat gives it the full
 feature set. Filed upstream as
 [#9935](https://github.com/can1357/oh-my-pi/issues/9935).
 
@@ -143,8 +143,8 @@ WAYLAND_DISPLAY unset, DISPLAY=:90    → capture:true, input:true, ax:true,
 It must be unset.
 
 Prototype at `sandbox-prototype/` (29 evidence artifacts). `./run.sh` starts an
-Xvfb seat, launches Brave into it, and has omp's own native capture, click and
-type. Proven by a window-title oracle (`OMP-SEAT clicks=1 typed=omp-seat-ok<CR>`)
+Xvfb seat, launches Brave into it, and has Chudware Code's own native capture, click and
+type. Proven by a window-title oracle (`Chudware Code-SEAT clicks=1 typed=omp-seat-ok<CR>`)
 and a pixel-colour count (red 77784px→0, green 0→77393px). Your session was
 verified bit-identical before/after — pointer position, active output, X
 connection counts. Two disjoint X servers; XTEST structurally cannot cross them.
@@ -155,10 +155,10 @@ Teardown took 10 Brave pids → 0. Seat startup 0.06s; two seats coexist on
 
 ```bash
 eval $(sandbox-prototype/seat.sh start "omp-$$")
-env -u WAYLAND_DISPLAY DISPLAY=$DISPLAY XAUTHORITY=$XAUTHORITY omp
+env -u WAYLAND_DISPLAY DISPLAY=$DISPLAY XAUTHORITY=$XAUTHORITY Chudware Code
 ```
 
-One omp process per seat. Subagents inside that process share the parent's seat.
+One Chudware Code process per seat. Subagents inside that process share the parent's seat.
 
 **Option B — per-session seats, needs a small native plumb.** Bun's `new Worker`
 is a *thread* (same pid) and Bun ignores its `env` option, so per-session
@@ -195,12 +195,12 @@ processes with cwds there. `/tmp` is now 2.0 G (was 8.0 G); 23 open handles and
 prototype:
 
 ```
-omp-seat run                    # omp on its own isolated display
-omp-seat run -- omp --resume     # any argv
+omp-seat run                    # Chudware Code on its own isolated display
+omp-seat run -- Chudware Code --resume     # any argv
 omp-seat start <name> / stop / list
 ```
 
-Verified end to end: inside the seat omp reports `backend:x11, capture:true,
+Verified end to end: inside the seat Chudware Code reports `backend:x11, capture:true,
 input:true, ax:true, backgroundWindowInput:true, displayCount:1,
 displayServer:":90"` — every capability that is broken on your real Wayland
 session — and teardown leaves zero stray Xvfb processes.
@@ -227,7 +227,7 @@ same commit, across 5400+ commits of drift in the vendored packages, and I can't
 validate CAD's bridge without its C++ core running. Not doing that unattended.
 
 CloudCastle was not audited. Check first whether it vendors source or spawns the
-`omp` CLI — a CLI consumer *is* affected by the `coding-agent` changes CAD is
+`chudware-code` CLI — a CLI consumer *is* affected by the `coding-agent` changes CAD is
 immune to.
 
 ### Perf audit — DONE (the one I dropped)
@@ -274,7 +274,7 @@ enquiry.
 
 - **Subagents are in-process**, not separate processes (`task/executor.ts` builds `AgentSession` objects), so `task.maxConcurrency` is a memory knob, not just a parallelism knob.
 - **It is not a memory leak.** Nothing grows monotonically. The only provably unbounded structures (`AgentRegistry#refs`, `DaemonBroker#records`) are metadata-sized. The cost is high steady state + zero admission control.
-- **The mnemopi embed worker** holds a full ONNX runtime + model (~774 MB measured) **per omp process**, with no idle teardown. Lazily spawned, so exposure is latent.
+- **The mnemopi embed worker** holds a full ONNX runtime + model (~774 MB measured) **per Chudware Code process**, with no idle teardown. Lazily spawned, so exposure is latent.
 - **`/ssh` cannot be closed** — it prints a `TranscriptBlock` into scrollback rather than opening a surface.
 - **Cache reads are priced correctly.** I expected a bug and there isn't one.
 - **The `usage` segment already existed.** Several "missing features" here turned out to be unwired or unpresetted rather than absent — check before building.
@@ -290,5 +290,5 @@ enquiry.
 - `CRASH-MITIGATIONS.md` — the three stacked causes of the machine-wide crashes
 - `sandbox-prototype/` — the isolated-seat prototype and 29 evidence artifacts
 - `oh-my-pi/ACKNOWLEDGEMENTS.md` — who contributed what, and why attribution is not distributed evenly
-- Desktop: `OMP-1-DISCORD.md`, `OMP-2-SUBMIT-PRS.md`, `OMP-3-STATUS.md`
-- Installed: `~/.local/bin/omp-seat` — run omp on its own isolated display
+- Desktop: `Chudware Code-1-DISCORD.md`, `Chudware Code-2-SUBMIT-PRS.md`, `Chudware Code-3-STATUS.md`
+- Installed: `~/.local/bin/omp-seat` — run Chudware Code on its own isolated display

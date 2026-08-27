@@ -1,6 +1,6 @@
 # safety-hook
 
-An `oh-my-pi` extension that demonstrates `tool_call` blocking. It intercepts `bash` tool calls and returns `{ block: true, reason: "..." }` when the command contains `rm -rf /` with normal whitespace, preventing the tool from executing.
+An `Chudware Code` extension that demonstrates `tool_call` blocking. It intercepts `bash` tool calls and returns `{ block: true, reason: "..." }` when the command contains `rm -rf /` with normal whitespace, preventing the tool from executing.
 
 ## What it demonstrates
 
@@ -14,12 +14,12 @@ An `oh-my-pi` extension that demonstrates `tool_call` blocking. It intercepts `b
 cp -r . ~/.omp/agent/extensions/safety-hook
 ```
 
-Restart `omp`. The hook is active for all sessions.
+Restart `chudware-code`. The hook is active for all sessions.
 
 Or load once:
 
 ```
-omp --extension ./safety-hook
+chudware-code --extension ./safety-hook
 ```
 
 ## How it works

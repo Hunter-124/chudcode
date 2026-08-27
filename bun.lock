@@ -75,6 +75,8 @@
       "name": "@oh-my-pi/pi-coding-agent",
       "version": "18.0.8",
       "bin": {
+        "chudware-code": "src/cli.ts",
+        "chcode": "src/cli.ts",
         "omp": "src/cli.ts",
       },
       "dependencies": {

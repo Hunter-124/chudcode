@@ -1,4 +1,4 @@
-/** omp web palette bundled into standalone exports and the share viewer. */
+/** chudware-code web palette bundled into standalone exports and the share viewer. */
 export type WebExportScheme = "dark" | "light";
 
 const COMMON_EXPORT_PALETTE = {
