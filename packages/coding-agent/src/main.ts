@@ -6,12 +6,14 @@
  */
 import * as fsSync from "node:fs";
 import * as os from "node:os";
+import * as path from "node:path";
 import { createInterface } from "node:readline/promises";
 import { EventLoopKeepalive, type ThinkingLevel } from "@oh-my-pi/pi-agent-core";
 import type { ImageContent, Model } from "@oh-my-pi/pi-ai";
 import {
 	$env,
 	directoryIsMissing,
+	getAgentDir,
 	getLogPath,
 	getProjectDir,
 	isBunTestRuntime,
@@ -30,7 +32,7 @@ import { processFileArguments } from "./cli/file-processor";
 import { buildInitialMessage } from "./cli/initial-message";
 import { selectSession } from "./cli/session-picker";
 import { applyStartupCwd } from "./cli/startup-cwd";
-import { getLatestRelease } from "./cli/update-cli";
+import { getLatestRelease, stageAutomaticUpdate } from "./cli/update-cli";
 import { findConfigFile } from "./config";
 import { ModelRegistry } from "./config/model-registry";
 import {
@@ -122,17 +124,87 @@ export function writeStartupNotice(parsedArgs: Pick<Args, "mode">, text: string)
 	(parsedArgs.mode === "json" ? process.stderr : process.stdout).write(text);
 }
 
-async function checkForNewVersion(currentVersion: string): Promise<string | undefined> {
-	if (!settings.get("startup.checkUpdate")) {
-		return;
-	}
+export type StartupUpdateMode = "off" | "notify" | "auto";
+
+export const VERSION_CHECK_INTERVAL_MS = 6 * 60 * 60 * 1_000;
+
+interface VersionCheckCache {
+	checkedAt: number;
+	latestVersion?: string;
+}
+
+interface VersionCheckOptions {
+	mode?: StartupUpdateMode;
+	cachePath?: string;
+	now?: number;
+}
+
+export function resolveStartupUpdateMode(checkUpdate: boolean, autoUpdate: StartupUpdateMode): StartupUpdateMode {
+	// The legacy boolean remains the master switch so existing opt-outs do not
+	// start making network requests after the richer policy setting is added.
+	return checkUpdate ? autoUpdate : "off";
+}
+
+async function readVersionCheckCache(cachePath: string): Promise<VersionCheckCache | undefined> {
 	try {
-		const channel = settings.get("update.channel");
-		const release = await getLatestRelease({ timeoutMs: 5_000, channel });
-		return Bun.semver.order(release.version, currentVersion) > 0 ? release.version : undefined;
+		const value = (await Bun.file(cachePath).json()) as Partial<VersionCheckCache>;
+		if (
+			typeof value.checkedAt !== "number" ||
+			(value.latestVersion !== undefined && typeof value.latestVersion !== "string")
+		) {
+			return undefined;
+		}
+		return { checkedAt: value.checkedAt, latestVersion: value.latestVersion };
 	} catch {
 		return undefined;
 	}
+}
+
+async function writeVersionCheckCache(cachePath: string, value: VersionCheckCache): Promise<void> {
+	try {
+		await Bun.write(cachePath, JSON.stringify(value));
+	} catch {}
+}
+
+function newerVersion(latestVersion: string | undefined, currentVersion: string): string | undefined {
+	if (!latestVersion) return undefined;
+	try {
+		return Bun.semver.order(latestVersion, currentVersion) > 0 ? latestVersion : undefined;
+	} catch {
+		return undefined;
+	}
+}
+
+export async function checkForNewVersion(
+	currentVersion: string,
+	options: VersionCheckOptions = {},
+): Promise<string | undefined> {
+	const mode =
+		options.mode ?? resolveStartupUpdateMode(settings.get("startup.checkUpdate"), settings.get("startup.autoUpdate"));
+	if (mode === "off") return undefined;
+
+	const now = options.now ?? Date.now();
+	// Mirrors the small last-changelog-version marker kept in the agent state
+	// directory instead of dirtying the user's settings file on every launch.
+	const cachePath = options.cachePath ?? path.join(getAgentDir(), "version-check-cache.json");
+	const cached = await readVersionCheckCache(cachePath);
+	// Six hours keeps frequent shell launches local while still discovering a
+	// same-day release. The promise stays detached from first paint, so even the
+	// cache read never gates interactive startup.
+	if (cached && now >= cached.checkedAt && now - cached.checkedAt < VERSION_CHECK_INTERVAL_MS) {
+		return newerVersion(cached.latestVersion, currentVersion);
+	}
+
+	let latestVersion = cached?.latestVersion;
+	try {
+		const release = await getLatestRelease({ timeoutMs: 5_000, channel: settings.get("update.channel") });
+		latestVersion = release.version;
+	} catch {}
+
+	// Record the attempt even when the registry is unavailable; otherwise a
+	// transient outage makes every shell launch retry and defeats the throttle.
+	await writeVersionCheckCache(cachePath, { checkedAt: now, latestVersion });
+	return newerVersion(latestVersion, currentVersion);
 }
 
 // Todo settings are caller-controlled in protocol modes. Do not host-default them:
@@ -484,6 +556,7 @@ async function runInteractiveMode(
 	startupChangelog: StartupChangelogSelection | undefined,
 	notifs: (InteractiveModeNotify | null)[],
 	versionCheckPromise: Promise<string | undefined>,
+	startupUpdateMode: StartupUpdateMode,
 	initialMessages: string[],
 	setExtensionUIContext: (uiContext: ExtensionUIContext, hasUI: boolean) => void,
 	lspServers: LspStartupServerInfo[] | undefined,
@@ -572,12 +645,17 @@ async function runInteractiveMode(
 		mode.renderInitialMessages({ preserveExistingChat: true }),
 	);
 	// A resolved version check must not insert its banner into a partial transcript.
-	checkedVersionPromise.then(newVersion => {
-		if (!settings.get("startup.checkUpdate")) {
+	checkedVersionPromise.then(async newVersion => {
+		if (!newVersion || startupUpdateMode === "off") return;
+		if (startupUpdateMode === "notify") {
+			mode.showNewVersionNotification(newVersion);
 			return;
 		}
-		if (newVersion) {
+		const result = await stageAutomaticUpdate(newVersion);
+		if (result.status === "staged") {
 			mode.showNewVersionNotification(newVersion);
+		} else {
+			mode.showWarning(`Automatic update to ${newVersion} was skipped: ${result.reason}. Run: omp update`);
 		}
 	});
 
@@ -2031,7 +2109,11 @@ export async function runRootCommand(
 				stopStartupWatchdog();
 				await runRpcMode(session, mode === "rpc-ui" ? setToolUIContext : undefined, eventBus, rpcInput);
 			} else if (isInteractive) {
-				const versionCheckPromise = checkForNewVersion(VERSION).catch(() => undefined);
+				const startupUpdateMode = resolveStartupUpdateMode(
+					settingsInstance.get("startup.checkUpdate"),
+					settingsInstance.get("startup.autoUpdate"),
+				);
+				const versionCheckPromise = checkForNewVersion(VERSION, { mode: startupUpdateMode }).catch(() => undefined);
 				const startupChangelog = await startupChangelogPromise;
 
 				const modelScopeNotification = buildModelScopeNotification(
@@ -2061,6 +2143,7 @@ export async function runRootCommand(
 						startupChangelog,
 						notifs,
 						versionCheckPromise,
+						startupUpdateMode,
 						initialArgs.messages,
 						setToolUIContext,
 						lspServers,

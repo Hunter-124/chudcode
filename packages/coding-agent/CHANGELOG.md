@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Added
+
+- Added `startup.autoUpdate` (`off` / `notify` / `auto`, default `notify`) to optionally stage `omp update` automatically on startup; staged updates apply on next launch rather than mid-session, and raw-binary installs verify the release asset's SHA-256 digest against GitHub's published checksum and fail closed on any mismatch.
+
 ## [18.0.8] - 2026-08-27
 
 ### Added

@@ -350,6 +350,8 @@ export async function downloadVerifiedBinary(options: VerifiedBinaryDownloadOpti
 	}
 }
 
+export type AutomaticUpdateResult = { status: "staged"; method: UpdateMethod } | { status: "skipped"; reason: string };
+
 /** Result from running the installed binary and parsing its reported version. */
 export interface InstalledVersionVerification {
 	ok: boolean;
@@ -2044,6 +2046,78 @@ export async function runUpdateCommand(opts: {
 	} catch (err) {
 		console.error(chalk.red(`Update failed: ${err}`));
 		process.exit(1);
+	}
+}
+
+/**
+ * Stage an update for the next launch while the current process keeps
+ * executing its already-loaded version — the running build never mutates
+ * mid-session. Routes through the exact same install machinery as
+ * `omp update` (package-manager, Homebrew/mise, or raw-binary), so a
+ * raw-binary asset is still SHA-256/size verified against GitHub's published
+ * digest by {@link downloadVerifiedBinary} and fails closed on any mismatch.
+ * stdout is muted for the duration: this runs unattended in the background
+ * during interactive startup, and the manager/binary install machinery's own
+ * progress logging would otherwise corrupt the TUI's raw-mode frame.
+ */
+export async function stageAutomaticUpdate(expectedVersion: string): Promise<AutomaticUpdateResult> {
+	// Published npm/bun installs execute dist/cli.js and release binaries run
+	// from Bun's virtual filesystem. src/cli.ts therefore identifies a source
+	// install, including bun link, whose owning Git checkout must never be
+	// mutated by an unattended update.
+	const entryPath = tryRealpath(Bun.main) ?? path.resolve(Bun.main);
+	if (path.basename(entryPath).toLowerCase() === "cli.ts" && path.basename(path.dirname(entryPath)) === "src") {
+		return {
+			status: "skipped",
+			reason: "source and bun link checkouts are user-managed and cannot be auto-updated",
+		};
+	}
+
+	const originalLog = console.log;
+	const originalError = console.error;
+	console.log = () => {};
+	console.error = () => {};
+	try {
+		const channel = readPersistedChannel() ?? "stable";
+		const release = await getLatestRelease({ channel });
+		if (compareVersions(release.version, expectedVersion) < 0) {
+			// A registry mirror or transient race resolved something older than
+			// what the caller's own check just observed; never install a downgrade.
+			return {
+				status: "skipped",
+				reason: `latest release ${release.version} is older than the detected ${expectedVersion}`,
+			};
+		}
+		const forceBinary = shouldForceBinaryUpdate(release);
+		const allowPrerelease = channel === "canary";
+		const target = await resolveUpdateTarget({ allowPackageManagers: !forceBinary });
+		if (target.method === "nix" || (channel === "canary" && (target.method === "brew" || target.method === "mise"))) {
+			return { status: "skipped", reason: `${target.method} installs are not eligible for automatic updates` };
+		}
+		if (target.method === "brew") {
+			await updateViaHomebrew(release.version, false);
+		} else if (target.method === "mise") {
+			await updateViaMise(release.version, false);
+		} else if (target.method === "bun" || target.method === "npm") {
+			if (forceBinary) {
+				if (!target.path) throw new Error(`Could not resolve ${APP_NAME} launcher path in PATH`);
+				await updateViaShimTakeover(target.path, release.version, { allowPrerelease });
+			} else {
+				await updateViaManager(
+					release,
+					target.path,
+					packageManagerUpdateSteps(target.method, release, allowPrerelease),
+				);
+			}
+		} else {
+			await updateViaBinaryAt(target.path, release.version, { allowPrerelease });
+		}
+		return { status: "staged", method: target.method };
+	} catch (err) {
+		return { status: "skipped", reason: err instanceof Error ? err.message : String(err) };
+	} finally {
+		console.log = originalLog;
+		console.error = originalError;
 	}
 }
 

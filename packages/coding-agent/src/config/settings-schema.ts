@@ -2153,6 +2153,23 @@ export const SETTINGS_SCHEMA = {
 		},
 	},
 
+	"startup.autoUpdate": {
+		type: "enum",
+		values: ["off", "notify", "auto"] as const,
+		default: "notify",
+		ui: {
+			tab: "interaction",
+			group: "Startup & Updates",
+			label: "Application Auto-Update",
+			description: "Check for omp updates on startup. Disabling Check for Updates forces this setting off.",
+			options: [
+				{ value: "off", label: "Off", description: "Don't check for omp updates" },
+				{ value: "notify", label: "Notify", description: "Check on startup and notify when updates are available" },
+				{ value: "auto", label: "Auto", description: "Check on startup and stage updates for the next launch" },
+			],
+		},
+	},
+
 	"marketplace.autoUpdate": {
 		type: "enum",
 		values: ["off", "notify", "auto"] as const,

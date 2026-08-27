@@ -991,15 +991,18 @@ export class UiHelpers {
 	}
 
 	showNewVersionNotification(newVersion: string): void {
+		const automatic = settings.get("startup.checkUpdate") && settings.get("startup.autoUpdate") === "auto";
+		const title = automatic ? "Update Staged" : "Update Available";
+		const prefix = automatic
+			? `Version ${newVersion} was staged and will be used on the next launch.`
+			: `New version ${newVersion} is available. Run: `;
+		const command = automatic ? "" : "omp update";
 		const block = new TranscriptBlock();
 		block.addChild(new DynamicBorder(text => theme.fg("warning", text)));
-		const title = "Update Available";
-		const prefix = `New version ${newVersion} is available. Run: `;
-		const command = "omp update";
 		block.addChild(
 			new Text(`${title}\n${prefix}${command}`, 1, 0).setStyleFn(
 				() =>
-					`${theme.bold(theme.fg("warning", title))}\n${theme.fg("muted", prefix)}${theme.fg("accent", command)}`,
+					`${theme.bold(theme.fg("warning", title))}\n${theme.fg("muted", prefix)}${command ? theme.fg("accent", command) : ""}`,
 			),
 		);
 		block.addChild(new DynamicBorder(text => theme.fg("warning", text)));
