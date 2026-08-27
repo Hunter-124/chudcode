@@ -33,6 +33,7 @@ import {
 	AUTO_THINKING,
 	type ConfiguredThinkingLevel,
 	concreteThinkingLevel,
+	parseConfiguredThinkingLevel,
 	parseThinkingLevel,
 	resolveThinkingLevelForModel,
 } from "../thinking";
@@ -46,6 +47,12 @@ import {
 	type ModelRole,
 } from "./model-roles";
 import type { Settings } from "./settings";
+import {
+	type CacheRetentionSetting,
+	type ExactModelSettings,
+	getDefault,
+	type RoleModelSettings,
+} from "./settings-schema";
 
 function isKnownProvider(provider: string): provider is KnownProvider {
 	return provider in DEFAULT_MODEL_PER_PROVIDER;
@@ -238,6 +245,212 @@ export function formatModelStringWithRouting(model: Model<Api>): string {
 
 export function formatModelSelectorValue(selector: string, thinkingLevel: ConfiguredThinkingLevel | undefined): string {
 	return thinkingLevel && thinkingLevel !== ThinkingLevel.Inherit ? `${selector}:${thinkingLevel}` : selector;
+}
+
+export type ModelSettingsSourceScope = "global" | "project" | "overlay" | "runtime";
+export type ModelSettingSpecificity = "base" | "role" | "model" | "temporary";
+type InheritableModelSettingFields<T> = { [K in keyof T]?: T[K] | null };
+
+export interface ModelSettingsSourceLayer {
+	/** Source-local base values. More specific role/model entries in this layer win. */
+	base?: {
+		thinking?: ConfiguredThinkingLevel | null;
+		cacheRetention?: CacheRetentionSetting | null;
+	};
+	/** Existing `modelRoles.<role>:thinking` selector value for this source. */
+	roleThinking?: ConfiguredThinkingLevel | null;
+	/** Source-local profile leaves; `null` explicitly inherits from a less-specific value. */
+	modelSettings?: {
+		roles?: Record<string, InheritableModelSettingFields<RoleModelSettings>>;
+		models?: Record<string, InheritableModelSettingFields<ExactModelSettings>>;
+	};
+}
+
+export type ModelSettingsSourceLayers = Partial<Record<ModelSettingsSourceScope, ModelSettingsSourceLayer>>;
+
+export interface ModelSettingProvenance {
+	scope: "schema" | ModelSettingsSourceScope | "temporary";
+	specificity: ModelSettingSpecificity;
+	role?: string;
+	model?: string;
+}
+
+export interface EffectiveModelSetting<T> {
+	value: T;
+	provenance: ModelSettingProvenance;
+	/** Requested thinking selector before the selected model's ladder clamped it. */
+	adjustedFrom?: ConfiguredThinkingLevel;
+}
+
+export interface EffectiveModelSettings {
+	thinking: EffectiveModelSetting<ConfiguredThinkingLevel | undefined>;
+	cacheRetention: EffectiveModelSetting<CacheRetentionSetting>;
+}
+
+export interface ResolveEffectiveModelSettingsOptions {
+	model: Model;
+	/** Semantic role identity captured before model resolution. Never inferred from `model`. */
+	role?: string;
+	sources?: ModelSettingsSourceLayers;
+	/** Per-turn/session override. Task invocation effort remains a separate, higher-priority concern. */
+	temporary?: {
+		thinking?: ConfiguredThinkingLevel;
+		cacheRetention?: CacheRetentionSetting;
+	};
+}
+
+const MODEL_SETTINGS_SOURCE_ORDER: readonly ModelSettingsSourceScope[] = ["global", "project", "overlay", "runtime"];
+
+const CACHE_RETENTION_VALUES: Readonly<Record<CacheRetentionSetting, true>> = {
+	auto: true,
+	short: true,
+	long: true,
+	none: true,
+};
+
+function validThinking(value: unknown): ConfiguredThinkingLevel | undefined {
+	return typeof value === "string" && parseConfiguredThinkingLevel(value) === value ? value : undefined;
+}
+
+function validCacheRetention(value: unknown): CacheRetentionSetting | undefined {
+	return typeof value === "string" && Object.hasOwn(CACHE_RETENTION_VALUES, value)
+		? (value as CacheRetentionSetting)
+		: undefined;
+}
+
+/**
+ * Resolve post-selection request behavior along two independent axes:
+ * source scope (global < project < overlay < runtime < temporary) and, inside
+ * each source only, specificity (base < role < exact canonical model).
+ */
+export function resolveEffectiveModelSettings(options: ResolveEffectiveModelSettingsOptions): EffectiveModelSettings {
+	const modelKey = formatModelString(options.model);
+	let thinking: EffectiveModelSetting<ConfiguredThinkingLevel | undefined> = {
+		value: getDefault("defaultThinkingLevel"),
+		provenance: { scope: "schema", specificity: "base" },
+	};
+	let cacheRetention: EffectiveModelSetting<CacheRetentionSetting> = {
+		value: getDefault("providers.cacheRetention"),
+		provenance: { scope: "schema", specificity: "base" },
+	};
+
+	for (const scope of MODEL_SETTINGS_SOURCE_ORDER) {
+		const layer = options.sources?.[scope];
+		if (!layer) continue;
+
+		const baseThinking = validThinking(layer.base?.thinking);
+		if (baseThinking !== undefined) {
+			thinking = { value: baseThinking, provenance: { scope, specificity: "base" } };
+		}
+		const baseCache = validCacheRetention(layer.base?.cacheRetention);
+		if (baseCache !== undefined) {
+			cacheRetention = { value: baseCache, provenance: { scope, specificity: "base" } };
+		}
+
+		if (options.role) {
+			const roleThinking = validThinking(layer.roleThinking);
+			if (roleThinking !== undefined) {
+				thinking = {
+					value: roleThinking,
+					provenance: { scope, specificity: "role", role: options.role },
+				};
+			}
+			const roleCache = validCacheRetention(layer.modelSettings?.roles?.[options.role]?.cacheRetention);
+			if (roleCache !== undefined) {
+				cacheRetention = {
+					value: roleCache,
+					provenance: { scope, specificity: "role", role: options.role },
+				};
+			}
+		}
+
+		const exact = layer.modelSettings?.models?.[modelKey];
+		const modelThinking = validThinking(exact?.thinking);
+		if (modelThinking !== undefined) {
+			thinking = {
+				value: modelThinking,
+				provenance: { scope, specificity: "model", model: modelKey },
+			};
+		}
+		const modelCache = validCacheRetention(exact?.cacheRetention);
+		if (modelCache !== undefined) {
+			cacheRetention = {
+				value: modelCache,
+				provenance: { scope, specificity: "model", model: modelKey },
+			};
+		}
+	}
+
+	const temporaryThinking = validThinking(options.temporary?.thinking);
+	if (temporaryThinking !== undefined) {
+		thinking = {
+			value: temporaryThinking,
+			provenance: { scope: "temporary", specificity: "temporary" },
+		};
+	}
+	const temporaryCache = validCacheRetention(options.temporary?.cacheRetention);
+	if (temporaryCache !== undefined) {
+		cacheRetention = {
+			value: temporaryCache,
+			provenance: { scope: "temporary", specificity: "temporary" },
+		};
+	}
+
+	const requestedThinking = thinking.value;
+	if (requestedThinking !== AUTO_THINKING) {
+		const clamped = resolveThinkingLevelForModel(options.model, concreteThinkingLevel(requestedThinking));
+		if (clamped !== requestedThinking) {
+			thinking = { ...thinking, value: clamped, adjustedFrom: requestedThinking };
+		}
+	}
+
+	return { thinking, cacheRetention };
+}
+
+export type ModelSettingsSourceLookup = Pick<Settings, "getModelSettingsSourceLayers">;
+
+/**
+ * Resolve request behavior from Settings' immutable source-local snapshots.
+ * The source scope remains available for exact per-field provenance.
+ */
+export function resolveMergedModelSettings(
+	settings: ModelSettingsSourceLookup,
+	model: Model,
+	role?: string,
+	temporary?: ResolveEffectiveModelSettingsOptions["temporary"],
+): EffectiveModelSettings {
+	return resolveEffectiveModelSettings({
+		model,
+		role,
+		sources: settings.getModelSettingsSourceLayers(model, role),
+		temporary,
+	});
+}
+
+/** Plain-language provenance for UI and diagnostics. */
+export function describeModelSettingProvenance(provenance: ModelSettingProvenance): string {
+	if (provenance.scope === "temporary") return "Temporary for this session";
+	if (provenance.scope === "schema") return "Default setting";
+
+	const role = provenance.role ? ` “${provenance.role}”` : "";
+	switch (provenance.scope) {
+		case "global":
+			if (provenance.specificity === "role") return `Global role${role}`;
+			if (provenance.specificity === "model") return "Global model rule";
+			return "Inherited from global setting";
+		case "project":
+			if (provenance.specificity === "role") return `Project role${role}`;
+			if (provenance.specificity === "model") return "Set for this model in this project";
+			return "Set for this project";
+		case "overlay":
+			if (provenance.specificity === "role") return `Config overlay role${role}`;
+			if (provenance.specificity === "model") return "Config overlay model rule";
+			return "Set by the active config overlay";
+		case "runtime":
+			if (provenance.specificity === "role") return `Session role${role}`;
+			if (provenance.specificity === "model") return "Session model rule";
+			return "Set for this session";
+	}
 }
 
 function getOpenRouterRouteSuffix(modelId: string): { baseId: string; suffix: string } | undefined {
@@ -1348,7 +1561,7 @@ function isLiteralModelSelector(value: string, options?: ExplicitThinkingSelecto
 
 export function extractExplicitThinkingSelector(
 	value: string | undefined,
-	settings?: Settings,
+	settings?: ModelRoleLookup,
 	options?: ExplicitThinkingSelectorOptions,
 ): ConfiguredThinkingLevel | undefined {
 	if (!value) return undefined;

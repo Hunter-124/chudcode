@@ -2980,14 +2980,11 @@ export async function runSubprocess(options: ExecutorOptions): Promise<SingleRes
 			}
 			checkAbort();
 
+			const semanticModelRole = modelRole ?? resolveExplicitModelRole(modelPatterns, subagentSettings);
 			const configuredModelPatterns = resolveConfiguredModelPatterns(modelPatterns, settings);
 			const inheritedRetryFallbackChain =
 				configuredModelPatterns.length === 1
-					? resolveSubagentInheritedRetryFallbackChain(
-							subagentSettings,
-							modelRegistry,
-							modelRole ?? resolveExplicitModelRole(modelPatterns, subagentSettings),
-						)
+					? resolveSubagentInheritedRetryFallbackChain(subagentSettings, modelRegistry, semanticModelRole)
 					: undefined;
 			const {
 				model,
@@ -3162,6 +3159,7 @@ export async function runSubprocess(options: ExecutorOptions): Promise<SingleRes
 				getApiKey: options.getApiKey,
 				settings: subagentSettings,
 				model,
+				modelRole: semanticModelRole,
 				modelPattern: model || modelOverride === undefined ? undefined : modelPatterns,
 				modelPatternAuthFallback:
 					model || modelOverride === undefined ? undefined : options.parentActiveModelPattern,

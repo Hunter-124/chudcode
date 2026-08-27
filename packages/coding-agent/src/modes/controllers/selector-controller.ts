@@ -101,9 +101,9 @@ import { ResetUsageSelectorComponent } from "../components/reset-usage-selector"
 import { renderSegmentTrack } from "../components/segment-track";
 import { SessionAccountSelectorComponent } from "../components/session-account-selector";
 import {
-	selectRecentSessions,
 	SessionSelectorComponent,
 	type SessionSelectorOptions,
+	selectRecentSessions,
 } from "../components/session-selector";
 import { SettingsSelectorComponent } from "../components/settings-selector";
 import { ToolExecutionComponent } from "../components/tool-execution";
@@ -1052,6 +1052,55 @@ export class SelectorController {
 						hub?.refreshAfterExternalMutation();
 					}
 				},
+				onSetModelSettingsField: (scope, target, field, value) => {
+					try {
+						if (field === "cacheRetention") {
+							if (value !== "auto" && value !== "short" && value !== "long" && value !== "none") {
+								throw new Error(`Invalid prompt cache value: ${value}`);
+							}
+							if (target.kind === "role") {
+								this.ctx.settings.setModelSettingsField(scope, target, field, value);
+							} else {
+								this.ctx.settings.setModelSettingsField(scope, target, field, value);
+							}
+						} else {
+							if (target.kind !== "model") throw new Error("Role model settings only support prompt cache");
+							const thinkingValue = parseConfiguredThinkingLevel(value);
+							if (thinkingValue === undefined || thinkingValue !== value) {
+								throw new Error(`Invalid thinking value: ${value}`);
+							}
+							this.ctx.settings.setModelSettingsField(scope, target, field, thinkingValue);
+						}
+						const owner = target.kind === "role" ? `role ${target.role}` : `model ${target.model}`;
+						const label = field === "thinking" ? "thinking" : "prompt cache";
+						this.ctx.showStatus(`${scope === "project" ? "Project" : "Global"} ${owner} ${label}: ${value}`);
+					} catch (error) {
+						this.ctx.showError(error instanceof Error ? error.message : String(error));
+					} finally {
+						hub?.refreshAfterExternalMutation();
+					}
+				},
+				onResetModelSettingsField: (scope, target, field) => {
+					try {
+						if (target.kind === "role") {
+							if (field !== "cacheRetention") {
+								throw new Error("Role model settings only support prompt cache");
+							}
+							this.ctx.settings.resetModelSettingsField(scope, target, field);
+						} else {
+							this.ctx.settings.resetModelSettingsField(scope, target, field);
+						}
+						const owner = target.kind === "role" ? `role ${target.role}` : `model ${target.model}`;
+						const label = field === "thinking" ? "thinking" : "prompt cache";
+						this.ctx.showStatus(
+							`${scope === "project" ? "Project" : "Global"} ${owner} ${label} reset to inherited`,
+						);
+					} catch (error) {
+						this.ctx.showError(error instanceof Error ? error.message : String(error));
+					} finally {
+						hub?.refreshAfterExternalMutation();
+					}
+				},
 				onFallbackChainChange: (role, chain) => {
 					try {
 						const chains = { ...this.ctx.settings.get("retry.fallbackChains") };
@@ -1624,7 +1673,8 @@ export class SelectorController {
 					}
 				},
 				onFork: async (session: SessionInfo) => {
-					if (this.ctx.session.isStreaming) throw new Error("Wait for the current response to finish before forking.");
+					if (this.ctx.session.isStreaming)
+						throw new Error("Wait for the current response to finish before forking.");
 					if (!(await this.handleResumeSession(session.path))) return false;
 					const forked = await this.ctx.session.fork();
 					if (!forked) throw new Error("Fork failed (session not persisted or cancelled).");

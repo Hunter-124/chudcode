@@ -7,7 +7,10 @@ import { clearCustomApis } from "@oh-my-pi/pi-ai/api-registry";
 import { createMockModel, registerMockApi } from "@oh-my-pi/pi-ai/providers/mock";
 import { __providerInFlightForTesting, streamSimple } from "@oh-my-pi/pi-ai/stream";
 import type { Context } from "@oh-my-pi/pi-ai/types";
+import { getBundledModel } from "@oh-my-pi/pi-catalog/models";
+import { resolveEffectiveModelSettings } from "@oh-my-pi/pi-coding-agent/config/model-resolver";
 import {
+	type ModelSettings,
 	onAppendOnlyModeChanged,
 	onCodeModeChanged,
 	onModelRolesChanged,
@@ -20,7 +23,7 @@ import * as discovery from "@oh-my-pi/pi-coding-agent/discovery";
 import { AgentStorage } from "@oh-my-pi/pi-coding-agent/session/agent-storage";
 import { AUTO_IMAGE_PROVIDER_ORDER } from "@oh-my-pi/pi-coding-agent/tools/image-providers";
 import { SEARCH_PROVIDER_ORDER } from "@oh-my-pi/pi-coding-agent/web/search/types";
-import { getProjectAgentDir, TempDir } from "@oh-my-pi/pi-utils";
+import { getProjectAgentDir, isRecord, TempDir } from "@oh-my-pi/pi-utils";
 import * as fileLock from "@oh-my-pi/pi-utils/file-lock";
 import { YAML } from "bun";
 import { beginSettingsTest, restoreSettingsTestState, type SettingsTestState } from "./helpers/settings-test-state";
@@ -1034,6 +1037,255 @@ describe("Settings", () => {
 
 			expect(settings.getModelRole("smol")).toBeUndefined();
 			expect(Object.hasOwn(settings.getModelRoles(), "smol")).toBe(false);
+		});
+	});
+
+	describe("model settings source layers and persistence", () => {
+		const profileModel = getBundledModel("anthropic", "claude-sonnet-4-6");
+		if (!profileModel) throw new Error("Expected bundled Claude Sonnet 4.6 model");
+		const profileModelKey = `${profileModel.provider}/${profileModel.id}`;
+		const getProjectConfigPath = () => path.join(projectDir, ".omp", "config.yml");
+
+		it("exposes global, project, overlay, and runtime inputs in scope order", async () => {
+			await writeSettings({
+				defaultThinkingLevel: Effort.High,
+				providers: { cacheRetention: "long" },
+				modelSettings: { models: { [profileModelKey]: { thinking: Effort.High, cacheRetention: "long" } } },
+			});
+			await Bun.write(
+				getProjectConfigPath(),
+				YAML.stringify(
+					{
+						modelRoles: { task: `${profileModelKey}:${Effort.Low}` },
+						modelSettings: { models: { [profileModelKey]: { cacheRetention: "none" } } },
+					},
+					null,
+					2,
+				),
+			);
+			const overlayPath = tempDir.join("profile-overlay.yml");
+			await Bun.write(
+				overlayPath,
+				YAML.stringify(
+					{
+						defaultThinkingLevel: Effort.Medium,
+						providers: { cacheRetention: "short" },
+					},
+					null,
+					2,
+				),
+			);
+
+			const settings = await Settings.init({
+				cwd: projectDir,
+				agentDir,
+				configFiles: [overlayPath],
+				overrides: {
+					modelSettings: { models: { [profileModelKey]: { cacheRetention: "auto" } } },
+				},
+			});
+			const sources = settings.getModelSettingsSourceLayers(profileModel, "task");
+			expect(Object.keys(sources)).toEqual(["global", "project", "overlay", "runtime"]);
+			expect(sources.global?.modelSettings?.models?.[profileModelKey]?.cacheRetention).toBe("long");
+			expect(sources.project?.roleThinking).toBe(Effort.Low);
+			expect(sources.project?.modelSettings?.models?.[profileModelKey]?.cacheRetention).toBe("none");
+			expect(sources.overlay?.base).toEqual({ thinking: Effort.Medium, cacheRetention: "short" });
+			expect(sources.runtime?.modelSettings?.models?.[profileModelKey]?.cacheRetention).toBe("auto");
+
+			const effective = resolveEffectiveModelSettings({
+				model: profileModel,
+				role: "task",
+				sources,
+			});
+			expect(effective.thinking.value).toBe(Effort.Medium);
+			expect(effective.thinking.provenance).toMatchObject({ scope: "overlay", specificity: "base" });
+			expect(effective.cacheRetention.value).toBe("auto");
+			expect(effective.cacheRetention.provenance).toMatchObject({ scope: "runtime", specificity: "model" });
+		});
+
+		it("loads, selectively saves, and reloads native project model settings", async () => {
+			await writeSettings({
+				modelSettings: { models: { [profileModelKey]: { cacheRetention: "long" } } },
+			});
+			await Bun.write(
+				getProjectConfigPath(),
+				YAML.stringify(
+					{
+						custom: { keep: true },
+						modelSettings: {
+							roles: { task: { cacheRetention: "short" } },
+							models: { [profileModelKey]: { cacheRetention: "none" } },
+						},
+					},
+					null,
+					2,
+				),
+			);
+			const settings = await Settings.loadIsolated({ cwd: projectDir, agentDir });
+			const before = resolveEffectiveModelSettings({
+				model: profileModel,
+				role: "task",
+				sources: settings.getModelSettingsSourceLayers(profileModel, "task"),
+			});
+			expect(before.cacheRetention.value).toBe("none");
+			expect(before.cacheRetention.provenance).toMatchObject({ scope: "project", specificity: "model" });
+
+			settings.setModelSettingsField("project", { kind: "model", model: profileModelKey }, "thinking", Effort.Low);
+			settings.setModelSettingsField("project", { kind: "role", role: "task" }, "cacheRetention", "long");
+			settings.setModelSettingsField(
+				"project",
+				{ kind: "model", model: "openai/gpt-5.2" },
+				"cacheRetention",
+				"auto",
+			);
+			await settings.flush();
+
+			const onDisk: unknown = YAML.parse(await Bun.file(getProjectConfigPath()).text());
+			if (!isRecord(onDisk)) throw new Error("Expected project config object");
+			if (!isRecord(onDisk.modelSettings)) throw new Error("Expected project model settings object");
+			const onDiskModelSettings = onDisk.modelSettings;
+			expect(onDisk.custom).toEqual({ keep: true });
+			const expectedModelSettings = {
+				roles: { task: { cacheRetention: "long" } },
+				models: {
+					[profileModelKey]: { cacheRetention: "none", thinking: Effort.Low },
+					"openai/gpt-5.2": { cacheRetention: "auto" },
+				},
+			} satisfies ModelSettings;
+			expect(onDiskModelSettings).toEqual(expectedModelSettings);
+
+			const reloaded = await Settings.loadIsolated({ cwd: projectDir, agentDir });
+			const projectModelSettings = reloaded.getModelSettingsSourceLayers(profileModel, "task").project
+				?.modelSettings;
+			expect(projectModelSettings).toEqual(expectedModelSettings);
+			expect(Object.is(projectModelSettings, onDiskModelSettings)).toBe(false);
+		});
+
+		it("preserves concurrent external sibling edits at global and project scope", async () => {
+			await writeSettings({
+				modelSettings: {
+					roles: { task: { cacheRetention: "short" } },
+					models: { [profileModelKey]: { thinking: Effort.Low, cacheRetention: "long" } },
+				},
+			});
+			await Bun.write(
+				getProjectConfigPath(),
+				YAML.stringify(
+					{
+						modelSettings: {
+							roles: { task: { cacheRetention: "short" } },
+							models: { [profileModelKey]: { thinking: Effort.Low, cacheRetention: "long" } },
+						},
+					},
+					null,
+					2,
+				),
+			);
+			const settings = await Settings.loadIsolated({ cwd: projectDir, agentDir });
+			settings.setModelSettingsField("global", { kind: "model", model: profileModelKey }, "cacheRetention", "none");
+			settings.setModelSettingsField("project", { kind: "model", model: profileModelKey }, "cacheRetention", "none");
+
+			await writeSettings({
+				modelSettings: {
+					roles: { task: { cacheRetention: "none" } },
+					models: {
+						[profileModelKey]: { thinking: Effort.High, cacheRetention: "long" },
+						"openai/gpt-5.2": { cacheRetention: "auto" },
+					},
+				},
+			});
+			await Bun.write(
+				getProjectConfigPath(),
+				YAML.stringify(
+					{
+						modelSettings: {
+							roles: { task: { cacheRetention: "none" } },
+							models: {
+								[profileModelKey]: { thinking: Effort.High, cacheRetention: "long" },
+								"openai/gpt-5.2": { cacheRetention: "auto" },
+							},
+						},
+					},
+					null,
+					2,
+				),
+			);
+			await settings.flush();
+
+			const global = await readSettings();
+			const project = YAML.parse(await Bun.file(getProjectConfigPath()).text()) as Record<string, unknown>;
+			for (const saved of [global, project]) {
+				expect(saved.modelSettings).toEqual({
+					roles: { task: { cacheRetention: "none" } },
+					models: {
+						[profileModelKey]: { thinking: Effort.High, cacheRetention: "none" },
+						"openai/gpt-5.2": { cacheRetention: "auto" },
+					},
+				});
+			}
+		});
+
+		it("treats project null and reset as inheritance and prunes only empty parents", async () => {
+			await writeSettings({
+				modelSettings: { models: { [profileModelKey]: { cacheRetention: "long" } } },
+			});
+			await Bun.write(
+				getProjectConfigPath(),
+				YAML.stringify(
+					{
+						custom: { keep: true },
+						modelSettings: {
+							roles: { task: { cacheRetention: "short" } },
+							models: { [profileModelKey]: { thinking: Effort.Low, cacheRetention: "none" } },
+						},
+					},
+					null,
+					2,
+				),
+			);
+			const settings = await Settings.loadIsolated({ cwd: projectDir, agentDir });
+			settings.setModelSettingsField("project", { kind: "model", model: profileModelKey }, "cacheRetention", null);
+			await settings.flush();
+			let onDisk = YAML.parse(await Bun.file(getProjectConfigPath()).text()) as Record<string, unknown>;
+			expect(onDisk.modelSettings).toEqual({
+				roles: { task: { cacheRetention: "short" } },
+				models: { [profileModelKey]: { thinking: Effort.Low, cacheRetention: null } },
+			});
+
+			const inherited = resolveEffectiveModelSettings({
+				model: profileModel,
+				role: "task",
+				sources: settings.getModelSettingsSourceLayers(profileModel, "task"),
+			});
+			expect(inherited.cacheRetention.value).toBe("short");
+			expect(inherited.cacheRetention.provenance).toMatchObject({ scope: "project", specificity: "role" });
+
+			settings.resetModelSettingsField("project", { kind: "model", model: profileModelKey }, "cacheRetention");
+			await settings.flush();
+			onDisk = YAML.parse(await Bun.file(getProjectConfigPath()).text()) as Record<string, unknown>;
+			expect(onDisk.modelSettings).toEqual({
+				roles: { task: { cacheRetention: "short" } },
+				models: { [profileModelKey]: { thinking: Effort.Low } },
+			});
+
+			settings.resetModelSettingsField("project", { kind: "model", model: profileModelKey }, "thinking");
+			settings.resetModelSettingsField("project", { kind: "role", role: "task" }, "cacheRetention");
+			await settings.flush();
+			onDisk = YAML.parse(await Bun.file(getProjectConfigPath()).text()) as Record<string, unknown>;
+			expect(onDisk).toEqual({ custom: { keep: true } });
+
+			const reloaded = await Settings.loadIsolated({ cwd: projectDir, agentDir });
+			const effective = resolveEffectiveModelSettings({
+				model: profileModel,
+				role: "task",
+				sources: reloaded.getModelSettingsSourceLayers(profileModel, "task"),
+			});
+			expect(effective.cacheRetention.value).toBe("long");
+			expect(effective.cacheRetention.provenance).toMatchObject({ scope: "global", specificity: "model" });
+
+			reloaded.resetModelSettingsField("global", { kind: "model", model: profileModelKey }, "cacheRetention");
+			await reloaded.flush();
+			expect(await readSettings()).toEqual({});
 		});
 	});
 
