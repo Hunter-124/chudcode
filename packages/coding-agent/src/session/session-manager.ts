@@ -78,6 +78,9 @@ const JSONL_SUFFIX_LENGTH = ".jsonl".length;
 const DRAFT_ONLY_SESSION_MARKER = ".draft-only-session";
 const SUPERSEDED_COMPACTION_SUMMARY = "[Superseded compaction summary elided after a newer compaction]";
 const SUPERSEDED_COMPACTION_SHORT_SUMMARY = "Superseded compaction elided";
+/** SessionManager receives only editor text, never the editor-only image/paste maps.
+ * Markers therefore cannot resolve after restart and must not cross the persistence boundary. */
+const UNRESOLVABLE_DRAFT_MARKER_REGEX = /\[(?:Image|Paste) #[1-9]\d*(?:,[^\]\n]*)?\]/g;
 
 function mintSessionId(): string {
 	return Bun.randomUUIDv7();
@@ -1375,7 +1378,8 @@ export class SessionManager {
 		const draftPath = this.#draftPath();
 		if (!draftPath || !this.#persist) return;
 
-		if (text.length === 0) {
+		const restorableText = text.replace(UNRESOLVABLE_DRAFT_MARKER_REGEX, "");
+		if (restorableText.length === 0) {
 			try {
 				await this.#storage.unlink(draftPath);
 			} catch (err) {
@@ -1395,7 +1399,7 @@ export class SessionManager {
 			await this.#writeDraftOnlySessionMarker();
 			this.#draftOnlySessionCleanupArmed = true;
 		}
-		await this.#storage.writeText(draftPath, text);
+		await this.#storage.writeTextAtomic(draftPath, restorableText);
 	}
 
 	async consumeDraft(): Promise<string | null> {
@@ -1409,6 +1413,8 @@ export class SessionManager {
 			if (isEnoent(err)) return null;
 			throw err;
 		}
+
+		draft = draft.replace(UNRESOLVABLE_DRAFT_MARKER_REGEX, "");
 
 		try {
 			await this.#storage.unlink(draftPath);

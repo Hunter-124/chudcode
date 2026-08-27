@@ -10,11 +10,18 @@
  * is directly unit-testable without instantiating the full TUI stack.
  */
 import { logger, type postmortem } from "@oh-my-pi/pi-utils";
+import { isSettingsInitialized, settings } from "../config/settings";
+import { getDefault } from "../config/settings-schema";
 
 /** Dependencies the teardown captures at construction time. */
 export interface SessionTeardownDeps {
 	/** Snapshot the current editor text; called once, before disposal touches session state. */
 	getDraftText: () => string;
+	/**
+	 * Autosave cadence override for isolated callers/tests. Production reads
+	 * `draft.autosaveIntervalMs` from Settings; zero disables periodic saves.
+	 */
+	autosaveIntervalMs?: number;
 	/**
 	 * Synchronously mark the session as disposing before any awaited teardown
 	 * work. This closes the async gap where deferred jobs could otherwise start
@@ -65,9 +72,42 @@ export type SessionTeardown = (reason?: postmortem.Reason) => Promise<void>;
  */
 export function createSessionTeardown(deps: SessionTeardownDeps): SessionTeardown {
 	let pending: Promise<void> | undefined;
+	let autosaveTail: Promise<void> = Promise.resolve();
+	let lastSavedDraft = deps.getDraftText();
+	let lastScheduledDraft = lastSavedDraft;
+	const autosaveIntervalMs =
+		deps.autosaveIntervalMs ??
+		(isSettingsInitialized() ? settings.get("draft.autosaveIntervalMs") : getDefault("draft.autosaveIntervalMs"));
+
+	const scheduleAutosave = (draftText: string): void => {
+		if (draftText === lastScheduledDraft) return;
+		lastScheduledDraft = draftText;
+		autosaveTail = autosaveTail.then(async () => {
+			try {
+				await deps.saveDraft(draftText);
+				lastSavedDraft = draftText;
+			} catch (err) {
+				logger.warn("Failed to autosave session draft", { error: String(err) });
+				if (lastScheduledDraft === draftText) lastScheduledDraft = lastSavedDraft;
+			}
+		});
+	};
+
+	const autosaveTimer =
+		autosaveIntervalMs > 0
+			? setInterval(() => {
+					scheduleAutosave(deps.getDraftText());
+				}, autosaveIntervalMs)
+			: undefined;
+	autosaveTimer?.unref?.();
+
 	const run = async (reason?: postmortem.Reason): Promise<void> => {
+		clearInterval(autosaveTimer);
 		const draftText = deps.getDraftText();
 		deps.beginDispose();
+		// Let any older periodic snapshot settle before publishing the final text,
+		// otherwise an in-flight autosave could overwrite the teardown snapshot.
+		await autosaveTail;
 		try {
 			await deps.saveDraft(draftText);
 		} catch (err) {

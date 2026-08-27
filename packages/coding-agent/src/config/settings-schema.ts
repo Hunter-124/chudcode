@@ -1582,6 +1582,18 @@ export const SETTINGS_SCHEMA = {
 		},
 	},
 
+	"draft.autosaveIntervalMs": {
+		type: "number",
+		// Two seconds bounds unclean-process-exit exposure without turning normal typing into per-keystroke writes.
+		default: 2_000,
+		ui: {
+			tab: "interaction",
+			group: "Input",
+			label: "Draft Autosave Interval",
+			description: "Milliseconds between draft autosaves; set to 0 to disable crash-recovery autosave",
+		},
+	},
+
 	"tui.escapeClosesOverlay": {
 		type: "boolean",
 		default: false,
