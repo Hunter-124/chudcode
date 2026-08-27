@@ -6,22 +6,34 @@ import {
 import { resetSettingsForTest, Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
 import { canonicalKeyId, parseKey } from "@oh-my-pi/pi-tui";
 
-const NEW_ACTION_IDS = new Set([
-	"tui.editor.redo",
-	"tui.editor.selectAll",
-	"tui.editor.selectLeft",
-	"tui.editor.selectRight",
-	"tui.editor.selectUp",
-	"tui.editor.selectDown",
-	"tui.editor.selectWordLeft",
-	"tui.editor.selectWordRight",
-	"tui.editor.selectToLineStart",
-	"tui.editor.selectToLineEnd",
-	"tui.editor.cut",
-	"tui.editor.paste",
-	"app.draft.restore",
-	"app.copy.picker",
-]);
+/**
+ * Actions introduced by the keybinding-preset work that are deliberately UNBOUND under the
+ * `default` preset, so adopting `windows` is the only thing that binds them. Unix behavior
+ * is unchanged by their mere existence.
+ */
+const NEW_UNBOUND_ACTION_IDS: Record<string, true> = {
+	"tui.editor.selectAll": true,
+	"tui.editor.selectLeft": true,
+	"tui.editor.selectRight": true,
+	"tui.editor.selectUp": true,
+	"tui.editor.selectDown": true,
+	"tui.editor.selectWordLeft": true,
+	"tui.editor.selectWordRight": true,
+	"tui.editor.selectToLineStart": true,
+	"tui.editor.selectToLineEnd": true,
+	"tui.editor.cut": true,
+	"tui.editor.paste": true,
+	"app.draft.restore": true,
+	"app.copy.picker": true,
+};
+
+/**
+ * Every action id that postdates the pre-preset baseline, and is therefore excluded from the
+ * digest below. `tui.editor.redo` belongs here but NOT in {@link NEW_UNBOUND_ACTION_IDS}: the
+ * editor-redo feature ships its own default chords (`alt+-` / `alt+_`), so it is bound under
+ * `default` by design and must not be asserted unbound.
+ */
+const NEW_ACTION_IDS: Record<string, true> = { ...NEW_UNBOUND_ACTION_IDS, "tui.editor.redo": true };
 
 // SHA-256 of JSON.stringify(getResolvedBindings()) for every action that existed
 // before presets were introduced. New, unbound action ids are filtered out and
@@ -115,13 +127,13 @@ describe("Windows keybinding preset", () => {
 		// below so the digest stays stable across platforms, which the binding value type
 		// (KeyId[] | KeyId | undefined) would otherwise reject.
 		const prePresetBindings: Record<string, unknown> = Object.fromEntries(
-			Object.entries(resolved).filter(([action]) => !NEW_ACTION_IDS.has(action)),
+			Object.entries(resolved).filter(([action]) => !(action in NEW_ACTION_IDS)),
 		);
 		prePresetBindings["app.clipboard.pasteImage"] = "<platform-default>";
 		const digest = new Bun.CryptoHasher("sha256").update(JSON.stringify(prePresetBindings)).digest("hex");
 
 		expect(digest).toBe(PRESET_FREE_DEFAULT_BINDINGS_SHA256);
-		for (const action of NEW_ACTION_IDS) {
+		for (const action of Object.keys(NEW_UNBOUND_ACTION_IDS)) {
 			expect(resolved[action]).toEqual([]);
 		}
 	});
