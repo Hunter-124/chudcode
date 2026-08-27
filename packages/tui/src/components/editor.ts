@@ -480,6 +480,8 @@ export class Editor implements Component, Focusable {
 
 	// Undo stack for editor state changes
 	#undoStack: EditorState[] = [];
+	/** States undone off {@link #undoStack}, replayable until the next fresh edit. */
+	#redoStack: EditorState[] = [];
 	#suspendUndo = false;
 
 	// Debounce timer for autocomplete updates
@@ -668,6 +670,7 @@ export class Editor implements Component, Focusable {
 	/** Internal setText that doesn't reset history state - used by navigateHistory */
 	#setTextInternal(text: string, cursorAnchor: HistoryCursorAnchor = "end"): void {
 		this.#undoStack.length = 0;
+		this.#redoStack.length = 0;
 		const lines = sanitizeLoadedText(text).split("\n");
 		this.#state.lines = lines.length === 0 ? [""] : lines;
 		if (cursorAnchor === "start") {
@@ -1172,6 +1175,12 @@ export class Editor implements Component, Focusable {
 		// Undo
 		if (kb.matches(data, "tui.editor.undo")) {
 			this.#applyUndo();
+			return;
+		}
+
+		// Redo
+		if (kb.matches(data, "tui.editor.redo")) {
+			this.#applyRedo();
 			return;
 		}
 
@@ -2101,6 +2110,7 @@ export class Editor implements Component, Focusable {
 		this.#historyIndex = -1;
 		this.#scrollOffset = 0;
 		this.#undoStack.length = 0;
+		this.#redoStack.length = 0;
 
 		if (this.onChange) this.onChange("");
 		if (this.onSubmit) this.onSubmit(result);
@@ -2370,12 +2380,35 @@ export class Editor implements Component, Focusable {
 		if (this.#undoStack.length > MAX_UNDO_STACK) {
 			this.#undoStack.shift();
 		}
+		// A fresh edit forks history: whatever was undone is no longer reachable forward.
+		this.#redoStack.length = 0;
 	}
 
 	#applyUndo(): void {
 		const snapshot = this.#undoStack.pop();
 		if (!snapshot) return;
+		this.#pushBounded(this.#redoStack);
+		this.#restoreState(snapshot);
+	}
 
+	#applyRedo(): void {
+		const snapshot = this.#redoStack.pop();
+		if (!snapshot) return;
+		this.#pushBounded(this.#undoStack);
+		this.#restoreState(snapshot);
+	}
+
+	/** Snapshot the live state onto `stack`, trimming the oldest entry past the cap.
+	 *  Bypasses {@link #recordUndoState} on purpose: moving between the undo and redo
+	 *  stacks must not clear the opposite stack the way a fresh edit does. */
+	#pushBounded(stack: EditorState[]): void {
+		stack.push(structuredClone(this.#state));
+		if (stack.length > MAX_UNDO_STACK) {
+			stack.shift();
+		}
+	}
+
+	#restoreState(snapshot: EditorState): void {
 		this.#historyIndex = -1;
 		this.#resetKillSequence();
 		this.#preferredVisualCol = null;

@@ -47,6 +47,8 @@ export class Input implements Component, Focusable {
 
 	// Undo support
 	#undoStack: InputState[] = [];
+	/** States undone off {@link #undoStack}, replayable until the next fresh edit. */
+	#redoStack: InputState[] = [];
 
 	getValue(): string {
 		return this.#value;
@@ -90,6 +92,12 @@ export class Input implements Component, Focusable {
 		// Undo
 		if (kb.matches(data, "tui.editor.undo")) {
 			this.#undo();
+			return;
+		}
+
+		// Redo
+		if (kb.matches(data, "tui.editor.redo")) {
+			this.#redo();
 			return;
 		}
 
@@ -345,6 +353,8 @@ export class Input implements Component, Focusable {
 
 	#pushUndo(): void {
 		this.#undoStack.push({ value: this.#value, cursor: this.#cursor });
+		// A fresh edit forks history: whatever was undone is no longer reachable forward.
+		this.#redoStack.length = 0;
 	}
 
 	#undo(): void {
@@ -352,6 +362,18 @@ export class Input implements Component, Focusable {
 		if (!snapshot) {
 			return;
 		}
+		this.#redoStack.push({ value: this.#value, cursor: this.#cursor });
+		this.#value = snapshot.value;
+		this.#cursor = snapshot.cursor;
+		this.#lastAction = null;
+	}
+
+	#redo(): void {
+		const snapshot = this.#redoStack.pop();
+		if (!snapshot) {
+			return;
+		}
+		this.#undoStack.push({ value: this.#value, cursor: this.#cursor });
 		this.#value = snapshot.value;
 		this.#cursor = snapshot.cursor;
 		this.#lastAction = null;

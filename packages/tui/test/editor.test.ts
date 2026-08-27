@@ -2512,6 +2512,115 @@ describe("Editor component", () => {
 		});
 	});
 
+	describe("Redo", () => {
+		const UNDO = "\x1b[45;5u"; // Ctrl+-
+		const REDO = "\x1b[45;3u"; // Alt+-
+
+		it("replays an edit that was undone", () => {
+			const editor = new Editor(defaultEditorTheme);
+			editor.handleInput("h");
+			editor.handleInput("i");
+			editor.handleInput(" ");
+			editor.handleInput("y");
+			editor.handleInput("o");
+
+			editor.handleInput(UNDO);
+			expect(editor.getText()).toBe("hi ");
+			editor.handleInput(REDO);
+			expect(editor.getText()).toBe("hi yo");
+		});
+
+		it("walks the whole undo history back out again", () => {
+			const editor = new Editor(defaultEditorTheme);
+			editor.handleInput("h");
+			editor.handleInput("i");
+			editor.handleInput(" ");
+			editor.handleInput("y");
+			editor.handleInput("o");
+
+			editor.handleInput(UNDO);
+			editor.handleInput(UNDO);
+			editor.handleInput(UNDO);
+			expect(editor.getText()).toBe("");
+
+			editor.handleInput(REDO);
+			expect(editor.getText()).toBe("hi");
+			editor.handleInput(REDO);
+			expect(editor.getText()).toBe("hi ");
+			editor.handleInput(REDO);
+			expect(editor.getText()).toBe("hi yo");
+		});
+
+		it("restores the cursor position, not just the text", () => {
+			const editor = new Editor(defaultEditorTheme);
+			editor.setText("abc");
+			editor.handleInput("\x01"); // Ctrl+A → line start
+			editor.handleInput("X");
+			expect(editor.getText()).toBe("Xabc");
+			expect(editor.getCursor()).toEqual({ line: 0, col: 1 });
+
+			editor.handleInput(UNDO);
+			expect(editor.getText()).toBe("abc");
+			expect(editor.getCursor()).toEqual({ line: 0, col: 0 });
+
+			editor.handleInput(REDO);
+			expect(editor.getText()).toBe("Xabc");
+			expect(editor.getCursor()).toEqual({ line: 0, col: 1 });
+		});
+
+		it("is a no-op when nothing has been undone", () => {
+			const editor = new Editor(defaultEditorTheme);
+			editor.handleInput("a");
+			editor.handleInput(REDO);
+			expect(editor.getText()).toBe("a");
+			expect(editor.getCursor()).toEqual({ line: 0, col: 1 });
+		});
+
+		it("drops the redo branch once a fresh edit forks history", () => {
+			const editor = new Editor(defaultEditorTheme);
+			editor.handleInput("a");
+			editor.handleInput(UNDO);
+			expect(editor.getText()).toBe("");
+
+			editor.handleInput("b");
+			editor.handleInput(REDO);
+			expect(editor.getText()).toBe("b");
+		});
+
+		it("clears both stacks on submit so a new draft cannot resurrect the old one", () => {
+			const editor = new Editor(defaultEditorTheme);
+			let submitted: string | undefined;
+			editor.onSubmit = value => {
+				submitted = value;
+			};
+			editor.handleInput("a");
+			editor.handleInput(UNDO);
+			editor.handleInput("\r");
+			expect(submitted).toBe("");
+
+			editor.handleInput(REDO);
+			expect(editor.getText()).toBe("");
+			editor.handleInput(UNDO);
+			expect(editor.getText()).toBe("");
+		});
+
+		it("uses the configured redo binding", () => {
+			setKeybindings(
+				new KeybindingsManager(TUI_KEYBINDINGS, {
+					"tui.editor.redo": "f8",
+				}),
+			);
+
+			const editor = new Editor(defaultEditorTheme);
+			editor.handleInput("a");
+			editor.handleInput(UNDO);
+			expect(editor.getText()).toBe("");
+
+			editor.handleInput("\x1b[19~"); // F8
+			expect(editor.getText()).toBe("a");
+		});
+	});
+
 	describe("decorateText around the cursor seam", () => {
 		// Editor.#decorate is the only seam that sees both the user prose AND the
 		// trailing CURSOR_MARKER, so a decorator with a right-boundary lookahead
