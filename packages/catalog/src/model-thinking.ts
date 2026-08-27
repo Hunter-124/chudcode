@@ -115,6 +115,53 @@ const MINIMAX_ANTHROPIC_ADAPTIVE_EFFORT_MAP: Readonly<EffortMap> = {
 	[Effort.High]: "adaptive",
 };
 
+type CursorFixedEffort = Effort.Minimal | Effort.Low | Effort.Medium | Effort.High | Effort.XHigh;
+
+const CURSOR_FIXED_EFFORT_THINKING: Readonly<Record<CursorFixedEffort, ThinkingConfig>> = {
+	[Effort.Minimal]: {
+		mode: "effort",
+		efforts: [Effort.Minimal],
+		defaultLevel: Effort.Minimal,
+		requiresEffort: true,
+	},
+	[Effort.Low]: {
+		mode: "effort",
+		efforts: [Effort.Low],
+		defaultLevel: Effort.Low,
+		requiresEffort: true,
+	},
+	[Effort.Medium]: {
+		mode: "effort",
+		efforts: [Effort.Medium],
+		defaultLevel: Effort.Medium,
+		requiresEffort: true,
+	},
+	[Effort.High]: {
+		mode: "effort",
+		efforts: [Effort.High],
+		defaultLevel: Effort.High,
+		requiresEffort: true,
+	},
+	[Effort.XHigh]: {
+		mode: "effort",
+		efforts: [Effort.XHigh],
+		defaultLevel: Effort.XHigh,
+		requiresEffort: true,
+	},
+};
+
+/**
+ * Classify Cursor ids whose wire id fixes the reasoning tier. `-fast` is an
+ * independent service tier, so it may follow the effort suffix. `-max` is
+ * deliberately excluded because Cursor also uses it in model family names
+ * such as `gpt-5.1-codex-max`.
+ */
+export function getCursorModelIdThinking(modelId: string): ThinkingConfig | undefined {
+	const match = /-(minimal|low|medium|high|xhigh)(?:-fast)?$/i.exec(modelId);
+	if (!match) return undefined;
+	return CURSOR_FIXED_EFFORT_THINKING[match[1].toLowerCase() as CursorFixedEffort];
+}
+
 // ---------------------------------------------------------------------------
 // Build-time derivation (buildModel + catalog generator only)
 // ---------------------------------------------------------------------------

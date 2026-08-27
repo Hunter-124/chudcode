@@ -1,6 +1,7 @@
 import * as http2 from "node:http2";
 import { create, fromBinary, toBinary } from "@bufbuild/protobuf";
 import { type } from "arktype";
+import { getCursorModelIdThinking } from "../model-thinking";
 import { getBundledModels } from "../models";
 import { toModelSpec } from "../provider-models/bundled-references";
 import type { Model, ModelSpec } from "../types";
@@ -282,7 +283,8 @@ function normalizeCursorModel(
 
 	const name = pickModelDisplayName(details, id);
 	const reference = references.get(id);
-	const reasoning = Boolean(details.thinkingDetails) || reference?.reasoning === true;
+	const fixedThinking = reference?.thinking?.effortRouting === undefined ? getCursorModelIdThinking(id) : undefined;
+	const reasoning = fixedThinking !== undefined || Boolean(details.thinkingDetails) || reference?.reasoning === true;
 
 	if (reference) {
 		return {
@@ -291,6 +293,7 @@ function normalizeCursorModel(
 			name,
 			baseUrl: baseUrlOverride ?? reference.baseUrl,
 			reasoning,
+			...(fixedThinking && { thinking: fixedThinking }),
 			cursorMaxMode: details.maxMode,
 		};
 	}
@@ -301,6 +304,7 @@ function normalizeCursorModel(
 		provider: "cursor",
 		baseUrl: baseUrlOverride ?? CURSOR_DEFAULT_BASE_URL,
 		reasoning,
+		...(fixedThinking && { thinking: fixedThinking }),
 		input: inferInputFromCursorId(id),
 		cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
 		contextWindow: DEFAULT_CONTEXT_WINDOW,

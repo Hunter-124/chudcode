@@ -17,7 +17,7 @@ import {
 import { isMimoModelIdOrName } from "../src/identity/family";
 import { getLongestModelLikeIdSegment } from "../src/identity/id";
 import { buildModelReferenceIndex, resolveModelReference } from "../src/identity/reference";
-import { resolveModelThinking } from "../src/model-thinking";
+import { getCursorModelIdThinking, resolveModelThinking } from "../src/model-thinking";
 import { resolveWaferServerlessThinkingFormat } from "../src/provider-models/openai-compat";
 import type { Api, Model, ModelSpec } from "../src/types";
 import { isVariantCollapsedSpec } from "../src/variant-collapse";
@@ -83,6 +83,12 @@ export function applyGeneratedModelPolicies(models: ModelSpec<Api>[]): void {
  */
 export function rebakeModelThinking(model: ModelSpec<Api>): void {
 	if (isVariantCollapsedSpec(model)) return;
+	const cursorThinking = model.provider === "cursor" ? getCursorModelIdThinking(model.id) : undefined;
+	if (cursorThinking !== undefined) {
+		model.reasoning = true;
+		model.thinking = cursorThinking;
+		return;
+	}
 	const requiresProviderAuthoredEffort =
 		model.provider === "umans" && (model.thinking?.requiresEffort === true || model.id === "umans-kimi-k2.7");
 	const thinking = resolveModelThinking({ ...model, thinking: undefined }, buildCompat(model));

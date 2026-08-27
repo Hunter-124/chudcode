@@ -736,6 +736,8 @@ export interface Model<TApi extends Api = Api> {
 	 */
 	reasoningMode?: "pro";
 	name: string;
+	/** Upstream release date in normalized `YYYY-MM` or `YYYY-MM-DD` form; absent when unknown. */
+	releaseDate?: string;
 	api: TApi;
 	provider: Provider;
 	baseUrl: string;

@@ -2,7 +2,13 @@
 
 ## [Unreleased]
 
+### Added
+
+- Added optional model release dates from models.dev and a conservative calendar-month recency predicate for user-controlled filtering
+
 ### Changed
+
+- Normalized Cursor effort-suffixed model IDs into fixed canonical thinking metadata
 
 - Renamed `codex-auto-review` model to `GPT-5.3 Codex Spark` with updated pricing and capabilities
 - Removed image input support from GPT-5.3 Codex Spark (text-only)
