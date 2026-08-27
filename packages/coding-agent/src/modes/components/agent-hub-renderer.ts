@@ -4,6 +4,7 @@ import { formatDuration, formatNumber, sanitizeText } from "@oh-my-pi/pi-utils";
 import { getRoleInfo } from "../../config/model-roles";
 import type { Settings } from "../../config/settings";
 import { type AgentRef, MAIN_AGENT_ID } from "../../registry/agent-registry";
+import { sanitizeTaskLabel } from "../../task/label";
 import { parseThinkingLevel } from "../../thinking";
 import { replaceTabs, TRUNCATE_LENGTHS, truncateToWidth } from "../../tools/render-utils";
 import type { ObservableSession } from "../session-observer-registry";
@@ -32,7 +33,9 @@ export function sanitizeDisplayText(text: string): string {
 
 /** Sanitize a line for TUI display and truncate it to the viewport width. */
 export function sanitizeLine(text: string, maxWidth?: number): string {
-	return truncateToWidth(sanitizeDisplayText(text), maxWidth ?? contentWidth());
+	// Hub rows are UI chrome, so strip residual model markup instead of rendering
+	// escaped tag noise if a label generator regresses.
+	return truncateToWidth(sanitizeTaskLabel(sanitizeDisplayText(text)), maxWidth ?? contentWidth());
 }
 
 export function clampHubLine(line: string, width: number): string {

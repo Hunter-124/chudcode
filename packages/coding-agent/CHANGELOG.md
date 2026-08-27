@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- Fixed auto-generated subagent labels rendering model-emitted markup, e.g. a label displayed as `Map TUI editor for undo/redo feature</title>`. Title extraction stripped only exact `<title>` tags, so variants carrying whitespace or attributes, differing case, or truncated fragments reached the screen. Labels are now sanitized where they are committed and again at the Agent Hub render boundary. Matching requires tag syntax, so legitimate labels such as `Map<K,V>` and `migrate A -> B` survive byte-identical.
+
 ## [18.0.8] - 2026-08-27
 
 ### Added

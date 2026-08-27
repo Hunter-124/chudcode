@@ -98,8 +98,10 @@ function disposeWindowsConsoleTitleApi(): void {
 // `<title>` marker output reachable when it isn't (issue #4355).
 const TITLE_MAX_TOKENS = 1024;
 
-/** Matches the title the model wraps in `<title>...</title>`. */
-const TITLE_MARKER_GLOBAL_RE = /<title>([\s\S]*?)<\/title>|<title\s*\/>|<title>\s*$/gi;
+// Title responses are tiny model outputs with one known wrapper, so a narrow,
+// whitespace-tolerant matcher is safer than pulling in a general HTML parser.
+const TITLE_MARKER_GLOBAL_RE = /<\s*title(?:\s+[^<>]*?)?\s*>([\s\S]*?)<\s*\/\s*title\s*>/gi;
+const TITLE_TAG_FRAGMENT_RE = /<\s*\/?\s*title(?:\s+[^<>]*?)?\s*\/?\s*>|<\s*\/?\s*title(?:\s+[^<>]*)?\s*\/?\s*$/gi;
 const TITLE_VISIBILITY_SENTINEL = "\uE000omp-title-visible\uE000";
 const THINKING_TAG_ENVELOPE_RE = /<(think|thinking|reasoning)>\s*[\s\S]*?<\/\1>/gi;
 const THINKING_FENCE_ENVELOPE_RE = /```(?:thinking|reasoning)\b[\s\S]*?```/gi;
@@ -342,9 +344,7 @@ function extractGeneratedTitle(contentBlocks: AssistantMessage["content"]): stri
 	// remains authoritative.
 	const markedTitle = extractVisibleMarkedTitle(textTitle);
 	if (markedTitle !== undefined) return unwrapJsonTitle(markedTitle);
-	const cleanedTextTitle = stripLeadingLeakedThinkingMarkup(textTitle)
-		.replace(/<\/?title>/gi, "")
-		.trim();
+	const cleanedTextTitle = stripLeadingLeakedThinkingMarkup(textTitle).replace(TITLE_TAG_FRAGMENT_RE, "").trim();
 	if (LEADING_PROSE_THINKING_PREAMBLE_RE.test(cleanedTextTitle)) return "";
 	return unwrapJsonTitle(cleanedTextTitle);
 }
