@@ -8,6 +8,7 @@
 ### Added
 
 - Added account quota usage to the `full` and `nerd` status-line presets ([#9929](https://github.com/can1357/oh-my-pi/issues/9929)).
+- Added a schema guard against settings UI conditions that do not resolve to visibility predicates.
 
 ## [18.0.8] - 2026-08-27
 

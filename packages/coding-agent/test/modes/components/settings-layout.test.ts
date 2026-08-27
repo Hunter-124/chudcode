@@ -1,13 +1,14 @@
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import { resetSettingsForTest, Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
 import {
+	getUi,
 	SETTING_TABS,
 	SETTINGS_SCHEMA,
 	type SettingPath,
 	type SettingTab,
 	TAB_GROUPS,
 } from "@oh-my-pi/pi-coding-agent/config/settings-schema";
-import { getSettingsForTab } from "@oh-my-pi/pi-coding-agent/modes/components/settings-defs";
+import { getSettingDef, getSettingsForTab } from "@oh-my-pi/pi-coding-agent/modes/components/settings-defs";
 
 interface UiShape {
 	tab: SettingTab;
@@ -36,6 +37,19 @@ describe("settings layout", () => {
 			}
 		}
 		expect(violations).toEqual([]);
+	});
+
+	it("resolves every schema UI condition to a registered predicate", () => {
+		const missing = new Set<string>();
+		for (const path in SETTINGS_SCHEMA) {
+			const condition = getUi(path as SettingPath)?.condition;
+			if (condition && !getSettingDef(path as SettingPath)?.condition) {
+				missing.add(condition);
+			}
+		}
+		const dangling = [...missing].sort();
+
+		expect(dangling, `Dangling settings UI condition(s): ${dangling.join(", ")}`).toEqual([]);
 	});
 
 	it("getSettingsForTab returns contiguous groups in TAB_GROUPS order", () => {
