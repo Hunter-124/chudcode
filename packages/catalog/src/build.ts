@@ -12,18 +12,23 @@
 import { buildAnthropicCompat } from "./compat/anthropic";
 import { buildDevinCompat } from "./compat/devin";
 import { buildOpenAICompat, buildOpenAIResponsesCompat, buildOpenRouterCompat } from "./compat/openai";
-import { resolveModelThinking } from "./model-thinking";
+import { getCursorModelIdThinking, resolveModelThinking } from "./model-thinking";
 import type { Api, CompatOf, Model, ModelSpec } from "./types";
 import { cleanModelName } from "./utils";
 
 export function buildModel<TApi extends Api>(spec: ModelSpec<TApi>): Model<TApi> {
-	const compat = buildCompat(spec) as CompatOf<TApi>;
+	const cursorThinking =
+		spec.provider === "cursor" && spec.thinking?.effortRouting === undefined
+			? getCursorModelIdThinking(spec.id)
+			: undefined;
+	const normalizedSpec = cursorThinking === undefined ? spec : { ...spec, reasoning: true, thinking: cursorThinking };
+	const compat = buildCompat(normalizedSpec) as CompatOf<TApi>;
 	return {
-		...spec,
-		name: cleanModelName(spec.name),
-		thinking: resolveModelThinking(spec, compat),
+		...normalizedSpec,
+		name: cleanModelName(normalizedSpec.name),
+		thinking: resolveModelThinking(normalizedSpec, compat),
 		compat,
-		compatConfig: spec.compat,
+		compatConfig: normalizedSpec.compat,
 	} as Model<TApi>;
 }
 

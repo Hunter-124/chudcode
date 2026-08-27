@@ -14,6 +14,7 @@ import {
 	isReasoningGlmModelId,
 } from "../identity/family";
 import type { ModelManagerOptions } from "../model-manager";
+import { normalizeModelReleaseDate } from "../model-recency";
 import { getBundledModels } from "../models";
 import type { Api, FetchImpl, Model, ModelSpec, OpenAICompat, Provider, ThinkingConfig } from "../types";
 import { discoveryFetch, isAnthropicOAuthToken, isRecord, toBoolean, toNumber, toPositiveNumber } from "../utils";
@@ -55,6 +56,7 @@ export interface ModelsDevModel {
 	name?: string;
 	tool_call?: boolean;
 	reasoning?: boolean;
+	release_date?: unknown;
 	limit?: {
 		context?: number;
 		output?: number;
@@ -4350,10 +4352,12 @@ export function mapModelsDevToModels(
 			// Resolve API and baseUrl (may be per-model for providers like OpenCode)
 			const resolved = desc.resolveApi?.(modelId, m) ?? { api: desc.api, baseUrl: desc.baseUrl };
 			if (!resolved) continue;
+			const releaseDate = normalizeModelReleaseDate(m.release_date);
 
 			const mapped: ModelSpec<Api> = {
 				id: modelId,
 				name: toModelName(m.name, modelId),
+				...(releaseDate && { releaseDate }),
 				api: resolved.api,
 				provider: desc.providerId as ModelSpec<Api>["provider"],
 				baseUrl: resolved.baseUrl,
