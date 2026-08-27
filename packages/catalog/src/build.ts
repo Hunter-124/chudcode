@@ -16,7 +16,7 @@ import { buildDevinCompat } from "./compat/devin";
 import { buildOpenAICompat, buildOpenAIResponsesCompat, buildOpenRouterCompat } from "./compat/openai";
 import { bareModelId, parseOpenAIModel, semverGte } from "./identity/classify";
 import { isClaudeModelId } from "./identity/family";
-import { resolveModelThinking } from "./model-thinking";
+import { getCursorModelIdThinking, resolveModelThinking } from "./model-thinking";
 import { resolveModelTokenizer } from "./model-tokenizer";
 import type { Api, CompatOf, Model, ModelSpec } from "./types";
 import { cleanModelName } from "./utils";
@@ -66,18 +66,23 @@ function supportsOpenAIGAComputerUse(spec: ModelSpec<Api>, explicitSupport: bool
  * this only runs for discovered/custom/override specs.
  */
 export function buildModel<TApi extends Api>(spec: ModelSpec<TApi>): Model<TApi> {
-	const compat = buildCompat(spec) as CompatOf<TApi>;
-	const supportsComputerUseConfig = explicitComputerUseConfig(spec);
+	const cursorThinking =
+		spec.provider === "cursor" && spec.thinking?.effortRouting === undefined
+			? getCursorModelIdThinking(spec.id)
+			: undefined;
+	const normalizedSpec = cursorThinking === undefined ? spec : { ...spec, reasoning: true, thinking: cursorThinking };
+	const compat = buildCompat(normalizedSpec) as CompatOf<TApi>;
+	const supportsComputerUseConfig = explicitComputerUseConfig(normalizedSpec);
 	return {
-		...spec,
-		name: cleanModelName(spec.name),
-		requiresGlyphTokenization: isClaudeModelId(spec.id),
-		tokenizer: spec.tokenizer ?? resolveModelTokenizer(spec.requestModelId ?? spec.id),
-		thinking: resolveModelThinking(spec, compat),
-		supportsComputerUse: supportsOpenAIGAComputerUse(spec, supportsComputerUseConfig),
+		...normalizedSpec,
+		name: cleanModelName(normalizedSpec.name),
+		requiresGlyphTokenization: isClaudeModelId(normalizedSpec.id),
+		tokenizer: normalizedSpec.tokenizer ?? resolveModelTokenizer(normalizedSpec.requestModelId ?? normalizedSpec.id),
+		thinking: resolveModelThinking(normalizedSpec, compat),
+		supportsComputerUse: supportsOpenAIGAComputerUse(normalizedSpec, supportsComputerUseConfig),
 		supportsComputerUseConfig,
 		compat,
-		compatConfig: spec.compat,
+		compatConfig: normalizedSpec.compat,
 	} as Model<TApi>;
 }
 

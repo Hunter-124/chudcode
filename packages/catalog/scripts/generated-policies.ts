@@ -17,7 +17,7 @@ import {
 import { isMimoModelIdOrName } from "../src/identity/family";
 import { getLongestModelLikeIdSegment } from "../src/identity/id";
 import { buildModelReferenceIndex, resolveModelReference } from "../src/identity/reference";
-import { resolveModelThinking } from "../src/model-thinking";
+import { getCursorModelIdThinking, resolveModelThinking } from "../src/model-thinking";
 import { isOllamaCloudOutputCapped, OLLAMA_CLOUD_MAX_OUTPUT_TOKENS } from "../src/provider-models/ollama";
 import {
 	ALIBABA_TOKEN_PLAN_STATIC_MODELS,
@@ -177,6 +177,12 @@ export function applyGeneratedModelPolicies(models: ModelSpec<Api>[]): void {
  */
 export function rebakeModelThinking(model: ModelSpec<Api>): void {
 	if (isVariantCollapsedSpec(model)) return;
+	const cursorThinking = model.provider === "cursor" ? getCursorModelIdThinking(model.id) : undefined;
+	if (cursorThinking !== undefined) {
+		model.reasoning = true;
+		model.thinking = cursorThinking;
+		return;
+	}
 	if (
 		model.compat &&
 		"thinkingFormat" in model.compat &&

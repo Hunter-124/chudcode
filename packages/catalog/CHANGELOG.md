@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- Fixed Cursor effort-suffixed model IDs (`gpt-5.4-low`/`-medium`/`-high`/`-xhigh`, optionally `-fast`) reporting `reasoning: false`: they now normalize to a fixed canonical thinking configuration matching the baked-in effort ([#9934](https://github.com/can1357/oh-my-pi/issues/9934))
+
 ## [18.0.8] - 2026-08-27
 
 ### Fixed

@@ -2,6 +2,7 @@ import * as http2 from "node:http2";
 import { type } from "@oh-my-pi/omptype";
 import { isKimiK3ModelId } from "../identity";
 import { bareModelId, parseGlmModel, semverGte } from "../identity/classify";
+import { getCursorModelIdThinking } from "../model-thinking";
 import { getBundledModels } from "../models";
 import { toModelSpec } from "../provider-models/bundled-references";
 import type { Model, ModelSpec } from "../types";
@@ -306,7 +307,9 @@ function normalizeCursorModel(
 
 	const name = pickModelDisplayName(details, id);
 	const reference = references.get(id);
+	const fixedThinking = reference?.thinking?.effortRouting === undefined ? getCursorModelIdThinking(id) : undefined;
 	const reasoning =
+		fixedThinking !== undefined ||
 		isKimiK3ModelId(id) ||
 		CURSOR_GROK_REASONING_ID_PATTERN.test(id) ||
 		Boolean(details.thinkingDetails) ||
@@ -320,6 +323,7 @@ function normalizeCursorModel(
 			baseUrl: baseUrlOverride ?? reference.baseUrl,
 			reasoning,
 			contextWindow: resolveCursorContextWindow(details, id, reference.contextWindow),
+			...(fixedThinking && { thinking: fixedThinking }),
 			cursorMaxMode: details.maxMode,
 		};
 	}
@@ -330,6 +334,7 @@ function normalizeCursorModel(
 		provider: "cursor",
 		baseUrl: baseUrlOverride ?? CURSOR_DEFAULT_BASE_URL,
 		reasoning,
+		...(fixedThinking && { thinking: fixedThinking }),
 		input: inferInputFromCursorId(id),
 		cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
 		contextWindow: resolveCursorContextWindow(details, id, DEFAULT_CONTEXT_WINDOW),
