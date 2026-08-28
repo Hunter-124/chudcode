@@ -207,7 +207,7 @@ describe("exportGuild", () => {
 				return undefined;
 			},
 		);
-		const fetchImpl = (async (input: RequestInfo | URL) => {
+		const fetchImpl = (async (input: Request | string | URL) => {
 			expect(String(input)).toBe("https://cdn.discordapp.com/attachments/proof");
 			return new Response("exact attachment bytes\n", { status: 200 });
 		}) as typeof fetch;
@@ -249,7 +249,7 @@ describe("exportGuild", () => {
 				];
 			},
 		);
-		const fetchImpl = (async (_input: RequestInfo | URL) => new Response(bytes, { status: 200 })) as typeof fetch;
+		const fetchImpl = (async (_input: Request | string | URL) => new Response(bytes, { status: 200 })) as typeof fetch;
 
 		const manifest = await exportGuild({ guildId: "1", outputDir, dependencies: dependencies(rest, fetchImpl) });
 		const [illegal, reserved] = manifest.scopes[0]?.attachments ?? [];

@@ -1,5 +1,34 @@
 # CloudCastle Discord development bot handoff
 
+## Update — 2026-08-27, live session bot
+
+Two things changed since the state recorded below.
+
+**The Discord application now exists.** Hunter/Mikey created it and installed it
+into guild `1542474553320542278`; that is operator-reported, not verified from
+this workstation, because the token has not been placed here yet. Everything the
+section below says about the app *not* existing is therefore stale — but nothing
+it says about the archive is: **no export has run**, no verification or
+classification report exists, and no channel, thread, or message in the guild
+has been mutated. The cutover gate in §"Hard cutover gate" is untouched.
+
+**Remaining-implementation item 3 is done, in a wider form.** This package now
+carries the live session bot: an operator posts in `#sessions`, the bot opens a
+thread and drives a real chudcode agent over the RPC protocol in an allowlisted
+checkout, and posts status, answers, and files back. See `RUNBOOK-DEVBOT.md` for
+the operator procedure and `src/devbot.ts`, `src/agent-runtime.ts`,
+`src/transcript.ts` for the implementation. It is not the least-privilege
+archive install: it needs permission integer `326417632320`, so the app must be
+re-invited before it can speak.
+
+Verified on this workstation without Discord, via `bun run devbot-smoke`: agent
+spawn 1.3–2.8 s, single- and multi-tool turns settling and rendering, operator
+abort mid-`bash` returning `aborted` with the session still usable afterwards,
+and a two-pool resume test reopening the same session id and recalling a fact
+from the earlier turn. The gateway half — token load, intents, permissions,
+thread creation — is unverified and cannot be verified until the token is on
+this box.
+
 ## Current state
 
 The safe archive foundation is on `main` in commit `203cb96932` (`feat: add verified Discord archive tooling`). It contains:
