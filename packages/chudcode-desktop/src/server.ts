@@ -10,6 +10,13 @@ const DEFAULT_MAX_OUTBOUND_FRAMES = 1_024;
 const MAX_INBOUND_BYTES = 1024 * 1024;
 const AUTH_COOKIE = "chudcode_desktop";
 const PID_FILE = "desktop.pid";
+const SESSION_PATH_METHODS: Record<string, true> = {
+	"prompt.send": true,
+	"run.abort": true,
+	"ui.respond": true,
+	"agent.command": true,
+	"agent.transcript": true,
+};
 
 interface SocketLike {
 	readonly bufferedAmount?: number;
@@ -362,19 +369,27 @@ export function requestHasToken(request: Request, url: URL, token: string): bool
 }
 
 function isDesktopRequest(value: unknown): value is DesktopRequest {
+	if (
+		typeof value !== "object" ||
+		value === null ||
+		!("t" in value) ||
+		value.t !== "request" ||
+		!("id" in value) ||
+		typeof value.id !== "number" ||
+		!Number.isSafeInteger(value.id) ||
+		!("method" in value) ||
+		typeof value.method !== "string" ||
+		!("params" in value) ||
+		typeof value.params !== "object" ||
+		value.params === null
+	) {
+		return false;
+	}
+	if (!SESSION_PATH_METHODS[value.method]) return true;
 	return (
-		typeof value === "object" &&
-		value !== null &&
-		"t" in value &&
-		value.t === "request" &&
-		"id" in value &&
-		typeof value.id === "number" &&
-		Number.isSafeInteger(value.id) &&
-		"method" in value &&
-		typeof value.method === "string" &&
-		"params" in value &&
-		typeof value.params === "object" &&
-		value.params !== null
+		"sessionPath" in value.params &&
+		typeof value.params.sessionPath === "string" &&
+		value.params.sessionPath.length > 0
 	);
 }
 

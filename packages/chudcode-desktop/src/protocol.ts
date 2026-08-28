@@ -32,11 +32,25 @@ export interface DesktopSessionInfo {
 	status?: "completed" | "failed" | "interrupted" | "active";
 	pinned?: boolean;
 }
+export interface DesktopSessionTab {
+	path: string;
+	title: string;
+	cwd: string;
+	active: boolean;
+	running: boolean;
+	unread: number;
+	draftDirty: boolean;
+}
 
 export interface WorkspaceDescriptor {
 	id: WorkspaceId;
 	rootPath: string;
 	displayName: string;
+}
+export interface RecentProject {
+	rootPath: string;
+	displayName: string;
+	lastOpenedMs: number;
 }
 
 export interface FileStamp {
@@ -139,6 +153,7 @@ export interface LspDiagnostic {
 	severity: 1 | 2 | 3 | 4;
 	message: string;
 	source?: string;
+	/** LSP-native zero-based coordinates; editor adapters convert to their UI convention. */
 	startLine: number;
 	startColumn: number;
 	endLine: number;
@@ -168,9 +183,23 @@ export interface GraphSnapshot {
 
 export interface DesktopRequestMap {
 	"runtime.hello": { params: { protocol: number }; result: { protocol: number; product: string } };
-	"prompt.send": { params: { text: string; images?: ImageContent[] }; result: { accepted: true } };
-	"run.abort": { params: Record<string, never>; result: { accepted: boolean } };
-	"ui.respond": { params: { reqId: number; value?: CollabUiResponseValue }; result: { accepted: boolean } };
+	"prompt.send": {
+		params: { sessionPath: string; text: string; images?: ImageContent[] };
+		result: { accepted: true };
+	};
+	"run.abort": { params: { sessionPath: string }; result: { accepted: boolean } };
+	"ui.respond": {
+		params: { sessionPath: string; reqId: number; value?: CollabUiResponseValue };
+		result: { accepted: boolean };
+	};
+	"agent.command": {
+		params: { sessionPath: string; cmd: "chat" | "kill" | "revive"; agentId: string; text?: string };
+		result: { accepted: boolean; message?: string };
+	};
+	"agent.transcript": {
+		params: { sessionPath: string; agentId: string; fromByte: number };
+		result: { text: string; newSize: number; error?: string };
+	};
 	"session.list": { params: { cwd?: string }; result: { sessions: DesktopSessionInfo[] } };
 	"session.select": { params: { path: string }; result: { header: SessionHeader; entries: SessionEntry[] } };
 	"session.new": { params: { cwd: string }; result: { session: DesktopSessionInfo } };
@@ -186,6 +215,15 @@ export interface DesktopRequestMap {
 	"session.rename": { params: { path: string; title: string }; result: { session: DesktopSessionInfo } };
 	"session.delete": { params: { path: string }; result: { deleted: boolean } };
 	"session.pin": { params: { path: string; pinned: boolean }; result: { session: DesktopSessionInfo } };
+	"session.tabs": { params: Record<string, never>; result: { tabs: DesktopSessionTab[] } };
+	"session.activate": { params: { path: string }; result: { tabs: DesktopSessionTab[] } };
+	"session.tab.close": {
+		params: { path: string; force?: boolean };
+		result: { closed: boolean; blockedReason?: "running" | "dirty-draft"; tabs: DesktopSessionTab[] };
+	};
+	"session.tab.draft": { params: { path: string; dirty: boolean }; result: { tabs: DesktopSessionTab[] } };
+	"workspace.recent": { params: Record<string, never>; result: { projects: RecentProject[] } };
+	"workspace.pick": { params: { initialPath?: string }; result: { rootPath?: string; cancelled: boolean } };
 	"workspace.open": { params: { rootPath: string }; result: { workspace: WorkspaceDescriptor } };
 	"workspace.list": { params: { workspaceId: WorkspaceId; uri?: DocumentUri }; result: { entries: WorkspaceEntry[] } };
 	"workspace.read": { params: { workspaceId: WorkspaceId; uri: DocumentUri }; result: { document: DocumentSnapshot } };
@@ -288,28 +326,30 @@ export type DesktopResponse<M extends DesktopMethod = DesktopMethod> = M extends
 export type DesktopEvent =
 	| {
 			t: "welcome";
+			sessionPath: string;
 			protocol: number;
 			header: SessionHeader;
 			state: SessionState & { model?: WireModel };
 			agents: AgentSnapshot[];
 			entryCount: number;
 	  }
-	| { t: "snapshot-chunk"; entries: SessionEntry[]; final: boolean }
-	| { t: "entry"; entry: SessionEntry }
-	| { t: "agent-event"; event: AgentEvent }
-	| { t: "state"; state: SessionState & { model?: WireModel } }
-	| { t: "bus"; channel: BusChannel; data: unknown }
-	| { t: "agents"; agents: AgentSnapshot[] }
-	| { t: "ui-request"; request: CollabUiRequest }
-	| { t: "ui-request-end"; reqId: number }
+	| { t: "snapshot-chunk"; sessionPath: string; entries: SessionEntry[]; final: boolean }
+	| { t: "entry"; sessionPath: string; entry: SessionEntry }
+	| { t: "agent-event"; sessionPath: string; event: AgentEvent }
+	| { t: "state"; sessionPath: string; state: SessionState & { model?: WireModel } }
+	| { t: "bus"; sessionPath: string; channel: BusChannel; data: unknown }
+	| { t: "agents"; sessionPath: string; agents: AgentSnapshot[] }
+	| { t: "ui-request"; sessionPath: string; request: CollabUiRequest }
+	| { t: "ui-request-end"; sessionPath: string; reqId: number }
 	| { t: "sessions"; sessions: DesktopSessionInfo[] }
+	| { t: "session-tabs"; tabs: DesktopSessionTab[] }
 	| { t: "workspace-change"; workspaceId: WorkspaceId; changes: FileChange[] }
 	| { t: "document"; document: DocumentSnapshot; origin: FileChange["origin"] }
 	| { t: "git"; workspaceId: WorkspaceId; snapshot: GitSnapshot }
-	| { t: "terminal-data"; terminalId: TerminalId; data: string }
+	| { t: "terminal-data"; terminalId: TerminalId; dataBase64: string }
 	| { t: "terminal-exit"; terminalId: TerminalId; exitCode: number | null; signal?: string }
 	| { t: "diagnostics"; workspaceId: WorkspaceId; diagnostics: LspDiagnostic[] }
 	| { t: "graph"; workspaceId: WorkspaceId; kind: "code" | "git" | "agent"; graph: GraphSnapshot }
-	| { t: "error"; code: string; message: string };
+	| { t: "error"; sessionPath?: string; code: string; message: string };
 
 export type DesktopFrame = DesktopRequest | DesktopResponse | DesktopEvent;

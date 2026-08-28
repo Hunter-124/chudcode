@@ -1,0 +1,292 @@
+.graph-panel {
+	display: grid;
+	grid-template-rows: auto minmax(0, 1fr);
+	min-inline-size: 0;
+	min-block-size: 0;
+	block-size: 100%;
+	color: var(--color-text);
+	background: var(--color-editor);
+}
+
+.graph-toolbar {
+	display: flex;
+	align-items: end;
+	gap: var(--space-2);
+	min-block-size: calc(var(--control-height) + var(--space-3) * 2);
+	padding: var(--space-2) var(--space-3);
+	border-block-end: var(--hairline) solid var(--color-border);
+	background: var(--color-header);
+}
+
+.graph-toolbar label {
+	display: grid;
+	gap: var(--space-1);
+}
+
+.graph-search {
+	inline-size: min(280px, 30vi);
+}
+
+.graph-control-label {
+	color: var(--color-text-dim);
+	font-size: calc(var(--font-size-code) * 0.8);
+}
+
+.graph-toolbar input,
+.graph-toolbar select,
+.graph-toolbar button,
+.graph-list button {
+	min-block-size: var(--control-height);
+	box-sizing: border-box;
+	border: var(--hairline) solid var(--color-border);
+	border-radius: var(--radius-frame);
+	color: var(--color-text);
+	background: var(--color-field);
+	font: inherit;
+}
+
+.graph-toolbar input,
+.graph-toolbar select {
+	padding-inline: var(--space-2);
+}
+
+.graph-toolbar button {
+	padding-inline: var(--space-3);
+	background: var(--color-button);
+	cursor: pointer;
+}
+
+.graph-toolbar button:hover,
+.graph-list button:hover {
+	background: var(--color-button-hover);
+}
+
+.graph-toolbar button:active,
+.graph-toolbar button[aria-pressed="true"] {
+	background: var(--color-button-active);
+}
+
+.graph-toolbar button:disabled {
+	opacity: var(--disabled-opacity);
+	cursor: default;
+}
+
+.graph-toolbar :focus-visible,
+.graph-list :focus-visible,
+.graph-canvas:focus-visible {
+	outline: 2px solid var(--color-focus-ring);
+	outline-offset: -2px;
+}
+
+.graph-summary {
+	align-self: center;
+	margin-inline-start: auto;
+	color: var(--color-text-dim);
+	font-size: calc(var(--font-size-code) * 0.8);
+	white-space: nowrap;
+}
+
+.graph-canvas-wrap {
+	position: relative;
+	min-block-size: 0;
+	overflow: hidden;
+}
+
+.graph-canvas {
+	display: block;
+	inline-size: 100%;
+	block-size: 100%;
+	min-block-size: 260px;
+	background-color: var(--color-editor);
+	background-image:
+		linear-gradient(var(--color-editor-line-highlight) var(--hairline), var(--color-transparent) var(--hairline)),
+		linear-gradient(90deg, var(--color-editor-line-highlight) var(--hairline), var(--color-transparent) var(--hairline));
+	background-size: var(--space-6) var(--space-6);
+	touch-action: none;
+	cursor: grab;
+}
+
+.graph-canvas:active {
+	cursor: grabbing;
+}
+
+.graph-edge {
+	stroke: var(--color-graph-node-neutral);
+	stroke-width: 1.25;
+	stroke-opacity: 0.52;
+	vector-effect: non-scaling-stroke;
+}
+
+.graph-node {
+	color: var(--color-graph-node-neutral);
+	cursor: pointer;
+}
+
+.graph-node--file,
+.graph-node--symbol,
+.graph-node--module,
+.graph-node--code {
+	color: var(--color-graph-node-info);
+}
+
+.graph-node--commit,
+.graph-node--branch,
+.graph-node--git {
+	color: var(--color-graph-node-positive);
+}
+
+.graph-node--agent,
+.graph-node--task {
+	color: var(--color-graph-node-warning);
+}
+
+.graph-node-halo {
+	fill: currentColor;
+	fill-opacity: 0;
+	stroke: currentColor;
+	stroke-width: 1;
+	stroke-opacity: 0;
+	vector-effect: non-scaling-stroke;
+}
+
+.graph-node-dot {
+	fill: var(--color-editor);
+	stroke: currentColor;
+	stroke-width: 3;
+	vector-effect: non-scaling-stroke;
+}
+
+.graph-node text {
+	fill: var(--color-text);
+	paint-order: stroke;
+	stroke: var(--color-editor);
+	stroke-width: 3px;
+	stroke-linejoin: round;
+	font-family: var(--font-code);
+	font-size: calc(var(--font-size-code) * 0.8);
+	user-select: none;
+}
+
+.graph-node:hover .graph-node-halo,
+.graph-node:focus-visible .graph-node-halo {
+	fill-opacity: var(--alpha-hover);
+	stroke-opacity: 0.5;
+}
+
+.graph-node--selected .graph-node-halo {
+	fill-opacity: var(--alpha-selection);
+	stroke-opacity: 1;
+	stroke-width: 2;
+}
+
+.graph-node--pinned .graph-node-dot {
+	fill: currentColor;
+}
+
+.graph-node--dragging {
+	cursor: grabbing;
+}
+
+.graph-node--dragging .graph-node-halo {
+	fill-opacity: var(--alpha-selection);
+	stroke-opacity: 1;
+}
+
+.graph-announcement {
+	position: absolute;
+	inline-size: 1px;
+	block-size: 1px;
+	margin: -1px;
+	overflow: hidden;
+	clip-path: inset(50%);
+	white-space: nowrap;
+}
+
+.graph-list {
+	position: absolute;
+	inset-block: var(--space-3);
+	inset-inline-end: var(--space-3);
+	inline-size: min(320px, calc(100% - var(--space-6)));
+	margin: 0;
+	padding: var(--space-2);
+	overflow: auto;
+	list-style: none;
+	border: var(--hairline) solid var(--color-border);
+	border-radius: var(--radius-popup);
+	background: var(--color-popup);
+}
+
+.graph-list--fallback {
+	position: absolute;
+	inline-size: 1px;
+	block-size: 1px;
+	margin: -1px;
+	padding: 0;
+	overflow: hidden;
+	clip-path: inset(50%);
+	border: 0;
+	white-space: nowrap;
+}
+
+.graph-list--preview {
+	position: static;
+	inline-size: 100%;
+	box-shadow: none;
+}
+
+.graph-list li + li {
+	margin-block-start: var(--space-1);
+}
+
+.graph-list button {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: var(--space-2);
+	inline-size: 100%;
+	padding-inline: var(--space-2);
+	text-align: start;
+	cursor: pointer;
+}
+
+.graph-list button[aria-current="true"] {
+	border-color: var(--color-focus-ring);
+	background: var(--color-selection);
+}
+
+.graph-list button span {
+	color: var(--color-text-dim);
+	font-size: var(--font-size-caption);
+}
+
+@media (max-width: 760px) {
+	.graph-toolbar {
+		align-items: center;
+		flex-wrap: wrap;
+	}
+
+	.graph-search {
+		inline-size: 100%;
+	}
+
+	.graph-summary {
+		inline-size: 100%;
+		margin-inline-start: 0;
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.graph-node,
+	.graph-edge,
+	.graph-scene {
+		animation: none !important;
+		transition: none !important;
+	}
+}
+
+:root[data-motion-scale="0"] .graph-node,
+:root[data-motion-scale="0"] .graph-edge,
+:root[data-motion-scale="0"] .graph-scene {
+	animation: none !important;
+	transition: none !important;
+}

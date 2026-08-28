@@ -1,0 +1,510 @@
+@import "@xterm/xterm/css/xterm.css";
+
+.terminal-panel,
+.lsp-status {
+	min-width: 0;
+	min-height: 0;
+	color: var(--color-text);
+	background: var(--color-panel);
+	font-family: var(--font-body);
+}
+
+.terminal-panel {
+	display: grid;
+	grid-template-rows: auto minmax(0, 1fr);
+	height: 100%;
+	border-top: var(--hairline) solid var(--color-border);
+}
+
+.terminal-tabs {
+	display: flex;
+	align-items: stretch;
+	min-height: var(--control-height);
+	padding-inline: var(--space-1);
+	background: var(--color-tab-strip);
+	border-bottom: var(--hairline) solid var(--color-tab-border);
+	overflow-x: auto;
+	scrollbar-width: thin;
+	scrollbar-color: var(--color-scrollbar-thumb) var(--color-scrollbar-track);
+}
+
+.terminal-tab-wrap {
+	display: flex;
+	align-items: center;
+	flex: 0 0 auto;
+	position: relative;
+	border-inline-end: var(--hairline) solid var(--color-tab-border);
+	background: var(--color-tab);
+}
+
+.terminal-tab-wrap.is-active {
+	background: var(--color-tab-active);
+}
+
+.terminal-tab-wrap.is-active::after {
+	content: "";
+	position: absolute;
+	inset: auto var(--space-1) 0;
+	height: 2px;
+	background: var(--accent-primary);
+	transform-origin: center;
+	animation: terminal-tab-enter calc(140ms * var(--motion-scale, 1)) ease-out;
+}
+
+.terminal-tab,
+.terminal-tab-close,
+.terminal-new,
+.terminal-state button,
+.lsp-actions button,
+.lsp-diagnostic {
+	color: inherit;
+	border: 0;
+	font: inherit;
+}
+
+.terminal-tab,
+.terminal-tab-close,
+.terminal-new {
+	background: var(--color-transparent);
+}
+
+.terminal-tab {
+	display: inline-flex;
+	align-items: center;
+	gap: var(--space-2);
+	min-height: var(--control-height);
+	padding: 0 var(--space-2) 0 var(--space-3);
+	color: var(--color-text-dim);
+	white-space: nowrap;
+	cursor: pointer;
+}
+
+.terminal-tab-wrap.is-active .terminal-tab {
+	color: var(--color-text);
+}
+
+.terminal-tab-status {
+	width: 7px;
+	height: 7px;
+	border-radius: var(--radius-pill);
+	background: var(--color-status-info);
+}
+
+.terminal-tab-status.is-creating {
+	animation: terminal-status-pulse calc(1.2s * var(--motion-scale, 1)) ease-in-out infinite;
+}
+
+.terminal-tab-status.is-error {
+	background: var(--color-status-error);
+}
+
+.terminal-tab-close,
+.terminal-new {
+	display: inline-grid;
+	place-items: center;
+	width: 30px;
+	min-height: var(--control-height);
+	color: var(--color-text-dim);
+	cursor: pointer;
+}
+
+.terminal-tab-close:hover,
+.terminal-new:hover,
+.terminal-tab:hover {
+	color: var(--color-text);
+	background: var(--color-tab-hover);
+}
+
+.terminal-new:disabled {
+	color: var(--color-text-disabled);
+	cursor: default;
+}
+
+.terminal-connection {
+	align-self: center;
+	margin-inline: auto var(--space-2);
+	padding: var(--space-1) var(--space-2);
+	color: var(--color-text-dim);
+	font-size: 0.75rem;
+	text-transform: capitalize;
+}
+
+.terminal-connection[data-phase="live"] {
+	color: var(--color-status-success);
+}
+
+.terminal-connection[data-phase="ended"] {
+	color: var(--color-status-error);
+}
+
+.terminal-viewport {
+	position: relative;
+	min-width: 0;
+	min-height: 0;
+	background: var(--color-editor);
+	overflow: hidden;
+}
+
+.terminal-tab-panel,
+.terminal-session {
+	position: absolute;
+	inset: 0;
+	min-width: 0;
+	min-height: 0;
+}
+
+.terminal-tab-panel[hidden],
+.terminal-session:not(.is-active) {
+	display: none;
+}
+
+.terminal-session {
+	padding: var(--space-2);
+	font-family: var(--font-code);
+	font-size: var(--font-size-code);
+}
+
+.terminal-session .xterm {
+	height: 100%;
+}
+
+.terminal-session .xterm-viewport {
+	scrollbar-color: var(--color-scrollbar-thumb) var(--color-scrollbar-track);
+}
+
+.terminal-state,
+.terminal-exit {
+	position: absolute;
+	z-index: 2;
+	inset: 50% auto auto 50%;
+	display: flex;
+	align-items: center;
+	gap: var(--space-2);
+	max-width: min(520px, calc(100% - var(--space-8)));
+	padding: var(--space-3);
+	color: var(--color-text-dim);
+	background: var(--color-popup);
+	border: var(--hairline) solid var(--color-border);
+	border-radius: var(--radius-frame);
+	transform: translate(-50%, -50%);
+	box-shadow: 0 var(--space-2) var(--space-5) var(--color-glass-shadow);
+}
+
+.terminal-state.is-error {
+	color: var(--color-status-error);
+}
+
+.terminal-state button,
+.lsp-actions button {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	gap: var(--space-1);
+	min-height: 28px;
+	padding: var(--space-1) var(--space-2);
+	color: var(--color-text);
+	background: var(--color-button);
+	border-radius: var(--radius-frame);
+	cursor: pointer;
+}
+
+.terminal-state button:hover,
+.lsp-actions button:hover:not(:disabled) {
+	background: var(--color-button-hover);
+}
+
+.terminal-state button:disabled,
+.lsp-actions button:disabled {
+	opacity: var(--disabled-opacity);
+	cursor: default;
+}
+
+.terminal-exit {
+	inset: auto var(--space-3) var(--space-3) auto;
+	padding: var(--space-1) var(--space-2);
+	font-size: 0.78rem;
+	transform: none;
+}
+
+.terminal-tab:focus-visible,
+.terminal-tab-close:focus-visible,
+.terminal-new:focus-visible,
+.terminal-state button:focus-visible,
+.lsp-actions button:focus-visible,
+.lsp-actions input:focus-visible,
+.lsp-diagnostic:focus-visible {
+	outline: 2px solid var(--color-focus-ring);
+	outline-offset: -2px;
+}
+
+.lsp-status {
+	display: flex;
+	flex-direction: column;
+	gap: var(--density-section-gap);
+	height: 100%;
+	padding: var(--density-gutter);
+	overflow: auto;
+}
+
+.lsp-status-header {
+	display: flex;
+	align-items: flex-start;
+	justify-content: space-between;
+	gap: var(--space-3);
+}
+
+.lsp-status h2,
+.lsp-status h3,
+.lsp-status p {
+	margin: 0;
+}
+
+.lsp-status h2 {
+	font-size: 0.95rem;
+	font-weight: var(--font-weight-semibold);
+}
+
+.lsp-status-header p {
+	margin-block-start: var(--space-1);
+	color: var(--color-text-dim);
+	font-size: 0.76rem;
+}
+
+.lsp-actions {
+	display: flex;
+	align-items: center;
+	justify-content: flex-end;
+	gap: var(--space-1);
+	flex-wrap: wrap;
+}
+
+.lsp-actions button {
+	font-size: 0.76rem;
+}
+
+.lsp-symbol-search {
+	display: flex;
+	align-items: stretch;
+	min-height: 28px;
+	background: var(--color-field);
+	border: var(--hairline) solid var(--color-border);
+	border-radius: var(--radius-frame);
+	overflow: hidden;
+}
+
+.lsp-symbol-search input {
+	min-width: 8rem;
+	width: 10rem;
+	padding-inline: var(--space-2);
+	color: var(--color-text);
+	background: var(--color-transparent);
+	border: 0;
+	font: inherit;
+	font-size: 0.76rem;
+}
+
+.lsp-symbol-search button {
+	min-width: 28px;
+	padding: 0;
+	border-radius: 0;
+}
+
+.lsp-request-error {
+	padding: var(--space-2);
+	color: var(--color-status-error);
+	background: var(--color-field);
+	border: var(--hairline) solid var(--color-status-error);
+	border-radius: var(--radius-frame);
+	font-size: 0.78rem;
+}
+
+.lsp-server-list {
+	display: grid;
+	gap: var(--density-row-gap);
+}
+
+.lsp-server {
+	display: grid;
+	grid-template-columns: auto minmax(0, 1fr) auto auto;
+	align-items: center;
+	gap: var(--space-2);
+	min-height: 30px;
+	padding: var(--space-1) var(--space-2);
+	background: var(--color-field);
+	border-radius: var(--density-row-radius);
+	font-size: 0.78rem;
+}
+
+.lsp-server > svg {
+	color: var(--color-text-dim);
+}
+
+.lsp-server.is-ready > svg {
+	color: var(--color-status-success);
+}
+
+.lsp-server.is-error > svg {
+	color: var(--color-status-error);
+}
+
+.lsp-server.is-starting > svg {
+	color: var(--color-status-info);
+}
+
+.lsp-server small,
+.lsp-server strong,
+.lsp-server-message {
+	color: var(--color-text-dim);
+	font-size: 0.72rem;
+	font-weight: var(--font-weight-regular);
+}
+
+.lsp-server strong {
+	text-transform: capitalize;
+}
+
+.lsp-server-message {
+	grid-column: 2 / -1;
+}
+
+.lsp-diagnostics {
+	min-height: 0;
+}
+
+.lsp-diagnostics h3 {
+	display: flex;
+	align-items: center;
+	gap: var(--space-2);
+	margin-block-end: var(--space-1);
+	font-size: 0.82rem;
+	font-weight: var(--font-weight-semibold);
+}
+
+.lsp-diagnostics h3 span {
+	color: var(--color-text-dim);
+	font-weight: var(--font-weight-regular);
+}
+
+.lsp-diagnostics ul {
+	display: grid;
+	gap: 1px;
+	margin: 0;
+	padding: 0;
+	list-style: none;
+}
+
+.lsp-diagnostic {
+	display: grid;
+	grid-template-columns: auto minmax(0, 1fr) auto auto;
+	align-items: center;
+	gap: var(--space-2);
+	width: 100%;
+	padding: var(--density-pad-y) var(--density-pad-x);
+	text-align: start;
+	background: var(--color-transparent);
+	border-radius: var(--density-row-radius);
+	cursor: pointer;
+}
+
+.lsp-diagnostic:hover:not(:disabled) {
+	background: var(--color-hover);
+}
+
+.lsp-diagnostic:disabled {
+	cursor: default;
+}
+
+.lsp-diagnostic.is-error > svg {
+	color: var(--color-diagnostic-error);
+}
+
+.lsp-diagnostic.is-warning > svg {
+	color: var(--color-diagnostic-warn);
+}
+
+.lsp-diagnostic.is-info > svg,
+.lsp-diagnostic.is-hint > svg {
+	color: var(--color-diagnostic-hint);
+}
+
+.lsp-diagnostic-message {
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	font-size: 0.8rem;
+}
+
+.lsp-diagnostic-location,
+.lsp-diagnostic-source,
+.lsp-empty {
+	color: var(--color-text-dim);
+	font-size: 0.72rem;
+}
+
+.lsp-empty {
+	padding: var(--space-2);
+}
+
+.lsp-spinner {
+	animation: lsp-spin calc(900ms * var(--motion-scale, 1)) linear infinite;
+}
+
+.sr-only {
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	padding: 0;
+	margin: -1px;
+	overflow: hidden;
+	clip: rect(0, 0, 0, 0);
+	white-space: nowrap;
+	border: 0;
+}
+
+@keyframes terminal-tab-enter {
+	from { transform: scaleX(0); }
+	to { transform: scaleX(1); }
+}
+
+@keyframes terminal-status-pulse {
+	0%, 100% { opacity: 0.45; }
+	50% { opacity: 1; }
+}
+
+@keyframes lsp-spin {
+	to { transform: rotate(360deg); }
+}
+
+:root[data-motion-scale="0"] .terminal-tab-wrap.is-active::after,
+:root[data-motion-scale="0"] .terminal-tab-status.is-creating,
+:root[data-motion-scale="0"] .lsp-spinner {
+	animation: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.terminal-tab-wrap.is-active::after,
+	.terminal-tab-status.is-creating,
+	.lsp-spinner {
+		animation: none;
+	}
+}
+
+@media (max-width: 720px) {
+	.lsp-status-header {
+		flex-direction: column;
+	}
+
+	.lsp-actions {
+		justify-content: flex-start;
+	}
+
+	.lsp-diagnostic {
+		grid-template-columns: auto minmax(0, 1fr);
+	}
+
+	.lsp-diagnostic-location,
+	.lsp-diagnostic-source {
+		grid-column: 2;
+	}
+}

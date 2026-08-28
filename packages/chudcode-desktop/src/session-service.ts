@@ -493,6 +493,15 @@ export class SessionService {
 		this.#catalog = options.catalog ?? defaultCatalog;
 	}
 
+	get running(): boolean {
+		return (
+			this.#promptInFlight > 0 ||
+			this.#session.isStreaming ||
+			this.#session.isAborting ||
+			this.#session.queuedMessageCount > 0
+		);
+	}
+
 	sendPrompt(text: string, images?: ImageContent[]): Promise<boolean> {
 		this.#promptInFlight += 1;
 		let prompt: Promise<boolean>;
@@ -517,11 +526,7 @@ export class SessionService {
 	}
 
 	async abort(): Promise<boolean> {
-		const accepted =
-			this.#promptInFlight > 0 ||
-			this.#session.isStreaming ||
-			this.#session.isAborting ||
-			this.#session.queuedMessageCount > 0;
+		const accepted = this.running;
 		await this.#session.abort({ reason: USER_INTERRUPT_LABEL });
 		return accepted;
 	}
@@ -593,20 +598,6 @@ export class SessionService {
 		return await this.#requireDesktopInfo(stored.path);
 	}
 
-	async delete(sessionPath: string): Promise<{ deleted: boolean; activeChanged: boolean }> {
-		const stored = await this.#requireSession(sessionPath);
-		const activePath = this.#session.sessionManager.getSessionFile();
-		const activeChanged = Boolean(activePath && path.resolve(activePath) === path.resolve(stored.path));
-		if (activeChanged) {
-			const created = await this.#session.newSession({ drop: true });
-			if (!created) throw new SessionServiceError("SESSION_CANCELLED", "Deleting the active session was cancelled");
-			await this.#materializeActiveSession();
-		} else {
-			await this.#catalog.delete(stored.path);
-		}
-		return { deleted: true, activeChanged };
-	}
-
 	async pin(sessionPath: string, pinned: boolean): Promise<DesktopSessionInfo> {
 		const stored = await this.#requireSession(sessionPath);
 		const pins = await this.#catalog.loadPins();
@@ -616,6 +607,17 @@ export class SessionService {
 		}
 		const refreshed = await this.#requireSession(stored.path);
 		return this.#toDesktopInfo(refreshed, pinned);
+	}
+
+	async materializeActive(): Promise<DesktopSessionInfo> {
+		await this.#materializeActiveSession();
+		return await this.#activeInfo();
+	}
+
+	async deleteStored(sessionPath: string): Promise<boolean> {
+		const stored = await this.#requireSession(sessionPath);
+		await this.#catalog.delete(stored.path);
+		return true;
 	}
 
 	async #materializeActiveSession(): Promise<void> {

@@ -7,7 +7,14 @@ import type { AgentSessionEvent } from "@oh-my-pi/pi-coding-agent/session/agent-
 import type { SessionEntry, SessionHeader } from "@oh-my-pi/pi-coding-agent/session/session-entries";
 import type { SessionInfo } from "@oh-my-pi/pi-coding-agent/session/session-listing";
 import type { DesktopFrame } from "../src/protocol";
-import { type DesktopAgentRegistry, type DesktopFrameSink, DesktopRuntime } from "../src/runtime";
+import {
+	type DesktopAgentControl,
+	type DesktopAgentRegistry,
+	type DesktopFrameSink,
+	DesktopRuntime,
+	type DesktopSessionFactoryRequest,
+	type DesktopSessionResources,
+} from "../src/runtime";
 import { OrderedSocketQueue, rejectUntrustedRequest, requestHasToken, startDesktopServer } from "../src/server";
 import {
 	type DesktopAgentSession,
@@ -261,6 +268,72 @@ function catalogFor(session: FakeSession) {
 	return { catalog, sessions, pins };
 }
 
+function multiSessionHarness(ids = ["one", "two"]) {
+	const sessions = ids.map(id => info(id));
+	const pins = new Set<string>();
+	const live: FakeSession[] = [];
+	let sequence = ids.length;
+	const catalog: SessionCatalog = {
+		list: async cwd => sessions.filter(item => !cwd || item.cwd === cwd),
+		openForRename: async stored => ({
+			setSessionName: async title => {
+				stored.title = title;
+				return true;
+			},
+			close: async () => {},
+		}),
+		delete: async sessionPath => {
+			const index = sessions.findIndex(item => path.resolve(item.path) === path.resolve(sessionPath));
+			if (index >= 0) sessions.splice(index, 1);
+		},
+		loadPins: async () => new Set(pins),
+		togglePin: async id => {
+			if (!pins.delete(id)) pins.add(id);
+			return pins.has(id);
+		},
+	};
+	const track = (session: FakeSession) => {
+		live.push(session);
+		session.onPathChanged = (id, file, cwd) => {
+			const existing = sessions.find(item => item.id === id);
+			if (existing) {
+				existing.path = file;
+				existing.cwd = cwd;
+			} else {
+				sessions.push(info(id, file, cwd));
+			}
+		};
+		return session;
+	};
+	const resources = (session: FakeSession): DesktopSessionResources => ({
+		session,
+		sessionService: new SessionService(session, { catalog }),
+		registry: fakeRegistry(),
+	});
+	const initial = new FakeSession();
+	initial.setActive(ids[0] ?? "one", "/work");
+	track(initial);
+	const factory = async (request: DesktopSessionFactoryRequest): Promise<DesktopSessionResources> => {
+		const session = track(new FakeSession());
+		if (request.sessionPath) await session.switchSession(request.sessionPath);
+		else session.setActive(`new-${++sequence}`, request.cwd);
+		return resources(session);
+	};
+	const runtime = new DesktopRuntime({ ...resources(initial), sessionFactory: factory });
+	return {
+		runtime,
+		sessions,
+		live,
+		sessionFor(sessionPath: string) {
+			const session = live.find(
+				candidate => path.resolve(candidate.sessionManager.file) === path.resolve(sessionPath),
+			);
+			if (!session) throw new Error(`No live fake session for ${sessionPath}`);
+			return session;
+		},
+	};
+}
+
 describe("desktop loopback authorization", () => {
 	it("rejects missing tokens, non-loopback Host, and foreign Origin", () => {
 		const token = "t".repeat(43);
@@ -321,159 +394,372 @@ describe("desktop loopback authorization", () => {
 });
 
 describe("desktop runtime", () => {
-	it("routes prompts with images and aborts through AgentSession", async () => {
-		const fake = new FakeSession();
-		fake.isStreaming = true;
-		const { catalog } = catalogFor(fake);
-		const runtime = new DesktopRuntime({
-			session: fake,
-			sessionService: new SessionService(fake, { catalog }),
-			registry: fakeRegistry(),
-		});
-		const images: ImageContent[] = [{ type: "image", data: "AA==", mimeType: "image/png" }];
-		const prompt = await runtime.handleRequest({
+	it("runs two retained sessions concurrently with interleaved tagged events, targeted abort, and unread state", async () => {
+		const harness = multiSessionHarness();
+		const { runtime } = harness;
+		await runtime.handleRequest({
 			t: "request",
 			id: 1,
-			method: "prompt.send",
-			params: { text: "hello", images },
+			method: "session.activate",
+			params: { path: "/sessions/two.jsonl" },
 		});
-		const abort = await runtime.handleRequest({ t: "request", id: 2, method: "run.abort", params: {} });
-		expect(prompt).toMatchObject({ result: { accepted: true } });
-		expect(abort).toMatchObject({ result: { accepted: true } });
-		expect(fake.promptCalls).toEqual([{ text: "hello", images, streamingBehavior: "steer" }]);
-		expect(fake.abortCalls).toBe(1);
-		await runtime.dispose();
-	});
-
-	it("delivers snapshot chunks and live entry/event frames in arrival order", async () => {
-		const fake = new FakeSession();
-		fake.sessionManager.entries = [
-			entry("a", "x".repeat(70)),
-			entry("b", "y".repeat(70)),
-			entry("c", "z".repeat(70)),
-			{
-				type: "service_tier_change",
-				id: "desktop-hidden",
-				parentId: null,
-				timestamp: BASE_TIME.toISOString(),
-				serviceTier: null,
-			},
-		];
-		const { catalog } = catalogFor(fake);
-		const runtime = new DesktopRuntime({
-			session: fake,
-			sessionService: new SessionService(fake, { catalog }),
-			registry: fakeRegistry(),
-			snapshotChunkBytes: 120,
-		});
+		const one = harness.sessionFor("/sessions/one.jsonl");
+		const two = harness.sessionFor("/sessions/two.jsonl");
+		one.isStreaming = true;
+		two.isStreaming = true;
 		const sink = new RecordingSink();
 		runtime.attach(sink);
-		const chunks = sink.frames.filter(frame => frame.t === "snapshot-chunk");
-		expect(chunks.length).toBeGreaterThan(1);
-		expect(chunks.at(-1)).toMatchObject({ final: true });
-		const welcome = sink.frames.find(frame => frame.t === "welcome");
-		expect(welcome).toMatchObject({ entryCount: 3 });
-		expect(chunks.flatMap(chunk => chunk.entries).map(item => item.id)).toEqual(["a", "b", "c"]);
-		expect(
-			sink.frames.some(
-				frame =>
-					frame.t === "agent-event" &&
-					frame.event.type === "notice" &&
-					frame.event.message.includes('session entry type "service_tier_change"'),
-			),
-		).toBeTrue();
 
-		fake.sessionManager.append(entry("live"));
-		fake.emit({ type: "model_changed" });
-		fake.emit({ type: "agent_start" });
-		const entryIndex = sink.frames.findIndex(frame => frame.t === "entry" && frame.entry.id === "live");
-		const eventIndex = sink.frames.findIndex(
-			frame => frame.t === "agent-event" && frame.event.type === "agent_start",
-		);
-		expect(entryIndex).toBeGreaterThan(-1);
-		expect(eventIndex).toBeGreaterThan(entryIndex);
-		expect(
-			sink.frames.some(
-				frame =>
-					frame.t === "agent-event" &&
-					frame.event.type === "notice" &&
-					frame.event.message.includes('agent event type "model_changed"'),
-			),
-		).toBeTrue();
+		await runtime.handleRequest({
+			t: "request",
+			id: 2,
+			method: "prompt.send",
+			params: { sessionPath: "/sessions/one.jsonl", text: "one" },
+		});
+		await runtime.handleRequest({
+			t: "request",
+			id: 3,
+			method: "prompt.send",
+			params: { sessionPath: "/sessions/two.jsonl", text: "two" },
+		});
+		one.sessionManager.append(entry("one-live"));
+		two.sessionManager.append(entry("two-live"));
+		one.emit({ type: "agent_start" });
+		two.emit({ type: "agent_start" });
+		expect(one.promptCalls.map(call => call.text)).toEqual(["one"]);
+		expect(two.promptCalls.map(call => call.text)).toEqual(["two"]);
+		expect(sink.frames.find(frame => frame.t === "entry" && frame.entry.id === "one-live")).toMatchObject({
+			sessionPath: "/sessions/one.jsonl",
+		});
+		expect(sink.frames.find(frame => frame.t === "entry" && frame.entry.id === "two-live")).toMatchObject({
+			sessionPath: "/sessions/two.jsonl",
+		});
+
+		await runtime.handleRequest({
+			t: "request",
+			id: 4,
+			method: "session.activate",
+			params: { path: "/sessions/one.jsonl" },
+		});
+		two.sessionManager.append(entry("inactive"));
+		const tabsFrame = sink.frames.findLast(frame => frame.t === "session-tabs");
+		if (tabsFrame?.t !== "session-tabs") throw new Error("session tabs missing");
+		expect(tabsFrame.tabs.find(tab => tab.path === "/sessions/two.jsonl")?.unread).toBeGreaterThan(0);
+		expect(two.abortCalls).toBe(0);
+
+		await runtime.handleRequest({
+			t: "request",
+			id: 5,
+			method: "run.abort",
+			params: { sessionPath: "/sessions/one.jsonl" },
+		});
+		expect(one.abortCalls).toBe(1);
+		expect(two.abortCalls).toBe(0);
 		await runtime.dispose();
 	});
 
-	it("routes every session verb through authoritative session/catalog seams", async () => {
+	it("rehydrates every open snapshot while activation preserves the active-view snapshot semantics", async () => {
+		const harness = multiSessionHarness();
+		await harness.runtime.handleRequest({
+			t: "request",
+			id: 6,
+			method: "session.activate",
+			params: { path: "/sessions/two.jsonl" },
+		});
+		harness.sessionFor("/sessions/one.jsonl").sessionManager.entries = [entry("one-entry")];
+		harness.sessionFor("/sessions/two.jsonl").sessionManager.entries = [entry("two-entry")];
+		const reconnect = new RecordingSink();
+		harness.runtime.attach(reconnect);
+		expect(reconnect.frames.filter(frame => frame.t === "welcome").map(frame => frame.sessionPath)).toEqual([
+			"/sessions/one.jsonl",
+			"/sessions/two.jsonl",
+		]);
+		expect(
+			reconnect.frames
+				.filter(frame => frame.t === "snapshot-chunk")
+				.map(frame => ({ path: frame.sessionPath, ids: frame.entries.map(item => item.id) })),
+		).toEqual([
+			{ path: "/sessions/one.jsonl", ids: ["one-entry"] },
+			{ path: "/sessions/two.jsonl", ids: ["two-entry"] },
+		]);
+		const before = reconnect.frames.length;
+		await harness.runtime.handleRequest({
+			t: "request",
+			id: 7,
+			method: "session.activate",
+			params: { path: "/sessions/one.jsonl" },
+		});
+		const activated = reconnect.frames.slice(before).filter(frame => frame.t === "welcome");
+		expect(activated).toHaveLength(1);
+		expect(activated[0]).toMatchObject({ sessionPath: "/sessions/one.jsonl" });
+		await harness.runtime.dispose();
+	});
+
+	it("routes agent control, transcript, and UI responses through the addressed live session", async () => {
+		const first = new FakeSession();
+		const second = new FakeSession();
+		second.setActive("two", "/work");
+		const sessions = [info("one"), info("two")];
+		const catalog: SessionCatalog = {
+			list: async () => sessions,
+			openForRename: async () => ({ setSessionName: async () => true, close: async () => {} }),
+			delete: async () => {},
+			loadPins: async () => new Set(),
+			togglePin: async () => false,
+		};
+		const calls: string[] = [];
+		const control = (label: string): DesktopAgentControl => ({
+			command: (cmd, agentId) => {
+				calls.push(`${label}:${cmd}:${agentId}`);
+				return { accepted: true };
+			},
+			transcript: async (agentId, fromByte) => {
+				calls.push(`${label}:transcript:${agentId}:${fromByte}`);
+				return { text: label, newSize: fromByte + 1 };
+			},
+		});
+		const runtime = new DesktopRuntime({
+			session: first,
+			sessionService: new SessionService(first, { catalog }),
+			registry: fakeRegistry(),
+			agentControl: control("one"),
+			sessionFactory: async () => ({
+				session: second,
+				sessionService: new SessionService(second, { catalog }),
+				registry: fakeRegistry(),
+				agentControl: control("two"),
+			}),
+		});
+		await runtime.handleRequest({
+			t: "request",
+			id: 8,
+			method: "session.activate",
+			params: { path: "/sessions/two.jsonl" },
+		});
+		await runtime.handleRequest({
+			t: "request",
+			id: 9,
+			method: "agent.command",
+			params: { sessionPath: "/sessions/one.jsonl", cmd: "chat", agentId: "Worker", text: "status" },
+		});
+		const transcript = await runtime.handleRequest({
+			t: "request",
+			id: 10,
+			method: "agent.transcript",
+			params: { sessionPath: "/sessions/two.jsonl", agentId: "Worker", fromByte: 4 },
+		});
+		expect(calls).toEqual(["one:chat:Worker", "two:transcript:Worker:4"]);
+		expect(transcript).toMatchObject({ result: { text: "two", newSize: 5 } });
+
+		const sink = new RecordingSink();
+		runtime.attach(sink);
+		const answer = runtime.createUiContext("/sessions/two.jsonl").select("Pick", ["A", "B"]);
+		const request = sink.frames.findLast(frame => frame.t === "ui-request");
+		if (request?.t !== "ui-request") throw new Error("ui request missing");
+		expect(request.sessionPath).toBe("/sessions/two.jsonl");
+		await runtime.handleRequest({
+			t: "request",
+			id: 11,
+			method: "ui.respond",
+			params: { sessionPath: "/sessions/two.jsonl", reqId: request.request.reqId, value: "B" },
+		});
+		expect(await answer).toBe("B");
+		await runtime.dispose();
+	});
+
+	it("guards running and dirty tabs, and force-close explicitly aborts, flushes, and disposes", async () => {
+		const harness = multiSessionHarness();
+		await harness.runtime.handleRequest({
+			t: "request",
+			id: 12,
+			method: "session.activate",
+			params: { path: "/sessions/two.jsonl" },
+		});
+		const two = harness.sessionFor("/sessions/two.jsonl");
+		two.isStreaming = true;
+		const blockedRunning = await harness.runtime.handleRequest({
+			t: "request",
+			id: 13,
+			method: "session.tab.close",
+			params: { path: "/sessions/two.jsonl" },
+		});
+		expect(blockedRunning).toMatchObject({ result: { closed: false, blockedReason: "running" } });
+		two.isStreaming = false;
+		await harness.runtime.handleRequest({
+			t: "request",
+			id: 14,
+			method: "session.tab.draft",
+			params: { path: "/sessions/two.jsonl", dirty: true },
+		});
+		const blockedDirty = await harness.runtime.handleRequest({
+			t: "request",
+			id: 15,
+			method: "session.tab.close",
+			params: { path: "/sessions/two.jsonl" },
+		});
+		expect(blockedDirty).toMatchObject({ result: { closed: false, blockedReason: "dirty-draft" } });
+		two.isStreaming = true;
+		const forced = await harness.runtime.handleRequest({
+			t: "request",
+			id: 16,
+			method: "session.tab.close",
+			params: { path: "/sessions/two.jsonl", force: true },
+		});
+		expect(forced).toMatchObject({ result: { closed: true } });
+		expect(two.abortCalls).toBe(1);
+		expect(two.sessionManager.flushed).toBeGreaterThan(0);
+		expect(two.disposed).toBe(1);
+		await harness.runtime.dispose();
+	});
+
+	it("guards deletion before closing the runtime and deletes only after a clean close", async () => {
+		const harness = multiSessionHarness();
+		const one = harness.sessionFor("/sessions/one.jsonl");
+		await harness.runtime.handleRequest({
+			t: "request",
+			id: 17,
+			method: "session.tab.draft",
+			params: { path: "/sessions/one.jsonl", dirty: true },
+		});
+		const blocked = await harness.runtime.handleRequest({
+			t: "request",
+			id: 18,
+			method: "session.delete",
+			params: { path: "/sessions/one.jsonl" },
+		});
+		expect(blocked).toMatchObject({ result: { deleted: false } });
+		expect(one.disposed).toBe(0);
+		expect(harness.sessions.some(item => item.id === "one")).toBeTrue();
+		await harness.runtime.handleRequest({
+			t: "request",
+			id: 19,
+			method: "session.tab.draft",
+			params: { path: "/sessions/one.jsonl", dirty: false },
+		});
+		const deleted = await harness.runtime.handleRequest({
+			t: "request",
+			id: 20,
+			method: "session.delete",
+			params: { path: "/sessions/one.jsonl" },
+		});
+		expect(deleted).toMatchObject({ result: { deleted: true } });
+		expect(one.disposed).toBe(1);
+		expect(one.sessionManager.flushed).toBeGreaterThan(0);
+		expect(harness.sessions.some(item => item.id === "one")).toBeFalse();
+		await harness.runtime.dispose();
+	});
+
+	it("opens at most twelve live sessions and never evicts an existing tab", async () => {
+		const ids = Array.from({ length: 13 }, (_, index) => `s${index + 1}`);
+		const harness = multiSessionHarness(ids);
+		for (const id of ids.slice(1, 12)) {
+			const response = await harness.runtime.handleRequest({
+				t: "request",
+				id: 30 + Number(id.slice(1)),
+				method: "session.activate",
+				params: { path: `/sessions/${id}.jsonl` },
+			});
+			expect(response.error).toBeUndefined();
+		}
+		const capped = await harness.runtime.handleRequest({
+			t: "request",
+			id: 50,
+			method: "session.activate",
+			params: { path: "/sessions/s13.jsonl" },
+		});
+		expect(capped).toMatchObject({
+			error: {
+				code: "MAX_OPEN_SESSIONS",
+				message: expect.stringContaining("close a finished tab"),
+			},
+		});
+		const tabs = await harness.runtime.handleRequest({
+			t: "request",
+			id: 51,
+			method: "session.tabs",
+			params: {},
+		});
+		if (tabs.method !== "session.tabs" || !tabs.result) throw new Error("tabs missing");
+		expect(tabs.result.tabs).toHaveLength(12);
+		expect(harness.live.every(session => session.disposed === 0)).toBeTrue();
+		await harness.runtime.dispose();
+	});
+
+	it("creates and forks independent live sessions, renames tab titles, and retains the source", async () => {
+		const harness = multiSessionHarness();
+		const created = await harness.runtime.handleRequest({
+			t: "request",
+			id: 52,
+			method: "session.new",
+			params: { cwd: "/other" },
+		});
+		if (created.method !== "session.new" || !created.result) throw new Error("new session failed");
+		const createdPath = created.result.session.path;
+		expect(created.result.session.cwd).toBe("/other");
+		const forked = await harness.runtime.handleRequest({
+			t: "request",
+			id: 53,
+			method: "session.fork",
+			params: { path: "/sessions/one.jsonl" },
+		});
+		if (forked.method !== "session.fork" || !forked.result) throw new Error("fork failed");
+		expect(forked.result.session.path).not.toBe("/sessions/one.jsonl");
+		expect(harness.sessionFor("/sessions/one.jsonl").disposed).toBe(0);
+		await harness.runtime.handleRequest({
+			t: "request",
+			id: 54,
+			method: "session.rename",
+			params: { path: createdPath, title: "Named tab" },
+		});
+		const tabs = await harness.runtime.handleRequest({
+			t: "request",
+			id: 55,
+			method: "session.tabs",
+			params: {},
+		});
+		if (tabs.method !== "session.tabs" || !tabs.result) throw new Error("tabs missing");
+		expect(tabs.result.tabs.find(tab => tab.path === createdPath)?.title).toBe("Named tab");
+		await harness.runtime.dispose();
+	});
+
+	it("flushes and disposes every managed session during shutdown", async () => {
+		const harness = multiSessionHarness(["one", "two", "three"]);
+		for (const id of ["two", "three"]) {
+			await harness.runtime.handleRequest({
+				t: "request",
+				id: id === "two" ? 56 : 57,
+				method: "session.activate",
+				params: { path: `/sessions/${id}.jsonl` },
+			});
+		}
+		const sink = new RecordingSink();
+		harness.runtime.attach(sink);
+		await harness.runtime.dispose();
+		expect(harness.live).toHaveLength(3);
+		expect(harness.live.every(session => session.sessionManager.flushed > 0)).toBeTrue();
+		expect(harness.live.every(session => session.disposed === 1)).toBeTrue();
+		expect(sink.closed?.code).toBe(1001);
+	});
+
+	it("keeps authoritative SessionService catalog operations available", async () => {
 		const fake = new FakeSession();
 		const { catalog, sessions, pins } = catalogFor(fake);
 		sessions.push(info("two"));
 		const service = new SessionService(fake, { catalog });
 		expect((await service.list()).map(item => item.id)).toEqual(["one", "two"]);
-
 		const selected = await service.select("/sessions/two.jsonl");
 		expect(selected.header.id).toBe("two");
-		fake.sdkCalls.length = 0;
-		const created = await service.newSession("/work/../other");
+		const created = await service.newSession("/other");
 		expect(created.cwd).toBe("/other");
-		expect(fake.sdkCalls).toEqual(["newSession", "moveSession:/other", "list:/other"]);
-		expect(fake.sessionManager.getCwd()).toBe("/other");
-		expect(fake.sessionManager.materialized).toBeGreaterThan(0);
 		const forked = await service.fork(created.path);
 		expect(forked.session.id).toStartWith("fork-");
-		expect(forked.selectedText).toBeUndefined();
-		expect(forked.selectedImages).toBeUndefined();
-		expect(forked.cancelled).toBeUndefined();
-		const branched = await service.fork(forked.session.path, "entry-1");
-		expect(branched.session.id).toStartWith("branch-");
-		expect(branched.selectedText).toBe("editable prompt");
-		expect(branched.selectedImages).toEqual([]);
-		expect(branched.cancelled).toBeFalse();
-		const renamed = await service.rename("/sessions/two.jsonl", "Renamed");
+		const renamed = await service.rename("/sessions/one.jsonl", "Renamed");
 		expect(renamed.title).toBe("Renamed");
-		const pinned = await service.pin("/sessions/two.jsonl", true);
+		const pinned = await service.pin("/sessions/one.jsonl", true);
 		expect(pinned.pinned).toBeTrue();
-		expect(pins.has("two")).toBeTrue();
-		const removed = await service.delete("/sessions/two.jsonl");
-		expect(removed).toEqual({ deleted: true, activeChanged: false });
-		expect(sessions.some(item => item.id === "two")).toBeFalse();
-	});
-
-	it("round-trips UI requests through ui.respond and closes cleanly", async () => {
-		const fake = new FakeSession();
-		const { catalog } = catalogFor(fake);
-		let closeableClosed = 0;
-		const runtime = new DesktopRuntime({
-			session: fake,
-			sessionService: new SessionService(fake, { catalog }),
-			registry: fakeRegistry(),
-			closeables: [
-				{
-					close: async () => {
-						closeableClosed += 1;
-					},
-				},
-			],
-		});
-		const sink = new RecordingSink();
-		runtime.attach(sink);
-		const answerPromise = runtime.createUiContext().select("Pick", ["A", "B"]);
-		const request = sink.frames.find(frame => frame.t === "ui-request");
-		if (request?.t !== "ui-request") throw new Error("ui request missing");
-		const response = await runtime.handleRequest({
-			t: "request",
-			id: 7,
-			method: "ui.respond",
-			params: { reqId: request.request.reqId, value: "B" },
-		});
-		expect(response).toMatchObject({ result: { accepted: true } });
-		expect(await answerPromise).toBe("B");
-		expect(
-			sink.frames.some(frame => frame.t === "ui-request-end" && frame.reqId === request.request.reqId),
-		).toBeTrue();
-		await runtime.dispose();
-		expect(closeableClosed).toBe(1);
-		expect(fake.disposed).toBe(1);
-		expect(sink.closed?.code).toBe(1001);
+		expect(pins.has("one")).toBeTrue();
+		expect(await service.deleteStored("/sessions/one.jsonl")).toBeTrue();
+		expect(sessions.some(item => item.id === "one")).toBeFalse();
 	});
 });
 

@@ -1,6 +1,6 @@
 {
   "extends": "../tsconfig.workspace.json",
-  "include": ["src/web", "src/protocol.ts"],
+  "include": ["src/web", "src/protocol.ts", "test/*.test.tsx", "test/desktop-client.test.ts", "test/theme.test.ts"],
   "compilerOptions": {
     "jsx": "react-jsx",
     "lib": ["ES2024", "DOM", "DOM.Iterable"],
