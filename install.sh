@@ -2,7 +2,7 @@
 set -eu
 
 PRODUCT_NAME="Chudcode"
-PRODUCT_VERSION="0.1.0"
+PRODUCT_VERSION="0.2.0"
 UPSTREAM_VERSION="18.0.8"
 CLI_NAME="chudcode"
 GUI_NAME="chudcode-gui"

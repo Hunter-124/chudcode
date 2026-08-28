@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- `chudcode update` now checks this build's own releases instead of upstream omp, so it no longer offers a version it cannot install.
+- `chudcode update` verifies a downloaded binary against the version banner this build actually prints, instead of rolling every successful update back.
+- Homebrew, mise, and Nix installs are refused with a pointer to the releases page rather than silently replacing Chudcode with upstream omp.
+- A headed browser using a private display is no longer shared between sessions, and never falls back to the real desktop when no private display is available.
+
 ### Added
 
 - Finalized the product identity as Chudcode v0.1.0, replacing the prior Chudware Code name; `chudcode` is now the primary command, with `chudware-code`, `chcode`, and `omp` retained as compatibility aliases.

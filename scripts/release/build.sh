@@ -2,14 +2,11 @@
 set -eu
 
 PRODUCT_NAME="Chudcode"
-PRODUCT_VERSION="0.1.0"
-UPSTREAM_VERSION="18.0.8"
 CLI_NAME="chudcode"
 LEGACY_BINARY_NAME="omp"
 VERIFIED_TARGETS="${CHUDCODE_VERIFIED_TARGETS:-linux-x64}"
-DIST_DIR="${CHUDCODE_DIST_DIR:-dist/chudcode-v${PRODUCT_VERSION}}"
-STAGE_GUI="${CHUDCODE_STAGE_GUI:-1}"
-EXPECTED_VERSION_OUTPUT="${PRODUCT_NAME} v${PRODUCT_VERSION} (based on ${LEGACY_BINARY_NAME} ${UPSTREAM_VERSION})"
+STAGE_GUI="${CHUDCODE_STAGE_GUI:-0}"
+STAGE_VISION="${CHUDCODE_STAGE_VISION:-0}"
 ORT_VERSION="1.28.1"
 ORT_LINUX_X64_SHA256="2529aef968d0ad0603365054bc46ebefa7f0fe3bc12f28c5f729c99ddffe2a81"
 ORT_LINUX_X64_URL="https://github.com/microsoft/onnxruntime/releases/download/v${ORT_VERSION}/onnxruntime-linux-x64-${ORT_VERSION}.tgz"
@@ -17,6 +14,42 @@ VISION_ARCHIVE_NAME="${CLI_NAME}-vision-linux-x64.tar.gz"
 
 repo_root=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)
 cd "$repo_root"
+
+die() {
+	printf '%s\n' "error: $*" >&2
+	exit 1
+}
+
+# The version has exactly one source of truth: the constants the binary itself
+# compiles in. A release staged from a hand-copied literal is how v0.1.0's
+# installer ended up pinning a version the binary no longer reported.
+brand_ts="packages/coding-agent/src/brand.ts"
+read_brand() {
+	value=$(sed -n "s/^export const $1 = \"\\(.*\\)\";\$/\\1/p" "$brand_ts")
+	[ -n "$value" ] || die "could not read $1 from $brand_ts"
+	printf '%s' "$value"
+}
+PRODUCT_VERSION=$(read_brand PRODUCT_SEMVER)
+UPSTREAM_VERSION=$(read_brand PRODUCT_UPSTREAM_BASE)
+RELEASE_REPOSITORY=$(read_brand PRODUCT_RELEASE_REPO)
+DIST_DIR="${CHUDCODE_DIST_DIR:-dist/chudcode-v${PRODUCT_VERSION}}"
+EXPECTED_VERSION_OUTPUT="${PRODUCT_NAME} v${PRODUCT_VERSION} (based on ${LEGACY_BINARY_NAME} ${UPSTREAM_VERSION})"
+NOTES_FILE="scripts/release/notes-v${PRODUCT_VERSION}.md"
+
+# `install.sh` is fetched by users before any of this repo exists on their disk,
+# so its version and repository must be baked in — but they must still agree
+# with what the binary reports, or the installer verifies a version that never
+# ships and aborts every install.
+installer_version=$(sed -n 's/^PRODUCT_VERSION="\(.*\)"$/\1/p' install.sh)
+installer_upstream=$(sed -n 's/^UPSTREAM_VERSION="\(.*\)"$/\1/p' install.sh)
+installer_repo=$(sed -n 's/^RELEASE_REPOSITORY="\(.*\)"$/\1/p' install.sh)
+[ "$installer_version" = "$PRODUCT_VERSION" ] ||
+	die "install.sh pins PRODUCT_VERSION=$installer_version but $brand_ts says $PRODUCT_VERSION"
+[ "$installer_upstream" = "$UPSTREAM_VERSION" ] ||
+	die "install.sh pins UPSTREAM_VERSION=$installer_upstream but $brand_ts says $UPSTREAM_VERSION"
+[ "$installer_repo" = "$RELEASE_REPOSITORY" ] ||
+	die "install.sh pins RELEASE_REPOSITORY=$installer_repo but $brand_ts says $RELEASE_REPOSITORY"
+[ -f "$NOTES_FILE" ] || die "missing release notes: $NOTES_FILE"
 
 die() {
 	printf '%s\n' "error: $*" >&2
@@ -64,7 +97,7 @@ stage_vision_linux_x64() {
 
 usage() {
 	cat <<EOF
-Usage: scripts/release-v01/build.sh [--dry-run] [target]
+Usage: scripts/release/build.sh [--dry-run] [target]
 
 Build and stage one ${PRODUCT_NAME} release artifact. The default and currently
 verified target is linux-x64. Set CHUDCODE_VERIFIED_TARGETS only after a target
@@ -129,16 +162,17 @@ HOME="$proof_home" "$source_artifact" grep --help >/dev/null 2>&1 ||
 mkdir -p "$DIST_DIR"
 cp "$source_artifact" "$DIST_DIR/$artifact_name"
 chmod 755 "$DIST_DIR/$artifact_name"
-if [ "$target" = "linux-x64" ]; then
+if [ "$target" = "linux-x64" ] && [ "$STAGE_VISION" = "1" ]; then
 	stage_vision_linux_x64
 	bun scripts/ci-release-checksums.ts "$DIST_DIR/SHA256SUMS.txt" \
 		"$DIST_DIR/$artifact_name" "$DIST_DIR/$VISION_ARCHIVE_NAME"
 else
 	bun scripts/ci-release-checksums.ts "$DIST_DIR/SHA256SUMS.txt" "$DIST_DIR/$artifact_name"
 fi
-cp install.sh scripts/release-v01/notes.md "$DIST_DIR/"
+cp install.sh "$DIST_DIR/"
+cp "$NOTES_FILE" "$DIST_DIR/notes.md"
 if [ "$target" = "linux-x64" ] && [ "$STAGE_GUI" = "1" ]; then
-	CHUDCODE_DIST_DIR="$DIST_DIR" scripts/release-v01/stage-gui.sh "$target"
+	CHUDCODE_DIST_DIR="$DIST_DIR" scripts/release/stage-gui.sh "$target"
 fi
 
 # fix-dt-verdef.ts is intentionally not run here: it is required only after a

@@ -24,8 +24,8 @@ die() {
 
 usage() {
 	cat <<EOF
-Usage: scripts/release-v01/stage-gui.sh [linux-x64]
-       scripts/release-v01/stage-gui.sh --verify [bundle-dir-or-tar.gz]
+Usage: scripts/release/stage-gui.sh [linux-x64]
+       scripts/release/stage-gui.sh --verify [bundle-dir-or-tar.gz]
 
 Build the canonical CAD host in Code mode and stage ${PRODUCT_NAME}'s GUI.
 CHUDCODE_CAD_ROOT defaults to /home/hunter/Repositories/CAD. Set
