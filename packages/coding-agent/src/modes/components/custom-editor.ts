@@ -625,10 +625,10 @@ export class CustomEditor extends Editor {
 	 *  indivisible: a stray backspace deletes the whole token instead of corrupting it. */
 	override atomicTokenPattern = COMPOSER_TOKEN_REGEX;
 
-	/** Magic-keyword shimmer cadence — drives one editor repaint every 70 ms while
-	 *  a keyword is on screen and the prompt is focused. ~14 frames/s is smooth
-	 *  without flooding the renderer. */
-	static readonly SHIMMER_FRAME_MS = 70;
+	/** Magic-keyword shimmer cadence — drives one editor repaint every 80 ms while
+	 *  a keyword is on screen and the prompt is focused. Matches the loader's
+	 *  spinner cadence so both animations share one repaint rate. */
+	static readonly SHIMMER_FRAME_MS = 80;
 	/** Time for the gradient to sweep one full cycle across each keyword. */
 	static readonly SHIMMER_PERIOD_MS = 1800;
 

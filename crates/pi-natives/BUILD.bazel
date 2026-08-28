@@ -1,9 +1,34 @@
+load("@rules_cc//cc:defs.bzl", "cc_library")
 load("@crates//:defs.bzl", "aliases", "all_crate_deps")
 load("@rules_rust//rust:defs.bzl", "rust_shared_library", "rust_test")
 
 package(default_visibility = ["//visibility:public"])
 
 exports_files(["Cargo.toml"])
+
+cc_library(
+    name = "omp_catalog",
+    alwayslink = True,
+    srcs = ["native/catalog/omp_catalog.c"],
+    hdrs = ["native/catalog/omp_catalog.h"],
+    copts = select({
+        "@platforms//os:windows": ["/std:c11"],
+        "//conditions:default": ["-std=c11"],
+    }),
+    linkstatic = True,
+)
+
+cc_library(
+    name = "omp_tui",
+    alwayslink = True,
+    srcs = ["native/tui/omp_tui.c"],
+    hdrs = ["native/tui/omp_tui.h"],
+    copts = select({
+        "@platforms//os:windows": ["/std:c11"],
+        "//conditions:default": ["-std=c11"],
+    }),
+    linkstatic = True,
+)
 
 # The NAPI cdylib. build.rs is intentionally not wired in: its only effects are
 # napi_build::setup() link args (hardcoded in linkopts below — see napi-build
@@ -24,6 +49,10 @@ rust_shared_library(
     ]),
     crate_features = [],
     edition = "2024",
+    link_deps = [
+        ":omp_catalog",
+        ":omp_tui",
+    ],
     proc_macro_deps = all_crate_deps(proc_macro = True),
     rustc_flags = select({
         "//bazel/variants:baseline": ["-Ctarget-cpu=x86-64-v2"],

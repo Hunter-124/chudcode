@@ -5,10 +5,10 @@ import type { Theme, ThemeColor } from "./theme";
 // Band/head travel speed in border cells per second. Driving position by a fixed
 // velocity — instead of dividing a fixed sweep duration by the (length-derived)
 // period — makes smoothness independent of message length: at the loader's
-// default 30fps redraw cadence the band advances ≤1 cell per frame for any
-// string, so it never visibly steps. Sweep/round-trip durations now scale with
-// length. Keep ≤ the animated redraw fps (loader RENDER_INTERVAL_MS = 1000/30).
-const SHIMMER_SPEED_CELLS_PER_S = 30;
+// spinner redraw cadence the band advances ≤1 cell per frame for any string, so
+// it never visibly steps. Sweep/round-trip durations scale with length. Keep
+// this ≤ the redraw rate (loader SPINNER_ADVANCE_MS = 80ms → 12.5fps).
+const SHIMMER_SPEED_CELLS_PER_S = 12;
 
 // ─── Classic sweep tunables ──────────────────────────────────────────────────
 const CLASSIC_PADDING = 10;

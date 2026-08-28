@@ -6,6 +6,11 @@
 
 - Added editor redo with configurable `tui.editor.redo` keybindings.
 
+### Changed
+
+- Fullscreen overlays now repaint only the rows whose bytes changed, through a native row-diffing frame emitter, instead of rewriting every visible row each frame.
+- Loaders repaint on the spinner tick only. The separate 30fps redraw that animated color shimmer is gone, so a working agent no longer drives full-viewport repaints at 30 frames per second.
+
 ## [18.0.8] - 2026-08-27
 
 ### Added

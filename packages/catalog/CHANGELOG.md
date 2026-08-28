@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Changed
+
+- The bundled model catalog now loads from a memory-mapped binary file and materializes each provider only when it is first requested, so startup no longer parses the whole catalog into the heap and concurrent instances share one read-only mapping of the model data.
+
 ## [18.0.8] - 2026-08-27
 
 ### Fixed

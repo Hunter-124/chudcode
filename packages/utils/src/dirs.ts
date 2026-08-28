@@ -780,6 +780,11 @@ export function getAvatarCacheDir(): string {
 	return dirs.rootSubdir(path.join("cache", "avatars"), "cache");
 }
 
+/** Get the memory-mapped model catalog cache directory (~/.omp/cache/catalog). */
+export function getCatalogCacheDir(): string {
+	return dirs.rootSubdir(path.join("cache", "catalog"), "cache");
+}
+
 /** Get the local FastEmbed model cache directory (~/.omp/cache/fastembed). */
 export function getFastembedCacheDir(): string {
 	return dirs.rootSubdir(path.join("cache", "fastembed"), "cache");

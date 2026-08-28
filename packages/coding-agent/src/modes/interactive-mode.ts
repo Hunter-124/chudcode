@@ -213,7 +213,7 @@ import { runProviderSetupWizard } from "./setup-wizard/lazy";
 import { interruptHint } from "./shared";
 import { invokeSkillCommandFromText, isKnownSkillCommand } from "./skill-command";
 import { clearMermaidCache } from "./theme/mermaid-cache";
-import { type ShimmerPalette, shimmerEnabled, shimmerSegments, shimmerText } from "./theme/shimmer";
+import { type ShimmerPalette, shimmerSegments, shimmerText } from "./theme/shimmer";
 import type { Theme } from "./theme/theme";
 import {
 	getEditorTheme,
@@ -5065,14 +5065,10 @@ export class InteractiveMode implements InteractiveModeContext {
 		if (!this.loadingAnimation) {
 			this.#clearWorkingMessageAccentCache();
 			this.statusContainer.disposeChildren();
-			const messageColorFn = ((message: string) =>
-				renderWorkingMessage(message, this.#getWorkingMessageAccent())) as LoaderMessageColorFn & {
-				animated?: true;
-			};
-			// Shimmer drives the 30fps redraw; when it is disabled the working
-			// message is static, so leave `animated` unset and let the loader use
-			// the spinner-only ~12.5fps cadence instead of repainting a frozen line.
-			if (shimmerEnabled()) messageColorFn.animated = true;
+			// Every loader repaints on the spinner tick, so the shimmer colorizer
+			// rides that cadence instead of a separate 30fps redraw.
+			const messageColorFn: LoaderMessageColorFn = (message: string) =>
+				renderWorkingMessage(message, this.#getWorkingMessageAccent());
 			this.loadingAnimation = new Loader(
 				this.ui,
 				spinner => {

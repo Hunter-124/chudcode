@@ -98,6 +98,10 @@ async function runSmokeTest(): Promise<void> {
 	const { smokeTestLspMux } = await import("./lsp/mux/daemon");
 	const { smokeTestBlobBroker } = await import("./blob-broker/daemon");
 	const { smokeTestTerminalOutputWorker } = await import("./launch/terminal-output-worker-client");
+	const { getBundledModels } = await import("@oh-my-pi/pi-catalog/models");
+	if (getBundledModels("openai").length === 0) {
+		throw new Error("model catalog smoke failed: bundled openai provider is empty");
+	}
 	await smokeTestSyncWorker();
 
 	const statsServer = await startServer(0);

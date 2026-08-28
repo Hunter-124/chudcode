@@ -195,6 +195,22 @@ export declare class MacOSPowerAssertion {
   stop(): void
 }
 
+/** Owning view of a validated binary model catalog. */
+export declare class MappedModelCatalog {
+  /** Open and memory-map a binary model catalog file. */
+  constructor(path: string)
+  /** Copy and open a binary model catalog from bytes. */
+  static fromBytes(bytes: Uint8Array): MappedModelCatalog
+  /** Provider IDs in the binary index's stable insertion order. */
+  providerIds(): Array<string>
+  /** Compact JSON object for one provider, or `undefined` when absent. */
+  providerJson(provider: string): string | undefined
+  /** Byte length of the mapped file or owned memory copy. */
+  mappedBytes(): number
+  /** Whether the catalog owns an OS-backed file mapping. */
+  isFileBacked(): boolean
+}
+
 /** Stable process reference. */
 export declare class Process {
   /** Open a stable process reference from a PID. */
@@ -329,6 +345,33 @@ export declare class TtyWriter {
    * closing it under a blocked write would race kernel fd reuse.
    */
   stop(flushTimeoutMs: number): void
+}
+
+/**
+ * Row-granular differential frame emitter backed by the native TUI core.
+ *
+ * Rows are opaque strings: the caller pads, clips, and terminates styles, and
+ * this emitter writes only the rows whose bytes changed since the last flush.
+ */
+export declare class TuiScreen {
+  constructor()
+  /** Stage a frame of `rows` rows. A row-count change forces a full repaint. */
+  beginFrame(rows: number): void
+  /** Stage one row's exact bytes. Every row must be staged before `flush`. */
+  setRow(row: number, text: string): void
+  /** Treat every row of the next flush as changed. */
+  forceRepaint(): void
+  /**
+   * Emit the staged frame, or `undefined` when no row changed.
+   *
+   * Cursor position after a flush is unspecified: callers that need a specific
+   * position append the sequence to `epilogue`.
+   */
+  flush(prologue: string, epilogue: string): string | undefined
+  /** Row count of the current frame. */
+  get rows(): number
+  /** Rows emitted by the most recent flush. */
+  get changedRows(): number
 }
 
 /**
@@ -796,6 +839,7 @@ export interface DesktopPoint {
 
 export interface DesktopSessionOptions {
   display?: string
+  displayServer?: string
 }
 
 /** One capturable top-level window in global logical desktop coordinates. */

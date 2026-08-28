@@ -25,6 +25,7 @@
   "types": "./src/index.ts",
   "scripts": {
     "check": "biome check . && bun run check:types",
+    "bench:memory": "bun bench/catalog-memory.ts",
     "check:types": "tsgo -p tsconfig.json --noEmit",
     "lint": "biome lint .",
     "test": "bun test --parallel",
@@ -35,6 +36,7 @@
   },
   "dependencies": {
     "@oh-my-pi/omptype": "catalog:",
+    "@oh-my-pi/pi-natives": "catalog:",
     "@oh-my-pi/pi-utils": "catalog:"
   },
   "devDependencies": {

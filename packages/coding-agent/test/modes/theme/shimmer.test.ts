@@ -27,9 +27,9 @@ describe("shimmerText", () => {
 
 	it("uses a supplied raw ANSI color for the shimmer crest", () => {
 		vi.spyOn(settingsModule, "isSettingsInitialized").mockReturnValue(false);
-		// t chosen so the fixed-velocity band (30 cells/s) crest sits on the char:
-		// pos = (333/1000)*30 ≈ 10 = CLASSIC_PADDING, i.e. centered on index 0.
-		vi.spyOn(Date, "now").mockReturnValue(333);
+		// t chosen so the fixed-velocity band (12 cells/s) crest sits on the char:
+		// pos = (833/1000)*12 ≈ 10 = CLASSIC_PADDING, i.e. centered on index 0.
+		vi.spyOn(Date, "now").mockReturnValue(833);
 
 		const rendered = shimmerText("x", testTheme, {
 			low: "dim",

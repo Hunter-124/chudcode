@@ -5324,6 +5324,7 @@ dependencies = [
  "ast-grep-core",
  "atspi",
  "base64 0.22.1",
+ "cc",
  "clap",
  "clipboard-win",
  "core-graphics",

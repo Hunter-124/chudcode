@@ -26,10 +26,12 @@ export const HighlightStream = nativeBindings.HighlightStream;
 export const LiveWebRtcPeer = nativeBindings.LiveWebRtcPeer;
 export const MacAppearanceObserver = nativeBindings.MacAppearanceObserver;
 export const MacOSPowerAssertion = nativeBindings.MacOSPowerAssertion;
+export const MappedModelCatalog = nativeBindings.MappedModelCatalog;
 export const Process = nativeBindings.Process;
 export const PtySession = nativeBindings.PtySession;
 export const Shell = nativeBindings.Shell;
 export const TtyWriter = nativeBindings.TtyWriter;
+export const TuiScreen = nativeBindings.TuiScreen;
 
 // functions
 export const __ompInstallTokioRuntime = nativeBindings.__ompInstallTokioRuntime;

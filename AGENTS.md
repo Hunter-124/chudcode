@@ -60,52 +60,59 @@ Before writing a helper, check whether one already exists — `packages/coding-a
 - Examples of the pattern: `src/utils/git.ts` and `src/utils/jj.ts` are the only sanctioned way to run git/jj (`import * as git from "../utils/git"` — never hand-spawn via `$`/`Bun.spawn`); rendering goes through the helpers in TUI Sanitization below (`replaceTabs`, `truncateToWidth`, `shortenPath`, `PREVIEW_LIMITS`) rather than ad-hoc string math.
 - Missing capability? Extend the central helper (new option, new sub-function on the namespace) and call it — don't fork its logic locally.
 
-## Bun Over Node
+## Runtime Policy: Migrating Off Bun
 
-Use Bun APIs where they provide a cleaner alternative; fall back to `node:*` only for what Bun doesn't cover. **Never spawn shell commands for operations with proper APIs** (e.g., don't `Bun.spawnSync(["mkdir", "-p", dir])` — use `mkdirSync`).
+Bun is being removed as the runtime host. It is still the current host, so existing
+`Bun.*` call sites keep working, but the direction is one-way:
+
+- **NEVER add new `Bun.*`, `bun:*`, or Bun-only loader usage** in new or edited code.
+  This includes `Bun.file`/`Bun.write`, `Bun.spawn`, `Bun.$`, `Bun.serve`, `Bun.sleep`,
+  `Bun.env`, `Bun.CryptoHasher`, `bun:sqlite`, `bun:ffi`, and
+  `with { type: "text" | "file" }` import attributes.
+- **Write host-agnostic code**: `node:*` APIs plus the central helpers in
+  `@oh-my-pi/pi-utils` and `@oh-my-pi/pi-natives`. These run under Bun today and under a
+  non-Bun host after the migration.
+- **Prefer the native addon** over a Bun builtin when both exist (e.g. text width and
+  wrapping via `@oh-my-pi/pi-natives`, not `Bun.stringWidth`/`Bun.wrapAnsi`).
+- **Never spawn shell commands for operations with proper APIs** (e.g. don't shell out to
+  `mkdir -p` — use `fs.mkdir`).
+- Touching a file with existing `Bun.*` calls? Migrating them in the same edit is welcome,
+  but only when the change stays reviewable and the package still type-checks and tests green.
 
 ### Quick reference
 
-| Operation       | Use                                       | Not                                |
-| --------------- | ----------------------------------------- | ---------------------------------- |
-| File read/write | `Bun.file()`, `Bun.write()`               | `readFileSync`, `writeFileSync`    |
-| Spawn process   | `` $`cmd` ``, `Bun.spawn()`               | `child_process`                    |
-| Sleep           | `Bun.sleep(ms)`                           | `setTimeout` promise               |
-| Binary lookup   | `$which("git")` from `@oh-my-pi/pi-utils` | `spawnSync(["which", "git"])`      |
-| HTTP server     | `Bun.serve()`                             | `http.createServer()`              |
-| SQLite          | `bun:sqlite`                              | `better-sqlite3`                   |
-| Hashing         | `Bun.hash()`, `Bun.password.*`, WebCrypto | `node:crypto`                      |
-| Path resolution | `import.meta.dir`, `import.meta.path`     | `fileURLToPath` dance              |
-| JSON5           | `Bun.JSON5.parse()` / `.stringify()`      | `json5` package                    |
-| JSONL           | `Bun.JSONL.parse()` / `.parseChunk()`     | `text.split("\n").map(JSON.parse)` |
-| String width    | `Bun.stringWidth()`                       | `get-east-asian-width`, custom     |
-| Text wrapping   | `Bun.wrapAnsi()`                          | custom ANSI-aware wrappers         |
+| Operation       | Use                                              | Not                                       |
+| --------------- | ------------------------------------------------ | ----------------------------------------- |
+| File read/write | `node:fs/promises`                               | `Bun.file()`, `Bun.write()`               |
+| Spawn process   | `node:child_process`                             | `` $`cmd` ``, `Bun.spawn()`               |
+| Sleep           | `setTimeout` from `node:timers/promises`          | `Bun.sleep(ms)`                           |
+| Binary lookup   | `$which("git")` from `@oh-my-pi/pi-utils`        | `spawnSync(["which", "git"])`             |
+| HTTP server     | `node:http`                                      | `Bun.serve()`                             |
+| SQLite          | `node:sqlite`                                    | `bun:sqlite`, `better-sqlite3`            |
+| Hashing         | `node:crypto`, WebCrypto                         | `Bun.hash()`, `Bun.CryptoHasher`          |
+| Path resolution | `import.meta.url` + `node:url`/`node:path`        | `import.meta.dir`, `import.meta.path`     |
+| JSON5 / JSONL   | explicit parser module                           | `Bun.JSON5`, `Bun.JSONL`                  |
+| String width    | `@oh-my-pi/pi-natives` text ops                  | `Bun.stringWidth()`                       |
+| Text wrapping   | `@oh-my-pi/pi-natives` text ops                  | `Bun.wrapAnsi()`                          |
+| Env access      | `process.env`                                    | `Bun.env`                                 |
+| Native FFI      | the `pi_natives` N-API addon                     | `bun:ffi`                                 |
 
 ### Process execution
 
-Prefer Bun Shell (`` $`cmd` ``) for simple commands:
+New code uses `node:child_process`; keep the existing `git`/`jj` wrappers in
+`src/utils/git.ts` and `src/utils/jj.ts` as the only sanctioned VCS entry points.
 
 ```typescript
-import { $ } from "bun";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
 
-const result = await $`git status`.cwd(dir).quiet().nothrow();
-if (result.exitCode === 0) {
-	const text = result.text();
-}
-
-$`do-stuff ${tmpFile}`.quiet().nothrow(); // fire and forget
+const run = promisify(execFile);
+const { stdout } = await run("git", ["status"], { cwd: dir });
 ```
 
-Methods: `.quiet()`, `.nothrow()`, `.text()`, `.cwd(path)`.
-
-Use `Bun.spawn`/`Bun.spawnSync` only for: long-running processes (LSP, kernels), streaming stdin/stdout/stderr (SSE, JSON-RPC), or process control (signals, kill, complex lifecycle).
-
-When using `pipe` mode, cast the stream:
-
-```typescript
-const child = Bun.spawn(["cmd"], { stdout: "pipe", stderr: "pipe" });
-const reader = (child.stdout as ReadableStream<Uint8Array>).getReader();
-```
+Use `spawn` for long-running processes (LSP, kernels), streamed stdio (SSE, JSON-RPC), or
+process control (signals, kill, complex lifecycle). Existing `Bun.spawn`/`` $`cmd` ``
+call sites stay until they are migrated; do not add new ones.
 
 ### Node module imports
 
@@ -122,32 +129,31 @@ import * as os from "node:os";
 
 ### File I/O
 
-Prefer Bun:
+Use `node:fs/promises`:
 
 ```typescript
-const text = await Bun.file(path).text();
-const data = await Bun.file(path).json();
-await Bun.write(path, data); // auto-creates parent dirs
+const text = await fs.readFile(path, "utf8");
+const data = JSON.parse(await fs.readFile(path, "utf8"));
+await fs.mkdir(path.dirname(target), { recursive: true });
+await fs.writeFile(target, data);
 ```
 
-Use `node:fs/promises` for directory ops (`fs.mkdir`, `fs.rm`, `fs.readdir`) — Bun has no native directory APIs. Avoid sync APIs in async flows; use sync only when forced by a synchronous interface.
+Avoid sync APIs in async flows; use sync only when forced by a synchronous interface.
 
 **Anti-patterns:**
 
-- `existsSync`/`readFileSync`/`writeFileSync` in async code → `Bun.file()` APIs.
-- `mkdir(dirname(path), …)` before `Bun.write(path, …)` → redundant; `Bun.write` handles it.
-- `if (await file.exists()) { await file.json() }` → two syscalls plus race. Use try-catch with `isEnoent`:
+- New `Bun.file()` / `Bun.write()` call sites.
+- `if (await exists(path)) { await read(path) }` → two syscalls plus race. Use try-catch with `isEnoent`:
   ```typescript
   import { isEnoent } from "@oh-my-pi/pi-utils";
   try {
-  	return await Bun.file(path).json();
+  	return JSON.parse(await fs.readFile(path, "utf8"));
   } catch (err) {
   	if (isEnoent(err)) return null;
   	throw err;
   }
   ```
-- Multiple `Bun.file(path)` handles for the same path (including across `checkX`/`loadX` helpers).
-- `Buffer.from(await Bun.file(x).arrayBuffer())` → `await fs.readFile(path)`.
+- Forgetting that `fs.writeFile` does NOT create parent directories (`Bun.write` did).
 - Existence check + try-catch around the same read → drop the existence check.
 
 ### Streams
@@ -166,10 +172,9 @@ Manual reader loops only when the protocol requires it (SSE, streaming JSON-RPC)
 
 ### Misc
 
-- **Sleep**: `await Bun.sleep(ms)`, never `new Promise(r => setTimeout(r, ms))`.
-- **Password hashing**: `Bun.password.hash(pw, "bcrypt")` / `Bun.password.verify(pw, hash)`.
-- **String width**: `Bun.stringWidth(text, { countAnsiEscapeCodes?: false })`.
-- **Wrapping**: `Bun.wrapAnsi(text, width, { wordWrap, hard, trim })`.
+- **Sleep**: `import { setTimeout as sleep } from "node:timers/promises"`, never `new Promise(r => setTimeout(r, ms))`.
+- **Password hashing**: `node:crypto` `scrypt`/`pbkdf2` helpers.
+- **String width / wrapping**: the text ops exported by `@oh-my-pi/pi-natives`.
 
 ## Generated Files
 

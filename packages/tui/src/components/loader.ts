@@ -2,20 +2,18 @@ import type { TUI } from "../tui";
 import { getPaddingX, sliceByColumn, visibleWidth } from "../utils";
 import { Text } from "./text";
 
-const RENDER_INTERVAL_MS = 1000 / 30;
+// One cadence for every loader: the spinner glyph interval. Colorizers whose
+// output drifts over time (shimmer) update on this tick too, instead of driving
+// a separate 30fps repaint — full-viewport repaints are the dominant per-frame
+// cost, and several concurrent instances multiply it.
 const SPINNER_ADVANCE_MS = 80;
 const RENDER_BACKPRESSURE_MULTIPLIER = 9;
 const MAX_BACKPRESSURE_FRAME_COST_MS = 200;
 
 type ColorFn = (str: string) => string;
 
-/**
- * Styles Loader message fragments without changing their visible text or width.
- * Set `animated` for colorizers whose ANSI output changes over time.
- */
-export type LoaderMessageColorFn = ColorFn & {
-	readonly animated?: true;
-};
+/** Styles Loader message fragments without changing their visible text or width. */
+export type LoaderMessageColorFn = ColorFn;
 
 /** Animates a spinner and colorized message while asynchronous work is pending. */
 export class Loader extends Text {
@@ -99,8 +97,7 @@ export class Loader extends Text {
 		this.#lastSpinnerTick = performance.now();
 		this.#syncText();
 		this.#requestPaint();
-		const intervalMs = this.messageColorFn.animated === true ? RENDER_INTERVAL_MS : SPINNER_ADVANCE_MS;
-		this.#scheduleTick(intervalMs, intervalMs);
+		this.#scheduleTick(SPINNER_ADVANCE_MS, SPINNER_ADVANCE_MS);
 	}
 
 	stop() {
@@ -135,8 +132,6 @@ export class Loader extends Text {
 				this.#currentFrame = (this.#currentFrame + steps) % this.#frames.length;
 				this.#lastSpinnerTick += steps * SPINNER_ADVANCE_MS;
 				this.#syncText();
-			}
-			if (shouldAdvanceSpinner || this.#ui?.synchronizedOutput === true) {
 				this.#requestPaint();
 			}
 

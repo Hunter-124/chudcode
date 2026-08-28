@@ -7,7 +7,18 @@ use std::{
 
 fn main() {
 	napi_build::setup();
+	build_c_core("catalog", "omp_catalog");
+	build_c_core("tui", "omp_tui");
 	generate_minimizer_builtin_filters();
+}
+
+fn build_c_core(directory: &str, name: &str) {
+	let core_dir = Path::new("native").join(directory);
+	let source = core_dir.join(format!("{name}.c"));
+	let header = core_dir.join(format!("{name}.h"));
+	println!("cargo:rerun-if-changed={}", source.display());
+	println!("cargo:rerun-if-changed={}", header.display());
+	cc::Build::new().file(&source).include(&core_dir).std("c11").compile(name);
 }
 
 fn generate_minimizer_builtin_filters() {

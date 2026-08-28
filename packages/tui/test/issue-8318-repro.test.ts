@@ -61,13 +61,17 @@ function captureWrites(term: VirtualTerminal): string[] {
 /**
  * Split the paint write that carries the sized heading into terminal rows and
  * return the heading row plus the `spacerCount` rows written directly beneath
- * it. Rows are `\r\n`-separated in the emitted buffer; the OSC 66 ST (`ESC \\`)
- * never contains a newline, so the split keeps each span intact.
+ * it. The normal-screen path chains rows with `\r\n`; the alt-buffer path
+ * positions each row absolutely (`ESC [ row ; 1 H`) because it repaints only the
+ * rows whose bytes changed. Neither separator can appear inside an OSC 66 span,
+ * so the split keeps each row intact.
  */
+const ROW_SEPARATOR = /\r\n|\x1b\[\d+;1H/;
+
 function headingAndSpacers(writes: string[], spacerCount: number): { heading: string; spacers: string[] } {
 	const paint = writes.find(write => write.includes(OSC66));
 	expect(paint).toBeDefined();
-	const rows = paint!.split("\r\n");
+	const rows = paint!.split(ROW_SEPARATOR);
 	const idx = rows.findIndex(row => row.includes(OSC66));
 	expect(idx).toBeGreaterThanOrEqual(0);
 	return { heading: rows[idx]!, spacers: rows.slice(idx + 1, idx + 1 + spacerCount) };

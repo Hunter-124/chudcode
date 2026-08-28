@@ -1,34 +1,36 @@
-import MODELS from "./models.json" with { type: "json" };
+import { openBundledModelCatalog } from "./models-binary";
+import type { GeneratedProvider } from "./models-bin-meta";
 import type { Api, KnownProvider, Model, ModelCost, TokenCost, Usage } from "./types";
 
+export type { GeneratedProvider } from "./models-bin-meta";
+
 /**
- * Static bundled model registry loaded from `models.json`.
+ * Static bundled model registry backed by the generated binary catalog.
  *
  * This module intentionally exposes compile-time defaults only.
  * It does not include runtime discovery, stencil.so overlays, or on-disk cache state.
  *
  * For runtime-aware resolution, use `createModelManager()` / `resolveProviderModels()`.
  */
+const bundledCatalog = openBundledModelCatalog();
+const bundledProviderIds = bundledCatalog.providerIds();
 const modelRegistry = new Map<string, Map<string, Model<Api>>>();
 
-/** Return one provider's bundled models, materialized by the generator. */
+/** Return one provider's bundled models, materializing its JSON payload once. */
 function getProviderModels(provider: string): Map<string, Model<Api>> | undefined {
 	const cachedModels = modelRegistry.get(provider);
 	if (cachedModels !== undefined) return cachedModels;
-	if (!Object.hasOwn(MODELS, provider)) return undefined;
+	const providerJson = bundledCatalog.providerJson(provider);
+	if (providerJson === undefined) return undefined;
 
+	const rawModels = JSON.parse(providerJson) as Record<string, Model<Api>>;
 	const providerModels = new Map<string, Model<Api>>();
-	const rawModels = MODELS[provider as keyof typeof MODELS];
-	for (const id in rawModels) {
-		// models.json rows are complete Models emitted by generate-models.ts;
-		// consuming them verbatim keeps startup allocation-free.
-		providerModels.set(id, rawModels[id as keyof typeof rawModels] as unknown as Model<Api>);
+	for (const [id, model] of Object.entries(rawModels)) {
+		providerModels.set(id, model);
 	}
 	modelRegistry.set(provider, providerModels);
 	return providerModels;
 }
-
-export type GeneratedProvider = keyof typeof MODELS;
 
 export function getBundledModel<TApi extends Api = Api>(provider: GeneratedProvider, modelId: string): Model<TApi> {
 	const providerModels = getProviderModels(provider);
@@ -36,7 +38,7 @@ export function getBundledModel<TApi extends Api = Api>(provider: GeneratedProvi
 }
 
 export function getBundledProviders(): KnownProvider[] {
-	return Object.keys(MODELS) as KnownProvider[];
+	return bundledProviderIds.slice() as KnownProvider[];
 }
 
 export function getBundledModels(provider: GeneratedProvider): Model<Api>[] {

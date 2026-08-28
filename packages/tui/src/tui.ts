@@ -14,6 +14,7 @@
  */
 import * as fs from "node:fs";
 import { performance } from "node:perf_hooks";
+import { TuiScreen } from "@oh-my-pi/pi-natives";
 import { $flag, getDebugLogPath, logger } from "@oh-my-pi/pi-utils";
 import { DEFAULT_MAX_INLINE_IMAGES, ImageBudget } from "./components/image";
 import { isKeyRelease, matchesKey } from "./keys";
@@ -786,10 +787,11 @@ export class TUI extends Container {
 	// engine paints only the modal on the alt buffer and leaves every
 	// normal-screen accounting field (#previousFrameLength, #viewportTopRow, …)
 	// untouched, so exiting reconciles cleanly against the terminal-restored
-	// normal screen. #altPreviousLines is the last alt frame, for repaint-skip.
+	// normal screen. #altScreen holds the last alt frame in the native
+	// differential emitter, which repaints only the rows whose bytes changed.
+	#altScreen: TuiScreen | null = null;
 	#altActive = false;
 	#altMouseTrackingActive = false;
-	#altPreviousLines: string[] = [];
 	#altEnterWidth = 0;
 	#altEnterHeight = 0;
 	#resizeAltActive = false;
@@ -1112,7 +1114,7 @@ export class TUI extends Container {
 		if (!this.#resizeAltActive) {
 			this.#resizeAltActive = true;
 			setAltScreenActive(true);
-			this.#altPreviousLines = [];
+			this.#altScreen?.forceRepaint();
 			this.#forgetHardwareCursorState();
 			this.#recordHardwareCursorHidden();
 			// Erase the mutable live viewport from the normal screen before borrowing
@@ -1187,7 +1189,7 @@ export class TUI extends Container {
 			this.#suppressResizeUntil = this.#renderScheduler.now() + 100;
 			this.terminal.write(`${this.#keyboardEnhancementExit()}\x1b[?1049l`);
 			setAltScreenActive(false);
-			this.#altPreviousLines = [];
+			this.#altScreen?.forceRepaint();
 			this.#beginResizeAnchorProbe();
 		}, TUI.#RESIZE_VIEWPORT_SETTLE_MS);
 		this.requestRender(true);
@@ -1580,7 +1582,7 @@ export class TUI extends Container {
 			setAltScreenActive(false);
 			this.#altActive = false;
 			this.#altMouseTrackingActive = false;
-			this.#altPreviousLines = [];
+			this.#altScreen?.forceRepaint();
 			this.#pendingAltExit = "";
 		}
 		// A latched destructive reset (settled rebuild-mode resize, /clear) pairs
@@ -2486,7 +2488,7 @@ export class TUI extends Container {
 			this.#recordHardwareCursorHidden();
 			this.#altActive = true;
 			this.#altMouseTrackingActive = wantMouseTracking;
-			this.#altPreviousLines = [];
+			this.#altScreen?.forceRepaint();
 			this.#altEnterWidth = width;
 			this.#altEnterHeight = height;
 		} else if (!wantAlt && this.#altActive) {
@@ -2498,7 +2500,7 @@ export class TUI extends Container {
 			this.#forgetHardwareCursorState();
 			this.#altActive = false;
 			this.#altMouseTrackingActive = false;
-			this.#altPreviousLines = [];
+			this.#altScreen?.forceRepaint();
 			// The alt-buffer restore put the pre-overlay normal screen back. If
 			// that buffer resized while covered, its cursor moved with width
 			// rewrap or a height-grow scrollback pull, while our viewport anchor
@@ -2858,30 +2860,20 @@ export class TUI extends Container {
 			for (const seq of imageTransmits) transmitBuffer += seq;
 			this.terminal.write(transmitBuffer);
 		}
-		// Skip an identical repaint (the modal is mostly static between
-		// keystrokes) — unless a forced repaint (resetDisplay,
-		// requestRender(true)) is pending: the redraw gesture must repair a
-		// corrupted modal even when our cached frame is byte-identical.
-		const force = this.#forceViewportRepaintOnNextRender;
+		// Row-level diff in the native emitter: a mostly static modal repaints
+		// only the rows that changed between keystrokes. A forced repaint
+		// (resetDisplay, requestRender(true)) must repair a corrupted modal even
+		// when the cached frame is byte-identical.
+		const screen = (this.#altScreen ??= new TuiScreen());
+		if (this.#forceViewportRepaintOnNextRender) screen.forceRepaint();
 		this.#forceViewportRepaintOnNextRender = false;
-		if (!force && this.#altPreviousLines.length === height) {
-			let same = true;
-			for (let r = 0; r < height; r++) {
-				if (fitted[r] !== this.#altPreviousLines[r]) {
-					same = false;
-					break;
-				}
-			}
-			if (same) return;
-		}
-		let buffer = `${this.#paintBeginSequence}\x1b[H`;
+		screen.beginFrame(height);
 		for (let r = 0; r < height; r++) {
-			if (r > 0) buffer += "\r\n";
-			buffer += this.#lineRewriteSequence(fitted[r], width, r, -1, -1, this.#osc66SpacerGlyphWidth(fitted, r));
+			screen.setRow(r, this.#lineRewriteSequence(fitted[r], width, r, -1, -1, this.#osc66SpacerGlyphWidth(fitted, r)));
 		}
-		buffer += this.#paintEndSequence;
-		this.terminal.write(buffer);
-		this.#altPreviousLines = fitted;
+		const frame = screen.flush(this.#paintBeginSequence, this.#paintEndSequence);
+		if (frame === undefined) return;
+		this.terminal.write(frame);
 		this.#fullRedrawCount += 1;
 	}
 }

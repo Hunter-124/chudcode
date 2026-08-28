@@ -34,11 +34,10 @@ describe("Loader component", () => {
 		tui.stop();
 	});
 
-	it("keeps spinner cadence when animated messages repaint at 30fps", () => {
+	it("repaints on the spinner tick even when a synchronized-output TUI is driving frames", () => {
 		vi.useFakeTimers();
-		const ui = { requestComponentRender: vi.fn() };
-		const colorMessage = ((text: string) => text) as LoaderMessageColorFn & { animated: true };
-		colorMessage.animated = true;
+		const ui = { requestComponentRender: vi.fn(), synchronizedOutput: true };
+		const colorMessage: LoaderMessageColorFn = text => text;
 		const loader = new Loader(ui as unknown as TUI, text => text, colorMessage, "Checking", ["0", "1", "2", "3"]);
 
 		vi.advanceTimersByTime(170);
@@ -68,11 +67,10 @@ describe("Loader component", () => {
 		loader.stop();
 	});
 
-	it("skips animated render requests when composed text is unchanged before the spinner advances", () => {
+	it("skips render requests before the spinner advances", () => {
 		vi.useFakeTimers();
-		const ui = { requestComponentRender: vi.fn() };
-		const colorMessage = ((text: string) => text) as LoaderMessageColorFn & { animated: true };
-		colorMessage.animated = true;
+		const ui = { requestComponentRender: vi.fn(), synchronizedOutput: true };
+		const colorMessage: LoaderMessageColorFn = text => text;
 		const loader = new Loader(ui as unknown as TUI, text => text, colorMessage, "Checking", ["0", "1"]);
 
 		expect(ui.requestComponentRender).toHaveBeenCalledTimes(1);
@@ -110,44 +108,49 @@ describe("Loader component", () => {
 		loader.stop();
 	});
 
-	it("requests component renders when animated message bytes change between spinner frames", () => {
+	it("refreshes drifting message bytes on the spinner tick", () => {
 		vi.useFakeTimers();
 		setSystemTime(new Date(1_000));
 		const ui = { synchronizedOutput: true, requestComponentRender: vi.fn() };
-		const colorMessage = ((text: string) => `${text}-${Date.now()}`) as LoaderMessageColorFn & { animated: true };
-		colorMessage.animated = true;
+		const colorMessage: LoaderMessageColorFn = text => `${text}-${Date.now()}`;
 		const loader = new Loader(ui as unknown as TUI, text => text, colorMessage, "Checking", ["0"]);
 
 		expect(ui.requestComponentRender).toHaveBeenCalledTimes(1);
 
 		vi.advanceTimersByTime(34);
+		expect(ui.requestComponentRender).toHaveBeenCalledTimes(1);
+
+		vi.advanceTimersByTime(46);
 		expect(ui.requestComponentRender).toHaveBeenCalledTimes(2);
 		expect(loader.render(40).join("\n")).toContain("0 Checking-");
 
 		loader.stop();
 	});
 
-	it("backs off animated paints when component renders consume the frame budget", () => {
+	it("backs off paints when component renders consume the frame budget", () => {
 		vi.useFakeTimers();
 		let now = 0;
+		const advance = (ms: number) => {
+			now += ms;
+			vi.advanceTimersByTime(ms);
+		};
 		const ui = {
 			synchronizedOutput: true,
 			requestComponentRender: vi.fn(() => {
 				now += 40;
 			}),
 		};
-		const colorMessage = ((text: string) => text) as LoaderMessageColorFn & { animated: true };
-		colorMessage.animated = true;
+		const colorMessage: LoaderMessageColorFn = text => text;
 		spyOn(performance, "now").mockImplementation(() => now);
 		const loader = new Loader(ui as unknown as TUI, text => text, colorMessage, "Checking", ["0"]);
 
 		expect(ui.requestComponentRender).toHaveBeenCalledTimes(1);
-		vi.advanceTimersByTime(34);
+		advance(80);
 		expect(ui.requestComponentRender).toHaveBeenCalledTimes(2);
 
-		vi.advanceTimersByTime(200);
+		advance(200);
 		expect(ui.requestComponentRender).toHaveBeenCalledTimes(2);
-		vi.advanceTimersByTime(160);
+		advance(160);
 		expect(ui.requestComponentRender).toHaveBeenCalledTimes(3);
 
 		loader.stop();
@@ -211,20 +214,17 @@ describe("Loader component", () => {
 		loader.stop();
 	});
 
-	it("reuses text layout when only animated ANSI styling changes", () => {
+	it("reuses text layout when only ANSI styling changes", () => {
 		vi.useFakeTimers();
 		let colorFrame = 0;
 		const ui = { synchronizedOutput: true, requestComponentRender: vi.fn() };
-		const colorMessage = ((text: string) => `\x1b[3${colorFrame++ % 3}m${text}\x1b[0m`) as LoaderMessageColorFn & {
-			animated: true;
-		};
-		colorMessage.animated = true;
+		const colorMessage: LoaderMessageColorFn = text => `\x1b[3${colorFrame++ % 3}m${text}\x1b[0m`;
 		const loader = new Loader(ui as unknown as TUI, text => text, colorMessage, "Checking", ["⠸"]);
 		const stringWidth = spyOn(Bun, "stringWidth");
 
 		const initial = loader.render(40);
 		stringWidth.mockClear();
-		vi.advanceTimersByTime(34);
+		vi.advanceTimersByTime(80);
 		const animated = loader.render(40);
 
 		expect(ui.requestComponentRender).toHaveBeenCalledTimes(2);

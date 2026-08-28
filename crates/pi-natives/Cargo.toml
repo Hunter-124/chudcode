@@ -107,6 +107,7 @@ tiktoken-rs.workspace = true # utok openai differential oracle
 xkeysym = "=0.2.1"
 
 [build-dependencies]
+cc.workspace = true
 napi-build.workspace = true
 serde.workspace = true
 serde_json.workspace = true

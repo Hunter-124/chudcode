@@ -64,6 +64,7 @@
       "version": "18.0.8",
       "dependencies": {
         "@oh-my-pi/omptype": "catalog:",
+        "@oh-my-pi/pi-natives": "catalog:",
         "@oh-my-pi/pi-utils": "catalog:",
       },
       "devDependencies": {
