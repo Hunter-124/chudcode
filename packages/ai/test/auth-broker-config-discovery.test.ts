@@ -2,24 +2,24 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import { discoverAuthStorage, resolveAuthBrokerConfig } from "@oh-my-pi/pi-ai/auth-broker";
-import { writeAuthBrokerSnapshotCache } from "@oh-my-pi/pi-ai/auth-broker/snapshot-cache";
-import type { SnapshotResponse } from "@oh-my-pi/pi-ai/auth-broker/types";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
+import { discoverAuthStorage, resolveAuthBrokerConfig } from "@chudware/ai/auth-broker";
+import { writeAuthBrokerSnapshotCache } from "@chudware/ai/auth-broker/snapshot-cache";
+import type { SnapshotResponse } from "@chudware/ai/auth-broker/types";
+import * as fsx from "@chudware/utils/fsx";
 import { removeWithRetries } from "../../utils/src/temp";
 import { withEnv } from "./helpers";
 
 const SUPPRESS_AUTH_BROKER_ENV = {
-	OMP_AUTH_BROKER_URL: undefined,
-	OMP_AUTH_BROKER_TOKEN: undefined,
-	OMP_AUTH_BROKER_ACCOUNT_POOL_FILE: undefined,
+	CHUDCODE_AUTH_BROKER_URL: undefined,
+	CHUDCODE_AUTH_BROKER_TOKEN: undefined,
+	CHUDCODE_AUTH_BROKER_ACCOUNT_POOL_FILE: undefined,
 } as const;
 
 describe("resolveAuthBrokerConfig config discovery", () => {
 	let agentDir = "";
 
 	beforeEach(async () => {
-		agentDir = await fs.mkdtemp(path.join(os.tmpdir(), "pi-ai-auth-broker-config-"));
+		agentDir = await fs.mkdtemp(path.join(os.tmpdir(), "chud-ai-auth-broker-config-"));
 	});
 
 	afterEach(async () => {
@@ -91,8 +91,8 @@ describe("resolveAuthBrokerConfig config discovery", () => {
 		await withEnv(
 			{
 				...SUPPRESS_AUTH_BROKER_ENV,
-				OMP_AUTH_BROKER_URL: url,
-				OMP_AUTH_BROKER_TOKEN: token,
+				CHUDCODE_AUTH_BROKER_URL: url,
+				CHUDCODE_AUTH_BROKER_TOKEN: token,
 			},
 			async () => {
 				const storage = await discoverAuthStorage({ agentDir, cachePath });
@@ -109,14 +109,14 @@ describe("resolveAuthBrokerConfig config discovery", () => {
 		const poolPath = path.join(agentDir, "account-pool.json");
 		const brokerEnv = {
 			...SUPPRESS_AUTH_BROKER_ENV,
-			OMP_AUTH_BROKER_URL: "http://127.0.0.1:1",
-			OMP_AUTH_BROKER_TOKEN: "test-token",
-			OMP_AUTH_BROKER_ACCOUNT_POOL_FILE: poolPath,
+			CHUDCODE_AUTH_BROKER_URL: "http://127.0.0.1:1",
+			CHUDCODE_AUTH_BROKER_TOKEN: "test-token",
+			CHUDCODE_AUTH_BROKER_ACCOUNT_POOL_FILE: poolPath,
 		} as const;
 
 		await withEnv(brokerEnv, async () => {
 			await expect(discoverAuthStorage({ agentDir })).rejects.toThrow(
-				"Unable to read OMP_AUTH_BROKER_ACCOUNT_POOL_FILE",
+				"Unable to read CHUDCODE_AUTH_BROKER_ACCOUNT_POOL_FILE",
 			);
 
 			const invalidFiles = [

@@ -7,7 +7,7 @@ import {
 	isSqliteBusyError,
 	SqliteAuthCredentialStore,
 	type StoredAuthCredential,
-} from "@oh-my-pi/pi-ai";
+} from "@chudware/ai";
 import {
 	AsyncDrain,
 	getAgentDbPath,
@@ -16,7 +16,7 @@ import {
 	isRecord,
 	logger,
 	sleep,
-} from "@oh-my-pi/pi-utils";
+} from "@chudware/utils";
 import type { RawSettings as Settings } from "../config/settings";
 
 /** Row shape for settings table queries */
@@ -132,7 +132,7 @@ const instances = new Map<string, AgentStorage>();
 
 /**
  * Unified SQLite storage for agent settings, model usage, and auth credentials.
- * Delegates auth credential operations to AuthCredentialStore from @oh-my-pi/pi-ai.
+ * Delegates auth credential operations to AuthCredentialStore from @chudware/ai.
  * Uses singleton pattern per database path; access via AgentStorage.open().
  */
 export class AgentStorage {
@@ -213,7 +213,7 @@ ON CONFLICT(name) DO UPDATE SET count = command_usage.count + 1, last_used_at = 
 	#initializeSchema(): void {
 		// Install the busy handler BEFORE any lock-taking statement (incl.
 		// `PRAGMA journal_mode=WAL`, which acquires an exclusive lock during WAL
-		// recovery). Without this, concurrent omp startups can crash here with
+		// recovery). Without this, concurrent chudcode startups can crash here with
 		// `SQLITE_BUSY` / `SQLITE_BUSY_RECOVERY`. See issue #2421. Headless
 		// hosts bound the wait so lock contention cannot freeze the protocol
 		// loop for the full interactive timeout.
@@ -575,7 +575,7 @@ FROM model_usage_legacy
 
 	/**
 	 * One-time, non-blocking import of historical request timings from the
-	 * `chudcode stats` database (`~/.omp/stats.db`) into model_perf. Fire-and-forget:
+	 * `chudcode stats` database (`~/.chudcode/stats.db`) into model_perf. Fire-and-forget:
 	 * the walk runs in bounded chunks with event-loop yields between them
 	 * (bun:sqlite is synchronous — an unbounded scan here froze the TUI for
 	 * ~30s on multi-million-row stats databases), and the persistent meta
@@ -707,7 +707,7 @@ ON CONFLICT(model_key) DO UPDATE SET
 
 	/**
 	 * Returns the underlying {@link AuthCredentialStore} so callers that need
-	 * the lower-level pi-ai abstraction (e.g. `findAnthropicAuth(store)`) can
+	 * the lower-level chud-ai abstraction (e.g. `findAnthropicAuth(store)`) can
 	 * reuse this storage's open database connection instead of opening their
 	 * own.
 	 */

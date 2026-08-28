@@ -1,4 +1,4 @@
-import type { Effort } from "@oh-my-pi/pi-catalog/effort";
+import type { Effort } from "@chudware/catalog/effort";
 import type {
 	AssistantMessage,
 	AssistantMessageEventStream,
@@ -10,12 +10,12 @@ import type {
 } from "../types";
 
 /**
- * Wire types for the omp auth-gateway.
+ * Wire types for the chudcode auth-gateway.
  *
- * The gateway sits between unauthenticated clients (containerized omp,
+ * The gateway sits between unauthenticated clients (containerized chudcode,
  * llm-git, …) and the broker. It accepts provider-format HTTP requests
  * (OpenAI chat-completions / Anthropic messages / OpenAI Responses),
- * dispatches them through pi-ai's `streamSimple()`, and translates the
+ * dispatches them through chud-ai's `streamSimple()`, and translates the
  * canonical event stream back to the matching wire format. The gateway
  * injects `Authorization` server-side so clients never see access tokens.
  */

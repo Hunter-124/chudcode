@@ -1,5 +1,5 @@
-import { removeWithRetries } from "@oh-my-pi/pi-utils";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
+import { removeWithRetries } from "@chudware/utils";
+import * as fsx from "@chudware/utils/fsx";
 /**
  * Large-paste menu: when a paste reaches the configured `paste.largeMenuThreshold` line count,
  * the editor's `onLargePaste` hook routes through `InputController.handleLargePaste`, which offers
@@ -11,8 +11,8 @@ import { afterEach, describe, expect, it, vi } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import { InputController } from "@oh-my-pi/pi-coding-agent/modes/controllers/input-controller";
-import type { InteractiveModeContext } from "@oh-my-pi/pi-coding-agent/modes/types";
+import { InputController } from "@chudware/coding-agent/modes/controllers/input-controller";
+import type { InteractiveModeContext } from "@chudware/coding-agent/modes/types";
 
 function createContext(options?: { threshold?: number; choice?: string; artifactsDir?: string }) {
 	const insertTextAttachment = vi.fn();
@@ -131,7 +131,7 @@ describe("InputController.presentLargePasteMenu file attachment", () => {
 	});
 
 	it("saves the paste to local:// and inserts a clean local://paste reference", async () => {
-		dir = await fs.mkdtemp(path.join(os.tmpdir(), "omp-paste-test-"));
+		dir = await fs.mkdtemp(path.join(os.tmpdir(), "chudcode-paste-test-"));
 		const { controller, spies } = createContext({ choice: "Attach as local file", artifactsDir: dir });
 
 		await controller.presentLargePasteMenu("line one\nline two", 2);
@@ -144,7 +144,7 @@ describe("InputController.presentLargePasteMenu file attachment", () => {
 	});
 
 	it("does not overwrite an existing paste file", async () => {
-		dir = await fs.mkdtemp(path.join(os.tmpdir(), "omp-paste-test-"));
+		dir = await fs.mkdtemp(path.join(os.tmpdir(), "chudcode-paste-test-"));
 		await fsx.write(path.join(dir, "local", "paste-1.md"), "previous");
 		const { controller, spies } = createContext({ choice: "Attach as local file", artifactsDir: dir });
 

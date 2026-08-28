@@ -1,7 +1,7 @@
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import { sleep } from "@oh-my-pi/pi-utils/async";
+import { sleep } from "@chudware/utils/async";
 import type { ToolSession } from "..";
 
 const DEFAULT_CAPTURE_BYTES = 2 * 1024 * 1024;

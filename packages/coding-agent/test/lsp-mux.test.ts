@@ -3,7 +3,7 @@ import * as fs from "node:fs/promises";
 import * as net from "node:net";
 import * as os from "node:os";
 import * as path from "node:path";
-import { sleep } from "@oh-my-pi/pi-utils/async";
+import { sleep } from "@chudware/utils/async";
 import { MessageFramer } from "../src/jsonrpc/message-framing";
 import {
 	MUX_CONNECT_METHOD,
@@ -193,7 +193,7 @@ describe("LspMuxServer", () => {
 	const clients: MuxTestClient[] = [];
 
 	beforeEach(async () => {
-		tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "omp-lsp-mux-test-"));
+		tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "chudcode-lsp-mux-test-"));
 		socketPath = path.join(tmpDir, "mux.sock");
 		connectParams = { command: process.execPath, args: ["run", fixturePath], cwd: tmpDir };
 		server = new LspMuxServer();

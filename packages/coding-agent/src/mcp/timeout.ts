@@ -1,7 +1,7 @@
-import { logger } from "@oh-my-pi/pi-utils";
+import { logger } from "@chudware/utils";
 
 const DEFAULT_MCP_TIMEOUT_MS = 30_000;
-const MCP_TIMEOUT_ENV = "OMP_MCP_TIMEOUT_MS";
+const MCP_TIMEOUT_ENV = "CHUDCODE_MCP_TIMEOUT_MS";
 
 let neverAbortController: AbortController | undefined;
 
@@ -10,7 +10,7 @@ export function resolveMCPTimeoutMs(configTimeout?: number): number {
 	if (raw) {
 		const value = Number(raw);
 		if (Number.isFinite(value) && value >= 0) return value;
-		logger.warn("Ignoring invalid OMP_MCP_TIMEOUT_MS env value; expected a non-negative number", {
+		logger.warn("Ignoring invalid CHUDCODE_MCP_TIMEOUT_MS env value; expected a non-negative number", {
 			value: raw,
 		});
 	}

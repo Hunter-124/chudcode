@@ -73,13 +73,13 @@ async function runCommand(
 async function main(): Promise<void> {
 	const crossBuild = resolveCrossBuild(process.env.CROSS_TARGET);
 	const shouldAdhocSign = process.platform === "darwin" && !crossBuild && process.env.BUN_NO_CODESIGN_MACHO_BINARY !== "1";
-	const outName = crossBuild ? `omp-${crossBuild.id}` : "omp";
+	const outName = crossBuild ? `chudcode-${crossBuild.id}` : "chudcode";
 	const outputPath = path.join(packageDir, "dist", outName);
 	// Generate inside the try so the finally always restores the empty checked-in
 	// placeholders (stats client archive, docs index) even on failure.
 	try {
 		await runCommand(["bun", "--cwd=../stats", "run", "gen:stats"]);
-		// The in-memory legacy Pi virtual module reaches the coding-agent
+		// The in-memory legacy Chud virtual module reaches the coding-agent
 		// `export/html` subpath, whose source imports `tool-views.generated.js`.
 		// Rebuild it before compilation so clean checkouts that skipped install
 		// hooks still contain that generated bundle.

@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
+import * as fsx from "@chudware/utils/fsx";
 import {
 	assertSecurityScanPlanFresh,
 	createSecurityScanPlan,
@@ -30,7 +30,7 @@ const adapter: SecurityGitAdapter = {
 };
 
 beforeEach(async () => {
-	temporaryRoot = await fs.mkdtemp(path.join(os.tmpdir(), "omp-security-preflight-"));
+	temporaryRoot = await fs.mkdtemp(path.join(os.tmpdir(), "chudcode-security-preflight-"));
 	repositoryRoot = path.join(temporaryRoot, "repo");
 	stateRoot = path.join(temporaryRoot, "output");
 	await fs.mkdir(path.join(repositoryRoot, "src"), { recursive: true });

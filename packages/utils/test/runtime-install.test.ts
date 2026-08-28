@@ -33,7 +33,7 @@ interface ResolveFilenameModule {
 }
 
 async function makeNodeModules(packages: Record<string, { manifest: Record<string, unknown>; files: string[] }>) {
-	const root = await fs.mkdtemp(path.join(os.tmpdir(), "omp-runtime-install-"));
+	const root = await fs.mkdtemp(path.join(os.tmpdir(), "chudcode-runtime-install-"));
 	tempDirs.push(root);
 	const nodeModules = path.join(root, "node_modules");
 	for (const name in packages) {
@@ -182,7 +182,7 @@ describe("installRuntimeModuleResolver", () => {
 	});
 
 	test("uninstall restores the stock resolver and createRequire relative requires", async () => {
-		const root = await fs.mkdtemp(path.join(os.tmpdir(), "omp-runtime-uninstall-"));
+		const root = await fs.mkdtemp(path.join(os.tmpdir(), "chudcode-runtime-uninstall-"));
 		tempDirs.push(root);
 		await fs.writeFile(path.join(root, "config.js"), 'module.exports = { value: "config-ok" };\n');
 		await fs.writeFile(
@@ -216,7 +216,7 @@ describe("installRuntimeModuleResolver", () => {
 
 describe("writeRuntimeManifest", () => {
 	async function readManifest(install: Parameters<typeof writeRuntimeManifest>[1]) {
-		const dir = await fs.mkdtemp(path.join(os.tmpdir(), "omp-runtime-manifest-"));
+		const dir = await fs.mkdtemp(path.join(os.tmpdir(), "chudcode-runtime-manifest-"));
 		tempDirs.push(dir);
 		await writeRuntimeManifest(dir, install);
 		return JSON.parse(await fs.readFile(path.join(dir, "package.json"), "utf8")) as Record<string, unknown>;

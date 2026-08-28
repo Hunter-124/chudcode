@@ -1,7 +1,7 @@
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import type { ImageContent } from "@oh-my-pi/pi-ai";
+import type { ImageContent } from "@chudware/ai";
 import { resolveLocalUrlToFile } from "../../internal-urls";
 import { resolveArtifactFile } from "../../internal-urls/artifact-protocol";
 import { parseInternalUrl } from "../../internal-urls/parse";
@@ -142,7 +142,7 @@ function extensionForMime(mimeType: string): string {
 }
 
 export async function materializeLoadedImage(image: LoadedImageInput, label = "input"): Promise<string> {
-	const filePath = path.join(os.tmpdir(), `omp-vision-${label}-${crypto.randomUUID()}${extensionForMime(image.mimeType)}`);
+	const filePath = path.join(os.tmpdir(), `chudcode-vision-${label}-${crypto.randomUUID()}${extensionForMime(image.mimeType)}`);
 	await fs.writeFile(filePath, Buffer.from(image.data, "base64"), { mode: 0o600 });
 	return filePath;
 }

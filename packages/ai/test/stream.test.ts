@@ -3,15 +3,15 @@ import { type ChildProcess, execSync, spawn } from "node:child_process";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import { type } from "@oh-my-pi/omptype";
-import { Effort } from "@oh-my-pi/pi-ai";
-import { __resetVertexTokenCache } from "@oh-my-pi/pi-ai/providers/google-auth";
-import { complete, getEnvApiKey, stream } from "@oh-my-pi/pi-ai/stream";
-import type { Api, Context, ImageContent, Model, OptionsForApi, Tool, ToolResultMessage } from "@oh-my-pi/pi-ai/types";
-import { buildModel } from "@oh-my-pi/pi-catalog/build";
-import { getBundledModel } from "@oh-my-pi/pi-catalog/models";
-import { $which } from "@oh-my-pi/pi-utils";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
+import { Effort } from "@chudware/ai";
+import { __resetVertexTokenCache } from "@chudware/ai/providers/google-auth";
+import { complete, getEnvApiKey, stream } from "@chudware/ai/stream";
+import type { Api, Context, ImageContent, Model, OptionsForApi, Tool, ToolResultMessage } from "@chudware/ai/types";
+import { buildModel } from "@chudware/catalog/build";
+import { getBundledModel } from "@chudware/catalog/models";
+import { type } from "@chudware/chudtype";
+import { $which } from "@chudware/utils";
+import * as fsx from "@chudware/utils/fsx";
 import { removeWithRetries } from "../../utils/src/temp";
 import { e2eApiKey, resolveApiKey } from "./oauth";
 
@@ -679,7 +679,7 @@ describe("Generate E2E Tests", () => {
 			const originalLocation = process.env.VERTEX_LOCATION;
 			const originalApiKey = process.env.GOOGLE_CLOUD_API_KEY;
 			const originalGac = process.env.GOOGLE_APPLICATION_CREDENTIALS;
-			const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "omp-vertex-impersonation-"));
+			const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "chudcode-vertex-impersonation-"));
 			const adcPath = path.join(tmpDir, "impersonated-adc.json");
 			await fsx.write(
 				adcPath,
@@ -1750,8 +1750,8 @@ describe("Generate E2E Tests", () => {
 		);
 	});
 
-	// Ollama tests require PI_LOCAL_LLM=1 and ollama installed
-	const ollamaInstalled = !!process.env.PI_LOCAL_LLM && !!$which("ollama");
+	// Ollama tests require CHUDCODE_LOCAL_LLM=1 and ollama installed
+	const ollamaInstalled = !!process.env.CHUDCODE_LOCAL_LLM && !!$which("ollama");
 
 	describe.skipIf(!ollamaInstalled)("Ollama Provider (gpt-oss-20b via OpenAI Completions)", () => {
 		let llm: Model<"openai-completions"> | undefined;

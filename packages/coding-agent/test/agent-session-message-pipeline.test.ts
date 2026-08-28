@@ -5,7 +5,7 @@ import {
 	type AgentTool,
 	AppendOnlyContextManager,
 	type StreamFn,
-} from "@oh-my-pi/pi-agent-core";
+} from "@chudware/agent-core";
 import {
 	type Api,
 	type Context,
@@ -17,22 +17,22 @@ import {
 	registerCustomApi,
 	type SimpleStreamOptions,
 	type TextContent,
-} from "@oh-my-pi/pi-ai";
-import { AssistantMessageEventStream } from "@oh-my-pi/pi-ai/utils/event-stream";
-import { buildModel } from "@oh-my-pi/pi-catalog/build";
-import { ModelRegistry } from "@oh-my-pi/pi-coding-agent/config/model-registry";
-import { Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
-import * as memoryBackend from "@oh-my-pi/pi-coding-agent/memory-backend";
-import type { MemoryBackend } from "@oh-my-pi/pi-coding-agent/memory-backend/types";
-import { type MnemopiSessionState, setMnemopiSessionState } from "@oh-my-pi/pi-coding-agent/mnemopi/state";
-import { createAgentSession, type ExtensionContext, type ExtensionFactory } from "@oh-my-pi/pi-coding-agent/sdk";
-import { obfuscateProviderContext, SecretObfuscator } from "@oh-my-pi/pi-coding-agent/secrets";
-import { AgentSession, type AgentSessionEvent } from "@oh-my-pi/pi-coding-agent/session/agent-session";
-import { AuthStorage } from "@oh-my-pi/pi-coding-agent/session/auth-storage";
-import { convertToLlm, wrapSteeringForModel } from "@oh-my-pi/pi-coding-agent/session/messages";
-import { SessionManager } from "@oh-my-pi/pi-coding-agent/session/session-manager";
-import { TempDir } from "@oh-my-pi/pi-utils";
-import { sleep } from "@oh-my-pi/pi-utils/async";
+} from "@chudware/ai";
+import { AssistantMessageEventStream } from "@chudware/ai/utils/event-stream";
+import { buildModel } from "@chudware/catalog/build";
+import { ModelRegistry } from "@chudware/coding-agent/config/model-registry";
+import { Settings } from "@chudware/coding-agent/config/settings";
+import * as memoryBackend from "@chudware/coding-agent/memory-backend";
+import type { MemoryBackend } from "@chudware/coding-agent/memory-backend/types";
+import { type MnemopiSessionState, setMnemopiSessionState } from "@chudware/coding-agent/mnemo/state";
+import { createAgentSession, type ExtensionContext, type ExtensionFactory } from "@chudware/coding-agent/sdk";
+import { obfuscateProviderContext, SecretObfuscator } from "@chudware/coding-agent/secrets";
+import { AgentSession, type AgentSessionEvent } from "@chudware/coding-agent/session/agent-session";
+import { AuthStorage } from "@chudware/coding-agent/session/auth-storage";
+import { convertToLlm, wrapSteeringForModel } from "@chudware/coding-agent/session/messages";
+import { SessionManager } from "@chudware/coding-agent/session/session-manager";
+import { TempDir } from "@chudware/utils";
+import { sleep } from "@chudware/utils/async";
 import { createAssistantMessage } from "./helpers/agent-session-setup";
 
 function createAgent(): Agent {
@@ -67,15 +67,15 @@ function getConvertedUserText(message: Message | undefined): string {
 }
 
 async function withNativeDialectEnv<T>(fn: () => Promise<T>): Promise<T> {
-	const previous = process.env.PI_DIALECT;
-	delete process.env.PI_DIALECT;
+	const previous = process.env.CHUDCODE_DIALECT;
+	delete process.env.CHUDCODE_DIALECT;
 	try {
 		return await fn();
 	} finally {
 		if (previous === undefined) {
-			delete process.env.PI_DIALECT;
+			delete process.env.CHUDCODE_DIALECT;
 		} else {
-			process.env.PI_DIALECT = previous;
+			process.env.CHUDCODE_DIALECT = previous;
 		}
 	}
 }
@@ -858,7 +858,7 @@ describe("AgentSession message pipeline", () => {
 		let remembered = false;
 		const injected = "<memories>remember blue</memories>";
 		const fakeBackend: MemoryBackend = {
-			id: "mnemopi",
+			id: "mnemo",
 			async start() {},
 			async buildDeveloperInstructions() {
 				return remembered ? `static memory instructions\n\n${injected}` : "static memory instructions";
@@ -952,8 +952,8 @@ describe("AgentSession message pipeline", () => {
 			contextWindow: 4096,
 			maxTokens: 1024,
 		} as ModelSpec<Api>) as Model<Api>;
-		const rewritePriorAssistant: ExtensionFactory = pi => {
-			pi.on("context", async event => {
+		const rewritePriorAssistant: ExtensionFactory = chud => {
+			chud.on("context", async event => {
 				const hasSecondTurn = event.messages.some(message => {
 					if (message.role !== "user") return false;
 					const content = message.content;
@@ -1059,8 +1059,8 @@ describe("AgentSession message pipeline", () => {
 			maxTokens: 1024,
 		} as ModelSpec<Api>) as Model<Api>;
 		let handlerCalls = 0;
-		const reviseBash: ExtensionFactory = pi => {
-			pi.on("tool_call", async event => {
+		const reviseBash: ExtensionFactory = chud => {
+			chud.on("tool_call", async event => {
 				if (event.toolName !== "bash") return undefined;
 				handlerCalls++;
 				return { input: { command: "echo revised" } };
@@ -1164,12 +1164,12 @@ describe("AgentSession message pipeline", () => {
 		let delegatedText = "";
 		// Re-register `bash`: the wrapper ignores the model's args, delegates to the native bash with
 		// its own command via ctx.invokeTool, and returns the native result.
-		const wrapBash: ExtensionFactory = pi => {
-			pi.registerTool({
+		const wrapBash: ExtensionFactory = chud => {
+			chud.registerTool({
 				name: "bash",
 				label: "Bash",
 				description: "wrapped bash",
-				parameters: pi.arktype({ command: pi.arktype("string") }),
+				parameters: chud.arktype({ command: chud.arktype("string") }),
 				async execute(
 					_toolCallId: string,
 					_params: unknown,
@@ -1241,7 +1241,7 @@ describe("AgentSession message pipeline", () => {
 		let recallAvailable = true;
 		const injected = "<memories>session A only</memories>";
 		const fakeBackend: MemoryBackend = {
-			id: "mnemopi",
+			id: "mnemo",
 			async start() {},
 			async buildDeveloperInstructions() {
 				return remembered ? `static memory instructions\n\n${injected}` : "static memory instructions";
@@ -1291,7 +1291,7 @@ describe("AgentSession message pipeline", () => {
 			sessionManager,
 			settings: Settings.isolated({
 				"compaction.enabled": false,
-				"memory.backend": "mnemopi",
+				"memory.backend": "mnemo",
 				"provider.appendOnlyContext": "on",
 			}),
 			modelRegistry: createModelRegistryStub() as never,
@@ -1330,7 +1330,7 @@ describe("AgentSession message pipeline", () => {
 		let recallAvailable = true;
 		const injected = "<memories>previous session only</memories>";
 		const fakeBackend: MemoryBackend = {
-			id: "mnemopi",
+			id: "mnemo",
 			async start() {},
 			async buildDeveloperInstructions() {
 				return remembered ? `static memory instructions\n\n${injected}` : "static memory instructions";
@@ -1380,7 +1380,7 @@ describe("AgentSession message pipeline", () => {
 			sessionManager: SessionManager.inMemory(),
 			settings: Settings.isolated({
 				"compaction.enabled": false,
-				"memory.backend": "mnemopi",
+				"memory.backend": "mnemo",
 				"provider.appendOnlyContext": "on",
 			}),
 			modelRegistry: createModelRegistryStub() as never,
@@ -1423,7 +1423,7 @@ describe("AgentSession message pipeline", () => {
 		let remembered = false;
 		const injected = "<memories>forked recall</memories>";
 		const fakeBackend: MemoryBackend = {
-			id: "mnemopi",
+			id: "mnemo",
 			async start() {},
 			async buildDeveloperInstructions() {
 				return remembered ? `static memory instructions\n\n${injected}` : "static memory instructions";
@@ -1473,7 +1473,7 @@ describe("AgentSession message pipeline", () => {
 			sessionManager,
 			settings: Settings.isolated({
 				"compaction.enabled": false,
-				"memory.backend": "mnemopi",
+				"memory.backend": "mnemo",
 				"provider.appendOnlyContext": "on",
 			}),
 			modelRegistry: createModelRegistryStub() as never,

@@ -1,6 +1,6 @@
 import * as path from "node:path";
-import { getTinyModelsCacheDir } from "@oh-my-pi/pi-utils";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
+import { getTinyModelsCacheDir } from "@chudware/utils";
+import * as fsx from "@chudware/utils/fsx";
 
 export const KOKORO_PACKAGE = "kokoro-js";
 export const KOKORO_VERSION = "1.2.1";

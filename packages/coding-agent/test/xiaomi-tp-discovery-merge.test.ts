@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
-import type { Model } from "@oh-my-pi/pi-ai";
-import { buildModel } from "@oh-my-pi/pi-catalog/build";
-import { mergeDiscoveredModel } from "@oh-my-pi/pi-coding-agent/config/model-registry";
+import type { Model } from "@chudware/ai";
+import { buildModel } from "@chudware/catalog/build";
+import { mergeDiscoveredModel } from "@chudware/coding-agent/config/model-registry";
 
 /**
  * Regression for v15.2.4 tp- key bug: when Xiaomi `tp-` token-plan keys hit
@@ -75,23 +75,23 @@ describe("mergeDiscoveredModel", () => {
 	});
 
 	test("preserves provider override transport on rediscovery (#2555 openrouter gateway regression)", () => {
-		// Bundled openrouter entry carries transport=pi-native after
+		// Bundled openrouter entry carries transport=chud-native after
 		// applying providerOverride at boot (#loadBuiltInModels). Discovery
 		// refetched the same model from /v1/models — provider catalogs
 		// never set transport in defaults, so the discovered model has no
 		// transport hint of its own.
 		const existing: Model<"openai-completions"> = {
 			...bundled("http://localhost:4000"),
-			transport: "pi-native",
+			transport: "chud-native",
 			headers: { Authorization: "Bearer gateway-token" },
 		};
 		const discovered = bundled("http://localhost:4000");
 		const merged = mergeDiscoveredModel(discovered, existing, {
 			baseUrl: "http://localhost:4000",
-			transport: "pi-native",
+			transport: "chud-native",
 			headers: { Authorization: "Bearer gateway-token" },
 		});
-		expect(merged.transport).toBe("pi-native");
+		expect(merged.transport).toBe("chud-native");
 		expect(merged.baseUrl).toBe("http://localhost:4000");
 		expect(merged.headers).toEqual({ Authorization: "Bearer gateway-token" });
 	});
@@ -100,9 +100,9 @@ describe("mergeDiscoveredModel", () => {
 		const discovered = bundled("http://localhost:4000");
 		const merged = mergeDiscoveredModel(discovered, undefined, {
 			baseUrl: "http://localhost:4000",
-			transport: "pi-native",
+			transport: "chud-native",
 		});
-		expect(merged.transport).toBe("pi-native");
+		expect(merged.transport).toBe("chud-native");
 	});
 
 	test("returns model untouched when no existing entry and no override", () => {

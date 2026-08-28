@@ -2,14 +2,14 @@ import { describe, expect, test } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import { tryRunRpcSkillCommand } from "@oh-my-pi/pi-coding-agent/modes/rpc/rpc-mode";
-import { type CustomMessage, SKILL_PROMPT_MESSAGE_TYPE } from "@oh-my-pi/pi-coding-agent/session/messages";
-import { removeWithRetries, Snowflake } from "@oh-my-pi/pi-utils";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
+import { tryRunRpcSkillCommand } from "@chudware/coding-agent/modes/rpc/rpc-mode";
+import { type CustomMessage, SKILL_PROMPT_MESSAGE_TYPE } from "@chudware/coding-agent/session/messages";
+import { removeWithRetries, Snowflake } from "@chudware/utils";
+import * as fsx from "@chudware/utils/fsx";
 
 describe("tryRunRpcSkillCommand", () => {
 	test("dispatches registered /skill commands as skill prompt messages", async () => {
-		const dir = await fs.mkdtemp(path.join(os.tmpdir(), `omp-rpc-skill-${Snowflake.next()}-`));
+		const dir = await fs.mkdtemp(path.join(os.tmpdir(), `chudcode-rpc-skill-${Snowflake.next()}-`));
 		const skillPath = path.join(dir, "SKILL.md");
 		await fsx.write(
 			skillPath,
@@ -46,7 +46,7 @@ describe("tryRunRpcSkillCommand", () => {
 	});
 
 	test("honors the RPC prompt streaming behavior for registered /skill commands", async () => {
-		const dir = await fs.mkdtemp(path.join(os.tmpdir(), `omp-rpc-skill-${Snowflake.next()}-`));
+		const dir = await fs.mkdtemp(path.join(os.tmpdir(), `chudcode-rpc-skill-${Snowflake.next()}-`));
 		const skillPath = path.join(dir, "SKILL.md");
 		await fsx.write(
 			skillPath,
@@ -99,7 +99,7 @@ describe("tryRunRpcSkillCommand", () => {
 	});
 
 	test("does not steal builtin slash-command arguments that mention registered skills", async () => {
-		const dir = await fs.mkdtemp(path.join(os.tmpdir(), `omp-rpc-skill-${Snowflake.next()}-`));
+		const dir = await fs.mkdtemp(path.join(os.tmpdir(), `chudcode-rpc-skill-${Snowflake.next()}-`));
 		const skillPath = path.join(dir, "SKILL.md");
 		await fsx.write(
 			skillPath,

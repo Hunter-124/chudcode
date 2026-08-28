@@ -7,8 +7,8 @@
 import * as fsSync from "node:fs";
 import * as os from "node:os";
 import { createInterface } from "node:readline/promises";
-import { EventLoopKeepalive, type ThinkingLevel } from "@oh-my-pi/pi-agent-core";
-import type { ImageContent, Model } from "@oh-my-pi/pi-ai";
+import { EventLoopKeepalive, type ThinkingLevel } from "@chudware/agent-core";
+import type { ImageContent, Model } from "@chudware/ai";
 import {
 	$env,
 	directoryIsMissing,
@@ -21,8 +21,8 @@ import {
 	setInteractiveHost,
 	setProjectDir,
 	VERSION,
-} from "@oh-my-pi/pi-utils";
-import chalk from "@oh-my-pi/pi-utils/chalk";
+} from "@chudware/utils";
+import chalk from "@chudware/utils/chalk";
 import { PRODUCT_SEMVER, PRODUCT_VERSION } from "./brand";
 import { reset as resetCapabilities } from "./capability";
 import { type Args, reportUnrecognizedFlags, validateToolNames } from "./cli/args";
@@ -54,7 +54,7 @@ import {
 	preloadPluginRoots,
 	resolveActiveProjectRegistryPath,
 } from "./discovery/helpers";
-import { injectOmpExtensionCliRoots } from "./discovery/omp-extension-roots";
+import { injectOmpExtensionCliRoots } from "./discovery/chudcode-extension-roots";
 import { formatExtensionLoadNotifications } from "./extensibility/extensions/load-errors";
 import { loadExtensions } from "./extensibility/extensions/loader";
 import { ExtensionRunner } from "./extensibility/extensions/runner";
@@ -227,7 +227,7 @@ export async function readPipedInput(): Promise<string | undefined> {
 // stderr line every 10s naming the deepest in-flight startup phase. Turns
 // zero-output indefinite hangs (stuck discovery read, network wait, stdin
 // pipe) into self-diagnosing reports instead of "it just hangs" (see the
-// PI_DEBUG_STARTUP markers for the synchronous-hang counterpart).
+// CHUDCODE_DEBUG_STARTUP markers for the synchronous-hang counterpart).
 
 const STARTUP_WATCHDOG_INTERVAL_MS = 10_000;
 let startupWatchdogTimer: NodeJS.Timeout | undefined;
@@ -242,7 +242,7 @@ function armStartupWatchdog(): void {
 		const phase = logger.openSpanPath().join(" > ") || "module load / pre-phase work";
 		process.stderr.write(
 			`${chalk.yellow(`Still starting after ${elapsed}s`)}${chalk.dim(` — phase: ${phase}`)}\n` +
-				`${chalk.dim(`  logs: ${getLogPath()} · re-run with PI_DEBUG_STARTUP=1 for streaming phase markers`)}\n`,
+				`${chalk.dim(`  logs: ${getLogPath()} · re-run with CHUDCODE_DEBUG_STARTUP=1 for streaming phase markers`)}\n`,
 		);
 	}, STARTUP_WATCHDOG_INTERVAL_MS);
 	startupWatchdogTimer.unref?.();
@@ -1028,7 +1028,7 @@ export async function createSessionManager(
 
 /** Discover SYSTEM.md file if no CLI system prompt was provided */
 function discoverSystemPromptFile(): string | undefined {
-	// Check project-local first (.omp/SYSTEM.md, .pi/SYSTEM.md legacy)
+	// Check project-local first (.chudcode/SYSTEM.md, .pi/SYSTEM.md legacy)
 	const projectPath = findConfigFile("SYSTEM.md", { user: false });
 	if (projectPath) {
 		return projectPath;
@@ -1448,7 +1448,7 @@ export async function runRootCommand(
 		// sibling hooks/tools/commands/MCP content could be discovered implicitly.
 		if (!parsedArgs.trustedExtensions?.length) {
 			// Register CLI-provided extension package paths (`--extension`, `--hook`) so
-			// the `omp-plugins` discovery provider can surface their `skills/`, `hooks/`,
+			// the `chudcode-plugins` discovery provider can surface their `skills/`, `hooks/`,
 			// `tools/`, `commands/`, `rules/`, `prompts/`, and `.mcp.json` sub-trees.
 			// Explicit roots remain authorized under `--no-extensions`; only ambient
 			// extension discovery is disabled.
@@ -1517,7 +1517,7 @@ export async function runRootCommand(
 			() => new ModelRegistry(authStorage, undefined, { settings: settingsInstance }),
 		);
 		if (parsedArgs.noPty || parsedArgs.mode === "rpc-ui") {
-			process.env.PI_NO_PTY = "1";
+			process.env.CHUDCODE_NO_PTY = "1";
 		}
 		if (
 			parsedArgs.noTitle ||
@@ -1525,16 +1525,16 @@ export async function runRootCommand(
 			parsedArgs.mode === "rpc-ui" ||
 			parsedArgs.mode === "acp"
 		) {
-			process.env.PI_NO_TITLE = "1";
+			process.env.CHUDCODE_NO_TITLE = "1";
 		}
 
 		// Initialize discovery system with settings for provider persistence
 		logger.time("initializeWithSettings", initializeWithSettings, settingsInstance);
 
 		// Apply model role overrides from CLI args or env vars (ephemeral, not persisted)
-		const smolModel = parsedArgs.smol ?? $env.PI_SMOL_MODEL;
-		const slowModel = parsedArgs.slow ?? $env.PI_SLOW_MODEL;
-		const planModel = parsedArgs.plan ?? $env.PI_PLAN_MODEL;
+		const smolModel = parsedArgs.smol ?? $env.CHUDCODE_SMOL_MODEL;
+		const slowModel = parsedArgs.slow ?? $env.CHUDCODE_SLOW_MODEL;
+		const planModel = parsedArgs.plan ?? $env.CHUDCODE_PLAN_MODEL;
 		if (smolModel || slowModel || planModel) {
 			settingsInstance.overrideModelRoles({
 				smol: smolModel,
@@ -1930,7 +1930,7 @@ export async function runRootCommand(
 				isInteractive,
 				resuming: Boolean(parsedArgs.continue || parsedArgs.resume || parsedArgs.fork || foreignSource),
 				quiet: settingsInstance.get("startup.quiet"),
-				timing: Boolean($env.PI_TIMING),
+				timing: Boolean($env.CHUDCODE_TIMING),
 				stdinIsTTY: process.stdin.isTTY,
 				stdoutIsTTY: process.stdout.isTTY,
 			});
@@ -2049,7 +2049,7 @@ export async function runRootCommand(
 					notifs.push(modelScopeNotification);
 				}
 
-				if ($env.PI_TIMING) {
+				if ($env.CHUDCODE_TIMING) {
 					logger.printTimings();
 					if (logger.shouldExitAfterTimings()) {
 						process.exit(0);
@@ -2094,7 +2094,7 @@ export async function runRootCommand(
 					printThoughts: initialArgs.printThoughts,
 					planYolo: parsedArgs.planYolo,
 				});
-				if ($env.PI_TIMING) {
+				if ($env.CHUDCODE_TIMING) {
 					logger.printTimings();
 				}
 				await session.dispose();

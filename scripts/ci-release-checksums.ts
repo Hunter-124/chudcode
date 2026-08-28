@@ -17,7 +17,7 @@
 
 import * as crypto from "node:crypto";
 import * as path from "node:path";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
+import * as fsx from "@chudware/utils/fsx";
 
 export interface ChecksumEntry {
 	name: string;

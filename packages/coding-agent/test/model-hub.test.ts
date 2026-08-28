@@ -3,33 +3,33 @@ import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
 import { stripVTControlCharacters } from "node:util";
-import { ThinkingLevel } from "@oh-my-pi/pi-agent-core";
-import type { Model } from "@oh-my-pi/pi-ai";
-import { buildModel } from "@oh-my-pi/pi-catalog/build";
-import { getBundledModel } from "@oh-my-pi/pi-catalog/models";
-import type { ModelRegistry } from "@oh-my-pi/pi-coding-agent/config/model-registry";
+import { ThinkingLevel } from "@chudware/agent-core";
+import type { Model } from "@chudware/ai";
+import { buildModel } from "@chudware/catalog/build";
+import { getBundledModel } from "@chudware/catalog/models";
+import type { ModelRegistry } from "@chudware/coding-agent/config/model-registry";
 import {
 	type ModelSettingsProfileField,
 	type ModelSettingsProfileTarget,
 	type ModelSettingsStorageScope,
 	Settings,
-} from "@oh-my-pi/pi-coding-agent/config/settings";
-import type { CacheRetentionSetting } from "@oh-my-pi/pi-coding-agent/config/settings-schema";
+} from "@chudware/coding-agent/config/settings";
+import type { CacheRetentionSetting } from "@chudware/coding-agent/config/settings-schema";
 import {
 	type ModelHubCallbacks,
 	ModelHubComponent,
 	type ModelHubOptions,
 	resetProviderAutoRefreshGuard,
-} from "@oh-my-pi/pi-coding-agent/modes/components/model-hub";
-import { getThemeByName, setThemeInstance, theme } from "@oh-my-pi/pi-coding-agent/modes/theme/theme";
+} from "@chudware/coding-agent/modes/components/model-hub";
+import { getThemeByName, setThemeInstance, theme } from "@chudware/coding-agent/modes/theme/theme";
 import {
 	AUTO_THINKING,
 	type ConfiguredThinkingLevel,
 	parseConfiguredThinkingLevel,
-} from "@oh-my-pi/pi-coding-agent/thinking";
-import type { TUI } from "@oh-my-pi/pi-tui";
-import { sleep } from "@oh-my-pi/pi-utils/async";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
+} from "@chudware/coding-agent/thinking";
+import type { TUI } from "@chudware/tui";
+import { sleep } from "@chudware/utils/async";
+import * as fsx from "@chudware/utils/fsx";
 
 function normalize(lines: readonly string[]): string {
 	return stripVTControlCharacters(lines.join("\n")).replace(/\s+/g, " ").trim();
@@ -569,7 +569,7 @@ describe("ModelHub", () => {
 		test("overlay tombstones do not hide stored scoped default assignments", async () => {
 			const model = makeModel("test", "claude-haiku-4.5");
 			const selector = `${model.provider}/${model.id}`;
-			const root = await fs.mkdtemp(path.join(os.tmpdir(), "omp-model-hub-"));
+			const root = await fs.mkdtemp(path.join(os.tmpdir(), "chudcode-model-hub-"));
 			const cwd = path.join(root, "project");
 			const agentDir = path.join(root, "agent");
 			const overlayPath = path.join(root, "overlay.yml");
@@ -580,7 +580,7 @@ describe("ModelHub", () => {
 					`modelRoleStorage: project\nmodelRoles:\n  default: ${selector}\n  smol: ${selector}\n`,
 				);
 				await fsx.write(
-					path.join(cwd, ".omp", "config.yml"),
+					path.join(cwd, ".chudcode", "config.yml"),
 					`modelRoles:\n  default: ${selector}\n  smol: ${selector}\n`,
 				);
 				await fsx.write(overlayPath, "modelRoles:\n  default: null\n  smol: null\n");

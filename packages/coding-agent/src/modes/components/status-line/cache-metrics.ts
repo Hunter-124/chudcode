@@ -1,6 +1,6 @@
-import type { AgentMessage } from "@oh-my-pi/pi-agent-core";
-import { calculatePromptCacheSavings } from "@oh-my-pi/pi-catalog/models";
-import type { Api, Model, Usage } from "@oh-my-pi/pi-ai";
+import type { AgentMessage } from "@chudware/agent-core";
+import { calculatePromptCacheSavings } from "@chudware/catalog/models";
+import type { Api, Model, Usage } from "@chudware/ai";
 
 export type CacheRetentionMode = "auto" | "short" | "long" | "none";
 

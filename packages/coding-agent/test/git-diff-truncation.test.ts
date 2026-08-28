@@ -2,12 +2,12 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import * as git from "@oh-my-pi/pi-coding-agent/utils/git";
-import { removeWithRetries } from "@oh-my-pi/pi-utils";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
-import * as proc from "@oh-my-pi/pi-utils/proc";
+import * as git from "@chudware/coding-agent/utils/git";
+import { removeWithRetries } from "@chudware/utils";
+import * as fsx from "@chudware/utils/fsx";
+import * as proc from "@chudware/utils/proc";
 
-// Regression coverage for #8897: `omp commit` split-commit captured the staged
+// Regression coverage for #8897: `chudcode commit` split-commit captured the staged
 // diff with `git diff --cached --binary`, whose stdout is hard-capped at
 // GIT_COMMAND_OUTPUT_LIMIT_BYTES (8 MiB). A single large binary (base85-encoded
 // inline) pushed the diff past the cap; readCappedText silently truncated it and
@@ -36,7 +36,7 @@ describe("git.diff with a staged binary past the 8 MiB capture cap", () => {
 	let repo: string;
 
 	beforeAll(async () => {
-		repo = await fs.mkdtemp(path.join(os.tmpdir(), "omp-git-trunc-test-"));
+		repo = await fs.mkdtemp(path.join(os.tmpdir(), "chudcode-git-trunc-test-"));
 		gitRun(repo, ["init", "-q", "-b", "main"]);
 		// ~9 MiB of incompressible bytes so `--binary` (zlib + base85) alone
 		// exceeds the 8 MiB cap. Name sorts before the text file so the text
@@ -76,7 +76,7 @@ describe("git.diff with a staged binary past the 8 MiB capture cap", () => {
 	});
 
 	test("requireComplete leaves a complete diff untouched", async () => {
-		const small = await fs.mkdtemp(path.join(os.tmpdir(), "omp-git-small-test-"));
+		const small = await fs.mkdtemp(path.join(os.tmpdir(), "chudcode-git-small-test-"));
 		try {
 			gitRun(small, ["init", "-q", "-b", "main"]);
 			await fsx.write(path.join(small, "s.txt"), "one\ntwo\n");

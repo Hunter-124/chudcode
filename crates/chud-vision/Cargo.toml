@@ -1,0 +1,20 @@
+[package]
+name = "chud-vision"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+publish = false
+
+[[bin]]
+name = "chud-vision"
+path = "src/main.rs"
+
+[dependencies]
+anyhow = "1"
+image = { version = "0.25", default-features = false, features = ["gif", "jpeg", "png", "webp"] }
+imageproc = { version = "0.25", default-features = false, features = ["rayon"] }
+ndarray = "0.17"
+ort = { version = "2.0.0-rc.13", default-features = false, features = ["std", "ndarray", "load-dynamic"] }
+regex = "1"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"

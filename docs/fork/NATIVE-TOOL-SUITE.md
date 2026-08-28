@@ -4,7 +4,7 @@ Chudcode ships five discoverable tool families for image understanding and low-l
 
 ## `image_analyze`
 
-`image_analyze` delegates classical image operations and local ONNX inference to the optional `pi-vision` sidecar. The sidecar is a short-lived native process: model memory is released when each request ends, so idle Chudcode sessions pay no model RSS.
+`image_analyze` delegates classical image operations and local ONNX inference to the optional `chud-vision` sidecar. The sidecar is a short-lived native process: model memory is released when each request ends, so idle Chudcode sessions pay no model RSS.
 
 Actions:
 
@@ -17,7 +17,7 @@ Actions:
 
 `inspect_image` also accepts `preprocess: "redact" | "crop" | "redact+crop"` before delegating to a vision-capable language model. If the sidecar is unavailable, `inspect_image` continues without preprocessing and reports that fact; direct `image_analyze` calls return an installation hint.
 
-Models download only when needed, are SHA-256 verified, and default to `~/.omp/models/vision`. Set `vision.autoDownload=false` for fully offline provisioning or `vision.modelDir` to change the model store.
+Models download only when needed, are SHA-256 verified, and default to `~/.chudcode/models/vision`. Set `vision.autoDownload=false` for fully offline provisioning or `vision.modelDir` to change the model store.
 
 | Capability | Model | License |
 | --- | --- | --- |

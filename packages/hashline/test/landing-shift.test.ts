@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import { applyEdits, type BlockResolver, type BlockSpan, Patch, parsePatch } from "@oh-my-pi/hashline";
+import { applyEdits, type BlockResolver, type BlockSpan, Patch, parsePatch } from "@chudware/hashline";
 
 /**
  * After-insert landing correction: an `insert after N:` body indented
@@ -230,7 +230,7 @@ describe("insert-after-block inward landing shift", () => {
  * stay literal.
  */
 describe("opener-anchored after-insert escape (the stdout_policy incident)", () => {
-	// Mirrors crates/pi-builtins/src/host.rs: 3-space file, tab-indented body.
+	// Mirrors crates/chud-builtins/src/host.rs: 3-space file, tab-indented body.
 	const RUST_FILE = [
 		"mod testing {", // 1
 		"   struct MemStream;", // 2

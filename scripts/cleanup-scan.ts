@@ -16,7 +16,7 @@
  */
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
+import * as fsx from "@chudware/utils/fsx";
 import { ts } from "@ts-morph/common";
 
 const DEFAULT_PKGS = ["coding-agent", "ai", "catalog", "utils"];

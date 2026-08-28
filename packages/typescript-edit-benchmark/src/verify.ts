@@ -7,7 +7,7 @@
  * blank-sensitive formats (markdown, yaml) keep exact formatted equality.
  */
 import * as path from "node:path";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
+import * as fsx from "@chudware/utils/fsx";
 import { diffLines } from "diff";
 import { formatContent } from "./formatter";
 import { listFiles } from "./shared";

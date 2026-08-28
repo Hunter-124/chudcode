@@ -1,7 +1,7 @@
 import * as crypto from "node:crypto";
 import * as fs from "node:fs";
 import * as path from "node:path";
-import { $which, getRemoteHostDir, getSshControlDir, isEnoent, logger, postmortem, ptree } from "@oh-my-pi/pi-utils";
+import { $which, getRemoteHostDir, getSshControlDir, isEnoent, logger, postmortem, ptree } from "@chudware/utils";
 import { buildSshTarget, sanitizeHostName } from "./utils";
 
 export interface SSHConnectionTarget {
@@ -83,7 +83,7 @@ export function sshControlFallbackDir(canonicalDir: string, uid: number, tmpBase
 		.update(canonicalDir)
 		.digest("hex")
 		.slice(0, 20);
-	return path.join(tmpBase, `omp-${key}`);
+	return path.join(tmpBase, `chudcode-${key}`);
 }
 
 interface ControlDirChoice {
@@ -485,10 +485,10 @@ async function persistHostInfo(host: SSHConnectionTarget, info: SSHHostInfo): Pr
  * `motd`, login messages, `Last login: …`) instead of trusting only the first
  * line of stdout. See #3719.
  */
-export const HOST_PROBE_MARKER = "PI_HOST_PROBE=";
+export const HOST_PROBE_MARKER = "CHUDCODE_HOST_PROBE=";
 
 /** Marker for the transfer-shell capability probe. */
-export const TRANSFER_PROBE_MARKER = "PI_TRANSFER_OK|";
+export const TRANSFER_PROBE_MARKER = "CHUDCODE_TRANSFER_OK|";
 
 /** sh / bash / zsh, in the order we'll try as `transferShell` candidates. */
 const TRANSFER_SHELL_CANDIDATES = ["sh", "bash", "zsh"] as const;
@@ -634,12 +634,12 @@ async function probeHostInfo(host: SSHConnectionTarget): Promise<SSHHostInfo> {
 	const hasBash = !unexpandedPosixVars && (Boolean(bashVersion) || shell === "bash");
 	let compatShell: SSHHostInfo["compatShell"];
 	if (os === "windows" && host.compat !== false) {
-		const bashProbe = await runSshCaptureSync(await buildRemoteCommand(host, 'bash -lc "echo PI_BASH_OK"'));
-		if (bashProbe.exitCode === 0 && bashProbe.stdout.includes("PI_BASH_OK")) {
+		const bashProbe = await runSshCaptureSync(await buildRemoteCommand(host, 'bash -lc "echo CHUDCODE_BASH_OK"'));
+		if (bashProbe.exitCode === 0 && bashProbe.stdout.includes("CHUDCODE_BASH_OK")) {
 			compatShell = "bash";
 		} else {
-			const shProbe = await runSshCaptureSync(await buildRemoteCommand(host, 'sh -lc "echo PI_SH_OK"'));
-			if (shProbe.exitCode === 0 && shProbe.stdout.includes("PI_SH_OK")) {
+			const shProbe = await runSshCaptureSync(await buildRemoteCommand(host, 'sh -lc "echo CHUDCODE_SH_OK"'));
+			if (shProbe.exitCode === 0 && shProbe.stdout.includes("CHUDCODE_SH_OK")) {
 				compatShell = "sh";
 			}
 		}

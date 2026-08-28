@@ -2,16 +2,16 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "bun:test";
 import * as fs from "node:fs";
 import * as fsPromises from "node:fs/promises";
 import * as path from "node:path";
-import { type ExtensionModule, extensionModuleCapability } from "@oh-my-pi/pi-coding-agent/capability/extension-module";
-import { resetSettingsForTest, Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
-import { getCapability, initializeWithSettings } from "@oh-my-pi/pi-coding-agent/discovery";
+import { type ExtensionModule, extensionModuleCapability } from "@chudware/coding-agent/capability/extension-module";
+import { resetSettingsForTest, Settings } from "@chudware/coding-agent/config/settings";
+import { getCapability, initializeWithSettings } from "@chudware/coding-agent/discovery";
 import {
 	discoverAndLoadExtensions,
 	discoverExtensionPaths,
 	loadExtensions,
-} from "@oh-my-pi/pi-coding-agent/extensibility/extensions/loader";
-import { discoverSessionExtensionPaths } from "@oh-my-pi/pi-coding-agent/sdk";
-import { getProjectAgentDir, TempDir } from "@oh-my-pi/pi-utils";
+} from "@chudware/coding-agent/extensibility/extensions/loader";
+import { discoverSessionExtensionPaths } from "@chudware/coding-agent/sdk";
+import { getProjectAgentDir, TempDir } from "@chudware/utils";
 import { filterUserScoped } from "./utils/filter-user-extensions";
 
 describe("extensions discovery", () => {
@@ -40,15 +40,15 @@ describe("extensions discovery", () => {
 	};
 
 	const extensionCode = `
-		export default function(pi) {
-			pi.registerCommand("test", { handler: async () => {} });
+		export default function(chud) {
+			chud.registerCommand("test", { handler: async () => {} });
 		}
 	`;
 
 	const extensionCodeWithTool = (toolName: string) => `
-		export default function(pi) {
-			const { Type } = pi.typebox;
-			pi.registerTool({
+		export default function(chud) {
+			const { Type } = chud.typebox;
+			chud.registerTool({
 				name: "${toolName}",
 				label: "${toolName}",
 				description: "Test tool",
@@ -117,7 +117,7 @@ describe("extensions discovery", () => {
 		expect(result.extensions[0].path).toContain("index.ts");
 	});
 
-	it("discovers subdirectory with package.json pi field", async () => {
+	it("discovers subdirectory with package.json chud field", async () => {
 		const subdir = path.join(extensionsDir, "my-package");
 		const srcDir = path.join(subdir, "src");
 		fs.mkdirSync(subdir);
@@ -127,7 +127,7 @@ describe("extensions discovery", () => {
 			path.join(subdir, "package.json"),
 			JSON.stringify({
 				name: "my-package",
-				pi: {
+				chud: {
 					extensions: ["./src/main.ts"],
 				},
 			}),
@@ -161,7 +161,7 @@ describe("extensions discovery", () => {
 			path.join(packageDir, "package.json"),
 			JSON.stringify({
 				name: "explicit-package",
-				omp: {
+				chudcode: {
 					extensions: ["./src/main.ts"],
 				},
 			}),
@@ -199,7 +199,7 @@ describe("extensions discovery", () => {
 			path.join(packageDir, "package.json"),
 			JSON.stringify({
 				name: "explicit-package",
-				omp: {
+				chudcode: {
 					extensions: ["./src/main.ts"],
 				},
 			}),
@@ -225,7 +225,7 @@ describe("extensions discovery", () => {
 			path.join(packageDir, "package.json"),
 			JSON.stringify({
 				name: "linked-package",
-				pi: {
+				chud: {
 					extensions: ["./src/main.ts"],
 				},
 			}),
@@ -274,7 +274,7 @@ describe("extensions discovery", () => {
 			path.join(subdir, "package.json"),
 			JSON.stringify({
 				name: "my-package",
-				pi: {
+				chud: {
 					extensions: ["./ext1.ts", "./ext2.ts"],
 				},
 			}),
@@ -286,7 +286,7 @@ describe("extensions discovery", () => {
 		expect(result.extensions).toHaveLength(2);
 	});
 
-	it("package.json with pi field takes precedence over index.ts", async () => {
+	it("package.json with chud field takes precedence over index.ts", async () => {
 		const subdir = path.join(extensionsDir, "my-package");
 		fs.mkdirSync(subdir);
 		fs.writeFileSync(path.join(subdir, "index.ts"), extensionCodeWithTool("from-index"));
@@ -295,7 +295,7 @@ describe("extensions discovery", () => {
 			path.join(subdir, "package.json"),
 			JSON.stringify({
 				name: "my-package",
-				pi: {
+				chud: {
 					extensions: ["./custom.ts"],
 				},
 			}),
@@ -311,7 +311,7 @@ describe("extensions discovery", () => {
 		expect(result.extensions[0].tools.has("from-index")).toBe(false);
 	});
 
-	it("ignores package.json without pi field, falls back to index.ts", async () => {
+	it("ignores package.json without chud field, falls back to index.ts", async () => {
 		const subdir = path.join(extensionsDir, "my-package");
 		fs.mkdirSync(subdir);
 		fs.writeFileSync(path.join(subdir, "index.ts"), extensionCode);
@@ -369,7 +369,7 @@ describe("extensions discovery", () => {
 		const subdir2 = path.join(extensionsDir, "with-manifest");
 		fs.mkdirSync(subdir2);
 		fs.writeFileSync(path.join(subdir2, "entry.ts"), extensionCode);
-		fs.writeFileSync(path.join(subdir2, "package.json"), JSON.stringify({ pi: { extensions: ["./entry.ts"] } }));
+		fs.writeFileSync(path.join(subdir2, "package.json"), JSON.stringify({ chud: { extensions: ["./entry.ts"] } }));
 
 		const result = await discoverForTest();
 
@@ -402,7 +402,7 @@ describe("extensions discovery", () => {
 		fs.writeFileSync(path.join(realDir, "index.ts"), extensionCodeWithTool("ctk-tool"));
 		fs.writeFileSync(
 			path.join(realDir, "package.json"),
-			JSON.stringify({ name: "ctk", omp: { extensions: ["./index.ts"] } }),
+			JSON.stringify({ name: "ctk", chudcode: { extensions: ["./index.ts"] } }),
 		);
 		fs.symlinkSync(realDir, path.join(extensionsDir, "ctk"), "dir");
 
@@ -468,7 +468,7 @@ describe("extensions discovery", () => {
 		fs.writeFileSync(
 			path.join(subdir, "package.json"),
 			JSON.stringify({
-				pi: {
+				chud: {
 					extensions: ["./exists.ts", "./missing.ts"],
 				},
 			}),
@@ -544,10 +544,10 @@ describe("extensions discovery", () => {
 		fs.writeFileSync(
 			path.join(extDir, "package.json"),
 			JSON.stringify({
-				name: "pi-extension-with-deps",
+				name: "chud-extension-with-deps",
 				version: "1.0.0",
 				type: "module",
-				omp: { extensions: ["./index.ts"] },
+				chudcode: { extensions: ["./index.ts"] },
 			}),
 		);
 
@@ -555,9 +555,9 @@ describe("extensions discovery", () => {
 			path.join(extDir, "index.ts"),
 			`			import parseDuration from "local-duration-parser";
 
-				export default function (pi) {
-					const { Type } = pi.typebox;
-					pi.registerTool({
+				export default function (chud) {
+					const { Type } = chud.typebox;
+					chud.registerTool({
 						name: "parse_duration",
 						label: "Parse Duration",
 						description: "Parse duration strings",
@@ -595,8 +595,8 @@ describe("extensions discovery", () => {
 
 	it("registers message renderers", async () => {
 		const extCode = `
-			export default function(pi) {
-				pi.registerMessageRenderer("my-custom-type", (message, options, theme) => {
+			export default function(chud) {
+				chud.registerMessageRenderer("my-custom-type", (message, options, theme) => {
 					return null; // Use default rendering
 				});
 			}
@@ -612,7 +612,7 @@ describe("extensions discovery", () => {
 
 	it("reports error when extension throws during initialization", async () => {
 		const extCode = `
-			export default function(pi) {
+			export default function(chud) {
 				throw new Error("Initialization failed!");
 			}
 		`;
@@ -627,8 +627,8 @@ describe("extensions discovery", () => {
 
 	it("reports error when extension has no default export", async () => {
 		const extCode = `
-			export function notDefault(pi) {
-				pi.registerCommand("test", { handler: async () => {} });
+			export function notDefault(chud) {
+				chud.registerCommand("test", { handler: async () => {} });
 			}
 		`;
 		fs.writeFileSync(path.join(extensionsDir, "no-default.ts"), extCode);
@@ -661,10 +661,10 @@ describe("extensions discovery", () => {
 
 	it("loads extension with event handlers", async () => {
 		const extCode = `
-			export default function(pi) {
-				pi.on("agent_start", async () => {});
-				pi.on("tool_call", async (event) => undefined);
-				pi.on("agent_end", async () => {});
+			export default function(chud) {
+				chud.on("agent_start", async () => {});
+				chud.on("tool_call", async (event) => undefined);
+				chud.on("agent_end", async () => {});
 			}
 		`;
 		fs.writeFileSync(path.join(extensionsDir, "with-handlers.ts"), extCode);
@@ -685,8 +685,8 @@ describe("extensions discovery", () => {
 		fs.writeFileSync(
 			hookPath,
 			`
-				export default function(pi) {
-					pi.on("tool_call", async () => ({ block: true, reason: "blocked by hook" }));
+				export default function(chud) {
+					chud.on("tool_call", async () => ({ block: true, reason: "blocked by hook" }));
 				}
 			`,
 		);
@@ -704,8 +704,8 @@ describe("extensions discovery", () => {
 		const hookPath = path.join(hookDir, "models-poison.ts");
 		fs.writeFileSync(
 			hookPath,
-			`export default function(pi) {
-				pi.on("tool_call", async () => ({ block: true, reason: "blocked by hook" }));
+			`export default function(chud) {
+				chud.on("tool_call", async () => ({ block: true, reason: "blocked by hook" }));
 			}`,
 		);
 		const nativeExtensionPath = path.join(extensionsDir, "provider.ts");
@@ -730,8 +730,8 @@ describe("extensions discovery", () => {
 		fs.writeFileSync(
 			hookPath,
 			`
-				export default function(pi) {
-					pi.on("tool_call", async () => ({ block: true, reason: "blocked by hook" }));
+				export default function(chud) {
+					chud.on("tool_call", async () => ({ block: true, reason: "blocked by hook" }));
 				}
 			`,
 		);
@@ -753,8 +753,8 @@ describe("extensions discovery", () => {
 
 	it("loads extension with shortcuts", async () => {
 		const extCode = `
-			export default function(pi) {
-				pi.registerShortcut("ctrl+t", {
+			export default function(chud) {
+				chud.registerShortcut("ctrl+t", {
 					description: "Test shortcut",
 					handler: async (ctx) => {},
 				});
@@ -771,8 +771,8 @@ describe("extensions discovery", () => {
 
 	it("loads extension with flags", async () => {
 		const extCode = `
-			export default function(pi) {
-				pi.registerFlag("--my-flag", {
+			export default function(chud) {
+				chud.registerFlag("--my-flag", {
 					description: "My custom flag",
 					handler: async (value) => {},
 				});

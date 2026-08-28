@@ -8,9 +8,9 @@
  * - Interact with the user via UI primitives
  */
 
-import type { type as ArkType } from "@oh-my-pi/omptype";
-import type * as TypeBox from "@oh-my-pi/omptype/typebox";
-import type * as zod from "@oh-my-pi/omptype/zod";
+import type { type as ArkType } from "@chudware/chudtype";
+import type * as TypeBox from "@chudware/chudtype/typebox";
+import type * as zod from "@chudware/chudtype/zod";
 import type {
 	AgentMessage,
 	AgentToolResult,
@@ -18,8 +18,8 @@ import type {
 	ThinkingLevel,
 	ToolApproval,
 	ToolLoadMode,
-} from "@oh-my-pi/pi-agent-core";
-import type { CompactionResult } from "@oh-my-pi/pi-agent-core/compaction";
+} from "@chudware/agent-core";
+import type { CompactionResult } from "@chudware/agent-core/compaction";
 import type {
 	Api,
 	AssistantMessageEvent,
@@ -37,8 +37,8 @@ import type {
 	TextContent,
 	TSchema,
 	UsageProvider,
-} from "@oh-my-pi/pi-ai";
-import type { OAuthCredentials, OAuthLoginCallbacks } from "@oh-my-pi/pi-ai/oauth/types";
+} from "@chudware/ai";
+import type { OAuthCredentials, OAuthLoginCallbacks } from "@chudware/ai/oauth/types";
 import type {
 	AutocompleteItem,
 	AutocompleteProvider,
@@ -49,15 +49,15 @@ import type {
 	OverlayHandle,
 	OverlayOptions,
 	TUI,
-} from "@oh-my-pi/pi-tui";
-import type { logger as PiLogger } from "@oh-my-pi/pi-utils";
+} from "@chudware/tui";
+import type { logger as ChudLogger } from "@chudware/utils";
 import type { KeybindingsManager } from "../../config/keybindings";
 import type { ModelRegistry } from "../../config/model-registry";
 import type { EditToolDetails } from "../../edit";
 import type { PythonResult } from "../../eval/py/executor";
 import type { BashResult } from "../../exec/bash-executor";
 import type { ExecOptions, ExecResult } from "../../exec/exec";
-import type * as PiCodingAgent from "../../index";
+import type * as ChudCodingAgent from "../../index";
 import type { LocalProtocolOptions } from "../../internal-urls/local-protocol";
 import type { MemoryBackend, MemoryRuntimeContext } from "../../memory-backend";
 import type { CustomEditor } from "../../modes/components/custom-editor";
@@ -119,7 +119,7 @@ import type {
 } from "../shared-events";
 import type { SlashCommandInfo } from "../slash-commands";
 
-export type { OverlayHandle, OverlayOptions } from "@oh-my-pi/pi-tui";
+export type { OverlayHandle, OverlayOptions } from "@chudware/tui";
 export type { AppKeybinding, KeybindingsManager } from "../../config/keybindings";
 export type { ExecOptions, ExecResult } from "../../exec/exec";
 export type { AgentToolResult, AgentToolUpdateCallback };
@@ -241,7 +241,7 @@ export interface ExtensionCustomOptions {
 	signal?: AbortSignal;
 }
 
-/** Wrap the current autocomplete provider with additional behavior (pi-compatible). */
+/** Wrap the current autocomplete provider with additional behavior (chud-compatible). */
 export type AutocompleteProviderFactory = (current: AutocompleteProvider) => AutocompleteProvider;
 
 /**
@@ -334,7 +334,7 @@ export interface ExtensionUIContext {
 
 	/**
 	 * Stack additional autocomplete behavior on top of the built-in provider
-	 * (pi-compatible). Interactive mode rebuilds the editor's provider through
+	 * (chud-compatible). Interactive mode rebuilds the editor's provider through
 	 * every registered factory, in registration order; headless modes (print,
 	 * RPC, ACP, subagents) accept and ignore the factory.
 	 */
@@ -525,12 +525,12 @@ export interface ExtensionContext {
 
 	/**
 	 * Whether project-local inputs for the current working directory (extensions, settings,
-	 * skills, resources) are trusted. Upstream `@earendil-works/pi-coding-agent` (>=0.79) asks the
+	 * skills, resources) are trusted. Upstream `@earendil-works/chudcode-agent` (>=0.79) asks the
 	 * user once per directory before loading project-local inputs and exposes the saved decision
 	 * here; extensions written against that API (e.g. Plannotator) feature-detect this method to
 	 * decide whether project-local config is safe to load, and warn when it is absent.
 	 *
-	 * Chudcode has no equivalent per-directory trust gate: `.omp/extensions`, `.omp/config.yml`, and
+	 * Chudcode has no equivalent per-directory trust gate: `.chudcode/extensions`, `.chudcode/config.yml`, and
 	 * other project-local inputs are already discovered and loaded unconditionally (see
 	 * `docs/extension-loading.md`). This method exists for compatibility with that upstream surface
 	 * and always returns `true`, truthfully reflecting that Chudcode already trusts project-local inputs
@@ -675,8 +675,8 @@ export type SourceOrigin = "package" | "top-level";
 
 /**
  * Provenance metadata describing where a registered tool came from. Mirrors the
- * `@earendil-works/pi-coding-agent` `SourceInfo` contract so extensions authored
- * against upstream pi (e.g. gentle-pi) can read `sourceInfo.source` unchanged.
+ * `@earendil-works/chudcode-agent` `SourceInfo` contract so extensions authored
+ * against upstream chud (e.g. gentle-pi) can read `sourceInfo.source` unchanged.
  */
 export interface SourceInfo {
 	/** Synthetic or on-disk identifier for the tool's origin (e.g. `<builtin:read>`). */
@@ -847,7 +847,7 @@ export interface CredentialDisabledEvent {
  * AFTER the runtime's own handling of known list/update methods. Unknown or
  * server-custom methods are delivered too — extensions can bridge them into
  * session behavior by inspecting `method`/`params` and injecting a follow-up
- * via `pi.sendMessage(..., { deliverAs })` or `pi.sendUserMessage(...)`.
+ * via `chud.sendMessage(..., { deliverAs })` or `chud.sendUserMessage(...)`.
  */
 export interface McpNotificationEvent {
 	type: "mcp_notification";
@@ -1215,19 +1215,19 @@ export interface ExtensionAPI {
 	// =========================================================================
 
 	/** File logger for error/warning/debug messages */
-	logger: typeof PiLogger;
+	logger: typeof ChudLogger;
 
 	/** Injected TypeBox shim for legacy `Type.Object(...)` parameter authoring. */
 	typebox: typeof TypeBox;
 
-	/** Injected omptype schema builder for extension tools. */
+	/** Injected chudtype schema builder for extension tools. */
 	arktype: typeof ArkType;
 
-	/** Injected Zod-compatible omptype builder for extension tools. */
+	/** Injected Zod-compatible chudtype builder for extension tools. */
 	zod: typeof zod;
 
-	/** Injected pi-coding-agent exports for accessing SDK utilities */
-	pi: typeof PiCodingAgent;
+	/** Injected chudcode-agent exports for accessing SDK utilities */
+	chud: typeof ChudCodingAgent;
 
 	// =========================================================================
 	// Event Subscription
@@ -1492,7 +1492,7 @@ export interface ExtensionAPI {
 	 *
 	 * @example
 	 * // Register a new provider with custom models and streaming
-	 * pi.registerProvider("google-vertex-claude", {
+	 * chud.registerProvider("google-vertex-claude", {
 	 *   baseUrl: "https://us-east5-aiplatform.googleapis.com",
 	 *   apiKey: "GOOGLE_CLOUD_PROJECT",
 	 *   api: "vertex-claude-api",
@@ -1512,7 +1512,7 @@ export interface ExtensionAPI {
 	 *
 	 * @example
 	 * // Override baseUrl for an existing provider
-	 * pi.registerProvider("anthropic", {
+	 * chud.registerProvider("anthropic", {
 	 *   baseUrl: "https://proxy.example.com"
 	 * });
 	 */
@@ -1545,7 +1545,7 @@ export interface ExtensionAPI {
 // Provider Registration Types
 // ============================================================================
 
-/** Configuration for registering a provider via pi.registerProvider(). */
+/** Configuration for registering a provider via chud.registerProvider(). */
 export interface ProviderConfig {
 	/** Base URL for the API endpoint. Required when defining models. */
 	baseUrl?: string;
@@ -1617,7 +1617,7 @@ export interface ProviderModelConfig {
 }
 
 /** Extension factory function type. Supports both sync and async initialization. */
-export type ExtensionFactory = (pi: ExtensionAPI) => void | Promise<void>;
+export type ExtensionFactory = (chud: ExtensionAPI) => void | Promise<void>;
 
 // ============================================================================
 // Loaded Extension Types

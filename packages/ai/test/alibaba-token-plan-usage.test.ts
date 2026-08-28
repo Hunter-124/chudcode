@@ -1,14 +1,11 @@
 import { describe, expect, test } from "bun:test";
-import type { FetchImpl } from "@oh-my-pi/pi-ai/types";
-import type { UsageFetchParams } from "@oh-my-pi/pi-ai/usage";
-import {
-	alibabaTokenPlanRankingStrategy,
-	alibabaTokenPlanUsageProvider,
-} from "@oh-my-pi/pi-ai/usage/alibaba-token-plan";
+import type { FetchImpl } from "@chudware/ai/types";
+import type { UsageFetchParams } from "@chudware/ai/usage";
+import { alibabaTokenPlanRankingStrategy, alibabaTokenPlanUsageProvider } from "@chudware/ai/usage/alibaba-token-plan";
 import {
 	ALIBABA_TOKEN_PLAN_CN_BASE_URL,
 	serializeAlibabaTokenPlanCredential,
-} from "@oh-my-pi/pi-catalog/wire/alibaba-token-plan";
+} from "@chudware/catalog/wire/alibaba-token-plan";
 
 function params(apiKey: string): UsageFetchParams {
 	return {

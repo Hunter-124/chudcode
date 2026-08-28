@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "bun:test";
-import type { SessionClient } from "@oh-my-pi/collab-web/session-client";
-import type { AgentSnapshot, ImageContent, SessionEntry, SessionHeader, SessionState } from "@oh-my-pi/pi-wire";
+import type { SessionClient } from "@chudware/collab-web/session-client";
+import type { AgentSnapshot, ImageContent, SessionEntry, SessionHeader, SessionState } from "@chudware/wire";
 import type {
 	DesktopFrame,
 	DesktopRequest,

@@ -1,7 +1,7 @@
-import type { AgentMessage } from "@oh-my-pi/pi-agent-core";
-import { getBlobsDir, isEnoent, parseJsonlLenient } from "@oh-my-pi/pi-utils";
-import { sleep } from "@oh-my-pi/pi-utils/async";
-import * as snapcompact from "@oh-my-pi/snapcompact";
+import type { AgentMessage } from "@chudware/agent-core";
+import { getBlobsDir, isEnoent, parseJsonlLenient } from "@chudware/utils";
+import { sleep } from "@chudware/utils/async";
+import * as snapcompact from "@chudware/snapcompact";
 import { BlobStore, isBlobRef, resolveImageData, resolveImageDataUrl } from "./blob-store";
 import { buildSessionContext } from "./session-context";
 import type { FileEntry, RawFileEntry, SessionEntry, SessionHeader } from "./session-entries";

@@ -2,11 +2,11 @@ import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import * as fsp from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import { recoverOrphanedBackups } from "@oh-my-pi/pi-coding-agent/session/session-listing";
-import { SessionManager } from "@oh-my-pi/pi-coding-agent/session/session-manager";
-import { FileSessionStorage, MemorySessionStorage } from "@oh-my-pi/pi-coding-agent/session/session-storage";
-import { sleep } from "@oh-my-pi/pi-utils/async";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
+import { recoverOrphanedBackups } from "@chudware/coding-agent/session/session-listing";
+import { SessionManager } from "@chudware/coding-agent/session/session-manager";
+import { FileSessionStorage, MemorySessionStorage } from "@chudware/coding-agent/session/session-storage";
+import { sleep } from "@chudware/utils/async";
+import * as fsx from "@chudware/utils/fsx";
 
 class FsCodeError extends Error {
 	code: string;
@@ -47,7 +47,7 @@ describe("SessionManager rewrite EPERM replacement fallback", () => {
 	let sessionDir: string;
 
 	beforeEach(async () => {
-		sessionDir = await fsp.mkdtemp(path.join(os.tmpdir(), "omp-eperm-"));
+		sessionDir = await fsp.mkdtemp(path.join(os.tmpdir(), "chudcode-eperm-"));
 	});
 
 	afterEach(async () => {
@@ -83,7 +83,7 @@ describe("SessionManager rewrite EPERM rollback failure", () => {
 	let sessionDir: string;
 
 	beforeEach(async () => {
-		sessionDir = await fsp.mkdtemp(path.join(os.tmpdir(), "omp-eperm-"));
+		sessionDir = await fsp.mkdtemp(path.join(os.tmpdir(), "chudcode-eperm-"));
 	});
 
 	afterEach(async () => {
@@ -142,7 +142,7 @@ describe("FileSessionStorage.writeTextAtomic commitGuard cleanup", () => {
 	let sessionDir: string;
 
 	beforeEach(async () => {
-		sessionDir = await fsp.mkdtemp(path.join(os.tmpdir(), "omp-guard-cleanup-"));
+		sessionDir = await fsp.mkdtemp(path.join(os.tmpdir(), "chudcode-guard-cleanup-"));
 	});
 
 	afterEach(async () => {

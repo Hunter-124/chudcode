@@ -186,14 +186,14 @@ message.tool_calls = [
 ]
 ```
 
-## Chudcode / pi converter behavior
+## Chudcode / chud converter behavior
 
 The repository's `qwen3` dialect is an **owned in-band converter**. Select it
-with `PI_DIALECT=qwen3` (or the equivalent agent configuration). With tools
+with `CHUDCODE_DIALECT=qwen3` (or the equivalent agent configuration). With tools
 present, the agent appends the Qwen3 format guide and compact tool catalog to
 the system prompt, removes native provider tools, rewrites earlier calls and
 results as text in this syntax, and scans streamed output back into canonical
-pi tool-call events. `hermes` remains a separate selectable dialect even
+chud tool-call events. `hermes` remains a separate selectable dialect even
 though both emit the same basic JSON-in-`<tool_call>` convention (see
 [hermes.md](hermes.md)).
 

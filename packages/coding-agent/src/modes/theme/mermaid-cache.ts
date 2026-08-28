@@ -1,4 +1,4 @@
-import { type MermaidAsciiRenderOptions, renderMermaidAsciiSafe } from "@oh-my-pi/pi-utils/mermaid-ascii";
+import { type MermaidAsciiRenderOptions, renderMermaidAsciiSafe } from "@chudware/utils/mermaid-ascii";
 
 /**
  * Options controlling how fenced Mermaid source is resolved to terminal ASCII.

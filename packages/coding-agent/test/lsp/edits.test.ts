@@ -2,9 +2,9 @@ import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import { applyEditsThenRename } from "@oh-my-pi/pi-coding-agent/lsp/edits";
-import type { TextEdit } from "@oh-my-pi/pi-coding-agent/lsp/types";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
+import { applyEditsThenRename } from "@chudware/coding-agent/lsp/edits";
+import type { TextEdit } from "@chudware/coding-agent/lsp/types";
+import * as fsx from "@chudware/utils/fsx";
 
 // Rewrite `./moved` → `./renamed` on line 0 of the reference file below.
 const importEdit: TextEdit[] = [

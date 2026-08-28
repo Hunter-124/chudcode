@@ -1,4 +1,4 @@
-import { $flag } from "@oh-my-pi/pi-utils";
+import { $flag } from "@chudware/utils";
 import type { ToolSession } from ".";
 
 export interface EvalBackendsAllowance {
@@ -19,16 +19,16 @@ export function readEvalBackendsAllowance(session: ToolSession): EvalBackendsAll
 }
 
 /**
- * Materialize the active eval backend allowance: PI_PY / PI_JS / PI_RB / PI_JL
+ * Materialize the active eval backend allowance: CHUDCODE_PY / CHUDCODE_JS / CHUDCODE_RB / CHUDCODE_JL
  * env flags override the per-key settings; otherwise settings win (py/js default
  * on, rb/jl default off).
  */
 export function resolveEvalBackends(session: ToolSession): EvalBackendsAllowance {
 	const settings = readEvalBackendsAllowance(session);
 	return {
-		python: $flag("PI_PY", settings.python),
-		js: $flag("PI_JS", settings.js),
-		ruby: $flag("PI_RB", settings.ruby),
-		julia: $flag("PI_JL", settings.julia),
+		python: $flag("CHUDCODE_PY", settings.python),
+		js: $flag("CHUDCODE_JS", settings.js),
+		ruby: $flag("CHUDCODE_RB", settings.ruby),
+		julia: $flag("CHUDCODE_JL", settings.julia),
 	};
 }

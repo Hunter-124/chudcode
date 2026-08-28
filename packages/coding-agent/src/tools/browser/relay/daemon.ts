@@ -12,7 +12,7 @@
  * the global broker lease before probing, then adopt that external server
  * without attempting another bind.
  */
-import { logger } from "@oh-my-pi/pi-utils";
+import { logger } from "@chudware/utils";
 import { daemonClientForGlobal } from "../../../launch/client";
 import { describeQuietly, stopQuietly, waitReady } from "../../../launch/ensure";
 import { resolveWorkerSpawnCmd } from "../../../subprocess/worker-client";
@@ -20,7 +20,7 @@ import { throwIfAborted } from "../../tool-errors";
 import { probeCdpStatus } from "../attach";
 
 /** Stable broker daemon name for the relay server. */
-export const RELAY_DAEMON_NAME = "omp.browser.relay";
+export const RELAY_DAEMON_NAME = "chudcode.browser.relay";
 const RELAY_BROKER_SCOPE = "browser-relay";
 /** Matches the serve banner (`chudcode browser relay listening on http://…`). */
 const READY_LOG_PATTERN = String.raw`browser relay listening on http://\S+`;

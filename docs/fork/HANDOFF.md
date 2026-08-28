@@ -4,7 +4,7 @@ Complete record of everything raised in this session. Nothing here is dropped
 silently: every item is either DONE, FILED upstream, BLOCKED on a named person,
 or OPEN with its next concrete step.
 
-Fork: `Hunter-124/chudcode` (10 branches). Upstream: `can1357/oh-my-pi`.
+Fork: `Hunter-124/chudcode` (10 branches). Upstream: `Hunter-124/chudcode`.
 
 ---
 
@@ -32,9 +32,9 @@ Everything filed after that point cites `main @ d17c270090` (18.0.7).
 
 | PR | Branch | State |
 | --- | --- | --- |
-| [#9925](https://github.com/can1357/oh-my-pi/pull/9925) | `feat/editor-redo` | **Ready, MERGEABLE.** Rebased onto 18.0.7, conflicts resolved (adapted to upstream's new `matchesCanonical` dispatch API). Verified: 1380 pass / 0 fail on real 18.0.7 |
-| [#9926](https://github.com/can1357/oh-my-pi/pull/9926) | `fix/oauth-close-window` | **Ready, MERGEABLE.** 8 pass / 0 fail |
-| [#9927](https://github.com/can1357/oh-my-pi/pull/9927) | `fix/status-bar-duplicate-count` | **Ready, MERGEABLE.** Re-applied against main (upstream rewrote that region). 153 pass / 0 fail |
+| [#9925](https://github.com/Hunter-124/chudcode/pull/9925) | `feat/editor-redo` | **Ready, MERGEABLE.** Rebased onto 18.0.7, conflicts resolved (adapted to upstream's new `matchesCanonical` dispatch API). Verified: 1380 pass / 0 fail on real 18.0.7 |
+| [#9926](https://github.com/Hunter-124/chudcode/pull/9926) | `fix/oauth-close-window` | **Ready, MERGEABLE.** 8 pass / 0 fail |
+| [#9927](https://github.com/Hunter-124/chudcode/pull/9927) | `fix/status-bar-duplicate-count` | **Ready, MERGEABLE.** Re-applied against main (upstream rewrote that region). 153 pass / 0 fail |
 
 Held back for Michael and Charles to submit, per your request:
 `fix/subagent-label-sanitize`, `feat/opt-in-auto-update` (needs the Discord
@@ -50,18 +50,18 @@ whoever submits it — upstream closes PRs that lack it.
 
 | # | Subject | Status |
 | --- | --- | --- |
-| [9916](https://github.com/can1357/oh-my-pi/issues/9916) | No memory-aware admission control; count-only subagent cap | open |
-| [9917](https://github.com/can1357/oh-my-pi/issues/9917) | Deleting a pasted image's marker does not un-attach it | open |
-| [9918](https://github.com/can1357/oh-my-pi/issues/9918) | Disabled credentials never pruned or re-validated | open |
-| [9920](https://github.com/can1357/oh-my-pi/issues/9920) | Mouse: no routing layer; one overlay's mouse code unreachable | open |
-| [9922](https://github.com/can1357/oh-my-pi/issues/9922) | `os.tmpdir()` producers never clean up; no reaper; no tmpfs awareness | open |
-| [9923](https://github.com/can1357/oh-my-pi/issues/9923) | macOS-only control interactive on Linux; dangling `condition` string | open (partially retracted) |
-| [9928](https://github.com/can1357/oh-my-pi/issues/9928) | Config never propagates between running sessions | open |
-| [9929](https://github.com/can1357/oh-my-pi/issues/9929) | `usage` status-bar segment absent from every preset | open |
-| [9930](https://github.com/can1357/oh-my-pi/issues/9930) | Unpriced models counted as $0 and reported "measured" | open |
-| [9931](https://github.com/can1357/oh-my-pi/issues/9931) | Pasted images render as text; documents/folders paste as raw paths | open |
-| [9932](https://github.com/can1357/oh-my-pi/issues/9932) | `/agents` vs `/models/roles`: resolved model not discoverable | open |
-| [9934](https://github.com/can1357/oh-my-pi/issues/9934) | Cursor bakes effort into model id, reports `reasoning:false` | open |
+| [9916](https://github.com/Hunter-124/chudcode/issues/9916) | No memory-aware admission control; count-only subagent cap | open |
+| [9917](https://github.com/Hunter-124/chudcode/issues/9917) | Deleting a pasted image's marker does not un-attach it | open |
+| [9918](https://github.com/Hunter-124/chudcode/issues/9918) | Disabled credentials never pruned or re-validated | open |
+| [9920](https://github.com/Hunter-124/chudcode/issues/9920) | Mouse: no routing layer; one overlay's mouse code unreachable | open |
+| [9922](https://github.com/Hunter-124/chudcode/issues/9922) | `os.tmpdir()` producers never clean up; no reaper; no tmpfs awareness | open |
+| [9923](https://github.com/Hunter-124/chudcode/issues/9923) | macOS-only control interactive on Linux; dangling `condition` string | open (partially retracted) |
+| [9928](https://github.com/Hunter-124/chudcode/issues/9928) | Config never propagates between running sessions | open |
+| [9929](https://github.com/Hunter-124/chudcode/issues/9929) | `usage` status-bar segment absent from every preset | open |
+| [9930](https://github.com/Hunter-124/chudcode/issues/9930) | Unpriced models counted as $0 and reported "measured" | open |
+| [9931](https://github.com/Hunter-124/chudcode/issues/9931) | Pasted images render as text; documents/folders paste as raw paths | open |
+| [9932](https://github.com/Hunter-124/chudcode/issues/9932) | `/agents` vs `/models/roles`: resolved model not discoverable | open |
+| [9934](https://github.com/Hunter-124/chudcode/issues/9934) | Cursor bakes effort into model id, reports `reasoning:false` | open |
 | 9915, 9921 | closed by me as stale — see section 1 | closed |
 
 ---
@@ -83,7 +83,7 @@ whoever submits it — upstream closes PRs that lack it.
 | `/models` needing multiple Esc | `feat/opt-in-escape-dismiss`, opt-in because upstream has a **test asserting** the two-step behaviour |
 | Anti-sleep on Linux/Windows | `feat/cross-platform-antisleep`. Proven live: `chudcode … idle … block` in `systemd-inhibit --list` while held, absent after release |
 | Your `/tmp` crashes | 7.54 GB reclaimed; disk-backed `TMPDIR` + weekly prune timer installed. `CRASH-MITIGATIONS.md` |
-| Your status bar missing usage | `~/.omp/agent/config.yml` — added `usage`, `context_pct`, `context_total`, `cost`. The segment was in **zero presets** upstream |
+| Your status bar missing usage | `~/.chudcode/agent/config.yml` — added `usage`, `context_pct`, `context_total`, `cost`. The segment was in **zero presets** upstream |
 | Fork + collaborators | `Hunter-124/chudcode`; Michael, Charles, Simon invited with write |
 
 ### Open — with the next concrete step
@@ -103,7 +103,7 @@ whoever submits it — upstream closes PRs that lack it.
 | **Chat history corruption** | Mostly fixed upstream already | Orphaned `tool_use`/`tool_result` pairs **are** repaired at the wire layer; compaction cannot orphan them by construction. Remaining: no user-invocable session repair/doctor command, and `/tree` is the only user-reachable recovery |
 | **Windows crash on login** | Not diagnosed | Needs a real stack trace or log from one of the affected Windows machines. Cannot responsibly file without it |
 | **Perf audit of our fork** | **NOT RUN** — I dropped it | It was in a dispatch that got interrupted and I re-sent the batch without it. Re-dispatch: startup cost, per-render work, per-render git, repeated I/O, `structuredClone` on the undo path, subprocess churn |
-| **CloudCastle + CAD onto our fork** | Audited, not executed | CAD is **insulated**: it vendors only `ai`/`catalog`/`utils`/`wire`/`mnemopi`/`snapcompact` at a pinned SHA — deliberately not Chudcode's agent/role/TUI engine. So the roles merge, settings work and status-bar work cannot break it. It *does* inherit the OAuth bug verbatim, so re-vendoring fixes that free. Run `scripts/vendor_omp.py` against the fork |
+| **CloudCastle + CAD onto our fork** | Audited, not executed | CAD is **insulated**: it vendors only `ai`/`catalog`/`utils`/`wire`/`mnemo`/`snapcompact` at a pinned SHA — deliberately not Chudcode's agent/role/TUI engine. So the roles merge, settings work and status-bar work cannot break it. It *does* inherit the OAuth bug verbatim, so re-vendoring fixes that free. Run `scripts/vendor_omp.py` against the fork |
 
 ### Blocked on a person
 
@@ -119,7 +119,7 @@ whoever submits it — upstream closes PRs that lack it.
 This came out better than expected. **Display targeting is purely
 environment-driven**, so an isolated agent desktop needs no code change at all.
 
-`crates/pi-natives/src/desktop/linux/mod.rs:11-21` presence-tests
+`crates/chud-natives/src/desktop/linux/mod.rs:11-21` presence-tests
 `WAYLAND_DISPLAY`, then `DISPLAY`; X11 connects via `x11rb::connect(None)`, i.e.
 `$DISPLAY`. So pointing Chudcode at a nested X server is sufficient.
 
@@ -128,7 +128,7 @@ without `wayland-pipewire`, so `capture` is `false`, and
 `background_window_input` is hardcoded `false` for *any* Wayland compositor. A
 nested Wayland seat would give Chudcode nothing. A nested X11 seat gives it the full
 feature set. Filed upstream as
-[#9935](https://github.com/can1357/oh-my-pi/issues/9935).
+[#9935](https://github.com/Hunter-124/chudcode/issues/9935).
 
 Measured on this host, same native, only env changed:
 
@@ -144,7 +144,7 @@ It must be unset.
 
 Prototype at `sandbox-prototype/` (29 evidence artifacts). `./run.sh` starts an
 Xvfb seat, launches Brave into it, and has Chudcode's own native capture, click and
-type. Proven by a window-title oracle (`Chudcode-SEAT clicks=1 typed=omp-seat-ok<CR>`)
+type. Proven by a window-title oracle (`Chudcode-SEAT clicks=1 typed=chudcode-seat-ok<CR>`)
 and a pixel-colour count (red 77784px→0, green 0→77393px). Your session was
 verified bit-identical before/after — pointer position, active output, X
 connection counts. Two disjoint X servers; XTEST structurally cannot cross them.
@@ -154,7 +154,7 @@ Teardown took 10 Brave pids → 0. Seat startup 0.06s; two seats coexist on
 **Option A — use it now, zero code:**
 
 ```bash
-eval $(sandbox-prototype/seat.sh start "omp-$$")
+eval $(sandbox-prototype/seat.sh start "chudcode-$$")
 env -u WAYLAND_DISPLAY DISPLAY=$DISPLAY XAUTHORITY=$XAUTHORITY Chudcode
 ```
 
@@ -191,13 +191,13 @@ processes with cwds there. `/tmp` is now 2.0 G (was 8.0 G); 23 open handles and
 
 ### Sandbox Option A — DONE, installed as a command
 
-`~/.local/bin/omp-seat` — Option A packaged so it is usable rather than a
+`~/.local/bin/chudcode-seat` — Option A packaged so it is usable rather than a
 prototype:
 
 ```
-omp-seat run                    # Chudcode on its own isolated display
-omp-seat run -- Chudcode --resume     # any argv
-omp-seat start <name> / stop / list
+chudcode-seat run                    # Chudcode on its own isolated display
+chudcode-seat run -- Chudcode --resume     # any argv
+chudcode-seat start <name> / stop / list
 ```
 
 Verified end to end: inside the seat Chudcode reports `backend:x11, capture:true,
@@ -219,7 +219,7 @@ the OAuth fix cherry-picked onto CAD's **exact** pinned base
 8 pass / 0 fail. Vendoring that is a no-version-jump change and fixes the OAuth
 bug CAD inherits verbatim.
 
-The full jump is blocked on a real coupling: CAD pins `pi-natives`/`pi-utils` at
+The full jump is blocked on a real coupling: CAD pins `chud-natives`/`chud-utils` at
 **17.1.5** from npm while vendoring `ai`/`catalog` as source. I hit that exact
 incompatibility by accident today — the 17.x native lacks `NativeDesktopSession`
 that 18.x's adapter expects. So a full migration means bumping the native in the
@@ -274,7 +274,7 @@ enquiry.
 
 - **Subagents are in-process**, not separate processes (`task/executor.ts` builds `AgentSession` objects), so `task.maxConcurrency` is a memory knob, not just a parallelism knob.
 - **It is not a memory leak.** Nothing grows monotonically. The only provably unbounded structures (`AgentRegistry#refs`, `DaemonBroker#records`) are metadata-sized. The cost is high steady state + zero admission control.
-- **The mnemopi embed worker** holds a full ONNX runtime + model (~774 MB measured) **per Chudcode process**, with no idle teardown. Lazily spawned, so exposure is latent.
+- **The mnemo embed worker** holds a full ONNX runtime + model (~774 MB measured) **per Chudcode process**, with no idle teardown. Lazily spawned, so exposure is latent.
 - **`/ssh` cannot be closed** — it prints a `TranscriptBlock` into scrollback rather than opening a surface.
 - **Cache reads are priced correctly.** I expected a bug and there isn't one.
 - **The `usage` segment already existed.** Several "missing features" here turned out to be unwired or unpresetted rather than absent — check before building.
@@ -289,6 +289,6 @@ enquiry.
 - `CAD-CLOUDCASTLE-MIGRATION.md` — what CAD actually consumes, the safe path, and the blocker on the full jump
 - `CRASH-MITIGATIONS.md` — the three stacked causes of the machine-wide crashes
 - `sandbox-prototype/` — the isolated-seat prototype and 29 evidence artifacts
-- `oh-my-pi/ACKNOWLEDGEMENTS.md` — who contributed what, and why attribution is not distributed evenly
+- `chudware/ACKNOWLEDGEMENTS.md` — who contributed what, and why attribution is not distributed evenly
 - Desktop: `Chudcode-1-DISCORD.md`, `Chudcode-2-SUBMIT-PRS.md`, `Chudcode-3-STATUS.md`
-- Installed: `~/.local/bin/omp-seat` — run Chudcode on its own isolated display
+- Installed: `~/.local/bin/chudcode-seat` — run Chudcode on its own isolated display

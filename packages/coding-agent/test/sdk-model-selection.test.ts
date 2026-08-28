@@ -2,21 +2,21 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, test, vi 
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
-import { Effort, type FetchImpl } from "@oh-my-pi/pi-ai";
-import { buildModel } from "@oh-my-pi/pi-catalog/build";
-import { writeModelCache } from "@oh-my-pi/pi-catalog/model-cache";
-import { getBundledModel } from "@oh-my-pi/pi-catalog/models";
-import { resolveModelCacheProviderId } from "@oh-my-pi/pi-catalog/provider-models";
-import { parseArgs } from "@oh-my-pi/pi-coding-agent/cli/args";
-import { ModelRegistry, type ProviderConfigInput } from "@oh-my-pi/pi-coding-agent/config/model-registry";
-import { getModelMatchPreferences, resolveModelScope } from "@oh-my-pi/pi-coding-agent/config/model-resolver";
-import { Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
-import { buildSessionOptions as buildCliSessionOptions } from "@oh-my-pi/pi-coding-agent/main";
-import { createAgentSession, type ExtensionFactory } from "@oh-my-pi/pi-coding-agent/sdk";
-import type { AuthStorage } from "@oh-my-pi/pi-coding-agent/session/auth-storage";
-import { SessionManager } from "@oh-my-pi/pi-coding-agent/session/session-manager";
-import { removeSyncWithRetries, Snowflake } from "@oh-my-pi/pi-utils";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
+import { Effort, type FetchImpl } from "@chudware/ai";
+import { buildModel } from "@chudware/catalog/build";
+import { writeModelCache } from "@chudware/catalog/model-cache";
+import { getBundledModel } from "@chudware/catalog/models";
+import { resolveModelCacheProviderId } from "@chudware/catalog/provider-models";
+import { parseArgs } from "@chudware/coding-agent/cli/args";
+import { ModelRegistry, type ProviderConfigInput } from "@chudware/coding-agent/config/model-registry";
+import { getModelMatchPreferences, resolveModelScope } from "@chudware/coding-agent/config/model-resolver";
+import { Settings } from "@chudware/coding-agent/config/settings";
+import { buildSessionOptions as buildCliSessionOptions } from "@chudware/coding-agent/main";
+import { createAgentSession, type ExtensionFactory } from "@chudware/coding-agent/sdk";
+import type { AuthStorage } from "@chudware/coding-agent/session/auth-storage";
+import { SessionManager } from "@chudware/coding-agent/session/session-manager";
+import { removeSyncWithRetries, Snowflake } from "@chudware/utils";
+import * as fsx from "@chudware/utils/fsx";
 import { createInMemoryAuthStorage } from "./helpers/agent-session-setup";
 
 describe("createAgentSession deferred model pattern resolution", () => {
@@ -27,14 +27,14 @@ describe("createAgentSession deferred model pattern resolution", () => {
 	const authStoragesToClose: AuthStorage[] = [];
 
 	beforeAll(() => {
-		fixtureDir = path.join(os.tmpdir(), `pi-sdk-model-selection-fixture-${Snowflake.next()}`);
+		fixtureDir = path.join(os.tmpdir(), `chud-sdk-model-selection-fixture-${Snowflake.next()}`);
 		fs.mkdirSync(fixtureDir, { recursive: true });
 		fixtureAuthStorage = createInMemoryAuthStorage();
 		fixtureModelRegistry = new ModelRegistry(fixtureAuthStorage, path.join(fixtureDir, "models.yml"));
 	});
 
 	beforeEach(() => {
-		tempDir = path.join(os.tmpdir(), `pi-sdk-model-selection-${Snowflake.next()}`);
+		tempDir = path.join(os.tmpdir(), `chud-sdk-model-selection-${Snowflake.next()}`);
 		fs.mkdirSync(tempDir, { recursive: true });
 	});
 
@@ -54,8 +54,8 @@ describe("createAgentSession deferred model pattern resolution", () => {
 		removeSyncWithRetries(fixtureDir);
 	});
 
-	const providerExtension: ExtensionFactory = pi => {
-		pi.registerProvider("runtime-provider", {
+	const providerExtension: ExtensionFactory = chud => {
+		chud.registerProvider("runtime-provider", {
 			baseUrl: "https://runtime.example.com/v1",
 			apiKey: "RUNTIME_KEY",
 			api: "openai-completions",
@@ -99,8 +99,8 @@ describe("createAgentSession deferred model pattern resolution", () => {
 		],
 	};
 
-	const dynamicOnlyProviderExtension: ExtensionFactory = pi => {
-		pi.registerProvider("runtime-provider", dynamicOnlyProviderConfig);
+	const dynamicOnlyProviderExtension: ExtensionFactory = chud => {
+		chud.registerProvider("runtime-provider", dynamicOnlyProviderConfig);
 	};
 
 	function buildSessionOptions(modelPattern: string | string[]) {
@@ -193,8 +193,8 @@ describe("createAgentSession deferred model pattern resolution", () => {
 		const model = getBundledModel("anthropic", "claude-sonnet-4-5");
 		if (!model) throw new Error("missing bundled startup model");
 		let fetches = 0;
-		const extension: ExtensionFactory = pi => {
-			pi.registerProvider("deferred-runtime-provider", {
+		const extension: ExtensionFactory = chud => {
+			chud.registerProvider("deferred-runtime-provider", {
 				baseUrl: "https://runtime.example.com/v1",
 				apiKey: "RUNTIME_KEY",
 				api: "openai-completions",
@@ -1125,7 +1125,7 @@ describe("createAgentSession deferred model pattern resolution", () => {
 	});
 
 	test("restores a discovery-backed session model instead of falling back to the default role", async () => {
-		// Regression: on `omp --resume`, the session-model restore probed
+		// Regression: on `chudcode --resume`, the session-model restore probed
 		// candidates only against the static+cached catalog. A discovery-backed
 		// provider (models.yml `discovery:`) hasn't been fetched at that point, so
 		// the saved model failed to resolve and resume silently downgraded to

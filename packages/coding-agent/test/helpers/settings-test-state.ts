@@ -1,7 +1,7 @@
 import { vi } from "bun:test";
-import { resetSettingsForTest } from "@oh-my-pi/pi-coding-agent/config/settings";
-import { isTuiTight, setTuiTight } from "@oh-my-pi/pi-tui";
-import { getAgentDir, getProjectDir, setAgentDir, setProjectDir } from "@oh-my-pi/pi-utils";
+import { resetSettingsForTest } from "@chudware/coding-agent/config/settings";
+import { isTuiTight, setTuiTight } from "@chudware/tui";
+import { getAgentDir, getProjectDir, setAgentDir, setProjectDir } from "@chudware/utils";
 
 export interface SettingsTestState {
 	agentDir: string;
@@ -37,7 +37,7 @@ export function restoreSettingsTestState(state: SettingsTestState | undefined): 
 	setProjectDir(state.projectDir);
 	setAgentDir(state.agentDir);
 	setTuiTight(state.tuiTight);
-	restoreEnvValue("PI_CODING_AGENT_DIR", state.env.PI_CODING_AGENT_DIR);
+	restoreEnvValue("CHUDCODE_CODING_AGENT_DIR", state.env.CHUDCODE_CODING_AGENT_DIR);
 }
 
 function restoreEnv(snapshot: Record<string, string | undefined>): void {

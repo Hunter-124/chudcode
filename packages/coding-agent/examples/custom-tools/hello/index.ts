@@ -1,11 +1,11 @@
-import type { CustomToolFactory } from "@oh-my-pi/pi-coding-agent";
+import type { CustomToolFactory } from "@chudware/coding-agent";
 
-const factory: CustomToolFactory = pi => ({
+const factory: CustomToolFactory = chud => ({
 	name: "hello",
 	label: "Hello",
 	description: "A simple greeting tool",
-	parameters: pi.zod.object({
-		name: pi.zod.string().describe("Name to greet"),
+	parameters: chud.zod.object({
+		name: chud.zod.string().describe("Name to greet"),
 	}),
 
 	async execute(_toolCallId, params, _onUpdate, _ctx, _signal) {

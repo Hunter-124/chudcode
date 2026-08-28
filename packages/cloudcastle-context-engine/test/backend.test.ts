@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import type { AgentSession } from "@oh-my-pi/pi-coding-agent";
+import type { AgentSession } from "@chudware/coding-agent";
 import { createCloudCastleIncidentBackend } from "../src/backend";
 import { fetchIncidentContext } from "../src/client";
 import { parseCloudCastleContextSettings } from "../src/settings";

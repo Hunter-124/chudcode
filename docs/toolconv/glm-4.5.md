@@ -288,14 +288,14 @@ With a server parser active (`--tool-call-parser glm45 --reasoning-parser glm45`
   it accepts newline, `<arg_key>`, or `</tool_call>` as the name delimiter, so
   the same `glm` dialect scanner handles both layouts.
 
-## Chudcode / pi converter behavior
+## Chudcode / chud converter behavior
 
 The repository's `glm` dialect is an **owned in-band converter**. Select it
-with `PI_DIALECT=glm`; legacy `PI_DIALECT=1` and `PI_DIALECT=true` also resolve
+with `CHUDCODE_DIALECT=glm`; legacy `CHUDCODE_DIALECT=1` and `CHUDCODE_DIALECT=true` also resolve
 to GLM. With tools present, the agent appends the GLM format guide and compact
 tool catalog to the system prompt, removes native provider tools, rewrites
 prior calls/results into grammar-owned text, and scans assistant text back
-into canonical pi events. GLM-family model affinity resolves to this dialect.
+into canonical chud events. GLM-family model affinity resolves to this dialect.
 
 The owned renderer always emits the GLM-4.5 newline layout. It consults each
 tool's normalized schema: string-only properties are emitted raw, while all

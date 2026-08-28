@@ -7,8 +7,8 @@
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import { isEnoent, logger } from "@oh-my-pi/pi-utils";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
+import { isEnoent, logger } from "@chudware/utils";
+import * as fsx from "@chudware/utils/fsx";
 import * as git from "../../../utils/git";
 import type { MarketplaceCatalog, MarketplaceSourceType } from "./types";
 import { isValidNameSegment } from "./types";
@@ -193,10 +193,10 @@ export function parseMarketplaceCatalog(content: string, filePath: string): Mark
 // ── fetchMarketplace ──────────────────────────────────────────────────
 
 /**
- * Catalog paths tried in priority order: omp-namespaced override first, then
+ * Catalog paths tried in priority order: chudcode-namespaced override first, then
  * the Claude Code-compatible fallback so existing marketplaces keep loading.
  */
-const CATALOG_RELATIVE_PATHS: readonly string[] = [".omp-plugin/marketplace.json", ".claude-plugin/marketplace.json"];
+const CATALOG_RELATIVE_PATHS: readonly string[] = [".chudcode-plugin/marketplace.json", ".claude-plugin/marketplace.json"];
 
 async function readMarketplaceCatalog(
 	root: string,

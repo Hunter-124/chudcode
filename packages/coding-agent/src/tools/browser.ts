@@ -1,8 +1,8 @@
-import { type } from "@oh-my-pi/omptype";
-import type { AgentTool, AgentToolContext, AgentToolResult, AgentToolUpdateCallback } from "@oh-my-pi/pi-agent-core";
-import type { ToolExample } from "@oh-my-pi/pi-ai";
-import { prompt, untilAborted } from "@oh-my-pi/pi-utils";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
+import { type } from "@chudware/chudtype";
+import type { AgentTool, AgentToolContext, AgentToolResult, AgentToolUpdateCallback } from "@chudware/agent-core";
+import type { ToolExample } from "@chudware/ai";
+import { prompt, untilAborted } from "@chudware/utils";
+import * as fsx from "@chudware/utils/fsx";
 import browserDescription from "../prompts/tools/browser.md" with { type: "text" };
 import type { ToolSession } from "../sdk";
 import { enforceInlineByteCap } from "../session/streaming-output";
@@ -52,7 +52,7 @@ const DEFAULT_TAB_NAME = "main";
 const appSchema = type({
 	"path?": type("string").describe("binary path to spawn"),
 	"cdp_url?": type("string").describe("existing cdp endpoint"),
-	"relay?": type("boolean").describe("drive the user's own tabs via the omp browser relay"),
+	"relay?": type("boolean").describe("drive the user's own tabs via the chudcode browser relay"),
 	"args?": type("string[]").describe("extra cli args"),
 	"target?": type("string").describe("substring to pick a window"),
 });
@@ -103,7 +103,7 @@ function resolveBrowserKind(params: BrowserParams, session: ToolSession): Browse
 		return { kind: "spawned", path: exe };
 	}
 	const relayUrl = session.settings.get("browser.relayUrl") as string | undefined;
-	// Explicit app.relay wins over every setting; PI_BROWSER_RELAY stays the
+	// Explicit app.relay wins over every setting; CHUDCODE_BROWSER_RELAY stays the
 	// final kill switch (a relay that is down would otherwise brick the tool).
 	if (app?.relay) {
 		const relayKind = resolveRelayKind({ settingEnabled: true, url: relayUrl });

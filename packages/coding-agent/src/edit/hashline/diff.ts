@@ -32,8 +32,8 @@ import {
 	type SnapshotStore,
 	stripBom,
 	validateClipboardSequence,
-} from "@oh-my-pi/hashline";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
+} from "@chudware/hashline";
+import * as fsx from "@chudware/utils/fsx";
 import { resolveToCwd } from "../../tools/path-utils";
 import { generateDiffString } from "../diff";
 import { canonicalSnapshotKey } from "../file-snapshot-store";

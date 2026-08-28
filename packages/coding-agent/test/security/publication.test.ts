@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
+import * as fsx from "@chudware/utils/fsx";
 import type { SecurityScanPlan } from "../../src/security";
 import { createSecurityPublicationTool, SecurityStore } from "../../src/security";
 
@@ -12,12 +12,12 @@ let store: SecurityStore;
 let plan: SecurityScanPlan;
 
 beforeEach(async () => {
-	temporaryRoot = await fs.mkdtemp(path.join(os.tmpdir(), "omp-security-publication-"));
+	temporaryRoot = await fs.mkdtemp(path.join(os.tmpdir(), "chudcode-security-publication-"));
 	repositoryRoot = path.join(temporaryRoot, "repo");
 	await fs.mkdir(repositoryRoot);
 	store = await SecurityStore.open(repositoryRoot, { stateRoot: path.join(temporaryRoot, "state") });
 	plan = {
-		documentType: "omp-security.scan-plan",
+		documentType: "chudcode-security.scan-plan",
 		schemaVersion: "1.0",
 		id: "secplan_fixture",
 		createdAt: "2026-07-29T00:00:00.000Z",

@@ -2,21 +2,21 @@ import { afterEach, beforeEach, describe, expect, it, spyOn } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import { Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
+import { Settings } from "@chudware/coding-agent/config/settings";
 import {
 	buildMemoryToolDeveloperInstructions,
 	getMemoryRoot,
 	refreshMemoryToolDeveloperInstructionsCacheAfterStartup,
 	saveLearnedLesson,
-} from "@oh-my-pi/pi-coding-agent/memories";
-import { localBackend } from "@oh-my-pi/pi-coding-agent/memory-backend/local-backend";
-import type { AgentSession } from "@oh-my-pi/pi-coding-agent/session/agent-session";
-import type { ToolSession } from "@oh-my-pi/pi-coding-agent/tools";
-import { LearnTool } from "@oh-my-pi/pi-coding-agent/tools/learn";
-import { removeWithRetries } from "@oh-my-pi/pi-utils";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
+} from "@chudware/coding-agent/memories";
+import { localBackend } from "@chudware/coding-agent/memory-backend/local-backend";
+import type { AgentSession } from "@chudware/coding-agent/session/agent-session";
+import type { ToolSession } from "@chudware/coding-agent/tools";
+import { LearnTool } from "@chudware/coding-agent/tools/learn";
+import { removeWithRetries } from "@chudware/utils";
+import * as fsx from "@chudware/utils/fsx";
 
-process.env.PI_PYTHON_SKIP_CHECK = "1";
+process.env.CHUDCODE_PYTHON_SKIP_CHECK = "1";
 
 describe("learned-lesson storage (local backend)", () => {
 	let tmp: string;
@@ -25,7 +25,7 @@ describe("learned-lesson storage (local backend)", () => {
 	let learnedFile: string;
 
 	beforeEach(async () => {
-		tmp = await fs.mkdtemp(path.join(os.tmpdir(), "omp-learned-"));
+		tmp = await fs.mkdtemp(path.join(os.tmpdir(), "chudcode-learned-"));
 		agentDir = path.join(tmp, "agent");
 		projCwd = path.join(tmp, "proj");
 		learnedFile = path.join(getMemoryRoot(agentDir, projCwd), "learned.md");
@@ -153,7 +153,7 @@ describe("learned-lesson read-back", () => {
 	let agentDir: string;
 
 	beforeEach(async () => {
-		tmp = await fs.mkdtemp(path.join(os.tmpdir(), "omp-learned-read-"));
+		tmp = await fs.mkdtemp(path.join(os.tmpdir(), "chudcode-learned-read-"));
 		agentDir = path.join(tmp, "agent");
 	});
 	afterEach(async () => {
@@ -322,7 +322,7 @@ describe("learn tool (local backend)", () => {
 	let learnedFile: string;
 
 	beforeEach(async () => {
-		tmp = await fs.mkdtemp(path.join(os.tmpdir(), "omp-learn-local-"));
+		tmp = await fs.mkdtemp(path.join(os.tmpdir(), "chudcode-learn-local-"));
 		agentDir = path.join(tmp, "agent");
 		projCwd = path.join(tmp, "proj");
 		learnedFile = path.join(getMemoryRoot(agentDir, projCwd), "learned.md");

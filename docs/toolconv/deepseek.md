@@ -368,14 +368,14 @@ reuse the same fullwidth pipe (`｜`, U+FF5C), but the body is an Anthropic-styl
   structured `tool_calls`; a parser must heal it back into tool calls and strip the markers from
   user-visible text.
 
-## Chudcode / pi converter behavior
+## Chudcode / chud converter behavior
 
 The repository's `deepseek` dialect is an **owned in-band converter**, not a
-vLLM parser wrapper. Select it with `PI_DIALECT=deepseek` (or the equivalent
+vLLM parser wrapper. Select it with `CHUDCODE_DIALECT=deepseek` (or the equivalent
 agent configuration). When tools are present, the agent appends the dialect
 guide and compact tool catalog to the system prompt, removes native provider
 tools from the request, re-encodes prior calls/results with this syntax, and
-scans streamed assistant text back into canonical pi tool-call events.
+scans streamed assistant text back into canonical chud tool-call events.
 
 The current scanner accepts all three forms described above:
 

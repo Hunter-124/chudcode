@@ -6,22 +6,22 @@
  * internals, which massively overcounts.
  */
 import { describe, expect, it } from "bun:test";
-import { type } from "@oh-my-pi/omptype";
-import { Tokenizer } from "@oh-my-pi/pi-agent-core";
-import { arkToWireSchema } from "@oh-my-pi/pi-ai/utils/schema";
+import { type } from "@chudware/chudtype";
+import { Tokenizer } from "@chudware/agent-core";
+import { arkToWireSchema } from "@chudware/ai/utils/schema";
 import {
 	type ContextBreakdown,
 	computeNonMessageBreakdown,
 	computeNonMessageTokens,
 	estimateToolSchemaTokens,
 	renderContextUsage,
-} from "@oh-my-pi/pi-coding-agent/modes/utils/context-usage";
+} from "@chudware/coding-agent/modes/utils/context-usage";
 import { applyToolProxy } from "../../src/extensibility/tool-proxy";
 
 const tokenizer = new Tokenizer();
 
 /** An arktype-shaped callable schema from an external arktype copy: a plain
- * function carrying `toJsonSchema`/`assert` that — unlike omptype schemas —
+ * function carrying `toJsonSchema`/`assert` that — unlike chudtype schemas —
  * HAS `Function.prototype.bind`. */
 function bindCapableSchema() {
 	return Object.assign((value: unknown) => value, {
@@ -50,7 +50,7 @@ describe("estimateToolSchemaTokens", () => {
 	it("counts a proxied bind-capable callable schema by its wire JSON Schema", () => {
 		// Regression (PR #9185): applyToolProxy bound every callable property,
 		// and an external-arktype Type HAS Function.prototype.bind (unlike
-		// omptype), so the bound `parameters` lost its schema surface,
+		// chudtype), so the bound `parameters` lost its schema surface,
 		// toolWireSchema returned the bare function, and the undefined
 		// JSON.stringify poisoned token accounting — crashing every read-only
 		// subagent at first prompt. The proxied schema must keep counting as

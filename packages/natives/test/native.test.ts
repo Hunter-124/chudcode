@@ -2,7 +2,7 @@ import { beforeAll, describe, expect, it } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
+import * as fsx from "@chudware/utils/fsx";
 import {
 	AstMatchStrictness,
 	astEdit,
@@ -147,7 +147,7 @@ function textPdf(text: string): Uint8Array {
 	return Buffer.from(document);
 }
 
-describe("pi-natives", () => {
+describe("chud-natives", () => {
 	beforeAll(async () => {
 		await setupFixtures();
 		return async () => {
@@ -1064,7 +1064,7 @@ console.log("ok");
 
 	describe("MacOSPowerAssertion", () => {
 		it("should create a stoppable power assertion handle", () => {
-			const assertion = MacOSPowerAssertion.start({ reason: "pi-natives test" });
+			const assertion = MacOSPowerAssertion.start({ reason: "chud-natives test" });
 			assertion.stop();
 			assertion.stop();
 		});

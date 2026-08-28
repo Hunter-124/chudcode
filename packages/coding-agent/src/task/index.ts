@@ -2,9 +2,9 @@
  * Task tool - Delegate tasks to specialized agents.
  *
  * Discovers agent definitions from:
- *   - Bundled agents (shipped with omp-coding-agent)
- *   - ~/.omp/agent/agents/*.md (user-level)
- *   - .omp/agents/*.md (project-level)
+ *   - Bundled agents (shipped with chudcode-coding-agent)
+ *   - ~/.chudcode/agent/agents/*.md (user-level)
+ *   - .chudcode/agents/*.md (project-level)
  *
  * Supports:
  *   - Single agent spawn per call (parallelism = parallel task calls)
@@ -14,9 +14,9 @@
  *   - Session artifacts for debugging
  */
 import path from "node:path";
-import type { AgentTool, AgentToolResult, AgentToolUpdateCallback } from "@oh-my-pi/pi-agent-core";
-import type { Usage } from "@oh-my-pi/pi-ai";
-import { $env, logger, prompt } from "@oh-my-pi/pi-utils";
+import type { AgentTool, AgentToolResult, AgentToolUpdateCallback } from "@chudware/agent-core";
+import type { Usage } from "@chudware/ai";
+import { $env, logger, prompt } from "@chudware/utils";
 import type { ToolSession } from "..";
 import type { EffectiveExtensionRoots } from "../capability/types";
 import type { Theme } from "../modes/theme/theme";
@@ -630,7 +630,7 @@ export class TaskTool implements AgentTool<TaskToolSchemaInstance, TaskToolDetai
 		private readonly session: ToolSession,
 		discoveredAgents: AgentDefinition[],
 	) {
-		this.#blockedAgent = $env.PI_BLOCKED_AGENT;
+		this.#blockedAgent = $env.CHUDCODE_BLOCKED_AGENT;
 		this.#discoveredAgents = discoveredAgents;
 	}
 

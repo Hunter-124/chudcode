@@ -1,19 +1,19 @@
 <p align="center">
-  <img src="https://github.com/can1357/oh-my-pi/blob/main/assets/hero.png?raw=true" alt="Chudcode">
+  <img src="https://github.com/Hunter-124/chudcode/blob/main/assets/hero.png?raw=true" alt="Chudcode">
 </p>
 
 <h1 align="center">Chudcode</h1>
 
 <p align="center">
   <strong>A coding agent with the IDE wired in.</strong>
-  <strong><a href="https://omp.sh">omp.sh</a></strong>
+  <strong><a href="https://chudware.sh">chudware.sh</a></strong>
 </p>
 
 <p align="center">
-  <a href="https://www.npmjs.com/package/@oh-my-pi/pi-coding-agent"><img src="https://img.shields.io/npm/v/@oh-my-pi/pi-coding-agent?style=flat&colorA=222222&colorB=CB3837" alt="npm version"></a>
-  <a href="https://github.com/can1357/oh-my-pi/blob/main/packages/coding-agent/CHANGELOG.md"><img src="https://img.shields.io/badge/changelog-keep-E05735?style=flat&colorA=222222" alt="Changelog"></a>
-  <a href="https://github.com/can1357/oh-my-pi/actions"><img src="https://img.shields.io/github/actions/workflow/status/can1357/oh-my-pi/ci.yml?style=flat&colorA=222222&colorB=3FB950" alt="CI"></a>
-  <a href="https://github.com/can1357/oh-my-pi/blob/main/LICENSE"><img src="https://img.shields.io/github/license/can1357/oh-my-pi?style=flat&colorA=222222&colorB=58A6FF" alt="License"></a>
+  <a href="https://www.npmjs.com/package/@chudware/coding-agent"><img src="https://img.shields.io/npm/v/@chudware/coding-agent?style=flat&colorA=222222&colorB=CB3837" alt="npm version"></a>
+  <a href="https://github.com/Hunter-124/chudcode/blob/main/packages/coding-agent/CHANGELOG.md"><img src="https://img.shields.io/badge/changelog-keep-E05735?style=flat&colorA=222222" alt="Changelog"></a>
+  <a href="https://github.com/Hunter-124/chudcode/actions"><img src="https://img.shields.io/github/actions/workflow/status/Hunter-124/chudcode/ci.yml?style=flat&colorA=222222&colorB=3FB950" alt="CI"></a>
+  <a href="https://github.com/Hunter-124/chudcode/blob/main/LICENSE"><img src="https://img.shields.io/github/license/Hunter-124/chudcode?style=flat&colorA=222222&colorB=58A6FF" alt="License"></a>
   <a href="https://www.typescriptlang.org"><img src="https://img.shields.io/badge/TypeScript-3178C6?style=flat&colorA=222222&logo=typescript&logoColor=white" alt="TypeScript"></a>
   <a href="https://www.rust-lang.org"><img src="https://img.shields.io/badge/Rust-DEA584?style=flat&colorA=222222&logo=rust&logoColor=white" alt="Rust"></a>
   <a href="https://bun.sh"><img src="https://img.shields.io/badge/runtime-Bun-f472b6?style=flat&colorA=222222" alt="Bun"></a>
@@ -21,11 +21,11 @@
 </p>
 
 <p align="center">
-  Fork of <a href="https://github.com/badlogic/pi-mono">Pi</a> by <a href="https://github.com/mariozechner">@mariozechner</a> 
+  Fork of <a href="https://github.com/badlogic/chudcode-mono">Chud</a> by <a href="https://github.com/mariozechner">@mariozechner</a> 
 </p>
 
 **Chudcode is a private derivative of
-[can1357/oh-my-pi](https://github.com/can1357/oh-my-pi), distributed under the
+[Hunter-124/chudcode](https://github.com/Hunter-124/chudcode), distributed under the
 MIT License.** Upstream copyright and attribution are preserved in
 [`LICENSE`](LICENSE) and [`NOTICE`](NOTICE).
 
@@ -59,10 +59,10 @@ plus all three compatibility links:
 chudcode       primary command
 chudware-code  compatibility alias
 chcode         short alias
-omp            legacy alias
+chudcode            legacy alias
 ```
 
-Existing `~/.omp` configuration, profiles, sessions, and `omp`-based scripts
+Existing `~/.chudcode` configuration, profiles, sessions, and `chudcode`-based scripts
 continue to work unchanged.
 
 ### Shell completions
@@ -98,9 +98,9 @@ Edits that land on the first attempt. Reads that summarize files instead of dump
 
 [Read the full post ↗](https://blog.can.ac/2026/02/12/the-harness-problem/)
 
-## The Pi _you love_, with **batteries included**.
+## The Chud _you love_, with **batteries included**.
 
-Originally built on [Mario Zechner](https://github.com/mariozechner)'s wonderful [Pi](https://github.com/badlogic/pi-mono), Chudcode adds everything you're missing.
+Originally built on [Mario Zechner](https://github.com/mariozechner)'s wonderful [Chud](https://github.com/badlogic/chudcode-mono), Chudcode adds everything you're missing.
 
 ### 01 · Code execution w/ tool-calling
 
@@ -120,25 +120,25 @@ _[Read the LSP config docs](docs/lsp-config.md)_
 
 A C binary segfaults: the agent attaches lldb, steps to the bad pointer, reads the frame. A Go service hangs: it attaches dlv and walks the goroutines. A Python process is wedged: debugpy, pause, inspect, evaluate. Most agents are still sprinkling print statements.
 
-![Chudcode TUI: a live lldb-dap session against a native binary at /tmp/omp-native/demo. Adapter=lldb-dap, Status=stopped, Frame=xorshift32, Instruction pointer 0x10000055C, Location demo.c:6:10. Debug scopes and Debug variables cards show locals (x = 57351) and the agent confirms the math: x went from 7 → 57351 (= 7 ^ (7<<13)).](https://omp.sh/clips/dap-poster.webp)
+![Chudcode TUI: a live lldb-dap session against a native binary at /tmp/chudcode-native/demo. Adapter=lldb-dap, Status=stopped, Frame=xorshift32, Instruction pointer 0x10000055C, Location demo.c:6:10. Debug scopes and Debug variables cards show locals (x = 57351) and the agent confirms the math: x went from 7 → 57351 (= 7 ^ (7<<13)).](https://chudware.sh/clips/dap-poster.webp)
 
-_[Watch the capture ↗](https://omp.sh/clips/dap.mp4)_
+_[Watch the capture ↗](https://chudware.sh/clips/dap.mp4)_
 
 ### 04 · Time-traveling stream rules
 
 Your rules sit dormant until the model goes off-script. A regex match aborts the stream mid-token, injects the rule as a system reminder, and retries from the same point. You get course-correction without paying context tax on every turn. Injections survive compaction, so the fix sticks.
 
-![Chudcode TUI: agent reading src.rs and about to write Box::leak when the request aborts (red `Error: Request was aborted`), an amber `⚠ Injecting rule: box-leak` card injects the rule body `Don't reach for Box::leak in production code paths`, and the agent then course-corrects by proposing `Arc<str>` and asking the user to confirm.](https://omp.sh/clips/ttsr-poster.webp)
+![Chudcode TUI: agent reading src.rs and about to write Box::leak when the request aborts (red `Error: Request was aborted`), an amber `⚠ Injecting rule: box-leak` card injects the rule body `Don't reach for Box::leak in production code paths`, and the agent then course-corrects by proposing `Arc<str>` and asking the user to confirm.](https://chudware.sh/clips/ttsr-poster.webp)
 
-_[Watch the capture ↗](https://omp.sh/clips/ttsr.mp4)_
+_[Watch the capture ↗](https://chudware.sh/clips/ttsr.mp4)_
 
 ### 05 · First-class subagents
 
 Split a job across workers and get typed results back. task fans out into isolated worktrees, each worker runs its own tool surface, and the final yield is a schema-validated object the parent reads directly. No prose to parse, no merge conflicts between siblings, no orphaned edits.
 
-![Chudcode TUI showing `task` spawning two subagents `ComponentsExports` and `RoutesExports`, the constraints block requiring an IRC DM between peers, the per-subagent status cards with cost and duration, and a final Findings section listing both exports plus an honest 'IRC coordination note' about a one-sided handshake.](https://omp.sh/clips/irc-poster.webp)
+![Chudcode TUI showing `task` spawning two subagents `ComponentsExports` and `RoutesExports`, the constraints block requiring an IRC DM between peers, the per-subagent status cards with cost and duration, and a final Findings section listing both exports plus an honest 'IRC coordination note' about a one-sided handshake.](https://chudware.sh/clips/irc-poster.webp)
 
-_[Watch the capture ↗](https://omp.sh/clips/irc.mp4)_
+_[Watch the capture ↗](https://chudware.sh/clips/irc.mp4)_
 
 Watch the fan-out while it runs: `Alt+A` opens [Agent Hub](docs/agent-hub.md), where the roster shows current activity and usage for every subagent. Open one to read its live transcript, type a steering message, revive a parked worker, or kill a stuck one without aborting the parent session.
 
@@ -146,25 +146,25 @@ Watch the fan-out while it runs: `Alt+A` opens [Agent Hub](docs/agent-hub.md), w
 
 Pair a reviewer model to the 'advisor' role and it reads every turn the main agent takes, injecting notes inline — a quiet aside, a concern, or a hard blocker. It runs on its own context and its own model, so it catches what the doer rushed past. The main agent sees the note and course-corrects, or tells you why it won't.
 
-![Chudcode TUI: /advisor status shows the advisor running on openai-codex/gpt-5.5; after the main agent scopes a catch to ENOENT instead of swallowing every error, an amber 'Advisor 1 note (concern)' card warns the fix no longer matches the user's literal acceptance criterion.](https://omp.sh/clips/advisor-poster.webp)
+![Chudcode TUI: /advisor status shows the advisor running on openai-codex/gpt-5.5; after the main agent scopes a catch to ENOENT instead of swallowing every error, an amber 'Advisor 1 note (concern)' card warns the fix no longer matches the user's literal acceptance criterion.](https://chudware.sh/clips/advisor-poster.webp)
 
-_[Watch the capture ↗](https://omp.sh/clips/advisor.mp4)_
+_[Watch the capture ↗](https://chudware.sh/clips/advisor.mp4)_
 
 ### 07 · Hand someone the link, they're in.
 
 /collab puts your live session on a relay and hands back a link — and a QR. A teammate joins from another terminal with Chudcode join, or just opens it in a browser. Share read-write to pair on the same agent, or /collab view for a read-only link anyone can watch but no one can steer. Frames are sealed client-side; the relay never sees your keys.
 
-![Chudcode TUI: /collab view prints 'Collab session started!' with a Chudcode join command, a my.omp.sh browser link, the note 'Anyone with this link can watch the session but cannot prompt the agent', and a large scannable QR code.](https://omp.sh/clips/collab-poster.webp)
+![Chudcode TUI: /collab view prints 'Collab session started!' with a Chudcode join command, a my.chudware.sh browser link, the note 'Anyone with this link can watch the session but cannot prompt the agent', and a large scannable QR code.](https://chudware.sh/clips/collab-poster.webp)
 
-_[Watch the capture ↗](https://omp.sh/clips/collab.mp4)_
+_[Watch the capture ↗](https://chudware.sh/clips/collab.mp4)_
 
 ### 08 · Read a pdf on arxiv, why not?
 
 web_search chains twenty-three ranked providers and hands whatever URLs it finds straight to read. Arxiv PDFs, GitHub pages, Stack Overflow threads come back as structured markdown with anchors intact — the same tool surface you use on local files. Cite, follow, quote, never lose where you came from.
 
-![Chudcode TUI: web_search returns 10 ranked Perplexity sources for inference-time compute scaling, the agent picks an arxiv paper, calls read https://arxiv.org/pdf/2604.10739v1, and summarizes the paper's headline result with real numbers.](https://omp.sh/clips/web-poster.webp)
+![Chudcode TUI: web_search returns 10 ranked Perplexity sources for inference-time compute scaling, the agent picks an arxiv paper, calls read https://arxiv.org/pdf/2604.10739v1, and summarizes the paper's headline result with real numbers.](https://chudware.sh/clips/web-poster.webp)
 
-_[Watch the capture ↗](https://omp.sh/clips/web.mp4)_
+_[Watch the capture ↗](https://chudware.sh/clips/web.mp4)_
 
 ### 09 · Unapologetically native. Even on Windows.
 
@@ -184,7 +184,7 @@ Other harnesses bolt on gh_issue_view, gh_pr_view, gh_search — each with its o
 
 ### 13 · Memory the agent curates
 
-The agent remembers your codebase between sessions. It writes facts mid-run with retain, captures reusable lessons with learn, pulls them back with recall, and compresses each session into a mental model that loads on the first turn of the next one. Pick the engine with `memory.backend` — local, Hindsight, or Mnemopi. Project-scoped by default, so what it learns about this repo stays with this repo.
+The agent remembers your codebase between sessions. It writes facts mid-run with retain, captures reusable lessons with learn, pulls them back with recall, and compresses each session into a mental model that loads on the first turn of the next one. Pick the engine with `memory.backend` — local, Hindsight, or Mnemo. Project-scoped by default, so what it learns about this repo stays with this repo.
 
 ### 14 · ACP: editor-drivable agent
 
@@ -206,17 +206,17 @@ Sixteen internal schemes — `pr://`, `issue://`, `agent://`, `skill://`, `ssh:/
 
 Each merge conflict becomes one URL. The agent writes `@theirs`, `@ours`, or `@base` to `conflict://N` and the file resolves cleanly. Bulk form: `conflict://*`.
 
-![Chudcode TUI: ✓ Read src/session.ts (⚠ 1 conflict), then ✓ Write conflict://1 · 1 line with content @theirs, then a confirmation 'Resolved.'](https://omp.sh/clips/conflict-poster.webp)
+![Chudcode TUI: ✓ Read src/session.ts (⚠ 1 conflict), then ✓ Write conflict://1 · 1 line with content @theirs, then a confirmation 'Resolved.'](https://chudware.sh/clips/conflict-poster.webp)
 
-_[Watch the capture ↗](https://omp.sh/clips/conflict.mp4)_
+_[Watch the capture ↗](https://chudware.sh/clips/conflict.mp4)_
 
 ### 19 · Preview, then accept.
 
 `ast_edit` returns a _(proposed)_ card with the replacement count. The change is staged. The agent writes a one-line reason to `xd://resolve`; the TUI turns it into an **Accept** card and the disk move happens — atomic, all or nothing.
 
-![Chudcode TUI: ✓ AST Edit: console.log($X) (proposed) 3 replacements · 1 file, then ✓ Accept: 3 replacements in 1 file (AST Edit), followed by 'Applied 3 replacements in src/auth.ts.'](https://omp.sh/clips/codemod-poster.webp)
+![Chudcode TUI: ✓ AST Edit: console.log($X) (proposed) 3 replacements · 1 file, then ✓ Accept: 3 replacements in 1 file (AST Edit), followed by 'Applied 3 replacements in src/auth.ts.'](https://chudware.sh/clips/codemod-poster.webp)
 
-_[Watch the capture ↗](https://omp.sh/clips/codemod.mp4)_
+_[Watch the capture ↗](https://chudware.sh/clips/codemod.mp4)_
 
 ### 20 · Drives a _real browser_. _Or your Slack?_
 
@@ -281,7 +281,7 @@ Stealth's on by default, so pages see a normal user instead of a headless bot. T
 
 Setting-gated, off by default: `github`, `security_scan`, `generate_image`, `tts`, `checkpoint`, `rewind`, and the memory tools (`retain`/`recall`/`reflect`/`memory_edit`, per `memory.backend`). `inspect_image` activates automatically when the active model can't see.
 
-[Full reference →](https://omp.sh/docs/tools)
+[Full reference →](https://chudware.sh/docs/tools)
 
 ### Prompt controls
 
@@ -329,7 +329,7 @@ Ollama `local` · Ollama Cloud · LM Studio `local` · llama.cpp `local` · vLLM
 
 ### Custom OpenAI-compatible providers
 
-Define custom providers in `~/.omp/agent/models.yml`:
+Define custom providers in `~/.chudcode/agent/models.yml`:
 
 ```yaml
 providers:
@@ -346,7 +346,7 @@ providers:
 
 Run `chudcode models spark` to verify discovery. Then run `chudcode setup` and choose the model in the default-model step, or open `/model` in a session and assign it to the `default` role.
 
-To preconfigure the default without the picker, add the selector to `~/.omp/agent/config.yml`:
+To preconfigure the default without the picker, add the selector to `~/.chudcode/agent/config.yml`:
 
 ```yaml
 modelRoles:
@@ -355,12 +355,12 @@ modelRoles:
 
 ### Four knobs that make routing useful
 
-- **Custom providers** — Declare anything that speaks `openai-completions`, `openai-responses`, `openai-codex-responses`, `azure-openai-responses`, `anthropic-messages`, `bedrock-converse-stream`, `google-generative-ai`, `google-gemini-cli`, or `google-vertex` in `~/.omp/agent/models.yml`.
+- **Custom providers** — Declare anything that speaks `openai-completions`, `openai-responses`, `openai-codex-responses`, `azure-openai-responses`, `anthropic-messages`, `bedrock-converse-stream`, `google-generative-ai`, `google-gemini-cli`, or `google-vertex` in `~/.chudcode/agent/models.yml`.
 - **Fallback chains** — Per-role or per-model chains under `retry.fallbackChains`. When the primary throws 429s or hits a quota wall, the next entry takes the rest of the turn — restored on cooldown.
 - **Path-scoped models** — Scope `enabledModels` and `disabledProviders` entries to a `path:` prefix to pin a different model set on one repo without touching the global config. Scoped entries cover the path and everything under it.
 - **Round-robin credentials** — Stack API keys per provider and the runtime rotates with session affinity and per-credential backoff. Useful when one key would burn its quota by lunch.
 
-Full provider & routing reference at [omp.sh/docs/providers](https://omp.sh/docs/providers).
+Full provider & routing reference at [chudware.sh/docs/providers](https://chudware.sh/docs/providers).
 
 ## Twenty-three backends. _One tool the agent already knows_.
 
@@ -419,27 +419,27 @@ Vuln lookups answer with vendor data, not blog summaries.
 - **OSV** — open source vuln feed
 - **CISA KEV** — known exploited vulns
 
-[`web_search` reference ↗](https://omp.sh/docs/tools#web_search)
+[`web_search` reference ↗](https://chudware.sh/docs/tools#web_search)
 
 ## Roughly **~80,000** lines of Rust, doing the work other harnesses shell out for.
 
 Six crates, one platform-tagged N-API addon. Search, shell, AST, highlight, PTY, desktop control, image decode, BPE counting — all in-process on the libuv pool. No fork/exec on the hot path. Another ~80k lines ride along vendored: the brush bash fork, plus 58 command-line utilities — coreutils, findutils, sed, jq, ripgrep-backed grep, fd, diff, moreutils — ported into the builtins crate and compiled straight into the shell.
 
-- Crates: `pi-natives`, `pi-shell`, `pi-ast`, `pi-iso`, `pi-voice`, `pi-walker`
+- Crates: `chud-natives`, `chud-shell`, `chud-ast`, `chud-iso`, `chud-voice`, `chud-walker`
 - Platforms: `linux-x64`, `linux-arm64`, `darwin-x64`, `darwin-arm64`, `win32-x64` — x64 ships dual AVX2 and baseline binaries
 
 Per crate, code lines only:
 
 | Crate         | What it does                                                                           |   ~LoC |
 | ------------- | -------------------------------------------------------------------------------------- | -----: |
-| pi-shell      | Embedded bash engine · persistent sessions · in-process coreutils dispatch · minimizer | 38,000 |
-| pi-natives    | The N-API surface — every module in the table below                                    | 25,000 |
-| pi-walker     | Parallel ignore-aware walker + scan cache shared by grep · glob · workspace · shell    |  5,200 |
-| pi-iso        | Workspace isolation · apfs · btrfs · zfs · reflink · overlayfs · projfs · rcopy        |  3,300 |
-| pi-ast        | tree-sitter + ast-grep matching, block resolution, structural summaries                |  2,900 |
-| pi-voice      | Audio capture/playback · Opus · live WebRTC                                            |  1,000 |
+| chud-shell      | Embedded bash engine · persistent sessions · in-process coreutils dispatch · minimizer | 38,000 |
+| chud-natives    | The N-API surface — every module in the table below                                    | 25,000 |
+| chud-walker     | Parallel ignore-aware walker + scan cache shared by grep · glob · workspace · shell    |  5,200 |
+| chud-iso        | Workspace isolation · apfs · btrfs · zfs · reflink · overlayfs · projfs · rcopy        |  3,300 |
+| chud-ast        | tree-sitter + ast-grep matching, block resolution, structural summaries                |  2,900 |
+| chud-voice      | Audio capture/playback · Opus · live WebRTC                                            |  1,000 |
 
-Inside `pi-natives`, the per-module breakdown (glue and tests omitted):
+Inside `chud-natives`, the per-module breakdown (glue and tests omitted):
 
 | Module        | What it does                                                                      | Powered by                                |   ~LoC |
 | ------------- | --------------------------------------------------------------------------------- | ----------------------------------------- | -----: |
@@ -481,7 +481,7 @@ The same prompt cards surface over ACP, so editors get the picker without writin
 
 ### SDK — embed in Node
 
-`@oh-my-pi/pi-coding-agent`
+`@chudware/coding-agent`
 
 Node and TypeScript hosts pull the engine in directly. The package exposes `ModelRegistry`, `SessionManager`, `createAgentSession`, and `discoverAuthStorage`; the session emits typed events you subscribe to.
 
@@ -491,7 +491,7 @@ import {
   SessionManager,
   createAgentSession,
   discoverAuthStorage,
-} from "@oh-my-pi/pi-coding-agent";
+} from "@chudware/coding-agent";
 
 const auth = await discoverAuthStorage();
 const models = new ModelRegistry(auth);
@@ -532,13 +532,13 @@ The [Agent Client Protocol](https://github.com/zed-industries/agent-client-proto
 | `write`      | `fs/write_text_file`                |
 | `edit, bash` | `session/request_permission`        |
 
-Full reference: [omp.sh/docs/sdk](https://omp.sh/docs/sdk).
+Full reference: [chudware.sh/docs/sdk](https://chudware.sh/docs/sdk).
 
 ## A harness worth keeping is one you _don't_ outgrow.
 
-Pick it up at **[omp.sh](https://omp.sh)**.
+Pick it up at **[chudware.sh](https://chudware.sh)**.
 
-chudcode is a fork of [Pi](https://github.com/badlogic/pi-mono) by [Mario Zechner](https://github.com/mariozechner), rewritten as a coding-first surface: sessions, subagents, slash commands, extensions — all TypeScript, all MIT, all on [GitHub](https://github.com/can1357/oh-my-pi). Shape it from config, hook it from outside, or read the source when you need to.
+chudcode is a fork of [Chud](https://github.com/badlogic/chudcode-mono) by [Mario Zechner](https://github.com/mariozechner), rewritten as a coding-first surface: sessions, subagents, slash commands, extensions — all TypeScript, all MIT, all on [GitHub](https://github.com/Hunter-124/chudcode). Shape it from config, hook it from outside, or read the source when you need to.
 
 ### Primitives
 
@@ -554,7 +554,7 @@ Ask Chudcode to write the piece you're missing, then `/reload-plugins`. Keep it 
 
 ## Philosophy
 
-chudcode is a fork of [pi-mono](https://github.com/badlogic/pi-mono) by [Mario Zechner](https://github.com/mariozechner), extended with a batteries-included coding workflow.
+chudcode is a fork of [chudcode-mono](https://github.com/badlogic/chudcode-mono) by [Mario Zechner](https://github.com/mariozechner), extended with a batteries-included coding workflow.
 
 Key ideas:
 
@@ -575,7 +575,7 @@ bun setup
 bun dev
 ```
 
-`bun setup` installs Bun workspaces and builds `@oh-my-pi/pi-natives`. Re-run `bun run build:native` after changing Rust crates or `packages/natives`.
+`bun setup` installs Bun workspaces and builds `@chudware/natives`. Re-run `bun run build:native` after changing Rust crates or `packages/natives`.
 
 Nix users get the pinned Bun and Rust toolchains plus all native build dependencies:
 
@@ -585,7 +585,7 @@ bun setup
 bun dev
 ```
 
-Build and smoke-test the distributable Nix package with `nix build .#omp`. Wayland screencast support is off by default (linking libpipewire adds ~750 MB of runtime closure); enable it with `omp.override { withWaylandScreencast = true; }`. `nix/bun.nix` is generated only when `bun.lock` changes; releases regenerate it automatically. For dependency changes, run:
+Build and smoke-test the distributable Nix package with `nix build .#chudcode`. Wayland screencast support is off by default (linking libpipewire adds ~750 MB of runtime closure); enable it with `chudcode.override { withWaylandScreencast = true; }`. `nix/bun.nix` is generated only when `bun.lock` changes; releases regenerate it automatically. For dependency changes, run:
 
 ```sh
 bun run gen:nix
@@ -611,36 +611,36 @@ For architecture and contribution guidelines, see [packages/coding-agent/DEVELOP
 
 | Package                                                                       | Description                                                                 |
 | ----------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
-| **[@oh-my-pi/collab-web](packages/collab-web)**                               | Browser guest client, mock host, and local relay for collab live sessions   |
-| **[@oh-my-pi/pi-ai](packages/ai)**                                            | Multi-provider LLM client with streaming and model/provider integration     |
-| **[@oh-my-pi/pi-catalog](packages/catalog)**                                  | Model catalog: bundled model database, provider descriptors, and identity   |
-| **[@oh-my-pi/pi-agent-core](packages/agent)**                                 | Agent runtime with tool calling and state management                        |
-| **[@oh-my-pi/pi-coding-agent](packages/coding-agent)**                        | Interactive coding agent CLI and SDK                                        |
-| **[@oh-my-pi/pi-tui](packages/tui)**                                          | Terminal UI library with differential rendering                             |
-| **[@oh-my-pi/pi-natives](packages/natives)**                                  | N-API bindings for grep, shell, image, text, syntax highlighting, and more  |
-| **[@oh-my-pi/omp-stats](packages/stats)**                                     | Local observability dashboard for AI usage statistics                       |
-| **[@oh-my-pi/omptype](packages/omptype)**                                     | ArkType-compatible schema validation with lazy JIT compilation              |
-| **[@oh-my-pi/pi-utils](packages/utils)**                                      | Shared utilities (logging, streams, dirs/env/process helpers)               |
-| **[@oh-my-pi/pi-wire](packages/wire)**                                        | Shared collab live-session protocol types and relay constants               |
-| **[@oh-my-pi/hashline](packages/hashline)**                                   | Line-anchored patch language and applier behind the `edit` tool             |
-| **[@oh-my-pi/pi-mnemopi](packages/mnemopi)**                                  | Local SQLite memory engine for Chudcode agents                              |
-| **[@oh-my-pi/snapcompact](packages/snapcompact)**                             | Bitmap-frame context compression package and SQuAD eval suite               |
-| **[@oh-my-pi/browser-relay](packages/browser-relay)**                         | Chrome extension that lets the browser tool drive your existing tabs        |
-| **[@oh-my-pi/pi-metaharness](packages/metaharness)**                          | Unified benchmark runners, Harbor run storage, REST/SSE API, live dashboard |
-| **[@oh-my-pi/typescript-edit-benchmark](packages/typescript-edit-benchmark)** | Edit benchmark suite built on TypeScript source mutations                   |
+| **[@chudware/collab-web](packages/collab-web)**                               | Browser guest client, mock host, and local relay for collab live sessions   |
+| **[@chudware/ai](packages/ai)**                                            | Multi-provider LLM client with streaming and model/provider integration     |
+| **[@chudware/catalog](packages/catalog)**                                  | Model catalog: bundled model database, provider descriptors, and identity   |
+| **[@chudware/agent-core](packages/agent)**                                 | Agent runtime with tool calling and state management                        |
+| **[@chudware/coding-agent](packages/coding-agent)**                        | Interactive coding agent CLI and SDK                                        |
+| **[@chudware/tui](packages/tui)**                                          | Terminal UI library with differential rendering                             |
+| **[@chudware/natives](packages/natives)**                                  | N-API bindings for grep, shell, image, text, syntax highlighting, and more  |
+| **[@chudware/stats](packages/stats)**                                     | Local observability dashboard for AI usage statistics                       |
+| **[@chudware/chudtype](packages/chudtype)**                                     | ArkType-compatible schema validation with lazy JIT compilation              |
+| **[@chudware/utils](packages/utils)**                                      | Shared utilities (logging, streams, dirs/env/process helpers)               |
+| **[@chudware/wire](packages/wire)**                                        | Shared collab live-session protocol types and relay constants               |
+| **[@chudware/hashline](packages/hashline)**                                   | Line-anchored patch language and applier behind the `edit` tool             |
+| **[@chudware/mnemo](packages/mnemo)**                                  | Local SQLite memory engine for Chudcode agents                              |
+| **[@chudware/snapcompact](packages/snapcompact)**                             | Bitmap-frame context compression package and SQuAD eval suite               |
+| **[@chudware/browser-relay](packages/browser-relay)**                         | Chrome extension that lets the browser tool drive your existing tabs        |
+| **[@chudware/metaharness](packages/metaharness)**                          | Unified benchmark runners, Harbor run storage, REST/SSE API, live dashboard |
+| **[@chudware/typescript-edit-benchmark](packages/typescript-edit-benchmark)** | Edit benchmark suite built on TypeScript source mutations                   |
 
 ### Rust Crates
 
 | Crate                                              | Description                                                                                         |
 | -------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
-| **[pi-natives](crates/pi-natives)**                | Core Rust native addon (N-API `cdylib`) used by `@oh-my-pi/pi-natives`; aggregates the crates below |
-| **[pi-shell](crates/pi-shell)**                    | Embedded shell / PTY / process management split out of `pi-natives` (wraps `brush-*`)               |
-| **[pi-ast](crates/pi-ast)**                        | tree-sitter-based code summarizer and AST utilities (50+ language grammars)                         |
-| **[pi-iso](crates/pi-iso)**                        | Task isolation backend resolver: APFS clones, btrfs/zfs reflinks, overlayfs, projfs, rcopy          |
-| **[pi-voice](crates/pi-voice)**                    | Audio capture/playback, Opus codecs, and live WebRTC streaming primitives                           |
-| **[pi-walker](crates/pi-walker)**                  | Parallel ignore-aware filesystem walker with the scan cache shared by grep, glob, and workspace     |
+| **[chud-natives](crates/chud-natives)**                | Core Rust native addon (N-API `cdylib`) used by `@chudware/natives`; aggregates the crates below |
+| **[chud-shell](crates/chud-shell)**                    | Embedded shell / PTY / process management split out of `chud-natives` (wraps `brush-*`)               |
+| **[chud-ast](crates/chud-ast)**                        | tree-sitter-based code summarizer and AST utilities (50+ language grammars)                         |
+| **[chud-iso](crates/chud-iso)**                        | Task isolation backend resolver: APFS clones, btrfs/zfs reflinks, overlayfs, projfs, rcopy          |
+| **[chud-voice](crates/chud-voice)**                    | Audio capture/playback, Opus codecs, and live WebRTC streaming primitives                           |
+| **[chud-walker](crates/chud-walker)**                  | Parallel ignore-aware filesystem walker with the scan cache shared by grep, glob, and workspace     |
 | **[brush-core](crates/vendor/brush-core)**         | Vendored fork of [brush-shell](https://github.com/reubeno/brush) for embedded bash execution        |
-| **[pi-builtins](crates/pi-builtins)**              | Bash builtins (cd, echo, test, printf, read, export, …) plus 67 in-process command-line utilities |
+| **[chud-builtins](crates/chud-builtins)**              | Bash builtins (cd, echo, test, printf, read, export, …) plus 67 in-process command-line utilities |
 
 ## Contributing
 
@@ -656,19 +656,19 @@ guidelines on contributing.
 Chudcode is licensed under the [MIT License](LICENSE).
 
 Third-party and vendored code, including `crates/vendor/brush-core` and the
-third-party portions identified in `crates/pi-builtins/LICENSE`, remains under
+third-party portions identified in `crates/chud-builtins/LICENSE`, remains under
 its respective upstream license. See `THIRD-PARTY-NOTICES.txt` and
 component-local notices for attribution and additional terms.
 
 © 2025 Mario Zechner  
 © 2025-2026 Can Bölük  
-© 2026 Stencil Labs, Inc.
+© 2026 Chudware
 
 _made for terminals that stay open_
 
-- [omp.sh](https://omp.sh)
-- [GitHub](https://github.com/can1357/oh-my-pi)
-- [Changelog](https://github.com/can1357/oh-my-pi/blob/main/packages/coding-agent/CHANGELOG.md)
-- [npm](https://www.npmjs.com/package/@oh-my-pi/pi-coding-agent)
+- [chudware.sh](https://chudware.sh)
+- [GitHub](https://github.com/Hunter-124/chudcode)
+- [Changelog](https://github.com/Hunter-124/chudcode/blob/main/packages/coding-agent/CHANGELOG.md)
+- [npm](https://www.npmjs.com/package/@chudware/coding-agent)
 - [Discord](https://discord.gg/4NMW9cdXZa)
-- [MIT](https://github.com/can1357/oh-my-pi/blob/main/LICENSE)
+- [MIT](https://github.com/Hunter-124/chudcode/blob/main/LICENSE)

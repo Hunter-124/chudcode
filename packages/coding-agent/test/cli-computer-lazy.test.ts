@@ -1,9 +1,9 @@
 import { expect, test } from "bun:test";
-import { TempDir } from "@oh-my-pi/pi-utils";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
+import { TempDir } from "@chudware/utils";
+import * as fsx from "@chudware/utils/fsx";
 
 test("normal CLI startup keeps computer worker modules lazy", async () => {
-	using tempDir = TempDir.createSync("@omp-cli-computer-lazy-");
+	using tempDir = TempDir.createSync("@chudcode-cli-computer-lazy-");
 	const cliUrl = new URL("../src/cli.ts", import.meta.url).href;
 	const probePath = tempDir.join("probe.ts");
 	// Import by file URL inside the child so only that fresh process evaluates the CLI graph.

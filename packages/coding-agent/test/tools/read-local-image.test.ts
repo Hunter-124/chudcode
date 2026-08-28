@@ -11,12 +11,12 @@ import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import { Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
-import { InternalUrlRouter, LocalProtocolHandler, parseInternalUrl } from "@oh-my-pi/pi-coding-agent/internal-urls";
-import type { ToolSession } from "@oh-my-pi/pi-coding-agent/tools";
-import { ReadTool } from "@oh-my-pi/pi-coding-agent/tools/read";
-import { removeWithRetries } from "@oh-my-pi/pi-utils";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
+import { Settings } from "@chudware/coding-agent/config/settings";
+import { InternalUrlRouter, LocalProtocolHandler, parseInternalUrl } from "@chudware/coding-agent/internal-urls";
+import type { ToolSession } from "@chudware/coding-agent/tools";
+import { ReadTool } from "@chudware/coding-agent/tools/read";
+import { removeWithRetries } from "@chudware/utils";
+import * as fsx from "@chudware/utils/fsx";
 
 // 1x1 transparent PNG — small enough to pass through image loading untouched.
 const TINY_PNG = Buffer.from(

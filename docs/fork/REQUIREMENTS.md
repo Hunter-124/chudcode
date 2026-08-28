@@ -158,12 +158,12 @@ progress) · 1's draft-preservation half (in progress) · animated usage gauge �
 
 ## Constraints on how we contribute
 
-Upstream (`can1357/oh-my-pi`) has binding rules in `CONTRIBUTING.md`:
+Upstream (`Hunter-124/chudcode`) has binding rules in `CONTRIBUTING.md`:
 
 - Major features (new subsystems, large UI changes, multi-package changes)
   require **Discord discussion before implementation**. A GitHub issue is
   explicitly not a substitute. This covers items 1, 4, 5, 6, 7, 10, 13.
-- **Do not open an issue for work you intend to submit** — their `robomp` bot
+- **Do not open an issue for work you intend to submit** — their `robochud` bot
   picks up actionable issues and may start the same work in parallel.
 - Every PR body must contain at least one sentence written by the submitter in
   their own words, and the submitter must have reviewed the diff and exercised

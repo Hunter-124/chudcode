@@ -1,21 +1,21 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "bun:test";
 import * as path from "node:path";
-import { type } from "@oh-my-pi/omptype";
-import { Agent, type AgentMessage, type AgentTool } from "@oh-my-pi/pi-agent-core";
-import * as compactionModule from "@oh-my-pi/pi-agent-core/compaction";
-import { AssistantMessageEventStream } from "@oh-my-pi/pi-ai/utils/event-stream";
-import { getBundledModel } from "@oh-my-pi/pi-catalog/models";
-import { ModelRegistry } from "@oh-my-pi/pi-coding-agent/config/model-registry";
-import { Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
-import { ExtensionRuntime, loadExtensionFromFactory } from "@oh-my-pi/pi-coding-agent/extensibility/extensions/loader";
-import { ExtensionRunner } from "@oh-my-pi/pi-coding-agent/extensibility/extensions/runner";
-import type { GoalModeState } from "@oh-my-pi/pi-coding-agent/goals/state";
-import { AgentSession } from "@oh-my-pi/pi-coding-agent/session/agent-session";
-import { AuthStorage } from "@oh-my-pi/pi-coding-agent/session/auth-storage";
-import { convertToLlm } from "@oh-my-pi/pi-coding-agent/session/messages";
-import { SessionManager } from "@oh-my-pi/pi-coding-agent/session/session-manager";
-import { EventBus } from "@oh-my-pi/pi-coding-agent/utils/event-bus";
-import { TempDir } from "@oh-my-pi/pi-utils";
+import { type } from "@chudware/chudtype";
+import { Agent, type AgentMessage, type AgentTool } from "@chudware/agent-core";
+import * as compactionModule from "@chudware/agent-core/compaction";
+import { AssistantMessageEventStream } from "@chudware/ai/utils/event-stream";
+import { getBundledModel } from "@chudware/catalog/models";
+import { ModelRegistry } from "@chudware/coding-agent/config/model-registry";
+import { Settings } from "@chudware/coding-agent/config/settings";
+import { ExtensionRuntime, loadExtensionFromFactory } from "@chudware/coding-agent/extensibility/extensions/loader";
+import { ExtensionRunner } from "@chudware/coding-agent/extensibility/extensions/runner";
+import type { GoalModeState } from "@chudware/coding-agent/goals/state";
+import { AgentSession } from "@chudware/coding-agent/session/agent-session";
+import { AuthStorage } from "@chudware/coding-agent/session/auth-storage";
+import { convertToLlm } from "@chudware/coding-agent/session/messages";
+import { SessionManager } from "@chudware/coding-agent/session/session-manager";
+import { EventBus } from "@chudware/coding-agent/utils/event-bus";
+import { TempDir } from "@chudware/utils";
 
 function activeGoalState(): GoalModeState {
 	const now = Date.now();
@@ -451,8 +451,8 @@ describe("AgentSession mid-run threshold compaction", () => {
 	it("keeps synchronous message_end mutations notification-local during mid-run compaction", async () => {
 		const extensionRuntime = new ExtensionRuntime();
 		const extension = await loadExtensionFromFactory(
-			pi => {
-				pi.on("message_end", event => {
+			chud => {
+				chud.on("message_end", event => {
 					if (event.message.role !== "assistant" || event.message.stopReason !== "toolUse") return;
 					const [block] = event.message.content;
 					if (block?.type !== "toolCall") return;

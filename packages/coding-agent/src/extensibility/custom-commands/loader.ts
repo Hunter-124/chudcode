@@ -1,19 +1,19 @@
 /**
  * Custom command loader - loads TypeScript command modules using native Bun import.
  *
- * Dependencies (the arktype validation and pi-coding-agent) are injected via the
+ * Dependencies (the arktype validation and chudcode-agent) are injected via the
  * CustomCommandAPI to avoid import resolution issues with custom commands loaded from user directories.
  */
 import * as fs from "node:fs";
 import * as path from "node:path";
-import { type } from "@oh-my-pi/omptype";
-import * as zod from "@oh-my-pi/omptype/zod";
-import { getAgentDir, getProjectDir, isEnoent, logger } from "@oh-my-pi/pi-utils";
+import { type } from "@chudware/chudtype";
+import * as zod from "@chudware/chudtype/zod";
+import { getAgentDir, getProjectDir, isEnoent, logger } from "@chudware/utils";
 import { getConfigDirs } from "../../config";
 
 import { execCommand } from "../../exec/exec";
 // Runtime self-reference: dereference this namespace only inside loader functions to keep the index.ts cycle safe.
-import * as PiCodingAgent from "../../index";
+import * as ChudCodingAgent from "../../index";
 import * as typebox from "../legacy-typebox";
 import { GreenCommand } from "./bundled/ci-green";
 import { ReviewCommand } from "./bundled/review";
@@ -149,7 +149,7 @@ export interface LoadCustomCommandsOptions {
 }
 
 /**
- * Load bundled commands (shipped with pi-coding-agent).
+ * Load bundled commands (shipped with chudcode-agent).
  */
 function loadBundledCommands(sharedApi: CustomCommandAPI): LoadedCustomCommand[] {
 	const bundled: LoadedCustomCommand[] = [];
@@ -192,7 +192,7 @@ export async function loadCustomCommands(options: LoadCustomCommandsOptions = {}
 		typebox,
 		arktype,
 		zod,
-		pi: PiCodingAgent,
+		chud: ChudCodingAgent,
 	};
 
 	// 1. Load bundled commands first (lowest priority - can be overridden)

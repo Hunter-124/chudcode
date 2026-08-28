@@ -7,7 +7,7 @@ import {
 	parsePatchStreaming,
 	splitAddressableFileLines,
 	Tokenizer,
-} from "@oh-my-pi/hashline";
+} from "@chudware/hashline";
 
 function applyPatch(text: string, diff: string): string {
 	return applyEdits(text, parsePatch(diff).edits).text;

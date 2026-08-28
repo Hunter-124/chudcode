@@ -1,6 +1,6 @@
 import * as crypto from "node:crypto";
 import * as fs from "node:fs/promises";
-import { sleep } from "@oh-my-pi/pi-utils/async";
+import { sleep } from "@chudware/utils/async";
 import type { GeneratedProvider } from "../src/models";
 
 const DEFAULT_RUNS = 7;
@@ -233,7 +233,7 @@ async function runProbe(scenario: Scenario, provider: string, holdMs: number): P
 	const initial = await sampleMemory();
 	// Dynamic imports are the measurement boundary: static imports would charge
 	// addon and catalog initialization to the process baseline.
-	await import("@oh-my-pi/pi-natives");
+	await import("@chudware/natives");
 	Bun.gc(true);
 	const addon = await sampleMemory();
 	const catalog = await import("../src/models");

@@ -1,10 +1,10 @@
 import { describe, expect, it } from "bun:test";
-import type { StreamFn } from "@oh-my-pi/pi-agent-core";
-import type { Context, Model, SimpleStreamOptions } from "@oh-my-pi/pi-ai";
-import { AssistantMessageEventStream } from "@oh-my-pi/pi-ai/utils/event-stream";
-import { getBundledModel } from "@oh-my-pi/pi-catalog/models";
-import { Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
-import { createSettingsAwareStreamFn } from "@oh-my-pi/pi-coding-agent/session/settings-stream-fn";
+import type { StreamFn } from "@chudware/agent-core";
+import type { Context, Model, SimpleStreamOptions } from "@chudware/ai";
+import { AssistantMessageEventStream } from "@chudware/ai/utils/event-stream";
+import { getBundledModel } from "@chudware/catalog/models";
+import { Settings } from "@chudware/coding-agent/config/settings";
+import { createSettingsAwareStreamFn } from "@chudware/coding-agent/session/settings-stream-fn";
 
 const model = getBundledModel("anthropic", "claude-sonnet-4-6");
 if (!model) throw new Error("Expected bundled Claude Sonnet 4.6 model");

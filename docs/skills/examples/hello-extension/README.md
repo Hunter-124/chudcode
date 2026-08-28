@@ -7,17 +7,17 @@ A minimal `Chudcode` extension that demonstrates the two most common authoring p
 **Option A — drop into user extensions directory:**
 
 ```
-cp -r . ~/.omp/agent/extensions/hello-extension
+cp -r . ~/.chudcode/agent/extensions/hello-extension
 ```
 
 Restart `chudcode`. You will see the startup notification immediately.
 
-With `chudcode --profile <name>`, use `~/.omp/profiles/<name>/agent/extensions/hello-extension` instead. `PI_CODING_AGENT_DIR` likewise changes the agent directory.
+With `chudcode --profile <name>`, use `~/.chudcode/profiles/<name>/agent/extensions/hello-extension` instead. `CHUDCODE_CODING_AGENT_DIR` likewise changes the agent directory.
 
 **Option B — point the settings `extensions` array at it:**
 
 ```yaml
-# ~/.omp/agent/config.yml
+# ~/.chudcode/agent/config.yml
 extensions:
   - /path/to/hello-extension
 ```
@@ -35,7 +35,7 @@ After loading, type `/hello` or `/hello Ada` in the Chudcode prompt. The command
 ## What it demonstrates
 
 - Default export factory receiving `ExtensionAPI`
-- `pi.on("session_start", ...)` — session lifecycle hook
-- `pi.registerCommand(...)` — slash command registration
+- `chud.on("session_start", ...)` — session lifecycle hook
+- `chud.registerCommand(...)` — slash command registration
 - `ctx.ui.notify(...)` — user-facing notification
-- `package.json` with `omp.extensions` manifest field
+- `package.json` with `chudcode.extensions` manifest field

@@ -12,14 +12,14 @@ try {
 
 /**
  * CLI entry point — registers all commands explicitly and delegates to the
- * lightweight CLI runner from pi-utils.
+ * lightweight CLI runner from chud-utils.
  */
 import { parentPort } from "node:worker_threads";
-import type { CliConfig, CommandMetadata } from "@oh-my-pi/pi-utils/cli";
-import { getActiveProfile, MIN_BUN_VERSION, resolveProfileEnv, setProfile } from "@oh-my-pi/pi-utils/dirs";
-import { interceptUnhandledRejections } from "@oh-my-pi/pi-utils/postmortem";
-import { setProcessName } from "@oh-my-pi/pi-utils/process-name";
-import { declareWorkerHostEntry, installWorkerInbox, isWorkerHostSelector } from "@oh-my-pi/pi-utils/worker-host";
+import type { CliConfig, CommandMetadata } from "@chudware/utils/cli";
+import { getActiveProfile, MIN_BUN_VERSION, resolveProfileEnv, setProfile } from "@chudware/utils/dirs";
+import { interceptUnhandledRejections } from "@chudware/utils/postmortem";
+import { setProcessName } from "@chudware/utils/process-name";
+import { declareWorkerHostEntry, installWorkerInbox, isWorkerHostSelector } from "@chudware/utils/worker-host";
 import { PRODUCT_CLI_NAME, PRODUCT_CLI_VERSION, PRODUCT_NAME, PRODUCT_VERSION } from "./brand";
 import { BLOB_BROKER_WORKER_ARG } from "./blob-broker/protocol";
 import { installProfileAlias, resolveProfileAliasCommandFromProcess } from "./cli/profile-alias";
@@ -48,8 +48,8 @@ setProcessName(PRODUCT_CLI_NAME);
 // (`B:\~BUN\root\cli.js`) but registers the main path with forward slashes
 // (`B:/~BUN/root/cli.js`), so Bun's internal match fails. `bun build --compile`
 // CLI builds are unaffected. A compiled binary's entry module is by definition
-// the process entry, so the define-folded PI_COMPILED marker stands in.
-const isProcessEntry = import.meta.main || process.env.PI_COMPILED === "true";
+// the process entry, so the define-folded CHUDCODE_COMPILED marker stands in.
+const isProcessEntry = import.meta.main || process.env.CHUDCODE_COMPILED === "true";
 
 function formatLicenseOutput(): string {
 	return `${PRODUCT_NAME} License and Third-Party Notices\n\n${rootLicense.trimEnd()}\n\n${thirdPartyNotices.trimEnd()}\n`;
@@ -58,14 +58,14 @@ function formatLicenseOutput(): string {
 // Worker-host entry declaration (Worker threads and worker subprocesses
 // re-enter `Bun.main` with a hidden argv selector instead of loading separate
 // worker entrypoints) happens inside `runCli` after profile bootstrap:
-// `@oh-my-pi/pi-utils/env` eagerly loads `.env` from the agent directory at
+// `@chudware/utils/env` eagerly loads `.env` from the agent directory at
 // import time, so it must not be imported before `setProfile` runs.
 
 async function showHelp(config: CliConfig<CommandMetadata>): Promise<void> {
 	// Root help historically loads the selected profile's environment. The
 	// lazily loaded help module imports it statically after profile bootstrap.
 	const [{ renderRootHelp }, { getExtraHelpText }] = await Promise.all([
-		import("@oh-my-pi/pi-utils/cli"),
+		import("@chudware/utils/cli"),
 		import("./cli/help-extra"),
 	]);
 	renderRootHelp(config);
@@ -86,18 +86,18 @@ async function showHelp(config: CliConfig<CommandMetadata>): Promise<void> {
  * tarball installs all exercise it on every CI run.
  */
 async function runSmokeTest(): Promise<void> {
-	const { smokeTestSyncWorker, startServer } = await import("@oh-my-pi/omp-stats");
+	const { smokeTestSyncWorker, startServer } = await import("@chudware/stats");
 	const { smokeTestTinyTitleWorker } = await import("./tiny/title-client");
 	const { smokeTestSttWorker } = await import("./stt/asr-client");
 	const { smokeTestTtsWorker } = await import("./tts/tts-client");
-	const { smokeTestMnemopiEmbedWorker } = await import("./mnemopi/embed-client");
+	const { smokeTestMnemopiEmbedWorker } = await import("./mnemo/embed-client");
 	const { smokeTestJsEvalWorker } = await import("./eval/js/context-manager");
 	// Other smoke dependencies stay lazy so normal CLI startup does not load their worker clients.
 	const { smokeTestDaemonBroker } = await import("./launch/client");
 	const { smokeTestLspMux } = await import("./lsp/mux/daemon");
 	const { smokeTestBlobBroker } = await import("./blob-broker/daemon");
 	const { smokeTestTerminalOutputWorker } = await import("./launch/terminal-output-worker-client");
-	const { getBundledModels } = await import("@oh-my-pi/pi-catalog/models");
+	const { getBundledModels } = await import("@chudware/catalog/models");
 	if (getBundledModels("openai").length === 0) {
 		throw new Error("model catalog smoke failed: bundled openai provider is empty");
 	}
@@ -157,7 +157,7 @@ async function runWorkerEntrypoint(arg: string | undefined): Promise<boolean> {
 			pending.push(event);
 		};
 		scope.onmessage = buffer;
-		await import("@oh-my-pi/omp-stats/sync-worker");
+		await import("@chudware/stats/sync-worker");
 		const handler = scope.onmessage;
 		if (handler && handler !== buffer) {
 			for (const event of pending) handler.call(scope, event);
@@ -212,7 +212,7 @@ async function runWorkerEntrypoint(arg: string | undefined): Promise<boolean> {
 		return true;
 	}
 	if (arg === MNEMOPI_EMBED_WORKER_ARG) {
-		const { startMnemopiEmbedWorker } = await import("./mnemopi/embed-worker");
+		const { startMnemopiEmbedWorker } = await import("./mnemo/embed-worker");
 		await runIpcSubprocessWorker(startMnemopiEmbedWorker);
 		return true;
 	}
@@ -350,20 +350,20 @@ export async function runCli(argv: string[]): Promise<void> {
 		if (extracted.profile !== undefined) {
 			setProfile(extracted.profile);
 		} else {
-			// No explicit --profile: activate any OMP_PROFILE/PI_PROFILE inherited
+			// No explicit --profile: activate any CHUDCODE_PROFILE/CHUDCODE_PROFILE inherited
 			// from the environment. Module-load resolution deliberately swallows an
 			// invalid value to avoid an uncaught throw before this try/catch is in
 			// scope (see `readProfileFromEnvSafe` in dirs.ts), and callers may set
-			// OMP_PROFILE after importing this module (profile aliases/tests). Surfacing
-			// validation here turns `OMP_PROFILE=.. chudcode --version` into a clean error;
+			// CHUDCODE_PROFILE after importing this module (profile aliases/tests). Surfacing
+			// validation here turns `CHUDCODE_PROFILE=.. chudcode --version` into a clean error;
 			// calling setProfile keeps every later path helper on the env-selected
 			// profile instead of the default agent directory.
-			setProfile(resolveProfileEnv(process.env.OMP_PROFILE, process.env.PI_PROFILE));
+			setProfile(resolveProfileEnv(process.env.CHUDCODE_PROFILE));
 		}
 		if (extracted.aliasName !== undefined) {
 			const profile = extracted.profile ?? getActiveProfile();
 			if (!profile) {
-				throw new Error("--alias requires --profile <name> or OMP_PROFILE");
+				throw new Error("--alias requires --profile <name> or CHUDCODE_PROFILE");
 			}
 			const result = await installProfileAlias({
 				profile,
@@ -400,7 +400,7 @@ export async function runCli(argv: string[]): Promise<void> {
 
 	// Declare this module as the worker-host entry now that the active profile
 	// is resolved. The worker-host module is side-effect-free; importing
-	// `@oh-my-pi/pi-utils/env` here would snapshot the wrong agent `.env`.
+	// `@chudware/utils/env` here would snapshot the wrong agent `.env`.
 	// Gated on `isProcessEntry`: only the real CLI process entry is a valid
 	// worker host. Worker-thread re-entry already returned above at the
 	// `__omp_worker_` dispatch, and importers (`runCli` in profile-CLI tests,
@@ -413,14 +413,14 @@ export async function runCli(argv: string[]): Promise<void> {
 		return;
 	}
 
-	// `PI_PROXY` must reach the bare global `fetch` before any provider call:
+	// `CHUDCODE_PROXY` must reach the bare global `fetch` before any provider call:
 	// OAuth refresh/login and usage probes never pass through
 	// `wrapFetchForProxy`, so without this they bypass the proxy and fail
 	// wherever the provider blocks the caller's region. Dynamically imported
-	// like every other dependency in this entry module: a static `pi-ai` import
+	// like every other dependency in this entry module: a static `chud-ai` import
 	// would load the provider graph before profile bootstrap and on paths
 	// (`--version`, worker selectors) that never touch the network.
-	const { installGlobalProxyFetch } = await import("@oh-my-pi/pi-ai/utils/proxy");
+	const { installGlobalProxyFetch } = await import("@chudware/ai/utils/proxy");
 	installGlobalProxyFetch();
 
 	if (resolvedArgv[0] === "--smoke-test") {
@@ -433,7 +433,7 @@ export async function runCli(argv: string[]): Promise<void> {
 	}
 	let stopStartupComposer: (() => void) | undefined;
 	if (
-		!process.env.PI_TIMING &&
+		!process.env.CHUDCODE_TIMING &&
 		process.stdin.isTTY === true &&
 		process.stdout.isTTY === true &&
 		(resolvedArgv.length === 0 || (resolvedArgv.length === 1 && resolvedArgv[0] === "--no-session"))
@@ -448,7 +448,7 @@ export async function runCli(argv: string[]): Promise<void> {
 
 	try {
 		const [{ run }, { commands, resolveCliArgv }] = await Promise.all([
-			import("@oh-my-pi/pi-utils/cli"),
+			import("@chudware/utils/cli"),
 			import("./cli-commands"),
 		]);
 		// Root version flags return the canonical product string above; help and

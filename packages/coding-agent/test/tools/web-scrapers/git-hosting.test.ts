@@ -1,6 +1,6 @@
 import { describe, expect, it } from "bun:test";
-import { handleGitHub, parseGitHubUrl, stripActionsLogTimestamps } from "@oh-my-pi/pi-coding-agent/web/scrapers/github";
-import { handleGitHubGist } from "@oh-my-pi/pi-coding-agent/web/scrapers/github-gist";
+import { handleGitHub, parseGitHubUrl, stripActionsLogTimestamps } from "@chudware/coding-agent/web/scrapers/github";
+import { handleGitHubGist } from "@chudware/coding-agent/web/scrapers/github-gist";
 
 const SKIP = !process.env.WEB_FETCH_INTEGRATION;
 
@@ -210,34 +210,34 @@ describe.skipIf(SKIP)("handleGitHubGist", () => {
 
 describe("parseGitHubUrl — Actions", () => {
 	it("classifies a workflow run URL", () => {
-		const gh = parseGitHubUrl("https://github.com/can1357/oh-my-pi/actions/runs/27070071296");
-		expect(gh).toEqual({ type: "actions-run", owner: "can1357", repo: "oh-my-pi", runId: 27070071296 });
+		const gh = parseGitHubUrl("https://github.com/Hunter-124/chudcode/actions/runs/27070071296");
+		expect(gh).toEqual({ type: "actions-run", owner: "Hunter-124", repo: "chudware", runId: 27070071296 });
 	});
 
 	it("classifies a job URL using the web-form singular `job` segment", () => {
-		const gh = parseGitHubUrl("https://github.com/can1357/oh-my-pi/actions/runs/27070071296/job/79897931171");
+		const gh = parseGitHubUrl("https://github.com/Hunter-124/chudcode/actions/runs/27070071296/job/79897931171");
 		expect(gh).toEqual({
 			type: "actions-job",
-			owner: "can1357",
-			repo: "oh-my-pi",
+			owner: "Hunter-124",
+			repo: "chudware",
 			runId: 27070071296,
 			jobId: 79897931171,
 		});
 	});
 
 	it("classifies a job URL using the API-form plural `jobs` segment", () => {
-		const gh = parseGitHubUrl("https://github.com/can1357/oh-my-pi/actions/runs/27070071296/jobs/79897931171");
+		const gh = parseGitHubUrl("https://github.com/Hunter-124/chudcode/actions/runs/27070071296/jobs/79897931171");
 		expect(gh?.type).toBe("actions-job");
 		expect(gh?.jobId).toBe(79897931171);
 	});
 
 	it("does not treat non-run Actions URLs (e.g. workflow files) as runs/jobs", () => {
-		expect(parseGitHubUrl("https://github.com/can1357/oh-my-pi/actions/workflows/ci.yml")?.type).toBe("other");
-		expect(parseGitHubUrl("https://github.com/can1357/oh-my-pi/actions")?.type).toBe("other");
+		expect(parseGitHubUrl("https://github.com/Hunter-124/chudcode/actions/workflows/ci.yml")?.type).toBe("other");
+		expect(parseGitHubUrl("https://github.com/Hunter-124/chudcode/actions")?.type).toBe("other");
 	});
 
 	it("does not misparse a run URL with a non-numeric id", () => {
-		expect(parseGitHubUrl("https://github.com/can1357/oh-my-pi/actions/runs/latest")?.type).toBe("other");
+		expect(parseGitHubUrl("https://github.com/Hunter-124/chudcode/actions/runs/latest")?.type).toBe("other");
 	});
 
 	it("returns null for non-github hosts", () => {
@@ -247,26 +247,26 @@ describe("parseGitHubUrl — Actions", () => {
 
 describe("parseGitHubUrl — commit", () => {
 	it("classifies a commit URL with a full SHA", () => {
-		const gh = parseGitHubUrl("https://github.com/can1357/oh-my-pi/commit/c1a1cb6149e73b345919dd4cf629b0d9ac74fb57");
+		const gh = parseGitHubUrl("https://github.com/Hunter-124/chudcode/commit/c1a1cb6149e73b345919dd4cf629b0d9ac74fb57");
 		expect(gh).toEqual({
 			type: "commit",
-			owner: "can1357",
-			repo: "oh-my-pi",
+			owner: "Hunter-124",
+			repo: "chudware",
 			ref: "c1a1cb6149e73b345919dd4cf629b0d9ac74fb57",
 		});
 	});
 
 	it("accepts an abbreviated SHA", () => {
-		expect(parseGitHubUrl("https://github.com/can1357/oh-my-pi/commit/c1a1cb6")).toEqual({
+		expect(parseGitHubUrl("https://github.com/Hunter-124/chudcode/commit/c1a1cb6")).toEqual({
 			type: "commit",
-			owner: "can1357",
-			repo: "oh-my-pi",
+			owner: "Hunter-124",
+			repo: "chudware",
 			ref: "c1a1cb6",
 		});
 	});
 
 	it("falls back to `other` for a bare /commit segment with no SHA", () => {
-		expect(parseGitHubUrl("https://github.com/can1357/oh-my-pi/commit")?.type).toBe("other");
+		expect(parseGitHubUrl("https://github.com/Hunter-124/chudcode/commit")?.type).toBe("other");
 	});
 });
 

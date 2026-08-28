@@ -2,13 +2,13 @@ import type { Database } from "bun:sqlite";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import type { AgentToolResult } from "@oh-my-pi/pi-agent-core";
-import { type FetchImpl, getEnvApiKey, type ImageContent, type TextContent } from "@oh-my-pi/pi-ai";
-import { htmlToMarkdown } from "@oh-my-pi/pi-natives";
-import { type Component, Text } from "@oh-my-pi/pi-tui";
-import { $which, ptree, truncate } from "@oh-my-pi/pi-utils";
-import { type ArchiveFormat, listArchiveRoot, sniffArchiveFormat } from "@oh-my-pi/pi-utils/ar";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
+import type { AgentToolResult } from "@chudware/agent-core";
+import { type FetchImpl, getEnvApiKey, type ImageContent, type TextContent } from "@chudware/ai";
+import { htmlToMarkdown } from "@chudware/natives";
+import { type Component, Text } from "@chudware/tui";
+import { $which, ptree, truncate } from "@chudware/utils";
+import { type ArchiveFormat, listArchiveRoot, sniffArchiveFormat } from "@chudware/utils/ar";
+import * as fsx from "@chudware/utils/fsx";
 import type { Settings } from "../config/settings";
 import { readEditableNotebookText } from "../edit/notebook";
 import type { RenderResultOptions } from "../extensibility/custom-tools/types";
@@ -518,7 +518,7 @@ function cleanFeedText(text: string): string {
  * Parse RSS/Atom feed to markdown
  */
 async function parseFeedToMarkdown(content: string, maxItems = 10): Promise<string> {
-	const { parseHTML } = await import("@oh-my-pi/pi-utils/dom");
+	const { parseHTML } = await import("@chudware/utils/dom");
 	try {
 		const doc = parseHTML(content).document;
 
@@ -882,13 +882,13 @@ async function withTempBinaryFile<T>(
 }
 
 async function renderNotebookPayload(bytes: Uint8Array, displayUrl: string): Promise<string> {
-	return withTempBinaryFile("omp-url-notebook-", ".ipynb", bytes, tempPath =>
+	return withTempBinaryFile("chudcode-url-notebook-", ".ipynb", bytes, tempPath =>
 		readEditableNotebookText(tempPath, displayUrl),
 	);
 }
 
 async function renderSqlitePayload(bytes: Uint8Array): Promise<string> {
-	return withTempBinaryFile("omp-url-sqlite-", ".sqlite", bytes, async tempPath => {
+	return withTempBinaryFile("chudcode-url-sqlite-", ".sqlite", bytes, async tempPath => {
 		let db: Database | null = null;
 		try {
 			db = await openSqliteReadConnection(tempPath);
@@ -1088,8 +1088,8 @@ async function renderUrl(
 		throw new ToolAbortError();
 	}
 
-	// Handle internal protocol URLs (e.g., pi-internal://) - return empty
-	if (url.startsWith("pi-internal://")) {
+	// Handle internal protocol URLs (e.g., chud-internal://) - return empty
+	if (url.startsWith("chud-internal://")) {
 		return {
 			url,
 			finalUrl: url,

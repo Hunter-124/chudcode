@@ -1,6 +1,6 @@
-import { THINKING_EFFORTS } from "@oh-my-pi/pi-ai";
-import { DEFAULT_SHARE_URL } from "@oh-my-pi/pi-wire";
-import { SHAPE_VARIANT_NAMES } from "@oh-my-pi/snapcompact";
+import { THINKING_EFFORTS } from "@chudware/ai";
+import { DEFAULT_SHARE_URL } from "@chudware/wire";
+import { SHAPE_VARIANT_NAMES } from "@chudware/snapcompact";
 import {
 	type BlobDestinationId,
 	type BlobDestinationMetadata,
@@ -121,8 +121,8 @@ export const BUILTIN_COMPOSER_SHAPES = [
 		description: "Full-width horizontal rules above and below, status line at bottom",
 	},
 	{
-		value: "pi",
-		label: "Pi",
+		value: "chud",
+		label: "Chud",
 		description: "Framed horizontal rules with status line at bottom",
 	},
 	{
@@ -217,7 +217,7 @@ export const TAB_GROUPS: Record<SettingTab, readonly string[]> = {
 		"Git",
 	],
 	context: ["General", "Compaction", "Rules (TTSR)", "Experimental"],
-	memory: ["General", "Auto-Learn", "Mnemopi", "Hindsight"],
+	memory: ["General", "Auto-Learn", "Mnemo", "Hindsight"],
 	files: ["Editing", "Reading", "Read Summaries", "LSP"],
 	shell: ["Bash", "Eval & Runtimes"],
 	tools: [
@@ -238,7 +238,7 @@ export const TAB_GROUPS: Record<SettingTab, readonly string[]> = {
 
 /** Status line segment identifiers */
 export type StatusLineSegmentId =
-	| "pi"
+	| "chud"
 	| "model"
 	| "mode"
 	| "path"
@@ -515,7 +515,7 @@ export const SETTINGS_SCHEMA = {
 
 	// Auth broker — credentials proxied through a remote `chudcode auth-broker serve`
 	// host. Hidden from the UI; populate via env vars or hand-edited config.yml.
-	// Env (`OMP_AUTH_BROKER_URL` / `OMP_AUTH_BROKER_TOKEN`) takes precedence so
+	// Env (`CHUDCODE_AUTH_BROKER_URL` / `CHUDCODE_AUTH_BROKER_TOKEN`) takes precedence so
 	// per-machine overrides remain trivial.
 	"auth.broker.url": { type: "string", default: undefined },
 	"auth.broker.token": { type: "string", default: undefined, credential: true },
@@ -696,7 +696,7 @@ export const SETTINGS_SCHEMA = {
 				{
 					value: "project",
 					label: "Per-project",
-					description: "Save project role models in .omp/config.yml; missing project roles use global defaults",
+					description: "Save project role models in .chudcode/config.yml; missing project roles use global defaults",
 				},
 			],
 		},
@@ -1059,12 +1059,12 @@ export const SETTINGS_SCHEMA = {
 
 	"vision.modelDir": {
 		type: "string",
-		default: "~/.omp/models/vision",
+		default: "~/.chudcode/models/vision",
 		ui: {
 			tab: "model",
 			group: "Vision",
 			label: "Vision Model Directory",
-			description: "Directory containing the local pi-vision ONNX model files",
+			description: "Directory containing the local chud-vision ONNX model files",
 		},
 	},
 
@@ -1075,7 +1075,7 @@ export const SETTINGS_SCHEMA = {
 			tab: "model",
 			group: "Vision",
 			label: "Download Vision Models",
-			description: "Download missing pi-vision model files after verifying their pinned SHA-256 checksums",
+			description: "Download missing chud-vision model files after verifying their pinned SHA-256 checksums",
 		},
 	},
 
@@ -3072,8 +3072,8 @@ export const SETTINGS_SCHEMA = {
 				{ value: "local", label: "Local", description: "Local rollout summarisation pipeline (memory_summary.md)" },
 				{ value: "hindsight", label: "Hindsight", description: "Vectorize Hindsight remote memory service" },
 				{
-					value: "mnemopi",
-					label: "Mnemopi",
+					value: "mnemo",
+					label: "Mnemo",
 					description: "Local SQLite recall/retain backend with optional embeddings",
 				},
 			],
@@ -3092,7 +3092,7 @@ export const SETTINGS_SCHEMA = {
 	},
 
 	// Auto-Learn (experimental): post-stop nudge to capture lessons to memory
-	// and mint/enhance isolated managed skills under ~/.omp/agent/managed-skills.
+	// and mint/enhance isolated managed skills under ~/.chudcode/agent/managed-skills.
 	// Master flag is default-off → zero footprint; sub-flags gate behaviour.
 	"autolearn.enabled": {
 		type: "boolean",
@@ -3120,49 +3120,49 @@ export const SETTINGS_SCHEMA = {
 	// Config-file-only knob (numbers without `options` are hidden from the UI).
 	"autolearn.minToolCalls": { type: "number", default: 5 },
 
-	// Mnemopi local SQLite memory backend.
-	"mnemopi.dbPath": {
+	// Mnemo local SQLite memory backend.
+	"mnemo.dbPath": {
 		type: "string",
 		default: undefined,
 		ui: {
 			tab: "memory",
-			group: "Mnemopi",
-			label: "Mnemopi DB Path",
+			group: "Mnemo",
+			label: "Mnemo DB Path",
 			description: "Optional SQLite DB path. Defaults to the agent memories directory.",
 			condition: "mnemopiActive",
 		},
 	},
-	"mnemopi.bank": {
+	"mnemo.bank": {
 		type: "string",
 		default: undefined,
 		ui: {
 			tab: "memory",
-			group: "Mnemopi",
-			label: "Mnemopi Bank",
+			group: "Mnemo",
+			label: "Mnemo Bank",
 			description: "Optional shared bank base name. Per-project modes derive project-local banks from it.",
 			condition: "mnemopiActive",
 		},
 	},
-	"mnemopi.scoping": {
+	"mnemo.scoping": {
 		type: "enum",
 		values: ["global", "per-project", "per-project-tagged"] as const,
 		default: "per-project",
 		ui: {
 			tab: "memory",
-			group: "Mnemopi",
-			label: "Mnemopi Scoping",
+			group: "Mnemo",
+			label: "Mnemo Scoping",
 			description:
 				"global = one shared bank; per-project = isolated bank per cwd; per-project-tagged = project-local writes plus global recall visibility",
 			options: [
 				{
 					value: "global",
 					label: "Global",
-					description: "One shared Mnemopi bank for every project",
+					description: "One shared Mnemo bank for every project",
 				},
 				{
 					value: "per-project",
 					label: "Per project",
-					description: "Project-local Mnemopi bank per cwd basename",
+					description: "Project-local Mnemo bank per cwd basename",
 				},
 				{
 					value: "per-project-tagged",
@@ -3173,13 +3173,13 @@ export const SETTINGS_SCHEMA = {
 			condition: "mnemopiActive",
 		},
 	},
-	"mnemopi.embeddingVariant": {
+	"mnemo.embeddingVariant": {
 		type: "enum",
 		values: ["en", "multilingual"] as const,
 		default: "en",
 		ui: {
 			tab: "memory",
-			group: "Mnemopi",
+			group: "Mnemo",
 			label: "Embedding variant",
 			description:
 				"Local embedding model family. en = stronger English model; multilingual = cross-language model. Changing this rebuilds existing memory embeddings on next start.",
@@ -3198,170 +3198,170 @@ export const SETTINGS_SCHEMA = {
 			condition: "mnemopiActive",
 		},
 	},
-	"mnemopi.autoRecall": {
+	"mnemo.autoRecall": {
 		type: "boolean",
 		default: true,
 		ui: {
 			tab: "memory",
-			group: "Mnemopi",
-			label: "Mnemopi Auto Recall",
+			group: "Mnemo",
+			label: "Mnemo Auto Recall",
 			description: "Recall local memories into the first turn of each session",
 			condition: "mnemopiActive",
 		},
 	},
-	"mnemopi.autoRetain": {
+	"mnemo.autoRetain": {
 		type: "boolean",
 		default: true,
 		ui: {
 			tab: "memory",
-			group: "Mnemopi",
-			label: "Mnemopi Auto Retain",
-			description: "Retain completed conversation turns into local Mnemopi memory",
+			group: "Mnemo",
+			label: "Mnemo Auto Retain",
+			description: "Retain completed conversation turns into local Mnemo memory",
 			condition: "mnemopiActive",
 		},
 	},
-	"mnemopi.polyphonicRecall": {
+	"mnemo.polyphonicRecall": {
 		type: "boolean",
 		default: false,
 		ui: {
 			tab: "memory",
-			group: "Mnemopi",
-			label: "Mnemopi Polyphonic Recall",
+			group: "Mnemo",
+			label: "Mnemo Polyphonic Recall",
 			description: "Enable 4-voice recall (vector, graph, fact, temporal) fused with reciprocal rank fusion",
 			condition: "mnemopiActive",
 		},
 	},
-	"mnemopi.enhancedRecall": {
+	"mnemo.enhancedRecall": {
 		type: "boolean",
 		default: false,
 		ui: {
 			tab: "memory",
-			group: "Mnemopi",
-			label: "Mnemopi Enhanced Recall",
+			group: "Mnemo",
+			label: "Mnemo Enhanced Recall",
 			description: "Enable the tiered query result cache for repeated and similar recall queries",
 			condition: "mnemopiActive",
 		},
 	},
-	"mnemopi.proactiveLinking": {
+	"mnemo.proactiveLinking": {
 		type: "boolean",
 		default: false,
 		ui: {
 			tab: "memory",
-			group: "Mnemopi",
-			label: "Mnemopi Proactive Linking",
+			group: "Mnemo",
+			label: "Mnemo Proactive Linking",
 			description:
 				"Ingest new memories into the episodic graph as they are stored, linking them to related entities and memories",
 			condition: "mnemopiActive",
 		},
 	},
-	"mnemopi.noEmbeddings": {
+	"mnemo.noEmbeddings": {
 		type: "boolean",
 		default: false,
 		ui: {
 			tab: "memory",
-			group: "Mnemopi",
-			label: "Mnemopi Disable Embeddings",
+			group: "Mnemo",
+			label: "Mnemo Disable Embeddings",
 			description: "Force deterministic FTS-only recall instead of vector embeddings",
 			condition: "mnemopiActive",
 		},
 	},
-	"mnemopi.embeddingModel": {
+	"mnemo.embeddingModel": {
 		type: "string",
 		default: undefined,
 		ui: {
 			tab: "memory",
-			group: "Mnemopi",
-			label: "Mnemopi Embedding Model",
+			group: "Mnemo",
+			label: "Mnemo Embedding Model",
 			description:
-				"Advanced: explicit embedding model id that overrides the variant. Leave empty to use mnemopi.embeddingVariant.",
+				"Advanced: explicit embedding model id that overrides the variant. Leave empty to use mnemo.embeddingVariant.",
 			condition: "mnemopiActive",
 		},
 	},
-	"mnemopi.embeddingApiUrl": {
+	"mnemo.embeddingApiUrl": {
 		type: "string",
 		default: undefined,
 		ui: {
 			tab: "memory",
-			group: "Mnemopi",
-			label: "Mnemopi Embedding API URL",
-			description: "Optional OpenAI-compatible embedding endpoint passed to Mnemopi",
+			group: "Mnemo",
+			label: "Mnemo Embedding API URL",
+			description: "Optional OpenAI-compatible embedding endpoint passed to Mnemo",
 			condition: "mnemopiActive",
 		},
 	},
-	"mnemopi.embeddingApiKey": {
+	"mnemo.embeddingApiKey": {
 		type: "string",
 		credential: true,
 		default: undefined,
 		ui: {
 			tab: "memory",
-			group: "Mnemopi",
-			label: "Mnemopi Embedding API Key",
-			description: "Optional embedding API key passed to Mnemopi",
+			group: "Mnemo",
+			label: "Mnemo Embedding API Key",
+			description: "Optional embedding API key passed to Mnemo",
 			condition: "mnemopiActive",
 		},
 	},
-	"mnemopi.llmMode": {
+	"mnemo.llmMode": {
 		type: "enum",
 		values: ["none", "smol", "remote"] as const,
 		default: "smol",
 		ui: {
 			tab: "memory",
-			group: "Mnemopi",
-			label: "Mnemopi LLM Mode",
+			group: "Mnemo",
+			label: "Mnemo LLM Mode",
 			description:
 				"Use no LLM, the online tiny model (the TINY role from /models, else @smol), or a remote OpenAI-compatible endpoint",
 			condition: "mnemopiActive",
 			options: [
-				{ value: "none", label: "None", description: "Disable Mnemopi LLM-backed extraction" },
+				{ value: "none", label: "None", description: "Disable Mnemo LLM-backed extraction" },
 				{
 					value: "smol",
 					label: "Online (tiny)",
 					description: "Use the online tiny model (the TINY role from /models, else @smol)",
 				},
-				{ value: "remote", label: "Remote", description: "Use the Mnemopi remote LLM settings below" },
+				{ value: "remote", label: "Remote", description: "Use the Mnemo remote LLM settings below" },
 			],
 		},
 	},
-	"mnemopi.llmBaseUrl": {
+	"mnemo.llmBaseUrl": {
 		type: "string",
 		default: undefined,
 		ui: {
 			tab: "memory",
-			group: "Mnemopi",
-			label: "Mnemopi LLM Base URL",
-			description: "Optional OpenAI-compatible LLM endpoint for Mnemopi remote mode",
+			group: "Mnemo",
+			label: "Mnemo LLM Base URL",
+			description: "Optional OpenAI-compatible LLM endpoint for Mnemo remote mode",
 			condition: "mnemopiActive",
 		},
 	},
-	"mnemopi.llmApiKey": {
+	"mnemo.llmApiKey": {
 		type: "string",
 		credential: true,
 		default: undefined,
 		ui: {
 			tab: "memory",
-			group: "Mnemopi",
-			label: "Mnemopi LLM API Key",
-			description: "Optional LLM API key for Mnemopi remote mode",
+			group: "Mnemo",
+			label: "Mnemo LLM API Key",
+			description: "Optional LLM API key for Mnemo remote mode",
 			condition: "mnemopiActive",
 		},
 	},
-	"mnemopi.llmModel": {
+	"mnemo.llmModel": {
 		type: "string",
 		default: undefined,
 		ui: {
 			tab: "memory",
-			group: "Mnemopi",
-			label: "Mnemopi LLM Model",
-			description: "Optional LLM model name for Mnemopi remote mode",
+			group: "Mnemo",
+			label: "Mnemo LLM Model",
+			description: "Optional LLM model name for Mnemo remote mode",
 			condition: "mnemopiActive",
 		},
 	},
-	"mnemopi.retainEveryNTurns": { type: "number", default: 4 },
-	"mnemopi.recallLimit": { type: "number", default: 8 },
-	"mnemopi.recallContextTurns": { type: "number", default: 3 },
-	"mnemopi.recallMaxQueryChars": { type: "number", default: 4000 },
-	"mnemopi.injectionTokenLimit": { type: "number", default: 5000 },
-	"mnemopi.debug": { type: "boolean", default: false },
+	"mnemo.retainEveryNTurns": { type: "number", default: 4 },
+	"mnemo.recallLimit": { type: "number", default: 8 },
+	"mnemo.recallContextTurns": { type: "number", default: 3 },
+	"mnemo.recallMaxQueryChars": { type: "number", default: 4000 },
+	"mnemo.injectionTokenLimit": { type: "number", default: 5000 },
+	"mnemo.debug": { type: "boolean", default: false },
 
 	// Hindsight (https://hindsight.vectorize.io)
 	"hindsight.apiUrl": {
@@ -3481,7 +3481,7 @@ export const SETTINGS_SCHEMA = {
 	},
 	"hindsight.retainEveryNTurns": { type: "number", default: 3 },
 	"hindsight.retainOverlapTurns": { type: "number", default: 2 },
-	"hindsight.retainContext": { type: "string", default: "omp" },
+	"hindsight.retainContext": { type: "string", default: "chudcode" },
 
 	"hindsight.recallBudget": {
 		type: "enum",
@@ -4583,7 +4583,7 @@ export const SETTINGS_SCHEMA = {
 			tab: "tools",
 			group: "GitHub",
 			label: "GitHub View Cache",
-			description: "Cache rendered issue/PR view output in ~/.omp/cache/github-cache.db so repeated reads are free",
+			description: "Cache rendered issue/PR view output in ~/.chudcode/cache/github-cache.db so repeated reads are free",
 		},
 	},
 
@@ -4676,7 +4676,7 @@ export const SETTINGS_SCHEMA = {
 			group: "Grep & Browser",
 			label: "Browser Relay",
 			description:
-				"Drive your own Chrome tabs through the chudcode browser relay. Install the extension once (`chudcode browser-relay install`); the relay server auto-starts when the browser tool needs it. Takes precedence over Browser CDP URL; set PI_BROWSER_RELAY=0 or PI_BROWSER_RELAY=1 to override.",
+				"Drive your own Chrome tabs through the chudcode browser relay. Install the extension once (`chudcode browser-relay install`); the relay server auto-starts when the browser tool needs it. Takes precedence over Browser CDP URL; set CHUDCODE_BROWSER_RELAY=0 or CHUDCODE_BROWSER_RELAY=1 to override.",
 		},
 	},
 
@@ -4710,7 +4710,7 @@ export const SETTINGS_SCHEMA = {
 			group: "Grep & Browser",
 			label: "cmux Browser",
 			description:
-				"Use cmux WKWebView surfaces for browser automation when a cmux socket is available. Set PI_BROWSER_CMUX=0 or PI_BROWSER_CMUX=1 to override.",
+				"Use cmux WKWebView surfaces for browser automation when a cmux socket is available. Set CHUDCODE_BROWSER_CMUX=0 or CHUDCODE_BROWSER_CMUX=1 to override.",
 		},
 	},
 	"browser.screenshotDir": {
@@ -5094,7 +5094,7 @@ export const SETTINGS_SCHEMA = {
 			group: "Isolation",
 			label: "Worktree Base Directory",
 			description:
-				"Base directory for agent-managed worktrees — task-isolation copies, `github` PR checkouts, and `chudcode worktree` cleanup all live here. Unset uses ~/.omp/wt. Must be an absolute or ~-relative path; relative paths are ignored. The OMP_WORKTREE_DIR env var overrides this.",
+				"Base directory for agent-managed worktrees — task-isolation copies, `github` PR checkouts, and `chudcode worktree` cleanup all live here. Unset uses ~/.chudcode/wt. Must be an absolute or ~-relative path; relative paths are ignored. The CHUDCODE_WORKTREE_DIR env var overrides this.",
 		},
 	},
 
@@ -5693,7 +5693,7 @@ export const SETTINGS_SCHEMA = {
 			group: "Tiny Model",
 			label: "Tiny Model Device",
 			description:
-				"ONNX execution provider for local tiny models (titles + memory). Default uses CPU-only inference. The PI_TINY_DEVICE env var overrides this.",
+				"ONNX execution provider for local tiny models (titles + memory). Default uses CPU-only inference. The CHUDCODE_TINY_DEVICE env var overrides this.",
 			options: TINY_MODEL_DEVICE_SETTING_OPTIONS,
 		},
 	},
@@ -5706,7 +5706,7 @@ export const SETTINGS_SCHEMA = {
 			group: "Tiny Model",
 			label: "Tiny Model Precision",
 			description:
-				"ONNX quantization/precision for local tiny models. Default uses each model's shipped dtype (q4); lower precision is faster, higher is more faithful. The PI_TINY_DTYPE env var overrides this.",
+				"ONNX quantization/precision for local tiny models. Default uses each model's shipped dtype (q4); lower precision is faster, higher is more faithful. The CHUDCODE_TINY_DTYPE env var overrides this.",
 			options: TINY_MODEL_DTYPE_SETTING_OPTIONS,
 		},
 	},
@@ -5719,7 +5719,7 @@ export const SETTINGS_SCHEMA = {
 			group: "General",
 			label: "Memory Model",
 			description:
-				"Mnemopi LLM for fact extraction + consolidation: online (the TINY role from /models, else smol/remote) by default, or a local on-device model",
+				"Mnemo LLM for fact extraction + consolidation: online (the TINY role from /models, else smol/remote) by default, or a local on-device model",
 			condition: "mnemopiActive",
 			options: TINY_MEMORY_MODEL_OPTIONS,
 		},
@@ -5845,7 +5845,7 @@ export const SETTINGS_SCHEMA = {
 					value: "auto",
 					label: "Auto",
 					description:
-						"Provider default — Anthropic uses 5m entries kept warm by idle keep-alive refreshes; PI_CACHE_RETENTION still applies",
+						"Provider default — Anthropic uses 5m entries kept warm by idle keep-alive refreshes; CHUDCODE_CACHE_RETENTION still applies",
 				},
 				{
 					value: "short",
@@ -5873,7 +5873,7 @@ export const SETTINGS_SCHEMA = {
 			description:
 				"Seconds to wait for the first model stream event; -1 uses provider/env defaults, 0 disables the watchdog",
 			options: [
-				{ value: "-1", label: "Auto", description: "Use provider defaults and PI_* timeout env vars" },
+				{ value: "-1", label: "Auto", description: "Use provider defaults and CHUDCODE_* timeout env vars" },
 				{ value: "0", label: "Off", description: "Disable first-event timeout" },
 				{ value: "300", label: "5 minutes" },
 				{ value: "600", label: "10 minutes" },
@@ -5892,7 +5892,7 @@ export const SETTINGS_SCHEMA = {
 			description:
 				"Seconds a model stream may stay silent between events; -1 uses provider/env defaults, 0 disables the watchdog",
 			options: [
-				{ value: "-1", label: "Auto", description: "Use provider defaults and PI_* timeout env vars" },
+				{ value: "-1", label: "Auto", description: "Use provider defaults and CHUDCODE_* timeout env vars" },
 				{ value: "0", label: "Off", description: "Disable idle timeout" },
 				{ value: "300", label: "5 minutes" },
 				{ value: "600", label: "10 minutes" },
@@ -6130,12 +6130,12 @@ export const SETTINGS_SCHEMA = {
 
 	"dev.autoqaPush.endpoint": {
 		type: "string",
-		default: "https://qa.omp.sh/v1/grievances" as const,
+		default: "https://qa.chudware.sh/v1/grievances" as const,
 		ui: {
 			tab: "tools",
 			group: "Developer",
 			label: "Auto QA Push Endpoint",
-			description: "Full URL receiving Auto QA JSON reports (default https://qa.omp.sh/v1/grievances)",
+			description: "Full URL receiving Auto QA JSON reports (default https://qa.chudware.sh/v1/grievances)",
 		},
 	},
 

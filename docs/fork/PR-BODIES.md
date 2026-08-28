@@ -26,7 +26,7 @@ the other four are narrow bug fixes and can go straight to PRs.
 Open with:
 
 ```bash
-gh pr create --repo can1357/oh-my-pi \
+gh pr create --repo Hunter-124/chudcode \
   --head Hunter-124:<branch> --base main \
   --title "<title below>" --body-file <body below>
 ```
@@ -40,7 +40,7 @@ gh pr create --repo can1357/oh-my-pi \
 **Exercise:** run `chudcode`, type a few words, press `ctrl+-` to undo, then `alt+-`
 to redo. Confirm the text comes back and the cursor lands where it was. Then
 type something new after an undo and confirm `alt+-` does not resurrect the
-discarded branch. Also confirm `ctrl+z` still suspends omp.
+discarded branch. Also confirm `ctrl+z` still suspends chudcode.
 
 **Body:**
 

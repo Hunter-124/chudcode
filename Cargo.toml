@@ -4,14 +4,14 @@
 # because an ignored file stayed behind) is a hard error that fails the whole
 # workspace, not a skipped entry.
 members = [
-   "crates/pi-ast",
-   "crates/pi-builtins",
-   "crates/pi-iso",
-   "crates/pi-natives",
-   "crates/pi-shell",
-   "crates/pi-vision",
-   "crates/pi-voice",
-   "crates/pi-walker",
+   "crates/chud-ast",
+   "crates/chud-builtins",
+   "crates/chud-iso",
+   "crates/chud-natives",
+   "crates/chud-shell",
+   "crates/chud-vision",
+   "crates/chud-voice",
+   "crates/chud-walker",
    "crates/vendor/brush-core",
 ]
 resolver = "3"
@@ -20,9 +20,9 @@ resolver = "3"
 version = "18.0.8"
 edition = "2024"
 license = "MIT"
-authors = ["Stencil Labs, Inc."]
-homepage = "https://omp.sh/"
-repository = "https://github.com/can1357/oh-my-pi"
+authors = ["Chudware"]
+homepage = "https://chudware.sh/"
+repository = "https://github.com/Hunter-124/chudcode"
 
 [patch.crates-io]
 brush-core = { path = "crates/vendor/brush-core" }
@@ -33,8 +33,8 @@ codegen-units = 1
 strip = true
 # Unwind (not abort) so panics inside vendored code and native tasks stay
 # recoverable at the appropriate boundary: the uutils boundary
-# (pi-shell coreutils) turns a panic into a failed command, and the
-# `task::blocking` wrapper in `crates/pi-natives/src/task.rs` catches unwinds
+# (chud-shell coreutils) turns a panic into a failed command, and the
+# `task::blocking` wrapper in `crates/chud-natives/src/task.rs` catches unwinds
 # inside `Blocking::compute` before they cross napi-rs's async-work
 # `extern "C"` callback (napi `src/async_work.rs:109`) so they surface as
 # rejected JS Promises instead of forced process aborts under Rust's C-unwind
@@ -42,7 +42,7 @@ strip = true
 # per-call `catch_unwind` on the `Task`/`AsyncTask` path; the tokio-future
 # path (`env.spawn_future`) is guarded upstream. Recoverable uutils panics
 # are kept out of the crash report by the crash hook
-# (see crates/pi-natives/src/crash_handler.rs).
+# (see crates/chud-natives/src/crash_handler.rs).
 panic = "unwind"
 
 [profile.ci]
@@ -203,13 +203,13 @@ too_many_lines = "allow"     # Arbitrary limits don't account for necessary comp
 # ──────────────────────────────────────────────────────────────────────────────
 # Internal Libraries
 # ──────────────────────────────────────────────────────────────────────────────
-pi-ast = { path = "crates/pi-ast" }
-pi-iso = { path = "crates/pi-iso" }
-pi-shell = { path = "crates/pi-shell" }
-pi-voice = { path = "crates/pi-voice" }
-pi-walker = { path = "crates/pi-walker" }
+chud-ast = { path = "crates/chud-ast" }
+chud-iso = { path = "crates/chud-iso" }
+chud-shell = { path = "crates/chud-shell" }
+chud-voice = { path = "crates/chud-voice" }
+chud-walker = { path = "crates/chud-walker" }
 brush-core = { path = "crates/vendor/brush-core" }
-pi-builtins = { path = "crates/pi-builtins" }
+chud-builtins = { path = "crates/chud-builtins" }
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Async Runtime & Concurrency

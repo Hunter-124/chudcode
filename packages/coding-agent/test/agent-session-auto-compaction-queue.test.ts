@@ -1,19 +1,19 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "bun:test";
 import { scheduler } from "node:timers/promises";
-import { Agent } from "@oh-my-pi/pi-agent-core";
-import { getBundledModel } from "@oh-my-pi/pi-catalog/models";
-import { ModelRegistry } from "@oh-my-pi/pi-coding-agent/config/model-registry";
-import { Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
-import { ExtensionRuntime, loadExtensionFromFactory } from "@oh-my-pi/pi-coding-agent/extensibility/extensions/loader";
-import { ExtensionRunner } from "@oh-my-pi/pi-coding-agent/extensibility/extensions/runner";
-import { AgentSession, type AgentSessionEvent } from "@oh-my-pi/pi-coding-agent/session/agent-session";
-import { AuthStorage } from "@oh-my-pi/pi-coding-agent/session/auth-storage";
-import { SessionManager } from "@oh-my-pi/pi-coding-agent/session/session-manager";
-import * as unexpectedStopClassifier from "@oh-my-pi/pi-coding-agent/session/unexpected-stop-classifier";
-import { EventBus } from "@oh-my-pi/pi-coding-agent/utils/event-bus";
-import { TempDir, withTimeout } from "@oh-my-pi/pi-utils";
-import { sleep } from "@oh-my-pi/pi-utils/async";
-import * as logger from "@oh-my-pi/pi-utils/logger";
+import { Agent } from "@chudware/agent-core";
+import { getBundledModel } from "@chudware/catalog/models";
+import { ModelRegistry } from "@chudware/coding-agent/config/model-registry";
+import { Settings } from "@chudware/coding-agent/config/settings";
+import { ExtensionRuntime, loadExtensionFromFactory } from "@chudware/coding-agent/extensibility/extensions/loader";
+import { ExtensionRunner } from "@chudware/coding-agent/extensibility/extensions/runner";
+import { AgentSession, type AgentSessionEvent } from "@chudware/coding-agent/session/agent-session";
+import { AuthStorage } from "@chudware/coding-agent/session/auth-storage";
+import { SessionManager } from "@chudware/coding-agent/session/session-manager";
+import * as unexpectedStopClassifier from "@chudware/coding-agent/session/unexpected-stop-classifier";
+import { EventBus } from "@chudware/coding-agent/utils/event-bus";
+import { TempDir, withTimeout } from "@chudware/utils";
+import { sleep } from "@chudware/utils/async";
+import * as logger from "@chudware/utils/logger";
 
 const runtimeSignalStoreKey = "__ompRuntimeSignals";
 
@@ -51,8 +51,8 @@ describe("AgentSession auto-compaction queue resume", () => {
 		// TypeScript file here used to compile the same fixture for every test.
 		const runtime = new ExtensionRuntime();
 		const extension = await loadExtensionFromFactory(
-			pi => {
-				pi.on("session_before_compact", async event => {
+			chud => {
+				chud.on("session_before_compact", async event => {
 					getRuntimeSignals().push("before_compact:enter");
 					const gate = (globalThis as typeof globalThis & { __ompManualCompactGate?: Promise<void> })
 						.__ompManualCompactGate;
@@ -67,13 +67,13 @@ describe("AgentSession auto-compaction queue resume", () => {
 						},
 					};
 				});
-				pi.on("auto_compaction_start", event => {
+				chud.on("auto_compaction_start", event => {
 					getRuntimeSignals().push(`compaction:start:${event.reason}`);
 				});
-				pi.on("auto_compaction_end", event => {
+				chud.on("auto_compaction_end", event => {
 					getRuntimeSignals().push(`compaction:end:${event.aborted ? "aborted" : "ok"}`);
 				});
-				pi.on("todo_reminder", event => {
+				chud.on("todo_reminder", event => {
 					getRuntimeSignals().push(`todo:${event.attempt}/${event.maxAttempts}`);
 				});
 			},

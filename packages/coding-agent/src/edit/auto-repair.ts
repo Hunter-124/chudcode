@@ -13,10 +13,10 @@
  * 94% under 150 lines; smol fixed 99% with one feedback retry, with ~12% of
  * raw candidates being reverts — hence the explicit revert rejection.
  */
-import { completeSimple, retryTransientCompletion } from "@oh-my-pi/pi-ai";
-import { diffLineRuns, summarizeCode } from "@oh-my-pi/pi-natives";
-import { logger, prompt } from "@oh-my-pi/pi-utils";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
+import { completeSimple, retryTransientCompletion } from "@chudware/ai";
+import { diffLineRuns, summarizeCode } from "@chudware/natives";
+import { logger, prompt } from "@chudware/utils";
+import * as fsx from "@chudware/utils/fsx";
 import { resolveRoleSelection } from "../config/model-resolver";
 import type { WritethroughCallback } from "../lsp";
 import type { ToolSession } from "../tools";

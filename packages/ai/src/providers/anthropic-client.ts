@@ -1,7 +1,7 @@
 /**
  * Minimal HTTP client for the Anthropic Messages API.
  *
- * pi-ai builds every request header itself (`buildAnthropicHeaders`), serializes
+ * chud-ai builds every request header itself (`buildAnthropicHeaders`), serializes
  * the body itself (`buildParams`), and parses SSE frames itself
  * (`iterateAnthropicEvents`), so the only `@anthropic-ai/sdk` surface this
  * package ever exercised was URL assembly, auth-header injection, bounded

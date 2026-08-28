@@ -1,20 +1,20 @@
 import { afterEach, beforeEach, describe, expect, it, spyOn } from "bun:test";
-import { generateRoomKey, importRoomKey } from "@oh-my-pi/pi-coding-agent/collab/crypto";
-import { CollabGuestLink } from "@oh-my-pi/pi-coding-agent/collab/guest";
+import { generateRoomKey, importRoomKey } from "@chudware/coding-agent/collab/crypto";
+import { CollabGuestLink } from "@chudware/coding-agent/collab/guest";
 import {
 	type AgentSnapshot,
 	COLLAB_PROTO,
 	type CollabFrame,
 	formatCollabLink,
-} from "@oh-my-pi/pi-coding-agent/collab/protocol";
-import { CollabSocket } from "@oh-my-pi/pi-coding-agent/collab/relay-client";
+} from "@chudware/coding-agent/collab/protocol";
+import { CollabSocket } from "@chudware/coding-agent/collab/relay-client";
 import {
 	getRunningSubagentBadgeAgentIds,
 	getRunningSubagentBadgeRegistry,
-} from "@oh-my-pi/pi-coding-agent/modes/running-subagent-badge";
-import type { InteractiveModeContext } from "@oh-my-pi/pi-coding-agent/modes/types";
-import { AgentRegistry } from "@oh-my-pi/pi-coding-agent/registry/agent-registry";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
+} from "@chudware/coding-agent/modes/running-subagent-badge";
+import type { InteractiveModeContext } from "@chudware/coding-agent/modes/types";
+import { AgentRegistry } from "@chudware/coding-agent/registry/agent-registry";
+import * as fsx from "@chudware/utils/fsx";
 import { installInMemoryRelay, uninstallInMemoryRelay } from "./helpers/in-memory-relay";
 
 // In-memory transport: shared FakeWebSocket + InMemoryRelay harness (see

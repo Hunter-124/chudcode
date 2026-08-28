@@ -2,11 +2,11 @@ import { afterEach, describe, expect, it } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import { Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
-import type { ToolSession } from "@oh-my-pi/pi-coding-agent/tools";
-import { ImageAnalyzeTool } from "@oh-my-pi/pi-coding-agent/tools/image-analyze";
-import { ensureVisionModels } from "@oh-my-pi/pi-coding-agent/tools/vision/models";
-import { runVision } from "@oh-my-pi/pi-coding-agent/tools/vision/sidecar";
+import { Settings } from "@chudware/coding-agent/config/settings";
+import type { ToolSession } from "@chudware/coding-agent/tools";
+import { ImageAnalyzeTool } from "@chudware/coding-agent/tools/image-analyze";
+import { ensureVisionModels } from "@chudware/coding-agent/tools/vision/models";
+import { runVision } from "@chudware/coding-agent/tools/vision/sidecar";
 
 const temporaryDirectories: string[] = [];
 
@@ -30,13 +30,13 @@ describe("vision sidecar shim", () => {
 		await fs.mkdir(bundle);
 		await fs.mkdir(bin);
 		await fs.writeFile(path.join(bundle, "libonnxruntime.so"), "test runtime");
-		const sidecar = path.join(bundle, "pi-vision");
+		const sidecar = path.join(bundle, "chud-vision");
 		await fs.writeFile(
 			sidecar,
 			'#!/bin/sh\nIFS= read -r request\nprintf \'{"ok":true,"ort":"%s"}\\n\' "$ORT_DYLIB_PATH"\n',
 			{ mode: 0o700 },
 		);
-		const linked = path.join(bin, "pi-vision");
+		const linked = path.join(bin, "chud-vision");
 		await fs.symlink(sidecar, linked);
 
 		const response = await runVision({ action: "diff" }, { binaryPath: linked });
@@ -47,7 +47,7 @@ describe("vision sidecar shim", () => {
 		"returns a precise offline provisioning hint for a missing model",
 		async () => {
 			const root = await temporaryDirectory();
-			const sidecar = path.join(root, "pi-vision");
+			const sidecar = path.join(root, "chud-vision");
 			const sha = "a".repeat(64);
 			await fs.writeFile(
 				sidecar,
@@ -66,8 +66,8 @@ describe("vision sidecar shim", () => {
 
 	it("reports a configured missing sidecar without touching the input image", async () => {
 		const root = await temporaryDirectory();
-		const previous = process.env.OMP_VISION_BIN;
-		process.env.OMP_VISION_BIN = path.join(root, "missing-pi-vision");
+		const previous = process.env.CHUDCODE_VISION_BIN;
+		process.env.CHUDCODE_VISION_BIN = path.join(root, "missing-chud-vision");
 		try {
 			const session = { cwd: root, settings: Settings.isolated() } as ToolSession;
 			const result = await new ImageAnalyzeTool(session).execute("missing", {
@@ -77,8 +77,8 @@ describe("vision sidecar shim", () => {
 			const text = result.content[0]?.type === "text" ? result.content[0].text : "";
 			expect(JSON.parse(text)).toMatchObject({ ok: false, reason: "sidecar_missing" });
 		} finally {
-			if (previous === undefined) delete process.env.OMP_VISION_BIN;
-			else process.env.OMP_VISION_BIN = previous;
+			if (previous === undefined) delete process.env.CHUDCODE_VISION_BIN;
+			else process.env.CHUDCODE_VISION_BIN = previous;
 		}
 	});
 });

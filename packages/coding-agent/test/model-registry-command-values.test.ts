@@ -2,15 +2,15 @@ import { afterEach, beforeEach, describe, expect, spyOn, test } from "bun:test";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
-import { streamSimple } from "@oh-my-pi/pi-ai";
-import { withAuth } from "@oh-my-pi/pi-ai/auth-retry";
-import type { Api, Context, FetchImpl, Model } from "@oh-my-pi/pi-ai/types";
-import { buildModel } from "@oh-my-pi/pi-catalog/build";
-import { resolveConfigValue } from "@oh-my-pi/pi-coding-agent/config/model-config-values";
-import { ModelRegistry } from "@oh-my-pi/pi-coding-agent/config/model-registry";
-import { AuthStorage } from "@oh-my-pi/pi-coding-agent/session/auth-storage";
-import * as piUtils from "@oh-my-pi/pi-utils";
-import { removeSyncWithRetries, Snowflake } from "@oh-my-pi/pi-utils";
+import { streamSimple } from "@chudware/ai";
+import { withAuth } from "@chudware/ai/auth-retry";
+import type { Api, Context, FetchImpl, Model } from "@chudware/ai/types";
+import { buildModel } from "@chudware/catalog/build";
+import { resolveConfigValue } from "@chudware/coding-agent/config/model-config-values";
+import { ModelRegistry } from "@chudware/coding-agent/config/model-registry";
+import { AuthStorage } from "@chudware/coding-agent/session/auth-storage";
+import * as piUtils from "@chudware/utils";
+import { removeSyncWithRetries, Snowflake } from "@chudware/utils";
 
 function shellQuote(value: string): string {
 	return `'${value.replaceAll("'", "'\\''")}'`;
@@ -99,7 +99,7 @@ describe("ModelRegistry command-resolved models.yml values", () => {
 	let modelsPath = "";
 
 	beforeEach(async () => {
-		tempDir = path.join(os.tmpdir(), `pi-test-model-command-values-${Snowflake.next()}`);
+		tempDir = path.join(os.tmpdir(), `chud-test-model-command-values-${Snowflake.next()}`);
 		fs.mkdirSync(tempDir, { recursive: true });
 		modelsPath = path.join(tempDir, "models.json");
 		authStorage = await AuthStorage.create(":memory:");

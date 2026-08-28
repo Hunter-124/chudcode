@@ -1,12 +1,12 @@
-import type { AgentToolResult } from "@oh-my-pi/pi-agent-core";
-import type { TextContent } from "@oh-my-pi/pi-ai";
+import type { AgentToolResult } from "@chudware/agent-core";
+import type { TextContent } from "@chudware/ai";
 import {
 	type ArchiveReader,
 	formatArchiveEntryLines,
 	openArchive,
 	parseArchivePathCandidates,
-} from "@oh-my-pi/pi-utils/ar";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
+} from "@chudware/utils/ar";
+import * as fsx from "@chudware/utils/fsx";
 import type { ToolSession } from "../sdk";
 import { truncateHead } from "../session/streaming-output";
 import { applyListLimit } from "./list-limit";

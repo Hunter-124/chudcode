@@ -1,15 +1,15 @@
 import { afterEach, describe, expect, it, vi } from "bun:test";
-import { ThinkingLevel } from "@oh-my-pi/pi-agent-core";
-import * as ai from "@oh-my-pi/pi-ai";
-import { Effort, type Model } from "@oh-my-pi/pi-ai";
-import { buildModel } from "@oh-my-pi/pi-catalog/build";
-import { getBundledModel } from "@oh-my-pi/pi-catalog/models";
+import { ThinkingLevel } from "@chudware/agent-core";
+import * as ai from "@chudware/ai";
+import { Effort, type Model } from "@chudware/ai";
+import { buildModel } from "@chudware/catalog/build";
+import { getBundledModel } from "@chudware/catalog/models";
 import {
 	classifyDifficulty,
 	parseDifficultyBucket,
 	parseDifficultyLevel,
-} from "@oh-my-pi/pi-coding-agent/auto-thinking/classifier";
-import { Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
+} from "@chudware/coding-agent/auto-thinking/classifier";
+import { Settings } from "@chudware/coding-agent/config/settings";
 import {
 	AUTO_THINKING,
 	clampAutoThinkingEffort,
@@ -19,9 +19,9 @@ import {
 	parseThinkingLevel,
 	resolveProvisionalAutoLevel,
 	resolveTaskEffortLevel,
-} from "@oh-my-pi/pi-coding-agent/thinking";
-import type { TinyMemoryLocalModelKey } from "@oh-my-pi/pi-coding-agent/tiny/models";
-import { tinyModelClient } from "@oh-my-pi/pi-coding-agent/tiny/title-client";
+} from "@chudware/coding-agent/thinking";
+import type { TinyMemoryLocalModelKey } from "@chudware/coding-agent/tiny/models";
+import { tinyModelClient } from "@chudware/coding-agent/tiny/title-client";
 
 describe("auto thinking classifier helpers", () => {
 	afterEach(() => {
@@ -352,7 +352,7 @@ describe("auto thinking classifier helpers", () => {
 	});
 
 	it("returns undefined for reasoning models without controllable efforts (devin-agent shape)", () => {
-		// Repro for https://github.com/can1357/oh-my-pi/issues/3356 — Devin
+		// Repro for https://github.com/Hunter-124/chudcode/issues/3356 — Devin
 		// models report `reasoning: true` but expose no `thinking.efforts` (Cascade
 		// selects effort by routing to sibling model ids). `auto` must not invent
 		// a concrete effort here, or `requireSupportedEffort` throws in stream.ts.

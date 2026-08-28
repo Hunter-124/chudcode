@@ -2,12 +2,12 @@
  * Regression test for issue #905.
  *
  * Model listing did not include providers contributed by extensions
- * (via `pi.registerProvider(...)`), regardless of whether the extension was
+ * (via `chud.registerProvider(...)`), regardless of whether the extension was
  * supplied via `-e <path>` or configured under `extensions:` in the user
  * settings. The original `--list-models` short-circuit in `runRootCommand`
  * exited before extensions were loaded.
  *
- * Contract under test: the `omp models` listing entry point loads extensions
+ * Contract under test: the `chudcode models` listing entry point loads extensions
  * (CLI `-e` paths and configured `settings.extensions`) before listing, so
  * extension-registered providers/models appear in the output.
  */
@@ -15,11 +15,11 @@
 import { afterAll, beforeAll, expect, test } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
-import { AuthStorage } from "@oh-my-pi/pi-ai";
-import { runModelsListing } from "@oh-my-pi/pi-coding-agent/cli/models-cli";
-import { ModelRegistry } from "@oh-my-pi/pi-coding-agent/config/model-registry";
-import { getProjectAgentDir, TempDir } from "@oh-my-pi/pi-utils";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
+import { AuthStorage } from "@chudware/ai";
+import { runModelsListing } from "@chudware/coding-agent/cli/models-cli";
+import { ModelRegistry } from "@chudware/coding-agent/config/model-registry";
+import { getProjectAgentDir, TempDir } from "@chudware/utils";
+import * as fsx from "@chudware/utils/fsx";
 
 let tmp: TempDir;
 let extPath: string;
@@ -39,8 +39,8 @@ beforeAll(async () => {
 	shutdownPath = tmp.join("shutdown");
 	await fs.writeFile(
 		extPath,
-		`export default function (pi) {
-	pi.registerProvider("test-gw", {
+		`export default function (chud) {
+	chud.registerProvider("test-gw", {
 		baseUrl: "https://example.com/v1",
 		apiKey: "literal-test-key",
 		api: "openai-completions",
@@ -59,8 +59,8 @@ beforeAll(async () => {
 	);
 	await fs.writeFile(
 		shutdownExtPath,
-		`export default function (pi) {
-	pi.on("session_shutdown", async () => {
+		`export default function (chud) {
+	chud.on("session_shutdown", async () => {
 		await Bun.write(${JSON.stringify(shutdownPath)}, "shutdown");
 	});
 }
@@ -82,7 +82,7 @@ export default function () {}
 	);
 	await fs.writeFile(
 		tmp.join("explicit-package", "package.json"),
-		JSON.stringify({ name: "explicit-package", omp: { extensions: ["./src/main.ts"] } }),
+		JSON.stringify({ name: "explicit-package", chudcode: { extensions: ["./src/main.ts"] } }),
 	);
 	await fs.writeFile(
 		tmp.join("explicit-package", "hooks", "pre", "models-poison.ts"),
@@ -92,8 +92,8 @@ export default function () {}
 	);
 	await fs.writeFile(
 		tmp.join("explicit-package", "src", "main.ts"),
-		`export default function (pi) {
-	pi.registerProvider("explicit-gw", {
+		`export default function (chud) {
+	chud.registerProvider("explicit-gw", {
 		baseUrl: "https://explicit.example.com/v1",
 		apiKey: "literal-test-key",
 		api: "openai-completions",
@@ -112,8 +112,8 @@ export default function () {}
 	);
 	await fs.writeFile(
 		ambientExtPath,
-		`export default function (pi) {
-	pi.registerProvider("ambient-gw", {
+		`export default function (chud) {
+	chud.registerProvider("ambient-gw", {
 		baseUrl: "https://ambient.example.com/v1",
 		apiKey: "literal-test-key",
 		api: "openai-completions",
@@ -136,7 +136,7 @@ afterAll(async () => {
 	await tmp.remove();
 });
 
-test("omp models surfaces extension-registered providers (issue #905)", async () => {
+test("chudcode models surfaces extension-registered providers (issue #905)", async () => {
 	const authStorage = await AuthStorage.create(dbPath);
 	try {
 		const modelRegistry = new ModelRegistry(authStorage);
@@ -168,7 +168,7 @@ test("omp models surfaces extension-registered providers (issue #905)", async ()
 	}
 });
 
-test("omp models does not execute ambient hooks while retaining explicit providers", async () => {
+test("chudcode models does not execute ambient hooks while retaining explicit providers", async () => {
 	const authStorage = await AuthStorage.create(":memory:");
 	try {
 		const modelRegistry = new ModelRegistry(authStorage);
@@ -200,7 +200,7 @@ test("omp models does not execute ambient hooks while retaining explicit provide
 	}
 });
 
-test("omp models emits extension shutdown after listing (issue #6297)", async () => {
+test("chudcode models emits extension shutdown after listing (issue #6297)", async () => {
 	const authStorage = await AuthStorage.create(":memory:");
 	try {
 		const modelRegistry = new ModelRegistry(authStorage);
@@ -219,7 +219,7 @@ test("omp models emits extension shutdown after listing (issue #6297)", async ()
 	}
 });
 
-test("omp models explicit-only mode resolves a package and excludes settings providers", async () => {
+test("chudcode models explicit-only mode resolves a package and excludes settings providers", async () => {
 	const authStorage = await AuthStorage.create(":memory:");
 	try {
 		const modelRegistry = new ModelRegistry(authStorage);
@@ -253,7 +253,7 @@ test("omp models explicit-only mode resolves a package and excludes settings pro
 	}
 });
 
-test("omp models prints invalid models.yml schema errors before listing output", async () => {
+test("chudcode models prints invalid models.yml schema errors before listing output", async () => {
 	const modelsPath = tmp.join("invalid-models.yml");
 	await fs.writeFile(
 		modelsPath,

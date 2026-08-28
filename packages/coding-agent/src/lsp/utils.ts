@@ -1,9 +1,9 @@
-export { truncate } from "@oh-my-pi/pi-utils";
+export { truncate } from "@chudware/utils";
 
 import * as fs from "node:fs/promises";
 import path from "node:path";
-import { isEnoent } from "@oh-my-pi/pi-utils";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
+import { isEnoent } from "@chudware/utils";
+import * as fsx from "@chudware/utils/fsx";
 import { type Theme, theme } from "../modes/theme/theme";
 import { formatGroupedFiles } from "../tools/grouped-file-output";
 import { formatPathRelativeToCwd, resolveToCwd } from "../tools/path-utils";

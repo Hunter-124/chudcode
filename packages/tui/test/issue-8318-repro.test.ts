@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "bun:test";
-import { type Component, TUI } from "@oh-my-pi/pi-tui";
-import { sleep } from "@oh-my-pi/pi-utils/async";
+import { type Component, TUI } from "@chudware/tui";
+import { sleep } from "@chudware/utils/async";
 import { withoutTerminalMultiplexer } from "./helpers/terminal-multiplexer";
 import { VirtualTerminal } from "./virtual-terminal";
 

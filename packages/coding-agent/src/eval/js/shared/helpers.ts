@@ -1,5 +1,5 @@
 import * as path from "node:path";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
+import * as fsx from "@chudware/utils/fsx";
 import { ToolError } from "../../../tools/tool-errors";
 import type { JsStatusEvent } from "./types";
 

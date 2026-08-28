@@ -1,8 +1,8 @@
 import { describe, expect, it } from "bun:test";
-import { SttClient } from "@oh-my-pi/pi-coding-agent/stt/asr-client";
-import type { SttWorkerInbound, SttWorkerOutbound } from "@oh-my-pi/pi-coding-agent/stt/asr-protocol";
-import { TinyTitleClient } from "@oh-my-pi/pi-coding-agent/tiny/title-client";
-import type { TinyTitleWorkerInbound, TinyTitleWorkerOutbound } from "@oh-my-pi/pi-coding-agent/tiny/title-protocol";
+import { SttClient } from "@chudware/coding-agent/stt/asr-client";
+import type { SttWorkerInbound, SttWorkerOutbound } from "@chudware/coding-agent/stt/asr-protocol";
+import { TinyTitleClient } from "@chudware/coding-agent/tiny/title-client";
+import type { TinyTitleWorkerInbound, TinyTitleWorkerOutbound } from "@chudware/coding-agent/tiny/title-protocol";
 
 class FakeTinyWorker {
 	terminated = false;

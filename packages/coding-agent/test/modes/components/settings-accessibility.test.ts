@@ -1,9 +1,9 @@
 import { afterEach, beforeAll, beforeEach, describe, expect, it } from "bun:test";
-import { resetSettingsForTest, Settings, settings } from "@oh-my-pi/pi-coding-agent/config/settings";
-import { isAdvancedSetting } from "@oh-my-pi/pi-coding-agent/config/settings-schema";
-import { getAllSettingDefs, getSettingDef } from "@oh-my-pi/pi-coding-agent/modes/components/settings-defs";
-import { SettingsSelectorComponent } from "@oh-my-pi/pi-coding-agent/modes/components/settings-selector";
-import { initTheme } from "@oh-my-pi/pi-coding-agent/modes/theme/theme";
+import { resetSettingsForTest, Settings, settings } from "@chudware/coding-agent/config/settings";
+import { isAdvancedSetting } from "@chudware/coding-agent/config/settings-schema";
+import { getAllSettingDefs, getSettingDef } from "@chudware/coding-agent/modes/components/settings-defs";
+import { SettingsSelectorComponent } from "@chudware/coding-agent/modes/components/settings-selector";
+import { initTheme } from "@chudware/coding-agent/modes/theme/theme";
 
 beforeAll(async () => {
 	await initTheme();

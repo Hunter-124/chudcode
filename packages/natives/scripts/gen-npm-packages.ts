@@ -2,7 +2,7 @@
 
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
+import * as fsx from "@chudware/utils/fsx";
 
 export interface LeafTarget {
 	tag: string;
@@ -62,8 +62,8 @@ const NATIVE_LEAF_LEGAL_FILES = ["LICENSE", "THIRD-PARTY-NOTICES.txt"] as const;
 
 function expectedAddonFilenames(tag: string): string[] {
 	return tag.endsWith("-x64")
-		? [`pi_natives.${tag}-baseline.node`, `pi_natives.${tag}-modern.node`, `pi_natives.${tag}.node`]
-		: [`pi_natives.${tag}.node`];
+		? [`chud_natives.${tag}-baseline.node`, `chud_natives.${tag}-modern.node`, `chud_natives.${tag}.node`]
+		: [`chud_natives.${tag}.node`];
 }
 
 function discoverAddonFiles(nativeDir: string, tag: string): Promise<string[]> {
@@ -75,9 +75,9 @@ function discoverAddonFiles(nativeDir: string, tag: string): Promise<string[]> {
 }
 
 function selectPrimaryAddonFile(tag: string, files: readonly string[]): string {
-	const baseline = `pi_natives.${tag}-baseline.node`;
+	const baseline = `chud_natives.${tag}-baseline.node`;
 	if (files.includes(baseline)) return baseline;
-	const defaultFile = `pi_natives.${tag}.node`;
+	const defaultFile = `chud_natives.${tag}.node`;
 	if (files.includes(defaultFile)) return defaultFile;
 	return files[0];
 }
@@ -90,9 +90,9 @@ export function buildLeafManifest({ tag, os, cpu, files, version }: BuildLeafMan
 	}
 	const main = selectPrimaryAddonFile(tag, addonFiles);
 	return {
-		name: `@oh-my-pi/pi-natives-${tag}`,
+		name: `@chudware/natives-${tag}`,
 		version,
-		author: "Stencil Labs, Inc.",
+		author: "Chudware",
 		os: [os],
 		cpu: [cpu],
 		main: `./${main}`,
@@ -100,7 +100,7 @@ export function buildLeafManifest({ tag, os, cpu, files, version }: BuildLeafMan
 		license: "MIT",
 		repository: {
 			type: "git",
-			url: "git+https://github.com/can1357/oh-my-pi.git",
+			url: "git+https://github.com/Hunter-124/chudcode.git",
 			directory: "packages/natives",
 		},
 		engines: {
@@ -110,7 +110,7 @@ export function buildLeafManifest({ tag, os, cpu, files, version }: BuildLeafMan
 }
 
 function buildReadme(tag: string, manifest: LeafManifest): string {
-	return `# ${manifest.name}\n\nPlatform native addon package for \`@oh-my-pi/pi-natives\` on ${tag}.\n\nThis package is generated during release and installed as an optional dependency of the core package.\n`;
+	return `# ${manifest.name}\n\nPlatform native addon package for \`@chudware/natives\` on ${tag}.\n\nThis package is generated during release and installed as an optional dependency of the core package.\n`;
 }
 
 function selectTargets(tags: readonly string[] | undefined): readonly LeafTarget[] {

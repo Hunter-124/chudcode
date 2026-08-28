@@ -22,20 +22,20 @@ import {
 	type TSchema,
 	toolWireSchema,
 	validateToolArguments,
-} from "@oh-my-pi/pi-ai";
+} from "@chudware/ai";
 import {
 	type Dialect,
 	encodeInbandToolHistory,
 	renderInbandToolPrompt,
 	renderToolExamples,
 	wrapInbandToolStream,
-} from "@oh-my-pi/pi-ai/dialect";
-import * as AIError from "@oh-my-pi/pi-ai/error";
+} from "@chudware/ai/dialect";
+import * as AIError from "@chudware/ai/error";
 import {
 	type CursorExecResolvedCarrier,
 	copyCursorExecResolved,
 	kCursorExecResolved,
-} from "@oh-my-pi/pi-ai/utils/block-symbols";
+} from "@chudware/ai/utils/block-symbols";
 import {
 	createHarmonyAuditEvent,
 	detectHarmonyLeakInAssistantMessage,
@@ -45,19 +45,19 @@ import {
 	isHarmonyLeakMitigationTarget,
 	recoverHarmonyToolCall,
 	signalListLabel,
-} from "@oh-my-pi/pi-ai/utils/harmony-leak";
-import { logger, sanitizeText, structuredCloneJSON } from "@oh-my-pi/pi-utils";
-import { INTENT_FIELD } from "@oh-my-pi/pi-wire";
+} from "@chudware/ai/utils/harmony-leak";
+import { logger, sanitizeText, structuredCloneJSON } from "@chudware/utils";
+import { INTENT_FIELD } from "@chudware/wire";
 import { agentPauseGate } from "./pause";
 import { type AgentRunCoverage, type AgentRunSummary, ToolCallBlockedError } from "./run-collector";
 import {
 	type AgentTelemetry,
+	ChudGenAIAttr,
 	failChatSpan,
 	finishChatSpan,
 	finishExecuteToolSpan,
 	finishInvokeAgentSpan,
 	fireOnRunEnd,
-	PiGenAIAttr,
 	recordSkippedTool,
 	resolveTelemetry,
 	runInActiveSpan,
@@ -154,7 +154,7 @@ export function createToolScopedAbortReason(
  * current run. External/user aborts still synthesize an aborted assistant
  * boundary; this reason stops after persisting the completed tool batch.
  */
-export const TERMINAL_TOOL_RESULT_ABORT_REASON = Symbol.for("pi-agent-core.terminal-tool-result");
+export const TERMINAL_TOOL_RESULT_ABORT_REASON = Symbol.for("chud-agent-core.terminal-tool-result");
 
 const STEERING_INTERRUPT_POLL_MS = 250;
 
@@ -858,7 +858,7 @@ function injectIntentIntoSchema(
 }
 
 export interface NormalizeToolsOptions {
-	/** Inject the `i` intent field into tool schemas (subject to `PI_NO_INTENT`). */
+	/** Inject the `i` intent field into tool schemas (subject to `CHUDCODE_NO_INTENT`). */
 	injectIntent: boolean;
 	/** Strip descriptions from the wire specs when the catalog rides in the system prompt. */
 	pruneDescriptions?: boolean;
@@ -866,7 +866,7 @@ export interface NormalizeToolsOptions {
 
 export function normalizeTools(tools: AgentContext["tools"], options: NormalizeToolsOptions): Context["tools"] {
 	const pruneDescriptions = options.pruneDescriptions === true;
-	const injectIntent = options.injectIntent && process.env.PI_NO_INTENT !== "1";
+	const injectIntent = options.injectIntent && process.env.CHUDCODE_NO_INTENT !== "1";
 	return tools?.map(t => {
 		const intentMode = resolveIntentMode(t.intent);
 		const doInjectIntent = injectIntent && intentMode !== "omit";
@@ -1539,7 +1539,7 @@ async function prepareProviderCall(
 
 	const llmMessages = await config.convertToLlm(messages);
 	const normalizedMessages = normalizeMessagesForProvider(llmMessages, model);
-	const ownedDialect: Dialect | undefined = config.dialect ?? resolveOwnedDialectFromEnv(process.env.PI_DIALECT);
+	const ownedDialect: Dialect | undefined = config.dialect ?? resolveOwnedDialectFromEnv(process.env.CHUDCODE_DIALECT);
 	const pruneToolDescriptions = !!config.pruneToolDescriptions && !ownedDialect;
 	let llmContext: Context;
 	if (config.appendOnlyContext) {
@@ -2501,7 +2501,7 @@ async function executeToolCalls(
 			parent: invokeAgentSpan,
 		});
 		if (toolSpan && toolCall.intent) {
-			toolSpan.setAttribute(PiGenAIAttr.ToolCallIntent, toolCall.intent);
+			toolSpan.setAttribute(ChudGenAIAttr.ToolCallIntent, toolCall.intent);
 		}
 
 		let result: AgentToolResult<any> = { content: [], details: {} };

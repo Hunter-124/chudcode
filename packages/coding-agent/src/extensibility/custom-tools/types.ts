@@ -5,9 +5,9 @@
  * They can provide custom rendering for tool calls and results in the TUI.
  */
 
-import type { type as ArkType } from "@oh-my-pi/omptype";
-import type * as TypeBox from "@oh-my-pi/omptype/typebox";
-import type * as zod from "@oh-my-pi/omptype/zod";
+import type { type as ArkType } from "@chudware/chudtype";
+import type * as TypeBox from "@chudware/chudtype/typebox";
+import type * as zod from "@chudware/chudtype/zod";
 import type {
 	AgentToolResult,
 	AgentToolUpdateCallback,
@@ -15,17 +15,17 @@ import type {
 	ToolApprovalDecision,
 	ToolLoadMode,
 	ToolTier,
-} from "@oh-my-pi/pi-agent-core";
-import type { CompactionResult } from "@oh-my-pi/pi-agent-core/compaction";
-import type { FetchImpl, Model, Static, TSchema } from "@oh-my-pi/pi-ai";
-import type { Component } from "@oh-my-pi/pi-tui";
-import type { logger as PiLogger } from "@oh-my-pi/pi-utils";
+} from "@chudware/agent-core";
+import type { CompactionResult } from "@chudware/agent-core/compaction";
+import type { FetchImpl, Model, Static, TSchema } from "@chudware/ai";
+import type { Component } from "@chudware/tui";
+import type { logger as ChudLogger } from "@chudware/utils";
 import type { Rule } from "../../capability/rule";
 import type { ModelRegistry } from "../../config/model-registry";
 import type { Settings } from "../../config/settings";
 import type { ExecOptions, ExecResult } from "../../exec/exec";
 import type { HookUIContext } from "../../extensibility/hooks/types";
-import type * as PiCodingAgent from "../../index";
+import type * as ChudCodingAgent from "../../index";
 import type { LocalProtocolOptions } from "../../internal-urls/local-protocol";
 import type { Theme } from "../../modes/theme/theme";
 import type { ReadonlySessionManager } from "../../session/session-manager";
@@ -65,15 +65,15 @@ export interface CustomToolAPI {
 	/** Whether UI is available (false in print/RPC mode) */
 	hasUI: boolean;
 	/** File logger for error/warning/debug messages */
-	logger: typeof PiLogger;
+	logger: typeof ChudLogger;
 	/** Injected typebox shim (legacy/compat — arktype-authored tools are preferred). */
 	typebox: typeof TypeBox;
 	/** Injected arktype module for arktype-authored custom tools. */
 	arktype: typeof ArkType;
-	/** Injected Zod-compatible omptype builder for custom tools. */
+	/** Injected Zod-compatible chudtype builder for custom tools. */
 	zod: typeof zod;
-	/** Injected pi-coding-agent exports */
-	pi: typeof PiCodingAgent;
+	/** Injected chudcode-agent exports */
+	chud: typeof ChudCodingAgent;
 	/** Push a preview action that can later be resolved with the hidden resolve tool */
 	pushPendingAction(action: CustomToolPendingAction): void;
 }
@@ -185,7 +185,7 @@ export type CustomToolResult<TDetails = any> = AgentToolResult<TDetails>;
  *
  * @example
  * ```typescript
- * const factory: CustomToolFactory = (pi) => ({
+ * const factory: CustomToolFactory = (chud) => ({
  *   name: "my_tool",
  *   label: "My Tool",
  *   description: "Does something useful",
@@ -266,7 +266,7 @@ export interface CustomTool<TParams extends TSchema = TSchema, TDetails = any> {
 
 /** Factory function that creates a custom tool or array of tools */
 export type CustomToolFactory = (
-	pi: CustomToolAPI,
+	chud: CustomToolAPI,
 ) => CustomTool<any, any> | CustomTool<any, any>[] | Promise<CustomTool<any, any> | CustomTool<any, any>[]>;
 
 /** Loaded custom tool with metadata and wrapped AgentTool */

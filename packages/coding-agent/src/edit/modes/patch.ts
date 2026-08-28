@@ -7,10 +7,10 @@
 
 import * as fs from "node:fs";
 import * as path from "node:path";
-import { type } from "@oh-my-pi/omptype";
-import type { AgentToolResult } from "@oh-my-pi/pi-agent-core";
-import { isEnoent } from "@oh-my-pi/pi-utils";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
+import { type } from "@chudware/chudtype";
+import type { AgentToolResult } from "@chudware/agent-core";
+import { isEnoent } from "@chudware/utils";
+import * as fsx from "@chudware/utils/fsx";
 import {
 	type FileDiagnosticsResult,
 	flushLspWritethroughBatch,

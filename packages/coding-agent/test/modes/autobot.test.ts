@@ -1,6 +1,6 @@
 import { beforeAll, describe, expect, it } from "bun:test";
-import { containsAutobot, highlightAutobot } from "@oh-my-pi/pi-coding-agent/modes/autobot";
-import { initTheme } from "@oh-my-pi/pi-coding-agent/modes/theme/theme";
+import { containsAutobot, highlightAutobot } from "@chudware/coding-agent/modes/autobot";
+import { initTheme } from "@chudware/coding-agent/modes/theme/theme";
 
 beforeAll(() => {
 	// highlightAutobot reads the global theme's color mode.

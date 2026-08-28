@@ -1,7 +1,7 @@
 #!/usr/bin/env bun
 
 import * as path from "node:path";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
+import * as fsx from "@chudware/utils/fsx";
 import { $ } from "bun";
 import { $which } from "../packages/utils/src/which";
 

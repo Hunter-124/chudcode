@@ -1,17 +1,17 @@
 /*
- * omp-seat-shim: the minimum EWMH surface omp's X11 desktop backend needs.
+ * chudcode-seat-shim: the minimum EWMH surface chudcode's X11 desktop backend needs.
  *
- * omp enumerates windows purely from root properties
- * (crates/pi-natives/src/desktop/linux/x11/capture.rs:190) and activates windows
+ * chudcode enumerates windows purely from root properties
+ * (crates/chud-natives/src/desktop/linux/x11/capture.rs:190) and activates windows
  * by sending a _NET_ACTIVE_WINDOW client message to the root
- * (crates/pi-natives/src/desktop/linux/x11/input.rs:372).  A bare Xvfb has no
+ * (crates/chud-natives/src/desktop/linux/x11/input.rs:372).  A bare Xvfb has no
  * window manager, so those properties never exist and desktop.windows() returns
  * an empty list.  This publishes them and honours activation, without taking
  * over geometry (no SubstructureRedirect): apps keep placing themselves, which
  * is what an agent seat wants.
  *
- * Build: gcc -O2 -o omp-seat-shim ewmh-shim.c -lX11
- * Run:   DISPLAY=:90 ./omp-seat-shim
+ * Build: gcc -O2 -o chudcode-seat-shim ewmh-shim.c -lX11
+ * Run:   DISPLAY=:90 ./chudcode-seat-shim
  *
  * A real WM (openbox, i3) works equally well; this exists so the seat needs no
  * package install and no theming/compositing overhead.
@@ -41,7 +41,7 @@ static int ignore_x_error(Display *display, XErrorEvent *error) {
 	if (error->error_code == BadWindow || error->error_code == BadDrawable ||
 	    error->error_code == BadMatch)
 		return 0;
-	fprintf(stderr, "omp-seat-shim: X error %d (request %d)\n", error->error_code,
+	fprintf(stderr, "chudcode-seat-shim: X error %d (request %d)\n", error->error_code,
 	        error->request_code);
 	return 0;
 }
@@ -74,7 +74,7 @@ static void publish(void) {
 	XChangeProperty(dpy, root, a_client_list_stacking, XA_WINDOW, 32, PropModeReplace,
 	                (unsigned char *)clients, n);
 
-	/* Keep _NET_ACTIVE_WINDOW pointing at a live client: omp reads it for
+	/* Keep _NET_ACTIVE_WINDOW pointing at a live client: chudcode reads it for
 	 * `focused` and restores it after foreground delivery. */
 	Window active = None;
 	unsigned char *value = NULL;
@@ -112,7 +112,7 @@ static void activate(Window w) {
 int main(void) {
 	dpy = XOpenDisplay(NULL);
 	if (!dpy) {
-		fprintf(stderr, "omp-seat-shim: cannot open DISPLAY=%s\n",
+		fprintf(stderr, "chudcode-seat-shim: cannot open DISPLAY=%s\n",
 		        getenv("DISPLAY") ? getenv("DISPLAY") : "(unset)");
 		return 1;
 	}
@@ -129,7 +129,7 @@ int main(void) {
 
 	wm_check = XCreateSimpleWindow(dpy, root, -10, -10, 1, 1, 0, 0, 0);
 	XChangeProperty(dpy, wm_check, a_wm_name, a_utf8, 8, PropModeReplace,
-	                (unsigned char *)"omp-seat-shim", 13);
+	                (unsigned char *)"chudcode-seat-shim", 13);
 	XChangeProperty(dpy, wm_check, a_supporting_wm_check, XA_WINDOW, 32, PropModeReplace,
 	                (unsigned char *)&wm_check, 1);
 	XChangeProperty(dpy, root, a_supporting_wm_check, XA_WINDOW, 32, PropModeReplace,
@@ -142,7 +142,7 @@ int main(void) {
 	/* Notify only: apps stay in charge of their own geometry. */
 	XSelectInput(dpy, root, SubstructureNotifyMask | PropertyChangeMask);
 	publish();
-	printf("omp-seat-shim: publishing EWMH on %s\n", XDisplayString(dpy));
+	printf("chudcode-seat-shim: publishing EWMH on %s\n", XDisplayString(dpy));
 	fflush(stdout);
 
 	for (;;) {

@@ -1,13 +1,13 @@
 #!/usr/bin/env bun
 
 /**
- * Syncs ALL @oh-my-pi/* package dependency versions to match their current versions.
+ * Syncs ALL @chudware/* package dependency versions to match their current versions.
  * This ensures lockstep versioning across the monorepo.
  */
 
 import { readdirSync } from "node:fs";
 import { join } from "node:path";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
+import * as fsx from "@chudware/utils/fsx";
 
 interface PackageJson {
 	name: string;

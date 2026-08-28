@@ -12,7 +12,7 @@
  * Architecture reverse-engineered from Perplexity macOS app (ai.perplexity.mac).
  */
 import * as os from "node:os";
-import { $env } from "@oh-my-pi/pi-utils";
+import { $env } from "@chudware/utils";
 import { $, Cookie, CookieMap } from "bun";
 import * as AIError from "../../error";
 import type { OAuthController, OAuthCredentials } from "./types";
@@ -244,8 +244,8 @@ export async function loginPerplexity(ctrl: OAuthController): Promise<OAuthCrede
 		throw new AIError.OnPromptRequiredError("Perplexity");
 	}
 
-	// Path 1: Native macOS app JWT (skip if PI_AUTH_NO_BORROW=1)
-	if (!$env.PI_AUTH_NO_BORROW) {
+	// Path 1: Native macOS app JWT (skip if CHUDCODE_AUTH_NO_BORROW=1)
+	if (!$env.CHUDCODE_AUTH_NO_BORROW) {
 		ctrl.onProgress?.("Checking for Perplexity desktop app...");
 		const nativeJwt = await extractFromNativeApp();
 		if (nativeJwt) {

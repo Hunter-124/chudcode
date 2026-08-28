@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import { TempDir } from "@oh-my-pi/pi-utils";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
+import { TempDir } from "@chudware/utils";
+import * as fsx from "@chudware/utils/fsx";
 import type { ToolSession } from "../tools";
 import {
 	applySloppy,
@@ -2129,7 +2129,7 @@ describe("sloppy v8", () => {
 			"#[cfg(test)]",
 			"mod tests {",
 			"\tuse bytes::Bytes;",
-			"\tuse omp_core::Str;",
+			"\tuse chudcode_core::Str;",
 			"\tuse parking_lot::Mutex;",
 			"\tuse smallvec::SmallVec;",
 			"\tuse url::Url;",
@@ -2137,11 +2137,11 @@ describe("sloppy v8", () => {
 			"",
 		].join("\n");
 		const input = operation(
-			"\tuse bytes::Bytes;\n\tuse omp_core::Str;\n\tuse parking_lot::Mutex;",
-			"\tuse bytes::Bytes;\n\tuse omp_core::{Str, sf};\n\tuse parking_lot::Mutex;",
+			"\tuse bytes::Bytes;\n\tuse chudcode_core::Str;\n\tuse parking_lot::Mutex;",
+			"\tuse bytes::Bytes;\n\tuse chudcode_core::{Str, sf};\n\tuse parking_lot::Mutex;",
 		);
 		const result = variant.apply(file, input, context);
-		expect(result).toContain("\tuse omp_core::{Str, sf};");
+		expect(result).toContain("\tuse chudcode_core::{Str, sf};");
 		expect(result).toContain("\tuse smallvec::SmallVec;");
 		expect(result).not.toContain("us\tuse");
 		expect(result).not.toContain("Mutex;e smallvec");

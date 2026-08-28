@@ -2,10 +2,10 @@ import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import type { LocalProtocolOptions } from "@oh-my-pi/pi-coding-agent/internal-urls";
-import { loadOverallPlanReference } from "@oh-my-pi/pi-coding-agent/plan-mode/plan-handoff";
-import { removeWithRetries } from "@oh-my-pi/pi-utils";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
+import type { LocalProtocolOptions } from "@chudware/coding-agent/internal-urls";
+import { loadOverallPlanReference } from "@chudware/coding-agent/plan-mode/plan-handoff";
+import { removeWithRetries } from "@chudware/utils";
+import * as fsx from "@chudware/utils/fsx";
 
 describe("loadOverallPlanReference", () => {
 	let tmpDir: string;

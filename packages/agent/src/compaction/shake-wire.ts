@@ -1,4 +1,4 @@
-import type { ImageContent, TextContent, ToolResultMessage } from "@oh-my-pi/pi-ai";
+import type { ImageContent, TextContent, ToolResultMessage } from "@chudware/ai";
 import { Tokenizer } from "../tokenizer";
 import type { AgentMessage } from "../types";
 import type { CustomMessageEntry, SessionEntry, SessionMessageEntry } from "./entries";
@@ -290,7 +290,7 @@ function syncStringContent(binding: EntryBinding): void {
 	}
 }
 
-/** Shake JSON/OpenAI-style messages through OMP's canonical compaction algorithm. */
+/** Shake JSON/OpenAI-style messages through Chudcode's canonical compaction algorithm. */
 export function shakeWireMessages(request: ShakeWireRequest): ShakeWireResult {
 	const messages = structuredClone(request.messages);
 	const config = configFor(request);

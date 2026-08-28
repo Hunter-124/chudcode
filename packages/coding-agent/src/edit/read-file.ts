@@ -4,8 +4,8 @@
  * Reads a file via Bun and rethrows ENOENT as a user-facing "File not found"
  * error referencing the display path.
  */
-import { isEnoent } from "@oh-my-pi/pi-utils";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
+import { isEnoent } from "@chudware/utils";
+import * as fsx from "@chudware/utils/fsx";
 import { isNotebookPath, readEditableNotebookText, serializeEditedNotebookText } from "./notebook";
 
 export async function readEditFileText(absolutePath: string, path: string): Promise<string> {

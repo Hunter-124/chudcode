@@ -2,14 +2,14 @@ import { describe, expect, it } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
+import * as fsx from "@chudware/utils/fsx";
 import { DynamicBorder } from "../../../src/modes/components/dynamic-border";
 import { getThemeByName, setThemeInstance, theme } from "../../../src/modes/theme/theme";
 
 const componentPath = path.resolve(import.meta.dir, "../../../src/modes/components/dynamic-border.ts");
 
 describe("DynamicBorder", () => {
-	// Regression for #5366: extensions importing legacy pi UI components get a
+	// Regression for #5366: extensions importing legacy chud UI components get a
 	// second `src` module graph whose module-level `theme` is never assigned by
 	// host startup. `render()` must degrade to plain glyphs instead of throwing
 	// "undefined is not an object (evaluating 'theme.boxRound')" and killing the
@@ -17,7 +17,7 @@ describe("DynamicBorder", () => {
 	// the uninitialized state is only reachable in a fresh module graph — a
 	// subprocess reproduces the actual reported scenario deterministically.
 	it("renders plain glyphs when the module-level theme is uninitialized", async () => {
-		const dir = await fs.mkdtemp(path.join(os.tmpdir(), "omp-dynamic-border-"));
+		const dir = await fs.mkdtemp(path.join(os.tmpdir(), "chudcode-dynamic-border-"));
 		try {
 			const script = [
 				`import { DynamicBorder } from ${JSON.stringify(componentPath)};`,

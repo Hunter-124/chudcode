@@ -2,7 +2,7 @@
 
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
+import * as fsx from "@chudware/utils/fsx";
 import { $ } from "bun";
 
 const GENERATED_FILE = path.join("src", "embedded-client.generated.txt");
@@ -76,7 +76,7 @@ function normalizeTarMetadata(bytes: Uint8Array): void {
 	}
 }
 
-/** Build a byte-stable gzip archive of a directory for embedding in the OMP binary. */
+/** Build a byte-stable gzip archive of a directory for embedding in the Chudcode binary. */
 export async function buildArchiveBase64(dir: string): Promise<string> {
 	const files = await collectFiles(dir);
 	const entries: Record<string, Uint8Array> = {};

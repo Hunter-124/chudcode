@@ -2,8 +2,8 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import { type AuthCredentialStore, AuthStorage, SqliteAuthCredentialStore } from "@oh-my-pi/pi-ai/auth-storage";
-import type { UsageProvider, UsageReport } from "@oh-my-pi/pi-ai/usage";
+import { type AuthCredentialStore, AuthStorage, SqliteAuthCredentialStore } from "@chudware/ai/auth-storage";
+import type { UsageProvider, UsageReport } from "@chudware/ai/usage";
 import { removeWithRetries } from "../../utils/src/temp";
 
 const HOUR_MS = 60 * 60 * 1000;
@@ -25,7 +25,7 @@ describe("AuthStorage Z.AI API-key usage ranking", () => {
 	};
 
 	beforeEach(async () => {
-		tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "pi-ai-auth-zai-selection-"));
+		tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "chud-ai-auth-zai-selection-"));
 		store = await SqliteAuthCredentialStore.open(path.join(tempDir, "agent.db"));
 		authStorage = new AuthStorage(store, {
 			usageProviderResolver: provider => (provider === "zai" ? usageProvider : undefined),

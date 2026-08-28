@@ -1,6 +1,6 @@
 import type { Database } from "bun:sqlite";
-import type { AgentToolResult } from "@oh-my-pi/pi-agent-core";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
+import type { AgentToolResult } from "@chudware/agent-core";
+import * as fsx from "@chudware/utils/fsx";
 import type { ToolSession } from "../sdk";
 import { DEFAULT_MAX_LINES, truncateHead } from "../session/streaming-output";
 import { applyListLimit } from "./list-limit";

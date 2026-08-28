@@ -1,7 +1,7 @@
 import { AsyncLocalStorage } from "node:async_hooks";
-import type { Agent, AgentTool } from "@oh-my-pi/pi-agent-core";
-import type { Model } from "@oh-my-pi/pi-ai";
-import { isRecord, logger, prompt, stringProperty, untilAborted } from "@oh-my-pi/pi-utils";
+import type { Agent, AgentTool } from "@chudware/agent-core";
+import type { Model } from "@chudware/ai";
+import { isRecord, logger, prompt, stringProperty, untilAborted } from "@chudware/utils";
 import { reset as resetCapabilities } from "../capability";
 import type { EffectiveExtensionRoots } from "../capability/types";
 import type { ModelRegistry } from "../config/model-registry";
@@ -582,7 +582,7 @@ export class SessionTools {
 	 *
 	 * Backs the `getAllTools()` ExtensionAPI method. Returns {@link ToolInfo}
 	 * objects (not bare names) so extensions authored against upstream
-	 * `@earendil-works/pi-coding-agent` — which promises `ToolInfo[]` — can read
+	 * `@earendil-works/chudcode-agent` — which promises `ToolInfo[]` — can read
 	 * `sourceInfo.source` unchanged.
 	 */
 	getAllToolInfos(): ToolInfo[] {

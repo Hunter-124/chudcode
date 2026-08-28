@@ -1,5 +1,5 @@
-OMP_SEAT_NAME=proof
-OMP_SEAT_DIR=/run/user/1000/omp-seats/proof
+CHUDCODE_SEAT_NAME=proof
+CHUDCODE_SEAT_DIR=/run/user/1000/chudcode-seats/proof
 DISPLAY=:90
-XAUTHORITY=/run/user/1000/omp-seats/proof/Xauthority
+XAUTHORITY=/run/user/1000/chudcode-seats/proof/Xauthority
 UNSET=WAYLAND_DISPLAY

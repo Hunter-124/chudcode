@@ -1,11 +1,11 @@
-import { getActiveProfile } from "@oh-my-pi/pi-utils";
+import { getActiveProfile } from "@chudware/utils";
 import { PRODUCT_CLI_NAME } from "../brand";
 
 /**
  * Build the shell command that resumes a session by id.
  *
  * Sessions launched under a named profile are stored in that profile's agent
- * directory (`~/.omp/profiles/<name>/agent`), so a bare `chudcode --resume <id>`
+ * directory (`~/.chudcode/profiles/<name>/agent`), so a bare `chudcode --resume <id>`
  * run without the profile looks in the default directory and fails with
  * `Session "<id>" not found`. When a profile is active, prefix `--profile
  * <name>` so the emitted hint is a command the user can paste verbatim

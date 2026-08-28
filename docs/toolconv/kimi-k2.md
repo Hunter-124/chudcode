@@ -179,13 +179,13 @@ Moonshot's hosted API (`platform.moonshot.ai`) exposes both OpenAI- and Anthropi
 - **Parser availability.** vLLM ships both a Python (`KimiK2ToolParser`) and a newer Rust tool parser; SGLang implements its own `kimi_k2` parser. All key off the same five markers and the `functions.{name}:{idx}` ID convention documented here.
 - **Whitespace artifact.** When no `system` message is supplied, the template injects the default system prompt and a small `\n  ` (newline + two spaces) can appear before the first `<|im_user|>` marker. It is harmless (tokenizes around the markers), but supplying an explicit system message yields the clean streams shown above.
 
-## Chudcode / pi converter behavior
+## Chudcode / chud converter behavior
 
 The repository's `kimi` dialect is an **owned in-band converter**. Select it
-with `PI_DIALECT=kimi` (or the equivalent agent configuration). With tools
+with `CHUDCODE_DIALECT=kimi` (or the equivalent agent configuration). With tools
 present, the agent appends the Kimi guide and compact tool catalog to the
 system prompt, removes native provider tools, rewrites prior calls/results in
-Kimi text form, and converts streamed output back into canonical pi events.
+Kimi text form, and converts streamed output back into canonical chud events.
 Kimi-family model affinity resolves to this dialect.
 
 The renderer emits one section per assistant call batch. It preserves a

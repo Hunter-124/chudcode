@@ -1,6 +1,6 @@
 import { describe, expect, it } from "bun:test";
-import { Process, ProcessStatus } from "@oh-my-pi/pi-natives";
-import { createLinuxSubreaperScript, exec, NonZeroExitError, spawn, TimeoutError } from "@oh-my-pi/pi-utils/ptree";
+import { Process, ProcessStatus } from "@chudware/natives";
+import { createLinuxSubreaperScript, exec, NonZeroExitError, spawn, TimeoutError } from "@chudware/utils/ptree";
 import { sleep } from "../src/async";
 
 async function supportsLinuxMountNamespaces(): Promise<boolean> {
@@ -59,12 +59,12 @@ describe("ptree timeout", () => {
 	});
 
 	it.skipIf(process.platform !== "linux")("falls back after the first libc soname is unavailable", async () => {
-		const script = createLinuxSubreaperScript(["libc.so.omp-missing", "libc.so.6", "libc.so"]);
+		const script = createLinuxSubreaperScript(["libc.so.chudcode-missing", "libc.so.6", "libc.so"]);
 		const child = Bun.spawn([process.execPath, "-e", script], {
 			env: {
 				...process.env,
 				BUN_BE_BUN: "1",
-				OMP_PTREE_SUBREAPER_COMMAND: JSON.stringify([
+				CHUDCODE_PTREE_SUBREAPER_COMMAND: JSON.stringify([
 					process.execPath,
 					"-e",
 					'process.stdout.write("libc-fallback-ok")',
@@ -127,7 +127,7 @@ ${createLinuxSubreaperScript()}
 				env: {
 					...process.env,
 					BUN_BE_BUN: "1",
-					OMP_PTREE_SUBREAPER_COMMAND: JSON.stringify(["/bin/sh", "-c", "printf procfs-free-ok"]),
+					CHUDCODE_PTREE_SUBREAPER_COMMAND: JSON.stringify(["/bin/sh", "-c", "printf procfs-free-ok"]),
 				},
 				stdin: "ignore",
 				stdout: "pipe",

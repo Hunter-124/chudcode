@@ -2,8 +2,8 @@ import type { Dirent } from "node:fs";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import { isEnoent } from "@oh-my-pi/pi-utils";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
+import { isEnoent } from "@chudware/utils";
+import * as fsx from "@chudware/utils/fsx";
 import { $ } from "bun";
 import {
 	getBehaviorDashboardStats,
@@ -37,18 +37,18 @@ const EMBEDDED_CLIENT_ARCHIVE = decodeEmbeddedClientArchive(embeddedClientArchiv
 const CLIENT_DIR = path.join(import.meta.dir, "client");
 const STATIC_DIR = path.join(import.meta.dir, "..", "dist", "client");
 const IS_BUN_COMPILED =
-	Boolean(process.env.PI_COMPILED || process.env.PI_COMPILED) ||
+	Boolean(process.env.CHUDCODE_COMPILED || process.env.CHUDCODE_COMPILED) ||
 	import.meta.url.includes("$bunfs") ||
 	import.meta.url.includes("~BUN") ||
 	import.meta.url.includes("%7EBUN");
 // The prepacked npm bundle (coding-agent dist/cli.js) constant-folds
-// process.env.PI_BUNDLED at build time. Like compiled binaries, it ships no
+// process.env.CHUDCODE_BUNDLED at build time. Like compiled binaries, it ships no
 // dashboard sources or prebuilt dist/client next to the bundle, so the
 // embedded archive is the only viable asset source.
-const IS_PREBUILT = IS_BUN_COMPILED || Boolean(process.env.PI_BUNDLED || process.env.PI_BUNDLED);
+const IS_PREBUILT = IS_BUN_COMPILED || Boolean(process.env.CHUDCODE_BUNDLED || process.env.CHUDCODE_BUNDLED);
 const USE_EMBEDDED_CLIENT = EMBEDDED_CLIENT_ARCHIVE !== null || IS_PREBUILT;
 
-const EMBEDDED_CLIENT_DIR_ROOT = path.join(os.tmpdir(), "omp-stats-client");
+const EMBEDDED_CLIENT_DIR_ROOT = path.join(os.tmpdir(), "chudcode-stats-client");
 let embeddedClientDirPromise: Promise<string> | null = null;
 
 function sanitizeArchivePath(archivePath: string): string | null {
@@ -80,7 +80,7 @@ async function getEmbeddedClientDir(): Promise<string> {
 
 	if (!EMBEDDED_CLIENT_ARCHIVE) {
 		throw new Error(
-			"Embedded stats client bundle missing. Rebuild the omp binary or npm bundle with embedded stats assets.",
+			"Embedded stats client bundle missing. Rebuild the chudcode binary or npm bundle with embedded stats assets.",
 		);
 	}
 
@@ -323,7 +323,7 @@ function createDashboardServer(port: number, hostname: string) {
 			const url = new URL(req.url);
 			const path = url.pathname;
 
-			// The identity header lets another omp session's reuse probe positively
+			// The identity header lets another chudcode session's reuse probe positively
 			// recognize this dashboard without allowing cross-origin API reads.
 			const dashboardHeaders: Record<string, string> = {
 				[STATS_DASHBOARD_HEADER]: STATS_DASHBOARD_SECURITY_VERSION,
@@ -366,7 +366,7 @@ function createDashboardServer(port: number, hostname: string) {
 }
 
 /**
- * Start the HTTP server, reusing a live dashboard or reclaiming a stale omp listener.
+ * Start the HTTP server, reusing a live dashboard or reclaiming a stale chudcode listener.
  */
 export async function startServer(
 	port = 3847,

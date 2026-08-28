@@ -40,8 +40,8 @@
 
 import * as path from "node:path";
 import { parseArgs } from "node:util";
-import { sleep } from "@oh-my-pi/pi-utils/async";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
+import { sleep } from "@chudware/utils/async";
+import * as fsx from "@chudware/utils/fsx";
 import STYLE_GUIDE from "./rewrite-system-prompt.style.md" with { type: "text" };
 
 const DEFAULT_INPUT = "packages/coding-agent/src/prompts/system/system-prompt.md";
@@ -418,8 +418,8 @@ export function makeOpenRouterRewriter(opts: OpenRouterOptions): RewriteChunk {
 					headers: {
 						Authorization: `Bearer ${opts.apiKey}`,
 						"Content-Type": "application/json",
-						"HTTP-Referer": "https://omp.sh/",
-						"X-Title": "omp",
+						"HTTP-Referer": "https://chudware.sh/",
+						"X-Title": "chudcode",
 					},
 					body,
 				});

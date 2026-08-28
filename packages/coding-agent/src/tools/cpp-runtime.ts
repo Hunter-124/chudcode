@@ -1,13 +1,13 @@
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
-import { type } from "@oh-my-pi/omptype";
+import { type } from "@chudware/chudtype";
 import type {
 	AgentTool,
 	AgentToolContext,
 	AgentToolResult,
 	AgentToolUpdateCallback,
 	ToolApprovalDecision,
-} from "@oh-my-pi/pi-agent-core";
+} from "@chudware/agent-core";
 import type { ToolSession } from ".";
 import { parseDhatJson } from "./analyzers/dhat-json";
 import { missingTool, probeTools } from "./analyzers/doctor";

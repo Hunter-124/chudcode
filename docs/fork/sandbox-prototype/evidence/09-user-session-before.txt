@@ -2,4 +2,4 @@
   kwin currentDesktop: (1,)
   kwin activeOutput:   ('HDMI-A-2',)
   ESTAB conns to user X0: 11
-  clients on user a11y bus (omp wayland backend): 1
+  clients on user a11y bus (chudcode wayland backend): 1

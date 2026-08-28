@@ -5,14 +5,14 @@
  * `model.loopGuard.*`, `textVerbosity` for Responses-family requests)
  * options win — the same wiring the main agent and the advisor agent share so
  * OpenRouter sticky-routing / response caching behaves the same on advisor turns
- * (can1357/oh-my-pi#3639).
+ * (Hunter-124/chudcode#3639).
  */
 import { describe, expect, it } from "bun:test";
-import type { StreamFn } from "@oh-my-pi/pi-agent-core";
-import type { Context, Model, SimpleStreamOptions } from "@oh-my-pi/pi-ai";
-import { AssistantMessageEventStream } from "@oh-my-pi/pi-ai/utils/event-stream";
-import { Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
-import { createSettingsAwareStreamFn } from "@oh-my-pi/pi-coding-agent/session/settings-stream-fn";
+import type { StreamFn } from "@chudware/agent-core";
+import type { Context, Model, SimpleStreamOptions } from "@chudware/ai";
+import { AssistantMessageEventStream } from "@chudware/ai/utils/event-stream";
+import { Settings } from "@chudware/coding-agent/config/settings";
+import { createSettingsAwareStreamFn } from "@chudware/coding-agent/session/settings-stream-fn";
 
 function captureBase(): { fn: StreamFn; calls: Array<{ options?: SimpleStreamOptions }> } {
 	const calls: Array<{ options?: SimpleStreamOptions }> = [];
@@ -150,7 +150,7 @@ describe("createSettingsAwareStreamFn", () => {
 	it("forwards configured cache retention, leaves auto unset, and lets callers override", () => {
 		const auto = captureBase();
 		createSettingsAwareStreamFn(Settings.isolated({}), auto.fn)(stubModel, stubContext, undefined);
-		// auto must stay unset so provider defaults and PI_CACHE_RETENTION apply
+		// auto must stay unset so provider defaults and CHUDCODE_CACHE_RETENTION apply
 		expect(auto.calls[0]?.options?.cacheRetention).toBeUndefined();
 
 		const long = captureBase();

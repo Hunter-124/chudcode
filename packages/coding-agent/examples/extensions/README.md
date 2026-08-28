@@ -1,15 +1,15 @@
 # Extension Examples
 
-Example extensions for pi-coding-agent.
+Example extensions for chudcode-agent.
 
 ## Usage
 
 ```bash
 # Load an extension with --extension flag
-pi --extension examples/extensions/permission-gate.ts
+chud --extension examples/extensions/permission-gate.ts
 
 # Or copy to extensions directory for auto-discovery
-cp permission-gate.ts ~/.omp/agent/extensions/
+cp permission-gate.ts ~/.chudcode/agent/extensions/
 ```
 
 ## Examples
@@ -71,13 +71,13 @@ cp permission-gate.ts ~/.omp/agent/extensions/
 See [docs/extensions.md](../../docs/extensions.md) for full documentation.
 
 ```typescript
-import type { ExtensionAPI } from "@oh-my-pi/pi-coding-agent";
+import type { ExtensionAPI } from "@chudware/coding-agent";
 
-export default function (pi: ExtensionAPI) {
-	const z = pi.zod;
+export default function (chud: ExtensionAPI) {
+	const z = chud.zod;
 
 	// Subscribe to lifecycle events
-	pi.on("tool_call", async (event, ctx) => {
+	chud.on("tool_call", async (event, ctx) => {
 		if (event.toolName === "bash" && event.input.command?.includes("rm -rf")) {
 			const ok = await ctx.ui.confirm("Dangerous!", "Allow rm -rf?");
 			if (!ok) return { block: true, reason: "Blocked by user" };
@@ -85,7 +85,7 @@ export default function (pi: ExtensionAPI) {
 	});
 
 	// Register custom tools
-	pi.registerTool({
+	chud.registerTool({
 		name: "greet",
 		label: "Greeting",
 		description: "Generate a greeting",
@@ -101,7 +101,7 @@ export default function (pi: ExtensionAPI) {
 	});
 
 	// Register commands
-	pi.registerCommand("hello", {
+	chud.registerCommand("hello", {
 		description: "Say hello",
 		handler: async (args, ctx) => {
 			ctx.ui.notify("Hello!", "info");
@@ -114,7 +114,7 @@ export default function (pi: ExtensionAPI) {
 **Use `z.enum` for discriminated string tool args:**
 
 ```typescript
-const z = pi.zod;
+const z = chud.zod;
 
 parameters: z.object({
 	action: z.enum(["list", "add"]),
@@ -131,7 +131,7 @@ return {
 };
 
 // Reconstruct on session events
-pi.on("session_start", async (_event, ctx) => {
+chud.on("session_start", async (_event, ctx) => {
 	for (const entry of ctx.sessionManager.getBranch()) {
 		if (entry.type === "message" && entry.message.toolName === "my_tool") {
 			const details = entry.message.details;

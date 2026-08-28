@@ -9,7 +9,7 @@
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
+import * as fsx from "@chudware/utils/fsx";
 
 // Memoized staged path per cache directory. The value is re-validated on every
 // call: a tmpdir sweep (e.g. macOS `periodic daily clean_tmps`) or any external

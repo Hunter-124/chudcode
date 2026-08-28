@@ -1,8 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "bun:test";
-import { chunkForConPTY, ProcessTerminal } from "@oh-my-pi/pi-tui/terminal";
-import { setTerminalHeadless } from "@oh-my-pi/pi-utils";
+import { chunkForConPTY, ProcessTerminal } from "@chudware/tui/terminal";
+import { setTerminalHeadless } from "@chudware/utils";
 
-// Regression test for https://github.com/can1357/oh-my-pi/issues/2034
+// Regression test for https://github.com/Hunter-124/chudcode/issues/2034
 //
 // Windows ConPTY ties viewport tracking to per-`WriteFile` boundaries: when
 // a single `process.stdout.write` exceeds ~32-64 KB, the pseudo-console

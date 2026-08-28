@@ -2,13 +2,13 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
-import { ModelRegistry } from "@oh-my-pi/pi-coding-agent/config/model-registry";
-import { resetSettingsForTest, Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
-import { createAgentSession } from "@oh-my-pi/pi-coding-agent/sdk";
-import { AuthStorage } from "@oh-my-pi/pi-coding-agent/session/auth-storage";
-import { SessionManager } from "@oh-my-pi/pi-coding-agent/session/session-manager";
-import { removeSyncWithRetries, Snowflake } from "@oh-my-pi/pi-utils";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
+import { ModelRegistry } from "@chudware/coding-agent/config/model-registry";
+import { resetSettingsForTest, Settings } from "@chudware/coding-agent/config/settings";
+import { createAgentSession } from "@chudware/coding-agent/sdk";
+import { AuthStorage } from "@chudware/coding-agent/session/auth-storage";
+import { SessionManager } from "@chudware/coding-agent/session/session-manager";
+import { removeSyncWithRetries, Snowflake } from "@chudware/utils";
+import * as fsx from "@chudware/utils/fsx";
 import { YAML } from "bun";
 
 /**
@@ -30,7 +30,7 @@ describe("issue #1022 — path-scoped enabledModels respected by default fallbac
 
 	beforeEach(() => {
 		resetSettingsForTest();
-		testDir = path.join(os.tmpdir(), `pi-issue-1022-${Snowflake.next()}`);
+		testDir = path.join(os.tmpdir(), `chud-issue-1022-${Snowflake.next()}`);
 		agentDir = path.join(testDir, "agent");
 		cwd = path.join(testDir, "private", "sub");
 		fs.mkdirSync(agentDir, { recursive: true });
@@ -84,7 +84,7 @@ describe("issue #1022 — path-scoped enabledModels respected by default fallbac
 			});
 
 			try {
-				// Bug: omp falls back to anthropic Haiku here, ignoring the
+				// Bug: chudcode falls back to anthropic Haiku here, ignoring the
 				// path-scoped enabledModels allow-list.
 				expect(session.model?.provider).not.toBe("anthropic");
 				expect(session.model?.provider).not.toBe("github-copilot");

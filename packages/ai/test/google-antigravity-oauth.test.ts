@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "bun:test";
-import * as piUtils from "@oh-my-pi/pi-utils/async";
+import * as piUtils from "@chudware/utils/async";
 import { ANTIGRAVITY_LOAD_CODE_ASSIST_METADATA, loginAntigravity } from "../src/registry/oauth/google-antigravity";
 import * as googleOAuth from "../src/registry/oauth/google-oauth-shared";
 

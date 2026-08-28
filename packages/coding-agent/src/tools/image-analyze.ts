@@ -1,9 +1,9 @@
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import { type } from "@oh-my-pi/omptype";
-import type { AgentTool, AgentToolContext, AgentToolResult, AgentToolUpdateCallback } from "@oh-my-pi/pi-agent-core";
-import type { ImageContent } from "@oh-my-pi/pi-ai";
+import { type } from "@chudware/chudtype";
+import type { AgentTool, AgentToolContext, AgentToolResult, AgentToolUpdateCallback } from "@chudware/agent-core";
+import type { ImageContent } from "@chudware/ai";
 import { resizeImage } from "../utils/image-resize";
 import type { ToolSession } from "./index";
 import { asImageContent, loadProcessedImage, loadVisionImage, materializeLoadedImage } from "./vision/image-input";
@@ -104,7 +104,7 @@ export class ImageAnalyzeTool implements AgentTool<typeof imageAnalyzeSchema, Im
 	readonly loadMode = "discoverable";
 	readonly summary = "Classical and learned image analysis";
 	readonly description =
-		"Analyze images with the optional native pi-vision sidecar: classify, detect objects/faces, OCR, redact PII, crop, locate text/templates, diff, or produce a composite description. Expected sidecar/model unavailability is returned as structured JSON.";
+		"Analyze images with the optional native chud-vision sidecar: classify, detect objects/faces, OCR, redact PII, crop, locate text/templates, diff, or produce a composite description. Expected sidecar/model unavailability is returned as structured JSON.";
 	readonly parameters = imageAnalyzeSchema;
 	readonly strict = false;
 
@@ -188,7 +188,7 @@ export class ImageAnalyzeTool implements AgentTool<typeof imageAnalyzeSchema, Im
 				params.attach ??
 				(params.action === "redact" || params.action === "crop" || params.action === "diff" ? "processed" : "none");
 			if (params.action === "redact" || params.action === "crop" || (params.action === "diff" && attach === "processed")) {
-				outputPath = path.join(os.tmpdir(), `omp-vision-${params.action}-${crypto.randomUUID()}.png`);
+				outputPath = path.join(os.tmpdir(), `chudcode-vision-${params.action}-${crypto.randomUUID()}.png`);
 			}
 			const maxResults = boundedMaxResults(params.max_results);
 			response = await runVision(
@@ -213,7 +213,7 @@ export class ImageAnalyzeTool implements AgentTool<typeof imageAnalyzeSchema, Im
 				if (!outputStat?.isFile()) {
 					response = failure(
 						"processed_image_missing",
-						"pi-vision reported success but did not create the requested output image.",
+						"chud-vision reported success but did not create the requested output image.",
 					);
 				}
 			}
@@ -222,7 +222,7 @@ export class ImageAnalyzeTool implements AgentTool<typeof imageAnalyzeSchema, Im
 			if (response.ok && attach === "processed" && outputPath) {
 				const processed = await loadProcessedImage(outputPath, { cwd: this.session.cwd, autoResize: false });
 				if (!processed) {
-					response = failure("processed_image_invalid", "pi-vision did not produce a supported processed image.");
+					response = failure("processed_image_invalid", "chud-vision did not produce a supported processed image.");
 				} else {
 					const resized = await resizeImage(asImageContent(processed));
 					attachment = { type: "image", data: resized.data, mimeType: resized.mimeType };

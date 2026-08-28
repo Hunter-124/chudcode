@@ -1,19 +1,19 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
-import { type EditMode, type EditModeSessionLike, resolveEditMode } from "@oh-my-pi/pi-coding-agent/utils/edit-mode";
+import { type EditMode, type EditModeSessionLike, resolveEditMode } from "@chudware/coding-agent/utils/edit-mode";
 
-const originalEditVariant = process.env.PI_EDIT_VARIANT;
-const originalStrictEditMode = process.env.PI_STRICT_EDIT_MODE;
+const originalEditVariant = process.env.CHUDCODE_EDIT_VARIANT;
+const originalStrictEditMode = process.env.CHUDCODE_STRICT_EDIT_MODE;
 
 function restoreEnv(): void {
 	if (originalEditVariant === undefined) {
-		delete process.env.PI_EDIT_VARIANT;
+		delete process.env.CHUDCODE_EDIT_VARIANT;
 	} else {
-		process.env.PI_EDIT_VARIANT = originalEditVariant;
+		process.env.CHUDCODE_EDIT_VARIANT = originalEditVariant;
 	}
 	if (originalStrictEditMode === undefined) {
-		delete process.env.PI_STRICT_EDIT_MODE;
+		delete process.env.CHUDCODE_STRICT_EDIT_MODE;
 	} else {
-		process.env.PI_STRICT_EDIT_MODE = originalStrictEditMode;
+		process.env.CHUDCODE_STRICT_EDIT_MODE = originalStrictEditMode;
 	}
 }
 
@@ -33,8 +33,8 @@ function createSession(args: {
 
 describe("resolveEditMode", () => {
 	beforeEach(() => {
-		delete process.env.PI_EDIT_VARIANT;
-		delete process.env.PI_STRICT_EDIT_MODE;
+		delete process.env.CHUDCODE_EDIT_VARIANT;
+		delete process.env.CHUDCODE_STRICT_EDIT_MODE;
 	});
 
 	afterEach(() => {
@@ -42,19 +42,19 @@ describe("resolveEditMode", () => {
 	});
 
 	test("falls back from hashline to sloppy for Kimi models", () => {
-		delete process.env.PI_EDIT_VARIANT;
+		delete process.env.CHUDCODE_EDIT_VARIANT;
 
 		expect(resolveEditMode(createSession({ activeModel: "openrouter/moonshotai/Kimi-K2-Instruct" }))).toBe("sloppy");
 	});
 
 	test("falls back from hashline to sloppy for MiMo models", () => {
-		delete process.env.PI_EDIT_VARIANT;
+		delete process.env.CHUDCODE_EDIT_VARIANT;
 
 		expect(resolveEditMode(createSession({ activeModel: "xiaomi/MiMo-V2.5-Pro" }))).toBe("sloppy");
 	});
 
 	test("falls back from hashline to sloppy for DeepSeek V4 Flash models", () => {
-		delete process.env.PI_EDIT_VARIANT;
+		delete process.env.CHUDCODE_EDIT_VARIANT;
 
 		expect(resolveEditMode(createSession({ activeModel: "tensormesh/deepseek-ai/DeepSeek-V4-Flash" }))).toBe(
 			"sloppy",
@@ -62,19 +62,19 @@ describe("resolveEditMode", () => {
 	});
 
 	test("falls back from hashline to sloppy for Step 3.7 Flash models", () => {
-		delete process.env.PI_EDIT_VARIANT;
+		delete process.env.CHUDCODE_EDIT_VARIANT;
 
 		expect(resolveEditMode(createSession({ activeModel: "kilo/stepfun/step-3.7-flash:free" }))).toBe("sloppy");
 	});
 
 	test("does not exclude non-Kimi Moonshot models", () => {
-		delete process.env.PI_EDIT_VARIANT;
+		delete process.env.CHUDCODE_EDIT_VARIANT;
 
 		expect(resolveEditMode(createSession({ activeModel: "moonshot/moonshot-v1-128k" }))).toBe("hashline");
 	});
 
 	test("keeps explicit model variants ahead of the Kimi fallback", () => {
-		delete process.env.PI_EDIT_VARIANT;
+		delete process.env.CHUDCODE_EDIT_VARIANT;
 
 		expect(
 			resolveEditMode(
@@ -83,8 +83,8 @@ describe("resolveEditMode", () => {
 		).toBe("hashline");
 	});
 
-	test("keeps PI_EDIT_VARIANT ahead of the Kimi fallback", () => {
-		process.env.PI_EDIT_VARIANT = "hashline";
+	test("keeps CHUDCODE_EDIT_VARIANT ahead of the Kimi fallback", () => {
+		process.env.CHUDCODE_EDIT_VARIANT = "hashline";
 
 		expect(resolveEditMode(createSession({ activeModel: "openrouter/moonshotai/Kimi-K2-Instruct" }))).toBe(
 			"hashline",
@@ -92,7 +92,7 @@ describe("resolveEditMode", () => {
 	});
 
 	test("only falls back when the resolved mode is hashline", () => {
-		delete process.env.PI_EDIT_VARIANT;
+		delete process.env.CHUDCODE_EDIT_VARIANT;
 
 		expect(
 			resolveEditMode(
@@ -102,8 +102,8 @@ describe("resolveEditMode", () => {
 	});
 
 	test("keeps strict edit mode ahead of the Kimi fallback", () => {
-		delete process.env.PI_EDIT_VARIANT;
-		process.env.PI_STRICT_EDIT_MODE = "1";
+		delete process.env.CHUDCODE_EDIT_VARIANT;
+		process.env.CHUDCODE_STRICT_EDIT_MODE = "1";
 
 		expect(resolveEditMode(createSession({ activeModel: "openrouter/moonshotai/Kimi-K2-Instruct" }))).toBe(
 			"hashline",

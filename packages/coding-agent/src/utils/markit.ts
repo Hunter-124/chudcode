@@ -1,6 +1,6 @@
 import * as path from "node:path";
-import { untilAborted } from "@oh-my-pi/pi-utils";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
+import { untilAborted } from "@chudware/utils";
+import * as fsx from "@chudware/utils/fsx";
 import type { ConversionResult, Markit, StreamInfo } from "../markit";
 import { ToolAbortError } from "../tools/tool-errors";
 import {

@@ -1,10 +1,10 @@
 import { beforeAll, describe, expect, it } from "bun:test";
-import { initTheme } from "@oh-my-pi/pi-coding-agent/modes/theme/theme";
+import { initTheme } from "@chudware/coding-agent/modes/theme/theme";
 import {
 	containsTokenmaxxing,
 	highlightTokenmaxxing,
 	renderTokenmaxxingNotice,
-} from "@oh-my-pi/pi-coding-agent/modes/tokenmaxxing";
+} from "@chudware/coding-agent/modes/tokenmaxxing";
 
 beforeAll(() => {
 	// highlightTokenmaxxing reads the global theme's color mode.

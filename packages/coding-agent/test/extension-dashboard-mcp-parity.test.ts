@@ -15,12 +15,12 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import { resetSettingsForTest, Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
-import { initializeWithSettings, reset as resetDiscoveryCache } from "@oh-my-pi/pi-coding-agent/discovery";
-import { readMCPConfigFile, setMcpServerEnabled, setServerDisabled } from "@oh-my-pi/pi-coding-agent/mcp/config-writer";
-import { loadAllExtensions } from "@oh-my-pi/pi-coding-agent/modes/components/extensions/state-manager";
-import { __resetDirsFromEnvForTests, getMCPConfigPath, removeWithRetries, setAgentDir } from "@oh-my-pi/pi-utils";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
+import { resetSettingsForTest, Settings } from "@chudware/coding-agent/config/settings";
+import { initializeWithSettings, reset as resetDiscoveryCache } from "@chudware/coding-agent/discovery";
+import { readMCPConfigFile, setMcpServerEnabled, setServerDisabled } from "@chudware/coding-agent/mcp/config-writer";
+import { loadAllExtensions } from "@chudware/coding-agent/modes/components/extensions/state-manager";
+import { __resetDirsFromEnvForTests, getMCPConfigPath, removeWithRetries, setAgentDir } from "@chudware/utils";
+import * as fsx from "@chudware/utils/fsx";
 
 describe("loadAllExtensions MCP parity with /mcp list (issue #3827)", () => {
 	let projectDir = "";
@@ -28,17 +28,17 @@ describe("loadAllExtensions MCP parity with /mcp list (issue #3827)", () => {
 
 	beforeEach(async () => {
 		resetSettingsForTest();
-		projectDir = await fs.mkdtemp(path.join(os.tmpdir(), "omp-3827-project-"));
-		userAgentDir = await fs.mkdtemp(path.join(os.tmpdir(), "omp-3827-user-"));
+		projectDir = await fs.mkdtemp(path.join(os.tmpdir(), "chudcode-3827-project-"));
+		userAgentDir = await fs.mkdtemp(path.join(os.tmpdir(), "chudcode-3827-user-"));
 
 		// Redirect user-scoped mcp.json (resolved via getAgentDir() at the call
 		// site) into the per-test temp directory so neither the discovery loader
 		// nor the denylist reader touches the real user profile.
 		setAgentDir(userAgentDir);
 
-		await fs.mkdir(path.join(projectDir, ".omp"), { recursive: true });
+		await fs.mkdir(path.join(projectDir, ".chudcode"), { recursive: true });
 		await fs.writeFile(
-			path.join(projectDir, ".omp", "mcp.json"),
+			path.join(projectDir, ".chudcode", "mcp.json"),
 			JSON.stringify({
 				mcpServers: {
 					"denylisted-server": { command: "echo", args: ["denylisted"] },
@@ -116,7 +116,7 @@ describe("loadAllExtensions MCP parity with /mcp list (issue #3827)", () => {
 		// toggle previously only removed it from the user-level denylist, so
 		// state-manager's `server.enabled === false` check kept it disabled.
 		// setMcpServerEnabled MUST overwrite the per-server flag.
-		const projectMcpPath = path.join(projectDir, ".omp", "mcp.json");
+		const projectMcpPath = path.join(projectDir, ".chudcode", "mcp.json");
 
 		await setMcpServerEnabled({
 			userPath: getMCPConfigPath("user", projectDir),
@@ -136,7 +136,7 @@ describe("loadAllExtensions MCP parity with /mcp list (issue #3827)", () => {
 	test("dashboard re-enable also clears a stale denylist entry on a config-resident server", async () => {
 		// Manually disable `active-server` via BOTH the per-server flag and the
 		// denylist, simulating a server that's been toggled off multiple ways.
-		const projectMcpPath = path.join(projectDir, ".omp", "mcp.json");
+		const projectMcpPath = path.join(projectDir, ".chudcode", "mcp.json");
 		const initial = await readMCPConfigFile(projectMcpPath);
 		await fsx.write(
 			projectMcpPath,
@@ -173,7 +173,7 @@ describe("loadAllExtensions MCP parity with /mcp list (issue #3827)", () => {
 			enabled: false,
 		});
 
-		const projectConfig = await readMCPConfigFile(path.join(projectDir, ".omp", "mcp.json"));
+		const projectConfig = await readMCPConfigFile(path.join(projectDir, ".chudcode", "mcp.json"));
 		expect(projectConfig.mcpServers?.["active-server"]?.enabled).toBe(false);
 
 		// The denylist is reserved for discovered (config-less) servers; a
@@ -187,7 +187,7 @@ describe("loadAllExtensions MCP parity with /mcp list (issue #3827)", () => {
 	});
 
 	test("dashboard re-enable updates the row's non-primary source mcp.json before denylisting", async () => {
-		const alternatePath = path.join(projectDir, ".omp", ".mcp.json");
+		const alternatePath = path.join(projectDir, ".chudcode", ".mcp.json");
 		await fsx.write(
 			alternatePath,
 			JSON.stringify({

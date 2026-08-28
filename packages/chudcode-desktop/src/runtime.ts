@@ -1,16 +1,16 @@
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
-import type { ExtensionUIContext } from "@oh-my-pi/pi-coding-agent/extensibility/extensions";
-import { initializeExtensions } from "@oh-my-pi/pi-coding-agent/modes/runtime-init";
-import { theme } from "@oh-my-pi/pi-coding-agent/modes/theme/theme";
-import { AgentLifecycleManager } from "@oh-my-pi/pi-coding-agent/registry/agent-lifecycle";
-import { AgentRegistry } from "@oh-my-pi/pi-coding-agent/registry/agent-registry";
-import { createAgentSession } from "@oh-my-pi/pi-coding-agent/sdk";
-import type { AgentSessionEvent } from "@oh-my-pi/pi-coding-agent/session/agent-session";
-import { USER_INTERRUPT_LABEL } from "@oh-my-pi/pi-coding-agent/session/messages";
-import type { SessionEntry as StoredSessionEntry } from "@oh-my-pi/pi-coding-agent/session/session-entries";
-import { SessionManager } from "@oh-my-pi/pi-coding-agent/session/session-manager";
-import type { EventBus } from "@oh-my-pi/pi-coding-agent/utils/event-bus";
+import type { ExtensionUIContext } from "@chudware/coding-agent/extensibility/extensions";
+import { initializeExtensions } from "@chudware/coding-agent/modes/runtime-init";
+import { theme } from "@chudware/coding-agent/modes/theme/theme";
+import { AgentLifecycleManager } from "@chudware/coding-agent/registry/agent-lifecycle";
+import { AgentRegistry } from "@chudware/coding-agent/registry/agent-registry";
+import { createAgentSession } from "@chudware/coding-agent/sdk";
+import type { AgentSessionEvent } from "@chudware/coding-agent/session/agent-session";
+import { USER_INTERRUPT_LABEL } from "@chudware/coding-agent/session/messages";
+import type { SessionEntry as StoredSessionEntry } from "@chudware/coding-agent/session/session-entries";
+import { SessionManager } from "@chudware/coding-agent/session/session-manager";
+import type { EventBus } from "@chudware/coding-agent/utils/event-bus";
 import type {
 	AgentSnapshot,
 	BusChannel,
@@ -19,7 +19,7 @@ import type {
 	CollabUiResponseValue,
 	SessionState,
 	SessionEntry as WireSessionEntry,
-} from "@oh-my-pi/pi-wire";
+} from "@chudware/wire";
 import {
 	DESKTOP_PROTOCOL_VERSION,
 	type DesktopEvent,
@@ -90,7 +90,7 @@ export interface DesktopAgentControl {
 	transcript(agentId: string, fromByte: number): Promise<{ text: string; newSize: number; error?: string }>;
 }
 
-class OmpDesktopAgentControl implements DesktopAgentControl {
+class ChudDesktopAgentControl implements DesktopAgentControl {
 	command(cmd: "chat" | "kill" | "revive", agentId: string, text?: string): DesktopAgentCommandOutcome {
 		const registry = AgentRegistry.global();
 		if (registry.get(agentId)?.kind === "advisor") {
@@ -544,7 +544,7 @@ export class DesktopRuntime {
 			service: resources.sessionService ?? new SessionService(resources.session),
 			eventBus: resources.eventBus,
 			registry: resources.registry ?? AgentRegistry.global(),
-			agentControl: resources.agentControl ?? new OmpDesktopAgentControl(),
+			agentControl: resources.agentControl ?? new ChudDesktopAgentControl(),
 			closeables: resources.closeables ?? [],
 			pendingUi: new Map(),
 			busUnsubscribers: [],

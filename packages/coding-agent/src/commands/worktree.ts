@@ -1,9 +1,9 @@
 /**
- * List and clean up agent-managed git worktrees under `~/.omp/wt`.
+ * List and clean up agent-managed git worktrees under `~/.chudcode/wt`.
  */
 
-import { getProjectDir } from "@oh-my-pi/pi-utils";
-import { Args, Command, Flags } from "@oh-my-pi/pi-utils/cli";
+import { getProjectDir } from "@chudware/utils";
+import { Args, Command, Flags } from "@chudware/utils/cli";
 import { worktreeHelp as commandHelp } from "../cli/command-help";
 import { clearWorktrees, listWorktrees } from "../cli/worktree-cli";
 import { Settings } from "../config/settings";
@@ -47,7 +47,7 @@ export default class Worktree extends Command {
 	async run(): Promise<void> {
 		const { args, flags } = await this.parse(Worktree);
 		// Load settings so the `worktree.base` override is applied before we scan
-		// — otherwise this command would inspect ~/.omp/wt while the agent created
+		// — otherwise this command would inspect ~/.chudcode/wt while the agent created
 		// its worktrees under the configured base.
 		await Settings.init({ cwd: getProjectDir() });
 		if (args.action === "clear") {

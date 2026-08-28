@@ -17,8 +17,8 @@
  */
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
-import { isEnoent } from "@oh-my-pi/pi-utils";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
+import { isEnoent } from "@chudware/utils";
+import * as fsx from "@chudware/utils/fsx";
 import { AgentRegistry } from "../registry/agent-registry";
 import { ensurePersistedRoster } from "../registry/persisted-agents";
 import { applyQuery, pathToQuery } from "./json-query";

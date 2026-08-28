@@ -1,17 +1,17 @@
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import * as path from "node:path";
-import { type } from "@oh-my-pi/omptype";
-import { Agent, type AgentTool } from "@oh-my-pi/pi-agent-core";
-import { createMockModel } from "@oh-my-pi/pi-ai/providers/mock";
-import { buildModel } from "@oh-my-pi/pi-catalog/build";
-import { ModelRegistry } from "@oh-my-pi/pi-coding-agent/config/model-registry";
-import { Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
-import { getMnemopiSessionState } from "@oh-my-pi/pi-coding-agent/mnemopi/state";
-import { AgentSession } from "@oh-my-pi/pi-coding-agent/session/agent-session";
-import type { AuthStorage } from "@oh-my-pi/pi-coding-agent/session/auth-storage";
-import { SessionManager } from "@oh-my-pi/pi-coding-agent/session/session-manager";
-import { resetMemoryForTests } from "@oh-my-pi/pi-mnemopi";
-import { TempDir } from "@oh-my-pi/pi-utils";
+import { type } from "@chudware/chudtype";
+import { Agent, type AgentTool } from "@chudware/agent-core";
+import { createMockModel } from "@chudware/ai/providers/mock";
+import { buildModel } from "@chudware/catalog/build";
+import { ModelRegistry } from "@chudware/coding-agent/config/model-registry";
+import { Settings } from "@chudware/coding-agent/config/settings";
+import { getMnemopiSessionState } from "@chudware/coding-agent/mnemo/state";
+import { AgentSession } from "@chudware/coding-agent/session/agent-session";
+import type { AuthStorage } from "@chudware/coding-agent/session/auth-storage";
+import { SessionManager } from "@chudware/coding-agent/session/session-manager";
+import { resetMemoryForTests } from "@chudware/mnemo";
+import { TempDir } from "@chudware/utils";
 import { createInMemoryAuthStorage } from "./helpers/agent-session-setup";
 
 function createTool(name: string): AgentTool {
@@ -39,8 +39,8 @@ describe("AgentSession memory backend lifecycle", () => {
 		settings = Settings.isolated({
 			"compaction.enabled": false,
 			"memory.backend": "off",
-			"mnemopi.noEmbeddings": true,
-			"mnemopi.llmMode": "none",
+			"mnemo.noEmbeddings": true,
+			"mnemo.llmMode": "none",
 		});
 	});
 
@@ -91,15 +91,15 @@ describe("AgentSession memory backend lifecycle", () => {
 
 	it("switches runtime state, memory tools, and prompt in one apply", async () => {
 		const current = createSession(async () =>
-			settings.get("memory.backend") === "mnemopi" ? [createTool("retain"), createTool("memory_edit")] : [],
+			settings.get("memory.backend") === "mnemo" ? [createTool("retain"), createTool("memory_edit")] : [],
 		);
 
-		settings.override("memory.backend", "mnemopi");
+		settings.override("memory.backend", "mnemo");
 		await current.applyMemoryBackend();
 
 		expect(getMnemopiSessionState(current)).toBeDefined();
 		expect(current.getActiveToolNames()).toEqual(expect.arrayContaining(["read", "retain", "memory_edit"]));
-		expect(current.systemPrompt).toEqual(["backend:mnemopi;tools:memory_edit,read,retain"]);
+		expect(current.systemPrompt).toEqual(["backend:mnemo;tools:memory_edit,read,retain"]);
 
 		settings.override("memory.backend", "off");
 		await current.applyMemoryBackend();

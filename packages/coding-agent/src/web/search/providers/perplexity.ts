@@ -16,12 +16,12 @@ import {
 	type FetchImpl,
 	type Usage,
 	withOAuthAccess,
-} from "@oh-my-pi/pi-ai";
-import { streamOpenAICompletions } from "@oh-my-pi/pi-ai/providers/openai-completions";
-import { streamOpenAIResponses } from "@oh-my-pi/pi-ai/providers/openai-responses";
-import { buildModel } from "@oh-my-pi/pi-catalog/build";
-import type { Model, ModelSpec } from "@oh-my-pi/pi-catalog/types";
-import { $env, readSseJson } from "@oh-my-pi/pi-utils";
+} from "@chudware/ai";
+import { streamOpenAICompletions } from "@chudware/ai/providers/openai-completions";
+import { streamOpenAIResponses } from "@chudware/ai/providers/openai-responses";
+import { buildModel } from "@chudware/catalog/build";
+import type { Model, ModelSpec } from "@chudware/catalog/types";
+import { $env, readSseJson } from "@chudware/utils";
 import type {
 	PerplexityRequest,
 	PerplexitySearchResult,
@@ -328,10 +328,10 @@ export interface PerplexitySearchParams {
 	system_prompt?: string;
 	/** Pre-parsed view of `query` from the search pipeline; parsed locally when absent. */
 	parsedQuery?: StructuredQuery;
-	/** Direct API model. Defaults to `PI_PERPLEXITY_API_MODEL`, then `sonar-pro`. */
+	/** Direct API model. Defaults to `CHUDCODE_PERPLEXITY_API_MODEL`, then `sonar-pro`. */
 	api_model?: string;
 	search_recency_filter?: "hour" | "day" | "week" | "month" | "year";
-	/** Consumer subscription model preference. Defaults to `PI_PERPLEXITY_MODEL`, then Sonar (`experimental`). */
+	/** Consumer subscription model preference. Defaults to `CHUDCODE_PERPLEXITY_MODEL`, then Sonar (`experimental`). */
 	subscription_model?: string;
 	num_results?: number;
 	/** Maximum output tokens. Defaults to 8192. */
@@ -621,7 +621,7 @@ async function callPerplexityAsk(
 	params: PerplexitySearchParams,
 	filters: PerplexityNativeFilters,
 ): Promise<{ answer: string; sources: SearchSource[]; model?: string; requestId?: string }> {
-	const subscriptionModel = params.subscription_model?.trim() || $env.PI_PERPLEXITY_MODEL?.trim() || "experimental";
+	const subscriptionModel = params.subscription_model?.trim() || $env.CHUDCODE_PERPLEXITY_MODEL?.trim() || "experimental";
 	const requestId = crypto.randomUUID();
 	// The consumer `perplexity_ask` endpoint is itself a research assistant and
 	// has no system-message slot. Prepending the API-style system prompt to the
@@ -889,7 +889,7 @@ export async function searchPerplexity(params: PerplexitySearchParams): Promise<
 	messages.push({ role: "user", content: filters.query });
 
 	const request: PerplexityRequest = {
-		model: params.api_model?.trim() || $env.PI_PERPLEXITY_API_MODEL?.trim() || "sonar-pro",
+		model: params.api_model?.trim() || $env.CHUDCODE_PERPLEXITY_API_MODEL?.trim() || "sonar-pro",
 		messages,
 		max_tokens: params.max_tokens ?? DEFAULT_MAX_TOKENS,
 		temperature: params.temperature ?? DEFAULT_TEMPERATURE,

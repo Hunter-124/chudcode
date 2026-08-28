@@ -1,7 +1,7 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
-import { getStatsDbPath, workerHostEntry } from "@oh-my-pi/pi-utils";
-import { withFileLock } from "@oh-my-pi/pi-utils/file-lock";
+import { getStatsDbPath, workerHostEntry } from "@chudware/utils";
+import { withFileLock } from "@chudware/utils/file-lock";
 import {
 	getRecentErrors as dbGetRecentErrors,
 	getRecentRequests as dbGetRecentRequests,
@@ -38,7 +38,7 @@ import { getSessionEntry, listAllSessionFiles, type ParseSessionResult, parseSes
 import type { SyncWorkerRequest, SyncWorkerResponse } from "./sync-worker";
 // Coding-agent binary/bundle workers route through the CLI entrypoint with a
 // hidden argv mode, so the compiled binary and npm bundle only need one
-// JavaScript entry. Standalone source `omp-stats` keeps using this package's
+// JavaScript entry. Standalone source `chudcode-stats` keeps using this package's
 // own sync-worker source file.
 import type {
 	BehaviorDashboardStats,
@@ -109,7 +109,7 @@ export interface SyncOptions {
 
 function defaultWorkerCount(): number {
 	// Bun 1.3.x can abort the macOS process when stats sync workers re-enter
-	// the compiled `omp` binary. Keep macOS on the documented serial path.
+	// the compiled `chudcode` binary. Keep macOS on the documented serial path.
 	if (process.platform === "darwin") return 1;
 	// `navigator.hardwareConcurrency` is the portable answer in Bun; fall
 	// back to a small fixed pool if it's somehow unavailable.
@@ -129,10 +129,10 @@ interface WorkerHandle {
 
 /**
  * Create a fresh sync worker. When the process was started from a
- * self-dispatching CLI entry (omp in source, npm-bundle, or compiled form),
+ * self-dispatching CLI entry (chudcode in source, npm-bundle, or compiled form),
  * re-enter that entry with a worker argv selector; otherwise (standalone
- * omp-stats, bun test, SDK embedding) load the worker module directly, so this
- * package keeps zero runtime dependency on `@oh-my-pi/pi-coding-agent`.
+ * chudcode-stats, bun test, SDK embedding) load the worker module directly, so this
+ * package keeps zero runtime dependency on `@chudware/coding-agent`.
  */
 function createSyncWorker(): Worker {
 	const hostEntry = workerHostEntry();
@@ -186,7 +186,7 @@ function dispatch(handle: WorkerHandle, request: SyncWorkerRequest): Promise<Par
 
 /**
  * Smoke test: spawns one sync worker, pings it, asserts the pong response,
- * then terminates. Used by `omp --smoke-test` so the install-method CI jobs
+ * then terminates. Used by `chudcode --smoke-test` so the install-method CI jobs
  * catch the silent worker-load failure that hit compiled binaries in #1011
  * and #1027 — neither `--version` nor `stats --summary` exercises the worker
  * spawn path on a fresh install (no session files = early return), so a

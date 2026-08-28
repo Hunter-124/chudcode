@@ -25,7 +25,7 @@ export interface CodingAgentCompileOptions {
 }
 
 /**
- * Compile the coding-agent executable with its legacy Pi compatibility module
+ * Compile the coding-agent executable with its legacy Chud compatibility module
  * graph supplied by an in-memory build plugin rather than generated files.
  */
 export async function compileCodingAgent(options: CodingAgentCompileOptions): Promise<void> {
@@ -39,9 +39,9 @@ export async function compileCodingAgent(options: CodingAgentCompileOptions): Pr
 			root: options.repoRoot,
 			external: [...COMPILED_EXTERNAL_DEPENDENCIES],
 			define: {
-				"process.env.PI_COMPILED": JSON.stringify("true"),
-				"process.env.PI_TINY_TRANSFORMERS_VERSION": JSON.stringify(options.transformersVersion),
-				"process.env.PI_DOCS_EMBED": JSON.stringify((await buildDocsIndexPayload()).payload),
+				"process.env.CHUDCODE_COMPILED": JSON.stringify("true"),
+				"process.env.CHUDCODE_TINY_TRANSFORMERS_VERSION": JSON.stringify(options.transformersVersion),
+				"process.env.CHUDCODE_DOCS_EMBED": JSON.stringify((await buildDocsIndexPayload()).payload),
 			},
 			minify: {
 				identifiers: options.minifyIdentifiers ?? false,

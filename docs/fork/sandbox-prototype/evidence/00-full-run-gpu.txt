@@ -3,15 +3,15 @@
   kwin currentDesktop: (1,)
   kwin activeOutput:   ('DP-2',)
   ESTAB conns to user X0: 16
-  clients on user a11y bus (omp wayland backend): 1
+  clients on user a11y bus (chudcode wayland backend): 1
 
 === SEAT START
-OMP_SEAT_NAME=gproof
-OMP_SEAT_DIR=/run/user/1000/omp-seats/gproof
+CHUDCODE_SEAT_NAME=gproof
+CHUDCODE_SEAT_DIR=/run/user/1000/chudcode-seats/gproof
 DISPLAY=:120
 UNSET=WAYLAND_DISPLAY
 
-=== OMP BACKEND ON THE SEAT
+=== Chudcode BACKEND ON THE SEAT
 {
   "env": {
     "DISPLAY": ":120",

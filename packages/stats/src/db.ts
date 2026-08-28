@@ -1,14 +1,14 @@
 import { Database } from "bun:sqlite";
 import * as fs from "node:fs/promises";
-import type { Usage } from "@oh-my-pi/pi-ai";
+import type { Usage } from "@chudware/ai";
 import {
 	calculateUncachedInputCost,
 	calculateUsageCost,
 	type GeneratedProvider,
 	getBundledModel,
-} from "@oh-my-pi/pi-catalog/models";
-import type { ModelCost } from "@oh-my-pi/pi-catalog/types";
-import { getConfigRootDir, getStatsDbPath } from "@oh-my-pi/pi-utils";
+} from "@chudware/catalog/models";
+import type { ModelCost } from "@chudware/catalog/types";
+import { getConfigRootDir, getStatsDbPath } from "@chudware/utils";
 import { classifyAgentType } from "./parser";
 import type {
 	AgentType,
@@ -140,7 +140,7 @@ export async function initDb(): Promise<Database> {
 
 	db = new Database(getStatsDbPath());
 	// Install the busy handler BEFORE any lock-taking statement. See
-	// https://github.com/can1357/oh-my-pi/issues/2421.
+	// https://github.com/Hunter-124/chudcode/issues/2421.
 	db.run("PRAGMA busy_timeout = 5000");
 	db.run("PRAGMA journal_mode = WAL");
 
@@ -509,7 +509,7 @@ export function setFileOffset(sessionFile: string, offset: number, lastModified:
  * Insert message stats into the database.
  *
  * Forked / branched sessions (see `SessionManager.fork()` and
- * `createBranchedSession()` in `@oh-my-pi/pi-coding-agent`) deep-copy a parent
+ * `createBranchedSession()` in `@chudware/coding-agent`) deep-copy a parent
  * session's entries into a new JSONL — same `entry_id`, `timestamp`, `model`,
  * `provider`, token counts, and `responseId`. The `UNIQUE(session_file,
  * entry_id)` constraint alone keys each row by file, so without the guard

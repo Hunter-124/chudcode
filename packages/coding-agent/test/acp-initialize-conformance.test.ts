@@ -7,17 +7,17 @@ import { afterEach, describe, expect, it } from "bun:test";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
-import { type } from "@oh-my-pi/omptype";
-import type { Model } from "@oh-my-pi/pi-ai";
-import { buildModel } from "@oh-my-pi/pi-catalog/build";
-import { PRODUCT_NAME } from "@oh-my-pi/pi-coding-agent/brand";
-import { AcpAgent } from "@oh-my-pi/pi-coding-agent/modes/acp/acp-agent";
-import { ACP_TERMINAL_AUTH_FLAG, prepareAcpTerminalAuthArgs } from "@oh-my-pi/pi-coding-agent/modes/acp/terminal-auth";
-import type { AgentSession } from "@oh-my-pi/pi-coding-agent/session/agent-session";
-import { SessionManager } from "@oh-my-pi/pi-coding-agent/session/session-manager";
-import { getConfigRootDir, setAgentDir, VERSION } from "@oh-my-pi/pi-utils";
-import type { AgentSideConnection, InitializeRequest } from "@oh-my-pi/pi-utils/acp";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
+import { type } from "@chudware/chudtype";
+import type { Model } from "@chudware/ai";
+import { buildModel } from "@chudware/catalog/build";
+import { PRODUCT_NAME } from "@chudware/coding-agent/brand";
+import { AcpAgent } from "@chudware/coding-agent/modes/acp/acp-agent";
+import { ACP_TERMINAL_AUTH_FLAG, prepareAcpTerminalAuthArgs } from "@chudware/coding-agent/modes/acp/terminal-auth";
+import type { AgentSession } from "@chudware/coding-agent/session/agent-session";
+import { SessionManager } from "@chudware/coding-agent/session/session-manager";
+import { getConfigRootDir, setAgentDir, VERSION } from "@chudware/utils";
+import type { AgentSideConnection, InitializeRequest } from "@chudware/utils/acp";
+import * as fsx from "@chudware/utils/fsx";
 import { expectAcpStructure } from "./helpers/acp-schema";
 
 const arkInitializeResponse = type({
@@ -128,7 +128,7 @@ class FakeAgentSession {
 }
 
 const cleanupRoots: string[] = [];
-const originalAgentDir = process.env.PI_CODING_AGENT_DIR;
+const originalAgentDir = process.env.CHUDCODE_CODING_AGENT_DIR;
 const fallbackAgentDir = path.join(getConfigRootDir(), "agent");
 
 afterEach(async () => {
@@ -136,7 +136,7 @@ afterEach(async () => {
 		setAgentDir(originalAgentDir);
 	} else {
 		setAgentDir(fallbackAgentDir);
-		delete process.env.PI_CODING_AGENT_DIR;
+		delete process.env.CHUDCODE_CODING_AGENT_DIR;
 	}
 	for (const root of cleanupRoots.splice(0)) {
 		await fs.promises.rm(root, { recursive: true, force: true });
@@ -144,7 +144,7 @@ afterEach(async () => {
 });
 
 async function createAgent(): Promise<AcpAgent> {
-	const root = await fs.promises.mkdtemp(path.join(os.tmpdir(), "omp-acp-init-"));
+	const root = await fs.promises.mkdtemp(path.join(os.tmpdir(), "chudcode-acp-init-"));
 	cleanupRoots.push(root);
 	const agentDir = path.join(root, "agent");
 	const cwd = path.join(root, "cwd");
@@ -233,8 +233,8 @@ describe("ACP initialize conformance", () => {
 		const pkg = (await fsx.readJson(pkgPath)) as { version: string };
 		expect(response.agentInfo).toEqual(
 			expect.objectContaining({
-				name: "oh-my-pi",
-				// The wire `name` stays `oh-my-pi` for client compatibility; only the
+				name: "chudware",
+				// The wire `name` stays `chudware` for client compatibility; only the
 				// human-facing title carries the product brand.
 				title: PRODUCT_NAME,
 				version: VERSION,

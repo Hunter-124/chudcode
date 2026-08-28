@@ -1,6 +1,6 @@
 import { describe, expect, it } from "bun:test";
 import { resolve } from "node:path";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
+import * as fsx from "@chudware/utils/fsx";
 import { debugCatchError, debugError } from "puppeteer-core/lib/puppeteer/common/util.js";
 
 const patchPath = resolve(import.meta.dir, "../../../../patches/puppeteer-core@25.3.0.patch");

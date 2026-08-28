@@ -1,14 +1,14 @@
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "bun:test";
 import * as path from "node:path";
-import { Agent } from "@oh-my-pi/pi-agent-core";
-import { ModelRegistry } from "@oh-my-pi/pi-coding-agent/config/model-registry";
-import { resetSettingsForTest, Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
-import { InteractiveMode } from "@oh-my-pi/pi-coding-agent/modes/interactive-mode";
-import { initTheme } from "@oh-my-pi/pi-coding-agent/modes/theme/theme";
-import { AgentSession } from "@oh-my-pi/pi-coding-agent/session/agent-session";
-import { AuthStorage } from "@oh-my-pi/pi-coding-agent/session/auth-storage";
-import { SessionManager } from "@oh-my-pi/pi-coding-agent/session/session-manager";
-import { postmortem, TempDir } from "@oh-my-pi/pi-utils";
+import { Agent } from "@chudware/agent-core";
+import { ModelRegistry } from "@chudware/coding-agent/config/model-registry";
+import { resetSettingsForTest, Settings } from "@chudware/coding-agent/config/settings";
+import { InteractiveMode } from "@chudware/coding-agent/modes/interactive-mode";
+import { initTheme } from "@chudware/coding-agent/modes/theme/theme";
+import { AgentSession } from "@chudware/coding-agent/session/agent-session";
+import { AuthStorage } from "@chudware/coding-agent/session/auth-storage";
+import { SessionManager } from "@chudware/coding-agent/session/session-manager";
+import { postmortem, TempDir } from "@chudware/utils";
 
 async function flushMicrotasks(): Promise<void> {
 	await Promise.resolve();
@@ -28,7 +28,7 @@ describe("InteractiveMode long shutdown status", () => {
 
 	beforeEach(async () => {
 		resetSettingsForTest();
-		tempDir = TempDir.createSync("@omp-still-closing-");
+		tempDir = TempDir.createSync("@chudcode-still-closing-");
 		await Settings.init({ inMemory: true, cwd: tempDir.path() });
 		authStorage = await AuthStorage.create(path.join(tempDir.path(), "auth.db"));
 		const modelRegistry = new ModelRegistry(authStorage);

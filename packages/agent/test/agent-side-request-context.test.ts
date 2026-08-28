@@ -1,22 +1,22 @@
 import { describe, expect, it, mock } from "bun:test";
-import { type } from "@oh-my-pi/omptype";
-import type { AssistantMessage, Context } from "@oh-my-pi/pi-ai";
-import { createMockModel } from "@oh-my-pi/pi-ai/providers/mock";
-import { AssistantMessageEventStream } from "@oh-my-pi/pi-ai/utils/event-stream";
-import { buildModel } from "@oh-my-pi/pi-catalog/build";
+import type { AssistantMessage, Context } from "@chudware/ai";
+import { createMockModel } from "@chudware/ai/providers/mock";
+import { AssistantMessageEventStream } from "@chudware/ai/utils/event-stream";
+import { buildModel } from "@chudware/catalog/build";
+import { type } from "@chudware/chudtype";
 import { Agent } from "../src/agent";
 import type { AgentTool } from "../src/types";
 
 async function withNativeDialectEnv<T>(fn: () => T | Promise<T>): Promise<T> {
-	const previous = process.env.PI_DIALECT;
-	delete process.env.PI_DIALECT;
+	const previous = process.env.CHUDCODE_DIALECT;
+	delete process.env.CHUDCODE_DIALECT;
 	try {
 		return await fn();
 	} finally {
 		if (previous === undefined) {
-			delete process.env.PI_DIALECT;
+			delete process.env.CHUDCODE_DIALECT;
 		} else {
-			process.env.PI_DIALECT = previous;
+			process.env.CHUDCODE_DIALECT = previous;
 		}
 	}
 }

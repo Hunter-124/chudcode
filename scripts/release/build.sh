@@ -3,7 +3,7 @@ set -eu
 
 PRODUCT_NAME="Chudcode"
 CLI_NAME="chudcode"
-LEGACY_BINARY_NAME="omp"
+LEGACY_BINARY_NAME="chudcode"
 VERIFIED_TARGETS="${CHUDCODE_VERIFIED_TARGETS:-linux-x64}"
 STAGE_GUI="${CHUDCODE_STAGE_GUI:-0}"
 STAGE_VISION="${CHUDCODE_STAGE_VISION:-0}"
@@ -75,8 +75,8 @@ download_file() {
 }
 
 stage_vision_linux_x64() {
-	cargo build --release -p pi-vision
-	[ -x target/release/pi-vision ] || die "cargo did not create target/release/pi-vision"
+	cargo build --release -p chud-vision
+	[ -x target/release/chud-vision ] || die "cargo did not create target/release/chud-vision"
 
 	vision_tmp=$(mktemp -d "${TMPDIR:-/tmp}/${CLI_NAME}-vision.XXXXXX")
 	ort_archive="$vision_tmp/onnxruntime.tgz"
@@ -92,8 +92,8 @@ stage_vision_linux_x64() {
 
 	bundle="$vision_tmp/${CLI_NAME}-vision-linux-x64"
 	mkdir -p "$bundle"
-	cp target/release/pi-vision "$bundle/"
-	chmod 755 "$bundle/pi-vision"
+	cp target/release/chud-vision "$bundle/"
+	chmod 755 "$bundle/chud-vision"
 	cp -P "$ort_root"/lib/libonnxruntime.so* "$bundle/"
 	cp "$ort_root/LICENSE" "$bundle/ONNXRUNTIME-LICENSE"
 	tar -czf "$DIST_DIR/$VISION_ARCHIVE_NAME" -C "$vision_tmp" "${CLI_NAME}-vision-linux-x64"

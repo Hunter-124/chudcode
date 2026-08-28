@@ -2,25 +2,25 @@ import { afterEach, describe, expect, it, vi } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import path from "node:path";
-import { Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
+import { Settings } from "@chudware/coding-agent/config/settings";
 import {
 	artifactsDirsFromRegistry,
 	resetRegisteredArtifactDirsForTests,
-} from "@oh-my-pi/pi-coding-agent/internal-urls/registry-helpers";
-import * as planHandoff from "@oh-my-pi/pi-coding-agent/plan-mode/plan-handoff";
-import * as discoveryModule from "@oh-my-pi/pi-coding-agent/task/discovery";
-import * as executorModule from "@oh-my-pi/pi-coding-agent/task/executor";
-import * as isolationRunner from "@oh-my-pi/pi-coding-agent/task/isolation-runner";
+} from "@chudware/coding-agent/internal-urls/registry-helpers";
+import * as planHandoff from "@chudware/coding-agent/plan-mode/plan-handoff";
+import * as discoveryModule from "@chudware/coding-agent/task/discovery";
+import * as executorModule from "@chudware/coding-agent/task/executor";
+import * as isolationRunner from "@chudware/coding-agent/task/isolation-runner";
 import {
 	buildStructuredSubagentRecoveryHint,
 	resolveEffectiveSubagentPolicy,
 	runStructuredSubagent,
 	StructuredSubagentError,
 	type StructuredSubagentRequest,
-} from "@oh-my-pi/pi-coding-agent/task/structured-subagent";
-import type { AgentDefinition, SingleResult } from "@oh-my-pi/pi-coding-agent/task/types";
-import type { ToolSession } from "@oh-my-pi/pi-coding-agent/tools";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
+} from "@chudware/coding-agent/task/structured-subagent";
+import type { AgentDefinition, SingleResult } from "@chudware/coding-agent/task/types";
+import type { ToolSession } from "@chudware/coding-agent/tools";
+import * as fsx from "@chudware/utils/fsx";
 
 const AGENT: AgentDefinition = {
 	name: "worker",
@@ -123,8 +123,8 @@ describe("structured subagent primitive", () => {
 	});
 
 	it("gives task and eval invocations identical blocked-agent preflight errors", async () => {
-		const previous = process.env.PI_BLOCKED_AGENT;
-		process.env.PI_BLOCKED_AGENT = "worker";
+		const previous = process.env.CHUDCODE_BLOCKED_AGENT;
+		process.env.CHUDCODE_BLOCKED_AGENT = "worker";
 		try {
 			const discover = vi.spyOn(discoveryModule, "discoverAgents");
 			const taskRequest = request();
@@ -144,8 +144,8 @@ describe("structured subagent primitive", () => {
 			]);
 			expect(discover).not.toHaveBeenCalled();
 		} finally {
-			if (previous === undefined) delete process.env.PI_BLOCKED_AGENT;
-			else process.env.PI_BLOCKED_AGENT = previous;
+			if (previous === undefined) delete process.env.CHUDCODE_BLOCKED_AGENT;
+			else process.env.CHUDCODE_BLOCKED_AGENT = previous;
 		}
 	});
 
@@ -169,7 +169,7 @@ describe("structured subagent primitive", () => {
 		expect(discover).not.toHaveBeenCalled();
 	});
 	it("reloads model roles before resolving an agent added during the session", async () => {
-		const root = await fs.mkdtemp(path.join(os.tmpdir(), "omp-task-hot-reload-"));
+		const root = await fs.mkdtemp(path.join(os.tmpdir(), "chudcode-task-hot-reload-"));
 		const projectDir = path.join(root, "project");
 		const agentDir = path.join(root, "agent");
 		await fs.mkdir(projectDir, { recursive: true });
@@ -181,9 +181,9 @@ describe("structured subagent primitive", () => {
 		} as ToolSession;
 
 		try {
-			await fsx.write(path.join(projectDir, ".omp", "config.yml"), "modelRoles:\n  hot_worker: kimi-code/k3:max\n");
+			await fsx.write(path.join(projectDir, ".chudcode", "config.yml"), "modelRoles:\n  hot_worker: kimi-code/k3:max\n");
 			await fsx.write(
-				path.join(projectDir, ".omp", "agents", "hot-worker.md"),
+				path.join(projectDir, ".chudcode", "agents", "hot-worker.md"),
 				'---\nname: hot-worker\ndescription: Newly added worker.\nmodel: "@hot_worker"\n---\n\nInspect the assignment.\n',
 			);
 
@@ -349,7 +349,7 @@ describe("structured subagent primitive", () => {
 			mode: "permissive",
 			data: { ok: true },
 		});
-		expect(path.basename(settled.artifactsDir)).toStartWith("omp-task-");
+		expect(path.basename(settled.artifactsDir)).toStartWith("chudcode-task-");
 		await fs.rm(settled.artifactsDir, { recursive: true, force: true });
 	});
 	it("uses identical non-plan LSP and IRC policy for task and eval invocations", async () => {
@@ -408,10 +408,10 @@ describe("structured subagent primitive", () => {
 	});
 
 	it("persists nested patch text with the compatible recovery path and wording", async () => {
-		const artifactsDir = await fs.mkdtemp(path.join(os.tmpdir(), "omp-structured-subagent-"));
+		const artifactsDir = await fs.mkdtemp(path.join(os.tmpdir(), "chudcode-structured-subagent-"));
 		const completed = result();
 		completed.patchPath = "/recovery/Worker.patch";
-		completed.branchName = "omp/task/Worker";
+		completed.branchName = "chudcode/task/Worker";
 		completed.nestedPatches = [{ relativePath: "sub/nested", patch: "diff --git a/file b/file\n" }];
 
 		const hint = await buildStructuredSubagentRecoveryHint(completed, artifactsDir);
@@ -419,7 +419,7 @@ describe("structured subagent primitive", () => {
 
 		expect(hint).toContain("Captured patch preserved at /recovery/Worker.patch.");
 		expect(hint).toContain(`Captured nested patch preserved at ${nestedPath}.`);
-		expect(hint).toContain("Captured branch preserved as omp/task/Worker.");
+		expect(hint).toContain("Captured branch preserved as chudcode/task/Worker.");
 		expect(await fs.readFile(nestedPath, "utf8")).toBe("diff --git a/file b/file\n");
 		await fs.rm(artifactsDir, { recursive: true, force: true });
 	});

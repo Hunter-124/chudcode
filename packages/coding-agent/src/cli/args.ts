@@ -2,8 +2,8 @@
  * CLI argument parsing and help display
  */
 import * as path from "node:path";
-import { $env, logger } from "@oh-my-pi/pi-utils";
-import chalk from "@oh-my-pi/pi-utils/chalk";
+import { $env, logger } from "@chudware/utils";
+import chalk from "@chudware/utils/chalk";
 import { PRODUCT_CLI_NAME } from "../brand";
 import type { ServiceTierOpenAISettingValue } from "../config/service-tier";
 import { CLI_THINKING_LEVELS, type ConfiguredThinkingLevel, parseCliThinkingLevel } from "../thinking";
@@ -103,7 +103,7 @@ export interface Args {
 /**
  * Runtime dependencies the data-driven setters need. Constructed once at
  * module load and passed to every {@link STRING_SETTERS} call so the
- * setter table itself can stay free of `@oh-my-pi/pi-utils` runtime imports
+ * setter table itself can stay free of `@chudware/utils` runtime imports
  * (which would otherwise trip the profile bootstrap's env-init ordering).
  */
 const PARSE_DEPS: ParseDeps = {
@@ -154,7 +154,7 @@ export function parseArgs(inputArgs: string[], extensionFlags?: Map<string, { ty
 		fileArgs: [],
 		unknownFlags: new Map(),
 		unrecognizedFlags: [],
-		sessionDir: $env.PI_CODING_AGENT_SESSION_DIR || undefined,
+		sessionDir: $env.CHUDCODE_CODING_AGENT_SESSION_DIR || undefined,
 	};
 
 	// `--` ends option parsing (POSIX end-of-options). Everything after it is

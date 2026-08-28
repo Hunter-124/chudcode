@@ -2,8 +2,8 @@ import * as crypto from "node:crypto";
 import type { Stats } from "node:fs";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
-import { getDocumentConversionCacheDir, isEnoent, logger } from "@oh-my-pi/pi-utils";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
+import { getDocumentConversionCacheDir, isEnoent, logger } from "@chudware/utils";
+import * as fsx from "@chudware/utils/fsx";
 import packageJson from "../../package.json" with { type: "json" };
 
 /**

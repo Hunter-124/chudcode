@@ -6,7 +6,7 @@
  * script, and the runner's TSV/Base64 wire protocol.
  */
 import * as path from "node:path";
-import { $flag, Snowflake } from "@oh-my-pi/pi-utils";
+import { $flag, Snowflake } from "@chudware/utils";
 import { Settings } from "../../config/settings";
 import { BaseKernel, getRemainingTimeMs, type KernelStartOptions } from "../kernel-base";
 import { type BackendProbeOptions, probeCandidates } from "../probe";
@@ -27,7 +27,7 @@ export type { KernelExecuteResult, KernelRuntimeEnv } from "../kernel-base";
 export { renderKernelDisplay } from "../py/display";
 export type { KernelDisplayOutput };
 
-const TRACE_IPC = $flag("PI_JULIA_IPC_TRACE");
+const TRACE_IPC = $flag("CHUDCODE_JULIA_IPC_TRACE");
 
 const SHUTDOWN_GRACE_MS = 1_000;
 const STARTUP_TIMEOUT_MS = 15_000; // Julia compile/warmup can be slightly slower
@@ -166,7 +166,7 @@ export class JuliaKernel extends BaseKernel<KernelExecuteOptions> {
 			if (typeof value === "string") spawnEnv[key] = value;
 		}
 
-		const scriptPath = await stageRunnerScript("omp-julia-runner", "jl", RUNNER_SCRIPT);
+		const scriptPath = await stageRunnerScript("chudcode-julia-runner", "jl", RUNNER_SCRIPT);
 		const kernel = new JuliaKernel(Snowflake.next());
 
 		const proc = Bun.spawn(

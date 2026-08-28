@@ -1,4 +1,4 @@
-import { $which, logger } from "@oh-my-pi/pi-utils";
+import { $which, logger } from "@chudware/utils";
 import { type DaemonBrokerClient, daemonClientForProject } from "../../launch/client";
 import { describeQuietly, stopQuietly, waitReady } from "../../launch/ensure";
 import type { DaemonRpcResult, DaemonSnapshot } from "../../launch/protocol";
@@ -96,7 +96,7 @@ function normalizedDimension(value: number, minimum: number, maximum: number, la
 }
 
 function daemonNameForOwner(ownerId: string): string {
-	return `omp.computer.xvfb.${Bun.hash(ownerId).toString(36)}`;
+	return `chudcode.computer.xvfb.${Bun.hash(ownerId).toString(36)}`;
 }
 
 function live(snapshot: DaemonSnapshot | undefined): snapshot is DaemonSnapshot {

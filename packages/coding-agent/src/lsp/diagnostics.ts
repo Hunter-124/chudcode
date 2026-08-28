@@ -1,7 +1,7 @@
 import * as fs from "node:fs";
 import path from "node:path";
-import { logger, untilAborted } from "@oh-my-pi/pi-utils";
-import { sleep } from "@oh-my-pi/pi-utils/async";
+import { logger, untilAborted } from "@chudware/utils";
+import { sleep } from "@chudware/utils/async";
 import { formatPathRelativeToCwd } from "../tools/path-utils";
 import { throwIfAborted } from "../tools/tool-errors";
 import { getOrCreateClient, sendRequest, supportsDocumentDiagnostics, waitForProjectLoaded } from "./client";

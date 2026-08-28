@@ -127,7 +127,7 @@ approval: (args) =>
 
 ## ACP sessions
 
-ACP (`chudcode acp`) uses the same settings resolver as normal Chudcode launches. Global `~/.omp/agent/config.yml` applies, project config for the ACP session `cwd` applies, and any `--config <file>` overlays passed to the ACP server process apply to sessions created by that process.
+ACP (`chudcode acp`) uses the same settings resolver as normal Chudcode launches. Global `~/.chudcode/agent/config.yml` applies, project config for the ACP session `cwd` applies, and any `--config <file>` overlays passed to the ACP server process apply to sessions created by that process.
 
 To auto-approve ACP tool calls, set the mode in global or project config:
 

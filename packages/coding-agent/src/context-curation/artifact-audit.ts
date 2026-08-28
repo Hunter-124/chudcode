@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { promises as fs } from "node:fs";
 import path from "node:path";
 
-const MANAGED_MARKER_RE = /<!--\s*omp-managed-artifact:v1\s+sha256:([a-f0-9]{64})\s+terminal:(true|false)\s*-->/i;
+const MANAGED_MARKER_RE = /<!--\s*chudcode-managed-artifact:v1\s+sha256:([a-f0-9]{64})\s+terminal:(true|false)\s*-->/i;
 const EXPLICIT_HISTORICAL_RE =
 	/(?:^|\n)(?:#{1,6}\s+.*\b(?:superseded|obsolete)\b|(?:status|state)\s*[:=-]\s*(?:superseded|archived|obsolete)\b|\*\*(?:superseded|obsolete)\*\*)/i;
 const AUDITED_EXTENSIONS: Readonly<Record<string, true>> = {
@@ -14,7 +14,7 @@ const AUDITED_EXTENSIONS: Readonly<Record<string, true>> = {
 	".yml": true,
 };
 const MAX_FILE_BYTES = 2 * 1024 * 1024;
-const MANAGED_ROOT = ".omp/context/generated/";
+const MANAGED_ROOT = ".chudcode/context/generated/";
 
 export type ArtifactCurationAction = "keep" | "review" | "archive" | "deduplicate" | "remove";
 
@@ -162,7 +162,7 @@ export function assessArtifact(record: Omit<ArtifactRecord, "absolutePath" | "co
 			...base,
 			action: "remove",
 			confidence: 1,
-			reason: "terminal OMP-managed artifact; body hash and zero-reference proof match",
+			reason: "terminal Chudcode-managed artifact; body hash and zero-reference proof match",
 		};
 	}
 	if (record.explicitHistorical && record.referencedBy.length === 0) {

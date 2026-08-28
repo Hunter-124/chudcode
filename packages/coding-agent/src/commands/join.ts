@@ -4,7 +4,7 @@
  */
 
 import { PRODUCT_CLI_NAME } from "../brand";
-import { Args, Command } from "@oh-my-pi/pi-utils/cli";
+import { Args, Command } from "@chudware/utils/cli";
 import { parseArgs } from "../cli/args";
 import { joinHelp as commandHelp } from "../cli/command-help";
 import { runRootCommand } from "../main";

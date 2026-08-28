@@ -1,6 +1,6 @@
-"""oh-my-pi — Bazel build for the native (Rust) side of the workspace.
+"""chudware — Bazel build for the native (Rust) side of the workspace.
 
-Builds the pi_natives NAPI cdylib for every shipped target with hermetic
+Builds the chud_natives NAPI cdylib for every shipped target with hermetic
 toolchains, replacing cargo-zigbuild/cargo-xwin/sccache plus the hand-rolled
 CI caches with Bazel's content-addressed action cache (see infra/bazel-remote.yaml).
 
@@ -16,7 +16,7 @@ pipeline. `crate_universe` derives the Bazel dependency graph directly from
 Cargo.toml/Cargo.lock and the module annotations; no separate repin step is required.
 """
 
-module(name = "oh-my-pi")
+module(name = "chudware")
 
 bazel_dep(name = "bazel_skylib", version = "1.8.2")
 bazel_dep(name = "platforms", version = "1.1.0")

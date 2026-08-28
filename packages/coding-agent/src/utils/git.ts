@@ -1,9 +1,9 @@
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
-import { $which, hasFsCode, isEacces, isEisdir, isEnoent, isEnotdir, Snowflake } from "@oh-my-pi/pi-utils";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
-import * as proc from "@oh-my-pi/pi-utils/proc";
+import { $which, hasFsCode, isEacces, isEisdir, isEnoent, isEnotdir, Snowflake } from "@chudware/utils";
+import * as fsx from "@chudware/utils/fsx";
+import * as proc from "@chudware/utils/proc";
 import type { Subprocess } from "bun";
 import {
 	parseDiffHunks as parseCommitDiffHunks,
@@ -797,7 +797,7 @@ function buildApplyArgs(patchPath: string, options: PatchOptions): string[] {
 }
 
 async function writeTempPatch(content: string): Promise<string> {
-	const tempPath = path.join(os.tmpdir(), `omp-git-patch-${Snowflake.next()}.patch`);
+	const tempPath = path.join(os.tmpdir(), `chudcode-git-patch-${Snowflake.next()}.patch`);
 	await fsx.write(tempPath, content);
 	return tempPath;
 }

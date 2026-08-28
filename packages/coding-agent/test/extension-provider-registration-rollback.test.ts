@@ -1,14 +1,14 @@
 import { describe, expect, test } from "bun:test";
-import type { UsageProvider, UsageReport } from "@oh-my-pi/pi-ai";
-import { unregisterOAuthProvider } from "@oh-my-pi/pi-ai/oauth";
-import { ModelRegistry } from "@oh-my-pi/pi-coding-agent/config/model-registry";
-import { ExtensionRuntime, loadExtensionFromFactory } from "@oh-my-pi/pi-coding-agent/extensibility/extensions/loader";
-import { ExtensionRunner } from "@oh-my-pi/pi-coding-agent/extensibility/extensions/runner";
-import type { ProviderConfig } from "@oh-my-pi/pi-coding-agent/extensibility/extensions/types";
-import { AuthStorage } from "@oh-my-pi/pi-coding-agent/session/auth-storage";
-import { SessionManager } from "@oh-my-pi/pi-coding-agent/session/session-manager";
-import { EventBus } from "@oh-my-pi/pi-coding-agent/utils/event-bus";
-import { TempDir } from "@oh-my-pi/pi-utils";
+import type { UsageProvider, UsageReport } from "@chudware/ai";
+import { unregisterOAuthProvider } from "@chudware/ai/oauth";
+import { ModelRegistry } from "@chudware/coding-agent/config/model-registry";
+import { ExtensionRuntime, loadExtensionFromFactory } from "@chudware/coding-agent/extensibility/extensions/loader";
+import { ExtensionRunner } from "@chudware/coding-agent/extensibility/extensions/runner";
+import type { ProviderConfig } from "@chudware/coding-agent/extensibility/extensions/types";
+import { AuthStorage } from "@chudware/coding-agent/session/auth-storage";
+import { SessionManager } from "@chudware/coding-agent/session/session-manager";
+import { EventBus } from "@chudware/coding-agent/utils/event-bus";
+import { TempDir } from "@chudware/utils";
 
 const testProviderConfig: ProviderConfig = {
 	baseUrl: "https://example.invalid/v1",
@@ -34,8 +34,8 @@ describe("extension provider registration rollback", () => {
 
 		await expect(
 			loadExtensionFromFactory(
-				pi => {
-					pi.registerProvider("should-not-survive", testProviderConfig);
+				chud => {
+					chud.registerProvider("should-not-survive", testProviderConfig);
 					throw new Error("intentional initialization failure");
 				},
 				process.cwd(),
@@ -53,24 +53,24 @@ describe("extension provider registration rollback", () => {
 		const events = new EventBus();
 
 		await loadExtensionFromFactory(
-			pi => {
-				pi.registerProvider("cliproxyapi", testProviderConfig);
-				pi.unregisterProvider("cliproxyapi");
-				pi.registerProvider("cliproxyapi", {
+			chud => {
+				chud.registerProvider("cliproxyapi", testProviderConfig);
+				chud.unregisterProvider("cliproxyapi");
+				chud.registerProvider("cliproxyapi", {
 					baseUrl: "https://replacement.example.invalid/v1",
 				});
 			},
 			process.cwd(),
 			events,
 			runtime,
-			"pi-cliproxyapi-provider@1.4.13",
+			"chud-cliproxyapi-provider@1.4.13",
 		);
 
 		expect(runtime.pendingProviderRegistrations).toEqual([
 			{
 				name: "cliproxyapi",
 				config: { baseUrl: "https://replacement.example.invalid/v1" },
-				sourceId: "pi-cliproxyapi-provider@1.4.13",
+				sourceId: "chud-cliproxyapi-provider@1.4.13",
 			},
 		]);
 	});
@@ -80,8 +80,8 @@ describe("extension provider registration rollback", () => {
 		const events = new EventBus();
 
 		await loadExtensionFromFactory(
-			pi => {
-				pi.registerProvider("working-provider", testProviderConfig);
+			chud => {
+				chud.registerProvider("working-provider", testProviderConfig);
 			},
 			process.cwd(),
 			events,
@@ -91,8 +91,8 @@ describe("extension provider registration rollback", () => {
 
 		await expect(
 			loadExtensionFromFactory(
-				pi => {
-					pi.registerProvider("broken-provider", testProviderConfig);
+				chud => {
+					chud.registerProvider("broken-provider", testProviderConfig);
 					throw new Error("second extension failed");
 				},
 				process.cwd(),
@@ -110,8 +110,8 @@ describe("extension provider registration rollback", () => {
 		const events = new EventBus();
 
 		await loadExtensionFromFactory(
-			pi => {
-				pi.registerProvider("working-provider", testProviderConfig);
+			chud => {
+				chud.registerProvider("working-provider", testProviderConfig);
 			},
 			process.cwd(),
 			events,
@@ -121,8 +121,8 @@ describe("extension provider registration rollback", () => {
 
 		await expect(
 			loadExtensionFromFactory(
-				pi => {
-					pi.unregisterProvider("working-provider");
+				chud => {
+					chud.unregisterProvider("working-provider");
 					throw new Error("failed after unregistering");
 				},
 				process.cwd(),
@@ -140,11 +140,11 @@ describe("extension provider registration rollback", () => {
 		const events = new EventBus();
 
 		await loadExtensionFromFactory(
-			pi => {
-				pi.registerProvider("provider-one", {
+			chud => {
+				chud.registerProvider("provider-one", {
 					baseUrl: "https://one.example.invalid/v1",
 				});
-				pi.registerProvider("provider-two", {
+				chud.registerProvider("provider-two", {
 					baseUrl: "https://two.example.invalid/v1",
 				});
 			},
@@ -162,16 +162,16 @@ describe("extension provider registration rollback", () => {
 		const authStorage = await AuthStorage.create(tempDir.join("auth.db"));
 		try {
 			const modelRegistry = new ModelRegistry(authStorage, tempDir.join("models.json"));
-			modelRegistry.registerProvider("cliproxyapi", testProviderConfig, "pi-cliproxyapi-provider");
+			modelRegistry.registerProvider("cliproxyapi", testProviderConfig, "chud-cliproxyapi-provider");
 
 			const runtime = new ExtensionRuntime();
 			const events = new EventBus();
 			let replaceProvider: (() => void) | undefined;
 			const extension = await loadExtensionFromFactory(
-				pi => {
+				chud => {
 					replaceProvider = () => {
-						pi.unregisterProvider("cliproxyapi");
-						pi.registerProvider("cliproxyapi", {
+						chud.unregisterProvider("cliproxyapi");
+						chud.registerProvider("cliproxyapi", {
 							baseUrl: "https://replacement.example.invalid/v1",
 							api: "openai-completions",
 							models: testProviderConfig.models,
@@ -185,7 +185,7 @@ describe("extension provider registration rollback", () => {
 				process.cwd(),
 				events,
 				runtime,
-				"pi-cliproxyapi-provider",
+				"chud-cliproxyapi-provider",
 			);
 			const runner = new ExtensionRunner(
 				[extension],
@@ -271,8 +271,8 @@ describe("extension provider registration rollback", () => {
 			const runtime = new ExtensionRuntime();
 			const events = new EventBus();
 			await loadExtensionFromFactory(
-				pi => {
-					pi.registerProvider(provider, { apiKey: "extension-usage-key", usage: extensionUsage });
+				chud => {
+					chud.registerProvider(provider, { apiKey: "extension-usage-key", usage: extensionUsage });
 				},
 				process.cwd(),
 				events,
@@ -309,9 +309,9 @@ describe("extension provider registration rollback", () => {
 
 		await expect(
 			loadExtensionFromFactory(
-				pi => {
-					pi.registerProvider("broken-provider-one", testProviderConfig);
-					pi.registerProvider("broken-provider-two", testProviderConfig);
+				chud => {
+					chud.registerProvider("broken-provider-one", testProviderConfig);
+					chud.registerProvider("broken-provider-two", testProviderConfig);
 					throw new Error("failed after multiple registrations");
 				},
 				process.cwd(),

@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "bun:test";
 import { scheduler } from "node:timers/promises";
-import { streamSimple } from "@oh-my-pi/pi-ai";
+import { streamSimple } from "@chudware/ai";
 import {
 	buildTransformedCodexRequestBody,
 	createOpenAICodexCompatibilityMetadata,
@@ -9,7 +9,7 @@ import {
 	prewarmOpenAICodexResponses,
 	resetOpenAICodexHistoryAfterCompaction,
 	streamOpenAICodexResponses,
-} from "@oh-my-pi/pi-ai/providers/openai-codex-responses";
+} from "@chudware/ai/providers/openai-codex-responses";
 import type {
 	CodexCompactionRequestContext,
 	Context,
@@ -17,22 +17,22 @@ import type {
 	Model,
 	ModelSpec,
 	ProviderSessionState,
-} from "@oh-my-pi/pi-ai/types";
-import { __resetProxyCache } from "@oh-my-pi/pi-ai/utils/proxy";
-import { buildModel } from "@oh-my-pi/pi-catalog/build";
-import { Effort } from "@oh-my-pi/pi-catalog/effort";
-import * as piUtils from "@oh-my-pi/pi-utils";
-import { sleep } from "@oh-my-pi/pi-utils/async";
+} from "@chudware/ai/types";
+import { __resetProxyCache } from "@chudware/ai/utils/proxy";
+import { buildModel } from "@chudware/catalog/build";
+import { Effort } from "@chudware/catalog/effort";
+import * as piUtils from "@chudware/utils";
+import { sleep } from "@chudware/utils/async";
 import { withEnv } from "./helpers";
 
 const { getAgentDir, setAgentDir, TempDir } = piUtils;
 
 const originalAgentDir = getAgentDir();
 const originalWebSocket = global.WebSocket;
-const originalCodexWebSocketV2 = process.env.PI_CODEX_WEBSOCKET_V2;
+const originalCodexWebSocketV2 = process.env.CHUDCODE_CODEX_WEBSOCKET_V2;
 const originalProxyEnv: Record<string, string | undefined> = {
-	PI_PROXY: process.env.PI_PROXY,
-	PI_PROXY_CODEX_PROXY_TEST: process.env.PI_PROXY_CODEX_PROXY_TEST,
+	CHUDCODE_PROXY: process.env.CHUDCODE_PROXY,
+	CHUDCODE_PROXY_CODEX_PROXY_TEST: process.env.CHUDCODE_PROXY_CODEX_PROXY_TEST,
 	HTTPS_PROXY: process.env.HTTPS_PROXY,
 	https_proxy: process.env.https_proxy,
 	ALL_PROXY: process.env.ALL_PROXY,
@@ -59,7 +59,7 @@ beforeEach(() => {
 afterEach(() => {
 	global.WebSocket = originalWebSocket;
 	setAgentDir(originalAgentDir);
-	restoreEnv("PI_CODEX_WEBSOCKET_V2", originalCodexWebSocketV2);
+	restoreEnv("CHUDCODE_CODEX_WEBSOCKET_V2", originalCodexWebSocketV2);
 	vi.useRealTimers();
 	for (const key in originalProxyEnv) restoreEnv(key, originalProxyEnv[key]);
 	__resetProxyCache();
@@ -408,7 +408,7 @@ describe("openai-codex streaming", () => {
 		expect(requestHeaders?.get("Authorization")).toBe("Bearer opaque-proxy-key");
 		expect(requestHeaders?.has("chatgpt-account-id")).toBe(false);
 		expect(requestHeaders?.get("OpenAI-Beta")).toBe("responses=experimental");
-		expect(requestHeaders?.get("originator")).toBe("pi");
+		expect(requestHeaders?.get("originator")).toBe("chud");
 		// An opaque proxy key is not a JWT, so no residency claim to declare.
 		expect(requestHeaders?.has("x-openai-internal-codex-residency")).toBe(false);
 	});
@@ -530,7 +530,7 @@ describe("openai-codex streaming", () => {
 		expect(capturedHeaders?.authorization).toBe("Bearer opaque-proxy-key");
 		expect(capturedHeaders?.["chatgpt-account-id"]).toBeUndefined();
 		expect(capturedHeaders?.["openai-beta"]).toBe("responses_websockets=2026-02-06");
-		expect(capturedHeaders?.originator).toBe("pi");
+		expect(capturedHeaders?.originator).toBe("chud");
 		expect(capturedHeaders?.["x-openai-internal-codex-residency"]).toBeUndefined();
 	});
 
@@ -1669,7 +1669,7 @@ describe("openai-codex streaming", () => {
 
 	it("passes the provider proxy to websocket handshakes", async () => {
 		const proxy = "socks5://127.0.0.1:7890";
-		process.env.PI_PROXY_CODEX_PROXY_TEST = proxy;
+		process.env.CHUDCODE_PROXY_CODEX_PROXY_TEST = proxy;
 		__resetProxyCache();
 		let capturedProxy: string | undefined;
 		class ProxyCaptureWebSocket extends MockWebSocket {
@@ -1695,7 +1695,7 @@ describe("openai-codex streaming", () => {
 			expect(capturedProxy).toBe(proxy);
 		} finally {
 			for (const state of providerSessionState.values()) state.close();
-			delete process.env.PI_PROXY_CODEX_PROXY_TEST;
+			delete process.env.CHUDCODE_PROXY_CODEX_PROXY_TEST;
 		}
 	});
 
@@ -1738,7 +1738,7 @@ describe("openai-codex streaming", () => {
 	});
 
 	it("bypasses configured proxies for NO_PROXY websocket targets", async () => {
-		process.env.PI_PROXY_CODEX_PROXY_TEST = "http://127.0.0.1:7890";
+		process.env.CHUDCODE_PROXY_CODEX_PROXY_TEST = "http://127.0.0.1:7890";
 		process.env.NO_PROXY = "chatgpt.com:443";
 		__resetProxyCache();
 		let capturedProxy: string | undefined;
@@ -1834,7 +1834,7 @@ describe("openai-codex streaming", () => {
 		expect(metadata.parent_turn_id).toBe("turn_parent-1");
 		expect(turnMetadata.parent_turn_id).toBe("turn_parent-1");
 		// `code_mode_tool_names` is likewise reserved (codex-rs
-		// CODE_MODE_TOOL_NAMES_KEY, #35271): OMP never emits it, and caller extras
+		// CODE_MODE_TOOL_NAMES_KEY, #35271): Chudcode never emits it, and caller extras
 		// cannot smuggle it into either projection.
 		expect(metadata.code_mode_tool_names).toBeUndefined();
 		expect(turnMetadata.code_mode_tool_names).toBeUndefined();
@@ -1916,7 +1916,7 @@ describe("openai-codex streaming", () => {
 				expect(headers?.get("Authorization")).toBe(`Bearer ${token}`);
 				expect(headers?.get("chatgpt-account-id")).toBe("acc_test");
 				expect(headers?.get("OpenAI-Beta")).toBe("responses=experimental");
-				expect(headers?.get("originator")).toBe("pi");
+				expect(headers?.get("originator")).toBe("chud");
 				expect(headers?.get("accept")).toBe("text/event-stream");
 				expect(headers?.has("x-api-key")).toBe(false);
 				return new Response(stream, {
@@ -2565,7 +2565,7 @@ describe("openai-codex streaming", () => {
 		expect(disabledPromptKey.prompt_cache_key).toBeUndefined();
 		expect(disabledSession.prompt_cache_key).toBeUndefined();
 
-		await withEnv({ PI_CACHE_RETENTION: "none" }, async () => {
+		await withEnv({ CHUDCODE_CACHE_RETENTION: "none" }, async () => {
 			const disabledEnvironment = await buildTransformedCodexRequestBody(model, context, {
 				sessionId: "environment-session",
 			});
@@ -4550,7 +4550,7 @@ describe("openai-codex streaming", () => {
 	it("uses websocket v2 beta header when v2 mode is enabled", async () => {
 		const tempDir = TempDir.createSync("@pi-codex-stream-");
 		setAgentDir(tempDir.path());
-		process.env.PI_CODEX_WEBSOCKET_V2 = "1";
+		process.env.CHUDCODE_CODEX_WEBSOCKET_V2 = "1";
 
 		const payload = Buffer.from(
 			JSON.stringify({ "https://api.openai.com/auth": { chatgpt_account_id: "acc_test" } }),

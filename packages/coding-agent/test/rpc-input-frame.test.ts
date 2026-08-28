@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { RpcHostToolBridge } from "@oh-my-pi/pi-coding-agent/modes/rpc/host-tools";
+import { RpcHostToolBridge } from "@chudware/coding-agent/modes/rpc/host-tools";
 import {
 	dispatchRpcInputFrame,
 	type PendingExtensionRequest,
@@ -7,14 +7,14 @@ import {
 	type RpcInputFrameDeps,
 	RpcPendingExtensionRequests,
 	RpcShutdownCoordinator,
-} from "@oh-my-pi/pi-coding-agent/modes/rpc/rpc-mode";
+} from "@chudware/coding-agent/modes/rpc/rpc-mode";
 import type {
 	RpcCommand,
 	RpcExtensionUIResponse,
 	RpcHostToolCallRequest,
 	RpcHostToolCancelRequest,
 	RpcResponse,
-} from "@oh-my-pi/pi-coding-agent/modes/rpc/rpc-types";
+} from "@chudware/coding-agent/modes/rpc/rpc-types";
 
 type OutputFrame = RpcResponse | object;
 
@@ -564,7 +564,7 @@ describe("RpcShutdownCoordinator", () => {
 		const awaited = dispatchRpcInputFrame({ id: "s1", type: "bash", command: "sleep 9999" }, deps);
 		expect(awaited).toBeUndefined();
 
-		// Extension calls pi.shutdown() while bash is in flight; the input loop
+		// Extension calls chud.shutdown() while bash is in flight; the input loop
 		// re-checks after its next serially-awaited frame.
 		shutdown.requested = true;
 		const check = coordinator.checkShutdownRequested();

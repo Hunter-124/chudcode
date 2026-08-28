@@ -1,7 +1,7 @@
 import { AsyncLocalStorage } from "node:async_hooks";
-import { untilAborted } from "@oh-my-pi/pi-utils/abortable";
-import { sleep } from "@oh-my-pi/pi-utils/async";
-import * as postmortem from "@oh-my-pi/pi-utils/postmortem";
+import { untilAborted } from "@chudware/utils/abortable";
+import { sleep } from "@chudware/utils/async";
+import * as postmortem from "@chudware/utils/postmortem";
 import { ToolError, throwIfAborted } from "./tool-errors";
 
 const browserRunRejections = new WeakMap<object, object>();

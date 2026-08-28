@@ -39,7 +39,7 @@ describe("describeChunkFailure", () => {
 	test("a watchdog kill is attributed to the watchdog, not to memory", async () => {
 		const message = await runWithWatchdog("sleep 30", 150);
 		expect(message).toContain("chunk watchdog");
-		expect(message).toContain("OMP_TEST_CHUNK_TIMEOUT");
+		expect(message).toContain("CHUDCODE_TEST_CHUNK_TIMEOUT");
 		expect(message).not.toContain("OOM killer");
 	});
 
@@ -61,13 +61,13 @@ describe("describeChunkFailure", () => {
 	});
 
 	test("the watchdog message reports the configured timeout", () => {
-		const previous = process.env.OMP_TEST_CHUNK_TIMEOUT;
-		process.env.OMP_TEST_CHUNK_TIMEOUT = "42";
+		const previous = process.env.CHUDCODE_TEST_CHUNK_TIMEOUT;
+		process.env.CHUDCODE_TEST_CHUNK_TIMEOUT = "42";
 		try {
 			expect(describeChunkFailure(137, true)).toContain("42s");
 		} finally {
-			if (previous === undefined) delete process.env.OMP_TEST_CHUNK_TIMEOUT;
-			else process.env.OMP_TEST_CHUNK_TIMEOUT = previous;
+			if (previous === undefined) delete process.env.CHUDCODE_TEST_CHUNK_TIMEOUT;
+			else process.env.CHUDCODE_TEST_CHUNK_TIMEOUT = previous;
 		}
 	});
 });

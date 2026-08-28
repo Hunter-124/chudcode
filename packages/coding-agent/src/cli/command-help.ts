@@ -1,4 +1,4 @@
-import type { CommandMetadata } from "@oh-my-pi/pi-utils/cli";
+import type { CommandMetadata } from "@chudware/utils/cli";
 
 export const acpHelp = {
 	description: "Run Chudcode as an ACP (Agent Client Protocol) server over stdio",
@@ -130,5 +130,5 @@ export const usageHelp = {
 } satisfies CommandMetadata;
 
 export const worktreeHelp = {
-	description: "List or clear agent-managed git worktrees (~/.omp/wt)",
+	description: "List or clear agent-managed git worktrees (~/.chudcode/wt)",
 } satisfies CommandMetadata;

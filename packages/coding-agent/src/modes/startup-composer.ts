@@ -1,5 +1,5 @@
-import type { Terminal } from "@oh-my-pi/pi-tui";
-import { logger } from "@oh-my-pi/pi-utils";
+import type { Terminal } from "@chudware/tui";
+import { logger } from "@chudware/utils";
 import { getRecentSessions } from "../session/session-listing";
 import { computeDefaultSessionDir } from "../session/session-paths";
 import { FileSessionStorage } from "../session/session-storage";

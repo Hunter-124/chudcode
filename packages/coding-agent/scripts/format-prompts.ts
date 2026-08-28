@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
-import { prompt } from "@oh-my-pi/pi-utils";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
+import { prompt } from "@chudware/utils";
+import * as fsx from "@chudware/utils/fsx";
 /**
  * Format prompt files (mixed XML + Markdown + Handlebars).
  *

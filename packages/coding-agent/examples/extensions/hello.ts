@@ -3,12 +3,12 @@
  *
  * Demonstrates using ExtensionAPI's logger and injected schema builder.
  */
-import type { ExtensionAPI } from "@oh-my-pi/pi-coding-agent";
+import type { ExtensionAPI } from "@chudware/coding-agent";
 
-export default function (pi: ExtensionAPI) {
-	const z = pi.zod;
+export default function (chud: ExtensionAPI) {
+	const z = chud.zod;
 
-	pi.registerTool({
+	chud.registerTool({
 		name: "hello",
 		label: "Hello",
 		description: "A simple greeting tool",
@@ -20,7 +20,7 @@ export default function (pi: ExtensionAPI) {
 			const { name } = params;
 
 			// Use logger for debugging
-			pi.logger.debug("Hello tool executed", { name });
+			chud.logger.debug("Hello tool executed", { name });
 
 			return {
 				content: [{ type: "text", text: `Hello, ${name}!` }],

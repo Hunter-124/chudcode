@@ -2,18 +2,18 @@ import { afterEach, describe, expect, it, vi } from "bun:test";
 import {
 	type AzureOpenAIResponsesOptions,
 	streamAzureOpenAIResponses,
-} from "@oh-my-pi/pi-ai/providers/azure-openai-responses";
+} from "@chudware/ai/providers/azure-openai-responses";
 import {
 	buildParams,
 	type OpenAIResponsesOptions,
 	streamOpenAIResponses,
-} from "@oh-my-pi/pi-ai/providers/openai-responses";
-import { stream as streamModel, streamSimple } from "@oh-my-pi/pi-ai/stream";
-import type { Context, FetchImpl, Model, ProviderSessionState, SimpleStreamOptions } from "@oh-my-pi/pi-ai/types";
-import { buildModel } from "@oh-my-pi/pi-catalog/build";
-import { buildOpenAIResponsesCompat } from "@oh-my-pi/pi-catalog/compat/openai";
+} from "@chudware/ai/providers/openai-responses";
+import { stream as streamModel, streamSimple } from "@chudware/ai/stream";
+import type { Context, FetchImpl, Model, ProviderSessionState, SimpleStreamOptions } from "@chudware/ai/types";
+import { buildModel } from "@chudware/catalog/build";
+import { buildOpenAIResponsesCompat } from "@chudware/catalog/compat/openai";
 
-import { getBundledModel } from "@oh-my-pi/pi-catalog/models";
+import { getBundledModel } from "@chudware/catalog/models";
 import { withEnv } from "./helpers";
 
 const model = getBundledModel("openai", "gpt-5-mini") as Model<"openai-responses">;
@@ -510,12 +510,12 @@ describe("OpenAI Responses explicit prompt cache policy", () => {
 		expect(fetchMock).not.toHaveBeenCalled();
 	});
 
-	it("defers explicit policy validation to the gateway-resolved model for pi-native transport", async () => {
+	it("defers explicit policy validation to the gateway-resolved model for chud-native transport", async () => {
 		const sidecarModel: Model<"openai-responses"> = {
 			...openAI56ResponsesModel,
 			id: "gateway-model",
 			baseUrl: "http://gateway.internal",
-			transport: "pi-native",
+			transport: "chud-native",
 			compat: buildOpenAIResponsesCompat({
 				id: "gpt-5.5",
 				name: "Gateway model",
@@ -606,7 +606,7 @@ describe("OpenAI Responses explicit prompt cache policy", () => {
 			}),
 		};
 
-		await withEnv({ PI_CACHE_RETENTION: "none" }, async () => {
+		await withEnv({ CHUDCODE_CACHE_RETENTION: "none" }, async () => {
 			const body = await captureSimpleOpenAIResponseBody({ promptCache: { mode: "explicit" } }, unsupportedModel);
 
 			if (body === null) throw new Error("Expected disabled prompt-cache request to reach the provider");
@@ -614,7 +614,7 @@ describe("OpenAI Responses explicit prompt cache policy", () => {
 		});
 
 		for (const retention of ["short", "long"] as const) {
-			await withEnv({ PI_CACHE_RETENTION: retention }, () => {
+			await withEnv({ CHUDCODE_CACHE_RETENTION: retention }, () => {
 				expect(() =>
 					streamSimple(
 						unsupportedModel,

@@ -8,7 +8,7 @@
  * transports read. A field missing from either step silently degrades to the
  * snowflake-string default, which is the hang the option exists to avoid.
  *
- * Both OMP-native loaders are covered: `.omp/mcp.json` (native provider) and a
+ * Both Chudcode-native loaders are covered: `.chudcode/mcp.json` (native provider) and a
  * standalone project-root `.mcp.json` (mcp-json provider).
  *
  * Separately, `isSameMCPConnection` treats two differently-named entries with the
@@ -21,12 +21,12 @@ import { afterEach, beforeEach, expect, test, vi } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import { clearCache as clearFsCache } from "@oh-my-pi/pi-coding-agent/capability/fs";
-import { loadAllMCPConfigs } from "@oh-my-pi/pi-coding-agent/mcp/config";
-import { getConfigRootDir, removeWithRetries, setAgentDir } from "@oh-my-pi/pi-utils";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
+import { clearCache as clearFsCache } from "@chudware/coding-agent/capability/fs";
+import { loadAllMCPConfigs } from "@chudware/coding-agent/mcp/config";
+import { getConfigRootDir, removeWithRetries, setAgentDir } from "@chudware/utils";
+import * as fsx from "@chudware/utils/fsx";
 
-const originalAgentDirEnv = process.env.PI_CODING_AGENT_DIR;
+const originalAgentDirEnv = process.env.CHUDCODE_CODING_AGENT_DIR;
 const fallbackAgentDir = path.join(getConfigRootDir(), "agent");
 
 let tempAgentDir = "";
@@ -36,9 +36,9 @@ let originalHome: string | undefined;
 
 beforeEach(async () => {
 	originalHome = process.env.HOME;
-	tempHome = await fs.mkdtemp(path.join(os.tmpdir(), "omp-mcp-reqid-home-"));
-	tempAgentDir = await fs.mkdtemp(path.join(os.tmpdir(), "omp-mcp-reqid-agent-"));
-	tempCwd = await fs.mkdtemp(path.join(os.tmpdir(), "omp-mcp-reqid-cwd-"));
+	tempHome = await fs.mkdtemp(path.join(os.tmpdir(), "chudcode-mcp-reqid-home-"));
+	tempAgentDir = await fs.mkdtemp(path.join(os.tmpdir(), "chudcode-mcp-reqid-agent-"));
+	tempCwd = await fs.mkdtemp(path.join(os.tmpdir(), "chudcode-mcp-reqid-cwd-"));
 	process.env.HOME = tempHome;
 	vi.spyOn(os, "homedir").mockReturnValue(tempHome);
 	setAgentDir(tempAgentDir);
@@ -51,7 +51,7 @@ afterEach(async () => {
 		setAgentDir(originalAgentDirEnv);
 	} else {
 		setAgentDir(fallbackAgentDir);
-		delete process.env.PI_CODING_AGENT_DIR;
+		delete process.env.CHUDCODE_CODING_AGENT_DIR;
 	}
 	if (originalHome === undefined) delete process.env.HOME;
 	else process.env.HOME = originalHome;
@@ -68,8 +68,8 @@ async function loadFrom(file: string, mcpServers: Record<string, unknown>) {
 	return configs;
 }
 
-test("requestIdFormat from .omp/mcp.json reaches the transport config", async () => {
-	const configs = await loadFrom(path.join(".omp", "mcp.json"), {
+test("requestIdFormat from .chudcode/mcp.json reaches the transport config", async () => {
+	const configs = await loadFrom(path.join(".chudcode", "mcp.json"), {
 		xcode: { type: "stdio", command: "/usr/bin/xcrun", args: ["mcpbridge"], requestIdFormat: "number" },
 		plain: { type: "stdio", command: "/bin/echo" },
 	});
@@ -88,7 +88,7 @@ test("requestIdFormat from a standalone .mcp.json reaches the transport config",
 });
 
 test("an unrecognized requestIdFormat is dropped rather than passed through", async () => {
-	const configs = await loadFrom(path.join(".omp", "mcp.json"), {
+	const configs = await loadFrom(path.join(".chudcode", "mcp.json"), {
 		bogus: { type: "stdio", command: "/bin/echo", requestIdFormat: "integer" },
 	});
 
@@ -97,7 +97,7 @@ test("an unrecognized requestIdFormat is dropped rather than passed through", as
 });
 
 test("differing requestIdFormat prevents equivalence dedup from collapsing two aliases", async () => {
-	const configs = await loadFrom(path.join(".omp", "mcp.json"), {
+	const configs = await loadFrom(path.join(".chudcode", "mcp.json"), {
 		"xcode-string": { type: "stdio", command: "/usr/bin/xcrun", args: ["mcpbridge"], requestIdFormat: "string" },
 		"xcode-default": { type: "stdio", command: "/usr/bin/xcrun", args: ["mcpbridge"] },
 	});
@@ -113,7 +113,7 @@ test("differing requestIdFormat prevents equivalence dedup from collapsing two a
 });
 
 test('an explicit "number" is the default, so dedup collapses it with an unset alias', async () => {
-	const configs = await loadFrom(path.join(".omp", "mcp.json"), {
+	const configs = await loadFrom(path.join(".chudcode", "mcp.json"), {
 		"xcode-numeric": { type: "stdio", command: "/usr/bin/xcrun", args: ["mcpbridge"], requestIdFormat: "number" },
 		"xcode-default": { type: "stdio", command: "/usr/bin/xcrun", args: ["mcpbridge"] },
 	});

@@ -1,5 +1,5 @@
-import { logger } from "@oh-my-pi/pi-utils";
-import { sleep } from "@oh-my-pi/pi-utils/async";
+import { logger } from "@chudware/utils";
+import { sleep } from "@chudware/utils/async";
 
 const DELIVERY_RETRY_BASE_MS = 500;
 const DELIVERY_RETRY_MAX_MS = 30_000;

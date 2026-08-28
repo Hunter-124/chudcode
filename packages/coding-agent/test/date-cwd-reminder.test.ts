@@ -1,21 +1,21 @@
 import { afterEach, describe, expect, it } from "bun:test";
-import type { Api, Context, Message, Model, ModelSpec } from "@oh-my-pi/pi-ai";
-import { clearCustomApis, registerCustomApi } from "@oh-my-pi/pi-ai";
-import { AssistantMessageEventStream } from "@oh-my-pi/pi-ai/utils/event-stream";
-import { buildModel } from "@oh-my-pi/pi-catalog/build";
-import { ModelRegistry } from "@oh-my-pi/pi-coding-agent/config/model-registry";
-import { Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
-import { createAgentSession } from "@oh-my-pi/pi-coding-agent/sdk";
-import { AuthStorage } from "@oh-my-pi/pi-coding-agent/session/auth-storage";
+import type { Api, Context, Message, Model, ModelSpec } from "@chudware/ai";
+import { clearCustomApis, registerCustomApi } from "@chudware/ai";
+import { AssistantMessageEventStream } from "@chudware/ai/utils/event-stream";
+import { buildModel } from "@chudware/catalog/build";
+import { ModelRegistry } from "@chudware/coding-agent/config/model-registry";
+import { Settings } from "@chudware/coding-agent/config/settings";
+import { createAgentSession } from "@chudware/coding-agent/sdk";
+import { AuthStorage } from "@chudware/coding-agent/session/auth-storage";
 import {
 	injectDateCwdReminder,
 	renderDateCwdReminder,
 	withDateCwdReminder,
-} from "@oh-my-pi/pi-coding-agent/session/date-cwd-reminder";
-import { SessionManager } from "@oh-my-pi/pi-coding-agent/session/session-manager";
-import { formatLocalCalendarDate } from "@oh-my-pi/pi-coding-agent/utils/local-date";
-import { normalizePromptPath } from "@oh-my-pi/pi-coding-agent/utils/prompt-path";
-import { TempDir } from "@oh-my-pi/pi-utils";
+} from "@chudware/coding-agent/session/date-cwd-reminder";
+import { SessionManager } from "@chudware/coding-agent/session/session-manager";
+import { formatLocalCalendarDate } from "@chudware/coding-agent/utils/local-date";
+import { normalizePromptPath } from "@chudware/coding-agent/utils/prompt-path";
+import { TempDir } from "@chudware/utils";
 import { createAssistantMessage } from "./helpers/agent-session-setup";
 
 describe("date-cwd-reminder", () => {
@@ -25,12 +25,12 @@ describe("date-cwd-reminder", () => {
 
 	describe("renderDateCwdReminder", () => {
 		it("renders a system-reminder block carrying the date and cwd with a do-not-repeat instruction", () => {
-			const reminder = renderDateCwdReminder("2026-08-14", "C:/work/omp");
+			const reminder = renderDateCwdReminder("2026-08-14", "C:/work/chudcode");
 
 			expect(reminder.startsWith("<system-reminder>")).toBe(true);
 			expect(reminder.endsWith("</system-reminder>")).toBe(true);
 			expect(reminder).toContain("2026-08-14");
-			expect(reminder).toContain("C:/work/omp");
+			expect(reminder).toContain("C:/work/chudcode");
 			expect(reminder).toContain("Do not repeat");
 		});
 	});
@@ -115,13 +115,13 @@ describe("date-cwd-reminder", () => {
 				messages: [{ role: "user", content: "do the thing", timestamp: 1 }],
 			};
 
-			const out = withDateCwdReminder(context, "2026-08-14", "/work/omp");
+			const out = withDateCwdReminder(context, "2026-08-14", "/work/chudcode");
 
 			expect(out).not.toBe(context);
 			expect(out.systemPrompt).toBe(systemPrompt);
 			expect(out.messages[0]).toEqual({
 				role: "user",
-				content: `${renderDateCwdReminder("2026-08-14", "/work/omp")}\n\ndo the thing`,
+				content: `${renderDateCwdReminder("2026-08-14", "/work/chudcode")}\n\ndo the thing`,
 				timestamp: 1,
 			});
 		});

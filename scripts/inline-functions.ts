@@ -70,7 +70,7 @@ import { rm } from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
 import { parseArgs } from "node:util";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
+import * as fsx from "@chudware/utils/fsx";
 import { $ } from "bun";
 import type {
 	CallExpression,
@@ -643,12 +643,12 @@ function analyze(fn: FunctionDeclaration, opts: Options): Candidate | null {
 	// Parameter references, scoped to the body; reject parameter writes.
 	const bodyStart = body.getStart();
 	const bodyEnd = body.getEnd();
-	for (const pi of params) {
-		for (const ref of pi.param.findReferencesAsNodes()) {
-			if (Node.isIdentifier(ref) && ref.getStart() >= bodyStart && ref.getEnd() <= bodyEnd) pi.refs.push(ref);
+	for (const chud of params) {
+		for (const ref of chud.param.findReferencesAsNodes()) {
+			if (Node.isIdentifier(ref) && ref.getStart() >= bodyStart && ref.getEnd() <= bodyEnd) chud.refs.push(ref);
 		}
-		for (const ref of pi.refs) {
-			if (isWriteTarget(ref)) return skip(opts, name, `writes parameter \`${pi.name}\``);
+		for (const ref of chud.refs) {
+			if (isWriteTarget(ref)) return skip(opts, name, `writes parameter \`${chud.name}\``);
 		}
 	}
 
@@ -847,8 +847,8 @@ function buildReplacement(
 	const reservedNames = reservedFor(call, reserved);
 
 	for (let i = 0; i < candidate.params.length; i++) {
-		const pi = candidate.params[i];
-		const uses = pi.refs.length;
+		const chud = candidate.params[i];
+		const uses = chud.refs.length;
 		const argNode: Node | undefined = i < args.length ? args[i] : undefined;
 
 		if (uses === 0) {
@@ -864,7 +864,7 @@ function buildReplacement(
 			continue;
 		}
 		if (argNode === undefined) {
-			substByParam.set(pi.name, "undefined");
+			substByParam.set(chud.name, "undefined");
 			continue;
 		}
 		// In strict mode every used argument is snapshotted (hoisted) left-to-right,
@@ -872,20 +872,20 @@ function buildReplacement(
 		// argument mutates. Otherwise hoist only when correctness/readability needs it.
 		const hoist = strict || !isPureExpr(argNode, strict) || (uses >= 2 && !isDuplicable(argNode, strict));
 		if (hoist) {
-			const temp = freshName(`__inl_${pi.name}`, reservedNames);
+			const temp = freshName(`__inl_${chud.name}`, reservedNames);
 			reservedNames.add(temp);
 			prefix.push(`const ${temp} = ${argNode.getText()};`);
-			substByParam.set(pi.name, temp);
+			substByParam.set(chud.name, temp);
 		} else {
-			substByParam.set(pi.name, argNeedsParens(argNode) ? `(${argNode.getText()})` : argNode.getText());
+			substByParam.set(chud.name, argNeedsParens(argNode) ? `(${argNode.getText()})` : argNode.getText());
 		}
 	}
 
 	const paramEdits: Edit[] = [];
-	for (const pi of candidate.params) {
-		const t = substByParam.get(pi.name);
+	for (const chud of candidate.params) {
+		const t = substByParam.get(chud.name);
 		if (t === undefined) continue;
-		for (const r of pi.refs) paramEdits.push({ start: r.getStart(), end: r.getEnd(), text: editTextFor(r, t) });
+		for (const r of chud.refs) paramEdits.push({ start: r.getStart(), end: r.getEnd(), text: editTextFor(r, t) });
 	}
 
 	if (candidate.guards.length > 0) {

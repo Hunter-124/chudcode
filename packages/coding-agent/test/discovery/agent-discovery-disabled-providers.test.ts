@@ -6,11 +6,11 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
-import { disableProvider, enableProvider } from "@oh-my-pi/pi-coding-agent/capability";
-import { clearCache as clearFsCache } from "@oh-my-pi/pi-coding-agent/capability/fs";
-import { clearClaudePluginRootsCache } from "@oh-my-pi/pi-coding-agent/discovery/helpers";
-import { discoverAgents } from "@oh-my-pi/pi-coding-agent/task/discovery";
-import { removeSyncWithRetries } from "@oh-my-pi/pi-utils";
+import { disableProvider, enableProvider } from "@chudware/coding-agent/capability";
+import { clearCache as clearFsCache } from "@chudware/coding-agent/capability/fs";
+import { clearClaudePluginRootsCache } from "@chudware/coding-agent/discovery/helpers";
+import { discoverAgents } from "@chudware/coding-agent/task/discovery";
+import { removeSyncWithRetries } from "@chudware/utils";
 
 const PLUGIN_AGENT_MD = [
 	"---",
@@ -24,7 +24,7 @@ describe("discoverAgents — claude-plugins disabled provider", () => {
 	let tempHome: string;
 
 	beforeEach(() => {
-		tempHome = fs.mkdtempSync(path.join(os.tmpdir(), "pi-agent-disco-home-"));
+		tempHome = fs.mkdtempSync(path.join(os.tmpdir(), "chud-agent-disco-home-"));
 
 		// Build a fake Claude plugin install with an agents/ subdirectory.
 		const pluginInstallPath = path.join(tempHome, "plugin-cache", "code-simplifier");

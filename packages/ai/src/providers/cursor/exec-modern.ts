@@ -14,6 +14,38 @@ import {
 	AfterAgentResponseRequestResponseSchema,
 	AfterAgentThoughtRequestResponseSchema,
 	BeforeSubmitPromptRequestResponseSchema,
+	ChudBashExecErrorSchema,
+	type ChudBashExecResult,
+	ChudBashExecResultSchema,
+	ChudBashExecSuccessSchema,
+	ChudEditExecErrorSchema,
+	ChudEditExecRejectedSchema,
+	type ChudEditExecResult,
+	ChudEditExecResultSchema,
+	ChudEditExecSuccessSchema,
+	ChudFindExecErrorSchema,
+	type ChudFindExecResult,
+	ChudFindExecResultSchema,
+	ChudFindExecSuccessSchema,
+	ChudGrepExecErrorSchema,
+	type ChudGrepExecResult,
+	ChudGrepExecResultSchema,
+	ChudGrepExecSuccessSchema,
+	ChudLsExecErrorSchema,
+	type ChudLsExecResult,
+	ChudLsExecResultSchema,
+	ChudLsExecSuccessSchema,
+	ChudReadExecErrorSchema,
+	type ChudReadExecResult,
+	ChudReadExecResultSchema,
+	ChudReadExecSuccessSchema,
+	type ChudTruncation,
+	ChudTruncationSchema,
+	ChudWriteExecErrorSchema,
+	ChudWriteExecRejectedSchema,
+	type ChudWriteExecResult,
+	ChudWriteExecResultSchema,
+	ChudWriteExecSuccessSchema,
 	type ExecuteHookRequest,
 	type ExecuteHookResponse,
 	ExecuteHookResponseSchema,
@@ -24,38 +56,6 @@ import {
 	McpStateServerSchema,
 	McpStateSuccessSchema,
 	type McpToolDefinition,
-	PiBashExecErrorSchema,
-	type PiBashExecResult,
-	PiBashExecResultSchema,
-	PiBashExecSuccessSchema,
-	PiEditExecErrorSchema,
-	PiEditExecRejectedSchema,
-	type PiEditExecResult,
-	PiEditExecResultSchema,
-	PiEditExecSuccessSchema,
-	PiFindExecErrorSchema,
-	type PiFindExecResult,
-	PiFindExecResultSchema,
-	PiFindExecSuccessSchema,
-	PiGrepExecErrorSchema,
-	type PiGrepExecResult,
-	PiGrepExecResultSchema,
-	PiGrepExecSuccessSchema,
-	PiLsExecErrorSchema,
-	type PiLsExecResult,
-	PiLsExecResultSchema,
-	PiLsExecSuccessSchema,
-	PiReadExecErrorSchema,
-	type PiReadExecResult,
-	PiReadExecResultSchema,
-	PiReadExecSuccessSchema,
-	type PiTruncation,
-	PiTruncationSchema,
-	PiWriteExecErrorSchema,
-	PiWriteExecRejectedSchema,
-	type PiWriteExecResult,
-	PiWriteExecResultSchema,
-	PiWriteExecSuccessSchema,
 	PostToolUseFailureRequestResponseSchema,
 	PostToolUseRequestResponseSchema,
 	PreCompactRequestResponseSchema,
@@ -63,12 +63,12 @@ import {
 	StopRequestResponseSchema,
 	SubagentStartRequestResponseSchema,
 	SubagentStopRequestResponseSchema,
-} from "@oh-my-pi/pi-catalog/discovery/cursor-proto";
-import { create } from "@oh-my-pi/pi-catalog/discovery/protobuf";
+} from "@chudware/catalog/discovery/cursor-proto";
+import { create } from "@chudware/catalog/discovery/protobuf";
 import type { ToolResultMessage } from "../../types";
 
 /**
- * The pure arg translation lives in `../cursor-pi-args` so the legacy pi shim
+ * The pure arg translation lives in `../chud-args` so the legacy chud shim
  * can share it without pulling this module's protobuf graph into the bundled
  * virtual registry. Re-exported here because this is where the frame builders
  * and their translation are consumed together.
@@ -86,9 +86,9 @@ export {
 	piReadPath,
 	piReadPathHasRange,
 	piTimeout,
-} from "../cursor-pi-args";
+} from "../chud-args";
 
-/** Flatten a tool result's content into the single `output` string the Pi frames carry. */
+/** Flatten a tool result's content into the single `output` string the Chud frames carry. */
 export function piOutputText(toolResult: ToolResultMessage): string {
 	return toolResult.content.map(item => (item.type === "text" ? item.text : `[${item.mimeType} image]`)).join("\n");
 }
@@ -109,7 +109,7 @@ function bagValue(bag: unknown, key: string): unknown {
 /**
  * A positive integer count from `details`, or `undefined`.
  *
- * The Pi frames model their limit counters as `optional uint32`: zero means
+ * The Chud frames model their limit counters as `optional uint32`: zero means
  * "the limit was reached at zero results", so a missing, non-numeric, or
  * non-positive value must stay unset rather than be sent as 0.
  */
@@ -126,7 +126,7 @@ function positiveCount(value: unknown): number | undefined {
  * The entry cap a listing hit, from either shape a local tool records it in.
  *
  * `glob` sets a flat `details.resultLimitReached` alongside the structured
- * meta; `read` — which serves `pi_ls` — records the cap only through
+ * meta; `read` — which serves `chud_ls` — records the cap only through
  * `OutputMeta` at `details.meta.limits.resultLimit.reached`. Reading just the
  * flat field dropped `entry_limit_reached` for every real listing, so Cursor
  * received clipped output with no incompleteness signal.
@@ -139,7 +139,7 @@ function resultLimitReached(toolResult: ToolResultMessage): number | undefined {
 }
 
 /**
- * Translate a local tool's truncation summary into `PiTruncation`.
+ * Translate a local tool's truncation summary into `ChudTruncation`.
  *
  * Two shapes reach here. `read`/`grep` set `details.truncation`
  * (`TruncationResult`), which carries an explicit `truncated` boolean. `bash`
@@ -149,10 +149,10 @@ function resultLimitReached(toolResult: ToolResultMessage): number | undefined {
  * that it was clipped.
  *
  * Returns `undefined` when nothing was truncated: the field is `optional` on
- * every Pi success message, and emitting a zeroed `PiTruncation` would tell the
+ * every Chud success message, and emitting a zeroed `ChudTruncation` would tell the
  * server the output was trimmed to nothing.
  */
-export function piTruncation(toolResult: ToolResultMessage): PiTruncation | undefined {
+export function piTruncation(toolResult: ToolResultMessage): ChudTruncation | undefined {
 	const direct = bagValue(toolResult.details, "truncation");
 	// `TruncationResult` is authoritative when present and explicitly false.
 	const truncation = direct !== undefined ? direct : bagValue(bagValue(toolResult.details, "meta"), "truncation");
@@ -165,7 +165,7 @@ export function piTruncation(toolResult: ToolResultMessage): PiTruncation | unde
 	const totalLines = bagValue(truncation, "totalLines");
 	const outputLines = bagValue(truncation, "outputLines");
 	const outputBytes = bagValue(truncation, "outputBytes");
-	return create(PiTruncationSchema, {
+	return create(ChudTruncationSchema, {
 		truncated: true,
 		truncatedBy: typeof truncatedBy === "string" ? truncatedBy : "",
 		totalLines: typeof totalLines === "number" ? totalLines : 0,
@@ -176,62 +176,62 @@ export function piTruncation(toolResult: ToolResultMessage): PiTruncation | unde
 	});
 }
 
-export function buildPiReadResult(toolResult: ToolResultMessage): PiReadExecResult {
+export function buildPiReadResult(toolResult: ToolResultMessage): ChudReadExecResult {
 	const text = piOutputText(toolResult);
 	if (toolResult.isError) return buildPiReadError(text || "Read failed");
-	return create(PiReadExecResultSchema, {
+	return create(ChudReadExecResultSchema, {
 		result: {
 			case: "success",
-			value: create(PiReadExecSuccessSchema, { output: text, truncation: piTruncation(toolResult) }),
+			value: create(ChudReadExecSuccessSchema, { output: text, truncation: piTruncation(toolResult) }),
 		},
 	});
 }
 
-export function buildPiReadError(error: string): PiReadExecResult {
-	return create(PiReadExecResultSchema, {
-		result: { case: "error", value: create(PiReadExecErrorSchema, { error }) },
+export function buildPiReadError(error: string): ChudReadExecResult {
+	return create(ChudReadExecResultSchema, {
+		result: { case: "error", value: create(ChudReadExecErrorSchema, { error }) },
 	});
 }
 
-export function buildPiBashResult(toolResult: ToolResultMessage): PiBashExecResult {
+export function buildPiBashResult(toolResult: ToolResultMessage): ChudBashExecResult {
 	const text = piOutputText(toolResult);
 	const truncation = piTruncation(toolResult);
 	if (toolResult.isError) {
-		return create(PiBashExecResultSchema, {
+		return create(ChudBashExecResultSchema, {
 			result: {
 				case: "error",
-				value: create(PiBashExecErrorSchema, { error: text || "Command failed", truncation }),
+				value: create(ChudBashExecErrorSchema, { error: text || "Command failed", truncation }),
 			},
 		});
 	}
-	return create(PiBashExecResultSchema, {
+	return create(ChudBashExecResultSchema, {
 		result: {
 			case: "success",
-			value: create(PiBashExecSuccessSchema, { output: text, truncation }),
+			value: create(ChudBashExecSuccessSchema, { output: text, truncation }),
 		},
 	});
 }
 
-export function buildPiBashError(error: string): PiBashExecResult {
-	return create(PiBashExecResultSchema, {
-		result: { case: "error", value: create(PiBashExecErrorSchema, { error }) },
+export function buildPiBashError(error: string): ChudBashExecResult {
+	return create(ChudBashExecResultSchema, {
+		result: { case: "error", value: create(ChudBashExecErrorSchema, { error }) },
 	});
 }
 
 /**
- * `PiEditExecSuccess` requires `diff` and `patch` alongside `output`. The local
+ * `ChudEditExecSuccess` requires `diff` and `patch` alongside `output`. The local
  * `edit` tool reports them under `details`; when it does not, the strings stay
  * empty rather than being faked from the output text.
  */
-export function buildPiEditResult(toolResult: ToolResultMessage): PiEditExecResult {
+export function buildPiEditResult(toolResult: ToolResultMessage): ChudEditExecResult {
 	const text = piOutputText(toolResult);
 	if (toolResult.isError) return buildPiEditError(text || "Edit failed");
 	const diff = bagValue(toolResult.details, "diff");
 	const patch = bagValue(toolResult.details, "patch");
-	return create(PiEditExecResultSchema, {
+	return create(ChudEditExecResultSchema, {
 		result: {
 			case: "success",
-			value: create(PiEditExecSuccessSchema, {
+			value: create(ChudEditExecSuccessSchema, {
 				output: text,
 				diff: typeof diff === "string" ? diff : "",
 				patch: typeof patch === "string" ? patch : "",
@@ -241,53 +241,53 @@ export function buildPiEditResult(toolResult: ToolResultMessage): PiEditExecResu
 	});
 }
 
-export function buildPiEditError(error: string): PiEditExecResult {
-	return create(PiEditExecResultSchema, {
-		result: { case: "error", value: create(PiEditExecErrorSchema, { error }) },
+export function buildPiEditError(error: string): ChudEditExecResult {
+	return create(ChudEditExecResultSchema, {
+		result: { case: "error", value: create(ChudEditExecErrorSchema, { error }) },
 	});
 }
 
 /**
- * A refusal is not an execution failure: `PiEditExecResult` models them as
+ * A refusal is not an execution failure: `ChudEditExecResult` models them as
  * separate variants, and answering a denied call with `error` reads as "the
  * edit ran and broke", which invites a retry of an operation that was never
  * permitted.
  */
-export function buildPiEditRejected(reason: string): PiEditExecResult {
-	return create(PiEditExecResultSchema, {
-		result: { case: "rejected", value: create(PiEditExecRejectedSchema, { reason }) },
+export function buildPiEditRejected(reason: string): ChudEditExecResult {
+	return create(ChudEditExecResultSchema, {
+		result: { case: "rejected", value: create(ChudEditExecRejectedSchema, { reason }) },
 	});
 }
 
-export function buildPiWriteResult(toolResult: ToolResultMessage): PiWriteExecResult {
+export function buildPiWriteResult(toolResult: ToolResultMessage): ChudWriteExecResult {
 	const text = piOutputText(toolResult);
 	if (toolResult.isError) return buildPiWriteError(text || "Write failed");
-	return create(PiWriteExecResultSchema, {
-		result: { case: "success", value: create(PiWriteExecSuccessSchema, { output: text }) },
+	return create(ChudWriteExecResultSchema, {
+		result: { case: "success", value: create(ChudWriteExecSuccessSchema, { output: text }) },
 	});
 }
 
-export function buildPiWriteError(error: string): PiWriteExecResult {
-	return create(PiWriteExecResultSchema, {
-		result: { case: "error", value: create(PiWriteExecErrorSchema, { error }) },
+export function buildPiWriteError(error: string): ChudWriteExecResult {
+	return create(ChudWriteExecResultSchema, {
+		result: { case: "error", value: create(ChudWriteExecErrorSchema, { error }) },
 	});
 }
 
 /** Same variant split as {@link buildPiEditRejected}. */
-export function buildPiWriteRejected(reason: string): PiWriteExecResult {
-	return create(PiWriteExecResultSchema, {
-		result: { case: "rejected", value: create(PiWriteExecRejectedSchema, { reason }) },
+export function buildPiWriteRejected(reason: string): ChudWriteExecResult {
+	return create(ChudWriteExecResultSchema, {
+		result: { case: "rejected", value: create(ChudWriteExecRejectedSchema, { reason }) },
 	});
 }
 
-export function buildPiGrepResult(toolResult: ToolResultMessage): PiGrepExecResult {
+export function buildPiGrepResult(toolResult: ToolResultMessage): ChudGrepExecResult {
 	const text = piOutputText(toolResult);
 	if (toolResult.isError) return buildPiGrepError(text || "Grep failed");
 	const matchLimitReached = detailCount(toolResult, "perFileLimitReached");
-	return create(PiGrepExecResultSchema, {
+	return create(ChudGrepExecResultSchema, {
 		result: {
 			case: "success",
-			value: create(PiGrepExecSuccessSchema, {
+			value: create(ChudGrepExecSuccessSchema, {
 				output: text,
 				truncation: piTruncation(toolResult) ?? grepInternalCapTruncation(toolResult, text, matchLimitReached),
 				matchLimitReached,
@@ -315,10 +315,10 @@ function grepInternalCapTruncation(
 	toolResult: ToolResultMessage,
 	text: string,
 	matchLimitReached: number | undefined,
-): PiTruncation | undefined {
+): ChudTruncation | undefined {
 	if (matchLimitReached !== undefined) return undefined;
 	if (bagValue(toolResult.details, "truncated") !== true) return undefined;
-	return create(PiTruncationSchema, {
+	return create(ChudTruncationSchema, {
 		truncated: true,
 		truncatedBy: "matches",
 		totalLines: 0,
@@ -329,19 +329,19 @@ function grepInternalCapTruncation(
 	});
 }
 
-export function buildPiGrepError(error: string): PiGrepExecResult {
-	return create(PiGrepExecResultSchema, {
-		result: { case: "error", value: create(PiGrepExecErrorSchema, { error }) },
+export function buildPiGrepError(error: string): ChudGrepExecResult {
+	return create(ChudGrepExecResultSchema, {
+		result: { case: "error", value: create(ChudGrepExecErrorSchema, { error }) },
 	});
 }
 
-export function buildPiFindResult(toolResult: ToolResultMessage): PiFindExecResult {
+export function buildPiFindResult(toolResult: ToolResultMessage): ChudFindExecResult {
 	const text = piOutputText(toolResult);
 	if (toolResult.isError) return buildPiFindError(text || "Find failed");
-	return create(PiFindExecResultSchema, {
+	return create(ChudFindExecResultSchema, {
 		result: {
 			case: "success",
-			value: create(PiFindExecSuccessSchema, {
+			value: create(ChudFindExecSuccessSchema, {
 				output: text,
 				truncation: piTruncation(toolResult),
 				resultLimitReached: resultLimitReached(toolResult),
@@ -350,19 +350,19 @@ export function buildPiFindResult(toolResult: ToolResultMessage): PiFindExecResu
 	});
 }
 
-export function buildPiFindError(error: string): PiFindExecResult {
-	return create(PiFindExecResultSchema, {
-		result: { case: "error", value: create(PiFindExecErrorSchema, { error }) },
+export function buildPiFindError(error: string): ChudFindExecResult {
+	return create(ChudFindExecResultSchema, {
+		result: { case: "error", value: create(ChudFindExecErrorSchema, { error }) },
 	});
 }
 
-export function buildPiLsResult(toolResult: ToolResultMessage): PiLsExecResult {
+export function buildPiLsResult(toolResult: ToolResultMessage): ChudLsExecResult {
 	const text = piOutputText(toolResult);
 	if (toolResult.isError) return buildPiLsError(text || "Ls failed");
-	return create(PiLsExecResultSchema, {
+	return create(ChudLsExecResultSchema, {
 		result: {
 			case: "success",
-			value: create(PiLsExecSuccessSchema, {
+			value: create(ChudLsExecSuccessSchema, {
 				output: text,
 				truncation: piTruncation(toolResult),
 				entryLimitReached: resultLimitReached(toolResult),
@@ -371,9 +371,9 @@ export function buildPiLsResult(toolResult: ToolResultMessage): PiLsExecResult {
 	});
 }
 
-export function buildPiLsError(error: string): PiLsExecResult {
-	return create(PiLsExecResultSchema, {
-		result: { case: "error", value: create(PiLsExecErrorSchema, { error }) },
+export function buildPiLsError(error: string): ChudLsExecResult {
+	return create(ChudLsExecResultSchema, {
+		result: { case: "error", value: create(ChudLsExecErrorSchema, { error }) },
 	});
 }
 
@@ -382,7 +382,7 @@ export function buildPiLsError(error: string): PiLsExecResult {
  * `RequestContext.tools`.
  *
  * This client hosts no MCP servers of its own: every forwarded tool is a local
- * pi-agent tool published under a synthetic `providerIdentifier`. Regrouping
+ * chud-agent tool published under a synthetic `providerIdentifier`. Regrouping
  * the same list keeps the server's view of "which servers exist and what do
  * they expose" consistent with what it was told at context time, instead of
  * claiming zero servers while tool calls for them keep arriving.

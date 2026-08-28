@@ -10,7 +10,7 @@
  */
 import * as fs from "node:fs/promises";
 import * as pathModule from "node:path";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
+import * as fsx from "@chudware/utils/fsx";
 
 /**
  * Result returned by {@link Filesystem.writeText}. The patcher echoes back

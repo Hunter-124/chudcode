@@ -5,15 +5,15 @@
  */
 import { Database } from "bun:sqlite";
 import { afterEach, describe, expect, it, vi } from "bun:test";
-import { AuthStorage, SqliteAuthCredentialStore } from "@oh-my-pi/pi-ai";
-import { getBundledModel } from "@oh-my-pi/pi-catalog/models";
-import { runAgenticCommit } from "@oh-my-pi/pi-coding-agent/commit/agentic";
-import * as agentModule from "@oh-my-pi/pi-coding-agent/commit/agentic/agent";
-import * as modelSelection from "@oh-my-pi/pi-coding-agent/commit/model-selection";
-import { ModelRegistry } from "@oh-my-pi/pi-coding-agent/config/model-registry";
-import { Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
-import * as sdkModule from "@oh-my-pi/pi-coding-agent/sdk";
-import * as gitModule from "@oh-my-pi/pi-coding-agent/utils/git";
+import { AuthStorage, SqliteAuthCredentialStore } from "@chudware/ai";
+import { getBundledModel } from "@chudware/catalog/models";
+import { runAgenticCommit } from "@chudware/coding-agent/commit/agentic";
+import * as agentModule from "@chudware/coding-agent/commit/agentic/agent";
+import * as modelSelection from "@chudware/coding-agent/commit/model-selection";
+import { ModelRegistry } from "@chudware/coding-agent/config/model-registry";
+import { Settings } from "@chudware/coding-agent/config/settings";
+import * as sdkModule from "@chudware/coding-agent/sdk";
+import * as gitModule from "@chudware/coding-agent/utils/git";
 
 const NUMSTAT = [{ path: "src/a.ts", additions: 1, deletions: 0 }];
 let authStorage: AuthStorage | undefined;
@@ -50,14 +50,14 @@ afterEach(() => {
 	authStorage?.close();
 	authStorage = undefined;
 	vi.restoreAllMocks();
-	delete process.env.PI_COMMIT_TEST_FALLBACK;
+	delete process.env.CHUDCODE_COMMIT_TEST_FALLBACK;
 });
 
 describe("runAgenticCommit fallback signalling (issue #7835)", () => {
 	it("reports usedFallback when the fallback commit path is forced", async () => {
 		mockModelResolution();
 		await setupRepoMocks();
-		process.env.PI_COMMIT_TEST_FALLBACK = "true";
+		process.env.CHUDCODE_COMMIT_TEST_FALLBACK = "true";
 
 		const result = await runAgenticCommit({ noChangelog: true, push: false, dryRun: false });
 

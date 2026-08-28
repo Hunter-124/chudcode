@@ -2,15 +2,15 @@
  * Contract: the compaction point renders as a slim horizontal divider —
  * `── 📷 compacted · ctrl+o ──` — instead of a full summary box, keeping the
  * transcript visually continuous. Expansion (ctrl+o) reveals the summary.
- * The render cache must honor the pi-tui same-reference contract: unchanged
+ * The render cache must honor the chud-tui same-reference contract: unchanged
  * components return the identical array so containers can memoize.
  */
 
 import { beforeAll, describe, expect, it } from "bun:test";
-import { createCompactionSummaryMessage } from "@oh-my-pi/pi-agent-core/compaction";
-import type { ImageContent } from "@oh-my-pi/pi-ai";
-import { CompactionSummaryMessageComponent } from "@oh-my-pi/pi-coding-agent/modes/components/compaction-summary-message";
-import { initTheme } from "@oh-my-pi/pi-coding-agent/modes/theme/theme";
+import { createCompactionSummaryMessage } from "@chudware/agent-core/compaction";
+import type { ImageContent } from "@chudware/ai";
+import { CompactionSummaryMessageComponent } from "@chudware/coding-agent/modes/components/compaction-summary-message";
+import { initTheme } from "@chudware/coding-agent/modes/theme/theme";
 
 beforeAll(() => {
 	initTheme();

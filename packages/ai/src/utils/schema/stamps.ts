@@ -40,7 +40,7 @@ export function stamp<T extends object, V>(target: T, key: symbol, compute: (tar
  *     for (const child of node.children) walk(child, epoch);
  *   }
  */
-const kEpoch = Symbol("pi.schema.epoch");
+const kEpoch = Symbol("chud.schema.epoch");
 let __epoch = 0;
 
 export function epochNext(): number {
@@ -79,7 +79,7 @@ export function once<T extends object>(target: T, epoch: number): boolean {
  *     finally { exit(node); }
  *   }
  */
-const kDepth = Symbol("pi.schema.depth");
+const kDepth = Symbol("chud.schema.depth");
 
 /**
  * Returns `true` on first entry, `false` if `target` is already on the

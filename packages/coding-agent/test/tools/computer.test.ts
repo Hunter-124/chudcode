@@ -1,16 +1,16 @@
 import { describe, expect, it } from "bun:test";
-import { type as arkType } from "@oh-my-pi/omptype";
-import { Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
-import type { ToolSession } from "@oh-my-pi/pi-coding-agent/tools";
-import { ComputerTool, computerApproval } from "@oh-my-pi/pi-coding-agent/tools/computer";
+import { type as arkType } from "@chudware/chudtype";
+import { Settings } from "@chudware/coding-agent/config/settings";
+import type { ToolSession } from "@chudware/coding-agent/tools";
+import { ComputerTool, computerApproval } from "@chudware/coding-agent/tools/computer";
 import type {
 	ComputerSessionSnapshot,
 	ComputerWorkerInbound,
 	ComputerWorkerOutbound,
 	ComputerWorkerTransport,
-} from "@oh-my-pi/pi-coding-agent/tools/computer/protocol";
-import { ComputerSupervisor, type ComputerWorkerHandle } from "@oh-my-pi/pi-coding-agent/tools/computer/supervisor";
-import { ComputerWorkerCore, type NativeDesktopSession } from "@oh-my-pi/pi-coding-agent/tools/computer/worker";
+} from "@chudware/coding-agent/tools/computer/protocol";
+import { ComputerSupervisor, type ComputerWorkerHandle } from "@chudware/coding-agent/tools/computer/supervisor";
+import { ComputerWorkerCore, type NativeDesktopSession } from "@chudware/coding-agent/tools/computer/worker";
 import type {
 	AxNode,
 	AxQuery,
@@ -20,7 +20,7 @@ import type {
 	DesktopPoint,
 	DesktopWindow,
 	PointerOptions,
-} from "@oh-my-pi/pi-natives";
+} from "@chudware/natives";
 
 const capabilities: DesktopCapabilities = {
 	backend: "fake",
@@ -276,7 +276,7 @@ describe("computer schema and approval", () => {
 				return {
 					descriptor: {
 						id: "stage-1",
-						daemonName: "omp.computer.xvfb.stage-1",
+						daemonName: "chudcode.computer.xvfb.stage-1",
 						projectDir: options.projectDir,
 						displayServer: ":93",
 						env: { DISPLAY: ":93" },
@@ -293,7 +293,7 @@ describe("computer schema and approval", () => {
 					descriptor: {
 						id: "viewer-1",
 						url: "http://127.0.0.1:6080/vnc.html?autoconnect=1&resize=scale",
-						daemonNames: { x11vnc: "omp.viewer.x11vnc", proxy: "omp.viewer.proxy" },
+						daemonNames: { x11vnc: "chudcode.viewer.x11vnc", proxy: "chudcode.viewer.proxy" },
 						projectDir: options.stage.projectDir,
 					},
 					async release() {
@@ -343,11 +343,11 @@ describe("computer worker round trips", () => {
 		const texts = result.payload.displays.filter(block => block.type === "text");
 		const images = result.payload.displays.filter(block => block.type === "image");
 		expect(texts).toHaveLength(1);
-		expect(texts[0]?.text).toMatch(/^screenshot desktop 64×32 → .*omp-computer-.*\.png$/);
+		expect(texts[0]?.text).toMatch(/^screenshot desktop 64×32 → .*chudcode-computer-.*\.png$/);
 		expect(images).toEqual([{ type: "image", data: "iVBORw==", mimeType: "image/png" }]);
 		expect(result.payload.screenshots).toHaveLength(1);
 		expect(result.payload.screenshots[0]).toMatchObject({ width: 64, height: 32, target: "desktop" });
-		expect(result.payload.screenshots[0]?.path).toMatch(/omp-computer-.*\.png$/);
+		expect(result.payload.screenshots[0]?.path).toMatch(/chudcode-computer-.*\.png$/);
 	});
 
 	it("reports source dimensions when a screenshot is scaled", async () => {
@@ -363,7 +363,7 @@ describe("computer worker round trips", () => {
 		expect(result.payload.displays[0]).toEqual(
 			expect.objectContaining({
 				type: "text",
-				text: expect.stringMatching(/^screenshot desktop 64×32 \(scaled from 128×64\) → .*omp-computer-.*\.png$/),
+				text: expect.stringMatching(/^screenshot desktop 64×32 \(scaled from 128×64\) → .*chudcode-computer-.*\.png$/),
 			}),
 		);
 		expect(result.payload.screenshots[0]).toMatchObject({

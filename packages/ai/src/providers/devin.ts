@@ -19,10 +19,10 @@ import {
 	MetadataSchema,
 	PromptCacheOptionsSchema,
 	StopReason,
-} from "@oh-my-pi/pi-catalog/discovery/devin-proto";
-import { create, fromBinary, toBinary } from "@oh-my-pi/pi-catalog/discovery/protobuf";
-import { calculateCost } from "@oh-my-pi/pi-catalog/models";
-import { logger, parseStreamingJson, parseStreamingJsonThrottled } from "@oh-my-pi/pi-utils";
+} from "@chudware/catalog/discovery/devin-proto";
+import { create, fromBinary, toBinary } from "@chudware/catalog/discovery/protobuf";
+import { calculateCost } from "@chudware/catalog/models";
+import { logger, parseStreamingJson, parseStreamingJsonThrottled } from "@chudware/utils";
 import * as AIError from "../error";
 import type {
 	Api,
@@ -560,7 +560,7 @@ function buildDevinChatRequest(
 	});
 }
 
-/** Map omp `Message` history onto Cascade `ChatMessagePrompt`s (USER / SYSTEM / TOOL channels). */
+/** Map chudcode `Message` history onto Cascade `ChatMessagePrompt`s (USER / SYSTEM / TOOL channels). */
 function buildChatMessagePrompts(
 	messages: Message[],
 	cascadeId: string,

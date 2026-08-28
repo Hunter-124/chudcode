@@ -2,10 +2,10 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, test, vi 
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import { unregisterCustomApis } from "@oh-my-pi/pi-ai/api-registry";
-import { type AuthCredentialStore, AuthStorage, SqliteAuthCredentialStore } from "@oh-my-pi/pi-ai/auth-storage";
-import { createMockModel, type MockResponseSource, registerMockApi } from "@oh-my-pi/pi-ai/providers/mock";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
+import { unregisterCustomApis } from "@chudware/ai/api-registry";
+import { type AuthCredentialStore, AuthStorage, SqliteAuthCredentialStore } from "@chudware/ai/auth-storage";
+import { createMockModel, type MockResponseSource, registerMockApi } from "@chudware/ai/providers/mock";
+import * as fsx from "@chudware/utils/fsx";
 import { $ } from "bun";
 import { ModelRegistry } from "../../src/config/model-registry";
 import { Settings } from "../../src/config/settings";
@@ -43,7 +43,7 @@ const gitAdapter: SecurityGitAdapter = {
 // Credentials and the bundled-model view are immutable fixtures. Keep their SQLite
 // store and registry for the suite; repository/store state remains fresh per test.
 beforeAll(async () => {
-	registryRoot = await fs.mkdtemp(path.join(os.tmpdir(), "omp-security-coordinator-auth-"));
+	registryRoot = await fs.mkdtemp(path.join(os.tmpdir(), "chudcode-security-coordinator-auth-"));
 	credentialStore = await SqliteAuthCredentialStore.open(path.join(registryRoot, "agent.db"));
 	authStorage = new AuthStorage(credentialStore);
 	await authStorage.set("openai-codex", {
@@ -63,7 +63,7 @@ beforeAll(async () => {
 });
 
 beforeEach(async () => {
-	temporaryRoot = await fs.mkdtemp(path.join(os.tmpdir(), "omp-security-coordinator-"));
+	temporaryRoot = await fs.mkdtemp(path.join(os.tmpdir(), "chudcode-security-coordinator-"));
 	repositoryRoot = path.join(temporaryRoot, "repo");
 	stateRoot = path.join(temporaryRoot, "state");
 	await fs.mkdir(path.join(repositoryRoot, "src"), { recursive: true });
@@ -332,7 +332,7 @@ describe("native security coordinator", () => {
 		});
 		const interrupted: SecurityScanBundle = {
 			scan: {
-				documentType: "omp-security.scan",
+				documentType: "chudcode-security.scan",
 				schemaVersion: "1.0",
 				id: scanId,
 				projectKey: store.projectKey,

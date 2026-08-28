@@ -3,7 +3,7 @@ import { spawnSync as nodeSpawnSync } from "node:child_process";
 /**
  * Host-agnostic process helpers, replacing the `Bun.spawn*` builtins.
  *
- * Deliberately free of side effects and of `@oh-my-pi/pi-natives`: process
+ * Deliberately free of side effects and of `@chudware/natives`: process
  * spawning sits on the CLI's cold-start path, and importing this module must not
  * grow the startup graph or load the native addon.
  *

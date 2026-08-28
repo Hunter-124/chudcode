@@ -2,12 +2,12 @@ import { afterEach, beforeAll, beforeEach, describe, expect, test, vi } from "bu
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import { clearCache, readFile } from "@oh-my-pi/pi-coding-agent/capability/fs";
-import type { MCPServerConfig } from "@oh-my-pi/pi-coding-agent/mcp/types";
-import { MCPCommandController } from "@oh-my-pi/pi-coding-agent/modes/controllers/mcp-command-controller";
-import { initTheme } from "@oh-my-pi/pi-coding-agent/modes/theme/theme";
-import { getMCPConfigPath, getProjectDir, removeWithRetries, setProjectDir } from "@oh-my-pi/pi-utils";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
+import { clearCache, readFile } from "@chudware/coding-agent/capability/fs";
+import type { MCPServerConfig } from "@chudware/coding-agent/mcp/types";
+import { MCPCommandController } from "@chudware/coding-agent/modes/controllers/mcp-command-controller";
+import { initTheme } from "@chudware/coding-agent/modes/theme/theme";
+import { getMCPConfigPath, getProjectDir, removeWithRetries, setProjectDir } from "@chudware/utils";
+import * as fsx from "@chudware/utils/fsx";
 
 const originalProjectDir = getProjectDir();
 
@@ -95,7 +95,7 @@ describe("/mcp reload picks up external mcp.json edits", () => {
 	});
 
 	beforeEach(async () => {
-		projectDir = await fs.mkdtemp(path.join(os.tmpdir(), "omp-mcp-reload-project-"));
+		projectDir = await fs.mkdtemp(path.join(os.tmpdir(), "chudcode-mcp-reload-project-"));
 		setProjectDir(projectDir);
 		clearCache();
 	});

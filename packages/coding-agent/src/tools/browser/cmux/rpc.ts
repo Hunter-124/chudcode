@@ -1,4 +1,4 @@
-import { parseFlag } from "@oh-my-pi/pi-utils";
+import { parseFlag } from "@chudware/utils";
 import { ToolError } from "../../tool-errors";
 import type { Observation, ObservationEntry } from "../tab-protocol";
 
@@ -184,7 +184,7 @@ export function resolveCmuxKind(
 	options?: ResolveCmuxKindOptions | null,
 	env: Record<string, string | undefined> = process.env,
 ): CmuxKind | null {
-	if (!parseFlag(env.PI_BROWSER_CMUX, options?.settingEnabled ?? true)) {
+	if (!parseFlag(env.CHUDCODE_BROWSER_CMUX, options?.settingEnabled ?? true)) {
 		return null;
 	}
 	const socketPath = env.CMUX_SOCKET_PATH;

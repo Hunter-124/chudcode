@@ -1,6 +1,6 @@
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
+import * as fsx from "@chudware/utils/fsx";
 
 const reset = process.argv.includes("--reset");
 const outputPath = path.join(import.meta.dir, "../native/embedded-addon.js");
@@ -74,10 +74,10 @@ const platformTag = `${targetPlatform}-${targetArch}`;
 const candidates: CandidateAddon[] =
 	targetArch === "x64"
 		? [
-				{ variant: "modern", filename: `pi_natives.${platformTag}-modern.node` },
-				{ variant: "baseline", filename: `pi_natives.${platformTag}-baseline.node` },
+				{ variant: "modern", filename: `chud_natives.${platformTag}-modern.node` },
+				{ variant: "baseline", filename: `chud_natives.${platformTag}-baseline.node` },
 			]
-		: [{ variant: "default", filename: `pi_natives.${platformTag}.node` }];
+		: [{ variant: "default", filename: `chud_natives.${platformTag}.node` }];
 
 const available: AvailableAddon[] = [];
 for (const candidate of candidates) {

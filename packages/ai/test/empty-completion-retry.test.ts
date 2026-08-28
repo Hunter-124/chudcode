@@ -4,9 +4,9 @@
  * so output is never duplicated.
  */
 import { describe, expect, it } from "bun:test";
-import type { AssistantMessage, AssistantMessageEvent, Context, Usage } from "@oh-my-pi/pi-ai/types";
-import { MAX_EMPTY_COMPLETION_RETRIES, withReplaySafeStreamRetry } from "@oh-my-pi/pi-ai/utils/empty-completion-retry";
-import { AssistantMessageEventStream } from "@oh-my-pi/pi-ai/utils/event-stream";
+import type { AssistantMessage, AssistantMessageEvent, Context, Usage } from "@chudware/ai/types";
+import { MAX_EMPTY_COMPLETION_RETRIES, withReplaySafeStreamRetry } from "@chudware/ai/utils/empty-completion-retry";
+import { AssistantMessageEventStream } from "@chudware/ai/utils/event-stream";
 
 const CTX = {} as Context;
 

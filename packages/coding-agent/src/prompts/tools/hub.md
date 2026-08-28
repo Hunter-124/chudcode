@@ -26,7 +26,7 @@ Project-scoped long-running processes shared by every chudcode instance in the s
   - `ready.log` is a JavaScript `RegExp` compiled with the `u` flag; PCRE inline modifiers such as `(?i)` are REJECTED — use `[Rr]eady` instead. `ready.port` is a TCP port. Both supplied? BOTH MUST pass. `ready.timeout` is seconds. Readiness MUST be observed; process creation alone is not readiness.
   - Names are unique per project directory. A completed name MAY be started again; a live name MUST be stopped or restarted.
   - `restart` policy defaults `no`; `on-failure` and `always` use bounded backoff.
-  - `persist: true` opts out of last-omp teardown; `detached: true` survives broker shutdown and all chudcode exits (implies persist, disables PTY input). Omit both unless their survival guarantees are required.
+  - `persist: true` opts out of last-chudcode teardown; `detached: true` survives broker shutdown and all chudcode exits (implies persist, disables PTY input). Omit both unless their survival guarantees are required.
 - **`ps`**, **`logs`**, **`wait`** (with `name`), **`send`** (with `name`), **`stop`**, **`restart`**, and **`describe`** address the stable `name`.
 - **`logs`** defaults to the last 100 lines. `head: true` reads the beginning. `grep` is a JavaScript `RegExp` compiled with the `u` flag (no inline modifiers such as `(?i)`). `follow: true` waits for output after `cursor`; reuse the returned cursor on the next call.
 - **`wait`** with `name` blocks until readiness/exit/`pattern` or `timeout` (seconds). `pattern` is a JavaScript `RegExp` compiled with the `u` flag (no inline modifiers such as `(?i)`).

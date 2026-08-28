@@ -15,10 +15,10 @@
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 
-import { getPluginsDir, isEnoent, logger, tryParseJson } from "@oh-my-pi/pi-utils";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
+import { getPluginsDir, isEnoent, logger, tryParseJson } from "@chudware/utils";
+import * as fsx from "@chudware/utils/fsx";
 
-export { getMarketplacesRegistryPath } from "@oh-my-pi/pi-utils";
+export { getMarketplacesRegistryPath } from "@chudware/utils";
 
 import type {
 	InstalledPluginEntry,

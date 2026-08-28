@@ -1,0 +1,23 @@
+#!/bin/sh
+# Chudcode desktop launcher: starts the loopback agent server, then attaches the
+# native chudcode-gui window to it. The server is a Bun program that lives in the
+# workspace checkout; CHUDCODE_REPO overrides where that checkout is.
+set -eu
+
+REPO="${CHUDCODE_REPO:-$HOME/Repositories/omp}"
+LAUNCH="$REPO/packages/chudcode-desktop/src/launch.ts"
+
+if [ ! -f "$LAUNCH" ]; then
+	printf 'chudcode-desktop: workspace not found at %s (set CHUDCODE_REPO)\n' "$REPO" >&2
+	exit 1
+fi
+
+if ! command -v bun >/dev/null 2>&1; then
+	printf 'chudcode-desktop: bun is required to run the desktop server\n' >&2
+	exit 1
+fi
+
+# The GUI resolves its assets relative to its own directory, so run from a stable
+# working directory rather than whatever the desktop environment hands us.
+cd "$REPO"
+exec bun "$LAUNCH" --gui "$@"

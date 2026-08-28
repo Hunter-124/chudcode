@@ -1,21 +1,21 @@
 {
   "type": "module",
-  "name": "@oh-my-pi/pi-tui",
+  "name": "@chudware/tui",
   "version": "18.0.8",
   "description": "Terminal User Interface library with differential rendering for efficient text-based applications",
-  "homepage": "https://omp.sh",
-  "author": "Stencil Labs, Inc.",
+  "homepage": "https://chudware.sh",
+  "author": "Chudware",
   "contributors": [
     "Mario Zechner"
   ],
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/can1357/oh-my-pi.git",
+    "url": "git+https://github.com/Hunter-124/chudcode.git",
     "directory": "packages/tui"
   },
   "bugs": {
-    "url": "https://github.com/can1357/oh-my-pi/issues"
+    "url": "https://github.com/Hunter-124/chudcode/issues"
   },
   "keywords": [
     "tui",
@@ -37,8 +37,8 @@
     "fmt": "biome format --write ."
   },
   "dependencies": {
-    "@oh-my-pi/pi-natives": "catalog:",
-    "@oh-my-pi/pi-utils": "catalog:"
+    "@chudware/natives": "catalog:",
+    "@chudware/utils": "catalog:"
   },
   "devDependencies": {
     "kitty-vt-wasm": "catalog:"

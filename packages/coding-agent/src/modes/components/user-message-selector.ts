@@ -7,7 +7,7 @@ import {
 	Spacer,
 	Text,
 	truncateToWidth,
-} from "@oh-my-pi/pi-tui";
+} from "@chudware/tui";
 import { theme } from "../../modes/theme/theme";
 import { matchesSelectCancel, matchesSelectDown, matchesSelectUp } from "../../modes/utils/keybinding-matchers";
 import { OverlayPanel } from "./overlay-box";

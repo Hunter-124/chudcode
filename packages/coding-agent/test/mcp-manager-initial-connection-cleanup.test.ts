@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "bun:test";
-import * as mcpClient from "@oh-my-pi/pi-coding-agent/mcp/client";
-import { MCPManager } from "@oh-my-pi/pi-coding-agent/mcp/manager";
-import type { MCPServerConnection, MCPStdioServerConfig, MCPTransport } from "@oh-my-pi/pi-coding-agent/mcp/types";
+import * as mcpClient from "@chudware/coding-agent/mcp/client";
+import { MCPManager } from "@chudware/coding-agent/mcp/manager";
+import type { MCPServerConnection, MCPStdioServerConfig, MCPTransport } from "@chudware/coding-agent/mcp/types";
 
 const CONFIG: MCPStdioServerConfig = {
 	type: "stdio",

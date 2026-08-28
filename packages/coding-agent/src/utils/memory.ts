@@ -1,6 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { freemem } from "node:os";
-import { sleep } from "@oh-my-pi/pi-utils/async";
+import { sleep } from "@chudware/utils/async";
 
 const BYTES_PER_MIB = 1024 * 1024;
 const KIB_PER_MIB = 1024;

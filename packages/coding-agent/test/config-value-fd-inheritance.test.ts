@@ -3,7 +3,7 @@
  * credential-resolving child, and a timed-out command must not leave
  * descendants running.
  *
- * A launcher can legitimately hand omp an open descriptor (for example a
+ * A launcher can legitimately hand chudcode an open descriptor (for example a
  * credential bundle) that is meant to stay single-consumer. The child spawned
  * for `auth.broker.url` / header `!command` resolution used to run through the
  * natives brush shell (executeShell), whose children inherit every inheritable
@@ -25,9 +25,9 @@ import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 import { pathToFileURL } from "node:url";
-import { Process, ProcessStatus } from "@oh-my-pi/pi-natives";
-import { sleep } from "@oh-my-pi/pi-utils/async";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
+import { Process, ProcessStatus } from "@chudware/natives";
+import { sleep } from "@chudware/utils/async";
+import * as fsx from "@chudware/utils/fsx";
 import { runShellCommand } from "../src/config/resolve-config-value";
 
 const resolverUrl = pathToFileURL(path.join(import.meta.dir, "../src/config/resolve-config-value.ts")).href;
@@ -39,9 +39,9 @@ afterEach(async () => {
 });
 
 test.skipIf(process.platform === "win32")(
-	"config !command children cannot read descriptors the launcher passed omp",
+	"config !command children cannot read descriptors the launcher passed chudcode",
 	async () => {
-		const root = await fs.promises.mkdtemp(path.join(os.tmpdir(), "omp-config-fd-"));
+		const root = await fs.promises.mkdtemp(path.join(os.tmpdir(), "chudcode-config-fd-"));
 		roots.push(root);
 		const canaryPath = path.join(root, "canary.txt");
 		await fs.promises.writeFile(canaryPath, "CANARY-THAT-MUST-NOT-RESOLVE");
@@ -83,7 +83,7 @@ console.log(value === undefined ? "RESOLVED-UNDEFINED" : "LEAKED:" + value);
 test.skipIf(process.platform === "win32")(
 	"a timed-out !command leaves no descendant writing after the kill",
 	async () => {
-		const root = await fs.promises.mkdtemp(path.join(os.tmpdir(), "omp-config-treekill-"));
+		const root = await fs.promises.mkdtemp(path.join(os.tmpdir(), "chudcode-config-treekill-"));
 		roots.push(root);
 		const marker = path.join(root, "marker");
 
@@ -109,7 +109,7 @@ test.skipIf(process.platform === "win32")(
 test.skipIf(process.platform === "win32")(
 	"a timed-out !command kills descendants reparented before the timeout",
 	async () => {
-		const root = await fs.promises.mkdtemp(path.join(os.tmpdir(), "omp-config-reparented-"));
+		const root = await fs.promises.mkdtemp(path.join(os.tmpdir(), "chudcode-config-reparented-"));
 		roots.push(root);
 		const pidFile = path.join(root, "escaped.pid");
 		const worker = path.join(root, "escaped-worker.sh");
@@ -136,7 +136,7 @@ test.skipIf(process.platform === "win32")(
 test.skipIf(process.platform !== "linux")(
 	"a timed-out !command kills descendants that leave the isolated session",
 	async () => {
-		const root = await fs.promises.mkdtemp(path.join(os.tmpdir(), "omp-config-session-escape-"));
+		const root = await fs.promises.mkdtemp(path.join(os.tmpdir(), "chudcode-config-session-escape-"));
 		roots.push(root);
 		const pidFile = path.join(root, "escaped.pid");
 		const worker = path.join(root, "escaped-worker.sh");
@@ -165,7 +165,7 @@ test.skipIf(process.platform !== "linux")(
 test.skipIf(process.platform === "win32")(
 	"a timed-out !command hard-kills descendants that ignore SIGTERM",
 	async () => {
-		const root = await fs.promises.mkdtemp(path.join(os.tmpdir(), "omp-config-treekill-term-"));
+		const root = await fs.promises.mkdtemp(path.join(os.tmpdir(), "chudcode-config-treekill-term-"));
 		roots.push(root);
 		const marker = path.join(root, "marker");
 
@@ -190,7 +190,7 @@ test.skipIf(process.platform === "win32")("resolves !commands when PATH omits th
 	const script = `import { runShellCommand } from ${JSON.stringify(resolverUrl)};
 const value = await runShellCommand("echo pathless-ok", 5_000);
 console.log(value === "pathless-ok" ? "PATHLESS-OK" : "PATHLESS-BAD:" + value);`;
-	const emptyPathDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), "omp-no-sh-in-path-"));
+	const emptyPathDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), "chudcode-no-sh-in-path-"));
 	roots.push(emptyPathDir);
 	const proc = Bun.spawn({
 		cmd: [process.execPath, "--eval", script],

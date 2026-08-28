@@ -2,7 +2,7 @@
  * OpenAI Chat Completions API wire types.
  *
  * Vendored from openai-node v6.42.0 (Apache-2.0), trimmed to the streaming
- * wire surface pi-ai speaks. Field names, optionality, and union membership
+ * wire surface chud-ai speaks. Field names, optionality, and union membership
  * mirror the SDK exactly; names are identical to the SDK exports so call
  * sites only swap import paths. Nested SDK namespaces (e.g.
  * `ChatCompletionChunk.Choice.Delta`) are flattened into prefixed interface

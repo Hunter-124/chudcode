@@ -1,9 +1,9 @@
-import type { Api, Model, ModelSpec, RemoteCompactionConfig, ThinkingConfig } from "@oh-my-pi/pi-ai/types";
-import { buildModel } from "@oh-my-pi/pi-catalog/build";
-import { isVertexExpressOpenAIUrl } from "@oh-my-pi/pi-catalog/hosts";
-import { PROVIDER_DESCRIPTORS } from "@oh-my-pi/pi-catalog/provider-models";
-import { toModelSpec } from "@oh-my-pi/pi-catalog/provider-models/bundled-references";
-import { isRecord } from "@oh-my-pi/pi-utils";
+import type { Api, Model, ModelSpec, RemoteCompactionConfig, ThinkingConfig } from "@chudware/ai/types";
+import { buildModel } from "@chudware/catalog/build";
+import { isVertexExpressOpenAIUrl } from "@chudware/catalog/hosts";
+import { PROVIDER_DESCRIPTORS } from "@chudware/catalog/provider-models";
+import { toModelSpec } from "@chudware/catalog/provider-models/bundled-references";
+import { isRecord } from "@chudware/utils";
 import { createLiveConfigHeaders } from "./model-config-values";
 import type { ModelOverride } from "./models-config-schema";
 /** Provider override config (baseUrl, headers, apiKey, compat, transport) without custom models */
@@ -31,7 +31,7 @@ export interface ProviderOverride {
  *   3. Existing bundled baseUrl (the host baked into `models.json`)
  *
  * `transport` resolution priority:
- *   1. `providerOverride.transport` (e.g. `pi-native` for auth-gateway users)
+ *   1. `providerOverride.transport` (e.g. `chud-native` for auth-gateway users)
  *   2. `existing.transport` (carried over from boot-time override application)
  *   3. `model.transport` (rarely set — discovery defaults omit it)
  *
@@ -39,7 +39,7 @@ export interface ProviderOverride {
  * preferred over (3), the bundled `api.xiaomimimo.com` would shadow the
  * tp- token-plan host and produce 401s on the first stream call.
  * Without explicit transport propagation, an openrouter (or any) entry
- * marked `transport: pi-native` in models.yml silently reverts to the
+ * marked `transport: chud-native` in models.yml silently reverts to the
  * default openai-completions transport after the background catalog
  * refresh — so the first `/model` switch after boot hits the raw OpenAI
  * chat-completions URL instead of the gateway's `/v1/pi/stream` (#2555).

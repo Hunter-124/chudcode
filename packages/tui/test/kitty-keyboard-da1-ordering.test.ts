@@ -1,12 +1,12 @@
 import { afterEach, describe, expect, it } from "bun:test";
-import type { Component } from "@oh-my-pi/pi-tui";
-import { TERMINAL } from "@oh-my-pi/pi-tui/terminal-capabilities";
+import type { Component } from "@chudware/tui";
+import { TERMINAL } from "@chudware/tui/terminal-capabilities";
 import {
 	createProcessTerminalRenderHarness,
 	type ProcessTerminalRenderHarness,
 } from "./process-terminal-render-harness";
 
-// Progressive-enhancement probe ordering contract. omp sends `CSI ? u \\ CSI c`
+// Progressive-enhancement probe ordering contract. chudcode sends `CSI ? u \\ CSI c`
 // at startup: the kitty reply (`CSI ? <flags> u`) authoritatively says the
 // terminal speaks the kitty keyboard protocol; the DA1 reply (`CSI ? ... c`)
 // is only a sentinel that guarantees a reply even from terminals that ignore
@@ -135,10 +135,10 @@ describe("ProcessTerminal kitty keyboard progressive-enhancement ordering", () =
 	});
 
 	it("enables modifyOtherKeys fallback under tmux so extended-keys panes keep modified keys (#5620)", async () => {
-		// tmux answers DA1 but not `CSI ? u`. omp must still request the xterm
+		// tmux answers DA1 but not `CSI ? u`. chudcode must still request the xterm
 		// modifyOtherKeys fallback; tmux honors it under `extended-keys on`/`always`
 		// (delivering Ctrl+H and Shift+Enter distinctly) and ignores it under
-		// `extended-keys off`, so tmux — not omp — is the capability gate. A blanket
+		// `extended-keys off`, so tmux — not chudcode — is the capability gate. A blanket
 		// tmux exclusion (#5502) collapsed those keys to legacy bytes in every pane.
 		process.env.TMUX = "/tmp/tmux-501/default,1234,0";
 		delete process.env.SSH_CONNECTION;

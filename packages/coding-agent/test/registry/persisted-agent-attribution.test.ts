@@ -1,9 +1,9 @@
 import { describe, expect, it } from "bun:test";
 import * as path from "node:path";
-import { AgentRegistry } from "@oh-my-pi/pi-coding-agent/registry/agent-registry";
-import { registerPersistedSubagents } from "@oh-my-pi/pi-coding-agent/registry/persisted-agents";
-import { TempDir } from "@oh-my-pi/pi-utils";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
+import { AgentRegistry } from "@chudware/coding-agent/registry/agent-registry";
+import { registerPersistedSubagents } from "@chudware/coding-agent/registry/persisted-agents";
+import { TempDir } from "@chudware/utils";
+import * as fsx from "@chudware/utils/fsx";
 
 const SONNET = { provider: "anthropic", model: "claude-sonnet-5" };
 const SOL = { provider: "openai-codex", model: "gpt-5.6-sol" };
@@ -70,7 +70,7 @@ async function historyFor(dir: string, id: string, records: string[]): Promise<A
 
 describe("persisted agent model attribution", () => {
 	it("reports the model that produced output, not a fallback that never served", async () => {
-		using tempDir = TempDir.createSync("@omp-attribution-incident-");
+		using tempDir = TempDir.createSync("@chudcode-attribution-incident-");
 		// The incident: sonnet does the work, a chain candidate errors instantly.
 		const registry = await historyFor(tempDir.path(), "BuildThing", [
 			...transcriptHead(),
@@ -90,7 +90,7 @@ describe("persisted agent model attribution", () => {
 	});
 
 	it("treats a stall aborted mid-tool-call as unserved despite its partial content", async () => {
-		using tempDir = TempDir.createSync("@omp-attribution-stall-");
+		using tempDir = TempDir.createSync("@chudcode-attribution-stall-");
 		// A dropped stream is finalized as `aborted` with the partially streamed
 		// tool call still attached, so content alone does not prove it completed.
 		const registry = await historyFor(tempDir.path(), "Stalled", [
@@ -107,7 +107,7 @@ describe("persisted agent model attribution", () => {
 	});
 
 	it("treats a substantively empty stop as unserved despite a non-empty content array", async () => {
-		using tempDir = TempDir.createSync("@omp-attribution-empty-stop-");
+		using tempDir = TempDir.createSync("@chudcode-attribution-empty-stop-");
 		// A `stop` carrying only whitespace text and unsigned thinking produced
 		// nothing actionable — it is what the empty-stop retry machinery exists to
 		// recover from. A content-length check alone would credit the candidate.
@@ -128,7 +128,7 @@ describe("persisted agent model attribution", () => {
 	});
 
 	it("credits a turn whose only output is an image", async () => {
-		using tempDir = TempDir.createSync("@omp-attribution-image-");
+		using tempDir = TempDir.createSync("@chudcode-attribution-image-");
 		// A native image response can arrive with no text and no tool call at all.
 		// Recognising only those would call it nothing and leave the run credited
 		// to whichever model spoke before it.
@@ -146,7 +146,7 @@ describe("persisted agent model attribution", () => {
 	});
 
 	it("treats a budget-exhausted length stop with nothing usable as unserved", async () => {
-		using tempDir = TempDir.createSync("@omp-attribution-length-");
+		using tempDir = TempDir.createSync("@chudcode-attribution-length-");
 		// `length` is not an "empty stop", so the empty-stop rule never inspects it:
 		// a candidate that burned its whole output budget on unsigned thinking still
 		// produced nothing to attribute.
@@ -164,7 +164,7 @@ describe("persisted agent model attribution", () => {
 	});
 
 	it("summarizes a transcript carrying malformed content blocks", async () => {
-		using tempDir = TempDir.createSync("@omp-attribution-malformed-");
+		using tempDir = TempDir.createSync("@chudcode-attribution-malformed-");
 		// Transcripts outlive the shapes that wrote them. A block that is null or
 		// missing its `text` must not throw: the reader catches and returns an
 		// empty summary, blanking the whole row over one bad line.
@@ -180,7 +180,7 @@ describe("persisted agent model attribution", () => {
 	});
 
 	it("labels the row with the newest role a transition assigned, skipping ephemeral ones", async () => {
-		using tempDir = TempDir.createSync("@omp-attribution-role-");
+		using tempDir = TempDir.createSync("@chudcode-attribution-role-");
 		// Two real role transitions plus an ephemeral fallback on top: the label
 		// must be the latest deliberate role, not the first one nor the fallback.
 		const registry = await historyFor(tempDir.path(), "Rerolled", [
@@ -196,7 +196,7 @@ describe("persisted agent model attribution", () => {
 	});
 
 	it("reports the fallback once it has served a turn", async () => {
-		using tempDir = TempDir.createSync("@omp-attribution-served-");
+		using tempDir = TempDir.createSync("@chudcode-attribution-served-");
 		const registry = await historyFor(tempDir.path(), "Worker", [
 			...transcriptHead(),
 			assistant("e1", "si", SONNET, "error", []),
@@ -210,7 +210,7 @@ describe("persisted agent model attribution", () => {
 	});
 
 	it("matches a served model to a transition carrying a gateway route", async () => {
-		using tempDir = TempDir.createSync("@omp-attribution-routed-");
+		using tempDir = TempDir.createSync("@chudcode-attribution-routed-");
 		// Writers record the selector through `formatModelStringWithRouting`, which
 		// appends an `@upstream` gateway route the raw message never carries.
 		// Failing to match drops the fallback flag.

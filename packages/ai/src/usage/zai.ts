@@ -1,5 +1,5 @@
-import { toNumber } from "@oh-my-pi/pi-catalog/utils";
-import { USER_AGENT } from "@oh-my-pi/pi-utils";
+import { toNumber } from "@chudware/catalog/utils";
+import { USER_AGENT } from "@chudware/utils";
 import type {
 	CredentialRankingStrategy,
 	UsageAmount,

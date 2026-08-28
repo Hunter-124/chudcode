@@ -98,7 +98,7 @@ shrink may have pushed before the resize callback ran):
 - `preserve` repaints only the viewport and leaves old-width history unchanged.
 
 The raw TUI defaults to `preserve` and accepts
-`PI_TUI_RESIZE_SCROLLBACK`; the coding agent defaults to `rebuild`. Append and
+`CHUDCODE_TUI_RESIZE_SCROLLBACK`; the coding agent defaults to `rebuild`. Append and
 rebuild resize policies each prepare one complete bottom-first replay
 transaction; preserve prepares none. Replay consumes one fresh monotonic history
 id without rewinding logical retirement state, and acknowledgement happens only

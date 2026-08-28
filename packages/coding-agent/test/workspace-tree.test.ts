@@ -2,14 +2,14 @@ import { afterEach, describe, expect, it } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import { buildDirectoryTree, buildWorkspaceTree } from "@oh-my-pi/pi-coding-agent/workspace-tree";
-import { removeWithRetries } from "@oh-my-pi/pi-utils";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
+import { buildDirectoryTree, buildWorkspaceTree } from "@chudware/coding-agent/workspace-tree";
+import { removeWithRetries } from "@chudware/utils";
+import * as fsx from "@chudware/utils/fsx";
 
 const tempDirs: string[] = [];
 
 async function makeTempDir(): Promise<string> {
-	const dir = await fs.mkdtemp(path.join(os.tmpdir(), "pi-workspace-tree-"));
+	const dir = await fs.mkdtemp(path.join(os.tmpdir(), "chud-workspace-tree-"));
 	tempDirs.push(dir);
 	return dir;
 }

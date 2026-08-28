@@ -1,20 +1,20 @@
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "bun:test";
 import * as path from "node:path";
-import { Agent } from "@oh-my-pi/pi-agent-core";
-import { ModelRegistry } from "@oh-my-pi/pi-coding-agent/config/model-registry";
-import { resetSettingsForTest, Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
+import { Agent } from "@chudware/agent-core";
+import { ModelRegistry } from "@chudware/coding-agent/config/model-registry";
+import { resetSettingsForTest, Settings } from "@chudware/coding-agent/config/settings";
 import {
 	formatMCPConnectionStatusMessage,
 	MCP_CONNECTION_STATUS_EVENT_CHANNEL,
 	type McpConnectionStatusEvent,
-} from "@oh-my-pi/pi-coding-agent/mcp/startup-events";
-import { InteractiveMode } from "@oh-my-pi/pi-coding-agent/modes/interactive-mode";
-import { initTheme } from "@oh-my-pi/pi-coding-agent/modes/theme/theme";
-import { AgentSession } from "@oh-my-pi/pi-coding-agent/session/agent-session";
-import { AuthStorage } from "@oh-my-pi/pi-coding-agent/session/auth-storage";
-import { SessionManager } from "@oh-my-pi/pi-coding-agent/session/session-manager";
-import { EventBus } from "@oh-my-pi/pi-coding-agent/utils/event-bus";
-import { logger, TempDir } from "@oh-my-pi/pi-utils";
+} from "@chudware/coding-agent/mcp/startup-events";
+import { InteractiveMode } from "@chudware/coding-agent/modes/interactive-mode";
+import { initTheme } from "@chudware/coding-agent/modes/theme/theme";
+import { AgentSession } from "@chudware/coding-agent/session/agent-session";
+import { AuthStorage } from "@chudware/coding-agent/session/auth-storage";
+import { SessionManager } from "@chudware/coding-agent/session/session-manager";
+import { EventBus } from "@chudware/coding-agent/utils/event-bus";
+import { logger, TempDir } from "@chudware/utils";
 
 /**
  * Behavioral wiring guard for MCP startup status (mirrors

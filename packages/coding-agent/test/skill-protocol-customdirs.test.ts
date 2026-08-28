@@ -2,13 +2,13 @@ import { afterEach, describe, expect, it } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import { Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
-import { loadSkills, resetActiveSkillsForTests, setActiveSkills } from "@oh-my-pi/pi-coding-agent/extensibility/skills";
-import { parseInternalUrl } from "@oh-my-pi/pi-coding-agent/internal-urls/parse";
-import { SkillProtocolHandler } from "@oh-my-pi/pi-coding-agent/internal-urls/skill-protocol";
-import type { ToolSession } from "@oh-my-pi/pi-coding-agent/tools";
-import { ReadTool } from "@oh-my-pi/pi-coding-agent/tools/read";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
+import { Settings } from "@chudware/coding-agent/config/settings";
+import { loadSkills, resetActiveSkillsForTests, setActiveSkills } from "@chudware/coding-agent/extensibility/skills";
+import { parseInternalUrl } from "@chudware/coding-agent/internal-urls/parse";
+import { SkillProtocolHandler } from "@chudware/coding-agent/internal-urls/skill-protocol";
+import type { ToolSession } from "@chudware/coding-agent/tools";
+import { ReadTool } from "@chudware/coding-agent/tools/read";
+import * as fsx from "@chudware/utils/fsx";
 
 function makeSkillMd(name: string, dir: string) {
 	return `---\nname: ${name}\ndescription: ${name} skill.\n---\n\n# ${name} from ${dir}\n`;
@@ -34,7 +34,7 @@ describe("skill:// resolution honors skills.customDirectories (#7190)", () => {
 	});
 
 	it("resolves a skill loaded from a custom directory", async () => {
-		const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "pi-custom-skills-"));
+		const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "chud-custom-skills-"));
 		tempDirs.push(tempDir);
 		const skillDir = path.join(tempDir, "my-custom-skill");
 		await fs.mkdir(skillDir, { recursive: true });
@@ -53,7 +53,7 @@ describe("skill:// resolution honors skills.customDirectories (#7190)", () => {
 	});
 
 	it("reads semicolon-delimited lists across routed URL schemes", async () => {
-		const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "pi-delimited-skills-"));
+		const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "chud-delimited-skills-"));
 		tempDirs.push(tempDir);
 		for (const name of ["first-skill", "second-skill"]) {
 			const skillDir = path.join(tempDir, name);
@@ -96,9 +96,9 @@ describe("skill:// resolution honors skills.customDirectories (#7190)", () => {
 	});
 
 	it("keeps first-wins across multiple custom directories", async () => {
-		const dirA = await fs.mkdtemp(path.join(os.tmpdir(), "pi-custom-a-"));
+		const dirA = await fs.mkdtemp(path.join(os.tmpdir(), "chud-custom-a-"));
 		tempDirs.push(dirA);
-		const dirB = await fs.mkdtemp(path.join(os.tmpdir(), "pi-custom-b-"));
+		const dirB = await fs.mkdtemp(path.join(os.tmpdir(), "chud-custom-b-"));
 		tempDirs.push(dirB);
 		const skillA = path.join(dirA, "same-name");
 		const skillB = path.join(dirB, "same-name");
@@ -125,9 +125,9 @@ describe("skill:// resolution honors skills.customDirectories (#7190)", () => {
 	});
 
 	it("lets a custom-directory skill override a same-named default-path skill", async () => {
-		const cwd = await fs.mkdtemp(path.join(os.tmpdir(), "pi-default-skill-"));
+		const cwd = await fs.mkdtemp(path.join(os.tmpdir(), "chud-default-skill-"));
 		tempDirs.push(cwd);
-		const customDir = await fs.mkdtemp(path.join(os.tmpdir(), "pi-custom-skill-"));
+		const customDir = await fs.mkdtemp(path.join(os.tmpdir(), "chud-custom-skill-"));
 		tempDirs.push(customDir);
 
 		// A default discovery path (Claude project skills) claims the name first.

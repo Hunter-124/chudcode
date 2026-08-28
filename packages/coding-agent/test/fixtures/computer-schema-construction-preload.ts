@@ -1,5 +1,5 @@
 import { spyOn } from "bun:test";
-import * as arktype from "@oh-my-pi/omptype";
+import * as arktype from "@chudware/chudtype";
 
 declare global {
 	var __computerSchemaConstructionCount: number;

@@ -1,8 +1,8 @@
 import { afterEach, describe, expect, it, mock, vi } from "bun:test";
-import type { Model } from "@oh-my-pi/pi-ai";
-import { buildModel } from "@oh-my-pi/pi-catalog/build";
-import { runOnboardingSetup } from "@oh-my-pi/pi-coding-agent/commands/setup";
-import { Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
+import type { Model } from "@chudware/ai";
+import { buildModel } from "@chudware/catalog/build";
+import { runOnboardingSetup } from "@chudware/coding-agent/commands/setup";
+import { Settings } from "@chudware/coding-agent/config/settings";
 import {
 	ALL_SCENES,
 	CURRENT_SETUP_VERSION,
@@ -11,15 +11,15 @@ import {
 	type SetupScene,
 	type SetupSceneHost,
 	selectSetupScenes,
-} from "@oh-my-pi/pi-coding-agent/modes/setup-wizard";
-import { providersSetupScene } from "@oh-my-pi/pi-coding-agent/modes/setup-wizard/scenes/providers";
-import { themeSetupScene } from "@oh-my-pi/pi-coding-agent/modes/setup-wizard/scenes/theme";
-import { WebSearchTab } from "@oh-my-pi/pi-coding-agent/modes/setup-wizard/scenes/web-search";
-import { SetupWizardComponent } from "@oh-my-pi/pi-coding-agent/modes/setup-wizard/wizard-overlay";
-import { initTheme, theme } from "@oh-my-pi/pi-coding-agent/modes/theme/theme";
-import type { InteractiveModeContext } from "@oh-my-pi/pi-coding-agent/modes/types";
-import { SEARCH_PROVIDER_OPTIONS, SEARCH_PROVIDER_ORDER } from "@oh-my-pi/pi-coding-agent/web/search/types";
-import { sleep } from "@oh-my-pi/pi-utils/async";
+} from "@chudware/coding-agent/modes/setup-wizard";
+import { providersSetupScene } from "@chudware/coding-agent/modes/setup-wizard/scenes/providers";
+import { themeSetupScene } from "@chudware/coding-agent/modes/setup-wizard/scenes/theme";
+import { WebSearchTab } from "@chudware/coding-agent/modes/setup-wizard/scenes/web-search";
+import { SetupWizardComponent } from "@chudware/coding-agent/modes/setup-wizard/wizard-overlay";
+import { initTheme, theme } from "@chudware/coding-agent/modes/theme/theme";
+import type { InteractiveModeContext } from "@chudware/coding-agent/modes/types";
+import { SEARCH_PROVIDER_OPTIONS, SEARCH_PROVIDER_ORDER } from "@chudware/coding-agent/web/search/types";
+import { sleep } from "@chudware/utils/async";
 
 function fakeContextWithConfiguredModel(): InteractiveModeContext {
 	return {
@@ -548,7 +548,7 @@ describe("setup wizard web search tab", () => {
 	});
 });
 
-describe("omp setup onboarding trigger", () => {
+describe("chudcode setup onboarding trigger", () => {
 	it("starts the normal interactive command with forced setup wizard", async () => {
 		let forceSetupWizard: boolean | undefined;
 		await runOnboardingSetup({

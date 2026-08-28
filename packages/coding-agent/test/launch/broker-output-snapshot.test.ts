@@ -1,8 +1,8 @@
 import { describe, expect, it, vi } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
-import { setProcessName, TempDir } from "@oh-my-pi/pi-utils";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
+import { setProcessName, TempDir } from "@chudware/utils";
+import * as fsx from "@chudware/utils/fsx";
 import { startDaemonBrokerFromEnvironment } from "../../src/launch/broker";
 import { createDaemonBrokerClient } from "../../src/launch/client";
 import {
@@ -20,7 +20,7 @@ function restoreEnv(name: string, value: string | undefined): void {
 
 describe("daemon broker log snapshots", () => {
 	it("returns the cursor captured with the PTY bytes rendered in the response", async () => {
-		using tempDir = TempDir.createSync("@omp-launch-cursor-");
+		using tempDir = TempDir.createSync("@chudcode-launch-cursor-");
 		const projectDir = path.join(tempDir.path(), "project");
 		const runtimeDir = path.join(tempDir.path(), "runtime");
 		await fs.mkdir(projectDir);

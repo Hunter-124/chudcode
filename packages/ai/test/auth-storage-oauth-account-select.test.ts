@@ -2,9 +2,9 @@ import { afterEach, beforeEach, describe, expect, test, vi } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import { withOAuthAccess } from "@oh-my-pi/pi-ai/auth-retry";
-import { type AuthCredentialStore, AuthStorage, SqliteAuthCredentialStore } from "@oh-my-pi/pi-ai/auth-storage";
-import * as oauthUtils from "@oh-my-pi/pi-ai/registry/oauth";
+import { withOAuthAccess } from "@chudware/ai/auth-retry";
+import { type AuthCredentialStore, AuthStorage, SqliteAuthCredentialStore } from "@chudware/ai/auth-storage";
+import * as oauthUtils from "@chudware/ai/registry/oauth";
 
 const PROVIDER = "unit-oauth-select";
 
@@ -25,7 +25,7 @@ describe("AuthStorage OAuth account selection", () => {
 	let authStorage: AuthStorage | null = null;
 
 	beforeEach(async () => {
-		tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "pi-ai-oauth-select-"));
+		tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "chud-ai-oauth-select-"));
 		store = await SqliteAuthCredentialStore.open(path.join(tempDir, "agent.db"));
 		authStorage = new AuthStorage(store);
 	});

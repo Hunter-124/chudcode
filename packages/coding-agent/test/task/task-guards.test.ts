@@ -1,14 +1,14 @@
 import { afterEach, describe, expect, it, vi } from "bun:test";
-import type { ModelRegistry } from "@oh-my-pi/pi-coding-agent/config/model-registry";
-import { Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
-import type { LoadExtensionsResult } from "@oh-my-pi/pi-coding-agent/extensibility/extensions/types";
-import type { CreateAgentSessionResult } from "@oh-my-pi/pi-coding-agent/sdk";
-import * as sdkModule from "@oh-my-pi/pi-coding-agent/sdk";
-import type { AgentSession, AgentSessionEvent } from "@oh-my-pi/pi-coding-agent/session/agent-session";
-import { formatResultOutputFallback } from "@oh-my-pi/pi-coding-agent/task";
-import { runSubprocess } from "@oh-my-pi/pi-coding-agent/task/executor";
-import type { AgentDefinition } from "@oh-my-pi/pi-coding-agent/task/types";
-import { EventBus } from "@oh-my-pi/pi-coding-agent/utils/event-bus";
+import type { ModelRegistry } from "@chudware/coding-agent/config/model-registry";
+import { Settings } from "@chudware/coding-agent/config/settings";
+import type { LoadExtensionsResult } from "@chudware/coding-agent/extensibility/extensions/types";
+import type { CreateAgentSessionResult } from "@chudware/coding-agent/sdk";
+import * as sdkModule from "@chudware/coding-agent/sdk";
+import type { AgentSession, AgentSessionEvent } from "@chudware/coding-agent/session/agent-session";
+import { formatResultOutputFallback } from "@chudware/coding-agent/task";
+import { runSubprocess } from "@chudware/coding-agent/task/executor";
+import type { AgentDefinition } from "@chudware/coding-agent/task/types";
+import { EventBus } from "@chudware/coding-agent/utils/event-bus";
 
 /**
  * Contract: runaway-subagent guards.

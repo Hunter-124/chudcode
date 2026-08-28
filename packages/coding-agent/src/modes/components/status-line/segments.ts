@@ -1,8 +1,8 @@
 import * as os from "node:os";
 import * as path from "node:path";
-import { ThinkingLevel } from "@oh-my-pi/pi-agent-core";
-import { TERMINAL } from "@oh-my-pi/pi-tui";
-import { formatDuration, formatNumber, getProjectDir, pathIsWithin, relativePathWithinRoot } from "@oh-my-pi/pi-utils";
+import { ThinkingLevel } from "@chudware/agent-core";
+import { TERMINAL } from "@chudware/tui";
+import { formatDuration, formatNumber, getProjectDir, pathIsWithin, relativePathWithinRoot } from "@chudware/utils";
 import { type Theme, type ThemeColor, theme } from "../../../modes/theme/theme";
 import { shortenPath, TRUNCATE_LENGTHS, truncateToWidth } from "../../../tools/render-utils";
 import { fileHyperlink } from "../../../tui/hyperlink";
@@ -101,13 +101,13 @@ function classifyProjectDir(pwd: string): { scratch: boolean; relative: string |
 // ═══════════════════════════════════════════════════════════════════════════
 
 const piSegment: StatusLineSegment = {
-	id: "pi",
+	id: "chud",
 	render(ctx) {
 		if (ctx.focusedAgentId) {
 			const icon = theme.icon.ghost ? `${theme.icon.ghost} ` : "";
 			return { content: theme.fg("warning", `${icon}${ctx.focusedAgentId} `), visible: true };
 		}
-		const content = theme.icon.pi ? `${theme.icon.pi} ` : "";
+		const content = theme.icon.chud ? `${theme.icon.chud} ` : "";
 		return { content: theme.fg("accent", content), visible: true };
 	},
 };
@@ -754,7 +754,7 @@ const usageSegment: StatusLineSegment = {
 // ═══════════════════════════════════════════════════════════════════════════
 
 export const SEGMENTS: Record<StatusLineSegmentId, StatusLineSegment> = {
-	pi: piSegment,
+	chud: piSegment,
 	model: modelSegment,
 	mode: modeSegment,
 	path: pathSegment,

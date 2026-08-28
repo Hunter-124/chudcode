@@ -22,17 +22,17 @@ import {
 	type Tool,
 	type Usage,
 	withAuth,
-} from "@oh-my-pi/pi-ai";
-import type { Dialect } from "@oh-my-pi/pi-ai/dialect";
-import * as AIError from "@oh-my-pi/pi-ai/error";
-import { createOpenAICodexCompactionRequestContext } from "@oh-my-pi/pi-ai/providers/openai-codex-responses";
-import { convertTools } from "@oh-my-pi/pi-ai/providers/openai-responses";
-import { buildResponsesInput, resolveOpenAICompatPolicy } from "@oh-my-pi/pi-ai/providers/openai-shared";
-import { stripOpenAIResponsesOutputOnlyStatusesForReplay } from "@oh-my-pi/pi-ai/utils";
-import { preferredDialect } from "@oh-my-pi/pi-catalog/identity";
-import { clampThinkingLevelForModel } from "@oh-my-pi/pi-catalog/model-thinking";
-import { isRecord, logger, prompt } from "@oh-my-pi/pi-utils";
-import * as snapcompact from "@oh-my-pi/snapcompact";
+} from "@chudware/ai";
+import type { Dialect } from "@chudware/ai/dialect";
+import * as AIError from "@chudware/ai/error";
+import { createOpenAICodexCompactionRequestContext } from "@chudware/ai/providers/openai-codex-responses";
+import { convertTools } from "@chudware/ai/providers/openai-responses";
+import { buildResponsesInput, resolveOpenAICompatPolicy } from "@chudware/ai/providers/openai-shared";
+import { stripOpenAIResponsesOutputOnlyStatusesForReplay } from "@chudware/ai/utils";
+import { preferredDialect } from "@chudware/catalog/identity";
+import { clampThinkingLevelForModel } from "@chudware/catalog/model-thinking";
+import * as snapcompact from "@chudware/snapcompact";
+import { isRecord, logger, prompt } from "@chudware/utils";
 import { type AgentTelemetry, instrumentedCompleteSimple } from "../telemetry";
 import { ThinkingLevel } from "../thinking";
 import { Tokenizer } from "../tokenizer";
@@ -97,7 +97,7 @@ function extractFileOperations(
 ): FileOperations {
 	const fileOps = createFileOps();
 
-	// Collect from previous compaction's details (if pi-generated)
+	// Collect from previous compaction's details (if chud-generated)
 	if (prevCompactionIndex >= 0) {
 		const prevCompaction = entries[prevCompactionIndex] as CompactionEntry;
 		if (!prevCompaction.fromExtension && prevCompaction.details) {
@@ -636,7 +636,7 @@ function resolveCompactionEffort(model: Model, level: ThinkingLevel | undefined)
  * onto a top-level `.status` field so callers (notably
  * `AgentSession.#isCompactionAuthFailure`) can branch on 401/403 without
  * regex-scraping `error.message`. The `auth_unavailable` synthetic
- * (pi-native gateway) does not populate `errorStatus`, hence the legacy
+ * (chud-native gateway) does not populate `errorStatus`, hence the legacy
  * message-based check is still required upstream — see issue #986.
  */
 function createSummarizationError(prefix: string, response: AssistantMessage): Error {
@@ -667,7 +667,7 @@ export interface SummaryOptions {
 	/**
 	 * Optional telemetry handle. When provided, every LLM call emitted during
 	 * compaction is wrapped in an OTEL chat span tagged with
-	 * `pi.gen_ai.oneshot.kind` (`compaction_summary`, `compaction_short_summary`,
+	 * `chud.gen_ai.oneshot.kind` (`compaction_summary`, `compaction_short_summary`,
 	 * or `compaction_turn_prefix`). `undefined` keeps the call paths zero-cost.
 	 */
 	telemetry?: AgentTelemetry;
@@ -1030,7 +1030,7 @@ export interface HandoffOptions {
 	metadata?: Record<string, unknown>;
 	/**
 	 * Optional telemetry handle. When provided, the handoff LLM call is
-	 * wrapped in an OTEL chat span tagged with `pi.gen_ai.oneshot.kind = "handoff"`.
+	 * wrapped in an OTEL chat span tagged with `chud.gen_ai.oneshot.kind = "handoff"`.
 	 */
 	telemetry?: AgentTelemetry;
 	/**

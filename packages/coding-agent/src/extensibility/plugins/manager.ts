@@ -10,8 +10,8 @@ import {
 	getProjectPluginOverridesPath,
 	isEnoent,
 	logger,
-} from "@oh-my-pi/pi-utils";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
+} from "@chudware/utils";
+import * as fsx from "@chudware/utils/fsx";
 import { resolveActiveProjectRegistryPath } from "../../discovery/helpers";
 import { loadExtensions } from "../extensions/loader";
 import { refreshBunGitCache } from "./bun-git-cache";
@@ -106,8 +106,7 @@ interface PluginPackageSnapshot {
 interface RuntimePackageJson {
 	name?: unknown;
 	version: string;
-	omp?: PluginManifest;
-	pi?: PluginManifest;
+	chudcode?: PluginManifest;
 }
 // =============================================================================
 // Plugin Manager
@@ -181,7 +180,7 @@ export class PluginManager {
 					pkgJsonPath,
 					JSON.stringify(
 						{
-							name: "omp-plugins",
+							name: "chudcode-plugins",
 							private: true,
 							dependencies: {},
 						},
@@ -246,7 +245,7 @@ export class PluginManager {
 		}
 
 		const name = typeof pluginPkg.name === "string" && pluginPkg.name.length > 0 ? pluginPkg.name : fallbackName;
-		const manifest: PluginManifest = pluginPkg.omp || pluginPkg.pi || { version: pluginPkg.version };
+		const manifest: PluginManifest = pluginPkg.chudcode || { version: pluginPkg.version };
 		manifest.version = pluginPkg.version;
 		const runtimeState = config.plugins[name] || {
 			version: pluginPkg.version,
@@ -337,7 +336,7 @@ export class PluginManager {
 			throw err;
 		}
 
-		const backupRoot = await fs.promises.mkdtemp(path.join(os.tmpdir(), "omp-plugin-backup-"));
+		const backupRoot = await fs.promises.mkdtemp(path.join(os.tmpdir(), "chudcode-plugin-backup-"));
 		const backupPath = path.join(backupRoot, "package");
 		await fs.promises.cp(packagePath, backupPath, { recursive: true, verbatimSymlinks: true });
 		return { actualName, packagePath, backupRoot, backupPath };
@@ -572,7 +571,7 @@ export class PluginManager {
 			}
 
 			const pkgPath = path.join(getPluginsNodeModules(), actualName, "package.json");
-			let pkg: { name: string; version: string; omp?: PluginManifest; pi?: PluginManifest };
+			let pkg: { name: string; version: string; chudcode?: PluginManifest; chud?: PluginManifest };
 			try {
 				pkg = await fsx.readJson(pkgPath);
 			} catch (err) {
@@ -581,7 +580,7 @@ export class PluginManager {
 				}
 				throw err;
 			}
-			const manifest: PluginManifest = pkg.omp || pkg.pi || { version: pkg.version };
+			const manifest: PluginManifest = pkg.chudcode || { version: pkg.version };
 			manifest.version = pkg.version;
 
 			// Resolve enabled features
@@ -710,10 +709,10 @@ export class PluginManager {
 
 	/**
 	 * Resolve a plugin from the active project plugin root
-	 * (`<anchor>/.omp/plugins`). Project npm/link/marketplace installs all record
+	 * (`<anchor>/.chudcode/plugins`). Project npm/link/marketplace installs all record
 	 * their runtime state and `node_modules` symlink there — invisible to the
 	 * user-root lookup — so this reads the project's own `package.json`
-	 * dependencies plus `omp-plugins.lock.json`, and resolves the package from
+	 * dependencies plus `chudcode-plugins.lock.json`, and resolves the package from
 	 * the project `node_modules`. Returns undefined when there is no active
 	 * project, when it coincides with the user root, or when the package is not
 	 * installed there.
@@ -728,7 +727,7 @@ export class PluginManager {
 		if (path.resolve(projectRoot) === path.resolve(getPluginsDir())) return undefined;
 		const [projectDeps, projectConfig] = await Promise.all([
 			this.#readDeps(path.join(projectRoot, "package.json")),
-			this.#readRuntimeConfigAt(path.join(projectRoot, "omp-plugins.lock.json")),
+			this.#readRuntimeConfigAt(path.join(projectRoot, "chudcode-plugins.lock.json")),
 		]);
 		if (!this.#collectInstalledNames(projectDeps, projectConfig).has(name)) return undefined;
 		return this.#resolvePlugin(name, path.join(projectRoot, "node_modules", name), projectConfig, projectOverrides);
@@ -773,7 +772,7 @@ export class PluginManager {
 		const absolutePath = path.resolve(this.#cwd, localPath);
 
 		const pkgFilePath = path.join(absolutePath, "package.json");
-		let pkg: { name?: string; version: string; omp?: PluginManifest; pi?: PluginManifest };
+		let pkg: { name?: string; version: string; chudcode?: PluginManifest; chud?: PluginManifest };
 		try {
 			pkg = await fsx.readJson(pkgFilePath);
 		} catch (err) {
@@ -806,7 +805,7 @@ export class PluginManager {
 
 		await fs.promises.symlink(absolutePath, linkPath);
 
-		const manifest: PluginManifest = pkg.omp || pkg.pi || { version: pkg.version };
+		const manifest: PluginManifest = pkg.chudcode || { version: pkg.version };
 		manifest.version = pkg.version;
 
 		// Add to runtime config
@@ -985,7 +984,7 @@ export class PluginManager {
 			const pluginPkgPath = path.join(pluginPath, "package.json");
 			const fromDependencies = name in deps;
 
-			let pluginPkg: { version: string; description?: string; omp?: PluginManifest; pi?: PluginManifest };
+			let pluginPkg: { version: string; description?: string; chudcode?: PluginManifest; chud?: PluginManifest };
 			try {
 				pluginPkg = await fsx.readJson(pluginPkgPath);
 			} catch (err) {
@@ -1019,15 +1018,15 @@ export class PluginManager {
 				}
 				throw err;
 			}
-			const hasManifest = !!(pluginPkg.omp || pluginPkg.pi);
-			const manifest: PluginManifest | undefined = pluginPkg.omp || pluginPkg.pi;
+			const hasManifest = !!(pluginPkg.chudcode);
+			const manifest: PluginManifest | undefined = pluginPkg.chudcode;
 
 			checks.push({
 				name: `plugin:${name}`,
 				status: hasManifest ? "ok" : "warning",
 				message: hasManifest
 					? `v${pluginPkg.version}${pluginPkg.description ? ` - ${pluginPkg.description}` : ""}`
-					: `v${pluginPkg.version} - No omp/pi manifest (not an omp plugin)`,
+					: `v${pluginPkg.version} - No chudcode/pi manifest (not an chudcode plugin)`,
 			});
 
 			// Check tools path exists if specified

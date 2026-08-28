@@ -104,7 +104,7 @@ async function downloadAndInstall(
 				return {
 					ok: false,
 					reason: "model_size_mismatch",
-					hint: `Downloaded model exceeded its expected ${expectedBytes} bytes. The remote artifact may have changed; retry after updating omp.`,
+					hint: `Downloaded model exceeded its expected ${expectedBytes} bytes. The remote artifact may have changed; retry after updating chudcode.`,
 				};
 			}
 			hash.update(next.value);
@@ -135,7 +135,7 @@ async function downloadAndInstall(
 			return {
 				ok: false,
 				reason: "model_checksum_mismatch",
-				hint: `Downloaded model checksum ${actualSha256} does not match ${expectedSha256}. The file was discarded; retry after updating omp.`,
+				hint: `Downloaded model checksum ${actualSha256} does not match ${expectedSha256}. The file was discarded; retry after updating chudcode.`,
 			};
 		}
 
@@ -166,7 +166,7 @@ async function downloadAndInstall(
 	}
 }
 
-/** Discover, verify, and atomically install the requested pi-vision models. */
+/** Discover, verify, and atomically install the requested chud-vision models. */
 export async function ensureVisionModels(
 	ids: string[],
 	options: EnsureVisionModelsOptions = {},
@@ -196,7 +196,7 @@ export async function ensureVisionModels(
 		return {
 			ok: false,
 			reason: "model_unknown",
-			hint: `The installed pi-vision does not advertise model id(s): ${unknown.join(", ")}. Update omp and pi-vision together.`,
+			hint: `The installed chud-vision does not advertise model id(s): ${unknown.join(", ")}. Update chudcode and chud-vision together.`,
 		};
 	}
 
@@ -214,7 +214,7 @@ export async function ensureVisionModels(
 					return {
 						ok: false,
 						reason: "model_missing",
-						hint: `omp will not download models; place ${entry.filename} at ${destination} or set vision.autoDownload=true`,
+						hint: `chudcode will not download models; place ${entry.filename} at ${destination} or set vision.autoDownload=true`,
 					};
 				}
 				const failure = await downloadAndInstall(entry.url, destination, entry.bytes, entry.sha256, options.signal);

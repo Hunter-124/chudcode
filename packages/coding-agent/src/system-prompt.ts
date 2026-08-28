@@ -4,9 +4,9 @@
 
 import * as os from "node:os";
 import * as path from "node:path";
-import type { AgentTool } from "@oh-my-pi/pi-agent-core";
-import type { ToolExample, TSchema } from "@oh-my-pi/pi-ai";
-import { renderToolInventory } from "@oh-my-pi/pi-ai/dialect";
+import type { AgentTool } from "@chudware/agent-core";
+import type { ToolExample, TSchema } from "@chudware/ai";
+import { renderToolInventory } from "@chudware/ai/dialect";
 import {
 	$env,
 	getAgentDir,
@@ -17,8 +17,8 @@ import {
 	logger,
 	prompt,
 	sleep,
-} from "@oh-my-pi/pi-utils";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
+} from "@chudware/utils";
+import * as fsx from "@chudware/utils/fsx";
 import { contextFileCapability } from "./capability/context-file";
 import { systemPromptCapability } from "./capability/system-prompt";
 import { findConfigFile } from "./config";
@@ -50,8 +50,8 @@ const PERSONALITY_SPECS: Record<Exclude<Personality, "none">, string> = {
 
 /**
  * Load the user-level PERSONALITY.md override for the system prompt's
- * personality block from `<agentDir>/PERSONALITY.md` (`~/.omp/agent` by
- * default; profile, XDG, and `PI_CODING_AGENT_DIR` aware). Returns null when
+ * personality block from `<agentDir>/PERSONALITY.md` (`~/.chudcode/agent` by
+ * default; profile, XDG, and `CHUDCODE_CODING_AGENT_DIR` aware). Returns null when
  * the file is absent, empty, or unreadable; callers then render the configured
  * preset. Read failures other than a missing file warn instead of failing the
  * build.

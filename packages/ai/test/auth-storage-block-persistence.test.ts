@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import { AuthStorage, type OAuthCredential, SqliteAuthCredentialStore } from "@oh-my-pi/pi-ai";
+import { AuthStorage, type OAuthCredential, SqliteAuthCredentialStore } from "@chudware/ai";
 import { removeWithRetries } from "../../utils/src/temp";
 
 const PROVIDER = "anthropic";
@@ -118,7 +118,7 @@ describe("AuthStorage credential block persistence", () => {
 	let dbPath = "";
 
 	beforeEach(async () => {
-		tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "pi-ai-auth-blocks-"));
+		tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "chud-ai-auth-blocks-"));
 		dbPath = path.join(tempDir, "agent.db");
 	});
 

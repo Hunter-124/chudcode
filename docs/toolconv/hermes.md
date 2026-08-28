@@ -134,13 +134,13 @@ Serving engines expose this convention through the **`hermes` tool-call parser**
 - `message.tool_calls[]`: one entry per `<tool_call>` block, each with a server-generated `id` (the model emits none), `type: "function"`, `function.name`, and `function.arguments` re-serialized as a **JSON string** at the API boundary (`json.loads(...)` it before use).
 - Feeding results back: append `{"role": "tool", "content": <result>, "tool_call_id": <id-from-the-call>}` for each result; the engine renders it into the `<tool_response>` shape above.
 
-## Chudcode / pi converter behavior
+## Chudcode / chud converter behavior
 
-The repository's `hermes` dialect is an **owned in-band converter**, registered in `packages/ai/src/dialect/factory.ts:16` and defined in `packages/ai/src/dialect/hermes.ts:195-206`. With tools present, the agent appends the Hermes format guide and compact tool catalog to the system prompt, removes native provider tools, rewrites earlier calls and results as text in this syntax, and scans streamed output back into canonical pi tool-call events. `qwen3` remains a separate selectable dialect even though both emit the same basic JSON-in-`<tool_call>` convention.
+The repository's `hermes` dialect is an **owned in-band converter**, registered in `packages/ai/src/dialect/factory.ts:16` and defined in `packages/ai/src/dialect/hermes.ts:195-206`. With tools present, the agent appends the Hermes format guide and compact tool catalog to the system prompt, removes native provider tools, rewrites earlier calls and results as text in this syntax, and scans streamed output back into canonical chud tool-call events. `qwen3` remains a separate selectable dialect even though both emit the same basic JSON-in-`<tool_call>` convention.
 
 ### Selection
 
-Force the dialect with `tools.format: hermes` or `PI_DIALECT=hermes` (`resolveOwnedDialectFromEnv`, `packages/agent/src/agent-loop.ts:171-191`, consumed at `agent-loop.ts:1527`). The `tools.format` enum (`packages/coding-agent/src/config/settings-schema.ts:2655-2671`; UI labels at `2679-2697`) offers:
+Force the dialect with `tools.format: hermes` or `CHUDCODE_DIALECT=hermes` (`resolveOwnedDialectFromEnv`, `packages/agent/src/agent-loop.ts:171-191`, consumed at `agent-loop.ts:1527`). The `tools.format` enum (`packages/coding-agent/src/config/settings-schema.ts:2655-2671`; UI labels at `2679-2697`) offers:
 
 | `tools.format` value | UI label | Meaning |
 |---|---|---|
@@ -186,7 +186,7 @@ The owned stream also watches for the model fabricating a `<tool_response>` of i
 
 **The `HermesInbandScanner` constructor defaults thinking parsing to OFF**: `this.#parseThinking = options.parseThinking === true;` (`hermes.ts:32`). A consumer that calls `createInbandScanner("hermes")` without options (`factory.ts:32-34`) therefore gets `<think>…</think>` left in the visible text — the marker is not even searched for (`hermes.ts:79`).
 
-This is the inverse of the sibling dialects, whose scanners default it ON: `qwen3` (`packages/ai/src/dialect/qwen3.ts:37`), `kimi` (`kimi.ts:45`), `glm` (`glm.ts:87`), `gemini` (`gemini.ts:52`), and `gemma` (`gemma.ts:45`) all use `options.parseThinking !== false`, and `deepseek` uses `options.parseThinking ?? true` (`deepseek.ts:107`). (`anthropic` shares the off-by-default shape, `anthropic.ts:107`.) The divergence is flagged in [#9257](https://github.com/can1357/oh-my-pi/issues/9257) and kept as-is pending a maintainer decision.
+This is the inverse of the sibling dialects, whose scanners default it ON: `qwen3` (`packages/ai/src/dialect/qwen3.ts:37`), `kimi` (`kimi.ts:45`), `glm` (`glm.ts:87`), `gemini` (`gemini.ts:52`), and `gemma` (`gemma.ts:45`) all use `options.parseThinking !== false`, and `deepseek` uses `options.parseThinking ?? true` (`deepseek.ts:107`). (`anthropic` shares the off-by-default shape, `anthropic.ts:107`.) The divergence is flagged in [#9257](https://github.com/Hunter-124/chudcode/issues/9257) and kept as-is pending a maintainer decision.
 
 Chudcode's own agent flow is unaffected either way: the owned-tool stream always constructs its scanners with `parseThinking: true` (`owned-stream.ts:200-204`), so under `tools.format: hermes` the agent loop parses `<think>` blocks into thinking events exactly like its siblings. The off-by-default constructor only matters for direct scanner consumers. When parsing is on, thinking events stream incrementally and an unterminated `<think>` block is logically closed on flush (`hermes.ts:48-75`).
 
@@ -205,4 +205,4 @@ Chudcode's own agent flow is unaffected either way: the owned-tool stream always
 - NousResearch Hermes-Function-Calling README (canonical prompt formats, call/result shapes, inference example): https://github.com/NousResearch/Hermes-Function-Calling
 - vLLM tool-calling docs (`hermes` parser, auto tool choice): https://docs.vllm.ai/en/latest/features/tool_calling/
 - [qwen3.md](qwen3.md) — Qwen3's adoption of this convention, shared vLLM parser behavior, and the `qwen3`/`hermes` dialect split
-- Chudcode implementation on `main` @ `4324de2` — every omp-specific claim above is cited `file:line` inline
+- Chudcode implementation on `main` @ `4324de2` — every chudcode-specific claim above is cited `file:line` inline

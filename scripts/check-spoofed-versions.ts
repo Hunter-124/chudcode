@@ -14,8 +14,8 @@
  */
 
 import * as path from "node:path";
-import { USER_AGENT } from "@oh-my-pi/pi-utils";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
+import { USER_AGENT } from "@chudware/utils";
+import * as fsx from "@chudware/utils/fsx";
 
 const PROVIDER_FILE = path.join(import.meta.dir, "../packages/catalog/src/wire/gemini-headers.ts");
 
@@ -53,7 +53,7 @@ const SEMVER_RE = /(\d+\.\d+\.\d+)/;
 const checks: VersionCheck[] = [
 	{
 		name: "Gemini CLI",
-		sourcePattern: /PI_AI_GEMINI_CLI_VERSION\s*\|\|\s*"(\d+\.\d+\.\d+)"/,
+		sourcePattern: /CHUDCODE_AI_GEMINI_CLI_VERSION\s*\|\|\s*"(\d+\.\d+\.\d+)"/,
 		repo: "google-gemini/gemini-cli",
 		parseTag: tag => SEMVER_RE.exec(tag)?.[1] ?? null,
 	},

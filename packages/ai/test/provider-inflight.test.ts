@@ -2,15 +2,11 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import { clearCustomApis } from "@oh-my-pi/pi-ai/api-registry";
-import { createMockModel, registerMockApi } from "@oh-my-pi/pi-ai/providers/mock";
-import {
-	__providerInFlightForTesting,
-	configureProviderMaxInFlightRequests,
-	streamSimple,
-} from "@oh-my-pi/pi-ai/stream";
-import type { Context } from "@oh-my-pi/pi-ai/types";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
+import { clearCustomApis } from "@chudware/ai/api-registry";
+import { createMockModel, registerMockApi } from "@chudware/ai/providers/mock";
+import { __providerInFlightForTesting, configureProviderMaxInFlightRequests, streamSimple } from "@chudware/ai/stream";
+import type { Context } from "@chudware/ai/types";
+import * as fsx from "@chudware/utils/fsx";
 
 function context(): Context {
 	return {
@@ -36,7 +32,7 @@ afterEach(async () => {
 });
 
 async function useIsolatedLimiterRoot(): Promise<void> {
-	limiterRoot = await fs.mkdtemp(path.join(os.tmpdir(), "omp-provider-inflight-test-"));
+	limiterRoot = await fs.mkdtemp(path.join(os.tmpdir(), "chudcode-provider-inflight-test-"));
 	__providerInFlightForTesting.setRoot(limiterRoot);
 }
 

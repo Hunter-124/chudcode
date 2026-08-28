@@ -2,9 +2,9 @@ import { afterEach, beforeEach, describe, expect, it, spyOn } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import { computeFileHash } from "@oh-my-pi/hashline";
-import type { AgentToolResult } from "@oh-my-pi/pi-agent-core";
-import { resetSettingsForTest, Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
+import { computeFileHash } from "@chudware/hashline";
+import type { AgentToolResult } from "@chudware/agent-core";
+import { resetSettingsForTest, Settings } from "@chudware/coding-agent/config/settings";
 import {
 	DEFAULT_FUZZY_THRESHOLD,
 	type EditToolDetails,
@@ -12,15 +12,15 @@ import {
 	executePatchSingle,
 	executeReplace,
 	type hashlineEditParamsSchema,
-} from "@oh-my-pi/pi-coding-agent/edit";
-import { HashlineFilesystem } from "@oh-my-pi/pi-coding-agent/edit/hashline/filesystem";
-import { resolveLocalUrlToPath } from "@oh-my-pi/pi-coding-agent/internal-urls";
-import type { WritethroughCallback } from "@oh-my-pi/pi-coding-agent/lsp";
-import type { PlanModeState } from "@oh-my-pi/pi-coding-agent/plan-mode/state";
-import type { ClientBridge } from "@oh-my-pi/pi-coding-agent/session/client-bridge";
-import type { ToolSession } from "@oh-my-pi/pi-coding-agent/tools";
-import { removeWithRetries } from "@oh-my-pi/pi-utils";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
+} from "@chudware/coding-agent/edit";
+import { HashlineFilesystem } from "@chudware/coding-agent/edit/hashline/filesystem";
+import { resolveLocalUrlToPath } from "@chudware/coding-agent/internal-urls";
+import type { WritethroughCallback } from "@chudware/coding-agent/lsp";
+import type { PlanModeState } from "@chudware/coding-agent/plan-mode/state";
+import type { ClientBridge } from "@chudware/coding-agent/session/client-bridge";
+import type { ToolSession } from "@chudware/coding-agent/tools";
+import { removeWithRetries } from "@chudware/utils";
+import * as fsx from "@chudware/utils/fsx";
 
 // ─── Shared helpers ───────────────────────────────────────────────────────────
 
@@ -102,7 +102,7 @@ describe("HashlineFilesystem ACP fs routing", () => {
 
 	beforeEach(async () => {
 		resetSettingsForTest();
-		tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "omp-acp-hashline-"));
+		tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "chudcode-acp-hashline-"));
 		await Settings.init({ inMemory: true, cwd: tmpDir });
 	});
 
@@ -160,7 +160,7 @@ describe("HashlineFilesystem ACP fs routing", () => {
 		// Tag-based path recovery rebinds a bare `cfg-…-plan.md` edit onto its
 		// absolute sandbox path. Even though it is NOT the active plan file
 		// (planFilePath is still the default local://PLAN.md, a fresh-slug plan),
-		// the OMP-owned artifact must be written to disk, never pushed to the editor.
+		// the Chudcode-owned artifact must be written to disk, never pushed to the editor.
 		const { bridge, spy: bridgeSpy } = makeBridge();
 		const session = createSession(tmpDir, {
 			bridge,
@@ -230,7 +230,7 @@ describe("executeHashlineSingle model-visible payload under write-time drift", (
 
 	beforeEach(async () => {
 		resetSettingsForTest();
-		tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "omp-acp-hashline-e2e-"));
+		tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "chudcode-acp-hashline-e2e-"));
 		await Settings.init({ inMemory: true, cwd: tmpDir });
 	});
 
@@ -363,7 +363,7 @@ describe("executeReplace ACP fs routing", () => {
 
 	beforeEach(async () => {
 		resetSettingsForTest();
-		tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "omp-acp-replace-"));
+		tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "chudcode-acp-replace-"));
 		await Settings.init({ inMemory: true, cwd: tmpDir });
 	});
 
@@ -436,7 +436,7 @@ describe("executePatchSingle ACP fs routing", () => {
 
 	beforeEach(async () => {
 		resetSettingsForTest();
-		tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "omp-acp-patch-"));
+		tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "chudcode-acp-patch-"));
 		await Settings.init({ inMemory: true, cwd: tmpDir });
 	});
 

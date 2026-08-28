@@ -16,7 +16,7 @@
 
 import { startRemoteDebugger } from "bun:jsc";
 import * as net from "node:net";
-import { sleep } from "@oh-my-pi/pi-utils/async";
+import { sleep } from "@chudware/utils/async";
 
 const DEFAULT_HOST = "127.0.0.1";
 /** How long to keep probing for the inspector socket before giving up. */

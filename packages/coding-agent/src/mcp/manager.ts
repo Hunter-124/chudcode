@@ -6,10 +6,10 @@
  */
 import * as path from "node:path";
 import * as url from "node:url";
-import { isDefinitiveOAuthFailure, type TSchema } from "@oh-my-pi/pi-ai";
-import type { OAuthCredentials } from "@oh-my-pi/pi-ai/oauth/types";
-import { logger } from "@oh-my-pi/pi-utils";
-import { sleep } from "@oh-my-pi/pi-utils/async";
+import { isDefinitiveOAuthFailure, type TSchema } from "@chudware/ai";
+import type { OAuthCredentials } from "@chudware/ai/oauth/types";
+import { logger } from "@chudware/utils";
+import { sleep } from "@chudware/utils/async";
 import type { EffectiveExtensionRoots, SourceMeta } from "../capability/types";
 import { resolveConfigValue } from "../config/resolve-config-value";
 import type { CustomTool } from "../extensibility/custom-tools/types";
@@ -310,7 +310,7 @@ export class MCPManager {
 	 * fanout, so listeners observe up-to-date manager and tool state. Unknown
 	 * or server-custom methods are also delivered, letting consumers bridge
 	 * server-initiated events into session-level behavior (e.g. an extension
-	 * injecting a steer via `pi.sendMessage`).
+	 * injecting a steer via `chud.sendMessage`).
 	 *
 	 * Notifications received before any listener attached are buffered
 	 * (bounded FIFO, cap {@link NOTIFICATION_BUFFER_CAP}, drop-oldest) and
@@ -694,7 +694,7 @@ export class MCPManager {
 			// Pending tasks without cached tools used to be awaited synchronously here,
 			// which gated the entire UI on the slowest server's per-request timeout
 			// (issue #2100: a single unresponsive MCP server blocked startup for the
-			// full 30 s `OMP_MCP_TIMEOUT_MS`). Leave them in flight — the background
+			// full 30 s `CHUDCODE_MCP_TIMEOUT_MS`). Leave them in flight — the background
 			// `void toolsPromise.then(...)` chain above registers their tools and
 			// fires `#onToolsChanged` once the connect finishes, or logs the failure
 			// after `allowBackgroundLogging` flips below.

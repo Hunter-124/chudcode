@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
-import { peekFile, peekFileEnds, peekFileSync, peekFileTail } from "@oh-my-pi/pi-utils/peek-file";
+import { peekFile, peekFileEnds, peekFileSync, peekFileTail } from "@chudware/utils/peek-file";
 
 function rangeBuffer(length: number): Buffer {
 	return Buffer.from(Array.from({ length }, (_, index) => index % 256));
@@ -16,7 +16,7 @@ describe("peekFile", () => {
 	let tempDir: string;
 
 	beforeEach(() => {
-		tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "pi-peek-file-"));
+		tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "chud-peek-file-"));
 	});
 
 	afterEach(() => {
@@ -59,7 +59,7 @@ describe("peekFileTail", () => {
 	let tempDir: string;
 
 	beforeEach(() => {
-		tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "pi-peek-tail-"));
+		tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "chud-peek-tail-"));
 	});
 
 	afterEach(() => {
@@ -111,7 +111,7 @@ describe("peekFileEnds", () => {
 	let tempDir: string;
 
 	beforeEach(() => {
-		tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "pi-peek-ends-"));
+		tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "chud-peek-ends-"));
 	});
 
 	afterEach(() => {

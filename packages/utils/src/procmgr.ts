@@ -1,6 +1,6 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
-import { Process, ProcessStatus } from "@oh-my-pi/pi-natives";
+import { Process, ProcessStatus } from "@chudware/natives";
 import type { Subprocess } from "bun";
 import { getAgentDir, MAIN_CONFIG_FILENAMES } from "./dirs";
 import { $env, filterChildShellEnv } from "./env";
@@ -36,7 +36,7 @@ export function isExecutable(path: string): boolean {
  * Build the spawn environment (cached).
  */
 function buildSpawnEnv(shell: string): Record<string, string> {
-	const noCI = $env.PI_BASH_NO_CI || $env.CLAUDE_BASH_NO_CI;
+	const noCI = $env.CHUDCODE_BASH_NO_CI || $env.CLAUDE_BASH_NO_CI;
 	return {
 		...filterChildShellEnv(process.env),
 		SHELL: shell,
@@ -51,7 +51,7 @@ function buildSpawnEnv(shell: string): Record<string, string> {
 /**
  * Get shell args for the resolved shell.
  * cmd.exe takes `/c`; PowerShell (powershell.exe / pwsh) takes
- * `-NoLogo -Command`, with `-NoProfile` when PI_BASH_NO_LOGIN /
+ * `-NoLogo -Command`, with `-NoProfile` when CHUDCODE_BASH_NO_LOGIN /
  * CLAUDE_BASH_NO_LOGIN is set (profile scripts are PowerShell's login-shell
  * analog); POSIX shells take `-c`, with `-l` unless the same env is set.
  *
@@ -59,7 +59,7 @@ function buildSpawnEnv(shell: string): Record<string, string> {
  */
 export function getShellArgs(shell: string, env: Record<string, string | undefined> = $env): string[] {
 	if (isCmdShell(shell)) return ["/c"];
-	const noLogin = env.PI_BASH_NO_LOGIN || env.CLAUDE_BASH_NO_LOGIN;
+	const noLogin = env.CHUDCODE_BASH_NO_LOGIN || env.CLAUDE_BASH_NO_LOGIN;
 	if (isPowerShell(shell)) {
 		return noLogin ? ["-NoLogo", "-NoProfile", "-Command"] : ["-NoLogo", "-Command"];
 	}
@@ -86,7 +86,7 @@ export function isPowerShell(shell: string): boolean {
  * Get shell prefix for wrapping commands (profilers, strace, etc.).
  */
 function getShellPrefix(): string | undefined {
-	return $env.PI_SHELL_PREFIX || $env.CLAUDE_CODE_SHELL_PREFIX;
+	return $env.CHUDCODE_SHELL_PREFIX || $env.CLAUDE_CODE_SHELL_PREFIX;
 }
 
 /**

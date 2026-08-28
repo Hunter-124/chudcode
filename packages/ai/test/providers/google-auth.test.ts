@@ -3,7 +3,7 @@ import { Buffer } from "node:buffer";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
+import * as fsx from "@chudware/utils/fsx";
 import { __resetVertexTokenCache, getVertexAccessToken } from "../../src/providers/google-auth";
 import type { FetchImpl } from "../../src/types";
 
@@ -39,7 +39,7 @@ describe("getVertexAccessToken impersonated_service_account ADC", () => {
 	beforeEach(async () => {
 		__resetVertexTokenCache();
 		originalGac = process.env.GOOGLE_APPLICATION_CREDENTIALS;
-		tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "omp-vertex-adc-"));
+		tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "chudcode-vertex-adc-"));
 	});
 
 	afterEach(async () => {

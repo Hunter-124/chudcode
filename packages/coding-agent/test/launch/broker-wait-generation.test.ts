@@ -5,8 +5,8 @@
 import { describe, expect, it } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
-import { TempDir } from "@oh-my-pi/pi-utils";
-import { sleep } from "@oh-my-pi/pi-utils/async";
+import { TempDir } from "@chudware/utils";
+import { sleep } from "@chudware/utils/async";
 import { startDaemonBrokerFromEnvironment } from "../../src/launch/broker";
 import { createDaemonBrokerClient, type DaemonBrokerClient, DaemonBrokerRejectedError } from "../../src/launch/client";
 import {
@@ -58,7 +58,7 @@ async function shutdown(client: DaemonBrokerClient, broker: Promise<void>): Prom
 
 describe("daemon wait generation binding", () => {
 	it("rejects a pattern wait when the observed generation automatically restarts", async () => {
-		using tempDir = TempDir.createSync("@omp-wait-generation-");
+		using tempDir = TempDir.createSync("@chudcode-wait-generation-");
 		const projectDir = path.join(tempDir.path(), "project");
 		const runtimeDir = path.join(tempDir.path(), "runtime");
 		await fs.mkdir(projectDir);

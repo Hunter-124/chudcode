@@ -1,7 +1,7 @@
 import * as path from "node:path";
-import { type SummaryResult, summarizeCode } from "@oh-my-pi/pi-natives";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
-import { LRUCache } from "@oh-my-pi/pi-utils/lru";
+import { type SummaryResult, summarizeCode } from "@chudware/natives";
+import * as fsx from "@chudware/utils/fsx";
+import { LRUCache } from "@chudware/utils/lru";
 import { isMarkdownPath } from "../modes/theme/theme";
 import type { ToolSession } from "../sdk";
 import { resolveFileDisplayMode } from "../utils/file-display-mode";

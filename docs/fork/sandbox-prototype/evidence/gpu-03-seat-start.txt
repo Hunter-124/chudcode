@@ -1,4 +1,4 @@
-OMP_SEAT_NAME=gproof
-OMP_SEAT_DIR=/run/user/1000/omp-seats/gproof
+CHUDCODE_SEAT_NAME=gproof
+CHUDCODE_SEAT_DIR=/run/user/1000/chudcode-seats/gproof
 DISPLAY=:120
 UNSET=WAYLAND_DISPLAY

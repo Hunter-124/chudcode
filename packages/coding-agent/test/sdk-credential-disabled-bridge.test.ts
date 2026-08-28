@@ -2,16 +2,16 @@ import { afterEach, describe, expect, it, vi } from "bun:test";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
-import { AuthStorage, type CredentialDisabledEvent } from "@oh-my-pi/pi-ai";
-import * as oauthUtils from "@oh-my-pi/pi-ai/oauth";
-import { ModelRegistry } from "@oh-my-pi/pi-coding-agent/config/model-registry";
-import { Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
-import type { Extension, ExtensionError, ExtensionFactory } from "@oh-my-pi/pi-coding-agent/extensibility/extensions";
-import { ExtensionRunner } from "@oh-my-pi/pi-coding-agent/extensibility/extensions";
-import { ExtensionRuntime } from "@oh-my-pi/pi-coding-agent/extensibility/extensions/loader";
-import { createAgentSession } from "@oh-my-pi/pi-coding-agent/sdk";
-import { SessionManager } from "@oh-my-pi/pi-coding-agent/session/session-manager";
-import { removeSyncWithRetries, Snowflake } from "@oh-my-pi/pi-utils";
+import { AuthStorage, type CredentialDisabledEvent } from "@chudware/ai";
+import * as oauthUtils from "@chudware/ai/oauth";
+import { ModelRegistry } from "@chudware/coding-agent/config/model-registry";
+import { Settings } from "@chudware/coding-agent/config/settings";
+import type { Extension, ExtensionError, ExtensionFactory } from "@chudware/coding-agent/extensibility/extensions";
+import { ExtensionRunner } from "@chudware/coding-agent/extensibility/extensions";
+import { ExtensionRuntime } from "@chudware/coding-agent/extensibility/extensions/loader";
+import { createAgentSession } from "@chudware/coding-agent/sdk";
+import { SessionManager } from "@chudware/coding-agent/session/session-manager";
+import { removeSyncWithRetries, Snowflake } from "@chudware/utils";
 
 interface SessionDirs {
 	cwd: string;
@@ -80,7 +80,7 @@ describe("createAgentSession credential_disabled subscription", () => {
 	const tempDirs: string[] = [];
 
 	const makeDirs = (label: string): SessionDirs => {
-		const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), `pi-credential-disabled-${label}-${Snowflake.next()}-`));
+		const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), `chud-credential-disabled-${label}-${Snowflake.next()}-`));
 		tempDirs.push(tempDir);
 		const cwd = path.join(tempDir, "project");
 		const agentDir = path.join(tempDir, "agent");
@@ -94,7 +94,7 @@ describe("createAgentSession credential_disabled subscription", () => {
 		agentDir: dirs.agentDir,
 		authStorage,
 		// Pin the model registry at a temp models.json. Without an explicit path, ModelRegistry
-		// loads the developer's real ~/.omp models config on every construction (~100ms each,
+		// loads the developer's real ~/.chudcode models config on every construction (~100ms each,
 		// and non-isolated). Pointing it at the (absent) temp file keeps construction at ~2ms and
 		// avoids leaking host config into the test. Providing the registry also skips the
 		// fire-and-forget background model discovery, which is irrelevant to credential_disabled.
@@ -126,8 +126,8 @@ describe("createAgentSession credential_disabled subscription", () => {
 	const makeRecordingExtension = () => {
 		const events: CredentialDisabledEvent[] = [];
 		const waiters: Array<{ resolve: (event: CredentialDisabledEvent) => void }> = [];
-		const factory: ExtensionFactory = pi => {
-			pi.on("credential_disabled", event => {
+		const factory: ExtensionFactory = chud => {
+			chud.on("credential_disabled", event => {
 				const observed = { provider: event.provider, disabledCause: event.disabledCause };
 				events.push(observed);
 				const waiter = waiters.shift();

@@ -5,9 +5,9 @@
  */
 import * as path from "node:path";
 import { createInterface } from "node:readline/promises";
-import { Shell } from "@oh-my-pi/pi-natives";
-import { getProjectDir } from "@oh-my-pi/pi-utils";
-import chalk from "@oh-my-pi/pi-utils/chalk";
+import { Shell } from "@chudware/natives";
+import { getProjectDir } from "@chudware/utils";
+import chalk from "@chudware/utils/chalk";
 import { PRODUCT_CLI_NAME } from "../brand";
 import { Settings } from "../config/settings";
 import { buildMinimizerOptions } from "../exec/bash-executor";

@@ -1,11 +1,11 @@
-import type { Agent, AgentEvent, AgentMessage, AgentTurnEndContext } from "@oh-my-pi/pi-agent-core";
-import type { AssistantMessage, AssistantMessageEvent, Model, ToolCall } from "@oh-my-pi/pi-ai";
-import { GeminiHeaderRunDetector } from "@oh-my-pi/pi-ai/utils/thinking-loop";
-import { type RepeatedToolCallDetection, ToolCallLoopGuard } from "@oh-my-pi/pi-ai/utils/tool-call-loop-guard";
-import { modelFamilyToken } from "@oh-my-pi/pi-catalog/identity";
-import { logger, prompt } from "@oh-my-pi/pi-utils";
-import { sleep } from "@oh-my-pi/pi-utils/async";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
+import type { Agent, AgentEvent, AgentMessage, AgentTurnEndContext } from "@chudware/agent-core";
+import type { AssistantMessage, AssistantMessageEvent, Model, ToolCall } from "@chudware/ai";
+import { GeminiHeaderRunDetector } from "@chudware/ai/utils/thinking-loop";
+import { type RepeatedToolCallDetection, ToolCallLoopGuard } from "@chudware/ai/utils/tool-call-loop-guard";
+import { modelFamilyToken } from "@chudware/catalog/identity";
+import { logger, prompt } from "@chudware/utils";
+import { sleep } from "@chudware/utils/async";
+import * as fsx from "@chudware/utils/fsx";
 import type { Settings } from "../config/settings";
 import { normalizeDiff, normalizeToLF, ParseError, previewPatch, stripBom } from "../edit";
 import { type LocalProtocolOptions, resolveLocalUrlToPath } from "../internal-urls";
@@ -434,7 +434,7 @@ export class LoopGuards {
 	#geminiHeaderGuardActive(): boolean {
 		const model = this.#host.model();
 		return (
-			process.env.PI_NO_THINKING_LOOP_GUARD !== "1" &&
+			process.env.CHUDCODE_NO_THINKING_LOOP_GUARD !== "1" &&
 			this.#host.settings.get("model.loopGuard.enabled") === true &&
 			this.#host.settings.get("model.loopGuard.toolCallReminder") === true &&
 			model !== undefined &&

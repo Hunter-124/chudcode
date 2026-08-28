@@ -15,8 +15,8 @@
 import { Buffer } from "node:buffer";
 import * as os from "node:os";
 import * as path from "node:path";
-import { $envpos, isEnoent, logger } from "@oh-my-pi/pi-utils";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
+import { $envpos, isEnoent, logger } from "@chudware/utils";
+import * as fsx from "@chudware/utils/fsx";
 import * as AIError from "../error";
 import type { FetchImpl } from "../types";
 import { raceWithSignal } from "../utils/abort";
@@ -284,7 +284,7 @@ const SHARED_TOKEN_RESOLVE_TIMEOUT_MS = 30_000;
 export async function getVertexAccessToken(options?: { signal?: AbortSignal; fetch?: FetchImpl }): Promise<string> {
 	// An explicit access token (e.g. `gcloud auth print-access-token`) bypasses the cache so a
 	// refreshed env token takes effect immediately. `CLOUDSDK_AUTH_ACCESS_TOKEN` is gcloud's own
-	// override var; `GOOGLE_CLOUD_ACCESS_TOKEN` is the omp-facing alias.
+	// override var; `GOOGLE_CLOUD_ACCESS_TOKEN` is the chudcode-facing alias.
 	const explicitToken = process.env.GOOGLE_CLOUD_ACCESS_TOKEN || process.env.CLOUDSDK_AUTH_ACCESS_TOKEN;
 	if (explicitToken) return explicitToken;
 	const fetchImpl = options?.fetch ?? globalThis.fetch.bind(globalThis);

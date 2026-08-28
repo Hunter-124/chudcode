@@ -1,7 +1,7 @@
 import { describe, expect, it } from "bun:test";
 import * as path from "node:path";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
-import { TempDir } from "@oh-my-pi/pi-utils/temp";
+import * as fsx from "@chudware/utils/fsx";
+import { TempDir } from "@chudware/utils/temp";
 import { createHelpers, type HelperContext } from "../../src/eval/js/shared/helpers";
 
 /**

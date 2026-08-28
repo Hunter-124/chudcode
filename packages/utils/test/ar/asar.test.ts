@@ -81,7 +81,7 @@ describe("ASAR fixtures", () => {
 	});
 
 	test("unpacked sibling reads verify the declared size", async () => {
-		const root = await fs.mkdtemp(path.join(os.tmpdir(), "pi-asar-test-"));
+		const root = await fs.mkdtemp(path.join(os.tmpdir(), "chud-asar-test-"));
 		TEMP_ROOTS.push(root);
 		const archivePath = path.join(root, "bundle.asar");
 		const bytes = await arFixture("asar-unpacked.asar");

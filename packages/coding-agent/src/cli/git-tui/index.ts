@@ -29,7 +29,7 @@ import {
 	TUI,
 	truncateToWidth,
 	visibleWidth,
-} from "@oh-my-pi/pi-tui";
+} from "@chudware/tui";
 import { generateGitCommit } from "../../commit/conventional/service";
 import { theme, warmHighlighter } from "../../modes/theme/theme";
 import * as git from "../../utils/git";

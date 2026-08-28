@@ -2,9 +2,9 @@ import { afterEach, describe, expect, it, vi } from "bun:test";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
-import { parseArgs } from "@oh-my-pi/pi-coding-agent/cli/args";
-import { applyStartupCwd } from "@oh-my-pi/pi-coding-agent/cli/startup-cwd";
-import { getProjectDir, normalizePathForComparison, setProjectDir } from "@oh-my-pi/pi-utils";
+import { parseArgs } from "@chudware/coding-agent/cli/args";
+import { applyStartupCwd } from "@chudware/coding-agent/cli/startup-cwd";
+import { getProjectDir, normalizePathForComparison, setProjectDir } from "@chudware/utils";
 
 const originalProjectDir = getProjectDir();
 
@@ -33,8 +33,8 @@ describe("parseArgs — --cwd flag", () => {
 		expect(result.messages).toEqual(["hello"]);
 	});
 	it("applies --cwd before session lookup callers read the project directory", async () => {
-		const launchDir = fs.mkdtempSync(path.join(os.tmpdir(), "omp-cwd-launch-"));
-		const targetDir = fs.mkdtempSync(path.join(os.tmpdir(), "omp-cwd-target-"));
+		const launchDir = fs.mkdtempSync(path.join(os.tmpdir(), "chudcode-cwd-launch-"));
+		const targetDir = fs.mkdtempSync(path.join(os.tmpdir(), "chudcode-cwd-target-"));
 		setProjectDir(launchDir);
 
 		const parsed = parseArgs(["--cwd", targetDir, "--continue"]);
@@ -46,7 +46,7 @@ describe("parseArgs — --cwd flag", () => {
 	});
 
 	it("normalizes a relative --cwd target to the resolved absolute path", async () => {
-		const launchDir = fs.mkdtempSync(path.join(os.tmpdir(), "omp-cwd-rel-"));
+		const launchDir = fs.mkdtempSync(path.join(os.tmpdir(), "chudcode-cwd-rel-"));
 		const childName = "repo";
 		const childDir = path.join(launchDir, childName);
 		fs.mkdirSync(childDir);
@@ -67,7 +67,7 @@ describe("parseArgs — --cwd flag", () => {
 	});
 
 	it("reports a clean error when the cwd change is denied", async () => {
-		const launchDir = fs.mkdtempSync(path.join(os.tmpdir(), "omp-cwd-denied-launch-"));
+		const launchDir = fs.mkdtempSync(path.join(os.tmpdir(), "chudcode-cwd-denied-launch-"));
 		setProjectDir(launchDir);
 		const targetDir = path.join(launchDir, "blocked");
 		const parsed = parseArgs(["--cwd", targetDir]);
@@ -86,7 +86,7 @@ describe("parseArgs — --cwd flag", () => {
 	});
 
 	it("appends the macOS permission hint only for permission errors", async () => {
-		const launchDir = fs.mkdtempSync(path.join(os.tmpdir(), "omp-cwd-hint-launch-"));
+		const launchDir = fs.mkdtempSync(path.join(os.tmpdir(), "chudcode-cwd-hint-launch-"));
 		setProjectDir(launchDir);
 		const targetDir = path.join(launchDir, "blocked");
 		const parsed = parseArgs(["--cwd", targetDir]);
@@ -96,7 +96,7 @@ describe("parseArgs — --cwd flag", () => {
 
 		try {
 			await expect(applyStartupCwd(parsed)).rejects.toThrow(
-				/operation not permitted\. On macOS, grant omp Files & Folders/,
+				/operation not permitted\. On macOS, grant chudcode Files & Folders/,
 			);
 		} finally {
 			chdir.mockRestore();

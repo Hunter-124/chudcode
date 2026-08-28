@@ -1,6 +1,6 @@
 import * as net from "node:net";
-import { Process, ProcessStatus } from "@oh-my-pi/pi-natives";
-import { sleep } from "@oh-my-pi/pi-utils/async";
+import { Process, ProcessStatus } from "@chudware/natives";
+import { sleep } from "@chudware/utils/async";
 import type { Socket } from "bun";
 import type { Browser, Page } from "puppeteer-core";
 import { ToolError, throwIfAborted } from "../tool-errors";

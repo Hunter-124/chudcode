@@ -1,4 +1,4 @@
-import { logger, postmortem, Snowflake, workerHostEntry } from "@oh-my-pi/pi-utils";
+import { logger, postmortem, Snowflake, workerHostEntry } from "@chudware/utils";
 import {
 	createWorkerHandle,
 	createWorkerSubprocess,

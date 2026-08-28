@@ -20,7 +20,7 @@
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
+import * as fsx from "@chudware/utils/fsx";
 
 const PLAYWRIGHT_TAG = "v1.61.0";
 const RAW_BASE = `https://raw.githubusercontent.com/microsoft/playwright/${PLAYWRIGHT_TAG}/packages`;
@@ -83,7 +83,7 @@ export function resolveAriaRef(ref: string): Element | null {
 `;
 
 async function main(): Promise<void> {
-	const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "omp-aria-"));
+	const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "chudcode-aria-"));
 	try {
 		// Fetch pinned upstream sources into the temp dir.
 		for (const [src, dst] of VENDOR_FILES) {

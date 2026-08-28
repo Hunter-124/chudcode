@@ -1,7 +1,7 @@
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
-import { CONFIG_DIR_NAME, getConfigAgentDirName, getProjectDir } from "@oh-my-pi/pi-utils";
+import { CONFIG_DIR_NAME, getConfigAgentDirName, getProjectDir } from "@chudware/utils";
 import { resolveClaudePaths } from "./config/claude-paths";
 import { expandTilde } from "./tools/path-utils";
 
@@ -42,7 +42,7 @@ export function walkUpForPackageDir(startDir: string): string | undefined {
 /**
  * Get the base directory for resolving optional package assets (docs, examples, CHANGELOG.md).
  *
- * Honors the `PI_PACKAGE_DIR` override (useful for Nix/Guix store paths);
+ * Honors the `CHUDCODE_PACKAGE_DIR` override (useful for Nix/Guix store paths);
  * otherwise walks up from `import.meta.dir` looking for a `package.json`.
  * Returns `undefined` when no owning package is locatable — notably inside
  * `bun --compile` binaries where `import.meta.dir` resolves to `/$bunfs/root`
@@ -50,11 +50,11 @@ export function walkUpForPackageDir(startDir: string): string | undefined {
  *
  * Callers MUST treat `undefined` as "no package assets available" and skip the
  * lookup. NEVER fall back to the user's `cwd` here: that conflates the host
- * project with omp's own assets and was the source of issue #1423 (the host
- * project's `CHANGELOG.md` rendered as omp's startup changelog).
+ * project with chudcode's own assets and was the source of issue #1423 (the host
+ * project's `CHANGELOG.md` rendered as chudcode's startup changelog).
  */
 export function getPackageDir(): string | undefined {
-	const envDir = process.env.PI_PACKAGE_DIR;
+	const envDir = process.env.CHUDCODE_PACKAGE_DIR;
 	if (envDir) {
 		return expandTilde(envDir);
 	}
@@ -62,7 +62,7 @@ export function getPackageDir(): string | undefined {
 }
 
 /**
- * Path to omp's own `CHANGELOG.md`, or `undefined` when the package directory
+ * Path to chudcode's own `CHANGELOG.md`, or `undefined` when the package directory
  * cannot be resolved (e.g. inside `bun --compile` binaries that don't bundle
  * package assets). Callers MUST skip changelog parsing when this is undefined;
  * see issue #1423.
@@ -77,8 +77,8 @@ export function getChangelogPath(): string | undefined {
 // =============================================================================
 
 /**
- * User-level: ~/.omp/agent, Claude's active config directory, ~/.codex, ~/.gemini
- * Project-level: .omp, .claude, .codex, .gemini
+ * User-level: ~/.chudcode/agent, Claude's active config directory, ~/.codex, ~/.gemini
+ * Project-level: .chudcode, .claude, .codex, .gemini
  */
 const USER_CONFIG_BASES = priorityList.map(({ dir, globalAgentDir }) => ({
 	base: () =>
@@ -93,14 +93,14 @@ const PROJECT_CONFIG_BASES = priorityList.map(({ dir }) => ({
 
 export interface ConfigDirEntry {
 	path: string;
-	source: string; // e.g., ".omp", ".claude"
+	source: string; // e.g., ".chudcode", ".claude"
 	level: "user" | "project";
 }
 
 export interface GetConfigDirsOptions {
-	/** Include user-level directories (~/.omp/agent/...). Default: true */
+	/** Include user-level directories (~/.chudcode/agent/...). Default: true */
 	user?: boolean;
-	/** Include project-level directories (.omp/...). Default: true */
+	/** Include project-level directories (.chudcode/...). Default: true */
 	project?: boolean;
 	/** Current working directory for project paths. Default: getProjectDir() */
 	cwd?: string;
@@ -118,7 +118,7 @@ export interface GetConfigDirsOptions {
  * @example
  * // Get all command directories
  * getConfigDirs("commands")
- * // → [{ path: "~/.omp/agent/commands", source: ".omp", level: "user" }, ...]
+ * // → [{ path: "~/.chudcode/agent/commands", source: ".chudcode", level: "user" }, ...]
  *
  * @example
  * // Get only existing project skill directories
@@ -208,7 +208,7 @@ export function findConfigFileWithMeta(
 
 /**
  * Find all nearest config directories by walking up from cwd.
- * Returns one entry per config base (.omp, .claude) - the nearest one found.
+ * Returns one entry per config base (.chudcode, .claude) - the nearest one found.
  * Results are in priority order (highest first).
  */
 export function findAllNearestProjectConfigDirs(subpath: string, cwd: string = getProjectDir()): ConfigDirEntry[] {

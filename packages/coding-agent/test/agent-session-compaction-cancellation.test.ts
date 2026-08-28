@@ -1,16 +1,16 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "bun:test";
-import { Agent, CompactionCancelledError } from "@oh-my-pi/pi-agent-core";
-import { getBundledModel } from "@oh-my-pi/pi-catalog/models";
-import { ModelRegistry } from "@oh-my-pi/pi-coding-agent/config/model-registry";
-import { Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
-import { ExtensionRuntime, loadExtensionFromFactory } from "@oh-my-pi/pi-coding-agent/extensibility/extensions/loader";
-import { ExtensionRunner } from "@oh-my-pi/pi-coding-agent/extensibility/extensions/runner";
-import { AgentSession } from "@oh-my-pi/pi-coding-agent/session/agent-session";
-import { AuthStorage } from "@oh-my-pi/pi-coding-agent/session/auth-storage";
-import { USER_INTERRUPT_LABEL } from "@oh-my-pi/pi-coding-agent/session/messages";
-import { SessionManager } from "@oh-my-pi/pi-coding-agent/session/session-manager";
-import { EventBus } from "@oh-my-pi/pi-coding-agent/utils/event-bus";
-import { TempDir } from "@oh-my-pi/pi-utils";
+import { Agent, CompactionCancelledError } from "@chudware/agent-core";
+import { getBundledModel } from "@chudware/catalog/models";
+import { ModelRegistry } from "@chudware/coding-agent/config/model-registry";
+import { Settings } from "@chudware/coding-agent/config/settings";
+import { ExtensionRuntime, loadExtensionFromFactory } from "@chudware/coding-agent/extensibility/extensions/loader";
+import { ExtensionRunner } from "@chudware/coding-agent/extensibility/extensions/runner";
+import { AgentSession } from "@chudware/coding-agent/session/agent-session";
+import { AuthStorage } from "@chudware/coding-agent/session/auth-storage";
+import { USER_INTERRUPT_LABEL } from "@chudware/coding-agent/session/messages";
+import { SessionManager } from "@chudware/coding-agent/session/session-manager";
+import { EventBus } from "@chudware/coding-agent/utils/event-bus";
+import { TempDir } from "@chudware/utils";
 
 type HookMode = "extension-veto" | "park";
 
@@ -34,8 +34,8 @@ describe("AgentSession compaction cancellation source", () => {
 	async function createSession(mode: HookMode, entered?: () => void, gate?: Promise<void>): Promise<AgentSession> {
 		const runtime = new ExtensionRuntime();
 		const extension = await loadExtensionFromFactory(
-			pi => {
-				pi.on("session_before_compact", async event => {
+			chud => {
+				chud.on("session_before_compact", async event => {
 					if (mode === "extension-veto") return { cancel: true };
 					entered?.();
 					await gate;

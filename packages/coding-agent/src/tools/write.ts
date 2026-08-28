@@ -2,17 +2,17 @@ import { Database } from "bun:sqlite";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 
-import { formatHashlineHeader, stripHashlinePrefixes } from "@oh-my-pi/hashline";
-import { type } from "@oh-my-pi/omptype";
+import { formatHashlineHeader, stripHashlinePrefixes } from "@chudware/hashline";
+import { type } from "@chudware/chudtype";
 import type {
 	AgentTool,
 	AgentToolContext,
 	AgentToolResult,
 	AgentToolUpdateCallback,
 	ToolApprovalDecision,
-} from "@oh-my-pi/pi-agent-core";
-import { type Component, Text } from "@oh-my-pi/pi-tui";
-import { isEnoent, isRecord, prompt, untilAborted } from "@oh-my-pi/pi-utils";
+} from "@chudware/agent-core";
+import { type Component, Text } from "@chudware/tui";
+import { isEnoent, isRecord, prompt, untilAborted } from "@chudware/utils";
 import {
 	type ArchiveMemberContent,
 	archiveFormatFromPath,
@@ -20,8 +20,8 @@ import {
 	parseArchivePathCandidates,
 	readArchiveEntries,
 	writeArchive,
-} from "@oh-my-pi/pi-utils/ar";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
+} from "@chudware/utils/ar";
+import * as fsx from "@chudware/utils/fsx";
 import { canonicalSnapshotKey, getFileSnapshotStore } from "../edit/file-snapshot-store";
 import { normalizeToLF } from "../edit/normalize";
 import type { RenderResultOptions } from "../extensibility/custom-tools/types";

@@ -1,4 +1,4 @@
-import { AgentRegistry } from "@oh-my-pi/pi-coding-agent/registry/agent-registry";
+import { AgentRegistry } from "@chudware/coding-agent/registry/agent-registry";
 import { type AgentLifecycleRecord, type GraphAgentRegistry, GraphService } from "./graph-service";
 import { type ProjectController, ProjectService } from "./project-service";
 import type {

@@ -1,15 +1,15 @@
 import * as fs from "node:fs/promises";
 import * as net from "node:net";
 import * as path from "node:path";
-import { type } from "@oh-my-pi/omptype";
+import { type } from "@chudware/chudtype";
 import type {
 	AgentTool,
 	AgentToolContext,
 	AgentToolResult,
 	AgentToolUpdateCallback,
 	ToolApprovalDecision,
-} from "@oh-my-pi/pi-agent-core";
-import { sleep } from "@oh-my-pi/pi-utils/async";
+} from "@chudware/agent-core";
+import { sleep } from "@chudware/utils/async";
 import type { ToolSession } from ".";
 import { probeTools } from "./analyzers/doctor";
 import { GdbMiSession } from "./analyzers/gdb-mi";
@@ -655,7 +655,7 @@ export class FirmwareTool implements AgentTool<typeof firmwareSchema, FirmwareTo
 			let script = localExists ? localSpec : spec;
 			if (!script.endsWith(".resc") || !localExists || explicitResource) {
 				temporaryScript = path.join(
-					await fs.mkdtemp(path.join(process.env.TMPDIR ?? "/tmp", "omp-renode-")),
+					await fs.mkdtemp(path.join(process.env.TMPDIR ?? "/tmp", "chudcode-renode-")),
 					"run.resc",
 				);
 				const runSeconds = Math.max(0.1, timeoutMs / 1000 - 0.25);

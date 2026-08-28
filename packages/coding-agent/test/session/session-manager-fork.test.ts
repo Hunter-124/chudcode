@@ -5,10 +5,10 @@ import {
 	CURRENT_SESSION_VERSION,
 	type SessionHeader,
 	type SessionMessageEntry,
-} from "@oh-my-pi/pi-coding-agent/session/session-entries";
-import { loadEntriesFromFile } from "@oh-my-pi/pi-coding-agent/session/session-loader";
-import { SessionManager } from "@oh-my-pi/pi-coding-agent/session/session-manager";
-import { getTerminalId } from "@oh-my-pi/pi-tui";
+} from "@chudware/coding-agent/session/session-entries";
+import { loadEntriesFromFile } from "@chudware/coding-agent/session/session-loader";
+import { SessionManager } from "@chudware/coding-agent/session/session-manager";
+import { getTerminalId } from "@chudware/tui";
 import {
 	getAgentDir,
 	getTerminalSessionsDir,
@@ -16,8 +16,8 @@ import {
 	setAgentDir,
 	sleep,
 	TempDir,
-} from "@oh-my-pi/pi-utils";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
+} from "@chudware/utils";
+import * as fsx from "@chudware/utils/fsx";
 
 interface JsonlMessageEntry {
 	type: "message";
@@ -57,11 +57,11 @@ async function createSessionWithArtifacts(root: string): Promise<{
 
 describe("SessionManager.forkFrom", () => {
 	it("suppresses terminal breadcrumbs while preserving source history under a new parented session", async () => {
-		using tempDir = TempDir.createSync("@omp-session-fork-");
+		using tempDir = TempDir.createSync("@chudcode-session-fork-");
 		const previousAgentDir = getAgentDir();
 		const previousTermSessionId = process.env.TERM_SESSION_ID;
 		setAgentDir(path.join(tempDir.path(), "agent"));
-		process.env.TERM_SESSION_ID = "omp-fork-test";
+		process.env.TERM_SESSION_ID = "chudcode-fork-test";
 		try {
 			const cwd = path.join(tempDir.path(), "project");
 			const sessionDir = path.join(tempDir.path(), "sessions");
@@ -121,7 +121,7 @@ describe("SessionManager.forkFrom", () => {
 	});
 
 	it("copies source artifacts recursively into the fork by default", async () => {
-		using tempDir = TempDir.createSync("@omp-session-fork-artifacts-");
+		using tempDir = TempDir.createSync("@chudcode-session-fork-artifacts-");
 		const { cwd, sessionDir, sourceFile, sourceArtifactsDir } = await createSessionWithArtifacts(tempDir.path());
 
 		const forked = await SessionManager.forkFrom(sourceFile, cwd, sessionDir, undefined, {
@@ -137,7 +137,7 @@ describe("SessionManager.forkFrom", () => {
 	});
 
 	it("does not copy artifacts when the caller opts out", async () => {
-		using tempDir = TempDir.createSync("@omp-session-fork-no-artifacts-");
+		using tempDir = TempDir.createSync("@chudcode-session-fork-no-artifacts-");
 		const { cwd, sessionDir, sourceFile } = await createSessionWithArtifacts(tempDir.path());
 
 		const forked = await SessionManager.forkFrom(sourceFile, cwd, sessionDir, undefined, {
@@ -152,7 +152,7 @@ describe("SessionManager.forkFrom", () => {
 	});
 
 	it("does not treat an extensionless source's parent directory as artifacts", async () => {
-		using tempDir = TempDir.createSync("@omp-session-fork-extensionless-");
+		using tempDir = TempDir.createSync("@chudcode-session-fork-extensionless-");
 		const cwd = path.join(tempDir.path(), "project");
 		const sessionDir = path.join(tempDir.path(), "sessions");
 		const forkDir = path.join(tempDir.path(), "forks");

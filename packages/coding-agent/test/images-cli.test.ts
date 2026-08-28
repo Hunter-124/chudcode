@@ -2,24 +2,24 @@ import { afterEach, beforeEach, describe, expect, spyOn, test } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import { AuthStorage } from "@oh-my-pi/pi-ai";
+import { AuthStorage } from "@chudware/ai";
 import type {
 	BlobBrokerDoctorResponse,
 	BlobBrokerProbeResponse,
 	BlobBrokerPurgeRequest,
 	BlobBrokerPurgeResponse,
 	BlobBrokerStatus,
-} from "@oh-my-pi/pi-coding-agent/blob-broker/protocol";
-import { ProviderFileCache } from "@oh-my-pi/pi-coding-agent/blob-broker/provider-file-types";
+} from "@chudware/coding-agent/blob-broker/protocol";
+import { ProviderFileCache } from "@chudware/coding-agent/blob-broker/provider-file-types";
 import {
 	type ImagesCliDependencies,
 	type ImagesCommandArgs,
 	type ImagesResolvedConfig,
 	runImagesCommand,
-} from "@oh-my-pi/pi-coding-agent/cli/images-cli";
-import { Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
-import type { FetchImpl } from "@oh-my-pi/pi-utils";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
+} from "@chudware/coding-agent/cli/images-cli";
+import { Settings } from "@chudware/coding-agent/config/settings";
+import type { FetchImpl } from "@chudware/utils";
+import * as fsx from "@chudware/utils/fsx";
 
 interface CapturedRequest {
 	readonly method: string;
@@ -100,7 +100,7 @@ const status: BlobBrokerStatus = {
 };
 
 beforeEach(async () => {
-	root = await fs.mkdtemp(path.join(os.tmpdir(), "omp-images-cli-"));
+	root = await fs.mkdtemp(path.join(os.tmpdir(), "chudcode-images-cli-"));
 	socketPath = path.join(root, "images.sock");
 	requests = [];
 	routes = new Map();

@@ -4,12 +4,12 @@
  * Run with: npx tsx test/streaming-render-debug.ts
  */
 import * as path from "node:path";
-import type { AssistantMessage } from "@oh-my-pi/pi-ai";
-import { AssistantMessageComponent } from "@oh-my-pi/pi-coding-agent/modes/components/assistant-message";
-import { initTheme } from "@oh-my-pi/pi-coding-agent/modes/theme/theme";
-import { ProcessTerminal, TUI } from "@oh-my-pi/pi-tui";
-import { sleep } from "@oh-my-pi/pi-utils/async";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
+import type { AssistantMessage } from "@chudware/ai";
+import { AssistantMessageComponent } from "@chudware/coding-agent/modes/components/assistant-message";
+import { initTheme } from "@chudware/coding-agent/modes/theme/theme";
+import { ProcessTerminal, TUI } from "@chudware/tui";
+import { sleep } from "@chudware/utils/async";
+import * as fsx from "@chudware/utils/fsx";
 
 // Initialize dark theme with full color support
 process.env.COLORTERM = "truecolor";

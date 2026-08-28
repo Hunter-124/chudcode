@@ -1,20 +1,20 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "bun:test";
-import { Agent } from "@oh-my-pi/pi-agent-core";
-import { createMockModel, type MockHandler } from "@oh-my-pi/pi-ai/providers/mock";
-import { getBundledModel } from "@oh-my-pi/pi-catalog/models";
-import { ModelRegistry } from "@oh-my-pi/pi-coding-agent/config/model-registry";
-import { Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
-import type { SettingPath } from "@oh-my-pi/pi-coding-agent/config/settings-schema";
-import { IrcBus, type IrcMessage } from "@oh-my-pi/pi-coding-agent/irc/bus";
-import { AgentLifecycleManager } from "@oh-my-pi/pi-coding-agent/registry/agent-lifecycle";
-import { AgentRegistry } from "@oh-my-pi/pi-coding-agent/registry/agent-registry";
-import { AgentSession, type AgentSessionEvent } from "@oh-my-pi/pi-coding-agent/session/agent-session";
-import { AuthStorage } from "@oh-my-pi/pi-coding-agent/session/auth-storage";
-import type { CustomMessage } from "@oh-my-pi/pi-coding-agent/session/messages";
-import { SessionManager } from "@oh-my-pi/pi-coding-agent/session/session-manager";
-import type { ToolSession } from "@oh-my-pi/pi-coding-agent/tools";
-import { type CoordinationDetails, HubTool, isIrcEnabled } from "@oh-my-pi/pi-coding-agent/tools/hub";
-import { TempDir } from "@oh-my-pi/pi-utils";
+import { Agent } from "@chudware/agent-core";
+import { createMockModel, type MockHandler } from "@chudware/ai/providers/mock";
+import { getBundledModel } from "@chudware/catalog/models";
+import { ModelRegistry } from "@chudware/coding-agent/config/model-registry";
+import { Settings } from "@chudware/coding-agent/config/settings";
+import type { SettingPath } from "@chudware/coding-agent/config/settings-schema";
+import { IrcBus, type IrcMessage } from "@chudware/coding-agent/irc/bus";
+import { AgentLifecycleManager } from "@chudware/coding-agent/registry/agent-lifecycle";
+import { AgentRegistry } from "@chudware/coding-agent/registry/agent-registry";
+import { AgentSession, type AgentSessionEvent } from "@chudware/coding-agent/session/agent-session";
+import { AuthStorage } from "@chudware/coding-agent/session/auth-storage";
+import type { CustomMessage } from "@chudware/coding-agent/session/messages";
+import { SessionManager } from "@chudware/coding-agent/session/session-manager";
+import type { ToolSession } from "@chudware/coding-agent/tools";
+import { type CoordinationDetails, HubTool, isIrcEnabled } from "@chudware/coding-agent/tools/hub";
+import { TempDir } from "@chudware/utils";
 
 interface FakeSession {
 	session: AgentSession;

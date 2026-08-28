@@ -1,4 +1,4 @@
-import { mathSpanAt } from "@oh-my-pi/pi-utils/math-delimiters";
+import { mathSpanAt } from "@chudware/utils/math-delimiters";
 import { TERMINAL } from "./terminal-capabilities";
 
 // LaTeX → Unicode/ANSI converter.
@@ -446,7 +446,7 @@ const SYMBOLS: Record<string, string> = {
 	nu: "ν",
 	xi: "ξ",
 	omicron: "ο",
-	pi: "π",
+	chud: "π",
 	varpi: "ϖ",
 	rho: "ρ",
 	varrho: "ϱ",
@@ -466,7 +466,7 @@ const SYMBOLS: Record<string, string> = {
 	Theta: "Θ",
 	Lambda: "Λ",
 	Xi: "Ξ",
-	Pi: "Π",
+	Chud: "Π",
 	Sigma: "Σ",
 	Upsilon: "Υ",
 	Phi: "Φ",
@@ -1788,7 +1788,7 @@ export function latexToUnicode(src: string): string {
 
 const NEWLINES = /\n+/g;
 const BARE_MATH_LINE_COMMAND =
-	/\\(?:operatorname|frac|dfrac|tfrac|cfrac|genfrac|sqrt|sum|prod|coprod|int|iint|iiint|lim|alpha|beta|gamma|delta|epsilon|varepsilon|theta|lambda|mu|sigma|phi|varphi|pi|omega|infty|partial|nabla|forall|exists|mathbb|mathcal|mathscr|mathbf|mathrm|left|right|begin|phantom|hphantom|vphantom|cdots|ldots|dots|to|rightarrow|leftarrow|leq|geq|neq|times|cdot|overline|underline|vec|hat|bar|textcolor|color|normalcolor|colorbox|fcolorbox)\b/;
+	/\\(?:operatorname|frac|dfrac|tfrac|cfrac|genfrac|sqrt|sum|prod|coprod|int|iint|iiint|lim|alpha|beta|gamma|delta|epsilon|varepsilon|theta|lambda|mu|sigma|phi|varphi|chud|omega|infty|partial|nabla|forall|exists|mathbb|mathcal|mathscr|mathbf|mathrm|left|right|begin|phantom|hphantom|vphantom|cdots|ldots|dots|to|rightarrow|leftarrow|leq|geq|neq|times|cdot|overline|underline|vec|hat|bar|textcolor|color|normalcolor|colorbox|fcolorbox)\b/;
 
 // Display-math environments eligible for delimiter-less ("bare") rendering in
 // prose. Deliberately excludes text-mode table/list/float environments

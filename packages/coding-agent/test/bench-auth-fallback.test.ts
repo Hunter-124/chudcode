@@ -9,14 +9,14 @@ import type {
 	AssistantMessageEventStream,
 	Model,
 	SimpleStreamOptions,
-} from "@oh-my-pi/pi-ai";
-import { buildModel } from "@oh-my-pi/pi-catalog/build";
-import { writeModelCache } from "@oh-my-pi/pi-catalog/model-cache";
-import { resolveModelCacheProviderId } from "@oh-my-pi/pi-catalog/provider-models";
-import { type BenchSummary, runBenchCommand } from "@oh-my-pi/pi-coding-agent/cli/bench-cli";
-import type { BenchModelRegistry } from "@oh-my-pi/pi-coding-agent/cli/bench-runtime";
-import { Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
-import { getModelDbPath, TempDir } from "@oh-my-pi/pi-utils";
+} from "@chudware/ai";
+import { buildModel } from "@chudware/catalog/build";
+import { writeModelCache } from "@chudware/catalog/model-cache";
+import { resolveModelCacheProviderId } from "@chudware/catalog/provider-models";
+import { type BenchSummary, runBenchCommand } from "@chudware/coding-agent/cli/bench-cli";
+import type { BenchModelRegistry } from "@chudware/coding-agent/cli/bench-runtime";
+import { Settings } from "@chudware/coding-agent/config/settings";
+import { getModelDbPath, TempDir } from "@chudware/utils";
 
 function fakeModel(provider: string, id: string): Model<Api> {
 	return {
@@ -103,7 +103,7 @@ async function runBench(
 }
 describe("default bench runtime", () => {
 	it("hydrates credential-scoped model caches before selector resolution", async () => {
-		const tempDir = TempDir.createSync("@omp-bench-runtime-");
+		const tempDir = TempDir.createSync("@chudcode-bench-runtime-");
 		const apiKey = "bench-cache-test-key";
 		const modelId = "cached-bench-model";
 		const cacheDbPath = getModelDbPath(tempDir.path());
@@ -151,7 +151,7 @@ describe("default bench runtime", () => {
 					...process.env,
 					NO_COLOR: "1",
 					OPENCODE_API_KEY: apiKey,
-					PI_CODING_AGENT_DIR: tempDir.path(),
+					CHUDCODE_CODING_AGENT_DIR: tempDir.path(),
 				},
 				stdout: "pipe",
 				stderr: "pipe",

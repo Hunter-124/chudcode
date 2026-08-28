@@ -1,7 +1,7 @@
 import { afterEach, beforeAll, describe, expect, it } from "bun:test";
-import { agentPauseGate } from "@oh-my-pi/pi-agent-core";
-import type { Component } from "@oh-my-pi/pi-tui";
-import { sleep } from "@oh-my-pi/pi-utils/async";
+import { agentPauseGate } from "@chudware/agent-core";
+import type { Component } from "@chudware/tui";
+import { sleep } from "@chudware/utils/async";
 import { Settings } from "../../../src/config/settings";
 import {
 	PauseScreenComponent,

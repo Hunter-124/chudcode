@@ -1,6 +1,6 @@
 import * as path from "node:path";
-import type { AgentMessage } from "@oh-my-pi/pi-agent-core";
-import type { AssistantMessage, UsageLimit, UsageReport } from "@oh-my-pi/pi-ai";
+import type { AgentMessage } from "@chudware/agent-core";
+import type { AssistantMessage, UsageLimit, UsageReport } from "@chudware/ai";
 import {
 	type Component,
 	type ComposerStyle,
@@ -8,8 +8,8 @@ import {
 	padding,
 	truncateToWidth,
 	visibleWidth,
-} from "@oh-my-pi/pi-tui";
-import { adjustHsv, formatNumber, getProjectDir } from "@oh-my-pi/pi-utils";
+} from "@chudware/tui";
+import { adjustHsv, formatNumber, getProjectDir } from "@chudware/utils";
 import { settings } from "../../../config/settings";
 import type { AgentSession } from "../../../session/agent-session";
 import type { OAuthAccountIdentity } from "../../../session/auth-storage";

@@ -2,11 +2,11 @@ import { afterAll, beforeAll, describe, expect, it } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import { resetSettingsForTest, Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
-import { assertEditableFile, assertEditableFileContent } from "@oh-my-pi/pi-coding-agent/tools/auto-generated-guard";
-import { resolveImageOptions } from "@oh-my-pi/pi-coding-agent/tools/render-utils";
-import { ToolError } from "@oh-my-pi/pi-coding-agent/tools/tool-errors";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
+import { resetSettingsForTest, Settings } from "@chudware/coding-agent/config/settings";
+import { assertEditableFile, assertEditableFileContent } from "@chudware/coding-agent/tools/auto-generated-guard";
+import { resolveImageOptions } from "@chudware/coding-agent/tools/render-utils";
+import { ToolError } from "@chudware/coding-agent/tools/tool-errors";
+import * as fsx from "@chudware/utils/fsx";
 
 let tempDir: string;
 let testSettings: Settings;

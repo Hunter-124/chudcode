@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { promises as fs } from "node:fs";
 import { homedir } from "node:os";
 import path from "node:path";
-import { buildSecretObfuscator } from "@oh-my-pi/pi-coding-agent/secrets";
+import { buildSecretObfuscator } from "@chudware/coding-agent/secrets";
 import { REST } from "discord.js";
 
 export type ArchiveMode = "before-mutate" | "final-delta";
@@ -158,7 +158,7 @@ export async function exportGuild(options: ExportGuildOptions): Promise<ArchiveM
 	const encryptTar = options.dependencies?.encryptTar ?? encryptTarWithAge;
 	const secretObfuscator = Object.hasOwn(options.dependencies ?? {}, "secretObfuscator")
 		? options.dependencies?.secretObfuscator
-		: await buildSecretObfuscator(repoRoot, process.env.OMP_AGENT_DIR ?? path.join(homedir(), ".omp", "agent"));
+		: await buildSecretObfuscator(repoRoot, process.env.CHUDCODE_AGENT_DIR ?? path.join(homedir(), ".chudcode", "agent"));
 	const deps: ArchiveDependencies = { rest, fetch: fetchImpl, now, secretObfuscator, encryptTar };
 
 	await fs.mkdir(outputDir, { recursive: true });

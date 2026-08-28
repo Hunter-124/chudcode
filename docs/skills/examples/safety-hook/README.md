@@ -4,14 +4,14 @@ An `Chudcode` extension that demonstrates `tool_call` blocking. It intercepts `b
 
 ## What it demonstrates
 
-- `pi.on("tool_call", ...)` — pre-execution interception
+- `chud.on("tool_call", ...)` — pre-execution interception
 - `return { block: true, reason: "..." }` — blocking contract
 - Regex guard on bash input (`/\brm\s+-rf\s+\//`)
 
 ## Install
 
 ```
-cp -r . ~/.omp/agent/extensions/safety-hook
+cp -r . ~/.chudcode/agent/extensions/safety-hook
 ```
 
 Restart `chudcode`. The hook is active for all sessions.

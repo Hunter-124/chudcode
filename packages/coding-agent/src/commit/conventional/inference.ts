@@ -1,7 +1,7 @@
-import type { ThinkingLevel } from "@oh-my-pi/pi-agent-core";
-import type { Api, ApiKey, AssistantMessage, AuthStorage, Model } from "@oh-my-pi/pi-ai";
-import { completeSimple } from "@oh-my-pi/pi-ai";
-import { sleep } from "@oh-my-pi/pi-utils/async";
+import type { ThinkingLevel } from "@chudware/agent-core";
+import type { Api, ApiKey, AssistantMessage, AuthStorage, Model } from "@chudware/ai";
+import { completeSimple } from "@chudware/ai";
+import { sleep } from "@chudware/utils/async";
 import { toReasoningEffort } from "../../thinking";
 import type { ResolvedCommitModel } from "../model-selection";
 import { type CommitInferenceCache, computeCommitCacheKey } from "./cache";
@@ -43,8 +43,8 @@ interface InferenceTarget {
 	thinkingLevel?: ThinkingLevel;
 }
 
-/** Omp's model/provider adapter for llm-git's parser-aware one-shot algorithm. */
-export class OmpCommitInference implements CommitInference {
+/** Chudcode's model/provider adapter for llm-git's parser-aware one-shot algorithm. */
+export class ChudCommitInference implements CommitInference {
 	readonly #targets: Record<CommitInferenceRole, InferenceTarget>;
 	readonly #config: ConventionalGenerationConfig;
 	readonly #cache: CommitInferenceCache | null;

@@ -2,24 +2,24 @@ import { afterAll, afterEach, beforeEach, describe, expect, it } from "bun:test"
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import { Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
-import { InternalUrlRouter } from "@oh-my-pi/pi-coding-agent/internal-urls";
-import { getMemoryRoot } from "@oh-my-pi/pi-coding-agent/memories";
+import { Settings } from "@chudware/coding-agent/config/settings";
+import { InternalUrlRouter } from "@chudware/coding-agent/internal-urls";
+import { getMemoryRoot } from "@chudware/coding-agent/memories";
 import {
 	loadMnemopi,
 	loadMnemopiCore,
 	MnemopiSessionState,
 	setMnemopiSessionState,
-} from "@oh-my-pi/pi-coding-agent/mnemopi/state";
-import { AgentRegistry } from "@oh-my-pi/pi-coding-agent/registry/agent-registry";
-import type { AgentSession } from "@oh-my-pi/pi-coding-agent/session/agent-session";
-import type { ToolSession } from "@oh-my-pi/pi-coding-agent/tools";
-import { GlobTool } from "@oh-my-pi/pi-coding-agent/tools/glob";
-import { ReadTool } from "@oh-my-pi/pi-coding-agent/tools/read";
-import { getAgentDir, removeWithRetries, setAgentDir, TempDir } from "@oh-my-pi/pi-utils";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
+} from "@chudware/coding-agent/mnemo/state";
+import { AgentRegistry } from "@chudware/coding-agent/registry/agent-registry";
+import type { AgentSession } from "@chudware/coding-agent/session/agent-session";
+import type { ToolSession } from "@chudware/coding-agent/tools";
+import { GlobTool } from "@chudware/coding-agent/tools/glob";
+import { ReadTool } from "@chudware/coding-agent/tools/read";
+import { getAgentDir, removeWithRetries, setAgentDir, TempDir } from "@chudware/utils";
+import * as fsx from "@chudware/utils/fsx";
 
-// Mnemopi state is loaded lazily; preload so `new MnemopiSessionState(...)` can
+// Mnemo state is loaded lazily; preload so `new MnemopiSessionState(...)` can
 // resolve the module synchronously in the fixtures below.
 await Promise.all([loadMnemopi(), loadMnemopiCore()]);
 interface MemoryFixture {
@@ -254,7 +254,7 @@ describe("MemoryProtocolHandler", () => {
 		}
 	});
 
-	it("throws for unknown memory namespace when no mnemopi backend is active", async () => {
+	it("throws for unknown memory namespace when no mnemo backend is active", async () => {
 		await withMemoryFixture(async () => {
 			const router = InternalUrlRouter.instance();
 			await expect(router.resolve("memory://other/memory_summary.md")).rejects.toThrow(
@@ -400,9 +400,9 @@ let sharedMnemopiFixture: MnemopiFixture | undefined;
 
 async function withMnemopiSession(fn: (fixture: MnemopiFixture) => Promise<void>): Promise<void> {
 	if (!sharedMnemopiFixture) {
-		const dbDir = TempDir.createSync("memory-protocol-mnemopi-");
+		const dbDir = TempDir.createSync("memory-protocol-mnemo-");
 		const config = {
-			dbPath: dbDir.join("mnemopi.db"),
+			dbPath: dbDir.join("mnemo.db"),
 			bank: "test-bank",
 			autoRecall: false,
 			autoRetain: false,
@@ -422,25 +422,25 @@ async function withMnemopiSession(fn: (fixture: MnemopiFixture) => Promise<void>
 			llmMode: "none" as const,
 		} as unknown as ConstructorParameters<typeof MnemopiSessionState>[0]["config"];
 		const session = {
-			sessionId: "test-mnemopi",
+			sessionId: "test-mnemo",
 			sessionManager: {
 				getEntries: () => [],
 				getCwd: () => dbDir.path(),
 				getArtifactsDir: () => null,
-				getSessionId: () => "test-mnemopi",
+				getSessionId: () => "test-mnemo",
 			},
 			emitNotice: () => {},
 			getHindsightSessionState: () => undefined,
 		} as unknown as AgentSession;
-		const state = new MnemopiSessionState({ sessionId: "test-mnemopi", config, session });
+		const state = new MnemopiSessionState({ sessionId: "test-mnemo", config, session });
 		setMnemopiSessionState(session, state);
 		sharedMnemopiFixture = { state, dbDir, session };
 	}
 
 	const fixture = sharedMnemopiFixture;
 	AgentRegistry.global().register({
-		id: "test-mnemopi",
-		displayName: "test-mnemopi",
+		id: "test-mnemo",
+		displayName: "test-mnemo",
 		kind: "main",
 		session: fixture.session,
 		sessionFile: null,
@@ -455,7 +455,7 @@ afterAll(async () => {
 	sharedMnemopiFixture = undefined;
 });
 
-describe("MemoryProtocolHandler — mnemopi bridge (issue #4443)", () => {
+describe("MemoryProtocolHandler — mnemo bridge (issue #4443)", () => {
 	beforeEach(() => {
 		AgentRegistry.resetGlobalForTests();
 		InternalUrlRouter.resetForTests();
@@ -466,7 +466,7 @@ describe("MemoryProtocolHandler — mnemopi bridge (issue #4443)", () => {
 		InternalUrlRouter.resetForTests();
 	});
 
-	it("resolves memory://<id> to the full mnemopi memory row", async () => {
+	it("resolves memory://<id> to the full mnemo memory row", async () => {
 		await withMnemopiSession(async ({ state }) => {
 			const head = "Decision record: the deploy pipeline uses blue-green cutover. ";
 			const body = "Detail sentence about rollout invariants. ".repeat(20);
@@ -490,11 +490,11 @@ describe("MemoryProtocolHandler — mnemopi bridge (issue #4443)", () => {
 		});
 	});
 
-	it("throws a clear error when the mnemopi id is not stored in any scoped bank", async () => {
+	it("throws a clear error when the mnemo id is not stored in any scoped bank", async () => {
 		await withMnemopiSession(async () => {
 			const router = InternalUrlRouter.instance();
 			await expect(router.resolve("memory://deadbeefdeadbeef")).rejects.toThrow(
-				/Mnemopi memory deadbeefdeadbeef not found/,
+				/Mnemo memory deadbeefdeadbeef not found/,
 			);
 		});
 	});
@@ -552,7 +552,7 @@ describe("MemoryProtocolHandler — mnemopi bridge (issue #4443)", () => {
 		});
 	});
 
-	it("routes memory://root to the file-backed summary even when mnemopi is active", async () => {
+	it("routes memory://root to the file-backed summary even when mnemo is active", async () => {
 		await withMnemopiSession(async () => {
 			const router = InternalUrlRouter.instance();
 			await expect(router.resolve("memory://root")).rejects.toThrow(
@@ -564,7 +564,7 @@ describe("MemoryProtocolHandler — mnemopi bridge (issue #4443)", () => {
 
 /**
  * Register a live session simulating memory.backend=hindsight: it exposes a
- * Hindsight state but no mnemopi state, so the handler must treat memory://<id>
+ * Hindsight state but no mnemo state, so the handler must treat memory://<id>
  * as unaddressable and return a corrective pointer (issue #7587).
  */
 function withHindsightSession(fn: () => Promise<void>): Promise<void> {
@@ -601,7 +601,7 @@ describe("MemoryProtocolHandler — hindsight (issue #7587)", () => {
 		});
 	});
 
-	it("uses the calling session backend when hindsight and mnemopi sessions coexist", async () => {
+	it("uses the calling session backend when hindsight and mnemo sessions coexist", async () => {
 		await withMnemopiSession(async () => {
 			await withHindsightSession(async () => {
 				const router = InternalUrlRouter.instance();

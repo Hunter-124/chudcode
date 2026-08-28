@@ -1,7 +1,7 @@
-import type { ThinkingLevel } from "@oh-my-pi/pi-agent-core";
-import type { Effort } from "@oh-my-pi/pi-ai";
-import { colorLuma, logger, relativeLuminance } from "@oh-my-pi/pi-utils";
-import chalk from "@oh-my-pi/pi-utils/chalk";
+import type { ThinkingLevel } from "@chudware/agent-core";
+import type { Effort } from "@chudware/ai";
+import { colorLuma, logger, relativeLuminance } from "@chudware/utils";
+import chalk from "@chudware/utils/chalk";
 import { bgAnsi, colorToAnsi, fgAnsi, resolveToHex } from "./color";
 import type { ColorMode, ThemeBg, ThemeColor } from "./schema";
 import {
@@ -528,7 +528,7 @@ export class Theme {
 			subscription: this.#symbols["icon.subscription"],
 			advisor: this.#symbols["icon.advisor"],
 			time: this.#symbols["icon.time"],
-			pi: this.#symbols["icon.pi"],
+			chud: this.#symbols["icon.chud"],
 			ghost: this.#symbols["icon.ghost"],
 			agents: this.#symbols["icon.agents"],
 			job: this.#symbols["icon.job"],

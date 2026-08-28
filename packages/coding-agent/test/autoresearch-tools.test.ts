@@ -1,24 +1,24 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "bun:test";
 import * as fs from "node:fs";
 import * as path from "node:path";
-import type { ImageContent, TextContent } from "@oh-my-pi/pi-ai";
-import { createSessionRuntime } from "@oh-my-pi/pi-coding-agent/autoresearch/state";
+import type { ImageContent, TextContent } from "@chudware/ai";
+import { createSessionRuntime } from "@chudware/coding-agent/autoresearch/state";
 import {
 	type AutoresearchStorage,
 	closeAllAutoresearchStorages,
 	openAutoresearchStorage,
 	type SessionRow,
-} from "@oh-my-pi/pi-coding-agent/autoresearch/storage";
-import { createInitExperimentTool } from "@oh-my-pi/pi-coding-agent/autoresearch/tools/init-experiment";
-import { createLogExperimentTool } from "@oh-my-pi/pi-coding-agent/autoresearch/tools/log-experiment";
-import { createRunExperimentTool } from "@oh-my-pi/pi-coding-agent/autoresearch/tools/run-experiment";
-import { createUpdateNotesTool } from "@oh-my-pi/pi-coding-agent/autoresearch/tools/update-notes";
-import type { ASIData, LogDetails, NumericMetricMap, RunDetails } from "@oh-my-pi/pi-coding-agent/autoresearch/types";
-import type { ExtensionAPI, ExtensionContext } from "@oh-my-pi/pi-coding-agent/extensibility/extensions";
-import * as git from "@oh-my-pi/pi-coding-agent/utils/git";
-import { TempDir } from "@oh-my-pi/pi-utils";
-import { sleep } from "@oh-my-pi/pi-utils/async";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
+} from "@chudware/coding-agent/autoresearch/storage";
+import { createInitExperimentTool } from "@chudware/coding-agent/autoresearch/tools/init-experiment";
+import { createLogExperimentTool } from "@chudware/coding-agent/autoresearch/tools/log-experiment";
+import { createRunExperimentTool } from "@chudware/coding-agent/autoresearch/tools/run-experiment";
+import { createUpdateNotesTool } from "@chudware/coding-agent/autoresearch/tools/update-notes";
+import type { ASIData, LogDetails, NumericMetricMap, RunDetails } from "@chudware/coding-agent/autoresearch/types";
+import type { ExtensionAPI, ExtensionContext } from "@chudware/coding-agent/extensibility/extensions";
+import * as git from "@chudware/coding-agent/utils/git";
+import { TempDir } from "@chudware/utils";
+import { sleep } from "@chudware/utils/async";
+import * as fsx from "@chudware/utils/fsx";
 import { $ } from "bun";
 
 afterEach(() => {
@@ -48,14 +48,14 @@ function createCtx(cwd: string): ExtensionContext {
 	return { cwd, hasUI: false } as ExtensionContext;
 }
 
-interface PiHarness {
+interface ChudHarness {
 	api: ExtensionAPI;
 	activeTools: string[];
 	appendEntries: Array<{ customType: string; data: unknown }>;
 	setActiveToolsCalls: string[][];
 }
 
-function createPiHarness(initialTools: string[] = []): PiHarness {
+function createPiHarness(initialTools: string[] = []): ChudHarness {
 	const activeTools = [...initialTools];
 	const appendEntries: Array<{ customType: string; data: unknown }> = [];
 	const setActiveToolsCalls: string[][] = [];
@@ -170,11 +170,11 @@ describe("init_experiment", () => {
 
 	beforeEach(() => {
 		dbOverride = makeTempDir("@pi-autoresearch-init-db-");
-		process.env.OMP_AUTORESEARCH_DB_DIR = dbOverride.path();
+		process.env.CHUDCODE_AUTORESEARCH_DB_DIR = dbOverride.path();
 	});
 
 	afterEach(async () => {
-		delete process.env.OMP_AUTORESEARCH_DB_DIR;
+		delete process.env.CHUDCODE_AUTORESEARCH_DB_DIR;
 		closeAllAutoresearchStorages();
 		await sleep(0);
 		await dbOverride.remove();
@@ -187,7 +187,7 @@ describe("init_experiment", () => {
 		const tool = createInitExperimentTool({
 			dashboard: dashboardStub(),
 			getRuntime: () => runtime,
-			pi: createPiHarness().api,
+			chud: createPiHarness().api,
 		});
 
 		const result = await tool.execute(
@@ -228,7 +228,7 @@ describe("init_experiment", () => {
 		const tool = createInitExperimentTool({
 			dashboard: dashboardStub(),
 			getRuntime: () => runtime,
-			pi: createPiHarness().api,
+			chud: createPiHarness().api,
 		});
 
 		await tool.execute(
@@ -259,7 +259,7 @@ describe("init_experiment", () => {
 		const tool = createInitExperimentTool({
 			dashboard: dashboardStub(),
 			getRuntime: () => runtime,
-			pi: createPiHarness().api,
+			chud: createPiHarness().api,
 		});
 		await tool.execute("a", { name: "x", primary_metric: "ms" }, undefined, undefined, createCtx(dir));
 		const result = await tool.execute(
@@ -279,7 +279,7 @@ describe("init_experiment", () => {
 		const tool = createInitExperimentTool({
 			dashboard: dashboardStub(),
 			getRuntime: () => runtime,
-			pi: createPiHarness().api,
+			chud: createPiHarness().api,
 		});
 		const result = await tool.execute(
 			"call-1",
@@ -301,7 +301,7 @@ describe("init_experiment", () => {
 		const tool = createInitExperimentTool({
 			dashboard: dashboardStub(),
 			getRuntime: () => runtime,
-			pi: createPiHarness().api,
+			chud: createPiHarness().api,
 		});
 		const result = await tool.execute(
 			"call-1",
@@ -327,7 +327,7 @@ describe("init_experiment", () => {
 		const tool = createInitExperimentTool({
 			dashboard: dashboardStub(),
 			getRuntime: () => runtime,
-			pi: createPiHarness().api,
+			chud: createPiHarness().api,
 		});
 		const result = await tool.execute(
 			"call-1",
@@ -349,11 +349,11 @@ describe("run_experiment", () => {
 
 	beforeEach(() => {
 		dbOverride = makeTempDir("@pi-autoresearch-run-db-");
-		process.env.OMP_AUTORESEARCH_DB_DIR = dbOverride.path();
+		process.env.CHUDCODE_AUTORESEARCH_DB_DIR = dbOverride.path();
 	});
 
 	afterEach(async () => {
-		delete process.env.OMP_AUTORESEARCH_DB_DIR;
+		delete process.env.CHUDCODE_AUTORESEARCH_DB_DIR;
 		closeAllAutoresearchStorages();
 		await sleep(0);
 		await dbOverride.remove();
@@ -365,7 +365,7 @@ describe("run_experiment", () => {
 		const run = createRunExperimentTool({
 			dashboard: dashboardStub(),
 			getRuntime: () => runtime,
-			pi: createPiHarness().api,
+			chud: createPiHarness().api,
 		});
 		const result = await run.execute("call-1", {}, undefined, undefined, createCtx(dir));
 		expect(firstTextBlockText(result.content)).toContain("no active autoresearch session");
@@ -378,7 +378,7 @@ describe("run_experiment", () => {
 		const init = createInitExperimentTool({
 			dashboard: dashboardStub(),
 			getRuntime: () => runtime,
-			pi: createPiHarness().api,
+			chud: createPiHarness().api,
 		});
 		await init.execute(
 			"i",
@@ -390,7 +390,7 @@ describe("run_experiment", () => {
 		const run = createRunExperimentTool({
 			dashboard: dashboardStub(),
 			getRuntime: () => runtime,
-			pi: createPiHarness().api,
+			chud: createPiHarness().api,
 		});
 		const result = await run.execute("r", { timeout_seconds: 5 }, undefined, undefined, createCtx(dir));
 		const details = result.details as RunDetails;
@@ -416,13 +416,13 @@ describe("run_experiment", () => {
 		const initTool = createInitExperimentTool({
 			dashboard: dashboardStub(),
 			getRuntime: () => runtime,
-			pi: createPiHarness().api,
+			chud: createPiHarness().api,
 		});
 		await initTool.execute("i", { name: "x", primary_metric: "m" }, undefined, undefined, createCtx(dir));
 		const run = createRunExperimentTool({
 			dashboard: dashboardStub(),
 			getRuntime: () => runtime,
-			pi: createPiHarness().api,
+			chud: createPiHarness().api,
 		});
 		// A seeded pending run stands in for the first run_experiment; the contract
 		// under test is that the second run abandons it rather than blocking.
@@ -440,11 +440,11 @@ describe("log_experiment", () => {
 
 	beforeEach(() => {
 		dbOverride = makeTempDir("@pi-autoresearch-log-db-");
-		process.env.OMP_AUTORESEARCH_DB_DIR = dbOverride.path();
+		process.env.CHUDCODE_AUTORESEARCH_DB_DIR = dbOverride.path();
 	});
 
 	afterEach(async () => {
-		delete process.env.OMP_AUTORESEARCH_DB_DIR;
+		delete process.env.CHUDCODE_AUTORESEARCH_DB_DIR;
 		closeAllAutoresearchStorages();
 		await sleep(0);
 		await dbOverride.remove();
@@ -456,7 +456,7 @@ describe("log_experiment", () => {
 		const init = createInitExperimentTool({
 			dashboard: dashboardStub(),
 			getRuntime: () => runtime,
-			pi: harness.api,
+			chud: harness.api,
 		});
 		await init.execute(
 			"i",
@@ -480,7 +480,7 @@ describe("log_experiment", () => {
 		const log = createLogExperimentTool({
 			dashboard: dashboardStub(),
 			getRuntime: () => runtime,
-			pi: harness.api,
+			chud: harness.api,
 		});
 		return { runtime, log, harness };
 	}
@@ -493,13 +493,13 @@ describe("log_experiment", () => {
 		const init = createInitExperimentTool({
 			dashboard: dashboardStub(),
 			getRuntime: () => runtime,
-			pi: harness.api,
+			chud: harness.api,
 		});
 		await init.execute("i", { name: "x", primary_metric: "m" }, undefined, undefined, createCtx(dir));
 		const log = createLogExperimentTool({
 			dashboard: dashboardStub(),
 			getRuntime: () => runtime,
-			pi: harness.api,
+			chud: harness.api,
 		});
 		const result = await log.execute(
 			"l",
@@ -631,7 +631,7 @@ describe("log_experiment", () => {
 		const log = createLogExperimentTool({
 			dashboard: dashboardStub(),
 			getRuntime: () => runtime,
-			pi: createPiHarness().api,
+			chud: createPiHarness().api,
 		});
 		const second = await log.execute(
 			"l2",
@@ -666,7 +666,7 @@ describe("log_experiment", () => {
 		const init = createInitExperimentTool({
 			dashboard: dashboardStub(),
 			getRuntime: () => runtime,
-			pi: harness.api,
+			chud: harness.api,
 		});
 		await init.execute(
 			"i",
@@ -678,7 +678,7 @@ describe("log_experiment", () => {
 		const run = createRunExperimentTool({
 			dashboard: dashboardStub(),
 			getRuntime: () => runtime,
-			pi: harness.api,
+			chud: harness.api,
 		});
 		// Pre-existing untracked file (will not be touched by revert because it was dirty before run)
 		await fsx.write(path.join(dir, "preexisting.txt"), "leave me\n");
@@ -690,7 +690,7 @@ describe("log_experiment", () => {
 		const log = createLogExperimentTool({
 			dashboard: dashboardStub(),
 			getRuntime: () => runtime,
-			pi: harness.api,
+			chud: harness.api,
 		});
 		await log.execute(
 			"l",
@@ -714,7 +714,7 @@ describe("log_experiment", () => {
 		const init = createInitExperimentTool({
 			dashboard: dashboardStub(),
 			getRuntime: () => runtime,
-			pi: harness.api,
+			chud: harness.api,
 		});
 		await init.execute("i", { name: "x", primary_metric: "m" }, undefined, undefined, createCtx(dir));
 		// Simulate a previously kept iteration by committing it directly on the branch.
@@ -733,7 +733,7 @@ describe("log_experiment", () => {
 		const log = createLogExperimentTool({
 			dashboard: dashboardStub(),
 			getRuntime: () => runtime,
-			pi: harness.api,
+			chud: harness.api,
 		});
 		await log.execute(
 			"l",
@@ -762,7 +762,7 @@ describe("log_experiment", () => {
 		const init = createInitExperimentTool({
 			dashboard: dashboardStub(),
 			getRuntime: () => runtime,
-			pi: harness.api,
+			chud: harness.api,
 		});
 		await init.execute(
 			"i",
@@ -780,7 +780,7 @@ describe("log_experiment", () => {
 		const log = createLogExperimentTool({
 			dashboard: dashboardStub(),
 			getRuntime: () => runtime,
-			pi: harness.api,
+			chud: harness.api,
 		});
 		const result = await log.execute(
 			"l",
@@ -804,7 +804,7 @@ describe("log_experiment", () => {
 		const init = createInitExperimentTool({
 			dashboard: dashboardStub(),
 			getRuntime: () => runtime,
-			pi: harness.api,
+			chud: harness.api,
 		});
 		await init.execute(
 			"i",
@@ -822,7 +822,7 @@ describe("log_experiment", () => {
 		const log = createLogExperimentTool({
 			dashboard: dashboardStub(),
 			getRuntime: () => runtime,
-			pi: harness.api,
+			chud: harness.api,
 		});
 		const result = await log.execute(
 			"l",
@@ -841,11 +841,11 @@ describe("update_notes", () => {
 
 	beforeEach(() => {
 		dbOverride = makeTempDir("@pi-autoresearch-notes-db-");
-		process.env.OMP_AUTORESEARCH_DB_DIR = dbOverride.path();
+		process.env.CHUDCODE_AUTORESEARCH_DB_DIR = dbOverride.path();
 	});
 
 	afterEach(async () => {
-		delete process.env.OMP_AUTORESEARCH_DB_DIR;
+		delete process.env.CHUDCODE_AUTORESEARCH_DB_DIR;
 		closeAllAutoresearchStorages();
 		await sleep(0);
 		await dbOverride.remove().catch(() => {});
@@ -859,13 +859,13 @@ describe("update_notes", () => {
 		const init = createInitExperimentTool({
 			dashboard: dashboardStub(),
 			getRuntime: () => runtime,
-			pi: harness.api,
+			chud: harness.api,
 		});
 		await init.execute("i", { name: "x", primary_metric: "m" }, undefined, undefined, createCtx(dir));
 		const notes = createUpdateNotesTool({
 			dashboard: dashboardStub(),
 			getRuntime: () => runtime,
-			pi: harness.api,
+			chud: harness.api,
 		});
 		await notes.execute("n", { body: "## Plan\n- step one\n" }, undefined, undefined, createCtx(dir));
 		expect(runtime.state.notes).toContain("step one");

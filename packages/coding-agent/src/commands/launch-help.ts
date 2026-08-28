@@ -1,4 +1,4 @@
-import { Args, type CommandMetadata, Flags } from "@oh-my-pi/pi-utils/cli";
+import { Args, type CommandMetadata, Flags } from "@chudware/utils/cli";
 import { PRODUCT_CLI_NAME } from "../brand";
 import { CLI_THINKING_LEVELS } from "../cli/thinking-levels";
 import { SERVICE_TIER_OPENAI_VALUES } from "../config/service-tier";
@@ -17,9 +17,9 @@ export const launchHelp = {
 		model: Flags.string({
 			description: 'Model to use (fuzzy match: "opus", "gpt-5.2", or "openai/gpt-5.2")',
 		}),
-		smol: Flags.string({ description: "Smol/fast model for lightweight tasks (or PI_SMOL_MODEL env)" }),
-		slow: Flags.string({ description: "Slow/reasoning model for thorough analysis (or PI_SLOW_MODEL env)" }),
-		plan: Flags.string({ description: "Plan model for architectural planning (or PI_PLAN_MODEL env)" }),
+		smol: Flags.string({ description: "Smol/fast model for lightweight tasks (or CHUDCODE_SMOL_MODEL env)" }),
+		slow: Flags.string({ description: "Slow/reasoning model for thorough analysis (or CHUDCODE_SLOW_MODEL env)" }),
+		plan: Flags.string({ description: "Plan model for architectural planning (or CHUDCODE_PLAN_MODEL env)" }),
 		prewalk: Flags.boolean({
 			description:
 				"Switch from the active model to a fast/cheap model at the first edit/write after the plan's todo list exists (default off; see prewalk.enabled)",
@@ -112,9 +112,9 @@ export const launchHelp = {
 		`# Include files in initial message\n  ${PRODUCT_CLI_NAME} @prompt.md @image.png "What color is the sky?"`,
 		`# Non-interactive mode (process and exit)\n  ${PRODUCT_CLI_NAME} -p "List all .ts files in src/"`,
 		`# Continue previous session\n  ${PRODUCT_CLI_NAME} --continue "What did we discuss?"`,
-		`# Create a shell shortcut for a work profile\n  ${PRODUCT_CLI_NAME} --profile work --alias omp-work`,
+		`# Create a shell shortcut for a work profile\n  ${PRODUCT_CLI_NAME} --profile work --alias chudcode-work`,
 		`# Use different model (fuzzy matching)\n  ${PRODUCT_CLI_NAME} --model opus "Help me refactor this code"`,
 		`# Limit model cycling to specific models\n  ${PRODUCT_CLI_NAME} --models claude-sonnet,claude-haiku,gpt-4o`,
-		`# Export a session file to HTML\n  ${PRODUCT_CLI_NAME} --export ~/.omp/agent/sessions/--path--/session.jsonl`,
+		`# Export a session file to HTML\n  ${PRODUCT_CLI_NAME} --export ~/.chudcode/agent/sessions/--path--/session.jsonl`,
 	],
 } satisfies CommandMetadata;

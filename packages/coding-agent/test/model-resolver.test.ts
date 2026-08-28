@@ -1,8 +1,8 @@
 import { describe, expect, test } from "bun:test";
-import { type Api, Effort, type Model, type ModelSpec } from "@oh-my-pi/pi-ai";
-import { buildModel } from "@oh-my-pi/pi-catalog/build";
-import { getBundledModel } from "@oh-my-pi/pi-catalog/models";
-import { DEFAULT_MODEL_PER_PROVIDER } from "@oh-my-pi/pi-catalog/provider-models";
+import { type Api, Effort, type Model, type ModelSpec } from "@chudware/ai";
+import { buildModel } from "@chudware/catalog/build";
+import { getBundledModel } from "@chudware/catalog/models";
+import { DEFAULT_MODEL_PER_PROVIDER } from "@chudware/catalog/provider-models";
 import {
 	expandRoleAlias,
 	extractExplicitThinkingSelector,
@@ -21,9 +21,9 @@ import {
 	resolveModelOverride,
 	resolveModelRoleValue,
 	resolveModelScope,
-} from "@oh-my-pi/pi-coding-agent/config/model-resolver";
-import { DEFAULT_MODEL_ROLE_ALIAS, LEGACY_MODEL_ROLE_ALIAS_PREFIX } from "@oh-my-pi/pi-coding-agent/config/model-roles";
-import { Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
+} from "@chudware/coding-agent/config/model-resolver";
+import { DEFAULT_MODEL_ROLE_ALIAS, LEGACY_MODEL_ROLE_ALIAS_PREFIX } from "@chudware/coding-agent/config/model-roles";
+import { Settings } from "@chudware/coding-agent/config/settings";
 
 // Mock models for testing
 const mockModels: Model<"anthropic-messages">[] = [
@@ -1591,7 +1591,7 @@ describe("resolveCliModel", () => {
 
 	test("inherits provider-scoped guardrail, transport, and header overrides onto an ARN model, but not the template's prompt-cache checkpoints", () => {
 		const templateModel = createBedrockDefaultModel({
-			transport: "pi-native",
+			transport: "chud-native",
 			headers: { "X-Custom-Header": "custom-value" },
 			guardrailIdentifier: "arn:aws:bedrock:eu-west-2:123456789012:guardrail/abcd1234",
 			guardrailVersion: "1",
@@ -1607,7 +1607,7 @@ describe("resolveCliModel", () => {
 
 		expect(result.error).toBeUndefined();
 		expect(result.model?.id).toBe(profileArn);
-		expect(result.model?.transport).toBe("pi-native");
+		expect(result.model?.transport).toBe("chud-native");
 		expect(result.model?.headers).toEqual({ "X-Custom-Header": "custom-value" });
 		expect(result.model?.guardrailIdentifier).toBe("arn:aws:bedrock:eu-west-2:123456789012:guardrail/abcd1234");
 		expect(result.model?.guardrailVersion).toBe("1");
@@ -1939,7 +1939,7 @@ describe("extractExplicitThinkingSelector", () => {
 		expect(result).toBe(Effort.Max);
 	});
 
-	test("treats max on pi role aliases as an explicit selector before expansion", () => {
+	test("treats max on chud role aliases as an explicit selector before expansion", () => {
 		const settings = Settings.isolated();
 		settings.setModelRole("smol", "nanogpt/coding-router:max");
 		const result = extractExplicitThinkingSelector("@smol:max", settings, {

@@ -1,19 +1,19 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "bun:test";
 import * as path from "node:path";
-import { Agent, type StreamFn } from "@oh-my-pi/pi-agent-core";
-import type { AssistantMessage, Model } from "@oh-my-pi/pi-ai";
-import { createMockModel } from "@oh-my-pi/pi-ai/providers/mock";
-import { AssistantMessageEventStream } from "@oh-my-pi/pi-ai/utils/event-stream";
-import { type GeneratedProvider, getBundledModel } from "@oh-my-pi/pi-catalog/models";
-import { ModelRegistry } from "@oh-my-pi/pi-coding-agent/config/model-registry";
-import { Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
-import { AgentSession } from "@oh-my-pi/pi-coding-agent/session/agent-session";
-import { AuthStorage } from "@oh-my-pi/pi-coding-agent/session/auth-storage";
-import { SessionManager } from "@oh-my-pi/pi-coding-agent/session/session-manager";
-import { Semaphore } from "@oh-my-pi/pi-coding-agent/task/parallel";
-import { wrapStreamFnWithProviderConcurrency } from "@oh-my-pi/pi-coding-agent/task/provider-concurrency";
-import { TempDir } from "@oh-my-pi/pi-utils";
-import { sleep } from "@oh-my-pi/pi-utils/async";
+import { Agent, type StreamFn } from "@chudware/agent-core";
+import type { AssistantMessage, Model } from "@chudware/ai";
+import { createMockModel } from "@chudware/ai/providers/mock";
+import { AssistantMessageEventStream } from "@chudware/ai/utils/event-stream";
+import { type GeneratedProvider, getBundledModel } from "@chudware/catalog/models";
+import { ModelRegistry } from "@chudware/coding-agent/config/model-registry";
+import { Settings } from "@chudware/coding-agent/config/settings";
+import { AgentSession } from "@chudware/coding-agent/session/agent-session";
+import { AuthStorage } from "@chudware/coding-agent/session/auth-storage";
+import { SessionManager } from "@chudware/coding-agent/session/session-manager";
+import { Semaphore } from "@chudware/coding-agent/task/parallel";
+import { wrapStreamFnWithProviderConcurrency } from "@chudware/coding-agent/task/provider-concurrency";
+import { TempDir } from "@chudware/utils";
+import { sleep } from "@chudware/utils/async";
 
 interface Deferred {
 	promise: Promise<void>;
@@ -38,7 +38,7 @@ describe("issue #3464: ollama-cloud task backoff", () => {
 	let session: AgentSession | undefined;
 
 	beforeAll(async () => {
-		tempDir = TempDir.createSync("@omp-issue-3464-");
+		tempDir = TempDir.createSync("@chudcode-issue-3464-");
 		authStorage = await AuthStorage.create(path.join(tempDir.path(), "auth.db"));
 		authStorage.setRuntimeApiKey("anthropic", "anthropic-test-key");
 		authStorage.setRuntimeApiKey("openai", "openai-test-key");

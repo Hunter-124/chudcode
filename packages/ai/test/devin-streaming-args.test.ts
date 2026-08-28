@@ -1,15 +1,15 @@
 import { describe, expect, it } from "bun:test";
-import { streamDevin } from "@oh-my-pi/pi-ai/providers/devin";
-import type { Context, Model, ToolCall } from "@oh-my-pi/pi-ai/types";
-import { buildModel } from "@oh-my-pi/pi-catalog/build";
+import { streamDevin } from "@chudware/ai/providers/devin";
+import type { Context, Model, ToolCall } from "@chudware/ai/types";
+import { buildModel } from "@chudware/catalog/build";
 import {
 	ChatToolCallSchema,
 	GetChatMessageResponseSchema,
 	GetUserJwtResponseSchema,
 	StopReason,
-} from "@oh-my-pi/pi-catalog/discovery/devin-proto";
-import { create, toBinary } from "@oh-my-pi/pi-catalog/discovery/protobuf";
-import { sleep } from "@oh-my-pi/pi-utils/async";
+} from "@chudware/catalog/discovery/devin-proto";
+import { create, toBinary } from "@chudware/catalog/discovery/protobuf";
+import { sleep } from "@chudware/utils/async";
 
 function frameConnectMessage(payload: Uint8Array): Uint8Array {
 	const out = new Uint8Array(5 + payload.length);

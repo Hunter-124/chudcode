@@ -2,9 +2,9 @@ import { beforeAll, describe, expect, it, vi } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import { CommandController } from "@oh-my-pi/pi-coding-agent/modes/controllers/command-controller";
-import { getThemeByName, setThemeInstance } from "@oh-my-pi/pi-coding-agent/modes/theme/theme";
-import type { InteractiveModeContext } from "@oh-my-pi/pi-coding-agent/modes/types";
+import { CommandController } from "@chudware/coding-agent/modes/controllers/command-controller";
+import { getThemeByName, setThemeInstance } from "@chudware/coding-agent/modes/theme/theme";
+import type { InteractiveModeContext } from "@chudware/coding-agent/modes/types";
 
 function createMoveContext(sourceDir: string, settingsFlush?: () => Promise<void>) {
 	const state = { cwd: sourceDir, movedTo: undefined as string | undefined };
@@ -62,8 +62,8 @@ describe("CommandController /move", () => {
 	});
 
 	it("relocates the active session before re-scoping cwd-derived state", async () => {
-		const sourceDir = await fs.mkdtemp(path.join(os.tmpdir(), "omp-move-source-"));
-		const targetDir = await fs.mkdtemp(path.join(os.tmpdir(), "omp-move-target-"));
+		const sourceDir = await fs.mkdtemp(path.join(os.tmpdir(), "chudcode-move-source-"));
+		const targetDir = await fs.mkdtemp(path.join(os.tmpdir(), "chudcode-move-target-"));
 		try {
 			const { ctx, state, present } = createMoveContext(sourceDir);
 			const controller = new CommandController(ctx);
@@ -85,8 +85,8 @@ describe("CommandController /move", () => {
 	});
 
 	it("restores captured manager state when cwd application fails", async () => {
-		const sourceDir = await fs.mkdtemp(path.join(os.tmpdir(), "omp-move-source-"));
-		const targetDir = await fs.mkdtemp(path.join(os.tmpdir(), "omp-move-target-"));
+		const sourceDir = await fs.mkdtemp(path.join(os.tmpdir(), "chudcode-move-source-"));
+		const targetDir = await fs.mkdtemp(path.join(os.tmpdir(), "chudcode-move-target-"));
 		try {
 			const { ctx, state, captureState, restoreState, rollbackMove, shutdown } = createMoveContext(sourceDir);
 			let applyCount = 0;
@@ -112,8 +112,8 @@ describe("CommandController /move", () => {
 		}
 	});
 	it("shuts down when rollback and workspace realignment both fail", async () => {
-		const sourceDir = await fs.mkdtemp(path.join(os.tmpdir(), "omp-move-source-"));
-		const targetDir = await fs.mkdtemp(path.join(os.tmpdir(), "omp-move-target-"));
+		const sourceDir = await fs.mkdtemp(path.join(os.tmpdir(), "chudcode-move-source-"));
+		const targetDir = await fs.mkdtemp(path.join(os.tmpdir(), "chudcode-move-target-"));
 		try {
 			const { ctx, shutdown, rollbackMove } = createMoveContext(sourceDir);
 			let applyCount = 0;
@@ -135,8 +135,8 @@ describe("CommandController /move", () => {
 		}
 	});
 	it("stops recovery after aligning with the moved session", async () => {
-		const sourceDir = await fs.mkdtemp(path.join(os.tmpdir(), "omp-move-source-"));
-		const targetDir = await fs.mkdtemp(path.join(os.tmpdir(), "omp-move-target-"));
+		const sourceDir = await fs.mkdtemp(path.join(os.tmpdir(), "chudcode-move-source-"));
+		const targetDir = await fs.mkdtemp(path.join(os.tmpdir(), "chudcode-move-target-"));
 		try {
 			const { ctx, shutdown, rollbackMove } = createMoveContext(sourceDir);
 			ctx.applyCwdChange = vi
@@ -160,8 +160,8 @@ describe("CommandController /move", () => {
 	});
 
 	it("aborts /move when pending settings flush fails, leaving cwd untouched", async () => {
-		const sourceDir = await fs.mkdtemp(path.join(os.tmpdir(), "omp-move-source-"));
-		const targetDir = await fs.mkdtemp(path.join(os.tmpdir(), "omp-move-target-"));
+		const sourceDir = await fs.mkdtemp(path.join(os.tmpdir(), "chudcode-move-source-"));
+		const targetDir = await fs.mkdtemp(path.join(os.tmpdir(), "chudcode-move-target-"));
 		try {
 			const { ctx, state } = createMoveContext(sourceDir, async () => {
 				throw new Error("disk full");

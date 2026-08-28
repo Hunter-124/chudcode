@@ -1,4 +1,4 @@
-declare module "@oh-my-pi/pi-coding-agent/secrets" {
+declare module "@chudware/coding-agent/secrets" {
 	export function buildSecretObfuscator(
 		cwd: string,
 		agentDir: string,

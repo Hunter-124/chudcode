@@ -9,7 +9,7 @@
  * with it via BaseKernel.
  */
 import * as path from "node:path";
-import { $flag, isBunTestRuntime, logger, Snowflake } from "@oh-my-pi/pi-utils";
+import { $flag, isBunTestRuntime, logger, Snowflake } from "@chudware/utils";
 import { Settings } from "../../config/settings";
 import { BaseKernel, getRemainingTimeMs, type KernelRuntimeEnv, type KernelStartOptions } from "../kernel-base";
 import { type BackendProbeOptions, probeCandidates } from "../probe";
@@ -30,7 +30,7 @@ export type { KernelExecuteResult, KernelRuntimeEnv, KernelShutdownResult } from
 export type { KernelDisplayOutput, PythonStatusEvent } from "../py/display";
 export { renderKernelDisplay } from "../py/display";
 
-const TRACE_IPC = $flag("PI_RUBY_IPC_TRACE");
+const TRACE_IPC = $flag("CHUDCODE_RUBY_IPC_TRACE");
 
 const SHUTDOWN_GRACE_MS = 1_000;
 const STARTUP_TIMEOUT_MS = 10_000;
@@ -69,7 +69,7 @@ export async function checkRubyKernelAvailability(
 	interpreter?: string,
 	options?: BackendProbeOptions,
 ): Promise<RubyKernelAvailability> {
-	if (isBunTestRuntime() || $flag("PI_RUBY_SKIP_CHECK")) {
+	if (isBunTestRuntime() || $flag("CHUDCODE_RUBY_SKIP_CHECK")) {
 		return { ok: true };
 	}
 	const resolvedCwd = path.resolve(cwd);
@@ -154,7 +154,7 @@ export class RubyKernel extends BaseKernel<KernelExecuteOptions> {
 
 		// Reuse the interpreter the availability probe selected. The fallback
 		// computes a runtime only for the skip-check fast path (test runtime /
-		// PI_RUBY_SKIP_CHECK), where no candidate was probed.
+		// CHUDCODE_RUBY_SKIP_CHECK), where no candidate was probed.
 		let runtime = availability.runtime;
 		if (!runtime) {
 			const { env: shellEnv } = (await Settings.init()).getShellConfig();
@@ -172,7 +172,7 @@ export class RubyKernel extends BaseKernel<KernelExecuteOptions> {
 			if (typeof value === "string") spawnEnv[key] = value;
 		}
 
-		const scriptPath = await stageRunnerScript("omp-ruby-runner", "rb", RUNNER_SCRIPT);
+		const scriptPath = await stageRunnerScript("chudcode-ruby-runner", "rb", RUNNER_SCRIPT);
 		const kernel = new RubyKernel(Snowflake.next());
 
 		const proc = Bun.spawn([runtime.rubyPath, scriptPath], {

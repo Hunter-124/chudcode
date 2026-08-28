@@ -1,8 +1,8 @@
 import { afterAll, beforeAll, describe, expect, it } from "bun:test";
-import { resetSettingsForTest, Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
-import { StatusLineComponent } from "@oh-my-pi/pi-coding-agent/modes/components/status-line";
-import { initTheme, theme } from "@oh-my-pi/pi-coding-agent/modes/theme/theme";
-import { getProjectDir, setProjectDir } from "@oh-my-pi/pi-utils";
+import { resetSettingsForTest, Settings } from "@chudware/coding-agent/config/settings";
+import { StatusLineComponent } from "@chudware/coding-agent/modes/components/status-line";
+import { initTheme, theme } from "@chudware/coding-agent/modes/theme/theme";
+import { getProjectDir, setProjectDir } from "@chudware/utils";
 
 const originalProjectDir = getProjectDir();
 
@@ -55,7 +55,7 @@ function buildComponent(transparent: boolean) {
 	const component = new StatusLineComponent(makeSession());
 	component.updateSettings({
 		preset: "custom",
-		leftSegments: ["pi"],
+		leftSegments: ["chud"],
 		rightSegments: ["session_name"],
 		separator: "powerline-thin",
 		sessionAccent: false,

@@ -14,13 +14,13 @@
  * redraw — that per-event recompute is what previously froze large sessions.
  */
 import { afterAll, beforeAll, describe, expect, it } from "bun:test";
-import { resetSettingsForTest, Settings, settings } from "@oh-my-pi/pi-coding-agent/config/settings";
-import type { ContextUsage } from "@oh-my-pi/pi-coding-agent/extensibility/extensions/types";
-import { StatusLineComponent } from "@oh-my-pi/pi-coding-agent/modes/components/status-line";
-import { initTheme, setSymbolPreset, theme } from "@oh-my-pi/pi-coding-agent/modes/theme/theme";
-import type { AgentSession } from "@oh-my-pi/pi-coding-agent/session/agent-session";
-import { getSessionAccentAnsi } from "@oh-my-pi/pi-coding-agent/utils/session-color";
-import { adjustHsv } from "@oh-my-pi/pi-utils";
+import { resetSettingsForTest, Settings, settings } from "@chudware/coding-agent/config/settings";
+import type { ContextUsage } from "@chudware/coding-agent/extensibility/extensions/types";
+import { StatusLineComponent } from "@chudware/coding-agent/modes/components/status-line";
+import { initTheme, setSymbolPreset, theme } from "@chudware/coding-agent/modes/theme/theme";
+import type { AgentSession } from "@chudware/coding-agent/session/agent-session";
+import { getSessionAccentAnsi } from "@chudware/coding-agent/utils/session-color";
+import { adjustHsv } from "@chudware/utils";
 
 beforeAll(async () => {
 	resetSettingsForTest();
@@ -225,7 +225,7 @@ describe("StatusLineComponent context breakdown", () => {
 		const comp = new StatusLineComponent(session);
 		comp.updateSettings({
 			preset: "custom",
-			leftSegments: ["pi"],
+			leftSegments: ["chud"],
 			rightSegments: ["session_name"],
 			separator: "powerline-thin",
 		});
@@ -299,7 +299,7 @@ describe("StatusLineComponent context breakdown", () => {
 		const comp = new StatusLineComponent(session);
 		comp.updateSettings({
 			preset: "custom",
-			leftSegments: ["pi"],
+			leftSegments: ["chud"],
 			rightSegments: ["session_name"],
 			separator: "none",
 			sessionAccent: false,
@@ -322,7 +322,7 @@ describe("StatusLineComponent context breakdown", () => {
 		const comp = new StatusLineComponent(session);
 		comp.updateSettings({
 			preset: "custom",
-			leftSegments: ["pi"],
+			leftSegments: ["chud"],
 			rightSegments: ["session_name"],
 			separator: "none",
 			sessionAccent: false,
@@ -340,7 +340,7 @@ describe("StatusLineComponent context breakdown", () => {
 			usage: { tokens: 80_000, contextWindow: 1_000_000, percent: 8 },
 		});
 		settings.override("statusLine.preset", "custom");
-		settings.override("statusLine.leftSegments", ["pi", "context_pct"]);
+		settings.override("statusLine.leftSegments", ["chud", "context_pct"]);
 		settings.override("statusLine.rightSegments", ["context_total", "session_name"]);
 		settings.override("statusLine.contextLine", "embedded");
 
@@ -377,7 +377,7 @@ describe("StatusLineComponent context breakdown", () => {
 			sessionName: null,
 		});
 		settings.override("statusLine.preset", "custom");
-		settings.override("statusLine.leftSegments", ["pi", "context_pct"]);
+		settings.override("statusLine.leftSegments", ["chud", "context_pct"]);
 		settings.override("statusLine.rightSegments", ["session_name"]);
 		settings.override("statusLine.contextLine", "embedded");
 
@@ -403,7 +403,7 @@ describe("StatusLineComponent context breakdown", () => {
 			usage: { tokens: 240_000, contextWindow: 200_000, percent: 120 },
 		});
 		settings.override("statusLine.preset", "custom");
-		settings.override("statusLine.leftSegments", ["pi", "context_pct"]);
+		settings.override("statusLine.leftSegments", ["chud", "context_pct"]);
 		settings.override("statusLine.rightSegments", ["context_total", "session_name"]);
 		settings.override("statusLine.contextLine", "embedded");
 
@@ -435,7 +435,7 @@ describe("StatusLineComponent context breakdown", () => {
 		const comp = new StatusLineComponent(session);
 		comp.updateSettings({
 			preset: "custom",
-			leftSegments: ["pi"],
+			leftSegments: ["chud"],
 			rightSegments: ["session_name"],
 			separator: "none",
 			sessionAccent: false,
@@ -479,7 +479,7 @@ describe("StatusLineComponent context breakdown", () => {
 		const comp = new StatusLineComponent(session);
 		comp.updateSettings({
 			preset: "custom",
-			leftSegments: ["pi"],
+			leftSegments: ["chud"],
 			rightSegments: ["session_name"],
 			separator: "none",
 			sessionAccent: false,
@@ -500,7 +500,7 @@ describe("StatusLineComponent context breakdown", () => {
 		const comp = new StatusLineComponent(session);
 		comp.updateSettings({
 			preset: "custom",
-			leftSegments: ["pi"],
+			leftSegments: ["chud"],
 			rightSegments: ["session_name"],
 			separator: "none",
 			sessionAccent: false,
@@ -558,7 +558,7 @@ describe("StatusLineComponent context breakdown", () => {
 		const comp = new StatusLineComponent(session);
 		comp.updateSettings({
 			preset: "custom",
-			leftSegments: ["pi"],
+			leftSegments: ["chud"],
 			rightSegments: ["session_name"],
 			separator: "none",
 			sessionAccent: false,

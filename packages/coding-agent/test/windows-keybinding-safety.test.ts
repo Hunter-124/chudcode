@@ -1,15 +1,15 @@
 import { afterEach, beforeAll, describe, expect, it, vi } from "bun:test";
-import type { AgentMessage } from "@oh-my-pi/pi-agent-core";
-import type { AssistantMessage, ImageContent } from "@oh-my-pi/pi-ai";
-import { KeybindingsManager } from "@oh-my-pi/pi-coding-agent/config/keybindings";
-import { CopySelectorComponent } from "@oh-my-pi/pi-coding-agent/modes/components/copy-selector";
-import { CustomEditor } from "@oh-my-pi/pi-coding-agent/modes/components/custom-editor";
-import { chipLabel } from "@oh-my-pi/pi-coding-agent/modes/composer-attachments";
-import { InputController } from "@oh-my-pi/pi-coding-agent/modes/controllers/input-controller";
-import { getEditorTheme, initTheme } from "@oh-my-pi/pi-coding-agent/modes/theme/theme";
-import type { InteractiveModeContext } from "@oh-my-pi/pi-coding-agent/modes/types";
-import { buildCopyTargets } from "@oh-my-pi/pi-coding-agent/modes/utils/copy-targets";
-import { setKeybindings } from "@oh-my-pi/pi-tui";
+import type { AgentMessage } from "@chudware/agent-core";
+import type { AssistantMessage, ImageContent } from "@chudware/ai";
+import { KeybindingsManager } from "@chudware/coding-agent/config/keybindings";
+import { CopySelectorComponent } from "@chudware/coding-agent/modes/components/copy-selector";
+import { CustomEditor } from "@chudware/coding-agent/modes/components/custom-editor";
+import { chipLabel } from "@chudware/coding-agent/modes/composer-attachments";
+import { InputController } from "@chudware/coding-agent/modes/controllers/input-controller";
+import { getEditorTheme, initTheme } from "@chudware/coding-agent/modes/theme/theme";
+import type { InteractiveModeContext } from "@chudware/coding-agent/modes/types";
+import { buildCopyTargets } from "@chudware/coding-agent/modes/utils/copy-targets";
+import { setKeybindings } from "@chudware/tui";
 
 beforeAll(async () => {
 	await initTheme(false);

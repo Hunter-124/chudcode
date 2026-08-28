@@ -7,16 +7,16 @@ found while working, and it needs you present to validate CAD's runtime.
 ## What CAD actually consumes
 
 CAD does **not** run the `chudcode` CLI. It vendors a curated subset of Chudcode source and
-talks to it over a private bun sidecar (`vendor/omp/bridge/src/bridge.ts`,
-newline-delimited JSON-RPC on stdio, spawned by CAD's own C++ `OmpBridgeClient`
-and Python `omp_bridge.py`).
+talks to it over a private bun sidecar (`vendor/chudcode/bridge/src/bridge.ts`,
+newline-delimited JSON-RPC on stdio, spawned by CAD's own C++ `ChudBridgeClient`
+and Python `chudcode_bridge.py`).
 
-Vendored packages, per `vendor/omp/OMP_VENDOR.lock`:
-`ai`, `catalog`, `utils`, `wire`, `mnemopi`, `snapcompact` — pinned to upstream
+Vendored packages, per `vendor/chudcode/CHUDCODE_VENDOR.lock`:
+`ai`, `catalog`, `utils`, `wire`, `mnemo`, `snapcompact` — pinned to upstream
 sha `d1239fd3e57a48a35b483663d16ab078db75a87b` (2026-07-27), 714 files, one
 sha256 each, and `vendor_omp.py --verify` fails the build on any drift.
 
-Deliberately **not** vendored: `pi-agent-core`, `pi-coding-agent`, `pi-tui`.
+Deliberately **not** vendored: `chud-agent-core`, `chudcode-agent`, `chud-tui`.
 
 ### Why that's good news
 
@@ -44,15 +44,15 @@ work are all safe by construction.
 CAD pins the **native** from npm while vendoring the rest as source:
 
 ```
-"@oh-my-pi/pi-natives": "17.1.5"
-"@oh-my-pi/pi-utils":   "17.1.5"
-"@oh-my-pi/pi-ai":      "workspace:*"   (vendored source)
-"@oh-my-pi/pi-catalog": "workspace:*"   (vendored source)
+"@chudware/natives": "17.1.5"
+"@chudware/utils":   "17.1.5"
+"@chudware/ai":      "workspace:*"   (vendored source)
+"@chudware/catalog": "workspace:*"   (vendored source)
 ```
 
 Our fork branches are based on either old main (`f833810d0e`, 2026-07-23) or
 current main (`d17c270090`, v18.0.7). Re-vendoring source from an 18.x base while
-`pi-natives` stays at 17.1.5 is very likely to break, and I hit exactly this
+`chud-natives` stays at 17.1.5 is very likely to break, and I hit exactly this
 class of failure today by accident: the 17.x native does not export
 `NativeDesktopSession`, which 18.x's `desktop-adapter.js` expects —
 
@@ -61,9 +61,9 @@ TypeError: WeakMap keys must be objects or non-registered symbols
   at adaptDesktopSession (packages/natives/native/desktop-adapter.js:339)
 ```
 
-So a full jump means bumping `pi-natives` to 18.x too, which is a genuine
+So a full jump means bumping `chud-natives` to 18.x too, which is a genuine
 migration: 5400+ upstream commits of drift across `ai`/`catalog`/`utils`/
-`wire`/`mnemopi`/`snapcompact`, any of which can move an export the bridge
+`wire`/`mnemo`/`snapcompact`, any of which can move an export the bridge
 depends on (`AuthStorage`, `getBundledModel`, `PROVIDER_REGISTRY`,
 `SqliteAuthCredentialStore`, snapcompact's frame/archive shape). I cannot
 validate that end to end without running CAD's C++ core and hostd.
@@ -91,9 +91,9 @@ To adopt:
 ```bash
 cd /home/hunter/Repositories/CAD
 python3 scripts/vendor_omp.py \
-  --from https://github.com/Hunter-124/oh-my-pi.git \
+  --from https://github.com/Hunter-124/chudware.git \
   --sha <sha of cad/oauth-fix-on-vendored-base> \
-  --packages ai catalog utils wire mnemopi snapcompact
+  --packages ai catalog utils wire mnemo snapcompact
 python3 scripts/vendor_omp.py --verify
 # then CAD's own build + bridge smoke test
 ```
@@ -103,10 +103,10 @@ If `--verify` reports anything else, stop — the base moved.
 
 ## Later — the full jump, when you're around
 
-1. Pick a fork commit and bump `pi-natives`/`pi-utils` npm pins to the matching
+1. Pick a fork commit and bump `chud-natives`/`chud-utils` npm pins to the matching
    major **in the same commit**. Mismatched native and source is the failure mode.
 2. Re-vendor, then grep the bridge for every symbol it imports from
-   `ai`/`catalog`/`utils`/`wire`/`mnemopi`/`snapcompact` and confirm each still
+   `ai`/`catalog`/`utils`/`wire`/`mnemo`/`snapcompact` and confirm each still
    exists with the same shape.
 3. Exercise the bridge specifically: provider auth (`AuthStorage.login`), model
    lookup (`getBundledModel`), and a snapcompact round-trip — those are the three

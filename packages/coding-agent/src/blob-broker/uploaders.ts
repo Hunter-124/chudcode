@@ -3,8 +3,8 @@
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import { directoryIsEnterableSync, getProjectDir, logger } from "@oh-my-pi/pi-utils";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
+import { directoryIsEnterableSync, getProjectDir, logger } from "@chudware/utils";
+import * as fsx from "@chudware/utils/fsx";
 import { type BlobDestinationId, type BlobDestinationMetadata, BUILTIN_BLOB_DESTINATIONS } from "./destinations";
 import type { BlobPublication, BlobUploader, BlobUploadRequest } from "./publication";
 import { type DestinationRuntimeConfig, DestinationUnavailableError, optionString } from "./uploader-runtime";
@@ -88,7 +88,7 @@ export function createCommandUploader(template: string): BlobUploader {
 		destination: "command",
 		async upload(request: BlobUploadRequest): Promise<BlobPublication> {
 			const { bytes, mimeType, extension } = request;
-			const file = path.join(os.tmpdir(), `omp-blob-upload-${crypto.randomUUID()}.${extension}`);
+			const file = path.join(os.tmpdir(), `chudcode-blob-upload-${crypto.randomUUID()}.${extension}`);
 			await fsx.write(file, bytes);
 			try {
 				const argv = argvTemplate.map(arg =>

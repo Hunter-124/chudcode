@@ -1,8 +1,8 @@
 import { describe, expect, it, vi } from "bun:test";
-import * as AIError from "@oh-my-pi/pi-ai/error";
-import { exchangeOpenRouterCode, OpenRouterOAuthFlow } from "@oh-my-pi/pi-ai/registry/oauth/openrouter";
-import type { OAuthController } from "@oh-my-pi/pi-ai/registry/oauth/types";
-import type { FetchImpl } from "@oh-my-pi/pi-ai/types";
+import * as AIError from "@chudware/ai/error";
+import { exchangeOpenRouterCode, OpenRouterOAuthFlow } from "@chudware/ai/registry/oauth/openrouter";
+import type { OAuthController } from "@chudware/ai/registry/oauth/types";
+import type { FetchImpl } from "@chudware/ai/types";
 
 const KEY_EXCHANGE_URL = "https://openrouter.ai/api/v1/auth/keys";
 const REDIRECT_URI = "http://localhost:54549/callback";

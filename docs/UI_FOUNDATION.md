@@ -8,7 +8,7 @@ layout, input and asset decision in the Chudcode GUI. It supersedes
 `CAD:host/src/ui/anim.h:43`) refer to `~/Repositories/CAD`, the audited design
 source. They are **design provenance only** — evidence that a rule was proven
 in a shipping product. CAD is **not** a runtime dependency of Chudcode:
-Chudcode is a direct OMP implementation, and every module below is built in
+Chudcode is a direct Chudcode implementation, and every module below is built in
 this repository against upstream Dear ImGui.
 
 Rule keywords are RFC 2119.
@@ -512,7 +512,7 @@ InputText callback** so it never fights send.
 
 ## 11. Composer and transcript — the prompt-box familiarity contract
 
-The composer MUST feel exactly like the OMP prompt box the user already knows.
+The composer MUST feel exactly like the Chudcode prompt box the user already knows.
 The behaviors below are ported (not reimplemented) from the proven
 implementation (provenance `CAD:host/src/ui/copilot/composer.cpp`,
 `text_wrap.h`, `chat_log.cpp`, `ui_common.cpp`).
@@ -608,7 +608,7 @@ L3  chud_ui_graph / chud_ui_editor / chud_ui_vcs / chud_ui_copilot
 | `chud_ui_graph` | force-directed canvas panel; node/edge draw vocabulary (Tone-coded nodes, `phase(kMarch)` edges, §8 insert/remove motion); hit-testing; camera (pan/zoom, `easeInOut` auto-frame); LOD labels via `elide`; HUD via `GlassGroup::Graph` | `chud/ui/graph.h` | own a data model — consumes a plain node/edge snapshot + diff stream (added/removed/changed ids) from the app |
 | `chud_ui_editor` | code editor panel (buffer view, gutter, syntax tones), tabs/dirty/save-reload prompts, quick-open + in-file search UI, LSP presentation (diagnostics, hover card on glass, completion popup), diff view (palette diff roles, §8 motion) | `chud/ui/editor.h`, `chud/ui/diff.h` | touch disk or sockets — text/LSP/file transport is injected |
 | `chud_ui_vcs` | git status/stage rows, commit composer (reuses editor input core), history log with render windowing, branch switcher, blame gutter, live file-edit event feed | `chud/ui/vcs.h` | own VCS state — consumes a snapshot/diff-event interface |
-| `chud_ui_copilot` | transcript panel (§11), composer (§11), streaming motion, jump-to-latest, chat scrollbar lane | `chud/ui/copilot.h` | couple to any CAD type — consumes a neutral OMP event-stream interface (turns, activity items, deltas) |
+| `chud_ui_copilot` | transcript panel (§11), composer (§11), streaming motion, jump-to-latest, chat scrollbar lane | `chud/ui/copilot.h` | couple to any CAD type — consumes a neutral Chudcode event-stream interface (turns, activity items, deltas) |
 
 Enforcement: the include-graph lint (§15, `ownership`) fails any `#include`
 crossing this matrix.

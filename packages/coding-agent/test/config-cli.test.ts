@@ -1,13 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "bun:test";
 import * as path from "node:path";
-import { runConfigCommand } from "@oh-my-pi/pi-coding-agent/cli/config-cli";
-import { resetSettingsForTest } from "@oh-my-pi/pi-coding-agent/config/settings";
-import { AgentStorage } from "@oh-my-pi/pi-coding-agent/session/agent-storage";
-import { getConfigRootDir, setAgentDir, TempDir } from "@oh-my-pi/pi-utils";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
+import { runConfigCommand } from "@chudware/coding-agent/cli/config-cli";
+import { resetSettingsForTest } from "@chudware/coding-agent/config/settings";
+import { AgentStorage } from "@chudware/coding-agent/session/agent-storage";
+import { getConfigRootDir, setAgentDir, TempDir } from "@chudware/utils";
+import * as fsx from "@chudware/utils/fsx";
 
 let testAgentDir: TempDir | undefined;
-const originalAgentDir = process.env.PI_CODING_AGENT_DIR;
+const originalAgentDir = process.env.CHUDCODE_CODING_AGENT_DIR;
 const fallbackAgentDir = path.join(getConfigRootDir(), "agent");
 const cliEntry = path.join(import.meta.dir, "..", "src", "cli.ts");
 
@@ -31,7 +31,7 @@ async function runCliProcess(args: string[], env: NodeJS.ProcessEnv): Promise<Cl
 
 beforeEach(() => {
 	resetSettingsForTest();
-	testAgentDir = TempDir.createSync("@omp-config-cli-");
+	testAgentDir = TempDir.createSync("@chudcode-config-cli-");
 	setAgentDir(testAgentDir.path());
 });
 
@@ -43,7 +43,7 @@ afterEach(async () => {
 		setAgentDir(originalAgentDir);
 	} else {
 		setAgentDir(fallbackAgentDir);
-		delete process.env.PI_CODING_AGENT_DIR;
+		delete process.env.CHUDCODE_CODING_AGENT_DIR;
 	}
 	if (testAgentDir) {
 		try {
@@ -189,7 +189,7 @@ describe("config CLI schema coverage", () => {
 	it("fully flushes JSON larger than a pipe buffer", async () => {
 		if (!testAgentDir) throw new Error("Test agent directory was not initialized");
 		const { exitCode, output, error } = await runCliProcess(["config", "list", "--json"], {
-			PI_CODING_AGENT_DIR: testAgentDir.path(),
+			CHUDCODE_CODING_AGENT_DIR: testAgentDir.path(),
 		});
 
 		expect(exitCode).toBe(0);
@@ -198,7 +198,7 @@ describe("config CLI schema coverage", () => {
 		const parsed: unknown = JSON.parse(output);
 		expect(parsed).toMatchObject({ modelRoles: { type: "record" } });
 	});
-	it("loads PI_CONFIG_FILES overlays in path-list order", async () => {
+	it("loads CHUDCODE_CONFIG_FILES overlays in path-list order", async () => {
 		if (!testAgentDir) throw new Error("Test agent directory was not initialized");
 		const baseOverlayPath = path.join(testAgentDir.path(), "base-overlay.yml");
 		const finalOverlayPath = path.join(testAgentDir.path(), "final-overlay.yml");
@@ -207,8 +207,8 @@ describe("config CLI schema coverage", () => {
 			fsx.write(finalOverlayPath, "defaultThinkingLevel: max\n"),
 		]);
 		const { exitCode, output, error } = await runCliProcess(["config", "get", "defaultThinkingLevel", "--json"], {
-			PI_CODING_AGENT_DIR: testAgentDir.path(),
-			PI_CONFIG_FILES: [baseOverlayPath, finalOverlayPath].join(path.delimiter),
+			CHUDCODE_CODING_AGENT_DIR: testAgentDir.path(),
+			CHUDCODE_CONFIG_FILES: [baseOverlayPath, finalOverlayPath].join(path.delimiter),
 		});
 
 		expect(exitCode).toBe(0);

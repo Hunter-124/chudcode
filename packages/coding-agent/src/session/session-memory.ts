@@ -1,13 +1,13 @@
 /** Session memory backend lifecycle and transcript resets. */
 
-import type { Agent, AgentTool } from "@oh-my-pi/pi-agent-core";
-import { logger } from "@oh-my-pi/pi-utils";
+import type { Agent, AgentTool } from "@chudware/agent-core";
+import { logger } from "@chudware/utils";
 import type { ModelRegistry } from "../config/model-registry";
 import type { Settings } from "../config/settings";
 import type { HindsightSessionState } from "../hindsight/state";
 import { resolveMemoryBackend } from "../memory-backend/resolve";
 import type { MemoryBackendStartOptions } from "../memory-backend/types";
-import type { MnemopiSessionState } from "../mnemopi/state";
+import type { MnemopiSessionState } from "../mnemo/state";
 
 /** Capabilities borrowed from the owning AgentSession. */
 export interface SessionMemoryHost {
@@ -87,7 +87,7 @@ export class SessionMemory {
 	}
 
 	#rekeyMnemopiMemoryForCurrentSessionId(): void {
-		if (this.#host.settings.get("memory.backend") !== "mnemopi") return;
+		if (this.#host.settings.get("memory.backend") !== "mnemo") return;
 		const sid = this.#host.agent.sessionId;
 		if (!sid) return;
 		this.#host.getMnemopiSessionState()?.setSessionId(sid);
@@ -103,7 +103,7 @@ export class SessionMemory {
 	}
 
 	#resetMnemopiConversationTrackingIfMnemopi(): boolean {
-		if (this.#host.settings.get("memory.backend") !== "mnemopi") return false;
+		if (this.#host.settings.get("memory.backend") !== "mnemo") return false;
 		const state = this.#host.getMnemopiSessionState();
 		if (!state || state.aliasOf) return false;
 		state.resetConversationTracking();
@@ -156,12 +156,12 @@ export class SessionMemory {
 			hindsight.dispose();
 		}
 
-		const mnemopi = this.#host.takeMnemopiSessionState();
-		if (mnemopi) {
+		const mnemo = this.#host.takeMnemopiSessionState();
+		if (mnemo) {
 			try {
-				await mnemopi.dispose({ consolidate: consolidateMnemopi });
+				await mnemo.dispose({ consolidate: consolidateMnemopi });
 			} catch (error) {
-				logger.warn("Memory lifecycle: Mnemopi dispose failed", { error: String(error) });
+				logger.warn("Memory lifecycle: Mnemo dispose failed", { error: String(error) });
 			}
 		}
 	}

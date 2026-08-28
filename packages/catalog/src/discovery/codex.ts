@@ -1,4 +1,4 @@
-import { type } from "@oh-my-pi/omptype";
+import { type } from "@chudware/chudtype";
 import { parseKnownModel, semverEqual } from "../identity/classify";
 import { getBundledModels } from "../models";
 import { resolveOpenAIDaybreakStandardCost } from "../openai-pricing";
@@ -113,7 +113,7 @@ export interface CodexModelDiscoveryResult {
 }
 
 /**
- * Fetches model metadata from Codex backend and normalizes it for pi model management.
+ * Fetches model metadata from Codex backend and normalizes it for chud model management.
  *
  * Returns `null` when no supported model-list route can be fetched/parsed.
  * Returns `{ models: [] }` when a route succeeds but yields no usable models.

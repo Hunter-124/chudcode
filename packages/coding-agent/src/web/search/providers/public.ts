@@ -1,5 +1,5 @@
-import type { AuthStorage } from "@oh-my-pi/pi-ai";
-import { sleep } from "@oh-my-pi/pi-utils/async";
+import type { AuthStorage } from "@chudware/ai";
+import { sleep } from "@chudware/utils/async";
 import { formatSearchProviderFailures, getSearchProvider, isSearchProviderExcluded } from "../provider";
 import type { SearchProviderId, SearchResponse, SearchSource } from "../types";
 import { SearchProviderError } from "../types";

@@ -1,4 +1,4 @@
-import { sleep } from "@oh-my-pi/pi-utils/async";
+import { sleep } from "@chudware/utils/async";
 import * as AIError from "../../error";
 import { generatePKCE } from "./pkce";
 import type { OAuthCredentials } from "./types";

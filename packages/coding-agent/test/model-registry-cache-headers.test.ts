@@ -3,20 +3,20 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
-import { writeModelCache } from "@oh-my-pi/pi-catalog/model-cache";
-import { getBundledModels } from "@oh-my-pi/pi-catalog/models";
-import { resolveModelCacheProviderId } from "@oh-my-pi/pi-catalog/provider-models";
-import { ModelRegistry } from "@oh-my-pi/pi-coding-agent/config/model-registry";
-import { AuthStorage } from "@oh-my-pi/pi-coding-agent/session/auth-storage";
-import { removeSyncWithRetries } from "@oh-my-pi/pi-utils";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
+import { writeModelCache } from "@chudware/catalog/model-cache";
+import { getBundledModels } from "@chudware/catalog/models";
+import { resolveModelCacheProviderId } from "@chudware/catalog/provider-models";
+import { ModelRegistry } from "@chudware/coding-agent/config/model-registry";
+import { AuthStorage } from "@chudware/coding-agent/session/auth-storage";
+import { removeSyncWithRetries } from "@chudware/utils";
+import * as fsx from "@chudware/utils/fsx";
 
 describe("startup model cache header restoration (#5780)", () => {
 	let tempDir: string;
 	let authStorage: AuthStorage;
 
 	beforeEach(async () => {
-		tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "pi-test-cache-headers-"));
+		tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "chud-test-cache-headers-"));
 		authStorage = await AuthStorage.create(path.join(tempDir, "auth.db"));
 	});
 

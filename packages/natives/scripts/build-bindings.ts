@@ -5,7 +5,7 @@
  * scripts/bazel-natives.ts); release addons build through Bazel with explicit
  * //:natives-* targets. Host target only — no cross-compilation.
  *
- * `OMP_NATIVE_CARGO_PROFILE` selects the cargo profile (default `local`:
+ * `CHUDCODE_NATIVE_CARGO_PROFILE` selects the cargo profile (default `local`:
  * incremental, unstripped). Image builds set `ci` for a stripped addon.
  */
 
@@ -13,7 +13,7 @@ import * as fsSync from "node:fs";
 import * as fs from "node:fs/promises";
 import { createRequire } from "node:module";
 import * as path from "node:path";
-import * as proc from "@oh-my-pi/pi-utils/proc";
+import * as proc from "@chudware/utils/proc";
 import { $ } from "bun";
 import { detectHostAvx2Support, resolveLocalHostAddon } from "../../../scripts/host-detect";
 import { generateEnumExports } from "./gen-enums";
@@ -61,7 +61,7 @@ if (process.platform === "win32" && (!Bun.which("cmake") || !Bun.which("ninja"))
 }
 
 const repoRoot = path.join(import.meta.dir, "../../..");
-const rustDir = path.join(repoRoot, "crates/pi-natives");
+const rustDir = path.join(repoRoot, "crates/chud-natives");
 const nativeDir = path.join(import.meta.dir, "../native");
 const packageJsonPath = path.join(import.meta.dir, "../package.json");
 
@@ -142,7 +142,7 @@ async function resolveBuiltAddonPath(outputDir: string, canonicalFilename: strin
 	}
 
 	const generatedCandidates = entries.filter(
-		entry => entry.startsWith(`pi_natives.${process.platform}-${process.arch}`) && entry.endsWith(".node"),
+		entry => entry.startsWith(`chud_natives.${process.platform}-${process.arch}`) && entry.endsWith(".node"),
 	);
 
 	if (generatedCandidates.length === 1) {
@@ -175,7 +175,7 @@ async function installGeneratedBindings(outputDir: string): Promise<void> {
 const canonicalAddonFilename = localAddon.filename;
 const canonicalAddonPath = path.join(nativeDir, canonicalAddonFilename);
 
-console.log(`Building pi-natives bindings for ${process.platform}-${process.arch}${variantSuffix} (local)…`);
+console.log(`Building chud-natives bindings for ${process.platform}-${process.arch}${variantSuffix} (local)…`);
 
 await fs.mkdir(nativeDir, { recursive: true });
 await cleanupStaleTemps(nativeDir);
@@ -209,7 +209,7 @@ const napiBin = path.join(path.dirname(napiManifestPath), napiBinEntry);
 
 // Profiles live in the root Cargo.toml; `local` trades size for iteration
 // speed, `ci` strips and drops incremental state.
-const cargoProfile = process.env.OMP_NATIVE_CARGO_PROFILE?.trim() || "local";
+const cargoProfile = process.env.CHUDCODE_NATIVE_CARGO_PROFILE?.trim() || "local";
 
 const napiArgs = [
 	"build",

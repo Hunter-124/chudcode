@@ -1,7 +1,7 @@
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
-import { getAgentDir, getProjectDir } from "@oh-my-pi/pi-utils";
-import { sleep } from "@oh-my-pi/pi-utils/async";
+import { getAgentDir, getProjectDir } from "@chudware/utils";
+import { sleep } from "@chudware/utils/async";
 import type { DesktopFrame, DesktopRequest } from "./protocol";
 import { createDesktopRuntime, type DesktopFrameSink } from "./runtime";
 import {
@@ -15,6 +15,7 @@ import { ServiceRouter } from "./service-router";
 const PRESENCE_FILE = "desktop-url.json";
 const PRESENCE_RETRIES = 20;
 const PRESENCE_RETRY_MS = 25;
+const GUI_EXECUTABLE = "chudcode-gui";
 
 const BROWSER_CANDIDATES: Record<NodeJS.Platform, readonly string[]> = {
 	aix: [],
@@ -64,11 +65,16 @@ export interface LaunchDesktopOptions {
 	cwd?: string;
 	runtimeDir?: string;
 	browser?: Partial<BrowserLauncherDependencies>;
+	/** Attach the native `chudcode-gui` window instead of a browser tab. */
+	client?: DesktopClientKind;
 }
+
+export type DesktopClientKind = "browser" | "gui";
 
 export interface LaunchedDesktop {
 	readonly url: string;
 	readonly bootstrapUrl: string;
+	readonly token: string;
 	readonly reused: boolean;
 	stop(): Promise<void>;
 }
@@ -76,6 +82,7 @@ export interface LaunchedDesktop {
 interface Presence {
 	url: string;
 	bootstrapUrl: string;
+	token: string;
 }
 
 class DeferredRuntimeHost implements DesktopRuntimeHost {
@@ -177,6 +184,38 @@ export function openDesktopBrowser(
 	return { mode: "default", argv };
 }
 
+/** Derives the loopback WebSocket endpoint the native GUI connects to. */
+export function desktopWebSocketUrl(httpUrl: string): string {
+	const parsed = new URL(httpUrl);
+	parsed.protocol = parsed.protocol === "https:" ? "wss:" : "ws:";
+	parsed.pathname = "/ws";
+	parsed.search = "";
+	parsed.hash = "";
+	return parsed.toString();
+}
+
+/**
+ * Launches the native `chudcode-gui` window against a running desktop server.
+ * Returns the spawned process so a foreground launcher can exit with the window.
+ */
+export function openDesktopGui(
+	url: string,
+	token: string,
+	overrides: Partial<BrowserLauncherDependencies> = {},
+): { argv: string[]; process: BrowserProcess } {
+	const dependencies = defaultBrowserDependencies(overrides);
+	const executable =
+		(process.env.CHUDCODE_GUI_BIN?.length ? process.env.CHUDCODE_GUI_BIN : null) ??
+		dependencies.which(GUI_EXECUTABLE);
+	if (!executable) {
+		throw new Error(
+			`${GUI_EXECUTABLE} was not found on PATH; set CHUDCODE_GUI_BIN or install the desktop GUI`,
+		);
+	}
+	const argv = [executable, "--url", desktopWebSocketUrl(url), "--token", token];
+	return { argv, process: dependencies.spawn(argv) };
+}
+
 async function readPresence(filePath: string): Promise<Presence | undefined> {
 	for (let attempt = 0; attempt < PRESENCE_RETRIES; attempt += 1) {
 		try {
@@ -187,9 +226,11 @@ async function readPresence(filePath: string): Promise<Presence | undefined> {
 				"url" in value &&
 				typeof value.url === "string" &&
 				"bootstrapUrl" in value &&
-				typeof value.bootstrapUrl === "string"
+				typeof value.bootstrapUrl === "string" &&
+				"token" in value &&
+				typeof value.token === "string"
 			) {
-				return { url: value.url, bootstrapUrl: value.bootstrapUrl };
+				return { url: value.url, bootstrapUrl: value.bootstrapUrl, token: value.token };
 			}
 		} catch (error) {
 			if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
@@ -206,10 +247,23 @@ async function writePresence(filePath: string, presence: Presence): Promise<void
 	await fs.rename(temporary, filePath);
 }
 
+function attachClient(
+	client: DesktopClientKind,
+	url: string,
+	bootstrapUrl: string,
+	token: string,
+	overrides: Partial<BrowserLauncherDependencies> | undefined,
+): BrowserProcess | undefined {
+	if (client === "gui") return openDesktopGui(url, token, overrides).process;
+	openDesktopBrowser(bootstrapUrl, overrides);
+	return undefined;
+}
+
 export async function launchDesktop(options: LaunchDesktopOptions = {}): Promise<LaunchedDesktop> {
 	const cwd = path.resolve(options.cwd ?? getProjectDir());
 	const runtimeDir = options.runtimeDir ?? path.join(getAgentDir(), "run", "chudcode-desktop");
 	const presencePath = path.join(runtimeDir, PRESENCE_FILE);
+	const client = options.client ?? "browser";
 	const deferred = new DeferredRuntimeHost();
 	let server: DesktopServerHandle;
 	try {
@@ -218,8 +272,14 @@ export async function launchDesktop(options: LaunchDesktopOptions = {}): Promise
 		if (!(error instanceof DesktopAlreadyRunningError)) throw error;
 		const presence = await readPresence(presencePath);
 		if (!presence) throw new Error("Chudcode is already running, but its desktop URL is unavailable");
-		openDesktopBrowser(presence.bootstrapUrl, options.browser);
-		return { url: presence.url, bootstrapUrl: presence.bootstrapUrl, reused: true, stop: async () => {} };
+		attachClient(client, presence.url, presence.bootstrapUrl, presence.token, options.browser);
+		return {
+			url: presence.url,
+			bootstrapUrl: presence.bootstrapUrl,
+			token: presence.token,
+			reused: true,
+			stop: async () => {},
+		};
 	}
 
 	try {
@@ -227,8 +287,12 @@ export async function launchDesktop(options: LaunchDesktopOptions = {}): Promise
 		const services = new ServiceRouter({ runtime });
 		deferred.set(services);
 		await services.openWorkspace(cwd);
-		await writePresence(presencePath, { url: server.url, bootstrapUrl: server.bootstrapUrl });
-		openDesktopBrowser(server.bootstrapUrl, options.browser);
+		await writePresence(presencePath, {
+			url: server.url,
+			bootstrapUrl: server.bootstrapUrl,
+			token: server.token,
+		});
+		attachClient(client, server.url, server.bootstrapUrl, server.token, options.browser);
 	} catch (error) {
 		await fs.rm(presencePath, { force: true });
 		await server.stop();
@@ -238,6 +302,7 @@ export async function launchDesktop(options: LaunchDesktopOptions = {}): Promise
 	return {
 		url: server.url,
 		bootstrapUrl: server.bootstrapUrl,
+		token: server.token,
 		reused: false,
 		async stop() {
 			if (stopped) return;
@@ -252,7 +317,8 @@ export async function launchDesktop(options: LaunchDesktopOptions = {}): Promise
 }
 
 if (import.meta.main) {
-	const desktop = await launchDesktop();
+	const wantsGui = process.argv.includes("--gui") || process.env.CHUDCODE_DESKTOP_CLIENT === "gui";
+	const desktop = await launchDesktop({ client: wantsGui ? "gui" : "browser" });
 	if (!desktop.reused) {
 		let shuttingDown = false;
 		const shutdown = async () => {

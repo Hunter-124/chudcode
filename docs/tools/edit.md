@@ -17,11 +17,11 @@
 `edit` is an essential built-in tool. `resolveEditMode()` selects the active wire contract in this order:
 
 1. model-specific configured variant;
-2. `PI_EDIT_VARIANT`;
+2. `CHUDCODE_EDIT_VARIANT`;
 3. `edit.mode`;
 4. default `hashline`.
 
-Supported modes are `hashline`, `apply_patch`, `patch`, and `replace`. Unless `PI_STRICT_EDIT_MODE` is set, a short model exclusion list can replace the default hashline contract with `replace`. This page documents the default hashline contract; the tool's schema, prompt, examples, renderer, and optional custom Lark format all switch with the selected mode. In `apply_patch` custom-tool mode the wire name is `apply_patch`; dispatch still reaches the same internal tool.
+Supported modes are `hashline`, `apply_patch`, `patch`, and `replace`. Unless `CHUDCODE_STRICT_EDIT_MODE` is set, a short model exclusion list can replace the default hashline contract with `replace`. This page documents the default hashline contract; the tool's schema, prompt, examples, renderer, and optional custom Lark format all switch with the selected mode. In `apply_patch` custom-tool mode the wire name is `apply_patch`; dispatch still reaches the same internal tool.
 
 ## Input
 

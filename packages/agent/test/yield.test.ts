@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "bun:test";
-import { ExponentialYield, YieldGate } from "@oh-my-pi/pi-agent-core/utils/yield";
-import { sleep } from "@oh-my-pi/pi-utils/async";
+import { ExponentialYield, YieldGate } from "@chudware/agent-core/utils/yield";
+import { sleep } from "@chudware/utils/async";
 
 const YIELD_INTERVAL_MS = 50;
 

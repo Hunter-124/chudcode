@@ -10,9 +10,9 @@
  * OpenRouter never saw `providers.openrouterVariant`, breaking sticky routing
  * and OpenRouter response-cache hits across advisor calls.
  */
-import type { StreamFn } from "@oh-my-pi/pi-agent-core";
-import { type Context, type Model, type SimpleStreamOptions, streamSimple } from "@oh-my-pi/pi-ai";
-import { isAnthropicFableOrMythosModel } from "@oh-my-pi/pi-catalog/identity";
+import type { StreamFn } from "@chudware/agent-core";
+import { type Context, type Model, type SimpleStreamOptions, streamSimple } from "@chudware/ai";
+import { isAnthropicFableOrMythosModel } from "@chudware/catalog/identity";
 import { resolveMergedModelSettings } from "../config/model-resolver";
 import { type Settings, validateProviderMaxInFlightRequests } from "../config/settings";
 
@@ -58,7 +58,7 @@ export function createSettingsAwareStreamFn(
 		const role = modelContext.resolveRole?.(model, context, streamOptions);
 		const effectiveModelSettings = resolveMergedModelSettings(settings, model, role);
 		// "auto" leaves the option unset so provider defaults and the
-		// PI_CACHE_RETENTION env override keep working; anything else is an
+		// CHUDCODE_CACHE_RETENTION env override keep working; anything else is an
 		// explicit per-request retention (long restores 1h Anthropic TTLs and
 		// implicitly disables the short-entry keep-alive refresh loop).
 		const cacheRetention =

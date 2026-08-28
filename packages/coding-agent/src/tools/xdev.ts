@@ -15,7 +15,7 @@
  * mounted-only because top-level tools already ship their schemas.
  *
  * Args go through the same machinery as native tool calls: validated with
- * pi-ai's `validateToolArguments` (the schema is returned on mismatch, so a
+ * chud-ai's `validateToolArguments` (the schema is returned on mismatch, so a
  * malformed call self-corrects without a round trip) and streamed through
  * the write tool's existing incremental `content` decoding for live render
  * previews. Compared to a dispatcher def this still costs zero *schema
@@ -29,10 +29,10 @@
  * queued/planning until `tool_execution_start`, and only then delegate to the
  * wrapped tool's own renderer with the decoded inner args.
  */
-import type { AgentToolContext, AgentToolResult, AgentToolUpdateCallback, ToolLoadMode } from "@oh-my-pi/pi-agent-core";
-import { type Tool as AiTool, jsonSchemaToTypeScript, toolWireSchema, validateToolArguments } from "@oh-my-pi/pi-ai";
-import { type Component, Container, Text } from "@oh-my-pi/pi-tui";
-import { parseStreamingJson } from "@oh-my-pi/pi-utils";
+import type { AgentToolContext, AgentToolResult, AgentToolUpdateCallback, ToolLoadMode } from "@chudware/agent-core";
+import { type Tool as AiTool, jsonSchemaToTypeScript, toolWireSchema, validateToolArguments } from "@chudware/ai";
+import { type Component, Container, Text } from "@chudware/tui";
+import { parseStreamingJson } from "@chudware/utils";
 import type { RenderResultOptions } from "../extensibility/custom-tools/types";
 import { XD_URL_PREFIX } from "../internal-urls/xd-protocol";
 import { parseMCPToolName } from "../mcp/tool-bridge";

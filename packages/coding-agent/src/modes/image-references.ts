@@ -1,11 +1,11 @@
-import type { ImageContent } from "@oh-my-pi/pi-ai";
-import { logger } from "@oh-my-pi/pi-utils";
+import type { ImageContent } from "@chudware/ai";
+import { logger } from "@chudware/utils";
 import { type BlobPutResult, blobExtensionForImageMimeType } from "../session/blob-store";
 import { fileHyperlink } from "../tui/hyperlink";
 
 /** Probed pixel dimensions riding on the draft image object itself; `null` records a failed
  *  probe so the chips band never re-decodes a corrupt header every frame. */
-const kImageDims = Symbol("omp.imageDimensions");
+const kImageDims = Symbol("chudcode.imageDimensions");
 
 interface ImageContentWithDims extends ImageContent {
 	[kImageDims]?: { width: number; height: number } | null;

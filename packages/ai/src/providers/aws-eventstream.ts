@@ -17,7 +17,7 @@
  * practice (`:event-type`, `:message-type`, `:content-type`, `:exception-type`).
  */
 
-import { crc32 as crc32Ieee } from "@oh-my-pi/pi-utils/hash";
+import { crc32 as crc32Ieee } from "@chudware/utils/hash";
 import * as AIError from "../error";
 
 const PRELUDE_LEN = 8;

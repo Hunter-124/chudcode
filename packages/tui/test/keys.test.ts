@@ -6,7 +6,7 @@ import {
 	matchesRawBackspace,
 	parseKey,
 	setKittyProtocolActive,
-} from "@oh-my-pi/pi-tui/keys";
+} from "@chudware/tui/keys";
 
 describe("matchesKey", () => {
 	it("matches ctrl+letter sequences", () => {
@@ -201,7 +201,7 @@ describe("Raw 0x08 backspace disambiguation", () => {
 		"SSH_CONNECTION",
 		"SSH_CLIENT",
 		"SSH_TTY",
-		"PI_TUI_RAW_BACKSPACE_IS_CTRL",
+		"CHUDCODE_TUI_RAW_BACKSPACE_IS_CTRL",
 		"TMUX",
 		"STY",
 		"ZELLIJ",
@@ -277,7 +277,7 @@ describe("Raw 0x08 backspace disambiguation", () => {
 			});
 		}
 		// The explicit opt-in still wins inside a multiplexer.
-		withEnv({ WT_SESSION: "1", TMUX: "/tmp/tmux-1000/default,1,0", PI_TUI_RAW_BACKSPACE_IS_CTRL: "1" }, () => {
+		withEnv({ WT_SESSION: "1", TMUX: "/tmp/tmux-1000/default,1,0", CHUDCODE_TUI_RAW_BACKSPACE_IS_CTRL: "1" }, () => {
 			expect(matchesRawBackspace("\x08", 4)).toBe(true);
 			expect(matchesRawBackspace("\x08", 0)).toBe(false);
 			expect(parseKey("\x08")).toBe("ctrl+backspace");
@@ -287,7 +287,7 @@ describe("Raw 0x08 backspace disambiguation", () => {
 	it("supports an explicit opt-in when remote/container sessions lose terminal identity", () => {
 		withEnv(
 			{
-				PI_TUI_RAW_BACKSPACE_IS_CTRL: "1",
+				CHUDCODE_TUI_RAW_BACKSPACE_IS_CTRL: "1",
 				SSH_CONNECTION: "1.2.3.4 5 6.7.8.9 22",
 			},
 			() => {
@@ -301,7 +301,7 @@ describe("Raw 0x08 backspace disambiguation", () => {
 	});
 
 	it("leaves 0x7f as plain backspace regardless of Windows Terminal or opt-in", () => {
-		withEnv({ WT_SESSION: "1", PI_TUI_RAW_BACKSPACE_IS_CTRL: "1" }, () => {
+		withEnv({ WT_SESSION: "1", CHUDCODE_TUI_RAW_BACKSPACE_IS_CTRL: "1" }, () => {
 			expect(matchesRawBackspace("\x7f", 0)).toBe(true);
 			expect(matchesRawBackspace("\x7f", 4)).toBe(false);
 			expect(parseKey("\x7f")).toBe("backspace");

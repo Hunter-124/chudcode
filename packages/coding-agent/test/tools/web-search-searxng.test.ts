@@ -2,12 +2,12 @@ import { afterEach, describe, expect, it } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import type { FetchImpl } from "@oh-my-pi/pi-ai/types";
-import { resetSettingsForTest, Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
-import { searchSearXNG } from "@oh-my-pi/pi-coding-agent/web/search/providers/searxng";
-import { SearchProviderError } from "@oh-my-pi/pi-coding-agent/web/search/types";
-import { removeWithRetries } from "@oh-my-pi/pi-utils";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
+import type { FetchImpl } from "@chudware/ai/types";
+import { resetSettingsForTest, Settings } from "@chudware/coding-agent/config/settings";
+import { searchSearXNG } from "@chudware/coding-agent/web/search/providers/searxng";
+import { SearchProviderError } from "@chudware/coding-agent/web/search/types";
+import { removeWithRetries } from "@chudware/utils";
+import * as fsx from "@chudware/utils/fsx";
 
 describe("SearXNG web search provider", () => {
 	afterEach(() => {
@@ -75,11 +75,11 @@ describe("SearXNG web search provider", () => {
 		};
 
 		await searchSearXNG({
-			query: "site:github.com/can1357/oh-my-pi inurl:releases site:github.com 17.1.1 release",
+			query: "site:github.com/Hunter-124/chudcode inurl:releases site:github.com 17.1.1 release",
 			fetch: fetchMock,
 		});
 
-		expect(captured.q).toBe("17.1.1 release github.com/can1357/oh-my-pi releases site:github.com");
+		expect(captured.q).toBe("17.1.1 release github.com/Hunter-124/chudcode releases site:github.com");
 	});
 
 	it("maps lang: to the language param and re-emits remaining directives in q", async () => {

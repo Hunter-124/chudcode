@@ -2,10 +2,10 @@ import { afterEach, beforeAll, describe, expect, it, vi } from "bun:test";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
-import type { SegmentContext } from "@oh-my-pi/pi-coding-agent/modes/components/status-line/segments";
-import { renderSegment } from "@oh-my-pi/pi-coding-agent/modes/components/status-line/segments";
-import { initTheme, theme } from "@oh-my-pi/pi-coding-agent/modes/theme/theme";
-import { getProjectDir, pathIsWithin, removeSyncWithRetries, setProjectDir } from "@oh-my-pi/pi-utils";
+import type { SegmentContext } from "@chudware/coding-agent/modes/components/status-line/segments";
+import { renderSegment } from "@chudware/coding-agent/modes/components/status-line/segments";
+import { initTheme, theme } from "@chudware/coding-agent/modes/theme/theme";
+import { getProjectDir, pathIsWithin, removeSyncWithRetries, setProjectDir } from "@chudware/utils";
 
 const originalProjectDir = getProjectDir();
 const SCRATCH_ROOT_PREFIXES: readonly string[] = [
@@ -102,7 +102,7 @@ const CHECKOUT_IS_SCRATCH = SCRATCH_ROOT_PREFIXES.some(root => pathIsWithin(root
 function createFakeHome(): { home: string; projectsRoot: string } {
 	const homeRoot = path.join(originalProjectDir, ".wt");
 	fs.mkdirSync(homeRoot, { recursive: true });
-	const home = fs.mkdtempSync(path.join(homeRoot, "omp-status-line-home-"));
+	const home = fs.mkdtempSync(path.join(homeRoot, "chudcode-status-line-home-"));
 	const projectsRoot = path.join(home, "Projects");
 	fs.mkdirSync(projectsRoot, { recursive: true });
 	vi.spyOn(os, "homedir").mockReturnValue(home);
@@ -115,9 +115,9 @@ describe("status line path segment", () => {
 
 		const { home, projectsRoot } = createFakeHome();
 
-		const realProjectDir = fs.mkdtempSync(path.join(projectsRoot, "omp-status-line-"));
+		const realProjectDir = fs.mkdtempSync(path.join(projectsRoot, "chudcode-status-line-"));
 		const nestedDir = path.join(realProjectDir, "nested");
-		const aliasRoot = fs.mkdtempSync(path.join(os.tmpdir(), "omp-status-line-alias-"));
+		const aliasRoot = fs.mkdtempSync(path.join(os.tmpdir(), "chudcode-status-line-alias-"));
 		const homeAlias = path.join(aliasRoot, "home-link");
 
 		try {
@@ -143,7 +143,7 @@ describe("status line path segment", () => {
 	});
 
 	it("strips the scratch root and shows only the trailing folder inside the OS tmp dir", () => {
-		const scratchDir = fs.mkdtempSync(path.join(os.tmpdir(), "omp-status-line-scratch-"));
+		const scratchDir = fs.mkdtempSync(path.join(os.tmpdir(), "chudcode-status-line-scratch-"));
 		try {
 			setProjectDir(scratchDir);
 
@@ -161,7 +161,7 @@ describe("status line path segment", () => {
 	});
 
 	it("keeps nested subpaths visible under a scratch root", () => {
-		const scratchDir = fs.mkdtempSync(path.join(os.tmpdir(), "omp-status-line-scratch-nest-"));
+		const scratchDir = fs.mkdtempSync(path.join(os.tmpdir(), "chudcode-status-line-scratch-nest-"));
 		const nested = path.join(scratchDir, "sub", "deep");
 		fs.mkdirSync(nested, { recursive: true });
 		try {
@@ -179,7 +179,7 @@ describe("status line path segment", () => {
 	});
 
 	it("keeps the folder icon for scratch paths when stripWorkPrefix is disabled", () => {
-		const scratchDir = fs.mkdtempSync(path.join(os.tmpdir(), "omp-status-line-scratch-noprefix-"));
+		const scratchDir = fs.mkdtempSync(path.join(os.tmpdir(), "chudcode-status-line-scratch-noprefix-"));
 		try {
 			setProjectDir(scratchDir);
 
@@ -197,7 +197,7 @@ describe("status line path segment", () => {
 
 	it.skipIf(CHECKOUT_IS_SCRATCH)("keeps the folder icon for paths outside any scratch root", () => {
 		const { home, projectsRoot } = createFakeHome();
-		const realProjectDir = fs.mkdtempSync(path.join(projectsRoot, "omp-status-line-real-"));
+		const realProjectDir = fs.mkdtempSync(path.join(projectsRoot, "chudcode-status-line-real-"));
 		try {
 			setProjectDir(realProjectDir);
 
@@ -213,7 +213,7 @@ describe("status line path segment", () => {
 	});
 
 	it("renders the active nested repo suffix after the parent cwd", () => {
-		const parentDir = fs.mkdtempSync(path.join(os.tmpdir(), "omp-status-line-parent-"));
+		const parentDir = fs.mkdtempSync(path.join(os.tmpdir(), "chudcode-status-line-parent-"));
 		const repoDir = path.join(parentDir, "pr-workspace");
 		fs.mkdirSync(repoDir);
 		try {
@@ -238,7 +238,7 @@ describe("status line path segment", () => {
 	});
 
 	it("keeps the active nested repo suffix visible when the parent path is truncated", () => {
-		const parentDir = fs.mkdtempSync(path.join(os.tmpdir(), "omp-status-line-parent-"));
+		const parentDir = fs.mkdtempSync(path.join(os.tmpdir(), "chudcode-status-line-parent-"));
 		const repoDir = path.join(parentDir, "pr-workspace");
 		fs.mkdirSync(repoDir);
 		try {
@@ -274,10 +274,10 @@ describe("status line path segment in a linked worktree", () => {
 	}
 
 	it("collapses to the project name and drops the worktree dir when it equals the branch", () => {
-		const rendered = renderSegment("path", worktreeContext({ projectName: "pi", worktreeName: "xx" }, "xx"));
+		const rendered = renderSegment("path", worktreeContext({ projectName: "chud", worktreeName: "xx" }, "xx"));
 		const content = Bun.stripANSI(rendered.content);
 		expect(rendered.visible).toBe(true);
-		expect(content).toBe(`${theme.icon.worktree} pi`);
+		expect(content).toBe(`${theme.icon.worktree} chud`);
 		// The base prefix, the worktree dir, and the folder icon are all gone.
 		expect(content).not.toContain(".tree");
 		expect(content).not.toContain("/xx");
@@ -285,20 +285,20 @@ describe("status line path segment in a linked worktree", () => {
 	});
 
 	it("keeps the worktree dir when it diverges from the branch", () => {
-		const rendered = renderSegment("path", worktreeContext({ projectName: "pi", worktreeName: "wt-icon" }, "icon"));
+		const rendered = renderSegment("path", worktreeContext({ projectName: "chud", worktreeName: "wt-icon" }, "icon"));
 		expect(Bun.stripANSI(rendered.content)).toBe(`${theme.icon.worktree} pi/wt-icon`);
 	});
 
 	it("keeps the worktree dir when no branch is shown", () => {
-		const rendered = renderSegment("path", worktreeContext({ projectName: "pi", worktreeName: "xx" }, null));
+		const rendered = renderSegment("path", worktreeContext({ projectName: "chud", worktreeName: "xx" }, null));
 		expect(Bun.stripANSI(rendered.content)).toBe(`${theme.icon.worktree} pi/xx`);
 	});
 
 	it("falls back to the on-disk path when stripWorkPrefix is disabled", () => {
-		const scratchDir = fs.mkdtempSync(path.join(os.tmpdir(), "omp-status-line-wt-noprefix-"));
+		const scratchDir = fs.mkdtempSync(path.join(os.tmpdir(), "chudcode-status-line-wt-noprefix-"));
 		try {
 			setProjectDir(scratchDir);
-			const ctx = worktreeContext({ projectName: "pi", worktreeName: "xx" }, "xx");
+			const ctx = worktreeContext({ projectName: "chud", worktreeName: "xx" }, "xx");
 			ctx.options.path = { ...ctx.options.path, stripWorkPrefix: false };
 			const content = Bun.stripANSI(renderSegment("path", ctx).content);
 			expect(content).not.toContain(theme.icon.worktree);

@@ -10,11 +10,11 @@ import * as os from "node:os";
 import * as path from "node:path";
 import { Transform } from "node:stream";
 import { pipeline } from "node:stream/promises";
-import { $env, $which, compareVersions, isEnoent } from "@oh-my-pi/pi-utils";
-import chalk from "@oh-my-pi/pi-utils/chalk";
-import { withFileLock } from "@oh-my-pi/pi-utils/file-lock";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
-import * as proc from "@oh-my-pi/pi-utils/proc";
+import { $env, $which, compareVersions, isEnoent } from "@chudware/utils";
+import chalk from "@chudware/utils/chalk";
+import { withFileLock } from "@chudware/utils/file-lock";
+import * as fsx from "@chudware/utils/fsx";
+import * as proc from "@chudware/utils/proc";
 import { $ } from "bun";
 import {
 	PRODUCT_CLI_NAME,
@@ -33,9 +33,9 @@ import {
 } from "../utils/fetch-timeout";
 
 /**
- * This fork's release source. Upstream (`can1357/oh-my-pi`) is deliberately not
+ * This fork's release source. Upstream (`Hunter-124/chudcode`) is deliberately not
  * consulted: its versions are on an unrelated line (18.x vs this fork's 0.x) and
- * its release assets are named `omp-*`, so pointing here at upstream made
+ * its release assets are named `chudcode-*`, so pointing here at upstream made
  * `chudcode update` offer upstream's 18.0.10 and then fail looking for a
  * `chudcode-linux-x64` asset that upstream never publishes.
  */
@@ -46,9 +46,9 @@ const REPO = PRODUCT_RELEASE_REPO;
  * paths, which {@link getLatestRelease} keeps unreachable by always reporting a
  * `binary` distribution.
  */
-const PACKAGE = "@oh-my-pi/pi-coding-agent";
-const HOMEBREW_FORMULA = "can1357/tap/omp";
-const MISE_TOOL = "github:can1357/oh-my-pi";
+const PACKAGE = "@chudware/coding-agent";
+const HOMEBREW_FORMULA = "Hunter-124/tap/chudcode";
+const MISE_TOOL = "github:Hunter-124/chudcode";
 const NIX_STORE_DIR = "/nix/store";
 /**
  * Official npm registry origin.
@@ -72,11 +72,11 @@ const BINARY_DOWNLOAD_TIMEOUT_MS = 15 * 60_000;
  * disk; see {@link buildBunInstallArgs} for why this must be installed
  * explicitly rather than inherited as a transitive dependency.
  */
-const NATIVES_PACKAGE = "@oh-my-pi/pi-natives";
+const NATIVES_PACKAGE = "@chudware/natives";
 
 /**
  * Platform tags the release pipeline publishes as
- * `@oh-my-pi/pi-natives-<tag>` leaves. Mirrors `SUPPORTED_PLATFORMS` in
+ * `@chudware/natives-<tag>` leaves. Mirrors `SUPPORTED_PLATFORMS` in
  * `packages/natives/native/loader-state.js` and `LEAF_TARGETS` in
  * `packages/natives/scripts/gen-npm-packages.ts`; kept here as the local
  * source of truth so the update path stays free of cross-package imports.
@@ -103,15 +103,15 @@ export interface ReleasePackages {
 	natives: string;
 }
 
-/** Parsed `omp.rename` pointer: the new agent package name and optional new natives name. */
+/** Parsed `chudcode.rename` pointer: the new agent package name and optional new natives name. */
 const CURRENT_PACKAGES: ReleasePackages = { pkg: PACKAGE, natives: NATIVES_PACKAGE };
 
 export interface ReleaseInfo {
 	tag: string;
 	version: string;
-	/** Parsed `omp.dist` from the registry manifest; undefined when absent. */
+	/** Parsed `chudcode.dist` from the registry manifest; undefined when absent. */
 	dist?: ReleaseDist;
-	/** npm names to install, resolved after following any `omp.rename` pointers. */
+	/** npm names to install, resolved after following any `chudcode.rename` pointers. */
 	packages: ReleasePackages;
 }
 
@@ -135,10 +135,10 @@ function majorVersion(version: string): number {
 /**
  * Whether the update must bypass bun/npm and install the release binary.
  *
- * An explicit `omp.dist` wins in both directions. Without one, a release with
+ * An explicit `chudcode.dist` wins in both directions. Without one, a release with
  * a higher major than the running build is assumed not npm-installable: the
  * runtime may have changed out from under the package layout, and the pinned
- * `@oh-my-pi/pi-natives*` companions ({@link buildBunInstallArgs}) may not
+ * `@chudware/natives*` companions ({@link buildBunInstallArgs}) may not
  * exist at that version, which would strand bun/npm-managed installs behind a
  * hard install failure. Homebrew and mise installs are unaffected — both
  * already pull GitHub release binaries.
@@ -515,7 +515,7 @@ function isPathInDirectory(filePath: string, directoryPath: string): boolean {
 	// PATH-resolved chudcode path can refer to the same directory through different
 	// strings. path.resolve does not traverse junctions/symlinks; realpath does.
 	// Resolve both the file and its parent directory: the file catches manager
-	// links like Homebrew's `bin/omp -> Cellar/.../bin/omp`; the parent fallback
+	// links like Homebrew's `bin/chudcode -> Cellar/.../bin/chudcode`; the parent fallback
 	// still tolerates fresh install paths where the file does not exist yet.
 	const dirReal = tryRealpath(path.resolve(directoryPath));
 	if (!dirReal) return false;
@@ -623,8 +623,8 @@ function resolveUpdateMethod(
 	// a binary install through npm/bun, whose reinstall then collides with the
 	// existing file (npm EEXIST). Fall through to binary replacement instead.
 	// On Windows every launcher is a regular file, so ownership keys off the
-	// manager's own artifacts instead: npm's script shims (`chudcode`, `omp.cmd`,
-	// `omp.ps1`) and bun's `omp.bunx` sidecar. A bare `.exe` with neither is the
+	// manager's own artifacts instead: npm's script shims (`chudcode`, `chudcode.cmd`,
+	// `chudcode.ps1`) and bun's `chudcode.bunx` sidecar. A bare `.exe` with neither is the
 	// standalone binary a binary-only release installed over the launcher —
 	// routing that back through bun reinstalls a package which no longer owns
 	// the launcher, and bun silently tolerates failing to overwrite the running
@@ -833,7 +833,7 @@ async function fetchLatestForkRelease(
 /**
  * Latest release for this fork. `dist` is pinned to `binary` because the fork
  * publishes GitHub release binaries only: without it, an install that looks
- * package-managed would run `bun add @oh-my-pi/pi-coding-agent` and replace the
+ * package-managed would run `bun add @chudware/coding-agent` and replace the
  * fork with upstream.
  */
 export async function getLatestRelease(
@@ -1072,7 +1072,7 @@ async function pruneBunCacheAfterGlobalInstall(): Promise<BunInstallCachePruneRe
 	const packageNames = globalNodeModulesDir
 		? await collectInstalledPackageNames(globalNodeModulesDir)
 		: new Set<string>();
-	if (packageNames.size === 0 && !path.basename(cacheDir).toLowerCase().includes("omp")) return undefined;
+	if (packageNames.size === 0 && !path.basename(cacheDir).toLowerCase().includes("chudcode")) return undefined;
 	return await pruneBunInstallCache(cacheDir, packageNames.size === 0 ? undefined : packageNames);
 }
 
@@ -1159,13 +1159,13 @@ function resolveOmpPath(): string | undefined {
  * Parse the version a launcher reports from `chudcode --version` output.
  *
  * Two forms are accepted:
- * - `Chudcode v0.2.0 (based on omp 18.0.8)` — this fork. The `v`-prefixed
+ * - `Chudcode v0.2.0 (based on chudcode 18.0.8)` — this fork. The `v`-prefixed
  *   product version is matched deliberately, never the trailing upstream base:
  *   the updater compares against the fork's release line, so reading `18.0.8`
  *   out of the suffix would fail verification on every successful install and
  *   roll the new binary straight back.
- * - `omp/18.0.8` — the upstream `name/version` form, still emitted by
- *   omp-branded launchers a user may be upgrading from.
+ * - `chudcode/18.0.8` — the upstream `name/version` form, still emitted by
+ *   chudcode-branded launchers a user may be upgrading from.
  *
  * The prerelease suffix is preserved so a correctly installed canary build
  * verifies as up to date instead of appearing to report a stale `X.Y.Z` and
@@ -1378,11 +1378,11 @@ function buildVersionedPackageInstallArgs(
  * lookup the version check just performed. See #1686.
  *
  * Also pins {@link NATIVES_PACKAGE} and the platform-specific
- * `@oh-my-pi/pi-natives-<tag>` leaf to `expectedVersion`. `bun install -g`
+ * `@chudware/natives-<tag>` leaf to `expectedVersion`. `bun install -g`
  * does not reliably refresh transitive `optionalDependencies` when the
  * top-level package is the only one bumped, so the native addon and its
  * version sentinel can drift out of sync with the freshly installed
- * `@oh-my-pi/pi-coding-agent` and the loader aborts at
+ * `@chudware/coding-agent` and the loader aborts at
  * `validateLoadedBindings` on the next launch
  * (`The .node file on disk is from a different release than this loader`).
  * Listing the natives explicitly forces bun to replace them in lock-step.
@@ -1501,7 +1501,7 @@ function packageManagerMigrationSteps(manager: "bun" | "npm", release: ReleaseIn
 }
 
 /**
- * Migrate a package-manager install across an `omp.rename` hop without a
+ * Migrate a package-manager install across an `chudcode.rename` hop without a
  * window where no working `chudcode` exists:
  *
  * 1. Install the new package FIRST. Nothing has been removed yet, so a
@@ -1807,7 +1807,7 @@ export async function updateViaBinaryAt(
 /**
  * In-place forwarder bodies, by shim extension, for launchers that cannot be
  * renamed aside during a script-shim takeover; each execs the sibling
- * `omp.exe`. Rewriting matters for the shims that outrank `.exe` at command
+ * `chudcode.exe`. Rewriting matters for the shims that outrank `.exe` at command
  * resolution: PowerShell prefers `.ps1` and Git Bash resolves the
  * extensionless sh shim first, so leaving the old body behind would keep
  * launching the replaced install.
@@ -1823,8 +1823,8 @@ const SHIM_FORWARDERS: Record<string, string> = {
  * Take over a Windows script-launcher install for a binary-only release.
  *
  * npm-managed Windows installs are launched through script shims
- * (`chudcode`/`omp.cmd`/`omp.ps1`) that cannot be overwritten with a native
- * executable. The release binary is installed as `omp.exe` beside them and
+ * (`chudcode`/`chudcode.cmd`/`chudcode.ps1`) that cannot be overwritten with a native
+ * executable. The release binary is installed as `chudcode.exe` beside them and
  * the shims are then renamed aside: cmd.exe would already prefer `.exe` via
  * PATHEXT, but PowerShell resolves `.ps1` first, so the takeover only sticks
  * once the shims are out of the way. A working launcher exists at every
@@ -1952,8 +1952,8 @@ export async function updateViaShimTakeover(
  */
 function installerHint(): string {
 	return process.platform === "win32"
-		? "& ([scriptblock]::Create((irm https://omp.sh/install.ps1))) -Binary"
-		: "curl -fsSL https://omp.sh/install | sh -s -- --binary";
+		? "& ([scriptblock]::Create((irm https://chudware.sh/install.ps1))) -Binary"
+		: "curl -fsSL https://chudware.sh/install | sh -s -- --binary";
 }
 
 /** Persisted channel, or undefined when settings are unavailable (SDK/test embedding without `Settings.init()`). */
@@ -2037,9 +2037,9 @@ export async function runUpdateCommand(opts: {
 			console.log(chalk.yellow("Canary updates are only supported for bun, npm, or binary installs."));
 			return;
 		}
-		// Homebrew, mise and Nix all resolve *upstream* omp — this fork has no tap,
+		// Homebrew, mise and Nix all resolve *upstream* chudcode — this fork has no tap,
 		// no mise tool and no flake. Updating through them would silently replace
-		// chudcode with can1357/oh-my-pi, so they are refused outright rather than
+		// chudcode with Hunter-124/chudcode, so they are refused outright rather than
 		// routed.
 		if (target.method === "nix" || target.method === "brew" || target.method === "mise") {
 			console.log(

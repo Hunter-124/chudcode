@@ -7,7 +7,7 @@
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import path from "node:path";
-import { $env, prompt, Snowflake } from "@oh-my-pi/pi-utils";
+import { $env, prompt, Snowflake } from "@chudware/utils";
 import { resolveAgentModelSelection } from "../config/model-resolver";
 import type { LocalProtocolOptions } from "../internal-urls";
 import { registerArtifactsDir } from "../internal-urls/registry-helpers";
@@ -221,7 +221,7 @@ function assertDepthAndSpawnAllowed(request: StructuredSubagentRequest, agentNam
 			`Cannot spawn another agent at task depth ${taskDepth}; maximum depth is ${maxDepth}.`,
 		);
 	}
-	const blockedAgent = request.blockedAgent ?? $env.PI_BLOCKED_AGENT;
+	const blockedAgent = request.blockedAgent ?? $env.CHUDCODE_BLOCKED_AGENT;
 	if (blockedAgent && blockedAgent === agentName) {
 		throw new StructuredSubagentError(
 			"preflight",
@@ -357,7 +357,7 @@ async function leaseArtifacts(
 	}
 	const artifactsDir = path.join(
 		os.tmpdir(),
-		`${invocationKind === "eval" ? "omp-eval-agent" : "omp-task"}-${Snowflake.next()}`,
+		`${invocationKind === "eval" ? "chudcode-eval-agent" : "chudcode-task"}-${Snowflake.next()}`,
 	);
 	await fs.mkdir(artifactsDir, { recursive: true });
 	return { sessionFile: null, artifactsDir, temporary: true, unregister: registerArtifactsDir(artifactsDir) };

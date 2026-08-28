@@ -9,9 +9,9 @@
  * daemons before acting on them.
  */
 
-import { truncateToWidth } from "@oh-my-pi/pi-tui";
-import { formatDuration, getProjectDir } from "@oh-my-pi/pi-utils";
-import chalk from "@oh-my-pi/pi-utils/chalk";
+import { truncateToWidth } from "@chudware/tui";
+import { formatDuration, getProjectDir } from "@chudware/utils";
+import chalk from "@chudware/utils/chalk";
 import {
 	closeDaemonClients,
 	type DaemonBrokerClient,

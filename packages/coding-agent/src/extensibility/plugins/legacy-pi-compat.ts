@@ -13,8 +13,8 @@ import {
 	isCompiledBinary,
 	logger,
 	stripWindowsExtendedLengthPathPrefix,
-} from "@oh-my-pi/pi-utils";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
+} from "@chudware/utils";
+import * as fsx from "@chudware/utils/fsx";
 import { registerPluginCacheInvalidator } from "../../discovery/helpers";
 
 const IS_COMPILED_BINARY = isCompiledBinary();
@@ -28,14 +28,14 @@ const IS_COMPILED_BINARY = isCompiledBinary();
 // imports inside runtime-loaded extensions.
 //
 // Compiled builds retain lazy loaders for host packages and serve requested
-// surfaces through `omp-legacy-pi-bundled:<key>` synthetic modules.
+// surfaces through `chudcode-legacy-pi-bundled:<key>` synthetic modules.
 // `scripts/legacy-pi-virtual-module.ts` derives literal dynamic-import edges
 // from current package exports inside a Bun build plugin: no generated source
 // or duplicate key list exists on disk. Deferring each host module evaluation
 // avoids cycles with an extension-loading command that is itself in the
 // retained package graph.
-const BUNDLED_VIRTUAL_SCHEME = "omp-legacy-pi-bundled:";
-const BUNDLED_VIRTUAL_NAMESPACE = "omp-legacy-pi-bundled";
+const BUNDLED_VIRTUAL_SCHEME = "chudcode-legacy-pi-bundled:";
+const BUNDLED_VIRTUAL_NAMESPACE = "chudcode-legacy-pi-bundled";
 const BUNDLED_MODULES_GLOBAL = "__ompLegacyPiBundledModules";
 const TYPEBOX_BUNDLED_MODULE_KEY = "typebox";
 
@@ -577,9 +577,9 @@ function getExtensionParseCacheDb(): Database | null {
 		try {
 			if (fs.statSync(cachePath).size > EXTENSION_PARSE_CACHE_MAX_BYTES) {
 				// Remove the full WAL set, not just the main db. A leftover
-				// `-wal`/`-shm` pair still owned by a concurrent omp process is
+				// `-wal`/`-shm` pair still owned by a concurrent chudcode process is
 				// adopted by this fresh connection; when that `-wal` has
-				// uncheckpointed frames (the normal case while another omp is
+				// uncheckpointed frames (the normal case while another chudcode is
 				// writing its own cache entries), `journal_mode=WAL` fails with
 				// SQLITE_IOERR — disabling the parse cache for the whole process
 				// and forcing a reparse of every extension on startup. See #9549.
@@ -596,7 +596,7 @@ function getExtensionParseCacheDb(): Database | null {
 		// `PRAGMA journal_mode=WAL`, which takes an exclusive lock during WAL
 		// recovery). See #2421. WAL + synchronous=NORMAL avoids the per-entry
 		// journal create/delete + fsync churn that serialized this cache behind
-		// concurrent omp startups and blocked the event loop for ~20s (#9549).
+		// concurrent chudcode startups and blocked the event loop for ~20s (#9549).
 		db.run(`PRAGMA busy_timeout = ${getDbBusyTimeoutMs()}`);
 		db.run("PRAGMA journal_mode=WAL");
 		db.run("PRAGMA synchronous=NORMAL");
@@ -606,7 +606,7 @@ function getExtensionParseCacheDb(): Database | null {
 		extensionParseCacheDb = db;
 		return db;
 	} catch (error) {
-		logger.debug("legacy Pi extension parse cache unavailable", {
+		logger.debug("legacy Chud extension parse cache unavailable", {
 			error: error instanceof Error ? error.message : String(error),
 		});
 		extensionParseCacheDb = null;
@@ -680,7 +680,7 @@ function writeExtensionSourceAnalysis(cacheKey: string, analysis: ExtensionSourc
 			}
 		})
 		.catch(error => {
-			logger.debug("legacy Pi extension parse cache write failed", {
+			logger.debug("legacy Chud extension parse cache write failed", {
 				error: error instanceof Error ? error.message : String(error),
 			});
 		});
@@ -706,7 +706,7 @@ function getExtensionSourceAnalysis(source: string, importerPath: string): Exten
 			}
 		}
 	} catch (error) {
-		logger.debug("legacy Pi extension parse cache read failed", {
+		logger.debug("legacy Chud extension parse cache read failed", {
 			error: error instanceof Error ? error.message : String(error),
 		});
 	}
@@ -746,10 +746,10 @@ let bundledModuleLoadersPromise: Promise<BundledModuleLoaders> | null = null;
  */
 function ensureBundledModuleLoadersLoaded(): Promise<BundledModuleLoaders> {
 	if (!IS_COMPILED_BINARY) {
-		return Promise.reject(new Error("omp:legacy-pi-shim: bundled modules are only available in compiled mode"));
+		return Promise.reject(new Error("chudcode:legacy-pi-shim: bundled modules are only available in compiled mode"));
 	}
 	if (!bundledModuleLoadersPromise) {
-		bundledModuleLoadersPromise = import("omp-legacy-pi-modules").then(module => {
+		bundledModuleLoadersPromise = import("chudcode-legacy-pi-modules").then(module => {
 			Reflect.set(globalThis, BUNDLED_MODULES_GLOBAL, loadedBundledModules);
 			return module.BUNDLED_PI_MODULE_LOADERS;
 		});
@@ -761,7 +761,7 @@ async function loadBundledModule(moduleKey: string): Promise<void> {
 	const loaders = await ensureBundledModuleLoadersLoaded();
 	const loader = loaders[moduleKey];
 	if (!loader) {
-		throw new Error(`omp:legacy-pi-shim: no bundled module registered for ${moduleKey}`);
+		throw new Error(`chudcode:legacy-pi-shim: no bundled module registered for ${moduleKey}`);
 	}
 	loadedBundledModules[moduleKey] = await loader();
 }
@@ -788,7 +788,7 @@ export function resolveBundledVirtualSpecifier(specifier: string): BundledVirtua
 		? specifier.slice(BUNDLED_VIRTUAL_SCHEME.length)
 		: specifier;
 	if (!registryKey) {
-		throw new Error("omp:legacy-pi-shim: bundled virtual specifier has no registry key");
+		throw new Error("chudcode:legacy-pi-shim: bundled virtual specifier has no registry key");
 	}
 	return { path: registryKey, namespace: BUNDLED_VIRTUAL_NAMESPACE };
 }
@@ -800,7 +800,7 @@ export function resolveBundledVirtualSpecifier(specifier: string): BundledVirtua
 function synthesizeBundledModuleSourceFromModules(moduleKey: string, modules: BundledModules): string {
 	const mod = modules[moduleKey];
 	if (!mod) {
-		throw new Error(`omp:legacy-pi-shim: no bundled module registered for ${moduleKey}`);
+		throw new Error(`chudcode:legacy-pi-shim: no bundled module registered for ${moduleKey}`);
 	}
 	const lines: string[] = [
 		`const __omp_bundled = globalThis[${JSON.stringify(BUNDLED_MODULES_GLOBAL)}][${JSON.stringify(moduleKey)}];`,
@@ -822,7 +822,7 @@ function synthesizeBundledModuleSourceFromModules(moduleKey: string, modules: Bu
 
 /**
  * Build the synthetic source served for one
- * `omp-legacy-pi-bundled:<key>` import.
+ * `chudcode-legacy-pi-bundled:<key>` import.
  */
 async function synthesizeBundledModuleSource(moduleKey: string): Promise<string> {
 	await loadBundledModule(moduleKey);
@@ -842,26 +842,26 @@ export function __getLegacyPiBundledModulesGlobal(): string {
 	return BUNDLED_MODULES_GLOBAL;
 }
 
-// Canonical scope for in-process pi packages. Plugins published against any of
+// Canonical scope for in-process chud packages. Plugins published against any of
 // the aliased scopes below (mariozechner's original publish, earendil-works'
-// fork, or the canonical @oh-my-pi scope itself) are remapped to this scope and
-// resolved against the bundled copy that ships inside the omp binary. This
+// fork, or the canonical @chudware scope itself) are remapped to this scope and
+// resolved against the bundled copy that ships inside the chudcode binary. This
 // keeps plugins running against the exact runtime state of the host (single
 // module registry, single tool registry, etc.) regardless of which historical
 // scope name they happened to declare in their peerDependencies.
-const CANONICAL_PI_SCOPE = "@oh-my-pi";
+const CANONICAL_PI_SCOPE = "@chudware";
 
 // Scopes that have historically been used to publish (or alias) the same set
-// of internal pi-* packages. `@oh-my-pi` is intentionally included so direct
+// of internal pi-* packages. `@chudware` is intentionally included so direct
 // canonical imports still pass through the same host-bundled package resolution
 // path instead of pulling a duplicate copy from plugin node_modules.
-const PI_SCOPE_ALIASES = ["oh-my-pi", "mariozechner", "earendil-works"] as const;
+const CHUDCODE_SCOPE_ALIASES = ["chudware", "mariozechner", "earendil-works"] as const;
 
-// Internal pi-* package basenames bundled inside the omp binary.
-const PI_PACKAGE_NAMES = ["pi-agent-core", "pi-ai", "pi-coding-agent", "pi-natives", "pi-tui", "pi-utils"] as const;
+// Internal pi-* package basenames bundled inside the chudcode binary.
+const CHUDCODE_PACKAGE_NAMES = ["chud-agent-core", "chud-ai", "chudcode-agent", "chud-natives", "chud-tui", "chud-utils"] as const;
 
-const PI_SCOPE_ALTERNATION = PI_SCOPE_ALIASES.join("|");
-const PI_PACKAGE_ALTERNATION = PI_PACKAGE_NAMES.join("|");
+const CHUDCODE_SCOPE_ALTERNATION = CHUDCODE_SCOPE_ALIASES.join("|");
+const CHUDCODE_PACKAGE_ALTERNATION = CHUDCODE_PACKAGE_NAMES.join("|");
 
 // Upstream `@mariozechner/*` packages exposed a few subpaths at the package
 // root that we relocated under a different folder. Each entry rewrites
@@ -869,19 +869,19 @@ const PI_PACKAGE_ALTERNATION = PI_PACKAGE_NAMES.join("|");
 // plugins importing the upstream layout still resolve to a real file in our
 // bundled copy. Entries ending in `/` rewrite the whole subtree; add new
 // `pkg/from -> pkg/to` pairs whenever an upstream-only subpath breaks resolution.
-const PI_SUBPATH_REMAPS: ReadonlyMap<string, string> = new Map<string, string>([
-	["pi-ai/utils/oauth", "pi-ai/oauth"],
-	["pi-ai/utils/oauth/", "pi-ai/oauth/"],
-	["pi-ai/compat", "pi-ai"],
+const CHUDCODE_SUBPATH_REMAPS: ReadonlyMap<string, string> = new Map<string, string>([
+	["chud-ai/utils/oauth", "chud-ai/oauth"],
+	["chud-ai/utils/oauth/", "chud-ai/oauth/"],
+	["chud-ai/compat", "chud-ai"],
 ]);
 
 function remapLegacyPiSubpath(rest: string): string {
-	const exact = PI_SUBPATH_REMAPS.get(rest);
+	const exact = CHUDCODE_SUBPATH_REMAPS.get(rest);
 	if (exact) {
 		return exact;
 	}
 
-	for (const [from, to] of PI_SUBPATH_REMAPS) {
+	for (const [from, to] of CHUDCODE_SUBPATH_REMAPS) {
 		if (from.endsWith("/") && rest.startsWith(from)) {
 			return `${to}${rest.slice(from.length)}`;
 		}
@@ -890,7 +890,7 @@ function remapLegacyPiSubpath(rest: string): string {
 	return rest;
 }
 
-const LEGACY_PI_SPECIFIER_FILTER = new RegExp(`^@(?:${PI_SCOPE_ALTERNATION})/(?:${PI_PACKAGE_ALTERNATION})(?:/.*)?$`);
+const LEGACY_PI_SPECIFIER_FILTER = new RegExp(`^@(?:${CHUDCODE_SCOPE_ALTERNATION})/(?:${CHUDCODE_PACKAGE_ALTERNATION})(?:/.*)?$`);
 const resolvedSpecifierFallbacks = new Map<string, string>();
 const SOURCE_MODULE_EXTENSIONS = [".ts", ".tsx", ".mts", ".cts", ".js", ".jsx", ".mjs", ".cjs"] as const;
 const SUPPORTED_PACKAGE_IMPORT_CONDITIONS = new Set(["bun", "node", "import", "default"]);
@@ -921,28 +921,28 @@ function clearLegacyPiResolutionCaches(): void {
 registerPluginCacheInvalidator(clearLegacyPiResolutionCaches);
 const PACKAGE_IMPORT_EXCLUDED = Symbol("packageImportExcluded");
 
-// Extensions importing TypeBox directly are redirected to omptype's TypeBox
-// facade, keeping legacy builders while producing callable omptype schemas at
+// Extensions importing TypeBox directly are redirected to chudtype's TypeBox
+// facade, keeping legacy builders while producing callable chudtype schemas at
 // the tool wire boundary. Submodules such as `@sinclair/typebox/compiler` are
 // intentionally not remapped: plugins relying on those TypeBox-only APIs must
 // vendor TypeBox directly.
 const TYPEBOX_SPECIFIER_FILTER = /^(?:@sinclair\/typebox|typebox)$/;
 
 // Compat-shim path resolution. In compiled-binary mode every bundled surface
-// is served through the `omp-legacy-pi-bundled:` virtual namespace (see the
+// is served through the `chudcode-legacy-pi-bundled:` virtual namespace (see the
 // bundled-module block above) — bunfs paths are unreachable on Bun 1.3.14+, so the
 // pre-#3423 helpers that derived `/$bunfs/root/...` paths from
 // `import.meta.dir` are gone. Dev / source-link / installed-package modes
 // still need a real filesystem path for the source shims, which
 // `sourceShimPath` computes either from the npm prebuilt `dist/cli.js`
-// bundle (`PI_BUNDLED=true`) or directly from the monorepo source tree.
+// bundle (`CHUDCODE_BUNDLED=true`) or directly from the monorepo source tree.
 
 /**
  * Compute the package root for the npm prebuilt `dist/cli.js` bundle.
  *
- * `bundle-dist.ts` defines `process.env.PI_BUNDLED="true"`; after bundling,
+ * `bundle-dist.ts` defines `process.env.CHUDCODE_BUNDLED="true"`; after bundling,
  * `import.meta.dir` points at `<package>/dist`. Do not resolve the package via
- * bare `@oh-my-pi/pi-coding-agent` here: from a global install Bun can pick an
+ * bare `@chudware/coding-agent` here: from a global install Bun can pick an
  * older cache entry, recreating mixed-runtime plugin loading.
  */
 export function __computeBundledSelfPackageRoot(metaDir: string, pathImpl: typeof path = path): string {
@@ -960,7 +960,7 @@ export function __computeBundledSelfPackageRoot(metaDir: string, pathImpl: typeo
 }
 
 function resolveBundledSelfPackageRoot(): string | undefined {
-	if (!process.env.PI_BUNDLED) return undefined;
+	if (!process.env.CHUDCODE_BUNDLED) return undefined;
 	return __computeBundledSelfPackageRoot(import.meta.dir);
 }
 
@@ -973,12 +973,12 @@ function sourceShimPath(file: string): string {
 }
 
 /**
- * Resolve the coding-agent compatibility surface that composes omptype's
+ * Resolve the coding-agent compatibility surface that composes chudtype's
  * TypeBox facade with legacy `Type.Unsafe`, then drop the remap when that
  * entrypoint is missing.
  *
  * In compiled-binary mode the surface is served through the
- * `omp-legacy-pi-bundled:` virtual namespace (issue #3423). Dev, source-link,
+ * `chudcode-legacy-pi-bundled:` virtual namespace (issue #3423). Dev, source-link,
  * and installed-package modes use the shipped source module.
  *
  * Exported for tests; production callers use `TYPEBOX_SHIM_PATH`.
@@ -997,13 +997,13 @@ export function __resolveTypeBoxShimPath(
 const TYPEBOX_SHIM_PATH = __resolveTypeBoxShimPath(IS_COMPILED_BINARY, sourceShimPath("legacy-typebox.ts"));
 
 // Legacy extensions historically imported `Type` (and `Static`/`TSchema`) from
-// the package root of `@(scope)/pi-ai`. pi-ai 15.1.0 removed the runtime `Type`
+// the package root of `@(scope)/pi-ai`. chud-ai 15.1.0 removed the runtime `Type`
 // export (see `packages/ai/CHANGELOG.md`), so the bare canonical specifier no
 // longer satisfies those imports. The override below redirects only the bare
-// pi-ai package root onto a sibling shim that re-exports the canonical surface
-// plus the borrowed `Type` runtime from the omptype TypeBox facade. Subpath
-// imports such as `@oh-my-pi/pi-ai/oauth` continue to resolve directly
-// against the bundled pi-ai package.
+// chud-ai package root onto a sibling shim that re-exports the canonical surface
+// plus the borrowed `Type` runtime from the chudtype TypeBox facade. Subpath
+// imports such as `@chudware/ai/oauth` continue to resolve directly
+// against the bundled chud-ai package.
 const LEGACY_PI_AI_SHIM_PATH = IS_COMPILED_BINARY
 	? bundledModuleVirtualSpecifier(`${CANONICAL_PI_SCOPE}/pi-ai`)
 	: sourceShimPath("legacy-pi-ai-shim.ts");
@@ -1011,31 +1011,31 @@ const LEGACY_PI_AI_SHIM_PATH = IS_COMPILED_BINARY
 // The coding-agent's own `./src/index.ts` cannot be listed as an extra
 // `bun --compile` entrypoint alongside the CLI entry without breaking binary
 // startup (issue #1474 follow-up). In compiled-binary mode the legacy
-// `@(scope)/pi-coding-agent` root therefore resolves through the bundled
+// `@(scope)/chudcode-agent` root therefore resolves through the bundled
 // module shim; in dev / source-link / installed-package mode it points at the
 // sibling source shim whose distinct file path avoids the #1474 collision
 // while still re-exporting the canonical package surface.
 const LEGACY_PI_CODING_AGENT_SHIM_PATH = IS_COMPILED_BINARY
-	? bundledModuleVirtualSpecifier(`${CANONICAL_PI_SCOPE}/pi-coding-agent`)
-	: sourceShimPath("legacy-pi-coding-agent-shim.ts");
+	? bundledModuleVirtualSpecifier(`${CANONICAL_PI_SCOPE}/chudcode-agent`)
+	: sourceShimPath("legacy-chudcode-agent-shim.ts");
 
-// Legacy pi-tui exported `decodeKittyPrintable` from its package root. The
+// Legacy chud-tui exported `decodeKittyPrintable` from its package root. The
 // canonical TUI replaced it with the broader `decodePrintableKey`; route only
 // legacy root imports through a sibling shim that preserves the old name.
 const LEGACY_PI_TUI_SHIM_PATH = IS_COMPILED_BINARY
 	? bundledModuleVirtualSpecifier(`${CANONICAL_PI_SCOPE}/pi-tui`)
 	: sourceShimPath("legacy-pi-tui-shim.ts");
 
-// Package-root overrides. Shim entries (`pi-ai`, `pi-coding-agent`, `pi-tui`)
+// Package-root overrides. Shim entries (`chud-ai`, `chudcode-agent`, `chud-tui`)
 // always replace the canonical surface so legacy helpers stay reachable. The
-// other bundled host packages (`pi-agent-core`, `pi-natives`, `pi-utils`) are
+// other bundled host packages (`chud-agent-core`, `chud-natives`, `chud-utils`) are
 // added only in compiled-binary mode to route extensions onto the in-process
 // module instance — in dev / source-link / installed-package mode the canonical
 // specifier resolves cleanly through `Bun.resolveSync` and hardcoding a
 // source-tree path would miss installs where bundled packages live at
-// `node_modules/@oh-my-pi/pi-*`.
+// `node_modules/@chudware/pi-*`.
 //
-// Compiled-binary entries are `omp-legacy-pi-bundled:<key>` specifiers handed
+// Compiled-binary entries are `chudcode-legacy-pi-bundled:<key>` specifiers handed
 // to the synthetic onLoad in `installLegacyPiSpecifierShim()` — bunfs paths
 // are unusable on Bun 1.3.14+ (issue #3423). Filesystem-shaped overrides are
 // still validated against on-disk presence so a missing dev-mode shim falls
@@ -1043,7 +1043,7 @@ const LEGACY_PI_TUI_SHIM_PATH = IS_COMPILED_BINARY
 
 /**
  * Drop overrides whose filesystem targets are missing so they can fall
- * through to the canonical-resolution path. Virtual `omp-legacy-pi-bundled:`
+ * through to the canonical-resolution path. Virtual `chudcode-legacy-pi-bundled:`
  * entries always pass — live bundled module references are the source of truth
  * in compiled mode where bunfs paths are unreachable (issue #3423).
  *
@@ -1066,7 +1066,7 @@ export function __validateLegacyPiPackageRootOverrides(
 
 /**
  * Compute the override map keyed by every canonical specifier the host serves
- * directly: the pi-ai / pi-coding-agent roots (compat shims that re-attach
+ * directly: the chud-ai / chudcode-agent roots (compat shims that re-attach
  * legacy helpers) plus, in compiled mode, every build-supplied module key.
  * Subpath coverage stops `@(scope)/pi-ai/oauth` and friends from falling
  * through to the extension's absent peer install when bunfs walks fail.
@@ -1077,7 +1077,7 @@ export function __buildLegacyPiPackageRootOverrides(
 ): Record<string, string> {
 	const candidates: Record<string, string> = {
 		[`${CANONICAL_PI_SCOPE}/pi-ai`]: LEGACY_PI_AI_SHIM_PATH,
-		[`${CANONICAL_PI_SCOPE}/pi-coding-agent`]: LEGACY_PI_CODING_AGENT_SHIM_PATH,
+		[`${CANONICAL_PI_SCOPE}/chudcode-agent`]: LEGACY_PI_CODING_AGENT_SHIM_PATH,
 		[`${CANONICAL_PI_SCOPE}/pi-tui`]: LEGACY_PI_TUI_SHIM_PATH,
 	};
 	if (isCompiled) {
@@ -1137,7 +1137,7 @@ function getResolvedSpecifier(specifier: string): string {
 }
 
 /**
- * Resolve a canonical `@oh-my-pi/*` specifier to a filesystem path, preferring
+ * Resolve a canonical `@chudware/*` specifier to a filesystem path, preferring
  * a bundled compat shim when one is registered for the package root.
  *
  * Falls back to `getResolvedSpecifier` (which may throw under compiled binary
@@ -1153,7 +1153,7 @@ function resolveCanonicalPiSpecifier(remappedSpecifier: string): string {
 }
 
 function toImportSpecifier(resolvedPath: string): string {
-	// Virtual `omp-legacy-pi-bundled:` specifiers are served by the synthetic
+	// Virtual `chudcode-legacy-pi-bundled:` specifiers are served by the synthetic
 	// onLoad in `installLegacyPiSpecifierShim()`; wrapping them as `file://`
 	// would corrupt the scheme.
 	if (isBundledVirtualSpecifier(resolvedPath)) {
@@ -2163,7 +2163,7 @@ function evaluateGraphCommonJs(modulePath: string): unknown {
  * Register {@link evaluateGraphCommonJs} as the graph-owned CommonJS require
  * bridge on `globalThis`, first-wins.
  *
- * On source-link installs the `@(scope)/pi-coding-agent` root shim is served
+ * On source-link installs the `@(scope)/chudcode-agent` root shim is served
  * from `src/`, so an extension import can evaluate a second instance of this
  * module with empty graph state. An unconditional set would let that empty
  * instance clobber the host bundle's populated bridge and break transitive
@@ -2615,7 +2615,7 @@ async function installExtensionGraphHook(
 		const filter = new RegExp(`^(?:${alternation})(?:\\?mtime=\\d+)?$`);
 		const hookId = Bun.hash(`${entryRealPath}\0async\0${[...asyncModules.keys()].join("\0")}`).toString(36);
 		Bun.plugin({
-			name: `omp:legacy-pi-ext:${hookId}`,
+			name: `chudcode:legacy-pi-ext:${hookId}`,
 			setup(build) {
 				build.onLoad({ filter, namespace: "file" }, args => {
 					const queryIndex = args.path.indexOf("?mtime=");
@@ -2656,7 +2656,7 @@ async function installExtensionGraphHook(
 		const filter = new RegExp(`^(?:${alternation})(?:\\?mtime=\\d+)?$`);
 		const hookId = Bun.hash(`${entryRealPath}\0commonjs\0${[...commonJsPaths].join("\0")}`).toString(36);
 		Bun.plugin({
-			name: `omp:legacy-pi-ext:${hookId}`,
+			name: `chudcode:legacy-pi-ext:${hookId}`,
 			setup(build) {
 				build.onLoad({ filter, namespace: "file" }, args => {
 					const queryIndex = args.path.indexOf("?mtime=");
@@ -2678,7 +2678,7 @@ async function installExtensionGraphHook(
 		const filter = new RegExp(`^(?:${alternation})(?:\\?mtime=\\d+)?$`);
 		const hookId = Bun.hash(`${entryRealPath}\0sync-source\0${[...synchronousSourcePaths].join("\0")}`).toString(36);
 		Bun.plugin({
-			name: `omp:legacy-pi-ext:${hookId}`,
+			name: `chudcode:legacy-pi-ext:${hookId}`,
 			setup(build) {
 				build.onLoad({ filter, namespace: "file" }, args => {
 					const queryIndex = args.path.indexOf("?mtime=");
@@ -2783,11 +2783,11 @@ async function ensureExtensionGraphHook(entryRealPath: string): Promise<{ clear(
 }
 
 /**
- * Load a legacy Pi extension module from its real on-disk location.
+ * Load a legacy Chud extension module from its real on-disk location.
  *
  * The extension runs in place, so its `import.meta.url` is the real source file
  * and `__dirname`-relative `readFileSync` asset loads (HTML/CSS bundled next to
- * the entry) resolve exactly as they do under the original Pi runtime — no
+ * the entry) resolve exactly as they do under the original Chud runtime — no
  * temp-directory mirroring and no asset copying. An `onLoad` hook scoped to the
  * entry's source graph rewrites only host-resolved compatibility imports in the
  * extension's own source; everything else resolves natively.
@@ -2837,7 +2837,7 @@ function resolveLegacyPiSpecifier(args: { path: string; importer: string }): Leg
 		return undefined;
 	}
 
-	// Primary: resolve the canonical @oh-my-pi/* specifier from the host binary
+	// Primary: resolve the canonical @chudware/* specifier from the host binary
 	// location. Works in dev mode and in source-link installs.
 	try {
 		return toLegacyPiResolveResult(resolveCanonicalPiSpecifier(remappedSpecifier));
@@ -2845,7 +2845,7 @@ function resolveLegacyPiSpecifier(args: { path: string; importer: string }): Leg
 		// Fallback for compiled binary mode: the bundled packages live inside
 		// /$bunfs/root and aren't reachable by filesystem resolution. Prefer the
 		// canonical specifier against the importing file's directory when the
-		// plugin installed @oh-my-pi peer deps, then try the original legacy
+		// plugin installed @chudware peer deps, then try the original legacy
 		// specifier for plugins that still vendor only @mariozechner or
 		// @earendil-works peer deps.
 		const importerDir = path.dirname(args.importer);
@@ -2872,17 +2872,17 @@ export function installLegacyPiSpecifierShim(): void {
 	isLegacyPiSpecifierShimInstalled = true;
 
 	Bun.plugin({
-		name: "omp:legacy-pi-shim",
+		name: "chudcode:legacy-pi-shim",
 		setup(build) {
 			build.onResolve({ filter: LEGACY_PI_SPECIFIER_FILTER, namespace: "file" }, resolveLegacyPiSpecifier);
 			build.onResolve({ filter: TYPEBOX_SPECIFIER_FILTER, namespace: "file" }, resolveTypeBoxSpecifier);
-			build.onResolve({ filter: /^omp-legacy-pi-bundled:.+$/, namespace: "file" }, args =>
+			build.onResolve({ filter: /^chudcode-legacy-pi-bundled:.+$/, namespace: "file" }, args =>
 				resolveBundledVirtualSpecifier(args.path),
 			);
 			build.onResolve({ filter: /.*/, namespace: BUNDLED_VIRTUAL_NAMESPACE }, args =>
 				resolveBundledVirtualSpecifier(args.path),
 			);
-			// Compiled mode serves `omp-legacy-pi-bundled:<key>` imports from
+			// Compiled mode serves `chudcode-legacy-pi-bundled:<key>` imports from
 			// live host module references. No bunfs path leaves this loader.
 			build.onLoad({ filter: /.*/, namespace: BUNDLED_VIRTUAL_NAMESPACE }, async args => {
 				return { contents: await synthesizeBundledModuleSource(args.path), loader: "js" };

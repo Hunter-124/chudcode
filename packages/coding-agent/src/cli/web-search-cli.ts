@@ -4,8 +4,8 @@
  * Handles `chudcode q`/`chudcode web-search` subcommands for testing web search providers.
  */
 
-import { getProjectDir } from "@oh-my-pi/pi-utils";
-import chalk from "@oh-my-pi/pi-utils/chalk";
+import { getProjectDir } from "@chudware/utils";
+import chalk from "@chudware/utils/chalk";
 import { PRODUCT_CLI_NAME } from "../brand";
 import { applyProviderGlobalsFromSettings } from "../config/provider-globals";
 import { Settings } from "../config/settings";

@@ -1,12 +1,12 @@
 import { afterEach, describe, expect, it, vi } from "bun:test";
-import { type } from "@oh-my-pi/omptype";
-import type * as TypeBox from "@oh-my-pi/omptype/typebox";
-import * as zod from "@oh-my-pi/omptype/zod";
-import * as piCodingAgent from "@oh-my-pi/pi-coding-agent";
-import { GreenCommand } from "@oh-my-pi/pi-coding-agent/extensibility/custom-commands/bundled/ci-green";
-import type { CustomCommandAPI } from "@oh-my-pi/pi-coding-agent/extensibility/custom-commands/types";
-import type { HookCommandContext } from "@oh-my-pi/pi-coding-agent/extensibility/hooks/types";
-import * as git from "@oh-my-pi/pi-coding-agent/utils/git";
+import { type } from "@chudware/chudtype";
+import type * as TypeBox from "@chudware/chudtype/typebox";
+import * as zod from "@chudware/chudtype/zod";
+import * as piCodingAgent from "@chudware/coding-agent";
+import { GreenCommand } from "@chudware/coding-agent/extensibility/custom-commands/bundled/ci-green";
+import type { CustomCommandAPI } from "@chudware/coding-agent/extensibility/custom-commands/types";
+import type { HookCommandContext } from "@chudware/coding-agent/extensibility/hooks/types";
+import * as git from "@chudware/coding-agent/utils/git";
 
 afterEach(() => {
 	vi.restoreAllMocks();
@@ -24,7 +24,7 @@ function createApi(): CustomCommandAPI {
 		typebox: {} as unknown as typeof TypeBox,
 		arktype: Object.assign(Function.prototype.bind.call(type, undefined) as typeof type, type, { type }),
 		zod,
-		pi: piCodingAgent,
+		chud: piCodingAgent,
 	};
 }
 

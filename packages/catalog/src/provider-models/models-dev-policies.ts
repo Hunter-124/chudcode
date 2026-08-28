@@ -9,7 +9,7 @@ const BEDROCK_MANTLE_OPENAI_MODEL_IDS: Readonly<Record<string, true>> = {
 };
 
 /**
- * Remove models.dev rows that OMP cannot route successfully.
+ * Remove models.dev rows that Chudcode cannot route successfully.
  *
  * Generation and runtime refresh share this policy so a live catalog cannot
  * reintroduce selectors deliberately excluded from the bundled catalog.

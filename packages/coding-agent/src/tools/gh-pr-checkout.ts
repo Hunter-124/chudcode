@@ -1,9 +1,9 @@
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import type { AgentToolResult } from "@oh-my-pi/pi-agent-core";
-import { getWorktreeDir, hashPath, isEnoent } from "@oh-my-pi/pi-utils";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
+import type { AgentToolResult } from "@chudware/agent-core";
+import { getWorktreeDir, hashPath, isEnoent } from "@chudware/utils";
+import * as fsx from "@chudware/utils/fsx";
 import * as git from "../utils/git";
 import type { ToolSession } from ".";
 import type { GhPrCheckoutSummary, GhToolDetails } from "./gh";

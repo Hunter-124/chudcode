@@ -2,8 +2,8 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import { formatHashlineHeader } from "@oh-my-pi/hashline";
-import { resetSettingsForTest, Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
+import { formatHashlineHeader } from "@chudware/hashline";
+import { resetSettingsForTest, Settings } from "@chudware/coding-agent/config/settings";
 import {
 	canonicalSnapshotKey,
 	DEFAULT_FUZZY_THRESHOLD,
@@ -15,11 +15,11 @@ import {
 	getFileSnapshotStore,
 	MAX_EDIT_SNAPSHOT_TEXT_CHARS,
 	pruneOversizedEditSnapshots,
-} from "@oh-my-pi/pi-coding-agent/edit";
-import { writethroughNoop } from "@oh-my-pi/pi-coding-agent/lsp";
-import type { ToolSession } from "@oh-my-pi/pi-coding-agent/tools";
-import { removeWithRetries } from "@oh-my-pi/pi-utils";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
+} from "@chudware/coding-agent/edit";
+import { writethroughNoop } from "@chudware/coding-agent/lsp";
+import type { ToolSession } from "@chudware/coding-agent/tools";
+import { removeWithRetries } from "@chudware/utils";
+import * as fsx from "@chudware/utils/fsx";
 
 function makeSession(cwd: string): ToolSession {
 	return {
@@ -50,7 +50,7 @@ let tempDir: string;
 
 beforeEach(async () => {
 	resetSettingsForTest();
-	tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "omp-edit-snapshot-"));
+	tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "chudcode-edit-snapshot-"));
 	await Settings.init({ inMemory: true, cwd: tempDir });
 });
 

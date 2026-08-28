@@ -1,5 +1,5 @@
-OMP_SEAT_NAME=g2
-OMP_SEAT_DIR=/run/user/1000/omp-seats/g2
+CHUDCODE_SEAT_NAME=g2
+CHUDCODE_SEAT_DIR=/run/user/1000/chudcode-seats/g2
 DISPLAY=:120
 UNSET=WAYLAND_DISPLAY
 seat-gpu start: 0.21 s
@@ -10,25 +10,25 @@ seat-gpu start: 0.21 s
 ### launching brave-browser into :120
 brave pid=3710391
 
-### waiting for the window to appear in omp's window list
-{"id":"6291459","app":"Brave-browser","title":"OMP-SEAT clicks=0 typed=","x":0,"y":0,"width":1280,"height":800}
+### waiting for the window to appear in chudcode's window list
+{"id":"6291459","app":"Brave-browser","title":"Chudcode-SEAT clicks=0 typed=","x":0,"y":0,"width":1280,"height":800}
 
-### capture BEFORE (omp native X11 capture)
+### capture BEFORE (chudcode native X11 capture)
 desktop capture: 1280x672 backend=x11 displayServer=:120 bytes=40171
-saved: /home/hunter/Repositories/omp-inspection/sandbox-prototype/evidence/05-before.png
+saved: /home/hunter/Repositories/chudcode-inspection/sandbox-prototype/evidence/05-before.png
 window capture: 1280x672 bytes=40171
-saved: /home/hunter/Repositories/omp-inspection/sandbox-prototype/evidence/06-window-before.png
+saved: /home/hunter/Repositories/chudcode-inspection/sandbox-prototype/evidence/06-window-before.png
 
 ### synthesizing a click on the button (XTEST at root, target=desktop)
 click at desktop (400, 300)
-title after click: "OMP-SEAT clicks=1 typed="
+title after click: "Chudcode-SEAT clicks=1 typed="
 
 ### synthesizing keystrokes (typeText + keyChord)
-title after typing: "OMP-SEAT clicks=1 typed=omp-seat-ok<CR>"
+title after typing: "Chudcode-SEAT clicks=1 typed=chudcode-seat-ok<CR>"
 
 ### capture AFTER
-saved: /home/hunter/Repositories/omp-inspection/sandbox-prototype/evidence/07-after.png
-saved: /home/hunter/Repositories/omp-inspection/sandbox-prototype/evidence/08-window-after.png
+saved: /home/hunter/Repositories/chudcode-inspection/sandbox-prototype/evidence/07-after.png
+saved: /home/hunter/Repositories/chudcode-inspection/sandbox-prototype/evidence/08-window-after.png
 
 ### pixel oracle: count state-marker colours across the whole capture
 button-red   #CC2222: before=78165px after=0px

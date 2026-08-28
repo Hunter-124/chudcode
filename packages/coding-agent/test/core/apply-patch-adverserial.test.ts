@@ -2,9 +2,9 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
-import { ApplyPatchError, applyPatch } from "@oh-my-pi/pi-coding-agent/edit";
-import { removeSyncWithRetries } from "@oh-my-pi/pi-utils";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
+import { ApplyPatchError, applyPatch } from "@chudware/coding-agent/edit";
+import { removeSyncWithRetries } from "@chudware/utils";
+import * as fsx from "@chudware/utils/fsx";
 
 describe("applyPatch adversarial inputs", () => {
 	let tempDir: string;

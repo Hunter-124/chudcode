@@ -1,17 +1,17 @@
 import { describe, expect, it } from "bun:test";
-import type { MemoryBackend } from "@oh-my-pi/pi-coding-agent/memory-backend/types";
-import { MnemopiEmbedClient, type MnemopiEmbedWorkerHandle } from "@oh-my-pi/pi-coding-agent/mnemopi/embed-client";
+import type { MemoryBackend } from "@chudware/coding-agent/memory-backend/types";
+import { MnemopiEmbedClient, type MnemopiEmbedWorkerHandle } from "@chudware/coding-agent/mnemo/embed-client";
 import type {
 	MnemopiEmbedWorkerInbound,
 	MnemopiEmbedWorkerOutbound,
-} from "@oh-my-pi/pi-coding-agent/mnemopi/embed-protocol";
-import type { AgentSession } from "@oh-my-pi/pi-coding-agent/session/agent-session";
-import { awaitMemoryPromptInjection } from "@oh-my-pi/pi-coding-agent/session/session-tools";
+} from "@chudware/coding-agent/mnemo/embed-protocol";
+import type { AgentSession } from "@chudware/coding-agent/session/agent-session";
+import { awaitMemoryPromptInjection } from "@chudware/coding-agent/session/session-tools";
 import {
 	parseMemAvailableMB,
 	readAvailableMemoryMB,
 	waitForAvailableMemory,
-} from "@oh-my-pi/pi-coding-agent/utils/memory";
+} from "@chudware/coding-agent/utils/memory";
 
 describe("context hardening", () => {
 	it("uses Linux MemAvailable and falls back when procfs is unavailable", async () => {

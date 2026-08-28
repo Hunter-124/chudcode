@@ -1,7 +1,7 @@
 import { describe, expect, it } from "bun:test";
 import * as path from "node:path";
-import * as prompt from "@oh-my-pi/pi-utils/prompt";
-import { create, type HelperOptions, SafeString } from "@oh-my-pi/pi-utils/template";
+import * as prompt from "@chudware/utils/prompt";
+import { create, type HelperOptions, SafeString } from "@chudware/utils/template";
 import * as fsx from "../src/fsx";
 import fileOperations from "./fixtures/template/file-operations.md" with { type: "text" };
 import frontmatter from "./fixtures/template/frontmatter.md" with { type: "text" };

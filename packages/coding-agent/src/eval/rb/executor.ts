@@ -1,6 +1,6 @@
 import * as fs from "node:fs";
 
-import { getProjectDir, logger } from "@oh-my-pi/pi-utils";
+import { getProjectDir, logger } from "@chudware/utils";
 import type { ToolSession } from "../../tools";
 import {
 	buildManagedKernelEnv,
@@ -65,7 +65,7 @@ export interface RubyExecutorOptions {
 	/**
 	 * On-disk roots the prelude helpers substitute for internal-URL schemes
 	 * (e.g. `{ local: "/…/artifacts/local" }`). Exported to the kernel as
-	 * `PI_EVAL_LOCAL_ROOTS` (JSON).
+	 * `CHUDCODE_EVAL_LOCAL_ROOTS` (JSON).
 	 */
 	localRoots?: Record<string, string>;
 	/**

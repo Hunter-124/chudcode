@@ -1,14 +1,14 @@
-# @oh-my-pi/pi-utils
+# @chudware/utils
 
-Shared utilities for [oh-my-pi](https://github.com/can1357/oh-my-pi) packages. Zero ceremony, Bun-first.
+Shared utilities for [chudware](https://github.com/Hunter-124/chudcode) packages. Zero ceremony, Bun-first.
 
 ## Notable modules
 
 | Module | Purpose |
 | --- | --- |
-| `logger` | Centralized logger writing to `~/.omp/logs/` with rotation (TUI-safe — never stdout) |
+| `logger` | Centralized logger writing to `~/.chudcode/logs/` with rotation (TUI-safe — never stdout) |
 | `prompt` | Handlebars-based prompt templating and formatting helpers |
-| `dirs` | Path helpers for omp config directories (`~/.omp`, XDG-aware on Linux) |
+| `dirs` | Path helpers for chudcode config directories (`~/.chudcode`, XDG-aware on Linux) |
 | `stream` | `readStream` / `readLines` helpers over `ReadableStream` |
 | `ptree` / `procmgr` | Process trees, `ChildProcess` wrapper, process lifecycle management |
 | `postmortem` | Cleanup callbacks on exit, signals, and fatal exceptions |
@@ -21,17 +21,17 @@ Shared utilities for [oh-my-pi](https://github.com/can1357/oh-my-pi) packages. Z
 | `peek-file` | Read the first N bytes of a file with pooled buffers |
 | `frontmatter`, `glob`, `mime`, `temp`, `format`, `color`, `snowflake`, `tab-spacing`, `path-tree`, `sanitize-text` | Smaller single-purpose helpers |
 
-Import from the root barrel or per-module subpaths (`@oh-my-pi/pi-utils/<module>`).
+Import from the root barrel or per-module subpaths (`@chudware/utils/<module>`).
 
 ## Install
 
 ```sh
-bun add @oh-my-pi/pi-utils
+bun add @chudware/utils
 ```
 
 Ships TypeScript source directly (no build step); requires Bun ≥ 1.3.14.
 
 ## References
 
-- [Monorepo README](https://github.com/can1357/oh-my-pi#readme)
+- [Monorepo README](https://github.com/Hunter-124/chudcode#readme)
 - [CHANGELOG](./CHANGELOG.md)

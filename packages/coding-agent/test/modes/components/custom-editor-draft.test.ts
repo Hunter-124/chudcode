@@ -1,8 +1,8 @@
 import { beforeAll, describe, expect, it } from "bun:test";
-import type { ImageContent } from "@oh-my-pi/pi-ai";
-import { CustomEditor } from "@oh-my-pi/pi-coding-agent/modes/components/custom-editor";
-import { chipLabel } from "@oh-my-pi/pi-coding-agent/modes/composer-attachments";
-import { getEditorTheme, initTheme } from "@oh-my-pi/pi-coding-agent/modes/theme/theme";
+import type { ImageContent } from "@chudware/ai";
+import { CustomEditor } from "@chudware/coding-agent/modes/components/custom-editor";
+import { chipLabel } from "@chudware/coding-agent/modes/composer-attachments";
+import { getEditorTheme, initTheme } from "@chudware/coding-agent/modes/theme/theme";
 
 const image: ImageContent = { type: "image", data: "aGVsbG8=", mimeType: "image/png" };
 

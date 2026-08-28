@@ -1,6 +1,6 @@
-import type { FetchImpl } from "@oh-my-pi/pi-ai";
-import { getProjectDir, untilAborted } from "@oh-my-pi/pi-utils";
-import { sleep } from "@oh-my-pi/pi-utils/async";
+import type { FetchImpl } from "@chudware/ai";
+import { getProjectDir, untilAborted } from "@chudware/utils";
+import { sleep } from "@chudware/utils/async";
 import type { Page } from "puppeteer-core";
 import { applyStealthPatches, applyViewport } from "../../../tools/browser/launch";
 import { acquireBrowser, holdBrowser, releaseBrowser } from "../../../tools/browser/registry";

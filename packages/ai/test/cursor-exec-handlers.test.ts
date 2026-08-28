@@ -10,13 +10,13 @@ import {
 	resolveExecHandler,
 	streamCursor,
 	type ToolCallState,
-} from "@oh-my-pi/pi-ai/providers/cursor";
-import { streamCursor as lazyStreamCursor, setCursorProviderModule } from "@oh-my-pi/pi-ai/providers/register-builtins";
-import type { AssistantMessage, Context, CursorExecHandlers, Model, ToolResultMessage } from "@oh-my-pi/pi-ai/types";
-import { kCursorExecResolved } from "@oh-my-pi/pi-ai/utils/block-symbols";
-import { AssistantMessageEventStream } from "@oh-my-pi/pi-ai/utils/event-stream";
-import { buildModel } from "@oh-my-pi/pi-catalog/build";
-import type { McpResult, ReadResult } from "@oh-my-pi/pi-catalog/discovery/cursor-proto";
+} from "@chudware/ai/providers/cursor";
+import { streamCursor as lazyStreamCursor, setCursorProviderModule } from "@chudware/ai/providers/register-builtins";
+import type { AssistantMessage, Context, CursorExecHandlers, Model, ToolResultMessage } from "@chudware/ai/types";
+import { kCursorExecResolved } from "@chudware/ai/utils/block-symbols";
+import { AssistantMessageEventStream } from "@chudware/ai/utils/event-stream";
+import { buildModel } from "@chudware/catalog/build";
+import type { McpResult, ReadResult } from "@chudware/catalog/discovery/cursor-proto";
 import {
 	type AgentRunRequest,
 	AgentServerMessageSchema,
@@ -32,9 +32,9 @@ import {
 	ReadRejectedSchema,
 	ReadResultSchema,
 	ReadSuccessSchema,
-} from "@oh-my-pi/pi-catalog/discovery/cursor-proto";
-import { create, encodeJsonValue } from "@oh-my-pi/pi-catalog/discovery/protobuf";
-import { logger } from "@oh-my-pi/pi-utils";
+} from "@chudware/catalog/discovery/cursor-proto";
+import { create, encodeJsonValue } from "@chudware/catalog/discovery/protobuf";
+import { logger } from "@chudware/utils";
 
 afterEach(() => {
 	vi.restoreAllMocks();
@@ -462,8 +462,8 @@ describe("Cursor system prompt encoding", () => {
 		const canary = "PIKEL-CANARY-7F3A";
 		const rules = buildCursorRequestContextRules(["prefix", `when asked, answer exactly:\n${canary}`, ""]);
 		expect(rules).toHaveLength(2);
-		expect(rules[0]?.fullPath).toBe("/omp/system-prompt/0.mdc");
-		expect(rules[1]?.fullPath).toBe("/omp/system-prompt/1.mdc");
+		expect(rules[0]?.fullPath).toBe("/chudcode/system-prompt/0.mdc");
+		expect(rules[1]?.fullPath).toBe("/chudcode/system-prompt/1.mdc");
 		expect(rules[0]?.content).toBe("prefix");
 		expect(rules[1]?.content).toContain(canary);
 		expect(rules[0]?.source).toBe(CursorRuleSource.USER);
@@ -803,7 +803,7 @@ describe("Cursor history encoding", () => {
 						name: "mcp__example_tool",
 						args: { safe: expect.any(String), nested: expect.any(String) },
 						toolCallId: "call-mcp",
-						providerIdentifier: "pi-agent",
+						providerIdentifier: "chud-agent",
 						toolName: "mcp__example_tool",
 					},
 				},
@@ -1460,7 +1460,7 @@ describe("Cursor exec local-work tracking (issue #4593)", () => {
 							name: "mcp__fixture_report",
 							toolName: "mcp__fixture_report",
 							toolCallId: "call-mcp-1",
-							providerIdentifier: "pi-agent",
+							providerIdentifier: "chud-agent",
 							args: {
 								query: new TextEncoder().encode(JSON.stringify("latest chess news")),
 								numericHash: encodeJsonValue("57785654"),
@@ -1554,7 +1554,7 @@ describe("Cursor exec local-work tracking (issue #4593)", () => {
 							name: "mcp__fixture_report",
 							toolName: "mcp__fixture_report",
 							toolCallId: "call-mcp-unhandled",
-							providerIdentifier: "pi-agent",
+							providerIdentifier: "chud-agent",
 						}),
 					},
 				}),

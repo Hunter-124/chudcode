@@ -1,7 +1,7 @@
-import { type } from "@oh-my-pi/omptype";
-import type { AgentTool, AgentToolContext, AgentToolResult, AgentToolUpdateCallback } from "@oh-my-pi/pi-agent-core";
-import type { ImageContent, ToolExample } from "@oh-my-pi/pi-ai";
-import { prompt } from "@oh-my-pi/pi-utils";
+import { type } from "@chudware/chudtype";
+import type { AgentTool, AgentToolContext, AgentToolResult, AgentToolUpdateCallback } from "@chudware/agent-core";
+import type { ImageContent, ToolExample } from "@chudware/ai";
+import { prompt } from "@chudware/utils";
 import {
 	DEFAULT_AUTO_BACKGROUND_THRESHOLD_MS,
 	formatBackgroundNotice,
@@ -246,7 +246,7 @@ async function resolveBackend(
 	const allowJl = backends.julia;
 
 	if (language === "python") {
-		if (!allowPy) throw new ToolError("Python backend is disabled (PI_PY=0 or eval.py = false).");
+		if (!allowPy) throw new ToolError("Python backend is disabled (CHUDCODE_PY=0 or eval.py = false).");
 		const available = await pythonBackend.isAvailable(session, probeOpts);
 		throwIfAborted(probeOpts?.signal);
 		if (!available) {
@@ -262,7 +262,7 @@ async function resolveBackend(
 		return { backend: pythonBackend };
 	}
 	if (language === "ruby") {
-		if (!allowRb) throw new ToolError("Ruby backend is disabled (PI_RB=0 or eval.rb = false).");
+		if (!allowRb) throw new ToolError("Ruby backend is disabled (CHUDCODE_RB=0 or eval.rb = false).");
 		const available = await rubyBackend.isAvailable(session, probeOpts);
 		throwIfAborted(probeOpts?.signal);
 		if (!available) {
@@ -278,7 +278,7 @@ async function resolveBackend(
 		return { backend: rubyBackend };
 	}
 	if (language === "julia") {
-		if (!allowJl) throw new ToolError("Julia backend is disabled (PI_JL=0 or eval.jl = false).");
+		if (!allowJl) throw new ToolError("Julia backend is disabled (CHUDCODE_JL=0 or eval.jl = false).");
 		const available = await juliaBackend.isAvailable(session, probeOpts);
 		throwIfAborted(probeOpts?.signal);
 		if (!available) {
@@ -293,7 +293,7 @@ async function resolveBackend(
 		}
 		return { backend: juliaBackend };
 	}
-	if (!allowJs) throw new ToolError("JavaScript backend is disabled (PI_JS=0 or eval.js = false).");
+	if (!allowJs) throw new ToolError("JavaScript backend is disabled (CHUDCODE_JS=0 or eval.js = false).");
 	return { backend: jsBackend };
 }
 function formatEvalInputLanguage(value: string): string {

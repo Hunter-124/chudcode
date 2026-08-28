@@ -5,25 +5,25 @@
 ### launching brave-browser into :90
 brave pid=3987783
 
-### waiting for the window to appear in omp's window list
-{"id":"6291459","app":"Brave-browser","title":"OMP-SEAT clicks=0 typed=","x":0,"y":0,"width":1280,"height":800}
+### waiting for the window to appear in chudcode's window list
+{"id":"6291459","app":"Brave-browser","title":"Chudcode-SEAT clicks=0 typed=","x":0,"y":0,"width":1280,"height":800}
 
-### capture BEFORE (omp native X11 capture)
+### capture BEFORE (chudcode native X11 capture)
 desktop capture: 1920x1080 backend=x11 displayServer=:90 bytes=65600
-saved: /home/hunter/Repositories/omp-inspection/sandbox-prototype/evidence/05-before.png
+saved: /home/hunter/Repositories/chudcode-inspection/sandbox-prototype/evidence/05-before.png
 window capture: 1280x800 bytes=44502
-saved: /home/hunter/Repositories/omp-inspection/sandbox-prototype/evidence/06-window-before.png
+saved: /home/hunter/Repositories/chudcode-inspection/sandbox-prototype/evidence/06-window-before.png
 
 ### synthesizing a click on the button (XTEST at root, target=desktop)
 click at desktop (400, 300)
-title after click: "OMP-SEAT clicks=1 typed="
+title after click: "Chudcode-SEAT clicks=1 typed="
 
 ### synthesizing keystrokes (typeText + keyChord)
-title after typing: "OMP-SEAT clicks=1 typed=omp-seat-ok<CR>"
+title after typing: "Chudcode-SEAT clicks=1 typed=chudcode-seat-ok<CR>"
 
 ### capture AFTER
-saved: /home/hunter/Repositories/omp-inspection/sandbox-prototype/evidence/07-after.png
-saved: /home/hunter/Repositories/omp-inspection/sandbox-prototype/evidence/08-window-after.png
+saved: /home/hunter/Repositories/chudcode-inspection/sandbox-prototype/evidence/07-after.png
+saved: /home/hunter/Repositories/chudcode-inspection/sandbox-prototype/evidence/08-window-after.png
 
 ### pixel oracle: count state-marker colours across the whole capture
 button-red   #CC2222: before=77784px after=0px

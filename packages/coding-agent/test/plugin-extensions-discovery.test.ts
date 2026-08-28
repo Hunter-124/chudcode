@@ -2,11 +2,11 @@ import { afterEach, beforeEach, describe, expect, it, spyOn } from "bun:test";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
-import { discoverAndLoadExtensions } from "@oh-my-pi/pi-coding-agent/extensibility/extensions/loader";
-import { getAgentDir, getPluginsDir, removeSyncWithRetries, setAgentDir, TempDir } from "@oh-my-pi/pi-utils";
+import { discoverAndLoadExtensions } from "@chudware/coding-agent/extensibility/extensions/loader";
+import { getAgentDir, getPluginsDir, removeSyncWithRetries, setAgentDir, TempDir } from "@chudware/utils";
 
-const currentPiCodingAgentPath = Bun.resolveSync("@oh-my-pi/pi-coding-agent", import.meta.dir);
-const currentPiExtensionsPath = Bun.resolveSync("@oh-my-pi/pi-coding-agent/extensibility/extensions", import.meta.dir);
+const currentPiCodingAgentPath = Bun.resolveSync("@chudware/coding-agent", import.meta.dir);
+const currentPiExtensionsPath = Bun.resolveSync("@chudware/coding-agent/extensibility/extensions", import.meta.dir);
 
 describe("plugin extension discovery", () => {
 	let projectDir: TempDir;
@@ -18,25 +18,25 @@ describe("plugin extension discovery", () => {
 	beforeEach(() => {
 		projectDir = TempDir.createSync("@pi-plugin-ext-");
 		// Redirect the whole config root to an isolated temp home so plugin discovery
-		// resolves into `<tempHome>/.omp/plugins` on every platform. Two things are needed:
-		//  - mock os.homedir() so configRoot = `<tempHome>/.omp` (the previous
+		// resolves into `<tempHome>/.chudcode/plugins` on every platform. Two things are needed:
+		//  - mock os.homedir() so configRoot = `<tempHome>/.chudcode` (the previous
 		//    XDG_DATA_HOME redirect was a no-op on Windows, where these tests then wrote
-		//    into and rm'd the developer's real `~/.omp/plugins`);
+		//    into and rm'd the developer's real `~/.chudcode/plugins`);
 		//  - clear the XDG_* vars, because on Linux/macOS the resolver prefers
-		//    `$XDG_DATA_HOME/omp` over the home config root when that dir exists, so an
+		//    `$XDG_DATA_HOME/chudcode` over the home config root when that dir exists, so an
 		//    XDG-migrated environment would otherwise still resolve the real plugins dir.
-		tempHome = fs.mkdtempSync(path.join(os.tmpdir(), "pi-plugin-home-"));
+		tempHome = fs.mkdtempSync(path.join(os.tmpdir(), "chud-plugin-home-"));
 		for (const key of xdgVars) {
 			originalXdg.set(key, process.env[key]);
 			delete process.env[key];
 		}
 		spyOn(os, "homedir").mockReturnValue(tempHome);
-		setAgentDir(path.join(tempHome, ".omp", "agent"));
+		setAgentDir(path.join(tempHome, ".chudcode", "agent"));
 
 		const pluginsDir = getPluginsDir();
 		// Safety gate: never write fixtures outside the temp home. This is the exact
 		// failure mode being fixed — a resolver/mock regression that resolves to the real
-		// ~/.omp must fail loudly here instead of clobbering the developer's plugins.
+		// ~/.chudcode must fail loudly here instead of clobbering the developer's plugins.
 		if (!pluginsDir.startsWith(tempHome + path.sep)) {
 			throw new Error(`plugin isolation failed: getPluginsDir() resolved outside the temp home: ${pluginsDir}`);
 		}
@@ -45,7 +45,7 @@ describe("plugin extension discovery", () => {
 		fs.writeFileSync(
 			path.join(pluginsDir, "package.json"),
 			JSON.stringify({
-				name: "omp-plugins",
+				name: "chudcode-plugins",
 				private: true,
 				dependencies: {
 					"@demo/plugin": "1.0.0",
@@ -57,7 +57,7 @@ describe("plugin extension discovery", () => {
 			JSON.stringify({
 				name: "@demo/plugin",
 				version: "1.0.0",
-				omp: {
+				chudcode: {
 					extensions: ["./dist/extension.ts"],
 				},
 			}),
@@ -65,8 +65,8 @@ describe("plugin extension discovery", () => {
 		fs.writeFileSync(
 			path.join(pluginDir, "dist", "extension.ts"),
 			`
-				export default function(pi) {
-					pi.registerCommand("plugin-ext", { handler: async () => {} });
+				export default function(chud) {
+					chud.registerCommand("plugin-ext", { handler: async () => {} });
 				}
 			`,
 		);
@@ -93,7 +93,7 @@ describe("plugin extension discovery", () => {
 		expect(extension?.commands.has("plugin-ext")).toBe(true);
 	});
 
-	it("loads installed legacy Pi plugin extensions from Windows drive-letter paths", async () => {
+	it("loads installed legacy Chud plugin extensions from Windows drive-letter paths", async () => {
 		const pluginsDir = getPluginsDir();
 		const pluginDir = path.join(pluginsDir, "node_modules", "legacy-pi-plugin");
 		const extensionPath = path.join(pluginDir, "dist", "extension.ts");
@@ -102,7 +102,7 @@ describe("plugin extension discovery", () => {
 		fs.writeFileSync(
 			path.join(pluginsDir, "package.json"),
 			JSON.stringify({
-				name: "omp-plugins",
+				name: "chudcode-plugins",
 				private: true,
 				dependencies: {
 					"legacy-pi-plugin": "1.0.0",
@@ -114,7 +114,7 @@ describe("plugin extension discovery", () => {
 			JSON.stringify({
 				name: "legacy-pi-plugin",
 				version: "1.0.0",
-				pi: {
+				chud: {
 					extensions: ["./dist/extension.ts"],
 				},
 			}),
@@ -124,8 +124,8 @@ describe("plugin extension discovery", () => {
 			[
 				'import * as nodePath from "path";',
 				'if (false) import("./optional-missing.js");',
-				'import { isToolCallEventType as legacyRoot } from "@mariozechner/pi-coding-agent";',
-				'import { isToolCallEventType as legacyExtensions } from "@mariozechner/pi-coding-agent/extensibility/extensions";',
+				'import { isToolCallEventType as legacyRoot } from "@mariozechner/chudcode-agent";',
+				'import { isToolCallEventType as legacyExtensions } from "@mariozechner/chudcode-agent/extensibility/extensions";',
 				`import { isToolCallEventType as modernRoot } from ${JSON.stringify(currentPiCodingAgentPath)};`,
 				`import { isToolCallEventType as modernExtensions } from ${JSON.stringify(currentPiExtensionsPath)};`,
 				"",
@@ -133,11 +133,11 @@ describe("plugin extension discovery", () => {
 				'if (legacyExtensions !== modernExtensions) throw new Error("legacy extension import did not remap");',
 				'if (typeof nodePath.join !== "function") throw new Error("node builtin import did not resolve");',
 				"",
-				"export default function(pi) {",
-				"\tconst { Type } = pi.typebox;",
+				"export default function(chud) {",
+				"\tconst { Type } = chud.typebox;",
 				"\tpi.registerTool({",
 				'\t\tname: "legacy-pi-ext",',
-				'\t\tdescription: "Legacy Pi extension smoke test",',
+				'\t\tdescription: "Legacy Chud extension smoke test",',
 				"\t\tparameters: Type.Object({}),",
 				'\t\texecute: async () => ({ content: [{ type: "text", text: "ok" }] }),',
 				"\t});",
@@ -156,7 +156,7 @@ describe("plugin extension discovery", () => {
 		expect(extension?.tools.has("legacy-pi-ext")).toBe(true);
 	});
 
-	it("loads installed legacy Pi plugin extensions that use package imports", async () => {
+	it("loads installed legacy Chud plugin extensions that use package imports", async () => {
 		const pluginsDir = getPluginsDir();
 		const pluginDir = path.join(pluginsDir, "node_modules", "package-import-plugin");
 		const extensionPath = path.join(pluginDir, "src", "index.ts");
@@ -165,7 +165,7 @@ describe("plugin extension discovery", () => {
 		fs.writeFileSync(
 			path.join(pluginsDir, "package.json"),
 			JSON.stringify({
-				name: "omp-plugins",
+				name: "chudcode-plugins",
 				private: true,
 				dependencies: {
 					"package-import-plugin": "1.0.0",
@@ -180,7 +180,7 @@ describe("plugin extension discovery", () => {
 				imports: {
 					"#src/*": "./src/*",
 				},
-				pi: {
+				chud: {
 					extensions: ["./src/index.ts"],
 				},
 			}),
@@ -190,7 +190,7 @@ describe("plugin extension discovery", () => {
 			[
 				'import { commandName } from "#src/feature/command";',
 				"",
-				"export default function(pi) {",
+				"export default function(chud) {",
 				"\tpi.registerCommand(commandName, { handler: async () => {} });",
 				"}",
 			].join("\n"),
@@ -198,7 +198,7 @@ describe("plugin extension discovery", () => {
 		fs.writeFileSync(
 			path.join(pluginDir, "src", "feature", "command.ts"),
 			[
-				'import { isToolCallEventType as legacyExtensions } from "@earendil-works/pi-coding-agent/extensibility/extensions";',
+				'import { isToolCallEventType as legacyExtensions } from "@earendil-works/chudcode-agent/extensibility/extensions";',
 				`import { isToolCallEventType as modernExtensions } from ${JSON.stringify(currentPiExtensionsPath)};`,
 				"",
 				'if (legacyExtensions !== modernExtensions) throw new Error("legacy extension import did not remap");',
@@ -224,7 +224,7 @@ describe("plugin extension discovery", () => {
 		fs.writeFileSync(
 			path.join(pluginsDir, "package.json"),
 			JSON.stringify({
-				name: "omp-plugins",
+				name: "chudcode-plugins",
 				private: true,
 				dependencies: {
 					"conditional-import-plugin": "1.0.0",
@@ -242,7 +242,7 @@ describe("plugin extension discovery", () => {
 						import: "./import/*",
 					},
 				},
-				pi: {
+				chud: {
 					extensions: ["./src/index.ts"],
 				},
 			}),
@@ -253,7 +253,7 @@ describe("plugin extension discovery", () => {
 			[
 				'import { commandName } from "#src/command";',
 				"",
-				"export default function(pi) {",
+				"export default function(chud) {",
 				"\tpi.registerCommand(commandName, { handler: async () => {} });",
 				"}",
 			].join("\n"),
@@ -285,7 +285,7 @@ describe("plugin extension discovery", () => {
 		fs.writeFileSync(
 			path.join(pluginsDir, "package.json"),
 			JSON.stringify({
-				name: "omp-plugins",
+				name: "chudcode-plugins",
 				private: true,
 				dependencies: {
 					"json-import-plugin": "1.0.0",
@@ -300,7 +300,7 @@ describe("plugin extension discovery", () => {
 				imports: {
 					"#schema": "./src/schema.json",
 				},
-				pi: {
+				chud: {
 					extensions: ["./src/index.ts"],
 				},
 			}),
@@ -311,7 +311,7 @@ describe("plugin extension discovery", () => {
 			[
 				'import schema from "#schema" with { type: "json" };',
 				"",
-				"export default function(pi) {",
+				"export default function(chud) {",
 				"\tpi.registerCommand(schema.commandName, { handler: async () => {} });",
 				"}",
 			].join("\n"),
@@ -334,7 +334,7 @@ describe("plugin extension discovery", () => {
 		fs.writeFileSync(
 			path.join(pluginsDir, "package.json"),
 			JSON.stringify({
-				name: "omp-plugins",
+				name: "chudcode-plugins",
 				private: true,
 				dependencies: {
 					"null-exact-import-plugin": "1.0.0",
@@ -350,7 +350,7 @@ describe("plugin extension discovery", () => {
 					"#src/internal": null,
 					"#src/*": "./src/*",
 				},
-				pi: {
+				chud: {
 					extensions: ["./src/index.ts"],
 				},
 			}),
@@ -361,7 +361,7 @@ describe("plugin extension discovery", () => {
 			[
 				'import { commandName } from "#src/internal";',
 				"",
-				"export default function(pi) {",
+				"export default function(chud) {",
 				"\tpi.registerCommand(commandName, { handler: async () => {} });",
 				"}",
 			].join("\n"),
@@ -384,7 +384,7 @@ describe("plugin extension discovery", () => {
 		fs.writeFileSync(
 			path.join(pluginsDir, "package.json"),
 			JSON.stringify({
-				name: "omp-plugins",
+				name: "chudcode-plugins",
 				private: true,
 				dependencies: {
 					"null-conditional-import-plugin": "1.0.0",
@@ -402,7 +402,7 @@ describe("plugin extension discovery", () => {
 						default: "./src/blocked.ts",
 					},
 				},
-				pi: {
+				chud: {
 					extensions: ["./src/index.ts"],
 				},
 			}),
@@ -413,7 +413,7 @@ describe("plugin extension discovery", () => {
 			[
 				'import { commandName } from "#blocked";',
 				"",
-				"export default function(pi) {",
+				"export default function(chud) {",
 				"\tpi.registerCommand(commandName, { handler: async () => {} });",
 				"}",
 			].join("\n"),
@@ -427,7 +427,7 @@ describe("plugin extension discovery", () => {
 		expect(extension).toBeUndefined();
 	});
 
-	it("rewrites side-effect imports of package-import aliases and legacy Pi scopes", async () => {
+	it("rewrites side-effect imports of package-import aliases and legacy Chud scopes", async () => {
 		const pluginsDir = getPluginsDir();
 		const pluginDir = path.join(pluginsDir, "node_modules", "side-effect-plugin");
 		const extensionPath = path.join(pluginDir, "src", "index.ts");
@@ -436,7 +436,7 @@ describe("plugin extension discovery", () => {
 		fs.writeFileSync(
 			path.join(pluginsDir, "package.json"),
 			JSON.stringify({
-				name: "omp-plugins",
+				name: "chudcode-plugins",
 				private: true,
 				dependencies: {
 					"side-effect-plugin": "1.0.0",
@@ -451,7 +451,7 @@ describe("plugin extension discovery", () => {
 				imports: {
 					"#src/*": "./src/*",
 				},
-				pi: {
+				chud: {
 					extensions: ["./src/index.ts"],
 				},
 			}),
@@ -462,13 +462,13 @@ describe("plugin extension discovery", () => {
 				// Side-effect imports — no `from`, no dynamic `import()`. The
 				// regex matchers must walk and rewrite both shapes so the legacy
 				// `@earendil-works` import inside `register.ts` resolves to the
-				// host `@oh-my-pi` package.
+				// host `@chudware` package.
 				'import "#src/register";',
 				'import "./marker";',
 				"",
 				"declare global { var __sideEffectMarker: { ok: boolean; runs: number } | undefined; }",
 				"",
-				"export default function(pi) {",
+				"export default function(chud) {",
 				'\tif (!globalThis.__sideEffectMarker?.ok) throw new Error("register side-effect did not run");',
 				'\tpi.registerCommand("side-effect-ext", { handler: async () => {} });',
 				"}",
@@ -477,7 +477,7 @@ describe("plugin extension discovery", () => {
 		fs.writeFileSync(
 			path.join(pluginDir, "src", "register.ts"),
 			[
-				'import { isToolCallEventType as legacyExtensions } from "@earendil-works/pi-coding-agent/extensibility/extensions";',
+				'import { isToolCallEventType as legacyExtensions } from "@earendil-works/chudcode-agent/extensibility/extensions";',
 				`import { isToolCallEventType as modernExtensions } from ${JSON.stringify(currentPiExtensionsPath)};`,
 				"",
 				'if (legacyExtensions !== modernExtensions) throw new Error("legacy side-effect import did not remap");',
@@ -516,7 +516,7 @@ describe("plugin extension discovery", () => {
 		fs.writeFileSync(
 			path.join(pluginsDir, "package.json"),
 			JSON.stringify({
-				name: "omp-plugins",
+				name: "chudcode-plugins",
 				private: true,
 				dependencies: {
 					"dir-entry-plugin": "1.0.0",
@@ -528,7 +528,7 @@ describe("plugin extension discovery", () => {
 			JSON.stringify({
 				name: "dir-entry-plugin",
 				version: "1.0.0",
-				pi: {
+				chud: {
 					// Directory entry — loader must resolve to the directory's index file.
 					extensions: [".pi/extensions/dir-entry"],
 				},
@@ -537,7 +537,7 @@ describe("plugin extension discovery", () => {
 		fs.writeFileSync(
 			extensionPath,
 			[
-				"export default function(pi) {",
+				"export default function(chud) {",
 				'\tpi.registerCommand("dir-entry-ext", { handler: async () => {} });',
 				"}",
 			].join("\n"),
@@ -562,7 +562,7 @@ describe("plugin extension discovery", () => {
 		fs.writeFileSync(
 			path.join(pluginsDir, "package.json"),
 			JSON.stringify({
-				name: "omp-plugins",
+				name: "chudcode-plugins",
 				private: true,
 				dependencies: {
 					"subdir-entry-plugin": "1.0.0",
@@ -574,9 +574,9 @@ describe("plugin extension discovery", () => {
 			JSON.stringify({
 				name: "subdir-entry-plugin",
 				version: "1.0.0",
-				pi: {
+				chud: {
 					// Directory entry with no direct index — the loader must scan one
-					// level and pick up `extensions/<name>/index.ts` (pi package layout).
+					// level and pick up `extensions/<name>/index.ts` (chud package layout).
 					extensions: ["./extensions"],
 				},
 			}),
@@ -584,7 +584,7 @@ describe("plugin extension discovery", () => {
 		fs.writeFileSync(
 			extensionPath,
 			[
-				"export default function(pi) {",
+				"export default function(chud) {",
 				'\tpi.registerCommand("subdir-entry-ext", { handler: async () => {} });',
 				"}",
 			].join("\n"),
@@ -609,7 +609,7 @@ describe("plugin extension discovery", () => {
 		fs.writeFileSync(
 			path.join(pluginsDir, "package.json"),
 			JSON.stringify({
-				name: "omp-plugins",
+				name: "chudcode-plugins",
 				private: true,
 				dependencies: {
 					"nested-manifest-plugin": "1.0.0",
@@ -621,19 +621,19 @@ describe("plugin extension discovery", () => {
 			JSON.stringify({
 				name: "nested-manifest-plugin",
 				version: "1.0.0",
-				pi: { extensions: ["./extensions"] },
+				chud: { extensions: ["./extensions"] },
 			}),
 		);
 		// Child package declares its real entry via its own manifest; the index.ts
 		// is a decoy that must NOT win (manifest takes precedence, like the -e scanner).
 		fs.writeFileSync(
 			path.join(featureDir, "package.json"),
-			JSON.stringify({ name: "feature-ext", version: "1.0.0", omp: { extensions: ["./dist/real-ext.ts"] } }),
+			JSON.stringify({ name: "feature-ext", version: "1.0.0", chudcode: { extensions: ["./dist/real-ext.ts"] } }),
 		);
 		fs.writeFileSync(
 			realEntry,
 			[
-				"export default function(pi) {",
+				"export default function(chud) {",
 				'\tpi.registerCommand("nested-manifest-ext", { handler: async () => {} });',
 				"}",
 			].join("\n"),
@@ -641,7 +641,7 @@ describe("plugin extension discovery", () => {
 		fs.writeFileSync(
 			path.join(featureDir, "index.ts"),
 			[
-				"export default function(pi) {",
+				"export default function(chud) {",
 				'\tpi.registerCommand("decoy-index-ext", { handler: async () => {} });',
 				"}",
 			].join("\n"),
@@ -667,7 +667,7 @@ describe("plugin extension discovery", () => {
 		fs.writeFileSync(
 			path.join(pluginsDir, "package.json"),
 			JSON.stringify({
-				name: "omp-plugins",
+				name: "chudcode-plugins",
 				private: true,
 				dependencies: {
 					"missing-decl-plugin": "1.0.0",
@@ -679,19 +679,19 @@ describe("plugin extension discovery", () => {
 			JSON.stringify({
 				name: "missing-decl-plugin",
 				version: "1.0.0",
-				pi: { extensions: ["./extensions"] },
+				chud: { extensions: ["./extensions"] },
 			}),
 		);
 		// The child manifest is authoritative: it declares ./dist/real-ext.ts, which does
 		// not exist (e.g. unbuilt). The leftover index.ts must NOT be loaded as a fallback.
 		fs.writeFileSync(
 			path.join(featureDir, "package.json"),
-			JSON.stringify({ name: "feature-ext", version: "1.0.0", omp: { extensions: ["./dist/real-ext.ts"] } }),
+			JSON.stringify({ name: "feature-ext", version: "1.0.0", chudcode: { extensions: ["./dist/real-ext.ts"] } }),
 		);
 		fs.writeFileSync(
 			path.join(featureDir, "index.ts"),
 			[
-				"export default function(pi) {",
+				"export default function(chud) {",
 				'\tpi.registerCommand("decoy-index-ext", { handler: async () => {} });',
 				"}",
 			].join("\n"),
@@ -713,7 +713,7 @@ describe("plugin extension discovery", () => {
 		fs.writeFileSync(
 			path.join(pluginsDir, "package.json"),
 			JSON.stringify({
-				name: "omp-plugins",
+				name: "chudcode-plugins",
 				private: true,
 				dependencies: {
 					"dts-plugin": "1.0.0",
@@ -725,17 +725,17 @@ describe("plugin extension discovery", () => {
 			JSON.stringify({
 				name: "dts-plugin",
 				version: "1.0.0",
-				omp: { extensions: ["./extensions"] },
+				chudcode: { extensions: ["./extensions"] },
 			}),
 		);
 		fs.writeFileSync(
 			moduleEntry,
-			["export default function(pi) {", '\tpi.registerCommand("dts-ext", { handler: async () => {} });', "}"].join(
+			["export default function(chud) {", '\tpi.registerCommand("dts-ext", { handler: async () => {} });', "}"].join(
 				"\n",
 			),
 		);
 		// A sibling declaration file must be ignored — importing it would fail.
-		fs.writeFileSync(path.join(extensionsDir, "ext.d.ts"), "export default function (pi: unknown): void;\n");
+		fs.writeFileSync(path.join(extensionsDir, "ext.d.ts"), "export default function (chud: unknown): void;\n");
 
 		const result = await discoverAndLoadExtensions([], projectDir.path());
 		const extension = result.extensions.find(ext => ext.path === moduleEntry);

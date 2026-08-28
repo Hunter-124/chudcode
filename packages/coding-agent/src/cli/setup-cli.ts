@@ -4,8 +4,8 @@
  * Handles `chudcode setup` for onboarding and `chudcode setup <component>` for optional dependencies.
  */
 import * as path from "node:path";
-import { getProjectDir, getPythonEnvDir } from "@oh-my-pi/pi-utils";
-import chalk from "@oh-my-pi/pi-utils/chalk";
+import { getProjectDir, getPythonEnvDir } from "@chudware/utils";
+import chalk from "@chudware/utils/chalk";
 import { PRODUCT_CLI_NAME } from "../brand";
 import { Settings, settings } from "../config/settings";
 import { checkPythonKernelAvailability } from "../eval/py/kernel";

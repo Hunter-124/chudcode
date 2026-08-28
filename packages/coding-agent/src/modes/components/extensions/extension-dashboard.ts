@@ -23,8 +23,8 @@ import {
 	TabBar,
 	truncateToWidth,
 	visibleWidth,
-} from "@oh-my-pi/pi-tui";
-import { getMCPConfigPath, logger } from "@oh-my-pi/pi-utils";
+} from "@chudware/tui";
+import { getMCPConfigPath, logger } from "@chudware/utils";
 import { Settings } from "../../../config/settings";
 import type { CustomTool } from "../../../extensibility/custom-tools/types";
 import { setMcpServerEnabled } from "../../../mcp/config-writer";
@@ -357,7 +357,7 @@ export class ExtensionDashboard implements Component {
 		if (!sm) return;
 
 		// MCP toggles route through the canonical denylist in
-		// `~/.omp/agent/mcp.json` so `/mcp list`, the MCP runtime, and this
+		// `~/.chudcode/agent/mcp.json` so `/mcp list`, the MCP runtime, and this
 		// dashboard agree on every server's enabled state (issue #3827).
 		if (extensionId.startsWith("mcp:")) {
 			void this.#toggleMcpExtension(extensionId, enabled, sm);

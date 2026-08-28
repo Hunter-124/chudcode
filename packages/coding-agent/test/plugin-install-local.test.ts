@@ -1,5 +1,5 @@
 /**
- * Routing tests for `omp plugin install <local-path>` (#1945).
+ * Routing tests for `chudcode plugin install <local-path>` (#1945).
  *
  * Two layers of coverage:
  *  1. Spy-based: `runPluginCommand` with a local path calls
@@ -16,13 +16,13 @@ import { afterEach, beforeEach, describe, expect, mock, spyOn, test } from "bun:
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import { runPluginCommand } from "@oh-my-pi/pi-coding-agent/cli/plugin-cli";
-import { PluginManager } from "@oh-my-pi/pi-coding-agent/extensibility/plugins/manager";
-import { MarketplaceManager } from "@oh-my-pi/pi-coding-agent/extensibility/plugins/marketplace";
-import type { InstalledPlugin } from "@oh-my-pi/pi-coding-agent/extensibility/plugins/types";
-import * as piUtils from "@oh-my-pi/pi-utils";
-import { removeWithRetries } from "@oh-my-pi/pi-utils";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
+import { runPluginCommand } from "@chudware/coding-agent/cli/plugin-cli";
+import { PluginManager } from "@chudware/coding-agent/extensibility/plugins/manager";
+import { MarketplaceManager } from "@chudware/coding-agent/extensibility/plugins/marketplace";
+import type { InstalledPlugin } from "@chudware/coding-agent/extensibility/plugins/types";
+import * as piUtils from "@chudware/utils";
+import { removeWithRetries } from "@chudware/utils";
+import * as fsx from "@chudware/utils/fsx";
 
 const FAKE_INSTALLED: InstalledPlugin = {
 	name: "kimi-datasource",
@@ -41,7 +41,7 @@ async function createLocalPlugin(root: string): Promise<string> {
 		JSON.stringify({
 			name: "kimi-datasource",
 			version: "1.0.0",
-			omp: { extensions: ["./src/extension.ts"] },
+			chudcode: { extensions: ["./src/extension.ts"] },
 		}),
 	);
 	return localPlugin;
@@ -51,14 +51,14 @@ describe("runPluginCommand({ action: 'install', args: [<local>] })", () => {
 	let tmpRoot: string;
 
 	beforeEach(async () => {
-		tmpRoot = await fs.mkdtemp(path.join(os.tmpdir(), "omp-plugin-install-local-"));
+		tmpRoot = await fs.mkdtemp(path.join(os.tmpdir(), "chudcode-plugin-install-local-"));
 		const pluginsDir = path.join(tmpRoot, "plugins");
 		await fs.mkdir(path.join(pluginsDir, "node_modules"), { recursive: true });
 
 		spyOn(piUtils, "getPluginsDir").mockReturnValue(pluginsDir);
 		spyOn(piUtils, "getPluginsNodeModules").mockReturnValue(path.join(pluginsDir, "node_modules"));
 		spyOn(piUtils, "getPluginsPackageJson").mockReturnValue(path.join(pluginsDir, "package.json"));
-		spyOn(piUtils, "getPluginsLockfile").mockReturnValue(path.join(tmpRoot, "omp-plugins.lock.json"));
+		spyOn(piUtils, "getPluginsLockfile").mockReturnValue(path.join(tmpRoot, "chudcode-plugins.lock.json"));
 		spyOn(piUtils, "getProjectDir").mockReturnValue(tmpRoot);
 		spyOn(piUtils, "getProjectPluginOverridesPath").mockReturnValue(path.join(tmpRoot, "plugin-overrides.json"));
 		// runPluginCommand always builds a MarketplaceManager to enumerate
@@ -126,7 +126,7 @@ describe("runPluginCommand({ action: 'install', args: [<local>] })", () => {
 		// End-to-end: stage a real plugin folder, route through plugin-cli
 		// (no spies on PluginManager.link), and verify the resulting symlink
 		// + lockfile entry. Pins the contract that local-path installs
-		// symlink rather than copy-install, matching `omp plugin link`.
+		// symlink rather than copy-install, matching `chudcode plugin link`.
 		const localPlugin = await createLocalPlugin(tmpRoot);
 
 		await runPluginCommand({ action: "install", args: [localPlugin], flags: { json: true } });
@@ -136,7 +136,7 @@ describe("runPluginCommand({ action: 'install', args: [<local>] })", () => {
 		expect(stat.isSymbolicLink()).toBe(true);
 		expect(await fs.readlink(linkTarget)).toBe(localPlugin);
 
-		const lock = await fsx.readJson(path.join(tmpRoot, "omp-plugins.lock.json"));
+		const lock = await fsx.readJson(path.join(tmpRoot, "chudcode-plugins.lock.json"));
 		expect(lock.plugins["kimi-datasource"]).toEqual({
 			version: "1.0.0",
 			enabledFeatures: null,
@@ -162,7 +162,7 @@ describe("runPluginCommand({ action: 'install', args: [<local>] })", () => {
 	test("doctor --fix preserves linked local plugin state without package dependencies", async () => {
 		await fsx.write(
 			path.join(tmpRoot, "plugins", "package.json"),
-			JSON.stringify({ name: "omp-plugins", private: true, dependencies: {} }),
+			JSON.stringify({ name: "chudcode-plugins", private: true, dependencies: {} }),
 		);
 		const localPlugin = await createLocalPlugin(tmpRoot);
 		const manager = new PluginManager(tmpRoot);
@@ -171,7 +171,7 @@ describe("runPluginCommand({ action: 'install', args: [<local>] })", () => {
 		const checks = await manager.doctor({ fix: true });
 
 		expect(checks.find(check => check.name === "orphan:kimi-datasource")).toBeUndefined();
-		const lock = await fsx.readJson(path.join(tmpRoot, "omp-plugins.lock.json"));
+		const lock = await fsx.readJson(path.join(tmpRoot, "chudcode-plugins.lock.json"));
 		expect(lock.plugins["kimi-datasource"]).toEqual({
 			version: "1.0.0",
 			enabledFeatures: null,

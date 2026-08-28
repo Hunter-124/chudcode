@@ -1,18 +1,18 @@
 {
   "type": "module",
-  "name": "@oh-my-pi/pi-wire",
+  "name": "@chudware/wire",
   "version": "18.0.8",
-  "description": "Shared wire protocol types for Oh My Pi packages",
-  "homepage": "https://omp.sh",
-  "author": "Stencil Labs, Inc.",
+  "description": "Shared wire protocol types for Chudcode packages",
+  "homepage": "https://chudware.sh",
+  "author": "Chudware",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/can1357/oh-my-pi.git",
+    "url": "git+https://github.com/Hunter-124/chudcode.git",
     "directory": "packages/wire"
   },
   "bugs": {
-    "url": "https://github.com/can1357/oh-my-pi/issues"
+    "url": "https://github.com/Hunter-124/chudcode/issues"
   },
   "keywords": [
     "wire",

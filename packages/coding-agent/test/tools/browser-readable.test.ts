@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import { extractReadableFromHtml, scrapeRenderedHtml } from "@oh-my-pi/pi-coding-agent/tools/browser";
+import { extractReadableFromHtml, scrapeRenderedHtml } from "@chudware/coding-agent/tools/browser";
 
 describe("browser readable extraction", () => {
 	it("extracts markdown content from article-style pages", async () => {

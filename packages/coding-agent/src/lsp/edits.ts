@@ -1,6 +1,6 @@
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
-import { isEexist, isEnoent, logger } from "@oh-my-pi/pi-utils";
+import { isEexist, isEnoent, logger } from "@chudware/utils";
 import { formatPathRelativeToCwd } from "../tools/path-utils";
 import { ToolError } from "../tools/tool-errors";
 import type {
@@ -376,7 +376,7 @@ export async function applyWorkspaceEdit(
 						// source, so let fs.rename change the case in place instead.
 						const sourceStat = await fs.lstat(oldPath);
 						if (sourceStat.dev !== targetStat.dev || sourceStat.ino !== targetStat.ino) {
-							const holdDir = await fs.mkdtemp(path.join(path.dirname(newPath), ".omp-displaced-"));
+							const holdDir = await fs.mkdtemp(path.join(path.dirname(newPath), ".chudcode-displaced-"));
 							const holdFile = path.join(holdDir, path.basename(newPath));
 							try {
 								await fs.rename(newPath, holdFile);

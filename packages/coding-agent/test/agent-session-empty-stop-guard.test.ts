@@ -1,18 +1,18 @@
 import { afterAll, afterEach, describe, expect, it, vi } from "bun:test";
 import * as path from "node:path";
 import { scheduler } from "node:timers/promises";
-import { type } from "@oh-my-pi/omptype";
-import { Agent, type AgentMessage, type AgentTool } from "@oh-my-pi/pi-agent-core";
-import type { ThinkingContent } from "@oh-my-pi/pi-ai";
-import { createMockModel, type MockModel, type MockResponse } from "@oh-my-pi/pi-ai/providers/mock";
-import { ModelRegistry } from "@oh-my-pi/pi-coding-agent/config/model-registry";
-import { type SettingPath, Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
-import type { ExtensionRunner } from "@oh-my-pi/pi-coding-agent/extensibility/extensions/runner";
-import { AgentSession, type AgentSessionEvent } from "@oh-my-pi/pi-coding-agent/session/agent-session";
-import { AuthStorage } from "@oh-my-pi/pi-coding-agent/session/auth-storage";
-import { convertToLlm } from "@oh-my-pi/pi-coding-agent/session/messages";
-import { SessionManager } from "@oh-my-pi/pi-coding-agent/session/session-manager";
-import { TempDir, withTimeout } from "@oh-my-pi/pi-utils";
+import { type } from "@chudware/chudtype";
+import { Agent, type AgentMessage, type AgentTool } from "@chudware/agent-core";
+import type { ThinkingContent } from "@chudware/ai";
+import { createMockModel, type MockModel, type MockResponse } from "@chudware/ai/providers/mock";
+import { ModelRegistry } from "@chudware/coding-agent/config/model-registry";
+import { type SettingPath, Settings } from "@chudware/coding-agent/config/settings";
+import type { ExtensionRunner } from "@chudware/coding-agent/extensibility/extensions/runner";
+import { AgentSession, type AgentSessionEvent } from "@chudware/coding-agent/session/agent-session";
+import { AuthStorage } from "@chudware/coding-agent/session/auth-storage";
+import { convertToLlm } from "@chudware/coding-agent/session/messages";
+import { SessionManager } from "@chudware/coding-agent/session/session-manager";
+import { TempDir, withTimeout } from "@chudware/utils";
 
 const recordToolSchema = type({ value: type("string") });
 

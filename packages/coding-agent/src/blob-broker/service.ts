@@ -10,9 +10,9 @@
 
 import * as crypto from "node:crypto";
 import * as path from "node:path";
-import type { Context, ImageContent, Model } from "@oh-my-pi/pi-ai";
-import { getBlobsDir, logger } from "@oh-my-pi/pi-utils";
-import * as snapcompact from "@oh-my-pi/snapcompact";
+import type { Context, ImageContent, Model } from "@chudware/ai";
+import { getBlobsDir, logger } from "@chudware/utils";
+import * as snapcompact from "@chudware/snapcompact";
 import type { Settings } from "../config/settings";
 import { type BlobBackend, LocalBlobBackend } from "./broker";
 import {

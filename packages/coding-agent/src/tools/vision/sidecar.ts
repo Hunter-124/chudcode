@@ -52,12 +52,12 @@ function nativeAddonDirectories(): string[] {
 	const dirs: string[] = [];
 	const require_ = createRequire(import.meta.url);
 	try {
-		dirs.push(path.dirname(require_.resolve("@oh-my-pi/pi-natives")));
+		dirs.push(path.dirname(require_.resolve("@chudware/natives")));
 	} catch {
 		// The optional native package is not required for the sidecar.
 	}
 	try {
-		const platformPackage = `@oh-my-pi/pi-natives-${process.platform}-${process.arch}`;
+		const platformPackage = `@chudware/natives-${process.platform}-${process.arch}`;
 		dirs.push(path.dirname(require_.resolve(`${platformPackage}/package.json`)));
 	} catch {
 		// Workspace and compiled installs do not necessarily have a leaf package.
@@ -65,11 +65,11 @@ function nativeAddonDirectories(): string[] {
 	return [...new Set(dirs)];
 }
 
-/** Resolve the optional pi-vision binary without starting it. */
+/** Resolve the optional chud-vision binary without starting it. */
 export async function resolveVisionSidecar(): Promise<VisionBinaryResolution> {
-	const executableName = process.platform === "win32" ? "pi-vision.exe" : "pi-vision";
+	const executableName = process.platform === "win32" ? "chud-vision.exe" : "chud-vision";
 	const nativeDirs = nativeAddonDirectories();
-	const explicit = process.env.OMP_VISION_BIN?.trim();
+	const explicit = process.env.CHUDCODE_VISION_BIN?.trim();
 	if (explicit) {
 		const resolved = path.isAbsolute(explicit)
 			? explicit
@@ -78,7 +78,7 @@ export async function resolveVisionSidecar(): Promise<VisionBinaryResolution> {
 		return {
 			ok: false,
 			reason: "sidecar_missing",
-			hint: `OMP_VISION_BIN points to an unavailable executable: ${resolved}. Install pi-vision or correct OMP_VISION_BIN.`,
+			hint: `CHUDCODE_VISION_BIN points to an unavailable executable: ${resolved}. Install chud-vision or correct CHUDCODE_VISION_BIN.`,
 		};
 	}
 
@@ -100,12 +100,12 @@ export async function resolveVisionSidecar(): Promise<VisionBinaryResolution> {
 		ok: false,
 		reason: "sidecar_missing",
 		hint:
-			"pi-vision is not installed. Install the optional vision sidecar beside the omp executable, put it on PATH, or set OMP_VISION_BIN to its absolute path.",
+			"chud-vision is not installed. Install the optional vision sidecar beside the chudcode executable, put it on PATH, or set CHUDCODE_VISION_BIN to its absolute path.",
 	};
 }
 
 async function findOrtDylib(sidecarPath: string, nativeDirs: readonly string[]): Promise<string | undefined> {
-	const explicit = process.env.OMP_ORT_DYLIB?.trim();
+	const explicit = process.env.CHUDCODE_ORT_DYLIB?.trim();
 	if (explicit) return path.resolve(explicit);
 	const direct = process.env.ORT_DYLIB_PATH?.trim();
 	if (direct) return path.resolve(direct);
@@ -183,7 +183,7 @@ async function spawnBounded(
 	const env: Record<string, string | undefined> = {
 		...process.env,
 		...(ortDylib ? { ORT_DYLIB_PATH: ortDylib } : {}),
-		...(options.modelDir ? { OMP_VISION_MODEL_DIR: options.modelDir } : {}),
+		...(options.modelDir ? { CHUDCODE_VISION_MODEL_DIR: options.modelDir } : {}),
 	};
 
 	let kill: (() => void) | undefined;
@@ -241,20 +241,20 @@ export function getVisionManifest(binaryPath: string, nativeDirs: readonly strin
 			timeoutMs: MANIFEST_TIMEOUT_MS,
 			nativeDirs,
 		});
-		if (result.timedOut) throw new Error("pi-vision --print-manifest timed out after 10 seconds");
+		if (result.timedOut) throw new Error("chud-vision --print-manifest timed out after 10 seconds");
 		if (result.exitCode !== 0) {
-			throw new Error(result.stderr.trim() || `pi-vision --print-manifest exited with code ${result.exitCode}`);
+			throw new Error(result.stderr.trim() || `chud-vision --print-manifest exited with code ${result.exitCode}`);
 		}
 		const parsed: unknown = JSON.parse(result.stdout.trim());
 		if (!Array.isArray(parsed) || !parsed.every(validManifestEntry)) {
-			throw new Error("pi-vision returned an invalid model manifest");
+			throw new Error("chud-vision returned an invalid model manifest");
 		}
 		const ids = new Set<string>();
 		for (const entry of parsed) {
-			if (ids.has(entry.id)) throw new Error(`pi-vision manifest contains duplicate model id '${entry.id}'`);
+			if (ids.has(entry.id)) throw new Error(`chud-vision manifest contains duplicate model id '${entry.id}'`);
 			ids.add(entry.id);
 			if (path.basename(entry.filename) !== entry.filename) {
-				throw new Error(`pi-vision manifest contains unsafe filename '${entry.filename}'`);
+				throw new Error(`chud-vision manifest contains unsafe filename '${entry.filename}'`);
 			}
 		}
 		return parsed;
@@ -266,7 +266,7 @@ export function getVisionManifest(binaryPath: string, nativeDirs: readonly strin
 	return pending;
 }
 
-/** Execute one bounded NDJSON request against a short-lived pi-vision process. */
+/** Execute one bounded NDJSON request against a short-lived chud-vision process. */
 export async function runVision(
 	request: Record<string, unknown>,
 	options: RunVisionOptions = {},
@@ -288,7 +288,7 @@ export async function runVision(
 			return {
 				ok: false,
 				reason: "timeout",
-				hint: `pi-vision exceeded the ${Math.ceil((options.timeoutMs ?? DEFAULT_TIMEOUT_MS) / 1000)} second limit. Retry with a smaller image or verify ONNX Runtime is working.`,
+				hint: `chud-vision exceeded the ${Math.ceil((options.timeoutMs ?? DEFAULT_TIMEOUT_MS) / 1000)} second limit. Retry with a smaller image or verify ONNX Runtime is working.`,
 			};
 		}
 		if (options.signal?.aborted) {
@@ -298,7 +298,7 @@ export async function runVision(
 			return {
 				ok: false,
 				reason: "sidecar_failed",
-				hint: result.stderr.trim() || `pi-vision exited with code ${result.exitCode}`,
+				hint: result.stderr.trim() || `chud-vision exited with code ${result.exitCode}`,
 			};
 		}
 		const lines = result.stdout.split(/\r?\n/).filter(line => line.trim().length > 0);
@@ -306,7 +306,7 @@ export async function runVision(
 			return {
 				ok: false,
 				reason: "invalid_response",
-				hint: `pi-vision returned ${lines.length} response lines for one request; reinstall the matching sidecar version.`,
+				hint: `chud-vision returned ${lines.length} response lines for one request; reinstall the matching sidecar version.`,
 			};
 		}
 		const parsed: unknown = JSON.parse(lines[0]!);
@@ -314,7 +314,7 @@ export async function runVision(
 			return {
 				ok: false,
 				reason: "invalid_response",
-				hint: "pi-vision returned a response without the required ok field; reinstall the matching sidecar version.",
+				hint: "chud-vision returned a response without the required ok field; reinstall the matching sidecar version.",
 			};
 		}
 		return parsed as VisionResponse;
@@ -329,5 +329,5 @@ export async function runVision(
 }
 
 export function defaultVisionModelDir(): string {
-	return path.join(os.homedir(), ".omp", "models", "vision");
+	return path.join(os.homedir(), ".chudcode", "models", "vision");
 }

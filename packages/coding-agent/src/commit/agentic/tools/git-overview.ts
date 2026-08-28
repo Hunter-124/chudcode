@@ -1,4 +1,4 @@
-import { type } from "@oh-my-pi/omptype";
+import { type } from "@chudware/chudtype";
 import type { CommitAgentState, GitOverviewSnapshot } from "../../../commit/agentic/state";
 import { DEFAULT_CONVENTIONAL_GENERATION_CONFIG } from "../../../commit/conventional/config";
 import { extractScopeCandidates } from "../../../commit/conventional/scope";

@@ -24,7 +24,7 @@
  */
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
+import * as fsx from "@chudware/utils/fsx";
 
 // Matches relative module specifiers in generated declaration import/export forms:
 //   from "…", import "…", import("…"), and declare module "…".

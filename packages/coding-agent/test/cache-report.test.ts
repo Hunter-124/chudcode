@@ -1,10 +1,10 @@
 import { describe, expect, it } from "bun:test";
-import type { AgentMessage } from "@oh-my-pi/pi-agent-core";
-import type { AssistantMessage, Model, Usage } from "@oh-my-pi/pi-ai";
-import { buildModel } from "@oh-my-pi/pi-catalog/build";
-import { mapModelsDevToModels } from "@oh-my-pi/pi-catalog/provider-models/openai-compat";
-import { lookupBuiltinSlashCommand } from "@oh-my-pi/pi-coding-agent/slash-commands/builtin-registry";
-import { buildCacheReportText } from "@oh-my-pi/pi-coding-agent/slash-commands/helpers/cache-report";
+import type { AgentMessage } from "@chudware/agent-core";
+import type { AssistantMessage, Model, Usage } from "@chudware/ai";
+import { buildModel } from "@chudware/catalog/build";
+import { mapModelsDevToModels } from "@chudware/catalog/provider-models/openai-compat";
+import { lookupBuiltinSlashCommand } from "@chudware/coding-agent/slash-commands/builtin-registry";
+import { buildCacheReportText } from "@chudware/coding-agent/slash-commands/helpers/cache-report";
 
 function pricedModel(id: string): Model {
 	return buildModel({

@@ -1,12 +1,12 @@
 import { describe, expect, it } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
-import type { CustomToolContext } from "@oh-my-pi/pi-coding-agent/extensibility/custom-tools";
-import { DeferredMCPTool, MCPTool, type MCPToolDefinition } from "@oh-my-pi/pi-coding-agent/mcp";
-import type { MCPServerConnection } from "@oh-my-pi/pi-coding-agent/mcp/types";
-import { TempDir } from "@oh-my-pi/pi-utils";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
-import { INTENT_FIELD } from "@oh-my-pi/pi-wire";
+import type { CustomToolContext } from "@chudware/coding-agent/extensibility/custom-tools";
+import { DeferredMCPTool, MCPTool, type MCPToolDefinition } from "@chudware/coding-agent/mcp";
+import type { MCPServerConnection } from "@chudware/coding-agent/mcp/types";
+import { TempDir } from "@chudware/utils";
+import * as fsx from "@chudware/utils/fsx";
+import { INTENT_FIELD } from "@chudware/wire";
 import { createMockConnection, createMockTransport } from "./mcp-test-utils";
 
 type CapturedRequest = {

@@ -2,15 +2,15 @@ import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import { ArtifactProtocolHandler } from "@oh-my-pi/pi-coding-agent/internal-urls/artifact-protocol";
-import { parseInternalUrl } from "@oh-my-pi/pi-coding-agent/internal-urls/parse";
+import { ArtifactProtocolHandler } from "@chudware/coding-agent/internal-urls/artifact-protocol";
+import { parseInternalUrl } from "@chudware/coding-agent/internal-urls/parse";
 import {
 	registerArtifactsDir,
 	resetRegisteredArtifactDirsForTests,
-} from "@oh-my-pi/pi-coding-agent/internal-urls/registry-helpers";
-import { InternalUrlRouter } from "@oh-my-pi/pi-coding-agent/internal-urls/router";
-import { resolveToolSearchScope } from "@oh-my-pi/pi-coding-agent/tools/path-utils";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
+} from "@chudware/coding-agent/internal-urls/registry-helpers";
+import { InternalUrlRouter } from "@chudware/coding-agent/internal-urls/router";
+import { resolveToolSearchScope } from "@chudware/coding-agent/tools/path-utils";
+import * as fsx from "@chudware/utils/fsx";
 
 /**
  * Path-only callers (search/grep, bash URL expansion) only need the artifact's

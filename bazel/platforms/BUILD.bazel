@@ -1,7 +1,7 @@
-# One platform per shipped pi_natives addon. linux platforms inherit the zig
+# One platform per shipped chud_natives addon. linux platforms inherit the zig
 # libc-aware platforms so cc toolchain resolution pins glibc 2.17 (the shipped
 # portability floor) or musl; the cpu_variant constraint selects -Ctarget-cpu
-# in //crates/pi-natives. darwin/win32 resolve against the host Xcode toolchain
+# in //crates/chud-natives. darwin/win32 resolve against the host Xcode toolchain
 # and //bazel/toolchains/msvc respectively.
 
 package(default_visibility = ["//visibility:public"])

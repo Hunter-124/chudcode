@@ -5,20 +5,20 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, expectTypeOf, it, vi } from "bun:test";
 import * as fs from "node:fs";
 import * as path from "node:path";
-import { Type } from "@oh-my-pi/omptype/typebox";
-import type { AgentMessage, AgentTool } from "@oh-my-pi/pi-agent-core";
-import type { ImageContent, TextContent } from "@oh-my-pi/pi-ai";
-import { getBundledModel } from "@oh-my-pi/pi-catalog/models";
-import { ModelRegistry } from "@oh-my-pi/pi-coding-agent/config/model-registry";
-import { Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
-import { ExtensionRuntime, loadExtensions } from "@oh-my-pi/pi-coding-agent/extensibility/extensions/loader";
+import { Type } from "@chudware/chudtype/typebox";
+import type { AgentMessage, AgentTool } from "@chudware/agent-core";
+import type { ImageContent, TextContent } from "@chudware/ai";
+import { getBundledModel } from "@chudware/catalog/models";
+import { ModelRegistry } from "@chudware/coding-agent/config/model-registry";
+import { Settings } from "@chudware/coding-agent/config/settings";
+import { ExtensionRuntime, loadExtensions } from "@chudware/coding-agent/extensibility/extensions/loader";
 import {
 	EXTENSION_HANDLER_TIMEOUT_MS,
 	ExtensionRunner,
 	SESSION_SHUTDOWN_HANDLER_TIMEOUT_MS,
 	testSetExtensionHandlerTimeoutMs,
 	testSetSessionShutdownHandlerTimeoutMs,
-} from "@oh-my-pi/pi-coding-agent/extensibility/extensions/runner";
+} from "@chudware/coding-agent/extensibility/extensions/runner";
 import type {
 	Extension,
 	ExtensionError,
@@ -27,12 +27,12 @@ import type {
 	InputEvent,
 	InputEventResult,
 	ProviderModelConfig,
-} from "@oh-my-pi/pi-coding-agent/extensibility/extensions/types";
-import { ExtensionToolWrapper } from "@oh-my-pi/pi-coding-agent/extensibility/extensions/wrapper";
-import { AuthStorage } from "@oh-my-pi/pi-coding-agent/session/auth-storage";
-import { SessionManager } from "@oh-my-pi/pi-coding-agent/session/session-manager";
-import { getProjectAgentDir, logger, TempDir } from "@oh-my-pi/pi-utils";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
+} from "@chudware/coding-agent/extensibility/extensions/types";
+import { ExtensionToolWrapper } from "@chudware/coding-agent/extensibility/extensions/wrapper";
+import { AuthStorage } from "@chudware/coding-agent/session/auth-storage";
+import { SessionManager } from "@chudware/coding-agent/session/session-manager";
+import { getProjectAgentDir, logger, TempDir } from "@chudware/utils";
+import * as fsx from "@chudware/utils/fsx";
 
 describe("ExtensionRunner", () => {
 	let tempDir: TempDir;
@@ -163,8 +163,8 @@ describe("ExtensionRunner", () => {
 	describe("shortcut conflicts", () => {
 		it("warns when extension shortcut conflicts with built-in", async () => {
 			const extCode = `
-				export default function(pi) {
-					pi.registerShortcut("ctrl+c", {
+				export default function(chud) {
+					chud.registerShortcut("ctrl+c", {
 						description: "Conflicts with built-in",
 						handler: async () => {},
 					});
@@ -192,8 +192,8 @@ describe("ExtensionRunner", () => {
 
 		it("rejects ctrl+q so it cannot shadow the app.message.followUp default (#1903)", async () => {
 			const extCode = `
-				export default function(pi) {
-					pi.registerShortcut("ctrl+q", {
+				export default function(chud) {
+					chud.registerShortcut("ctrl+q", {
 						description: "Tries to bind the follow-up chord",
 						handler: async () => {},
 					});
@@ -225,8 +225,8 @@ describe("ExtensionRunner", () => {
 
 		it("rejects Alt+M so it cannot shadow the app.model.select default", async () => {
 			const extCode = `
-				export default function(pi) {
-					pi.registerShortcut("alt+m", {
+				export default function(chud) {
+					chud.registerShortcut("alt+m", {
 						description: "Tries to bind model select",
 						handler: async () => {},
 					});
@@ -255,16 +255,16 @@ describe("ExtensionRunner", () => {
 		it("warns when two extensions register same shortcut", async () => {
 			// Use a non-reserved shortcut
 			const extCode1 = `
-				export default function(pi) {
-					pi.registerShortcut("ctrl+shift+x", {
+				export default function(chud) {
+					chud.registerShortcut("ctrl+shift+x", {
 						description: "First extension",
 						handler: async () => {},
 					});
 				}
 			`;
 			const extCode2 = `
-				export default function(pi) {
-					pi.registerShortcut("ctrl+shift+x", {
+				export default function(chud) {
+					chud.registerShortcut("ctrl+shift+x", {
 						description: "Second extension",
 						handler: async () => {},
 					});
@@ -296,9 +296,9 @@ describe("ExtensionRunner", () => {
 	describe("tool collection", () => {
 		it("collects tools from multiple extensions", async () => {
 			const toolCode = (name: string) => `
-				export default function(pi) {
-					const { Type } = pi.typebox;
-					pi.registerTool({
+				export default function(chud) {
+					const { Type } = chud.typebox;
+					chud.registerTool({
 						name: "${name}",
 						label: "${name}",
 						description: "Test tool",
@@ -328,8 +328,8 @@ describe("ExtensionRunner", () => {
 	describe("command collection", () => {
 		it("collects commands from multiple extensions", async () => {
 			const cmdCode = (name: string) => `
-				export default function(pi) {
-					pi.registerCommand("${name}", {
+				export default function(chud) {
+					chud.registerCommand("${name}", {
 						description: "Test command",
 						handler: async () => {},
 					});
@@ -354,8 +354,8 @@ describe("ExtensionRunner", () => {
 
 		it("gets command by name", async () => {
 			const cmdCode = `
-				export default function(pi) {
-					pi.registerCommand("my-cmd", {
+				export default function(chud) {
+					chud.registerCommand("my-cmd", {
 						description: "My command",
 						handler: async () => {},
 					});
@@ -383,8 +383,8 @@ describe("ExtensionRunner", () => {
 
 		it("prefers later-loaded explicit extensions for conflicting commands", async () => {
 			const deployCommand = (description: string) => `
-				export default function(pi) {
-					pi.registerCommand("deploy", {
+				export default function(chud) {
+					chud.registerCommand("deploy", {
 						description: "${description}",
 						handler: async () => {},
 					});
@@ -416,8 +416,8 @@ describe("ExtensionRunner", () => {
 	describe("error handling", () => {
 		it("calls error listeners when handler throws", async () => {
 			const extCode = `
-				export default function(pi) {
-					pi.on("context", async () => {
+				export default function(chud) {
+					chud.on("context", async () => {
 						throw new Error("Handler error!");
 					});
 				}
@@ -450,8 +450,8 @@ describe("ExtensionRunner", () => {
 	describe("message renderers", () => {
 		it("gets message renderer by type", async () => {
 			const extCode = `
-				export default function(pi) {
-					pi.registerMessageRenderer("my-type", (message, options, theme) => null);
+				export default function(chud) {
+					chud.registerMessageRenderer("my-type", (message, options, theme) => null);
 				}
 			`;
 			fs.writeFileSync(path.join(extensionsDir, "renderer.ts"), extCode);
@@ -474,8 +474,8 @@ describe("ExtensionRunner", () => {
 
 		it("collects assistant thinking renderers", async () => {
 			const extCode = `
-				export default function(pi) {
-					pi.registerAssistantThinkingRenderer((context, theme) => null);
+				export default function(chud) {
+					chud.registerAssistantThinkingRenderer((context, theme) => null);
 				}
 			`;
 			fs.writeFileSync(path.join(extensionsDir, "thinking-renderer.ts"), extCode);
@@ -496,8 +496,8 @@ describe("ExtensionRunner", () => {
 	describe("composer shapes", () => {
 		it("collects extension-defined renderer contracts and selector copy", async () => {
 			const extCode = `
-				export default function(pi) {
-					pi.registerComposerShape({
+				export default function(chud) {
+					chud.registerComposerShape({
 						label: "Extension Dock",
 						description: "Custom extension composer",
 						style: {
@@ -536,8 +536,8 @@ describe("ExtensionRunner", () => {
 	describe("flags", () => {
 		it("collects flags from extensions", async () => {
 			const extCode = `
-				export default function(pi) {
-					pi.registerFlag("--my-flag", {
+				export default function(chud) {
+					chud.registerFlag("--my-flag", {
 						description: "My flag",
 						handler: async () => {},
 					});
@@ -560,8 +560,8 @@ describe("ExtensionRunner", () => {
 
 		it("can set flag values", async () => {
 			const extCode = `
-				export default function(pi) {
-					pi.registerFlag("--test-flag", {
+				export default function(chud) {
+					chud.registerFlag("--test-flag", {
 						description: "Test flag",
 						handler: async () => {},
 					});
@@ -593,8 +593,8 @@ describe("ExtensionRunner", () => {
 			if (!primaryModel || !requestModel) throw new Error("Expected bundled cross-provider models to exist");
 
 			const extCode = `
-				export default function(pi) {
-					pi.on("before_provider_request", async (_event, ctx) => {
+				export default function(chud) {
+					chud.on("before_provider_request", async (_event, ctx) => {
 						const current = ctx.models.current();
 						return {
 							model: ctx.model && {
@@ -661,16 +661,16 @@ describe("ExtensionRunner", () => {
 
 		it("chains payload replacements across handlers in load order", async () => {
 			const extCode1 = `
-				export default function(pi) {
-					pi.on("before_provider_request", async (event) => {
+				export default function(chud) {
+					chud.on("before_provider_request", async (event) => {
 						const payload = event.payload as { chain?: string[] };
 						return { ...payload, chain: [...(payload.chain ?? []), "ext1"] };
 					});
 				}
 			`;
 			const extCode2 = `
-				export default function(pi) {
-					pi.on("before_provider_request", async (event) => {
+				export default function(chud) {
+					chud.on("before_provider_request", async (event) => {
 						const payload = event.payload as { chain?: string[] };
 						return { ...payload, chain: [...(payload.chain ?? []), "ext2"] };
 					});
@@ -694,15 +694,15 @@ describe("ExtensionRunner", () => {
 
 		it("keeps chaining after handler errors", async () => {
 			const extCode1 = `
-				export default function(pi) {
-					pi.on("before_provider_request", async () => {
+				export default function(chud) {
+					chud.on("before_provider_request", async () => {
 						throw new Error("payload failed");
 					});
 				}
 			`;
 			const extCode2 = `
-				export default function(pi) {
-					pi.on("before_provider_request", async (event) => {
+				export default function(chud) {
+					chud.on("before_provider_request", async (event) => {
 						const payload = event.payload as { preserved?: boolean };
 						return { ...payload, preserved: true };
 					});
@@ -738,8 +738,8 @@ describe("ExtensionRunner", () => {
 			const extCode = `
 			import * as fs from "node:fs";
 
-			export default function(pi) {
-				pi.on("after_provider_response", async (event) => {
+			export default function(chud) {
+				chud.on("after_provider_response", async (event) => {
 					fs.appendFileSync(
 						${JSON.stringify(eventsPath)},
 						JSON.stringify({
@@ -751,11 +751,11 @@ describe("ExtensionRunner", () => {
 					);
 				});
 
-				pi.on("after_provider_response", async () => {
+				chud.on("after_provider_response", async () => {
 					throw new Error("response failed");
 				});
 
-				pi.on("after_provider_response", async (event) => {
+				chud.on("after_provider_response", async (event) => {
 					fs.appendFileSync(
 						${JSON.stringify(eventsPath)},
 						JSON.stringify({ afterError: event.status }) + "\\n",
@@ -813,8 +813,8 @@ describe("ExtensionRunner", () => {
 			const extCode = `
 				import * as fs from "node:fs";
 
-				export default function(pi) {
-					pi.on("after_provider_response", async (_event, ctx) => {
+				export default function(chud) {
+					chud.on("after_provider_response", async (_event, ctx) => {
 						const current = ctx.models.current();
 						fs.appendFileSync(
 							${JSON.stringify(eventsPath)},
@@ -885,8 +885,8 @@ describe("ExtensionRunner", () => {
 			const extCode = `
 			import * as fs from "node:fs";
 
-			export default function(pi) {
-				pi.on("session_stop", async (event) => {
+			export default function(chud) {
+				chud.on("session_stop", async (event) => {
 					fs.appendFileSync(
 						${JSON.stringify(eventsPath)},
 						JSON.stringify({
@@ -967,8 +967,8 @@ describe("ExtensionRunner", () => {
 				`
 				import * as fs from "node:fs";
 
-				export default function(pi) {
-					pi.on("session_stop", async () => {
+				export default function(chud) {
+					chud.on("session_stop", async () => {
 						fs.writeFileSync(${JSON.stringify(startedPath)}, "started");
 						await Promise.withResolvers().promise;
 					});
@@ -1039,8 +1039,8 @@ describe("ExtensionRunner", () => {
 			await fsx.write(
 				extensionPath,
 				`
-				export default function(pi) {
-					pi.on("session_stop", async (_event, ctx) => {
+				export default function(chud) {
+					chud.on("session_stop", async (_event, ctx) => {
 						ctx.abort();
 						await Promise.withResolvers().promise;
 					});
@@ -1113,9 +1113,9 @@ describe("ExtensionRunner", () => {
 			await fsx.write(
 				path.join(extensionsDir, "session-stop-empty.ts"),
 				`
-				export default function(pi) {
-					pi.on("session_stop", async () => ({ continue: true }));
-					pi.on("session_stop", async () => ({ decision: "block", reason: "Continue from second handler." }));
+				export default function(chud) {
+					chud.on("session_stop", async () => ({ continue: true }));
+					chud.on("session_stop", async () => ({ decision: "block", reason: "Continue from second handler." }));
 				}
 			`,
 			);
@@ -1163,8 +1163,8 @@ describe("ExtensionRunner", () => {
 	describe("tool_result chaining", () => {
 		it("chains content modifications across handlers", async () => {
 			const extCode1 = `
-				export default function(pi) {
-					pi.on("tool_result", async (event) => {
+				export default function(chud) {
+					chud.on("tool_result", async (event) => {
 						return {
 							content: [...event.content, { type: "text", text: "ext1" }],
 						};
@@ -1172,8 +1172,8 @@ describe("ExtensionRunner", () => {
 				}
 			`;
 			const extCode2 = `
-				export default function(pi) {
-					pi.on("tool_result", async (event) => {
+				export default function(chud) {
+					chud.on("tool_result", async (event) => {
 						return {
 							content: [...event.content, { type: "text", text: "ext2" }],
 						};
@@ -1216,8 +1216,8 @@ describe("ExtensionRunner", () => {
 
 		it("preserves previous modifications when later handlers return partial patches", async () => {
 			const extCode1 = `
-				export default function(pi) {
-					pi.on("tool_result", async () => {
+				export default function(chud) {
+					chud.on("tool_result", async () => {
 						return {
 							content: [{ type: "text", text: "first" }],
 							details: { source: "ext1" },
@@ -1226,8 +1226,8 @@ describe("ExtensionRunner", () => {
 				}
 			`;
 			const extCode2 = `
-				export default function(pi) {
-					pi.on("tool_result", async () => {
+				export default function(chud) {
+					chud.on("tool_result", async () => {
 						return {
 							isError: true,
 						};
@@ -1296,8 +1296,8 @@ describe("ExtensionRunner", () => {
 
 		it("surfaces replacement content while keeping the call an error", async () => {
 			const runner = await runnerFor(`
-				export default function(pi) {
-					pi.on("tool_result", (event) => {
+				export default function(chud) {
+					chud.on("tool_result", (event) => {
 						if (!event.isError) return;
 						return {
 							content: [{ type: "text", text: "Enriched recovery guidance" }],
@@ -1316,8 +1316,8 @@ describe("ExtensionRunner", () => {
 
 		it("preserves the original exception when no handler modifies the result", async () => {
 			const runner = await runnerFor(`
-				export default function(pi) {
-					pi.on("tool_result", () => {});
+				export default function(chud) {
+					chud.on("tool_result", () => {});
 				}
 			`);
 			const wrapper = new ExtensionToolWrapper(throwingTool, runner);
@@ -1328,8 +1328,8 @@ describe("ExtensionRunner", () => {
 
 		it("converts a failure to success when a handler clears isError", async () => {
 			const runner = await runnerFor(`
-				export default function(pi) {
-					pi.on("tool_result", (event) => {
+				export default function(chud) {
+					chud.on("tool_result", (event) => {
 						if (!event.isError) return;
 						return { content: [{ type: "text", text: "recovered" }], isError: false };
 					});
@@ -1343,8 +1343,8 @@ describe("ExtensionRunner", () => {
 
 		it("marks a successful result as an error when a handler sets isError", async () => {
 			const runner = await runnerFor(`
-				export default function(pi) {
-					pi.on("tool_result", () => ({
+				export default function(chud) {
+					chud.on("tool_result", () => ({
 						content: [{ type: "text", text: "now failing" }],
 						isError: true,
 					}));
@@ -1397,8 +1397,8 @@ describe("ExtensionRunner", () => {
 			fs.writeFileSync(
 				hangExtensionPath,
 				`
-					export default function(pi) {
-						pi.on("session_start", async () => {
+					export default function(chud) {
+						chud.on("session_start", async () => {
 							await Promise.withResolvers().promise;
 						});
 					}
@@ -1409,8 +1409,8 @@ describe("ExtensionRunner", () => {
 				`
 					import * as fs from "node:fs";
 
-					export default function(pi) {
-						pi.on("session_start", async () => {
+					export default function(chud) {
+						chud.on("session_start", async () => {
 							fs.appendFileSync(${JSON.stringify(markerPath)}, "fast\\n");
 						});
 					}
@@ -1460,10 +1460,10 @@ describe("ExtensionRunner", () => {
 			fs.writeFileSync(
 				extensionPath,
 				`
-					export default function(pi) {
-						pi.on("session_shutdown", () => {
-							const { Type } = pi.typebox;
-							pi.registerTool({
+					export default function(chud) {
+						chud.on("session_shutdown", () => {
+							const { Type } = chud.typebox;
+							chud.registerTool({
 								name: "shutdown_tool",
 								label: "Shutdown Tool",
 								description: "Registered while shutting down.",
@@ -1508,8 +1508,8 @@ describe("ExtensionRunner", () => {
 			fs.writeFileSync(
 				hangExtensionPath,
 				`
-					export default function(pi) {
-						pi.on("tool_call", async () => {
+					export default function(chud) {
+						chud.on("tool_call", async () => {
 							await Promise.withResolvers().promise;
 						});
 					}
@@ -1576,8 +1576,8 @@ describe("ExtensionRunner", () => {
 			fs.writeFileSync(
 				extensionPath,
 				`
-					export default function(pi) {
-						pi.on("tool_call", async () => {
+					export default function(chud) {
+						chud.on("tool_call", async () => {
 							await Promise.withResolvers().promise;
 						});
 					}
@@ -1632,10 +1632,10 @@ describe("ExtensionRunner", () => {
 			fs.writeFileSync(
 				extensionPath,
 				`
-					export default function(pi) {
-						pi.on("tool_call", () => {
-							const { Type } = pi.typebox;
-							pi.registerTool({
+					export default function(chud) {
+						chud.on("tool_call", () => {
+							const { Type } = chud.typebox;
+							chud.registerTool({
 								name: "tool_call_registered",
 								label: "Tool Call Registered",
 								description: "Registered from a tool-call hook.",
@@ -1694,16 +1694,16 @@ describe("ExtensionRunner", () => {
 			fs.writeFileSync(
 				extensionPath,
 				`
-					export default function(pi) {
-						const { Type } = pi.typebox;
-						pi.registerTool({
+					export default function(chud) {
+						const { Type } = chud.typebox;
+						chud.registerTool({
 							name: "detached_source_tool",
 							label: "Detached Source Tool",
 							description: "Provides a registration event for the detached barrier test.",
 							parameters: Type.Object({}),
 							execute: async () => ({ content: [{ type: "text", text: "ok" }], details: {} }),
 						});
-						pi.on("tool_call", () => undefined);
+						chud.on("tool_call", () => undefined);
 					}
 				`,
 			);
@@ -1744,8 +1744,8 @@ describe("ExtensionRunner", () => {
 			fs.writeFileSync(
 				extensionPath,
 				`
-					export default function(pi) {
-						pi.on("tool_call", async (_event, ctx) => {
+					export default function(chud) {
+						chud.on("tool_call", async (_event, ctx) => {
 							ctx.ui.notify("Waiting for confirmation");
 							await new Promise(resolve => setTimeout(resolve, 8));
 							await ctx.ui.confirm("High-risk command", "Allow this command?");
@@ -1855,8 +1855,8 @@ describe("ExtensionRunner", () => {
 			fs.writeFileSync(
 				extensionPath,
 				`
-					export default function(pi) {
-						pi.on("tool_call", async (_event, ctx) => {
+					export default function(chud) {
+						chud.on("tool_call", async (_event, ctx) => {
 							await ctx.ui.custom(async () => {
 								ctx.ui.notify("Factory started");
 								await Promise.withResolvers().promise;
@@ -1925,8 +1925,8 @@ describe("ExtensionRunner", () => {
 			fs.writeFileSync(
 				extensionPath,
 				`
-					export default function(pi) {
-						pi.on("tool_call", async (_event, ctx) => {
+					export default function(chud) {
+						chud.on("tool_call", async (_event, ctx) => {
 							await ctx.ui.confirm("High-risk command", "Allow this command?");
 						});
 					}
@@ -1988,8 +1988,8 @@ describe("ExtensionRunner", () => {
 	describe("memory context", () => {
 		it("exposes the lazy memory runtime after initialization", async () => {
 			const extCode = `
-				export default function(pi) {
-					pi.on("session_start", async (_event, ctx) => {
+				export default function(chud) {
+					chud.on("session_start", async (_event, ctx) => {
 						globalThis.__ompMemoryStatus = await ctx.memory.status();
 					});
 				}
@@ -2008,13 +2008,13 @@ describe("ExtensionRunner", () => {
 				modelRegistry,
 				() => ({
 					status: async () => ({
-						backend: "mnemopi",
+						backend: "mnemo",
 						active: true,
 						writable: true,
 						searchable: true,
 					}),
-					search: async query => ({ backend: "mnemopi", query, count: 0, items: [] }),
-					save: async () => ({ backend: "mnemopi", stored: 1 }),
+					search: async query => ({ backend: "mnemo", query, count: 0, items: [] }),
+					save: async () => ({ backend: "mnemo", stored: 1 }),
 				}),
 			);
 			runner.initialize(
@@ -2048,7 +2048,7 @@ describe("ExtensionRunner", () => {
 			await runner.emit({ type: "session_start" });
 
 			expect(globalState.__ompMemoryStatus).toMatchObject({
-				backend: "mnemopi",
+				backend: "mnemo",
 				active: true,
 				searchable: true,
 			});
@@ -2073,19 +2073,19 @@ describe("ExtensionRunner", () => {
 
 		it("returns a detached snapshot, forwards valid changes, and rejects invalid family tiers", async () => {
 			const extCode = `
-				export default function(pi) {
-					pi.on("session_start", () => {
-						const tiers = pi.getServiceTiers();
+				export default function(chud) {
+					chud.on("session_start", () => {
+						const tiers = chud.getServiceTiers();
 						tiers.openai = "scale";
-						pi.appendEntry("service-tier-snapshot", tiers);
-						pi.setServiceTier("google", "flex");
-						pi.setServiceTier("openai", undefined);
+						chud.appendEntry("service-tier-snapshot", tiers);
+						chud.setServiceTier("google", "flex");
+						chud.setServiceTier("openai", undefined);
 					});
-					pi.on("session_start", () => {
-						pi.setServiceTier("anthropic", "scale");
+					chud.on("session_start", () => {
+						chud.setServiceTier("anthropic", "scale");
 					});
-					pi.on("session_start", () => {
-						pi.setServiceTier("bogus", "priority");
+					chud.on("session_start", () => {
+						chud.setServiceTier("bogus", "priority");
 					});
 				}
 			`;
@@ -2157,12 +2157,12 @@ describe("ExtensionRunner", () => {
 	describe("session name API", () => {
 		it("lets extensions read and set the session name after initialization", async () => {
 			const extCode = `
-				export default function(pi) {
-					pi.on("session_start", async () => {
-						if (pi.getSessionName() !== undefined) {
+				export default function(chud) {
+					chud.on("session_start", async () => {
+						if (chud.getSessionName() !== undefined) {
 							throw new Error("expected unnamed session");
 						}
-						await pi.setSessionName("Named by extension");
+						await chud.setSessionName("Named by extension");
 					});
 				}
 			`;
@@ -2215,8 +2215,8 @@ describe("ExtensionRunner", () => {
 
 		it("keeps session naming unavailable during extension load", async () => {
 			const extCode = `
-				export default function(pi) {
-					pi.getSessionName();
+				export default function(chud) {
+					chud.getSessionName();
 				}
 			`;
 			const explicitExtensionPath = path.join(tempDir.path(), "session-name-load.ts");
@@ -2305,11 +2305,11 @@ describe("ExtensionRunner", () => {
 		it("emits requested before waiting and resolved after approval", async () => {
 			const events: Array<{ type: string; approved?: boolean }> = [];
 			const extCode = `
-				export default function(pi) {
-					pi.on("tool_approval_requested", async (event) => {
+				export default function(chud) {
+					chud.on("tool_approval_requested", async (event) => {
 						globalThis.__approvalEvents.push({ type: event.type });
 					});
-					pi.on("tool_approval_resolved", async (event) => {
+					chud.on("tool_approval_resolved", async (event) => {
 						globalThis.__approvalEvents.push({ type: event.type, approved: event.approved });
 					});
 				}
@@ -2418,11 +2418,11 @@ describe("ExtensionRunner", () => {
 		it("emits resolved false when approval is denied", async () => {
 			const events: Array<{ type: string; approved?: boolean; reason?: string }> = [];
 			const extCode = `
-				export default function(pi) {
-					pi.on("tool_approval_requested", async (event) => {
+				export default function(chud) {
+					chud.on("tool_approval_requested", async (event) => {
 						globalThis.__deniedApprovalEvents.push({ type: event.type, reason: event.reason });
 					});
-					pi.on("tool_approval_resolved", async (event) => {
+					chud.on("tool_approval_resolved", async (event) => {
 						globalThis.__deniedApprovalEvents.push({
 							type: event.type,
 							approved: event.approved,
@@ -2467,11 +2467,11 @@ describe("ExtensionRunner", () => {
 		it("emits resolved false when the approval prompt throws", async () => {
 			const events: Array<{ type: string; approved?: boolean; reason?: string }> = [];
 			const extCode = `
-				export default function(pi) {
-					pi.on("tool_approval_requested", async (event) => {
+				export default function(chud) {
+					chud.on("tool_approval_requested", async (event) => {
 						globalThis.__thrownApprovalEvents.push({ type: event.type, reason: event.reason });
 					});
-					pi.on("tool_approval_resolved", async (event) => {
+					chud.on("tool_approval_resolved", async (event) => {
 						globalThis.__thrownApprovalEvents.push({
 							type: event.type,
 							approved: event.approved,
@@ -2518,15 +2518,15 @@ describe("ExtensionRunner", () => {
 		it("emits lifecycle events when partial context has no session manager", async () => {
 			const events: Array<{ type: string; approved?: boolean; reason?: string; sessionId?: string }> = [];
 			const extCode = `
-				export default function(pi) {
-					pi.on("tool_approval_requested", async (event) => {
+				export default function(chud) {
+					chud.on("tool_approval_requested", async (event) => {
 						globalThis.__partialContextApprovalEvents.push({
 							type: event.type,
 							sessionId: event.sessionId,
 							reason: event.reason,
 						});
 					});
-					pi.on("tool_approval_resolved", async (event) => {
+					chud.on("tool_approval_resolved", async (event) => {
 						globalThis.__partialContextApprovalEvents.push({
 							type: event.type,
 							sessionId: event.sessionId,
@@ -2586,8 +2586,8 @@ describe("ExtensionRunner", () => {
 			const extCode = `
 				import * as fs from "node:fs";
 
-				export default function(pi) {
-					pi.on("tool_call", async (event) => {
+				export default function(chud) {
+					chud.on("tool_call", async (event) => {
 						if (event.toolName !== "edit") return;
 						fs.appendFileSync(
 							${JSON.stringify(eventsPath)},
@@ -2630,8 +2630,8 @@ describe("ExtensionRunner", () => {
 			const extCode = `
 				import * as fs from "node:fs";
 
-				export default function(pi) {
-					pi.on("tool_call", async (event) => {
+				export default function(chud) {
+					chud.on("tool_call", async (event) => {
 						if (event.toolName !== "edit") return;
 						fs.appendFileSync(
 							${JSON.stringify(eventsPath)},
@@ -2669,8 +2669,8 @@ describe("ExtensionRunner", () => {
 			const extCode = `
 				import * as fs from "node:fs";
 
-				export default function(pi) {
-					pi.on("tool_call", async (event) => {
+				export default function(chud) {
+					chud.on("tool_call", async (event) => {
 						if (event.toolName !== "edit") return;
 						fs.appendFileSync(
 							${JSON.stringify(eventsPath)},
@@ -2709,8 +2709,8 @@ describe("ExtensionRunner", () => {
 			const extCode = `
 				import * as fs from "node:fs";
 
-				export default function(pi) {
-					pi.on("tool_call", async (event) => {
+				export default function(chud) {
+					chud.on("tool_call", async (event) => {
 						if (event.toolName !== "edit") return;
 						fs.appendFileSync(
 							${JSON.stringify(eventsPath)},
@@ -2771,8 +2771,8 @@ describe("ExtensionRunner", () => {
 		it("executes the tool with a non-blocking handler's replacement input", async () => {
 			const recordPath = path.join(tempDir.path(), "override-executed.jsonl");
 			const extCode = `
-				export default function(pi) {
-					pi.on("tool_call", async (event) => {
+				export default function(chud) {
+					chud.on("tool_call", async (event) => {
 						if (event.toolName !== "bash") return;
 						return { input: { command: "echo revised" } };
 					});
@@ -2804,8 +2804,8 @@ describe("ExtensionRunner", () => {
 		it("ignores a replacement input when the handler also blocks", async () => {
 			const recordPath = path.join(tempDir.path(), "override-blocked.jsonl");
 			const extCode = `
-				export default function(pi) {
-					pi.on("tool_call", async (event) => {
+				export default function(chud) {
+					chud.on("tool_call", async (event) => {
 						if (event.toolName !== "bash") return;
 						return { block: true, reason: "nope", input: { command: "echo revised" } };
 					});
@@ -2899,8 +2899,8 @@ describe("ExtensionRunner", () => {
 		it("blocks a revised input that resolves to a deny policy (approval gates the revised args)", async () => {
 			const recordPath = path.join(tempDir.path(), "regate-blocked.jsonl");
 			const extCode = `
-				export default function(pi) {
-					pi.on("tool_call", async (event) => {
+				export default function(chud) {
+					chud.on("tool_call", async (event) => {
 						if (event.toolName !== "bash") return;
 						return { input: { command: "rm -rf" } };
 					});
@@ -2930,8 +2930,8 @@ describe("ExtensionRunner", () => {
 		it("allows a revised input that still passes policy", async () => {
 			const recordPath = path.join(tempDir.path(), "regate-allowed.jsonl");
 			const extCode = `
-				export default function(pi) {
-					pi.on("tool_call", async (event) => {
+				export default function(chud) {
+					chud.on("tool_call", async (event) => {
 						if (event.toolName !== "bash") return;
 						return { input: { command: "echo revised" } };
 					});
@@ -2962,16 +2962,16 @@ describe("ExtensionRunner", () => {
 		it("uses the last handler's input when several handlers set it", async () => {
 			const recordPath = path.join(tempDir.path(), "regate-multi.jsonl");
 			const first = `
-				export default function(pi) {
-					pi.on("tool_call", async (event) => {
+				export default function(chud) {
+					chud.on("tool_call", async (event) => {
 						if (event.toolName !== "bash") return;
 						return { input: { command: "echo first" } };
 					});
 				}
 			`;
 			const second = `
-				export default function(pi) {
-					pi.on("tool_call", async (event) => {
+				export default function(chud) {
+					chud.on("tool_call", async (event) => {
 						if (event.toolName !== "bash") return;
 						return { input: { command: "echo second" } };
 					});
@@ -3006,8 +3006,8 @@ describe("ExtensionRunner", () => {
 			// on policy alone would let the revised args run under approval granted for the original.
 			// Because tool_call fires before the approval gate, the prompt must reflect the revised args.
 			const extCode = `
-				export default function(pi) {
-					pi.on("tool_call", async (event) => {
+				export default function(chud) {
+					chud.on("tool_call", async (event) => {
 						if (event.toolName !== "prompt_tool") return;
 						return { input: { command: "revised-command" } };
 					});
@@ -3068,8 +3068,8 @@ describe("ExtensionRunner", () => {
 			// still emits.
 			const recordPath = path.join(tempDir.path(), "loop-marker.jsonl");
 			const extCode = `
-				export default function(pi) {
-					pi.on("tool_call", async (event) => {
+				export default function(chud) {
+					chud.on("tool_call", async (event) => {
 						if (event.toolName !== "bash") return;
 						return { input: { command: "echo revised" } };
 					});
@@ -3107,8 +3107,8 @@ describe("ExtensionRunner", () => {
 			// (here: no interactive UI => reject) instead of riding the outer approval.
 			const recordPath = path.join(tempDir.path(), "xdev-revised.jsonl");
 			const extCode = `
-				export default function(pi) {
-					pi.on("tool_call", async (event) => {
+				export default function(chud) {
+					chud.on("tool_call", async (event) => {
 						if (event.toolName !== "bash") return;
 						return { input: { command: "echo revised" } };
 					});
@@ -3139,8 +3139,8 @@ describe("ExtensionRunner", () => {
 		it("reports the effective tier after a tool_call handler revises xd:// input", async () => {
 			const recordPath = path.join(tempDir.path(), "xdev-effective-tier.jsonl");
 			const extCode = `
-				export default function(pi) {
-					pi.on("tool_call", async (event) => {
+				export default function(chud) {
+					chud.on("tool_call", async (event) => {
 						if (event.toolName !== "bash") return;
 						return { input: { command: "echo revised" } };
 					});
@@ -3183,13 +3183,13 @@ describe("ExtensionRunner", () => {
 		it("emits tool_call before the approval prompt so approval sees the final input", async () => {
 			const order: string[] = [];
 			const extCode = `
-				export default function(pi) {
-					pi.on("tool_call", async (event) => {
+				export default function(chud) {
+					chud.on("tool_call", async (event) => {
 						if (event.toolName !== "prompt_tool") return;
 						globalThis.__orderEvents.push("tool_call");
 						return { input: { command: "revised" } };
 					});
-					pi.on("tool_approval_requested", async () => {
+					chud.on("tool_approval_requested", async () => {
 						globalThis.__orderEvents.push("tool_approval_requested");
 					});
 				}
@@ -3238,8 +3238,8 @@ describe("ExtensionRunner", () => {
 	describe("hasHandlers", () => {
 		it("returns true when handlers exist for event type", async () => {
 			const extCode = `
-				export default function(pi) {
-					pi.on("tool_call", async () => undefined);
+				export default function(chud) {
+					chud.on("tool_call", async () => undefined);
 				}
 			`;
 			fs.writeFileSync(path.join(extensionsDir, "handler.ts"), extCode);
@@ -3264,8 +3264,8 @@ describe("ExtensionRunner", () => {
 			// streaming events (message_update / tool_execution_*) traverse the same
 			// path. `turn_start` stands in as a subscribed event with a trivial payload.
 			const extCode = `
-				export default function(pi) {
-					pi.on("turn_start", async () => {
+				export default function(chud) {
+					chud.on("turn_start", async () => {
 						throw new Error("turn_start handler ran");
 					});
 				}
@@ -3312,8 +3312,8 @@ describe("ExtensionRunner", () => {
 			const extCode = `
 				import * as fs from "node:fs";
 
-				export default function(pi) {
-					pi.on("credential_disabled", async (event) => {
+				export default function(chud) {
+					chud.on("credential_disabled", async (event) => {
 						fs.appendFileSync(
 							${JSON.stringify(eventsPath)},
 							JSON.stringify({
@@ -3351,8 +3351,8 @@ describe("ExtensionRunner", () => {
 		it("isolates subscriber failures so other handlers still receive the event", async () => {
 			const eventsPath = path.join(tempDir.path(), "credential-disabled-isolated.jsonl");
 			const ext1Code = `
-				export default function(pi) {
-					pi.on("credential_disabled", async () => {
+				export default function(chud) {
+					chud.on("credential_disabled", async () => {
 						throw new Error("subscriber exploded");
 					});
 				}
@@ -3360,8 +3360,8 @@ describe("ExtensionRunner", () => {
 			const ext2Code = `
 				import * as fs from "node:fs";
 
-				export default function(pi) {
-					pi.on("credential_disabled", async (event) => {
+				export default function(chud) {
+					chud.on("credential_disabled", async (event) => {
 						fs.appendFileSync(
 							${JSON.stringify(eventsPath)},
 							JSON.stringify({ provider: event.provider }) + "\\n",
@@ -3419,8 +3419,8 @@ describe("ExtensionRunner", () => {
 			const extCode = `
 				import * as fs from "node:fs";
 
-				export default function(pi) {
-					pi.on("credential_disabled", async (event) => {
+				export default function(chud) {
+					chud.on("credential_disabled", async (event) => {
 						fs.appendFileSync(
 							${JSON.stringify(eventsPath)},
 							JSON.stringify({ provider: event.provider }) + "\\n",
@@ -3492,8 +3492,8 @@ describe("ExtensionRunner", () => {
 			const extCode = `
 				import * as fs from "node:fs";
 
-				export default function(pi) {
-					pi.on("mcp_notification", async (event) => {
+				export default function(chud) {
+					chud.on("mcp_notification", async (event) => {
 						fs.appendFileSync(
 							${JSON.stringify(eventsPath)},
 							JSON.stringify({
@@ -3577,8 +3577,8 @@ describe("ExtensionRunner", () => {
 			const extCode = `
 				import * as fs from "node:fs";
 
-				export default function(pi) {
-					pi.on("mcp_notification", async (event) => {
+				export default function(chud) {
+					chud.on("mcp_notification", async (event) => {
 						fs.appendFileSync(
 							${JSON.stringify(eventsPath)},
 							JSON.stringify({ server: event.server, method: event.method }) + "\\n",

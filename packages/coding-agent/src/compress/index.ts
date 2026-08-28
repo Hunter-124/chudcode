@@ -12,7 +12,7 @@
 import { randomUUID } from "node:crypto";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
-import { getProjectDir, prompt, sanitizeText } from "@oh-my-pi/pi-utils";
+import { getProjectDir, prompt, sanitizeText } from "@chudware/utils";
 import { createProgressReporter } from "../cli/progress-reporter";
 import type { AgentSession } from "../session/agent-session";
 import { mapWithConcurrencyLimitAllSettled } from "../task/parallel";
@@ -55,7 +55,7 @@ export async function resolveCompressTargets(patterns: readonly string[], cwd: s
 	const found = new Set<string>();
 	for (const pattern of patterns) {
 		if (/[*?[\]{}]/.test(pattern)) {
-			// `dot: true` — prompt corpora live under dot directories such as `.omp/commands`.
+			// `dot: true` — prompt corpora live under dot directories such as `.chudcode/commands`.
 			const matches = new Bun.Glob(pattern).scanSync({ cwd, absolute: true, onlyFiles: true, dot: true });
 			let matched = 0;
 			for (const match of matches) {

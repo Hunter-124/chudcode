@@ -1,8 +1,8 @@
 import { describe, expect, test } from "bun:test";
-import type { AuthStorage } from "@oh-my-pi/pi-ai";
-import { getBundledModels } from "@oh-my-pi/pi-catalog/models";
-import { TempDir } from "@oh-my-pi/pi-utils";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
+import type { AuthStorage } from "@chudware/ai";
+import { getBundledModels } from "@chudware/catalog/models";
+import { TempDir } from "@chudware/utils";
+import * as fsx from "@chudware/utils/fsx";
 import { indexModelsByRequestId } from "../../src/cli/auth-gateway-cli";
 import { ModelRegistry } from "../../src/config/model-registry";
 
@@ -51,10 +51,10 @@ describe("indexModelsByRequestId (auth-gateway catalog)", () => {
 	});
 
 	test("gateway registry ignores local models.yml credential and routing overrides", async () => {
-		using tempDir = TempDir.createSync("@omp-auth-gateway-catalog-");
+		using tempDir = TempDir.createSync("@chudcode-auth-gateway-catalog-");
 		const modelsPath = tempDir.join("models.yml");
 		// anthropic: a plain credential/baseUrl override (no transport) — the
-		// reviewer's leak. openai: a pi-native gateway route — the self-routing loop.
+		// reviewer's leak. openai: a chud-native gateway route — the self-routing loop.
 		await fsx.write(
 			modelsPath,
 			[
@@ -65,7 +65,7 @@ describe("indexModelsByRequestId (auth-gateway catalog)", () => {
 				"  openai:",
 				"    baseUrl: http://127.0.0.1:18899",
 				"    apiKey: gateway-token",
-				"    transport: pi-native",
+				"    transport: chud-native",
 				"",
 			].join("\n"),
 		);
@@ -75,11 +75,11 @@ describe("indexModelsByRequestId (auth-gateway catalog)", () => {
 		const clientKeys: string[] = [];
 		const clientRegistry = new ModelRegistry(stubAuthStorage(clientKeys), modelsPath);
 		expect(clientRegistry.find("anthropic", "claude-sonnet-4-5")?.baseUrl).toBe("http://127.0.0.1:18899");
-		expect(clientRegistry.getAll().find(model => model.provider === "openai")?.transport).toBe("pi-native");
+		expect(clientRegistry.getAll().find(model => model.provider === "openai")?.transport).toBe("chud-native");
 		expect(clientKeys).toContain("anthropic");
 
 		// The gateway registry ignores models.yml entirely: bundled routing wins,
-		// no config key reaches AuthStorage, and no pi-native self-route survives.
+		// no config key reaches AuthStorage, and no chud-native self-route survives.
 		const gatewayKeys: string[] = [];
 		const gatewayRegistry = new ModelRegistry(stubAuthStorage(gatewayKeys), modelsPath, {
 			ignoreLocalModelConfig: true,

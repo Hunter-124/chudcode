@@ -1,14 +1,14 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "bun:test";
-import { CollabHost } from "@oh-my-pi/pi-coding-agent/collab/host";
-import { resetSettingsForTest, Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
-import { initTheme } from "@oh-my-pi/pi-coding-agent/modes/theme/theme";
-import type { InteractiveModeContext } from "@oh-my-pi/pi-coding-agent/modes/types";
+import { CollabHost } from "@chudware/coding-agent/collab/host";
+import { resetSettingsForTest, Settings } from "@chudware/coding-agent/config/settings";
+import { initTheme } from "@chudware/coding-agent/modes/theme/theme";
+import type { InteractiveModeContext } from "@chudware/coding-agent/modes/types";
 import {
 	type BuiltinSlashCommandRuntime,
 	executeBuiltinSlashCommand,
-} from "@oh-my-pi/pi-coding-agent/slash-commands/builtin-registry";
-import { CollabQrCodeComponent } from "@oh-my-pi/pi-coding-agent/slash-commands/helpers/collab-qrcode";
-import { Spacer, Text, visibleWidth } from "@oh-my-pi/pi-tui";
+} from "@chudware/coding-agent/slash-commands/builtin-registry";
+import { CollabQrCodeComponent } from "@chudware/coding-agent/slash-commands/helpers/collab-qrcode";
+import { Spacer, Text, visibleWidth } from "@chudware/tui";
 
 beforeAll(async () => {
 	resetSettingsForTest();
@@ -31,8 +31,8 @@ function fakeHost(options?: {
 	return {
 		link: "relay.example.com/r/full-control",
 		viewLink: "relay.example.com/r/read-only",
-		webLink: options?.webLink ?? "https://my.omp.sh/#full-control",
-		webViewLink: options?.webViewLink ?? "https://my.omp.sh/#read-only",
+		webLink: options?.webLink ?? "https://my.chudware.sh/#full-control",
+		webViewLink: options?.webViewLink ?? "https://my.chudware.sh/#read-only",
 		participants: [{ name: "host", role: "host" }],
 	} as unknown as NonNullable<InteractiveModeContext["collabHost"]>;
 }
@@ -70,8 +70,8 @@ function mockStartedHostLinks() {
 		Object.defineProperties(this, {
 			link: { value: "relay.example.com/r/full-control", configurable: true },
 			viewLink: { value: "relay.example.com/r/read-only", configurable: true },
-			webLink: { value: "https://my.omp.sh/#started-full", configurable: true },
-			webViewLink: { value: "https://my.omp.sh/#started-view", configurable: true },
+			webLink: { value: "https://my.chudware.sh/#started-full", configurable: true },
+			webViewLink: { value: "https://my.chudware.sh/#started-view", configurable: true },
 			participants: { value: [{ name: "host", role: "host" as const }], configurable: true },
 		});
 		return Promise.resolve();
@@ -90,12 +90,12 @@ describe("/collab slash command QR code rendering", () => {
 		expect(startSpy).toHaveBeenCalledWith("wss://relay.example.com", "");
 		expect(harness.ctx.collabHost).toBeInstanceOf(CollabHost);
 		const statusText = harness.showStatus.mock.calls[0]?.[0] as string;
-		expect(statusText).toContain("my.omp.sh/#started-full");
+		expect(statusText).toContain("my.chudware.sh/#started-full");
 		const presented = harness.present.mock.calls[0]?.[0] as readonly unknown[];
 		expect(presented[0]).toBeInstanceOf(Spacer);
 		expect(presented[1]).toBeInstanceOf(CollabQrCodeComponent);
 		const component = presented[1] as CollabQrCodeComponent;
-		expect(component.url).toBe("https://my.omp.sh/#started-full");
+		expect(component.url).toBe("https://my.chudware.sh/#started-full");
 		expect(component.render(120).join("\n")).toMatch(/\x1b\[(?:47|40)m/);
 	});
 
@@ -109,13 +109,13 @@ describe("/collab slash command QR code rendering", () => {
 		expect(startSpy).toHaveBeenCalledWith("wss://relay.example.com", "");
 		expect(harness.ctx.collabHost).toBeInstanceOf(CollabHost);
 		const statusText = harness.showStatus.mock.calls[0]?.[0] as string;
-		expect(statusText).toContain("my.omp.sh/#started-view");
-		expect(statusText).not.toContain("my.omp.sh/#started-full");
+		expect(statusText).toContain("my.chudware.sh/#started-view");
+		expect(statusText).not.toContain("my.chudware.sh/#started-full");
 		const presented = harness.present.mock.calls[0]?.[0] as readonly unknown[];
 		expect(presented[0]).toBeInstanceOf(Spacer);
 		expect(presented[1]).toBeInstanceOf(CollabQrCodeComponent);
 		const component = presented[1] as CollabQrCodeComponent;
-		expect(component.url).toBe("https://my.omp.sh/#started-view");
+		expect(component.url).toBe("https://my.chudware.sh/#started-view");
 	});
 
 	it("prints the active full-control browser QR when hosting", async () => {
@@ -125,7 +125,7 @@ describe("/collab slash command QR code rendering", () => {
 
 		expect(handled).toBe(true);
 		const statusText = harness.showStatus.mock.calls[0]?.[0] as string;
-		expect(statusText).toContain("my.omp.sh/#full-control");
+		expect(statusText).toContain("my.chudware.sh/#full-control");
 		const presented = harness.present.mock.calls[0]?.[0] as readonly unknown[];
 		expect(presented[0]).toBeInstanceOf(Spacer);
 		expect(presented[1]).toBeInstanceOf(CollabQrCodeComponent);
@@ -134,8 +134,8 @@ describe("/collab slash command QR code rendering", () => {
 	});
 
 	it("prints a one-shot read-only browser QR when hosting", async () => {
-		const webLink = "https://my.omp.sh/#full-control";
-		const webViewLink = "https://my.omp.sh/#read-only";
+		const webLink = "https://my.chudware.sh/#full-control";
+		const webViewLink = "https://my.chudware.sh/#read-only";
 		const harness = createRuntimeHarness({ collabHost: fakeHost({ webLink, webViewLink }) });
 
 		const handled = await executeBuiltinSlashCommand("/collab view", harness.runtime);
@@ -156,7 +156,7 @@ describe("/collab slash command QR code rendering", () => {
 	});
 
 	it("keeps the browser URL on the first status row so transcript clipping cannot hide it", async () => {
-		const webLink = `https://my.omp.sh/#${"long-collab-token".repeat(8)}`;
+		const webLink = `https://my.chudware.sh/#${"long-collab-token".repeat(8)}`;
 		const harness = createRuntimeHarness({ collabHost: fakeHost({ webLink }) });
 
 		const handled = await executeBuiltinSlashCommand("/collab", harness.runtime);
@@ -172,7 +172,7 @@ describe("/collab slash command QR code rendering", () => {
 
 describe("CollabQrCodeComponent transcript height clipping", () => {
 	it("renders the full half-block symbol when the viewport allocates enough rows", () => {
-		const component = new CollabQrCodeComponent("https://my.omp.sh/#clip-test");
+		const component = new CollabQrCodeComponent("https://my.chudware.sh/#clip-test");
 		const full = component.render(120);
 		expect(full.length).toBeGreaterThan(8);
 		expect(full.join("\n")).toMatch(/\x1b\[(?:47|40)m/);
@@ -182,7 +182,7 @@ describe("CollabQrCodeComponent transcript height clipping", () => {
 	});
 
 	it("does not render a quiet-zone white line when the transcript clips to one row", () => {
-		const component = new CollabQrCodeComponent("https://my.omp.sh/#clip-test");
+		const component = new CollabQrCodeComponent("https://my.chudware.sh/#clip-test");
 		const full = component.render(120);
 		const first = full[0] ?? "";
 		expect(first).toMatch(/\x1b\[(?:47|40)m/);
@@ -192,17 +192,17 @@ describe("CollabQrCodeComponent transcript height clipping", () => {
 		expect(clipped).toHaveLength(1);
 		expect(clipped[0]).toContain("QR code hidden");
 		expect(clipped[0]).toContain("viewport height 1");
-		expect(clipped[0]).toContain("my.omp.sh/#clip-test");
+		expect(clipped[0]).toContain("my.chudware.sh/#clip-test");
 		expect(clipped[0]).not.toContain("URL above");
 		expect(clipped[0]).not.toMatch(/\x1b\[(?:47|40)m/);
 	});
 
 	it("keeps the browser URL as the emergency one-row transcript representation", () => {
-		const component = new CollabQrCodeComponent("https://my.omp.sh/#clip-test");
+		const component = new CollabQrCodeComponent("https://my.chudware.sh/#clip-test");
 		component.setTranscriptAllocation(1);
 		const row = component.renderTranscriptBlockEmergencyRow(10);
 		expect(visibleWidth(row)).toBeLessThanOrEqual(10);
-		expect(row).toContain("https://my.omp.sh/#clip-test");
+		expect(row).toContain("https://my.chudware.sh/#clip-test");
 		expect(row).not.toContain("URL above");
 	});
 });

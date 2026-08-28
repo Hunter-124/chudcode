@@ -1,16 +1,16 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "bun:test";
 import * as path from "node:path";
 import { scheduler } from "node:timers/promises";
-import { Agent } from "@oh-my-pi/pi-agent-core";
-import * as compactionModule from "@oh-my-pi/pi-agent-core/compaction";
-import * as AIError from "@oh-my-pi/pi-ai/error";
-import { getBundledModel } from "@oh-my-pi/pi-catalog/models";
-import { ModelRegistry } from "@oh-my-pi/pi-coding-agent/config/model-registry";
-import { Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
-import { AgentSession } from "@oh-my-pi/pi-coding-agent/session/agent-session";
-import { AuthStorage } from "@oh-my-pi/pi-coding-agent/session/auth-storage";
-import { SessionManager } from "@oh-my-pi/pi-coding-agent/session/session-manager";
-import { TempDir } from "@oh-my-pi/pi-utils";
+import { Agent } from "@chudware/agent-core";
+import * as compactionModule from "@chudware/agent-core/compaction";
+import * as AIError from "@chudware/ai/error";
+import { getBundledModel } from "@chudware/catalog/models";
+import { ModelRegistry } from "@chudware/coding-agent/config/model-registry";
+import { Settings } from "@chudware/coding-agent/config/settings";
+import { AgentSession } from "@chudware/coding-agent/session/agent-session";
+import { AuthStorage } from "@chudware/coding-agent/session/auth-storage";
+import { SessionManager } from "@chudware/coding-agent/session/session-manager";
+import { TempDir } from "@chudware/utils";
 import { assistantMsg, userMsg } from "./utilities";
 
 describe("issue #986 compaction auth fallback", () => {
@@ -496,7 +496,7 @@ describe("issue #986 compaction auth fallback", () => {
 
 	it("falls back when the current provider returns a real HTTP 401 from the compaction call", async () => {
 		// Companion to the auth_unavailable test above: that case exercises the
-		// pi-native gateway synthetic ("no credential configured"), this one
+		// chud-native gateway synthetic ("no credential configured"), this one
 		// exercises a configured-but-rejected credential (rotated/revoked
 		// Anthropic key, expired OAuth token, wrong workspace). Before the
 		// status-aware detector landed, only the synthetic was caught — a real

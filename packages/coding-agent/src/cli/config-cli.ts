@@ -5,8 +5,8 @@
  * Uses the settings schema as the source of truth for available settings.
  */
 
-import { getAgentDir } from "@oh-my-pi/pi-utils";
-import chalk from "@oh-my-pi/pi-utils/chalk";
+import { getAgentDir } from "@chudware/utils";
+import chalk from "@chudware/utils/chalk";
 import { PRODUCT_CLI_NAME } from "../brand";
 import {
 	getDefault,

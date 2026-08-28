@@ -1,21 +1,21 @@
 {
   "type": "module",
-  "name": "@oh-my-pi/pi-agent-core",
+  "name": "@chudware/agent-core",
   "version": "18.0.8",
   "description": "General-purpose agent with transport abstraction, state management, and attachment support",
-  "homepage": "https://omp.sh",
-  "author": "Stencil Labs, Inc.",
+  "homepage": "https://chudware.sh",
+  "author": "Chudware",
   "contributors": [
     "Mario Zechner"
   ],
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/can1357/oh-my-pi.git",
+    "url": "git+https://github.com/Hunter-124/chudcode.git",
     "directory": "packages/agent"
   },
   "bugs": {
-    "url": "https://github.com/can1357/oh-my-pi/issues"
+    "url": "https://github.com/Hunter-124/chudcode/issues"
   },
   "keywords": [
     "ai",
@@ -35,16 +35,16 @@
     "fmt": "biome format --write ."
   },
   "dependencies": {
-    "@oh-my-pi/pi-ai": "catalog:",
-    "@oh-my-pi/pi-catalog": "catalog:",
-    "@oh-my-pi/pi-natives": "catalog:",
-    "@oh-my-pi/pi-utils": "catalog:",
-    "@oh-my-pi/pi-wire": "catalog:",
-    "@oh-my-pi/snapcompact": "catalog:",
+    "@chudware/ai": "catalog:",
+    "@chudware/catalog": "catalog:",
+    "@chudware/natives": "catalog:",
+    "@chudware/utils": "catalog:",
+    "@chudware/wire": "catalog:",
+    "@chudware/snapcompact": "catalog:",
     "@opentelemetry/api": "catalog:"
   },
   "devDependencies": {
-    "@oh-my-pi/omptype": "catalog:",
+    "@chudware/chudtype": "catalog:",
     "@opentelemetry/context-async-hooks": "catalog:",
     "@opentelemetry/sdk-trace-base": "catalog:",
     "@types/bun": "catalog:"

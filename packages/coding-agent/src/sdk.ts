@@ -10,7 +10,7 @@ import {
 	filterProviderReplayMessages,
 	type StreamFn,
 	type ThinkingLevel,
-} from "@oh-my-pi/pi-agent-core";
+} from "@chudware/agent-core";
 import type {
 	Context,
 	CredentialDisabledEvent,
@@ -21,15 +21,15 @@ import type {
 	ProviderSessionState,
 	ServiceTier,
 	SimpleStreamOptions,
-} from "@oh-my-pi/pi-ai";
-import { resolveApiKeyOnce } from "@oh-my-pi/pi-ai/auth-retry";
-import type { Dialect } from "@oh-my-pi/pi-ai/dialect";
+} from "@chudware/ai";
+import { resolveApiKeyOnce } from "@chudware/ai/auth-retry";
+import type { Dialect } from "@chudware/ai/dialect";
 import {
 	getOpenAICodexTransportDetails,
 	prewarmOpenAICodexResponses,
-} from "@oh-my-pi/pi-ai/providers/openai-codex-responses";
-import { FALLBACK_DIALECT, preferredDialect } from "@oh-my-pi/pi-catalog/identity";
-import type { Component } from "@oh-my-pi/pi-tui";
+} from "@chudware/ai/providers/openai-codex-responses";
+import { FALLBACK_DIALECT, preferredDialect } from "@chudware/catalog/identity";
+import type { Component } from "@chudware/tui";
 import {
 	$env,
 	$flag,
@@ -40,8 +40,8 @@ import {
 	postmortem,
 	prompt,
 	Snowflake,
-} from "@oh-my-pi/pi-utils";
-import { INTENT_FIELD } from "@oh-my-pi/pi-wire";
+} from "@chudware/utils";
+import { INTENT_FIELD } from "@chudware/wire";
 import {
 	discoverAdvisorConfigs,
 	discoverWatchdogFiles,
@@ -81,7 +81,7 @@ import "./discovery";
 import { createImageUrlServiceFromSettings } from "./blob-broker/service";
 import { wrapStreamFnWithBlobUrlFallback } from "./blob-broker/stream-fallback";
 import { initializeWithSettings } from "./discovery";
-import { setInvocationConfiguredExtensions, withOmpExtensionRootScope } from "./discovery/omp-extension-roots";
+import { setInvocationConfiguredExtensions, withOmpExtensionRootScope } from "./discovery/chudcode-extension-roots";
 import { disposeAllJuliaKernelSessions, disposeJuliaKernelSessionsByOwner } from "./eval/jl/executor";
 import { disposeVmContextsByOwner } from "./eval/js/context-manager";
 import { disposeAllKernelSessions, disposeKernelSessionsByOwner } from "./eval/py/executor";
@@ -136,7 +136,7 @@ import {
 import { MCP_CONNECTION_STATUS_EVENT_CHANNEL, type McpConnectionStatusEvent } from "./mcp/startup-events";
 import { createSessionMemoryRuntimeContext, resolveMemoryBackend } from "./memory-backend";
 import { MEMORY_BACKEND_TOOL_NAMES } from "./memory-backend/tool-names";
-import type { MnemopiSessionState } from "./mnemopi/state";
+import type { MnemopiSessionState } from "./mnemo/state";
 import mcpXdevGuidanceTemplate from "./prompts/system/mcp-xdev-guidance.md" with { type: "text" };
 import lateDiagnosticTemplate from "./prompts/tools/lsp-late-diagnostic.md" with { type: "text" };
 import { AgentLifecycleManager } from "./registry/agent-lifecycle";
@@ -370,7 +370,7 @@ export interface CreateAgentSessionOptions {
 	cwd?: string;
 	/** Additional workspace directories beyond cwd (multi-root), absolute or cwd-relative. */
 	additionalDirectories?: string[];
-	/** Global config directory. Default: ~/.omp/agent */
+	/** Global config directory. Default: ~/.chudcode/agent */
 	agentDir?: string;
 	/** Spawns to allow. Default: "*" */
 	spawns?: string;
@@ -489,7 +489,7 @@ export interface CreateAgentSessionOptions {
 	 */
 	preloadedPreparedExtensions?: readonly PreparedExtension[];
 	/**
-	 * Pre-discovered custom-tool source paths from `.omp/tools/`, `.claude/tools/`,
+	 * Pre-discovered custom-tool source paths from `.chudcode/tools/`, `.claude/tools/`,
 	 * plugins, etc. When provided, the filesystem-scan inside
 	 * `discoverCustomToolPaths()` is skipped — subagents inherit the parent's
 	 * scan result and call `loadCustomTools()` themselves so each session binds
@@ -512,7 +512,7 @@ export interface CreateAgentSessionOptions {
 	contextFiles?: Array<{ path: string; content: string }>;
 	/** Pre-built workspace tree (skips re-scanning; passed by parents to subagents). */
 	workspaceTree?: WorkspaceTree;
-	/** Prompt templates. Default: discovered from cwd/.omp/prompts/ + agentDir/prompts/ */
+	/** Prompt templates. Default: discovered from cwd/.chudcode/prompts/ + agentDir/prompts/ */
 	promptTemplates?: PromptTemplate[];
 	/** File-based slash commands. Default: discovered from commands/ directories */
 	slashCommands?: FileSlashCommand[];
@@ -555,7 +555,7 @@ export interface CreateAgentSessionOptions {
 	taskDepth?: number;
 	/** Parent Hindsight state to alias for subagent memory tools. */
 	parentHindsightSessionState?: HindsightSessionState;
-	/** Parent Mnemopi state to alias for subagent memory tools. */
+	/** Parent Mnemo state to alias for subagent memory tools. */
 	parentMnemopiSessionState?: MnemopiSessionState;
 	/** Pre-allocated agent identity for IRC routing. Default: "Main" for top-level, parentTaskPrefix-derived for sub. */
 	agentId?: string;
@@ -592,7 +592,7 @@ export interface CreateAgentSessionOptions {
 	/** Settings instance. Default: Settings.init({ cwd, agentDir }) */
 	settings?: Settings;
 	/**
-	 * Legacy alias for `settings`. Older Pi extensions pass SettingsManager.create(...)
+	 * Legacy alias for `settings`. Older Chud extensions pass SettingsManager.create(...)
 	 * through this field; accept it so their SDK calls keep the configured settings.
 	 */
 	settingsManager?: Settings | Promise<Settings>;
@@ -715,7 +715,7 @@ export {
  *
  * Default: local SQLite store at `<agentDir>/agent.db`.
  *
- * Broker mode: when `OMP_AUTH_BROKER_URL` is set, credentials are pulled from
+ * Broker mode: when `CHUDCODE_AUTH_BROKER_URL` is set, credentials are pulled from
  * a remote auth-broker over the wire. Refresh tokens never leave the broker;
  * the client receives access tokens with `refresh = "__remote__"` and calls
  * back into the broker through the {@link AuthStorageOptions.refreshOAuthCredential}
@@ -789,7 +789,7 @@ export async function loadSessionExtensions(
  * (`chudcode bench`, dry-balance) build a bare {@link ModelRegistry} that only knows
  * built-in catalog providers; without this, providers contributed by an
  * extension (e.g. a custom OpenAI-compatible provider under
- * `~/.omp/agent/extensions/`) never reach model resolution. Mirrors the
+ * `~/.chudcode/agent/extensions/`) never reach model resolution. Mirrors the
  * session / `chudcode models` path: drain the queued provider registrations, then
  * `refreshRuntimeProviders` so dynamically-discovered models exist before
  * selectors are resolved.
@@ -1252,7 +1252,7 @@ export function createAutoLearnCaptureRunner(
  * const { session } = await createAgentSession();
  *
  * // With explicit model
- * import { getModel } from '@oh-my-pi/pi-ai';
+ * import { getModel } from '@chudware/ai';
  * const { session } = await createAgentSession({
  *   model: getModel('anthropic', 'claude-opus-4-5'),
  *   thinkingLevel: 'high',
@@ -2049,7 +2049,7 @@ async function createAgentSessionScoped(options: CreateAgentSessionOptions): Pro
 				customTools.push(...getSearchTools());
 			}
 
-			// Discover custom tools from `.omp/tools/`, `.claude/tools/`, plugins, etc.
+			// Discover custom tools from `.chudcode/tools/`, `.claude/tools/`, plugins, etc.
 			// Subagents reuse the parent's scan via `preloadedCustomToolPaths` to skip
 			// the FS walk, but ALWAYS re-call `loadCustomTools` here so factories bind
 			// to THIS session's `CustomToolAPI` (cwd, exec, pushPendingAction, UI).
@@ -2847,8 +2847,8 @@ async function createAgentSessionScoped(options: CreateAgentSessionOptions): Pro
 		}
 		// Hashline `edit` stays in the registry so Cursor can call it as MCP.
 		// Native StrReplace arrives as `editToolCall` and materializes through
-		// exec `readArgs`/`writeArgs`; `pi_edit` still needs a `replace`-mode
-		// instance because `PiEditExecArgs` carries `old_string`/`new_string`,
+		// exec `readArgs`/`writeArgs`; `chud_edit` still needs a `replace`-mode
+		// instance because `ChudEditExecArgs` carries `old_string`/`new_string`,
 		// which is exactly `replace`'s schema and nothing else's. The registry
 		// instance follows the session's configured mode, so the bridge builds
 		// its own and serves it through `getEditReplaceTool` — not `getTool`,
@@ -2961,7 +2961,7 @@ async function createAgentSessionScoped(options: CreateAgentSessionOptions): Pro
 			getCwd: () => sessionManager.getCwd(),
 			tools: toolRegistry,
 			getExecutableTool: resolveDeviceTool,
-			// `pi_edit` needs the `replace`-mode instance specifically, and the
+			// `chud_edit` needs the `replace`-mode instance specifically, and the
 			// registry may still hold the session's own `edit` (any mode) when
 			// this session did not start on Cursor.
 			getEditReplaceTool: getCursorBridgeEditTool,
@@ -2971,7 +2971,7 @@ async function createAgentSessionScoped(options: CreateAgentSessionOptions): Pro
 			getTodoPhases: () => session.getTodoPhases(),
 			setTodoPhases: phases => session.setTodoPhases(phases),
 			persistTodoPhases: phases => sessionManager.appendCustomEntry(USER_TODO_EDIT_CUSTOM_TYPE, { phases }),
-			// `pi_grep` carries its own context width and match cap, which the
+			// `chud_grep` carries its own context width and match cap, which the
 			// shared grep instance fixed at construction cannot express. Gated on
 			// the grant: the factory builds a fresh tool and `executeTool` prefers
 			// it over the registry, so installing it unconditionally would let a
@@ -2995,7 +2995,7 @@ async function createAgentSessionScoped(options: CreateAgentSessionOptions): Pro
 		const inlineToolDescriptors = shouldInlineToolDescriptors(settings.get("inlineToolDescriptors"), model?.id);
 		const eagerTasks = settings.get("task.eager") !== "default";
 		const eagerTasksAlways = settings.get("task.eager") === "always";
-		const intentField = $flag("PI_INTENT_TRACING", settings.get("tools.intentTracing")) ? INTENT_FIELD : undefined;
+		const intentField = $flag("CHUDCODE_INTENT_TRACING", settings.get("tools.intentTracing")) ? INTENT_FIELD : undefined;
 		const includeWorkspaceTree = settings.get("includeWorkspaceTree") ?? false;
 		const rebuildSystemPrompt = async (
 			toolNames: string[],
@@ -3725,7 +3725,7 @@ async function createAgentSessionScoped(options: CreateAgentSessionOptions): Pro
 			parentEvalSessionId: options.parentEvalSessionId,
 			advisorTools,
 			// Same per-call `grep` seam the primary bridge gets, built against the
-			// advisor's own tool session so a `pi_grep` frame's context width and
+			// advisor's own tool session so a `chud_grep` frame's context width and
 			// match cap are honored there too.
 			advisorCreateGrepTool: createBridgeGrepFactory(advisorToolSession, extensionRunner),
 			// Same `replace`-mode requirement as the primary bridge; the advisor

@@ -2,8 +2,10 @@
 Type=Application
 Name=Chudcode
 Comment=Chudware's private coding workspace
-Exec=chudcode-gui
+Exec=chudcode-desktop
 Icon=chudcode
 StartupWMClass=chudcode
+StartupNotify=true
 Categories=Development;IDE;
+Keywords=chud;code;agent;ide;
 Terminal=false

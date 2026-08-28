@@ -1,5 +1,5 @@
-import { type } from "@oh-my-pi/omptype";
-import { once } from "@oh-my-pi/pi-utils";
+import { type } from "@chudware/chudtype";
+import { once } from "@chudware/utils";
 
 export const getModelsConfigSchemaBundle = once(() => {
 	const OpenRouterRoutingSchema = type({
@@ -306,13 +306,13 @@ export const getModelsConfigSchemaBundle = once(() => {
 		/** Bedrock guardrail trace verbosity. */
 		"guardrailTrace?": '"enabled" | "disabled" | "enabled_full"',
 		/**
-		 * Streaming transport override. When set to `"pi-native"`, chudcode dispatches
+		 * Streaming transport override. When set to `"chud-native"`, chudcode dispatches
 		 * every model under this provider via the auth-gateway's
 		 * `POST /v1/pi/stream` endpoint instead of the per-provider SDK. The
 		 * provider's `baseUrl` must point at a compatible `chudcode auth-gateway`
 		 * and `apiKey` must carry the gateway bearer.
 		 */
-		"transport?": '"pi-native"',
+		"transport?": '"chud-native"',
 	}).narrow((value, ctx) => {
 		if (value.baseUrl !== undefined && typeof value.baseUrl === "string" && value.baseUrl.length === 0) {
 			return ctx.mustBe("baseUrl a non-empty string");

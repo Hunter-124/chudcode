@@ -7,7 +7,7 @@ import { padding } from "../../utils";
 import type { ComposerChromeContext, ComposerRowContext, ComposerStyle } from "./types";
 
 export const piComposerStyle: ComposerStyle = {
-	id: "pi",
+	id: "chud",
 	sideBorders: false,
 	verticalChrome: 2,
 	statusAttachment: "none",

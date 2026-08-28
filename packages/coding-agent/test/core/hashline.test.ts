@@ -6,9 +6,9 @@ import {
 	type InMemorySnapshotStore as FileReadCache,
 	formatHashlineHeader,
 	MismatchError as HashlineMismatchError,
-} from "@oh-my-pi/hashline";
-import { type Type, type } from "@oh-my-pi/omptype";
-import { resetSettingsForTest, Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
+} from "@chudware/hashline";
+import { type Type, type } from "@chudware/chudtype";
+import { resetSettingsForTest, Settings } from "@chudware/coding-agent/config/settings";
 import {
 	canonicalSnapshotKey,
 	type ExecuteHashlineSingleOptions,
@@ -16,11 +16,11 @@ import {
 	getFileSnapshotStore as getFileReadCache,
 	HashlineFilesystem,
 	hashlineEditParamsSchema,
-} from "@oh-my-pi/pi-coding-agent/edit";
-import { resolveLocalUrlToPath } from "@oh-my-pi/pi-coding-agent/internal-urls";
-import type { ToolSession } from "@oh-my-pi/pi-coding-agent/tools";
-import { removeWithRetries } from "@oh-my-pi/pi-utils";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
+} from "@chudware/coding-agent/edit";
+import { resolveLocalUrlToPath } from "@chudware/coding-agent/internal-urls";
+import type { ToolSession } from "@chudware/coding-agent/tools";
+import { removeWithRetries } from "@chudware/utils";
+import * as fsx from "@chudware/utils/fsx";
 
 beforeAll(async () => {
 	resetSettingsForTest();
@@ -513,7 +513,7 @@ describe("hashline — filename+tag path recovery", () => {
 			const root = canonicalSnapshotKey(tempDir);
 			const inside = path.join(root, "pkg", "test", "file.ts");
 			// A sibling of the working tree stands in for the artifact sandbox / vault.
-			const outside = path.join(canonicalSnapshotKey(os.tmpdir()), "omp-artifacts", "file.ts");
+			const outside = path.join(canonicalSnapshotKey(os.tmpdir()), "chudcode-artifacts", "file.ts");
 
 			// Internal-URL authored targets are approved at "read"; never redirect to a "write".
 			expect(guardFs.allowTagPathRecovery("local://file.ts", inside)).toBe(false);

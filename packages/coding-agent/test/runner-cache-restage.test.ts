@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it } from "bun:test";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
+import * as fsx from "@chudware/utils/fsx";
 import { stageRunnerScript } from "../src/eval/runner-cache";
 
 // stageRunnerScript memoizes the staged path per cache directory, but the warm
@@ -13,7 +13,7 @@ describe("stageRunnerScript re-validation", () => {
 	const dirs: string[] = [];
 
 	function uniqueDir() {
-		const name = `omp-runner-cache-test-${process.pid}-${dirs.length}-${Date.now()}`;
+		const name = `chudcode-runner-cache-test-${process.pid}-${dirs.length}-${Date.now()}`;
 		dirs.push(name);
 		return name;
 	}

@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "bun:test";
-import type { AuthStorage, FetchImpl } from "@oh-my-pi/pi-ai";
-import { PerplexityProvider, searchPerplexity } from "@oh-my-pi/pi-coding-agent/web/search/providers/perplexity";
-import { getAvailableAuthMethods } from "@oh-my-pi/pi-coding-agent/web/search/providers/perplexity-auth";
+import type { AuthStorage, FetchImpl } from "@chudware/ai";
+import { PerplexityProvider, searchPerplexity } from "@chudware/coding-agent/web/search/providers/perplexity";
+import { getAvailableAuthMethods } from "@chudware/coding-agent/web/search/providers/perplexity-auth";
 
 const API_URL = "https://api.perplexity.ai/chat/completions";
 const OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions";
@@ -74,14 +74,14 @@ describe("Perplexity API-key request shape", () => {
 	const savedKey = process.env.PERPLEXITY_API_KEY;
 	const savedOpenRouterKey = process.env.OPENROUTER_API_KEY;
 	const savedCookies = process.env.PERPLEXITY_COOKIES;
-	const savedResponsesMode = process.env.PI_PERPLEXITY_RESPONSES;
-	const savedApiModel = process.env.PI_PERPLEXITY_API_MODEL;
+	const savedResponsesMode = process.env.CHUDCODE_PERPLEXITY_RESPONSES;
+	const savedApiModel = process.env.CHUDCODE_PERPLEXITY_API_MODEL;
 
 	beforeEach(() => {
 		process.env.PERPLEXITY_API_KEY = "test-key";
 		delete process.env.PERPLEXITY_COOKIES;
-		delete process.env.PI_PERPLEXITY_RESPONSES;
-		delete process.env.PI_PERPLEXITY_API_MODEL;
+		delete process.env.CHUDCODE_PERPLEXITY_RESPONSES;
+		delete process.env.CHUDCODE_PERPLEXITY_API_MODEL;
 	});
 
 	afterEach(() => {
@@ -92,10 +92,10 @@ describe("Perplexity API-key request shape", () => {
 		else process.env.OPENROUTER_API_KEY = savedOpenRouterKey;
 		if (savedCookies === undefined) delete process.env.PERPLEXITY_COOKIES;
 		else process.env.PERPLEXITY_COOKIES = savedCookies;
-		if (savedResponsesMode === undefined) delete process.env.PI_PERPLEXITY_RESPONSES;
-		else process.env.PI_PERPLEXITY_RESPONSES = savedResponsesMode;
-		if (savedApiModel === undefined) delete process.env.PI_PERPLEXITY_API_MODEL;
-		else process.env.PI_PERPLEXITY_API_MODEL = savedApiModel;
+		if (savedResponsesMode === undefined) delete process.env.CHUDCODE_PERPLEXITY_RESPONSES;
+		else process.env.CHUDCODE_PERPLEXITY_RESPONSES = savedResponsesMode;
+		if (savedApiModel === undefined) delete process.env.CHUDCODE_PERPLEXITY_API_MODEL;
+		else process.env.CHUDCODE_PERPLEXITY_API_MODEL = savedApiModel;
 	});
 
 	it("requests comprehensive defaults: 20 results, high context, related questions", async () => {
@@ -109,7 +109,7 @@ describe("Perplexity API-key request shape", () => {
 	});
 
 	it("accepts a configured direct API model", async () => {
-		process.env.PI_PERPLEXITY_API_MODEL = "sonar-deep-research";
+		process.env.CHUDCODE_PERPLEXITY_API_MODEL = "sonar-deep-research";
 		let body: Record<string, unknown> | undefined;
 		await searchPerplexity({
 			query: "quic vs tcp",
@@ -219,7 +219,7 @@ describe("Perplexity API-key request shape", () => {
 		).rejects.toThrow(/credits exhausted/);
 	});
 	it("streams the Responses API and captures Perplexity search result events", async () => {
-		process.env.PI_PERPLEXITY_RESPONSES = "1";
+		process.env.CHUDCODE_PERPLEXITY_RESPONSES = "1";
 		let body: Record<string, unknown> | undefined;
 		const fetchMock: FetchImpl = async (input, init) => {
 			const url = typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
@@ -376,19 +376,19 @@ function mockAnonymous(capture: (body: Record<string, unknown>, headers: Headers
 
 describe("Perplexity OAuth request shape", () => {
 	const savedCookies = process.env.PERPLEXITY_COOKIES;
-	const savedModel = process.env.PI_PERPLEXITY_MODEL;
+	const savedModel = process.env.CHUDCODE_PERPLEXITY_MODEL;
 
 	beforeEach(() => {
 		delete process.env.PERPLEXITY_COOKIES; // cookies take precedence over oauth; keep them out
-		delete process.env.PI_PERPLEXITY_MODEL;
+		delete process.env.CHUDCODE_PERPLEXITY_MODEL;
 	});
 
 	afterEach(() => {
 		vi.restoreAllMocks();
 		if (savedCookies === undefined) delete process.env.PERPLEXITY_COOKIES;
 		else process.env.PERPLEXITY_COOKIES = savedCookies;
-		if (savedModel === undefined) delete process.env.PI_PERPLEXITY_MODEL;
-		else process.env.PI_PERPLEXITY_MODEL = savedModel;
+		if (savedModel === undefined) delete process.env.CHUDCODE_PERPLEXITY_MODEL;
+		else process.env.CHUDCODE_PERPLEXITY_MODEL = savedModel;
 	});
 
 	it("sends the bare query, never the API-style system prompt, to the ask endpoint", async () => {

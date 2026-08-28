@@ -19,8 +19,8 @@
  * before mutation); steps 2 and 3 are per-spawn.
  */
 import * as path from "node:path";
-import type * as natives from "@oh-my-pi/pi-natives";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
+import type * as natives from "@chudware/natives";
+import * as fsx from "@chudware/utils/fsx";
 import { AgentRegistry } from "../registry/agent-registry";
 import type { ToolSession } from "../tools";
 import { generateCommitMessage } from "../utils/commit-message-generator";
@@ -175,7 +175,7 @@ async function writeIsolationPatch(
 /**
  * Run a subagent inside an isolation worktree and capture its changes.
  *
- * Branch mode: on success, commits the diff onto `omp/task/${agentId}` and
+ * Branch mode: on success, commits the diff onto `chudcode/task/${agentId}` and
  * returns `branchName` + `nestedPatches`. On commit failure the still-live
  * isolation diff is written to `${artifactsDir}/${agentId}.patch`, the task
  * branch is kept when it already carries commits (deleted otherwise), and
@@ -233,7 +233,7 @@ export async function runIsolatedSubprocess(opts: IsolatedRunOptions): Promise<S
 			} catch (mergeErr) {
 				// Agent succeeded but the branch commit failed. `commitToBranch`
 				// is not atomic: the clean-baseline path fetches the agent's
-				// commits into the parent ODB and creates `omp/task/<id>` before
+				// commits into the parent ODB and creates `chudcode/task/<id>` before
 				// it commits the leftover working-tree delta, so a throw from
 				// that trailing step leaves behind a branch that already holds
 				// every commit the agent made. The isolation worktree — the only
@@ -242,7 +242,7 @@ export async function runIsolatedSubprocess(opts: IsolatedRunOptions): Promise<S
 				// recoverable merge conflict into permanent loss of committed
 				// work (#8868). Delete only when nothing is at stake.
 				const baseSha = taskBaseline.root.headCommit;
-				const branchName = `omp/task/${opts.agentId}`;
+				const branchName = `chudcode/task/${opts.agentId}`;
 				const rescueBranch = await rescueTaskBranch(opts.context.repoRoot, branchName, baseSha);
 				const rescueNote = rescueBranch
 					? ` The agent's commits are preserved on branch ${rescueBranch} — merge or cherry-pick it manually.`

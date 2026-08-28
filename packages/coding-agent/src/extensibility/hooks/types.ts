@@ -1,13 +1,13 @@
-import type { type as ArkType } from "@oh-my-pi/omptype";
-import type * as TypeBox from "@oh-my-pi/omptype/typebox";
-import type * as zod from "@oh-my-pi/omptype/zod";
-import type { ImageContent, Message, Model, TextContent } from "@oh-my-pi/pi-ai";
-import type { Component, TUI } from "@oh-my-pi/pi-tui";
-import type { logger as PiLogger } from "@oh-my-pi/pi-utils";
+import type { type as ArkType } from "@chudware/chudtype";
+import type * as TypeBox from "@chudware/chudtype/typebox";
+import type * as zod from "@chudware/chudtype/zod";
+import type { ImageContent, Message, Model, TextContent } from "@chudware/ai";
+import type { Component, TUI } from "@chudware/tui";
+import type { logger as ChudLogger } from "@chudware/utils";
 import type { ModelRegistry } from "../../config/model-registry";
 import type { EditToolDetails } from "../../edit";
 import type { ExecOptions, ExecResult } from "../../exec/exec";
-import type * as PiCodingAgent from "../../index";
+import type * as ChudCodingAgent from "../../index";
 import type { Theme } from "../../modes/theme/theme";
 import type { CustomMessagePayload, HookMessage } from "../../session/messages";
 import type { ReadonlySessionManager, SessionManager } from "../../session/session-manager";
@@ -177,7 +177,7 @@ export interface HookContext {
 	hasUI: boolean;
 	/** Current working directory */
 	cwd: string;
-	/** Session manager (read-only) - use pi.sendMessage()/pi.appendEntry() for writes */
+	/** Session manager (read-only) - use chud.sendMessage()/pi.appendEntry() for writes */
 	sessionManager: ReadonlySessionManager;
 	/** Model registry - use for API key resolution and model retrieval */
 	modelRegistry: ModelRegistry;
@@ -471,7 +471,7 @@ export interface RegisteredCommand {
 
 /**
  * HookAPI passed to hook factory functions.
- * Hooks use pi.on() to subscribe to events and pi.sendMessage() to inject messages.
+ * Hooks use chud.on() to subscribe to events and chud.sendMessage() to inject messages.
  */
 export interface HookAPI {
 	// Session events
@@ -543,10 +543,10 @@ export interface HookAPI {
 	 *
 	 * @example
 	 * // Store permission state
-	 * pi.appendEntry("permissions", { level: "full", grantedAt: Date.now() });
+	 * chud.appendEntry("permissions", { level: "full", grantedAt: Date.now() });
 	 *
 	 * // On reload, reconstruct state from entries
-	 * pi.on("session", async (event, ctx) => {
+	 * chud.on("session", async (event, ctx) => {
 	 *   if (event.reason === "start") {
 	 *     const entries = event.sessionManager.getEntries();
 	 *     const myEntries = entries.filter(e => e.type === "custom" && e.customType === "permissions");
@@ -576,22 +576,22 @@ export interface HookAPI {
 	exec(command: string, args: string[], options?: ExecOptions): Promise<ExecResult>;
 
 	/** File logger for error/warning/debug messages */
-	logger: typeof PiLogger;
+	logger: typeof ChudLogger;
 	/** Injected TypeBox shim (legacy/compat — prefer `arktype`). */
 	typebox: typeof TypeBox;
-	/** Injected omptype schema builder for hooks. */
+	/** Injected chudtype schema builder for hooks. */
 	arktype: typeof ArkType;
-	/** Injected Zod-compatible omptype builder for hooks. */
+	/** Injected Zod-compatible chudtype builder for hooks. */
 	zod: typeof zod;
-	/** Injected pi-coding-agent exports */
-	pi: typeof PiCodingAgent;
+	/** Injected chudcode-agent exports */
+	chud: typeof ChudCodingAgent;
 }
 
 /**
  * Hook factory function type.
  * Hooks export a default function that receives the HookAPI.
  */
-export type HookFactory = (pi: HookAPI) => void;
+export type HookFactory = (chud: HookAPI) => void;
 
 // ============================================================================
 // Errors

@@ -1,13 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "bun:test";
-import { TUI } from "@oh-my-pi/pi-tui";
-import { Image, ImageBudget } from "@oh-my-pi/pi-tui/components/image";
-import { Text } from "@oh-my-pi/pi-tui/components/text";
+import { TUI } from "@chudware/tui";
+import { Image, ImageBudget } from "@chudware/tui/components/image";
+import { Text } from "@chudware/tui/components/text";
 import {
 	encodeKittyVirtualPlacement,
 	getKittyGraphics,
 	KITTY_PLACEHOLDER,
 	setKittyGraphics,
-} from "@oh-my-pi/pi-tui/kitty-graphics";
+} from "@chudware/tui/kitty-graphics";
 import {
 	type CellDimensions,
 	encodeKitty,
@@ -19,8 +19,8 @@ import {
 	setCellDimensions,
 	TERMINAL,
 	wrapTmuxPassthrough,
-} from "@oh-my-pi/pi-tui/terminal-capabilities";
-import { sleep } from "@oh-my-pi/pi-utils/async";
+} from "@chudware/tui/terminal-capabilities";
+import { sleep } from "@chudware/utils/async";
 import { withoutTerminalMultiplexer } from "./helpers/terminal-multiplexer";
 
 withoutTerminalMultiplexer();
@@ -643,7 +643,7 @@ describe("TUI inline-image budget", () => {
 
 	it("clips a direct Kitty placement during an in-place width repaint", async () => {
 		const originalGraphics = { ...getKittyGraphics() };
-		const originalResizeMode = process.env.PI_TUI_RESIZE_IN_PLACE;
+		const originalResizeMode = process.env.CHUDCODE_TUI_RESIZE_IN_PLACE;
 		const term = new VirtualTerminal(40, 6);
 		const writes: string[] = [];
 		const realWrite = term.write.bind(term);
@@ -653,7 +653,7 @@ describe("TUI inline-image budget", () => {
 		});
 
 		setKittyGraphics({ unicodePlaceholders: false });
-		process.env.PI_TUI_RESIZE_IN_PLACE = "1";
+		process.env.CHUDCODE_TUI_RESIZE_IN_PLACE = "1";
 		const tui = new TUI(term);
 		tui.addChild(
 			new Image(
@@ -679,8 +679,8 @@ describe("TUI inline-image budget", () => {
 		} finally {
 			tui.stop();
 			setKittyGraphics(originalGraphics);
-			if (originalResizeMode === undefined) delete process.env.PI_TUI_RESIZE_IN_PLACE;
-			else process.env.PI_TUI_RESIZE_IN_PLACE = originalResizeMode;
+			if (originalResizeMode === undefined) delete process.env.CHUDCODE_TUI_RESIZE_IN_PLACE;
+			else process.env.CHUDCODE_TUI_RESIZE_IN_PLACE = originalResizeMode;
 		}
 	});
 

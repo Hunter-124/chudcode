@@ -1,7 +1,7 @@
 import * as net from "node:net";
-import { streamCursor } from "@oh-my-pi/pi-ai/providers/cursor";
-import type { Context, Model } from "@oh-my-pi/pi-ai/types";
-import { buildModel } from "@oh-my-pi/pi-catalog/build";
+import { streamCursor } from "@chudware/ai/providers/cursor";
+import type { Context, Model } from "@chudware/ai/types";
+import { buildModel } from "@chudware/catalog/build";
 
 // Fake HTTP CONNECT proxy: record the CONNECT target of the first request, then
 // reset. The run fails afterwards regardless — the recorded target is the proof
@@ -25,10 +25,10 @@ const proxyAddress = proxy.address();
 if (!proxyAddress || typeof proxyAddress === "string") throw new Error("proxy did not bind");
 
 // Only the standard HTTPS_PROXY var is set; the provider-specific override and
-// PI_PROXY are unset, so a fix that only reads PI_PROXY would connect direct and
+// CHUDCODE_PROXY are unset, so a fix that only reads CHUDCODE_PROXY would connect direct and
 // never reach this proxy.
-delete process.env.PI_PROXY;
-delete process.env.PI_PROXY_CURSOR;
+delete process.env.CHUDCODE_PROXY;
+delete process.env.CHUDCODE_PROXY_CURSOR;
 delete process.env.HTTP_PROXY;
 delete process.env.http_proxy;
 delete process.env.ALL_PROXY;

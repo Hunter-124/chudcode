@@ -1,10 +1,10 @@
 # Natives Binding Contract (JavaScript/TypeScript Side)
 
-This page defines the public JS/TS boundary between `@oh-my-pi/pi-natives` callers and its N-API addon. The authoritative public root surface is `packages/natives/native/index.d.ts` plus the explicit ESM exports in `native/index.js`; Rust internals not present there are not package API.
+This page defines the public JS/TS boundary between `@chudware/natives` callers and its N-API addon. The authoritative public root surface is `packages/natives/native/index.d.ts` plus the explicit ESM exports in `native/index.js`; Rust internals not present there are not package API.
 
 ## Contract layers
 
-1. `crates/pi-natives/src/**/*.rs` defines `#[napi]` functions, classes, objects, and enums.
+1. `crates/chud-natives/src/**/*.rs` defines `#[napi]` functions, classes, objects, and enums.
 2. `bun --cwd=packages/natives run build:bindings` runs napi-rs, installs the host addon and generated `native/index.d.ts`, then runs `gen-enums.ts`.
 3. `gen-enums.ts` reads the declarations, rewrites napi-rs `const enum` declarations to runtime-usable declarations, and replaces the marked block in `native/index.js` with explicit class/function exports and literal enum objects.
 4. `native/index.js` loads the addon and binds that generated root surface.
@@ -17,9 +17,9 @@ There is no `NativeBindings` declaration-merging lifecycle or `packages/natives/
 
 | Entry                            | Public values                                                                                                                   |
 | -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
-| `@oh-my-pi/pi-natives`           | Generated root classes, functions, and enum objects from `native/index.js` / `index.d.ts`. Importing is eager.                  |
-| `@oh-my-pi/pi-natives/desktop`   | `createDesktopSession(options): DesktopSession`; addon load is deferred until invocation.                                       |
-| `@oh-my-pi/pi-natives/clipboard` | `copyToClipboard(text)` and `readImageFromClipboard()` plus the `ClipboardImage` type; addon load is deferred until invocation. |
+| `@chudware/natives`           | Generated root classes, functions, and enum objects from `native/index.js` / `index.d.ts`. Importing is eager.                  |
+| `@chudware/natives/desktop`   | `createDesktopSession(options): DesktopSession`; addon load is deferred until invocation.                                       |
+| `@chudware/natives/clipboard` | `copyToClipboard(text)` and `readImageFromClipboard()` plus the `ClipboardImage` type; addon load is deferred until invocation. |
 
 Do not import unexported `native/*` implementation paths from package consumers.
 
@@ -84,7 +84,7 @@ Numeric and string enum declarations constrain TypeScript callers but do not by 
 
 ## Binding-change checklist
 
-1. Add or change the owning Rust `#[napi]` item; register a new module in `crates/pi-natives/src/lib.rs`.
+1. Add or change the owning Rust `#[napi]` item; register a new module in `crates/chud-natives/src/lib.rs`.
 2. Run `bun --cwd=packages/natives run build:bindings` when the exported type surface changes. This is the declaration/local-addon path; the normal `build` script is the Bazel shipping-addon path.
 3. Confirm `native/index.d.ts` has the intended JS name, types, optionality, callback shape, and sync/promise return.
 4. Confirm the marked block in `native/index.js` contains the class/function and any enum runtime object.

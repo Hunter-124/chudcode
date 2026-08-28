@@ -1,8 +1,8 @@
 import { afterEach, describe, expect, it } from "bun:test";
 import * as http2 from "node:http2";
-import { streamCursor } from "@oh-my-pi/pi-ai/providers/cursor";
-import type { AssistantMessage, Context, Model } from "@oh-my-pi/pi-ai/types";
-import { buildModel } from "@oh-my-pi/pi-catalog/build";
+import { streamCursor } from "@chudware/ai/providers/cursor";
+import type { AssistantMessage, Context, Model } from "@chudware/ai/types";
+import { buildModel } from "@chudware/catalog/build";
 import {
 	AgentClientMessageSchema,
 	type AgentRunRequest,
@@ -13,10 +13,10 @@ import {
 	ReadArgsSchema,
 	TextDeltaUpdateSchema,
 	TurnEndedUpdateSchema,
-} from "@oh-my-pi/pi-catalog/discovery/cursor-proto";
-import { create, fromBinary, toBinary } from "@oh-my-pi/pi-catalog/discovery/protobuf";
-import type { ModelSpec } from "@oh-my-pi/pi-catalog/types";
-import { sleep } from "@oh-my-pi/pi-utils/async";
+} from "@chudware/catalog/discovery/cursor-proto";
+import { create, fromBinary, toBinary } from "@chudware/catalog/discovery/protobuf";
+import type { ModelSpec } from "@chudware/catalog/types";
+import { sleep } from "@chudware/utils/async";
 
 const CONNECT_END_STREAM_FLAG = 0b00000010;
 

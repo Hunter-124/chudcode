@@ -45,11 +45,11 @@ CustomTool.execute(toolCallId, params, onUpdate, ctx, signal)
 `discoverAndLoadCustomTools(configuredPaths, cwd, builtInToolNames)` merges:
 
 1. Capability providers (`toolCapability`), including:
-   - Native Chudcode config (`~/.omp/agent/tools`, `.omp/tools`)
+   - Native Chudcode config (`~/.chudcode/agent/tools`, `.chudcode/tools`)
    - Claude config (`~/.claude/tools`, `.claude/tools`)
    - Codex config (`~/.codex/tools`, `.codex/tools`)
    - Claude marketplace plugin cache provider
-2. Installed plugin manifests (`~/.omp/plugins/node_modules/*` via plugin loader)
+2. Installed plugin manifests (`~/.chudcode/plugins/node_modules/*` via plugin loader)
 3. Explicit configured paths passed to the loader
 
 ### Important behavior
@@ -64,14 +64,14 @@ CustomTool.execute(toolCallId, params, onUpdate, ctx, signal)
 A custom tool module must export a function (default export preferred):
 
 ```ts
-import type { CustomToolFactory } from "@oh-my-pi/pi-coding-agent";
+import type { CustomToolFactory } from "@chudware/coding-agent";
 
-const factory: CustomToolFactory = (pi) => ({
+const factory: CustomToolFactory = (chud) => ({
   name: "repo_stats",
   label: "Repo Stats",
   description: "Counts tracked TypeScript files",
-  parameters: pi.zod.object({
-    glob: pi.zod.string().optional(),
+  parameters: chud.zod.object({
+    glob: chud.zod.string().optional(),
   }),
 
   async execute(toolCallId, params, onUpdate, ctx, signal) {
@@ -80,10 +80,10 @@ const factory: CustomToolFactory = (pi) => ({
       details: { phase: "scan" },
     });
 
-    const result = await pi.exec(
+    const result = await chud.exec(
       "git",
       ["ls-files", params.glob ?? "**/*.ts"],
-      { signal, cwd: pi.cwd },
+      { signal, cwd: chud.cwd },
     );
     if (result.killed) {
       throw new Error("Scan was cancelled");
@@ -109,7 +109,7 @@ const factory: CustomToolFactory = (pi) => ({
 export default factory;
 ```
 
-Parameter schemas may use the Zod-compatible omptype builder (`pi.zod`), native omptype builder (`pi.arktype`), or legacy-compatible TypeBox shim (`pi.typebox`) and flow through the shared validation/wire pipeline.
+Parameter schemas may use the Zod-compatible chudtype builder (`chud.zod`), native chudtype builder (`chud.arktype`), or legacy-compatible TypeBox shim (`chud.typebox`) and flow through the shared validation/wire pipeline.
 
 Factory return type:
 
@@ -126,9 +126,9 @@ From `types.ts` and `loader.ts`:
 - `ui`: UI context (can be no-op in headless modes)
 - `hasUI`: `false` in non-interactive flows
 - `logger`: shared file logger
-- `arktype`: injected omptype `type(...)` builder
+- `arktype`: injected chudtype `type(...)` builder
 - `typebox`: compatibility shim for legacy TypeBox-style schemas
-- `pi`: injected `@oh-my-pi/pi-coding-agent` exports
+- `chud`: injected `@chudware/coding-agent` exports
 - `pushPendingAction(action)`: stage a preview action that is finalized by writing a plain-text reason to `xd://resolve` or `xd://reject`
 
 The loader starts with a no-op UI context and requires host code to call `setUIContext(...)` when real UI is ready. If the runtime did not provide a pending-action store, calling `pushPendingAction` throws `Pending action store unavailable for custom tools in this runtime.`
@@ -141,7 +141,7 @@ The loader starts with a no-op UI context and requires host code to call `setUIC
 execute(toolCallId, params, onUpdate, ctx, signal);
 ```
 
-- `params` is statically typed from its omptype or TypeBox schema via `Static<TParams>`.
+- `params` is statically typed from its chudtype or TypeBox schema via `Static<TParams>`.
 - Runtime argument validation happens before execution in the agent loop.
 - `onUpdate` emits partial results for UI streaming.
 - `ctx` includes `sessionManager`, `modelRegistry`, current `model`, `isIdle()`, `hasQueuedMessages()`, `abort()`, and optional `settings`, `fetch`, `localProtocolOptions`, and `autoApprove`.
@@ -195,7 +195,7 @@ Use `ctx.sessionManager` to reconstruct state from history when branch/session c
 ### Cancellation
 
 - Agent abort propagates through `AbortSignal` to `execute`.
-- Forward `signal` to subprocess work (`pi.exec(..., { signal })`) for cooperative cancellation.
+- Forward `signal` to subprocess work (`chud.exec(..., { signal })`) for cooperative cancellation.
 - `ctx.abort()` lets a tool request abort of the current agent operation.
 
 ### onSession errors
@@ -206,5 +206,5 @@ Use `ctx.sessionManager` to reconstruct state from history when branch/session c
 
 - Tool names must be globally unique in the active registry.
 - Prefer deterministic, schema-shaped outputs in `details` for renderer/state reconstruction.
-- Guard UI usage with `pi.hasUI`.
+- Guard UI usage with `chud.hasUI`.
 - Treat `.md`/`.json` in tool directories as metadata, not executable modules.

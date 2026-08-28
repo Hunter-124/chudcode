@@ -1,8 +1,8 @@
 import { beforeAll, describe, expect, it } from "bun:test";
-import { BashExecutionComponent } from "@oh-my-pi/pi-coding-agent/modes/components/bash-execution";
-import { getThemeByName, setThemeInstance } from "@oh-my-pi/pi-coding-agent/modes/theme/theme";
-import type { TUI } from "@oh-my-pi/pi-tui";
-import { sleep } from "@oh-my-pi/pi-utils/async";
+import { BashExecutionComponent } from "@chudware/coding-agent/modes/components/bash-execution";
+import { getThemeByName, setThemeInstance } from "@chudware/coding-agent/modes/theme/theme";
+import type { TUI } from "@chudware/tui";
+import { sleep } from "@chudware/utils/async";
 
 const ui = { requestRender: () => {}, requestComponentRender: () => {} } as unknown as TUI;
 

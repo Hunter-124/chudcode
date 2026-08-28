@@ -6,7 +6,7 @@
  * `puppeteer:error` debug channel is disabled (the default). A transient CDP
  * failure during world re-acquire then threw `TypeError: debugError is not a
  * function` from `#doAcquireWorlds`, escaped as an `unhandledRejection`, and the
- * postmortem handler killed the whole OMP process (parent session + every
+ * postmortem handler killed the whole Chudcode process (parent session + every
  * subagent).
  *
  * The test drives the real patched `FrameManager` with a `send()` that always
@@ -23,7 +23,7 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
-import { sleep } from "@oh-my-pi/pi-utils/async";
+import { sleep } from "@chudware/utils/async";
 import { CdpFrame } from "puppeteer-core/lib/puppeteer/cdp/Frame.js";
 import { FrameManager } from "puppeteer-core/lib/puppeteer/cdp/FrameManager.js";
 import { MAIN_WORLD, PUPPETEER_WORLD } from "puppeteer-core/lib/puppeteer/cdp/IsolatedWorlds.js";

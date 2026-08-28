@@ -5,13 +5,13 @@
  * (a hashline section header, an apply_patch envelope marker) rather than as
  * a top-level `path` / `paths` argument.
  *
- * Regression: see https://github.com/can1357/oh-my-pi/issues/3646. Before the
+ * Regression: see https://github.com/Hunter-124/chudcode/issues/3646. Before the
  * fix, the path-scoped rule `tool:edit(*.ts)` did not match hashline edits
  * because `agent-session`'s argument scan only saw the top-level
  * `{ input: "<hashline payload>" }` and never inspected the section header.
  */
 import { describe, expect, it } from "bun:test";
-import { EDIT_MODE_STRATEGIES } from "@oh-my-pi/pi-coding-agent/edit/streaming";
+import { EDIT_MODE_STRATEGIES } from "@chudware/coding-agent/edit/streaming";
 
 describe("EDIT_MODE_STRATEGIES.matcherPaths", () => {
 	describe("replace + patch (top-level path)", () => {
@@ -174,12 +174,12 @@ describe("EDIT_MODE_STRATEGIES.matcherEntries", () => {
  * outputs feed `TtsrManager.checkSnapshot` the same way `AgentSession`'s
  * TTSR pipeline does after the fix.
  */
-import { getCapability } from "@oh-my-pi/pi-coding-agent/capability";
-import { BUILTIN_DEFAULTS_PROVIDER_ID, type Rule, ruleCapability } from "@oh-my-pi/pi-coding-agent/capability/rule";
-import type { LoadContext } from "@oh-my-pi/pi-coding-agent/capability/types";
+import { getCapability } from "@chudware/coding-agent/capability";
+import { BUILTIN_DEFAULTS_PROVIDER_ID, type Rule, ruleCapability } from "@chudware/coding-agent/capability/rule";
+import type { LoadContext } from "@chudware/coding-agent/capability/types";
 // Register all discovery providers as a side effect.
-import "@oh-my-pi/pi-coding-agent/discovery";
-import { TtsrManager } from "@oh-my-pi/pi-coding-agent/export/ttsr";
+import "@chudware/coding-agent/discovery";
+import { TtsrManager } from "@chudware/coding-agent/export/ttsr";
 
 async function loadBundledTsNoAnyRule(): Promise<Rule> {
 	const cap = getCapability(ruleCapability.id);

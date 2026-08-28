@@ -1,6 +1,6 @@
 # Custom Tools Examples
 
-Example custom tools for omp-coding-agent.
+Example custom tools for chudcode-coding-agent.
 
 ## Examples
 
@@ -23,13 +23,13 @@ Full-featured example demonstrating:
 
 ```bash
 # Test directly (can point to any .ts file)
-omp --tool examples/custom-tools/todo/index.ts
+chudcode --tool examples/custom-tools/todo/index.ts
 
 # Or copy entire folder to tools directory for persistent use
-cp -r todo ~/.omp/agent/tools/
+cp -r todo ~/.chudcode/agent/tools/
 ```
 
-Then in omp:
+Then in chudcode:
 
 ```
 > add a todo "test custom tools"
@@ -47,15 +47,15 @@ See [docs/custom-tools.md](../../docs/custom-tools.md) for full documentation.
 **Factory pattern:**
 
 ```typescript
-import { Text } from "@oh-my-pi/pi-tui";
-import type { CustomToolFactory } from "@oh-my-pi/pi-coding-agent";
+import { Text } from "@chudware/tui";
+import type { CustomToolFactory } from "@chudware/coding-agent";
 
-const factory: CustomToolFactory = (pi) => ({
+const factory: CustomToolFactory = (chud) => ({
 	name: "my_tool",
 	label: "My Tool",
 	description: "Tool description for LLM",
-	parameters: pi.zod.object({
-		action: pi.zod.enum(["list", "add"]),
+	parameters: chud.zod.object({
+		action: chud.zod.enum(["list", "add"]),
 	}),
 
 	// Called on session start/switch/branch/clear
@@ -96,7 +96,7 @@ renderResult(result, { expanded, isPartial }, theme) {
 **Use `z.enum` for discriminated string tool args:**
 
 ```typescript
-const z = pi.zod;
+const z = chud.zod;
 
 parameters: z.object({
 	action: z.enum(["list", "add"]),

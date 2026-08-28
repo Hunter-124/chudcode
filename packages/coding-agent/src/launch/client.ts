@@ -2,8 +2,8 @@ import * as fs from "node:fs/promises";
 import * as net from "node:net";
 import * as os from "node:os";
 import * as path from "node:path";
-import { getGlobalDaemonRuntimeDir, isEexist, isEnoent, logger, postmortem } from "@oh-my-pi/pi-utils";
-import { sleep } from "@oh-my-pi/pi-utils/async";
+import { getGlobalDaemonRuntimeDir, isEexist, isEnoent, logger, postmortem } from "@chudware/utils";
+import { sleep } from "@chudware/utils/async";
 import { hostHasInheritableConsole } from "../eval/py/spawn-options";
 import { resolveWorkerSpawnCmd, workerEnvFromParent } from "../subprocess/worker-client";
 import { canonicalProjectDir, daemonBrokerEndpoint, daemonRuntimeDir } from "./paths";
@@ -496,7 +496,7 @@ export async function daemonClientForGlobal(service: string): Promise<DaemonBrok
 	);
 }
 
-/** Close every project and machine-global broker connection held by this omp process. */
+/** Close every project and machine-global broker connection held by this chudcode process. */
 export async function closeDaemonClients(): Promise<void> {
 	const pending = [...sharedClients.values()];
 	sharedClients.clear();
@@ -511,7 +511,7 @@ export async function smokeTestDaemonBroker(): Promise<void> {
 	// the broker's dead-scope sweep (pruneDeadDaemonRuntimeDirs, fired on startup)
 	// can only ever reclaim siblings inside it — never unrelated neighbours in
 	// os.tmpdir() such as tmux/ssh sockets or build trees (issue #8721).
-	const smokeRoot = await fs.mkdtemp(path.join(os.tmpdir(), "omp-daemon-smoke-"));
+	const smokeRoot = await fs.mkdtemp(path.join(os.tmpdir(), "chudcode-daemon-smoke-"));
 	const projectDir = path.join(smokeRoot, "project");
 	const runtimeDir = path.join(smokeRoot, "run");
 	await fs.mkdir(projectDir, { recursive: true });

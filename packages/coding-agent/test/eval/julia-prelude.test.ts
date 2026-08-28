@@ -1,7 +1,7 @@
 import { afterEach, beforeAll, describe, expect, it } from "bun:test";
 import * as path from "node:path";
-import { $which, TempDir } from "@oh-my-pi/pi-utils";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
+import { $which, TempDir } from "@chudware/utils";
+import * as fsx from "@chudware/utils/fsx";
 import { disposeJuliaKernelSessionsByOwner, executeJulia } from "../../src/eval/jl/executor";
 import { runBoundedProbe } from "../../src/eval/probe";
 
@@ -51,7 +51,7 @@ describe.skipIf(!HAS_JULIA)("eval Julia prelude helpers", () => {
 	}, 30_000);
 
 	it("supports prelude helpers and renders exception details in one kernel session", async () => {
-		using tempDir = TempDir.createSync("@omp-eval-julia-prelude-");
+		using tempDir = TempDir.createSync("@chudcode-eval-julia-prelude-");
 		const artifactsDir = path.join(tempDir.path(), "session-artifacts");
 		await fsx.write(path.join(artifactsDir, "alpha.md"), "one\ntwo\nthree\nfour");
 		await fsx.write(path.join(artifactsDir, "json.md"), JSON.stringify({ items: [{ name: "a" }, { name: "b" }] }));

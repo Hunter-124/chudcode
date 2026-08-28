@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from "bun:test";
-import { Tokenizer } from "@oh-my-pi/pi-agent-core";
+import { Tokenizer } from "@chudware/agent-core";
 import {
 	type CompactionPreparation,
 	compact,
@@ -8,7 +8,7 @@ import {
 	NativeCompactionError,
 	prepareCompaction,
 	type SessionEntry,
-} from "@oh-my-pi/pi-agent-core/compaction";
+} from "@chudware/agent-core/compaction";
 import {
 	buildCompactionV2Request,
 	buildOpenAiNativeHistory,
@@ -20,10 +20,10 @@ import {
 	shouldUseCompactionV2Streaming,
 	shouldUseOpenAiRemoteCompaction,
 	trimRemoteCompactionInputToContextWindow,
-} from "@oh-my-pi/pi-agent-core/compaction/openai";
-import * as ai from "@oh-my-pi/pi-ai";
-import * as AIError from "@oh-my-pi/pi-ai/error";
-import { getOpenAICodexTransportDetails } from "@oh-my-pi/pi-ai/providers/openai-codex-responses";
+} from "@chudware/agent-core/compaction/openai";
+import * as ai from "@chudware/ai";
+import * as AIError from "@chudware/ai/error";
+import { getOpenAICodexTransportDetails } from "@chudware/ai/providers/openai-codex-responses";
 import type {
 	AssistantMessage,
 	CodexCompactionContext,
@@ -31,10 +31,10 @@ import type {
 	Model,
 	ProviderSessionState,
 	ToolResultMessage,
-} from "@oh-my-pi/pi-ai/types";
-import { buildModel } from "@oh-my-pi/pi-catalog/build";
-import type { ModelSpec } from "@oh-my-pi/pi-catalog/types";
-import * as piUtils from "@oh-my-pi/pi-utils";
+} from "@chudware/ai/types";
+import { buildModel } from "@chudware/catalog/build";
+import type { ModelSpec } from "@chudware/catalog/types";
+import * as piUtils from "@chudware/utils";
 
 const { isRecord } = piUtils;
 const TEST_INSTALLATION_ID = "00000000-0000-4000-8000-000000000001";
@@ -1754,7 +1754,7 @@ describe("requestOpenAiRemoteCompaction abort", () => {
 
 describe("requestOpenAiRemoteCompaction timeout", () => {
 	test("a never-responding endpoint rejects with TimeoutError instead of hanging", async () => {
-		// Contract: the compact endpoint is a raw fetch outside the pi-ai stream
+		// Contract: the compact endpoint is a raw fetch outside the chud-ai stream
 		// watchdogs — a silently dropped connection must not hang compaction
 		// forever (frozen "Auto context-full maintenance…" spinner).
 		const fetchMock: FetchImpl = (_input, init) => {
@@ -1825,7 +1825,7 @@ describe("requestRemoteCompaction wire formats", () => {
 		});
 	});
 
-	test("keeps the generic omp summarizer format for other endpoints", async () => {
+	test("keeps the generic chudcode summarizer format for other endpoints", async () => {
 		let sentBody: unknown;
 		const fetchMock: FetchImpl = async (_input, init) => {
 			if (typeof init?.body !== "string") throw new Error("missing remote compaction request body");

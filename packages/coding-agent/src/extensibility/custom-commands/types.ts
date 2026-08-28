@@ -5,11 +5,11 @@
  * Unlike markdown commands which expand to prompts, custom commands can execute
  * arbitrary logic with full access to the hook context.
  */
-import type { type as ArkType } from "@oh-my-pi/omptype";
-import type * as TypeBox from "@oh-my-pi/omptype/typebox";
-import type * as zod from "@oh-my-pi/omptype/zod";
+import type { type as ArkType } from "@chudware/chudtype";
+import type * as TypeBox from "@chudware/chudtype/typebox";
+import type * as zod from "@chudware/chudtype/zod";
 import type { ExecOptions, ExecResult, HookCommandContext } from "../../extensibility/hooks/types";
-import type * as PiCodingAgent from "../../index";
+import type * as ChudCodingAgent from "../../index";
 
 // Re-export for custom commands to use
 export type { ExecOptions, ExecResult, HookCommandContext };
@@ -25,12 +25,12 @@ export interface CustomCommandAPI {
 	exec(command: string, args: string[], options?: ExecOptions): Promise<ExecResult>;
 	/** Injected TypeBox shim (legacy/compat). */
 	typebox: typeof TypeBox;
-	/** Injected omptype schema builder for custom commands. */
+	/** Injected chudtype schema builder for custom commands. */
 	arktype: typeof ArkType & { type: typeof ArkType };
-	/** Injected Zod-compatible omptype builder for custom commands. */
+	/** Injected Zod-compatible chudtype builder for custom commands. */
 	zod: typeof zod;
-	/** Injected pi-coding-agent exports */
-	pi: typeof PiCodingAgent;
+	/** Injected chudcode-agent exports */
+	chud: typeof ChudCodingAgent;
 }
 
 /**
@@ -42,7 +42,7 @@ export interface CustomCommandAPI {
  *
  * @example
  * ```typescript
- * const factory: CustomCommandFactory = (pi) => ({
+ * const factory: CustomCommandFactory = (chud) => ({
  *	  name: "deploy",
  *	  description: "Deploy current branch to staging",
  *	  async execute(args, ctx) {
@@ -50,7 +50,7 @@ export interface CustomCommandAPI {
  *		 const confirmed = await ctx.ui.confirm("Deploy", `Deploy to ${env}?`);
  *		 if (!confirmed) return;
  *
- *		 const result = await pi.exec("./deploy.sh", [env]);
+ *		 const result = await chud.exec("./deploy.sh", [env]);
  *		 if (result.exitCode !== 0) {
  *			ctx.ui.notify(`Deploy failed: ${result.stderr}`, "error");
  *			return;
@@ -65,11 +65,11 @@ export interface CustomCommandAPI {
  * @example
  * ```typescript
  * // Return a prompt to send to the LLM
- * const factory: CustomCommandFactory = (pi) => ({
+ * const factory: CustomCommandFactory = (chud) => ({
  *	  name: "git:status",
  *	  description: "Show git status and suggest actions",
  *	  async execute(args, ctx) {
- *		 const result = await pi.exec("git", ["status", "--porcelain"]);
+ *		 const result = await chud.exec("git", ["status", "--porcelain"]);
  *		 return `Here's the git status:\n\`\`\`\n${result.stdout}\`\`\`\nSuggest what to do next.`;
  *	  }
  * });

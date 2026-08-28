@@ -4,8 +4,8 @@
  * Handles `chudcode plugin <command>` subcommands for plugin lifecycle management.
  */
 
-import { getProjectDir } from "@oh-my-pi/pi-utils";
-import chalk from "@oh-my-pi/pi-utils/chalk";
+import { getProjectDir } from "@chudware/utils";
+import chalk from "@chudware/utils/chalk";
 import { PRODUCT_CLI_NAME } from "../brand";
 import { resolveOrDefaultProjectRegistryPath } from "../discovery/helpers";
 import { PluginManager, parseSettingValue, validateSetting } from "../extensibility/plugins";
@@ -353,7 +353,7 @@ async function handleInstall(
 	if (packages.length === 0) {
 		console.error(chalk.red(`Usage: ${PRODUCT_CLI_NAME} plugin install <source>[features] ...`));
 		console.error(chalk.dim("Examples:"));
-		console.error(chalk.dim(`  ${PRODUCT_CLI_NAME} plugin install @oh-my-pi/exa`));
+		console.error(chalk.dim(`  ${PRODUCT_CLI_NAME} plugin install @chudware/exa`));
 		console.error(chalk.dim(`  ${PRODUCT_CLI_NAME} plugin install name@marketplace`));
 		console.error(chalk.dim(`  ${PRODUCT_CLI_NAME} plugin install github:user/repo`));
 		console.error(chalk.dim(`  ${PRODUCT_CLI_NAME} plugin install https://github.com/user/repo#v1.0`));
@@ -1069,7 +1069,7 @@ ${chalk.bold("Options:")}
   -l, --local      Use project-local overrides
 
 ${chalk.bold("Examples:")}
-  ${PRODUCT_CLI_NAME} plugin install @oh-my-pi/exa[search]
+  ${PRODUCT_CLI_NAME} plugin install @chudware/exa[search]
   ${PRODUCT_CLI_NAME} plugin list --json
   ${PRODUCT_CLI_NAME} plugin features my-plugin --enable search,web
   ${PRODUCT_CLI_NAME} plugin config set my-plugin apiKey sk-xxx

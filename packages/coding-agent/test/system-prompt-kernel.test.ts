@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, spyOn } from "bun:test";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
-import { buildSystemPrompt } from "@oh-my-pi/pi-coding-agent/system-prompt";
+import { buildSystemPrompt } from "@chudware/coding-agent/system-prompt";
 import { cleanupTempHome } from "./helpers/temp-home-cleanup";
 
 const EMPTY_TREE = {
@@ -23,8 +23,8 @@ describe("system prompt Kernel field", () => {
 	let originalHome: string | undefined;
 
 	beforeEach(() => {
-		tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "pi-prompt-kernel-"));
-		tempHomeDir = fs.mkdtempSync(path.join(os.tmpdir(), "pi-prompt-kernel-home-"));
+		tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "chud-prompt-kernel-"));
+		tempHomeDir = fs.mkdtempSync(path.join(os.tmpdir(), "chud-prompt-kernel-home-"));
 		originalHome = process.env.HOME;
 		process.env.HOME = tempHomeDir;
 	});

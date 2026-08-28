@@ -2,23 +2,23 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import { AuthStorage, SqliteAuthCredentialStore } from "@oh-my-pi/pi-ai";
+import { AuthStorage, SqliteAuthCredentialStore } from "@chudware/ai";
 import {
 	type AuthBrokerServerHandle,
 	readAuthBrokerSnapshotCache,
 	type SnapshotResponse,
 	startAuthBroker,
 	writeAuthBrokerSnapshotCache,
-} from "@oh-my-pi/pi-ai/auth-broker";
-import { discoverAuthStorage } from "@oh-my-pi/pi-coding-agent/sdk";
-import { removeWithRetries } from "@oh-my-pi/pi-utils";
-import { sleep } from "@oh-my-pi/pi-utils/async";
+} from "@chudware/ai/auth-broker";
+import { discoverAuthStorage } from "@chudware/coding-agent/sdk";
+import { removeWithRetries } from "@chudware/utils";
+import { sleep } from "@chudware/utils/async";
 
 const ENV_KEYS = [
-	"OMP_AUTH_BROKER_URL",
-	"OMP_AUTH_BROKER_TOKEN",
-	"OMP_AUTH_BROKER_SNAPSHOT_CACHE",
-	"OMP_AUTH_BROKER_SNAPSHOT_TTL_MS",
+	"CHUDCODE_AUTH_BROKER_URL",
+	"CHUDCODE_AUTH_BROKER_TOKEN",
+	"CHUDCODE_AUTH_BROKER_SNAPSHOT_CACHE",
+	"CHUDCODE_AUTH_BROKER_SNAPSHOT_TTL_MS",
 ] as const;
 const PROVIDER = "unit-auth-broker-cache";
 const TOKEN = "coding-agent-cache-token";
@@ -76,10 +76,10 @@ describe("discoverAuthStorage auth-broker snapshot cache", () => {
 	test("boots from a fresh encrypted cache when the broker is down", async () => {
 		const cachePath = path.join(tempDir, "snapshot.enc");
 		const downUrl = "http://127.0.0.1:1";
-		process.env.OMP_AUTH_BROKER_URL = downUrl;
-		process.env.OMP_AUTH_BROKER_TOKEN = TOKEN;
-		process.env.OMP_AUTH_BROKER_SNAPSHOT_CACHE = cachePath;
-		process.env.OMP_AUTH_BROKER_SNAPSHOT_TTL_MS = "3600000";
+		process.env.CHUDCODE_AUTH_BROKER_URL = downUrl;
+		process.env.CHUDCODE_AUTH_BROKER_TOKEN = TOKEN;
+		process.env.CHUDCODE_AUTH_BROKER_SNAPSHOT_CACHE = cachePath;
+		process.env.CHUDCODE_AUTH_BROKER_SNAPSHOT_TTL_MS = "3600000";
 		await writeAuthBrokerSnapshotCache({
 			path: cachePath,
 			token: TOKEN,
@@ -110,10 +110,10 @@ describe("discoverAuthStorage auth-broker snapshot cache", () => {
 				bearerTokens: [TOKEN],
 				disableRefresher: true,
 			});
-			process.env.OMP_AUTH_BROKER_URL = handle.url;
-			process.env.OMP_AUTH_BROKER_TOKEN = TOKEN;
-			process.env.OMP_AUTH_BROKER_SNAPSHOT_CACHE = cachePath;
-			process.env.OMP_AUTH_BROKER_SNAPSHOT_TTL_MS = "3600000";
+			process.env.CHUDCODE_AUTH_BROKER_URL = handle.url;
+			process.env.CHUDCODE_AUTH_BROKER_TOKEN = TOKEN;
+			process.env.CHUDCODE_AUTH_BROKER_SNAPSHOT_CACHE = cachePath;
+			process.env.CHUDCODE_AUTH_BROKER_SNAPSHOT_TTL_MS = "3600000";
 
 			storage = await discoverAuthStorage(tempDir);
 			expect(await storage.getApiKey(PROVIDER)).toBe("broker-api-key");
@@ -151,10 +151,10 @@ describe("discoverAuthStorage auth-broker snapshot cache", () => {
 		const url = server.url.toString();
 		let storage: AuthStorage | undefined;
 		try {
-			process.env.OMP_AUTH_BROKER_URL = url;
-			process.env.OMP_AUTH_BROKER_TOKEN = TOKEN;
-			process.env.OMP_AUTH_BROKER_SNAPSHOT_CACHE = cachePath;
-			process.env.OMP_AUTH_BROKER_SNAPSHOT_TTL_MS = "3600000";
+			process.env.CHUDCODE_AUTH_BROKER_URL = url;
+			process.env.CHUDCODE_AUTH_BROKER_TOKEN = TOKEN;
+			process.env.CHUDCODE_AUTH_BROKER_SNAPSHOT_CACHE = cachePath;
+			process.env.CHUDCODE_AUTH_BROKER_SNAPSHOT_TTL_MS = "3600000";
 			await writeAuthBrokerSnapshotCache({
 				path: cachePath,
 				token: TOKEN,

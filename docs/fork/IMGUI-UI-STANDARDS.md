@@ -179,7 +179,7 @@ call order.
   use tables for tabular forms. `cardHeaderRight()` is the standard
   right-alignment helper and protects header text from overlap.
 
-## 6. Composer and transcript — the omp-critical part
+## 6. Composer and transcript — the chudcode-critical part
 
 This maps directly onto the three TUI complaints driving the GUI move.
 

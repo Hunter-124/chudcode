@@ -1,24 +1,23 @@
 import { describe, expect, it } from "bun:test";
 import * as path from "node:path";
-import { loadExtensions } from "@oh-my-pi/pi-coding-agent/extensibility/extensions/loader";
-import { __resetDirsFromEnvForTests, setAgentDir, TempDir } from "@oh-my-pi/pi-utils";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
+import { loadExtensions } from "@chudware/coding-agent/extensibility/extensions/loader";
+import { __resetDirsFromEnvForTests, setAgentDir, TempDir } from "@chudware/utils";
+import * as fsx from "@chudware/utils/fsx";
 
 describe("issue #5879: legacy provider compatibility", () => {
 	it("creates a fresh agent database while loading historical auth exports", async () => {
 		const projectDir = TempDir.createSync("@issue-5879-");
 		const freshAgentDir = projectDir.join("fresh", "agent");
 		const originalDirEnv: Record<string, string | undefined> = {
-			PI_CODING_AGENT_DIR: process.env.PI_CODING_AGENT_DIR,
-			OMP_PROFILE: process.env.OMP_PROFILE,
-			PI_PROFILE: process.env.PI_PROFILE,
+			CHUDCODE_CODING_AGENT_DIR: process.env.CHUDCODE_CODING_AGENT_DIR,
+			CHUDCODE_PROFILE: process.env.CHUDCODE_PROFILE,
 		};
-		const extensionPath = path.join(projectDir.path(), "pi-provider-like-plugin", "index.ts");
+		const extensionPath = path.join(projectDir.path(), "chud-provider-like-plugin", "index.ts");
 		await fsx.write(
 			extensionPath,
 			[
 				'import { createAssistantMessageEventStream } from "@earendil-works/pi-ai";',
-				'import { AuthStorage } from "@earendil-works/pi-coding-agent";',
+				'import { AuthStorage } from "@earendil-works/chudcode-agent";',
 				"",
 				"export default function() {",
 				"\tconst stream = createAssistantMessageEventStream();",

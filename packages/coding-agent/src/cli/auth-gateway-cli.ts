@@ -2,10 +2,10 @@
  * `chudcode auth-gateway` command handlers.
  *
  * Boots a forward-proxy server that lets less-trusted clients (the macOS
- * usage widget, robomp containers, …) make provider API calls without ever
+ * usage widget, robochud containers, …) make provider API calls without ever
  * seeing the access token. The gateway is itself a broker client and
  * resolves credentials through the configured broker (via the same
- * `OMP_AUTH_BROKER_URL` / `auth.broker.url` precedence used elsewhere).
+ * `CHUDCODE_AUTH_BROKER_URL` / `auth.broker.url` precedence used elsewhere).
  *
  * Sub-verbs:
  *   - `serve [--bind=…]` — boots the gateway against the configured broker.
@@ -23,18 +23,18 @@ import {
 	type CredentialCompletionResult,
 	completeSimple,
 	type Model,
-} from "@oh-my-pi/pi-ai";
+} from "@chudware/ai";
 import {
 	AuthBrokerClient,
 	loadAuthBrokerAccountPool,
 	RemoteAuthCredentialStore,
 	type SnapshotResponse,
-} from "@oh-my-pi/pi-ai/auth-broker";
-import { DEFAULT_AUTH_GATEWAY_BIND, startAuthGateway } from "@oh-my-pi/pi-ai/auth-gateway";
-import { type GeneratedProvider, getBundledModels } from "@oh-my-pi/pi-catalog/models";
-import { getConfigRootDir, isEnoent, logger, VERSION } from "@oh-my-pi/pi-utils";
-import chalk from "@oh-my-pi/pi-utils/chalk";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
+} from "@chudware/ai/auth-broker";
+import { DEFAULT_AUTH_GATEWAY_BIND, startAuthGateway } from "@chudware/ai/auth-gateway";
+import { type GeneratedProvider, getBundledModels } from "@chudware/catalog/models";
+import { getConfigRootDir, isEnoent, logger, VERSION } from "@chudware/utils";
+import chalk from "@chudware/utils/chalk";
+import * as fsx from "@chudware/utils/fsx";
 import { ModelRegistry } from "../config/model-registry";
 import { type AuthBrokerClientConfig, resolveAuthBrokerConfig } from "../session/auth-broker-config";
 
@@ -173,7 +173,7 @@ async function runServe(flags: AuthGatewayCommandArgs["flags"]): Promise<void> {
 	const brokerConfig = await resolveAuthBrokerConfig();
 	if (!brokerConfig) {
 		throw new Error(
-			"`chudcode auth-gateway serve` requires OMP_AUTH_BROKER_URL (or `auth.broker.url`/`auth.broker.token` in config.yml). The gateway is itself a broker client.",
+			"`chudcode auth-gateway serve` requires CHUDCODE_AUTH_BROKER_URL (or `auth.broker.url`/`auth.broker.token` in config.yml). The gateway is itself a broker client.",
 		);
 	}
 	const bind = flags.bind ?? DEFAULT_AUTH_GATEWAY_BIND;
@@ -207,7 +207,7 @@ async function runServe(flags: AuthGatewayCommandArgs["flags"]): Promise<void> {
 	// out of the picture: client-side provider overrides (baseUrl/apiKey/headers/
 	// transport) and custom models must never route a broker-backed gateway or
 	// shadow broker credentials. Format handlers ask `resolveModel` to translate
-	// a client-requested `model` field into a pi-ai `Model<Api>` before dispatch;
+	// a client-requested `model` field into a chud-ai `Model<Api>` before dispatch;
 	// `listModels` powers `/v1/models`.
 	const snapshot = storage.exportSnapshot();
 	const providersWithCreds = new Set<string>();
@@ -324,7 +324,7 @@ async function runStatus(flags: AuthGatewayCommandArgs["flags"]): Promise<void> 
 		if (flags.json) {
 			process.stdout.write(`${JSON.stringify(status)}\n`);
 		} else {
-			process.stdout.write(`${chalk.yellow("No broker configured.")} Set OMP_AUTH_BROKER_URL.\n`);
+			process.stdout.write(`${chalk.yellow("No broker configured.")} Set CHUDCODE_AUTH_BROKER_URL.\n`);
 			process.stdout.write(
 				`token: ${status.tokenPresent ? chalk.green("present") : chalk.red("missing")} at ${status.tokenFile}\n`,
 			);
@@ -423,7 +423,7 @@ const STRUCTURED_API_KEY_PROVIDERS: ReadonlySet<string> = new Set([
  * Provider API types that strict-mode chat probes intentionally skip:
  * - `bedrock-converse-stream` resolves credentials from the AWS env/profile, not the broker bearer.
  * - `google-vertex` uses Application Default Credentials; the broker bearer is not the right key.
- * - `cursor-agent` and `pi-native` (gateway forwarding) have transport quirks
+ * - `cursor-agent` and `chud-native` (gateway forwarding) have transport quirks
  *   that make a bearer-only "ping" a poor signal.
  */
 const STRICT_PROBE_SKIPPED_APIS: ReadonlySet<Api> = new Set<Api>([
@@ -452,14 +452,14 @@ const RETRYABLE_MODEL_ERROR_RE =
 /**
  * Rank bundled models for a provider in probe order: cheapest first, then by
  * id for determinism. Filters out non-bearer-auth APIs (Vertex/Bedrock),
- * pi-native transport (would loop through the gateway), and placeholder /
+ * chud-native transport (would loop through the gateway), and placeholder /
  * router entries with negative/missing cost.
  */
 function pickProbeCandidates(provider: string): Model<Api>[] {
 	const bundled = getBundledModels(provider as GeneratedProvider);
 	if (bundled.length === 0) return [];
 	const candidates = bundled.filter(model => {
-		if (model.transport === "pi-native") return false;
+		if (model.transport === "chud-native") return false;
 		if (STRICT_PROBE_SKIPPED_APIS.has(model.api)) return false;
 		if (!model.input.includes("text")) return false;
 		const totalCost = (model.cost?.input ?? 0) + (model.cost?.output ?? 0);
@@ -592,7 +592,7 @@ async function runCheck(flags: AuthGatewayCommandArgs["flags"]): Promise<void> {
 	const brokerConfig = await resolveAuthBrokerConfig();
 	if (!brokerConfig) {
 		throw new Error(
-			"`chudcode auth-gateway check` requires OMP_AUTH_BROKER_URL (or `auth.broker.url`/`auth.broker.token` in config.yml). It probes the same credentials the gateway would serve.",
+			"`chudcode auth-gateway check` requires CHUDCODE_AUTH_BROKER_URL (or `auth.broker.url`/`auth.broker.token` in config.yml). It probes the same credentials the gateway would serve.",
 		);
 	}
 

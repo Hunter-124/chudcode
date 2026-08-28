@@ -1,9 +1,9 @@
 import { afterEach, describe, expect, it } from "bun:test";
-import { executePython } from "@oh-my-pi/pi-coding-agent/eval/py/executor";
-import type { KernelExecuteOptions, KernelExecuteResult } from "@oh-my-pi/pi-coding-agent/eval/py/kernel";
-import { PythonKernel } from "@oh-my-pi/pi-coding-agent/eval/py/kernel";
-import { TempDir } from "@oh-my-pi/pi-utils";
-import { sleep } from "@oh-my-pi/pi-utils/async";
+import { executePython } from "@chudware/coding-agent/eval/py/executor";
+import type { KernelExecuteOptions, KernelExecuteResult } from "@chudware/coding-agent/eval/py/kernel";
+import { PythonKernel } from "@chudware/coding-agent/eval/py/kernel";
+import { TempDir } from "@chudware/utils";
+import { sleep } from "@chudware/utils/async";
 
 interface KernelStub {
 	execute: (code: string, options?: KernelExecuteOptions) => Promise<KernelExecuteResult>;
@@ -56,8 +56,8 @@ describe("executePython (per-call)", () => {
 	});
 
 	it("returns a cancelled timeout result when kernel startup exceeds the deadline", async () => {
-		process.env.PI_PYTHON_SKIP_CHECK = "1";
-		using tempDir = TempDir.createSync("@omp-python-executor-per-call-");
+		process.env.CHUDCODE_PYTHON_SKIP_CHECK = "1";
+		using tempDir = TempDir.createSync("@chudcode-python-executor-per-call-");
 
 		PythonKernel.start = async options => await rejectOnStartupCancellation(options);
 
@@ -73,8 +73,8 @@ describe("executePython (per-call)", () => {
 	});
 
 	it("returns a cancelled timeout result when the startup budget expires before kernel creation", async () => {
-		process.env.PI_PYTHON_SKIP_CHECK = "1";
-		using tempDir = TempDir.createSync("@omp-python-executor-per-call-");
+		process.env.CHUDCODE_PYTHON_SKIP_CHECK = "1";
+		using tempDir = TempDir.createSync("@chudcode-python-executor-per-call-");
 
 		let nowCalls = 0;
 		Date.now = () => {
@@ -94,8 +94,8 @@ describe("executePython (per-call)", () => {
 	});
 
 	it("returns a cancelled result when caller aborts during kernel startup", async () => {
-		process.env.PI_PYTHON_SKIP_CHECK = "1";
-		using tempDir = TempDir.createSync("@omp-python-executor-per-call-");
+		process.env.CHUDCODE_PYTHON_SKIP_CHECK = "1";
+		using tempDir = TempDir.createSync("@chudcode-python-executor-per-call-");
 		const startupStarted = Promise.withResolvers<void>();
 
 		PythonKernel.start = async options => {
@@ -119,8 +119,8 @@ describe("executePython (per-call)", () => {
 	});
 
 	it("shuts down kernel on timed-out cancellation", async () => {
-		process.env.PI_PYTHON_SKIP_CHECK = "1";
-		using tempDir = TempDir.createSync("@omp-python-executor-per-call-");
+		process.env.CHUDCODE_PYTHON_SKIP_CHECK = "1";
+		using tempDir = TempDir.createSync("@chudcode-python-executor-per-call-");
 
 		let shutdownCalls = 0;
 		const executionStarted = Promise.withResolvers<void>();

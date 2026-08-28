@@ -3,23 +3,23 @@
   "configVersion": 1,
   "workspaces": {
     "": {
-      "name": "omp-seat-prototype",
+      "name": "chudcode-seat-prototype",
       "dependencies": {
-        "@oh-my-pi/pi-natives": "18.0.6",
+        "@chudware/natives": "18.0.6",
       },
     },
   },
   "packages": {
-    "@oh-my-pi/pi-natives": ["@oh-my-pi/pi-natives@18.0.6", "", { "optionalDependencies": { "@oh-my-pi/pi-natives-darwin-arm64": "18.0.6", "@oh-my-pi/pi-natives-darwin-x64": "18.0.6", "@oh-my-pi/pi-natives-linux-arm64": "18.0.6", "@oh-my-pi/pi-natives-linux-x64": "18.0.6", "@oh-my-pi/pi-natives-win32-x64": "18.0.6" } }, "sha512-cgbZlTcqdwyxdDJy5VvHAkJ/smC8eRhFd3gCghGb2q7EbVX+IKUwycZQYQZeixOsVThGmAor1c5XLD/RZU9wGg=="],
+    "@chudware/natives": ["@chudware/natives@18.0.6", "", { "optionalDependencies": { "@chudware/natives-darwin-arm64": "18.0.6", "@chudware/natives-darwin-x64": "18.0.6", "@chudware/natives-linux-arm64": "18.0.6", "@chudware/natives-linux-x64": "18.0.6", "@chudware/natives-win32-x64": "18.0.6" } }, "sha512-cgbZlTcqdwyxdDJy5VvHAkJ/smC8eRhFd3gCghGb2q7EbVX+IKUwycZQYQZeixOsVThGmAor1c5XLD/RZU9wGg=="],
 
-    "@oh-my-pi/pi-natives-darwin-arm64": ["@oh-my-pi/pi-natives-darwin-arm64@18.0.6", "", { "os": "darwin", "cpu": "arm64" }, "sha512-gpJtuH2SMPiC+znmGhbF/3zjLjCgsh42dUkl4rVOuZeHeT5VWnY2p+go+ke+3r8hR2Y1DbRyCeBFInfbz9ZTvQ=="],
+    "@chudware/natives-darwin-arm64": ["@chudware/natives-darwin-arm64@18.0.6", "", { "os": "darwin", "cpu": "arm64" }, "sha512-gpJtuH2SMPiC+znmGhbF/3zjLjCgsh42dUkl4rVOuZeHeT5VWnY2p+go+ke+3r8hR2Y1DbRyCeBFInfbz9ZTvQ=="],
 
-    "@oh-my-pi/pi-natives-darwin-x64": ["@oh-my-pi/pi-natives-darwin-x64@18.0.6", "", { "os": "darwin", "cpu": "x64" }, "sha512-Fpl2HpVDqAjP9ZTPstiphS5YDDk6nGLi5Grtoz/R2qSWp9hqC/Ytr0IsWXsQoOLIC/j5RyM2D+ShY3YXdae6BQ=="],
+    "@chudware/natives-darwin-x64": ["@chudware/natives-darwin-x64@18.0.6", "", { "os": "darwin", "cpu": "x64" }, "sha512-Fpl2HpVDqAjP9ZTPstiphS5YDDk6nGLi5Grtoz/R2qSWp9hqC/Ytr0IsWXsQoOLIC/j5RyM2D+ShY3YXdae6BQ=="],
 
-    "@oh-my-pi/pi-natives-linux-arm64": ["@oh-my-pi/pi-natives-linux-arm64@18.0.6", "", { "os": "linux", "cpu": "arm64" }, "sha512-jpA56eTLiEQ4a/7o0F6eQMPg6XNgisZRXIidND5wHz08nIxCWwLCFJKrrxGp3MbQqY4+M/LLBHRocwddCHCfYQ=="],
+    "@chudware/natives-linux-arm64": ["@chudware/natives-linux-arm64@18.0.6", "", { "os": "linux", "cpu": "arm64" }, "sha512-jpA56eTLiEQ4a/7o0F6eQMPg6XNgisZRXIidND5wHz08nIxCWwLCFJKrrxGp3MbQqY4+M/LLBHRocwddCHCfYQ=="],
 
-    "@oh-my-pi/pi-natives-linux-x64": ["@oh-my-pi/pi-natives-linux-x64@18.0.6", "", { "os": "linux", "cpu": "x64" }, "sha512-weVh8o2Qrx2Jyq3DTybBuCwflhAhmFAUKwOTNlbh9F/QHl6tjG9UBoe/az2HObkM3L+1fJBoHUwyNlxxhORjrQ=="],
+    "@chudware/natives-linux-x64": ["@chudware/natives-linux-x64@18.0.6", "", { "os": "linux", "cpu": "x64" }, "sha512-weVh8o2Qrx2Jyq3DTybBuCwflhAhmFAUKwOTNlbh9F/QHl6tjG9UBoe/az2HObkM3L+1fJBoHUwyNlxxhORjrQ=="],
 
-    "@oh-my-pi/pi-natives-win32-x64": ["@oh-my-pi/pi-natives-win32-x64@18.0.6", "", { "os": "win32", "cpu": "x64" }, "sha512-CSjN8/nUIwAsGv9FEdDygfmZu7otFZ8KpDrDlHnoxuho9teGEBOr98HfQJOCjd3k16GR+w5whZc49Zmf8zbPKw=="],
+    "@chudware/natives-win32-x64": ["@chudware/natives-win32-x64@18.0.6", "", { "os": "win32", "cpu": "x64" }, "sha512-CSjN8/nUIwAsGv9FEdDygfmZu7otFZ8KpDrDlHnoxuho9teGEBOr98HfQJOCjd3k16GR+w5whZc49Zmf8zbPKw=="],
   }
 }

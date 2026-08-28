@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
-import { visibleWidth } from "@oh-my-pi/pi-natives";
+import { visibleWidth } from "@chudware/natives";
 import {
 	detectKittyUnicodePlaceholdersSupport,
 	encodeKittyPlaceholderGrid,
@@ -10,7 +10,7 @@ import {
 	kittyPlaceholdersFit,
 	renderKittyPlaceholderLines,
 	setKittyGraphics,
-} from "@oh-my-pi/pi-tui/kitty-graphics";
+} from "@chudware/tui/kitty-graphics";
 
 const ORIGINAL = { ...getKittyGraphics() };
 const ORIGINAL_TMUX = process.env.TMUX;
@@ -109,37 +109,39 @@ describe("detectKittyUnicodePlaceholdersSupport", () => {
 	});
 
 	it("uses scroll-aware placeholders when Kitty is explicitly forced through tmux", () => {
-		const forced = env({ TMUX: "/tmp/tmux-1000/default,1,0", PI_FORCE_IMAGE_PROTOCOL: "kitty" });
+		const forced = env({ TMUX: "/tmp/tmux-1000/default,1,0", CHUDCODE_FORCE_IMAGE_PROTOCOL: "kitty" });
 		expect(detectKittyUnicodePlaceholdersSupport("base", forced)).toBe(true);
 		expect(detectKittyUnicodePlaceholdersSupport("wezterm", forced)).toBe(true);
 		// Automatic tmux fallback remains conservative when the outer terminal is unknown.
 		expect(detectKittyUnicodePlaceholdersSupport("base", env({ TMUX: "/tmp/tmux-1000/default,1,0" }))).toBe(false);
 	});
 
-	it("honors PI_NO_KITTY_PLACEHOLDERS=1 as a hard off override on supporting terminals", () => {
-		expect(detectKittyUnicodePlaceholdersSupport("kitty", env({ PI_NO_KITTY_PLACEHOLDERS: "1" }))).toBe(false);
-		expect(detectKittyUnicodePlaceholdersSupport("ghostty", env({ PI_NO_KITTY_PLACEHOLDERS: "true" }))).toBe(false);
+	it("honors CHUDCODE_NO_KITTY_PLACEHOLDERS=1 as a hard off override on supporting terminals", () => {
+		expect(detectKittyUnicodePlaceholdersSupport("kitty", env({ CHUDCODE_NO_KITTY_PLACEHOLDERS: "1" }))).toBe(false);
+		expect(detectKittyUnicodePlaceholdersSupport("ghostty", env({ CHUDCODE_NO_KITTY_PLACEHOLDERS: "true" }))).toBe(
+			false,
+		);
 	});
 
-	it("honors PI_KITTY_PLACEHOLDERS=1 as opt-in on otherwise-unsupported terminals", () => {
-		expect(detectKittyUnicodePlaceholdersSupport("wezterm", env({ PI_KITTY_PLACEHOLDERS: "1" }))).toBe(true);
+	it("honors CHUDCODE_KITTY_PLACEHOLDERS=1 as opt-in on otherwise-unsupported terminals", () => {
+		expect(detectKittyUnicodePlaceholdersSupport("wezterm", env({ CHUDCODE_KITTY_PLACEHOLDERS: "1" }))).toBe(true);
 	});
 
-	it("PI_NO_KITTY_PLACEHOLDERS beats PI_KITTY_PLACEHOLDERS when both are set", () => {
-		const both = env({ PI_NO_KITTY_PLACEHOLDERS: "1", PI_KITTY_PLACEHOLDERS: "1" });
+	it("CHUDCODE_NO_KITTY_PLACEHOLDERS beats CHUDCODE_KITTY_PLACEHOLDERS when both are set", () => {
+		const both = env({ CHUDCODE_NO_KITTY_PLACEHOLDERS: "1", CHUDCODE_KITTY_PLACEHOLDERS: "1" });
 		expect(detectKittyUnicodePlaceholdersSupport("kitty", both)).toBe(false);
 	});
 
-	it("PI_KITTY_PLACEHOLDERS=0 forces off on a default-on terminal", () => {
-		expect(detectKittyUnicodePlaceholdersSupport("kitty", env({ PI_KITTY_PLACEHOLDERS: "0" }))).toBe(false);
-		expect(detectKittyUnicodePlaceholdersSupport("ghostty", env({ PI_KITTY_PLACEHOLDERS: "off" }))).toBe(false);
+	it("CHUDCODE_KITTY_PLACEHOLDERS=0 forces off on a default-on terminal", () => {
+		expect(detectKittyUnicodePlaceholdersSupport("kitty", env({ CHUDCODE_KITTY_PLACEHOLDERS: "0" }))).toBe(false);
+		expect(detectKittyUnicodePlaceholdersSupport("ghostty", env({ CHUDCODE_KITTY_PLACEHOLDERS: "off" }))).toBe(false);
 	});
 
 	it("placeholder opt-out beats forced Kitty under tmux", () => {
 		const forcedOff = env({
 			TMUX: "/tmp/tmux-1000/default,1,0",
-			PI_FORCE_IMAGE_PROTOCOL: "kitty",
-			PI_KITTY_PLACEHOLDERS: "0",
+			CHUDCODE_FORCE_IMAGE_PROTOCOL: "kitty",
+			CHUDCODE_KITTY_PLACEHOLDERS: "0",
 		});
 		expect(detectKittyUnicodePlaceholdersSupport("base", forcedOff)).toBe(false);
 	});

@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "bun:test";
-import type { FetchImpl } from "@oh-my-pi/pi-ai/types";
-import { MCPOAuthFlow, refreshMCPOAuthToken } from "@oh-my-pi/pi-coding-agent/mcp/oauth-flow";
-import { sleep } from "@oh-my-pi/pi-utils/async";
+import type { FetchImpl } from "@chudware/ai/types";
+import { MCPOAuthFlow, refreshMCPOAuthToken } from "@chudware/coding-agent/mcp/oauth-flow";
+import { sleep } from "@chudware/utils/async";
 
 afterEach(() => {
 	vi.restoreAllMocks();
@@ -62,7 +62,7 @@ async function completeLocalOAuthCallback(url: string): Promise<void> {
 }
 
 describe("mcp oauth flow", () => {
-	it("uses oh-my-pi client name for dynamic client registration", async () => {
+	it("uses chudware client name for dynamic client registration", async () => {
 		let registrationPayload: Record<string, unknown> | null = null;
 
 		const flow = new MCPOAuthFlow(
@@ -79,7 +79,7 @@ describe("mcp oauth flow", () => {
 		const { url } = await flow.generateAuthUrl("test-state", "http://127.0.0.1:53172/callback");
 		const authUrl = new URL(url);
 
-		expect((registrationPayload as { client_name?: string } | null)?.client_name).toBe("oh-my-pi");
+		expect((registrationPayload as { client_name?: string } | null)?.client_name).toBe("chudware");
 		expect((registrationPayload as { scope?: string } | null)?.scope).toBeUndefined();
 		expect(authUrl.searchParams.get("client_id")).toBe("registered-client-id");
 		expect(authUrl.searchParams.get("state")).toBe("test-state");
@@ -710,7 +710,7 @@ describe("mcp oauth flow", () => {
 				return new Response(
 					JSON.stringify({
 						error: "unapproved_client",
-						error_description: "client_name 'oh-my-pi' is not on the approved list.",
+						error_description: "client_name 'chudware' is not on the approved list.",
 					}),
 					{ status: 403, headers: { "Content-Type": "application/json" } },
 				);

@@ -1,11 +1,8 @@
 import { describe, expect, test } from "bun:test";
-import { getBundledModelReferenceIndex } from "@oh-my-pi/pi-catalog/identity/bundled";
-import { resolveModelReference } from "@oh-my-pi/pi-catalog/identity/reference";
-import { CATALOG_PROVIDERS } from "@oh-my-pi/pi-catalog/provider-models/descriptors";
-import {
-	GMI_CLOUD_STATIC_MODELS,
-	gmiCloudModelManagerOptions,
-} from "@oh-my-pi/pi-catalog/provider-models/openai-compat";
+import { getBundledModelReferenceIndex } from "@chudware/catalog/identity/bundled";
+import { resolveModelReference } from "@chudware/catalog/identity/reference";
+import { CATALOG_PROVIDERS } from "@chudware/catalog/provider-models/descriptors";
+import { GMI_CLOUD_STATIC_MODELS, gmiCloudModelManagerOptions } from "@chudware/catalog/provider-models/openai-compat";
 
 describe("GMI Cloud provider", () => {
 	test("static seed covers the descriptor's default model", () => {

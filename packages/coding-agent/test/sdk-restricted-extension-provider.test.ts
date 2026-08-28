@@ -2,17 +2,17 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
-import { createAssistantMessageEventStream, getCustomApi } from "@oh-my-pi/pi-ai";
-import { ModelRegistry } from "@oh-my-pi/pi-coding-agent/config/model-registry";
-import { Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
+import { createAssistantMessageEventStream, getCustomApi } from "@chudware/ai";
+import { ModelRegistry } from "@chudware/coding-agent/config/model-registry";
+import { Settings } from "@chudware/coding-agent/config/settings";
 import {
 	type CreateAgentSessionOptions,
 	createAgentSession,
 	type ExtensionFactory,
-} from "@oh-my-pi/pi-coding-agent/sdk";
-import type { AuthStorage } from "@oh-my-pi/pi-coding-agent/session/auth-storage";
-import { SessionManager } from "@oh-my-pi/pi-coding-agent/session/session-manager";
-import { removeSyncWithRetries, Snowflake } from "@oh-my-pi/pi-utils";
+} from "@chudware/coding-agent/sdk";
+import type { AuthStorage } from "@chudware/coding-agent/session/auth-storage";
+import { SessionManager } from "@chudware/coding-agent/session/session-manager";
+import { removeSyncWithRetries, Snowflake } from "@chudware/utils";
 import { createInMemoryAuthStorage } from "./helpers/agent-session-setup";
 
 const providerName = "restricted-session-provider";
@@ -27,7 +27,7 @@ describe("restricted sessions sharing extension providers", () => {
 	let settings: Settings;
 
 	beforeEach(() => {
-		tempDir = path.join(os.tmpdir(), `pi-sdk-restricted-provider-${Snowflake.next()}`);
+		tempDir = path.join(os.tmpdir(), `chud-sdk-restricted-provider-${Snowflake.next()}`);
 		fs.mkdirSync(tempDir, { recursive: true });
 		authStorage = createInMemoryAuthStorage();
 		modelRegistry = new ModelRegistry(authStorage, path.join(tempDir, "models.yml"));
@@ -41,8 +41,8 @@ describe("restricted sessions sharing extension providers", () => {
 		removeSyncWithRetries(tempDir);
 	});
 
-	const providerExtension: ExtensionFactory = pi => {
-		pi.registerProvider(providerName, {
+	const providerExtension: ExtensionFactory = chud => {
+		chud.registerProvider(providerName, {
 			baseUrl: "https://runtime.example.com/v1",
 			apiKey: "RUNTIME_KEY",
 			api: apiId,

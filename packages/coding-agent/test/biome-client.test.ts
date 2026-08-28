@@ -2,7 +2,7 @@ import { afterEach, describe, expect, test } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
+import * as fsx from "@chudware/utils/fsx";
 import { BiomeClient } from "../src/lsp/clients/biome-client";
 import type { ServerConfig } from "../src/lsp/types";
 
@@ -36,7 +36,7 @@ afterEach(async () => {
 });
 
 async function makeTempDir(): Promise<string> {
-	const dir = await fs.mkdtemp(path.join(os.tmpdir(), "omp-biome-client-test-"));
+	const dir = await fs.mkdtemp(path.join(os.tmpdir(), "chudcode-biome-client-test-"));
 	tempDirs.push(dir);
 	return dir;
 }

@@ -1,5 +1,5 @@
-import { logger } from "@oh-my-pi/pi-utils";
-import { sleep } from "@oh-my-pi/pi-utils/async";
+import { logger } from "@chudware/utils";
+import { sleep } from "@chudware/utils/async";
 import type { AgentSession } from "../session/agent-session";
 import { type BankScope, ensureBankExists } from "./bank";
 import type { HindsightApi, MemoryItemInput } from "./client";

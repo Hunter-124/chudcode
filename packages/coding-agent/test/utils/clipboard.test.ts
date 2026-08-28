@@ -3,9 +3,9 @@ import {
 	readImageFromClipboard,
 	readMacFileUrlsFromClipboard,
 	readTextFromClipboard,
-} from "@oh-my-pi/pi-coding-agent/utils/clipboard";
-import * as native from "@oh-my-pi/pi-natives/clipboard";
-import { sleep } from "@oh-my-pi/pi-utils/async";
+} from "@chudware/coding-agent/utils/clipboard";
+import * as native from "@chudware/natives/clipboard";
+import { sleep } from "@chudware/utils/async";
 import type { Subprocess } from "bun";
 
 type SpawnOptions = Bun.SpawnOptions.SpawnOptions<

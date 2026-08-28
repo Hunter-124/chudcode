@@ -14,8 +14,8 @@
  */
 import * as fs from "node:fs";
 import { performance } from "node:perf_hooks";
-import { TuiScreen } from "@oh-my-pi/pi-natives";
-import { $flag, getDebugLogPath, logger } from "@oh-my-pi/pi-utils";
+import { TuiScreen } from "@chudware/natives";
+import { $flag, getDebugLogPath, logger } from "@chudware/utils";
 import { DEFAULT_MAX_INLINE_IMAGES, ImageBudget } from "./components/image";
 import { isKeyRelease, matchesKey } from "./keys";
 import { LoopWatchdog } from "./loop-watchdog";
@@ -509,8 +509,8 @@ interface PreparedLine {
 // terminal dispatch one SGR instead of several. On a real transcript ~40% of
 // all SGR sequences are collapsible this way, which meaningfully cuts the
 // per-frame byte volume and SGR-dispatch count a slow (xterm.js/WebGL) terminal
-// must process. On by default; `PI_NO_SGR_COALESCE=1` disables it.
-const SGR_COALESCE_ENABLED = !$flag("PI_NO_SGR_COALESCE");
+// must process. On by default; `CHUDCODE_NO_SGR_COALESCE=1` disables it.
+const SGR_COALESCE_ENABLED = !$flag("CHUDCODE_NO_SGR_COALESCE");
 const CC_ESC = 0x1b;
 const CC_BRACKET = 0x5b; // [
 const CC_M = 0x6d; // m
@@ -757,7 +757,7 @@ export class TUI extends Container {
 	#sixelProbeBuffer = "";
 	#sixelProbeTimeout?: NodeJS.Timeout;
 	#sixelProbeUnsubscribe?: () => void;
-	#showHardwareCursor = $flag("PI_HARDWARE_CURSOR");
+	#showHardwareCursor = $flag("CHUDCODE_HARDWARE_CURSOR");
 	#synchronizedOutputEnabled = shouldEnableSynchronizedOutputByDefault();
 	#paintBeginSequence = this.#synchronizedOutputEnabled ? PAINT_BEGIN : PAINT_BEGIN_NO_SYNC;
 	#paintEndSequence = this.#synchronizedOutputEnabled ? PAINT_END : PAINT_END_NO_SYNC;
@@ -819,7 +819,7 @@ export class TUI extends Container {
 		this.#watchdog = new LoopWatchdog();
 	}
 	static #initialResizeScrollbackMode(): ResizeScrollbackMode {
-		const mode = process.env.PI_TUI_RESIZE_SCROLLBACK;
+		const mode = process.env.CHUDCODE_TUI_RESIZE_SCROLLBACK;
 		return mode === "append" || mode === "rebuild" || mode === "preserve" ? mode : "preserve";
 	}
 
@@ -1343,7 +1343,7 @@ export class TUI extends Container {
 					: reportedTop;
 			top = Math.max(0, Math.min(fallbackTop, height - staleRows));
 		}
-		if ($flag("PI_DEBUG_REDRAW")) {
+		if ($flag("CHUDCODE_DEBUG_REDRAW")) {
 			const msg = `[${new Date().toISOString()}] resize anchor: size=${width}x${height} cpr=${reportedRow ?? "timeout"} park=${probe.offset} stale=${staleRows} old=${this.#providerViewportTop} top=${top}\n`;
 			fs.appendFileSync(getDebugLogPath(), msg);
 		}
@@ -1418,7 +1418,7 @@ export class TUI extends Container {
 
 	#querySixelSupport(): void {
 		// A statically known protocol (Kitty/iTerm2 terminals) or an explicit
-		// PI_FORCE_IMAGE_PROTOCOL choice — including its `off` kill switch — wins
+		// CHUDCODE_FORCE_IMAGE_PROTOCOL choice — including its `off` kill switch — wins
 		// over the probe.
 		if (TERMINAL.imageProtocol) return;
 		if (isImageProtocolForced()) return;

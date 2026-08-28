@@ -1,5 +1,5 @@
-import { type } from "@oh-my-pi/omptype";
-import type { AgentTool, AgentToolResult } from "@oh-my-pi/pi-agent-core";
+import { type } from "@chudware/chudtype";
+import type { AgentTool, AgentToolResult } from "@chudware/agent-core";
 import { sanitizeSkillName, writeManagedSkill } from "../autolearn/managed-skills";
 import { isNameClaimedByAuthoredSkill } from "../extensibility/skills";
 import { localBackend } from "../memory-backend/local-backend";
@@ -23,7 +23,7 @@ export type LearnParams = typeof learnSchema.infer;
  * Orchestrating "learn" tool: persists a lesson to long-term memory and,
  * given a `skill` payload, mints/enhances a managed skill via the shared
  * `writeManagedSkill` primitive. Gated behind `autolearn.enabled` plus a live
- * memory backend — `hindsight`/`mnemopi` (remote/SQLite) or `local` (the
+ * memory backend — `hindsight`/`mnemo` (remote/SQLite) or `local` (the
  * file-based rollout backend, where lessons append to `learned.md`).
  */
 export class LearnTool implements AgentTool<typeof learnSchema> {
@@ -44,7 +44,7 @@ export class LearnTool implements AgentTool<typeof learnSchema> {
 	static createIf(session: ToolSession): LearnTool | null {
 		if (!session.settings.get("autolearn.enabled")) return null;
 		const backend = session.settings.get("memory.backend");
-		if (backend !== "hindsight" && backend !== "mnemopi" && backend !== "local") return null;
+		if (backend !== "hindsight" && backend !== "mnemo" && backend !== "local") return null;
 		return new LearnTool(session);
 	}
 
@@ -52,10 +52,10 @@ export class LearnTool implements AgentTool<typeof learnSchema> {
 		// 1) Persist or queue the lesson to long-term memory (mirrors MemoryRetainTool).
 		const backend = this.session.settings.get("memory.backend");
 		let memoryMessage = "Lesson stored";
-		if (backend === "mnemopi") {
+		if (backend === "mnemo") {
 			const state = this.session.getMnemopiSessionState?.();
 			if (!state) {
-				throw new Error("Mnemopi backend is not initialised for this session.");
+				throw new Error("Mnemo backend is not initialised for this session.");
 			}
 			const id = state.rememberScoped(params.memory, {
 				source: "coding-agent-learn",
@@ -76,7 +76,7 @@ export class LearnTool implements AgentTool<typeof learnSchema> {
 			// disk error); mirror mnemopiBackend.save and fail loudly rather than
 			// reporting (and minting a skill for) a lesson that was silently dropped.
 			if (!id) {
-				throw new Error("Mnemopi did not store the lesson (no memory id returned).");
+				throw new Error("Mnemo did not store the lesson (no memory id returned).");
 			}
 		} else if (backend === "local") {
 			const result = await localBackend.save?.(

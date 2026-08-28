@@ -6,7 +6,7 @@
  * exposes one option-driven core plus thin dispatchers that pin the option set
  * for each target.
  */
-import { logger } from "@oh-my-pi/pi-utils";
+import { logger } from "@chudware/utils";
 import * as AIError from "../../error";
 import { dereferenceJsonSchema } from "./dereference";
 import { upgradeJsonSchemaTo202012 } from "./draft";
@@ -1725,7 +1725,7 @@ function inferStrictPrimitiveTypeFromEnumOrConst(node: Record<string, unknown>):
  * so repeated calls (different providers, retries, batching) reuse the same
  * computed pair without re-walking the tree.
  */
-const kStrictSchema = Symbol("pi.schema.strict");
+const kStrictSchema = Symbol("chud.schema.strict");
 
 /**
  * A boolean schema (`true`/`false`) or the empty object schema `{}`: an

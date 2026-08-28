@@ -1,9 +1,9 @@
-import type { AssistantMessage, ImageContent } from "@oh-my-pi/pi-ai";
-import * as AIError from "@oh-my-pi/pi-ai/error";
-import { getStreamingPartialJson } from "@oh-my-pi/pi-ai/utils/block-symbols";
-import { type Component, Loader, TERMINAL } from "@oh-my-pi/pi-tui";
-import { formatDuration, logger, prompt, sanitizeText } from "@oh-my-pi/pi-utils";
-import { INTENT_FIELD } from "@oh-my-pi/pi-wire";
+import type { AssistantMessage, ImageContent } from "@chudware/ai";
+import * as AIError from "@chudware/ai/error";
+import { getStreamingPartialJson } from "@chudware/ai/utils/block-symbols";
+import { type Component, Loader, TERMINAL } from "@chudware/tui";
+import { formatDuration, logger, prompt, sanitizeText } from "@chudware/utils";
+import { INTENT_FIELD } from "@chudware/wire";
 import { PRODUCT_NAME } from "../../brand";
 import { extractTextContent } from "../../commit/utils";
 import { settings } from "../../config/settings";

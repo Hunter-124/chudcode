@@ -1,4 +1,4 @@
-import { sleep } from "@oh-my-pi/pi-utils/async";
+import { sleep } from "@chudware/utils/async";
 import * as AIError from "../error";
 import type { OAuthController, OAuthCredentials } from "./oauth/types";
 import type { ProviderDefinition } from "./types";

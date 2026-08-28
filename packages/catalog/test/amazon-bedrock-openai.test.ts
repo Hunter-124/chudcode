@@ -2,14 +2,14 @@ import { describe, expect, test } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import { resolveProviderModels } from "@oh-my-pi/pi-catalog/model-manager";
-import { DEFAULT_MODEL_PER_PROVIDER, PROVIDER_DESCRIPTORS } from "@oh-my-pi/pi-catalog/provider-models/descriptors";
-import { filterModelsDevCatalogRows } from "@oh-my-pi/pi-catalog/provider-models/models-dev-policies";
+import { resolveProviderModels } from "@chudware/catalog/model-manager";
+import { DEFAULT_MODEL_PER_PROVIDER, PROVIDER_DESCRIPTORS } from "@chudware/catalog/provider-models/descriptors";
+import { filterModelsDevCatalogRows } from "@chudware/catalog/provider-models/models-dev-policies";
 import {
 	BEDROCK_MANTLE_STATIC_MODELS,
 	bedrockMantleModelManagerOptions,
-} from "@oh-my-pi/pi-catalog/provider-models/openai-compat";
-import type { FetchImpl, ModelSpec } from "@oh-my-pi/pi-catalog/types";
+} from "@chudware/catalog/provider-models/openai-compat";
+import type { FetchImpl, ModelSpec } from "@chudware/catalog/types";
 
 const MANTLE_MODEL_IDS = [
 	"openai.gpt-5.4",
@@ -96,7 +96,7 @@ describe("Amazon Bedrock OpenAI routing", () => {
 
 		// The bearer-scoped /v1/models response is the complete account catalog:
 		// a successful refresh must prune static seeds the account cannot use.
-		const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "pi-catalog-bedrock-mantle-"));
+		const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "chud-catalog-bedrock-mantle-"));
 		try {
 			const refreshed = await resolveProviderModels(
 				{ ...managerOptions, cacheDbPath: path.join(tempDir, "models.db") },

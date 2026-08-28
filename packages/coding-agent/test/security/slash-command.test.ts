@@ -2,8 +2,8 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import { refreshDirsFromEnv } from "@oh-my-pi/pi-utils";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
+import { refreshDirsFromEnv } from "@chudware/utils";
+import * as fsx from "@chudware/utils/fsx";
 import { Settings } from "../../src/config/settings";
 import { SecurityStore } from "../../src/security";
 import { handleSecurityCommand } from "../../src/slash-commands/helpers/security";
@@ -19,7 +19,7 @@ let settings: Settings;
 let output: string[] = [];
 
 beforeEach(async () => {
-	temporaryRoot = await fs.mkdtemp(path.join(os.tmpdir(), "omp-security-slash-"));
+	temporaryRoot = await fs.mkdtemp(path.join(os.tmpdir(), "chudcode-security-slash-"));
 	repositoryRoot = path.join(temporaryRoot, "repo");
 	await fs.mkdir(repositoryRoot);
 	previousStateHome = process.env.XDG_STATE_HOME;
@@ -134,7 +134,7 @@ describe("/security", () => {
 		expect(JSON.parse(await fsx.readText(path.join(repositoryRoot, "exported.sarif")))).toHaveProperty("version");
 	});
 
-	test("validate returns a static OMP-native residual prompt", async () => {
+	test("validate returns a static Chudcode-native residual prompt", async () => {
 		const result = await command("validate secscan_fixture secf_fixture");
 		expect(result).toEqual({
 			prompt: expect.stringContaining("security://scans/secscan_fixture/findings/secf_fixture"),

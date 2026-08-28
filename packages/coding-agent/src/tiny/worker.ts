@@ -5,7 +5,7 @@ import type {
 	TextGenerationStringOutput,
 	StoppingCriteria as TransformersStoppingCriteria,
 } from "@huggingface/transformers";
-import { getTinyModelsCacheDir, prompt } from "@oh-my-pi/pi-utils";
+import { getTinyModelsCacheDir, prompt } from "@chudware/utils";
 import titleSystemPrompt from "../prompts/system/title-system.md" with { type: "text" };
 import {
 	errorMessage,
@@ -277,7 +277,7 @@ async function generateTitle(
 }
 
 /**
- * Completion path for Mnemopi memory tasks. Extraction can carry a dedicated
+ * Completion path for Mnemo memory tasks. Extraction can carry a dedicated
  * system prompt and user payload; consolidation retains the generic user-only
  * prompt. Output is capped to keep local inference latency bounded.
  */

@@ -1,4 +1,4 @@
-import { sleep } from "@oh-my-pi/pi-utils/async";
+import { sleep } from "@chudware/utils/async";
 import * as AIError from "../../error";
 
 const DEVICE_FLOW_CANCEL_MESSAGE = "Login cancelled";

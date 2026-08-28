@@ -1,7 +1,7 @@
 import * as os from "node:os";
 import * as path from "node:path";
-import { normalizeProfileName } from "@oh-my-pi/pi-utils/dirs";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
+import { normalizeProfileName } from "@chudware/utils/dirs";
+import * as fsx from "@chudware/utils/fsx";
 import { PRODUCT_NAME } from "../brand";
 
 export type ProfileAliasShell = "bash" | "zsh" | "fish" | "powershell" | "pwsh";
@@ -29,10 +29,10 @@ export interface ProfileAliasProcessOptions {
 }
 
 const DEFAULT_ALIAS_COMMAND: ProfileAliasCommand = {
-	display: "omp",
-	posix: "omp",
-	fish: "omp",
-	powerShell: "omp",
+	display: "chudcode",
+	posix: "chudcode",
+	fish: "chudcode",
+	powerShell: "chudcode",
 };
 
 export interface ProfileAliasInstallOptions {
@@ -132,7 +132,7 @@ const POWERSHELL_RESERVED_ALIAS_NAMES: ReadonlySet<string> = new Set([
 	"workflow",
 ]);
 
-// Keep local: importing the pi-utils root here would eagerly load env before
+// Keep local: importing the chud-utils root here would eagerly load env before
 // cli.ts has applied --profile, regressing profile-specific .env loading.
 function isEnoentError(error: unknown): boolean {
 	return typeof error === "object" && error !== null && (error as { code?: unknown }).code === "ENOENT";
@@ -156,8 +156,8 @@ function validateAliasName(aliasName: string, shell: ProfileAliasShell): string 
 	if (!ALIAS_NAME_RE.test(normalized)) {
 		throw new Error(`Invalid alias "${aliasName}". Alias names must match ${ALIAS_NAME_RE.source}.`);
 	}
-	if (normalized.toLowerCase() === "omp") {
-		throw new Error('Invalid alias "omp". Refusing to shadow the base omp command.');
+	if (normalized.toLowerCase() === "chudcode") {
+		throw new Error('Invalid alias "chudcode". Refusing to shadow the base chudcode command.');
 	}
 	if (getReservedAliasNames(shell).has(normalized.toLowerCase())) {
 		throw new Error(`Invalid alias "${aliasName}". Refusing to create a ${shell} reserved word.`);
@@ -202,7 +202,7 @@ function normalizeShellName(
 export function resolveProfileAliasCommandFromProcess({
 	argv = process.argv,
 	cwd = process.cwd(),
-	compiled = process.env.PI_COMPILED === "true",
+	compiled = process.env.CHUDCODE_COMPILED === "true",
 }: ProfileAliasProcessOptions = {}): ProfileAliasCommand {
 	if (compiled) return DEFAULT_ALIAS_COMMAND;
 
@@ -267,7 +267,7 @@ function resolveShellConfigPath(
 			// a hard-coded ~/.config would be silently ignored when the user relocates
 			// their XDG config root, leaving the alias unsourced after a restart.
 			const configHome = env.XDG_CONFIG_HOME ? toPosix(env.XDG_CONFIG_HOME) : posixJoinUnc(posixHome, ".config");
-			return posixJoinUnc(configHome, "fish", "conf.d", "omp-profiles.fish");
+			return posixJoinUnc(configHome, "fish", "conf.d", "chudcode-profiles.fish");
 		}
 		case "pwsh":
 			return platform === "win32"
@@ -285,13 +285,13 @@ function renderAliasBlock(
 	command: ProfileAliasCommand,
 ): { block: string; command: string } {
 	const profiledCommand = `${command.display} --profile=${profile}`;
-	const start = `# >>> omp profile alias: ${aliasName} >>>`;
-	const end = `# <<< omp profile alias: ${aliasName} <<<`;
+	const start = `# >>> chudcode profile alias: ${aliasName} >>>`;
+	const end = `# <<< chudcode profile alias: ${aliasName} <<<`;
 	let body: string;
 	switch (shell) {
 		case "fish":
 			body = [
-				`function ${aliasName} --wraps omp --description '${PRODUCT_NAME} profile ${profile}'`,
+				`function ${aliasName} --wraps chudcode --description '${PRODUCT_NAME} profile ${profile}'`,
 				`    command ${command.fish} --profile=${profile} $argv`,
 				"end",
 			].join("\n");
@@ -308,8 +308,8 @@ function renderAliasBlock(
 }
 
 function upsertBlock(content: string, aliasName: string, block: string): string {
-	const start = `# >>> omp profile alias: ${aliasName} >>>`;
-	const end = `# <<< omp profile alias: ${aliasName} <<<`;
+	const start = `# >>> chudcode profile alias: ${aliasName} >>>`;
+	const end = `# <<< chudcode profile alias: ${aliasName} <<<`;
 	const startIndex = content.indexOf(start);
 	if (startIndex !== -1) {
 		const endIndex = content.indexOf(end, startIndex + start.length);

@@ -7,7 +7,7 @@ import * as path from "node:path";
  * TTSR matching pipeline and reports which rules would trigger. `chudcode ttsr list`
  * shows every TTSR-registered rule the current project/user config would load.
  */
-import { Args, Command, Flags } from "@oh-my-pi/pi-utils/cli";
+import { Args, Command, Flags } from "@chudware/utils/cli";
 import { ttsrHelp as commandHelp } from "../cli/command-help";
 import {
 	runTtsrCommand,
@@ -64,12 +64,12 @@ export default class Ttsr extends Command {
 		"chudcode ttsr test src/foo.ts",
 		"chudcode ttsr test --file src/foo.ts",
 		"chudcode ttsr test --file src/foo.ts --source text",
-		"chudcode ttsr test --rule .omp/rules/no-any.md --source tool --path src/foo.ts 'const x: any = 1'",
+		"chudcode ttsr test --rule .chudcode/rules/no-any.md --source tool --path src/foo.ts 'const x: any = 1'",
 		"echo 'Box::leak(&mut v)' | chudcode ttsr test --file - --path src/lib.rs",
 		"chudcode ttsr test --source tool --tool edit --path src/foo.ts 'const x: any = 1'",
 		"chudcode ttsr scan",
 		"chudcode ttsr scan src/",
-		"chudcode ttsr scan -r .omp/rules/no-any.md src/",
+		"chudcode ttsr scan -r .chudcode/rules/no-any.md src/",
 	];
 
 	async run(): Promise<void> {

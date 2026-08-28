@@ -1,10 +1,10 @@
 import * as crypto from "node:crypto";
 import * as fs from "node:fs";
 import * as path from "node:path";
-import { SENSITIVE_TOKEN_RE } from "@oh-my-pi/pi-ai/providers/transform-messages";
-import { getSecretPlaceholderKeyPath, isEnoent, logger } from "@oh-my-pi/pi-utils";
-import { sleep } from "@oh-my-pi/pi-utils/async";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
+import { SENSITIVE_TOKEN_RE } from "@chudware/ai/providers/transform-messages";
+import { getSecretPlaceholderKeyPath, isEnoent, logger } from "@chudware/utils";
+import { sleep } from "@chudware/utils/async";
+import * as fsx from "@chudware/utils/fsx";
 import { YAML } from "bun";
 import { type SecretEntry, SecretObfuscator } from "./obfuscator";
 import { sanitizeSecretFriendlyName, secretEntriesNeedPlaceholderKey } from "./placeholder";
@@ -19,7 +19,7 @@ const cachedPlaceholderKeys = new Map<string, string>();
  * and never sent to a provider, so model-visible placeholders cannot be reversed
  * by dictionary-hashing candidate secrets. Stable across sessions so persisted
  * transcripts deobfuscate consistently. Defaults to `getSecretPlaceholderKeyPath()`
- * — `$XDG_STATE_HOME/omp/secret-placeholder.key` (or `~/.omp/agent/secret-placeholder.key`
+ * — `$XDG_STATE_HOME/chudcode/secret-placeholder.key` (or `~/.chudcode/agent/secret-placeholder.key`
  * without XDG), per docs/secrets.md.
  */
 export async function getSecretPlaceholderKey(keyDir?: string): Promise<string> {
@@ -165,7 +165,7 @@ export { secretEntriesNeedPlaceholderKey, secretEntryNeedsPlaceholderKey } from 
  * Project-local entries override global entries with matching content.
  */
 export async function loadSecrets(cwd: string, agentDir: string): Promise<SecretEntry[]> {
-	const projectPath = path.join(cwd, ".omp", "secrets.yml");
+	const projectPath = path.join(cwd, ".chudcode", "secrets.yml");
 	const globalPath = path.join(agentDir, "secrets.yml");
 
 	const globalEntries = await loadSecretsFile(globalPath);
@@ -203,13 +203,13 @@ export function collectEnvSecrets(): SecretEntry[] {
 /**
  * Built-in entries covering credential-shaped tokens (GitHub/GitLab/OpenAI-style
  * API keys) that are NOT configured via secrets.yml or the environment. Without
- * these, such a token in a tool result falls through to pi-ai's irreversible
+ * these, such a token in a tool result falls through to chud-ai's irreversible
  * provider-boundary redaction (`[openai_token_redacted]`); the model then echoes
  * that placeholder into edit-tool `old_string`, which can never match the real
  * bytes on disk (issue #6968). Routing the same shapes through the obfuscator
  * mints reversible keyed placeholders that `deobfuscateToolArguments` restores
  * before tool execution, keeping exact-match edits working while the credential
- * bytes still never reach the provider. Unlike the pi-ai redaction there is no
+ * bytes still never reach the provider. Unlike the chud-ai redaction there is no
  * entropy gate here — a false positive only over-obfuscates, which stays
  * transparent because the round trip is lossless.
  */

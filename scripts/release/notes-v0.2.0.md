@@ -1,6 +1,6 @@
 # Chudcode v0.2.0
 
-Chudcode is Hunter's internal coding-agent build, based on omp 18.0.8. This release makes
+Chudcode is Hunter's internal coding-agent build, based on chudcode 18.0.8. This release makes
 `chudcode update` actually work, and lands the in-flight work the repository needed in order
 to build at all.
 
@@ -11,21 +11,21 @@ showed all of them at once — it offered `18.0.10`, then failed with
 `GitHub release v18.0.10 has 0 assets named chudcode-linux-x64`:
 
 - The update check read **upstream's** npm package, so a fork on `0.x` was compared against
-  omp's `18.x` line and always looked out of date. Latest-version now comes from this
+  chudcode's `18.x` line and always looked out of date. Latest-version now comes from this
   repository's own GitHub releases.
-- The download then looked for that tag in `can1357/oh-my-pi`, whose assets are named
-  `omp-*`. The updater now resolves assets from this repository.
+- The download then looked for that tag in `Hunter-124/chudcode`, whose assets are named
+  `chudcode-*`. The updater now resolves assets from this repository.
 - Even with the right release, verification could never pass: the updater only understood an
-  `omp/18.0.8` version banner, while this build prints
-  `Chudcode v0.2.0 (based on omp 18.0.8)`. Every download would have installed, failed
+  `chudcode/18.0.8` version banner, while this build prints
+  `Chudcode v0.2.0 (based on chudcode 18.0.8)`. Every download would have installed, failed
   verification, and rolled back. It now reads the product version from the banner it
   actually prints.
 
 Homebrew, mise and Nix installs are refused with a pointer to the releases page instead of
-being routed, because those coordinates resolve upstream omp — updating through them would
+being routed, because those coordinates resolve upstream chudcode — updating through them would
 have replaced Chudcode with a different program. The release is pinned as a binary
 distribution for the same reason: a package-manager path would run
-`bun add @oh-my-pi/pi-coding-agent`.
+`bun add @chudware/coding-agent`.
 
 Updating from v0.1.0 requires one manual install, since the fix ships *in* v0.2.0. After
 that, `chudcode update` is self-sufficient.
@@ -50,8 +50,8 @@ version the binary no longer reported.
 
 ## Verification
 
-- Suites green: `pi-ai` 4251, `pi-tui` 1410, `pi-catalog` 782, `pi-utils` 850, `pi-agent`
-  538, `pi-natives` 115 plus 289 Rust tests, `mnemopi` 457, `stats` 107.
+- Suites green: `chud-ai` 4251, `chud-tui` 1410, `chud-catalog` 782, `chud-utils` 850, `chud-agent`
+  538, `chud-natives` 115 plus 289 Rust tests, `mnemo` 457, `stats` 107.
 - `update-cli` 86/86, including the fork-channel, prerelease-gating and version-banner
   contracts.
 - The staged binary is started from a clean HOME to prove its embedded native addon extracts

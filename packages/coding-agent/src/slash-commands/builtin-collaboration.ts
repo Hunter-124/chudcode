@@ -1,4 +1,4 @@
-import { Spacer } from "@oh-my-pi/pi-tui";
+import { Spacer } from "@chudware/tui";
 import { PRODUCT_CLI_NAME } from "../brand";
 import { CollabGuestLink } from "../collab/guest";
 import { CollabHost } from "../collab/host";

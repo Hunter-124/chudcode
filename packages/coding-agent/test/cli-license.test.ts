@@ -1,11 +1,11 @@
 import { expect, it } from "bun:test";
 import * as path from "node:path";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
+import * as fsx from "@chudware/utils/fsx";
 
 const repoRoot = path.resolve(import.meta.dir, "../../..");
 const cliEntry = path.join(repoRoot, "packages/coding-agent/src/cli.ts");
 
-it("prints the embedded OMP license and aggregate notices on the exact top-level flag path", async () => {
+it("prints the embedded Chudcode license and aggregate notices on the exact top-level flag path", async () => {
 	const proc = Bun.spawn([process.execPath, cliEntry, "--license"], {
 		cwd: repoRoot,
 		stdout: "pipe",
@@ -21,5 +21,5 @@ it("prints the embedded OMP license and aggregate notices on the exact top-level
 
 	expect(exitCode).toBe(0);
 	expect(stderr).toBe("");
-	expect(stdout).toBe(`OMP License and Third-Party Notices\n\n${license.trimEnd()}\n\n${notices.trimEnd()}\n`);
+	expect(stdout).toBe(`Chudcode License and Third-Party Notices\n\n${license.trimEnd()}\n\n${notices.trimEnd()}\n`);
 });

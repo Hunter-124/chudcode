@@ -1,20 +1,20 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "bun:test";
 import * as path from "node:path";
-import { Agent } from "@oh-my-pi/pi-agent-core";
-import { type Api, type AssistantMessage, Effort, type Model } from "@oh-my-pi/pi-ai";
-import { getBundledModel } from "@oh-my-pi/pi-catalog/models";
-import { PRODUCT_NAME } from "@oh-my-pi/pi-coding-agent/brand";
-import { ModelRegistry } from "@oh-my-pi/pi-coding-agent/config/model-registry";
-import { Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
-import { type CreateAgentSessionResult, createAgentSession } from "@oh-my-pi/pi-coding-agent/sdk";
-import { AgentSession } from "@oh-my-pi/pi-coding-agent/session/agent-session";
-import { AuthStorage } from "@oh-my-pi/pi-coding-agent/session/auth-storage";
-import { getRestorableSessionModels } from "@oh-my-pi/pi-coding-agent/session/session-context";
-import { EPHEMERAL_MODEL_CHANGE_ROLE } from "@oh-my-pi/pi-coding-agent/session/session-entries";
-import { SessionManager } from "@oh-my-pi/pi-coding-agent/session/session-manager";
-import { AUTO_THINKING } from "@oh-my-pi/pi-coding-agent/thinking";
-import { TempDir } from "@oh-my-pi/pi-utils";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
+import { Agent } from "@chudware/agent-core";
+import { type Api, type AssistantMessage, Effort, type Model } from "@chudware/ai";
+import { getBundledModel } from "@chudware/catalog/models";
+import { PRODUCT_NAME } from "@chudware/coding-agent/brand";
+import { ModelRegistry } from "@chudware/coding-agent/config/model-registry";
+import { Settings } from "@chudware/coding-agent/config/settings";
+import { type CreateAgentSessionResult, createAgentSession } from "@chudware/coding-agent/sdk";
+import { AgentSession } from "@chudware/coding-agent/session/agent-session";
+import { AuthStorage } from "@chudware/coding-agent/session/auth-storage";
+import { getRestorableSessionModels } from "@chudware/coding-agent/session/session-context";
+import { EPHEMERAL_MODEL_CHANGE_ROLE } from "@chudware/coding-agent/session/session-entries";
+import { SessionManager } from "@chudware/coding-agent/session/session-manager";
+import { AUTO_THINKING } from "@chudware/coding-agent/thinking";
+import { TempDir } from "@chudware/utils";
+import * as fsx from "@chudware/utils/fsx";
 
 describe("AgentSession model persistence", () => {
 	let tempDir: TempDir;

@@ -2,10 +2,10 @@ import { afterEach, describe, expect, it } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import { bindPreparedExtensions, loadExtensions } from "@oh-my-pi/pi-coding-agent/extensibility/extensions/loader";
-import type { ExtensionAPI } from "@oh-my-pi/pi-coding-agent/extensibility/extensions/types";
-import { EventBus } from "@oh-my-pi/pi-coding-agent/utils/event-bus";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
+import { bindPreparedExtensions, loadExtensions } from "@chudware/coding-agent/extensibility/extensions/loader";
+import type { ExtensionAPI } from "@chudware/coding-agent/extensibility/extensions/types";
+import { EventBus } from "@chudware/coding-agent/utils/event-bus";
+import * as fsx from "@chudware/utils/fsx";
 
 const temporaryDirectories: string[] = [];
 
@@ -17,7 +17,7 @@ afterEach(async () => {
 
 describe("prepared extension rebinding", () => {
 	it("binds a fresh session extension without evaluating the module again", async () => {
-		const directory = await fs.mkdtemp(path.join(os.tmpdir(), "omp-prepared-extension-"));
+		const directory = await fs.mkdtemp(path.join(os.tmpdir(), "chudcode-prepared-extension-"));
 		temporaryDirectories.push(directory);
 		const parentDirectory = path.join(directory, "parent");
 		const childDirectory = path.join(directory, "child");

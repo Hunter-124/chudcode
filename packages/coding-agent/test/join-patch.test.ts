@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import { parseFileDiffs } from "@oh-my-pi/pi-coding-agent/commit/git/diff";
-import { patch } from "@oh-my-pi/pi-coding-agent/utils/git";
+import { parseFileDiffs } from "@chudware/coding-agent/commit/git/diff";
+import { patch } from "@chudware/coding-agent/utils/git";
 
 describe("joinPatch", () => {
 	test("preserves space character in empty context line at end of patch", () => {

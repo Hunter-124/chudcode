@@ -6,8 +6,8 @@ import {
 	readAuthBrokerSnapshotCache,
 	type SnapshotResponse,
 	writeAuthBrokerSnapshotCache,
-} from "@oh-my-pi/pi-ai/auth-broker";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
+} from "@chudware/ai/auth-broker";
+import * as fsx from "@chudware/utils/fsx";
 import { removeWithRetries } from "../../utils/src/temp";
 
 const TOKEN = "broker-cache-token";

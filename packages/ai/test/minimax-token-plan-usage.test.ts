@@ -1,8 +1,8 @@
 import { describe, expect, test } from "bun:test";
-import { type AuthCredentialStore, AuthStorage } from "@oh-my-pi/pi-ai/auth-storage";
-import type { FetchImpl } from "@oh-my-pi/pi-ai/types";
-import type { UsageFetchParams } from "@oh-my-pi/pi-ai/usage";
-import { minimaxCodeUsageProvider } from "@oh-my-pi/pi-ai/usage/minimax-code";
+import { type AuthCredentialStore, AuthStorage } from "@chudware/ai/auth-storage";
+import type { FetchImpl } from "@chudware/ai/types";
+import type { UsageFetchParams } from "@chudware/ai/usage";
+import { minimaxCodeUsageProvider } from "@chudware/ai/usage/minimax-code";
 
 const INTERVAL_START = 1_785_009_600_000;
 const INTERVAL_END = 1_785_024_000_000;

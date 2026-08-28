@@ -16,7 +16,7 @@ It covers runtime behavior as implemented today, including precedence, invalid-d
 - [`src/prompts/agents/task.md`](../packages/coding-agent/src/prompts/agents/task.md)
 - [`src/prompts/tools/task.md`](../packages/coding-agent/src/prompts/tools/task.md)
 - [`src/discovery/helpers.ts`](../packages/coding-agent/src/discovery/helpers.ts)
-- [`src/discovery/omp-extension-roots.ts`](../packages/coding-agent/src/discovery/omp-extension-roots.ts)
+- [`src/discovery/chudcode-extension-roots.ts`](../packages/coding-agent/src/discovery/chudcode-extension-roots.ts)
 - [`src/config.ts`](../packages/coding-agent/src/config.ts)
 - [`src/task/executor.ts`](../packages/coding-agent/src/task/executor.ts)
 
@@ -48,11 +48,11 @@ Parsing comes from frontmatter via `parseAgentFields()` (`src/discovery/helpers.
 
 ## Role-backed custom agents
 
-Chudcode discovers user agents from `~/.omp/agent/agents/*.md` and project agents from `.omp/agents/*.md`.
+Chudcode discovers user agents from `~/.chudcode/agent/agents/*.md` and project agents from `.chudcode/agents/*.md`.
 
 Give the agent a role alias in frontmatter, then dispatch it by name. For model routing, task dispatch sets only `agent`; it does not set a worker model:
 
-`~/.omp/agent/agents/reviewer.md`:
+`~/.chudcode/agent/agents/reviewer.md`:
 
 ```md
 ---
@@ -64,7 +64,7 @@ model: "@review"
 Review the assigned change and report concrete findings.
 ```
 
-Set the role mapping in `~/.omp/agent/config.yml`:
+Set the role mapping in `~/.chudcode/agent/config.yml`:
 
 ```yaml
 modelRoles:
@@ -127,12 +127,12 @@ Because bundled parsing uses `level: "fatal"`, malformed bundled frontmatter thr
 
 ## Filesystem and plugin discovery
 
-`discoverAgents(cwd, home)` (`src/task/discovery.ts`) merges agents from Chudcode-native roots, Chudcode extension packages, and Claude marketplace plugin roots before appending bundled definitions. Direct cross-harness roots such as `.claude/agents`, `.codex/agents`, and `.gemini/agents` are intentionally skipped — their frontmatter schema is not the Chudcode task-agent contract (`TASK_AGENT_CONFIG_SOURCE = ".omp"` filters the native config-dir lists).
+`discoverAgents(cwd, home)` (`src/task/discovery.ts`) merges agents from Chudcode-native roots, Chudcode extension packages, and Claude marketplace plugin roots before appending bundled definitions. Direct cross-harness roots such as `.claude/agents`, `.codex/agents`, and `.gemini/agents` are intentionally skipped — their frontmatter schema is not the Chudcode task-agent contract (`TASK_AGENT_CONFIG_SOURCE = ".chudcode"` filters the native config-dir lists).
 
 ### Discovery inputs and precedence
 
-1. Nearest project `.omp/agents` dir from `findAllNearestProjectConfigDirs("agents", cwd)` (first `.omp` hit only)
-2. User `.omp/agents` dir from `getConfigDirs("agents", { project: false })` (first `.omp` hit only)
+1. Nearest project `.chudcode/agents` dir from `findAllNearestProjectConfigDirs("agents", cwd)` (first `.chudcode` hit only)
+2. User `.chudcode/agents` dir from `getConfigDirs("agents", { project: false })` (first `.chudcode` hit only)
 3. `<extension-root>/agents` for every enabled Chudcode extension package returned by `listOmpExtensionRoots(...)`, in this order:
    - CLI `--extension` roots
    - project `extensions:` settings
@@ -141,7 +141,7 @@ Because bundled parsing uses `level: "fatal"`, malformed bundled frontmatter thr
 4. Claude marketplace plugin roots (`listClaudePluginRoots(home, cwd)`) with `agents/` subdirs — only when `isProviderEnabled("claude-plugins")`; project-scope plugins sort before user-scope
 5. Bundled agents (`loadBundledAgents()`)
 
-The Chudcode extension-package surface is disabled when the `omp-plugins` capability provider is disabled. Marketplace roots are excluded from `listOmpExtensionRoots` and enter only through the separately gated Claude-plugin path.
+The Chudcode extension-package surface is disabled when the `chudcode-plugins` capability provider is disabled. Marketplace roots are excluded from `listOmpExtensionRoots` and enter only through the separately gated Claude-plugin path.
 
 ## Merge and collision rules
 
@@ -153,7 +153,7 @@ Discovery uses first-wins dedup by exact `agent.name`:
 
 Implications:
 
-- Project `.omp` overrides user `.omp`.
+- Project `.chudcode` overrides user `.chudcode`.
 - Earlier extension roots override later extension roots, Claude marketplace plugins, and bundled agents.
 - Non-bundled agents override bundled agents with the same name.
 - Name matching is case-sensitive (`Task` and `task` are distinct).
@@ -249,7 +249,7 @@ If denied: `Cannot spawn '...'. Allowed: ...`.
 
 ### Blocked self-recursion env guard
 
-`PI_BLOCKED_AGENT` (or the internal request override) rejects an attempt to spawn the same blocked agent before discovery.
+`CHUDCODE_BLOCKED_AGENT` (or the internal request override) rejects an attempt to spawn the same blocked agent before discovery.
 
 ### Recursion-depth gating
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import { $which } from "@oh-my-pi/pi-utils";
+import { $which } from "@chudware/utils";
 import { PYTHON_PRELUDE } from "../../../src/eval/py/prelude";
 
 const pythonPath = process.env.PYTHON ?? ($which("python3") ? "python3" : "python");
@@ -61,9 +61,9 @@ describe("python prelude", () => {
 			const result = await runPrelude(
 				[`print(read("artifact://21", 3, 2))`, `print(read("mcp://server/resource", 10, 5))`].join("\n"),
 				{
-					PI_TOOL_BRIDGE_URL: server.url.toString(),
-					PI_TOOL_BRIDGE_TOKEN: "test-token",
-					PI_TOOL_BRIDGE_SESSION: "test-session",
+					CHUDCODE_TOOL_BRIDGE_URL: server.url.toString(),
+					CHUDCODE_TOOL_BRIDGE_TOKEN: "test-token",
+					CHUDCODE_TOOL_BRIDGE_SESSION: "test-session",
 				},
 			);
 
@@ -136,9 +136,9 @@ describe("python prelude", () => {
 					'print(parallel([lambda path=path: tool.read({"path": path}) for path in paths]))',
 				].join("\n"),
 				{
-					PI_TOOL_BRIDGE_URL: bridge.url.toString(),
-					PI_TOOL_BRIDGE_TOKEN: "test-token",
-					PI_TOOL_BRIDGE_SESSION: "test-session",
+					CHUDCODE_TOOL_BRIDGE_URL: bridge.url.toString(),
+					CHUDCODE_TOOL_BRIDGE_TOKEN: "test-token",
+					CHUDCODE_TOOL_BRIDGE_SESSION: "test-session",
 					HTTP_PROXY: proxyUrl,
 					http_proxy: proxyUrl,
 					ALL_PROXY: proxyUrl,

@@ -2,7 +2,7 @@ import * as fs from "node:fs/promises";
 import * as net from "node:net";
 import * as os from "node:os";
 import * as path from "node:path";
-import { Process, type PtyRunResult, PtySession } from "@oh-my-pi/pi-natives";
+import { Process, type PtyRunResult, PtySession } from "@chudware/natives";
 import {
 	isEexist,
 	isEnoent,
@@ -12,8 +12,8 @@ import {
 	sanitizeText,
 	setProcessName,
 	sleep,
-} from "@oh-my-pi/pi-utils";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
+} from "@chudware/utils";
+import * as fsx from "@chudware/utils/fsx";
 import { hostHasInheritableConsole } from "../eval/py/spawn-options";
 import { truncateHead, truncateHeadBytes, truncateTail, truncateTailBytes } from "../session/streaming-output";
 import { workerEnvFromParent } from "../subprocess/worker-client";
@@ -1407,7 +1407,7 @@ export async function startDaemonBrokerFromEnvironment(options: DaemonBrokerStar
 	await fs.mkdir(runtimeDir, { recursive: true, mode: 0o700 });
 	const lease = await acquireBrokerLease(runtimeDir);
 	if (!lease) return;
-	setProcessName("omp daemon broker");
+	setProcessName("chudcode daemon broker");
 	// Record the scope's project dir so `chudcode ps` can map this hash-keyed runtime
 	// dir back to its project (and derive the Windows pipe name) offline.
 	void writeDaemonScopeMeta(runtimeDir, projectDir).catch(error => {

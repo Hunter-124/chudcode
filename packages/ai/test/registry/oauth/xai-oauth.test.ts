@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "bun:test";
-import * as piUtils from "@oh-my-pi/pi-utils/async";
+import * as piUtils from "@chudware/utils/async";
 import {
 	buildXAICliBillingUrl,
 	extractXAIAccessTokenSubject,

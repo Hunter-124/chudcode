@@ -11,9 +11,9 @@ import {
 	type OAuthAccess,
 	withAuth,
 	withOAuthAccess,
-} from "@oh-my-pi/pi-ai";
-import { resolveCodexResponsesUrl } from "@oh-my-pi/pi-ai/providers/openai-codex-responses";
-import { getBundledModels } from "@oh-my-pi/pi-catalog/models";
+} from "@chudware/ai";
+import { resolveCodexResponsesUrl } from "@chudware/ai/providers/openai-codex-responses";
+import { getBundledModels } from "@chudware/catalog/models";
 import {
 	applyCodexResidencyHeader,
 	CODEX_BASE_URL,
@@ -21,8 +21,8 @@ import {
 	getCodexAccountId,
 	OPENAI_HEADER_VALUES,
 	OPENAI_HEADERS,
-} from "@oh-my-pi/pi-catalog/wire/codex";
-import { $env, readSseJson, USER_AGENT } from "@oh-my-pi/pi-utils";
+} from "@chudware/catalog/wire/codex";
+import { $env, readSseJson, USER_AGENT } from "@chudware/utils";
 import type { ModelRegistry } from "../../../config/model-registry";
 import type { SearchResponse, SearchSource } from "../../../web/search/types";
 import { SearchProviderError } from "../../../web/search/types";
@@ -81,7 +81,7 @@ function getBundledCodexModels(): CodexSearchModel[] {
 }
 
 function getConfiguredModel(): CodexModelCandidate | undefined {
-	const configuredModel = $env.PI_CODEX_WEB_SEARCH_MODEL?.trim();
+	const configuredModel = $env.CHUDCODE_CODEX_WEB_SEARCH_MODEL?.trim();
 	if (!configuredModel) return undefined;
 
 	const catalogModel = getBundledCodexModels().find(model => model.id === configuredModel);
@@ -725,7 +725,7 @@ async function runCodexSearchCandidates(options: {
  * Executes a web search using OpenAI Codex's built-in web search tool.
  *
  * Default-model behavior:
- * - If `PI_CODEX_WEB_SEARCH_MODEL` is set, use it exactly once and surface any
+ * - If `CHUDCODE_CODEX_WEB_SEARCH_MODEL` is set, use it exactly once and surface any
  *   upstream error verbatim.
  * - Otherwise prefer ChatGPT-account-safe bundled defaults (GPT-5.6 Luna,
  *   Terra, Sol, GPT-5.5, …) and retry the next candidate only when Codex
@@ -794,7 +794,7 @@ export async function searchCodex(params: SearchParams): Promise<SearchResponse>
 		const seed = await findCodexAuth(params.authStorage, params.sessionId, params.signal);
 		if (!seed) {
 			throw new Error(
-				"No Codex OAuth credentials found. Login with 'omp /login openai-codex' to enable Codex web search.",
+				"No Codex OAuth credentials found. Login with 'chudcode /login openai-codex' to enable Codex web search.",
 			);
 		}
 

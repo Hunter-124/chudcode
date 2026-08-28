@@ -2,11 +2,11 @@ import { afterEach, describe, expect, it, vi } from "bun:test";
 import * as fs from "node:fs";
 import * as fsp from "node:fs/promises";
 import * as path from "node:path";
-import { AgentRegistry } from "@oh-my-pi/pi-coding-agent/registry/agent-registry";
-import { ensurePersistedRoster } from "@oh-my-pi/pi-coding-agent/registry/persisted-agents";
-import { CURRENT_SESSION_VERSION } from "@oh-my-pi/pi-coding-agent/session/session-entries";
-import { TempDir } from "@oh-my-pi/pi-utils";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
+import { AgentRegistry } from "@chudware/coding-agent/registry/agent-registry";
+import { ensurePersistedRoster } from "@chudware/coding-agent/registry/persisted-agents";
+import { CURRENT_SESSION_VERSION } from "@chudware/coding-agent/session/session-entries";
+import { TempDir } from "@chudware/utils";
+import * as fsx from "@chudware/utils/fsx";
 import type { BunFile } from "bun";
 
 /** Latch-cache bound enforced by `ensurePersistedRoster` (see MAX_PERSISTED_ROSTER_LATCHES). */
@@ -114,7 +114,7 @@ afterEach(() => {
 
 describe("persisted roster metadata fault settling", () => {
 	it("settles an eager stat fault instead of leaving a rejecting promise pending", async () => {
-		using tempDir = TempDir.createSync("@omp-roster-stat-fault-");
+		using tempDir = TempDir.createSync("@chudcode-roster-stat-fault-");
 		const dir = tempDir.path();
 		const rootFile = path.join(dir, "main.jsonl");
 		const childFile = path.join(dir, "main", "Worker.jsonl");
@@ -135,7 +135,7 @@ describe("persisted roster metadata fault settling", () => {
 	}, 10_000);
 
 	it("still degrades gracefully when the stream and the stat fail together", async () => {
-		using tempDir = TempDir.createSync("@omp-roster-simultaneous-");
+		using tempDir = TempDir.createSync("@chudcode-roster-simultaneous-");
 		const dir = tempDir.path();
 		const rootFile = path.join(dir, "main.jsonl");
 		const childFile = path.join(dir, "main", "Worker.jsonl");
@@ -176,7 +176,7 @@ describe("persisted roster metadata fault settling", () => {
 
 describe("persisted roster latch semantics", () => {
 	it("shares one scan across concurrent same-root calls", async () => {
-		using tempDir = TempDir.createSync("@omp-roster-single-flight-");
+		using tempDir = TempDir.createSync("@chudcode-roster-single-flight-");
 		const dir = tempDir.path();
 		const rootFile = path.join(dir, "main.jsonl");
 		await fsx.write(rootFile, `${sessionHeader("main")}\n`);
@@ -193,7 +193,7 @@ describe("persisted roster latch semantics", () => {
 	});
 
 	it("keeps distinct roots latched independently", async () => {
-		using tempDir = TempDir.createSync("@omp-roster-two-roots-");
+		using tempDir = TempDir.createSync("@chudcode-roster-two-roots-");
 		const dir = tempDir.path();
 		const rootA = path.join(dir, "a", "main.jsonl");
 		const rootB = path.join(dir, "b", "main.jsonl");
@@ -216,7 +216,7 @@ describe("persisted roster latch semantics", () => {
 	});
 
 	it("serializes scan bodies so a shared child basename is never latched-missed", async () => {
-		using tempDir = TempDir.createSync("@omp-roster-shared-child-");
+		using tempDir = TempDir.createSync("@chudcode-roster-shared-child-");
 		const dir = tempDir.path();
 		const rootA = path.join(dir, "a", "main.jsonl");
 		const rootB = path.join(dir, "b", "main.jsonl");
@@ -257,7 +257,7 @@ describe("persisted roster latch semantics", () => {
 	}, 10_000);
 
 	it("keeps the scan queue moving after a failed root scan", async () => {
-		using tempDir = TempDir.createSync("@omp-roster-queue-failure-");
+		using tempDir = TempDir.createSync("@chudcode-roster-queue-failure-");
 		const dir = tempDir.path();
 		const rootA = path.join(dir, "a", "main.jsonl");
 		const rootB = path.join(dir, "b", "main.jsonl");
@@ -286,7 +286,7 @@ describe("persisted roster latch semantics", () => {
 	});
 
 	it("bounds remembered latches by evicting only settled ones", async () => {
-		using tempDir = TempDir.createSync("@omp-roster-latch-bound-");
+		using tempDir = TempDir.createSync("@chudcode-roster-latch-bound-");
 		const dir = tempDir.path();
 		const rootFor = (index: number) => path.join(dir, `root-${index}`, "main.jsonl");
 		const rootCount = MAX_PERSISTED_ROSTER_LATCHES + 1;
@@ -315,7 +315,7 @@ describe("persisted roster latch semantics", () => {
 		expect(countReaddirs(readdirs, scanDir(rootFor(0)))).toBe(2);
 	}, 10_000);
 	it("re-scans a root whose parked ref another root superseded (A→B→A)", async () => {
-		using tempDir = TempDir.createSync("@omp-roster-supersede-");
+		using tempDir = TempDir.createSync("@chudcode-roster-supersede-");
 		const dir = tempDir.path();
 		const rootA = path.join(dir, "a", "main.jsonl");
 		const rootB = path.join(dir, "b", "main.jsonl");
@@ -353,7 +353,7 @@ describe("persisted roster latch semantics", () => {
 	}, 10_000);
 
 	it("refreshes only the superseded refs of a root (partial supersession)", async () => {
-		using tempDir = TempDir.createSync("@omp-roster-partial-");
+		using tempDir = TempDir.createSync("@chudcode-roster-partial-");
 		const dir = tempDir.path();
 		const rootA = path.join(dir, "a", "main.jsonl");
 		const rootB = path.join(dir, "b", "main.jsonl");
@@ -391,7 +391,7 @@ describe("persisted roster latch semantics", () => {
 	}, 10_000);
 
 	it("re-scans a root whose restored ref was released", async () => {
-		using tempDir = TempDir.createSync("@omp-roster-released-");
+		using tempDir = TempDir.createSync("@chudcode-roster-released-");
 		const dir = tempDir.path();
 		const rootFile = path.join(dir, "main.jsonl");
 		const childFile = path.join(dir, "main", "Worker.jsonl");
@@ -412,7 +412,7 @@ describe("persisted roster latch semantics", () => {
 	}, 10_000);
 
 	it("keeps a settled latch valid for a tombstoned transcript", async () => {
-		using tempDir = TempDir.createSync("@omp-roster-tombstone-");
+		using tempDir = TempDir.createSync("@chudcode-roster-tombstone-");
 		const dir = tempDir.path();
 		const rootFile = path.join(dir, "main.jsonl");
 		const childFile = path.join(dir, "main", "Worker.jsonl");
@@ -431,7 +431,7 @@ describe("persisted roster latch semantics", () => {
 	}, 10_000);
 
 	it("does not re-scan when a transcript file vanishes after its latch settled", async () => {
-		using tempDir = TempDir.createSync("@omp-roster-vanished-");
+		using tempDir = TempDir.createSync("@chudcode-roster-vanished-");
 		const dir = tempDir.path();
 		const rootFile = path.join(dir, "main.jsonl");
 		const childFile = path.join(dir, "main", "Worker.jsonl");
@@ -452,7 +452,7 @@ describe("persisted roster latch semantics", () => {
 	}, 10_000);
 
 	it("retries a supersession refresh whose scan failed", async () => {
-		using tempDir = TempDir.createSync("@omp-roster-refresh-failure-");
+		using tempDir = TempDir.createSync("@chudcode-roster-refresh-failure-");
 		const dir = tempDir.path();
 		const rootA = path.join(dir, "a", "main.jsonl");
 		const rootB = path.join(dir, "b", "main.jsonl");

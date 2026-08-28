@@ -2,8 +2,8 @@ import { describe, expect, test } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import { getEnvApiKey } from "@oh-my-pi/pi-ai/stream";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
+import { getEnvApiKey } from "@chudware/ai/stream";
+import * as fsx from "@chudware/utils/fsx";
 import { removeWithRetries } from "../../utils/src/temp";
 import { withEnv } from "./helpers";
 

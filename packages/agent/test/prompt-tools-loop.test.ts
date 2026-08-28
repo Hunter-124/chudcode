@@ -1,9 +1,9 @@
 import { describe, expect, it } from "bun:test";
-import { type } from "@oh-my-pi/omptype";
-import { agentLoop } from "@oh-my-pi/pi-agent-core/agent-loop";
-import type { AgentContext, AgentLoopConfig, AgentMessage, AgentTool } from "@oh-my-pi/pi-agent-core/types";
-import type { AssistantMessage, Context, Message, TextContent, ToolResultMessage } from "@oh-my-pi/pi-ai";
-import { createMockModel } from "@oh-my-pi/pi-ai/providers/mock";
+import { agentLoop } from "@chudware/agent-core/agent-loop";
+import type { AgentContext, AgentLoopConfig, AgentMessage, AgentTool } from "@chudware/agent-core/types";
+import type { AssistantMessage, Context, Message, TextContent, ToolResultMessage } from "@chudware/ai";
+import { createMockModel } from "@chudware/ai/providers/mock";
+import { type } from "@chudware/chudtype";
 import { createUserMessage } from "./helpers";
 
 function identityConverter(messages: AgentMessage[]): Message[] {
@@ -219,9 +219,9 @@ describe("agentLoop with owned in-band tool calls", () => {
 		expect(resultsText).toContain("echoed:hi");
 	});
 
-	it("uses PI_DIALECT=minimax when config.dialect is unset", async () => {
-		const before = process.env.PI_DIALECT;
-		process.env.PI_DIALECT = "minimax";
+	it("uses CHUDCODE_DIALECT=minimax when config.dialect is unset", async () => {
+		const before = process.env.CHUDCODE_DIALECT;
+		process.env.CHUDCODE_DIALECT = "minimax";
 		try {
 			const echoArgs: Array<{ msg: string }> = [];
 			const toolSchema = type({ msg: "string" });
@@ -263,8 +263,8 @@ describe("agentLoop with owned in-band tool calls", () => {
 			expect(captured[0].tools).toBeUndefined();
 			expect((captured[0].systemPrompt ?? []).join("\n")).toContain("<minimax:tool_call>");
 		} finally {
-			if (before === undefined) delete process.env.PI_DIALECT;
-			else process.env.PI_DIALECT = before;
+			if (before === undefined) delete process.env.CHUDCODE_DIALECT;
+			else process.env.CHUDCODE_DIALECT = before;
 		}
 	});
 });

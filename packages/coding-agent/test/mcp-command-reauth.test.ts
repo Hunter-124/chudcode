@@ -3,13 +3,13 @@ import { afterEach, beforeAll, beforeEach, describe, expect, test, vi } from "bu
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import { AuthStorage, SqliteAuthCredentialStore } from "@oh-my-pi/pi-ai";
-import * as mcpClient from "@oh-my-pi/pi-coding-agent/mcp/client";
-import * as oauthFlow from "@oh-my-pi/pi-coding-agent/mcp/oauth-flow";
-import type { MCPServerConfig } from "@oh-my-pi/pi-coding-agent/mcp/types";
-import { MCPCommandController } from "@oh-my-pi/pi-coding-agent/modes/controllers/mcp-command-controller";
-import { OAuthManualInputManager } from "@oh-my-pi/pi-coding-agent/modes/oauth-manual-input";
-import { initTheme } from "@oh-my-pi/pi-coding-agent/modes/theme/theme";
+import { AuthStorage, SqliteAuthCredentialStore } from "@chudware/ai";
+import * as mcpClient from "@chudware/coding-agent/mcp/client";
+import * as oauthFlow from "@chudware/coding-agent/mcp/oauth-flow";
+import type { MCPServerConfig } from "@chudware/coding-agent/mcp/types";
+import { MCPCommandController } from "@chudware/coding-agent/modes/controllers/mcp-command-controller";
+import { OAuthManualInputManager } from "@chudware/coding-agent/modes/oauth-manual-input";
+import { initTheme } from "@chudware/coding-agent/modes/theme/theme";
 import {
 	getConfigRootDir,
 	getMCPConfigPath,
@@ -18,8 +18,8 @@ import {
 	setAgentDir,
 	setProjectDir,
 	sleep,
-} from "@oh-my-pi/pi-utils";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
+} from "@chudware/utils";
+import * as fsx from "@chudware/utils/fsx";
 
 const RAW_SERVER_URL = `https://\${MCP_HOST}/mcp`;
 const EXPANDED_SERVER_URL = "https://mcp.example.com/mcp";
@@ -32,7 +32,7 @@ type TestConfigFile = {
 };
 
 const originalProjectDir = getProjectDir();
-const originalAgentDir = process.env.PI_CODING_AGENT_DIR;
+const originalAgentDir = process.env.CHUDCODE_CODING_AGENT_DIR;
 const fallbackAgentDir = path.join(getConfigRootDir(), "agent");
 
 function restoreEnvValue(name: string, value: string | undefined): void {
@@ -106,8 +106,8 @@ describe("/mcp auth commands", () => {
 	});
 
 	beforeEach(async () => {
-		projectDir = await fs.mkdtemp(path.join(os.tmpdir(), "omp-mcp-reauth-project-"));
-		agentDir = await fs.mkdtemp(path.join(os.tmpdir(), "omp-mcp-reauth-agent-"));
+		projectDir = await fs.mkdtemp(path.join(os.tmpdir(), "chudcode-mcp-reauth-project-"));
+		agentDir = await fs.mkdtemp(path.join(os.tmpdir(), "chudcode-mcp-reauth-agent-"));
 		configPath = path.join(projectDir, ".mcp.json");
 		originalMcpHost = process.env.MCP_HOST;
 		process.env.MCP_HOST = "mcp.example.com";
@@ -140,7 +140,7 @@ describe("/mcp auth commands", () => {
 			setAgentDir(originalAgentDir);
 		} else {
 			setAgentDir(fallbackAgentDir);
-			delete process.env.PI_CODING_AGENT_DIR;
+			delete process.env.CHUDCODE_CODING_AGENT_DIR;
 		}
 		await removeWithRetries(projectDir);
 		await removeWithRetries(agentDir);

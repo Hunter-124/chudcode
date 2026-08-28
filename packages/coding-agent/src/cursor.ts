@@ -7,7 +7,7 @@ import type {
 	AgentToolContext,
 	AgentToolResult,
 	AgentToolUpdateCallback,
-} from "@oh-my-pi/pi-agent-core";
+} from "@chudware/agent-core";
 import type {
 	CursorMcpCall,
 	CursorMcpResource,
@@ -16,7 +16,7 @@ import type {
 	CursorTodoSnapshot,
 	CursorExecHandlers as ICursorExecHandlers,
 	ToolResultMessage,
-} from "@oh-my-pi/pi-ai";
+} from "@chudware/ai";
 import {
 	omitUndefinedArgs,
 	piEscapeRegexLiteral,
@@ -26,8 +26,8 @@ import {
 	piLsPath,
 	piReadPath,
 	piTimeout,
-} from "@oh-my-pi/pi-ai/providers/cursor/exec-modern";
-import { sanitizeText } from "@oh-my-pi/pi-utils";
+} from "@chudware/ai/providers/cursor/exec-modern";
+import { sanitizeText } from "@chudware/utils";
 import { cursorMcpPrefersReplaceEdit, normalizeCursorReplaceArgs } from "./cursor-bridge-tools";
 import type { MCPResourceReadResult } from "./mcp/types";
 import type { ApprovalMode } from "./tools/approval";
@@ -66,10 +66,10 @@ interface CursorExecBridgeOptions {
 	/** Resolves execution overrides (mounted-device permission wrappers) before the canonical map. */
 	getExecutableTool?: (name: string) => AgentTool | undefined;
 	/**
-	 * The `replace`-mode `edit` instance `pi_edit` must run, when the session
+	 * The `replace`-mode `edit` instance `chud_edit` must run, when the session
 	 * granted `edit` at all.
 	 *
-	 * `PiEditExecArgs` is that mode's schema verbatim, and the session's own
+	 * `ChudEditExecArgs` is that mode's schema verbatim, and the session's own
 	 * `edit` may be in any mode — `hashline` by default — whose schema rejects
 	 * `old_string`/`new_string` outright. {@link tools} therefore cannot be trusted
 	 * for this one frame: a session that starts on another provider keeps its
@@ -112,7 +112,7 @@ interface CursorExecBridgeOptions {
 	/**
 	 * Build a `grep` tool honoring a frame's own context width and match cap.
 	 *
-	 * The modern `pi_grep` frame carries both, and the shared `grep` instance
+	 * The modern `chud_grep` frame carries both, and the shared `grep` instance
 	 * is fixed to the session settings at construction — so without this the
 	 * two fields are silently dropped. Callers that cannot supply it keep the
 	 * shared instance and the session's defaults.
@@ -440,7 +440,7 @@ export class CursorExecHandlers implements ICursorExecHandlers {
 
 	/**
 	 * Modern Cursor builds paginate the legacy `read` frame with
-	 * `offset`/`limit`, exactly as `pi_read` does. Dropping them returns the
+	 * `offset`/`limit`, exactly as `chud_read` does. Dropping them returns the
 	 * whole file (or its own truncation) for every page, so a model walking a
 	 * large file never advances. Composed with the same helper, so both frames
 	 * translate a range identically.
@@ -617,7 +617,7 @@ export class CursorExecHandlers implements ICursorExecHandlers {
 		return toolResultMessage;
 	}
 	/**
-	 * Modern Cursor CLI Pi tool frames (`ExecServerMessage` 45-51).
+	 * Modern Cursor CLI Chud tool frames (`ExecServerMessage` 45-51).
 	 *
 	 * These are a separate frame family from the legacy `read`/`shell`/... set,
 	 * not aliases: different args, different result oneofs, and no `tool_call_id`
@@ -652,7 +652,7 @@ export class CursorExecHandlers implements ICursorExecHandlers {
 	}
 
 	/**
-	 * `PiEditExecArgs` carries a path plus `oldText`/`newText` replacement
+	 * `ChudEditExecArgs` carries a path plus `oldText`/`newText` replacement
 	 * pairs. A single replacement maps onto the model-facing single-edit
 	 * `replace` schema verbatim; a multi-replacement frame still runs as ONE
 	 * tool lifecycle (one start/end event pair, one aggregate diff), so it is
@@ -678,7 +678,7 @@ export class CursorExecHandlers implements ICursorExecHandlers {
 
 	/**
 	 * `literal` makes the pattern a fixed string; the local tool is regex-only,
-	 * so the pattern is escaped on the way in (same translation the legacy pi
+	 * so the pattern is escaped on the way in (same translation the legacy chud
 	 * shim does).
 	 *
 	 * `context` and `limit` are not expressible in the model-facing schema —
@@ -711,7 +711,7 @@ export class CursorExecHandlers implements ICursorExecHandlers {
 	}
 
 	/**
-	 * `pi_find` is a filename search, which is the local `glob` tool — not
+	 * `chud_find` is a filename search, which is the local `glob` tool — not
 	 * `grep`. Its `pattern` is a glob, joined onto `path` because `glob` takes a
 	 * single combined path spec.
 	 *

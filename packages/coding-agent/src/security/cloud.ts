@@ -1,4 +1,4 @@
-import { decodeJwt } from "@oh-my-pi/pi-ai/registry/oauth/openai-codex";
+import { decodeJwt } from "@chudware/ai/registry/oauth/openai-codex";
 import type { AuthStorage } from "../session/auth-storage";
 import * as git from "../utils/git";
 import { resolveExactSecurityOAuthAccess } from "./auth";
@@ -629,7 +629,7 @@ export async function pullCodexSecurityCloudResults(
 	const revision = stats.lastScannedCommit;
 	const bundle: SecurityScanBundle = {
 		scan: {
-			documentType: "omp-security.scan",
+			documentType: "chudcode-security.scan",
 			schemaVersion: "1.0",
 			id: scanId,
 			projectKey: input.store.projectKey,

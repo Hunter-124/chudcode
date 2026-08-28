@@ -1,9 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "bun:test";
 import { stripVTControlCharacters } from "node:util";
-import type { UsageReport } from "@oh-my-pi/pi-ai";
-import { Settings, settings } from "@oh-my-pi/pi-coding-agent/config/settings";
-import { StatusLineComponent } from "@oh-my-pi/pi-coding-agent/modes/components/status-line";
-import { initTheme } from "@oh-my-pi/pi-coding-agent/modes/theme/theme";
+import type { UsageReport } from "@chudware/ai";
+import { Settings, settings } from "@chudware/coding-agent/config/settings";
+import { StatusLineComponent } from "@chudware/coding-agent/modes/components/status-line";
+import { initTheme } from "@chudware/coding-agent/modes/theme/theme";
 import { beginSettingsTest, restoreSettingsTestState, type SettingsTestState } from "./helpers/settings-test-state";
 
 const EXPECTED_USAGE_OUTPUT = "5h 24%";

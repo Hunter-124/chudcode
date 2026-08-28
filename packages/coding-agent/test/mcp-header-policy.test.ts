@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from "bun:test";
-import { mergeMCPHeaders, setGeneratedHeader } from "@oh-my-pi/pi-coding-agent/mcp/transports/header-policy";
-import { HttpTransport } from "@oh-my-pi/pi-coding-agent/mcp/transports/http";
+import { mergeMCPHeaders, setGeneratedHeader } from "@chudware/coding-agent/mcp/transports/header-policy";
+import { HttpTransport } from "@chudware/coding-agent/mcp/transports/http";
 
 const REQUEST_TIMEOUT_MS = 1_000;
 

@@ -1,13 +1,13 @@
-import type { Model } from "@oh-my-pi/pi-ai";
-import type { ModelTokenizer } from "@oh-my-pi/pi-catalog/types";
-import { countTokens as countTokensNat, Encoding } from "@oh-my-pi/pi-natives";
-import { stringifyJson } from "@oh-my-pi/pi-utils";
-import * as snapcompact from "@oh-my-pi/snapcompact";
+import type { Model } from "@chudware/ai";
+import type { ModelTokenizer } from "@chudware/catalog/types";
+import { countTokens as countTokensNat, Encoding } from "@chudware/natives";
+import * as snapcompact from "@chudware/snapcompact";
+import { stringifyJson } from "@chudware/utils";
 import { isEstimateCacheable, messageEstimateVersion } from "./compaction/message-cache";
 import type { AgentMessage } from "./types";
 
 const testEnv = process.env.NODE_ENV === "test";
-const accurate = process.env.PI_TOKENIZER_ACCURATE === "1" && !testEnv;
+const accurate = process.env.CHUDCODE_TOKENIZER_ACCURATE === "1" && !testEnv;
 
 const NATIVE_ENCODING: Record<ModelTokenizer, Encoding> = {
 	"claude-v3": Encoding.ClaudeV3,
@@ -29,7 +29,7 @@ export function tokenizerEncodingForModel(model: Pick<Model, "tokenizer"> | null
  * `strict` always pays for an exact native count (the catalog-resolved
  * tokenizer when known, o200k_base otherwise). `approximate` and
  * `upperbound` prefer the same exact count for known tokenizer families or
- * when `PI_TOKENIZER_ACCURATE=1` is set; otherwise they use a cheap heuristic:
+ * when `CHUDCODE_TOKENIZER_ACCURATE=1` is set; otherwise they use a cheap heuristic:
  * `approximate` a bytes/4 guess, `upperbound` the raw byte length (never
  * undercounts).
  */
@@ -101,7 +101,7 @@ interface MessageEstimate {
  * when the model's encoding changes); one-shot flows construct their own for
  * the model that will be billed. Known tokenizer families use exact native
  * counts; unknown models keep the fast byte estimate (or o200k when
- * `PI_TOKENIZER_ACCURATE=1`).
+ * `CHUDCODE_TOKENIZER_ACCURATE=1`).
  */
 export class Tokenizer {
 	readonly #encoding: Encoding | null;

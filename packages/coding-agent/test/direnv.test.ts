@@ -1,10 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
-import { applyDirenvPreflight, executeBash } from "@oh-my-pi/pi-coding-agent/exec/bash-executor";
-import { findEnvrc, loadDirenvEnv, parseDirenvExport } from "@oh-my-pi/pi-coding-agent/exec/direnv";
-import { $which, TempDir } from "@oh-my-pi/pi-utils";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
+import { applyDirenvPreflight, executeBash } from "@chudware/coding-agent/exec/bash-executor";
+import { findEnvrc, loadDirenvEnv, parseDirenvExport } from "@chudware/coding-agent/exec/direnv";
+import { $which, TempDir } from "@chudware/utils";
+import * as fsx from "@chudware/utils/fsx";
 
 /** Real-direnv cases need the binary on PATH; skip cleanly when it's absent so
  *  the graceful-degradation code path (returns `null`) isn't asserted against. */
@@ -120,18 +120,18 @@ describe.skipIf(!hasDirenv)("loadDirenvEnv (real direnv, allow-list honored)", (
 
 	it("reports variables a .envrc unsets", async () => {
 		const root = tmp();
-		await fsx.write(path.join(root, ".envrc"), "unset PI_DIRENV_UNSET_TEST\n");
+		await fsx.write(path.join(root, ".envrc"), "unset CHUDCODE_DIRENV_UNSET_TEST\n");
 		await allowEnvrc(root);
 		// direnv emits a JSON null for a var only when it was present in the
 		// spawn env and the `.envrc` removes it, so seed it in the parent env.
 		// (Avoid a `DIRENV_`-prefixed name — the loader strips those before spawn.)
-		process.env.PI_DIRENV_UNSET_TEST = "present";
+		process.env.CHUDCODE_DIRENV_UNSET_TEST = "present";
 		try {
 			const diff = await loadDirenvEnv(root);
-			expect(diff?.set.PI_DIRENV_UNSET_TEST).toBeUndefined();
-			expect(diff?.unset).toContain("PI_DIRENV_UNSET_TEST");
+			expect(diff?.set.CHUDCODE_DIRENV_UNSET_TEST).toBeUndefined();
+			expect(diff?.unset).toContain("CHUDCODE_DIRENV_UNSET_TEST");
 		} finally {
-			delete process.env.PI_DIRENV_UNSET_TEST;
+			delete process.env.CHUDCODE_DIRENV_UNSET_TEST;
 		}
 	});
 
@@ -203,23 +203,23 @@ describe.skipIf(!hasDirenv)("bash executor direnv wiring (end-to-end)", () => {
 
 	it("removes variables the .envrc unsets from the command environment", async () => {
 		const root = tmp();
-		await fsx.write(path.join(root, ".envrc"), "unset PI_DIRENV_UNSET_E2E\n");
+		await fsx.write(path.join(root, ".envrc"), "unset CHUDCODE_DIRENV_UNSET_E2E\n");
 		await allowEnvrc(root);
-		// Inherited from the process env (as an OMP-provided var would be); the
+		// Inherited from the process env (as an Chudcode-provided var would be); the
 		// caller does NOT re-supply it, so direnv's unset must strip it. `printenv`
 		// exits non-zero and prints nothing when the name is genuinely absent. A
 		// unique sessionKey forces a fresh shell that captures the var we just set.
 		// (Avoid a `DIRENV_`-prefixed name — the loader strips those before spawn.)
-		process.env.PI_DIRENV_UNSET_E2E = "leaked";
+		process.env.CHUDCODE_DIRENV_UNSET_E2E = "leaked";
 		try {
-			const result = await executeBash('printenv PI_DIRENV_UNSET_E2E; printf "rc=%s" "$?"', {
+			const result = await executeBash('printenv CHUDCODE_DIRENV_UNSET_E2E; printf "rc=%s" "$?"', {
 				cwd: root,
 				sessionKey: `direnv-unset-${Date.now()}`,
 			});
 			expect(result.output).toContain("rc=1");
 			expect(result.output).not.toContain("leaked");
 		} finally {
-			delete process.env.PI_DIRENV_UNSET_E2E;
+			delete process.env.CHUDCODE_DIRENV_UNSET_E2E;
 		}
 	});
 });
@@ -263,39 +263,39 @@ describe.skipIf(!hasDirenv)("applyDirenvPreflight (shared all-backends preflight
 
 	it("prepends a regex-gated `unset -v` for vars the .envrc removes, skipping caller-resupplied names", async () => {
 		const root = tmp();
-		await fsx.write(path.join(root, ".envrc"), "unset PI_PF_UNSET_A\nunset PI_PF_UNSET_B\n");
+		await fsx.write(path.join(root, ".envrc"), "unset CHUDCODE_PF_UNSET_A\nunset CHUDCODE_PF_UNSET_B\n");
 		await allowEnvrc(root);
-		process.env.PI_PF_UNSET_A = "present";
-		process.env.PI_PF_UNSET_B = "present";
+		process.env.CHUDCODE_PF_UNSET_A = "present";
+		process.env.CHUDCODE_PF_UNSET_B = "present";
 		try {
 			const { command } = await applyDirenvPreflight("run-it", root, {
 				// Caller re-supplies B, so its unset must be skipped (caller wins).
-				callerEnv: { PI_PF_UNSET_B: "kept" },
+				callerEnv: { CHUDCODE_PF_UNSET_B: "kept" },
 				direnvSetting: "auto",
 			});
-			expect(command).toContain("unset -v PI_PF_UNSET_A");
-			expect(command).not.toContain("PI_PF_UNSET_B");
+			expect(command).toContain("unset -v CHUDCODE_PF_UNSET_A");
+			expect(command).not.toContain("CHUDCODE_PF_UNSET_B");
 			expect(command.endsWith("run-it")).toBe(true);
 		} finally {
-			delete process.env.PI_PF_UNSET_A;
-			delete process.env.PI_PF_UNSET_B;
+			delete process.env.CHUDCODE_PF_UNSET_A;
+			delete process.env.CHUDCODE_PF_UNSET_B;
 		}
 	});
 
 	it("applies the shell commandPrefix after the unset prefix", async () => {
 		const root = tmp();
-		await fsx.write(path.join(root, ".envrc"), "unset PI_PF_ORDER\n");
+		await fsx.write(path.join(root, ".envrc"), "unset CHUDCODE_PF_ORDER\n");
 		await allowEnvrc(root);
-		process.env.PI_PF_ORDER = "present";
+		process.env.CHUDCODE_PF_ORDER = "present";
 		try {
 			const { command } = await applyDirenvPreflight("payload", root, {
 				direnvSetting: "auto",
 				commandPrefix: "strace -f",
 			});
 			// Ordering must be: `unset -v NAME; <prefix> <command>`.
-			expect(command).toBe("unset -v PI_PF_ORDER; strace -f payload");
+			expect(command).toBe("unset -v CHUDCODE_PF_ORDER; strace -f payload");
 		} finally {
-			delete process.env.PI_PF_ORDER;
+			delete process.env.CHUDCODE_PF_ORDER;
 		}
 	});
 

@@ -1,4 +1,4 @@
-import { escapeXmlText, prompt, Snowflake } from "@oh-my-pi/pi-utils";
+import { escapeXmlText, prompt, Snowflake } from "@chudware/utils";
 import goalBudgetLimitPrompt from "../prompts/goals/goal-budget-limit.md" with { type: "text" };
 import goalContinuationPrompt from "../prompts/goals/goal-continuation.md" with { type: "text" };
 import goalModeActivePrompt from "../prompts/goals/goal-mode-active.md" with { type: "text" };
@@ -64,7 +64,7 @@ export function renderTrustedObjective(objective: string): string {
 
 export function goalTokenDelta(current: GoalTokenUsage, baseline: GoalTokenUsage): number {
 	// Diverges from codex-rs: codex omits cache creation because its target providers
-	// do not bill cache writes distinctly through the token-usage stream. Pi receives
+	// do not bill cache writes distinctly through the token-usage stream. Chud receives
 	// cacheWrite separately on Anthropic/Bedrock; rotating a 1h ephemeral cache or
 	// re-anchoring a changed system prompt can write 100K+ tokens, which the goal
 	// budget must account for. cacheRead is excluded because it is reused prefix,

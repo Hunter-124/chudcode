@@ -1,10 +1,10 @@
 import { beforeAll, describe, expect, it } from "bun:test";
 import * as path from "node:path";
-import { type } from "@oh-my-pi/omptype";
-import { toolWireSchema } from "@oh-my-pi/pi-ai";
-import { Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
-import { initTheme, theme } from "@oh-my-pi/pi-coding-agent/modes/theme/theme";
-import type { ToolSession } from "@oh-my-pi/pi-coding-agent/tools";
+import { type } from "@chudware/chudtype";
+import { toolWireSchema } from "@chudware/ai";
+import { Settings } from "@chudware/coding-agent/config/settings";
+import { initTheme, theme } from "@chudware/coding-agent/modes/theme/theme";
+import type { ToolSession } from "@chudware/coding-agent/tools";
 import {
 	markdownToPhases,
 	nextActionableTask,
@@ -18,8 +18,8 @@ import {
 	TodoTool,
 	todoMatchesAnyDescription,
 	todoToolRenderer,
-} from "@oh-my-pi/pi-coding-agent/tools";
-import type { Component } from "@oh-my-pi/pi-tui";
+} from "@chudware/coding-agent/tools";
+import type { Component } from "@chudware/tui";
 
 function createSession(initialPhases: TodoPhase[] = []): ToolSession {
 	let phases = initialPhases;
@@ -103,7 +103,7 @@ describe("TodoTool auto-start behavior", () => {
 });
 
 describe("TodoTool project context curation", () => {
-	it("refreshes the Mnemopi digest after a successful state change", async () => {
+	it("refreshes the Mnemo digest after a successful state change", async () => {
 		const session = createSession();
 		const refreshes: TodoPhase[][] = [];
 		session.getMnemopiSessionState = () =>
@@ -914,7 +914,7 @@ describe("todoToolRenderer.renderCall malformed-args regression (#2005)", () => 
 	it("renders op summary metadata for a well-formed flat call", () => {
 		const args = { op: "init", items: ["a", "b", "c"] };
 		const component = todoToolRenderer.renderCall(args, renderOptions, theme);
-		// `Text(text, 0, 0)` from `@oh-my-pi/pi-tui` exposes the content via .render().
+		// `Text(text, 0, 0)` from `@chudware/tui` exposes the content via .render().
 		const rendered = Bun.stripANSI(component.render(120).join("\n"));
 		expect(rendered).toContain("init");
 		expect(rendered).toContain("3 items");

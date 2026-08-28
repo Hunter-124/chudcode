@@ -7,7 +7,7 @@ import type {
 	ServiceTierByFamily,
 	TextContent,
 	Usage,
-} from "@oh-my-pi/pi-ai";
+} from "@chudware/ai";
 import {
 	directoryIsEnterable,
 	getBlobsDir,
@@ -17,7 +17,7 @@ import {
 	logger,
 	stringifyJson,
 	toError,
-} from "@oh-my-pi/pi-utils";
+} from "@chudware/utils";
 import type { StructuredSubagentSchemaMode } from "../task/types";
 import { ArtifactManager } from "./artifacts";
 import { type BlobPutOptions, type BlobPutResult, BlobStore } from "./blob-store";

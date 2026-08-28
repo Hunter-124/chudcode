@@ -1,23 +1,23 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "bun:test";
-import { ASYNC_JOB_MANAGER_SHUTDOWN_REASON, AsyncJobManager } from "@oh-my-pi/pi-coding-agent/async";
-import type { ModelRegistry } from "@oh-my-pi/pi-coding-agent/config/model-registry";
-import { Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
-import type { LoadExtensionsResult } from "@oh-my-pi/pi-coding-agent/extensibility/extensions/types";
-import { IrcBus } from "@oh-my-pi/pi-coding-agent/irc/bus";
-import { RpcSubagentRegistry } from "@oh-my-pi/pi-coding-agent/modes/rpc/rpc-subagents";
-import type { RpcSubagentFrame } from "@oh-my-pi/pi-coding-agent/modes/rpc/rpc-types";
-import { AgentLifecycleManager } from "@oh-my-pi/pi-coding-agent/registry/agent-lifecycle";
-import { AgentRegistry } from "@oh-my-pi/pi-coding-agent/registry/agent-registry";
-import { registerPersistedSubagents } from "@oh-my-pi/pi-coding-agent/registry/persisted-agents";
-import type { CreateAgentSessionResult } from "@oh-my-pi/pi-coding-agent/sdk";
-import * as sdkModule from "@oh-my-pi/pi-coding-agent/sdk";
-import type { AgentSession, AgentSessionEvent, PromptOptions } from "@oh-my-pi/pi-coding-agent/session/agent-session";
-import type { CustomMessage } from "@oh-my-pi/pi-coding-agent/session/messages";
-import { resolveSoftRequestBudget, runSubprocess } from "@oh-my-pi/pi-coding-agent/task/executor";
-import type { AgentDefinition } from "@oh-my-pi/pi-coding-agent/task/types";
-import { EventBus } from "@oh-my-pi/pi-coding-agent/utils/event-bus";
-import { TempDir } from "@oh-my-pi/pi-utils";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
+import { ASYNC_JOB_MANAGER_SHUTDOWN_REASON, AsyncJobManager } from "@chudware/coding-agent/async";
+import type { ModelRegistry } from "@chudware/coding-agent/config/model-registry";
+import { Settings } from "@chudware/coding-agent/config/settings";
+import type { LoadExtensionsResult } from "@chudware/coding-agent/extensibility/extensions/types";
+import { IrcBus } from "@chudware/coding-agent/irc/bus";
+import { RpcSubagentRegistry } from "@chudware/coding-agent/modes/rpc/rpc-subagents";
+import type { RpcSubagentFrame } from "@chudware/coding-agent/modes/rpc/rpc-types";
+import { AgentLifecycleManager } from "@chudware/coding-agent/registry/agent-lifecycle";
+import { AgentRegistry } from "@chudware/coding-agent/registry/agent-registry";
+import { registerPersistedSubagents } from "@chudware/coding-agent/registry/persisted-agents";
+import type { CreateAgentSessionResult } from "@chudware/coding-agent/sdk";
+import * as sdkModule from "@chudware/coding-agent/sdk";
+import type { AgentSession, AgentSessionEvent, PromptOptions } from "@chudware/coding-agent/session/agent-session";
+import type { CustomMessage } from "@chudware/coding-agent/session/messages";
+import { resolveSoftRequestBudget, runSubprocess } from "@chudware/coding-agent/task/executor";
+import type { AgentDefinition } from "@chudware/coding-agent/task/types";
+import { EventBus } from "@chudware/coding-agent/utils/event-bus";
+import { TempDir } from "@chudware/utils";
+import * as fsx from "@chudware/utils/fsx";
 
 /**
  * Contracts under test — the soft request budget must degrade gracefully

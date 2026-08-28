@@ -1,8 +1,8 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "bun:test";
 import * as path from "node:path";
 import { scheduler } from "node:timers/promises";
-import { type } from "@oh-my-pi/omptype";
-import { Agent, type AgentTool } from "@oh-my-pi/pi-agent-core";
+import { type } from "@chudware/chudtype";
+import { Agent, type AgentTool } from "@chudware/agent-core";
 import {
 	type Api,
 	type AssistantMessage,
@@ -10,27 +10,27 @@ import {
 	type Model,
 	type ModelUsageHealth,
 	type ProviderSessionState,
-} from "@oh-my-pi/pi-ai";
-import * as AIError from "@oh-my-pi/pi-ai/error";
-import { createMockModel } from "@oh-my-pi/pi-ai/providers/mock";
-import { AssistantMessageEventStream } from "@oh-my-pi/pi-ai/utils/event-stream";
-import { buildModel } from "@oh-my-pi/pi-catalog/build";
-import { writeModelCache } from "@oh-my-pi/pi-catalog/model-cache";
-import { getBundledModel } from "@oh-my-pi/pi-catalog/models";
-import { ModelRegistry } from "@oh-my-pi/pi-coding-agent/config/model-registry";
-import { parseModelPattern, parseModelString } from "@oh-my-pi/pi-coding-agent/config/model-resolver";
-import { Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
-import { ExtensionRuntime, loadExtensionFromFactory } from "@oh-my-pi/pi-coding-agent/extensibility/extensions/loader";
-import { ExtensionRunner } from "@oh-my-pi/pi-coding-agent/extensibility/extensions/runner";
-import { initTheme } from "@oh-my-pi/pi-coding-agent/modes/theme/theme";
-import { AgentSession, type AgentSessionEvent } from "@oh-my-pi/pi-coding-agent/session/agent-session";
-import { AuthStorage } from "@oh-my-pi/pi-coding-agent/session/auth-storage";
-import type { ServingModel } from "@oh-my-pi/pi-coding-agent/session/retry-fallback-chains";
-import { SessionManager } from "@oh-my-pi/pi-coding-agent/session/session-manager";
-import { EventBus } from "@oh-my-pi/pi-coding-agent/utils/event-bus";
-import { TempDir } from "@oh-my-pi/pi-utils";
-import { sleep } from "@oh-my-pi/pi-utils/async";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
+} from "@chudware/ai";
+import * as AIError from "@chudware/ai/error";
+import { createMockModel } from "@chudware/ai/providers/mock";
+import { AssistantMessageEventStream } from "@chudware/ai/utils/event-stream";
+import { buildModel } from "@chudware/catalog/build";
+import { writeModelCache } from "@chudware/catalog/model-cache";
+import { getBundledModel } from "@chudware/catalog/models";
+import { ModelRegistry } from "@chudware/coding-agent/config/model-registry";
+import { parseModelPattern, parseModelString } from "@chudware/coding-agent/config/model-resolver";
+import { Settings } from "@chudware/coding-agent/config/settings";
+import { ExtensionRuntime, loadExtensionFromFactory } from "@chudware/coding-agent/extensibility/extensions/loader";
+import { ExtensionRunner } from "@chudware/coding-agent/extensibility/extensions/runner";
+import { initTheme } from "@chudware/coding-agent/modes/theme/theme";
+import { AgentSession, type AgentSessionEvent } from "@chudware/coding-agent/session/agent-session";
+import { AuthStorage } from "@chudware/coding-agent/session/auth-storage";
+import type { ServingModel } from "@chudware/coding-agent/session/retry-fallback-chains";
+import { SessionManager } from "@chudware/coding-agent/session/session-manager";
+import { EventBus } from "@chudware/coding-agent/utils/event-bus";
+import { TempDir } from "@chudware/utils";
+import { sleep } from "@chudware/utils/async";
+import * as fsx from "@chudware/utils/fsx";
 
 type AutoRetryStartEvent = Extract<AgentSessionEvent, { type: "auto_retry_start" }>;
 type AutoRetryEndEvent = Extract<AgentSessionEvent, { type: "auto_retry_end" }>;
@@ -458,11 +458,11 @@ describe("AgentSession retry fallback", () => {
 		const appliedFromExtension: Array<{ from: string; to: string; role: string }> = [];
 		const succeededFromExtension: Array<{ model: string; role: string }> = [];
 		const extension = await loadExtensionFromFactory(
-			pi => {
-				pi.on("retry_fallback_applied", event => {
+			chud => {
+				chud.on("retry_fallback_applied", event => {
 					appliedFromExtension.push({ from: event.from, to: event.to, role: event.role });
 				});
-				pi.on("retry_fallback_succeeded", event => {
+				chud.on("retry_fallback_succeeded", event => {
 					succeededFromExtension.push({ model: event.model, role: event.role });
 				});
 			},
@@ -5175,7 +5175,7 @@ describe("AgentSession retry fallback", () => {
 	});
 
 	it("carries attribution across a fork, which continues the conversation under a new id", async () => {
-		using tempDir = TempDir.createSync("@omp-fallback-fork-");
+		using tempDir = TempDir.createSync("@chudcode-fallback-fork-");
 		const primaryModel = getBundledModel("anthropic", "claude-sonnet-4-5");
 		const fallbackModel = getBundledModel("openai", "gpt-4o-mini");
 		if (!primaryModel || !fallbackModel) {

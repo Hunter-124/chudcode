@@ -9,22 +9,22 @@ import {
 	getBundledModels,
 	getBundledProviders,
 	modelsAreEqual,
-} from "@oh-my-pi/pi-catalog/models";
-import { Type as TypeBoxShimType } from "@oh-my-pi/pi-coding-agent/extensibility/legacy-typebox";
+} from "@chudware/catalog/models";
+import { Type as TypeBoxShimType } from "@chudware/coding-agent/extensibility/legacy-typebox";
 import {
 	__resetLegacyPiResolutionCache,
 	installLegacyPiSpecifierShim,
 	loadLegacyPiModule,
-} from "@oh-my-pi/pi-coding-agent/extensibility/plugins/legacy-pi-compat";
-import { removeWithRetries } from "@oh-my-pi/pi-utils";
+} from "@chudware/coding-agent/extensibility/plugins/legacy-pi-compat";
+import { removeWithRetries } from "@chudware/utils";
 
-// pi-ai 15.1.0 removed the runtime `Type` export from `@oh-my-pi/pi-ai`'s
+// chud-ai 15.1.0 removed the runtime `Type` export from `@chudware/ai`'s
 // package root. Legacy extensions (and their aliased-scope variants such as
 // `@earendil-works/pi-ai`) still author parameter schemas as
 // `import { Type } from "@earendil-works/pi-ai"` and then `Type.Object(...)`.
-// `legacy-pi-compat.ts` patches that gap by redirecting bare pi-ai root
+// `legacy-pi-compat.ts` patches that gap by redirecting bare chud-ai root
 // imports through `legacy-pi-ai-shim.ts`, which re-exports the canonical
-// pi-ai surface plus the Zod-backed `Type` runtime from the same TypeBox shim
+// chud-ai surface plus the Zod-backed `Type` runtime from the same TypeBox shim
 // `@sinclair/typebox` is served from.
 installLegacyPiSpecifierShim();
 
@@ -41,7 +41,7 @@ afterAll(async () => {
 });
 
 async function writeFixtureExtension(source: string): Promise<string> {
-	const dir = await fs.mkdtemp(path.join(os.tmpdir(), "omp-pi-ai-type-remap-"));
+	const dir = await fs.mkdtemp(path.join(os.tmpdir(), "chudcode-pi-ai-type-remap-"));
 	tempRoots.push(dir);
 	const entry = path.join(dir, "index.ts");
 	await fs.writeFile(entry, source, "utf8");
@@ -69,7 +69,7 @@ describe("legacy-pi @(scope)/pi-ai root `Type` remap (issue #1437)", () => {
 		expect(loaded.schema.safeParse({ name: "ok", extra: 1 }).success).toBe(false);
 	});
 
-	it("redirects the legacy pi-ai compat entrypoint through the root compatibility shim", async () => {
+	it("redirects the legacy chud-ai compat entrypoint through the root compatibility shim", async () => {
 		const entry = await writeFixtureExtension(
 			[
 				'import { StringEnum, complete, type Model } from "@earendil-works/pi-ai/compat";',
@@ -88,22 +88,22 @@ describe("legacy-pi @(scope)/pi-ai root `Type` remap (issue #1437)", () => {
 		expect(loaded.completeType).toBe("function");
 	});
 
-	it('redirects `import { Type } from "@oh-my-pi/pi-ai"` for plugins published against the canonical scope', async () => {
+	it('redirects `import { Type } from "@chudware/ai"` for plugins published against the canonical scope', async () => {
 		const entry = await writeFixtureExtension(
-			['import { Type } from "@oh-my-pi/pi-ai";', "export const probe = Type;"].join("\n"),
+			['import { Type } from "@chudware/ai";', "export const probe = Type;"].join("\n"),
 		);
 
 		const loaded = (await loadLegacyPiModule(entry)) as { probe: typeof TypeBoxShimType };
 		expect(loaded.probe).toBe(TypeBoxShimType);
 	});
 
-	it("does not redirect subpath imports such as @oh-my-pi/pi-ai/utils/schema", async () => {
+	it("does not redirect subpath imports such as @chudware/ai/utils/schema", async () => {
 		const entry = await writeFixtureExtension(
 			[
 				// `arkToWireSchema` is only exported from the subpath, not the root,
 				// so a successful import proves the subpath still resolves directly
-				// against the bundled pi-ai package rather than the shim.
-				'import { arkToWireSchema } from "@oh-my-pi/pi-ai/utils/schema";',
+				// against the bundled chud-ai package rather than the shim.
+				'import { arkToWireSchema } from "@chudware/ai/utils/schema";',
 				"export const fn = arkToWireSchema;",
 			].join("\n"),
 		);
@@ -116,7 +116,7 @@ describe("legacy-pi @(scope)/pi-ai root `Type` remap (issue #1437)", () => {
 		const loaded = (await loadLegacyPiModule(
 			await writeFixtureExtension(
 				[
-					'import { calculateCost, clampThinkingLevel, getBundledModel, getBundledModels, getBundledProviders, getModel, getModels, modelsAreEqual, StringEnum } from "@oh-my-pi/pi-ai";',
+					'import { calculateCost, clampThinkingLevel, getBundledModel, getBundledModels, getBundledProviders, getModel, getModels, modelsAreEqual, StringEnum } from "@chudware/ai";',
 					"export const helpers = { calculateCost, getBundledModel, getBundledModels, getBundledProviders, getModel, getModels, modelsAreEqual };",
 					"export const supported = clampThinkingLevel({ reasoning: true, thinking: { efforts: ['low', 'high'] } }, 'high');",
 					"export const disabled = clampThinkingLevel({ reasoning: false }, 'high');",
@@ -176,17 +176,17 @@ describe("legacy-pi @(scope)/pi-ai root `Type` remap (issue #1437)", () => {
 	});
 });
 
-describe("legacy pi package root remaps (issue #1474)", () => {
-	it("loads @earendil-works/pi-coding-agent root imports when host package resolution is unavailable", async () => {
+describe("legacy chud package root remaps (issue #1474)", () => {
+	it("loads @earendil-works/chudcode-agent root imports when host package resolution is unavailable", async () => {
 		const realResolveSync = Bun.resolveSync.bind(Bun);
 		vi.spyOn(Bun, "resolveSync").mockImplementation((specifier: string, from: string) => {
-			if (specifier === "@oh-my-pi/pi-coding-agent" && from.endsWith(path.join("src", "extensibility", "plugins"))) {
+			if (specifier === "@chudware/coding-agent" && from.endsWith(path.join("src", "extensibility", "plugins"))) {
 				throw new Error("compiled binary host package resolution unavailable");
 			}
 			return realResolveSync(specifier, from);
 		});
 		const entry = await writeFixtureExtension(
-			['import { VERSION } from "@earendil-works/pi-coding-agent";', "export const loadedVersion = VERSION;"].join(
+			['import { VERSION } from "@earendil-works/chudcode-agent";', "export const loadedVersion = VERSION;"].join(
 				"\n",
 			),
 		);
@@ -195,10 +195,10 @@ describe("legacy pi package root remaps (issue #1474)", () => {
 		expect(loaded.loadedVersion).toMatch(/^\d+\.\d+\.\d+/);
 	});
 
-	it("loads pi-vimmode's minified legacy imports", async () => {
+	it("loads chud-vimmode's minified legacy imports", async () => {
 		const entry = await writeFixtureExtension(
 			[
-				'import{CustomEditor,copyToClipboard}from"@earendil-works/pi-coding-agent";',
+				'import{CustomEditor,copyToClipboard}from"@earendil-works/chudcode-agent";',
 				'import{CURSOR_MARKER,decodeKittyPrintable,matchesKey,parseKey,truncateToWidth,visibleWidth}from"@earendil-works/pi-tui";',
 				"export const apiTypes=[typeof CustomEditor,typeof copyToClipboard,typeof CURSOR_MARKER,typeof decodeKittyPrintable,typeof matchesKey,typeof parseKey,typeof truncateToWidth,typeof visibleWidth];",
 				'export const printable=decodeKittyPrintable("\\x1b[97u");',
@@ -219,7 +219,7 @@ describe("legacy pi package root remaps (issue #1474)", () => {
 		expect(loaded.printable).toBe("a");
 	});
 
-	it("loads pi-sprite's legacy terminal helpers", async () => {
+	it("loads chud-sprite's legacy terminal helpers", async () => {
 		const entry = await writeFixtureExtension(
 			[
 				'import { deleteAllKittyImages, deleteKittyImage, getCapabilities } from "@earendil-works/pi-tui";',
@@ -234,7 +234,7 @@ describe("legacy pi package root remaps (issue #1474)", () => {
 			deleteAll: string;
 			capabilities: { images: "kitty" | "iterm2" | null; trueColor: boolean; hyperlinks: boolean };
 		};
-		// Bare sequences, exactly like upstream Pi: legacy callers (pi-sprite)
+		// Bare sequences, exactly like upstream Chud: legacy callers (chud-sprite)
 		// apply their own tmux passthrough wrapping.
 		expect(loaded.deleteOne).toBe("\x1b_Ga=d,d=I,i=42,q=2\x1b\\");
 		expect(loaded.deleteAll).toBe("\x1b_Ga=d,d=A,q=2\x1b\\");
@@ -244,7 +244,7 @@ describe("legacy pi package root remaps (issue #1474)", () => {
 	});
 
 	it("preserves legacy defineTool root imports and usable coding tools", async () => {
-		const dir = await fs.mkdtemp(path.join(os.tmpdir(), "omp-legacy-coding-tools-"));
+		const dir = await fs.mkdtemp(path.join(os.tmpdir(), "chudcode-legacy-coding-tools-"));
 		tempRoots.push(dir);
 		await fs.writeFile(path.join(dir, "sample.txt"), "legacy read body", "utf8");
 		const entry = path.join(dir, "index.ts");
@@ -253,7 +253,7 @@ describe("legacy pi package root remaps (issue #1474)", () => {
 			[
 				'import { dirname } from "node:path";',
 				'import { fileURLToPath } from "node:url";',
-				'import { createCodingTools, defineTool, Type } from "@earendil-works/pi-coding-agent";',
+				'import { createCodingTools, defineTool, Type } from "@earendil-works/chudcode-agent";',
 				"const definition = {",
 				'\tname: "legacy_define_tool",',
 				'\tlabel: "Legacy Define Tool",',
@@ -288,7 +288,7 @@ describe("legacy pi package root remaps (issue #1474)", () => {
 	it("preserves legacy frontmatter helper root imports", async () => {
 		const entry = await writeFixtureExtension(
 			[
-				'import { parseFrontmatter, stripFrontmatter } from "@earendil-works/pi-coding-agent";',
+				'import { parseFrontmatter, stripFrontmatter } from "@earendil-works/chudcode-agent";',
 				"const content = ['---', 'name: demo', '---', '# Body'].join('\\n');",
 				"export const parsed = parseFrontmatter(content);",
 				"export const stripped = stripFrontmatter(content);",
@@ -308,15 +308,15 @@ describe("legacy pi package root remaps (issue #1474)", () => {
 	it("falls back to legacy-scoped subpath peers for direct plugin imports", async () => {
 		const realResolveSync = Bun.resolveSync.bind(Bun);
 		vi.spyOn(Bun, "resolveSync").mockImplementation((specifier: string, from: string) => {
-			if (specifier === "@oh-my-pi/pi-ai/oauth") {
+			if (specifier === "@chudware/ai/oauth") {
 				throw new Error(`canonical peer unavailable from ${from}`);
 			}
 			return realResolveSync(specifier, from);
 		});
 
-		const dir = await fs.mkdtemp(path.join(os.tmpdir(), "omp-legacy-direct-subpath-"));
+		const dir = await fs.mkdtemp(path.join(os.tmpdir(), "chudcode-legacy-direct-subpath-"));
 		tempRoots.push(dir);
-		const packageDir = path.join(dir, "node_modules", "@mariozechner", "pi-ai");
+		const packageDir = path.join(dir, "node_modules", "@mariozechner", "chud-ai");
 		await fs.mkdir(packageDir, { recursive: true });
 		await fs.writeFile(
 			path.join(packageDir, "package.json"),
@@ -327,7 +327,7 @@ describe("legacy pi package root remaps (issue #1474)", () => {
 		const entry = path.join(dir, "index.ts");
 		await fs.writeFile(
 			entry,
-			['import { marker } from "@mariozechner/pi-ai/oauth";', "export const loadedMarker = marker;"].join("\n"),
+			['import { marker } from "@mariozechner/chud-ai/oauth";', "export const loadedMarker = marker;"].join("\n"),
 			"utf8",
 		);
 
@@ -338,9 +338,9 @@ describe("legacy pi package root remaps (issue #1474)", () => {
 	});
 
 	it("routes @earendil-works/pi-utils through canonical Bun.resolveSync in non-compiled mode", async () => {
-		// Regression: when omp runs from a node_modules install (not the monorepo
+		// Regression: when chudcode runs from a node_modules install (not the monorepo
 		// and not a compiled binary), the bundled packages live at
-		// `node_modules/@oh-my-pi/pi-*`, not next to the source tree. Hardcoding
+		// `node_modules/@chudware/pi-*`, not next to the source tree. Hardcoding
 		// a sibling `packages/<pkg>/src/index.ts` path would miss them, so the
 		// non-compiled branch must delegate to `Bun.resolveSync` against the
 		// canonical specifier.
@@ -351,7 +351,7 @@ describe("legacy pi package root remaps (issue #1474)", () => {
 		const realResolveSync = Bun.resolveSync.bind(Bun);
 		let canonicalLookupSeen = false;
 		vi.spyOn(Bun, "resolveSync").mockImplementation((specifier: string, from: string) => {
-			if (specifier === "@oh-my-pi/pi-utils") {
+			if (specifier === "@chudware/utils") {
 				canonicalLookupSeen = true;
 			}
 			return realResolveSync(specifier, from);

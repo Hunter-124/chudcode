@@ -1,17 +1,17 @@
 import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from "bun:test";
 import * as fs from "node:fs";
-import { getBundledModel } from "@oh-my-pi/pi-catalog/models";
-import { Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
-import * as pythonExecutor from "@oh-my-pi/pi-coding-agent/eval/py/executor";
-import type { PythonKernel as PythonKernelInstance } from "@oh-my-pi/pi-coding-agent/eval/py/kernel";
-import * as pythonKernel from "@oh-my-pi/pi-coding-agent/eval/py/kernel";
-import { AgentRegistry } from "@oh-my-pi/pi-coding-agent/registry/agent-registry";
-import { createAgentSession, type ExtensionFactory, type WorkspaceTree } from "@oh-my-pi/pi-coding-agent/sdk";
-import { AgentStorage } from "@oh-my-pi/pi-coding-agent/session/agent-storage";
-import { SessionManager } from "@oh-my-pi/pi-coding-agent/session/session-manager";
-import { Snowflake, TempDir } from "@oh-my-pi/pi-utils";
-import * as piUtils from "@oh-my-pi/pi-utils/async";
-import { sleep } from "@oh-my-pi/pi-utils/async";
+import { getBundledModel } from "@chudware/catalog/models";
+import { Settings } from "@chudware/coding-agent/config/settings";
+import * as pythonExecutor from "@chudware/coding-agent/eval/py/executor";
+import type { PythonKernel as PythonKernelInstance } from "@chudware/coding-agent/eval/py/kernel";
+import * as pythonKernel from "@chudware/coding-agent/eval/py/kernel";
+import { AgentRegistry } from "@chudware/coding-agent/registry/agent-registry";
+import { createAgentSession, type ExtensionFactory, type WorkspaceTree } from "@chudware/coding-agent/sdk";
+import { AgentStorage } from "@chudware/coding-agent/session/agent-storage";
+import { SessionManager } from "@chudware/coding-agent/session/session-manager";
+import { Snowflake, TempDir } from "@chudware/utils";
+import * as piUtils from "@chudware/utils/async";
+import { sleep } from "@chudware/utils/async";
 
 const OK_EXECUTION = { status: "ok", cancelled: false, timedOut: false, stdinRequested: false } as const;
 

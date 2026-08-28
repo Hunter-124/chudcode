@@ -1,7 +1,7 @@
 import { describe, expect, it } from "bun:test";
-import { convertMessages } from "@oh-my-pi/pi-ai/providers/google-shared";
-import type { Context, Model, Usage } from "@oh-my-pi/pi-ai/types";
-import { buildModel } from "@oh-my-pi/pi-catalog/build";
+import { convertMessages } from "@chudware/ai/providers/google-shared";
+import type { Context, Model, Usage } from "@chudware/ai/types";
+import { buildModel } from "@chudware/catalog/build";
 
 const ZERO_USAGE: Usage = {
 	input: 0,
@@ -53,7 +53,7 @@ function contextWithToolResult(toolName = "stale_tool_name"): Context {
 						type: "toolCall",
 						id: "call_12345_abc",
 						name: "actual_tool_name",
-						arguments: { query: "pi" },
+						arguments: { query: "chud" },
 					},
 				],
 				usage: ZERO_USAGE,

@@ -1,27 +1,27 @@
 /**
- * Issue #4919: a pi extension calling `ctx.ui.addAutocompleteProvider(...)` in its
- * `session_start` handler crashed at load under omp — the method was absent from
+ * Issue #4919: a chud extension calling `ctx.ui.addAutocompleteProvider(...)` in its
+ * `session_start` handler crashed at load under chudcode — the method was absent from
  * `ExtensionUIContext`, so the call threw `TypeError: ... is not a function` and
  * (for extensions that wrap init in try/catch, e.g. @ff-labs/pi-fff) aborted the
  * extension's entire initialization.
  *
- * These tests pin the pi-compatible contract:
+ * These tests pin the chud-compatible contract:
  * - headless contexts accept the factory as a no-op instead of throwing, and
  * - interactive mode stacks each factory on top of the built-in editor provider.
  *
  * NOTE: imports are relative (`../src/...`) so the tests exercise this checkout
- * even when `node_modules/@oh-my-pi/pi-coding-agent` resolves elsewhere.
+ * even when `node_modules/@chudware/coding-agent` resolves elsewhere.
  */
 
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "bun:test";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
-import { type } from "@oh-my-pi/omptype";
-import { Agent, type AgentTool } from "@oh-my-pi/pi-agent-core";
-import { type Api, Effort, type Model } from "@oh-my-pi/pi-ai";
-import type { AutocompleteProvider } from "@oh-my-pi/pi-tui";
-import { logger, TempDir } from "@oh-my-pi/pi-utils";
+import { type } from "@chudware/chudtype";
+import { Agent, type AgentTool } from "@chudware/agent-core";
+import { type Api, Effort, type Model } from "@chudware/ai";
+import type { AutocompleteProvider } from "@chudware/tui";
+import { logger, TempDir } from "@chudware/utils";
 import { ModelRegistry } from "../src/config/model-registry";
 import { resetSettingsForTest, Settings } from "../src/config/settings";
 import { loadExtensions } from "../src/extensibility/extensions/loader";
@@ -45,7 +45,7 @@ function makeTool(name: string): AgentTool {
 }
 
 /**
- * Wrap `current` the way a well-behaved pi extension does: contribute items for
+ * Wrap `current` the way a well-behaved chud extension does: contribute items for
  * its own trigger prefix, delegate everything else to the wrapped provider.
  */
 function makeWrappingFactory(tag: string): (current: AutocompleteProvider) => AutocompleteProvider {
@@ -159,8 +159,8 @@ describe("extension autocomplete provider API (#4919)", () => {
 		fs.writeFileSync(
 			extPath,
 			`import * as fs from "node:fs";
-export default function (pi) {
-	pi.on("session_start", async (_event, ctx) => {
+export default function (chud) {
+	chud.on("session_start", async (_event, ctx) => {
 		try {
 			ctx.ui.addAutocompleteProvider((current) => current);
 			// "Rest of init" — on baseline the call above throws and this never runs.

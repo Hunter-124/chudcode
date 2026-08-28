@@ -13,7 +13,7 @@
   - `packages/coding-agent/src/session/streaming-output.ts` — line truncation and final byte truncation.
   - `packages/coding-agent/src/config/settings-schema.ts` — default context lines.
   - `packages/natives/native/index.d.ts` — native `grep()` types exposed to TS.
-  - `crates/pi-natives/src/grep.rs` — native regex/file search implementation.
+  - `crates/chud-natives/src/grep.rs` — native regex/file search implementation.
   - `docs/natives-text-search-pipeline.md` — native search pipeline overview.
 
 ## Inputs
@@ -68,7 +68,7 @@ The tool returns a single text block in `content[0].text` plus structured `detai
    - multiple entries: `resolveExplicitSearchPaths()` (via `resolveToolSearchScope()`) computes a common base directory, brace-union glob, exact-file list, or per-entry target list. Targets fan out when the common ancestor is not itself a requested scope, or when a plain-file entry would otherwise be demoted into a directory walk's glob union (`fanOutFileTargets`).
 7. Line-range selectors are validated after path/archive/internal resolution. They are allowed only for single files, archive members, or virtual resources; glob/directory line-range selectors error.
 8. `grep.ts` stats the resolved base path to decide file vs directory behavior.
-9. It calls native `grep()` from `@oh-my-pi/pi-natives` with:
+9. It calls native `grep()` from `@chudware/natives` with:
    - `pattern`, `ignoreCase`, `multiline`, `gitignore`;
    - `hidden: true`;
    - `cache: false`;
@@ -78,7 +78,7 @@ The tool returns a single text block in `content[0].text` plus structured `detai
    - `maxCountPerFile`: the per-file match cap plus one;
    - `mode: content`;
    - the combined abort `signal` and `timeoutMs: SEARCH_GREP_TIMEOUT_MS` (`30_000`).
-10. Native execution happens in `crates/pi-natives/src/grep.rs`:
+10. Native execution happens in `crates/chud-natives/src/grep.rs`:
    - `build_matcher()` sanitizes non-quantifier braces and first tries the Rust regex engine;
    - patterns unsupported by Rust regex (including lookaround/backreferences) retry with PCRE2;
    - group-balance errors retry with literal parentheses; if both engines still reject the pattern, the original pattern is searched literally.
@@ -140,7 +140,7 @@ The tool returns a single text block in `content[0].text` plus structured `detai
 - Pagination: `skip` is a file-page offset for multi-file scopes. The result text says `Use skip=<N> for the next page` when more files remain.
 - Native directory-scan cache: available in `grep.rs`, but this tool always sets `cache: false`.
 - Native grep wall-clock budget: `30_000ms` per invocation (`SEARCH_GREP_TIMEOUT_MS` in `packages/coding-agent/src/tools/grep.ts`); hitting it raises `Grep timed out after 30s; ...`.
-- Native per-file size cap: `4 * 1024 * 1024` bytes (`MAX_FILE_BYTES` in `crates/pi-natives/src/grep.rs`, mirrored as `NATIVE_GREP_MAX_FILE_BYTES` in `grep.ts`). Oversized filesystem files are skipped and surfaced as partial coverage (names for explicit files, a count for directory scans). Oversized virtual resources are searched in line-boundary chunks for line mode; multiline virtual searches fall back to JavaScript regex.
+- Native per-file size cap: `4 * 1024 * 1024` bytes (`MAX_FILE_BYTES` in `crates/chud-natives/src/grep.rs`, mirrored as `NATIVE_GREP_MAX_FILE_BYTES` in `grep.ts`). Oversized filesystem files are skipped and surfaced as partial coverage (names for explicit files, a count for directory scans). Oversized virtual resources are searched in line-boundary chunks for line mode; multiline virtual searches fall back to JavaScript regex.
 
 ## Errors
 - `Pattern must not be empty` when trimmed `pattern` is empty.

@@ -1,18 +1,18 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "bun:test";
 import * as path from "node:path";
-import { Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
-import { createLspWritethrough, type FileDiagnosticsResult, FileFormatResult } from "@oh-my-pi/pi-coding-agent/lsp";
-import * as lspClient from "@oh-my-pi/pi-coding-agent/lsp/client";
-import * as lspConfig from "@oh-my-pi/pi-coding-agent/lsp/config";
-import { formatContent } from "@oh-my-pi/pi-coding-agent/lsp/diagnostics";
-import type { Diagnostic, LinterClient, LspClient, ServerConfig } from "@oh-my-pi/pi-coding-agent/lsp/types";
-import { EquivalentUriMap, fileToUri } from "@oh-my-pi/pi-coding-agent/lsp/utils";
-import type { DeferredDiagnosticsEntry, ToolSession } from "@oh-my-pi/pi-coding-agent/tools";
-import { WriteTool } from "@oh-my-pi/pi-coding-agent/tools/write";
-import { type ptree, TempDir } from "@oh-my-pi/pi-utils";
-import * as piUtils from "@oh-my-pi/pi-utils/async";
-import { sleep } from "@oh-my-pi/pi-utils/async";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
+import { Settings } from "@chudware/coding-agent/config/settings";
+import { createLspWritethrough, type FileDiagnosticsResult, FileFormatResult } from "@chudware/coding-agent/lsp";
+import * as lspClient from "@chudware/coding-agent/lsp/client";
+import * as lspConfig from "@chudware/coding-agent/lsp/config";
+import { formatContent } from "@chudware/coding-agent/lsp/diagnostics";
+import type { Diagnostic, LinterClient, LspClient, ServerConfig } from "@chudware/coding-agent/lsp/types";
+import { EquivalentUriMap, fileToUri } from "@chudware/coding-agent/lsp/utils";
+import type { DeferredDiagnosticsEntry, ToolSession } from "@chudware/coding-agent/tools";
+import { WriteTool } from "@chudware/coding-agent/tools/write";
+import { type ptree, TempDir } from "@chudware/utils";
+import * as piUtils from "@chudware/utils/async";
+import { sleep } from "@chudware/utils/async";
+import * as fsx from "@chudware/utils/fsx";
 
 const TEST_SERVER: ServerConfig = {
 	command: "test-lsp",
@@ -124,7 +124,7 @@ describe("LSP diagnostics freshness", () => {
 	let tempDir: TempDir;
 
 	beforeEach(() => {
-		tempDir = TempDir.createSync("@omp-lsp-freshness-");
+		tempDir = TempDir.createSync("@chudcode-lsp-freshness-");
 	});
 
 	afterEach(() => {
@@ -699,7 +699,7 @@ describe("LSP diagnostics freshness", () => {
 			...TEST_SERVER,
 			rootMarkers: ["package.json", "tsconfig.json", "jsconfig.json"],
 		};
-		const orphanDir = TempDir.createSync("@omp-lsp-orphan-");
+		const orphanDir = TempDir.createSync("@chudcode-lsp-orphan-");
 		try {
 			const filePath = path.join(orphanDir.path(), "scratch.ts");
 			const uri = fileToUri(filePath);

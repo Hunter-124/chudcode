@@ -12,23 +12,23 @@
  * helper itself is exercised directly.
  */
 import { afterEach, describe, expect, it, vi } from "bun:test";
-import type { AuthStorage, FetchImpl } from "@oh-my-pi/pi-ai";
-import { resetSettingsForTest, Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
-import type { AgentStorage } from "@oh-my-pi/pi-coding-agent/session/agent-storage";
-import type { ToolSession } from "@oh-my-pi/pi-coding-agent/tools";
-import { ToolAbortError } from "@oh-my-pi/pi-coding-agent/tools/tool-errors";
-import { runSearchQuery, WebSearchTool } from "@oh-my-pi/pi-coding-agent/web/search";
-import * as provider from "@oh-my-pi/pi-coding-agent/web/search/provider";
-import { searchAnthropic } from "@oh-my-pi/pi-coding-agent/web/search/providers/anthropic";
-import type { SearchParams } from "@oh-my-pi/pi-coding-agent/web/search/providers/base";
-import { searchBrave } from "@oh-my-pi/pi-coding-agent/web/search/providers/brave";
-import { withHardTimeout } from "@oh-my-pi/pi-coding-agent/web/search/providers/utils";
+import type { AuthStorage, FetchImpl } from "@chudware/ai";
+import { resetSettingsForTest, Settings } from "@chudware/coding-agent/config/settings";
+import type { AgentStorage } from "@chudware/coding-agent/session/agent-storage";
+import type { ToolSession } from "@chudware/coding-agent/tools";
+import { ToolAbortError } from "@chudware/coding-agent/tools/tool-errors";
+import { runSearchQuery, WebSearchTool } from "@chudware/coding-agent/web/search";
+import * as provider from "@chudware/coding-agent/web/search/provider";
+import { searchAnthropic } from "@chudware/coding-agent/web/search/providers/anthropic";
+import type { SearchParams } from "@chudware/coding-agent/web/search/providers/base";
+import { searchBrave } from "@chudware/coding-agent/web/search/providers/brave";
+import { withHardTimeout } from "@chudware/coding-agent/web/search/providers/utils";
 import {
 	SearchProviderError,
 	type SearchProviderId,
 	type SearchResponse,
-} from "@oh-my-pi/pi-coding-agent/web/search/types";
-import { sleep } from "@oh-my-pi/pi-utils/async";
+} from "@chudware/coding-agent/web/search/types";
+import { sleep } from "@chudware/utils/async";
 
 const FAKE_SESSION = {} as ToolSession;
 const fakeStorage = {

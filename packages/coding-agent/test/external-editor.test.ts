@@ -1,8 +1,8 @@
 import { afterEach, describe, expect, it, spyOn } from "bun:test";
 import * as fs from "node:fs";
 import * as path from "node:path";
-import { TempDir } from "@oh-my-pi/pi-utils";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
+import { TempDir } from "@chudware/utils";
+import * as fsx from "@chudware/utils/fsx";
 import { getEditorCommand, openInEditor, resolveEditorSpawnCommand } from "../src/utils/external-editor";
 
 interface MutableProcess {
@@ -89,7 +89,7 @@ describe("openInEditor", () => {
 	});
 
 	it("passes the cmd.exe command line verbatim on Windows", () => {
-		const tmpFile = String.raw`C:\Users\Example User\AppData\Local\Temp\omp-editor-123.omp.md`;
+		const tmpFile = String.raw`C:\Users\Example User\AppData\Local\Temp\chudcode-editor-123.chudcode.md`;
 
 		expect(resolveEditorSpawnCommand('"C:\\Program Files\\Code.exe" --wait', tmpFile, "win32")).toEqual({
 			cmd: [
@@ -97,7 +97,7 @@ describe("openInEditor", () => {
 				"/d",
 				"/s",
 				"/c",
-				String.raw`""C:\Program Files\Code.exe" --wait "C:\Users\Example User\AppData\Local\Temp\omp-editor-123.omp.md""`,
+				String.raw`""C:\Program Files\Code.exe" --wait "C:\Users\Example User\AppData\Local\Temp\chudcode-editor-123.chudcode.md""`,
 			],
 			windowsVerbatimArguments: true,
 		});

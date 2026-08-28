@@ -137,7 +137,7 @@ Each provider search transport receives a hard timeout from `providers.webSearch
   - **Codex** — `packages/coding-agent/src/web/search/providers/codex.ts`
     - Availability: OAuth credential for `openai-codex` in `agent.db`; refresh is lazy during search. Custom model-registry endpoints may instead use a configured API-key/command credential, but official OAuth/env credentials are refused for custom endpoints.
     - Querying: streams the Codex Responses endpoint with hosted `web_search` and `search_context_size: "high"`. Google-style directives are re-emitted in the query.
-    - `PI_CODEX_WEB_SEARCH_MODEL` forces one model attempt. Otherwise the adapter tries bundled ChatGPT-account-safe models in preference order (`gpt-5.6-luna`, `terra`, `sol`, `gpt-5.5`, …), advancing only for supported model-retry failures. Responses-Lite models use automatic tool choice; a completion without a `web_search_call` is rejected rather than presented as searched content.
+    - `CHUDCODE_CODEX_WEB_SEARCH_MODEL` forces one model attempt. Otherwise the adapter tries bundled ChatGPT-account-safe models in preference order (`gpt-5.6-luna`, `terra`, `sol`, `gpt-5.5`, …), advancing only for supported model-retry failures. Responses-Lite models use automatic tool choice; a completion without a `web_search_call` is rejected rather than presented as searched content.
     - Ignores `recency`, `max_tokens`, and `temperature`. `num_search_results ?? limit` slices parsed sources locally.
     - Output may include `answer`, `sources`, `usage`, `model`, `requestId`. If the stream has no `url_citation` annotations, the adapter falls back to markdown links and bare URLs from the answer.
   - **xAI** — `packages/coding-agent/src/web/search/providers/xai.ts`

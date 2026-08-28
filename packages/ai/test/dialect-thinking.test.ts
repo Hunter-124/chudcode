@@ -5,7 +5,7 @@ import {
 	getDialectDefinition,
 	type InbandScanEvent,
 	type InbandScannerOptions,
-} from "@oh-my-pi/pi-ai/dialect";
+} from "@chudware/ai/dialect";
 
 function scan(
 	dialect: Dialect,

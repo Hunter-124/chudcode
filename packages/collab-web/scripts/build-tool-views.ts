@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
 /**
- * Bundle the shared React tool renderers + the `<omp-tool-view>` web component
+ * Bundle the shared React tool renderers + the `<chudcode-tool-view>` web component
  * into a single self-contained script (React included, CSS inlined) for
  * embedding in coding-agent HTML session exports.
  *
@@ -8,7 +8,7 @@
  * Run via `bun run gen:tool-views` after changing src/tool-render/.
  */
 import * as path from "node:path";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
+import * as fsx from "@chudware/utils/fsx";
 
 const root = path.join(import.meta.dir, "..");
 const outFile = path.join(root, "../coding-agent/src/export/html/tool-views.generated.js");

@@ -1,15 +1,15 @@
 /**
  * End-to-end exercise of the subprocess-backed Ruby runner.
  *
- * Gated by `PI_RUBY_INTEGRATION=1` so CI without a real Ruby interpreter
+ * Gated by `CHUDCODE_RUBY_INTEGRATION=1` so CI without a real Ruby interpreter
  * (or sandboxes where subprocess spawning is restricted) does not fail.
  */
 import { afterEach, describe, expect, it } from "bun:test";
-import { disposeAllRubyKernelSessions, executeRubyWithKernel } from "@oh-my-pi/pi-coding-agent/eval/rb/executor";
-import { RubyKernel } from "@oh-my-pi/pi-coding-agent/eval/rb/kernel";
-import { TempDir } from "@oh-my-pi/pi-utils";
+import { disposeAllRubyKernelSessions, executeRubyWithKernel } from "@chudware/coding-agent/eval/rb/executor";
+import { RubyKernel } from "@chudware/coding-agent/eval/rb/kernel";
+import { TempDir } from "@chudware/utils";
 
-const SHOULD_RUN = process.env.PI_RUBY_INTEGRATION === "1";
+const SHOULD_RUN = process.env.CHUDCODE_RUBY_INTEGRATION === "1";
 
 describe.skipIf(!SHOULD_RUN)("ruby runner subprocess", () => {
 	afterEach(async () => {

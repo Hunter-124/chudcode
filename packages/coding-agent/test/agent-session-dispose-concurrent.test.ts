@@ -1,17 +1,17 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "bun:test";
 import * as path from "node:path";
-import { Agent } from "@oh-my-pi/pi-agent-core";
-import { createMockModel } from "@oh-my-pi/pi-ai/providers/mock";
-import { getBundledModel } from "@oh-my-pi/pi-catalog/models";
-import { ASYNC_JOB_MANAGER_SHUTDOWN_REASON, AsyncJobManager } from "@oh-my-pi/pi-coding-agent/async";
-import { ModelRegistry } from "@oh-my-pi/pi-coding-agent/config/model-registry";
-import { Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
-import { HindsightSessionState } from "@oh-my-pi/pi-coding-agent/hindsight/state";
-import { MnemopiSessionState, setMnemopiSessionState } from "@oh-my-pi/pi-coding-agent/mnemopi/state";
-import { AgentSession } from "@oh-my-pi/pi-coding-agent/session/agent-session";
-import type { AuthStorage } from "@oh-my-pi/pi-coding-agent/session/auth-storage";
-import { SessionManager } from "@oh-my-pi/pi-coding-agent/session/session-manager";
-import { logger, TempDir } from "@oh-my-pi/pi-utils";
+import { Agent } from "@chudware/agent-core";
+import { createMockModel } from "@chudware/ai/providers/mock";
+import { getBundledModel } from "@chudware/catalog/models";
+import { ASYNC_JOB_MANAGER_SHUTDOWN_REASON, AsyncJobManager } from "@chudware/coding-agent/async";
+import { ModelRegistry } from "@chudware/coding-agent/config/model-registry";
+import { Settings } from "@chudware/coding-agent/config/settings";
+import { HindsightSessionState } from "@chudware/coding-agent/hindsight/state";
+import { MnemopiSessionState, setMnemopiSessionState } from "@chudware/coding-agent/mnemo/state";
+import { AgentSession } from "@chudware/coding-agent/session/agent-session";
+import type { AuthStorage } from "@chudware/coding-agent/session/auth-storage";
+import { SessionManager } from "@chudware/coding-agent/session/session-manager";
+import { logger, TempDir } from "@chudware/utils";
 import { createInMemoryAuthStorage } from "./helpers/agent-session-setup";
 
 async function flushMicrotasks(): Promise<void> {
@@ -26,7 +26,7 @@ describe("AgentSession concurrent disposal", () => {
 	let session: AgentSession | undefined;
 
 	beforeEach(() => {
-		tempDir = TempDir.createSync("@omp-dispose-concurrent-");
+		tempDir = TempDir.createSync("@chudcode-dispose-concurrent-");
 		authStorage = createInMemoryAuthStorage();
 		authStorage.setRuntimeApiKey("anthropic", "test-key");
 	});
@@ -165,13 +165,13 @@ describe("AgentSession concurrent disposal", () => {
 		vi.spyOn(hindsight, "dispose").mockImplementation(() => {});
 		current.setHindsightSessionState(hindsight);
 
-		const mnemopi: MnemopiSessionState = Object.create(MnemopiSessionState.prototype);
-		vi.spyOn(mnemopi, "dispose").mockImplementation(async () => {
-			order.push("mnemopi:start");
+		const mnemo: MnemopiSessionState = Object.create(MnemopiSessionState.prototype);
+		vi.spyOn(mnemo, "dispose").mockImplementation(async () => {
+			order.push("mnemo:start");
 			await mnemopiGate.promise;
-			order.push("mnemopi:end");
+			order.push("mnemo:end");
 		});
-		setMnemopiSessionState(current, mnemopi);
+		setMnemopiSessionState(current, mnemo);
 
 		let persistenceClosed = false;
 		vi.spyOn(current.sessionManager, "close").mockImplementation(async () => {
@@ -184,10 +184,10 @@ describe("AgentSession concurrent disposal", () => {
 			await asyncStarted.promise;
 			await Promise.resolve();
 			expect(order).toContain("hindsight:start");
-			expect(order).toContain("mnemopi:start");
+			expect(order).toContain("mnemo:start");
 			expect(order).not.toContain("async:end");
 			expect(order).not.toContain("hindsight:end");
-			expect(order).not.toContain("mnemopi:end");
+			expect(order).not.toContain("mnemo:end");
 			expect(persistenceClosed).toBe(false);
 		} finally {
 			asyncGate.resolve();
@@ -200,7 +200,7 @@ describe("AgentSession concurrent disposal", () => {
 		const closeAt = order.indexOf("session:close");
 		expect(closeAt).toBeGreaterThan(order.indexOf("async:end"));
 		expect(closeAt).toBeGreaterThan(order.indexOf("hindsight:end"));
-		expect(closeAt).toBeGreaterThan(order.indexOf("mnemopi:end"));
+		expect(closeAt).toBeGreaterThan(order.indexOf("mnemo:end"));
 	});
 
 	it("bounds post-prompt work that ignores abort", async () => {

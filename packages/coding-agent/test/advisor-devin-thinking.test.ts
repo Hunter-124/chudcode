@@ -1,15 +1,15 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "bun:test";
-import { Agent } from "@oh-my-pi/pi-agent-core";
-import { Effort, type Model } from "@oh-my-pi/pi-ai";
-import { getBundledModel } from "@oh-my-pi/pi-catalog/models";
-import { ModelRegistry } from "@oh-my-pi/pi-coding-agent/config/model-registry";
-import { Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
-import { AgentSession } from "@oh-my-pi/pi-coding-agent/session/agent-session";
-import type { AuthStorage } from "@oh-my-pi/pi-coding-agent/session/auth-storage";
-import { SessionManager } from "@oh-my-pi/pi-coding-agent/session/session-manager";
+import { Agent } from "@chudware/agent-core";
+import { Effort, type Model } from "@chudware/ai";
+import { getBundledModel } from "@chudware/catalog/models";
+import { ModelRegistry } from "@chudware/coding-agent/config/model-registry";
+import { Settings } from "@chudware/coding-agent/config/settings";
+import { AgentSession } from "@chudware/coding-agent/session/agent-session";
+import type { AuthStorage } from "@chudware/coding-agent/session/auth-storage";
+import { SessionManager } from "@chudware/coding-agent/session/session-manager";
 import { createInMemoryAuthStorage } from "./helpers/agent-session-setup";
 
-// Regression for https://github.com/can1357/oh-my-pi/issues/4579.
+// Regression for https://github.com/Hunter-124/chudcode/issues/4579.
 //
 // When the advisor role resolves to a reasoning model without a controllable
 // effort surface (Devin `devin-agent`: `reasoning: true`, `thinking: undefined`

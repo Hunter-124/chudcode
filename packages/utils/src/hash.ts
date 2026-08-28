@@ -3,12 +3,12 @@ import * as zlib from "node:zlib";
 /**
  * Non-cryptographic checksums that do not depend on the native addon.
  *
- * This module stays free of `@oh-my-pi/pi-natives` on purpose: it sits on the
+ * This module stays free of `@chudware/natives` on purpose: it sits on the
  * CLI's cold-start path, and the startup contract (asserted by the
  * profile-bootstrap and computer-worker laziness probes) is that ordinary CLI
  * paths never `dlopen` the addon. The 64-bit hashes still needed by call sites
  * live in the addon as `hashWyhash64` / `hashXxhash64` for callers that already
- * load it — and in `native/hash/omp_hash.c` for the native host.
+ * load it — and in `native/hash/chudcode_hash.c` for the native host.
  */
 
 export type HashInput = string | Uint8Array;

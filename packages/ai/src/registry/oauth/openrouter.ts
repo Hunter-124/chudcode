@@ -85,7 +85,7 @@ export class OpenRouterOAuthFlow extends OAuthCallbackFlow {
 		return {
 			url: `${AUTHORIZE_URL}?${params.toString()}`,
 			instructions:
-				"Authorize OMP in your browser, or paste an existing OpenRouter API key (sk-or-…) when prompted. If the browser cannot reach this machine, paste the final redirect URL or authorization code instead.",
+				"Authorize Chudcode in your browser, or paste an existing OpenRouter API key (sk-or-…) when prompted. If the browser cannot reach this machine, paste the final redirect URL or authorization code instead.",
 		};
 	}
 

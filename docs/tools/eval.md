@@ -49,10 +49,10 @@ Example across three calls:
 
 | Token | Runtime | Setting/default | Environment override | Additional prerequisite |
 | --- | --- | --- | --- | --- |
-| `py` | retained IPython-style Python kernel | `eval.py=true` | `PI_PY` | usable configured Python interpreter/kernel |
-| `js` | retained Bun worker VM | `eval.js=true` | `PI_JS` | bundled JS runtime |
-| `rb` | retained Ruby kernel | `eval.rb=false` | `PI_RB` | usable `ruby.interpreter` or discovered Ruby |
-| `jl` | retained Julia kernel | `eval.jl=false` | `PI_JL` | usable `julia.interpreter` or discovered Julia |
+| `py` | retained IPython-style Python kernel | `eval.py=true` | `CHUDCODE_PY` | usable configured Python interpreter/kernel |
+| `js` | retained Bun worker VM | `eval.js=true` | `CHUDCODE_JS` | bundled JS runtime |
+| `rb` | retained Ruby kernel | `eval.rb=false` | `CHUDCODE_RB` | usable `ruby.interpreter` or discovered Ruby |
+| `jl` | retained Julia kernel | `eval.jl=false` | `CHUDCODE_JL` | usable `julia.interpreter` or discovered Julia |
 
 Ruby and Julia are opt-in. When at least one runtime is enabled, disabled runtimes are removed from the session-scoped wire schema and model prompt. If **all four** are disabled, the current `parameters` fallback returns the full static union even though every execution is rejected by `resolveBackend(...)`; this contradicts the nearby source comment that disabled backends never reach the model. A requested unavailable runtime raises `ToolError`; the tool never substitutes another language.
 

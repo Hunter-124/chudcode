@@ -1,16 +1,16 @@
-import { type Type, type } from "@oh-my-pi/omptype";
+import { type Type, type } from "@chudware/chudtype";
 import type {
 	AgentTool,
 	AgentToolContext,
 	AgentToolResult,
 	AgentToolUpdateCallback,
 	ToolApprovalDecision,
-} from "@oh-my-pi/pi-agent-core";
-import type { Model } from "@oh-my-pi/pi-ai";
-import { isClaudeModelId } from "@oh-my-pi/pi-catalog/identity";
-import type { DesktopCapabilities } from "@oh-my-pi/pi-natives";
-import { once, prompt } from "@oh-my-pi/pi-utils";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
+} from "@chudware/agent-core";
+import type { Model } from "@chudware/ai";
+import { isClaudeModelId } from "@chudware/catalog/identity";
+import type { DesktopCapabilities } from "@chudware/natives";
+import { once, prompt } from "@chudware/utils";
+import * as fsx from "@chudware/utils/fsx";
 import { callSessionTool } from "../eval/js/tool-bridge";
 import computerDescription from "../prompts/tools/computer.md" with { type: "text" };
 import { enforceInlineByteCap } from "../session/streaming-output";

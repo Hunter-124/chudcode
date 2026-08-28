@@ -1,19 +1,19 @@
 /**
  * End-to-end exercise of the new subprocess-backed Python runner.
  *
- * Gated by `PI_PYTHON_INTEGRATION=1` so CI without a real Python interpreter
+ * Gated by `CHUDCODE_PYTHON_INTEGRATION=1` so CI without a real Python interpreter
  * (or sandboxes where subprocess spawning is restricted) does not fail.
  */
 import { afterEach, describe, expect, it } from "bun:test";
 import * as path from "node:path";
-import { Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
-import { disposeAllKernelSessions, executePythonWithKernel } from "@oh-my-pi/pi-coding-agent/eval/py/executor";
-import { PythonKernel } from "@oh-my-pi/pi-coding-agent/eval/py/kernel";
-import { filterEnv, resolvePythonRuntime } from "@oh-my-pi/pi-coding-agent/eval/py/runtime";
-import { TempDir } from "@oh-my-pi/pi-utils";
-import * as proc from "@oh-my-pi/pi-utils/proc";
+import { Settings } from "@chudware/coding-agent/config/settings";
+import { disposeAllKernelSessions, executePythonWithKernel } from "@chudware/coding-agent/eval/py/executor";
+import { PythonKernel } from "@chudware/coding-agent/eval/py/kernel";
+import { filterEnv, resolvePythonRuntime } from "@chudware/coding-agent/eval/py/runtime";
+import { TempDir } from "@chudware/utils";
+import * as proc from "@chudware/utils/proc";
 
-const SHOULD_RUN = process.env.PI_PYTHON_INTEGRATION === "1";
+const SHOULD_RUN = process.env.CHUDCODE_PYTHON_INTEGRATION === "1";
 const MATPLOTLIB_TEST_CWD = process.cwd();
 
 async function hasMatplotlib(cwd: string): Promise<boolean> {

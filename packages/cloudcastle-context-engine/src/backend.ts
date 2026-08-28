@@ -1,4 +1,4 @@
-import type { AgentSession, MemoryBackend } from "@oh-my-pi/pi-coding-agent";
+import type { AgentSession, MemoryBackend } from "@chudware/coding-agent";
 import { fetchIncidentContext, DEFAULT_CONTEXT_DEPENDENCIES } from "./client";
 import { rankAndMergeEvidence } from "./ranking";
 import { parseCloudCastleContextSettings, type CloudCastleContextEnv } from "./settings";

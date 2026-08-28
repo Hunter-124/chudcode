@@ -1,6 +1,6 @@
 import * as fs from "node:fs/promises";
-import { isEnoent, logger, ptree } from "@oh-my-pi/pi-utils";
-import { sleep } from "@oh-my-pi/pi-utils/async";
+import { isEnoent, logger, ptree } from "@chudware/utils";
+import { sleep } from "@chudware/utils/async";
 import { NON_INTERACTIVE_ENV } from "../exec/non-interactive-env";
 import { MessageFramer } from "../jsonrpc/message-framing";
 import { ToolAbortError } from "../tools/tool-errors";

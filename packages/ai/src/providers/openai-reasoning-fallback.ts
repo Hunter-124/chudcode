@@ -1,4 +1,4 @@
-import { extractHttpStatusFromError } from "@oh-my-pi/pi-utils";
+import { extractHttpStatusFromError } from "@chudware/utils";
 import type { CapturedHttpErrorResponse } from "../utils/http-inspector";
 
 /**

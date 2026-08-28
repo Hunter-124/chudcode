@@ -3,15 +3,15 @@ import {
 	disposeAllKernelSessions,
 	disposeKernelSessionsByOwner,
 	executePython,
-} from "@oh-my-pi/pi-coding-agent/eval/py/executor";
+} from "@chudware/coding-agent/eval/py/executor";
 import {
 	type KernelExecuteOptions,
 	type KernelExecuteResult,
 	type KernelShutdownResult,
 	PythonKernel,
-} from "@oh-my-pi/pi-coding-agent/eval/py/kernel";
+} from "@chudware/coding-agent/eval/py/kernel";
 
-process.env.PI_PYTHON_SKIP_CHECK = "1";
+process.env.CHUDCODE_PYTHON_SKIP_CHECK = "1";
 
 class FakeKernel {
 	#result: KernelExecuteResult;

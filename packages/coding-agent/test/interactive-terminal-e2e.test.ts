@@ -1,17 +1,17 @@
 import { afterEach, beforeAll, beforeEach, describe, expect, it } from "bun:test";
 import * as path from "node:path";
-import { Agent } from "@oh-my-pi/pi-agent-core";
-import type { AssistantMessage, Usage } from "@oh-my-pi/pi-ai";
-import { ModelRegistry } from "@oh-my-pi/pi-coding-agent/config/model-registry";
-import { resetSettingsForTest, Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
-import { Composer } from "@oh-my-pi/pi-coding-agent/modes/composer";
-import { InteractiveMode } from "@oh-my-pi/pi-coding-agent/modes/interactive-mode";
-import { initTheme } from "@oh-my-pi/pi-coding-agent/modes/theme/theme";
-import { AgentSession } from "@oh-my-pi/pi-coding-agent/session/agent-session";
-import { AuthStorage } from "@oh-my-pi/pi-coding-agent/session/auth-storage";
-import { SessionManager } from "@oh-my-pi/pi-coding-agent/session/session-manager";
-import { TempDir } from "@oh-my-pi/pi-utils";
-import { sleep } from "@oh-my-pi/pi-utils/async";
+import { Agent } from "@chudware/agent-core";
+import type { AssistantMessage, Usage } from "@chudware/ai";
+import { ModelRegistry } from "@chudware/coding-agent/config/model-registry";
+import { resetSettingsForTest, Settings } from "@chudware/coding-agent/config/settings";
+import { Composer } from "@chudware/coding-agent/modes/composer";
+import { InteractiveMode } from "@chudware/coding-agent/modes/interactive-mode";
+import { initTheme } from "@chudware/coding-agent/modes/theme/theme";
+import { AgentSession } from "@chudware/coding-agent/session/agent-session";
+import { AuthStorage } from "@chudware/coding-agent/session/auth-storage";
+import { SessionManager } from "@chudware/coding-agent/session/session-manager";
+import { TempDir } from "@chudware/utils";
+import { sleep } from "@chudware/utils/async";
 import { VirtualTerminal } from "../../tui/test/virtual-terminal";
 
 function plainRows(rows: readonly string[]): string[] {
@@ -66,17 +66,17 @@ describe("libkitty end-to-end", () => {
 		const pending = mode.getUserInput();
 		await term.waitForRender();
 
-		term.sendInput("hi there omp");
+		term.sendInput("hi there chudcode");
 		await term.waitForRender();
 		term.sendInput("\r");
 		const input = await pending;
-		expect(input.text).toBe("hi there omp");
+		expect(input.text).toBe("hi there chudcode");
 
 		// The optimistic user-message block must be on the physical screen now,
 		// before any assistant output exists.
-		await term.waitForRender(() => plainRows(term.getViewport()).some(row => row.includes("hi there omp")));
+		await term.waitForRender(() => plainRows(term.getViewport()).some(row => row.includes("hi there chudcode")));
 		const viewport = plainRows(term.getViewport());
-		const hits = viewport.filter(row => row.includes("hi there omp"));
+		const hits = viewport.filter(row => row.includes("hi there chudcode"));
 		if (hits.length !== 1) dump("viewport after submit", viewport);
 		expect(hits.length).toBe(1);
 	});

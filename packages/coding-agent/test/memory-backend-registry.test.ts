@@ -1,17 +1,17 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
-import { getEnumValues, getUi } from "@oh-my-pi/pi-coding-agent/config/settings-schema";
-import { ExtensionRuntime, loadExtensionFromFactory } from "@oh-my-pi/pi-coding-agent/extensibility/extensions/loader";
-import { ExtensionRunner, emitSessionShutdownEvent } from "@oh-my-pi/pi-coding-agent/extensibility/extensions/runner";
+import { Settings } from "@chudware/coding-agent/config/settings";
+import { getEnumValues, getUi } from "@chudware/coding-agent/config/settings-schema";
+import { ExtensionRuntime, loadExtensionFromFactory } from "@chudware/coding-agent/extensibility/extensions/loader";
+import { ExtensionRunner, emitSessionShutdownEvent } from "@chudware/coding-agent/extensibility/extensions/runner";
 import {
 	getRegisteredMemoryBackend,
 	type MemoryBackend,
 	registerMemoryBackend,
 	resolveMemoryBackend,
 	unregisterMemoryBackendsForSource,
-} from "@oh-my-pi/pi-coding-agent/memory-backend";
-import { SessionManager } from "@oh-my-pi/pi-coding-agent/session/session-manager";
-import { EventBus } from "@oh-my-pi/pi-coding-agent/utils/event-bus";
+} from "@chudware/coding-agent/memory-backend";
+import { SessionManager } from "@chudware/coding-agent/session/session-manager";
+import { EventBus } from "@chudware/coding-agent/utils/event-bus";
 
 const TEST_SOURCES = ["registry-test-a", "registry-test-b", "registry-extension", "registry-broken"] as const;
 
@@ -83,7 +83,7 @@ describe("memory backend registry", () => {
 		expect(await resolveMemoryBackend(Settings.isolated({ "memory.backend": "local" }))).toBe(override);
 		dispose();
 
-		for (const id of ["off", "local", "hindsight", "mnemopi"] as const) {
+		for (const id of ["off", "local", "hindsight", "mnemo"] as const) {
 			expect((await resolveMemoryBackend(Settings.isolated({ "memory.backend": id }))).id).toBe(id);
 		}
 	});
@@ -100,8 +100,8 @@ describe("memory backend registry", () => {
 		const runtime = new ExtensionRuntime();
 		await expect(
 			loadExtensionFromFactory(
-				pi => {
-					pi.registerMemoryBackend(backend);
+				chud => {
+					chud.registerMemoryBackend(backend);
 					throw new Error("intentional load failure");
 				},
 				process.cwd(),
@@ -121,10 +121,10 @@ describe("memory backend registry", () => {
 		let registerAgain: (() => void) | undefined;
 		let unregister: (() => void) | undefined;
 		const extension = await loadExtensionFromFactory(
-			pi => {
-				pi.registerMemoryBackend(backend);
-				registerAgain = () => pi.registerMemoryBackend(backend);
-				unregister = () => pi.unregisterMemoryBackend(backend.id);
+			chud => {
+				chud.registerMemoryBackend(backend);
+				registerAgain = () => chud.registerMemoryBackend(backend);
+				unregister = () => chud.unregisterMemoryBackend(backend.id);
 			},
 			process.cwd(),
 			new EventBus(),

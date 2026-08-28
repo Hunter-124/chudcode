@@ -1,7 +1,7 @@
 import { afterAll, afterEach, describe, expect, it, vi } from "bun:test";
-import { type } from "@oh-my-pi/omptype";
-import type { AgentTool } from "@oh-my-pi/pi-agent-core";
-import { sleep } from "@oh-my-pi/pi-utils/async";
+import { type } from "@chudware/chudtype";
+import type { AgentTool } from "@chudware/agent-core";
+import { sleep } from "@chudware/utils/async";
 import { Settings } from "../../src/config/settings";
 import {
 	EVAL_TIMEOUT_PAUSE_OP,

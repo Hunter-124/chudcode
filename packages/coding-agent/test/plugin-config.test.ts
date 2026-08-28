@@ -2,10 +2,10 @@ import { afterEach, beforeEach, describe, expect, mock, spyOn, test } from "bun:
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import { PluginManager } from "@oh-my-pi/pi-coding-agent/extensibility/plugins/manager";
-import * as piUtils from "@oh-my-pi/pi-utils";
-import { removeWithRetries } from "@oh-my-pi/pi-utils";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
+import { PluginManager } from "@chudware/coding-agent/extensibility/plugins/manager";
+import * as piUtils from "@chudware/utils";
+import { removeWithRetries } from "@chudware/utils";
+import * as fsx from "@chudware/utils/fsx";
 
 describe("plugin config", () => {
 	let tmpRoot: string;
@@ -13,9 +13,9 @@ describe("plugin config", () => {
 	let lockfile: string;
 
 	beforeEach(async () => {
-		tmpRoot = await fs.mkdtemp(path.join(os.tmpdir(), "omp-plugin-config-"));
+		tmpRoot = await fs.mkdtemp(path.join(os.tmpdir(), "chudcode-plugin-config-"));
 		pluginsDir = path.join(tmpRoot, "plugins");
-		lockfile = path.join(pluginsDir, "omp-plugins.lock.json");
+		lockfile = path.join(pluginsDir, "chudcode-plugins.lock.json");
 
 		spyOn(piUtils, "getPluginsDir").mockReturnValue(pluginsDir);
 		spyOn(piUtils, "getPluginsLockfile").mockReturnValue(lockfile);
@@ -58,7 +58,7 @@ describe("plugin config", () => {
 	});
 
 	test("resolves marketplace settings without restoring duplicate list entries", async () => {
-		const pluginName = "omp-commit";
+		const pluginName = "chudcode-commit";
 		const installPath = path.join(pluginsDir, "cache", pluginName);
 		const pluginPath = path.join(pluginsDir, "node_modules", pluginName);
 		await fsx.write(
@@ -66,7 +66,7 @@ describe("plugin config", () => {
 			JSON.stringify({
 				name: pluginName,
 				version: "1.0.0",
-				omp: {
+				chudcode: {
 					version: "1.0.0",
 					settings: {
 						mainBranchProtection: {
@@ -84,7 +84,7 @@ describe("plugin config", () => {
 			JSON.stringify({
 				version: 2,
 				plugins: {
-					"omp-commit@market": [
+					"chudcode-commit@market": [
 						{
 							scope: "user",
 							installPath,
@@ -117,25 +117,25 @@ describe("plugin config", () => {
 	async function writeManifest(dir: string, manifest: Record<string, unknown>): Promise<void> {
 		await fsx.write(
 			path.join(dir, "package.json"),
-			JSON.stringify({ name: "omp-commit", version: "2.0.0", ...manifest }),
+			JSON.stringify({ name: "chudcode-commit", version: "2.0.0", ...manifest }),
 		);
 	}
 
 	async function installProjectMarketplacePlugin(schemaDefault: string, enabled = true): Promise<string> {
-		const installPath = path.join(tmpRoot, "cache", `omp-commit-project-${schemaDefault}`);
+		const installPath = path.join(tmpRoot, "cache", `chudcode-commit-project-${schemaDefault}`);
 		await writeManifest(installPath, {
-			omp: {
+			chudcode: {
 				version: "2.0.0",
 				settings: { splitMode: { type: "enum", values: ["auto", "manual"], default: schemaDefault } },
 			},
 		});
-		const projectRoot = path.join(tmpRoot, ".omp", "plugins");
+		const projectRoot = path.join(tmpRoot, ".chudcode", "plugins");
 		await fs.mkdir(path.join(projectRoot, "node_modules"), { recursive: true });
-		await fs.symlink(installPath, path.join(projectRoot, "node_modules", "omp-commit"), "dir");
+		await fs.symlink(installPath, path.join(projectRoot, "node_modules", "chudcode-commit"), "dir");
 		await fsx.write(
-			path.join(projectRoot, "omp-plugins.lock.json"),
+			path.join(projectRoot, "chudcode-plugins.lock.json"),
 			JSON.stringify({
-				plugins: { "omp-commit": { version: "2.0.0", enabledFeatures: null, enabled } },
+				plugins: { "chudcode-commit": { version: "2.0.0", enabledFeatures: null, enabled } },
 				settings: {},
 			}),
 		);
@@ -147,14 +147,14 @@ describe("plugin config", () => {
 
 		const manager = new PluginManager(tmpRoot);
 		expect(await manager.list()).toEqual([]);
-		expect((await manager.getPlugin("omp-commit"))?.manifest.settings?.splitMode?.default).toBe("auto");
+		expect((await manager.getPlugin("chudcode-commit"))?.manifest.settings?.splitMode?.default).toBe("auto");
 	});
 
 	test("prefers the active project plugin over a same-named user install", async () => {
 		// User install: same package name, different schema default.
-		const userPkg = path.join(pluginsDir, "node_modules", "omp-commit");
+		const userPkg = path.join(pluginsDir, "node_modules", "chudcode-commit");
 		await writeManifest(userPkg, {
-			omp: {
+			chudcode: {
 				version: "1.0.0",
 				settings: { splitMode: { type: "enum", values: ["auto", "manual"], default: "manual" } },
 			},
@@ -162,7 +162,7 @@ describe("plugin config", () => {
 		await fsx.write(
 			lockfile,
 			JSON.stringify({
-				plugins: { "omp-commit": { version: "1.0.0", enabledFeatures: null, enabled: true } },
+				plugins: { "chudcode-commit": { version: "1.0.0", enabledFeatures: null, enabled: true } },
 				settings: {},
 			}),
 		);
@@ -170,13 +170,13 @@ describe("plugin config", () => {
 		await installProjectMarketplacePlugin("auto");
 
 		const manager = new PluginManager(tmpRoot);
-		expect((await manager.getPlugin("omp-commit"))?.manifest.settings?.splitMode?.default).toBe("auto");
+		expect((await manager.getPlugin("chudcode-commit"))?.manifest.settings?.splitMode?.default).toBe("auto");
 	});
 
 	test("falls back to an enabled user plugin when the project copy is disabled", async () => {
-		const userPkg = path.join(pluginsDir, "node_modules", "omp-commit");
+		const userPkg = path.join(pluginsDir, "node_modules", "chudcode-commit");
 		await writeManifest(userPkg, {
-			omp: {
+			chudcode: {
 				version: "1.0.0",
 				settings: { splitMode: { type: "enum", values: ["auto", "manual"], default: "manual" } },
 			},
@@ -184,13 +184,13 @@ describe("plugin config", () => {
 		await fsx.write(
 			lockfile,
 			JSON.stringify({
-				plugins: { "omp-commit": { version: "1.0.0", enabledFeatures: null, enabled: true } },
+				plugins: { "chudcode-commit": { version: "1.0.0", enabledFeatures: null, enabled: true } },
 				settings: {},
 			}),
 		);
 		await installProjectMarketplacePlugin("auto", false);
 
 		const manager = new PluginManager(tmpRoot);
-		expect((await manager.getPlugin("omp-commit"))?.manifest.settings?.splitMode?.default).toBe("manual");
+		expect((await manager.getPlugin("chudcode-commit"))?.manifest.settings?.splitMode?.default).toBe("manual");
 	});
 });

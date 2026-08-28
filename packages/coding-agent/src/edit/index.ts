@@ -1,11 +1,11 @@
 import * as nodePath from "node:path";
-import { MismatchError as HashlineMismatchError } from "@oh-my-pi/hashline";
-import hashlineGrammar from "@oh-my-pi/hashline/grammar.lark" with { type: "text" };
-import hashlineDescription from "@oh-my-pi/hashline/prompt.md" with { type: "text" };
-import type { AgentTool, AgentToolContext, AgentToolResult, AgentToolUpdateCallback } from "@oh-my-pi/pi-agent-core";
-import type { ToolExample } from "@oh-my-pi/pi-ai";
-import { isEnoent, isEnotdir, logger, prompt } from "@oh-my-pi/pi-utils";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
+import { MismatchError as HashlineMismatchError } from "@chudware/hashline";
+import hashlineGrammar from "@chudware/hashline/grammar.lark" with { type: "text" };
+import hashlineDescription from "@chudware/hashline/prompt.md" with { type: "text" };
+import type { AgentTool, AgentToolContext, AgentToolResult, AgentToolUpdateCallback } from "@chudware/agent-core";
+import type { ToolExample } from "@chudware/ai";
+import { isEnoent, isEnotdir, logger, prompt } from "@chudware/utils";
+import * as fsx from "@chudware/utils/fsx";
 import { createLspWritethrough, flushLspWritethroughBatch, type WritethroughCallback, writethroughNoop } from "../lsp";
 import { DeferredDiagnostics } from "../lsp/deferred-diagnostics";
 import { getDiagnosticsLedger } from "../lsp/diagnostics-ledger";
@@ -49,7 +49,7 @@ import {
 } from "./sloppy";
 import { EDIT_MODE_STRATEGIES } from "./streaming";
 
-export * from "@oh-my-pi/hashline";
+export * from "@chudware/hashline";
 export { DEFAULT_EDIT_MODE, type EditMode, normalizeEditMode } from "../utils/edit-mode";
 export * from "./apply-patch";
 export * from "./diff";
@@ -97,7 +97,7 @@ function resolveConfiguredEditMode(rawEditMode: string): EditMode | undefined {
 
 	const editMode = normalizeEditMode(rawEditMode);
 	if (!editMode) {
-		throw new Error(`Invalid PI_EDIT_VARIANT: ${rawEditMode}`);
+		throw new Error(`Invalid CHUDCODE_EDIT_VARIANT: ${rawEditMode}`);
 	}
 
 	return editMode;
@@ -132,7 +132,7 @@ function resolveAllowFuzzy(session: ToolSession, rawValue: string): boolean {
 		case "auto":
 			return session.settings.get("edit.fuzzyMatch");
 		default:
-			throw new Error(`Invalid PI_EDIT_FUZZY: ${rawValue}`);
+			throw new Error(`Invalid CHUDCODE_EDIT_FUZZY: ${rawValue}`);
 	}
 }
 
@@ -143,7 +143,7 @@ function resolveFuzzyThreshold(session: ToolSession, rawValue: string): number {
 
 	const threshold = Number.parseFloat(rawValue);
 	if (Number.isNaN(threshold) || threshold < 0 || threshold > 1) {
-		throw new Error(`Invalid PI_EDIT_FUZZY_THRESHOLD: ${rawValue}`);
+		throw new Error(`Invalid CHUDCODE_EDIT_FUZZY_THRESHOLD: ${rawValue}`);
 	}
 
 	return threshold;
@@ -431,7 +431,7 @@ export class EditTool implements AgentTool<TInput> {
 
 	/**
 	 * `mode` pins the edit variant for this instance, for callers whose protocol
-	 * fixes the shape of an edit. The Cursor `pi_edit` frame carries
+	 * fixes the shape of an edit. The Cursor `chud_edit` frame carries
 	 * `old_string`/`new_string` args, which only `replace` accepts — under the
 	 * default `hashline` mode those args do not match the schema at all. Left
 	 * unset, the env/settings resolution applies as before.
@@ -441,9 +441,9 @@ export class EditTool implements AgentTool<TInput> {
 		mode?: EditMode,
 	) {
 		const {
-			PI_EDIT_FUZZY: editFuzzy = "auto",
-			PI_EDIT_FUZZY_THRESHOLD: editFuzzyThreshold = "auto",
-			PI_EDIT_VARIANT: envEditVariant = "auto",
+			CHUDCODE_EDIT_FUZZY: editFuzzy = "auto",
+			CHUDCODE_EDIT_FUZZY_THRESHOLD: editFuzzyThreshold = "auto",
+			CHUDCODE_EDIT_VARIANT: envEditVariant = "auto",
 		} = process.env;
 
 		this.#editMode = mode ?? resolveConfiguredEditMode(envEditVariant);
@@ -787,7 +787,7 @@ export class EditTool implements AgentTool<TInput> {
 					onUpdate?: (partialResult: AgentToolResult<EditToolDetails, TInput>) => void,
 				) => {
 					// `edits` is the internal `ReplaceBatchParams` form only the Cursor
-					// exec bridge produces (multi-replacement `pi_edit` frames run as one
+					// exec bridge produces (multi-replacement `chud_edit` frames run as one
 					// lifecycle); model calls always arrive in the single-edit schema shape.
 					const replaceParams = params as ReplaceParams | ReplaceBatchParams;
 					const entries =

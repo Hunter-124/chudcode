@@ -2,8 +2,8 @@
  * Draw a session's entire thread through the production transcript pipeline.
  */
 
-import { postmortem } from "@oh-my-pi/pi-utils";
-import { Args, Command, Flags } from "@oh-my-pi/pi-utils/cli";
+import { postmortem } from "@chudware/utils";
+import { Args, Command, Flags } from "@chudware/utils/cli";
 import { renderHelp as commandHelp } from "../cli/command-help";
 import { runRenderCommand } from "../cli/render-cli";
 import { CliUsageError } from "../cli/usage-error";
@@ -27,7 +27,7 @@ export default class Render extends Command {
 	static examples = [
 		"chudcode render",
 		"chudcode render 01a0285c --plain",
-		"chudcode render ~/.omp/agent/sessions/--work-pi--/big.jsonl -q -t --repaint 5",
+		"chudcode render ~/.chudcode/agent/sessions/--work-pi--/big.jsonl -q -t --repaint 5",
 		"chudcode render -w 200 > thread.ansi",
 	];
 

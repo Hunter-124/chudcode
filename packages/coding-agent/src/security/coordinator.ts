@@ -1,7 +1,7 @@
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
-import type { Model } from "@oh-my-pi/pi-ai";
-import { logger, prompt } from "@oh-my-pi/pi-utils";
+import type { Model } from "@chudware/ai";
+import { logger, prompt } from "@chudware/utils";
 import type { AsyncJobManager } from "../async/job-manager";
 import type { ModelRegistry } from "../config/model-registry";
 import type { Settings } from "../config/settings";
@@ -205,7 +205,7 @@ function initialBundle(
 	});
 	return {
 		scan: {
-			documentType: "omp-security.scan",
+			documentType: "chudcode-security.scan",
 			schemaVersion: "1.0",
 			id: scanId,
 			projectKey: store.projectKey,

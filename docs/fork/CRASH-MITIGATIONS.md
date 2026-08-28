@@ -6,18 +6,18 @@ host; the verification command is given so you can re-check rather than trust it
 
 ## What was actually happening
 
-The near-freeze was **not** primarily omp. Measured at the time:
+The near-freeze was **not** primarily chudcode. Measured at the time:
 
 - 10.6 GiB of concurrent compilers — 14x `cc1plus` at 6.45 GiB plus one `rustc`
   at 4.17 GiB.
 - A misconfigured 16 GiB zram whose 14.6 GiB of held pages cost 4.9 GiB of
   *physical* RAM.
-- 6.89 GiB of committed anonymous memory across 9 omp-family processes on a
+- 6.89 GiB of committed anonymous memory across 9 chudcode-family processes on a
   30.75 GiB box.
 
 So Chudcode was not the proximate cause, but its resting footprint left almost no
 headroom. That distinction is why the upstream issue
-([#9908](https://github.com/can1357/oh-my-pi/issues/9908)) was filed as an
+([#9908](https://github.com/Hunter-124/chudcode/issues/9908)) was filed as an
 accounting/admission-control report and explicitly **not** as a leak — no heap
 snapshot was taken, and the one worker that dominates is flat, not growing.
 
@@ -70,15 +70,15 @@ Verify: `cat ~/.config/environment.d/10-tmpdir.conf`.
 
 ### 3. Weekly prune of leaked temp directories
 
-`omp-tmp-prune.timer` (user scope) — enabled and active. This addresses the
+`chudcode-tmp-prune.timer` (user scope) — enabled and active. This addresses the
 concrete leak filed upstream as
-[#9922](https://github.com/can1357/oh-my-pi/issues/9922).
+[#9922](https://github.com/Hunter-124/chudcode/issues/9922).
 
-Verify: `systemctl --user is-enabled omp-tmp-prune.timer` → `enabled`.
+Verify: `systemctl --user is-enabled chudcode-tmp-prune.timer` → `enabled`.
 
 ### 4. zram
 
-Corrected locally at the time. Not omp-related; recorded here only because it
+Corrected locally at the time. Not chudcode-related; recorded here only because it
 was half the memory pressure and would otherwise look like an unexplained gap
 between Chudcode's footprint and the observed stall.
 
@@ -87,7 +87,7 @@ between Chudcode's footprint and the observed stall.
 - **`task.maxConcurrency` stays at 32.** Hunter's explicit choice ("we want full
   capabilities"). Documented so nobody lowers it thinking it is an oversight.
   The tradeoff is understood: it is a memory knob, not just a parallelism knob.
-- **No local patch to the mnemopi worker.** Its residency is a policy question
+- **No local patch to the mnemo worker.** Its residency is a policy question
   for upstream, not a bug to fork around; a local hack would diverge the vendored
   packages CAD depends on.
 

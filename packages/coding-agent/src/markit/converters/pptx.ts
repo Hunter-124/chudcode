@@ -1,8 +1,8 @@
 // Adapted from markit-ai (MIT). See ../NOTICE.
 import * as path from "node:path";
-import { archiveEntryText, readArchiveEntries } from "@oh-my-pi/pi-utils/ar";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
-import { XMLParser } from "@oh-my-pi/pi-utils/xml";
+import { archiveEntryText, readArchiveEntries } from "@chudware/utils/ar";
+import * as fsx from "@chudware/utils/fsx";
+import { XMLParser } from "@chudware/utils/xml";
 import type { ConversionResult, Converter, StreamInfo } from "../types";
 
 const EXTENSIONS = [".pptx"];

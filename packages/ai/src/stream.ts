@@ -3,21 +3,21 @@ import * as fsSync from "node:fs";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { scheduler } from "node:timers/promises";
-import { isOfficialAnthropicApiUrl } from "@oh-my-pi/pi-catalog/compat/anthropic";
-import type { Effort } from "@oh-my-pi/pi-catalog/effort";
-import { isVertexExpressOpenAIUrl, isVertexRawPredictUrl, resolveVertexEndpointHost } from "@oh-my-pi/pi-catalog/hosts";
+import { isOfficialAnthropicApiUrl } from "@chudware/catalog/compat/anthropic";
+import type { Effort } from "@chudware/catalog/effort";
+import { isVertexExpressOpenAIUrl, isVertexRawPredictUrl, resolveVertexEndpointHost } from "@chudware/catalog/hosts";
 import {
 	defaultSupportedEffort,
 	mapEffortToAnthropicAdaptiveEffort,
 	mapEffortToGoogleThinkingLevel,
 	requireSupportedEffort,
 	resolveWireModelId,
-} from "@oh-my-pi/pi-catalog/model-thinking";
-import { CATALOG_PROVIDERS, type ProviderCatalogEntry } from "@oh-my-pi/pi-catalog/provider-models";
-import { CODEX_BASE_URL } from "@oh-my-pi/pi-catalog/wire/codex";
-import { $env, $pickenv, getProviderInFlightRoot, isEnoent, logger, withExtraCaFetch } from "@oh-my-pi/pi-utils";
-import { sleep } from "@oh-my-pi/pi-utils/async";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
+} from "@chudware/catalog/model-thinking";
+import { CATALOG_PROVIDERS, type ProviderCatalogEntry } from "@chudware/catalog/provider-models";
+import { CODEX_BASE_URL } from "@chudware/catalog/wire/codex";
+import { $env, $pickenv, getProviderInFlightRoot, isEnoent, logger, withExtraCaFetch } from "@chudware/utils";
+import { sleep } from "@chudware/utils/async";
+import * as fsx from "@chudware/utils/fsx";
 import { getCustomApi } from "./api-registry";
 import { createAuthRetryKeyState, isApiKeyResolver, resolveNextAuthRetryKey } from "./auth-retry";
 import * as AIError from "./error";
@@ -26,6 +26,7 @@ import { isConcurrencyCapExclusion, isUsageLimitOutcome } from "./error/rate-lim
 import type { BedrockOptions } from "./providers/amazon-bedrock";
 import type { AnthropicOptions } from "./providers/anthropic";
 import type { MessageCreateParamsStreaming } from "./providers/anthropic-wire";
+import { streamPiNative } from "./providers/chud-native-client";
 import { coworkFetch } from "./providers/cowork-fetch";
 import type { CursorOptions } from "./providers/cursor";
 import type { DevinOptions } from "./providers/devin";
@@ -38,7 +39,6 @@ import type { GoogleVertexOptions } from "./providers/google-vertex";
 import { isKimiModel, streamKimi } from "./providers/kimi";
 import type { OllamaChatOptions } from "./providers/ollama";
 import type { OpenAICompletionsOptions } from "./providers/openai-completions";
-import { streamPiNative } from "./providers/pi-native-client";
 // Heavy provider stream functions are imported lazily via register-builtins,
 // which wraps each provider module in a dynamic import. This keeps the
 // AWS SDK, google-auth-library, @google/genai, and
@@ -863,7 +863,7 @@ export function getEnvApiKeyName(provider: string): string | undefined {
 
 /**
  * Enumerate every provider that has an env-var fallback for `getEnvApiKey`.
- * Used by `omp auth-broker migrate --include-env` to discover env-sourced keys
+ * Used by `chudcode auth-broker migrate --include-env` to discover env-sourced keys
  * that should be uploaded to the broker.
  */
 export function listProvidersWithEnvKey(): string[] {
@@ -968,7 +968,7 @@ function streamDispatch<TApi extends Api>(
 		}
 
 		case "openrouter": {
-			const useResponses = $env.PI_OPENROUTER_RESPONSES !== "0";
+			const useResponses = $env.CHUDCODE_OPENROUTER_RESPONSES !== "0";
 			if (useResponses) {
 				return streamOpenAIResponses(
 					providerModel as Model<"openai-responses">,
@@ -1239,7 +1239,7 @@ function supportsAnthropicCacheRefresh<TApi extends Api>(model: Model<TApi>): bo
 	return (
 		model.api === "anthropic-messages" &&
 		model.provider === "anthropic" &&
-		model.transport !== "pi-native" &&
+		model.transport !== "chud-native" &&
 		isLeakedThinkingHealExempt(model)
 	);
 }
@@ -1584,8 +1584,8 @@ function streamSimpleRequest<TApi extends Api>(
 	// need an `apiKey` from `getEnvApiKey` here — `options.apiKey` carries
 	// the gateway bearer instead. Comes BEFORE the custom-API check so
 	// extension-registered APIs can't accidentally override a configured
-	// pi-native transport.
-	if (model.transport === "pi-native") {
+	// chud-native transport.
+	if (model.transport === "chud-native") {
 		return withThinkingLoopGuard(model, requestOptions, opts =>
 			withProviderInFlightLimit(model, opts, () => {
 				const nativeOptions =
@@ -1717,7 +1717,7 @@ function maxTokensWithThinkingBudget(
 	return Math.min(uncappedMaxTokens, modelMaxTokens ?? Number.POSITIVE_INFINITY);
 }
 export const OUTPUT_FALLBACK_BUFFER = 4000;
-const ANTHROPIC_USE_INTERLEAVED_THINKING = process.env.PI_NO_INTERLEAVED_THINKING !== "1";
+const ANTHROPIC_USE_INTERLEAVED_THINKING = process.env.CHUDCODE_NO_INTERLEAVED_THINKING !== "1";
 
 export const ANTHROPIC_THINKING: Record<Effort, number> = {
 	minimal: 1024,
@@ -1910,7 +1910,7 @@ function isOpenAIResponsesPromptCacheSurface<TApi extends Api>(model: Model<TApi
 	return (
 		model.api === "openai-responses" ||
 		model.api === "azure-openai-responses" ||
-		(model.api === "openrouter" && $env.PI_OPENROUTER_RESPONSES !== "0")
+		(model.api === "openrouter" && $env.CHUDCODE_OPENROUTER_RESPONSES !== "0")
 	);
 }
 
@@ -1919,7 +1919,7 @@ function assertExplicitOpenAIResponsesPromptCacheSupport<TApi extends Api>(
 	options?: StreamOptions,
 ): void {
 	if (
-		model.transport === "pi-native" ||
+		model.transport === "chud-native" ||
 		resolveCacheRetention(options?.cacheRetention) === "none" ||
 		options?.promptCache?.mode !== "explicit" ||
 		!isOpenAIResponsesPromptCacheSurface(model) ||
@@ -2107,7 +2107,7 @@ function mapOptionsForApi<TApi extends Api>(
 		}
 
 		case "openrouter": {
-			const useResponses = $env.PI_OPENROUTER_RESPONSES !== "0";
+			const useResponses = $env.CHUDCODE_OPENROUTER_RESPONSES !== "0";
 			if (useResponses) {
 				return castApi<"openai-responses">({
 					...base,

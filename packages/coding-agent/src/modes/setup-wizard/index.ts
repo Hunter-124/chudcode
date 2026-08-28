@@ -46,7 +46,7 @@ export async function selectSetupScenes(
 	if (!isTTY) return [];
 	if (!options.force) {
 		if (options.resuming) return [];
-		if (setupSkipEnvEnabled(options.skipEnv ?? process.env.OMP_SKIP_SETUP)) return [];
+		if (setupSkipEnvEnabled(options.skipEnv ?? process.env.CHUDCODE_SKIP_SETUP)) return [];
 		if (options.setupWizardEnabled === false) return [];
 	}
 

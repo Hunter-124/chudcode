@@ -1,18 +1,18 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "bun:test";
-import { Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
-import * as evalIndex from "@oh-my-pi/pi-coding-agent/eval";
-import * as pyKernel from "@oh-my-pi/pi-coding-agent/eval/py/kernel";
-import type { ToolSession } from "@oh-my-pi/pi-coding-agent/tools";
-import { EvalTool } from "@oh-my-pi/pi-coding-agent/tools/eval";
-import { resolveEvalBackends } from "@oh-my-pi/pi-coding-agent/tools/eval-backends";
-import { ToolAbortError } from "@oh-my-pi/pi-coding-agent/tools/tool-errors";
+import { Settings } from "@chudware/coding-agent/config/settings";
+import * as evalIndex from "@chudware/coding-agent/eval";
+import * as pyKernel from "@chudware/coding-agent/eval/py/kernel";
+import type { ToolSession } from "@chudware/coding-agent/tools";
+import { EvalTool } from "@chudware/coding-agent/tools/eval";
+import { resolveEvalBackends } from "@chudware/coding-agent/tools/eval-backends";
+import { ToolAbortError } from "@chudware/coding-agent/tools/tool-errors";
 
 let originalPiPy: string | undefined;
 let originalPiJs: string | undefined;
 let originalPiRb: string | undefined;
 let originalPiJl: string | undefined;
 
-function restoreEnv(name: "PI_PY" | "PI_JS" | "PI_RB" | "PI_JL", value: string | undefined): void {
+function restoreEnv(name: "CHUDCODE_PY" | "CHUDCODE_JS" | "CHUDCODE_RB" | "CHUDCODE_JL", value: string | undefined): void {
 	if (value === undefined) {
 		delete process.env[name];
 		return;
@@ -44,22 +44,22 @@ const mockResult = {
 
 describe("EvalTool language dispatch", () => {
 	beforeEach(() => {
-		originalPiPy = process.env.PI_PY;
-		originalPiJs = process.env.PI_JS;
-		originalPiRb = process.env.PI_RB;
-		originalPiJl = process.env.PI_JL;
-		delete process.env.PI_PY;
-		delete process.env.PI_JS;
-		delete process.env.PI_RB;
-		delete process.env.PI_JL;
+		originalPiPy = process.env.CHUDCODE_PY;
+		originalPiJs = process.env.CHUDCODE_JS;
+		originalPiRb = process.env.CHUDCODE_RB;
+		originalPiJl = process.env.CHUDCODE_JL;
+		delete process.env.CHUDCODE_PY;
+		delete process.env.CHUDCODE_JS;
+		delete process.env.CHUDCODE_RB;
+		delete process.env.CHUDCODE_JL;
 	});
 
 	afterEach(() => {
 		vi.restoreAllMocks();
-		restoreEnv("PI_PY", originalPiPy);
-		restoreEnv("PI_JS", originalPiJs);
-		restoreEnv("PI_RB", originalPiRb);
-		restoreEnv("PI_JL", originalPiJl);
+		restoreEnv("CHUDCODE_PY", originalPiPy);
+		restoreEnv("CHUDCODE_JS", originalPiJs);
+		restoreEnv("CHUDCODE_RB", originalPiRb);
+		restoreEnv("CHUDCODE_JL", originalPiJl);
 	});
 
 	it('dispatches to the JS backend when cell.language === "js"', async () => {
@@ -170,7 +170,7 @@ describe("EvalTool language dispatch", () => {
 	});
 
 	it("uses settings for eval backends whose env flag is unset", () => {
-		process.env.PI_PY = "1";
+		process.env.CHUDCODE_PY = "1";
 		const settings = Settings.isolated();
 		settings.set("eval.py", false);
 		settings.set("eval.js", false);
@@ -183,8 +183,8 @@ describe("EvalTool language dispatch", () => {
 		});
 	});
 
-	it("lets PI_JS disable js execution even when eval.js is enabled", async () => {
-		process.env.PI_JS = "0";
+	it("lets CHUDCODE_JS disable js execution even when eval.js is enabled", async () => {
+		process.env.CHUDCODE_JS = "0";
 		const settings = Settings.isolated();
 		settings.set("eval.js", true);
 		const tool = new EvalTool(makeSession(settings));
@@ -194,6 +194,6 @@ describe("EvalTool language dispatch", () => {
 				language: "js",
 				code: "const x = 1;",
 			}),
-		).rejects.toThrow(/PI_JS=0/);
+		).rejects.toThrow(/CHUDCODE_JS=0/);
 	});
 });

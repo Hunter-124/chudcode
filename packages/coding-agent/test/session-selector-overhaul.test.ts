@@ -5,11 +5,11 @@ import {
 	RECENT_SESSION_LIMIT,
 	SessionSelectorComponent,
 	selectRecentSessions,
-} from "@oh-my-pi/pi-coding-agent/modes/components/session-selector";
-import { initTheme } from "@oh-my-pi/pi-coding-agent/modes/theme/theme";
-import type { InteractiveModeContext } from "@oh-my-pi/pi-coding-agent/modes/types";
-import type { SessionInfo } from "@oh-my-pi/pi-coding-agent/session/session-listing";
-import { executeBuiltinSlashCommand } from "@oh-my-pi/pi-coding-agent/slash-commands/builtin-registry";
+} from "@chudware/coding-agent/modes/components/session-selector";
+import { initTheme } from "@chudware/coding-agent/modes/theme/theme";
+import type { InteractiveModeContext } from "@chudware/coding-agent/modes/types";
+import type { SessionInfo } from "@chudware/coding-agent/session/session-listing";
+import { executeBuiltinSlashCommand } from "@chudware/coding-agent/slash-commands/builtin-registry";
 
 const NOW = new Date();
 

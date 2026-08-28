@@ -2,17 +2,17 @@ import { afterEach, beforeAll, describe, expect, it, type Mock, vi } from "bun:t
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import type { AgentMessage } from "@oh-my-pi/pi-agent-core";
-import type { AssistantMessage, Usage } from "@oh-my-pi/pi-ai";
-import type { Rule } from "@oh-my-pi/pi-coding-agent/capability/rule";
-import { OmfgController } from "@oh-my-pi/pi-coding-agent/modes/controllers/omfg-controller";
-import { initTheme } from "@oh-my-pi/pi-coding-agent/modes/theme/theme";
-import type { InteractiveModeContext } from "@oh-my-pi/pi-coding-agent/modes/types";
-import { Container, type TUI } from "@oh-my-pi/pi-tui";
-import { removeWithRetries } from "@oh-my-pi/pi-utils";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
+import type { AgentMessage } from "@chudware/agent-core";
+import type { AssistantMessage, Usage } from "@chudware/ai";
+import type { Rule } from "@chudware/coding-agent/capability/rule";
+import { OmfgController } from "@chudware/coding-agent/modes/controllers/omfg-controller";
+import { initTheme } from "@chudware/coding-agent/modes/theme/theme";
+import type { InteractiveModeContext } from "@chudware/coding-agent/modes/types";
+import { Container, type TUI } from "@chudware/tui";
+import { removeWithRetries } from "@chudware/utils";
+import * as fsx from "@chudware/utils/fsx";
 
-const PROJECT_OPTION = "This project (.omp/rules)";
+const PROJECT_OPTION = "This project (.chudcode/rules)";
 
 const usage: Usage = {
 	input: 0,
@@ -172,6 +172,6 @@ describe("OmfgController", () => {
 		expect(harness.container.children).toHaveLength(0);
 		expect(signal?.aborted).toBe(true);
 		expect(controller.hasActiveRequest()).toBe(false);
-		expect(await fsx.exists(path.join(harness.projectDir, ".omp", "rules", "ts-no-any.md"))).toBe(false);
+		expect(await fsx.exists(path.join(harness.projectDir, ".chudcode", "rules", "ts-no-any.md"))).toBe(false);
 	});
 });

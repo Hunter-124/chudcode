@@ -1,8 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "bun:test";
 import * as fs from "node:fs/promises";
-import { postmortem } from "@oh-my-pi/pi-utils";
-import { sleep } from "@oh-my-pi/pi-utils/async";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
+import { postmortem } from "@chudware/utils";
+import { sleep } from "@chudware/utils/async";
+import * as fsx from "@chudware/utils/fsx";
 import { JsRuntime, type RuntimeHooks } from "../../src/eval/js/shared/runtime";
 import {
 	bindRunFacade,
@@ -296,7 +296,7 @@ describe("browser run cancellation", () => {
 
 	it("keeps a real worker alive after floating browser and continuation rejections", async () => {
 		vi.useRealTimers();
-		const workerPath = `/tmp/omp-browser-rejections-${process.pid}.ts`;
+		const workerPath = `/tmp/chudcode-browser-rejections-${process.pid}.ts`;
 		await fsx.write(
 			workerPath,
 			`

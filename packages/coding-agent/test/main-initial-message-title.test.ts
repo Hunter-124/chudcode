@@ -2,8 +2,8 @@ import { describe, expect, test } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import { removeWithRetries } from "@oh-my-pi/pi-utils";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
+import { removeWithRetries } from "@chudware/utils";
+import * as fsx from "@chudware/utils/fsx";
 
 const repoRoot = path.resolve(import.meta.dir, "..", "..", "..");
 const cliEntry = path.join(repoRoot, "packages", "coding-agent", "src", "cli.ts");
@@ -13,7 +13,7 @@ const hasPtyHarness =
 
 describe.skipIf(!hasPtyHarness)("CLI initial-message title generation", () => {
 	test("generates a title for the positional initial message", async () => {
-		const root = await fs.mkdtemp(path.join(os.tmpdir(), "omp-cli-title-"));
+		const root = await fs.mkdtemp(path.join(os.tmpdir(), "chudcode-cli-title-"));
 		const agentDir = path.join(root, "agent");
 		const outputPath = path.join(root, "probe.json");
 		try {
@@ -40,9 +40,9 @@ describe.skipIf(!hasPtyHarness)("CLI initial-message title generation", () => {
 					...process.env,
 					HOME: root,
 					NO_COLOR: "1",
-					OMP_TITLE_PROBE_PATH: outputPath,
-					PI_CODING_AGENT_DIR: agentDir,
-					PI_NO_TITLE: "",
+					CHUDCODE_TITLE_PROBE_PATH: outputPath,
+					CHUDCODE_CODING_AGENT_DIR: agentDir,
+					CHUDCODE_NO_TITLE: "",
 					TERM: "xterm-256color",
 				},
 			});

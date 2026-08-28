@@ -2,14 +2,14 @@ import { afterEach, describe, expect, it } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import { resolveStdioSpawnCommand, StdioTransport, writeFrame } from "@oh-my-pi/pi-coding-agent/mcp/transports/stdio";
-import { removeWithRetries } from "@oh-my-pi/pi-utils";
-import { sleep } from "@oh-my-pi/pi-utils/async";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
+import { resolveStdioSpawnCommand, StdioTransport, writeFrame } from "@chudware/coding-agent/mcp/transports/stdio";
+import { removeWithRetries } from "@chudware/utils";
+import { sleep } from "@chudware/utils/async";
+import * as fsx from "@chudware/utils/fsx";
 
 describe("resolveStdioSpawnCommand", () => {
 	it("resolves bare Windows commands through PATHEXT and wraps .cmd shims with cmd.exe", async () => {
-		const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "omp-mcp-stdio-"));
+		const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "chudcode-mcp-stdio-"));
 		try {
 			const shim = path.join(tempDir, "codegraph.cmd");
 			await fsx.write(shim, "@echo off\r\n");
@@ -44,8 +44,8 @@ describe("resolveStdioSpawnCommand", () => {
 	});
 
 	it("prefers a project-local .cmd shim over a same-named global one when no path segment is given", async () => {
-		const projectDir = await fs.mkdtemp(path.join(os.tmpdir(), "omp-mcp-cwd-"));
-		const globalDir = await fs.mkdtemp(path.join(os.tmpdir(), "omp-mcp-global-"));
+		const projectDir = await fs.mkdtemp(path.join(os.tmpdir(), "chudcode-mcp-cwd-"));
+		const globalDir = await fs.mkdtemp(path.join(os.tmpdir(), "chudcode-mcp-global-"));
 		try {
 			const localShim = path.join(projectDir, "server.cmd");
 			const globalShim = path.join(globalDir, "server.cmd");
@@ -83,7 +83,7 @@ describe("resolveStdioSpawnCommand", () => {
 	});
 
 	it("keeps PATH-resolved npx.cmd on the cmd.exe path so npm preserves stdio semantics", async () => {
-		const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "omp-mcp-npx-"));
+		const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "chudcode-mcp-npx-"));
 		try {
 			const shim = path.join(tempDir, "npx.cmd");
 			await fsx.write(
@@ -141,7 +141,7 @@ describe("resolveStdioSpawnCommand", () => {
 	});
 
 	it("still launches non-npx npm .cmd shims through node so stdio stays owned by the server process", async () => {
-		const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "omp-mcp-codegraph-"));
+		const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "chudcode-mcp-codegraph-"));
 		try {
 			const shim = path.join(tempDir, "codegraph.cmd");
 			const entry = path.join(tempDir, "node_modules", "@colbymchenry", "codegraph", "npm-shim.js");
@@ -192,7 +192,7 @@ describe("resolveStdioSpawnCommand", () => {
 	});
 
 	it("keeps non-node cmd-shim wrappers on the cmd.exe path instead of mislaunching them via node", async () => {
-		const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "omp-mcp-pyshim-"));
+		const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "chudcode-mcp-pyshim-"));
 		try {
 			const shim = path.join(tempDir, "pyserver.cmd");
 			await fsx.write(
@@ -243,7 +243,7 @@ describe("resolveStdioSpawnCommand", () => {
 	});
 
 	it("neutralizes percent-delimited args so cmd.exe cannot expand them before the .cmd shim", async () => {
-		const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "omp-mcp-percent-"));
+		const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "chudcode-mcp-percent-"));
 		try {
 			const shim = path.join(tempDir, "codegraph.cmd");
 			await fsx.write(shim, "@echo off\r\n");
@@ -281,7 +281,7 @@ describe("resolveStdioSpawnCommand", () => {
 	});
 
 	it("doubles embedded quotes so cmd.exe delivers JSON args to the .cmd shim intact", async () => {
-		const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "omp-mcp-quotes-"));
+		const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "chudcode-mcp-quotes-"));
 		try {
 			const shim = path.join(tempDir, "codegraph.cmd");
 			await fsx.write(shim, "@echo off\r\n");
@@ -323,7 +323,7 @@ describe("resolveStdioSpawnCommand", () => {
 		// sibling so the launch succeeds (see #2174). The test rig pins
 		// PATHEXT to a single lowercase extension so the candidate filename
 		// matches the file we create on the case-sensitive test host.
-		const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "omp-mcp-abs-"));
+		const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "chudcode-mcp-abs-"));
 		try {
 			const bare = path.join(tempDir, "codegraph");
 			const shim = `${bare}.cmd`;
@@ -475,7 +475,7 @@ describe("resolveStdioSpawnCommand", () => {
 		// file, so an un-escaped command token like C:\work\%TOKEN%\server.cmd
 		// would resolve to a different path. The command token must be escaped
 		// the same way arguments are.
-		const base = await fs.mkdtemp(path.join(os.tmpdir(), "omp-mcp-cmdpct-"));
+		const base = await fs.mkdtemp(path.join(os.tmpdir(), "chudcode-mcp-cmdpct-"));
 		const dir = path.join(base, "%TOKEN%");
 		try {
 			await fs.mkdir(dir, { recursive: true });
@@ -542,12 +542,12 @@ describe("resolveStdioSpawnCommand", () => {
 
 	it("keeps console-attached Windows cmd.exe wrapper chains out of CREATE_NO_WINDOW (#3567)", async () => {
 		// The #3544 shape is `cmd.exe` → `node wrapper` → another console
-		// launcher (`cmd.exe /C npx.cmd`, PowerShell, similar). If the OMP host
+		// launcher (`cmd.exe /C npx.cmd`, PowerShell, similar). If the Chudcode host
 		// already owns a terminal console, `windowsHide: true` maps to
 		// CREATE_NO_WINDOW and strips that inheritable console from the direct
 		// hidden wrapper. Grandchildren then allocate fresh visible conhost
 		// windows during startup or reconnect loops (#3567). Keep the tree
-		// attached to OMP's console instead.
+		// attached to Chudcode's console instead.
 		const result = await resolveStdioSpawnCommand(
 			{ type: "stdio", command: "cmd.exe", args: ["/C", "node .codex\\mcp-wrapper.js"] },
 			{
@@ -861,7 +861,7 @@ describe("StdioTransport.close", () => {
 	it.skipIf(process.platform === "win32")(
 		"is idempotent even when close() had to escalate to SIGKILL",
 		async () => {
-			const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "omp-mcp-stdio-close-escalate-"));
+			const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "chudcode-mcp-stdio-close-escalate-"));
 			const scriptPath = path.join(tempDir, "child.mjs");
 			const readyPath = path.join(tempDir, "ready");
 			try {

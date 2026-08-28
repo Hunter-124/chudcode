@@ -3,13 +3,13 @@ import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
 import { stripVTControlCharacters } from "node:util";
-import { CURSOR_MARKER, Editor, type EditorTheme, TUI } from "@oh-my-pi/pi-tui";
-import { CombinedAutocompleteProvider } from "@oh-my-pi/pi-tui/autocomplete";
-import { KeybindingsManager, setKeybindings, TUI_KEYBINDINGS } from "@oh-my-pi/pi-tui/keybindings";
-import { setKittyProtocolActive } from "@oh-my-pi/pi-tui/keys";
-import { visibleWidth } from "@oh-my-pi/pi-tui/utils";
-import { sleep } from "@oh-my-pi/pi-utils/async";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
+import { CURSOR_MARKER, Editor, type EditorTheme, TUI } from "@chudware/tui";
+import { CombinedAutocompleteProvider } from "@chudware/tui/autocomplete";
+import { KeybindingsManager, setKeybindings, TUI_KEYBINDINGS } from "@chudware/tui/keybindings";
+import { setKittyProtocolActive } from "@chudware/tui/keys";
+import { visibleWidth } from "@chudware/tui/utils";
+import { sleep } from "@chudware/utils/async";
+import * as fsx from "@chudware/utils/fsx";
 import { defaultEditorTheme } from "./test-themes";
 import { VirtualTerminal } from "./virtual-terminal";
 
@@ -976,7 +976,7 @@ describe("Editor component", () => {
 				expect(beforePreedit.slice(0, 3)).toEqual(["+------------------+", "|  ast", "+------------------+"]);
 
 				// macOS Terminal renders marked text locally in insertion mode before
-				// committed bytes reach OMP. The open cursor row must not carry right
+				// committed bytes reach Chudcode. The open cursor row must not carry right
 				// chrome that the marked text can shift onto another row.
 				terminal.write("\x1b[4hast，\x1b[4l");
 				const afterPreedit = terminal.getViewport().map(row => row.trimEnd());
@@ -2574,7 +2574,7 @@ describe("Editor component", () => {
 		// terminals render the precomposed syllable at 2 cells, so without
 		// normalization the cursor column drifts past the visible filename
 		// and subsequent input renders into the wrong row. The earlier fix
-		// landed on the legacy `Input` component; OMP's interactive prompt
+		// landed on the legacy `Input` component; Chudcode's interactive prompt
 		// uses `Editor`, so the fix has to live here too.
 
 		it("normalizes NFD Korean bracketed-paste to NFC", () => {
@@ -3032,9 +3032,9 @@ describe("Editor component", () => {
 			expect(lines[2]).toBe("─".repeat(20));
 		});
 
-		it("renders pi style with full-width rules, padded content, and no prompt gutter", () => {
+		it("renders chud style with full-width rules, padded content, and no prompt gutter", () => {
 			const editor = new Editor(unicodeTheme);
-			editor.setBorderStyle("pi");
+			editor.setBorderStyle("chud");
 			editor.setText("hello");
 			const lines = editor.render(20);
 			expect(lines.length).toBe(3); // top rule, content, bottom rule

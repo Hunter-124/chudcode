@@ -2,8 +2,8 @@ import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import { __resetExtraCaCache } from "@oh-my-pi/pi-utils";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
+import { __resetExtraCaCache } from "@chudware/utils";
+import * as fsx from "@chudware/utils/fsx";
 import { fetchOpenAICompatibleModels } from "../src/discovery/openai-compatible";
 
 describe("discovery null limits", () => {
@@ -49,7 +49,7 @@ describe("discovery extra-CA fallback fetch", () => {
 		__resetExtraCaCache();
 		originalEnv = process.env.NODE_EXTRA_CA_CERTS;
 		originalFetch = globalThis.fetch;
-		tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "omp-discovery-ca-"));
+		tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "chudcode-discovery-ca-"));
 	});
 
 	afterEach(async () => {

@@ -25,7 +25,7 @@
 | `env` | `Record<string, string>` | No | Extra environment variables. Keys must match `^[A-Za-z_][A-Za-z0-9_]*$` or the tool throws. Values go through internal-URL expansion and are passed as environment values, not shell text. |
 | `timeout` | `number` | No | Timeout in seconds. Default `300`. `0` disables the deadline. Positive values are capped by `tools.maxTimeout` when that setting is positive, then clamped to the Bash range `1..3600`. |
 | `cwd` | `string` | No | Working directory, resolved against `session.cwd` via `resolveToCwd`. Must exist and be a directory. |
-| `pty` | `boolean` | No | Request PTY mode. Default `false`. PTY is used only when `pty: true`, `PI_NO_PTY !== "1"`, and the tool context has a UI. |
+| `pty` | `boolean` | No | Request PTY mode. Default `false`. PTY is used only when `pty: true`, `CHUDCODE_NO_PTY !== "1"`, and the tool context has a UI. |
 | `async` | `boolean` | No | Background execution request. Present only when `async.enabled` is true for the session. Returns immediately with a job id instead of waiting; it does not change the effective deadline, including a disabled deadline from `timeout: 0`. |
 
 ## Outputs
@@ -155,7 +155,7 @@ Choose the setting by the desired outcome:
    - Streams current terminal output via polling updates with `details.terminalId`.
    - Enforces the same timeout and abort behavior, then releases the terminal handle.
 3. Foreground PTY
-   - Requires `pty: true`, UI context, and `PI_NO_PTY !== "1"`.
+   - Requires `pty: true`, UI context, and `CHUDCODE_NO_PTY !== "1"`.
    - Uses `runInteractiveBashPty()` and a `PtySession` overlay.
    - Supports interactive input; `Esc` kills the session from the overlay.
 4. Explicit background job
@@ -174,7 +174,7 @@ Choose the setting by the desired outcome:
   - May allocate and write artifact files for full local output (`bash`) and minimizer-preserved raw output (`bash-original`).
   - `expandInternalUrls(..., { ensureLocalParentDirs: true })` creates parent directories for `local://` paths before execution.
 - Subprocesses / native bindings / client terminal
-  - Non-PTY local execution uses native shell execution via `@oh-my-pi/pi-natives` (`Shell.run()` or `executeShell()`).
+  - Non-PTY local execution uses native shell execution via `@chudware/natives` (`Shell.run()` or `executeShell()`).
   - PTY uses native `PtySession.start()`.
   - Client-terminal mode delegates process execution to the connected client terminal capability.
 - Session state
@@ -230,7 +230,7 @@ Choose the setting by the desired outcome:
   - `find|fd|locate` with name/type/glob flags -> `glob`
   - `sed -i`, `perl -i`, `awk -i inplace` -> `edit`
   - `echo|printf|cat <<` with redirection -> `write`
-- PTY mode is ignored in non-UI contexts and when `PI_NO_PTY=1` (gated by `canUseInteractiveBashPty()`); the tool falls back to non-PTY execution and appends a `pty requested but unavailable in this environment; ran without a terminal` notice.
+- PTY mode is ignored in non-UI contexts and when `CHUDCODE_NO_PTY=1` (gated by `canUseInteractiveBashPty()`); the tool falls back to non-PTY execution and appends a `pty requested but unavailable in this environment; ran without a terminal` notice.
 - Non-PTY runs merge `NON_INTERACTIVE_ENV` with `env` via `buildNonInteractiveEnv()`; PTY runs instead inherit the user environment with `TERM=xterm-256color` prepended before the custom `env` values.
 - When the shell minimizer rewrites output inside `executeBash()`, the visible output is replaced with minimized text and a `[raw output: artifact://<id>]` footer may be appended if `onMinimizedSave` persisted the original text.
 - The TUI renderer parses partial JSON to recover `env` assignments early in streaming previews; that behavior is display-only.

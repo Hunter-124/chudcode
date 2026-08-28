@@ -7,8 +7,8 @@
  * `share.redactSecrets`.
  */
 
-import { getAgentDir } from "@oh-my-pi/pi-utils";
-import { Args, Command, Flags } from "@oh-my-pi/pi-utils/cli";
+import { getAgentDir } from "@chudware/utils";
+import { Args, Command, Flags } from "@chudware/utils/cli";
 import { shareHelp as commandHelp } from "../cli/command-help";
 import { Settings } from "../config/settings";
 import { shareSession } from "../export/share";

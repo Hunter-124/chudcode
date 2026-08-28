@@ -1,5 +1,5 @@
 /**
- * Regression test for #1496 (bug 2): `omp install ./my-extension` used to be
+ * Regression test for #1496 (bug 2): `chudcode install ./my-extension` used to be
  * silently rewritten to `launch install ./my-extension` and forwarded to the
  * LLM as an initial prompt because no top-level `install` subcommand existed.
  *
@@ -15,10 +15,10 @@ import { describe, expect, test } from "bun:test";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
-import { PRODUCT_CLI_NAME } from "@oh-my-pi/pi-coding-agent/brand";
-import { commands, isSubcommand, resolveCliArgv } from "@oh-my-pi/pi-coding-agent/cli-commands";
-import { looksLikeLocalPath } from "@oh-my-pi/pi-coding-agent/commands/install";
-import { removeSyncWithRetries } from "@oh-my-pi/pi-utils";
+import { PRODUCT_CLI_NAME } from "@chudware/coding-agent/brand";
+import { commands, isSubcommand, resolveCliArgv } from "@chudware/coding-agent/cli-commands";
+import { looksLikeLocalPath } from "@chudware/coding-agent/commands/install";
+import { removeSyncWithRetries } from "@chudware/utils";
 
 describe("install command is registered as a top-level subcommand", () => {
 	test("CLI runner sees `install` as a known command", () => {
@@ -64,14 +64,14 @@ describe("looksLikeLocalPath", () => {
 	});
 
 	test("npm specs and marketplace refs are remote", () => {
-		expect(looksLikeLocalPath("@oh-my-pi/exa")).toBe(false);
+		expect(looksLikeLocalPath("@chudware/exa")).toBe(false);
 		expect(looksLikeLocalPath("my-pkg")).toBe(false);
 		expect(looksLikeLocalPath("my-pkg@1.2.3")).toBe(false);
 		expect(looksLikeLocalPath("name@marketplace")).toBe(false);
 	});
 
 	test("bare names that exist as a local directory are treated as local", () => {
-		const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "omp-install-test-"));
+		const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "chudcode-install-test-"));
 		try {
 			fs.mkdirSync(path.join(tempDir, "vendored-ext"));
 			expect(looksLikeLocalPath("vendored-ext", tempDir)).toBe(true);

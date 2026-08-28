@@ -2,17 +2,17 @@ import { beforeAll, describe, expect, it, spyOn } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import { type Skill as CapabilitySkill, skillCapability } from "@oh-my-pi/pi-coding-agent/capability/skill";
-import { getCapability } from "@oh-my-pi/pi-coding-agent/discovery";
-import { getWslWindowsHomeCandidate, runHostProbe } from "@oh-my-pi/pi-coding-agent/discovery/agents";
+import { type Skill as CapabilitySkill, skillCapability } from "@chudware/coding-agent/capability/skill";
+import { getCapability } from "@chudware/coding-agent/discovery";
+import { getWslWindowsHomeCandidate, runHostProbe } from "@chudware/coding-agent/discovery/agents";
 import {
 	type LoadSkillsResult,
 	loadSkills,
 	loadSkillsFromDir,
 	parseSkillInvocation,
 	type Skill,
-} from "@oh-my-pi/pi-coding-agent/extensibility/skills";
-import { removeWithRetries } from "@oh-my-pi/pi-utils";
+} from "@chudware/coding-agent/extensibility/skills";
+import { removeWithRetries } from "@chudware/utils";
 
 const fixturesDir = path.resolve(import.meta.dirname, "fixtures/skills");
 const collisionFixturesDir = path.resolve(import.meta.dirname, "fixtures/skills-collision");
@@ -185,8 +185,8 @@ describe("skills", () => {
 		});
 
 		it("should keep user Claude skills when project .claude/skills is missing", async () => {
-			const tempHomeDir = await fs.mkdtemp(path.join(os.tmpdir(), "pi-claude-home-"));
-			const tempProjectDir = await fs.mkdtemp(path.join(os.tmpdir(), "pi-claude-project-"));
+			const tempHomeDir = await fs.mkdtemp(path.join(os.tmpdir(), "chud-claude-home-"));
+			const tempProjectDir = await fs.mkdtemp(path.join(os.tmpdir(), "chud-claude-project-"));
 
 			try {
 				const userSkillDir = path.join(tempHomeDir, ".claude", "skills", "user-only-skill");
@@ -218,12 +218,12 @@ describe("skills", () => {
 
 		// Regression for issue #2401: a user who disables the named third-party
 		// CLI toggles (codex/claude/native) MUST still see skills from the
-		// canonical OMP-native `~/.agent[s]/skills` (the `agents` provider).
+		// canonical Chudcode-native `~/.agent[s]/skills` (the `agents` provider).
 		// Pre-fix `loadSkills` gated `agents` on `anyBuiltInSkillSourceEnabled`,
 		// so flipping the five third-party toggles off silently disabled it.
 		it("should still load ~/.agents/skills when codex/claude/native toggles are off (#2401)", async () => {
-			const tempHome = await fs.mkdtemp(path.join(os.tmpdir(), "pi-agents-home-"));
-			const tempCwd = await fs.mkdtemp(path.join(os.tmpdir(), "pi-agents-cwd-"));
+			const tempHome = await fs.mkdtemp(path.join(os.tmpdir(), "chud-agents-home-"));
+			const tempCwd = await fs.mkdtemp(path.join(os.tmpdir(), "chud-agents-cwd-"));
 			const skillDir = path.join(tempHome, ".agents", "skills", "user-agents-skill");
 			await fs.mkdir(skillDir, { recursive: true });
 			await fs.writeFile(
@@ -250,8 +250,8 @@ describe("skills", () => {
 		});
 
 		it("should load Windows host ~/.agents/skills when running under WSL (#3779)", async () => {
-			const tempHostHome = await fs.mkdtemp(path.join(os.tmpdir(), "pi-agents-wsl-host-"));
-			const tempCwd = await fs.mkdtemp(path.join(os.tmpdir(), "pi-agents-wsl-cwd-"));
+			const tempHostHome = await fs.mkdtemp(path.join(os.tmpdir(), "chud-agents-wsl-host-"));
+			const tempCwd = await fs.mkdtemp(path.join(os.tmpdir(), "chud-agents-wsl-cwd-"));
 			const skillDir = path.join(tempHostHome, ".agents", "skills", "wsl-host-skill");
 			await fs.mkdir(skillDir, { recursive: true });
 			await fs.writeFile(
@@ -331,8 +331,8 @@ describe("skills", () => {
 		});
 
 		it("respects an explicit enableAgentsUser: false (#2401)", async () => {
-			const tempHome = await fs.mkdtemp(path.join(os.tmpdir(), "pi-agents-home-off-"));
-			const tempCwd = await fs.mkdtemp(path.join(os.tmpdir(), "pi-agents-cwd-off-"));
+			const tempHome = await fs.mkdtemp(path.join(os.tmpdir(), "chud-agents-home-off-"));
+			const tempCwd = await fs.mkdtemp(path.join(os.tmpdir(), "chud-agents-cwd-off-"));
 			const skillDir = path.join(tempHome, ".agents", "skills", "opted-out");
 			await fs.mkdir(skillDir, { recursive: true });
 			await fs.writeFile(
@@ -356,13 +356,13 @@ describe("skills", () => {
 
 		// Regression for PR #2405 review: the fall-through gate used by
 		// unknown third-party providers (opencode/github/claude-plugins/...)
-		// MUST NOT consider the OMP-native `enableAgentsUser`/`...Project`
+		// MUST NOT consider the Chudcode-native `enableAgentsUser`/`...Project`
 		// toggles. Otherwise a user who disables Codex/Claude/Pi to silence
 		// third-party CLI noise but keeps the default agents toggles on still
 		// sees opencode skills resurface via the fallback branch.
 		it("does not re-enable third-party providers via the agents toggles (PR #2405)", async () => {
-			const tempHome = await fs.mkdtemp(path.join(os.tmpdir(), "pi-opencode-home-"));
-			const tempCwd = await fs.mkdtemp(path.join(os.tmpdir(), "pi-opencode-cwd-"));
+			const tempHome = await fs.mkdtemp(path.join(os.tmpdir(), "chud-opencode-home-"));
+			const tempCwd = await fs.mkdtemp(path.join(os.tmpdir(), "chud-opencode-cwd-"));
 			const opencodeSkillDir = path.join(tempHome, ".config", "opencode", "skills", "leaked-opencode");
 			await fs.mkdir(opencodeSkillDir, { recursive: true });
 			await fs.writeFile(
@@ -407,7 +407,7 @@ describe("skills", () => {
 		});
 
 		it("should skip skills disabled via frontmatter", async () => {
-			const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "omp-disabled-skill-"));
+			const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "chudcode-disabled-skill-"));
 			const skillDir = path.join(tempDir, "disabled-skill");
 			await fs.mkdir(skillDir, { recursive: true });
 			await fs.writeFile(
@@ -431,7 +431,7 @@ enabled: false
 		});
 
 		it("should hide skills with disable-model-invocation frontmatter (Agent Skills spec)", async () => {
-			const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "omp-dmi-skill-"));
+			const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "chudcode-dmi-skill-"));
 			const skillDir = path.join(tempDir, "hidden-by-spec");
 			await fs.mkdir(skillDir, { recursive: true });
 			await fs.writeFile(
@@ -461,7 +461,7 @@ enabled: false
 	});
 
 	it("should expand ~ in customDirectories", async () => {
-		const fakeHome = await fs.mkdtemp(path.join(os.tmpdir(), "pi-skills-home-"));
+		const fakeHome = await fs.mkdtemp(path.join(os.tmpdir(), "chud-skills-home-"));
 		const homedirSpy = spyOn(os, "homedir").mockReturnValue(fakeHome);
 		const tempHomeSkillsDir = await fs.mkdtemp(path.join(fakeHome, ".pi-skills-test-"));
 		const relativeToHome = path.relative(fakeHome, tempHomeSkillsDir);

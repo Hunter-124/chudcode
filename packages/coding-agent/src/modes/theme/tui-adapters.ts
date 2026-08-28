@@ -4,10 +4,10 @@ import {
 	highlightCode as nativeHighlightCode,
 	supportsLanguage as nativeSupportsLanguage,
 	warmHighlighter as nativeWarmHighlighter,
-} from "@oh-my-pi/pi-natives";
-import type { EditorTheme, MarkdownTheme, SelectListTheme, SettingsListTheme, SymbolTheme } from "@oh-my-pi/pi-tui";
-import chalk from "@oh-my-pi/pi-utils/chalk";
-import { LRUCache } from "@oh-my-pi/pi-utils/lru";
+} from "@chudware/natives";
+import type { EditorTheme, MarkdownTheme, SelectListTheme, SettingsListTheme, SymbolTheme } from "@chudware/tui";
+import chalk from "@chudware/utils/chalk";
+import { LRUCache } from "@chudware/utils/lru";
 import { resolveMermaidAscii } from "./mermaid-cache";
 import type { SlashCommandIconName } from "./symbols";
 import { theme } from "./theme";
@@ -294,7 +294,7 @@ export function getEditorTheme(): EditorTheme {
 }
 
 export function getSettingsListTheme(): SettingsListTheme {
-	// Plugins (e.g. pi-rtk-optimizer) may call this before `initTheme()` assigns
+	// Plugins (e.g. chud-rtk-optimizer) may call this before `initTheme()` assigns
 	// the global `theme`, or from a separate module instance under npm-global
 	// installs where the live binding was never initialized. Fall back to plain
 	// text so the call returns a usable (unstyled) theme instead of crashing with

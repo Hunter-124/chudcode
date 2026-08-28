@@ -73,31 +73,31 @@ const BRAND_RULES: readonly BrandRule[] = [
 	},
 	{
 		name: "private-repository",
-		pattern: /(?<!--from https:\/\/github\.com\/)Hunter-124\/(?:omp|oh-my-pi)\b/g,
+		pattern: /(?<!--from https:\/\/github\.com\/)Hunter-124\/(?:chudcode|chudware)\b/g,
 		replacement: "Hunter-124/chudcode",
 		scope: "docs",
 	},
 	{
 		name: "cli-command-backtick",
-		pattern: /`omp(?=\s|`)(?!`(?:-based|\s+legacy))/g,
+		pattern: /`chudcode(?=\s|`)(?!`(?:-based|\s+legacy))/g,
 		replacement: "`chudcode",
 		scope: "all",
 	},
 	{
 		name: "cli-command-subshell",
-		pattern: /(\$\()omp(?=\s)/g,
+		pattern: /(\$\()chudcode(?=\s)/g,
 		replacement: "$1chudcode",
 		scope: "docs",
 	},
 	{
 		name: "cli-command-shell",
-		pattern: /^(\s*(?:\$ )?)omp(?!\s+legacy alias)(?=\s|$)/gm,
+		pattern: /^(\s*(?:\$ )?)chudcode(?!\s+legacy alias)(?=\s|$)/gm,
 		replacement: "$1chudcode",
 		scope: "docs",
 	},
 	{
 		name: "display-name-title",
-		pattern: /\bOh My Pi\b/g,
+		pattern: /\bOh My Chud\b/g,
 		replacement: "Chudcode",
 		scope: "all",
 	},
@@ -146,13 +146,13 @@ interface PreservePattern {
 }
 
 const PRESERVE_PATTERNS: readonly PreservePattern[] = [
-	{ name: "@oh-my-pi/", pattern: /@oh-my-pi\//g },
-	{ name: "pi-coding-agent", pattern: /pi-coding-agent/g },
-	{ name: "PI_", pattern: /\bPI_/g },
-	{ name: "OMP_", pattern: /\bOMP_/g },
-	{ name: ".omp", pattern: /\.omp\b/g },
-	{ name: "can1357/oh-my-pi", pattern: /can1357\/oh-my-pi/g },
-	{ name: "omp-stats", pattern: /omp-stats/g },
+	{ name: "@chudware/", pattern: /@chudware\//g },
+	{ name: "chudcode-agent", pattern: /chudcode-agent/g },
+	{ name: "CHUDCODE_", pattern: /\bPI_/g },
+	{ name: "CHUDCODE_", pattern: /\bOMP_/g },
+	{ name: ".chudcode", pattern: /\.chudcode\b/g },
+	{ name: "Hunter-124/chudcode", pattern: /Hunter-124\/chudware/g },
+	{ name: "chudcode-stats", pattern: /chudcode-stats/g },
 	{ name: "LICENSE", pattern: /LICENSE/g },
 	{ name: "copyright lines", pattern: /^.*copyright.*$/gim, exactMatches: true },
 ];

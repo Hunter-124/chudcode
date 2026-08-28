@@ -1,8 +1,8 @@
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
-import { AgentBusyError, type AgentToolResult } from "@oh-my-pi/pi-agent-core";
-import type { AssistantMessage, Model } from "@oh-my-pi/pi-ai";
-import { getBlobsDir, isEnoent, logger, type postmortem, VERSION } from "@oh-my-pi/pi-utils";
+import { AgentBusyError, type AgentToolResult } from "@chudware/agent-core";
+import type { AssistantMessage, Model } from "@chudware/ai";
+import { getBlobsDir, isEnoent, logger, type postmortem, VERSION } from "@chudware/utils";
 import {
 	type Agent,
 	type AgentSideConnection,
@@ -43,8 +43,8 @@ import {
 	type SetSessionModeRequest,
 	type SetSessionModeResponse,
 	type Usage,
-} from "@oh-my-pi/pi-utils/acp";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
+} from "@chudware/utils/acp";
+import * as fsx from "@chudware/utils/fsx";
 import { PRODUCT_NAME } from "../../brand";
 import { disableProvider, enableProvider, reset as resetCapabilities } from "../../capability";
 import { Settings } from "../../config/settings";
@@ -637,7 +637,7 @@ export class AcpAgent implements Agent {
 			{
 				id: "agent",
 				name: "Use existing local credentials",
-				description: "Authenticate via the provider keys/OAuth state already configured under ~/.omp.",
+				description: "Authenticate via the provider keys/OAuth state already configured under ~/.chudcode.",
 			},
 		];
 		if (params.clientCapabilities?.auth?.terminal === true) {
@@ -652,7 +652,7 @@ export class AcpAgent implements Agent {
 		return {
 			protocolVersion: PROTOCOL_VERSION,
 			agentInfo: {
-				name: "oh-my-pi",
+				name: "chudware",
 				title: PRODUCT_NAME,
 				version: VERSION,
 			},
@@ -1031,7 +1031,7 @@ export class AcpAgent implements Agent {
 		const extensionPromptBaseline = new Set(record.extensionUserMessageTasks);
 		const agentInvoked = await record.session.prompt(text, { images });
 		// Extension and custom-TS commands are handled locally inside session.prompt().
-		// An ACP extension command can still call pi.sendUserMessage(), which starts
+		// An ACP extension command can still call chud.sendUserMessage(), which starts
 		// an async nested prompt through the extension runtime. Keep the ACP turn
 		// subscribed until those scheduled prompts and their event handlers drain;
 		// only then is `false` proof that the slash command was purely local.

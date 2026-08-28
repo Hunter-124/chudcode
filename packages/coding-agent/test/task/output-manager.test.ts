@@ -1,8 +1,8 @@
 import { describe, expect, it } from "bun:test";
 import * as path from "node:path";
-import { AgentOutputManager } from "@oh-my-pi/pi-coding-agent/task/output-manager";
-import { TempDir } from "@oh-my-pi/pi-utils";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
+import { AgentOutputManager } from "@chudware/coding-agent/task/output-manager";
+import { TempDir } from "@chudware/utils";
+import * as fsx from "@chudware/utils/fsx";
 
 // Contract: subagent output ids are the requested name, used verbatim the first
 // time and suffixed (`-2`, `-3`, …) only when the same name recurs. A parent
@@ -39,7 +39,7 @@ describe("AgentOutputManager", () => {
 	});
 
 	it("scans existing output files so a resume never clobbers prior outputs", async () => {
-		using tmp = TempDir.createSync("@omp-output-manager-");
+		using tmp = TempDir.createSync("@chudcode-output-manager-");
 		const dir = tmp.path();
 		await fsx.write(path.join(dir, "Anna.md"), "prior");
 		await fsx.write(path.join(dir, "Anna-2.md"), "prior");
@@ -55,7 +55,7 @@ describe("AgentOutputManager", () => {
 	});
 
 	it("awaits one disk scan before concurrent allocations", async () => {
-		using tmp = TempDir.createSync("@omp-output-manager-");
+		using tmp = TempDir.createSync("@chudcode-output-manager-");
 		const dir = tmp.path();
 		await fsx.write(path.join(dir, "Anna.jsonl"), "persisted child session");
 		const mgr = new AgentOutputManager(() => dir);
@@ -64,7 +64,7 @@ describe("AgentOutputManager", () => {
 	});
 
 	it("only counts files within its own prefix scope on resume", async () => {
-		using tmp = TempDir.createSync("@omp-output-manager-");
+		using tmp = TempDir.createSync("@chudcode-output-manager-");
 		const dir = tmp.path();
 		await fsx.write(path.join(dir, "Anna.Bob.md"), "child");
 		await fsx.write(path.join(dir, "Anna.Bob.Carol.md"), "grandchild");

@@ -1,8 +1,8 @@
 import { describe, expect, it, vi } from "bun:test";
-import type { ImageContent } from "@oh-my-pi/pi-ai";
-import { InputController } from "@oh-my-pi/pi-coding-agent/modes/controllers/input-controller";
-import { isQueuedMessageList, splitQueuedMessages } from "@oh-my-pi/pi-coding-agent/modes/queue-input";
-import type { InteractiveModeContext } from "@oh-my-pi/pi-coding-agent/modes/types";
+import type { ImageContent } from "@chudware/ai";
+import { InputController } from "@chudware/coding-agent/modes/controllers/input-controller";
+import { isQueuedMessageList, splitQueuedMessages } from "@chudware/coding-agent/modes/queue-input";
+import type { InteractiveModeContext } from "@chudware/coding-agent/modes/types";
 
 // Drives the real editor submit handler through the builtin slash dispatch
 // path. Before #3148 only a handful of commands recorded their text (each

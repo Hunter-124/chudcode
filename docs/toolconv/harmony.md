@@ -112,7 +112,7 @@ format?: "celsius" | "fahrenheit", // default: celsius
 
 A function call is an **assistant** message on the **commentary** channel, addressed to the tool via recipient `to=functions.<name>`, with the JSON arguments as the body, terminated by the `<|call|>` stop token.
 
-The recipient may appear in the *role section* or the *channel section* of the header — both are valid Harmony and the parser accepts either. The model commonly emits it in the channel section. The pi renderer omits the optional content-type marker:
+The recipient may appear in the *role section* or the *channel section* of the header — both are valid Harmony and the parser accepts either. The model commonly emits it in the channel section. The chud renderer omits the optional content-type marker:
 
 ```text
 <|start|>assistant<|channel|>commentary to=functions.get_current_weather<|message|>{"location":"San Francisco, CA"}<|call|>

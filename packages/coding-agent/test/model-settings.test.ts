@@ -1,17 +1,17 @@
 import { describe, expect, it } from "bun:test";
-import type { StreamFn } from "@oh-my-pi/pi-agent-core";
-import { type Context, Effort, type Model, type SimpleStreamOptions } from "@oh-my-pi/pi-ai";
-import { AssistantMessageEventStream } from "@oh-my-pi/pi-ai/utils/event-stream";
-import { getBundledModel } from "@oh-my-pi/pi-catalog/models";
+import type { StreamFn } from "@chudware/agent-core";
+import { type Context, Effort, type Model, type SimpleStreamOptions } from "@chudware/ai";
+import { AssistantMessageEventStream } from "@chudware/ai/utils/event-stream";
+import { getBundledModel } from "@chudware/catalog/models";
 import {
 	describeModelSettingProvenance,
 	type ModelSettingsSourceLayers,
 	resolveEffectiveModelSettings,
 	resolveMergedModelSettings,
-} from "@oh-my-pi/pi-coding-agent/config/model-resolver";
-import { Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
-import { formatEffectiveModelSettingsLines } from "@oh-my-pi/pi-coding-agent/modes/components/model-hub";
-import { createSettingsAwareStreamFn } from "@oh-my-pi/pi-coding-agent/session/settings-stream-fn";
+} from "@chudware/coding-agent/config/model-resolver";
+import { Settings } from "@chudware/coding-agent/config/settings";
+import { formatEffectiveModelSettingsLines } from "@chudware/coding-agent/modes/components/model-hub";
+import { createSettingsAwareStreamFn } from "@chudware/coding-agent/session/settings-stream-fn";
 
 const model = getBundledModel("anthropic", "claude-sonnet-4-6");
 if (!model) throw new Error("Expected bundled Claude Sonnet 4.6 model");

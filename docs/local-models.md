@@ -1,7 +1,7 @@
 # Embedded Local Tiny-Model Experiments
 
 This document summarizes the experiments behind the optional **local** tiny-model paths for
-session-title generation (`providers.tinyModel`), Mnemopi memory extraction/consolidation
+session-title generation (`providers.tinyModel`), Mnemo memory extraction/consolidation
 (`providers.memoryModel`), and the `auto` thinking-level difficulty classifier
 (`providers.autoThinkingModel`, which uses the memory-model registry). It is a factual engineering
 record for maintainers: what we measured, which recipes won, and which models we shipped. All three
@@ -16,27 +16,27 @@ fallback is used when that role is unset.
 - **Non-FHS distros (NixOS, and any host without `libstdc++.so.6` on the loader path)**: the
   on-demand `onnxruntime-node` / `sherpa-onnx-node` / `sharp` addons are prebuilt binaries that
   `dlopen` `libstdc++.so.6` and `libgcc_s.so.1`, and they carry their own `DT_RUNPATH`, so nothing in
-  the Chudcode executable's own RPATH can resolve them. Set `OMP_NATIVE_LIBRARY_PATH` to the
+  the Chudcode executable's own RPATH can resolve them. Set `CHUDCODE_NATIVE_LIBRARY_PATH` to the
   colon-separated directories holding those libraries; Chudcode appends it to `LD_LIBRARY_PATH` for the
   inference worker subprocesses only (never for shell/eval/daemon children). The Nix package
   (`nix/package.nix`) sets this by default.
 - **Device policy**: local tiny models default to CPU-only inference and retry once on CPU if an
   explicit accelerated provider cannot initialize.
   - Pick a provider persistently with the `providers.tinyModelDevice` setting (`default` keeps CPU),
-    or per-run with the `PI_TINY_DEVICE` env var (which overrides the setting).
+    or per-run with the `CHUDCODE_TINY_DEVICE` env var (which overrides the setting).
   - Accepted values are `cpu`, `gpu`, `metal`/`webgpu`, `auto`, `cuda`, `dml`, `coreml`, `wasm`,
     `webnn`, `webnn-gpu`, `webnn-cpu`, and `webnn-npu`.
-  - Direct `coreml` remains opt-in via `PI_TINY_DEVICE=coreml`; it is not part of the default because
+  - Direct `coreml` remains opt-in via `CHUDCODE_TINY_DEVICE=coreml`; it is not part of the default because
     cached decoder-LLM ONNX loads can fail during session initialization.
   - WebGPU/Metal works for the single-process eval harness, but the production worker forces
     Darwin `gpu`/`webgpu`/`auto` requests back to CPU because ONNX Runtime/Bun currently
     hard-crashes on worker teardown after WebGPU inference.
-  - Use `providers.tinyModelDevice` or `PI_TINY_DEVICE` only when explicitly opting out of the CPU
+  - Use `providers.tinyModelDevice` or `CHUDCODE_TINY_DEVICE` only when explicitly opting out of the CPU
     default.
 - **Quantization: q4 is the sweet spot** — smaller on disk, faster to load, and fast at inference.
   q8/int8 loads slower _and_ infers slower on CPU. Every shipped model defaults to `q4`; override the
   precision persistently with the `providers.tinyModelDtype` setting (`default` keeps `q4`, e.g. `fp16`
-  for higher fidelity), or per-run with `PI_TINY_DTYPE` (which overrides the setting). Accepts `auto`,
+  for higher fidelity), or per-run with `CHUDCODE_TINY_DTYPE` (which overrides the setting). Accepts `auto`,
   `fp32`, `fp16`, `q8`, `int8`, `uint8`, `q4`, `bnb4`, `q4f16`, `q2`, `q2f16`, `q1`, `q1f16`; an
   unrecognized value fails loudly at worker startup.
 - **Load-time correction (important).** An earlier belief that "q4 >=1B models take minutes to load"
@@ -85,9 +85,9 @@ fallback is used when that role is unset.
 **Shipped local options**: `lfm2-350m`, `qwen3-0.6b`, `gemma-270m`, `qwen2.5-0.5b`, `lfm2-700m`.
 **Default setting**: `online`. The default local download for `chudcode tiny-models` is `lfm2-700m`.
 
-## Task 2: Mnemopi memory (`providers.memoryModel`)
+## Task 2: Mnemo memory (`providers.memoryModel`)
 
-Mnemopi runs two small-LLM tasks:
+Mnemo runs two small-LLM tasks:
 
 1. **Extraction** — pull durable, structured items from a single message.
 2. **Consolidation** — summarize a list of memories into 1–3 faithful sentences.
@@ -100,10 +100,10 @@ and gemma-3-1b (q4, CPU) via four parallel agents each running 27–31 experimen
 The stock 5-category JSON prompt fails on small models in two ways:
 
 1. The all-empty example `{"facts":[],...}` gets **copied verbatim** → 0 facts extracted.
-2. Capable models emit **JSON objects inside arrays**, which Mnemopi's `String(item)` coerces into
+2. Capable models emit **JSON objects inside arrays**, which Mnemo's `String(item)` coerces into
    the literal string `[object Object]`.
 
-The robust fix is a **one-item-per-line output format** (consumed by Mnemopi's parser line-fallback)
+The robust fix is a **one-item-per-line output format** (consumed by Mnemo's parser line-fallback)
 or a **flat JSON array of strings**. Every model also over-extracts pure small talk; an explicit
 chit-chat → NONE example is the best mitigation.
 
@@ -142,7 +142,7 @@ Of the runnable options, the registry marks `lfm2-1.2b` as the recommended local
 `gemma-3-1b`, `qwen2.5-1.5b`, `lfm2-1.2b`.
 **Default setting**: `online`.
 
-### Known Mnemopi parser bugs (surfaced by these experiments)
+### Known Mnemo parser bugs (surfaced by these experiments)
 
 - `String(item)` produces `[object Object]` on object array items.
 - The line-fallback drops items `<=10` chars, so a correct short fact like `Name: Can` is discarded.
@@ -154,6 +154,6 @@ Of the runnable options, the registry marks `lfm2-1.2b` as the recommended local
 - Local inference runs **in a worker** (off the main thread); models are cached on disk and
   downloaded on first use.
 - The memory local path applies the refined recipes (line-format + small-talk-guarded extraction
-  prompt, hardened consolidation prompt) via Mnemopi prompt overrides; the **online path is
+  prompt, hardened consolidation prompt) via Mnemo prompt overrides; the **online path is
   unchanged**.
 - `providers.autoThinkingModel` uses the same shipped local options as `providers.memoryModel`.

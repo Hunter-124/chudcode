@@ -10,7 +10,7 @@
 import { Database } from "bun:sqlite";
 import * as fs from "node:fs";
 import * as path from "node:path";
-import { sleepSync } from "@oh-my-pi/pi-utils/async";
+import { sleepSync } from "@chudware/utils/async";
 import { readBenchmarkSnapshot } from "./benchmarks";
 import { readJobResult } from "./runner";
 
@@ -98,7 +98,7 @@ CREATE TABLE IF NOT EXISTS runs (
 	job_name TEXT PRIMARY KEY,
 	benchmark TEXT NOT NULL DEFAULT 'harbor',
 	dataset TEXT NOT NULL DEFAULT '',
-	agent TEXT NOT NULL DEFAULT 'omp',
+	agent TEXT NOT NULL DEFAULT 'chudcode',
 	models TEXT NOT NULL DEFAULT '',
 	prewalk TEXT,
 	role TEXT NOT NULL DEFAULT '',
@@ -544,11 +544,11 @@ function readHarborConfig(jobDir: string): { dataset: string; agent: string; mod
 				? raw.dataset
 				: (((raw.datasets as Array<Record<string, unknown>> | undefined)?.[0]?.name as string | undefined) ?? "");
 		const agents = raw.agents as Array<Record<string, unknown>> | undefined;
-		const agent = (agents?.[0]?.name as string | undefined) ?? "omp";
+		const agent = (agents?.[0]?.name as string | undefined) ?? "chudcode";
 		const models = (agents?.[0]?.model_name as string | undefined) ?? "";
 		return { dataset: String(dataset), agent, models };
 	} catch {
-		return { dataset: "", agent: "omp", models: "" };
+		return { dataset: "", agent: "chudcode", models: "" };
 	}
 }
 

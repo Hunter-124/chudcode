@@ -74,7 +74,7 @@ const testCases = {
 // Each width bench cycles a pool of 64 distinct strings. This defeats
 // constant-argument hoisting in pure comparators (`do_not_optimize` only
 // protects the result) and mirrors a real redraw workload: a frame re-measures
-// the same visible lines every paint, so pi-tui's bounded width memo hits —
+// the same visible lines every paint, so chud-tui's bounded width memo hits —
 // but the pool is far larger than any cache that merely fits the bench.
 const WIDTH_VARIANT_COUNT = 64;
 
@@ -99,12 +99,12 @@ function nextWidthInput(kind: keyof typeof widthInputVariants): string {
 }
 
 // ============================================================================
-// 1. visibleWidth: pi-tui hot path vs raw N-API binding vs Bun.stringWidth vs
+// 1. visibleWidth: chud-tui hot path vs raw N-API binding vs Bun.stringWidth vs
 //    string-width npm package
 // ============================================================================
 
 summary(() => {
-	bench("visibleWidth: short ascii (pi-tui)", () => do_not_optimize(tuiVisibleWidth(nextWidthInput("shortAscii"))));
+	bench("visibleWidth: short ascii (chud-tui)", () => do_not_optimize(tuiVisibleWidth(nextWidthInput("shortAscii"))));
 	bench("visibleWidth: short ascii (native N-API)", () =>
 		do_not_optimize(visibleWidth(nextWidthInput("shortAscii"), 3)),
 	);
@@ -117,7 +117,7 @@ summary(() => {
 });
 
 summary(() => {
-	bench("visibleWidth: long ascii (pi-tui)", () => do_not_optimize(tuiVisibleWidth(nextWidthInput("longAscii"))));
+	bench("visibleWidth: long ascii (chud-tui)", () => do_not_optimize(tuiVisibleWidth(nextWidthInput("longAscii"))));
 	bench("visibleWidth: long ascii (native N-API)", () =>
 		do_not_optimize(visibleWidth(nextWidthInput("longAscii"), 3)),
 	);
@@ -130,7 +130,7 @@ summary(() => {
 });
 
 summary(() => {
-	bench("visibleWidth: ansi styled (pi-tui)", () => do_not_optimize(tuiVisibleWidth(nextWidthInput("ansiStyled"))));
+	bench("visibleWidth: ansi styled (chud-tui)", () => do_not_optimize(tuiVisibleWidth(nextWidthInput("ansiStyled"))));
 	bench("visibleWidth: ansi styled (native N-API)", () =>
 		do_not_optimize(visibleWidth(nextWidthInput("ansiStyled"), 3)),
 	);
@@ -143,7 +143,7 @@ summary(() => {
 });
 
 summary(() => {
-	bench("visibleWidth: emoji / CJK (pi-tui)", () => do_not_optimize(tuiVisibleWidth(nextWidthInput("emojiCjk"))));
+	bench("visibleWidth: emoji / CJK (chud-tui)", () => do_not_optimize(tuiVisibleWidth(nextWidthInput("emojiCjk"))));
 	bench("visibleWidth: emoji / CJK (native N-API)", () =>
 		do_not_optimize(visibleWidth(nextWidthInput("emojiCjk"), 3)),
 	);

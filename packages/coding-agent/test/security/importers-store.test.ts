@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
+import * as fsx from "@chudware/utils/fsx";
 import { $ } from "bun";
 import { importCodexSecurityBundle, importSarif, importSarifFile, SecurityStore } from "../../src/security";
 
@@ -11,7 +11,7 @@ let temporaryRoot = "";
 let repositoryRoot = "";
 
 beforeEach(async () => {
-	temporaryRoot = await fs.mkdtemp(path.join(os.tmpdir(), "omp-security-store-"));
+	temporaryRoot = await fs.mkdtemp(path.join(os.tmpdir(), "chudcode-security-store-"));
 	repositoryRoot = path.join(temporaryRoot, "repo");
 	await fs.mkdir(repositoryRoot);
 });

@@ -1,7 +1,7 @@
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
+import * as fsx from "@chudware/utils/fsx";
 import type {
 	SecurityCoverage,
 	SecurityFinding,
@@ -319,7 +319,7 @@ export async function importSarif(input: unknown, options: SarifImportOptions): 
 	if (options.sourcePath) scanProvenance.metadata = { sourcePath: options.sourcePath };
 	return parseSecurityScanBundle({
 		scan: {
-			documentType: "omp-security.scan",
+			documentType: "chudcode-security.scan",
 			schemaVersion: "1.0",
 			id: scanId,
 			projectKey: encodeSecurityProjectKey(canonicalRoot),

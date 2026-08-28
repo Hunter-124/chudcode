@@ -1,11 +1,11 @@
 import { describe, expect, it } from "bun:test";
-import { getThemeByName } from "@oh-my-pi/pi-coding-agent/modes/theme/theme";
+import { getThemeByName } from "@chudware/coding-agent/modes/theme/theme";
 import {
 	recallToolRenderer,
 	reflectToolRenderer,
 	retainToolRenderer,
-} from "@oh-my-pi/pi-coding-agent/tools/memory-render";
-import { sanitizeText } from "@oh-my-pi/pi-utils";
+} from "@chudware/coding-agent/tools/memory-render";
+import { sanitizeText } from "@chudware/utils";
 
 const themePromise = getThemeByName("dark");
 

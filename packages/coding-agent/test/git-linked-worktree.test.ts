@@ -3,7 +3,7 @@ import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 
-import { repo } from "@oh-my-pi/pi-coding-agent/utils/git";
+import { repo } from "@chudware/coding-agent/utils/git";
 
 // Builds the on-disk shape of a linked git worktree without invoking git:
 //   <project>/.git/                      ← shared common dir (basename ".git")
@@ -24,7 +24,7 @@ describe("git linked worktree resolution", () => {
 	let tempRoot: string;
 
 	beforeEach(() => {
-		tempRoot = fs.realpathSync.native(fs.mkdtempSync(path.join(os.tmpdir(), "omp-linked-worktree-")));
+		tempRoot = fs.realpathSync.native(fs.mkdtempSync(path.join(os.tmpdir(), "chudcode-linked-worktree-")));
 	});
 
 	afterEach(() => {
@@ -33,16 +33,16 @@ describe("git linked worktree resolution", () => {
 	});
 
 	it("names the worktree root and the shared primary checkout", () => {
-		const project = path.join(tempRoot, "pi");
-		const worktreeRoot = path.join(tempRoot, ".tree", "pi", "xx");
+		const project = path.join(tempRoot, "chud");
+		const worktreeRoot = path.join(tempRoot, ".tree", "chud", "xx");
 		linkWorktree(project, worktreeRoot);
 
 		expect(repo.linkedWorktreeSync(worktreeRoot)).toEqual({ root: worktreeRoot, primaryRoot: project });
 	});
 
 	it("resolves from a subdirectory of the worktree to the worktree root", () => {
-		const project = path.join(tempRoot, "pi");
-		const worktreeRoot = path.join(tempRoot, ".tree", "pi", "xx");
+		const project = path.join(tempRoot, "chud");
+		const worktreeRoot = path.join(tempRoot, ".tree", "chud", "xx");
 		linkWorktree(project, worktreeRoot);
 		const sub = path.join(worktreeRoot, "packages", "foo");
 		fs.mkdirSync(sub, { recursive: true });
@@ -51,8 +51,8 @@ describe("git linked worktree resolution", () => {
 	});
 
 	it("returns null for the primary checkout", () => {
-		const project = path.join(tempRoot, "pi");
-		linkWorktree(project, path.join(tempRoot, ".tree", "pi", "xx"));
+		const project = path.join(tempRoot, "chud");
+		linkWorktree(project, path.join(tempRoot, ".tree", "chud", "xx"));
 
 		expect(repo.linkedWorktreeSync(project)).toBeNull();
 	});

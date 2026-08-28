@@ -9,7 +9,7 @@ import {
 	getDbBusyTimeoutMs,
 	parseEnvFile,
 	setInteractiveHost,
-} from "@oh-my-pi/pi-utils/env";
+} from "@chudware/utils/env";
 
 const tempDirs: string[] = [];
 const runtimeProbePath = path.join(import.meta.dir, "fixtures", "test-runtime-probe.ts");
@@ -21,7 +21,7 @@ afterEach(() => {
 });
 
 function writeTempEnv(content: string): string {
-	const dir = fs.mkdtempSync(path.join(os.tmpdir(), "pi-utils-env-"));
+	const dir = fs.mkdtempSync(path.join(os.tmpdir(), "chud-utils-env-"));
 	tempDirs.push(dir);
 	const filePath = path.join(dir, ".env");
 	fs.writeFileSync(filePath, content);
@@ -85,15 +85,6 @@ describe("parseEnvFile", () => {
 		expect(parseEnvFile(filePath)).toEqual({
 			GOOD: "value",
 			_ALSO_GOOD: "quoted value",
-		});
-	});
-
-	it("mirrors valid OMP_ variables to PI_ variables", () => {
-		const filePath = writeTempEnv("OMP_FEATURE=enabled\nOMP_BAD=before\0after\n");
-
-		expect(parseEnvFile(filePath)).toEqual({
-			OMP_FEATURE: "enabled",
-			PI_FEATURE: "enabled",
 		});
 	});
 
@@ -190,12 +181,12 @@ describe("filterChildShellEnv", () => {
 		const cwd = path.dirname(writeTempEnv(""));
 		fs.writeFileSync(
 			path.join(cwd, `.env.${launchDotenvMode()}.local`),
-			"OMP_DOTENV_REPRO_MARKER=synthetic-mode-local-value\n",
+			"CHUDCODE_DOTENV_REPRO_MARKER=synthetic-mode-local-value\n",
 		);
 
 		const child = filterChildShellEnv(
 			{
-				OMP_DOTENV_REPRO_MARKER: "synthetic-mode-local-value",
+				CHUDCODE_DOTENV_REPRO_MARKER: "synthetic-mode-local-value",
 				UNCHANGED: "parent-value",
 			},
 			cwd,
@@ -208,21 +199,21 @@ describe("filterChildShellEnv", () => {
 		const cwd = path.dirname(writeTempEnv("NODE_ENV=production\n"));
 		fs.writeFileSync(
 			path.join(cwd, ".env.development.local"),
-			"OMP_DOTENV_REPRO_MARKER=synthetic-mode-local-value\n",
+			"CHUDCODE_DOTENV_REPRO_MARKER=synthetic-mode-local-value\n",
 		);
 		const envModulePath = path.join(import.meta.dir, "..", "src", "env.ts");
 		const script = [
 			`import { filterChildShellEnv } from ${JSON.stringify(envModulePath)};`,
 			"const child = filterChildShellEnv(process.env, process.cwd());",
 			"process.stdout.write(JSON.stringify({",
-			"  processValue: process.env.OMP_DOTENV_REPRO_MARKER ?? null,",
-			"  childValue: child.OMP_DOTENV_REPRO_MARKER ?? null,",
+			"  processValue: process.env.CHUDCODE_DOTENV_REPRO_MARKER ?? null,",
+			"  childValue: child.CHUDCODE_DOTENV_REPRO_MARKER ?? null,",
 			"  nodeEnv: process.env.NODE_ENV ?? null,",
 			"}));",
 		].join("\n");
 		const proc = Bun.spawn([process.execPath, "--no-install", "--eval", script], {
 			cwd,
-			env: { ...process.env, NODE_ENV: undefined, OMP_DOTENV_REPRO_MARKER: undefined },
+			env: { ...process.env, NODE_ENV: undefined, CHUDCODE_DOTENV_REPRO_MARKER: undefined },
 			stdout: "pipe",
 			stderr: "pipe",
 		});
@@ -243,12 +234,16 @@ describe("filterChildShellEnv", () => {
 
 describe("isBunTestRuntime", () => {
 	it("does not treat shared application env names as a test runner signal", async () => {
-		expect(await runRuntimeProbe({ NODE_ENV: "test", BUN_ENV: undefined, PI_TEST_RUNTIME: undefined })).toBe(false);
-		expect(await runRuntimeProbe({ NODE_ENV: undefined, BUN_ENV: "test", PI_TEST_RUNTIME: undefined })).toBe(false);
+		expect(await runRuntimeProbe({ NODE_ENV: "test", BUN_ENV: undefined, CHUDCODE_TEST_RUNTIME: undefined })).toBe(
+			false,
+		);
+		expect(await runRuntimeProbe({ NODE_ENV: undefined, BUN_ENV: "test", CHUDCODE_TEST_RUNTIME: undefined })).toBe(
+			false,
+		);
 	});
 
 	it("honors the private test runner signal", async () => {
-		expect(await runRuntimeProbe({ NODE_ENV: undefined, BUN_ENV: undefined, PI_TEST_RUNTIME: "1" })).toBe(true);
+		expect(await runRuntimeProbe({ NODE_ENV: undefined, BUN_ENV: undefined, CHUDCODE_TEST_RUNTIME: "1" })).toBe(true);
 	});
 
 	it("recognizes Bun's underscore test entrypoints", async () => {
@@ -261,7 +256,7 @@ describe("isBunTestRuntime", () => {
 		);
 		expect(
 			await runRuntimeProbe(
-				{ NODE_ENV: "test", BUN_ENV: undefined, PI_TEST_RUNTIME: undefined },
+				{ NODE_ENV: "test", BUN_ENV: undefined, CHUDCODE_TEST_RUNTIME: undefined },
 				underscoreProbePath,
 			),
 		).toBe(true);
@@ -317,7 +312,7 @@ describe("$envExact", () => {
 	});
 
 	it("reads process.env by default", () => {
-		const name = `PI_ENVEXACT_TEST_${Date.now()}`;
+		const name = `CHUDCODE_ENVEXACT_TEST_${Date.now()}`;
 		process.env[name] = "value";
 		try {
 			expect($envExact(name)).toBe("value");

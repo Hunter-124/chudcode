@@ -1,15 +1,15 @@
 # Hooks Examples
 
-Example hooks for omp-coding-agent.
+Example hooks for chudcode-coding-agent.
 
 ## Usage
 
 ```bash
 # Load a hook with --hook flag
-omp --hook examples/hooks/permission-gate.ts
+chudcode --hook examples/hooks/permission-gate.ts
 
 # Or copy to hooks directory for auto-discovery
-cp permission-gate.ts ~/.omp/agent/hooks/
+cp permission-gate.ts ~/.chudcode/agent/hooks/
 ```
 
 ## Examples
@@ -34,11 +34,11 @@ cp permission-gate.ts ~/.omp/agent/hooks/
 See [docs/hooks.md](../../docs/hooks.md) for full documentation.
 
 ```typescript
-import type { HookAPI } from "@oh-my-pi/pi-coding-agent/hooks";
+import type { HookAPI } from "@chudware/coding-agent/hooks";
 
-export default function (pi: HookAPI) {
+export default function (chud: HookAPI) {
 	// Subscribe to events
-	pi.on("tool_call", async (event, ctx) => {
+	chud.on("tool_call", async (event, ctx) => {
 		if (event.toolName === "bash" && event.input.command?.includes("rm -rf")) {
 			const ok = await ctx.ui.confirm("Dangerous!", "Allow rm -rf?");
 			if (!ok) return { block: true, reason: "Blocked by user" };
@@ -46,7 +46,7 @@ export default function (pi: HookAPI) {
 	});
 
 	// Register custom commands
-	pi.registerCommand("hello", {
+	chud.registerCommand("hello", {
 		description: "Say hello",
 		handler: async (args, ctx) => {
 			ctx.ui.notify("Hello!", "info");

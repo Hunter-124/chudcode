@@ -16,9 +16,9 @@ import {
 	getGlobalDaemonRuntimeRoot,
 	getProjectDir,
 	isEnoent,
-} from "@oh-my-pi/pi-utils";
-import chalk from "@oh-my-pi/pi-utils/chalk";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
+} from "@chudware/utils";
+import chalk from "@chudware/utils/chalk";
+import * as fsx from "@chudware/utils/fsx";
 import { createDaemonBrokerClient, type DaemonBrokerClient } from "../launch/client";
 import { canonicalProjectDir, daemonRuntimeDir, readDaemonScopeMeta } from "../launch/paths";
 import { readLiveDaemonBrokerPid } from "../launch/presence";

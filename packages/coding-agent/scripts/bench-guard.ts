@@ -2,8 +2,8 @@
 /**
  * Boot-time regression guard (Phase A1 of the boot/TUI perf work).
  *
- * Re-runs the `PI_TIMING=x` cold-boot benchmark under hyperfine and fails when
- * the median regresses past `baseline * THRESHOLD`. `PI_TIMING=x` runs the full
+ * Re-runs the `CHUDCODE_TIMING=x` cold-boot benchmark under hyperfine and fails when
+ * the median regresses past `baseline * THRESHOLD`. `CHUDCODE_TIMING=x` runs the full
  * pre-paint chain in `runRootCommand` and then `process.exit(0)`, so the
  * never-exiting interactive launch becomes a terminating, benchmarkable boot.
  *
@@ -19,11 +19,11 @@
  */
 import * as fs from "node:fs";
 import * as path from "node:path";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
+import * as fsx from "@chudware/utils/fsx";
 
 const THRESHOLD = 1.05; // 5% regression budget
 const BASELINE_PATH = path.join(import.meta.dir, "..", "bench", "boot-baseline.json");
-const BENCH_COMMAND = "PI_TIMING=x PI_STRICT_EDIT_MODE=1 bun src/cli.ts";
+const BENCH_COMMAND = "CHUDCODE_TIMING=x CHUDCODE_STRICT_EDIT_MODE=1 bun src/cli.ts";
 const cwd = path.join(import.meta.dir, "..");
 
 function medianOf(hyperfineJson: string): number {

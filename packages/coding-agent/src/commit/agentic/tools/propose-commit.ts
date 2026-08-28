@@ -1,4 +1,4 @@
-import { type } from "@oh-my-pi/omptype";
+import { type } from "@chudware/chudtype";
 import type { CommitAgentState } from "../../../commit/agentic/state";
 import {
 	capDetails,

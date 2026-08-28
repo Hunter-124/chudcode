@@ -1,17 +1,17 @@
 import { describe, expect, it } from "bun:test";
-import type { DaemonBrokerClient } from "@oh-my-pi/pi-coding-agent/launch/client";
-import type { DaemonSnapshot, DaemonSpec } from "@oh-my-pi/pi-coding-agent/launch/protocol";
-import type { ComputerStageDescriptor } from "@oh-my-pi/pi-coding-agent/tools/computer/stage";
+import type { DaemonBrokerClient } from "@chudware/coding-agent/launch/client";
+import type { DaemonSnapshot, DaemonSpec } from "@chudware/coding-agent/launch/protocol";
+import type { ComputerStageDescriptor } from "@chudware/coding-agent/tools/computer/stage";
 import {
 	type ComputerStageViewerDaemonDescription,
 	ComputerStageViewerManager,
 	type ComputerStageViewerRuntime,
-} from "@oh-my-pi/pi-coding-agent/tools/computer/stage-viewer";
+} from "@chudware/coding-agent/tools/computer/stage-viewer";
 
 const PROJECT_DIR = "/canonical/project";
 const STAGE: ComputerStageDescriptor = {
 	id: "stage-alpha",
-	daemonName: "omp.computer.xvfb.fixture",
+	daemonName: "chudcode.computer.xvfb.fixture",
 	projectDir: PROJECT_DIR,
 	displayServer: ":27",
 	env: { DISPLAY: ":27" },
@@ -95,8 +95,8 @@ class ViewerHarness {
 function expectedNames(stageId: string): { x11vnc: string; proxy: string } {
 	const suffix = Bun.hash(stageId).toString(36);
 	return {
-		x11vnc: `omp.computer.vnc.${suffix}`,
-		proxy: `omp.computer.novnc.${suffix}`,
+		x11vnc: `chudcode.computer.vnc.${suffix}`,
+		proxy: `chudcode.computer.novnc.${suffix}`,
 	};
 }
 

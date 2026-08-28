@@ -30,25 +30,25 @@ let
   platform =
     {
       aarch64-darwin = {
-        addon = "pi_natives.darwin-arm64.node";
+        addon = "chud_natives.darwin-arm64.node";
         nativeLibrary = "libpi_natives.dylib";
       };
       aarch64-linux = {
-        addon = "pi_natives.linux-arm64.node";
+        addon = "chud_natives.linux-arm64.node";
         nativeLibrary = "libpi_natives.so";
       };
       x86_64-darwin = {
-        addon = "pi_natives.darwin-x64-baseline.node";
+        addon = "chud_natives.darwin-x64-baseline.node";
         nativeLibrary = "libpi_natives.dylib";
         rustFlags = "-C target-cpu=x86-64-v2";
       };
       x86_64-linux = {
-        addon = "pi_natives.linux-x64-baseline.node";
+        addon = "chud_natives.linux-x64-baseline.node";
         nativeLibrary = "libpi_natives.so";
         rustFlags = "-C target-cpu=x86-64-v2";
       };
     }
-    .${stdenv.hostPlatform.system} or (throw "Unsupported OMP platform: ${stdenv.hostPlatform.system}");
+    .${stdenv.hostPlatform.system} or (throw "Unsupported Chudcode platform: ${stdenv.hostPlatform.system}");
   patchedDependencies = lib.mapAttrs (
     _: patch: source + "/${patch}"
   ) rootPackageJson.patchedDependencies;
@@ -57,7 +57,7 @@ let
     [ stdenv.cc.cc.lib ] ++ lib.optional (stdenv.cc.cc ? libgcc) stdenv.cc.cc.libgcc
   );
   bunRuntimeTemplate = stdenvNoCC.mkDerivation {
-    pname = "omp-bun-runtime-template";
+    pname = "chudcode-bun-runtime-template";
     inherit (bun) version;
     src = bun.src;
 
@@ -74,7 +74,7 @@ let
   };
 in
 stdenv.mkDerivation {
-  pname = "omp";
+  pname = "chudcode";
   inherit (packageJson) version;
   src = source;
 
@@ -138,15 +138,15 @@ stdenv.mkDerivation {
   buildPhase = ''
     runHook preBuild
 
-    echo "Building pi-natives"
-    cargo build --release -p pi-natives ${lib.optionalString withWaylandScreencast "--features wayland-pipewire"}
+    echo "Building chud-natives"
+    cargo build --release -p chud-natives ${lib.optionalString withWaylandScreencast "--features wayland-pipewire"}
     install -Dm755 "target/release/${platform.nativeLibrary}" \
       "packages/natives/native/${platform.addon}"
     ${lib.optionalString stdenv.hostPlatform.isLinux ''
       # The loader extracts this archived addon at runtime, so fix its
       # interpreter-independent Nix RPATH before Bun embeds it.
       autoPatchelf -- "packages/natives/native/${platform.addon}"
-      # pi-voice dlopens libpulse-simple.so.0 / libpulse.so.0 / libasound.so.2
+      # chud-voice dlopens libpulse-simple.so.0 / libpulse.so.0 / libasound.so.2
       # by bare name; glibc resolves those through the calling object's
       # RUNPATH, so append the client libraries here. Nothing links them, so
       # autoPatchelf cannot discover them on its own.
@@ -164,7 +164,7 @@ stdenv.mkDerivation {
       signIfRequired "packages/natives/native/${platform.addon}"
     ''}
 
-    echo "Compiling OMP"
+    echo "Compiling Chudcode"
     BUN_COMPILE_EXECUTABLE_PATH="${bunRuntimeTemplate}/libexec/bun" \
       bun --cwd="$PWD/packages/coding-agent" run build
 
@@ -174,9 +174,9 @@ stdenv.mkDerivation {
   installPhase = ''
     runHook preInstall
 
-    install -Dm755 packages/coding-agent/dist/omp "$out/bin/omp"
-    install -Dm644 LICENSE "$out/share/doc/omp/LICENSE"
-    install -Dm644 THIRD-PARTY-NOTICES.txt "$out/share/doc/omp/THIRD-PARTY-NOTICES.txt"
+    install -Dm755 packages/coding-agent/dist/chudcode "$out/bin/chudcode"
+    install -Dm644 LICENSE "$out/share/doc/chudcode/LICENSE"
+    install -Dm644 THIRD-PARTY-NOTICES.txt "$out/share/doc/chudcode/THIRD-PARTY-NOTICES.txt"
 
     # The addon is gzip-compressed inside the compiled binary, so the store
     # paths it links against are invisible to the output reference scanner.
@@ -201,10 +201,10 @@ stdenv.mkDerivation {
   # inert shebang. Remove its hash before Nix scans output references; this
   # runs before Darwin's binary-signing fixup hook.
   preFixup = ''
-    remove-references-to -t ${bun} "$out/bin/omp"
+    remove-references-to -t ${bun} "$out/bin/chudcode"
   '';
 
-  # Prebuilt addons that omp bun-installs into its cache at first use
+  # Prebuilt addons that chudcode bun-installs into its cache at first use
   # (onnxruntime-node, sherpa-onnx-node, sharp, fastembed) are process.dlopen'd and
   # need libstdc++.so.6 / libgcc_s.so.1, which nix glibc's default loader path lacks;
   # their own DT_RUNPATH means this executable's RPATH is never consulted for their
@@ -218,12 +218,12 @@ stdenv.mkDerivation {
   # soname from the already-loaded set, regardless of the addon's own DT_RUNPATH.
   # stdenv.cc.cc.lib is already in buildInputs, so the autoPatchelfHook pass that
   # follows resolves the new dependency and sets the RPATH. patchelf must run before
-  # wrapProgram: the wrapper replaces $out/bin/omp with a script and moves the ELF
-  # to $out/bin/.omp-wrapped.
+  # wrapProgram: the wrapper replaces $out/bin/chudcode with a script and moves the ELF
+  # to $out/bin/.chudcode-wrapped.
   postFixup = lib.optionalString stdenv.hostPlatform.isLinux ''
-    patchelf --add-needed libstdc++.so.6 "$out/bin/omp"
-    wrapProgram "$out/bin/omp" \
-      --set-default OMP_NATIVE_LIBRARY_PATH "${lib.makeLibraryPath runtimeNativeLibraries}"
+    patchelf --add-needed libstdc++.so.6 "$out/bin/chudcode"
+    wrapProgram "$out/bin/chudcode" \
+      --set-default CHUDCODE_NATIVE_LIBRARY_PATH "${lib.makeLibraryPath runtimeNativeLibraries}"
   '';
 
   disallowedReferences = [ bun ];
@@ -237,41 +237,41 @@ stdenv.mkDerivation {
   # section address. preInstallCheck runs after every fixupPhase hook, including
   # the autoPatchelfHook pass that follows postFixup, so it is the last point at
   # which the field can be corrected; wrapProgram moved the real ELF to
-  # `.omp-wrapped`.
+  # `.chudcode-wrapped`.
   preInstallCheck = lib.optionalString stdenv.hostPlatform.isLinux ''
-    bun ${../scripts/fix-dt-verdef.ts} "$out/bin/.omp-wrapped"
+    bun ${../scripts/fix-dt-verdef.ts} "$out/bin/.chudcode-wrapped"
   '';
 
   doInstallCheck = true;
   installCheckPhase = ''
     runHook preInstallCheck
-    # Capture rather than pipe into grep: piping masks a signal death of omp
+    # Capture rather than pipe into grep: piping masks a signal death of chudcode
     # under `set -o pipefail` (grep -q's exit status wins), which hid the
-    # loader SIGSEGV in issue #9881. With a variable, errexit surfaces omp's
+    # loader SIGSEGV in issue #9881. With a variable, errexit surfaces chudcode's
     # real exit status and stderr in the build log.
-    smokeOutput="$(HOME="$TMPDIR" "$out/bin/omp" --smoke-test)"
+    smokeOutput="$(HOME="$TMPDIR" "$out/bin/chudcode" --smoke-test)"
     grep -q "smoke-test: ok" <<<"$smokeOutput"
-    BUN_BE_BUN=1 "$out/bin/omp" -e \
+    BUN_BE_BUN=1 "$out/bin/chudcode" -e \
       'if (Bun.version !== "${bun.version}" || typeof Bun.Image !== "function") process.exit(1)'
     ${lib.optionalString stdenv.hostPlatform.isLinux ''
       # The addons are dlopen'd, so prove the advertised directories actually
       # resolve the libraries rather than merely carrying a plausible string.
-      env -u LD_LIBRARY_PATH BUN_BE_BUN=1 "$out/bin/omp" -e \
-        'const {dlopen}=require("bun:ffi");const dirs=(process.env.OMP_NATIVE_LIBRARY_PATH||"").split(":").filter(Boolean);const need={"libstdc++.so.6":{__cxa_demangle:{args:["ptr","ptr","ptr","ptr"],returns:"ptr"}},"libgcc_s.so.1":{_Unwind_Backtrace:{args:["ptr","ptr"],returns:"i32"}}};for(const lib of Object.keys(need)){let ok=false;for(const d of dirs){try{dlopen(d+"/"+lib,need[lib]);ok=true;break}catch(e){}}if(!ok){console.error("unresolved: "+lib);process.exit(1)}}'
+      env -u LD_LIBRARY_PATH BUN_BE_BUN=1 "$out/bin/chudcode" -e \
+        'const {dlopen}=require("bun:ffi");const dirs=(process.env.CHUDCODE_NATIVE_LIBRARY_PATH||"").split(":").filter(Boolean);const need={"libstdc++.so.6":{__cxa_demangle:{args:["ptr","ptr","ptr","ptr"],returns:"ptr"}},"libgcc_s.so.1":{_Unwind_Backtrace:{args:["ptr","ptr"],returns:"i32"}}};for(const lib of Object.keys(need)){let ok=false;for(const d of dirs){try{dlopen(d+"/"+lib,need[lib]);ok=true;break}catch(e){}}if(!ok){console.error("unresolved: "+lib);process.exit(1)}}'
       # The libstdc++ preload (see postFixup) must survive: without it addons the
       # main process dlopen's directly fail to resolve libstdc++.so.6 on NixOS.
-      # wrapProgram moved the real ELF to .omp-wrapped.
-      patchelf --print-needed "$out/bin/.omp-wrapped" | grep -q '^libstdc++\.so\.6$'
+      # wrapProgram moved the real ELF to .chudcode-wrapped.
+      patchelf --print-needed "$out/bin/.chudcode-wrapped" | grep -q '^libstdc++\.so\.6$'
     ''}
     runHook postInstallCheck
   '';
 
   meta = {
     description = "Terminal-based coding agent with multi-model support";
-    homepage = "https://omp.sh";
-    changelog = "https://github.com/can1357/oh-my-pi/releases/tag/v${packageJson.version}";
+    homepage = "https://chudware.sh";
+    changelog = "https://github.com/Hunter-124/chudcode/releases/tag/v${packageJson.version}";
     license = lib.licenses.mit;
-    mainProgram = "omp";
+    mainProgram = "chudcode";
     platforms = [
       "aarch64-darwin"
       "aarch64-linux"

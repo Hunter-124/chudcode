@@ -2,10 +2,10 @@ import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
-import type { FileEntry, SessionHeader } from "@oh-my-pi/pi-coding-agent/session/session-entries";
-import { findMostRecentSession, resolveResumableSession } from "@oh-my-pi/pi-coding-agent/session/session-listing";
-import { loadEntriesFromFile } from "@oh-my-pi/pi-coding-agent/session/session-loader";
-import { SessionManager } from "@oh-my-pi/pi-coding-agent/session/session-manager";
+import type { FileEntry, SessionHeader } from "@chudware/coding-agent/session/session-entries";
+import { findMostRecentSession, resolveResumableSession } from "@chudware/coding-agent/session/session-listing";
+import { loadEntriesFromFile } from "@chudware/coding-agent/session/session-loader";
+import { SessionManager } from "@chudware/coding-agent/session/session-manager";
 import {
 	getConfigRootDir,
 	getSessionsDir,
@@ -13,7 +13,7 @@ import {
 	resolveEquivalentPath,
 	Snowflake,
 	setAgentDir,
-} from "@oh-my-pi/pi-utils";
+} from "@chudware/utils";
 
 const OLDER_MTIME = new Date("2000-01-01T00:00:00.000Z");
 const NEWER_MTIME = new Date("2000-01-01T00:00:01.000Z");
@@ -168,7 +168,7 @@ describe("resolveResumableSession", () => {
 
 describe("SessionManager temp cwd session dirs", () => {
 	let testAgentDir: string;
-	const originalAgentDir = process.env.PI_CODING_AGENT_DIR;
+	const originalAgentDir = process.env.CHUDCODE_CODING_AGENT_DIR;
 	const fallbackAgentDir = path.join(getConfigRootDir(), "agent");
 
 	function expectedTempSessionDirName(tempCwd: string): string {
@@ -183,7 +183,7 @@ describe("SessionManager temp cwd session dirs", () => {
 	}
 
 	beforeEach(() => {
-		testAgentDir = fs.mkdtempSync(path.join(os.tmpdir(), "omp-session-dir-test-"));
+		testAgentDir = fs.mkdtempSync(path.join(os.tmpdir(), "chudcode-session-dir-test-"));
 		setAgentDir(testAgentDir);
 	});
 
@@ -192,7 +192,7 @@ describe("SessionManager temp cwd session dirs", () => {
 			setAgentDir(originalAgentDir);
 		} else {
 			setAgentDir(fallbackAgentDir);
-			delete process.env.PI_CODING_AGENT_DIR;
+			delete process.env.CHUDCODE_CODING_AGENT_DIR;
 		}
 		removeSyncWithRetries(testAgentDir);
 	});
@@ -258,7 +258,7 @@ describe("SessionManager temp cwd session dirs", () => {
 describe("SessionManager legacy session migration persistence", () => {
 	let tempDir: string;
 	let testAgentDir: string;
-	const originalAgentDir = process.env.PI_CODING_AGENT_DIR;
+	const originalAgentDir = process.env.CHUDCODE_CODING_AGENT_DIR;
 	const originalTmuxPane = process.env.TMUX_PANE;
 	const fallbackAgentDir = path.join(getConfigRootDir(), "agent");
 
@@ -293,9 +293,9 @@ describe("SessionManager legacy session migration persistence", () => {
 		// terminal id (WT_SESSION/TMUX_PANE) points continueRecent at stale
 		// breadcrumb state from earlier tests in this file.
 		process.env.TMUX_PANE = "%legacy-migration-test";
-		testAgentDir = fs.mkdtempSync(path.join(os.tmpdir(), "omp-session-manager-legacy-agent-"));
+		testAgentDir = fs.mkdtempSync(path.join(os.tmpdir(), "chudcode-session-manager-legacy-agent-"));
 		setAgentDir(testAgentDir);
-		tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "omp-session-manager-legacy-"));
+		tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "chudcode-session-manager-legacy-"));
 	});
 
 	afterEach(() => {
@@ -305,7 +305,7 @@ describe("SessionManager legacy session migration persistence", () => {
 			setAgentDir(originalAgentDir);
 		} else {
 			setAgentDir(fallbackAgentDir);
-			delete process.env.PI_CODING_AGENT_DIR;
+			delete process.env.CHUDCODE_CODING_AGENT_DIR;
 		}
 		removeSyncWithRetries(tempDir);
 		removeSyncWithRetries(testAgentDir);

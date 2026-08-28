@@ -6,11 +6,11 @@ import {
 	applyResolvedSystemPromptInputs,
 	readPipedInput,
 	submitInteractiveInput,
-} from "@oh-my-pi/pi-coding-agent/main";
-import type { SubmittedUserInput } from "@oh-my-pi/pi-coding-agent/modes/types";
-import type { CreateAgentSessionOptions } from "@oh-my-pi/pi-coding-agent/sdk";
-import { discoverTitleSystemPromptFile } from "@oh-my-pi/pi-coding-agent/system-prompt";
-import { removeWithRetries } from "@oh-my-pi/pi-utils";
+} from "@chudware/coding-agent/main";
+import type { SubmittedUserInput } from "@chudware/coding-agent/modes/types";
+import type { CreateAgentSessionOptions } from "@chudware/coding-agent/sdk";
+import { discoverTitleSystemPromptFile } from "@chudware/coding-agent/system-prompt";
+import { removeWithRetries } from "@chudware/utils";
 
 const cleanupDirs: string[] = [];
 
@@ -30,10 +30,10 @@ function createInput(overrides: Partial<SubmittedUserInput> = {}): SubmittedUser
 }
 
 describe("discoverTitleSystemPromptFile", () => {
-	it("discovers TITLE_SYSTEM.md from the project omp config directory", async () => {
-		const projectDir = await fs.mkdtemp(path.join(os.tmpdir(), "omp-title-system-"));
+	it("discovers TITLE_SYSTEM.md from the project chudcode config directory", async () => {
+		const projectDir = await fs.mkdtemp(path.join(os.tmpdir(), "chudcode-title-system-"));
 		cleanupDirs.push(projectDir);
-		const configDir = path.join(projectDir, ".omp");
+		const configDir = path.join(projectDir, ".chudcode");
 		await fs.mkdir(configDir, { recursive: true });
 		const promptPath = path.join(configDir, "TITLE_SYSTEM.md");
 		await fs.writeFile(promptPath, "custom title prompt");

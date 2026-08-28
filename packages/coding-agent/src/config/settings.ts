@@ -15,10 +15,10 @@ import { randomUUID } from "node:crypto";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
-import { ThinkingLevel } from "@oh-my-pi/pi-agent-core";
-import type { Model } from "@oh-my-pi/pi-ai";
-import { configureCredentialRedaction } from "@oh-my-pi/pi-ai/providers/transform-messages";
-import { configureProviderMaxInFlightRequests } from "@oh-my-pi/pi-ai/stream";
+import { ThinkingLevel } from "@chudware/agent-core";
+import type { Model } from "@chudware/ai";
+import { configureCredentialRedaction } from "@chudware/ai/providers/transform-messages";
+import { configureProviderMaxInFlightRequests } from "@chudware/ai/stream";
 import {
 	getAgentDbPath,
 	getAgentDir,
@@ -29,8 +29,8 @@ import {
 	MAIN_CONFIG_FILENAMES,
 	procmgr,
 	setWorktreesDir,
-} from "@oh-my-pi/pi-utils";
-import { withFileLock } from "@oh-my-pi/pi-utils/file-lock";
+} from "@chudware/utils";
+import { withFileLock } from "@chudware/utils/file-lock";
 import { JSONC, YAML } from "bun";
 import { invalidate as invalidateCapabilityFsCache } from "../capability/fs";
 import { type Settings as SettingsCapabilityItem, settingsCapability } from "../capability/settings";
@@ -281,7 +281,7 @@ const SETTINGS_GROUP_ONLY_PREFIXES: Readonly<Record<string, true>> = (() => {
  * Drop entries from capability-provided project settings whose non-object
  * value would shadow an entire settings group. `.claude/settings.json` is
  * shared with other tools, and a foreign leaf like `"tui": "fullscreen"`
- * deep-merges over omp's `tui` group, silently replacing every `tui.*`
+ * deep-merges over chudcode's `tui` group, silently replacing every `tui.*`
  * setting for sessions rooted in that project. Values at schema leaves,
  * unknown keys, and well-formed nested objects pass through unchanged.
  */
@@ -553,7 +553,7 @@ export class Settings {
 	#global: RawSettings = {};
 	/** Project settings from .claude/settings.yml etc */
 	#project: RawSettings = {};
-	/** Last successfully loaded native .omp/config.yml contents. */
+	/** Last successfully loaded native .chudcode/config.yml contents. */
 	#projectFileSettings: RawSettings = {};
 	/** Logical config paths whose malformed targets were moved aside. */
 	#quarantinedYamlTargets = new Map<string, string>();
@@ -612,7 +612,7 @@ export class Settings {
 		this.#cwd = path.normalize(options.cwd ?? getProjectDir());
 		this.#agentDir = path.normalize(options.agentDir ?? getAgentDir());
 		this.#configPath = options.inMemory ? null : path.join(this.#agentDir, MAIN_CONFIG_FILENAMES[0]);
-		const configFiles = process.env.PI_CONFIG_FILES?.split(path.delimiter).filter(Boolean) ?? [];
+		const configFiles = process.env.CHUDCODE_CONFIG_FILES?.split(path.delimiter).filter(Boolean) ?? [];
 		if (options.configFiles) configFiles.push(...options.configFiles);
 		this.#configFiles = configFiles.map(file => path.resolve(this.#cwd, expandTilde(file)));
 		this.#persist = !options.inMemory && options.readOnly !== true;
@@ -1023,7 +1023,7 @@ export class Settings {
 	/**
 	 * Provenance of the effective `extensions` array for extension-root
 	 * sub-discovery. `"project"` only when a project settings provider owns it
-	 * (any of `.omp/config.yml`, `.omp/settings.json`, `.claude/settings.json`,
+	 * (any of `.chudcode/config.yml`, `.chudcode/settings.json`, `.claude/settings.json`,
 	 * … — all merged into the project layer) and no higher user-level layer (a
 	 * `--config` overlay or a runtime override) replaces it; otherwise `"user"`.
 	 * Callers pass this into {@link EffectiveExtensionRoots.configuredLevel} so
@@ -1439,7 +1439,7 @@ export class Settings {
 			this.#captureGlobalMutation(mutationPath, this.#modifiedPathMutations, getByPath(layer, segments));
 			this.#modified.add(mutationPath);
 		} else {
-			const projectConfigPath = path.join(this.#cwd, ".omp", "config.yml");
+			const projectConfigPath = path.join(this.#cwd, ".chudcode", "config.yml");
 			this.#captureYamlMutation(
 				projectConfigPath,
 				mutationPath,
@@ -1791,7 +1791,7 @@ export class Settings {
 			// Capability discovery is best-effort; the native project config
 			// remains authoritative for model roles and model settings.
 		}
-		const projectConfigPath = path.join(this.#cwd, ".omp", "config.yml");
+		const projectConfigPath = path.join(this.#cwd, ".chudcode", "config.yml");
 		const nativeProject = quarantineInvalid
 			? await this.#loadYaml(projectConfigPath)
 			: (this.#unwrapYamlLoadResult(projectConfigPath, await this.#loadYamlIfPresent(projectConfigPath, false)) ??
@@ -2050,7 +2050,7 @@ export class Settings {
 			}
 			delete raw["features.unexpectedStopDetection"];
 		}
-		// task.isolation.mode: legacy values from before the pi-iso PAL refactor.
+		// task.isolation.mode: legacy values from before the chud-iso PAL refactor.
 		// `worktree` was git worktree → now lives under `rcopy`. `fuse-overlay`
 		// and `fuse-projfs` are now the platform-named `overlayfs` / `projfs`
 		// kinds; the PAL falls back internally when the chosen one isn't
@@ -2206,15 +2206,15 @@ export class Settings {
 			raw.memory = memoryRoot;
 		}
 
-		// Rename the legacy local `mnemosyne` memory backend to `mnemopi`.
+		// Rename the legacy local `mnemosyne` memory backend to `mnemo`.
 		// - `memory.backend: "mnemosyne"` now selects the renamed backend.
-		// - the top-level `mnemosyne` settings object becomes `mnemopi`.
-		// Idempotent: skips the object move once `mnemopi` is materialised.
+		// - the top-level `mnemosyne` settings object becomes `mnemo`.
+		// Idempotent: skips the object move once `mnemo` is materialised.
 		if (memoryBackendObj && memoryBackendObj.backend === "mnemosyne") {
-			memoryBackendObj.backend = "mnemopi";
+			memoryBackendObj.backend = "mnemo";
 		}
-		if ("mnemosyne" in raw && !("mnemopi" in raw)) {
-			raw.mnemopi = raw.mnemosyne;
+		if ("mnemosyne" in raw && !("mnemo" in raw)) {
+			raw.mnemo = raw.mnemosyne;
 			delete raw.mnemosyne;
 		}
 
@@ -2239,7 +2239,7 @@ export class Settings {
 					!("bankId" in hindsightObj) &&
 					typeof agentName === "string" &&
 					agentName.trim().length > 0 &&
-					agentName !== "omp"
+					agentName !== "chudcode"
 				) {
 					hindsightObj.bankId = agentName;
 				}
@@ -2863,7 +2863,7 @@ export class Settings {
 			return;
 		}
 
-		const projectConfigPath = path.join(this.#cwd, ".omp", "config.yml");
+		const projectConfigPath = path.join(this.#cwd, ".chudcode", "config.yml");
 		const modifiedModelRoles = [...this.#modifiedProjectModelRoles];
 		const modifiedModelSettings = [...this.#modifiedProjectModelSettings];
 		const modifiedModelSettingsMutations = new Map(this.#modifiedProjectModelSettingsMutations);

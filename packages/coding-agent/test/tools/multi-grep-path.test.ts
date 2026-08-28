@@ -2,11 +2,11 @@ import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import { Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
-import type { ToolSession } from "@oh-my-pi/pi-coding-agent/tools";
-import { resolveExplicitSearchPaths } from "@oh-my-pi/pi-coding-agent/tools/path-utils";
-import { removeWithRetries } from "@oh-my-pi/pi-utils";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
+import { Settings } from "@chudware/coding-agent/config/settings";
+import type { ToolSession } from "@chudware/coding-agent/tools";
+import { resolveExplicitSearchPaths } from "@chudware/coding-agent/tools/path-utils";
+import { removeWithRetries } from "@chudware/utils";
+import * as fsx from "@chudware/utils/fsx";
 import { GrepTool } from "../../src/tools/grep";
 
 const testSettings = Settings.isolated();
@@ -52,7 +52,7 @@ describe.skipIf(isWindows)("search with omitted paths", () => {
 	let cwd: string;
 
 	beforeEach(async () => {
-		cwd = await fs.mkdtemp(path.join(os.tmpdir(), "pi-search-default-cwd-"));
+		cwd = await fs.mkdtemp(path.join(os.tmpdir(), "chud-search-default-cwd-"));
 		await fsx.write(path.join(cwd, "rooted.txt"), "default-needle here\n");
 	});
 
@@ -95,9 +95,9 @@ describe.skipIf(isWindows)("search across unrelated filesystem trees", () => {
 		// Place fixtures in two unrelated top-level subtrees so their only shared
 		// ancestor is the filesystem root. Without the multi-target fanout, the
 		// search tool would scan from `/` and walk the entire filesystem.
-		dirA = await fs.mkdtemp(path.join("/tmp", "pi-search-multi-A-"));
-		dirB = await fs.mkdtemp(path.join("/var/tmp", "pi-search-multi-B-"));
-		cwd = await fs.mkdtemp(path.join(os.tmpdir(), "pi-search-multi-cwd-"));
+		dirA = await fs.mkdtemp(path.join("/tmp", "chud-search-multi-A-"));
+		dirB = await fs.mkdtemp(path.join("/var/tmp", "chud-search-multi-B-"));
+		cwd = await fs.mkdtemp(path.join(os.tmpdir(), "chud-search-multi-cwd-"));
 		await fsx.write(path.join(dirA, "alpha.txt"), "shared-needle alpha\n");
 		await fsx.write(path.join(dirB, "beta.txt"), "shared-needle beta\n");
 	});
@@ -136,7 +136,7 @@ describe.skipIf(isWindows)("resolveExplicitSearchPaths shared non-root ancestor"
 	let cousinFile: string;
 
 	beforeEach(async () => {
-		parent = await fs.mkdtemp(path.join(os.tmpdir(), "pi-search-ancestor-"));
+		parent = await fs.mkdtemp(path.join(os.tmpdir(), "chud-search-ancestor-"));
 		repo = path.join(parent, "repo");
 		await fs.mkdir(path.join(repo, "src"), { recursive: true });
 		await fsx.write(path.join(repo, "src", "a.ts"), "alpha\n");
@@ -185,7 +185,7 @@ describe.skipIf(isWindows)("search with explicit walker-pruned file targets", ()
 	let repo: string;
 
 	beforeEach(async () => {
-		repo = await fs.mkdtemp(path.join(os.tmpdir(), "pi-search-pruned-"));
+		repo = await fs.mkdtemp(path.join(os.tmpdir(), "chud-search-pruned-"));
 		await fs.mkdir(path.join(repo, ".git"), { recursive: true });
 		await fsx.write(path.join(repo, ".git", "config"), "[push]\n\tfollowTags = true\n");
 		await fsx.write(path.join(repo, "readme.txt"), "no needle here\n");

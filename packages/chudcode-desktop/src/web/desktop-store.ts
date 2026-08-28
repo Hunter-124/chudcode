@@ -1,11 +1,11 @@
-import type { ActiveTool, Notice, SessionSnapshot } from "@oh-my-pi/collab-web/session-client";
+import type { ActiveTool, Notice, SessionSnapshot } from "@chudware/collab-web/session-client";
 import type {
 	AgentEvent,
 	AssistantMessage,
 	CollabUiRequest,
 	SubagentLifecyclePayload,
 	SubagentProgressPayload,
-} from "@oh-my-pi/pi-wire";
+} from "@chudware/wire";
 import type {
 	DesktopEvent,
 	DesktopMethod,

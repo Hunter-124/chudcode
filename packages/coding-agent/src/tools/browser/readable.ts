@@ -1,6 +1,6 @@
-import { logger } from "@oh-my-pi/pi-utils";
-import { type Document, type Element, parseHTML } from "@oh-my-pi/pi-utils/dom";
-import { Readability } from "@oh-my-pi/pi-utils/readability";
+import { logger } from "@chudware/utils";
+import { type Document, type Element, parseHTML } from "@chudware/utils/dom";
+import { Readability } from "@chudware/utils/readability";
 import { htmlToBasicMarkdown } from "../../web/scrapers/types";
 
 export type ReadableFormat = "text" | "markdown";

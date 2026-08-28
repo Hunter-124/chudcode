@@ -13,16 +13,16 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it } from "bun:test
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import { Patch, Patcher } from "@oh-my-pi/hashline";
-import type { AgentToolResult } from "@oh-my-pi/pi-agent-core";
-import { Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
-import { canonicalSnapshotKey, getFileSnapshotStore } from "@oh-my-pi/pi-coding-agent/edit/file-snapshot-store";
-import { HashlineFilesystem } from "@oh-my-pi/pi-coding-agent/edit/hashline/filesystem";
-import { writethroughNoop } from "@oh-my-pi/pi-coding-agent/lsp";
-import type { ToolSession } from "@oh-my-pi/pi-coding-agent/tools";
-import type { ReadToolDetails } from "@oh-my-pi/pi-coding-agent/tools/read";
-import { ReadTool } from "@oh-my-pi/pi-coding-agent/tools/read";
-import { removeWithRetries } from "@oh-my-pi/pi-utils";
+import { Patch, Patcher } from "@chudware/hashline";
+import type { AgentToolResult } from "@chudware/agent-core";
+import { Settings } from "@chudware/coding-agent/config/settings";
+import { canonicalSnapshotKey, getFileSnapshotStore } from "@chudware/coding-agent/edit/file-snapshot-store";
+import { HashlineFilesystem } from "@chudware/coding-agent/edit/hashline/filesystem";
+import { writethroughNoop } from "@chudware/coding-agent/lsp";
+import type { ToolSession } from "@chudware/coding-agent/tools";
+import type { ReadToolDetails } from "@chudware/coding-agent/tools/read";
+import { ReadTool } from "@chudware/coding-agent/tools/read";
+import { removeWithRetries } from "@chudware/utils";
 
 const HASHLINE_HEADER_LINE = /^\[([^#\r\n]+)#([0-9A-F]{4})\]$/m;
 const COLUMN_CAP = 64;

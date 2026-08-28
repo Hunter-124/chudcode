@@ -15,8 +15,8 @@
 #    off other local users' reach.
 set -euo pipefail
 
-SEAT_ROOT="${OMP_SEAT_ROOT:-${XDG_RUNTIME_DIR:-/tmp}/omp-seats}"
-GEOMETRY="${OMP_SEAT_GEOMETRY:-1920x1080x24}"
+SEAT_ROOT="${CHUDCODE_SEAT_ROOT:-${XDG_RUNTIME_DIR:-/tmp}/chudcode-seats}"
+GEOMETRY="${CHUDCODE_SEAT_GEOMETRY:-1920x1080x24}"
 
 die() { printf 'seat: %s\n' "$1" >&2; exit 1; }
 
@@ -78,7 +78,7 @@ cmd_start() {
 	# reports zero windows. The shim (or any EWMH WM) supplies them. Its lifetime
 	# is bound to the X server: when Xvfb dies, Xlib's default I/O error handler
 	# exits the shim, so it can never outlive its seat.
-	local shim="$(dirname "$(readlink -f "$0")")/omp-seat-shim"
+	local shim="$(dirname "$(readlink -f "$0")")/chudcode-seat-shim"
 	if [[ -x "$shim" ]]; then
 		DISPLAY="$disp" XAUTHORITY="$auth" setsid "$shim" >"$dir/shim.log" 2>&1 &
 		printf '%s' "$!" >"$dir/shim.pid"
@@ -97,8 +97,8 @@ cmd_env() {
 	# WAYLAND_DISPLAY must be *unset*, not empty: Chudcode's backend picker tests
 	# presence (var_os().is_some()), so an empty value still selects Wayland.
 	cat <<-EOF
-		OMP_SEAT_NAME=$1
-		OMP_SEAT_DIR=$dir
+		CHUDCODE_SEAT_NAME=$1
+		CHUDCODE_SEAT_DIR=$dir
 		DISPLAY=$disp
 		XAUTHORITY=$dir/Xauthority
 		UNSET=WAYLAND_DISPLAY

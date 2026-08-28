@@ -2,9 +2,9 @@ import { afterEach, describe, expect, test } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import { extractFileMentions, generateFileMentionMessages } from "@oh-my-pi/pi-coding-agent/utils/file-mentions";
-import { removeWithRetries } from "@oh-my-pi/pi-utils";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
+import { extractFileMentions, generateFileMentionMessages } from "@chudware/coding-agent/utils/file-mentions";
+import { removeWithRetries } from "@chudware/utils";
+import * as fsx from "@chudware/utils/fsx";
 
 const tempDirs: string[] = [];
 
@@ -15,7 +15,7 @@ afterEach(async () => {
 });
 
 async function createTempDir(): Promise<string> {
-	const dir = await fs.mkdtemp(path.join(os.tmpdir(), "pi-file-mentions-"));
+	const dir = await fs.mkdtemp(path.join(os.tmpdir(), "chud-file-mentions-"));
 	tempDirs.push(dir);
 	return dir;
 }

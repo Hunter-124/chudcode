@@ -1,21 +1,21 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "bun:test";
 import * as path from "node:path";
-import { Agent, type AgentMessage, AppendOnlyContextManager } from "@oh-my-pi/pi-agent-core";
-import type { AssistantMessage } from "@oh-my-pi/pi-ai";
-import { createMockModel } from "@oh-my-pi/pi-ai/providers/mock";
-import { getBundledModel } from "@oh-my-pi/pi-catalog/models";
-import { AsyncJobManager } from "@oh-my-pi/pi-coding-agent/async";
-import { ModelRegistry } from "@oh-my-pi/pi-coding-agent/config/model-registry";
-import { Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
-import { ExtensionRuntime, loadExtensionFromFactory } from "@oh-my-pi/pi-coding-agent/extensibility/extensions/loader";
-import { ExtensionRunner } from "@oh-my-pi/pi-coding-agent/extensibility/extensions/runner";
-import { AgentSession } from "@oh-my-pi/pi-coding-agent/session/agent-session";
-import type { AuthStorage } from "@oh-my-pi/pi-coding-agent/session/auth-storage";
-import { SessionManager } from "@oh-my-pi/pi-coding-agent/session/session-manager";
-import { FileSessionStorage } from "@oh-my-pi/pi-coding-agent/session/session-storage";
-import { EventBus } from "@oh-my-pi/pi-coding-agent/utils/event-bus";
-import { TempDir } from "@oh-my-pi/pi-utils";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
+import { Agent, type AgentMessage, AppendOnlyContextManager } from "@chudware/agent-core";
+import type { AssistantMessage } from "@chudware/ai";
+import { createMockModel } from "@chudware/ai/providers/mock";
+import { getBundledModel } from "@chudware/catalog/models";
+import { AsyncJobManager } from "@chudware/coding-agent/async";
+import { ModelRegistry } from "@chudware/coding-agent/config/model-registry";
+import { Settings } from "@chudware/coding-agent/config/settings";
+import { ExtensionRuntime, loadExtensionFromFactory } from "@chudware/coding-agent/extensibility/extensions/loader";
+import { ExtensionRunner } from "@chudware/coding-agent/extensibility/extensions/runner";
+import { AgentSession } from "@chudware/coding-agent/session/agent-session";
+import type { AuthStorage } from "@chudware/coding-agent/session/auth-storage";
+import { SessionManager } from "@chudware/coding-agent/session/session-manager";
+import { FileSessionStorage } from "@chudware/coding-agent/session/session-storage";
+import { EventBus } from "@chudware/coding-agent/utils/event-bus";
+import { TempDir } from "@chudware/utils";
+import * as fsx from "@chudware/utils/fsx";
 import { createInMemoryAuthStorage } from "./helpers/agent-session-setup";
 
 // Regression: a keep-alive subagent's AgentSession is disposed at park() but
@@ -32,7 +32,7 @@ describe("AgentSession dispose releases retained memory", () => {
 	let session: AgentSession | undefined;
 
 	beforeEach(() => {
-		tempDir = TempDir.createSync("@omp-dispose-release-");
+		tempDir = TempDir.createSync("@chudcode-dispose-release-");
 		authStorage = createInMemoryAuthStorage();
 		authStorage.setRuntimeApiKey("anthropic", "test-key");
 	});
@@ -194,8 +194,8 @@ describe("AgentSession dispose releases retained memory", () => {
 		const release = Promise.withResolvers<void>();
 		const runtime = new ExtensionRuntime();
 		const extension = await loadExtensionFromFactory(
-			pi => {
-				pi.on("message_end", async () => {
+			chud => {
+				chud.on("message_end", async () => {
 					reached.resolve();
 					await release.promise;
 				});
@@ -290,8 +290,8 @@ describe("AgentSession dispose releases retained memory", () => {
 		const release = Promise.withResolvers<void>();
 		const runtime = new ExtensionRuntime();
 		const extension = await loadExtensionFromFactory(
-			pi => {
-				pi.on("message_end", async () => {
+			chud => {
+				chud.on("message_end", async () => {
 					reached.resolve();
 					await release.promise;
 				});
@@ -375,8 +375,8 @@ describe("AgentSession dispose releases retained memory", () => {
 		const runtime = new ExtensionRuntime();
 		let lateTitleAccepted: boolean | undefined;
 		const extension = await loadExtensionFromFactory(
-			pi => {
-				pi.on("message_end", async () => {
+			chud => {
+				chud.on("message_end", async () => {
 					reached.resolve();
 					await release.promise;
 					// Resumes after dispose returned and the revival opened the
@@ -551,8 +551,8 @@ describe("AgentSession dispose releases retained memory", () => {
 		let observedMessageCount = -1;
 		const runtime = new ExtensionRuntime();
 		const extension = await loadExtensionFromFactory(
-			pi => {
-				pi.on("agent_end", async event => {
+			chud => {
+				chud.on("agent_end", async event => {
 					reached.resolve();
 					await release.promise;
 					observedMessageCount = event.messages.length;

@@ -9,14 +9,14 @@
  */
 
 import { beforeEach, describe, expect, it, spyOn } from "bun:test";
-import * as launch from "@oh-my-pi/pi-coding-agent/tools/browser/launch";
+import * as launch from "@chudware/coding-agent/tools/browser/launch";
 import {
 	acquireBrowser,
 	type BrowserHandle,
 	type BrowserKind,
 	releaseBrowser,
-} from "@oh-my-pi/pi-coding-agent/tools/browser/registry";
-import * as stage from "@oh-my-pi/pi-coding-agent/tools/computer/stage";
+} from "@chudware/coding-agent/tools/browser/registry";
+import * as stage from "@chudware/coding-agent/tools/computer/stage";
 
 const HEADED: BrowserKind = { kind: "headless", headless: false } as BrowserKind;
 
@@ -24,7 +24,7 @@ function stageLease(id: string, releases: string[]) {
 	return {
 		descriptor: {
 			id,
-			daemonName: `omp-stage-${id}`,
+			daemonName: `chudcode-stage-${id}`,
 			projectDir: "/tmp/project",
 			displayServer: "x11",
 			env: { DISPLAY: `:${id}`, XAUTHORITY: `/tmp/${id}.auth` },

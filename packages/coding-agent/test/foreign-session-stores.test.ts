@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
+import * as fsx from "@chudware/utils/fsx";
 import { ClaudeSessionStore } from "../src/session/claude-session-store";
 import { CodexSessionStore } from "../src/session/codex-session-store";
 import { persistForeignSession } from "../src/session/foreign-session-import";
@@ -16,7 +16,7 @@ let tempRoot: string;
 let originalClaudeConfigDir: string | undefined;
 
 beforeEach(async () => {
-	tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "omp-foreign-sessions-"));
+	tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "chudcode-foreign-sessions-"));
 	originalClaudeConfigDir = process.env.CLAUDE_CONFIG_DIR;
 	delete process.env.CLAUDE_CONFIG_DIR;
 });
@@ -336,9 +336,9 @@ describe("CodexSessionStore", () => {
 });
 
 describe("foreign session persistence", () => {
-	it("writes a fresh OMP identity with source provenance", async () => {
+	it("writes a fresh Chudcode identity with source provenance", async () => {
 		const { info, store } = await createClaudeFixture();
-		const sessionDir = path.join(tempRoot, "omp-sessions");
+		const sessionDir = path.join(tempRoot, "chudcode-sessions");
 
 		const persisted = await persistForeignSession(store, info, { sessionDir, suppressBreadcrumb: true });
 		const sessionFile = persisted.getSessionFile();

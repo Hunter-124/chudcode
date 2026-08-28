@@ -59,7 +59,7 @@
 | `viewport` | `{ width: number; height: number; scale?: number }` | No | Requested viewport. For headless launch this becomes the initial viewport; for a page it is applied with `page.setViewport()`. `scale` maps to Puppeteer `deviceScaleFactor`. |
 | `wait_until` | `"load" \| "domcontentloaded" \| "networkidle0" \| "networkidle2"` | No | Navigation wait condition. Defaults to `"load"` where omitted, including `open` navigation and later `tab.goto(...)`. |
 | `dialogs` | `"accept" \| "dismiss"` | No | Installs a page `dialog` handler that auto-accepts or auto-dismisses dialogs. Omitted means no handler. |
-| `app` | `{ path?: string; cdp_url?: string; relay?: boolean; args?: string[]; target?: string }` | No | Selects browser kind. Explicit `app.cdp_url` wins, then `app.path`, then relay selection. `app.relay: true` opts into the Chudcode Browser Relay; `app.relay: false` suppresses relay settings for this call. With no explicit app kind, `browser.relay` (overridden by `PI_BROWSER_RELAY`) precedes `browser.cdpUrl`, then cmux when available, then `browser.headless`. `browser.relayUrl` defaults to `http://127.0.0.1:9224`. `args` apply only to spawned `app.path`; `target` selects an attached/spawned/relay page by URL/title substring. |
+| `app` | `{ path?: string; cdp_url?: string; relay?: boolean; args?: string[]; target?: string }` | No | Selects browser kind. Explicit `app.cdp_url` wins, then `app.path`, then relay selection. `app.relay: true` opts into the Chudcode Browser Relay; `app.relay: false` suppresses relay settings for this call. With no explicit app kind, `browser.relay` (overridden by `CHUDCODE_BROWSER_RELAY`) precedes `browser.cdpUrl`, then cmux when available, then `browser.headless`. `browser.relayUrl` defaults to `http://127.0.0.1:9224`. `args` apply only to spawned `app.path`; `target` selects an attached/spawned/relay page by URL/title substring. |
 
 ### `action: "close"`
 
@@ -96,10 +96,10 @@ The tool returns one result per call; no streaming partial output is emitted fro
 2. `open` resolves browser kind with `resolveBrowserKind()`:
    - `app.cdp_url` → `{ kind: "connected" }` after trimming trailing slashes.
    - `app.path` → `{ kind: "spawned" }` after resolving against session cwd.
-   - `app.relay: true` → relay mode unless `PI_BROWSER_RELAY=0` disables it.
-   - otherwise, unless `app.relay === false`, `browser.relay` selects relay mode; `PI_BROWSER_RELAY=0|1` is the final setting override and `browser.relayUrl` supplies the endpoint.
+   - `app.relay: true` → relay mode unless `CHUDCODE_BROWSER_RELAY=0` disables it.
+   - otherwise, unless `app.relay === false`, `browser.relay` selects relay mode; `CHUDCODE_BROWSER_RELAY=0|1` is the final setting override and `browser.relayUrl` supplies the endpoint.
    - otherwise, a non-empty `browser.cdpUrl` setting → `{ kind: "connected" }`.
-   - otherwise, `resolveCmuxKind()` → `{ kind: "cmux", socketPath, password?, surface? }` when `CMUX_SOCKET_PATH` is set and cmux is enabled (`browser.cmux`, overridable by `PI_BROWSER_CMUX`).
+   - otherwise, `resolveCmuxKind()` → `{ kind: "cmux", socketPath, password?, surface? }` when `CMUX_SOCKET_PATH` is set and cmux is enabled (`browser.cmux`, overridable by `CHUDCODE_BROWSER_CMUX`).
    - otherwise → `{ kind: "headless", headless: session.settings.get("browser.headless") }`.
 3. `open` rejects reusing the same tab name across different browser kinds (`sameBrowserKind()`); callers must close first.
 4. `open` acquires a browser handle through `acquireBrowser()` (`packages/coding-agent/src/tools/browser/registry.ts`):
@@ -170,11 +170,11 @@ The tool returns one result per call; no streaming partial output is emitted fro
   - `close` — release one tab or all tabs.
   - `run` — execute JS inside the tab worker.
 - **Browser kind**
-  - **Headless**: attaches to one project-shared Chromium supervised by the daemon broker (`omp.browser.headless` / `omp.browser.headed` in `hub ps`), applies stealth patches, and creates a fresh page per tab. The daemon stops with the last Chudcode client in the project. Non-CLI hosts launch a private local Chromium instead.
+  - **Headless**: attaches to one project-shared Chromium supervised by the daemon broker (`chudcode.browser.headless` / `chudcode.browser.headed` in `hub ps`), applies stealth patches, and creates a fresh page per tab. The daemon stops with the last Chudcode client in the project. Non-CLI hosts launch a private local Chromium instead.
   - **Spawned app (`app.path`)**: reuses an existing CDP-enabled process for that executable when possible; otherwise kills same-path processes, spawns the executable with remote debugging enabled, then attaches. No stealth patches are injected.
   - **Connected browser (`app.cdp_url`, or the `browser.cdpUrl` setting when the call carries no `app`)**: attaches to an already-running CDP endpoint. No process ownership; close only disconnects.
   - **Chudcode Browser Relay (`app.relay`, or `browser.relay`)**: attaches to the user's own Chrome tabs through the loopback relay and its MV3 extension. Install once with `chudcode browser-relay install`. CLI hosts auto-start the fixed-port relay daemon for loopback URLs; a remote/custom relay must already be serving. The relay is a connected browser: no process ownership and no stealth patches. Without `app.target`, the visible usable tab is adopted without raising it; a matcher selects by URL/title substring. DOM extraction, authenticated `tab.fetch()`, screenshots, accessibility snapshots, and raw Puppeteer/CDP operations use the same tab worker as managed Chromium.
-  - **Cmux surface (`browser.cmux`)**: with no `app` and a cmux socket available (`CMUX_SOCKET_PATH`, enabled by the `browser.cmux` setting / `PI_BROWSER_CMUX` override), drives a cmux WKWebView surface over a unix-socket JSON-RPC client instead of Puppeteer. No Bun worker and no stealth patches; `open` opens a split (owning that surface), `run` executes via `runCmuxCode()`, and `close` issues `surface.close` for surfaces it owns (leaving the workspace's last surface open).
+  - **Cmux surface (`browser.cmux`)**: with no `app` and a cmux socket available (`CMUX_SOCKET_PATH`, enabled by the `browser.cmux` setting / `CHUDCODE_BROWSER_CMUX` override), drives a cmux WKWebView surface over a unix-socket JSON-RPC client instead of Puppeteer. No Bun worker and no stealth patches; `open` opens a split (owning that surface), `run` executes via `runCmuxCode()`, and `close` issues `surface.close` for surfaces it owns (leaving the workspace's last surface open).
 - **Target selection for attached/spawned/relay browsers**
   - With `app.target`, `pickElectronTarget()` returns the first page whose URL or title contains the case-insensitive substring.
   - Without `app.target`, it skips titles/URLs matching `request handler|devtools|background page|background host|service worker` and otherwise falls back to the first page.
@@ -199,13 +199,13 @@ The tool returns one result per call; no streaming partial output is emitted fro
 - Network
   - CDP attach paths poll `http://127.0.0.1:<port>/json/version` or the supplied `cdp_url` `/json/version`.
   - Headless/browser-attach sessions create CDP websocket connections.
-  - Headless first-use Chromium download uses the in-house `@oh-my-pi/pi-utils/browsers` installer.
-  - Loopback relay mode may start the machine-global `omp.browser.relay` daemon. The extension connects outbound to the relay, and Puppeteer connects to its CDP-compatible endpoint.
+  - Headless first-use Chromium download uses the in-house `@chudware/utils/browsers` installer.
+  - Loopback relay mode may start the machine-global `chudcode.browser.relay` daemon. The extension connects outbound to the relay, and Puppeteer connects to its CDP-compatible endpoint.
   - User `page` / `tab` operations perform normal browser network traffic.
 - Subprocesses / native bindings
   - Headless mode launches Chromium through Puppeteer.
   - `app.path` mode may spawn the target executable via `Bun.spawn()`.
-  - `killExistingByPath()` / `gracefulKillTreeOnce()` use `@oh-my-pi/pi-natives` process inspection/termination.
+  - `killExistingByPath()` / `gracefulKillTreeOnce()` use `@chudware/natives` process inspection/termination.
   - Worker mode uses Bun `Worker`; fallback mode does not.
 - Session state (transcript, memory, jobs, checkpoints, registries)
   - Browser handles are cached in a process-global `Map` keyed by browser kind in `packages/coding-agent/src/tools/browser/registry.ts`.

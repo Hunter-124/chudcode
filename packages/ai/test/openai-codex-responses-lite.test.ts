@@ -3,18 +3,18 @@ import {
 	type InputItem,
 	type RequestBody,
 	transformRequestBody,
-} from "@oh-my-pi/pi-ai/providers/openai-codex/request-transformer";
+} from "@chudware/ai/providers/openai-codex/request-transformer";
 import {
 	buildTransformedCodexRequestBody,
 	convertCodexResponsesMessages,
 	resetOpenAICodexHistoryAfterCompaction,
 	streamOpenAICodexResponses,
-} from "@oh-my-pi/pi-ai/providers/openai-codex-responses";
-import { isOpenAIResponsesProgressEvent } from "@oh-my-pi/pi-ai/providers/openai-shared";
-import { configureCredentialRedaction } from "@oh-my-pi/pi-ai/providers/transform-messages";
-import type { CodexCompactionRequestContext, Context, FetchImpl, ProviderSessionState } from "@oh-my-pi/pi-ai/types";
-import { buildModel } from "@oh-my-pi/pi-catalog/build";
-import * as piUtils from "@oh-my-pi/pi-utils";
+} from "@chudware/ai/providers/openai-codex-responses";
+import { isOpenAIResponsesProgressEvent } from "@chudware/ai/providers/openai-shared";
+import { configureCredentialRedaction } from "@chudware/ai/providers/transform-messages";
+import type { CodexCompactionRequestContext, Context, FetchImpl, ProviderSessionState } from "@chudware/ai/types";
+import { buildModel } from "@chudware/catalog/build";
+import * as piUtils from "@chudware/utils";
 import { createCodexModel } from "./helpers";
 
 beforeAll(() => configureCredentialRedaction(true));
@@ -379,28 +379,28 @@ describe("openai-codex Responses Lite input shaping", () => {
 	});
 
 	it("resolves Lite from explicit options, the environment, then the model default", async () => {
-		const previous = process.env.PI_CODEX_RESPONSES_LITE;
+		const previous = process.env.CHUDCODE_CODEX_RESPONSES_LITE;
 		const model = createCodexModel("gpt-5.6-terra", { useResponsesLite: true });
 		try {
-			delete process.env.PI_CODEX_RESPONSES_LITE;
+			delete process.env.CHUDCODE_CODEX_RESPONSES_LITE;
 			const modelDefault = await transformRequestBody({ model: model.id, instructions: "sys" }, model, {});
 			expect(modelDefault.instructions).toBeUndefined();
 			expect(modelDefault.input?.[0]?.type).toBe("additional_tools");
 
-			process.env.PI_CODEX_RESPONSES_LITE = "false";
+			process.env.CHUDCODE_CODEX_RESPONSES_LITE = "false";
 			const envOptOut = await transformRequestBody({ model: model.id, instructions: "sys" }, model, {});
 			expect(envOptOut.instructions).toBe("sys");
 			expect(envOptOut.input?.some(item => item.type === "additional_tools")).toBe(false);
 
-			process.env.PI_CODEX_RESPONSES_LITE = "true";
+			process.env.CHUDCODE_CODEX_RESPONSES_LITE = "true";
 			const explicitOptOut = await transformRequestBody({ model: model.id, instructions: "sys" }, model, {
 				responsesLite: false,
 			});
 			expect(explicitOptOut.instructions).toBe("sys");
 			expect(explicitOptOut.input?.some(item => item.type === "additional_tools")).toBe(false);
 		} finally {
-			if (previous === undefined) delete process.env.PI_CODEX_RESPONSES_LITE;
-			else process.env.PI_CODEX_RESPONSES_LITE = previous;
+			if (previous === undefined) delete process.env.CHUDCODE_CODEX_RESPONSES_LITE;
+			else process.env.CHUDCODE_CODEX_RESPONSES_LITE = previous;
 		}
 	});
 });
@@ -771,12 +771,12 @@ describe("openai-codex concurrent reasoning summaries", () => {
 	// sections), so the response-side contract is exercised with it enabled.
 	let previousConcurrent: string | undefined;
 	beforeEach(() => {
-		previousConcurrent = process.env.PI_CODEX_CONCURRENT_SUMMARIES;
-		process.env.PI_CODEX_CONCURRENT_SUMMARIES = "1";
+		previousConcurrent = process.env.CHUDCODE_CODEX_CONCURRENT_SUMMARIES;
+		process.env.CHUDCODE_CODEX_CONCURRENT_SUMMARIES = "1";
 	});
 	afterEach(() => {
-		if (previousConcurrent === undefined) delete process.env.PI_CODEX_CONCURRENT_SUMMARIES;
-		else process.env.PI_CODEX_CONCURRENT_SUMMARIES = previousConcurrent;
+		if (previousConcurrent === undefined) delete process.env.CHUDCODE_CODEX_CONCURRENT_SUMMARIES;
+		else process.env.CHUDCODE_CODEX_CONCURRENT_SUMMARIES = previousConcurrent;
 	});
 
 	it("counts atomic summary dones as websocket watchdog progress", () => {
@@ -792,11 +792,11 @@ describe("openai-codex concurrent reasoning summaries", () => {
 		expect(withSummary.reasoning?.summary).toBe("detailed");
 
 		// Opted out: the summary is still requested, only the delivery mode drops.
-		delete process.env.PI_CODEX_CONCURRENT_SUMMARIES;
+		delete process.env.CHUDCODE_CODEX_CONCURRENT_SUMMARIES;
 		const optedOut = await transformRequestBody({ model: terra.id }, terra, summaryRequest);
 		expect(optedOut.stream_options).toBeUndefined();
 		expect(optedOut.reasoning?.summary).toBe("detailed");
-		process.env.PI_CODEX_CONCURRENT_SUMMARIES = "1";
+		process.env.CHUDCODE_CODEX_CONCURRENT_SUMMARIES = "1";
 
 		const suppressed = await transformRequestBody({ model: terra.id }, terra, {
 			reasoningEffort: "medium",

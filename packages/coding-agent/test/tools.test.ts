@@ -4,21 +4,21 @@ import * as os from "node:os";
 import * as path from "node:path";
 import * as url from "node:url";
 import * as zlib from "node:zlib";
-import type { AgentTool, AgentToolContext } from "@oh-my-pi/pi-agent-core";
-import { AsyncJobManager } from "@oh-my-pi/pi-coding-agent/async";
-import { DEFAULT_BASH_INTERCEPTOR_RULES, Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
-import { EditTool } from "@oh-my-pi/pi-coding-agent/edit";
-import { SessionManager } from "@oh-my-pi/pi-coding-agent/session/session-manager";
-import type { ToolSession } from "@oh-my-pi/pi-coding-agent/tools";
-import { BashTool } from "@oh-my-pi/pi-coding-agent/tools/bash";
-import { wrapToolWithMetaNotice } from "@oh-my-pi/pi-coding-agent/tools/output-meta";
-import { ReadTool } from "@oh-my-pi/pi-coding-agent/tools/read";
-import * as toolTimeouts from "@oh-my-pi/pi-coding-agent/tools/tool-timeouts";
-import { WriteTool } from "@oh-my-pi/pi-coding-agent/tools/write";
-import { $which, removeSyncWithRetries, Snowflake } from "@oh-my-pi/pi-utils";
-import { openArchive, readArchiveEntries } from "@oh-my-pi/pi-utils/ar";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
-import * as proc from "@oh-my-pi/pi-utils/proc";
+import type { AgentTool, AgentToolContext } from "@chudware/agent-core";
+import { AsyncJobManager } from "@chudware/coding-agent/async";
+import { DEFAULT_BASH_INTERCEPTOR_RULES, Settings } from "@chudware/coding-agent/config/settings";
+import { EditTool } from "@chudware/coding-agent/edit";
+import { SessionManager } from "@chudware/coding-agent/session/session-manager";
+import type { ToolSession } from "@chudware/coding-agent/tools";
+import { BashTool } from "@chudware/coding-agent/tools/bash";
+import { wrapToolWithMetaNotice } from "@chudware/coding-agent/tools/output-meta";
+import { ReadTool } from "@chudware/coding-agent/tools/read";
+import * as toolTimeouts from "@chudware/coding-agent/tools/tool-timeouts";
+import { WriteTool } from "@chudware/coding-agent/tools/write";
+import { $which, removeSyncWithRetries, Snowflake } from "@chudware/utils";
+import { openArchive, readArchiveEntries } from "@chudware/utils/ar";
+import * as fsx from "@chudware/utils/fsx";
+import * as proc from "@chudware/utils/proc";
 import { GlobTool } from "../src/tools/glob";
 import { DEFAULT_FILE_LIMIT, GrepTool, MULTI_FILE_PER_FILE_MATCHES } from "../src/tools/grep";
 import { HubTool } from "../src/tools/hub";
@@ -196,7 +196,7 @@ function createBase256TarArchive(entry: Base256TarEntry): Buffer {
 }
 
 function createPaxHeader(typeFlag: "g" | "x", body: Buffer): Buffer {
-	return tarRecord(createTarHeader("./PaxHeaders/omp", body.byteLength, typeFlag), body);
+	return tarRecord(createTarHeader("./PaxHeaders/chudcode", body.byteLength, typeFlag), body);
 }
 
 function paxRecord(key: string, value: string): Buffer {
@@ -557,8 +557,8 @@ describe("Coding Agent Tools", () => {
 
 	beforeEach(() => {
 		// Force replace mode for edit tool tests using old_string/new_string
-		originalEditVariant = process.env.PI_EDIT_VARIANT;
-		process.env.PI_EDIT_VARIANT = "replace";
+		originalEditVariant = process.env.CHUDCODE_EDIT_VARIANT;
+		process.env.CHUDCODE_EDIT_VARIANT = "replace";
 
 		// Create a unique temporary directory for each test
 		testDir = path.join(os.tmpdir(), `coding-agent-test-${Snowflake.next()}`);
@@ -582,9 +582,9 @@ describe("Coding Agent Tools", () => {
 
 		// Restore original edit variant
 		if (originalEditVariant === undefined) {
-			delete process.env.PI_EDIT_VARIANT;
+			delete process.env.CHUDCODE_EDIT_VARIANT;
 		} else {
-			process.env.PI_EDIT_VARIANT = originalEditVariant;
+			process.env.CHUDCODE_EDIT_VARIANT = originalEditVariant;
 		}
 		AsyncJobManager.resetForTests();
 	});
@@ -2080,7 +2080,7 @@ function b() {
 
 		it("applies the bridge's internal edits batch form as one aggregate result", async () => {
 			// Only the Cursor exec bridge produces this shape (multi-replacement
-			// pi_edit frames); it must apply every replacement in order and
+			// chud_edit frames); it must apply every replacement in order and
 			// return a single aggregated diff.
 			const testFile = path.join(testDir, "edit-batch.txt");
 			fs.writeFileSync(testFile, "alpha\nbeta\n");
@@ -2264,12 +2264,12 @@ function b() {
 		});
 
 		it("should persist environment variables between commands", async () => {
-			if (process.platform === "win32" || process.env.PI_SHELL_PERSIST !== "1") {
+			if (process.platform === "win32" || process.env.CHUDCODE_SHELL_PERSIST !== "1") {
 				return;
 			}
 
-			await bashTool.execute("test-call-8-env-set", { command: "export PI_TEST_VAR=hello" });
-			const result = await bashTool.execute("test-call-8-env-get", { command: "echo $PI_TEST_VAR" });
+			await bashTool.execute("test-call-8-env-set", { command: "export CHUDCODE_TEST_VAR=hello" });
+			const result = await bashTool.execute("test-call-8-env-get", { command: "echo $CHUDCODE_TEST_VAR" });
 			expect(getTextOutput(result)).toContain("hello");
 		});
 
@@ -2660,7 +2660,7 @@ function b() {
 
 			const output = getTextOutput(result);
 			expect(output).not.toContain("# example.txt");
-			// PI_EDIT_VARIANT=replace in beforeEach disables hashlines; expect line-number mode
+			// CHUDCODE_EDIT_VARIANT=replace in beforeEach disables hashlines; expect line-number mode
 			expect(output).toMatch(/\*2\|match line/);
 		});
 
@@ -3172,8 +3172,8 @@ describe("edit tool CRLF handling", () => {
 
 	beforeEach(() => {
 		// Force replace mode for edit tool tests using old_string/new_string
-		originalEditVariant = process.env.PI_EDIT_VARIANT;
-		process.env.PI_EDIT_VARIANT = "replace";
+		originalEditVariant = process.env.CHUDCODE_EDIT_VARIANT;
+		process.env.CHUDCODE_EDIT_VARIANT = "replace";
 
 		testDir = path.join(os.tmpdir(), `coding-agent-crlf-test-${Snowflake.next()}`);
 		fs.mkdirSync(testDir, { recursive: true });
@@ -3185,9 +3185,9 @@ describe("edit tool CRLF handling", () => {
 
 		// Restore original edit variant
 		if (originalEditVariant === undefined) {
-			delete process.env.PI_EDIT_VARIANT;
+			delete process.env.CHUDCODE_EDIT_VARIANT;
 		} else {
-			process.env.PI_EDIT_VARIANT = originalEditVariant;
+			process.env.CHUDCODE_EDIT_VARIANT = originalEditVariant;
 		}
 	});
 

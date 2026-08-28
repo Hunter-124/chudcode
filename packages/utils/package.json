@@ -1,18 +1,18 @@
 {
   "type": "module",
-  "name": "@oh-my-pi/pi-utils",
+  "name": "@chudware/utils",
   "version": "18.0.8",
-  "description": "Shared utilities for pi packages",
-  "homepage": "https://omp.sh",
-  "author": "Stencil Labs, Inc.",
+  "description": "Shared utilities for chud packages",
+  "homepage": "https://chudware.sh",
+  "author": "Chudware",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/can1357/oh-my-pi.git",
+    "url": "git+https://github.com/Hunter-124/chudcode.git",
     "directory": "packages/utils"
   },
   "bugs": {
-    "url": "https://github.com/can1357/oh-my-pi/issues"
+    "url": "https://github.com/Hunter-124/chudcode/issues"
   },
   "keywords": [
     "utilities",
@@ -31,7 +31,7 @@
     "fmt": "biome format --write ."
   },
   "dependencies": {
-    "@oh-my-pi/pi-natives": "catalog:"
+    "@chudware/natives": "catalog:"
   },
   "devDependencies": {
     "@types/bun": "catalog:"

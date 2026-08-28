@@ -1,19 +1,19 @@
 {
   "type": "module",
-  "name": "@oh-my-pi/collab-web",
+  "name": "@chudware/collab-web",
   "version": "16.3.6",
   "private": true,
-  "description": "Browser guest client and local relay tools for omp collab live sessions",
-  "homepage": "https://omp.sh",
-  "author": "Stencil Labs, Inc.",
+  "description": "Browser guest client and local relay tools for chudcode collab live sessions",
+  "homepage": "https://chudware.sh",
+  "author": "Chudware",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/can1357/oh-my-pi.git",
+    "url": "git+https://github.com/Hunter-124/chudcode.git",
     "directory": "packages/collab-web"
   },
   "bugs": {
-    "url": "https://github.com/can1357/oh-my-pi/issues"
+    "url": "https://github.com/Hunter-124/chudcode/issues"
   },
   "exports": {
     "./session-client": "./src/lib/session-client.ts",
@@ -49,8 +49,8 @@
     "fmt": "biome format --write ."
   },
   "dependencies": {
-    "@oh-my-pi/pi-utils": "catalog:",
-    "@oh-my-pi/pi-wire": "catalog:",
+    "@chudware/utils": "catalog:",
+    "@chudware/wire": "catalog:",
     "lucide-react": "catalog:",
     "katex": "catalog:",
     "react": "catalog:",

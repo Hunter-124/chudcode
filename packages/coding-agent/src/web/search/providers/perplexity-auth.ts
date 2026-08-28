@@ -1,5 +1,5 @@
-import type { AuthStorage, OAuthAccess } from "@oh-my-pi/pi-ai";
-import { $env } from "@oh-my-pi/pi-utils";
+import type { AuthStorage, OAuthAccess } from "@chudware/ai";
+import { $env } from "@chudware/utils";
 
 export const PERPLEXITY_CHAT_BASE_URL = "https://api.perplexity.ai";
 export const PERPLEXITY_RESPONSES_BASE_URL = "https://api.perplexity.ai/v1";
@@ -41,7 +41,7 @@ export async function getApiConfigs(
 	sessionId: string | undefined,
 	options?: PerplexityAuthOptions,
 ): Promise<ApiConfig[]> {
-	const useResponses = $env.PI_PERPLEXITY_RESPONSES === "1";
+	const useResponses = $env.CHUDCODE_PERPLEXITY_RESPONSES === "1";
 	const configs: ApiConfig[] = [];
 
 	// A Perplexity OAuth session and a real API key are mutually exclusive here:

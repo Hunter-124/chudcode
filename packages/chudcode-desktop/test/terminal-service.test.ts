@@ -2,8 +2,8 @@ import { afterEach, describe, expect, it } from "bun:test";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { Process, ProcessStatus } from "@oh-my-pi/pi-natives";
-import { sleep } from "@oh-my-pi/pi-utils/async";
+import { Process, ProcessStatus } from "@chudware/natives";
+import { sleep } from "@chudware/utils/async";
 import { encodeTerminalDataBase64, TerminalService } from "../src/services/terminal-service";
 import type { TerminalServiceEvent, TerminalServiceOptions } from "../src/services/terminal-types";
 

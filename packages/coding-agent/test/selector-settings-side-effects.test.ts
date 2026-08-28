@@ -3,21 +3,21 @@ import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 import { stripVTControlCharacters } from "node:util";
-import { ThinkingLevel } from "@oh-my-pi/pi-agent-core";
-import { buildModel } from "@oh-my-pi/pi-catalog/build";
-import { getSupportedEfforts } from "@oh-my-pi/pi-catalog/model-thinking";
-import { getBundledModel } from "@oh-my-pi/pi-catalog/models";
-import { Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
-import { AssistantMessageComponent } from "@oh-my-pi/pi-coding-agent/modes/components/assistant-message";
-import { ReadToolGroupComponent } from "@oh-my-pi/pi-coding-agent/modes/components/read-tool-group";
-import { ToolExecutionComponent } from "@oh-my-pi/pi-coding-agent/modes/components/tool-execution";
-import { SelectorController } from "@oh-my-pi/pi-coding-agent/modes/controllers/selector-controller";
-import { getThemeByName, setThemeInstance } from "@oh-my-pi/pi-coding-agent/modes/theme/theme";
-import type { InteractiveModeContext } from "@oh-my-pi/pi-coding-agent/modes/types";
-import type { ResolvedRoleModel } from "@oh-my-pi/pi-coding-agent/session/agent-session";
-import { AUTO_THINKING } from "@oh-my-pi/pi-coding-agent/thinking";
-import { removeSyncWithRetries, Snowflake } from "@oh-my-pi/pi-utils";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
+import { ThinkingLevel } from "@chudware/agent-core";
+import { buildModel } from "@chudware/catalog/build";
+import { getSupportedEfforts } from "@chudware/catalog/model-thinking";
+import { getBundledModel } from "@chudware/catalog/models";
+import { Settings } from "@chudware/coding-agent/config/settings";
+import { AssistantMessageComponent } from "@chudware/coding-agent/modes/components/assistant-message";
+import { ReadToolGroupComponent } from "@chudware/coding-agent/modes/components/read-tool-group";
+import { ToolExecutionComponent } from "@chudware/coding-agent/modes/components/tool-execution";
+import { SelectorController } from "@chudware/coding-agent/modes/controllers/selector-controller";
+import { getThemeByName, setThemeInstance } from "@chudware/coding-agent/modes/theme/theme";
+import type { InteractiveModeContext } from "@chudware/coding-agent/modes/types";
+import type { ResolvedRoleModel } from "@chudware/coding-agent/session/agent-session";
+import { AUTO_THINKING } from "@chudware/coding-agent/thinking";
+import { removeSyncWithRetries, Snowflake } from "@chudware/utils";
+import * as fsx from "@chudware/utils/fsx";
 import { beginSettingsTest, restoreSettingsTestState, type SettingsTestState } from "./helpers/settings-test-state";
 
 let settingsState: SettingsTestState | undefined;
@@ -75,7 +75,7 @@ describe("selector setting side effects", () => {
 			showError: vi.fn(),
 		} as unknown as InteractiveModeContext);
 
-		controller.handleSettingChange("memory.backend", "mnemopi");
+		controller.handleSettingChange("memory.backend", "mnemo");
 
 		expect(applyMemoryBackend).toHaveBeenCalledTimes(1);
 	});
@@ -645,8 +645,8 @@ describe("selector setting side effects", () => {
 		const globalSelector = `${globalModel.provider}/${globalModel.id}`;
 		const testDir = path.join(os.tmpdir(), `selector-runtime-identical-${Snowflake.next()}`);
 		const projectDir = path.join(testDir, "project");
-		fs.mkdirSync(path.join(projectDir, ".omp"), { recursive: true });
-		fs.writeFileSync(path.join(projectDir, ".omp", "config.yml"), `modelRoles:\n  default: ${projectSelector}\n`);
+		fs.mkdirSync(path.join(projectDir, ".chudcode"), { recursive: true });
+		fs.writeFileSync(path.join(projectDir, ".chudcode", "config.yml"), `modelRoles:\n  default: ${projectSelector}\n`);
 
 		try {
 			const settings = await Settings.loadIsolated({
@@ -841,7 +841,7 @@ describe("selector setting side effects", () => {
 				expect(settings.getGlobalModelRole("default")).toBeUndefined();
 				expect(settings.getModelRole("default")).toBe(overlaySelector);
 				expect(settings.getModelRoleProvenance("default")).toBe("overlay");
-				expect(await fsx.readText(path.join(projectDir, ".omp", "config.yml"))).toContain(
+				expect(await fsx.readText(path.join(projectDir, ".chudcode", "config.yml"))).toContain(
 					`default: ${projectSelector}`,
 				);
 				expect(setModel).not.toHaveBeenCalled();

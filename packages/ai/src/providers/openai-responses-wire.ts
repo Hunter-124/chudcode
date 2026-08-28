@@ -3,7 +3,7 @@
  *
  * Vendored from openai-node v6.42.0 (`resources/responses/responses.d.ts` plus
  * the pieces of `resources/shared.d.ts` it references; Apache-2.0), trimmed to
- * the streaming wire surface pi-ai speaks: request params, input/output items,
+ * the streaming wire surface chud-ai speaks: request params, input/output items,
  * tools, and the complete `ResponseStreamEvent` union. Request-option and
  * pagination plumbing, parsed-output generics, the input-tokens API, and
  * websocket event types are omitted. Names mirror the SDK exactly so call

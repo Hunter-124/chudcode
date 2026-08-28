@@ -1,5 +1,5 @@
-import type { Effort } from "@oh-my-pi/pi-ai";
-import { type SelectItem, SelectList, type SgrMouseEvent } from "@oh-my-pi/pi-tui";
+import type { Effort } from "@chudware/ai";
+import { type SelectItem, SelectList, type SgrMouseEvent } from "@chudware/tui";
 import { getSelectListTheme } from "../../modes/theme/theme";
 import { getThinkingLevelMetadata } from "../../thinking";
 import { OverlayPanel } from "./overlay-box";

@@ -2,11 +2,11 @@ import { describe, expect, it, vi } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import { Effort } from "@oh-my-pi/pi-catalog/effort";
-import { createModelManager } from "@oh-my-pi/pi-catalog/model-manager";
-import { getBundledModel } from "@oh-my-pi/pi-catalog/models";
-import { githubCopilotModelManagerOptions } from "@oh-my-pi/pi-catalog/provider-models/openai-compat";
-import type { ModelSpec } from "@oh-my-pi/pi-catalog/types";
+import { Effort } from "@chudware/catalog/effort";
+import { createModelManager } from "@chudware/catalog/model-manager";
+import { getBundledModel } from "@chudware/catalog/models";
+import { githubCopilotModelManagerOptions } from "@chudware/catalog/provider-models/openai-compat";
+import type { ModelSpec } from "@chudware/catalog/types";
 
 function getHeaderValue(headers: unknown, key: string): string | undefined {
 	if (!headers) return undefined;
@@ -105,7 +105,7 @@ describe("github copilot model limits mapping", () => {
 		expect(fetchMock).toHaveBeenCalledTimes(2);
 	});
 	it("does not reuse another token's authoritative cache after COPILOT_GITHUB_TOKEN switches", async () => {
-		const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "pi-ai-copilot-token-switch-"));
+		const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "chud-ai-copilot-token-switch-"));
 		const cacheDbPath = path.join(tempDir, "models.db");
 		try {
 			const personalFetch = vi.fn(async (input: string | URL | Request) => {
@@ -302,7 +302,7 @@ describe("github copilot model limits mapping", () => {
 	});
 
 	it("keeps discovered context window through full model resolution for bundled models", async () => {
-		const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "pi-ai-copilot-models-"));
+		const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "chud-ai-copilot-models-"));
 		try {
 			const fetchMock = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
 				const url = typeof input === "string" ? input : input.toString();
@@ -409,7 +409,7 @@ describe("github copilot model limits mapping", () => {
 		{ id: "grok-4.6", name: "Grok 4.6" },
 	]) {
 		it(`refreshes a cached ${migration.name} completion route after the endpoint migration`, async () => {
-			const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), `pi-ai-copilot-${migration.id}-cache-`));
+			const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), `chud-ai-copilot-${migration.id}-cache-`));
 			const cacheDbPath = path.join(tempDir, "models.db");
 			const cacheProviderId = `github-copilot-${migration.id}-cache-test`;
 			try {
@@ -448,7 +448,7 @@ describe("github copilot model limits mapping", () => {
 		});
 	}
 	it("drops cached Grok 4.5 context variants when the migration refresh fails", async () => {
-		const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "pi-ai-copilot-grok-variant-cache-"));
+		const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "chud-ai-copilot-grok-variant-cache-"));
 		const cacheDbPath = path.join(tempDir, "models.db");
 		const cacheProviderId = "github-copilot-grok-variant-cache-test";
 		try {
@@ -860,7 +860,7 @@ describe("github copilot vision endpoint policy", () => {
 	});
 
 	it("keeps explicit upstream vision false text-only through the personal endpoint manager merge", async () => {
-		const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "pi-ai-copilot-vision-"));
+		const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "chud-ai-copilot-vision-"));
 		try {
 			const fetchMock = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
 				const url = typeof input === "string" ? input : input.toString();
@@ -905,7 +905,7 @@ describe("github copilot vision endpoint policy", () => {
 		// Discovery against the business host confirms the same upstream vision
 		// capability; the full manager merge must preserve image input instead
 		// of downgrading solely because the baseUrl is non-personal.
-		const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "pi-ai-copilot-vision-"));
+		const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "chud-ai-copilot-vision-"));
 		try {
 			const fetchMock = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
 				const url = typeof input === "string" ? input : input.toString();

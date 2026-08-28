@@ -25,7 +25,7 @@ export function resolveLocalHostAddon(host: {
 	const x64Variant = host.arch === "x64" ? (host.avx2 ? "modern" : "baseline") : null;
 	const variantSuffix = x64Variant ? `-${x64Variant}` : "";
 	return {
-		filename: `pi_natives.${host.platform}-${host.arch}${variantSuffix}.node`,
+		filename: `chud_natives.${host.platform}-${host.arch}${variantSuffix}.node`,
 		x64Variant,
 	};
 }

@@ -1,5 +1,5 @@
 {
-  description = "OMP coding agent and development environment";
+  description = "Chudcode coding agent and development environment";
 
   nixConfig = {
     extra-substituters = [ "https://nix-community.cachix.org" ];
@@ -90,16 +90,16 @@
     {
       packages = forAllSystems (system: {
         default = packageFor system;
-        omp = packageFor system;
+        chudcode = packageFor system;
       });
 
       apps = forAllSystems (system: {
         default = {
           type = "app";
-          program = "${self.packages.${system}.default}/bin/omp";
-          meta.description = "Run OMP";
+          program = "${self.packages.${system}.default}/bin/chudcode";
+          meta.description = "Run Chudcode";
         };
-        omp = self.apps.${system}.default;
+        chudcode = self.apps.${system}.default;
       });
 
       devShells = forAllSystems (
@@ -132,8 +132,8 @@
               }
               self.homeManagerModules.default
               {
-                programs.omp.enable = true;
-                programs.omp.settings.startup.quiet = true;
+                programs.chudcode.enable = true;
+                programs.chudcode.settings.startup.quiet = true;
               }
             ];
           };
@@ -147,7 +147,7 @@
                 };
               }
               self.nixosModules.default
-              { programs.omp.enable = true; }
+              { programs.chudcode.enable = true; }
             ];
           };
           modulesEvaluate =
@@ -155,10 +155,10 @@
             assert homeManagerEvaluation.config.home.activation ? ompConfig;
             assert builtins.elem self.packages.${system}.default
               nixosEvaluation.config.environment.systemPackages;
-            pkgs.runCommand "omp-module-evaluation" { } "touch $out";
+            pkgs.runCommand "chudcode-module-evaluation" { } "touch $out";
         in
         {
-          bun-lock = pkgs.runCommand "omp-bun-lock" { nativeBuildInputs = [ pkgs.bun2nix ]; } ''
+          bun-lock = pkgs.runCommand "chudcode-bun-lock" { nativeBuildInputs = [ pkgs.bun2nix ]; } ''
             cp -R ${self.outPath} source
             chmod -R u+w source
             cd source
@@ -168,19 +168,19 @@
             touch "$out"
           '';
           modules = modulesEvaluate;
-          omp = self.packages.${system}.default;
+          chudcode = self.packages.${system}.default;
         }
       );
 
       formatter = forAllSystems (system: (pkgsFor system).nixfmt);
 
       overlays.default = _final: previous: {
-        omp = self.packages.${previous.stdenv.hostPlatform.system}.default;
+        chudcode = self.packages.${previous.stdenv.hostPlatform.system}.default;
       };
 
       homeManagerModules.default = import ./nix/home-manager.nix { inherit self; };
-      homeManagerModules.omp = self.homeManagerModules.default;
+      homeManagerModules.chudcode = self.homeManagerModules.default;
       nixosModules.default = import ./nix/nixos-module.nix { inherit self; };
-      nixosModules.omp = self.nixosModules.default;
+      nixosModules.chudcode = self.nixosModules.default;
     };
 }

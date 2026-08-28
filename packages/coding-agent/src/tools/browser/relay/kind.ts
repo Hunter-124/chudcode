@@ -6,19 +6,19 @@
  * endpoint, so beyond kind resolution the entire connected-browser machinery
  * (registry, tab supervisor, tab workers) applies unchanged.
  */
-import { parseFlag } from "@oh-my-pi/pi-utils";
+import { parseFlag } from "@chudware/utils";
 
-/** Browser kind selecting the omp browser relay. */
+/** Browser kind selecting the chudcode browser relay. */
 export interface RelayKind {
 	kind: "relay";
 	cdpUrl: string;
 }
 
-/** Default endpoint of the `omp-browser-relay` CLI. */
+/** Default endpoint of the `chudcode-browser-relay` CLI. */
 export const DEFAULT_RELAY_URL = "http://127.0.0.1:9224";
 
 export interface ResolveRelayKindOptions {
-	/** `browser.relay` setting; `PI_BROWSER_RELAY=0|1` overrides it. */
+	/** `browser.relay` setting; `CHUDCODE_BROWSER_RELAY=0|1` overrides it. */
 	settingEnabled?: boolean;
 	/** `browser.relayUrl` setting; falls back to {@link DEFAULT_RELAY_URL}. */
 	url?: string;
@@ -33,7 +33,7 @@ export function resolveRelayKind(
 	options?: ResolveRelayKindOptions | null,
 	env: Record<string, string | undefined> = process.env,
 ): RelayKind | null {
-	if (!parseFlag(env.PI_BROWSER_RELAY, options?.settingEnabled ?? false)) {
+	if (!parseFlag(env.CHUDCODE_BROWSER_RELAY, options?.settingEnabled ?? false)) {
 		return null;
 	}
 	const url = options?.url?.trim() || DEFAULT_RELAY_URL;

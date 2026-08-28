@@ -7,7 +7,7 @@ import type {
 	InstalledPluginsRegistry,
 	MarketplaceRegistryEntry,
 	MarketplacesRegistry,
-} from "@oh-my-pi/pi-coding-agent/extensibility/plugins/marketplace";
+} from "@chudware/coding-agent/extensibility/plugins/marketplace";
 import {
 	addInstalledPlugin,
 	addMarketplaceEntry,
@@ -22,12 +22,12 @@ import {
 	removeMarketplaceEntry,
 	writeInstalledPluginsRegistry,
 	writeMarketplacesRegistry,
-} from "@oh-my-pi/pi-coding-agent/extensibility/plugins/marketplace";
-import { removeSyncWithRetries } from "@oh-my-pi/pi-utils";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
+} from "@chudware/coding-agent/extensibility/plugins/marketplace";
+import { removeSyncWithRetries } from "@chudware/utils";
+import * as fsx from "@chudware/utils/fsx";
 
 // Inline the parseClaudePluginsRegistry validation logic to avoid pulling
-// in discovery/helpers.ts which transitively imports @oh-my-pi/pi-natives.
+// in discovery/helpers.ts which transitively imports @chudware/natives.
 // Matches the exact checks in helpers.ts parseClaudePluginsRegistry().
 function validateClaudeRegistryFormat(content: string): Record<string, unknown> | null {
 	let data: Record<string, unknown>;
@@ -203,7 +203,7 @@ describe("registry file I/O", () => {
 	let installedPath: string;
 
 	beforeEach(() => {
-		tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "omp-mkt-test-"));
+		tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "chudcode-mkt-test-"));
 		marketplacesPath = path.join(tmpDir, "marketplaces.json");
 		installedPath = path.join(tmpDir, "installed_plugins.json");
 	});

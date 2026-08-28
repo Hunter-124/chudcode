@@ -1,9 +1,9 @@
 import { afterEach, describe, expect, it, mock, spyOn } from "bun:test";
 import * as os from "node:os";
-import type { ClientBridge, ClientBridgeTerminalHandle } from "@oh-my-pi/pi-coding-agent/session/client-bridge";
-import type { ToolSession } from "@oh-my-pi/pi-coding-agent/tools";
-import { BashTool } from "@oh-my-pi/pi-coding-agent/tools/bash";
-import * as piUtils from "@oh-my-pi/pi-utils/async";
+import type { ClientBridge, ClientBridgeTerminalHandle } from "@chudware/coding-agent/session/client-bridge";
+import type { ToolSession } from "@chudware/coding-agent/tools";
+import { BashTool } from "@chudware/coding-agent/tools/bash";
+import * as piUtils from "@chudware/utils/async";
 
 function makeSession(bridge: ClientBridge): ToolSession {
 	return {

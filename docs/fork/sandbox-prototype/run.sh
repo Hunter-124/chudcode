@@ -31,7 +31,7 @@ user_state() {
 		"$(env -u XAUTHORITY DISPLAY=:0 bun probe.ts 2>/dev/null | grep -c '"app"' || true)"
 }
 
-gcc -O2 -Wall -o omp-seat-shim ewmh-shim.c -lX11
+gcc -O2 -Wall -o chudcode-seat-shim ewmh-shim.c -lX11
 
 echo "=== USER SESSION BEFORE ($(date -Is))"
 user_state | tee "$EV/${EV_PREFIX}09-user-session-before.txt"
@@ -42,7 +42,7 @@ seat_env="$("$SEAT_MGR" start "$SEAT" | tee "$EV/${EV_PREFIX}03-seat-start.txt")
 trap "$SEAT_MGR"' stop '"$SEAT"' || true' EXIT
 while IFS= read -r line; do
 	case "$line" in
-		DISPLAY=* | XAUTHORITY=* | OMP_SEAT_DIR=*) export "${line?}" ;;
+		DISPLAY=* | XAUTHORITY=* | CHUDCODE_SEAT_DIR=*) export "${line?}" ;;
 	esac
 done <<<"$seat_env"
 printf '%s\n' "$seat_env"
@@ -72,17 +72,17 @@ fi
 
 echo
 echo "=== TEARDOWN"
-seat_pids="$(pgrep -f "user-data-dir=$OMP_SEAT_DIR" | tr '\n' ' ')"
+seat_pids="$(pgrep -f "user-data-dir=$CHUDCODE_SEAT_DIR" | tr '\n' ' ')"
 echo "seat GUI pids before stop: $seat_pids"
 trap - EXIT
 ./seat.sh stop "$SEAT"
 sleep 2
 {
-	printf 'seat GUI pids after stop:  %s\n' "$(pgrep -f "user-data-dir=$OMP_SEAT_DIR" | tr '\n' ' ')"
-	printf 'omp-seat-shim procs:       %s\n' "$(pgrep -x omp-seat-shim | tr '\n' ' ')"
+	printf 'seat GUI pids after stop:  %s\n' "$(pgrep -f "user-data-dir=$CHUDCODE_SEAT_DIR" | tr '\n' ' ')"
+	printf 'chudcode-seat-shim procs:       %s\n' "$(pgrep -x chudcode-seat-shim | tr '\n' ' ')"
 	printf 'Xvfb procs:                %s\n' "$(pgrep -x Xvfb | tr '\n' ' ')"
 	printf 'X sockets:                 %s\n' "$(ls /tmp/.X11-unix/ | tr '\n' ' ')"
-	printf 'seat dirs:                 %s\n' "$(ls "${XDG_RUNTIME_DIR:-/tmp}/omp-seats" 2>/dev/null | tr '\n' ' ')"
+	printf 'seat dirs:                 %s\n' "$(ls "${XDG_RUNTIME_DIR:-/tmp}/chudcode-seats" 2>/dev/null | tr '\n' ' ')"
 } | tee "$EV/${EV_PREFIX}14-teardown.txt"
 
 exit $status

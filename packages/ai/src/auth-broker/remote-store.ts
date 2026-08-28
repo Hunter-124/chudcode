@@ -8,7 +8,7 @@
  * runs isn't required.
  */
 import * as os from "node:os";
-import { getAppName, getInstallId, logger } from "@oh-my-pi/pi-utils";
+import { getAppName, getInstallId, logger } from "@chudware/utils";
 import {
 	type AuthCredential,
 	type AuthCredentialSnapshotEntry,
@@ -771,19 +771,19 @@ export class RemoteAuthCredentialStore implements AuthCredentialStore {
 
 	replaceAuthCredentialsForProvider(_provider: string, _credentials: AuthCredential[]): StoredAuthCredential[] {
 		throw new AIError.AuthBrokerError(
-			"RemoteAuthCredentialStore is read-only on the client. Use `omp auth-broker login <provider>` to mutate credentials.",
+			"RemoteAuthCredentialStore is read-only on the client. Use `chudcode auth-broker login <provider>` to mutate credentials.",
 		);
 	}
 
 	upsertAuthCredentialForProvider(_provider: string, _credential: AuthCredential): StoredAuthCredential[] {
 		throw new AIError.AuthBrokerError(
-			"RemoteAuthCredentialStore is read-only on the client. Use `omp auth-broker login <provider>` to mutate credentials.",
+			"RemoteAuthCredentialStore is read-only on the client. Use `chudcode auth-broker login <provider>` to mutate credentials.",
 		);
 	}
 
 	deleteAuthCredentialsForProvider(_provider: string, _disabledCause: string): void {
 		throw new AIError.AuthBrokerError(
-			"RemoteAuthCredentialStore is read-only on the client. Use `omp auth-broker logout <provider>` to mutate credentials.",
+			"RemoteAuthCredentialStore is read-only on the client. Use `chudcode auth-broker logout <provider>` to mutate credentials.",
 		);
 	}
 

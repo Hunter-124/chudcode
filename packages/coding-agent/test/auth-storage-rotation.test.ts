@@ -2,13 +2,13 @@ import { afterEach, beforeEach, describe, expect, test, vi } from "bun:test";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
-import { type OAuthCredential, type UsageProvider, withAuth } from "@oh-my-pi/pi-ai";
-import * as oauth from "@oh-my-pi/pi-ai/oauth";
-import type { OAuthCredentials, OAuthProviderId } from "@oh-my-pi/pi-ai/oauth/types";
-import { getBundledModel } from "@oh-my-pi/pi-catalog/models";
-import { ModelRegistry } from "@oh-my-pi/pi-coding-agent/config/model-registry";
-import { AuthStorage } from "@oh-my-pi/pi-coding-agent/session/auth-storage";
-import { removeSyncWithRetries, Snowflake } from "@oh-my-pi/pi-utils";
+import { type OAuthCredential, type UsageProvider, withAuth } from "@chudware/ai";
+import * as oauth from "@chudware/ai/oauth";
+import type { OAuthCredentials, OAuthProviderId } from "@chudware/ai/oauth/types";
+import { getBundledModel } from "@chudware/catalog/models";
+import { ModelRegistry } from "@chudware/coding-agent/config/model-registry";
+import { AuthStorage } from "@chudware/coding-agent/session/auth-storage";
+import { removeSyncWithRetries, Snowflake } from "@chudware/utils";
 import { createApiKeyResolver } from "../src/config/api-key-resolver";
 
 describe("AuthStorage account rotation", () => {
@@ -307,7 +307,7 @@ describe("AuthStorage account rotation", () => {
 	});
 
 	test("provider login invalidates only that provider's persisted session stickiness", async () => {
-		tempDir = path.join(os.tmpdir(), `pi-test-auth-rotation-${Snowflake.next()}`);
+		tempDir = path.join(os.tmpdir(), `chud-test-auth-rotation-${Snowflake.next()}`);
 		fs.mkdirSync(tempDir, { recursive: true });
 		authStorage.close();
 		authStorage = await createRotationStorage(path.join(tempDir, "testauth.db"));

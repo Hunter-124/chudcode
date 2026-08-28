@@ -1,7 +1,7 @@
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { isEnoent } from "@oh-my-pi/pi-utils";
+import { isEnoent } from "@chudware/utils";
 import { LspClient } from "./lsp-client";
 import type {
 	CodeActionContext,

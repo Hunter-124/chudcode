@@ -1,13 +1,13 @@
 import path from "node:path";
-import { getProjectDir } from "@oh-my-pi/pi-utils";
-import { Command, Flags } from "@oh-my-pi/pi-utils/cli";
+import { getProjectDir } from "@chudware/utils";
+import { Command, Flags } from "@chudware/utils/cli";
 import { contextHelp as commandHelp } from "../cli/command-help";
 import { auditProjectArtifacts } from "../context-curation/artifact-audit";
 
 export default class Context extends Command {
 	static description = commandHelp.description;
 	static flags = {
-		apply: Flags.boolean({ description: "Remove only terminal hash-verified OMP-managed artifacts" }),
+		apply: Flags.boolean({ description: "Remove only terminal hash-verified Chudcode-managed artifacts" }),
 		json: Flags.boolean({ description: "Output the machine-readable audit report" }),
 		root: Flags.string({ description: "Project root to audit (defaults to the current project)" }),
 	};

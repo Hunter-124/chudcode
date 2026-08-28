@@ -1,5 +1,5 @@
 import path from "node:path";
-import { FileType, glob } from "@oh-my-pi/pi-natives";
+import { FileType, glob } from "@chudware/natives";
 import type { SearchQuery, SearchResult } from "../protocol";
 import type { WorkspaceService } from "./workspace-service";
 import { WorkspaceServiceError } from "./workspace-service";

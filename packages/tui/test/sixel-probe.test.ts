@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "bun:test";
-import { ImageProtocol, setTerminalImageProtocol, TERMINAL, TUI } from "@oh-my-pi/pi-tui";
+import { ImageProtocol, setTerminalImageProtocol, TERMINAL, TUI } from "@chudware/tui";
 import { VirtualTerminal } from "./virtual-terminal";
 
 type MutableTerminalInfo = {
@@ -15,7 +15,7 @@ const originalProtocol = TERMINAL.imageProtocol;
 const originalWtSession = process.env.WT_SESSION;
 const originalWslDistro = process.env.WSL_DISTRO_NAME;
 const originalWslInterop = process.env.WSL_INTEROP;
-const originalForcedProtocol = process.env.PI_FORCE_IMAGE_PROTOCOL;
+const originalForcedProtocol = process.env.CHUDCODE_FORCE_IMAGE_PROTOCOL;
 const stdinIsTtyDescriptor = Object.getOwnPropertyDescriptor(process.stdin, "isTTY");
 const stdoutIsTtyDescriptor = Object.getOwnPropertyDescriptor(process.stdout, "isTTY");
 
@@ -52,7 +52,7 @@ describe("TUI SIXEL capability probe", () => {
 		restoreEnv("WT_SESSION", originalWtSession);
 		restoreEnv("WSL_DISTRO_NAME", originalWslDistro);
 		restoreEnv("WSL_INTEROP", originalWslInterop);
-		restoreEnv("PI_FORCE_IMAGE_PROTOCOL", originalForcedProtocol);
+		restoreEnv("CHUDCODE_FORCE_IMAGE_PROTOCOL", originalForcedProtocol);
 		restoreIsTty(process.stdin, stdinIsTtyDescriptor);
 		restoreIsTty(process.stdout, stdoutIsTtyDescriptor);
 	});
@@ -147,10 +147,10 @@ describe("TUI SIXEL capability probe", () => {
 		tui.stop();
 	});
 
-	it("respects the PI_FORCE_IMAGE_PROTOCOL kill switch", () => {
+	it("respects the CHUDCODE_FORCE_IMAGE_PROTOCOL kill switch", () => {
 		// `off` resolves imageProtocol to null on purpose; the probe must not
 		// re-enable images behind the user's back.
-		process.env.PI_FORCE_IMAGE_PROTOCOL = "off";
+		process.env.CHUDCODE_FORCE_IMAGE_PROTOCOL = "off";
 		const terminal = new VirtualTerminal(80, 24);
 		const tui = startProbe(terminal);
 

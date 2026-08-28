@@ -1,6 +1,6 @@
-import { type } from "@oh-my-pi/omptype";
-import type { AgentTool, AgentToolContext, AgentToolResult, AgentToolUpdateCallback } from "@oh-my-pi/pi-agent-core";
-import { instrumentedCompleteSimple, resolveTelemetry } from "@oh-my-pi/pi-agent-core";
+import { type } from "@chudware/chudtype";
+import type { AgentTool, AgentToolContext, AgentToolResult, AgentToolUpdateCallback } from "@chudware/agent-core";
+import { instrumentedCompleteSimple, resolveTelemetry } from "@chudware/agent-core";
 import {
 	type Api,
 	type AssistantMessage,
@@ -8,8 +8,8 @@ import {
 	type ImageContent,
 	type Model,
 	type ToolExample,
-} from "@oh-my-pi/pi-ai";
-import { prompt } from "@oh-my-pi/pi-utils";
+} from "@chudware/ai";
+import { prompt } from "@chudware/utils";
 import { extractTextContent } from "../commit/utils";
 
 import {
@@ -41,7 +41,7 @@ const inspectImageSchema = type({
 	),
 	question: type("string").describe("question about image"),
 	"preprocess?": type.enumerated("redact", "crop", "redact+crop").describe(
-		"optionally redact sensitive content, auto-crop, or redact then auto-crop with the local pi-vision sidecar before model inspection",
+		"optionally redact sensitive content, auto-crop, or redact then auto-crop with the local chud-vision sidecar before model inspection",
 	),
 	"+": "reject",
 });

@@ -10,7 +10,7 @@ import type { ComposerStyle, EditorBorderStyle } from "./types";
 const BUILTIN_COMPOSER_STYLES: Readonly<Record<string, ComposerStyle>> = {
 	box: boxComposerStyle,
 	claude: claudeComposerStyle,
-	pi: piComposerStyle,
+	chud: piComposerStyle,
 	borderless: borderlessComposerStyle,
 	rule: ruleComposerStyle,
 	field: fieldComposerStyle,
@@ -18,7 +18,7 @@ const BUILTIN_COMPOSER_STYLES: Readonly<Record<string, ComposerStyle>> = {
 };
 const extensionComposerStyles = new Map<string, ComposerStyle>();
 
-/** Whether an id names a composer style shipped by pi-tui. */
+/** Whether an id names a composer style shipped by chud-tui. */
 export function isBuiltinComposerStyle(id: string): boolean {
 	return Object.hasOwn(BUILTIN_COMPOSER_STYLES, id);
 }

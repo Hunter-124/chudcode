@@ -14,7 +14,7 @@ describe("spawnSync", () => {
 
 	it("accepts the single-object call shape with cwd and env", () => {
 		const result = spawnSync({
-			cmd: ["sh", "-c", "printf %s \"$PROC_PROBE\"; pwd"],
+			cmd: ["sh", "-c", 'printf %s "$PROC_PROBE"; pwd'],
 			cwd: "/",
 			env: { PROC_PROBE: "value", PATH: process.env.PATH },
 			stdout: "pipe",
@@ -26,9 +26,7 @@ describe("spawnSync", () => {
 	});
 
 	it("throws on a missing executable instead of returning a failed result", () => {
-		expect(() => spawnSync(["definitely-not-a-binary-xyz"])).toThrow(
-			expect.objectContaining({ code: "ENOENT" }),
-		);
+		expect(() => spawnSync(["definitely-not-a-binary-xyz"])).toThrow(expect.objectContaining({ code: "ENOENT" }));
 	});
 
 	it("reports the terminating signal", () => {

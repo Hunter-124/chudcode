@@ -1,6 +1,6 @@
 import * as path from "node:path";
-import { isRecord } from "@oh-my-pi/pi-utils";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
+import { isRecord } from "@chudware/utils";
+import * as fsx from "@chudware/utils/fsx";
 
 const RUST_FRAMEWORKS: readonly (readonly [string, string])[] = [
 	["axum", "Axum"],

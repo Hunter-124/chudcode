@@ -1,10 +1,10 @@
 #!/usr/bin/env bun
 /**
- * Read-only capability probe for Chudcode's real desktop backend (@oh-my-pi/pi-natives).
+ * Read-only capability probe for Chudcode's real desktop backend (@chudware/natives).
  * Prints capabilities + enumerable windows for whatever display the *environment*
  * points at. No capture, no input: safe to run against the user's live session.
  */
-import { createDesktopSession } from "@oh-my-pi/pi-natives/desktop";
+import { createDesktopSession } from "@chudware/natives/desktop";
 
 const session = createDesktopSession({ display: "all" });
 console.log(

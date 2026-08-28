@@ -6,8 +6,8 @@ import { describe, expect, test } from "bun:test";
 import { rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { sleep } from "@oh-my-pi/pi-utils/async";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
+import { sleep } from "@chudware/utils/async";
+import * as fsx from "@chudware/utils/fsx";
 import { probeCandidates, runBoundedProbe } from "../../src/eval/probe";
 
 // A cross-platform "hangs forever" command: re-invoke the running Bun to sleep.
@@ -36,7 +36,7 @@ describe("runBoundedProbe", () => {
 	});
 
 	test("kills descendants spawned by an interpreter shim", async () => {
-		const pidFile = join(tmpdir(), `omp-probe-grandchild-${process.pid}-${Date.now()}.pid`);
+		const pidFile = join(tmpdir(), `chudcode-probe-grandchild-${process.pid}-${Date.now()}.pid`);
 		let grandchildPid: number | undefined;
 		const wrapper = [
 			bun,

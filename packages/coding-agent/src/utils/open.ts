@@ -1,8 +1,8 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 import * as url from "node:url";
-import { $which, logger } from "@oh-my-pi/pi-utils";
-import * as proc from "@oh-my-pi/pi-utils/proc";
+import { $which, logger } from "@chudware/utils";
+import * as proc from "@chudware/utils/proc";
 
 const URL_SCHEME_PATTERN = /^[a-zA-Z][a-zA-Z\d+.-]*:/;
 
@@ -112,7 +112,7 @@ export function openPath(urlOrPath: string): void {
 	// Detect delayed failures (exec succeeded but the opener exited non-zero)
 	// without blocking the caller. Recording them makes silent misconfigurations
 	// (e.g. `xdg-open` present but no MIME handler for `https`) diagnosable from
-	// `~/.omp/logs/omp.*.log`.
+	// `~/.chudcode/logs/chudcode.*.log`.
 	child.exited.then(
 		exitCode => {
 			if (typeof exitCode === "number" && exitCode !== 0) {

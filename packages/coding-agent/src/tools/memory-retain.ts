@@ -1,5 +1,5 @@
-import { type } from "@oh-my-pi/omptype";
-import type { AgentTool, AgentToolResult } from "@oh-my-pi/pi-agent-core";
+import { type } from "@chudware/chudtype";
+import type { AgentTool, AgentToolResult } from "@chudware/agent-core";
 import retainDescription from "../prompts/tools/retain.md" with { type: "text" };
 import type { ToolSession } from ".";
 
@@ -28,16 +28,16 @@ export class MemoryRetainTool implements AgentTool<typeof memoryRetainSchema> {
 
 	static createIf(session: ToolSession): MemoryRetainTool | null {
 		const backend = session.settings.get("memory.backend");
-		if (backend !== "hindsight" && backend !== "mnemopi") return null;
+		if (backend !== "hindsight" && backend !== "mnemo") return null;
 		return new MemoryRetainTool(session);
 	}
 
 	async execute(_id: string, params: MemoryRetainParams): Promise<AgentToolResult> {
 		const backend = this.session.settings.get("memory.backend");
-		if (backend === "mnemopi") {
+		if (backend === "mnemo") {
 			const state = this.session.getMnemopiSessionState?.();
 			if (!state) {
-				throw new Error("Mnemopi backend is not initialised for this session.");
+				throw new Error("Mnemo backend is not initialised for this session.");
 			}
 
 			for (const item of params.items) {

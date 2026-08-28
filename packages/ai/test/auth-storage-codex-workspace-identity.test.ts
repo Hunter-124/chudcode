@@ -23,9 +23,9 @@ import {
 	AuthStorage,
 	SqliteAuthCredentialStore,
 	type StoredAuthCredential,
-} from "@oh-my-pi/pi-ai/auth-storage";
-import type { UsageReport } from "@oh-my-pi/pi-ai/usage";
-import * as codexUsage from "@oh-my-pi/pi-ai/usage/openai-codex";
+} from "@chudware/ai/auth-storage";
+import type { UsageReport } from "@chudware/ai/usage";
+import * as codexUsage from "@chudware/ai/usage/openai-codex";
 import { removeWithRetries } from "../../utils/src/temp";
 
 const EMAIL = "shared@example.com";
@@ -71,7 +71,7 @@ describe("openai-codex workspace-scoped credential identity", () => {
 	let store: SqliteAuthCredentialStore | null = null;
 
 	beforeEach(async () => {
-		tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "pi-ai-codex-ws-identity-"));
+		tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "chud-ai-codex-ws-identity-"));
 		dbPath = path.join(tempDir, "agent.db");
 		store = await SqliteAuthCredentialStore.open(dbPath);
 	});

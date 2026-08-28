@@ -1,7 +1,7 @@
 import { describe, expect, it } from "bun:test";
-import { type Component, TUI } from "@oh-my-pi/pi-tui";
-import type { Terminal, TerminalAppearance } from "@oh-my-pi/pi-tui/terminal";
-import { sleep } from "@oh-my-pi/pi-utils/async";
+import { type Component, TUI } from "@chudware/tui";
+import type { Terminal, TerminalAppearance } from "@chudware/tui/terminal";
+import { sleep } from "@chudware/utils/async";
 
 class CaptureTerminal implements Terminal {
 	writes: string[] = [];

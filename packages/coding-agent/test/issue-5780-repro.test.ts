@@ -2,11 +2,11 @@ import { afterEach, beforeEach, describe, expect, test, vi } from "bun:test";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
-import { clearCustomApis, type FetchImpl } from "@oh-my-pi/pi-ai";
-import { unregisterOAuthProviders } from "@oh-my-pi/pi-ai/oauth";
-import { ModelRegistry, type ProviderConfigInput } from "@oh-my-pi/pi-coding-agent/config/model-registry";
-import { AuthStorage } from "@oh-my-pi/pi-coding-agent/session/auth-storage";
-import { removeSyncWithRetries, Snowflake } from "@oh-my-pi/pi-utils";
+import { clearCustomApis, type FetchImpl } from "@chudware/ai";
+import { unregisterOAuthProviders } from "@chudware/ai/oauth";
+import { ModelRegistry, type ProviderConfigInput } from "@chudware/coding-agent/config/model-registry";
+import { AuthStorage } from "@chudware/coding-agent/session/auth-storage";
+import { removeSyncWithRetries, Snowflake } from "@chudware/utils";
 
 describe("issue #5780 post-auth runtime provider refresh", () => {
 	let tempDir: string;
@@ -21,7 +21,7 @@ describe("issue #5780 post-auth runtime provider refresh", () => {
 	const offlineFetch: FetchImpl = () => Promise.reject(new Error("network disabled"));
 
 	beforeEach(async () => {
-		tempDir = path.join(os.tmpdir(), `pi-test-issue-5780-${Snowflake.next()}`);
+		tempDir = path.join(os.tmpdir(), `chud-test-issue-5780-${Snowflake.next()}`);
 		fs.mkdirSync(tempDir, { recursive: true });
 		modelsJsonPath = path.join(tempDir, "models.json");
 		dbPath = path.join(tempDir, "models.db");

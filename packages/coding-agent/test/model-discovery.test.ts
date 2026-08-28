@@ -3,23 +3,23 @@ import { afterEach, beforeEach, describe, expect, test, vi } from "bun:test";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
-import { Effort, type FetchImpl, type Model } from "@oh-my-pi/pi-ai";
-import type { OAuthCredentials } from "@oh-my-pi/pi-ai/oauth/types";
-import { buildModel } from "@oh-my-pi/pi-catalog/build";
-import { writeModelCache } from "@oh-my-pi/pi-catalog/model-cache";
-import { getBundledModel } from "@oh-my-pi/pi-catalog/models";
-import { resolveModelCacheProviderId, resolveOllamaModelCacheProviderId } from "@oh-my-pi/pi-catalog/provider-models";
-import type { ModelSpec, OpenAICompat } from "@oh-my-pi/pi-catalog/types";
+import { Effort, type FetchImpl, type Model } from "@chudware/ai";
+import type { OAuthCredentials } from "@chudware/ai/oauth/types";
+import { buildModel } from "@chudware/catalog/build";
+import { writeModelCache } from "@chudware/catalog/model-cache";
+import { getBundledModel } from "@chudware/catalog/models";
+import { resolveModelCacheProviderId, resolveOllamaModelCacheProviderId } from "@chudware/catalog/provider-models";
+import type { ModelSpec, OpenAICompat } from "@chudware/catalog/types";
 import {
 	applyLlamaCppQwenThinking,
 	discoverOllamaModels,
 	discoveryProbeTimeoutMs,
-} from "@oh-my-pi/pi-coding-agent/config/model-discovery";
-import { kNoAuth, ModelRegistry } from "@oh-my-pi/pi-coding-agent/config/model-registry";
-import { ProviderDiscoverySchema } from "@oh-my-pi/pi-coding-agent/config/models-config-schema";
-import { resetSettingsForTest } from "@oh-my-pi/pi-coding-agent/config/settings";
-import { AuthStorage } from "@oh-my-pi/pi-coding-agent/session/auth-storage";
-import { removeSyncWithRetries, Snowflake } from "@oh-my-pi/pi-utils";
+} from "@chudware/coding-agent/config/model-discovery";
+import { kNoAuth, ModelRegistry } from "@chudware/coding-agent/config/model-registry";
+import { ProviderDiscoverySchema } from "@chudware/coding-agent/config/models-config-schema";
+import { resetSettingsForTest } from "@chudware/coding-agent/config/settings";
+import { AuthStorage } from "@chudware/coding-agent/session/auth-storage";
+import { removeSyncWithRetries, Snowflake } from "@chudware/utils";
 
 describe("ModelRegistry runtime discovery", () => {
 	let tempDir: string;
@@ -41,7 +41,7 @@ describe("ModelRegistry runtime discovery", () => {
 		delete process.env.OLLAMA_HOST;
 		delete process.env.OLLAMA_CONTEXT_LENGTH;
 		delete process.env.ANTHROPIC_API_KEY;
-		tempDir = path.join(os.tmpdir(), `pi-test-model-registry-${Snowflake.next()}`);
+		tempDir = path.join(os.tmpdir(), `chud-test-model-registry-${Snowflake.next()}`);
 		fs.mkdirSync(tempDir, { recursive: true });
 		modelsJsonPath = path.join(tempDir, "models.json");
 		cacheDbPath = path.join(tempDir, "models.db");
@@ -725,14 +725,14 @@ describe("ModelRegistry runtime discovery", () => {
 	});
 
 	test("keeps OLLAMA_BASE_URL precedence over OLLAMA_HOST", async () => {
-		using _baseUrl = withEnv("OLLAMA_BASE_URL", "http://omp-ollama.example:2222");
+		using _baseUrl = withEnv("OLLAMA_BASE_URL", "http://chudcode-ollama.example:2222");
 		using _host = withEnv("OLLAMA_HOST", "ollama-host.example:3333");
-		const fetchMock = mockOllamaDiscovery(["phi4-mini"], "http://omp-ollama.example:2222");
+		const fetchMock = mockOllamaDiscovery(["phi4-mini"], "http://chudcode-ollama.example:2222");
 		const registry = new ModelRegistry(authStorage, modelsJsonPath, { fetch: fetchMock });
 		await registry.refresh();
 
 		const model = registry.find("ollama", "phi4-mini");
-		expect(model?.baseUrl).toBe("http://omp-ollama.example:2222/v1");
+		expect(model?.baseUrl).toBe("http://chudcode-ollama.example:2222/v1");
 		expect(registry.getProviderDiscoveryState("ollama")?.optional).toBe(false);
 	});
 
@@ -1457,7 +1457,7 @@ providers:
 		expect(qwen?.baseUrl).toBe("http://127.0.0.1:8080/v1");
 	});
 
-	test("applyLlamaCppQwenThinking keeps a pi-native gateway base URL without doubling /v1", () => {
+	test("applyLlamaCppQwenThinking keeps a chud-native gateway base URL without doubling /v1", () => {
 		const upgraded = applyLlamaCppQwenThinking(
 			buildModel({
 				id: "qwen3-8b",
@@ -1465,7 +1465,7 @@ providers:
 				api: "openai-responses",
 				provider: "llama.cpp",
 				baseUrl: "http://gw:4000",
-				transport: "pi-native",
+				transport: "chud-native",
 				reasoning: false,
 				input: ["text"],
 				cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
@@ -1476,7 +1476,7 @@ providers:
 		// streamPiNative appends `/v1/pi/stream`, so the gateway URL must stay bare
 		// rather than gaining a `/v1` that would double to `.../v1/v1/pi/stream`.
 		expect(upgraded.baseUrl).toBe("http://gw:4000");
-		expect(upgraded.transport).toBe("pi-native");
+		expect(upgraded.transport).toBe("chud-native");
 		expect(upgraded.reasoning).toBe(true);
 		expect((upgraded.compat as { reasoningDisableMode?: string }).reasoningDisableMode).toBe("qwen-template-false");
 	});

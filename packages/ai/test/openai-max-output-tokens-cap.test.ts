@@ -1,9 +1,9 @@
 import { afterEach, describe, expect, it, vi } from "bun:test";
-import { streamSimple } from "@oh-my-pi/pi-ai/stream";
-import type { FetchImpl } from "@oh-my-pi/pi-ai/types";
-import { type Context, type Model, type ModelSpec, OPENAI_MAX_OUTPUT_TOKENS } from "@oh-my-pi/pi-ai/types";
-import { buildModel } from "@oh-my-pi/pi-catalog/build";
-import { getBundledModel } from "@oh-my-pi/pi-catalog/models";
+import { streamSimple } from "@chudware/ai/stream";
+import type { FetchImpl } from "@chudware/ai/types";
+import { type Context, type Model, type ModelSpec, OPENAI_MAX_OUTPUT_TOKENS } from "@chudware/ai/types";
+import { buildModel } from "@chudware/catalog/build";
+import { getBundledModel } from "@chudware/catalog/models";
 
 // Output-token wire policy for OpenAI-family providers:
 //   - Non-aggregator completions + non-OpenRouter responses: clamp to
@@ -47,8 +47,8 @@ async function drainResponses(
 	model: Model<"openai-responses" | "openrouter">,
 	maxTokens?: number,
 ): Promise<Record<string, unknown>> {
-	const previousOpenRouterResponses = process.env.PI_OPENROUTER_RESPONSES;
-	if (model.api === "openrouter") process.env.PI_OPENROUTER_RESPONSES = "1";
+	const previousOpenRouterResponses = process.env.CHUDCODE_OPENROUTER_RESPONSES;
+	if (model.api === "openrouter") process.env.CHUDCODE_OPENROUTER_RESPONSES = "1";
 	try {
 		const { fetchMock, captured } = captureResponsesBody();
 		const stream = streamSimple(model, ctx, {
@@ -62,9 +62,9 @@ async function drainResponses(
 		return captured;
 	} finally {
 		if (previousOpenRouterResponses === undefined) {
-			delete process.env.PI_OPENROUTER_RESPONSES;
+			delete process.env.CHUDCODE_OPENROUTER_RESPONSES;
 		} else {
-			process.env.PI_OPENROUTER_RESPONSES = previousOpenRouterResponses;
+			process.env.CHUDCODE_OPENROUTER_RESPONSES = previousOpenRouterResponses;
 		}
 	}
 }

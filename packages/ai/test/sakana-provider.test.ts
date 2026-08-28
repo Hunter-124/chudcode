@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { resolveOpenAIRequestSetup } from "@oh-my-pi/pi-ai/providers/openai-shared";
+import { resolveOpenAIRequestSetup } from "@chudware/ai/providers/openai-shared";
 
 const ORIGINAL_ENV = {
 	SAKANA_BASE_URL: process.env.SAKANA_BASE_URL,

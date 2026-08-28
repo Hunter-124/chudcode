@@ -1,8 +1,8 @@
 import { afterEach, describe, expect, it } from "bun:test";
 import * as crypto from "node:crypto";
-import { KeybindingsManager, WINDOWS_KEYBINDINGS } from "@oh-my-pi/pi-coding-agent/config/keybindings";
-import { resetSettingsForTest, Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
-import { canonicalKeyId, parseKey } from "@oh-my-pi/pi-tui";
+import { KeybindingsManager, WINDOWS_KEYBINDINGS } from "@chudware/coding-agent/config/keybindings";
+import { resetSettingsForTest, Settings } from "@chudware/coding-agent/config/settings";
+import { canonicalKeyId, parseKey } from "@chudware/tui";
 
 /**
  * Actions introduced by the keybinding-preset work that are deliberately UNBOUND under the

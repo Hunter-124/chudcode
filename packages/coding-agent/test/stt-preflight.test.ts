@@ -2,11 +2,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import { Settings, settings } from "@oh-my-pi/pi-coding-agent/config/settings";
-import * as asrClient from "@oh-my-pi/pi-coding-agent/stt/asr-client";
-import * as downloader from "@oh-my-pi/pi-coding-agent/stt/downloader";
-import { STTController } from "@oh-my-pi/pi-coding-agent/stt/stt-controller";
-import { getTinyModelsCacheDir, removeWithRetries, setAgentDir } from "@oh-my-pi/pi-utils";
+import { Settings, settings } from "@chudware/coding-agent/config/settings";
+import * as asrClient from "@chudware/coding-agent/stt/asr-client";
+import * as downloader from "@chudware/coding-agent/stt/downloader";
+import { STTController } from "@chudware/coding-agent/stt/stt-controller";
+import { getTinyModelsCacheDir, removeWithRetries, setAgentDir } from "@chudware/utils";
 import { beginSettingsTest, restoreSettingsTestState, type SettingsTestState } from "./helpers/settings-test-state";
 
 const WHISPER_BASE_REPO = "onnx-community/whisper-base";
@@ -24,7 +24,7 @@ describe("isSttModelCached completeness", () => {
 
 	beforeEach(async () => {
 		state = beginSettingsTest();
-		tmp = await fs.mkdtemp(path.join(os.tmpdir(), "omp-stt-cache-"));
+		tmp = await fs.mkdtemp(path.join(os.tmpdir(), "chudcode-stt-cache-"));
 		setAgentDir(tmp);
 		cacheDir = getTinyModelsCacheDir();
 	});

@@ -6,7 +6,7 @@
 
 ### Fixed
 
-- Fixed SuperGrok usage appearing as free by applying matching public xAI API pricing (including 200K-token rates), labeling costs as API-equivalent estimates, backfilling existing usage records, and displaying subscription-only models as N/A ([#9512](https://github.com/can1357/oh-my-pi/issues/9512)).
+- Fixed SuperGrok usage appearing as free by applying matching public xAI API pricing (including 200K-token rates), labeling costs as API-equivalent estimates, backfilling existing usage records, and displaying subscription-only models as N/A ([#9512](https://github.com/Hunter-124/chudcode/issues/9512)).
 
 ## [18.0.1] - 2026-08-23
 
@@ -45,19 +45,19 @@
 
 ### Changed
 
-- Optimized package dependencies by replacing `date-fns` with `@oh-my-pi/pi-utils/dates` and removing unused test dependencies.
+- Optimized package dependencies by replacing `date-fns` with `@chudware/utils/dates` and removing unused test dependencies.
 
 ## [17.2.9] - 2026-08-05
 
 ### Fixed
 
-- Restricted the stats dashboard to IPv4 loopback and removed wildcard CORS access to its API ([#7633](https://github.com/can1357/oh-my-pi/issues/7633)).
+- Restricted the stats dashboard to IPv4 loopback and removed wildcard CORS access to its API ([#7633](https://github.com/Hunter-124/chudcode/issues/7633)).
 
 ## [17.2.4] - 2026-08-01
 
 ### Fixed
 
-- Fixed provider usage window stats silently showing no data during SQLite contention by installing a five-second busy timeout on read-only agent database connections ([#7300](https://github.com/can1357/oh-my-pi/issues/7300)).
+- Fixed provider usage window stats silently showing no data during SQLite contention by installing a five-second busy timeout on read-only agent database connections ([#7300](https://github.com/Hunter-124/chudcode/issues/7300)).
 
 ## [17.1.2] - 2026-07-24
 
@@ -121,7 +121,7 @@
 
 ### Added
 
-- Added a Tools tab to the `omp stats` dashboard (`/#/tools`): per-tool call counts, error rates, result/argument payload sizes, per-model breakdown, and a stacked calls-over-time chart. Token and cost columns attribute each invoking turn's real provider usage evenly across that turn's tool calls. Existing databases re-parse sessions once on the next sync to backfill historical tool calls.
+- Added a Tools tab to the `chudcode stats` dashboard (`/#/tools`): per-tool call counts, error rates, result/argument payload sizes, per-model breakdown, and a stacked calls-over-time chart. Token and cost columns attribute each invoking turn's real provider usage evenly across that turn's tool calls. Existing databases re-parse sessions once on the next sync to backfill historical tool calls.
 
 ## [16.2.7] - 2026-06-30
 
@@ -133,7 +133,7 @@
 
 ### Fixed
 
-- Fixed application crashes and Bun aborts on macOS and when parsing large stats session files, including during `omp --smoke-test` runs, by utilizing a more resilient serial parser and lenient line scanner.
+- Fixed application crashes and Bun aborts on macOS and when parsing large stats session files, including during `chudcode --smoke-test` runs, by utilizing a more resilient serial parser and lenient line scanner.
 
 ## [16.2.3] - 2026-06-28
 
@@ -145,13 +145,13 @@
 
 ### Added
 
-- Added a Gain tab to the `omp stats` dashboard (`/#/gain`) to display snapcompact token-savings with project scoping from synced session folders.
+- Added a Gain tab to the `chudcode stats` dashboard (`/#/gain`) to display snapcompact token-savings with project scoping from synced session folders.
 
 ## [16.1.17] - 2026-06-24
 
 ### Fixed
 
-- Stats sync counted the same provider request multiple times when a forked or branched session file copied the parent's entries verbatim. Inserts now skip rows whose `(entry_id, timestamp)` already exists under a different `session_file`, and a one-shot migration on the next `omp stats` run collapses any pre-existing duplicates ([#3370](https://github.com/can1357/oh-my-pi/issues/3370)).
+- Stats sync counted the same provider request multiple times when a forked or branched session file copied the parent's entries verbatim. Inserts now skip rows whose `(entry_id, timestamp)` already exists under a different `session_file`, and a one-shot migration on the next `chudcode stats` run collapses any pre-existing duplicates ([#3370](https://github.com/Hunter-124/chudcode/issues/3370)).
 
 ## [16.1.15] - 2026-06-22
 
@@ -178,7 +178,7 @@
 
 ### Changed
 
-- Redesigned the local stats dashboard with an OMP-themed product shell, dedicated per-section views, accessible loading/empty/error states, and flicker-free navigation between screens and time ranges.
+- Redesigned the local stats dashboard with an Chudcode-themed product shell, dedicated per-section views, accessible loading/empty/error states, and flicker-free navigation between screens and time ranges.
 
 ### Fixed
 
@@ -200,13 +200,13 @@
 
 ### Fixed
 
-- Fixed the stats dashboard's SQLite init never setting `PRAGMA busy_timeout`, so a concurrent `omp` startup hitting WAL recovery could crash `initDb()` with `SQLITE_BUSY` instead of waiting through it. The busy handler is now installed before `PRAGMA journal_mode=WAL` ([#2421](https://github.com/can1357/oh-my-pi/issues/2421)).
+- Fixed the stats dashboard's SQLite init never setting `PRAGMA busy_timeout`, so a concurrent `chudcode` startup hitting WAL recovery could crash `initDb()` with `SQLITE_BUSY` instead of waiting through it. The busy handler is now installed before `PRAGMA journal_mode=WAL` ([#2421](https://github.com/Hunter-124/chudcode/issues/2421)).
 
 ## [15.11.0] - 2026-06-10
 
 ### Added
 
-- Added support for prebuilt npm bundle mode via `PI_BUNDLED`, allowing the stats server to use an embedded dashboard bundle in packaged CLI distributions
+- Added support for prebuilt npm bundle mode via `CHUDCODE_BUNDLED`, allowing the stats server to use an embedded dashboard bundle in packaged CLI distributions
 
 ### Fixed
 
@@ -217,14 +217,14 @@
 
 ### Changed
 
-- Bundled-model lookups (`getBundledModel`, `GeneratedProvider`) now import from the new `@oh-my-pi/pi-catalog` package instead of the `@oh-my-pi/pi-ai` barrel, which no longer re-exports catalog values
-- The session-sync worker re-enters the host CLI entry (`workerHostEntry()` + `__omp_stats_sync_worker` argv selector) when running inside omp — source, npm bundle, or compiled binary — and keeps loading its own `sync-worker.ts` module directly for standalone `omp-stats`, bun test, and SDK hosts
+- Bundled-model lookups (`getBundledModel`, `GeneratedProvider`) now import from the new `@chudware/catalog` package instead of the `@chudware/ai` barrel, which no longer re-exports catalog values
+- The session-sync worker re-enters the host CLI entry (`workerHostEntry()` + `__omp_stats_sync_worker` argv selector) when running inside chudcode — source, npm bundle, or compiled binary — and keeps loading its own `sync-worker.ts` module directly for standalone `chudcode-stats`, bun test, and SDK hosts
 
 ## [15.1.6] - 2026-05-19
 
 ### Fixed
 
-- Fixed `omp stats` crashing on first session sync in published `omp-{linux,darwin,windows}-*` binaries with `BuildMessage: ModuleNotFound resolving "./packages/stats/src/sync-worker.ts"`; the release build script now lists the stats sync, browser tab, and JS eval workers as explicit `--compile` entrypoints so Bun emits them into bunfs, matching the dev build script and the AGENTS.md worker spawn contract. ([#1150](https://github.com/can1357/oh-my-pi/issues/1150))
+- Fixed `chudcode stats` crashing on first session sync in published `chudcode-{linux,darwin,windows}-*` binaries with `BuildMessage: ModuleNotFound resolving "./packages/stats/src/sync-worker.ts"`; the release build script now lists the stats sync, browser tab, and JS eval workers as explicit `--compile` entrypoints so Bun emits them into bunfs, matching the dev build script and the AGENTS.md worker spawn contract. ([#1150](https://github.com/Hunter-124/chudcode/issues/1150))
 
 ## [15.1.0] - 2026-05-15
 
@@ -240,7 +240,7 @@
 
 ### Changed
 
-- Changed the "Premium Reqs" dashboard card to also include OpenAI priority service-tier requests (`serviceTier: "priority"`), counting each as 1 premium request alongside GitHub Copilot premium calls. Pre-existing sessions are backfilled on the next `omp stats` run: a one-shot `premium_requests_priority_v1` sentinel wipes `file_offsets` so every session re-parses, and `insertMessageStats` now `UPSERT`s `premium_requests` (other columns untouched) using the `service_tier_change` entries already in the session log to retroactively credit priority traffic.
+- Changed the "Premium Reqs" dashboard card to also include OpenAI priority service-tier requests (`serviceTier: "priority"`), counting each as 1 premium request alongside GitHub Copilot premium calls. Pre-existing sessions are backfilled on the next `chudcode stats` run: a one-shot `premium_requests_priority_v1` sentinel wipes `file_offsets` so every session re-parses, and `insertMessageStats` now `UPSERT`s `premium_requests` (other columns untouched) using the `service_tier_change` entries already in the session log to retroactively credit priority traffic.
 
 ## [14.9.9] - 2026-05-12
 
@@ -250,7 +250,7 @@
 
 ### Fixed
 
-- Fixed `omp stats` in compiled binaries by using the serial sync path instead of spawning a raw file-asset worker that cannot import bundled parser code.
+- Fixed `chudcode stats` in compiled binaries by using the serial sync path instead of spawning a raw file-asset worker that cannot import bundled parser code.
 - Fixed behavior backfills after failed compiled-binary sync attempts by marking the backfill sentinel only after a successful full sync.
 
 ## [14.9.7] - 2026-05-12
@@ -297,7 +297,7 @@
 ### Fixed
 
 - Fixed handling of unknown `range` values by falling back to the last 24h instead of returning unscoped data
-- Fixed `omp stats` failing to build the client on globally-installed installs by promoting `tailwindcss` from `devDependencies` to `dependencies` (the client build runs at runtime)
+- Fixed `chudcode stats` failing to build the client on globally-installed installs by promoting `tailwindcss` from `devDependencies` to `dependencies` (the client build runs at runtime)
 
 ## [14.5.4] - 2026-04-28
 
@@ -309,4 +309,4 @@
 
 ### Fixed
 
-- Include subtask session files in usage stats ([#250](https://github.com/can1357/oh-my-pi/issues/250))
+- Include subtask session files in usage stats ([#250](https://github.com/Hunter-124/chudcode/issues/250))

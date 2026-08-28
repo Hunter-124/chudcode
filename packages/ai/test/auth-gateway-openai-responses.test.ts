@@ -2,16 +2,16 @@ import { describe, expect, it } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import { clearCustomApis } from "@oh-my-pi/pi-ai/api-registry";
-import { startAuthGateway } from "@oh-my-pi/pi-ai/auth-gateway";
-import { AuthStorage } from "@oh-my-pi/pi-ai/auth-storage";
-import { createMockModel, registerMockApi } from "@oh-my-pi/pi-ai/providers/mock";
-import { encodeResponse, encodeStream, parseRequest } from "@oh-my-pi/pi-ai/providers/openai-responses-server";
-import { buildResponsesInput } from "@oh-my-pi/pi-ai/providers/openai-shared";
-import type { AssistantMessage, Context, ModelSpec } from "@oh-my-pi/pi-ai/types";
-import { AssistantMessageEventStream } from "@oh-my-pi/pi-ai/utils/event-stream";
-import { buildModel } from "@oh-my-pi/pi-catalog/build";
-import { Effort } from "@oh-my-pi/pi-catalog/effort";
+import { clearCustomApis } from "@chudware/ai/api-registry";
+import { startAuthGateway } from "@chudware/ai/auth-gateway";
+import { AuthStorage } from "@chudware/ai/auth-storage";
+import { createMockModel, registerMockApi } from "@chudware/ai/providers/mock";
+import { encodeResponse, encodeStream, parseRequest } from "@chudware/ai/providers/openai-responses-server";
+import { buildResponsesInput } from "@chudware/ai/providers/openai-shared";
+import type { AssistantMessage, Context, ModelSpec } from "@chudware/ai/types";
+import { AssistantMessageEventStream } from "@chudware/ai/utils/event-stream";
+import { buildModel } from "@chudware/catalog/build";
+import { Effort } from "@chudware/catalog/effort";
 
 function zeroUsage(): AssistantMessage["usage"] {
 	return {
@@ -173,7 +173,7 @@ describe("openai-responses parseRequest", () => {
 		// case (only "none" toggles hideThinkingSummary).
 		expect(parsed.options.hideThinkingSummary).toBeUndefined();
 		// `store` and `previous_response_id` are accepted by the schema but not
-		// plumbed through pi-ai — they no longer leak into options.extra.
+		// plumbed through chud-ai — they no longer leak into options.extra.
 		expect(parsed.options.extra).toBeUndefined();
 	});
 
@@ -278,7 +278,7 @@ describe("openai-responses parseRequest", () => {
 		]);
 	});
 
-	it("round-trips Pi image-read image forms as native function output blocks", () => {
+	it("round-trips Chud image-read image forms as native function output blocks", () => {
 		const imageData = Buffer.from("read tool image").toString("base64");
 		const imageUrl = "https://blob.example.invalid/read-image.png";
 		const providerFileId = "file_read_image_123";

@@ -19,9 +19,9 @@
 
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
-import type { Model } from "@oh-my-pi/pi-ai";
-import { getStatsDbPath, isEnoent, logger } from "@oh-my-pi/pi-utils";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
+import type { Model } from "@chudware/ai";
+import { getStatsDbPath, isEnoent, logger } from "@chudware/utils";
+import * as fsx from "@chudware/utils/fsx";
 
 export interface SnapcompactSavingsRecord {
 	/** Epoch milliseconds when the swap was applied. */
@@ -34,7 +34,7 @@ export interface SnapcompactSavingsRecord {
 	savedTokens: number;
 }
 
-/** `~/.omp/.../snapcompact-savings.jsonl`, colocated with stats.db. */
+/** `~/.chudcode/.../snapcompact-savings.jsonl`, colocated with stats.db. */
 export function snapcompactSavingsJournalPath(): string {
 	return path.join(path.dirname(getStatsDbPath()), "snapcompact-savings.jsonl");
 }

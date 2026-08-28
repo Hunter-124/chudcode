@@ -3,9 +3,9 @@ import * as fs from "node:fs/promises";
 import * as net from "node:net";
 import * as os from "node:os";
 import * as path from "node:path";
-import { CmuxSocketClient } from "@oh-my-pi/pi-coding-agent/tools/browser/cmux/socket-client";
-import { ToolError } from "@oh-my-pi/pi-coding-agent/tools/tool-errors";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
+import { CmuxSocketClient } from "@chudware/coding-agent/tools/browser/cmux/socket-client";
+import { ToolError } from "@chudware/coding-agent/tools/tool-errors";
+import * as fsx from "@chudware/utils/fsx";
 
 type RequestLine = {
 	id?: unknown;

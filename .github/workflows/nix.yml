@@ -1,4 +1,4 @@
-name: OMP Nix
+name: Chudcode Nix
 
 on:
   push:

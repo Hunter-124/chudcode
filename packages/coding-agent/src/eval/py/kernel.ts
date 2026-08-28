@@ -8,7 +8,7 @@
  * timeout.
  */
 import * as path from "node:path";
-import { $flag, isBunTestRuntime, logger, Snowflake } from "@oh-my-pi/pi-utils";
+import { $flag, isBunTestRuntime, logger, Snowflake } from "@chudware/utils";
 import { Settings } from "../../config/settings";
 import { BaseKernel, getRemainingTimeMs, type KernelStartOptions } from "../kernel-base";
 import { type BackendProbeOptions, probeCandidates } from "../probe";
@@ -35,7 +35,7 @@ export type {
 export type { KernelDisplayOutput, PythonStatusEvent } from "./display";
 export { renderKernelDisplay } from "./display";
 
-const TRACE_IPC = $flag("PI_PYTHON_IPC_TRACE");
+const TRACE_IPC = $flag("CHUDCODE_PYTHON_IPC_TRACE");
 
 const SHUTDOWN_GRACE_MS = 1_000;
 const STARTUP_TIMEOUT_MS = 10_000;
@@ -66,7 +66,7 @@ export async function checkPythonKernelAvailability(
 	interpreter?: string,
 	options?: { forceProbe?: boolean } & BackendProbeOptions,
 ): Promise<PythonKernelAvailability> {
-	if (!options?.forceProbe && (isBunTestRuntime() || $flag("PI_PYTHON_SKIP_CHECK"))) {
+	if (!options?.forceProbe && (isBunTestRuntime() || $flag("CHUDCODE_PYTHON_SKIP_CHECK"))) {
 		return { ok: true };
 	}
 	const resolvedCwd = path.resolve(cwd);
@@ -168,7 +168,7 @@ export class PythonKernel extends BaseKernel {
 		spawnEnv.PYTHONUNBUFFERED = "1";
 		spawnEnv.PYTHONIOENCODING = "utf-8";
 
-		const scriptPath = await stageRunnerScript("omp-python-runner", "py", RUNNER_SCRIPT);
+		const scriptPath = await stageRunnerScript("chudcode-python-runner", "py", RUNNER_SCRIPT);
 		const kernel = new PythonKernel(Snowflake.next());
 
 		const proc = Bun.spawn([runtime.pythonPath, "-u", scriptPath], {

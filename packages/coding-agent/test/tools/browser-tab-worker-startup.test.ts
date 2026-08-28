@@ -4,9 +4,9 @@ import {
 	type BrowserHandle,
 	holdBrowser,
 	releaseBrowser,
-} from "@oh-my-pi/pi-coding-agent/tools/browser/registry";
-import type { ReadyInfo, WorkerInbound, WorkerOutbound } from "@oh-my-pi/pi-coding-agent/tools/browser/tab-protocol";
-import { acquireTab, initializeTabWorkerForTest } from "@oh-my-pi/pi-coding-agent/tools/browser/tab-supervisor";
+} from "@chudware/coding-agent/tools/browser/registry";
+import type { ReadyInfo, WorkerInbound, WorkerOutbound } from "@chudware/coding-agent/tools/browser/tab-protocol";
+import { acquireTab, initializeTabWorkerForTest } from "@chudware/coding-agent/tools/browser/tab-supervisor";
 import { chromiumAvailable } from "./chromium-probe";
 
 const CHROMIUM_AVAILABLE = await chromiumAvailable();
@@ -52,7 +52,7 @@ class FakeStartupWorker {
 const initPayload = {
 	mode: "headless" as const,
 	browserWSEndpoint: "ws://127.0.0.1/devtools/browser/test",
-	safeDir: "/tmp/omp-puppeteer",
+	safeDir: "/tmp/chudcode-puppeteer",
 	timeoutMs: 1_000,
 };
 

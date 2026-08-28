@@ -1,13 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "bun:test";
-import { AsyncJobManager } from "@oh-my-pi/pi-coding-agent/async/job-manager";
-import { Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
-import { AgentLifecycleManager } from "@oh-my-pi/pi-coding-agent/registry/agent-lifecycle";
-import { AgentRegistry } from "@oh-my-pi/pi-coding-agent/registry/agent-registry";
-import { TaskTool } from "@oh-my-pi/pi-coding-agent/task";
-import * as discoveryModule from "@oh-my-pi/pi-coding-agent/task/discovery";
-import * as executorModule from "@oh-my-pi/pi-coding-agent/task/executor";
-import type { AgentDefinition, SingleResult, TaskParams } from "@oh-my-pi/pi-coding-agent/task/types";
-import type { ToolSession } from "@oh-my-pi/pi-coding-agent/tools";
+import { AsyncJobManager } from "@chudware/coding-agent/async/job-manager";
+import { Settings } from "@chudware/coding-agent/config/settings";
+import { AgentLifecycleManager } from "@chudware/coding-agent/registry/agent-lifecycle";
+import { AgentRegistry } from "@chudware/coding-agent/registry/agent-registry";
+import { TaskTool } from "@chudware/coding-agent/task";
+import * as discoveryModule from "@chudware/coding-agent/task/discovery";
+import * as executorModule from "@chudware/coding-agent/task/executor";
+import type { AgentDefinition, SingleResult, TaskParams } from "@chudware/coding-agent/task/types";
+import type { ToolSession } from "@chudware/coding-agent/tools";
 
 const taskAgent: AgentDefinition = {
 	name: "task",

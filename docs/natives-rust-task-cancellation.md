@@ -1,22 +1,22 @@
-# Native Rust task execution and cancellation (`pi-natives`)
+# Native Rust task execution and cancellation (`chud-natives`)
 
-This document describes how `crates/pi-natives` schedules native work and how cancellation flows from JS options (`timeoutMs`, `AbortSignal`) into Rust execution.
+This document describes how `crates/chud-natives` schedules native work and how cancellation flows from JS options (`timeoutMs`, `AbortSignal`) into Rust execution.
 
 ## Implementation files
 
-- `crates/pi-natives/src/task.rs`
-- `crates/pi-natives/src/grep.rs`
-- `crates/pi-natives/src/glob.rs`
-- `crates/pi-natives/src/fd.rs`
-- `crates/pi-natives/src/ast.rs`
-- `crates/pi-natives/src/workspace.rs`
-- `crates/pi-natives/src/shell.rs`
-- `crates/pi-natives/src/pty.rs`
-- `crates/pi-natives/src/html.rs`
-- `crates/pi-natives/src/sixel.rs`
-- `crates/pi-natives/src/clipboard.rs`
-- `crates/pi-natives/src/text.rs`
-- `crates/pi-natives/src/ps.rs`
+- `crates/chud-natives/src/task.rs`
+- `crates/chud-natives/src/grep.rs`
+- `crates/chud-natives/src/glob.rs`
+- `crates/chud-natives/src/fd.rs`
+- `crates/chud-natives/src/ast.rs`
+- `crates/chud-natives/src/workspace.rs`
+- `crates/chud-natives/src/shell.rs`
+- `crates/chud-natives/src/pty.rs`
+- `crates/chud-natives/src/html.rs`
+- `crates/chud-natives/src/sixel.rs`
+- `crates/chud-natives/src/clipboard.rs`
+- `crates/chud-natives/src/text.rs`
+- `crates/chud-natives/src/ps.rs`
 
 ## Core primitives (`task.rs`)
 
@@ -35,11 +35,11 @@ This document describes how `crates/pi-natives` schedules native work and how ca
    - Records a profiling sample through `profile_region(tag)`.
 
 3. `CancelToken` / `AbortToken` / `AbortReason`
-   - `CancelToken::new(timeout_ms, signal)` wraps the shared `pi_shell::cancel::CancelToken`, adding an optional JS `AbortSignal` bridge.
+   - `CancelToken::new(timeout_ms, signal)` wraps the shared `chud_shell::cancel::CancelToken`, adding an optional JS `AbortSignal` bridge.
    - `CancelToken::heartbeat()` is cooperative cancellation for blocking loops.
    - `CancelToken::wait()` asynchronously waits for signal or timeout.
    - `CancelToken::abort_token()` returns an abort handle backed by the shared flag when one already exists; without a flag, the handle is inert. `emplace_abort_token()` lazily installs the flag and returns a live handle. `CancelToken::new` uses the latter to bridge a JS `AbortSignal` to `AbortReason::Signal`.
-   - `CancelToken::aborted()` provides a non-blocking signal/deadline check, and `into_core()` transfers the token to `pi-shell`.
+   - `CancelToken::aborted()` provides a non-blocking signal/deadline check, and `into_core()` transfers the token to `chud-shell`.
    - `AbortToken::abort(reason)` lets external code request abort. Reasons are `Unknown`, `Timeout`, `Signal`, and `User`.
 
 ## `blocking` vs `future`: execution model and selection
@@ -81,7 +81,7 @@ Behavior:
 | `fuzzyFind(options)`                                          | `fuzzy_find`                | `task::blocking("fuzzy_find", ct, ...)`                        | `CancelToken::new(...)` + heartbeat checks                                                                                           |
 | `astGrep(options)` / `astMatch(options)` / `astEdit(options)` | ast exports                 | blocking worker path                                           | timeout/signal fields are accepted by options and checked cooperatively in worker loops                                              |
 | `listWorkspace(options)`                                      | `list_workspace`            | `task::blocking("listWorkspace", ct, ...)`                     | `CancelToken::new(options.timeoutMs, options.signal)` + heartbeat checks                                                             |
-| `Shell#run(options, onChunk?)`                                | `Shell::run`                | `task::future(env, "shell.run", ...)`                          | JS `CancelToken` is converted into `pi_shell::cancel::CancelToken`; shell races it against command completion and descendant cleanup |
+| `Shell#run(options, onChunk?)`                                | `Shell::run`                | `task::future(env, "shell.run", ...)`                          | JS `CancelToken` is converted into `chud_shell::cancel::CancelToken`; shell races it against command completion and descendant cleanup |
 | `executeShell(options, onChunk?)`                             | `execute_shell`             | `task::future(env, "shell.execute", ...)`                      | same cancellation race and 2s graceful window                                                                                        |
 | `Process#terminate(options?)`                                 | `Process::terminate`        | `task::future(env, "process.terminate", ...)`                  | optional signal cancels termination waits; grace and hard-kill timeouts are process policy rather than `CancelToken` deadlines       |
 | `Process#waitForExit(options?)`                               | `Process::wait_for_exit`    | `task::future(env, "process.wait_for_exit", ...)`              | optional signal is bridged through `CancelToken`; `timeoutMs` is the wait operation's typed `false` timeout                          |
@@ -129,7 +129,7 @@ Aborted
 
 Observed patterns:
 
-- `glob` and `fuzzyFind` pass heartbeat callbacks into `pi-walker` traversal and also check result-processing loops.
+- `glob` and `fuzzyFind` pass heartbeat callbacks into `chud-walker` traversal and also check result-processing loops.
 - `grep` checks before and during expensive search and passes the token through its scan/search workers.
 - `run_pty_sync` checks every loop tick with a maximum 16ms wait cadence.
 - `listWorkspace` checks during traversal.

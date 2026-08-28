@@ -2,19 +2,19 @@ import { beforeAll, describe, expect, it } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import { InMemorySnapshotStore } from "@oh-my-pi/hashline";
-import type { AgentTool } from "@oh-my-pi/pi-agent-core";
-import { resetSettingsForTest, Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
-import { editToolRenderer } from "@oh-my-pi/pi-coding-agent/edit/renderer";
-import { SLOPPY_MARKERS } from "@oh-my-pi/pi-coding-agent/edit/sloppy";
-import { renderDiff } from "@oh-my-pi/pi-coding-agent/modes/components/diff";
-import { ToolExecutionComponent } from "@oh-my-pi/pi-coding-agent/modes/components/tool-execution";
-import * as themeModule from "@oh-my-pi/pi-coding-agent/modes/theme/theme";
-import { Text, type TUI, visibleWidth } from "@oh-my-pi/pi-tui";
-import { removeWithRetries } from "@oh-my-pi/pi-utils";
-import { sleep } from "@oh-my-pi/pi-utils/async";
-import chalk from "@oh-my-pi/pi-utils/chalk";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
+import { InMemorySnapshotStore } from "@chudware/hashline";
+import type { AgentTool } from "@chudware/agent-core";
+import { resetSettingsForTest, Settings } from "@chudware/coding-agent/config/settings";
+import { editToolRenderer } from "@chudware/coding-agent/edit/renderer";
+import { SLOPPY_MARKERS } from "@chudware/coding-agent/edit/sloppy";
+import { renderDiff } from "@chudware/coding-agent/modes/components/diff";
+import { ToolExecutionComponent } from "@chudware/coding-agent/modes/components/tool-execution";
+import * as themeModule from "@chudware/coding-agent/modes/theme/theme";
+import { Text, type TUI, visibleWidth } from "@chudware/tui";
+import { removeWithRetries } from "@chudware/utils";
+import { sleep } from "@chudware/utils/async";
+import chalk from "@chudware/utils/chalk";
+import * as fsx from "@chudware/utils/fsx";
 
 beforeAll(async () => {
 	resetSettingsForTest();
@@ -209,7 +209,7 @@ describe("editToolRenderer", () => {
 			{
 				input: [
 					"*** Begin Patch",
-					"[crates/pi-natives/src/shell.rs]",
+					"[crates/chud-natives/src/shell.rs]",
 					"PUT >$:",
 					"+pub fn streaming_preview() {",
 				].join("\n"),
@@ -220,7 +220,7 @@ describe("editToolRenderer", () => {
 		);
 
 		const rendered = Bun.stripANSI(component.render(160).join("\n"));
-		expect(rendered).toContain("crates/pi-natives/src/shell.rs");
+		expect(rendered).toContain("crates/chud-natives/src/shell.rs");
 		expect(rendered).not.toContain("PUT >$:");
 		expect(rendered).not.toContain("+pub fn streaming_preview() {");
 		expect(rendered).not.toContain("*** Begin Patch");

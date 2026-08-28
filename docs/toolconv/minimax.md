@@ -6,7 +6,7 @@ This reference describes Chudcode's implemented converter, not MiniMax's provide
 
 ## Selection and request conversion
 
-Set the format explicitly in `~/.omp/agent/config.yml` or a project/overlay config:
+Set the format explicitly in `~/.chudcode/agent/config.yml` or a project/overlay config:
 
 ```yaml
 tools:

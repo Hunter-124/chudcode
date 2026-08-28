@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { type ShakeWireMessage, shakeWireMessages } from "@oh-my-pi/pi-agent-core/compaction";
+import { type ShakeWireMessage, shakeWireMessages } from "@chudware/agent-core/compaction";
 
 function fence(label: string, lines = 260): string {
 	return `\`\`\`${label}\n${`${label} payload alpha beta gamma delta epsilon\n`.repeat(lines)}\`\`\``;

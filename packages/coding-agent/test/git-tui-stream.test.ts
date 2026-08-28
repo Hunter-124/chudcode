@@ -3,9 +3,9 @@ import * as crypto from "node:crypto";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import { DiffSide, DiffStream } from "@oh-my-pi/pi-natives";
-import { sanitizeText } from "@oh-my-pi/pi-utils";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
+import { DiffSide, DiffStream } from "@chudware/natives";
+import { sanitizeText } from "@chudware/utils";
+import * as fsx from "@chudware/utils/fsx";
 import { $ } from "bun";
 import {
 	buildDiffDocument,
@@ -26,7 +26,7 @@ beforeAll(async () => {
 });
 
 async function withReviewRepo(run: (repo: string) => Promise<void>): Promise<void> {
-	const repo = await fs.mkdtemp(path.join(os.tmpdir(), "omp-git-tui-stream-"));
+	const repo = await fs.mkdtemp(path.join(os.tmpdir(), "chudcode-git-tui-stream-"));
 	try {
 		await $`git init --initial-branch=main`.cwd(repo).quiet();
 		await $`git config user.name "Test User"`.cwd(repo).quiet();

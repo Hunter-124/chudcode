@@ -1,10 +1,10 @@
 import { beforeAll, describe, expect, it } from "bun:test";
-import { initTheme } from "@oh-my-pi/pi-coding-agent/modes/theme/theme";
+import { initTheme } from "@chudware/coding-agent/modes/theme/theme";
 import {
 	containsUltragoon,
 	highlightUltragoon,
 	renderUltragoonNotice,
-} from "@oh-my-pi/pi-coding-agent/modes/ultragoon";
+} from "@chudware/coding-agent/modes/ultragoon";
 
 beforeAll(() => {
 	// highlightUltragoon reads the global theme's color mode.

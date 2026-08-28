@@ -1,6 +1,6 @@
 import * as path from "node:path";
-import { getLogsDir, isBunTestRuntime } from "@oh-my-pi/pi-utils";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
+import { getLogsDir, isBunTestRuntime } from "@chudware/utils";
+import * as fsx from "@chudware/utils/fsx";
 import * as AIError from "../error/flags";
 import { isCopilotTransientModelError } from "./retry.js";
 import { formatErrorMessageWithRetryAfter } from "./retry-after.js";

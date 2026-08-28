@@ -6,8 +6,8 @@ The safe archive foundation is on `main` in commit `203cb96932` (`feat: add veri
 
 - a GET-only Discord exporter in `src/archive.ts`;
 - the `export` CLI in `src/export-cli.ts`;
-- an independent Python verifier in `python/robomp/src/discord_archive_verify.py`;
-- a terminal-classification gate in `python/robomp/src/discord_archive_classify.py`;
+- an independent Python verifier in `python/robochud/src/discord_archive_verify.py`;
+- a terminal-classification gate in `python/robochud/src/discord_archive_classify.py`;
 - focused TypeScript and Python contract tests.
 
 The Discord application was **not created**. Discord's Developer Portal repeatedly stopped both Hunter and the operator at its broken “Wait! Are you human?” challenge. Therefore:
@@ -90,7 +90,7 @@ Guild: `1542474553320542278`
 
 ## Run the initial export
 
-From `/home/hunter/Repositories/omp`:
+From `/home/hunter/Repositories/chudcode`:
 
 ```bash
 bun install --frozen-lockfile --filter @cloudcastle/discord-bot
@@ -124,7 +124,7 @@ After pushing the export commit, fetch `origin/main` and run the independent ver
 ```python
 import asyncio
 from pathlib import Path
-from robomp.discord_archive_verify import verify_export
+from robochud.discord_archive_verify import verify_export
 
 report = asyncio.run(verify_export(
     guild_id="1542474553320542278",
@@ -142,7 +142,7 @@ Then classify every archived message. The honest default is `context_only`; over
 
 ```python
 from pathlib import Path
-from robomp.discord_archive_classify import classify_export
+from robochud.discord_archive_classify import classify_export
 
 report = classify_export(
     export_dir=Path("/home/hunter/Desktop/CloudCastle/docs/meeting, 8-27/discord-server-export"),
@@ -167,8 +167,8 @@ Deletion remains owner-account browser work, leaf-first, and each source ID must
 
 ## Remaining implementation order
 
-1. Add the fenced development-task schema/dispatcher and signed worker APIs to `python/robomp`.
-2. Add the outbound multi-host RPC worker around the installed OMP binary.
+1. Add the fenced development-task schema/dispatcher and signed worker APIs to `python/robochud`.
+2. Add the outbound multi-host RPC worker around the installed Chudcode binary.
 3. Expand this package with the least-privilege Gateway adapter and patched DAVE voice receive path.
 4. Add Discord provenance ingestion and approved-only GitHub Issue/Project projection.
 5. Add founder-only `/burn` with quota fingerprinting and explicit stop semantics.

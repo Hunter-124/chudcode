@@ -8,18 +8,18 @@
  *   echo "Run the tests" > /tmp/agent-trigger.txt
  */
 import * as fs from "node:fs";
-import type { HookAPI } from "@oh-my-pi/pi-coding-agent";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
+import type { HookAPI } from "@chudware/coding-agent";
+import * as fsx from "@chudware/utils/fsx";
 
-export default function (pi: HookAPI) {
-	pi.on("session_start", async (_event, ctx) => {
+export default function (chud: HookAPI) {
+	chud.on("session_start", async (_event, ctx) => {
 		const triggerFile = "/tmp/agent-trigger.txt";
 
 		fs.watch(triggerFile, async () => {
 			try {
 				const content = (await fsx.readText(triggerFile)).trim();
 				if (content) {
-					pi.sendMessage(
+					chud.sendMessage(
 						{
 							customType: "file-trigger",
 							content: `External trigger: ${content}`,

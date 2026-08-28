@@ -5,7 +5,7 @@
  */
 import * as fs from "node:fs/promises";
 import * as url from "node:url";
-import { getWorkProfile } from "@oh-my-pi/pi-natives";
+import { getWorkProfile } from "@chudware/natives";
 import {
 	isNotificationSuppressed,
 	Loader,
@@ -16,9 +16,9 @@ import {
 	TERMINAL,
 	type TerminalNotification,
 	Text,
-} from "@oh-my-pi/pi-tui";
-import { getSessionsDir } from "@oh-my-pi/pi-utils";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
+} from "@chudware/tui";
+import { getSessionsDir } from "@chudware/utils";
+import * as fsx from "@chudware/utils/fsx";
 import { PRODUCT_NAME } from "../brand";
 import { DynamicBorder } from "../modes/components/dynamic-border";
 import { OverlayPanel } from "../modes/components/overlay-box";

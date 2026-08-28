@@ -2,10 +2,10 @@ import { afterEach, beforeEach, describe, expect, test, vi } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import { type MCPServer, mcpCapability } from "@oh-my-pi/pi-coding-agent/capability/mcp";
-import { type Settings, settingsCapability } from "@oh-my-pi/pi-coding-agent/capability/settings";
-import { loadCapability } from "@oh-my-pi/pi-coding-agent/discovery";
-import { removeWithRetries } from "@oh-my-pi/pi-utils";
+import { type MCPServer, mcpCapability } from "@chudware/coding-agent/capability/mcp";
+import { type Settings, settingsCapability } from "@chudware/coding-agent/capability/settings";
+import { loadCapability } from "@chudware/coding-agent/discovery";
+import { removeWithRetries } from "@chudware/utils";
 
 async function loadOpenCodeMcpConfig(cwd: string): Promise<MCPServer[]> {
 	const result = await loadCapability<MCPServer>(mcpCapability.id, {
@@ -27,7 +27,7 @@ describe("OpenCode MCP discovery", () => {
 	let tempDir = "";
 
 	beforeEach(async () => {
-		tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "omp-opencode-mcp-"));
+		tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "chudcode-opencode-mcp-"));
 		vi.spyOn(os, "homedir").mockReturnValue(tempDir);
 	});
 
@@ -297,8 +297,8 @@ describe("OpenCode MCP discovery", () => {
 				mcp: {
 					"env-server": {
 						type: "remote",
-						url: "https://mcp.example.xyz/{env:OMP_TEST_MCP_PATH}",
-						headers: { Authorization: "Bearer {env:OMP_TEST_MCP_KEY}" },
+						url: "https://mcp.example.xyz/{env:CHUDCODE_TEST_MCP_PATH}",
+						headers: { Authorization: "Bearer {env:CHUDCODE_TEST_MCP_KEY}" },
 					},
 					"file-server": {
 						type: "remote",
@@ -308,15 +308,15 @@ describe("OpenCode MCP discovery", () => {
 					"missing-server": {
 						type: "remote",
 						url: "https://mcp.example.xyz/mcp",
-						headers: { Authorization: "Bearer {env:OMP_TEST_MCP_ABSENT}" },
+						headers: { Authorization: "Bearer {env:CHUDCODE_TEST_MCP_ABSENT}" },
 					},
 				},
 			}),
 		);
 
-		delete process.env.OMP_TEST_MCP_ABSENT;
-		process.env.OMP_TEST_MCP_KEY = "secret-token";
-		process.env.OMP_TEST_MCP_PATH = "mcp/server";
+		delete process.env.CHUDCODE_TEST_MCP_ABSENT;
+		process.env.CHUDCODE_TEST_MCP_KEY = "secret-token";
+		process.env.CHUDCODE_TEST_MCP_PATH = "mcp/server";
 		try {
 			const servers = await loadOpenCodeMcpConfig(tempDir);
 			const byName = Object.fromEntries(servers.map(server => [server.name, server]));
@@ -329,8 +329,8 @@ describe("OpenCode MCP discovery", () => {
 			// Unset env expands to empty string, matching OpenCode — never the literal token.
 			expect(byName["missing-server"]?.headers).toEqual({ Authorization: "Bearer " });
 		} finally {
-			delete process.env.OMP_TEST_MCP_KEY;
-			delete process.env.OMP_TEST_MCP_PATH;
+			delete process.env.CHUDCODE_TEST_MCP_KEY;
+			delete process.env.CHUDCODE_TEST_MCP_PATH;
 		}
 	});
 });

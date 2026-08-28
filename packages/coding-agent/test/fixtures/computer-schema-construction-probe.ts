@@ -1,4 +1,4 @@
-import { type as arkType } from "@oh-my-pi/omptype";
+import { type as arkType } from "@chudware/chudtype";
 import { Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
 import { BUILTIN_TOOLS, ComputerTool, createTools, type ToolSession } from "@oh-my-pi/pi-coding-agent/tools";
 

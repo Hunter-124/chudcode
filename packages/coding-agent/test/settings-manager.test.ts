@@ -2,13 +2,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "bun:test";
 import * as fs from "node:fs";
 import * as fsp from "node:fs/promises";
 import * as path from "node:path";
-import { Effort } from "@oh-my-pi/pi-ai";
-import { clearCustomApis } from "@oh-my-pi/pi-ai/api-registry";
-import { createMockModel, registerMockApi } from "@oh-my-pi/pi-ai/providers/mock";
-import { __providerInFlightForTesting, streamSimple } from "@oh-my-pi/pi-ai/stream";
-import type { Context } from "@oh-my-pi/pi-ai/types";
-import { getBundledModel } from "@oh-my-pi/pi-catalog/models";
-import { resolveEffectiveModelSettings } from "@oh-my-pi/pi-coding-agent/config/model-resolver";
+import { Effort } from "@chudware/ai";
+import { clearCustomApis } from "@chudware/ai/api-registry";
+import { createMockModel, registerMockApi } from "@chudware/ai/providers/mock";
+import { __providerInFlightForTesting, streamSimple } from "@chudware/ai/stream";
+import type { Context } from "@chudware/ai/types";
+import { getBundledModel } from "@chudware/catalog/models";
+import { resolveEffectiveModelSettings } from "@chudware/coding-agent/config/model-resolver";
 import {
 	type ModelSettings,
 	onAppendOnlyModeChanged,
@@ -18,15 +18,15 @@ import {
 	resetSettingsForTest,
 	type SettingPath,
 	Settings,
-} from "@oh-my-pi/pi-coding-agent/config/settings";
-import * as discovery from "@oh-my-pi/pi-coding-agent/discovery";
-import { AgentStorage } from "@oh-my-pi/pi-coding-agent/session/agent-storage";
-import { AUTO_IMAGE_PROVIDER_ORDER } from "@oh-my-pi/pi-coding-agent/tools/image-providers";
-import { SEARCH_PROVIDER_ORDER } from "@oh-my-pi/pi-coding-agent/web/search/types";
-import { getProjectAgentDir, isRecord, TempDir } from "@oh-my-pi/pi-utils";
-import { sleep } from "@oh-my-pi/pi-utils/async";
-import * as fileLock from "@oh-my-pi/pi-utils/file-lock";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
+} from "@chudware/coding-agent/config/settings";
+import * as discovery from "@chudware/coding-agent/discovery";
+import { AgentStorage } from "@chudware/coding-agent/session/agent-storage";
+import { AUTO_IMAGE_PROVIDER_ORDER } from "@chudware/coding-agent/tools/image-providers";
+import { SEARCH_PROVIDER_ORDER } from "@chudware/coding-agent/web/search/types";
+import { getProjectAgentDir, isRecord, TempDir } from "@chudware/utils";
+import { sleep } from "@chudware/utils/async";
+import * as fileLock from "@chudware/utils/file-lock";
+import * as fsx from "@chudware/utils/fsx";
 import { YAML } from "bun";
 import { beginSettingsTest, restoreSettingsTestState, type SettingsTestState } from "./helpers/settings-test-state";
 
@@ -278,7 +278,7 @@ describe("Settings", () => {
 
 		it("backs up a corrupted project config and retains the pending project role for retry", async () => {
 			await writeSettings({});
-			const projectConfigPath = path.join(projectDir, ".omp", "config.yml");
+			const projectConfigPath = path.join(projectDir, ".chudcode", "config.yml");
 			await fsx.write(
 				projectConfigPath,
 				YAML.stringify({ modelRoles: { default: "keep/default" }, custom: { keep: true } }, null, 2),
@@ -371,7 +371,7 @@ describe("Settings", () => {
 
 		it("leaves an unreadable project config untouched and retains its pending role", async () => {
 			await writeSettings({});
-			const projectConfigPath = path.join(projectDir, ".omp", "config.yml");
+			const projectConfigPath = path.join(projectDir, ".chudcode", "config.yml");
 			const original = YAML.stringify({ modelRoles: { default: "keep/default" }, custom: { keep: true } }, null, 2);
 			await fsx.write(projectConfigPath, original);
 			const settings = await Settings.init({ cwd: projectDir, agentDir });
@@ -397,7 +397,7 @@ describe("Settings", () => {
 			const malformed = 'modelRoles:\n  default: "unterminated\n';
 			await Promise.all([
 				fsx.write(getConfigPath(), malformed),
-				fsx.write(path.join(projectDir, ".omp", "config.yml"), malformed),
+				fsx.write(path.join(projectDir, ".chudcode", "config.yml"), malformed),
 			]);
 			const unhandled: unknown[] = [];
 			const onUnhandled = (reason: unknown): void => {
@@ -409,7 +409,7 @@ describe("Settings", () => {
 				expect(unhandled).toEqual([]);
 				expect(fs.readdirSync(agentDir).some(name => name.startsWith("config.yml.broken-"))).toBe(true);
 				expect(
-					fs.readdirSync(path.join(projectDir, ".omp")).some(name => name.startsWith("config.yml.broken-")),
+					fs.readdirSync(path.join(projectDir, ".chudcode")).some(name => name.startsWith("config.yml.broken-")),
 				).toBe(true);
 			} finally {
 				process.removeListener("unhandledRejection", onUnhandled);
@@ -419,7 +419,7 @@ describe("Settings", () => {
 
 	describe("live persisted reload", () => {
 		it("rejects malformed live configs without moving them aside or replacing effective settings", async () => {
-			const projectConfigPath = path.join(projectDir, ".omp", "config.yml");
+			const projectConfigPath = path.join(projectDir, ".chudcode", "config.yml");
 			await writeSettings({
 				setupVersion: 1,
 				modelRoles: { global_role: "openai/global" },
@@ -915,7 +915,7 @@ describe("Settings", () => {
 			// Process loads its #global snapshot.
 			const settings = await Settings.init({ cwd: projectDir, agentDir });
 
-			// External edit (another omp instance / manual edit): changes advisor,
+			// External edit (another chudcode instance / manual edit): changes advisor,
 			// adds vision. This process's #global is now stale.
 			await writeSettings({
 				modelRoles: {
@@ -1046,7 +1046,7 @@ describe("Settings", () => {
 		const profileModel = getBundledModel("anthropic", "claude-sonnet-4-6");
 		if (!profileModel) throw new Error("Expected bundled Claude Sonnet 4.6 model");
 		const profileModelKey = `${profileModel.provider}/${profileModel.id}`;
-		const getProjectConfigPath = () => path.join(projectDir, ".omp", "config.yml");
+		const getProjectConfigPath = () => path.join(projectDir, ".chudcode", "config.yml");
 
 		it("exposes global, project, overlay, and runtime inputs in scope order", async () => {
 			await writeSettings({
@@ -1492,7 +1492,7 @@ describe("Settings", () => {
 			expect(settings.get("hindsight.bankId")).toBe("ada-cli");
 		});
 
-		it("migrates the legacy mnemosyne memory backend to mnemopi", async () => {
+		it("migrates the legacy mnemosyne memory backend to mnemo", async () => {
 			await writeSettings({
 				memory: { backend: "mnemosyne" },
 				mnemosyne: { dbPath: "/tmp/old.db", scoping: "global" },
@@ -1500,20 +1500,20 @@ describe("Settings", () => {
 
 			const settings = await Settings.init({ cwd: projectDir, agentDir });
 
-			expect(settings.get("memory.backend")).toBe("mnemopi");
-			expect(settings.get("mnemopi.dbPath")).toBe("/tmp/old.db");
-			expect(settings.get("mnemopi.scoping")).toBe("global");
+			expect(settings.get("memory.backend")).toBe("mnemo");
+			expect(settings.get("mnemo.dbPath")).toBe("/tmp/old.db");
+			expect(settings.get("mnemo.scoping")).toBe("global");
 		});
 
-		it("does not clobber an explicit mnemopi block when the legacy mnemosyne block is also present", async () => {
+		it("does not clobber an explicit mnemo block when the legacy mnemosyne block is also present", async () => {
 			await writeSettings({
 				mnemosyne: { dbPath: "/tmp/old.db" },
-				mnemopi: { dbPath: "/tmp/new.db" },
+				mnemo: { dbPath: "/tmp/new.db" },
 			});
 
 			const settings = await Settings.init({ cwd: projectDir, agentDir });
 
-			expect(settings.get("mnemopi.dbPath")).toBe("/tmp/new.db");
+			expect(settings.get("mnemo.dbPath")).toBe("/tmp/new.db");
 		});
 
 		it("migrates boolean task.eager/todo.eager true to always", async () => {

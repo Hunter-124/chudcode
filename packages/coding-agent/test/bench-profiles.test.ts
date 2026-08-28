@@ -8,9 +8,9 @@ import type {
 	Context,
 	Model,
 	SimpleStreamOptions,
-} from "@oh-my-pi/pi-ai";
-import { runBenchCommand } from "@oh-my-pi/pi-coding-agent/cli/bench-cli";
-import type { BenchModelRegistry } from "@oh-my-pi/pi-coding-agent/cli/bench-runtime";
+} from "@chudware/ai";
+import { runBenchCommand } from "@chudware/coding-agent/cli/bench-cli";
+import type { BenchModelRegistry } from "@chudware/coding-agent/cli/bench-runtime";
 
 const model = {
 	provider: "acme",

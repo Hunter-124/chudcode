@@ -17,9 +17,9 @@ The runtime has two layers:
 | Background/headless | Not interactive                   | UI context is no-op (`hasUI === false`).                                                                                       |
 | RPC mode            | Not mounted                       | `custom()` is implemented as unsupported UI and returns `undefined as never`; do not depend on interactive UI in RPC handlers. |
 
-If your extension/tool can run in non-interactive mode, guard with `ctx.hasUI` / `pi.hasUI`.
+If your extension/tool can run in non-interactive mode, guard with `ctx.hasUI` / `chud.hasUI`.
 
-## Core component contract (`@oh-my-pi/pi-tui`)
+## Core component contract (`@chudware/tui`)
 
 `packages/tui/src/tui.ts` defines:
 
@@ -59,7 +59,7 @@ Your `render(width)` output must be terminal-safe:
 Minimal pattern:
 
 ```ts
-import { replaceTabs, truncateToWidth } from "@oh-my-pi/pi-tui";
+import { replaceTabs, truncateToWidth } from "@chudware/tui";
 
 render(width: number): readonly string[] {
   return this.lines.map(line => truncateToWidth(replaceTabs(line), width));
@@ -143,10 +143,10 @@ Until the hook/custom-tool type is aligned with the controller, do not copy the
 legacy three-argument examples from the type declaration. Runtime-safe
 interactive code must obtain the completion callback from the fourth positional
 argument, for example with a rest-argument adapter, and should guard the flow
-with `pi.hasUI`:
+with `chud.hasUI`:
 
 ```ts
-const picked = await pi.ui.custom<string | undefined>(
+const picked = await chud.ui.custom<string | undefined>(
   (...runtimeArgs: unknown[]) => {
     const done = runtimeArgs[3];
     if (typeof done !== "function") {
@@ -204,17 +204,17 @@ return loader;
 ## Realistic custom component example (extension command)
 
 ```ts
-import type { Component } from "@oh-my-pi/pi-tui";
+import type { Component } from "@chudware/tui";
 import {
   SelectList,
   matchesKey,
   replaceTabs,
   truncateToWidth,
-} from "@oh-my-pi/pi-tui";
+} from "@chudware/tui";
 import {
   getSelectListTheme,
   type ExtensionAPI,
-} from "@oh-my-pi/pi-coding-agent";
+} from "@chudware/coding-agent";
 
 class Picker implements Component {
   list: SelectList;
@@ -252,8 +252,8 @@ class Picker implements Component {
   }
 }
 
-export default function extension(pi: ExtensionAPI): void {
-  pi.registerCommand("pick-model", {
+export default function extension(chud: ExtensionAPI): void {
+  chud.registerCommand("pick-model", {
     description: "Pick a model profile",
     handler: async (_args, ctx) => {
       if (!ctx.hasUI) return;

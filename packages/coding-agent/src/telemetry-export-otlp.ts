@@ -18,8 +18,8 @@ import type {
 	AgentTelemetryWarning,
 	ChatUsageEvent,
 	ToolStatus,
-} from "@oh-my-pi/pi-agent-core";
-import { logger, postmortem } from "@oh-my-pi/pi-utils";
+} from "@chudware/agent-core";
+import { logger, postmortem } from "@chudware/utils";
 import {
 	type Attributes,
 	type AttributeValue,
@@ -48,7 +48,7 @@ import type { TelemetrySignalConfig } from "./telemetry-export";
  */
 const FLUSH_INTERVAL_MS = 30_000;
 
-const SERVICE_NAME = "oh-my-pi";
+const SERVICE_NAME = "chudware";
 
 type OtelLogLevel = "none" | logger.LogLevel;
 
@@ -138,7 +138,7 @@ export async function registerProviders(signalConfig: TelemetrySignalConfig): Pr
 			readers: [new PeriodicExportingMetricReader({ exporter })],
 		});
 		metrics.setGlobalMeterProvider(meterProvider);
-		metricRecorder = new AgentMetricRecorder(metrics.getMeter("@oh-my-pi/pi-coding-agent"));
+		metricRecorder = new AgentMetricRecorder(metrics.getMeter("@chudware/coding-agent"));
 	}
 
 	if (signalConfig.log) {
@@ -148,13 +148,13 @@ export async function registerProviders(signalConfig: TelemetrySignalConfig): Pr
 			processors: [new BatchLogRecordProcessor({ exporter })],
 		});
 		logs.setGlobalLoggerProvider(logProvider);
-		otelLogger = logProvider.getLogger("@oh-my-pi/pi-coding-agent");
+		otelLogger = logProvider.getLogger("@chudware/coding-agent");
 		unregisterLogSink = logger.registerLogSink(event => {
 			emitOtelLog(
 				event.level,
 				event.message,
 				logAttributesFromContext(event.context),
-				"pi.omp.log",
+				"chud.chudcode.log",
 				event.timestamp,
 			);
 		});
@@ -193,35 +193,35 @@ class AgentMetricRecorder {
 			description: "Token usage reported by GenAI chat calls.",
 			unit: "{token}",
 		});
-		this.#chatCostUsd = meter.createCounter("pi.omp.agent.chat.cost.estimated_usd", {
+		this.#chatCostUsd = meter.createCounter("chud.chudcode.agent.chat.cost.estimated_usd", {
 			description: "Estimated USD cost for completed chat calls.",
 			unit: "USD",
 		});
-		this.#runs = meter.createCounter("pi.omp.agent.runs", {
+		this.#runs = meter.createCounter("chud.chudcode.agent.runs", {
 			description: "Completed agent runs.",
 			unit: "{run}",
 		});
-		this.#steps = meter.createCounter("pi.omp.agent.steps", {
+		this.#steps = meter.createCounter("chud.chudcode.agent.steps", {
 			description: "Agent loop steps completed inside a run.",
 			unit: "{step}",
 		});
-		this.#chatCalls = meter.createCounter("pi.omp.agent.chat.calls", {
+		this.#chatCalls = meter.createCounter("chud.chudcode.agent.chat.calls", {
 			description: "Chat calls completed inside agent runs.",
 			unit: "{call}",
 		});
-		this.#chatDurationMs = meter.createHistogram("pi.omp.agent.chat.duration", {
+		this.#chatDurationMs = meter.createHistogram("chud.chudcode.agent.chat.duration", {
 			description: "Total chat latency observed in an agent run.",
 			unit: "ms",
 		});
-		this.#toolCalls = meter.createCounter("pi.omp.agent.tool.calls", {
+		this.#toolCalls = meter.createCounter("chud.chudcode.agent.tool.calls", {
 			description: "Tool calls completed inside agent runs.",
 			unit: "{call}",
 		});
-		this.#toolDurationMs = meter.createHistogram("pi.omp.agent.tool.duration", {
+		this.#toolDurationMs = meter.createHistogram("chud.chudcode.agent.tool.duration", {
 			description: "Total tool latency observed in an agent run.",
 			unit: "ms",
 		});
-		this.#errors = meter.createCounter("pi.omp.agent.errors", {
+		this.#errors = meter.createCounter("chud.chudcode.agent.errors", {
 			description: "Errors observed in chat and tool execution.",
 			unit: "{error}",
 		});
@@ -233,8 +233,8 @@ class AgentMetricRecorder {
 			"gen_ai.provider.name": event.provider,
 			"gen_ai.request.model": event.model,
 			"gen_ai.response.service_tier": event.serviceTier,
-			"pi.gen_ai.agent.id": event.agent?.id,
-			"pi.gen_ai.agent.name": event.agent?.name,
+			"chud.gen_ai.agent.id": event.agent?.id,
+			"chud.gen_ai.agent.name": event.agent?.name,
 		});
 
 		this.#recordToken(event.usage.inputTokens, baseAttrs, "input");
@@ -251,11 +251,11 @@ class AgentMetricRecorder {
 
 	recordRun(summary: AgentRunSummary, coverage: AgentRunCoverage): void {
 		const runAttrs = metricAttributes({
-			"pi.omp.agent.models_used.count": coverage.modelsUsed.length,
-			"pi.omp.agent.providers_used.count": coverage.providersUsed.length,
-			"pi.omp.agent.tools_available.count": coverage.toolsAvailable.length,
-			"pi.omp.agent.tools_invoked.count": coverage.toolsInvoked.length,
-			"pi.omp.agent.tools_unused.count": coverage.toolsUnused.length,
+			"chud.chudcode.agent.models_used.count": coverage.modelsUsed.length,
+			"chud.chudcode.agent.providers_used.count": coverage.providersUsed.length,
+			"chud.chudcode.agent.tools_available.count": coverage.toolsAvailable.length,
+			"chud.chudcode.agent.tools_invoked.count": coverage.toolsInvoked.length,
+			"chud.chudcode.agent.tools_unused.count": coverage.toolsUnused.length,
 		});
 
 		this.#runs.add(1, runAttrs);
@@ -273,7 +273,7 @@ class AgentMetricRecorder {
 			if (counters.totalLatencyMs > 0) this.#toolDurationMs.record(counters.totalLatencyMs, toolAttrs);
 			for (const status of TOOL_STATUSES) {
 				const count = counters[status];
-				if (count > 0) this.#toolCalls.add(count, metricAttributes({ ...toolAttrs, "pi.omp.tool.status": status }));
+				if (count > 0) this.#toolCalls.add(count, metricAttributes({ ...toolAttrs, "chud.chudcode.tool.status": status }));
 			}
 		}
 		for (const errorType in summary.errors.byType) {
@@ -308,33 +308,33 @@ function emitRunSummaryLog(summary: AgentRunSummary, coverage: AgentRunCoverage)
 		"info",
 		"agent run completed",
 		{
-			"pi.omp.agent.step_count": summary.stepCount,
-			"pi.omp.agent.chats.total": summary.chats.total,
-			"pi.omp.agent.chats.total_latency_ms": summary.chats.totalLatencyMs,
-			"pi.omp.agent.tools.total": summary.tools.total,
-			"pi.omp.agent.tools.ok": summary.tools.ok,
-			"pi.omp.agent.tools.error": summary.tools.error,
-			"pi.omp.agent.tools.skipped": summary.tools.skipped,
-			"pi.omp.agent.tools.blocked": summary.tools.blocked,
-			"pi.omp.agent.tools.timeout": summary.tools.timeout,
-			"pi.omp.agent.tools.aborted": summary.tools.aborted,
-			"pi.omp.agent.tools.total_latency_ms": summary.tools.totalLatencyMs,
-			"pi.omp.agent.usage.input_tokens": summary.usage.inputTokens,
-			"pi.omp.agent.usage.output_tokens": summary.usage.outputTokens,
-			"pi.omp.agent.usage.cached_input_tokens": summary.usage.cachedInputTokens,
-			"pi.omp.agent.usage.cache_write_tokens": summary.usage.cacheWriteTokens,
-			"pi.omp.agent.usage.reasoning_output_tokens": summary.usage.reasoningOutputTokens,
-			"pi.omp.agent.usage.total_tokens": summary.usage.totalTokens,
-			"pi.omp.agent.cost.estimated_usd": summary.cost.estimatedUsd,
-			"pi.omp.agent.cost.unavailable_reasons": summary.cost.unavailableReasons.join(","),
-			"pi.omp.agent.errors.total": summary.errors.total,
-			"pi.omp.agent.coverage.tools_available": coverage.toolsAvailable.join(","),
-			"pi.omp.agent.coverage.tools_invoked": coverage.toolsInvoked.join(","),
-			"pi.omp.agent.coverage.tools_unused": coverage.toolsUnused.join(","),
-			"pi.omp.agent.coverage.models_used": coverage.modelsUsed.join(","),
-			"pi.omp.agent.coverage.providers_used": coverage.providersUsed.join(","),
+			"chud.chudcode.agent.step_count": summary.stepCount,
+			"chud.chudcode.agent.chats.total": summary.chats.total,
+			"chud.chudcode.agent.chats.total_latency_ms": summary.chats.totalLatencyMs,
+			"chud.chudcode.agent.tools.total": summary.tools.total,
+			"chud.chudcode.agent.tools.ok": summary.tools.ok,
+			"chud.chudcode.agent.tools.error": summary.tools.error,
+			"chud.chudcode.agent.tools.skipped": summary.tools.skipped,
+			"chud.chudcode.agent.tools.blocked": summary.tools.blocked,
+			"chud.chudcode.agent.tools.timeout": summary.tools.timeout,
+			"chud.chudcode.agent.tools.aborted": summary.tools.aborted,
+			"chud.chudcode.agent.tools.total_latency_ms": summary.tools.totalLatencyMs,
+			"chud.chudcode.agent.usage.input_tokens": summary.usage.inputTokens,
+			"chud.chudcode.agent.usage.output_tokens": summary.usage.outputTokens,
+			"chud.chudcode.agent.usage.cached_input_tokens": summary.usage.cachedInputTokens,
+			"chud.chudcode.agent.usage.cache_write_tokens": summary.usage.cacheWriteTokens,
+			"chud.chudcode.agent.usage.reasoning_output_tokens": summary.usage.reasoningOutputTokens,
+			"chud.chudcode.agent.usage.total_tokens": summary.usage.totalTokens,
+			"chud.chudcode.agent.cost.estimated_usd": summary.cost.estimatedUsd,
+			"chud.chudcode.agent.cost.unavailable_reasons": summary.cost.unavailableReasons.join(","),
+			"chud.chudcode.agent.errors.total": summary.errors.total,
+			"chud.chudcode.agent.coverage.tools_available": coverage.toolsAvailable.join(","),
+			"chud.chudcode.agent.coverage.tools_invoked": coverage.toolsInvoked.join(","),
+			"chud.chudcode.agent.coverage.tools_unused": coverage.toolsUnused.join(","),
+			"chud.chudcode.agent.coverage.models_used": coverage.modelsUsed.join(","),
+			"chud.chudcode.agent.coverage.providers_used": coverage.providersUsed.join(","),
 		},
-		"pi.omp.agent.run.completed",
+		"chud.chudcode.agent.run.completed",
 	);
 }
 
@@ -343,7 +343,7 @@ function emitTelemetryWarningLog(warning: AgentTelemetryWarning): void {
 		code: warning.code,
 		error: warning.error,
 	});
-	emitOtelLog("warn", warning.message, attrs, "pi.omp.telemetry.warning");
+	emitOtelLog("warn", warning.message, attrs, "chud.chudcode.telemetry.warning");
 }
 
 function emitOtelLog(

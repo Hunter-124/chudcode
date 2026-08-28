@@ -2,11 +2,11 @@ import { afterEach, beforeEach, describe, expect, test, vi } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import { type AuthCredentialStore, AuthStorage, SqliteAuthCredentialStore } from "@oh-my-pi/pi-ai/auth-storage";
-import * as oauthUtils from "@oh-my-pi/pi-ai/registry/oauth";
-import * as kimiOauth from "@oh-my-pi/pi-ai/registry/oauth/kimi";
-import type { OAuthCredentials } from "@oh-my-pi/pi-ai/registry/oauth/types";
-import type { UsageLimit, UsageProvider, UsageReport } from "@oh-my-pi/pi-ai/usage";
+import { type AuthCredentialStore, AuthStorage, SqliteAuthCredentialStore } from "@chudware/ai/auth-storage";
+import * as oauthUtils from "@chudware/ai/registry/oauth";
+import * as kimiOauth from "@chudware/ai/registry/oauth/kimi";
+import type { OAuthCredentials } from "@chudware/ai/registry/oauth/types";
+import type { UsageLimit, UsageProvider, UsageReport } from "@chudware/ai/usage";
 import { removeWithRetries } from "../../utils/src/temp";
 
 const HOUR_MS = 60 * 60 * 1000;
@@ -67,7 +67,7 @@ describe("AuthStorage Kimi OAuth ranking", () => {
 	};
 
 	beforeEach(async () => {
-		tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "pi-ai-auth-kimi-selection-"));
+		tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "chud-ai-auth-kimi-selection-"));
 		store = await SqliteAuthCredentialStore.open(path.join(tempDir, "agent.db"));
 		authStorage = new AuthStorage(store, {
 			usageProviderResolver: provider => (provider === "kimi-code" ? usageProvider : undefined),

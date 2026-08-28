@@ -18,7 +18,7 @@ const RUST_AFFECTING_FILE_NAMES = [
 // rendering is machine-local), but the cargo dev tasks keep their historical
 // scope: the vendored fork is not held to workspace lint/test gates.
 //
-// pi-builtins is NOT excluded. It is first-party, and although it opts out of
+// chud-builtins is NOT excluded. It is first-party, and although it opts out of
 // the workspace's pedantic/nursery lints in its own manifest (most of it is
 // ported third-party code), it is held to default clippy and to zero rustc
 // warnings like everything else.
@@ -56,8 +56,8 @@ const TASK_COMMANDS = {
 		],
 		// nextest cannot run doctests (no stable libtest-json interface for
 		// them), so they need their own libtest pass. Today this pass executes
-		// nothing: pi-natives is a `cdylib`, which rustdoc refuses to collect
-		// doctests from, and pi-builtins' 16 examples are `ignore`d vendored
+		// nothing: chud-natives is a `cdylib`, which rustdoc refuses to collect
+		// doctests from, and chud-builtins' 16 examples are `ignore`d vendored
 		// uutils docs. It is kept as a guard so that the first runnable
 		// doctest added to a lib crate actually runs instead of silently
 		// never executing.

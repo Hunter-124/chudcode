@@ -1,5 +1,5 @@
 import * as path from "node:path";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
+import * as fsx from "@chudware/utils/fsx";
 import { generateProtoTs, ProtoContext, parseProto } from "./proto-parser";
 
 const PACKAGES_DIR = path.resolve(import.meta.dir, "../..");

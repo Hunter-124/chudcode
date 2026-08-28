@@ -1,21 +1,21 @@
 {
   "type": "module",
-  "name": "@oh-my-pi/pi-ai",
+  "name": "@chudware/ai",
   "version": "18.0.8",
   "description": "Unified LLM API with automatic model discovery and provider configuration",
-  "homepage": "https://omp.sh",
-  "author": "Stencil Labs, Inc.",
+  "homepage": "https://chudware.sh",
+  "author": "Chudware",
   "contributors": [
     "Mario Zechner"
   ],
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/can1357/oh-my-pi.git",
+    "url": "git+https://github.com/Hunter-124/chudcode.git",
     "directory": "packages/ai"
   },
   "bugs": {
-    "url": "https://github.com/can1357/oh-my-pi/issues"
+    "url": "https://github.com/Hunter-124/chudcode/issues"
   },
   "keywords": [
     "ai",
@@ -37,10 +37,10 @@
     "fmt": "biome format --write ."
   },
   "dependencies": {
-    "@oh-my-pi/omptype": "catalog:",
-    "@oh-my-pi/pi-catalog": "catalog:",
-    "@oh-my-pi/pi-utils": "catalog:",
-    "@oh-my-pi/pi-wire": "catalog:"
+    "@chudware/chudtype": "catalog:",
+    "@chudware/catalog": "catalog:",
+    "@chudware/utils": "catalog:",
+    "@chudware/wire": "catalog:"
   },
   "devDependencies": {
     "@types/bun": "catalog:"

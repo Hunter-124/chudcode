@@ -1,8 +1,8 @@
 import { randomUUID } from "node:crypto";
 import { accessSync, constants, realpathSync, statSync } from "node:fs";
 import { delimiter, isAbsolute, resolve, sep } from "node:path";
-import { Process } from "@oh-my-pi/pi-natives";
-import { sleep } from "@oh-my-pi/pi-utils/async";
+import { Process } from "@chudware/natives";
+import { sleep } from "@chudware/utils/async";
 import type { TerminalId, WorkspaceId } from "../protocol";
 import {
 	DEFAULT_TERMINAL_ENVIRONMENT_ALLOWLIST,

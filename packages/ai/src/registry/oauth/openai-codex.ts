@@ -2,8 +2,8 @@
  * OpenAI Codex (ChatGPT OAuth) flow — browser and device-code flows.
  */
 
-import { OPENAI_HEADER_VALUES } from "@oh-my-pi/pi-catalog/wire/codex";
-import { sleep } from "@oh-my-pi/pi-utils/async";
+import { OPENAI_HEADER_VALUES } from "@chudware/catalog/wire/codex";
+import { sleep } from "@chudware/utils/async";
 import * as AIError from "../../error";
 import type { FetchImpl } from "../../types";
 import { isRecord } from "../../utils";
@@ -228,7 +228,7 @@ async function exchangeCodeForToken(
  * Login with OpenAI Codex OAuth
  */
 export type OpenAICodexLoginOptions = OAuthController & {
-	/** Optional originator value for OpenAI Codex OAuth. Default matches OMP Codex request headers. */
+	/** Optional originator value for OpenAI Codex OAuth. Default matches Chudcode Codex request headers. */
 	originator?: string;
 };
 

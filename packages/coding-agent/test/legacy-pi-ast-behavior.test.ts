@@ -6,8 +6,8 @@ import * as url from "node:url";
 import {
 	__rewriteLegacyExtensionSourceForTests,
 	loadLegacyPiModule,
-} from "@oh-my-pi/pi-coding-agent/extensibility/plugins/legacy-pi-compat";
-import { removeWithRetries } from "@oh-my-pi/pi-utils";
+} from "@chudware/coding-agent/extensibility/plugins/legacy-pi-compat";
+import { removeWithRetries } from "@chudware/utils";
 
 interface RewriteCase {
 	name: string;
@@ -30,7 +30,7 @@ const tempRoots: string[] = [];
 
 beforeAll(async () => {
 	// realpath: rewritten specifiers are canonical (macOS /var ↔ /private/var).
-	rewriteRoot = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), "omp-legacy-ast-rewrite-")));
+	rewriteRoot = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), "chudcode-legacy-ast-rewrite-")));
 	tempRoots.push(rewriteRoot);
 	const dependencyPath = path.join(rewriteRoot, "node_modules", "tracked-dep", "index.js");
 	await fs.mkdir(path.dirname(dependencyPath), { recursive: true });
@@ -270,7 +270,7 @@ const rewriteCases: RewriteCase[] = [
 ];
 
 async function loadCommonJsCase(testCase: CommonJsCase): Promise<{ keys: string[]; named: Record<string, unknown> }> {
-	const dir = await fs.mkdtemp(path.join(os.tmpdir(), "omp-legacy-ast-exports-"));
+	const dir = await fs.mkdtemp(path.join(os.tmpdir(), "chudcode-legacy-ast-exports-"));
 	tempRoots.push(dir);
 	const files: Record<string, string> = {
 		"package.json": JSON.stringify({ name: `cjs-${testCase.name}`, version: "1.0.0", type: "module" }),
@@ -393,7 +393,7 @@ const commonJsCases: CommonJsCase[] = [
 	},
 ];
 
-describe("legacy Pi Babel AST behavior baseline", () => {
+describe("legacy Chud Babel AST behavior baseline", () => {
 	test("rewrites exact source bytes with Babel binding semantics", async () => {
 		for (const testCase of rewriteCases) {
 			const actual = await __rewriteLegacyExtensionSourceForTests(testCase.source, rewriteImporter);

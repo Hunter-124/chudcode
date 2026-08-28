@@ -1,4 +1,4 @@
-import { $env } from "@oh-my-pi/pi-utils";
+import { $env } from "@chudware/utils";
 import type { ResponseInput, ResponseInputItem } from "./providers/openai-responses-wire";
 import { redactSensitiveCredentials } from "./providers/transform-messages";
 import type { CacheRetention, OpenAIResponsesHistoryPayload, ProviderPayload } from "./types";
@@ -6,7 +6,7 @@ import type { CacheRetention, OpenAIResponsesHistoryPayload, ProviderPayload } f
 type OpenAIResponsesReplayItem = ResponseInput[number];
 const NON_WHITESPACE_RE = /\S/;
 
-export { isRecord } from "@oh-my-pi/pi-utils";
+export { isRecord } from "@chudware/utils";
 export function normalizeSystemPrompts(systemPrompt: readonly string[] | string | undefined | null): string[] {
 	if (systemPrompt === undefined || systemPrompt === null) return [];
 	const prompts = Array.isArray(systemPrompt) ? systemPrompt : typeof systemPrompt === "string" ? [systemPrompt] : [];
@@ -478,7 +478,7 @@ export function getOpenAIResponsesHistoryItems(
 
 /**
  * Resolve cache retention preference: explicit request option first, then the
- * `PI_CACHE_RETENTION` env override (`long` | `short` | `none`), then the
+ * `CHUDCODE_CACHE_RETENTION` env override (`long` | `short` | `none`), then the
  * provider-supplied fallback.
  */
 export function resolveCacheRetention(
@@ -486,7 +486,7 @@ export function resolveCacheRetention(
 	fallback: CacheRetention = "short",
 ): CacheRetention {
 	if (cacheRetention) return cacheRetention;
-	const env = $env.PI_CACHE_RETENTION;
+	const env = $env.CHUDCODE_CACHE_RETENTION;
 	if (env === "long" || env === "short" || env === "none") return env;
 	return fallback;
 }

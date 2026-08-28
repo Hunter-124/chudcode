@@ -1,9 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "bun:test";
 import * as path from "node:path";
-import { runConfigCommand } from "@oh-my-pi/pi-coding-agent/cli/config-cli";
-import { resetSettingsForTest } from "@oh-my-pi/pi-coding-agent/config/settings";
-import { AgentStorage } from "@oh-my-pi/pi-coding-agent/session/agent-storage";
-import { getConfigRootDir, setAgentDir, TempDir } from "@oh-my-pi/pi-utils";
+import { runConfigCommand } from "@chudware/coding-agent/cli/config-cli";
+import { resetSettingsForTest } from "@chudware/coding-agent/config/settings";
+import { AgentStorage } from "@chudware/coding-agent/session/agent-storage";
+import { getConfigRootDir, setAgentDir, TempDir } from "@chudware/utils";
 import { isCredential, SETTINGS_SCHEMA, type SettingPath } from "../src/config/settings-schema";
 import { getSettingDef } from "../src/modes/components/settings-defs";
 
@@ -25,7 +25,7 @@ describe("credential settings", () => {
 	it("classifies UI-visible credentials through the same marker", () => {
 		// One field, not two: there is no separate UI-only masking flag that could
 		// drift away from this classification.
-		for (const path of ["mnemopi.embeddingApiKey", "mnemopi.llmApiKey"] as const) {
+		for (const path of ["mnemo.embeddingApiKey", "mnemo.llmApiKey"] as const) {
 			expect(isCredential(path)).toBe(true);
 		}
 	});
@@ -50,7 +50,7 @@ describe("credential masking reaches every surface", () => {
 		// The panel derives masking from the same classification the CLI uses, so
 		// a credential cannot render as plain text on one surface and dots on the
 		// other.
-		for (const path of ["hindsight.apiToken", "mnemopi.embeddingApiKey", "mnemopi.llmApiKey"] as const) {
+		for (const path of ["hindsight.apiToken", "mnemo.embeddingApiKey", "mnemo.llmApiKey"] as const) {
 			const def = getSettingDef(path);
 			expect(def?.type).toBe("text");
 			expect(def && "secret" in def ? def.secret : undefined).toBe(true);
@@ -77,12 +77,12 @@ describe("credential masking reaches every surface", () => {
 describe("config list output", () => {
 	const SECRET = "credential-value-not-for-output";
 	let agentDir: TempDir | undefined;
-	const originalAgentDir = process.env.PI_CODING_AGENT_DIR;
+	const originalAgentDir = process.env.CHUDCODE_CODING_AGENT_DIR;
 	const fallbackAgentDir = path.join(getConfigRootDir(), "agent");
 
 	beforeEach(() => {
 		resetSettingsForTest();
-		agentDir = TempDir.createSync("@omp-config-credentials-");
+		agentDir = TempDir.createSync("@chudcode-config-credentials-");
 		setAgentDir(agentDir.path());
 	});
 
@@ -93,7 +93,7 @@ describe("config list output", () => {
 		if (originalAgentDir) setAgentDir(originalAgentDir);
 		else {
 			setAgentDir(fallbackAgentDir);
-			delete process.env.PI_CODING_AGENT_DIR;
+			delete process.env.CHUDCODE_CODING_AGENT_DIR;
 		}
 		if (agentDir) {
 			try {

@@ -1,5 +1,5 @@
-import type { AgentMessage } from "@oh-my-pi/pi-agent-core";
-import type { ToolCall } from "@oh-my-pi/pi-ai";
+import type { AgentMessage } from "@chudware/agent-core";
+import type { ToolCall } from "@chudware/ai";
 
 /** A fenced code block extracted from assistant markdown. */
 export interface CodeBlock {

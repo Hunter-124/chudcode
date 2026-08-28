@@ -2,14 +2,14 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "bun:
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import * as mcpClient from "@oh-my-pi/pi-coding-agent/mcp/client";
-import * as mcpConfigWriter from "@oh-my-pi/pi-coding-agent/mcp/config-writer";
-import { MCPCommandController } from "@oh-my-pi/pi-coding-agent/modes/controllers/mcp-command-controller";
-import { initTheme } from "@oh-my-pi/pi-coding-agent/modes/theme/theme";
-import { getConfigRootDir, getProjectDir, removeWithRetries, setAgentDir, setProjectDir } from "@oh-my-pi/pi-utils";
+import * as mcpClient from "@chudware/coding-agent/mcp/client";
+import * as mcpConfigWriter from "@chudware/coding-agent/mcp/config-writer";
+import { MCPCommandController } from "@chudware/coding-agent/modes/controllers/mcp-command-controller";
+import { initTheme } from "@chudware/coding-agent/modes/theme/theme";
+import { getConfigRootDir, getProjectDir, removeWithRetries, setAgentDir, setProjectDir } from "@chudware/utils";
 
 const originalProjectDir = getProjectDir();
-const originalAgentDir = process.env.PI_CODING_AGENT_DIR;
+const originalAgentDir = process.env.CHUDCODE_CODING_AGENT_DIR;
 const fallbackAgentDir = path.join(getConfigRootDir(), "agent");
 
 type RenderableBlock = {
@@ -26,8 +26,8 @@ describe("interactive /mcp test", () => {
 	});
 
 	beforeEach(async () => {
-		projectDir = await fs.mkdtemp(path.join(os.tmpdir(), "omp-issue-956-project-"));
-		agentDir = await fs.mkdtemp(path.join(os.tmpdir(), "omp-issue-956-agent-"));
+		projectDir = await fs.mkdtemp(path.join(os.tmpdir(), "chudcode-issue-956-project-"));
+		agentDir = await fs.mkdtemp(path.join(os.tmpdir(), "chudcode-issue-956-agent-"));
 		setProjectDir(projectDir);
 		setAgentDir(agentDir);
 
@@ -57,7 +57,7 @@ describe("interactive /mcp test", () => {
 			setAgentDir(originalAgentDir);
 		} else {
 			setAgentDir(fallbackAgentDir);
-			delete process.env.PI_CODING_AGENT_DIR;
+			delete process.env.CHUDCODE_CODING_AGENT_DIR;
 		}
 		await removeWithRetries(projectDir);
 		await removeWithRetries(agentDir);

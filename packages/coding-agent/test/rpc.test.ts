@@ -2,18 +2,18 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
-import type { AgentEvent, AgentMessage } from "@oh-my-pi/pi-agent-core";
-import { type AssistantMessage, Effort, type TextContent } from "@oh-my-pi/pi-ai";
+import type { AgentEvent, AgentMessage } from "@chudware/agent-core";
+import { type AssistantMessage, Effort, type TextContent } from "@chudware/ai";
 import {
 	type CompactionEntry,
 	type FileEntry,
 	parseSessionEntries,
 	type SessionMessageEntry,
-} from "@oh-my-pi/pi-coding-agent";
-import { RpcClient } from "@oh-my-pi/pi-coding-agent/modes/rpc/rpc-client";
-import type { BashExecutionMessage } from "@oh-my-pi/pi-coding-agent/session/messages";
-import { removeSyncWithRetries, Snowflake } from "@oh-my-pi/pi-utils";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
+} from "@chudware/coding-agent";
+import { RpcClient } from "@chudware/coding-agent/modes/rpc/rpc-client";
+import type { BashExecutionMessage } from "@chudware/coding-agent/session/messages";
+import { removeSyncWithRetries, Snowflake } from "@chudware/utils";
+import * as fsx from "@chudware/utils/fsx";
 import { e2eApiKey } from "./utilities";
 
 type MessageEndEvent = Extract<AgentEvent, { type: "message_end" }>;
@@ -34,11 +34,11 @@ describe.skipIf(!e2eApiKey("ANTHROPIC_API_KEY"))("RPC mode", () => {
 	let sessionDir: string;
 
 	beforeEach(() => {
-		sessionDir = path.join(os.tmpdir(), `omp-rpc-test-${Snowflake.next()}`);
+		sessionDir = path.join(os.tmpdir(), `chudcode-rpc-test-${Snowflake.next()}`);
 		client = new RpcClient({
 			cliPath: path.join(import.meta.dir, "..", "dist", "cli.js"),
 			cwd: path.join(import.meta.dir, ".."),
-			env: { PI_CODING_AGENT_DIR: sessionDir },
+			env: { CHUDCODE_CODING_AGENT_DIR: sessionDir },
 			provider: "anthropic",
 			model: "claude-sonnet-4-5",
 		});
@@ -319,13 +319,13 @@ describe("RPC fast mode with unsupported Fireworks model and priority tier", () 
 	let sessionDir: string;
 
 	beforeEach(async () => {
-		sessionDir = path.join(os.tmpdir(), `omp-rpc-fast-mode-test-${Snowflake.next()}`);
+		sessionDir = path.join(os.tmpdir(), `chudcode-rpc-fast-mode-test-${Snowflake.next()}`);
 		await fsx.write(path.join(sessionDir, "config.yml"), ["providers:", "  fireworksTier: priority", ""].join("\n"));
 		client = new RpcClient({
 			cliPath: path.join(import.meta.dir, "..", "src", "cli.ts"),
 			cwd: path.join(import.meta.dir, ".."),
 			env: {
-				PI_CODING_AGENT_DIR: sessionDir,
+				CHUDCODE_CODING_AGENT_DIR: sessionDir,
 				FIREWORKS_API_KEY: "test-fireworks-key",
 			},
 			provider: "fireworks",

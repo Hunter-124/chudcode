@@ -1,12 +1,12 @@
 import { describe, expect, it } from "bun:test";
-import { type } from "@oh-my-pi/omptype";
-import type { Tool } from "@oh-my-pi/pi-ai/types";
-import { validateToolArguments } from "@oh-my-pi/pi-ai/utils/validation";
+import type { Tool } from "@chudware/ai/types";
+import { validateToolArguments } from "@chudware/ai/utils/validation";
+import { type } from "@chudware/chudtype";
 
 // Issue #8886 — some providers (notably Gemini) serialize array arguments as
 // flattened property paths (`questions[0].id`) instead of a nested array.
 
-// Mirrors the shape of OMP's `ask` tool (`packages/coding-agent/src/tools/ask.ts`).
+// Mirrors the shape of Chudcode's `ask` tool (`packages/coding-agent/src/tools/ask.ts`).
 const questionItem = type({
 	id: type("string"),
 	question: type("string"),

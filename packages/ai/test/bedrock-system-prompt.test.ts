@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
-import { streamBedrock } from "@oh-my-pi/pi-ai/providers/amazon-bedrock";
-import type { Context, Model } from "@oh-my-pi/pi-ai/types";
-import { buildModel } from "@oh-my-pi/pi-catalog/build";
+import { streamBedrock } from "@chudware/ai/providers/amazon-bedrock";
+import type { Context, Model } from "@chudware/ai/types";
+import { buildModel } from "@chudware/catalog/build";
 
 interface Payload {
 	system?: Array<{ text: string } | { cachePoint: unknown }>;
@@ -63,7 +63,7 @@ function textBlocks(payload: Payload): string[] {
 }
 
 describe("Bedrock system prompt normalization", () => {
-	// Regression for #7037: legacy pi extensions remapped onto the fork pass
+	// Regression for #7037: legacy chud extensions remapped onto the fork pass
 	// Context.systemPrompt as a bare string, which crashed buildSystemPrompt's
 	// unguarded `.map()`. It must normalize to a single-element system block.
 	test("accepts a bare-string systemPrompt", async () => {

@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
 /**
- * Canonical Bazel driver for the shipping pi_natives addons.
+ * Canonical Bazel driver for the shipping chud_natives addons.
  *
  * Usage: bun scripts/bazel-natives.ts <target>... [--dest <dir>] [--source <dir>] [-- <extra bazel args>]
  *
@@ -21,7 +21,7 @@
  * The `host` pseudo-target builds through the local Cargo/N-API path
  * (packages/natives/scripts/build-bindings.ts) by default — no bazel needed
  * for plain host iteration. Bazel is opt-in for host via
- * `OMP_NATIVE_BUILD_BACKEND=bazel` or by passing extra bazel args after `--`;
+ * `CHUDCODE_NATIVE_BUILD_BACKEND=bazel` or by passing extra bazel args after `--`;
  * explicit //:natives-* targets and aggregates always build through bazel
  * (the CI path, which runs bazelisk).
  *
@@ -43,14 +43,14 @@ const repoRoot = path.join(import.meta.dir, "..");
 
 /** //:natives-<name> → canonical addon filename (mirrors _ADDONS in BUILD.bazel). */
 export const ADDON_OUTPUTS: Record<string, string> = {
-	"linux-x64-baseline": "pi_natives.linux-x64-baseline.node",
-	"linux-x64-modern": "pi_natives.linux-x64-modern.node",
-	"linux-arm64": "pi_natives.linux-arm64.node",
-	"linux-musl-x64-baseline": "pi_natives.linux-x64-baseline.node",
-	"linux-musl-arm64": "pi_natives.linux-arm64.node",
-	"darwin-x64-baseline": "pi_natives.darwin-x64-baseline.node",
-	"darwin-arm64": "pi_natives.darwin-arm64.node",
-	"win32-x64-baseline": "pi_natives.win32-x64-baseline.node",
+	"linux-x64-baseline": "chud_natives.linux-x64-baseline.node",
+	"linux-x64-modern": "chud_natives.linux-x64-modern.node",
+	"linux-arm64": "chud_natives.linux-arm64.node",
+	"linux-musl-x64-baseline": "chud_natives.linux-x64-baseline.node",
+	"linux-musl-arm64": "chud_natives.linux-arm64.node",
+	"darwin-x64-baseline": "chud_natives.darwin-x64-baseline.node",
+	"darwin-arm64": "chud_natives.darwin-arm64.node",
+	"win32-x64-baseline": "chud_natives.win32-x64-baseline.node",
 };
 
 /** Aggregate filegroups → their member addon targets (mirrors BUILD.bazel). */
@@ -83,7 +83,7 @@ export function hostTargetName(host: HostInfo): string {
 		if (host.arch === "x64") return host.avx2 ? "linux-x64-modern" : "linux-x64-baseline";
 	}
 	if (host.platform === "win32" && host.arch === "x64") return "win32-x64-baseline";
-	throw new Error(`No pi_natives addon target for host ${host.platform}-${host.arch}`);
+	throw new Error(`No chud_natives addon target for host ${host.platform}-${host.arch}`);
 }
 
 /** Expand pseudo-targets and map names to //:natives-* labels (deduplicated). */
@@ -247,13 +247,13 @@ async function main(): Promise<void> {
 	const host: HostInfo = { platform: process.platform, arch: process.arch, avx2: detectHostAvx2Support() };
 	const destDir = options.dest ? path.resolve(options.dest) : path.join(repoRoot, "packages/natives/native");
 
-	const backend = process.env.OMP_NATIVE_BUILD_BACKEND?.trim();
+	const backend = process.env.CHUDCODE_NATIVE_BUILD_BACKEND?.trim();
 	if (backend && backend !== "cargo" && backend !== "bazel") {
-		throw new Error(`Unknown OMP_NATIVE_BUILD_BACKEND "${backend}" (expected "cargo" or "bazel")`);
+		throw new Error(`Unknown CHUDCODE_NATIVE_BUILD_BACKEND "${backend}" (expected "cargo" or "bazel")`);
 	}
 	const hostOnly = options.targets.length === 1 && options.targets[0] === "host";
 	// Backend selection: the host build defaults to the local Cargo/N-API
-	// path; bazel is opt-in for host via OMP_NATIVE_BUILD_BACKEND=bazel or
+	// path; bazel is opt-in for host via CHUDCODE_NATIVE_BUILD_BACKEND=bazel or
 	// extra bazel args after `--`. Explicit //:natives-* targets always go
 	// through bazel. win32 hosts can only build `host`, locally (see the msvc
 	// toolchain note in the header).
@@ -270,7 +270,7 @@ async function main(): Promise<void> {
 						"(local napi build via VS Build Tools), or run this script from WSL/linux for cross targets.",
 				);
 			}
-			throw new Error("OMP_NATIVE_BUILD_BACKEND=cargo supports only the host target");
+			throw new Error("CHUDCODE_NATIVE_BUILD_BACKEND=cargo supports only the host target");
 		}
 		await buildLocalHostAddon(host, destDir);
 		return;
@@ -298,7 +298,7 @@ async function main(): Promise<void> {
 		}
 		// CI hands cache wiring (remote or disk) through a bazelrc fragment so
 		// endpoint composition stays in .github/actions/bazel-cache.
-		const rcPath = process.env.OMP_BAZEL_RC?.trim();
+		const rcPath = process.env.CHUDCODE_BAZEL_RC?.trim();
 		const startupArgs = rcPath ? [`--bazelrc=${rcPath}`] : [];
 
 		const buildArgs = [...startupArgs, "build", ...options.bazelArgs, "--", ...labels];

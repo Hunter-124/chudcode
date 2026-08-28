@@ -1,13 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import * as fs from "node:fs";
 import * as path from "node:path";
-import { loadExtensions } from "@oh-my-pi/pi-coding-agent/extensibility/extensions/loader";
-import { TempDir } from "@oh-my-pi/pi-utils";
+import { loadExtensions } from "@chudware/coding-agent/extensibility/extensions/loader";
+import { TempDir } from "@chudware/utils";
 
-const currentPiCodingAgentPath = Bun.resolveSync("@oh-my-pi/pi-coding-agent", import.meta.dir);
-const currentPiExtensionsPath = Bun.resolveSync("@oh-my-pi/pi-coding-agent/extensibility/extensions", import.meta.dir);
+const currentPiCodingAgentPath = Bun.resolveSync("@chudware/coding-agent", import.meta.dir);
+const currentPiExtensionsPath = Bun.resolveSync("@chudware/coding-agent/extensibility/extensions", import.meta.dir);
 
-describe("issue #973: legacy Pi plugin imports", () => {
+describe("issue #973: legacy Chud plugin imports", () => {
 	let projectDir: TempDir;
 	let extensionPath: string;
 
@@ -21,7 +21,7 @@ describe("issue #973: legacy Pi plugin imports", () => {
 			JSON.stringify({
 				name: "legacy-pi-plugin",
 				version: "1.0.0",
-				pi: {
+				chud: {
 					extensions: ["./dist/extension.ts"],
 				},
 			}),
@@ -29,15 +29,15 @@ describe("issue #973: legacy Pi plugin imports", () => {
 		fs.writeFileSync(
 			extensionPath,
 			[
-				'import { isToolCallEventType as legacyRoot } from "@mariozechner/pi-coding-agent";',
-				'import { isToolCallEventType as legacyExtensions } from "@mariozechner/pi-coding-agent/extensibility/extensions";',
+				'import { isToolCallEventType as legacyRoot } from "@mariozechner/chudcode-agent";',
+				'import { isToolCallEventType as legacyExtensions } from "@mariozechner/chudcode-agent/extensibility/extensions";',
 				`import { isToolCallEventType as modernRoot } from ${JSON.stringify(currentPiCodingAgentPath)};`,
 				`import { isToolCallEventType as modernExtensions } from ${JSON.stringify(currentPiExtensionsPath)};`,
 				"",
 				'if (legacyRoot !== modernRoot) throw new Error("legacy root import did not remap");',
 				'if (legacyExtensions !== modernExtensions) throw new Error("legacy extension import did not remap");',
 				"",
-				"export default function(pi) {",
+				"export default function(chud) {",
 				'\tpi.registerCommand("legacy-pi-ext", { handler: async () => {} });',
 				"}",
 			].join("\n"),
@@ -48,7 +48,7 @@ describe("issue #973: legacy Pi plugin imports", () => {
 		projectDir.removeSync();
 	});
 
-	it("loads plugin extensions that still import legacy @mariozechner Pi packages", async () => {
+	it("loads plugin extensions that still import legacy @mariozechner Chud packages", async () => {
 		const result = await loadExtensions([extensionPath], projectDir.path());
 		const extension = result.extensions.find(ext => ext.path === extensionPath);
 

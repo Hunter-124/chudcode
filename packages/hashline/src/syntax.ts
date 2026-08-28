@@ -9,7 +9,7 @@
  * normalization remains available.
  */
 
-import { enclosingBlockBoundaries, type NodeSpan, nodeChainAt } from "@oh-my-pi/pi-natives";
+import { enclosingBlockBoundaries, type NodeSpan, nodeChainAt } from "@chudware/natives";
 
 export type { NodeSpan };
 

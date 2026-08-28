@@ -8,15 +8,15 @@ import {
 	type TtsrCommandArgs,
 	type TtsrScanArgs,
 	type TtsrTestArgs,
-} from "@oh-my-pi/pi-coding-agent/cli/ttsr-cli";
-import { resetSettingsForTest } from "@oh-my-pi/pi-coding-agent/config/settings";
-import { getProjectAgentDir, getProjectDir, removeSyncWithRetries, setProjectDir } from "@oh-my-pi/pi-utils";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
+} from "@chudware/coding-agent/cli/ttsr-cli";
+import { resetSettingsForTest } from "@chudware/coding-agent/config/settings";
+import { getProjectAgentDir, getProjectDir, removeSyncWithRetries, setProjectDir } from "@chudware/utils";
+import * as fsx from "@chudware/utils/fsx";
 
 let testTmpDir: string;
 
 beforeAll(() => {
-	testTmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "omp-ttsr-tests-"));
+	testTmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "chudcode-ttsr-tests-"));
 });
 
 afterAll(() => {
@@ -97,7 +97,7 @@ function cleanupTmp(): void {
 	}
 }
 
-describe("omp ttsr", () => {
+describe("chudcode ttsr", () => {
 	afterEach(() => {
 		restoreStreams();
 		cleanupTmp();
@@ -107,7 +107,7 @@ describe("omp ttsr", () => {
 		it("infers tool/edit context when a positional resolves to a .ts file and --source is omitted", async () => {
 			captureStreams();
 			const rulePath = await writeTempRule(": any", ["tool:edit(*.ts)"]);
-			// Simulate `omp ttsr test --rule <rule> src/foo.ts`: the command layer
+			// Simulate `chudcode ttsr test --rule <rule> src/foo.ts`: the command layer
 			// resolves a file positional into `file`, but the CLI handler's own
 			// inference (source from file extension) is exercised when source is
 			// unset. Pass file + filePath so the handler infers tool context.

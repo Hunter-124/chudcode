@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
+import * as fsx from "@chudware/utils/fsx";
 import { ensureOnnxRuntimeCudaProviders, formatOnnxRuntimeCudaDiagnostics } from "../src/subprocess/worker-runtime";
 
 const tempDirs: string[] = [];
@@ -17,7 +17,7 @@ afterEach(async () => {
 });
 
 async function makeRuntimeWithOnnxInstallScript(): Promise<string> {
-	const runtimeDir = await fs.mkdtemp(path.join(os.tmpdir(), "omp-tiny-runtime-install-"));
+	const runtimeDir = await fs.mkdtemp(path.join(os.tmpdir(), "chudcode-tiny-runtime-install-"));
 	tempDirs.push(runtimeDir);
 	const packageDir = path.join(runtimeDir, "node_modules", "onnxruntime-node");
 	await fsx.write(
@@ -85,7 +85,7 @@ describe("tiny runtime CUDA provider repair", () => {
 
 	it("surfaces a deferred sidecar install failure through the CUDA diagnostics helper", async () => {
 		if (process.platform !== "linux" || process.arch !== "x64") return;
-		const runtimeDir = await fs.mkdtemp(path.join(os.tmpdir(), "omp-tiny-runtime-install-"));
+		const runtimeDir = await fs.mkdtemp(path.join(os.tmpdir(), "chudcode-tiny-runtime-install-"));
 		tempDirs.push(runtimeDir);
 		const packageDir = path.join(runtimeDir, "node_modules", "onnxruntime-node");
 		await fsx.write(

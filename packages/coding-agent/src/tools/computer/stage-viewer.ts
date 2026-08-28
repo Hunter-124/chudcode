@@ -1,5 +1,5 @@
 import * as fs from "node:fs/promises";
-import { $which } from "@oh-my-pi/pi-utils";
+import { $which } from "@chudware/utils";
 import { type DaemonBrokerClient, daemonClientForProject } from "../../launch/client";
 import { stopQuietly, waitReady } from "../../launch/ensure";
 import type { DaemonSnapshot, DaemonSpec } from "../../launch/protocol";
@@ -131,8 +131,8 @@ function live(
 function daemonNames(stageId: string): ComputerStageViewerDaemonNames {
 	const suffix = Bun.hash(stageId).toString(36);
 	return {
-		x11vnc: `omp.computer.vnc.${suffix}`,
-		proxy: `omp.computer.novnc.${suffix}`,
+		x11vnc: `chudcode.computer.vnc.${suffix}`,
+		proxy: `chudcode.computer.novnc.${suffix}`,
 	};
 }
 

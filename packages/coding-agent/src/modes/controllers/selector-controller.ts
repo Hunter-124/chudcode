@@ -1,11 +1,11 @@
-import { type AgentMessage, type AgentToolResult, ThinkingLevel } from "@oh-my-pi/pi-agent-core";
-import type { CompactionOutcome } from "@oh-my-pi/pi-agent-core/compaction";
-import { PASTE_CODE_LOGIN_PROVIDERS } from "@oh-my-pi/pi-ai";
-import { getOAuthProviders } from "@oh-my-pi/pi-ai/oauth";
-import type { OAuthProvider } from "@oh-my-pi/pi-ai/oauth/types";
-import type { Component, OverlayHandle, ResizeScrollbackMode } from "@oh-my-pi/pi-tui";
-import { Loader, Spacer, setTuiTight, Text } from "@oh-my-pi/pi-tui";
-import { getAgentDbPath, getAgentDir, getProjectDir, normalizePathForComparison } from "@oh-my-pi/pi-utils";
+import { type AgentMessage, type AgentToolResult, ThinkingLevel } from "@chudware/agent-core";
+import type { CompactionOutcome } from "@chudware/agent-core/compaction";
+import { PASTE_CODE_LOGIN_PROVIDERS } from "@chudware/ai";
+import { getOAuthProviders } from "@chudware/ai/oauth";
+import type { OAuthProvider } from "@chudware/ai/oauth/types";
+import type { Component, OverlayHandle, ResizeScrollbackMode } from "@chudware/tui";
+import { Loader, Spacer, setTuiTight, Text } from "@chudware/tui";
+import { getAgentDbPath, getAgentDir, getProjectDir, normalizePathForComparison } from "@chudware/utils";
 import {
 	type AdvisorConfigScope,
 	discoverAdvisorConfigs,
@@ -1582,7 +1582,7 @@ export class SelectorController {
 		// agent turn, where the model sees the redirect and starts a
 		// conversation, but this standalone re-answer has no turn to hand it
 		// to — completing the navigation with it would silently drop the
-		// user's intent to chat (roboomp review on #5895).
+		// user's intent to chat (robochud review on #5895).
 		if (result.details?.chatRedirect) {
 			this.ctx.showError(
 				"Chat about this isn't available when re-answering from the tree — pick an option or type a custom answer instead.",

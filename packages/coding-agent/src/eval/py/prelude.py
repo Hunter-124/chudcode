@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-# OMP prelude helpers (loaded once into the runner namespace)
+# Chudcode prelude helpers (loaded once into the runner namespace)
 if "__omp_prelude_loaded__" not in globals():
     __omp_prelude_loaded__ = True
     from pathlib import Path
@@ -40,7 +40,7 @@ if "__omp_prelude_loaded__" not in globals():
 
     def _emit_status(op: str, **data):
         """Emit structured status event for TUI rendering."""
-        _omp_display({"application/x-omp-status": {"op": op, **data}}, raw=True)
+        _omp_display({"application/x-chudcode-status": {"op": op, **data}}, raw=True)
 
     def env(key: str | None = None, value: str | None = None):
         """Get/set environment variables."""
@@ -83,7 +83,7 @@ if "__omp_prelude_loaded__" not in globals():
         """Map a helper path to a real filesystem Path.
 
         A `scheme://…` whose scheme has an injected on-disk root (e.g.
-        `local://`, via PI_EVAL_LOCAL_ROOTS) is rewritten under that root so it
+        `local://`, via CHUDCODE_EVAL_LOCAL_ROOTS) is rewritten under that root so it
         lands where `read local://…` resolves — not a literal `local:/`
         directory under the cwd (which `Path("local://x")` collapses to). Plain
         paths pass through unchanged; any other `scheme://` is rejected."""
@@ -94,7 +94,7 @@ if "__omp_prelude_loaded__" not in globals():
             return Path(path)
         scheme = match.group(1).lower()
         try:
-            roots = json.loads(os.environ.get("PI_EVAL_LOCAL_ROOTS") or "{}")
+            roots = json.loads(os.environ.get("CHUDCODE_EVAL_LOCAL_ROOTS") or "{}")
         except (ValueError, TypeError):
             roots = {}
         root = roots.get(scheme) if isinstance(roots, dict) else None
@@ -170,12 +170,12 @@ if "__omp_prelude_loaded__" not in globals():
             output('scout_0', offset=10, limit=20)  # Lines 10-29
             output('scout_0', 'reviewer_1')  # Read multiple outputs
         """
-        # Prefer PI_ARTIFACTS_DIR so subagents resolve through the parent's
-        # shared artifacts dir; fall back to deriving from PI_SESSION_FILE
+        # Prefer CHUDCODE_ARTIFACTS_DIR so subagents resolve through the parent's
+        # shared artifacts dir; fall back to deriving from CHUDCODE_SESSION_FILE
         # for legacy callers / top-level sessions where the two coincide.
-        artifacts_dir = os.environ.get("PI_ARTIFACTS_DIR")
+        artifacts_dir = os.environ.get("CHUDCODE_ARTIFACTS_DIR")
         if not artifacts_dir:
-            session_file = os.environ.get("PI_SESSION_FILE")
+            session_file = os.environ.get("CHUDCODE_SESSION_FILE")
             if not session_file:
                 _emit_status("output", error="No session file available")
                 raise RuntimeError("No session - output artifacts unavailable")
@@ -369,9 +369,9 @@ if "__omp_prelude_loaded__" not in globals():
         return current
 
     def _tool_proxy_from_env() -> tuple[str, str, str]:
-        base = os.environ.get("PI_TOOL_BRIDGE_URL")
-        token = os.environ.get("PI_TOOL_BRIDGE_TOKEN")
-        session = os.environ.get("PI_TOOL_BRIDGE_SESSION")
+        base = os.environ.get("CHUDCODE_TOOL_BRIDGE_URL")
+        token = os.environ.get("CHUDCODE_TOOL_BRIDGE_TOKEN")
+        session = os.environ.get("CHUDCODE_TOOL_BRIDGE_SESSION")
         if not base or not token or not session:
             raise RuntimeError("tool bridge is unavailable in this kernel")
         return (base.rstrip("/"), token, session)
@@ -458,7 +458,7 @@ if "__omp_prelude_loaded__" not in globals():
             return _ToolCallable(name)
 
         def __repr__(self) -> str:
-            session = os.environ.get("PI_TOOL_BRIDGE_SESSION")
+            session = os.environ.get("CHUDCODE_TOOL_BRIDGE_SESSION")
             return (
                 f"<tool proxy session={session}>"
                 if session

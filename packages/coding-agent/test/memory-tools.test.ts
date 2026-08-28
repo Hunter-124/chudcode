@@ -11,12 +11,12 @@ import { Database } from "bun:sqlite";
 import { afterEach, beforeEach, describe, expect, it, vi } from "bun:test";
 import { mkdirSync } from "node:fs";
 import path from "node:path";
-import { resetSettingsForTest, Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
-import { HindsightApi } from "@oh-my-pi/pi-coding-agent/hindsight/client";
-import type { HindsightConfig } from "@oh-my-pi/pi-coding-agent/hindsight/config";
-import { HindsightSessionState } from "@oh-my-pi/pi-coding-agent/hindsight/state";
-import { mnemopiBackend } from "@oh-my-pi/pi-coding-agent/mnemopi/backend";
-import { loadMnemopiConfig, type MnemopiBackendConfig } from "@oh-my-pi/pi-coding-agent/mnemopi/config";
+import { resetSettingsForTest, Settings } from "@chudware/coding-agent/config/settings";
+import { HindsightApi } from "@chudware/coding-agent/hindsight/client";
+import type { HindsightConfig } from "@chudware/coding-agent/hindsight/config";
+import { HindsightSessionState } from "@chudware/coding-agent/hindsight/state";
+import { mnemopiBackend } from "@chudware/coding-agent/mnemo/backend";
+import { loadMnemopiConfig, type MnemopiBackendConfig } from "@chudware/coding-agent/mnemo/config";
 import {
 	getMnemopiScopedDbPaths,
 	getMnemopiSessionState,
@@ -24,17 +24,17 @@ import {
 	loadMnemopiCore,
 	MnemopiSessionState,
 	setMnemopiSessionState,
-} from "@oh-my-pi/pi-coding-agent/mnemopi/state";
-import type { AgentSessionEventListener } from "@oh-my-pi/pi-coding-agent/session/agent-session";
-import type { ToolSession } from "@oh-my-pi/pi-coding-agent/tools/index";
-import { MemoryEditTool } from "@oh-my-pi/pi-coding-agent/tools/memory-edit";
-import { MemoryRecallTool } from "@oh-my-pi/pi-coding-agent/tools/memory-recall";
-import { MemoryReflectTool } from "@oh-my-pi/pi-coding-agent/tools/memory-reflect";
-import { MemoryRetainTool } from "@oh-my-pi/pi-coding-agent/tools/memory-retain";
-import { resetMemoryForTests } from "@oh-my-pi/pi-mnemopi";
-import { logger, TempDir } from "@oh-my-pi/pi-utils";
+} from "@chudware/coding-agent/mnemo/state";
+import type { AgentSessionEventListener } from "@chudware/coding-agent/session/agent-session";
+import type { ToolSession } from "@chudware/coding-agent/tools/index";
+import { MemoryEditTool } from "@chudware/coding-agent/tools/memory-edit";
+import { MemoryRecallTool } from "@chudware/coding-agent/tools/memory-recall";
+import { MemoryReflectTool } from "@chudware/coding-agent/tools/memory-reflect";
+import { MemoryRetainTool } from "@chudware/coding-agent/tools/memory-retain";
+import { resetMemoryForTests } from "@chudware/mnemo";
+import { logger, TempDir } from "@chudware/utils";
 
-// Mnemopi is lazy-loaded at runtime; preload it for synchronous state construction.
+// Mnemo is lazy-loaded at runtime; preload it for synchronous state construction.
 await Promise.all([loadMnemopi(), loadMnemopiCore()]);
 
 const TEST_SESSION_ID = "test-session-id";
@@ -57,7 +57,7 @@ function makeConfig(overrides: Partial<HindsightConfig> = {}): HindsightConfig {
 		retainMode: "full-session",
 		retainEveryNTurns: 3,
 		retainOverlapTurns: 2,
-		retainContext: "omp",
+		retainContext: "chudcode",
 		recallBudget: "mid",
 		recallMaxTokens: 1024,
 		recallTypes: ["world", "experience"],
@@ -124,8 +124,8 @@ function makeMnemopiConfig(
 	overrides: (Partial<MnemopiBackendConfig> & Record<string, unknown>) | undefined = {},
 ): MnemopiBackendConfig {
 	if (!tempDbPath) {
-		tempDbDir = TempDir.createSync(`@mnemopi-test-${Date.now()}-`);
-		tempDbPath = tempDbDir.join("mnemopi.db");
+		tempDbDir = TempDir.createSync(`@mnemo-test-${Date.now()}-`);
+		tempDbPath = tempDbDir.join("mnemo.db");
 	}
 	return {
 		dbPath: tempDbPath,
@@ -175,9 +175,9 @@ function registerMnemopiState(
 		session: {
 			sessionId,
 			settings: Settings.isolated({
-				"memory.backend": "mnemopi",
-				"mnemopi.noEmbeddings": true,
-				"mnemopi.llmMode": "none",
+				"memory.backend": "mnemo",
+				"mnemo.noEmbeddings": true,
+				"mnemo.llmMode": "none",
 			}),
 			modelRegistry: {
 				getApiKeyForProvider: async () => undefined,
@@ -230,7 +230,7 @@ describe("Hindsight tool factories", () => {
 	});
 });
 
-describe("Mnemopi tool factories", () => {
+describe("Mnemo tool factories", () => {
 	beforeEach(() => {
 		resetSettingsForTest();
 		registeredMnemopiState = undefined;
@@ -258,8 +258,8 @@ describe("Mnemopi tool factories", () => {
 		expect(MemoryEditTool.createIf(makeSession(hindsightSettings))).toBeNull();
 	});
 
-	it("retain/recall/reflect/edit factories return tool instances when memory.backend === mnemopi", () => {
-		const settings = Settings.isolated({ "memory.backend": "mnemopi" });
+	it("retain/recall/reflect/edit factories return tool instances when memory.backend === mnemo", () => {
+		const settings = Settings.isolated({ "memory.backend": "mnemo" });
 		const session = makeSession(settings);
 		expect(MemoryRetainTool.createIf(session)).toBeInstanceOf(MemoryRetainTool);
 		expect(MemoryRecallTool.createIf(session)).toBeInstanceOf(MemoryRecallTool);
@@ -300,7 +300,7 @@ describe("retain.execute", () => {
 		const settings = Settings.isolated({ "memory.backend": "hindsight" });
 		const client = new HindsightApi({ baseUrl: "http://localhost:8888" });
 		const retainBatchSpy = vi.spyOn(HindsightApi.prototype, "retainBatch").mockResolvedValue({} as never);
-		registerState(client, settings, { retainTags: ["project:pi"] });
+		registerState(client, settings, { retainTags: ["project:chud"] });
 
 		const tool = MemoryRetainTool.createIf(makeSession(settings))!;
 		const result = await tool.execute("call-batch", {
@@ -318,13 +318,13 @@ describe("retain.execute", () => {
 			expect.objectContaining({
 				content: "fact one",
 				metadata: { session_id: TEST_SESSION_ID },
-				tags: ["project:pi"],
+				tags: ["project:chud"],
 			}),
 			expect.objectContaining({
 				content: "fact two",
 				context: "user override",
 				metadata: { session_id: TEST_SESSION_ID },
-				tags: ["project:pi"],
+				tags: ["project:chud"],
 			}),
 		]);
 		expect(registeredState?.retainQueue.depth).toBe(0);
@@ -356,7 +356,7 @@ describe("retain.execute", () => {
 	});
 });
 
-describe("retain.execute (Mnemopi backend)", () => {
+describe("retain.execute (Mnemo backend)", () => {
 	beforeEach(() => {
 		resetSettingsForTest();
 		registeredMnemopiState = undefined;
@@ -374,11 +374,11 @@ describe("retain.execute (Mnemopi backend)", () => {
 	});
 
 	it("writes memories synchronously and returns a stored success message", async () => {
-		const settings = Settings.isolated({ "memory.backend": "mnemopi" });
+		const settings = Settings.isolated({ "memory.backend": "mnemo" });
 		registerMnemopiState();
 
 		const tool = MemoryRetainTool.createIf(makeSession(settings))!;
-		const result = await tool.execute("call-mnemopi-1", {
+		const result = await tool.execute("call-mnemo-1", {
 			items: [{ content: "user prefers tabs", context: "editor configuration" }],
 		});
 
@@ -386,18 +386,18 @@ describe("retain.execute (Mnemopi backend)", () => {
 
 		// Verify the memory was actually stored by recalling it
 		const recallTool = MemoryRecallTool.createIf(makeSession(settings))!;
-		const recallResult = await recallTool.execute("call-mnemopi-recall", { query: "user preferences" });
+		const recallResult = await recallTool.execute("call-mnemo-recall", { query: "user preferences" });
 
 		const text = (recallResult.content[0] as { text: string }).text;
 		expect(text).toContain("user prefers tabs");
 	});
 
 	it("stores multiple memories and returns correct count", async () => {
-		const settings = Settings.isolated({ "memory.backend": "mnemopi" });
+		const settings = Settings.isolated({ "memory.backend": "mnemo" });
 		registerMnemopiState();
 
 		const tool = MemoryRetainTool.createIf(makeSession(settings))!;
-		const result = await tool.execute("call-mnemopi-multi", {
+		const result = await tool.execute("call-mnemo-multi", {
 			items: [
 				{ content: "fact one" },
 				{ content: "fact two", context: "additional context" },
@@ -409,7 +409,7 @@ describe("retain.execute (Mnemopi backend)", () => {
 
 		// Verify all memories are recallable
 		const recallTool = MemoryRecallTool.createIf(makeSession(settings))!;
-		const recallResult = await recallTool.execute("call-mnemopi-recall-multi", { query: "facts" });
+		const recallResult = await recallTool.execute("call-mnemo-recall-multi", { query: "facts" });
 
 		const text = (recallResult.content[0] as { text: string }).text;
 		expect(text).toContain("fact one");
@@ -419,44 +419,44 @@ describe("retain.execute (Mnemopi backend)", () => {
 
 	it("isolates memories between projects when scoping is per-project", async () => {
 		const settings = Settings.isolated({
-			"memory.backend": "mnemopi",
-			"mnemopi.scoping": "per-project",
+			"memory.backend": "mnemo",
+			"mnemo.scoping": "per-project",
 		});
 		const alphaConfig = makeMnemopiConfig({ scoping: "per-project", bank: "project-alpha" });
 		const betaConfig = makeMnemopiConfig({ scoping: "per-project", bank: "project-beta" });
 		registerMnemopiState(alphaConfig, { cwd: "/work/project-alpha" });
-		await MemoryRetainTool.createIf(makeSession(settings))!.execute("call-mnemopi-alpha-store", {
+		await MemoryRetainTool.createIf(makeSession(settings))!.execute("call-mnemo-alpha-store", {
 			items: [{ content: "alpha uses tabs" }],
 		});
 		await registeredMnemopiState?.dispose();
 		registerMnemopiState(betaConfig, { cwd: "/work/project-beta" });
-		const betaRecall = await MemoryRecallTool.createIf(makeSession(settings))!.execute("call-mnemopi-beta-recall", {
+		const betaRecall = await MemoryRecallTool.createIf(makeSession(settings))!.execute("call-mnemo-beta-recall", {
 			query: "tabs",
 		});
 		expect(betaRecall.content[0]).toEqual({ type: "text", text: "No relevant memories found." });
 		await registeredMnemopiState?.dispose();
 		registerMnemopiState(alphaConfig, { cwd: "/work/project-alpha" });
-		const alphaRecall = await MemoryRecallTool.createIf(makeSession(settings))!.execute("call-mnemopi-alpha-recall", {
+		const alphaRecall = await MemoryRecallTool.createIf(makeSession(settings))!.execute("call-mnemo-alpha-recall", {
 			query: "tabs",
 		});
 		expect((alphaRecall.content[0] as { text: string }).text).toContain("alpha uses tabs");
 	});
-	it("throws when no per-session Mnemopi state is registered", async () => {
-		const settings = Settings.isolated({ "memory.backend": "mnemopi" });
+	it("throws when no per-session Mnemo state is registered", async () => {
+		const settings = Settings.isolated({ "memory.backend": "mnemo" });
 		const tool = MemoryRetainTool.createIf(makeSession(settings))!;
-		await expect(tool.execute("call-mnemopi-no-state", { items: [{ content: "x" }] })).rejects.toThrow(
+		await expect(tool.execute("call-mnemo-no-state", { items: [{ content: "x" }] })).rejects.toThrow(
 			/not initialised/i,
 		);
 	});
 });
 
-describe("Mnemopi backend lifecycle", () => {
+describe("Mnemo backend lifecycle", () => {
 	beforeEach(() => {
 		resetSettingsForTest();
 		registeredMnemopiState = undefined;
 		tempDbPath = undefined;
 		tempDbDir = undefined;
-		// Close any leaked default Mnemopi instance from a prior test so its
+		// Close any leaked default Mnemo instance from a prior test so its
 		// SQLite handle doesn't keep the next test's DB files locked on Windows.
 		resetMemoryForTests();
 	});
@@ -465,7 +465,7 @@ describe("Mnemopi backend lifecycle", () => {
 		vi.restoreAllMocks();
 		await registeredMnemopiState?.dispose();
 		registeredMnemopiState = undefined;
-		// Close the mnemopi default instance so its SQLite handle doesn't keep
+		// Close the mnemo default instance so its SQLite handle doesn't keep
 		// the temp DB files locked on Windows.
 		resetMemoryForTests();
 		await tempDbDir?.remove().catch(() => {});
@@ -524,14 +524,14 @@ describe("Mnemopi backend lifecycle", () => {
 		state.memory.beam.db.close();
 		const warning = Promise.withResolvers<void>();
 		const warn = vi.spyOn(logger, "warn").mockImplementation((message, context) => {
-			if (message === "Mnemopi: lifecycle hook failed") warning.resolve();
+			if (message === "Mnemo: lifecycle hook failed") warning.resolve();
 			void context;
 		});
 
 		for (const listener of listeners) listener({ type: "agent_end", messages: [] } as never);
 		await warning.promise;
 
-		expect(warn).toHaveBeenCalledWith("Mnemopi: lifecycle hook failed", {
+		expect(warn).toHaveBeenCalledWith("Mnemo: lifecycle hook failed", {
 			banks: ["test-bank"],
 			operation: "agent_end retention",
 			error: "Cannot use a closed database",
@@ -549,14 +549,14 @@ describe("Mnemopi backend lifecycle", () => {
 		state.attachSessionListeners();
 		const warning = Promise.withResolvers<void>();
 		const warn = vi.spyOn(logger, "warn").mockImplementation((message, context) => {
-			if (message === "Mnemopi: lifecycle hook failed") warning.resolve();
+			if (message === "Mnemo: lifecycle hook failed") warning.resolve();
 			void context;
 		});
 
 		for (const listener of listeners) listener({ type: "agent_start" } as never);
 		await warning.promise;
 
-		expect(warn).toHaveBeenCalledWith("Mnemopi: lifecycle hook failed", {
+		expect(warn).toHaveBeenCalledWith("Mnemo: lifecycle hook failed", {
 			banks: ["test-bank"],
 			operation: "agent_start recall",
 			error: "session journal unavailable",
@@ -694,8 +694,8 @@ describe("Mnemopi backend lifecycle", () => {
 		expect(options.embedText).not.toContain(":end]");
 	});
 
-	it("registers subagent aliases from parent Mnemopi state without Hindsight", async () => {
-		const settings = Settings.isolated({ "memory.backend": "mnemopi" });
+	it("registers subagent aliases from parent Mnemo state without Hindsight", async () => {
+		const settings = Settings.isolated({ "memory.backend": "mnemo" });
 		const parentState = registerMnemopiState();
 		const childSession = {
 			sessionId: "child-session-id",
@@ -925,7 +925,7 @@ describe("Mnemopi backend lifecycle", () => {
 	});
 
 	it("skips consolidation when disposing an aliased subagent state (#2320)", async () => {
-		const settings = Settings.isolated({ "memory.backend": "mnemopi" });
+		const settings = Settings.isolated({ "memory.backend": "mnemo" });
 		const parentState = registerMnemopiState();
 		const parentMemory = parentState.getScopedRetainTarget().memory;
 		const childSession = {
@@ -961,7 +961,7 @@ describe("Mnemopi backend lifecycle", () => {
 	});
 
 	it("aliased subagent enqueue still flushes and sleeps the parent's shared banks (#2327 review)", async () => {
-		const settings = Settings.isolated({ "memory.backend": "mnemopi" });
+		const settings = Settings.isolated({ "memory.backend": "mnemo" });
 		const parentState = registerMnemopiState();
 		const parentMemory = parentState.getScopedRetainTarget().memory;
 		const childSession = {
@@ -1002,7 +1002,7 @@ describe("Mnemopi backend lifecycle", () => {
 		expect(parentRetainSpy).not.toHaveBeenCalled();
 	});
 
-	it("clears scoped Mnemopi data and rehydrates active state", async () => {
+	it("clears scoped Mnemo data and rehydrates active state", async () => {
 		const config = makeMnemopiConfig({
 			scoping: "per-project-tagged",
 			bank: "project-alpha",
@@ -1020,7 +1020,7 @@ describe("Mnemopi backend lifecycle", () => {
 		await mnemopiBackend.clear(path.dirname(config.dbPath), "/work/project-alpha", session);
 
 		const rehydrated = getMnemopiSessionState(session);
-		if (!rehydrated) throw new Error("Mnemopi state was not rehydrated");
+		if (!rehydrated) throw new Error("Mnemo state was not rehydrated");
 		expect(rehydrated).not.toBe(state);
 		expect(listeners.size).toBe(1);
 		const remaining = await rehydrated.recallResultsScoped("clear marker");
@@ -1086,7 +1086,7 @@ describe("Mnemopi backend lifecycle", () => {
 		expect(registeredMnemopiState).toBeDefined();
 	});
 
-	it("exposes direct mnemopi runtime status and search/save results", async () => {
+	it("exposes direct mnemo runtime status and search/save results", async () => {
 		const config = makeMnemopiConfig({
 			scoping: "per-project-tagged",
 			bank: "project-alpha",
@@ -1107,7 +1107,7 @@ describe("Mnemopi backend lifecycle", () => {
 				importance: 0.8,
 			},
 		);
-		expect(save).toMatchObject({ backend: "mnemopi", stored: 1, ids: [expect.any(String)] });
+		expect(save).toMatchObject({ backend: "mnemo", stored: 1, ids: [expect.any(String)] });
 
 		const status = await mnemopiBackend.status!({
 			agentDir: path.dirname(config.dbPath),
@@ -1115,7 +1115,7 @@ describe("Mnemopi backend lifecycle", () => {
 			session,
 		});
 		expect(status).toMatchObject({
-			backend: "mnemopi",
+			backend: "mnemo",
 			active: true,
 			writable: true,
 			searchable: true,
@@ -1127,7 +1127,7 @@ describe("Mnemopi backend lifecycle", () => {
 			{ agentDir: path.dirname(config.dbPath), cwd: "/work/project-alpha", session },
 			"dark mode",
 		);
-		expect(search.backend).toBe("mnemopi");
+		expect(search.backend).toBe("mnemo");
 		expect(search.count).toBeGreaterThan(0);
 		expect(search.items[0]).toMatchObject({
 			content: expect.stringContaining("dark mode"),
@@ -1148,7 +1148,7 @@ describe("Mnemopi backend lifecycle", () => {
 				signal: controller.signal,
 			}),
 		).resolves.toMatchObject({
-			backend: "mnemopi",
+			backend: "mnemo",
 			count: 0,
 			message: "Search aborted.",
 		});
@@ -1157,15 +1157,15 @@ describe("Mnemopi backend lifecycle", () => {
 		await expect(
 			mnemopiBackend.save!({ agentDir: "/tmp/agent", cwd: "/tmp", session }, { content: "memory without id" }),
 		).resolves.toMatchObject({
-			backend: "mnemopi",
+			backend: "mnemo",
 			stored: 0,
-			message: "Mnemopi did not return a stored memory id.",
+			message: "Mnemo did not return a stored memory id.",
 		});
 		rememberSpy.mockRestore();
 	});
 
 	it("derives valid project banks from the absolute project root", async () => {
-		const rootDir = TempDir.createSync(`@mnemopi-bank-${Date.now()}-`);
+		const rootDir = TempDir.createSync(`@mnemo-bank-${Date.now()}-`);
 		const root = rootDir.path();
 		const alphaCwd = path.join(root, "a", "api");
 		const betaCwd = path.join(root, "b", "api");
@@ -1173,9 +1173,9 @@ describe("Mnemopi backend lifecycle", () => {
 		mkdirSync(betaCwd, { recursive: true });
 		try {
 			const base = Settings.isolated({
-				"memory.backend": "mnemopi",
-				"mnemopi.scoping": "per-project",
-				"mnemopi.bank": "../../bad bank name with spaces and punctuation!",
+				"memory.backend": "mnemo",
+				"mnemo.scoping": "per-project",
+				"mnemo.bank": "../../bad bank name with spaces and punctuation!",
 			});
 			const alpha = loadMnemopiConfig(await base.cloneForCwd(alphaCwd), root);
 			const beta = loadMnemopiConfig(await base.cloneForCwd(betaCwd), root);
@@ -1239,7 +1239,7 @@ describe("recall.execute", () => {
 		const settings = Settings.isolated({ "memory.backend": "hindsight" });
 		const client = new HindsightApi({ baseUrl: "http://localhost:8888" });
 		const recallSpy = vi.spyOn(HindsightApi.prototype, "recall").mockResolvedValue({ results: [] } as never);
-		registerState(client, settings, { recallTags: ["project:pi"], recallTagsMatch: "any" });
+		registerState(client, settings, { recallTags: ["project:chud"], recallTagsMatch: "any" });
 
 		const tool = MemoryRecallTool.createIf(makeSession(settings))!;
 		await tool.execute("call-tags", { query: "anything" });
@@ -1247,7 +1247,7 @@ describe("recall.execute", () => {
 		expect(recallSpy).toHaveBeenCalledWith(
 			"test-bank",
 			"anything",
-			expect.objectContaining({ tags: ["project:pi"], tagsMatch: "any" }),
+			expect.objectContaining({ tags: ["project:chud"], tagsMatch: "any" }),
 		);
 	});
 
@@ -1262,7 +1262,7 @@ describe("recall.execute", () => {
 	});
 });
 
-describe("recall.execute (Mnemopi backend)", () => {
+describe("recall.execute (Mnemo backend)", () => {
 	beforeEach(() => {
 		resetSettingsForTest();
 		registeredMnemopiState = undefined;
@@ -1280,27 +1280,27 @@ describe("recall.execute (Mnemopi backend)", () => {
 	});
 
 	it("returns the no-results sentinel when empty", async () => {
-		const settings = Settings.isolated({ "memory.backend": "mnemopi" });
+		const settings = Settings.isolated({ "memory.backend": "mnemo" });
 		registerMnemopiState();
 
 		const tool = MemoryRecallTool.createIf(makeSession(settings))!;
-		const result = await tool.execute("call-mnemopi-empty", { query: "nonexistent query" });
+		const result = await tool.execute("call-mnemo-empty", { query: "nonexistent query" });
 
 		expect(result.content[0]).toEqual({ type: "text", text: "No relevant memories found." });
 	});
 
 	it("surfaces recall engine failures instead of the no-results sentinel", async () => {
-		const settings = Settings.isolated({ "memory.backend": "mnemopi" });
+		const settings = Settings.isolated({ "memory.backend": "mnemo" });
 		const state = registerMnemopiState();
 		const failure = new TypeError("mmrRerankIndices is not a function");
 		vi.spyOn(state.getScopedRecallTargets()[0].memory, "recallEnhanced").mockRejectedValue(failure);
 
 		const tool = MemoryRecallTool.createIf(makeSession(settings))!;
-		await expect(tool.execute("call-mnemopi-failure", { query: "existing memory" })).rejects.toThrow(failure);
+		await expect(tool.execute("call-mnemo-failure", { query: "existing memory" })).rejects.toThrow(failure);
 	});
 
 	it("keeps healthy scoped targets available when another target fails", async () => {
-		const settings = Settings.isolated({ "memory.backend": "mnemopi" });
+		const settings = Settings.isolated({ "memory.backend": "mnemo" });
 		const state = registerMnemopiState(
 			makeMnemopiConfig({
 				scoping: "per-project-tagged",
@@ -1313,23 +1313,23 @@ describe("recall.execute (Mnemopi backend)", () => {
 		);
 
 		const tool = MemoryRecallTool.createIf(makeSession(settings))!;
-		const result = await tool.execute("call-mnemopi-partial-failure", { query: "nonexistent query" });
+		const result = await tool.execute("call-mnemo-partial-failure", { query: "nonexistent query" });
 		expect(result.content[0]).toEqual({ type: "text", text: "No relevant memories found." });
 	});
 
 	it("returns a populated text block when a retained memory exists", async () => {
-		const settings = Settings.isolated({ "memory.backend": "mnemopi" });
+		const settings = Settings.isolated({ "memory.backend": "mnemo" });
 		registerMnemopiState();
 
 		// First, store a memory
 		const retainTool = MemoryRetainTool.createIf(makeSession(settings))!;
-		await retainTool.execute("call-mnemopi-store", {
+		await retainTool.execute("call-mnemo-store", {
 			items: [{ content: "the user prefers dark mode in their editor" }],
 		});
 
 		// Then recall it
 		const recallTool = MemoryRecallTool.createIf(makeSession(settings))!;
-		const result = await recallTool.execute("call-mnemopi-query", { query: "editor preferences" });
+		const result = await recallTool.execute("call-mnemo-query", { query: "editor preferences" });
 
 		const text = (result.content[0] as { text: string }).text;
 		expect(text).toMatch(/\(id: [^)]+\)/);
@@ -1339,17 +1339,17 @@ describe("recall.execute (Mnemopi backend)", () => {
 
 	it("shares memories across projects when scoping is global", async () => {
 		const settings = Settings.isolated({
-			"memory.backend": "mnemopi",
-			"mnemopi.scoping": "global",
+			"memory.backend": "mnemo",
+			"mnemo.scoping": "global",
 		});
 		const config = makeMnemopiConfig({ scoping: "global", bank: "default" });
 		registerMnemopiState(config, { cwd: "/work/project-alpha" });
-		await MemoryRetainTool.createIf(makeSession(settings))!.execute("call-mnemopi-global-store", {
+		await MemoryRetainTool.createIf(makeSession(settings))!.execute("call-mnemo-global-store", {
 			items: [{ content: "global memory survives project switches" }],
 		});
 		registeredMnemopiState?.dispose();
 		registerMnemopiState(config, { cwd: "/work/project-beta" });
-		const result = await MemoryRecallTool.createIf(makeSession(settings))!.execute("call-mnemopi-global-recall", {
+		const result = await MemoryRecallTool.createIf(makeSession(settings))!.execute("call-mnemo-global-recall", {
 			query: "project switches",
 		});
 		const text = (result.content[0] as { text: string }).text;
@@ -1358,14 +1358,14 @@ describe("recall.execute (Mnemopi backend)", () => {
 
 	it("merges global and project-local memories on recall when scoping is per-project-tagged", async () => {
 		const settings = Settings.isolated({
-			"memory.backend": "mnemopi",
-			"mnemopi.scoping": "per-project-tagged",
+			"memory.backend": "mnemo",
+			"mnemo.scoping": "per-project-tagged",
 		});
 		// Store a global memory (uses default/global bank)
 		registerMnemopiState(makeMnemopiConfig({ scoping: "global", bank: "default", globalBank: "default" }), {
 			cwd: "/work/project-alpha",
 		});
-		await MemoryRetainTool.createIf(makeSession(settings))!.execute("call-mnemopi-tagged-global", {
+		await MemoryRetainTool.createIf(makeSession(settings))!.execute("call-mnemo-tagged-global", {
 			items: [{ content: "the user likes concise CLI output" }],
 		});
 		// Store project-alpha local memory
@@ -1374,7 +1374,7 @@ describe("recall.execute (Mnemopi backend)", () => {
 			makeMnemopiConfig({ scoping: "per-project-tagged", bank: "project-alpha", globalBank: "default" }),
 			{ cwd: "/work/project-alpha" },
 		);
-		await MemoryRetainTool.createIf(makeSession(settings))!.execute("call-mnemopi-tagged-local", {
+		await MemoryRetainTool.createIf(makeSession(settings))!.execute("call-mnemo-tagged-local", {
 			items: [{ content: "project alpha uses pnpm workspaces" }],
 		});
 		// Store project-beta local memory
@@ -1383,7 +1383,7 @@ describe("recall.execute (Mnemopi backend)", () => {
 			makeMnemopiConfig({ scoping: "per-project-tagged", bank: "project-beta", globalBank: "default" }),
 			{ cwd: "/work/project-beta" },
 		);
-		await MemoryRetainTool.createIf(makeSession(settings))!.execute("call-mnemopi-tagged-other", {
+		await MemoryRetainTool.createIf(makeSession(settings))!.execute("call-mnemo-tagged-other", {
 			items: [{ content: "project beta deploys to staging first" }],
 		});
 		// Recall from project-alpha should merge global + alpha, exclude beta
@@ -1392,7 +1392,7 @@ describe("recall.execute (Mnemopi backend)", () => {
 			makeMnemopiConfig({ scoping: "per-project-tagged", bank: "project-alpha", globalBank: "default" }),
 			{ cwd: "/work/project-alpha" },
 		);
-		const result = await MemoryRecallTool.createIf(makeSession(settings))!.execute("call-mnemopi-tagged-recall", {
+		const result = await MemoryRecallTool.createIf(makeSession(settings))!.execute("call-mnemo-tagged-recall", {
 			query: "what should I know about this user and project alpha?",
 		});
 		const text = (result.content[0] as { text: string }).text;
@@ -1401,14 +1401,14 @@ describe("recall.execute (Mnemopi backend)", () => {
 		expect(text).not.toContain("project beta deploys to staging first");
 	});
 
-	it("throws when no per-session Mnemopi state is registered", async () => {
-		const settings = Settings.isolated({ "memory.backend": "mnemopi" });
+	it("throws when no per-session Mnemo state is registered", async () => {
+		const settings = Settings.isolated({ "memory.backend": "mnemo" });
 		const tool = MemoryRecallTool.createIf(makeSession(settings))!;
-		await expect(tool.execute("call-mnemopi-no-state", { query: "anything" })).rejects.toThrow(/not initialised/i);
+		await expect(tool.execute("call-mnemo-no-state", { query: "anything" })).rejects.toThrow(/not initialised/i);
 	});
 });
 
-describe("memory_edit.execute (Mnemopi backend)", () => {
+describe("memory_edit.execute (Mnemo backend)", () => {
 	beforeEach(() => {
 		resetSettingsForTest();
 		registeredMnemopiState = undefined;
@@ -1434,7 +1434,7 @@ describe("memory_edit.execute (Mnemopi backend)", () => {
 	}
 
 	it("updates a working memory by recall id", async () => {
-		const settings = Settings.isolated({ "memory.backend": "mnemopi" });
+		const settings = Settings.isolated({ "memory.backend": "mnemo" });
 		registerMnemopiState();
 		const id = await retainAndRecallId(settings, "editor accent color is blue", "accent color");
 
@@ -1451,7 +1451,7 @@ describe("memory_edit.execute (Mnemopi backend)", () => {
 	});
 
 	it("forgets a working memory by recall id", async () => {
-		const settings = Settings.isolated({ "memory.backend": "mnemopi" });
+		const settings = Settings.isolated({ "memory.backend": "mnemo" });
 		registerMnemopiState();
 		const id = await retainAndRecallId(settings, "temporary deployment note can be deleted", "deployment note");
 
@@ -1466,7 +1466,7 @@ describe("memory_edit.execute (Mnemopi backend)", () => {
 	});
 
 	it("invalidates a working memory by recall id", async () => {
-		const settings = Settings.isolated({ "memory.backend": "mnemopi" });
+		const settings = Settings.isolated({ "memory.backend": "mnemo" });
 		registerMnemopiState();
 		const id = await retainAndRecallId(settings, "stale api key rotation policy", "api key rotation");
 
@@ -1481,7 +1481,7 @@ describe("memory_edit.execute (Mnemopi backend)", () => {
 	});
 
 	it("reports not_found for unknown ids", async () => {
-		const settings = Settings.isolated({ "memory.backend": "mnemopi" });
+		const settings = Settings.isolated({ "memory.backend": "mnemo" });
 		registerMnemopiState();
 
 		const result = await MemoryEditTool.createIf(makeSession(settings))!.execute("call-memory-edit-missing", {
@@ -1493,8 +1493,8 @@ describe("memory_edit.execute (Mnemopi backend)", () => {
 		expect((result.content[0] as { text: string }).text).toContain("not found");
 	});
 
-	it("throws when no per-session Mnemopi state is registered", async () => {
-		const settings = Settings.isolated({ "memory.backend": "mnemopi" });
+	it("throws when no per-session Mnemo state is registered", async () => {
+		const settings = Settings.isolated({ "memory.backend": "mnemo" });
 		const tool = MemoryEditTool.createIf(makeSession(settings))!;
 		await expect(tool.execute("call-memory-edit-no-state", { op: "forget", id: "anything" })).rejects.toThrow(
 			/not initialised/i,
@@ -1502,16 +1502,16 @@ describe("memory_edit.execute (Mnemopi backend)", () => {
 	});
 
 	it("renders backend stats and diagnostics for scoped banks", async () => {
-		const settings = Settings.isolated({ "memory.backend": "mnemopi" });
+		const settings = Settings.isolated({ "memory.backend": "mnemo" });
 		const state = registerMnemopiState();
-		await retainAndRecallId(settings, "stats fixture memory for mnemopi", "stats fixture");
+		await retainAndRecallId(settings, "stats fixture memory for mnemo", "stats fixture");
 
 		const stats = await mnemopiBackend.stats?.("/tmp/agent", "/tmp", state.session);
 		const diagnose = await mnemopiBackend.diagnose?.("/tmp/agent", "/tmp", state.session);
 
-		expect(stats).toContain("# Mnemopi Memory Stats");
+		expect(stats).toContain("# Mnemo Memory Stats");
 		expect(stats).toContain("test-bank");
-		expect(diagnose).toContain("# Mnemopi Memory Diagnostics");
+		expect(diagnose).toContain("# Mnemo Memory Diagnostics");
 		expect(diagnose).toContain("test-bank");
 	});
 });
@@ -1557,7 +1557,7 @@ describe("reflect.execute", () => {
 	});
 });
 
-describe("reflect.execute (Mnemopi backend)", () => {
+describe("reflect.execute (Mnemo backend)", () => {
 	beforeEach(() => {
 		resetSettingsForTest();
 		registeredMnemopiState = undefined;
@@ -1575,11 +1575,11 @@ describe("reflect.execute (Mnemopi backend)", () => {
 	});
 
 	it("returns the no-results sentinel when empty", async () => {
-		const settings = Settings.isolated({ "memory.backend": "mnemopi" });
+		const settings = Settings.isolated({ "memory.backend": "mnemo" });
 		registerMnemopiState();
 
 		const tool = MemoryReflectTool.createIf(makeSession(settings))!;
-		const result = await tool.execute("call-mnemopi-reflect-empty", {
+		const result = await tool.execute("call-mnemo-reflect-empty", {
 			query: "what does the user prefer?",
 		});
 
@@ -1590,12 +1590,12 @@ describe("reflect.execute (Mnemopi backend)", () => {
 	});
 
 	it("returns a synthesized text block based on recalled memories when data exists", async () => {
-		const settings = Settings.isolated({ "memory.backend": "mnemopi" });
+		const settings = Settings.isolated({ "memory.backend": "mnemo" });
 		registerMnemopiState();
 
 		// First, store memories
 		const retainTool = MemoryRetainTool.createIf(makeSession(settings))!;
-		await retainTool.execute("call-mnemopi-store-reflect", {
+		await retainTool.execute("call-mnemo-store-reflect", {
 			items: [
 				{ content: "the user prefers dark mode in their editor" },
 				{ content: "the user uses Vim keybindings" },
@@ -1605,7 +1605,7 @@ describe("reflect.execute (Mnemopi backend)", () => {
 
 		// Then reflect on them
 		const reflectTool = MemoryReflectTool.createIf(makeSession(settings))!;
-		const result = await reflectTool.execute("call-mnemopi-reflect-query", {
+		const result = await reflectTool.execute("call-mnemo-reflect-query", {
 			query: "what are the user's editor preferences?",
 		});
 
@@ -1617,18 +1617,18 @@ describe("reflect.execute (Mnemopi backend)", () => {
 	});
 
 	it("includes additional context in the query when provided", async () => {
-		const settings = Settings.isolated({ "memory.backend": "mnemopi" });
+		const settings = Settings.isolated({ "memory.backend": "mnemo" });
 		registerMnemopiState();
 
 		// Store a memory
 		const retainTool = MemoryRetainTool.createIf(makeSession(settings))!;
-		await retainTool.execute("call-mnemopi-store-context", {
+		await retainTool.execute("call-mnemo-store-context", {
 			items: [{ content: "the user works on Python projects" }],
 		});
 
 		// Reflect with context
 		const reflectTool = MemoryReflectTool.createIf(makeSession(settings))!;
-		const result = await reflectTool.execute("call-mnemopi-reflect-context", {
+		const result = await reflectTool.execute("call-mnemo-reflect-context", {
 			query: "what does the user work on?",
 			context: "this is for a new project setup",
 		});
@@ -1640,14 +1640,14 @@ describe("reflect.execute (Mnemopi backend)", () => {
 
 	it("merges global and project-local memories on reflect when scoping is per-project-tagged", async () => {
 		const settings = Settings.isolated({
-			"memory.backend": "mnemopi",
-			"mnemopi.scoping": "per-project-tagged",
+			"memory.backend": "mnemo",
+			"mnemo.scoping": "per-project-tagged",
 		});
 		// Store a global memory (uses default/global bank)
 		registerMnemopiState(makeMnemopiConfig({ scoping: "global", bank: "default", globalBank: "default" }), {
 			cwd: "/work/project-alpha",
 		});
-		await MemoryRetainTool.createIf(makeSession(settings))!.execute("call-mnemopi-reflect-global", {
+		await MemoryRetainTool.createIf(makeSession(settings))!.execute("call-mnemo-reflect-global", {
 			items: [{ content: "the user prefers concise summaries" }],
 		});
 		// Store project-alpha local memory
@@ -1656,10 +1656,10 @@ describe("reflect.execute (Mnemopi backend)", () => {
 			makeMnemopiConfig({ scoping: "per-project-tagged", bank: "project-alpha", globalBank: "default" }),
 			{ cwd: "/work/project-alpha" },
 		);
-		await MemoryRetainTool.createIf(makeSession(settings))!.execute("call-mnemopi-reflect-local", {
+		await MemoryRetainTool.createIf(makeSession(settings))!.execute("call-mnemo-reflect-local", {
 			items: [{ content: "project alpha uses turbo for task orchestration" }],
 		});
-		const result = await MemoryReflectTool.createIf(makeSession(settings))!.execute("call-mnemopi-reflect-tagged", {
+		const result = await MemoryReflectTool.createIf(makeSession(settings))!.execute("call-mnemo-reflect-tagged", {
 			query: "what matters for this user working in project alpha?",
 		});
 		const text = (result.content[0] as { text: string }).text;
@@ -1668,10 +1668,10 @@ describe("reflect.execute (Mnemopi backend)", () => {
 		expect(text).toContain("project alpha uses turbo for task orchestration");
 	});
 
-	it("throws when no per-session Mnemopi state is registered", async () => {
-		const settings = Settings.isolated({ "memory.backend": "mnemopi" });
+	it("throws when no per-session Mnemo state is registered", async () => {
+		const settings = Settings.isolated({ "memory.backend": "mnemo" });
 		const tool = MemoryReflectTool.createIf(makeSession(settings))!;
-		await expect(tool.execute("call-mnemopi-reflect-no-state", { query: "anything" })).rejects.toThrow(
+		await expect(tool.execute("call-mnemo-reflect-no-state", { query: "anything" })).rejects.toThrow(
 			/not initialised/i,
 		);
 	});

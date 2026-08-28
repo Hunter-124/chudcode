@@ -10,10 +10,10 @@ import {
 	type AgentMessage,
 	EventLoopKeepalive,
 	ThinkingLevel,
-} from "@oh-my-pi/pi-agent-core";
-import type { CompactionOutcome } from "@oh-my-pi/pi-agent-core/compaction";
-import type { AssistantMessage, ImageContent, Message, Model, Usage, UsageReport } from "@oh-my-pi/pi-ai";
-import { modelsAreEqual } from "@oh-my-pi/pi-catalog/models";
+} from "@chudware/agent-core";
+import type { CompactionOutcome } from "@chudware/agent-core/compaction";
+import type { AssistantMessage, ImageContent, Message, Model, Usage, UsageReport } from "@chudware/ai";
+import { modelsAreEqual } from "@chudware/catalog/models";
 import type {
 	AutocompleteProvider,
 	Component,
@@ -21,7 +21,7 @@ import type {
 	LoaderMessageColorFn,
 	OverlayHandle,
 	SlashCommand,
-} from "@oh-my-pi/pi-tui";
+} from "@chudware/tui";
 import {
 	Container,
 	clearRenderCache,
@@ -35,9 +35,9 @@ import {
 	Text,
 	type TUI,
 	visibleWidth,
-} from "@oh-my-pi/pi-tui";
-import type { TerminalAppearanceRequestToken } from "@oh-my-pi/pi-tui/terminal";
-import { isInsideTerminalMultiplexer } from "@oh-my-pi/pi-tui/terminal-capabilities";
+} from "@chudware/tui";
+import type { TerminalAppearanceRequestToken } from "@chudware/tui/terminal";
+import { isInsideTerminalMultiplexer } from "@chudware/tui/terminal-capabilities";
 import {
 	$env,
 	adjustHsv,
@@ -50,9 +50,9 @@ import {
 	prompt,
 	sanitizeText,
 	setProjectDir,
-} from "@oh-my-pi/pi-utils";
-import chalk from "@oh-my-pi/pi-utils/chalk";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
+} from "@chudware/utils";
+import chalk from "@chudware/utils/chalk";
+import * as fsx from "@chudware/utils/fsx";
 import { reset as resetCapabilities } from "../capability";
 import type { CollabGuestLink } from "../collab/guest";
 import type { CollabHost } from "../collab/host";
@@ -1278,7 +1278,7 @@ export class InteractiveMode implements InteractiveModeContext {
 		// callback requestRender(true) queued above (immediates are FIFO) — the
 		// spawn syscall never lands in the same loop turn ahead of the first paint.
 		setImmediate(() => {
-			if (!$env.PI_NO_TITLE && !this.sessionManager.getSessionName()) {
+			if (!$env.CHUDCODE_NO_TITLE && !this.sessionManager.getSessionName()) {
 				tinyTitleClient.prewarm(this.settings.get("providers.tinyModel"));
 			}
 		});

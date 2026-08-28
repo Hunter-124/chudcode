@@ -204,10 +204,10 @@ switch (scenario) {
 			"2026-01-06T03:04:05.006Z",
 			"2026-01-07T03:04:05.006Z",
 		];
-		process.env.OMP_LOGGER_TEST_NOW = dates[0];
+		process.env.CHUDCODE_LOGGER_TEST_NOW = dates[0];
 		logger.setTransports({ console: false, file: primaryDir });
 		for (const [index, date] of dates.entries()) {
-			process.env.OMP_LOGGER_TEST_NOW = date;
+			process.env.CHUDCODE_LOGGER_TEST_NOW = date;
 			logger.info(`date-${index + 1}`);
 			await sleep(10);
 		}

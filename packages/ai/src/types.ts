@@ -1,8 +1,21 @@
-export * from "@oh-my-pi/pi-catalog/effort";
-export * from "@oh-my-pi/pi-catalog/types";
+export * from "@chudware/catalog/effort";
+export * from "@chudware/catalog/types";
 
-import type { Type } from "@oh-my-pi/omptype";
 import type {
+	ChudBashExecArgs,
+	ChudBashExecResult,
+	ChudEditExecArgs,
+	ChudEditExecResult,
+	ChudFindExecArgs,
+	ChudFindExecResult,
+	ChudGrepExecArgs,
+	ChudGrepExecResult,
+	ChudLsExecArgs,
+	ChudLsExecResult,
+	ChudReadExecArgs,
+	ChudReadExecResult,
+	ChudWriteExecArgs,
+	ChudWriteExecResult,
 	DeleteArgs,
 	DeleteResult,
 	DiagnosticsArgs,
@@ -12,30 +25,17 @@ import type {
 	LsArgs,
 	LsResult,
 	McpResult,
-	PiBashExecArgs,
-	PiBashExecResult,
-	PiEditExecArgs,
-	PiEditExecResult,
-	PiFindExecArgs,
-	PiFindExecResult,
-	PiGrepExecArgs,
-	PiGrepExecResult,
-	PiLsExecArgs,
-	PiLsExecResult,
-	PiReadExecArgs,
-	PiReadExecResult,
-	PiWriteExecArgs,
-	PiWriteExecResult,
 	ReadArgs,
 	ReadResult,
 	ShellArgs,
 	ShellResult,
 	WriteArgs,
 	WriteResult,
-} from "@oh-my-pi/pi-catalog/discovery/cursor-proto";
-import type { Effort } from "@oh-my-pi/pi-catalog/effort";
-import { isOpenAIModelId } from "@oh-my-pi/pi-catalog/identity/family";
-import type { Api, FetchImpl, KnownApi, Model, Provider, ThinkingBudgets, Usage } from "@oh-my-pi/pi-catalog/types";
+} from "@chudware/catalog/discovery/cursor-proto";
+import type { Effort } from "@chudware/catalog/effort";
+import { isOpenAIModelId } from "@chudware/catalog/identity/family";
+import type { Api, FetchImpl, KnownApi, Model, Provider, ThinkingBudgets, Usage } from "@chudware/catalog/types";
+import type { Type } from "@chudware/chudtype";
 import type { ApiKey } from "./auth-retry";
 import type { BedrockOptions } from "./providers/amazon-bedrock";
 import type { AnthropicOptions } from "./providers/anthropic";
@@ -58,7 +58,7 @@ export type { StopDetails } from "./providers/anthropic-wire";
 export type { AssistantMessageEventStream } from "./utils/event-stream";
 
 /**
- * Ceiling on the output-token count omp requests from any OpenAI-family endpoint
+ * Ceiling on the output-token count chudcode requests from any OpenAI-family endpoint
  * (openai-responses, azure/xai responses, and openai-completions). Mirrors
  * Anthropic's {@link CLAUDE_CODE_MAX_OUTPUT_TOKENS}.
  *
@@ -351,7 +351,7 @@ export interface CodexCompactionContext {
 	/** Stable only for one logical compaction, including parallel summary calls. */
 	operationId: string;
 	trigger: "manual" | "auto";
-	reason: "user_requested" | "context_limit" | "model_downshift" | "comp_hash_changed";
+	reason: "user_requested" | "context_limit" | "model_downshift" | "cchud_hash_changed";
 	phase: "standalone_turn" | "pre_turn" | "mid_turn";
 	strategy: "memento" | "prefix_compaction";
 }
@@ -359,7 +359,7 @@ export interface CodexCompactionContext {
 /** Canonical nested metadata serialized into the Codex turn envelope. */
 export interface CodexCompactionMetadata {
 	trigger: "manual" | "auto";
-	reason: "user_requested" | "context_limit" | "model_downshift" | "comp_hash_changed";
+	reason: "user_requested" | "context_limit" | "model_downshift" | "cchud_hash_changed";
 	implementation: "responses" | "responses_compaction_v2" | "responses_compact";
 	phase: "standalone_turn" | "pre_turn" | "mid_turn";
 	strategy: "memento" | "prefix_compaction";
@@ -506,7 +506,7 @@ export interface StreamOptions {
 	/**
 	 * Optional per-provider concurrent request cap for LLM stream calls. Keys are
 	 * provider ids (`model.provider`); positive numeric values cap in-flight
-	 * requests across local OMP processes that share the same config root. Omitted
+	 * requests across local Chudcode processes that share the same config root. Omitted
 	 * providers are unlimited. Non-chat provider APIs that bypass stream helpers
 	 * are not covered.
 	 */
@@ -537,11 +537,11 @@ export interface StreamOptions {
 	 * in the iterator while waiting for the first semantic stream event. Set to
 	 * `0` to disable both layers for this request. After the first semantic
 	 * event arrives, `streamIdleTimeoutMs` governs inter-event stalls. Falls
-	 * back to `PI_STREAM_FIRST_EVENT_TIMEOUT_MS` and then to a 100s default.
+	 * back to `CHUDCODE_STREAM_FIRST_EVENT_TIMEOUT_MS` and then to a 100s default.
 	 * OpenAI-family transports additionally honor
-	 * `PI_OPENAI_STREAM_FIRST_EVENT_TIMEOUT_MS` as the most-specific override and
+	 * `CHUDCODE_OPENAI_STREAM_FIRST_EVENT_TIMEOUT_MS` as the most-specific override and
 	 * floor the first-event budget at the resolved idle (per-call
-	 * `streamIdleTimeoutMs` or `PI_OPENAI_STREAM_IDLE_TIMEOUT_MS`) so slow local
+	 * `streamIdleTimeoutMs` or `CHUDCODE_OPENAI_STREAM_IDLE_TIMEOUT_MS`) so slow local
 	 * OpenAI-compatible servers are not undercut during prompt processing.
 	 *
 	 * Iterator-level honored by: every built-in provider (via the lazy-stream
@@ -555,7 +555,7 @@ export interface StreamOptions {
 	 * milliseconds. Once the first event arrives, this guards against silent
 	 * mid-stream stalls (broker dies, half-open socket, model produces no real
 	 * progress for too long). Set to `0` to disable. Falls back to
-	 * `PI_STREAM_IDLE_TIMEOUT_MS` (alias: `PI_OPENAI_STREAM_IDLE_TIMEOUT_MS`)
+	 * `CHUDCODE_STREAM_IDLE_TIMEOUT_MS` (alias: `CHUDCODE_OPENAI_STREAM_IDLE_TIMEOUT_MS`)
 	 * and then to a 120s default.
 	 */
 	streamIdleTimeoutMs?: number;
@@ -1099,9 +1099,9 @@ export interface CursorShellStreamCallbacks {
 }
 
 /**
- * A modern Pi exec frame plus the call id the dispatcher minted for it.
+ * A modern Chud exec frame plus the call id the dispatcher minted for it.
  *
- * Unlike the legacy exec args (`ReadArgs`, `ShellArgs`, ...), the Pi frames
+ * Unlike the legacy exec args (`ReadArgs`, `ShellArgs`, ...), the Chud frames
  * carry no `tool_call_id` field: on modern builds the id rides the streamed
  * `ToolCall` envelope (`ToolCall.tool_call_id = 57`) instead of each variant's
  * args. The exec channel has no access to that envelope, so the dispatcher
@@ -1174,17 +1174,17 @@ export interface CursorExecHandlers {
 	 */
 	mcpApprovalPreflight?: (call: CursorMcpCall) => Promise<boolean>;
 	/**
-	 * Modern Cursor CLI Pi tool frames (`ExecServerMessage` 45-51). They are a
+	 * Modern Cursor CLI Chud tool frames (`ExecServerMessage` 45-51). They are a
 	 * distinct frame family from the legacy `readArgs`/`shellArgs`/... set, not
 	 * an alias: different args, different result oneofs, and no `tool_call_id`.
 	 */
-	piRead?: (call: CursorPiCall<PiReadExecArgs>) => Promise<CursorExecHandlerResult<PiReadExecResult>>;
-	piBash?: (call: CursorPiCall<PiBashExecArgs>) => Promise<CursorExecHandlerResult<PiBashExecResult>>;
-	piEdit?: (call: CursorPiCall<PiEditExecArgs>) => Promise<CursorExecHandlerResult<PiEditExecResult>>;
-	piWrite?: (call: CursorPiCall<PiWriteExecArgs>) => Promise<CursorExecHandlerResult<PiWriteExecResult>>;
-	piGrep?: (call: CursorPiCall<PiGrepExecArgs>) => Promise<CursorExecHandlerResult<PiGrepExecResult>>;
-	piFind?: (call: CursorPiCall<PiFindExecArgs>) => Promise<CursorExecHandlerResult<PiFindExecResult>>;
-	piLs?: (call: CursorPiCall<PiLsExecArgs>) => Promise<CursorExecHandlerResult<PiLsExecResult>>;
+	piRead?: (call: CursorPiCall<ChudReadExecArgs>) => Promise<CursorExecHandlerResult<ChudReadExecResult>>;
+	piBash?: (call: CursorPiCall<ChudBashExecArgs>) => Promise<CursorExecHandlerResult<ChudBashExecResult>>;
+	piEdit?: (call: CursorPiCall<ChudEditExecArgs>) => Promise<CursorExecHandlerResult<ChudEditExecResult>>;
+	piWrite?: (call: CursorPiCall<ChudWriteExecArgs>) => Promise<CursorExecHandlerResult<ChudWriteExecResult>>;
+	piGrep?: (call: CursorPiCall<ChudGrepExecArgs>) => Promise<CursorExecHandlerResult<ChudGrepExecResult>>;
+	piFind?: (call: CursorPiCall<ChudFindExecArgs>) => Promise<CursorExecHandlerResult<ChudFindExecResult>>;
+	piLs?: (call: CursorPiCall<ChudLsExecArgs>) => Promise<CursorExecHandlerResult<ChudLsExecResult>>;
 	/**
 	 * The resources the host's MCP servers advertise, optionally filtered to one
 	 * server. Without a handler the provider answers an empty catalog, which

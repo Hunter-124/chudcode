@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import { Type, type } from "@oh-my-pi/omptype";
-import * as wireSchemas from "@oh-my-pi/pi-ai/auth-broker/wire-schemas";
+import * as wireSchemas from "@chudware/ai/auth-broker/wire-schemas";
+import { Type, type } from "@chudware/chudtype";
 
 const REFRESHER = {
 	enabled: false,
@@ -157,7 +157,12 @@ const validSamples: Record<SchemaName, unknown> = {
 			},
 		],
 	},
-	clientUsageReportRequestSchema: { installId: "install", hostname: "host", app: "robomp", entries: [OBSERVED_USAGE] },
+	clientUsageReportRequestSchema: {
+		installId: "install",
+		hostname: "host",
+		app: "robochud",
+		entries: [OBSERVED_USAGE],
+	},
 	clientUsageReportResponseSchema: { ok: true },
 	clientUsageSummaryResponseSchema: {
 		generatedAt: 2_000,
@@ -167,7 +172,7 @@ const validSamples: Record<SchemaName, unknown> = {
 				hostname: "host",
 				firstSeen: 1_000,
 				lastSeen: 2_000,
-				providers: [{ ...OBSERVED_USAGE, app: "robomp", firstSeen: undefined, at: undefined, model: undefined }],
+				providers: [{ ...OBSERVED_USAGE, app: "robochud", firstSeen: undefined, at: undefined, model: undefined }],
 			},
 		],
 	},

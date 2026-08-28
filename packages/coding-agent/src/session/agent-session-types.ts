@@ -5,7 +5,7 @@ import type {
 	AgentToolContext,
 	StreamFn,
 	ThinkingLevel,
-} from "@oh-my-pi/pi-agent-core";
+} from "@chudware/agent-core";
 import type {
 	Context,
 	Effort,
@@ -17,8 +17,8 @@ import type {
 	ServiceTierByFamily,
 	SimpleStreamOptions,
 	ToolChoice,
-} from "@oh-my-pi/pi-ai";
-import type { postmortem } from "@oh-my-pi/pi-utils";
+} from "@chudware/ai";
+import type { postmortem } from "@chudware/utils";
 import type { AdvisorConfig } from "../advisor";
 import type { AsyncJob, AsyncJobDeliveryState, AsyncJobManager } from "../async";
 import type { EffectiveExtensionRoots } from "../capability/types";
@@ -39,7 +39,7 @@ import type { XdevState } from "../tools/xdev";
 import type { CodexAutoRedeemCoordinator } from "./codex-auto-reset";
 import type { SessionManager } from "./session-manager";
 
-/** Maximum time the interactive shutdown path waits for Mnemopi consolidation. */
+/** Maximum time the interactive shutdown path waits for Mnemo consolidation. */
 export const SHUTDOWN_CONSOLIDATE_BUDGET_MS = 1_500;
 
 /** Options controlling session disposal. */
@@ -261,13 +261,13 @@ export interface AgentSessionConfig {
 	/** Full advisor toolset built against an advisor-scoped tool session. */
 	advisorTools?: AgentTool[];
 	/**
-	 * Build a `grep` honoring a Cursor `pi_grep` frame's own context width and
+	 * Build a `grep` honoring a Cursor `chud_grep` frame's own context width and
 	 * match cap, against the advisor-scoped tool session. Without it an advisor
 	 * running on Cursor silently drops both fields.
 	 */
 	advisorCreateGrepTool?(options: { context?: number; totalMatchLimit?: number }): AgentTool | undefined;
 	/**
-	 * Build the `replace`-mode `edit` a Cursor `pi_edit` frame needs, against the
+	 * Build the `replace`-mode `edit` a Cursor `chud_edit` frame needs, against the
 	 * advisor-scoped tool session. The advisor's ordinary instance follows the
 	 * configured `edit.mode` and rejects the frame's `old_string`/`new_string` args.
 	 */

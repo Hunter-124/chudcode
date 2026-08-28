@@ -1,8 +1,8 @@
 import { describe, expect, it } from "bun:test";
-import { Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
-import { SETTINGS_SCHEMA } from "@oh-my-pi/pi-coding-agent/config/settings-schema";
-import { BUILTIN_TOOLS, type ToolSession } from "@oh-my-pi/pi-coding-agent/tools";
-import { BUILTIN_TOOL_NAMES } from "@oh-my-pi/pi-coding-agent/tools/builtin-names";
+import { Settings } from "@chudware/coding-agent/config/settings";
+import { SETTINGS_SCHEMA } from "@chudware/coding-agent/config/settings-schema";
+import { BUILTIN_TOOLS, type ToolSession } from "@chudware/coding-agent/tools";
+import { BUILTIN_TOOL_NAMES } from "@chudware/coding-agent/tools/builtin-names";
 
 const NATIVE_TOOL_NAMES = ["image_analyze", "cpp_static", "cpp_runtime", "binary_inspect", "firmware"] as const;
 
@@ -21,7 +21,7 @@ describe("native tool suite registration", () => {
 	});
 
 	it("ships memory-safe defaults for vision and subagent admission", () => {
-		expect(SETTINGS_SCHEMA["vision.modelDir"].default).toBe("~/.omp/models/vision");
+		expect(SETTINGS_SCHEMA["vision.modelDir"].default).toBe("~/.chudcode/models/vision");
 		expect(SETTINGS_SCHEMA["vision.autoDownload"].default).toBe(true);
 		expect(SETTINGS_SCHEMA["memory.embedWorkerIdleMinutes"].default).toBe(10);
 		expect(SETTINGS_SCHEMA["task.minFreeMemMB"].default).toBe(1024);

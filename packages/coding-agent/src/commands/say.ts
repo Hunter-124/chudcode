@@ -9,10 +9,10 @@
  * model into the worker's cache.
  */
 
-import { getProjectDir } from "@oh-my-pi/pi-utils";
-import chalk from "@oh-my-pi/pi-utils/chalk";
-import { Args, Command, Flags } from "@oh-my-pi/pi-utils/cli";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
+import { getProjectDir } from "@chudware/utils";
+import chalk from "@chudware/utils/chalk";
+import { Args, Command, Flags } from "@chudware/utils/cli";
+import * as fsx from "@chudware/utils/fsx";
 import { sayHelp as commandHelp } from "../cli/command-help";
 import { Settings, settings } from "../config/settings";
 import { TTS_LOCAL_VOICE_VALUES } from "../tts/models";

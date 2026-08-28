@@ -1,7 +1,7 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
-import { isEnoent } from "@oh-my-pi/pi-utils";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
+import { isEnoent } from "@chudware/utils";
+import * as fsx from "@chudware/utils/fsx";
 import { type LocalProtocolOptions, resolveLocalUrlToPath } from "../internal-urls";
 import { normalizeLocalScheme, resolveToCwd } from "../tools/path-utils";
 

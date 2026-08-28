@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "bun:test";
-import { connectToServer } from "@oh-my-pi/pi-coding-agent/mcp/client";
-import { HttpTransport } from "@oh-my-pi/pi-coding-agent/mcp/transports/http";
-import { sleep } from "@oh-my-pi/pi-utils/async";
+import { connectToServer } from "@chudware/coding-agent/mcp/client";
+import { HttpTransport } from "@chudware/coding-agent/mcp/transports/http";
+import { sleep } from "@chudware/utils/async";
 
 const encoder = new TextEncoder();
 const REQUEST_TIMEOUT_MS = 50;

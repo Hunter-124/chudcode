@@ -2,8 +2,8 @@
 
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
-import { isEnoent } from "@oh-my-pi/pi-utils";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
+import { isEnoent } from "@chudware/utils";
+import * as fsx from "@chudware/utils/fsx";
 import { buildDocsIndexPayload } from "./generate-docs-index";
 
 const packageDir = path.join(import.meta.dir, "..");
@@ -13,14 +13,14 @@ const shebang = "#!/usr/bin/env bun\n";
 const legacyHtmlExportAssetPattern = /^(?:template-[^.]+\.(?:css|html|js)|tool-views\.generated-[^.]+\.js)$/;
 
 // Native / optional / platform-specific deps are loaded from installed files.
-// `omp-legacy-pi-modules` exists only in compiled binaries via the build plugin;
+// `chudcode-legacy-pi-modules` exists only in compiled binaries via the build plugin;
 // the npm bundle never executes that `isCompiledBinary()` branch.
 const ALWAYS_EXTERNAL = [
-	"@oh-my-pi/pi-natives",
+	"@chudware/natives",
 	"@huggingface/transformers",
 	"fastembed",
 	"onnxruntime-node",
-	"omp-legacy-pi-modules",
+	"chudcode-legacy-pi-modules",
 ];
 
 // Heavy, lazily-used third-party leaf deps. Each is a declared `dependency`, so the
@@ -55,7 +55,7 @@ function formatBytes(bytes: number): string {
 }
 
 async function cleanBundleOutputs(): Promise<void> {
-	// dist/ is shared with the dev binary (dist/omp); only remove assets
+	// dist/ is shared with the dev binary (dist/chudcode); only remove assets
 	// emitted by this script.
 	let entries: string[];
 	try {
@@ -88,8 +88,8 @@ async function main(): Promise<void> {
 	await runCommand(["bun", "--cwd=../stats", "run", "gen:stats"]);
 	// One payload for both consumers: inlined into dist/cli.js via `--define` for
 	// the bundled CLI entrypoint, and written to dist/docs-index.generated.txt so
-	// SDK consumers importing `@oh-my-pi/pi-coding-agent/*` (TypeScript source, no
-	// build-time embed) can still resolve omp:// docs (see src/internal-urls/docs-index.ts).
+	// SDK consumers importing `@chudware/coding-agent/*` (TypeScript source, no
+	// build-time embed) can still resolve chudcode:// docs (see src/internal-urls/docs-index.ts).
 	try {
 		const docsPayload = await buildDocsIndexPayload();
 		// Build in-process: the docs embed payload is far larger than Linux's
@@ -101,8 +101,8 @@ async function main(): Promise<void> {
 			target: "bun",
 			external: [...ALWAYS_EXTERNAL, ...RUNTIME_EXTERNAL],
 			define: {
-				"process.env.PI_BUNDLED": JSON.stringify("true"),
-				"process.env.PI_DOCS_EMBED": JSON.stringify(docsPayload.payload),
+				"process.env.CHUDCODE_BUNDLED": JSON.stringify("true"),
+				"process.env.CHUDCODE_DOCS_EMBED": JSON.stringify(docsPayload.payload),
 			},
 			minify: {
 				whitespace: true,

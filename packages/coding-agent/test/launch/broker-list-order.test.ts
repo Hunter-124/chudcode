@@ -1,8 +1,8 @@
 import { describe, expect, it } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
-import { TempDir } from "@oh-my-pi/pi-utils";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
+import { TempDir } from "@chudware/utils";
+import * as fsx from "@chudware/utils/fsx";
 import { startDaemonBrokerFromEnvironment } from "../../src/launch/broker";
 import { createDaemonBrokerClient, type DaemonBrokerClient } from "../../src/launch/client";
 import {
@@ -79,7 +79,7 @@ async function shutdown(client: DaemonBrokerClient, broker: Promise<void>, activ
 
 describe("broker list", () => {
 	it("returns active daemons first and caps recovered terminal history by real exit time", async () => {
-		using tempDir = TempDir.createSync("@omp-launch-list-");
+		using tempDir = TempDir.createSync("@chudcode-launch-list-");
 		const projectDir = path.join(tempDir.path(), "project");
 		const runtimeDir = path.join(tempDir.path(), "runtime");
 		await fs.mkdir(projectDir);

@@ -5,8 +5,8 @@
  * fallback strategies for finding text in files.
  */
 
-import { type } from "@oh-my-pi/omptype";
-import type { AgentToolResult } from "@oh-my-pi/pi-agent-core";
+import { type } from "@chudware/chudtype";
+import type { AgentToolResult } from "@chudware/agent-core";
 import type { FileDiagnosticsResult, WritethroughCallback, WritethroughDeferredHandle } from "../../lsp";
 import type { ToolSession } from "../../tools";
 import { routeWriteThroughBridge } from "../../tools/acp-bridge";
@@ -1095,7 +1095,7 @@ export type ReplaceParams = typeof replaceEditSchema.infer;
 
 /**
  * Internal batch form of {@link ReplaceParams}, produced only by the Cursor
- * exec bridge: a `pi_edit` frame carries several replacements against one
+ * exec bridge: a `chud_edit` frame carries several replacements against one
  * path but must run as a single tool lifecycle with one aggregate result.
  * Never advertised to the model — the agent loop validates model calls
  * against {@link replaceEditSchema}, which has no `edits` field.

@@ -1,4 +1,4 @@
-import { sleep } from "@oh-my-pi/pi-utils/async";
+import { sleep } from "@chudware/utils/async";
 import type { ToolSession } from "..";
 
 export type MiValue = string | MiTuple | MiValue[];

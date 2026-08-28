@@ -9,7 +9,7 @@
  * (or `options: "runtime"` for runtime-injected lists like themes).
  */
 
-import { TERMINAL } from "@oh-my-pi/pi-tui";
+import { TERMINAL } from "@chudware/tui";
 import { Settings } from "../../config/settings";
 import {
 	type AnyUiMetadata,
@@ -146,7 +146,7 @@ const CONDITIONS: Record<string, ConditionDefinition> = {
 		dependsOn: "memory.backend",
 		test: () => {
 			try {
-				return Settings.instance.get("memory.backend") === "mnemopi";
+				return Settings.instance.get("memory.backend") === "mnemo";
 			} catch {
 				return false;
 			}

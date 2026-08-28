@@ -2,10 +2,10 @@ import { afterAll, beforeAll, describe, expect, it } from "bun:test";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
-import { clearCache, readFile } from "@oh-my-pi/pi-coding-agent/capability/fs";
-import { sleep } from "@oh-my-pi/pi-utils/async";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
-import * as proc from "@oh-my-pi/pi-utils/proc";
+import { clearCache, readFile } from "@chudware/coding-agent/capability/fs";
+import { sleep } from "@chudware/utils/async";
+import * as fsx from "@chudware/utils/fsx";
+import * as proc from "@chudware/utils/proc";
 
 const isWindows = process.platform === "win32";
 
@@ -13,7 +13,7 @@ describe("capability/fs readFile on special files", () => {
 	let dir = "";
 
 	beforeAll(async () => {
-		dir = await fs.promises.mkdtemp(path.join(os.tmpdir(), "omp-fs-special-"));
+		dir = await fs.promises.mkdtemp(path.join(os.tmpdir(), "chudcode-fs-special-"));
 	});
 
 	afterAll(async () => {

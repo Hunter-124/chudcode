@@ -7,10 +7,10 @@ import {
 	synthesizeCursorExecToolCall,
 	type ToolCallState,
 	type UsageState,
-} from "@oh-my-pi/pi-ai/providers/cursor";
-import type { AssistantMessage, AssistantMessageEvent } from "@oh-my-pi/pi-ai/types";
-import { getStreamingPartialJson, kCursorExecResolved } from "@oh-my-pi/pi-ai/utils/block-symbols";
-import { AssistantMessageEventStream } from "@oh-my-pi/pi-ai/utils/event-stream";
+} from "@chudware/ai/providers/cursor";
+import type { AssistantMessage, AssistantMessageEvent } from "@chudware/ai/types";
+import { getStreamingPartialJson, kCursorExecResolved } from "@chudware/ai/utils/block-symbols";
+import { AssistantMessageEventStream } from "@chudware/ai/utils/event-stream";
 
 interface Harness {
 	output: AssistantMessage;

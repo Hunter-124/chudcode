@@ -1,24 +1,24 @@
 # Natives media + system utilities
 
-This document covers the media/system/conversion exports currently present in `@oh-my-pi/pi-natives`: audio capture/playback and live WebRTC media, terminal SIXEL and snapcompact PNG encoding, HTML conversion, clipboard access, token counting, DeviceCheck, macOS appearance/power helpers, and work profiling.
+This document covers the media/system/conversion exports currently present in `@chudware/natives`: audio capture/playback and live WebRTC media, terminal SIXEL and snapcompact PNG encoding, HTML conversion, clipboard access, token counting, DeviceCheck, macOS appearance/power helpers, and work profiling.
 
 ## Implementation files
 
-- `crates/pi-natives/src/audio.rs`
-- `crates/pi-natives/src/live.rs`
-- `crates/pi-natives/src/snapcompact.rs`
-- `crates/pi-natives/src/sixel.rs`
-- `crates/pi-natives/src/html.rs`
-- `crates/pi-natives/src/clipboard.rs`
-- `crates/pi-natives/src/tokens.rs`
-- `crates/pi-natives/src/devicecheck.rs`
-- `crates/pi-natives/src/appearance.rs`
-- `crates/pi-natives/src/power.rs`
-- `crates/pi-natives/src/prof.rs`
-- `crates/pi-natives/src/task.rs`
+- `crates/chud-natives/src/audio.rs`
+- `crates/chud-natives/src/live.rs`
+- `crates/chud-natives/src/snapcompact.rs`
+- `crates/chud-natives/src/sixel.rs`
+- `crates/chud-natives/src/html.rs`
+- `crates/chud-natives/src/clipboard.rs`
+- `crates/chud-natives/src/tokens.rs`
+- `crates/chud-natives/src/devicecheck.rs`
+- `crates/chud-natives/src/appearance.rs`
+- `crates/chud-natives/src/power.rs`
+- `crates/chud-natives/src/prof.rs`
+- `crates/chud-natives/src/task.rs`
 - `packages/natives/native/index.d.ts`
 
-There is no native `PhotonImage` class, `image.rs`, or ProjFS overlay helper module in the current `pi-natives` addon. General-purpose image decode/resize/encode is expected to live outside this surface; the image-specific exports here are terminal SIXEL encoding and snapcompact PNG frame rendering.
+There is no native `PhotonImage` class, `image.rs`, or ProjFS overlay helper module in the current `chud-natives` addon. General-purpose image decode/resize/encode is expected to live outside this surface; the image-specific exports here are terminal SIXEL encoding and snapcompact PNG frame rendering.
 
 ## JS API ↔ Rust export/module mapping
 

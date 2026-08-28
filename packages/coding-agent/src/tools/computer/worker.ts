@@ -11,11 +11,11 @@ import type {
 	DesktopSessionOptions,
 	DesktopWindow,
 	PointerOptions,
-} from "@oh-my-pi/pi-natives";
-import { createDesktopSession } from "@oh-my-pi/pi-natives/desktop";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
-import * as postmortem from "@oh-my-pi/pi-utils/postmortem";
-import { Snowflake } from "@oh-my-pi/pi-utils/snowflake";
+} from "@chudware/natives";
+import { createDesktopSession } from "@chudware/natives/desktop";
+import * as fsx from "@chudware/utils/fsx";
+import * as postmortem from "@chudware/utils/postmortem";
+import { Snowflake } from "@chudware/utils/snowflake";
 import { JsRuntime, type RuntimeHooks } from "../../eval/js/shared/runtime";
 import { copyToClipboard, readTextFromClipboard } from "../../utils/clipboard";
 import { cloneSafe, RunOutput } from "../browser/run-output";
@@ -192,7 +192,7 @@ async function captureScreenshot(
 			maxHeight: context.snapshot.captureMaxHeight,
 		}),
 	);
-	const destination = path.join(os.tmpdir(), `omp-computer-${Snowflake.next()}.png`);
+	const destination = path.join(os.tmpdir(), `chudcode-computer-${Snowflake.next()}.png`);
 	await fsx.write(destination, frame.data);
 	const scaled = frame.width !== frame.sourceWidth || frame.height !== frame.sourceHeight;
 	context.screenshots.push({

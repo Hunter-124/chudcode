@@ -1,6 +1,6 @@
-import type { AgentMessage } from "@oh-my-pi/pi-agent-core";
-import type { Api, Model } from "@oh-my-pi/pi-ai";
-import { formatNumber } from "@oh-my-pi/pi-utils";
+import type { AgentMessage } from "@chudware/agent-core";
+import type { Api, Model } from "@chudware/ai";
+import { formatNumber } from "@chudware/utils";
 import { formatCost } from "../../modes/components/agent-hub-renderer";
 import {
 	calculateCacheMetrics,

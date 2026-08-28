@@ -1,6 +1,6 @@
 import { dlopen, FFIType, ptr } from "bun:ffi";
 import * as fs from "node:fs";
-import { TtyWriter } from "@oh-my-pi/pi-natives";
+import { TtyWriter } from "@chudware/natives";
 import {
 	$env,
 	isBunTestRuntime,
@@ -9,7 +9,7 @@ import {
 	postmortem,
 	restoreTerminalStderr,
 	suppressTerminalStderr,
-} from "@oh-my-pi/pi-utils";
+} from "@chudware/utils";
 import { setKittyProtocolActive } from "./keys";
 import { StdinBuffer } from "./stdin-buffer";
 import {
@@ -351,7 +351,7 @@ export function emergencyTerminalRestore(): void {
 		const terminal = activeTerminal;
 		if (terminal) {
 			// Keyboard enhancement state is screen-local: pop the alt-screen
-			// frame before leaving it, then let stop() pop omp's main-screen frame.
+			// frame before leaving it, then let stop() pop chudcode's main-screen frame.
 			if (altScreenActive) {
 				const keyboardExit =
 					terminal.keyboardEnhancementExitSequence ?? (terminal.kittyEnableSequence ? "\x1b[<u" : "");
@@ -420,7 +420,7 @@ export interface Terminal {
 	 * attach input handlers, and run the capability probes start() skipped.
 	 * Bytes the user typed in cooked mode meanwhile are replayed through
 	 * `onInput`. No-op when input was never deferred. Optional so custom
-	 * Terminals built against older pi-tui versions keep working.
+	 * Terminals built against older chud-tui versions keep working.
 	 */
 	enableInput?(): void;
 
@@ -446,7 +446,7 @@ export interface Terminal {
 	 * implementation can report it. The renderer skips composing new frames
 	 * while this backlog is deep, so a slow terminal receives only fresh
 	 * frames instead of a queue of stale ones. Optional so custom Terminals
-	 * built against older pi-tui versions keep working.
+	 * built against older chud-tui versions keep working.
 	 */
 	readonly pendingOutputBytes?: number;
 
@@ -460,12 +460,12 @@ export interface Terminal {
 
 	// The active modified-key reporting sequence to reassert on alternate-screen
 	// entry, or null when no enhanced keyboard mode is active. Optional so custom
-	// Terminals built against older pi-tui versions keep working.
+	// Terminals built against older chud-tui versions keep working.
 	readonly keyboardEnhancementEnterSequence?: string | null;
 
 	// The sequence that cleanly disables the active enhanced keyboard mode on
 	// alternate-screen exit, or null when no exit handshake is required. Optional
-	// so custom Terminals built against older pi-tui versions keep working.
+	// so custom Terminals built against older chud-tui versions keep working.
 	readonly keyboardEnhancementExitSequence?: string | null;
 
 	// Cursor positioning (relative to current position)
@@ -502,7 +502,7 @@ export interface Terminal {
 	 * Register a callback fired for every valid OSC 11 appearance report,
 	 * including reports whose classification matches the current appearance.
 	 * Unlike onAppearanceChange, this does not replay an earlier report.
-	 * Optional so custom Terminals built against older pi-tui versions keep working.
+	 * Optional so custom Terminals built against older chud-tui versions keep working.
 	 */
 	onAppearanceReport?(
 		callback: (appearance: TerminalAppearance, requestToken?: TerminalAppearanceRequestToken) => void,
@@ -519,7 +519,7 @@ export interface Terminal {
 	 * A caller-provided token must be propagated unchanged to callbacks and
 	 * returned when the request is accepted. This lets callers establish ownership
 	 * before implementations synchronously dispatch a cached response. Optional so
-	 * custom Terminals built against older pi-tui versions keep working.
+	 * custom Terminals built against older chud-tui versions keep working.
 	 */
 	refreshAppearance?(requestToken?: TerminalAppearanceRequestToken): TerminalAppearanceRequestToken | void;
 	/** The last detected terminal appearance, or undefined if not yet known. */
@@ -635,7 +635,7 @@ export class ProcessTerminal implements Terminal {
 	// chunking (#safeWrite). Live-detected by default; tests inject a fixed
 	// value so WSL env does not change behavior. See {@link ProcessTerminalOptions}.
 	readonly #conpty: boolean;
-	#writeLogPath = $env.PI_TUI_WRITE_LOG || "";
+	#writeLogPath = $env.CHUDCODE_TUI_WRITE_LOG || "";
 	#stdoutErrorCleanup?: () => void;
 	#stdoutErrorHandler = (err: Error) => {
 		this.#markTerminalDisconnected("stdout failed", err);
@@ -811,7 +811,7 @@ export class ProcessTerminal implements Terminal {
 
 		// Keep unmanaged fd-2 writes (macOS libmalloc/framework diagnostics) off
 		// the viewport while we own the terminal; released in stop(). See
-		// stderr-guard in pi-utils (mirrors openai/codex#24459).
+		// stderr-guard in chud-utils (mirrors openai/codex#24459).
 		suppressTerminalStderr();
 
 		// Set up resize handler immediately. The OS refreshes process.stdout
@@ -878,7 +878,7 @@ export class ProcessTerminal implements Terminal {
 		this.#safeWrite("\x1b[?2004h");
 
 		// Force normal cursor-key (DECCKM) and numeric-keypad mode (terminfo
-		// `rmkx` = "\x1b[?1l\x1b>"). omp decodes both CSI ("\x1b[A") and SS3
+		// `rmkx` = "\x1b[?1l\x1b>"). chudcode decodes both CSI ("\x1b[A") and SS3
 		// ("\x1bOA") arrow encodings, so it never enables application mode
 		// itself — but a prior program that left the TTY in application-cursor-
 		// keys mode makes arrows arrive as SS3. Normalizing on entry keeps input
@@ -928,7 +928,7 @@ export class ProcessTerminal implements Terminal {
 		// gates the renderer's begin/end markers; 2048 (in-band resize) is enabled
 		// only after the terminal confirms support; 2031 (appearance change
 		// notifications) drives mid-session theme tracking. Xterm ?1010/?1011
-		// are disabled while OMP owns the TTY so typing in the editor does not
+		// are disabled while Chudcode owns the TTY so typing in the editor does not
 		// force a reader scrolled into native history back to the tail. Each probe
 		// rides the shared DA1 sentinel, so terminals that ignore DECRQM resolve as
 		// unsupported when the DA1 reply arrives.
@@ -1376,7 +1376,7 @@ export class ProcessTerminal implements Terminal {
 		// single-line OSC 99 form until confirmation, and delivery still uses the
 		// passthrough/BEL path (#3395).
 		if (isInsideTerminalMultiplexer($env)) return false;
-		return !isBunTestRuntime() || $env.PI_TUI_OSC99_PROBE === "1";
+		return !isBunTestRuntime() || $env.CHUDCODE_TUI_OSC99_PROBE === "1";
 	}
 
 	#queryOsc99Support(): void {
@@ -1386,7 +1386,7 @@ export class ProcessTerminal implements Terminal {
 		this.#osc99ResponseBuffer = "";
 		if (this.#dead || !this.#shouldQueryOsc99Support()) return;
 
-		const id = `omp-probe-${nextOsc99ProbeId++}`;
+		const id = `chudcode-probe-${nextOsc99ProbeId++}`;
 		this.#osc99PendingId = id;
 		this.#da1SentinelOwners.push({ kind: "osc99Probe", id });
 		// The probe never runs under a multiplexer (see #shouldQueryOsc99Support),
@@ -1669,7 +1669,7 @@ export class ProcessTerminal implements Terminal {
 		// `rmkx`). Symmetric with the normalize in start(): a TTY-sharing child
 		// can leave the terminal in application-cursor-keys mode, and without
 		// this reset the parent shell inherits SS3 arrows so Up/Down history
-		// navigation stays broken after omp exits (#6374).
+		// navigation stays broken after chudcode exits (#6374).
 		this.#safeWrite("\x1b[?1l\x1b>");
 
 		// Disable bracketed paste mode

@@ -2,15 +2,15 @@ import { afterAll, beforeAll, describe, expect, it } from "bun:test";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
-import { resetSettingsForTest, Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
-import type { StatusLineSegmentId } from "@oh-my-pi/pi-coding-agent/config/settings-schema";
-import { StatusLineComponent } from "@oh-my-pi/pi-coding-agent/modes/components/status-line";
-import type { SegmentContext } from "@oh-my-pi/pi-coding-agent/modes/components/status-line/segments";
-import { renderSegment } from "@oh-my-pi/pi-coding-agent/modes/components/status-line/segments";
-import { initTheme, theme } from "@oh-my-pi/pi-coding-agent/modes/theme/theme";
-import { getSessionAccentAnsi, getSessionAccentHex } from "@oh-my-pi/pi-coding-agent/utils/session-color";
-import { visibleWidth } from "@oh-my-pi/pi-tui";
-import { getProjectDir, setProjectDir } from "@oh-my-pi/pi-utils";
+import { resetSettingsForTest, Settings } from "@chudware/coding-agent/config/settings";
+import type { StatusLineSegmentId } from "@chudware/coding-agent/config/settings-schema";
+import { StatusLineComponent } from "@chudware/coding-agent/modes/components/status-line";
+import type { SegmentContext } from "@chudware/coding-agent/modes/components/status-line/segments";
+import { renderSegment } from "@chudware/coding-agent/modes/components/status-line/segments";
+import { initTheme, theme } from "@chudware/coding-agent/modes/theme/theme";
+import { getSessionAccentAnsi, getSessionAccentHex } from "@chudware/coding-agent/utils/session-color";
+import { visibleWidth } from "@chudware/tui";
+import { getProjectDir, setProjectDir } from "@chudware/utils";
 
 const originalProjectDir = getProjectDir();
 
@@ -139,7 +139,7 @@ describe("status line session accent", () => {
 		const component = new StatusLineComponent(createStatusLineSession("Named session"));
 		component.updateSettings({
 			preset: "custom",
-			leftSegments: ["pi"],
+			leftSegments: ["chud"],
 			rightSegments: ["session_name"],
 			separator: "powerline-thin",
 			sessionAccent,
@@ -196,13 +196,13 @@ describe("status line session accent", () => {
 
 describe("session_name preview-title fallback", () => {
 	it("renders the stand-in title when the session is unnamed", () => {
-		const seg = renderSegment("session_name", createCtx({ previewTitle: "omp" }));
+		const seg = renderSegment("session_name", createCtx({ previewTitle: "chudcode" }));
 		expect(seg.visible).toBe(true);
-		expect(stripAnsi(seg.content)).toBe("omp");
+		expect(stripAnsi(seg.content)).toBe("chudcode");
 	});
 
 	it("prefers the real session name over the stand-in", () => {
-		const seg = renderSegment("session_name", createCtx({ sessionName: "Named session", previewTitle: "omp" }));
+		const seg = renderSegment("session_name", createCtx({ sessionName: "Named session", previewTitle: "chudcode" }));
 		expect(stripAnsi(seg.content)).toBe("Named session");
 	});
 
@@ -210,17 +210,17 @@ describe("session_name preview-title fallback", () => {
 		const component = new StatusLineComponent(createStatusLineSession(""));
 		component.updateSettings({
 			preset: "custom",
-			leftSegments: ["pi"],
+			leftSegments: ["chud"],
 			rightSegments: ["session_name"],
 			separator: "powerline-thin",
 			sessionAccent: false,
 		});
-		const withTitle = component.getTopBorder(80, "omp");
+		const withTitle = component.getTopBorder(80, "chudcode");
 		// The gauge fill pads the group gap, so the title chip lands flush right.
 		expect(withTitle.width).toBe(80);
-		expect(stripAnsi(withTitle.content).trimEnd().endsWith("omp")).toBe(true);
+		expect(stripAnsi(withTitle.content).trimEnd().endsWith("chudcode")).toBe(true);
 		// Live render path passes no preview title: unnamed sessions show none.
-		expect(stripAnsi(component.getTopBorder(80).content)).not.toContain("omp");
+		expect(stripAnsi(component.getTopBorder(80).content)).not.toContain("chudcode");
 	});
 });
 
@@ -229,7 +229,7 @@ describe("status line focused-agent dimming", () => {
 		const component = new StatusLineComponent(createStatusLineSession("Focused session"));
 		component.updateSettings({
 			preset: "custom",
-			leftSegments: ["pi"],
+			leftSegments: ["chud"],
 			rightSegments: ["session_name"],
 			separator: "powerline-thin",
 			sessionAccent: false,
@@ -250,7 +250,7 @@ describe("path segment truncation at varying maxLength", () => {
 	let tmpDir: string;
 
 	beforeAll(() => {
-		tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "omp-overflow-very-long-directory-name-for-testing-"));
+		tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "chudcode-overflow-very-long-directory-name-for-testing-"));
 		setProjectDir(tmpDir);
 	});
 
@@ -286,7 +286,7 @@ describe("overflow: path shrinks before git is dropped", () => {
 
 	beforeAll(() => {
 		// Long dir name guarantees the path segment is wide
-		tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "omp-overflow-a-very-long-worktree-directory-name-here-"));
+		tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "chudcode-overflow-a-very-long-worktree-directory-name-here-"));
 		setProjectDir(tmpDir);
 	});
 
@@ -398,7 +398,7 @@ describe("overflow: path shrinks before git is dropped", () => {
 
 	it("shrinks a short path when maxLength exceeds actual path length", () => {
 		// Short dir name — rendered path is well under the configured maxLength.
-		const shortDir = fs.mkdtempSync(path.join(os.tmpdir(), "omp-short-"));
+		const shortDir = fs.mkdtempSync(path.join(os.tmpdir(), "chudcode-short-"));
 		setProjectDir(shortDir);
 		try {
 			const maxLength = 160;
@@ -425,7 +425,7 @@ describe("overflow: path shrinks before git is dropped", () => {
 		}
 	});
 	it("preserves git when overflow is only 1-2 columns", () => {
-		const shortDir = fs.mkdtempSync(path.join(os.tmpdir(), "omp-narrow-ovf-"));
+		const shortDir = fs.mkdtempSync(path.join(os.tmpdir(), "chudcode-narrow-ovf-"));
 		setProjectDir(shortDir);
 		try {
 			const ctx = createCtx({ pathMaxLength: 80, branch: "main" });
@@ -455,7 +455,7 @@ describe("overflow: path shrinks before git is dropped", () => {
 
 describe("overflow: path survives before model", () => {
 	it("drops the model segment before the cwd path when both cannot fit", () => {
-		const root = fs.mkdtempSync(path.join(os.tmpdir(), "omp-statusline-overflow-"));
+		const root = fs.mkdtempSync(path.join(os.tmpdir(), "chudcode-statusline-overflow-"));
 		const cwd = path.join(root, "cwdxyz");
 		fs.mkdirSync(cwd);
 		setProjectDir(cwd);
@@ -470,7 +470,7 @@ describe("overflow: path survives before model", () => {
 		};
 		component.updateSettings({
 			preset: "custom",
-			leftSegments: ["pi", "model", "path"],
+			leftSegments: ["chud", "model", "path"],
 			rightSegments: [],
 			separator: "none",
 			sessionAccent: false,
@@ -489,7 +489,7 @@ describe("overflow: path survives before model", () => {
 				path: pathOptions,
 			},
 		} as SegmentContext;
-		const pi = renderSegment("pi", ctx).content;
+		const chud = renderSegment("chud", ctx).content;
 		const model = renderSegment("model", ctx).content;
 		const minPath = renderSegment("path", {
 			...ctx,
@@ -500,10 +500,10 @@ describe("overflow: path survives before model", () => {
 			parts.reduce((sum, part) => sum + visibleWidth(part), 0) +
 			Math.max(0, parts.length - 1) * (separatorWidth + 2) +
 			2;
-		const width = groupWidth([pi, model]) + 1;
+		const width = groupWidth([chud, model]) + 1;
 
-		expect(groupWidth([pi, model, minPath])).toBeGreaterThan(width);
-		expect(groupWidth([pi, minPath])).toBeLessThanOrEqual(width);
+		expect(groupWidth([chud, model, minPath])).toBeGreaterThan(width);
+		expect(groupWidth([chud, minPath])).toBeLessThanOrEqual(width);
 
 		const rendered = stripAnsi(component.getTopBorder(width).content);
 		expect(rendered).toContain("xyz");

@@ -1,18 +1,18 @@
 # Filesystem scan cache architecture contract
 
-This document defines the shared Rust filesystem scan cache implemented by `crates/pi-walker` and consumed by native discovery APIs exposed to `packages/coding-agent`.
+This document defines the shared Rust filesystem scan cache implemented by `crates/chud-walker` and consumed by native discovery APIs exposed to `packages/coding-agent`.
 
 ## Ownership and data model
 
-The cache lives in `crates/pi-walker/src/cache.rs`. It stores owned `CollectedEntry` lists from a directory walk, not final glob, fuzzy, grep, or AST results. `WalkRequest` in `crates/pi-walker/src/lib.rs` applies static filters, ranking, limits, and optional empty-result revalidation around that collection layer.
+The cache lives in `crates/chud-walker/src/cache.rs`. It stores owned `CollectedEntry` lists from a directory walk, not final glob, fuzzy, grep, or AST results. `WalkRequest` in `crates/chud-walker/src/lib.rs` applies static filters, ranking, limits, and optional empty-result revalidation around that collection layer.
 
 Current native consumers:
 
-- `crates/pi-natives/src/glob.rs` — opt-in with `GlobOptions.cache`
-- `crates/pi-natives/src/fd.rs` (`fuzzyFind`) — opt-in with `FuzzyFindOptions.cache`
-- `crates/pi-natives/src/ast.rs` (`astGrep` / `astEdit` discovery) — always cached for directory operands
+- `crates/chud-natives/src/glob.rs` — opt-in with `GlobOptions.cache`
+- `crates/chud-natives/src/fd.rs` (`fuzzyFind`) — opt-in with `FuzzyFindOptions.cache`
+- `crates/chud-natives/src/ast.rs` (`astGrep` / `astEdit` discovery) — always cached for directory operands
 
-`crates/pi-natives/src/grep.rs` uses `WalkRequest` for candidate discovery but explicitly sets `.cache(false)`; the current public `GrepOptions` has no cache field.
+`crates/chud-natives/src/grep.rs` uses `WalkRequest` for candidate discovery but explicitly sets `.cache(false)`; the current public `GrepOptions` has no cache field.
 
 The public invalidation binding remains `invalidateFsScanCache(path?)` in `packages/natives/native/index.d.ts` / `index.js`. Coding-agent mutation helpers live in `packages/coding-agent/src/tools/fs-cache-invalidation.ts`.
 
@@ -29,13 +29,13 @@ High-level `WalkRequest` filters, ranking, result limits, empty-recheck policy, 
 
 ## Collection behavior
 
-`pi-walker` resolves relative roots against current cwd, requires an existing directory, and canonicalizes it when possible. `WalkOptions` controls traversal; consumers explicitly choose their policies rather than inheriting every walker default.
+`chud-walker` resolves relative roots against current cwd, requires an existing directory, and canonicalizes it when possible. `WalkOptions` controls traversal; consumers explicitly choose their policies rather than inheriting every walker default.
 
 Collected entries contain normalized forward-slash relative paths and file types. `WalkDetail::Full` additionally requests mtime and regular-file size. Cancellation is delivered through the caller-supplied heartbeat.
 
 Traversal-adjacent parallel work uses a shared Rayon pool:
 
-- `PI_WALK_WORKERS` defaults to `4`
+- `CHUDCODE_WALK_WORKERS` defaults to `4`
 - `0` auto-detects available parallelism
 - `1` forces serial work
 - helper operations parallelize only at 256 or more items

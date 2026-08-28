@@ -2,10 +2,10 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
-import { clearCache } from "@oh-my-pi/pi-coding-agent/capability/fs";
-import type { LoadContext } from "@oh-my-pi/pi-coding-agent/capability/types";
-import { loadFilesFromDir } from "@oh-my-pi/pi-coding-agent/discovery/helpers";
-import { parseFrontmatter, removeSyncWithRetries } from "@oh-my-pi/pi-utils";
+import { clearCache } from "@chudware/coding-agent/capability/fs";
+import type { LoadContext } from "@chudware/coding-agent/capability/types";
+import { loadFilesFromDir } from "@chudware/coding-agent/discovery/helpers";
+import { parseFrontmatter, removeSyncWithRetries } from "@chudware/utils";
 
 describe("parseFrontmatter", () => {
 	const parse = (content: string) => parseFrontmatter(content, { source: "tests:frontmatter", level: "off" });
@@ -166,7 +166,7 @@ describe("loadFilesFromDir recursion", () => {
 
 	beforeEach(() => {
 		clearCache();
-		tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "pi-loadfiles-recursion-"));
+		tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "chud-loadfiles-recursion-"));
 		ctx = { cwd: tempDir, home: tempDir, repoRoot: tempDir };
 		// Top-level tool plus a Python-venv-style frontend asset nested below it,
 		// mirroring the ~/.codex/tools/mineru/Lib/site-packages layout from #8552.

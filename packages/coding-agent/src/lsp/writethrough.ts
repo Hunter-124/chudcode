@@ -1,7 +1,7 @@
 import * as fs from "node:fs";
-import { isEnoent, logger, once, untilAborted } from "@oh-my-pi/pi-utils";
-import { sleep } from "@oh-my-pi/pi-utils/async";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
+import { isEnoent, logger, once, untilAborted } from "@chudware/utils";
+import { sleep } from "@chudware/utils/async";
+import * as fsx from "@chudware/utils/fsx";
 import type { BunFile } from "bun";
 import { isPermissionDeniedError, writeFileWithFallback } from "../tools/file-write-fallback";
 import { FileChangeType, notifyWorkspaceWatchedFiles } from "./client";

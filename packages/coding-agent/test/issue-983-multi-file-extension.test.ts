@@ -2,21 +2,21 @@ import { afterEach, describe, expect, it } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import { discoverAndLoadExtensions } from "@oh-my-pi/pi-coding-agent/extensibility/extensions/loader";
-import { removeWithRetries } from "@oh-my-pi/pi-utils";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
+import { discoverAndLoadExtensions } from "@chudware/coding-agent/extensibility/extensions/loader";
+import { removeWithRetries } from "@chudware/utils";
+import * as fsx from "@chudware/utils/fsx";
 
 const TOOL_NAME = "legacy-multi-file-tool";
 
-describe("issue #983: multi-file legacy Pi extensions", () => {
+describe("issue #983: multi-file legacy Chud extensions", () => {
 	const tempDirs: string[] = [];
 
 	afterEach(async () => {
 		await Promise.all(tempDirs.splice(0).map(dir => removeWithRetries(dir)));
 	});
 
-	it("loads legacy Pi extensions whose sibling TypeScript files import each other via relative paths", async () => {
-		const projectDir = await fs.mkdtemp(path.join(os.tmpdir(), "omp-issue-983-project-"));
+	it("loads legacy Chud extensions whose sibling TypeScript files import each other via relative paths", async () => {
+		const projectDir = await fs.mkdtemp(path.join(os.tmpdir(), "chudcode-issue-983-project-"));
 		tempDirs.push(projectDir);
 		const extensionDir = path.join(projectDir, "legacy-pi-multi-file-extension");
 
@@ -27,7 +27,7 @@ describe("issue #983: multi-file legacy Pi extensions", () => {
 				{
 					name: "legacy-pi-multi-file-extension",
 					version: "1.0.0",
-					pi: {
+					chud: {
 						extensions: ["./index.ts"],
 					},
 				},
@@ -41,8 +41,8 @@ describe("issue #983: multi-file legacy Pi extensions", () => {
 			[
 				'import { foo } from "./helper.ts";',
 				"",
-				"export default function(pi) {",
-				"\tconst { Type } = pi.typebox;",
+				"export default function(chud) {",
+				"\tconst { Type } = chud.typebox;",
 				"\tpi.registerTool({",
 				"\t\tname: foo,",
 				'\t\tdescription: "Issue #983 regression test",',

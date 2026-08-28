@@ -5,16 +5,16 @@ import * as path from "node:path";
 import {
 	SPINNER_GLYPH_ADVANCE_MS,
 	sharedSpinnerFrame,
-} from "@oh-my-pi/pi-coding-agent/modes/components/tool-execution";
-import { getThemeByName } from "@oh-my-pi/pi-coding-agent/modes/theme/theme";
-import { getConfigRootDir, getCustomThemesDir, removeWithRetries, setAgentDir } from "@oh-my-pi/pi-utils";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
+} from "@chudware/coding-agent/modes/components/tool-execution";
+import { getThemeByName } from "@chudware/coding-agent/modes/theme/theme";
+import { getConfigRootDir, getCustomThemesDir, removeWithRetries, setAgentDir } from "@chudware/utils";
+import * as fsx from "@chudware/utils/fsx";
 
 // Path of the built-in dark theme JSON, used as a known-valid base we can
 // extend with custom `symbols.spinnerFrames` shapes.
 const DARK_THEME_PATH = path.join(import.meta.dir, "..", "src", "modes", "theme", "dark.json");
 
-const originalAgentDir = process.env.PI_CODING_AGENT_DIR;
+const originalAgentDir = process.env.CHUDCODE_CODING_AGENT_DIR;
 const fallbackAgentDir = path.join(getConfigRootDir(), "agent");
 
 let tmpAgentDir: string;
@@ -34,7 +34,7 @@ async function writeCustomTheme(name: string, extraSymbols: Record<string, unkno
 
 describe("theme symbols.spinnerFrames", () => {
 	beforeEach(async () => {
-		tmpAgentDir = await fs.mkdtemp(path.join(os.tmpdir(), "omp-spinner-frames-"));
+		tmpAgentDir = await fs.mkdtemp(path.join(os.tmpdir(), "chudcode-spinner-frames-"));
 		setAgentDir(tmpAgentDir);
 	});
 
@@ -43,7 +43,7 @@ describe("theme symbols.spinnerFrames", () => {
 			setAgentDir(originalAgentDir);
 		} else {
 			setAgentDir(fallbackAgentDir);
-			delete process.env.PI_CODING_AGENT_DIR;
+			delete process.env.CHUDCODE_CODING_AGENT_DIR;
 		}
 		await removeWithRetries(tmpAgentDir);
 	});

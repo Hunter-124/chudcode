@@ -9,7 +9,7 @@ import {
 	type FetchImpl,
 	withExtraCaFetch,
 	wrapFetchForExtraCa,
-} from "@oh-my-pi/pi-utils/tls-fetch";
+} from "@chudware/utils/tls-fetch";
 import * as fsx from "../src/fsx";
 
 const SAMPLE_PEM =
@@ -35,7 +35,7 @@ describe("wrapFetchForExtraCa", () => {
 	beforeEach(async () => {
 		__resetExtraCaCache();
 		originalEnv = process.env.NODE_EXTRA_CA_CERTS;
-		tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "omp-extra-ca-"));
+		tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "chudcode-extra-ca-"));
 	});
 
 	afterEach(async () => {
@@ -160,7 +160,7 @@ describe("withExtraCaFetch", () => {
 	beforeEach(async () => {
 		__resetExtraCaCache();
 		originalEnv = process.env.NODE_EXTRA_CA_CERTS;
-		tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "omp-extra-ca-opts-"));
+		tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "chudcode-extra-ca-opts-"));
 	});
 
 	afterEach(async () => {

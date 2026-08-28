@@ -1,6 +1,6 @@
-import type { Agent } from "@oh-my-pi/pi-agent-core";
-import { logger } from "@oh-my-pi/pi-utils";
-import { sleep } from "@oh-my-pi/pi-utils/async";
+import type { Agent } from "@chudware/agent-core";
+import { logger } from "@chudware/utils";
+import { sleep } from "@chudware/utils/async";
 import type { Settings } from "../config/settings";
 import { disposeJuliaKernelSessionsByOwner } from "../eval/jl/executor";
 import { disposeVmContextsByOwner } from "../eval/js/context-manager";

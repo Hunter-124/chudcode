@@ -16,9 +16,9 @@ import type {
 	Message,
 	Model,
 	ProviderSessionState,
-} from "@oh-my-pi/pi-ai";
-import { logger } from "@oh-my-pi/pi-utils";
-import { sleep } from "@oh-my-pi/pi-utils/async";
+} from "@chudware/ai";
+import { logger } from "@chudware/utils";
+import { sleep } from "@chudware/utils/async";
 import type { BenchRuntime, BenchTarget, StreamSimpleFn } from "../cli/bench-runtime";
 import { formatModelSelectorValue, formatModelString } from "../config/model-resolver";
 import { shouldDisableReasoning, toReasoningEffort } from "../thinking";
@@ -186,7 +186,7 @@ async function runTarget(target: BenchTarget, options: IfBenchRunOptions): Promi
 		report.failure = {
 			turn: 0,
 			kind: "provider",
-			detail: `No credentials for provider "${model.provider}". Run \`omp\` and use /login, or set the provider API key.`,
+			detail: `No credentials for provider "${model.provider}". Run \`chudcode\` and use /login, or set the provider API key.`,
 		};
 		options.observer?.modelFinished?.(report);
 		return report;

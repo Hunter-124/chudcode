@@ -1,16 +1,16 @@
 import { afterAll, afterEach, describe, expect, it } from "bun:test";
-import type { Model } from "@oh-my-pi/pi-ai";
-import type { ModelRegistry } from "@oh-my-pi/pi-coding-agent/config/model-registry";
-import type { CustomToolContext } from "@oh-my-pi/pi-coding-agent/extensibility/custom-tools";
-import type { ReadonlySessionManager } from "@oh-my-pi/pi-coding-agent/session/session-manager";
+import type { Model } from "@chudware/ai";
+import type { ModelRegistry } from "@chudware/coding-agent/config/model-registry";
+import type { CustomToolContext } from "@chudware/coding-agent/extensibility/custom-tools";
+import type { ReadonlySessionManager } from "@chudware/coding-agent/session/session-manager";
 import {
 	getImageGenTools,
 	getImageGenToolsWithRegistry,
 	imageGenTool,
 	setImageProviderOrder,
-} from "@oh-my-pi/pi-coding-agent/tools/image-gen";
-import { removeWithRetries, USER_AGENT } from "@oh-my-pi/pi-utils";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
+} from "@chudware/coding-agent/tools/image-gen";
+import { removeWithRetries, USER_AGENT } from "@chudware/utils";
+import * as fsx from "@chudware/utils/fsx";
 
 const originalOpenRouterKey = process.env.OPENROUTER_API_KEY;
 const generatedImagePaths: string[] = [];
@@ -502,7 +502,7 @@ describe("imageGenTool", () => {
 		expect(requestHeaders?.has("chatgpt-account-id")).toBe(false);
 		expect(requestHeaders?.has("x-openai-internal-codex-residency")).toBe(false);
 		expect(requestHeaders?.get("OpenAI-Beta")).toBe("responses=experimental");
-		expect(requestHeaders?.get("originator")).toBe("pi");
+		expect(requestHeaders?.get("originator")).toBe("chud");
 		expect(result.details?.provider).toBe("openai-codex");
 		expect(result.details?.imageCount).toBe(1);
 	});

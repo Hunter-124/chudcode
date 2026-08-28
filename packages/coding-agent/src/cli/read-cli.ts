@@ -5,8 +5,8 @@
  * prints the resulting content blocks exactly as the model would receive them
  * (including truncation/limit notices appended by the meta-notice wrapper).
  */
-import { getProjectDir } from "@oh-my-pi/pi-utils";
-import chalk from "@oh-my-pi/pi-utils/chalk";
+import { getProjectDir } from "@chudware/utils";
+import chalk from "@chudware/utils/chalk";
 import { Settings } from "../config/settings";
 import { extractUriScheme } from "../internal-urls/parse";
 import { InternalUrlRouter } from "../internal-urls/router";
@@ -72,7 +72,7 @@ export async function runReadCommand(cmd: ReadCommandArgs): Promise<void> {
 		}
 
 		const tool = wrapToolWithMetaNotice(new ReadTool(session));
-		const result = await tool.execute("omp-read", { path: cmd.path });
+		const result = await tool.execute("chudcode-read", { path: cmd.path });
 
 		for (const block of result.content) {
 			if (block.type === "text") {

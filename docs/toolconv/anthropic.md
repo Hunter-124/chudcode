@@ -118,7 +118,7 @@ Anthropic-schema client tools (`bash`, `text_editor`, `computer`, `memory`) and 
 
 ### Chudcode native-adapter schema normalization
 
-The native Anthropic provider does not forward a pi tool's JSON Schema unchanged. Before placing it in `input_schema`, Chudcode keeps these keywords:
+The native Anthropic provider does not forward a chud tool's JSON Schema unchanged. Before placing it in `input_schema`, Chudcode keeps these keywords:
 
 - on every node: `$ref`, `$defs`, `$schema`, `definitions`, `type`, `enum`, `const`, `description`, `title`, `default`, and `nullable`;
 - nested `anyOf` and `allOf` (root combinators are not retained, and `oneOf` is not retained at any depth);
@@ -128,7 +128,7 @@ The native Anthropic provider does not forward a pi tool's JSON Schema unchanged
 
 Other constraints—including `pattern`, string-length limits, numeric ranges, `maxItems`, unsupported formats, and unsupported combinators—are appended to that node's `description`. They remain model-visible guidance but are no longer machine-enforced schema keywords. Object nodes default to `additionalProperties: false`; an explicit `true` or schema-valued `additionalProperties` remains open (an empty schema normalizes to `true`).
 
-Chudcode sends `strict: true` only for eligible built-in tools (`bash`, `python`, `edit`, and `find`) when neither `PI_NO_STRICT` nor provider compatibility/runtime fallback has disabled strict tools, the tool has not opted out, the raw schema avoids `oneOf`, `allOf`, `$ref`, `patternProperties`, and `propertyNames`, and every object is closed. Selection is capped at 20 strict tools per request and shares budgets of 24 optional properties and 16 union uses: after the optional budget is exhausted, another optional property must be converted to required-and-nullable using union budget or that tool remains non-strict. Other tools use the normalized non-strict schema. Chudcode sends `eager_input_streaming: true` only when the model compatibility data and effective endpoint support it: first-party Anthropic endpoints qualify, as do custom endpoints explicitly configured for that capability; a canonical model rerouted to an unqualified non-Anthropic endpoint does not.
+Chudcode sends `strict: true` only for eligible built-in tools (`bash`, `python`, `edit`, and `find`) when neither `CHUDCODE_NO_STRICT` nor provider compatibility/runtime fallback has disabled strict tools, the tool has not opted out, the raw schema avoids `oneOf`, `allOf`, `$ref`, `patternProperties`, and `propertyNames`, and every object is closed. Selection is capped at 20 strict tools per request and shares budgets of 24 optional properties and 16 union uses: after the optional budget is exhausted, another optional property must be converted to required-and-nullable using union budget or that tool remains non-strict. Other tools use the normalized non-strict schema. Chudcode sends `eager_input_streaming: true` only when the model compatibility data and effective endpoint support it: first-party Anthropic endpoints qualify, as do custom endpoints explicitly configured for that capability; a canonical model rerouted to an unqualified non-Anthropic endpoint does not.
 
 `tool_choice` controls invocation (four options):
 - `{"type":"auto"}` — model decides (default when `tools` present).

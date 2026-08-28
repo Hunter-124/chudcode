@@ -2,20 +2,20 @@ import { describe, expect, it } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import { COMPOSER_DEFAULTS } from "@oh-my-pi/pi-coding-agent/modes/composer";
+import { COMPOSER_DEFAULTS } from "@chudware/coding-agent/modes/composer";
 import {
 	readComposerStartupCache,
 	writeComposerLspCache,
 	writeComposerRecentSessionsCache,
 	writeComposerUiCache,
 	writeComposerWelcomeCache,
-} from "@oh-my-pi/pi-coding-agent/modes/composer-cache";
-import { getComposerCacheDir } from "@oh-my-pi/pi-utils/dirs";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
+} from "@chudware/coding-agent/modes/composer-cache";
+import { getComposerCacheDir } from "@chudware/utils/dirs";
+import * as fsx from "@chudware/utils/fsx";
 
 describe("composer startup cache", () => {
 	it("round-trips per-project UI, recent-session JSONL, and LSP speculation", async () => {
-		const cwd = await fs.mkdtemp(path.join(os.tmpdir(), "omp-composer-cache-"));
+		const cwd = await fs.mkdtemp(path.join(os.tmpdir(), "chudcode-composer-cache-"));
 		const otherCwd = `${cwd}-other`;
 		const key = Bun.hash.wyhash(path.resolve(cwd)).toString(16).padStart(16, "0");
 		const cacheDir = path.join(getComposerCacheDir(), key);
@@ -66,14 +66,14 @@ describe("composer startup cache", () => {
 	it("loads XDG_CACHE_HOME from the home .env before the first cache access", async () => {
 		if (process.platform === "win32") return;
 
-		const root = await fs.mkdtemp(path.join(os.tmpdir(), "omp-composer-cache-dotenv-"));
+		const root = await fs.mkdtemp(path.join(os.tmpdir(), "chudcode-composer-cache-dotenv-"));
 		const home = path.join(root, "home");
 		const xdgCache = path.join(root, "xdg-cache");
 		const project = path.join(root, "project");
 		try {
 			await Promise.all([
 				fs.mkdir(home, { recursive: true }),
-				fs.mkdir(path.join(xdgCache, "omp"), { recursive: true }),
+				fs.mkdir(path.join(xdgCache, "chudcode"), { recursive: true }),
 			]);
 			await fsx.write(path.join(home, ".env"), `XDG_CACHE_HOME=${xdgCache}\n`);
 
@@ -84,7 +84,7 @@ describe("composer startup cache", () => {
 				`const project = ${JSON.stringify(project)};`,
 				'await writeComposerWelcomeCache(project, { modelName: "model", providerName: "provider" });',
 				'const key = Bun.hash.wyhash(path.resolve(project)).toString(16).padStart(16, "0");',
-				`const expected = path.join(${JSON.stringify(xdgCache)}, "omp", "cache", "composer", key, "welcome.json");`,
+				`const expected = path.join(${JSON.stringify(xdgCache)}, "chudcode", "cache", "composer", key, "welcome.json");`,
 				"process.stdout.write(String(await Bun.file(expected).exists()));",
 			].join("\n");
 			const proc = Bun.spawn([process.execPath, "--no-env-file", "--no-install", "--eval", script], {
@@ -93,9 +93,8 @@ describe("composer startup cache", () => {
 					...process.env,
 					HOME: home,
 					XDG_CACHE_HOME: undefined,
-					PI_CODING_AGENT_DIR: undefined,
-					OMP_PROFILE: undefined,
-					PI_PROFILE: undefined,
+					CHUDCODE_CODING_AGENT_DIR: undefined,
+					CHUDCODE_PROFILE: undefined,
 				},
 				stdout: "pipe",
 				stderr: "pipe",

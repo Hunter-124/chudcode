@@ -1,13 +1,13 @@
 /**
- * Shared chart primitives for the dashboard timeline charts: the OMP color
+ * Shared chart primitives for the dashboard timeline charts: the Chudcode color
  * palette, light/dark chart chrome, legend/tooltip + scale plumbing, dataset
  * styling, and the top-N-by-model / aggregate bucketing used by the cost and
  * behavior series.
  */
 
-import { format } from "@oh-my-pi/pi-utils/dates";
+import { format } from "@chudware/utils/dates";
 
-// OMP brand palette (packages/collab-web/src/styles/tokens.css): pink/purple/cyan.
+// Chudcode brand palette (packages/collab-web/src/styles/tokens.css): pink/purple/cyan.
 // Categorical series lead with the brand gradient hues (pink -> purple -> cyan).
 export const MODEL_COLORS = [
 	"#ed4abf", // brand pink (accent)

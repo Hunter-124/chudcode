@@ -10,12 +10,12 @@ import {
 	type FetchImpl,
 	getCustomApi,
 	type Model,
-} from "@oh-my-pi/pi-ai";
-import { getOAuthProviders, unregisterOAuthProviders } from "@oh-my-pi/pi-ai/oauth";
-import type { OAuthCredentials } from "@oh-my-pi/pi-ai/oauth/types";
-import { ModelRegistry, type ProviderConfigInput } from "@oh-my-pi/pi-coding-agent/config/model-registry";
-import { AuthStorage } from "@oh-my-pi/pi-coding-agent/session/auth-storage";
-import { logger, removeSyncWithRetries, Snowflake } from "@oh-my-pi/pi-utils";
+} from "@chudware/ai";
+import { getOAuthProviders, unregisterOAuthProviders } from "@chudware/ai/oauth";
+import type { OAuthCredentials } from "@chudware/ai/oauth/types";
+import { ModelRegistry, type ProviderConfigInput } from "@chudware/coding-agent/config/model-registry";
+import { AuthStorage } from "@chudware/coding-agent/session/auth-storage";
+import { logger, removeSyncWithRetries, Snowflake } from "@chudware/utils";
 
 describe("ModelRegistry runtime provider registration", () => {
 	let tempDir: string;
@@ -32,7 +32,7 @@ describe("ModelRegistry runtime provider registration", () => {
 	const offlineFetch: FetchImpl = () => Promise.reject(new Error("network disabled in model-registry runtime test"));
 
 	beforeEach(async () => {
-		tempDir = path.join(os.tmpdir(), `pi-test-model-registry-runtime-${Snowflake.next()}`);
+		tempDir = path.join(os.tmpdir(), `chud-test-model-registry-runtime-${Snowflake.next()}`);
 		fs.mkdirSync(tempDir, { recursive: true });
 		modelsJsonPath = path.join(tempDir, "models.json");
 		authStorage = await AuthStorage.create(":memory:");

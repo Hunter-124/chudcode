@@ -16,8 +16,8 @@ import {
 	SettingsList,
 	Spacer,
 	Text,
-} from "@oh-my-pi/pi-tui";
-import { logger } from "@oh-my-pi/pi-utils";
+} from "@chudware/tui";
+import { logger } from "@chudware/utils";
 import { clearPluginRootsAndCaches, resolveOrDefaultProjectRegistryPath } from "../../discovery/helpers";
 import { PluginManager } from "../../extensibility/plugins/manager";
 import {

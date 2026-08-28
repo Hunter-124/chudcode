@@ -6,8 +6,8 @@
 #   ./seat-gpu.sh start <name>   ./seat-gpu.sh stop <name>
 set -euo pipefail
 
-SEAT_ROOT="${OMP_SEAT_ROOT:-${XDG_RUNTIME_DIR:-/tmp}/omp-seats}"
-GEOMETRY="${OMP_SEAT_GEOMETRY:-1920x1080}"
+SEAT_ROOT="${CHUDCODE_SEAT_ROOT:-${XDG_RUNTIME_DIR:-/tmp}/chudcode-seats}"
+GEOMETRY="${CHUDCODE_SEAT_GEOMETRY:-1920x1080}"
 HERE="$(dirname "$(readlink -f "$0")")"
 
 die() { printf 'seat-gpu: %s\n' "$1" >&2; exit 1; }
@@ -57,7 +57,7 @@ cmd_start() {
 	# The socket existing is not readiness: Chudcode needs the root window to be a
 	# readable drawable. Probing it here removes a startup race in which Chudcode's
 	# capabilities getter silently reports backend "unavailable"
-	# (crates/pi-natives/src/desktop/mod.rs:742 swallows the error).
+	# (crates/chud-natives/src/desktop/mod.rs:742 swallows the error).
 	waited=0
 	until DISPLAY=":$num" env -u XAUTHORITY import -window root -crop 1x1+0+0 png:- >/dev/null 2>&1; do
 		sleep 0.1
@@ -65,14 +65,14 @@ cmd_start() {
 		[[ $waited -gt 150 ]] && die "root window on :$num never became readable"
 	done
 
-	if [[ -x "$HERE/omp-seat-shim" ]]; then
-		env -u XAUTHORITY DISPLAY=":$num" setsid "$HERE/omp-seat-shim" >"$dir/shim.log" 2>&1 &
+	if [[ -x "$HERE/chudcode-seat-shim" ]]; then
+		env -u XAUTHORITY DISPLAY=":$num" setsid "$HERE/chudcode-seat-shim" >"$dir/shim.log" 2>&1 &
 		printf '%s' "$!" >"$dir/shim.pid"
 	fi
 
 	cat <<-EOF
-		OMP_SEAT_NAME=$name
-		OMP_SEAT_DIR=$dir
+		CHUDCODE_SEAT_NAME=$name
+		CHUDCODE_SEAT_DIR=$dir
 		DISPLAY=:$num
 		UNSET=XAUTHORITY
 		UNSET=WAYLAND_DISPLAY

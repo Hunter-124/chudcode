@@ -1,11 +1,11 @@
 import { beforeAll, describe, expect, test } from "bun:test";
-import type { MCPServer } from "@oh-my-pi/pi-coding-agent/capability/mcp";
-import type { MCPServerConnection, MCPTransport } from "@oh-my-pi/pi-coding-agent/mcp/types";
-import { ExtensionList } from "@oh-my-pi/pi-coding-agent/modes/components/extensions/extension-list";
-import { InspectorPanel } from "@oh-my-pi/pi-coding-agent/modes/components/extensions/inspector-panel";
-import type { MCPRuntimeSource } from "@oh-my-pi/pi-coding-agent/modes/components/extensions/mcp-runtime";
-import type { Extension } from "@oh-my-pi/pi-coding-agent/modes/components/extensions/types";
-import { initTheme } from "@oh-my-pi/pi-coding-agent/modes/theme/theme";
+import type { MCPServer } from "@chudware/coding-agent/capability/mcp";
+import type { MCPServerConnection, MCPTransport } from "@chudware/coding-agent/mcp/types";
+import { ExtensionList } from "@chudware/coding-agent/modes/components/extensions/extension-list";
+import { InspectorPanel } from "@chudware/coding-agent/modes/components/extensions/inspector-panel";
+import type { MCPRuntimeSource } from "@chudware/coding-agent/modes/components/extensions/mcp-runtime";
+import type { Extension } from "@chudware/coding-agent/modes/components/extensions/types";
+import { initTheme } from "@chudware/coding-agent/modes/theme/theme";
 
 beforeAll(async () => {
 	await initTheme(false);
@@ -33,8 +33,8 @@ const githubServer: MCPServer = {
 	transport: "stdio",
 	_source: {
 		provider: "native",
-		providerName: "OMP (User)",
-		path: "/home/sf/.omp/agent/mcp.json",
+		providerName: "Chudcode (User)",
+		path: "/home/sf/.chudcode/agent/mcp.json",
 		level: "user",
 	},
 };
@@ -204,7 +204,7 @@ describe("MCP inspector runtime join", () => {
 			...mcpExtension(),
 			raw: {
 				...githubServer,
-				command: "/home/sf/worlds/personal/.omp/bin/gog-mcp-readonly",
+				command: "/home/sf/worlds/personal/.chudcode/bin/gog-mcp-readonly",
 			},
 		});
 		const text = Bun.stripANSI(panel.render(42).join("\n"));
@@ -303,10 +303,10 @@ describe("MCP inspector runtime join", () => {
 			kind: "mcp",
 			name: "linear",
 			displayName: "linear",
-			path: "/home/sf/.omp/agent/mcp.json",
+			path: "/home/sf/.chudcode/agent/mcp.json",
 			source: {
 				provider: "native",
-				providerName: "OMP (User)",
+				providerName: "Chudcode (User)",
 				level: "user",
 			},
 			state: "active",
@@ -316,8 +316,8 @@ describe("MCP inspector runtime join", () => {
 				transport: "stdio",
 				_source: {
 					provider: "native",
-					providerName: "OMP (User)",
-					path: "/home/sf/.omp/agent/mcp.json",
+					providerName: "Chudcode (User)",
+					path: "/home/sf/.chudcode/agent/mcp.json",
 					level: "user",
 				},
 			},
@@ -365,7 +365,7 @@ describe("MCP list runtime join", () => {
 		const shadowed: Extension = {
 			...mcpExtension("shadowed"),
 			id: "mcp:github",
-			path: "/home/sf/.omp/agent/mcp.json",
+			path: "/home/sf/.chudcode/agent/mcp.json",
 			shadowedBy: "github",
 			raw: { ...githubServer, command: "/usr/bin/shadowed-github" },
 		};
@@ -396,7 +396,7 @@ describe("MCP list runtime join", () => {
 		const shadowed: Extension = {
 			...mcpExtension("shadowed"),
 			id: "mcp:github",
-			path: "/home/sf/.omp/agent/mcp.json",
+			path: "/home/sf/.chudcode/agent/mcp.json",
 			shadowedBy: "github",
 			raw: { ...githubServer, command: "/usr/bin/shadowed-github" },
 		};
@@ -424,7 +424,7 @@ describe("MCP list runtime join", () => {
 		const loser: Extension = {
 			...mcpExtension("disabled"),
 			id: "mcp:github",
-			path: "/home/sf/.omp/agent/mcp.json",
+			path: "/home/sf/.chudcode/agent/mcp.json",
 			disabledReason: "item-disabled",
 			raw: { ...githubServer, enabled: false, _shadowed: true, command: "/usr/bin/shadowed-github" },
 		};

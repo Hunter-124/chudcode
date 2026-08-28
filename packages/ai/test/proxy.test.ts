@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import * as net from "node:net";
-import * as AIError from "@oh-my-pi/pi-ai/error";
-import type { FetchImpl } from "@oh-my-pi/pi-ai/types";
+import * as AIError from "@chudware/ai/error";
+import type { FetchImpl } from "@chudware/ai/types";
 import {
 	__resetGlobalProxyFetch,
 	__resetProxyCache,
@@ -12,7 +12,7 @@ import {
 	isLocalOrMetadataHost,
 	shouldBypassProxy,
 	wrapFetchForProxy,
-} from "@oh-my-pi/pi-ai/utils/proxy";
+} from "@chudware/ai/utils/proxy";
 
 const PROXY = "http://127.0.0.1:24560";
 
@@ -67,7 +67,7 @@ async function waitForSocketClose(socket: net.Socket): Promise<void> {
 	await closed.promise;
 }
 const isProxyEnvKey = (k: string): boolean =>
-	k.startsWith("PI_PROXY") ||
+	k.startsWith("CHUDCODE_PROXY") ||
 	k === "HTTP_PROXY" ||
 	k === "http_proxy" ||
 	k === "HTTPS_PROXY" ||
@@ -123,24 +123,24 @@ afterEach(() => {
 });
 
 describe("getProxyForProvider", () => {
-	it("reads the provider-specific PI_PROXY_<PROVIDER> variable", () => {
-		process.env.PI_PROXY_SAKANA = PROXY;
+	it("reads the provider-specific CHUDCODE_PROXY_<PROVIDER> variable", () => {
+		process.env.CHUDCODE_PROXY_SAKANA = PROXY;
 		expect(getProxyForProvider("sakana")).toBe(PROXY);
 	});
 
 	it("normalizes hyphenated provider ids to underscores", () => {
-		process.env.PI_PROXY_GITHUB_COPILOT = PROXY;
+		process.env.CHUDCODE_PROXY_GITHUB_COPILOT = PROXY;
 		expect(getProxyForProvider("github-copilot")).toBe(PROXY);
 	});
 
-	it("falls back to the generic PI_PROXY when no provider-specific var is set", () => {
-		process.env.PI_PROXY = PROXY;
+	it("falls back to the generic CHUDCODE_PROXY when no provider-specific var is set", () => {
+		process.env.CHUDCODE_PROXY = PROXY;
 		expect(getProxyForProvider("prov-fallback")).toBe(PROXY);
 	});
 
 	it("prefers the provider-specific var over the generic fallback", () => {
-		process.env.PI_PROXY = "http://fallback:1";
-		process.env.PI_PROXY_PREC_PROV = PROXY;
+		process.env.CHUDCODE_PROXY = "http://fallback:1";
+		process.env.CHUDCODE_PROXY_PREC_PROV = PROXY;
 		expect(getProxyForProvider("prec-prov")).toBe(PROXY);
 	});
 
@@ -169,7 +169,7 @@ describe("getProxyForUrl", () => {
 	});
 
 	it("bypasses configured proxies for NO_PROXY targets", () => {
-		process.env.PI_PROXY_NO_PROXY_TEST = PROXY;
+		process.env.CHUDCODE_PROXY_NO_PROXY_TEST = PROXY;
 		process.env.NO_PROXY = "api.openai.com";
 
 		expect(getProxyForUrl("no-proxy-test", new URL("wss://api.openai.com/v1/live"))).toBeUndefined();
@@ -269,7 +269,7 @@ describe("wrapFetchForProxy", () => {
 	}
 
 	it("injects init.proxy for a proxied host when configured", async () => {
-		process.env.PI_PROXY_WRAP_INJECT = PROXY;
+		process.env.CHUDCODE_PROXY_WRAP_INJECT = PROXY;
 		const { fetch, calls } = makeCapture();
 		await wrapFetchForProxy(fetch, "wrap-inject")("https://api.sakana.ai/v1/responses");
 		expect(calls).toHaveLength(1);
@@ -277,7 +277,7 @@ describe("wrapFetchForProxy", () => {
 	});
 
 	it("does not inject a proxy for a bypassed (loopback) host", async () => {
-		process.env.PI_PROXY_WRAP_BYPASS = PROXY;
+		process.env.CHUDCODE_PROXY_WRAP_BYPASS = PROXY;
 		const { fetch, calls } = makeCapture();
 		await wrapFetchForProxy(fetch, "wrap-bypass")("http://127.0.0.1:11434/api/chat");
 		expect(calls[0].proxy).toBeUndefined();
@@ -290,14 +290,14 @@ describe("wrapFetchForProxy", () => {
 	});
 
 	it("does not route one provider's request through another provider's proxy", async () => {
-		process.env.PI_PROXY_SAKANA = PROXY;
+		process.env.CHUDCODE_PROXY_SAKANA = PROXY;
 		const { fetch, calls } = makeCapture();
 		await wrapFetchForProxy(fetch, "wrap-other")("https://api.openai.com/v1");
 		expect(calls[0].proxy).toBeUndefined();
 	});
 
 	it("passes through an unparseable URL without throwing", async () => {
-		process.env.PI_PROXY_WRAP_BADURL = PROXY;
+		process.env.CHUDCODE_PROXY_WRAP_BADURL = PROXY;
 		const { fetch, calls } = makeCapture();
 		await wrapFetchForProxy(fetch, "wrap-badurl")("not a url");
 		expect(calls).toHaveLength(1);
@@ -325,14 +325,14 @@ describe("installGlobalProxyFetch", () => {
 		__resetGlobalProxyFetch();
 	});
 
-	it("routes bare global fetch through PI_PROXY", async () => {
-		process.env.PI_PROXY = PROXY;
+	it("routes bare global fetch through CHUDCODE_PROXY", async () => {
+		process.env.CHUDCODE_PROXY = PROXY;
 		installGlobalProxyFetch();
 		await fetch("https://api.anthropic.com/v1/oauth/token", { method: "POST" });
 		expect(calls[0].proxy).toBe(PROXY);
 	});
 
-	it("leaves global fetch untouched when PI_PROXY is unset", async () => {
+	it("leaves global fetch untouched when CHUDCODE_PROXY is unset", async () => {
 		const before = globalThis.fetch;
 		installGlobalProxyFetch();
 		expect(globalThis.fetch).toBe(before);
@@ -340,23 +340,23 @@ describe("installGlobalProxyFetch", () => {
 		expect(calls[0].proxy).toBeUndefined();
 	});
 
-	it("keeps a caller-supplied proxy so PI_PROXY_<PROVIDER> still wins", async () => {
-		process.env.PI_PROXY = PROXY;
-		process.env.PI_PROXY_GLOBAL_PREC = "http://127.0.0.1:24561";
+	it("keeps a caller-supplied proxy so CHUDCODE_PROXY_<PROVIDER> still wins", async () => {
+		process.env.CHUDCODE_PROXY = PROXY;
+		process.env.CHUDCODE_PROXY_GLOBAL_PREC = "http://127.0.0.1:24561";
 		installGlobalProxyFetch();
 		await wrapFetchForProxy(globalThis.fetch, "global-prec")("https://api.anthropic.com/v1/messages");
 		expect(calls[0].proxy).toBe("http://127.0.0.1:24561");
 	});
 
 	it("bypasses loopback targets so local model servers stay direct", async () => {
-		process.env.PI_PROXY = PROXY;
+		process.env.CHUDCODE_PROXY = PROXY;
 		installGlobalProxyFetch();
 		await fetch("http://127.0.0.1:11434/api/chat");
 		expect(calls[0].proxy).toBeUndefined();
 	});
 
 	it("installs once", async () => {
-		process.env.PI_PROXY = PROXY;
+		process.env.CHUDCODE_PROXY = PROXY;
 		installGlobalProxyFetch();
 		const wrapped = globalThis.fetch;
 		installGlobalProxyFetch();

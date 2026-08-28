@@ -9,9 +9,9 @@ import {
 	type ToolCall,
 	type ToolResultMessage,
 	type Usage,
-} from "@oh-my-pi/pi-ai";
-import { getSessionsDir, isEnoent, readLines } from "@oh-my-pi/pi-utils";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
+} from "@chudware/ai";
+import { getSessionsDir, isEnoent, readLines } from "@chudware/utils";
+import * as fsx from "@chudware/utils/fsx";
 import type {
 	AgentType,
 	MessageStats,

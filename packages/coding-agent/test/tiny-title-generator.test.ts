@@ -1,35 +1,35 @@
 import { afterEach, beforeAll, describe, expect, it, vi } from "bun:test";
 import type { StoppingCriteria, TextGenerationPipeline } from "@huggingface/transformers";
-import type { Api, Model } from "@oh-my-pi/pi-ai";
-import * as ai from "@oh-my-pi/pi-ai";
-import { getBundledModel } from "@oh-my-pi/pi-catalog/models";
-import { isSubcommand } from "@oh-my-pi/pi-coding-agent/cli-commands";
-import { getDefault, getEnumValues, getUi } from "@oh-my-pi/pi-coding-agent/config/settings-schema";
-import { TinyTitleDownloadProgressComponent } from "@oh-my-pi/pi-coding-agent/modes/components/tiny-title-download-progress";
-import { initTheme } from "@oh-my-pi/pi-coding-agent/modes/theme/theme";
-import type { RefCountedWorkerHandle } from "@oh-my-pi/pi-coding-agent/subprocess/worker-client";
+import type { Api, Model } from "@chudware/ai";
+import * as ai from "@chudware/ai";
+import { getBundledModel } from "@chudware/catalog/models";
+import { isSubcommand } from "@chudware/coding-agent/cli-commands";
+import { getDefault, getEnumValues, getUi } from "@chudware/coding-agent/config/settings-schema";
+import { TinyTitleDownloadProgressComponent } from "@chudware/coding-agent/modes/components/tiny-title-download-progress";
+import { initTheme } from "@chudware/coding-agent/modes/theme/theme";
+import type { RefCountedWorkerHandle } from "@chudware/coding-agent/subprocess/worker-client";
 import {
 	TINY_MODEL_DEVICE_DEFAULT,
 	TINY_MODEL_DEVICE_SETTING_OPTIONS,
 	TINY_MODEL_DEVICE_SETTING_VALUES,
-} from "@oh-my-pi/pi-coding-agent/tiny/device";
+} from "@chudware/coding-agent/tiny/device";
 import {
 	TINY_MODEL_DTYPE_DEFAULT,
 	TINY_MODEL_DTYPE_SETTING_OPTIONS,
 	TINY_MODEL_DTYPE_SETTING_VALUES,
-} from "@oh-my-pi/pi-coding-agent/tiny/dtype";
+} from "@chudware/coding-agent/tiny/dtype";
 import {
 	ONLINE_TINY_TITLE_MODEL_KEY,
 	TINY_TITLE_MODEL_OPTIONS,
 	TINY_TITLE_MODEL_VALUES,
-} from "@oh-my-pi/pi-coding-agent/tiny/models";
+} from "@chudware/coding-agent/tiny/models";
 import {
 	createTinyTitleSubprocess,
 	TinyTitleClient,
 	tinyTitleClient,
-} from "@oh-my-pi/pi-coding-agent/tiny/title-client";
-import type { TinyTitleWorkerInbound, TinyTitleWorkerOutbound } from "@oh-my-pi/pi-coding-agent/tiny/title-protocol";
-import { generateSessionTitle } from "@oh-my-pi/pi-coding-agent/utils/title-generator";
+} from "@chudware/coding-agent/tiny/title-client";
+import type { TinyTitleWorkerInbound, TinyTitleWorkerOutbound } from "@chudware/coding-agent/tiny/title-protocol";
+import { generateSessionTitle } from "@chudware/coding-agent/utils/title-generator";
 import type { Subprocess } from "bun";
 import { buildCompletionPrompt } from "../src/tiny/completion-prompt";
 import { createStopOnTextCriteria, type TransformersRuntime } from "../src/tiny/worker";

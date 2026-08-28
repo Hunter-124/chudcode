@@ -1,6 +1,6 @@
 import { afterAll, describe, expect, it, vi } from "bun:test";
-import type { CollabUiResponseValue, ImageContent } from "@oh-my-pi/pi-wire";
-import { parseHTML } from "@oh-my-pi/pi-utils/dom";
+import type { CollabUiResponseValue, ImageContent } from "@chudware/wire";
+import { parseHTML } from "@chudware/utils/dom";
 import { act, type KeyboardEvent } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { Composer, type ComposerProps, shouldSubmitOnEnter } from "../src/components/shell/Composer";

@@ -2,16 +2,16 @@ import { describe, expect, it } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import { type } from "@oh-my-pi/omptype";
-import type { AgentTool } from "@oh-my-pi/pi-agent-core";
-import { Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
-import * as themeModule from "@oh-my-pi/pi-coding-agent/modes/theme/theme";
-import { ToolChoiceQueue } from "@oh-my-pi/pi-coding-agent/session/tool-choice-queue";
-import { createTools, type Tool, type ToolSession } from "@oh-my-pi/pi-coding-agent/tools";
-import { requiresApproval, resolveApproval } from "@oh-my-pi/pi-coding-agent/tools/approval";
-import { githubToolRenderer } from "@oh-my-pi/pi-coding-agent/tools/gh-renderer";
-import { ToolError } from "@oh-my-pi/pi-coding-agent/tools/tool-errors";
-import { WriteTool, writeToolRenderer } from "@oh-my-pi/pi-coding-agent/tools/write";
+import { type } from "@chudware/chudtype";
+import type { AgentTool } from "@chudware/agent-core";
+import { Settings } from "@chudware/coding-agent/config/settings";
+import * as themeModule from "@chudware/coding-agent/modes/theme/theme";
+import { ToolChoiceQueue } from "@chudware/coding-agent/session/tool-choice-queue";
+import { createTools, type Tool, type ToolSession } from "@chudware/coding-agent/tools";
+import { requiresApproval, resolveApproval } from "@chudware/coding-agent/tools/approval";
+import { githubToolRenderer } from "@chudware/coding-agent/tools/gh-renderer";
+import { ToolError } from "@chudware/coding-agent/tools/tool-errors";
+import { WriteTool, writeToolRenderer } from "@chudware/coding-agent/tools/write";
 import {
 	listXdevTools,
 	resolveMountedXdevTool,
@@ -22,9 +22,9 @@ import {
 	xdevDocs,
 	xdevDocsAll,
 	xdevEntries,
-} from "@oh-my-pi/pi-coding-agent/tools/xdev";
-import { removeWithRetries } from "@oh-my-pi/pi-utils";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
+} from "@chudware/coding-agent/tools/xdev";
+import { removeWithRetries } from "@chudware/utils";
+import * as fsx from "@chudware/utils/fsx";
 
 // xdev mounting is default-on: discoverable tools like ast_edit unmount into
 // xd://, and a plain `write xd://ast_edit` dispatches them. These guard the
@@ -134,7 +134,7 @@ describe("read and write route xd:// device URLs", () => {
 	});
 
 	it("resolves device dispatches against the device's user policy, falling back to write's", async () => {
-		// Like the pi-knowledge plugin in #7923: the mounted device declares no
+		// Like the chud-knowledge plugin in #7923: the mounted device declares no
 		// approval, so it defaults to exec tier — but a device-scoped user policy
 		// must still gate, and without one the dispatch must honor `write`'s policy.
 		const device: AgentTool = {

@@ -1,10 +1,10 @@
 import * as path from "node:path";
-import type { ApiKeyResolver, FetchImpl, UsageProvider } from "@oh-my-pi/pi-ai";
-import { registerCustomApi, unregisterCustomApis } from "@oh-my-pi/pi-ai/api-registry";
-import { registerOAuthProvider, unregisterOAuthProvider, unregisterOAuthProviders } from "@oh-my-pi/pi-ai/oauth";
-import type { OAuthCredentials, OAuthLoginCallbacks } from "@oh-my-pi/pi-ai/oauth/types";
-import { setCodexAttestationProvider } from "@oh-my-pi/pi-ai/providers/openai-codex-responses";
-import { getProviderDefinition } from "@oh-my-pi/pi-ai/registry";
+import type { ApiKeyResolver, FetchImpl, UsageProvider } from "@chudware/ai";
+import { registerCustomApi, unregisterCustomApis } from "@chudware/ai/api-registry";
+import { registerOAuthProvider, unregisterOAuthProvider, unregisterOAuthProviders } from "@chudware/ai/oauth";
+import type { OAuthCredentials, OAuthLoginCallbacks } from "@chudware/ai/oauth/types";
+import { setCodexAttestationProvider } from "@chudware/ai/providers/openai-codex-responses";
+import { getProviderDefinition } from "@chudware/ai/registry";
 import type {
 	Api,
 	Context,
@@ -13,17 +13,17 @@ import type {
 	RemoteCompactionConfig,
 	SimpleStreamOptions,
 	ThinkingConfig,
-} from "@oh-my-pi/pi-ai/types";
-import type { AssistantMessageEventStream } from "@oh-my-pi/pi-ai/utils/event-stream";
-import { buildModel } from "@oh-my-pi/pi-catalog/build";
-import { readModelCache, writeModelCache } from "@oh-my-pi/pi-catalog/model-cache";
+} from "@chudware/ai/types";
+import type { AssistantMessageEventStream } from "@chudware/ai/utils/event-stream";
+import { buildModel } from "@chudware/catalog/build";
+import { readModelCache, writeModelCache } from "@chudware/catalog/model-cache";
 import {
 	createModelManager,
 	fingerprintStaticModels,
 	type ModelManagerOptions,
 	type ModelRefreshStrategy,
-} from "@oh-my-pi/pi-catalog/model-manager";
-import { getBundledModels, getBundledProviders } from "@oh-my-pi/pi-catalog/models";
+} from "@chudware/catalog/model-manager";
+import { getBundledModels, getBundledProviders } from "@chudware/catalog/models";
 import {
 	googleAntigravityModelManagerOptions,
 	googleGeminiCliModelManagerOptions,
@@ -34,10 +34,10 @@ import {
 	PROVIDER_DESCRIPTORS,
 	resolveModelCacheProviderId,
 	resolveOllamaModelCacheProviderId,
-} from "@oh-my-pi/pi-catalog/provider-models";
-import { toModelSpec } from "@oh-my-pi/pi-catalog/provider-models/bundled-references";
-import { collapseBuiltModelVariants } from "@oh-my-pi/pi-catalog/variant-collapse";
-import { getAgentDir, isBunTestRuntime, logger, wrapFetchForExtraCa } from "@oh-my-pi/pi-utils";
+} from "@chudware/catalog/provider-models";
+import { toModelSpec } from "@chudware/catalog/provider-models/bundled-references";
+import { collapseBuiltModelVariants } from "@chudware/catalog/variant-collapse";
+import { getAgentDir, isBunTestRuntime, logger, wrapFetchForExtraCa } from "@chudware/utils";
 import { resolveProviderModelReference } from "../config/model-resolver";
 import { generateCodexAttestation } from "../live/attestation";
 import type { AuthStorage } from "../session/auth-storage";
@@ -119,7 +119,7 @@ import type { ModelOverride, ModelsConfig, ProviderAuthMode } from "./models-con
 import { type Settings, settings } from "./settings";
 
 // DeviceCheck attestation (`x-oai-attestation`) for ChatGPT-OAuth Codex
-// requests; the pi-ai provider resolves it just-in-time per request.
+// requests; the chud-ai provider resolves it just-in-time per request.
 setCodexAttestationProvider(generateCodexAttestation);
 
 const BUILT_IN_MODEL_MANAGER_PROVIDER_IDS: Readonly<Record<string, true>> = Object.freeze(
@@ -1223,7 +1223,7 @@ export class ModelRegistry {
 		// routing that MUST NOT reach a broker-backed gateway — applying them would
 		// send broker bearers to a configured endpoint, install config keys that
 		// shadow broker credentials (bypassing account pooling/refresh/accounting),
-		// or route a pi-native gateway back into itself.
+		// or route a chud-native gateway back into itself.
 		if (this.#ignoreLocalModelConfig) {
 			return {
 				models: [],
@@ -2182,7 +2182,7 @@ export class ModelRegistry {
 	/**
 	 * Check whether auth is configured for a model's provider.
 	 *
-	 * Mirrors the upstream `@mariozechner/pi-coding-agent` API surface so that
+	 * Mirrors the upstream `@mariozechner/chudcode-agent` API surface so that
 	 * external plugins/extensions and downstream wrappers (e.g. subagent launch
 	 * paths that pre-flight auth before model resolution) can probe a model
 	 * without resolving an API key. Returns true for keyless providers as well
@@ -2293,7 +2293,7 @@ export class ModelRegistry {
 		});
 	}
 
-	/** Resolve request authentication through the historical Pi extension facade. */
+	/** Resolve request authentication through the historical Chud extension facade. */
 	async getApiKeyAndHeaders(model: Model<Api>): Promise<ResolvedRequestAuth> {
 		try {
 			const apiKey = await this.getApiKey(model);

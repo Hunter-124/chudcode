@@ -1,18 +1,18 @@
 /**
- * Repro for https://github.com/can1357/oh-my-pi/issues/892
+ * Repro for https://github.com/Hunter-124/chudcode/issues/892
  *
  * The old CommonJS fix depended on Bun's CJS-to-ESM analyzer statically
  * scanning `module.exports.<Name> = …` assignments. The loader is now ESM,
  * so named exports must be real `export const` declarations instead of CJS
  * assignments that Bun happens to detect.
  *
- * The contract this test pins down: ESM consumers of `@oh-my-pi/pi-natives`
+ * The contract this test pins down: ESM consumers of `@chudware/natives`
  * resolve to `native/index.js`, and that file declares every public symbol
  * from `native/index.d.ts` as a real ESM named export.
  */
 import { describe, expect, it } from "bun:test";
 import * as path from "node:path";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
+import * as fsx from "@chudware/utils/fsx";
 
 const nativeDir = path.join(import.meta.dir, "..", "native");
 const indexJsPath = path.join(nativeDir, "index.js");
@@ -38,7 +38,7 @@ function esmExportsName(js: string, name: string): boolean {
 	return re.test(js);
 }
 
-describe("issue 892: pi-natives public surface", () => {
+describe("issue 892: chud-natives public surface", () => {
 	it("declares every public .d.ts symbol as an explicit ESM export", async () => {
 		const [js, symbols] = await Promise.all([fsx.readText(indexJsPath), readPublicSymbols()]);
 		expect(symbols.length).toBeGreaterThan(0);

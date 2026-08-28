@@ -2,19 +2,19 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "bun:test";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
-import { type } from "@oh-my-pi/omptype";
-import { AuthStorage, type completeSimple, Effort, type ImageContent, type Model } from "@oh-my-pi/pi-ai";
-import { buildModel } from "@oh-my-pi/pi-catalog/build";
-import { ModelRegistry } from "@oh-my-pi/pi-coding-agent/config/model-registry";
-import { Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
-import { getThemeByName } from "@oh-my-pi/pi-coding-agent/modes/theme/theme";
-import { createAgentSession } from "@oh-my-pi/pi-coding-agent/sdk";
-import { SessionManager } from "@oh-my-pi/pi-coding-agent/session/session-manager";
-import type { ImageAttachmentEntry, ToolSession } from "@oh-my-pi/pi-coding-agent/tools";
-import { InspectImageTool } from "@oh-my-pi/pi-coding-agent/tools/inspect-image";
-import { inspectImageToolRenderer } from "@oh-my-pi/pi-coding-agent/tools/inspect-image-renderer";
-import { toolRenderers } from "@oh-my-pi/pi-coding-agent/tools/renderers";
-import { removeSyncWithRetries, sanitizeText } from "@oh-my-pi/pi-utils";
+import { type } from "@chudware/chudtype";
+import { AuthStorage, type completeSimple, Effort, type ImageContent, type Model } from "@chudware/ai";
+import { buildModel } from "@chudware/catalog/build";
+import { ModelRegistry } from "@chudware/coding-agent/config/model-registry";
+import { Settings } from "@chudware/coding-agent/config/settings";
+import { getThemeByName } from "@chudware/coding-agent/modes/theme/theme";
+import { createAgentSession } from "@chudware/coding-agent/sdk";
+import { SessionManager } from "@chudware/coding-agent/session/session-manager";
+import type { ImageAttachmentEntry, ToolSession } from "@chudware/coding-agent/tools";
+import { InspectImageTool } from "@chudware/coding-agent/tools/inspect-image";
+import { inspectImageToolRenderer } from "@chudware/coding-agent/tools/inspect-image-renderer";
+import { toolRenderers } from "@chudware/coding-agent/tools/renderers";
+import { removeSyncWithRetries, sanitizeText } from "@chudware/utils";
 
 const TINY_PNG_BASE64 =
 	"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8DwHwAFBQIAX8jx0gAAAABJRU5ErkJggg==";
@@ -169,7 +169,7 @@ describe("InspectImageTool", () => {
 	let imagePath: string;
 
 	beforeAll(() => {
-		testDir = fs.mkdtempSync(path.join(os.tmpdir(), "omp-inspect-image-"));
+		testDir = fs.mkdtempSync(path.join(os.tmpdir(), "chudcode-inspect-image-"));
 		imagePath = path.join(testDir, "screen.png");
 		fs.writeFileSync(imagePath, Buffer.from(TINY_PNG_BASE64, "base64"));
 	});
@@ -200,8 +200,8 @@ describe("InspectImageTool", () => {
 	});
 
 	it("continues with the original image when local preprocessing is unavailable", async () => {
-		const previous = process.env.OMP_VISION_BIN;
-		process.env.OMP_VISION_BIN = path.join(testDir, "missing-pi-vision");
+		const previous = process.env.CHUDCODE_VISION_BIN;
+		process.env.CHUDCODE_VISION_BIN = path.join(testDir, "missing-chud-vision");
 		try {
 			const stub = createCompleteSimpleSuccessStub("Original image inspected");
 			const tool = new InspectImageTool(createSession(testDir, visionModel), stub.fn);
@@ -216,8 +216,8 @@ describe("InspectImageTool", () => {
 			expect(text).toContain("Original image inspected");
 			expect(stub.calls).toHaveLength(1);
 		} finally {
-			if (previous === undefined) delete process.env.OMP_VISION_BIN;
-			else process.env.OMP_VISION_BIN = previous;
+			if (previous === undefined) delete process.env.CHUDCODE_VISION_BIN;
+			else process.env.CHUDCODE_VISION_BIN = previous;
 		}
 	});
 	it("rasterizes a selected SVG before sending it to the vision model", async () => {

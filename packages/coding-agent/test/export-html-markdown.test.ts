@@ -1,8 +1,8 @@
 import { describe, expect, test } from "bun:test";
 import * as vm from "node:vm";
-import { type Element, parseHTML } from "@oh-my-pi/pi-utils/dom";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
-import { Marked } from "@oh-my-pi/pi-utils/marked";
+import { type Element, parseHTML } from "@chudware/utils/dom";
+import * as fsx from "@chudware/utils/fsx";
+import { Marked } from "@chudware/utils/marked";
 
 const [templateHtml, templateJs] = await Promise.all([
 	fsx.readText(new URL("../src/export/html/template.html", import.meta.url)),

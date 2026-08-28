@@ -5,13 +5,13 @@ import {
 	externalizeImageData,
 	parseBlobRef,
 	resolveImageData,
-} from "@oh-my-pi/pi-coding-agent/session/blob-store";
-import { TempDir } from "@oh-my-pi/pi-utils";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
+} from "@chudware/coding-agent/session/blob-store";
+import { TempDir } from "@chudware/utils";
+import * as fsx from "@chudware/utils/fsx";
 
 describe("BlobStore image display paths", () => {
 	it("creates an extension-bearing sidecar for image blobs while keeping canonical refs extensionless", async () => {
-		using tempDir = TempDir.createSync("@omp-blob-store-image-link-");
+		using tempDir = TempDir.createSync("@chudcode-blob-store-image-link-");
 		const store = new BlobStore(tempDir.path());
 		const data = Buffer.from("image-bytes");
 
@@ -24,7 +24,7 @@ describe("BlobStore image display paths", () => {
 	});
 
 	it("externalizes image data with a mime-derived display extension", async () => {
-		using tempDir = TempDir.createSync("@omp-blob-store-image-link-");
+		using tempDir = TempDir.createSync("@chudcode-blob-store-image-link-");
 		const store = new BlobStore(tempDir.path());
 		const data = Buffer.from("image-bytes");
 

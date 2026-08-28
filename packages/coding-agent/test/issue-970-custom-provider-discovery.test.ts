@@ -3,17 +3,17 @@ import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 import { stripVTControlCharacters } from "node:util";
-import { buildModel } from "@oh-my-pi/pi-catalog/build";
-import { writeModelCache } from "@oh-my-pi/pi-catalog/model-cache";
-import type { ModelRegistry, ProviderDiscoveryState } from "@oh-my-pi/pi-coding-agent/config/model-registry";
-import { ModelRegistry as ModelRegistryImpl } from "@oh-my-pi/pi-coding-agent/config/model-registry";
-import { Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
-import { ModelHubComponent } from "@oh-my-pi/pi-coding-agent/modes/components/model-hub";
-import { getThemeByName, setThemeInstance } from "@oh-my-pi/pi-coding-agent/modes/theme/theme";
-import { AuthStorage } from "@oh-my-pi/pi-coding-agent/session/auth-storage";
-import type { TUI } from "@oh-my-pi/pi-tui";
-import { removeSyncWithRetries, Snowflake } from "@oh-my-pi/pi-utils";
-import { sleep } from "@oh-my-pi/pi-utils/async";
+import { buildModel } from "@chudware/catalog/build";
+import { writeModelCache } from "@chudware/catalog/model-cache";
+import type { ModelRegistry, ProviderDiscoveryState } from "@chudware/coding-agent/config/model-registry";
+import { ModelRegistry as ModelRegistryImpl } from "@chudware/coding-agent/config/model-registry";
+import { Settings } from "@chudware/coding-agent/config/settings";
+import { ModelHubComponent } from "@chudware/coding-agent/modes/components/model-hub";
+import { getThemeByName, setThemeInstance } from "@chudware/coding-agent/modes/theme/theme";
+import { AuthStorage } from "@chudware/coding-agent/session/auth-storage";
+import type { TUI } from "@chudware/tui";
+import { removeSyncWithRetries, Snowflake } from "@chudware/utils";
+import { sleep } from "@chudware/utils/async";
 
 function normalizeRenderedText(text: string): string {
 	return stripVTControlCharacters(text).replace(/\s+/g, " ").trim();
@@ -67,7 +67,7 @@ describe("issue #970 custom provider discovery", () => {
 	});
 
 	beforeEach(async () => {
-		tempDir = path.join(os.tmpdir(), `pi-test-issue-970-${Snowflake.next()}`);
+		tempDir = path.join(os.tmpdir(), `chud-test-issue-970-${Snowflake.next()}`);
 		fs.mkdirSync(tempDir, { recursive: true });
 		modelsPath = path.join(tempDir, "models.yml");
 		authStorage = await AuthStorage.create(path.join(tempDir, "auth.db"));

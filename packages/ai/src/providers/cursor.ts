@@ -6,7 +6,7 @@ import type {
 	CursorRule,
 	McpToolDefinition,
 	RequestedModel_ModelParameterbytes,
-} from "@oh-my-pi/pi-catalog/discovery/cursor-proto";
+} from "@chudware/catalog/discovery/cursor-proto";
 import {
 	AgentClientMessageSchema,
 	AgentConversationTurnStructureSchema,
@@ -147,7 +147,7 @@ import {
 	WriteShellStdinErrorSchema,
 	WriteShellStdinResultSchema,
 	WriteSuccessSchema,
-} from "@oh-my-pi/pi-catalog/discovery/cursor-proto";
+} from "@chudware/catalog/discovery/cursor-proto";
 import {
 	create,
 	decodeJsonValue,
@@ -156,10 +156,10 @@ import {
 	type JsonValue,
 	toBinary,
 	toJson,
-} from "@oh-my-pi/pi-catalog/discovery/protobuf";
-import { THINKING_EFFORTS } from "@oh-my-pi/pi-catalog/effort";
-import { isKimiK3ModelId, parseOpenAIModel } from "@oh-my-pi/pi-catalog/identity";
-import { calculateCost } from "@oh-my-pi/pi-catalog/models";
+} from "@chudware/catalog/discovery/protobuf";
+import { THINKING_EFFORTS } from "@chudware/catalog/effort";
+import { isKimiK3ModelId, parseOpenAIModel } from "@chudware/catalog/identity";
+import { calculateCost } from "@chudware/catalog/models";
 import {
 	$env,
 	isRecord,
@@ -168,7 +168,7 @@ import {
 	parseStreamingJson,
 	parseStreamingJsonThrottled,
 	sanitizeText,
-} from "@oh-my-pi/pi-utils";
+} from "@chudware/utils";
 import * as AIError from "../error";
 import type {
 	Api,
@@ -1681,7 +1681,7 @@ async function handleExecServerMessage(
 			const args = execMsg.message.value;
 			if (!args.toolCallId) args.toolCallId = crypto.randomUUID();
 			// Bridge maps `ls` onto the coding-agent `read` tool (see
-			// `CursorExecHandlers.ls` in `pi-coding-agent/src/cursor.ts`); mirror
+			// `CursorExecHandlers.ls` in `chudcode-agent/src/cursor.ts`); mirror
 			// that here so the synthesized block matches the toolResult's `toolName`.
 			synthesizeCursorExecToolCall(output, stream, state, args.toolCallId, "read", { path: args.path });
 			const { execResult } = await resolveExecHandler(
@@ -2175,7 +2175,7 @@ async function handleExecServerMessage(
 		case "piEditArgs": {
 			const args = execMsg.message.value;
 			const toolCallId = crypto.randomUUID();
-			// `PiEditReplacement` maps onto the local `edit` tool's replace mode:
+			// `ChudEditReplacement` maps onto the local `edit` tool's replace mode:
 			// one snake_case `old_string`/`new_string` per call. Multi-replacement
 			// frames display the first replacement; the exec handler applies all.
 			const firstEdit = args.edits[0];
@@ -2224,7 +2224,7 @@ async function handleExecServerMessage(
 				case: args.ignoreCase === true ? false : undefined,
 				// Neither field exists in the model-facing `grep` schema — the bridge
 				// serves them by building a scoped tool instead. Recorded anyway, for
-				// the same reason `pi_read` renders its range into the displayed path:
+				// the same reason `chud_read` renders its range into the displayed path:
 				// a capped or context-widened search is otherwise replayed as an
 				// ordinary grep sitting next to output no ordinary grep produces.
 				context: args.context,
@@ -3603,7 +3603,7 @@ function openOrUpdateEditBlock(
  * The streamed `ToolCall` variants whose block the exec channel owns.
  *
  * Each of these is announced on the interaction stream AND dispatched as its
- * own `ExecServerMessage` frame — the Pi family (45-51), plus the two MCP
+ * own `ExecServerMessage` frame — the Chud family (45-51), plus the two MCP
  * resource frames — so the block is synthesized once, by the exec handler,
  * which is the side that has the result.
  *
@@ -3636,7 +3636,7 @@ function isExecOwnedToolCall(toolCall: { tool?: { case?: string } } | undefined)
  *
  * Keyed by the interaction envelope's `call_id`, which is the only key every
  * `ToolCall*Update` for that call shares. The block's own `id` is deliberately
- * not the key: MCP, Pi and connect-SCM blocks are filed under the id carried
+ * not the key: MCP, Chud and connect-SCM blocks are filed under the id carried
  * inside the call's `args`, because that is what the exec channel pairs its
  * result under and what the transcript files the visible block under.
  *
@@ -4385,7 +4385,7 @@ export function processInteractionUpdate(
 			stream.push({ type: "toolcall_delta", contentIndex: idx, delta: chunk, partial: output });
 		}
 	} else if (updateCase === "toolCallCompleted") {
-		// Correlate on the envelope's `call_id`, NOT the block id: MCP, Pi and SCM
+		// Correlate on the envelope's `call_id`, NOT the block id: MCP, Chud and SCM
 		// blocks are filed under the id inside the call's `args` (which is what
 		// the exec channel pairs its result under), and that need not equal the
 		// envelope id. Cursor also interleaves calls, so the block this settles
@@ -4569,13 +4569,13 @@ function readCursorBlob(blobStore: Map<string, Uint8Array>, blobId: Uint8Array):
 /**
  * Cursor AgentService reconstructs the model prompt from `requestContext.rules`,
  * not from the client-supplied `rootPromptMessagesJson` system blobs. Map each
- * OMP system-prompt entry to a global CursorRule so always-apply rules survive
+ * Chudcode system-prompt entry to a global CursorRule so always-apply rules survive
  * that reconstruction.
  */
 export function buildCursorRequestContextRules(systemPrompt: readonly string[] | undefined): CursorRule[] {
 	return normalizeSystemPrompts(systemPrompt).map((content, index) =>
 		create(CursorRuleSchema, {
-			fullPath: `/omp/system-prompt/${index}.mdc`,
+			fullPath: `/chudcode/system-prompt/${index}.mdc`,
 			content,
 			source: CursorRuleSource.USER,
 			type: create(CursorRuleTypeSchema, {
@@ -4625,7 +4625,7 @@ export function buildMcpToolDefinitions(tools: Tool[] | undefined): McpToolDefin
 	// The `write` tool doubles as the xd:// transport: forwarded devices such as
 	// `ast_edit` stage previews finalized only by writing a reason to xd://resolve
 	// or xd://reject. Cursor's native catalog may expose no write path, so
-	// re-include the built-in `write` (dropped as native above) whenever pi-agent
+	// re-include the built-in `write` (dropped as native above) whenever chud-agent
 	// devices are advertised — otherwise a staged preview can never be resolved
 	// and the SoftToolRequirement('write') escalation aborts the turn.
 	const writeTool = tools.find(tool => tool.name === "write");
@@ -4641,7 +4641,7 @@ export function buildMcpToolDefinitions(tools: Tool[] | undefined): McpToolDefin
 		return create(McpToolDefinitionSchema, {
 			name: tool.name,
 			description: tool.description || "",
-			providerIdentifier: "pi-agent",
+			providerIdentifier: "chud-agent",
 			toolName: tool.name,
 			inputSchema,
 		});
@@ -5006,7 +5006,7 @@ function createCursorToolCallStep(toolCall: ToolCall, result: ToolResultMessage 
 			name: toolCall.name,
 			args: encodeCursorMcpArguments(toolCall),
 			toolCallId,
-			providerIdentifier: "pi-agent",
+			providerIdentifier: "chud-agent",
 			toolName: toolCall.name,
 		}),
 		...(result ? { result: createCursorMcpResult(result) } : {}),
@@ -5197,7 +5197,7 @@ function extractImages(content: (TextContent | ImageContent)[]) {
  * Resolve the Cursor Run wire model id and its parameter list.
  *
  * Cursor's `GetUsableModels` lists reasoning models as per-effort sibling
- * slugs (`gpt-5.4-mini-low`, `gpt-5.6-sol-high`), and OMP copies those ids 1:1.
+ * slugs (`gpt-5.4-mini-low`, `gpt-5.6-sol-high`), and Chudcode copies those ids 1:1.
  * The Run endpoint rejects a sibling slug as the wire `model_id` with
  * `resource_exhausted` (errorId 528384); the official `cursor-agent` splits the
  * slug into its base model id plus a `reasoning` effort parameter. Mirror that
@@ -5232,7 +5232,7 @@ function resolveCursorWireModel(
 		};
 	}
 	// A bare `composer-2.5` id resolves to the Fast variant server-side
-	// (can1357/oh-my-pi#9012). Pin the Standard tier explicitly; `-fast`
+	// (Hunter-124/chudcode#9012). Pin the Standard tier explicitly; `-fast`
 	// selections keep the Fast lane by omitting the parameter.
 	if (wireModelId === "composer-2.5") {
 		return {

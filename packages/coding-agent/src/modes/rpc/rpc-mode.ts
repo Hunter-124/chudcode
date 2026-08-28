@@ -11,9 +11,9 @@
  * - Extension UI: Extension UI requests are emitted, client responds with extension_ui_response
  */
 import { once } from "node:events";
-import { getOAuthProviders } from "@oh-my-pi/pi-ai/oauth";
-import { toolWireSchema } from "@oh-my-pi/pi-ai/utils/schema";
-import { $env, isRecord, Snowflake } from "@oh-my-pi/pi-utils";
+import { getOAuthProviders } from "@chudware/ai/oauth";
+import { toolWireSchema } from "@chudware/ai/utils/schema";
+import { $env, isRecord, Snowflake } from "@chudware/utils";
 import { reset as resetCapabilities } from "../../capability";
 import { clearPluginRootsAndCaches, resolveActiveProjectRegistryPath } from "../../discovery/helpers";
 import {
@@ -168,7 +168,7 @@ type RpcExtensionUserMessageScope = {
 /**
  * Tracks extension-originated messages while an RPC prompt is executing.
  * A slash command can resolve the outer prompt as local-only while also
- * scheduling agent work through pi.sendUserMessage() or pi.sendMessage()
+ * scheduling agent work through chud.sendUserMessage() or chud.sendMessage()
  * with triggerTurn; that prompt must not report agentInvoked:false to the host.
  */
 export class RpcExtensionUserMessageTracker {
@@ -408,7 +408,7 @@ export class RpcInputDispatcher {
 /**
  * Coordinates deferred shutdown with in-flight background input tasks.
  *
- * `pi.shutdown()` from an extension only *requests* shutdown; the process must
+ * `chud.shutdown()` from an extension only *requests* shutdown; the process must
  * not exit while a background-dispatched command (`bash`, see
  * {@link dispatchRpcInputFrame}) still owes the client a response frame. The
  * coordinator tracks those tasks, re-checks the shutdown request whenever one
@@ -532,7 +532,7 @@ function parseValueDialogResponse(
 }
 
 function shouldEmitRpcTitles(): boolean {
-	const raw = $env.PI_RPC_EMIT_TITLE;
+	const raw = $env.CHUDCODE_RPC_EMIT_TITLE;
 	if (!raw) return false;
 	const normalized = raw.trim().toLowerCase();
 	return normalized === "1" || normalized === "true" || normalized === "yes" || normalized === "on";
@@ -707,7 +707,7 @@ export async function runRpcMode(
 	// process.stdout with no newline, which the reader merges with the next JSON line and
 	// breaks JSON.parse. In RPC mode stdout is the JSON protocol channel — nothing else
 	// may write there.
-	process.env.PI_NOTIFICATIONS = "off";
+	process.env.CHUDCODE_NOTIFICATIONS = "off";
 
 	const frameEncoder = new RpcFrameEncoder();
 	// Ordered stdout writer honoring backpressure: chunked v2 frames are produced
@@ -870,7 +870,7 @@ export async function runRpcMode(
 		}
 
 		setTitle(title: string): void {
-			// Title updates are low-value noise for most RPC hosts; opt in via PI_RPC_EMIT_TITLE=1.
+			// Title updates are low-value noise for most RPC hosts; opt in via CHUDCODE_RPC_EMIT_TITLE=1.
 			if (!emitRpcTitles) return;
 			this.output({
 				type: "extension_ui_request",
@@ -1484,7 +1484,7 @@ export async function runRpcMode(
 		}
 	};
 
-	// Deferred shutdown (pi.shutdown() from an extension) must not kill the
+	// Deferred shutdown (chud.shutdown() from an extension) must not kill the
 	// process while a background-dispatched bash still owes the client its
 	// response frame. The coordinator drains tracked tasks before exiting and
 	// re-checks the request as each task settles.
@@ -1539,7 +1539,7 @@ export async function runRpcMode(
 	subagentRegistry?.dispose();
 	// Dispose the main session before exiting so the browser reaper and other
 	// bounded teardown run on the stdin-EOF path too (#5643). Idempotent: a
-	// prior pi.shutdown() through the coordinator makes this await settle
+	// prior chud.shutdown() through the coordinator makes this await settle
 	// immediately.
 	await session.dispose();
 	process.exit(0);

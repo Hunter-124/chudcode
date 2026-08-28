@@ -2,9 +2,9 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
-import type { LoadContext } from "@oh-my-pi/pi-coding-agent/capability/types";
-import { loadAgentsMd } from "@oh-my-pi/pi-coding-agent/discovery/agents-md";
-import { removeSyncWithRetries } from "@oh-my-pi/pi-utils";
+import type { LoadContext } from "@chudware/coding-agent/capability/types";
+import { loadAgentsMd } from "@chudware/coding-agent/discovery/agents-md";
+import { removeSyncWithRetries } from "@chudware/utils";
 
 function writeAgents(filePath: string, content: string): void {
 	fs.mkdirSync(path.dirname(filePath), { recursive: true });
@@ -15,7 +15,7 @@ describe("standalone AGENTS.md discovery", () => {
 	let tempDir!: string;
 
 	beforeEach(() => {
-		tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "pi-agents-md-"));
+		tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "chud-agents-md-"));
 	});
 
 	afterEach(() => {

@@ -4,8 +4,8 @@ import {
 	parseLineRangeChunk,
 	parseLineRanges,
 	splitPathAndSel,
-} from "@oh-my-pi/pi-coding-agent/tools/path-utils";
-import { ToolError } from "@oh-my-pi/pi-coding-agent/tools/tool-errors";
+} from "@chudware/coding-agent/tools/path-utils";
+import { ToolError } from "@chudware/coding-agent/tools/tool-errors";
 
 describe("`..` range selector alias", () => {
 	it("treats `N..M` as the inclusive range `N-M`", () => {
@@ -53,10 +53,10 @@ describe("`..` range selector alias", () => {
 describe("isFilesystemSourcePath", () => {
 	it("accepts POSIX, Windows drive, and UNC paths", () => {
 		expect(isFilesystemSourcePath("/tmp/tools/systemd.ts")).toBe(true);
-		expect(isFilesystemSourcePath("C:\\repo\\.omp\\tools\\systemd.ts")).toBe(true);
-		expect(isFilesystemSourcePath("C:/.omp/tools/systemd.ts")).toBe(true);
-		expect(isFilesystemSourcePath("\\\\server\\share\\.omp\\tools\\systemd.ts")).toBe(true);
-		expect(isFilesystemSourcePath("//server/share/.omp/tools/systemd.ts")).toBe(true);
+		expect(isFilesystemSourcePath("C:\\repo\\.chudcode\\tools\\systemd.ts")).toBe(true);
+		expect(isFilesystemSourcePath("C:/.chudcode/tools/systemd.ts")).toBe(true);
+		expect(isFilesystemSourcePath("\\\\server\\share\\.chudcode\\tools\\systemd.ts")).toBe(true);
+		expect(isFilesystemSourcePath("//server/share/.chudcode/tools/systemd.ts")).toBe(true);
 		expect(isFilesystemSourcePath("systemd.ts")).toBe(false);
 		expect(isFilesystemSourcePath("<extension:systemd>")).toBe(false);
 		expect(isFilesystemSourcePath("mcp:gog")).toBe(false);

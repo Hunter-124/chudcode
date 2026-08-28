@@ -1,5 +1,5 @@
-import type { AgentToolContext } from "@oh-my-pi/pi-agent-core";
-import { type PtyRunResult, PtySession } from "@oh-my-pi/pi-natives";
+import type { AgentToolContext } from "@chudware/agent-core";
+import { type PtyRunResult, PtySession } from "@chudware/natives";
 import {
 	type Component,
 	extractPrintableText,
@@ -9,10 +9,10 @@ import {
 	parseKittySequence,
 	truncateToWidth,
 	visibleWidth,
-} from "@oh-my-pi/pi-tui";
-import { sanitizeText } from "@oh-my-pi/pi-utils";
-import type * as XtermModule from "@oh-my-pi/pi-utils/vterm";
-import type { Terminal as XtermTerminalType } from "@oh-my-pi/pi-utils/vterm";
+} from "@chudware/tui";
+import { sanitizeText } from "@chudware/utils";
+import type * as XtermModule from "@chudware/utils/vterm";
+import type { Terminal as XtermTerminalType } from "@chudware/utils/vterm";
 import { Settings } from "../config/settings";
 import type { Theme } from "../modes/theme/theme";
 import { OutputSink, type OutputSummary } from "../session/streaming-output";
@@ -43,7 +43,7 @@ let xtermTerminalCtor: typeof XtermModule.Terminal | undefined;
 /** Lazily load the headless xterm Terminal shared by PTY render paths. */
 export async function loadXtermTerminal(): Promise<typeof XtermModule.Terminal> {
 	if (!xtermTerminalCtor) {
-		const mod = (await import("@oh-my-pi/pi-utils/vterm")) as typeof XtermModule & { default?: typeof XtermModule };
+		const mod = (await import("@chudware/utils/vterm")) as typeof XtermModule & { default?: typeof XtermModule };
 		xtermTerminalCtor = (mod.default ?? mod).Terminal;
 	}
 	return xtermTerminalCtor;

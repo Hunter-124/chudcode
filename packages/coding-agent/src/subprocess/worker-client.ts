@@ -9,12 +9,12 @@ import {
 	postmortem,
 	stripWindowsExtendedLengthPathPrefix,
 	workerHostEntry,
-} from "@oh-my-pi/pi-utils";
+} from "@chudware/utils";
 import type { Subprocess } from "bun";
 
 /**
  * Shared lifecycle scaffolding for the ONNX inference subprocess clients
- * (mnemopi embeddings, speech-to-text, tiny-model titles/completions, TTS).
+ * (mnemo embeddings, speech-to-text, tiny-model titles/completions, TTS).
  * Each runs `onnxruntime-node` inside a dedicated Bun child process so the NAPI
  * constructor/finalizer never executes in the main agent address space — those
  * destructors segfault Bun on shutdown (issues #1606 / #1607 / #3031).
@@ -148,12 +148,12 @@ export function workerEnvFromParent(overlay?: Record<string, string>): Record<st
 
 /**
  * `LD_LIBRARY_PATH` overlay that lets a dlopen'd native addon find its C++
- * runtime. The ONNX addons installed on demand under `~/.omp/agent/cache/**`
+ * runtime. The ONNX addons installed on demand under `~/.chudcode/agent/cache/**`
  * are `process.dlopen`'d and need `libstdc++.so.6` / `libgcc_s.so.1`; because
  * each addon carries its own `DT_RUNPATH`, an RPATH on our executable cannot
  * satisfy them, so the path has to come from the environment. On distros where
  * those libraries are outside the loader's default search path (NixOS) the
- * packaged build exports `OMP_NATIVE_LIBRARY_PATH` (see `nix/package.nix`).
+ * packaged build exports `CHUDCODE_NATIVE_LIBRARY_PATH` (see `nix/package.nix`).
  * Appended last so an inherited `LD_LIBRARY_PATH` keeps precedence.
  * Pure for testability; see {@link inferenceWorkerEnv} for the spawn-time glue.
  */
@@ -162,7 +162,7 @@ export function nativeLibraryPathOverlay(
 	platform: NodeJS.Platform,
 ): Record<string, string> {
 	if (platform !== "linux") return {};
-	const native = env.OMP_NATIVE_LIBRARY_PATH;
+	const native = env.CHUDCODE_NATIVE_LIBRARY_PATH;
 	if (typeof native !== "string" || native.length === 0) return {};
 	const inherited = env.LD_LIBRARY_PATH;
 	return { LD_LIBRARY_PATH: inherited ? `${inherited}:${native}` : native };
@@ -186,7 +186,7 @@ export function inferenceWorkerEnv(overlay?: Record<string, string>): Record<str
  * `ReadableStream` pipes: even an unref'd child with a piped stderr stream can
  * keep the parent event loop alive. After the worker exits, the last
  * {@link STDERR_TAIL_LIMIT_BYTES} are appended to the `onExit` error so
- * `tts/mnemopi/…: worker error` lines carry the actual stack instead of a bare
+ * `tts/mnemo/…: worker error` lines carry the actual stack instead of a bare
  * exit code (issue #4324). The child is `unref`'d outside `bun test` so an idle
  * worker never blocks process exit. `exitLabel` prefixes the worker-error
  * message surfaced for an unexpected (non-intentional) exit.
@@ -329,7 +329,7 @@ interface StderrCapture {
 /** Create a file-backed stderr target that does not pin Bun's event loop. */
 function createStderrCapture(exitLabel: string): StderrCapture {
 	try {
-		const dir = fs.mkdtempSync(path.join(os.tmpdir(), "omp-worker-stderr-"));
+		const dir = fs.mkdtempSync(path.join(os.tmpdir(), "chudcode-worker-stderr-"));
 		const fd = fs.openSync(path.join(dir, "stderr.log"), "w+");
 		const cleanupOnExit = (): void => cleanupStderrCapture({ target: fd, fd, dir, cleanupOnExit: null });
 		process.once("exit", cleanupOnExit);

@@ -27,7 +27,7 @@
  */
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
-import { sleep } from "@oh-my-pi/pi-utils/async";
+import { sleep } from "@chudware/utils/async";
 import { createLspWritethrough, writethroughNoop } from "../src/lsp";
 
 const REPO = path.resolve(import.meta.dir, "../../..");

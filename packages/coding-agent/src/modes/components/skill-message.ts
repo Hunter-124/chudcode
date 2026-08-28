@@ -1,6 +1,6 @@
-import type { TextContent } from "@oh-my-pi/pi-ai";
-import type { Component } from "@oh-my-pi/pi-tui";
-import { Box, Container, Markdown, Spacer, Text } from "@oh-my-pi/pi-tui";
+import type { TextContent } from "@chudware/ai";
+import type { Component } from "@chudware/tui";
+import { Box, Container, Markdown, Spacer, Text } from "@chudware/tui";
 import { getMarkdownTheme, theme } from "../../modes/theme/theme";
 import type { CustomMessage, SkillPromptDetails } from "../../session/messages";
 import { shortenPath } from "../../tools/render-utils";

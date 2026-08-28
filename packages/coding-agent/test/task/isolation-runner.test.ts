@@ -2,19 +2,19 @@ import { afterEach, describe, expect, it, vi } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import { AgentRegistry } from "@oh-my-pi/pi-coding-agent/registry/agent-registry";
-import { SessionManager } from "@oh-my-pi/pi-coding-agent/session/session-manager";
-import * as executorModule from "@oh-my-pi/pi-coding-agent/task/executor";
+import { AgentRegistry } from "@chudware/coding-agent/registry/agent-registry";
+import { SessionManager } from "@chudware/coding-agent/session/session-manager";
+import * as executorModule from "@chudware/coding-agent/task/executor";
 import {
 	applyEligibleNestedPatches,
 	mergeIsolatedChanges,
 	runIsolatedSubprocess,
-} from "@oh-my-pi/pi-coding-agent/task/isolation-runner";
-import type { SingleResult } from "@oh-my-pi/pi-coding-agent/task/types";
-import * as worktreeModule from "@oh-my-pi/pi-coding-agent/task/worktree";
-import * as gitModule from "@oh-my-pi/pi-coding-agent/utils/git";
-import * as natives from "@oh-my-pi/pi-natives";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
+} from "@chudware/coding-agent/task/isolation-runner";
+import type { SingleResult } from "@chudware/coding-agent/task/types";
+import * as worktreeModule from "@chudware/coding-agent/task/worktree";
+import * as gitModule from "@chudware/coding-agent/utils/git";
+import * as natives from "@chudware/natives";
+import * as fsx from "@chudware/utils/fsx";
 import { $ } from "bun";
 
 function result(overrides: Partial<SingleResult> = {}): SingleResult {
@@ -47,7 +47,7 @@ async function git(repoRoot: string, ...args: string[]): Promise<string> {
 }
 
 async function seedFooRepo(finalContent: string): Promise<{ repoRoot: string; patchPath: string }> {
-	const repoRoot = await fs.mkdtemp(path.join(os.tmpdir(), "omp-isolation-merge-"));
+	const repoRoot = await fs.mkdtemp(path.join(os.tmpdir(), "chudcode-isolation-merge-"));
 	tempRoots.push(repoRoot);
 
 	await git(repoRoot, "init", "-q", "-b", "main");
@@ -80,7 +80,7 @@ describe("runIsolatedSubprocess", () => {
 	});
 
 	it("preserves branch-mode output as a patch when branch transfer fails", async () => {
-		const repoRoot = await fs.mkdtemp(path.join(os.tmpdir(), "omp-isolation-run-"));
+		const repoRoot = await fs.mkdtemp(path.join(os.tmpdir(), "chudcode-isolation-run-"));
 		tempRoots.push(repoRoot);
 		const isolationDir = path.join(repoRoot, "isolated");
 		const artifactsDir = path.join(repoRoot, "artifacts");
@@ -149,18 +149,18 @@ describe("runIsolatedSubprocess", () => {
 		expect(await fsx.readText(patchPath)).toBe(rootPatch);
 		expect(outcome.nestedPatches).toEqual([]);
 		expect(captureSpy).toHaveBeenCalledWith(isolationDir, baseline);
-		expect(deleteSpy).toHaveBeenCalledWith(repoRoot, "omp/task/PreserveBranchFailure");
+		expect(deleteSpy).toHaveBeenCalledWith(repoRoot, "chudcode/task/PreserveBranchFailure");
 		expect(cleanupSpy).toHaveBeenCalledTimes(1);
 		expect(AgentRegistry.global().get("PreserveBranchFailure")?.history?.patchPath).toBe(patchPath);
 	});
 
 	it("keeps the task branch when it already carries the agent's commits", async () => {
 		// Regression for #8868: `commitToBranch` fetches the agent's commits into
-		// the parent ODB and creates `omp/task/<id>` before it commits the leftover
+		// the parent ODB and creates `chudcode/task/<id>` before it commits the leftover
 		// working-tree delta. A throw from that trailing step used to delete the
 		// branch while the isolation worktree — the only other copy — was torn
 		// down in `finally`, losing committed work outright.
-		const repoRoot = await fs.mkdtemp(path.join(os.tmpdir(), "omp-isolation-rescue-"));
+		const repoRoot = await fs.mkdtemp(path.join(os.tmpdir(), "chudcode-isolation-rescue-"));
 		tempRoots.push(repoRoot);
 		const isolationDir = path.join(repoRoot, "isolated");
 		const artifactsDir = path.join(repoRoot, "artifacts");
@@ -220,11 +220,11 @@ describe("runIsolatedSubprocess", () => {
 			buildFailureResult: err => result({ exitCode: 1, error: String(err) }),
 		});
 
-		expect(rangeSpy).toHaveBeenCalledWith(repoRoot, "base", "omp/task/RescueBranchCommits");
-		expect(refSpy).toHaveBeenCalledWith(repoRoot, "refs/heads/omp/task/RescueBranchCommits");
+		expect(rangeSpy).toHaveBeenCalledWith(repoRoot, "base", "chudcode/task/RescueBranchCommits");
+		expect(refSpy).toHaveBeenCalledWith(repoRoot, "refs/heads/chudcode/task/RescueBranchCommits");
 		expect(deleteSpy).not.toHaveBeenCalled();
 		expect(outcome.error).toContain("git apply --3way failed");
-		expect(outcome.error).toContain("preserved on branch omp/task/RescueBranchCommits");
+		expect(outcome.error).toContain("preserved on branch chudcode/task/RescueBranchCommits");
 		expect(outcome.error).toContain("cherry-pick");
 		expect(cleanupSpy).toHaveBeenCalledTimes(1);
 	});
@@ -287,7 +287,7 @@ describe("runIsolatedSubprocess", () => {
 	});
 
 	it("captures a successful yield's patch when child cleanup is deferred (issue #9670)", async () => {
-		const artifactsDir = await fs.mkdtemp(path.join(os.tmpdir(), "omp-isolation-defer-ok-"));
+		const artifactsDir = await fs.mkdtemp(path.join(os.tmpdir(), "chudcode-isolation-defer-ok-"));
 		tempRoots.push(artifactsDir);
 		const rootPatch = "diff --git a/task.txt b/task.txt\n--- a/task.txt\n+++ b/task.txt\n@@ -1 +1 @@\n-old\n+new\n";
 		const cleanupGate = Promise.withResolvers<void>();
@@ -475,12 +475,12 @@ describe("mergeIsolatedChanges", () => {
 			repoRoot: "/repo",
 			mergeMode: "branch",
 			result: result({
-				error: "Merge failed: conflict. The agent's commits are preserved on branch omp/task/Rescued — merge or cherry-pick it manually.",
+				error: "Merge failed: conflict. The agent's commits are preserved on branch chudcode/task/Rescued — merge or cherry-pick it manually.",
 			}),
 		});
 
 		expect(outcome.changesApplied).toBe(false);
-		expect(outcome.summary).toContain("omp/task/Rescued");
+		expect(outcome.summary).toContain("chudcode/task/Rescued");
 		expect(outcome.summary).toContain("cherry-pick");
 	});
 

@@ -2,8 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import { type } from "@oh-my-pi/omptype";
-import { isContextOverflow } from "@oh-my-pi/pi-ai/error";
+import { isContextOverflow } from "@chudware/ai/error";
 import {
 	buildGitLabDuoWorkflowApprovalStartRequest,
 	buildGitLabDuoWorkflowCreateBody,
@@ -27,8 +26,8 @@ import {
 	selectGitLabDuoWorkflowModelRef,
 	streamGitLabDuoWorkflow,
 	traceGitLabDuoWorkflow,
-} from "@oh-my-pi/pi-ai/providers/gitlab-duo-workflow";
-import { configureCredentialRedaction } from "@oh-my-pi/pi-ai/providers/transform-messages";
+} from "@chudware/ai/providers/gitlab-duo-workflow";
+import { configureCredentialRedaction } from "@chudware/ai/providers/transform-messages";
 import type {
 	AssistantMessage,
 	Context,
@@ -38,12 +37,13 @@ import type {
 	ProviderSessionState,
 	Tool,
 	ToolResultMessage,
-} from "@oh-my-pi/pi-ai/types";
-import { AssistantMessageEventStream } from "@oh-my-pi/pi-ai/utils/event-stream";
-import { buildModel } from "@oh-my-pi/pi-catalog/build";
-import { extractHttpStatusFromError } from "@oh-my-pi/pi-utils";
-import { sleep } from "@oh-my-pi/pi-utils/async";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
+} from "@chudware/ai/types";
+import { AssistantMessageEventStream } from "@chudware/ai/utils/event-stream";
+import { buildModel } from "@chudware/catalog/build";
+import { type } from "@chudware/chudtype";
+import { extractHttpStatusFromError } from "@chudware/utils";
+import { sleep } from "@chudware/utils/async";
+import * as fsx from "@chudware/utils/fsx";
 
 beforeAll(() => configureCredentialRedaction(true));
 afterAll(() => configureCredentialRedaction(false));
@@ -213,16 +213,16 @@ describe("GitLab Duo Workflow provider protocol", () => {
 		expect(GITLAB_DUO_WORKFLOW_CLIENT_CAPABILITIES).not.toContain("tool_call_pattern_approval");
 	});
 
-	it("advertises OMP tools under their bare names with the official GitLab MCP schema", () => {
+	it("advertises Chudcode tools under their bare names with the official GitLab MCP schema", () => {
 		const mcpTools = buildGitLabDuoWorkflowMcpTools([...nativeTools, editTool]);
 		// Bare names: the server binds the model schema and matches tool calls under the
 		// exact wire name (no prefix stripping), so the registered name must equal the
-		// bare name OMP's own tool docs use.
+		// bare name Chudcode's own tool docs use.
 		expect(mcpTools.map(tool => tool.name)).toEqual(["read", "write", "grep", "glob", "bash", "lsp", "todo", "edit"]);
 		expect(mcpTools[0]).toMatchObject({
 			name: "read",
 			originalToolName: "read",
-			serverName: "omp",
+			serverName: "chudcode",
 			isApproved: true,
 		});
 		expect(typeof mcpTools[0]?.inputSchema).toBe("string");
@@ -257,9 +257,9 @@ describe("GitLab Duo Workflow provider protocol", () => {
 		expect(payload.preapproved_tools).toEqual(payload.mcpTools.map(tool => tool.name));
 	});
 
-	it("puts the OMP system prompt in the inline flow system slot with reasoning events", () => {
+	it("puts the Chudcode system prompt in the inline flow system slot with reasoning events", () => {
 		const systemContext: Context = {
-			systemPrompt: ["OMP authoritative operating rules. Bridge the local tools."],
+			systemPrompt: ["Chudcode authoritative operating rules. Bridge the local tools."],
 			messages: context.messages,
 		};
 		const payload = buildGitLabDuoWorkflowStartRequest("workflow-1", model, systemContext, undefined, undefined, {
@@ -277,8 +277,8 @@ describe("GitLab Duo Workflow provider protocol", () => {
 		expect(agent?.ui_log_events).toContain("on_agent_reasoning");
 		const prompt = flow?.prompts.find(entry => entry.prompt_id === agent?.prompt_id);
 		expect(prompt?.unit_primitives).toEqual(["duo_agent_platform"]);
-		// The system slot carries OMP's real system prompt verbatim — no gateway preamble.
-		expect(prompt?.prompt_template.system).toContain("OMP authoritative operating rules.");
+		// The system slot carries Chudcode's real system prompt verbatim — no gateway preamble.
+		expect(prompt?.prompt_template.system).toContain("Chudcode authoritative operating rules.");
 		expect(prompt?.prompt_template.user).toBe("{{goal}}");
 		// A single-turn goal is bare text (no ChatML markers), so the history-note that
 		// warns against mimicking transcript markers must NOT be appended.
@@ -299,7 +299,7 @@ describe("GitLab Duo Workflow provider protocol", () => {
 		const sessionCookie = "_gitlab_session=0123456789abcdef0123456789abcdef";
 
 		const replayContext: Context = {
-			systemPrompt: [`OMP system instructions: preserve the local tool bridge. token ${patToken}`],
+			systemPrompt: [`Chudcode system instructions: preserve the local tool bridge. token ${patToken}`],
 			messages: [
 				{
 					role: "user",
@@ -356,13 +356,13 @@ describe("GitLab Duo Workflow provider protocol", () => {
 
 		expect(payload.additional_context).toEqual([]);
 		// The goal is now ONLY the bare ChatML transcript — no envelope, no preamble,
-		// no <instructions>. The OMP system prompt rides the flow config's system slot.
+		// no <instructions>. The Chudcode system prompt rides the flow config's system slot.
 		expect(payload.goal).not.toContain("<client_prompt_envelope>");
 		expect(payload.goal).not.toContain("<instructions>");
 		expect(payload.goal).not.toContain("<conversation>");
 		expect(payload.goal).not.toContain("<current_request>");
 		expect(payload.goal).not.toContain("<prior_messages>");
-		expect(payload.goal).not.toContain("OMP system instructions: preserve the local tool bridge.");
+		expect(payload.goal).not.toContain("Chudcode system instructions: preserve the local tool bridge.");
 		// ChatML role turns, every turn equal-weight, ending on the last user turn.
 		expect(payload.goal).toContain("<|im_start|>user\nFirst user turn.");
 		expect(payload.goal).toContain("<|im_start|>assistant\nAssistant answer.");
@@ -374,7 +374,7 @@ describe("GitLab Duo Workflow provider protocol", () => {
 		// `<ran NAME>{args}</ran>` record (NOT the `{name,arguments}` live-call shape, so
 		// the model does not mimic it as emittable grammar), and the following tool turn
 		// renders `<ran:result>`. The pair is linked by ADJACENCY (1 call/turn, result
-		// rides the very next turn), so the OMP-internal call id is omitted from the
+		// rides the very next turn), so the Chudcode-internal call id is omitted from the
 		// transcript — it is dead weight the model never reads.
 		expect(payload.goal).toContain('<ran read>{"path":"src/main.ts"}</ran>');
 		expect(payload.goal).not.toContain("<tool_call>");
@@ -397,9 +397,11 @@ describe("GitLab Duo Workflow provider protocol", () => {
 		expect(payload.goal).toContain("First user turn. token");
 		expect(payload.goal.indexOf("<|im_start|>user")).toBe(0);
 
-		// The OMP system prompt lives in the flow config system slot, not the goal.
+		// The Chudcode system prompt lives in the flow config system slot, not the goal.
 		const flowPrompt = payload.flowConfig?.prompts[0];
-		expect(flowPrompt?.prompt_template.system).toContain("OMP system instructions: preserve the local tool bridge.");
+		expect(flowPrompt?.prompt_template.system).toContain(
+			"Chudcode system instructions: preserve the local tool bridge.",
+		);
 		expect(flowPrompt?.prompt_template.system).not.toContain(patToken);
 		expect(flowPrompt?.prompt_template.system).toContain("[gitlab_token_redacted]");
 		// This goal IS a multi-turn ChatML transcript, so the system slot appends the
@@ -407,7 +409,7 @@ describe("GitLab Duo Workflow provider protocol", () => {
 		// record, not a tool-call syntax to emit.
 	});
 
-	it("strips the OMP-internal intent (i) field from replayed tool-call args", () => {
+	it("strips the Chudcode-internal intent (i) field from replayed tool-call args", () => {
 		const replayContext: Context = {
 			systemPrompt: ["system"],
 			messages: [
@@ -4571,7 +4573,7 @@ describe("GitLab Duo Workflow WebSocket state machine", () => {
 		expect(goal).toContain("It contains ALPHA.");
 		expect(goal).toContain("Now summarize it.");
 		// The prior tool call and its result are paired by ADJACENCY (call turn followed
-		// by its tool-result turn); the OMP-internal id is omitted from the transcript.
+		// by its tool-result turn); the Chudcode-internal id is omitted from the transcript.
 		// The call is a past-tense `<ran NAME>{args}</ran>` record, the result `<ran:result>`.
 		expect(goal).toContain('<ran read>{"path":"a.ts"}</ran>');
 		expect(goal).toContain("<ran:result>");

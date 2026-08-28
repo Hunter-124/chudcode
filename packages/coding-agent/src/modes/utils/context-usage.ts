@@ -1,9 +1,9 @@
-import type { Tokenizer } from "@oh-my-pi/pi-agent-core";
-import type { CompactionSettings } from "@oh-my-pi/pi-agent-core/compaction";
-import { effectiveReserveTokens, resolveThresholdTokens } from "@oh-my-pi/pi-agent-core/compaction";
-import type { Tool as AiTool, Model } from "@oh-my-pi/pi-ai";
-import { toolWireSchema } from "@oh-my-pi/pi-ai/utils/schema";
-import { formatNumber } from "@oh-my-pi/pi-utils";
+import type { Tokenizer } from "@chudware/agent-core";
+import type { CompactionSettings } from "@chudware/agent-core/compaction";
+import { effectiveReserveTokens, resolveThresholdTokens } from "@chudware/agent-core/compaction";
+import type { Tool as AiTool, Model } from "@chudware/ai";
+import { toolWireSchema } from "@chudware/ai/utils/schema";
+import { formatNumber } from "@chudware/utils";
 import type { Skill } from "../../extensibility/skills";
 import type { AgentSession } from "../../session/agent-session";
 import { resolveSpeculationMethod } from "../../session/compaction-methods";

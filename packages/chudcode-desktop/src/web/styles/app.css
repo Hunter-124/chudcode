@@ -212,7 +212,7 @@ button:disabled {
 .session-picker-empty { padding: var(--space-3); color: var(--color-text-dim); text-align: center; }
 .project-switcher-error { margin: var(--space-2); color: var(--color-status-error); overflow-wrap: anywhere; }
 
-/* Shared OMP header, banner, toast, and composer surfaces. */
+/* Shared Chudcode header, banner, toast, and composer surfaces. */
 .sh-header {
 	display: flex;
 	align-items: center;

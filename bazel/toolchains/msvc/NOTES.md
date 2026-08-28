@@ -111,7 +111,7 @@ exec hosts. Replaces cargo-xwin.
 ## What to verify on can.internal (linux-x64)
 
 1. `bazel build //:natives-win32-x64-baseline` end-to-end link; check the
-   produced `pi_natives.win32-x64-baseline.node` imports (dumpbin/llvm-readobj):
+   produced `chud_natives.win32-x64-baseline.node` imports (dumpbin/llvm-readobj):
    expect **no** `VCRUNTIME140.dll` and **no** `api-ms-win-crt-*` (static CRT);
    only core Windows system DLLs (kernel32, ntdll, advapi32, …) should remain.
 2. LLVM 20.1.7 Linux-X64 binaries are built on a newish Ubuntu: confirm the

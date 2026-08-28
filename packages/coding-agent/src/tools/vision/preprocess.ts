@@ -50,7 +50,7 @@ export async function preprocessVisionImage(
 		inputPath = await materializeLoadedImage(image, "preprocess");
 		currentPath = inputPath;
 		for (const action of options.mode.split("+") as Array<"redact" | "crop">) {
-			const out = path.join(os.tmpdir(), `omp-vision-${action}-${crypto.randomUUID()}.png`);
+			const out = path.join(os.tmpdir(), `chudcode-vision-${action}-${crypto.randomUUID()}.png`);
 			created.push(out);
 			const response = await runVision(
 				{
@@ -79,7 +79,7 @@ export async function preprocessVisionImage(
 			return {
 				ok: false,
 				reason: "processed_image_invalid",
-				hint: "pi-vision completed but did not produce a supported image.",
+				hint: "chud-vision completed but did not produce a supported image.",
 			};
 		}
 		return { ok: true, image: processed };

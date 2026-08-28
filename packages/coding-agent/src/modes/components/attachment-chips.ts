@@ -1,4 +1,4 @@
-import type { ImageContent } from "@oh-my-pi/pi-ai";
+import type { ImageContent } from "@chudware/ai";
 import {
 	type Component,
 	getImageDimensions,
@@ -10,7 +10,7 @@ import {
 	TERMINAL,
 	truncateToWidth,
 	visibleWidth,
-} from "@oh-my-pi/pi-tui";
+} from "@chudware/tui";
 import { convertImageToPng } from "../../utils/image-loading";
 import { attachmentSgr } from "../composer-attachments";
 import { cachedImageDimensions, setCachedImageDimensions } from "../image-references";
@@ -27,7 +27,7 @@ const RESET_FG = "\x1b[39m";
  *  probe cache): Kitty's `f=100` transmit accepts only PNG, so non-PNG attachments
  *  (pastes are usually re-encoded JPEG/WebP) convert before transmit — the same pipeline
  *  the transcript uses. `null` = conversion in flight or failed. */
-const kImagePng = Symbol("omp.imagePng");
+const kImagePng = Symbol("chudcode.imagePng");
 
 interface ImageContentWithPng extends ImageContent {
 	[kImagePng]?: ImageContent | null;

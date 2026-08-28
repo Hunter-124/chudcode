@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import { stream } from "@oh-my-pi/pi-ai/stream";
+import { stream } from "@chudware/ai/stream";
 import type {
 	AnthropicServerToolContent,
 	AssistantMessage,
@@ -10,11 +10,11 @@ import type {
 	TextContent,
 	ThinkingContent,
 	ToolCall,
-} from "@oh-my-pi/pi-ai/types";
-import { getStreamingPartialJson, setStreamingPartialJson } from "@oh-my-pi/pi-ai/utils/block-symbols";
-import { AssistantMessageEventStream } from "@oh-my-pi/pi-ai/utils/event-stream";
-import { wrapLeakedThinkingStream } from "@oh-my-pi/pi-ai/utils/leaked-thinking-stream";
-import { buildModel } from "@oh-my-pi/pi-catalog/build";
+} from "@chudware/ai/types";
+import { getStreamingPartialJson, setStreamingPartialJson } from "@chudware/ai/utils/block-symbols";
+import { AssistantMessageEventStream } from "@chudware/ai/utils/event-stream";
+import { wrapLeakedThinkingStream } from "@chudware/ai/utils/leaked-thinking-stream";
+import { buildModel } from "@chudware/catalog/build";
 import { withOfficialAnthropicEndpoint } from "./helpers";
 
 /** Minimal assistant message; `content`/`stopReason` overridden per event. */

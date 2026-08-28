@@ -1,5 +1,5 @@
-import type { OAuthCredentials } from "@oh-my-pi/pi-ai/oauth/types";
-import { getActiveProfile } from "@oh-my-pi/pi-utils/dirs";
+import type { OAuthCredentials } from "@chudware/ai/oauth/types";
+import { getActiveProfile } from "@chudware/utils/dirs";
 import { expandEnvVarsDeep } from "../discovery/helpers";
 import type { AuthStorage } from "../session/auth-storage";
 import {

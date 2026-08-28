@@ -3,8 +3,8 @@ import {
 	collectTerminalState,
 	formatTerminalState,
 	type TerminalStateInfo,
-} from "@oh-my-pi/pi-coding-agent/debug/terminal-info";
-import { TERMINAL } from "@oh-my-pi/pi-tui";
+} from "@chudware/coding-agent/debug/terminal-info";
+import { TERMINAL } from "@chudware/tui";
 
 const sample: TerminalStateInfo = {
 	detectedId: "kitty",

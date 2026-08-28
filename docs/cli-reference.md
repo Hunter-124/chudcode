@@ -76,16 +76,16 @@ Argument handling:
 | `--from-claude` | Import a Claude Code session into Chudcode. |
 | `--from-codex` | Import a Codex session into Chudcode. |
 | `--export <session>` | Export a session file to HTML and exit. |
-| `--no-title` | Disable title auto-generation (equivalent to the `PI_NO_TITLE` [environment variable](./environment-variables.md)). |
+| `--no-title` | Disable title auto-generation (equivalent to the `CHUDCODE_NO_TITLE` [environment variable](./environment-variables.md)). |
 
 #### Model selection
 
 | Flag | Description |
 | --- | --- |
 | `--model <id-or-role>` | Model or configured role to use (role: `slow` or `@slow`; fuzzy model match: `opus`, `gpt-5.2`, or `openai/gpt-5.2`). |
-| `--smol <id>` | Smol/fast model for lightweight tasks (or `PI_SMOL_MODEL`). |
-| `--slow <id>` | Slow/reasoning model for thorough analysis (or `PI_SLOW_MODEL`). |
-| `--plan <id>` | Plan model for architectural planning (or `PI_PLAN_MODEL`). |
+| `--smol <id>` | Smol/fast model for lightweight tasks (or `CHUDCODE_SMOL_MODEL`). |
+| `--slow <id>` | Slow/reasoning model for thorough analysis (or `CHUDCODE_SLOW_MODEL`). |
+| `--plan <id>` | Plan model for architectural planning (or `CHUDCODE_PLAN_MODEL`). |
 | `--models <a,b,c>` | Comma-separated model patterns for `Ctrl+P` cycling. |
 | `--provider <name>` | Provider to use (legacy; prefer `--model`). |
 | `--api-key <key>` | API key (defaults to env vars). |
@@ -184,7 +184,7 @@ Related flags for headless runs:
 
 - `--print-thoughts` — include thinking blocks in the printed text output.
 - `--mode json` — emit structured events instead of rendered text.
-- `--no-title` — skip title auto-generation (also `PI_NO_TITLE`).
+- `--no-title` — skip title auto-generation (also `CHUDCODE_NO_TITLE`).
 - `--max-time <duration>` — bound the run.
 
 The [advisor / watchdog](./advisor-watchdog.md#headless-runs) doc describes
@@ -241,7 +241,7 @@ Run `chudcode <command> --help` for each command's own flags and examples.
 | `tiny-models` | Download tiny local models (session titles + memory). | [local models](./local-models.md) |
 | `token` | Get the API key or OAuth token for a provider. | [secrets](./secrets.md) |
 | `ttsr` | Inspect and test Time-Traveling Stream Rules (TTSR). (Covers the CLI command; the [TTSR feature](./ttsr-injection-lifecycle.md) is documented separately.) | |
-| `worktree`, `wt` | List or clear agent-managed git worktrees (`~/.omp/wt`). | |
+| `worktree`, `wt` | List or clear agent-managed git worktrees (`~/.chudcode/wt`). | |
 | `search`, `q` | Test web search providers from the CLI. | [web_search tool](./tools/web_search.md) |
 
 > `install`, `join`, `browser-relay`, `auth-gateway`, and `tiny-models` are also

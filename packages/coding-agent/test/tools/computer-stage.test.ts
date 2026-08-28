@@ -1,8 +1,8 @@
 import { describe, expect, it } from "bun:test";
-import type { DaemonBrokerClient } from "@oh-my-pi/pi-coding-agent/launch/client";
-import type { DaemonSnapshot, DaemonSpec } from "@oh-my-pi/pi-coding-agent/launch/protocol";
-import { ComputerStageManager, type ComputerStageRuntime } from "@oh-my-pi/pi-coding-agent/tools/computer/stage";
-import { ToolAbortError, ToolError } from "@oh-my-pi/pi-coding-agent/tools/tool-errors";
+import type { DaemonBrokerClient } from "@chudware/coding-agent/launch/client";
+import type { DaemonSnapshot, DaemonSpec } from "@chudware/coding-agent/launch/protocol";
+import { ComputerStageManager, type ComputerStageRuntime } from "@chudware/coding-agent/tools/computer/stage";
+import { ToolAbortError, ToolError } from "@chudware/coding-agent/tools/tool-errors";
 
 function snapshot(id: string, readyMatch: string = "\n27\n"): DaemonSnapshot {
 	return {
@@ -134,7 +134,7 @@ describe("ComputerStageManager", () => {
 			env: { DISPLAY: ":27" },
 			unsetEnv: ["WAYLAND_DISPLAY"],
 		});
-		expect(lease.descriptor.daemonName.startsWith("omp.computer.xvfb.")).toBe(true);
+		expect(lease.descriptor.daemonName.startsWith("chudcode.computer.xvfb.")).toBe(true);
 		expect(lease.descriptor.daemonName.length).toBeLessThanOrEqual(48);
 		expect(harness.startOwner).toBe("agent:alpha");
 		expect(harness.startSpec).toMatchObject({

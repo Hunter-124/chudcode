@@ -31,14 +31,14 @@ import {
 	PASTE_CODE_LOGIN_PROVIDERS,
 	PROVIDER_REGISTRY,
 	SqliteAuthCredentialStore,
-} from "@oh-my-pi/pi-ai";
-import { AuthBrokerClient, DEFAULT_AUTH_BROKER_BIND, startAuthBroker } from "@oh-my-pi/pi-ai/auth-broker";
-import { refreshOAuthToken } from "@oh-my-pi/pi-ai/oauth";
-import type { OAuthCredentials } from "@oh-my-pi/pi-ai/oauth/types";
-import { $which, getAgentDbPath, getConfigRootDir, isEnoent, logger, VERSION } from "@oh-my-pi/pi-utils";
-import chalk from "@oh-my-pi/pi-utils/chalk";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
-import { setTransports as setLoggerTransports } from "@oh-my-pi/pi-utils/logger";
+} from "@chudware/ai";
+import { AuthBrokerClient, DEFAULT_AUTH_BROKER_BIND, startAuthBroker } from "@chudware/ai/auth-broker";
+import { refreshOAuthToken } from "@chudware/ai/oauth";
+import type { OAuthCredentials } from "@chudware/ai/oauth/types";
+import { $which, getAgentDbPath, getConfigRootDir, isEnoent, logger, VERSION } from "@chudware/utils";
+import chalk from "@chudware/utils/chalk";
+import * as fsx from "@chudware/utils/fsx";
+import { setTransports as setLoggerTransports } from "@chudware/utils/logger";
 import { $ } from "bun";
 import { PRODUCT_CLI_NAME } from "../brand";
 import { refreshManagedMcpOAuthCredential } from "../mcp/oauth-credentials";
@@ -156,7 +156,7 @@ export function refreshBrokerOAuthCredential(
 async function runServe(flags: AuthBrokerCommandArgs["flags"]): Promise<void> {
 	// The broker is a long-running headless service: route structured logs to
 	// stdout so a process supervisor (pm2, journald, k8s) captures them, and
-	// skip the rotating ~/.omp/logs/ file the TUI default would have used.
+	// skip the rotating ~/.chudcode/logs/ file the TUI default would have used.
 	setLoggerTransports({ console: true, file: false });
 
 	const bind = flags.bind ?? DEFAULT_AUTH_BROKER_BIND;
@@ -762,7 +762,7 @@ async function runMigrate(flags: AuthBrokerCommandArgs["flags"]): Promise<void> 
 	const brokerConfig = await resolveAuthBrokerConfig();
 	if (!brokerConfig) {
 		throw new Error(
-			"OMP_AUTH_BROKER_URL must be set (or `auth.broker.url` in config.yml). `migrate` uploads local credentials to a configured broker.",
+			"CHUDCODE_AUTH_BROKER_URL must be set (or `auth.broker.url` in config.yml). `migrate` uploads local credentials to a configured broker.",
 		);
 	}
 	if (flags.fromLocal !== true) {
@@ -785,7 +785,7 @@ async function runMigrate(flags: AuthBrokerCommandArgs["flags"]): Promise<void> 
 	const plannedApiKeyProviders = new Set<string>();
 	try {
 		for (const row of localStore.listAuthCredentials()) {
-			// Skip placeholder sentinels that pi-ai treats as "authenticated via
+			// Skip placeholder sentinels that chud-ai treats as "authenticated via
 			// out-of-band mechanism" (Bedrock/Vertex `<authenticated>`). They
 			// aren't real keys and uploading them would store garbage on the
 			// broker. Mirrors the env-var path's guard below.
@@ -915,7 +915,7 @@ async function runMigrate(flags: AuthBrokerCommandArgs["flags"]): Promise<void> 
 async function runStatus(flags: AuthBrokerCommandArgs["flags"]): Promise<void> {
 	const cfg = await resolveAuthBrokerConfig();
 	if (!cfg) {
-		const message = "No auth-broker configured (set OMP_AUTH_BROKER_URL to enable).";
+		const message = "No auth-broker configured (set CHUDCODE_AUTH_BROKER_URL to enable).";
 		if (flags.json) process.stdout.write(`${JSON.stringify({ ok: false, reason: "not_configured" })}\n`);
 		else process.stdout.write(`${chalk.yellow(message)}\n`);
 		return;

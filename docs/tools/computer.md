@@ -14,7 +14,7 @@ User setup, permissions, safety guidance, examples, and platform limitations: [S
 - Renderer: `packages/coding-agent/src/tools/computer-renderer.ts`
 - Persistent worker: `packages/coding-agent/src/tools/computer/{supervisor,protocol,worker,worker-entry}.ts`
 - Private Linux stage lifecycle: `packages/coding-agent/src/tools/computer/stage.ts`
-- Native implementation: `crates/pi-natives/src/desktop/`
+- Native implementation: `crates/chud-natives/src/desktop/`
 - Native public types: `packages/natives/native/index.d.ts`
 
 ## Availability and declaration

@@ -11,8 +11,8 @@ import type { SymbolTheme } from "../../symbols";
 /** Box-drawing glyph set used for composer chrome (the theme's `boxRound`). */
 export type ComposerBox = SymbolTheme["boxRound"];
 
-/** Built-in composer shape identifiers shipped by pi-tui. */
-export const BUILTIN_EDITOR_BORDER_STYLES = ["box", "claude", "pi", "borderless", "rule", "field", "rail"] as const;
+/** Built-in composer shape identifiers shipped by chud-tui. */
+export const BUILTIN_EDITOR_BORDER_STYLES = ["box", "claude", "chud", "borderless", "rule", "field", "rail"] as const;
 
 /** Identifier for a built-in composer shape. */
 export type BuiltinEditorBorderStyle = (typeof BUILTIN_EDITOR_BORDER_STYLES)[number];

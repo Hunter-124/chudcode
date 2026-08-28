@@ -12,11 +12,11 @@ import {
 	formatNumberedLines,
 	type SnapshotStore,
 	splitAddressableFileLines,
-} from "@oh-my-pi/hashline";
-import type { AgentMessage } from "@oh-my-pi/pi-agent-core";
-import type { ImageContent } from "@oh-my-pi/pi-ai";
-import { formatAge, formatBytes, isProbablyBinary, readImageMetadata } from "@oh-my-pi/pi-utils";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
+} from "@chudware/hashline";
+import type { AgentMessage } from "@chudware/agent-core";
+import type { ImageContent } from "@chudware/ai";
+import { formatAge, formatBytes, isProbablyBinary, readImageMetadata } from "@chudware/utils";
+import * as fsx from "@chudware/utils/fsx";
 import { canonicalSnapshotKey } from "../edit/file-snapshot-store";
 import { normalizeToLF } from "../edit/normalize";
 import type { FileMentionMessage } from "../session/messages";

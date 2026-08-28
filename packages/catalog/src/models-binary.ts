@@ -2,8 +2,8 @@ import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 import * as url from "node:url";
-import { MappedModelCatalog } from "@oh-my-pi/pi-natives";
-import { getCatalogCacheDir } from "@oh-my-pi/pi-utils/dirs";
+import { MappedModelCatalog } from "@chudware/natives";
+import { getCatalogCacheDir } from "@chudware/utils/dirs";
 import modelsAsset from "./models.bin" with { type: "file" };
 import {
 	BUNDLED_MODELS_BIN_BYTES,
@@ -84,7 +84,7 @@ export function openBundledModelCatalog(): MappedModelCatalog {
 		);
 	}
 
-	const cacheRoots = [getCatalogCacheDir(), path.join(os.tmpdir(), "omp-catalog")];
+	const cacheRoots = [getCatalogCacheDir(), path.join(os.tmpdir(), "chudcode-catalog")];
 	for (const cacheRoot of cacheRoots) {
 		try {
 			return stageCatalog(cacheRoot, bytes);

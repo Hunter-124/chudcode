@@ -1,15 +1,15 @@
 import { afterEach, describe, expect, it, vi } from "bun:test";
-import { Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
-import { runEvalAgent } from "@oh-my-pi/pi-coding-agent/eval/agent-bridge";
-import type { LocalProtocolOptions } from "@oh-my-pi/pi-coding-agent/internal-urls";
-import type { MCPManager } from "@oh-my-pi/pi-coding-agent/mcp";
-import { SessionManager } from "@oh-my-pi/pi-coding-agent/session/session-manager";
-import * as taskDiscovery from "@oh-my-pi/pi-coding-agent/task/discovery";
-import * as taskExecutor from "@oh-my-pi/pi-coding-agent/task/executor";
-import * as isolationRunner from "@oh-my-pi/pi-coding-agent/task/isolation-runner";
-import { runStructuredSubagent } from "@oh-my-pi/pi-coding-agent/task/structured-subagent";
-import type { AgentDefinition, SingleResult, StructuredSubagentOutput } from "@oh-my-pi/pi-coding-agent/task/types";
-import type { ToolSession } from "@oh-my-pi/pi-coding-agent/tools";
+import { Settings } from "@chudware/coding-agent/config/settings";
+import { runEvalAgent } from "@chudware/coding-agent/eval/agent-bridge";
+import type { LocalProtocolOptions } from "@chudware/coding-agent/internal-urls";
+import type { MCPManager } from "@chudware/coding-agent/mcp";
+import { SessionManager } from "@chudware/coding-agent/session/session-manager";
+import * as taskDiscovery from "@chudware/coding-agent/task/discovery";
+import * as taskExecutor from "@chudware/coding-agent/task/executor";
+import * as isolationRunner from "@chudware/coding-agent/task/isolation-runner";
+import { runStructuredSubagent } from "@chudware/coding-agent/task/structured-subagent";
+import type { AgentDefinition, SingleResult, StructuredSubagentOutput } from "@chudware/coding-agent/task/types";
+import type { ToolSession } from "@chudware/coding-agent/tools";
 
 function createResult(overrides: Partial<SingleResult> = {}): SingleResult {
 	return {

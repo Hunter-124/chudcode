@@ -55,11 +55,11 @@ describe("getLatestRelease fork release channel", () => {
 		expect(release.version).toBe("0.3.0");
 		expect(release.tag).toBe(`${PRODUCT_RELEASE_TAG_PREFIX}0.3.0`);
 		// Binary distribution keeps the package-manager paths unreachable, so an
-		// update can never run `bun add @oh-my-pi/pi-coding-agent` over the fork.
+		// update can never run `bun add @chudware/coding-agent` over the fork.
 		expect(release.dist).toBe("binary");
 		expect(urls).toEqual(["https://api.github.com/repos/Hunter-124/chudcode/releases/latest"]);
 		expect(urls[0]).not.toContain("registry.npmjs.org");
-		expect(urls[0]).not.toContain("can1357");
+		expect(urls[0]).not.toContain("Hunter-124");
 	});
 
 	it("ignores an inherited upstream tag that is not namespaced to this fork", async () => {
@@ -118,7 +118,7 @@ describe("getLatestRelease proxy errors", () => {
 		const fetchStub = Object.assign(
 			async () => {
 				throw new Error(
-					'UnsupportedProxyProtocol fetching "https://registry.npmjs.org/@oh-my-pi/pi-coding-agent/latest". ' +
+					'UnsupportedProxyProtocol fetching "https://registry.npmjs.org/@chudware/coding-agent/latest". ' +
 						"For more information, pass `verbose: true` in the second argument to fetch()",
 				);
 			},

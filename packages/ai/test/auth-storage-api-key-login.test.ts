@@ -4,12 +4,12 @@ import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
 
-import { AuthStorage, SqliteAuthCredentialStore } from "@oh-my-pi/pi-ai/auth-storage";
-import * as deepseekModule from "@oh-my-pi/pi-ai/registry/deepseek";
-import * as kagiModule from "@oh-my-pi/pi-ai/registry/kagi";
-import * as ollamaCloudModule from "@oh-my-pi/pi-ai/registry/ollama-cloud";
-import * as aiStream from "@oh-my-pi/pi-ai/stream";
-import { serializeAlibabaTokenPlanCredential } from "@oh-my-pi/pi-catalog/wire/alibaba-token-plan";
+import { AuthStorage, SqliteAuthCredentialStore } from "@chudware/ai/auth-storage";
+import * as deepseekModule from "@chudware/ai/registry/deepseek";
+import * as kagiModule from "@chudware/ai/registry/kagi";
+import * as ollamaCloudModule from "@chudware/ai/registry/ollama-cloud";
+import * as aiStream from "@chudware/ai/stream";
+import { serializeAlibabaTokenPlanCredential } from "@chudware/catalog/wire/alibaba-token-plan";
 import { removeWithRetries } from "../../utils/src/temp";
 
 function countCredentialRows(dbPath: string, provider: string): number {
@@ -54,7 +54,7 @@ describe("AuthStorage api-key login upsert", () => {
 
 	beforeEach(async () => {
 		getEnvApiKeySpy = vi.spyOn(aiStream, "getEnvApiKey").mockReturnValue(undefined);
-		tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "pi-ai-auth-api-key-login-"));
+		tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "chud-ai-auth-api-key-login-"));
 		dbPath = path.join(tempDir, "agent.db");
 		store = await SqliteAuthCredentialStore.open(dbPath);
 		authStorage = new AuthStorage(store);

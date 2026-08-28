@@ -1,9 +1,9 @@
 import { describe, expect, it } from "bun:test";
-import * as shim from "@oh-my-pi/pi-coding-agent/extensibility/legacy-pi-coding-agent-shim";
+import * as shim from "@chudware/coding-agent/extensibility/legacy-chudcode-agent-shim";
 
-// Issue #7094: pi extensions import the edit/write tool factories
+// Issue #7094: chud extensions import the edit/write tool factories
 // (`createEditTool`, `createEditToolDefinition`, `createWriteTool`,
-// `createWriteToolDefinition`) from `@earendil-works/pi-coding-agent`, which
+// `createWriteToolDefinition`) from `@earendil-works/chudcode-agent`, which
 // aliases to this shim. The shim exported the other five tool factories
 // (read/bash/grep/find/ls) but omitted edit and write, so a named import of
 // either threw Bun's static "Export named X not found" error and any importing

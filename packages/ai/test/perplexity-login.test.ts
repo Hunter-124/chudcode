@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "bun:test";
-import { loginPerplexity } from "@oh-my-pi/pi-ai/registry/oauth/perplexity";
-import type { FetchImpl } from "@oh-my-pi/pi-ai/types";
+import { loginPerplexity } from "@chudware/ai/registry/oauth/perplexity";
+import type { FetchImpl } from "@chudware/ai/types";
 import { withEnv } from "./helpers";
 
 type CapturedRequest = {
@@ -45,7 +45,7 @@ describe("Perplexity email OTP login", () => {
 			});
 			const answers = ["user@example.com", "123456"];
 
-			await withEnv({ PI_AUTH_NO_BORROW: "1" }, async () => {
+			await withEnv({ CHUDCODE_AUTH_NO_BORROW: "1" }, async () => {
 				const credentials = await loginPerplexity({
 					fetch: fetchMock,
 					onPrompt: async () => answers.shift() ?? "",

@@ -1,9 +1,9 @@
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
-import { getDaemonRuntimeDir, isEisdir, isEnoent } from "@oh-my-pi/pi-utils";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
+import { getDaemonRuntimeDir, isEisdir, isEnoent } from "@chudware/utils";
+import * as fsx from "@chudware/utils/fsx";
 
-/** Resolve the private runtime directory shared by omp processes in one project directory. */
+/** Resolve the private runtime directory shared by chudcode processes in one project directory. */
 export { getDaemonRuntimeDir as daemonRuntimeDir };
 
 /** File in a broker runtime dir recording which project (or global service dir) owns the scope. */
@@ -50,7 +50,7 @@ export async function readDaemonScopeMeta(runtimeDir: string): Promise<string | 
 export function daemonBrokerEndpoint(projectDir: string, runtimeDir: string): string {
 	if (process.platform === "win32") {
 		const key = Bun.hash.wyhash(path.resolve(projectDir)).toString(16).padStart(16, "0");
-		return `\\\\.\\pipe\\omp-daemon-${key}`;
+		return `\\\\.\\pipe\\chudcode-daemon-${key}`;
 	}
 	return path.join(runtimeDir, "broker.sock");
 }

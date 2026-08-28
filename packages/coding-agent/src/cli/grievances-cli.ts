@@ -1,7 +1,7 @@
 /**
  * CLI handler for `chudcode grievances` — view, clean, and manually push reported tool issues.
  */
-import chalk from "@oh-my-pi/pi-utils/chalk";
+import chalk from "@chudware/utils/chalk";
 import { Settings } from "../config/settings";
 import { flushGrievances, openAutoQaDb } from "../tools/report-tool-issue";
 
@@ -195,7 +195,7 @@ function makeProgressBar(total: number, width = 30): ProgressBar {
  * ignoring the user-facing consent gate (manual push is the user's
  * explicit "yes ship these now" intent).
  *
- * Requires endpoint configuration (default `qa.omp.sh/v1/grievances`).
+ * Requires endpoint configuration (default `qa.chudware.sh/v1/grievances`).
  */
 export async function pushGrievances(options: PushGrievancesOptions): Promise<void> {
 	const db = openAutoQaDb();
@@ -230,7 +230,7 @@ export async function pushGrievances(options: PushGrievancesOptions): Promise<vo
 		if (result.skipped) {
 			console.log(
 				chalk.yellow(
-					"Push skipped — no endpoint configured. Set `dev.autoqaPush.endpoint` or `PI_AUTO_QA_PUSH_URL`.",
+					"Push skipped — no endpoint configured. Set `dev.autoqaPush.endpoint` or `CHUDCODE_AUTO_QA_PUSH_URL`.",
 				),
 			);
 			return;

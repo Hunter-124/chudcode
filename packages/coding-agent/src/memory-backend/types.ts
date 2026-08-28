@@ -6,11 +6,11 @@
  * state they create in `start()` and tear it down on `clear()`.
  */
 
-import type { AgentMessage } from "@oh-my-pi/pi-agent-core";
+import type { AgentMessage } from "@chudware/agent-core";
 import type { ModelRegistry } from "../config/model-registry";
 import type { Settings } from "../config/settings";
 import type { HindsightSessionState } from "../hindsight/state";
-import type { MnemopiSessionState } from "../mnemopi/state";
+import type { MnemopiSessionState } from "../mnemo/state";
 import type { AgentSession } from "../session/agent-session";
 
 /** Built-ins use stable literal ids; extensions may register additional ids at runtime. */

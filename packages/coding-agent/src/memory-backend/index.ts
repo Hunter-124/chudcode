@@ -3,14 +3,14 @@ export type {
 	MnemopiLlmMode,
 	MnemopiProviderOptions,
 	MnemopiScoping,
-} from "../mnemopi/config";
+} from "../mnemo/config";
 export type {
 	MnemopiMemoryEditOperation,
 	MnemopiMemoryEditOptions,
 	MnemopiMemoryEditResult,
 	MnemopiSessionState,
 	MnemopiSessionStateOptions,
-} from "../mnemopi/state";
+} from "../mnemo/state";
 export * from "./local-backend";
 export * from "./messages";
 export * from "./off-backend";

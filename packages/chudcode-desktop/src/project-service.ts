@@ -1,7 +1,7 @@
 import { randomBytes } from "node:crypto";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
-import { getAgentDir } from "@oh-my-pi/pi-utils";
+import { getAgentDir } from "@chudware/utils";
 import type { RecentProject } from "./protocol";
 
 const RECENT_SCHEMA_VERSION = 1;

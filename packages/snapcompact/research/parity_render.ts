@@ -8,7 +8,7 @@
  * path the agent ships) and writes the PNG bytes to `out-png`.
  */
 import * as snapcompact from "../src/snapcompact";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
+import * as fsx from "@chudware/utils/fsx";
 
 const [textFile, shapeJson, outPng] = Bun.argv.slice(2);
 if (!textFile || !shapeJson || !outPng) {

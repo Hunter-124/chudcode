@@ -3,9 +3,9 @@ import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import type { Model } from "@oh-my-pi/pi-ai/types";
-import { buildModel } from "@oh-my-pi/pi-catalog/build";
-import { readModelCache, writeModelCache } from "@oh-my-pi/pi-catalog/model-cache";
+import type { Model } from "@chudware/ai/types";
+import { buildModel } from "@chudware/catalog/build";
+import { readModelCache, writeModelCache } from "@chudware/catalog/model-cache";
 import { removeWithRetries } from "../../utils/src/temp";
 
 const TTL_MS = 24 * 60 * 60 * 1000;
@@ -35,7 +35,7 @@ describe("model cache migrations", () => {
 	let dbPath = "";
 
 	beforeEach(async () => {
-		tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "pi-ai-model-cache-"));
+		tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "chud-ai-model-cache-"));
 		dbPath = path.join(tempDir, "models.db");
 	});
 

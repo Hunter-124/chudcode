@@ -35,7 +35,7 @@ The session-scoped wire schema advertises only enabled runtimes. The static impl
 
 ## Kernel lifecycle
 
-Each Python kernel is a single subprocess: `<resolved-python> -u <runner.py>`. The runner is bundled with the host binary (Bun text import), written to an `omp-python-runner` cache under the OS temp directory once per script hash, and reused by subsequent spawns.
+Each Python kernel is a single subprocess: `<resolved-python> -u <runner.py>`. The runner is bundled with the host binary (Bun text import), written to an `chudcode-python-runner` cache under the OS temp directory once per script hash, and reused by subsequent spawns.
 
 Kernel startup sequence:
 
@@ -73,7 +73,7 @@ Runner → host:
 {"type": "done",     "id": "<reqId>", "status": "ok"|"error", "executionCount": N, "cancelled": false}
 ```
 
-Status events the prelude emits (e.g. `_emit_status("find", count=…)`) ship inside display bundles under `application/x-omp-status` so the existing TUI status renderer keeps working.
+Status events the prelude emits (e.g. `_emit_status("find", count=…)`) ship inside display bundles under `application/x-chudcode-status` so the existing TUI status renderer keeps working.
 
 ## Magics
 
@@ -127,13 +127,13 @@ If a cell fails, definitions and mutations completed before the error can remain
 Environment is filtered before launching the runner:
 
 - Allowlist includes core vars like `PATH`, `HOME`, locale vars, `VIRTUAL_ENV`, `PYTHONPATH`, etc.
-- Allow-prefixes: `LC_`, `XDG_`, `PI_`
+- Allow-prefixes: `LC_`, `XDG_`, `CHUDCODE_`
 - Denylist strips common API keys (OpenAI/Anthropic/Gemini/etc.)
 
 Runtime selection order (skipped entirely when the `python.interpreter` setting names an explicit executable):
 
 1. Active/located venv (`VIRTUAL_ENV`, then `CONDA_PREFIX`, then `<cwd>/.venv`, `<cwd>/venv`)
-2. Managed venv at `~/.omp/python-env`
+2. Managed venv at `~/.chudcode/python-env`
 3. `python` or `python3` on PATH
 
 When a venv is selected, its bin/Scripts path is prepended to `PATH`.
@@ -142,7 +142,7 @@ The runner additionally receives `PYTHONUNBUFFERED=1` and `PYTHONIOENCODING=utf-
 
 ## Tool availability and mode selection
 
-The backend settings `eval.py` / `eval.js` default to `true`; `eval.rb` / `eval.jl` default to `false`. Optional boolean environment flags `PI_PY`, `PI_JS`, `PI_RB`, and `PI_JL` override their corresponding setting independently.
+The backend settings `eval.py` / `eval.js` default to `true`; `eval.rb` / `eval.jl` default to `false`. Optional boolean environment flags `CHUDCODE_PY`, `CHUDCODE_JS`, `CHUDCODE_RB`, and `CHUDCODE_JL` override their corresponding setting independently.
 
 The tool's session-scoped schema lists only enabled runtimes. If Python preflight fails while another runtime is enabled, `eval` remains available for that runtime and a `py` call reports a Python-backend availability error with enabled alternatives.
 
@@ -180,7 +180,7 @@ From runner frames:
 - `stdout` / `stderr` → plain text chunks
 - `display` / `result` → rich display handling (MIME bundle)
 - `error` → traceback text
-- `application/x-omp-status` MIME inside `display` → structured status events
+- `application/x-chudcode-status` MIME inside `display` → structured status events
 
 Display MIME precedence:
 
@@ -192,7 +192,7 @@ Additionally captured as structured outputs:
 
 - `application/json` → JSON tree data
 - `image/png` / `image/jpeg` → image payloads
-- `application/x-omp-status` → status events
+- `application/x-chudcode-status` → status events
 
 ### Matplotlib
 
@@ -216,15 +216,15 @@ Output is streamed through `OutputSink` and may be persisted to artifact storage
 
 ## Operational troubleshooting
 
-- **Python backend not available** — Check `eval.py`, `PI_PY`, and that `python`/`python3` is on PATH. If another backend is enabled, use its advertised language token.
-- **No Python on PATH** — Install a system Python 3.10+ or place a compatible venv at `~/.omp/python-env`. `chudcode setup python --check` reports the resolved interpreter.
+- **Python backend not available** — Check `eval.py`, `CHUDCODE_PY`, and that `python`/`python3` is on PATH. If another backend is enabled, use its advertised language token.
+- **No Python on PATH** — Install a system Python 3.10+ or place a compatible venv at `~/.chudcode/python-env`. `chudcode setup python --check` reports the resolved interpreter.
 - **Execution hangs then times out** — Increase `timeout` for legitimate work or set it to `0` to disable the watchdog. For stuck native code, cancellation sends `SIGINT` first and then escalates; session mode recreates the kernel on the next request if it had to be killed.
 - **stdin/input prompts in Python code** — `input()` is not supported; pass data programmatically.
 - **Working directory errors** — Python runs in the session cwd. Use `%cd` or `os.chdir()` inside the retained kernel to change it.
 
 ## Relevant environment variables
 
-- `PI_PY` / `PI_JS` / `PI_RB` / `PI_JL` — per-backend exposure overrides
-- `PI_PYTHON_SKIP_CHECK=1` — bypass Python preflight/warm checks
-- `PI_PYTHON_INTEGRATION=1` — enable gated integration tests that spawn a real Python
-- `PI_PYTHON_IPC_TRACE=1` — log NDJSON frames exchanged with the runner subprocess
+- `CHUDCODE_PY` / `CHUDCODE_JS` / `CHUDCODE_RB` / `CHUDCODE_JL` — per-backend exposure overrides
+- `CHUDCODE_PYTHON_SKIP_CHECK=1` — bypass Python preflight/warm checks
+- `CHUDCODE_PYTHON_INTEGRATION=1` — enable gated integration tests that spawn a real Python
+- `CHUDCODE_PYTHON_IPC_TRACE=1` — log NDJSON frames exchanged with the runner subprocess

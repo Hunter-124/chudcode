@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import { AuthStorage, type FetchImpl, type OAuthCredential, SqliteAuthCredentialStore } from "@oh-my-pi/pi-ai";
+import { AuthStorage, type FetchImpl, type OAuthCredential, SqliteAuthCredentialStore } from "@chudware/ai";
 import { removeWithRetries } from "../../utils/src/temp";
 import { registerOAuthProvider, unregisterOAuthProviders } from "../src/registry/oauth";
 
@@ -111,7 +111,7 @@ describe("AuthStorage openai-codex email dedupe", () => {
 	let authStorage: AuthStorage | null = null;
 
 	beforeEach(async () => {
-		tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "pi-ai-auth-email-dedupe-"));
+		tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "chud-ai-auth-email-dedupe-"));
 		dbPath = path.join(tempDir, "agent.db");
 		store = await SqliteAuthCredentialStore.open(dbPath);
 		authStorage = new AuthStorage(store);
@@ -657,7 +657,7 @@ describe("AuthStorage OAuth login upgrade and multi-account coexistence", () => 
 	let tempDir = "";
 
 	beforeEach(async () => {
-		tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "omp-auth-login-test-"));
+		tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "chudcode-auth-login-test-"));
 	});
 
 	afterEach(async () => {
@@ -786,7 +786,7 @@ describe("AuthStorage persistent session stickiness", () => {
 	let dbPath = "";
 
 	beforeEach(async () => {
-		tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "omp-auth-test-"));
+		tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "chudcode-auth-test-"));
 		dbPath = path.join(tempDir, "auth.db");
 	});
 

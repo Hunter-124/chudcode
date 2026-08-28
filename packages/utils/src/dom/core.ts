@@ -1132,7 +1132,7 @@ export class DOMWindow extends EventTarget {
 	readonly DocumentFragment = DocumentFragment;
 	readonly Event = Event;
 	readonly CustomEvent = CustomEvent;
-	readonly navigator = { userAgent: "pi-utils-dom", platform: "" };
+	readonly navigator = { userAgent: "chud-utils-dom", platform: "" };
 	readonly location = { href: "about:blank" };
 	readonly window: DOMWindow;
 	readonly self: DOMWindow;

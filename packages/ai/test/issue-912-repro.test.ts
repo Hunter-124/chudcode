@@ -1,8 +1,8 @@
 import { describe, expect, it } from "bun:test";
-import { stream } from "@oh-my-pi/pi-ai/stream";
-import type { Context, Model } from "@oh-my-pi/pi-ai/types";
-import { buildModel } from "@oh-my-pi/pi-catalog/build";
-import { sleep } from "@oh-my-pi/pi-utils/async";
+import { stream } from "@chudware/ai/stream";
+import type { Context, Model } from "@chudware/ai/types";
+import { buildModel } from "@chudware/catalog/build";
+import { sleep } from "@chudware/utils/async";
 
 function makeCopilotResponsesModel(baseUrl: string): Model<"openai-responses"> {
 	return buildModel({

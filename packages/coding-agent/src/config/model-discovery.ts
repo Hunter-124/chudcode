@@ -3,27 +3,27 @@
  * llama.cpp, lm-studio, openai-models-list, and new-api/one-api-style proxies.
  * `ModelRegistry` owns the orchestration (status, state, caching) and calls
  * `discoverModelsByProviderType` with a `DiscoveryContext`; built-in provider
- * discovery lives in pi-catalog's provider-models.
+ * discovery lives in chud-catalog's provider-models.
  */
-import { type ApiKey, type FetchImpl, withAuth } from "@oh-my-pi/pi-ai";
-import type { Api, Model, RemoteCompactionConfig } from "@oh-my-pi/pi-ai/types";
-import { buildModel } from "@oh-my-pi/pi-catalog/build";
+import { type ApiKey, type FetchImpl, withAuth } from "@chudware/ai";
+import type { Api, Model, RemoteCompactionConfig } from "@chudware/ai/types";
+import { buildModel } from "@chudware/catalog/build";
 import {
 	getBundledModelReferenceIndex,
 	inheritReferenceThinking,
 	isQwenModelId,
 	resolveModelReference,
 	stripBracketedModelIdAffixes,
-} from "@oh-my-pi/pi-catalog/identity";
+} from "@chudware/catalog/identity";
 import {
 	fetchLiteLLMRichModels,
 	fetchLmStudioNativeModelMetadata,
 	OPENAI_COMPAT_DISCOVERY_DEFAULT_CONTEXT_WINDOW,
 	OPENAI_COMPAT_DISCOVERY_DEFAULT_MAX_TOKENS,
 	resolveLiteLLMApi,
-} from "@oh-my-pi/pi-catalog/provider-models/openai-compat";
-import type { ModelSpec, OpenAICompat } from "@oh-my-pi/pi-catalog/types";
-import { isRecord } from "@oh-my-pi/pi-utils";
+} from "@chudware/catalog/provider-models/openai-compat";
+import type { ModelSpec, OpenAICompat } from "@chudware/catalog/types";
+import { isRecord } from "@chudware/utils";
 import type { ProviderDiscovery } from "./models-config-schema";
 
 // Default cap on `max_tokens` for auto-discovered models that do not advertise
@@ -572,7 +572,7 @@ function isBonsaiQwenGguf(id: string): boolean {
  * `<think>` blocks survive (`qwenPreserveThinking`). The runtime base URL gets a
  * `/v1` suffix because the chat-completions request would otherwise POST to the
  * native root, which does not serve it. A model with a custom transport (e.g.
- * `pi-native`, whose client appends `/v1/pi/stream`) keeps its base URL so the
+ * `chud-native`, whose client appends `/v1/pi/stream`) keeps its base URL so the
  * suffix is not doubled. Non-Qwen models pass through unchanged. Applied on both
  * fresh discovery and cache load, so an upgraded cache is corrected without
  * waiting for re-discovery.

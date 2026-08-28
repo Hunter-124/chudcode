@@ -10,14 +10,14 @@
  * which can be cheaper/faster than the main conversation model.
  *
  * Usage:
- *   omp --hook examples/hooks/custom-compaction.ts
+ *   chudcode --hook examples/hooks/custom-compaction.ts
  */
-import { complete, getModel } from "@oh-my-pi/pi-ai";
-import type { HookAPI } from "@oh-my-pi/pi-coding-agent";
-import { convertToLlm, serializeConversation } from "@oh-my-pi/pi-coding-agent";
+import { complete, getModel } from "@chudware/ai";
+import type { HookAPI } from "@chudware/coding-agent";
+import { convertToLlm, serializeConversation } from "@chudware/coding-agent";
 
-export default function (pi: HookAPI) {
-	pi.on("session_before_compact", async (event, ctx) => {
+export default function (chud: HookAPI) {
+	chud.on("session_before_compact", async (event, ctx) => {
 		ctx.ui.notify("Custom compaction hook triggered", "info");
 
 		const { preparation, branchEntries: _, signal } = event;

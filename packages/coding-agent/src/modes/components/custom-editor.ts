@@ -1,5 +1,5 @@
 import { fileURLToPath } from "node:url";
-import type { ImageContent } from "@oh-my-pi/pi-ai";
+import type { ImageContent } from "@chudware/ai";
 import {
 	addKeyAliases,
 	canonicalKeyId,
@@ -10,8 +10,8 @@ import {
 	parseKey,
 	parseKittySequence,
 	TUI,
-} from "@oh-my-pi/pi-tui";
-import { BracketedPasteHandler } from "@oh-my-pi/pi-tui/bracketed-paste";
+} from "@chudware/tui";
+import { BracketedPasteHandler } from "@chudware/tui/bracketed-paste";
 import type { AppKeybinding } from "../../config/keybindings";
 import {
 	attachmentSgr,
@@ -441,7 +441,7 @@ export class CustomEditor extends Editor {
 
 	/**
 	 * The host {@link TUI}, captured when a plugin constructs this editor through
-	 * the upstream-pi `(tui, theme, keybindings)` convention. Undefined for omp's
+	 * the upstream-pi `(tui, theme, keybindings)` convention. Undefined for chudcode's
 	 * own `new CustomEditor(theme)` callers (they drive repaints through the
 	 * interactive-mode wiring instead). Plugins that call `this.tui.requestRender()`
 	 * in their overrides read it here (issue #4766).
@@ -452,7 +452,7 @@ export class CustomEditor extends Editor {
 	 * Accept both the chudcode constructor convention — `new CustomEditor(theme)` —
 	 * and the upstream-pi `Editor` convention — `new Editor(tui, theme, keybindings)`
 	 * — that {@link ExtensionUIContext.setEditorComponent}'s factory contract
-	 * advertises `(tui, theme, keybindings)`. Plugins written against upstream pi
+	 * advertises `(tui, theme, keybindings)`. Plugins written against upstream chud
 	 * subclass `CustomEditor`/`Editor` and forward `super(tui, theme, keybindings)`;
 	 * without this shim the `TUI` lands in the `theme` slot and every render throws
 	 * `undefined is not an object (evaluating 'this.#theme.symbols.boxRound')`

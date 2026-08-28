@@ -7,8 +7,8 @@ import {
 	AuthStorage,
 	REMOTE_REFRESH_SENTINEL,
 	SqliteAuthCredentialStore,
-} from "@oh-my-pi/pi-ai/auth-storage";
-import * as oauthUtils from "@oh-my-pi/pi-ai/registry/oauth";
+} from "@chudware/ai/auth-storage";
+import * as oauthUtils from "@chudware/ai/registry/oauth";
 import { removeWithRetries } from "../../utils/src/temp";
 
 describe("AuthStorage broker sentinel refresh", () => {
@@ -18,7 +18,7 @@ describe("AuthStorage broker sentinel refresh", () => {
 	let brokerRefreshCalls = 0;
 
 	beforeEach(async () => {
-		tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "pi-ai-auth-broker-no-sentinel-"));
+		tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "chud-ai-auth-broker-no-sentinel-"));
 		store = await SqliteAuthCredentialStore.open(path.join(tempDir, "agent.db"));
 		brokerRefreshCalls = 0;
 		authStorage = new AuthStorage(store, {

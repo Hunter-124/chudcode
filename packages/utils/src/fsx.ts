@@ -14,7 +14,7 @@ import { isEacces, isEnoent, isEnotdir } from "./fs-error";
  * - {@link exists} answers `false` for a missing path instead of throwing, and
  *   for a directory, matching `BunFile.exists()`.
  *
- * Import this as a namespace (`import * as fsx from "@oh-my-pi/pi-utils/fsx"`):
+ * Import this as a namespace (`import * as fsx from "@chudware/utils/fsx"`):
  * the short names collide with local helpers across the repo, and a namespace
  * also gives tests one object to stub.
  */

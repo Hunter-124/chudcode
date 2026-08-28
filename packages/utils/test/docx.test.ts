@@ -3,7 +3,7 @@ import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
 import * as zlib from "node:zlib";
-import { convertToHtml, type DocxResult, images } from "@oh-my-pi/pi-utils/docx";
+import { convertToHtml, type DocxResult, images } from "@chudware/utils/docx";
 import * as fsx from "../src/fsx";
 
 const WML = "http://schemas.openxmlformats.org/wordprocessingml/2006/main";
@@ -125,7 +125,7 @@ describe("DOCX to HTML", () => {
 		};
 		expect(await convertToHtml({ buffer: document })).toEqual(expected);
 
-		const directory = await fs.mkdtemp(path.join(os.tmpdir(), "pi-docx-"));
+		const directory = await fs.mkdtemp(path.join(os.tmpdir(), "chud-docx-"));
 		const filename = path.join(directory, "fixture.docx");
 		try {
 			await fsx.write(filename, document);

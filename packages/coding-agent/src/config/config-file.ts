@@ -1,8 +1,8 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
-import { OmpErrors, type Type } from "@oh-my-pi/omptype";
-import { getAgentDir, isEnoent, logger } from "@oh-my-pi/pi-utils";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
+import { ChudErrors, type Type } from "@chudware/chudtype";
+import { getAgentDir, isEnoent, logger } from "@chudware/utils";
+import * as fsx from "@chudware/utils/fsx";
 import { JSONC, YAML } from "bun";
 
 const YAML_MAPPING_HEADER_TRAILING_SPACE = /: +$/gm;
@@ -260,7 +260,7 @@ export class ConfigFile<T> implements IConfigFile<T> {
 			}
 
 			const checked = this.schema(parsed);
-			if (checked instanceof OmpErrors) {
+			if (checked instanceof ChudErrors) {
 				const schemaErrors: ConfigSchemaError[] = checked.map(error => ({
 					instancePath: error.path.length === 0 ? "root" : error.path.join("."),
 					message: error.problem,

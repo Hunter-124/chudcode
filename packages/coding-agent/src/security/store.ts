@@ -1,8 +1,8 @@
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
-import { getSecurityProjectDir, isEnoent } from "@oh-my-pi/pi-utils";
-import { withFileLock } from "@oh-my-pi/pi-utils/file-lock";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
+import { getSecurityProjectDir, isEnoent } from "@chudware/utils";
+import { withFileLock } from "@chudware/utils/file-lock";
+import * as fsx from "@chudware/utils/fsx";
 import * as git from "../utils/git";
 import { compareSecurityLineage } from "./comparison";
 import type {

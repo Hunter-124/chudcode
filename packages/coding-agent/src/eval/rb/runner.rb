@@ -1,5 +1,5 @@
 # frozen_string_literal: false
-# OMP Ruby runner — subprocess wrapper used by the coding-agent host.
+# Chudcode Ruby runner — subprocess wrapper used by the coding-agent host.
 #
 # Mirrors the Python runner (eval/py/runner.py): a persistent Ruby process that
 # speaks NDJSON over stdin/stdout. The host writes one JSON request per line
@@ -126,10 +126,10 @@ end
 def __omp_emit_status(op, data = {})
   status = { "op" => op.to_s }
   data.each { |k, v| status[k.to_s] = v }
-  __omp_emit_display({ "application/x-omp-status" => status }, "display")
+  __omp_emit_display({ "application/x-chudcode-status" => status }, "display")
 end
 
-OMP_IMAGE_MIMES = %w[image/png image/jpeg].freeze
+CHUDCODE_IMAGE_MIMES = %w[image/png image/jpeg].freeze
 
 # True when `str` already looks like base64 text (ASCII, base64 alphabet, length
 # a multiple of 4). Raw image blobs (PNG/JPEG bytes) contain high bytes, so they
@@ -171,7 +171,7 @@ def __omp_normalize_bundle(hash)
   hash.each do |key, val|
     k = key.to_s
     bundle[k] =
-      if OMP_IMAGE_MIMES.include?(k)
+      if CHUDCODE_IMAGE_MIMES.include?(k)
         __omp_image_payload(val)
       elsif val.is_a?(String)
         __omp_scrub(val)
@@ -275,7 +275,7 @@ end
 # User stdout/stderr proxies — emit typed frames for the current request.
 # ---------------------------------------------------------------------------
 
-class OmpStreamProxy
+class ChudStreamProxy
   def initialize(kind, io, fileno)
     @kind = kind
     @io = io
@@ -412,13 +412,13 @@ end
 # Per-request runtime (cwd + managed env) + auto-result suppression
 # ---------------------------------------------------------------------------
 
-OMP_MANAGED_ENV_KEYS = %w[
-  PI_SESSION_FILE
-  PI_ARTIFACTS_DIR
-  PI_TOOL_BRIDGE_URL
-  PI_TOOL_BRIDGE_TOKEN
-  PI_TOOL_BRIDGE_SESSION
-  PI_EVAL_LOCAL_ROOTS
+CHUDCODE_MANAGED_ENV_KEYS = %w[
+  CHUDCODE_SESSION_FILE
+  CHUDCODE_ARTIFACTS_DIR
+  CHUDCODE_TOOL_BRIDGE_URL
+  CHUDCODE_TOOL_BRIDGE_TOKEN
+  CHUDCODE_TOOL_BRIDGE_SESSION
+  CHUDCODE_EVAL_LOCAL_ROOTS
 ].freeze
 
 def __omp_apply_request_runtime(req)
@@ -430,7 +430,7 @@ def __omp_apply_request_runtime(req)
   end
   env = req["env"]
   if env.is_a?(Hash)
-    OMP_MANAGED_ENV_KEYS.each do |key|
+    CHUDCODE_MANAGED_ENV_KEYS.each do |key|
       next unless env.key?(key)
       value = env[key]
       if value.is_a?(String)
@@ -445,7 +445,7 @@ end
 # Last value-bearing AST node types we should NOT auto-display (statements /
 # definitions, mirroring IPython's "only display a trailing expression"). Falls
 # back to displaying any non-nil value when the AST is unavailable.
-OMP_NON_DISPLAY_NODES = %i[
+CHUDCODE_NON_DISPLAY_NODES = %i[
   LASGN IASGN GASGN CVASGN DASGN OP_ASGN OP_CDECL CDECL MASGN CASGN
   DEFN DEFS CLASS MODULE SCLASS ALIAS UNDEF
 ].freeze
@@ -473,7 +473,7 @@ def __omp_should_display_result?(src)
     end
   last = __omp_ast_last(node)
   return true if last.nil?
-  !OMP_NON_DISPLAY_NODES.include?(last.type)
+  !CHUDCODE_NON_DISPLAY_NODES.include?(last.type)
 end
 
 # ---------------------------------------------------------------------------
@@ -550,8 +550,8 @@ end
 # ---------------------------------------------------------------------------
 
 def __omp_main
-  $stdout = OmpStreamProxy.new("stdout", STDOUT, 1)
-  $stderr = OmpStreamProxy.new("stderr", STDERR, 2)
+  $stdout = ChudStreamProxy.new("stdout", STDOUT, 1)
+  $stderr = ChudStreamProxy.new("stderr", STDERR, 2)
   __omp_install_idle_sigint
   __omp_start_parent_watchdog
   __omp_start_capture_drain($__omp_stdout_capture_read, "stdout")

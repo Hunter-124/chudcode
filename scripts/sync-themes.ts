@@ -6,7 +6,7 @@
 
 import { readdir } from "node:fs/promises";
 import { join } from "node:path";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
+import * as fsx from "@chudware/utils/fsx";
 
 const THEMES_DIR = join(process.cwd(), "packages/coding-agent/src/modes/interactive/theme/defaults");
 const INDEX_FILE = join(THEMES_DIR, "index.ts");

@@ -1,28 +1,28 @@
 import { afterAll, afterEach, beforeAll, describe, expect, test, vi } from "bun:test";
-import type { AgentMessage } from "@oh-my-pi/pi-agent-core";
-import type { ImageContent, TextContent } from "@oh-my-pi/pi-ai";
-import { resetSettingsForTest, Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
+import type { AgentMessage } from "@chudware/agent-core";
+import type { ImageContent, TextContent } from "@chudware/ai";
+import { resetSettingsForTest, Settings } from "@chudware/coding-agent/config/settings";
 import type {
 	ExtensionActions,
 	ExtensionCommandContextActions,
 	ExtensionContextActions,
 	ExtensionUIContext,
-} from "@oh-my-pi/pi-coding-agent/extensibility/extensions";
-import { ExtensionUiController } from "@oh-my-pi/pi-coding-agent/modes/controllers/extension-ui-controller";
-import { initTheme } from "@oh-my-pi/pi-coding-agent/modes/theme/theme";
-import type { InteractiveModeContext, RenderSessionContextOptions } from "@oh-my-pi/pi-coding-agent/modes/types";
-import { UiHelpers } from "@oh-my-pi/pi-coding-agent/modes/utils/ui-helpers";
-import { buildSessionContext, type SessionContext } from "@oh-my-pi/pi-coding-agent/session/session-context";
-import type { CustomMessageEntry, SessionEntry } from "@oh-my-pi/pi-coding-agent/session/session-entries";
-import { Container } from "@oh-my-pi/pi-tui";
-import { sleep } from "@oh-my-pi/pi-utils/async";
+} from "@chudware/coding-agent/extensibility/extensions";
+import { ExtensionUiController } from "@chudware/coding-agent/modes/controllers/extension-ui-controller";
+import { initTheme } from "@chudware/coding-agent/modes/theme/theme";
+import type { InteractiveModeContext, RenderSessionContextOptions } from "@chudware/coding-agent/modes/types";
+import { UiHelpers } from "@chudware/coding-agent/modes/utils/ui-helpers";
+import { buildSessionContext, type SessionContext } from "@chudware/coding-agent/session/session-context";
+import type { CustomMessageEntry, SessionEntry } from "@chudware/coding-agent/session/session-entries";
+import { Container } from "@chudware/tui";
+import { sleep } from "@chudware/utils/async";
 
 /**
  * Issue #1955: `sendMessage` with `display: true` renders twice during
  * `session_start`.
  *
  * Repro:
- * - Extension calls `pi.sendMessage({ display: true, ... })` from a
+ * - Extension calls `chud.sendMessage({ display: true, ... })` from a
  *   `session_start` handler while the session is idle.
  * - `ExtensionUiController.#applyCustomMessageDisplay` rebuilds the chat from
  *   the freshly-persisted session entry, so the chat container ends up holding
@@ -204,7 +204,7 @@ describe("issue #1955 — sendMessage(display:true) during session_start", () =>
 		expect(actions).toBeDefined();
 
 		// Simulate the extension's session_start handler firing
-		// `pi.sendMessage({ display: true, ... })`.
+		// `chud.sendMessage({ display: true, ... })`.
 		actions!.sendMessage(
 			{
 				customType: "issue-1955-probe",

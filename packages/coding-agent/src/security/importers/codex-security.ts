@@ -1,6 +1,6 @@
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
+import * as fsx from "@chudware/utils/fsx";
 import type {
 	SecurityCoverage,
 	SecurityEvidence,
@@ -357,7 +357,7 @@ export async function importCodexSecurityBundle(
 	if (typeof target.baseRevision === "string") canonicalTarget.baseRevision = target.baseRevision;
 	if (typeof target.headRevision === "string") canonicalTarget.headRevision = target.headRevision;
 	const scan: SecurityScan = {
-		documentType: "omp-security.scan",
+		documentType: "chudcode-security.scan",
 		schemaVersion: "1.0",
 		id: scanId,
 		projectKey: encodeSecurityProjectKey(canonicalRoot),

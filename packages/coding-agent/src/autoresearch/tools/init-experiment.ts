@@ -1,7 +1,7 @@
 import * as path from "node:path";
-import { type } from "@oh-my-pi/omptype";
-import { Text } from "@oh-my-pi/pi-tui";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
+import { type } from "@chudware/chudtype";
+import { Text } from "@chudware/tui";
+import * as fsx from "@chudware/utils/fsx";
 import type { ToolDefinition } from "../../extensibility/extensions";
 import type { Theme } from "../../modes/theme/theme";
 import { replaceTabs, truncateToWidth } from "../../tools/render-utils";

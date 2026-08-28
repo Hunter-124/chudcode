@@ -2,14 +2,14 @@ import { afterAll, beforeAll, describe, expect, it } from "bun:test";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
-import { AuthStorage } from "@oh-my-pi/pi-ai";
-import { getBundledModel } from "@oh-my-pi/pi-catalog/models";
-import { ModelRegistry } from "@oh-my-pi/pi-coding-agent/config/model-registry";
-import { Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
-import { createAgentSession } from "@oh-my-pi/pi-coding-agent/sdk";
-import type { AgentSession } from "@oh-my-pi/pi-coding-agent/session/agent-session";
-import { SessionManager } from "@oh-my-pi/pi-coding-agent/session/session-manager";
-import { removeSyncWithRetries, Snowflake } from "@oh-my-pi/pi-utils";
+import { AuthStorage } from "@chudware/ai";
+import { getBundledModel } from "@chudware/catalog/models";
+import { ModelRegistry } from "@chudware/coding-agent/config/model-registry";
+import { Settings } from "@chudware/coding-agent/config/settings";
+import { createAgentSession } from "@chudware/coding-agent/sdk";
+import type { AgentSession } from "@chudware/coding-agent/session/agent-session";
+import { SessionManager } from "@chudware/coding-agent/session/session-manager";
+import { removeSyncWithRetries, Snowflake } from "@chudware/utils";
 
 // Guards the /computer session-scoped toggle mechanism: createTools derives the
 // built-in slate once at session start, so with `computer.enabled=false` the
@@ -25,7 +25,7 @@ describe("AgentSession.setComputerToolEnabled", () => {
 	const sessions: AgentSession[] = [];
 
 	beforeAll(async () => {
-		registryDir = path.join(os.tmpdir(), `pi-computer-toggle-${Snowflake.next()}`);
+		registryDir = path.join(os.tmpdir(), `chud-computer-toggle-${Snowflake.next()}`);
 		fs.mkdirSync(registryDir, { recursive: true });
 		authStorage = await AuthStorage.create(path.join(registryDir, "auth.db"));
 		authStorage.setRuntimeApiKey("google", "test-key");

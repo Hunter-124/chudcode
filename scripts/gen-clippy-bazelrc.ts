@@ -14,7 +14,7 @@
  *   bun scripts/gen-clippy-bazelrc.ts --check  # exit 1 when the file is stale
  */
 import * as path from "node:path";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
+import * as fsx from "@chudware/utils/fsx";
 
 type LintLevel = "allow" | "warn" | "deny" | "forbid";
 type LintEntry = LintLevel | { level: LintLevel; priority?: number };

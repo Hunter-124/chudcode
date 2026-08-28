@@ -1,5 +1,5 @@
-import { isDashscopeCompatibleModeUrl, modelMatchesHost } from "@oh-my-pi/pi-catalog/hosts";
-import { isDeepseekModelIdOrName, isQwenModelId } from "@oh-my-pi/pi-catalog/identity";
+import { isDashscopeCompatibleModeUrl, modelMatchesHost } from "@chudware/catalog/hosts";
+import { isDeepseekModelIdOrName, isQwenModelId } from "@chudware/catalog/identity";
 
 import type { ImageContent, Model, TextContent } from "../types";
 

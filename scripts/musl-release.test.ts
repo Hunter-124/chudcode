@@ -2,7 +2,7 @@ import { afterEach, describe, expect, test } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
+import * as fsx from "@chudware/utils/fsx";
 
 const repoRoot = path.join(import.meta.dir, "..");
 const tempDirs: string[] = [];
@@ -47,15 +47,15 @@ describe("musl release artifacts", () => {
 
 		expect(result.exitCode, result.stderr).toBe(0);
 		expect(result.stdout).toContain(
-			"Bun.build target=bun-linux-x64-musl-baseline outfile=packages/coding-agent/binaries/omp-linux-musl-x64",
+			"Bun.build target=bun-linux-x64-musl-baseline outfile=packages/coding-agent/binaries/chudcode-linux-musl-x64",
 		);
 		expect(result.stdout).toContain(
-			"Bun.build target=bun-linux-arm64-musl outfile=packages/coding-agent/binaries/omp-linux-musl-arm64",
+			"Bun.build target=bun-linux-arm64-musl outfile=packages/coding-agent/binaries/chudcode-linux-musl-arm64",
 		);
 	});
 
 	test("selects the musl asset when the Linux host reports musl", async () => {
-		const dir = await fs.mkdtemp(path.join(os.tmpdir(), "omp-musl-install-"));
+		const dir = await fs.mkdtemp(path.join(os.tmpdir(), "chudcode-musl-install-"));
 		tempDirs.push(dir);
 		const binDir = path.join(dir, "bin");
 		const installDir = path.join(dir, "install");
@@ -69,7 +69,7 @@ describe("musl release artifacts", () => {
 case "$*" in
   *api.github.com*) echo '{"tag_name":"v1.0.0","mentions_count":0}' ;;
   *) while [ "$#" -gt 0 ]; do
-       [ "$1" = "-o" ] && { printf '%s\n' '#!/bin/sh' 'echo "omp v1.0.0"' > "$2"; exit 0; }
+       [ "$1" = "-o" ] && { printf '%s\n' '#!/bin/sh' 'echo "chudcode v1.0.0"' > "$2"; exit 0; }
        shift
      done ;;
 esac
@@ -80,12 +80,12 @@ esac
 			...process.env,
 			PATH: `${binDir}:${process.env.PATH ?? ""}`,
 			HOME: dir,
-			PI_INSTALL_DIR: installDir,
+			CHUDCODE_INSTALL_DIR: installDir,
 		});
 
 		expect(result.exitCode, result.stderr).toBe(0);
 		expect(result.stdout).toContain("Using version: v1.0.0");
-		expect(result.stdout).toContain("Downloading omp-linux-musl-x64...");
-		expect(await fsx.readText(path.join(installDir, "omp"))).toBe('#!/bin/sh\necho "omp v1.0.0"\n');
+		expect(result.stdout).toContain("Downloading chudcode-linux-musl-x64...");
+		expect(await fsx.readText(path.join(installDir, "chudcode"))).toBe('#!/bin/sh\necho "chudcode v1.0.0"\n');
 	});
 });

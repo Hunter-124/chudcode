@@ -1,15 +1,15 @@
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
-import { splitAddressableFileLines } from "@oh-my-pi/hashline";
-import { type } from "@oh-my-pi/omptype";
+import { splitAddressableFileLines } from "@chudware/hashline";
+import { type } from "@chudware/chudtype";
 import type {
 	AgentTool,
 	AgentToolContext,
 	AgentToolResult,
 	AgentToolUpdateCallback,
 	ToolTier,
-} from "@oh-my-pi/pi-agent-core";
-import type { ImageContent, TextContent } from "@oh-my-pi/pi-ai";
+} from "@chudware/agent-core";
+import type { ImageContent, TextContent } from "@chudware/ai";
 import {
 	BINARY_SNIFF_BYTES,
 	type ImageMetadata,
@@ -18,8 +18,8 @@ import {
 	logger,
 	prompt,
 	readImageMetadata,
-} from "@oh-my-pi/pi-utils";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
+} from "@chudware/utils";
+import * as fsx from "@chudware/utils/fsx";
 import {
 	canonicalSnapshotKey,
 	getFileSnapshotStore,

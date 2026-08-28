@@ -21,7 +21,7 @@ Related references:
 Compat flags are resolved in two phases:
 
 1. **Catalog build time** (`packages/catalog/src/compat/openai.ts`): `buildOpenAICompat(spec)` / `buildOpenAIResponsesCompat(spec)` run once per model inside `buildModel`. Defaults are auto-detected from `provider`, `baseUrl`, model id/name, and `spec.reasoning`; explicit `spec.compat` overrides are merged via `applyCompatOverrides` (`packages/catalog/src/compat/apply.ts`). If a `whenThinking` variant applies (explicit override, direct DeepSeek reasoning, OpenCode reasoning gateways), a **complete alternate resolved compat object** is pre-built and attached as `compat.whenThinking`.
-   OpenRouter is a pseudo-API: `buildOpenRouterCompat` merges the full chat-completions view with the Responses-only fields into `ResolvedOpenRouterCompat`, so the same model object satisfies both runtime handlers (`PI_OPENROUTER_RESPONSES` picks the dispatch).
+   OpenRouter is a pseudo-API: `buildOpenRouterCompat` merges the full chat-completions view with the Responses-only fields into `ResolvedOpenRouterCompat`, so the same model object satisfies both runtime handlers (`CHUDCODE_OPENROUTER_RESPONSES` picks the dispatch).
 2. **Request time** (`packages/ai/src/providers/openai-shared.ts`): `resolveOpenAICompatPolicy(model, options)` combines the resolved compat with per-request options (`reasoning`, `disableReasoning`, `toolChoice`, …) into an `OpenAICompatPolicy` with `reasoning`, `tools`, `messages`, and `stream` sub-policies. When thinking is active and `whenThinking` exists, the policy **pointer-swaps** to the pre-built variant — no per-request spreading or allocation:
 
    ```ts

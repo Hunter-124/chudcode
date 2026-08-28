@@ -16,12 +16,12 @@ This repo contains multiple packages, but **`packages/coding-agent/`** is the pr
 | `packages/coding-agent` | Main CLI application (primary focus)                                                    |
 | `packages/tui`          | Terminal UI library with differential rendering                                         |
 | `packages/natives`      | Bindings for native text/image/grep operations                                          |
-| `packages/stats`        | Local observability dashboard (`omp stats`)                                             |
-| `packages/omptype`      | ArkType-compatible schema validation with a lazy JIT runtime                            |
+| `packages/stats`        | Local observability dashboard (`chudcode stats`)                                             |
+| `packages/chudtype`      | ArkType-compatible schema validation with a lazy JIT runtime                            |
 | `packages/utils`        | Shared utilities (logger, streams, temp files)                                          |
-| `crates/pi-natives`     | Rust crate for performance-critical text/grep ops                                       |
+| `crates/chud-natives`     | Rust crate for performance-critical text/grep ops                                       |
 
-**Catalog import convention**: code in this repo imports catalog _values_ (bundled models, model-thinking helpers, identity, descriptors, model manager/cache) from `@oh-my-pi/pi-catalog/<module>` — never via `@oh-my-pi/pi-ai`. The pi-ai barrel re-exports only the model/effort _types_ its own signatures use (`Model`, `Api`, `ThinkingConfig`, `Effort`, …); type-only imports of those from `@oh-my-pi/pi-ai` are fine.
+**Catalog import convention**: code in this repo imports catalog _values_ (bundled models, model-thinking helpers, identity, descriptors, model manager/cache) from `@chudware/catalog/<module>` — never via `@chudware/ai`. The chud-ai barrel re-exports only the model/effort _types_ its own signatures use (`Model`, `Api`, `ThinkingConfig`, `Effort`, …); type-only imports of those from `@chudware/ai` are fine.
 
 ## GitHub
 
@@ -40,21 +40,21 @@ Unless user tells you exactly what to write:
 - **Class privacy**: use ES `#private` fields; leave externally accessible members bare. **No `private`/`protected`/`public` keyword on fields or methods**, except on **constructor parameter properties** where TypeScript requires it (e.g. `constructor(private readonly session: ToolSession)`).
 - **Promises**: use `Promise.withResolvers()` instead of `new Promise((resolve, reject) => ...)`.
 - **Prompts**: never build prompts in code (no inline strings, template literals, or concatenation). Prompts live in static `.md` files; use Handlebars for dynamic content. Import them via `import content from "./prompt.md" with { type: "text" }` — not `readFile`.
-- **Worker scripts**: workers re-enter the CLI entrypoint; never spawn separate worker entry modules. `cli.ts` declares itself as the worker host at startup (`declareWorkerHostEntry()` from `@oh-my-pi/pi-utils/env`) and dispatches hidden argv selectors (`__omp_worker_stats_sync`, `__omp_worker_tab`, `__omp_worker_js_eval`, `__omp_worker_tiny_inference`) before loading the command registry. Spawn sites use:
+- **Worker scripts**: workers re-enter the CLI entrypoint; never spawn separate worker entry modules. `cli.ts` declares itself as the worker host at startup (`declareWorkerHostEntry()` from `@chudware/utils/env`) and dispatches hidden argv selectors (`__omp_worker_stats_sync`, `__omp_worker_tab`, `__omp_worker_js_eval`, `__omp_worker_tiny_inference`) before loading the command registry. Spawn sites use:
   ```ts
-  import { workerHostEntry } from "@oh-my-pi/pi-utils";
+  import { workerHostEntry } from "@chudware/utils";
   const hostEntry = workerHostEntry();
   const worker = hostEntry
   	? new Worker(hostEntry, { type: "module", argv: ["__omp_worker_<name>"] })
   	: new Worker(new URL("./<worker>.ts", import.meta.url).href, { type: "module" });
   ```
-  When the process was started from the omp CLI — source `cli.ts`, npm-bundle `dist/cli.js`, or compiled binary — `workerHostEntry()` is `Bun.main` and the worker re-enters the single entry module, so no per-worker `--compile` entrypoints or bundle entries exist. Outside a CLI host (`bun test`, SDK embedding, standalone `omp-stats`) it returns `null` and the direct-module fallback loads the worker source. New worker kinds MUST add their selector to the dispatch table in `cli.ts` and keep the fallback branch.
+  When the process was started from the chudcode CLI — source `cli.ts`, npm-bundle `dist/cli.js`, or compiled binary — `workerHostEntry()` is `Bun.main` and the worker re-enters the single entry module, so no per-worker `--compile` entrypoints or bundle entries exist. Outside a CLI host (`bun test`, SDK embedding, standalone `chudcode-stats`) it returns `null` and the direct-module fallback loads the worker source. New worker kinds MUST add their selector to the dispatch table in `cli.ts` and keep the fallback branch.
   History: `with { type: "file" }` only copied the entry as a raw asset (workers crashed silently in compiled binaries — issues #1011, #1027), and the later literal-path + extra-entrypoint pattern required keeping spawn literals and two build scripts in sync (issue #1150). The smoke probe below is the live validation of this contract.
-  Validate any new worker with the dedicated smoke probe: `omp --smoke-test` spawns the stats sync worker and the tiny-model subprocess, pings them, and exits — it's wired into `ci:test:smoke` and `scripts/install-tests/run-ci.sh` so binary, source-link, and tarball installs all exercise it. Add a sibling smoke if the new worker is on a different module graph.
+  Validate any new worker with the dedicated smoke probe: `chudcode --smoke-test` spawns the stats sync worker and the tiny-model subprocess, pings them, and exits — it's wired into `ci:test:smoke` and `scripts/install-tests/run-ci.sh` so binary, source-link, and tarball installs all exercise it. Add a sibling smoke if the new worker is on a different module graph.
 
 ## Central Utilities
 
-Before writing a helper, check whether one already exists — `packages/coding-agent/src/utils/`, `@oh-my-pi/pi-utils`, `@oh-my-pi/pi-tui`, and the domain modules next to your callsite. This applies to **everything**: VCS wrappers, formatting/truncation/path-display helpers, image handling, clipboard, streams, temp files, caching. The central versions carry hardening a fresh copy always loses (timeouts, output caps, non-interactive env, lock avoidance, caching, TUI sanitization).
+Before writing a helper, check whether one already exists — `packages/coding-agent/src/utils/`, `@chudware/utils`, `@chudware/tui`, and the domain modules next to your callsite. This applies to **everything**: VCS wrappers, formatting/truncation/path-display helpers, image handling, clipboard, streams, temp files, caching. The central versions carry hardening a fresh copy always loses (timeouts, output caps, non-interactive env, lock avoidance, caching, TUI sanitization).
 
 - Search first: `grep` for the operation before implementing it. Two implementations of the same thing is a bug even when both work.
 - Examples of the pattern: `src/utils/git.ts` and `src/utils/jj.ts` are the only sanctioned way to run git/jj (`import * as git from "../utils/git"` — never hand-spawn via `$`/`Bun.spawn`); rendering goes through the helpers in TUI Sanitization below (`replaceTabs`, `truncateToWidth`, `shortenPath`, `PREVIEW_LIMITS`) rather than ad-hoc string math.
@@ -73,12 +73,12 @@ second way to do the same thing is a bug even when both work. New code uses the 
 
 | Operation                | Use                                          | Not                              |
 | ------------------------ | -------------------------------------------- | -------------------------------- |
-| File read/write/stat     | `@oh-my-pi/pi-utils/fsx`                     | `Bun.file()`, `Bun.write()`, raw `node:fs` |
-| Sleep                    | `sleep`/`sleepSync` from `@oh-my-pi/pi-utils/async` | `Bun.sleep()`, `setTimeout` promise |
-| Synchronous spawn        | `spawnSync` from `@oh-my-pi/pi-utils/proc`   | `Bun.spawnSync()`                |
+| File read/write/stat     | `@chudware/utils/fsx`                     | `Bun.file()`, `Bun.write()`, raw `node:fs` |
+| Sleep                    | `sleep`/`sleepSync` from `@chudware/utils/async` | `Bun.sleep()`, `setTimeout` promise |
+| Synchronous spawn        | `spawnSync` from `@chudware/utils/proc`   | `Bun.spawnSync()`                |
 | Env access               | `process.env`                                | `Bun.env`                        |
 | Hashing                  | `node:crypto`, `node:zlib` `crc32`           | `Bun.CryptoHasher`, `Bun.hash.crc32` |
-| Binary lookup            | `$which("git")` from `@oh-my-pi/pi-utils`    | `spawnSync(["which", …])`        |
+| Binary lookup            | `$which("git")` from `@chudware/utils`    | `spawnSync(["which", …])`        |
 | git / jj                 | `src/utils/git.ts`, `src/utils/jj.ts`        | hand-spawning either binary      |
 
 These helpers are not thin aliases — each reproduces a Bun behaviour that call sites
@@ -91,7 +91,7 @@ depend on, which is why the raw `node:*` call is the wrong replacement:
 - `proc.spawnSync()` throws when the executable is missing (callers catch `ENOENT` to
   degrade) but reports a `timeout` as a *result* carrying `exitedDueToTimeout`.
 
-Import them from the **subpath**, never the `@oh-my-pi/pi-utils` barrel: the barrel runs
+Import them from the **subpath**, never the `@chudware/utils` barrel: the barrel runs
 dotenv and directory resolution at import time, and pulling it into a timer-only module
 has already broken CLI profile-bootstrap ordering and lazy loading.
 
@@ -140,7 +140,7 @@ sync only when forced by a synchronous interface.
 ### File I/O
 
 ```typescript
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
+import * as fsx from "@chudware/utils/fsx";
 
 const text = await fsx.readText(file);
 const data = await fsx.readJson<Config>(file);
@@ -153,7 +153,7 @@ await fsx.write(target, data); // creates parent dirs
 - `if (await fsx.exists(p)) { await fsx.readJson(p) }` → two syscalls plus a race. Use
   try-catch with `isEnoent`:
   ```typescript
-  import { isEnoent } from "@oh-my-pi/pi-utils";
+  import { isEnoent } from "@chudware/utils";
   try {
   	return await fsx.readJson<Config>(p);
   } catch (err) {
@@ -195,14 +195,14 @@ Regenerate with `bun run gen:models` and commit `models.json` alongside the sour
 Code that may run while the TUI, RPC, SDK, workers, or background runtimes are active MUST NOT use `console.log`/`error`/`warn`; it corrupts rendering or protocols. Use the centralized logger:
 
 ```typescript
-import { logger } from "@oh-my-pi/pi-utils";
+import { logger } from "@chudware/utils";
 
 logger.error("MCP request failed", { url, method });
 logger.warn("Theme file invalid, using fallback", { path });
 logger.debug("LSP fallback triggered", { reason });
 ```
 
-Logs go to `~/.omp/logs/omp.YYYY-MM-DD.log` with automatic rotation. Standalone CLI commands that exit without entering the TUI MAY use `console.*` or process streams for intentional user-facing output. Keep structured stdout clean. This exception is semantic, not filename-based; shared code must use `logger` or an explicit output sink.
+Logs go to `~/.chudcode/logs/chudcode.YYYY-MM-DD.log` with automatic rotation. Standalone CLI commands that exit without entering the TUI MAY use `console.*` or process streams for intentional user-facing output. Keep structured stdout clean. This exception is semantic, not filename-based; shared code must use `logger` or an explicit output sink.
 
 ## TUI Sanitization
 
@@ -210,7 +210,7 @@ All text displayed in tool renderers must be sanitized. Raw content (file conten
 
 **Rules:**
 
-- **Tabs → spaces** via `replaceTabs()` (from `@oh-my-pi/pi-tui` or `../tools/render-utils`).
+- **Tabs → spaces** via `replaceTabs()` (from `@chudware/tui` or `../tools/render-utils`).
 - **Truncate** lines with `truncateToWidth()` / `ui.truncate()`. Use `TRUNCATE_LENGTHS` constants.
 - **Shorten paths** with `shortenPath()` (replaces home with `~`).
 - **Preview limits** from `PREVIEW_LIMITS`. No ad-hoc numbers.
@@ -237,7 +237,7 @@ For the bash tool specifically:
 
 - NEVER commit unless asked.
 - Never use `tsc`/`npx tsc` — always `bun check`.
-- Never run `cargo test` directly for Rust tests — use `bun run test:rs`. It runs `cargo nextest run` (config: `.config/nextest.toml`) followed by a `cargo test --doc` pass, because nextest does not execute doctests. The doctest pass currently executes nothing (pi-natives is a `cdylib`, which rustdoc skips; pi-builtins' examples are `ignore`d vendored uutils docs) and exists so the first runnable doctest added to a lib crate is actually run.
+- Never run `cargo test` directly for Rust tests — use `bun run test:rs`. It runs `cargo nextest run` (config: `.config/nextest.toml`) followed by a `cargo test --doc` pass, because nextest does not execute doctests. The doctest pass currently executes nothing (chud-natives is a `cdylib`, which rustdoc skips; chud-builtins' examples are `ignore`d vendored uutils docs) and exists so the first runnable doctest added to a lib crate is actually run.
 - Merge commits (maintainer merges of PRs) follow: `Merge PR #<number>: <conventional PR subject> (@<author>)` — e.g. `Merge PR #6386: feat(catalog): add native Meta Model API provider (@eggpeat)`.
 ## Rust Build Profiles
 
@@ -312,8 +312,8 @@ Location: `packages/*/CHANGELOG.md` (per package).
 
 **Attribution:**
 
-- Internal (from issues): `Fixed foo bar ([#123](https://github.com/can1357/oh-my-pi/issues/123))`.
-- External contributions: `Added feature X ([#456](https://github.com/can1357/oh-my-pi/pull/456) by [@username](https://github.com/username))`.
+- Internal (from issues): `Fixed foo bar ([#123](https://github.com/Hunter-124/chudcode/issues/123))`.
+- External contributions: `Added feature X ([#456](https://github.com/Hunter-124/chudcode/pull/456) by [@username](https://github.com/username))`.
 
 ## Releasing
 

@@ -225,7 +225,7 @@ struct SessionHeader {
     bool operator==(const SessionHeader&) const = default;
 };
 
-// Current pi-wire entry tags are typed. A future tag is retained losslessly as Unknown so
+// Current chud-wire entry tags are typed. A future tag is retained losslessly as Unknown so
 // additive protocol evolution cannot discard the rest of an otherwise valid session snapshot.
 enum class SessionEntryKind { Message, CustomMessage, Compaction, BranchSummary, ModelChange, ThinkingLevelChange, Unknown };
 struct SessionEntry {

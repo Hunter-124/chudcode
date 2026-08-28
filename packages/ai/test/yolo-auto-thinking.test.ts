@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import type { Context, FetchImpl, Model } from "@oh-my-pi/pi-ai/types";
+import type { Context, FetchImpl, Model } from "@chudware/ai/types";
 import { buildModel } from "../../catalog/src/build";
 import { Effort } from "../../catalog/src/effort";
 import { YOLO_AUTO_STATIC_MODELS } from "../../catalog/src/provider-models/openai-compat";

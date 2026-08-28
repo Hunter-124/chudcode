@@ -2,20 +2,20 @@ import { afterEach, describe, expect, test, vi } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import * as cleanseAgent from "@oh-my-pi/pi-coding-agent/cleanse/agent";
-import * as cleanseCheckers from "@oh-my-pi/pi-coding-agent/cleanse/checkers";
-import { runCleanseCommand } from "@oh-my-pi/pi-coding-agent/cleanse/index";
-import { runCleanseLoop } from "@oh-my-pi/pi-coding-agent/cleanse/loop";
-import { type CleanseParserKind, parseCleanseDiagnostics } from "@oh-my-pi/pi-coding-agent/cleanse/parsers";
+import * as cleanseAgent from "@chudware/coding-agent/cleanse/agent";
+import * as cleanseCheckers from "@chudware/coding-agent/cleanse/checkers";
+import { runCleanseCommand } from "@chudware/coding-agent/cleanse/index";
+import { runCleanseLoop } from "@chudware/coding-agent/cleanse/loop";
+import { type CleanseParserKind, parseCleanseDiagnostics } from "@chudware/coding-agent/cleanse/parsers";
 import type {
 	CleanseAgentOutcome,
 	CleanseAssignment,
 	CleanseDiagnostic,
 	CleanseDiagnosticReport,
-} from "@oh-my-pi/pi-coding-agent/cleanse/types";
-import { createProgressReporter } from "@oh-my-pi/pi-coding-agent/cli/progress-reporter";
-import { resolveCliArgv } from "@oh-my-pi/pi-coding-agent/cli-commands";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
+} from "@chudware/coding-agent/cleanse/types";
+import { createProgressReporter } from "@chudware/coding-agent/cli/progress-reporter";
+import { resolveCliArgv } from "@chudware/coding-agent/cli-commands";
+import * as fsx from "@chudware/utils/fsx";
 
 afterEach(() => {
 	vi.restoreAllMocks();
@@ -67,7 +67,7 @@ describe("cleanse diagnostics", () => {
 	});
 
 	test("discovers package test scripts only when test mode is enabled", async () => {
-		const root = await fs.mkdtemp(path.join(os.tmpdir(), "omp-cleanse-tests-"));
+		const root = await fs.mkdtemp(path.join(os.tmpdir(), "chudcode-cleanse-tests-"));
 		try {
 			await fsx.write(
 				path.join(root, "package.json"),
@@ -95,7 +95,7 @@ describe("cleanse diagnostics", () => {
 	});
 
 	test("excludes generated Bazel trees from checker discovery", async () => {
-		const root = await fs.mkdtemp(path.join(os.tmpdir(), "omp-cleanse-ignore-"));
+		const root = await fs.mkdtemp(path.join(os.tmpdir(), "chudcode-cleanse-ignore-"));
 		try {
 			await fsx.write(path.join(root, "src", "index.ts"), "export const value = 1;\n");
 			await fsx.write(
@@ -605,7 +605,7 @@ describe("cleanse alternative-tooling parsers", () => {
 
 describe("cleanse custom suite", () => {
 	test("builds runnable plans from discovery specs and skips unrunnable ones", async () => {
-		const root = await fs.mkdtemp(path.join(os.tmpdir(), "omp-cleanse-custom-"));
+		const root = await fs.mkdtemp(path.join(os.tmpdir(), "chudcode-cleanse-custom-"));
 		try {
 			await fsx.write(path.join(root, "src", "a.ts"), "export const value = 1;\n");
 			const suite = await cleanseCheckers.buildCustomCleanseSuite(root, [
@@ -635,7 +635,7 @@ describe("cleanse custom suite", () => {
 	});
 
 	test("select() narrows which checkers a run executes", async () => {
-		const root = await fs.mkdtemp(path.join(os.tmpdir(), "omp-cleanse-select-"));
+		const root = await fs.mkdtemp(path.join(os.tmpdir(), "chudcode-cleanse-select-"));
 		try {
 			const suite = await cleanseCheckers.buildCustomCleanseSuite(root, [
 				{ label: "first", command: ["bun", "-e", "console.log('ok')"] },
@@ -650,7 +650,7 @@ describe("cleanse custom suite", () => {
 		}
 	});
 	test("streams partial diagnostics before a long-running checker exits", async () => {
-		const root = await fs.mkdtemp(path.join(os.tmpdir(), "omp-cleanse-stream-"));
+		const root = await fs.mkdtemp(path.join(os.tmpdir(), "chudcode-cleanse-stream-"));
 		try {
 			await fsx.write(path.join(root, "f.ts"), "export const a = 1;\n");
 			await fsx.write(path.join(root, "g.ts"), "export const b = 2;\n");

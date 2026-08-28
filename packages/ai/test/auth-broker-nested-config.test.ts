@@ -2,21 +2,21 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import { resolveAuthBrokerConfig } from "@oh-my-pi/pi-ai/auth-broker";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
+import { resolveAuthBrokerConfig } from "@chudware/ai/auth-broker";
+import * as fsx from "@chudware/utils/fsx";
 import { removeWithRetries } from "../../utils/src/temp";
 import { withEnv } from "./helpers";
 
 const CLEAR_BROKER_ENV = {
-	OMP_AUTH_BROKER_URL: undefined,
-	OMP_AUTH_BROKER_TOKEN: undefined,
+	CHUDCODE_AUTH_BROKER_URL: undefined,
+	CHUDCODE_AUTH_BROKER_TOKEN: undefined,
 } as const;
 
 describe("auth-broker config.yml key resolution", () => {
 	let agentDir = "";
 
 	beforeEach(async () => {
-		agentDir = await fs.mkdtemp(path.join(os.tmpdir(), "pi-ai-auth-broker-config-"));
+		agentDir = await fs.mkdtemp(path.join(os.tmpdir(), "chud-ai-auth-broker-config-"));
 	});
 
 	afterEach(async () => {

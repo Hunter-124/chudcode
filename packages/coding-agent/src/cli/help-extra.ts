@@ -1,6 +1,6 @@
-import "@oh-my-pi/pi-utils/env";
-import chalk from "@oh-my-pi/pi-utils/chalk";
-import { CONFIG_DIR_NAME } from "@oh-my-pi/pi-utils/dirs";
+import "@chudware/utils/env";
+import chalk from "@chudware/utils/chalk";
+import { CONFIG_DIR_NAME } from "@chudware/utils/dirs";
 import { PRODUCT_CLI_NAME } from "../brand";
 
 export function getExtraHelpText(): string {
@@ -54,14 +54,14 @@ export function getExtraHelpText(): string {
   ANTHROPIC_SEARCH_BASE_URL  - Anthropic web search base URL (override; pairs with ANTHROPIC_SEARCH_API_KEY)
 
   ${chalk.dim("# Configuration")}
-  OMP_PROFILE                 - Named profile for isolated agent state (same as --profile)
+  CHUDCODE_PROFILE                 - Named profile for isolated agent state (same as --profile)
   Use \`chudcode --profile <name> --alias <command>\` to create a shell shortcut for a profile
-  PI_CODING_AGENT_DIR        - Session storage directory (default: ~/${CONFIG_DIR_NAME}/agent)
-  PI_PACKAGE_DIR             - Override package directory (for Nix/Guix store paths)
-  PI_SMOL_MODEL              - Override smol/fast model (see --smol)
-  PI_SLOW_MODEL              - Override slow/reasoning model (see --slow)
-  PI_PLAN_MODEL              - Override planning model (see --plan)
-  PI_NO_PTY                  - Disable PTY-based interactive bash execution
+  CHUDCODE_CODING_AGENT_DIR        - Session storage directory (default: ~/${CONFIG_DIR_NAME}/agent)
+  CHUDCODE_PACKAGE_DIR             - Override package directory (for Nix/Guix store paths)
+  CHUDCODE_SMOL_MODEL              - Override smol/fast model (see --smol)
+  CHUDCODE_SLOW_MODEL              - Override slow/reasoning model (see --slow)
+  CHUDCODE_PLAN_MODEL              - Override planning model (see --plan)
+  CHUDCODE_NO_PTY                  - Disable PTY-based interactive bash execution
   For complete environment variable reference, see:
   ${chalk.dim("docs/environment-variables.md")}
 ${chalk.bold("Available Tools (default-enabled unless noted):")}
@@ -86,6 +86,6 @@ ${chalk.bold("Plugin Options:")}
   --plugin-dir <path>        Load plugin from directory (repeatable)
 
 ${chalk.bold("Useful Commands:")}
-  chudcode agents unpack           - Export bundled subagents to ~/.omp/agent/agents (default)
-  ${PRODUCT_CLI_NAME} agents unpack --project - Export bundled subagents to ./.omp/agents`;
+  chudcode agents unpack           - Export bundled subagents to ~/.chudcode/agent/agents (default)
+  ${PRODUCT_CLI_NAME} agents unpack --project - Export bundled subagents to ./.chudcode/agents`;
 }

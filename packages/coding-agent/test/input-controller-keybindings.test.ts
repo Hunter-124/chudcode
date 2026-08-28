@@ -1,12 +1,12 @@
 import { beforeAll, describe, expect, it, type Mock, vi } from "bun:test";
-import type { ImageContent } from "@oh-my-pi/pi-ai";
-import { AskDialogComponent } from "@oh-my-pi/pi-coding-agent/modes/components/ask-dialog";
-import { TreeSelectorComponent } from "@oh-my-pi/pi-coding-agent/modes/components/tree-selector";
-import { InputController } from "@oh-my-pi/pi-coding-agent/modes/controllers/input-controller";
-import { initTheme } from "@oh-my-pi/pi-coding-agent/modes/theme/theme";
-import type { InteractiveModeContext } from "@oh-my-pi/pi-coding-agent/modes/types";
-import type { SessionTreeNode } from "@oh-my-pi/pi-coding-agent/session/session-entries";
-import { type KeyId, matchesKey } from "@oh-my-pi/pi-tui";
+import type { ImageContent } from "@chudware/ai";
+import { AskDialogComponent } from "@chudware/coding-agent/modes/components/ask-dialog";
+import { TreeSelectorComponent } from "@chudware/coding-agent/modes/components/tree-selector";
+import { InputController } from "@chudware/coding-agent/modes/controllers/input-controller";
+import { initTheme } from "@chudware/coding-agent/modes/theme/theme";
+import type { InteractiveModeContext } from "@chudware/coding-agent/modes/types";
+import type { SessionTreeNode } from "@chudware/coding-agent/session/session-entries";
+import { type KeyId, matchesKey } from "@chudware/tui";
 import manualContinuePrompt from "../src/prompts/system/manual-continue.md" with { type: "text" };
 
 type FakeEditor = {

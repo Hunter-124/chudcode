@@ -1,8 +1,8 @@
 import * as path from "node:path";
-import type { ThinkingLevel } from "@oh-my-pi/pi-agent-core";
-import type { Api, ApiKey, Model } from "@oh-my-pi/pi-ai";
-import { logger } from "@oh-my-pi/pi-utils";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
+import type { ThinkingLevel } from "@chudware/agent-core";
+import type { Api, ApiKey, Model } from "@chudware/ai";
+import { logger } from "@chudware/utils";
+import * as fsx from "@chudware/utils/fsx";
 import { CHANGELOG_CATEGORIES } from "../../commit/types";
 import * as git from "../../utils/git";
 import { detectChangelogBoundaries } from "./detect";

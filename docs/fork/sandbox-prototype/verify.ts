@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
 /**
- * End-to-end proof that Chudcode's real desktop backend (@oh-my-pi/pi-natives 18.0.6)
+ * End-to-end proof that Chudcode's real desktop backend (@chudware/natives 18.0.6)
  * drives an isolated Xvfb seat: enumerate -> capture -> click -> type -> capture,
  * with the app's own window title as an independent oracle for input delivery.
  *
@@ -8,8 +8,8 @@
  */
 import * as fs from "node:fs";
 import * as path from "node:path";
-import type { DesktopWindow } from "@oh-my-pi/pi-natives";
-import { createDesktopSession } from "@oh-my-pi/pi-natives/desktop";
+import type { DesktopWindow } from "@chudware/natives";
+import { createDesktopSession } from "@chudware/natives/desktop";
 const EVIDENCE = path.join(import.meta.dir, "evidence");
 const APP_URL = `file://${path.join(import.meta.dir, "page.html")}`;
 
@@ -32,7 +32,7 @@ step("capabilities on the isolated seat");
 console.log(JSON.stringify(session.capabilities));
 
 step(`launching brave-browser into ${display}`);
-const profile = path.join(process.env.OMP_SEAT_DIR ?? "/tmp", "brave-profile");
+const profile = path.join(process.env.CHUDCODE_SEAT_DIR ?? "/tmp", "brave-profile");
 const brave = Bun.spawn(
 	[
 		// setsid: survive this script so `seat.sh stop` has to reap it.
@@ -99,7 +99,7 @@ const afterClick = (await session.listWindows()).find(w => w.id === target.id);
 console.log(`title after click: ${JSON.stringify(afterClick?.title)}`);
 
 step("synthesizing keystrokes (typeText + keyChord)");
-await session.typeText("desktop", "omp-seat-ok");
+await session.typeText("desktop", "chudcode-seat-ok");
 await sleep(300);
 await session.keyChord("desktop", ["Enter"]);
 await sleep(400);
@@ -176,7 +176,7 @@ try {
 }
 
 step("verdict");
-const titleOk = afterType?.title?.includes("clicks=1") && afterType.title.includes("omp-seat-ok<CR>");
+const titleOk = afterType?.title?.includes("clicks=1") && afterType.title.includes("chudcode-seat-ok<CR>");
 console.log(titleOk ? "PASS: click and keystrokes reached the app inside the isolated seat" : "FAIL");
 
 // Deliberately left running: `seat.sh stop` must reap it via the seat's process

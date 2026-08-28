@@ -7,7 +7,7 @@ Chudcode supports four memory modes. Memory is disabled by default; select one b
 | `off`            | No memory backend                                                      | —                                                       |
 | `local`          | Project-scoped summaries and lessons generated from persisted sessions | This page                                               |
 | `hindsight`      | Remote, bank-scoped Hindsight memory                                   | [Hindsight](#hindsight-remote-backend)                  |
-| `mnemopi`        | Local Mnemopi SQLite memory                                            | [Mnemopi memory backend](./mnemosyne-memory-backend.md) |
+| `mnemo`        | Local Mnemo SQLite memory                                            | [Mnemo memory backend](./mnemosyne-memory-backend.md) |
 
 Enable the local summary pipeline:
 

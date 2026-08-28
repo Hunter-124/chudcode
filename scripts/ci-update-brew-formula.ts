@@ -1,20 +1,20 @@
 #!/usr/bin/env bun
 
 //
-// Render the Homebrew formula for `omp` from a published GitHub release and write
+// Render the Homebrew formula for `chudcode` from a published GitHub release and write
 // it to a tap checkout. The release publishes per-platform bare binaries
-// (omp-<platform>-<arch>); this reads their sha256 digests straight from the
+// (chudcode-<platform>-<arch>); this reads their sha256 digests straight from the
 // release metadata so the formula never drifts from the shipped assets.
 //
 // Usage:
-//   bun scripts/ci-update-brew-formula.ts <tag> --out <path/to/Formula/omp.rb>
+//   bun scripts/ci-update-brew-formula.ts <tag> --out <path/to/Formula/chudcode.rb>
 //   bun scripts/ci-update-brew-formula.ts v15.10.3        # prints to stdout
 
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
+import * as fsx from "@chudware/utils/fsx";
 import { $ } from "bun";
 
-const REPO = process.env.OMP_REPO ?? "can1357/oh-my-pi";
-const HOMEPAGE = "https://omp.sh";
+const REPO = process.env.CHUDCODE_REPO ?? "Hunter-124/chudcode";
+const HOMEPAGE = "https://chudware.sh";
 const DESC = "Coding agent with the IDE wired in";
 
 interface ReleaseAsset {
@@ -60,14 +60,14 @@ export function renderFormula(version: string, sums: Record<string, string>): st
 	// Each `url` carries `using: :nounzip` because the release assets are bare
 	// Mach-O/ELF executables, not archives. Without it Homebrew's default
 	// CurlDownloadStrategy routes through UnpackStrategy::Uncompressed#extract_nestedly,
-	// which nests the file outside the staging CWD; `Dir["omp-*"].first` then
-	// returns `nil` and `bin.install nil => "omp"` raises.
+	// which nests the file outside the staging CWD; `Dir["chudcode-*"].first` then
+	// returns `nil` and `bin.install nil => "chudcode"` raises.
 	//
 	// `with_env(HOME: buildpath)` redirects the CLI's `os.homedir()` lookup to
 	// the writable staging dir so `generate_completions_from_executable` does
-	// not touch the real `/Users/<user>/.omp` (denied by Homebrew's sandbox
+	// not touch the real `/Users/<user>/.chudcode` (denied by Homebrew's sandbox
 	// profile, which would otherwise fail the popen).
-	return `class Omp < Formula
+	return `class Chudcode < Formula
   desc "${DESC}"
   homepage "${HOMEPAGE}"
   version "${version}"
@@ -75,40 +75,40 @@ export function renderFormula(version: string, sums: Record<string, string>): st
 
   on_macos do
     on_arm do
-      url "https://github.com/${REPO}/releases/download/v#{version}/omp-darwin-arm64",
+      url "https://github.com/${REPO}/releases/download/v#{version}/chudcode-darwin-arm64",
           using: :nounzip
-      sha256 "${sums["omp-darwin-arm64"]}"
+      sha256 "${sums["chudcode-darwin-arm64"]}"
     end
     on_intel do
-      url "https://github.com/${REPO}/releases/download/v#{version}/omp-darwin-x64",
+      url "https://github.com/${REPO}/releases/download/v#{version}/chudcode-darwin-x64",
           using: :nounzip
-      sha256 "${sums["omp-darwin-x64"]}"
+      sha256 "${sums["chudcode-darwin-x64"]}"
     end
   end
 
   on_linux do
     on_arm do
-      url "https://github.com/${REPO}/releases/download/v#{version}/omp-linux-arm64",
+      url "https://github.com/${REPO}/releases/download/v#{version}/chudcode-linux-arm64",
           using: :nounzip
-      sha256 "${sums["omp-linux-arm64"]}"
+      sha256 "${sums["chudcode-linux-arm64"]}"
     end
     on_intel do
-      url "https://github.com/${REPO}/releases/download/v#{version}/omp-linux-x64",
+      url "https://github.com/${REPO}/releases/download/v#{version}/chudcode-linux-x64",
           using: :nounzip
-      sha256 "${sums["omp-linux-x64"]}"
+      sha256 "${sums["chudcode-linux-x64"]}"
     end
   end
 
   def install
-    bin.install Dir["omp-*"].first => "omp"
-    (bin/"omp").chmod 0555
+    bin.install Dir["chudcode-*"].first => "chudcode"
+    (bin/"chudcode").chmod 0555
     with_env(HOME: buildpath) do
-      generate_completions_from_executable(bin/"omp", "completions", shells: [:bash, :zsh, :fish])
+      generate_completions_from_executable(bin/"chudcode", "completions", shells: [:bash, :zsh, :fish])
     end
   end
 
   test do
-    assert_match version.to_s, shell_output("#{bin}/omp --version")
+    assert_match version.to_s, shell_output("#{bin}/chudcode --version")
   end
 end
 `;
@@ -119,7 +119,7 @@ async function main(): Promise<void> {
 	const version = tag.replace(/^v/, "");
 	const assets = await fetchAssets(tag);
 
-	const targets = ["omp-darwin-arm64", "omp-darwin-x64", "omp-linux-arm64", "omp-linux-x64"];
+	const targets = ["chudcode-darwin-arm64", "chudcode-darwin-x64", "chudcode-linux-arm64", "chudcode-linux-x64"];
 	const sums: Record<string, string> = {};
 	for (const name of targets) sums[name] = sha256For(assets, name);
 

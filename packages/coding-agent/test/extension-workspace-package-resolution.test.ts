@@ -2,9 +2,9 @@ import { afterEach, expect, mock, spyOn, test } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import { __rewriteLegacyExtensionSourceForTests } from "@oh-my-pi/pi-coding-agent/extensibility/plugins/legacy-pi-compat";
-import { removeWithRetries } from "@oh-my-pi/pi-utils";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
+import { __rewriteLegacyExtensionSourceForTests } from "@chudware/coding-agent/extensibility/plugins/legacy-pi-compat";
+import { removeWithRetries } from "@chudware/utils";
+import * as fsx from "@chudware/utils/fsx";
 
 const tempRoots: string[] = [];
 
@@ -26,7 +26,7 @@ async function writeJson(filePath: string, value: unknown): Promise<void> {
  * `workspaces` globs, honoring the member's exports conditions.
  */
 test("bare workspace-member imports resolve through the workspace root manifest", async () => {
-	const root = await fs.mkdtemp(path.join(os.tmpdir(), "omp-workspace-resolve-"));
+	const root = await fs.mkdtemp(path.join(os.tmpdir(), "chudcode-workspace-resolve-"));
 	tempRoots.push(root);
 	const repoRoot = path.join(root, "plugins", "node_modules", "monorepo-plugin");
 	const importer = path.join(repoRoot, "packages", "extension", "extensions", "entry.ts");
@@ -60,7 +60,7 @@ test("bare workspace-member imports resolve through the workspace root manifest"
 });
 
 test("installed node_modules copies shadow workspace members at the same level", async () => {
-	const root = await fs.mkdtemp(path.join(os.tmpdir(), "omp-workspace-shadow-"));
+	const root = await fs.mkdtemp(path.join(os.tmpdir(), "chudcode-workspace-shadow-"));
 	tempRoots.push(root);
 	const repoRoot = path.join(root, "monorepo-plugin");
 	const importer = path.join(repoRoot, "packages", "extension", "entry.ts");

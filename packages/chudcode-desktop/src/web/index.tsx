@@ -1,4 +1,4 @@
-import "@oh-my-pi/collab-web/styles/base.css";
+import "@chudware/collab-web/styles/base.css";
 import "./styles/tokens.css";
 import "./styles/motion.css";
 import "./styles/app.css";

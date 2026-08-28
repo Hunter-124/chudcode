@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import * as net from "node:net";
 import * as os from "node:os";
 import * as path from "node:path";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
+import * as fsx from "@chudware/utils/fsx";
 import { ToolError } from "../../tool-errors";
 
 const DEFAULT_CONNECT_TIMEOUT_MS = 10_000;

@@ -6,27 +6,27 @@
  * lifecycle hook dispatch.
  */
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "bun:test";
-import { type } from "@oh-my-pi/omptype";
-import { agentLoop } from "@oh-my-pi/pi-agent-core/agent-loop";
+import { agentLoop } from "@chudware/agent-core/agent-loop";
 import {
 	type AgentTelemetryConfig,
 	type ChatUsageEvent,
+	ChudGenAIAttr,
 	classifyGatewayResponseCacheStatus,
 	detectGatewayFromHeaders,
 	GenAIAttr,
 	GenAIOperation,
 	OpenAIAttr,
-	PiGenAIAttr,
 	recordHandoff,
 	recordManualChatTelemetry,
 	resolveTelemetry,
 	type TelemetryHookContext,
-} from "@oh-my-pi/pi-agent-core/telemetry";
-import type { AgentContext, AgentEvent, AgentLoopConfig, AgentMessage, AgentTool } from "@oh-my-pi/pi-agent-core/types";
-import type { Message } from "@oh-my-pi/pi-ai";
-import { createMockModel } from "@oh-my-pi/pi-ai/providers/mock";
-import type { EventStream } from "@oh-my-pi/pi-ai/utils/event-stream";
-import { sleep } from "@oh-my-pi/pi-utils/async";
+} from "@chudware/agent-core/telemetry";
+import type { AgentContext, AgentEvent, AgentLoopConfig, AgentMessage, AgentTool } from "@chudware/agent-core/types";
+import type { Message } from "@chudware/ai";
+import { createMockModel } from "@chudware/ai/providers/mock";
+import type { EventStream } from "@chudware/ai/utils/event-stream";
+import { type } from "@chudware/chudtype";
+import { sleep } from "@chudware/utils/async";
 import { context, SpanStatusCode, trace } from "@opentelemetry/api";
 import { AsyncLocalStorageContextManager } from "@opentelemetry/context-async-hooks";
 import {
@@ -90,7 +90,7 @@ describe("agent-loop OTEL instrumentation", () => {
 		expect(exporter.getFinishedSpans()).toHaveLength(0);
 	});
 
-	it("emits invoke_agent → chat hierarchy with OTEL and pi.gen_ai extension attributes", async () => {
+	it("emits invoke_agent → chat hierarchy with OTEL and chud.gen_ai extension attributes", async () => {
 		const mock = createMockModel({
 			...MOCK_IDENT,
 			responses: [
@@ -134,7 +134,7 @@ describe("agent-loop OTEL instrumentation", () => {
 		expect(invoke?.attributes[GenAIAttr.AgentName]).toBe("researcher");
 		expect(invoke?.attributes[GenAIAttr.AgentDescription]).toBe("test-agent");
 		expect(invoke?.attributes[GenAIAttr.ConversationId]).toBe("conv-42");
-		expect(invoke?.attributes[PiGenAIAttr.AgentStepCount]).toBe(1);
+		expect(invoke?.attributes[ChudGenAIAttr.AgentStepCount]).toBe(1);
 
 		// chat envelope
 		expect(chat?.attributes[GenAIAttr.OperationName]).toBe(GenAIOperation.Chat);
@@ -145,7 +145,7 @@ describe("agent-loop OTEL instrumentation", () => {
 		expect(chat?.attributes[GenAIAttr.RequestTopP]).toBe(0.95);
 		expect(chat?.attributes[GenAIAttr.RequestPresencePenalty]).toBe(0.1);
 		expect(chat?.attributes[GenAIAttr.RequestChoiceCount]).toBeUndefined();
-		expect(chat?.attributes[PiGenAIAttr.AgentStepNumber]).toBe(0);
+		expect(chat?.attributes[ChudGenAIAttr.AgentStepNumber]).toBe(0);
 		expect(chat?.attributes[GenAIAttr.RequestStream]).toBe(true);
 		expect(chat?.attributes[GenAIAttr.OutputType]).toBe("text");
 
@@ -154,7 +154,7 @@ describe("agent-loop OTEL instrumentation", () => {
 		expect(chat?.attributes[GenAIAttr.ResponseFinishReasons]).toEqual(["stop"]);
 		expect(chat?.attributes[GenAIAttr.UsageInputTokens]).toBe(24);
 		expect(chat?.attributes[GenAIAttr.UsageOutputTokens]).toBe(34);
-		expect(chat?.attributes[PiGenAIAttr.UsageTotalTokens]).toBe(58);
+		expect(chat?.attributes[ChudGenAIAttr.UsageTotalTokens]).toBe(58);
 		expect(chat?.attributes[GenAIAttr.UsageCacheReadInputTokens]).toBe(5);
 		expect(chat?.attributes[GenAIAttr.UsageCacheCreationInputTokens]).toBe(7);
 		expect(chat?.attributes[GenAIAttr.UsageReasoningOutputTokens]).toBe(11);
@@ -246,8 +246,8 @@ describe("agent-loop OTEL instrumentation", () => {
 		expect(tool?.attributes[GenAIAttr.ToolDescription]).toBe("echoes input");
 		expect(tool?.status.code).toBe(SpanStatusCode.UNSET);
 
-		// pi.gen_ai.agent.step.count counts chat completions
-		expect(invoke?.attributes[PiGenAIAttr.AgentStepCount]).toBe(2);
+		// chud.gen_ai.agent.step.count counts chat completions
+		expect(invoke?.attributes[ChudGenAIAttr.AgentStepCount]).toBe(2);
 	});
 
 	it("parents downstream spans created during tool execution (active-context propagation)", async () => {
@@ -385,7 +385,7 @@ describe("agent-loop OTEL instrumentation", () => {
 		expect(chat?.status.code).not.toBe(SpanStatusCode.ERROR);
 		const systemAttr = chat?.attributes[GenAIAttr.SystemInstructions] as string | undefined;
 		expect(JSON.parse(systemAttr!)).toEqual([{ type: "text", content: "sys-as-string" }]);
-		const request = JSON.parse(chat?.attributes[PiGenAIAttr.RequestMessages] as string) as Array<{
+		const request = JSON.parse(chat?.attributes[ChudGenAIAttr.RequestMessages] as string) as Array<{
 			content: unknown;
 			role: string;
 		}>;
@@ -406,18 +406,18 @@ describe("agent-loop OTEL instrumentation", () => {
 		await runAndDrain(agentLoop([createUserMessage("hi")], ctx, config, undefined, mock.stream));
 
 		const chat = findSpan(exporter.getFinishedSpans(), "chat mock-model");
-		const request = JSON.parse(chat?.attributes[PiGenAIAttr.RequestMessages] as string) as Array<{
+		const request = JSON.parse(chat?.attributes[ChudGenAIAttr.RequestMessages] as string) as Array<{
 			content: unknown;
 			role: string;
 		}>;
-		const responseText = JSON.parse(chat?.attributes[PiGenAIAttr.ResponseText] as string);
+		const responseText = JSON.parse(chat?.attributes[ChudGenAIAttr.ResponseText] as string);
 		expect(request.map(message => message.role)).toEqual(["system", "user"]);
 		expect(responseText).toEqual(["hi back"]);
 		expect(chat?.attributes[GenAIAttr.InputMessages]).toBeUndefined();
 		expect(chat?.attributes[GenAIAttr.OutputMessages]).toBeUndefined();
 	});
 
-	it("invokes costEstimator and stamps pi.gen_ai.cost.estimated_usd", async () => {
+	it("invokes costEstimator and stamps chud.gen_ai.cost.estimated_usd", async () => {
 		const mock = createMockModel({
 			...MOCK_IDENT,
 			responses: [
@@ -449,9 +449,9 @@ describe("agent-loop OTEL instrumentation", () => {
 		await runAndDrain(agentLoop([createUserMessage("hi")], ctx, config, undefined, mock.stream));
 
 		const chat = findSpan(exporter.getFinishedSpans(), "chat mock-model");
-		expect(chat?.attributes[PiGenAIAttr.CostEstimatedUsd]).toBeCloseTo(0.0105, 6);
-		expect(chat?.attributes[PiGenAIAttr.CostInputUsd]).toBeCloseTo(0.003, 6);
-		expect(chat?.attributes[PiGenAIAttr.CostOutputUsd]).toBeCloseTo(0.0075, 6);
+		expect(chat?.attributes[ChudGenAIAttr.CostEstimatedUsd]).toBeCloseTo(0.0105, 6);
+		expect(chat?.attributes[ChudGenAIAttr.CostInputUsd]).toBeCloseTo(0.003, 6);
+		expect(chat?.attributes[ChudGenAIAttr.CostOutputUsd]).toBeCloseTo(0.0075, 6);
 	});
 
 	it("applies dynamic attributes, normalization hooks, and cost deltas", async () => {
@@ -505,7 +505,7 @@ describe("agent-loop OTEL instrumentation", () => {
 		expect(deltas[0]?.stepNumber).toBe(0);
 	});
 
-	it("emits pi.gen_ai.cost.unavailable_reason when the estimator declines", async () => {
+	it("emits chud.gen_ai.cost.unavailable_reason when the estimator declines", async () => {
 		const mock = createMockModel({
 			...MOCK_IDENT,
 			responses: [{ content: ["ok"], stopReason: "stop" }],
@@ -519,8 +519,8 @@ describe("agent-loop OTEL instrumentation", () => {
 		await runAndDrain(agentLoop([createUserMessage("hi")], ctx, config, undefined, mock.stream));
 
 		const chat = findSpan(exporter.getFinishedSpans(), "chat mock-model");
-		expect(chat?.attributes[PiGenAIAttr.CostUnavailableReason]).toBe("unsupported_tier");
-		expect(chat?.attributes[PiGenAIAttr.CostEstimatedUsd]).toBeUndefined();
+		expect(chat?.attributes[ChudGenAIAttr.CostUnavailableReason]).toBe("unsupported_tier");
+		expect(chat?.attributes[ChudGenAIAttr.CostEstimatedUsd]).toBeUndefined();
 	});
 
 	it("fires onChatUsage for every chat step regardless of cost estimator", async () => {
@@ -725,8 +725,8 @@ describe("agent-loop OTEL instrumentation", () => {
 		const span = findSpan(exporter.getFinishedSpans(), "handoff main → specialist");
 		expect(span).toBeDefined();
 		expect(span?.attributes[GenAIAttr.OperationName]).toBe(GenAIOperation.Handoff);
-		expect(span?.attributes[PiGenAIAttr.HandoffFromAgentName]).toBe("main");
-		expect(span?.attributes[PiGenAIAttr.HandoffToAgentName]).toBe("specialist");
+		expect(span?.attributes[ChudGenAIAttr.HandoffFromAgentName]).toBe("main");
+		expect(span?.attributes[ChudGenAIAttr.HandoffToAgentName]).toBe("specialist");
 		expect(span?.attributes[GenAIAttr.ConversationId]).toBe("conv-1");
 	});
 
@@ -757,10 +757,10 @@ describe("agent-loop OTEL instrumentation", () => {
 
 		const span = findSpan(exporter.getFinishedSpans(), "chat mock-model");
 		expect(span?.attributes[GenAIAttr.ConversationId]).toBe("manual-conv");
-		expect(span?.attributes[PiGenAIAttr.AgentStepNumber]).toBe(7);
-		expect(span?.attributes[PiGenAIAttr.UsageTotalTokens]).toBe(17);
-		expect(span?.attributes[PiGenAIAttr.CostEstimatedUsd]).toBe(0.02);
-		expect(JSON.parse(span?.attributes[PiGenAIAttr.ResponseText] as string)).toEqual(["manual ok"]);
+		expect(span?.attributes[ChudGenAIAttr.AgentStepNumber]).toBe(7);
+		expect(span?.attributes[ChudGenAIAttr.UsageTotalTokens]).toBe(17);
+		expect(span?.attributes[ChudGenAIAttr.CostEstimatedUsd]).toBe(0.02);
+		expect(JSON.parse(span?.attributes[ChudGenAIAttr.ResponseText] as string)).toEqual(["manual ok"]);
 	});
 
 	it("reads OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT once at first resolveTelemetry call", () => {
@@ -943,7 +943,7 @@ describe("classifyGatewayResponseCacheStatus", () => {
 	});
 });
 
-describe("ChatUsageEvent.headers and pi.gen_ai.gateway.* span attributes", () => {
+describe("ChatUsageEvent.headers and chud.gen_ai.gateway.* span attributes", () => {
 	it("forwards captured response headers to onChatUsage", async () => {
 		const mock = createMockModel({
 			...MOCK_IDENT,
@@ -993,7 +993,7 @@ describe("ChatUsageEvent.headers and pi.gen_ai.gateway.* span attributes", () =>
 		expect(events[0]?.headers).toBeUndefined();
 	});
 
-	it("auto-stamps pi.gen_ai.gateway.* on the chat span when LiteLLM headers are present", async () => {
+	it("auto-stamps chud.gen_ai.gateway.* on the chat span when LiteLLM headers are present", async () => {
 		const mock = createMockModel({
 			...MOCK_IDENT,
 			responses: [
@@ -1017,10 +1017,10 @@ describe("ChatUsageEvent.headers and pi.gen_ai.gateway.* span attributes", () =>
 		await runAndDrain(agentLoop([createUserMessage("hi")], ctx, config, undefined, mock.stream));
 
 		const chat = findSpan(exporter.getFinishedSpans(), "chat mock-model");
-		expect(chat?.attributes[PiGenAIAttr.GatewayName]).toBe("litellm");
-		expect(chat?.attributes[PiGenAIAttr.GatewayCallId]).toBe("ll-call-abc");
-		expect(chat?.attributes[PiGenAIAttr.GatewayRoutedTo]).toBe("anthropic/claude-sonnet-4-7");
-		expect(chat?.attributes[PiGenAIAttr.GatewayEndpoint]).toBe(mock.model.baseUrl);
+		expect(chat?.attributes[ChudGenAIAttr.GatewayName]).toBe("litellm");
+		expect(chat?.attributes[ChudGenAIAttr.GatewayCallId]).toBe("ll-call-abc");
+		expect(chat?.attributes[ChudGenAIAttr.GatewayRoutedTo]).toBe("anthropic/claude-sonnet-4-7");
+		expect(chat?.attributes[ChudGenAIAttr.GatewayEndpoint]).toBe(mock.model.baseUrl);
 	});
 
 	it("does not stamp gateway attributes when headers carry no known pattern", async () => {
@@ -1043,9 +1043,9 @@ describe("ChatUsageEvent.headers and pi.gen_ai.gateway.* span attributes", () =>
 		await runAndDrain(agentLoop([createUserMessage("hi")], ctx, config, undefined, mock.stream));
 
 		const chat = findSpan(exporter.getFinishedSpans(), "chat mock-model");
-		expect(chat?.attributes[PiGenAIAttr.GatewayName]).toBeUndefined();
-		expect(chat?.attributes[PiGenAIAttr.GatewayCallId]).toBeUndefined();
-		expect(chat?.attributes[PiGenAIAttr.GatewayEndpoint]).toBeUndefined();
+		expect(chat?.attributes[ChudGenAIAttr.GatewayName]).toBeUndefined();
+		expect(chat?.attributes[ChudGenAIAttr.GatewayCallId]).toBeUndefined();
+		expect(chat?.attributes[ChudGenAIAttr.GatewayEndpoint]).toBeUndefined();
 	});
 
 	it("still invokes the user-supplied onResponse alongside header capture", async () => {
@@ -1074,10 +1074,10 @@ describe("ChatUsageEvent.headers and pi.gen_ai.gateway.* span attributes", () =>
 		expect(seen).toHaveLength(1);
 		expect(seen[0]?.["x-litellm-call-id"]).toBe("ll-2");
 		const chat = findSpan(exporter.getFinishedSpans(), "chat mock-model");
-		expect(chat?.attributes[PiGenAIAttr.GatewayName]).toBe("litellm");
+		expect(chat?.attributes[ChudGenAIAttr.GatewayName]).toBe("litellm");
 	});
 
-	it("stamps pi.gen_ai.gateway.response_cache.status from cf-aig-cache-status without prompt-cache attrs", async () => {
+	it("stamps chud.gen_ai.gateway.response_cache.status from cf-aig-cache-status without prompt-cache attrs", async () => {
 		const mock = createMockModel({
 			...MOCK_IDENT,
 			responses: [
@@ -1104,7 +1104,7 @@ describe("ChatUsageEvent.headers and pi.gen_ai.gateway.* span attributes", () =>
 		await runAndDrain(agentLoop([createUserMessage("hi")], ctx, config, undefined, mock.stream));
 
 		const chat = findSpan(exporter.getFinishedSpans(), "chat mock-model");
-		expect(chat?.attributes[PiGenAIAttr.GatewayResponseCacheStatus]).toBe("hit");
+		expect(chat?.attributes[ChudGenAIAttr.GatewayResponseCacheStatus]).toBe("hit");
 		// Response replay must not inflate or invent provider prompt-cache token counters.
 		// Mock usage defaults cacheRead/cacheWrite to 0; HIT must leave them at zero, not promote a hit.
 		expect(chat?.attributes[GenAIAttr.UsageCacheReadInputTokens]).toBe(0);
@@ -1147,7 +1147,7 @@ describe("ChatUsageEvent.headers and pi.gen_ai.gateway.* span attributes", () =>
 			const ctx: AgentContext = { systemPrompt: [], messages: [], tools: [] };
 			await runAndDrain(agentLoop([createUserMessage("hi")], ctx, config, undefined, mock.stream));
 			const chat = findSpan(exporter.getFinishedSpans(), "chat mock-model");
-			expect(chat?.attributes[PiGenAIAttr.GatewayResponseCacheStatus]).toBe(expected);
+			expect(chat?.attributes[ChudGenAIAttr.GatewayResponseCacheStatus]).toBe(expected);
 		}
 	});
 });

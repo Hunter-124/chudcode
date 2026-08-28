@@ -69,7 +69,7 @@ Most FS/bash tools auto-resolve these to FS paths.
 - `mcp://<uri>`: MCP resource
 - `issue://<N>` / `issue://<owner>/<repo>/<N>`: GitHub issue; bare: recent; `?state=open|closed|all&limit=&author=&label=`.
 - `pr://<N>` / `pr://<owner>/<repo>/<N>`: same cache; bare: recent; `?comments=0` `?state=open|closed|merged|all&limit=&author=&label=`.
-- `omp://`: harness docs; AVOID unless user asks about harness.
+- `chudcode://`: harness docs; AVOID unless user asks about harness.
 
 {{#if toolInfo.length}}
 {{#if toolListMode}}

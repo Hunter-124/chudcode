@@ -2,7 +2,7 @@
  * Show what the read tool will return for a path, URL, or internal URI.
  */
 
-import { Args, Command } from "@oh-my-pi/pi-utils/cli";
+import { Args, Command } from "@chudware/utils/cli";
 import { readHelp as commandHelp } from "../cli/command-help";
 import { type ReadCommandArgs, runReadCommand } from "../cli/read-cli";
 import { initTheme } from "../modes/theme/theme";
@@ -22,7 +22,7 @@ export default class Read extends Command {
 		"chudcode read src/foo.ts:50-100",
 		"chudcode read src/foo.ts:raw",
 		"chudcode read https://example.com",
-		"chudcode read omp://",
+		"chudcode read chudcode://",
 		"chudcode read issue://123",
 		"chudcode read path/to/archive.zip:dir/file.ts",
 		"chudcode read path/to/db.sqlite:users:42",

@@ -6,9 +6,9 @@ import {
 	clearAwsCredentialCache,
 	resolveAwsCredentials,
 	tokenizeCredentialProcessCommand,
-} from "@oh-my-pi/pi-ai/providers/aws-credentials";
-import type { FetchImpl } from "@oh-my-pi/pi-ai/types";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
+} from "@chudware/ai/providers/aws-credentials";
+import type { FetchImpl } from "@chudware/ai/types";
+import * as fsx from "@chudware/utils/fsx";
 import { removeWithRetries } from "../../utils/src/temp";
 import { waitForDelayOrAbort } from "./helpers";
 

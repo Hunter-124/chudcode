@@ -4,9 +4,9 @@
 **Status:** OPEN. Nobody has picked these up yet.
 
 Chudware vendors a whitelisted subset of this repo's `packages/` (`ai`, `agent`,
-`catalog`, `utils`, `wire`, `mnemopi`, `snapcompact`) into `vendor/omp/` and drives it
-from a `bun` sidecar it owns (`vendor/omp/bridge/`). `scripts/vendor_omp.py` **clobbers
-`vendor/omp/packages/` on every re-vendor**, so nothing below can be fixed downstream:
+`catalog`, `utils`, `wire`, `mnemo`, `snapcompact`) into `vendor/chudcode/` and drives it
+from a `bun` sidecar it owns (`vendor/chudcode/bridge/`). `scripts/vendor_omp.py` **clobbers
+`vendor/chudcode/packages/` on every re-vendor**, so nothing below can be fixed downstream:
 a patch to `packages/ai` in Chudware's tree survives exactly until the next
 `vendor_omp.py --sha …`.
 
@@ -32,7 +32,7 @@ a century). Anthropic's classifier refused it. The run died:
 
 ```
 status=failed  stop_reason=provider_error
-error_detail="anthropic: BridgeUnavailable: omp-bridge anthropic: Refusal (bio)"
+error_detail="anthropic: BridgeUnavailable: chudcode-bridge anthropic: Refusal (bio)"
 ```
 
 The project directory ended the day with a PLM vault, an AI-VC chain, and **zero
@@ -65,14 +65,14 @@ substring-match English prose, and — for one path — give up entirely.
 
 ### What Chudware built as a stopgap
 
-- `vendor/omp/bridge/src/bridge.ts` now forwards `msg.stopDetails` on the completion
+- `vendor/chudcode/bridge/src/bridge.ts` now forwards `msg.stopDetails` on the completion
   result and `err.kind` on the RPC error frame. Both are in *our* bridge package, which
   `vendor_omp.py` preserves, so they survive re-vendoring — but they are transcribing a
   contract that should be stated here.
-- `services/agent/omp_bridge.py` raises a `ProviderRefused` subclass; `agent_turn`
+- `services/agent/chudcode_bridge.py` raises a `ProviderRefused` subclass; `agent_turn`
   classifies it as a new non-retryable `provider_refused` stop reason and **re-issues
   the identical prompt to the next configured vendor family** instead of dying.
-- `services/agent/providers/omp_bridge_provider.py` keeps a prose-marker fallback for
+- `services/agent/providers/chudcode_bridge_provider.py` keeps a prose-marker fallback for
   the paths above that have no structured signal. It is deliberately narrow (vendor
   enum values only) because `"connection refused"` must never be read as a policy
   decision — and that is precisely the ambiguity a structured field removes.
@@ -245,7 +245,7 @@ return value is turn-shaped too: `execute()` yields an `AgentToolResult<BrowserT
 (`tools/browser.ts:229-235`) — prompt text plus renderer metadata — not a fetch result.
 
 Separately, `packages/coding-agent` is **not in Chudware's vendoring whitelist**
-(`scripts/vendor_omp.py:63-71` — `ai`, `agent`, `catalog`, `utils`, `wire`, `mnemopi`,
+(`scripts/vendor_omp.py:63-71` — `ai`, `agent`, `catalog`, `utils`, `wire`, `mnemo`,
 `snapcompact`), so "import the class" is not available either: Chudware consumes chudcode
 through a `bun` bridge over vendored packages, and pulling the whole coding agent in to get
 a page fetch is not a trade it can make.

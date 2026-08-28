@@ -7,30 +7,30 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
-import type { AgentMessage } from "@oh-my-pi/pi-agent-core";
-import { Agent } from "@oh-my-pi/pi-agent-core";
-import type { Usage } from "@oh-my-pi/pi-ai";
-import { createMockModel } from "@oh-my-pi/pi-ai/providers/mock";
-import { getBundledModel } from "@oh-my-pi/pi-catalog/models";
-import { ModelRegistry } from "@oh-my-pi/pi-coding-agent/config/model-registry";
-import { resetSettingsForTest, Settings, settings } from "@oh-my-pi/pi-coding-agent/config/settings";
-import type { ExtensionRunner } from "@oh-my-pi/pi-coding-agent/extensibility/extensions/runner";
-import { ChatTranscriptBuilder } from "@oh-my-pi/pi-coding-agent/modes/components/chat-transcript-builder";
-import { TranscriptContainer } from "@oh-my-pi/pi-coding-agent/modes/components/transcript-container";
-import { formatUsageRow } from "@oh-my-pi/pi-coding-agent/modes/components/usage-row";
-import { EventController } from "@oh-my-pi/pi-coding-agent/modes/controllers/event-controller";
-import { initTheme } from "@oh-my-pi/pi-coding-agent/modes/theme/theme";
-import type { InteractiveModeContext } from "@oh-my-pi/pi-coding-agent/modes/types";
-import { UiHelpers } from "@oh-my-pi/pi-coding-agent/modes/utils/ui-helpers";
-import type { AgentSessionEvent } from "@oh-my-pi/pi-coding-agent/session/agent-session";
-import { AgentSession } from "@oh-my-pi/pi-coding-agent/session/agent-session";
-import { AuthStorage } from "@oh-my-pi/pi-coding-agent/session/auth-storage";
-import { convertToLlm } from "@oh-my-pi/pi-coding-agent/session/messages";
-import type { SessionContext } from "@oh-my-pi/pi-coding-agent/session/session-context";
-import { SessionManager } from "@oh-my-pi/pi-coding-agent/session/session-manager";
-import { Container, type TUI } from "@oh-my-pi/pi-tui";
-import { removeSyncWithRetries, Snowflake } from "@oh-my-pi/pi-utils";
-import { sleep } from "@oh-my-pi/pi-utils/async";
+import type { AgentMessage } from "@chudware/agent-core";
+import { Agent } from "@chudware/agent-core";
+import type { Usage } from "@chudware/ai";
+import { createMockModel } from "@chudware/ai/providers/mock";
+import { getBundledModel } from "@chudware/catalog/models";
+import { ModelRegistry } from "@chudware/coding-agent/config/model-registry";
+import { resetSettingsForTest, Settings, settings } from "@chudware/coding-agent/config/settings";
+import type { ExtensionRunner } from "@chudware/coding-agent/extensibility/extensions/runner";
+import { ChatTranscriptBuilder } from "@chudware/coding-agent/modes/components/chat-transcript-builder";
+import { TranscriptContainer } from "@chudware/coding-agent/modes/components/transcript-container";
+import { formatUsageRow } from "@chudware/coding-agent/modes/components/usage-row";
+import { EventController } from "@chudware/coding-agent/modes/controllers/event-controller";
+import { initTheme } from "@chudware/coding-agent/modes/theme/theme";
+import type { InteractiveModeContext } from "@chudware/coding-agent/modes/types";
+import { UiHelpers } from "@chudware/coding-agent/modes/utils/ui-helpers";
+import type { AgentSessionEvent } from "@chudware/coding-agent/session/agent-session";
+import { AgentSession } from "@chudware/coding-agent/session/agent-session";
+import { AuthStorage } from "@chudware/coding-agent/session/auth-storage";
+import { convertToLlm } from "@chudware/coding-agent/session/messages";
+import type { SessionContext } from "@chudware/coding-agent/session/session-context";
+import { SessionManager } from "@chudware/coding-agent/session/session-manager";
+import { Container, type TUI } from "@chudware/tui";
+import { removeSyncWithRetries, Snowflake } from "@chudware/utils";
+import { sleep } from "@chudware/utils/async";
 
 // 60s of elapsed: 30s between the prompt and the final response's creation,
 // plus a 30s provider request — formatDuration renders this as "1m".
@@ -102,7 +102,7 @@ describe("formatUsageRow turn elapsed", () => {
 
 	it("rounds fractional elapsed so the label never prints a raw float", () => {
 		// `message.duration` comes from performance.now(); the combined value must
-		// not leak the fraction into the label (roboomp: unstable oversized text).
+		// not leak the fraction into the label (robochud: unstable oversized text).
 		const row = formatUsageRow(
 			assistantMessage().usage as Usage,
 			undefined,
@@ -498,7 +498,7 @@ describe("AgentSession synthetic follow-up marking", () => {
 	let modelRegistry: ModelRegistry;
 
 	beforeAll(async () => {
-		sharedDir = path.join(os.tmpdir(), `pi-turn-time-shared-${Snowflake.next()}`);
+		sharedDir = path.join(os.tmpdir(), `chud-turn-time-shared-${Snowflake.next()}`);
 		fs.mkdirSync(sharedDir, { recursive: true });
 		authStorage = await AuthStorage.create(path.join(sharedDir, "auth.db"));
 		authStorage.setRuntimeApiKey("anthropic", "test-key");

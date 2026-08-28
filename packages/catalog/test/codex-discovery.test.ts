@@ -3,15 +3,15 @@ import { describe, expect, it } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import { buildModel } from "@oh-my-pi/pi-catalog/build";
-import { fetchCodexModels } from "@oh-my-pi/pi-catalog/discovery/codex";
-import { Effort } from "@oh-my-pi/pi-catalog/effort";
-import { writeModelCache } from "@oh-my-pi/pi-catalog/model-cache";
-import { resolveProviderModels } from "@oh-my-pi/pi-catalog/model-manager";
-import { getSupportedEfforts } from "@oh-my-pi/pi-catalog/model-thinking";
-import { openaiCodexModelManagerOptions } from "@oh-my-pi/pi-catalog/provider-models/special";
-import type { ModelSpec } from "@oh-my-pi/pi-catalog/types";
-import { resolveProviderModelReference } from "@oh-my-pi/pi-coding-agent/config/model-resolver";
+import { buildModel } from "@chudware/catalog/build";
+import { fetchCodexModels } from "@chudware/catalog/discovery/codex";
+import { Effort } from "@chudware/catalog/effort";
+import { writeModelCache } from "@chudware/catalog/model-cache";
+import { resolveProviderModels } from "@chudware/catalog/model-manager";
+import { getSupportedEfforts } from "@chudware/catalog/model-thinking";
+import { openaiCodexModelManagerOptions } from "@chudware/catalog/provider-models/special";
+import type { ModelSpec } from "@chudware/catalog/types";
+import { resolveProviderModelReference } from "@chudware/coding-agent/config/model-resolver";
 
 describe("Codex model discovery", () => {
 	it("marks discovered models for provider-native V2 compaction", async () => {
@@ -253,7 +253,7 @@ describe("Codex model discovery", () => {
 	});
 
 	it("keeps account-listed API-unsupported models while pruning hidden and absent models", async () => {
-		const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "pi-catalog-codex-authoritative-"));
+		const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "chud-catalog-codex-authoritative-"));
 		const staticOnlyModel: ModelSpec<"openai-codex-responses"> = {
 			id: "unsupported-static",
 			name: "Unsupported static model",
@@ -327,7 +327,7 @@ describe("Codex model discovery", () => {
 	});
 
 	it("unions models across every configured Codex OAuth account (#6265)", async () => {
-		const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "pi-catalog-codex-union-"));
+		const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "chud-catalog-codex-union-"));
 		// Codex `/models` is account-scoped: account 1 lacks gpt-5.6-sol, account 2
 		// exposes it. Keyed off the chatgpt-account-id header the discovery flow
 		// sends per account.
@@ -374,7 +374,7 @@ describe("Codex model discovery", () => {
 	});
 
 	it("keeps bundled Codex models when any account catalog fetch fails (#6265)", async () => {
-		const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "pi-catalog-codex-union-fail-"));
+		const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "chud-catalog-codex-union-fail-"));
 		const bundled: ModelSpec<"openai-codex-responses"> = {
 			id: "gpt-5.6-terra",
 			name: "GPT-5.6 Terra",
@@ -426,7 +426,7 @@ describe("Codex model discovery", () => {
 	});
 
 	it("ignores pre-V2 Codex discovery cache rows", async () => {
-		const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "pi-catalog-codex-v7-cache-"));
+		const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "chud-catalog-codex-v7-cache-"));
 		const dbPath = path.join(tempDir, "models.db");
 		const cachedModel: ModelSpec<"openai-codex-responses"> = {
 			id: "gpt-5.5",
@@ -486,7 +486,7 @@ describe("Codex model discovery", () => {
 	});
 
 	it("does not silently promote legacy v2 Codex cache rows to the current schema", async () => {
-		const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "pi-catalog-codex-v2-cache-"));
+		const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "chud-catalog-codex-v2-cache-"));
 		const dbPath = path.join(tempDir, "models.db");
 		try {
 			// Seed a v2 row directly, mirroring the shape written by very old
@@ -581,7 +581,7 @@ describe("Codex model discovery", () => {
 	});
 
 	it("keeps the plain route through authoritative discovery that advertises only the `-wm` slug", async () => {
-		const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "pi-catalog-codex-luna-wm-"));
+		const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "chud-catalog-codex-luna-wm-"));
 		const fetchFn: typeof fetch = Object.assign(
 			async () =>
 				new Response(

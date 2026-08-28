@@ -2,7 +2,7 @@
   "extends": "./tsconfig.json",
   "compilerOptions": {
     "paths": {
-      "@oh-my-pi/pi-coding-agent/secrets": ["./src/coding-agent-secrets.d.ts"]
+      "@chudware/coding-agent/secrets": ["./src/coding-agent-secrets.d.ts"]
     }
   }
 }

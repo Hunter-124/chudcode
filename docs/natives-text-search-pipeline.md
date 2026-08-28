@@ -1,26 +1,26 @@
 # Natives Text/Search Pipeline
 
-This document maps the `@oh-my-pi/pi-natives` text/search/code surface from generated JS/TS exports to Rust N-API modules and back to JS result objects.
+This document maps the `@chudware/natives` text/search/code surface from generated JS/TS exports to Rust N-API modules and back to JS result objects.
 
 Terminology follows `docs/natives-architecture.md`:
 
 - **Generated binding**: public API in `packages/natives/native/index.d.ts`.
-- **Rust module layer**: N-API exports in `crates/pi-natives/src/*`.
-- **Shared scan cache**: optional `pi-walker` directory-entry cache used by discovery flows.
+- **Rust module layer**: N-API exports in `crates/chud-natives/src/*`.
+- **Shared scan cache**: optional `chud-walker` directory-entry cache used by discovery flows.
 
 ## Implementation files
 
 - `packages/natives/native/index.d.ts`
-- `crates/pi-natives/src/grep.rs`
-- `crates/pi-natives/src/glob.rs`
-- `crates/pi-natives/src/glob_util.rs`
-- `crates/pi-natives/src/iofs.rs`
-- `crates/pi-walker/src/lib.rs`
-- `crates/pi-walker/src/cache.rs`
-- `crates/pi-natives/src/ast.rs`
-- `crates/pi-natives/src/text.rs`
-- `crates/pi-natives/src/highlight.rs`
-- `crates/pi-natives/src/tokens.rs`
+- `crates/chud-natives/src/grep.rs`
+- `crates/chud-natives/src/glob.rs`
+- `crates/chud-natives/src/glob_util.rs`
+- `crates/chud-natives/src/iofs.rs`
+- `crates/chud-walker/src/lib.rs`
+- `crates/chud-walker/src/cache.rs`
+- `crates/chud-natives/src/ast.rs`
+- `crates/chud-natives/src/text.rs`
+- `crates/chud-natives/src/highlight.rs`
+- `crates/chud-natives/src/tokens.rs`
 
 ## JS API ↔ Rust export mapping
 
@@ -66,13 +66,13 @@ Terminology follows `docs/natives-architecture.md`:
 - **Single-file branch**
   - `grep` resolves path, checks metadata is file, and searches that file.
 - **Directory branch**
-  - Candidate discovery uses `pi-walker` without scan caching.
+  - Candidate discovery uses `chud-walker` without scan caching.
   - Walker policy applies hidden/gitignore settings and skips skippable directory errors.
   - Entry filtering: file-only + optional glob filter (`glob_util`) + optional type filter mapping (`js`, `ts`, `rust`, etc.).
 
 ### Search/collection semantics
 
-- Matcher selection: the Rust regex engine is tried first, then PCRE2 for features such as lookaround/backreferences. `OMP_PCRE2_JIT=0`/`false` disables PCRE2 JIT and `1` enables it; when unset, JIT is enabled except on macOS.
+- Matcher selection: the Rust regex engine is tried first, then PCRE2 for features such as lookaround/backreferences. `CHUDCODE_PCRE2_JIT=0`/`false` disables PCRE2 JIT and `1` enables it; when unset, JIT is enabled except on macOS.
 - Context resolution:
   - `contextBefore/contextAfter` override legacy `context`.
   - Non-content modes do not collect context.
@@ -107,7 +107,7 @@ Terminology follows `docs/natives-architecture.md`:
 
 ## 2) File discovery (`glob`) and fuzzy path search (`fuzzyFind`)
 
-`glob` and `fuzzyFind` share the optional `pi-walker` scan cache; matching logic differs. Cache use defaults to `false` for both APIs.
+`glob` and `fuzzyFind` share the optional `chud-walker` scan cache; matching logic differs. Cache use defaults to `false` for both APIs.
 
 ### `glob` flow
 
@@ -126,7 +126,7 @@ Terminology follows `docs/natives-architecture.md`:
 ### `fuzzyFind` flow
 
 1. Rust implementation lives in `fd.rs`; generated export is `fuzzyFind`.
-2. Shared `pi-walker` scan source with the same opt-in cache and stale-empty recheck policy.
+2. Shared `chud-walker` scan source with the same opt-in cache and stale-empty recheck policy.
 3. Scoring:
    - exact / starts-with / contains / subsequence-based fuzzy score;
    - separator/punctuation-normalized scoring path;
@@ -160,9 +160,9 @@ Terminology follows `docs/natives-architecture.md`:
 
 These exports are direct native APIs used by tooling; they are not mediated by a TS wrapper in `packages/natives`.
 
-## 4) Shared scan/cache lifecycle (`pi-walker`)
+## 4) Shared scan/cache lifecycle (`chud-walker`)
 
-`pi-walker` owns traversal and cache policy. `crates/pi-natives/src/iofs.rs` contains only JavaScript-facing DTO conversion, error mapping, and the invalidation export.
+`chud-walker` owns traversal and cache policy. `crates/chud-natives/src/iofs.rs` contains only JavaScript-facing DTO conversion, error mapping, and the invalidation export.
 
 The cache stores normalized relative entries (`path`, `fileType`, optional `mtime` and regular-file `size`) keyed by canonical search root plus the effective traversal-level `WalkOptions`: hidden/gitignore and directory-pruning policy, link following, metadata detail, traversal order/depth, root emission, directory-error handling, filesystem boundary, and cache mode. `WalkFilter` predicates, ranking, and result limits run after collection and do not independently partition the cache, so requests with different glob, file-type, size-threshold, or limit values can share an entry. A filter or rank that requires extra metadata can still promote the effective detail policy and thereby select a different key.
 
@@ -171,7 +171,7 @@ Configuration is read from environment once:
 - `FS_SCAN_CACHE_TTL_MS`: cache TTL, default `1000`.
 - `FS_SCAN_EMPTY_RECHECK_MS`: cached-empty recheck age, default `200`.
 - `FS_SCAN_CACHE_MAX_ENTRIES`: maximum entries in the cache map, default `16`.
-- `PI_WALK_WORKERS`: walker Rayon pool size, default `4`.
+- `CHUDCODE_WALK_WORKERS`: walker Rayon pool size, default `4`.
 
 ### Cache state transitions
 

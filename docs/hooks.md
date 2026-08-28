@@ -7,7 +7,7 @@ This document describes the **current hook subsystem code** in `packages/coding-
 The default CLI runtime initializes the **extension runner** path. In current startup flow:
 
 - `--hook` is treated as an alias for `--extension` (CLI paths are merged into `additionalExtensionPaths`)
-- JS/TS hook factories discovered through `hookCapability` (for example `.omp/hooks/pre/*.ts`) are loaded as extension modules so their `pi.on(...)` handlers bind to the runtime event bus
+- JS/TS hook factories discovered through `hookCapability` (for example `.chudcode/hooks/pre/*.ts`) are loaded as extension modules so their `chud.on(...)` handlers bind to the runtime event bus
 - tools are wrapped by `ExtensionToolWrapper`, not `HookToolWrapper`
 - context transforms and lifecycle emissions go through `ExtensionRunner`
 
@@ -26,10 +26,10 @@ So this file documents the legacy hook subsystem implementation itself (types/lo
 A hook module must default-export a factory:
 
 ```ts
-import type { HookAPI } from "@oh-my-pi/pi-coding-agent/extensibility/hooks";
+import type { HookAPI } from "@chudware/coding-agent/extensibility/hooks";
 
-export default function hook(pi: HookAPI): void {
-  pi.on("tool_call", async (event, ctx) => {
+export default function hook(chud: HookAPI): void {
+  chud.on("tool_call", async (event, ctx) => {
     if (
       event.toolName === "bash" &&
       String(event.input.command ?? "").includes("rm -rf")
@@ -42,13 +42,13 @@ export default function hook(pi: HookAPI): void {
 
 The factory can:
 
-- register event handlers with `pi.on(...)`
-- send persistent custom messages with `pi.sendMessage(...)`
-- persist non-LLM state with `pi.appendEntry(...)`
-- register slash commands via `pi.registerCommand(...)`
-- register custom message renderers via `pi.registerMessageRenderer(...)`
-- run shell commands via `pi.exec(...)` and log through `pi.logger`
-- use the injected Zod-compatible builder `pi.zod`, native omptype builder `pi.arktype`, legacy `pi.typebox`, and package exports via `pi.pi`
+- register event handlers with `chud.on(...)`
+- send persistent custom messages with `chud.sendMessage(...)`
+- persist non-LLM state with `chud.appendEntry(...)`
+- register slash commands via `chud.registerCommand(...)`
+- register custom message renderers via `chud.registerMessageRenderer(...)`
+- run shell commands via `chud.exec(...)` and log through `chud.logger`
+- use the injected Zod-compatible builder `chud.zod`, native chudtype builder `chud.arktype`, legacy `chud.typebox`, and package exports via `chud.pi`
 
 ## Discovery and loading
 
@@ -258,10 +258,10 @@ Hook status text set via `ctx.ui.setStatus(key, text)` is:
 ### Block unsafe bash commands
 
 ```ts
-import type { HookAPI } from "@oh-my-pi/pi-coding-agent/extensibility/hooks";
+import type { HookAPI } from "@chudware/coding-agent/extensibility/hooks";
 
-export default function (pi: HookAPI): void {
-  pi.on("tool_call", async (event, ctx) => {
+export default function (chud: HookAPI): void {
+  chud.on("tool_call", async (event, ctx) => {
     if (event.toolName !== "bash") return;
     const cmd = String(event.input.command ?? "");
     if (!cmd.includes("rm -rf")) return;
@@ -276,10 +276,10 @@ export default function (pi: HookAPI): void {
 ### Redact tool output on post-execution
 
 ```ts
-import type { HookAPI } from "@oh-my-pi/pi-coding-agent/extensibility/hooks";
+import type { HookAPI } from "@chudware/coding-agent/extensibility/hooks";
 
-export default function (pi: HookAPI): void {
-  pi.on("tool_result", async (event) => {
+export default function (chud: HookAPI): void {
+  chud.on("tool_result", async (event) => {
     if (event.toolName !== "read" || event.isError) return;
 
     const redacted = event.content.map((chunk) => {
@@ -298,10 +298,10 @@ export default function (pi: HookAPI): void {
 ### Modify model context per LLM call
 
 ```ts
-import type { HookAPI } from "@oh-my-pi/pi-coding-agent/extensibility/hooks";
+import type { HookAPI } from "@chudware/coding-agent/extensibility/hooks";
 
-export default function (pi: HookAPI): void {
-  pi.on("context", async (event) => {
+export default function (chud: HookAPI): void {
+  chud.on("context", async (event) => {
     const filtered = event.messages.filter(
       (msg) => !(msg.role === "custom" && msg.customType === "debug-only"),
     );
@@ -313,10 +313,10 @@ export default function (pi: HookAPI): void {
 ### Register slash command with command-safe context methods
 
 ```ts
-import type { HookAPI } from "@oh-my-pi/pi-coding-agent/extensibility/hooks";
+import type { HookAPI } from "@chudware/coding-agent/extensibility/hooks";
 
-export default function (pi: HookAPI): void {
-  pi.registerCommand("handoff", {
+export default function (chud: HookAPI): void {
+  chud.registerCommand("handoff", {
     description: "Create a new session with setup message",
     handler: async (_args, ctx) => {
       await ctx.waitForIdle();
@@ -339,11 +339,11 @@ export default function (pi: HookAPI): void {
 
 ## Export surface
 
-`packages/coding-agent/src/extensibility/hooks/index.ts` and the package subpath `@oh-my-pi/pi-coding-agent/extensibility/hooks` export:
+`packages/coding-agent/src/extensibility/hooks/index.ts` and the package subpath `@chudware/coding-agent/extensibility/hooks` export:
 
 - loading APIs (`discoverAndLoadHooks`, `loadHooks`)
 - runner and wrapper (`HookRunner`, `HookToolWrapper`)
 - all hook types
 - `execCommand` re-export
 
-The package root (`@oh-my-pi/pi-coding-agent`) does not re-export `HookAPI`; import legacy hook types from the hooks subpath.
+The package root (`@chudware/coding-agent`) does not re-export `HookAPI`; import legacy hook types from the hooks subpath.

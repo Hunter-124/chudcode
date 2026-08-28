@@ -1,10 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, type Mock, spyOn } from "bun:test";
 import * as fs from "node:fs";
 import * as path from "node:path";
-import { loadExtensions } from "@oh-my-pi/pi-coding-agent/extensibility/extensions/loader";
-import { loadLegacyPiModule } from "@oh-my-pi/pi-coding-agent/extensibility/plugins/legacy-pi-compat";
-import { TempDir } from "@oh-my-pi/pi-utils";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
+import { loadExtensions } from "@chudware/coding-agent/extensibility/extensions/loader";
+import { loadLegacyPiModule } from "@chudware/coding-agent/extensibility/plugins/legacy-pi-compat";
+import { TempDir } from "@chudware/utils";
+import * as fsx from "@chudware/utils/fsx";
 
 describe("Extension Loader Graph Read Dedup", () => {
 	let tempDir: TempDir;
@@ -48,9 +48,9 @@ describe("Extension Loader Graph Read Dedup", () => {
 
 		const entryPath = path.join(extDir, "index.ts");
 		const entryContent = `import "./mod-0.ts";
-export default function(pi) {
-    const { Type } = pi.typebox;
-    pi.registerTool({
+export default function(chud) {
+    const { Type } = chud.typebox;
+    chud.registerTool({
         name: "dedup-tool",
         label: "dedup-tool",
         description: "Test tool",

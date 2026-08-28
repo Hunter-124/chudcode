@@ -13,8 +13,8 @@ import {
 	Patch,
 	Patcher,
 	type WriteResult,
-} from "@oh-my-pi/hashline";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
+} from "@chudware/hashline";
+import * as fsx from "@chudware/utils/fsx";
 
 const PATH = "a.ts";
 

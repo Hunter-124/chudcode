@@ -3,7 +3,7 @@ import { mkdir, mkdtemp, rename, rm, symlink, unlink, writeFile } from "node:fs/
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
+import * as fsx from "@chudware/utils/fsx";
 import type { FileChange } from "../src/protocol";
 import { FileWatcher } from "../src/services/file-watcher";
 import { checkIgnoredPaths, WorkspaceSearch } from "../src/services/workspace-search";

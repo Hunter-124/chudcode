@@ -5,8 +5,8 @@ import {
 	formatMCPConnectionStatusMessage,
 	isMcpConnectionStatusEvent,
 	MCP_CONNECTION_STATUS_EVENT_CHANNEL,
-} from "@oh-my-pi/pi-coding-agent/mcp/startup-events";
-import * as proc from "@oh-my-pi/pi-utils/proc";
+} from "@chudware/coding-agent/mcp/startup-events";
+import * as proc from "@chudware/utils/proc";
 
 // Cross-module contract guard.
 //
@@ -49,7 +49,7 @@ describe("mcp/startup-events — connection-status cross-module contract", () =>
 	});
 
 	it("sanitizes failure errors before rendering them in status text", () => {
-		const homePath = `${os.homedir()}/.omp/mcp.log`;
+		const homePath = `${os.homedir()}/.chudcode/mcp.log`;
 		const message = formatMCPConnectionStatusMessage({
 			pendingServers: ["slow"],
 			connectedServers: [],
@@ -59,7 +59,7 @@ describe("mcp/startup-events — connection-status cross-module contract", () =>
 		expect(message).not.toContain(os.homedir());
 		expect(message).not.toContain("\n");
 		expect(message).not.toContain("\t");
-		expect(message).toContain("broken: failed at   ~/.omp/mcp.log");
+		expect(message).toContain("broken: failed at   ~/.chudcode/mcp.log");
 	});
 
 	it("keeps the config source and transport error visible under independent truncation", () => {
@@ -81,7 +81,7 @@ describe("mcp/startup-events — connection-status cross-module contract", () =>
 	});
 
 	it("shortens config sources when the home directory contains spaces", () => {
-		const homeDir = "/tmp/OMP User";
+		const homeDir = "/tmp/Chudcode User";
 		const moduleUrl = new URL("../src/mcp/startup-events.ts", import.meta.url).href;
 		const script = `
 			import os from "node:os";
@@ -105,7 +105,7 @@ describe("mcp/startup-events — connection-status cross-module contract", () =>
 	});
 
 	it("sanitizes server names before rendering them in status text", () => {
-		const homePath = `${os.homedir()}/.omp`;
+		const homePath = `${os.homedir()}/.chudcode`;
 		const message = formatMCPConnectionStatusMessage({
 			pendingServers: [`${homePath}/pending\n${"p".repeat(80)}`],
 			connectedServers: [`${homePath}/connected\tserver`],
@@ -115,9 +115,9 @@ describe("mcp/startup-events — connection-status cross-module contract", () =>
 		expect(message).not.toContain(os.homedir());
 		expect(message).not.toContain("\n");
 		expect(message).not.toContain("\t");
-		expect(message).toContain("Connected: ~/.omp/connected   server.");
-		expect(message).toContain("Failed: ~/.omp/broken server: missing command.");
-		expect(message).toContain("Still connecting: ~/.omp/pending");
+		expect(message).toContain("Connected: ~/.chudcode/connected   server.");
+		expect(message).toContain("Failed: ~/.chudcode/broken server: missing command.");
+		expect(message).toContain("Still connecting: ~/.chudcode/pending");
 	});
 
 	it("keeps pending servers visible while other servers settle", () => {

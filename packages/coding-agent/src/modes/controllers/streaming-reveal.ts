@@ -1,6 +1,6 @@
-import type { AssistantMessage } from "@oh-my-pi/pi-ai";
-import { type Component, getSegmenter } from "@oh-my-pi/pi-tui";
-import { LRUCache } from "@oh-my-pi/pi-utils/lru";
+import type { AssistantMessage } from "@chudware/ai";
+import { type Component, getSegmenter } from "@chudware/tui";
+import { LRUCache } from "@chudware/utils/lru";
 import { formatThinkingForDisplay, hasDisplayableThinking } from "../../utils/thinking-display";
 import type { AssistantMessageComponent } from "../components/assistant-message";
 

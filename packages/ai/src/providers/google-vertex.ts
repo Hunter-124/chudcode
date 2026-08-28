@@ -1,5 +1,5 @@
-import { resolveVertexEndpointHost } from "@oh-my-pi/pi-catalog/hosts";
-import { $env } from "@oh-my-pi/pi-utils";
+import { resolveVertexEndpointHost } from "@chudware/catalog/hosts";
+import { $env } from "@chudware/utils";
 import * as AIError from "../error";
 import type { Context, Model, StreamFunction } from "../types";
 import type { AssistantMessageEventStream } from "../utils/event-stream";

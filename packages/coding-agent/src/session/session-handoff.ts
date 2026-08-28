@@ -7,11 +7,11 @@ import {
 	resolveTelemetry,
 	type StreamFn,
 	type ThinkingLevel,
-} from "@oh-my-pi/pi-agent-core";
-import { generateHandoffFromContext, renderHandoffPrompt } from "@oh-my-pi/pi-agent-core/compaction";
-import type { Message, Model, ServiceTier, SimpleStreamOptions } from "@oh-my-pi/pi-ai";
-import { logger, Snowflake } from "@oh-my-pi/pi-utils";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
+} from "@chudware/agent-core";
+import { generateHandoffFromContext, renderHandoffPrompt } from "@chudware/agent-core/compaction";
+import type { Message, Model, ServiceTier, SimpleStreamOptions } from "@chudware/ai";
+import { logger, Snowflake } from "@chudware/utils";
+import * as fsx from "@chudware/utils/fsx";
 import type { ModelRegistry } from "../config/model-registry";
 import type { Settings } from "../config/settings";
 import { obfuscateProviderContext } from "../secrets/message-transform";

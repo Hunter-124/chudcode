@@ -11,13 +11,13 @@ const COPILOT_PREMIUM_MULTIPLIERS: Record<string, number> = {
 
 import * as crypto from "node:crypto";
 import * as path from "node:path";
-import { discoverAuthStorage } from "@oh-my-pi/pi-ai/auth-broker/discover";
-import type { OAuthAccess } from "@oh-my-pi/pi-ai/auth-storage";
-import type { OAuthProvider } from "@oh-my-pi/pi-ai/oauth/types";
-import { getGitLabDuoModels } from "@oh-my-pi/pi-ai/providers/gitlab-duo";
-import { getProviderDefinition } from "@oh-my-pi/pi-ai/registry";
-import { $env } from "@oh-my-pi/pi-utils";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
+import { discoverAuthStorage } from "@chudware/ai/auth-broker/discover";
+import type { OAuthAccess } from "@chudware/ai/auth-storage";
+import type { OAuthProvider } from "@chudware/ai/oauth/types";
+import { getGitLabDuoModels } from "@chudware/ai/providers/gitlab-duo";
+import { getProviderDefinition } from "@chudware/ai/registry";
+import { $env } from "@chudware/utils";
+import * as fsx from "@chudware/utils/fsx";
 import { buildModel } from "../src/build";
 import { ANTIGRAVITY_PRIMARY_ENDPOINT, fetchAntigravityDiscoveryModels } from "../src/discovery/antigravity";
 import { buildGitLabDuoWorkflowFallbackModel } from "../src/discovery/gitlab-duo-workflow";
@@ -386,7 +386,7 @@ async function fetchAntigravityModels(): Promise<ModelSpec<"google-gemini-cli">[
 	const access = await getOAuthAccessFromStorage("google-antigravity");
 	if (!access) {
 		console.log("No Antigravity or Gemini CLI credentials found, will use previous models.");
-		console.log("Tip: If you are logged in under a specific profile, run with OMP_PROFILE=<name>.");
+		console.log("Tip: If you are logged in under a specific profile, run with CHUDCODE_PROFILE=<name>.");
 		return [];
 	}
 	try {
@@ -443,7 +443,7 @@ async function fetchCodexDiscoveryModels(): Promise<ModelSpec<"openai-codex-resp
 	}
 	if (accounts.length === 0) {
 		console.log("No Codex credentials found, will use previous models.");
-		console.log("Tip: If you are logged in under a specific profile, run with OMP_PROFILE=<name>.");
+		console.log("Tip: If you are logged in under a specific profile, run with CHUDCODE_PROFILE=<name>.");
 		return [];
 	}
 	console.log(`Fetching models from Codex API for ${accounts.length} account(s)...`);

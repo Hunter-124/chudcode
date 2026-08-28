@@ -1,4 +1,4 @@
-# @oh-my-pi/pi-tui
+# @chudware/tui
 
 Minimal terminal UI framework with differential rendering and synchronized output for flicker-free interactive CLI applications.
 
@@ -16,7 +16,7 @@ Minimal terminal UI framework with differential rendering and synchronized outpu
 ## Quick Start
 
 ```typescript
-import { TUI, Text, Editor, ProcessTerminal } from "@oh-my-pi/pi-tui";
+import { TUI, Text, Editor, ProcessTerminal } from "@chudware/tui";
 
 // Create terminal
 const terminal = new ProcessTerminal();
@@ -443,8 +443,8 @@ Supported formats: PNG, JPEG, GIF, WebP. Dimensions are parsed from the image he
 Supports both slash commands and file paths.
 
 ```typescript
-import { CombinedAutocompleteProvider } from "@oh-my-pi/pi-tui";
-import { getProjectDir } from "@oh-my-pi/pi-utils";
+import { CombinedAutocompleteProvider } from "@chudware/tui";
+import { getProjectDir } from "@chudware/utils";
 
 const provider = new CombinedAutocompleteProvider(
 	[
@@ -499,7 +499,7 @@ import {
 	isHome,
 	isEnd,
 	// ... and more
-} from "@oh-my-pi/pi-tui";
+} from "@chudware/tui";
 
 if (isCtrlC(data)) {
 	process.exit(0);
@@ -514,7 +514,7 @@ The TUI uses three rendering strategies:
 2. **Width Changed or Change Above Viewport**: Clear screen and full re-render
 3. **Normal Update**: Move cursor to first changed line, clear to end, render changed lines
 
-All updates are wrapped in **synchronized output** (`\x1b[?2026h` ... `\x1b[?2026l`) for atomic, flicker-free rendering unless `PI_NO_SYNC_OUTPUT=1` is set. The opt-out removes only the DEC 2026 wrapper; paint writes still guard terminal autowrap to avoid pending-wrap cursor artifacts.
+All updates are wrapped in **synchronized output** (`\x1b[?2026h` ... `\x1b[?2026l`) for atomic, flicker-free rendering unless `CHUDCODE_NO_SYNC_OUTPUT=1` is set. The opt-out removes only the DEC 2026 wrapper; paint writes still guard terminal autowrap to avoid pending-wrap cursor artifacts.
 
 ## Terminal Interface
 
@@ -544,7 +544,7 @@ interface Terminal {
 ## Utilities
 
 ```typescript
-import { Ellipsis, visibleWidth, truncateToWidth, wrapTextWithAnsi } from "@oh-my-pi/pi-tui";
+import { Ellipsis, visibleWidth, truncateToWidth, wrapTextWithAnsi } from "@chudware/tui";
 
 // Get visible width of string (ignoring ANSI codes, uses Bun.stringWidth)
 const width = visibleWidth("\x1b[31mHello\x1b[0m"); // 5
@@ -569,8 +569,8 @@ When creating custom components, **each line returned by `render()` must not exc
 Use the key detection utilities to handle keyboard input:
 
 ```typescript
-import { isEnter, isEscape, isArrowUp, isArrowDown, isCtrlC, isTab, isBackspace } from "@oh-my-pi/pi-tui";
-import type { Component } from "@oh-my-pi/pi-tui";
+import { isEnter, isEscape, isArrowUp, isArrowDown, isCtrlC, isTab, isBackspace } from "@chudware/tui";
+import type { Component } from "@chudware/tui";
 
 class MyInteractiveComponent implements Component {
 	private selectedIndex = 0;
@@ -605,8 +605,8 @@ class MyInteractiveComponent implements Component {
 Use the provided utilities to ensure lines fit:
 
 ```typescript
-import { visibleWidth, truncateToWidth } from "@oh-my-pi/pi-tui";
-import type { Component } from "@oh-my-pi/pi-tui";
+import { visibleWidth, truncateToWidth } from "@chudware/tui";
+import type { Component } from "@chudware/tui";
 
 class MyComponent implements Component {
 	private text: string;
@@ -640,7 +640,7 @@ class MyComponent implements Component {
 - `wrapTextWithAnsi()` preserves ANSI codes while word-wrapping and trimming line ends
 
 ```typescript
-import chalk from "@oh-my-pi/pi-utils/chalk";
+import chalk from "@chudware/utils/chalk";
 
 const styled = chalk.red("Hello") + " " + chalk.blue("World");
 const width = visibleWidth(styled); // 11 (not counting ANSI codes)

@@ -16,11 +16,11 @@ import {
 	type UsageLimit,
 	type UsageReport,
 	type UsageUnit,
-} from "@oh-my-pi/pi-ai";
-import { AuthBrokerClient } from "@oh-my-pi/pi-ai/auth-broker";
-import type { ClientUsageClientSummary } from "@oh-my-pi/pi-ai/usage";
-import { formatDuration, formatNumber, sanitizeText } from "@oh-my-pi/pi-utils";
-import chalk from "@oh-my-pi/pi-utils/chalk";
+} from "@chudware/ai";
+import { AuthBrokerClient } from "@chudware/ai/auth-broker";
+import type { ClientUsageClientSummary } from "@chudware/ai/usage";
+import { formatDuration, formatNumber, sanitizeText } from "@chudware/utils";
+import chalk from "@chudware/utils/chalk";
 import { ModelRegistry } from "../config/model-registry";
 import { discoverAuthStorage } from "../sdk";
 import { resolveAuthBrokerConfig } from "../session/auth-broker-config";
@@ -1044,7 +1044,7 @@ export async function runUsageCommand(cmd: UsageCommandArgs): Promise<void> {
 			if (clients.length === 0) {
 				process.stderr.write(
 					chalk.yellow(
-						"No per-client usage recorded yet. Broker-connected clients and the auth-gateway report token burn automatically; set OMP_AUTH_BROKER_URL (or run this on the broker host).\n",
+						"No per-client usage recorded yet. Broker-connected clients and the auth-gateway report token burn automatically; set CHUDCODE_AUTH_BROKER_URL (or run this on the broker host).\n",
 					),
 				);
 				process.exitCode = 1;
@@ -1176,7 +1176,7 @@ export async function runUsageCommand(cmd: UsageCommandArgs): Promise<void> {
 			const message =
 				storedAccounts.length > 0
 					? `No usage data${scope}. Stored credentials are for providers without a usage endpoint.\n`
-					: `No credentials found${scope}. Run \`omp\` and use /login to add accounts.\n`;
+					: `No credentials found${scope}. Run \`chudcode\` and use /login to add accounts.\n`;
 			process.stderr.write(chalk.yellow(message));
 			process.exitCode = 1;
 			return;

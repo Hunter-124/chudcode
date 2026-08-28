@@ -1,13 +1,13 @@
 import * as path from "node:path";
-import { formatHashlineHeader } from "@oh-my-pi/hashline";
-import { type } from "@oh-my-pi/omptype";
-import type { AgentTool, AgentToolContext, AgentToolResult, AgentToolUpdateCallback } from "@oh-my-pi/pi-agent-core";
-import type { ToolExample } from "@oh-my-pi/pi-ai";
-import { type AstReplaceChange, type AstReplaceFileChange, astEdit } from "@oh-my-pi/pi-natives";
-import type { Component } from "@oh-my-pi/pi-tui";
-import { replaceTabs, Text } from "@oh-my-pi/pi-tui";
-import { $envpos, prompt, untilAborted } from "@oh-my-pi/pi-utils";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
+import { formatHashlineHeader } from "@chudware/hashline";
+import { type } from "@chudware/chudtype";
+import type { AgentTool, AgentToolContext, AgentToolResult, AgentToolUpdateCallback } from "@chudware/agent-core";
+import type { ToolExample } from "@chudware/ai";
+import { type AstReplaceChange, type AstReplaceFileChange, astEdit } from "@chudware/natives";
+import type { Component } from "@chudware/tui";
+import { replaceTabs, Text } from "@chudware/tui";
+import { $envpos, prompt, untilAborted } from "@chudware/utils";
+import * as fsx from "@chudware/utils/fsx";
 import { canonicalSnapshotKey, getFileSnapshotStore } from "../edit/file-snapshot-store";
 import { normalizeToLF } from "../edit/normalize";
 import type { RenderResultOptions } from "../extensibility/custom-tools/types";
@@ -283,7 +283,7 @@ export class AstEditTool implements AgentTool<typeof astEditSchema, AstEditToolD
 				seenPatterns.add(pat);
 			}
 			const normalizedRewrites = Object.fromEntries(ops);
-			const maxFiles = $envpos("PI_MAX_AST_FILES", 1000);
+			const maxFiles = $envpos("CHUDCODE_MAX_AST_FILES", 1000);
 
 			const scope = await resolveToolSearchScope({
 				rawPaths: params.paths,

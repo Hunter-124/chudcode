@@ -12,10 +12,10 @@ import {
 	type DiffStreamProgress,
 	type DiffStreamResult,
 	rasterizeSvg,
-} from "@oh-my-pi/pi-natives";
-import { BINARY_SNIFF_BYTES, isEnoent, isProbablyBinaryHeader } from "@oh-my-pi/pi-utils";
-import { sleep } from "@oh-my-pi/pi-utils/async";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
+} from "@chudware/natives";
+import { BINARY_SNIFF_BYTES, isEnoent, isProbablyBinaryHeader } from "@chudware/utils";
+import { sleep } from "@chudware/utils/async";
+import * as fsx from "@chudware/utils/fsx";
 import { parseNumstat } from "../../commit/git/diff";
 import type { NumstatEntry } from "../../commit/types";
 import * as git from "../../utils/git";

@@ -2,7 +2,7 @@
  * Prettier formatting utilities for edit benchmarks.
  */
 import * as path from "node:path";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
+import * as fsx from "@chudware/utils/fsx";
 import * as prettier from "prettier";
 import { listFiles } from "./shared";
 

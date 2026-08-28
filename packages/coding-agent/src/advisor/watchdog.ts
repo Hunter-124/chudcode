@@ -1,7 +1,7 @@
 import * as os from "node:os";
 import * as path from "node:path";
-import { getAgentDir, isEnoent, logger, prompt } from "@oh-my-pi/pi-utils";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
+import { getAgentDir, isEnoent, logger, prompt } from "@chudware/utils";
+import * as fsx from "@chudware/utils/fsx";
 import { expandAtImports } from "../discovery/at-imports";
 import activeRepoWatchdogTemplate from "../prompts/advisor/active-repo-watchdog.md" with { type: "text" };
 import contextFilesTemplate from "../prompts/advisor/context-files.md" with { type: "text" };
@@ -45,7 +45,7 @@ export interface ConfigCandidate {
 /**
  * Walk the watchdog/advisor config search path — the user agent dir plus every
  * directory from `cwd` up to the repo root (or home), probing both `<F>` and
- * `.omp/<F>` for each given filename — and return the readable candidates with
+ * `.chudcode/<F>` for each given filename — and return the readable candidates with
  * their raw content, sorted user-first then project ancestor→leaf (depth
  * descending, so the leaf directory is most specific/last). Shared by
  * {@link discoverWatchdogFiles} and `discoverAdvisorConfigs`. Content is returned
@@ -68,7 +68,7 @@ export async function collectConfigCandidates(
 
 	const candidates = new Set<string>();
 
-	// 1. User level: ~/.omp/<F> (or active profile agent dir)
+	// 1. User level: ~/.chudcode/<F> (or active profile agent dir)
 	if (resolvedAgentDir) {
 		for (const filename of filenames) {
 			const userPath = path.resolve(resolvedAgentDir, filename);
@@ -77,11 +77,11 @@ export async function collectConfigCandidates(
 		}
 	}
 
-	// 2. Project levels (both standalone and native config .omp/): walk up from cwd to repoRoot / home
+	// 2. Project levels (both standalone and native config .chudcode/): walk up from cwd to repoRoot / home
 	let current = cwd;
 	while (true) {
 		for (const filename of filenames) {
-			candidates.add(path.resolve(current, ".omp", filename));
+			candidates.add(path.resolve(current, ".chudcode", filename));
 			candidates.add(path.resolve(current, filename));
 		}
 		if (current === (repoRoot ?? home)) break;
@@ -97,9 +97,9 @@ export async function collectConfigCandidates(
 			const parent = path.dirname(candidate);
 			const baseName = parent.split(path.sep).pop() ?? "";
 			const isUser = userPaths.has(candidate);
-			const ownerDir = baseName === ".omp" ? path.dirname(parent) : parent;
+			const ownerDir = baseName === ".chudcode" ? path.dirname(parent) : parent;
 			const ownerBaseName = ownerDir.split(path.sep).pop() ?? "";
-			if (isUser || !ownerBaseName.startsWith(".") || baseName === ".omp") {
+			if (isUser || !ownerBaseName.startsWith(".") || baseName === ".chudcode") {
 				const relative = path.relative(cwd, ownerDir);
 				const depth = relative === "" ? 0 : relative.split(path.sep).filter(Boolean).length;
 				items.push({ path: candidate, content, level: isUser ? "user" : "project", depth });
@@ -122,7 +122,7 @@ export async function collectConfigCandidates(
 }
 
 /**
- * Discover and load WATCHDOG.md files walking up from cwd, project .omp folder, and user agent dir.
+ * Discover and load WATCHDOG.md files walking up from cwd, project .chudcode folder, and user agent dir.
  * Returns formatted watchdog file blocks ready to be appended to the advisor system prompt.
  */
 export async function discoverWatchdogFiles(cwd: string, agentDir?: string): Promise<string[]> {

@@ -18,7 +18,7 @@ You already have **write access** to `Hunter-124/chudcode`.
 2. **7 of the 9 fork branches are still based on the July tree.** They will
    conflict on submission. See §3 — this is the top priority task.
 3. **Upstream has binding contribution rules.** Read
-   `oh-my-pi/CONTRIBUTING.md` before touching a PR. Summary in §2. Ignoring them
+   `chudware/CONTRIBUTING.md` before touching a PR. Summary in §2. Ignoring them
    gets PRs closed on sight, and this fork's whole purpose is landing work
    upstream in a 27k-star repo.
 4. **`packages/stats/src/db.ts` is Hunter's uncommitted work.** Do not commit,
@@ -35,15 +35,15 @@ You already have **write access** to `Hunter-124/chudcode`.
 
 | Path | What |
 | --- | --- |
-| `~/Repositories/omp-inspection/oh-my-pi` | The working checkout. `origin` = upstream, `fork` = `Hunter-124/chudcode` |
-| `~/Repositories/omp-inspection/HANDOFF.md` | The detailed record — every request, its status, and why |
-| `~/Repositories/omp-inspection/REQUIREMENTS.md` | The full requirement set with priorities |
-| `~/Repositories/omp-inspection/PR-BODIES.md` | PR bodies ready for submission |
-| `~/Repositories/omp-inspection/CAD-CLOUDCASTLE-MIGRATION.md` | How CAD consumes Chudcode, the safe path, the blocker |
-| `~/Repositories/omp-inspection/CRASH-MITIGATIONS.md` | Why the machine was dying and what was fixed |
-| `~/Repositories/omp-inspection/sandbox-prototype/` | Isolated-display prototype + 29 evidence artifacts |
-| `~/.local/bin/omp-seat` | Working command: run Chudcode on its own isolated display |
-| `~/Repositories/CAD` | Hunter's **private** CAD project. Vendors part of omp. Keep it private |
+| `~/Repositories/chudcode-inspection/chudware` | The working checkout. `origin` = upstream, `fork` = `Hunter-124/chudcode` |
+| `~/Repositories/chudcode-inspection/HANDOFF.md` | The detailed record — every request, its status, and why |
+| `~/Repositories/chudcode-inspection/REQUIREMENTS.md` | The full requirement set with priorities |
+| `~/Repositories/chudcode-inspection/PR-BODIES.md` | PR bodies ready for submission |
+| `~/Repositories/chudcode-inspection/CAD-CLOUDCASTLE-MIGRATION.md` | How CAD consumes Chudcode, the safe path, the blocker |
+| `~/Repositories/chudcode-inspection/CRASH-MITIGATIONS.md` | Why the machine was dying and what was fixed |
+| `~/Repositories/chudcode-inspection/sandbox-prototype/` | Isolated-display prototype + 29 evidence artifacts |
+| `~/.local/bin/chudcode-seat` | Working command: run Chudcode on its own isolated display |
+| `~/Repositories/CAD` | Hunter's **private** CAD project. Vendors part of chudcode. Keep it private |
 
 Build/test commands (from the repo root):
 
@@ -58,12 +58,12 @@ bun run build:native                # Rust natives — SLOW, needs a process man
 
 ## 2. Upstream rules — non-negotiable
 
-From `oh-my-pi/CONTRIBUTING.md`:
+From `chudware/CONTRIBUTING.md`:
 
 - **Major features need a Discord discussion *before* implementation.** New
   subsystems, large UI changes, multi-package changes. A GitHub issue is
   explicitly **not** a substitute. Discord: https://discord.gg/4NMW9cdXZa
-- **Do not open an issue for work you intend to submit.** Their `robomp` bot
+- **Do not open an issue for work you intend to submit.** Their `robochud` bot
   picks up actionable issues and may start the same work in parallel.
 - **Every PR body must contain at least one sentence written by the submitter, in
   their own words**, and the submitter must have reviewed the diff and exercised
@@ -74,7 +74,7 @@ From `oh-my-pi/CONTRIBUTING.md`:
 **Standing decision on attribution, so you're not asked twice:** commit
 co-authorship in this fork reflects who actually contributed to that specific
 change. It is not distributed to pad contribution graphs, and it is not
-randomized to look organic. Rationale is in `oh-my-pi/ACKNOWLEDGEMENTS.md` — it's
+randomized to look organic. Rationale is in `chudware/ACKNOWLEDGEMENTS.md` — it's
 self-interested, not moralistic: a history crediting people who can't answer a
 question about the code is trivially detectable and costs exactly the credibility
 this effort is trying to build. If you contribute, you get credited on what you
@@ -89,9 +89,9 @@ The rest are on `f833810d0e` (July 23) and will conflict.
 
 | Branch | Base | State |
 | --- | --- | --- |
-| `feat/editor-redo` | **current** | PR [#9925](https://github.com/can1357/oh-my-pi/pull/9925), MERGEABLE |
-| `fix/status-bar-duplicate-count` | **current** | PR [#9927](https://github.com/can1357/oh-my-pi/pull/9927), MERGEABLE |
-| `fix/oauth-close-window` | stale | PR [#9926](https://github.com/can1357/oh-my-pi/pull/9926), MERGEABLE by luck (the file didn't change upstream) |
+| `feat/editor-redo` | **current** | PR [#9925](https://github.com/Hunter-124/chudcode/pull/9925), MERGEABLE |
+| `fix/status-bar-duplicate-count` | **current** | PR [#9927](https://github.com/Hunter-124/chudcode/pull/9927), MERGEABLE |
+| `fix/oauth-close-window` | stale | PR [#9926](https://github.com/Hunter-124/chudcode/pull/9926), MERGEABLE by luck (the file didn't change upstream) |
 | `fix/subagent-label-sanitize` | stale | not submitted |
 | `feat/opt-in-auto-update` | stale | not submitted, **needs Discord first** |
 | `feat/catalog-cursor-effort-and-release-date` | stale | not submitted |
@@ -104,8 +104,8 @@ The rest are on `f833810d0e` (July 23) and will conflict.
 
 ```bash
 # Use a scratch worktree — never disturb the main checkout (Hunter's db.ts).
-git worktree add --detach ~/.cache/omp-rebase2 origin/main
-cd ~/.cache/omp-rebase2
+git worktree add --detach ~/.cache/chudcode-rebase2 origin/main
+cd ~/.cache/chudcode-rebase2
 bun install                 # deps drifted over 5 weeks; the old node_modules will NOT work
 bun run build:native        # required, and the 17.x native is ABI-incompatible with 18.x
 git checkout <branch> && git rebase origin/main
@@ -172,7 +172,7 @@ Ranked by value, with reasoning rather than vibes.
 
 ### Tier 2 — highest user value, buildable now
 4. **Isolated display seats (Option B).** Option A already works
-   (`omp-seat run`), but subagents inside one Chudcode process share the parent's seat.
+   (`chudcode-seat run`), but subagents inside one Chudcode process share the parent's seat.
    Option B needs a small native plumb: add `display_server` to
    `DesktopSessionOptions`, carry it into `SessionCore` and the backend selector,
    and change `x11rb::connect(None)` to take it. **Do not** use
@@ -225,8 +225,8 @@ Ranked by value, with reasoning rather than vibes.
 CAD is **private**. Keep it that way.
 
 CAD does not run the `chudcode` CLI. It vendors `ai`, `catalog`, `utils`, `wire`,
-`mnemopi`, `snapcompact` at a pinned SHA and talks to them over a bun sidecar.
-It deliberately does **not** vendor `pi-coding-agent` or `pi-tui`, so most of our
+`mnemo`, `snapcompact` at a pinned SHA and talks to them over a bun sidecar.
+It deliberately does **not** vendor `chudcode-agent` or `chud-tui`, so most of our
 work cannot affect it. Only the OAuth fix (`ai`) and Cursor classification
 (`catalog`) are relevant.
 
@@ -237,9 +237,9 @@ pinned base. 10 insertions, 8 pass / 0 fail, no version jump:
 ```bash
 cd ~/Repositories/CAD
 python3 scripts/vendor_omp.py \
-  --from https://github.com/Hunter-124/oh-my-pi.git \
+  --from https://github.com/Hunter-124/chudware.git \
   --sha 91a64a594c9e76bbda8990a50da8d3425cb564ad \
-  --packages ai catalog utils wire mnemopi snapcompact
+  --packages ai catalog utils wire mnemo snapcompact
 python3 scripts/vendor_omp.py --verify
 ```
 
@@ -247,7 +247,7 @@ Expect a diff in `oauth.html` and its test **only**. Anything else means the bas
 moved — stop.
 
 **Do not attempt the full version jump without Hunter present.** CAD pins
-`pi-natives`/`pi-utils` at **17.1.5** from npm while vendoring the rest as
+`chud-natives`/`chud-utils` at **17.1.5** from npm while vendoring the rest as
 source. I hit that exact incompatibility by accident: the 17.x native lacks
 `NativeDesktopSession` that 18.x's adapter expects. A full jump means bumping the
 native in the same commit across 5400+ commits of drift, and it can't be
@@ -287,12 +287,12 @@ source or spawns the `chudcode` CLI — a CLI consumer *is* affected by all the
 
 Do this in order:
 
-1. `cd ~/Repositories/omp-inspection/oh-my-pi && git fetch origin main` — then
+1. `cd ~/Repositories/chudcode-inspection/chudware && git fetch origin main` — then
    confirm `origin/main` is newer than `d17c270090` or not.
-2. Read `oh-my-pi/CONTRIBUTING.md` and `oh-my-pi/AGENTS.md` in full. AGENTS.md
+2. Read `chudware/CONTRIBUTING.md` and `chudware/AGENTS.md` in full. AGENTS.md
    has hard style rules (Bun over Node, no `any`, no `ReturnType<>`, no dynamic
    `import()`, `#private` fields, prompts live in `.md` files).
-3. Read `~/Repositories/omp-inspection/HANDOFF.md` for the per-item detail.
+3. Read `~/Repositories/chudcode-inspection/HANDOFF.md` for the per-item detail.
 4. Start on §3 (rebasing). It unblocks everything else.
 5. Verify by exercising behavior, not by compiling. Every claim in §4 has a
    number attached because unverified claims were treated as not done.

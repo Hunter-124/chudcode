@@ -1,7 +1,7 @@
 import * as path from "node:path";
-import type { AgentToolResult } from "@oh-my-pi/pi-agent-core";
-import { untilAborted } from "@oh-my-pi/pi-utils";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
+import type { AgentToolResult } from "@chudware/agent-core";
+import { untilAborted } from "@chudware/utils";
+import * as fsx from "@chudware/utils/fsx";
 import * as git from "../utils/git";
 import type { ToolSession } from ".";
 import type { GhToolDetails } from "./gh";

@@ -183,5 +183,5 @@ export function renderMermaidASCII(
   }
 }
 
-/** Lowercase alias kept as the public name used by the pi-utils wrapper. */
+/** Lowercase alias kept as the public name used by the chud-utils wrapper. */
 export const renderMermaidAscii = renderMermaidASCII

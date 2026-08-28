@@ -13,7 +13,7 @@ let
 in
 pkgs.mkShell (
   {
-    name = "omp-dev";
+    name = "chudcode-dev";
 
     packages =
       (with pkgs; [

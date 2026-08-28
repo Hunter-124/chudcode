@@ -1,17 +1,17 @@
 import * as fs from "node:fs";
-import { type } from "@oh-my-pi/omptype";
+import { type } from "@chudware/chudtype";
 import type {
 	AgentTool,
 	AgentToolContext,
 	AgentToolResult,
 	AgentToolUpdateCallback,
 	ToolApprovalDecision,
-} from "@oh-my-pi/pi-agent-core";
-import type { Component } from "@oh-my-pi/pi-tui";
-import { ImageProtocol, TERMINAL } from "@oh-my-pi/pi-tui";
-import { getProjectDir, isEnoent, logger, prompt } from "@oh-my-pi/pi-utils";
-import { sleep } from "@oh-my-pi/pi-utils/async";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
+} from "@chudware/agent-core";
+import type { Component } from "@chudware/tui";
+import { ImageProtocol, TERMINAL } from "@chudware/tui";
+import { getProjectDir, isEnoent, logger, prompt } from "@chudware/utils";
+import { sleep } from "@chudware/utils/async";
+import * as fsx from "@chudware/utils/fsx";
 import {
 	DEFAULT_AUTO_BACKGROUND_THRESHOLD_MS,
 	formatBackgroundNotice,
@@ -144,7 +144,7 @@ const BASH_PATTERN_APPROVAL_VALUES = new Set(["allow", "deny", "prompt"]);
  * preserves `bash` tool semantics (`$VAR`, `$(...)`, `source`, POSIX quoting,
  * `-l`) wherever a POSIX shell is available. The agent host's shell path is
  * used as a proxy for the client's, matching the near-universal ACP
- * deployment shape of an editor spawning omp as a co-hosted subprocess.
+ * deployment shape of an editor spawning chudcode as a co-hosted subprocess.
  */
 export function wrapShellLineForClientTerminal(
 	line: string,
@@ -155,12 +155,12 @@ export function wrapShellLineForClientTerminal(
 }
 
 /**
- * Mirrors pi-shell's `uutils_env_disabled` gate for `PI_DISABLE_UUTILS_BUILTINS`:
+ * Mirrors chud-shell's `uutils_env_disabled` gate for `CHUDCODE_DISABLE_UUTILS_BUILTINS`:
  * session shell env first, then process env; truthy = present and not "", "0",
  * or "false". Controls whether the prompt advertises the in-process builtins.
  */
 function shellBuiltinsDisabled(settings: Settings): boolean {
-	const raw = settings.getShellConfig().env?.PI_DISABLE_UUTILS_BUILTINS ?? process.env.PI_DISABLE_UUTILS_BUILTINS;
+	const raw = settings.getShellConfig().env?.CHUDCODE_DISABLE_UUTILS_BUILTINS ?? process.env.CHUDCODE_DISABLE_UUTILS_BUILTINS;
 	return !!raw && raw !== "0" && raw.toLowerCase() !== "false";
 }
 

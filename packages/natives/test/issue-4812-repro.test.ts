@@ -1,8 +1,8 @@
 /**
- * Repro for https://github.com/can1357/oh-my-pi/issues/4812
+ * Repro for https://github.com/Hunter-124/chudcode/issues/4812
  *
- * A long-lived omp session that survives an in-place `bun install -g` upgrade
- * keeps the previous pi-natives NAPI addon resident in the process. A tab
+ * A long-lived chudcode session that survives an in-place `bun install -g` upgrade
+ * keeps the previous chud-natives NAPI addon resident in the process. A tab
  * worker spawned afterwards runs the freshly-installed JS loader, which expects
  * the new sentinel (e.g. `__piNativesV16_3_11`), but `require` returns the
  * resident old exports carrying the PRIOR sentinel (`__piNativesV16_3_10`).
@@ -19,11 +19,11 @@ import * as path from "node:path";
 import { validateLoadedBindings } from "../native/loader-state.js";
 
 const unusedCandidate =
-	"/home/u/.bun/install/global/node_modules/@oh-my-pi/pi-natives-linux-x64/pi_natives.linux-x64.node";
+	"/home/u/.bun/install/global/node_modules/@chudware/natives-linux-x64/chud_natives.linux-x64.node";
 
 async function withCandidate(contents: string, test: (candidate: string) => void) {
-	const dir = await fs.mkdtemp(path.join(os.tmpdir(), "pi-natives-sentinel-"));
-	const candidate = path.join(dir, "pi_natives.node");
+	const dir = await fs.mkdtemp(path.join(os.tmpdir(), "chud-natives-sentinel-"));
+	const candidate = path.join(dir, "chud_natives.node");
 	try {
 		await fs.writeFile(candidate, contents);
 		test(candidate);
@@ -40,7 +40,7 @@ function ctxFor(version: string) {
 	};
 }
 
-describe("issue 4812: pi-natives sentinel process-stale diagnosis", () => {
+describe("issue 4812: chud-natives sentinel process-stale diagnosis", () => {
 	it("accepts bindings that expose the expected sentinel", () => {
 		const ctx = ctxFor("16.3.11");
 		expect(() =>
@@ -53,7 +53,7 @@ describe("issue 4812: pi-natives sentinel process-stale diagnosis", () => {
 		const resident = { __piNativesV16_3_10: () => {}, grep: () => {} };
 		await withCandidate("__piNativesV16_3_11", candidate => {
 			expect(() => validateLoadedBindings(ctx, resident, candidate)).toThrow("16.3.10");
-			expect(() => validateLoadedBindings(ctx, resident, candidate)).toThrow("restart omp");
+			expect(() => validateLoadedBindings(ctx, resident, candidate)).toThrow("restart chudcode");
 			expect(() => validateLoadedBindings(ctx, resident, candidate)).toThrow("Disk is already consistent");
 			expect(() => validateLoadedBindings(ctx, resident, candidate)).not.toThrow("reinstall to re-sync");
 		});
@@ -67,7 +67,7 @@ describe("issue 4812: pi-natives sentinel process-stale diagnosis", () => {
 				"from a different release than this loader",
 			);
 			expect(() => validateLoadedBindings(ctx, stale, candidate)).toThrow("reinstall to re-sync");
-			expect(() => validateLoadedBindings(ctx, stale, candidate)).not.toThrow("restart omp");
+			expect(() => validateLoadedBindings(ctx, stale, candidate)).not.toThrow("restart chudcode");
 		});
 	});
 

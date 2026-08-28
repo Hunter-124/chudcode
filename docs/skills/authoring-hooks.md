@@ -5,17 +5,17 @@ description: Use when creating a new Chudcode hook. Covers HookAPI, event catalo
 
 # Authoring Hooks
 
-Hooks are event-driven interceptors that run alongside the agent loop. They are best used for cross-cutting concerns: safety policy, secret redaction, context pruning, audit logging. A hook module registers handlers via `pi.on(event, handler)` and can block tool execution, override tool output, or rewrite the message context before each LLM call.
+Hooks are event-driven interceptors that run alongside the agent loop. They are best used for cross-cutting concerns: safety policy, secret redaction, context pruning, audit logging. A hook module registers handlers via `chud.on(event, handler)` and can block tool execution, override tool output, or rewrite the message context before each LLM call.
 
 > **Relationship to extensions:** The hook subsystem (`HookAPI`) is the legacy API. The extension runner now handles everything hooks can do plus more. `ExtensionAPI` supports the hook event model plus extension-only events. Use `ExtensionAPI` for new work; use `HookAPI` only if you are maintaining an existing hook module.
 
 ## Factory signature
 
 ```ts
-import type { HookAPI } from "@oh-my-pi/pi-coding-agent/extensibility/hooks";
+import type { HookAPI } from "@chudware/coding-agent/extensibility/hooks";
 
 export default function myHook(Chudcode: HookAPI): void {
-  omp.on("tool_call", async (event, ctx) => {
+  chudcode.on("tool_call", async (event, ctx) => {
     // intercept every tool call
   });
 }
@@ -26,10 +26,10 @@ The default export must be a function (not a class). It receives a `HookAPI` ins
 Alternatively, using `ExtensionAPI` (preferred):
 
 ```ts
-import type { ExtensionAPI } from "@oh-my-pi/pi-coding-agent";
+import type { ExtensionAPI } from "@chudware/coding-agent";
 
-export default function myExtension(pi: ExtensionAPI): void {
-  pi.on("tool_call", async (event, ctx) => { /* ... */ });
+export default function myExtension(chud: ExtensionAPI): void {
+  chud.on("tool_call", async (event, ctx) => { /* ... */ });
 }
 ```
 
@@ -82,7 +82,7 @@ Extension-only events such as `tool_execution_start`, `tool_execution_update`, `
 Return `{ block: true, reason: "..." }` from a `tool_call` handler to prevent execution:
 
 ```ts
-omp.on("tool_call", async (event, ctx) => {
+chudcode.on("tool_call", async (event, ctx) => {
   if (event.toolName === "bash") {
     const cmd = String(event.input.command ?? "");
     if (/\brm\s+-rf\s+\//.test(cmd)) {
@@ -105,7 +105,7 @@ Contract:
 Return `{ content, details, isError }` from a `tool_result` handler to patch what the LLM sees:
 
 ```ts
-omp.on("tool_result", async (event, ctx) => {
+chudcode.on("tool_result", async (event, ctx) => {
   if (event.toolName === "read" && !event.isError) {
     const redacted = event.content.map(chunk => {
       if (chunk.type !== "text") return chunk;
@@ -132,7 +132,7 @@ Contract:
 Return `{ messages: [...] }` from a `context` handler to rewrite the message list before each LLM API call:
 
 ```ts
-omp.on("context", async (event, ctx) => {
+chudcode.on("context", async (event, ctx) => {
   // Remove debug-only custom messages from LLM context
   const filtered = event.messages.filter(
     msg => !(msg.role === "custom" && msg.customType === "debug-only")
@@ -152,10 +152,10 @@ Contract:
 ### 1. rm-rf blocker
 
 ```ts
-import type { HookAPI } from "@oh-my-pi/pi-coding-agent/extensibility/hooks";
+import type { HookAPI } from "@chudware/coding-agent/extensibility/hooks";
 
 export default function rmRfBlocker(Chudcode: HookAPI): void {
-  omp.on("tool_call", async (event, ctx) => {
+  chudcode.on("tool_call", async (event, ctx) => {
     if (event.toolName !== "bash") return;
 
     const cmd = String(event.input.command ?? "");
@@ -178,7 +178,7 @@ export default function rmRfBlocker(Chudcode: HookAPI): void {
 ### 2. API-key redactor
 
 ```ts
-import type { HookAPI } from "@oh-my-pi/pi-coding-agent/extensibility/hooks";
+import type { HookAPI } from "@chudware/coding-agent/extensibility/hooks";
 
 // Common API-key shapes. Not exhaustive — providers using bespoke formats
 // (Anthropic `sk-ant-…`, JWT-style bearers, gateway-specific prefixes, etc.)
@@ -193,7 +193,7 @@ const SECRET_PATTERNS = [
 ];
 
 export default function apiKeyRedactor(Chudcode: HookAPI): void {
-  omp.on("tool_result", async (event) => {
+  chudcode.on("tool_result", async (event) => {
     if (event.isError) return;
 
     let changed = false;
@@ -215,10 +215,10 @@ export default function apiKeyRedactor(Chudcode: HookAPI): void {
 ### 3. Context filter
 
 ```ts
-import type { HookAPI } from "@oh-my-pi/pi-coding-agent/extensibility/hooks";
+import type { HookAPI } from "@chudware/coding-agent/extensibility/hooks";
 
 export default function contextFilter(Chudcode: HookAPI): void {
-  omp.on("context", async (event) => {
+  chudcode.on("context", async (event) => {
     const MAX_TOOL_OUTPUT_CHARS = 8_000;
 
     const trimmed = event.messages.map(msg => {

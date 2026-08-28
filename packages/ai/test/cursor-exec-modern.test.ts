@@ -7,16 +7,24 @@ import {
 	handleServerMessage,
 	processInteractionUpdate,
 	type ToolCallState,
-} from "@oh-my-pi/pi-ai/providers/cursor";
-import type { AssistantMessage, CursorExecHandlers, ToolResultMessage } from "@oh-my-pi/pi-ai/types";
-import { kCursorExecResolved, setStreamingPartialJson } from "@oh-my-pi/pi-ai/utils/block-symbols";
-import { AssistantMessageEventStream } from "@oh-my-pi/pi-ai/utils/event-stream";
+} from "@chudware/ai/providers/cursor";
+import type { AssistantMessage, CursorExecHandlers, ToolResultMessage } from "@chudware/ai/types";
+import { kCursorExecResolved, setStreamingPartialJson } from "@chudware/ai/utils/block-symbols";
+import { AssistantMessageEventStream } from "@chudware/ai/utils/event-stream";
 import {
 	type AgentClientMessage,
 	AgentClientMessageSchema,
 	AgentServerMessageSchema,
 	AgentStoreConflictArgsSchema,
 	CanvasDiagnosticsArgsSchema,
+	ChudBashExecArgsSchema,
+	ChudEditExecArgsSchema,
+	ChudEditReplacementSchema,
+	ChudFindExecArgsSchema,
+	ChudGrepExecArgsSchema,
+	ChudLsExecArgsSchema,
+	ChudReadExecArgsSchema,
+	ChudWriteExecArgsSchema,
 	ComputerUseArgsSchema,
 	ConnectScmArgsSchema,
 	ConnectScmErrorSchema,
@@ -46,14 +54,6 @@ import {
 	McpStateExecArgsSchema,
 	type McpToolDefinition,
 	McpToolDefinitionSchema,
-	PiBashExecArgsSchema,
-	PiEditExecArgsSchema,
-	PiEditReplacementSchema,
-	PiFindExecArgsSchema,
-	PiGrepExecArgsSchema,
-	PiLsExecArgsSchema,
-	PiReadExecArgsSchema,
-	PiWriteExecArgsSchema,
 	PostToolUseRequestQuerySchema,
 	ReadArgsSchema,
 	ReadMcpResourceExecArgsSchema,
@@ -66,8 +66,8 @@ import {
 	SubagentAwaitArgsSchema,
 	ToolCallSchema,
 	WebFetchAllowlistPrecheckArgsSchema,
-} from "@oh-my-pi/pi-catalog/discovery/cursor-proto";
-import { create, fromBinary, toBinary } from "@oh-my-pi/pi-catalog/discovery/protobuf";
+} from "@chudware/catalog/discovery/cursor-proto";
+import { create, fromBinary, toBinary } from "@chudware/catalog/discovery/protobuf";
 
 /**
  * Drive one `ExecServerMessage` through the real dispatcher and decode every
@@ -281,7 +281,7 @@ describe("Cursor stream teardown", () => {
 						target: {
 							case: "github",
 							value: create(ConnectScmGithubSchema, {
-								repository: create(ConnectScmGithubRepositorySchema, { owner: "can1357", repo: "oh-my-pi" }),
+								repository: create(ConnectScmGithubRepositorySchema, { owner: "Hunter-124", repo: "chudware" }),
 							}),
 						},
 					}),
@@ -894,7 +894,7 @@ describe("Cursor modern exec frames: status and precheck answers", () => {
 		const mcp = await dispatchExec(
 			buildExecMessage({
 				case: "mcpAllowlistPrecheckArgs",
-				value: create(McpAllowlistPrecheckArgsSchema, { providerIdentifier: "pi-agent", toolName: "task" }),
+				value: create(McpAllowlistPrecheckArgsSchema, { providerIdentifier: "chud-agent", toolName: "task" }),
 			}),
 		);
 		const mcpAnswer = soleResult(mcp.frames);
@@ -990,8 +990,8 @@ describe("Cursor modern exec frames: MCP state", () => {
 			buildExecMessage({ case: "mcpStateExecArgs", value: create(McpStateExecArgsSchema, {}) }),
 			{
 				requestContextTools: [
-					mcpTool("task", "pi-agent"),
-					mcpTool("hub", "pi-agent"),
+					mcpTool("task", "chud-agent"),
+					mcpTool("hub", "chud-agent"),
 					mcpTool("mcp__fixture_report", "fixture"),
 				],
 			},
@@ -1001,8 +1001,8 @@ describe("Cursor modern exec frames: MCP state", () => {
 		if (answer.case !== "mcpStateExecResult") throw new Error(`got ${answer.case}`);
 		if (answer.value.result.case !== "success") throw new Error("expected success");
 		const servers = answer.value.result.value.servers;
-		expect(servers.map(server => server.serverIdentifier).sort()).toEqual(["fixture", "pi-agent"]);
-		const piAgent = servers.find(server => server.serverIdentifier === "pi-agent");
+		expect(servers.map(server => server.serverIdentifier).sort()).toEqual(["fixture", "chud-agent"]);
+		const piAgent = servers.find(server => server.serverIdentifier === "chud-agent");
 		expect(piAgent?.tools.map(t => t.name)).toEqual(["task", "hub"]);
 	});
 
@@ -1012,7 +1012,7 @@ describe("Cursor modern exec frames: MCP state", () => {
 				case: "mcpStateExecArgs",
 				value: create(McpStateExecArgsSchema, { serverIdentifiers: ["fixture"] }),
 			}),
-			{ requestContextTools: [mcpTool("task", "pi-agent"), mcpTool("mcp__fixture_report", "fixture")] },
+			{ requestContextTools: [mcpTool("task", "chud-agent"), mcpTool("mcp__fixture_report", "fixture")] },
 		);
 
 		const answer = soleResult(frames);
@@ -1049,19 +1049,19 @@ describe("Cursor modern exec frames: redacted read", () => {
 	});
 });
 
-describe("Cursor modern exec frames: Pi tools", () => {
+describe("Cursor modern exec frames: Chud tools", () => {
 	it("round-trips piRead through its handler into a typed success", async () => {
 		const { frames, output, results } = await dispatchExec(
 			buildExecMessage({
 				case: "piReadArgs",
-				value: create(PiReadExecArgsSchema, { path: "/repo/a.ts", offset: 5, limit: 20 }),
+				value: create(ChudReadExecArgsSchema, { path: "/repo/a.ts", offset: 5, limit: 20 }),
 			}),
 			{
 				execHandlers: {
 					async piRead(call) {
 						expect(call.args.path).toBe("/repo/a.ts");
 						expect(call.args.offset).toBe(5);
-						// The Pi frames carry no tool_call_id; the dispatcher mints one.
+						// The Chud frames carry no tool_call_id; the dispatcher mints one.
 						expect(call.toolCallId).toBeTruthy();
 						// Like the real bridge, the handler files its result under the id
 						// it was handed.
@@ -1088,9 +1088,9 @@ describe("Cursor modern exec frames: Pi tools", () => {
 		expect(blocks[0].arguments).toEqual({ path: "/repo/a.ts:raw:5+20" });
 	});
 
-	it("maps a failing Pi handler onto the frame's own error variant", async () => {
+	it("maps a failing Chud handler onto the frame's own error variant", async () => {
 		const { frames } = await dispatchExec(
-			buildExecMessage({ case: "piReadArgs", value: create(PiReadExecArgsSchema, { path: "/nope" }) }),
+			buildExecMessage({ case: "piReadArgs", value: create(ChudReadExecArgsSchema, { path: "/nope" }) }),
 			{
 				execHandlers: {
 					async piRead(call) {
@@ -1106,9 +1106,9 @@ describe("Cursor modern exec frames: Pi tools", () => {
 		expect(answer.value.result.value.error).toBe("ENOENT: /nope");
 	});
 
-	it("rejects a Pi frame with no handler installed instead of faking a success", async () => {
+	it("rejects a Chud frame with no handler installed instead of faking a success", async () => {
 		const { frames } = await dispatchExec(
-			buildExecMessage({ case: "piGrepArgs", value: create(PiGrepExecArgsSchema, { pattern: "foo" }) }),
+			buildExecMessage({ case: "piGrepArgs", value: create(ChudGrepExecArgsSchema, { pattern: "foo" }) }),
 		);
 
 		const answer = soleResult(frames);
@@ -1125,9 +1125,9 @@ describe("Cursor modern exec frames: Pi tools", () => {
 				await dispatchExec(
 					buildExecMessage({
 						case: "piEditArgs",
-						value: create(PiEditExecArgsSchema, {
+						value: create(ChudEditExecArgsSchema, {
 							path: "/a.ts",
-							edits: [create(PiEditReplacementSchema, { oldText: "x", newText: "y" })],
+							edits: [create(ChudEditReplacementSchema, { oldText: "x", newText: "y" })],
 						}),
 					}),
 				)
@@ -1141,7 +1141,7 @@ describe("Cursor modern exec frames: Pi tools", () => {
 				await dispatchExec(
 					buildExecMessage({
 						case: "piWriteArgs",
-						value: create(PiWriteExecArgsSchema, { path: "/a.ts", content: "x" }),
+						value: create(ChudWriteExecArgsSchema, { path: "/a.ts", content: "x" }),
 					}),
 				)
 			).frames,
@@ -1150,9 +1150,9 @@ describe("Cursor modern exec frames: Pi tools", () => {
 		expect(write.value.result.case).toBe("rejected");
 	});
 
-	it("carries a truncation summary onto the Pi success payload", async () => {
+	it("carries a truncation summary onto the Chud success payload", async () => {
 		const { frames } = await dispatchExec(
-			buildExecMessage({ case: "piBashArgs", value: create(PiBashExecArgsSchema, { command: "yes" }) }),
+			buildExecMessage({ case: "piBashArgs", value: create(ChudBashExecArgsSchema, { command: "yes" }) }),
 			{
 				execHandlers: {
 					async piBash() {
@@ -1186,7 +1186,7 @@ describe("Cursor modern exec frames: Pi tools", () => {
 		// the signal. Reading only the top-level `TruncationResult` shape handed
 		// Cursor clipped output with no notice that it was clipped.
 		const { frames } = await dispatchExec(
-			buildExecMessage({ case: "piBashArgs", value: create(PiBashExecArgsSchema, { command: "yes" }) }),
+			buildExecMessage({ case: "piBashArgs", value: create(ChudBashExecArgsSchema, { command: "yes" }) }),
 			{
 				execHandlers: {
 					async piBash() {
@@ -1219,10 +1219,10 @@ describe("Cursor modern exec frames: Pi tools", () => {
 	});
 
 	it("omits truncation entirely when nothing was truncated", async () => {
-		// `optional PiTruncation` — a zeroed message would claim the output was
+		// `optional ChudTruncation` — a zeroed message would claim the output was
 		// trimmed to nothing.
 		const { frames } = await dispatchExec(
-			buildExecMessage({ case: "piBashArgs", value: create(PiBashExecArgsSchema, { command: "echo hi" }) }),
+			buildExecMessage({ case: "piBashArgs", value: create(ChudBashExecArgsSchema, { command: "echo hi" }) }),
 			{
 				execHandlers: {
 					async piBash() {
@@ -1242,9 +1242,9 @@ describe("Cursor modern exec frames: Pi tools", () => {
 		const { frames, output } = await dispatchExec(
 			buildExecMessage({
 				case: "piEditArgs",
-				value: create(PiEditExecArgsSchema, {
+				value: create(ChudEditExecArgsSchema, {
 					path: "/repo/a.ts",
-					edits: [create(PiEditReplacementSchema, { oldText: "before", newText: "after" })],
+					edits: [create(ChudEditReplacementSchema, { oldText: "before", newText: "after" })],
 				}),
 			}),
 			{
@@ -1270,7 +1270,7 @@ describe("Cursor modern exec frames: Pi tools", () => {
 		expect(block?.arguments).toEqual({ path: "/repo/a.ts", old_string: "before", new_string: "after" });
 	});
 
-	it("answers each remaining Pi frame with a populated success payload", async () => {
+	it("answers each remaining Chud frame with a populated success payload", async () => {
 		// The outer result case alone is not proof: an unset inner oneof reads as
 		// "the tool ran and produced nothing", and dropped output or limit
 		// metadata is invisible at the discriminator level.
@@ -1294,7 +1294,7 @@ describe("Cursor modern exec frames: Pi tools", () => {
 				await dispatchExec(
 					buildExecMessage({
 						case: "piWriteArgs",
-						value: create(PiWriteExecArgsSchema, { path: "/a.ts", content: "x" }),
+						value: create(ChudWriteExecArgsSchema, { path: "/a.ts", content: "x" }),
 					}),
 					{ execHandlers: handlers },
 				)
@@ -1307,7 +1307,7 @@ describe("Cursor modern exec frames: Pi tools", () => {
 		const grep = soleResult(
 			(
 				await dispatchExec(
-					buildExecMessage({ case: "piGrepArgs", value: create(PiGrepExecArgsSchema, { pattern: "hit" }) }),
+					buildExecMessage({ case: "piGrepArgs", value: create(ChudGrepExecArgsSchema, { pattern: "hit" }) }),
 					{ execHandlers: handlers },
 				)
 			).frames,
@@ -1321,7 +1321,7 @@ describe("Cursor modern exec frames: Pi tools", () => {
 		const find = soleResult(
 			(
 				await dispatchExec(
-					buildExecMessage({ case: "piFindArgs", value: create(PiFindExecArgsSchema, { pattern: "*.ts" }) }),
+					buildExecMessage({ case: "piFindArgs", value: create(ChudFindExecArgsSchema, { pattern: "*.ts" }) }),
 					{ execHandlers: handlers },
 				)
 			).frames,
@@ -1333,7 +1333,7 @@ describe("Cursor modern exec frames: Pi tools", () => {
 
 		const ls = soleResult(
 			(
-				await dispatchExec(buildExecMessage({ case: "piLsArgs", value: create(PiLsExecArgsSchema, {}) }), {
+				await dispatchExec(buildExecMessage({ case: "piLsArgs", value: create(ChudLsExecArgsSchema, {}) }), {
 					execHandlers: handlers,
 				})
 			).frames,
@@ -1475,7 +1475,7 @@ describe("Cursor modern exec frames: server-resolved tool calls leave a paired b
 
 	it("reads the connectScm repository out of the target oneof, not a flat field", async () => {
 		const { output, results } = runConnectScm(
-			{ toolCallId: "call-scm-1", repository: { owner: "can1357", repo: "oh-my-pi" } },
+			{ toolCallId: "call-scm-1", repository: { owner: "Hunter-124", repo: "chudware" } },
 			{ case: "success", value: {} },
 		);
 
@@ -1483,7 +1483,7 @@ describe("Cursor modern exec frames: server-resolved tool calls leave a paired b
 		expect(block).toMatchObject({
 			id: "call-scm-1",
 			name: "connect_scm",
-			arguments: { owner: "can1357", repo: "oh-my-pi" },
+			arguments: { owner: "Hunter-124", repo: "chudware" },
 		});
 		// Resolved => agent-loop runs no local tool, so the decoder owes the pair.
 		expect(block[kCursorExecResolved]).toBe(true);
@@ -1649,7 +1649,7 @@ describe("Cursor modern exec frames: server-resolved tool calls leave a paired b
 		]);
 	});
 
-	it("does not double-create a block for a Pi call the exec channel already synthesized", async () => {
+	it("does not double-create a block for a Chud call the exec channel already synthesized", async () => {
 		// Modern builds stream a `pi_*_tool_call` envelope alongside the exec
 		// frame. The exec side owns that block; a second one here would render the
 		// same call twice and leave the duplicate unpaired.
@@ -2041,7 +2041,7 @@ describe("Cursor exec answers: what the result claims about the work", () => {
 		// latter two answered a clipped search as an unqualified success, which
 		// is the one truncation a caller can neither detect nor page around.
 		const { frames } = await dispatchExec(
-			buildExecMessage({ case: "piGrepArgs", value: create(PiGrepExecArgsSchema, { pattern: "hit" }) }),
+			buildExecMessage({ case: "piGrepArgs", value: create(ChudGrepExecArgsSchema, { pattern: "hit" }) }),
 			{
 				execHandlers: {
 					async piGrep() {
@@ -2061,7 +2061,7 @@ describe("Cursor exec answers: what the result claims about the work", () => {
 		// The flat flag is the only signal consulted, so a search that hit no cap
 		// must not acquire one.
 		const { frames } = await dispatchExec(
-			buildExecMessage({ case: "piGrepArgs", value: create(PiGrepExecArgsSchema, { pattern: "hit" }) }),
+			buildExecMessage({ case: "piGrepArgs", value: create(ChudGrepExecArgsSchema, { pattern: "hit" }) }),
 			{
 				execHandlers: {
 					async piGrep() {
@@ -2080,7 +2080,7 @@ describe("Cursor exec answers: what the result claims about the work", () => {
 		// `perFileLimitReached` carries the count; adding a second, countless
 		// truncation record for the same event tells the server two caps fired.
 		const { frames } = await dispatchExec(
-			buildExecMessage({ case: "piGrepArgs", value: create(PiGrepExecArgsSchema, { pattern: "hit" }) }),
+			buildExecMessage({ case: "piGrepArgs", value: create(ChudGrepExecArgsSchema, { pattern: "hit" }) }),
 			{
 				execHandlers: {
 					async piGrep() {
@@ -2103,7 +2103,7 @@ describe("Cursor exec answers: what the result claims about the work", () => {
 		const { output } = await dispatchExec(
 			buildExecMessage({
 				case: "piGrepArgs",
-				value: create(PiGrepExecArgsSchema, { pattern: "hit", context: 3, limit: 50 }),
+				value: create(ChudGrepExecArgsSchema, { pattern: "hit", context: 3, limit: 50 }),
 			}),
 			{
 				execHandlers: {

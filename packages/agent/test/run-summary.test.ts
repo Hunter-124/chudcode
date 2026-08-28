@@ -7,20 +7,20 @@
  */
 
 import { describe, expect, it } from "bun:test";
-import { type } from "@oh-my-pi/omptype";
-import { agentLoop, agentLoopDetailed } from "@oh-my-pi/pi-agent-core/agent-loop";
+import { agentLoop, agentLoopDetailed } from "@chudware/agent-core/agent-loop";
 import {
 	type AgentRunSummary,
 	aggregateAgentRunCoverage,
 	aggregateAgentRunSummaries,
 	emptyAgentRunCoverage,
 	emptyAgentRunSummary,
-} from "@oh-my-pi/pi-agent-core/run-collector";
-import { EXECUTE_TOOL_STATUS_ATTR, GenAIAttr, PiGenAIAggregateAttr } from "@oh-my-pi/pi-agent-core/telemetry";
-import type { AgentEvent, AgentLoopConfig, AgentMessage, AgentTool } from "@oh-my-pi/pi-agent-core/types";
-import type { AssistantMessage, Message } from "@oh-my-pi/pi-ai";
-import { createMockModel } from "@oh-my-pi/pi-ai/providers/mock";
-import { sleep } from "@oh-my-pi/pi-utils/async";
+} from "@chudware/agent-core/run-collector";
+import { ChudGenAIAggregateAttr, EXECUTE_TOOL_STATUS_ATTR, GenAIAttr } from "@chudware/agent-core/telemetry";
+import type { AgentEvent, AgentLoopConfig, AgentMessage, AgentTool } from "@chudware/agent-core/types";
+import type { AssistantMessage, Message } from "@chudware/ai";
+import { createMockModel } from "@chudware/ai/providers/mock";
+import { type } from "@chudware/chudtype";
+import { sleep } from "@chudware/utils/async";
 import type {
 	AttributeValue,
 	Context as OtelContext,
@@ -322,7 +322,7 @@ describe("AgentRunSummary aggregation", () => {
 		expect(blockedSpan?.attributes[GenAIAttr.ErrorType]).toBe("tool_blocked");
 	});
 
-	it("populates aggregate pi.gen_ai.agent.* attributes on the invoke_agent span", async () => {
+	it("populates aggregate chud.gen_ai.agent.* attributes on the invoke_agent span", async () => {
 		const tracer = new RecordingTracer();
 		const tool = buildTool({ name: "alpha", behavior: "ok" });
 		const mock = createMockModel({
@@ -347,12 +347,12 @@ describe("AgentRunSummary aggregation", () => {
 		await detailed.detailed();
 		const invokeSpan = tracer.findSpan("invoke_agent");
 		expect(invokeSpan).toBeDefined();
-		expect(invokeSpan?.attributes[PiGenAIAggregateAttr.ChatsCount]).toBe(2);
-		expect(invokeSpan?.attributes[PiGenAIAggregateAttr.ToolsCount]).toBe(1);
-		expect(invokeSpan?.attributes[PiGenAIAggregateAttr.ToolsOkCount]).toBe(1);
-		expect(invokeSpan?.attributes[PiGenAIAggregateAttr.UsageInputTokensTotal]).toBe(6);
-		expect(invokeSpan?.attributes[PiGenAIAggregateAttr.UsageTotalTokensTotal]).toBe(13);
-		expect(invokeSpan?.attributes[PiGenAIAggregateAttr.ToolsInvoked]).toEqual(["alpha"]);
+		expect(invokeSpan?.attributes[ChudGenAIAggregateAttr.ChatsCount]).toBe(2);
+		expect(invokeSpan?.attributes[ChudGenAIAggregateAttr.ToolsCount]).toBe(1);
+		expect(invokeSpan?.attributes[ChudGenAIAggregateAttr.ToolsOkCount]).toBe(1);
+		expect(invokeSpan?.attributes[ChudGenAIAggregateAttr.UsageInputTokensTotal]).toBe(6);
+		expect(invokeSpan?.attributes[ChudGenAIAggregateAttr.UsageTotalTokensTotal]).toBe(13);
+		expect(invokeSpan?.attributes[ChudGenAIAggregateAttr.ToolsInvoked]).toEqual(["alpha"]);
 	});
 });
 

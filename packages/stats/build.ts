@@ -1,6 +1,6 @@
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
+import * as fsx from "@chudware/utils/fsx";
 import { compile } from "@tailwindcss/node";
 
 /**
@@ -75,7 +75,7 @@ const indexHtml = `<!DOCTYPE html>
     <script>
       (function () {
         try {
-          var stored = localStorage.getItem("omp-stats-theme");
+          var stored = localStorage.getItem("chudcode-stats-theme");
           var system = matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
           var theme = stored === "light" || stored === "dark" ? stored : system;
           document.documentElement.dataset.theme = theme;

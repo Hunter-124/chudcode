@@ -1,13 +1,13 @@
 import { describe, expect, it } from "bun:test";
-import * as AIError from "@oh-my-pi/pi-ai/error";
-import { streamGoogle } from "@oh-my-pi/pi-ai/providers/google";
-import type { GoogleGeminiCliOptions } from "@oh-my-pi/pi-ai/providers/google-gemini-cli";
-import { buildGoogleGenerateContentParams } from "@oh-my-pi/pi-ai/providers/google-shared";
-import { streamGoogleVertex } from "@oh-my-pi/pi-ai/providers/google-vertex";
-import { parseRequest as parsePiNativeRequest } from "@oh-my-pi/pi-ai/providers/pi-native-server";
-import { streamSimple } from "@oh-my-pi/pi-ai/stream";
-import type { ApiOptionsMap, AssistantMessageEvent, Context, FetchImpl, Model, Tool } from "@oh-my-pi/pi-ai/types";
-import { buildModel } from "@oh-my-pi/pi-catalog/build";
+import * as AIError from "@chudware/ai/error";
+import { parseRequest as parsePiNativeRequest } from "@chudware/ai/providers/chud-native-server";
+import { streamGoogle } from "@chudware/ai/providers/google";
+import type { GoogleGeminiCliOptions } from "@chudware/ai/providers/google-gemini-cli";
+import { buildGoogleGenerateContentParams } from "@chudware/ai/providers/google-shared";
+import { streamGoogleVertex } from "@chudware/ai/providers/google-vertex";
+import { streamSimple } from "@chudware/ai/stream";
+import type { ApiOptionsMap, AssistantMessageEvent, Context, FetchImpl, Model, Tool } from "@chudware/ai/types";
+import { buildModel } from "@chudware/catalog/build";
 
 const CACHE_NAME = "cachedContents/caller-owned-corpus-abc";
 const VERTEX_CACHE_NAME = "projects/demo-project/locations/us-central1/cachedContents/caller-owned-corpus-abc";
@@ -110,7 +110,7 @@ function piNativeSseStop(): Response {
 }
 
 function piNativeGatewayModel<T extends "google-generative-ai" | "google-vertex">(model: Model<T>): Model<T> {
-	return { ...model, baseUrl: "http://pi-native-gateway.test", transport: "pi-native" };
+	return { ...model, baseUrl: "http://pi-native-gateway.test", transport: "chud-native" };
 }
 
 async function drain(stream: AsyncIterable<AssistantMessageEvent>): Promise<AssistantMessageEvent[]> {
@@ -230,7 +230,7 @@ describe("Google caller-owned cachedContent", () => {
 		expect(nonGoogle.calls()[0]?.body.cachedContent).toBeUndefined();
 	});
 
-	it("round-trips cachedContent through the pi-native gateway for Gemini and Vertex", async () => {
+	it("round-trips cachedContent through the chud-native gateway for Gemini and Vertex", async () => {
 		const requests: unknown[] = [];
 		const fetch: FetchImpl = async (_input, init) => {
 			requests.push(JSON.parse(String(init?.body ?? "{}")));

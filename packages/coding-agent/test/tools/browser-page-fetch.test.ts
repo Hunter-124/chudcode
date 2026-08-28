@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import { normalizeBrowserFetchOptions } from "@oh-my-pi/pi-coding-agent/tools/browser";
+import { normalizeBrowserFetchOptions } from "@chudware/coding-agent/tools/browser";
 
 describe("browser page fetch", () => {
 	it("normalizes request methods and bounds retained response bytes", () => {

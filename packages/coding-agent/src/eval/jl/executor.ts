@@ -1,5 +1,5 @@
 import * as path from "node:path";
-import { getProjectDir, logger } from "@oh-my-pi/pi-utils";
+import { getProjectDir, logger } from "@chudware/utils";
 import type { ToolSession } from "../../tools";
 import {
 	buildManagedKernelEnv,

@@ -17,7 +17,7 @@ export async function resolveMemoryBackend(settings: Settings): Promise<MemoryBa
 	if (registered) return registered.backend;
 	// Keep optional heavy backend dependencies lazy exactly as before.
 	if (id === "hindsight") return (await import("../hindsight/backend")).hindsightBackend;
-	if (id === "mnemopi") return (await import("../mnemopi/backend")).mnemopiBackend;
+	if (id === "mnemo") return (await import("../mnemo/backend")).mnemopiBackend;
 	if (id === "local") return localBackend;
 	if (id === "off") return offBackend;
 	throw new Error(`Unknown memory backend "${id}". Available backends: ${getMemoryBackendIds().join(", ")}`);

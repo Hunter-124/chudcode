@@ -11,10 +11,10 @@ import type {
 	Context,
 	Model,
 	SimpleStreamOptions,
-} from "@oh-my-pi/pi-ai";
-import { runBenchCommand } from "@oh-my-pi/pi-coding-agent/cli/bench-cli";
-import type { BenchModelRegistry } from "@oh-my-pi/pi-coding-agent/cli/bench-runtime";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
+} from "@chudware/ai";
+import { runBenchCommand } from "@chudware/coding-agent/cli/bench-cli";
+import type { BenchModelRegistry } from "@chudware/coding-agent/cli/bench-runtime";
+import * as fsx from "@chudware/utils/fsx";
 
 const model = {
 	provider: "openai",
@@ -27,7 +27,7 @@ const model = {
 
 const piNativeModel = {
 	...model,
-	transport: "pi-native",
+	transport: "chud-native",
 } as unknown as Model<Api>;
 
 const codexModel = {
@@ -78,7 +78,7 @@ function successfulMessage(cacheRead: number, cacheWrite: number): AssistantMess
 }
 
 describe("bench cache mode", () => {
-	it("splits the cache breakpoint prefix from each variable suffix with native OMP messages", async () => {
+	it("splits the cache breakpoint prefix from each variable suffix with native Chudcode messages", async () => {
 		const calls: Array<{ context: Context; options: SimpleStreamOptions }> = [];
 		let coldCompleted = false;
 		let stdout = "";
@@ -147,7 +147,7 @@ describe("bench cache mode", () => {
 		expect(stdout).not.toContain("Cache benchmark suffix");
 	});
 
-	it("keeps pi-native credential affinity while marking gateway-hidden payload diagnostics unavailable", async () => {
+	it("keeps chud-native credential affinity while marking gateway-hidden payload diagnostics unavailable", async () => {
 		const calls: SimpleStreamOptions[] = [];
 		const summary = await runBenchCommand(
 			{ models: ["openai/gpt-cache-test"], flags: { cache: true, json: true } },
@@ -461,7 +461,7 @@ describe("bench cache mode", () => {
 	});
 
 	it("truncates the default prefix-file reader at a UTF-8 boundary before decoding", async () => {
-		const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "omp-bench-cache-prefix-"));
+		const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "chudcode-bench-cache-prefix-"));
 		const prefixPath = path.join(tempDir, "prefix.txt");
 		const stablePrefixes: string[] = [];
 		await fsx.write(prefixPath, "ab😀cd");
@@ -499,7 +499,7 @@ describe("bench cache mode", () => {
 	});
 
 	it("preserves significant whitespace and replacement patterns from the default prefix-file reader", async () => {
-		const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "omp-bench-cache-prefix-whitespace-"));
+		const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "chudcode-bench-cache-prefix-whitespace-"));
 		const prefixPath = path.join(tempDir, "prefix.txt");
 		const exactPrefix = "line one  \n\n\n$& $' $` $$ line two\t\n";
 		const stablePrefixes: string[] = [];

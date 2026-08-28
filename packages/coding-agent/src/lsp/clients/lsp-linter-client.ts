@@ -2,8 +2,8 @@
  * LSP-based linter client.
  * Uses the Language Server Protocol for formatting and diagnostics.
  */
-import { untilAborted } from "@oh-my-pi/pi-utils";
-import { sleep } from "@oh-my-pi/pi-utils/async";
+import { untilAborted } from "@chudware/utils";
+import { sleep } from "@chudware/utils/async";
 import { getOrCreateClient, notifySaved, sendRequest, syncContent } from "../../lsp/client";
 import { applyTextEditsToString } from "../../lsp/edits";
 import { resolveFormatOptions } from "../../lsp/format-options";

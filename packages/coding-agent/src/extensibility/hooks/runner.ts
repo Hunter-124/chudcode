@@ -1,8 +1,8 @@
 /**
  * Hook runner - executes hooks and manages their lifecycle.
  */
-import type { AgentMessage } from "@oh-my-pi/pi-agent-core";
-import type { Model } from "@oh-my-pi/pi-ai";
+import type { AgentMessage } from "@chudware/agent-core";
+import type { Model } from "@chudware/ai";
 import type { ModelRegistry } from "../../config/model-registry";
 import type { SessionManager } from "../../session/session-manager";
 import { createNoOpUIContext } from "../utils";
@@ -113,7 +113,7 @@ export class HookRunner {
 		if (options.navigateTreeHandler) {
 			this.#navigateTreeHandler = options.navigateTreeHandler;
 		}
-		// Set per-hook handlers for pi.sendMessage() and pi.appendEntry()
+		// Set per-hook handlers for chud.sendMessage() and chud.appendEntry()
 		for (const hook of this.hooks) {
 			hook.setSendMessageHandler(options.sendMessageHandler);
 			hook.setAppendEntryHandler(options.appendEntryHandler);
@@ -353,7 +353,7 @@ export class HookRunner {
 	 * Handlers are chained - each gets the previous handler's output (if any).
 	 * Returns the final modified messages, or the original if no modifications.
 	 *
-	 * Note: Messages are already deep-copied by the caller (pi-ai preprocessor).
+	 * Note: Messages are already deep-copied by the caller (chud-ai preprocessor).
 	 */
 	async emitContext(messages: AgentMessage[]): Promise<AgentMessage[]> {
 		const ctx = this.#createContext();
@@ -391,7 +391,7 @@ export class HookRunner {
 	 */
 	async emitBeforeAgentStart(
 		prompt: string,
-		images?: import("@oh-my-pi/pi-ai").ImageContent[],
+		images?: import("@chudware/ai").ImageContent[],
 	): Promise<BeforeAgentStartEventResult | undefined> {
 		const ctx = this.#createContext();
 		let result: BeforeAgentStartEventResult | undefined;

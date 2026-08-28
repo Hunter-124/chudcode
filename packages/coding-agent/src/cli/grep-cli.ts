@@ -4,8 +4,8 @@
  * Handles `chudcode grep` subcommand for testing grep tool on Windows.
  */
 import * as path from "node:path";
-import { GrepOutputMode, grep } from "@oh-my-pi/pi-natives";
-import chalk from "@oh-my-pi/pi-utils/chalk";
+import { GrepOutputMode, grep } from "@chudware/natives";
+import chalk from "@chudware/utils/chalk";
 import { PRODUCT_CLI_NAME } from "../brand";
 import { expandPath } from "../tools/path-utils";
 
@@ -151,7 +151,7 @@ ${chalk.bold("Options:")}
   --no-gitignore        Include files excluded by .gitignore
 
 ${chalk.bold("Environment:")}
-  PI_WALK_WORKERS=N    Set filesystem walker workers (default 4, 0 = auto)
+  CHUDCODE_WALK_WORKERS=N    Set filesystem walker workers (default 4, 0 = auto)
 
 ${chalk.bold("Examples:")}
   ${PRODUCT_CLI_NAME} grep "import" src/

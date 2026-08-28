@@ -1,16 +1,16 @@
 import { describe, expect, it } from "bun:test";
 import * as fs from "node:fs";
 import * as path from "node:path";
-import { AuthStorage } from "@oh-my-pi/pi-ai";
-import { getBundledModel } from "@oh-my-pi/pi-catalog/models";
-import { ModelRegistry } from "@oh-my-pi/pi-coding-agent/config/model-registry";
-import { Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
-import { initializeWithSettings } from "@oh-my-pi/pi-coding-agent/discovery";
-import { createAgentSession } from "@oh-my-pi/pi-coding-agent/sdk";
-import type { AgentSession } from "@oh-my-pi/pi-coding-agent/session/agent-session";
-import { SessionManager } from "@oh-my-pi/pi-coding-agent/session/session-manager";
-import { TempDir } from "@oh-my-pi/pi-utils";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
+import { AuthStorage } from "@chudware/ai";
+import { getBundledModel } from "@chudware/catalog/models";
+import { ModelRegistry } from "@chudware/coding-agent/config/model-registry";
+import { Settings } from "@chudware/coding-agent/config/settings";
+import { initializeWithSettings } from "@chudware/coding-agent/discovery";
+import { createAgentSession } from "@chudware/coding-agent/sdk";
+import type { AgentSession } from "@chudware/coding-agent/session/agent-session";
+import { SessionManager } from "@chudware/coding-agent/session/session-manager";
+import { TempDir } from "@chudware/utils";
+import * as fsx from "@chudware/utils/fsx";
 
 const INITIAL_CONTEXT = "reload-context-initial-marker";
 const UPDATED_CONTEXT = "reload-context-updated-marker";
@@ -51,7 +51,7 @@ async function createContextSession(
 
 describe("context-file prompt refresh", () => {
 	it("replaces edited context-file content in the current system prompt", async () => {
-		using tempDir = TempDir.createSync("@omp-context-refresh-edit-");
+		using tempDir = TempDir.createSync("@chudcode-context-refresh-edit-");
 		const contextPath = tempDir.join("AGENTS.md");
 		await fsx.write(contextPath, INITIAL_CONTEXT);
 		const { session, authStorage } = await createContextSession(tempDir.path(), Settings.isolated({}));
@@ -72,7 +72,7 @@ describe("context-file prompt refresh", () => {
 	});
 
 	it("removes a disabled context file from the current system prompt", async () => {
-		using tempDir = TempDir.createSync("@omp-context-refresh-disable-");
+		using tempDir = TempDir.createSync("@chudcode-context-refresh-disable-");
 		await fsx.write(tempDir.join("AGENTS.md"), INITIAL_CONTEXT);
 		const settings = Settings.isolated({});
 		const { session, authStorage } = await createContextSession(tempDir.path(), settings);
@@ -91,7 +91,7 @@ describe("context-file prompt refresh", () => {
 	});
 
 	it("honors the session's own disabledExtensions, not the process-global settings", async () => {
-		using tempDir = TempDir.createSync("@omp-context-refresh-isolation-");
+		using tempDir = TempDir.createSync("@chudcode-context-refresh-isolation-");
 		await fsx.write(tempDir.join("AGENTS.md"), INITIAL_CONTEXT);
 		const settings = Settings.isolated({});
 		const { session, authStorage } = await createContextSession(tempDir.path(), settings);
@@ -115,7 +115,7 @@ describe("context-file prompt refresh", () => {
 	});
 
 	it("refreshes the advisor context prompt when context files change", async () => {
-		using tempDir = TempDir.createSync("@omp-context-refresh-advisor-");
+		using tempDir = TempDir.createSync("@chudcode-context-refresh-advisor-");
 		const contextPath = tempDir.join("AGENTS.md");
 		await fsx.write(contextPath, INITIAL_CONTEXT);
 		const { session, authStorage } = await createContextSession(tempDir.path(), Settings.isolated({}), {
@@ -140,7 +140,7 @@ describe("context-file prompt refresh", () => {
 	});
 
 	it("recomputes active repo context after the session cwd changes", async () => {
-		using tempDir = TempDir.createSync("@omp-context-refresh-cwd-");
+		using tempDir = TempDir.createSync("@chudcode-context-refresh-cwd-");
 		const cwdA = tempDir.join("cwd-a");
 		const cwdB = tempDir.join("cwd-b");
 		fs.mkdirSync(path.join(cwdA, "old-repo", ".git"), { recursive: true });

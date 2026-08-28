@@ -4,9 +4,9 @@ import {
 	formatNumberedLine,
 	formatNumberedLines,
 	splitAddressableFileLines,
-} from "@oh-my-pi/hashline";
-import type { AgentToolResult } from "@oh-my-pi/pi-agent-core";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
+} from "@chudware/hashline";
+import type { AgentToolResult } from "@chudware/agent-core";
+import * as fsx from "@chudware/utils/fsx";
 import { canonicalSnapshotKey, getFileSnapshotStore, recordSeenLines } from "../edit/file-snapshot-store";
 import { normalizeToLF } from "../edit/normalize";
 import { isMarkdownPath } from "../modes/theme/theme";

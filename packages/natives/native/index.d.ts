@@ -1319,6 +1319,21 @@ export interface GrepResult {
 }
 
 /**
+ * wyhash-64 of `data`, byte-for-byte identical to `Bun.hash()`.
+ *
+ * Returned as a hex string rather than a JS number: the digest is 64-bit and
+ * its consumers embed it in persisted names (broker runtime directory, LSP mux
+ * socket, composer cache) where a float would lose the low bits.
+ */
+export declare function hashWyhash64(data: string | Uint8Array, seed?: string | undefined | null): string
+
+/** xxHash32 of `data`, matching `Bun.hash.xxHash32()`. */
+export declare function hashXxhash32(data: string | Uint8Array, seed?: number | undefined | null): number
+
+/** xxHash64 of `data`, matching `Bun.hash.xxHash64()`. */
+export declare function hashXxhash64(data: string | Uint8Array, seed?: string | undefined | null): string
+
+/**
  * Quick check if content matches a pattern.
  *
  * # Arguments
@@ -1430,7 +1445,7 @@ export declare enum IsoChangeKind {
 /**
  * Capture the changes between `lower` and `merged`.
  *
- * Uses [`pi_iso::IsolationBackend::diff`]'s default implementation —
+ * Uses [`chud_iso::IsolationBackend::diff`]'s default implementation —
  * `git diff` when `merged/.git` exists, otherwise a mtime-skipped tree
  * walk. The backend selection only affects the lifecycle methods; diff
  * behaviour is uniform.
@@ -1478,7 +1493,7 @@ export interface IsoProbeResult {
 
 /**
  * Pick the best backend available right now. `preferred` is treated as
- * a hint — see [`pi_iso::resolve`] for the exact priority rules.
+ * a hint — see [`chud_iso::resolve`] for the exact priority rules.
  */
 export declare function isoResolve(preferred?: IsoBackendKind | undefined | null): IsoResolveResult
 
@@ -1710,7 +1725,7 @@ export interface MinimizerOptions {
    * Kill-switch to fall back to the pre-PR (legacy) filter behavior for
    * grep / find / pytest. When `Some(true)`, filters that opted into the
    * always-shrink Tier 1 / Tier 2 behavior skip the new code path. When
-   * `None`, defers to the `OMP_MINIMIZER_LEGACY_FILTERS` env var.
+   * `None`, defers to the `CHUDCODE_MINIMIZER_LEGACY_FILTERS` env var.
    */
   legacyFilters?: boolean
 }

@@ -19,18 +19,18 @@ For packaged user-facing extension CLIs/features, see [`user-facing-packages.md`
 An extension is a TS/JS module exporting a default factory. Factories may initialize synchronously or return a promise:
 
 ```ts
-import type { ExtensionAPI } from "@oh-my-pi/pi-coding-agent";
+import type { ExtensionAPI } from "@chudware/coding-agent";
 
-export default function myExtension(pi: ExtensionAPI) {
+export default function myExtension(chud: ExtensionAPI) {
   // register handlers/tools/commands/renderers
 }
 ```
 
 Extensions can combine all of the following in one module:
 
-- event handlers (`pi.on(...)`)
-- LLM-callable tools (`pi.registerTool(...)`)
-- slash commands (`pi.registerCommand(...)`)
+- event handlers (`chud.on(...)`)
+- LLM-callable tools (`chud.registerTool(...)`)
+- slash commands (`chud.registerCommand(...)`)
 - keyboard shortcuts and flags
 - custom message rendering
 - session/message injection APIs (`sendMessage`, `sendUserMessage`, `appendEntry`)
@@ -61,30 +61,30 @@ ExtensionRunner.initialize(mode/session/tool registry)
 
 Important constraint from `loader.ts`:
 
-- calling action methods like `pi.sendMessage()` during extension load throws `ExtensionRuntimeNotInitializedError`
+- calling action methods like `chud.sendMessage()` during extension load throws `ExtensionRuntimeNotInitializedError`
 - register first; perform runtime behavior from events/commands/tools
 
 ## Quick start
 
 ```ts
-import type { ExtensionAPI } from "@oh-my-pi/pi-coding-agent";
+import type { ExtensionAPI } from "@chudware/coding-agent";
 
-export default function (pi: ExtensionAPI) {
-  const z = pi.zod;
+export default function (chud: ExtensionAPI) {
+  const z = chud.zod;
 
-  pi.setLabel("Safety + Utilities");
+  chud.setLabel("Safety + Utilities");
 
-  pi.on("session_start", async (_event, ctx) => {
+  chud.on("session_start", async (_event, ctx) => {
     ctx.ui.notify(`Extension loaded in ${ctx.cwd}`, "info");
   });
 
-  pi.on("tool_call", async (event) => {
+  chud.on("tool_call", async (event) => {
     if (event.toolName === "bash" && event.input.command?.includes("rm -rf")) {
       return { block: true, reason: "Blocked by extension policy" };
     }
   });
 
-  pi.registerTool({
+  chud.registerTool({
     name: "hello_extension",
     label: "Hello Extension",
     description: "Return a greeting",
@@ -97,7 +97,7 @@ export default function (pi: ExtensionAPI) {
     },
   });
 
-  pi.registerCommand("hello-ext", {
+  chud.registerCommand("hello-ext", {
     description: "Show queue state",
     handler: async (_args, ctx) => {
       ctx.ui.notify(`pending=${ctx.hasPendingMessages()}`, "info");
@@ -131,14 +131,14 @@ Core methods:
 
 ### Provider registration
 
-`pi.registerProvider(name, config)` can include an optional `usage` field containing a
-`UsageProvider` imported from `@oh-my-pi/pi-ai`. Its `fetchUsage` implementation receives the
+`chud.registerProvider(name, config)` can include an optional `usage` field containing a
+`UsageProvider` imported from `@chudware/ai`. Its `fetchUsage` implementation receives the
 normalized credential and returns a normalized `UsageReport`; the result is then handled
 by the host's AuthStorage cache, history, and usage displays just like built-in provider
 usage.
 
 ```ts
-pi.registerProvider("my-provider", {
+chud.registerProvider("my-provider", {
   baseUrl: "https://api.example.com/v1",
   api: "openai-completions",
   usage: {
@@ -167,30 +167,30 @@ pi.registerProvider("my-provider", {
 ```
 
 An extension usage provider overrides a built-in provider with the same name for as
-long as that extension registration is active. `pi.unregisterProvider(name)` (and
+long as that extension registration is active. `chud.unregisterProvider(name)` (and
 extension source cleanup) removes only that runtime override, restoring the built-in
 or configured usage resolver.
 
-In interactive mode, `input` handlers run before the built-in first-message auto-title check. Extensions that call `await pi.setSessionName(...)` from `input` can set the persisted session name and prevent the default auto-generated title from running for that session.
+In interactive mode, `input` handlers run before the built-in first-message auto-title check. Extensions that call `await chud.setSessionName(...)` from `input` can set the persisted session name and prevent the default auto-generated title from running for that session.
 
 Also exposed:
 
-- `pi.logger`
-- `pi.arktype` (the omptype `type(...)` schema builder)
-- `pi.zod` (Zod-compatible builder backed by omptype)
-- `pi.typebox` (legacy TypeBox-compatible shim)
-- `pi.pi` (package exports)
+- `chud.logger`
+- `chud.arktype` (the chudtype `type(...)` schema builder)
+- `chud.zod` (Zod-compatible builder backed by chudtype)
+- `chud.typebox` (legacy TypeBox-compatible shim)
+- `chud.pi` (package exports)
 
 ### Message delivery semantics
 
-`pi.sendMessage(message, options)` supports:
+`chud.sendMessage(message, options)` supports:
 
 - `deliverAs: "steer"` (default) — interrupts current run
 - `deliverAs: "followUp"` — queued to run after current run
 - `deliverAs: "nextTurn"` — stored and injected on the next user prompt
 - `triggerTurn: true` — starts a turn when idle (also honored with `deliverAs: "nextTurn"`: idle prompts immediately; while streaming the queued message schedules an internal continuation)
 
-`pi.sendUserMessage(content, { deliverAs })` always goes through prompt flow. Omit `deliverAs` to start a normal prompt when idle; while streaming, omitted `deliverAs` queues the message as a steer. Set `deliverAs: "followUp"` to wait until the current run finishes.
+`chud.sendUserMessage(content, { deliverAs })` always goes through prompt flow. Omit `deliverAs` to start a normal prompt when idle; while streaming, omitted `deliverAs` queues the message as a steer. Set `deliverAs: "followUp"` to wait until the current run finishes.
 
 ## 2) Handler context (`ExtensionContext`)
 
@@ -223,13 +223,13 @@ Use `ctx.setInterval` / `ctx.setTimeout` for any periodic or deferred background
 - are `unref`'d (never keep the process alive on their own) and are cleared automatically on `session_shutdown`.
 
 ```ts
-pi.on("session_start", async (_event, ctx) => {
+chud.on("session_start", async (_event, ctx) => {
   const timer = ctx.setInterval(() => {
     // A throw here is contained — it will not crash the session.
     ctx.ui.notify("tick", "info");
   }, 60_000);
   // Optional: clear it yourself; otherwise it is cleared on shutdown.
-  pi.on("session_shutdown", () => ctx.clearTimer(timer));
+  chud.on("session_shutdown", () => ctx.clearTimer(timer));
 });
 ```
 
@@ -322,17 +322,17 @@ Cancelable pre-events:
 Bridging a push-capable MCP into a session steer:
 
 ```ts
-pi.on("mcp_notification", (event) => {
+chud.on("mcp_notification", (event) => {
   if (event.server !== "peer-bus") return;
   if (event.method !== "notifications/peer_message") return;
   const params = event.params as { from: string; text: string };
-  pi.sendUserMessage(`[from ${params.from}] ${params.text}`, {
+  chud.sendUserMessage(`[from ${params.from}] ${params.text}`, {
     deliverAs: "steer",
   });
 });
 ```
 
-The runtime handles the JSON-RPC transport and its own list/update refresh first; the handler runs afterwards and can inject a mid-turn steer via `pi.sendMessage` / `pi.sendUserMessage`.
+The runtime handles the JSON-RPC transport and its own list/update refresh first; the handler runs afterwards and can inject a mid-turn steer via `chud.sendMessage` / `chud.sendUserMessage`.
 
 ### User command interception
 
@@ -346,7 +346,7 @@ Current runtime note: `ExtensionRunner.emitResourcesDiscover(...)` is implemente
 
 ## Tool authoring details
 
-`registerTool` uses `ToolDefinition` from `types.ts`. Its `parameters` field accepts omptype schemas; the injected TypeBox compatibility shim remains available for legacy extensions.
+`registerTool` uses `ToolDefinition` from `types.ts`. Its `parameters` field accepts chudtype schemas; the injected TypeBox compatibility shim remains available for legacy extensions.
 
 Current `execute` signature:
 
@@ -383,9 +383,9 @@ are already approved as, and delegation depth is guarded against accidental self
 Template:
 
 ```ts
-const z = pi.zod;
+const z = chud.zod;
 
-pi.registerTool({
+chud.registerTool({
   name: "my_tool",
   label: "My Tool",
   description: "...",
@@ -421,10 +421,10 @@ path through one shared primitive
 (`file ? file.write(content) : Bun.write(dst, content)`). When that primitive fails
 with a permission error (`EPERM`/`EACCES`/`EROFS` — every other error, such as
 `EISDIR`, is unaffected), the coding agent consults handlers registered
-via `pi.registerFileWriteFallback` before giving up:
+via `chud.registerFileWriteFallback` before giving up:
 
 ```ts
-import type { FileWriteFallbackHandler } from "@oh-my-pi/pi-coding-agent";
+import type { FileWriteFallbackHandler } from "@chudware/coding-agent";
 
 const writeThroughBroker: FileWriteFallbackHandler = async (req, ctx) => {
   // req: { dst: string; content: string; cause: unknown }
@@ -432,7 +432,7 @@ const writeThroughBroker: FileWriteFallbackHandler = async (req, ctx) => {
   return ok;
 };
 
-pi.registerFileWriteFallback(writeThroughBroker);
+chud.registerFileWriteFallback(writeThroughBroker);
 ```
 
 Handlers run in registration order; the first one to resolve `true` counts as the
@@ -492,7 +492,7 @@ permission error from these surfaces as it does today, with no handler consulted
 Removing a file is a different primitive from writing one, and it has its own seam:
 
 ```ts
-pi.registerFileDeleteFallback(async (req, ctx) => {
+chud.registerFileDeleteFallback(async (req, ctx) => {
   // req: { dst; cause; confirmedFile; sessionId } — no `content`.
   return await myPrivilegedWriter.unlink(req.dst);
 });
@@ -573,7 +573,7 @@ Current no-op methods in this controller:
 `ctx.ui` is backed by RPC `extension_ui_request` events:
 
 - dialog methods (`select`, `confirm`, `input`, `editor`) round-trip to client responses
-- fire-and-forget methods emit requests (`notify`, `setStatus`, `setWidget` for string arrays, `setEditorText`; `setTitle` emits only when `PI_RPC_EMIT_TITLE=1`)
+- fire-and-forget methods emit requests (`notify`, `setStatus`, `setWidget` for string arrays, `setEditorText`; `setTitle` emits only when `CHUDCODE_RPC_EMIT_TITLE=1`)
 
 Unsupported/no-op in RPC implementation:
 
@@ -596,14 +596,14 @@ ACP installs an elicitation-bridged UI context (`createAcpExtensionUiContext` in
 
 For durable extension state:
 
-1. Persist with `pi.appendEntry("com.example.my-extension.state", data)`. The `customType` namespace is global: use a package- or reverse-domain-qualified value and avoid the core-reserved values in the [`custom` session-entry reference](./session.md#custom).
+1. Persist with `chud.appendEntry("com.example.my-extension.state", data)`. The `customType` namespace is global: use a package- or reverse-domain-qualified value and avoid the core-reserved values in the [`custom` session-entry reference](./session.md#custom).
 2. Rebuild state from `ctx.sessionManager.getBranch()` on `session_start`, `session_branch`, `session_tree`.
 3. Keep tool result `details` structured when state should be visible/reconstructible from tool result history.
 
 Example reconstruction pattern:
 
 ```ts
-pi.on("session_start", async (_event, ctx) => {
+chud.on("session_start", async (_event, ctx) => {
   let latest;
   for (const entry of ctx.sessionManager.getBranch()) {
     if (
@@ -624,8 +624,8 @@ pi.on("session_start", async (_event, ctx) => {
 `registerComposerShape` adds an extension-owned input-editor layout to **Appearance → Composer Shape**. Register it from the extension factory; the renderer is used by the live editor and its settings preview.
 
 ```ts
-import type { ExtensionAPI } from "@oh-my-pi/pi-coding-agent";
-import type { ComposerStyle } from "@oh-my-pi/pi-tui";
+import type { ExtensionAPI } from "@chudware/coding-agent";
+import type { ComposerStyle } from "@chudware/tui";
 
 const dockStyle: ComposerStyle = {
   id: "acme-dock",
@@ -644,8 +644,8 @@ const dockStyle: ComposerStyle = {
   renderBottom: () => undefined,
 };
 
-export default function (pi: ExtensionAPI) {
-  pi.registerComposerShape({
+export default function (chud: ExtensionAPI) {
+  chud.registerComposerShape({
     label: "Acme Dock",
     description: "Prompt below a single rule",
     style: dockStyle,
@@ -659,7 +659,7 @@ export default function (pi: ExtensionAPI) {
 - `description`: optional selector detail.
 - `style`: the complete `ComposerStyle` rendering contract. `style.id` is also the persisted `composer.shape` value.
 
-Use a package-qualified, non-empty, trimmed `style.id`. Built-in ids (`box`, `claude`, `pi`, `borderless`, `rule`, `field`, and `rail`) cannot be replaced. If the extension is unavailable while its id remains configured, the editor falls back to `box`.
+Use a package-qualified, non-empty, trimmed `style.id`. Built-in ids (`box`, `claude`, `chud`, `borderless`, `rule`, `field`, and `rail`) cannot be replaced. If the extension is unavailable while its id remains configured, the editor falls back to `box`.
 
 ### `ComposerStyle` layout metadata
 
@@ -697,8 +697,8 @@ The built-in implementations in `packages/tui/src/components/composer/` are the 
 ## Custom message renderer
 
 ```ts
-pi.registerMessageRenderer("my-type", (message, { expanded }, theme) => {
-  // return pi-tui Component
+chud.registerMessageRenderer("my-type", (message, { expanded }, theme) => {
+  // return chud-tui Component
 });
 ```
 
@@ -707,9 +707,9 @@ Used by interactive rendering when custom messages are displayed.
 ## Assistant thinking renderer
 
 ```ts
-import { Container, Text } from "@oh-my-pi/pi-tui";
+import { Container, Text } from "@chudware/tui";
 
-pi.registerAssistantThinkingRenderer((context, theme) => {
+chud.registerAssistantThinkingRenderer((context, theme) => {
   const container = new Container();
   container.addChild(
     new Text(theme.fg("dim", `thinking chars: ${context.text.length}`), 1, 0),

@@ -1,9 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "bun:test";
-import { KeybindingsManager } from "@oh-my-pi/pi-coding-agent/config/keybindings";
-import { resetSettingsForTest, Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
-import { getDefault } from "@oh-my-pi/pi-coding-agent/config/settings-schema";
-import { COMPOSER_DEFAULTS, Composer, type ComposerPreferences } from "@oh-my-pi/pi-coding-agent/modes/composer";
-import { InteractiveMode } from "@oh-my-pi/pi-coding-agent/modes/interactive-mode";
+import { KeybindingsManager } from "@chudware/coding-agent/config/keybindings";
+import { resetSettingsForTest, Settings } from "@chudware/coding-agent/config/settings";
+import { getDefault } from "@chudware/coding-agent/config/settings-schema";
+import { COMPOSER_DEFAULTS, Composer, type ComposerPreferences } from "@chudware/coding-agent/modes/composer";
+import { InteractiveMode } from "@chudware/coding-agent/modes/interactive-mode";
 import {
 	applyStartupComposerPreferences,
 	beginStartupComposer,
@@ -11,8 +11,8 @@ import {
 	setStartupComposerLspServers,
 	stopPendingStartupComposer,
 	takeStartupComposerLease,
-} from "@oh-my-pi/pi-coding-agent/modes/startup-composer";
-import { initTheme } from "@oh-my-pi/pi-coding-agent/modes/theme/theme";
+} from "@chudware/coding-agent/modes/startup-composer";
+import { initTheme } from "@chudware/coding-agent/modes/theme/theme";
 import { VirtualTerminal } from "../../tui/test/virtual-terminal";
 import { createTestSession } from "./utilities";
 
@@ -293,7 +293,7 @@ describe("Composer prepaint", () => {
 			expect(mode.editor.getExpandedText()).toBe(draft);
 			expect(draft.split("\n")).toHaveLength(18);
 			expect(mode.editor.render(80).length).toBeLessThanOrEqual(4);
-			expect(terminal.getViewport().join("\n")).not.toContain("Starting OMP");
+			expect(terminal.getViewport().join("\n")).not.toContain("Starting Chudcode");
 		} finally {
 			mode.stop();
 			lease.dispose();
@@ -381,10 +381,10 @@ describe("Composer prepaint", () => {
 			.map(r => Bun.stripANSI(r))
 			.join("\n");
 		expect(output).toContain("Welcome back!");
-		expect(output).toContain("omp");
+		expect(output).toContain("chudcode");
 		expect(output).toContain("9.9.9");
 		expect(output).toContain("prior work");
-		expect(output).not.toContain("Starting OMP");
+		expect(output).not.toContain("Starting Chudcode");
 		expect(output).toContain("╭");
 		const initialEditorRow = terminal
 			.getViewport()

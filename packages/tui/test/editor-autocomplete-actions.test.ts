@@ -7,9 +7,9 @@ import {
 	type AutocompleteProvider,
 	CombinedAutocompleteProvider,
 	findLeadingSlashCommandStart,
-} from "@oh-my-pi/pi-tui/autocomplete";
-import { Editor } from "@oh-my-pi/pi-tui/components/editor";
-import { sleep } from "@oh-my-pi/pi-utils/async";
+} from "@chudware/tui/autocomplete";
+import { Editor } from "@chudware/tui/components/editor";
+import { sleep } from "@chudware/utils/async";
 import { defaultEditorTheme } from "./test-themes";
 
 function onceAutocompleteUpdate(editor: Editor): Promise<void> {

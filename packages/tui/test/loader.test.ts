@@ -1,8 +1,8 @@
 import { afterEach, describe, expect, it, setSystemTime, spyOn, vi } from "bun:test";
-import { Container, TUI } from "@oh-my-pi/pi-tui";
-import { Loader, type LoaderMessageColorFn } from "@oh-my-pi/pi-tui/components/loader";
-import { visibleWidth } from "@oh-my-pi/pi-tui/utils";
-import { sleep } from "@oh-my-pi/pi-utils/async";
+import { Container, TUI } from "@chudware/tui";
+import { Loader, type LoaderMessageColorFn } from "@chudware/tui/components/loader";
+import { visibleWidth } from "@chudware/tui/utils";
+import { sleep } from "@chudware/utils/async";
 import { VirtualTerminal } from "./virtual-terminal";
 
 describe("Loader component", () => {

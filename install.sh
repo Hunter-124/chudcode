@@ -3,15 +3,12 @@ set -eu
 
 PRODUCT_NAME="Chudcode"
 PRODUCT_VERSION="0.2.0"
-UPSTREAM_VERSION="18.0.8"
-CLI_NAME="chudcode"
+CLI_NAME="chud"
 GUI_NAME="chudcode-gui"
-COMPAT_ALIAS="chudware-code"
-SHORT_ALIAS="chcode"
-LEGACY_ALIAS="omp"
+COMPAT_ALIAS="chudcode"
 RELEASE_TAG="chudcode-v${PRODUCT_VERSION}"
 RELEASE_REPOSITORY="Hunter-124/chudcode"
-EXPECTED_VERSION_OUTPUT="${CHUDCODE_EXPECTED_VERSION_OUTPUT:-${PRODUCT_NAME} v${PRODUCT_VERSION} (based on ${LEGACY_ALIAS} ${UPSTREAM_VERSION})}"
+EXPECTED_VERSION_OUTPUT="${CHUDCODE_EXPECTED_VERSION_OUTPUT:-${PRODUCT_NAME} v${PRODUCT_VERSION}}"
 INSTALL_DIR="${CHUDCODE_INSTALL_DIR:-${HOME}/.local/bin}"
 DATA_DIR="${CHUDCODE_DATA_DIR:-${HOME}/.local/share}"
 ARTIFACT_DIR="${CHUDCODE_ARTIFACT_DIR:-}"
@@ -145,8 +142,6 @@ is_newer_version() (
 
 create_aliases() {
 	ln -sf "$binary_filename" "$INSTALL_DIR/$compat_alias_filename"
-	ln -sf "$binary_filename" "$INSTALL_DIR/$short_alias_filename"
-	ln -sf "$binary_filename" "$INSTALL_DIR/$legacy_alias_filename"
 }
 
 print_path_hint() {
@@ -190,15 +185,11 @@ esac
 
 binary_filename="$CLI_NAME"
 compat_alias_filename="$COMPAT_ALIAS"
-short_alias_filename="$SHORT_ALIAS"
-legacy_alias_filename="$LEGACY_ALIAS"
 artifact_name="${CLI_NAME}-${target}"
 case "$release_os" in
 	win32)
 		binary_filename="${binary_filename}.exe"
 		compat_alias_filename="${compat_alias_filename}.exe"
-		short_alias_filename="${short_alias_filename}.exe"
-		legacy_alias_filename="${legacy_alias_filename}.exe"
 		artifact_name="${artifact_name}.exe"
 		;;
 esac
@@ -297,17 +288,17 @@ if [ "$target" = "linux-x64" ]; then
 		temp_vision_dir=$(mktemp -d "${TMPDIR:-/tmp}/chudcode-vision-install.XXXXXX")
 		tar -xzf "$temp_vision_archive" -C "$temp_vision_dir"
 		vision_bundle="$temp_vision_dir/${CLI_NAME}-vision-linux-x64"
-		[ -x "$vision_bundle/pi-vision" ] || die "vision archive is missing pi-vision"
+		[ -x "$vision_bundle/chud-vision" ] || die "vision archive is missing chud-vision"
 		[ -f "$vision_bundle/libonnxruntime.so" ] || die "vision archive is missing libonnxruntime.so"
 		[ -f "$vision_bundle/ONNXRUNTIME-LICENSE" ] || die "vision archive is missing the ONNX Runtime license"
-		"$vision_bundle/pi-vision" --print-manifest >/dev/null ||
-			die "pi-vision failed its startup check"
+		"$vision_bundle/chud-vision" --print-manifest >/dev/null ||
+			die "chud-vision failed its startup check"
 
 		vision_install_dir="$DATA_DIR/chudcode/vision-${PRODUCT_VERSION}"
 		mkdir -p "$DATA_DIR/chudcode"
 		rm -rf "$vision_install_dir"
 		mv "$vision_bundle" "$vision_install_dir"
-		ln -sf "$vision_install_dir/pi-vision" "$INSTALL_DIR/pi-vision"
+		ln -sf "$vision_install_dir/chud-vision" "$INSTALL_DIR/chud-vision"
 		vision_installed=1
 	else
 		rm -f "$temp_vision_archive"
@@ -364,14 +355,14 @@ if [ "$target" = "linux-x64" ]; then
 fi
 
 say "Installed $installed_output"
-say "Commands: $CLI_NAME, $COMPAT_ALIAS, $SHORT_ALIAS, $LEGACY_ALIAS"
+say "Commands: $CLI_NAME, $COMPAT_ALIAS"
 if [ "$gui_installed" = "1" ]; then
 	say "GUI: $GUI_NAME"
 else
 	say "GUI artifact not present; CLI-only installation is valid."
 fi
 if [ "$vision_installed" = "1" ]; then
-	say "Vision: pi-vision"
+	say "Vision: chud-vision"
 else
 	say "Vision artifact not present; image analysis degrades with a structured install hint."
 fi
