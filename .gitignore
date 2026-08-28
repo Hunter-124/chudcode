@@ -94,3 +94,6 @@ packages/coding-agent/bench/boot-baseline.json
 # fork: local scratch
 docs/fork/sandbox-prototype/node_modules/
 /bazel-omp
+
+# chudcode GUI: CMake build tree (vendored deps + 52MB binary)
+gui/build/
