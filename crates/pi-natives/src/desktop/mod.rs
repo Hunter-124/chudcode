@@ -14,9 +14,9 @@ mod win32;
 use std::{
 	collections::HashMap,
 	panic::AssertUnwindSafe,
-	sync::Arc,
+	sync::{Arc, LazyLock},
 	thread::{self, JoinHandle},
-	time::Duration,
+	time::{Duration, Instant},
 };
 
 use ax::{AxRegistry, register_node};
@@ -33,6 +33,11 @@ use crate::task;
 
 const OPERATION_TIMEOUT: Duration = Duration::from_mins(1);
 const CLOSE_TIMEOUT: Duration = Duration::from_secs(2);
+const MAX_CLICK_COUNT: u32 = 16;
+const MAX_DRAG_POINTS: usize = 1024;
+const MAX_TEXT_CHARS: usize = 16_384;
+const MAX_CHORD_KEYS: usize = 32;
+const MAX_SCROLL_TICKS: f64 = 1024.0;
 
 enum Response {
 	Capabilities(DesktopCapabilities),
@@ -213,12 +218,42 @@ struct ParsedPointerOptions {
 impl ParsedPointerOptions {
 	fn parse(options: Option<PointerOptions>) -> CoreResult<Self> {
 		let options = options.unwrap_or_default();
+		let count = options.count.unwrap_or(1).max(1);
+		if count > MAX_CLICK_COUNT {
+			return Err(DesktopError::input_failed(format!(
+				"click count {count} exceeds the limit of {MAX_CLICK_COUNT}"
+			)));
+		}
 		Ok(Self {
-			button:    MouseButton::parse(options.button.as_deref())?,
-			count:     options.count.unwrap_or(1).max(1),
+			button: MouseButton::parse(options.button.as_deref())?,
+			count,
 			modifiers: parse_modifiers(options.modifiers.as_deref().unwrap_or_default())?,
-			mode:      DeliveryMode::parse(options.delivery_mode.as_deref()),
+			mode: DeliveryMode::parse(options.delivery_mode.as_deref()),
 		})
+	}
+}
+
+fn validate_finite(value: f64, name: &str) -> CoreResult<()> {
+	if value.is_finite() {
+		Ok(())
+	} else {
+		Err(DesktopError::input_failed(format!("{name} must be finite")))
+	}
+}
+
+fn validate_point(x: f64, y: f64) -> CoreResult<()> {
+	validate_finite(x, "x")?;
+	validate_finite(y, "y")
+}
+
+fn validate_scroll_delta(value: f64, name: &str) -> CoreResult<()> {
+	validate_finite(value, name)?;
+	if value.abs() <= MAX_SCROLL_TICKS {
+		Ok(())
+	} else {
+		Err(DesktopError::input_failed(format!(
+			"{name} exceeds the limit of {MAX_SCROLL_TICKS} scroll ticks"
+		)))
 	}
 }
 
@@ -230,8 +265,12 @@ struct Worker {
 }
 
 impl Worker {
-	fn new(selector: DisplaySelector, capabilities: Arc<Mutex<DesktopCapabilities>>) -> Self {
-		let backend = create_backend(selector);
+	fn new(
+		selector: DisplaySelector,
+		display_server: Option<String>,
+		capabilities: Arc<Mutex<DesktopCapabilities>>,
+	) -> Self {
+		let backend = create_backend(selector, display_server.as_deref());
 		Self { backend, registry: AxRegistry::default(), frames: HashMap::new(), capabilities }
 	}
 
@@ -589,20 +628,56 @@ fn axnode(reference: String, props: ax::AxProps) -> AxNode {
 }
 
 #[cfg(target_os = "macos")]
-fn create_backend(selector: DisplaySelector) -> CoreResult<Box<dyn Backend>> {
+fn create_backend(
+	selector: DisplaySelector,
+	_display_server: Option<&str>,
+) -> CoreResult<Box<dyn Backend>> {
 	Ok(Box::new(macos::MacosBackend::new(selector)?))
 }
 #[cfg(target_os = "windows")]
-fn create_backend(selector: DisplaySelector) -> CoreResult<Box<dyn Backend>> {
+fn create_backend(
+	selector: DisplaySelector,
+	_display_server: Option<&str>,
+) -> CoreResult<Box<dyn Backend>> {
 	Ok(Box::new(win32::Win32Backend::new(selector)?))
 }
 #[cfg(target_os = "linux")]
-fn create_backend(selector: DisplaySelector) -> CoreResult<Box<dyn Backend>> {
-	linux::new_backend(selector)
+fn create_backend(
+	selector: DisplaySelector,
+	display_server: Option<&str>,
+) -> CoreResult<Box<dyn Backend>> {
+	linux::new_backend(selector, display_server)
 }
 #[cfg(not(any(target_os = "macos", target_os = "windows", target_os = "linux")))]
-fn create_backend(_: DisplaySelector) -> CoreResult<Box<dyn Backend>> {
+fn create_backend(_: DisplaySelector, _: Option<&str>) -> CoreResult<Box<dyn Backend>> {
 	Err(DesktopError::capture_failed("desktop backend unavailable on this platform"))
+}
+
+static DEFERRED_JOINS: LazyLock<Mutex<Vec<JoinHandle<()>>>> =
+	LazyLock::new(|| Mutex::new(Vec::new()));
+
+fn reap_deferred_joins() {
+	let finished = {
+		let mut deferred = DEFERRED_JOINS.lock();
+		let mut finished = Vec::new();
+		let mut index = 0;
+		while index < deferred.len() {
+			if deferred[index].is_finished() {
+				finished.push(deferred.swap_remove(index));
+			} else {
+				index += 1;
+			}
+		}
+		finished
+	};
+	for join in finished {
+		let _ = join.join();
+	}
+}
+
+fn defer_join(join: JoinHandle<()>) {
+	reap_deferred_joins();
+	DEFERRED_JOINS.lock().push(join);
 }
 
 struct Lifecycle {
@@ -612,14 +687,16 @@ struct Lifecycle {
 	closed: bool,
 }
 struct SessionCore {
-	selector:     DisplaySelector,
-	lifecycle:    Mutex<Lifecycle>,
-	capabilities: Arc<Mutex<DesktopCapabilities>>,
+	selector:       DisplaySelector,
+	display_server: Option<String>,
+	lifecycle:      Mutex<Lifecycle>,
+	capabilities:   Arc<Mutex<DesktopCapabilities>>,
 }
 impl SessionCore {
-	fn new(selector: DisplaySelector) -> Arc<Self> {
+	fn new(selector: DisplaySelector, display_server: Option<String>) -> Arc<Self> {
 		Arc::new(Self {
 			selector,
+			display_server,
 			lifecycle: Mutex::new(Lifecycle {
 				tx:     None,
 				done:   None,
@@ -631,6 +708,7 @@ impl SessionCore {
 	}
 
 	fn ensure_started(&self) -> CoreResult<flume::Sender<Request>> {
+		reap_deferred_joins();
 		let mut lifecycle = self.lifecycle.lock();
 		if lifecycle.closed {
 			return Err(DesktopError::closed());
@@ -641,11 +719,12 @@ impl SessionCore {
 		let (tx, rx) = flume::unbounded::<Request>();
 		let (done_tx, done_rx) = flume::bounded(1);
 		let selector = self.selector.clone();
+		let display_server = self.display_server.clone();
 		let caps = Arc::clone(&self.capabilities);
 		let join = thread::Builder::new()
 			.name("omp-desktop-session".into())
 			.spawn(move || {
-				let mut worker = Worker::new(selector, caps);
+				let mut worker = Worker::new(selector, display_server, caps);
 				while let Ok(request) = rx.recv() {
 					let close = request.is_close();
 					let result = std::panic::catch_unwind(AssertUnwindSafe(|| worker.process(&request)))
@@ -657,6 +736,7 @@ impl SessionCore {
 						break;
 					}
 				}
+				drop(worker);
 				let _ = done_tx.send(());
 			})
 			.map_err(|e| {
@@ -680,21 +760,26 @@ impl SessionCore {
 	}
 
 	fn close(&self) -> CoreResult<()> {
+		let deadline = Instant::now() + CLOSE_TIMEOUT;
 		let mut lifecycle = self.lifecycle.lock();
 		lifecycle.closed = true;
-		let Some(tx) = lifecycle.tx.take() else {
-			return Ok(());
-		};
-		let (rtx, rrx) = flume::bounded(1);
-		tx.send(Request::Close { reply: rtx })
-			.map_err(|_| DesktopError::closed())?;
-		let _ = rrx.recv_timeout(CLOSE_TIMEOUT).map_err(|e| {
-			DesktopError::timeout(format!("timed out closing native desktop worker: {e}"))
-		})?;
-		if let Some(done) = lifecycle.done.take() {
-			done.recv_timeout(CLOSE_TIMEOUT).map_err(|e| {
-				DesktopError::timeout(format!("native desktop worker did not exit: {e}"))
-			})?;
+		if let Some(tx) = lifecycle.tx.take() {
+			let (rtx, rrx) = flume::bounded(1);
+			tx.send(Request::Close { reply: rtx })
+				.map_err(|_| DesktopError::closed())?;
+			let _ = rrx
+				.recv_timeout(deadline.saturating_duration_since(Instant::now()))
+				.map_err(|e| {
+					DesktopError::timeout(format!("timed out closing native desktop worker: {e}"))
+				})?;
+		}
+		if let Some(done) = lifecycle.done.as_ref() {
+			done
+				.recv_timeout(deadline.saturating_duration_since(Instant::now()))
+				.map_err(|e| {
+					DesktopError::timeout(format!("native desktop worker did not exit: {e}"))
+				})?;
+			lifecycle.done = None;
 		}
 		if let Some(join) = lifecycle.join.take() {
 			join
@@ -711,7 +796,14 @@ impl Drop for SessionCore {
 			let (reply, _) = flume::bounded(1);
 			let _ = tx.send(Request::Close { reply });
 		}
-		let _ = lifecycle.join.take();
+		lifecycle.done = None;
+		if let Some(join) = lifecycle.join.take() {
+			if join.is_finished() {
+				let _ = join.join();
+			} else {
+				defer_join(join);
+			}
+		}
 	}
 }
 
@@ -732,7 +824,10 @@ pub struct DesktopSession {
 impl DesktopSession {
 	#[napi(constructor)]
 	pub fn new(options: Option<DesktopSessionOptions>) -> Result<Self> {
-		Ok(Self { core: SessionCore::new(DisplaySelector::parse(options.and_then(|o| o.display))) })
+		let options = options.unwrap_or_default();
+		Ok(Self {
+			core: SessionCore::new(DisplaySelector::parse(options.display), options.display_server),
+		})
 	}
 
 	#[napi(getter)]
@@ -792,6 +887,7 @@ impl DesktopSession {
 		y: f64,
 		opts: Option<PointerOptions>,
 	) -> Result<task::Promise<()>> {
+		validate_point(x, y).map_err(napi::Error::from)?;
 		let o = ParsedPointerOptions::parse(opts).map_err(napi::Error::from)?;
 		Ok(self.unit("desktop.click", move |reply| Request::Click {
 			target: Target::parse(&target),
@@ -810,6 +906,7 @@ impl DesktopSession {
 		y: f64,
 		opts: Option<PointerOptions>,
 	) -> Result<task::Promise<()>> {
+		validate_point(x, y).map_err(napi::Error::from)?;
 		let mode = ParsedPointerOptions::parse(opts)
 			.map_err(napi::Error::from)?
 			.mode;
@@ -829,6 +926,15 @@ impl DesktopSession {
 		path: Vec<DesktopPoint>,
 		opts: Option<PointerOptions>,
 	) -> Result<task::Promise<()>> {
+		if path.len() > MAX_DRAG_POINTS {
+			return Err(napi::Error::from(DesktopError::input_failed(format!(
+				"drag path has {} points; limit is {MAX_DRAG_POINTS}",
+				path.len()
+			))));
+		}
+		for point in &path {
+			validate_point(point.x, point.y).map_err(napi::Error::from)?;
+		}
 		let o = ParsedPointerOptions::parse(opts).map_err(napi::Error::from)?;
 		let path = path.into_iter().map(|p| (p.x, p.y)).collect();
 		Ok(self.unit("desktop.drag", move |reply| Request::Drag {
@@ -849,6 +955,9 @@ impl DesktopSession {
 		dy: f64,
 		opts: Option<PointerOptions>,
 	) -> Result<task::Promise<()>> {
+		validate_point(x, y).map_err(napi::Error::from)?;
+		validate_scroll_delta(dx, "dx").map_err(napi::Error::from)?;
+		validate_scroll_delta(dy, "dy").map_err(napi::Error::from)?;
 		let mode = ParsedPointerOptions::parse(opts)
 			.map_err(napi::Error::from)?
 			.mode;
@@ -870,6 +979,11 @@ impl DesktopSession {
 		text: String,
 		opts: Option<PointerOptions>,
 	) -> Result<task::Promise<()>> {
+		if text.chars().nth(MAX_TEXT_CHARS).is_some() {
+			return Err(napi::Error::from(DesktopError::input_failed(format!(
+				"text exceeds the limit of {MAX_TEXT_CHARS} characters"
+			))));
+		}
 		let mode = ParsedPointerOptions::parse(opts)
 			.map_err(napi::Error::from)?
 			.mode;
@@ -888,6 +1002,12 @@ impl DesktopSession {
 		keys: Vec<String>,
 		opts: Option<PointerOptions>,
 	) -> Result<task::Promise<()>> {
+		if keys.len() > MAX_CHORD_KEYS {
+			return Err(napi::Error::from(DesktopError::input_failed(format!(
+				"key chord has {} keys; limit is {MAX_CHORD_KEYS}",
+				keys.len()
+			))));
+		}
 		let keys = parse_keys(&keys).map_err(napi::Error::from)?;
 		let mode = ParsedPointerOptions::parse(opts)
 			.map_err(napi::Error::from)?
@@ -944,6 +1064,7 @@ impl DesktopSession {
 		x: f64,
 		y: f64,
 	) -> Result<task::Promise<Option<AxNode>>> {
+		validate_point(x, y).map_err(napi::Error::from)?;
 		Ok(self.node("desktop.axElementAt", move |reply| Request::AxElementAt {
 			target: Target::parse(&target),
 			x,

@@ -2,6 +2,7 @@ import * as path from "node:path";
 import { isCompiledBinary, logger, withTimeout, workerHostEntry } from "@oh-my-pi/pi-utils";
 import type { Subprocess } from "bun";
 import type { Browser, CDPSession } from "puppeteer-core";
+import { acquireComputerStage, type ComputerStageLease } from "../computer/stage";
 import { ToolAbortError, ToolError } from "../tool-errors";
 import { findFreeCdpPort, findReusableCdp, gracefulKillTreeOnce, killExistingByPath, waitForCdp } from "./attach";
 import type { CmuxKind } from "./cmux/rpc";
@@ -57,6 +58,12 @@ export interface PuppeteerBrowserHandle extends BrowserHandleCommon {
 	/** Broker daemon backing this handle; dispose disconnects instead of closing, kill routes to the broker. */
 	sharedDaemon?: { name: string; projectDir: string };
 	subprocess?: Subprocess;
+	/**
+	 * Private computer stage this Chromium is pinned to. Held for the handle's
+	 * whole lifetime and released on dispose — the stage is ref-counted, so
+	 * dropping it early would tear the Xvfb display out from under the browser.
+	 */
+	stageLease?: ComputerStageLease;
 	stealth: { browserSession: CDPSession | null; override: UserAgentOverride | null };
 }
 
@@ -79,10 +86,15 @@ const browsers = new Map<string, BrowserHandle>();
 /** In-flight opens by browser key, so concurrent acquisitions share one launch instead of storming Chromium. */
 const pendingOpens = new Map<string, Promise<BrowserHandle>>();
 
-function browserKey(kind: BrowserKind): string {
+/**
+ * A staged browser is keyed per owner: the stage is one session's private
+ * display, so two owners asking for a headed browser must not share the single
+ * `headless:0` handle and land on each other's desktop.
+ */
+function browserKey(kind: BrowserKind, stageOwnerId?: string): string {
 	switch (kind.kind) {
 		case "headless":
-			return `headless:${kind.headless ? "1" : "0"}`;
+			return `headless:${kind.headless ? "1" : "0"}${stageOwnerId ? `:stage:${stageOwnerId}` : ""}`;
 		case "spawned":
 			return `spawned:${kind.path}`;
 		case "connected":
@@ -94,15 +106,27 @@ function browserKey(kind: BrowserKind): string {
 	}
 }
 
+/** Request for a private computer stage to pin a headed browser to. */
+export interface BrowserStageRequest {
+	ownerId: string;
+	width: number;
+	height: number;
+}
+
 export interface AcquireBrowserOptions {
 	cwd: string;
 	viewport?: { width: number; height: number; deviceScaleFactor?: number };
 	appArgs?: string[];
 	signal?: AbortSignal;
+	/**
+	 * Pin a headed browser to this owner's private computer stage instead of the
+	 * real desktop. Only meaningful for a headed `headless` kind.
+	 */
+	stage?: BrowserStageRequest;
 }
 
 export async function acquireBrowser(kind: BrowserKind, opts: AcquireBrowserOptions): Promise<BrowserHandle> {
-	const key = browserKey(kind);
+	const key = browserKey(kind, opts.stage?.ownerId);
 	for (;;) {
 		const existing = browsers.get(key);
 		if (existing) {
@@ -165,7 +189,7 @@ async function openBrowserHandle(kind: BrowserKind, opts: AcquireBrowserOptions)
 		const client = new CmuxSocketClient({ socketPath: kind.socketPath, password: kind.password });
 		await client.connect();
 		return {
-			key: browserKey(kind),
+			key: browserKey(kind, opts.stage?.ownerId),
 			kind,
 			client,
 			surface: kind.surface,
@@ -173,6 +197,42 @@ async function openBrowserHandle(kind: BrowserKind, opts: AcquireBrowserOptions)
 		};
 	}
 	if (kind.kind === "headless") {
+		// A staged browser is one session's private display, so it cannot use the
+		// project-shared broker Chromium (shared by every session) and must launch
+		// in-process against the stage's environment. `acquireComputerStage`
+		// throws when no ready stage exists, so this fails closed: a headed
+		// browser never falls through to the real desktop.
+		if (opts.stage) {
+			const stageLease = await acquireComputerStage({
+				projectDir: opts.cwd,
+				ownerId: opts.stage.ownerId,
+				width: opts.stage.width,
+				height: opts.stage.height,
+				signal: opts.signal,
+			});
+			try {
+				const { browser, userDataDir } = await launchHeadlessBrowser({
+					headless: kind.headless,
+					viewport: opts.viewport,
+					env: stageLease.descriptor.env,
+					unsetEnv: stageLease.descriptor.unsetEnv,
+				});
+				return {
+					key: browserKey(kind, opts.stage.ownerId),
+					kind,
+					browser,
+					userDataDir,
+					refCount: 0,
+					stageLease,
+					stealth: { browserSession: null, override: null },
+				};
+			} catch (error) {
+				// The handle never reached the registry, so dispose will not run:
+				// drop our stage hold here or the Xvfb daemon leaks.
+				await stageLease.release();
+				throw error;
+			}
+		}
 		// Every real omp process (session, subagent, worker — anything with a CLI
 		// worker host) MUST go through the project-shared broker-owned Chromium:
 		// per-process launches are what produced launch storms and orphaned
@@ -329,7 +389,29 @@ export async function releaseBrowser(handle: BrowserHandle, opts: ReleaseBrowser
 	}
 }
 
+/**
+ * Tear down a handle and always drop its stage hold. The transport teardown has
+ * several early returns (cmux, broker-owned Chromium) and can throw on a wedged
+ * browser, so the release lives in a `finally` — a missed release leaks the
+ * Xvfb stage daemon for the rest of the project's life.
+ */
 async function disposeBrowserHandle(handle: BrowserHandle, opts: ReleaseBrowserOptions): Promise<void> {
+	try {
+		await disposeBrowserTransport(handle, opts);
+	} finally {
+		const lease = "client" in handle ? undefined : handle.stageLease;
+		if (lease && !("client" in handle)) {
+			handle.stageLease = undefined;
+			try {
+				await lease.release();
+			} catch (err) {
+				logger.debug("Failed to release browser computer stage", { error: (err as Error).message });
+			}
+		}
+	}
+}
+
+async function disposeBrowserTransport(handle: BrowserHandle, opts: ReleaseBrowserOptions): Promise<void> {
 	if ("client" in handle) {
 		handle.client.close();
 		return;

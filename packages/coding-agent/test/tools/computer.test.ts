@@ -191,13 +191,14 @@ class MemoryTransport implements ComputerWorkerTransport {
 	}
 }
 
-const snapshot = (readOnly = false): ComputerSessionSnapshot => ({
+const snapshot = (readOnly = false, overrides: Partial<ComputerSessionSnapshot> = {}): ComputerSessionSnapshot => ({
 	cwd: import.meta.dir,
 	sessionId: crypto.randomUUID(),
 	captureMaxWidth: 1280,
 	captureMaxHeight: 896,
 	display: "all",
 	readOnly,
+	...overrides,
 });
 
 async function runWorker(
@@ -246,6 +247,71 @@ describe("computer schema and approval", () => {
 		expect(first.parameters).toBe(schema);
 		expect(second.parameters).toBe(schema);
 		await Promise.all([first.close(), second.close()]);
+	});
+
+	it("shares an isolated stage with the controller and optional browser viewer", async () => {
+		const session = toolSession();
+		session.settings.override("computer.surface", "isolated");
+		session.settings.override("computer.stageWidth", 1440);
+		session.settings.override("computer.stageHeight", 900);
+		session.settings.override("computer.viewer", "novnc");
+		session.getEvalKernelOwnerId = () => "owner-1";
+		let received: ComputerSessionSnapshot | undefined;
+		let released = 0;
+		let viewerReleased = 0;
+		const tool = new ComputerTool(
+			session,
+			() => ({
+				async run(_code, _timeoutMs, runSnapshot) {
+					received = runSnapshot;
+					return { displays: [], returnValue: undefined, screenshots: [] };
+				},
+				async capabilities() {
+					return undefined;
+				},
+				async close() {},
+			}),
+			async options => {
+				expect(options).toMatchObject({ ownerId: "owner-1", width: 1440, height: 900 });
+				return {
+					descriptor: {
+						id: "stage-1",
+						daemonName: "omp.computer.xvfb.stage-1",
+						projectDir: options.projectDir,
+						displayServer: ":93",
+						env: { DISPLAY: ":93" },
+						unsetEnv: ["WAYLAND_DISPLAY"],
+					},
+					async release() {
+						released++;
+					},
+				};
+			},
+			async options => {
+				expect(options.stage.id).toBe("stage-1");
+				return {
+					descriptor: {
+						id: "viewer-1",
+						url: "http://127.0.0.1:6080/vnc.html?autoconnect=1&resize=scale",
+						daemonNames: { x11vnc: "omp.viewer.x11vnc", proxy: "omp.viewer.proxy" },
+						projectDir: options.stage.projectDir,
+					},
+					async release() {
+						viewerReleased++;
+					},
+				};
+			},
+		);
+		const result = await tool.execute("call-1", { code: "1" });
+		expect(result.details).toMatchObject({
+			surface: "isolated",
+			stageId: "stage-1",
+			viewerUrl: "http://127.0.0.1:6080/vnc.html?autoconnect=1&resize=scale",
+		});
+		expect(received?.displayServer).toBe(":93");
+		await tool.close();
+		expect(released).toBe(1);
+		expect(viewerReleased).toBe(1);
 	});
 
 	it("maps only literal read_only true to read approval", () => {
@@ -493,6 +559,49 @@ describe("computer worker round trips", () => {
 		const second = await runWorker(transport, "reuse-element", "await globalThis.retainedEl.bounds()");
 		expect(second.ok).toBe(true);
 		if (second.ok) expect(second.payload.returnValue).toEqual({ x: 7, y: 8, width: 9, height: 10 });
+	});
+
+	it("rebinds the native desktop and runtime when stage identity changes", async () => {
+		const transport = new MemoryTransport();
+		const nativeSessions: FakeNativeSession[] = [];
+		const options: Array<{ display?: string; displayServer?: string }> = [];
+		new ComputerWorkerCore(transport, nextOptions => {
+			options.push(nextOptions);
+			const native = new FakeNativeSession();
+			nativeSessions.push(native);
+			return native;
+		});
+
+		transport.inbound({
+			type: "run",
+			id: "stage-a",
+			code: "desktop.environment()",
+			timeoutMs: 2_000,
+			session: snapshot(false, { sessionId: "session-a", displayServer: ":90" }),
+		});
+		const first = await transport.waitFor(message => message.type === "result" && message.id === "stage-a");
+		expect(first.type === "result" && first.ok ? first.payload.returnValue : undefined).toEqual({
+			DISPLAY: ":90",
+			WAYLAND_DISPLAY: "",
+		});
+
+		transport.inbound({
+			type: "run",
+			id: "stage-b",
+			code: "desktop.environment()",
+			timeoutMs: 2_000,
+			session: snapshot(false, { sessionId: "session-b", displayServer: ":91" }),
+		});
+		const second = await transport.waitFor(message => message.type === "result" && message.id === "stage-b");
+		expect(second.type === "result" && second.ok ? second.payload.returnValue : undefined).toEqual({
+			DISPLAY: ":91",
+			WAYLAND_DISPLAY: "",
+		});
+		expect(options).toEqual([
+			{ display: "all", displayServer: ":90" },
+			{ display: "all", displayServer: ":91" },
+		]);
+		expect(nativeSessions[0]?.closeCount).toBe(1);
 	});
 });
 

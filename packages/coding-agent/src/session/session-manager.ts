@@ -2117,6 +2117,36 @@ export class SessionManager {
 		return (await this.#artifactManagerForSession()?.getPath(id)) ?? null;
 	}
 
+	/**
+	 * Checkpoint the live composer synchronously so an uncatchable process death
+	 * cannot lose text that the editor has already accepted. File-backed storage
+	 * replaces the sidecar atomically; indexed backends enqueue the equivalent
+	 * publish and are drained by the normal shutdown path.
+	 *
+	 * Empty text is written as an explicit checkpoint rather than skipped: if the
+	 * user deletes a draft and the process dies, recovery must not resurrect the
+	 * older non-empty checkpoint.
+	 */
+	saveDraftSync(text: string): void {
+		const draftPath = this.#draftPath();
+		if (!draftPath || !this.#persist) return;
+
+		const sessionFile = this.#sessionFile;
+		const draftWillMaterializeMetadataOnlyFile =
+			sessionFile !== undefined &&
+			!this.#storage.existsSync(sessionFile) &&
+			this.#entries.every(isDraftOnlyMetadataEntry);
+		// A draft without its owner session cannot be discovered by --resume.
+		this.#forceFileCreation = true;
+		this.flushSync();
+		if (draftWillMaterializeMetadataOnlyFile) {
+			const markerPath = this.#draftOnlySessionMarkerPath();
+			if (markerPath) this.#storage.writeTextSync(markerPath, "");
+			this.#draftOnlySessionCleanupArmed = true;
+		}
+		this.#storage.writeTextSync(draftPath, text);
+	}
+
 	async saveDraft(text: string): Promise<void> {
 		const draftPath = this.#draftPath();
 		if (!draftPath || !this.#persist) return;

@@ -23,7 +23,7 @@ import {
 	VERSION,
 } from "@oh-my-pi/pi-utils";
 import chalk from "@oh-my-pi/pi-utils/chalk";
-import { PRODUCT_VERSION } from "./brand";
+import { PRODUCT_SEMVER, PRODUCT_VERSION } from "./brand";
 import { reset as resetCapabilities } from "./capability";
 import { type Args, reportUnrecognizedFlags, validateToolNames } from "./cli/args";
 import { applyExtensionFlags, type ExtensionFlagSink } from "./cli/extension-flags";
@@ -2032,7 +2032,10 @@ export async function runRootCommand(
 				stopStartupWatchdog();
 				await runRpcMode(session, mode === "rpc-ui" ? setToolUIContext : undefined, eventBus, rpcInput);
 			} else if (isInteractive) {
-				const versionCheckPromise = checkForNewVersion(VERSION).catch(() => undefined);
+				// The fork's own release line, not the workspace package version:
+				// comparing 18.0.8 against this fork's 0.x releases would report an
+				// update on every launch and never install one.
+				const versionCheckPromise = checkForNewVersion(PRODUCT_SEMVER).catch(() => undefined);
 				const startupChangelog = await startupChangelogPromise;
 
 				const modelScopeNotification = buildModelScopeNotification(

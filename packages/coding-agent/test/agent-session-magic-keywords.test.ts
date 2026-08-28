@@ -31,6 +31,14 @@ const mockEvalTool: AgentTool = {
 	execute: async () => ({ content: [{ type: "text" as const, text: "ok" }] }),
 };
 
+const mockAskTool: AgentTool = {
+	name: "ask",
+	label: "Ask",
+	description: "Mock ask tool",
+	parameters: type({}),
+	execute: async () => ({ content: [{ type: "text" as const, text: "ok" }] }),
+};
+
 async function createMagicKeywordSession(
 	modelRegistry: ModelRegistry,
 	tools: AgentTool[] = [mockTaskTool, mockEvalTool],
@@ -202,6 +210,96 @@ describe("AgentSession magic keyword settings", () => {
 		expect(classifierSpy).toHaveBeenCalledTimes(1);
 		expect(session.thinkingLevel).toBe(Effort.Low);
 		expect(session.autoResolvedThinkingLevel()).toBe(Effort.Low);
+	});
+
+	it("injects the ultragoon notice when either of its mechanisms is live, and skips it otherwise", async () => {
+		const withAskOnly = await createMagicKeywordSession(modelRegistry, [mockAskTool]);
+		session = withAskOnly.session;
+		let promptSpy = vi.spyOn(session.agent, "prompt").mockResolvedValue(undefined);
+
+		await session.prompt("please ultragoon this rewrite");
+
+		let promptMessages = promptSpy.mock.calls[0]![0] as unknown as Array<{ content?: string; customType?: string }>;
+		expect(promptMessages.map(message => message.customType).filter(Boolean)).toEqual(["ultragoon-notice"]);
+		// `ask` present, `task` absent: the decision round stays, the research
+		// fan-out degrades to self-directed exploration.
+		const askOnlyNotice = promptMessages.find(message => message.customType === "ultragoon-notice")?.content ?? "";
+		expect(askOnlyNotice).toContain("`glob`/`grep`/`read`");
+		expect(askOnlyNotice).not.toContain("No `ask` tool");
+		await session.dispose();
+
+		const withoutTools = await createMagicKeywordSession(modelRegistry, []);
+		session = withoutTools.session;
+		promptSpy = vi.spyOn(session.agent, "prompt").mockResolvedValue(undefined);
+
+		await session.prompt("please ultragoon this rewrite");
+
+		promptMessages = promptSpy.mock.calls[0]![0] as unknown as Array<{ customType?: string }>;
+		expect(promptMessages.map(message => message.customType).filter(Boolean)).toEqual([]);
+	});
+
+	it("pairs tokenmaxxing with the orchestration contract exactly once when task is active", async () => {
+		const created = await createMagicKeywordSession(modelRegistry);
+		session = created.session;
+		const promptSpy = vi.spyOn(session.agent, "prompt").mockResolvedValue(undefined);
+
+		// Both keywords ask for the dispatch contract; it must not be injected twice.
+		await session.prompt("tokenmaxxing and orchestrate this audit");
+
+		const promptMessages = promptSpy.mock.calls[0]![0] as unknown as Array<{ customType?: string }>;
+		expect(promptMessages.map(message => message.customType).filter(Boolean)).toEqual([
+			"orchestrate-notice",
+			"tokenmaxxing-notice",
+		]);
+	});
+
+	it("keeps the tokenmaxxing routing notice without the dispatch contract when task is inactive", async () => {
+		const created = await createMagicKeywordSession(modelRegistry, []);
+		session = created.session;
+		const promptSpy = vi.spyOn(session.agent, "prompt").mockResolvedValue(undefined);
+
+		await session.prompt("tokenmaxxing this audit");
+
+		const promptMessages = promptSpy.mock.calls[0]![0] as unknown as Array<{ customType?: string }>;
+		expect(promptMessages.map(message => message.customType).filter(Boolean)).toEqual(["tokenmaxxing-notice"]);
+	});
+
+	it("leaves auto thinking to the classifier for keywords other than ultrathink", async () => {
+		const created = await createMagicKeywordSession(modelRegistry);
+		session = created.session;
+		vi.spyOn(session.agent, "prompt").mockResolvedValue(undefined);
+		const classifierSpy = vi.spyOn(autoThinkingClassifier, "classifyDifficulty").mockResolvedValue(Effort.Low);
+		session.setThinkingLevel(AUTO_THINKING);
+
+		await session.prompt("tokenmaxxing autobot ultragoon this rewrite");
+
+		expect(classifierSpy).toHaveBeenCalledTimes(1);
+		expect(session.thinkingLevel).toBe(Effort.Low);
+	});
+
+	it("injects the autobot notice with no tool prerequisites", async () => {
+		const created = await createMagicKeywordSession(modelRegistry, []);
+		session = created.session;
+		const promptSpy = vi.spyOn(session.agent, "prompt").mockResolvedValue(undefined);
+
+		await session.prompt("autobot the release prep");
+
+		const promptMessages = promptSpy.mock.calls[0]![0] as unknown as Array<{ customType?: string }>;
+		expect(promptMessages.map(message => message.customType).filter(Boolean)).toEqual(["autobot-notice"]);
+	});
+
+	it("honors the per-keyword toggles for the new keywords", async () => {
+		const created = await createMagicKeywordSession(modelRegistry, [mockTaskTool, mockEvalTool, mockAskTool]);
+		session = created.session;
+		created.settings.set("magicKeywords.ultragoon", false);
+		created.settings.set("magicKeywords.tokenmaxxing", false);
+		created.settings.set("magicKeywords.autobot", false);
+		const promptSpy = vi.spyOn(session.agent, "prompt").mockResolvedValue(undefined);
+
+		await session.prompt("ultragoon tokenmaxxing autobot this rewrite");
+
+		const promptMessages = promptSpy.mock.calls[0]![0] as unknown as Array<{ customType?: string }>;
+		expect(promptMessages.map(message => message.customType).filter(Boolean)).toEqual([]);
 	});
 
 	it("queues the magic-keyword notice before the user message", async () => {

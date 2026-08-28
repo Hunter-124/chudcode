@@ -59,9 +59,7 @@ export class Input implements Component, Focusable {
 	}
 
 	getSelection(): { anchor: number; cursor: number } | undefined {
-		return this.#selectionAnchor === undefined
-			? undefined
-			: { anchor: this.#selectionAnchor, cursor: this.#cursor };
+		return this.#selectionAnchor === undefined ? undefined : { anchor: this.#selectionAnchor, cursor: this.#cursor };
 	}
 
 	getSelectedText(): string | undefined {
@@ -549,7 +547,6 @@ export class Input implements Component, Focusable {
 	}
 
 	#handlePaste(pastedText: string): void {
-
 		// Clean the pasted text — decode tmux's re-encoded control bytes (both
 		// extended-keys formats, e.g. Ctrl+J → "\n") back to literal bytes so the escape
 		// tail does not leak in, remove newlines/carriage returns, expand tabs, NFC-normalize,
@@ -616,8 +613,7 @@ export class Input implements Component, Focusable {
 		}
 		const selectionStart =
 			selectionAnchorIndex === undefined ? undefined : Math.min(selectionAnchorIndex, cursorIndex);
-		const selectionEnd =
-			selectionAnchorIndex === undefined ? undefined : Math.max(selectionAnchorIndex, cursorIndex);
+		const selectionEnd = selectionAnchorIndex === undefined ? undefined : Math.max(selectionAnchorIndex, cursorIndex);
 		const displayValue = this.#cursor >= this.#value.length ? `${visibleValue} ` : visibleValue;
 
 		const totalCols = visibleWidth(displayValue);
@@ -679,12 +675,8 @@ export class Input implements Component, Focusable {
 			selectionEnd !== undefined &&
 			cursorAbsoluteStart < selectionEnd &&
 			cursorAbsoluteStart + atCursor.length > selectionStart;
-		const styledCursorChar =
-			this.#useTerminalCursor && selectedCursor ? `\x1b[7m${cursorChar}\x1b[27m` : cursorChar;
-		const styledAfterCursor = styleSelected(
-			clampedAfterCursor,
-			cursorAbsoluteStart + atCursor.length,
-		);
+		const styledCursorChar = this.#useTerminalCursor && selectedCursor ? `\x1b[7m${cursorChar}\x1b[27m` : cursorChar;
+		const styledAfterCursor = styleSelected(clampedAfterCursor, cursorAbsoluteStart + atCursor.length);
 		const renderedNoMarker = styledBeforeCursor + styledCursorChar + styledAfterCursor;
 		const textWithCursor = styledBeforeCursor + marker + styledCursorChar + styledAfterCursor;
 

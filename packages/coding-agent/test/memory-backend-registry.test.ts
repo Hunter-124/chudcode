@@ -1,14 +1,14 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { getEnumValues, getUi } from "@oh-my-pi/pi-coding-agent/config/settings-schema";
 import { Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
+import { getEnumValues, getUi } from "@oh-my-pi/pi-coding-agent/config/settings-schema";
 import { ExtensionRuntime, loadExtensionFromFactory } from "@oh-my-pi/pi-coding-agent/extensibility/extensions/loader";
-import { emitSessionShutdownEvent, ExtensionRunner } from "@oh-my-pi/pi-coding-agent/extensibility/extensions/runner";
+import { ExtensionRunner, emitSessionShutdownEvent } from "@oh-my-pi/pi-coding-agent/extensibility/extensions/runner";
 import {
 	getRegisteredMemoryBackend,
+	type MemoryBackend,
 	registerMemoryBackend,
 	resolveMemoryBackend,
 	unregisterMemoryBackendsForSource,
-	type MemoryBackend,
 } from "@oh-my-pi/pi-coding-agent/memory-backend";
 import { SessionManager } from "@oh-my-pi/pi-coding-agent/session/session-manager";
 import { EventBus } from "@oh-my-pi/pi-coding-agent/utils/event-bus";
@@ -131,13 +131,7 @@ describe("memory backend registry", () => {
 			runtime,
 			"registry-extension",
 		);
-		const runner = new ExtensionRunner(
-			[extension],
-			runtime,
-			process.cwd(),
-			SessionManager.inMemory(),
-			{} as never,
-		);
+		const runner = new ExtensionRunner([extension], runtime, process.cwd(), SessionManager.inMemory(), {} as never);
 		initializeRunner(runner);
 
 		expect(getRegisteredMemoryBackend(backend.id)?.sourceId).toBe("registry-extension");

@@ -8,10 +8,7 @@
     "./incidents": "./src/incidents.ts"
   },
   "scripts": {
-    "devbot": "bun src/devbot-cli.ts",
-    "devbot-smoke": "bun src/devbot-smoke.ts",
     "export": "bun src/export-cli.ts",
-    "report": "bun src/report-cli.ts",
     "dispatch-incidents": "bun src/incident-cli.ts",
     "check": "tsgo -p tsconfig.check.json --noEmit",
     "test": "bun test test"

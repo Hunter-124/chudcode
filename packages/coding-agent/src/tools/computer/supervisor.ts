@@ -15,7 +15,7 @@ import {
 } from "./protocol";
 
 const START_TIMEOUT_MS = 10_000;
-const CLOSE_TIMEOUT_MS = 1_500;
+const CLOSE_TIMEOUT_MS = 2_500;
 const GRACE_MS = 750;
 const SMOKE_TIMEOUT_MS = 5_000;
 const RESTART_MESSAGE = "computer worker restarted; captures and ax refs were reset";
@@ -177,6 +177,8 @@ export class ComputerSupervisor implements ComputerController {
 		if (signal?.aborted) throw new ToolAbortError();
 		await this.#start();
 		if (signal?.aborted) throw new ToolAbortError();
+		const worker = this.#worker;
+		if (!worker) throw new ToolError(RESTART_MESSAGE);
 
 		const id = `computer-${++this.#nextId}`;
 		const { promise, resolve, reject } = Promise.withResolvers<ComputerRunOk>();
@@ -190,10 +192,13 @@ export class ComputerSupervisor implements ComputerController {
 		else signal?.addEventListener("abort", abort, { once: true });
 
 		try {
-			this.#worker?.send({ type: "run", id, code, timeoutMs, session: snapshot });
+			worker.send({ type: "run", id, code, timeoutMs, session: snapshot });
 			return await this.#raceWithGrace(promise, timeoutMs);
 		} finally {
 			signal?.removeEventListener("abort", abort);
+			for (const controller of pending.toolCalls.values())
+				controller.abort(new ToolAbortError("Computer run ended"));
+			pending.toolCalls.clear();
 			this.#pending.delete(id);
 		}
 	}
@@ -235,6 +240,9 @@ export class ComputerSupervisor implements ComputerController {
 		if (message.type === "result") {
 			const pending = this.#pending.get(message.id);
 			if (!pending) return;
+			for (const controller of pending.toolCalls.values())
+				controller.abort(new ToolAbortError("Computer run ended"));
+			pending.toolCalls.clear();
 			this.#pending.delete(message.id);
 			if (message.ok) {
 				this.#latestCapabilities = message.payload.capabilities;

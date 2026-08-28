@@ -1,6 +1,6 @@
 # computer
 
-> Execute persistent JavaScript against the real host desktop: enumerate windows and displays, capture screenshots, send native input, use OS accessibility (AX), and access the clipboard. This is not the `browser` tool and exposes no DOM.
+> Execute persistent JavaScript against a session-owned virtual display by default on Linux, or the host desktop when configured: enumerate windows and displays, capture screenshots, send native input, use OS accessibility (AX), and access the host clipboard. This is not the `browser` tool and exposes no DOM.
 
 User setup, permissions, safety guidance, examples, and platform limitations: [Scriptable computer use](../computer-use.md).
 
@@ -13,6 +13,7 @@ User setup, permissions, safety guidance, examples, and platform limitations: [S
 - Exposure policy: `packages/coding-agent/src/tools/computer/exposure.ts`
 - Renderer: `packages/coding-agent/src/tools/computer-renderer.ts`
 - Persistent worker: `packages/coding-agent/src/tools/computer/{supervisor,protocol,worker,worker-entry}.ts`
+- Private Linux stage lifecycle: `packages/coding-agent/src/tools/computer/stage.ts`
 - Native implementation: `crates/pi-natives/src/desktop/`
 - Native public types: `packages/natives/native/index.d.ts`
 
@@ -28,13 +29,17 @@ User setup, permissions, safety guidance, examples, and platform limitations: [S
 | Setting | Type | Default | Contract |
 |---|---|---:|---|
 | `computer.enabled` | boolean | `false` | Register the tool. |
+| `computer.surface` | enum | `auto` | Private Xvfb stage on Linux (`auto`/`isolated`) or the host desktop (`host`). |
+| `computer.stageWidth` | number | `1920` | Virtual display width. |
+| `computer.stageHeight` | number | `1080` | Virtual display height. |
+| `computer.viewer` | enum | `off` | Optional loopback noVNC viewer (`novnc`). |
 | `computer.display` | string | `all` | Composite every display, or select one native display ID. |
 | `computer.maxWidth` | number | `3840` | Maximum screenshot width. |
 | `computer.maxHeight` | number | `2400` | Maximum screenshot height. |
 
-There is no `computer.backend` setting. The native addon selects the platform backend.
+There is no `computer.backend` setting. An isolated Linux stage explicitly targets its X11 server; host mode lets the native addon select the platform backend.
 
-For transports that do not preserve original image detail, and as a Claude-family compatibility fallback, the effective capture caps are `1280×896`. Other models retain the configured limits. The tool snapshots cwd, session id, display, effective caps, and `read_only` for every run; the native desktop session itself remains persistent.
+For transports that do not preserve original image detail, and as a Claude-family compatibility fallback, the effective capture caps are `1280×896`. Other models retain the configured limits. The tool snapshots cwd, session id, display target, effective caps, and `read_only` for every run. A changed display/stage identity closes and recreates the native session before input resumes.
 
 ## Inputs
 
@@ -54,7 +59,7 @@ For transports that do not preserve original image detail, and as a Claude-famil
 
 Unknown fields are rejected by the schema. `computerApproval()` returns `read` only when `read_only === true`; malformed input, an omitted flag, or `false` is classified as `exec`. Approval details contain `read-only` when applicable plus at most 2,000 characters of code.
 
-`code` has full host access and is not sandboxed. The persistent `JsRuntime` supplies `desktop`, `wait`, and `assert`, plus its ordinary helpers such as `display`, `print`, `read`, `write`, `env`, and `tool`. `wait(ms)` sleeps; `wait(predicate, { timeout?, interval? })` polls until truthy.
+`code` has full host access and is not sandboxed. A virtual stage isolates only display/focus/input routing; applications retain normal filesystem, network, process, credential, device, and tool access. The persistent `JsRuntime` supplies `desktop`, `wait`, and `assert`, plus its ordinary helpers such as `display`, `print`, `read`, `write`, `env`, and `tool`. `desktop.environment()` returns the environment overlay for launching GUI apps into the active surface. `wait(ms)` sleeps; `wait(predicate, { timeout?, interval? })` polls until truthy.
 
 ## Desktop API
 
@@ -65,6 +70,7 @@ Unknown fields are rejected by the schema. `computerApproval()` returns `read` o
 - `desktop.focusedWindow()` returns a window facade or `null`.
 - `desktop.displays()` returns `DesktopDisplay[]`.
 - `desktop.capabilities()` returns capture/input/AX availability, permission states, delivery modes, display server, backend, and display count.
+- `desktop.environment()` returns the active surface's GUI-process environment overlay.
 
 A window facade exposes immutable `id`, `app`, `title`, optional `pid`, `bounds`, and `focused` fields.
 

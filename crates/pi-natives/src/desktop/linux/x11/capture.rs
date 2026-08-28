@@ -54,6 +54,9 @@ impl ComponentMask {
 
 	fn decode(self, pixel: u32) -> u8 {
 		let component = (pixel & self.mask) >> self.shift;
+		if self.max == 255 {
+			return component as u8;
+		}
 		((u64::from(component) * 255 + u64::from(self.max) / 2) / u64::from(self.max)) as u8
 	}
 }
@@ -68,11 +71,14 @@ pub struct X11Capture {
 }
 
 impl X11Capture {
-	pub(crate) fn new(selector: DisplaySelector) -> CoreResult<Self> {
-		let (conn, screen_num) = x11rb::connect(None).map_err(|error| {
-			DesktopError::capture_failed(format!(
-				"X11 connection failed; ensure DISPLAY points at a reachable X server: {error}"
-			))
+	pub(crate) fn new(selector: DisplaySelector, display_server: Option<&str>) -> CoreResult<Self> {
+		let (conn, screen_num) = x11rb::connect(display_server).map_err(|error| {
+			DesktopError::capture_failed(match display_server {
+				Some(server) => format!("X11 connection to '{server}' failed: {error}"),
+				None => format!(
+					"X11 connection failed; ensure DISPLAY points at a reachable X server: {error}"
+				),
+			})
 		})?;
 		let conn = Arc::new(conn);
 		let screen = conn
@@ -192,19 +198,29 @@ impl X11Capture {
 		let clients = self
 			.property(self.root, stacking, AtomEnum::WINDOW, 4096)
 			.or_else(|| self.property(self.root, fallback, AtomEnum::WINDOW, 4096));
-		let Some(clients) = clients else {
-			return Ok(Vec::new());
-		};
-		let Some(ids) = clients.value32() else {
-			return Ok(Vec::new());
-		};
-		let mut ids: Vec<Window> = ids.collect();
+		let mut ids: Vec<Window> =
+			match clients.and_then(|reply| reply.value32().map(|ids| ids.collect())) {
+				Some(ids) => ids,
+				None => {
+					self
+						.conn
+						.query_tree(self.root)
+						.map_err(request_failed)?
+						.reply()
+						.map_err(request_failed)?
+						.children
+				},
+			};
 		ids.reverse();
 
 		let active_atom = self.intern("_NET_ACTIVE_WINDOW")?;
-		let active = self
-			.property(self.root, active_atom, AtomEnum::WINDOW, 1)
-			.and_then(|reply| reply.value32()?.next());
+		let active = if self.has_window_manager() {
+			self
+				.property(self.root, active_atom, AtomEnum::WINDOW, 1)
+				.and_then(|reply| reply.value32()?.next())
+		} else {
+			self.input_focus_top_level(&ids)
+		};
 		let name_atom = self.intern("_NET_WM_NAME")?;
 		let utf8_atom = self.intern("UTF8_STRING")?;
 		let state_atom = self.intern("_NET_WM_STATE")?;
@@ -281,6 +297,31 @@ impl X11Capture {
 			});
 		}
 		Ok(windows)
+	}
+
+	fn has_window_manager(&self) -> bool {
+		let Ok(atom) = self.intern("_NET_SUPPORTING_WM_CHECK") else {
+			return false;
+		};
+		self
+			.property(self.root, atom, AtomEnum::WINDOW, 1)
+			.and_then(|reply| reply.value32()?.next())
+			.is_some()
+	}
+
+	fn input_focus_top_level(&self, candidates: &[Window]) -> Option<Window> {
+		let mut focus = self.conn.get_input_focus().ok()?.reply().ok()?.focus;
+		for _ in 0..64 {
+			if candidates.contains(&focus) {
+				return Some(focus);
+			}
+			let parent = self.conn.query_tree(focus).ok()?.reply().ok()?.parent;
+			if parent == 0 || parent == focus {
+				break;
+			}
+			focus = parent;
+		}
+		None
 	}
 
 	pub(crate) fn capture(&self, target: &Target) -> CoreResult<(RgbaImage, FrameGeometry)> {

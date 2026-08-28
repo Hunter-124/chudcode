@@ -24,11 +24,14 @@ pub struct X11Backend {
 }
 
 impl X11Backend {
-	pub(crate) fn new(display: DisplaySelector) -> CoreResult<Self> {
-		let capture = X11Capture::new(display)?;
+	pub(crate) fn new(display: DisplaySelector, display_server: Option<&str>) -> CoreResult<Self> {
+		let capture = X11Capture::new(display, display_server)?;
 		let input = X11Input::new(capture.connection(), capture.root())?;
 		let ax = AtSpiAx::new().ok();
-		Ok(Self { capture, input, ax, display_server: std::env::var("DISPLAY").ok() })
+		let display_server = display_server
+			.map(str::to_owned)
+			.or_else(|| std::env::var("DISPLAY").ok());
+		Ok(Self { capture, input, ax, display_server })
 	}
 }
 

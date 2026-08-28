@@ -9,31 +9,32 @@ beforeAll(async () => {
 
 describe("highlightMagicKeywords", () => {
 	it("paints every magic keyword in a single prose pass, preserving visible text", () => {
-		const input = "first ultrathink then orchestrate the workflowz";
+		const input = "first ultrathink then orchestrate the workflowz, ultragoon and tokenmaxxing it, autobot";
 		const decorated = highlightMagicKeywords(input);
 		expect(decorated).not.toBe(input);
 		expect(decorated).toContain("\x1b[38");
 		expect(Bun.stripANSI(decorated)).toBe(input);
 		// Each keyword is gradient-painted character-by-character, so none survives as a
 		// contiguous run in the decorated output.
-		for (const keyword of ["ultrathink", "orchestrate", "workflowz"]) {
+		for (const keyword of ["ultrathink", "orchestrate", "workflowz", "ultragoon", "tokenmaxxing", "autobot"]) {
 			expect(decorated).not.toContain(keyword);
 			expect(Bun.stripANSI(decorated)).toContain(keyword);
 		}
 	});
 
 	it("paints punctuation-adjacent prose keywords without changing visible text", () => {
-		const input = 'first "ultrathink," then orchestrate. Finally workflowz!';
+		const input = 'first "ultrathink," then orchestrate. Finally workflowz! ultragoon; tokenmaxxing? autobot.';
 		const decorated = highlightMagicKeywords(input);
 		expect(decorated).not.toBe(input);
 		expect(Bun.stripANSI(decorated)).toBe(input);
-		for (const keyword of ["ultrathink", "orchestrate", "workflowz"]) {
+		for (const keyword of ["ultrathink", "orchestrate", "workflowz", "ultragoon", "tokenmaxxing", "autobot"]) {
 			expect(decorated).not.toContain(keyword);
 		}
 	});
 
 	it("never paints keywords inside code spans, fenced blocks, or XML sections", () => {
-		const input = "`ultrathink`\n```\norchestrate\n```\n<x>workflowz</x>";
+		const input =
+			"`ultrathink`\n```\norchestrate\n```\n<x>workflowz</x>\n`ultragoon`\n```\ntokenmaxxing\n```\n<y>autobot</y>";
 		expect(highlightMagicKeywords(input)).toBe(input);
 	});
 
@@ -79,6 +80,9 @@ describe("hasMagicKeyword", () => {
 		expect(hasMagicKeyword("please ultrathink this")).toBe(true);
 		expect(hasMagicKeyword("now orchestrate everything")).toBe(true);
 		expect(hasMagicKeyword("just workflowz the steps")).toBe(true);
+		expect(hasMagicKeyword("ultragoon this rewrite")).toBe(true);
+		expect(hasMagicKeyword("tokenmaxxing the audit")).toBe(true);
+		expect(hasMagicKeyword("autobot the release prep")).toBe(true);
 	});
 
 	it("detects standalone keywords beside prose punctuation and quotes", () => {
@@ -92,9 +96,15 @@ describe("hasMagicKeyword", () => {
 			"ultrathink()",
 			"orchestrate()",
 			"workflowz()",
+			"ultragoon()",
+			"tokenmaxxing()",
+			"autobot()",
 			"foo::ultrathink",
 			"foo::orchestrate",
 			"foo::workflowz",
+			"foo::ultragoon",
+			"foo::tokenmaxxing",
+			"foo::autobot",
 		]) {
 			expect(hasMagicKeyword(text)).toBe(false);
 			expect(highlightMagicKeywords(text)).toBe(text);
@@ -111,6 +121,9 @@ describe("hasMagicKeyword", () => {
 		expect(hasMagicKeyword("src/modes/ultrathink.ts")).toBe(false);
 		expect(hasMagicKeyword("orchestrate.ts is a file")).toBe(false);
 		expect(hasMagicKeyword("packages/coding-agent/test/modes/workflowz.test.ts")).toBe(false);
+		expect(hasMagicKeyword("ultragooning all night")).toBe(false);
+		expect(hasMagicKeyword("tokenmaxxed the turn")).toBe(false);
+		expect(hasMagicKeyword("autobots roll out")).toBe(false);
 	});
 
 	it("rejects keywords inside code spans, fences, and xml sections", () => {

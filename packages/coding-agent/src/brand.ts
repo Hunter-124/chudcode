@@ -1,5 +1,19 @@
 export const PRODUCT_NAME = "Chudcode";
 export const PRODUCT_CLI_NAME = "chudcode";
 export const PRODUCT_COMPATIBILITY_CLI_NAMES = ["chudware-code", "chcode", "omp"] as const;
-export const PRODUCT_VERSION = "Chudcode v0.1.0 (based on omp 18.0.8)";
+/**
+ * This fork's own release line. Deliberately independent of the workspace
+ * package version, which keeps tracking the upstream omp release the fork is
+ * based on. `chudcode update` compares this against the fork's GitHub releases.
+ */
+export const PRODUCT_SEMVER = "0.2.0";
+/** Upstream omp release this fork is based on. */
+export const PRODUCT_UPSTREAM_BASE = "18.0.8";
+/**
+ * GitHub repository publishing this fork's release binaries. The updater reads
+ * releases from here — never from upstream, whose assets are named `omp-*` and
+ * whose versions live on a different line entirely.
+ */
+export const PRODUCT_RELEASE_REPO = "Hunter-124/chudcode";
+export const PRODUCT_VERSION = `${PRODUCT_NAME} v${PRODUCT_SEMVER} (based on omp ${PRODUCT_UPSTREAM_BASE})`;
 export const PRODUCT_CLI_VERSION = PRODUCT_VERSION.slice(`${PRODUCT_NAME} v`.length);

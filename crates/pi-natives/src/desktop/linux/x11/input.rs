@@ -18,9 +18,10 @@ use x11rb::{
 		},
 		xproto::{
 			AtomEnum, BUTTON_PRESS_EVENT, BUTTON_RELEASE_EVENT, ButtonPressEvent,
-			CLIENT_MESSAGE_EVENT, ClientMessageData, ClientMessageEvent, ConnectionExt as _,
-			EventMask, GrabMode, KEY_PRESS_EVENT, KEY_RELEASE_EVENT, KeyButMask, KeyPressEvent,
-			MOTION_NOTIFY_EVENT, Motion, MotionNotifyEvent, Window,
+			CLIENT_MESSAGE_EVENT, ClientMessageData, ClientMessageEvent, ConfigureWindowAux,
+			ConnectionExt as _, EventMask, GrabMode, InputFocus, KEY_PRESS_EVENT, KEY_RELEASE_EVENT,
+			KeyButMask, KeyPressEvent, MOTION_NOTIFY_EVENT, Motion, MotionNotifyEvent, StackMode,
+			Window,
 		},
 		xtest::ConnectionExt as _,
 	},
@@ -358,18 +359,60 @@ impl X11Input {
 	}
 
 	fn active_window(&self) -> Option<Window> {
-		let atom = self.intern("_NET_ACTIVE_WINDOW").ok()?;
+		if self.has_window_manager() {
+			let atom = self.intern("_NET_ACTIVE_WINDOW").ok()?;
+			return self
+				.conn
+				.get_property(false, self.root, atom, AtomEnum::WINDOW, 0, 1)
+				.ok()?
+				.reply()
+				.ok()?
+				.value32()?
+				.next();
+		}
+		let mut focus = self.conn.get_input_focus().ok()?.reply().ok()?.focus;
+		for _ in 0..64 {
+			let parent = self.conn.query_tree(focus).ok()?.reply().ok()?.parent;
+			if parent == self.root {
+				return Some(focus);
+			}
+			if parent == 0 || parent == focus {
+				break;
+			}
+			focus = parent;
+		}
+		None
+	}
+
+	fn has_window_manager(&self) -> bool {
+		let Ok(atom) = self.intern("_NET_SUPPORTING_WM_CHECK") else {
+			return false;
+		};
 		self
 			.conn
 			.get_property(false, self.root, atom, AtomEnum::WINDOW, 0, 1)
-			.ok()?
-			.reply()
-			.ok()?
-			.value32()?
-			.next()
+			.ok()
+			.and_then(|cookie| cookie.reply().ok())
+			.and_then(|reply| reply.value32()?.next())
+			.is_some()
 	}
 
 	fn activate(&self, window: Window) -> CoreResult<()> {
+		if !self.has_window_manager() {
+			self
+				.conn
+				.configure_window(window, &ConfigureWindowAux::new().stack_mode(StackMode::ABOVE))
+				.map_err(input_failed)?
+				.check()
+				.map_err(input_failed)?;
+			self
+				.conn
+				.set_input_focus(InputFocus::PARENT, window, CURRENT_TIME)
+				.map_err(input_failed)?
+				.check()
+				.map_err(input_failed)?;
+			return self.conn.flush().map_err(input_failed);
+		}
 		let atom = self.intern("_NET_ACTIVE_WINDOW")?;
 		let event = ClientMessageEvent {
 			response_type: CLIENT_MESSAGE_EVENT,

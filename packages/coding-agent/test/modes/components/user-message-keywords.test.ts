@@ -42,6 +42,30 @@ describe("UserMessageComponent magic-keyword highlighting", () => {
 		expect(raw).not.toContain("orchestrate");
 	});
 
+	it("bold-paints the new keywords in the bubble without leaking bold into the rest of the line", () => {
+		const raw = render("ultragoon tokenmaxxing autobot the rollout now");
+		expect(Bun.stripANSI(raw)).toContain("ultragoon tokenmaxxing autobot the rollout now");
+		for (const keyword of ["ultragoon", "tokenmaxxing", "autobot"]) {
+			expect(raw).not.toContain(keyword);
+		}
+		// One bold-on / bold-off pair per painted keyword: an unbalanced pair would
+		// bleed the brighter weight across the remaining bubble text.
+		expect(countOccurrences(raw, "\x1b[1m")).toBe(3);
+		expect(countOccurrences(raw, "\x1b[22m")).toBe(3);
+	});
+
+	it("paints the new keywords through the live editor decoration path", () => {
+		const editor = new CustomEditor(getEditorTheme());
+		editor.magicKeywordsEnabledOverride = true;
+		editor.setText("ultragoon tokenmaxxing autobot this rewrite");
+		const raw = editor.render(80).join("\n");
+		expect(Bun.stripANSI(raw)).toContain("ultragoon tokenmaxxing autobot this rewrite");
+		for (const keyword of ["ultragoon", "tokenmaxxing", "autobot"]) {
+			expect(raw).not.toContain(keyword);
+		}
+		expect(countOccurrences(raw, "\x1b[1m")).toBe(3);
+	});
+
 	it("does not paint a keyword inside an inline code span", () => {
 		const raw = render("ship the `orchestrate` helper");
 		expect(Bun.stripANSI(raw)).toContain("orchestrate");

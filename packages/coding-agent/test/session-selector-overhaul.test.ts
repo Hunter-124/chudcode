@@ -3,13 +3,13 @@ import {
 	formatSessionRelativeTime,
 	getSessionTimeGroup,
 	RECENT_SESSION_LIMIT,
-	selectRecentSessions,
 	SessionSelectorComponent,
+	selectRecentSessions,
 } from "@oh-my-pi/pi-coding-agent/modes/components/session-selector";
-import { executeBuiltinSlashCommand } from "@oh-my-pi/pi-coding-agent/slash-commands/builtin-registry";
-import type { InteractiveModeContext } from "@oh-my-pi/pi-coding-agent/modes/types";
 import { initTheme } from "@oh-my-pi/pi-coding-agent/modes/theme/theme";
+import type { InteractiveModeContext } from "@oh-my-pi/pi-coding-agent/modes/types";
 import type { SessionInfo } from "@oh-my-pi/pi-coding-agent/session/session-listing";
+import { executeBuiltinSlashCommand } from "@oh-my-pi/pi-coding-agent/slash-commands/builtin-registry";
 
 const NOW = new Date();
 
@@ -42,11 +42,20 @@ function renderPlain(selector: SessionSelectorComponent, width = 160): string {
 	return stripAnsi(selector.render(width).join("\n"));
 }
 
-function makeSelector(sessions: SessionInfo[], options: ConstructorParameters<typeof SessionSelectorComponent>[4] = {}) {
-	return new SessionSelectorComponent(sessions, () => {}, () => {}, () => {}, {
-		getTerminalRows: () => 40,
-		...options,
-	});
+function makeSelector(
+	sessions: SessionInfo[],
+	options: ConstructorParameters<typeof SessionSelectorComponent>[4] = {},
+) {
+	return new SessionSelectorComponent(
+		sessions,
+		() => {},
+		() => {},
+		() => {},
+		{
+			getTerminalRows: () => 40,
+			...options,
+		},
+	);
 }
 
 beforeAll(async () => {
@@ -68,7 +77,9 @@ describe("session time groups", () => {
 		const text = renderPlain(makeSelector([thirtyDays, fiveDays, yesterday, today]));
 		const headings = ["Today", "Yesterday", "Previous 7 days", "Older"];
 		for (const heading of headings) expect(text).toContain(heading);
-		expect(headings.map(heading => text.indexOf(heading))).toEqual([...headings].map(heading => text.indexOf(heading)).sort((a, b) => a - b));
+		expect(headings.map(heading => text.indexOf(heading))).toEqual(
+			[...headings].map(heading => text.indexOf(heading)).sort((a, b) => a - b),
+		);
 	});
 
 	it("maps rendered rows past headers to the exact clicked session", () => {
@@ -184,12 +195,18 @@ describe("session inline actions", () => {
 	it("forks the selected session and closes after success", async () => {
 		let forked: string | undefined;
 		let closed = 0;
-		const selector = new SessionSelectorComponent([session], () => {}, () => closed++, () => {}, {
-			onFork: async selected => {
-				forked = selected.id;
-				return true;
+		const selector = new SessionSelectorComponent(
+			[session],
+			() => {},
+			() => closed++,
+			() => {},
+			{
+				onFork: async selected => {
+					forked = selected.id;
+					return true;
+				},
 			},
-		});
+		);
 		selector.handleInput("\x06");
 		await Promise.resolve();
 		expect(forked).toBe("action");

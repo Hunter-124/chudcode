@@ -1,10 +1,7 @@
 import { afterEach, beforeAll, beforeEach, describe, expect, it } from "bun:test";
 import { resetSettingsForTest, Settings, settings } from "@oh-my-pi/pi-coding-agent/config/settings";
 import { isAdvancedSetting } from "@oh-my-pi/pi-coding-agent/config/settings-schema";
-import {
-	getAllSettingDefs,
-	getSettingDef,
-} from "@oh-my-pi/pi-coding-agent/modes/components/settings-defs";
+import { getAllSettingDefs, getSettingDef } from "@oh-my-pi/pi-coding-agent/modes/components/settings-defs";
 import { SettingsSelectorComponent } from "@oh-my-pi/pi-coding-agent/modes/components/settings-selector";
 import { initTheme } from "@oh-my-pi/pi-coding-agent/modes/theme/theme";
 
@@ -114,7 +111,6 @@ describe("settings accessibility", () => {
 		const rendered = Bun.stripANSI(component.render(120).join("\n"));
 		expect(rendered).toContain("Max Retry Delay");
 	});
-
 
 	it("flattens Basic groups while Advanced retains the section sidebar", () => {
 		const basic = Bun.stripANSI(createSelector().render(120).join("\n"));

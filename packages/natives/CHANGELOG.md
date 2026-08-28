@@ -2,6 +2,14 @@
 
 ## [Unreleased]
 
+### Added
+
+- Added explicit Linux X11 display-server targeting for session-owned virtual desktops.
+
+### Fixed
+
+- Fixed bare X servers omitting windows and focus without an EWMH window manager, bounded native input amplification, and retained timed-out desktop workers for later cleanup instead of detaching them.
+
 ## [18.0.8] - 2026-08-27
 
 ### Fixed

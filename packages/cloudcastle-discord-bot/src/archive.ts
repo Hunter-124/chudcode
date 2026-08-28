@@ -302,98 +302,13 @@ async function createDiscordRest(tokenFile: string | undefined): Promise<ReadOnl
 	return { get: (route, options) => client.get(route as `/${string}`, options) };
 }
 
-/**
- * Read a credential file only if no non-owner principal can read it. Exported
- * because the session bot loads its gateway token through exactly this guard:
- * one implementation of the Windows-DACL/POSIX-mode split, not two.
- */
-export async function readOwnerOnlyFile(filePath: string, label: string): Promise<string> {
+async function readOwnerOnlyFile(filePath: string, label: string): Promise<string> {
 	const stat = await fs.stat(filePath);
 	if (!stat.isFile()) throw new Error(`${label} file must be a regular file`);
-	if (process.platform === "win32") {
-		await assertWindowsOwnerOnly(filePath, label);
-	} else if ((stat.mode & 0o077) !== 0) {
-		throw new Error(`${label} file must not be accessible by group or other users`);
-	}
+	if ((stat.mode & 0o077) !== 0) throw new Error(`${label} file must not be accessible by group or other users`);
 	const value = (await fs.readFile(filePath, "utf8")).trim();
 	if (!value) throw new Error(`${label} file is empty`);
 	return value;
-}
-
-/** SDDL trustees equivalent to POSIX `root`: SYSTEM, BUILTIN\Administrators, OWNER RIGHTS. */
-const WINDOWS_ALLOWED_TRUSTEES: Record<string, true> = {
-	SY: true,
-	BA: true,
-	OW: true,
-	"S-1-5-18": true,
-	"S-1-5-32-544": true,
-};
-
-/** Emits the current user's SID on line 1 and the file's SDDL on line 2. The path travels
- *  via the environment so it never needs shell quoting. */
-const WINDOWS_ACL_SNIPPET =
-	"$ErrorActionPreference='Stop';" +
-	"[System.Security.Principal.WindowsIdentity]::GetCurrent().User.Value;" +
-	"(Get-Acl -LiteralPath $env:CC_SECRET_FILE).Sddl";
-
-/**
- * Trustees granted access by `sddl` that are neither the owner nor a platform
- * superuser. Deny ACEs are ignored: they only ever narrow access.
- */
-function offendingTrustees(sddl: string, ownerSid: string): string[] {
-	// The DACL runs from `D:` to the SACL (`S:`) or end of string; a SID never
-	// contains a colon, so this cannot split inside a trustee.
-	const dacl = /D:(.*?)(?:S:|$)/s.exec(sddl);
-	// No DACL means "grant everyone everything" in Windows security semantics.
-	if (!dacl) return ["<no DACL>"];
-	const offenders: string[] = [];
-	for (const ace of dacl[1].matchAll(/\(([^()]*)\)/g)) {
-		const fields = ace[1].split(";");
-		if (fields.length < 6) continue;
-		if (fields[0].trim().toUpperCase().startsWith("D")) continue;
-		const trustee = fields[5].trim().toUpperCase();
-		if (!trustee || trustee === ownerSid || WINDOWS_ALLOWED_TRUSTEES[trustee]) continue;
-		if (!offenders.includes(trustee)) offenders.push(trustee);
-	}
-	return offenders;
-}
-
-/**
- * Windows counterpart of the POSIX `mode & 0o077` check. `node:fs` synthesizes
- * POSIX bits on Windows -- a plain file always reports 0o666 and the strictest
- * value `chmod` can express is 0o444 -- so the POSIX test is not merely
- * imprecise there, it is unsatisfiable and rejects every file. The real
- * access-control record is the NTFS DACL, so read that instead.
- *
- * Fails closed: an ACL that cannot be read is treated as an exposure.
- */
-async function assertWindowsOwnerOnly(filePath: string, label: string): Promise<void> {
-	const child = Bun.spawn(["powershell.exe", "-NoProfile", "-NonInteractive", "-Command", WINDOWS_ACL_SNIPPET], {
-		stdin: "ignore",
-		stdout: "pipe",
-		stderr: "pipe",
-		env: { ...process.env, CC_SECRET_FILE: filePath },
-	});
-	const [stdout, stderr, code] = await Promise.all([
-		new Response(child.stdout).text(),
-		new Response(child.stderr).text(),
-		child.exited,
-	]);
-	if (code !== 0) {
-		throw new Error(`${label} file ACL could not be read: ${(stderr || stdout).trim() || "powershell failed"}`);
-	}
-	const lines = stdout
-		.split("\n")
-		.map(line => line.trim())
-		.filter(line => line.length > 0);
-	if (lines.length < 2) throw new Error(`${label} file ACL could not be read: unexpected powershell output`);
-	const offenders = offendingTrustees(lines[1], lines[0].toUpperCase());
-	if (offenders.length > 0) {
-		throw new Error(
-			`${label} file grants access to non-owner principals (${offenders.join(", ")}); restrict it with: ` +
-				`icacls "${filePath}" /inheritance:r /grant:r "%USERNAME%:R"`,
-		);
-	}
 }
 
 async function get(rest: ReadOnlyRest, route: string, query?: Record<string, string>): Promise<unknown> {
@@ -988,43 +903,13 @@ function uniqueAttachmentPath(
 	return relative;
 }
 
-const NTFS_RESERVED_STEMS: Record<string, true> = {
-	CON: true,
-	PRN: true,
-	AUX: true,
-	NUL: true,
-	COM0: true,
-	COM1: true,
-	COM2: true,
-	COM3: true,
-	COM4: true,
-	COM5: true,
-	COM6: true,
-	COM7: true,
-	COM8: true,
-	COM9: true,
-	LPT0: true,
-	LPT1: true,
-	LPT2: true,
-	LPT3: true,
-	LPT4: true,
-	LPT5: true,
-	LPT6: true,
-	LPT7: true,
-	LPT8: true,
-	LPT9: true,
-};
-
 function sanitizeFilename(filename: string): string {
 	const cleaned = filename
 		.normalize("NFKC")
-		.replace(/[\\/\0-\x1f\x7f<>:"|?*]+/g, "_")
+		.replace(/[\\/\0-\x1f\x7f]+/g, "_")
 		.replace(/^\.+/, "")
-		.replace(/[. ]+$/, "")
 		.trim();
-	const truncated = cleaned.slice(0, 180) || "attachment";
-	const stem = (truncated.split(".", 1)[0] ?? "").toUpperCase();
-	return NTFS_RESERVED_STEMS[stem] ? `_${truncated}` : truncated;
+	return cleaned.slice(0, 180) || "attachment";
 }
 
 function slug(name: string): string {

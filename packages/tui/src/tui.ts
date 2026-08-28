@@ -2869,7 +2869,10 @@ export class TUI extends Container {
 		this.#forceViewportRepaintOnNextRender = false;
 		screen.beginFrame(height);
 		for (let r = 0; r < height; r++) {
-			screen.setRow(r, this.#lineRewriteSequence(fitted[r], width, r, -1, -1, this.#osc66SpacerGlyphWidth(fitted, r)));
+			screen.setRow(
+				r,
+				this.#lineRewriteSequence(fitted[r], width, r, -1, -1, this.#osc66SpacerGlyphWidth(fitted, r)),
+			);
 		}
 		const frame = screen.flush(this.#paintBeginSequence, this.#paintEndSequence);
 		if (frame === undefined) return;

@@ -21,12 +21,19 @@ export interface GradientHighlightSpec {
 	highlight: RegExp;
 	/** Number of color stops swept across the gradient. */
 	stops: number;
-	/** Maps a normalized position `t` in [0, 1) to an HSL hue in degrees. */
+	/** Maps a normalized position `t` in [0, 1) to an HSL hue in degrees. Must stay within [0, 360). */
 	hue: (t: number) => number;
 	/** HSL saturation percentage. Default 90. */
 	saturation?: number;
 	/** HSL lightness percentage. Default 62. */
 	lightness?: number;
+	/**
+	 * Multiplier applied to the incoming animation `phase`, so one keyword can
+	 * shimmer faster than the host's frame cadence implies. Default 1.
+	 */
+	phaseScale?: number;
+	/** Wrap each painted match in SGR bold for a brighter glow. Default false. */
+	bold?: boolean;
 }
 
 /**
@@ -37,7 +44,7 @@ export interface GradientHighlightSpec {
  * memoized per active color mode.
  */
 export function createGradientHighlighter(spec: GradientHighlightSpec): KeywordHighlighter {
-	const { probe, highlight, stops, hue, saturation = 90, lightness = 62 } = spec;
+	const { probe, highlight, stops, hue, saturation = 90, lightness = 62, phaseScale = 1, bold = false } = spec;
 
 	let cachedMode: string | undefined;
 	let cachedPalette: readonly string[] | undefined;
@@ -76,13 +83,15 @@ export function createGradientHighlighter(spec: GradientHighlightSpec): KeywordH
 			}
 			out += word[i];
 		}
-		return `${out}${resetTo}`;
+		return bold ? `\x1b[1m${out}\x1b[22m${resetTo}` : `${out}${resetTo}`;
 	};
 
 	return (text: string, resetTo: string = FG_RESET, phase: number = 0): string => {
 		if (!probe.test(text)) return text;
 		// Wrap phase into [0, 1) so negative inputs and values ≥ 1 stay well-defined.
-		const wrappedPhase = ((phase % 1) + 1) % 1;
+		// `phaseScale` is applied first: a faster sweep is a faster wrap, not a wider range.
+		const scaled = phase * phaseScale;
+		const wrappedPhase = ((scaled % 1) + 1) % 1;
 		// Match against a code/markup-masked copy so keywords inside code spans,
 		// fenced blocks, or XML sections never paint; indices still address `text`.
 		const masked = maskNonProse(text);

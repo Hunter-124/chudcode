@@ -97,25 +97,13 @@ export function formatExecutionSourcePreview(source: string): string {
 	return oneLine(source);
 }
 
-/**
- * Join the text blocks of a string-or-blocks content field.
- *
- * Without `counter`, an image block becomes the literal `[image]` (byte-identical
- * to the pre-numbering render — used by every caller outside the main transcript
- * render, e.g. `formatToolResultErrorPreview`). With `counter`, each image block
- * becomes `[image #N]` where N is `counter.next` (post-incremented), so the token
- * cross-references the matching row in `history://<id>/images`
- * ({@link collectSessionImages} walks the same content in the same order).
- */
-function contentToText(
-	content: string | readonly (TextContent | ImageContent)[],
-	counter?: { next: number },
-): string {
+/** Join the text blocks of a string-or-blocks content field. Images become `[image]`. */
+function contentToText(content: string | readonly (TextContent | ImageContent)[]): string {
 	if (typeof content === "string") return content;
 	const parts: string[] = [];
 	for (const block of content) {
 		if (block.type === "text") parts.push(block.text);
-		else parts.push(counter ? `[image #${counter.next++}]` : "[image]");
+		else parts.push("[image]");
 	}
 	return parts.join("\n");
 }
@@ -209,18 +197,13 @@ function toolCallLine(
 	result: ToolResultMessage | undefined,
 	includeToolIntent?: boolean,
 	expandEditDiffs?: boolean,
-	counter?: { next: number },
 ): string {
 	const head = `→ ${name}(${formatToolCallPrimaryArg(name, args)})`;
 	let base: string;
 	if (!result) {
 		base = `${head} ⇒ pending`;
 	} else {
-		// Threaded through so an image inside a tool result still advances the
-		// shared counter (keeping later `[image #N]` tokens correct), even though
-		// the numbered token itself is discarded here — only the line count
-		// survives into the rendered `⇒ ok · N lines` line.
-		const text = contentToText(result.content, counter);
+		const text = contentToText(result.content);
 		const lines = lineCount(text);
 		const count = `${lines} ${lines === 1 ? "line" : "lines"}`;
 		if (result.isError) {
@@ -334,11 +317,6 @@ export function formatSessionHistoryMarkdown(messages: unknown[], opts?: History
 		resultsByCallId = local;
 	}
 	const consumed = opts?.consumedToolCallIds ?? new Set<string>();
-	// One counter for the whole render: every `[image]` token becomes
-	// `[image #N]`, numbered in the same encounter order `collectSessionImages`
-	// (session-images.ts) uses, so a reader can cross-reference a token here
-	// with the matching row in `history://<id>/images`.
-	const imageCounter = { next: 1 };
 	// In watched mode, consecutive same-role messages collapse under one label
 	// (the watched agent emits one assistant message per tool call, so otherwise
 	// every call repeats `**agent**:`). Cleared whenever a
@@ -363,7 +341,7 @@ export function formatSessionHistoryMarkdown(messages: unknown[], opts?: History
 		switch (msg.role) {
 			case "user":
 			case "developer": {
-				const text = contentToText(msg.content, imageCounter);
+				const text = contentToText(msg.content);
 				if (!text.trim()) break;
 				if (opts?.watchedRoles) {
 					const label = `**${msg.role}**:`;
@@ -388,14 +366,7 @@ export function formatSessionHistoryMarkdown(messages: unknown[], opts?: History
 						const result = resultsByCallId.get(block.id);
 						if (result) consumed.add(block.id);
 						body.push(
-							toolCallLine(
-								block.name,
-								block.arguments,
-								result,
-								opts?.includeToolIntent,
-								opts?.expandEditDiffs,
-								imageCounter,
-							),
+							toolCallLine(block.name, block.arguments, result, opts?.includeToolIntent, opts?.expandEditDiffs),
 						);
 					} else if (opts?.includeThinking && block.type === "thinking" && block.thinking.trim()) {
 						body.push(`_thinking:_ ${block.thinking}`);
@@ -419,10 +390,7 @@ export function formatSessionHistoryMarkdown(messages: unknown[], opts?: History
 			case "toolResult": {
 				// Normally consumed by its toolCall; orphans (e.g. truncated history) get their own line.
 				if (consumed.has(msg.toolCallId)) break;
-				lines.push(
-					toolCallLine(msg.toolName, undefined, msg, opts?.includeToolIntent, opts?.expandEditDiffs, imageCounter),
-					"",
-				);
+				lines.push(toolCallLine(msg.toolName, undefined, msg, opts?.includeToolIntent, opts?.expandEditDiffs), "");
 				lastWatchedLabel = undefined;
 				break;
 			}

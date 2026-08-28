@@ -11,6 +11,8 @@ export interface ComputerSessionSnapshot {
 	captureMaxWidth: number;
 	captureMaxHeight: number;
 	display: string;
+	/** Explicit X11 display server for a private stage; bypasses process-global display selection. */
+	displayServer?: string;
 	readOnly: boolean;
 }
 

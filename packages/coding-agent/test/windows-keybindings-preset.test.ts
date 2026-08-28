@@ -1,8 +1,6 @@
 import { afterEach, describe, expect, it } from "bun:test";
-import {
-	KeybindingsManager,
-	WINDOWS_KEYBINDINGS,
-} from "@oh-my-pi/pi-coding-agent/config/keybindings";
+import * as crypto from "node:crypto";
+import { KeybindingsManager, WINDOWS_KEYBINDINGS } from "@oh-my-pi/pi-coding-agent/config/keybindings";
 import { resetSettingsForTest, Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
 import { canonicalKeyId, parseKey } from "@oh-my-pi/pi-tui";
 
@@ -45,13 +43,14 @@ afterEach(() => {
 });
 
 describe("Windows keybinding preset", () => {
-	it("defaults the settings-selected preset to default", async () => {
+	it("defaults the settings-selected preset to Windows editing", async () => {
 		await Settings.init({ inMemory: true });
 		const missingAgentDir = `${process.cwd()}/.missing-default-keybindings-test`;
 		const keybindings = KeybindingsManager.create(missingAgentDir, { inheritedAgentDir: missingAgentDir });
 
-		expect(keybindings.getPreset()).toBe("default");
-		expect(keybindings.getKeys("tui.editor.selectAll")).toEqual([]);
+		expect(keybindings.getPreset()).toBe("windows");
+		expect(keybindings.getKeys("tui.editor.undo")).toContain("ctrl+z");
+		expect(keybindings.getKeys("app.suspend")).not.toContain("ctrl+z");
 	});
 
 	it("loads keybindings.preset from the settings configuration", async () => {
@@ -130,7 +129,7 @@ describe("Windows keybinding preset", () => {
 			Object.entries(resolved).filter(([action]) => !(action in NEW_ACTION_IDS)),
 		);
 		prePresetBindings["app.clipboard.pasteImage"] = "<platform-default>";
-		const digest = new Bun.CryptoHasher("sha256").update(JSON.stringify(prePresetBindings)).digest("hex");
+		const digest = crypto.createHash("sha256").update(JSON.stringify(prePresetBindings)).digest("hex");
 
 		expect(digest).toBe(PRESET_FREE_DEFAULT_BINDINGS_SHA256);
 		for (const action of Object.keys(NEW_UNBOUND_ACTION_IDS)) {

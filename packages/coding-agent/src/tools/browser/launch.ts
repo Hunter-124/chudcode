@@ -417,6 +417,18 @@ export interface LaunchHeadlessOptions {
 	args?: readonly string[];
 	/** Additional exact Puppeteer default arguments to suppress. */
 	ignoreDefaultArgs?: readonly string[];
+	/**
+	 * Environment overrides for the Chromium process — the private computer
+	 * stage's `DISPLAY`/`XAUTHORITY` and friends. Merged over `process.env`.
+	 */
+	env?: Readonly<Record<string, string>>;
+	/**
+	 * Variables to remove from the child environment. A stage that replaces the
+	 * inherited session must unset the variables Chromium would otherwise prefer
+	 * (e.g. `WAYLAND_DISPLAY` when the stage is an Xvfb `DISPLAY`), or the
+	 * browser lands on the real desktop instead of the private stage.
+	 */
+	unsetEnv?: readonly string[];
 }
 
 /** Result of a headless Chromium launch. */
@@ -482,6 +494,15 @@ export async function launchHeadlessBrowser(opts: LaunchHeadlessOptions): Promis
 		userDataDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), "omp-chrome-profile-"));
 		launchArgs.push(`--user-data-dir=${userDataDir}`);
 	}
+	// Puppeteer replaces the whole child environment when `env` is passed, so
+	// build it from `process.env` and apply the stage's overrides and removals.
+	// Left `undefined` when neither is requested, which keeps puppeteer's own
+	// `process.env` default.
+	let env: Record<string, string> | undefined;
+	if (opts.env || opts.unsetEnv?.length) {
+		env = { ...process.env, ...opts.env } as Record<string, string>;
+		for (const key of opts.unsetEnv ?? []) delete env[key];
+	}
 	try {
 		const executablePath = await ensureChromiumExecutable();
 		const browser = await puppeteer.launch({
@@ -492,6 +513,7 @@ export async function launchHeadlessBrowser(opts: LaunchHeadlessOptions): Promis
 			ignoreDefaultArgs: [
 				...new Set([...stealthIgnoreDefaultArgs(executablePath), ...(opts.ignoreDefaultArgs ?? [])]),
 			],
+			env,
 			protocolTimeout: BROWSER_PROTOCOL_TIMEOUT_MS,
 		});
 		return { browser, userDataDir };

@@ -134,6 +134,8 @@ The tool returns one result per call; no streaming partial output is emitted fro
    - `tab.ref(id)`
    - `tab.screenshot({ selector?, fullPage?, silent? })`
    - `tab.extract(format = "markdown")`
+   - `tab.scrape({ format?, selector?, includeLinks?, maxChars?, maxLinks? })`
+   - `tab.fetch(url, { method?, headers?, body?, maxBytes?, redirect? })`
    - `tab.click(selector)`
    - `tab.type(selector, text)`
    - `tab.fill(selector, value)`
@@ -171,7 +173,7 @@ The tool returns one result per call; no streaming partial output is emitted fro
   - **Headless**: attaches to one project-shared Chromium supervised by the daemon broker (`omp.browser.headless` / `omp.browser.headed` in `hub ps`), applies stealth patches, and creates a fresh page per tab. The daemon stops with the last Chudcode client in the project. Non-CLI hosts launch a private local Chromium instead.
   - **Spawned app (`app.path`)**: reuses an existing CDP-enabled process for that executable when possible; otherwise kills same-path processes, spawns the executable with remote debugging enabled, then attaches. No stealth patches are injected.
   - **Connected browser (`app.cdp_url`, or the `browser.cdpUrl` setting when the call carries no `app`)**: attaches to an already-running CDP endpoint. No process ownership; close only disconnects.
-  - **Chudcode Browser Relay (`app.relay`, or `browser.relay`)**: attaches to the user's own Chrome tabs through the loopback relay and its MV3 extension. Install once with `chudcode browser-relay install`. CLI hosts auto-start the fixed-port relay daemon for loopback URLs; a remote/custom relay must already be serving. The relay is a connected browser: no process ownership and no stealth patches. Without `app.target`, the visible usable tab is adopted without raising it; a matcher selects by URL/title substring.
+  - **Chudcode Browser Relay (`app.relay`, or `browser.relay`)**: attaches to the user's own Chrome tabs through the loopback relay and its MV3 extension. Install once with `chudcode browser-relay install`. CLI hosts auto-start the fixed-port relay daemon for loopback URLs; a remote/custom relay must already be serving. The relay is a connected browser: no process ownership and no stealth patches. Without `app.target`, the visible usable tab is adopted without raising it; a matcher selects by URL/title substring. DOM extraction, authenticated `tab.fetch()`, screenshots, accessibility snapshots, and raw Puppeteer/CDP operations use the same tab worker as managed Chromium.
   - **Cmux surface (`browser.cmux`)**: with no `app` and a cmux socket available (`CMUX_SOCKET_PATH`, enabled by the `browser.cmux` setting / `PI_BROWSER_CMUX` override), drives a cmux WKWebView surface over a unix-socket JSON-RPC client instead of Puppeteer. No Bun worker and no stealth patches; `open` opens a split (owning that surface), `run` executes via `runCmuxCode()`, and `close` issues `surface.close` for surfaces it owns (leaving the workspace's last surface open).
 - **Target selection for attached/spawned/relay browsers**
   - With `app.target`, `pickElectronTarget()` returns the first page whose URL or title contains the case-insensitive substring.
@@ -228,7 +230,9 @@ The tool returns one result per call; no streaming partial output is emitted fro
 - Screenshot model-attachment resize cap: `maxWidth 1024`, `maxHeight 1024`, `maxBytes 150 * 1024`, `jpegQuality 70` (`packages/coding-agent/src/tools/browser/tab-worker.ts`).
 - `tab.waitForUrl()` polling interval: `200` ms (`packages/coding-agent/src/tools/browser/tab-worker.ts`).
 - Drag simulation uses `12` mouse-move steps (`packages/coding-agent/src/tools/browser/tab-worker.ts`).
-- Per-op fail-fast ceilings (`packages/coding-agent/src/tools/browser/tab-worker.ts`): quick page reads (`observe`/`screenshot`/`extract`/`ariaSnapshot`) `min(cellBudget − 1s, 20s)`; interactive actions + default waits `min(cellBudget − 1s, 15s)`; an explicit `{ timeout }` on a `waitFor*` is clamped to `cellBudget − 1s` (`0`/`Infinity` → that bound). See `resolveOpTimeouts()` / `resolveWaitTimeout()`.
+- Structured scrapes retain at most 200,000 content characters and 200 unique HTTP(S) links by default. `maxChars` is hard-capped at 1,000,000 and `maxLinks` at 1,000.
+- `tab.fetch()` retains 1 MiB of decoded response data by default and at most 5 MiB. It cancels the response stream after the cap.
+- Per-op fail-fast ceilings (`packages/coding-agent/src/tools/browser/tab-worker.ts`): quick page reads (`observe`/`screenshot`/`extract`/`scrape`/`ariaSnapshot`) `min(cellBudget − 1s, 20s)`; authenticated page fetches can use the cell budget; interactive actions + default waits use `min(cellBudget − 1s, 15s)`. An explicit `{ timeout }` on a `waitFor*` is clamped to `cellBudget − 1s` (`0`/`Infinity` → that bound).
 
 ## Errors
 - `BrowserTool.execute()` converts DOM-style `AbortError` into `ToolAbortError`; other errors propagate.
@@ -258,6 +262,9 @@ The tool returns one result per call; no streaming partial output is emitted fro
 - Relay mode drives an existing user browser and receives no stealth patches. Anything that can reach the relay endpoint can drive logged-in tabs; the built-in server binds loopback, and an optional shared token gates the extension connection.
 - `applyStealthPatches()` also strips Puppeteer's `//# sourceURL=__puppeteer_evaluation_script__` suffix from CDP `Runtime.evaluate` / `Runtime.callFunctionOn` payloads.
 - `tab.extract()` reads `page.content()`, runs Readability first, then falls back to the first non-empty of `[data-pagefind-body]`/`main article`/`article`/`main`/`[role='main']`/`body`, and returns `null` if neither extraction path yields content.
+- `tab.scrape()` runs the same rendered-DOM extraction but returns bounded content, canonical/language metadata, and deduplicated absolute HTTP(S) links. A selector scopes both content and links.
+- `tab.fetch()` executes in the page realm with `credentials: "include"`, so relay, connected, and managed tabs can read same-origin APIs with that tab's cookies. Browser CORS still applies.
+- Stage-private headed Chromium profiles are deleted after their broker daemon confirms shutdown; the project-shared headless profile remains reusable.
 - `close(all: true, kill: false)` disconnects from spawned, connected, and relay browsers when the last managed tab is released but leaves their pages, spawned app processes, and the user's Chrome running. `kill: true` additionally terminates spawned-app processes; it never closes or kills connected or relay browsers.
 - Headless orphan cleanup is best-effort: if a worker dies before closing its page, the supervisor searches browser targets by `targetId` and closes that page. A worker killed mid-init (init budget exhausted, aborted open) is covered the same way through the target the worker reported in `page-created` — a killed worker can't clean up after itself, and a shared browser's other targets are never touched.
 - Console methods inside `run` do not appear in tool output; they are forwarded as debug/warn/error logs through the worker transport.

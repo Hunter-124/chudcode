@@ -3,8 +3,8 @@ import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
 import { Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
-import { ImageAnalyzeTool } from "@oh-my-pi/pi-coding-agent/tools/image-analyze";
 import type { ToolSession } from "@oh-my-pi/pi-coding-agent/tools";
+import { ImageAnalyzeTool } from "@oh-my-pi/pi-coding-agent/tools/image-analyze";
 import { ensureVisionModels } from "@oh-my-pi/pi-coding-agent/tools/vision/models";
 import { runVision } from "@oh-my-pi/pi-coding-agent/tools/vision/sidecar";
 
@@ -17,7 +17,9 @@ async function temporaryDirectory(): Promise<string> {
 }
 
 afterEach(async () => {
-	await Promise.all(temporaryDirectories.splice(0).map(directory => fs.rm(directory, { recursive: true, force: true })));
+	await Promise.all(
+		temporaryDirectories.splice(0).map(directory => fs.rm(directory, { recursive: true, force: true })),
+	);
 });
 
 describe("vision sidecar shim", () => {
@@ -41,23 +43,26 @@ describe("vision sidecar shim", () => {
 		expect(response).toEqual({ ok: true, ort: path.join(bundle, "libonnxruntime.so") });
 	});
 
-	it.skipIf(process.platform === "win32")("returns a precise offline provisioning hint for a missing model", async () => {
-		const root = await temporaryDirectory();
-		const sidecar = path.join(root, "pi-vision");
-		const sha = "a".repeat(64);
-		await fs.writeFile(
-			sidecar,
-			`#!/bin/sh\nprintf '%s\\n' '[{"id":"test","filename":"test.onnx","sha256":"${sha}","url":"https://example.invalid/test.onnx","bytes":4}]'\n`,
-			{ mode: 0o700 },
-		);
-		const result = await ensureVisionModels(["test"], {
-			binaryPath: sidecar,
-			modelDir: path.join(root, "models"),
-			autoDownload: false,
-		});
-		expect(result).toMatchObject({ ok: false, reason: "model_missing" });
-		if (!result.ok) expect(result.hint).toContain("vision.autoDownload=true");
-	});
+	it.skipIf(process.platform === "win32")(
+		"returns a precise offline provisioning hint for a missing model",
+		async () => {
+			const root = await temporaryDirectory();
+			const sidecar = path.join(root, "pi-vision");
+			const sha = "a".repeat(64);
+			await fs.writeFile(
+				sidecar,
+				`#!/bin/sh\nprintf '%s\\n' '[{"id":"test","filename":"test.onnx","sha256":"${sha}","url":"https://example.invalid/test.onnx","bytes":4}]'\n`,
+				{ mode: 0o700 },
+			);
+			const result = await ensureVisionModels(["test"], {
+				binaryPath: sidecar,
+				modelDir: path.join(root, "models"),
+				autoDownload: false,
+			});
+			expect(result).toMatchObject({ ok: false, reason: "model_missing" });
+			if (!result.ok) expect(result.hint).toContain("vision.autoDownload=true");
+		},
+	);
 
 	it("reports a configured missing sidecar without touching the input image", async () => {
 		const root = await temporaryDirectory();

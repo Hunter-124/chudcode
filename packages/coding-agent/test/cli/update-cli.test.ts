@@ -27,26 +27,18 @@ describe("runUpdateCommand fetch cancellation", () => {
 	});
 });
 
-describe("getLatestRelease rename pointers", () => {
+describe("getLatestRelease fork release channel", () => {
 	afterEach(() => {
 		vi.restoreAllMocks();
 	});
 
-	function stubRegistry(manifests: Record<string, unknown>): string[] {
+	function stubGithub(payload: unknown, init?: ResponseInit): string[] {
 		const urls: string[] = [];
 		const fetchStub = Object.assign(
 			async (input: FetchInput) => {
-				const url = String(input);
-				urls.push(url);
-				let manifest: unknown;
-				for (const pkg in manifests) {
-					if (url.includes(pkg)) {
-						manifest = manifests[pkg];
-						break;
-					}
-				}
-				if (!manifest) return new Response(null, { status: 404, statusText: "Not Found" });
-				return Response.json(manifest);
+				urls.push(String(input));
+				if (init) return new Response(null, init);
+				return Response.json(payload);
 			},
 			{ preconnect: globalThis.fetch.preconnect },
 		);
@@ -54,48 +46,57 @@ describe("getLatestRelease rename pointers", () => {
 		return urls;
 	}
 
-	it("follows omp.rename to the new package and resolves version, dist, and names from its manifest", async () => {
-		const urls = stubRegistry({
-			"@new/omp": { version: "999.1.0", omp: { dist: "npm" } },
-			"@oh-my-pi/pi-coding-agent": {
-				version: "999.0.0",
-				omp: { dist: "binary", rename: { package: "@new/omp", natives: "@new/natives" } },
-			},
-		});
+	it("reads the fork's own GitHub release and never the npm registry or upstream repo", async () => {
+		const urls = stubGithub({ tag_name: "v0.3.0", draft: false, prerelease: false });
 
 		const release = await getLatestRelease();
 
-		expect(release.version).toBe("999.1.0");
-		expect(release.dist).toBe("npm");
-		expect(release.packages).toEqual({ pkg: "@new/omp", natives: "@new/natives" });
-		expect(urls).toEqual([
-			"https://registry.npmjs.org/@oh-my-pi/pi-coding-agent/latest",
-			"https://registry.npmjs.org/@new/omp/latest",
+		expect(release.version).toBe("0.3.0");
+		expect(release.tag).toBe("v0.3.0");
+		// Binary distribution keeps the package-manager paths unreachable, so an
+		// update can never run `bun add @oh-my-pi/pi-coding-agent` over the fork.
+		expect(release.dist).toBe("binary");
+		expect(urls).toEqual(["https://api.github.com/repos/Hunter-124/chudcode/releases/latest"]);
+		expect(urls[0]).not.toContain("registry.npmjs.org");
+		expect(urls[0]).not.toContain("can1357");
+	});
+
+	it("refuses a prerelease on the stable channel", async () => {
+		stubGithub({ tag_name: "v0.4.0-rc.1", draft: false, prerelease: true });
+
+		await expect(getLatestRelease()).rejects.toThrow(/No published release/);
+	});
+
+	it("refuses a draft release", async () => {
+		stubGithub({ tag_name: "v0.4.0", draft: true, prerelease: false });
+
+		await expect(getLatestRelease()).rejects.toThrow(/No published release/);
+	});
+
+	it("takes the newest prerelease from the release list on the canary channel", async () => {
+		const urls = stubGithub([
+			{ tag_name: "v0.4.0-canary.2", draft: true, prerelease: true },
+			{ tag_name: "v0.4.0-canary.1", draft: false, prerelease: true },
+			{ tag_name: "v0.3.0", draft: false, prerelease: false },
 		]);
-	});
-	it("fetches the canary dist-tag when checking the canary channel", async () => {
-		const urls = stubRegistry({
-			"@oh-my-pi/pi-coding-agent": { version: "999.0.0-canary.1" },
-		});
 
-		await getLatestRelease({ channel: "canary" });
+		const release = await getLatestRelease({ channel: "canary" });
 
-		expect(urls).toEqual(["https://registry.npmjs.org/@oh-my-pi/pi-coding-agent/canary"]);
+		// The draft is skipped even on canary; drafts have no downloadable assets.
+		expect(release.version).toBe("0.4.0-canary.1");
+		expect(urls[0]).toContain("/releases?per_page=");
 	});
 
-	it("ignores a rename pointer that cycles back to an already-visited package", async () => {
-		const urls = stubRegistry({
-			"@oh-my-pi/pi-coding-agent": {
-				version: "999.0.0",
-				omp: { rename: { package: "@oh-my-pi/pi-coding-agent" } },
-			},
-		});
+	it("reports rate limiting as actionable guidance instead of a bare status", async () => {
+		stubGithub(null, { status: 403, statusText: "rate limit exceeded" });
 
-		const release = await getLatestRelease();
+		await expect(getLatestRelease()).rejects.toThrow(/GITHUB_TOKEN/);
+	});
 
-		expect(urls).toHaveLength(1);
-		expect(release.version).toBe("999.0.0");
-		expect(release.packages).toEqual({ pkg: "@oh-my-pi/pi-coding-agent", natives: "@oh-my-pi/pi-natives" });
+	it("reports a repository with no releases yet", async () => {
+		stubGithub(null, { status: 404, statusText: "Not Found" });
+
+		await expect(getLatestRelease()).rejects.toThrow(/No published release found/);
 	});
 });
 

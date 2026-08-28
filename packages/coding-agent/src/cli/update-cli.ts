@@ -10,13 +10,13 @@ import * as os from "node:os";
 import * as path from "node:path";
 import { Transform } from "node:stream";
 import { pipeline } from "node:stream/promises";
-import { $env, $which, compareVersions, isEnoent, VERSION } from "@oh-my-pi/pi-utils";
+import { $env, $which, compareVersions, isEnoent } from "@oh-my-pi/pi-utils";
 import chalk from "@oh-my-pi/pi-utils/chalk";
 import { withFileLock } from "@oh-my-pi/pi-utils/file-lock";
 import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import * as proc from "@oh-my-pi/pi-utils/proc";
 import { $ } from "bun";
-import { PRODUCT_CLI_NAME } from "../brand";
+import { PRODUCT_CLI_NAME, PRODUCT_NAME, PRODUCT_RELEASE_REPO, PRODUCT_SEMVER } from "../brand";
 import { settings } from "../config/settings";
 import { theme } from "../modes/theme/theme";
 import {
@@ -26,7 +26,20 @@ import {
 	withTimeoutSignal,
 } from "../utils/fetch-timeout";
 
-const REPO = "can1357/oh-my-pi";
+/**
+ * This fork's release source. Upstream (`can1357/oh-my-pi`) is deliberately not
+ * consulted: its versions are on an unrelated line (18.x vs this fork's 0.x) and
+ * its release assets are named `omp-*`, so pointing here at upstream made
+ * `chudcode update` offer upstream's 18.0.10 and then fail looking for a
+ * `chudcode-linux-x64` asset that upstream never publishes.
+ */
+const REPO = PRODUCT_RELEASE_REPO;
+/**
+ * The fork ships GitHub release binaries only — it is not published to any npm
+ * registry. These upstream coordinates remain for the package-manager code
+ * paths, which {@link getLatestRelease} keeps unreachable by always reporting a
+ * `binary` distribution.
+ */
 const PACKAGE = "@oh-my-pi/pi-coding-agent";
 const HOMEBREW_FORMULA = "can1357/tap/omp";
 const MISE_TOOL = "github:can1357/oh-my-pi";
@@ -85,11 +98,6 @@ export interface ReleasePackages {
 }
 
 /** Parsed `omp.rename` pointer: the new agent package name and optional new natives name. */
-export interface ReleaseRename {
-	pkg: string;
-	natives?: string;
-}
-
 const CURRENT_PACKAGES: ReleasePackages = { pkg: PACKAGE, natives: NATIVES_PACKAGE };
 
 export interface ReleaseInfo {
@@ -113,51 +121,6 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 	return typeof value === "object" && value !== null;
 }
 
-/**
- * Parse the `omp.dist` field from a published package manifest.
- *
- * Forward-compatibility contract with future releases: a release that is not
- * installable as an npm package (e.g. a native rewrite) publishes
- * `"omp": { "dist": "binary" }` in its package.json. Any value other than
- * "npm" — including values this updater does not know yet — maps to "binary"
- * so already-deployed updaters never run a package-manager install against a
- * release that no longer supports it.
- */
-export function resolveReleaseDist(manifest: unknown): ReleaseDist | undefined {
-	if (!isRecord(manifest) || !isRecord(manifest.omp)) return undefined;
-	const dist = manifest.omp.dist;
-	if (dist === undefined) return undefined;
-	return dist === "npm" ? "npm" : "binary";
-}
-
-/**
- * Parse the `omp.rename` pointer from a published package manifest.
- *
- * Forward-compatibility contract for renaming the npm package: the final
- * version published under an old name is a stub whose manifest carries
- * `"omp": { "rename": { "package": "<new-agent-pkg>", "natives": "<new-natives-pkg>" }, "dist": "binary" }`.
- * Updaters that understand `rename` follow the pointer and resolve the
- * release from the renamed package instead ({@link getLatestRelease});
- * older deployed updaters ignore it and take the `dist: "binary"` escape
- * hatch, replacing the install with the GitHub release binary rather than
- * installing the stub via bun/npm.
- *
- * The renamed package's own manifest MUST declare `"dist": "npm"` (so
- * package-manager installs stay package-managed across a major bump) and
- * MUST continue the old version line (a version reset would compare as
- * "already up to date" against the running build).
- */
-export function resolveReleaseRename(manifest: unknown): ReleaseRename | undefined {
-	if (!isRecord(manifest) || !isRecord(manifest.omp)) return undefined;
-	const rename = manifest.omp.rename;
-	if (!isRecord(rename) || typeof rename.package !== "string" || rename.package.length === 0) return undefined;
-	const natives = rename.natives;
-	return {
-		pkg: rename.package,
-		natives: typeof natives === "string" && natives.length > 0 ? natives : undefined,
-	};
-}
-
 function majorVersion(version: string): number {
 	const major = Number.parseInt(version, 10);
 	return Number.isNaN(major) ? 0 : major;
@@ -176,7 +139,7 @@ function majorVersion(version: string): number {
  */
 export function shouldForceBinaryUpdate(
 	release: { version: string; dist?: ReleaseDist },
-	currentVersion: string = VERSION,
+	currentVersion: string = PRODUCT_SEMVER,
 ): boolean {
 	if (release.dist !== undefined) return release.dist === "binary";
 	return majorVersion(release.version) > majorVersion(currentVersion);
@@ -758,73 +721,83 @@ async function resolveUpdateTarget(options: { allowPackageManagers: boolean }): 
 	throw new Error(`Could not resolve ${PRODUCT_CLI_NAME} binary path in PATH`);
 }
 
-/** Bound on `omp.rename` hops so a broken pointer chain cannot loop forever. */
-const MAX_RENAME_HOPS = 3;
-
-async function fetchLatestManifest(
-	pkg: string,
+/**
+ * Newest published release tag for this fork, read from its own GitHub releases.
+ *
+ * The fork is not on npm, so the registry cannot answer "what is the latest
+ * chudcode" — asking it returned upstream's version and produced an update
+ * prompt that could never install. GitHub's `releases/latest` already excludes
+ * drafts and prereleases, so the canary channel walks the release list instead
+ * and takes the newest entry.
+ */
+async function fetchLatestForkRelease(
 	timeoutMs: number,
 	channel: UpdateChannel,
-): Promise<{ version: string; manifest: Record<string, unknown> }> {
+): Promise<{ version: string; tag: string }> {
+	const endpoint =
+		channel === "canary"
+			? `${GITHUB_API}/repos/${REPO}/releases?per_page=10`
+			: `${GITHUB_API}/repos/${REPO}/releases/latest`;
+	const githubToken = $env.GITHUB_TOKEN || $env.GH_TOKEN;
 	let response: Response;
 	try {
-		response = await fetch(`${NPM_REGISTRY}${pkg}/${channel === "canary" ? "canary" : "latest"}`, {
+		response = await fetch(endpoint, {
+			headers: {
+				accept: "application/vnd.github+json",
+				...(githubToken ? { authorization: `Bearer ${githubToken}` } : {}),
+			},
 			signal: withTimeoutSignal(timeoutMs),
 		});
 	} catch (err) {
 		if (isTimeoutError(err)) {
-			throw new Error(`Timed out fetching release info for ${pkg} after ${Math.round(timeoutMs / 1000)}s`, {
+			throw new Error(`Timed out fetching release info for ${REPO} after ${Math.round(timeoutMs / 1000)}s`, {
 				cause: err,
 			});
 		}
 		if (isUnsupportedProxyError(err)) throw new Error(unsupportedProxyMessage(), { cause: err });
 		throw err;
 	}
+	if (response.status === 404) {
+		throw new Error(`No published release found for ${REPO}`);
+	}
+	if (response.status === 403 || response.status === 429) {
+		throw new Error(
+			"GitHub API rate limit exceeded while fetching release metadata; retry later or set GITHUB_TOKEN or GH_TOKEN",
+		);
+	}
 	if (!response.ok) {
-		if (response.status === 404 && channel === "canary") {
-			throw new Error(
-				`No canary release has been published for ${pkg} yet. Try \`${PRODUCT_CLI_NAME} update --stable\`.`,
-			);
-		}
-		throw new Error(`Failed to fetch release info for ${pkg}: ${response.statusText}`);
+		throw new Error(`Failed to fetch release info for ${REPO}: ${response.statusText}`);
 	}
 
 	const data: unknown = await response.json();
-	if (!isRecord(data) || typeof data.version !== "string") {
-		throw new Error(`Malformed npm registry response for ${pkg}: missing version`);
+	const candidates = Array.isArray(data) ? data : [data];
+	for (const entry of candidates) {
+		if (!isRecord(entry) || entry.draft === true) continue;
+		if (channel !== "canary" && entry.prerelease === true) continue;
+		const tag = entry.tag_name;
+		if (typeof tag !== "string" || !tag.startsWith("v")) continue;
+		return { version: tag.slice(1), tag };
 	}
-	return { version: data.version, manifest: data };
+	throw new Error(`No published release found for ${REPO}`);
 }
 
 /**
- * Get the latest release info from the npm registry, following `omp.rename`
- * pointers ({@link resolveReleaseRename}) when the package has moved to a new
- * npm name. Version, dist, and install names all come from the final manifest
- * in the chain. Uses npm instead of GitHub API to avoid unauthenticated rate
- * limiting.
+ * Latest release for this fork. `dist` is pinned to `binary` because the fork
+ * publishes GitHub release binaries only: without it, an install that looks
+ * package-managed would run `bun add @oh-my-pi/pi-coding-agent` and replace the
+ * fork with upstream.
  */
 export async function getLatestRelease(
 	options: { timeoutMs?: number; channel?: UpdateChannel } = {},
 ): Promise<ReleaseInfo> {
 	const timeoutMs = options.timeoutMs ?? RELEASE_METADATA_TIMEOUT_MS;
 	const channel = options.channel ?? "stable";
-	const packages: ReleasePackages = { ...CURRENT_PACKAGES };
-	const visited = new Set([packages.pkg]);
-	let latest = await fetchLatestManifest(packages.pkg, timeoutMs, channel);
-	for (let hop = 0; hop < MAX_RENAME_HOPS; hop++) {
-		const rename = resolveReleaseRename(latest.manifest);
-		if (!rename || visited.has(rename.pkg)) break;
-		visited.add(rename.pkg);
-		packages.pkg = rename.pkg;
-		if (rename.natives) packages.natives = rename.natives;
-		latest = await fetchLatestManifest(packages.pkg, timeoutMs, channel);
-	}
-
+	const latest = await fetchLatestForkRelease(timeoutMs, channel);
 	return {
-		tag: `v${latest.version}`,
+		tag: latest.tag,
 		version: latest.version,
-		dist: resolveReleaseDist(latest.manifest),
-		packages,
+		dist: "binary",
+		packages: { ...CURRENT_PACKAGES },
 	};
 }
 
@@ -1134,15 +1107,24 @@ function resolveOmpPath(): string | undefined {
 }
 
 /**
- * Parse the version a launcher reports from `chudcode --version` output
- * (`omp/X.Y.Z`, or a prerelease such as `omp/X.Y.Z-canary.1`).
+ * Parse the version a launcher reports from `chudcode --version` output.
+ *
+ * Two forms are accepted:
+ * - `Chudcode v0.2.0 (based on omp 18.0.8)` — this fork. The `v`-prefixed
+ *   product version is matched deliberately, never the trailing upstream base:
+ *   the updater compares against the fork's release line, so reading `18.0.8`
+ *   out of the suffix would fail verification on every successful install and
+ *   roll the new binary straight back.
+ * - `omp/18.0.8` — the upstream `name/version` form, still emitted by
+ *   omp-branded launchers a user may be upgrading from.
  *
  * The prerelease suffix is preserved so a correctly installed canary build
  * verifies as up to date instead of appearing to report a stale `X.Y.Z` and
  * being mistaken for an unreplaced launcher.
  */
 export function parseReportedVersion(output: string): string | undefined {
-	return output.match(/\/(\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?)/)?.[1];
+	const semver = String.raw`\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?`;
+	return output.match(new RegExp(String.raw`\bv(${semver})`))?.[1] ?? output.match(new RegExp(`/(${semver})`))?.[1];
 }
 
 /**
@@ -1949,7 +1931,7 @@ export async function runUpdateCommand(opts: {
 	check: boolean;
 	channel?: UpdateChannel;
 }): Promise<void> {
-	console.log(chalk.dim(`Current version: ${VERSION}`));
+	console.log(chalk.dim(`Current version: ${PRODUCT_SEMVER}`));
 	const persistedChannel = readPersistedChannel() ?? "stable";
 	const channel = opts.channel ?? persistedChannel;
 	const isChannelSwitch = opts.channel !== undefined && opts.channel !== persistedChannel;
@@ -1964,7 +1946,7 @@ export async function runUpdateCommand(opts: {
 		process.exit(1);
 	}
 
-	const comparison = compareVersions(release.version, VERSION);
+	const comparison = compareVersions(release.version, PRODUCT_SEMVER);
 
 	if (comparison <= 0 && !opts.force && !isChannelSwitch) {
 		const icon = theme?.status?.success ?? "✔";
@@ -1975,7 +1957,7 @@ export async function runUpdateCommand(opts: {
 	if (isChannelSwitch) {
 		console.log(
 			chalk.yellow(
-				`Switching to ${channel} ${release.version}${comparison <= 0 ? ` (downgrade from ${VERSION})` : ""}`,
+				`Switching to ${channel} ${release.version}${comparison <= 0 ? ` (downgrade from ${PRODUCT_SEMVER})` : ""}`,
 			),
 		);
 	} else if (comparison > 0) {
@@ -2004,15 +1986,18 @@ export async function runUpdateCommand(opts: {
 			console.log(chalk.yellow("Canary updates are only supported for bun, npm, or binary installs."));
 			return;
 		}
-		if (target.method === "nix") {
-			console.log(chalk.yellow("This installation is managed by Nix and cannot update itself."));
-			console.log(chalk.dim("Update the flake input or profile that provides omp, then rebuild."));
+		// Homebrew, mise and Nix all resolve *upstream* omp — this fork has no tap,
+		// no mise tool and no flake. Updating through them would silently replace
+		// chudcode with can1357/oh-my-pi, so they are refused outright rather than
+		// routed.
+		if (target.method === "nix" || target.method === "brew" || target.method === "mise") {
+			console.log(
+				chalk.yellow(`This install is managed by ${target.method}, which does not distribute ${PRODUCT_NAME}.`),
+			);
+			console.log(chalk.dim(`Install the release binary from https://github.com/${REPO}/releases instead.`));
 			return;
-		} else if (target.method === "brew") {
-			await updateViaHomebrew(release.version, opts.force);
-		} else if (target.method === "mise") {
-			await updateViaMise(release.version, opts.force);
-		} else if (target.method === "bun" || target.method === "npm") {
+		}
+		if (target.method === "bun" || target.method === "npm") {
 			if (forceBinary) {
 				// Reachable in forced mode only through a Windows script
 				// launcher resolved from PATH (the bun/npm bin-dir probes are

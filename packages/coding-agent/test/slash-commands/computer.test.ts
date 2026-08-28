@@ -26,6 +26,10 @@ function acpRuntime(options?: {
 }) {
 	const store = {
 		"computer.enabled": options?.enabled ?? false,
+		"computer.surface": "auto",
+		"computer.stageWidth": 1920,
+		"computer.stageHeight": 1080,
+		"computer.viewer": "off",
 		"computer.display": "all",
 		"computer.maxWidth": 1920,
 		"computer.maxHeight": 1200,
@@ -73,9 +77,9 @@ function acpRuntime(options?: {
 }
 
 const googleStatus =
-	"Computer use: enabled · tool: active · exposure: function · model: google/gemini-2.5-flash · configured: display=all, maxWidth=1920, maxHeight=1200 · capabilities: session not started";
+	"Computer use: enabled · tool: active · exposure: function · model: google/gemini-2.5-flash · configured: surface=auto, stage=1920x1080, viewer=off, display=all, maxWidth=1920, maxHeight=1200 · capabilities: session not started";
 const codexStatus =
-	"Computer use: enabled · tool: active · exposure: function · model: openai-codex/gpt-5.6-sol · configured: display=all, maxWidth=1920, maxHeight=1200 · capabilities: session not started";
+	"Computer use: enabled · tool: active · exposure: function · model: openai-codex/gpt-5.6-sol · configured: surface=auto, stage=1920x1080, viewer=off, display=all, maxWidth=1920, maxHeight=1200 · capabilities: session not started";
 
 describe("/computer slash command", () => {
 	it("toggles a disabled session on and reports that its lazy session has not started", async () => {
@@ -122,7 +126,7 @@ describe("/computer slash command", () => {
 		h.store["computer.maxHeight"] = 900;
 		await executeAcpBuiltinSlashCommand("/computer status", h.runtime);
 		expect(h.output).toHaveBeenCalledWith(
-			"Computer use: enabled · tool: active · exposure: function · model: google/gemini-2.5-flash · configured: display=display-2, maxWidth=1600, maxHeight=900 · capabilities: backend=quartz/CoreGraphics, capture=true (granted), input=true (granted), ax=true (granted), backgroundWindowInput=true, deliveryModes=background,foreground",
+			"Computer use: enabled · tool: active · exposure: function · model: google/gemini-2.5-flash · configured: surface=auto, stage=1920x1080, viewer=off, display=display-2, maxWidth=1600, maxHeight=900 · capabilities: backend=quartz/CoreGraphics, capture=true (granted), input=true (granted), ax=true (granted), backgroundWindowInput=true, deliveryModes=background,foreground",
 		);
 	});
 

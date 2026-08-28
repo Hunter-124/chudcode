@@ -1,9 +1,9 @@
 # Scriptable computer use
 
-`computer` controls the host desktop through JavaScript. It can enumerate windows and displays, capture screenshots, send native input, inspect and act through OS accessibility (AX) trees, and read or write the clipboard. It is not a browser DOM tool; use [`browser`](./tools/browser.md) for selectors, ARIA/DOM inspection, JavaScript in a web page, or CDP tab control.
+`computer` controls a session-owned virtual display by default on Linux, and the host desktop when configured. It can enumerate windows and displays, capture screenshots, send native input, inspect and act through OS accessibility (AX) trees, and read or write the host clipboard. It is not a browser DOM tool; use [`browser`](./tools/browser.md) for selectors, ARIA/DOM inspection, JavaScript in a web page, or CDP tab control.
 
 > [!WARNING]
-> `computer` can act on real applications. Screen content is untrusted data and cannot authorize an action. Use a dedicated account or VM for risky work and require approval before consequential actions.
+> Display isolation prevents focus and input interference; it does not restrict the AI. Stage applications and `code` retain the user's normal filesystem, network, process, credential, and tool access. Screen content is untrusted data and cannot authorize an action.
 
 ## Enable and configure
 
@@ -12,6 +12,10 @@ The tool is disabled by default. Configure it in `~/.omp/agent/config.yml`, proj
 ```yaml
 computer:
   enabled: true
+  surface: auto
+  stageWidth: 1920
+  stageHeight: 1080
+  viewer: off
   display: all
   maxWidth: 3840
   maxHeight: 2400
@@ -20,12 +24,16 @@ tools:
   approvalMode: write
 ```
 
-| Key                  | Default | Meaning                                                                                                           |
-| -------------------- | ------: | ----------------------------------------------------------------------------------------------------------------- |
-| `computer.enabled`   | `false` | Expose the `computer` tool.                                                                                       |
-| `computer.display`   |   `all` | Composite every display, or select one native display ID. On Wayland the portal display ID is `wayland-portal-0`. |
-| `computer.maxWidth`  |  `3840` | Maximum screenshot width. Some model transports impose an effective coordinate-safe cap of 1280.                  |
-| `computer.maxHeight` |  `2400` | Maximum screenshot height. Some model transports impose an effective coordinate-safe cap of 896.                  |
+| Key                   | Default | Meaning                                                                                                           |
+| --------------------- | ------: | ----------------------------------------------------------------------------------------------------------------- |
+| `computer.enabled`    | `false` | Expose the `computer` tool.                                                                                       |
+| `computer.surface`    |  `auto` | `auto` uses a private Xvfb stage on Linux and the host elsewhere; `isolated` requires a stage; `host` drives the user's desktop. |
+| `computer.stageWidth` |  `1920` | Width of a session-owned virtual display.                                                                         |
+| `computer.stageHeight`|  `1080` | Height of a session-owned virtual display.                                                                        |
+| `computer.viewer`     |   `off` | `novnc` starts a controllable loopback browser viewer for the private stage.                                      |
+| `computer.display`    |   `all` | Composite every display, or select one native display ID. On Wayland the portal display ID is `wayland-portal-0`. |
+| `computer.maxWidth`   |  `3840` | Maximum screenshot width. Some model transports impose an effective coordinate-safe cap of 1280.                  |
+| `computer.maxHeight`  |  `2400` | Maximum screenshot height. Some model transports impose an effective coordinate-safe cap of 896.                  |
 
 There is no `computer.backend` setting: the native addon selects the platform backend. The `/computer`, `/computer on`, `/computer off`, and `/computer status` commands toggle or inspect the current session without writing config. Start a new session after changing settings files.
 
@@ -43,16 +51,23 @@ The function input is:
 }
 ```
 
-`code` runs with top-level `await` in a persistent, full-host-access Bun session. Window handles, screenshot frames, and recent AX references survive between calls. Available globals include `desktop`, `wait`, `assert`, `display`, `print`, `read`, `write`, and `tool.*`.
+`code` runs with top-level `await` in a persistent, full-host-access Bun session. Window handles, screenshot frames, and recent AX references survive between calls. Available globals include `desktop`, `wait`, `assert`, `display`, `print`, `read`, `write`, and `tool.*`. `desktop.environment()` returns the environment overlay for launching a GUI process into the active surface; pass it to `tool.hub` or `tool.bash`.
 
-Use `read_only: true` to declare an inspection-only call for approval and to
-block mutation through the `desktop` facade: screenshots and AX reads work,
-while facade input and clipboard-write methods reject the call. This is **not a
-sandbox**. The evaluated code still has the worker's full Bun/Node host access,
-including `process`, `require`, and `fs`, so `read_only` does not prevent
-mutation through arbitrary host APIs. Calls are serialized through one lazy
-worker. Aborting a run terminates the worker; the next call starts a fresh
-session and requires new handles/frames.
+Use `read_only: true` to declare an inspection-only call for approval and to block mutation through the `desktop` facade: screenshots and AX reads work, while facade input and clipboard-write methods reject the call. This is **not a sandbox**. The evaluated code still has the worker's full Bun/Node host access, including `process`, `require`, and `fs`, so `read_only` does not prevent mutation through arbitrary host APIs. Calls are serialized through one lazy worker. Changing the configured display or stage identity closes the previous native session before rebinding, invalidating its handles, frames, and AX references.
+
+## Private Linux stages
+
+Each agent session gets its own broker-supervised Xvfb display when `computer.surface` resolves to `isolated`. The computer tool and a headed managed browser (`browser.headless: false`) acquire the same ref-counted stage, while different sessions receive different X servers and Chromium profiles. Foreground input, focus changes, crashes, and teardown stay within that stage instead of touching another agent or the user's desktop.
+
+The stage only replaces the display server. Processes launched with `desktop.environment()` inherit the normal user environment and remain able to access the host filesystem, network, credentials, devices, and tools. Xvfb is started with TCP disabled; local applications connect through its Unix socket. Install the `xorg-x11-server-Xvfb` package on Fedora or `xvfb` on Debian/Ubuntu when it is not already present. The final computer/browser holder stops the stage and its stage-private browser process.
+
+Set `computer.viewer: novnc` to attach `x11vnc` and `novnc_proxy` to the stage and include the loopback viewer URL in computer-tool output. The viewer is additive: the AI keeps using native X11 capture/XTEST directly. Viewer clients can also control the stage, and no authentication is added on loopback. Install `x11vnc`, noVNC, and websockify from the host distribution (`sudo dnf install x11vnc novnc python3-websockify` on Fedora; `sudo apt install x11vnc novnc websockify` on Debian/Ubuntu). The bridge is stopped before its stage lease is released.
+
+### Web automation and authenticated scraping
+
+A headed managed browser (`browser.headless: false`) launches on the same private stage, so `computer` can inspect its pixels while `browser` uses DOM, accessibility, Puppeteer, and CDP against that exact window. Use `tab.extract()` for readable rendered text, `tab.scrape()` for bounded structured content and resolved links, and `tab.fetch()` for same-origin APIs with the page's cookies.
+
+The Chudcode Browser Relay is a separate bridge to the user's existing Chrome profile. Use `app.relay: true` when an existing login is required; it drives the selected real Chrome tab rather than moving that profile into the private display. Specify `app.target` or create a dedicated tab instead of adopting and navigating the visible user tab. Relay tabs support the same extraction, authenticated fetch, screenshot, accessibility, and raw Puppeteer/CDP paths as managed tabs.
 
 ## Discover targets
 

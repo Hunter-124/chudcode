@@ -15,21 +15,11 @@
  * URL forms:
  * - history:// - Index of all registry + on-disk agents (id, status, kind, last activity)
  * - history://<agentId> - Concise markdown transcript of that agent
- * - history://<agentId>/images - Table of every image in the transcript (#, role,
- *   mime, bytes, path), resolved to an on-disk path so a reader can `read` the
- *   pixels directly — internal resources cannot carry binary content.
- * - history://<agentId>/images/<n> - The on-disk path of the Nth (1-based) image
- *   as plain text, mirroring `artifact://`'s `sourcePath` convention.
  */
-import * as fs from "node:fs/promises";
-import * as path from "node:path";
-import { getBlobsDir, isEnoent } from "@oh-my-pi/pi-utils";
 import type { AgentRef } from "../registry/agent-registry";
 import { AgentRegistry } from "../registry/agent-registry";
 import { ensurePersistedRoster } from "../registry/persisted-agents";
-import { BlobStore, blobExtensionForImageMimeType, isBlobRef, parseBlobRef } from "../session/blob-store";
 import { formatSessionHistoryMarkdown } from "../session/session-history-format";
-import { collectSessionImages, type SessionImageRef } from "../session/session-images";
 import { loadSessionMessagesReadOnly } from "../session/session-loader";
 import { sessionFilesFromDisk } from "./registry-helpers";
 import type { InternalResource, InternalUrl, ProtocolHandler, ResolveContext, UrlCompletion } from "./types";
@@ -56,27 +46,6 @@ interface IndexEntry {
 }
 
 /**
- * A resolved agent's raw message array plus provenance, shared by the
- * transcript render and the `/images` routes so the message source (live
- * session, read-only session file, or disk-scanned fallback) is decided
- * exactly once per `resolve` call.
- */
-interface ResolvedTranscript {
-	messages: unknown[];
-	notes: string[];
-	sourcePath?: string;
-	title: string;
-}
-
-/** One image resolved to an on-disk path (or `missing` when its blob is gone). */
-interface ResolvedImagePath {
-	image: SessionImageRef;
-	path: string;
-	bytes: number;
-	missing: boolean;
-}
-
-/**
  * Handler for history:// URLs.
  *
  * Resolves agent ids against the global AgentRegistry, then falls back to
@@ -89,10 +58,24 @@ export class HistoryProtocolHandler implements ProtocolHandler {
 
 	async resolve(url: InternalUrl, context?: ResolveContext): Promise<InternalResource> {
 		const agentId = url.rawHost || url.hostname;
+		const registry = AgentRegistry.global();
+		// A caller resolving a possibly-parked id refreshes its own root's
+		// persisted roster first: a same-named parked ref restored by another
+		// root's scan must not be served (or listed as known) in its place.
+		// The refresh is latched per root, so a settled roster never re-scans.
+		let rootSessionFile: string | undefined;
+		if (agentId && context?.sessionFile) {
+			rootSessionFile = await ensurePersistedRoster(registry, context.sessionFile);
+		}
+		// On-disk fallbacks below scan the caller root's artifact directory
+		// first, so a same-named transcript restored by another root's scan
+		// never shadows this caller's own on-disk transcript.
+		const preferredArtifactDir = rootSessionFile?.slice(0, -".jsonl".length);
+		// Advisor transcripts are observability-only — surfaced in the Agent Hub, never
+		// in the agent-facing roster. Hide them from the index, lookup, and completions.
+		const visible = registry.list().filter(ref => ref.kind !== "advisor");
 
 		if (!agentId) {
-			const registry = AgentRegistry.global();
-			const visible = registry.list().filter(ref => ref.kind !== "advisor");
 			const content = await this.#renderIndex(visible);
 			return {
 				url: url.href,
@@ -101,104 +84,6 @@ export class HistoryProtocolHandler implements ProtocolHandler {
 				size: Buffer.byteLength(content, "utf-8"),
 			};
 		}
-
-		// Mirror agent://'s path-segment parsing (agent-protocol.ts): split the
-		// pathname on "/", drop empty segments (leading/trailing slashes), and
-		// best-effort decode each one so both schemes handle `/<path>` the same way.
-		const urlPath = url.pathname;
-		const hasSubPath = urlPath && urlPath !== "/" && urlPath !== "";
-		const pathSegments = hasSubPath
-			? urlPath
-					.split("/")
-					.filter(Boolean)
-					.map(segment => {
-						try {
-							return decodeURIComponent(segment);
-						} catch {
-							return segment;
-						}
-					})
-			: [];
-
-		const resolved = await this.#resolveMessages(agentId, context);
-
-		if (pathSegments.length === 0) {
-			const content = formatSessionHistoryMarkdown(resolved.messages, { title: resolved.title });
-			return {
-				url: url.href,
-				content,
-				contentType: "text/markdown",
-				size: Buffer.byteLength(content, "utf-8"),
-				sourcePath: resolved.sourcePath,
-				notes: resolved.notes,
-			};
-		}
-
-		if (pathSegments[0] === "images") {
-			const images = collectSessionImages(resolved.messages);
-
-			if (pathSegments.length === 1) {
-				const content = await this.#renderImagesListing(images);
-				return {
-					url: url.href,
-					content,
-					contentType: "text/markdown",
-					size: Buffer.byteLength(content, "utf-8"),
-					sourcePath: resolved.sourcePath,
-					notes: resolved.notes,
-				};
-			}
-
-			if (pathSegments.length === 2) {
-				const raw = pathSegments[1]!;
-				const n = /^\d+$/.test(raw) ? Number(raw) : Number.NaN;
-				if (!Number.isInteger(n) || n < 1 || n > images.length) {
-					const range = images.length > 0 ? `1-${images.length}` : "none (this transcript has no images)";
-					throw new Error(
-						`Invalid image index "${raw}" for history://${agentId}/images/<n>; valid range: ${range}`,
-					);
-				}
-				const resolvedImage = await this.#resolveImagePath(images[n - 1]!, getBlobsDir());
-				const content = resolvedImage.missing ? "(blob missing)" : resolvedImage.path;
-				return {
-					url: url.href,
-					content,
-					contentType: "text/plain",
-					size: Buffer.byteLength(content, "utf-8"),
-					sourcePath: resolvedImage.missing ? undefined : resolvedImage.path,
-				};
-			}
-		}
-
-		throw new Error(
-			`Unknown history:// sub-path: /${pathSegments.join("/")}\n` +
-				`Supported forms: history://<id>, history://<id>/images, history://<id>/images/<n>`,
-		);
-	}
-
-	/**
-	 * Resolve `agentId` to its raw message array plus provenance, shared
-	 * verbatim by the transcript render (`resolve`'s no-sub-path branch) and
-	 * the `/images` routes — the message source (live session, read-only
-	 * session file, or disk-scanned fallback) is decided exactly once.
-	 */
-	async #resolveMessages(agentId: string, context?: ResolveContext): Promise<ResolvedTranscript> {
-		const registry = AgentRegistry.global();
-		// A caller resolving a possibly-parked id refreshes its own root's
-		// persisted roster first: a same-named parked ref restored by another
-		// root's scan must not be served (or listed as known) in its place.
-		// The refresh is latched per root, so a settled roster never re-scans.
-		let rootSessionFile: string | undefined;
-		if (context?.sessionFile) {
-			rootSessionFile = await ensurePersistedRoster(registry, context.sessionFile);
-		}
-		// On-disk fallbacks below scan the caller root's artifact directory
-		// first, so a same-named transcript restored by another root's scan
-		// never shadows this caller's own on-disk transcript.
-		const preferredArtifactDir = rootSessionFile?.slice(0, -".jsonl".length);
-		// Advisor transcripts are observability-only — surfaced in the Agent Hub, never
-		// in the agent-facing roster. Hide them from lookup.
-		const visible = registry.list().filter(ref => ref.kind !== "advisor");
 
 		let ref = registry.get(agentId);
 		if (ref?.kind === "advisor") ref = undefined;
@@ -212,7 +97,7 @@ export class HistoryProtocolHandler implements ProtocolHandler {
 			// Registry miss — the agent may have been unregistered or lost on resume.
 			// Serve its transcript straight from disk if the session file persists.
 			const disk = await this.#resolveFromDisk(agentId, preferredArtifactDir);
-			if (disk) return disk;
+			if (disk) return { ...disk, url: url.href };
 
 			const known = visible.map(candidate => candidate.id);
 			const knownStr = known.length > 0 ? known.join(", ") : "none";
@@ -231,21 +116,29 @@ export class HistoryProtocolHandler implements ProtocolHandler {
 			// No live session and no retained sessionFile — try the disk scan before
 			// giving up, in case the transcript lingers under an artifacts dir.
 			const disk = await this.#resolveFromDisk(ref.id, preferredArtifactDir);
-			if (disk) return disk;
+			if (disk) return { ...disk, url: url.href };
 			throw new Error(`Agent ${ref.id} has no transcript: session is gone and no session file was retained`);
 		}
 
-		return { messages, notes, sourcePath: ref.sessionFile ?? undefined, title: `${ref.id} (${ref.status})` };
+		const content = formatSessionHistoryMarkdown(messages, { title: `${ref.id} (${ref.status})` });
+		return {
+			url: url.href,
+			content,
+			contentType: "text/markdown",
+			size: Buffer.byteLength(content, "utf-8"),
+			sourcePath: ref.sessionFile ?? undefined,
+			notes,
+		};
 	}
 
 	/**
-	 * Load a transcript's raw messages for `agentId` from an on-disk `.jsonl`
-	 * session file, matched case-insensitively. Returns `undefined` when no
-	 * file is found. `preferredArtifactDir` — the caller root's artifact
-	 * directory, when known — is scanned before every registry-derived dir, so
-	 * a same-id transcript from another root cannot shadow the caller's own.
+	 * Load a transcript for `agentId` from an on-disk `.jsonl` session file,
+	 * matched case-insensitively. Returns `undefined` when no file is found.
+	 * `preferredArtifactDir` — the caller root's artifact directory, when
+	 * known — is scanned before every registry-derived dir, so a same-id
+	 * transcript from another root cannot shadow the caller's own.
 	 */
-	async #resolveFromDisk(agentId: string, preferredArtifactDir?: string): Promise<ResolvedTranscript | undefined> {
+	async #resolveFromDisk(agentId: string, preferredArtifactDir?: string): Promise<InternalResource | undefined> {
 		const files = await sessionFilesFromDisk(preferredArtifactDir);
 		const lower = agentId.toLowerCase();
 		let matchedId: string | undefined;
@@ -259,70 +152,15 @@ export class HistoryProtocolHandler implements ProtocolHandler {
 		}
 		if (!matchedId || !sessionFile) return undefined;
 		const messages = await loadSessionMessagesReadOnly(sessionFile);
+		const content = formatSessionHistoryMarkdown(messages, { title: `${matchedId} (on disk)` });
 		return {
-			messages,
-			notes: ["Source: session file (read-only, unregistered)"],
+			url: "",
+			content,
+			contentType: "text/markdown",
+			size: Buffer.byteLength(content, "utf-8"),
 			sourcePath: sessionFile,
-			title: `${matchedId} (on disk)`,
+			notes: ["Source: session file (read-only, unregistered)"],
 		};
-	}
-
-	/**
-	 * Render the `history://<id>/images` listing: one row per image, resolved
-	 * to an on-disk path. A dead blob renders `(blob missing)` rather than
-	 * failing the whole listing (one stale reference must not hide every
-	 * other image).
-	 */
-	async #renderImagesListing(images: SessionImageRef[]): Promise<string> {
-		if (images.length === 0) {
-			return "No images in this transcript.\n";
-		}
-		const blobsDir = getBlobsDir();
-		const resolved = await Promise.all(images.map(image => this.#resolveImagePath(image, blobsDir)));
-		const lines: string[] = ["| # | role | mime | bytes | path |", "|---|---|---|---|---|"];
-		for (const entry of resolved) {
-			const bytes = entry.missing ? "—" : String(entry.bytes);
-			const pathCell = entry.missing ? "(blob missing)" : entry.path;
-			lines.push(`| ${entry.image.index} | ${entry.image.role} | ${entry.image.mimeType} | ${bytes} | ${pathCell} |`);
-		}
-		lines.push("", "Read an image with `read <path>` — internal resources cannot carry binary content.");
-		return `${lines.join("\n")}\n`;
-	}
-
-	/**
-	 * Resolve a single image to an on-disk path and byte size.
-	 *
-	 * `blob:sha256:<hash>` references resolve into the (process-global) blob
-	 * store: the extension-suffixed display path is preferred when present on
-	 * disk (so OS/`read` type-detection works), falling back to the canonical
-	 * hashed path; a blob absent from disk entirely resolves as `missing`
-	 * rather than throwing. Anything else is treated as inline base64 and
-	 * materialized into the blob store (idempotent — content-addressed).
-	 */
-	async #resolveImagePath(image: SessionImageRef, blobsDir: string): Promise<ResolvedImagePath> {
-		if (isBlobRef(image.data)) {
-			const hash = parseBlobRef(image.data);
-			if (!hash) return { image, path: "", bytes: 0, missing: true };
-
-			const canonicalPath = path.join(blobsDir, hash);
-			const extension = blobExtensionForImageMimeType(image.mimeType);
-			const displayPath = extension ? `${canonicalPath}.${extension}` : canonicalPath;
-			for (const candidate of displayPath === canonicalPath ? [canonicalPath] : [displayPath, canonicalPath]) {
-				try {
-					const stat = await fs.stat(candidate);
-					return { image, path: candidate, bytes: stat.size, missing: false };
-				} catch (err) {
-					if (!isEnoent(err)) throw err;
-				}
-			}
-			return { image, path: "", bytes: 0, missing: true };
-		}
-
-		const buffer = Buffer.from(image.data, "base64");
-		const result = await new BlobStore(blobsDir).put(buffer, {
-			extension: blobExtensionForImageMimeType(image.mimeType),
-		});
-		return { image, path: result.displayPath, bytes: buffer.length, missing: false };
 	}
 
 	async #renderIndex(refs: AgentRef[]): Promise<string> {

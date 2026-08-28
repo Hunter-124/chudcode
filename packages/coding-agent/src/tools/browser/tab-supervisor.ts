@@ -721,8 +721,10 @@ export async function releaseAllTabs(opts: ReleaseTabOptions = {}): Promise<numb
 	return count;
 }
 
-export async function dropHeadlessTabs(): Promise<void> {
-	const names = [...tabs.values()].filter(tab => tab.kindTag === "headless").map(tab => tab.name);
+export async function dropHeadlessTabs(ownerSessionId?: string): Promise<void> {
+	const names = [...tabs.values()]
+		.filter(tab => tab.kindTag === "headless" && (!ownerSessionId || tab.ownerSessionId === ownerSessionId))
+		.map(tab => tab.name);
 	for (const name of names) await releaseTab(name);
 }
 

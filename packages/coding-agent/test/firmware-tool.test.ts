@@ -3,8 +3,8 @@ import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
 import { Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
-import { FirmwareTool } from "@oh-my-pi/pi-coding-agent/tools/firmware";
 import type { ToolSession } from "@oh-my-pi/pi-coding-agent/tools";
+import { FirmwareTool } from "@oh-my-pi/pi-coding-agent/tools/firmware";
 
 const temporaryDirectories: string[] = [];
 
@@ -19,7 +19,9 @@ function jsonResult(result: { content: Array<{ type: string; text?: string }> })
 }
 
 afterEach(async () => {
-	await Promise.all(temporaryDirectories.splice(0).map(directory => fs.rm(directory, { recursive: true, force: true })));
+	await Promise.all(
+		temporaryDirectories.splice(0).map(directory => fs.rm(directory, { recursive: true, force: true })),
+	);
 });
 
 describe("firmware tool", () => {
@@ -27,7 +29,11 @@ describe("firmware tool", () => {
 		const response = jsonResult(await tool(process.cwd()).execute("status", { action: "status" }));
 		expect(response.ok).toBe(true);
 		expect(response.families).toMatchObject({
-			"cortex-m": { can_build: expect.any(Boolean), can_emulate: expect.any(Boolean), can_flash: expect.any(Boolean) },
+			"cortex-m": {
+				can_build: expect.any(Boolean),
+				can_emulate: expect.any(Boolean),
+				can_flash: expect.any(Boolean),
+			},
 			esp32: { can_build: expect.any(Boolean), can_emulate: false },
 			arduino: { can_build: expect.any(Boolean), can_emulate: false },
 		});
@@ -47,7 +53,9 @@ describe("firmware tool", () => {
 		expect(response).toMatchObject({ ok: true, family: "cortex-m", dir: path.join(parent, "hello") });
 		const cmake = await fs.readFile(path.join(parent, "hello", "CMakeLists.txt"), "utf8");
 		expect(cmake).toContain("CMAKE_EXPORT_COMPILE_COMMANDS ON");
-		expect(JSON.parse(await fs.readFile(path.join(parent, "hello", "compile_commands.json"), "utf8"))).toHaveLength(2);
+		expect(JSON.parse(await fs.readFile(path.join(parent, "hello", "compile_commands.json"), "utf8"))).toHaveLength(
+			2,
+		);
 	});
 
 	it("always prompts before flashing physical hardware", () => {

@@ -67,6 +67,9 @@ export const MAGIC_KEYWORD_NOTICE_TYPES: Record<string, true> = {
 	"ultrathink-notice": true,
 	"orchestrate-notice": true,
 	"workflow-notice": true,
+	"ultragoon-notice": true,
+	"tokenmaxxing-notice": true,
+	"autobot-notice": true,
 };
 
 /** Hidden companion carrying vision descriptions for a text-only model. */

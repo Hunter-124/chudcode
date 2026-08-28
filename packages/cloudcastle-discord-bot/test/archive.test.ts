@@ -207,7 +207,7 @@ describe("exportGuild", () => {
 				return undefined;
 			},
 		);
-		const fetchImpl = (async (input: Request | string | URL) => {
+		const fetchImpl = (async (input: RequestInfo | URL) => {
 			expect(String(input)).toBe("https://cdn.discordapp.com/attachments/proof");
 			return new Response("exact attachment bytes\n", { status: 200 });
 		}) as typeof fetch;
@@ -220,44 +220,6 @@ describe("exportGuild", () => {
 		expect(attachment?.size).toBe(bytes.length);
 		expect(attachment?.sha256).toBe(createHash("sha256").update(bytes).digest("hex"));
 		expect(new Uint8Array(await fs.readFile(path.join(outputDir, attachment?.relative_path ?? "")))).toEqual(bytes);
-	});
-
-	test("sanitizes NTFS-illegal attachment filenames and reserved device names before writing to disk", async () => {
-		const outputDir = await temporaryDirectory();
-		const bytes = new TextEncoder().encode("ntfs safe bytes\n");
-		const rest = baseRest(
-			[{ id: "10", type: 5, name: "updates", parent_id: null, permission_overwrites: [] }],
-			route => {
-				if (route !== "/channels/10/messages") return undefined;
-				return [
-					message("20", "10", {
-						attachments: [
-							{
-								id: "30",
-								filename: 'weird?name<x>:"|*.png',
-								size: bytes.length,
-								url: "https://cdn.discordapp.com/attachments/illegal",
-							},
-							{
-								id: "31",
-								filename: "CON.txt",
-								size: bytes.length,
-								url: "https://cdn.discordapp.com/attachments/reserved",
-							},
-						],
-					}),
-				];
-			},
-		);
-		const fetchImpl = (async (_input: Request | string | URL) => new Response(bytes, { status: 200 })) as typeof fetch;
-
-		const manifest = await exportGuild({ guildId: "1", outputDir, dependencies: dependencies(rest, fetchImpl) });
-		const [illegal, reserved] = manifest.scopes[0]?.attachments ?? [];
-
-		expect(illegal?.relative_path).toBe("attachments/10/20-weird_name_x_.png");
-		expect(reserved?.relative_path).toBe("attachments/10/20-_CON.txt");
-		expect(new Uint8Array(await fs.readFile(path.join(outputDir, illegal?.relative_path ?? "")))).toEqual(bytes);
-		expect(new Uint8Array(await fs.readFile(path.join(outputDir, reserved?.relative_path ?? "")))).toEqual(bytes);
 	});
 
 	test("redacts screened fields and preserves exact records in encrypted quarantine input", async () => {

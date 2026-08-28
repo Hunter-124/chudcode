@@ -1,5 +1,4 @@
 import { describe, expect, it } from "bun:test";
-import path from "node:path";
 import {
 	computeBackoffMs,
 	type DiagnosisRequest,
@@ -263,9 +262,7 @@ describe("normalization and bounded retry", () => {
 		};
 		const config = parseIncidentDispatcherConfig(env, "/srv/cloudcastle");
 		expect(config.pollIntervalMs).toBe(5_000);
-		// The dispatcher resolves the path, so the expectation must too: on Windows
-		// a rooted POSIX path gains the current drive letter and separators flip.
-		expect(config.statePath).toBe(path.resolve("/srv/cloudcastle", ".cloudcastle-incidents", "state.json"));
+		expect(config.statePath).toBe("/srv/cloudcastle/.cloudcastle-incidents/state.json");
 		expect(() =>
 			parseIncidentDispatcherConfig({ ...env, CLOUDCASTLE_INCIDENT_BASE_URL: "http://control.cloudcastle.example" }),
 		).toThrow("must use HTTPS");

@@ -103,13 +103,13 @@ const BRAND_RULES: readonly BrandRule[] = [
 	},
 	{
 		name: "display-name-slug",
-		pattern: /(?<![\/.@])\boh-my-pi\b(?!\/)/g,
+		pattern: /(?<![/.@])\boh-my-pi\b(?!\/)/g,
 		replacement: "Chudcode",
 		scope: "docs",
 	},
 	{
 		name: "cli-command-source-token",
-		pattern: /(?<!based on )(?<![\/.@-])\bomp\b(?=\s)/g,
+		pattern: /(?<!based on )(?<![/.@-])\bomp\b(?=\s)/g,
 		replacement: "chudcode",
 		scope: "source",
 	},
@@ -121,7 +121,7 @@ const BRAND_RULES: readonly BrandRule[] = [
 	},
 	{
 		name: "display-name-lowercase-docs",
-		pattern: /(?<!based on )(?<![\/.@#`-])\bomp\b(?![\/._-]|\s+legacy alias)/g,
+		pattern: /(?<!based on )(?<![/.@#`-])\bomp\b(?![/._-]|\s+legacy alias)/g,
 		replacement: "Chudcode",
 		scope: "docs",
 	},
@@ -163,7 +163,8 @@ function applies(rule: BrandRule, relativePath: string): boolean {
 	const docsPath = relativePath === "README.md" || relativePath.startsWith("docs/");
 	if (rule.scope === "docs") return docsPath;
 	if (rule.name === "cli-command-source-token") {
-		if (relativePath.endsWith("/cli/profile-alias.ts") || relativePath.endsWith("/commands/init-xdg.ts")) return false;
+		if (relativePath.endsWith("/cli/profile-alias.ts") || relativePath.endsWith("/commands/init-xdg.ts"))
+			return false;
 		const sourceRelativePath = relativePath.replace("packages/coding-agent/src/", "");
 		return (
 			sourceRelativePath.startsWith("cli/") ||
@@ -282,7 +283,8 @@ function main(): void {
 		const before = beforePreserved[item.name] ?? [];
 		const after = afterPreserved[item.name] ?? [];
 		const exactMatchesPreserved =
-			!item.exactMatches || (before.length === after.length && before.every((value, index) => value === after[index]));
+			!item.exactMatches ||
+			(before.length === after.length && before.every((value, index) => value === after[index]));
 		const ok = before.length === after.length && exactMatchesPreserved;
 		preserved &&= ok;
 		process.stdout.write(`  ${item.name}: ${before.length} -> ${after.length} ${ok ? "OK" : "CHANGED"}\n`);

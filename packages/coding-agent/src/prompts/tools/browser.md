@@ -7,10 +7,12 @@ Drives real Chromium tab; full puppeteer access via JS.
 
 - `tab` helpers (drop to raw puppeteer `page` for anything uncovered):
   Element handles: `tab.ref("e5")` / `tab.id(n)` return a handle you call methods on directly — `(await tab.id(n)).click()`. Handles are NOT selectors: `tab.click`/`type`/`fill`/`waitFor*` take STRING selectors only. Snapshot refs work in any selector slot: `tab.click("e5")` ≡ `tab.click("aria-ref=e5")`.
-  Simple: `tab.goto`, `tab.click`, `tab.type`, `tab.fill`, `tab.press`, `tab.scroll`, `tab.scrollIntoView`, `tab.drag`, `tab.uploadFile`, `tab.select`, `tab.screenshot`, `tab.extract`, `tab.evaluate`.
+  Simple: `tab.goto`, `tab.click`, `tab.type`, `tab.fill`, `tab.press`, `tab.scroll`, `tab.scrollIntoView`, `tab.drag`, `tab.uploadFile`, `tab.select`, `tab.screenshot`, `tab.extract`, `tab.scrape`, `tab.fetch`, `tab.evaluate`.
   Screenshots: `tab.screenshot({ selector?, fullPage?, silent? })` saves to `browser.screenshotDir`, or OS temp when unset, then returns the path. It NEVER accepts a path.
   Waits: `tab.waitFor`, `tab.waitForSelector`, `tab.waitForUrl`, `tab.waitForResponse`, `tab.waitForNavigation`.
   Snapshots: `tab.observe()` → accessibility tree; `tab.ariaSnapshot()` → ARIA YAML with `[ref=eN]`.
+  Scraping: `tab.extract("markdown"|"text")` → readable content. `tab.scrape({ format?, selector?, includeLinks?, maxChars?, maxLinks? })` → bounded rendered content + metadata + resolved links.
+  Authenticated HTTP: `tab.fetch(url, { method?, headers?, body?, maxBytes?, redirect? })` uses the page's cookies and origin. Page CORS still applies; use `read` for public cross-origin content.
 
   Gotchas:
   - `tab.fill` NEVER works for `<select>` — use `tab.select`.

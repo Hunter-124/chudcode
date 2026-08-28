@@ -4,6 +4,13 @@ import * as nodeFs from "node:fs";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
+import {
+	PRODUCT_CLI_NAME,
+	PRODUCT_NAME,
+	PRODUCT_RELEASE_REPO,
+	PRODUCT_SEMVER,
+	PRODUCT_VERSION,
+} from "@oh-my-pi/pi-coding-agent/brand";
 import * as pluginCli from "@oh-my-pi/pi-coding-agent/cli/plugin-cli";
 import * as updateCli from "@oh-my-pi/pi-coding-agent/cli/update-cli";
 import {
@@ -26,8 +33,6 @@ import {
 	replaceBinaryForUpdate,
 	resolveBunGlobalNodeModulesDirFromLocations,
 	resolveReleaseBinaryAsset,
-	resolveReleaseDist,
-	resolveReleaseRename,
 	resolveUpdateMethodForTest,
 	resolveUpdateTargetFromPath,
 	shouldForceBinaryUpdate,
@@ -131,6 +136,21 @@ describe("parseReportedVersion", () => {
 		expect(parseReportedVersion("omp/18.0.6-canary.1")).toBe("18.0.6-canary.1");
 		expect(parseReportedVersion("omp/18.0.5")).toBe("18.0.5");
 		expect(parseReportedVersion("not a version")).toBeUndefined();
+	});
+
+	it("reads the product version from this fork's --version banner, not the upstream base", () => {
+		// Regression: the rebranded banner has no `name/version` form at all, so
+		// the old parser returned undefined for every real binary — the updater
+		// downloaded the new build, failed verification, and rolled back.
+		// Matching the trailing `18.0.8` would fail verification just as surely.
+		expect(parseReportedVersion(`${PRODUCT_NAME} v0.2.0 (based on omp 18.0.8)`)).toBe("0.2.0");
+		expect(parseReportedVersion(`${PRODUCT_NAME} v0.4.0-canary.1 (based on omp 18.0.8)`)).toBe("0.4.0-canary.1");
+	});
+
+	it("matches the banner the shipping binary actually prints", async () => {
+		// The updater parses this exact stdout to decide whether a downloaded
+		// binary installed correctly, so the two must never drift apart.
+		expect(parseReportedVersion(PRODUCT_VERSION)).toBe(PRODUCT_SEMVER);
 	});
 });
 
@@ -448,21 +468,6 @@ describe("update-cli package manager commands", () => {
 });
 
 describe("update-cli npm rename contract", () => {
-	it("parses a well-formed omp.rename pointer and rejects malformed ones", () => {
-		expect(resolveReleaseRename({ omp: { rename: { package: "@new/omp", natives: "@new/natives" } } })).toEqual({
-			pkg: "@new/omp",
-			natives: "@new/natives",
-		});
-		expect(resolveReleaseRename({ omp: { rename: { package: "@new/omp" } } })).toEqual({
-			pkg: "@new/omp",
-			natives: undefined,
-		});
-		expect(resolveReleaseRename({ omp: { rename: { package: "" } } })).toBeUndefined();
-		expect(resolveReleaseRename({ omp: { rename: "@new/omp" } })).toBeUndefined();
-		expect(resolveReleaseRename({ omp: {} })).toBeUndefined();
-		expect(resolveReleaseRename(undefined)).toBeUndefined();
-	});
-
 	it("installs renamed package names in lock-step, with no old-name leftovers in the argv", () => {
 		const packages = { pkg: "@new/omp", natives: "@new/natives" };
 
@@ -775,7 +780,7 @@ describe("update-cli bun cache pruning", () => {
 describe("update-cli release binary integrity", () => {
 	const tag = "v17.1.2";
 	const binaryName = "omp-linux-x64";
-	const url = `https://github.com/can1357/oh-my-pi/releases/download/${tag}/${binaryName}`;
+	const url = `https://github.com/${PRODUCT_RELEASE_REPO}/releases/download/${tag}/${binaryName}`;
 	const content = "verified binary";
 	const digest = `sha256:${createHash("sha256").update(content).digest("hex")}`;
 
@@ -1029,7 +1034,7 @@ describe("update-cli binary replacement", () => {
 				expectedVersion: "15.1.8",
 				verifyInstalledVersion: async () => ({ ok: false, path: targetPath }),
 			}),
-		).rejects.toThrow("restored previous omp binary");
+		).rejects.toThrow(`restored previous ${PRODUCT_CLI_NAME} binary`);
 
 		expect(await fsx.readText(targetPath)).toBe("old binary");
 		expect(await fsx.exists(tempPath)).toBe(false);
@@ -1086,7 +1091,7 @@ describe("update-cli binary replacement on locked backups", () => {
 		// the running process image, so unlinking it throws EPERM. That cleanup
 		// failure must not turn a verified swap into "Update failed" (issue #845).
 		const dir = await makeTempDir();
-		const targetPath = path.join(dir, "omp.exe");
+		const targetPath = path.join(dir, `${PRODUCT_CLI_NAME}.exe`);
 		const tempPath = `${targetPath}.new`;
 		const backupPath = `${targetPath}.1700000000000.4242.bak`;
 		await fsx.write(targetPath, "old binary");
@@ -1125,7 +1130,7 @@ describe("update-cli binary replacement on locked backups", () => {
 describe("update-cli stale update artifact sweep", () => {
 	it("reclaims timestamped and legacy backups and orphaned temps while sparing in-progress temps and unrelated files", async () => {
 		const dir = await makeTempDir();
-		const targetPath = path.join(dir, "omp.exe");
+		const targetPath = path.join(dir, `${PRODUCT_CLI_NAME}.exe`);
 		await fsx.write(targetPath, "current binary");
 		await fsx.write(`${targetPath}.bak`, "legacy backup");
 		await fsx.write(`${targetPath}.1700000000000.4242.bak`, "timestamped backup");
@@ -1161,21 +1166,6 @@ describe("update-cli stale update artifact sweep", () => {
 });
 
 describe("update-cli binary-only release gating", () => {
-	it("honors an explicit omp.dist field from the registry manifest", () => {
-		expect(resolveReleaseDist({ omp: { dist: "binary" } })).toBe("binary");
-		expect(resolveReleaseDist({ omp: { dist: "npm" } })).toBe("npm");
-	});
-
-	it("treats unknown dist values as binary-only", () => {
-		expect(resolveReleaseDist({ omp: { dist: "cargo" } })).toBe("binary");
-	});
-
-	it("returns undefined when the manifest carries no dist field", () => {
-		expect(resolveReleaseDist({ version: "1.2.3" })).toBeUndefined();
-		expect(resolveReleaseDist({ omp: {} })).toBeUndefined();
-		expect(resolveReleaseDist(undefined)).toBeUndefined();
-	});
-
 	it("forces binary updates when dist is binary regardless of version", () => {
 		expect(shouldForceBinaryUpdate({ version: "1.2.3", dist: "binary" }, "1.2.2")).toBe(true);
 	});
@@ -1198,7 +1188,7 @@ describe("update-cli binary-only release gating", () => {
 describe("update-cli script-shim takeover", () => {
 	const version = "18.0.0";
 	const binaryName = "omp-windows-x64.exe";
-	const url = `https://github.com/can1357/oh-my-pi/releases/download/v${version}/${binaryName}`;
+	const url = `https://github.com/${PRODUCT_RELEASE_REPO}/releases/download/v${version}/${binaryName}`;
 
 	function makeFetch(content: string, prerelease = false): (input: string | URL | Request) => Promise<Response> {
 		const digest = `sha256:${createHash("sha256").update(content).digest("hex")}`;
@@ -1228,9 +1218,9 @@ describe("update-cli script-shim takeover", () => {
 	}
 
 	const shims: Record<string, string> = {
-		omp: "#!/bin/sh\nnode omp.js\n",
-		"omp.cmd": "@node omp.js %*\n",
-		"omp.ps1": "node omp.js @args\n",
+		[PRODUCT_CLI_NAME]: "#!/bin/sh\nnode launcher.js\n",
+		[`${PRODUCT_CLI_NAME}.cmd`]: "@node launcher.js %*\n",
+		[`${PRODUCT_CLI_NAME}.ps1`]: "node launcher.js @args\n",
 	};
 
 	async function writeShims(dir: string): Promise<void> {
@@ -1239,7 +1229,7 @@ describe("update-cli script-shim takeover", () => {
 		}
 	}
 
-	it("installs omp.exe beside the shims and retires them", async () => {
+	it("installs the product .exe beside the shims and retires them", async () => {
 		const dir = await makeTempDir();
 		await writeShims(dir);
 		// Real executable, no injected verifier: the takeover must verify the
@@ -1247,13 +1237,13 @@ describe("update-cli script-shim takeover", () => {
 		// renamed away, so a PATH re-resolution would fail here.
 		const exe = `#!/bin/sh\necho omp/${version}\n`;
 
-		await updateViaShimTakeover(path.join(dir, "omp.cmd"), version, {
+		await updateViaShimTakeover(path.join(dir, `${PRODUCT_CLI_NAME}.cmd`), version, {
 			binaryName,
 			fetchImpl: makeFetch(exe),
 			githubToken: "test-token",
 		});
 
-		expect(await fsx.readText(path.join(dir, "omp.exe"))).toBe(exe);
+		expect(await fsx.readText(path.join(dir, `${PRODUCT_CLI_NAME}.exe`))).toBe(exe);
 		for (const name in shims) {
 			expect(await fsx.exists(path.join(dir, name))).toBe(false);
 		}
@@ -1269,23 +1259,23 @@ describe("update-cli script-shim takeover", () => {
 		// A canary release is published as a prerelease: without opt-in the
 		// takeover refuses the asset and leaves the shims intact.
 		await expect(
-			updateViaShimTakeover(path.join(dir, "omp.cmd"), version, {
+			updateViaShimTakeover(path.join(dir, `${PRODUCT_CLI_NAME}.cmd`), version, {
 				binaryName,
 				fetchImpl: makeFetch(exe, true),
 				githubToken: "test-token",
 			}),
 		).rejects.toThrow("is a prerelease");
-		expect(await fsx.exists(path.join(dir, "omp.exe"))).toBe(false);
+		expect(await fsx.exists(path.join(dir, `${PRODUCT_CLI_NAME}.exe`))).toBe(false);
 
 		// allowPrerelease threads through to the asset resolver, so the canary
 		// exe installs and the shims are retired.
-		await updateViaShimTakeover(path.join(dir, "omp.cmd"), version, {
+		await updateViaShimTakeover(path.join(dir, `${PRODUCT_CLI_NAME}.cmd`), version, {
 			binaryName,
 			fetchImpl: makeFetch(exe, true),
 			allowPrerelease: true,
 			githubToken: "test-token",
 		});
-		expect(await fsx.readText(path.join(dir, "omp.exe"))).toBe(exe);
+		expect(await fsx.readText(path.join(dir, `${PRODUCT_CLI_NAME}.exe`))).toBe(exe);
 	});
 
 	it("drops bun's launcher metadata when the standalone binary takes the .exe over", async () => {
@@ -1294,8 +1284,8 @@ describe("update-cli script-shim takeover", () => {
 		// the next update through `bun install -g`, which cannot overwrite the
 		// running `.exe` and would pin the install to the old version.
 		const dir = await makeTempDir();
-		const targetPath = path.join(dir, "omp.exe");
-		const marker = path.join(dir, "omp.bunx");
+		const targetPath = path.join(dir, `${PRODUCT_CLI_NAME}.exe`);
+		const marker = path.join(dir, `${PRODUCT_CLI_NAME}.bunx`);
 		await fsx.write(targetPath, "bun shim");
 		await fsx.write(marker, "bun launcher metadata");
 		const exe = `#!/bin/sh\necho omp/${version}\n`;
@@ -1318,14 +1308,14 @@ describe("update-cli script-shim takeover", () => {
 		const exe = "#!/bin/sh\necho omp/17.2.12\n";
 
 		await expect(
-			updateViaShimTakeover(path.join(dir, "omp.cmd"), version, {
+			updateViaShimTakeover(path.join(dir, `${PRODUCT_CLI_NAME}.cmd`), version, {
 				binaryName,
 				fetchImpl: makeFetch(exe),
 				githubToken: "test-token",
 			}),
-		).rejects.toThrow(/still reports 17\.2\.12 \(expected 18\.0\.0\); restored previous omp launcher/);
+		).rejects.toThrow(`still reports 17.2.12 (expected 18.0.0); restored previous ${PRODUCT_CLI_NAME} launcher`);
 
-		expect(await fsx.exists(path.join(dir, "omp.exe"))).toBe(false);
+		expect(await fsx.exists(path.join(dir, `${PRODUCT_CLI_NAME}.exe`))).toBe(false);
 		for (const name in shims) {
 			expect(await fsx.readText(path.join(dir, name))).toBe(shims[name]);
 		}
@@ -1336,7 +1326,7 @@ describe("update-cli script-shim takeover", () => {
 	function renameLockingPs1(): Mock<typeof nodeFs.promises.rename> {
 		const realRename = nodeFs.promises.rename;
 		return spyOn(nodeFs.promises, "rename").mockImplementation(async (from, to) => {
-			if (path.basename(String(from)) === "omp.ps1") {
+			if (path.basename(String(from)) === `${PRODUCT_CLI_NAME}.ps1`) {
 				throw Object.assign(new Error("EPERM: file is locked"), { code: "EPERM" });
 			}
 			return await realRename(from, to);
@@ -1349,7 +1339,7 @@ describe("update-cli script-shim takeover", () => {
 		const exe = `#!/bin/sh\necho omp/${version}\n`;
 		const renameSpy = renameLockingPs1();
 		try {
-			await updateViaShimTakeover(path.join(dir, "omp.cmd"), version, {
+			await updateViaShimTakeover(path.join(dir, `${PRODUCT_CLI_NAME}.cmd`), version, {
 				binaryName,
 				fetchImpl: makeFetch(exe),
 				githubToken: "test-token",
@@ -1358,12 +1348,14 @@ describe("update-cli script-shim takeover", () => {
 			renameSpy.mockRestore();
 		}
 
-		expect(await fsx.readText(path.join(dir, "omp.exe"))).toBe(exe);
+		expect(await fsx.readText(path.join(dir, `${PRODUCT_CLI_NAME}.exe`))).toBe(exe);
 		expect(await fsx.exists(path.join(dir, "omp"))).toBe(false);
-		expect(await fsx.exists(path.join(dir, "omp.cmd"))).toBe(false);
+		expect(await fsx.exists(path.join(dir, `${PRODUCT_CLI_NAME}.cmd`))).toBe(false);
 		// PowerShell resolves .ps1 before .exe: the locked shim must now exec
 		// the new binary instead of keeping its old body.
-		expect(await fsx.readText(path.join(dir, "omp.ps1"))).toContain('& "$PSScriptRoot\\omp.exe" @args');
+		expect(await fsx.readText(path.join(dir, `${PRODUCT_CLI_NAME}.ps1`))).toContain(
+			`& "$PSScriptRoot\\${PRODUCT_CLI_NAME}.exe" @args`,
+		);
 	});
 
 	it("restores a forwarded shim's original body when verification fails", async () => {
@@ -1373,17 +1365,17 @@ describe("update-cli script-shim takeover", () => {
 		const renameSpy = renameLockingPs1();
 		try {
 			await expect(
-				updateViaShimTakeover(path.join(dir, "omp.cmd"), version, {
+				updateViaShimTakeover(path.join(dir, `${PRODUCT_CLI_NAME}.cmd`), version, {
 					binaryName,
 					fetchImpl: makeFetch(exe),
 					githubToken: "test-token",
 				}),
-			).rejects.toThrow("restored previous omp launcher");
+			).rejects.toThrow(`restored previous ${PRODUCT_CLI_NAME} launcher`);
 		} finally {
 			renameSpy.mockRestore();
 		}
 
-		expect(await fsx.exists(path.join(dir, "omp.exe"))).toBe(false);
+		expect(await fsx.exists(path.join(dir, `${PRODUCT_CLI_NAME}.exe`))).toBe(false);
 		for (const name in shims) {
 			expect(await fsx.readText(path.join(dir, name))).toBe(shims[name]);
 		}
@@ -1393,7 +1385,7 @@ describe("update-cli script-shim takeover", () => {
 describe("update-cli concurrent binary updates", () => {
 	const version = "999.0.0";
 	const binaryName = "omp-linux-x64";
-	const url = `https://github.com/can1357/oh-my-pi/releases/download/v${version}/${binaryName}`;
+	const url = `https://github.com/${PRODUCT_RELEASE_REPO}/releases/download/v${version}/${binaryName}`;
 	const payload = Buffer.alloc(2048, 0x41);
 	const digest = `sha256:${createHash("sha256").update(payload).digest("hex")}`;
 

@@ -3,9 +3,9 @@ import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
 import { Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
+import type { ToolSession } from "@oh-my-pi/pi-coding-agent/tools";
 import { BinaryInspectTool } from "@oh-my-pi/pi-coding-agent/tools/binary-inspect";
 import { CppRuntimeTool } from "@oh-my-pi/pi-coding-agent/tools/cpp-runtime";
-import type { ToolSession } from "@oh-my-pi/pi-coding-agent/tools";
 
 const temporaryDirectories: string[] = [];
 const hasSanitizerToolchain = Boolean(Bun.which("clang") && Bun.which("cmake") && Bun.which("addr2line"));
@@ -22,7 +22,9 @@ function jsonResult(result: { content: Array<{ type: string; text?: string }> })
 }
 
 afterEach(async () => {
-	await Promise.all(temporaryDirectories.splice(0).map(directory => fs.rm(directory, { recursive: true, force: true })));
+	await Promise.all(
+		temporaryDirectories.splice(0).map(directory => fs.rm(directory, { recursive: true, force: true })),
+	);
 });
 
 describe("native analyzer tools", () => {
@@ -35,7 +37,7 @@ describe("native analyzer tools", () => {
 		);
 		await fs.writeFile(
 			path.join(root, "uaf.c"),
-			"#include <stdlib.h>\n#include <stdio.h>\nint main(void){int *p=malloc(sizeof *p);*p=7;free(p);printf(\"%d\\n\",*p);}\n",
+			'#include <stdlib.h>\n#include <stdio.h>\nint main(void){int *p=malloc(sizeof *p);*p=7;free(p);printf("%d\\n",*p);}\n',
 		);
 
 		const tool = new CppRuntimeTool(session(root));

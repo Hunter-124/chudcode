@@ -2,9 +2,9 @@ import { describe, expect, it } from "bun:test";
 import type { AgentMessage } from "@oh-my-pi/pi-agent-core";
 import type { AssistantMessage, Model, Usage } from "@oh-my-pi/pi-ai";
 import { buildModel } from "@oh-my-pi/pi-catalog/build";
-import { buildCacheReportText } from "@oh-my-pi/pi-coding-agent/slash-commands/helpers/cache-report";
-import { lookupBuiltinSlashCommand } from "@oh-my-pi/pi-coding-agent/slash-commands/builtin-registry";
 import { mapModelsDevToModels } from "@oh-my-pi/pi-catalog/provider-models/openai-compat";
+import { lookupBuiltinSlashCommand } from "@oh-my-pi/pi-coding-agent/slash-commands/builtin-registry";
+import { buildCacheReportText } from "@oh-my-pi/pi-coding-agent/slash-commands/helpers/cache-report";
 
 function pricedModel(id: string): Model {
 	return buildModel({
@@ -83,17 +83,14 @@ describe("cache report", () => {
 	});
 
 	it("renders savings as explicitly unknown when any used model lacks pricing", () => {
-		const unpricedSpec = mapModelsDevToModels(
-			{ fixture: { models: { unpriced: { tool_call: true } } } },
-			[
-				{
-					modelsDevKey: "fixture",
-					providerId: "anthropic",
-					api: "anthropic-messages",
-					baseUrl: "https://api.anthropic.com",
-				},
-			],
-		)[0]!;
+		const unpricedSpec = mapModelsDevToModels({ fixture: { models: { unpriced: { tool_call: true } } } }, [
+			{
+				modelsDevKey: "fixture",
+				providerId: "anthropic",
+				api: "anthropic-messages",
+				baseUrl: "https://api.anthropic.com",
+			},
+		])[0]!;
 		expect(unpricedSpec.pricingKnown).toBe(false);
 		const output = render(
 			[

@@ -941,7 +941,8 @@ export class Editor implements Component, Focusable {
 
 	#sourceRangeIsSelected(line: number, startCol: number, endCol: number): boolean {
 		const bounds = this.#selectionBounds(true);
-		if (bounds === undefined || startCol >= endCol || line < bounds.start.line || line > bounds.end.line) return false;
+		if (bounds === undefined || startCol >= endCol || line < bounds.start.line || line > bounds.end.line)
+			return false;
 		const selectedStart = bounds.start.line === line ? bounds.start.col : 0;
 		const selectedEnd = bounds.end.line === line ? bounds.end.col : (this.#state.lines[line] ?? "").length;
 		return startCol < selectedEnd && endCol > selectedStart;
@@ -2056,7 +2057,6 @@ export class Editor implements Component, Focusable {
 		return [...this.#state.lines];
 	}
 
-
 	getSelection(): EditorSelection | undefined {
 		const anchor = this.#selectionAnchor;
 		if (anchor === undefined) return undefined;
@@ -2068,10 +2068,7 @@ export class Editor implements Component, Focusable {
 
 	hasSelection(): boolean {
 		const anchor = this.#selectionAnchor;
-		return (
-			anchor !== undefined &&
-			(anchor.line !== this.#state.cursorLine || anchor.col !== this.#state.cursorCol)
-		);
+		return anchor !== undefined && (anchor.line !== this.#state.cursorLine || anchor.col !== this.#state.cursorCol);
 	}
 
 	/** Selected buffer text, preserving logical newlines and never slicing an atomic token. */
@@ -2106,11 +2103,7 @@ export class Editor implements Component, Focusable {
 		if (!expandAtomicTokens || this.#positionsEqual(start, end)) return { start, end };
 
 		if (start.line === end.line) {
-			const expanded = this.#expandRangeOverAtomicTokens(
-				this.#state.lines[start.line] ?? "",
-				start.col,
-				end.col,
-			);
+			const expanded = this.#expandRangeOverAtomicTokens(this.#state.lines[start.line] ?? "", start.col, end.col);
 			start = { line: start.line, col: expanded.start };
 			end = { line: end.line, col: expanded.end };
 		} else {

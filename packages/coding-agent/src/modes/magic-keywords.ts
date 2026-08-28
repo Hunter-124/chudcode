@@ -1,11 +1,25 @@
+import { containsAutobot, highlightAutobot } from "./autobot";
 import { containsOrchestrate, highlightOrchestrate } from "./orchestrate";
+import { containsTokenmaxxing, highlightTokenmaxxing } from "./tokenmaxxing";
+import { containsUltragoon, highlightUltragoon } from "./ultragoon";
 import { containsUltrathink, highlightUltrathink } from "./ultrathink";
 import { containsWorkflow, highlightWorkflow } from "./workflow";
 
+/** Every magic keyword, paired with its substring probe and prose detector. */
+const KEYWORDS = [
+	{ word: "ultrathink", contains: containsUltrathink },
+	{ word: "orchestrate", contains: containsOrchestrate },
+	{ word: "workflowz", contains: containsWorkflow },
+	{ word: "ultragoon", contains: containsUltragoon },
+	{ word: "tokenmaxxing", contains: containsTokenmaxxing },
+	{ word: "autobot", contains: containsAutobot },
+] as const;
+
 /**
  * Gradient-highlight every magic keyword ("ultrathink", "orchestrate",
- * "workflowz") that appears as standalone prose, skipping any occurrence inside a
- * code block, inline code span, or XML/HTML section. Each highlighter paints its
+ * "workflowz", "ultragoon", "tokenmaxxing", "autobot") that appears as
+ * standalone prose, skipping any occurrence inside a code block, inline code
+ * span, or XML/HTML section. Each highlighter paints its
  * own keyword with its own gradient, so chaining is order-independent — the
  * earlier passes only inject zero-width SGR escapes (no backticks or angle
  * brackets), which never confuse the later passes' markdown masking.
@@ -21,22 +35,23 @@ import { containsWorkflow, highlightWorkflow } from "./workflow";
  * to keep the static gradient.
  */
 export function highlightMagicKeywords(text: string, resetTo?: string, phase?: number): string {
-	return highlightWorkflow(
-		highlightOrchestrate(highlightUltrathink(text, resetTo, phase), resetTo, phase),
-		resetTo,
-		phase,
-	);
+	let out = highlightUltrathink(text, resetTo, phase);
+	out = highlightOrchestrate(out, resetTo, phase);
+	out = highlightWorkflow(out, resetTo, phase);
+	out = highlightUltragoon(out, resetTo, phase);
+	out = highlightTokenmaxxing(out, resetTo, phase);
+	return highlightAutobot(out, resetTo, phase);
 }
 
 /**
  * Cheap test for "does this text contain any magic keyword as standalone prose?".
- * Short-circuits on a substring probe before paying for the markdown-aware
- * prose check, so the common "no keyword in buffer" path is just three
- * `String#indexOf`s. Used by the live editor to gate the shimmer timer.
+ * Short-circuits on substring probes before paying for the markdown-aware
+ * prose check, so the common "no keyword in buffer" path is just a handful of
+ * `String#indexOf`s.
  */
 export function hasMagicKeyword(text: string): boolean {
-	if (!text.includes("ultrathink") && !text.includes("orchestrate") && !text.includes("workflowz")) {
-		return false;
+	for (const keyword of KEYWORDS) {
+		if (text.includes(keyword.word) && keyword.contains(text)) return true;
 	}
-	return containsUltrathink(text) || containsOrchestrate(text) || containsWorkflow(text);
+	return false;
 }

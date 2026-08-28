@@ -2288,7 +2288,8 @@ export const SETTINGS_SCHEMA = {
 			tab: "interaction",
 			group: "Magic Keywords",
 			label: "Magic Keywords",
-			description: "Enable hidden notices for standalone ultrathink, orchestrate, and workflowz keywords",
+			description:
+				"Enable hidden notices for standalone ultrathink, orchestrate, workflowz, ultragoon, tokenmaxxing, and autobot keywords",
 		},
 	},
 
@@ -2322,6 +2323,42 @@ export const SETTINGS_SCHEMA = {
 			group: "Magic Keywords",
 			label: "Workflow Keyword",
 			description: "Let standalone workflowz append its hidden eval workflow notice",
+		},
+	},
+
+	"magicKeywords.ultragoon": {
+		type: "boolean",
+		default: true,
+		ui: {
+			tab: "interaction",
+			group: "Magic Keywords",
+			label: "Ultragoon Keyword",
+			description:
+				"Let standalone ultragoon append its hidden intent-first notice: parallel research, then a grounded decision round before building",
+		},
+	},
+
+	"magicKeywords.tokenmaxxing": {
+		type: "boolean",
+		default: true,
+		ui: {
+			tab: "interaction",
+			group: "Magic Keywords",
+			label: "Tokenmaxxing Keyword",
+			description:
+				"Let standalone tokenmaxxing append its hidden maximum-capability routing notice (and the orchestration contract when task is active)",
+		},
+	},
+
+	"magicKeywords.autobot": {
+		type: "boolean",
+		default: true,
+		ui: {
+			tab: "interaction",
+			group: "Magic Keywords",
+			label: "Autobot Keyword",
+			description:
+				"Let standalone autobot append its hidden full-authority notice: decide and finish without permission checkpoints",
 		},
 	},
 
@@ -4380,7 +4417,63 @@ export const SETTINGS_SCHEMA = {
 			tab: "tools",
 			group: "Available Tools",
 			label: "Computer",
-			description: "Enable the scriptable host-desktop control tool (screenshots, input, accessibility)",
+			description: "Enable scriptable desktop control (screenshots, input, accessibility)",
+		},
+	},
+
+	"computer.surface": {
+		type: "enum",
+		values: ["auto", "isolated", "host"] as const,
+		default: "auto",
+		ui: {
+			tab: "tools",
+			group: "Computer",
+			label: "Computer Surface",
+			description:
+				"Use a private virtual display that does not interrupt the user, or control the host desktop directly",
+			options: [
+				{ value: "auto", label: "Auto (isolated on Linux)" },
+				{ value: "isolated", label: "Isolated virtual display" },
+				{ value: "host", label: "Host desktop" },
+			],
+		},
+	},
+
+	"computer.stageWidth": {
+		type: "number",
+		default: 1920,
+		ui: {
+			tab: "tools",
+			group: "Computer",
+			label: "Virtual Display Width",
+			description: "Width of each session-owned virtual display in pixels",
+		},
+	},
+
+	"computer.stageHeight": {
+		type: "number",
+		default: 1080,
+		ui: {
+			tab: "tools",
+			group: "Computer",
+			label: "Virtual Display Height",
+			description: "Height of each session-owned virtual display in pixels",
+		},
+	},
+
+	"computer.viewer": {
+		type: "enum",
+		values: ["off", "novnc"] as const,
+		default: "off",
+		ui: {
+			tab: "tools",
+			group: "Computer",
+			label: "Virtual Display Viewer",
+			description: "Optionally expose the private Linux stage through a loopback noVNC browser viewer",
+			options: [
+				{ value: "off", label: "Off" },
+				{ value: "novnc", label: "noVNC (x11vnc + novnc_proxy)" },
+			],
 		},
 	},
 

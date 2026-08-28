@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
-import { Editor, Input, type EditorTheme } from "@oh-my-pi/pi-tui";
+import { Editor, type EditorTheme, Input } from "@oh-my-pi/pi-tui";
 import { KeybindingsManager, setKeybindings, TUI_KEYBINDINGS } from "@oh-my-pi/pi-tui/keybindings";
 import { defaultEditorTheme } from "./test-themes";
 

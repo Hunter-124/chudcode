@@ -71,7 +71,8 @@ function makeAuthStorage(credentials: string | FakeAuthCredentials | undefined) 
 			if (provider === "xai-oauth" || provider === "xai") {
 				const credential = credentialsByProvider[provider];
 				if (credential) return { kind: credential.kind };
-				if (provider === "xai-oauth" && (process.env.XAI_OAUTH_TOKEN || process.env.XAI_API_KEY)) return { kind: "env" };
+				if (provider === "xai-oauth" && (process.env.XAI_OAUTH_TOKEN || process.env.XAI_API_KEY))
+					return { kind: "env" };
 				if (provider === "xai" && process.env.XAI_API_KEY) return { kind: "env" };
 			}
 			return undefined;

@@ -83,6 +83,25 @@ describe("DesktopSession", () => {
 		}
 	});
 
+	it("rejects input amplification before dispatching backend work", async () => {
+		const session = new DesktopSession({ display: "all" });
+		try {
+			await expectRejectionCode(() => session.click("desktop", 1, 1, { count: 17 }), ["InputFailed"]);
+			await expectRejectionCode(() => session.scroll("desktop", 1, 1, Number.POSITIVE_INFINITY, 0), ["InputFailed"]);
+			await expectRejectionCode(
+				() =>
+					session.drag(
+						"desktop",
+						Array.from({ length: 1_025 }, () => ({ x: 1, y: 1 })),
+					),
+				["InputFailed"],
+			);
+			await expectRejectionCode(() => session.typeText("desktop", "x".repeat(16_385)), ["InputFailed"]);
+		} finally {
+			await session.close();
+		}
+	});
+
 	it("closes idempotently", async () => {
 		const session = new DesktopSession({ display: "all" });
 		await session.close();

@@ -55,7 +55,9 @@ describe("native analyzer result parsers", () => {
 	});
 
 	it("extracts sanitizer and Valgrind source frames", () => {
-		const sanitizer = parseSanitizerOutput(`==42==ERROR: AddressSanitizer: heap-use-after-free on address 0x1234\n    #0 0xabc in main /tmp/uaf.c:14:7\nSUMMARY: AddressSanitizer: heap-use-after-free /tmp/uaf.c:14 in main\n`);
+		const sanitizer = parseSanitizerOutput(
+			`==42==ERROR: AddressSanitizer: heap-use-after-free on address 0x1234\n    #0 0xabc in main /tmp/uaf.c:14:7\nSUMMARY: AddressSanitizer: heap-use-after-free /tmp/uaf.c:14 in main\n`,
+		);
 		expect(sanitizer[0]?.kind).toBe("AddressSanitizer");
 		expect(sanitizer[0]?.summary).toContain("heap-use-after-free");
 		expect(sanitizer[0]?.frames[0]).toMatchObject({ function: "main", file: "/tmp/uaf.c", line: 14, col: 7 });

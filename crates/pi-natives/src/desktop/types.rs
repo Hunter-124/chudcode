@@ -96,7 +96,8 @@ impl DesktopCapabilities {
 #[napi(object)]
 #[derive(Debug, Clone, Default)]
 pub struct DesktopSessionOptions {
-	pub display: Option<String>,
+	pub display:        Option<String>,
+	pub display_server: Option<String>,
 }
 
 #[napi(object)]

@@ -10,6 +10,9 @@ Did you know? Each kitty/tmux/cmux/zellij/wezterm split keeps its own session �
 Drop the word `ultrathink` in your message for harder multi-step reasoning — watch it glow rainbow as you type
 Say `orchestrate` in your message to drive a multi-phase task with parallel subagents — watch it glow as you type
 Say `workflowz` in your message to drive the task with parallel subagents in eval — watch it glow as you type
+Say `ultragoon` and chudcode researches in parallel first, then grills you on the decisions that actually matter before building — watch it glow crimson as you type
+Say `tokenmaxxing` to route the turn onto the strongest harness the task needs — research, dispatch, or eval fan-out — watch it glow gold as you type
+Say `autobot` to hand over full authority for a request: no permission checkpoints, best judgement, finished work — watch it glow chrome as you type
 Log in to several accounts of the same provider — `/login` again — and chudcode load-balances across them automatically
 Run `chudcode auth-broker serve` once and every machine pulls live tokens over the wire — refresh keys never leave the host; `chudcode auth-gateway` fronts it as a drop-in proxy any OpenAI-compatible client can hit
 Press alt+p (or /switch) to switch provider, and ctrl+p to cycle role models smol -> slow -> etc

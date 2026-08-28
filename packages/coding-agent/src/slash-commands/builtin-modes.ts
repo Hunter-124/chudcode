@@ -92,6 +92,10 @@ async function formatComputerUseStatus(session: AgentSession): Promise<string> {
 			? "not exposed (tool inactive)"
 			: computerExposureMode(model);
 	const configured = {
+		surface: session.settings.get("computer.surface"),
+		stageWidth: session.settings.get("computer.stageWidth"),
+		stageHeight: session.settings.get("computer.stageHeight"),
+		viewer: session.settings.get("computer.viewer"),
 		display: session.settings.get("computer.display"),
 		maxWidth: session.settings.get("computer.maxWidth"),
 		maxHeight: session.settings.get("computer.maxHeight"),
@@ -115,7 +119,7 @@ async function formatComputerUseStatus(session: AgentSession): Promise<string> {
 		`tool: ${active ? "active" : "inactive"}`,
 		`exposure: ${exposure}`,
 		`model: ${modelName}`,
-		`configured: display=${configured.display}, maxWidth=${configured.maxWidth}, maxHeight=${configured.maxHeight}`,
+		`configured: surface=${configured.surface}, stage=${configured.stageWidth}x${configured.stageHeight}, viewer=${configured.viewer}, display=${configured.display}, maxWidth=${configured.maxWidth}, maxHeight=${configured.maxHeight}`,
 		`capabilities: ${capabilityStatus}`,
 	].join(" · ");
 }

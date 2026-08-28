@@ -93,3 +93,4 @@ packages/coding-agent/bench/boot-baseline.json
 /.bazelrc.user
 # fork: local scratch
 docs/fork/sandbox-prototype/node_modules/
+/bazel-omp
