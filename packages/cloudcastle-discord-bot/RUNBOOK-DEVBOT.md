@@ -11,10 +11,26 @@ cannot send a single message. This runbook **widens the same app's permissions**
 so it can talk back. Do the archive install first if you have not; the token,
 the application, and the guild are shared.
 
-Every number below was re-derived, not copied. Nothing here has been smoke
-tested against the live guild: no app exists yet (`HANDOFF.md:13-20`), so every
-step is written from the implementation and Discord's documented behaviour, not
-from an observed run.
+Every number below was re-derived, not copied. The agent half is verified on
+this workstation (§4, "Prove the agent half first"); the **gateway half is
+not** — no token has been on this box, so app identity, intents, permissions,
+and thread creation are written from the implementation and Discord's
+documented behaviour, not from an observed run.
+
+## 0. Three things are left. Do them in this order.
+
+1. **Re-invite the app** with `permissions=326417632320` (§1). The archive-slice
+   mask has no send bit, so an app installed with it is mute. One URL visit.
+2. **Paste the bot token** into
+   `%USERPROFILE%\.config\cloudcastle\devbot\discord-token` (§3.1). The file is
+   already created, locked, and proven against the loader's guard — it is empty
+   and waiting.
+3. **Set `CC_DEVBOT_OPERATORS`** to your and Hunter's user ids and start the bot
+   (§3.2, §4). `CC_DEVBOT_WORKSPACES` too, if it is not persisted yet.
+
+Then post anything in `#sessions`. If the bot reacts 👀 and opens a thread, all
+three landed. If it is silent, go to §6 — the table is ordered by how often each
+cause is the real one.
 
 ## 1. What changed, and why the app must be re-invited
 
@@ -138,8 +154,21 @@ Seeing that means the portal toggle, not the code, is wrong.
 ### 3.1 Token file
 
 Path: `%USERPROFILE%\.config\cloudcastle\devbot\discord-token` — the **same**
-file the archive slice uses. It **does not exist on this box yet**. Create and
-lock it exactly as in `RUNBOOK-CREATE-APP.md` §4:
+file the archive slice uses.
+
+**It already exists on this box, empty and locked.** It was created and its DACL
+set on 2026-08-27, and the loader's owner-only guard was confirmed to accept it
+with a dummy value that was then erased. So the only step left is the paste:
+
+> Open `%USERPROFILE%\.config\cloudcastle\devbot\discord-token` in an editor,
+> paste the token as the **only** content, save, close.
+
+Do not echo it into the file from a shell — it lands in PowerShell history. A
+trailing newline is fine; the loader trims whitespace.
+
+If you ever need to recreate it, note that `RUNBOOK-CREATE-APP.md` §4 grants
+`:R`, which is right for a file that already holds the token but makes the paste
+itself fail. Grant modify instead, then paste:
 
 ```powershell
 $dir = "$env:USERPROFILE\.config\cloudcastle\devbot"
@@ -147,14 +176,9 @@ New-Item -ItemType Directory -Force -Path $dir | Out-Null
 $token = "$dir\discord-token"
 New-Item -ItemType File -Force -Path $token | Out-Null
 
-# Strip inherited access and grant read to only you.
-icacls $token /inheritance:r /grant:r "$($env:USERNAME):R"
+# Strip inherited access; grant modify to only you, so you can still paste.
+icacls $token /inheritance:r /grant:r "$($env:USERNAME):(M)"
 ```
-
-Then open `%USERPROFILE%\.config\cloudcastle\devbot\discord-token` in an
-editor, paste the token as the **only** content, save, and close. Do not echo
-it into the file from a shell — it lands in PowerShell history. A trailing
-newline is fine; the loader trims whitespace.
 
 Verify the lockdown:
 
@@ -165,7 +189,8 @@ icacls "$env:USERPROFILE\.config\cloudcastle\devbot\discord-token"
 You should see only your own account, plus `NT AUTHORITY\SYSTEM` and
 `BUILTIN\Administrators` (the Windows equivalent of POSIX `root`, and
 accepted). If `Everyone`, `Authenticated Users`, or `BUILTIN\Users` appears,
-rerun the `icacls` line.
+rerun the `icacls` line. On this box it currently reads exactly
+`CHIMPPC\mikey:(M)`, which the guard accepts.
 
 If you reset the token in the portal for any reason, the old one dies
 immediately and the running bot drops off Discord. Rewrite the file and restart.
