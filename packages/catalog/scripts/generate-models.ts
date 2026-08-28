@@ -9,6 +9,7 @@ const COPILOT_PREMIUM_MULTIPLIERS: Record<string, number> = {
 	"github-copilot/grok-code-fast-1": 0.25,
 };
 
+import * as crypto from "node:crypto";
 import * as path from "node:path";
 import { discoverAuthStorage } from "@oh-my-pi/pi-ai/auth-broker/discover";
 import type { OAuthAccess } from "@oh-my-pi/pi-ai/auth-storage";
@@ -724,7 +725,7 @@ async function generateModels() {
 	const binaryPath = path.join(packageRoot, "src/models.bin");
 	await fsx.write(binaryPath, encodeModelCatalog(MODELS));
 	const binaryBytes = await fsx.readBytes(binaryPath);
-	const binarySha256 = new Bun.CryptoHasher("sha256").update(binaryBytes).digest("hex");
+	const binarySha256 = crypto.createHash("sha256").update(binaryBytes).digest("hex");
 	const generatedProviderType = Object.keys(MODELS)
 		.map(provider => JSON.stringify(provider))
 		.join(" | ");

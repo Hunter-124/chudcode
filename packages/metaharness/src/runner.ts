@@ -1,5 +1,6 @@
 #!/usr/bin/env bun
 import { spawnSync } from "node:child_process";
+import * as crypto from "node:crypto";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { sleep } from "@oh-my-pi/pi-utils/async";
@@ -1075,7 +1076,7 @@ function sourceManifestFiles(pkgDirs: string[]): string[] {
 }
 
 function sourceDepsStamp(manifests: string[], bunVersion: string): string {
-	const h = new Bun.CryptoHasher("sha256");
+	const h = crypto.createHash("sha256");
 	h.update(`bun@${bunVersion}\0source-deps-v1\0`);
 	for (const rel of manifests) {
 		h.update(rel);

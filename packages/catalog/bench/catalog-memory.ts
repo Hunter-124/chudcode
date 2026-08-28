@@ -1,3 +1,4 @@
+import * as crypto from "node:crypto";
 import * as fs from "node:fs/promises";
 import { sleep } from "@oh-my-pi/pi-utils/async";
 import type { GeneratedProvider } from "../src/models";
@@ -206,7 +207,7 @@ async function readCatalogMapping(): Promise<CatalogMapping | null> {
 }
 
 function checksumObserved(providers: string[], modelIds: ReadonlyMap<string, readonly string[]>): string {
-	const hasher = new Bun.CryptoHasher("sha256");
+	const hasher = crypto.createHash("sha256");
 	for (const provider of providers) {
 		hasher.update(provider);
 		hasher.update("\0");

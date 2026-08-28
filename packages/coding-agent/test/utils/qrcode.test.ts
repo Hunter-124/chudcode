@@ -1,10 +1,11 @@
 import { describe, expect, it } from "bun:test";
+import * as crypto from "node:crypto";
 import { QrCode, type QrEcLevel, renderQrHalfBlocks } from "@oh-my-pi/pi-coding-agent/utils/qrcode";
 
 function matrixFingerprint(qr: QrCode): string {
 	let bits = "";
 	for (let y = 0; y < qr.size; y++) for (let x = 0; x < qr.size; x++) bits += qr.module(x, y) ? "1" : "0";
-	return new Bun.CryptoHasher("sha256").update(bits).digest("hex").slice(0, 16);
+	return crypto.createHash("sha256").update(bits).digest("hex").slice(0, 16);
 }
 
 describe("QR encoder", () => {

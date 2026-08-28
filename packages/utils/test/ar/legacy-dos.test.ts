@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import * as crypto from "node:crypto";
 import { readArj, sniffArj } from "../../src/ar/arj";
 import { ArchiveError } from "../../src/ar/error";
 import { DEFAULT_ARCHIVE_LIMITS } from "../../src/ar/limits";
@@ -21,7 +22,7 @@ async function extract(entries: ArchiveIndexEntry[], path: string): Promise<Uint
 }
 
 function sha256(bytes: Uint8Array): string {
-	return new Bun.CryptoHasher("sha256").update(bytes).digest("hex");
+	return crypto.createHash("sha256").update(bytes).digest("hex");
 }
 
 describe("LZH/LHA", () => {

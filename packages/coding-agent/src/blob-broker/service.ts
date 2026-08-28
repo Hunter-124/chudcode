@@ -8,6 +8,7 @@
  * degrades to inline base64.
  */
 
+import * as crypto from "node:crypto";
 import * as path from "node:path";
 import type { Context, ImageContent, Model } from "@oh-my-pi/pi-ai";
 import { getBlobsDir, logger } from "@oh-my-pi/pi-utils";
@@ -42,7 +43,7 @@ export interface SnapcompactFrameSink {
 }
 
 function contentHash(data: string, mimeType: string): string {
-	return new Bun.CryptoHasher("sha256").update(mimeType).update("\n").update(data).digest("hex");
+	return crypto.createHash("sha256").update(mimeType).update("\n").update(data).digest("hex");
 }
 
 /**

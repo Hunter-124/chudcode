@@ -1,3 +1,4 @@
+import * as crypto from "node:crypto";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { $which, getRemoteHostDir, getSshControlDir, isEnoent, logger, postmortem, ptree } from "@oh-my-pi/pi-utils";
@@ -75,7 +76,8 @@ export function controlPathFitsBudget(controlDir: string, platform: SshPlatform)
  * path bytes on the decimal uid.
  */
 export function sshControlFallbackDir(canonicalDir: string, uid: number, tmpBase = "/tmp"): string {
-	const key = new Bun.CryptoHasher("sha256")
+	const key = crypto
+		.createHash("sha256")
 		.update(String(uid))
 		.update("\0")
 		.update(canonicalDir)

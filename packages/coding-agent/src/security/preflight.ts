@@ -1,3 +1,4 @@
+import * as crypto from "node:crypto";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import * as git from "../utils/git";
@@ -145,7 +146,7 @@ async function digestWorkingTree(
 		.map(normalizeRelativePath)
 		.filter(candidate => pathMatchesSecurityScope(candidate, includePaths, excludePaths))
 		.sort();
-	const hasher = new Bun.CryptoHasher("sha256");
+	const hasher = crypto.createHash("sha256");
 	for (const relativePath of files) {
 		if (signal?.aborted) throw signal.reason;
 		const absolutePath = path.resolve(repositoryRoot, relativePath);

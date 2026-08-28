@@ -1,4 +1,5 @@
 #!/usr/bin/env bun
+
 /**
  * Generate a `sha256sum`-compatible checksums file for release assets.
  *
@@ -14,6 +15,7 @@
  * created, so the checksums file itself ships as one of the release assets.
  */
 
+import * as crypto from "node:crypto";
 import * as path from "node:path";
 import * as fsx from "@oh-my-pi/pi-utils/fsx";
 
@@ -38,7 +40,7 @@ async function main(): Promise<void> {
 
 	const entries = await Promise.all(
 		assetPaths.map(async assetPath => {
-			const hasher = new Bun.CryptoHasher("sha256");
+			const hasher = crypto.createHash("sha256");
 			for await (const chunk of Bun.file(assetPath).stream()) {
 				hasher.update(chunk);
 			}

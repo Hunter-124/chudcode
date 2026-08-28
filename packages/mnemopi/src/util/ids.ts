@@ -1,5 +1,7 @@
+import { createHash } from "node:crypto";
+
 export function sha256Hex16(value: string | Uint8Array): string {
-	return new Bun.CryptoHasher("sha256").update(value).digest("hex").slice(0, 16);
+	return createHash("sha256").update(value).digest("hex").slice(0, 16);
 }
 
 const idSeed = crypto.getRandomValues(new Uint32Array(2));

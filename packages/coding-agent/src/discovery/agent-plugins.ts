@@ -14,6 +14,8 @@
  * `--plugin-dir`) and from configured extension packages. Legacy providers
  * skip roots governed by this standard via `legacyProviderAllowed`.
  */
+
+import * as crypto from "node:crypto";
 import type { Dirent, Stats } from "node:fs";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
@@ -88,7 +90,7 @@ async function listCandidateRoots(ctx: LoadContext): Promise<CandidateRoot[]> {
  * scopes, or local directories) from aliasing each other's state.
  */
 function pluginDataDir(home: string, manifestName: string, instanceKey: string): string {
-	const digest = new Bun.CryptoHasher("sha256").update(instanceKey).digest("hex").slice(0, 16);
+	const digest = crypto.createHash("sha256").update(instanceKey).digest("hex").slice(0, 16);
 	return path.join(getPluginsDir(home), "data", `${manifestName}-${digest}`);
 }
 

@@ -1,4 +1,5 @@
 import { beforeAll, describe, expect, test } from "bun:test";
+import * as crypto from "node:crypto";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
@@ -160,7 +161,7 @@ describe("git TUI asset previews", () => {
 
 	test("resolves staged Git LFS pointers from local object storage", async () => {
 		await withReviewRepo(async repo => {
-			const oid = new Bun.CryptoHasher("sha256").update(RED_PNG).digest("hex");
+			const oid = crypto.createHash("sha256").update(RED_PNG).digest("hex");
 			const objectPath = path.join(repo, ".git", "lfs", "objects", oid.slice(0, 2), oid.slice(2, 4), oid);
 			await fs.mkdir(path.dirname(objectPath), { recursive: true });
 			await fsx.write(objectPath, RED_PNG);

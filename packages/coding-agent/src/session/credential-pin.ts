@@ -17,6 +17,7 @@
  * stick or re-rank.
  */
 
+import * as crypto from "node:crypto";
 import type { AuthStorage } from "./auth-storage";
 import type { SessionManager } from "./session-manager";
 
@@ -50,7 +51,7 @@ export function credentialPinHash(provider: string, identity: CredentialPinIdent
 		identity.orgId ?? "",
 		identity.projectId ?? "",
 	].join("\0");
-	return new Bun.CryptoHasher("sha256").update(key).digest("hex");
+	return crypto.createHash("sha256").update(key).digest("hex");
 }
 
 /**

@@ -9,6 +9,7 @@
  * to {@link identiconLines}, a deterministic half-block identicon.
  */
 
+import * as crypto from "node:crypto";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { getAvatarCacheDir, logger } from "@oh-my-pi/pi-utils";
@@ -20,7 +21,7 @@ const FETCH_TIMEOUT_MS = 5_000;
 const NEGATIVE_TTL_MS = 24 * 60 * 60 * 1000;
 
 function md5Hex(text: string): string {
-	return new Bun.CryptoHasher("md5").update(text).digest("hex");
+	return crypto.createHash("md5").update(text).digest("hex");
 }
 
 /** Candidate avatar URLs for a GitHub-noreply email, or empty for other hosts. */
@@ -145,7 +146,7 @@ export class AvatarLoader {
  * 10 columns). Used while an avatar loads and when none exists.
  */
 export function identiconLines(email: string, colorize: (hex: string, text: string) => string): string[] {
-	const bytes = new Bun.CryptoHasher("md5").update(email.trim().toLowerCase()).digest();
+	const bytes = crypto.createHash("md5").update(email.trim().toLowerCase()).digest();
 	const hue = ((bytes[0] << 8) | bytes[1]) % 360;
 	const hex = hslToHex(hue, 0.55, 0.58);
 	const on = (x: number, y: number): boolean => {
