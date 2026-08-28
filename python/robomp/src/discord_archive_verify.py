@@ -13,6 +13,8 @@ from typing import Any, Protocol
 
 import httpx
 
+from robomp.secret_file_guard import assert_secret_file_private
+
 _MESSAGE_CHANNEL_TYPES = frozenset({0, 2, 5, 10, 11, 12, 13})
 _ARCHIVE_PARENT_TYPES = frozenset({0, 5, 15, 16})
 
@@ -88,11 +90,9 @@ class HTTPDiscordREST:
     def from_token_file(cls) -> HTTPDiscordREST:
         token_file = os.environ.get("DISCORD_TOKEN_FILE")
         if not token_file:
-            raise RuntimeError("DISCORD_TOKEN_FILE must name a root-readable token file")
+            raise RuntimeError("DISCORD_TOKEN_FILE must name a token file readable only by its owner")
         path = Path(token_file)
-        mode = path.stat().st_mode & 0o777
-        if mode & 0o077:
-            raise PermissionError(f"Discord token file permissions must be 0600 or stricter, got {mode:04o}")
+        assert_secret_file_private(path, description="Discord token file")
         return cls(path.read_text(encoding="utf-8").strip())
 
     async def get_json(self, path: str, params: Mapping[str, str | int] | None = None) -> Any:
