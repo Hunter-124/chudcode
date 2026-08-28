@@ -1,15 +1,60 @@
 # Chudcode UI Foundation — the design-system contract
 
-This file is the **version-controlled authority** for every visual, motion,
-layout, input and asset decision in the Chudcode GUI. It supersedes
-`docs/fork/IMGUI-UI-STANDARDS.md` where the two disagree.
+This file is the **version-controlled authority** for native visual, motion,
+layout, input, and asset decisions. The direct React implementation under
+`packages/chudcode-desktop/src/web/` is the executable UX authority. When this
+document, CAD provenance, or a native implementation disagrees with that web
+surface, the web surface wins.
 
-**Provenance note.** Citations of the form `CAD:path:line` (e.g.
-`CAD:host/src/ui/anim.h:43`) refer to `~/Repositories/CAD`, the audited design
-source. They are **design provenance only** — evidence that a rule was proven
-in a shipping product. CAD is **not** a runtime dependency of Chudcode:
-Chudcode is a direct OMP implementation, and every module below is built in
-this repository against upstream Dear ImGui.
+## 0. Accepted reference and native release gate
+
+Native Chudcode MUST reproduce the direct React shell rather than reinterpret
+it. The normative sources are:
+
+- `src/web/App.tsx` for panel ownership, ordering, resize behavior, and
+  keyboard routing.
+- `src/web/styles/tokens.css` for every color, font, spacing, radius, density,
+  scrollbar, and terminal role.
+- `src/web/styles/app.css` for shell geometry and state-specific chrome.
+- `ProjectSwitcher.tsx`, `SessionTabs.tsx`, and the editor/Git/graph/terminal
+  components for their interaction contracts.
+- The live direct build for animation timing, focus, hover, empty/loading/error
+  states, and responsive behavior.
+
+The native GUI is experimental and MUST remain off by default until the
+following matrix passes at 991×863, 1280×800, 1600×1000, light and dark:
+
+| Surface | Reference contract |
+| --- | --- |
+| Shell | `40px / minmax(0,1fr) / 24px` rows; no extra product-title row |
+| Top bar | project switcher at `380px` basis, shared OMP session header in remaining width |
+| Activity bar | 48px icon-only rail, 46px targets, 2px active accent |
+| OMP workspace | primary and widest surface: session tabs, transcript/tool timeline, agents/tasks, composer |
+| IDE workspace | supporting resizable surface for editor/files/Git/terminal/graph/LSP; collapses before OMP |
+| Narrow layout | OMP remains complete; IDE moves behind the activity buttons rather than squeezing the composer |
+| Status bar | 24px, workspace path left, IDE visibility control right |
+| Typography | Rubik UI and JetBrains Mono code faces at the web token sizes |
+
+A screenshot that is merely connected or functional does not pass. Component
+geometry, typography, hierarchy, and interaction state MUST be visibly
+comparable to the reference. Until then, development builds MAY be launched
+explicitly, but installers, desktop files, release assets, and taskbar pins
+MUST continue to launch the polished direct web UI.
+
+The React implementation is a reference, not a production runtime. Release
+builds MUST NOT embed Chromium, a WebView, Electron, a JavaScript engine, or
+another JIT. Production code is AOT-compiled C/C++; Zig or Rust MAY be used
+only for a measured safety/performance advantage and MUST also be AOT. The
+temporary Bun service is a migration boundary, not an accepted steady state.
+Visual parity MUST use ordinary immediate-mode drawing: no continuous
+background animation loop, shader-heavy glass, duplicated scene graph, or
+framework layer without a measured benefit. Native gates record binary size,
+idle CPU/wakeups, RSS, and representative interaction latency.
+
+CAD references below are design provenance only: evidence for low-level ImGui
+techniques already proven in a native product. CAD is not a runtime dependency
+or a visual authority for Chudcode. Chudcode remains a direct OMP
+implementation built against upstream Dear ImGui.
 
 Rule keywords are RFC 2119.
 
@@ -22,11 +67,9 @@ Rule keywords are RFC 2119.
   `KingsleydotDev/ImGui-Menus` dump remains banned under all circumstances —
   no license, multi-author, and the "look" inside it is stock Dear ImGui
   anyway.)
-- A `docs/licenses.md` row MUST land **in the same change** as any new
-  dependency or asset (rule proven at `CAD:contracts/licenses.md:103`).
-- License texts ship next to the binaries they cover: `assets/fonts/OFL.txt`
-  for Rubik and JetBrains Mono. (CAD ships the `.ttf` files without the OFL
-  text — verified 2026-08-27 — do not repeat that.)
+- An `assets/fonts/OFL.txt` attribution MUST land in the same change as the
+  Rubik and JetBrains Mono files.
+- License texts ship next to the binaries they cover.
 - Generated assets MUST record their generator script + inputs so they are
   reproducible and provenance-auditable.
 - Chudcode starts with an **empty license-debt register**. CAD's
@@ -37,11 +80,15 @@ Rule keywords are RFC 2119.
 
 | Asset | License | Obligation |
 | --- | --- | --- |
-| Dear ImGui `v1.91.6-docking`, upstream `ocornut/imgui`, FetchContent-pinned | MIT | attribution in licenses.md |
-| GLFW 3.4 (FetchContent; Emscripten uses its own port) | zlib/libpng | attribution |
-| Rubik Regular/Medium/SemiBold/Bold | SIL OFL 1.1 | ship OFL text alongside |
-| JetBrains Mono Regular/Medium | SIL OFL 1.1 | ship OFL text alongside |
-| Theme/kit/anim/metrics source ported from CAD | in-house (same owner), private→private | keep provenance headers (`CAD:` file + commit) so drift stays traceable |
+| Dear ImGui `v1.92.9-docking`, upstream `ocornut/imgui`, FetchContent-pinned | MIT | attribution in release notices |
+| GLFW 3.4 (FetchContent) | zlib/libpng | attribution |
+| IXWebSocket `v12.0.1`, loopback TLS/zlib disabled | BSD-3-Clause | attribution |
+| nlohmann/json `v3.11.3` | MIT | attribution |
+| goossens/ImGuiColorTextEdit `cfc3f68` | MIT | attribution |
+| neovim/libvterm `934bc2fb…` | MIT | attribution |
+| Rubik Regular/Medium/SemiBold/Bold | SIL OFL 1.1 | ship `assets/fonts/OFL.txt` |
+| JetBrains Mono Regular/Medium | SIL OFL 1.1 | ship `assets/fonts/OFL.txt` |
+| Native theme/kit/anim/metrics | private first-party | no CAD runtime or asset dependency |
 | Shell widgets (pill tabs, v-rail, group child, stacking two-column) — clean-room port, structure/interaction only (`CAD:host/src/ui/widgets/interwebz.h:1-4`) | in-house clean-room | rename on import (see drift D10); keep the clean-room provenance comment |
 
 ### MUST NOT ship in Chudcode
@@ -57,10 +104,9 @@ Rule keywords are RFC 2119.
 
 ## 2. Build integration
 
-- Dear ImGui via CMake `FetchContent`, pinned `v1.91.6-docking`; core + draw +
+- Dear ImGui via CMake `FetchContent`, pinned `v1.92.9-docking`; core + draw +
   tables + widgets + GLFW/OpenGL3 backends compiled into the executable.
-  (Proven on Linux/Windows/macOS/WASM: `CAD:CMakeLists.txt:105-108,333-339`.)
-- GL init order: context → theme → fonts → backends. `#version 330` desktop,
+- GL init order: context → fonts → theme → backends. `#version 330` desktop,
   `#version 300 es` under Emscripten.
 - **Multi-viewport DECISION: OFF at v1.** Single GLFW window + docking. CAD
   ships without `ImGuiConfigFlags_ViewportsEnable` on four platforms; revisit
@@ -402,82 +448,35 @@ At scale 0:
 
 ## 9. Panel contract
 
-CAD has no panel base class or registration table — panels are imperative
-functions in app-frame order; the fork doc names that a gap. This is the
-Chudcode contract.
+YAGNI applies. Chudcode has a fixed, known set of surfaces from the accepted
+web shell, so the native app calls them explicitly in frame order. It MUST NOT
+add a panel base class, static registry, plugin API, dockspace builder, service
+locator, or per-panel lifecycle framework until a concrete shipped behavior
+requires one.
 
-### Registration
+Each surface owns only its local view state (scroll, selection, filter,
+collapsed rows). Documents, sessions, workspaces, Git snapshots, terminal
+bytes, and agent state remain in their existing domain owners and reach the UI
+as snapshots plus direct mutation callbacks. Cross-surface behavior goes
+through those owners, not a new event bus.
 
-Static registry in `chud_ui_kit` (`chud/ui/kit/panel.h`):
+Persistence is equally direct:
 
-```
-PanelDesc {
-  const char* id;            // stable kebab-case, e.g. "vcs.status"
-  const char* title;
-  const char* icon;          // docs/icons.md name
-  Density     defaultDensity;
-  float       minWidthDp;
-  bool        multiInstance;
-  void      (*draw)(PanelCtx&);
-  // optional hooks:
-  void      (*onOpen)(PanelCtx&);  void (*onClose)(PanelCtx&);
-  void      (*onProject)(PanelCtx&);
-}
-```
+- ImGui window/layout state uses one versioned ini file.
+- User-visible shell sizing/open state uses one small app-state record when it
+  is implemented.
+- Session drafts remain keyed by session and never share storage with layout.
+- No per-panel JSON files, migration framework, or generic debounce writer
+  exists without an actual persisted panel preference.
 
-Panels register at static init; the shell iterates the table for the View
-menu, dockspace builder, quick-open palette, persistence — and the visual
-gate (§15) enumerates panels from the same table.
+Responsive behavior follows the reference: elide secondary metadata, switch
+toolbars to icon-only controls with tooltips, stack multi-column content, then
+show a named blocked state instead of clipping. Chrome never scrolls
+horizontally; code and diffs may.
 
-### Lifecycle
-
-`closed → opening (onOpen: subscribe) → drawn every frame while visible
-(cheap when idle; declare motion via requestFrames only while moving) →
-hidden (registered, draw skipped, subscriptions kept) → closed (onClose:
-unsubscribe, anim::forget retired ids)`. Project switch fires `onProject` on
-all open panels: drop document-scoped state, keep panel-scoped prefs.
-
-### Density
-
-The shell pushes `defaultDensity` around `draw()`. A panel may push `Compact`
-around a streaming sub-region only. Transcript = Compact; docked tools =
-Cozy; full-width views = Roomy.
-
-### State ownership — three tiers
-
-1. **App/domain state**: owned by the app core; panels receive const
-   snapshots + mutation callbacks. **A panel never owns a document.**
-2. **Panel view state** (scroll, collapsed cards, filters, selected row):
-   owned by the panel TU, keyed by panel instance id.
-3. **Transient widget state**: ImGui + anim per-id tables.
-
-No globals shared between panels; cross-panel effects go through the app core.
-
-### Persistence
-
-- Layout: **versioned ini** `imgui_chudcode_v1.ini` (bump on breaking dock
-  changes); `IniFilename = nullptr` in headless/screenshot mode.
-- Panel view state: one JSON per panel at `state/panels/<panel-id>.json`,
-  written on a **400 ms debounce with an atomic durable write**; the loader
-  **recovers** parseable files and never prunes unverified data (conservatism
-  proven at `CAD:host/src/…/conversations.cpp:848-884,1365-1440`).
-- Persistence key = `panel-id[:instance-ordinal]`; uniqueness is linted.
-
-### Narrow-width ladder
-
-Each panel declares `minWidthDp`. As width shrinks, degrade in order:
-drop `RowStyle.meta` → elide secondary lines → toolbars go icon-only
-(tooltips already mandatory) → multi-column bodies stack (two-column stacks
-under 520 dp — proven shell-widget behavior) → below `minWidthDp` render a
-single `blockedState("Panel too narrow", hint)` rather than clipped garbage.
-Chrome never scrolls horizontally; only content (diffs, code) may.
-
-### Empty / loading / error — mandatory
-
-Every pane renders exactly one of: content, `emptyState`,
-`spinner`/`progressBar` (indeterminate marquee when no progress is known), or
-`blockedState` with the **failing dependency named** — never a bare "error",
-never a blank region.
+Every pane renders exactly one of content, a named empty state, bounded loading
+progress, or a blocked/error state naming the failed dependency. No blank
+failure surface and no speculative lifecycle machinery.
 
 ---
 
@@ -573,45 +572,40 @@ implementation (provenance `CAD:host/src/ui/copilot/composer.cpp`,
 
 ## 13. Persistence summary
 
-Covered normatively in §9; recorded here as the checklist: versioned ini;
-`IniFilename = nullptr` headless; per-panel JSON with 400 ms debounced atomic
-writes; conservative recovery (recover parseable, never prune unverified);
-app state / drafts / transcripts always separate from the ini.
+Covered normatively in §9: one versioned ImGui ini plus one small shell-state
+record only when user-visible shell persistence lands. Drafts and session data
+remain separate. No generic per-panel persistence layer.
 
 ---
 
 ## 14. Module boundaries and ownership
 
-Layering (arrows = allowed dependency):
+The CMake targets are the architecture; there is no second component model:
 
 ```
-L0  imgui (pinned v1.91.6-docking)
-L1  chud_ui_theme     chud_ui_anim        (peers — no cross-dependency)
-L2  chud_ui_kit  →  theme, anim, icons
-L3  chud_ui_graph / chud_ui_editor / chud_ui_vcs / chud_ui_copilot
-      →  kit, theme, anim   (NEVER each other, two allowlisted edges below)
+theme + anim + kit
+protocol + WebSocket
+editor       terminal       graph
+workspace → editor
+vcs       → editor
+copilot   → editor
+app shell → all explicit feature targets
 ```
 
-- `imgui_internal.h` is permitted **only** in `chud_ui_theme` and
-  `chud_ui_kit` TUs; feature modules get `ImRect`-free public APIs.
-- Cross-feature composition happens only in the app shell via the panel
-  registry.
-- **Allowlisted L3 edges (explicit, not a loophole):** `chud_ui_vcs →
-  chud_ui_editor` (diff view reuse) and `chud_ui_copilot → chud_ui_editor`
-  (fence/diff rendering reuse).
-
-| Module | Owns | Public headers | Must not |
-| --- | --- | --- | --- |
-| `chud_ui_theme` | Palette roles; Theme; `applyTheme`; accent pair + AccentAlphas single authority; Fonts/`loadFonts` (no CADSymbols); glass v1 helpers; Liquid Glass v2 (GlassLevel/Group/Style, AdaptiveSurface, `adaptivePanel`, sampler registration); pill scrollbars + chat lane; fraction rings; `busyLabel`; `uiScale` | `chud/ui/theme.h`, `chud/ui/glass.h` | reference any panel/feature module; any I/O beyond font/atlas load; any renderer types (samplers are registered function pointers) |
-| `chud_ui_anim` | duration/period tokens; four easings; `requestFrames`/`consumeFrameRequest`; `dt` clamp; `toward`/`peek`/`forget`; `pulse`/`phase`/`stagger`; **`setMotionScale`/`motionScale`** | `chud/ui/anim.h` | depend on theme or kit; leave the GUI thread |
-| `chud_ui_kit` | Tone + `toneOn`; Density + rhythm accessors; cards, section headers, rows, chips, buttons, segmented, popover; Status + glyphs; `inlineStatus`; `progressBar`; `spinner`; `emptyState`/`blockedState`; text/rhythm/format helpers; icon atlas loader; **panel registry** | `chud/ui/kit.h`, `chud/ui/kit/panel.h`, `chud/ui/icons.h` | know about files, git, LSP, transcripts, graphs — pure presentation vocabulary |
-| `chud_ui_graph` | force-directed canvas panel; node/edge draw vocabulary (Tone-coded nodes, `phase(kMarch)` edges, §8 insert/remove motion); hit-testing; camera (pan/zoom, `easeInOut` auto-frame); LOD labels via `elide`; HUD via `GlassGroup::Graph` | `chud/ui/graph.h` | own a data model — consumes a plain node/edge snapshot + diff stream (added/removed/changed ids) from the app |
-| `chud_ui_editor` | code editor panel (buffer view, gutter, syntax tones), tabs/dirty/save-reload prompts, quick-open + in-file search UI, LSP presentation (diagnostics, hover card on glass, completion popup), diff view (palette diff roles, §8 motion) | `chud/ui/editor.h`, `chud/ui/diff.h` | touch disk or sockets — text/LSP/file transport is injected |
-| `chud_ui_vcs` | git status/stage rows, commit composer (reuses editor input core), history log with render windowing, branch switcher, blame gutter, live file-edit event feed | `chud/ui/vcs.h` | own VCS state — consumes a snapshot/diff-event interface |
-| `chud_ui_copilot` | transcript panel (§11), composer (§11), streaming motion, jump-to-latest, chat scrollbar lane | `chud/ui/copilot.h` | couple to any CAD type — consumes a neutral OMP event-stream interface (turns, activity items, deltas) |
-
-Enforcement: the include-graph lint (§15, `ownership`) fails any `#include`
-crossing this matrix.
+- `theme` owns semantic palette values and the two font roles.
+- `anim` owns bounded timing and frame requests; it cannot keep the app in an
+  unbounded busy loop.
+- `kit` owns only composites already reused by multiple feature surfaces.
+- `protocol` owns wire validation and the migration boundary; feature modules
+  do not open sockets.
+- Feature targets own concrete view/model logic. Existing direct reuse edges
+  stay direct; they do not justify an inheritance hierarchy.
+- The app shell composes the fixed surfaces in the same order as the accepted
+  OMP-first reference.
+- A shared abstraction is added only after two real call sites need the same
+  semantics. Similar-looking code with different ownership stays separate.
+- `imgui_internal.h` stays out of feature modules unless a required interaction
+  cannot be implemented through the public API and the use is documented.
 
 ---
 
@@ -633,13 +627,12 @@ additions. sha1-keyed baseline file for legacy findings; per-line
 | `theme` | `applyTheme(...,1.0f)` literal and `FontGlobalScale` assignment banned |
 | `motion` *(new)* | bare float duration in `toward`/`stagger`/`pulse`/`phase` call sites (must be a `k*` token or a constant derived from one); hand-rolled smoothstep (`t*t*(3`) outside `chud_ui_anim`; `easeOutBack` heuristically flagged on values that also feed a text formatter |
 | `ownership` *(new)* | include-graph enforcement of §14; any non-theme/kit TU including `imgui_internal.h`; any use of CAD's legacy `cpMenu*`/`cpChat*`/`re*`/`cam*` accessor names |
-| `panel` *(new)* | PanelDesc id uniqueness + kebab-case; every registered panel's `draw()` references `emptyState`/`blockedState`/`spinner`/`progressBar` or is allowlisted always-populated; persistence-key collisions |
 | `duplicate-widget` *(new)* | ast-grep pass for a second declaration colliding with the kit vocabulary names in feature-module namespaces |
 
 ### Pixel acceptance matrix (headless shot harness)
 
-The harness enumerates panels **mechanically from the registry** and renders
-each through the matrix:
+The harness renders the fixed shell and its explicit editor, Git, graph,
+terminal, transcript, agents, and composer surfaces through the matrix:
 
 ```
 {dark, light} × {uiScale 1.0, 2.0} × {populated, empty, loading, error}
@@ -715,8 +708,8 @@ that alters the corresponding code:
 7. §7 kit widget inventory and its four hard rules.
 8. §8 motion tokens, easings, per-surface vocabulary, reduced-motion
    semantics.
-9. §9 panel registry schema, lifecycle, state tiers, persistence keys,
-   narrow-width ladder, empty/loading/error mandate.
+9. §9 direct ownership, minimal persistence, responsive ladder, and
+   empty/loading/error mandate.
 10. §10 keyboard routing layers + accessibility rules.
 11. §11 composer/transcript familiarity contract.
 12. §12 hard-won interaction rules (append-only).
