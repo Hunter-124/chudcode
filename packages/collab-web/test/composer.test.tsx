@@ -3,7 +3,7 @@ import type { CollabUiResponseValue, ImageContent } from "@oh-my-pi/pi-wire";
 import { parseHTML } from "@oh-my-pi/pi-utils/dom";
 import { act, type KeyboardEvent } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { Composer, shouldSubmitOnEnter } from "../src/components/shell/Composer";
+import { Composer, type ComposerProps, shouldSubmitOnEnter } from "../src/components/shell/Composer";
 import type { SessionClient, SessionSnapshot, TranscriptResult } from "../src/lib/session-client";
 
 type ClientCall =
@@ -94,22 +94,37 @@ afterAll(() => {
 	}
 });
 
+type DraftProps = Pick<ComposerProps, "draft" | "onDraftChange">;
+
 interface MountedComposer {
 	container: HTMLElement;
-	render(nextSnapshot: SessionSnapshot): Promise<void>;
+	render(nextSnapshot: SessionSnapshot, nextDraftProps?: DraftProps): Promise<void>;
 	unmount(): Promise<void>;
 }
 
-async function mountComposer(fakeClient: SessionClient, initialSnapshot: SessionSnapshot): Promise<MountedComposer> {
+async function mountComposer(
+	fakeClient: SessionClient,
+	initialSnapshot: SessionSnapshot,
+	initialDraftProps: DraftProps = {},
+): Promise<MountedComposer> {
 	const container = testWindow.document.createElement("div") as unknown as HTMLElement;
 	testWindow.document.body.appendChild(container as unknown as InstanceType<typeof testWindow.HTMLElement>);
 	const root = createRoot(container);
-	const render = async (nextSnapshot: SessionSnapshot): Promise<void> => {
+	let draftProps = initialDraftProps;
+	const render = async (nextSnapshot: SessionSnapshot, nextDraftProps?: DraftProps): Promise<void> => {
+		if (nextDraftProps !== undefined) draftProps = nextDraftProps;
 		await act(async () => {
-			root.render(<Composer client={fakeClient} snapshot={nextSnapshot} />);
+			root.render(
+				<Composer
+					client={fakeClient}
+					snapshot={nextSnapshot}
+					draft={draftProps.draft}
+					onDraftChange={draftProps.onDraftChange}
+				/>,
+			);
 		});
 	};
-	await render(initialSnapshot);
+	await render(initialSnapshot, initialDraftProps);
 	return {
 		container,
 		render,
@@ -121,6 +136,7 @@ async function mountComposer(fakeClient: SessionClient, initialSnapshot: Session
 }
 
 interface TextareaReactProps {
+	value: string;
 	onChange(event: { target: HTMLTextAreaElement }): void;
 	onKeyDown(event: KeyEvt): void;
 }
@@ -196,7 +212,7 @@ describe("Composer host UI requests", () => {
 });
 
 describe("Composer SessionClient commands", () => {
-	it("submits the controlled textarea through the structural session seam", async () => {
+	it("submits and clears an uncontrolled draft through the structural session seam", async () => {
 		const current = snapshot();
 		const fakeClient = new FakeSessionClient(current);
 		const mounted = await mountComposer(fakeClient, current);
@@ -210,6 +226,7 @@ describe("Composer SessionClient commands", () => {
 
 			expect(preventDefault).toHaveBeenCalledTimes(1);
 			expect(fakeClient.calls).toEqual([{ method: "prompt", text: "hello from textarea" }]);
+			expect((mounted.container.querySelector("textarea") as HTMLTextAreaElement).value).toBe("");
 		} finally {
 			await mounted.unmount();
 		}
@@ -275,6 +292,71 @@ describe("Composer SessionClient commands", () => {
 			const stop = mounted.container.querySelector('button[title="stop the current turn"]') as HTMLElement;
 			await act(async () => stop.click());
 			expect(fakeClient.calls).toEqual([{ method: "abort" }]);
+		} finally {
+			await mounted.unmount();
+		}
+	});
+});
+
+describe("Composer controlled drafts", () => {
+	it("renders the active tab draft when controlled props switch", async () => {
+		const current = snapshot();
+		const fakeClient = new FakeSessionClient(current);
+		const onDraftChange = vi.fn();
+		const mounted = await mountComposer(fakeClient, current, { draft: "first tab", onDraftChange });
+		try {
+			const textarea = mounted.container.querySelector("textarea") as HTMLTextAreaElement;
+			expect(textareaReactProps(textarea).value).toBe("first tab");
+
+			await mounted.render(current, { draft: "second tab", onDraftChange });
+			expect(mounted.container.querySelector("textarea")).toBe(textarea);
+			expect(textareaReactProps(textarea).value).toBe("second tab");
+		} finally {
+			await mounted.unmount();
+		}
+	});
+
+	it("routes controlled edits to the parent draft callback", async () => {
+		const current = snapshot();
+		const fakeClient = new FakeSessionClient(current);
+		const onDraftChange = vi.fn();
+		const mounted = await mountComposer(fakeClient, current, { draft: "before", onDraftChange });
+		try {
+			const textarea = mounted.container.querySelector("textarea") as HTMLTextAreaElement;
+			await editTextarea(textarea, "after paste", 5, 5);
+			expect(onDraftChange).toHaveBeenCalledTimes(1);
+			expect(onDraftChange).toHaveBeenCalledWith("after paste");
+		} finally {
+			await mounted.unmount();
+		}
+	});
+
+	it("clears the parent-owned draft after an accepted send", async () => {
+		const current = snapshot();
+		const fakeClient = new FakeSessionClient(current);
+		const onDraftChange = vi.fn();
+		const mounted = await mountComposer(fakeClient, current, { draft: "  send me  ", onDraftChange });
+		try {
+			const send = mounted.container.querySelector('button[title="send (Enter)"]') as HTMLElement;
+			await act(async () => send.click());
+			expect(fakeClient.calls).toEqual([{ method: "prompt", text: "send me" }]);
+			expect(onDraftChange).toHaveBeenCalledTimes(1);
+			expect(onDraftChange).toHaveBeenCalledWith("");
+		} finally {
+			await mounted.unmount();
+		}
+	});
+
+	it("keeps local state when only onDraftChange is supplied", async () => {
+		const current = snapshot();
+		const fakeClient = new FakeSessionClient(current);
+		const onDraftChange = vi.fn();
+		const mounted = await mountComposer(fakeClient, current, { onDraftChange });
+		try {
+			const textarea = mounted.container.querySelector("textarea") as HTMLTextAreaElement;
+			await editTextarea(textarea, "local draft", 11, 11);
+			expect(textarea.value).toBe("local draft");
+			expect(onDraftChange).not.toHaveBeenCalled();
 		} finally {
 			await mounted.unmount();
 		}

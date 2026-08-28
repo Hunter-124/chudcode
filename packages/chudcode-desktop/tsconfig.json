@@ -1,7 +1,7 @@
 {
   "extends": "../tsconfig.workspace.json",
-  "include": ["src/*.ts", "src/services", "test"],
-  "exclude": ["src/web"],
+  "include": ["src/*.ts", "src/services", "test/*.test.ts"],
+  "exclude": ["src/web", "test/*.test.tsx", "test/desktop-client.test.ts", "test/theme.test.ts"],
   "compilerOptions": {
     "lib": ["ES2024"],
     "noEmit": true,

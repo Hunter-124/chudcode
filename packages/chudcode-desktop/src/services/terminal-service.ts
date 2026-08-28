@@ -26,6 +26,10 @@ const DEFAULT_CLOSE_TIMEOUT_MS = 2_000;
 const MIN_DIMENSION = 1;
 const MAX_DIMENSION = 10_000;
 
+export function encodeTerminalDataBase64(data: Uint8Array): string {
+	return Buffer.from(data.buffer, data.byteOffset, data.byteLength).toString("base64");
+}
+
 export class TerminalServiceError extends Error {
 	constructor(
 		readonly code: string,
@@ -45,7 +49,6 @@ interface TerminalRecord {
 	terminal: Bun.Terminal;
 	process?: Bun.Subprocess;
 	nativeProcess?: Process;
-	decoder: TextDecoder;
 	bufferedOutputBytes: number;
 	closing: boolean;
 	overflowed: boolean;
@@ -285,7 +288,6 @@ export class TerminalService implements AsyncDisposable {
 			cols: params.cols,
 			rows: params.rows,
 			terminal,
-			decoder: new TextDecoder(),
 			bufferedOutputBytes: 0,
 			closing: false,
 			overflowed: false,
@@ -393,11 +395,14 @@ export class TerminalService implements AsyncDisposable {
 			void this.#closeRecord(record);
 			return;
 		}
-		const text = record.decoder.decode(data, { stream: true });
-		if (!text) return;
+		if (data.byteLength === 0) return;
 		record.bufferedOutputBytes += data.byteLength;
 		this.#enqueue({
-			event: { t: "terminal-data", terminalId: id, data: text },
+			event: {
+				t: "terminal-data",
+				terminalId: id,
+				dataBase64: encodeTerminalDataBase64(data),
+			},
 			record,
 			outputBytes: data.byteLength,
 		});
@@ -407,16 +412,6 @@ export class TerminalService implements AsyncDisposable {
 		const record = this.#terminals.get(id);
 		if (!record || record.ptyClosed) return;
 		record.ptyClosed = true;
-		if (!record.overflowed) {
-			const trailing = record.decoder.decode();
-			if (trailing) {
-				this.#enqueue({
-					event: { t: "terminal-data", terminalId: id, data: trailing },
-					record,
-					outputBytes: 0,
-				});
-			}
-		}
 		this.#finalizeIfExited(record);
 	}
 

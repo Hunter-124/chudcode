@@ -3,7 +3,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Process, ProcessStatus } from "@oh-my-pi/pi-natives";
-import { TerminalService } from "../src/services/terminal-service";
+import { encodeTerminalDataBase64, TerminalService } from "../src/services/terminal-service";
 import type { TerminalServiceEvent, TerminalServiceOptions } from "../src/services/terminal-types";
 
 const createdDirectories: string[] = [];
@@ -15,14 +15,19 @@ function createWorkspace(): string {
 	return directory;
 }
 
+function eventBytes(events: readonly TerminalServiceEvent[], terminalId: string): Buffer {
+	return Buffer.concat(
+		events
+			.filter(
+				(event): event is Extract<TerminalServiceEvent, { t: "terminal-data" }> =>
+					event.t === "terminal-data" && event.terminalId === terminalId,
+			)
+			.map(event => Buffer.from(event.dataBase64, "base64")),
+	);
+}
+
 function eventOutput(events: readonly TerminalServiceEvent[], terminalId: string): string {
-	return events
-		.filter(
-			(event): event is Extract<TerminalServiceEvent, { t: "terminal-data" }> =>
-				event.t === "terminal-data" && event.terminalId === terminalId,
-		)
-		.map(event => event.data)
-		.join("");
+	return eventBytes(events, terminalId).toString("utf8");
 }
 
 async function waitFor(predicate: () => boolean, message: string, timeoutMs = 5_000): Promise<void> {
@@ -56,6 +61,17 @@ afterEach(async () => {
 });
 
 const realPty = describe.skipIf(process.platform === "win32" || typeof Bun.Terminal !== "function");
+
+describe("encodeTerminalDataBase64", () => {
+	it("encodes the exact view and preserves a UTF-8 sequence split across chunks", () => {
+		const backing = Uint8Array.from([0xff, 0xe2, 0x82, 0xac, 0xfe]);
+		const chunks = [backing.subarray(1, 2), backing.subarray(2, 4)];
+		const decoded = Buffer.concat(chunks.map(chunk => Buffer.from(encodeTerminalDataBase64(chunk), "base64")));
+
+		expect([...decoded]).toEqual([0xe2, 0x82, 0xac]);
+		expect(decoded.toString("utf8")).toBe("€");
+	});
+});
 
 realPty("TerminalService real PTY", () => {
 	it("provides a TTY with an allowlisted environment, workspace cwd, interactive input, and unchanged ANSI data", async () => {
@@ -113,6 +129,30 @@ realPty("TerminalService real PTY", () => {
 		);
 		expect(naturalExit?.exitCode).toBe(0);
 		expect(naturalExit && "signal" in naturalExit).toBe(false);
+	});
+
+	it("emits deliberately invalid UTF-8 output as the exact PTY bytes", async () => {
+		const events: TerminalServiceEvent[] = [];
+		const service = createService(createWorkspace(), events);
+		const { terminalId } = await service.create({ workspaceId: "workspace", cols: 80, rows: 24 });
+		service.write({ terminalId, data: "stty -echo; printf '\\001'\n" });
+		await waitFor(() => eventBytes(events, terminalId).includes(1), "disabled terminal echo");
+		events.length = 0;
+
+		const begin = Buffer.from("BYTE_BEGIN");
+		const end = Buffer.from("BYTE_END");
+
+		service.write({
+			terminalId,
+			data: "printf 'BYTE_BEGIN'; printf '\\376\\377\\200'; printf 'BYTE_END'\n",
+		});
+		await waitFor(() => eventBytes(events, terminalId).indexOf(end) >= 0, "non-UTF8 PTY output");
+
+		const output = eventBytes(events, terminalId);
+		const payloadStart = output.indexOf(begin) + begin.byteLength;
+		const payloadEnd = output.indexOf(end, payloadStart);
+		expect(payloadStart).toBeGreaterThanOrEqual(begin.byteLength);
+		expect([...output.subarray(payloadStart, payloadEnd)]).toEqual([0xfe, 0xff, 0x80]);
 	});
 
 	it("makes initial and changed terminal dimensions observable to the child", async () => {
@@ -203,7 +243,9 @@ realPty("TerminalService real PTY", () => {
 		const deliveredBytes = events.reduce(
 			(total, event) =>
 				total +
-				(event.t === "terminal-data" && event.terminalId === terminalId ? Buffer.byteLength(event.data) : 0),
+				(event.t === "terminal-data" && event.terminalId === terminalId
+					? Buffer.from(event.dataBase64, "base64").byteLength
+					: 0),
 			0,
 		);
 		expect(deliveredBytes).toBeLessThanOrEqual(4_096);
