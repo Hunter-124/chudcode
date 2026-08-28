@@ -84,7 +84,7 @@ export async function writeIsolationOwner(baseDir: string, id: string): Promise<
 export async function hasLiveIsolationOwner(baseDir: string): Promise<boolean> {
 	let decoded: unknown;
 	try {
-		decoded = await Bun.file(path.join(baseDir, ISOLATION_OWNER_FILE)).json();
+		decoded = await fsx.readJson(path.join(baseDir, ISOLATION_OWNER_FILE));
 	} catch {
 		return false;
 	}

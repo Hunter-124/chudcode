@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import type { AuthStorage } from "@oh-my-pi/pi-ai";
 import { getBundledModels } from "@oh-my-pi/pi-catalog/models";
 import { TempDir } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import { indexModelsByRequestId } from "../../src/cli/auth-gateway-cli";
 import { ModelRegistry } from "../../src/config/model-registry";
 
@@ -54,7 +55,7 @@ describe("indexModelsByRequestId (auth-gateway catalog)", () => {
 		const modelsPath = tempDir.join("models.yml");
 		// anthropic: a plain credential/baseUrl override (no transport) — the
 		// reviewer's leak. openai: a pi-native gateway route — the self-routing loop.
-		await Bun.write(
+		await fsx.write(
 			modelsPath,
 			[
 				"providers:",

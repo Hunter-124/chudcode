@@ -17,6 +17,7 @@ import { AgentStorage } from "@oh-my-pi/pi-coding-agent/session/agent-storage";
 import type { AuthStorage } from "@oh-my-pi/pi-coding-agent/session/auth-storage";
 import { SessionManager } from "@oh-my-pi/pi-coding-agent/session/session-manager";
 import { getProjectAgentDir, TempDir } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import * as advisorModule from "../src/advisor";
 import { createInMemoryAuthStorage } from "./helpers/agent-session-setup";
 
@@ -214,11 +215,11 @@ describe("AgentSession advisor toggle", () => {
 		const projectB = path.join(tempDir.path(), "project-b");
 		const agentDir = path.join(tempDir.path(), "agent");
 		await fs.mkdir(agentDir, { recursive: true });
-		await Bun.write(
+		await fsx.write(
 			path.join(getProjectAgentDir(projectA), "settings.json"),
 			JSON.stringify({ modelRoles: { advisor: `${model.provider}/${model.id}` } }),
 		);
-		await Bun.write(
+		await fsx.write(
 			path.join(getProjectAgentDir(projectB), "settings.json"),
 			JSON.stringify({ modelRoles: { advisor: `${replacementModel.provider}/${replacementModel.id}` } }),
 		);

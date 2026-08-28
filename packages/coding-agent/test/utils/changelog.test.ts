@@ -60,7 +60,7 @@ describe("startup changelog mode settings", () => {
 				[true, "summary"],
 				[false, "expanded"],
 			] as const) {
-				await Bun.write(configPath, `collapseChangelog: ${legacyValue}\n`);
+				await fsx.write(configPath, `collapseChangelog: ${legacyValue}\n`);
 				const settings = await Settings.loadReadOnly({ cwd: agentDir, agentDir });
 				expect(settings.get("startup.changelogMode")).toBe(expectedMode);
 			}
@@ -69,7 +69,7 @@ describe("startup changelog mode settings", () => {
 
 	test("lets an explicit new mode win over the legacy raw config key", async () => {
 		await withTempAgentDir(async agentDir => {
-			await Bun.write(
+			await fsx.write(
 				path.join(agentDir, "config.yml"),
 				"collapseChangelog: false\nstartup:\n  changelogMode: hidden\n",
 			);
@@ -307,7 +307,7 @@ describe.skipIf(!hasPtyHarness)("interactive startup changelog PTY smoke", () =>
 				await fs.mkdir(path.join(root, "xdg-config"), { recursive: true });
 				await fs.mkdir(path.join(root, "xdg-state"), { recursive: true });
 				await fs.mkdir(path.join(root, "xdg-data"), { recursive: true });
-				await Bun.write(path.join(agentDir, "config.yml"), "setupVersion: 1\ncollapseChangelog: false\n");
+				await fsx.write(path.join(agentDir, "config.yml"), "setupVersion: 1\ncollapseChangelog: false\n");
 
 				const proc = Bun.spawn(
 					["timeout", "6s", "script", "-q", "-c", `bun ${JSON.stringify(cliEntry)}`, "/dev/null"],

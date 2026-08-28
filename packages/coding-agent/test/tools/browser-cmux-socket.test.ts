@@ -5,6 +5,7 @@ import * as os from "node:os";
 import * as path from "node:path";
 import { CmuxSocketClient } from "@oh-my-pi/pi-coding-agent/tools/browser/cmux/socket-client";
 import { ToolError } from "@oh-my-pi/pi-coding-agent/tools/tool-errors";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 
 type RequestLine = {
 	id?: unknown;
@@ -189,7 +190,7 @@ describe("CmuxSocketClient", () => {
 					socket.write(`${JSON.stringify({ ok: true, result: {} })}\n`);
 				},
 				async (socketPath, port) => {
-					await Bun.write(
+					await fsx.write(
 						path.join(home, ".cmux", "relay", `${port}.auth`),
 						JSON.stringify({
 							relay_id: "relay-1",

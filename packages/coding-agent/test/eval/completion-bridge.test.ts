@@ -5,6 +5,7 @@ import * as ai from "@oh-my-pi/pi-ai";
 import { Effort } from "@oh-my-pi/pi-ai";
 import { TempDir } from "@oh-my-pi/pi-utils";
 import { sleep } from "@oh-my-pi/pi-utils/async";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import { $ } from "bun";
 import type { ModelRegistry } from "../../src/config/model-registry";
 import { Settings } from "../../src/config/settings";
@@ -112,7 +113,7 @@ async function runPythonCompletionsInSubprocess(tempDir: TempDir): Promise<Pytho
 		'structured = completion("hi", schema={"type": "object"})',
 		'print(json.dumps({"plain": plain, "structured": structured}))',
 	].join("\n");
-	await Bun.write(
+	await fsx.write(
 		scriptPath,
 		`
 import { vi } from "bun:test";
@@ -177,7 +178,7 @@ process.exit(0);
 	const stderr = child.stderr.toString();
 	if (child.exitCode !== 0)
 		throw new Error(stderr || stdout || `Python completion subprocess exited with ${child.exitCode}`);
-	return (await Bun.file(resultPath).json()) as PythonResult;
+	return (await fsx.readJson(resultPath)) as PythonResult;
 }
 
 describe("runEvalCompletion", () => {

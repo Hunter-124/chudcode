@@ -68,7 +68,7 @@ describe("Settings", () => {
 	const getConfigPath = () => path.join(agentDir, "config.yml");
 
 	const writeSettings = async (settings: Record<string, unknown>) => {
-		await Bun.write(getConfigPath(), YAML.stringify(settings, null, 2));
+		await fsx.write(getConfigPath(), YAML.stringify(settings, null, 2));
 	};
 
 	const readSettings = async (): Promise<Record<string, unknown>> => {
@@ -94,7 +94,7 @@ describe("Settings", () => {
 	describe("main config file selection", () => {
 		it("loads and updates an existing config.yaml without creating config.yml", async () => {
 			const yamlConfigPath = path.join(agentDir, "config.yaml");
-			await Bun.write(yamlConfigPath, YAML.stringify({ setupVersion: 1 }, null, 2));
+			await fsx.write(yamlConfigPath, YAML.stringify({ setupVersion: 1 }, null, 2));
 
 			const settings = await Settings.init({ cwd: projectDir, agentDir });
 			expect(settings.get("setupVersion")).toBe(1);
@@ -109,7 +109,7 @@ describe("Settings", () => {
 
 		it("clones the selected config.yaml path for persisted settings", async () => {
 			const yamlConfigPath = path.join(agentDir, "config.yaml");
-			await Bun.write(yamlConfigPath, YAML.stringify({ setupVersion: 1 }, null, 2));
+			await fsx.write(yamlConfigPath, YAML.stringify({ setupVersion: 1 }, null, 2));
 
 			const settings = await Settings.init({ cwd: projectDir, agentDir });
 			const cloned = await settings.cloneForCwd(tempDir.join("other-project"));
@@ -158,7 +158,7 @@ describe("Settings", () => {
 		it("points to the selected global config in the active agent directory", async () => {
 			const configPath = path.join(agentDir, "config.yaml");
 			const missingShell = tempDir.join("missing-global-bash");
-			await Bun.write(configPath, YAML.stringify({ shellPath: missingShell }, null, 2));
+			await fsx.write(configPath, YAML.stringify({ shellPath: missingShell }, null, 2));
 
 			const settings = await Settings.init({ cwd: projectDir, agentDir });
 
@@ -168,7 +168,7 @@ describe("Settings", () => {
 		it("points to the project file that supplied shellPath", async () => {
 			const configPath = path.join(getProjectAgentDir(projectDir), "config.yml");
 			const missingShell = tempDir.join("missing-project-bash");
-			await Bun.write(configPath, YAML.stringify({ shellPath: missingShell }, null, 2));
+			await fsx.write(configPath, YAML.stringify({ shellPath: missingShell }, null, 2));
 
 			const settings = await Settings.init({ cwd: projectDir, agentDir });
 
@@ -178,7 +178,7 @@ describe("Settings", () => {
 		it("points to the overlay that supplied shellPath", async () => {
 			const configPath = tempDir.join("shell-overlay.yml");
 			const missingShell = tempDir.join("missing-overlay-bash");
-			await Bun.write(configPath, YAML.stringify({ shellPath: missingShell }, null, 2));
+			await fsx.write(configPath, YAML.stringify({ shellPath: missingShell }, null, 2));
 
 			const settings = await Settings.init({ cwd: projectDir, agentDir, configFiles: [configPath] });
 
@@ -197,7 +197,7 @@ describe("Settings", () => {
 				'  default: "unterminated',
 				"",
 			].join("\n");
-			await Bun.write(configPath, original);
+			await fsx.write(configPath, original);
 
 			await expect(Settings.init({ cwd: projectDir, agentDir })).rejects.toThrow("Settings config is invalid");
 
@@ -211,7 +211,7 @@ describe("Settings", () => {
 			const configPath = getConfigPath();
 			const backupPath = `${configPath}.broken-other-process`;
 			const original = 'modelRoles:\n  default: "unterminated\n';
-			await Bun.write(configPath, original);
+			await fsx.write(configPath, original);
 			const canonicalConfigPath = await fs.promises.realpath(configPath);
 			const withFileLock = fileLock.withFileLock;
 			let movedAside = false;
@@ -235,7 +235,7 @@ describe("Settings", () => {
 		it("keeps malformed config in place for read-only loads", async () => {
 			const configPath = getConfigPath();
 			const original = 'modelRoles:\n  default: "unterminated\n';
-			await Bun.write(configPath, original);
+			await fsx.write(configPath, original);
 
 			await expect(Settings.loadReadOnly({ cwd: projectDir, agentDir })).rejects.toThrow(
 				"Settings config is invalid",
@@ -252,7 +252,7 @@ describe("Settings", () => {
 			});
 			const settings = await Settings.init({ cwd: projectDir, agentDir });
 			const corrupted = 'auth:\n  broker:\n    token: TOP-SECRET\nmodelRoles:\n  default: "unterminated\n';
-			await Bun.write(getConfigPath(), corrupted);
+			await fsx.write(getConfigPath(), corrupted);
 
 			settings.set("theme.dark", "anthracite");
 			await expect(settings.flush()).rejects.toThrow("Settings config is invalid");
@@ -279,13 +279,13 @@ describe("Settings", () => {
 		it("backs up a corrupted project config and retains the pending project role for retry", async () => {
 			await writeSettings({});
 			const projectConfigPath = path.join(projectDir, ".omp", "config.yml");
-			await Bun.write(
+			await fsx.write(
 				projectConfigPath,
 				YAML.stringify({ modelRoles: { default: "keep/default" }, custom: { keep: true } }, null, 2),
 			);
 			const settings = await Settings.init({ cwd: projectDir, agentDir });
 			const corrupted = 'modelRoles:\n  default: keep/default\n  advisor: "unterminated\ncustom:\n  keep: true\n';
-			await Bun.write(projectConfigPath, corrupted);
+			await fsx.write(projectConfigPath, corrupted);
 
 			settings.setProjectModelRole("smol", "new/smol");
 			await expect(settings.flush()).rejects.toThrow("Settings config is invalid");
@@ -308,7 +308,7 @@ describe("Settings", () => {
 
 		it("preserves a symlinked main config while atomically updating its target", async () => {
 			const managedConfigPath = tempDir.join("managed-config.yml");
-			await Bun.write(managedConfigPath, YAML.stringify({ setupVersion: 1 }, null, 2));
+			await fsx.write(managedConfigPath, YAML.stringify({ setupVersion: 1 }, null, 2));
 			await fs.promises.symlink(managedConfigPath, getConfigPath(), "file");
 
 			const settings = await Settings.init({ cwd: projectDir, agentDir });
@@ -350,7 +350,7 @@ describe("Settings", () => {
 				null,
 				2,
 			);
-			await Bun.write(getConfigPath(), original);
+			await fsx.write(getConfigPath(), original);
 			const settings = await Settings.init({ cwd: projectDir, agentDir });
 			settings.set("theme.dark", "anthracite");
 			const readSpy = vi.spyOn(fs.promises, "readFile");
@@ -373,7 +373,7 @@ describe("Settings", () => {
 			await writeSettings({});
 			const projectConfigPath = path.join(projectDir, ".omp", "config.yml");
 			const original = YAML.stringify({ modelRoles: { default: "keep/default" }, custom: { keep: true } }, null, 2);
-			await Bun.write(projectConfigPath, original);
+			await fsx.write(projectConfigPath, original);
 			const settings = await Settings.init({ cwd: projectDir, agentDir });
 			settings.setProjectModelRole("smol", "new/smol");
 			const readSpy = vi.spyOn(fs.promises, "readFile");
@@ -396,8 +396,8 @@ describe("Settings", () => {
 		it("observes both failures when global and project configs are malformed", async () => {
 			const malformed = 'modelRoles:\n  default: "unterminated\n';
 			await Promise.all([
-				Bun.write(getConfigPath(), malformed),
-				Bun.write(path.join(projectDir, ".omp", "config.yml"), malformed),
+				fsx.write(getConfigPath(), malformed),
+				fsx.write(path.join(projectDir, ".omp", "config.yml"), malformed),
 			]);
 			const unhandled: unknown[] = [];
 			const onUnhandled = (reason: unknown): void => {
@@ -424,7 +424,7 @@ describe("Settings", () => {
 				setupVersion: 1,
 				modelRoles: { global_role: "openai/global" },
 			});
-			await Bun.write(
+			await fsx.write(
 				projectConfigPath,
 				YAML.stringify({ modelRoles: { project_role: "openai/project" } }, null, 2),
 			);
@@ -432,8 +432,8 @@ describe("Settings", () => {
 			const malformedGlobal = 'setupVersion: 2\nmodelRoles:\n  global_role: "unterminated\n';
 			const malformedProject = 'modelRoles:\n  project_role: "unterminated\n';
 			await Promise.all([
-				Bun.write(getConfigPath(), malformedGlobal),
-				Bun.write(projectConfigPath, malformedProject),
+				fsx.write(getConfigPath(), malformedGlobal),
+				fsx.write(projectConfigPath, malformedProject),
 			]);
 
 			await expect(settings.reloadFromDisk()).rejects.toThrow("Settings config is invalid");
@@ -548,7 +548,7 @@ describe("Settings", () => {
 			await writeSettings({ providers: { "openai-codex": { codeMode: "off" } } });
 			const settings = await Settings.init({ cwd: projectDir, agentDir });
 			const otherProject = tempDir.join("code-mode-project");
-			await Bun.write(
+			await fsx.write(
 				path.join(getProjectAgentDir(otherProject), "config.yml"),
 				YAML.stringify({ providers: { "openai-codex": { codeMode: "on" } } }, null, 2),
 			);
@@ -1054,7 +1054,7 @@ describe("Settings", () => {
 				providers: { cacheRetention: "long" },
 				modelSettings: { models: { [profileModelKey]: { thinking: Effort.High, cacheRetention: "long" } } },
 			});
-			await Bun.write(
+			await fsx.write(
 				getProjectConfigPath(),
 				YAML.stringify(
 					{
@@ -1066,7 +1066,7 @@ describe("Settings", () => {
 				),
 			);
 			const overlayPath = tempDir.join("profile-overlay.yml");
-			await Bun.write(
+			await fsx.write(
 				overlayPath,
 				YAML.stringify(
 					{
@@ -1109,7 +1109,7 @@ describe("Settings", () => {
 			await writeSettings({
 				modelSettings: { models: { [profileModelKey]: { cacheRetention: "long" } } },
 			});
-			await Bun.write(
+			await fsx.write(
 				getProjectConfigPath(),
 				YAML.stringify(
 					{
@@ -1170,7 +1170,7 @@ describe("Settings", () => {
 					models: { [profileModelKey]: { thinking: Effort.Low, cacheRetention: "long" } },
 				},
 			});
-			await Bun.write(
+			await fsx.write(
 				getProjectConfigPath(),
 				YAML.stringify(
 					{
@@ -1196,7 +1196,7 @@ describe("Settings", () => {
 					},
 				},
 			});
-			await Bun.write(
+			await fsx.write(
 				getProjectConfigPath(),
 				YAML.stringify(
 					{
@@ -1231,7 +1231,7 @@ describe("Settings", () => {
 			await writeSettings({
 				modelSettings: { models: { [profileModelKey]: { cacheRetention: "long" } } },
 			});
-			await Bun.write(
+			await fsx.write(
 				getProjectConfigPath(),
 				YAML.stringify(
 					{
@@ -1310,11 +1310,11 @@ describe("Settings", () => {
 			const otherProjectDir = tempDir.join("other-project");
 			fs.mkdirSync(getProjectAgentDir(otherProjectDir), { recursive: true });
 
-			await Bun.write(
+			await fsx.write(
 				path.join(getProjectAgentDir(projectDir), "settings.json"),
 				JSON.stringify({ edit: { modelVariants: { kimi: "hashline" } } }),
 			);
-			await Bun.write(
+			await fsx.write(
 				path.join(getProjectAgentDir(otherProjectDir), "settings.json"),
 				JSON.stringify({ edit: { modelVariants: { "gpt-5": "apply_patch" } } }),
 			);
@@ -1409,7 +1409,7 @@ describe("Settings", () => {
 		});
 
 		it("migrates quoted dotted Exa toggles and removes obsolete suite settings", async () => {
-			await Bun.write(
+			await fsx.write(
 				getConfigPath(),
 				`"exa.enabled": true\n"exa.enableSearch": false\n"exa.enableResearcher": true\n"exa.enableWebsets": true\n`,
 			);
@@ -1569,7 +1569,7 @@ describe("Settings", () => {
 		});
 
 		it("normalizes a quoted-dotted legacy unexpected-stop boolean", async () => {
-			await Bun.write(getConfigPath(), '"features.unexpectedStopDetection": true\n');
+			await fsx.write(getConfigPath(), '"features.unexpectedStopDetection": true\n');
 
 			const settings = await Settings.init({ cwd: projectDir, agentDir });
 
@@ -1577,7 +1577,7 @@ describe("Settings", () => {
 		});
 
 		it("keeps an explicit unexpected-stop mode over a legacy dotted boolean", async () => {
-			await Bun.write(
+			await fsx.write(
 				getConfigPath(),
 				'"features.unexpectedStopDetection": false\nfeatures:\n  unexpectedStopDetection: smart\n',
 			);
@@ -1681,7 +1681,7 @@ describe("Settings", () => {
 		});
 
 		it("migrates quoted dotted legacy keys for consent and reminders max", async () => {
-			await Bun.write(getConfigPath(), `"dev.autoqa.consent": denied\n"todo.reminders.max": 2\n`);
+			await fsx.write(getConfigPath(), `"dev.autoqa.consent": denied\n"todo.reminders.max": 2\n`);
 
 			const settings = await Settings.init({ cwd: projectDir, agentDir });
 
@@ -1706,7 +1706,7 @@ describe("Settings", () => {
 		});
 
 		it("preserves recoverable parent booleans alongside legacy leaf keys", async () => {
-			await Bun.write(
+			await fsx.write(
 				getConfigPath(),
 				`dev:\n  autoqa: true\n"dev.autoqa.consent": unset\ntodo:\n  reminders: false\n"todo.reminders.max": 4\n`,
 			);
@@ -1924,7 +1924,7 @@ describe("Settings", () => {
 			});
 
 			it("rejects invalid provider limits from project settings", async () => {
-				await Bun.write(
+				await fsx.write(
 					path.join(getProjectAgentDir(projectDir), "settings.json"),
 					JSON.stringify({ providers: { maxInFlightRequests: { anthropic: 0 } } }),
 				);
@@ -1936,7 +1936,7 @@ describe("Settings", () => {
 
 			it("rejects invalid provider limits from config overlays", async () => {
 				const overlayPath = tempDir.join("overlay.yml");
-				await Bun.write(overlayPath, YAML.stringify({ providers: { maxInFlightRequests: { umans: -1 } } }));
+				await fsx.write(overlayPath, YAML.stringify({ providers: { maxInFlightRequests: { umans: -1 } } }));
 
 				await expect(
 					Settings.init({ cwd: projectDir, agentDir, inMemory: true, configFiles: [overlayPath] }),

@@ -27,6 +27,7 @@ import { convertToLlm, shouldRenderAbortReason } from "@oh-my-pi/pi-coding-agent
 import { SessionManager } from "@oh-my-pi/pi-coding-agent/session/session-manager";
 import { EventBus } from "@oh-my-pi/pi-coding-agent/utils/event-bus";
 import { removeSyncWithRetries, Snowflake } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 
 // Mock stream that mimics AssistantMessageEventStream
 
@@ -1787,7 +1788,7 @@ describe("AgentSession TTSR resume gate", () => {
 		// strictly larger window (gpt-5.5's bundled target gpt-5.4 is same-window),
 		// so pin gpt-5.5 (272k) -> gpt-5.6-sol (372k) via modelOverrides.
 		const modelsConfigPath = path.join(tempDir, "models-promo.json");
-		await Bun.write(
+		await fsx.write(
 			modelsConfigPath,
 			JSON.stringify({
 				providers: {

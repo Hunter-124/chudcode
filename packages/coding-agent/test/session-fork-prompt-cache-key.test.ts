@@ -14,6 +14,7 @@ import { AuthStorage } from "@oh-my-pi/pi-coding-agent/session/auth-storage";
 import { CURRENT_SESSION_VERSION, type SessionHeader } from "@oh-my-pi/pi-coding-agent/session/session-entries";
 import { SessionManager } from "@oh-my-pi/pi-coding-agent/session/session-manager";
 import { TempDir } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 
 const OPENAI_TEST_MODEL = getBundledModel("openai", "gpt-4o-mini");
 
@@ -43,7 +44,7 @@ async function createSourceSessionFixture(tempDir: TempDir, parentId: string): P
 		timestamp: new Date().toISOString(),
 		cwd,
 	};
-	await Bun.write(sourceFile, `${JSON.stringify(sourceHeader)}\n`);
+	await fsx.write(sourceFile, `${JSON.stringify(sourceHeader)}\n`);
 	return { cwd, sourceFile, sourceHeader, forkSessionDir };
 }
 

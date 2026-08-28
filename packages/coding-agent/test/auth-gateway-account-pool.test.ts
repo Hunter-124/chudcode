@@ -6,6 +6,7 @@ import { AuthStorage, SqliteAuthCredentialStore } from "@oh-my-pi/pi-ai";
 import { type AuthBrokerServerHandle, startAuthBroker } from "@oh-my-pi/pi-ai/auth-broker";
 import { runAuthGatewayCommand } from "@oh-my-pi/pi-coding-agent/cli/auth-gateway-cli";
 import { removeWithRetries } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 
 const BROKER_TOKEN = "gateway-account-pool-token";
 const ENV_KEYS = ["OMP_AUTH_BROKER_URL", "OMP_AUTH_BROKER_TOKEN", "OMP_AUTH_BROKER_ACCOUNT_POOL_FILE"] as const;
@@ -42,7 +43,7 @@ describe("auth-gateway account pool", () => {
 			disableRefresher: true,
 		});
 		const poolPath = path.join(tempDir, "account-pool.json");
-		await Bun.write(poolPath, JSON.stringify({ anthropic: ["email:allowed@example.com"] }));
+		await fsx.write(poolPath, JSON.stringify({ anthropic: ["email:allowed@example.com"] }));
 		process.env.OMP_AUTH_BROKER_URL = handle.url;
 		process.env.OMP_AUTH_BROKER_TOKEN = BROKER_TOKEN;
 		process.env.OMP_AUTH_BROKER_ACCOUNT_POOL_FILE = poolPath;

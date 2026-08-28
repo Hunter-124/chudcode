@@ -86,7 +86,7 @@ process.stdout.write(String(await probeRelayServer(url)));`,
 		const cdpUrl = `http://127.0.0.1:${await findFreeCdpPort()}`;
 		const scriptPath = path.join(home, "consumer.ts");
 		await Promise.all([fs.mkdir(firstProject), fs.mkdir(secondProject)]);
-		await Bun.write(
+		await fsx.write(
 			scriptPath,
 			`
 import { closeDaemonClients } from ${JSON.stringify(path.resolve(import.meta.dir, "../../src/launch/client.ts"))};

@@ -122,7 +122,7 @@ export async function loadAuthBrokerAccountPool(): Promise<AuthBrokerAccountPool
 
 	let parsed: unknown;
 	try {
-		parsed = await Bun.file(filePath).json();
+		parsed = await fsx.readJson(filePath);
 	} catch (error) {
 		throw new AIError.ConfigurationError(`Unable to read OMP_AUTH_BROKER_ACCOUNT_POOL_FILE at ${filePath}`, {
 			cause: error,

@@ -14,6 +14,7 @@ import {
 	setAgentDir,
 	setProjectDir,
 } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 
 const originalProjectDir = getProjectDir();
 const originalAgentDir = process.env.PI_CODING_AGENT_DIR;
@@ -74,7 +75,7 @@ function createController() {
 }
 
 async function writeProjectConfig(projectDir: string, servers: Record<string, MCPServerConfig>): Promise<void> {
-	await Bun.write(
+	await fsx.write(
 		getMCPConfigPath("project", projectDir),
 		`${JSON.stringify(
 			{

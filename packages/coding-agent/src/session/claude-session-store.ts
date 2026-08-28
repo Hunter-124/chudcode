@@ -12,6 +12,7 @@ import type {
 	UserMessage,
 } from "@oh-my-pi/pi-ai";
 import { isRecord } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import { resolveClaudePaths } from "../config/claude-paths";
 import { collectForeignJsonRecords, type ForeignJsonRecord, readForeignJsonRecords } from "./foreign-session-jsonl";
 import type { ForeignSessionInfo, ForeignSessionStore } from "./foreign-session-store";
@@ -102,7 +103,7 @@ async function readRegisteredProjects(root: string): Promise<string[]> {
 	const { configDir, configFile } = resolveClaudePaths();
 	const config = root === configDir ? configFile : path.join(path.dirname(root), ".claude.json");
 	try {
-		const parsed: unknown = await Bun.file(config).json();
+		const parsed: unknown = await fsx.readJson(config);
 		if (!isRecord(parsed) || !isRecord(parsed.projects)) return [];
 		const projects: string[] = [];
 		for (const project in parsed.projects) {

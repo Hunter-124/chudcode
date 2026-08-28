@@ -18,6 +18,7 @@ import {
 	isEnoent,
 } from "@oh-my-pi/pi-utils";
 import chalk from "@oh-my-pi/pi-utils/chalk";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import { createDaemonBrokerClient, type DaemonBrokerClient } from "../launch/client";
 import { canonicalProjectDir, daemonRuntimeDir, readDaemonScopeMeta } from "../launch/paths";
 import { readLiveDaemonBrokerPid } from "../launch/presence";
@@ -139,7 +140,7 @@ async function resolveScopeProjectDir(runtimeDir: string): Promise<string | unde
 	if (recorded) return recorded;
 	for (const entry of await readdirQuiet(path.join(runtimeDir, "clients"))) {
 		try {
-			const decoded: unknown = await Bun.file(path.join(runtimeDir, "clients", entry.name)).json();
+			const decoded: unknown = await fsx.readJson(path.join(runtimeDir, "clients", entry.name));
 			if (
 				typeof decoded === "object" &&
 				decoded !== null &&
@@ -179,7 +180,7 @@ async function readPersistedDaemons(
 	for (const entry of await readdirQuiet(root)) {
 		if (!entry.isDirectory()) continue;
 		try {
-			const decoded: unknown = await Bun.file(path.join(root, entry.name, "meta.json")).json();
+			const decoded: unknown = await fsx.readJson(path.join(root, entry.name, "meta.json"));
 			if (typeof decoded !== "object" || decoded === null || !("daemon" in decoded) || !("spec" in decoded))
 				continue;
 			const snapshot = parseDaemonSnapshot(decoded.daemon);

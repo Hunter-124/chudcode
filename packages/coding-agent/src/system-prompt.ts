@@ -300,7 +300,7 @@ interface GpuCache {
 async function loadGpuCache(): Promise<GpuCache | null> {
 	try {
 		const cachePath = getGpuCachePath();
-		const content = await Bun.file(cachePath).json();
+		const content = await fsx.readJson<{ version?: unknown; gpu?: unknown }>(cachePath);
 		if (content && typeof content === "object" && content.version === GPU_CACHE_VERSION && "gpu" in content) {
 			const gpu = content.gpu;
 			return { gpu: typeof gpu === "string" ? gpu : null };

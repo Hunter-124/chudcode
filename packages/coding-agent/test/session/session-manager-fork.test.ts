@@ -49,9 +49,9 @@ async function createSessionWithArtifacts(root: string): Promise<{
 		cwd,
 	};
 	await fs.mkdir(path.join(sourceArtifactsDir, "nested"), { recursive: true });
-	await Bun.write(sourceFile, `${JSON.stringify(sourceHeader)}\n`);
-	await Bun.write(path.join(sourceArtifactsDir, "1.read.log"), "tool output");
-	await Bun.write(path.join(sourceArtifactsDir, "nested", "result.txt"), "nested output");
+	await fsx.write(sourceFile, `${JSON.stringify(sourceHeader)}\n`);
+	await fsx.write(path.join(sourceArtifactsDir, "1.read.log"), "tool output");
+	await fsx.write(path.join(sourceArtifactsDir, "nested", "result.txt"), "nested output");
 	return { cwd, sessionDir, sourceFile, sourceArtifactsDir };
 }
 
@@ -83,7 +83,7 @@ describe("SessionManager.forkFrom", () => {
 				message: { role: "user", content: "hello", timestamp: Date.now() },
 			};
 			const sourceText = `${JSON.stringify(sourceHeader)}\n${JSON.stringify(sourceMessage)}\n`;
-			await Bun.write(sourceFile, sourceText);
+			await fsx.write(sourceFile, sourceText);
 
 			const terminalId = getTerminalId();
 			expect(terminalId).toBeString();
@@ -166,8 +166,8 @@ describe("SessionManager.forkFrom", () => {
 			cwd,
 		};
 		await fs.mkdir(sessionDir, { recursive: true });
-		await Bun.write(sourceFile, `${JSON.stringify(sourceHeader)}\n`);
-		await Bun.write(unrelatedFile, "must not be copied");
+		await fsx.write(sourceFile, `${JSON.stringify(sourceHeader)}\n`);
+		await fsx.write(unrelatedFile, "must not be copied");
 
 		const forked = await SessionManager.forkFrom(sourceFile, cwd, forkDir, undefined, {
 			suppressBreadcrumb: true,

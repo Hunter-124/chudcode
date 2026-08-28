@@ -1,4 +1,6 @@
 #!/usr/bin/env bun
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
+
 /**
  * Test fixture: a stand-in for the coding-agent RPC mode.
  *
@@ -8,7 +10,7 @@
  * without booting the full agent runtime (which requires provider credentials).
  */
 if (process.env.MOCK_RPC_PID_FILE) {
-	await Bun.write(process.env.MOCK_RPC_PID_FILE, String(process.pid));
+	await fsx.write(process.env.MOCK_RPC_PID_FILE, String(process.pid));
 }
 if (process.env.MOCK_RPC_IGNORE_SIGTERM === "1") {
 	process.on("SIGTERM", () => {});

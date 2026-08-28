@@ -4,6 +4,7 @@ import * as os from "node:os";
 import * as path from "node:path";
 import * as git from "@oh-my-pi/pi-coding-agent/utils/git";
 import { removeWithRetries } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 
 // Regression coverage for #8897: `omp commit` split-commit captured the staged
 // diff with `git diff --cached --binary`, whose stdout is hard-capped at
@@ -43,8 +44,8 @@ describe("git.diff with a staged binary past the 8 MiB capture cap", () => {
 		for (let offset = 0; offset < bin.length; offset += 65536) {
 			crypto.getRandomValues(bin.subarray(offset, Math.min(offset + 65536, bin.length)));
 		}
-		await Bun.write(path.join(repo, "a.bin"), bin);
-		await Bun.write(path.join(repo, "z.txt"), "hello world\nchanged line\n");
+		await fsx.write(path.join(repo, "a.bin"), bin);
+		await fsx.write(path.join(repo, "z.txt"), "hello world\nchanged line\n");
 		await git.stage.files(repo);
 	});
 
@@ -77,7 +78,7 @@ describe("git.diff with a staged binary past the 8 MiB capture cap", () => {
 		const small = await fs.mkdtemp(path.join(os.tmpdir(), "omp-git-small-test-"));
 		try {
 			gitRun(small, ["init", "-q", "-b", "main"]);
-			await Bun.write(path.join(small, "s.txt"), "one\ntwo\n");
+			await fsx.write(path.join(small, "s.txt"), "one\ntwo\n");
 			await git.stage.files(small);
 			const diff = await git.diff(small, { cached: true, binary: true, requireComplete: true });
 			expect(diff).toContain("s.txt");

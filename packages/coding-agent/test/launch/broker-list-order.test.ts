@@ -2,6 +2,7 @@ import { describe, expect, it } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { TempDir } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import { startDaemonBrokerFromEnvironment } from "../../src/launch/broker";
 import { createDaemonBrokerClient, type DaemonBrokerClient } from "../../src/launch/client";
 import {
@@ -66,7 +67,7 @@ function terminalSnapshot(index: number): DaemonSnapshot {
 
 async function seedTerminalRecord(runtimeDir: string, cwd: string, snapshot: DaemonSnapshot): Promise<void> {
 	const metaPath = path.join(runtimeDir, "daemons", snapshot.name, "meta.json");
-	await Bun.write(metaPath, JSON.stringify({ daemon: snapshot, spec: spec(snapshot.name, cwd) }));
+	await fsx.write(metaPath, JSON.stringify({ daemon: snapshot, spec: spec(snapshot.name, cwd) }));
 }
 
 async function shutdown(client: DaemonBrokerClient, broker: Promise<void>, activeName: string): Promise<void> {

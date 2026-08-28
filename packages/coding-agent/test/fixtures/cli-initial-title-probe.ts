@@ -1,4 +1,5 @@
 import { sleep } from "@oh-my-pi/pi-utils/async";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import { AgentSession } from "../../src/session/agent-session";
 
 const outputPath = process.env.OMP_TITLE_PROBE_PATH;
@@ -15,7 +16,7 @@ AgentSession.prototype.generateTitle = (firstMessage: string): Promise<string | 
 
 AgentSession.prototype.prompt = async function (): Promise<boolean> {
 	void sleep(100).then(async () => {
-		await Bun.write(outputPath, JSON.stringify({ generatedFrom, sessionName: this.sessionName }));
+		await fsx.write(outputPath, JSON.stringify({ generatedFrom, sessionName: this.sessionName }));
 		process.exit(0);
 	});
 	return true;

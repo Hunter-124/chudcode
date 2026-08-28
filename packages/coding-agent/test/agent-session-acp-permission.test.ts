@@ -24,6 +24,7 @@ import { SessionManager } from "@oh-my-pi/pi-coding-agent/session/session-manage
 import type { ToolSession } from "@oh-my-pi/pi-coding-agent/tools";
 import { dispatchXdevTool, resolveMountedXdevExecutable, type XdevState } from "@oh-my-pi/pi-coding-agent/tools/xdev";
 import { TempDir } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 
 // ---------------------------------------------------------------------------
 // Shared setup
@@ -850,7 +851,7 @@ it.each(boundaryCases)(
 				} else {
 					const targetId = `permission-target-${Bun.nanoseconds()}`;
 					const targetPath = `${tempDir.path()}/${targetId}.jsonl`;
-					await Bun.write(
+					await fsx.write(
 						targetPath,
 						`${JSON.stringify({
 							type: "session",

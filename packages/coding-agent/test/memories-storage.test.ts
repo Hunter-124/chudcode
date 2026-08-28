@@ -18,6 +18,7 @@ import {
 } from "@oh-my-pi/pi-coding-agent/memories/storage";
 import { getAgentDbPath, TempDir } from "@oh-my-pi/pi-utils";
 import { sleep } from "@oh-my-pi/pi-utils/async";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 
 const GLOBAL_KIND = "memory_consolidate_global";
 const PROJECT_CWD = "/repo";
@@ -189,7 +190,7 @@ describe("memories/storage", () => {
 		await fs.mkdir(sessionDir, { recursive: true });
 		const currentSessionFile = path.join(sessionDir, "current-file.jsonl");
 		const rolloutFile = path.join(sessionDir, "rollout-file.jsonl");
-		await Bun.write(
+		await fsx.write(
 			currentSessionFile,
 			[
 				JSON.stringify({ type: "title", v: 1, title: "Current", updatedAt: "2026-06-27T00:00:00.000Z" }),
@@ -197,7 +198,7 @@ describe("memories/storage", () => {
 				"",
 			].join("\n"),
 		);
-		await Bun.write(
+		await fsx.write(
 			rolloutFile,
 			[
 				JSON.stringify({ type: "title", v: 1, title: "Rollout", updatedAt: "2026-06-27T00:00:00.000Z" }),

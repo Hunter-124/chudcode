@@ -20,6 +20,7 @@ import type { PlanModeState } from "@oh-my-pi/pi-coding-agent/plan-mode/state";
 import type { ClientBridge } from "@oh-my-pi/pi-coding-agent/session/client-bridge";
 import type { ToolSession } from "@oh-my-pi/pi-coding-agent/tools";
 import { removeWithRetries } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 
 // ─── Shared helpers ───────────────────────────────────────────────────────────
 
@@ -59,7 +60,7 @@ function makeBridge() {
 		// Per ACP spec, writeTextFile writes to disk then notifies the editor buffer.
 		// The mock fulfils the disk-write half so post-write verification passes.
 		writeTextFile: async ({ path: p, content: c }) => {
-			await Bun.write(p, c);
+			await fsx.write(p, c);
 		},
 	};
 	const spy = spyOn(bridge, "writeTextFile");
@@ -76,7 +77,7 @@ function makeDriftingBridge() {
 	const bridge: ClientBridge = {
 		capabilities: { writeTextFile: true },
 		writeTextFile: async ({ path: p, content: c }) => {
-			await Bun.write(p, c.replace(/^ {4}/gm, "\t"));
+			await fsx.write(p, c.replace(/^ {4}/gm, "\t"));
 		},
 	};
 	const spy = spyOn(bridge, "writeTextFile");
@@ -88,7 +89,7 @@ function makeWritethroughMock(): { writethrough: WritethroughCallback; spy: { ca
 	// The writethrough must actually write to disk so post-write verification passes.
 	const writethrough: WritethroughCallback = async (dst, content) => {
 		spy.calledWith.push(dst);
-		await Bun.write(dst, content);
+		await fsx.write(dst, content);
 		return undefined;
 	};
 	return { writethrough, spy };
@@ -373,7 +374,7 @@ describe("executeReplace ACP fs routing", () => {
 
 	it("routes plain workspace writes through the bridge and skips writethrough", async () => {
 		const filePath = path.join(tmpDir, "target.txt");
-		await Bun.write(filePath, "old content\n");
+		await fsx.write(filePath, "old content\n");
 
 		const { bridge, spy: bridgeSpy } = makeBridge();
 		const { writethrough, spy: writeSpy } = makeWritethroughMock();
@@ -409,7 +410,7 @@ describe("executeReplace ACP fs routing", () => {
 			getArtifactsDir: session.getArtifactsDir,
 			getSessionId: session.getSessionId,
 		});
-		await Bun.write(resolvedPlanPath, "old plan\n");
+		await fsx.write(resolvedPlanPath, "old plan\n");
 
 		const { writethrough, spy: writeSpy } = makeWritethroughMock();
 
@@ -446,7 +447,7 @@ describe("executePatchSingle ACP fs routing", () => {
 
 	it("routes plain workspace writes through the bridge and skips writethrough", async () => {
 		const filePath = path.join(tmpDir, "target.txt");
-		await Bun.write(filePath, "a\n");
+		await fsx.write(filePath, "a\n");
 
 		const { bridge, spy: bridgeSpy } = makeBridge();
 		const { writethrough, spy: writeSpy } = makeWritethroughMock();
@@ -481,7 +482,7 @@ describe("executePatchSingle ACP fs routing", () => {
 			getArtifactsDir: session.getArtifactsDir,
 			getSessionId: session.getSessionId,
 		});
-		await Bun.write(resolvedPlanPath, "a\n");
+		await fsx.write(resolvedPlanPath, "a\n");
 
 		const { writethrough, spy: writeSpy } = makeWritethroughMock();
 

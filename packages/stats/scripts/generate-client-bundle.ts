@@ -2,6 +2,7 @@
 
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import { $ } from "bun";
 
 const GENERATED_FILE = path.join("src", "embedded-client.generated.txt");
@@ -81,7 +82,7 @@ export async function buildArchiveBase64(dir: string): Promise<string> {
 	const entries: Record<string, Uint8Array> = {};
 	for (const filePath of files) {
 		const relativePath = path.relative(dir, filePath).split(path.sep).join("/");
-		entries[relativePath] = await Bun.file(filePath).bytes();
+		entries[relativePath] = await fsx.readBytes(filePath);
 	}
 
 	const archiveBytes = await new Bun.Archive(entries).bytes();
@@ -91,7 +92,7 @@ export async function buildArchiveBase64(dir: string): Promise<string> {
 
 async function main(): Promise<void> {
 	if (process.argv.includes(RESET_FLAG)) {
-		await Bun.write(GENERATED_FILE, "");
+		await fsx.write(GENERATED_FILE, "");
 		console.log(`Reset ${GENERATED_FILE}`);
 		return;
 	}
@@ -103,7 +104,7 @@ async function main(): Promise<void> {
 
 	await $`bun run build`;
 	const archiveBase64 = await buildArchiveBase64(DIST_CLIENT_DIR);
-	await Bun.write(GENERATED_FILE, archiveBase64);
+	await fsx.write(GENERATED_FILE, archiveBase64);
 	console.log(`Generated ${GENERATED_FILE}`);
 }
 

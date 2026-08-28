@@ -2,6 +2,7 @@ import { describe, expect, it } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import { DynamicBorder } from "../../../src/modes/components/dynamic-border";
 import { getThemeByName, setThemeInstance, theme } from "../../../src/modes/theme/theme";
 
@@ -27,7 +28,7 @@ describe("DynamicBorder", () => {
 				"",
 			].join("\n");
 			const file = path.join(dir, "uninitialized-theme.ts");
-			await Bun.write(file, script);
+			await fsx.write(file, script);
 			const proc = Bun.spawn(["bun", file], { stdin: "ignore", stdout: "pipe", stderr: "pipe" });
 			const [exitCode, stderr] = await Promise.all([
 				proc.exited,

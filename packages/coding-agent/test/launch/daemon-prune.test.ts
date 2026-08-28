@@ -2,6 +2,7 @@ import { beforeAll, describe, expect, it } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { TempDir } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import { pruneDeadDaemonRuntimeDirs } from "../../src/launch/presence";
 
 const STALE = new Date(Date.now() - 30 * 60_000);
@@ -16,10 +17,10 @@ async function scope(
 	await fs.mkdir(path.join(dir, "clients"), { recursive: true });
 	if (init.pid !== undefined) {
 		const pid = init.pid === "dead" ? deadPid : init.pid;
-		await Bun.write(path.join(dir, "broker.pid"), JSON.stringify({ pid, instanceId: name }));
+		await fsx.write(path.join(dir, "broker.pid"), JSON.stringify({ pid, instanceId: name }));
 	}
 	for (const clientPid of init.clients ?? []) {
-		await Bun.write(
+		await fsx.write(
 			path.join(dir, "clients", `${clientPid}-x.json`),
 			JSON.stringify({ pid: clientPid, id: `${clientPid}-x`, projectDir: dir }),
 		);

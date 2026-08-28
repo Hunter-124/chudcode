@@ -49,7 +49,7 @@ async function main() {
 			if (check) {
 				console.log(`Would format: ${fullPath}`);
 			} else {
-				await Bun.write(fullPath, `${formatted}\n`);
+				await fsx.write(fullPath, `${formatted}\n`);
 				console.log(`Formatted: ${fullPath}`);
 			}
 			changed++;

@@ -8,6 +8,7 @@
 /// <reference types="./bun-imports.d.ts" />
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 
 export interface EditTask {
 	id: string;
@@ -151,13 +152,13 @@ export async function validateFixturesFromDir(fixturesPath: string): Promise<Fix
 		}
 
 		for (const file of inputFiles) {
-			const content = await Bun.file(path.join(inputDir, file)).text();
+			const content = await fsx.readText(path.join(inputDir, file));
 			if (content.length === 0) {
 				issues.push({ taskId, message: `input/${file} is empty` });
 			}
 		}
 		for (const file of expectedFiles) {
-			const content = await Bun.file(path.join(expectedDir, file)).text();
+			const content = await fsx.readText(path.join(expectedDir, file));
 			if (content.length === 0) {
 				issues.push({ taskId, message: `expected/${file} is empty` });
 			}

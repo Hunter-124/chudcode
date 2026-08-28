@@ -70,7 +70,7 @@ describe("SessionManager cwd adoption on resume", () => {
 		const header = JSON.parse(lines[headerIndex]) as Record<string, unknown>;
 		header.cwd = "";
 		lines[headerIndex] = JSON.stringify(header);
-		await Bun.write(fileB, `${lines.join("\n")}\n`);
+		await fsx.write(fileB, `${lines.join("\n")}\n`);
 
 		const launchDir = path.join(projectA, "sessions");
 		const manager = SessionManager.create(projectA, launchDir);

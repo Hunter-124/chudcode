@@ -1382,7 +1382,7 @@ echo ok
 					"refs/heads/main",
 				]);
 				runGit(fixture.repoRoot, ["checkout", "-b", "manual-branch", "origin/main"]);
-				await Bun.write(path.join(fixture.repoRoot, "README.md"), "base\nmanual\n");
+				await fsx.write(path.join(fixture.repoRoot, "README.md"), "base\nmanual\n");
 				runGit(fixture.repoRoot, ["add", "README.md"]);
 				runGit(fixture.repoRoot, ["commit", "-m", "manual branch commit"]);
 			});

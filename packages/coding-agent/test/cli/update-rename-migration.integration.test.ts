@@ -21,6 +21,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { $which, TempDir } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import { $ } from "bun";
 import {
 	type InstalledVersionVerification,
@@ -57,9 +58,9 @@ afterAll(async () => {
 async function makeFixtures(root: string): Promise<{ oldDir: string; newDir: string }> {
 	const mkpkg = async (name: string, version: string): Promise<string> => {
 		const dir = path.join(root, name);
-		await Bun.write(path.join(dir, "package.json"), JSON.stringify({ name, version, bin: { omp: "cli.js" } }));
+		await fsx.write(path.join(dir, "package.json"), JSON.stringify({ name, version, bin: { omp: "cli.js" } }));
 		const cli = path.join(dir, "cli.js");
-		await Bun.write(cli, `#!/usr/bin/env bun\nconsole.log("omp/${version}");\n`);
+		await fsx.write(cli, `#!/usr/bin/env bun\nconsole.log("omp/${version}");\n`);
 		await fs.chmod(cli, 0o755);
 		return dir;
 	};
@@ -163,7 +164,7 @@ describe.skipIf(process.platform === "win32")("rename migration over real bun", 
 		expect(verifications.map(result => ({ ok: result.ok, actual: result.actual }))).toEqual([
 			{ ok: true, actual: NEW_VERSION },
 		]);
-		const globalManifest = await Bun.file(path.join(root, "bun-global", "package.json")).json();
+		const globalManifest = await fsx.readJson(path.join(root, "bun-global", "package.json"));
 		expect(Object.keys(globalManifest.dependencies ?? {})).toEqual([NEW_PKG]);
 	}, 120_000);
 });

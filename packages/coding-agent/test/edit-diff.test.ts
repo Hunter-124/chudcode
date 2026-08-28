@@ -17,6 +17,7 @@ import {
 	replaceText,
 } from "@oh-my-pi/pi-coding-agent/edit";
 import { removeWithRetries } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 
 describe("findMatch", () => {
 	describe("exact matching", () => {
@@ -261,7 +262,7 @@ describe("computeHashlineDiff", () => {
 	test("returns no-op error for unchanged content when move is absent", async () => {
 		const sourcePath = path.join(tempDir, "source.txt");
 		const line = "unchanged content";
-		await Bun.write(sourcePath, `${line}\n`);
+		await fsx.write(sourcePath, `${line}\n`);
 
 		// `PUT 1-1:` with the same line in the body is a true no-op: the edit
 		// fires through computeHashlineDiff but produces identical content.
@@ -279,7 +280,7 @@ describe("computeHashlineDiff", () => {
 	test("accepts hashline input edits", async () => {
 		const sourcePath = path.join(tempDir, "source.txt");
 		const text = "first\n";
-		await Bun.write(sourcePath, text);
+		await fsx.write(sourcePath, text);
 
 		const snapshotStore = new InMemorySnapshotStore();
 		const tag = snapshotStore.record(sourcePath, text);
@@ -297,7 +298,7 @@ describe("computeHashlineDiff", () => {
 	test("previews a same-file CUT + PASTE as the moved content", async () => {
 		const sourcePath = path.join(tempDir, "source.txt");
 		const text = "l1\nl2\nl3\n";
-		await Bun.write(sourcePath, text);
+		await fsx.write(sourcePath, text);
 
 		const snapshotStore = new InMemorySnapshotStore();
 		const tag = snapshotStore.record(sourcePath, text);
@@ -316,7 +317,7 @@ describe("computeHashlineDiff", () => {
 	test("previews a PASTE from a forked session register without touching the source", async () => {
 		const sourcePath = path.join(tempDir, "source.txt");
 		const text = "l1\n";
-		await Bun.write(sourcePath, text);
+		await fsx.write(sourcePath, text);
 
 		const snapshotStore = new InMemorySnapshotStore();
 		const tag = snapshotStore.record(sourcePath, text);
@@ -339,7 +340,7 @@ describe("computeHashlineDiff", () => {
 	test("streams paste rows in the natural-order preview", async () => {
 		const sourcePath = path.join(tempDir, "source.txt");
 		const text = "l1\nl2\nl3\n";
-		await Bun.write(sourcePath, text);
+		await fsx.write(sourcePath, text);
 
 		const snapshotStore = new InMemorySnapshotStore();
 		const tag = snapshotStore.record(sourcePath, text);
@@ -358,7 +359,7 @@ describe("computeHashlineDiff", () => {
 
 	test("rejects a tagless head/tail insert in the preview path, matching apply", async () => {
 		const relativePath = "source.txt";
-		await Bun.write(path.join(tempDir, relativePath), "first\n");
+		await fsx.write(path.join(tempDir, relativePath), "first\n");
 
 		// A tagless `PUT >$:` carries no anchored edit, yet the apply path
 		// (Patcher.prepare) rejects it for the missing mandatory tag. The
@@ -396,7 +397,7 @@ describe("computeHashlineDiff", () => {
 		const SNAPSHOT_TEXT = "line one 263\nline two 4471\n";
 		const LIVE_TEXT = "line one 410\nline two 6970\n";
 		const sourcePath = path.join(tempDir, "source.txt");
-		await Bun.write(sourcePath, LIVE_TEXT);
+		await fsx.write(sourcePath, LIVE_TEXT);
 
 		const snapshotStore = new InMemorySnapshotStore();
 		// Anchors were minted against SNAPSHOT_TEXT; the live file is the

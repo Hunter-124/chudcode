@@ -6,6 +6,7 @@ import { generateThemeVars } from "@oh-my-pi/pi-coding-agent/export/html";
 import { defaultThemes } from "@oh-my-pi/pi-coding-agent/modes/theme/defaults";
 import { getResolvedThemeColors, getThemeByName, isLightTheme } from "@oh-my-pi/pi-coding-agent/modes/theme/theme";
 import { getAgentDir, getCustomThemesDir, removeWithRetries, setAgentDir } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 
 describe("Theme.isLight", () => {
 	it("classifies built-in themes by their status-line surface", async () => {
@@ -85,7 +86,7 @@ describe("getResolvedThemeColors HTML export defaults", () => {
 
 		const { export: _ignoredExport, ...themeWithoutExport } = defaultThemes.porcelain;
 		const customThemeName = "light-status-dark-export-derived";
-		await Bun.write(
+		await fsx.write(
 			path.join(getCustomThemesDir(), `${customThemeName}.json`),
 			JSON.stringify({ ...themeWithoutExport, name: customThemeName }),
 		);

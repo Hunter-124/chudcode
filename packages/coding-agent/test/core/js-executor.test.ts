@@ -7,6 +7,7 @@ import { disposeAllVmContexts } from "@oh-my-pi/pi-coding-agent/eval/js/context-
 import { executeJs, type JsResult } from "@oh-my-pi/pi-coding-agent/eval/js/executor";
 import type { ToolSession } from "@oh-my-pi/pi-coding-agent/tools";
 import { TempDir } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import { INTENT_FIELD } from "@oh-my-pi/pi-wire";
 
 // JS eval cold-starts a Bun worker; under --isolate + high CI concurrency that startup
@@ -60,11 +61,11 @@ describe("executeJs", () => {
 			settings: Settings.isolated(),
 		};
 
-		await Bun.write(
+		await fsx.write(
 			path.join(tempDir.path(), "config.json"),
 			JSON.stringify({ name: "demo", enabled: true }, null, 2),
 		);
-		await Bun.write(path.join(tempDir.path(), "config.yaml"), "name: demo\nenabled: true\n");
+		await fsx.write(path.join(tempDir.path(), "config.yaml"), "name: demo\nenabled: true\n");
 	});
 
 	afterEach(() => {

@@ -12,6 +12,7 @@ import {
 } from "@oh-my-pi/pi-coding-agent/tools/path-utils";
 import type { Component } from "@oh-my-pi/pi-tui";
 import { removeWithRetries } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import { globToolRenderer } from "../../src/tools/glob";
 
 let uiTheme: Theme;
@@ -40,9 +41,9 @@ describe("delimited path expansion", () => {
 		await fs.mkdir(path.join(tempDir, "packages"), { recursive: true });
 		await fs.mkdir(path.join(tempDir, "src"), { recursive: true });
 		await fs.mkdir(path.join(tempDir, "folder with spaces"), { recursive: true });
-		await Bun.write(path.join(tempDir, "apps", "a.txt"), "apps\n");
-		await Bun.write(path.join(tempDir, "packages", "b.txt"), "packages\n");
-		await Bun.write(path.join(tempDir, "folder with spaces", "file.txt"), "spaces\n");
+		await fsx.write(path.join(tempDir, "apps", "a.txt"), "apps\n");
+		await fsx.write(path.join(tempDir, "packages", "b.txt"), "packages\n");
+		await fsx.write(path.join(tempDir, "folder with spaces", "file.txt"), "spaces\n");
 	});
 
 	afterEach(async () => {
@@ -115,7 +116,7 @@ describe("delimited path expansion", () => {
 		const names: string[] = [];
 		for (let i = 0; i < 20; i++) {
 			const name = `enametoolong-probe-${String(i).padStart(2, "0")}.txt`;
-			await Bun.write(path.join(tempDir, name), "needle\n");
+			await fsx.write(path.join(tempDir, name), "needle\n");
 			names.push(name);
 		}
 		const joined = names.join("; ");

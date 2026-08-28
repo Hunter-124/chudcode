@@ -56,7 +56,7 @@ function sanitizeMentionPath(rawPath: string): string | null {
 
 async function pathExists(filePath: string): Promise<boolean> {
 	try {
-		await Bun.file(filePath).stat();
+		await fsx.stat(filePath);
 		return true;
 	} catch {
 		return false;
@@ -129,7 +129,7 @@ async function buildDirectoryListing(absolutePath: string): Promise<{ output: st
 		let age = "";
 
 		try {
-			const stat = await Bun.file(fullPath).stat();
+			const stat = await fsx.stat(fullPath);
 			if (stat.isDirectory()) {
 				suffix = "/";
 			}
@@ -208,7 +208,7 @@ export async function generateFileMentionMessages(
 		}
 		const absolutePath = resolveReadPath(resolvedPath, cwd);
 		try {
-			const stat = await Bun.file(absolutePath).stat();
+			const stat = await fsx.stat(absolutePath);
 			if (stat.isDirectory()) {
 				const { output, lineCount } = await buildDirectoryListing(absolutePath);
 				files.push({ path: resolvedPath, content: output, lineCount });

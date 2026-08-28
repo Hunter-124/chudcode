@@ -79,7 +79,7 @@ describe("createLspWritethrough batching", () => {
 			flush: false,
 		});
 
-		await Bun.write(fileA, "const value = 'external';\n");
+		await fsx.write(fileA, "const value = 'external';\n");
 		await writethrough(fileB, "const other = true;\n", undefined, undefined, {
 			id: batchId,
 			flush: true,
@@ -175,7 +175,7 @@ describe("createLspWritethrough batching", () => {
 			id: batchId,
 			flush: false,
 		});
-		vi.spyOn(Bun, "write").mockRejectedValueOnce(new Error("ENOSPC"));
+		vi.spyOn(fsx, "write").mockRejectedValueOnce(new Error("ENOSPC"));
 
 		await expect(
 			writethrough(fileB, "const failed = true;\n", undefined, undefined, {
@@ -239,7 +239,7 @@ describe.skipIf(process.getuid?.() === 0)("createLspWritethrough batching with a
 		// hides a path produces: the direct write fails, a privileged helper lands
 		// the bytes, and this process still cannot read them back.
 		const opaque = path.join(root, "opaque.ts");
-		await Bun.write(opaque, "const before = true;\n");
+		await fsx.write(opaque, "const before = true;\n");
 		await fs.chmod(opaque, 0o000);
 
 		const brokered: Array<{ dst: string; content: string }> = [];
@@ -247,7 +247,7 @@ describe.skipIf(process.getuid?.() === 0)("createLspWritethrough batching with a
 			addFileWriteFallback(async req => {
 				brokered.push({ dst: req.dst, content: req.content });
 				await fs.chmod(req.dst, 0o600);
-				await Bun.write(req.dst, req.content);
+				await fsx.write(req.dst, req.content);
 				await fs.chmod(req.dst, 0o000);
 				return true;
 			}),

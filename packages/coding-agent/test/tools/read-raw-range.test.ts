@@ -5,6 +5,7 @@ import * as path from "node:path";
 import { Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
 import type { ToolSession } from "@oh-my-pi/pi-coding-agent/tools";
 import { ReadTool } from "@oh-my-pi/pi-coding-agent/tools/read";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 
 function getTextOutput(result: { content: Array<{ type: string; text?: string }> }): string {
 	return result.content
@@ -33,7 +34,7 @@ describe("read tool raw range exactness", () => {
 		testDir = await fs.mkdtemp(path.join(os.tmpdir(), "read-raw-range-"));
 		filePath = path.join(testDir, "data.txt");
 		const lines = Array.from({ length: 60 }, (_, index) => `L${String(index + 1).padStart(2, "0")}`);
-		await Bun.write(filePath, lines.join("\n"));
+		await fsx.write(filePath, lines.join("\n"));
 		tool = new ReadTool(makeSession(testDir));
 	});
 

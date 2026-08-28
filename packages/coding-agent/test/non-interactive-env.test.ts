@@ -3,6 +3,7 @@ import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
 import { buildNonInteractiveEnv, NON_INTERACTIVE_ENV } from "@oh-my-pi/pi-coding-agent/exec/non-interactive-env";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 
 describe("buildNonInteractiveEnv", () => {
 	it("defaults Windows child-process encoding to UTF-8 when inherited env is unset", () => {
@@ -89,7 +90,7 @@ describe("buildNonInteractiveEnv", () => {
 it("filters expanded dotenv values while preserving matching and empty launcher values", async () => {
 	const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "omp-env-"));
 	try {
-		await Bun.write(
+		await fsx.write(
 			path.join(tmp, ".env"),
 			[
 				"BASE=loaded-by-omp",
@@ -101,7 +102,7 @@ it("filters expanded dotenv values while preserving matching and empty launcher 
 				"",
 			].join("\n"),
 		);
-		await Bun.write(
+		await fsx.write(
 			path.join(tmp, ".env.local"),
 			"CONVEX_DEPLOYMENT=anonymous:root-local\nCONVEX_URL=http://127.0.0.1:3210\n",
 		);

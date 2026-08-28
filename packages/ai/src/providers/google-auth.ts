@@ -16,6 +16,7 @@ import { Buffer } from "node:buffer";
 import * as os from "node:os";
 import * as path from "node:path";
 import { $envpos, isEnoent, logger } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import * as AIError from "../error";
 import type { FetchImpl } from "../types";
 import { raceWithSignal } from "../utils/abort";
@@ -72,7 +73,7 @@ function userAdcPath(): string {
 
 async function readJsonFile<T>(filePath: string): Promise<T | undefined> {
 	try {
-		return (await Bun.file(filePath).json()) as T;
+		return (await fsx.readJson(filePath)) as T;
 	} catch (err) {
 		if (isEnoent(err)) return undefined;
 		throw err;

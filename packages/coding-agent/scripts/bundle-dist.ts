@@ -46,7 +46,7 @@ async function ensureShebang(): Promise<void> {
 	const text = await fsx.readText(cliPath);
 	if (text.startsWith(shebang)) return;
 	const withoutExisting = text.startsWith("#!") ? text.slice(text.indexOf("\n") + 1) : text;
-	await Bun.write(cliPath, shebang + withoutExisting);
+	await fsx.write(cliPath, shebang + withoutExisting);
 }
 
 function formatBytes(bytes: number): string {
@@ -116,7 +116,7 @@ async function main(): Promise<void> {
 			throw new Error(`CLI bundle failed:\n${output.logs.map(log => log.message).join("\n")}`);
 		}
 		await ensureShebang();
-		await Bun.write(path.join(outDir, "docs-index.generated.txt"), docsPayload.payload);
+		await fsx.write(path.join(outDir, "docs-index.generated.txt"), docsPayload.payload);
 	} finally {
 		await runCommand(["bun", "--cwd=../stats", "run", "gen:stats:reset"]);
 	}

@@ -295,7 +295,7 @@ async function computePublicSurface(pkgs: string[], byRel: Map<string, FileInfo>
 	for (const pkg of pkgs) {
 		let exportsMap: Record<string, unknown>;
 		try {
-			const pkgJson: { exports?: Record<string, unknown> } = await Bun.file(`packages/${pkg}/package.json`).json();
+			const pkgJson: { exports?: Record<string, unknown> } = await fsx.readJson(`packages/${pkg}/package.json`);
 			exportsMap = pkgJson.exports ?? {};
 		} catch {
 			continue;

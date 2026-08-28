@@ -23,6 +23,7 @@ import {
 } from "@oh-my-pi/pi-coding-agent/task";
 import { EventBus } from "@oh-my-pi/pi-coding-agent/utils/event-bus";
 import { removeSyncWithRetries } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 
 const tempPaths: string[] = [];
 
@@ -333,7 +334,7 @@ describe("readRpcSubagentTranscript", () => {
 			timestamp: "2026-06-09T00:00:00.000Z",
 			message: { role: "user", content: [{ type: "text", text: "hello" }] },
 		})}\n`;
-		await Bun.write(sessionFile, `${headerLine}${messageLine}{"type":"message"`);
+		await fsx.write(sessionFile, `${headerLine}${messageLine}{"type":"message"`);
 
 		const result = await readRpcSubagentTranscript(sessionFile);
 
@@ -365,7 +366,7 @@ describe("RpcClient subagent frames", () => {
 	test("dispatches subagent frames and session-specific events", async () => {
 		const scriptPath = path.join(os.tmpdir(), `omp-rpc-subagent-client-${Date.now()}.js`);
 		tempPaths.push(scriptPath);
-		await Bun.write(
+		await fsx.write(
 			scriptPath,
 			`
 let buffer = "";

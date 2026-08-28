@@ -41,7 +41,7 @@ describe("discoverAdvisorConfigs", () => {
 			"  - name: Security Reviewer",
 			"    tools: [read, definitely-not-a-tool]",
 		].join("\n");
-		await Bun.write(path.join(tmp, "WATCHDOG.yml"), yaml);
+		await fsx.write(path.join(tmp, "WATCHDOG.yml"), yaml);
 
 		const { advisors, sharedInstructions } = await discoverAdvisorConfigs(tmp, agentDir);
 		expect(advisors).toHaveLength(2);
@@ -67,7 +67,7 @@ describe("discoverAdvisorConfigs", () => {
 			"  - name: Invalid Only",
 			"    tools: [reed]",
 		].join("\n");
-		await Bun.write(path.join(tmp, "WATCHDOG.yml"), yaml);
+		await fsx.write(path.join(tmp, "WATCHDOG.yml"), yaml);
 
 		const { advisors } = await discoverAdvisorConfigs(tmp, agentDir);
 		const noTools = advisors.find(a => a.name === "No Tools");
@@ -80,14 +80,14 @@ describe("discoverAdvisorConfigs", () => {
 	});
 
 	it("ignores a malformed YAML file without throwing", async () => {
-		await Bun.write(path.join(tmp, "WATCHDOG.yml"), "advisors: [unclosed bracket");
+		await fsx.write(path.join(tmp, "WATCHDOG.yml"), "advisors: [unclosed bracket");
 		const result = await discoverAdvisorConfigs(tmp, agentDir);
 		expect(result.advisors).toEqual([]);
 		expect(result.sharedInstructions).toBeUndefined();
 	});
 
 	it("skips a file whose shape fails the schema (advisors must be a list)", async () => {
-		await Bun.write(path.join(tmp, "WATCHDOG.yml"), "advisors: not-an-array");
+		await fsx.write(path.join(tmp, "WATCHDOG.yml"), "advisors: not-an-array");
 		const result = await discoverAdvisorConfigs(tmp, agentDir);
 		expect(result.advisors).toEqual([]);
 	});
@@ -302,13 +302,13 @@ describe("resolveAdvisorConfigEditPath", () => {
 	});
 
 	it("edits an existing .yaml in place when only it exists", async () => {
-		await Bun.write(path.join(tmp, "WATCHDOG.yaml"), "advisors: []\n");
+		await fsx.write(path.join(tmp, "WATCHDOG.yaml"), "advisors: []\n");
 		expect(await resolveAdvisorConfigEditPath("project", dirs(tmp))).toBe(path.join(tmp, "WATCHDOG.yaml"));
 	});
 
 	it("prefers the canonical .yml when both exist", async () => {
-		await Bun.write(path.join(tmp, "WATCHDOG.yml"), "advisors: []\n");
-		await Bun.write(path.join(tmp, "WATCHDOG.yaml"), "advisors: []\n");
+		await fsx.write(path.join(tmp, "WATCHDOG.yml"), "advisors: []\n");
+		await fsx.write(path.join(tmp, "WATCHDOG.yaml"), "advisors: []\n");
 		expect(await resolveAdvisorConfigEditPath("project", dirs(tmp))).toBe(path.join(tmp, "WATCHDOG.yml"));
 	});
 });

@@ -3,6 +3,7 @@ import * as path from "node:path";
 import { AgentRegistry } from "@oh-my-pi/pi-coding-agent/registry/agent-registry";
 import { registerPersistedSubagents } from "@oh-my-pi/pi-coding-agent/registry/persisted-agents";
 import { TempDir } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 
 const SONNET = { provider: "anthropic", model: "claude-sonnet-5" };
 const SOL = { provider: "openai-codex", model: "gpt-5.6-sol" };
@@ -60,8 +61,8 @@ function transcriptHead(): string[] {
 
 /** Writes a worker transcript beside an empty root session and registers it. */
 async function historyFor(dir: string, id: string, records: string[]): Promise<AgentRegistry> {
-	await Bun.write(path.join(dir, "main.jsonl"), "");
-	await Bun.write(path.join(dir, "main", `${id}.jsonl`), `${records.join("\n")}\n`);
+	await fsx.write(path.join(dir, "main.jsonl"), "");
+	await fsx.write(path.join(dir, "main", `${id}.jsonl`), `${records.join("\n")}\n`);
 	const registry = new AgentRegistry();
 	await registerPersistedSubagents(registry, path.join(dir, "main.jsonl"));
 	return registry;

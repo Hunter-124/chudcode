@@ -8,6 +8,7 @@ import { computeDefaultSessionDir } from "@oh-my-pi/pi-coding-agent/session/sess
 import { FileSessionStorage } from "@oh-my-pi/pi-coding-agent/session/session-storage";
 import { executeBuiltinSlashCommand } from "@oh-my-pi/pi-coding-agent/slash-commands/builtin-registry";
 import { getConfigRootDir, setAgentDir } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 
 let tempDir: string;
 const originalAgentDir = process.env.PI_CODING_AGENT_DIR;
@@ -35,7 +36,7 @@ async function writeSession(
 	sessionDir = computeDefaultSessionDir(cwd, storage),
 ): Promise<string> {
 	const sessionPath = path.join(sessionDir, `2026-01-01T00-00-00-000Z_${id}.jsonl`);
-	await Bun.write(
+	await fsx.write(
 		sessionPath,
 		`${JSON.stringify({ type: "session", id, timestamp: "2026-01-01T00:00:00.000Z", cwd })}\n`,
 	);

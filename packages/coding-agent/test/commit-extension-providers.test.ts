@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, test, vi } from "bun:test";
 import * as path from "node:path";
 import { runCommitCommand } from "@oh-my-pi/pi-coding-agent/commit";
 import { getProjectAgentDir, setAgentDir, setProjectDir, TempDir } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import { $ } from "bun";
 import { beginSettingsTest, restoreSettingsTestState, type SettingsTestState } from "./helpers/settings-test-state";
 
@@ -21,7 +22,7 @@ beforeEach(async () => {
 	setAgentDir(agentTmp.path());
 
 	const extensionPath = tmp.join("provider.ts");
-	await Bun.write(
+	await fsx.write(
 		extensionPath,
 		`export default function (pi) {
 	pi.registerProvider("${PROVIDER}", {
@@ -41,7 +42,7 @@ beforeEach(async () => {
 }
 `,
 	);
-	await Bun.write(
+	await fsx.write(
 		path.join(getProjectAgentDir(tmp.path()), "settings.json"),
 		JSON.stringify({
 			extensions: [extensionPath],

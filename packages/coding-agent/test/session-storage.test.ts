@@ -187,7 +187,7 @@ describe("FileSessionStorage.deleteSessionWithArtifacts", () => {
 
 	async function createSessionFile(name: string): Promise<string> {
 		const sessionPath = path.join(tempDir, `${name}.jsonl`);
-		await Bun.write(
+		await fsx.write(
 			sessionPath,
 			`${JSON.stringify({ type: "session", id: "session-id", timestamp: "2025-01-01T00:00:00Z", cwd: tempDir })}\n`,
 		);
@@ -210,7 +210,7 @@ describe("FileSessionStorage.deleteSessionWithArtifacts", () => {
 		const sessionPath = await createSessionFile("cleanup-failure");
 		const artifactsDir = sessionPath.slice(0, -6);
 		await fsp.mkdir(artifactsDir, { recursive: true });
-		await Bun.write(path.join(artifactsDir, "artifact.txt"), "artifact payload");
+		await fsx.write(path.join(artifactsDir, "artifact.txt"), "artifact payload");
 
 		const rmError = new Error("permission denied");
 		const rmSpy = vi.spyOn(fsp, "rm").mockRejectedValueOnce(rmError);

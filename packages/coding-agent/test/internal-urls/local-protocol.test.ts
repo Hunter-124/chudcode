@@ -9,6 +9,7 @@ import {
 	resolveLocalUrlToPath,
 } from "@oh-my-pi/pi-coding-agent/internal-urls";
 import { removeWithRetries } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 
 async function withTempDir<T>(fn: (dir: string) => Promise<T>): Promise<T> {
 	const dir = await fs.mkdtemp(path.join(os.tmpdir(), "local-protocol-"));
@@ -34,7 +35,7 @@ describe("LocalProtocolHandler", () => {
 		await withTempDir(async tempDir => {
 			const artifactsDir = path.join(tempDir, "artifacts");
 			await fs.mkdir(path.join(artifactsDir, "local"), { recursive: true });
-			await Bun.write(path.join(artifactsDir, "local", "handoff.json"), '{"ok":true}');
+			await fsx.write(path.join(artifactsDir, "local", "handoff.json"), '{"ok":true}');
 
 			LocalProtocolHandler.setOverride({
 				getArtifactsDir: () => artifactsDir,
@@ -53,7 +54,7 @@ describe("LocalProtocolHandler", () => {
 			const artifactsDir = path.join(tempDir, "artifacts");
 			const localFile = path.join(artifactsDir, "local", "subtasks", "trace.txt");
 			await fs.mkdir(path.dirname(localFile), { recursive: true });
-			await Bun.write(localFile, "trace");
+			await fsx.write(localFile, "trace");
 
 			LocalProtocolHandler.setOverride({
 				getArtifactsDir: () => artifactsDir,
@@ -123,7 +124,7 @@ describe("LocalProtocolHandler", () => {
 			const outsideDir = path.join(tempDir, "outside");
 			await fs.mkdir(localRoot, { recursive: true });
 			await fs.mkdir(outsideDir, { recursive: true });
-			await Bun.write(path.join(outsideDir, "secret.txt"), "secret");
+			await fsx.write(path.join(outsideDir, "secret.txt"), "secret");
 			await fs.symlink(outsideDir, path.join(localRoot, "linked"));
 
 			LocalProtocolHandler.setOverride({
@@ -141,8 +142,8 @@ describe("LocalProtocolHandler", () => {
 			const callerArtifactsDir = path.join(tempDir, "caller-artifacts");
 			await fs.mkdir(path.join(overrideArtifactsDir, "local"), { recursive: true });
 			await fs.mkdir(path.join(callerArtifactsDir, "local"), { recursive: true });
-			await Bun.write(path.join(overrideArtifactsDir, "local", "PLAN.md"), "# wrong session");
-			await Bun.write(path.join(callerArtifactsDir, "local", "PLAN.md"), "# caller session");
+			await fsx.write(path.join(overrideArtifactsDir, "local", "PLAN.md"), "# wrong session");
+			await fsx.write(path.join(callerArtifactsDir, "local", "PLAN.md"), "# caller session");
 
 			// Process-global override points at the WRONG session (simulates a
 			// stale override leaked from a prior subagent, or the multi-`main`
@@ -177,7 +178,7 @@ describe("LocalProtocolHandler", () => {
 			await fs.mkdir(path.join(overrideArtifactsDir, "local"), { recursive: true });
 			await fs.mkdir(path.join(callerArtifactsDir, "local"), { recursive: true });
 			// PLAN.md exists only in the override-pointed session.
-			await Bun.write(path.join(overrideArtifactsDir, "local", "PLAN.md"), "# wrong session");
+			await fsx.write(path.join(overrideArtifactsDir, "local", "PLAN.md"), "# wrong session");
 
 			LocalProtocolHandler.setOverride({
 				getArtifactsDir: () => overrideArtifactsDir,

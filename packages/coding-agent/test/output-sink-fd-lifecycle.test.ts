@@ -33,7 +33,7 @@ describe("OutputSink fd lifecycle", () => {
 	test("dispose() releases the spill descriptor on error/abort paths that skip dump()", async () => {
 		const dir = await createTempDir();
 		const skill = path.join(dir, "SKILL.md");
-		await Bun.write(skill, "# skill\n");
+		await fsx.write(skill, "# skill\n");
 
 		// Cross the 64-descriptor limit used by the leak repro. More iterations do
 		// not strengthen that boundary and only multiply serial file I/O.

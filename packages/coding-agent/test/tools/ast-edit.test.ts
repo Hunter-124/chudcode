@@ -68,7 +68,7 @@ describe("ast_edit tool schema", () => {
 		const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "ast-edit-render-"));
 		try {
 			const filePath = path.join(tempDir, "legacy.ts");
-			await Bun.write(filePath, "legacyWrap(x, value)\n");
+			await fsx.write(filePath, "legacyWrap(x, value)\n");
 
 			const tools = await createTools(createTestSession(tempDir), ["ast_edit"]);
 			const tool = tools.find(entry => entry.name === "ast_edit");
@@ -97,7 +97,7 @@ describe("ast_edit tool schema", () => {
 		const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "ast-edit-pending-"));
 		try {
 			const filePath = path.join(tempDir, "legacy.ts");
-			await Bun.write(filePath, "legacyWrap(x, value)\n");
+			await fsx.write(filePath, "legacyWrap(x, value)\n");
 			const queue = new ToolChoiceQueue();
 
 			const tools = await createTools(
@@ -142,7 +142,7 @@ describe("ast_edit tool schema", () => {
 		const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "ast-edit-stale-"));
 		try {
 			const filePath = path.join(tempDir, "legacy.ts");
-			await Bun.write(filePath, "legacyWrap(x, value)\n");
+			await fsx.write(filePath, "legacyWrap(x, value)\n");
 			const queue = new ToolChoiceQueue();
 
 			const tools = await createTools(
@@ -163,7 +163,7 @@ describe("ast_edit tool schema", () => {
 			expect((previewResult.details as { totalReplacements?: number } | undefined)?.totalReplacements).toBe(1);
 
 			const mutatedContent = "otherWrap(x, value)\n";
-			await Bun.write(filePath, mutatedContent);
+			await fsx.write(filePath, mutatedContent);
 
 			const invoker = queue.peekPendingInvoker()!;
 			const applyResult = (await invoker({ action: "apply", reason: "apply stale preview" })) as InvokedToolResult;
@@ -189,10 +189,10 @@ describe("ast_edit tool schema", () => {
 			const sourceDir = path.join(packagesDir, "pkg-123", "src");
 			const nestedDir = path.join(sourceDir, "nested");
 			await fs.mkdir(nestedDir, { recursive: true });
-			await Bun.write(path.join(sourceDir, "root.ts"), "legacyWrap(rootValue, rootArg)\n");
-			await Bun.write(path.join(nestedDir, "child.ts"), "legacyWrap(childValue, childArg)\n");
-			await Bun.write(path.join(sourceDir, "ignore.js"), "legacyWrap(ignoreValue, ignoreArg)\n");
-			await Bun.write(path.join(tempDir, "outside.ts"), "legacyWrap(outsideValue, outsideArg)\n");
+			await fsx.write(path.join(sourceDir, "root.ts"), "legacyWrap(rootValue, rootArg)\n");
+			await fsx.write(path.join(nestedDir, "child.ts"), "legacyWrap(childValue, childArg)\n");
+			await fsx.write(path.join(sourceDir, "ignore.js"), "legacyWrap(ignoreValue, ignoreArg)\n");
+			await fsx.write(path.join(tempDir, "outside.ts"), "legacyWrap(outsideValue, outsideArg)\n");
 			const queue = new ToolChoiceQueue();
 
 			const tools = await createTools(
@@ -246,7 +246,7 @@ describe("ast_edit tool schema", () => {
 		const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "ast-edit-tlaplus-"));
 		try {
 			const filePath = path.join(tempDir, "Spec.tla");
-			await Bun.write(filePath, `---- MODULE Spec ----\nVARIABLE x\n\nInit == x = 0\n\nNext == x' = x + 1\n====\n`);
+			await fsx.write(filePath, `---- MODULE Spec ----\nVARIABLE x\n\nInit == x = 0\n\nNext == x' = x + 1\n====\n`);
 			const queue = new ToolChoiceQueue();
 
 			const tools = await createTools(

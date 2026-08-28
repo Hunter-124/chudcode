@@ -14,7 +14,7 @@ describe("issue #5879: legacy provider compatibility", () => {
 			PI_PROFILE: process.env.PI_PROFILE,
 		};
 		const extensionPath = path.join(projectDir.path(), "pi-provider-like-plugin", "index.ts");
-		await Bun.write(
+		await fsx.write(
 			extensionPath,
 			[
 				'import { createAssistantMessageEventStream } from "@earendil-works/pi-ai";',

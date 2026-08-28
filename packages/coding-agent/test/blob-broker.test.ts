@@ -6,6 +6,7 @@ import type { AssistantMessage, AssistantMessageEvent, Context, Model } from "@o
 import { AssistantMessageEventStream } from "@oh-my-pi/pi-ai/utils/event-stream";
 import { buildModel } from "@oh-my-pi/pi-catalog/build";
 import { getProjectDir } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import * as snapcompact from "@oh-my-pi/snapcompact";
 import { LocalBlobBackend } from "../src/blob-broker/broker";
 import { contextHasImageUrls, supportsRemoteImageUrls } from "../src/blob-broker/context-images";
@@ -346,7 +347,7 @@ describe("uploaders", () => {
 
 	it("runs a command uploader end to end against a stub binary", async () => {
 		const stub = path.join(os.tmpdir(), `omp-test-uploader-${process.pid}.sh`);
-		await Bun.write(
+		await fsx.write(
 			stub,
 			`#!/bin/sh\ntest -s "$2" || exit 3\necho "uploaded $2"\necho "https://files.example/abc.$3"\n`,
 		);

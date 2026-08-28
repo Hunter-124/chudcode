@@ -16,6 +16,7 @@ import { createAgentSession, type ExtensionFactory } from "@oh-my-pi/pi-coding-a
 import type { AuthStorage } from "@oh-my-pi/pi-coding-agent/session/auth-storage";
 import { SessionManager } from "@oh-my-pi/pi-coding-agent/session/session-manager";
 import { removeSyncWithRetries, Snowflake } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import { createInMemoryAuthStorage } from "./helpers/agent-session-setup";
 
 describe("createAgentSession deferred model pattern resolution", () => {
@@ -1066,7 +1067,7 @@ describe("createAgentSession deferred model pattern resolution", () => {
 
 		const targetSessionFile = path.join(tempDir, "resume-saved-model.jsonl");
 		const timestamp = "2026-06-01T00:00:00.000Z";
-		await Bun.write(
+		await fsx.write(
 			targetSessionFile,
 			`${[
 				{ type: "session", version: 3, id: "resume-saved", timestamp, cwd: tempDir },
@@ -1143,7 +1144,7 @@ describe("createAgentSession deferred model pattern resolution", () => {
 		authStorage.setRuntimeApiKey(defaultModel.provider, "test-key");
 
 		const modelsPath = path.join(tempDir, "models.yml");
-		await Bun.write(
+		await fsx.write(
 			modelsPath,
 			JSON.stringify({
 				providers: {
@@ -1183,7 +1184,7 @@ describe("createAgentSession deferred model pattern resolution", () => {
 
 		const targetSessionFile = path.join(tempDir, "resume-discovery-model.jsonl");
 		const timestamp = "2026-06-01T00:00:00.000Z";
-		await Bun.write(
+		await fsx.write(
 			targetSessionFile,
 			`${[
 				{ type: "session", version: 3, id: "resume-discovery", timestamp, cwd: tempDir },
@@ -1359,7 +1360,7 @@ describe("createAgentSession deferred model pattern resolution", () => {
 	});
 
 	test("loads model overrides from the supplied agent directory", async () => {
-		await Bun.write(
+		await fsx.write(
 			path.join(tempDir, "models.yml"),
 			[
 				"providers:",
@@ -1414,7 +1415,7 @@ describe("createAgentSession deferred model pattern resolution", () => {
 
 		const targetSessionFile = path.join(tempDir, "resume-extension.jsonl");
 		const timestamp = "2026-06-01T00:00:00.000Z";
-		await Bun.write(
+		await fsx.write(
 			targetSessionFile,
 			`${[
 				{ type: "session", version: 3, id: "resume-ext", timestamp, cwd: tempDir },
@@ -1486,7 +1487,7 @@ describe("createAgentSession deferred model pattern resolution", () => {
 		// only resolvable once provider registrations are processed.
 		const targetSessionFile = path.join(tempDir, "resume-extension-default-missing.jsonl");
 		const timestamp = "2026-06-01T00:00:00.000Z";
-		await Bun.write(
+		await fsx.write(
 			targetSessionFile,
 			`${[
 				{ type: "session", version: 3, id: "resume-ext-no-default", timestamp, cwd: tempDir },

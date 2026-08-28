@@ -1378,7 +1378,7 @@ async function readPackageImports(packageRoot: string): Promise<Record<string, u
 
 	let imports: Record<string, unknown> | null = null;
 	try {
-		const pkg = await Bun.file(path.join(packageRoot, "package.json")).json();
+		const pkg = await fsx.readJson(path.join(packageRoot, "package.json"));
 		if (isRecord(pkg) && isRecord(pkg.imports)) {
 			imports = pkg.imports;
 		}
@@ -1613,7 +1613,7 @@ async function readPackageManifest(packageRoot: string): Promise<Record<string, 
 
 async function readPackageManifestUncached(packageRoot: string): Promise<Record<string, unknown> | null> {
 	try {
-		const manifest = await Bun.file(path.join(packageRoot, "package.json")).json();
+		const manifest = await fsx.readJson(path.join(packageRoot, "package.json"));
 		return isRecord(manifest) ? manifest : null;
 	} catch {
 		return null;

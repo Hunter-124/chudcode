@@ -4,6 +4,7 @@ import * as os from "node:os";
 import * as path from "node:path";
 import { clearCache, readFile } from "@oh-my-pi/pi-coding-agent/capability/fs";
 import { sleep } from "@oh-my-pi/pi-utils/async";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 
 const isWindows = process.platform === "win32";
 
@@ -44,7 +45,7 @@ describe("capability/fs readFile on special files", () => {
 	// gate must follow links rather than rejecting them.
 	it.skipIf(isWindows)("still reads regular files through symlinks", async () => {
 		const target = path.join(dir, "AGENTS.md");
-		await Bun.write(target, "# context");
+		await fsx.write(target, "# context");
 		const link = path.join(dir, "CLAUDE-link.md");
 		await fs.promises.symlink(target, link);
 		clearCache();

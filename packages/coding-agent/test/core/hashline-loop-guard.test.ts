@@ -29,7 +29,7 @@ function execOptions(input: string, session: ToolSession): ExecuteHashlineSingle
 		session,
 		input,
 		writethrough: async (targetPath, content) => {
-			await Bun.write(targetPath, content);
+			await fsx.write(targetPath, content);
 			return undefined;
 		},
 		beginDeferredDiagnosticsForPath: () => ({
@@ -63,7 +63,7 @@ describe("hashline noop loop guard", () => {
 	it("returns the soft hint for the first NOOP_HARD_LIMIT - 1 attempts", async () => {
 		await withTempDir(async tempDir => {
 			const filePath = path.join(tempDir, "a.ts");
-			await Bun.write(filePath, "aaa\nbbb\nccc\n");
+			await fsx.write(filePath, "aaa\nbbb\nccc\n");
 			const session = makeSession(tempDir);
 			const input = buildNoopInput(filePath, "a.ts", session);
 
@@ -80,7 +80,7 @@ describe("hashline noop loop guard", () => {
 	it("escalates to a thrown ToolError on the Nth consecutive byte-identical no-op", async () => {
 		await withTempDir(async tempDir => {
 			const filePath = path.join(tempDir, "a.ts");
-			await Bun.write(filePath, "aaa\nbbb\nccc\n");
+			await fsx.write(filePath, "aaa\nbbb\nccc\n");
 			const session = makeSession(tempDir);
 			const input = buildNoopInput(filePath, "a.ts", session);
 
@@ -108,8 +108,8 @@ describe("hashline noop loop guard", () => {
 		await withTempDir(async tempDir => {
 			const aPath = path.join(tempDir, "a.ts");
 			const bPath = path.join(tempDir, "b.ts");
-			await Bun.write(aPath, "aaa\nbbb\nccc\n");
-			await Bun.write(bPath, "aaa\nbbb\nccc\n");
+			await fsx.write(aPath, "aaa\nbbb\nccc\n");
+			await fsx.write(bPath, "aaa\nbbb\nccc\n");
 			const session = makeSession(tempDir);
 			const aInput = buildNoopInput(aPath, "a.ts", session);
 			const bInput = buildNoopInput(bPath, "b.ts", session);
@@ -133,7 +133,7 @@ describe("hashline noop loop guard", () => {
 	it("resets the counter after a successful (non-noop) commit on the same path", async () => {
 		await withTempDir(async tempDir => {
 			const filePath = path.join(tempDir, "a.ts");
-			await Bun.write(filePath, "aaa\nbbb\nccc\n");
+			await fsx.write(filePath, "aaa\nbbb\nccc\n");
 			const session = makeSession(tempDir);
 			const noopInput = buildNoopInput(filePath, "a.ts", session);
 
@@ -169,7 +169,7 @@ describe("hashline noop loop guard", () => {
 	it("isolates state per ToolSession (no cross-session leakage)", async () => {
 		await withTempDir(async tempDir => {
 			const filePath = path.join(tempDir, "a.ts");
-			await Bun.write(filePath, "aaa\nbbb\nccc\n");
+			await fsx.write(filePath, "aaa\nbbb\nccc\n");
 
 			const sessionA = makeSession(tempDir);
 			const inputA = buildNoopInput(filePath, "a.ts", sessionA);

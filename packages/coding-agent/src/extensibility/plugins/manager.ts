@@ -127,7 +127,7 @@ export class PluginManager {
 
 	async #readRuntimeConfigAt(lockPath: string): Promise<PluginRuntimeConfig> {
 		try {
-			return normalizePluginRuntimeConfig(await Bun.file(lockPath).json());
+			return normalizePluginRuntimeConfig(await fsx.readJson(lockPath));
 		} catch (err) {
 			if (isEnoent(err)) return normalizePluginRuntimeConfig({});
 			logger.warn("Failed to load plugin runtime config", { path: lockPath, error: String(err) });
@@ -154,7 +154,7 @@ export class PluginManager {
 	async #loadProjectOverrides(): Promise<ProjectPluginOverrides> {
 		const overridesPath = getProjectPluginOverridesPath(this.#cwd);
 		try {
-			return await Bun.file(overridesPath).json();
+			return await fsx.readJson(overridesPath);
 		} catch (err) {
 			if (isEnoent(err)) return {};
 			logger.warn("Failed to load project plugin overrides", { path: overridesPath, error: String(err) });
@@ -174,7 +174,7 @@ export class PluginManager {
 	async #ensurePackageJson(): Promise<void> {
 		const pkgJsonPath = getPluginsPackageJson();
 		try {
-			await Bun.file(pkgJsonPath).json();
+			await fsx.readJson(pkgJsonPath);
 		} catch (err) {
 			if (isEnoent(err)) {
 				await fsx.write(
@@ -203,8 +203,8 @@ export class PluginManager {
 	 */
 	async #readDeps(pkgJsonPath: string): Promise<Record<string, string>> {
 		try {
-			const json = await Bun.file(pkgJsonPath).json();
-			return (json.dependencies as Record<string, string>) ?? {};
+			const json = await fsx.readJson<{ dependencies?: Record<string, string> }>(pkgJsonPath);
+			return json.dependencies ?? {};
 		} catch (err) {
 			if (isEnoent(err)) return {};
 			throw err;
@@ -213,7 +213,7 @@ export class PluginManager {
 
 	async #removeDependencyEntry(pkgJsonPath: string, name: string): Promise<void> {
 		const pkgJson: { dependencies?: Record<string, string>; [key: string]: unknown } =
-			await Bun.file(pkgJsonPath).json();
+			await fsx.readJson(pkgJsonPath);
 		if (!pkgJson.dependencies || !(name in pkgJson.dependencies)) {
 			return;
 		}
@@ -239,7 +239,7 @@ export class PluginManager {
 	): Promise<InstalledPlugin | undefined> {
 		let pluginPkg: RuntimePackageJson;
 		try {
-			pluginPkg = await Bun.file(path.join(pluginPath, "package.json")).json();
+			pluginPkg = await fsx.readJson(path.join(pluginPath, "package.json"));
 		} catch (err) {
 			if (isEnoent(err)) return undefined;
 			throw err;
@@ -277,7 +277,7 @@ export class PluginManager {
 					const parsedId = parsePluginId(pluginId);
 					let packageName = parsedId?.name ?? pluginId;
 					try {
-						const pkg: RuntimePackageJson = await Bun.file(packageJsonPath).json();
+						const pkg: RuntimePackageJson = await fsx.readJson(packageJsonPath);
 						if (typeof pkg.name === "string" && pkg.name.length > 0) {
 							packageName = pkg.name;
 						}
@@ -574,7 +574,7 @@ export class PluginManager {
 			const pkgPath = path.join(getPluginsNodeModules(), actualName, "package.json");
 			let pkg: { name: string; version: string; omp?: PluginManifest; pi?: PluginManifest };
 			try {
-				pkg = await Bun.file(pkgPath).json();
+				pkg = await fsx.readJson(pkgPath);
 			} catch (err) {
 				if (isEnoent(err)) {
 					throw new Error(`Package installed but package.json not found at ${pkgPath}`);
@@ -741,7 +741,7 @@ export class PluginManager {
 		const pkgJsonPath = getPluginsPackageJson();
 		let deps: Record<string, string> = {};
 		try {
-			const pkg: { dependencies?: Record<string, string> } = await Bun.file(pkgJsonPath).json();
+			const pkg: { dependencies?: Record<string, string> } = await fsx.readJson(pkgJsonPath);
 			deps = pkg.dependencies ?? {};
 		} catch (err) {
 			if (!isEnoent(err)) throw err;
@@ -775,7 +775,7 @@ export class PluginManager {
 		const pkgFilePath = path.join(absolutePath, "package.json");
 		let pkg: { name?: string; version: string; omp?: PluginManifest; pi?: PluginManifest };
 		try {
-			pkg = await Bun.file(pkgFilePath).json();
+			pkg = await fsx.readJson(pkgFilePath);
 		} catch (err) {
 			if (isEnoent(err)) throw new Error(`package.json not found at ${absolutePath}`);
 			throw err;
@@ -948,7 +948,7 @@ export class PluginManager {
 		let pkg: { dependencies?: Record<string, string> };
 		let hasPkgJson = true;
 		try {
-			pkg = await Bun.file(pkgJsonPath).json();
+			pkg = await fsx.readJson(pkgJsonPath);
 		} catch (err) {
 			if (isEnoent(err)) {
 				hasPkgJson = false;
@@ -987,7 +987,7 @@ export class PluginManager {
 
 			let pluginPkg: { version: string; description?: string; omp?: PluginManifest; pi?: PluginManifest };
 			try {
-				pluginPkg = await Bun.file(pluginPkgPath).json();
+				pluginPkg = await fsx.readJson(pluginPkgPath);
 			} catch (err) {
 				if (isEnoent(err)) {
 					if (!fs.existsSync(pluginPath)) {

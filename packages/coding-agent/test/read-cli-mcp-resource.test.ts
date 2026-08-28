@@ -4,6 +4,7 @@ import * as os from "node:os";
 import * as path from "node:path";
 import * as url from "node:url";
 import { removeWithRetries } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 
 const CLI_ENTRY = path.join(import.meta.dir, "..", "src", "cli.ts");
 const FIXTURE_PATH = path.join(import.meta.dir, "fixtures", "resources-no-templates-mcp.ts");
@@ -19,7 +20,7 @@ describe("omp read MCP resources", () => {
 		projectDir = path.join(root, "project");
 		agentDir = path.join(root, "agent");
 		await Promise.all([fs.mkdir(projectDir), fs.mkdir(agentDir)]);
-		await Bun.write(
+		await fsx.write(
 			path.join(projectDir, ".mcp.json"),
 			JSON.stringify({
 				mcpServers: {
@@ -32,7 +33,7 @@ describe("omp read MCP resources", () => {
 			}),
 		);
 		probePath = path.join(root, "probe.ts");
-		await Bun.write(
+		await fsx.write(
 			probePath,
 			[
 				`import { runCli } from ${JSON.stringify(url.pathToFileURL(CLI_ENTRY).href)};`,

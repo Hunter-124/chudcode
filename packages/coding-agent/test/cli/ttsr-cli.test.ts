@@ -11,6 +11,7 @@ import {
 } from "@oh-my-pi/pi-coding-agent/cli/ttsr-cli";
 import { resetSettingsForTest } from "@oh-my-pi/pi-coding-agent/config/settings";
 import { getProjectAgentDir, getProjectDir, removeSyncWithRetries, setProjectDir } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 
 let testTmpDir: string;
 
@@ -77,7 +78,7 @@ async function writeTempRule(condition: string, scope: string[], astCondition?: 
 	const fm: string[] = [`description: test rule`, `condition: "${condition.replace(/"/g, '\\"')}"`];
 	if (astCondition) fm.push(`astCondition: "${astCondition.replace(/"/g, '\\"')}"`);
 	fm.push(`scope: [${scope.map(s => `"${s}"`).join(", ")}]`);
-	await Bun.write(tmp, `---\n${fm.join("\n")}\n---\nbody\n`);
+	await fsx.write(tmp, `---\n${fm.join("\n")}\n---\nbody\n`);
 	return tmp;
 }
 
@@ -85,7 +86,7 @@ async function writeTempSnippet(content: string, ext: string): Promise<string> {
 	const dir = path.join(testTmpDir, `snippet-${Math.random().toString(36).slice(2)}`);
 	fs.mkdirSync(dir, { recursive: true });
 	const tmp = path.join(dir, `snippet.${ext}`);
-	await Bun.write(tmp, content);
+	await fsx.write(tmp, content);
 	return tmp;
 }
 
@@ -272,7 +273,7 @@ describe("omp ttsr", () => {
 
 			// 3. Create a test file in projectDir/src/foo.ts
 			const testFile = path.join(projectDir, "src/foo.ts");
-			await Bun.write(testFile, "const x: any = 1;");
+			await fsx.write(testFile, "const x: any = 1;");
 
 			// 4. Create isolated rule with glob/scope
 			const rulePath = await writeTempRule(": any", ["tool:edit(src/**/*.ts)"]);
@@ -299,7 +300,7 @@ describe("omp ttsr", () => {
 			fs.mkdirSync(path.join(projectDir, "src"), { recursive: true });
 			setProjectDir(projectDir);
 
-			await Bun.write(path.join(projectDir, "src/foo.ts"), "const x: any = 1;");
+			await fsx.write(path.join(projectDir, "src/foo.ts"), "const x: any = 1;");
 
 			const rulePath = await writeTempRule(": any", ["tool:edit(src/**/*.ts)"]);
 			const scan: TtsrScanArgs = {
@@ -323,7 +324,7 @@ describe("omp ttsr", () => {
 			setProjectDir(projectDir);
 
 			const testFile = path.join(projectDir, "src/foo.ts");
-			await Bun.write(testFile, "const x: any = 1;");
+			await fsx.write(testFile, "const x: any = 1;");
 
 			const rulePath = await writeTempRule(": any", ["tool:edit(src/**/*.ts)"]);
 
@@ -351,7 +352,7 @@ describe("omp ttsr", () => {
 			setProjectDir(projectDir);
 
 			const testFile = path.join(projectDir, "src/foo.ts");
-			await Bun.write(testFile, "const x: unknown = 1;");
+			await fsx.write(testFile, "const x: unknown = 1;");
 
 			const rulePath = await writeTempRule(": any", ["tool:edit(src/**/*.ts)"]);
 
@@ -375,9 +376,9 @@ describe("omp ttsr", () => {
 			fs.mkdirSync(path.join(projectDir, "packages/src"), { recursive: true });
 			setProjectDir(projectDir);
 
-			await Bun.write(path.join(projectDir, ".gitignore"), "packages/generated/\n");
-			await Bun.write(path.join(projectDir, "packages/generated/ignored.ts"), "const x: any = 1;");
-			await Bun.write(path.join(projectDir, "packages/src/kept.ts"), "const x: unknown = 1;");
+			await fsx.write(path.join(projectDir, ".gitignore"), "packages/generated/\n");
+			await fsx.write(path.join(projectDir, "packages/generated/ignored.ts"), "const x: any = 1;");
+			await fsx.write(path.join(projectDir, "packages/src/kept.ts"), "const x: unknown = 1;");
 
 			const rulePath = await writeTempRule(": any", ["tool:edit(packages/**/*.ts)"]);
 			const scan: TtsrScanArgs = {
@@ -403,11 +404,11 @@ describe("omp ttsr", () => {
 			fs.mkdirSync(getProjectAgentDir(projectDir), { recursive: true });
 			setProjectDir(projectDir);
 
-			await Bun.write(
+			await fsx.write(
 				path.join(getProjectAgentDir(projectDir), "settings.json"),
 				JSON.stringify({ ttsr: { enabled: false } }),
 			);
-			await Bun.write(path.join(projectDir, "src/foo.ts"), "const x: any = 1;");
+			await fsx.write(path.join(projectDir, "src/foo.ts"), "const x: any = 1;");
 
 			await run({ action: "scan", scan: { directory: "src" }, json: true });
 
@@ -423,8 +424,8 @@ describe("omp ttsr", () => {
 			fs.mkdirSync(path.join(projectDir, "packages/generated"), { recursive: true });
 			setProjectDir(projectDir);
 
-			await Bun.write(path.join(projectDir, ".gitignore"), "packages/generated/\n");
-			await Bun.write(path.join(projectDir, "packages/generated/ignored.ts"), "const x: any = 1;");
+			await fsx.write(path.join(projectDir, ".gitignore"), "packages/generated/\n");
+			await fsx.write(path.join(projectDir, "packages/generated/ignored.ts"), "const x: any = 1;");
 
 			const rulePath = await writeTempRule(": any", ["tool:edit(packages/**/*.ts)"]);
 			const scan: TtsrScanArgs = {
@@ -448,7 +449,7 @@ describe("omp ttsr", () => {
 			fs.mkdirSync(path.join(projectDir, ".github/workflows"), { recursive: true });
 			setProjectDir(projectDir);
 
-			await Bun.write(path.join(projectDir, ".github/workflows/ci.yml"), "needs-ttsr: true\n");
+			await fsx.write(path.join(projectDir, ".github/workflows/ci.yml"), "needs-ttsr: true\n");
 
 			const rulePath = await writeTempRule("needs-ttsr", ["tool:edit(.github/**/*.yml)"]);
 			const scan: TtsrScanArgs = {
@@ -471,7 +472,7 @@ describe("omp ttsr", () => {
 			fs.mkdirSync(path.join(projectDir, "src"), { recursive: true });
 			setProjectDir(projectDir);
 
-			await Bun.write(path.join(projectDir, "src/foo.ts"), "const y = (x as\n{ z }).z;");
+			await fsx.write(path.join(projectDir, "src/foo.ts"), "const y = (x as\n{ z }).z;");
 			const rulePath = await writeTempRule(
 				"never-matches-regex-zzz",
 				["tool:edit(src/**/*.ts)"],
@@ -496,7 +497,7 @@ describe("omp ttsr", () => {
 			fs.mkdirSync(path.join(projectDir, "src"), { recursive: true });
 			setProjectDir(projectDir);
 
-			await Bun.write(path.join(projectDir, "src/large.ts"), "const x: any = 1;");
+			await fsx.write(path.join(projectDir, "src/large.ts"), "const x: any = 1;");
 
 			const rulePath = await writeTempRule(": any", ["tool:edit(src/**/*.ts)"]);
 			const scan: TtsrScanArgs = {
@@ -523,7 +524,7 @@ describe("omp ttsr", () => {
 			fs.mkdirSync(path.join(projectDir, "src"), { recursive: true });
 			setProjectDir(projectDir);
 
-			await Bun.write(path.join(projectDir, "src/blob.ts"), new Uint8Array([0x63, 0x6f, 0x6e, 0x73, 0x74, 0x00]));
+			await fsx.write(path.join(projectDir, "src/blob.ts"), new Uint8Array([0x63, 0x6f, 0x6e, 0x73, 0x74, 0x00]));
 
 			const rulePath = await writeTempRule("const", ["tool:edit(src/**/*.ts)"]);
 			const scan: TtsrScanArgs = {

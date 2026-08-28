@@ -25,6 +25,7 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import { parseArgs } from "node:util";
 import { prompt, TempDir } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import { $ } from "bun";
 import { diffLines } from "diff";
 import { formatContent } from "./formatter";
@@ -239,7 +240,7 @@ async function collectFiles(typescriptDir: string): Promise<string[]> {
 }
 
 async function readFileAsync(filePath: string): Promise<string> {
-	return Bun.file(filePath).text();
+	return fsx.readText(filePath);
 }
 
 function findRepeatedLines(content: string, minRepeats = 2): Map<string, number[]> {

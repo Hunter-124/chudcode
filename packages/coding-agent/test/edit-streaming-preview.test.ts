@@ -5,6 +5,7 @@ import * as path from "node:path";
 import { computeFileHash, formatHashlineHeader, InMemorySnapshotStore } from "@oh-my-pi/hashline";
 import { dropIncompleteLastEdit, EDIT_MODE_STRATEGIES } from "@oh-my-pi/pi-coding-agent/edit";
 import { removeWithRetries } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 
 describe("dropIncompleteLastEdit", () => {
 	test("keeps all entries when partialJson is undefined", () => {
@@ -50,8 +51,8 @@ describe("hashline streaming preview (multi-section)", () => {
 		tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "hashline-stream-"));
 		fileA = path.join(tmpDir, "a.ts");
 		fileB = path.join(tmpDir, "b.ts");
-		await Bun.write(fileA, textA);
-		await Bun.write(fileB, textB);
+		await fsx.write(fileA, textA);
+		await fsx.write(fileB, textB);
 		// Snapshot tags are mandatory on every section (preview path mirrors
 		// the apply path). Record each file's content under the absolute path
 		// the section resolves to, then build tagged headers.
@@ -109,7 +110,7 @@ describe("hashline streaming preview (single-op trailing payload)", () => {
 	beforeEach(async () => {
 		tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "hashline-stream-single-"));
 		file = path.join(tmpDir, "a.ts");
-		await Bun.write(file, text);
+		await fsx.write(file, text);
 		snapshots = new InMemorySnapshotStore();
 		header = formatHashlineHeader("a.ts", snapshots.record(file, text));
 	});
@@ -162,7 +163,7 @@ describe("hashline streaming preview (single-op trailing payload)", () => {
 	});
 
 	test("final preview recovers a stale tag from snapshot history", async () => {
-		await Bun.write(file, `// external\n${text}`);
+		await fsx.write(file, `// external\n${text}`);
 		const input = `${header}\nPUT 2-2:\n+const b = 22\n`;
 		const previews = await strategy.computeDiffPreview({ input } as never, ctx(tmpDir, false) as never);
 		expect(previews).toHaveLength(1);
@@ -206,7 +207,7 @@ describe("hashline streaming preview (monotonic growth)", () => {
 	beforeEach(async () => {
 		tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "hashline-stream-mono-"));
 		file = path.join(tmpDir, "a.go");
-		await Bun.write(file, text);
+		await fsx.write(file, text);
 		snapshots = new InMemorySnapshotStore();
 		header = formatHashlineHeader("a.go", snapshots.record(file, text));
 	});
@@ -254,7 +255,7 @@ describe("apply_patch streaming preview (trailing partial line)", () => {
 	beforeEach(async () => {
 		tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "applypatch-stream-"));
 		file = path.join(tmpDir, "a.ts");
-		await Bun.write(file, "const a = 1;\nconst b = 2;\nconst c = 3;\n");
+		await fsx.write(file, "const a = 1;\nconst b = 2;\nconst c = 3;\n");
 	});
 
 	afterEach(async () => {
@@ -373,7 +374,7 @@ describe("hashline streaming preview (tag-based path recovery)", () => {
 		// header (basename only), and the snapshot was recorded under the real
 		// nested path when the file was read. cwd has no top-level mod.ts.
 		nestedFile = path.join(tmpDir, "pkg", "src", "mod.ts");
-		await Bun.write(nestedFile, text);
+		await fsx.write(nestedFile, text);
 		snapshots = new InMemorySnapshotStore();
 		header = formatHashlineHeader("mod.ts", snapshots.record(nestedFile, text));
 	});

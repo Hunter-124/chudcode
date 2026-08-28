@@ -17,6 +17,7 @@ import { Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
 import { runRootCommand } from "@oh-my-pi/pi-coding-agent/main";
 import { AuthStorage } from "@oh-my-pi/pi-coding-agent/session/auth-storage";
 import { TempDir } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 
 class ProcessExitSignal extends Error {
 	constructor(readonly code: number) {
@@ -31,7 +32,7 @@ describe("runRootCommand — startup --resume picker cancellation", () => {
 		const sessionDir = tempDir.path();
 		// One valid session so folderSessions is non-empty and the picker (not the
 		// "No sessions found" probe) is the path under test.
-		await Bun.write(
+		await fsx.write(
 			path.join(sessionDir, "existing.jsonl"),
 			`${JSON.stringify({ type: "session", id: "existing-session", cwd: sessionDir, timestamp: new Date().toISOString() })}\n`,
 		);

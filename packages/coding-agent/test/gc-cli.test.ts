@@ -86,7 +86,7 @@ async function writeSession(
 			}),
 		);
 	}
-	await Bun.write(file, `${lines.join("\n")}\n`);
+	await fsx.write(file, `${lines.join("\n")}\n`);
 	if (options.ageDays !== undefined) {
 		const ts = new Date(Date.now() - options.ageDays * 86_400_000);
 		await fs.utimes(file, ts, ts);
@@ -97,7 +97,7 @@ async function writeSession(
 async function writeBlob(agentDir: string, hash: string, content: string): Promise<string> {
 	const file = path.join(getBlobsDir(agentDir), hash);
 	await fs.mkdir(path.dirname(file), { recursive: true });
-	await Bun.write(file, content);
+	await fsx.write(file, content);
 	return file;
 }
 
@@ -108,13 +108,13 @@ async function agePath(file: string, ageDays = 1): Promise<void> {
 
 async function writeConfig(agentDir: string, body: string): Promise<void> {
 	await fs.mkdir(agentDir, { recursive: true });
-	await Bun.write(path.join(agentDir, "config.yml"), body);
+	await fsx.write(path.join(agentDir, "config.yml"), body);
 }
 
 async function writeProjectConfig(projectDir: string, body: string): Promise<void> {
 	const configDir = path.join(projectDir, ".omp");
 	await fs.mkdir(configDir, { recursive: true });
-	await Bun.write(path.join(configDir, "config.yml"), body);
+	await fsx.write(path.join(configDir, "config.yml"), body);
 }
 
 describe("runGcCommand blob sweep", () => {
@@ -180,7 +180,7 @@ describe("runGcCommand blob sweep", () => {
 		await agePath(referenced);
 		const sessionDir = path.join(getSessionsDir(root), "project");
 		await fs.mkdir(sessionDir, { recursive: true });
-		await Bun.write(
+		await fsx.write(
 			path.join(sessionDir, "lost.jsonl.1234567890.bak"),
 			[
 				JSON.stringify({ type: "session", version: 3, id: "lost", timestamp: "2026-01-01T00:00:00.000Z" }),
@@ -472,7 +472,7 @@ describe("runGcCommand cold-session archive", () => {
 		const pending = await writeSession(root, "project", "pending", "pending", { ageDays: 90 });
 		const interrupted = await writeSession(root, "project", "interrupted", "interrupted", { ageDays: 90 });
 		await fs.mkdir(archiveMe.slice(0, -".jsonl".length), { recursive: true });
-		await Bun.write(path.join(archiveMe.slice(0, -".jsonl".length), "0.bash.log"), "artifact");
+		await fsx.write(path.join(archiveMe.slice(0, -".jsonl".length), "0.bash.log"), "artifact");
 
 		const result = await runGcCommand({
 			flags: {
@@ -502,7 +502,7 @@ describe("runGcCommand cold-session archive", () => {
 		const artifactsDir = parent.slice(0, -".jsonl".length);
 		const nested = path.join(artifactsDir, "Tan-nested.jsonl");
 		await fs.mkdir(artifactsDir, { recursive: true });
-		await Bun.write(
+		await fsx.write(
 			nested,
 			[
 				JSON.stringify({ type: "session", version: 3, id: "Tan-nested", timestamp: "2026-01-01T00:00:00.000Z" }),
@@ -702,7 +702,7 @@ describe("runGcCommand cold-session archive", () => {
 			timestamp,
 			message: { role: "assistant", content: [] },
 		};
-		await Bun.write(
+		await fsx.write(
 			parent,
 			[
 				JSON.stringify({
@@ -725,7 +725,7 @@ describe("runGcCommand cold-session archive", () => {
 				.join("\n"),
 		);
 		await agePath(parent, 90);
-		await Bun.write(
+		await fsx.write(
 			child,
 			[
 				JSON.stringify({
@@ -744,7 +744,7 @@ describe("runGcCommand cold-session archive", () => {
 				"",
 			].join("\n"),
 		);
-		await Bun.write(
+		await fsx.write(
 			sibling,
 			[
 				JSON.stringify({
@@ -877,7 +877,7 @@ describe("runGcCommand cold-session archive", () => {
 			timestamp,
 			message: { role: "assistant", content: [] },
 		};
-		await Bun.write(
+		await fsx.write(
 			parent,
 			[
 				JSON.stringify({ type: "session", version: 3, id: "partial-parent", timestamp, cwd: "/tmp" }),
@@ -886,7 +886,7 @@ describe("runGcCommand cold-session archive", () => {
 			].join("\n"),
 		);
 		await agePath(parent, 90);
-		await Bun.write(
+		await fsx.write(
 			child,
 			[
 				JSON.stringify({
@@ -1012,7 +1012,7 @@ describe("runGcCommand cold-session archive", () => {
 			timestamp,
 			message: { role: "assistant", content: [] },
 		};
-		await Bun.write(
+		await fsx.write(
 			original,
 			[
 				JSON.stringify({
@@ -1084,7 +1084,7 @@ describe("runGcCommand cold-session archive", () => {
 		] as const) {
 			const current = path.join(getSessionsDir(root), project, "custom-name.jsonl");
 			await fs.mkdir(path.dirname(current), { recursive: true });
-			await Bun.write(
+			await fsx.write(
 				current,
 				[
 					JSON.stringify({
@@ -1166,7 +1166,7 @@ describe("runGcCommand cold-session archive", () => {
 		const session = await writeSession(root, "project", "archive-me", "complete", { ageDays: 90 });
 		const corruptArchive = path.join(root, "archive", "sessions", "older", "corrupt.jsonl.gz");
 		await fs.mkdir(path.dirname(corruptArchive), { recursive: true });
-		await Bun.write(corruptArchive, "not gzip");
+		await fsx.write(corruptArchive, "not gzip");
 		const statsDbPath = path.join(root, "stats.db");
 		const db = new Database(statsDbPath);
 		db.run("CREATE TABLE messages (session_file TEXT NOT NULL)");
@@ -1214,7 +1214,7 @@ describe("runGcCommand cold-session archive", () => {
 			timestamp,
 			message: { role: "assistant", content: [] },
 		};
-		await Bun.write(
+		await fsx.write(
 			ancestorArchive,
 			gzipSync(
 				[
@@ -1224,8 +1224,8 @@ describe("runGcCommand cold-session archive", () => {
 				].join("\n"),
 			),
 		);
-		await Bun.write(corruptArchive, "not gzip");
-		await Bun.write(
+		await fsx.write(corruptArchive, "not gzip");
+		await fsx.write(
 			retainedPath,
 			[
 				JSON.stringify({
@@ -1290,7 +1290,7 @@ describe("runGcCommand cold-session archive", () => {
 			{ session_file: retainedPath, offset: retainedStat.size, last_modified: retainedStat.mtimeMs },
 		]);
 
-		await Bun.write(
+		await fsx.write(
 			corruptArchive,
 			gzipSync(
 				[
@@ -1351,7 +1351,7 @@ describe("runGcCommand cold-session archive", () => {
 				content: [{ type: "toolCall", id: "", name: "read" }],
 			},
 		};
-		await Bun.write(
+		await fsx.write(
 			parentArchive,
 			gzipSync(
 				[
@@ -1361,7 +1361,7 @@ describe("runGcCommand cold-session archive", () => {
 				].join("\n"),
 			),
 		);
-		await Bun.write(
+		await fsx.write(
 			childPath,
 			[
 				JSON.stringify({
@@ -1424,7 +1424,7 @@ describe("runGcCommand cold-session archive", () => {
 	test("skips decompressible historical archives without a valid session header", async () => {
 		const archive = path.join(root, "archive", "sessions", "older", "headerless-session.jsonl.gz");
 		await fs.mkdir(path.dirname(archive), { recursive: true });
-		await Bun.write(
+		await fsx.write(
 			archive,
 			gzipSync(`${JSON.stringify({ type: "message", message: { role: "assistant", content: [] } })}\n`),
 		);
@@ -1517,7 +1517,7 @@ describe("runGcCommand cold-session archive", () => {
 			filename: "20260626_archive-me",
 		});
 		const statsDbPath = path.join(root, "stats.db");
-		await Bun.write(statsDbPath, "not sqlite");
+		await fsx.write(statsDbPath, "not sqlite");
 
 		const first = await runGcCommand({
 			flags: {
@@ -1566,7 +1566,7 @@ describe("runGcCommand cold-session archive", () => {
 		});
 		const dbPath = getHistoryDbPath(root);
 		await fs.mkdir(path.dirname(dbPath), { recursive: true });
-		await Bun.write(dbPath, "not sqlite");
+		await fsx.write(dbPath, "not sqlite");
 
 		const first = await runGcCommand({
 			flags: {
@@ -1615,7 +1615,7 @@ describe("runGcCommand cold-session archive", () => {
 		await writeSession(root, "project", "archive-me", "complete", { ageDays: 90 });
 		const dbPath = getHistoryDbPath(root);
 		await fs.mkdir(path.dirname(dbPath), { recursive: true });
-		await Bun.write(dbPath, "not sqlite");
+		await fsx.write(dbPath, "not sqlite");
 
 		await runCli([
 			"gc",
@@ -1687,7 +1687,7 @@ describe("runGcCommand cold-session archive", () => {
 		await fs.mkdir(sessionDir, { recursive: true });
 		const primary = path.join(sessionDir, "lost.jsonl");
 		const backup = path.join(sessionDir, "lost.jsonl.1234567890.bak");
-		await Bun.write(
+		await fsx.write(
 			backup,
 			`${JSON.stringify({ type: "session", version: 3, id: "lost", timestamp: "2026-01-01T00:00:00.000Z" })}\n`,
 		);
@@ -1729,7 +1729,7 @@ describe("runGcCommand cold-session archive", () => {
 describe("runGcCommand lock handling", () => {
 	test("refuses an active gc lock", async () => {
 		const lockPath = path.join(root, "gc.lock");
-		await Bun.write(lockPath, `${process.pid}\n${new Date().toISOString()}\n`);
+		await fsx.write(lockPath, `${process.pid}\n${new Date().toISOString()}\n`);
 
 		await expect(runGcCommand({ flags: { agentDir: root, blobs: true } })).rejects.toThrow(
 			`GC already running: ${lockPath}`,
@@ -1739,7 +1739,7 @@ describe("runGcCommand lock handling", () => {
 
 	test("breaks stale gc locks before running", async () => {
 		const lockPath = path.join(root, "gc.lock");
-		await Bun.write(lockPath, "999999999\n2026-01-01T00:00:00.000Z\n");
+		await fsx.write(lockPath, "999999999\n2026-01-01T00:00:00.000Z\n");
 		const blob = await writeBlob(root, hashFor("orphan"), "orphan");
 		await agePath(blob);
 
@@ -1752,8 +1752,8 @@ describe("runGcCommand lock handling", () => {
 	test("does not break gc locks while stale-lock takeover is already in progress", async () => {
 		const lockPath = path.join(root, "gc.lock");
 		const breakerPath = `${lockPath}.break`;
-		await Bun.write(lockPath, "999999999\n2026-01-01T00:00:00.000Z\n");
-		await Bun.write(breakerPath, `${process.pid}\n${new Date().toISOString()}\n`);
+		await fsx.write(lockPath, "999999999\n2026-01-01T00:00:00.000Z\n");
+		await fsx.write(breakerPath, `${process.pid}\n${new Date().toISOString()}\n`);
 
 		await expect(runGcCommand({ flags: { agentDir: root, blobs: true } })).rejects.toThrow(
 			`GC already running: ${lockPath}`,

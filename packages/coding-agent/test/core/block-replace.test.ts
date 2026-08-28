@@ -36,7 +36,7 @@ function executeOptions(_tempDir: string, input: string, session: ToolSession): 
 		session,
 		input,
 		writethrough: async (targetPath, content) => {
-			await Bun.write(targetPath, content);
+			await fsx.write(targetPath, content);
 			return undefined;
 		},
 		beginDeferredDiagnosticsForPath: () => ({
@@ -58,7 +58,7 @@ async function seedFile(
 	source: string,
 ): Promise<{ filePath: string; header: string }> {
 	const filePath = path.join(tempDir, name);
-	await Bun.write(filePath, source);
+	await fsx.write(filePath, source);
 	const tag = getFileSnapshotStore(session).record(filePath, source);
 	return { filePath, header: formatHashlineHeader(name, tag) };
 }

@@ -1,5 +1,6 @@
 import type { Database } from "bun:sqlite";
 import type { AgentToolResult } from "@oh-my-pi/pi-agent-core";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import type { ToolSession } from "../sdk";
 import { DEFAULT_MAX_LINES, truncateHead } from "../session/streaming-output";
 import { applyListLimit } from "./list-limit";
@@ -51,7 +52,7 @@ export async function resolveSqliteReadPath(
 		let suffixResolution: { from: string; to: string } | undefined;
 
 		try {
-			const stat = await Bun.file(absolutePath).stat();
+			const stat = await fsx.stat(absolutePath);
 			if (stat.isDirectory()) continue;
 			if (!(await isSqliteFile(absolutePath))) continue;
 
@@ -68,7 +69,7 @@ export async function resolveSqliteReadPath(
 			if (!suffixMatch) continue;
 
 			try {
-				const retryStat = await Bun.file(suffixMatch.absolutePath).stat();
+				const retryStat = await fsx.stat(suffixMatch.absolutePath);
 				if (retryStat.isDirectory()) continue;
 				if (!(await isSqliteFile(suffixMatch.absolutePath))) continue;
 

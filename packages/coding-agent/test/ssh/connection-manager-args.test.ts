@@ -2,6 +2,7 @@ import { describe, expect, it } from "bun:test";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { getRemoteHostDir } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import {
 	buildRemoteCommand,
 	extractProbePayload,
@@ -68,7 +69,7 @@ describe("ssh host shell classification", () => {
 		for (const [shellValue, expected] of cases) {
 			const name = `omp-shellclf-${crypto.randomUUID()}`;
 			const file = path.join(getRemoteHostDir(), `${sanitizeHostName(name)}.json`);
-			await Bun.write(file, JSON.stringify({ version: 3, os: "linux", shell: shellValue, compatEnabled: false }));
+			await fsx.write(file, JSON.stringify({ version: 3, os: "linux", shell: shellValue, compatEnabled: false }));
 			try {
 				const info = await getHostInfo(name);
 				expect(info?.shell).toBe(expected);

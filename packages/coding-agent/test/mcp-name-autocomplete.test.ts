@@ -16,6 +16,7 @@ import {
 	setAgentDir,
 	setProjectDir,
 } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 
 const originalProjectDir = getProjectDir();
 const originalAgentDir = process.env.PI_CODING_AGENT_DIR;
@@ -38,7 +39,7 @@ async function writeConfig(
 	cwd: string,
 	servers: Record<string, MCPServerConfig>,
 ): Promise<void> {
-	await Bun.write(getMCPConfigPath(scope, cwd), `${JSON.stringify({ mcpServers: servers }, null, 2)}\n`);
+	await fsx.write(getMCPConfigPath(scope, cwd), `${JSON.stringify({ mcpServers: servers }, null, 2)}\n`);
 }
 
 /** Fake ctx carrying only the mcpManager surface `collectMcpServerNames` reads. */
@@ -91,7 +92,7 @@ describe("MCP server-name autocomplete", () => {
 		// A third-party-discovered server that was `/mcp disable`d: recorded in the user
 		// config's top-level `disabledServers` list, absent from `mcpServers`, and no
 		// longer reported by the manager (loadAllMCPConfigs filters disabled sources out).
-		await Bun.write(
+		await fsx.write(
 			getMCPConfigPath("user", projectDir),
 			`${JSON.stringify({ mcpServers: {}, disabledServers: ["discovered-disabled"] }, null, 2)}\n`,
 		);
@@ -142,7 +143,7 @@ describe("MCP server-name autocomplete", () => {
 		// no longer reported by the manager (loadAllMCPConfigs drops disabled
 		// sources). #resolveServerForAuth/reconnectServer can't resolve it, so
 		// test/reconnect/reauth/unauth must not suggest it.
-		await Bun.write(
+		await fsx.write(
 			getMCPConfigPath("user", projectDir),
 			`${JSON.stringify({ mcpServers: {}, disabledServers: ["discovered-disabled"] }, null, 2)}\n`,
 		);
@@ -200,7 +201,7 @@ describe("MCP server-name autocomplete", () => {
 	test("/mcp getArgumentCompletions returns null instead of throwing when a config file is malformed", async () => {
 		// Malformed JSON makes readMCPConfigFile's JSON.parse throw (ENOENT is the only
 		// error it swallows), which must not escape the autocomplete provider.
-		await Bun.write(getMCPConfigPath("user", projectDir), "{ not valid json");
+		await fsx.write(getMCPConfigPath("user", projectDir), "{ not valid json");
 		const { ctx } = createFakeCtx([]);
 		const runtime: TuiSlashCommandRuntime = { ctx };
 		const mcp = buildTuiBuiltinSlashCommands(runtime).find(c => c.name === "mcp");

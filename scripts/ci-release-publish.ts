@@ -218,7 +218,7 @@ function rewriteExports(exports: JsonValue, publishJs: boolean): JsonValue {
 /** Compute (and optionally write) the published manifest for a package. */
 export async function rewriteManifest(pkg: PublishPackage, write: boolean): Promise<PackageManifest> {
 	const manifestPath = path.join(repoRoot, pkg.dir, "package.json");
-	const manifest = (await Bun.file(manifestPath).json()) as PackageManifest;
+	const manifest = (await fsx.readJson(manifestPath)) as PackageManifest;
 	if (pkg.publishBin) manifest.bin = { ...pkg.publishBin };
 	if (typeof manifest.types === "string" && manifest.types.startsWith("./src/")) {
 		manifest.types = rewriteSrcToTypes(manifest.types);
@@ -254,7 +254,7 @@ async function preparePackage(pkg: PublishPackage): Promise<PackageManifest> {
 	if (pkg.publishJs) {
 		await $`bun x tsgo -p tsconfig.publish.js.json`.cwd(pkgDir);
 	}
-	const sourceManifest = (await Bun.file(path.join(pkgDir, "package.json")).json()) as PackageManifest;
+	const sourceManifest = (await fsx.readJson(path.join(pkgDir, "package.json"))) as PackageManifest;
 	await stageLegalPayloads(pkgDir, sourceManifest.license, !isDryRun);
 	// Both emits run under `moduleResolution: "Bundler"`, so relative
 	// specifiers land extensionless — unresolvable for a `nodenext` consumer
@@ -276,7 +276,7 @@ export async function applyPublishBin(pkgRelDir: string, write: boolean): Promis
 	const pkg = packages.find(entry => entry.dir === pkgRelDir);
 	if (!pkg?.publishBin) throw new Error(`No publishBin override declared for ${pkgRelDir}`);
 	const manifestPath = path.join(repoRoot, pkgRelDir, "package.json");
-	const manifest = (await Bun.file(manifestPath).json()) as PackageManifest;
+	const manifest = (await fsx.readJson(manifestPath)) as PackageManifest;
 	manifest.bin = { ...pkg.publishBin };
 	if (write) await fsx.write(manifestPath, `${JSON.stringify(manifest, null, "\t")}\n`);
 	return manifest;
@@ -293,7 +293,7 @@ function buildNativeOptionalDependencies(version: string): JsonObject {
 /** Prepares the native core manifest and legal payloads for publication. */
 export async function prepareNativeCorePackage(pkgDir: string, write: boolean): Promise<PackageManifest> {
 	const manifestPath = path.join(pkgDir, "package.json");
-	const manifest = (await Bun.file(manifestPath).json()) as PackageManifest;
+	const manifest = (await fsx.readJson(manifestPath)) as PackageManifest;
 	if (typeof manifest.version !== "string") throw new Error(`Missing version in ${manifestPath}`);
 	const legalFiles = await stageLegalPayloads(pkgDir, manifest.license, write);
 	manifest.optionalDependencies = buildNativeOptionalDependencies(manifest.version);
@@ -414,7 +414,7 @@ async function publishNativeLeafPackage(tag: string): Promise<void> {
 	const pkg = packages.find(candidate => candidate.kind === "native");
 	if (!pkg) throw new Error("No native package configured");
 	const pkgDir = path.join(repoRoot, pkg.dir);
-	const coreManifest = (await Bun.file(path.join(pkgDir, "package.json")).json()) as PackageManifest;
+	const coreManifest = (await fsx.readJson(path.join(pkgDir, "package.json"))) as PackageManifest;
 	if (typeof coreManifest.version !== "string") throw new Error(`Missing version in ${pkg.dir}/package.json`);
 	await stageLegalPayloads(pkgDir, coreManifest.license ?? "MIT", !isDryRun);
 	const leaves = await generateNpmPackages({

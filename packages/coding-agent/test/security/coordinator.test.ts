@@ -67,7 +67,7 @@ beforeEach(async () => {
 	repositoryRoot = path.join(temporaryRoot, "repo");
 	stateRoot = path.join(temporaryRoot, "state");
 	await fs.mkdir(path.join(repositoryRoot, "src"), { recursive: true });
-	await Bun.write(path.join(repositoryRoot, "src", "app.ts"), "export const app = true;\n");
+	await fsx.write(path.join(repositoryRoot, "src", "app.ts"), "export const app = true;\n");
 	settings = Settings.isolated({ "security.enabled": true, "compaction.enabled": false });
 	registerMockApi(MOCK_SOURCE_ID);
 });
@@ -268,7 +268,7 @@ describe("native security coordinator", () => {
 		await $`git add src/app.ts`.cwd(repositoryRoot).quiet();
 		await $`git commit -m base`.cwd(repositoryRoot).quiet();
 		const baseRevision = (await $`git rev-parse HEAD`.cwd(repositoryRoot).text()).trim();
-		await Bun.write(path.join(repositoryRoot, "src", "app.ts"), "export const app = 'head';\n");
+		await fsx.write(path.join(repositoryRoot, "src", "app.ts"), "export const app = 'head';\n");
 		await $`git add src/app.ts`.cwd(repositoryRoot).quiet();
 		await $`git commit -m head`.cwd(repositoryRoot).quiet();
 		const headRevision = (await $`git rev-parse HEAD`.cwd(repositoryRoot).text()).trim();

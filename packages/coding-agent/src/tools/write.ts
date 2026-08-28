@@ -620,7 +620,7 @@ export class WriteTool implements AgentTool<typeof writeSchema, WriteToolDetails
 		for (const candidate of candidates) {
 			const absolutePath = resolvePlanPath(this.session, candidate.archivePath);
 			try {
-				const stat = await Bun.file(absolutePath).stat();
+				const stat = await fsx.stat(absolutePath);
 				if (stat.isDirectory()) {
 					continue;
 				}
@@ -724,7 +724,7 @@ export class WriteTool implements AgentTool<typeof writeSchema, WriteToolDetails
 			const target = parseSqliteWriteTarget(candidate.subPath, candidate.queryString);
 			const absolutePath = resolvePlanPath(this.session, candidate.sqlitePath);
 			try {
-				const stat = await Bun.file(absolutePath).stat();
+				const stat = await fsx.stat(absolutePath);
 				if (stat.isDirectory()) {
 					continue;
 				}

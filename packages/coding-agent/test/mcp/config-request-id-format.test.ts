@@ -24,6 +24,7 @@ import * as path from "node:path";
 import { clearCache as clearFsCache } from "@oh-my-pi/pi-coding-agent/capability/fs";
 import { loadAllMCPConfigs } from "@oh-my-pi/pi-coding-agent/mcp/config";
 import { getConfigRootDir, removeWithRetries, setAgentDir } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 
 const originalAgentDirEnv = process.env.PI_CODING_AGENT_DIR;
 const fallbackAgentDir = path.join(getConfigRootDir(), "agent");
@@ -61,7 +62,7 @@ afterEach(async () => {
 });
 
 async function loadFrom(file: string, mcpServers: Record<string, unknown>) {
-	await Bun.write(path.join(tempCwd, file), JSON.stringify({ mcpServers }));
+	await fsx.write(path.join(tempCwd, file), JSON.stringify({ mcpServers }));
 	clearFsCache();
 	const { configs } = await loadAllMCPConfigs(tempCwd);
 	return configs;

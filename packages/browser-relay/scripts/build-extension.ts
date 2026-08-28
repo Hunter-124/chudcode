@@ -12,6 +12,7 @@
  */
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import { $ } from "bun";
 
 const root = path.resolve(import.meta.dir, "..");
@@ -35,10 +36,10 @@ if (!bundle.success) {
 }
 
 for (const file of ["manifest.json", "options.html", "options.js"]) {
-	await Bun.write(path.join(distExtension, file), Bun.file(path.join(root, "extension", file)));
+	await fsx.copy(path.join(root, "extension", file), path.join(distExtension, file));
 }
 for (const file of ["LICENSE", "THIRD-PARTY-NOTICES.txt"]) {
-	await Bun.write(path.join(distExtension, file), Bun.file(path.join(repoRoot, file)));
+	await fsx.copy(path.join(repoRoot, file), path.join(distExtension, file));
 }
 
 const zip = await $`zip -qr ../omp-browser-relay-extension.zip .`.cwd(distExtension).nothrow();
@@ -57,7 +58,7 @@ const embeddedAssets = [
 	["THIRD-PARTY-NOTICES.txt", "THIRD-PARTY-NOTICES.txt"],
 ] as const;
 for (const [source, destination] of embeddedAssets) {
-	await Bun.write(path.join(assetsDir, destination), Bun.file(path.join(distExtension, source)));
+	await fsx.copy(path.join(distExtension, source), path.join(assetsDir, destination));
 }
 
 console.log("built:");

@@ -283,7 +283,7 @@ describe("Settings.reloadForCwd", () => {
 			expect(reloaded.getProjectModelRole("default")).toBe("anthropic/claude-sonnet-4-5");
 		});
 		it("does not copy unedited roles from other project settings providers", async () => {
-			await Bun.write(
+			await fsx.write(
 				path.join(scopedProject, ".omp", "settings.json"),
 				JSON.stringify({ modelRoles: { default: "anthropic/external" } }),
 			);
@@ -299,14 +299,14 @@ describe("Settings.reloadForCwd", () => {
 		});
 
 		it("reapplies only native model roles over normal project-provider precedence", async () => {
-			await Bun.write(
+			await fsx.write(
 				path.join(scopedProject, ".claude", "settings.json"),
 				JSON.stringify({
 					compaction: { enabled: true },
 					modelRoles: { default: "anthropic/claude" },
 				}),
 			);
-			await Bun.write(
+			await fsx.write(
 				path.join(scopedProject, ".omp", "config.yml"),
 				"compaction:\n  enabled: false\nmodelRoles:\n  default: anthropic/native\n",
 			);
@@ -335,8 +335,8 @@ describe("Settings.reloadForCwd", () => {
 		});
 
 		it("reports project roles over global role fallbacks", async () => {
-			await Bun.write(path.join(agentDir, "config.yml"), "modelRoles:\n  default: anthropic/global\n");
-			await Bun.write(path.join(scopedProject, ".omp", "config.yml"), "modelRoles:\n  default: anthropic/project\n");
+			await fsx.write(path.join(agentDir, "config.yml"), "modelRoles:\n  default: anthropic/global\n");
+			await fsx.write(path.join(scopedProject, ".omp", "config.yml"), "modelRoles:\n  default: anthropic/project\n");
 
 			const settings = await Settings.init({ cwd: scopedProject, agentDir });
 
@@ -347,8 +347,8 @@ describe("Settings.reloadForCwd", () => {
 		});
 
 		it("falls back to the global role after reloading a project without config", async () => {
-			await Bun.write(path.join(agentDir, "config.yml"), "modelRoles:\n  default: anthropic/global\n");
-			await Bun.write(path.join(scopedProject, ".omp", "config.yml"), "modelRoles:\n  default: anthropic/project\n");
+			await fsx.write(path.join(agentDir, "config.yml"), "modelRoles:\n  default: anthropic/global\n");
+			await fsx.write(path.join(scopedProject, ".omp", "config.yml"), "modelRoles:\n  default: anthropic/project\n");
 			const settings = await Settings.init({ cwd: scopedProject, agentDir });
 			expect(settings.getModelRole("default")).toBe("anthropic/project");
 
@@ -359,8 +359,8 @@ describe("Settings.reloadForCwd", () => {
 			expect(settings.getModelRoleSource("default")).toBe("global");
 		});
 		it("keeps JSON-backed project roles cleared across later assignments and reload", async () => {
-			await Bun.write(path.join(agentDir, "config.yml"), "modelRoles:\n  default: anthropic/global\n");
-			await Bun.write(
+			await fsx.write(path.join(agentDir, "config.yml"), "modelRoles:\n  default: anthropic/global\n");
+			await fsx.write(
 				path.join(scopedProject, ".omp", "settings.json"),
 				JSON.stringify({ modelRoles: { default: "anthropic/project" } }),
 			);

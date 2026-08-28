@@ -57,7 +57,7 @@ describe("read and write route xd:// device URLs", () => {
 		const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "write-xdev-"));
 		try {
 			const filePath = path.join(tempDir, "legacy.ts");
-			await Bun.write(filePath, "legacyWrap(x, value)\n");
+			await fsx.write(filePath, "legacyWrap(x, value)\n");
 			const queue = new ToolChoiceQueue();
 
 			const tools = await createTools(
@@ -252,7 +252,7 @@ describe("read and write route xd:// device URLs", () => {
 		const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "write-xdev-approval-"));
 		try {
 			const filePath = path.join(tempDir, "target.ts");
-			await Bun.write(filePath, "legacyWrap(x, value)\n");
+			await fsx.write(filePath, "legacyWrap(x, value)\n");
 			const tools = await createTools(xdevSession(tempDir));
 			const write = tools.find(entry => entry.name === "write");
 			expect(write).toBeDefined();
@@ -648,7 +648,7 @@ describe("xd:// and top-level calls share the canonical tool map", () => {
 	it("dispatches and documents an unmounted top-level tool, and still rejects unknown names", async () => {
 		const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "write-xdev-fallback-"));
 		try {
-			await Bun.write(path.join(tempDir, "haystack.txt"), "alpha\nfallback-needle\nomega\n");
+			await fsx.write(path.join(tempDir, "haystack.txt"), "alpha\nfallback-needle\nomega\n");
 			const session = xdevSession(tempDir);
 			const tools = await createTools(session);
 			const write = tools.find(entry => entry.name === "write");

@@ -18,6 +18,7 @@ import {
 import { AgentRegistry } from "@oh-my-pi/pi-coding-agent/registry/agent-registry";
 import type { AgentSession } from "@oh-my-pi/pi-coding-agent/session/agent-session";
 import { removeWithRetries } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 
 function fakeLiveSession(): AgentSession {
 	return { messages: [] } as unknown as AgentSession;
@@ -77,7 +78,7 @@ describe("hasResolvableTranscript", () => {
 		const dir = await fs.mkdtemp(path.join(os.tmpdir(), "registry-helpers-"));
 		try {
 			const sessionFile = path.join(dir, "parked.jsonl");
-			await Bun.write(sessionFile, "{}\n");
+			await fsx.write(sessionFile, "{}\n");
 			AgentRegistry.global().register({
 				id: "Parked",
 				displayName: "task",
@@ -95,7 +96,7 @@ describe("hasResolvableTranscript", () => {
 	it("falls back to the artifacts-dir disk scan for unregistered agents", async () => {
 		const dir = await fs.mkdtemp(path.join(os.tmpdir(), "registry-helpers-"));
 		try {
-			await Bun.write(path.join(dir, "DiskOnly.jsonl"), "{}\n");
+			await fsx.write(path.join(dir, "DiskOnly.jsonl"), "{}\n");
 			const cleanup = registerArtifactsDir(dir);
 			try {
 				expect(await hasResolvableTranscript("DiskOnly")).toBe(true);

@@ -31,5 +31,5 @@ const html = getTemplate()
 if (html.includes("{{SESSION_DATA}}")) throw new Error("session-data placeholder survived substitution");
 if (!html.includes("__OMP_SESSION_DATA__")) throw new Error("share loader not injected");
 
-await Bun.write(outPath, html);
+await fsx.write(outPath, html);
 console.log(`Generated ${path.resolve(outPath)} (${(html.length / 1024).toFixed(0)} KB)`);

@@ -8,6 +8,7 @@ import {
 	sortPinnedFirst,
 	toggleSessionPin,
 } from "@oh-my-pi/pi-coding-agent/session/session-pins";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 
 describe("session-pins", () => {
 	let tempDir: string;
@@ -26,7 +27,7 @@ describe("session-pins", () => {
 	});
 
 	it("recovers gracefully from a corrupt pins file", async () => {
-		await Bun.write(path.join(tempDir, "session-pins.json"), "invalid json {");
+		await fsx.write(path.join(tempDir, "session-pins.json"), "invalid json {");
 		const pins = await loadPinnedSessionIds(tempDir);
 		expect(pins.size).toBe(0);
 	});

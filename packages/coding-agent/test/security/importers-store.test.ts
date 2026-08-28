@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import { $ } from "bun";
 import { importCodexSecurityBundle, importSarif, importSarifFile, SecurityStore } from "../../src/security";
 
@@ -46,7 +47,7 @@ describe("security importers and store", () => {
 		const bundleRoot = path.join(temporaryRoot, "codex-outside");
 		await fs.mkdir(bundleRoot);
 		await Promise.all([
-			Bun.write(
+			fsx.write(
 				path.join(bundleRoot, "scan-manifest.json"),
 				JSON.stringify({
 					documentType: "codex-security.scan-manifest",
@@ -54,7 +55,7 @@ describe("security importers and store", () => {
 					scan: { id: "scan-outside", producer: { name: "fixture" }, status: "completed" },
 				}),
 			),
-			Bun.write(
+			fsx.write(
 				path.join(bundleRoot, "findings.json"),
 				JSON.stringify({
 					documentType: "codex-security.findings",
@@ -69,7 +70,7 @@ describe("security importers and store", () => {
 					],
 				}),
 			),
-			Bun.write(
+			fsx.write(
 				path.join(bundleRoot, "coverage.json"),
 				JSON.stringify({
 					documentType: "codex-security.coverage",

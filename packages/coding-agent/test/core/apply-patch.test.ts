@@ -322,7 +322,7 @@ describe("applyPatch", () => {
 
 	test("create with allowCreateOverwrite replaces an existing file (JSON patch contract)", async () => {
 		const target = path.join(tempDir, "exists.txt");
-		await Bun.write(target, "original\n");
+		await fsx.write(target, "original\n");
 
 		await applyPatch(
 			{ path: "exists.txt", op: "create", diff: "replacement\n" },
@@ -334,7 +334,7 @@ describe("applyPatch", () => {
 
 	test("delete file", async () => {
 		const filePath = path.join(tempDir, "del.txt");
-		await Bun.write(filePath, "x");
+		await fsx.write(filePath, "x");
 
 		await applyPatch({ path: "del.txt", op: "delete" }, { cwd: tempDir });
 
@@ -343,7 +343,7 @@ describe("applyPatch", () => {
 
 	test("update file", async () => {
 		const filePath = path.join(tempDir, "update.txt");
-		await Bun.write(filePath, "foo\nbar\n");
+		await fsx.write(filePath, "foo\nbar\n");
 
 		await applyPatch({ path: "update.txt", op: "update", diff: "@@\n foo\n-bar\n+baz" }, { cwd: tempDir });
 
@@ -352,7 +352,7 @@ describe("applyPatch", () => {
 
 	test("update with move", async () => {
 		const srcPath = path.join(tempDir, "src.txt");
-		await Bun.write(srcPath, "line\n");
+		await fsx.write(srcPath, "line\n");
 
 		const result = await applyPatch(
 			{ path: "src.txt", op: "update", rename: "dst.txt", diff: "@@\n-line\n+line2" },
@@ -366,7 +366,7 @@ describe("applyPatch", () => {
 
 	test("multiple hunks in single update", async () => {
 		const filePath = path.join(tempDir, "multi.txt");
-		await Bun.write(filePath, "foo\nbar\nbaz\nqux\n");
+		await fsx.write(filePath, "foo\nbar\nbaz\nqux\n");
 
 		await applyPatch({ path: "multi.txt", op: "update", diff: "@@\n-bar\n+BAR\n@@\n-qux\n+QUX" }, { cwd: tempDir });
 
@@ -375,7 +375,7 @@ describe("applyPatch", () => {
 
 	test("@@ scope and first context line can be identical", async () => {
 		const filePath = path.join(tempDir, "scope.txt");
-		await Bun.write(filePath, "## [Unreleased]\n\n### Changed\n\n- Old entry\n");
+		await fsx.write(filePath, "## [Unreleased]\n\n### Changed\n\n- Old entry\n");
 
 		await applyPatch(
 			{
@@ -393,7 +393,7 @@ describe("applyPatch", () => {
 
 	test("unicode dash matching", async () => {
 		const filePath = path.join(tempDir, "unicode.py");
-		await Bun.write(filePath, "import asyncio  # local import \u2013 avoids top\u2011level dep\n");
+		await fsx.write(filePath, "import asyncio  # local import \u2013 avoids top\u2011level dep\n");
 
 		await applyPatch(
 			{
@@ -409,7 +409,7 @@ describe("applyPatch", () => {
 
 	test("dry run does not modify files", async () => {
 		const filePath = path.join(tempDir, "dryrun.txt");
-		await Bun.write(filePath, "original\n");
+		await fsx.write(filePath, "original\n");
 
 		const result = await applyPatch(
 			{ path: "dryrun.txt", op: "update", diff: "@@\n-original\n+modified" },
@@ -428,7 +428,7 @@ describe("applyPatch", () => {
 
 	test("update without diff fails", async () => {
 		const filePath = path.join(tempDir, "nodiff.txt");
-		await Bun.write(filePath, "content\n");
+		await fsx.write(filePath, "content\n");
 
 		await expect(applyPatch({ path: "nodiff.txt", op: "update" }, { cwd: tempDir })).rejects.toThrow("requires diff");
 	});
@@ -442,7 +442,7 @@ describe("applyPatch", () => {
 
 	test("creates parent directories for move", async () => {
 		const srcPath = path.join(tempDir, "src.txt");
-		await Bun.write(srcPath, "line\n");
+		await fsx.write(srcPath, "line\n");
 
 		await applyPatch(
 			{ path: "src.txt", op: "update", rename: "nested/deep/dst.txt", diff: "@@\n-line\n+newline" },
@@ -477,7 +477,7 @@ describe("simple replace mode", () => {
 	test("simple -/+ only diff uses character-based fuzzy matching", async () => {
 		const filePath = path.join(tempDir, "fuzzy.txt");
 		// File has smart quotes, diff uses ASCII quotes
-		await Bun.write(filePath, 'console.log("Hello");\n');
+		await fsx.write(filePath, 'console.log("Hello");\n');
 
 		await applyPatch(
 			{
@@ -495,7 +495,7 @@ describe("simple replace mode", () => {
 	test("simple diff adjusts indentation to match actual content", async () => {
 		const filePath = path.join(tempDir, "indent.ts");
 		// File content is indented with 4 spaces
-		await Bun.write(filePath, "function test() {\n    const x = 1;\n    return x;\n}\n");
+		await fsx.write(filePath, "function test() {\n    const x = 1;\n    return x;\n}\n");
 
 		await applyPatch(
 			{
@@ -513,7 +513,7 @@ describe("simple replace mode", () => {
 	test("diff with context lines falls back to line-based matching", async () => {
 		const filePath = path.join(tempDir, "context.txt");
 		// Create a file with repeated patterns that need context to disambiguate
-		await Bun.write(filePath, "header\nfoo\nbar\nmiddle\nfoo\nbaz\nfooter\n");
+		await fsx.write(filePath, "header\nfoo\nbar\nmiddle\nfoo\nbaz\nfooter\n");
 
 		// Use context line to target the second "foo"
 		await applyPatch(
@@ -531,7 +531,7 @@ describe("simple replace mode", () => {
 
 	test("multiple chunks use line-based matching", async () => {
 		const filePath = path.join(tempDir, "multi.txt");
-		await Bun.write(filePath, "aaa\nbbb\nccc\nddd\n");
+		await fsx.write(filePath, "aaa\nbbb\nccc\nddd\n");
 
 		// Multiple chunks in a single diff
 		await applyPatch(
@@ -548,7 +548,7 @@ describe("simple replace mode", () => {
 
 	test("simple diff with @@ context uses line-based matching", async () => {
 		const filePath = path.join(tempDir, "scoped.txt");
-		await Bun.write(filePath, "class Foo {\n  method() {\n    return 1;\n  }\n}\n");
+		await fsx.write(filePath, "class Foo {\n  method() {\n    return 1;\n  }\n}\n");
 
 		// Even without context lines, @@ marker triggers line-based mode
 		await applyPatch(
@@ -565,7 +565,7 @@ describe("simple replace mode", () => {
 
 	test("simple diff rejects multiple occurrences", async () => {
 		const filePath = path.join(tempDir, "dupe.txt");
-		await Bun.write(filePath, "foo\nbar\nfoo\n");
+		await fsx.write(filePath, "foo\nbar\nfoo\n");
 
 		await expect(
 			applyPatch(
@@ -657,8 +657,8 @@ describe("applyCodexPatch (production)", () => {
 	});
 
 	test("multi-op patch (add + update + delete) applies in order", async () => {
-		await Bun.write(path.join(tempDir, "old.txt"), "to delete\n");
-		await Bun.write(path.join(tempDir, "keep.txt"), "hello\n");
+		await fsx.write(path.join(tempDir, "old.txt"), "to delete\n");
+		await fsx.write(path.join(tempDir, "keep.txt"), "hello\n");
 
 		const patch = [
 			"*** Begin Patch",
@@ -684,7 +684,7 @@ describe("applyCodexPatch (production)", () => {
 	});
 
 	test("rename reports modified under original path (spec §9.1)", async () => {
-		await Bun.write(path.join(tempDir, "src.txt"), "body\n");
+		await fsx.write(path.join(tempDir, "src.txt"), "body\n");
 
 		const patch = [
 			"*** Begin Patch",
@@ -706,7 +706,7 @@ describe("applyCodexPatch (production)", () => {
 	});
 
 	test("partial success: earlier ops stay applied when a later op fails", async () => {
-		await Bun.write(path.join(tempDir, "first.txt"), "a\n");
+		await fsx.write(path.join(tempDir, "first.txt"), "a\n");
 
 		const patch = [
 			"*** Begin Patch",
@@ -734,7 +734,7 @@ describe("applyCodexPatch (production)", () => {
 	// their shared `applyNormalizedPatch` implementation share the guard.
 	test("applyPatch create refuses to overwrite an existing file", async () => {
 		const target = path.join(tempDir, "exists.txt");
-		await Bun.write(target, "original\n");
+		await fsx.write(target, "original\n");
 
 		await expect(
 			applyPatch({ path: "exists.txt", op: "create", diff: "replacement\n" }, { cwd: tempDir }),
@@ -746,8 +746,8 @@ describe("applyCodexPatch (production)", () => {
 	test("applyPatch rename refuses to overwrite an existing destination", async () => {
 		const src = path.join(tempDir, "src.txt");
 		const dst = path.join(tempDir, "dst.txt");
-		await Bun.write(src, "source\n");
-		await Bun.write(dst, "destination\n");
+		await fsx.write(src, "source\n");
+		await fsx.write(dst, "destination\n");
 
 		await expect(
 			applyPatch(
@@ -762,7 +762,7 @@ describe("applyCodexPatch (production)", () => {
 
 	test("applyCodexPatch *** Add File over existing file rejects and preserves content", async () => {
 		const target = path.join(tempDir, "hello.txt");
-		await Bun.write(target, "kept\n");
+		await fsx.write(target, "kept\n");
 
 		const patch = ["*** Begin Patch", "*** Add File: hello.txt", "+overwritten", "*** End Patch"].join("\n");
 
@@ -773,8 +773,8 @@ describe("applyCodexPatch (production)", () => {
 	test("applyCodexPatch *** Move to over existing destination rejects and preserves both files", async () => {
 		const src = path.join(tempDir, "src.txt");
 		const dst = path.join(tempDir, "dst.txt");
-		await Bun.write(src, "hello\n");
-		await Bun.write(dst, "will-be-preserved\n");
+		await fsx.write(src, "hello\n");
+		await fsx.write(dst, "will-be-preserved\n");
 
 		const patch = [
 			"*** Begin Patch",
@@ -833,7 +833,7 @@ describe("EditTool create-over-existing mode split", () => {
 	// clobber guard must not fire in JSON patch mode.
 	test("JSON patch mode: op create over an existing file is a full-file overwrite", async () => {
 		const target = path.join(tempDir, "exists.txt");
-		await Bun.write(target, "original\n");
+		await fsx.write(target, "original\n");
 		const tool = new EditTool(makeSession(tempDir, "patch"));
 
 		const result = await tool.execute("json-create-overwrite", {
@@ -847,7 +847,7 @@ describe("EditTool create-over-existing mode split", () => {
 
 	test("apply_patch mode: *** Add File over an existing file still rejects", async () => {
 		const target = path.join(tempDir, "exists.txt");
-		await Bun.write(target, "original\n");
+		await fsx.write(target, "original\n");
 		const tool = new EditTool(makeSession(tempDir, "apply_patch"));
 
 		const patch = ["*** Begin Patch", "*** Add File: exists.txt", "+replacement", "*** End Patch", ""].join("\n");

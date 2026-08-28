@@ -1,3 +1,4 @@
+import type { Stats } from "node:fs";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import * as url from "node:url";
@@ -32,14 +33,29 @@ function toPath(file: PathLike): string {
 	return typeof file === "string" ? file : url.fileURLToPath(file);
 }
 
-/** Read a UTF-8 text file. */
-export function readText(file: PathLike): Promise<string> {
-	return fs.readFile(file, "utf8");
+/**
+ * Read a UTF-8 text file.
+ *
+ * A leading byte-order mark is stripped, as `BunFile.text()` did: callers feed
+ * the result straight into `JSON.parse` (notebook documents, manifests), which
+ * rejects a BOM.
+ */
+export async function readText(file: PathLike): Promise<string> {
+	const text = await fs.readFile(file, "utf8");
+	return text.charCodeAt(0) === 0xfeff ? text.slice(1) : text;
 }
 
-/** Read and parse a JSON file. */
-export async function readJson<T = unknown>(file: PathLike): Promise<T> {
-	return JSON.parse(await fs.readFile(file, "utf8")) as T;
+/**
+ * Read and parse a JSON file.
+ *
+ * The default type parameter is `any`, matching `BunFile.json()` which this
+ * replaced: the ~60 call sites inherited from it destructure the result
+ * immediately, and `unknown` would demand a hand-written shape at each one
+ * without adding any real check. Pass an explicit `T` for new code.
+ */
+// biome-ignore lint/suspicious/noExplicitAny: parity with the BunFile.json() contract this replaces.
+export async function readJson<T = any>(file: PathLike): Promise<T> {
+	return JSON.parse(await readText(file)) as T;
 }
 
 /** Read a file's bytes. */
@@ -71,6 +87,11 @@ export async function size(file: PathLike): Promise<number | undefined> {
 		if (isEnoent(error) || isEnotdir(error) || isEacces(error)) return undefined;
 		throw error;
 	}
+}
+
+/** `fs.stat` for a file, mirroring `BunFile.stat()`. */
+export function stat(file: PathLike): Promise<Stats> {
+	return fs.stat(file);
 }
 
 /**

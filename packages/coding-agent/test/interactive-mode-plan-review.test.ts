@@ -139,7 +139,7 @@ describe("InteractiveMode plan review rendering", () => {
 			getArtifactsDir: () => session.sessionManager.getArtifactsDir(),
 			getSessionId: () => session.sessionManager.getSessionId(),
 		});
-		await Bun.write(resolvedPlanPath, "\n\t\n");
+		await fsx.write(resolvedPlanPath, "\n\t\n");
 
 		mode.planModeEnabled = true;
 		mode.planModePlanFilePath = planFilePath;
@@ -158,7 +158,7 @@ describe("InteractiveMode plan review rendering", () => {
 			getArtifactsDir: () => session.sessionManager.getArtifactsDir(),
 			getSessionId: () => session.sessionManager.getSessionId(),
 		});
-		await Bun.write(resolvedPlanPath, "# Plan\n\nDo the thing.\n");
+		await fsx.write(resolvedPlanPath, "# Plan\n\nDo the thing.\n");
 
 		mode.planModeEnabled = true;
 		mode.planModePlanFilePath = planFilePath;
@@ -181,8 +181,8 @@ describe("InteractiveMode plan review rendering", () => {
 			getArtifactsDir: () => session.sessionManager.getArtifactsDir(),
 			getSessionId: () => session.sessionManager.getSessionId(),
 		});
-		await Bun.write(defaultPlanPath, "\n");
-		await Bun.write(slugPlanPath, "# Auth token refresh plan\n\nDo the thing.\n");
+		await fsx.write(defaultPlanPath, "\n");
+		await fsx.write(slugPlanPath, "# Auth token refresh plan\n\nDo the thing.\n");
 
 		mode.planModeEnabled = true;
 		mode.planModePlanFilePath = defaultPlanFilePath;
@@ -200,7 +200,7 @@ describe("InteractiveMode plan review rendering", () => {
 			getArtifactsDir: () => session.sessionManager.getArtifactsDir(),
 			getSessionId: () => session.sessionManager.getSessionId(),
 		});
-		await Bun.write(resolvedPlanPath, "# First plan\n\nalpha");
+		await fsx.write(resolvedPlanPath, "# First plan\n\nalpha");
 
 		mode.planModeEnabled = true;
 		mode.planModePlanFilePath = planFilePath;
@@ -214,7 +214,7 @@ describe("InteractiveMode plan review rendering", () => {
 
 		expect(review.mock.calls[0]?.[0]).toContain("First plan");
 
-		await Bun.write(resolvedPlanPath, "# Second plan\n\nbeta");
+		await fsx.write(resolvedPlanPath, "# Second plan\n\nbeta");
 
 		await mode.handlePlanApproval({
 			planFilePath,
@@ -234,8 +234,8 @@ describe("InteractiveMode plan review rendering", () => {
 			getArtifactsDir: () => session.sessionManager.getArtifactsDir(),
 			getSessionId: () => session.sessionManager.getSessionId(),
 		};
-		await Bun.write(resolveLocalUrlToPath(firstPlanFilePath, localOptions), "# First plan\n\nbody");
-		await Bun.write(resolveLocalUrlToPath(secondPlanFilePath, localOptions), "# Second plan\n\nbody");
+		await fsx.write(resolveLocalUrlToPath(firstPlanFilePath, localOptions), "# First plan\n\nbody");
+		await fsx.write(resolveLocalUrlToPath(secondPlanFilePath, localOptions), "# Second plan\n\nbody");
 
 		mode.planModeEnabled = true;
 		mode.planModePlanFilePath = firstPlanFilePath;
@@ -268,7 +268,7 @@ describe("InteractiveMode plan review rendering", () => {
 			getArtifactsDir: () => session.sessionManager.getArtifactsDir(),
 			getSessionId: () => session.sessionManager.getSessionId(),
 		});
-		await Bun.write(resolvedPlanPath, "# Plan\n\nbody");
+		await fsx.write(resolvedPlanPath, "# Plan\n\nbody");
 
 		mode.planModeEnabled = true;
 		mode.planModePlanFilePath = planFilePath;
@@ -307,7 +307,7 @@ describe("InteractiveMode plan review rendering", () => {
 			getArtifactsDir: () => session.sessionManager.getArtifactsDir(),
 			getSessionId: () => session.sessionManager.getSessionId(),
 		});
-		await Bun.write(resolvedPlanPath, "# Plan\n\nbody");
+		await fsx.write(resolvedPlanPath, "# Plan\n\nbody");
 		mode.planModeEnabled = true;
 		mode.planModePlanFilePath = planFilePath;
 		const annotationState: PlanReviewAnnotationState = {
@@ -354,7 +354,7 @@ describe("InteractiveMode plan review rendering", () => {
 			getArtifactsDir: () => session.sessionManager.getArtifactsDir(),
 			getSessionId: () => session.sessionManager.getSessionId(),
 		});
-		await Bun.write(resolvedPlanPath, "# Plan\n\nbody");
+		await fsx.write(resolvedPlanPath, "# Plan\n\nbody");
 
 		mode.planModeEnabled = true;
 		mode.planModePlanFilePath = planFilePath;
@@ -389,8 +389,8 @@ describe("InteractiveMode plan review rendering", () => {
 			});
 		const oldPlanPath = "local://old-plan.md";
 		const newPlanPath = "local://new-draft-plan.md";
-		await Bun.write(resolve(oldPlanPath), "# Old\n\nold body");
-		await Bun.write(resolve(newPlanPath), "# New\n\nnew body");
+		await fsx.write(resolve(oldPlanPath), "# Old\n\nold body");
+		await fsx.write(resolve(newPlanPath), "# New\n\nnew body");
 
 		mode.planModeEnabled = true;
 		mode.planModePlanFilePath = oldPlanPath;
@@ -411,7 +411,7 @@ describe("InteractiveMode plan review rendering", () => {
 
 	it("opens the annotation external editor from the real plan review overlay", async () => {
 		const editorPath = path.join(tempDir.path(), "annotation-editor.sh");
-		await Bun.write(
+		await fsx.write(
 			editorPath,
 			"#!/bin/sh\nprintf '%s\\n%s\\n' '- add rollback command' '- include smoke test' > \"$1\"\n",
 		);
@@ -550,7 +550,7 @@ describe("InteractiveMode plan review rendering", () => {
 			getArtifactsDir: () => session.sessionManager.getArtifactsDir(),
 			getSessionId: () => session.sessionManager.getSessionId(),
 		});
-		await Bun.write(resolvedPlanPath, "# Plan\n\nbody");
+		await fsx.write(resolvedPlanPath, "# Plan\n\nbody");
 
 		mode.planModeEnabled = true;
 		mode.planModePlanFilePath = planFilePath;
@@ -592,7 +592,7 @@ describe("InteractiveMode plan review rendering", () => {
 			getArtifactsDir: () => session.sessionManager.getArtifactsDir(),
 			getSessionId: () => session.sessionManager.getSessionId(),
 		});
-		await Bun.write(resolvedPlanPath, "# Plan\n\noriginal body\n");
+		await fsx.write(resolvedPlanPath, "# Plan\n\noriginal body\n");
 
 		mode.planModeEnabled = true;
 		mode.planModePlanFilePath = planFilePath;
@@ -633,7 +633,7 @@ describe("InteractiveMode plan review rendering", () => {
 			getArtifactsDir: () => session.sessionManager.getArtifactsDir(),
 			getSessionId: () => session.sessionManager.getSessionId(),
 		});
-		await Bun.write(resolvedPlanPath, "# Draft plan\n\noriginal body\n");
+		await fsx.write(resolvedPlanPath, "# Draft plan\n\noriginal body\n");
 
 		mode.planModeEnabled = true;
 		mode.planModePlanFilePath = planFilePath;
@@ -672,8 +672,8 @@ describe("InteractiveMode plan review rendering", () => {
 		const oldPlanPath = resolveLocalUrlToPath(planFilePath, localOptions);
 		const oldArtifactPath = resolveLocalUrlToPath("local://handoff/nested/context.txt", localOptions);
 		await fs.mkdir(path.dirname(oldArtifactPath), { recursive: true });
-		await Bun.write(oldArtifactPath, "pre-approval handoff");
-		await Bun.write(oldPlanPath, "# Plan\n\noriginal body\n");
+		await fsx.write(oldArtifactPath, "pre-approval handoff");
+		await fsx.write(oldPlanPath, "# Plan\n\noriginal body\n");
 
 		mode.planModeEnabled = true;
 		mode.planModePlanFilePath = planFilePath;
@@ -723,7 +723,7 @@ describe("InteractiveMode plan review rendering", () => {
 			getArtifactsDir: () => session.sessionManager.getArtifactsDir(),
 			getSessionId: () => session.sessionManager.getSessionId(),
 		});
-		await Bun.write(resolvedPlanPath, "# Plan\n\nDo the thing.");
+		await fsx.write(resolvedPlanPath, "# Plan\n\nDo the thing.");
 
 		mode.planModeEnabled = true;
 		mode.planModePlanFilePath = planFilePath;
@@ -794,7 +794,7 @@ describe("InteractiveMode plan review rendering", () => {
 			getArtifactsDir: () => session.sessionManager.getArtifactsDir(),
 			getSessionId: () => session.sessionManager.getSessionId(),
 		});
-		await Bun.write(resolvedPlanPath, "# Plan\n\nUse execution context.");
+		await fsx.write(resolvedPlanPath, "# Plan\n\nUse execution context.");
 
 		const tokens = 180000;
 		const contextSpy = vi.spyOn(session, "getContextUsage").mockImplementation(options => {
@@ -829,7 +829,7 @@ describe("InteractiveMode plan review rendering", () => {
 			getArtifactsDir: () => session.sessionManager.getArtifactsDir(),
 			getSessionId: () => session.sessionManager.getSessionId(),
 		});
-		await Bun.write(resolvedPlanPath, "# Plan\n\nToo much context.");
+		await fsx.write(resolvedPlanPath, "# Plan\n\nToo much context.");
 
 		mode.planModeEnabled = true;
 		mode.planModePlanFilePath = planFilePath;
@@ -855,7 +855,7 @@ describe("InteractiveMode plan review rendering", () => {
 			getArtifactsDir: () => session.sessionManager.getArtifactsDir(),
 			getSessionId: () => session.sessionManager.getSessionId(),
 		});
-		await Bun.write(resolvedPlanPath, "# Plan\n\nAt the threshold.");
+		await fsx.write(resolvedPlanPath, "# Plan\n\nAt the threshold.");
 
 		mode.planModeEnabled = true;
 		mode.planModePlanFilePath = planFilePath;
@@ -881,7 +881,7 @@ describe("InteractiveMode plan review rendering", () => {
 			getArtifactsDir: () => session.sessionManager.getArtifactsDir(),
 			getSessionId: () => session.sessionManager.getSessionId(),
 		});
-		await Bun.write(resolvedPlanPath, "# Plan\n\nDo the thing.");
+		await fsx.write(resolvedPlanPath, "# Plan\n\nDo the thing.");
 
 		mode.planModeEnabled = true;
 		mode.planModePlanFilePath = planFilePath;
@@ -920,7 +920,7 @@ describe("InteractiveMode plan review rendering", () => {
 			getArtifactsDir: () => session.sessionManager.getArtifactsDir(),
 			getSessionId: () => session.sessionManager.getSessionId(),
 		});
-		await Bun.write(resolvedPlanPath, "# Plan\n\nKeep context.");
+		await fsx.write(resolvedPlanPath, "# Plan\n\nKeep context.");
 
 		mode.planModeEnabled = true;
 		mode.planModePlanFilePath = planFilePath;
@@ -954,7 +954,7 @@ describe("InteractiveMode plan review rendering", () => {
 			getArtifactsDir: () => session.sessionManager.getArtifactsDir(),
 			getSessionId: () => session.sessionManager.getSessionId(),
 		});
-		await Bun.write(resolvedPlanPath, "# Plan\n\nKeep context.");
+		await fsx.write(resolvedPlanPath, "# Plan\n\nKeep context.");
 
 		mode.planModeEnabled = true;
 		mode.planModePlanFilePath = planFilePath;
@@ -1008,7 +1008,7 @@ describe("InteractiveMode plan review rendering", () => {
 			getArtifactsDir: () => session.sessionManager.getArtifactsDir(),
 			getSessionId: () => session.sessionManager.getSessionId(),
 		});
-		await Bun.write(resolvedPlanPath, "# Plan\n\nbody");
+		await fsx.write(resolvedPlanPath, "# Plan\n\nbody");
 		mode.planModeEnabled = true;
 		mode.planModePlanFilePath = planFilePath;
 
@@ -1056,7 +1056,7 @@ describe("InteractiveMode plan review rendering", () => {
 			getArtifactsDir: () => session.sessionManager.getArtifactsDir(),
 			getSessionId: () => session.sessionManager.getSessionId(),
 		});
-		await Bun.write(resolvedPlanPath, "# Plan\n\nbody");
+		await fsx.write(resolvedPlanPath, "# Plan\n\nbody");
 		mode.planModeEnabled = true;
 		mode.planModePlanFilePath = planFilePath;
 
@@ -1097,7 +1097,7 @@ describe("InteractiveMode plan review rendering", () => {
 			getArtifactsDir: () => session.sessionManager.getArtifactsDir(),
 			getSessionId: () => session.sessionManager.getSessionId(),
 		});
-		await Bun.write(resolvedPlanPath, "# Plan\n\nbody");
+		await fsx.write(resolvedPlanPath, "# Plan\n\nbody");
 		mode.planModeEnabled = true;
 		mode.planModePlanFilePath = planFilePath;
 
@@ -1159,7 +1159,7 @@ describe("InteractiveMode plan review rendering", () => {
 			getArtifactsDir: () => session.sessionManager.getArtifactsDir(),
 			getSessionId: () => session.sessionManager.getSessionId(),
 		});
-		await Bun.write(resolvedPlanPath, "# Plan\n\nClear context.");
+		await fsx.write(resolvedPlanPath, "# Plan\n\nClear context.");
 
 		mode.planModeEnabled = true;
 		mode.planModePlanFilePath = planFilePath;
@@ -1202,7 +1202,7 @@ describe("InteractiveMode plan review rendering", () => {
 			getArtifactsDir: () => session.sessionManager.getArtifactsDir(),
 			getSessionId: () => session.sessionManager.getSessionId(),
 		});
-		await Bun.write(resolvedPlanPath, "# Plan\n\nRun this on the slow tier.");
+		await fsx.write(resolvedPlanPath, "# Plan\n\nRun this on the slow tier.");
 
 		await mode.handlePlanModeCommand();
 		expect(session.getPlanModeState()?.enabled).toBe(true);
@@ -1253,7 +1253,7 @@ describe("InteractiveMode plan review rendering", () => {
 			getArtifactsDir: () => session.sessionManager.getArtifactsDir(),
 			getSessionId: () => session.sessionManager.getSessionId(),
 		});
-		await Bun.write(resolvedPlanPath, "# Plan\n\nKeep executing on the planning tier.");
+		await fsx.write(resolvedPlanPath, "# Plan\n\nKeep executing on the planning tier.");
 
 		await mode.handlePlanModeCommand();
 		expect(session.model?.id).toBe(planModel.id);
@@ -1302,7 +1302,7 @@ describe("InteractiveMode plan review rendering", () => {
 			getArtifactsDir: () => session.sessionManager.getArtifactsDir(),
 			getSessionId: () => session.sessionManager.getSessionId(),
 		});
-		await Bun.write(resolvedPlanPath, "# Plan\n\nDifferent thinking on the same model.");
+		await fsx.write(resolvedPlanPath, "# Plan\n\nDifferent thinking on the same model.");
 
 		await mode.handlePlanModeCommand();
 		expect(session.model?.id).toBe(opus.id);
@@ -1346,7 +1346,7 @@ describe("InteractiveMode plan review rendering", () => {
 			getArtifactsDir: () => session.sessionManager.getArtifactsDir(),
 			getSessionId: () => session.sessionManager.getSessionId(),
 		});
-		await Bun.write(resolvedPlanPath, "# Plan\n\nPreserve the configured auto selector.");
+		await fsx.write(resolvedPlanPath, "# Plan\n\nPreserve the configured auto selector.");
 
 		await mode.handlePlanModeCommand();
 		expect(session.model?.id).toBe(opus.id);
@@ -1389,7 +1389,7 @@ describe("InteractiveMode plan review rendering", () => {
 			getArtifactsDir: () => session.sessionManager.getArtifactsDir(),
 			getSessionId: () => session.sessionManager.getSessionId(),
 		});
-		await Bun.write(resolvedPlanPath, "# Plan\n\nNo slider, restore default.");
+		await fsx.write(resolvedPlanPath, "# Plan\n\nNo slider, restore default.");
 
 		await mode.handlePlanModeCommand();
 		expect(session.model?.id).toBe(opus.id);
@@ -1424,7 +1424,7 @@ describe("InteractiveMode plan review rendering", () => {
 			getArtifactsDir: () => session.sessionManager.getArtifactsDir(),
 			getSessionId: () => session.sessionManager.getSessionId(),
 		});
-		await Bun.write(resolvedPlanPath, "# Plan\n\nCompact on the plan model.");
+		await fsx.write(resolvedPlanPath, "# Plan\n\nCompact on the plan model.");
 
 		await mode.handlePlanModeCommand();
 		expect(session.model?.id).toBe(planModel.id);
@@ -1461,7 +1461,7 @@ describe("InteractiveMode plan review rendering", () => {
 			getArtifactsDir: () => session.sessionManager.getArtifactsDir(),
 			getSessionId: () => session.sessionManager.getSessionId(),
 		});
-		await Bun.write(resolvedPlanPath, "# Plan\n\nCompact failure still dispatches.");
+		await fsx.write(resolvedPlanPath, "# Plan\n\nCompact failure still dispatches.");
 
 		await mode.handlePlanModeCommand();
 		expect(session.model?.id).toBe(planModel.id);
@@ -1504,7 +1504,7 @@ describe("InteractiveMode plan review rendering", () => {
 			getArtifactsDir: () => session.sessionManager.getArtifactsDir(),
 			getSessionId: () => session.sessionManager.getSessionId(),
 		});
-		await Bun.write(resolvedPlanPath, "# Plan\n\nCompact on plan model, execute on default.");
+		await fsx.write(resolvedPlanPath, "# Plan\n\nCompact on plan model, execute on default.");
 
 		await mode.handlePlanModeCommand();
 		expect(session.model?.id).toBe(planModel.id);
@@ -1559,7 +1559,7 @@ describe("InteractiveMode plan review rendering", () => {
 			getArtifactsDir: () => session.sessionManager.getArtifactsDir(),
 			getSessionId: () => session.sessionManager.getSessionId(),
 		});
-		await Bun.write(resolvedPlanPath, "# Plan\n\nCancel compaction, restore pre-plan model.");
+		await fsx.write(resolvedPlanPath, "# Plan\n\nCancel compaction, restore pre-plan model.");
 
 		await mode.handlePlanModeCommand();
 		expect(session.model?.id).toBe(planModel.id);
@@ -1606,7 +1606,7 @@ describe("InteractiveMode plan review rendering", () => {
 			getArtifactsDir: () => session.sessionManager.getArtifactsDir(),
 			getSessionId: () => session.sessionManager.getSessionId(),
 		});
-		await Bun.write(resolvedPlanPath, "# Plan\n\nTransition before the queue flushes.");
+		await fsx.write(resolvedPlanPath, "# Plan\n\nTransition before the queue flushes.");
 
 		await mode.handlePlanModeCommand();
 		expect(session.model?.id).toBe(planModel.id);
@@ -1644,7 +1644,7 @@ describe("InteractiveMode plan review rendering", () => {
 			getArtifactsDir: () => session.sessionManager.getArtifactsDir(),
 			getSessionId: () => session.sessionManager.getSessionId(),
 		});
-		await Bun.write(resolvedPlanPath, "# Plan\n\nExecute then edit.");
+		await fsx.write(resolvedPlanPath, "# Plan\n\nExecute then edit.");
 
 		await mode.handlePlanModeCommand();
 
@@ -1675,7 +1675,7 @@ describe("InteractiveMode plan review rendering", () => {
 			getArtifactsDir: () => session.sessionManager.getArtifactsDir(),
 			getSessionId: () => session.sessionManager.getSessionId(),
 		});
-		await Bun.write(resolvedPlanPath, "# Plan\n\nCompact and execute.");
+		await fsx.write(resolvedPlanPath, "# Plan\n\nCompact and execute.");
 
 		mode.planModeEnabled = true;
 		mode.planModePlanFilePath = planFilePath;
@@ -1722,7 +1722,7 @@ describe("InteractiveMode plan review rendering", () => {
 			getArtifactsDir: () => session.sessionManager.getArtifactsDir(),
 			getSessionId: () => session.sessionManager.getSessionId(),
 		});
-		await Bun.write(resolvedPlanPath, "# Plan\n\nCancel mid-compact.");
+		await fsx.write(resolvedPlanPath, "# Plan\n\nCancel mid-compact.");
 
 		mode.planModeEnabled = true;
 		mode.planModePlanFilePath = planFilePath;
@@ -1761,7 +1761,7 @@ describe("InteractiveMode plan review rendering", () => {
 			getArtifactsDir: () => session.sessionManager.getArtifactsDir(),
 			getSessionId: () => session.sessionManager.getSessionId(),
 		});
-		await Bun.write(resolvedPlanPath, "# Plan\n\nCancel mid-compact.");
+		await fsx.write(resolvedPlanPath, "# Plan\n\nCancel mid-compact.");
 		mode.planModeEnabled = true;
 		mode.planModePlanFilePath = planFilePath;
 		const annotationState: PlanReviewAnnotationState = {
@@ -1804,7 +1804,7 @@ describe("InteractiveMode plan review rendering", () => {
 			getArtifactsDir: () => session.sessionManager.getArtifactsDir(),
 			getSessionId: () => session.sessionManager.getSessionId(),
 		});
-		await Bun.write(resolvedPlanPath, "# Plan\n\nFail mid-compact.");
+		await fsx.write(resolvedPlanPath, "# Plan\n\nFail mid-compact.");
 
 		mode.planModeEnabled = true;
 		mode.planModePlanFilePath = planFilePath;
@@ -1835,7 +1835,7 @@ describe("InteractiveMode plan review rendering", () => {
 			getArtifactsDir: () => session.sessionManager.getArtifactsDir(),
 			getSessionId: () => session.sessionManager.getSessionId(),
 		});
-		await Bun.write(resolvedPlanPath, "# Plan\n\nQueue race.");
+		await fsx.write(resolvedPlanPath, "# Plan\n\nQueue race.");
 
 		mode.planModeEnabled = true;
 		mode.planModePlanFilePath = planFilePath;
@@ -1885,7 +1885,7 @@ describe("InteractiveMode plan review rendering", () => {
 			getArtifactsDir: () => session.sessionManager.getArtifactsDir(),
 			getSessionId: () => session.sessionManager.getSessionId(),
 		});
-		await Bun.write(resolvedPlanPath, "# Plan\n\nBody.");
+		await fsx.write(resolvedPlanPath, "# Plan\n\nBody.");
 
 		mode.planModeEnabled = true;
 		mode.planModePlanFilePath = planFilePath;
@@ -1936,7 +1936,7 @@ describe("InteractiveMode plan review rendering", () => {
 			getArtifactsDir: () => session.sessionManager.getArtifactsDir(),
 			getSessionId: () => session.sessionManager.getSessionId(),
 		});
-		await Bun.write(resolvedPlanPath, "# Plan\n\nBody.");
+		await fsx.write(resolvedPlanPath, "# Plan\n\nBody.");
 		mode.planModeEnabled = true;
 		mode.planModePlanFilePath = planFilePath;
 		vi.spyOn(mode, "showPlanReview").mockResolvedValue("Approve and execute");
@@ -1959,7 +1959,7 @@ describe("InteractiveMode plan review rendering", () => {
 			getArtifactsDir: () => session.sessionManager.getArtifactsDir(),
 			getSessionId: () => session.sessionManager.getSessionId(),
 		});
-		await Bun.write(resolvedPlanPath, "# Plan\n\nKeep editing this artifact.");
+		await fsx.write(resolvedPlanPath, "# Plan\n\nKeep editing this artifact.");
 
 		await mode.handlePlanModeCommand();
 		expect(session.getPlanModeState()?.planFilePath).toBe(planFilePath);
@@ -2003,8 +2003,8 @@ describe("InteractiveMode plan review rendering", () => {
 			});
 
 		it("forwards the newest local plan file and its heading title to the approval flow", async () => {
-			await Bun.write(localPath("local://old-plan.md"), "# Old plan\n\nstale body");
-			await Bun.write(localPath("local://auth-refactor-plan.md"), "# Auth refactor\n\nfresh body");
+			await fsx.write(localPath("local://old-plan.md"), "# Old plan\n\nstale body");
+			await fsx.write(localPath("local://auth-refactor-plan.md"), "# Auth refactor\n\nfresh body");
 			// #listLocalPlanFiles sorts by mtime, newest first — pin mtimes so the
 			// "latest plan" selection is deterministic regardless of write timing.
 			await fs.utimes(localPath("local://old-plan.md"), new Date(1_000), new Date(1_000));
@@ -2027,7 +2027,7 @@ describe("InteractiveMode plan review rendering", () => {
 		});
 
 		it("warns and does not start approval when plan mode is inactive", async () => {
-			await Bun.write(localPath("local://auth-plan.md"), "# Auth\n\nbody");
+			await fsx.write(localPath("local://auth-plan.md"), "# Auth\n\nbody");
 			mode.planModeEnabled = false;
 			const approval = vi.spyOn(mode, "handlePlanApproval").mockResolvedValue();
 			const warn = vi.spyOn(mode, "showWarning");

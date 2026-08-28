@@ -49,9 +49,9 @@ async function createFakeBiomeCommand(
 	const command = path.join(tempDir, "biome");
 	const expectedInputPath = path.join(tempDir, "expected-input.ts");
 	const formattedOutputPath = path.join(tempDir, "formatted-output.ts");
-	await Bun.write(expectedInputPath, expectedInput);
-	await Bun.write(formattedOutputPath, formattedOutput);
-	await Bun.write(
+	await fsx.write(expectedInputPath, expectedInput);
+	await fsx.write(formattedOutputPath, formattedOutput);
+	await fsx.write(
 		command,
 		`#!/bin/sh
 test "$1" = "format" || exit 7
@@ -81,7 +81,7 @@ describe("BiomeClient format", () => {
 		const targetFile = path.join(tempDir, "example.ts");
 		const unformatted = "export const value:number=1\n";
 		const formatted = "export const value: number = 1;\n";
-		await Bun.write(targetFile, "export const stale = true;\n");
+		await fsx.write(targetFile, "export const stale = true;\n");
 		const command = await createFakeBiomeCommand(tempDir, unformatted, formatted);
 		const result = await new BiomeClient(biomeConfig(command), tempDir).format(targetFile, unformatted);
 
@@ -96,7 +96,7 @@ describe("BiomeClient format", () => {
 		tempDirs.push(scratchDir);
 		const targetFile = path.join(scratchDir, "configured.ts");
 		const unformatted = "export const configured:number=1\n";
-		await Bun.write(targetFile, unformatted);
+		await fsx.write(targetFile, unformatted);
 
 		const result = await new BiomeClient(biomeConfig(repoBiome), repoRoot).format(targetFile, unformatted);
 
@@ -111,7 +111,7 @@ describe("BiomeClient format", () => {
 		tempDirs.push(scratchDir);
 		const targetFile = path.join(scratchDir, "excluded.ts");
 		const unformatted = "export const excluded:number=1\n";
-		await Bun.write(targetFile, unformatted);
+		await fsx.write(targetFile, unformatted);
 
 		const result = await new BiomeClient(biomeConfig(repoBiome), repoRoot).format(targetFile, unformatted);
 
@@ -121,7 +121,7 @@ describe("BiomeClient format", () => {
 	test("returns the original content when Biome fails", async () => {
 		const tempDir = await makeTempDir();
 		const command = path.join(tempDir, "biome-failure");
-		await Bun.write(command, "#!/bin/sh\ncat >/dev/null\nexit 1\n");
+		await fsx.write(command, "#!/bin/sh\ncat >/dev/null\nexit 1\n");
 		await fs.chmod(command, 0o755);
 		const targetFile = path.join(tempDir, "example.ts");
 		const content = "export const value = 1;\n";
@@ -136,7 +136,7 @@ describe("BiomeClient lint", () => {
 	test("cancels a hung Biome process when diagnostics are aborted", async () => {
 		const tempDir = await makeTempDir();
 		const command = path.join(tempDir, "biome-hang");
-		await Bun.write(command, "#!/bin/sh\nwhile :; do :; done\n");
+		await fsx.write(command, "#!/bin/sh\nwhile :; do :; done\n");
 		await fs.chmod(command, 0o755);
 		const targetFile = path.join(tempDir, "example.ts");
 		const started = Date.now();
@@ -154,13 +154,13 @@ describe("BiomeClient lint", () => {
 
 	test("surfaces Biome 2.x --reporter=json diagnostics", async () => {
 		const tempDir = await makeTempDir();
-		await Bun.write(
+		await fsx.write(
 			path.join(tempDir, "biome.json"),
 			`${JSON.stringify({ linter: { enabled: true, rules: { recommended: true } } })}\n`,
 		);
 		const targetFile = path.join(tempDir, "lint-me.ts");
 		// `x == 2` triggers lint/suspicious/noDoubleEquals (a recommended rule).
-		await Bun.write(targetFile, "const x: number = 1;\nif (x == 2) {\n}\n");
+		await fsx.write(targetFile, "const x: number = 1;\nif (x == 2) {\n}\n");
 
 		const diagnostics = await new BiomeClient(biomeConfig(repoBiome), tempDir).lint(targetFile);
 
@@ -179,12 +179,12 @@ describe("BiomeClient lint", () => {
 
 	test("returns no diagnostics for a clean file", async () => {
 		const tempDir = await makeTempDir();
-		await Bun.write(
+		await fsx.write(
 			path.join(tempDir, "biome.json"),
 			`${JSON.stringify({ linter: { enabled: true, rules: { recommended: true } } })}\n`,
 		);
 		const targetFile = path.join(tempDir, "clean.ts");
-		await Bun.write(targetFile, "export const value = 1;\n");
+		await fsx.write(targetFile, "export const value = 1;\n");
 
 		const diagnostics = await new BiomeClient(biomeConfig(repoBiome), tempDir).lint(targetFile);
 

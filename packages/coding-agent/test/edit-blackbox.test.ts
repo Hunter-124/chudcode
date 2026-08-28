@@ -56,7 +56,7 @@ afterEach(async () => {
 
 async function writeFixture(name: string): Promise<string> {
 	const absolutePath = path.join(tempDir, name);
-	await Bun.write(absolutePath, SOURCE);
+	await fsx.write(absolutePath, SOURCE);
 	return absolutePath;
 }
 
@@ -190,7 +190,7 @@ describe("edit parse-regression blackbox", () => {
 			new_string: "return 2;",
 		});
 
-		await Bun.write(path.join(tempDir, "invalid.ts"), "export const value = (;\n");
+		await fsx.write(path.join(tempDir, "invalid.ts"), "export const value = (;\n");
 		await new EditTool(session, "replace").execute("already-invalid", {
 			path: "invalid.ts",
 			old_string: "value",

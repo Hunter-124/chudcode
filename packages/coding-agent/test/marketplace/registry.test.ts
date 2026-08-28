@@ -220,7 +220,7 @@ describe("registry file I/O", () => {
 	});
 
 	it("readMarketplacesRegistry returns empty on malformed JSON", async () => {
-		await Bun.write(marketplacesPath, "not json{{{");
+		await fsx.write(marketplacesPath, "not json{{{");
 		const reg = await readMarketplacesRegistry(marketplacesPath);
 		expect(reg).toEqual({ version: 1, marketplaces: [] });
 	});
@@ -251,7 +251,7 @@ describe("registry file I/O", () => {
 	});
 
 	it("readInstalledPluginsRegistry returns empty on malformed JSON", async () => {
-		await Bun.write(installedPath, "}{broken");
+		await fsx.write(installedPath, "}{broken");
 		const reg = await readInstalledPluginsRegistry(installedPath);
 		expect(reg).toEqual({ version: 2, plugins: {} });
 	});
@@ -320,7 +320,7 @@ describe("registry file I/O", () => {
 				],
 			},
 		};
-		await Bun.write(installedPath, JSON.stringify(data));
+		await fsx.write(installedPath, JSON.stringify(data));
 
 		const reg = await readInstalledPluginsRegistry(installedPath);
 		const entries = getInstalledPlugin(reg, "plug@mkt");

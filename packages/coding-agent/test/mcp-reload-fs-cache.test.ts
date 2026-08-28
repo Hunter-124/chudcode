@@ -7,11 +7,12 @@ import type { MCPServerConfig } from "@oh-my-pi/pi-coding-agent/mcp/types";
 import { MCPCommandController } from "@oh-my-pi/pi-coding-agent/modes/controllers/mcp-command-controller";
 import { initTheme } from "@oh-my-pi/pi-coding-agent/modes/theme/theme";
 import { getMCPConfigPath, getProjectDir, removeWithRetries, setProjectDir } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 
 const originalProjectDir = getProjectDir();
 
 async function writeExternalProjectConfig(projectDir: string, servers: Record<string, MCPServerConfig>): Promise<void> {
-	await Bun.write(
+	await fsx.write(
 		getMCPConfigPath("project", projectDir),
 		`${JSON.stringify(
 			{
@@ -115,7 +116,7 @@ describe("/mcp reload picks up external mcp.json edits", () => {
 		const primed = await readFile(configPath);
 		expect(primed).toContain("old-cmd");
 
-		await Bun.write(
+		await fsx.write(
 			configPath,
 			`${JSON.stringify({ mcpServers: { test: { type: "stdio", command: "new-cmd" } } }, null, 2)}\n`,
 		);

@@ -543,7 +543,7 @@ async function loadImportPlan(
 	for (const file of files) {
 		let json: CliProxyCredentialJson;
 		try {
-			json = (await Bun.file(file).json()) as CliProxyCredentialJson;
+			json = (await fsx.readJson(file)) as CliProxyCredentialJson;
 		} catch (err) {
 			skipped.push({ file, reason: `unreadable JSON: ${String(err)}` });
 			continue;

@@ -13,11 +13,12 @@ import * as path from "node:path";
 import { removeUserDataDir } from "@oh-my-pi/pi-coding-agent/tools/browser/launch";
 import { type BrowserHandle, releaseBrowser } from "@oh-my-pi/pi-coding-agent/tools/browser/registry";
 import * as piUtils from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 
 async function makeProfileDir(): Promise<string> {
 	const dir = await fs.promises.mkdtemp(path.join(os.tmpdir(), "omp-chrome-profile-test-"));
-	await Bun.write(path.join(dir, "SingletonLock"), "lock");
-	await Bun.write(path.join(dir, "Default", "Preferences"), "{}");
+	await fsx.write(path.join(dir, "SingletonLock"), "lock");
+	await fsx.write(path.join(dir, "Default", "Preferences"), "{}");
 	return dir;
 }
 

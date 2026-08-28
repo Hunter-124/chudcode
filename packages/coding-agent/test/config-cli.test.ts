@@ -4,6 +4,7 @@ import { runConfigCommand } from "@oh-my-pi/pi-coding-agent/cli/config-cli";
 import { resetSettingsForTest } from "@oh-my-pi/pi-coding-agent/config/settings";
 import { AgentStorage } from "@oh-my-pi/pi-coding-agent/session/agent-storage";
 import { getConfigRootDir, setAgentDir, TempDir } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 
 let testAgentDir: TempDir | undefined;
 const originalAgentDir = process.env.PI_CODING_AGENT_DIR;
@@ -202,8 +203,8 @@ describe("config CLI schema coverage", () => {
 		const baseOverlayPath = path.join(testAgentDir.path(), "base-overlay.yml");
 		const finalOverlayPath = path.join(testAgentDir.path(), "final-overlay.yml");
 		await Promise.all([
-			Bun.write(baseOverlayPath, "defaultThinkingLevel: high\n"),
-			Bun.write(finalOverlayPath, "defaultThinkingLevel: max\n"),
+			fsx.write(baseOverlayPath, "defaultThinkingLevel: high\n"),
+			fsx.write(finalOverlayPath, "defaultThinkingLevel: max\n"),
 		]);
 		const { exitCode, output, error } = await runCliProcess(["config", "get", "defaultThinkingLevel", "--json"], {
 			PI_CODING_AGENT_DIR: testAgentDir.path(),

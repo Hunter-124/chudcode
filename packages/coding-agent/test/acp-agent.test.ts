@@ -718,7 +718,7 @@ describe("ACP agent", () => {
 		// On Windows, long artifact roots are shortened by the local:// resolver to
 		// avoid MAX_PATH. Write through the same resolver the ACP handler reads from.
 		const planPath = resolveLocalUrlToPath("local://words-counter-plan.md", localOptions);
-		await Bun.write(planPath, "# Words Counter\n\nFile contents.");
+		await fsx.write(planPath, "# Words Counter\n\nFile contents.");
 
 		const updatesBefore = harness.updates.length;
 		const handler = session.planProposalHandler!;
@@ -785,7 +785,7 @@ describe("ACP agent", () => {
 		};
 		cleanupRoots.push(resolveLocalUrlToPath("local://", localOptions));
 		const planPath = resolveLocalUrlToPath("local://PLAN.md", localOptions);
-		await Bun.write(planPath, "# Words Counter\n\nFile contents.");
+		await fsx.write(planPath, "# Words Counter\n\nFile contents.");
 
 		const updatesBefore = harness.updates.length;
 		const handler = session.planProposalHandler!;

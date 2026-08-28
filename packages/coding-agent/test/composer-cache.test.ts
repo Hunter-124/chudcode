@@ -75,7 +75,7 @@ describe("composer startup cache", () => {
 				fs.mkdir(home, { recursive: true }),
 				fs.mkdir(path.join(xdgCache, "omp"), { recursive: true }),
 			]);
-			await Bun.write(path.join(home, ".env"), `XDG_CACHE_HOME=${xdgCache}\n`);
+			await fsx.write(path.join(home, ".env"), `XDG_CACHE_HOME=${xdgCache}\n`);
 
 			const composerCacheModule = path.resolve(import.meta.dir, "../src/modes/composer-cache.ts");
 			const script = [

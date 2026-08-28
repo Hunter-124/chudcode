@@ -287,7 +287,7 @@ async function cmdRelease(versionOrBump: string): Promise<void> {
 	// Filter out private packages
 	const publicPkgPaths: string[] = [];
 	for (const pkgPath of pkgJsonPaths) {
-		const pkgJson = await Bun.file(pkgPath).json();
+		const pkgJson = await fsx.readJson(pkgPath);
 		if (pkgJson.private) {
 			console.log(`  Skipping ${pkgJson.name} (private)`);
 			continue;
@@ -300,7 +300,7 @@ async function cmdRelease(versionOrBump: string): Promise<void> {
 	// Verify
 	console.log("  Verifying versions:");
 	for (const pkgPath of publicPkgPaths) {
-		const pkgJson = await Bun.file(pkgPath).json();
+		const pkgJson = await fsx.readJson(pkgPath);
 		console.log(`    ${pkgJson.name}: ${pkgJson.version}`);
 	}
 	console.log();

@@ -89,7 +89,7 @@ export async function resolveArtifactFile(url: InternalUrl, context?: ResolveCon
 		throw new Error(`Artifact ${id} not found. Available: ${availableStr}`);
 	}
 
-	const stat = await Bun.file(foundPath).stat();
+	const stat = await fsx.stat(foundPath);
 	if (stat.isDirectory()) {
 		throw new Error(`Artifact ${id} resolved to a directory, not a file`);
 	}

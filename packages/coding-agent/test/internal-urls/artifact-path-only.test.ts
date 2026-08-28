@@ -10,6 +10,7 @@ import {
 } from "@oh-my-pi/pi-coding-agent/internal-urls/registry-helpers";
 import { InternalUrlRouter } from "@oh-my-pi/pi-coding-agent/internal-urls/router";
 import { resolveToolSearchScope } from "@oh-my-pi/pi-coding-agent/tools/path-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 
 /**
  * Path-only callers (search/grep, bash URL expansion) only need the artifact's
@@ -30,7 +31,7 @@ describe("artifact:// path-only resolution", () => {
 		// 9 MiB — larger than the 8 MiB inline cap so `pathOnly: false` refuses to
 		// materialize while `pathOnly: true` returns the shape unchanged.
 		const bytes = Buffer.alloc(9 * 1024 * 1024, 65);
-		await Bun.write(path.join(artifactDir, "0.mcp.log"), bytes);
+		await fsx.write(path.join(artifactDir, "0.mcp.log"), bytes);
 		resetRegisteredArtifactDirsForTests();
 		unregister = registerArtifactsDir(artifactDir);
 	});
@@ -59,7 +60,7 @@ describe("artifact:// path-only resolution", () => {
 	it("materializes small artifacts on ordinary resolution", async () => {
 		const smallArtifactDir = path.join(testDir, "small-session");
 		await fs.mkdir(smallArtifactDir, { recursive: true });
-		await Bun.write(path.join(smallArtifactDir, "9.mcp.log"), "hello world\n");
+		await fsx.write(path.join(smallArtifactDir, "9.mcp.log"), "hello world\n");
 		const unregisterSmall = registerArtifactsDir(smallArtifactDir);
 		try {
 			const url = parseInternalUrl("artifact://9");
@@ -82,7 +83,7 @@ describe("resolveToolSearchScope handles large artifacts via pathOnly", () => {
 		artifactDir = path.join(testDir, "session");
 		await fs.mkdir(artifactDir, { recursive: true });
 		const bytes = Buffer.alloc(9 * 1024 * 1024, 65);
-		await Bun.write(path.join(artifactDir, "0.mcp.log"), bytes);
+		await fsx.write(path.join(artifactDir, "0.mcp.log"), bytes);
 		resetRegisteredArtifactDirsForTests();
 		unregister = registerArtifactsDir(artifactDir);
 		InternalUrlRouter.resetForTests();

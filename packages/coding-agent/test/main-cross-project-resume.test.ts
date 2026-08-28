@@ -23,6 +23,7 @@ import * as sessionListingModule from "@oh-my-pi/pi-coding-agent/session/session
 import { loadEntriesFromFile } from "@oh-my-pi/pi-coding-agent/session/session-loader";
 import { SessionManager } from "@oh-my-pi/pi-coding-agent/session/session-manager";
 import { getProjectDir, normalizePathForComparison, setProjectDir } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 
 function buildArgs(resume: string, sessionDir?: string): Args {
 	return {
@@ -61,7 +62,7 @@ describe("createSessionManager — cross-project --resume", () => {
 	beforeEach(async () => {
 		existingProject = await fsp.mkdtemp(path.join(os.tmpdir(), "omp-xproj-"));
 		const match = buildGlobalMatch(existingProject);
-		await Bun.write(
+		await fsx.write(
 			match.session.path,
 			`${JSON.stringify({
 				type: "session",
@@ -102,7 +103,7 @@ describe("SessionManager.open — recorded cwd adoption", () => {
 		const deniedProject = path.join(root, "denied");
 		await fsp.mkdir(launchProject);
 		const match = buildGlobalMatch(deniedProject);
-		await Bun.write(
+		await fsx.write(
 			match.session.path,
 			`${JSON.stringify({
 				type: "session",
@@ -146,7 +147,7 @@ describe("SessionManager.open — recorded cwd adoption", () => {
 		await fsp.mkdir(launchProject);
 		await fsp.mkdir(deniedProject);
 		const match = buildGlobalMatch(deniedProject);
-		await Bun.write(
+		await fsx.write(
 			match.session.path,
 			`${JSON.stringify({
 				type: "session",
@@ -192,7 +193,7 @@ describe("runRootCommand — cross-project --resume", () => {
 		resumedProject = path.join(root, "resumed");
 		await Promise.all([fsp.mkdir(launchProject), fsp.mkdir(resumedProject)]);
 		const match = buildGlobalMatch(resumedProject);
-		await Bun.write(
+		await fsx.write(
 			match.session.path,
 			`${JSON.stringify({
 				type: "session",

@@ -1,5 +1,6 @@
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import { compile } from "@tailwindcss/node";
 
 /**
@@ -16,7 +17,7 @@ async function extractTailwindClasses(dir: string): Promise<Set<string>> {
 			if (entry.isDirectory()) {
 				await scanDir(fullPath);
 			} else if (entry.isFile() && /\.(tsx|ts|jsx|js)$/.test(entry.name)) {
-				const content = await Bun.file(fullPath).text();
+				const content = await fsx.readText(fullPath);
 				const matches = content.matchAll(classPattern);
 				for (const match of matches) {
 					for (const cls of match[1].split(/\s+/)) {
@@ -36,7 +37,7 @@ await fs.rm("./dist/client", { recursive: true, force: true });
 
 // Build Tailwind CSS
 console.log("Building Tailwind CSS...");
-const sourceCss = await Bun.file("./src/client/styles.css").text();
+const sourceCss = await fsx.readText("./src/client/styles.css");
 const candidates = await extractTailwindClasses("./src/client");
 const baseDir = path.resolve("./src/client");
 
@@ -45,7 +46,7 @@ const compiler = await compile(sourceCss, {
 	onDependency: () => {},
 });
 const tailwindOutput = compiler.build([...candidates]);
-await Bun.write("./dist/client/styles.css", tailwindOutput);
+await fsx.write("./dist/client/styles.css", tailwindOutput);
 
 // Build React app
 console.log("Building React app...");
@@ -90,6 +91,6 @@ const indexHtml = `<!DOCTYPE html>
 </body>
 </html>`;
 
-await Bun.write("./dist/client/index.html", indexHtml);
+await fsx.write("./dist/client/index.html", indexHtml);
 
 console.log("Build complete");

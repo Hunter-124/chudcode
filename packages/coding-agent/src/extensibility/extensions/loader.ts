@@ -18,6 +18,7 @@ import type {
 } from "@oh-my-pi/pi-ai";
 import { isBuiltinComposerStyle, type KeyId } from "@oh-my-pi/pi-tui";
 import { hasFsCode, isEacces, isEnoent, logger } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import { type ExtensionModule, extensionModuleCapability } from "../../capability/extension-module";
 import { type Hook, hookCapability } from "../../capability/hook";
 import { isServiceTierFamily, isServiceTierForFamily } from "../../config/service-tier";
@@ -100,12 +101,10 @@ export class ExtensionRuntime implements IExtensionRuntime {
 		const remaining = this.memoryBackendRegistrations.filter(
 			registration => registration.backend.id !== backend.id || registration.sourceId !== sourceId,
 		);
-		this.memoryBackendRegistrations.splice(
-			0,
-			this.memoryBackendRegistrations.length,
-			...remaining,
-			{ backend, sourceId },
-		);
+		this.memoryBackendRegistrations.splice(0, this.memoryBackendRegistrations.length, ...remaining, {
+			backend,
+			sourceId,
+		});
 	}
 
 	unregisterMemoryBackend(id: string, sourceId: string): void {
@@ -398,9 +397,7 @@ class ConcreteExtensionAPI implements ExtensionAPI, IExtensionRuntime {
 		this.runtime.unregisterMemoryBackend(id, this.extension.path);
 	}
 
-	restoreMemoryBackendRegistrations(
-		registrations: readonly { backend: MemoryBackend; sourceId: string }[],
-	): void {
+	restoreMemoryBackendRegistrations(registrations: readonly { backend: MemoryBackend; sourceId: string }[]): void {
 		this.runtime.restoreMemoryBackendRegistrations(registrations);
 	}
 
@@ -570,7 +567,7 @@ interface ExtensionManifest {
 
 async function readExtensionManifest(packageJsonPath: string): Promise<ExtensionManifest | null> {
 	try {
-		const pkg = (await Bun.file(packageJsonPath).json()) as { omp?: ExtensionManifest; pi?: ExtensionManifest };
+		const pkg = (await fsx.readJson(packageJsonPath)) as { omp?: ExtensionManifest; pi?: ExtensionManifest };
 		const manifest = pkg.omp ?? pkg.pi;
 		if (manifest && typeof manifest === "object") {
 			return manifest;

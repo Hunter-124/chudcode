@@ -5,13 +5,14 @@ import * as path from "node:path";
 import { resolveStdioSpawnCommand, StdioTransport, writeFrame } from "@oh-my-pi/pi-coding-agent/mcp/transports/stdio";
 import { removeWithRetries } from "@oh-my-pi/pi-utils";
 import { sleep } from "@oh-my-pi/pi-utils/async";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 
 describe("resolveStdioSpawnCommand", () => {
 	it("resolves bare Windows commands through PATHEXT and wraps .cmd shims with cmd.exe", async () => {
 		const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "omp-mcp-stdio-"));
 		try {
 			const shim = path.join(tempDir, "codegraph.cmd");
-			await Bun.write(shim, "@echo off\r\n");
+			await fsx.write(shim, "@echo off\r\n");
 
 			const result = await resolveStdioSpawnCommand(
 				{ type: "stdio", command: "codegraph", args: ["serve", "--mcp"] },
@@ -48,8 +49,8 @@ describe("resolveStdioSpawnCommand", () => {
 		try {
 			const localShim = path.join(projectDir, "server.cmd");
 			const globalShim = path.join(globalDir, "server.cmd");
-			await Bun.write(localShim, "@echo off\r\nrem local\r\n");
-			await Bun.write(globalShim, "@echo off\r\nrem global\r\n");
+			await fsx.write(localShim, "@echo off\r\nrem local\r\n");
+			await fsx.write(globalShim, "@echo off\r\nrem global\r\n");
 
 			const result = await resolveStdioSpawnCommand(
 				{ type: "stdio", command: "server.cmd", args: ["serve"] },
@@ -85,7 +86,7 @@ describe("resolveStdioSpawnCommand", () => {
 		const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "omp-mcp-npx-"));
 		try {
 			const shim = path.join(tempDir, "npx.cmd");
-			await Bun.write(
+			await fsx.write(
 				shim,
 				[
 					"@ECHO off",
@@ -144,7 +145,7 @@ describe("resolveStdioSpawnCommand", () => {
 		try {
 			const shim = path.join(tempDir, "codegraph.cmd");
 			const entry = path.join(tempDir, "node_modules", "@colbymchenry", "codegraph", "npm-shim.js");
-			await Bun.write(
+			await fsx.write(
 				shim,
 				[
 					"@ECHO off",
@@ -194,7 +195,7 @@ describe("resolveStdioSpawnCommand", () => {
 		const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "omp-mcp-pyshim-"));
 		try {
 			const shim = path.join(tempDir, "pyserver.cmd");
-			await Bun.write(
+			await fsx.write(
 				shim,
 				[
 					"@ECHO off",
@@ -245,7 +246,7 @@ describe("resolveStdioSpawnCommand", () => {
 		const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "omp-mcp-percent-"));
 		try {
 			const shim = path.join(tempDir, "codegraph.cmd");
-			await Bun.write(shim, "@echo off\r\n");
+			await fsx.write(shim, "@echo off\r\n");
 
 			const result = await resolveStdioSpawnCommand(
 				{ type: "stdio", command: "codegraph", args: ["serve", "--header", "Authorization=%TOKEN%"] },
@@ -283,7 +284,7 @@ describe("resolveStdioSpawnCommand", () => {
 		const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "omp-mcp-quotes-"));
 		try {
 			const shim = path.join(tempDir, "codegraph.cmd");
-			await Bun.write(shim, "@echo off\r\n");
+			await fsx.write(shim, "@echo off\r\n");
 
 			const result = await resolveStdioSpawnCommand(
 				{ type: "stdio", command: "codegraph", args: ["--config", '{"a":"b&c|d"}'] },
@@ -326,8 +327,8 @@ describe("resolveStdioSpawnCommand", () => {
 		try {
 			const bare = path.join(tempDir, "codegraph");
 			const shim = `${bare}.cmd`;
-			await Bun.write(bare, "#!/bin/sh\n");
-			await Bun.write(shim, "@echo off\r\n");
+			await fsx.write(bare, "#!/bin/sh\n");
+			await fsx.write(shim, "@echo off\r\n");
 
 			const result = await resolveStdioSpawnCommand(
 				{ type: "stdio", command: bare, args: ["serve", "--mcp"] },
@@ -479,7 +480,7 @@ describe("resolveStdioSpawnCommand", () => {
 		try {
 			await fs.mkdir(dir, { recursive: true });
 			const shim = path.join(dir, "server.cmd");
-			await Bun.write(shim, "@echo off\r\n");
+			await fsx.write(shim, "@echo off\r\n");
 
 			const result = await resolveStdioSpawnCommand(
 				{ type: "stdio", command: shim, args: ["serve"] },

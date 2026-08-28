@@ -746,7 +746,7 @@ async function discoverPackageTests(state: DiscoveryState): Promise<void> {
 		if (path.posix.basename(file) !== "package.json") continue;
 		let manifest: unknown;
 		try {
-			manifest = await Bun.file(path.resolve(state.projectCwd, file)).json();
+			manifest = await fsx.readJson(path.resolve(state.projectCwd, file));
 		} catch {
 			continue;
 		}

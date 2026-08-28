@@ -5,6 +5,7 @@ import * as path from "node:path";
 import { Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
 import type { ToolSession } from "@oh-my-pi/pi-coding-agent/tools";
 import { removeWithRetries } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import { GlobTool } from "../../src/tools/glob";
 import { GrepTool } from "../../src/tools/grep";
 
@@ -39,8 +40,8 @@ describe("multi-path tools tolerate missing entries", () => {
 	beforeEach(async () => {
 		tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "pi-multi-path-missing-"));
 		await fs.mkdir(path.join(tempDir, "src"), { recursive: true });
-		await Bun.write(path.join(tempDir, "src", "alpha.ts"), "shared-needle alpha\n");
-		await Bun.write(path.join(tempDir, "src", "beta.ts"), "shared-needle beta\n");
+		await fsx.write(path.join(tempDir, "src", "alpha.ts"), "shared-needle alpha\n");
+		await fsx.write(path.join(tempDir, "src", "beta.ts"), "shared-needle beta\n");
 	});
 
 	afterEach(async () => {

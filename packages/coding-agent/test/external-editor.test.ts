@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, spyOn } from "bun:test";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { TempDir } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import { getEditorCommand, openInEditor, resolveEditorSpawnCommand } from "../src/utils/external-editor";
 
 interface MutableProcess {
@@ -107,7 +108,7 @@ describe("openInEditor", () => {
 		try {
 			const editorPath = path.join(tempDir.path(), "My Editor", "edit");
 			fs.mkdirSync(path.dirname(editorPath), { recursive: true });
-			await Bun.write(editorPath, '#!/bin/sh\nprintf "edited" > "$1"\n');
+			await fsx.write(editorPath, '#!/bin/sh\nprintf "edited" > "$1"\n');
 			fs.chmodSync(editorPath, 0o755);
 
 			const result = await openInEditor(`"${editorPath}"`, "original");

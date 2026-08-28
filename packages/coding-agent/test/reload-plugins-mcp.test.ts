@@ -14,6 +14,7 @@ import type { TuiSlashCommandRuntime } from "@oh-my-pi/pi-coding-agent/slash-com
 import { TaskTool } from "@oh-my-pi/pi-coding-agent/task";
 import type { ToolSession } from "@oh-my-pi/pi-coding-agent/tools";
 import { getProjectDir, removeWithRetries, setProjectDir } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 
 const originalProjectDir = getProjectDir();
 
@@ -99,11 +100,11 @@ describe("/reload-plugins runtime refresh", () => {
 		const agentDir = path.join(projectDir, ".omp", "agents");
 		const agentFile = path.join(agentDir, "reload-agent.md");
 		await fs.mkdir(agentDir, { recursive: true });
-		await Bun.write(agentFile, agentDefinition("VERSION_ONE"));
+		await fsx.write(agentFile, agentDefinition("VERSION_ONE"));
 		const taskTool = await TaskTool.create(createTaskSession(projectDir));
 		expect(taskTool.description).toContain("VERSION_ONE");
 
-		await Bun.write(agentFile, agentDefinition("VERSION_TWO"));
+		await fsx.write(agentFile, agentDefinition("VERSION_TWO"));
 		const { ctx } = createFakeCtx(projectDir);
 		const runtime: TuiSlashCommandRuntime = { ctx };
 		await executeBuiltinSlashCommand("/reload-plugins", runtime);

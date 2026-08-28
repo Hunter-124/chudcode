@@ -76,6 +76,7 @@ import { complete } from "@oh-my-pi/pi-ai/stream";
 import type { Api, Context, ImageContent, Model, OptionsForApi, UserMessage } from "@oh-my-pi/pi-ai/types";
 import { getBundledModel } from "@oh-my-pi/pi-catalog/models";
 import { $which, removeSyncWithRetries } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import { e2eApiKey } from "./oauth";
 
 const TEMP_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "omp-temp-images-"));
@@ -103,7 +104,7 @@ async function generateImageWithSize(targetBytes: number, filename: string): Pro
 	execSync(`magick -size ${side}x${side} xc: +noise Random -depth 8 PNG24:"${filepath}"`, { stdio: "ignore" });
 
 	// Check actual size and adjust if needed
-	const { size } = await Bun.file(filepath).stat();
+	const { size } = await fsx.stat(filepath);
 	if (size < targetBytes * 0.8) {
 		// If too small, increase dimensions
 		const newSide = Math.ceil(side * Math.sqrt(targetBytes / size));

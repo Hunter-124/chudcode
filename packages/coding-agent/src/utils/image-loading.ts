@@ -10,6 +10,7 @@ import type {
 } from "@oh-my-pi/pi-ai";
 import { rasterizeSvg } from "@oh-my-pi/pi-natives";
 import { formatBytes, isRecord, logger, readImageMetadata, SUPPORTED_IMAGE_MIME_TYPES } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import { LRUCache } from "@oh-my-pi/pi-utils/lru";
 import { resolveReadPath } from "../tools/path-utils";
 import { formatDimensionNote, type ImageResizeOptions, resizeImage } from "./image-resize";
@@ -385,7 +386,7 @@ export async function loadImageInput(options: LoadImageInputOptions): Promise<Lo
 	const mimeType = metadata?.mimeType;
 	if (!mimeType) return null;
 
-	const stat = await Bun.file(resolvedPath).stat();
+	const stat = await fsx.stat(resolvedPath);
 	if (stat.size > maxBytes) {
 		throw new ImageInputTooLargeError(stat.size, maxBytes);
 	}
@@ -408,7 +409,7 @@ export async function loadSvgImageInput(options: LoadImageInputOptions): Promise
 	if (extension !== ".svg" && extension !== ".svgz") return null;
 
 	const maxBytes = options.maxBytes ?? MAX_IMAGE_INPUT_BYTES;
-	const stat = await Bun.file(resolvedPath).stat();
+	const stat = await fsx.stat(resolvedPath);
 	if (stat.size > maxBytes) {
 		throw new ImageInputTooLargeError(stat.size, maxBytes);
 	}

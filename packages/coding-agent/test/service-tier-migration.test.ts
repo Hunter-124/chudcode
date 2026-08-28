@@ -4,6 +4,7 @@ import * as path from "node:path";
 import { resetSettingsForTest, Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
 import { AgentStorage } from "@oh-my-pi/pi-coding-agent/session/agent-storage";
 import { getProjectAgentDir, TempDir } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import { YAML } from "bun";
 import { beginSettingsTest, restoreSettingsTestState, type SettingsTestState } from "./helpers/settings-test-state";
 
@@ -35,7 +36,7 @@ describe("serviceTier → tier.* settings migration", () => {
 	});
 
 	async function loadWith(raw: Record<string, unknown>): Promise<Settings> {
-		await Bun.write(path.join(agentDir, "config.yml"), YAML.stringify(raw, null, 2));
+		await fsx.write(path.join(agentDir, "config.yml"), YAML.stringify(raw, null, 2));
 		resetSettingsForTest();
 		return Settings.init({ cwd: projectDir, agentDir });
 	}

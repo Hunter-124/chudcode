@@ -32,8 +32,8 @@ describe("tool path root alias", () => {
 
 	beforeEach(async () => {
 		tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "tool-root-alias-"));
-		await Bun.write(path.join(tempDir, "search.txt"), "root-alias-needle\n");
-		await Bun.write(
+		await fsx.write(path.join(tempDir, "search.txt"), "root-alias-needle\n");
+		await fsx.write(
 			path.join(tempDir, "sample.ts"),
 			"const rootAliasSymbol = 1;\nlegacyWrap(rootAliasSymbol, anotherValue);\n",
 		);

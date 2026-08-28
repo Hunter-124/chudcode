@@ -11,6 +11,7 @@ import {
 	parseFrontmatter,
 	tryParseJson,
 } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import type { ExtensionModule } from "../capability/extension-module";
 import { invalidate as invalidateFsCache, readDirEntries, readFile } from "../capability/fs";
 import { parseRuleConditionAndScope, type Rule, type RuleFrontmatter } from "../capability/rule";
@@ -1216,7 +1217,7 @@ export async function injectPluginDirRoots(home: string, dirs: string[], cwd?: s
 				const contained = await resolveContainedPath(realRoot, manifestPath);
 				if (contained.status !== "ok") continue;
 				try {
-					const manifest = await Bun.file(contained.realPath).json();
+					const manifest = await fsx.readJson<{ name?: unknown }>(contained.realPath);
 					if (typeof manifest?.name === "string" && manifest.name) {
 						pluginName = manifest.name;
 						break;

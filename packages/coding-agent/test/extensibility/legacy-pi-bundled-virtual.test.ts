@@ -6,6 +6,7 @@ import {
 	resolveBundledVirtualSpecifier,
 } from "@oh-my-pi/pi-coding-agent/extensibility/plugins/legacy-pi-compat";
 import { TempDir } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import type { BunPlugin } from "bun";
 
 // Regression for issue #3423: Bun 1.3.14 made `--compile` extras unreachable
@@ -102,7 +103,7 @@ describe("legacy-pi bundled virtual module synthesizer (issue #3423)", () => {
 		const entryPath = tempDir.join("extension-entry.ts");
 		const bundlePath = tempDir.join("extension-entry.bundle.mjs");
 
-		await Bun.write(
+		await fsx.write(
 			entryPath,
 			['export { legacyAnswer } from "omp-legacy-pi-bundled:@oh-my-pi/pi-utils";', ""].join("\n"),
 		);
@@ -145,7 +146,7 @@ describe("legacy-pi bundled virtual module synthesizer (issue #3423)", () => {
 		});
 		const buildLogs = buildResult.logs.map(log => log.message).join("\n");
 		expect(buildResult.success, buildLogs).toBe(true);
-		await Bun.write(bundlePath, await buildResult.outputs[0]!.text());
+		await fsx.write(bundlePath, await buildResult.outputs[0]!.text());
 		expect(onLoadPaths).toEqual(["@oh-my-pi/pi-utils"]);
 
 		// The generated bundle has a runtime-selected temp path; importing it is the loading boundary under test.

@@ -9,6 +9,7 @@ import {
 } from "@oh-my-pi/pi-coding-agent/internal-urls/registry-helpers";
 import type { ToolSession } from "@oh-my-pi/pi-coding-agent/tools";
 import { ReadTool } from "@oh-my-pi/pi-coding-agent/tools/read";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 
 function getTextOutput(result: { content: Array<{ type: string; text?: string }> }): string {
 	return result.content
@@ -49,7 +50,7 @@ describe("read tool large artifact handling", () => {
 		testDir = await fs.mkdtemp(path.join(os.tmpdir(), "read-artifact-large-"));
 		artifactDir = path.join(testDir, "session");
 		await fs.mkdir(artifactDir, { recursive: true });
-		await Bun.write(path.join(artifactDir, "0.mcp.log"), largeArtifactText());
+		await fsx.write(path.join(artifactDir, "0.mcp.log"), largeArtifactText());
 		resetRegisteredArtifactDirsForTests();
 		unregisterArtifactsDir = registerArtifactsDir(artifactDir);
 		tool = new ReadTool(makeSession(testDir));

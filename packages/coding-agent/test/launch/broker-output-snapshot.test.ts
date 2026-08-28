@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { setProcessName, TempDir } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import { startDaemonBrokerFromEnvironment } from "../../src/launch/broker";
 import { createDaemonBrokerClient } from "../../src/launch/client";
 import {
@@ -24,7 +25,7 @@ describe("daemon broker log snapshots", () => {
 		const runtimeDir = path.join(tempDir.path(), "runtime");
 		await fs.mkdir(projectDir);
 		const scriptPath = path.join(projectDir, "service.ts");
-		await Bun.write(
+		await fsx.write(
 			scriptPath,
 			`process.stdin.setEncoding("utf8");
 process.stdin.resume();

@@ -253,7 +253,7 @@ describe("update-cli install target detection", () => {
 		const standalonePath = path.join(dir, ".local", "bin", "omp");
 		const aliasPath = path.join(npmBinDir, "omp");
 		await fs.mkdir(npmBinDir, { recursive: true });
-		await Bun.write(standalonePath, "binary");
+		await fsx.write(standalonePath, "binary");
 		await fs.symlink(standalonePath, aliasPath);
 
 		const target = resolveUpdateTargetFromPath(aliasPath, undefined, {
@@ -275,7 +275,7 @@ describe("update-cli install target detection", () => {
 		const aliasPath = path.join(npmBinDir, "omp");
 		await fs.mkdir(npmBinDir, { recursive: true });
 		await fs.mkdir(path.dirname(packagePath), { recursive: true });
-		await Bun.write(checkoutCli, "linked checkout");
+		await fsx.write(checkoutCli, "linked checkout");
 		await fs.symlink(checkoutPath, packagePath, "junction");
 		await fs.symlink(path.relative(npmBinDir, path.join(packagePath, "dist", "cli.js")), aliasPath);
 
@@ -296,7 +296,7 @@ describe("update-cli install target detection", () => {
 		const standalonePath = path.join(bunDir, "custom", "omp");
 		const aliasPath = path.join(bunBinDir, "omp");
 		await fs.mkdir(bunBinDir, { recursive: true });
-		await Bun.write(standalonePath, "binary");
+		await fsx.write(standalonePath, "binary");
 		await fs.symlink(path.relative(bunBinDir, standalonePath), aliasPath);
 
 		const target = resolveUpdateTargetFromPath(aliasPath, bunBinDir, {
@@ -319,7 +319,7 @@ describe("update-cli install target detection", () => {
 		const launcherPath = path.join(launcherDir, "omp");
 		await fs.mkdir(sharedBinDir, { recursive: true });
 		await fs.mkdir(launcherDir, { recursive: true });
-		await Bun.write(standalonePath, "binary");
+		await fsx.write(standalonePath, "binary");
 		await fs.symlink(standalonePath, launcherPath);
 
 		const target = resolveUpdateTargetFromPath(launcherPath, undefined, {
@@ -341,7 +341,7 @@ describe("update-cli install target detection", () => {
 		const aliasPath = path.join(npmBinDir, "omp");
 		await fs.mkdir(npmBinDir, { recursive: true });
 		await fs.mkdir(path.dirname(managedBinary), { recursive: true });
-		await Bun.write(managedBinary, "binary");
+		await fsx.write(managedBinary, "binary");
 		await fs.symlink(managedBinary, aliasPath);
 
 		const target = resolveUpdateTargetFromPath(aliasPath, undefined, {
@@ -362,7 +362,7 @@ describe("update-cli install target detection", () => {
 		const aliasPath = path.join(bunBinDir, "omp");
 		await fs.mkdir(bunBinDir, { recursive: true });
 		await fs.mkdir(path.dirname(packagePath), { recursive: true });
-		await Bun.write(checkoutCli, "linked checkout");
+		await fsx.write(checkoutCli, "linked checkout");
 		await fs.symlink(checkoutPath, packagePath, "junction");
 		await fs.symlink(path.relative(bunBinDir, path.join(packagePath, "dist", "cli.js")), aliasPath);
 
@@ -394,7 +394,7 @@ describe("update-cli install target detection", () => {
 		const linkedBin = path.join(dir, "bin");
 		await fs.mkdir(path.join(prefix, "bin"), { recursive: true });
 		await fs.mkdir(linkedBin, { recursive: true });
-		await Bun.write(path.join(prefix, "bin", "omp"), "binary");
+		await fsx.write(path.join(prefix, "bin", "omp"), "binary");
 		await fs.symlink(path.join(prefix, "bin", "omp"), path.join(linkedBin, "omp"));
 
 		const method = resolveUpdateMethodForTest(path.join(linkedBin, "omp"), "/Users/test/.bun/bin", {
@@ -664,33 +664,33 @@ describe("update-cli bun install command", () => {
 describe("update-cli bun cache pruning", () => {
 	it("keeps only the newest cached version for filtered global install packages", async () => {
 		const dir = await makeTempDir();
-		await Bun.write(path.join(dir, "react", "18.3.1@@@1"), "");
-		await Bun.write(path.join(dir, "react", "19.2.6@@@1"), "");
-		await Bun.write(
+		await fsx.write(path.join(dir, "react", "18.3.1@@@1"), "");
+		await fsx.write(path.join(dir, "react", "19.2.6@@@1"), "");
+		await fsx.write(
 			path.join(dir, "react@18.3.1@@@1", "package.json"),
 			JSON.stringify({ name: "react", version: "18.3.1" }),
 		);
-		await Bun.write(
+		await fsx.write(
 			path.join(dir, "react@19.2.6@@@1", "package.json"),
 			JSON.stringify({ name: "react", version: "19.2.6" }),
 		);
-		await Bun.write(path.join(dir, "@oh-my-pi", "pi-utils", "15.7.6@@@1"), "");
-		await Bun.write(path.join(dir, "@oh-my-pi", "pi-utils", "15.8.0@@@1"), "");
-		await Bun.write(
+		await fsx.write(path.join(dir, "@oh-my-pi", "pi-utils", "15.7.6@@@1"), "");
+		await fsx.write(path.join(dir, "@oh-my-pi", "pi-utils", "15.8.0@@@1"), "");
+		await fsx.write(
 			path.join(dir, "@oh-my-pi", "pi-utils@15.7.6@@@1", "package.json"),
 			JSON.stringify({ name: "@oh-my-pi/pi-utils", version: "15.7.6" }),
 		);
-		await Bun.write(
+		await fsx.write(
 			path.join(dir, "@oh-my-pi", "pi-utils@15.8.0@@@1", "package.json"),
 			JSON.stringify({ name: "@oh-my-pi/pi-utils", version: "15.8.0" }),
 		);
-		await Bun.write(path.join(dir, "chalk", "4.1.2@@@1"), "");
-		await Bun.write(path.join(dir, "chalk", "5.6.2@@@1"), "");
-		await Bun.write(
+		await fsx.write(path.join(dir, "chalk", "4.1.2@@@1"), "");
+		await fsx.write(path.join(dir, "chalk", "5.6.2@@@1"), "");
+		await fsx.write(
 			path.join(dir, "chalk@4.1.2@@@1", "package.json"),
 			JSON.stringify({ name: "chalk", version: "4.1.2" }),
 		);
-		await Bun.write(
+		await fsx.write(
 			path.join(dir, "chalk@5.6.2@@@1", "package.json"),
 			JSON.stringify({ name: "chalk", version: "5.6.2" }),
 		);
@@ -712,8 +712,8 @@ describe("update-cli bun cache pruning", () => {
 
 	it("keeps current registry-qualified marker entries with their materialized package", async () => {
 		const dir = await makeTempDir();
-		await Bun.write(path.join(dir, "pkg", "1.0.0@@registry.npmjs.org@@@1"), "");
-		await Bun.write(
+		await fsx.write(path.join(dir, "pkg", "1.0.0@@registry.npmjs.org@@@1"), "");
+		await fsx.write(
 			path.join(dir, "pkg@1.0.0@@registry.npmjs.org@@@1", "package.json"),
 			JSON.stringify({ name: "pkg", version: "1.0.0" }),
 		);
@@ -727,13 +727,13 @@ describe("update-cli bun cache pruning", () => {
 
 	it("treats a stable release as newer than a matching prerelease", async () => {
 		const dir = await makeTempDir();
-		await Bun.write(path.join(dir, "pkg", "1.0.0-beta.1@@@1"), "");
-		await Bun.write(path.join(dir, "pkg", "1.0.0@@@1"), "");
-		await Bun.write(
+		await fsx.write(path.join(dir, "pkg", "1.0.0-beta.1@@@1"), "");
+		await fsx.write(path.join(dir, "pkg", "1.0.0@@@1"), "");
+		await fsx.write(
 			path.join(dir, "pkg@1.0.0-beta.1@@@1", "package.json"),
 			JSON.stringify({ name: "pkg", version: "1.0.0-beta.1" }),
 		);
-		await Bun.write(
+		await fsx.write(
 			path.join(dir, "pkg@1.0.0@@@1", "package.json"),
 			JSON.stringify({ name: "pkg", version: "1.0.0" }),
 		);
@@ -751,13 +751,13 @@ describe("update-cli bun cache pruning", () => {
 		const dir = await makeTempDir();
 		const older = "1.0.99999999999999999999";
 		const newer = "1.0.100000000000000000000";
-		await Bun.write(path.join(dir, "pkg", `${older}@@@1`), "");
-		await Bun.write(path.join(dir, "pkg", `${newer}@@@1`), "");
-		await Bun.write(
+		await fsx.write(path.join(dir, "pkg", `${older}@@@1`), "");
+		await fsx.write(path.join(dir, "pkg", `${newer}@@@1`), "");
+		await fsx.write(
 			path.join(dir, `pkg@${older}@@@1`, "package.json"),
 			JSON.stringify({ name: "pkg", version: older }),
 		);
-		await Bun.write(
+		await fsx.write(
 			path.join(dir, `pkg@${newer}@@@1`, "package.json"),
 			JSON.stringify({ name: "pkg", version: newer }),
 		);
@@ -955,7 +955,7 @@ describe("update-cli release binary integrity", () => {
 		const expectedDigest = `sha256:${createHash("sha256")
 			.update("x".repeat(Buffer.byteLength(altered)))
 			.digest("hex")}`;
-		await Bun.write(targetPath, installed);
+		await fsx.write(targetPath, installed);
 		await fs.chmod(targetPath, 0o755);
 
 		const metadataAuthorizations: Array<string | null> = [];
@@ -1018,8 +1018,8 @@ describe("update-cli binary replacement", () => {
 		const targetPath = path.join(dir, "omp");
 		const tempPath = `${targetPath}.new`;
 		const backupPath = `${targetPath}.bak`;
-		await Bun.write(targetPath, "old binary");
-		await Bun.write(tempPath, "broken binary");
+		await fsx.write(targetPath, "old binary");
+		await fsx.write(tempPath, "broken binary");
 
 		await expect(
 			replaceBinaryForUpdate({
@@ -1041,8 +1041,8 @@ describe("update-cli binary replacement", () => {
 		const targetPath = path.join(dir, "omp");
 		const tempPath = `${targetPath}.new`;
 		const backupPath = `${targetPath}.bak`;
-		await Bun.write(targetPath, "old binary");
-		await Bun.write(tempPath, "new binary");
+		await fsx.write(targetPath, "old binary");
+		await fsx.write(tempPath, "new binary");
 
 		await replaceBinaryForUpdate({
 			targetPath,
@@ -1064,7 +1064,7 @@ describe("update-cli binary replacement", () => {
 		const targetPath = path.join(dir, "omp");
 		const tempPath = `${targetPath}.new`;
 		const backupPath = `${targetPath}.bak`;
-		await Bun.write(tempPath, "new binary");
+		await fsx.write(tempPath, "new binary");
 
 		const result = await replaceBinaryForUpdate({
 			targetPath,
@@ -1089,8 +1089,8 @@ describe("update-cli binary replacement on locked backups", () => {
 		const targetPath = path.join(dir, "omp.exe");
 		const tempPath = `${targetPath}.new`;
 		const backupPath = `${targetPath}.1700000000000.4242.bak`;
-		await Bun.write(targetPath, "old binary");
-		await Bun.write(tempPath, "new binary");
+		await fsx.write(targetPath, "old binary");
+		await fsx.write(tempPath, "new binary");
 
 		const realUnlink = nodeFs.promises.unlink.bind(nodeFs.promises);
 		const spy = spyOn(nodeFs.promises, "unlink").mockImplementation(async (p: nodeFs.PathLike) => {
@@ -1126,24 +1126,24 @@ describe("update-cli stale update artifact sweep", () => {
 	it("reclaims timestamped and legacy backups and orphaned temps while sparing in-progress temps and unrelated files", async () => {
 		const dir = await makeTempDir();
 		const targetPath = path.join(dir, "omp.exe");
-		await Bun.write(targetPath, "current binary");
-		await Bun.write(`${targetPath}.bak`, "legacy backup");
-		await Bun.write(`${targetPath}.1700000000000.4242.bak`, "timestamped backup");
-		await Bun.write(`${targetPath}.1800000000000.99.bak`, "another backup");
+		await fsx.write(targetPath, "current binary");
+		await fsx.write(`${targetPath}.bak`, "legacy backup");
+		await fsx.write(`${targetPath}.1700000000000.4242.bak`, "timestamped backup");
+		await fsx.write(`${targetPath}.1800000000000.99.bak`, "another backup");
 		// Orphaned temp files from a hard-killed download: reaped once older than
 		// the download window. Legacy fixed name and timestamped name both count.
 		const stale = new Date(Date.now() - 60 * 60 * 1000);
-		await Bun.write(`${targetPath}.new`, "legacy temp");
+		await fsx.write(`${targetPath}.new`, "legacy temp");
 		await fs.utimes(`${targetPath}.new`, stale, stale);
-		await Bun.write(`${targetPath}.1700000000000.4242.new`, "timestamped temp");
+		await fsx.write(`${targetPath}.1700000000000.4242.new`, "timestamped temp");
 		await fs.utimes(`${targetPath}.1700000000000.4242.new`, stale, stale);
 		// Must survive: a fresh temp still belongs to a concurrent, in-progress
 		// download (unique per attempt), plus foreign basenames and non-numeric
 		// middle segments.
-		await Bun.write(`${targetPath}.9999999999999.7.new`, "in-progress temp");
-		await Bun.write(path.join(dir, "notes.bak"), "keep me");
-		await Bun.write(`${targetPath}.config.bak`, "keep me too");
-		await Bun.write(`${targetPath}.config.new`, "keep me three");
+		await fsx.write(`${targetPath}.9999999999999.7.new`, "in-progress temp");
+		await fsx.write(path.join(dir, "notes.bak"), "keep me");
+		await fsx.write(`${targetPath}.config.bak`, "keep me too");
+		await fsx.write(`${targetPath}.config.new`, "keep me three");
 
 		await sweepStaleUpdateArtifacts(targetPath);
 
@@ -1235,7 +1235,7 @@ describe("update-cli script-shim takeover", () => {
 
 	async function writeShims(dir: string): Promise<void> {
 		for (const name in shims) {
-			await Bun.write(path.join(dir, name), shims[name]);
+			await fsx.write(path.join(dir, name), shims[name]);
 		}
 	}
 
@@ -1296,8 +1296,8 @@ describe("update-cli script-shim takeover", () => {
 		const dir = await makeTempDir();
 		const targetPath = path.join(dir, "omp.exe");
 		const marker = path.join(dir, "omp.bunx");
-		await Bun.write(targetPath, "bun shim");
-		await Bun.write(marker, "bun launcher metadata");
+		await fsx.write(targetPath, "bun shim");
+		await fsx.write(marker, "bun launcher metadata");
 		const exe = `#!/bin/sh\necho omp/${version}\n`;
 
 		await updateViaBinaryAt(targetPath, version, {
@@ -1422,7 +1422,7 @@ describe("update-cli concurrent binary updates", () => {
 		vi.spyOn(console, "log").mockImplementation(() => {});
 		const dir = await makeTempDir();
 		const targetPath = path.join(dir, "omp");
-		await Bun.write(targetPath, "old binary");
+		await fsx.write(targetPath, "old binary");
 		return { dir, targetPath };
 	}
 

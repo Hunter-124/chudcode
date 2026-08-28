@@ -75,7 +75,7 @@ function hashlineExecuteOptions(
 		session,
 		input,
 		writethrough: async (targetPath, content) => {
-			await Bun.write(targetPath, content);
+			await fsx.write(targetPath, content);
 			return undefined;
 		},
 		beginDeferredDiagnosticsForPath: () => ({
@@ -100,7 +100,7 @@ describe("hashline executor", () => {
 			const source = ["aaa", "bbb", "ccc"].join("\n");
 			const session = makeHashlineSession(tempDir);
 
-			await Bun.write(filePath, source);
+			await fsx.write(filePath, source);
 			const sourceTag = recordFullSnapshot(getFileReadCache(session), filePath, source);
 			const input = `${header("a.ts", sourceTag)}\nPUT >$:\n${repl("bbb")}\n${repl("ccc")}\n${repl("NEW")}\n`;
 			const result = await executeHashlineSingle(hashlineExecuteOptions(tempDir, input, undefined, session));
@@ -116,7 +116,7 @@ describe("hashline executor", () => {
 		await withTempDir(async tempDir => {
 			const filePath = path.join(tempDir, "Program.cs");
 			const source = "using A;\n";
-			await Bun.write(filePath, new Uint8Array([0xef, 0xbb, 0xbf, ...new TextEncoder().encode(source)]));
+			await fsx.write(filePath, new Uint8Array([0xef, 0xbb, 0xbf, ...new TextEncoder().encode(source)]));
 			const session = makeHashlineSession(tempDir);
 			const sourceTag = recordFullSnapshot(getFileReadCache(session), filePath, source);
 			const input = `${header("Program.cs", sourceTag)}\n${sameLineRange(tag(1, source))}\n${repl("using B;")}\n`;
@@ -144,7 +144,7 @@ describe("hashline executor", () => {
 				nbformat: 4,
 				nbformat_minor: 5,
 			};
-			await Bun.write(
+			await fsx.write(
 				filePath,
 				new Uint8Array([0xef, 0xbb, 0xbf, ...new TextEncoder().encode(JSON.stringify(notebook))]),
 			);
@@ -155,7 +155,7 @@ describe("hashline executor", () => {
 
 			await executeHashlineSingle(hashlineExecuteOptions(tempDir, input, undefined, session));
 
-			const updated = await Bun.file(filePath).json();
+			const updated = await fsx.readJson(filePath);
 			expect(updated.cells).toHaveLength(1);
 			expect(updated.cells[0].source).toEqual(["# Updated\n"]);
 			expect(updated.cells[0].metadata).toEqual({ keep: true });
@@ -166,7 +166,7 @@ describe("hashline executor", () => {
 		await withTempDir(async tempDir => {
 			const filePath = path.join(tempDir, "a.ts");
 			const source = "aaa\nbbb\nccc\n";
-			await Bun.write(filePath, source);
+			await fsx.write(filePath, source);
 			const session = makeHashlineSession(tempDir);
 			const sourceTag = recordFullSnapshot(getFileReadCache(session), filePath, source);
 			// Replace line 2 with `bbb` — identical to the file content. The
@@ -186,8 +186,8 @@ describe("hashline executor", () => {
 		await withTempDir(async tempDir => {
 			const aPath = path.join(tempDir, "a.ts");
 			const bPath = path.join(tempDir, "b.ts");
-			await Bun.write(aPath, "aaa\n");
-			await Bun.write(bPath, "bbb\n");
+			await fsx.write(aPath, "aaa\n");
+			await fsx.write(bPath, "bbb\n");
 			const session = makeHashlineSession(tempDir);
 			const aTag = recordFullSnapshot(getFileReadCache(session), aPath, "aaa\n");
 			const bHeader = "[b.ts#FFFF]";
@@ -212,7 +212,7 @@ describe("hashline executor", () => {
 		await withTempDir(async tempDir => {
 			const filePath = path.join(tempDir, "a.ts");
 			const source = "one\ntwo\n";
-			await Bun.write(filePath, source);
+			await fsx.write(filePath, source);
 			const session = makeHashlineSession(tempDir);
 			const sourceTag = recordFullSnapshot(getFileReadCache(session), filePath, source);
 			const input = [
@@ -235,7 +235,7 @@ describe("hashline executor", () => {
 		await withTempDir(async tempDir => {
 			const filePath = path.join(tempDir, "a.ts");
 			const original = ["L1", "L2", "L3", "L4", "L5", "L6", "L7", "L8", "L9", "L10"].join("\n");
-			await Bun.write(filePath, `${original}\n`);
+			await fsx.write(filePath, `${original}\n`);
 			const session = makeHashlineSession(tempDir);
 			const originalTag = recordFullSnapshot(getFileReadCache(session), filePath, `${original}\n`);
 
@@ -343,7 +343,7 @@ describe("hashline — anchor-stale recovery via read snapshot cache", () => {
 			const filePath = path.join(tempDir, "a.ts");
 			const v0Lines = ["L1", "L2", "L3", "L4", "L5", "L6", "L7", "L8"];
 			const v0Text = `${v0Lines.join("\n")}\n`;
-			await Bun.write(filePath, v0Text);
+			await fsx.write(filePath, v0Text);
 
 			const session = makeHashlineSession(tempDir);
 			// Simulate the read tool having shown V0 to the model in this session.
@@ -354,7 +354,7 @@ describe("hashline — anchor-stale recovery via read snapshot cache", () => {
 			// land without consulting the cached snapshot.
 			const headerLines = ["H1", "H2", "H3", "H4", "H5", "H6", "H7"];
 			const v1Lines = [...headerLines, ...v0Lines];
-			await Bun.write(filePath, `${v1Lines.join("\n")}\n`);
+			await fsx.write(filePath, `${v1Lines.join("\n")}\n`);
 
 			// Model authors anchor against V0 — line 2 is "L2" in V0.
 			const input = `${header("a.ts", v0Tag)}\n${sameLineRange(tag(2, "L2"))}\n${repl("L2-MODEL")}\n`;
@@ -379,7 +379,7 @@ describe("hashline — anchor-stale recovery via read snapshot cache", () => {
 			const filePath = path.join(tempDir, "a.ts");
 			const v0Lines = Array.from({ length: 10 }, (_, idx) => `L${idx + 1}`);
 			const v0Text = `${v0Lines.join("\n")}\n`;
-			await Bun.write(filePath, v0Text);
+			await fsx.write(filePath, v0Text);
 
 			const session = makeHashlineSession(tempDir);
 			// Record the full V0 snapshot. The external change below rewrites the
@@ -389,7 +389,7 @@ describe("hashline — anchor-stale recovery via read snapshot cache", () => {
 
 			const v1Lines = [...v0Lines];
 			v1Lines[5] = "L6-CHANGED";
-			await Bun.write(filePath, `${v1Lines.join("\n")}\n`);
+			await fsx.write(filePath, `${v1Lines.join("\n")}\n`);
 
 			const input = `${header("a.ts", v0Tag)}\n${sameLineRange(tag(6, "L6"))}\n${repl("L6-MODEL")}\n`;
 			await expect(
@@ -405,7 +405,7 @@ describe("hashline — anchor-stale recovery via read snapshot cache", () => {
 			const filePath = path.join(tempDir, "a.ts");
 			const v0Lines = ["alpha", "beta", "gamma", "delta", "epsilon"];
 			const v0Text = `${v0Lines.join("\n")}\n`;
-			await Bun.write(filePath, v0Text);
+			await fsx.write(filePath, v0Text);
 
 			const session = makeHashlineSession(tempDir);
 			// Initial read populates the cache with V0.
@@ -427,7 +427,7 @@ describe("hashline — anchor-stale recovery via read snapshot cache", () => {
 			// match V2 — recovery must consult the cached V1 snapshot to land the
 			// second edit.
 			const v2Lines = ["H1", "H2", "H3", "H4", "H5", "H6", "H7", ...v1Lines];
-			await Bun.write(filePath, `${v2Lines.join("\n")}\n`);
+			await fsx.write(filePath, `${v2Lines.join("\n")}\n`);
 
 			const secondInput = `${header("a.ts", v1Tag)}\n${sameLineRange(tag(3, "gamma"))}\n${repl("GAMMA")}\n`;
 			const result = await executeHashlineSingle(hashlineExecuteOptions(tempDir, secondInput, undefined, session));
@@ -447,7 +447,7 @@ describe("hashline — anchor-stale recovery via read snapshot cache", () => {
 			const filePath = path.join(tempDir, "a.ts");
 			const v0Lines = ["L1", "L2", "L3", "L4", "L5", "L6", "L7", "L8", "L9", "L10"];
 			const v0Text = `${v0Lines.join("\n")}\n`;
-			await Bun.write(filePath, v0Text);
+			await fsx.write(filePath, v0Text);
 
 			const session = makeHashlineSession(tempDir);
 			const v0Tag = recordFullSnapshot(getFileReadCache(session), filePath, v0Text);
@@ -480,7 +480,7 @@ describe("hashline — filename+tag path recovery", () => {
 			await fs.mkdir(nestedDir, { recursive: true });
 			const filePath = path.join(nestedDir, "autoresearch-tools.test.ts");
 			const source = "alpha\nbeta\ngamma\n";
-			await Bun.write(filePath, source);
+			await fsx.write(filePath, source);
 			const session = makeHashlineSession(tempDir);
 			const sourceTag = recordFullSnapshot(getFileReadCache(session), filePath, source);
 
@@ -542,7 +542,7 @@ describe("hashline — filename+tag path recovery", () => {
 				// lives in the session sandbox and its snapshot tag is recorded there.
 				const sandboxAbs = resolveLocalUrlToPath("local://cfg-module-hygiene-plan.md", localOptions);
 				const source = "# Plan\n\n## Context\n- old\n";
-				await Bun.write(sandboxAbs, source);
+				await fsx.write(sandboxAbs, source);
 				const sourceTag = recordFullSnapshot(getFileReadCache(session), sandboxAbs, source);
 
 				// The model edits by BARE filename. Plan mode would reject that as a
@@ -578,7 +578,7 @@ describe("hashline — filename+tag path recovery", () => {
 				// needed, so the (reordered) write gate must still reject it.
 				const wtFile = path.join(tempDir, "real.ts");
 				const source = "a\nb\nc\n";
-				await Bun.write(wtFile, source);
+				await fsx.write(wtFile, source);
 				const wtTag = recordFullSnapshot(getFileReadCache(session), wtFile, source);
 				const input = `${header("real.ts", wtTag)}\n${sameLineRange(tag(2, "b"))}\n${repl("B")}\n`;
 

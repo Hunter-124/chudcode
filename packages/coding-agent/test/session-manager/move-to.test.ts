@@ -8,6 +8,7 @@ import { loadEntriesFromFile } from "@oh-my-pi/pi-coding-agent/session/session-l
 import { SessionManager } from "@oh-my-pi/pi-coding-agent/session/session-manager";
 import { stripOuterDoubleQuotes } from "@oh-my-pi/pi-coding-agent/tools/path-utils";
 import { getConfigRootDir, setAgentDir } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 
 // -- helpers ----------------------------------------------------------------
 
@@ -136,7 +137,7 @@ describe("SessionManager.moveTo", () => {
 		const deniedDir = path.join(testAgentDir, "denied-project");
 		const deniedFile = path.join(deniedDir, "session.jsonl");
 		await fsp.mkdir(deniedDir);
-		await Bun.write(
+		await fsx.write(
 			deniedFile,
 			`${JSON.stringify({
 				type: "session",

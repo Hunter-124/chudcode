@@ -8,6 +8,7 @@ import {
 } from "@oh-my-pi/pi-coding-agent/modes/components/tool-execution";
 import { getThemeByName } from "@oh-my-pi/pi-coding-agent/modes/theme/theme";
 import { getConfigRootDir, getCustomThemesDir, removeWithRetries, setAgentDir } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 
 // Path of the built-in dark theme JSON, used as a known-valid base we can
 // extend with custom `symbols.spinnerFrames` shapes.
@@ -19,7 +20,7 @@ const fallbackAgentDir = path.join(getConfigRootDir(), "agent");
 let tmpAgentDir: string;
 
 async function writeCustomTheme(name: string, extraSymbols: Record<string, unknown>): Promise<void> {
-	const dark = (await Bun.file(DARK_THEME_PATH).json()) as Record<string, unknown>;
+	const dark = (await fsx.readJson(DARK_THEME_PATH)) as Record<string, unknown>;
 	const base = (dark.symbols ?? {}) as Record<string, unknown>;
 	const themeJson = {
 		...dark,
@@ -28,7 +29,7 @@ async function writeCustomTheme(name: string, extraSymbols: Record<string, unkno
 	};
 	const themesDir = getCustomThemesDir();
 	await fs.mkdir(themesDir, { recursive: true });
-	await Bun.write(path.join(themesDir, `${name}.json`), JSON.stringify(themeJson, null, 2));
+	await fsx.write(path.join(themesDir, `${name}.json`), JSON.stringify(themeJson, null, 2));
 }
 
 describe("theme symbols.spinnerFrames", () => {

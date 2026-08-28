@@ -20,12 +20,12 @@ async function makeRuntimeWithOnnxInstallScript(): Promise<string> {
 	const runtimeDir = await fs.mkdtemp(path.join(os.tmpdir(), "omp-tiny-runtime-install-"));
 	tempDirs.push(runtimeDir);
 	const packageDir = path.join(runtimeDir, "node_modules", "onnxruntime-node");
-	await Bun.write(
+	await fsx.write(
 		path.join(packageDir, "package.json"),
 		JSON.stringify({ name: "onnxruntime-node", version: "1.24.3", main: "dist/index.js" }),
 	);
-	await Bun.write(path.join(packageDir, "dist", "index.js"), "module.exports = {};\n");
-	await Bun.write(
+	await fsx.write(path.join(packageDir, "dist", "index.js"), "module.exports = {};\n");
+	await fsx.write(
 		path.join(packageDir, "script", "install.js"),
 		[
 			"const fs = require('node:fs');",
@@ -88,11 +88,11 @@ describe("tiny runtime CUDA provider repair", () => {
 		const runtimeDir = await fs.mkdtemp(path.join(os.tmpdir(), "omp-tiny-runtime-install-"));
 		tempDirs.push(runtimeDir);
 		const packageDir = path.join(runtimeDir, "node_modules", "onnxruntime-node");
-		await Bun.write(
+		await fsx.write(
 			path.join(packageDir, "package.json"),
 			JSON.stringify({ name: "onnxruntime-node", version: "1.24.3", main: "dist/index.js" }),
 		);
-		await Bun.write(path.join(packageDir, "dist", "index.js"), "module.exports = {};\n");
+		await fsx.write(path.join(packageDir, "dist", "index.js"), "module.exports = {};\n");
 
 		const diagnostic = await formatOnnxRuntimeCudaDiagnostics(
 			{

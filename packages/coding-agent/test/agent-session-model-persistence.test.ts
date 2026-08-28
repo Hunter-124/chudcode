@@ -13,6 +13,7 @@ import { EPHEMERAL_MODEL_CHANGE_ROLE } from "@oh-my-pi/pi-coding-agent/session/s
 import { SessionManager } from "@oh-my-pi/pi-coding-agent/session/session-manager";
 import { AUTO_THINKING } from "@oh-my-pi/pi-coding-agent/thinking";
 import { TempDir } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 
 describe("AgentSession model persistence", () => {
 	let tempDir: TempDir;
@@ -66,7 +67,7 @@ describe("AgentSession model persistence", () => {
 	): Promise<string> {
 		const targetSessionFile = path.join(tempDir.path(), `target-${Bun.nanoseconds()}.jsonl`);
 		const timestamp = "2026-06-01T00:00:00.000Z";
-		await Bun.write(
+		await fsx.write(
 			targetSessionFile,
 			`${[
 				{ type: "session", version: 3, id: "target-session", timestamp, cwd: tempDir.path() },
@@ -538,7 +539,7 @@ describe("AgentSession model persistence", () => {
 		const created = await createSession({ initialModel: defaultModel, persist: true });
 		const targetFile = path.join(tempDir.path(), "switch-interrupted-user.jsonl");
 		const timestamp = "2026-07-11T02:20:08.800Z";
-		await Bun.write(
+		await fsx.write(
 			targetFile,
 			`${[
 				{ type: "session", version: 3, id: "switch-target", timestamp, cwd: tempDir.path() },

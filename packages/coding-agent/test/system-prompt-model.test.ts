@@ -12,6 +12,7 @@ import { SessionManager } from "@oh-my-pi/pi-coding-agent/session/session-manage
 import { buildSystemPrompt } from "@oh-my-pi/pi-coding-agent/system-prompt";
 import { usesCodexTaskPrompt } from "@oh-my-pi/pi-coding-agent/task/prompt-policy";
 import { removeSyncWithRetries } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import { cleanupTempHome } from "./helpers/temp-home-cleanup";
 
 const EMPTY_TREE = {
@@ -31,7 +32,7 @@ async function expectPromptDateFromStartupTimezone(options: {
 	rejectedDate: string;
 }): Promise<void> {
 	const scenarioPath = path.join(options.tempDir, "prompt-date-timezone.test.ts");
-	await Bun.write(
+	await fsx.write(
 		scenarioPath,
 		`import { setSystemTime } from "bun:test";
 import { renderDateCwdReminder } from ${JSON.stringify(

@@ -129,7 +129,7 @@ describe("VaultProtocolHandler", () => {
 
 			const outside = path.join(tempDir, "outside");
 			await fs.mkdir(outside, { recursive: true });
-			await Bun.write(path.join(outside, "secret.md"), "secret");
+			await fsx.write(path.join(outside, "secret.md"), "secret");
 			await fs.symlink(outside, path.join(root, "linked"));
 
 			await expect(handler.resolve(resourceUrl("vault://Work/linked/secret.md"))).rejects.toThrow(
@@ -146,7 +146,7 @@ describe("VaultProtocolHandler", () => {
 			const root = path.join(tempDir, "vault");
 			const note = path.join(root, "Folder", "note.md");
 			await fs.mkdir(path.dirname(note), { recursive: true });
-			await Bun.write(note, "# Note\nbody");
+			await fsx.write(note, "# Note\nbody");
 			VaultProtocolHandler.setVaultDirectoryForTests({ Work: root });
 			const spawnSpy = vi.spyOn(vaultProtocol, "spawnObsidian").mockResolvedValue({
 				stdout: "",
@@ -168,7 +168,7 @@ describe("VaultProtocolHandler", () => {
 		await withTempDir(async tempDir => {
 			const root = path.join(tempDir, "active-vault");
 			await fs.mkdir(root, { recursive: true });
-			await Bun.write(path.join(root, "note.md"), "active note");
+			await fsx.write(path.join(root, "note.md"), "active note");
 			const spawnSpy = vi.spyOn(vaultProtocol, "spawnObsidian").mockResolvedValue({
 				stdout: `name\tObsidian\npath\t${root}\nfiles\t1\n`,
 				stderr: "",
@@ -190,7 +190,7 @@ describe("VaultProtocolHandler", () => {
 		await withTempDir(async tempDir => {
 			const root = path.join(tempDir, "work-vault");
 			await fs.mkdir(root, { recursive: true });
-			await Bun.write(path.join(root, "note.md"), "note");
+			await fsx.write(path.join(root, "note.md"), "note");
 			VaultProtocolHandler.setVaultDirectoryForTests({ Work: root });
 			const spawnSpy = vi.spyOn(vaultProtocol, "spawnObsidian").mockResolvedValue({
 				stdout: `name\tWork\npath\t${root}\n`,
@@ -233,7 +233,7 @@ describe("VaultProtocolHandler", () => {
 		await withTempDir(async tempDir => {
 			const root = path.join(tempDir, "vault");
 			await fs.mkdir(path.join(root, "Folder", "Sub"), { recursive: true });
-			await Bun.write(path.join(root, "Folder", "note.md"), "note");
+			await fsx.write(path.join(root, "Folder", "note.md"), "note");
 			VaultProtocolHandler.setVaultDirectoryForTests({ Work: root });
 			const handler = new VaultProtocolHandler({ resolveObsidianBinary: () => null });
 
@@ -250,7 +250,7 @@ describe("VaultProtocolHandler", () => {
 		await withTempDir(async tempDir => {
 			const root = path.join(tempDir, "vault");
 			await fs.mkdir(path.join(root, "Folder", "Sub"), { recursive: true });
-			await Bun.write(path.join(root, "Folder", "note.md"), "note");
+			await fsx.write(path.join(root, "Folder", "note.md"), "note");
 			VaultProtocolHandler.setVaultDirectoryForTests({ Work: root });
 			const handler = new VaultProtocolHandler({ resolveObsidianBinary: () => null });
 
@@ -402,7 +402,7 @@ describe("VaultProtocolHandler", () => {
 		await withTempDir(async tempDir => {
 			const root = path.join(tempDir, "vault");
 			await fs.mkdir(root, { recursive: true });
-			await Bun.write(path.join(root, "scratch.md"), "body");
+			await fsx.write(path.join(root, "scratch.md"), "body");
 			VaultProtocolHandler.setVaultDirectoryForTests({ Work: root });
 
 			const resource = await InternalUrlRouter.instance().resolve("vault://Work/scratch.md");

@@ -57,7 +57,7 @@ describe("startup model cache header restoration (#5780)", () => {
 		const modelsPath = path.join(tempDir, "config", "models.json");
 		const cacheDbPath = path.join(tempDir, "data", "models.db");
 		await fs.promises.mkdir(path.dirname(cacheDbPath), { recursive: true });
-		await Bun.write(
+		await fsx.write(
 			modelsPath,
 			JSON.stringify({
 				providers: {

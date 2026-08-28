@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import { ClaudeSessionStore } from "../src/session/claude-session-store";
 import { CodexSessionStore } from "../src/session/codex-session-store";
 import { persistForeignSession } from "../src/session/foreign-session-import";
@@ -32,7 +33,7 @@ afterEach(async () => {
 
 async function writeJsonl(filePath: string, records: Record<string, unknown>[]): Promise<void> {
 	await fs.mkdir(path.dirname(filePath), { recursive: true });
-	await Bun.write(filePath, `${records.map(record => JSON.stringify(record)).join("\n")}\n`);
+	await fsx.write(filePath, `${records.map(record => JSON.stringify(record)).join("\n")}\n`);
 }
 
 async function createClaudeFixture(): Promise<{ info: ForeignSessionInfo; store: ClaudeSessionStore }> {
@@ -146,7 +147,7 @@ describe("ClaudeSessionStore", () => {
 		const id = "22222222-2222-4222-8222-333333333333";
 		const encoded = cwd.replaceAll(path.sep, "-");
 		process.env.CLAUDE_CONFIG_DIR = root;
-		await Bun.write(path.join(root, ".claude.json"), JSON.stringify({ projects: { [cwd]: {} } }));
+		await fsx.write(path.join(root, ".claude.json"), JSON.stringify({ projects: { [cwd]: {} } }));
 		await writeJsonl(path.join(root, "projects", encoded, `${id}.jsonl`), [
 			{
 				type: "user",

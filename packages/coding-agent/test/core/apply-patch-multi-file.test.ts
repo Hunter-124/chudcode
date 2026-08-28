@@ -48,7 +48,7 @@ afterEach(async () => {
 
 describe("EditTool apply_patch multi-file aggregate (#4074-B)", () => {
 	test("stops at first per-file failure, marks isError, and skips remaining files", async () => {
-		await Bun.write(path.join(tempDir, "a.txt"), "a\n");
+		await fsx.write(path.join(tempDir, "a.txt"), "a\n");
 		const tool = new EditTool(makeApplyPatchSession(tempDir));
 
 		const patch = [
@@ -98,8 +98,8 @@ describe("EditTool apply_patch multi-file aggregate (#4074-B)", () => {
 	});
 
 	test("all-success multi-file apply_patch does not set isError", async () => {
-		await Bun.write(path.join(tempDir, "a.txt"), "a\n");
-		await Bun.write(path.join(tempDir, "b.txt"), "b\n");
+		await fsx.write(path.join(tempDir, "a.txt"), "a\n");
+		await fsx.write(path.join(tempDir, "b.txt"), "b\n");
 		const tool = new EditTool(makeApplyPatchSession(tempDir));
 
 		const patch = [

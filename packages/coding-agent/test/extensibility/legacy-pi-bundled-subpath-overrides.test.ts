@@ -4,6 +4,7 @@ import * as path from "node:path";
 import * as url from "node:url";
 import { __buildLegacyPiPackageRootOverrides } from "@oh-my-pi/pi-coding-agent/extensibility/plugins/legacy-pi-compat";
 import { TempDir } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import { __renderLegacyPiVirtualModule, collectBundledPiEntries } from "../../scripts/legacy-pi-virtual-module";
 
 const bundledEntries = await collectBundledPiEntries();
@@ -24,13 +25,13 @@ describe("legacy pi compat compiled-mode subpath overrides (issue #3442)", () =>
 		const alphaPath = path.join(tempDir.path(), "alpha.ts");
 		const betaPath = path.join(tempDir.path(), "beta.ts");
 		const registryPath = path.join(tempDir.path(), "registry.ts");
-		await Bun.write(alphaPath, 'Reflect.set(globalThis, "__alphaLoads", 1);\nexport const value = "alpha";\n');
-		await Bun.write(betaPath, 'Reflect.set(globalThis, "__betaLoads", 1);\nexport const value = "beta";\n');
+		await fsx.write(alphaPath, 'Reflect.set(globalThis, "__alphaLoads", 1);\nexport const value = "alpha";\n');
+		await fsx.write(betaPath, 'Reflect.set(globalThis, "__betaLoads", 1);\nexport const value = "beta";\n');
 		const registry = __renderLegacyPiVirtualModule([
 			{ key: "alpha", binding: "bundledAlpha", importSpecifier: url.pathToFileURL(alphaPath).href },
 			{ key: "beta", binding: "bundledBeta", importSpecifier: url.pathToFileURL(betaPath).href },
 		]);
-		await Bun.write(
+		await fsx.write(
 			registryPath,
 			`${registry}
 export const beforeAlpha = Reflect.get(globalThis, "__alphaLoads") ?? 0;
@@ -102,7 +103,7 @@ export const finalBeta = Reflect.get(globalThis, "__betaLoads") ?? 0;
 		// a reason unrelated to the export map.
 		const packageRoot = path.join(path.dirname(url.fileURLToPath(import.meta.url)), "..", "..");
 		const registryPath = path.join(packageRoot, `.probe-legacy-pi-args-${Bun.randomUUIDv7()}.ts`);
-		await Bun.write(
+		await fsx.write(
 			registryPath,
 			`${__renderLegacyPiVirtualModule([entry!])}
 const mod = await BUNDLED_PI_MODULE_LOADERS[${JSON.stringify(key)}]();

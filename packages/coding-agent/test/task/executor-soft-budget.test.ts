@@ -353,8 +353,8 @@ describe("runSubprocess soft request budget", () => {
 		const id = "RacedScout";
 		const rootSessionFile = `${tempDir.path()}/main.jsonl`;
 		const workerSessionFile = `${tempDir.path()}/main/${id}.jsonl`;
-		await Bun.write(rootSessionFile, "");
-		await Bun.write(
+		await fsx.write(rootSessionFile, "");
+		await fsx.write(
 			workerSessionFile,
 			[
 				JSON.stringify({ type: "session", version: 3, id, timestamp: "2026-08-13T17:14:48.000Z", cwd: "/tmp" }),
@@ -409,8 +409,8 @@ describe("runSubprocess soft request budget", () => {
 		const id = "ShutdownScout";
 		const rootSessionFile = `${tempDir.path()}/main.jsonl`;
 		const workerSessionFile = `${tempDir.path()}/main/${id}.jsonl`;
-		await Bun.write(rootSessionFile, "");
-		await Bun.write(
+		await fsx.write(rootSessionFile, "");
+		await fsx.write(
 			workerSessionFile,
 			[
 				JSON.stringify({ type: "session", version: 3, id, timestamp: "2026-08-13T17:14:48.000Z", cwd: "/tmp" }),

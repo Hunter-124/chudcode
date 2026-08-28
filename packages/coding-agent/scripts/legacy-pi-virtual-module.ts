@@ -1,5 +1,6 @@
 import * as path from "node:path";
 import { isEnoent } from "@oh-my-pi/pi-utils/fs-error";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 
 /** Build-time specifier resolved to bundled legacy Pi module namespaces. */
 export const LEGACY_PI_MODULES_SPECIFIER = "omp-legacy-pi-modules";
@@ -117,7 +118,7 @@ export async function collectBundledPiEntries(): Promise<BundledPiEntry[]> {
 	for (const pkg of BUNDLED_PACKAGES) {
 		const packageRoot = path.join(repoRoot, "packages", pkg.dir);
 		const manifestPath = path.join(packageRoot, "package.json");
-		const manifest: unknown = await Bun.file(manifestPath).json();
+		const manifest: unknown = await fsx.readJson(manifestPath);
 		if (!isRecord(manifest) || typeof manifest.name !== "string") {
 			throw new Error(`Bundled Pi package manifest has no name: ${manifestPath}`);
 		}

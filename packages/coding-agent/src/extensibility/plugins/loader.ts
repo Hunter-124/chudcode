@@ -7,6 +7,7 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { getPluginsDir, getPluginsLockfile, isEnoent } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import { getConfigDirPaths } from "../../config";
 import { registerPluginCacheInvalidator, resolveActiveProjectRegistryPath } from "../../discovery/helpers";
 import { installLegacyPiSpecifierShim } from "./legacy-pi-compat";
@@ -47,7 +48,7 @@ registerPluginCacheInvalidator(clearEnabledPluginsCache);
 async function loadRuntimeConfig(home?: string): Promise<PluginRuntimeConfig> {
 	const lockPath = getPluginsLockfile(home);
 	try {
-		return normalizePluginRuntimeConfig(await Bun.file(lockPath).json());
+		return normalizePluginRuntimeConfig(await fsx.readJson(lockPath));
 	} catch (err) {
 		if (isEnoent(err)) return normalizePluginRuntimeConfig({});
 		throw err;
@@ -60,7 +61,7 @@ async function loadRuntimeConfig(home?: string): Promise<PluginRuntimeConfig> {
 async function loadProjectOverrides(cwd: string): Promise<ProjectPluginOverrides> {
 	for (const overridesPath of getConfigDirPaths("plugin-overrides.json", { user: false, cwd })) {
 		try {
-			return await Bun.file(overridesPath).json();
+			return await fsx.readJson(overridesPath);
 		} catch (err) {
 			if (isEnoent(err)) continue;
 			// JSON parse error - continue to next path
@@ -85,7 +86,7 @@ async function collectPluginsAtRoot(
 	let depsKeys: string[] = [];
 	const pkgJsonPath = path.join(root, "package.json");
 	try {
-		const pkg: { dependencies?: Record<string, string> } = await Bun.file(pkgJsonPath).json();
+		const pkg: { dependencies?: Record<string, string> } = await fsx.readJson(pkgJsonPath);
 		depsKeys = Object.keys(pkg.dependencies ?? {});
 	} catch (err) {
 		// Linked-only setups may have no `<root>/package.json` yet — that's
@@ -96,7 +97,7 @@ async function collectPluginsAtRoot(
 	const lockPath = path.join(root, "omp-plugins.lock.json");
 	let runtimeConfig: PluginRuntimeConfig;
 	try {
-		runtimeConfig = normalizePluginRuntimeConfig(await Bun.file(lockPath).json());
+		runtimeConfig = normalizePluginRuntimeConfig(await fsx.readJson(lockPath));
 	} catch (err) {
 		if (!isEnoent(err)) throw err;
 		runtimeConfig = normalizePluginRuntimeConfig({});
@@ -115,7 +116,7 @@ async function collectPluginsAtRoot(
 		const pluginPkgPath = path.join(nodeModulesPath, name, "package.json");
 		let pluginPkg: { version: string; omp?: PluginManifest; pi?: PluginManifest };
 		try {
-			pluginPkg = await Bun.file(pluginPkgPath).json();
+			pluginPkg = await fsx.readJson(pluginPkgPath);
 		} catch (err) {
 			// Lockfile entry without a corresponding node_modules tree means the
 			// link was deleted out from under us; skip silently.

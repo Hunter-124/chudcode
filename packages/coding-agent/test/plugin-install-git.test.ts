@@ -19,8 +19,9 @@ import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
 import { PluginManager } from "@oh-my-pi/pi-coding-agent/extensibility/plugins/manager";
-import { removeWithRetries } from "@oh-my-pi/pi-utils";
 import * as piUtils from "@oh-my-pi/pi-utils";
+import { removeWithRetries } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import type { Subprocess } from "bun";
 
 function textStream(text: string): ReadableStream<Uint8Array> {
@@ -86,7 +87,7 @@ describe("PluginManager.install with git sources", () => {
 	test("installs from github: shorthand and resolves real package name from deps diff", async () => {
 		// Seed the plugins manifest so install()'s `depsBefore` snapshot is empty
 		// rather than triggering #ensurePackageJson's bootstrap path.
-		await Bun.write(
+		await fsx.write(
 			pluginsPkgJson,
 			JSON.stringify({ name: "omp-plugins", private: true, dependencies: {} }, null, 2),
 		);
@@ -101,7 +102,7 @@ describe("PluginManager.install with git sources", () => {
 			// source: a new dep keyed by the package's own `name` field, plus
 			// the corresponding entry under node_modules.
 			const prepare = (async () => {
-				await Bun.write(
+				await fsx.write(
 					pluginsPkgJson,
 					JSON.stringify(
 						{
@@ -115,7 +116,7 @@ describe("PluginManager.install with git sources", () => {
 				);
 				const installedDir = path.join(pluginsNodeModules, "real-name");
 				await fs.mkdir(installedDir, { recursive: true });
-				await Bun.write(
+				await fsx.write(
 					path.join(installedDir, "package.json"),
 					JSON.stringify({ name: "real-name", version: "0.1.0" }, null, 2),
 				);
@@ -139,7 +140,7 @@ describe("PluginManager.install with git sources", () => {
 	});
 
 	test("normalizes non-GitHub shorthand before invoking bun install", async () => {
-		await Bun.write(
+		await fsx.write(
 			pluginsPkgJson,
 			JSON.stringify({ name: "omp-plugins", private: true, dependencies: {} }, null, 2),
 		);
@@ -150,7 +151,7 @@ describe("PluginManager.install with git sources", () => {
 			expect(cmd[2]).toBe("https://gitlab.com/group/sub/project#v1.0.0");
 
 			const prepare = (async () => {
-				await Bun.write(
+				await fsx.write(
 					pluginsPkgJson,
 					JSON.stringify(
 						{
@@ -166,7 +167,7 @@ describe("PluginManager.install with git sources", () => {
 				);
 				const installedDir = path.join(pluginsNodeModules, "gitlab-plugin");
 				await fs.mkdir(installedDir, { recursive: true });
-				await Bun.write(
+				await fsx.write(
 					path.join(installedDir, "package.json"),
 					JSON.stringify({ name: "gitlab-plugin", version: "1.0.0" }, null, 2),
 				);
@@ -192,7 +193,7 @@ describe("PluginManager.install with git sources", () => {
 		// github plugin. `findGitPackageName` matches the new install spec to
 		// this existing dep (by repository identity), which is the signal the
 		// manager uses to trigger the lockfile-refresh follow-up.
-		await Bun.write(
+		await fsx.write(
 			pluginsPkgJson,
 			JSON.stringify(
 				{
@@ -206,7 +207,7 @@ describe("PluginManager.install with git sources", () => {
 		);
 		const seedDir = path.join(pluginsNodeModules, "stale-plugin");
 		await fs.mkdir(seedDir, { recursive: true });
-		await Bun.write(
+		await fsx.write(
 			path.join(seedDir, "package.json"),
 			JSON.stringify({ name: "stale-plugin", version: "0.1.0" }, null, 2),
 		);
@@ -243,7 +244,7 @@ describe("PluginManager.install with git sources", () => {
 			// read the new version from package.json after this step returns.
 			expect(cmd).toEqual(["bun", "update", "stale-plugin"]);
 			const prepare = (async () => {
-				await Bun.write(
+				await fsx.write(
 					path.join(seedDir, "package.json"),
 					JSON.stringify({ name: "stale-plugin", version: "0.1.6" }, null, 2),
 				);
@@ -268,7 +269,7 @@ describe("PluginManager.install with git sources", () => {
 	});
 
 	test("removes an existing pinned git dependency before installing the unpinned source (#4960)", async () => {
-		await Bun.write(
+		await fsx.write(
 			pluginsPkgJson,
 			JSON.stringify(
 				{
@@ -282,7 +283,7 @@ describe("PluginManager.install with git sources", () => {
 		);
 		const seedDir = path.join(pluginsNodeModules, "replaced-plugin");
 		await fs.mkdir(seedDir, { recursive: true });
-		await Bun.write(
+		await fsx.write(
 			path.join(seedDir, "package.json"),
 			JSON.stringify({ name: "replaced-plugin", version: "1.0.0" }, null, 2),
 		);
@@ -293,10 +294,10 @@ describe("PluginManager.install with git sources", () => {
 			if (cmd[1] === "install") {
 				expect(cmd).toEqual(["bun", "install", "github:foo/bar"]);
 				const prepare = (async () => {
-					const packageJson = await Bun.file(pluginsPkgJson).json();
+					const packageJson = await fsx.readJson(pluginsPkgJson);
 					expect(packageJson.dependencies?.["replaced-plugin"]).toBeUndefined();
 
-					await Bun.write(
+					await fsx.write(
 						pluginsPkgJson,
 						JSON.stringify(
 							{
@@ -308,7 +309,7 @@ describe("PluginManager.install with git sources", () => {
 							2,
 						),
 					);
-					await Bun.write(
+					await fsx.write(
 						path.join(seedDir, "package.json"),
 						JSON.stringify({ name: "replaced-plugin", version: "1.1.0" }, null, 2),
 					);
@@ -346,12 +347,12 @@ describe("PluginManager.install with git sources", () => {
 		expect(result.name).toBe("replaced-plugin");
 		expect(result.version).toBe("1.1.0");
 		expect(spawnedCommands[0]).toEqual(["bun", "install", "github:foo/bar"]);
-		const packageJson = await Bun.file(pluginsPkgJson).json();
+		const packageJson = await fsx.readJson(pluginsPkgJson);
 		expect(packageJson.dependencies).toEqual({ "replaced-plugin": "github:foo/bar" });
 	});
 
 	test("first-time github install does NOT run `bun update` (no existing pin to refresh)", async () => {
-		await Bun.write(
+		await fsx.write(
 			pluginsPkgJson,
 			JSON.stringify({ name: "omp-plugins", private: true, dependencies: {} }, null, 2),
 		);
@@ -361,7 +362,7 @@ describe("PluginManager.install with git sources", () => {
 			spawnedCommands.push([...cmd]);
 			expect(cmd[1]).toBe("install");
 			const prepare = (async () => {
-				await Bun.write(
+				await fsx.write(
 					pluginsPkgJson,
 					JSON.stringify(
 						{
@@ -375,7 +376,7 @@ describe("PluginManager.install with git sources", () => {
 				);
 				const installedDir = path.join(pluginsNodeModules, "fresh-plugin");
 				await fs.mkdir(installedDir, { recursive: true });
-				await Bun.write(
+				await fsx.write(
 					path.join(installedDir, "package.json"),
 					JSON.stringify({ name: "fresh-plugin", version: "0.1.6" }, null, 2),
 				);
@@ -398,7 +399,7 @@ describe("PluginManager.install with git sources", () => {
 		// Model the OS-pipe semantics that caused the deadlock: `exited` cannot
 		// resolve until both pipes have been read. Awaiting install directly is
 		// sufficient: the test runner's timeout catches a regression.
-		await Bun.write(
+		await fsx.write(
 			pluginsPkgJson,
 			JSON.stringify({ name: "omp-plugins", private: true, dependencies: {} }, null, 2),
 		);
@@ -420,7 +421,7 @@ describe("PluginManager.install with git sources", () => {
 			const { stream: stdout, drained: stdoutDrained } = makeGatedStream("progress\n");
 			const { stream: stderr, drained: stderrDrained } = makeGatedStream("");
 			const exited = Promise.all([stdoutDrained, stderrDrained]).then(async () => {
-				await Bun.write(
+				await fsx.write(
 					pluginsPkgJson,
 					JSON.stringify(
 						{
@@ -434,7 +435,7 @@ describe("PluginManager.install with git sources", () => {
 				);
 				const installedDir = path.join(pluginsNodeModules, "real-name");
 				await fs.mkdir(installedDir, { recursive: true });
-				await Bun.write(
+				await fsx.write(
 					path.join(installedDir, "package.json"),
 					JSON.stringify({ name: "real-name", version: "0.1.0" }, null, 2),
 				);
@@ -456,7 +457,7 @@ describe("PluginManager.install with git sources", () => {
 		await fs.mkdir(sourceDir, { recursive: true });
 		await fs.mkdir(path.dirname(remoteDir), { recursive: true });
 		await runCommand(["git", "init", "-b", "main"], sourceDir);
-		await Bun.write(
+		await fsx.write(
 			path.join(sourceDir, "package.json"),
 			JSON.stringify({ name: "@test/pi-package", version: "1.0.0" }, null, 2),
 		);
@@ -498,16 +499,16 @@ describe("PluginManager.install with git sources", () => {
 		});
 
 		try {
-			await Bun.write(
+			await fsx.write(
 				pluginsPkgJson,
 				JSON.stringify({ name: "omp-plugins", private: true, dependencies: {} }, null, 2),
 			);
-			await Bun.write(path.join(pluginsDir, "bunfig.toml"), `[install.cache]\ndir = ${JSON.stringify(cacheDir)}\n`);
+			await fsx.write(path.join(pluginsDir, "bunfig.toml"), `[install.cache]\ndir = ${JSON.stringify(cacheDir)}\n`);
 			const spec = `git+http://127.0.0.1:${server.port}/testuser/remote.git#main`;
 			const mgr = new PluginManager(tmpRoot);
 			expect((await mgr.install(spec)).version).toBe("1.0.0");
 
-			await Bun.write(
+			await fsx.write(
 				path.join(sourceDir, "package.json"),
 				JSON.stringify({ name: "@test/pi-package", version: "2.0.0" }, null, 2),
 			);

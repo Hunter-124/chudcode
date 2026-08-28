@@ -21,8 +21,8 @@ describe("applyEditsThenRename", () => {
 		dir = await fs.mkdtemp(path.join(os.tmpdir(), "edits-rename-"));
 		source = path.join(dir, "moved.ts");
 		ref = path.join(dir, "ref.ts");
-		await Bun.write(source, "export const x = 1;\n");
-		await Bun.write(ref, refBefore);
+		await fsx.write(source, "export const x = 1;\n");
+		await fsx.write(ref, refBefore);
 	});
 
 	afterEach(async () => {
@@ -42,7 +42,7 @@ describe("applyEditsThenRename", () => {
 		// A regular file stands where a dest-parent directory must be, so the
 		// recursive mkdir throws ENOTDIR before the rename runs.
 		const blocker = path.join(dir, "blocker");
-		await Bun.write(blocker, "not a dir");
+		await fsx.write(blocker, "not a dir");
 		const dest = path.join(blocker, "sub", "renamed.ts");
 
 		await expect(applyEditsThenRename([{ filePath: ref, edits: importEdit }], source, dest)).rejects.toThrow();

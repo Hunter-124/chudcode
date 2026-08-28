@@ -138,7 +138,7 @@ describe("loadAllExtensions MCP parity with /mcp list (issue #3827)", () => {
 		// denylist, simulating a server that's been toggled off multiple ways.
 		const projectMcpPath = path.join(projectDir, ".omp", "mcp.json");
 		const initial = await readMCPConfigFile(projectMcpPath);
-		await Bun.write(
+		await fsx.write(
 			projectMcpPath,
 			JSON.stringify({
 				...initial,
@@ -188,7 +188,7 @@ describe("loadAllExtensions MCP parity with /mcp list (issue #3827)", () => {
 
 	test("dashboard re-enable updates the row's non-primary source mcp.json before denylisting", async () => {
 		const alternatePath = path.join(projectDir, ".omp", ".mcp.json");
-		await Bun.write(
+		await fsx.write(
 			alternatePath,
 			JSON.stringify({
 				mcpServers: {
@@ -224,7 +224,7 @@ describe("loadAllExtensions MCP parity with /mcp list (issue #3827)", () => {
 		// opencode.json, but the user-level enabledServers allowlist still has
 		// to flip the row active. Modeled after the codex review on PR #3829.
 		const opencodePath = path.join(projectDir, "opencode.json");
-		await Bun.write(
+		await fsx.write(
 			opencodePath,
 			JSON.stringify({
 				mcp: {

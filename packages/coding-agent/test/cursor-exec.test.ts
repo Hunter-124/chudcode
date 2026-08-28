@@ -74,7 +74,7 @@ describe("CursorExecHandlers.grep bridge", () => {
 
 	beforeEach(async () => {
 		cwd = await fs.mkdtemp(path.join(os.tmpdir(), "cursor-exec-test-"));
-		await Bun.write(path.join(cwd, "sample.txt"), "Hello World\nhello world\n");
+		await fsx.write(path.join(cwd, "sample.txt"), "Hello World\nhello world\n");
 		searchTool = new GrepTool(createTestSession(cwd));
 		handlers = new CursorExecHandlers({
 			cwd,
@@ -118,7 +118,7 @@ describe("CursorExecHandlers.grep bridge", () => {
 		// The frame's `limit` caps total surfaced matches. The model-facing schema
 		// has no such parameter, so without a per-call tool the cap is dropped and
 		// the search returns everything it found.
-		await Bun.write(path.join(cwd, "many.txt"), Array.from({ length: 10 }, (_, i) => `needle ${i}`).join("\n"));
+		await fsx.write(path.join(cwd, "many.txt"), Array.from({ length: 10 }, (_, i) => `needle ${i}`).join("\n"));
 		const scopedHandlers = new CursorExecHandlers({
 			cwd,
 			tools: new Map<string, Tool>([["grep", searchTool]]),
@@ -142,7 +142,7 @@ describe("CursorExecHandlers.grep bridge", () => {
 		// `context` has no schema parameter either: the width is read from
 		// settings fixed at tool construction, so the frame's value only lands
 		// through a per-call instance.
-		await Bun.write(path.join(cwd, "ctx.txt"), "before line\nneedle here\nafter line\n");
+		await fsx.write(path.join(cwd, "ctx.txt"), "before line\nneedle here\nafter line\n");
 		const scopedHandlers = new CursorExecHandlers({
 			cwd,
 			tools: new Map<string, Tool>([["grep", searchTool]]),
@@ -175,7 +175,7 @@ describe("CursorExecHandlers.grep bridge", () => {
 		const spread = path.join(cwd, "spread");
 		await fs.mkdir(spread, { recursive: true });
 		await Promise.all(
-			Array.from({ length: 25 }, (_, i) => Bun.write(path.join(spread, `f${i}.txt`), "needle here\n")),
+			Array.from({ length: 25 }, (_, i) => fsx.write(path.join(spread, `f${i}.txt`), "needle here\n")),
 		);
 		const scopedHandlers = new CursorExecHandlers({
 			cwd,
@@ -275,7 +275,7 @@ describe("pi_bash truncation reaches the wire from a real BashTool result", () =
 		const listing = path.join(cwd, "many");
 		const child = path.join(listing, "child");
 		await fs.mkdir(child, { recursive: true });
-		await Promise.all(Array.from({ length: 40 }, (_, i) => Bun.write(path.join(child, `f${i}.txt`), "x")));
+		await Promise.all(Array.from({ length: 40 }, (_, i) => fsx.write(path.join(child, `f${i}.txt`), "x")));
 		const read = new ReadTool(createTestSession(cwd));
 		const result = await read.execute("l1", { path: listing });
 
@@ -338,7 +338,7 @@ describe("bridge tool resolution beyond the model-facing registry", () => {
 		// loop's unadvertised calls, so it stays device-only.)
 
 		const target = path.join(cwd, "sample.txt");
-		await Bun.write(target, "alpha\nbeta\n");
+		await fsx.write(target, "alpha\nbeta\n");
 		// Build it exactly as the session does. Both bridge callsites go through
 		// this factory, so a regression in it — the wrong mode, a missing
 		// approval wrapper — fails here rather than passing against a
@@ -361,7 +361,7 @@ describe("bridge tool resolution beyond the model-facing registry", () => {
 
 	it("reports the failure instead of editing when no edit tool is reachable", async () => {
 		const target = path.join(cwd, "sample.txt");
-		await Bun.write(target, "alpha\nbeta\n");
+		await fsx.write(target, "alpha\nbeta\n");
 		const unreachable = new CursorExecHandlers({ cwd, tools: new Map<string, Tool>() });
 		const result = await unreachable.piEdit({
 			toolCallId: "e2",
@@ -378,7 +378,7 @@ describe("bridge tool resolution beyond the model-facing registry", () => {
 		// `input` string. A `pi_edit` frame's `old_string`/`new_string` args fail
 		// substitution the advisor path applies before constructing handlers.
 		const target = path.join(cwd, "sample.txt");
-		await Bun.write(target, "alpha\nbeta\n");
+		await fsx.write(target, "alpha\nbeta\n");
 		const session = createTestSession(cwd);
 		const advisorEdit = new EditTool(session);
 		expect(advisorEdit.mode).not.toBe("replace");
@@ -404,7 +404,7 @@ describe("bridge tool resolution beyond the model-facing registry", () => {
 		// schema.
 
 		const target = path.join(cwd, "sample.txt");
-		await Bun.write(target, "alpha\nbeta\n");
+		await fsx.write(target, "alpha\nbeta\n");
 		const session = createTestSession(cwd);
 		const configuredEdit = new EditTool(session);
 		expect(configuredEdit.mode).not.toBe("replace");
@@ -429,7 +429,7 @@ describe("bridge tool resolution beyond the model-facing registry", () => {
 		// (issue #5680). Building the instance provider-independently must not
 		// weaken that.
 		const target = path.join(cwd, "sample.txt");
-		await Bun.write(target, "alpha\nbeta\n");
+		await fsx.write(target, "alpha\nbeta\n");
 		const handlers = new CursorExecHandlers({
 			cwd,
 			tools: new Map<string, Tool>(),
@@ -449,7 +449,7 @@ describe("bridge tool resolution beyond the model-facing registry", () => {
 		// roster that was never granted `edit` would hand a read-only advisor a
 		// mutating tool (issue #5680). The frame must fail instead.
 		const target = path.join(cwd, "sample.txt");
-		await Bun.write(target, "alpha\nbeta\n");
+		await fsx.write(target, "alpha\nbeta\n");
 		const session = createTestSession(cwd);
 		let built = 0;
 		const withheld = bridgeToolMap(new Map<string, Tool>(), () => {
@@ -473,7 +473,7 @@ describe("bridge tool resolution beyond the model-facing registry", () => {
 		// The factory builds a fresh tool and `executeTool` prefers that override
 		// over the registry, so a session that withheld `grep` must not install
 		// one — otherwise a frame carrying `context`/`limit` searches anyway.
-		await Bun.write(path.join(cwd, "hit.txt"), "needle\n");
+		await fsx.write(path.join(cwd, "hit.txt"), "needle\n");
 		const denied = new CursorExecHandlers({ cwd, tools: new Map<string, Tool>() });
 		const result = await denied.piGrep({
 			toolCallId: "g0",
@@ -490,7 +490,7 @@ describe("bridge tool resolution beyond the model-facing registry", () => {
 		// context — with none it resolves as `yolo` with empty policies and the
 		// frame edits the file regardless of what the user configured.
 		const target = path.join(cwd, "denied.txt");
-		await Bun.write(target, "alpha\nbeta\n");
+		await fsx.write(target, "alpha\nbeta\n");
 		const settings = Settings.isolated({ "tools.approval": { edit: "deny" } });
 		const session = createTestSession(cwd, { settings });
 		const handlers = new CursorExecHandlers({
@@ -514,7 +514,7 @@ describe("bridge tool resolution beyond the model-facing registry", () => {
 		// Same gate on the other bridge-only tool: the per-call `grep` the
 		// factory builds for a frame carrying `context`/`limit` must answer to
 		// `tools.approval.grep` like every registry call.
-		await Bun.write(path.join(cwd, "hit.txt"), "needle\n");
+		await fsx.write(path.join(cwd, "hit.txt"), "needle\n");
 		const settings = Settings.isolated({ "tools.approval": { grep: "deny" } });
 		const session = createTestSession(cwd, { settings });
 		const handlers = new CursorExecHandlers({
@@ -538,7 +538,7 @@ describe("bridge tool resolution beyond the model-facing registry", () => {
 		// not in the bridge: a raw `new GrepTool(...)` there skips the approval
 		// gate every registry tool goes through. Exercise the shared factory
 		// both callsites use, so a regression in it fails here.
-		await Bun.write(path.join(cwd, "hit.txt"), "needle\n");
+		await fsx.write(path.join(cwd, "hit.txt"), "needle\n");
 		const intercepted: string[] = [];
 		const factory = createBridgeGrepFactory(createTestSession(cwd), passthroughRunner(intercepted));
 		const built = factory({ context: 0, totalMatchLimit: 5 });
@@ -618,7 +618,7 @@ describe("Cursor MCP StrReplace fallback", () => {
 
 	it("edits a file when the server-injected StrReplace name arrives as MCP", async () => {
 		const target = path.join(cwd, "note.txt");
-		await Bun.write(target, "alpha\nbeta\n");
+		await fsx.write(target, "alpha\nbeta\n");
 		const session = createTestSession(cwd);
 		const handlers = new CursorExecHandlers({
 			cwd,
@@ -643,7 +643,7 @@ describe("Cursor MCP StrReplace fallback", () => {
 
 	it("runs replace-mode when advertised hashline edit is called with old_string", async () => {
 		const target = path.join(cwd, "note.txt");
-		await Bun.write(target, "alpha\nbeta\n");
+		await fsx.write(target, "alpha\nbeta\n");
 		const session = createTestSession(cwd);
 		const hashline = new EditTool(session);
 		expect(hashline.mode).not.toBe("replace");
@@ -694,7 +694,7 @@ describe("Cursor MCP StrReplace fallback", () => {
 
 	it("still 404s StrReplace when edit was not granted", async () => {
 		const target = path.join(cwd, "note.txt");
-		await Bun.write(target, "alpha\nbeta\n");
+		await fsx.write(target, "alpha\nbeta\n");
 		const handlers = new CursorExecHandlers({
 			cwd,
 			tools: new Map<string, Tool>(),
@@ -1149,7 +1149,7 @@ describe("CursorExecHandlers mounted tool bridge", () => {
 			await fs.symlink(path.join(outside, "dangling.txt"), path.join(inner, "link.txt"));
 			// A link whose target already exists: the write would overwrite the
 			// real file out there rather than create anything new.
-			await Bun.write(path.join(outside, "existing.txt"), "original");
+			await fsx.write(path.join(outside, "existing.txt"), "original");
 			await fs.symlink(path.join(outside, "existing.txt"), path.join(inner, "existing.txt"));
 			// Two hops: the first link stays inside, so resolving one level reads
 			// as contained while the write still follows the chain out.
@@ -1229,7 +1229,7 @@ describe("CursorExecHandlers mounted tool bridge", () => {
 			await fs.mkdir(inner);
 			await fs.mkdir(outside);
 			const victim = path.join(outside, "secret.txt");
-			await Bun.write(victim, "SECRET");
+			await fsx.write(victim, "SECRET");
 			await fs.link(victim, path.join(inner, "innocent.txt"));
 			const handlers = new CursorExecHandlers({
 				cwd: inner,
@@ -1513,7 +1513,7 @@ describe("CursorExecHandlers native delete gating (issue #5680)", () => {
 
 	it("rejects native delete and preserves the file when allowDirectFileMutation is false", async () => {
 		const target = path.join(cwd, "victim.txt");
-		await Bun.write(target, "keep me");
+		await fsx.write(target, "keep me");
 		const handlers = new CursorExecHandlers({
 			cwd,
 			tools: new Map(),
@@ -1529,7 +1529,7 @@ describe("CursorExecHandlers native delete gating (issue #5680)", () => {
 
 	it("performs native delete when allowDirectFileMutation is true", async () => {
 		const target = path.join(cwd, "victim.txt");
-		await Bun.write(target, "remove me");
+		await fsx.write(target, "remove me");
 		const handlers = new CursorExecHandlers({
 			cwd,
 			tools: new Map(),
@@ -1544,7 +1544,7 @@ describe("CursorExecHandlers native delete gating (issue #5680)", () => {
 
 	it("rechecks a live mutation grant after runtime tool activation", async () => {
 		const target = path.join(cwd, "victim.txt");
-		await Bun.write(target, "remove after upgrade");
+		await fsx.write(target, "remove after upgrade");
 		let mutationGranted = false;
 		const handlers = new CursorExecHandlers({
 			cwd,
@@ -1567,8 +1567,8 @@ describe("CursorExecHandlers native delete gating (issue #5680)", () => {
 		await fs.mkdir(movedCwd);
 		const originalTarget = path.join(cwd, "obsolete.txt");
 		const movedTarget = path.join(movedCwd, "obsolete.txt");
-		await Bun.write(originalTarget, "preserve me");
-		await Bun.write(movedTarget, "remove me");
+		await fsx.write(originalTarget, "preserve me");
+		await fsx.write(movedTarget, "remove me");
 		let currentCwd = cwd;
 		const handlers = new CursorExecHandlers({
 			cwd,
@@ -1591,7 +1591,7 @@ describe("CursorExecHandlers native delete gating (issue #5680)", () => {
 		// instead of running a registry tool, so no approval wrapper sits in
 		// front of it — a configured `deny` still lost the file.
 		const target = path.join(cwd, "protected.txt");
-		await Bun.write(target, "keep me\n");
+		await fsx.write(target, "keep me\n");
 		const settings = Settings.isolated({ "tools.approval": { delete: "deny" } });
 		const handlers = new CursorExecHandlers({
 			cwd,
@@ -1612,7 +1612,7 @@ describe("CursorExecHandlers native delete gating (issue #5680)", () => {
 		// The exec channel cannot raise an interactive approval, so a mode that
 		// demands one must fail closed rather than silently auto-approving.
 		const target = path.join(cwd, "asked.txt");
-		await Bun.write(target, "keep me\n");
+		await fsx.write(target, "keep me\n");
 		const settings = Settings.isolated({ "tools.approvalMode": "always-ask" });
 		const handlers = new CursorExecHandlers({
 			cwd,
@@ -1842,7 +1842,7 @@ describe("CursorExecHandlers Pi frame translation", () => {
 		// content it asked for.
 		const cwd = await fs.mkdtemp(path.join(os.tmpdir(), "cursor-piread-range-"));
 		try {
-			await Bun.write(
+			await fsx.write(
 				path.join(cwd, "n.txt"),
 				`${Array.from({ length: 40 }, (_, i) => `line${i + 1}`).join("\n")}\n`,
 			);

@@ -17,6 +17,7 @@ import type { ToolSession } from "@oh-my-pi/pi-coding-agent/tools";
 import { GlobTool } from "@oh-my-pi/pi-coding-agent/tools/glob";
 import { ReadTool } from "@oh-my-pi/pi-coding-agent/tools/read";
 import { getAgentDir, removeWithRetries, setAgentDir, TempDir } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 
 // Mnemopi state is loaded lazily; preload so `new MnemopiSessionState(...)` can
 // resolve the module synchronously in the fixtures below.
@@ -108,7 +109,7 @@ describe("MemoryProtocolHandler", () => {
 
 	it("resolves memory://root to memory_summary.md", async () => {
 		await withMemoryFixture(async ({ memoryRoot }) => {
-			await Bun.write(path.join(memoryRoot, "memory_summary.md"), "summary");
+			await fsx.write(path.join(memoryRoot, "memory_summary.md"), "summary");
 
 			const router = InternalUrlRouter.instance();
 			const resource = await router.resolve("memory://root");
@@ -137,8 +138,8 @@ describe("MemoryProtocolHandler", () => {
 
 			const firstSummary = "first registered session summary";
 			const secondSummary = "second session cwd summary";
-			await Bun.write(path.join(firstMemoryRoot, "memory_summary.md"), firstSummary);
-			await Bun.write(path.join(secondMemoryRoot, "memory_summary.md"), secondSummary);
+			await fsx.write(path.join(firstMemoryRoot, "memory_summary.md"), firstSummary);
+			await fsx.write(path.join(secondMemoryRoot, "memory_summary.md"), secondSummary);
 
 			AgentRegistry.global().register({
 				id: "first-session",
@@ -182,7 +183,7 @@ describe("MemoryProtocolHandler", () => {
 		await withMemoryFixture(async ({ memoryRoot }) => {
 			const skillPath = path.join(memoryRoot, "skills", "demo", "SKILL.md");
 			await fs.mkdir(path.dirname(skillPath), { recursive: true });
-			await Bun.write(skillPath, "demo skill");
+			await fsx.write(skillPath, "demo skill");
 
 			const router = InternalUrlRouter.instance();
 			const resource = await router.resolve("memory://root/skills/demo/SKILL.md");
@@ -210,9 +211,9 @@ describe("MemoryProtocolHandler", () => {
 			await fs.mkdir(firstMemoryRoot, { recursive: true });
 			await fs.mkdir(secondMemoryRoot, { recursive: true });
 
-			await Bun.write(path.join(firstMemoryRoot, "memory_summary.md"), "first session summary");
+			await fsx.write(path.join(firstMemoryRoot, "memory_summary.md"), "first session summary");
 			const secondSummaryPath = path.join(secondMemoryRoot, "memory_summary.md");
-			await Bun.write(secondSummaryPath, "second session summary");
+			await fsx.write(secondSummaryPath, "second session summary");
 
 			AgentRegistry.global().register({
 				id: "test-first",
@@ -278,8 +279,8 @@ describe("MemoryProtocolHandler", () => {
 		await withMemoryFixture(async ({ cwd, memoryRoot }) => {
 			const nestedSkill = path.join(memoryRoot, "skills", "demo", "nested", "SKILL.md");
 			await fs.mkdir(path.dirname(nestedSkill), { recursive: true });
-			await Bun.write(nestedSkill, "nested skill");
-			await Bun.write(path.join(memoryRoot, "skills", "demo", "notes.txt"), "not markdown");
+			await fsx.write(nestedSkill, "nested skill");
+			await fsx.write(path.join(memoryRoot, "skills", "demo", "notes.txt"), "not markdown");
 
 			const tool = createGlobTool(cwd);
 			const result = await tool.execute("memory-glob", { path: "memory://root/skills/**/*.md" });
@@ -298,8 +299,8 @@ describe("MemoryProtocolHandler", () => {
 		await withMemoryFixture(async ({ cwd, memoryRoot }) => {
 			const skillsDir = path.join(memoryRoot, "skills");
 			await fs.mkdir(skillsDir, { recursive: true });
-			await Bun.write(path.join(skillsDir, "a.md"), "single character");
-			await Bun.write(path.join(skillsDir, "ab.md"), "two characters");
+			await fsx.write(path.join(skillsDir, "a.md"), "single character");
+			await fsx.write(path.join(skillsDir, "ab.md"), "two characters");
 
 			const result = await createGlobTool(cwd).execute("memory-question-glob", {
 				path: "memory://root/skills/?.md",
@@ -314,7 +315,7 @@ describe("MemoryProtocolHandler", () => {
 		await withMemoryFixture(async ({ cwd, memoryRoot }) => {
 			const encodedLiteralDir = path.join(memoryRoot, "skills", "[demo]");
 			await fs.mkdir(encodedLiteralDir, { recursive: true });
-			await Bun.write(path.join(encodedLiteralDir, "SKILL.md"), "encoded literal directory");
+			await fsx.write(path.join(encodedLiteralDir, "SKILL.md"), "encoded literal directory");
 
 			const result = await createGlobTool(cwd).execute("memory-encoded-literal-glob", {
 				path: "memory://root/skills/%5Bdemo%5D/*.md",
@@ -329,8 +330,8 @@ describe("MemoryProtocolHandler", () => {
 		await withMemoryFixture(async ({ cwd, memoryRoot }) => {
 			const skillsDir = path.join(memoryRoot, "skills");
 			await fs.mkdir(skillsDir, { recursive: true });
-			await Bun.write(path.join(skillsDir, "[demo].md"), "literal brackets");
-			await Bun.write(path.join(skillsDir, "d.md"), "single character");
+			await fsx.write(path.join(skillsDir, "[demo].md"), "literal brackets");
+			await fsx.write(path.join(skillsDir, "d.md"), "single character");
 
 			const result = await createGlobTool(cwd).execute("memory-encoded-suffix-glob", {
 				path: "memory://root/*/%5Bdemo%5D.md",
@@ -378,7 +379,7 @@ describe("MemoryProtocolHandler", () => {
 		await withMemoryFixture(async ({ memoryRoot, cleanupRoot }) => {
 			const outsideDir = path.join(cleanupRoot, "outside");
 			await fs.mkdir(outsideDir, { recursive: true });
-			await Bun.write(path.join(outsideDir, "secret.md"), "secret");
+			await fsx.write(path.join(outsideDir, "secret.md"), "secret");
 			await fs.symlink(outsideDir, path.join(memoryRoot, "linked"));
 
 			const router = InternalUrlRouter.instance();

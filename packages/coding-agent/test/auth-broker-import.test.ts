@@ -6,6 +6,7 @@ import { AuthStorage, SqliteAuthCredentialStore } from "@oh-my-pi/pi-ai";
 import { type AuthBrokerServerHandle, startAuthBroker } from "@oh-my-pi/pi-ai/auth-broker";
 import { runAuthBrokerCommand } from "@oh-my-pi/pi-coding-agent/cli/auth-broker-cli";
 import { getAgentDbPath, removeWithRetries, setAgentDir } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 
 const ORIGINAL_STDOUT_WRITE = process.stdout.write.bind(process.stdout);
 
@@ -49,7 +50,7 @@ describe("auth-broker import (CLIProxyAPI)", () => {
 
 	async function writeCliProxyJson(name: string, body: Record<string, unknown>): Promise<string> {
 		const file = path.join(cliproxyDir, name);
-		await Bun.write(file, JSON.stringify(body));
+		await fsx.write(file, JSON.stringify(body));
 		return file;
 	}
 
@@ -241,7 +242,7 @@ describe("auth-broker import (broker-routed)", () => {
 	});
 
 	test("uploads CLIProxyAPI JSONs to the broker when configured, not the local store", async () => {
-		await Bun.write(
+		await fsx.write(
 			path.join(cliproxyDir, "claude-foo@bar.json"),
 			JSON.stringify({
 				type: "claude",
@@ -286,7 +287,7 @@ describe("auth-broker import (broker-routed)", () => {
 	});
 
 	test("dry-run does not upload even when broker is configured", async () => {
-		await Bun.write(
+		await fsx.write(
 			path.join(cliproxyDir, "claude-dry.json"),
 			JSON.stringify({
 				type: "claude",

@@ -16,6 +16,7 @@ import type { AgentSession } from "@oh-my-pi/pi-coding-agent/session/agent-sessi
 import { SessionManager } from "@oh-my-pi/pi-coding-agent/session/session-manager";
 import { getConfigRootDir, setAgentDir, VERSION } from "@oh-my-pi/pi-utils";
 import type { AgentSideConnection, InitializeRequest } from "@oh-my-pi/pi-utils/acp";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import { expectAcpStructure } from "./helpers/acp-schema";
 
 const arkInitializeResponse = type({
@@ -228,7 +229,7 @@ describe("ACP initialize conformance", () => {
 		const agent = await createAgent();
 		const response = await agent.initialize(buildInitializeRequest());
 		const pkgPath = path.join(import.meta.dir, "..", "package.json");
-		const pkg = (await Bun.file(pkgPath).json()) as { version: string };
+		const pkg = (await fsx.readJson(pkgPath)) as { version: string };
 		expect(response.agentInfo).toEqual(
 			expect.objectContaining({
 				name: "oh-my-pi",

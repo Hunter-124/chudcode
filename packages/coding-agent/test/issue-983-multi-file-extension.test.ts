@@ -4,6 +4,7 @@ import * as os from "node:os";
 import * as path from "node:path";
 import { discoverAndLoadExtensions } from "@oh-my-pi/pi-coding-agent/extensibility/extensions/loader";
 import { removeWithRetries } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 
 const TOOL_NAME = "legacy-multi-file-tool";
 
@@ -20,7 +21,7 @@ describe("issue #983: multi-file legacy Pi extensions", () => {
 		const extensionDir = path.join(projectDir, "legacy-pi-multi-file-extension");
 
 		await fs.mkdir(extensionDir, { recursive: true });
-		await Bun.write(
+		await fsx.write(
 			path.join(extensionDir, "package.json"),
 			JSON.stringify(
 				{
@@ -34,8 +35,8 @@ describe("issue #983: multi-file legacy Pi extensions", () => {
 				2,
 			),
 		);
-		await Bun.write(path.join(extensionDir, "helper.ts"), `export const foo = ${JSON.stringify(TOOL_NAME)};\n`);
-		await Bun.write(
+		await fsx.write(path.join(extensionDir, "helper.ts"), `export const foo = ${JSON.stringify(TOOL_NAME)};\n`);
+		await fsx.write(
 			path.join(extensionDir, "index.ts"),
 			[
 				'import { foo } from "./helper.ts";',

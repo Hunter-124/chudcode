@@ -14,6 +14,7 @@ import { Text, type TUI, visibleWidth } from "@oh-my-pi/pi-tui";
 import { removeWithRetries } from "@oh-my-pi/pi-utils";
 import { sleep } from "@oh-my-pi/pi-utils/async";
 import chalk from "@oh-my-pi/pi-utils/chalk";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 
 beforeAll(async () => {
 	resetSettingsForTest();
@@ -385,7 +386,7 @@ describe("editToolRenderer", () => {
 		try {
 			const content = "export const a = 1;\nexport const b = 2;\nexport const c = 3;\n";
 			const filePath = path.join(tmpDir, "memory.ts");
-			await Bun.write(filePath, content);
+			await fsx.write(filePath, content);
 
 			const snapshots = new InMemorySnapshotStore();
 			const tag = snapshots.record(filePath, content);
@@ -416,7 +417,7 @@ describe("editToolRenderer", () => {
 		try {
 			const content = "export const a = 1;\nexport const b = 2;\n";
 			const filePath = path.join(tmpDir, "memory.ts");
-			await Bun.write(filePath, content);
+			await fsx.write(filePath, content);
 
 			const snapshots = new InMemorySnapshotStore();
 			const tag = snapshots.record(filePath, content);

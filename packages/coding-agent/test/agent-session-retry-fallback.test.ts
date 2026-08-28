@@ -30,6 +30,7 @@ import { SessionManager } from "@oh-my-pi/pi-coding-agent/session/session-manage
 import { EventBus } from "@oh-my-pi/pi-coding-agent/utils/event-bus";
 import { TempDir } from "@oh-my-pi/pi-utils";
 import { sleep } from "@oh-my-pi/pi-utils/async";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 
 type AutoRetryStartEvent = Extract<AgentSessionEvent, { type: "auto_retry_start" }>;
 type AutoRetryEndEvent = Extract<AgentSessionEvent, { type: "auto_retry_end" }>;
@@ -4219,7 +4220,7 @@ describe("AgentSession retry fallback", () => {
 		// accumulated context past 4000 while there, then the cooldown expired and
 		// a queued follow-up drained through the auto-continue path.
 		const modelsConfigPath = path.join(tempDir.path(), "revert-overflow-models.json");
-		await Bun.write(
+		await fsx.write(
 			modelsConfigPath,
 			JSON.stringify({
 				providers: {
@@ -4332,7 +4333,7 @@ describe("AgentSession retry fallback", () => {
 		// skip the undersized candidate and advance to the first configured
 		// candidate whose window can hold the accumulated context.
 		const modelsConfigPath = path.join(tempDir.path(), "fallback-overflow-models.json");
-		await Bun.write(
+		await fsx.write(
 			modelsConfigPath,
 			JSON.stringify({
 				providers: {
@@ -4424,7 +4425,7 @@ describe("AgentSession retry fallback", () => {
 
 	it("fits retry fallbacks after excluding the failed assistant turn", async () => {
 		const modelsConfigPath = path.join(tempDir.path(), "fallback-failed-turn-models.json");
-		await Bun.write(
+		await fsx.write(
 			modelsConfigPath,
 			JSON.stringify({
 				providers: {

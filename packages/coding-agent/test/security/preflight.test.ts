@@ -34,8 +34,8 @@ beforeEach(async () => {
 	repositoryRoot = path.join(temporaryRoot, "repo");
 	stateRoot = path.join(temporaryRoot, "output");
 	await fs.mkdir(path.join(repositoryRoot, "src"), { recursive: true });
-	await Bun.write(path.join(repositoryRoot, "src", "a.ts"), "export const a = 1;\n");
-	await Bun.write(path.join(repositoryRoot, "src", "b.ts"), "export const b = 2;\n");
+	await fsx.write(path.join(repositoryRoot, "src", "a.ts"), "export const a = 1;\n");
+	await fsx.write(path.join(repositoryRoot, "src", "b.ts"), "export const b = 2;\n");
 	headSha = "a".repeat(40);
 	statusText = "";
 	refs = new Map([
@@ -75,7 +75,7 @@ describe("security preflight", () => {
 
 	test("tree mutation makes a plan stale", async () => {
 		const created = await plan();
-		await Bun.write(path.join(repositoryRoot, "src", "a.ts"), "export const a = 99;\n");
+		await fsx.write(path.join(repositoryRoot, "src", "a.ts"), "export const a = 99;\n");
 		await expect(
 			assertSecurityScanPlanFresh(
 				created,
@@ -87,7 +87,7 @@ describe("security preflight", () => {
 
 	test("knowledge-base mutation makes a plan stale", async () => {
 		const kb = path.join(temporaryRoot, "policy.md");
-		await Bun.write(kb, "policy v1\n");
+		await fsx.write(kb, "policy v1\n");
 		const created = await createSecurityScanPlan(
 			{
 				cwd: repositoryRoot,
@@ -101,14 +101,14 @@ describe("security preflight", () => {
 			},
 			adapter,
 		);
-		await Bun.write(kb, "policy v2\n");
+		await fsx.write(kb, "policy v2\n");
 		await expect(
 			assertSecurityScanPlanFresh(created, { config: {}, workflowFingerprint: "fixture" }, adapter),
 		).rejects.toBeInstanceOf(StaleSecurityScanPlanError);
 	});
 
 	test("relative knowledge-base paths resolve from the repository", async () => {
-		await Bun.write(path.join(repositoryRoot, "policy.md"), "policy v1\n");
+		await fsx.write(path.join(repositoryRoot, "policy.md"), "policy v1\n");
 		const created = await createSecurityScanPlan(
 			{
 				cwd: repositoryRoot,
@@ -179,13 +179,13 @@ describe("security preflight", () => {
 
 	test("non-empty output requires archiveExisting", async () => {
 		await fs.mkdir(stateRoot);
-		await Bun.write(path.join(stateRoot, "existing.txt"), "existing");
+		await fsx.write(path.join(stateRoot, "existing.txt"), "existing");
 		await expect(plan()).rejects.toThrow("not empty");
 	});
 
 	test("archives a non-empty approved output directory before execution", async () => {
 		await fs.mkdir(stateRoot);
-		await Bun.write(path.join(stateRoot, "existing.txt"), "existing");
+		await fsx.write(path.join(stateRoot, "existing.txt"), "existing");
 		const created = await createSecurityScanPlan(
 			{
 				cwd: repositoryRoot,

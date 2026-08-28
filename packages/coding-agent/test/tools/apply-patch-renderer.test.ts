@@ -9,6 +9,7 @@ import { toolRenderers } from "@oh-my-pi/pi-coding-agent/tools/renderers";
 import type { TUI } from "@oh-my-pi/pi-tui";
 import { removeWithRetries } from "@oh-my-pi/pi-utils";
 import { sleep } from "@oh-my-pi/pi-utils/async";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 
 async function getUiTheme() {
 	await themeModule.initTheme(false, undefined, undefined, "dark", "light");
@@ -131,7 +132,7 @@ describe("apply_patch rendering", () => {
 		const uiStub = { requestRender() {}, requestComponentRender() {} } as unknown as TUI;
 		const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "apply-patch-preview-"));
 		try {
-			await Bun.write(path.join(tmpDir, "preview.ts"), "const value = 1;\n");
+			await fsx.write(path.join(tmpDir, "preview.ts"), "const value = 1;\n");
 			const input = [
 				"*** Begin Patch",
 				"*** Update File: preview.ts",
@@ -160,7 +161,7 @@ describe("apply_patch rendering", () => {
 		const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "apply-patch-instant-preview-"));
 		const setTimeoutSpy = vi.spyOn(globalThis, "setTimeout");
 		try {
-			await Bun.write(path.join(tmpDir, "preview.ts"), "const value = 1;\n");
+			await fsx.write(path.join(tmpDir, "preview.ts"), "const value = 1;\n");
 			const component = new ToolExecutionComponent("apply_patch", { input: "" }, {}, undefined, uiStub, tmpDir);
 
 			setTimeoutSpy.mockClear();

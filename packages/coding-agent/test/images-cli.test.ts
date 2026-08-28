@@ -19,6 +19,7 @@ import {
 } from "@oh-my-pi/pi-coding-agent/cli/images-cli";
 import { Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
 import type { FetchImpl } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 
 interface CapturedRequest {
 	readonly method: string;
@@ -200,7 +201,7 @@ function doctorResponse(check: BlobBrokerDoctorResponse["checks"][number]): Blob
 }
 
 async function writeSavings(): Promise<void> {
-	await Bun.write(
+	await fsx.write(
 		resolvedConfig().savingsJournalPath,
 		[
 			JSON.stringify({

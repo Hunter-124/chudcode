@@ -9,6 +9,7 @@ import { AgentSession } from "@oh-my-pi/pi-coding-agent/session/agent-session";
 import { AuthStorage } from "@oh-my-pi/pi-coding-agent/session/auth-storage";
 import { SessionManager } from "@oh-my-pi/pi-coding-agent/session/session-manager";
 import { TempDir } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 
 const originalSchedulerWait = scheduler.wait.bind(scheduler);
 
@@ -33,7 +34,7 @@ describe("AgentSession context promotion", () => {
 		// snapcompact (vision-based) cannot run.
 		tempDir = TempDir.createSync("@pi-context-promotion-");
 		const modelsConfigPath = path.join(tempDir.path(), "models.json");
-		await Bun.write(
+		await fsx.write(
 			modelsConfigPath,
 			JSON.stringify({
 				providers: {

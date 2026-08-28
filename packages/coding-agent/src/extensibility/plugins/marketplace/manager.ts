@@ -425,7 +425,7 @@ export class MarketplaceManager {
 			path.join(sourcePath, "package.json"),
 		]) {
 			try {
-				const content = await Bun.file(manifestPath).json();
+				const content = await fsx.readJson<{ version?: unknown }>(manifestPath);
 				if (typeof content?.version === "string" && content.version) {
 					return content.version;
 				}
@@ -777,7 +777,7 @@ export class MarketplaceManager {
 
 	async #loadRuntimeConfig(scope: "user" | "project"): Promise<PluginRuntimeConfig> {
 		try {
-			return normalizePluginRuntimeConfig(await Bun.file(this.#runtimeLockPath(scope)).json());
+			return normalizePluginRuntimeConfig(await fsx.readJson(this.#runtimeLockPath(scope)));
 		} catch (err) {
 			if (isEnoent(err)) return normalizePluginRuntimeConfig({});
 			logger.warn("Failed to load marketplace plugin runtime config", {
@@ -794,7 +794,7 @@ export class MarketplaceManager {
 
 	async #resolvePluginPackageName(installPath: string, fallbackName: string): Promise<string> {
 		try {
-			const pkg: { name?: unknown } = await Bun.file(path.join(installPath, "package.json")).json();
+			const pkg: { name?: unknown } = await fsx.readJson(path.join(installPath, "package.json"));
 			const name = typeof pkg.name === "string" && pkg.name.length > 0 ? pkg.name : fallbackName;
 			return assertRuntimePackageName(name);
 		} catch (err) {

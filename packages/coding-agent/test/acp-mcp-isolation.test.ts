@@ -112,11 +112,11 @@ describe("createAcpSessionFactory MCP isolation (issue #1234)", () => {
 			const trustedPath = tempDir.join("trusted.ts");
 			const firedPath = tempDir.join("trusted-event-fired");
 			const ambientFiredPath = tempDir.join("ambient-extension-loaded");
-			await Bun.write(
+			await fsx.write(
 				tempDir.join(".omp/extensions/ambient.ts"),
 				`import { writeFileSync } from "node:fs"; writeFileSync(${JSON.stringify(ambientFiredPath)}, "loaded"); export default function () {}`,
 			);
-			await Bun.write(
+			await fsx.write(
 				trustedPath,
 				`import { writeFileSync } from "node:fs"; export default function (pi) { pi.events.on("acp-session-live", () => writeFileSync(${JSON.stringify(firedPath)}, "fired")); }`,
 			);
@@ -161,7 +161,7 @@ describe("createAcpSessionFactory MCP isolation (issue #1234)", () => {
 		try {
 			const settings = Settings.isolated({});
 			const trustedPath = tempDir.join("throwing.ts");
-			await Bun.write(trustedPath, 'throw new Error("trusted extension fixture");');
+			await fsx.write(trustedPath, 'throw new Error("trusted extension fixture");');
 			let createCalls = 0;
 			const factory = createAcpSessionFactory({
 				baseOptions: {
@@ -195,7 +195,7 @@ describe("createAcpSessionFactory TITLE_SYSTEM.md per-cwd resolution (PR #3736)"
 			const settings = Settings.isolated({});
 
 			const projectDir = tempDir.join("project");
-			await Bun.write(`${projectDir}/.omp/TITLE_SYSTEM.md`, "Project-specific title policy.");
+			await fsx.write(`${projectDir}/.omp/TITLE_SYSTEM.md`, "Project-specific title policy.");
 
 			const fakeSession = {} as AgentSession;
 			const captured: CreateAgentSessionOptions[] = [];

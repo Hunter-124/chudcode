@@ -3,8 +3,9 @@ import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
 import { PluginManager } from "@oh-my-pi/pi-coding-agent/extensibility/plugins/manager";
-import { removeWithRetries } from "@oh-my-pi/pi-utils";
 import * as piUtils from "@oh-my-pi/pi-utils";
+import { removeWithRetries } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 
 describe("plugin config", () => {
 	let tmpRoot: string;
@@ -28,7 +29,7 @@ describe("plugin config", () => {
 	});
 
 	async function writeLegacyLockfile(pluginName: string): Promise<void> {
-		await Bun.write(
+		await fsx.write(
 			lockfile,
 			JSON.stringify({
 				plugins: {
@@ -44,7 +45,7 @@ describe("plugin config", () => {
 
 		await new PluginManager(tmpRoot).setPluginSetting(pluginName, "autoContext.enabled", true);
 
-		const lock = await Bun.file(lockfile).json();
+		const lock = await fsx.readJson(lockfile);
 		expect(lock.settings[pluginName]).toEqual({ "autoContext.enabled": true });
 		expect(lock.plugins[pluginName]).toEqual({ version: "0.2.2", enabledFeatures: null, enabled: true });
 	});
@@ -60,7 +61,7 @@ describe("plugin config", () => {
 		const pluginName = "omp-commit";
 		const installPath = path.join(pluginsDir, "cache", pluginName);
 		const pluginPath = path.join(pluginsDir, "node_modules", pluginName);
-		await Bun.write(
+		await fsx.write(
 			path.join(installPath, "package.json"),
 			JSON.stringify({
 				name: pluginName,
@@ -78,7 +79,7 @@ describe("plugin config", () => {
 		);
 		await fs.mkdir(path.dirname(pluginPath), { recursive: true });
 		await fs.symlink(installPath, pluginPath, "dir");
-		await Bun.write(
+		await fsx.write(
 			path.join(pluginsDir, "installed_plugins.json"),
 			JSON.stringify({
 				version: 2,
@@ -95,7 +96,7 @@ describe("plugin config", () => {
 				},
 			}),
 		);
-		await Bun.write(
+		await fsx.write(
 			lockfile,
 			JSON.stringify({
 				plugins: {
@@ -114,7 +115,7 @@ describe("plugin config", () => {
 	});
 
 	async function writeManifest(dir: string, manifest: Record<string, unknown>): Promise<void> {
-		await Bun.write(
+		await fsx.write(
 			path.join(dir, "package.json"),
 			JSON.stringify({ name: "omp-commit", version: "2.0.0", ...manifest }),
 		);
@@ -131,7 +132,7 @@ describe("plugin config", () => {
 		const projectRoot = path.join(tmpRoot, ".omp", "plugins");
 		await fs.mkdir(path.join(projectRoot, "node_modules"), { recursive: true });
 		await fs.symlink(installPath, path.join(projectRoot, "node_modules", "omp-commit"), "dir");
-		await Bun.write(
+		await fsx.write(
 			path.join(projectRoot, "omp-plugins.lock.json"),
 			JSON.stringify({
 				plugins: { "omp-commit": { version: "2.0.0", enabledFeatures: null, enabled } },
@@ -158,7 +159,7 @@ describe("plugin config", () => {
 				settings: { splitMode: { type: "enum", values: ["auto", "manual"], default: "manual" } },
 			},
 		});
-		await Bun.write(
+		await fsx.write(
 			lockfile,
 			JSON.stringify({
 				plugins: { "omp-commit": { version: "1.0.0", enabledFeatures: null, enabled: true } },
@@ -180,7 +181,7 @@ describe("plugin config", () => {
 				settings: { splitMode: { type: "enum", values: ["auto", "manual"], default: "manual" } },
 			},
 		});
-		await Bun.write(
+		await fsx.write(
 			lockfile,
 			JSON.stringify({
 				plugins: { "omp-commit": { version: "1.0.0", enabledFeatures: null, enabled: true } },

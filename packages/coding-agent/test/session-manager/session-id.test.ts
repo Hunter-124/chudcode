@@ -2,6 +2,7 @@ import { describe, expect, it } from "bun:test";
 import * as path from "node:path";
 import { SessionManager } from "@oh-my-pi/pi-coding-agent/session/session-manager";
 import { TempDir } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 
 const UUID_V7_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 
@@ -62,7 +63,7 @@ describe("SessionManager session ids", () => {
 		using tempDir = TempDir.createSync("@pi-session-id-open-");
 		const sessionFile = path.join(tempDir.path(), "existing.jsonl");
 		const existingId = "existing-session-id";
-		await Bun.write(
+		await fsx.write(
 			sessionFile,
 			`${JSON.stringify({ type: "session", id: existingId, timestamp: new Date().toISOString(), cwd: tempDir.path() })}\n`,
 		);

@@ -13,7 +13,7 @@ const PINS_FILENAME = "session-pins.json";
  */
 export async function loadPinnedSessionIds(agentDir: string = getAgentDir()): Promise<Set<string>> {
 	try {
-		const pins: unknown = await Bun.file(path.join(agentDir, PINS_FILENAME)).json();
+		const pins: unknown = await fsx.readJson(path.join(agentDir, PINS_FILENAME));
 		if (!Array.isArray(pins)) return new Set();
 		return new Set(pins.filter((id): id is string => typeof id === "string"));
 	} catch (err) {

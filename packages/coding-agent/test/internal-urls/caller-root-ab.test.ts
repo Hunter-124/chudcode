@@ -29,6 +29,7 @@ import type { ToolSession } from "@oh-my-pi/pi-coding-agent/tools";
 import { expandInternalUrls } from "@oh-my-pi/pi-coding-agent/tools/bash-skill-urls";
 import { GlobTool } from "@oh-my-pi/pi-coding-agent/tools/glob";
 import { GrepTool } from "@oh-my-pi/pi-coding-agent/tools/grep";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 
 function sessionHeader(id: string): string {
 	return JSON.stringify({
@@ -42,7 +43,7 @@ function sessionHeader(id: string): string {
 
 /** Transcript with a distinguishable user line: header + session_init + message. */
 async function writeTranscriptWithLine(sessionFile: string, id: string, secret: string): Promise<void> {
-	await Bun.write(
+	await fsx.write(
 		sessionFile,
 		`${[
 			sessionHeader(id),
@@ -114,12 +115,12 @@ async function setupAbRoots(
 	const childB = path.join(dir, "b", "main", "Worker.jsonl");
 	const artifactA = path.join(dir, "a", "main", "Worker.md");
 	const artifactB = path.join(dir, "b", "main", "Worker.md");
-	await Bun.write(rootA, `${sessionHeader("a")}\n`);
-	await Bun.write(rootB, `${sessionHeader("b")}\n`);
+	await fsx.write(rootA, `${sessionHeader("a")}\n`);
+	await fsx.write(rootB, `${sessionHeader("b")}\n`);
 	await writeTranscriptWithLine(childA, "worker", "A");
 	await writeTranscriptWithLine(childB, "worker", "B");
-	await Bun.write(artifactA, "A OUTPUT");
-	await Bun.write(artifactB, "B OUTPUT");
+	await fsx.write(artifactA, "A OUTPUT");
+	await fsx.write(artifactB, "B OUTPUT");
 	return { rootA, rootB, childA, childB, artifactA, artifactB };
 }
 

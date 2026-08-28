@@ -1249,7 +1249,7 @@ export class ReadTool implements AgentTool<typeof readSchema, ReadToolDetails> {
 		let isDirectory = false;
 		let fileSize = 0;
 		try {
-			const stat = await Bun.file(absolutePath).stat();
+			const stat = await fsx.stat(absolutePath);
 			fileSize = stat.size;
 			isDirectory = stat.isDirectory();
 		} catch (error) {
@@ -1268,7 +1268,7 @@ export class ReadTool implements AgentTool<typeof readSchema, ReadToolDetails> {
 					const suffixMatch = await findSuffixMatchCached(this.session, suffixCache, localReadPath, signal);
 					if (suffixMatch) {
 						try {
-							const retryStat = await Bun.file(suffixMatch.absolutePath).stat();
+							const retryStat = await fsx.stat(suffixMatch.absolutePath);
 							absolutePath = suffixMatch.absolutePath;
 							fileSize = retryStat.size;
 							isDirectory = retryStat.isDirectory();
@@ -1285,7 +1285,7 @@ export class ReadTool implements AgentTool<typeof readSchema, ReadToolDetails> {
 					const approvedPlanPath = this.#approvedPlanAlias(absolutePath);
 					if (approvedPlanPath) {
 						try {
-							const approvedPlanStat = await Bun.file(approvedPlanPath).stat();
+							const approvedPlanStat = await fsx.stat(approvedPlanPath);
 							absolutePath = approvedPlanPath;
 							fileSize = approvedPlanStat.size;
 							isDirectory = approvedPlanStat.isDirectory();

@@ -5,6 +5,7 @@ import type { CustomToolContext } from "@oh-my-pi/pi-coding-agent/extensibility/
 import { DeferredMCPTool, MCPTool, type MCPToolDefinition } from "@oh-my-pi/pi-coding-agent/mcp";
 import type { MCPServerConnection } from "@oh-my-pi/pi-coding-agent/mcp/types";
 import { TempDir } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import { INTENT_FIELD } from "@oh-my-pi/pi-wire";
 import { createMockConnection, createMockTransport } from "./mcp-test-utils";
 
@@ -60,7 +61,7 @@ async function createLocalImageContext(
 ): Promise<{ context: CustomToolContext; expectedPath: string }> {
 	const artifactsDir = tempDir.join("artifacts");
 	const writtenPath = path.join(artifactsDir, "local", "image-issue.png");
-	await Bun.write(writtenPath, "png bytes");
+	await fsx.write(writtenPath, "png bytes");
 	const expectedPath = await fs.realpath(writtenPath);
 	return {
 		context: {

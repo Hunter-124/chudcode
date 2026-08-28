@@ -67,7 +67,7 @@ describe("write tool ACP fs routing", () => {
 		};
 
 		const bridgeSpy = spyOn(bridge, "writeTextFile");
-		const bunWriteSpy = spyOn(Bun, "write");
+		const bunWriteSpy = spyOn(fsx, "write");
 
 		try {
 			const session = createSession(tmpDir, { bridge });
@@ -92,7 +92,7 @@ describe("write tool ACP fs routing", () => {
 		const bridge: ClientBridge = {
 			capabilities: { writeTextFile: true },
 			writeTextFile: async ({ path: target, content }) => {
-				await Bun.write(target, content.replace(/^ {4}/gm, "\t"));
+				await fsx.write(target, content.replace(/^ {4}/gm, "\t"));
 			},
 		};
 		const session = createSession(tmpDir, { bridge });

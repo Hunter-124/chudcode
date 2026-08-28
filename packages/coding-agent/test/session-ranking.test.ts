@@ -64,7 +64,7 @@ describe("slotted session headers", () => {
 			const root = tempDir.path();
 			const archiveDir = path.join(root, "archive", "sessions", "project");
 			const archived = path.join(archiveDir, "legacy-name.jsonl.gz");
-			await Bun.write(
+			await fsx.write(
 				archived,
 				gzipSync(
 					[

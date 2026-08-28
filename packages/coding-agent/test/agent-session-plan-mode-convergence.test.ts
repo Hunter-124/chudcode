@@ -33,6 +33,7 @@ import { AuthStorage } from "@oh-my-pi/pi-coding-agent/session/auth-storage";
 import { SessionManager } from "@oh-my-pi/pi-coding-agent/session/session-manager";
 import type { XdevState } from "@oh-my-pi/pi-coding-agent/tools/xdev";
 import { TempDir } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import planModeReminderPrompt from "../src/prompts/system/plan-mode-tool-decision-reminder.md" with { type: "text" };
 
 /** A stable, literal (non-templated) line of the reminder prompt, so the test
@@ -439,7 +440,7 @@ describe("AgentSession plan-mode convergence", () => {
 			getArtifactsDir: () => harness.session.sessionManager.getArtifactsDir(),
 			getSessionId: () => harness.session.sessionManager.getSessionId(),
 		});
-		await Bun.write(planPath, "# Demo plan\n\nImplement it.\n");
+		await fsx.write(planPath, "# Demo plan\n\nImplement it.\n");
 		const handler = harness.session.peekPlanProposalHandler();
 		expect(handler).toBeDefined();
 		await handler!("demo");
@@ -470,7 +471,7 @@ describe("AgentSession plan-mode convergence", () => {
 			getArtifactsDir: () => harness.session.sessionManager.getArtifactsDir(),
 			getSessionId: () => harness.session.sessionManager.getSessionId(),
 		});
-		await Bun.write(planPath, "# MCP devices plan\n\nKeep the connected devices.\n");
+		await fsx.write(planPath, "# MCP devices plan\n\nKeep the connected devices.\n");
 		const handler = harness.session.peekPlanProposalHandler();
 		if (!handler) throw new Error("Expected PlanYolo proposal handler");
 		await handler("mcp-devices");
@@ -506,7 +507,7 @@ describe("AgentSession plan-mode convergence", () => {
 			getArtifactsDir: () => harness.session.sessionManager.getArtifactsDir(),
 			getSessionId: () => harness.session.sessionManager.getSessionId(),
 		});
-		await Bun.write(planPath, "# Queued MCP plan\n\nKeep the connected device.\n");
+		await fsx.write(planPath, "# Queued MCP plan\n\nKeep the connected device.\n");
 		const handler = harness.session.peekPlanProposalHandler();
 		if (!handler) throw new Error("Expected PlanYolo proposal handler");
 		const approval = handler("queued-mcp");
@@ -537,7 +538,7 @@ describe("AgentSession plan-mode convergence", () => {
 			getArtifactsDir: () => harness.session.sessionManager.getArtifactsDir(),
 			getSessionId: () => harness.session.sessionManager.getSessionId(),
 		});
-		await Bun.write(planPath, "# Read-only MCP plan\n\nKeep the selected device.\n");
+		await fsx.write(planPath, "# Read-only MCP plan\n\nKeep the selected device.\n");
 		const handler = harness.session.peekPlanProposalHandler();
 		if (!handler) throw new Error("Expected PlanYolo proposal handler");
 		await handler("read-only-mcp");
@@ -559,7 +560,7 @@ describe("AgentSession plan-mode convergence", () => {
 			getArtifactsDir: () => harness.session.sessionManager.getArtifactsDir(),
 			getSessionId: () => harness.session.sessionManager.getSessionId(),
 		});
-		await Bun.write(planPath, "# Retry plan\n\nImplement it.\n");
+		await fsx.write(planPath, "# Retry plan\n\nImplement it.\n");
 		const handler = harness.session.peekPlanProposalHandler();
 		expect(handler).toBeDefined();
 		const activeBefore = harness.session.getActiveToolNames();

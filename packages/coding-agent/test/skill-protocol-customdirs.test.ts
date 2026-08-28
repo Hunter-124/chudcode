@@ -8,6 +8,7 @@ import { parseInternalUrl } from "@oh-my-pi/pi-coding-agent/internal-urls/parse"
 import { SkillProtocolHandler } from "@oh-my-pi/pi-coding-agent/internal-urls/skill-protocol";
 import type { ToolSession } from "@oh-my-pi/pi-coding-agent/tools";
 import { ReadTool } from "@oh-my-pi/pi-coding-agent/tools/read";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 
 function makeSkillMd(name: string, dir: string) {
 	return `---\nname: ${name}\ndescription: ${name} skill.\n---\n\n# ${name} from ${dir}\n`;
@@ -37,7 +38,7 @@ describe("skill:// resolution honors skills.customDirectories (#7190)", () => {
 		tempDirs.push(tempDir);
 		const skillDir = path.join(tempDir, "my-custom-skill");
 		await fs.mkdir(skillDir, { recursive: true });
-		await Bun.write(path.join(skillDir, "SKILL.md"), makeSkillMd("my-custom-skill", tempDir));
+		await fsx.write(path.join(skillDir, "SKILL.md"), makeSkillMd("my-custom-skill", tempDir));
 
 		const { skills } = await loadSkills({
 			...ALL_DEFAULT_SOURCES_DISABLED,
@@ -57,7 +58,7 @@ describe("skill:// resolution honors skills.customDirectories (#7190)", () => {
 		for (const name of ["first-skill", "second-skill"]) {
 			const skillDir = path.join(tempDir, name);
 			await fs.mkdir(skillDir, { recursive: true });
-			await Bun.write(path.join(skillDir, "SKILL.md"), makeSkillMd(name, tempDir));
+			await fsx.write(path.join(skillDir, "SKILL.md"), makeSkillMd(name, tempDir));
 		}
 
 		const { skills } = await loadSkills({
@@ -103,8 +104,8 @@ describe("skill:// resolution honors skills.customDirectories (#7190)", () => {
 		const skillB = path.join(dirB, "same-name");
 		await fs.mkdir(skillA, { recursive: true });
 		await fs.mkdir(skillB, { recursive: true });
-		await Bun.write(path.join(skillA, "SKILL.md"), makeSkillMd("same-name", dirA));
-		await Bun.write(path.join(skillB, "SKILL.md"), makeSkillMd("same-name", dirB));
+		await fsx.write(path.join(skillA, "SKILL.md"), makeSkillMd("same-name", dirA));
+		await fsx.write(path.join(skillB, "SKILL.md"), makeSkillMd("same-name", dirB));
 
 		const { skills, warnings } = await loadSkills({
 			...ALL_DEFAULT_SOURCES_DISABLED,
@@ -132,12 +133,12 @@ describe("skill:// resolution honors skills.customDirectories (#7190)", () => {
 		// A default discovery path (Claude project skills) claims the name first.
 		const defaultSkill = path.join(cwd, ".claude", "skills", "shared-name");
 		await fs.mkdir(defaultSkill, { recursive: true });
-		await Bun.write(path.join(defaultSkill, "SKILL.md"), makeSkillMd("shared-name", "default"));
+		await fsx.write(path.join(defaultSkill, "SKILL.md"), makeSkillMd("shared-name", "default"));
 
 		// The explicitly configured custom directory holds the same name.
 		const customSkill = path.join(customDir, "shared-name");
 		await fs.mkdir(customSkill, { recursive: true });
-		await Bun.write(path.join(customSkill, "SKILL.md"), makeSkillMd("shared-name", "custom"));
+		await fsx.write(path.join(customSkill, "SKILL.md"), makeSkillMd("shared-name", "custom"));
 
 		const { skills } = await loadSkills({
 			cwd,

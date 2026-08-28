@@ -7,6 +7,7 @@
  * blank-sensitive formats (markdown, yaml) keep exact formatted equality.
  */
 import * as path from "node:path";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import { diffLines } from "diff";
 import { formatContent } from "./formatter";
 import { listFiles } from "./shared";
@@ -127,8 +128,8 @@ export async function verifyExpectedFileSubset(
 		for (const file of expectedFiles) {
 			const expectedPath = path.join(expectedDir, file);
 			const actualPath = path.join(actualDir, file);
-			const expectedRaw = await Bun.file(expectedPath).text();
-			const actualRaw = await Bun.file(actualPath).text();
+			const expectedRaw = await fsx.readText(expectedPath);
+			const actualRaw = await fsx.readText(actualPath);
 			const expectedNormalized = normalizeLineEndings(expectedRaw);
 			const actualNormalized = normalizeLineEndings(actualRaw);
 			const actualNormalizedWithPreservedWhitespace = restoreWhitespaceOnlyLineDiffs(

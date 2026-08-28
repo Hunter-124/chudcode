@@ -4,6 +4,7 @@ import * as path from "node:path";
 import * as url from "node:url";
 import { glob } from "@oh-my-pi/pi-natives";
 import { hasFsCode, isEnoent, isEnotdir, stripWindowsExtendedLengthPathPrefix } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import type { Skill } from "../extensibility/skills";
 import { InternalUrlRouter, type LocalProtocolOptions } from "../internal-urls";
 import { ToolAbortError, ToolError } from "./tool-errors";
@@ -1586,7 +1587,7 @@ export async function resolveToolSearchScope(opts: ToolScopeOptions): Promise<To
 
 	let isDirectory: boolean;
 	try {
-		const stat = await Bun.file(searchPath).stat();
+		const stat = await fsx.stat(searchPath);
 		isDirectory = stat.isDirectory();
 	} catch {
 		const hint = opts.multipathStatHint && rawPaths.length > 1 ? opts.multipathStatHint : "";

@@ -2,6 +2,7 @@ import { beforeAll, describe, expect, test } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import { $ } from "bun";
 import { AvatarLoader } from "../src/cli/git-tui/avatar";
 import { Sidebar, type SidebarAction } from "../src/cli/git-tui/sidebar";
@@ -19,12 +20,12 @@ async function withDirtyRepo(run: (harness: SidebarHarness) => Promise<void>): P
 		await $`git init --initial-branch=main`.cwd(repo).quiet();
 		await $`git config user.name "Test User"`.cwd(repo).quiet();
 		await $`git config user.email "test@example.com"`.cwd(repo).quiet();
-		await Bun.write(path.join(repo, "seed.txt"), "seed\n");
+		await fsx.write(path.join(repo, "seed.txt"), "seed\n");
 		await $`git add seed.txt`.cwd(repo).quiet();
 		await $`git commit -m base`.cwd(repo).quiet();
-		await Bun.write(path.join(repo, "a/one.txt"), "one\n");
-		await Bun.write(path.join(repo, "a/two.txt"), "two\n");
-		await Bun.write(path.join(repo, "b/three.txt"), "three\n");
+		await fsx.write(path.join(repo, "a/one.txt"), "one\n");
+		await fsx.write(path.join(repo, "a/two.txt"), "two\n");
+		await fsx.write(path.join(repo, "b/three.txt"), "three\n");
 		await run(await SidebarHarness.create(repo));
 	} finally {
 		await fs.rm(repo, { recursive: true, force: true });
@@ -38,11 +39,11 @@ async function withMixedRepo(run: (harness: SidebarHarness) => Promise<void>): P
 		await $`git init --initial-branch=main`.cwd(repo).quiet();
 		await $`git config user.name "Test User"`.cwd(repo).quiet();
 		await $`git config user.email "test@example.com"`.cwd(repo).quiet();
-		await Bun.write(path.join(repo, "a/tracked.txt"), "before\n");
+		await fsx.write(path.join(repo, "a/tracked.txt"), "before\n");
 		await $`git add a/tracked.txt`.cwd(repo).quiet();
 		await $`git commit -m base`.cwd(repo).quiet();
-		await Bun.write(path.join(repo, "a/tracked.txt"), "after\n");
-		await Bun.write(path.join(repo, "a/new.txt"), "new\n");
+		await fsx.write(path.join(repo, "a/tracked.txt"), "after\n");
+		await fsx.write(path.join(repo, "a/new.txt"), "new\n");
 		await run(await SidebarHarness.create(repo));
 	} finally {
 		await fs.rm(repo, { recursive: true, force: true });

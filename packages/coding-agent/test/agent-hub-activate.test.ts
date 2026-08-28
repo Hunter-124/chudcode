@@ -19,6 +19,7 @@ import { visitEntriesFromFileStream } from "@oh-my-pi/pi-coding-agent/session/se
 import { SessionManager } from "@oh-my-pi/pi-coding-agent/session/session-manager";
 import { getBundledAgent } from "@oh-my-pi/pi-coding-agent/task/agents";
 import { TempDir } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 
 const AGENT_ID = "Worker";
 const TEST_CWD = path.resolve("agent-hub-cwd");
@@ -187,8 +188,8 @@ describe("Agent hub Enter activation", () => {
 		using tempDir = TempDir.createSync("@omp-agent-hub-persisted-");
 		const sessionFile = path.join(tempDir.path(), "main.jsonl");
 		const workerSessionFile = path.join(tempDir.path(), "main", "Worker.jsonl");
-		await Bun.write(sessionFile, "");
-		await Bun.write(workerSessionFile, persistedChildJsonl("worker"));
+		await fsx.write(sessionFile, "");
+		await fsx.write(workerSessionFile, persistedChildJsonl("worker"));
 		const agents = new AgentRegistry();
 		const hub = new AgentHubOverlayComponent({
 			settings: Settings.isolated(),
@@ -212,8 +213,8 @@ describe("Agent hub Enter activation", () => {
 	it("stops persisted discovery when the Hub is disposed", async () => {
 		using tempDir = TempDir.createSync("@omp-agent-hub-disposed-scan-");
 		const sessionFile = path.join(tempDir.path(), "main.jsonl");
-		await Bun.write(sessionFile, "");
-		await Bun.write(path.join(tempDir.path(), "main", "Worker.jsonl"), "");
+		await fsx.write(sessionFile, "");
+		await fsx.write(path.join(tempDir.path(), "main", "Worker.jsonl"), "");
 		const agents = new AgentRegistry();
 		const hub = new AgentHubOverlayComponent({
 			settings: Settings.isolated(),
@@ -236,9 +237,9 @@ describe("Agent hub Enter activation", () => {
 		const sessionFile = path.join(tempDir.path(), "main.jsonl");
 		const parentSessionFile = path.join(tempDir.path(), "main", "Parent.jsonl");
 		const childSessionFile = path.join(tempDir.path(), "main", "Parent", "Child.jsonl");
-		await Bun.write(sessionFile, "");
-		await Bun.write(parentSessionFile, persistedChildJsonl("parent"));
-		await Bun.write(childSessionFile, persistedChildJsonl("child"));
+		await fsx.write(sessionFile, "");
+		await fsx.write(parentSessionFile, persistedChildJsonl("parent"));
+		await fsx.write(childSessionFile, persistedChildJsonl("child"));
 		const agents = new AgentRegistry();
 		const hub = new AgentHubOverlayComponent({
 			settings: Settings.isolated(),
@@ -265,8 +266,8 @@ describe("Agent hub Enter activation", () => {
 		const workerSessionFile = path.join(tempDir.path(), "main", "Worker.jsonl");
 		const createdAt = "2026-07-30T01:13:37.835Z";
 		const lastActivity = new Date("2026-07-30T01:15:00.000Z");
-		await Bun.write(sessionFile, "");
-		await Bun.write(
+		await fsx.write(sessionFile, "");
+		await fsx.write(
 			workerSessionFile,
 			[
 				JSON.stringify({ type: "session", version: 3, id: "worker-session", timestamp: createdAt, cwd: TEST_CWD }),
@@ -314,8 +315,8 @@ describe("Agent hub Enter activation", () => {
 		const workerSessionFile = path.join(tempDir.path(), "main", "Worker.jsonl");
 		const createdAt = "2026-07-30T01:13:30.000Z";
 		const lastActivity = new Date("2026-07-30T01:15:00.000Z");
-		await Bun.write(sessionFile, "");
-		await Bun.write(
+		await fsx.write(sessionFile, "");
+		await fsx.write(
 			workerSessionFile,
 			[
 				JSON.stringify({ type: "session", version: 3, id: "worker-session", timestamp: createdAt, cwd: TEST_CWD }),
@@ -395,7 +396,7 @@ describe("Agent hub Enter activation", () => {
 			timestamp: "2026-07-30T01:13:30.000Z",
 			message: { role: "user", content: [{ type: "text", text: "small" }] },
 		});
-		await Bun.write(sessionFile, `${entry}\n`.repeat(3));
+		await fsx.write(sessionFile, `${entry}\n`.repeat(3));
 		const thresholdVisited = Promise.withResolvers<void>();
 		let complete = false;
 		let yieldedBeforeComplete = false;
@@ -646,8 +647,8 @@ describe("Agent hub double-← gating", () => {
 		using tempDir = TempDir.createSync("@omp-agent-hub-require-content-");
 		const sessionFile = path.join(tempDir.path(), "main.jsonl");
 		const workerSessionFile = path.join(tempDir.path(), "main", "Worker.jsonl");
-		await Bun.write(sessionFile, "");
-		await Bun.write(workerSessionFile, persistedChildJsonl("worker"));
+		await fsx.write(sessionFile, "");
+		await fsx.write(workerSessionFile, persistedChildJsonl("worker"));
 		const agents = new AgentRegistry();
 		const { controller, shown, shownReady } = setup(agents, sessionFile);
 
@@ -662,8 +663,8 @@ describe("Agent hub double-← gating", () => {
 	it("the explicit hub opens fullscreen before persisted subagents load", async () => {
 		using tempDir = TempDir.createSync("@omp-agent-hub-explicit-");
 		const sessionFile = path.join(tempDir.path(), "main.jsonl");
-		await Bun.write(sessionFile, "");
-		await Bun.write(path.join(tempDir.path(), "main", "Worker.jsonl"), persistedChildJsonl("worker"));
+		await fsx.write(sessionFile, "");
+		await fsx.write(path.join(tempDir.path(), "main", "Worker.jsonl"), persistedChildJsonl("worker"));
 		const agents = new AgentRegistry();
 		const { controller, shown, overlayOptions } = setup(agents, sessionFile);
 

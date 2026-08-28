@@ -5,6 +5,7 @@ import { resetSettingsForTest, Settings } from "@oh-my-pi/pi-coding-agent/config
 import { SelectorController } from "@oh-my-pi/pi-coding-agent/modes/controllers/selector-controller";
 import { AgentStorage } from "@oh-my-pi/pi-coding-agent/session/agent-storage";
 import { getProjectAgentDir, TempDir } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import { YAML } from "bun";
 import { beginSettingsTest, restoreSettingsTestState, type SettingsTestState } from "./helpers/settings-test-state";
 
@@ -47,14 +48,14 @@ describe("autocompleteMaxVisible setting", () => {
 	});
 
 	it("should read from config.yml", async () => {
-		await Bun.write(path.join(agentDir, "config.yml"), YAML.stringify({ autocompleteMaxVisible: 15 }, null, 2));
+		await fsx.write(path.join(agentDir, "config.yml"), YAML.stringify({ autocompleteMaxVisible: 15 }, null, 2));
 		const settings = await Settings.init({ cwd: projectDir, agentDir });
 		expect(settings.get("autocompleteMaxVisible")).toBe(15);
 	});
 
 	it("should let project config.yml override global config.yml", async () => {
-		await Bun.write(path.join(agentDir, "config.yml"), YAML.stringify({ autocompleteMaxVisible: 15 }, null, 2));
-		await Bun.write(
+		await fsx.write(path.join(agentDir, "config.yml"), YAML.stringify({ autocompleteMaxVisible: 15 }, null, 2));
+		await fsx.write(
 			path.join(getProjectAgentDir(projectDir), "config.yml"),
 			YAML.stringify({ autocompleteMaxVisible: 20 }, null, 2),
 		);

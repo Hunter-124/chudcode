@@ -12,6 +12,7 @@ import type {
 } from "@oh-my-pi/pi-coding-agent/eval/js/worker-protocol";
 import { postmortem } from "@oh-my-pi/pi-utils";
 import { sleep } from "@oh-my-pi/pi-utils/async";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 
 interface WorkerHarness {
 	send(message: WorkerInbound): void;
@@ -514,7 +515,7 @@ process.exit(0);
 		const root = await fs.mkdtemp(path.join(os.tmpdir(), "omp-same-realm-"));
 		const probePath = path.join(root, "probe.ts");
 		try {
-			await Bun.write(probePath, probe);
+			await fsx.write(probePath, probe);
 			const proc = Bun.spawn([process.execPath, probePath], {
 				cwd: process.cwd(),
 				stdout: "pipe",

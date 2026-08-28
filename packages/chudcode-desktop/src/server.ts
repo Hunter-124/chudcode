@@ -2,6 +2,7 @@ import { randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { getAgentDir, getProjectDir, isEexist, isEnoent } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import type { DesktopFrame, DesktopRequest } from "./protocol";
 import { createDesktopRuntime, type DesktopFrameSink } from "./runtime";
 
@@ -525,7 +526,7 @@ async function acquireDesktopLease(runtimeDir: string): Promise<DesktopLease | u
 		} catch (error) {
 			if (!isEexist(error)) throw error;
 			try {
-				const raw: unknown = await Bun.file(pidPath).json();
+				const raw: unknown = await fsx.readJson(pidPath);
 				if (typeof raw === "object" && raw !== null && "pid" in raw && typeof raw.pid === "number") {
 					try {
 						process.kill(raw.pid, 0);
@@ -545,7 +546,7 @@ async function acquireDesktopLease(runtimeDir: string): Promise<DesktopLease | u
 
 async function releaseDesktopLease(lease: DesktopLease): Promise<void> {
 	try {
-		const raw: unknown = await Bun.file(lease.path).json();
+		const raw: unknown = await fsx.readJson(lease.path);
 		if (typeof raw === "object" && raw !== null && "instanceId" in raw && raw.instanceId === lease.instanceId) {
 			await fs.rm(lease.path, { force: true });
 		}

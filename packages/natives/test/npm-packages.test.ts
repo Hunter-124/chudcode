@@ -84,7 +84,7 @@ describe("generated native npm leaf packages", () => {
 			expect(await fsx.readText(path.join(packageDir, "npm/linux-x64/pi_natives.linux-x64-modern.node"))).toBe(
 				"pi_natives.linux-x64-modern.node",
 			);
-			const manifest = await Bun.file(path.join(packageDir, "npm/linux-x64/package.json")).json();
+			const manifest = await fsx.readJson(path.join(packageDir, "npm/linux-x64/package.json"));
 			expect(manifest.main).toBe("./pi_natives.linux-x64-baseline.node");
 			expect(manifest.files).toEqual(["*.node", "README.md", "LICENSE", "THIRD-PARTY-NOTICES.txt"]);
 			expect(await fsx.readText(path.join(packageDir, "npm/linux-x64/LICENSE"))).toBe("MIT payload\n");

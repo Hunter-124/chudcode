@@ -13,6 +13,7 @@ import {
 import { writethroughNoop } from "@oh-my-pi/pi-coding-agent/lsp";
 import type { ToolSession } from "@oh-my-pi/pi-coding-agent/tools";
 import { removeWithRetries } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 
 // ─── Minimal ToolSession stub ────────────────────────────────────────────────
 
@@ -55,7 +56,7 @@ afterEach(async () => {
 
 describe("executePatchSingle — oldText/newText propagation", () => {
 	test("update: oldText is pre-edit content, newText is post-edit content", async () => {
-		await Bun.write(path.join(tempDir, "foo.txt"), "a\n");
+		await fsx.write(path.join(tempDir, "foo.txt"), "a\n");
 
 		const result = await executePatchSingle({
 			session: makeSession(tempDir),
@@ -91,7 +92,7 @@ describe("executePatchSingle — oldText/newText propagation", () => {
 	});
 
 	test("delete: oldText is prior content, newText is undefined", async () => {
-		await Bun.write(path.join(tempDir, "gone.txt"), "will be deleted\n");
+		await fsx.write(path.join(tempDir, "gone.txt"), "will be deleted\n");
 
 		const result = await executePatchSingle({
 			session: makeSession(tempDir),
@@ -128,7 +129,7 @@ describe("EditTool patch aggregation — oldText/newText propagation", () => {
 	});
 
 	test("update followed by delete preserves delete-shaped newText", async () => {
-		await Bun.write(path.join(tempDir, "updated-then-gone.txt"), "a\n");
+		await fsx.write(path.join(tempDir, "updated-then-gone.txt"), "a\n");
 		const tool = new EditTool(makeSession(tempDir));
 
 		const result = await tool.execute("call-update-delete", {
@@ -148,7 +149,7 @@ describe("EditTool patch aggregation — oldText/newText propagation", () => {
 describe("executeReplace — oldText/newText propagation", () => {
 	test("replace: oldText is full file before, newText is full file after", async () => {
 		const originalContent = "line one\nline two\nline three\n";
-		await Bun.write(path.join(tempDir, "bar.txt"), originalContent);
+		await fsx.write(path.join(tempDir, "bar.txt"), originalContent);
 
 		const result = await executeReplace({
 			session: makeSession(tempDir),

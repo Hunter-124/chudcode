@@ -36,7 +36,7 @@ export async function writeDaemonScopeMeta(runtimeDir: string, projectDir: strin
 /** Read the project directory recorded for a runtime dir; undefined when absent or malformed. */
 export async function readDaemonScopeMeta(runtimeDir: string): Promise<string | undefined> {
 	try {
-		const raw: unknown = await Bun.file(path.join(runtimeDir, SCOPE_FILE)).json();
+		const raw: unknown = await fsx.readJson(path.join(runtimeDir, SCOPE_FILE));
 		if (typeof raw === "object" && raw !== null && "projectDir" in raw && typeof raw.projectDir === "string") {
 			return raw.projectDir;
 		}

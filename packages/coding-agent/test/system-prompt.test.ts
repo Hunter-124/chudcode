@@ -2,6 +2,7 @@ import { describe, expect, it, spyOn } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import { buildSystemPrompt } from "../src/system-prompt";
 
 interface ProbeRunResult {
@@ -28,14 +29,14 @@ async function runProbeScenario(options: {
 		await fs.mkdir(binDir, { recursive: true });
 		await fs.mkdir(path.join(cacheRoot, "omp"), { recursive: true });
 		const probePath = path.join(binDir, options.platform === "win32" ? "wmic" : "lspci");
-		await Bun.write(
+		await fsx.write(
 			probePath,
 			'#!/usr/bin/env sh\nprintf x >> "$OMP_GPU_PROBE_COUNT"\nif [ -n "$OMP_GPU_PROBE_VALID_OUTPUT" ]; then printf "%s\\n" "$OMP_GPU_PROBE_VALID_OUTPUT"; fi\nif [ "$OMP_GPU_PROBE_DESCENDANT_HOLDS_STDOUT" = "true" ]; then sleep "$OMP_GPU_PROBE_SLEEP" & exit 0; fi\nif [ "$OMP_GPU_PROBE_HOLD_STDOUT_OPEN" = "true" ]; then sleep "$OMP_GPU_PROBE_SLEEP" & wait "$!"; fi\nif [ -n "$OMP_GPU_PROBE_SLEEP" ]; then exec sleep "$OMP_GPU_PROBE_SLEEP"; fi\nexit 0\n',
 		);
 		await fs.chmod(probePath, 0o755);
 
 		const scenarioPath = path.join(tempRoot, "scenario.ts");
-		await Bun.write(
+		await fsx.write(
 			scenarioPath,
 			`import { getGpuCachePath, refreshDirsFromEnv } from ${JSON.stringify(path.resolve(import.meta.dir, "../../utils/src/index.ts"))};
 import { buildSystemPrompt } from ${JSON.stringify(path.join(import.meta.dir, "../src/system-prompt.ts"))};

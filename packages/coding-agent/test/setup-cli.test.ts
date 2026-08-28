@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { TempDir } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import { checkPythonSetup } from "../src/cli/setup-cli";
 
 const cliEntry = path.join(import.meta.dir, "..", "src", "cli.ts");
@@ -65,9 +66,9 @@ describe("omp setup python", () => {
 			projectDir = TempDir.createSync("@omp-setup-python-");
 			const cwd = projectDir.path();
 			const interpreter = path.join(cwd, "configured-python");
-			await Bun.write(interpreter, "#!/bin/sh\nexit 0\n");
+			await fsx.write(interpreter, "#!/bin/sh\nexit 0\n");
 			await fs.chmod(interpreter, 0o755);
-			await Bun.write(path.join(cwd, ".omp", "config.yml"), `python:\n  interpreter: ${interpreter}\n`);
+			await fsx.write(path.join(cwd, ".omp", "config.yml"), `python:\n  interpreter: ${interpreter}\n`);
 
 			const result = await runSetupPython(cwd);
 
@@ -84,7 +85,7 @@ describe("omp setup python", () => {
 		projectDir = TempDir.createSync("@omp-setup-python-");
 		const cwd = projectDir.path();
 		const interpreter = path.join(cwd, ".venv", "bin", "python");
-		await Bun.write(interpreter, "#!/bin/sh\nexit 0\n");
+		await fsx.write(interpreter, "#!/bin/sh\nexit 0\n");
 		await fs.chmod(interpreter, 0o755);
 
 		const result = await checkPythonSetup(cwd);
@@ -99,7 +100,7 @@ describe("omp setup python", () => {
 		projectDir = TempDir.createSync("@omp-setup-python-");
 		const cwd = projectDir.path();
 		const interpreter = path.join(cwd, "configured-python");
-		await Bun.write(interpreter, "#!/bin/sh\nexit 23\n");
+		await fsx.write(interpreter, "#!/bin/sh\nexit 23\n");
 		await fs.chmod(interpreter, 0o755);
 
 		const previousSkipCheck = process.env.PI_PYTHON_SKIP_CHECK;

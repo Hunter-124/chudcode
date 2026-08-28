@@ -6,6 +6,7 @@ import { ModelRegistry } from "@oh-my-pi/pi-coding-agent/config/model-registry";
 import { ModelsConfigSchema } from "@oh-my-pi/pi-coding-agent/config/models-config-schema";
 import { AuthStorage } from "@oh-my-pi/pi-coding-agent/session/auth-storage";
 import { TempDir } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 
 describe("ModelRegistry.create() factory (F6)", () => {
 	let tempDir: TempDir;
@@ -41,7 +42,7 @@ describe("ModelRegistry.create() factory (F6)", () => {
 
 		// Seed a legacy JSON config; factory should migrate it asynchronously
 		// before the sync constructor reads from the yml path.
-		await Bun.write(json, JSON.stringify({ models: [] }));
+		await fsx.write(json, JSON.stringify({ models: [] }));
 		expect(fs.existsSync(yml)).toBe(false);
 
 		const authStorage = await AuthStorage.create(":memory:");
@@ -56,7 +57,7 @@ describe("ModelRegistry.create() factory (F6)", () => {
 	test("ConfigFile migration is idempotent — second load is a no-op", async () => {
 		const yml = path.join(tempDir.path(), "models.yml");
 		const json = path.join(tempDir.path(), "models.json");
-		await Bun.write(json, JSON.stringify({ models: [] }));
+		await fsx.write(json, JSON.stringify({ models: [] }));
 
 		const cf = new ConfigFile("models", ModelsConfigSchema, yml);
 		cf.tryLoad();
@@ -73,7 +74,7 @@ describe("ModelRegistry.create() factory (F6)", () => {
 	test("ConfigFile migrates legacy models.json containing comments", async () => {
 		const yml = path.join(tempDir.path(), "models.yml");
 		const json = path.join(tempDir.path(), "models.json");
-		await Bun.write(
+		await fsx.write(
 			json,
 			`{
 				// Custom models comment

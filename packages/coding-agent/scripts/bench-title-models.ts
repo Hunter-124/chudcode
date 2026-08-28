@@ -23,6 +23,7 @@ import { Database } from "bun:sqlite";
 import * as os from "node:os";
 import * as path from "node:path";
 import { prompt } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import titleSystemPrompt from "../src/prompts/system/title-system.md" with { type: "text" };
 import { preprocessTinyMessage } from "../src/tiny/message-preproc";
 import { isTinyTitleLocalModelKey } from "../src/tiny/models";
@@ -301,7 +302,7 @@ async function main(): Promise<void> {
 		matrix,
 		lanes,
 	};
-	await Bun.write(config.outPath, JSON.stringify(report, null, 2));
+	await fsx.write(config.outPath, JSON.stringify(report, null, 2));
 
 	for (const entry of matrix) {
 		console.info(`\n[#${entry.id}] ${entry.raw.replace(/\s+/g, " ").slice(0, 140)}`);

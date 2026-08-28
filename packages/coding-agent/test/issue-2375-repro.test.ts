@@ -21,6 +21,7 @@ import type { ImageContent } from "@oh-my-pi/pi-ai";
 import { resetSettingsForTest, Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
 import { InputController } from "@oh-my-pi/pi-coding-agent/modes/controllers/input-controller";
 import type { InteractiveModeContext } from "@oh-my-pi/pi-coding-agent/modes/types";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 
 // A clipboard with no image on it — the deterministic default for the
 // not-found assertions so a real screenshot on the dev's clipboard cannot
@@ -173,7 +174,7 @@ describe("InputController.handleImagePathPaste (issue #2375)", () => {
 		});
 		// This test file itself: resolvable, readable, but not an image.
 		const nonImage = path.join(os.tmpdir(), `issue-2375-not-png-${Math.random().toString(36).slice(2)}.png`);
-		await Bun.write(nonImage, "not really a png");
+		await fsx.write(nonImage, "not really a png");
 		try {
 			await controller.handleImagePathPaste(nonImage);
 		} finally {

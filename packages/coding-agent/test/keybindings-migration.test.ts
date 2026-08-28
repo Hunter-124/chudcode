@@ -21,7 +21,7 @@ function ctrl(key: string): string {
 
 async function writeKeybindingsYaml(agentDir: string, config: KeybindingsConfig): Promise<void> {
 	await fs.mkdir(agentDir, { recursive: true });
-	await Bun.write(path.join(agentDir, "keybindings.yml"), YAML.stringify(config, null, 2));
+	await fsx.write(path.join(agentDir, "keybindings.yml"), YAML.stringify(config, null, 2));
 }
 
 function restoreEnvValue(key: string, value: string | undefined): void {
@@ -45,7 +45,7 @@ describe("KeybindingsManager.create", () => {
 		const jsonPath = path.join(agentDir, "keybindings.json");
 		const ymlPath = path.join(agentDir, "keybindings.yml");
 
-		await Bun.write(
+		await fsx.write(
 			jsonPath,
 			`${JSON.stringify(
 				{
@@ -85,7 +85,7 @@ describe("KeybindingsManager.create", () => {
 		const jsonPath = path.join(agentDir, "keybindings.json");
 		const ymlPath = path.join(agentDir, "keybindings.yml");
 
-		await Bun.write(
+		await fsx.write(
 			jsonPath,
 			`{
 	// Legacy config files may contain comments from hand-edited examples.
@@ -121,7 +121,7 @@ describe("KeybindingsManager.create", () => {
 		const agentDir = await fs.mkdtemp(path.join(os.tmpdir(), "pi-keybindings-"));
 		const configPath = path.join(agentDir, "keybindings.yml");
 
-		await Bun.write(
+		await fsx.write(
 			configPath,
 			YAML.stringify(
 				{
@@ -148,7 +148,7 @@ describe("KeybindingsManager.create", () => {
 		const yamlPath = path.join(agentDir, "keybindings.yaml");
 		const canonicalPath = path.join(agentDir, "keybindings.yml");
 
-		await Bun.write(
+		await fsx.write(
 			yamlPath,
 			YAML.stringify(
 				{
@@ -222,7 +222,7 @@ describe("KeybindingsManager.create", () => {
 		// Legacy JSON in the default dir: loading it with a write-back path would
 		// materialize keybindings.yml there. The inherited load must stay read-only.
 		await fs.mkdir(defaultAgentDir, { recursive: true });
-		await Bun.write(
+		await fsx.write(
 			path.join(defaultAgentDir, "keybindings.json"),
 			JSON.stringify({ "app.session.fork": "ctrl+f" }, null, 2),
 		);

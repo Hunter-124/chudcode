@@ -28,7 +28,7 @@ function session(cwd: string): ToolSession {
 async function makeWorkspace(): Promise<string> {
 	const dir = await fs.mkdtemp(path.join(os.tmpdir(), "write-selector-misfire-"));
 	await fs.mkdir(path.join(dir, "src/components"), { recursive: true });
-	await Bun.write(path.join(dir, "src/components/LoraSelector.tsx"), "export const x = 1;\n");
+	await fsx.write(path.join(dir, "src/components/LoraSelector.tsx"), "export const x = 1;\n");
 	return dir;
 }
 
@@ -56,7 +56,7 @@ describe("write refuses read-selector misfires", () => {
 
 	it("keeps an existing literal colon filename writable with empty content", async () => {
 		const dir = await makeWorkspace();
-		await Bun.write(path.join(dir, "log:1-5"), "old");
+		await fsx.write(path.join(dir, "log:1-5"), "old");
 		const write = new WriteTool(session(dir));
 		const res = await write.execute("c", { path: "log:1-5", content: "" });
 		expect(res.isError).toBeUndefined();
@@ -132,7 +132,7 @@ describe("write refuses read-selector misfires", () => {
 		const dir = await makeWorkspace();
 		const write = new WriteTool(session(dir));
 		const target = "report:1-2;archive:3-4";
-		await Bun.write(path.join(dir, target), "old");
+		await fsx.write(path.join(dir, target), "old");
 		const res = await write.execute("c", { path: target, content: "new" });
 		expect(res.isError).toBeUndefined();
 		expect(await fsx.readText(path.join(dir, target))).toBe("new");

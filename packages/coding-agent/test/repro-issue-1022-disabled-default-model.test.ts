@@ -8,6 +8,7 @@ import { createAgentSession } from "@oh-my-pi/pi-coding-agent/sdk";
 import { AuthStorage } from "@oh-my-pi/pi-coding-agent/session/auth-storage";
 import { SessionManager } from "@oh-my-pi/pi-coding-agent/session/session-manager";
 import { removeSyncWithRetries, Snowflake } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import { YAML } from "bun";
 
 /**
@@ -43,7 +44,7 @@ describe("issue #1022 — path-scoped enabledModels respected by default fallbac
 
 	test("does not pick a disallowed provider when enabledModels excludes it", async () => {
 		const privatePath = path.join(testDir, "private");
-		await Bun.write(
+		await fsx.write(
 			path.join(agentDir, "config.yml"),
 			YAML.stringify({
 				enabledModels: [{ path: privatePath, models: ["openai-codex"] }],

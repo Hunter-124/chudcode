@@ -47,7 +47,7 @@ function editOptions(session: ToolSession, input: string): ExecuteHashlineSingle
 		session,
 		input,
 		writethrough: async (targetPath, content) => {
-			await Bun.write(targetPath, content);
+			await fsx.write(targetPath, content);
 			return undefined;
 		},
 		beginDeferredDiagnosticsForPath: () => ({
@@ -121,7 +121,7 @@ describe("read → edit round-trip for out-of-cwd files", () => {
 		const artifactsDir = path.join(outDir, "artifacts");
 		const planFilePath = "local://windows-packaging-plan.md";
 		const planPath = path.join(artifactsDir, "local", "windows-packaging-plan.md");
-		await Bun.write(planPath, "# Windows packaging\n\nBuild the installer.\n");
+		await fsx.write(planPath, "# Windows packaging\n\nBuild the installer.\n");
 
 		const session = createSession(cwdDir, { artifactsDir, planFilePath });
 		const cwdPlanPath = path.join(cwdDir, "windows-packaging-plan.md");
@@ -134,8 +134,8 @@ describe("read → edit round-trip for out-of-cwd files", () => {
 		const planFilePath = "local://windows-packaging-plan.md";
 		const planPath = path.join(artifactsDir, "local", "windows-packaging-plan.md");
 		const cwdPlanPath = path.join(cwdDir, "windows-packaging-plan.md");
-		await Bun.write(planPath, "# Local plan\n\nArtifact content.\n");
-		await Bun.write(cwdPlanPath, "# Working tree\n\nWorkspace content.\n");
+		await fsx.write(planPath, "# Local plan\n\nArtifact content.\n");
+		await fsx.write(cwdPlanPath, "# Working tree\n\nWorkspace content.\n");
 
 		const session = createSession(cwdDir, { artifactsDir, planFilePath });
 		const result = await new ReadTool(session).execute("read-workspace-plan", { path: cwdPlanPath });
@@ -188,7 +188,7 @@ describe("read → edit round-trip for out-of-cwd files", () => {
 		for (const testCase of cases) {
 			const fileName = `${testCase.mode}.txt`;
 			const workspaceFile = path.join(cwdDir, "src", fileName);
-			await Bun.write(workspaceFile, "alpha\nbeta\n");
+			await fsx.write(workspaceFile, "alpha\nbeta\n");
 
 			const session = createSession(cwdDir);
 			session.settings.set("edit.mode", testCase.mode);
@@ -205,7 +205,7 @@ describe("read → edit round-trip for out-of-cwd files", () => {
 	it("keeps the resolved workspace target across delete/add hunks for the same authored path", async () => {
 		const fileName = "recreate.txt";
 		const workspaceFile = path.join(cwdDir, "src", fileName);
-		await Bun.write(workspaceFile, "alpha\nbeta\n");
+		await fsx.write(workspaceFile, "alpha\nbeta\n");
 
 		const session = createSession(cwdDir);
 		session.settings.set("edit.mode", "apply_patch");
@@ -231,8 +231,8 @@ describe("read → edit round-trip for out-of-cwd files", () => {
 		const planFilePath = "local://windows-packaging-plan.md";
 		const planPath = path.join(artifactsDir, "local", "windows-packaging-plan.md");
 		const workspacePlanPath = path.join(cwdDir, "docs", "windows-packaging-plan.md");
-		await Bun.write(planPath, "# Local plan\n\nArtifact content.\n");
-		await Bun.write(workspacePlanPath, "# Workspace plan\n\nNested workspace content.\n");
+		await fsx.write(planPath, "# Local plan\n\nArtifact content.\n");
+		await fsx.write(workspacePlanPath, "# Workspace plan\n\nNested workspace content.\n");
 
 		const session = createSession(cwdDir, { artifactsDir, planFilePath });
 		const result = await new ReadTool(session).execute("read-workspace-suffix-plan", {

@@ -12,7 +12,7 @@ const ROOT = path.join(import.meta.dir, "..", "fixtures", "security", "seeded-re
 
 describe("security seeded validation repository", () => {
 	test("manifest points only at present non-production fixture files", async () => {
-		const manifest = (await Bun.file(path.join(ROOT, "manifest.json")).json()) as SeedManifest;
+		const manifest = (await fsx.readJson(path.join(ROOT, "manifest.json"))) as SeedManifest;
 		expect(manifest.schemaVersion).toBe(1);
 		expect(manifest.nonProduction).toBeTrue();
 		expect(manifest.seeds).toHaveLength(8);

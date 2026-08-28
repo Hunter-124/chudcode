@@ -29,7 +29,7 @@ describe("regression: indentation adjustment for line-based replacements (2B)", 
 	test("line-based patch adjusts indentation when fuzzy matching at different indent level", async () => {
 		const filePath = path.join(tempDir, "indent.ts");
 		// File has 4-space indentation
-		await Bun.write(
+		await fsx.write(
 			filePath,
 			`class Example {
     constructor() {
@@ -61,7 +61,7 @@ describe("regression: indentation adjustment for line-based replacements (2B)", 
 
 	test("multi-hunk patch adjusts indentation independently per hunk", async () => {
 		const filePath = path.join(tempDir, "multi-indent.ts");
-		await Bun.write(
+		await fsx.write(
 			filePath,
 			`function outer() {
   function inner1() {
@@ -109,7 +109,7 @@ describe("regression: ambiguity detection for context-less hunks (2C)", () => {
 
 	test("single-hunk simple diff rejects multiple occurrences", async () => {
 		const filePath = path.join(tempDir, "dupe.txt");
-		await Bun.write(filePath, "foo\nbar\nfoo\nbaz\n");
+		await fsx.write(filePath, "foo\nbar\nfoo\nbaz\n");
 
 		await expect(
 			applyPatch(
@@ -126,7 +126,7 @@ describe("regression: ambiguity detection for context-less hunks (2C)", () => {
 	test("multi-hunk context-less diff rejects ambiguous patterns", async () => {
 		const filePath = path.join(tempDir, "multi-dupe.txt");
 		// Each pattern appears twice
-		await Bun.write(filePath, "aaa\nbbb\naaa\nccc\nbbb\nddd\n");
+		await fsx.write(filePath, "aaa\nbbb\naaa\nccc\nbbb\nddd\n");
 
 		// First hunk for "aaa" is ambiguous (appears at lines 1 and 3)
 		await expect(
@@ -143,7 +143,7 @@ describe("regression: ambiguity detection for context-less hunks (2C)", () => {
 
 	test("context lines disambiguate otherwise ambiguous patterns", async () => {
 		const filePath = path.join(tempDir, "context-disambig.txt");
-		await Bun.write(filePath, "header\nfoo\nbar\nmiddle\nfoo\nbaz\nfooter\n");
+		await fsx.write(filePath, "header\nfoo\nbar\nmiddle\nfoo\nbaz\nfooter\n");
 
 		// Context line "middle" disambiguates which "foo" to change
 		await applyPatch(
@@ -174,7 +174,7 @@ describe("regression: context search uses line hints (2D)", () => {
 	test("unified diff line numbers help locate correct position", async () => {
 		const filePath = path.join(tempDir, "hints.txt");
 		// File with repeated function definitions
-		await Bun.write(
+		await fsx.write(
 			filePath,
 			`function process() {
     return 1;
@@ -212,7 +212,7 @@ function process() {
 
 	test("line hint overrides context-only search when appropriate", async () => {
 		const filePath = path.join(tempDir, "hint-priority.txt");
-		await Bun.write(
+		await fsx.write(
 			filePath,
 			`# Section A
 def helper():
@@ -258,7 +258,7 @@ describe("regression: insertion uses newStartLine fallback (2E)", () => {
 
 	test("pure addition with context uses context to find insertion point", async () => {
 		const filePath = path.join(tempDir, "insert.txt");
-		await Bun.write(filePath, "line1\nline2\nline3\n");
+		await fsx.write(filePath, "line1\nline2\nline3\n");
 
 		// Insert after line1 using context
 		await applyPatch(
@@ -277,7 +277,7 @@ describe("regression: insertion uses newStartLine fallback (2E)", () => {
 
 	test("pure addition with line hint inserts at correct position", async () => {
 		const filePath = path.join(tempDir, "insert-hint.txt");
-		await Bun.write(filePath, "aaa\nbbb\nccc\n");
+		await fsx.write(filePath, "aaa\nbbb\nccc\n");
 
 		// Use unified diff format line hints to insert at specific location
 		await applyPatch(
@@ -296,7 +296,7 @@ describe("regression: insertion uses newStartLine fallback (2E)", () => {
 
 	test("insertion at end of file works correctly", async () => {
 		const filePath = path.join(tempDir, "append.txt");
-		await Bun.write(filePath, "first\nsecond\n");
+		await fsx.write(filePath, "first\nsecond\n");
 
 		await applyPatch(
 			{
@@ -426,7 +426,7 @@ describe("plan: partial line matching for @@ context", () => {
 	test("@@ context matches when actual line contains it as substring", async () => {
 		const filePath = path.join(tempDir, "imports.ts");
 		// Actual line has more content than the @@ context
-		await Bun.write(
+		await fsx.write(
 			filePath,
 			'import { mkdirSync, unlinkSync } from "node:fs";\n\nfunction cleanup() {\n  unlinkSync("temp");\n}\n',
 		);
@@ -451,7 +451,7 @@ describe("plan: partial line matching for @@ context", () => {
 
 	test("@@ context matches function signature even with trailing content", async () => {
 		const filePath = path.join(tempDir, "funcs.ts");
-		await Bun.write(
+		await fsx.write(
 			filePath,
 			`function processItems(items: Item[], options?: Options): Result {
   return items.map(i => i.value);
@@ -491,7 +491,7 @@ describe("plan: unified diff format line numbers", () => {
 		const filePath = path.join(tempDir, "lines.txt");
 		// Create file with 15 lines
 		const lines = Array.from({ length: 15 }, (_, i) => `line ${i + 1}`);
-		await Bun.write(filePath, `${lines.join("\n")}\n`);
+		await fsx.write(filePath, `${lines.join("\n")}\n`);
 
 		// Use unified diff format to target line 10
 		await applyPatch(
@@ -516,7 +516,7 @@ describe("plan: unified diff format line numbers", () => {
 	test("unified diff line numbers take precedence over context search", async () => {
 		const filePath = path.join(tempDir, "repeat.txt");
 		// Same pattern appears at lines 3 and 8
-		await Bun.write(
+		await fsx.write(
 			filePath,
 			`header
 line 2
@@ -563,7 +563,7 @@ describe("plan: Codex-style wrapped patches", () => {
 
 	test("strips *** Begin Patch / *** End Patch wrapper", async () => {
 		const filePath = path.join(tempDir, "wrapped.txt");
-		await Bun.write(filePath, "old content\n");
+		await fsx.write(filePath, "old content\n");
 
 		// Full Codex-style wrapper - the diff inside should be extracted
 		await applyPatch(
@@ -584,7 +584,7 @@ describe("plan: Codex-style wrapped patches", () => {
 
 	test("strips partial wrapper (only *** End Patch)", async () => {
 		const filePath = path.join(tempDir, "partial.txt");
-		await Bun.write(filePath, "original\n");
+		await fsx.write(filePath, "original\n");
 
 		// Only end marker present
 		await applyPatch(
@@ -604,7 +604,7 @@ describe("plan: Codex-style wrapped patches", () => {
 
 	test("strips bare *** terminator (model hallucination)", async () => {
 		const filePath = path.join(tempDir, "bare-asterisk.txt");
-		await Bun.write(filePath, "line1\nline2\nline3\n");
+		await fsx.write(filePath, "line1\nline2\nline3\n");
 
 		// Model sometimes outputs just *** as end marker
 		await applyPatch(
@@ -624,7 +624,7 @@ describe("plan: Codex-style wrapped patches", () => {
 
 	test("strips bare *** terminator in multi-hunk diff", async () => {
 		const filePath = path.join(tempDir, "multi-hunk-asterisk.txt");
-		await Bun.write(filePath, "aaa\nbbb\nccc\nddd\n");
+		await fsx.write(filePath, "aaa\nbbb\nccc\nddd\n");
 
 		// Multiple hunks with *** terminator at end
 		await applyPatch(
@@ -647,7 +647,7 @@ describe("plan: Codex-style wrapped patches", () => {
 
 	test("strips bare *** at beginning of diff", async () => {
 		const filePath = path.join(tempDir, "leading-asterisk.txt");
-		await Bun.write(filePath, "old\n");
+		await fsx.write(filePath, "old\n");
 
 		await applyPatch(
 			{
@@ -666,7 +666,7 @@ describe("plan: Codex-style wrapped patches", () => {
 
 	test("strips unified diff metadata lines", async () => {
 		const filePath = path.join(tempDir, "unified-meta.txt");
-		await Bun.write(filePath, "first\nsecond\nthird\n");
+		await fsx.write(filePath, "first\nsecond\nthird\n");
 
 		// Full unified diff format with metadata
 		await applyPatch(
@@ -762,7 +762,7 @@ describe("regression: *** End of File marker handling (2A/2G)", () => {
 
 	test("*** End of File marker is preserved in hunk parsing", async () => {
 		const filePath = path.join(tempDir, "eof.txt");
-		await Bun.write(filePath, "line1\nline2\nlast line\n");
+		await fsx.write(filePath, "line1\nline2\nlast line\n");
 
 		await applyPatch(
 			{
@@ -782,7 +782,7 @@ describe("regression: *** End of File marker handling (2A/2G)", () => {
 	test("EOF marker targets end of file for pattern matching", async () => {
 		const filePath = path.join(tempDir, "eof-target.txt");
 		// Pattern appears twice - EOF should target the last one
-		await Bun.write(filePath, "item\nmore content\nitem\n");
+		await fsx.write(filePath, "item\nmore content\nitem\n");
 
 		await applyPatch(
 			{
@@ -836,7 +836,7 @@ describe("regression: model edit attempt - @@ line N syntax (session 2026-01-19)
 				lines.push(`// line ${i}`);
 			}
 		}
-		await Bun.write(filePath, `${lines.join("\n")}\n`);
+		await fsx.write(filePath, `${lines.join("\n")}\n`);
 
 		// Model's actual attempt: used @@ line 125 as anchor
 		await applyPatch(
@@ -873,7 +873,7 @@ describe("regression: model edit attempt - nested @@ anchors (session 2026-01-19
 
 	test("@@ class X followed by @@   method on next line is parsed as nested anchors", async () => {
 		const filePath = path.join(tempDir, "patch.ts");
-		await Bun.write(
+		await fsx.write(
 			filePath,
 			`class OtherTool {
 	constructor(session: ToolSession) {
@@ -916,7 +916,7 @@ class PatchTool {
 
 	test("nested @@ anchors disambiguate between multiple matching methods", async () => {
 		const filePath = path.join(tempDir, "multi-class.ts");
-		await Bun.write(
+		await fsx.write(
 			filePath,
 			`class Alpha {
 	process() {
@@ -966,7 +966,7 @@ describe("regression: model edit attempt - space-separated anchors (session 2026
 
 	test("@@ class PatchTool constructor is parsed as hierarchical anchors", async () => {
 		const filePath = path.join(tempDir, "tool.ts");
-		await Bun.write(
+		await fsx.write(
 			filePath,
 			`class OtherTool {
 	constructor() {
@@ -1003,7 +1003,7 @@ class PatchTool {
 
 	test("space-separated anchors work with function keyword", async () => {
 		const filePath = path.join(tempDir, "funcs.ts");
-		await Bun.write(
+		await fsx.write(
 			filePath,
 			`function outer() {
 	function helper() {
@@ -1055,7 +1055,7 @@ describe("regression: model edit attempt - unique substring on long line (sessio
 	test("@@ class ClassName matches long export line when unique", async () => {
 		const filePath = path.join(tempDir, "tool.ts");
 		// Real-world pattern: long line with export, implements, generics
-		await Bun.write(
+		await fsx.write(
 			filePath,
 			`import { Something } from "somewhere";
 
@@ -1091,7 +1091,7 @@ export class EditTool implements AgentTool<typeof replaceEditSchema | typeof pat
 
 	test("@@ class ClassName falls back to unique old lines when context is ambiguous", async () => {
 		const filePath = path.join(tempDir, "multi.ts");
-		await Bun.write(
+		await fsx.write(
 			filePath,
 			`export class EditTool implements AgentTool<Schema1, Details1> {
 	value = 1;
@@ -1134,7 +1134,7 @@ describe("regression: bench edit failures (2026-01-19)", () => {
 
 	test("@@ @@ is treated as empty context", async () => {
 		const filePath = path.join(tempDir, "empty-context.txt");
-		await Bun.write(filePath, "alpha\nbeta\ngamma\n");
+		await fsx.write(filePath, "alpha\nbeta\ngamma\n");
 
 		await applyPatch(
 			{
@@ -1156,7 +1156,7 @@ describe("regression: bench edit failures (2026-01-19)", () => {
 		["@@ @@ line 3", 3],
 	])("line hint variants (%s) target the correct line", async (header: string, targetLine: number) => {
 		const filePath = path.join(tempDir, `line-hint-${targetLine}.txt`);
-		await Bun.write(filePath, "line 1\nline 2\nline 3\nline 4\nline 5\n");
+		await fsx.write(filePath, "line 1\nline 2\nline 3\nline 4\nline 5\n");
 
 		await applyPatch(
 			{
@@ -1173,7 +1173,7 @@ describe("regression: bench edit failures (2026-01-19)", () => {
 
 	test("top of file header anchors to line 1", async () => {
 		const filePath = path.join(tempDir, "top-of-file.txt");
-		await Bun.write(filePath, "first\nsecond\n");
+		await fsx.write(filePath, "first\nsecond\n");
 
 		await applyPatch(
 			{
@@ -1189,7 +1189,7 @@ describe("regression: bench edit failures (2026-01-19)", () => {
 
 	test("function name with empty params matches signature", async () => {
 		const filePath = path.join(tempDir, "functions.ts");
-		await Bun.write(
+		await fsx.write(
 			filePath,
 			`function retryIfBlockedOn(reason: string) {\n  return reason;\n}\n\nfunction describeNode(node: object) {\n  return String(node);\n}\n`,
 		);
@@ -1219,7 +1219,7 @@ describe("regression: bench edit failures (2026-01-19)", () => {
 
 	test("label context falls back to unique old lines", async () => {
 		const filePath = path.join(tempDir, "imports.js");
-		await Bun.write(
+		await fsx.write(
 			filePath,
 			`import { startLoggingProfilingEvents, stopLoggingProfilingEvents } from "../SchedulerProfiling";\n\nexport function run() {\n  return startLoggingProfilingEvents();\n}\n`,
 		);
@@ -1240,7 +1240,7 @@ describe("regression: bench edit failures (2026-01-19)", () => {
 
 	test("ambiguous @@ context resolves via unique old lines", async () => {
 		const filePath = path.join(tempDir, "ambiguous.ts");
-		await Bun.write(
+		await fsx.write(
 			filePath,
 			`function getState() {\n  return 1;\n}\n\nfunction getState() {\n  return 2;\n}\n\nfunction getState() {\n  return 3;\n}\n`,
 		);
@@ -1262,7 +1262,7 @@ describe("regression: bench edit failures (2026-01-19)", () => {
 
 	test("duplicate context lines collapse for matching", async () => {
 		const filePath = path.join(tempDir, "duplicate-context.txt");
-		await Bun.write(filePath, "alpha\nbeta\ngamma\n");
+		await fsx.write(filePath, "alpha\nbeta\ngamma\n");
 
 		await applyPatch(
 			{
@@ -1278,7 +1278,7 @@ describe("regression: bench edit failures (2026-01-19)", () => {
 
 	test("repeated context blocks collapse when duplicated", async () => {
 		const filePath = path.join(tempDir, "repeated-block.txt");
-		await Bun.write(filePath, "if (ready) {\n  handle();\n}\n");
+		await fsx.write(filePath, "if (ready) {\n  handle();\n}\n");
 
 		await applyPatch(
 			{
@@ -1294,7 +1294,7 @@ describe("regression: bench edit failures (2026-01-19)", () => {
 
 	test("shared prefix/suffix context is trimmed when mismatched", async () => {
 		const filePath = path.join(tempDir, "trim-context.txt");
-		await Bun.write(filePath, "function doThing() {\n  return 1;\n}\n");
+		await fsx.write(filePath, "function doThing() {\n  return 1;\n}\n");
 
 		await applyPatch(
 			{
@@ -1310,7 +1310,7 @@ describe("regression: bench edit failures (2026-01-19)", () => {
 
 	test("single-line change fallback uses the unique changed line", async () => {
 		const filePath = path.join(tempDir, "single-line-change.txt");
-		await Bun.write(filePath, "function getState() {\n  return 1;\n}\n\nfunction getState() {\n  return 2;\n}\n");
+		await fsx.write(filePath, "function getState() {\n  return 1;\n}\n\nfunction getState() {\n  return 2;\n}\n");
 
 		await applyPatch(
 			{
@@ -1328,7 +1328,7 @@ describe("regression: bench edit failures (2026-01-19)", () => {
 
 	test("implicit context lines without prefixes are accepted", async () => {
 		const filePath = path.join(tempDir, "implicit-context.ts");
-		await Bun.write(
+		await fsx.write(
 			filePath,
 			`function getMousePosition(\n  relativeContainer: null,\n  mouseEvent: SyntheticMouseEvent,\n) {\n  if (relativeContainer !== null) {\n    return initialTooltipState;\n  }\n}\n`,
 		);
@@ -1348,7 +1348,7 @@ describe("regression: bench edit failures (2026-01-19)", () => {
 	test("context lines preserve original file indentation when fuzzy matched", async () => {
 		const filePath = path.join(tempDir, "context-indent.js");
 		// File has 4-space indentation throughout the table
-		await Bun.write(
+		await fsx.write(
 			filePath,
 			`export function describeWithPointerEvent(message, describeFn) {
   const pointerEvent = 'PointerEvent';
@@ -1392,7 +1392,7 @@ describe("regression: bench edit failures (2026-01-19)", () => {
 
 	test("duplicate context lines are resolved via adjacent match to @@ anchor", async () => {
 		const filePath = path.join(tempDir, "ReactFlightDOMClientNode.js");
-		await Bun.write(
+		await fsx.write(
 			filePath,
 			`const handleEnd = () => {
   if (--streamEndedCount === 2) {
@@ -1425,7 +1425,7 @@ describe("regression: bench edit failures (2026-01-19)", () => {
 
 	test("strip line-number prefixes from diff content", async () => {
 		const filePath = path.join(tempDir, "line-numbers.txt");
-		await Bun.write(
+		await fsx.write(
 			filePath,
 			`Permission is hereby granted, free of charge\nA copy of this software and associated docs\nThe above copyright notice\n`,
 		);
@@ -1445,7 +1445,7 @@ describe("regression: bench edit failures (2026-01-19)", () => {
 
 	test("ellipsis placeholder lines are ignored during matching", async () => {
 		const filePath = path.join(tempDir, "ellipsis.ts");
-		await Bun.write(
+		await fsx.write(
 			filePath,
 			`function progress(done: boolean, value: string) {\n  if (done) {\n    return;\n  }\n  const buffer = value;\n  return buffer;\n}\n`,
 		);
@@ -1464,7 +1464,7 @@ describe("regression: bench edit failures (2026-01-19)", () => {
 
 	test("context anchor retryIfBlockedOn() matches signature without params", async () => {
 		const filePath = path.join(tempDir, "context-anchor.ts");
-		await Bun.write(filePath, `function retryIfBlockedOn(reason: string, blockedOn: mixed) {\n  return reason;\n}\n`);
+		await fsx.write(filePath, `function retryIfBlockedOn(reason: string, blockedOn: mixed) {\n  return reason;\n}\n`);
 
 		await applyPatch(
 			{
@@ -1480,7 +1480,7 @@ describe("regression: bench edit failures (2026-01-19)", () => {
 
 	test("ambiguous context falls back to unique old lines", async () => {
 		const filePath = path.join(tempDir, "ambiguous-context.ts");
-		await Bun.write(
+		await fsx.write(
 			filePath,
 			`function getState() {\n  return 1;\n}\n\nfunction getState() {\n  return 2;\n}\n\nfunction getState() {\n  return 3;\n}\n`,
 		);
@@ -1502,7 +1502,7 @@ describe("regression: bench edit failures (2026-01-19)", () => {
 
 	test("comment-prefix mismatches still match expected lines", async () => {
 		const filePath = path.join(tempDir, "comment-prefix.txt");
-		await Bun.write(
+		await fsx.write(
 			filePath,
 			`/*\n * LICENSE file in the root directory.\n * Copyright (c) Meta Platforms, Inc.\n */\n`,
 		);
@@ -1521,7 +1521,7 @@ describe("regression: bench edit failures (2026-01-19)", () => {
 
 	test("context-less fuzzy match applies even with spacing differences", async () => {
 		const filePath = path.join(tempDir, "fuzzy-contextless.ts");
-		await Bun.write(filePath, "const value = computeTotal(items);\n");
+		await fsx.write(filePath, "const value = computeTotal(items);\n");
 
 		await applyPatch(
 			{
@@ -1537,7 +1537,7 @@ describe("regression: bench edit failures (2026-01-19)", () => {
 
 	test("@@ header without space is accepted", async () => {
 		const filePath = path.join(tempDir, "header-nospace.ts");
-		await Bun.write(filePath, `const value = 1;\nconst other = 2;\n`);
+		await fsx.write(filePath, `const value = 1;\nconst other = 2;\n`);
 
 		await applyPatch(
 			{
@@ -1567,7 +1567,7 @@ describe("regression: trailing context lines don't delete file content", () => {
 	test("context lines cannot cause collateral deletion via fuzzy match", async () => {
 		const filePath = path.join(tempDir, "file.ts");
 		// File has extra content between what the diff shows as context
-		await Bun.write(
+		await fsx.write(
 			filePath,
 			`function outer() {
   function inner() {
@@ -1604,7 +1604,7 @@ describe("regression: trailing context lines don't delete file content", () => {
 
 	test("unprefixed blank line between changes and trailing context", async () => {
 		const filePath = path.join(tempDir, "terminal.ts");
-		await Bun.write(
+		await fsx.write(
 			filePath,
 			`export class Example {
 	private field = false;
@@ -1639,7 +1639,7 @@ describe("regression: trailing context lines don't delete file content", () => {
 
 	test("two-hunk diff with trailing getter context preserves getter body", async () => {
 		const filePath = path.join(tempDir, "terminal.ts");
-		await Bun.write(
+		await fsx.write(
 			filePath,
 			`export class ProcessTerminal implements Terminal {
 	private wasRaw = false;
@@ -1715,7 +1715,7 @@ describe("regression: trailing context lines don't delete file content", () => {
 	test("context anchor duplicated as first context line preserves file content", async () => {
 		const filePath = path.join(tempDir, "terminal.ts");
 		// Original file - exact structure from user's report
-		await Bun.write(
+		await fsx.write(
 			filePath,
 			`export class ProcessTerminal implements Terminal {
 	private wasRaw = false;
@@ -1761,7 +1761,7 @@ describe("regression: trailing context lines don't delete file content", () => {
 	test("adding field with getter as trailing context preserves getter body", async () => {
 		const filePath = path.join(tempDir, "terminal.ts");
 		// Original file has a getter with a body
-		await Bun.write(
+		await fsx.write(
 			filePath,
 			`export class ProcessTerminal {
 	private _kittyProtocolActive = false;
@@ -1833,7 +1833,7 @@ describe("regression: context-only hunks between @@ markers must not change inde
 			"}",
 			"",
 		].join("\n");
-		await Bun.write(filePath, fileContent);
+		await fsx.write(filePath, fileContent);
 
 		// Exact patch from the regression case (spaces in diff, tabs in file).
 		// The lines between the first @@ and second @@ are pure context.
@@ -1878,7 +1878,7 @@ describe("regression: context-only hunks between @@ markers must not change inde
 			"}",
 			"",
 		].join("\n");
-		await Bun.write(filePath, fileContent);
+		await fsx.write(filePath, fileContent);
 
 		// Model rendered tabs as 3 cols with 1 extra offset:
 		// 1 tab -> 4 spaces, 2 tabs -> 7 spaces, 3 tabs -> 10 spaces

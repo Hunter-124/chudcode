@@ -6,6 +6,7 @@ import {
 	openArchive,
 	parseArchivePathCandidates,
 } from "@oh-my-pi/pi-utils/ar";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import type { ToolSession } from "../sdk";
 import { truncateHead } from "../session/streaming-output";
 import { applyListLimit } from "./list-limit";
@@ -46,7 +47,7 @@ export async function resolveArchiveReadPath(
 		let suffixResolution: { from: string; to: string } | undefined;
 
 		try {
-			const stat = await Bun.file(absolutePath).stat();
+			const stat = await fsx.stat(absolutePath);
 			if (stat.isDirectory()) continue;
 			return {
 				absolutePath,
@@ -60,7 +61,7 @@ export async function resolveArchiveReadPath(
 			if (!suffixMatch) continue;
 
 			try {
-				const retryStat = await Bun.file(suffixMatch.absolutePath).stat();
+				const retryStat = await fsx.stat(suffixMatch.absolutePath);
 				if (retryStat.isDirectory()) continue;
 
 				absolutePath = suffixMatch.absolutePath;

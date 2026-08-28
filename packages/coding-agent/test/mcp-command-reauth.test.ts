@@ -114,7 +114,7 @@ describe("/mcp auth commands", () => {
 		process.env.MCP_HOST = "mcp.example.com";
 		setProjectDir(projectDir);
 		setAgentDir(agentDir);
-		await Bun.write(
+		await fsx.write(
 			configPath,
 			`${JSON.stringify(
 				{
@@ -668,7 +668,7 @@ describe("/mcp auth commands", () => {
 		const originalClientSecret = process.env.MCP_OAUTH_CLIENT_SECRET;
 		process.env.MCP_OAUTH_CLIENT_ID = "expanded-client-id";
 		process.env.MCP_OAUTH_CLIENT_SECRET = "expanded-client-secret";
-		await Bun.write(
+		await fsx.write(
 			configPath,
 			`${JSON.stringify(
 				{

@@ -1099,7 +1099,7 @@ interface VerdictCache {
 
 async function loadVerdictCache(): Promise<VerdictCache> {
 	try {
-		const parsed = (await Bun.file(CACHE_PATH).json()) as Partial<VerdictCache> | null;
+		const parsed = (await fsx.readJson(CACHE_PATH)) as Partial<VerdictCache> | null;
 		if (parsed && typeof parsed === "object" && parsed.entries && typeof parsed.entries === "object") {
 			return { entries: parsed.entries };
 		}

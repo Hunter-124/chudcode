@@ -202,7 +202,7 @@ describe("managed-skills primitives", () => {
 			await writeManagedSkill({ action: "create", name: "linky", description: "d", body: "real" });
 			const outside = await fs.mkdtemp(path.join(os.tmpdir(), "omp-link-"));
 			const target = path.join(outside, "target.md");
-			await Bun.write(target, "outside content");
+			await fsx.write(target, "outside content");
 			try {
 				await removeWithRetries(skillFile("linky"));
 				await fs.symlink(target, skillFile("linky"));
@@ -218,7 +218,7 @@ describe("managed-skills primitives", () => {
 		it("refuses to update a SKILL.md that is hard-linked outside managed skills", async () => {
 			await writeManagedSkill({ action: "create", name: "hardlink", description: "d", body: "managed content" });
 			const outside = path.join(tempHome, "authored-hardlink.md");
-			await Bun.write(outside, "user-authored content");
+			await fsx.write(outside, "user-authored content");
 			await removeWithRetries(skillFile("hardlink"));
 			await fs.link(outside, skillFile("hardlink"));
 
@@ -242,7 +242,7 @@ describe("managed-skills primitives", () => {
 			const managedRoot = getManagedSkillsDir();
 			await fs.mkdir(managedRoot, { recursive: true });
 			const outside = await fs.mkdtemp(path.join(os.tmpdir(), "omp-deltarget-"));
-			await Bun.write(path.join(outside, "keep.txt"), "keep");
+			await fsx.write(path.join(outside, "keep.txt"), "keep");
 			try {
 				await fs.symlink(outside, path.join(managedRoot, "linked"));
 				await expect(deleteManagedSkill("linked")).rejects.toThrow(/symlink/);

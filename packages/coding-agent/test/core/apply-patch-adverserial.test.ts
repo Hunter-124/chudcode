@@ -24,7 +24,7 @@ describe("applyPatch adversarial inputs", () => {
 
 	test("rejects rename when it matches path", async () => {
 		const filePath = path.join(tempDir, "same.txt");
-		await Bun.write(filePath, "foo\n");
+		await fsx.write(filePath, "foo\n");
 
 		await expect(
 			applyPatch({ path: "same.txt", op: "update", rename: "same.txt", diff: "@@\n-foo\n+bar" }, { cwd: tempDir }),
@@ -35,7 +35,7 @@ describe("applyPatch adversarial inputs", () => {
 
 	test("respects changeContext for pure additions", async () => {
 		const filePath = path.join(tempDir, "add-context.ts");
-		await Bun.write(filePath, "function foo() {\n  return 1;\n}\nfunction bar() {\n  return 2;\n}\n");
+		await fsx.write(filePath, "function foo() {\n  return 1;\n}\nfunction bar() {\n  return 2;\n}\n");
 
 		await applyPatch(
 			{
@@ -53,7 +53,7 @@ describe("applyPatch adversarial inputs", () => {
 
 	test("rejects multi-file patch markers in a single-file update", async () => {
 		const filePath = path.join(tempDir, "single.txt");
-		await Bun.write(filePath, "foo\nbar\n");
+		await fsx.write(filePath, "foo\nbar\n");
 
 		await expect(
 			applyPatch(
@@ -69,7 +69,7 @@ describe("applyPatch adversarial inputs", () => {
 
 	test("preserves context lines that look like diff metadata", async () => {
 		const filePath = path.join(tempDir, "metadata-context.txt");
-		await Bun.write(filePath, "diff --git a b\nalpha\nmid\ndiff --git a b\nalpha\n");
+		await fsx.write(filePath, "diff --git a b\nalpha\nmid\ndiff --git a b\nalpha\n");
 
 		await applyPatch(
 			{
@@ -85,7 +85,7 @@ describe("applyPatch adversarial inputs", () => {
 
 	test("applies hunks regardless of order", async () => {
 		const filePath = path.join(tempDir, "order.txt");
-		await Bun.write(filePath, "first\nkeep\nsecond\nkeep\n");
+		await fsx.write(filePath, "first\nkeep\nsecond\nkeep\n");
 
 		await applyPatch(
 			{
@@ -101,7 +101,7 @@ describe("applyPatch adversarial inputs", () => {
 
 	test("rejects ambiguous changeContext matches", async () => {
 		const filePath = path.join(tempDir, "ambiguous-context.ts");
-		await Bun.write(filePath, "if (a) {\n  return foo;\n}\nif (b) {\n  return foo;\n}\n");
+		await fsx.write(filePath, "if (a) {\n  return foo;\n}\nif (b) {\n  return foo;\n}\n");
 
 		await expect(
 			applyPatch(
@@ -117,7 +117,7 @@ describe("applyPatch adversarial inputs", () => {
 
 	test("rejects ambiguous prefix/substring matches", async () => {
 		const filePath = path.join(tempDir, "ambiguous-prefix.ts");
-		await Bun.write(filePath, "const enabled = true;\nconst enabled = true; // secondary\n");
+		await fsx.write(filePath, "const enabled = true;\nconst enabled = true; // secondary\n");
 
 		await expect(
 			applyPatch(
@@ -133,7 +133,7 @@ describe("applyPatch adversarial inputs", () => {
 
 	test("rejects out-of-range line hints for insertions", async () => {
 		const filePath = path.join(tempDir, "line-hint.txt");
-		await Bun.write(filePath, "a\nb\n");
+		await fsx.write(filePath, "a\nb\n");
 
 		await expect(
 			applyPatch(
@@ -149,7 +149,7 @@ describe("applyPatch adversarial inputs", () => {
 
 	test("retains trailing blank context lines for disambiguation", async () => {
 		const filePath = path.join(tempDir, "blank-context.txt");
-		await Bun.write(filePath, "section\nvalue\nx\nsection\nvalue\n\n");
+		await fsx.write(filePath, "section\nvalue\nx\nsection\nvalue\n\n");
 
 		await applyPatch(
 			{
@@ -165,7 +165,7 @@ describe("applyPatch adversarial inputs", () => {
 
 	test("fuzzy under-indented context can shift indentation", async () => {
 		const filePath = path.join(tempDir, "under-indent.ts");
-		await Bun.write(
+		await fsx.write(
 			filePath,
 			"function sum(values, offset) {\n" +
 				"  let total = 0;\n" +
@@ -211,7 +211,7 @@ describe("applyPatch adversarial inputs", () => {
 
 	test("preserves CRLF endings and trailing newline", async () => {
 		const filePath = path.join(tempDir, "crlf.txt");
-		await Bun.write(filePath, "foo\r\nbar\r\n");
+		await fsx.write(filePath, "foo\r\nbar\r\n");
 
 		await applyPatch({ path: "crlf.txt", op: "update", diff: "@@\n-foo\n+FOO" }, { cwd: tempDir });
 
@@ -231,7 +231,7 @@ describe("applyPatch adversarial inputs", () => {
 
 	test("preserves missing trailing newline", async () => {
 		const filePath = path.join(tempDir, "nonewline.txt");
-		await Bun.write(filePath, "foo\nbar");
+		await fsx.write(filePath, "foo\nbar");
 
 		await applyPatch({ path: "nonewline.txt", op: "update", diff: "@@\n-bar\n+baz" }, { cwd: tempDir });
 
@@ -242,7 +242,7 @@ describe("applyPatch adversarial inputs", () => {
 	test("normalizes tab-indented diff to space-indented file", async () => {
 		const filePath = path.join(tempDir, "tabs-to-spaces.js");
 		// File uses 4-space indentation
-		await Bun.write(
+		await fsx.write(
 			filePath,
 			`class Foo {
     method() {
@@ -279,7 +279,7 @@ describe("applyPatch adversarial inputs", () => {
 
 	test("preserves indentation when trailing context has less indent than additions", async () => {
 		const filePath = path.join(tempDir, "dedent-context.js");
-		await Bun.write(
+		await fsx.write(
 			filePath,
 			`class Foo {
     method() {

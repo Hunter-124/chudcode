@@ -659,8 +659,8 @@ describe("AgentLifecycleManager", () => {
 		const rootSessionFile = path.join(tempDir.path(), "main.jsonl");
 		const workerId = "Killed-Sub";
 		const workerSessionFile = path.join(tempDir.path(), "main", `${workerId}.jsonl`);
-		await Bun.write(rootSessionFile, "");
-		await Bun.write(workerSessionFile, "");
+		await fsx.write(rootSessionFile, "");
+		await fsx.write(workerSessionFile, "");
 
 		// Mirror the real wrapped session dispose (createAgentSession's
 		// `unregisterUnlessParked`): disposing a live session unregisters the ref

@@ -20,8 +20,9 @@ import { runPluginCommand } from "@oh-my-pi/pi-coding-agent/cli/plugin-cli";
 import { PluginManager } from "@oh-my-pi/pi-coding-agent/extensibility/plugins/manager";
 import { MarketplaceManager } from "@oh-my-pi/pi-coding-agent/extensibility/plugins/marketplace";
 import type { InstalledPlugin } from "@oh-my-pi/pi-coding-agent/extensibility/plugins/types";
-import { removeWithRetries } from "@oh-my-pi/pi-utils";
 import * as piUtils from "@oh-my-pi/pi-utils";
+import { removeWithRetries } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 
 const FAKE_INSTALLED: InstalledPlugin = {
 	name: "kimi-datasource",
@@ -35,7 +36,7 @@ const FAKE_INSTALLED: InstalledPlugin = {
 async function createLocalPlugin(root: string): Promise<string> {
 	const localPlugin = path.join(root, "kimi-datasource");
 	await fs.mkdir(localPlugin, { recursive: true });
-	await Bun.write(
+	await fsx.write(
 		path.join(localPlugin, "package.json"),
 		JSON.stringify({
 			name: "kimi-datasource",
@@ -135,7 +136,7 @@ describe("runPluginCommand({ action: 'install', args: [<local>] })", () => {
 		expect(stat.isSymbolicLink()).toBe(true);
 		expect(await fs.readlink(linkTarget)).toBe(localPlugin);
 
-		const lock = await Bun.file(path.join(tmpRoot, "omp-plugins.lock.json")).json();
+		const lock = await fsx.readJson(path.join(tmpRoot, "omp-plugins.lock.json"));
 		expect(lock.plugins["kimi-datasource"]).toEqual({
 			version: "1.0.0",
 			enabledFeatures: null,
@@ -159,7 +160,7 @@ describe("runPluginCommand({ action: 'install', args: [<local>] })", () => {
 	});
 
 	test("doctor --fix preserves linked local plugin state without package dependencies", async () => {
-		await Bun.write(
+		await fsx.write(
 			path.join(tmpRoot, "plugins", "package.json"),
 			JSON.stringify({ name: "omp-plugins", private: true, dependencies: {} }),
 		);
@@ -170,7 +171,7 @@ describe("runPluginCommand({ action: 'install', args: [<local>] })", () => {
 		const checks = await manager.doctor({ fix: true });
 
 		expect(checks.find(check => check.name === "orphan:kimi-datasource")).toBeUndefined();
-		const lock = await Bun.file(path.join(tmpRoot, "omp-plugins.lock.json")).json();
+		const lock = await fsx.readJson(path.join(tmpRoot, "omp-plugins.lock.json"));
 		expect(lock.plugins["kimi-datasource"]).toEqual({
 			version: "1.0.0",
 			enabledFeatures: null,

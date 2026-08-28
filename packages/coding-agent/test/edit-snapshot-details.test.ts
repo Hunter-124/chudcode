@@ -19,6 +19,7 @@ import {
 import { writethroughNoop } from "@oh-my-pi/pi-coding-agent/lsp";
 import type { ToolSession } from "@oh-my-pi/pi-coding-agent/tools";
 import { removeWithRetries } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 
 function makeSession(cwd: string): ToolSession {
 	return {
@@ -131,7 +132,7 @@ describe("pruneOversizedEditSnapshots", () => {
 
 describe("executePatchSingle on oversized files", () => {
 	test("prunes oldText / newText while keeping diff and path", async () => {
-		await Bun.write(path.join(tempDir, "big.txt"), `${FILLER}anchor\n${FILLER}`);
+		await fsx.write(path.join(tempDir, "big.txt"), `${FILLER}anchor\n${FILLER}`);
 
 		const result = await executePatchSingle({
 			session: makeSession(tempDir),
@@ -158,7 +159,7 @@ describe("executePatchSingle on oversized files", () => {
 
 describe("executeReplace on oversized files", () => {
 	test("prunes oldText / newText while keeping diff", async () => {
-		await Bun.write(path.join(tempDir, "big.txt"), `${FILLER}LINE A\n${FILLER}`);
+		await fsx.write(path.join(tempDir, "big.txt"), `${FILLER}LINE A\n${FILLER}`);
 
 		const result = await executeReplace({
 			session: makeSession(tempDir),
@@ -185,7 +186,7 @@ describe("EditTool single-path aggregation across mixed-size entries", () => {
 		// Without the marker, the aggregator would record the second entry's
 		// small oldText as the whole-file pre-image and ACP clients would
 		// render a misleading partial diff.
-		await Bun.write(path.join(tempDir, "shrink.txt"), `${FILLER}TAIL\n`);
+		await fsx.write(path.join(tempDir, "shrink.txt"), `${FILLER}TAIL\n`);
 
 		// Patch mode is the remaining multi-entry single-path producer (replace
 		// takes exactly one edit per call): entry 1 shrinks the file, entry 2
@@ -238,7 +239,7 @@ describe("executeHashlineSingle multi-section aggregate cap", () => {
 		for (let i = 0; i < fileCount; i++) {
 			const filePath = path.join(tempDir, `f${i}.ts`);
 			const source = `header${i}\n${filler}`;
-			await Bun.write(filePath, source);
+			await fsx.write(filePath, source);
 			const tag = getFileSnapshotStore(session).record(canonicalSnapshotKey(filePath), source);
 			tags.push(tag);
 		}
@@ -252,7 +253,7 @@ describe("executeHashlineSingle multi-section aggregate cap", () => {
 			session,
 			input,
 			writethrough: async (targetPath, content) => {
-				await Bun.write(targetPath, content);
+				await fsx.write(targetPath, content);
 				return undefined;
 			},
 			beginDeferredDiagnosticsForPath: noopBeginDeferred,

@@ -10,6 +10,7 @@ import type {
 	RpcHostToolUpdate,
 } from "@oh-my-pi/pi-coding-agent/modes/rpc/rpc-types";
 import { removeWithRetries } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 
 const tempPaths: string[] = [];
 
@@ -118,7 +119,7 @@ describe("RpcClient custom tools", () => {
 	it("registers host custom tools and serves tool calls over the RPC transport", async () => {
 		const scriptPath = path.join(os.tmpdir(), `omp-rpc-host-tools-${Date.now()}.js`);
 		tempPaths.push(scriptPath);
-		await Bun.write(
+		await fsx.write(
 			scriptPath,
 			`
 const encoder = new TextEncoder();

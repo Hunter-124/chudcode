@@ -10,6 +10,7 @@ import { loadSessionExtensions } from "@oh-my-pi/pi-coding-agent/sdk";
 import { SessionManager } from "@oh-my-pi/pi-coding-agent/session/session-manager";
 import { EventBus } from "@oh-my-pi/pi-coding-agent/utils/event-bus";
 import { TempDir } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import { createInMemoryAuthStorage } from "./helpers/agent-session-setup";
 
 let tempDir: TempDir;
@@ -42,8 +43,8 @@ test("trusted extension allowlists are canonical and cannot be expanded by retar
 	const trustedTarget = tempDir.join("trusted-target.ts");
 	const replacementDir = tempDir.join("replacement");
 	const trustedLink = tempDir.join("trusted.ts");
-	await Bun.write(trustedTarget, "export default function () {}");
-	await Bun.write(`${replacementDir}/ambient.ts`, "export default function () {}");
+	await fsx.write(trustedTarget, "export default function () {}");
+	await fsx.write(`${replacementDir}/ambient.ts`, "export default function () {}");
 	await symlink(trustedTarget, trustedLink);
 
 	const parsed = parseArgs(["--trusted-extension", trustedLink]);

@@ -5,12 +5,13 @@ import * as path from "node:path";
 import { tryRunRpcSkillCommand } from "@oh-my-pi/pi-coding-agent/modes/rpc/rpc-mode";
 import { type CustomMessage, SKILL_PROMPT_MESSAGE_TYPE } from "@oh-my-pi/pi-coding-agent/session/messages";
 import { removeWithRetries, Snowflake } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 
 describe("tryRunRpcSkillCommand", () => {
 	test("dispatches registered /skill commands as skill prompt messages", async () => {
 		const dir = await fs.mkdtemp(path.join(os.tmpdir(), `omp-rpc-skill-${Snowflake.next()}-`));
 		const skillPath = path.join(dir, "SKILL.md");
-		await Bun.write(
+		await fsx.write(
 			skillPath,
 			"---\nname: reviewer\ndescription: Review code\n---\n\nReview the supplied code carefully.\n",
 		);
@@ -47,7 +48,7 @@ describe("tryRunRpcSkillCommand", () => {
 	test("honors the RPC prompt streaming behavior for registered /skill commands", async () => {
 		const dir = await fs.mkdtemp(path.join(os.tmpdir(), `omp-rpc-skill-${Snowflake.next()}-`));
 		const skillPath = path.join(dir, "SKILL.md");
-		await Bun.write(
+		await fsx.write(
 			skillPath,
 			"---\nname: reviewer\ndescription: Review code\n---\n\nReview the supplied code carefully.\n",
 		);
@@ -100,7 +101,7 @@ describe("tryRunRpcSkillCommand", () => {
 	test("does not steal builtin slash-command arguments that mention registered skills", async () => {
 		const dir = await fs.mkdtemp(path.join(os.tmpdir(), `omp-rpc-skill-${Snowflake.next()}-`));
 		const skillPath = path.join(dir, "SKILL.md");
-		await Bun.write(
+		await fsx.write(
 			skillPath,
 			"---\nname: reviewer\ndescription: Review code\n---\n\nReview the supplied code carefully.\n",
 		);

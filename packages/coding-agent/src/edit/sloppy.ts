@@ -2,6 +2,7 @@ import * as nodePath from "node:path";
 import { type } from "@oh-my-pi/omptype";
 import type { AgentToolResult } from "@oh-my-pi/pi-agent-core";
 import { isEnoent } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import type { FileDiagnosticsResult, WritethroughCallback, WritethroughDeferredHandle } from "../lsp";
 import type { ToolSession } from "../tools";
 import { routeWriteThroughBridge } from "../tools/acp-bridge";
@@ -3873,14 +3874,14 @@ export async function executeSloppy(
 		let path = section.path;
 		let absolutePath = resolvePlanPath(session, path);
 		try {
-			await Bun.file(absolutePath).stat();
+			await fsx.stat(absolutePath);
 		} catch (error) {
 			if (!isEnoent(error)) throw error;
 			const stripped = path.replace(/:[^/:]*$/, "");
 			if (stripped && stripped !== path) {
 				const strippedAbsolute = resolvePlanPath(session, stripped);
 				try {
-					await Bun.file(strippedAbsolute).stat();
+					await fsx.stat(strippedAbsolute);
 					path = stripped;
 					absolutePath = strippedAbsolute;
 				} catch (strippedError) {

@@ -160,7 +160,7 @@ async function collectTargets(): Promise<{ names: string[]; repoFromManifest: st
 	const names: string[] = [];
 	let repoFromManifest: string | null = null;
 	for (const pkg of packages) {
-		const manifest = (await Bun.file(path.join(repoRoot, pkg.dir, "package.json")).json()) as ManifestShape;
+		const manifest = (await fsx.readJson(path.join(repoRoot, pkg.dir, "package.json"))) as ManifestShape;
 		if (manifest.private) continue;
 		repoFromManifest ??= parseRepo(manifest.repository);
 		if (typeof manifest.name === "string" && !seen.has(manifest.name)) {

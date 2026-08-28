@@ -231,7 +231,7 @@ describe("MarketplaceManager", () => {
 		const linkPath = path.join(ctx.tmpDir, "node_modules", "hello-plugin");
 		expect(fs.realpathSync(linkPath)).toBe(fs.realpathSync(instEntry.installPath));
 
-		const runtimeConfig = await Bun.file(path.join(ctx.tmpDir, "omp-plugins.lock.json")).json();
+		const runtimeConfig = await fsx.readJson(path.join(ctx.tmpDir, "omp-plugins.lock.json"));
 		expect(runtimeConfig.plugins["hello-plugin"]).toEqual({
 			version: "1.0.0",
 			enabledFeatures: null,
@@ -248,7 +248,7 @@ describe("MarketplaceManager", () => {
 		const pluginDir = path.join(marketplaceDir, "plugins", "bad-package");
 		fs.mkdirSync(path.join(marketplaceDir, ".claude-plugin"), { recursive: true });
 		fs.mkdirSync(pluginDir, { recursive: true });
-		await Bun.write(
+		await fsx.write(
 			path.join(marketplaceDir, ".claude-plugin", "marketplace.json"),
 			`${JSON.stringify(
 				{
@@ -260,8 +260,8 @@ describe("MarketplaceManager", () => {
 				2,
 			)}\n`,
 		);
-		await Bun.write(path.join(pluginDir, "package.json"), `${JSON.stringify({ name: "../outside" })}\n`);
-		await Bun.write(path.join(ctx.tmpDir, "outside"), "sentinel\n");
+		await fsx.write(path.join(pluginDir, "package.json"), `${JSON.stringify({ name: "../outside" })}\n`);
+		await fsx.write(path.join(ctx.tmpDir, "outside"), "sentinel\n");
 
 		await ctx.manager.addMarketplace(marketplaceDir);
 		await expect(ctx.manager.installPlugin("bad-package", "bad-package-marketplace")).rejects.toThrow(
@@ -314,7 +314,7 @@ describe("MarketplaceManager", () => {
 		await ctx.manager.installPlugin("hello-plugin", "test-marketplace");
 
 		const registryPath = path.join(ctx.tmpDir, "installed_plugins.json");
-		const registry = (await Bun.file(registryPath).json()) as {
+		const registry = (await fsx.readJson(registryPath)) as {
 			version: number;
 			plugins: Record<string, Array<Record<string, unknown>>>;
 		};
@@ -323,7 +323,7 @@ describe("MarketplaceManager", () => {
 				delete entry.scope;
 			}
 		}
-		await Bun.write(registryPath, `${JSON.stringify(registry, null, 2)}\n`);
+		await fsx.write(registryPath, `${JSON.stringify(registry, null, 2)}\n`);
 
 		const spies = mockPluginManagerPaths(ctx.tmpDir);
 		try {
@@ -343,7 +343,7 @@ describe("MarketplaceManager", () => {
 		await ctx.manager.installPlugin("hello-plugin", "test-marketplace");
 
 		const localPlugin = path.join(ctx.tmpDir, "local-dev-plugin");
-		await Bun.write(
+		await fsx.write(
 			path.join(localPlugin, "package.json"),
 			`${JSON.stringify({
 				name: "hello-plugin",
@@ -422,7 +422,7 @@ describe("MarketplaceManager", () => {
 			expect(fs.realpathSync(projectLink)).toBe(
 				fs.realpathSync(path.join(userPluginsDir, "cache", "plugins", "test-marketplace___hello-plugin___1.0.0")),
 			);
-			const projectLock = await Bun.file(path.join(projectPluginsDir, "omp-plugins.lock.json")).json();
+			const projectLock = await fsx.readJson(path.join(projectPluginsDir, "omp-plugins.lock.json"));
 			expect(projectLock.plugins["hello-plugin"]).toEqual({
 				version: "1.0.0",
 				enabledFeatures: null,
@@ -442,9 +442,9 @@ describe("MarketplaceManager", () => {
 		const marketplaceDir = path.join(ctx.tmpDir, "config-only-marketplace");
 		const pluginDir = path.join(marketplaceDir, "plugins", "csharp-lsp");
 		await fs.promises.mkdir(pluginDir, { recursive: true });
-		await Bun.write(path.join(pluginDir, "README.md"), "config-only C# LSP plugin\n");
+		await fsx.write(path.join(pluginDir, "README.md"), "config-only C# LSP plugin\n");
 		await fs.promises.mkdir(path.join(marketplaceDir, ".claude-plugin"), { recursive: true });
-		await Bun.write(
+		await fsx.write(
 			path.join(marketplaceDir, ".claude-plugin", "marketplace.json"),
 			`${JSON.stringify(
 				{
@@ -472,7 +472,7 @@ describe("MarketplaceManager", () => {
 		await ctx.manager.addMarketplace(marketplaceDir);
 		const instEntry = await ctx.manager.installPlugin("csharp-lsp", "config-only-marketplace");
 
-		const lspConfig = await Bun.file(path.join(instEntry.installPath, ".lsp.json")).json();
+		const lspConfig = await fsx.readJson(path.join(instEntry.installPath, ".lsp.json"));
 		expect(lspConfig).toEqual({
 			servers: {
 				"csharp-ls": {
@@ -499,9 +499,9 @@ describe("MarketplaceManager", () => {
 		const marketplaceDir = path.join(ctx.tmpDir, "config-only-dap-marketplace");
 		const pluginDir = path.join(marketplaceDir, "plugins", "ruby-dap");
 		await fs.promises.mkdir(pluginDir, { recursive: true });
-		await Bun.write(path.join(pluginDir, "README.md"), "config-only Ruby DAP plugin\n");
+		await fsx.write(path.join(pluginDir, "README.md"), "config-only Ruby DAP plugin\n");
 		await fs.promises.mkdir(path.join(marketplaceDir, ".claude-plugin"), { recursive: true });
-		await Bun.write(
+		await fsx.write(
 			path.join(marketplaceDir, ".claude-plugin", "marketplace.json"),
 			`${JSON.stringify(
 				{
@@ -529,7 +529,7 @@ describe("MarketplaceManager", () => {
 		await ctx.manager.addMarketplace(marketplaceDir);
 		const instEntry = await ctx.manager.installPlugin("ruby-dap", "config-only-dap-marketplace");
 
-		const dapConfig = await Bun.file(path.join(instEntry.installPath, ".dap.json")).json();
+		const dapConfig = await fsx.readJson(path.join(instEntry.installPath, ".dap.json"));
 		expect(dapConfig).toEqual({
 			adapters: {
 				"ruby-debug": {
@@ -544,14 +544,14 @@ describe("MarketplaceManager", () => {
 		const marketplaceDir = path.join(ctx.tmpDir, "yaml-dap-marketplace");
 		const pluginDir = path.join(marketplaceDir, "plugins", "ruby-dap-yaml");
 		await fs.promises.mkdir(pluginDir, { recursive: true });
-		await Bun.write(
+		await fsx.write(
 			path.join(pluginDir, "dap.yaml"),
 			["adapters:", "  ruby-debug:", "    command: ruby-debug-adapter", "    fileTypes:", "      - .rb", ""].join(
 				"\n",
 			),
 		);
 		await fs.promises.mkdir(path.join(marketplaceDir, ".claude-plugin"), { recursive: true });
-		await Bun.write(
+		await fsx.write(
 			path.join(marketplaceDir, ".claude-plugin", "marketplace.json"),
 			`${JSON.stringify(
 				{
@@ -611,7 +611,7 @@ describe("MarketplaceManager", () => {
 		expect(second.installPath).toBe(first.installPath);
 		expect(fs.existsSync(second.installPath)).toBe(true);
 
-		const runtimeConfig = await Bun.file(path.join(ctx.tmpDir, "omp-plugins.lock.json")).json();
+		const runtimeConfig = await fsx.readJson(path.join(ctx.tmpDir, "omp-plugins.lock.json"));
 		expect(runtimeConfig.plugins["hello-plugin"].enabled).toBe(false);
 
 		const installed = await ctx.manager.listInstalledPlugins();
@@ -642,7 +642,7 @@ describe("MarketplaceManager", () => {
 		expect(fs.existsSync(instEntry.installPath)).toBe(false);
 		expect(fs.existsSync(path.join(ctx.tmpDir, "node_modules", "hello-plugin"))).toBe(false);
 
-		const runtimeConfig = await Bun.file(path.join(ctx.tmpDir, "omp-plugins.lock.json")).json();
+		const runtimeConfig = await fsx.readJson(path.join(ctx.tmpDir, "omp-plugins.lock.json"));
 		expect(runtimeConfig.plugins["hello-plugin"]).toBeUndefined();
 
 		const installed = await ctx.manager.listInstalledPlugins();
@@ -667,12 +667,12 @@ describe("MarketplaceManager", () => {
 
 		const installed = await ctx.manager.listInstalledPlugins();
 		expect(installed[0].entries[0].enabled).toBe(false);
-		let runtimeConfig = await Bun.file(path.join(ctx.tmpDir, "omp-plugins.lock.json")).json();
+		let runtimeConfig = await fsx.readJson(path.join(ctx.tmpDir, "omp-plugins.lock.json"));
 		expect(runtimeConfig.plugins["hello-plugin"].enabled).toBe(false);
 
 		await ctx.manager.setPluginEnabled("hello-plugin@test-marketplace", true);
 		const updated = await ctx.manager.listInstalledPlugins();
-		runtimeConfig = await Bun.file(path.join(ctx.tmpDir, "omp-plugins.lock.json")).json();
+		runtimeConfig = await fsx.readJson(path.join(ctx.tmpDir, "omp-plugins.lock.json"));
 		expect(runtimeConfig.plugins["hello-plugin"].enabled).toBe(true);
 		expect(updated[0].entries[0].enabled).toBe(true);
 	});
@@ -696,7 +696,7 @@ describe("MarketplaceManager", () => {
 		};
 		catalog.plugins[0] = { ...catalog.plugins[0] };
 		delete catalog.plugins[0].version;
-		await Bun.write(catalogPath, `${JSON.stringify(catalog, null, 2)}\n`);
+		await fsx.write(catalogPath, `${JSON.stringify(catalog, null, 2)}\n`);
 
 		const instEntry = await ctx.manager.installPlugin("hello-plugin", "test-marketplace");
 		// No catalog version, but fixture's .claude-plugin/plugin.json has version "1.0.0"
@@ -823,7 +823,7 @@ describe("MarketplaceManager", () => {
 			const content = await fsx.readText(catalogPath);
 			const catalog = JSON.parse(content) as { plugins: Array<Record<string, unknown>> };
 			catalog.plugins[0] = { ...catalog.plugins[0], version: newVersion };
-			await Bun.write(catalogPath, `${JSON.stringify(catalog, null, 2)}\n`);
+			await fsx.write(catalogPath, `${JSON.stringify(catalog, null, 2)}\n`);
 		}
 
 		// Directly patch updatedAt in the marketplaces registry file.
@@ -871,7 +871,7 @@ describe("MarketplaceManager", () => {
 			const content = await fsx.readText(catalogPath);
 			const catalog = JSON.parse(content) as { plugins: Array<Record<string, unknown>> };
 			delete catalog.plugins[0].version;
-			await Bun.write(catalogPath, `${JSON.stringify(catalog, null, 2)}\n`);
+			await fsx.write(catalogPath, `${JSON.stringify(catalog, null, 2)}\n`);
 
 			const updates = await ctx.manager.checkForUpdates();
 			expect(updates).toEqual([]);

@@ -168,7 +168,7 @@ export function mergePackageSection(content: string, floorExclusive: string | nu
 
 async function loadPackageName(pkgDir: string): Promise<string> {
 	try {
-		const pkg = (await Bun.file(`${pkgDir}/package.json`).json()) as { name?: unknown };
+		const pkg = (await fsx.readJson(`${pkgDir}/package.json`)) as { name?: unknown };
 		return typeof pkg.name === "string" ? pkg.name : pkgDir;
 	} catch {
 		return pkgDir;

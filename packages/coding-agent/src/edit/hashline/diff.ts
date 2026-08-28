@@ -85,7 +85,7 @@ const STREAMING_TEXT_CACHE_MAX = 8;
 async function readSectionTextCached(absolutePath: string, sectionPath: string): Promise<string> {
 	let stamp: { mtimeMs: number; size: number } | undefined;
 	try {
-		const stat = await Bun.file(absolutePath).stat();
+		const stat = await fsx.stat(absolutePath);
 		stamp = { mtimeMs: stat.mtimeMs, size: stat.size };
 	} catch {
 		stamp = undefined;

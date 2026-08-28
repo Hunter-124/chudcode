@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import * as net from "node:net";
 import * as os from "node:os";
 import * as path from "node:path";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import { ToolError } from "../../tool-errors";
 
 const DEFAULT_CONNECT_TIMEOUT_MS = 10_000;
@@ -198,7 +199,7 @@ export class CmuxSocketClient {
 		const authPath = path.join(os.homedir(), ".cmux", "relay", `${endpoint.port}.auth`);
 		let payload: unknown;
 		try {
-			payload = await Bun.file(authPath).json();
+			payload = await fsx.readJson(authPath);
 		} catch {
 			throw new ToolError(
 				`Missing cmux relay auth metadata for ${endpoint.host}:${endpoint.port}; set CMUX_RELAY_ID/CMUX_RELAY_TOKEN or restore ~/.cmux/relay/${endpoint.port}.auth`,

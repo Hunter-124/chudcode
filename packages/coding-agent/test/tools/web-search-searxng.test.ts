@@ -7,6 +7,7 @@ import { resetSettingsForTest, Settings } from "@oh-my-pi/pi-coding-agent/config
 import { searchSearXNG } from "@oh-my-pi/pi-coding-agent/web/search/providers/searxng";
 import { SearchProviderError } from "@oh-my-pi/pi-coding-agent/web/search/types";
 import { removeWithRetries } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 
 describe("SearXNG web search provider", () => {
 	afterEach(() => {
@@ -124,7 +125,7 @@ describe("SearXNG web search provider", () => {
 	it("sends configured category and safe-search filters and preserves instant answers", async () => {
 		const agentDir = await fs.mkdtemp(path.join(os.tmpdir(), "searxng-filters-"));
 		try {
-			await Bun.write(
+			await fsx.write(
 				path.join(agentDir, "config.yml"),
 				["searxng:", "  endpoint: https://searx.example.org", "  categories: news", "  safesearch: 2", ""].join(
 					"\n",
@@ -167,7 +168,7 @@ describe("SearXNG web search provider", () => {
 	it("reads Basic auth credentials from nested config.yml settings", async () => {
 		const agentDir = await fs.mkdtemp(path.join(os.tmpdir(), "searxng-settings-"));
 		try {
-			await Bun.write(
+			await fsx.write(
 				path.join(agentDir, "config.yml"),
 				[
 					"searxng:",
@@ -339,7 +340,7 @@ describe("SearXNG web search provider", () => {
 	it("resolves engine shortcuts via /config into canonical names for the engines parameter", async () => {
 		const agentDir = await fs.mkdtemp(path.join(os.tmpdir(), "searxng-engines-"));
 		try {
-			await Bun.write(
+			await fsx.write(
 				path.join(agentDir, "config.yml"),
 				[
 					"searxng:",
@@ -387,7 +388,7 @@ describe("SearXNG web search provider", () => {
 	it("passes configured engines verbatim when /config is unavailable", async () => {
 		const agentDir = await fs.mkdtemp(path.join(os.tmpdir(), "searxng-engines-fallback-"));
 		try {
-			await Bun.write(
+			await fsx.write(
 				path.join(agentDir, "config.yml"),
 				["searxng:", "  endpoint: https://searx-noconfig.example.org", '  engines: "ddg,brave"', ""].join("\n"),
 			);

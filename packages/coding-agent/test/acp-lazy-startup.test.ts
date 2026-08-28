@@ -18,6 +18,7 @@ import {
 	type RequestPermissionResponse,
 	type SessionNotification,
 } from "@oh-my-pi/pi-utils/acp";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import { createInMemoryAuthStorage } from "./helpers/agent-session-setup";
 
 const TEST_MODEL: Model = buildModel({
@@ -388,7 +389,7 @@ describe("ACP lazy startup", () => {
 		using tempDir = TempDir.createSync("@omp-acp-lazy-api-key-");
 		const cwd = tempDir.path();
 
-		await Bun.write(
+		await fsx.write(
 			path.join(cwd, "runtime-provider.ts"),
 			`export default function(pi) {
 	pi.registerProvider("runtime-provider", {

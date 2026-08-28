@@ -412,7 +412,7 @@ describe("lsp regressions", () => {
 				1_000,
 			);
 			const filePath = path.join(tempDir.path(), "component.ts");
-			await Bun.write(filePath, "export const component = true;\n");
+			await fsx.write(filePath, "export const component = true;\n");
 			await lspClient.ensureFileOpen(differentLanguage, filePath);
 			const didOpen = await languageServer.waitFor(message => message.method === "textDocument/didOpen");
 			expect(didOpen.params).toMatchObject({ textDocument: { languageId: "typescriptreact" } });
@@ -432,7 +432,7 @@ describe("lsp regressions", () => {
 		const filePath = path.join(tempDir.path(), "foo.gd");
 		const syncedFilePath = path.join(tempDir.path(), "unsaved.gd");
 		try {
-			await Bun.write(
+			await fsx.write(
 				path.join(tempDir.path(), ".omp", "lsp.json"),
 				JSON.stringify({
 					servers: {
@@ -445,7 +445,7 @@ describe("lsp regressions", () => {
 					},
 				}),
 			);
-			await Bun.write(filePath, "extends Node\n");
+			await fsx.write(filePath, "extends Node\n");
 
 			const server = installFakeLsp((message, srv) => {
 				if (message.method === "initialize") {
@@ -1132,8 +1132,8 @@ describe("lsp regressions", () => {
 		const tempDir = TempDir.createSync("@omp-lsp-rust-workspace-");
 		try {
 			const sourcePath = path.join(tempDir.path(), "src", "main.rs");
-			await Bun.write(path.join(tempDir.path(), "Cargo.toml"), '[package]\nname = "fixture"\nversion = "0.0.0"\n');
-			await Bun.write(sourcePath, "fn greet() {}\nfn main() { greet(); }\n");
+			await fsx.write(path.join(tempDir.path(), "Cargo.toml"), '[package]\nname = "fixture"\nversion = "0.0.0"\n');
+			await fsx.write(sourcePath, "fn greet() {}\nfn main() { greet(); }\n");
 
 			const events: string[] = [];
 			let statusRequests = 0;
@@ -1234,7 +1234,7 @@ describe("lsp regressions", () => {
 		const tempDir = TempDir.createSync("@omp-lsp-rust-standalone-");
 		try {
 			const sourcePath = path.join(tempDir.path(), "foo.rs");
-			await Bun.write(sourcePath, 'fn greet() -> &\'static str { "hi" }\n');
+			await fsx.write(sourcePath, 'fn greet() -> &\'static str { "hi" }\n');
 
 			const events: string[] = [];
 			installFakeLsp((message, srv) => {
@@ -1308,9 +1308,9 @@ describe("lsp regressions", () => {
 		const tempDir = TempDir.createSync("@omp-lsp-glob-");
 		try {
 			await Promise.all([
-				Bun.write(path.join(tempDir.path(), "a.ts"), "export const a = 1;\n"),
-				Bun.write(path.join(tempDir.path(), "b.ts"), "export const b = 1;\n"),
-				Bun.write(path.join(tempDir.path(), "c.ts"), "export const c = 1;\n"),
+				fsx.write(path.join(tempDir.path(), "a.ts"), "export const a = 1;\n"),
+				fsx.write(path.join(tempDir.path(), "b.ts"), "export const b = 1;\n"),
+				fsx.write(path.join(tempDir.path(), "c.ts"), "export const c = 1;\n"),
 			]);
 			const result = await collectGlobMatches("*.ts", tempDir.path(), 2);
 			expect(result.matches).toHaveLength(2);
@@ -1334,7 +1334,7 @@ describe("lsp regressions", () => {
 				"opengraph-image.tsx",
 			);
 			const filePath = path.join(tempDir.path(), diagnosticTarget);
-			await Bun.write(filePath, "export default function OpenGraphImage() {}\n");
+			await fsx.write(filePath, "export default function OpenGraphImage() {}\n");
 
 			const result = await resolveDiagnosticTargets(diagnosticTarget, tempDir.path(), 10);
 
@@ -1351,7 +1351,7 @@ describe("lsp regressions", () => {
 		const tempDir = TempDir.createSync("@omp-lsp-regression-");
 		try {
 			const filePath = path.join(tempDir.path(), "symbol.ts");
-			await Bun.write(filePath, "foo(bar(foo));\n");
+			await fsx.write(filePath, "foo(bar(foo));\n");
 
 			expect(await resolveSymbolColumn(filePath, 1, "foo")).toBe(0);
 			expect(await resolveSymbolColumn(filePath, 1, "foo#2")).toBe(8);
@@ -1364,7 +1364,7 @@ describe("lsp regressions", () => {
 		const tempDir = TempDir.createSync("@omp-lsp-missing-symbol-");
 		try {
 			const filePath = path.join(tempDir.path(), "symbol.ts");
-			await Bun.write(filePath, "winston.info('x');\n");
+			await fsx.write(filePath, "winston.info('x');\n");
 
 			expect(resolveSymbolColumn(filePath, 1, "nonexistent_symbol")).rejects.toThrow(
 				'Symbol "nonexistent_symbol" not found on line 1',
@@ -1378,7 +1378,7 @@ describe("lsp regressions", () => {
 		const tempDir = TempDir.createSync("@omp-lsp-occurrence-");
 		try {
 			const filePath = path.join(tempDir.path(), "symbol.ts");
-			await Bun.write(filePath, "foo();\n");
+			await fsx.write(filePath, "foo();\n");
 
 			expect(resolveSymbolColumn(filePath, 1, "foo#2")).rejects.toThrow(
 				'Symbol "foo" occurrence 2 is out of bounds on line 1 (found 1)',
@@ -1571,7 +1571,7 @@ describe("lsp regressions", () => {
 			const tempDir = TempDir.createSync("@omp-lsp-pull-diags-");
 			try {
 				const targetFile = path.join(tempDir.path(), "target.ts");
-				await Bun.write(targetFile, "const broken: string = 42;\n");
+				await fsx.write(targetFile, "const broken: string = 42;\n");
 				const diagnostic: Diagnostic = {
 					message: "Type 'number' is not assignable to type 'string'.",
 					severity: 1,
@@ -1668,8 +1668,8 @@ describe("lsp regressions", () => {
 		try {
 			const targetFile = path.join(tempDir.path(), "target.ts");
 			const otherFile = path.join(tempDir.path(), "other.ts");
-			await Bun.write(targetFile, "export const target = 1;\n");
-			await Bun.write(otherFile, "export const other = 1;\n");
+			await fsx.write(targetFile, "export const target = 1;\n");
+			await fsx.write(otherFile, "export const other = 1;\n");
 
 			const targetUri = fileToUri(targetFile);
 			const otherUri = fileToUri(otherFile);
@@ -1760,7 +1760,7 @@ describe("lsp regressions", () => {
 		const tempDir = TempDir.createSync("@omp-lsp-all-servers-fail-");
 		try {
 			const targetFile = path.join(tempDir.path(), "target.ts");
-			await Bun.write(targetFile, "export const target = 1;\n");
+			await fsx.write(targetFile, "export const target = 1;\n");
 			// The diagnostics renderer prefixes status lines via the global theme,
 			// which production initializes before any tool runs.
 			await initTheme();
@@ -1911,8 +1911,8 @@ describe("lsp regressions", () => {
 		try {
 			const serviceDir = path.join(tempDir.path(), "service");
 			await fs.promises.mkdir(serviceDir, { recursive: true });
-			await Bun.write(path.join(tempDir.path(), "go.work"), ["go 1.22", "", "use ./service", ""].join("\n"));
-			await Bun.write(path.join(serviceDir, "go.mod"), "module example.com/service\n\ngo 1.22\n");
+			await fsx.write(path.join(tempDir.path(), "go.work"), ["go 1.22", "", "use ./service", ""].join("\n"));
+			await fsx.write(path.join(serviceDir, "go.mod"), "module example.com/service\n\ngo 1.22\n");
 
 			const tool = new LspTool(makeLspSession(tempDir.path()));
 			const result = await tool.execute("go-work-only-diagnostics", {
@@ -1953,10 +1953,10 @@ describe("lsp regressions", () => {
 			const helperDir = path.join(tempDir.path(), "tools", "helper");
 			await fs.promises.mkdir(serviceDir, { recursive: true });
 			await fs.promises.mkdir(helperDir, { recursive: true });
-			await Bun.write(path.join(tempDir.path(), "go.mod"), "module example.com/root\n\ngo 1.22\n");
-			await Bun.write(path.join(serviceDir, "go.mod"), "module example.com/service\n\ngo 1.22\n");
-			await Bun.write(path.join(helperDir, "go.mod"), "module example.com/helper\n\ngo 1.22\n");
-			await Bun.write(
+			await fsx.write(path.join(tempDir.path(), "go.mod"), "module example.com/root\n\ngo 1.22\n");
+			await fsx.write(path.join(serviceDir, "go.mod"), "module example.com/service\n\ngo 1.22\n");
+			await fsx.write(path.join(helperDir, "go.mod"), "module example.com/helper\n\ngo 1.22\n");
+			await fsx.write(
 				path.join(tempDir.path(), "go.work"),
 				["go 1.22", "", "use (", "\t.", "\t./service", "\t./tools/helper", ")", ""].join("\n"),
 			);
@@ -1987,11 +1987,11 @@ describe("lsp regressions", () => {
 		const whichSpy = vi.spyOn(Bun, "which").mockReturnValue(null);
 
 		try {
-			await Bun.write(path.join(tempDir.path(), "package.json"), "{}");
+			await fsx.write(path.join(tempDir.path(), "package.json"), "{}");
 			const binDir = path.join(tempDir.path(), "node_modules", ".bin");
 			await fs.promises.mkdir(binDir, { recursive: true });
 			const localTsServer = path.join(binDir, "typescript-language-server.exe");
-			await Bun.write(localTsServer, "");
+			await fsx.write(localTsServer, "");
 
 			const config = loadConfig(tempDir.path());
 			expect(config.servers["typescript-language-server"]?.resolvedCommand).toBe(localTsServer);
@@ -2010,11 +2010,11 @@ describe("lsp regressions", () => {
 		const whichSpy = vi.spyOn(Bun, "which").mockReturnValue(null);
 
 		try {
-			await Bun.write(path.join(tempDir.path(), "pyproject.toml"), '[project]\nname = "demo"\n');
+			await fsx.write(path.join(tempDir.path(), "pyproject.toml"), '[project]\nname = "demo"\n');
 			const scriptsDir = path.join(tempDir.path(), ".venv", "Scripts");
 			await fs.promises.mkdir(scriptsDir, { recursive: true });
 			const localRuff = path.join(scriptsDir, "ruff.exe");
-			await Bun.write(localRuff, "");
+			await fsx.write(localRuff, "");
 
 			const config = loadConfig(tempDir.path());
 			expect(config.servers.ruff?.resolvedCommand).toBe(localRuff);
@@ -2035,11 +2035,11 @@ describe("lsp regressions", () => {
 			for (const marker of ["ruff.toml", ".ruff.toml"] as const) {
 				const tempDir = TempDir.createSync("@omp-lsp-win32-ruff-marker-");
 				try {
-					await Bun.write(path.join(tempDir.path(), marker), "");
+					await fsx.write(path.join(tempDir.path(), marker), "");
 					const scriptsDir = path.join(tempDir.path(), ".venv", "Scripts");
 					await fs.promises.mkdir(scriptsDir, { recursive: true });
 					const localRuff = path.join(scriptsDir, "ruff.exe");
-					await Bun.write(localRuff, "");
+					await fsx.write(localRuff, "");
 
 					const config = loadConfig(tempDir.path());
 					expect(config.servers.ruff?.resolvedCommand).toBe(localRuff);
@@ -2067,11 +2067,11 @@ describe("lsp regressions", () => {
 			for (const { marker, server, binary } of cases) {
 				const tempDir = TempDir.createSync("@omp-lsp-win32-py-marker-");
 				try {
-					await Bun.write(path.join(tempDir.path(), marker), "");
+					await fsx.write(path.join(tempDir.path(), marker), "");
 					const scriptsDir = path.join(tempDir.path(), ".venv", "Scripts");
 					await fs.promises.mkdir(scriptsDir, { recursive: true });
 					const localBin = path.join(scriptsDir, binary);
-					await Bun.write(localBin, "");
+					await fsx.write(localBin, "");
 
 					const config = loadConfig(tempDir.path());
 					expect(config.servers[server]?.resolvedCommand).toBe(localBin);
@@ -2092,7 +2092,7 @@ describe("lsp regressions", () => {
 		const specPath = path.join(tempDir.path(), "Spec.tla");
 		const aliasPath = path.join(tempDir.path(), "Spec.tlaplus");
 
-		await Bun.write(specPath, "---- MODULE Spec ----\n====\n");
+		await fsx.write(specPath, "---- MODULE Spec ----\n====\n");
 
 		const resolvedTlapmLsp = path.join(tempDir.path(), "bin", "tlapm_lsp");
 		const whichSpy = vi
@@ -2139,8 +2139,8 @@ describe("lsp regressions", () => {
 		await fs.promises.mkdir(pluginRoot, { recursive: true });
 		await fs.promises.mkdir(cwd, { recursive: true });
 		await fs.promises.mkdir(path.dirname(registryPath), { recursive: true });
-		await Bun.write(path.join(cwd, "Example.csproj"), "<Project />\n");
-		await Bun.write(
+		await fsx.write(path.join(cwd, "Example.csproj"), "<Project />\n");
+		await fsx.write(
 			registryPath,
 			`${JSON.stringify(
 				{
@@ -2161,7 +2161,7 @@ describe("lsp regressions", () => {
 				2,
 			)}\n`,
 		);
-		await Bun.write(
+		await fsx.write(
 			path.join(marketplaceRoot, "marketplace.json"),
 			`${JSON.stringify(
 				{
@@ -2211,8 +2211,8 @@ describe("lsp regressions", () => {
 			const sourceFile = path.join(tempDir.path(), "src", "old.ts");
 			const destFile = path.join(tempDir.path(), "src", "new.ts");
 			const referencingFile = path.join(tempDir.path(), "src", "consumer.ts");
-			await Bun.write(sourceFile, "export const value = 42;\n");
-			await Bun.write(referencingFile, "import { value } from './old';\nconsole.log(value);\n");
+			await fsx.write(sourceFile, "export const value = 42;\n");
+			await fsx.write(referencingFile, "import { value } from './old';\nconsole.log(value);\n");
 
 			const sourceUri = fileToUri(sourceFile);
 			const destUri = fileToUri(destFile);
@@ -2320,9 +2320,9 @@ describe("lsp regressions", () => {
 			const destFile = path.join(tempDir.path(), "src", "new.ts");
 			const plainFile = path.join(tempDir.path(), "src", "plain.ts");
 			const snippetFile = path.join(tempDir.path(), "src", "snippet.ts");
-			await Bun.write(sourceFile, "export const value = 42;\n");
-			await Bun.write(plainFile, "import { value } from './old';\n");
-			await Bun.write(snippetFile, "import { value } from './old';\n");
+			await fsx.write(sourceFile, "export const value = 42;\n");
+			await fsx.write(plainFile, "import { value } from './old';\n");
+			await fsx.write(snippetFile, "import { value } from './old';\n");
 
 			const plainUri = fileToUri(plainFile);
 			const snippetUri = fileToUri(snippetFile);
@@ -2408,7 +2408,7 @@ describe("lsp regressions", () => {
 		try {
 			const sourceFile = path.join(tempDir.path(), "src", "old.ts");
 			const destFile = path.join(tempDir.path(), "src", "new.ts");
-			await Bun.write(sourceFile, "export const value = 42;\n");
+			await fsx.write(sourceFile, "export const value = 42;\n");
 
 			const server: ServerConfig = { command: "test-lsp", fileTypes: ["ts"], rootMarkers: [] };
 			const client: LspClient = {
@@ -2481,7 +2481,7 @@ describe("lsp regressions", () => {
 		try {
 			const sourceFile = path.join(tempDir.path(), "src", "old.ts");
 			const destFile = path.join(tempDir.path(), "src", "new.ts");
-			await Bun.write(sourceFile, "export const value = 42;\n");
+			await fsx.write(sourceFile, "export const value = 42;\n");
 
 			const server: ServerConfig = { command: "test-lsp", fileTypes: ["ts"], rootMarkers: [] };
 			const client: LspClient = {
@@ -2542,7 +2542,7 @@ describe("lsp regressions", () => {
 		try {
 			const sourceFile = path.join(tempDir.path(), "old.ts");
 			const destFile = path.join(tempDir.path(), "new.ts");
-			await Bun.write(sourceFile, "export const value = 42;\n");
+			await fsx.write(sourceFile, "export const value = 42;\n");
 
 			const server: ServerConfig = { command: "test-lsp", fileTypes: ["ts"], rootMarkers: [] };
 			const client: LspClient = {
@@ -2602,8 +2602,8 @@ describe("lsp regressions", () => {
 			const dstDir = path.join(tempDir.path(), "new");
 			const fileA = path.join(srcDir, "a.ts");
 			const fileB = path.join(srcDir, "nested", "b.ts");
-			await Bun.write(fileA, "export const a = 1;\n");
-			await Bun.write(fileB, "export const b = 2;\n");
+			await fsx.write(fileA, "export const a = 1;\n");
+			await fsx.write(fileB, "export const b = 2;\n");
 
 			const server: ServerConfig = { command: "test-lsp", fileTypes: ["ts"], rootMarkers: [] };
 			const client: LspClient = {
@@ -2673,7 +2673,7 @@ describe("lsp regressions", () => {
 		const tempDir = TempDir.createSync("@omp-lsp-request-");
 		try {
 			const filePath = path.join(tempDir.path(), "src", "lib.rs");
-			await Bun.write(filePath, 'fn main() {\n    println!("hi");\n}\n');
+			await fsx.write(filePath, 'fn main() {\n    println!("hi");\n}\n');
 
 			const server: ServerConfig = { command: "test-rs", fileTypes: ["rs"], rootMarkers: [] };
 			const client: LspClient = {
@@ -2864,7 +2864,7 @@ describe("lsp regressions", () => {
 		const uri = fileToUri(filePath);
 		let overlay = "";
 		try {
-			await Bun.write(filePath, "package main\nfunc OldName() {}\n");
+			await fsx.write(filePath, "package main\nfunc OldName() {}\n");
 			const serverConfig: ServerConfig = {
 				command: "fake-gopls",
 				fileTypes: ["go"],
@@ -2971,7 +2971,7 @@ describe("lsp regressions", () => {
 			const srcDir = path.join(tempDir.path(), "src");
 			fs.mkdirSync(srcDir, { recursive: true });
 			const childPath = path.join(srcDir, "a.ts");
-			await Bun.write(childPath, "export const a = 1;\n");
+			await fsx.write(childPath, "export const a = 1;\n");
 
 			const childUri = fileToUri(childPath);
 			const oldFolderUri = fileToUri(srcDir);
@@ -3028,9 +3028,9 @@ describe("lsp regressions", () => {
 		try {
 			const oldPath = path.join(tempDir.path(), "old.ts");
 			const newPath = path.join(tempDir.path(), "new.ts");
-			await Bun.write(oldPath, "export const moved = 1;\n");
+			await fsx.write(oldPath, "export const moved = 1;\n");
 			// A pre-existing target file the rename is about to clobber.
-			await Bun.write(newPath, "export const target = 2;\n");
+			await fsx.write(newPath, "export const target = 2;\n");
 
 			const oldUri = fileToUri(oldPath);
 			const newUri = fileToUri(newPath);
@@ -3133,8 +3133,8 @@ describe("lsp regressions", () => {
 			const okPath = path.join(tempDir.path(), "ok.ts");
 			const badPath = path.join(tempDir.path(), "bad.ts");
 			const okContent = "export const ok = 1;\n";
-			await Bun.write(okPath, okContent);
-			await Bun.write(badPath, "export const bad = 2;\n");
+			await fsx.write(okPath, okContent);
+			await fsx.write(badPath, "export const bad = 2;\n");
 
 			const workspaceEdit: WorkspaceEdit = {
 				changes: {
@@ -3190,7 +3190,7 @@ describe("lsp regressions", () => {
 			// Standalone `$store` starts at column 16; compound `bar$store`
 			// contains the substring at column 7. Old code returned 7; new code
 			// returns 16.
-			await Bun.write(filePath, "let bar$store = $store + 1;\n");
+			await fsx.write(filePath, "let bar$store = $store + 1;\n");
 
 			const column = await resolveSymbolColumn(filePath, 1, "$store");
 			expect(column).toBe(16);
@@ -3258,7 +3258,7 @@ describe("lsp regressions", () => {
 		try {
 			const filePath = path.join(tempDir.path(), "existing.ts");
 			const uri = fileToUri(filePath);
-			await Bun.write(filePath, "ORIGINAL");
+			await fsx.write(filePath, "ORIGINAL");
 
 			const ignored = await applyWorkspaceEdit(
 				{
@@ -3293,8 +3293,8 @@ describe("lsp regressions", () => {
 			const newPath = path.join(tempDir.path(), "new.ts");
 			const oldUri = fileToUri(oldPath);
 			const newUri = fileToUri(newPath);
-			await Bun.write(oldPath, "SOURCE");
-			await Bun.write(newPath, "TARGET");
+			await fsx.write(oldPath, "SOURCE");
+			await fsx.write(newPath, "TARGET");
 
 			const ignored = await applyWorkspaceEdit(
 				{
@@ -3342,8 +3342,8 @@ describe("lsp regressions", () => {
 		try {
 			const oldPath = path.join(tempDir.path(), "old.ts");
 			const newPath = path.join(tempDir.path(), "new.ts");
-			await Bun.write(oldPath, "SOURCE");
-			await Bun.write(newPath, "TARGET");
+			await fsx.write(oldPath, "SOURCE");
+			await fsx.write(newPath, "TARGET");
 
 			const server = installFakeLsp((message, srv) => {
 				if (message.method === "initialize") {
@@ -3396,7 +3396,7 @@ describe("lsp regressions", () => {
 			const srcDir = path.join(tempDir.path(), "src");
 			fs.mkdirSync(srcDir);
 			const filePath = path.join(srcDir, "a.ts");
-			await Bun.write(filePath, "export const a = 1;\n");
+			await fsx.write(filePath, "export const a = 1;\n");
 
 			const server = installFakeLsp((message, srv) => {
 				if (message.method === "initialize") {
@@ -3455,7 +3455,7 @@ describe("lsp regressions", () => {
 			const directory = path.join(tempDir.path(), "directory");
 			const uri = fileToUri(directory);
 			fs.mkdirSync(directory);
-			await Bun.write(path.join(directory, "child.ts"), "KEEP");
+			await fsx.write(path.join(directory, "child.ts"), "KEEP");
 
 			const nonRecursive: DeleteFile = { kind: "delete", uri, options: { recursive: false } };
 			await expect(applyWorkspaceEdit({ documentChanges: [nonRecursive] }, tempDir.path())).rejects.toThrow();
@@ -3489,7 +3489,7 @@ describe("lsp regressions", () => {
 			const realDir = path.join(tempDir.path(), "dir");
 			fs.mkdirSync(realDir);
 			const filePath = path.join(realDir, "f.ts");
-			await Bun.write(filePath, "SOURCE");
+			await fsx.write(filePath, "SOURCE");
 
 			const linkDir = path.join(tempDir.path(), "dirlink");
 			fs.symlinkSync(realDir, linkDir);
@@ -3520,8 +3520,8 @@ describe("lsp regressions", () => {
 		try {
 			const oldPath = path.join(tempDir.path(), "old.ts");
 			const newPath = path.join(tempDir.path(), "new.ts");
-			await Bun.write(oldPath, "SOURCE");
-			await Bun.write(newPath, "TARGET");
+			await fsx.write(oldPath, "SOURCE");
+			await fsx.write(newPath, "TARGET");
 
 			const realRename = fsp.rename;
 			vi.spyOn(fsp, "rename").mockImplementation(async (from, to) => {
@@ -3566,7 +3566,7 @@ describe("lsp regressions", () => {
 			const srcDir = path.join(tempDir.path(), "src");
 			fs.mkdirSync(srcDir, { recursive: true });
 			const childPath = path.join(srcDir, "a.ts");
-			await Bun.write(childPath, "export const a = 1;\n");
+			await fsx.write(childPath, "export const a = 1;\n");
 
 			const childUri = fileToUri(childPath);
 			const folderUri = fileToUri(srcDir);
@@ -3673,7 +3673,7 @@ describe("lsp regressions", () => {
 		try {
 			const sourceFile = path.join(tempDir.path(), "notes.md");
 			const destFile = path.join(tempDir.path(), "renamed.md");
-			await Bun.write(sourceFile, "# heading\n");
+			await fsx.write(sourceFile, "# heading\n");
 
 			// Only a TS server is configured; .md should not trigger any willRenameFiles.
 			vi.spyOn(lspConfig, "loadConfig").mockReturnValue({
@@ -3713,7 +3713,7 @@ describe("lsp regressions", () => {
 		try {
 			const sourceFile = path.join(tempDir.path(), "locked.ts");
 			const destFile = path.join(tempDir.path(), "renamed.ts");
-			await Bun.write(sourceFile, "export const a = 1;\n");
+			await fsx.write(sourceFile, "export const a = 1;\n");
 
 			// EACCES is not ENOENT: the file is there, we just can't read it.
 			const realStat = fs.promises.stat;
@@ -3753,7 +3753,7 @@ describe("lsp regressions", () => {
 		try {
 			const sourceFile = path.join(tempDir.path(), "old.ts");
 			const destFile = path.join(tempDir.path(), "new.ts");
-			await Bun.write(sourceFile, "export const a = 1;\n");
+			await fsx.write(sourceFile, "export const a = 1;\n");
 
 			// A failed destination probe never established that the path is free,
 			// so treating it as absent would rename onto a file we cannot see.
@@ -3794,7 +3794,7 @@ describe("lsp regressions", () => {
 		try {
 			const sourceFile = path.join(tempDir.path(), "old.ts");
 			const destFile = path.join(tempDir.path(), "dangling.ts");
-			await Bun.write(sourceFile, "export const a = 1;\n");
+			await fsx.write(sourceFile, "export const a = 1;\n");
 			const sourceStat = await fs.promises.stat(sourceFile);
 			const realLstat = fs.promises.lstat;
 			const lstatSpy = vi.spyOn(fs.promises, "lstat").mockImplementation((async (target: fs.PathLike) => {
@@ -3826,7 +3826,7 @@ describe("lsp regressions", () => {
 		const destFile = path.join(lspHomeOverride, "other", "renamed.ts");
 		fs.mkdirSync(path.dirname(sourceFile), { recursive: true });
 		fs.mkdirSync(cwd, { recursive: true });
-		await Bun.write(sourceFile, "export const a = 1;\n");
+		await fsx.write(sourceFile, "export const a = 1;\n");
 		const realStat = fs.promises.stat;
 		vi.spyOn(fs.promises, "stat").mockImplementation((async (target: fs.PathLike) => {
 			if (target === sourceFile) {
@@ -4882,7 +4882,7 @@ describe("ty python lsp", () => {
 			.spyOn(piUtils, "$which")
 			.mockImplementation(command => (command === "ty" ? resolvedTy : null));
 		try {
-			await Bun.write(path.join(tempDir.path(), "pyproject.toml"), '[project]\nname = "demo"\n');
+			await fsx.write(path.join(tempDir.path(), "pyproject.toml"), '[project]\nname = "demo"\n');
 			const config = loadConfig(tempDir.path());
 			expect(config.servers.ty?.resolvedCommand).toBe(resolvedTy);
 			expect(config.servers.ty?.command).toBe("ty");
@@ -4901,7 +4901,7 @@ describe("ty python lsp", () => {
 			command === "ty" ? resolvedTy : command === "ruff" ? resolvedRuff : null,
 		);
 		try {
-			await Bun.write(path.join(tempDir.path(), "pyproject.toml"), '[project]\nname = "demo"\n');
+			await fsx.write(path.join(tempDir.path(), "pyproject.toml"), '[project]\nname = "demo"\n');
 			const config = loadConfig(tempDir.path());
 			expect(config.servers.ty?.resolvedCommand).toBe(resolvedTy);
 			expect(config.servers.ruff?.resolvedCommand).toBe(resolvedRuff);
@@ -4924,8 +4924,8 @@ describe("ty python lsp", () => {
 		// $which never succeeds: only LOCAL_BIN_PATHS resolution can find ty.
 		vi.spyOn(piUtils, "$which").mockImplementation(() => null);
 		try {
-			await Bun.write(path.join(tempDir.path(), "ty.toml"), "[configuration]\n");
-			await Bun.write(resolvedTy, '#!/bin/sh\nexec ty "$@"\n');
+			await fsx.write(path.join(tempDir.path(), "ty.toml"), "[configuration]\n");
+			await fsx.write(resolvedTy, '#!/bin/sh\nexec ty "$@"\n');
 			const config = loadConfig(tempDir.path());
 			expect(config.servers.ty?.resolvedCommand).toBe(resolvedTy);
 			expect(config.servers.ty?.command).toBe("ty");

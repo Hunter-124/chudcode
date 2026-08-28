@@ -139,7 +139,7 @@ export async function generateNpmPackages({
 	tags,
 }: GenerateNpmPackagesInput = {}): Promise<GeneratedLeafPackage[]> {
 	const manifestVersion =
-		version ?? ((await Bun.file(path.join(packageDir, "package.json")).json()) as { version: string }).version;
+		version ?? ((await fsx.readJson(path.join(packageDir, "package.json"))) as { version: string }).version;
 	const nativeDir = path.join(packageDir, "native");
 	const npmDir = path.join(packageDir, "npm");
 	const leaves: GeneratedLeafPackage[] = [];

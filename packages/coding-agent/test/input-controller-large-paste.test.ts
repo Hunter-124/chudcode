@@ -145,7 +145,7 @@ describe("InputController.presentLargePasteMenu file attachment", () => {
 
 	it("does not overwrite an existing paste file", async () => {
 		dir = await fs.mkdtemp(path.join(os.tmpdir(), "omp-paste-test-"));
-		await Bun.write(path.join(dir, "local", "paste-1.md"), "previous");
+		await fsx.write(path.join(dir, "local", "paste-1.md"), "previous");
 		const { controller, spies } = createContext({ choice: "Attach as local file", artifactsDir: dir });
 
 		await controller.presentLargePasteMenu("fresh", 1);

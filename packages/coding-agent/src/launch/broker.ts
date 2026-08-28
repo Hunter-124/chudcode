@@ -311,7 +311,7 @@ async function acquireBrokerLease(runtimeDir: string): Promise<BrokerLease | nul
 		} catch (error) {
 			if (!isEexist(error)) throw error;
 			try {
-				const raw: unknown = await Bun.file(pidPath).json();
+				const raw: unknown = await fsx.readJson(pidPath);
 				if (typeof raw === "object" && raw !== null && "pid" in raw && typeof raw.pid === "number") {
 					try {
 						process.kill(raw.pid, 0);
@@ -331,7 +331,7 @@ async function acquireBrokerLease(runtimeDir: string): Promise<BrokerLease | nul
 
 async function releaseBrokerLease(lease: BrokerLease): Promise<void> {
 	try {
-		const raw: unknown = await Bun.file(lease.path).json();
+		const raw: unknown = await fsx.readJson(lease.path);
 		if (typeof raw === "object" && raw !== null && "instanceId" in raw && raw.instanceId === lease.instanceId) {
 			await fs.rm(lease.path, { force: true });
 		}
@@ -1259,7 +1259,7 @@ class DaemonBroker {
 			if (!entry.isDirectory()) continue;
 			const dir = path.join(root, entry.name);
 			try {
-				const decoded: unknown = await Bun.file(path.join(dir, META_FILE)).json();
+				const decoded: unknown = await fsx.readJson(path.join(dir, META_FILE));
 				if (typeof decoded !== "object" || decoded === null || !("daemon" in decoded) || !("spec" in decoded)) {
 					continue;
 				}

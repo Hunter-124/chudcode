@@ -8,6 +8,7 @@ import {
 	getFileSnapshotStore,
 	parseSeenLinesFromHashlineBody,
 } from "@oh-my-pi/pi-coding-agent/edit/file-snapshot-store";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 
 interface SessionOwner {
 	fileSnapshotStore?: InMemorySnapshotStore;
@@ -20,7 +21,7 @@ describe("canonicalSnapshotKey", () => {
 		// when the platform has that symlink. Skip the assertion when it doesn't.
 		const realDir = await fs.mkdtemp(path.join(os.tmpdir(), "snap-key-"));
 		const filePath = path.join(realDir, "a.txt");
-		await Bun.write(filePath, "x\n");
+		await fsx.write(filePath, "x\n");
 
 		const k1 = canonicalSnapshotKey(filePath);
 		// If realDir already starts at the symlink target form, k1 === filePath
@@ -53,7 +54,7 @@ describe("snapshot store fusion via canonical keys", () => {
 	it("records and looks up the same snapshot regardless of /tmp vs /private/tmp spelling", async () => {
 		const realDir = await fs.mkdtemp(path.join(os.tmpdir(), "snap-fuse-"));
 		const filePath = path.join(realDir, "a.txt");
-		await Bun.write(filePath, "x\n");
+		await fsx.write(filePath, "x\n");
 
 		const session: SessionOwner = {};
 		const store = getFileSnapshotStore(session);

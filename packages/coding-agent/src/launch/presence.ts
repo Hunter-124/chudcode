@@ -71,7 +71,7 @@ export async function hasLiveDaemonProjectPresence(runtimeDir: string): Promise<
 	for (const entry of entries) {
 		const presencePath = path.join(clientsDir, entry);
 		try {
-			const decoded: unknown = await Bun.file(presencePath).json();
+			const decoded: unknown = await fsx.readJson(presencePath);
 			if (
 				typeof decoded !== "object" ||
 				decoded === null ||
@@ -98,7 +98,7 @@ export async function hasLiveDaemonProjectPresence(runtimeDir: string): Promise<
 export async function readLiveDaemonBrokerPid(runtimeDir: string): Promise<number | undefined> {
 	let raw: unknown;
 	try {
-		raw = await Bun.file(path.join(runtimeDir, BROKER_PID_FILE)).json();
+		raw = await fsx.readJson(path.join(runtimeDir, BROKER_PID_FILE));
 	} catch {
 		return undefined; // Missing or malformed broker.pid => no owning broker.
 	}

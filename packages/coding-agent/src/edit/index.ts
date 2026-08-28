@@ -5,6 +5,7 @@ import hashlineDescription from "@oh-my-pi/hashline/prompt.md" with { type: "tex
 import type { AgentTool, AgentToolContext, AgentToolResult, AgentToolUpdateCallback } from "@oh-my-pi/pi-agent-core";
 import type { ToolExample } from "@oh-my-pi/pi-ai";
 import { isEnoent, isEnotdir, logger, prompt } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import { createLspWritethrough, flushLspWritethroughBatch, type WritethroughCallback, writethroughNoop } from "../lsp";
 import { DeferredDiagnostics } from "../lsp/deferred-diagnostics";
 import { getDiagnosticsLedger } from "../lsp/diagnostics-ledger";
@@ -110,7 +111,7 @@ async function resolveEditPath(
 	if (!options.mustExist || isInternalUrlPath(authoredPath)) return authoredPath;
 
 	try {
-		await Bun.file(resolvePlanPath(session, authoredPath)).stat();
+		await fsx.stat(resolvePlanPath(session, authoredPath));
 		return authoredPath;
 	} catch (error) {
 		if (!isEnoent(error) && !isEnotdir(error)) throw error;

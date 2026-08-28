@@ -2,6 +2,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import { $ } from "bun";
 import * as git from "../../src/utils/git";
 
@@ -14,7 +15,7 @@ describe("git show byte stream", () => {
 		await $`git init --initial-branch=main`.cwd(repoDir).quiet();
 		await $`git config user.name "Test User"`.cwd(repoDir).quiet();
 		await $`git config user.email "test@example.com"`.cwd(repoDir).quiet();
-		await Bun.write(path.join(repoDir, "large.txt"), content);
+		await fsx.write(path.join(repoDir, "large.txt"), content);
 		await $`git add large.txt`.cwd(repoDir).quiet();
 		await $`git commit -m fixture`.cwd(repoDir).quiet();
 	});

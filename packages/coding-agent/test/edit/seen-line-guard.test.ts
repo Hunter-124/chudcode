@@ -41,7 +41,7 @@ function execOptions(input: string, session: ToolSession): ExecuteHashlineSingle
 		session,
 		input,
 		writethrough: async (targetPath, content) => {
-			await Bun.write(targetPath, content);
+			await fsx.write(targetPath, content);
 			return undefined;
 		},
 		beginDeferredDiagnosticsForPath: () => ({
@@ -86,7 +86,7 @@ describe("read → edit seen-line guard", () => {
 
 	it("records the displayed range as seen and excludes far lines", async () => {
 		const file = path.join(tmpDir, "notes.txt");
-		await Bun.write(file, CONTENT);
+		await fsx.write(file, CONTENT);
 		const session = createSession(tmpDir);
 
 		const read = await new ReadTool(session).execute("r1", { path: `${file}:1-3` });
@@ -100,7 +100,7 @@ describe("read → edit seen-line guard", () => {
 
 	it("rejects an edit on a line the partial read never displayed", async () => {
 		const file = path.join(tmpDir, "notes.txt");
-		await Bun.write(file, CONTENT);
+		await fsx.write(file, CONTENT);
 		const session = createSession(tmpDir);
 
 		const read = await new ReadTool(session).execute("r1", { path: `${file}:1-3` });
@@ -115,7 +115,7 @@ describe("read → edit seen-line guard", () => {
 
 	it("applies an edit on a displayed line", async () => {
 		const file = path.join(tmpDir, "notes.txt");
-		await Bun.write(file, CONTENT);
+		await fsx.write(file, CONTENT);
 		const session = createSession(tmpDir);
 
 		const read = await new ReadTool(session).execute("r1", { path: `${file}:1-3` });
@@ -127,7 +127,7 @@ describe("read → edit seen-line guard", () => {
 
 	it("records raw single-range reads as seen without emitting a hashline header", async () => {
 		const file = path.join(tmpDir, "notes.txt");
-		await Bun.write(file, CONTENT);
+		await fsx.write(file, CONTENT);
 		const session = createSession(tmpDir);
 		const store = getFileSnapshotStore(session);
 		const tag = store.record(canonicalSnapshotKey(file), CONTENT, [1]);
@@ -152,7 +152,7 @@ describe("read → edit seen-line guard", () => {
 
 	it("records every raw multi-range line and rejects anchors outside those ranges", async () => {
 		const file = path.join(tmpDir, "notes.txt");
-		await Bun.write(file, CONTENT);
+		await fsx.write(file, CONTENT);
 		const session = createSession(tmpDir);
 		const store = getFileSnapshotStore(session);
 		const tag = store.record(canonicalSnapshotKey(file), CONTENT, [12]);
@@ -184,7 +184,7 @@ describe("read → edit seen-line guard", () => {
 		const file = path.join(tmpDir, "wide-raw.txt");
 		const hugeLine = "x".repeat(DEFAULT_MAX_BYTES + 1);
 		const content = `${hugeLine}\nline 2\n\nline 4\n`;
-		await Bun.write(file, content);
+		await fsx.write(file, content);
 		const session = createSession(tmpDir);
 		const store = getFileSnapshotStore(session);
 		const tag = store.record(canonicalSnapshotKey(file), content, [4]);
@@ -205,7 +205,7 @@ describe("read → edit seen-line guard", () => {
 
 	it("merges displayed lines from ACP bridge range reads into existing provenance", async () => {
 		const file = path.join(tmpDir, "notes.txt");
-		await Bun.write(file, CONTENT);
+		await fsx.write(file, CONTENT);
 		const session = createBridgeSession(tmpDir, CONTENT);
 		const store = getFileSnapshotStore(session);
 		const tag = store.record(canonicalSnapshotKey(file), CONTENT, [12]);
@@ -222,7 +222,7 @@ describe("read → edit seen-line guard", () => {
 	it("marks raw ACP bridge blank-line reads as seen without hashline output", async () => {
 		const file = path.join(tmpDir, "notes.txt");
 		const content = "";
-		await Bun.write(file, content);
+		await fsx.write(file, content);
 		const session = createBridgeSession(tmpDir, content);
 		const store = getFileSnapshotStore(session);
 		const tag = store.record(canonicalSnapshotKey(file), content, [2]);
@@ -249,7 +249,7 @@ describe("read → edit seen-line guard", () => {
 		lines[1289] = "\tk_sleep(K_MSEC(300));";
 		lines[1290] = "\tbeep_3k8hz_off();";
 		const content = `${lines.join("\n")}\n`;
-		await Bun.write(file, content);
+		await fsx.write(file, content);
 		const session = createBridgeSession(tmpDir, content);
 		const store = getFileSnapshotStore(session);
 		const tag = store.record(canonicalSnapshotKey(file), content, [1288, 1289, 1290, 1291]);
@@ -274,7 +274,7 @@ describe("read → edit seen-line guard", () => {
 
 	it("reveals the actual line content in the rejection and unblocks a same-tag retry", async () => {
 		const file = path.join(tmpDir, "notes.txt");
-		await Bun.write(file, CONTENT);
+		await fsx.write(file, CONTENT);
 		const session = createSession(tmpDir);
 
 		const read = await new ReadTool(session).execute("r1", { path: `${file}:1-3` });
@@ -306,7 +306,7 @@ describe("read → edit seen-line guard", () => {
 	it("keeps the re-read fallback when the anchor set exceeds the inline reveal cap", async () => {
 		const file = path.join(tmpDir, "long.txt");
 		const lines = Array.from({ length: 200 }, (_, i) => `line ${i + 1}`);
-		await Bun.write(file, `${lines.join("\n")}\n`);
+		await fsx.write(file, `${lines.join("\n")}\n`);
 		const session = createSession(tmpDir);
 
 		// Partial read of the head — seenLines = 1..3 only.
@@ -340,7 +340,7 @@ describe("read → edit seen-line guard", () => {
 		const file = path.join(tmpDir, "wide.txt");
 		const wide = "a".repeat(4096);
 		const content = `head\n${wide}\nfoot\n`;
-		await Bun.write(file, content);
+		await fsx.write(file, content);
 		const session = createSession(tmpDir);
 
 		const read = await new ReadTool(session).execute("r1", { path: `${file}:2` });
@@ -389,7 +389,7 @@ describe("search → edit seen-line guard", () => {
 	it("records matched lines as seen and rejects an edit on an unsearched line", async () => {
 		const file = path.join(tmpDir, "code.txt");
 		const lines = ["a", "b", "c", "NEEDLE here", "e", "f", "g", "h"];
-		await Bun.write(file, `${lines.join("\n")}\n`);
+		await fsx.write(file, `${lines.join("\n")}\n`);
 		const session = searchSession(tmpDir);
 
 		const search = await new GrepTool(session).execute("s1", { pattern: "NEEDLE", path: file });
@@ -407,7 +407,7 @@ describe("search → edit seen-line guard", () => {
 	it("rejects editing an unsearched line under a search-minted tag", async () => {
 		const file = path.join(tmpDir, "code.txt");
 		const lines = ["a", "b", "c", "NEEDLE here", "e", "f", "g", "h"];
-		await Bun.write(file, `${lines.join("\n")}\n`);
+		await fsx.write(file, `${lines.join("\n")}\n`);
 		const session = searchSession(tmpDir);
 
 		const search = await new GrepTool(session).execute("s1", { pattern: "NEEDLE", path: file });
@@ -435,7 +435,7 @@ describe("seen-line guard disabled by default", () => {
 
 	it("applies an edit on an unseen line when edit.enforceSeenLines is off (default)", async () => {
 		const file = path.join(tmpDir, "notes.txt");
-		await Bun.write(file, CONTENT);
+		await fsx.write(file, CONTENT);
 		// createSession enables the guard; a default session leaves it off.
 		const session = { ...createSession(tmpDir), settings: Settings.isolated() } as ToolSession;
 

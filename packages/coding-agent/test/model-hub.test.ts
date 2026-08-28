@@ -29,6 +29,7 @@ import {
 } from "@oh-my-pi/pi-coding-agent/thinking";
 import type { TUI } from "@oh-my-pi/pi-tui";
 import { sleep } from "@oh-my-pi/pi-utils/async";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 
 function normalize(lines: readonly string[]): string {
 	return stripVTControlCharacters(lines.join("\n")).replace(/\s+/g, " ").trim();
@@ -574,15 +575,15 @@ describe("ModelHub", () => {
 			const overlayPath = path.join(root, "overlay.yml");
 
 			try {
-				await Bun.write(
+				await fsx.write(
 					path.join(agentDir, "config.yml"),
 					`modelRoleStorage: project\nmodelRoles:\n  default: ${selector}\n  smol: ${selector}\n`,
 				);
-				await Bun.write(
+				await fsx.write(
 					path.join(cwd, ".omp", "config.yml"),
 					`modelRoles:\n  default: ${selector}\n  smol: ${selector}\n`,
 				);
-				await Bun.write(overlayPath, "modelRoles:\n  default: null\n  smol: null\n");
+				await fsx.write(overlayPath, "modelRoles:\n  default: null\n  smol: null\n");
 				const settings = await Settings.loadReadOnly({ cwd, agentDir, configFiles: [overlayPath] });
 				expect(settings.getModelRole("default")).toBeUndefined();
 				expect(settings.getGlobalModelRole("default")).toBe(selector);

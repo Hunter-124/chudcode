@@ -1,5 +1,6 @@
 import * as path from "node:path";
 import { isEnoent } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 
 export type NotebookCellType = "code" | "markdown" | "raw";
 
@@ -109,7 +110,7 @@ function validateNotebook(value: unknown, displayPath: string): NotebookDocument
 
 export async function readNotebookDocument(absolutePath: string, displayPath: string): Promise<NotebookDocument> {
 	try {
-		return validateNotebook(await Bun.file(absolutePath).json(), displayPath);
+		return validateNotebook(await fsx.readJson(absolutePath), displayPath);
 	} catch (error) {
 		if (isEnoent(error)) throw new Error(`File not found: ${displayPath}`);
 		if (error instanceof SyntaxError) throw new Error(`Invalid JSON in notebook: ${displayPath}`);

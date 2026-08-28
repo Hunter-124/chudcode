@@ -94,7 +94,7 @@ if (available.length === 0) {
 	const expected = candidates.map(candidate => `  - ${candidate.filename}`).join("\n");
 	throw new Error(`No native addons found for ${platformTag}. Expected one of:\n${expected}`);
 }
-const packageJson = (await Bun.file(packageJsonPath).json()) as { version: string };
+const packageJson = (await fsx.readJson(packageJsonPath)) as { version: string };
 
 const archiveFilename = `${archivePrefix}${platformTag}${archiveSuffix}`;
 const archivePath = path.join(nativeDir, archiveFilename);

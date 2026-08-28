@@ -52,7 +52,7 @@ const { seconds, raw } = await measure();
 
 if (update) {
 	fs.mkdirSync(path.dirname(BASELINE_PATH), { recursive: true });
-	await Bun.write(BASELINE_PATH, raw);
+	await fsx.write(BASELINE_PATH, raw);
 	console.log(`Baseline updated: ${(seconds * 1000).toFixed(0)}ms median -> ${BASELINE_PATH}`);
 	process.exit(0);
 }

@@ -315,7 +315,7 @@ describe("writeFileWithFallback", () => {
 
 		it("leaves an ENOENT alone when a path component is a file rather than a directory", async () => {
 			const blocker = path.join(root, "blocker");
-			await Bun.write(blocker, "not a directory");
+			await fsx.write(blocker, "not a directory");
 			let called = false;
 			disposers.push(
 				addFileWriteFallback(async () => {
@@ -340,7 +340,7 @@ describe("writeFileWithFallback", () => {
 			const secretDir = path.join(root, "off-limits");
 			await fs.mkdir(secretDir);
 			const secret = path.join(secretDir, "authorized_keys");
-			await Bun.write(secret, "original\n");
+			await fsx.write(secret, "original\n");
 			await fs.chmod(secret, 0o400);
 			await fs.chmod(secretDir, 0o500);
 
@@ -376,7 +376,7 @@ describe("writeFileWithFallback", () => {
 			const outside = path.join(root, "off-limits");
 			await fs.mkdir(outside);
 			const victim = path.join(outside, "secret.txt");
-			await Bun.write(victim, "original\n");
+			await fsx.write(victim, "original\n");
 			await fs.chmod(victim, 0o400);
 			await fs.chmod(outside, 0o500);
 
@@ -512,7 +512,7 @@ describe("writeFileWithFallback", () => {
 			const opaque = path.join(root, "opaque");
 			await fs.mkdir(opaque);
 			const victim = path.join(opaque, "victim.txt");
-			await Bun.write(victim, "original\n");
+			await fsx.write(victim, "original\n");
 			await fs.chmod(opaque, 0o000);
 
 			let called = false;
@@ -592,7 +592,7 @@ describe("deleteFileWithFallback", () => {
 		/** A file whose containing directory denies the unlink. */
 		async function lockedFile(name = "victim.txt"): Promise<string> {
 			const target = path.join(locked, name);
-			await Bun.write(target, "payload");
+			await fsx.write(target, "payload");
 			await fs.chmod(locked, 0o500);
 			return target;
 		}
@@ -658,7 +658,7 @@ describe("deleteFileWithFallback", () => {
 			const opaque = path.join(root, "opaque");
 			await fs.mkdir(opaque);
 			const victim = path.join(opaque, "buried.txt");
-			await Bun.write(victim, "payload");
+			await fsx.write(victim, "payload");
 			await fs.chmod(opaque, 0o000);
 
 			const seen: Array<{ dst: string; confirmedFile: boolean }> = [];
@@ -681,7 +681,7 @@ describe("deleteFileWithFallback", () => {
 			// `ENOTDIR` from a path component that is a file is a genuinely bad path, not
 			// a boundary, so the seam must not paper over it by consulting a handler.
 			const blocker = path.join(root, "not-a-dir");
-			await Bun.write(blocker, "payload");
+			await fsx.write(blocker, "payload");
 			let called = false;
 			disposers.push(
 				addFileDeleteFallback(async () => {
@@ -703,7 +703,7 @@ describe("deleteFileWithFallback", () => {
 			const outside = path.join(root, "off-limits");
 			await fs.mkdir(outside);
 			const victim = path.join(outside, "keep.txt");
-			await Bun.write(victim, "keep me");
+			await fsx.write(victim, "keep me");
 			await fs.chmod(outside, 0o500);
 
 			const linkDir = path.join(root, "innocent-dir");
@@ -737,7 +737,7 @@ describe("deleteFileWithFallback", () => {
 			// though `lstat` succeeded.
 			const targetDir = path.join(root, "link-target-dir");
 			await fs.mkdir(targetDir);
-			await Bun.write(path.join(targetDir, "keep.txt"), "keep me");
+			await fsx.write(path.join(targetDir, "keep.txt"), "keep me");
 			const link = path.join(locked, "dir-link");
 			await fs.symlink(targetDir, link);
 			await fs.chmod(locked, 0o500);

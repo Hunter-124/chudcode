@@ -24,6 +24,7 @@ import { SKILL_PROMPT_MESSAGE_TYPE, type SkillPromptDetails } from "@oh-my-pi/pi
 import { SessionManager } from "@oh-my-pi/pi-coding-agent/session/session-manager";
 import { Container } from "@oh-my-pi/pi-tui";
 import { TempDir } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 
 type StubEditor = {
 	setText: (text: string) => void;
@@ -53,7 +54,7 @@ type PromptCustomMessage = Mock<
 
 async function writeSkillFile(dir: string, skillName: string, body: string): Promise<Skill> {
 	const skillPath = path.join(dir, `${skillName}.md`);
-	await Bun.write(skillPath, `---\nname: ${skillName}\n---\n${body}\n`);
+	await fsx.write(skillPath, `---\nname: ${skillName}\n---\n${body}\n`);
 	return { name: skillName, description: "", filePath: skillPath, baseDir: dir, source: "test" };
 }
 

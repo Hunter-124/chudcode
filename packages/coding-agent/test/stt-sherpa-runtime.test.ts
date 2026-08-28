@@ -4,13 +4,14 @@ import * as os from "node:os";
 import * as path from "node:path";
 import { loadSourceSherpaRuntime } from "@oh-my-pi/pi-coding-agent/stt/sherpa-runtime";
 import { removeWithRetries } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 
 const PLATFORM_PACKAGE = `sherpa-onnx-${os.platform() === "win32" ? "win" : os.platform()}-${os.arch()}`;
 
 async function writePackage(nodeModules: string, name: string, source: string): Promise<void> {
 	const dir = path.join(nodeModules, name);
-	await Bun.write(path.join(dir, "package.json"), JSON.stringify({ name, main: "index.js" }));
-	await Bun.write(path.join(dir, "index.js"), source);
+	await fsx.write(path.join(dir, "package.json"), JSON.stringify({ name, main: "index.js" }));
+	await fsx.write(path.join(dir, "index.js"), source);
 }
 
 describe("sherpa source runtime resolution", () => {

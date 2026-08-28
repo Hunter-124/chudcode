@@ -21,6 +21,7 @@ import {
 	MAX_HUB_LIST_LIMIT,
 } from "@oh-my-pi/pi-coding-agent/tools/hub/messaging";
 import { prompt, TempDir } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 
 function sessionHeader(id: string): string {
 	return JSON.stringify({
@@ -33,7 +34,7 @@ function sessionHeader(id: string): string {
 }
 
 async function writeParkedTranscript(sessionFile: string, id: string, task: string): Promise<void> {
-	await Bun.write(
+	await fsx.write(
 		sessionFile,
 		`${[
 			sessionHeader(id),
@@ -332,7 +333,7 @@ describe("hub list", () => {
 		using tempDir = TempDir.createSync("@omp-hub-list-readdir-retry-");
 		const dir = tempDir.path();
 		const sessionFile = path.join(dir, "main.jsonl");
-		await Bun.write(sessionFile, `${sessionHeader("main")}\n`);
+		await fsx.write(sessionFile, `${sessionHeader("main")}\n`);
 		await writeParkedTranscript(path.join(dir, "main", "ParkedScout.jsonl"), "parked", "reviewing classified.diff");
 
 		const registry = new AgentRegistry();
@@ -420,7 +421,7 @@ describe("hub list", () => {
 		expect(registry.get("ParkedScout")).toBeUndefined();
 
 		await fs.promises.rmdir(sessionFile);
-		await Bun.write(sessionFile, `${sessionHeader("main")}\n`);
+		await fsx.write(sessionFile, `${sessionHeader("main")}\n`);
 
 		const second = await executeList(registry, MAIN_AGENT_ID);
 		if (!second.details) throw new Error("Expected coordination details");
@@ -441,7 +442,7 @@ describe("hub list", () => {
 		const dir = tempDir.path();
 		const sessionFile = path.join(dir, "main.jsonl");
 		const transcriptFile = path.join(dir, "main", "ParkedScout.jsonl");
-		await Bun.write(sessionFile, `${sessionHeader("main")}\n`);
+		await fsx.write(sessionFile, `${sessionHeader("main")}\n`);
 		await writeParkedTranscript(transcriptFile, "parked", "reviewing classified.diff");
 
 		const registry = new AgentRegistry();
@@ -493,7 +494,7 @@ describe("hub list", () => {
 			using tempDir = TempDir.createSync(`@omp-hub-list-metadata-${code}-`);
 			const dir = tempDir.path();
 			const sessionFile = path.join(dir, "main.jsonl");
-			await Bun.write(sessionFile, `${sessionHeader("main")}\n`);
+			await fsx.write(sessionFile, `${sessionHeader("main")}\n`);
 			const transcriptFile = path.join(dir, "main", "ParkedScout.jsonl");
 			await writeParkedTranscript(transcriptFile, "parked", "reviewing classified.diff");
 
@@ -559,7 +560,7 @@ describe("hub list", () => {
 		const dir = tempDir.path();
 		const sessionFile = path.join(dir, "main.jsonl");
 		const transcriptFile = path.join(dir, "main", "ParkedScout.jsonl");
-		await Bun.write(sessionFile, `${sessionHeader("main")}\n`);
+		await fsx.write(sessionFile, `${sessionHeader("main")}\n`);
 		await writeParkedTranscript(transcriptFile, "parked", "reviewing classified.diff");
 
 		const registry = new AgentRegistry();
@@ -617,8 +618,8 @@ describe("hub list", () => {
 		const dir = tempDir.path();
 		const sessionFile = path.join(dir, "main.jsonl");
 		const transcriptFile = path.join(dir, "main", "ParkedScout.jsonl");
-		await Bun.write(sessionFile, `${sessionHeader("main")}\n`);
-		await Bun.write(
+		await fsx.write(sessionFile, `${sessionHeader("main")}\n`);
+		await fsx.write(
 			transcriptFile,
 			`${[
 				"{not json at all",
@@ -657,7 +658,7 @@ describe("hub list", () => {
 		using tempDir = TempDir.createSync("@omp-hub-list-enoent-latch-");
 		const dir = tempDir.path();
 		const sessionFile = path.join(dir, "main.jsonl");
-		await Bun.write(sessionFile, `${sessionHeader("main")}\n`);
+		await fsx.write(sessionFile, `${sessionHeader("main")}\n`);
 
 		const registry = new AgentRegistry();
 		registry.register({
@@ -707,10 +708,10 @@ describe("hub list", () => {
 		using tempDir = TempDir.createSync("@omp-hub-list-persisted-");
 		const sessionFile = path.join(tempDir.path(), "main.jsonl");
 		const workerSessionFile = path.join(tempDir.path(), "main", "Worker.jsonl");
-		await Bun.write(sessionFile, `${sessionHeader("main")}\n`);
+		await fsx.write(sessionFile, `${sessionHeader("main")}\n`);
 		// A settled subagent transcript: header + session_init. A header-only file
 		// is a mid-spawn stub and stays unregistered by design.
-		await Bun.write(
+		await fsx.write(
 			workerSessionFile,
 			`${[
 				sessionHeader("worker"),
@@ -769,7 +770,7 @@ describe("hub list", () => {
 		const sessionFile = path.join(dir, "main.jsonl");
 		const liveSessionFile = path.join(dir, "main", "LiveWorker.jsonl");
 		const parkedSessionFile = path.join(dir, "main", "ParkedScout.jsonl");
-		await Bun.write(sessionFile, `${sessionHeader("main")}\n`);
+		await fsx.write(sessionFile, `${sessionHeader("main")}\n`);
 		await writeParkedTranscript(parkedSessionFile, "parked", "reviewing classified.diff");
 
 		const registry = new AgentRegistry();
@@ -813,8 +814,8 @@ describe("hub list", () => {
 		using tempDir = TempDir.createSync("@omp-hub-list-session-switch-");
 		const firstSession = path.join(tempDir.path(), "first.jsonl");
 		const secondSession = path.join(tempDir.path(), "second.jsonl");
-		await Bun.write(firstSession, `${sessionHeader("first")}\n`);
-		await Bun.write(secondSession, `${sessionHeader("second")}\n`);
+		await fsx.write(firstSession, `${sessionHeader("first")}\n`);
+		await fsx.write(secondSession, `${sessionHeader("second")}\n`);
 		await writeParkedTranscript(path.join(tempDir.path(), "first", "FirstWorker.jsonl"), "first-worker", "first");
 		await writeParkedTranscript(path.join(tempDir.path(), "second", "SecondWorker.jsonl"), "second-worker", "second");
 
@@ -861,14 +862,14 @@ describe("hub list", () => {
 		using tempDir = TempDir.createSync("@omp-hub-list-deep-nest-");
 		const dir = tempDir.path();
 		const sessionFile = path.join(dir, "main.jsonl");
-		await Bun.write(sessionFile, `${sessionHeader("main")}\n`);
+		await fsx.write(sessionFile, `${sessionHeader("main")}\n`);
 		await writeParkedTranscript(path.join(dir, "main", "ParkedScout.jsonl"), "parked", "reviewing classified.diff");
 
 		let nestedDir = path.join(dir, "main");
 		let deepSessionFile = sessionFile;
 		for (let level = 1; level <= 10; level++) {
 			deepSessionFile = path.join(nestedDir, `L${level}.jsonl`);
-			await Bun.write(deepSessionFile, `${sessionHeader(`L${level}`)}\n`);
+			await fsx.write(deepSessionFile, `${sessionHeader(`L${level}`)}\n`);
 			nestedDir = path.join(nestedDir, `L${level}`);
 		}
 
@@ -974,8 +975,8 @@ describe("hub list session authority", () => {
 		using tempDir = TempDir.createSync("@omp-hub-stale-main-");
 		const firstSession = path.join(tempDir.path(), "first.jsonl");
 		const secondSession = path.join(tempDir.path(), "second.jsonl");
-		await Bun.write(firstSession, `${sessionHeader("first")}\n`);
-		await Bun.write(secondSession, `${sessionHeader("second")}\n`);
+		await fsx.write(firstSession, `${sessionHeader("first")}\n`);
+		await fsx.write(secondSession, `${sessionHeader("second")}\n`);
 		await writeParkedTranscript(path.join(tempDir.path(), "first", "FirstWorker.jsonl"), "first-worker", "first");
 		await writeParkedTranscript(path.join(tempDir.path(), "second", "SecondWorker.jsonl"), "second-worker", "second");
 
@@ -1006,9 +1007,9 @@ describe("hub list session authority", () => {
 			const secondSession = path.join(tempDir.path(), "second.jsonl");
 			const oldWorker = path.join(tempDir.path(), "first", "Worker.jsonl");
 			const newWorker = path.join(tempDir.path(), "second", "Worker.jsonl");
-			await Bun.write(firstSession, `${sessionHeader("first")}\n`);
-			await Bun.write(secondSession, `${sessionHeader("second")}\n`);
-			await Bun.write(
+			await fsx.write(firstSession, `${sessionHeader("first")}\n`);
+			await fsx.write(secondSession, `${sessionHeader("second")}\n`);
+			await fsx.write(
 				oldWorker,
 				`${[
 					sessionHeader("old-worker"),
@@ -1030,7 +1031,7 @@ describe("hub list session authority", () => {
 					}),
 				].join("\n")}\n`,
 			);
-			await Bun.write(
+			await fsx.write(
 				newWorker,
 				`${[
 					sessionHeader("worker"),
@@ -1118,7 +1119,7 @@ describe("hub list session authority", () => {
 		const oldDead = path.join(dir, "old", "DeadTwin.jsonl");
 		const oldAdvisor = path.join(dir, "old", "AdvisorTwin.jsonl");
 		const oldVibe = path.join(dir, "old", "VibeKid.jsonl");
-		await Bun.write(
+		await fsx.write(
 			currentSession,
 			`${[
 				sessionHeader("current"),
@@ -1221,10 +1222,10 @@ describe("hub list session authority", () => {
 		const oldIncomplete = path.join(dir, "old", "IncompleteTwin.jsonl");
 		const oldRace = path.join(dir, "old", "RaceTwin.jsonl");
 		const newRace = path.join(dir, "current", "RaceTwin.jsonl");
-		await Bun.write(currentSession, `${sessionHeader("current")}\n`);
+		await fsx.write(currentSession, `${sessionHeader("current")}\n`);
 		await writeParkedTranscript(oldIncomplete, "old-incomplete", "keep-old-incomplete");
 		await writeParkedTranscript(oldRace, "old-race", "keep-old-race");
-		await Bun.write(path.join(dir, "current", "IncompleteTwin.jsonl"), `${sessionHeader("incomplete")}\n`);
+		await fsx.write(path.join(dir, "current", "IncompleteTwin.jsonl"), `${sessionHeader("incomplete")}\n`);
 		await writeParkedTranscript(newRace, "race", "steal-race");
 
 		const registry = new AgentRegistry();
@@ -1286,8 +1287,8 @@ describe("hub list session authority", () => {
 		const dir = tempDir.path();
 		const sessionFile = path.join(dir, "main.jsonl");
 		const workerFile = path.join(dir, "main", "Worker.jsonl");
-		await Bun.write(sessionFile, `${sessionHeader("main")}\n`);
-		await Bun.write(
+		await fsx.write(sessionFile, `${sessionHeader("main")}\n`);
+		await fsx.write(
 			workerFile,
 			`${[
 				sessionHeader("worker"),
@@ -1405,7 +1406,7 @@ describe("child system prompt roster", () => {
 		const sessionFile = path.join(dir, "main.jsonl");
 		const liveSessionFile = path.join(dir, "main", "LiveWorker.jsonl");
 		const parkedSessionFile = path.join(dir, "main", "ParkedScout.jsonl");
-		await Bun.write(sessionFile, `${sessionHeader("main")}\n`);
+		await fsx.write(sessionFile, `${sessionHeader("main")}\n`);
 		await writeParkedTranscript(parkedSessionFile, "parked", "reviewing classified.diff");
 
 		const registry = AgentRegistry.global();
@@ -1487,7 +1488,7 @@ describe("hub direct addressing refreshes the caller root without a prior list",
 
 	/** Transcript with a distinguishable user line: header + session_init + message. */
 	async function writeTranscriptWithLine(sessionFile: string, id: string, secret: string): Promise<void> {
-		await Bun.write(
+		await fsx.write(
 			sessionFile,
 			`${[
 				sessionHeader(id),
@@ -1549,12 +1550,12 @@ describe("hub direct addressing refreshes the caller root without a prior list",
 		const childB = path.join(dir, "b", "main", "Worker.jsonl");
 		const artifactA = path.join(dir, "a", "main", "Worker.md");
 		const artifactB = path.join(dir, "b", "main", "Worker.md");
-		await Bun.write(rootA, `${sessionHeader("a")}\n`);
-		await Bun.write(rootB, `${sessionHeader("b")}\n`);
+		await fsx.write(rootA, `${sessionHeader("a")}\n`);
+		await fsx.write(rootB, `${sessionHeader("b")}\n`);
 		await writeTranscriptWithLine(childA, "worker", "A");
 		await writeTranscriptWithLine(childB, "worker", "B");
-		await Bun.write(artifactA, "A OUTPUT");
-		await Bun.write(artifactB, "B OUTPUT");
+		await fsx.write(artifactA, "A OUTPUT");
+		await fsx.write(artifactB, "B OUTPUT");
 
 		const registry = AgentRegistry.global();
 		const readdirs: string[] = [];
@@ -1675,7 +1676,7 @@ describe("hub direct addressing refreshes the caller root without a prior list",
 		const dir = tempDir.path();
 		const rootA = path.join(dir, "a", "main.jsonl");
 		const childA = path.join(dir, "a", "main", "Worker.jsonl");
-		await Bun.write(rootA, `${sessionHeader("a")}\n`);
+		await fsx.write(rootA, `${sessionHeader("a")}\n`);
 		await writeTranscriptWithLine(childA, "worker", "A");
 
 		const registry = AgentRegistry.global();
@@ -1732,7 +1733,7 @@ describe("hub direct addressing refreshes the caller root without a prior list",
 		const dir = tempDir.path();
 		const rootB = path.join(dir, "b", "main.jsonl");
 		const childB = path.join(dir, "b", "main", "Worker.jsonl");
-		await Bun.write(rootB, `${sessionHeader("b")}\n`);
+		await fsx.write(rootB, `${sessionHeader("b")}\n`);
 		await writeTranscriptWithLine(childB, "worker", "B");
 		const registry = AgentRegistry.global();
 		registry.register({

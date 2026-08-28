@@ -48,18 +48,18 @@ describe("report bundle sessions", () => {
 		// Current session and its artifacts subtree: a genuine subagent transcript
 		// plus a nested sub-subagent transcript one level deeper.
 		const sessionFile = path.join(sessionsDir, "2026-08-15T00-00-00_CURRENT.jsonl");
-		await Bun.write(sessionFile, '{"type":"session","id":"CURRENT"}\n');
+		await fsx.write(sessionFile, '{"type":"session","id":"CURRENT"}\n');
 		const artifactsDir = sessionFile.slice(0, -6);
 		await fs.mkdir(path.join(artifactsDir, "SubTask"), { recursive: true });
-		await Bun.write(path.join(artifactsDir, "SubTask.jsonl"), '{"type":"session","id":"SubTask"}\n');
-		await Bun.write(path.join(artifactsDir, "SubTask", "NestedTask.jsonl"), '{"type":"session","id":"NestedTask"}\n');
+		await fsx.write(path.join(artifactsDir, "SubTask.jsonl"), '{"type":"session","id":"SubTask"}\n');
+		await fsx.write(path.join(artifactsDir, "SubTask", "NestedTask.jsonl"), '{"type":"session","id":"NestedTask"}\n');
 
 		// Unrelated top-level sessions co-located in the sessions root.
-		await Bun.write(
+		await fsx.write(
 			path.join(sessionsDir, "2026-08-10T00-00-00_OTHERA.jsonl"),
 			'{"type":"session","secret":"private-a"}\n',
 		);
-		await Bun.write(
+		await fsx.write(
 			path.join(sessionsDir, "2026-08-12T00-00-00_OTHERB.jsonl"),
 			'{"type":"session","secret":"private-b"}\n',
 		);

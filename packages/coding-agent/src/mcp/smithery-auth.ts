@@ -72,7 +72,7 @@ export async function getSmitheryApiKey(): Promise<string | undefined> {
 
 	const authPath = getSmitheryAuthPath();
 	try {
-		const payload = (await Bun.file(authPath).json()) as SmitheryAuthPayload;
+		const payload = (await fsx.readJson(authPath)) as SmitheryAuthPayload;
 		return normalizeApiKey(payload.apiKey);
 	} catch (error) {
 		if (isEnoent(error)) return undefined;

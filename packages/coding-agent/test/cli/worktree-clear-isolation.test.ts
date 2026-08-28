@@ -35,7 +35,7 @@ describe("worktree clear task-isolation ownership", () => {
 	async function makeSandbox(name: string): Promise<string> {
 		const dir = path.join(base, name);
 		await fs.mkdir(path.join(dir, "m"), { recursive: true });
-		await Bun.write(path.join(dir, "m", "work.txt"), "uncaptured\n");
+		await fsx.write(path.join(dir, "m", "work.txt"), "uncaptured\n");
 		return dir;
 	}
 
@@ -51,12 +51,12 @@ describe("worktree clear task-isolation ownership", () => {
 		await writeIsolationOwner(live, "live0001"); // marker names this test process
 
 		const dead = await makeSandbox("tdead0002");
-		await Bun.write(path.join(dead, ISOLATION_OWNER_FILE), JSON.stringify({ pid: await deadPid(), id: "dead0002" }));
+		await fsx.write(path.join(dead, ISOLATION_OWNER_FILE), JSON.stringify({ pid: await deadPid(), id: "dead0002" }));
 
 		const orphan = await makeSandbox("tnone0003"); // no marker at all (crashed pre-marker run)
 
 		const corrupt = await makeSandbox("tbad00004");
-		await Bun.write(path.join(corrupt, ISOLATION_OWNER_FILE), "{ not json");
+		await fsx.write(path.join(corrupt, ISOLATION_OWNER_FILE), "{ not json");
 
 		// Setup race: marker written before the backend materialises `m`. The
 		// dir holds only the live-owner marker and no mount yet.
@@ -67,7 +67,7 @@ describe("worktree clear task-isolation ownership", () => {
 		// Recycled pid: the crashed owner's pid was reassigned to this live test
 		// process, but the recorded start-time token no longer matches.
 		const recycled = await makeSandbox("trecyc06");
-		await Bun.write(
+		await fsx.write(
 			path.join(recycled, ISOLATION_OWNER_FILE),
 			JSON.stringify({ pid: process.pid, id: "recyc06", startToken: "not-the-current-token" }),
 		);

@@ -903,7 +903,7 @@ describe("ExtensionRunner", () => {
 				});
 			}
 		`;
-			await Bun.write(path.join(extensionsDir, "session-stop.ts"), extCode);
+			await fsx.write(path.join(extensionsDir, "session-stop.ts"), extCode);
 
 			const result = await loadTestExtensions();
 			const runner = new ExtensionRunner(
@@ -962,7 +962,7 @@ describe("ExtensionRunner", () => {
 		it("skips cancelled handlers, releases in-flight handlers, and preserves timeout errors", async () => {
 			const extensionPath = path.join(tempDir.path(), "cancel-session-stop.ts");
 			const startedPath = path.join(tempDir.path(), "session-stop-started.txt");
-			await Bun.write(
+			await fsx.write(
 				extensionPath,
 				`
 				import * as fs from "node:fs";
@@ -1036,7 +1036,7 @@ describe("ExtensionRunner", () => {
 
 		it("observes a session_stop signal aborted synchronously by the handler", async () => {
 			const extensionPath = path.join(tempDir.path(), "self-cancel-session-stop.ts");
-			await Bun.write(
+			await fsx.write(
 				extensionPath,
 				`
 				export default function(pi) {
@@ -1110,7 +1110,7 @@ describe("ExtensionRunner", () => {
 			}
 		});
 		it("continues to later handlers after empty continuation feedback", async () => {
-			await Bun.write(
+			await fsx.write(
 				path.join(extensionsDir, "session-stop-empty.ts"),
 				`
 				export default function(pi) {
@@ -2090,7 +2090,7 @@ describe("ExtensionRunner", () => {
 				}
 			`;
 			const explicitExtensionPath = path.join(tempDir.path(), "service-tiers.ts");
-			await Bun.write(explicitExtensionPath, extCode);
+			await fsx.write(explicitExtensionPath, extCode);
 			const result = await loadTestExtensions([explicitExtensionPath]);
 			const runner = new ExtensionRunner(
 				result.extensions,

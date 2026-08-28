@@ -18,7 +18,7 @@ describe.skipIf(!hasPtyHarness)("CLI initial-message title generation", () => {
 		const outputPath = path.join(root, "probe.json");
 		try {
 			await fs.mkdir(agentDir, { recursive: true });
-			await Bun.write(
+			await fsx.write(
 				path.join(agentDir, "config.yml"),
 				"setupVersion: 1\nstartup:\n  setupWizard: false\n  showSplash: false\n  checkUpdate: false\nproviders:\n  tinyModel: online\n",
 			);

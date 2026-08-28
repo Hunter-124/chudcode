@@ -4,6 +4,7 @@ import { getBundledModel } from "@oh-my-pi/pi-catalog/models";
 import { SessionManager } from "@oh-my-pi/pi-coding-agent/session/session-manager";
 import { FileSessionStorage, MemorySessionStorage } from "@oh-my-pi/pi-coding-agent/session/session-storage";
 import { TempDir } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 
 const tempDirs: TempDir[] = [];
 const LARGE_SESSION_BYTES = 9 * 1024 * 1024;
@@ -151,7 +152,7 @@ describe("SessionManager.peekSessionInit", () => {
 		]
 			.map(entry => JSON.stringify(entry))
 			.join("\n");
-		await Bun.write(file, `${content}\n`);
+		await fsx.write(file, `${content}\n`);
 
 		expect(await SessionManager.peekSessionInit(file)).toBeNull();
 		expect(await SessionManager.peekSessionInit(file, new LargeFileSessionStorage())).toBeNull();

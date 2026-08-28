@@ -410,7 +410,7 @@ describe("persisted subagent revival", () => {
 		// (artifactsDir = parent sessionFile sans ".jsonl"; see createFactory).
 		const artifactPath = path.join(cwd, "parent", `${ref.id}.md`);
 		const completedReport = "# Completed report\n\nfull multi-paragraph body\n\nZZEND";
-		await Bun.write(artifactPath, completedReport);
+		await fsx.write(artifactPath, completedReport);
 
 		const observer = handle?.observer();
 		expect(observer).toBeDefined();

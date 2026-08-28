@@ -33,5 +33,5 @@ if (!referenceDirectory || !candidateDirectory) {
 }
 const report = compareSecurityProducers(await readBundle(referenceDirectory), await readBundle(candidateDirectory));
 const serialized = `${JSON.stringify(report, null, 2)}\n`;
-if (outputPath) await Bun.write(path.resolve(outputPath), serialized);
+if (outputPath) await fsx.write(path.resolve(outputPath), serialized);
 else process.stdout.write(serialized);
