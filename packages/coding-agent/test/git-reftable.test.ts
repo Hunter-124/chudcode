@@ -3,6 +3,7 @@ import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
 import { removeWithRetries } from "@oh-my-pi/pi-utils";
+import * as proc from "@oh-my-pi/pi-utils/proc";
 import { $ } from "bun";
 import * as git from "../src/utils/git";
 
@@ -110,7 +111,7 @@ describe.skipIf(!supportsReftable)("git reftable support", () => {
 	test("head.resolveSync degrades when the git binary is missing", () => {
 		const err = new Error('Executable not found in $PATH: "git"');
 		(err as NodeJS.ErrnoException).code = "ENOENT";
-		vi.spyOn(Bun, "spawnSync").mockImplementation(() => {
+		vi.spyOn(proc, "spawnSync").mockImplementation(() => {
 			throw err;
 		});
 		try {
@@ -123,20 +124,20 @@ describe.skipIf(!supportsReftable)("git reftable support", () => {
 		}
 	});
 
-	test("head.resolveSync treats Bun's timeout marker as a failed symbolic-ref even with exit code zero", () => {
-		const baseResult = Bun.spawnSync(["true"], { stdout: "pipe", stderr: "pipe" });
-		const timedOutSymbolicRef = {
+	test("head.resolveSync treats the timeout marker as a failed symbolic-ref even with exit code zero", () => {
+		const baseResult = proc.spawnSync(["true"], { stdout: "pipe", stderr: "pipe" });
+		const timedOutSymbolicRef: proc.SpawnSyncResult = {
 			...baseResult,
 			exitCode: 0,
 			exitedDueToTimeout: true,
 			stdout: Buffer.from("refs/heads/feature-branch\n"),
-		} satisfies Bun.ReadableSyncSubprocess;
-		const successfulRevParse = {
+		};
+		const successfulRevParse: proc.SpawnSyncResult = {
 			...baseResult,
 			exitCode: 0,
 			stdout: Buffer.from(`${headSha}\n`),
-		} satisfies Bun.ReadableSyncSubprocess;
-		vi.spyOn(Bun, "spawnSync").mockReturnValueOnce(timedOutSymbolicRef).mockReturnValueOnce(successfulRevParse);
+		};
+		vi.spyOn(proc, "spawnSync").mockReturnValueOnce(timedOutSymbolicRef).mockReturnValueOnce(successfulRevParse);
 
 		const headState = git.head.resolveSync(sharedRepoDir);
 		expect(headState?.kind).toBe("detached");

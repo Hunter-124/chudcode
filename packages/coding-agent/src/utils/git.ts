@@ -3,6 +3,7 @@ import * as os from "node:os";
 import * as path from "node:path";
 import { $which, hasFsCode, isEacces, isEisdir, isEnoent, isEnotdir, Snowflake } from "@oh-my-pi/pi-utils";
 import * as fsx from "@oh-my-pi/pi-utils/fsx";
+import * as proc from "@oh-my-pi/pi-utils/proc";
 import type { Subprocess } from "bun";
 import {
 	parseDiffHunks as parseCommitDiffHunks,
@@ -498,7 +499,7 @@ function gitSpawnSyncText(
 ): { exitCode: number; stdout: string } {
 	const commandArgs = withShortLivedGitConfig(withNoOptionalLocks(args));
 	try {
-		const result = Bun.spawnSync(["git", ...commandArgs], {
+		const result = proc.spawnSync(["git", ...commandArgs], {
 			cwd,
 			env: buildGitEnv(),
 			stdout: "pipe",

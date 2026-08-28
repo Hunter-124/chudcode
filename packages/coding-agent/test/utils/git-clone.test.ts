@@ -5,6 +5,7 @@ import * as path from "node:path";
 import * as url from "node:url";
 import * as git from "@oh-my-pi/pi-coding-agent/utils/git";
 import { removeWithRetries } from "@oh-my-pi/pi-utils";
+import * as proc from "@oh-my-pi/pi-utils/proc";
 
 // Regression coverage for #1589: `git.clone({ sha })` used to hardcode
 // `--depth 1`, producing a shallow clone whose object store never contained
@@ -27,7 +28,7 @@ function gitRun(cwd: string, args: string[]): string {
 	delete env.GIT_INDEX_FILE;
 	delete env.GIT_OBJECT_DIRECTORY;
 	delete env.GIT_ALTERNATE_OBJECT_DIRECTORIES;
-	const result = Bun.spawnSync({
+	const result = proc.spawnSync({
 		cmd: ["git", ...args],
 		cwd,
 		env,

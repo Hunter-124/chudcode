@@ -20,6 +20,7 @@ import * as git from "@oh-my-pi/pi-coding-agent/utils/git";
 import * as piUtils from "@oh-my-pi/pi-utils";
 import { $which, getAgentDir, hashPath, removeWithRetries, setAgentDir, WhichCachePolicy } from "@oh-my-pi/pi-utils";
 import * as fsx from "@oh-my-pi/pi-utils/fsx";
+import * as proc from "@oh-my-pi/pi-utils/proc";
 
 const TINY_PNG_BASE64 =
 	"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8DwHwAFBQIAX8jx0gAAAABJRU5ErkJggg==";
@@ -72,7 +73,7 @@ function createSession(
 }
 
 function runGit(cwd: string, args: string[]): string {
-	const result = Bun.spawnSync(["git", ...args], {
+	const result = proc.spawnSync(["git", ...args], {
 		cwd,
 		stdout: "pipe",
 		stderr: "pipe",
@@ -1105,7 +1106,7 @@ describe("github tool", () => {
 				if (process.platform === "win32") return;
 				const originalPath = process.env.PATH;
 				const fakeBin = await fs.mkdtemp(path.join(os.tmpdir(), "omp-fake-git-"));
-				const realGitResult = Bun.spawnSync(["which", "git"], { stdout: "pipe", stderr: "pipe" });
+				const realGitResult = proc.spawnSync(["which", "git"], { stdout: "pipe", stderr: "pipe" });
 				expect(realGitResult.exitCode).toBe(0);
 				const realGit = new TextDecoder().decode(realGitResult.stdout).trim();
 				const fakeGit = path.join(fakeBin, "git");

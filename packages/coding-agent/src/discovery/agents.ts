@@ -6,6 +6,7 @@
  * Project-level discovery walks up from cwd to repoRoot.
  */
 import * as path from "node:path";
+import * as proc from "@oh-my-pi/pi-utils/proc";
 import { registerProvider } from "../capability";
 import { type ContextFile, contextFileCapability } from "../capability/context-file";
 import { readFile } from "../capability/fs";
@@ -75,7 +76,7 @@ const HOST_PROBE_TIMEOUT_MS = 500;
  */
 export function runHostProbe(cmd: string[], timeoutMs = HOST_PROBE_TIMEOUT_MS): string | undefined {
 	try {
-		const result = Bun.spawnSync(cmd, {
+		const result = proc.spawnSync(cmd, {
 			stdout: "pipe",
 			stderr: "ignore",
 			timeout: timeoutMs,

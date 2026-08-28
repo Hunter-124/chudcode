@@ -5,6 +5,7 @@ import * as path from "node:path";
 import * as git from "@oh-my-pi/pi-coding-agent/utils/git";
 import { removeWithRetries } from "@oh-my-pi/pi-utils";
 import * as fsx from "@oh-my-pi/pi-utils/fsx";
+import * as proc from "@oh-my-pi/pi-utils/proc";
 
 // Regression coverage for #8897: `omp commit` split-commit captured the staged
 // diff with `git diff --cached --binary`, whose stdout is hard-capped at
@@ -25,7 +26,7 @@ const GIT_ENV = {
 
 function gitRun(cwd: string, args: string[]): void {
 	const env: Record<string, string | undefined> = { ...process.env, ...GIT_ENV };
-	const result = Bun.spawnSync({ cmd: ["git", ...args], cwd, env, stdout: "pipe", stderr: "pipe" });
+	const result = proc.spawnSync({ cmd: ["git", ...args], cwd, env, stdout: "pipe", stderr: "pipe" });
 	if (result.exitCode !== 0) {
 		throw new Error(`git ${args.join(" ")} failed: ${result.stderr.toString()}`);
 	}

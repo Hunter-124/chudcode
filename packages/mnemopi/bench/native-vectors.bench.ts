@@ -7,6 +7,7 @@
  */
 import * as os from "node:os";
 import { cosineSimilarityPairs } from "@oh-my-pi/pi-natives";
+import * as proc from "@oh-my-pi/pi-utils/proc";
 import { jaccardSimilarity, mmrRerank } from "../src/core/mmr";
 import { searchExactVectorIndex } from "../src/core/vector-index";
 import { cosineSimilarity } from "../src/core/vector-math";
@@ -179,7 +180,7 @@ for (const count of COUNTS.filter(n => n <= 1000)) {
 	pushRow("mmrRerankIndices (via mmrRerank)", count, ts, native);
 }
 
-const sha = process.env.BENCH_SHA ?? Bun.spawnSync(["git", "rev-parse", "HEAD"]).stdout.toString().trim();
+const sha = process.env.BENCH_SHA ?? proc.spawnSync(["git", "rev-parse", "HEAD"]).stdout.toString().trim();
 const report = {
 	sha,
 	date: new Date().toISOString(),

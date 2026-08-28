@@ -2,6 +2,7 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import * as url from "node:url";
 import { $which, logger } from "@oh-my-pi/pi-utils";
+import * as proc from "@oh-my-pi/pi-utils/proc";
 
 const URL_SCHEME_PATTERN = /^[a-zA-Z][a-zA-Z\d+.-]*:/;
 
@@ -22,7 +23,7 @@ function getExistingWslLocalPath(urlOrPath: string): string | undefined {
 				: path.resolve(urlOrPath);
 		if (!localPath || !fs.existsSync(localPath)) return undefined;
 
-		const result = Bun.spawnSync(["wslpath", "-w", localPath], { stdout: "pipe", stderr: "ignore" });
+		const result = proc.spawnSync(["wslpath", "-w", localPath], { stdout: "pipe", stderr: "ignore" });
 		if (result.exitCode !== 0) return undefined;
 
 		return result.stdout.toString().trim() || undefined;

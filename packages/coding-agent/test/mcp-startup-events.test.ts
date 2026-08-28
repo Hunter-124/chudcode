@@ -6,6 +6,7 @@ import {
 	isMcpConnectionStatusEvent,
 	MCP_CONNECTION_STATUS_EVENT_CHANNEL,
 } from "@oh-my-pi/pi-coding-agent/mcp/startup-events";
+import * as proc from "@oh-my-pi/pi-utils/proc";
 
 // Cross-module contract guard.
 //
@@ -92,7 +93,7 @@ describe("mcp/startup-events — connection-status cross-module contract", () =>
 				failedServers: [{ serverName: "broken", error: "ENOENT", sourcePath }],
 			}));
 		`;
-		const result = Bun.spawnSync({
+		const result = proc.spawnSync({
 			cmd: [process.execPath, "-e", script],
 			env: { ...process.env, HOME: homeDir, USERPROFILE: homeDir },
 		});

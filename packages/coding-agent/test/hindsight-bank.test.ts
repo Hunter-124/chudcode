@@ -6,6 +6,7 @@ import { computeBankScope, deriveBankId, ensureBankExists } from "@oh-my-pi/pi-c
 import { HindsightApi } from "@oh-my-pi/pi-coding-agent/hindsight/client";
 import type { HindsightConfig } from "@oh-my-pi/pi-coding-agent/hindsight/config";
 import { removeWithRetries } from "@oh-my-pi/pi-utils";
+import * as proc from "@oh-my-pi/pi-utils/proc";
 
 // Isolate `git` invocations in this file from the host's global config —
 // `~/.gitconfig` commit signing or template hooks would otherwise turn the
@@ -19,7 +20,7 @@ process.env.GIT_ASKPASS = "true";
 delete process.env.XDG_CONFIG_HOME;
 
 function runGit(cwd: string, args: string[]): string {
-	const result = Bun.spawnSync(["git", ...args], {
+	const result = proc.spawnSync(["git", ...args], {
 		cwd,
 		stdout: "pipe",
 		stderr: "pipe",

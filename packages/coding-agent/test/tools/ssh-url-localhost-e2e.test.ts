@@ -11,6 +11,7 @@ import type { ToolSession } from "@oh-my-pi/pi-coding-agent/tools";
 import { GrepTool } from "@oh-my-pi/pi-coding-agent/tools/grep";
 import { ReadTool } from "@oh-my-pi/pi-coding-agent/tools/read";
 import { WriteTool } from "@oh-my-pi/pi-coding-agent/tools/write";
+import * as proc from "@oh-my-pi/pi-utils/proc";
 
 // Live integration against `ssh localhost`. Skips automatically where key-based
 // localhost SSH is unavailable (CI without sshd). Capability lookup is mocked
@@ -18,7 +19,7 @@ import { WriteTool } from "@oh-my-pi/pi-coding-agent/tools/write";
 // exercising the real connection-manager + file-transfer over a real ssh process.
 const SSH_OK = (() => {
 	try {
-		const r = Bun.spawnSync(["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=4", "localhost", "true"]);
+		const r = proc.spawnSync(["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=4", "localhost", "true"]);
 		return r.exitCode === 0;
 	} catch {
 		return false;

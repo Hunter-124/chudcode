@@ -5,6 +5,7 @@ import * as path from "node:path";
 import { clearCache, readFile } from "@oh-my-pi/pi-coding-agent/capability/fs";
 import { sleep } from "@oh-my-pi/pi-utils/async";
 import * as fsx from "@oh-my-pi/pi-utils/fsx";
+import * as proc from "@oh-my-pi/pi-utils/proc";
 
 const isWindows = process.platform === "win32";
 
@@ -25,7 +26,7 @@ describe("capability/fs readFile on special files", () => {
 	// never see EOF.
 	it.skipIf(isWindows)("returns null for a FIFO instead of blocking", async () => {
 		const fifo = path.join(dir, "CLAUDE.md");
-		const made = Bun.spawnSync(["mkfifo", fifo]);
+		const made = proc.spawnSync(["mkfifo", fifo]);
 		expect(made.exitCode).toBe(0);
 		clearCache();
 		// Real-clock race on purpose: a regressed readFile blocks inside a

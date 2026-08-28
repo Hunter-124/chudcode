@@ -18,6 +18,7 @@ import { WriteTool } from "@oh-my-pi/pi-coding-agent/tools/write";
 import { $which, removeSyncWithRetries, Snowflake } from "@oh-my-pi/pi-utils";
 import { openArchive, readArchiveEntries } from "@oh-my-pi/pi-utils/ar";
 import * as fsx from "@oh-my-pi/pi-utils/fsx";
+import * as proc from "@oh-my-pi/pi-utils/proc";
 import { GlobTool } from "../src/tools/glob";
 import { DEFAULT_FILE_LIMIT, GrepTool, MULTI_FILE_PER_FILE_MATCHES } from "../src/tools/grep";
 import { HubTool } from "../src/tools/hub";
@@ -53,7 +54,7 @@ function createFifoOrSkip(fifoPath: string): boolean {
 		return false;
 	}
 
-	const result = Bun.spawnSync([mkfifoPath, fifoPath], { stdout: "ignore", stderr: "pipe" });
+	const result = proc.spawnSync([mkfifoPath, fifoPath], { stdout: "ignore", stderr: "pipe" });
 	if (result.exitCode !== 0) {
 		const errorText = result.stderr.toString("utf-8").trim();
 		throw new Error(`mkfifo failed${errorText ? `: ${errorText}` : ""}`);

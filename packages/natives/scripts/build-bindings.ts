@@ -13,6 +13,7 @@ import * as fsSync from "node:fs";
 import * as fs from "node:fs/promises";
 import { createRequire } from "node:module";
 import * as path from "node:path";
+import * as proc from "@oh-my-pi/pi-utils/proc";
 import { $ } from "bun";
 import { detectHostAvx2Support, resolveLocalHostAddon } from "../../../scripts/host-detect";
 import { generateEnumExports } from "./gen-enums";
@@ -34,7 +35,7 @@ if (process.platform === "win32" && (!Bun.which("cmake") || !Bun.which("ninja"))
 		"Installer",
 		"vswhere.exe",
 	);
-	const probe = Bun.spawnSync(
+	const probe = proc.spawnSync(
 		[
 			vswhere,
 			"-latest",

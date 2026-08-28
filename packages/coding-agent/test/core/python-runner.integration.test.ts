@@ -11,6 +11,7 @@ import { disposeAllKernelSessions, executePythonWithKernel } from "@oh-my-pi/pi-
 import { PythonKernel } from "@oh-my-pi/pi-coding-agent/eval/py/kernel";
 import { filterEnv, resolvePythonRuntime } from "@oh-my-pi/pi-coding-agent/eval/py/runtime";
 import { TempDir } from "@oh-my-pi/pi-utils";
+import * as proc from "@oh-my-pi/pi-utils/proc";
 
 const SHOULD_RUN = process.env.PI_PYTHON_INTEGRATION === "1";
 const MATPLOTLIB_TEST_CWD = process.cwd();
@@ -24,7 +25,7 @@ async function hasMatplotlib(cwd: string): Promise<boolean> {
 		for (const [key, value] of Object.entries(runtime.env)) {
 			if (typeof value === "string") spawnEnv[key] = value;
 		}
-		const result = Bun.spawnSync([runtime.pythonPath, "-c", "import matplotlib"], {
+		const result = proc.spawnSync([runtime.pythonPath, "-c", "import matplotlib"], {
 			cwd,
 			env: spawnEnv,
 			stdout: "ignore",

@@ -3,6 +3,7 @@ import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
 import { sleep } from "@oh-my-pi/pi-utils/async";
+import * as proc from "@oh-my-pi/pi-utils/proc";
 import { resolveStdioSpawnCommand, StdioTransport, terminateStdioProcess } from "../../../src/mcp/transports/stdio";
 
 describe("resolveStdioSpawnCommand", () => {
@@ -165,7 +166,7 @@ function processExists(pid: number): boolean {
 	} catch {
 		return false;
 	}
-	const result = Bun.spawnSync(["ps", "-o", "stat=", "-p", String(pid)]);
+	const result = proc.spawnSync(["ps", "-o", "stat=", "-p", String(pid)]);
 	const state = result.stdout.toString().trim();
 	return result.exitCode === 0 && state.length > 0 && !state.startsWith("Z");
 }

@@ -1,5 +1,6 @@
 import * as fs from "node:fs/promises";
 import { ensureChromiumExecutable } from "@oh-my-pi/pi-coding-agent/tools/browser/launch";
+import * as proc from "@oh-my-pi/pi-utils/proc";
 
 /**
  * Whether the Chromium puppeteer resolves can actually execute on this host.
@@ -21,7 +22,7 @@ async function chromiumCanLaunch(): Promise<boolean> {
 		// back unvalidated — still skips the suites rather than failing them at
 		// launch.
 		if (process.platform !== "linux") return (await fs.stat(executable)).isFile();
-		const probe = Bun.spawnSync([executable, "--version"], { stdout: "ignore", stderr: "ignore" });
+		const probe = proc.spawnSync([executable, "--version"], { stdout: "ignore", stderr: "ignore" });
 		return probe.exitCode === 0;
 	} catch {
 		return false;

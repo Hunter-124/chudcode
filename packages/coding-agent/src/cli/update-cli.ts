@@ -14,6 +14,7 @@ import { $env, $which, compareVersions, isEnoent, VERSION } from "@oh-my-pi/pi-u
 import chalk from "@oh-my-pi/pi-utils/chalk";
 import { withFileLock } from "@oh-my-pi/pi-utils/file-lock";
 import * as fsx from "@oh-my-pi/pi-utils/fsx";
+import * as proc from "@oh-my-pi/pi-utils/proc";
 import { $ } from "bun";
 import { PRODUCT_CLI_NAME } from "../brand";
 import { settings } from "../config/settings";
@@ -1067,7 +1068,7 @@ interface MuslDetectionOptions {
 
 function detectLddOutput(): string | undefined {
 	try {
-		const result = Bun.spawnSync(["ldd", "--version"], { stdout: "pipe", stderr: "pipe" });
+		const result = proc.spawnSync(["ldd", "--version"], { stdout: "pipe", stderr: "pipe" });
 		return `${result.stdout.toString("utf-8")}\n${result.stderr.toString("utf-8")}`;
 	} catch {
 		return undefined;
