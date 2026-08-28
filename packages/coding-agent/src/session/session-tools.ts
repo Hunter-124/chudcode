@@ -16,7 +16,7 @@ import { type LocalProtocolOptions, XD_URL_PREFIX } from "../internal-urls";
 import { deduplicateMCPToolsByName } from "../mcp/tool-bridge";
 import { resolveMemoryBackend } from "../memory-backend/resolve";
 import { MEMORY_BACKEND_TOOL_NAMES } from "../memory-backend/tool-names";
-import type { MemoryBackendStartOptions } from "../memory-backend/types";
+import type { MemoryBackend, MemoryBackendStartOptions } from "../memory-backend/types";
 import xdevMountNoticePrompt from "../prompts/system/xdev-mount-notice.md" with { type: "text" };
 import { usesCodexTaskPrompt } from "../task/prompt-policy";
 import { isMCPToolName, normalizeToolNames } from "../tools/builtin-names";
@@ -102,6 +102,52 @@ interface SessionToolsOptions {
 	skillWarnings?: SkillWarning[];
 	skillsSettings?: SkillsSettings;
 	skillsReloadable?: boolean;
+}
+
+const MEMORY_PROMPT_INJECTION_TIMEOUT_MS = 5_000;
+const MEMORY_PROMPT_INJECTION_TIMED_OUT = Symbol("memory.promptInjection.timedOut");
+
+export type MemoryPromptInjectionResult =
+	| { timedOut: false; injected: string | undefined }
+	| { timedOut: true; injected: undefined };
+
+export interface MemoryPromptInjectionTimeoutOptions {
+	timeoutMs?: number;
+	scheduleTimeout?: (callback: () => void, delayMs: number) => () => void;
+}
+
+/**
+ * Await the extension-controlled first-turn hook behind a hard deadline. The
+ * hook promise is intentionally left alone after timeout; the race installs a
+ * rejection observer, while the agent proceeds without its optional context.
+ */
+export async function awaitMemoryPromptInjection(
+	backend: MemoryBackend,
+	session: MemoryBackendStartOptions["session"],
+	promptText: string,
+	options: MemoryPromptInjectionTimeoutOptions = {},
+): Promise<MemoryPromptInjectionResult> {
+	if (!backend.beforeAgentStartPrompt) return { timedOut: false, injected: undefined };
+	const timeoutMs = Math.max(0, options.timeoutMs ?? MEMORY_PROMPT_INJECTION_TIMEOUT_MS);
+	const { promise: timeout, resolve: timeoutReached } =
+		Promise.withResolvers<typeof MEMORY_PROMPT_INJECTION_TIMED_OUT>();
+	const cancelTimeout =
+		options.scheduleTimeout?.(() => timeoutReached(MEMORY_PROMPT_INJECTION_TIMED_OUT), timeoutMs) ??
+		(() => {
+			const timer = setTimeout(() => timeoutReached(MEMORY_PROMPT_INJECTION_TIMED_OUT), timeoutMs);
+			timer.unref();
+			return () => clearTimeout(timer);
+		})();
+	try {
+		const winner = await Promise.race([
+			backend.beforeAgentStartPrompt(session, promptText),
+			timeout,
+		]);
+		if (winner === MEMORY_PROMPT_INJECTION_TIMED_OUT) return { timedOut: true, injected: undefined };
+		return { timedOut: false, injected: winner };
+	} finally {
+		cancelTimeout();
+	}
 }
 
 export interface MountedMCPToolRouteSource {
@@ -1620,7 +1666,19 @@ export class SessionTools {
 		if (!backend.beforeAgentStartPrompt) return this.#baseSystemPrompt;
 
 		try {
-			const injected = await backend.beforeAgentStartPrompt(this.#host.memoryBackendSession(), promptText);
+			const injection = await awaitMemoryPromptInjection(
+				backend,
+				this.#host.memoryBackendSession(),
+				promptText,
+			);
+			if (injection.timedOut) {
+				logger.warn("Memory backend beforeAgentStartPrompt timed out; proceeding without injection", {
+					backend: backend.id,
+					timeoutMs: MEMORY_PROMPT_INJECTION_TIMEOUT_MS,
+				});
+				return this.#baseSystemPrompt;
+			}
+			const { injected } = injection;
 			if (!injected) return this.#baseSystemPrompt;
 
 			const previousBaseSystemPrompt = this.#baseSystemPrompt;

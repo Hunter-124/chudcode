@@ -3021,6 +3021,17 @@ export const SETTINGS_SCHEMA = {
 		},
 	},
 
+	"memory.embedWorkerIdleMinutes": {
+		type: "number",
+		default: 10,
+		ui: {
+			tab: "memory",
+			group: "General",
+			label: "Embedding Worker Idle Timeout",
+			description: "Stop the local embedding worker after this many idle minutes; 0 keeps it running",
+		},
+	},
+
 	// Auto-Learn (experimental): post-stop nudge to capture lessons to memory
 	// and mint/enhance isolated managed skills under ~/.omp/agent/managed-skills.
 	// Master flag is default-off → zero footprint; sub-flags gate behaviour.
@@ -5031,6 +5042,17 @@ export const SETTINGS_SCHEMA = {
 				{ value: "32", label: "32 tasks" },
 				{ value: "64", label: "64 tasks" },
 			],
+		},
+	},
+
+	"task.minFreeMemMB": {
+		type: "number",
+		default: 1024,
+		ui: {
+			tab: "tasks",
+			group: "Subagents",
+			label: "Minimum Free Memory",
+			description: "Delay new subagents while available memory is below this many MiB; 0 disables the guard",
 		},
 	},
 
