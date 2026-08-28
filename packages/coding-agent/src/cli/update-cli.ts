@@ -16,7 +16,13 @@ import { withFileLock } from "@oh-my-pi/pi-utils/file-lock";
 import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import * as proc from "@oh-my-pi/pi-utils/proc";
 import { $ } from "bun";
-import { PRODUCT_CLI_NAME, PRODUCT_NAME, PRODUCT_RELEASE_REPO, PRODUCT_SEMVER } from "../brand";
+import {
+	PRODUCT_CLI_NAME,
+	PRODUCT_NAME,
+	PRODUCT_RELEASE_REPO,
+	PRODUCT_RELEASE_TAG_PREFIX,
+	PRODUCT_SEMVER,
+} from "../brand";
 import { settings } from "../config/settings";
 import { theme } from "../modes/theme/theme";
 import {
@@ -214,7 +220,7 @@ async function getReleaseBinaryAsset(
 	githubToken: string | undefined = $env.GITHUB_TOKEN || $env.GH_TOKEN,
 	allowPrerelease = false,
 ): Promise<ReleaseBinaryAsset> {
-	const tag = `v${expectedVersion}`;
+	const tag = `${PRODUCT_RELEASE_TAG_PREFIX}${expectedVersion}`;
 	const headers: Record<string, string> = {
 		Accept: "application/vnd.github+json",
 		"X-GitHub-Api-Version": "2022-11-28",
@@ -775,8 +781,8 @@ async function fetchLatestForkRelease(
 		if (!isRecord(entry) || entry.draft === true) continue;
 		if (channel !== "canary" && entry.prerelease === true) continue;
 		const tag = entry.tag_name;
-		if (typeof tag !== "string" || !tag.startsWith("v")) continue;
-		return { version: tag.slice(1), tag };
+		if (typeof tag !== "string" || !tag.startsWith(PRODUCT_RELEASE_TAG_PREFIX)) continue;
+		return { version: tag.slice(PRODUCT_RELEASE_TAG_PREFIX.length), tag };
 	}
 	throw new Error(`No published release found for ${REPO}`);
 }

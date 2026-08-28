@@ -15,5 +15,12 @@ export const PRODUCT_UPSTREAM_BASE = "18.0.8";
  * whose versions live on a different line entirely.
  */
 export const PRODUCT_RELEASE_REPO = "Hunter-124/chudcode";
+/**
+ * Release tags are namespaced. This fork's `0.x` line collides with 193
+ * inherited upstream `v0.*` tags (upstream ran 0.0.1 through 0.50.1 before
+ * moving to 18.x), so a bare `v0.2.0` tag would have to overwrite upstream
+ * history to be published at all.
+ */
+export const PRODUCT_RELEASE_TAG_PREFIX = "chudcode-v";
 export const PRODUCT_VERSION = `${PRODUCT_NAME} v${PRODUCT_SEMVER} (based on omp ${PRODUCT_UPSTREAM_BASE})`;
 export const PRODUCT_CLI_VERSION = PRODUCT_VERSION.slice(`${PRODUCT_NAME} v`.length);

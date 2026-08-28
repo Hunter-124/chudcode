@@ -32,6 +32,7 @@ read_brand() {
 PRODUCT_VERSION=$(read_brand PRODUCT_SEMVER)
 UPSTREAM_VERSION=$(read_brand PRODUCT_UPSTREAM_BASE)
 RELEASE_REPOSITORY=$(read_brand PRODUCT_RELEASE_REPO)
+RELEASE_TAG_PREFIX=$(read_brand PRODUCT_RELEASE_TAG_PREFIX)
 DIST_DIR="${CHUDCODE_DIST_DIR:-dist/chudcode-v${PRODUCT_VERSION}}"
 EXPECTED_VERSION_OUTPUT="${PRODUCT_NAME} v${PRODUCT_VERSION} (based on ${LEGACY_BINARY_NAME} ${UPSTREAM_VERSION})"
 NOTES_FILE="scripts/release/notes-v${PRODUCT_VERSION}.md"
@@ -49,7 +50,12 @@ installer_repo=$(sed -n 's/^RELEASE_REPOSITORY="\(.*\)"$/\1/p' install.sh)
 	die "install.sh pins UPSTREAM_VERSION=$installer_upstream but $brand_ts says $UPSTREAM_VERSION"
 [ "$installer_repo" = "$RELEASE_REPOSITORY" ] ||
 	die "install.sh pins RELEASE_REPOSITORY=$installer_repo but $brand_ts says $RELEASE_REPOSITORY"
+installer_tag=$(sed -n 's/^RELEASE_TAG="\(.*\)"$/\1/p' install.sh)
+expected_installer_tag="${RELEASE_TAG_PREFIX}\${PRODUCT_VERSION}"
+[ "$installer_tag" = "$expected_installer_tag" ] ||
+	die "install.sh pins RELEASE_TAG=$installer_tag but $brand_ts implies $expected_installer_tag"
 [ -f "$NOTES_FILE" ] || die "missing release notes: $NOTES_FILE"
+RELEASE_TAG="${RELEASE_TAG_PREFIX}${PRODUCT_VERSION}"
 
 die() {
 	printf '%s\n' "error: $*" >&2

@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "bun:test";
+import { PRODUCT_RELEASE_TAG_PREFIX } from "../../src/brand";
 import { getLatestRelease, runUpdateCommand } from "../../src/cli/update-cli";
 
 type FetchInput = string | URL | Request;
@@ -47,12 +48,12 @@ describe("getLatestRelease fork release channel", () => {
 	}
 
 	it("reads the fork's own GitHub release and never the npm registry or upstream repo", async () => {
-		const urls = stubGithub({ tag_name: "v0.3.0", draft: false, prerelease: false });
+		const urls = stubGithub({ tag_name: `${PRODUCT_RELEASE_TAG_PREFIX}0.3.0`, draft: false, prerelease: false });
 
 		const release = await getLatestRelease();
 
 		expect(release.version).toBe("0.3.0");
-		expect(release.tag).toBe("v0.3.0");
+		expect(release.tag).toBe(`${PRODUCT_RELEASE_TAG_PREFIX}0.3.0`);
 		// Binary distribution keeps the package-manager paths unreachable, so an
 		// update can never run `bun add @oh-my-pi/pi-coding-agent` over the fork.
 		expect(release.dist).toBe("binary");
@@ -61,23 +62,31 @@ describe("getLatestRelease fork release channel", () => {
 		expect(urls[0]).not.toContain("can1357");
 	});
 
+	it("ignores an inherited upstream tag that is not namespaced to this fork", async () => {
+		// The fork's 0.x line collides with 193 upstream `v0.*` tags, so an
+		// un-prefixed tag must never be mistaken for a chudcode release.
+		stubGithub({ tag_name: "v0.50.1", draft: false, prerelease: false });
+
+		await expect(getLatestRelease()).rejects.toThrow(/No published release/);
+	});
+
 	it("refuses a prerelease on the stable channel", async () => {
-		stubGithub({ tag_name: "v0.4.0-rc.1", draft: false, prerelease: true });
+		stubGithub({ tag_name: `${PRODUCT_RELEASE_TAG_PREFIX}0.4.0-rc.1`, draft: false, prerelease: true });
 
 		await expect(getLatestRelease()).rejects.toThrow(/No published release/);
 	});
 
 	it("refuses a draft release", async () => {
-		stubGithub({ tag_name: "v0.4.0", draft: true, prerelease: false });
+		stubGithub({ tag_name: `${PRODUCT_RELEASE_TAG_PREFIX}0.4.0`, draft: true, prerelease: false });
 
 		await expect(getLatestRelease()).rejects.toThrow(/No published release/);
 	});
 
 	it("takes the newest prerelease from the release list on the canary channel", async () => {
 		const urls = stubGithub([
-			{ tag_name: "v0.4.0-canary.2", draft: true, prerelease: true },
-			{ tag_name: "v0.4.0-canary.1", draft: false, prerelease: true },
-			{ tag_name: "v0.3.0", draft: false, prerelease: false },
+			{ tag_name: `${PRODUCT_RELEASE_TAG_PREFIX}0.4.0-canary.2`, draft: true, prerelease: true },
+			{ tag_name: `${PRODUCT_RELEASE_TAG_PREFIX}0.4.0-canary.1`, draft: false, prerelease: true },
+			{ tag_name: `${PRODUCT_RELEASE_TAG_PREFIX}0.3.0`, draft: false, prerelease: false },
 		]);
 
 		const release = await getLatestRelease({ channel: "canary" });

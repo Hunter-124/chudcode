@@ -8,6 +8,7 @@ import {
 	PRODUCT_CLI_NAME,
 	PRODUCT_NAME,
 	PRODUCT_RELEASE_REPO,
+	PRODUCT_RELEASE_TAG_PREFIX,
 	PRODUCT_SEMVER,
 	PRODUCT_VERSION,
 } from "@oh-my-pi/pi-coding-agent/brand";
@@ -508,7 +509,7 @@ describe("update-cli npm rename contract", () => {
 
 describe("migrateRenamedInstall transaction", () => {
 	const release: ReleaseInfo = {
-		tag: "v999.1.0",
+		tag: `${PRODUCT_RELEASE_TAG_PREFIX}999.1.0`,
 		version: "999.1.0",
 		packages: { pkg: "@new/omp", natives: "@new/natives" },
 	};
@@ -778,7 +779,7 @@ describe("update-cli bun cache pruning", () => {
 });
 
 describe("update-cli release binary integrity", () => {
-	const tag = "v17.1.2";
+	const tag = `${PRODUCT_RELEASE_TAG_PREFIX}17.1.2`;
 	const binaryName = "omp-linux-x64";
 	const url = `https://github.com/${PRODUCT_RELEASE_REPO}/releases/download/${tag}/${binaryName}`;
 	const content = "verified binary";
@@ -1188,7 +1189,7 @@ describe("update-cli binary-only release gating", () => {
 describe("update-cli script-shim takeover", () => {
 	const version = "18.0.0";
 	const binaryName = "omp-windows-x64.exe";
-	const url = `https://github.com/${PRODUCT_RELEASE_REPO}/releases/download/v${version}/${binaryName}`;
+	const url = `https://github.com/${PRODUCT_RELEASE_REPO}/releases/download/${PRODUCT_RELEASE_TAG_PREFIX}${version}/${binaryName}`;
 
 	function makeFetch(content: string, prerelease = false): (input: string | URL | Request) => Promise<Response> {
 		const digest = `sha256:${createHash("sha256").update(content).digest("hex")}`;
@@ -1197,7 +1198,7 @@ describe("update-cli script-shim takeover", () => {
 			if (requestUrl.startsWith("https://api.github.com/")) {
 				return new Response(
 					JSON.stringify({
-						tag_name: `v${version}`,
+						tag_name: `${PRODUCT_RELEASE_TAG_PREFIX}${version}`,
 						draft: false,
 						prerelease,
 						assets: [
@@ -1385,13 +1386,13 @@ describe("update-cli script-shim takeover", () => {
 describe("update-cli concurrent binary updates", () => {
 	const version = "999.0.0";
 	const binaryName = "omp-linux-x64";
-	const url = `https://github.com/${PRODUCT_RELEASE_REPO}/releases/download/v${version}/${binaryName}`;
+	const url = `https://github.com/${PRODUCT_RELEASE_REPO}/releases/download/${PRODUCT_RELEASE_TAG_PREFIX}${version}/${binaryName}`;
 	const payload = Buffer.alloc(2048, 0x41);
 	const digest = `sha256:${createHash("sha256").update(payload).digest("hex")}`;
 
 	function metadata(): Response {
 		return Response.json({
-			tag_name: `v${version}`,
+			tag_name: `${PRODUCT_RELEASE_TAG_PREFIX}${version}`,
 			draft: false,
 			prerelease: false,
 			assets: [{ name: binaryName, state: "uploaded", size: payload.byteLength, digest, browser_download_url: url }],
