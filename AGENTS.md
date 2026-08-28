@@ -60,59 +60,68 @@ Before writing a helper, check whether one already exists — `packages/coding-a
 - Examples of the pattern: `src/utils/git.ts` and `src/utils/jj.ts` are the only sanctioned way to run git/jj (`import * as git from "../utils/git"` — never hand-spawn via `$`/`Bun.spawn`); rendering goes through the helpers in TUI Sanitization below (`replaceTabs`, `truncateToWidth`, `shortenPath`, `PREVIEW_LIMITS`) rather than ad-hoc string math.
 - Missing capability? Extend the central helper (new option, new sub-function on the namespace) and call it — don't fork its logic locally.
 
-## Runtime Policy: Migrating Off Bun
+## Runtime Policy
 
-Bun is being removed as the runtime host. It is still the current host, so existing
-`Bun.*` call sites keep working, but the direction is one-way:
+**Bun is the runtime host.** `bun:test`, `bun:sqlite`, `Bun.spawn`, `Bun.$`, `Bun.serve`,
+and the `with { type: "text" }` prompt loader are all load-bearing and all fine to use.
+There is no migration in flight; do not start one, and do not rewrite working `Bun.*` call
+sites as cleanup.
 
-- **NEVER add new `Bun.*`, `bun:*`, or Bun-only loader usage** in new or edited code.
-  This includes `Bun.file`/`Bun.write`, `Bun.spawn`, `Bun.$`, `Bun.serve`, `Bun.sleep`,
-  `Bun.env`, `Bun.CryptoHasher`, `bun:sqlite`, `bun:ffi`, and
-  `with { type: "text" | "file" }` import attributes.
-- **Write host-agnostic code**: `node:*` APIs plus the central helpers in
-  `@oh-my-pi/pi-utils` and `@oh-my-pi/pi-natives`. These run under Bun today and under a
-  non-Bun host after the migration.
-- **Prefer the native addon** over a Bun builtin when both exist (e.g. text width and
-  wrapping via `@oh-my-pi/pi-natives`, not `Bun.stringWidth`/`Bun.wrapAnsi`).
-- **Never spawn shell commands for operations with proper APIs** (e.g. don't shell out to
-  `mkdir -p` — use `fs.mkdir`).
-- Touching a file with existing `Bun.*` calls? Migrating them in the same edit is welcome,
-  but only when the change stays reviewable and the package still type-checks and tests green.
+What *is* binding is the **single convention** rule from Central Utilities above: several
+operations already route through central helpers across thousands of call sites, and a
+second way to do the same thing is a bug even when both work. New code uses the helper.
 
-### Quick reference
+| Operation                | Use                                          | Not                              |
+| ------------------------ | -------------------------------------------- | -------------------------------- |
+| File read/write/stat     | `@oh-my-pi/pi-utils/fsx`                     | `Bun.file()`, `Bun.write()`, raw `node:fs` |
+| Sleep                    | `sleep`/`sleepSync` from `@oh-my-pi/pi-utils/async` | `Bun.sleep()`, `setTimeout` promise |
+| Synchronous spawn        | `spawnSync` from `@oh-my-pi/pi-utils/proc`   | `Bun.spawnSync()`                |
+| Env access               | `process.env`                                | `Bun.env`                        |
+| Hashing                  | `node:crypto`, `node:zlib` `crc32`           | `Bun.CryptoHasher`, `Bun.hash.crc32` |
+| Binary lookup            | `$which("git")` from `@oh-my-pi/pi-utils`    | `spawnSync(["which", …])`        |
+| git / jj                 | `src/utils/git.ts`, `src/utils/jj.ts`        | hand-spawning either binary      |
 
-| Operation       | Use                                              | Not                                       |
-| --------------- | ------------------------------------------------ | ----------------------------------------- |
-| File read/write | `node:fs/promises`                               | `Bun.file()`, `Bun.write()`               |
-| Spawn process   | `node:child_process`                             | `` $`cmd` ``, `Bun.spawn()`               |
-| Sleep           | `setTimeout` from `node:timers/promises`          | `Bun.sleep(ms)`                           |
-| Binary lookup   | `$which("git")` from `@oh-my-pi/pi-utils`        | `spawnSync(["which", "git"])`             |
-| HTTP server     | `node:http`                                      | `Bun.serve()`                             |
-| SQLite          | `node:sqlite`                                    | `bun:sqlite`, `better-sqlite3`            |
-| Hashing         | `node:crypto`, WebCrypto                         | `Bun.hash()`, `Bun.CryptoHasher`          |
-| Path resolution | `import.meta.url` + `node:url`/`node:path`        | `import.meta.dir`, `import.meta.path`     |
-| JSON5 / JSONL   | explicit parser module                           | `Bun.JSON5`, `Bun.JSONL`                  |
-| String width    | `@oh-my-pi/pi-natives` text ops                  | `Bun.stringWidth()`                       |
-| Text wrapping   | `@oh-my-pi/pi-natives` text ops                  | `Bun.wrapAnsi()`                          |
-| Env access      | `process.env`                                    | `Bun.env`                                 |
-| Native FFI      | the `pi_natives` N-API addon                     | `bun:ffi`                                 |
+These helpers are not thin aliases — each reproduces a Bun behaviour that call sites
+depend on, which is why the raw `node:*` call is the wrong replacement:
+
+- `fsx.exists()` answers `false` for `ENOENT`, `ENOTDIR` **and** `EACCES`.
+- `fsx.write()` creates parent directories, and on failure rethrows the original `ENOENT`
+  with the mkdir error as `cause` — `writeFileWithFallback` branches on exactly that shape.
+- `fsx.readText()` strips a BOM; without it a BOM-prefixed `.ipynb` fails `JSON.parse`.
+- `proc.spawnSync()` throws when the executable is missing (callers catch `ENOENT` to
+  degrade) but reports a `timeout` as a *result* carrying `exitedDueToTimeout`.
+
+Import them from the **subpath**, never the `@oh-my-pi/pi-utils` barrel: the barrel runs
+dotenv and directory resolution at import time, and pulling it into a timer-only module
+has already broken CLI profile-bootstrap ordering and lazy loading.
+
+Anything not in that table: use the Bun API. It is the host and it is faster.
+
+- `Bun.spawn` / `` $`cmd` `` for processes, `Bun.serve` for HTTP, `bun:sqlite` for SQLite,
+  `Bun.stringWidth` / `Bun.wrapAnsi` for text measurement, `Bun.JSON5` / `Bun.JSONL`.
+- Prefer Bun Shell for simple commands, `Bun.spawn` for long-running processes (LSP,
+  kernels), streamed stdio (SSE, JSON-RPC), or process control (signals, kill, lifecycle).
+- **Never spawn a shell for an operation with a proper API** — no `Bun.spawnSync(["mkdir",
+  "-p", dir])`; use `fs.mkdir`.
 
 ### Process execution
 
-New code uses `node:child_process`; keep the existing `git`/`jj` wrappers in
-`src/utils/git.ts` and `src/utils/jj.ts` as the only sanctioned VCS entry points.
-
 ```typescript
-import { execFile } from "node:child_process";
-import { promisify } from "node:util";
+import { $ } from "bun";
 
-const run = promisify(execFile);
-const { stdout } = await run("git", ["status"], { cwd: dir });
+const result = await $`git status`.cwd(dir).quiet().nothrow();
+if (result.exitCode === 0) {
+	const text = result.text();
+}
 ```
 
-Use `spawn` for long-running processes (LSP, kernels), streamed stdio (SSE, JSON-RPC), or
-process control (signals, kill, complex lifecycle). Existing `Bun.spawn`/`` $`cmd` ``
-call sites stay until they are migrated; do not add new ones.
+Methods: `.quiet()`, `.nothrow()`, `.text()`, `.cwd(path)`. When using `pipe` mode with
+`Bun.spawn`, cast the stream:
+
+```typescript
+const child = Bun.spawn(["cmd"], { stdout: "pipe", stderr: "pipe" });
+const reader = (child.stdout as ReadableStream<Uint8Array>).getReader();
+```
 
 ### Node module imports
 
@@ -124,37 +133,35 @@ import * as path from "node:path";
 import * as os from "node:os";
 ```
 
-- Async-only file → `node:fs/promises`.
-- Needs both sync and async → `node:fs`, then `fs.promises.xxx` for async.
+`node:fs/promises` remains the right tool for directory operations (`fs.mkdir`, `fs.rm`,
+`fs.readdir`) — `fsx` covers files, not directories. Avoid sync APIs in async flows; use
+sync only when forced by a synchronous interface.
 
 ### File I/O
 
-Use `node:fs/promises`:
-
 ```typescript
-const text = await fs.readFile(path, "utf8");
-const data = JSON.parse(await fs.readFile(path, "utf8"));
-await fs.mkdir(path.dirname(target), { recursive: true });
-await fs.writeFile(target, data);
-```
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 
-Avoid sync APIs in async flows; use sync only when forced by a synchronous interface.
+const text = await fsx.readText(file);
+const data = await fsx.readJson<Config>(file);
+await fsx.write(target, data); // creates parent dirs
+```
 
 **Anti-patterns:**
 
-- New `Bun.file()` / `Bun.write()` call sites.
-- `if (await exists(path)) { await read(path) }` → two syscalls plus race. Use try-catch with `isEnoent`:
+- `mkdir(dirname(p), …)` before `fsx.write(p, …)` → redundant.
+- `if (await fsx.exists(p)) { await fsx.readJson(p) }` → two syscalls plus a race. Use
+  try-catch with `isEnoent`:
   ```typescript
   import { isEnoent } from "@oh-my-pi/pi-utils";
   try {
-  	return JSON.parse(await fs.readFile(path, "utf8"));
+  	return await fsx.readJson<Config>(p);
   } catch (err) {
   	if (isEnoent(err)) return null;
   	throw err;
   }
   ```
-- Forgetting that `fs.writeFile` does NOT create parent directories (`Bun.write` did).
-- Existence check + try-catch around the same read → drop the existence check.
+- Existence check plus try-catch around the same read → drop the existence check.
 
 ### Streams
 
@@ -169,12 +176,6 @@ for await (const line of readLines(stream)) {
 ```
 
 Manual reader loops only when the protocol requires it (SSE, streaming JSON-RPC).
-
-### Misc
-
-- **Sleep**: `import { setTimeout as sleep } from "node:timers/promises"`, never `new Promise(r => setTimeout(r, ms))`.
-- **Password hashing**: `node:crypto` `scrypt`/`pbkdf2` helpers.
-- **String width / wrapping**: the text ops exported by `@oh-my-pi/pi-natives`.
 
 ## Generated Files
 
