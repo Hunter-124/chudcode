@@ -49,6 +49,7 @@ import {
 	zSessionNotification,
 } from "@oh-my-pi/pi-utils/acp";
 import { sleep } from "@oh-my-pi/pi-utils/async";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import { TOOL_NAME as DELAYED_MCP_TOOL_NAME } from "./fixtures/delayed-tool-mcp";
 
 /** Validates an ACP wire payload against the in-house protocol schemas. */
@@ -732,7 +733,7 @@ describe("ACP agent", () => {
 		expect(result.details.planExists).toBe(true);
 		expect(result.content[0]?.text).toMatch(/Plan approved/);
 		// Plan file keeps its agent-chosen name — no rename.
-		expect(await Bun.file(planPath).exists()).toBe(true);
+		expect(await fsx.exists(planPath)).toBe(true);
 		// Mode + handler are cleared; the agent regains write tools next turn.
 		expect(session.planModeState).toBeUndefined();
 		expect(session.planProposalHandler).toBeUndefined();
@@ -792,8 +793,8 @@ describe("ACP agent", () => {
 
 		expect(result.content[0]?.text).toMatch(/refinement requested/i);
 		// Plan file stays put; no rename, no write-access grant.
-		expect(await Bun.file(planPath).exists()).toBe(true);
-		expect(await Bun.file(resolveLocalUrlToPath("local://words-counter.md", localOptions)).exists()).toBe(false);
+		expect(await fsx.exists(planPath)).toBe(true);
+		expect(await fsx.exists(resolveLocalUrlToPath("local://words-counter.md", localOptions))).toBe(false);
 		// Plan mode + proposal handler stay active so the agent can iterate.
 		expect(session.planModeState?.enabled).toBe(true);
 		expect(typeof session.planProposalHandler).toBe("function");

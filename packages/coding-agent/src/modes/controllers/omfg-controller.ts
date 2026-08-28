@@ -1,5 +1,6 @@
 import * as path from "node:path";
 import { CONFIG_DIR_NAME, prompt } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import type { Rule } from "../../capability/rule";
 import omfgUserPrompt from "../../prompts/system/omfg-user.md" with { type: "text" };
 import { shortenPath } from "../../tools/render-utils";
@@ -220,7 +221,7 @@ export class OmfgController {
 			}
 
 			const target = this.#resolveTarget(location, candidate.rule.name);
-			if (await Bun.file(target.filePath).exists()) {
+			if (await fsx.exists(target.filePath)) {
 				const shouldOverwrite = await this.ctx.showHookConfirm(
 					"Overwrite TTSR rule?",
 					`${shortenPath(target.filePath)} already exists. Overwrite it?`,

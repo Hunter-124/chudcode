@@ -7,6 +7,7 @@ import { TempDir } from "@oh-my-pi/pi-utils";
 import { generateReport } from "./report";
 import { buildBenchmarkResult, type TaskRunResult, writeConversationDump } from "./runner";
 import type { EditTask } from "@oh-my-pi/typescript-edit-benchmark/tasks";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 
 const tempDirs: TempDir[] = [];
 
@@ -401,11 +402,11 @@ describe("writeConversationDump", () => {
 
 		expect(dumpPath).toBe(path.join(dumpRoot.absolute(), "task_weird", "run-1.md"));
 
-		const dumpText = await Bun.file(dumpPath).text();
+		const dumpText = await fsx.readText(dumpPath);
 		const expectedBody = formatSessionDumpText({ messages: [userMessage] });
 		expect(dumpText.trim()).toBe(expectedBody.trim());
 
 		const copiedArtifactPath = path.join(dumpPath.slice(0, -3), path.basename(sourceArtifactPath));
-		expect(await Bun.file(copiedArtifactPath).text()).toBe("artifact contents");
+		expect(await fsx.readText(copiedArtifactPath)).toBe("artifact contents");
 	});
 });

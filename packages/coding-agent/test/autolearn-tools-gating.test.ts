@@ -13,6 +13,7 @@ import { LearnTool } from "@oh-my-pi/pi-coding-agent/tools/learn";
 import { ManageSkillTool } from "@oh-my-pi/pi-coding-agent/tools/manage-skill";
 import { removeWithRetries } from "@oh-my-pi/pi-utils";
 import { getAgentDir, setAgentDir } from "@oh-my-pi/pi-utils/dirs";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 
 function makeSession(
 	settingsOverrides: Partial<Record<SettingPath, unknown>> = {},
@@ -140,10 +141,10 @@ describe("manage_skill execute", () => {
 	it("create writes the managed SKILL.md; delete removes it", async () => {
 		const file = path.join(getManagedSkillsDir(), "demo", "SKILL.md");
 		await tool().execute("1", { action: "create", name: "demo", description: "When to demo.", body: "# Demo" });
-		expect(await Bun.file(file).exists()).toBe(true);
+		expect(await fsx.exists(file)).toBe(true);
 
 		await tool().execute("2", { action: "delete", name: "demo" });
-		expect(await Bun.file(file).exists()).toBe(false);
+		expect(await fsx.exists(file)).toBe(false);
 	});
 
 	it("rejects create without a body and delete of a missing skill", async () => {
@@ -190,7 +191,7 @@ describe("manage_skill execute", () => {
 		expect(text).toMatch(/authored skill/i);
 		expect(text).not.toContain("Created");
 		// Nothing was written, so the managed skill can never surface.
-		expect(await Bun.file(path.join(getManagedSkillsDir(), "demo", "SKILL.md")).exists()).toBe(false);
+		expect(await fsx.exists(path.join(getManagedSkillsDir(), "demo", "SKILL.md"))).toBe(false);
 	});
 });
 
@@ -241,7 +242,7 @@ describe("learn execute", () => {
 			skill: { action: "create", name: "worker-host", description: "Spawn workers.", body: "# Worker host" },
 		});
 		expect(remembered).toHaveLength(1);
-		expect(await Bun.file(path.join(getManagedSkillsDir(), "worker-host", "SKILL.md")).exists()).toBe(true);
+		expect(await fsx.exists(path.join(getManagedSkillsDir(), "worker-host", "SKILL.md"))).toBe(true);
 	});
 
 	it("surfaces a partial-outcome error when the skill name is invalid", async () => {
@@ -318,6 +319,6 @@ describe("learn execute", () => {
 			}),
 		).rejects.toThrow(/did not store/i);
 		// A failed lesson must not leave a minted skill behind.
-		expect(await Bun.file(path.join(getManagedSkillsDir(), "should-not-exist", "SKILL.md")).exists()).toBe(false);
+		expect(await fsx.exists(path.join(getManagedSkillsDir(), "should-not-exist", "SKILL.md"))).toBe(false);
 	});
 });

@@ -3,6 +3,7 @@
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 
 type Mode =
 	| "all"
@@ -292,7 +293,7 @@ async function getCodingAgentTestPartition(): Promise<CodingAgentTestPartition> 
 		};
 
 		for (const testFile of testFiles) {
-			const content = await Bun.file(path.join(codingAgentDir, testFile)).text();
+			const content = await fsx.readText(path.join(codingAgentDir, testFile));
 			partition[classifyCodingAgentTest(testFile, content)].push(testFile);
 		}
 

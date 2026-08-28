@@ -41,6 +41,7 @@
 import * as path from "node:path";
 import { parseArgs } from "node:util";
 import { sleep } from "@oh-my-pi/pi-utils/async";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import STYLE_GUIDE from "./rewrite-system-prompt.style.md" with { type: "text" };
 
 const DEFAULT_INPUT = "packages/coding-agent/src/prompts/system/system-prompt.md";
@@ -531,7 +532,7 @@ async function main(): Promise<void> {
 
 	if (opts.dryRun) {
 		for (const file of files) {
-			const content = await Bun.file(file).text();
+			const content = await fsx.readText(file);
 			const plan = planRewrite(content);
 			const groups = chunk(opts.limit > 0 ? plan.prose.slice(0, opts.limit) : plan.prose, opts.chunkSize);
 			console.error(
@@ -559,7 +560,7 @@ async function main(): Promise<void> {
 
 	for (const file of files) {
 		const output = opts.all ? file : opts.output;
-		const content = await Bun.file(file).text();
+		const content = await fsx.readText(file);
 		const { content: rewritten, stats } = await rewriteAll(content, rewriteChunk, {
 			chunkSize: opts.chunkSize,
 			concurrency: opts.concurrency,

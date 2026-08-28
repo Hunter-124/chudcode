@@ -13,6 +13,7 @@ import { pipeline } from "node:stream/promises";
 import { $env, $which, compareVersions, isEnoent, VERSION } from "@oh-my-pi/pi-utils";
 import chalk from "@oh-my-pi/pi-utils/chalk";
 import { withFileLock } from "@oh-my-pi/pi-utils/file-lock";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import { $ } from "bun";
 import { PRODUCT_CLI_NAME } from "../brand";
 import { settings } from "../config/settings";
@@ -780,7 +781,9 @@ async function fetchLatestManifest(
 	}
 	if (!response.ok) {
 		if (response.status === 404 && channel === "canary") {
-			throw new Error(`No canary release has been published for ${pkg} yet. Try \`${PRODUCT_CLI_NAME} update --stable\`.`);
+			throw new Error(
+				`No canary release has been published for ${pkg} yet. Try \`${PRODUCT_CLI_NAME} update --stable\`.`,
+			);
 		}
 		throw new Error(`Failed to fetch release info for ${pkg}: ${response.statusText}`);
 	}
@@ -1854,7 +1857,7 @@ export async function updateViaShimTakeover(
 			} catch (err) {
 				if (isEnoent(err)) continue;
 				try {
-					const original = await Bun.file(launcher).text();
+					const original = await fsx.readText(launcher);
 					await Bun.write(launcher, SHIM_FORWARDERS[ext]);
 					forwarded.push({ launcher, original });
 				} catch {

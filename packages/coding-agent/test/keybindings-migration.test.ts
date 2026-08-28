@@ -12,6 +12,7 @@ import {
 	removeWithRetries,
 	setProfile,
 } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import { YAML } from "bun";
 
 function ctrl(key: string): string {
@@ -60,7 +61,7 @@ describe("KeybindingsManager.create", () => {
 
 		try {
 			const manager = KeybindingsManager.create(agentDir);
-			const writtenConfig = YAML.parse(await Bun.file(ymlPath).text());
+			const writtenConfig = YAML.parse(await fsx.readText(ymlPath));
 
 			expect(manager.getKeys("app.session.fork")).toEqual(["ctrl+f"]);
 			expect(manager.getKeys("tui.select.confirm")).toEqual(["enter"]);
@@ -73,7 +74,7 @@ describe("KeybindingsManager.create", () => {
 				"tui.select.confirm": "enter",
 			});
 			expect(writtenConfig).not.toHaveProperty("selectModelTemporary");
-			expect(await Bun.file(jsonPath).exists()).toBe(true);
+			expect(await fsx.exists(jsonPath)).toBe(true);
 		} finally {
 			await removeWithRetries(agentDir);
 		}
@@ -98,7 +99,7 @@ describe("KeybindingsManager.create", () => {
 
 		try {
 			const manager = KeybindingsManager.create(agentDir);
-			const writtenConfig = YAML.parse(await Bun.file(ymlPath).text());
+			const writtenConfig = YAML.parse(await fsx.readText(ymlPath));
 
 			expect(manager.getKeys("app.session.fork")).toEqual(["ctrl+f"]);
 			expect(manager.getKeys("tui.select.confirm")).toEqual(["enter"]);
@@ -110,7 +111,7 @@ describe("KeybindingsManager.create", () => {
 				"tui.editor.cursorUp": "ctrl+p",
 				"tui.select.confirm": "enter",
 			});
-			expect(await Bun.file(jsonPath).exists()).toBe(true);
+			expect(await fsx.exists(jsonPath)).toBe(true);
 		} finally {
 			await removeWithRetries(agentDir);
 		}
@@ -162,7 +163,7 @@ describe("KeybindingsManager.create", () => {
 			const manager = KeybindingsManager.create(agentDir);
 
 			expect(manager.getKeys("app.plan.toggle")).toEqual(["alt+shift+p"]);
-			expect(await Bun.file(canonicalPath).exists()).toBe(false);
+			expect(await fsx.exists(canonicalPath)).toBe(false);
 		} finally {
 			await removeWithRetries(agentDir);
 		}
@@ -230,7 +231,7 @@ describe("KeybindingsManager.create", () => {
 			const manager = KeybindingsManager.create(profileAgentDir, { inheritedAgentDir: defaultAgentDir });
 
 			expect(manager.getKeys("app.session.fork")).toEqual(["ctrl+f"]);
-			expect(await Bun.file(path.join(defaultAgentDir, "keybindings.yml")).exists()).toBe(false);
+			expect(await fsx.exists(path.join(defaultAgentDir, "keybindings.yml"))).toBe(false);
 		} finally {
 			await removeWithRetries(rootDir);
 		}

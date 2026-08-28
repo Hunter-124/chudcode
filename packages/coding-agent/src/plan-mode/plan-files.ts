@@ -1,6 +1,7 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { isEnoent } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import { type LocalProtocolOptions, resolveLocalUrlToPath } from "../internal-urls";
 import { normalizeLocalScheme, resolveToCwd } from "../tools/path-utils";
 
@@ -13,7 +14,7 @@ export async function readPlanFile(
 		? resolveLocalUrlToPath(normalizeLocalScheme(planFilePath), options.localProtocolOptions)
 		: resolveToCwd(planFilePath, options.cwd);
 	try {
-		return await Bun.file(resolvedPath).text();
+		return await fsx.readText(resolvedPath);
 	} catch (error) {
 		if (isEnoent(error)) return null;
 		throw error;

@@ -13,6 +13,7 @@ import {
 import { RpcClient } from "@oh-my-pi/pi-coding-agent/modes/rpc/rpc-client";
 import type { BashExecutionMessage } from "@oh-my-pi/pi-coding-agent/session/messages";
 import { removeSyncWithRetries, Snowflake } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import { e2eApiKey } from "./utilities";
 
 type MessageEndEvent = Extract<AgentEvent, { type: "message_end" }>;
@@ -103,7 +104,7 @@ describe.skipIf(!e2eApiKey("ANTHROPIC_API_KEY"))("RPC mode", () => {
 		const sessionFiles = fs.readdirSync(cwdSessionDir).filter(f => f.endsWith(".jsonl"));
 		expect(sessionFiles.length).toBe(1);
 
-		const sessionContent = await Bun.file(path.join(cwdSessionDir, sessionFiles[0])).text();
+		const sessionContent = await fsx.readText(path.join(cwdSessionDir, sessionFiles[0]));
 		const entries = parseSessionEntries(sessionContent);
 
 		// First entry should be session header
@@ -136,7 +137,7 @@ describe.skipIf(!e2eApiKey("ANTHROPIC_API_KEY"))("RPC mode", () => {
 		const sessionDirs = fs.readdirSync(sessionsPath);
 		const cwdSessionDir = path.join(sessionsPath, sessionDirs[0]);
 		const sessionFiles = fs.readdirSync(cwdSessionDir).filter(f => f.endsWith(".jsonl"));
-		const sessionContent = await Bun.file(path.join(cwdSessionDir, sessionFiles[0])).text();
+		const sessionContent = await fsx.readText(path.join(cwdSessionDir, sessionFiles[0]));
 		const entries = parseSessionEntries(sessionContent);
 
 		const compactionEntries = entries.filter(isCompactionEntry);
@@ -170,7 +171,7 @@ describe.skipIf(!e2eApiKey("ANTHROPIC_API_KEY"))("RPC mode", () => {
 		const sessionDirs = fs.readdirSync(sessionsPath);
 		const cwdSessionDir = path.join(sessionsPath, sessionDirs[0]);
 		const sessionFiles = fs.readdirSync(cwdSessionDir).filter(f => f.endsWith(".jsonl"));
-		const sessionContent = await Bun.file(path.join(cwdSessionDir, sessionFiles[0])).text();
+		const sessionContent = await fsx.readText(path.join(cwdSessionDir, sessionFiles[0]));
 		const entries = parseSessionEntries(sessionContent);
 
 		const bashMessages = entries.filter(

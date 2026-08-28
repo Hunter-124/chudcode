@@ -1,5 +1,6 @@
 import * as path from "node:path";
 import { getLastChangelogVersionPath, isEnoent, logger } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import type { BunFile } from "bun";
 import bundledChangelogPath from "../../CHANGELOG.md" with { type: "file" };
 import type { SettingValue } from "../config/settings";
@@ -143,14 +144,14 @@ export async function parseChangelog(changelogPath: string | undefined): Promise
 	let content: string | undefined;
 	if (changelogPath) {
 		try {
-			content = await Bun.file(changelogPath).text();
+			content = await fsx.readText(changelogPath);
 		} catch (error) {
 			if (!isEnoent(error)) {
 				logger.error(`Warning: Could not parse changelog: ${error}`);
 			}
 		}
 	}
-	content ??= await Bun.file(resolveBundledChangelogPath(bundledChangelogPath, import.meta.url)).text();
+	content ??= await fsx.readText(resolveBundledChangelogPath(bundledChangelogPath, import.meta.url));
 
 	return parseChangelogContent(content);
 }
@@ -441,7 +442,7 @@ export { getChangelogPath } from "../config";
  */
 export async function readLastChangelogVersion(agentDir?: string): Promise<string | undefined> {
 	try {
-		const value = (await Bun.file(getLastChangelogVersionPath(agentDir)).text()).trim();
+		const value = (await fsx.readText(getLastChangelogVersionPath(agentDir))).trim();
 		return value || undefined;
 	} catch (error) {
 		if (!isEnoent(error)) {

@@ -7,6 +7,7 @@ import {
 	type SnapshotResponse,
 	writeAuthBrokerSnapshotCache,
 } from "@oh-my-pi/pi-ai/auth-broker";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import { removeWithRetries } from "../../utils/src/temp";
 
 const TOKEN = "broker-cache-token";
@@ -117,8 +118,8 @@ describe("auth-broker snapshot cache", () => {
 				snapshot: makeSnapshot(Date.now()),
 			});
 
-			expect(await Bun.file(stale).exists()).toBeFalse();
-			expect(await Bun.file(active).exists()).toBeTrue();
+			expect(await fsx.exists(stale)).toBeFalse();
+			expect(await fsx.exists(active)).toBeTrue();
 		});
 	});
 

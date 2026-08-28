@@ -18,6 +18,7 @@
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { isEnoent } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import { AgentRegistry } from "../registry/agent-registry";
 import { ensurePersistedRoster } from "../registry/persisted-agents";
 import { applyQuery, pathToQuery } from "./json-query";
@@ -96,7 +97,7 @@ export class AgentProtocolHandler implements ProtocolHandler {
 			throw new Error(`Not found: ${target}\nAvailable: ${availableStr}`);
 		}
 
-		const rawContent = await Bun.file(scan.foundPath).text();
+		const rawContent = await fsx.readText(scan.foundPath);
 		const notes: string[] = [];
 		let content = rawContent;
 		let contentType: InternalResource["contentType"] = "text/markdown";

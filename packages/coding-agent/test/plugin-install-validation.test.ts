@@ -3,8 +3,9 @@ import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
 import { PluginManager } from "@oh-my-pi/pi-coding-agent/extensibility/plugins/manager";
-import { removeWithRetries } from "@oh-my-pi/pi-utils";
 import * as piUtils from "@oh-my-pi/pi-utils";
+import { removeWithRetries } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import type { Subprocess } from "bun";
 
 function emptyStream(): ReadableStream<Uint8Array> {
@@ -163,9 +164,7 @@ describe("PluginManager.install load validation", () => {
 
 		const pluginsPackage = await Bun.file(pluginsPkgJson).json();
 		expect(pluginsPackage.dependencies ?? {}).toEqual({});
-		expect(await Bun.file(path.join(pluginsNodeModules, "factory-failure-plugin", "package.json")).exists()).toBe(
-			false,
-		);
+		expect(await fsx.exists(path.join(pluginsNodeModules, "factory-failure-plugin", "package.json"))).toBe(false);
 	});
 
 	test("rejects an install whose extension entry cannot resolve its dependencies", async () => {
@@ -201,8 +200,8 @@ describe("PluginManager.install load validation", () => {
 
 		const pluginsPackage = await Bun.file(pluginsPkgJson).json();
 		expect(pluginsPackage.dependencies ?? {}).toEqual({});
-		expect(await Bun.file(path.join(pluginsNodeModules, "broken-plugin", "package.json")).exists()).toBe(false);
-		expect(await Bun.file(path.join(tmpRoot, "omp-plugins.lock.json")).exists()).toBe(false);
+		expect(await fsx.exists(path.join(pluginsNodeModules, "broken-plugin", "package.json"))).toBe(false);
+		expect(await fsx.exists(path.join(tmpRoot, "omp-plugins.lock.json"))).toBe(false);
 	});
 
 	test("restores the previous package tree when reinstall validation fails", async () => {
@@ -257,9 +256,9 @@ describe("PluginManager.install load validation", () => {
 		expect(pluginsPackage.dependencies).toEqual({ "broken-plugin": "1.0.0" });
 		const restoredPackage = await Bun.file(path.join(pluginsNodeModules, "broken-plugin", "package.json")).json();
 		expect(restoredPackage.version).toBe("1.0.0");
-		const restoredExtension = await Bun.file(
+		const restoredExtension = await fsx.readText(
 			path.join(pluginsNodeModules, "broken-plugin", "dist", "extension.ts"),
-		).text();
+		);
 		expect(restoredExtension).toContain("old-ok");
 		expect(restoredExtension).not.toContain("missing-peer");
 		const lock = await Bun.file(path.join(tmpRoot, "omp-plugins.lock.json")).json();
@@ -335,9 +334,7 @@ describe("PluginManager.install load validation", () => {
 		expect(pluginsPackage.dependencies).toEqual({ "git-plugin": "github:org/plugin#v1" });
 		const restoredPackage = await Bun.file(path.join(pluginsNodeModules, "git-plugin", "package.json")).json();
 		expect(restoredPackage.version).toBe("1.0.0");
-		const restoredExtension = await Bun.file(
-			path.join(pluginsNodeModules, "git-plugin", "dist", "extension.ts"),
-		).text();
+		const restoredExtension = await fsx.readText(path.join(pluginsNodeModules, "git-plugin", "dist", "extension.ts"));
 		expect(restoredExtension).toContain("git-old-ok");
 		expect(restoredExtension).not.toContain("missing-peer");
 		const lock = await Bun.file(path.join(tmpRoot, "omp-plugins.lock.json")).json();
@@ -389,8 +386,8 @@ describe("PluginManager.install load validation", () => {
 
 		const pluginsPackage = await Bun.file(pluginsPkgJson).json();
 		expect(pluginsPackage.dependencies ?? {}).toEqual({});
-		expect(await Bun.file(path.join(pluginsNodeModules, "partial-plugin", "package.json")).exists()).toBe(false);
-		expect(await Bun.file(path.join(tmpRoot, "omp-plugins.lock.json")).exists()).toBe(false);
+		expect(await fsx.exists(path.join(pluginsNodeModules, "partial-plugin", "package.json"))).toBe(false);
+		expect(await fsx.exists(path.join(tmpRoot, "omp-plugins.lock.json"))).toBe(false);
 	});
 
 	test("restores bun.lock when a git reinstall fails validation (#3069 follow-up)", async () => {
@@ -470,7 +467,7 @@ describe("PluginManager.install load validation", () => {
 
 		await expect(new PluginManager(tmpRoot).install("github:org/plugin")).rejects.toThrow(/missing-peer/);
 
-		expect(await Bun.file(bunLockPath).text()).toBe(ORIGINAL_LOCK);
+		expect(await fsx.readText(bunLockPath)).toBe(ORIGINAL_LOCK);
 		const pluginsPackage = await Bun.file(pluginsPkgJson).json();
 		expect(pluginsPackage.dependencies).toEqual({ "git-plugin": "github:org/plugin#v1" });
 		const restoredPackage = await Bun.file(path.join(pluginsNodeModules, "git-plugin", "package.json")).json();
@@ -482,7 +479,7 @@ describe("PluginManager.install load validation", () => {
 		// extension validation fails, rollback must remove the newly-created
 		// lockfile so the next install starts clean.
 		const bunLockPath = path.join(pluginsDir, "bun.lock");
-		expect(await Bun.file(bunLockPath).exists()).toBe(false);
+		expect(await fsx.exists(bunLockPath)).toBe(false);
 
 		vi.spyOn(Bun, "spawn").mockImplementation(((cmd: string[]) => {
 			expect(cmd).toEqual(["bun", "install", "broken-plugin"]);
@@ -513,7 +510,7 @@ describe("PluginManager.install load validation", () => {
 
 		await expect(new PluginManager(tmpRoot).install("broken-plugin")).rejects.toThrow(/missing-peer/);
 
-		expect(await Bun.file(bunLockPath).exists()).toBe(false);
+		expect(await fsx.exists(bunLockPath)).toBe(false);
 	});
 
 	test("rolls back when an unknown feature is requested after a git reinstall", async () => {
@@ -581,7 +578,7 @@ describe("PluginManager.install load validation", () => {
 
 		await expect(new PluginManager(tmpRoot).install("github:org/plugin[ghost]")).rejects.toThrow(/Unknown feature/);
 
-		expect(await Bun.file(bunLockPath).text()).toBe(ORIGINAL_LOCK);
+		expect(await fsx.readText(bunLockPath)).toBe(ORIGINAL_LOCK);
 		const pluginsPackage = await Bun.file(pluginsPkgJson).json();
 		expect(pluginsPackage.dependencies).toEqual({ "git-plugin": "github:org/plugin" });
 	});

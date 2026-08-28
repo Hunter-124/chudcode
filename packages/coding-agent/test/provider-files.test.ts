@@ -16,6 +16,7 @@ import { createGeminiProviderFileClient } from "@oh-my-pi/pi-coding-agent/blob-b
 import { createOpenAIFileClient } from "@oh-my-pi/pi-coding-agent/blob-broker/provider-files-openai";
 import type { FetchImpl } from "@oh-my-pi/pi-coding-agent/blob-broker/uploader-runtime";
 import { TempDir } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 
 interface RecordedRequest {
 	readonly url: string;
@@ -335,7 +336,7 @@ describe("ProviderFileCache", () => {
 		});
 		cache.save();
 
-		const persisted = await Bun.file(indexPath).text();
+		const persisted = await fsx.readText(indexPath);
 		expect(persisted).not.toContain("account-a-secret");
 		expect(persisted).not.toContain("account-b-secret");
 		now = 1_500;

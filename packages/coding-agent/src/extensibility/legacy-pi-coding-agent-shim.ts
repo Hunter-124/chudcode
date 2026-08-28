@@ -32,6 +32,7 @@ import {
 	isCompiledBinary,
 	parseFrontmatter as parseOmpFrontmatter,
 } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import { getPackageDir as getOmpPackageDir } from "../config";
 import { formatKeyHints } from "../config/keybindings";
 import type { PromptTemplate } from "../config/prompt-templates";
@@ -1243,7 +1244,7 @@ export class DefaultResourceLoader implements ResourceLoader {
 
 			for (const filePath of files) {
 				try {
-					const raw = await Bun.file(filePath).text();
+					const raw = await fsx.readText(filePath);
 					const { frontmatter, body } = parseFrontmatter(raw);
 					const rawDescription = frontmatter.description;
 					let description = typeof rawDescription === "string" ? rawDescription : "";

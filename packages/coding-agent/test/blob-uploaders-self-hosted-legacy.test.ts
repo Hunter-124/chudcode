@@ -2,6 +2,7 @@ import { describe, expect, it } from "bun:test";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import type { BlobDestinationId } from "../src/blob-broker/destinations";
 import type { BlobUploader, BlobUploadRequest } from "../src/blob-broker/publication";
 import {
@@ -133,7 +134,7 @@ describe("self-hosted uploader wire contracts", () => {
 				),
 			);
 			const publication = await uploader.upload(request);
-			expect(await Bun.file(path.join(root, "captures", "today", "a b.png")).text()).toBe("image-payload");
+			expect(await fsx.readText(path.join(root, "captures", "today", "a b.png"))).toBe("image-payload");
 			expect(publication).toEqual({
 				url: "https://static.test/pub/captures/today/a%20b.png",
 				destination: "shared-folder",

@@ -9,6 +9,7 @@ import { DEFAULT_MAX_BYTES } from "@oh-my-pi/pi-coding-agent/session/streaming-o
 import type { ToolSession } from "@oh-my-pi/pi-coding-agent/tools";
 import { ReadTool } from "@oh-my-pi/pi-coding-agent/tools/read";
 import { removeWithRetries } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import { GrepTool } from "../../src/tools/grep";
 
 function createSession(cwd: string): ToolSession {
@@ -109,7 +110,7 @@ describe("read → edit seen-line guard", () => {
 			executeHashlineSingle(execOptions(`[notes.txt#${tag}]\nPUT 12-12:\n+EDITED`, session)),
 		).rejects.toThrow(/never displayed \(it showed/);
 		// The reject left the file untouched.
-		expect(await Bun.file(file).text()).toBe(CONTENT);
+		expect(await fsx.readText(file)).toBe(CONTENT);
 	});
 
 	it("applies an edit on a displayed line", async () => {
@@ -121,7 +122,7 @@ describe("read → edit seen-line guard", () => {
 		const tag = tagFromOutput(resultText(read));
 
 		await executeHashlineSingle(execOptions(`[notes.txt#${tag}]\nPUT 2-2:\n+EDITED`, session));
-		expect(await Bun.file(file).text()).toContain("EDITED");
+		expect(await fsx.readText(file)).toContain("EDITED");
 	});
 
 	it("records raw single-range reads as seen without emitting a hashline header", async () => {
@@ -144,7 +145,7 @@ describe("read → edit seen-line guard", () => {
 		expect(seen?.has(10)).toBe(false);
 
 		await executeHashlineSingle(execOptions(`[notes.txt#${tag}]\nPUT 5-5:\n+RAW EDITED`, session));
-		const edited = await Bun.file(file).text();
+		const edited = await fsx.readText(file);
 		expect(edited).toContain("line 4\nRAW EDITED\nline 6");
 		expect(edited).not.toContain("line 5");
 	});
@@ -171,10 +172,10 @@ describe("read → edit seen-line guard", () => {
 		await expect(
 			executeHashlineSingle(execOptions(`[notes.txt#${tag}]\nPUT 5-5:\n+OUTSIDE`, session)),
 		).rejects.toThrow(/never displayed \(it showed/);
-		expect(await Bun.file(file).text()).toBe(CONTENT);
+		expect(await fsx.readText(file)).toBe(CONTENT);
 
 		await executeHashlineSingle(execOptions(`[notes.txt#${tag}]\nPUT 7-7:\n+RAW RANGE EDITED`, session));
-		const edited = await Bun.file(file).text();
+		const edited = await fsx.readText(file);
 		expect(edited).toContain("line 6\nRAW RANGE EDITED\nline 8");
 		expect(edited).not.toContain("line 7");
 	});
@@ -199,7 +200,7 @@ describe("read → edit seen-line guard", () => {
 		await expect(
 			executeHashlineSingle(execOptions(`[wide-raw.txt#${tag}]\nPUT 1-1:\n+REPLACED`, session)),
 		).rejects.toThrow(/never displayed \(it showed/);
-		expect(await Bun.file(file).text()).toBe(content);
+		expect(await fsx.readText(file)).toBe(content);
 	});
 
 	it("merges displayed lines from ACP bridge range reads into existing provenance", async () => {
@@ -215,7 +216,7 @@ describe("read → edit seen-line guard", () => {
 		const seen = store.byHash(canonicalSnapshotKey(file), tag)?.seenLines;
 		expect(seen?.has(2)).toBe(true);
 		await executeHashlineSingle(execOptions(`[notes.txt#${tag}]\nPUT >2:\n+EDITED`, session));
-		expect(await Bun.file(file).text()).toContain("line 2\nEDITED");
+		expect(await fsx.readText(file)).toContain("line 2\nEDITED");
 	});
 
 	it("marks raw ACP bridge blank-line reads as seen without hashline output", async () => {
@@ -237,7 +238,7 @@ describe("read → edit seen-line guard", () => {
 		expect(seen?.has(2)).toBe(true);
 
 		await executeHashlineSingle(execOptions(`[notes.txt#${tag}]\nPUT 1-1:\n+RAW BLANK EDITED`, session));
-		expect(await Bun.file(file).text()).toBe("RAW BLANK EDITED");
+		expect(await fsx.readText(file)).toBe("RAW BLANK EDITED");
 	});
 
 	it("merges displayed lines from ACP bridge multi-range reads into existing provenance", async () => {
@@ -266,7 +267,7 @@ describe("read → edit seen-line guard", () => {
 				session,
 			),
 		);
-		const edited = await Bun.file(file).text();
+		const edited = await fsx.readText(file);
 		expect(edited).toContain("\tconfigure_gpio();\n\tbeep_3k8hz_on();\n\tk_sleep(K_MSEC(300));\n\tbeep_3k8hz_off();");
 		expect(edited).not.toContain("\tbeep_3k8hz_on();\n\tline_1289();\n\tk_sleep(K_MSEC(300));");
 	});
@@ -292,12 +293,12 @@ describe("read → edit seen-line guard", () => {
 		expect(message).toContain("11:line 11");
 		expect(message).toContain("12:line 12");
 		// Snapshot text preserved verbatim — the reject is still a no-op on disk.
-		expect(await Bun.file(file).text()).toBe(CONTENT);
+		expect(await fsx.readText(file)).toBe(CONTENT);
 
 		// The revealed lines are now in the snapshot's seen set, so a straight
 		// retry with the same `[path#tag]` header succeeds without a re-read.
 		await executeHashlineSingle(execOptions(`[notes.txt#${tag}]\nPUT 10-12:\n+X10\n+X11\n+X12`, session));
-		const after = await Bun.file(file).text();
+		const after = await fsx.readText(file);
 		expect(after).toContain("X10\nX11\nX12");
 		expect(after).not.toContain("line 10");
 	});
@@ -328,7 +329,7 @@ describe("read → edit seen-line guard", () => {
 		expect(message).not.toContain("140:line 140");
 		// Guidance directs at a range re-read of the FULL anchor range.
 		expect(message).toMatch(/long\.txt:100-159/);
-		expect(await Bun.file(file).text()).toBe(`${lines.join("\n")}\n`);
+		expect(await fsx.readText(file)).toBe(`${lines.join("\n")}\n`);
 	});
 
 	it("marks column-clipped read lines as seen (clipped-line check removed)", async () => {
@@ -349,7 +350,7 @@ describe("read → edit seen-line guard", () => {
 		expect(seen?.has(2)).toBe(true);
 
 		await executeHashlineSingle(execOptions(`[wide.txt#${tag}]\nPUT 2-2:\n+REPLACED`, session));
-		expect(await Bun.file(file).text()).toBe("head\nREPLACED\nfoot\n");
+		expect(await fsx.readText(file)).toBe("head\nREPLACED\nfoot\n");
 	});
 });
 
@@ -400,7 +401,7 @@ describe("search → edit seen-line guard", () => {
 
 		// The matched line is in the seen set, so editing it applies.
 		await executeHashlineSingle(execOptions(`[code.txt#${tag}]\nPUT 4-4:\n+NEEDLE edited`, session));
-		expect(await Bun.file(file).text()).toContain("NEEDLE edited");
+		expect(await fsx.readText(file)).toContain("NEEDLE edited");
 	});
 
 	it("rejects editing an unsearched line under a search-minted tag", async () => {
@@ -415,7 +416,7 @@ describe("search → edit seen-line guard", () => {
 		await expect(executeHashlineSingle(execOptions(`[code.txt#${tag}]\nPUT 8-8:\n+X`, session))).rejects.toThrow(
 			/never displayed \(it showed/,
 		);
-		expect(await Bun.file(file).text()).toBe(`${lines.join("\n")}\n`);
+		expect(await fsx.readText(file)).toBe(`${lines.join("\n")}\n`);
 	});
 });
 
@@ -443,6 +444,6 @@ describe("seen-line guard disabled by default", () => {
 
 		// Line 12 was never displayed, but the guard is disabled, so it applies.
 		await executeHashlineSingle(execOptions(`[notes.txt#${tag}]\nPUT 12-12:\n+EDITED`, session));
-		expect(await Bun.file(file).text()).toContain("EDITED");
+		expect(await fsx.readText(file)).toContain("EDITED");
 	});
 });

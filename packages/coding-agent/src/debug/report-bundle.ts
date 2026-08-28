@@ -10,6 +10,7 @@ import * as path from "node:path";
 import type { WorkProfile } from "@oh-my-pi/pi-natives";
 import { APP_NAME, getLogPath, getLogsDir, getReportsDir, isEnoent } from "@oh-my-pi/pi-utils";
 import { writeArchive } from "@oh-my-pi/pi-utils/ar";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import type { CpuProfile, HeapSnapshot } from "./profiler";
 import { collectSystemInfo, sanitizeEnv } from "./system-info";
 
@@ -125,7 +126,7 @@ export async function createReportBundle(options: ReportBundleOptions): Promise<
 	// Session file
 	if (options.sessionFile) {
 		try {
-			const sessionContent = await Bun.file(options.sessionFile).text();
+			const sessionContent = await fsx.readText(options.sessionFile);
 			data["session.jsonl"] = sessionContent;
 			files.push("session.jsonl");
 		} catch {
@@ -195,7 +196,7 @@ async function addDirectoryToArchive(
 		}
 		if (!entry.isFile()) continue;
 		try {
-			data[archivePath] = await Bun.file(entryPath).text();
+			data[archivePath] = await fsx.readText(entryPath);
 			files.push(archivePath);
 		} catch {
 			// Skip files we can't read

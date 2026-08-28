@@ -5,6 +5,7 @@ import * as path from "node:path";
 import { clearWorktrees } from "@oh-my-pi/pi-coding-agent/cli/worktree-cli";
 import { ISOLATION_OWNER_FILE, writeIsolationOwner } from "@oh-my-pi/pi-coding-agent/task/isolation-ownership";
 import { setWorktreesDir } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 
 /**
  * Regression for #6761: `omp worktree clear` (no `--all`) must delete only
@@ -78,7 +79,7 @@ describe("worktree clear task-isolation ownership", () => {
 				() => true,
 				() => false,
 			);
-		expect(await Bun.file(path.join(live, "m", "work.txt")).exists()).toBe(true);
+		expect(await fsx.exists(path.join(live, "m", "work.txt"))).toBe(true);
 		expect(await exists(dead)).toBe(false);
 		expect(await exists(orphan)).toBe(false);
 		expect(await exists(corrupt)).toBe(false);

@@ -18,6 +18,7 @@ import {
 	prompt,
 	sleep,
 } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import { contextFileCapability } from "./capability/context-file";
 import { systemPromptCapability } from "./capability/system-prompt";
 import { findConfigFile } from "./config";
@@ -58,7 +59,7 @@ const PERSONALITY_SPECS: Record<Exclude<Personality, "none">, string> = {
 async function loadPersonalityOverride(): Promise<string | null> {
 	const filePath = path.join(getAgentDir(), "PERSONALITY.md");
 	try {
-		const content = (await Bun.file(filePath).text()).trim();
+		const content = (await fsx.readText(filePath)).trim();
 		if (content) return content;
 		logger.warn("PERSONALITY.md is empty; using the configured personality preset", { path: filePath });
 	} catch (error) {
@@ -330,7 +331,7 @@ async function getCachedGpu(): Promise<string | undefined> {
 async function getCpuModel(): Promise<string | undefined> {
 	if (process.platform !== "linux") return os.cpus()[0]?.model;
 	try {
-		const cpuInfo = await Bun.file("/proc/cpuinfo").text();
+		const cpuInfo = await fsx.readText("/proc/cpuinfo");
 		const match = /^model name\s*:\s*(.+)$/m.exec(cpuInfo);
 		return match?.[1]?.trim() || undefined;
 	} catch (error) {
@@ -393,7 +394,7 @@ export async function resolvePromptInput(input: string | undefined, description:
 	}
 
 	try {
-		return await Bun.file(input).text();
+		return await fsx.readText(input);
 	} catch (error) {
 		if (!hasFsCode(error, "ENAMETOOLONG") && !isEnoent(error)) {
 			logger.warn(`Could not read ${description} file`, { path: input, error: String(error) });

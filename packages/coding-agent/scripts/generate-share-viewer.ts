@@ -10,6 +10,7 @@
  * The relay repo's build script runs this and embeds the output via go:embed.
  */
 import * as path from "node:path";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import { generateThemeStyles, getTemplate } from "../src/export/html";
 
 const outPath = process.argv[2];
@@ -18,7 +19,7 @@ if (!outPath) {
 	process.exit(2);
 }
 
-const loaderJs = await Bun.file(new URL("../src/export/html/share-loader.js", import.meta.url).pathname).text();
+const loaderJs = await fsx.readText(new URL("../src/export/html/share-loader.js", import.meta.url).pathname);
 // Public artifacts use the bundled omp web themes rather than TUI themes.
 const themeStyles = await generateThemeStyles("web");
 

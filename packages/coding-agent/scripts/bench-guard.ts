@@ -19,6 +19,7 @@
  */
 import * as fs from "node:fs";
 import * as path from "node:path";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 
 const THRESHOLD = 1.05; // 5% regression budget
 const BASELINE_PATH = path.join(import.meta.dir, "..", "bench", "boot-baseline.json");
@@ -41,7 +42,7 @@ async function measure(): Promise<{ seconds: number; raw: string }> {
 	});
 	const code = await proc.exited;
 	if (code !== 0) throw new Error(`hyperfine exited ${code}`);
-	const raw = await Bun.file(tmp).text();
+	const raw = await fsx.readText(tmp);
 	fs.rmSync(tmp, { force: true });
 	return { seconds: medianOf(raw), raw };
 }
@@ -61,7 +62,7 @@ if (!fs.existsSync(BASELINE_PATH)) {
 	process.exit(2);
 }
 
-const baseline = medianOf(await Bun.file(BASELINE_PATH).text());
+const baseline = medianOf(await fsx.readText(BASELINE_PATH));
 const ratio = seconds / baseline;
 const verdict = ratio > THRESHOLD ? "REGRESSION" : "ok";
 console.log(

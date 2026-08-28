@@ -8,6 +8,7 @@
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { getProjectDir, readJsonl } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import type { Subprocess } from "bun";
 import { hostHasInheritableConsole } from "../../eval/py/spawn-options";
 import type {
@@ -182,7 +183,7 @@ async function resolveWindowsNpmShimCommand(
 
 	let content: string;
 	try {
-		content = await Bun.file(commandPath).text();
+		content = await fsx.readText(commandPath);
 	} catch {
 		return null;
 	}

@@ -2,6 +2,7 @@ import { describe, expect, it } from "bun:test";
 import * as fs from "node:fs";
 import { postmortem } from "@oh-my-pi/pi-utils";
 import { sleep } from "../src/async";
+import * as fsx from "../src/fsx";
 
 const childFlag = "--stdio-epipe-child";
 const raceChildFlag = "--stdio-epipe-race-child";
@@ -101,7 +102,7 @@ if (!process.argv.includes(socketClosedChildFlag)) {
 				expect(exitCode, stderr).toBe(0);
 				expect(stdout).toBe("");
 				expect(stderr).toBe("");
-				expect(await Bun.file(marker).text()).toBe("survived uncaught worker IPC EPIPE");
+				expect(await fsx.readText(marker)).toBe("survived uncaught worker IPC EPIPE");
 			} finally {
 				child.kill();
 				await child.exited;
@@ -138,7 +139,7 @@ if (!process.argv.includes(socketClosedChildFlag)) {
 				const [exitCode, stdout] = await Promise.all([child.exited, new Response(child.stdout).text()]);
 				expect(stdout).toBe("");
 				expect(exitCode).toBe(0);
-				expect(await Bun.file(marker).text()).toBe("cleanup complete");
+				expect(await fsx.readText(marker)).toBe("cleanup complete");
 			} finally {
 				try {
 					child.stdin.end();
@@ -174,7 +175,7 @@ if (!process.argv.includes(socketClosedChildFlag)) {
 				const [exitCode, stdout] = await Promise.all([child.exited, new Response(child.stdout).text()]);
 				expect(stdout).toBe("");
 				expect(exitCode).toBe(0);
-				expect(await Bun.file(marker).text()).toBe("after cleanup");
+				expect(await fsx.readText(marker)).toBe("after cleanup");
 			} finally {
 				try {
 					child.stdin.end();

@@ -15,6 +15,7 @@ import { SessionManager } from "@oh-my-pi/pi-coding-agent/session/session-manage
 import { FileSessionStorage } from "@oh-my-pi/pi-coding-agent/session/session-storage";
 import { EventBus } from "@oh-my-pi/pi-coding-agent/utils/event-bus";
 import { TempDir } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import { createInMemoryAuthStorage } from "./helpers/agent-session-setup";
 
 // Regression: a keep-alive subagent's AgentSession is disposed at park() but
@@ -436,7 +437,7 @@ describe("AgentSession dispose releases retained memory", () => {
 		});
 		await current.dispose({ drainTimeoutMs: 20 });
 		session = undefined;
-		const bytesAfterDispose = await Bun.file(sessionFile).text();
+		const bytesAfterDispose = await fsx.readText(sessionFile);
 
 		// Immediate revival: a new manager reopens the same JSONL and sees the
 		// seed transcript — and nothing from the still-parked handler.
@@ -452,7 +453,7 @@ describe("AgentSession dispose releases retained memory", () => {
 		release.resolve();
 		await secondRelease.promise;
 		expect(current.sessionManager.getEntries()).toHaveLength(0);
-		expect(await Bun.file(sessionFile).text()).toBe(bytesAfterDispose);
+		expect(await fsx.readText(sessionFile)).toBe(bytesAfterDispose);
 
 		// The revival writer still owns the file: its append lands cleanly, and
 		// the reopened transcript holds exactly the seed + post-revive messages —
@@ -502,7 +503,7 @@ describe("AgentSession dispose releases retained memory", () => {
 		await sessionManager.ensureOnDisk();
 		const sessionFile = sessionManager.getSessionFile();
 		if (!sessionFile) throw new Error("Expected a persisted session file");
-		const bytesBeforeBatch = await Bun.file(sessionFile).text();
+		const bytesBeforeBatch = await fsx.readText(sessionFile);
 
 		armed = true;
 		const batch = sessionManager.appendEntriesAtomically(() => {
@@ -520,7 +521,7 @@ describe("AgentSession dispose releases retained memory", () => {
 		// not attempt a second atomic publish of the emptied entry list.
 		expect(String(await settled)).toContain("injected atomic write failure");
 		expect(atomicWrites).toBe(1);
-		expect(await Bun.file(sessionFile).text()).toBe(bytesBeforeBatch);
+		expect(await fsx.readText(sessionFile)).toBe(bytesBeforeBatch);
 
 		// The transcript survives for revival.
 		const reopened = await SessionManager.open(sessionFile, tempDir.path());

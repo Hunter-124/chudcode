@@ -20,6 +20,7 @@ import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { Filesystem, NotFoundError, type PreflightWriteOptions, type WriteResult } from "@oh-my-pi/hashline";
 import { isEnoent } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import type { FileDiagnosticsResult, WritethroughCallback, WritethroughDeferredHandle } from "../../lsp";
 import { FileChangeType, notifyWorkspaceWatchedFiles } from "../../lsp/client";
 import type { ToolSession } from "../../tools";
@@ -248,6 +249,6 @@ export class HashlineFilesystem extends Filesystem {
 
 	override async exists(relativePath: string): Promise<boolean> {
 		const absolutePath = this.resolveAbsolute(relativePath);
-		return Bun.file(absolutePath).exists();
+		return fsx.exists(absolutePath);
 	}
 }

@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import * as path from "node:path";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 
 interface SeedManifest {
 	schemaVersion: number;
@@ -29,7 +30,7 @@ describe("security seeded validation repository", () => {
 			expect(seed.id in expectedClasses).toBeTrue();
 			expect(expectedClasses[seed.id]).toBe(seed.expectedClass);
 			expect(["finding", "no-finding"]).toContain(seed.expectedDisposition);
-			expect(await Bun.file(path.join(ROOT, seed.path)).exists()).toBeTrue();
+			expect(await fsx.exists(path.join(ROOT, seed.path))).toBeTrue();
 		}
 	});
 });

@@ -19,6 +19,7 @@ import {
 	setProjectDir,
 	sleep,
 } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 
 const RAW_SERVER_URL = `https://\${MCP_HOST}/mcp`;
 const EXPANDED_SERVER_URL = "https://mcp.example.com/mcp";
@@ -175,7 +176,7 @@ describe("/mcp auth commands", () => {
 		});
 		expect(authStorage.get(oauthFlow.mcpOAuthCredentialId(RAW_SERVER_URL))).toBeUndefined();
 
-		const saved = JSON.parse(await Bun.file(configPath).text()) as TestConfigFile;
+		const saved = JSON.parse(await fsx.readText(configPath)) as TestConfigFile;
 		const savedServer = saved.mcpServers?.envserver;
 		const savedUrl = savedServer?.type === "http" || savedServer?.type === "sse" ? savedServer.url : undefined;
 		expect(savedUrl).toBe(RAW_SERVER_URL);
@@ -630,7 +631,7 @@ describe("/mcp auth commands", () => {
 		expect(showError).not.toHaveBeenCalled();
 		expect(authStorage.get(oauthFlow.mcpOAuthCredentialId(EXPANDED_SERVER_URL))).toBeUndefined();
 		expect(authStorage.get(oauthFlow.mcpOAuthCredentialId(RAW_SERVER_URL))).toBeUndefined();
-		const saved = JSON.parse(await Bun.file(configPath).text()) as TestConfigFile;
+		const saved = JSON.parse(await fsx.readText(configPath)) as TestConfigFile;
 		const savedServer = saved.mcpServers?.envserver;
 		const savedUrl = savedServer?.type === "http" || savedServer?.type === "sse" ? savedServer.url : undefined;
 		expect(savedUrl).toBe(RAW_SERVER_URL);
@@ -656,11 +657,7 @@ describe("/mcp auth commands", () => {
 		expect(showError).not.toHaveBeenCalled();
 		expect(authStorage.get(oauthFlow.mcpOAuthCredentialId(EXPANDED_SERVER_URL))).toBeUndefined();
 		const userConfigPath = getMCPConfigPath("user", projectDir);
-		const userConfig = JSON.parse(
-			await Bun.file(userConfigPath)
-				.text()
-				.catch(() => "{}"),
-		) as TestConfigFile;
+		const userConfig = JSON.parse(await fsx.readText(userConfigPath).catch(() => "{}")) as TestConfigFile;
 		expect(userConfig.mcpServers?.discovered).toBeUndefined();
 	});
 
@@ -722,7 +719,7 @@ describe("/mcp auth commands", () => {
 			expect(flowClientSecret).toBe("expanded-client-secret");
 
 			// The config file keeps the placeholder; only the flow sees the value.
-			const saved = JSON.parse(await Bun.file(configPath).text()) as TestConfigFile;
+			const saved = JSON.parse(await fsx.readText(configPath)) as TestConfigFile;
 			const savedServer = saved.mcpServers?.envserver;
 			// biome-ignore lint/suspicious/noTemplateCurlyInString: test placeholder string for env expansion
 			expect(savedServer?.oauth?.clientSecret).toBe("${MCP_OAUTH_CLIENT_SECRET}");

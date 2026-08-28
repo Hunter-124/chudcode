@@ -5,12 +5,13 @@
  * error referencing the display path.
  */
 import { isEnoent } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import { isNotebookPath, readEditableNotebookText, serializeEditedNotebookText } from "./notebook";
 
 export async function readEditFileText(absolutePath: string, path: string): Promise<string> {
 	try {
 		if (isNotebookPath(absolutePath)) return await readEditableNotebookText(absolutePath, path);
-		return await Bun.file(absolutePath).text();
+		return await fsx.readText(absolutePath);
 	} catch (error) {
 		if (isEnoent(error)) {
 			throw new Error(`File not found: ${path}`);

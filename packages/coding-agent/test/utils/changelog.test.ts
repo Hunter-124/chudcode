@@ -15,6 +15,7 @@ import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
 import { removeWithRetries, VERSION } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import { SETTINGS_SCHEMA, Settings } from "../../src/config/settings";
 import {
 	type ChangelogEntry,
@@ -36,9 +37,7 @@ const repoRoot = path.resolve(import.meta.dir, "..", "..", "..", "..");
 const cliEntry = path.join(repoRoot, "packages", "coding-agent", "src", "cli.ts");
 const packageDir = path.join(repoRoot, "packages", "coding-agent");
 const hasPtyHarness =
-	process.platform === "linux" &&
-	(await Bun.file("/usr/bin/script").exists()) &&
-	(await Bun.file("/usr/bin/timeout").exists());
+	process.platform === "linux" && (await fsx.exists("/usr/bin/script")) && (await fsx.exists("/usr/bin/timeout"));
 const PTY_STARTUP_OUTPUT_CEILING = 512 * 1024;
 
 function release(major: number, minor: number, patch: number, body: string): ChangelogEntry {
@@ -270,7 +269,7 @@ describe("last changelog marker", () => {
 			await writeLastChangelogVersion(CURRENT_VERSION, agentDir);
 
 			expect(await readLastChangelogVersion(agentDir)).toBe(CURRENT_VERSION);
-			expect(await Bun.file(path.join(agentDir, "last-changelog-version")).text()).toBe(CURRENT_VERSION);
+			expect(await fsx.readText(path.join(agentDir, "last-changelog-version"))).toBe(CURRENT_VERSION);
 		});
 	});
 

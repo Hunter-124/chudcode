@@ -11,6 +11,7 @@ import {
 	writeComposerWelcomeCache,
 } from "@oh-my-pi/pi-coding-agent/modes/composer-cache";
 import { getComposerCacheDir } from "@oh-my-pi/pi-utils/dirs";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 
 describe("composer startup cache", () => {
 	it("round-trips per-project UI, recent-session JSONL, and LSP speculation", async () => {
@@ -53,7 +54,7 @@ describe("composer startup cache", () => {
 				recentSessions: [],
 				lspServers: [],
 			});
-			const jsonl: unknown = Bun.JSONL.parse(await Bun.file(path.join(cacheDir, "recent-sessions.jsonl")).text());
+			const jsonl: unknown = Bun.JSONL.parse(await fsx.readText(path.join(cacheDir, "recent-sessions.jsonl")));
 			expect(jsonl).toEqual(recentSessions);
 		} finally {
 			await Promise.all([

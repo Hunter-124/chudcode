@@ -3,6 +3,7 @@ import * as os from "node:os";
 import * as path from "node:path";
 import { ArtifactManager } from "@oh-my-pi/pi-coding-agent/session/artifacts";
 import { removeSyncWithRetries } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 
 describe("ArtifactManager tool-type sanitization", () => {
 	const dirs: string[] = [];
@@ -57,6 +58,6 @@ describe("ArtifactManager tool-type sanitization", () => {
 		const filePath = await mgr.getPath(id);
 		expect(filePath).not.toBeNull();
 		expect(path.dirname(filePath as string)).toBe(dir);
-		expect(await Bun.file(filePath as string).text()).toBe("FULL-ORIGINAL-CONTENT");
+		expect(await fsx.readText(filePath as string)).toBe("FULL-ORIGINAL-CONTENT");
 	});
 });

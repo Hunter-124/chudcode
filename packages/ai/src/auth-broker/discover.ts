@@ -15,6 +15,7 @@ import {
 	logger,
 	MAIN_CONFIG_FILENAMES,
 } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import { YAML } from "bun";
 import { AuthStorage } from "../auth-storage";
 import * as AIError from "../error";
@@ -60,7 +61,7 @@ async function defaultResolveConfigValue(config: string): Promise<string | undef
 
 async function readTokenFile(): Promise<string | null> {
 	try {
-		const raw = await Bun.file(getAuthBrokerTokenFilePath()).text();
+		const raw = await fsx.readText(getAuthBrokerTokenFilePath());
 		const trimmed = raw.trim();
 		return trimmed.length > 0 ? trimmed : null;
 	} catch (err) {
@@ -99,7 +100,7 @@ async function readConfigYaml(agentDir: string): Promise<ConfigSnapshot> {
 	for (const filename of MAIN_CONFIG_FILENAMES) {
 		const configPath = path.join(agentDir, filename);
 		try {
-			const raw = await Bun.file(configPath).text();
+			const raw = await fsx.readText(configPath);
 			const parsed = YAML.parse(raw);
 			if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return {};
 			const record = parsed as Record<string, unknown>;

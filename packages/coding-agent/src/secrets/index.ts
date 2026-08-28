@@ -4,6 +4,7 @@ import * as path from "node:path";
 import { SENSITIVE_TOKEN_RE } from "@oh-my-pi/pi-ai/providers/transform-messages";
 import { getSecretPlaceholderKeyPath, isEnoent, logger } from "@oh-my-pi/pi-utils";
 import { sleep } from "@oh-my-pi/pi-utils/async";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import { YAML } from "bun";
 import { type SecretEntry, SecretObfuscator } from "./obfuscator";
 import { sanitizeSecretFriendlyName, secretEntriesNeedPlaceholderKey } from "./placeholder";
@@ -134,7 +135,7 @@ async function readPlaceholderKeyFile(keyPath: string, retry: boolean): Promise<
 	for (let attempt = 0; attempt < attempts; attempt++) {
 		if (attempt > 0) await sleep(10);
 		try {
-			const value = (await Bun.file(keyPath).text()).trim();
+			const value = (await fsx.readText(keyPath)).trim();
 			if (PLACEHOLDER_KEY_RE.test(value)) return value;
 			if (value.length > 0) invalidValue = value;
 		} catch (err) {
@@ -271,7 +272,7 @@ export async function buildSecretObfuscator(
 
 async function loadSecretsFile(filePath: string): Promise<SecretEntry[]> {
 	try {
-		const text = await Bun.file(filePath).text();
+		const text = await fsx.readText(filePath);
 		const raw = YAML.parse(text);
 		if (!Array.isArray(raw)) {
 			logger.warn("secrets.yml must be a YAML array", { path: filePath });

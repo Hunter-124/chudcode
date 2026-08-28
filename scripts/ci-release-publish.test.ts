@@ -2,6 +2,7 @@ import { describe, expect, it } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import {
 	legalPayloadFiles,
 	npmDistTag,
@@ -39,8 +40,8 @@ describe("published legal payloads", () => {
 
 			const files = await stageLegalPayloads(pkgDir, "MIT", true, root);
 			expect(files).toEqual(["LICENSE", "THIRD-PARTY-NOTICES.txt"]);
-			expect(await Bun.file(path.join(pkgDir, "LICENSE")).text()).toBe("package MIT\n");
-			expect(await Bun.file(path.join(pkgDir, "THIRD-PARTY-NOTICES.txt")).text()).toBe("notices\n");
+			expect(await fsx.readText(path.join(pkgDir, "LICENSE"))).toBe("package MIT\n");
+			expect(await fsx.readText(path.join(pkgDir, "THIRD-PARTY-NOTICES.txt"))).toBe("notices\n");
 		} finally {
 			await fs.rm(root, { recursive: true, force: true });
 		}

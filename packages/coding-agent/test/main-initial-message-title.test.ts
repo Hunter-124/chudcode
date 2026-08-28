@@ -3,14 +3,13 @@ import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
 import { removeWithRetries } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 
 const repoRoot = path.resolve(import.meta.dir, "..", "..", "..");
 const cliEntry = path.join(repoRoot, "packages", "coding-agent", "src", "cli.ts");
 const probeEntry = path.join(import.meta.dir, "fixtures", "cli-initial-title-probe.ts");
 const hasPtyHarness =
-	process.platform === "linux" &&
-	(await Bun.file("/usr/bin/script").exists()) &&
-	(await Bun.file("/usr/bin/timeout").exists());
+	process.platform === "linux" && (await fsx.exists("/usr/bin/script")) && (await fsx.exists("/usr/bin/timeout"));
 
 describe.skipIf(!hasPtyHarness)("CLI initial-message title generation", () => {
 	test("generates a title for the positional initial message", async () => {
@@ -55,7 +54,7 @@ describe.skipIf(!hasPtyHarness)("CLI initial-message title generation", () => {
 			]);
 
 			expect({ exitCode, stderr, stdoutBytes: stdout.byteLength }).toMatchObject({ exitCode: 0, stderr: "" });
-			expect(await Bun.file(outputPath).text()).toBe(
+			expect(await fsx.readText(outputPath)).toBe(
 				JSON.stringify({ generatedFrom: "implement X", sessionName: "CLI Initial Title" }),
 			);
 		} finally {

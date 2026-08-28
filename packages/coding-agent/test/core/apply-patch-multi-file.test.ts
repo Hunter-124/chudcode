@@ -17,6 +17,7 @@ import { resetSettingsForTest, Settings } from "@oh-my-pi/pi-coding-agent/config
 import { EditTool, type EditToolDetails } from "@oh-my-pi/pi-coding-agent/edit";
 import type { ToolSession } from "@oh-my-pi/pi-coding-agent/tools";
 import { removeWithRetries } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 
 function makeApplyPatchSession(cwd: string): ToolSession {
 	return {
@@ -70,7 +71,7 @@ describe("EditTool apply_patch multi-file aggregate (#4074-B)", () => {
 
 		// First file must have landed (matches existing partial-success
 		// semantics of applyCodexPatch).
-		expect(await Bun.file(path.join(tempDir, "a.txt")).text()).toBe("A\n");
+		expect(await fsx.readText(path.join(tempDir, "a.txt"))).toBe("A\n");
 
 		// Third entry MUST NOT be applied after the second one failed.
 		expect(fs.existsSync(path.join(tempDir, "c.txt"))).toBe(false);
@@ -118,8 +119,8 @@ describe("EditTool apply_patch multi-file aggregate (#4074-B)", () => {
 		const result = await tool.execute("call-#4074-B-ok", { input: patch });
 
 		expect(result.isError).toBeUndefined();
-		expect(await Bun.file(path.join(tempDir, "a.txt")).text()).toBe("A\n");
-		expect(await Bun.file(path.join(tempDir, "b.txt")).text()).toBe("B\n");
+		expect(await fsx.readText(path.join(tempDir, "a.txt"))).toBe("A\n");
+		expect(await fsx.readText(path.join(tempDir, "b.txt"))).toBe("B\n");
 		const text = result.content.find(entry => entry.type === "text")?.text ?? "";
 		expect(text).toContain("[a.txt]\n1:A\n\n[b.txt]\n1:B");
 		expect(text).not.toMatch(/^\[[^\]\n]+#[0-9A-F]{4}\]/);

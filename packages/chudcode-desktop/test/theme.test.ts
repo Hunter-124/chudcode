@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import {
 	applyThemePreferences,
 	loadThemePreferences,
@@ -12,8 +13,8 @@ import {
 	type ThemeRoot,
 } from "../src/web/theme";
 
-const tokensCss = await Bun.file(new URL("../src/web/styles/tokens.css", import.meta.url)).text();
-const motionCss = await Bun.file(new URL("../src/web/styles/motion.css", import.meta.url)).text();
+const tokensCss = await fsx.readText(new URL("../src/web/styles/tokens.css", import.meta.url));
+const motionCss = await fsx.readText(new URL("../src/web/styles/motion.css", import.meta.url));
 
 const ANSI_TOKEN_NAMES = [
 	"ansi-black",

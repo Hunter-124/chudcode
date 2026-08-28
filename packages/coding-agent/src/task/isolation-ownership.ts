@@ -7,6 +7,7 @@
  * subagent's sandbox from a crashed run's leftover instead of deleting both.
  */
 import * as path from "node:path";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import { $ } from "bun";
 
 /** Marker file written into a task-isolation base dir identifying its owner. */
@@ -39,7 +40,7 @@ async function processStartToken(pid: number): Promise<string | null> {
 	if (process.platform === "linux") {
 		let stat: string;
 		try {
-			stat = await Bun.file(`/proc/${pid}/stat`).text();
+			stat = await fsx.readText(`/proc/${pid}/stat`);
 		} catch {
 			return null;
 		}

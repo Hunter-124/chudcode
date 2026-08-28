@@ -14,6 +14,7 @@ import type { SingleResult } from "@oh-my-pi/pi-coding-agent/task/types";
 import * as worktreeModule from "@oh-my-pi/pi-coding-agent/task/worktree";
 import * as gitModule from "@oh-my-pi/pi-coding-agent/utils/git";
 import * as natives from "@oh-my-pi/pi-natives";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import { $ } from "bun";
 
 function result(overrides: Partial<SingleResult> = {}): SingleResult {
@@ -145,7 +146,7 @@ describe("runIsolatedSubprocess", () => {
 		const patchPath = path.join(artifactsDir, "PreserveBranchFailure.patch");
 		expect(outcome.error).toContain("Merge failed: remote: object corrupt");
 		expect(outcome.patchPath).toBe(patchPath);
-		expect(await Bun.file(patchPath).text()).toBe(rootPatch);
+		expect(await fsx.readText(patchPath)).toBe(rootPatch);
 		expect(outcome.nestedPatches).toEqual([]);
 		expect(captureSpy).toHaveBeenCalledWith(isolationDir, baseline);
 		expect(deleteSpy).toHaveBeenCalledWith(repoRoot, "omp/task/PreserveBranchFailure");
@@ -345,7 +346,7 @@ describe("runIsolatedSubprocess", () => {
 		const patchPath = path.join(artifactsDir, "DeferredSuccess.patch");
 		expect(outcome.exitCode).toBe(0);
 		expect(outcome.patchPath).toBe(patchPath);
-		expect(await Bun.file(patchPath).text()).toBe(rootPatch);
+		expect(await fsx.readText(patchPath)).toBe(rootPatch);
 		expect(captureSpy).toHaveBeenCalledWith("/repo/isolated", baseline);
 		await Promise.resolve();
 		await Promise.resolve();
@@ -509,7 +510,7 @@ describe("mergeIsolatedChanges", () => {
 		expect(outcome.changesApplied).toBe(false);
 		expect(outcome.summary).toContain("Patches were not applied");
 		expect(await git(repoRoot, "status", "--porcelain", "--", "foo.txt")).toBe("");
-		expect(await Bun.file(path.join(repoRoot, "foo.txt")).text()).toBe("other\n");
+		expect(await fsx.readText(path.join(repoRoot, "foo.txt"))).toBe("other\n");
 		expect(await git(repoRoot, "ls-files", "-u", "--", "foo.txt")).toBe("");
 	});
 
@@ -524,7 +525,7 @@ describe("mergeIsolatedChanges", () => {
 
 		expect(outcome.changesApplied).toBe(true);
 		expect(outcome.hadAnyChanges).toBe(true);
-		expect(await Bun.file(path.join(repoRoot, "foo.txt")).text()).toBe("new\n");
+		expect(await fsx.readText(path.join(repoRoot, "foo.txt"))).toBe("new\n");
 	});
 
 	it("prefers forward apply when both reverse-check and forward-check succeed", async () => {

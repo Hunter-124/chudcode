@@ -2,6 +2,7 @@
 
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 
 export interface LeafTarget {
 	tag: string;
@@ -68,7 +69,7 @@ function expectedAddonFilenames(tag: string): string[] {
 function discoverAddonFiles(nativeDir: string, tag: string): Promise<string[]> {
 	return Promise.all(
 		expectedAddonFilenames(tag).map(async filename =>
-			(await Bun.file(path.join(nativeDir, filename)).exists()) ? filename : null,
+			(await fsx.exists(path.join(nativeDir, filename))) ? filename : null,
 		),
 	).then(files => files.filter(file => file !== null));
 }
@@ -126,9 +127,9 @@ function selectTargets(tags: readonly string[] | undefined): readonly LeafTarget
 
 async function resolveLegalPayload(packageDir: string, file: string): Promise<string | undefined> {
 	const local = path.join(packageDir, file);
-	if (await Bun.file(local).exists()) return local;
+	if (await fsx.exists(local)) return local;
 	const repository = path.resolve(packageDir, "../..", file);
-	return (await Bun.file(repository).exists()) ? repository : undefined;
+	return (await fsx.exists(repository)) ? repository : undefined;
 }
 
 export async function generateNpmPackages({

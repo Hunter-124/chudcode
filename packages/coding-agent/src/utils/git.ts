@@ -2,6 +2,7 @@ import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 import { $which, hasFsCode, isEacces, isEisdir, isEnoent, isEnotdir, Snowflake } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import type { Subprocess } from "bun";
 import {
 	parseDiffHunks as parseCommitDiffHunks,
@@ -872,11 +873,11 @@ function readOptionalTextSync(filePath: string): string | null {
 }
 
 async function readOptionalText(filePath: string): Promise<string | null> {
-	return retryOnEintr(async () => await Bun.file(filePath).text());
+	return retryOnEintr(async () => await fsx.readText(filePath));
 }
 
 async function readOptionalBytes(filePath: string): Promise<Uint8Array | null> {
-	return retryOnEintr(async () => await Bun.file(filePath).bytes());
+	return retryOnEintr(async () => await fsx.readBytes(filePath));
 }
 
 function parseGitDirPointer(content: string): string | null {

@@ -1,3 +1,4 @@
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 /**
  * Lightweight protobuf (.proto) parser and TypeScript code generator for @oh-my-pi/pi-catalog.
  *
@@ -1700,11 +1701,11 @@ Options:
 	for (const inputPath of inputPaths) {
 		if (inputPath.includes("*")) {
 			for await (const file of new Bun.Glob(inputPath).scan({ cwd: process.cwd() })) {
-				const text = await Bun.file(file).text();
+				const text = await fsx.readText(file);
 				ctx.addFile(parseProto(text, file));
 			}
 		} else {
-			const text = await Bun.file(inputPath).text();
+			const text = await fsx.readText(inputPath);
 			ctx.addFile(parseProto(text, inputPath));
 		}
 	}

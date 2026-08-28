@@ -4,6 +4,7 @@ import * as os from "node:os";
 import * as path from "node:path";
 import { applyEditsThenRename } from "@oh-my-pi/pi-coding-agent/lsp/edits";
 import type { TextEdit } from "@oh-my-pi/pi-coding-agent/lsp/types";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 
 // Rewrite `./moved` → `./renamed` on line 0 of the reference file below.
 const importEdit: TextEdit[] = [
@@ -32,9 +33,9 @@ describe("applyEditsThenRename", () => {
 		const dest = path.join(dir, "nested", "renamed.ts");
 		await applyEditsThenRename([{ filePath: ref, edits: importEdit }], source, dest);
 
-		expect(await Bun.file(dest).text()).toBe("export const x = 1;\n");
-		expect(await Bun.file(source).exists()).toBe(false);
-		expect(await Bun.file(ref).text()).toBe('import { x } from "./renamed";\n');
+		expect(await fsx.readText(dest)).toBe("export const x = 1;\n");
+		expect(await fsx.exists(source)).toBe(false);
+		expect(await fsx.readText(ref)).toBe('import { x } from "./renamed";\n');
 	});
 
 	it("rolls back reference edits when the move fails", async () => {
@@ -47,8 +48,8 @@ describe("applyEditsThenRename", () => {
 		await expect(applyEditsThenRename([{ filePath: ref, edits: importEdit }], source, dest)).rejects.toThrow();
 
 		// Failed move must leave source, destination, and reference files untouched.
-		expect(await Bun.file(ref).text()).toBe(refBefore);
-		expect(await Bun.file(source).exists()).toBe(true);
-		expect(await Bun.file(dest).exists()).toBe(false);
+		expect(await fsx.readText(ref)).toBe(refBefore);
+		expect(await fsx.exists(source)).toBe(true);
+		expect(await fsx.exists(dest)).toBe(false);
 	});
 });

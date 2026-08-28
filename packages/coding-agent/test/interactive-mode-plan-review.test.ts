@@ -25,6 +25,7 @@ import { AUTO_THINKING } from "@oh-my-pi/pi-coding-agent/thinking";
 import * as clipboard from "@oh-my-pi/pi-coding-agent/utils/clipboard";
 import { type OverlayHandle, type OverlayOptions, setKeybindings } from "@oh-my-pi/pi-tui";
 import { formatNumber, TempDir } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 
 /**
  * Matches the plan-approved synthetic-prompt dispatch. `#approvePlan` calls
@@ -603,7 +604,7 @@ describe("InteractiveMode plan review rendering", () => {
 		vi.spyOn(mode, "handleClearCommand").mockResolvedValue();
 		const promptSpy = vi.spyOn(session, "prompt").mockImplementation(async promptText => {
 			if (typeof promptText === "string" && promptText.startsWith("Plan approved.")) {
-				const persisted = await Bun.file(resolvedPlanPath).text();
+				const persisted = await fsx.readText(resolvedPlanPath);
 				expect(persisted).toContain("edited body");
 				expect(persisted).not.toContain("original body");
 			}
@@ -623,7 +624,7 @@ describe("InteractiveMode plan review rendering", () => {
 		expect(call?.[0] as string).not.toContain("edited body");
 		expect(call?.[0] as string).not.toContain("original body");
 		// onPlanEdited mirrored the edit to the plan file.
-		expect(await Bun.file(resolvedPlanPath).text()).toContain("edited body");
+		expect(await fsx.readText(resolvedPlanPath)).toContain("edited body");
 	});
 
 	it("saves the final plan to the chosen path and starts a new session", async () => {
@@ -656,7 +657,7 @@ describe("InteractiveMode plan review rendering", () => {
 			"# Auto QA\nSave the final plan.\n## Verify\n- run focused tests",
 			expect.any(String),
 		);
-		expect(await Bun.file(destination).text()).toBe(edited);
+		expect(await fsx.readText(destination)).toBe(edited);
 		expect(clear).toHaveBeenCalledTimes(1);
 		expect(mode.planModeEnabled).toBe(false);
 	});
@@ -689,14 +690,14 @@ describe("InteractiveMode plan review rendering", () => {
 		const prompt = vi.spyOn(session, "prompt").mockImplementation(async () => {
 			const promptArtifactPath = resolveLocalUrlToPath("local://handoff/nested/context.txt", localOptions);
 			const promptPlanPath = resolveLocalUrlToPath(planFilePath, localOptions);
-			artifactAtPrompt = (await Bun.file(promptArtifactPath).exists())
-				? await Bun.file(promptArtifactPath).text()
+			artifactAtPrompt = (await fsx.exists(promptArtifactPath))
+				? await fsx.readText(promptArtifactPath)
 				: "<missing>";
-			planAtPrompt = (await Bun.file(promptPlanPath).exists()) ? await Bun.file(promptPlanPath).text() : "<missing>";
+			planAtPrompt = (await fsx.exists(promptPlanPath)) ? await fsx.readText(promptPlanPath) : "<missing>";
 			return undefined as never;
 		});
 
-		expect(await Bun.file(oldArtifactPath).text()).toBe("pre-approval handoff");
+		expect(await fsx.readText(oldArtifactPath)).toBe("pre-approval handoff");
 
 		await mode.handlePlanApproval({
 			planFilePath,
@@ -708,11 +709,11 @@ describe("InteractiveMode plan review rendering", () => {
 		const newArtifactPath = resolveLocalUrlToPath("local://handoff/nested/context.txt", localOptions);
 		const newPlanPath = resolveLocalUrlToPath(planFilePath, localOptions);
 		expect(newLocalRoot).not.toBe(oldLocalRoot);
-		expect(await Bun.file(newArtifactPath).text()).toBe("pre-approval handoff");
-		expect(await Bun.file(newPlanPath).text()).toBe(planContent);
+		expect(await fsx.readText(newArtifactPath)).toBe("pre-approval handoff");
+		expect(await fsx.readText(newPlanPath)).toBe(planContent);
 		expect(artifactAtPrompt).toBe("pre-approval handoff");
 		expect(planAtPrompt).toBe(planContent);
-		expect(await Bun.file(oldArtifactPath).text()).toBe("pre-approval handoff");
+		expect(await fsx.readText(oldArtifactPath)).toBe("pre-approval handoff");
 		expect(prompt).toHaveBeenCalledWith(expect.any(String), { synthetic: true });
 	});
 
@@ -935,7 +936,7 @@ describe("InteractiveMode plan review rendering", () => {
 		});
 
 		expect(clear).not.toHaveBeenCalled();
-		expect(await Bun.file(resolvedFinalPlanPath).text()).toBe("# Plan\n\nKeep context.");
+		expect(await fsx.readText(resolvedFinalPlanPath)).toBe("# Plan\n\nKeep context.");
 		expect(prompt).toHaveBeenCalledWith(expect.any(String), {
 			synthetic: true,
 		});

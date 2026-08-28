@@ -6,7 +6,7 @@ import type { AgentMessage } from "@oh-my-pi/pi-agent-core";
 import { type ApiKey, completeSimple, Effort, type Model, retryTransientCompletion } from "@oh-my-pi/pi-ai";
 import { clampThinkingLevelForModel } from "@oh-my-pi/pi-catalog/model-thinking";
 import { getAgentDbPath, getMemoriesDir, isEnoent, logger, parseJsonlLenient, prompt } from "@oh-my-pi/pi-utils";
-
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import type { ModelRegistry } from "../config/model-registry";
 import { getModelMatchPreferences, resolveModelRoleValue } from "../config/model-resolver";
 import type { Settings } from "../config/settings";
@@ -189,7 +189,7 @@ async function readMemoryToolDeveloperInstructionsSnapshot(
 
 	let summary = "";
 	try {
-		summary = (await Bun.file(path.join(memoryRoot, "memory_summary.md")).text()).trim();
+		summary = (await fsx.readText(path.join(memoryRoot, "memory_summary.md"))).trim();
 	} catch {
 		// Missing or unreadable summary — injection is best-effort; fall through
 		// so any captured lessons still surface on their own.
@@ -654,7 +654,7 @@ async function collectThreads(session: AgentSession, currentThreadId?: string): 
 		let cwd = "";
 		let id = name.slice(0, -6);
 		try {
-			const fileText = await Bun.file(fullPath).text();
+			const fileText = await fsx.readText(fullPath);
 			let sawTitleSlot = false;
 			for (const rawLine of fileText.split(/\r?\n/)) {
 				const line = rawLine.trim();
@@ -737,7 +737,7 @@ async function runStage1Job(options: {
 > {
 	const { claim, model, apiKey, modelMaxTokens, config } = options;
 	try {
-		const rolloutRaw = await Bun.file(claim.rolloutPath).text();
+		const rolloutRaw = await fsx.readText(claim.rolloutPath);
 		const persisted = extractPersistableMessages(rolloutRaw);
 		const serializedItems = JSON.stringify(persisted);
 		const budgetTokens = Math.min(
@@ -855,9 +855,7 @@ async function readRolloutSummaries(memoryRoot: string): Promise<string> {
 
 	const blocks: string[] = [];
 	for (const name of summaryNames) {
-		const text = await Bun.file(path.join(summariesDir, name))
-			.text()
-			.catch(() => "");
+		const text = await fsx.readText(path.join(summariesDir, name)).catch(() => "");
 		if (!text.trim()) continue;
 		blocks.push(`--- ${name} ---\n${text.trim()}`);
 	}
@@ -882,7 +880,7 @@ async function runConsolidationModel(options: {
 	}>;
 }> {
 	const { memoryRoot, model, apiKey } = options;
-	const rawMemories = await Bun.file(path.join(memoryRoot, "raw_memories.md")).text();
+	const rawMemories = await fsx.readText(path.join(memoryRoot, "raw_memories.md"));
 	const rolloutSummaries = await readRolloutSummaries(memoryRoot);
 	const input = prompt.render(consolidationTemplate, {
 		raw_memories: truncateByApproxTokens(rawMemories, 20_000),
@@ -1361,7 +1359,7 @@ export async function saveLearnedLesson(
 async function appendLearnedLine(filePath: string, line: string): Promise<void> {
 	let existing = "";
 	try {
-		existing = await Bun.file(filePath).text();
+		existing = await fsx.readText(filePath);
 	} catch (err) {
 		if (!isEnoent(err)) throw err;
 	}
@@ -1400,7 +1398,7 @@ async function appendLearnedLine(filePath: string, line: string): Promise<void> 
 async function readLearnedLessons(memoryRoot: string): Promise<string> {
 	let raw = "";
 	try {
-		raw = (await Bun.file(path.join(memoryRoot, LEARNED_LESSONS_FILE)).text()).trim();
+		raw = (await fsx.readText(path.join(memoryRoot, LEARNED_LESSONS_FILE))).trim();
 	} catch {
 		return "";
 	}

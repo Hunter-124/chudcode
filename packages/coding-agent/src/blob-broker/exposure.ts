@@ -12,6 +12,7 @@ import * as os from "node:os";
 import * as path from "node:path";
 import { $which, getSafeProjectCwd, logger } from "@oh-my-pi/pi-utils";
 import { sleep } from "@oh-my-pi/pi-utils/async";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import { credentialString, type DestinationRuntimeConfig, optionString } from "./uploader-runtime";
 
 /** User-selectable exposure strategy. */
@@ -255,7 +256,7 @@ async function spawnUrlTunnel(
 		const exitCode = proc.exitCode;
 		let text = "";
 		try {
-			text = await Bun.file(logPath).text();
+			text = await fsx.readText(logPath);
 		} catch {
 			// Log file not flushed yet; keep polling.
 		}

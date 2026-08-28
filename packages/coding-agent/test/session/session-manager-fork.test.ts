@@ -17,6 +17,7 @@ import {
 	sleep,
 	TempDir,
 } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 
 interface JsonlMessageEntry {
 	type: "message";
@@ -97,8 +98,8 @@ describe("SessionManager.forkFrom", () => {
 			expect(cloneFile).toBeString();
 			if (!cloneFile) throw new Error("expected forked session file");
 
-			expect(await Bun.file(sourceFile).text()).toBe(sourceText);
-			expect(await Bun.file(breadcrumbFile).exists()).toBe(false);
+			expect(await fsx.readText(sourceFile)).toBe(sourceText);
+			expect(await fsx.exists(breadcrumbFile)).toBe(false);
 			expect(cloneFile).not.toBe(sourceFile);
 
 			const cloneEntries = await loadEntriesFromFile(cloneFile);
@@ -130,9 +131,9 @@ describe("SessionManager.forkFrom", () => {
 		if (!forkFile) throw new Error("expected forked session file");
 		const forkArtifactsDir = forkFile.slice(0, -".jsonl".length);
 
-		expect(await Bun.file(path.join(forkArtifactsDir, "1.read.log")).text()).toBe("tool output");
-		expect(await Bun.file(path.join(forkArtifactsDir, "nested", "result.txt")).text()).toBe("nested output");
-		expect(await Bun.file(path.join(sourceArtifactsDir, "1.read.log")).text()).toBe("tool output");
+		expect(await fsx.readText(path.join(forkArtifactsDir, "1.read.log"))).toBe("tool output");
+		expect(await fsx.readText(path.join(forkArtifactsDir, "nested", "result.txt"))).toBe("nested output");
+		expect(await fsx.readText(path.join(sourceArtifactsDir, "1.read.log"))).toBe("tool output");
 	});
 
 	it("does not copy artifacts when the caller opts out", async () => {
@@ -147,7 +148,7 @@ describe("SessionManager.forkFrom", () => {
 		if (!forkFile) throw new Error("expected forked session file");
 		const forkArtifactsDir = forkFile.slice(0, -".jsonl".length);
 
-		expect(await Bun.file(path.join(forkArtifactsDir, "1.read.log")).exists()).toBe(false);
+		expect(await fsx.exists(path.join(forkArtifactsDir, "1.read.log"))).toBe(false);
 	});
 
 	it("does not treat an extensionless source's parent directory as artifacts", async () => {
@@ -175,7 +176,7 @@ describe("SessionManager.forkFrom", () => {
 		if (!forkFile) throw new Error("expected forked session file");
 		const forkArtifactsDir = forkFile.slice(0, -".jsonl".length);
 
-		expect(await Bun.file(path.join(forkArtifactsDir, "unrelated.txt")).exists()).toBe(false);
-		expect(await Bun.file(unrelatedFile).text()).toBe("must not be copied");
+		expect(await fsx.exists(path.join(forkArtifactsDir, "unrelated.txt"))).toBe(false);
+		expect(await fsx.readText(unrelatedFile)).toBe("must not be copied");
 	});
 });

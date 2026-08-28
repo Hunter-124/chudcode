@@ -36,6 +36,7 @@ import { type Api, completeSimple, Effort, type Model, type Tool, type ToolCall 
 import { discoverAuthStorage } from "@oh-my-pi/pi-ai/auth-broker";
 import { type GeneratedProvider, getBundledModel } from "@oh-my-pi/pi-catalog/models";
 import { sleep } from "@oh-my-pi/pi-utils/async";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import {
 	type ChangelogDocument,
 	changelogPaths,
@@ -348,7 +349,7 @@ async function run(options: RunOptions): Promise<RunResult> {
 			const changelogPath = paths[i];
 			if (!changelogPath) continue;
 			const absolutePath = path.join(repoRoot, changelogPath);
-			const content = await Bun.file(absolutePath).text();
+			const content = await fsx.readText(absolutePath);
 			const document = parseChangelog(content);
 			const section = unreleasedSection(document);
 			if (!section) continue;

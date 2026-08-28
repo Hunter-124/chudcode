@@ -15,6 +15,7 @@ import {
 	setAgentDir,
 	setProjectDir,
 } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import { runCli } from "../src/cli";
 import { beginSettingsTest, restoreSettingsTestState, type SettingsTestState } from "./helpers/settings-test-state";
 
@@ -141,7 +142,7 @@ describe("runGcCommand blob sweep", () => {
 
 		expect(result.blobs?.wouldDelete).toBe(1);
 		expect(result.blobs?.deleted).toBe(0);
-		expect(await Bun.file(blob).exists()).toBe(true);
+		expect(await fsx.exists(blob)).toBe(true);
 	});
 
 	test("--apply deletes unreferenced blobs and keeps referenced blobs", async () => {
@@ -159,8 +160,8 @@ describe("runGcCommand blob sweep", () => {
 
 		expect(result.blobs?.wouldDelete).toBe(1);
 		expect(result.blobs?.deleted).toBe(1);
-		expect(await Bun.file(orphan).exists()).toBe(false);
-		expect(await Bun.file(referenced).exists()).toBe(true);
+		expect(await fsx.exists(orphan)).toBe(false);
+		expect(await fsx.exists(referenced)).toBe(true);
 	});
 
 	test("--apply keeps fresh unreferenced blobs out of sweep candidates", async () => {
@@ -170,7 +171,7 @@ describe("runGcCommand blob sweep", () => {
 
 		expect(result.blobs?.wouldDelete).toBe(0);
 		expect(result.blobs?.deleted).toBe(0);
-		expect(await Bun.file(blob).exists()).toBe(true);
+		expect(await fsx.exists(blob)).toBe(true);
 	});
 
 	test("--apply scans recoverable session backups before deleting blobs", async () => {
@@ -193,7 +194,7 @@ describe("runGcCommand blob sweep", () => {
 		expect(result.blobs?.referenced).toBe(1);
 		expect(result.blobs?.wouldDelete).toBe(0);
 		expect(result.blobs?.deleted).toBe(0);
-		expect(await Bun.file(referenced).exists()).toBe(true);
+		expect(await fsx.exists(referenced)).toBe(true);
 	});
 
 	test("uses configured gc selectors and retention defaults", async () => {
@@ -218,9 +219,7 @@ describe("runGcCommand blob sweep", () => {
 		expect(result.blobs).toBeUndefined();
 		expect(result.wal).toBeUndefined();
 		expect(result.archive?.archived).toBe(1);
-		expect(await Bun.file(path.join(root, "archive", "sessions", "project", "archive-me.jsonl.gz")).exists()).toBe(
-			true,
-		);
+		expect(await fsx.exists(path.join(root, "archive", "sessions", "project", "archive-me.jsonl.gz"))).toBe(true);
 	});
 
 	test("--apply loads gc config from each requested agent dir", async () => {
@@ -251,9 +250,9 @@ describe("runGcCommand blob sweep", () => {
 		expect(result.blobs).toBeUndefined();
 		expect(result.wal).toBeUndefined();
 		expect(result.archive?.archived).toBe(1);
-		expect(
-			await Bun.file(path.join(targetAgentDir, "archive", "sessions", "project", "archive-me.jsonl.gz")).exists(),
-		).toBe(true);
+		expect(await fsx.exists(path.join(targetAgentDir, "archive", "sessions", "project", "archive-me.jsonl.gz"))).toBe(
+			true,
+		);
 	});
 
 	test("invalid configured archive age falls back to schema default", async () => {
@@ -276,7 +275,7 @@ describe("runGcCommand blob sweep", () => {
 
 		expect(result.archive?.wouldArchive).toBe(0);
 		expect(result.archive?.archived).toBe(0);
-		expect(await Bun.file(session).exists()).toBe(true);
+		expect(await fsx.exists(session)).toBe(true);
 	});
 
 	test("invalid configured retention counts fall back to schema defaults", async () => {
@@ -299,7 +298,7 @@ describe("runGcCommand blob sweep", () => {
 
 		expect(result.archive?.keptNewestGlobal).toBe(1);
 		expect(result.archive?.archived).toBe(0);
-		expect(await Bun.file(session).exists()).toBe(true);
+		expect(await fsx.exists(session)).toBe(true);
 	});
 
 	test("explicit selectors override disabled gc config", async () => {
@@ -312,7 +311,7 @@ describe("runGcCommand blob sweep", () => {
 		expect(result.blobs?.deleted).toBe(1);
 		expect(result.archive).toBeUndefined();
 		expect(result.wal).toBeUndefined();
-		expect(await Bun.file(blob).exists()).toBe(false);
+		expect(await fsx.exists(blob)).toBe(false);
 	});
 
 	test("dry-run reads gc config without initializing settings storage", async () => {
@@ -337,8 +336,8 @@ describe("runGcCommand blob sweep", () => {
 		expect(result.archive?.wouldArchive).toBe(1);
 		expect(result.archive?.archived).toBe(0);
 		expect(result.wal).toBeUndefined();
-		expect(await Bun.file(path.join(root, "agent.db")).exists()).toBe(false);
-		expect(await Bun.file(path.join(root, "settings.json.bak")).exists()).toBe(false);
+		expect(await fsx.exists(path.join(root, "agent.db"))).toBe(false);
+		expect(await fsx.exists(path.join(root, "settings.json.bak"))).toBe(false);
 	});
 
 	test("dry-run merges project gc settings like apply without initializing settings storage", async () => {
@@ -377,8 +376,8 @@ describe("runGcCommand blob sweep", () => {
 		expect(dryRun.archive?.wouldArchive).toBe(1);
 		expect(dryRun.archive?.archived).toBe(0);
 		expect(dryRun.wal).toBeUndefined();
-		expect(await Bun.file(path.join(root, "agent.db")).exists()).toBe(false);
-		expect(await Bun.file(path.join(root, "settings.json.bak")).exists()).toBe(false);
+		expect(await fsx.exists(path.join(root, "agent.db"))).toBe(false);
+		expect(await fsx.exists(path.join(root, "settings.json.bak"))).toBe(false);
 
 		const applied = await runGcCommand({ flags: { agentDir: root, apply: true } });
 
@@ -431,7 +430,7 @@ describe("runGcCommand history checkpoint", () => {
 			"unable to open database file",
 		);
 
-		expect(await Bun.file(path.join(root, "gc.lock")).exists()).toBe(false);
+		expect(await fsx.exists(path.join(root, "gc.lock"))).toBe(false);
 	});
 
 	test("--apply reports busy WAL checkpoints and releases the gc lock", async () => {
@@ -452,7 +451,7 @@ describe("runGcCommand history checkpoint", () => {
 				`WAL checkpoint failed for ${dbPath}: busy=1`,
 			);
 
-			expect(await Bun.file(path.join(root, "gc.lock")).exists()).toBe(false);
+			expect(await fsx.exists(path.join(root, "gc.lock"))).toBe(false);
 		} finally {
 			try {
 				reader.run("COMMIT");
@@ -489,13 +488,13 @@ describe("runGcCommand cold-session archive", () => {
 
 		expect(result.archive?.archived).toBe(1);
 		expect(result.archive?.skippedActive).toBe(2);
-		expect(await Bun.file(archiveMe).exists()).toBe(false);
-		expect(await Bun.file(archived).exists()).toBe(true);
-		expect(new TextDecoder().decode(gunzipSync(await Bun.file(archived).bytes()))).toContain('"archive-me"');
-		expect(await Bun.file(path.join(archived.slice(0, -".jsonl.gz".length), "0.bash.log")).exists()).toBe(true);
-		expect(await Bun.file(keepRecent).exists()).toBe(true);
-		expect(await Bun.file(pending).exists()).toBe(true);
-		expect(await Bun.file(interrupted).exists()).toBe(true);
+		expect(await fsx.exists(archiveMe)).toBe(false);
+		expect(await fsx.exists(archived)).toBe(true);
+		expect(new TextDecoder().decode(gunzipSync(await fsx.readBytes(archived)))).toContain('"archive-me"');
+		expect(await fsx.exists(path.join(archived.slice(0, -".jsonl.gz".length), "0.bash.log"))).toBe(true);
+		expect(await fsx.exists(keepRecent)).toBe(true);
+		expect(await fsx.exists(pending)).toBe(true);
+		expect(await fsx.exists(interrupted)).toBe(true);
 	});
 
 	test("skips archiving parent sessions with live nested sessions", async () => {
@@ -526,9 +525,9 @@ describe("runGcCommand cold-session archive", () => {
 
 		expect(result.archive?.skippedActive).toBe(1);
 		expect(result.archive?.archived).toBe(0);
-		expect(await Bun.file(parent).exists()).toBe(true);
-		expect(await Bun.file(nested).exists()).toBe(true);
-		expect(await Bun.file(path.join(root, "archive", "sessions", "project", "parent.jsonl.gz")).exists()).toBe(false);
+		expect(await fsx.exists(parent)).toBe(true);
+		expect(await fsx.exists(nested)).toBe(true);
+		expect(await fsx.exists(path.join(root, "archive", "sessions", "project", "parent.jsonl.gz"))).toBe(false);
 	});
 
 	test("removes archived session rows from history and rebuilds FTS", async () => {
@@ -1583,7 +1582,7 @@ describe("runGcCommand cold-session archive", () => {
 
 		expect(first.archive?.archived).toBe(1);
 		expect(first.archive?.errors.some(error => error.startsWith("history cleanup: "))).toBe(true);
-		expect(await Bun.file(archived).exists()).toBe(true);
+		expect(await fsx.exists(archived)).toBe(true);
 
 		await fs.rm(dbPath, { force: true });
 		const db = new Database(dbPath);
@@ -1661,7 +1660,7 @@ describe("runGcCommand cold-session archive", () => {
 		expect(result.archive?.archived).toBe(1);
 		expect(result.archive?.historyRowsDeleted).toBe(0);
 		expect(result.archive?.errors).toEqual([]);
-		expect(await Bun.file(session).exists()).toBe(false);
+		expect(await fsx.exists(session)).toBe(false);
 	});
 
 	test("does not archive fresh completed sessions that may still be live", async () => {
@@ -1680,7 +1679,7 @@ describe("runGcCommand cold-session archive", () => {
 
 		expect(result.archive?.archived).toBe(0);
 		expect(result.archive?.skippedActive).toBe(1);
-		expect(await Bun.file(session).exists()).toBe(true);
+		expect(await fsx.exists(session)).toBe(true);
 	});
 
 	test("dry-run does not recover orphaned session backups", async () => {
@@ -1696,8 +1695,8 @@ describe("runGcCommand cold-session archive", () => {
 		const result = await runGcCommand({ flags: { agentDir: root, archive: true } });
 
 		expect(result.archive?.scanned).toBe(0);
-		expect(await Bun.file(backup).exists()).toBe(true);
-		expect(await Bun.file(primary).exists()).toBe(false);
+		expect(await fsx.exists(backup)).toBe(true);
+		expect(await fsx.exists(primary)).toBe(false);
 	});
 
 	test("sweeps blobs only after scanning references in compressed archived sessions", async () => {
@@ -1723,7 +1722,7 @@ describe("runGcCommand cold-session archive", () => {
 		const result = await runGcCommand({ flags: { agentDir: root, blobs: true, apply: true } });
 
 		expect(result.blobs?.wouldDelete).toBe(1);
-		expect(await Bun.file(referenced).exists()).toBe(true);
+		expect(await fsx.exists(referenced)).toBe(true);
 	});
 });
 
@@ -1735,7 +1734,7 @@ describe("runGcCommand lock handling", () => {
 		await expect(runGcCommand({ flags: { agentDir: root, blobs: true } })).rejects.toThrow(
 			`GC already running: ${lockPath}`,
 		);
-		expect(await Bun.file(lockPath).exists()).toBe(true);
+		expect(await fsx.exists(lockPath)).toBe(true);
 	});
 
 	test("breaks stale gc locks before running", async () => {
@@ -1747,7 +1746,7 @@ describe("runGcCommand lock handling", () => {
 		const result = await runGcCommand({ flags: { agentDir: root, blobs: true } });
 
 		expect(result.blobs?.wouldDelete).toBe(1);
-		expect(await Bun.file(lockPath).exists()).toBe(false);
+		expect(await fsx.exists(lockPath)).toBe(false);
 	});
 
 	test("does not break gc locks while stale-lock takeover is already in progress", async () => {
@@ -1759,7 +1758,7 @@ describe("runGcCommand lock handling", () => {
 		await expect(runGcCommand({ flags: { agentDir: root, blobs: true } })).rejects.toThrow(
 			`GC already running: ${lockPath}`,
 		);
-		expect(await Bun.file(lockPath).exists()).toBe(true);
-		expect(await Bun.file(breakerPath).exists()).toBe(true);
+		expect(await fsx.exists(lockPath)).toBe(true);
+		expect(await fsx.exists(breakerPath)).toBe(true);
 	});
 });

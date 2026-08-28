@@ -10,6 +10,7 @@ import {
 	streamSimple,
 } from "@oh-my-pi/pi-ai/stream";
 import type { Context } from "@oh-my-pi/pi-ai/types";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 
 function context(): Context {
 	return {
@@ -271,7 +272,7 @@ describe("provider in-flight request limits", () => {
 			const lease = entries.find(entry => entry.isDirectory());
 			if (!lease) throw new Error("Expected failed cleanup to leave a provider lease");
 			infoPath = path.join(limiterDir("tests"), lease.name, "info.json");
-			infoBeforeLateHeartbeat = await Bun.file(infoPath).text();
+			infoBeforeLateHeartbeat = await fsx.readText(infoPath);
 		} finally {
 			clearInterval(keepAlive);
 			finishRequest.resolve();
@@ -279,7 +280,7 @@ describe("provider in-flight request limits", () => {
 		}
 		await heartbeatSettled.promise;
 
-		expect(await Bun.file(infoPath).text()).toBe(infoBeforeLateHeartbeat);
+		expect(await fsx.readText(infoPath)).toBe(infoBeforeLateHeartbeat);
 	});
 
 	test("removes an aborted queued request without dispatching it", async () => {
@@ -365,7 +366,7 @@ describe("provider in-flight request limits", () => {
 		});
 
 		await waiting;
-		expect(await Bun.file(path.join(providerDir, ".wakeup")).exists()).toBe(false);
+		expect(await fsx.exists(path.join(providerDir, ".wakeup"))).toBe(false);
 		expect(mock.calls).toHaveLength(0);
 
 		controller.abort(new Error("cancel saturated waiter"));
@@ -389,7 +390,7 @@ describe("provider in-flight request limits", () => {
 		const stream = streamSimple(mock.model, context(), { maxInFlightRequests: { tests: 1 } });
 		await firstStarted.promise;
 
-		expect(await Bun.file(path.join(providerDir, ".wakeup")).exists()).toBe(false);
+		expect(await fsx.exists(path.join(providerDir, ".wakeup"))).toBe(false);
 
 		releaseFirst.resolve();
 		const result = await stream.result();
@@ -465,7 +466,7 @@ describe("provider in-flight request limits", () => {
 
 		await staleRelease?.();
 
-		const remaining = JSON.parse(await Bun.file(path.join(lockDir, "info.json")).text()) as { token: string };
+		const remaining = JSON.parse(await fsx.readText(path.join(lockDir, "info.json"))) as { token: string };
 		expect(remaining.token).toBe("fresh-lock");
 	});
 
@@ -484,7 +485,7 @@ describe("provider in-flight request limits", () => {
 
 		await staleCleanup?.();
 
-		const remaining = JSON.parse(await Bun.file(path.join(lockDir, "info.json")).text()) as { token: string };
+		const remaining = JSON.parse(await fsx.readText(path.join(lockDir, "info.json"))) as { token: string };
 		expect(remaining.token).toBe("fresh-lock");
 	});
 

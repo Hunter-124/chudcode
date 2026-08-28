@@ -20,6 +20,7 @@
  */
 import * as path from "node:path";
 import type * as natives from "@oh-my-pi/pi-natives";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import { AgentRegistry } from "../registry/agent-registry";
 import type { ToolSession } from "../tools";
 import { generateCommitMessage } from "../utils/commit-message-generator";
@@ -399,7 +400,7 @@ export async function mergeIsolatedChanges(opts: IsolationMergeOptions): Promise
 			changesApplied = false;
 			hadAnyChanges = false;
 		} else {
-			const patchText = await Bun.file(result.patchPath).text();
+			const patchText = await fsx.readText(result.patchPath);
 			if (!patchText.trim()) {
 				changesApplied = true;
 				hadAnyChanges = false;

@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import * as fsp from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import {
 	advisorConfigFilePath,
 	discoverAdvisorConfigs,
@@ -224,7 +225,7 @@ describe("WATCHDOG.yml file round-trip", () => {
 	it("serializes block-style YAML that the discovery path also parses", async () => {
 		const file = path.join(tmp, "WATCHDOG.yml");
 		await saveWatchdogConfigFile(file, doc);
-		const text = await Bun.file(file).text();
+		const text = await fsx.readText(file);
 		// Block style (not the flow `{...}` form), so it stays hand-editable.
 		expect(text).toContain("advisors:");
 		expect(text).not.toMatch(/^\{/);
@@ -266,7 +267,7 @@ describe("WATCHDOG.yml file round-trip", () => {
 		const file = path.join(tmp, "WATCHDOG.yml");
 		await saveWatchdogConfigFile(file, doc);
 		await saveWatchdogConfigFile(file, { advisors: [] });
-		expect(await Bun.file(file).exists()).toBe(false);
+		expect(await fsx.exists(file)).toBe(false);
 		// Loading a missing file yields an empty doc, never throws.
 		expect(await loadWatchdogConfigFile(file)).toEqual({ advisors: [] });
 	});

@@ -3,6 +3,7 @@ import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { $which } from "@oh-my-pi/pi-utils";
 import { sleep } from "@oh-my-pi/pi-utils/async";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import { $ } from "bun";
 
 const STATS_PROBE_TIMEOUT_MS = 500;
@@ -53,7 +54,7 @@ async function findLinuxPortHolder(port: number): Promise<PortHolder | null> {
 	for (const tablePath of ["/proc/net/tcp", "/proc/net/tcp6"]) {
 		let table: string;
 		try {
-			table = await Bun.file(tablePath).text();
+			table = await fsx.readText(tablePath);
 		} catch {
 			continue;
 		}
@@ -102,7 +103,7 @@ async function findLinuxPortHolder(port: number): Promise<PortHolder | null> {
 
 		let commandLine = "";
 		try {
-			const rawCommandLine = await Bun.file(`/proc/${pid}/cmdline`).text();
+			const rawCommandLine = await fsx.readText(`/proc/${pid}/cmdline`);
 			commandLine = rawCommandLine.split("\0").filter(Boolean).join(" ");
 		} catch {}
 
@@ -118,7 +119,7 @@ async function findLinuxPortHolder(port: number): Promise<PortHolder | null> {
 }
 
 async function findMacPortHolder(port: number): Promise<PortHolder | null> {
-	const lsof = $which("lsof") ?? ((await Bun.file("/usr/sbin/lsof").exists()) ? "/usr/sbin/lsof" : null);
+	const lsof = $which("lsof") ?? ((await fsx.exists("/usr/sbin/lsof")) ? "/usr/sbin/lsof" : null);
 	if (!lsof) return null;
 
 	const selector = `-iTCP:${port}`;

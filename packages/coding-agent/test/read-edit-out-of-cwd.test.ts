@@ -9,6 +9,7 @@ import type { ToolSession } from "@oh-my-pi/pi-coding-agent/tools";
 import type { ReadToolDetails } from "@oh-my-pi/pi-coding-agent/tools/read";
 import { ReadTool } from "@oh-my-pi/pi-coding-agent/tools/read";
 import { removeWithRetries } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 
 function textOutput(result: AgentToolResult<ReadToolDetails>): string {
 	return result.content
@@ -93,7 +94,7 @@ describe("read → edit round-trip for out-of-cwd files", () => {
 		const resultText = result.content.map(part => (part.type === "text" ? part.text : "")).join("\n");
 
 		expect(resultText).not.toContain("File not found");
-		expect(await Bun.file(outFile).text()).toBe("ALPHA\nbeta\n");
+		expect(await fsx.readText(outFile)).toBe("ALPHA\nbeta\n");
 	});
 
 	it("keeps an in-cwd relative path so an existing basename cannot capture a follow-up edit", async () => {
@@ -112,8 +113,8 @@ describe("read → edit round-trip for out-of-cwd files", () => {
 
 		await executeHashlineSingle(editOptions(session, `${header}\nPUT 1.=1:\n+ALPHA\n`));
 
-		expect(await Bun.file(nestedFile).text()).toBe("ALPHA\nbeta\n");
-		expect(await Bun.file(rootFile).text()).toBe("root\n");
+		expect(await fsx.readText(nestedFile)).toBe("ALPHA\nbeta\n");
+		expect(await fsx.readText(rootFile)).toBe("root\n");
 	});
 
 	it("recovers a missing cwd path from the active approved local plan", async () => {
@@ -197,7 +198,7 @@ describe("read → edit round-trip for out-of-cwd files", () => {
 			expect(textOutput(readResult)).toContain("alpha");
 
 			await testCase.run(new EditTool(session), fileName);
-			expect(await Bun.file(workspaceFile).text()).toBe("ALPHA\nbeta\n");
+			expect(await fsx.readText(workspaceFile)).toBe("ALPHA\nbeta\n");
 		}
 	});
 
@@ -221,8 +222,8 @@ describe("read → edit round-trip for out-of-cwd files", () => {
 		].join("\n");
 		await new EditTool(session).execute("edit-workspace-suffix-recreate", { input });
 
-		expect(await Bun.file(workspaceFile).text()).toBe("rewritten\n");
-		expect(await Bun.file(path.join(cwdDir, fileName)).exists()).toBe(false);
+		expect(await fsx.readText(workspaceFile)).toBe("rewritten\n");
+		expect(await fsx.exists(path.join(cwdDir, fileName))).toBe(false);
 	});
 
 	it("prefers a unique workspace suffix match over the approved local plan alias", async () => {

@@ -4,6 +4,7 @@ import * as os from "node:os";
 import * as path from "node:path";
 import { OutputSink } from "@oh-my-pi/pi-coding-agent/session/streaming-output";
 import { removeWithRetries } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 
 const createdTempDirs: string[] = [];
 
@@ -44,9 +45,9 @@ describe("OutputSink fd lifecycle", () => {
 			await sink.dispose();
 			// Descriptor released → the artifact is closed, complete, and readable,
 			// and the unrelated skill read never hits EMFILE.
-			const content = await Bun.file(artifactPath).text();
+			const content = await fsx.readText(artifactPath);
 			expect(content).toContain("x".repeat(64));
-			await Bun.file(skill).text();
+			await fsx.readText(skill);
 		}
 	});
 
@@ -64,7 +65,7 @@ describe("OutputSink fd lifecycle", () => {
 		// from double-closing the underlying FileSink.
 		await sink.dispose();
 
-		const content = await Bun.file(artifactPath).text();
+		const content = await fsx.readText(artifactPath);
 		expect(content).toContain("x".repeat(64));
 	});
 
@@ -80,7 +81,7 @@ describe("OutputSink fd lifecycle", () => {
 		sink.push(`${"y".repeat(64)}\n`);
 		await sink.dispose();
 
-		const content = await Bun.file(artifactPath).text();
+		const content = await fsx.readText(artifactPath);
 		expect(content).not.toContain("y".repeat(64));
 	});
 

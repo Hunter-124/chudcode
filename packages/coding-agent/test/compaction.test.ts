@@ -28,6 +28,7 @@ import type {
 } from "@oh-my-pi/pi-coding-agent/session/session-entries";
 import { parseSessionEntries } from "@oh-my-pi/pi-coding-agent/session/session-loader";
 import { migrateSessionEntries } from "@oh-my-pi/pi-coding-agent/session/session-migrations";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import { mockFetch } from "./helpers/fetch-mock";
 import { e2eApiKey } from "./utilities";
 
@@ -39,7 +40,7 @@ const tokenizer = new Tokenizer();
 
 async function loadLargeSessionEntries(): Promise<SessionEntry[]> {
 	const sessionPath = path.join(import.meta.dirname, "fixtures/large-session.jsonl");
-	const content = await Bun.file(sessionPath).text();
+	const content = await fsx.readText(sessionPath);
 	const entries = parseSessionEntries(content);
 	migrateSessionEntries(entries); // Add id/parentId for v1 fixtures
 	return entries.filter((e): e is SessionEntry => e.type !== "session");

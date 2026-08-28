@@ -11,6 +11,7 @@ import * as scrapers from "@oh-my-pi/pi-coding-agent/web/scrapers/types";
 import * as scraperUtils from "@oh-my-pi/pi-coding-agent/web/scrapers/utils";
 import { removeSyncWithRetries, Snowflake } from "@oh-my-pi/pi-utils";
 import { encodeArchive } from "@oh-my-pi/pi-utils/ar";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 
 function makeSession(testDir: string): ToolSession {
 	const sessionFile = path.join(testDir, "session.jsonl");
@@ -77,7 +78,7 @@ async function createSqliteFixtureBytes(testDir: string): Promise<Uint8Array> {
 	} finally {
 		db.close();
 	}
-	return Bun.file(dbPath).bytes();
+	return fsx.readBytes(dbPath);
 }
 
 function createNotebookFixtureBytes(): Uint8Array {

@@ -17,6 +17,7 @@ import type { InteractiveModeContext } from "@oh-my-pi/pi-coding-agent/modes/typ
 import type { ResolvedRoleModel } from "@oh-my-pi/pi-coding-agent/session/agent-session";
 import { AUTO_THINKING } from "@oh-my-pi/pi-coding-agent/thinking";
 import { removeSyncWithRetries, Snowflake } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import { beginSettingsTest, restoreSettingsTestState, type SettingsTestState } from "./helpers/settings-test-state";
 
 let settingsState: SettingsTestState | undefined;
@@ -840,7 +841,7 @@ describe("selector setting side effects", () => {
 				expect(settings.getGlobalModelRole("default")).toBeUndefined();
 				expect(settings.getModelRole("default")).toBe(overlaySelector);
 				expect(settings.getModelRoleProvenance("default")).toBe("overlay");
-				expect(await Bun.file(path.join(projectDir, ".omp", "config.yml")).text()).toContain(
+				expect(await fsx.readText(path.join(projectDir, ".omp", "config.yml"))).toContain(
 					`default: ${projectSelector}`,
 				);
 				expect(setModel).not.toHaveBeenCalled();

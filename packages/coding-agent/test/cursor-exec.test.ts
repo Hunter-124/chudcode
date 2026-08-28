@@ -27,7 +27,6 @@ import {
 	cursorMcpPrefersReplaceEdit,
 	normalizeCursorReplaceArgs,
 } from "@oh-my-pi/pi-coding-agent/cursor-bridge-tools";
-
 import { EditTool } from "@oh-my-pi/pi-coding-agent/edit";
 import type { ExtensionRunner } from "@oh-my-pi/pi-coding-agent/extensibility/extensions";
 import { ExtensionToolWrapper } from "@oh-my-pi/pi-coding-agent/extensibility/extensions";
@@ -35,6 +34,7 @@ import { BUILTIN_TOOLS, GrepTool, ReadTool, type Tool, type ToolSession } from "
 import { BashTool } from "@oh-my-pi/pi-coding-agent/tools/bash";
 import type { TruncationMeta } from "@oh-my-pi/pi-coding-agent/tools/output-meta";
 import { removeWithRetries } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import { AdviseTool } from "../src/advisor/advise-tool";
 
 function createTestSession(cwd: string, overrides: Partial<ToolSession> = {}): ToolSession {
@@ -356,7 +356,7 @@ describe("bridge tool resolution beyond the model-facing registry", () => {
 		} as never);
 
 		expect(result.isError).toBeFalsy();
-		expect(await Bun.file(target).text()).toBe("alpha\ngamma\n");
+		expect(await fsx.readText(target)).toBe("alpha\ngamma\n");
 	});
 
 	it("reports the failure instead of editing when no edit tool is reachable", async () => {
@@ -369,7 +369,7 @@ describe("bridge tool resolution beyond the model-facing registry", () => {
 		} as never);
 
 		expect(result.isError).toBe(true);
-		expect(await Bun.file(target).text()).toBe("alpha\nbeta\n");
+		expect(await fsx.readText(target)).toBe("alpha\nbeta\n");
 	});
 
 	it("substitutes a replace-mode edit into a granted advisor tool map", async () => {
@@ -392,7 +392,7 @@ describe("bridge tool resolution beyond the model-facing registry", () => {
 		} as never);
 
 		expect(result.isError).toBeFalsy();
-		expect(await Bun.file(target).text()).toBe("alpha\ngamma\n");
+		expect(await fsx.readText(target)).toBe("alpha\ngamma\n");
 		// The advisor's own loop must keep the exact instance it was handed.
 		expect(granted.get("edit")).toBe(advisorEdit);
 	});
@@ -420,7 +420,7 @@ describe("bridge tool resolution beyond the model-facing registry", () => {
 		} as never);
 
 		expect(result.isError).toBeFalsy();
-		expect(await Bun.file(target).text()).toBe("alpha\ngamma\n");
+		expect(await fsx.readText(target)).toBe("alpha\ngamma\n");
 	});
 
 	it("still refuses a pi_edit frame when the session granted no edit tool", async () => {
@@ -441,7 +441,7 @@ describe("bridge tool resolution beyond the model-facing registry", () => {
 		} as never);
 
 		expect(result.isError).toBe(true);
-		expect(await Bun.file(target).text()).toBe("alpha\nbeta\n");
+		expect(await fsx.readText(target)).toBe("alpha\nbeta\n");
 	});
 
 	it("leaves an ungranted tool map without an edit tool", async () => {
@@ -466,7 +466,7 @@ describe("bridge tool resolution beyond the model-facing registry", () => {
 		} as never);
 
 		expect(result.isError).toBe(true);
-		expect(await Bun.file(target).text()).toBe("alpha\nbeta\n");
+		expect(await fsx.readText(target)).toBe("alpha\nbeta\n");
 	});
 
 	it("refuses a scoped pi_grep when no grep tool was granted", async () => {
@@ -507,7 +507,7 @@ describe("bridge tool resolution beyond the model-facing registry", () => {
 		} as never);
 
 		expect(result.isError).toBe(true);
-		expect(await Bun.file(target).text()).toBe("alpha\nbeta\n");
+		expect(await fsx.readText(target)).toBe("alpha\nbeta\n");
 	});
 
 	it("denies a scoped pi_grep frame the user's policy blocks", async () => {
@@ -583,7 +583,7 @@ describe("bridge tool resolution beyond the model-facing registry", () => {
 		} as never);
 
 		expect(result.isError).toBe(true);
-		expect(await Bun.file(target).exists()).toBe(false);
+		expect(await fsx.exists(target)).toBe(false);
 	});
 });
 
@@ -635,7 +635,7 @@ describe("Cursor MCP StrReplace fallback", () => {
 			rawArgs: {},
 		});
 
-		expect(await Bun.file(target).text()).toBe("alpha\ngamma\n");
+		expect(await fsx.readText(target)).toBe("alpha\ngamma\n");
 		expect(result.content.map(part => (part.type === "text" ? part.text : "")).join("")).not.toMatch(
 			/not found|not available/i,
 		);
@@ -662,7 +662,7 @@ describe("Cursor MCP StrReplace fallback", () => {
 			rawArgs: {},
 		});
 
-		expect(await Bun.file(target).text()).toBe("alpha\ngamma\n");
+		expect(await fsx.readText(target)).toBe("alpha\ngamma\n");
 		expect(result.content.map(part => (part.type === "text" ? part.text : "")).join("")).not.toMatch(
 			/not found|not available/i,
 		);
@@ -711,7 +711,7 @@ describe("Cursor MCP StrReplace fallback", () => {
 		});
 
 		expect(result.isError).toBe(true);
-		expect(await Bun.file(target).text()).toBe("alpha\nbeta\n");
+		expect(await fsx.readText(target)).toBe("alpha\nbeta\n");
 	});
 });
 
@@ -1096,7 +1096,7 @@ describe("CursorExecHandlers mounted tool bridge", () => {
 			expect(read?.text).toBeUndefined();
 			expect(read?.blob).toBeUndefined();
 			// The file is really there, decoded from base64, under the workspace.
-			expect(await Bun.file(path.join(workspace, "assets/logo.png")).text()).toBe("PNG-BYTES");
+			expect(await fsx.readText(path.join(workspace, "assets/logo.png"))).toBe("PNG-BYTES");
 		} finally {
 			await removeWithRetries(workspace);
 		}
@@ -1128,7 +1128,7 @@ describe("CursorExecHandlers mounted tool bridge", () => {
 				).rejects.toThrow(/outside the workspace/);
 			}
 			// Nothing was written on any of those attempts.
-			expect(await Bun.file(outside).exists()).toBe(false);
+			expect(await fsx.exists(outside)).toBe(false);
 		} finally {
 			await removeWithRetries(workspace);
 		}
@@ -1178,12 +1178,12 @@ describe("CursorExecHandlers mounted tool bridge", () => {
 				).rejects.toThrow(/outside the workspace/);
 			}
 			expect(await Array.fromAsync(new Bun.Glob("**/*").scan({ cwd: outside }))).toEqual(["existing.txt"]);
-			expect(await Bun.file(path.join(outside, "existing.txt")).text()).toBe("original");
+			expect(await fsx.readText(path.join(outside, "existing.txt"))).toBe("original");
 
 			// A real workspace path still downloads: the guard resolves links, it
 			// does not refuse every path whose parents do not exist yet.
 			await handlers.readMcpResource({ server: "files", uri: "files://x", downloadPath: "deep/new/file.txt" });
-			expect(await Bun.file(path.join(inner, "deep/new/file.txt")).text()).toBe("payload");
+			expect(await fsx.readText(path.join(inner, "deep/new/file.txt"))).toBe("payload");
 		} finally {
 			await removeWithRetries(workspace);
 		}
@@ -1211,7 +1211,7 @@ describe("CursorExecHandlers mounted tool bridge", () => {
 			payload = "second";
 			await handlers.readMcpResource({ server: "files", uri: "files://x", downloadPath: "out/doc.txt" });
 
-			expect(await Bun.file(path.join(workspace, "out/doc.txt")).text()).toBe("second");
+			expect(await fsx.readText(path.join(workspace, "out/doc.txt"))).toBe("second");
 		} finally {
 			await removeWithRetries(workspace);
 		}
@@ -1244,7 +1244,7 @@ describe("CursorExecHandlers mounted tool bridge", () => {
 			await expect(
 				handlers.readMcpResource({ server: "files", uri: "files://x", downloadPath: "innocent.txt" }),
 			).rejects.toThrow(/hard links/);
-			expect(await Bun.file(victim).text()).toBe("SECRET");
+			expect(await fsx.readText(victim)).toBe("SECRET");
 		} finally {
 			await removeWithRetries(workspace);
 		}
@@ -1323,7 +1323,7 @@ describe("CursorExecHandlers mounted tool bridge", () => {
 			).rejects.toThrow(/blocked by user policy/);
 
 			expect(reads).toBe(0);
-			expect(await Bun.file(path.join(workspace, "out.txt")).exists()).toBe(false);
+			expect(await fsx.exists(path.join(workspace, "out.txt"))).toBe(false);
 
 			// A read without `download_path` mutates nothing, so it is unaffected.
 			const read = await ungranted.readMcpResource({ server: "files", uri: "files://x" });
@@ -1524,7 +1524,7 @@ describe("CursorExecHandlers native delete gating (issue #5680)", () => {
 
 		expect(result.isError).toBe(true);
 		expect(result.content).toEqual([{ type: "text", text: 'Tool "delete" not available' }]);
-		expect(await Bun.file(target).exists()).toBe(true);
+		expect(await fsx.exists(target)).toBe(true);
 	});
 
 	it("performs native delete when allowDirectFileMutation is true", async () => {
@@ -1539,7 +1539,7 @@ describe("CursorExecHandlers native delete gating (issue #5680)", () => {
 		const result = await handlers.delete(create(DeleteArgsSchema, { toolCallId: "call-del", path: target }));
 
 		expect(result.isError).toBe(false);
-		expect(await Bun.file(target).exists()).toBe(false);
+		expect(await fsx.exists(target)).toBe(false);
 	});
 
 	it("rechecks a live mutation grant after runtime tool activation", async () => {
@@ -1554,12 +1554,12 @@ describe("CursorExecHandlers native delete gating (issue #5680)", () => {
 
 		const denied = await handlers.delete(create(DeleteArgsSchema, { toolCallId: "call-del-denied", path: target }));
 		expect(denied.isError).toBe(true);
-		expect(await Bun.file(target).exists()).toBe(true);
+		expect(await fsx.exists(target)).toBe(true);
 
 		mutationGranted = true;
 		const allowed = await handlers.delete(create(DeleteArgsSchema, { toolCallId: "call-del-allowed", path: target }));
 		expect(allowed.isError).toBe(false);
-		expect(await Bun.file(target).exists()).toBe(false);
+		expect(await fsx.exists(target)).toBe(false);
 	});
 
 	it("resolves native deletes through the live cwd resolver", async () => {
@@ -1581,8 +1581,8 @@ describe("CursorExecHandlers native delete gating (issue #5680)", () => {
 		const result = await handlers.delete(create(DeleteArgsSchema, { toolCallId: "call-del", path: "obsolete.txt" }));
 
 		expect(result.isError).toBe(false);
-		expect(await Bun.file(originalTarget).exists()).toBe(true);
-		expect(await Bun.file(movedTarget).exists()).toBe(false);
+		expect(await fsx.exists(originalTarget)).toBe(true);
+		expect(await fsx.exists(movedTarget)).toBe(false);
 	});
 
 	it("refuses a native delete the user's policy blocks", async () => {
@@ -1605,7 +1605,7 @@ describe("CursorExecHandlers native delete gating (issue #5680)", () => {
 		);
 
 		expect(result.isError).toBe(true);
-		expect(await Bun.file(target).exists()).toBe(true);
+		expect(await fsx.exists(target)).toBe(true);
 	});
 
 	it("refuses a native delete in always-ask mode, which has no prompt channel", async () => {
@@ -1624,7 +1624,7 @@ describe("CursorExecHandlers native delete gating (issue #5680)", () => {
 		const result = await handlers.delete(create(DeleteArgsSchema, { toolCallId: "call-ask", path: "asked.txt" }));
 
 		expect(result.isError).toBe(true);
-		expect(await Bun.file(target).exists()).toBe(true);
+		expect(await fsx.exists(target)).toBe(true);
 	});
 });
 

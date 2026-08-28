@@ -4,54 +4,30 @@ import * as path from "node:path";
 import { loadExtensions } from "@oh-my-pi/pi-coding-agent/extensibility/extensions/loader";
 import { loadLegacyPiModule } from "@oh-my-pi/pi-coding-agent/extensibility/plugins/legacy-pi-compat";
 import { TempDir } from "@oh-my-pi/pi-utils";
-import type { BunFile } from "bun";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 
 describe("Extension Loader Graph Read Dedup", () => {
 	let tempDir: TempDir;
 	let reads: Map<string, number>;
-	let fileSpy: Mock<typeof Bun.file>;
+	let readSpy: Mock<typeof fsx.readText>;
 
 	beforeEach(() => {
 		tempDir = TempDir.createSync("@pi-ext-dedup-");
 		reads = new Map<string, number>();
 
-		const realBunFile = Bun.file.bind(Bun);
-
-		const spyImpl = (path: string | URL, options?: BlobPropertyBag): BunFile => {
-			const handle = realBunFile(path, options);
-			if (typeof path === "string") {
-				const key = fs.existsSync(path) ? fs.realpathSync(path) : path;
-				const bump = () => {
-					reads.set(key, (reads.get(key) ?? 0) + 1);
-				};
-
-				return new Proxy(handle, {
-					get(target: BunFile, prop: string | symbol, recv: unknown): unknown {
-						if (prop === "text" || prop === "arrayBuffer" || prop === "bytes" || prop === "json") {
-							const original = Reflect.get(target, prop, recv) as ((...a: unknown[]) => unknown) | undefined;
-							if (typeof original === "function") {
-								return (...methodArgs: unknown[]): unknown => {
-									bump();
-									return original.apply(target, methodArgs);
-								};
-							}
-						}
-						return Reflect.get(target, prop, recv);
-					},
-				});
+		const realReadText = fsx.readText;
+		readSpy = spyOn(fsx, "readText").mockImplementation((file: fsx.PathLike) => {
+			if (typeof file === "string") {
+				const key = fs.existsSync(file) ? fs.realpathSync(file) : file;
+				reads.set(key, (reads.get(key) ?? 0) + 1);
 			}
-			return handle;
-		};
-		fileSpy = spyOn(Bun, "file").mockImplementation(spyImpl as typeof Bun.file);
+			return realReadText(file);
+		});
 	});
 
 	afterEach(() => {
-		if (fileSpy) {
-			fileSpy.mockRestore();
-		}
-		if (tempDir) {
-			tempDir.removeSync();
-		}
+		readSpy?.mockRestore();
+		tempDir?.removeSync();
 	});
 
 	it("should read each extension module from disk exactly once", async () => {

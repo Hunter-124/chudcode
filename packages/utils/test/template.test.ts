@@ -2,6 +2,7 @@ import { describe, expect, it } from "bun:test";
 import * as path from "node:path";
 import * as prompt from "@oh-my-pi/pi-utils/prompt";
 import { create, type HelperOptions, SafeString } from "@oh-my-pi/pi-utils/template";
+import * as fsx from "../src/fsx";
 import fileOperations from "./fixtures/template/file-operations.md" with { type: "text" };
 import frontmatter from "./fixtures/template/frontmatter.md" with { type: "text" };
 import identifierTask from "./fixtures/template/identifier-task.md" with { type: "text" };
@@ -84,7 +85,7 @@ describe("real template goldens", () => {
 		const glob = new Bun.Glob("packages/*/src/**/*.md");
 		let compiled = 0;
 		for await (const relative of glob.scan(repoRoot)) {
-			const source = await Bun.file(path.join(repoRoot, relative)).text();
+			const source = await fsx.readText(path.join(repoRoot, relative));
 			if (!source.includes("{{")) continue;
 			prompt.compile(source);
 			compiled++;

@@ -1,6 +1,7 @@
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import { getProjectDir, prompt } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import {
 	isValidManagedSkillName,
 	MANAGED_SKILLS_PROVIDER_ID,
@@ -504,7 +505,7 @@ export async function buildSkillPromptMessage(
 	args: string,
 	invocation: SkillInvocationKind = "user",
 ): Promise<BuiltSkillPromptMessage> {
-	const content = await Bun.file(skill.filePath).text();
+	const content = await fsx.readText(skill.filePath);
 	const body = content.replace(/^---\n[\s\S]*?\n---\n/, "").trim();
 	const trimmedArgs = args.trim();
 	let message: string;

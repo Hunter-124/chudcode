@@ -2,6 +2,7 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import { OmpErrors, type Type } from "@oh-my-pi/omptype";
 import { getAgentDir, isEnoent, logger } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import { JSONC, YAML } from "bun";
 
 const YAML_MAPPING_HEADER_TRAILING_SPACE = /: +$/gm;
@@ -314,7 +315,7 @@ export class ConfigFile<T> implements IConfigFile<T> {
 
 		let content: string;
 		try {
-			content = (await Bun.file(this.#resolveReadPath()).text()).trim();
+			content = (await fsx.readText(this.#resolveReadPath())).trim();
 		} catch (error) {
 			if (isEnoent(error)) {
 				return this.#storeCache({ status: "not-found" });

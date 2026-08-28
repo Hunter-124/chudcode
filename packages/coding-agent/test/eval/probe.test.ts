@@ -7,6 +7,7 @@ import { rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { sleep } from "@oh-my-pi/pi-utils/async";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import { probeCandidates, runBoundedProbe } from "../../src/eval/probe";
 
 // A cross-platform "hangs forever" command: re-invoke the running Bun to sleep.
@@ -49,7 +50,7 @@ describe("runBoundedProbe", () => {
 				timeoutMs: 1_000,
 			});
 			expect(result).toEqual({ exitCode: null, timedOut: true, aborted: false });
-			grandchildPid = Number(await Bun.file(pidFile).text());
+			grandchildPid = Number(await fsx.readText(pidFile));
 			const deadline = Date.now() + 2_000;
 			while (Date.now() < deadline) {
 				try {

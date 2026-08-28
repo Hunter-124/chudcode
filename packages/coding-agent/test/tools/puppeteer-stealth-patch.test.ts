@@ -1,12 +1,13 @@
 import { describe, expect, it } from "bun:test";
 import { resolve } from "node:path";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import { debugCatchError, debugError } from "puppeteer-core/lib/puppeteer/common/util.js";
 
 const patchPath = resolve(import.meta.dir, "../../../../patches/puppeteer-core@25.3.0.patch");
 
 describe("Puppeteer stealth patch", () => {
 	it("uses the safe debug handler for all added rejection paths", async () => {
-		const patch = await Bun.file(patchPath).text();
+		const patch = await fsx.readText(patchPath);
 		const addedLines = patch.split("\n").filter(line => line.startsWith("+") && !line.startsWith("+++"));
 
 		expect(addedLines.filter(line => line.includes(".catch(debugError)"))).toEqual([]);

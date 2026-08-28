@@ -9,6 +9,7 @@ import type {
 	SessionMessageEntry,
 } from "@oh-my-pi/pi-coding-agent/session/session-entries";
 import { parseSessionEntries } from "@oh-my-pi/pi-coding-agent/session/session-loader";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 
 function extractText(message: AgentMessage): string {
 	if (message.role !== "assistant") return "";
@@ -111,7 +112,7 @@ async function main() {
 			throw new Error("Session file was not created.");
 		}
 
-		const sessionContent = await Bun.file(stats.sessionFile).text();
+		const sessionContent = await fsx.readText(stats.sessionFile);
 		const entries = parseSessionEntries(sessionContent);
 
 		const sessionMessages = entries.filter((entry): entry is SessionMessageEntry => entry.type === "message");

@@ -2,6 +2,7 @@ import { afterEach, describe, expect, test } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import { BiomeClient } from "../src/lsp/clients/biome-client";
 import type { ServerConfig } from "../src/lsp/types";
 
@@ -85,7 +86,7 @@ describe("BiomeClient format", () => {
 		const result = await new BiomeClient(biomeConfig(command), tempDir).format(targetFile, unformatted);
 
 		expect(result).toBe(formatted);
-		expect(await Bun.file(targetFile).text()).toBe(formatted);
+		expect(await fsx.readText(targetFile)).toBe(formatted);
 	});
 
 	test("formats configured TypeScript with the repository Biome", async () => {

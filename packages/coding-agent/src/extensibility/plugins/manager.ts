@@ -11,6 +11,7 @@ import {
 	isEnoent,
 	logger,
 } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import { resolveActiveProjectRegistryPath } from "../../discovery/helpers";
 import { loadExtensions } from "../extensions/loader";
 import { refreshBunGitCache } from "./bun-git-cache";
@@ -458,7 +459,7 @@ export class PluginManager {
 			};
 		}
 		const pkgJsonPath = getPluginsPackageJson();
-		const packageJsonBefore = await Bun.file(pkgJsonPath).text();
+		const packageJsonBefore = await fsx.readText(pkgJsonPath);
 		// Snapshot bun's lockfile so the rollback path can restore the pin. Every
 		// step below — `bun install`, `bun update`, feature/extension validation,
 		// runtime-config save — must either complete entirely or leave the
@@ -467,7 +468,7 @@ export class PluginManager {
 		const bunLockPath = path.join(getPluginsDir(), "bun.lock");
 		let bunLockBefore: string | null;
 		try {
-			bunLockBefore = await Bun.file(bunLockPath).text();
+			bunLockBefore = await fsx.readText(bunLockPath);
 		} catch (err) {
 			if (!isEnoent(err)) throw err;
 			bunLockBefore = null;

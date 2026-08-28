@@ -12,6 +12,7 @@ import * as os from "node:os";
 import * as path from "node:path";
 import { applyPatch, findContextLine, seekSequence } from "@oh-my-pi/pi-coding-agent/edit";
 import { removeSyncWithRetries } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 
 describe("regression: indentation adjustment for line-based replacements (2B)", () => {
 	let tempDir: string;
@@ -53,7 +54,7 @@ describe("regression: indentation adjustment for line-based replacements (2B)", 
 			{ cwd: tempDir },
 		);
 
-		const result = await Bun.file(filePath).text();
+		const result = await fsx.readText(filePath);
 		expect(result).toContain("        this.value = 42;");
 		expect(result).toContain('        this.name = "updated";');
 	});
@@ -88,7 +89,7 @@ describe("regression: indentation adjustment for line-based replacements (2B)", 
 			{ cwd: tempDir },
 		);
 
-		const result = await Bun.file(filePath).text();
+		const result = await fsx.readText(filePath);
 		expect(result).toContain("    return 10;"); // 4 spaces for inner1
 		expect(result).toContain("      return 20;"); // 6 spaces for inner2
 	});
@@ -154,7 +155,7 @@ describe("regression: ambiguity detection for context-less hunks (2C)", () => {
 			{ cwd: tempDir },
 		);
 
-		expect(await Bun.file(filePath).text()).toBe("header\nfoo\nbar\nmiddle\nFOO\nbaz\nfooter\n");
+		expect(await fsx.readText(filePath)).toBe("header\nfoo\nbar\nmiddle\nFOO\nbaz\nfooter\n");
 	});
 });
 
@@ -203,7 +204,7 @@ function process() {
 			{ cwd: tempDir },
 		);
 
-		const result = await Bun.file(filePath).text();
+		const result = await fsx.readText(filePath);
 		expect(result).toContain("return 1;"); // First unchanged
 		expect(result).toContain("return 200;"); // Second changed
 		expect(result).toContain("return 3;"); // Third unchanged
@@ -236,7 +237,7 @@ def helper():
 			{ cwd: tempDir },
 		);
 
-		const result = await Bun.file(filePath).text();
+		const result = await fsx.readText(filePath);
 		const lines = result.split("\n");
 		expect(lines[2]).toBe("    pass"); // Section A unchanged
 		expect(lines[6]).toBe("    return True"); // Section B changed
@@ -271,7 +272,7 @@ describe("regression: insertion uses newStartLine fallback (2E)", () => {
 			{ cwd: tempDir },
 		);
 
-		expect(await Bun.file(filePath).text()).toBe("line1\ninserted\nline2\nline3\n");
+		expect(await fsx.readText(filePath)).toBe("line1\ninserted\nline2\nline3\n");
 	});
 
 	test("pure addition with line hint inserts at correct position", async () => {
@@ -290,7 +291,7 @@ describe("regression: insertion uses newStartLine fallback (2E)", () => {
 			{ cwd: tempDir },
 		);
 
-		expect(await Bun.file(filePath).text()).toBe("aaa\nbbb\ninserted after bbb\nccc\n");
+		expect(await fsx.readText(filePath)).toBe("aaa\nbbb\ninserted after bbb\nccc\n");
 	});
 
 	test("insertion at end of file works correctly", async () => {
@@ -308,7 +309,7 @@ describe("regression: insertion uses newStartLine fallback (2E)", () => {
 			{ cwd: tempDir },
 		);
 
-		expect(await Bun.file(filePath).text()).toBe("first\nsecond\nappended line\n");
+		expect(await fsx.readText(filePath)).toBe("first\nsecond\nappended line\n");
 	});
 });
 
@@ -444,7 +445,7 @@ describe("plan: partial line matching for @@ context", () => {
 			{ cwd: tempDir },
 		);
 
-		const result = await Bun.file(filePath).text();
+		const result = await fsx.readText(filePath);
 		expect(result).toContain('rmSync("temp", { recursive: true });');
 	});
 
@@ -470,7 +471,7 @@ describe("plan: partial line matching for @@ context", () => {
 			{ cwd: tempDir },
 		);
 
-		expect(await Bun.file(filePath).text()).toContain("filter(i => i.valid)");
+		expect(await fsx.readText(filePath)).toContain("filter(i => i.valid)");
 	});
 });
 
@@ -506,7 +507,7 @@ describe("plan: unified diff format line numbers", () => {
 			{ cwd: tempDir },
 		);
 
-		const result = await Bun.file(filePath).text();
+		const result = await fsx.readText(filePath);
 		expect(result).toContain("LINE ELEVEN");
 		expect(result).toContain("line 10"); // unchanged
 		expect(result).toContain("line 12"); // unchanged
@@ -541,7 +542,7 @@ line 9
 			{ cwd: tempDir },
 		);
 
-		const result = await Bun.file(filePath).text();
+		const result = await fsx.readText(filePath);
 		const lines = result.split("\n");
 		expect(lines[2]).toBe("target line"); // First unchanged
 		expect(lines[7]).toBe("MODIFIED TARGET"); // Second changed
@@ -578,7 +579,7 @@ describe("plan: Codex-style wrapped patches", () => {
 			{ cwd: tempDir },
 		);
 
-		expect(await Bun.file(filePath).text()).toBe("new content\n");
+		expect(await fsx.readText(filePath)).toBe("new content\n");
 	});
 
 	test("strips partial wrapper (only *** End Patch)", async () => {
@@ -598,7 +599,7 @@ describe("plan: Codex-style wrapped patches", () => {
 			{ cwd: tempDir },
 		);
 
-		expect(await Bun.file(filePath).text()).toBe("modified\n");
+		expect(await fsx.readText(filePath)).toBe("modified\n");
 	});
 
 	test("strips bare *** terminator (model hallucination)", async () => {
@@ -618,7 +619,7 @@ describe("plan: Codex-style wrapped patches", () => {
 			{ cwd: tempDir },
 		);
 
-		expect(await Bun.file(filePath).text()).toBe("line1\nLINE TWO\nline3\n");
+		expect(await fsx.readText(filePath)).toBe("line1\nLINE TWO\nline3\n");
 	});
 
 	test("strips bare *** terminator in multi-hunk diff", async () => {
@@ -641,7 +642,7 @@ describe("plan: Codex-style wrapped patches", () => {
 			{ cwd: tempDir },
 		);
 
-		expect(await Bun.file(filePath).text()).toBe("AAA\nbbb\nCCC\nddd\n");
+		expect(await fsx.readText(filePath)).toBe("AAA\nbbb\nCCC\nddd\n");
 	});
 
 	test("strips bare *** at beginning of diff", async () => {
@@ -660,7 +661,7 @@ describe("plan: Codex-style wrapped patches", () => {
 			{ cwd: tempDir },
 		);
 
-		expect(await Bun.file(filePath).text()).toBe("new\n");
+		expect(await fsx.readText(filePath)).toBe("new\n");
 	});
 
 	test("strips unified diff metadata lines", async () => {
@@ -685,7 +686,7 @@ index abc123..def456 100644
 			{ cwd: tempDir },
 		);
 
-		expect(await Bun.file(filePath).text()).toBe("first\nSECOND\nthird\n");
+		expect(await fsx.readText(filePath)).toBe("first\nSECOND\nthird\n");
 	});
 });
 
@@ -713,7 +714,7 @@ describe("plan: strip + prefix from file creation", () => {
 			{ cwd: tempDir },
 		);
 
-		expect(await Bun.file(path.join(tempDir, "newfile.txt")).text()).toBe("line one\nline two\nline three\n");
+		expect(await fsx.readText(path.join(tempDir, "newfile.txt"))).toBe("line one\nline two\nline three\n");
 	});
 
 	test("create file strips + space prefix", async () => {
@@ -727,7 +728,7 @@ describe("plan: strip + prefix from file creation", () => {
 			{ cwd: tempDir },
 		);
 
-		expect(await Bun.file(path.join(tempDir, "spaced.txt")).text()).toBe("first line\nsecond line\n");
+		expect(await fsx.readText(path.join(tempDir, "spaced.txt"))).toBe("first line\nsecond line\n");
 	});
 
 	test("create file preserves content when not all lines have + prefix", async () => {
@@ -743,7 +744,7 @@ regular line
 		);
 
 		// Should preserve as-is since not all lines have +
-		expect(await Bun.file(path.join(tempDir, "mixed.txt")).text()).toBe("+line one\nregular line\n+line three\n");
+		expect(await fsx.readText(path.join(tempDir, "mixed.txt"))).toBe("+line one\nregular line\n+line three\n");
 	});
 });
 
@@ -775,7 +776,7 @@ describe("regression: *** End of File marker handling (2A/2G)", () => {
 			{ cwd: tempDir },
 		);
 
-		expect(await Bun.file(filePath).text()).toBe("line1\nline2\nmodified last line\n");
+		expect(await fsx.readText(filePath)).toBe("line1\nline2\nmodified last line\n");
 	});
 
 	test("EOF marker targets end of file for pattern matching", async () => {
@@ -795,7 +796,7 @@ describe("regression: *** End of File marker handling (2A/2G)", () => {
 			{ cwd: tempDir },
 		);
 
-		const result = await Bun.file(filePath).text();
+		const result = await fsx.readText(filePath);
 		expect(result).toBe("item\nmore content\nFINAL ITEM\n");
 	});
 });
@@ -852,7 +853,7 @@ describe("regression: model edit attempt - @@ line N syntax (session 2026-01-19)
 			{ cwd: tempDir },
 		);
 
-		const result = await Bun.file(filePath).text();
+		const result = await fsx.readText(filePath);
 		expect(result).toContain("patchMode?: boolean; // default: true");
 		expect(result).not.toContain("patchMode?: boolean; // default: false");
 	});
@@ -907,7 +908,7 @@ class PatchTool {
 			{ cwd: tempDir },
 		);
 
-		const result = await Bun.file(filePath).text();
+		const result = await fsx.readText(filePath);
 		// Should change PatchTool's constructor, not OtherTool's
 		expect(result).toContain("this.patchMode = session.xyz(true);");
 		expect(result).toContain("this.mode = false;"); // OtherTool unchanged
@@ -945,7 +946,7 @@ class Beta {
 			{ cwd: tempDir },
 		);
 
-		const result = await Bun.file(filePath).text();
+		const result = await fsx.readText(filePath);
 		expect(result).toContain('return "alpha"'); // Alpha unchanged
 		expect(result).toContain('return "BETA"'); // Beta changed
 	});
@@ -995,7 +996,7 @@ class PatchTool {
 			{ cwd: tempDir },
 		);
 
-		const result = await Bun.file(filePath).text();
+		const result = await fsx.readText(filePath);
 		expect(result).toContain("this.value = 1;"); // OtherTool unchanged
 		expect(result).toContain("this.value = 200;"); // PatchTool changed
 	});
@@ -1033,7 +1034,7 @@ function process() {
 			{ cwd: tempDir },
 		);
 
-		const result = await Bun.file(filePath).text();
+		const result = await fsx.readText(filePath);
 		expect(result).toContain("return 1;"); // outer's helper unchanged
 		expect(result).toContain("return 200;"); // process's helper changed
 	});
@@ -1084,7 +1085,7 @@ export class EditTool implements AgentTool<typeof replaceEditSchema | typeof pat
 			{ cwd: tempDir },
 		);
 
-		const result = await Bun.file(filePath).text();
+		const result = await fsx.readText(filePath);
 		expect(result).toContain("this.patchMode = true;");
 	});
 
@@ -1113,7 +1114,7 @@ export class EditTool implements AgentTool<Schema2, Details2> {
 			{ cwd: tempDir },
 		);
 
-		const result = await Bun.file(filePath).text();
+		const result = await fsx.readText(filePath);
 		expect(result).toContain("value = 100;");
 		expect(result).toContain("value = 2;");
 	});
@@ -1144,7 +1145,7 @@ describe("regression: bench edit failures (2026-01-19)", () => {
 			{ cwd: tempDir },
 		);
 
-		expect(await Bun.file(filePath).text()).toBe("alpha\nBETA\ngamma\n");
+		expect(await fsx.readText(filePath)).toBe("alpha\nBETA\ngamma\n");
 	});
 
 	test.each([
@@ -1166,7 +1167,7 @@ describe("regression: bench edit failures (2026-01-19)", () => {
 			{ cwd: tempDir },
 		);
 
-		const lines = (await Bun.file(filePath).text()).split("\n");
+		const lines = (await fsx.readText(filePath)).split("\n");
 		expect(lines[2]).toBe("LINE THREE");
 	});
 
@@ -1183,7 +1184,7 @@ describe("regression: bench edit failures (2026-01-19)", () => {
 			{ cwd: tempDir },
 		);
 
-		expect(await Bun.file(filePath).text()).toBe("FIRST\nsecond\n");
+		expect(await fsx.readText(filePath)).toBe("FIRST\nsecond\n");
 	});
 
 	test("function name with empty params matches signature", async () => {
@@ -1211,7 +1212,7 @@ describe("regression: bench edit failures (2026-01-19)", () => {
 			{ cwd: tempDir },
 		);
 
-		const result = await Bun.file(filePath).text();
+		const result = await fsx.readText(filePath);
 		expect(result).toContain("return reason.toUpperCase();");
 		expect(result).toContain("return JSON.stringify(node);");
 	});
@@ -1232,7 +1233,7 @@ describe("regression: bench edit failures (2026-01-19)", () => {
 			{ cwd: tempDir },
 		);
 
-		expect(await Bun.file(filePath).text()).toContain(
+		expect(await fsx.readText(filePath)).toContain(
 			'import { stopLoggingProfilingEvents, startLoggingProfilingEvents } from "../SchedulerProfiling";',
 		);
 	});
@@ -1253,7 +1254,7 @@ describe("regression: bench edit failures (2026-01-19)", () => {
 			{ cwd: tempDir },
 		);
 
-		const result = await Bun.file(filePath).text();
+		const result = await fsx.readText(filePath);
 		expect(result).toContain("return 1;");
 		expect(result).toContain("return 200;");
 		expect(result).toContain("return 3;");
@@ -1272,7 +1273,7 @@ describe("regression: bench edit failures (2026-01-19)", () => {
 			{ cwd: tempDir },
 		);
 
-		expect(await Bun.file(filePath).text()).toBe("alpha\nbeta\nGAMMA\n");
+		expect(await fsx.readText(filePath)).toBe("alpha\nbeta\nGAMMA\n");
 	});
 
 	test("repeated context blocks collapse when duplicated", async () => {
@@ -1288,7 +1289,7 @@ describe("regression: bench edit failures (2026-01-19)", () => {
 			{ cwd: tempDir },
 		);
 
-		expect(await Bun.file(filePath).text()).toBe("if (ready) {\n  handleNext();\n}\n");
+		expect(await fsx.readText(filePath)).toBe("if (ready) {\n  handleNext();\n}\n");
 	});
 
 	test("shared prefix/suffix context is trimmed when mismatched", async () => {
@@ -1304,7 +1305,7 @@ describe("regression: bench edit failures (2026-01-19)", () => {
 			{ cwd: tempDir },
 		);
 
-		expect(await Bun.file(filePath).text()).toBe("function doThing() {\n  return 2;\n}\n");
+		expect(await fsx.readText(filePath)).toBe("function doThing() {\n  return 2;\n}\n");
 	});
 
 	test("single-line change fallback uses the unique changed line", async () => {
@@ -1320,7 +1321,7 @@ describe("regression: bench edit failures (2026-01-19)", () => {
 			{ cwd: tempDir },
 		);
 
-		const result = await Bun.file(filePath).text();
+		const result = await fsx.readText(filePath);
 		expect(result).toContain("return 1;");
 		expect(result).toContain("return 200;");
 	});
@@ -1341,7 +1342,7 @@ describe("regression: bench edit failures (2026-01-19)", () => {
 			{ cwd: tempDir },
 		);
 
-		expect(await Bun.file(filePath).text()).toContain("if (relativeContainer === null)");
+		expect(await fsx.readText(filePath)).toContain("if (relativeContainer === null)");
 	});
 
 	test("context lines preserve original file indentation when fuzzy matched", async () => {
@@ -1381,7 +1382,7 @@ describe("regression: bench edit failures (2026-01-19)", () => {
 			{ cwd: tempDir },
 		);
 
-		const result = await Bun.file(filePath).text();
+		const result = await fsx.readText(filePath);
 		// The changed line should have correct value (false instead of true)
 		expect(result).toContain("$false | $fallback");
 		// Context lines should preserve original 4-space indentation, not become 3-space
@@ -1416,7 +1417,7 @@ describe("regression: bench edit failures (2026-01-19)", () => {
 			{ cwd: tempDir },
 		);
 
-		const result = await Bun.file(filePath).text();
+		const result = await fsx.readText(filePath);
 		const lines = result.split("\n");
 		expect(lines[1]).toContain("--streamEndedCount");
 		expect(lines[4]).toContain("++streamEndedCount");
@@ -1438,7 +1439,7 @@ describe("regression: bench edit failures (2026-01-19)", () => {
 			{ cwd: tempDir },
 		);
 
-		const result = await Bun.file(filePath).text();
+		const result = await fsx.readText(filePath);
 		expect(result).toContain("A copy of this software AND associated docs");
 	});
 
@@ -1458,7 +1459,7 @@ describe("regression: bench edit failures (2026-01-19)", () => {
 			{ cwd: tempDir },
 		);
 
-		expect(await Bun.file(filePath).text()).toContain("const buffer = value.toUpperCase();");
+		expect(await fsx.readText(filePath)).toContain("const buffer = value.toUpperCase();");
 	});
 
 	test("context anchor retryIfBlockedOn() matches signature without params", async () => {
@@ -1474,7 +1475,7 @@ describe("regression: bench edit failures (2026-01-19)", () => {
 			{ cwd: tempDir },
 		);
 
-		expect(await Bun.file(filePath).text()).toContain("return reason.toUpperCase();");
+		expect(await fsx.readText(filePath)).toContain("return reason.toUpperCase();");
 	});
 
 	test("ambiguous context falls back to unique old lines", async () => {
@@ -1493,7 +1494,7 @@ describe("regression: bench edit failures (2026-01-19)", () => {
 			{ cwd: tempDir },
 		);
 
-		const result = await Bun.file(filePath).text();
+		const result = await fsx.readText(filePath);
 		expect(result).toContain("return 1;");
 		expect(result).toContain("return 200;");
 		expect(result).toContain("return 3;");
@@ -1515,7 +1516,7 @@ describe("regression: bench edit failures (2026-01-19)", () => {
 			{ cwd: tempDir },
 		);
 
-		expect(await Bun.file(filePath).text()).toContain("/ LICENSE file in the root directory.");
+		expect(await fsx.readText(filePath)).toContain("/ LICENSE file in the root directory.");
 	});
 
 	test("context-less fuzzy match applies even with spacing differences", async () => {
@@ -1531,7 +1532,7 @@ describe("regression: bench edit failures (2026-01-19)", () => {
 			{ cwd: tempDir },
 		);
 
-		expect(await Bun.file(filePath).text()).toContain("calculateTotal");
+		expect(await fsx.readText(filePath)).toContain("calculateTotal");
 	});
 
 	test("@@ header without space is accepted", async () => {
@@ -1547,7 +1548,7 @@ describe("regression: bench edit failures (2026-01-19)", () => {
 			{ cwd: tempDir },
 		);
 
-		expect(await Bun.file(filePath).text()).toContain("const value = 100;");
+		expect(await fsx.readText(filePath)).toContain("const value = 100;");
 	});
 });
 
@@ -1595,7 +1596,7 @@ describe("regression: trailing context lines don't delete file content", () => {
 			{ cwd: tempDir },
 		);
 
-		const result = await Bun.file(filePath).text();
+		const result = await fsx.readText(filePath);
 		expect(result).toContain("return 42;");
 		// The comment should still be there!
 		expect(result).toContain("// This is an important comment");
@@ -1631,7 +1632,7 @@ describe("regression: trailing context lines don't delete file content", () => {
 			{ cwd: tempDir },
 		);
 
-		const result = await Bun.file(filePath).text();
+		const result = await fsx.readText(filePath);
 		expect(result).toContain("private other = true;");
 		expect(result).toContain("return this.field;");
 	});
@@ -1703,7 +1704,7 @@ describe("regression: trailing context lines don't delete file content", () => {
 			{ cwd: tempDir },
 		);
 
-		const result = await Bun.file(filePath).text();
+		const result = await fsx.readText(filePath);
 		expect(result).toContain("private dead = false;");
 		expect(result).toContain("return this._kittyProtocolActive;");
 		expect(result).toContain("if (this.dead) return;");
@@ -1752,7 +1753,7 @@ describe("regression: trailing context lines don't delete file content", () => {
 			{ cwd: tempDir },
 		);
 
-		const result = await Bun.file(filePath).text();
+		const result = await fsx.readText(filePath);
 		expect(result).toContain("private dead = false;");
 		expect(result).toContain("return this._kittyProtocolActive;");
 	});
@@ -1790,7 +1791,7 @@ describe("regression: trailing context lines don't delete file content", () => {
 			{ cwd: tempDir },
 		);
 
-		const result = await Bun.file(filePath).text();
+		const result = await fsx.readText(filePath);
 		// The new field should be added
 		expect(result).toContain("private dead = false;");
 		// The getter body should still be there!
@@ -1855,7 +1856,7 @@ describe("regression: context-only hunks between @@ markers must not change inde
 
 		await applyPatch({ path: "agent-session.ts", op: "update", diff }, { cwd: tempDir });
 
-		const result = await Bun.file(filePath).text();
+		const result = await fsx.readText(filePath);
 		// The change should be applied
 		expect(result).toContain("\t\tawait this.sessionManager.newSession(options);");
 		// Lines covered by the pure-context hunk must keep their original tab indentation
@@ -1894,7 +1895,7 @@ describe("regression: context-only hunks between @@ markers must not change inde
 
 		await applyPatch({ path: "offset.ts", op: "update", diff }, { cwd: tempDir });
 
-		const result = await Bun.file(filePath).text();
+		const result = await fsx.readText(filePath);
 		expect(result).toContain("\t\tif (ready) {");
 		expect(result).toContain("\t\t\tthis.x = 42;");
 		// Unchanged lines must keep tabs

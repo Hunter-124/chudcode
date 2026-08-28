@@ -5,6 +5,7 @@ import { type RepeatedToolCallDetection, ToolCallLoopGuard } from "@oh-my-pi/pi-
 import { modelFamilyToken } from "@oh-my-pi/pi-catalog/identity";
 import { logger, prompt } from "@oh-my-pi/pi-utils";
 import { sleep } from "@oh-my-pi/pi-utils/async";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import type { Settings } from "../config/settings";
 import { normalizeDiff, normalizeToLF, ParseError, previewPatch, stripBom } from "../edit";
 import { type LocalProtocolOptions, resolveLocalUrlToPath } from "../internal-urls";
@@ -222,8 +223,8 @@ export class StreamingEditGuard {
 	#ensureFileCache(resolvedPath: string): Promise<string | undefined> {
 		const existing = this.#fileCache.get(resolvedPath);
 		if (existing) return existing;
-		const load = Bun.file(resolvedPath)
-			.text()
+		const load = fsx
+			.readText(resolvedPath)
 			.then(text => {
 				const { text: stripped } = stripBom(text);
 				return normalizeToLF(stripped);

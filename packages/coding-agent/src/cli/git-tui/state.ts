@@ -15,6 +15,7 @@ import {
 } from "@oh-my-pi/pi-natives";
 import { BINARY_SNIFF_BYTES, isEnoent, isProbablyBinaryHeader } from "@oh-my-pi/pi-utils";
 import { sleep } from "@oh-my-pi/pi-utils/async";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import { parseNumstat } from "../../commit/git/diff";
 import type { NumstatEntry } from "../../commit/types";
 import * as git from "../../utils/git";
@@ -723,7 +724,7 @@ export class GitModel {
 		if (!mediaDir) return { kind: "lfsMissing", oid: pointer.oid, byteLength: pointer.size };
 		const objectPath = path.join(mediaDir, pointer.oid.slice(0, 2), pointer.oid.slice(2, 4), pointer.oid);
 		try {
-			const bytes = await Bun.file(objectPath).bytes();
+			const bytes = await fsx.readBytes(objectPath);
 			signal?.throwIfAborted();
 			if (bytes.byteLength !== pointer.size) {
 				return { kind: "lfsMissing", oid: pointer.oid, byteLength: pointer.size };

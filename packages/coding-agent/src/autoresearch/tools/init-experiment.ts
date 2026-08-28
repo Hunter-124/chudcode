@@ -1,6 +1,7 @@
 import * as path from "node:path";
 import { type } from "@oh-my-pi/omptype";
 import { Text } from "@oh-my-pi/pi-tui";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import type { ToolDefinition } from "../../extensibility/extensions";
 import type { Theme } from "../../modes/theme/theme";
 import { replaceTabs, truncateToWidth } from "../../tools/render-utils";
@@ -71,7 +72,7 @@ export function createInitExperimentTool(
 			const requiresHarness = !existing || isNewSegmentInit;
 
 			if (requiresHarness) {
-				const harnessExists = await Bun.file(path.join(ctx.cwd, HARNESS_FILENAME)).exists();
+				const harnessExists = await fsx.exists(path.join(ctx.cwd, HARNESS_FILENAME));
 				if (!harnessExists) {
 					return {
 						content: [

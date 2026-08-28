@@ -1,5 +1,6 @@
 import * as path from "node:path";
 import { isRecord } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 
 const RUST_FRAMEWORKS: readonly (readonly [string, string])[] = [
 	["axum", "Axum"],
@@ -182,14 +183,14 @@ async function detectGo(root: string): Promise<RepositoryContext | null> {
 
 async function optionalText(filePath: string): Promise<string | null> {
 	try {
-		return await Bun.file(filePath).text();
+		return await fsx.readText(filePath);
 	} catch {
 		return null;
 	}
 }
 
 async function fileExists(filePath: string): Promise<boolean> {
-	return Bun.file(filePath).exists();
+	return fsx.exists(filePath);
 }
 
 function parseToml(content: string): Record<string, unknown> {

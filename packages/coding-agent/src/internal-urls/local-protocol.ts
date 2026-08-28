@@ -2,6 +2,7 @@ import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
 import { isEnoent } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import { AgentRegistry } from "../registry/agent-registry";
 import { isMarkdownPath } from "../utils/lang-from-path";
 import { buildDirectoryResource } from "./filesystem-resource";
@@ -154,7 +155,7 @@ async function buildFileResource(
 	if (resolved.size > LOCAL_TEXT_RESOURCE_MAX_BYTES) {
 		return buildLargeLocalTextResource(url, resolved.path, resolved.size);
 	}
-	const content = await Bun.file(resolved.path).text();
+	const content = await fsx.readText(resolved.path);
 	return {
 		url: url.href,
 		content,

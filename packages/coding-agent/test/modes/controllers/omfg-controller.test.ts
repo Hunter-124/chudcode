@@ -10,6 +10,7 @@ import { initTheme } from "@oh-my-pi/pi-coding-agent/modes/theme/theme";
 import type { InteractiveModeContext } from "@oh-my-pi/pi-coding-agent/modes/types";
 import { Container, type TUI } from "@oh-my-pi/pi-tui";
 import { removeWithRetries } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 
 const PROJECT_OPTION = "This project (.omp/rules)";
 
@@ -171,6 +172,6 @@ describe("OmfgController", () => {
 		expect(harness.container.children).toHaveLength(0);
 		expect(signal?.aborted).toBe(true);
 		expect(controller.hasActiveRequest()).toBe(false);
-		expect(await Bun.file(path.join(harness.projectDir, ".omp", "rules", "ts-no-any.md")).exists()).toBe(false);
+		expect(await fsx.exists(path.join(harness.projectDir, ".omp", "rules", "ts-no-any.md"))).toBe(false);
 	});
 });

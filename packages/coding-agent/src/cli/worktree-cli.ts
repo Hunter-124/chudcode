@@ -20,6 +20,7 @@ import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { getWorktreesDir, isEnoent } from "@oh-my-pi/pi-utils";
 import chalk from "@oh-my-pi/pi-utils/chalk";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import { hasLiveIsolationOwner, ISOLATION_OWNER_FILE } from "../task/isolation-ownership";
 import * as git from "../utils/git";
 
@@ -219,7 +220,7 @@ async function classifyDir(dir: string): Promise<WorktreeEntry | null> {
 	// dir itself (legacy dirs and crashed pre-marker runs). Recognizing the
 	// marker alone keeps an in-progress sandbox from being mistaken for a stray
 	// during the window between marker creation and mount materialisation.
-	let isIsolation = await Bun.file(path.join(dir, ISOLATION_OWNER_FILE)).exists();
+	let isIsolation = await fsx.exists(path.join(dir, ISOLATION_OWNER_FILE));
 	if (!isIsolation) {
 		for (const mountDir of TASK_ISOLATION_MOUNT_DIRS) {
 			const mountStat = await fs.stat(path.join(dir, mountDir)).catch(() => null);

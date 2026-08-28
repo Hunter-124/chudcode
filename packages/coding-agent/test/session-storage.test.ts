@@ -10,6 +10,7 @@ import {
 } from "@oh-my-pi/pi-coding-agent/session/indexed-session-storage";
 import { FileSessionStorage } from "@oh-my-pi/pi-coding-agent/session/session-storage";
 import { type SessionTitleUpdate, serializeTitleSlot } from "@oh-my-pi/pi-coding-agent/session/session-title-slot";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 
 class ControlledTitleUpdateBackend implements SessionStorageBackend {
 	readonly #sessionPath: string;
@@ -244,7 +245,7 @@ describe("FileSessionStorage.writeTextSync", () => {
 		const second = fs.statSync(sessionPath);
 
 		expect(second.ino).not.toBe(first.ino);
-		expect(await Bun.file(sessionPath).text()).toBe("second\n");
+		expect(await fsx.readText(sessionPath)).toBe("second\n");
 	});
 });
 
@@ -271,7 +272,7 @@ describe("FileSessionStorage.updateSessionTitle", () => {
 
 		await storage.updateSessionTitle(sessionPath, { title: "New", source: "user", updatedAt: "t2" });
 
-		const content = await Bun.file(sessionPath).text();
+		const content = await fsx.readText(sessionPath);
 		const [slotLine, ...rest] = content.split("\n");
 		expect(JSON.parse(slotLine)).toMatchObject({ type: "title", title: "New", source: "user", updatedAt: "t2" });
 		expect(`${rest.join("\n")}`).toBe(tail);

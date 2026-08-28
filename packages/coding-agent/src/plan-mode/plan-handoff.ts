@@ -1,4 +1,5 @@
 import { isEnoent } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import { type LocalProtocolOptions, resolveLocalUrlToPath } from "../internal-urls";
 
 /** The session's active plan, resolved for handoff into a subagent's context. */
@@ -27,7 +28,7 @@ export async function loadOverallPlanReference(
 	const resolved = resolveLocalUrlToPath(planReferencePath, localProtocolOptions);
 	let content: string;
 	try {
-		content = await Bun.file(resolved).text();
+		content = await fsx.readText(resolved);
 	} catch (error) {
 		if (isEnoent(error)) return undefined;
 		throw error;

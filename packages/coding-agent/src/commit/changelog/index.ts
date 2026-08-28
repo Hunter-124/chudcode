@@ -2,6 +2,7 @@ import * as path from "node:path";
 import type { ThinkingLevel } from "@oh-my-pi/pi-agent-core";
 import type { Api, ApiKey, Model } from "@oh-my-pi/pi-ai";
 import { logger } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import { CHANGELOG_CATEGORIES } from "../../commit/types";
 import * as git from "../../utils/git";
 import { detectChangelogBoundaries } from "./detect";
@@ -59,7 +60,7 @@ export async function runChangelogFlow({
 		if (!diff.trim()) continue;
 		const stat = await git.diff(cwd, { stat: true, cached: true, files: boundary.files });
 		const diffForPrompt = truncateDiff(diff, maxDiffChars ?? DEFAULT_MAX_DIFF_CHARS);
-		const changelogContent = await Bun.file(boundary.changelogPath).text();
+		const changelogContent = await fsx.readText(boundary.changelogPath);
 		let unreleased: { startLine: number; endLine: number; entries: Record<string, string[]> };
 		try {
 			unreleased = parseUnreleasedSection(changelogContent);
@@ -109,12 +110,12 @@ export async function applyChangelogProposals({
 		)
 			continue;
 		onProgress?.(`Applying entries for ${proposal.path}…`);
-		const exists = await Bun.file(proposal.path).exists();
+		const exists = await fsx.exists(proposal.path);
 		if (!exists) {
 			logger.warn("commit changelog path missing", { path: proposal.path });
 			continue;
 		}
-		const changelogContent = await Bun.file(proposal.path).text();
+		const changelogContent = await fsx.readText(proposal.path);
 		let unreleased: { startLine: number; endLine: number; entries: Record<string, string[]> };
 		try {
 			unreleased = parseUnreleasedSection(changelogContent);

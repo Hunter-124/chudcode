@@ -11,6 +11,7 @@ import * as path from "node:path";
 import { disposeAllKernelSessions, executePythonWithKernel } from "@oh-my-pi/pi-coding-agent/eval/py/executor";
 import { PythonKernel } from "@oh-my-pi/pi-coding-agent/eval/py/kernel";
 import { TempDir } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 
 const SHOULD_RUN = process.env.PI_PYTHON_INTEGRATION === "1";
 
@@ -146,8 +147,8 @@ describe.skipIf(!SHOULD_RUN)("python eval workflow helpers", () => {
 			expect(result.output).toContain(`WROTE ${path.join(root, "notes", "merge-map.md")}`);
 			expect(result.output).toContain("READ hello world");
 			// Lands under the injected root — not a literal `local:` directory under cwd.
-			expect(await Bun.file(path.join(root, "notes", "merge-map.md")).text()).toBe("hello world");
-			expect(await Bun.file(path.join(tempDir.path(), "local:")).exists()).toBe(false);
+			expect(await fsx.readText(path.join(root, "notes", "merge-map.md"))).toBe("hello world");
+			expect(await fsx.exists(path.join(tempDir.path(), "local:"))).toBe(false);
 		} finally {
 			await kernel.shutdown();
 		}

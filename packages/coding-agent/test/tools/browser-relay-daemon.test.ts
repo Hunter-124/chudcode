@@ -3,6 +3,7 @@ import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
 import { sleep } from "@oh-my-pi/pi-utils/async";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import { createDaemonBrokerClient } from "../../src/launch/client";
 import { findFreeCdpPort } from "../../src/tools/browser/attach";
 import { probeRelayServer } from "../../src/tools/browser/relay/daemon";
@@ -127,12 +128,12 @@ try {
 
 		const first = spawnConsumer(firstProject, "profile-a", firstMarker);
 		try {
-			expect(await waitUntil(() => Bun.file(firstMarker).exists(), 15_000)).toBeTrue();
+			expect(await waitUntil(() => fsx.exists(firstMarker), 15_000)).toBeTrue();
 			expect(await probeRelayServer(cdpUrl)).toBeTrue();
 
 			const second = spawnConsumer(secondProject, "profile-b", secondMarker);
 			try {
-				expect(await waitUntil(() => Bun.file(secondMarker).exists(), 15_000)).toBeTrue();
+				expect(await waitUntil(() => fsx.exists(secondMarker), 15_000)).toBeTrue();
 				first.stdin.end();
 				const firstExit = await first.exited;
 				if (firstExit !== 0) throw new Error(await new Response(first.stderr).text());

@@ -7,6 +7,7 @@ import { type AstReplaceChange, type AstReplaceFileChange, astEdit } from "@oh-m
 import type { Component } from "@oh-my-pi/pi-tui";
 import { replaceTabs, Text } from "@oh-my-pi/pi-tui";
 import { $envpos, prompt, untilAborted } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import { canonicalSnapshotKey, getFileSnapshotStore } from "../edit/file-snapshot-store";
 import { normalizeToLF } from "../edit/normalize";
 import type { RenderResultOptions } from "../extensibility/custom-tools/types";
@@ -359,7 +360,7 @@ export class AstEditTool implements AgentTool<typeof astEditSchema, AstEditToolD
 				for (const relativePath of fileList) {
 					const absolutePath = path.resolve(this.session.cwd, relativePath);
 					try {
-						const fullText = normalizeToLF(await Bun.file(absolutePath).text());
+						const fullText = normalizeToLF(await fsx.readText(absolutePath));
 						const tag = snapshotStore.record(canonicalSnapshotKey(absolutePath), fullText);
 						hashContexts.set(relativePath, { tag });
 					} catch {
@@ -476,7 +477,7 @@ export class AstEditTool implements AgentTool<typeof astEditSchema, AstEditToolD
 							for (const relativePath of appliedFileList) {
 								const appliedAbsolutePath = path.resolve(this.session.cwd, relativePath);
 								try {
-									const fullText = normalizeToLF(await Bun.file(appliedAbsolutePath).text());
+									const fullText = normalizeToLF(await fsx.readText(appliedAbsolutePath));
 									const freshTag = snapshotStore.record(canonicalSnapshotKey(appliedAbsolutePath), fullText);
 									freshTagLines.push(formatHashlineHeader(relativePath, freshTag));
 								} catch {

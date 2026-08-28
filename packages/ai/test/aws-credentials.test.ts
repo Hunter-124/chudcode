@@ -8,6 +8,7 @@ import {
 	tokenizeCredentialProcessCommand,
 } from "@oh-my-pi/pi-ai/providers/aws-credentials";
 import type { FetchImpl } from "@oh-my-pi/pi-ai/types";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import { removeWithRetries } from "../../utils/src/temp";
 import { waitForDelayOrAbort } from "./helpers";
 
@@ -189,7 +190,7 @@ describe("resolveAwsCredentials", () => {
 
 		await resolveAwsCredentials({ profile: "counted" });
 		await resolveAwsCredentials({ profile: "counted" });
-		const calls = Number(await Bun.file(counterPath).text());
+		const calls = Number(await fsx.readText(counterPath));
 		expect(calls).toBe(1);
 	});
 

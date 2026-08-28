@@ -12,8 +12,9 @@ import {
 	readMarketplacesRegistry,
 	writeMarketplacesRegistry,
 } from "@oh-my-pi/pi-coding-agent/extensibility/plugins/marketplace";
-import { removeSyncWithRetries } from "@oh-my-pi/pi-utils";
 import * as piUtils from "@oh-my-pi/pi-utils";
+import { removeSyncWithRetries } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 
 // Minimal marketplace fixture, built once into a temp dir (see beforeAll). It carries only
 // what these tests assert — one plugin entry plus a plugin.json for the version-fallback path —
@@ -267,7 +268,7 @@ describe("MarketplaceManager", () => {
 			/Invalid marketplace plugin package name/,
 		);
 
-		expect(await Bun.file(path.join(ctx.tmpDir, "outside")).text()).toBe("sentinel\n");
+		expect(await fsx.readText(path.join(ctx.tmpDir, "outside"))).toBe("sentinel\n");
 		expect(fs.existsSync(path.join(ctx.tmpDir, "node_modules"))).toBe(false);
 		const installed = await ctx.manager.listInstalledPlugins();
 		expect(installed).toHaveLength(0);
@@ -575,7 +576,7 @@ describe("MarketplaceManager", () => {
 
 		expect(fs.existsSync(path.join(instEntry.installPath, ".dap.yaml"))).toBe(true);
 		expect(fs.existsSync(path.join(instEntry.installPath, ".dap.json"))).toBe(false);
-		expect(await Bun.file(path.join(instEntry.installPath, ".dap.yaml")).text()).toContain("ruby-debug-adapter");
+		expect(await fsx.readText(path.join(instEntry.installPath, ".dap.yaml"))).toContain("ruby-debug-adapter");
 	});
 
 	it("installPlugin with scope:project → persisted in project registry, isolated from user", async () => {
@@ -689,7 +690,7 @@ describe("MarketplaceManager", () => {
 		// Mutate the cached catalog to remove version
 		const list = await ctx.manager.listMarketplaces();
 		const catalogPath = list[0].catalogPath;
-		const content = await Bun.file(catalogPath).text();
+		const content = await fsx.readText(catalogPath);
 		const catalog = JSON.parse(content) as {
 			plugins: Array<Record<string, unknown>>;
 		};
@@ -819,7 +820,7 @@ describe("MarketplaceManager", () => {
 		// Overwrite the version field on the first plugin entry in the cached catalog.
 		async function bumpCatalogVersion(newVersion: string): Promise<void> {
 			const catalogPath = await getCatalogPath();
-			const content = await Bun.file(catalogPath).text();
+			const content = await fsx.readText(catalogPath);
 			const catalog = JSON.parse(content) as { plugins: Array<Record<string, unknown>> };
 			catalog.plugins[0] = { ...catalog.plugins[0], version: newVersion };
 			await Bun.write(catalogPath, `${JSON.stringify(catalog, null, 2)}\n`);
@@ -867,7 +868,7 @@ describe("MarketplaceManager", () => {
 
 			// Strip the version field from the cached catalog entry.
 			const catalogPath = await getCatalogPath();
-			const content = await Bun.file(catalogPath).text();
+			const content = await fsx.readText(catalogPath);
 			const catalog = JSON.parse(content) as { plugins: Array<Record<string, unknown>> };
 			delete catalog.plugins[0].version;
 			await Bun.write(catalogPath, `${JSON.stringify(catalog, null, 2)}\n`);
@@ -965,7 +966,7 @@ describe("MarketplaceManager", () => {
 
 			// Catalog should remain at 2.0.0 — the marketplace was not re-fetched.
 			const catalogPath = await getCatalogPath();
-			const content = await Bun.file(catalogPath).text();
+			const content = await fsx.readText(catalogPath);
 			const catalog = JSON.parse(content) as { plugins: Array<{ version?: string }> };
 			expect(catalog.plugins[0].version).toBe("2.0.0");
 		});
@@ -983,7 +984,7 @@ describe("MarketplaceManager", () => {
 
 			// updateMarketplace re-fetches from FIXTURE_DIR which has version 1.0.0.
 			const catalogPath = await getCatalogPath();
-			const content = await Bun.file(catalogPath).text();
+			const content = await fsx.readText(catalogPath);
 			const catalog = JSON.parse(content) as { plugins: Array<{ version?: string }> };
 			expect(catalog.plugins[0].version).toBe("1.0.0");
 		});

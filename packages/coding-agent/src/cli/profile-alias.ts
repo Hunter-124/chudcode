@@ -1,6 +1,7 @@
 import * as os from "node:os";
 import * as path from "node:path";
 import { normalizeProfileName } from "@oh-my-pi/pi-utils/dirs";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import { PRODUCT_NAME } from "../brand";
 
 export type ProfileAliasShell = "bash" | "zsh" | "fish" | "powershell" | "pwsh";
@@ -328,7 +329,7 @@ function upsertBlock(content: string, aliasName: string, block: string): string 
 }
 
 function readAliasConfigText(filePath: string): Promise<string> {
-	return Bun.file(filePath).text();
+	return fsx.readText(filePath);
 }
 
 export async function readProfileAliasConfigFile(

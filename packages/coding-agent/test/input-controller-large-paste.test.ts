@@ -1,4 +1,5 @@
 import { removeWithRetries } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 /**
  * Large-paste menu: when a paste reaches the configured `paste.largeMenuThreshold` line count,
  * the editor's `onLargePaste` hook routes through `InputController.handleLargePaste`, which offers
@@ -138,7 +139,7 @@ describe("InputController.presentLargePasteMenu file attachment", () => {
 		expect(spies.insertText).toHaveBeenCalledWith("local://paste-1.md ");
 		expect(spies.insertTextAttachment).not.toHaveBeenCalled();
 		// resolveLocalRoot maps an artifacts dir to "<dir>/local"; the reference resolves there.
-		const saved = await Bun.file(path.join(dir, "local", "paste-1.md")).text();
+		const saved = await fsx.readText(path.join(dir, "local", "paste-1.md"));
 		expect(saved).toBe("line one\nline two");
 	});
 
@@ -150,7 +151,7 @@ describe("InputController.presentLargePasteMenu file attachment", () => {
 		await controller.presentLargePasteMenu("fresh", 1);
 
 		expect(spies.insertText).toHaveBeenCalledWith("local://paste-2.md ");
-		expect(await Bun.file(path.join(dir, "local", "paste-1.md")).text()).toBe("previous");
-		expect(await Bun.file(path.join(dir, "local", "paste-2.md")).text()).toBe("fresh");
+		expect(await fsx.readText(path.join(dir, "local", "paste-1.md"))).toBe("previous");
+		expect(await fsx.readText(path.join(dir, "local", "paste-2.md"))).toBe("fresh");
 	});
 });

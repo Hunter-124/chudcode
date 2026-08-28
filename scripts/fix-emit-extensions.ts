@@ -24,6 +24,7 @@
  */
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 
 // Matches relative module specifiers in generated declaration import/export forms:
 //   from "…", import "…", import("…"), and declare module "…".
@@ -62,7 +63,7 @@ async function exists(p: string): Promise<boolean> {
 
 /** Rewrite one emitted file in place. Returns the number of specifiers changed. */
 export async function fixEmitFile(filePath: string, ext: EmitExt): Promise<number> {
-	const source = await Bun.file(filePath).text();
+	const source = await fsx.readText(filePath);
 	const fromDir = path.dirname(filePath);
 	let changed = 0;
 

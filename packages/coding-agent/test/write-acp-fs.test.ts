@@ -11,6 +11,7 @@ import type { ClientBridge } from "@oh-my-pi/pi-coding-agent/session/client-brid
 import type { ToolSession } from "@oh-my-pi/pi-coding-agent/tools";
 import { WriteTool } from "@oh-my-pi/pi-coding-agent/tools/write";
 import { removeWithRetries } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 
 const FILE_CONTENT = "bridge write content\n";
 
@@ -99,7 +100,7 @@ describe("write tool ACP fs routing", () => {
 		const result = await new WriteTool(session).execute("call-drift", { path: filePath, content: requested });
 		const text = resultText(result);
 
-		expect(await Bun.file(filePath).text()).toBe(persisted);
+		expect(await fsx.readText(filePath)).toBe(persisted);
 		expect(text).toContain(`[formatted.ts#${computeFileHash(persisted)}]`);
 		expect(text).not.toContain(`[formatted.ts#${computeFileHash(requested)}]`);
 	});
@@ -146,12 +147,12 @@ describe("write tool ACP fs routing", () => {
 
 		expect(bridgeSpy).not.toHaveBeenCalled();
 		expect(
-			await Bun.file(
+			await fsx.readText(
 				resolveLocalUrlToPath(planPath, {
 					getArtifactsDir: session.getArtifactsDir,
 					getSessionId: session.getSessionId,
 				}),
-			).text(),
+			),
 		).toBe(planContent);
 	});
 
@@ -177,12 +178,12 @@ describe("write tool ACP fs routing", () => {
 		// still session-local artifacts and stay on disk under the local sandbox.
 		expect(bridgeSpy).not.toHaveBeenCalled();
 		expect(
-			await Bun.file(
+			await fsx.readText(
 				resolveLocalUrlToPath(scratchPath, {
 					getArtifactsDir: session.getArtifactsDir,
 					getSessionId: session.getSessionId,
 				}),
-			).text(),
+			),
 		).toBe(scratchContent);
 	});
 
@@ -199,7 +200,7 @@ describe("write tool ACP fs routing", () => {
 			rejection = error;
 		}
 
-		expect(await Bun.file(leakedPath).exists()).toBe(false);
+		expect(await fsx.exists(leakedPath)).toBe(false);
 		if (!(rejection instanceof Error)) throw new Error("Expected memory:// write to reject");
 		expect(rejection.message).toContain("memory:// URLs are read-only for write");
 	});

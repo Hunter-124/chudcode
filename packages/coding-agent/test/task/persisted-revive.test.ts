@@ -16,6 +16,7 @@ import { SessionManager } from "@oh-my-pi/pi-coding-agent/session/session-manage
 import { createPersistedSubagentReviverFactory } from "@oh-my-pi/pi-coding-agent/task/persisted-revive";
 import { EventBus } from "@oh-my-pi/pi-coding-agent/utils/event-bus";
 import { TempDir } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 
 const tempDirs: TempDir[] = [];
 
@@ -427,7 +428,7 @@ describe("persisted subagent revival", () => {
 		const finish = observer?.([record]);
 		await finish?.();
 
-		expect(await Bun.file(artifactPath).text()).toBe(completedReport);
+		expect(await fsx.readText(artifactPath)).toBe(completedReport);
 		AgentLifecycleManager.resetGlobalForTests();
 		AgentRegistry.resetGlobalForTests();
 	});

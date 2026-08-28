@@ -8,6 +8,7 @@ import { canonicalSnapshotKey, EditTool, getFileSnapshotStore, type PatchParams 
 import type { ToolSession } from "@oh-my-pi/pi-coding-agent/tools";
 import type { EditMode } from "@oh-my-pi/pi-coding-agent/utils/edit-mode";
 import { removeWithRetries } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 
 const MODEL = "openai/gpt-5.6";
 const SOURCE = "export function value(): number {\n\treturn 1;\n}\n";
@@ -76,8 +77,8 @@ describe("edit parse-regression blackbox", () => {
 			new_string: "return (;",
 		});
 
-		expect(await Bun.file(filePath).text()).toContain("return (;");
-		expect(await Bun.file(logPath).exists()).toBe(false);
+		expect(await fsx.readText(filePath)).toContain("return (;");
+		expect(await fsx.exists(logPath)).toBe(false);
 		// The parse-regression warning is independent of blackbox recording.
 		const text = result.content.map(part => (part.type === "text" ? part.text : "")).join("\n");
 		expect(text).toMatch(/no longer parses after this edit/);
@@ -110,7 +111,7 @@ describe("edit parse-regression blackbox", () => {
 		await new EditTool(session, "replace").execute("replace", replaceArg);
 		expected.push({
 			prev: SOURCE,
-			new: await Bun.file(replacePath).text(),
+			new: await fsx.readText(replacePath),
 			model: MODEL,
 			variant: "replace",
 			arg: replaceArg,
@@ -124,7 +125,7 @@ describe("edit parse-regression blackbox", () => {
 		await new EditTool(session, "patch").execute("patch", patchArg);
 		expected.push({
 			prev: SOURCE,
-			new: await Bun.file(patchPath).text(),
+			new: await fsx.readText(patchPath),
 			model: MODEL,
 			variant: "patch",
 			arg: patchArg,
@@ -145,7 +146,7 @@ describe("edit parse-regression blackbox", () => {
 		await new EditTool(session, "apply_patch").execute("apply-patch", applyPatchArg);
 		expected.push({
 			prev: SOURCE,
-			new: await Bun.file(applyPatchPath).text(),
+			new: await fsx.readText(applyPatchPath),
 			model: MODEL,
 			variant: "apply_patch",
 			arg: applyPatchArg,
@@ -159,7 +160,7 @@ describe("edit parse-regression blackbox", () => {
 		await new EditTool(session, "hashline").execute("hashline", hashlineArg);
 		expected.push({
 			prev: SOURCE,
-			new: await Bun.file(hashlinePath).text(),
+			new: await fsx.readText(hashlinePath),
 			model: MODEL,
 			variant: "hashline",
 			arg: hashlineArg,
@@ -170,13 +171,13 @@ describe("edit parse-regression blackbox", () => {
 		await new EditTool(session, "sloppy").execute("sloppy", sloppyArg);
 		expected.push({
 			prev: SOURCE,
-			new: await Bun.file(sloppyPath).text(),
+			new: await fsx.readText(sloppyPath),
 			model: MODEL,
 			variant: "sloppy",
 			arg: sloppyArg,
 		});
 
-		const lines = (await Bun.file(logPath).text()).trimEnd().split("\n");
+		const lines = (await fsx.readText(logPath)).trimEnd().split("\n");
 		expect(JSON.parse(lines[0])).toEqual({ seed: true });
 		expect(lines.slice(1).map(line => JSON.parse(line))).toEqual(expected);
 	});
@@ -196,7 +197,7 @@ describe("edit parse-regression blackbox", () => {
 			new_string: "next",
 		});
 
-		expect(await Bun.file(logPath).exists()).toBe(false);
+		expect(await fsx.exists(logPath)).toBe(false);
 	});
 
 	test("treats an empty supported source as parseable", async () => {
@@ -207,7 +208,7 @@ describe("edit parse-regression blackbox", () => {
 			new_string: "",
 		});
 
-		expect(await Bun.file(path.join(tempDir, "empty.ts")).text()).toBe("");
-		expect(await Bun.file(logPath).exists()).toBe(false);
+		expect(await fsx.readText(path.join(tempDir, "empty.ts"))).toBe("");
+		expect(await fsx.exists(logPath)).toBe(false);
 	});
 });

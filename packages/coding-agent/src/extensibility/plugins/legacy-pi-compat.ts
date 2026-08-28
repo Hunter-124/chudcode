@@ -14,6 +14,7 @@ import {
 	logger,
 	stripWindowsExtendedLengthPathPrefix,
 } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import { registerPluginCacheInvalidator } from "../../discovery/helpers";
 
 const IS_COMPILED_BINARY = isCompiledBinary();
@@ -1643,12 +1644,12 @@ async function isCommonJsModulePath(
 		return true;
 	}
 	const parsedSourceType =
-		sourceType ?? getExtensionSourceAnalysis(await Bun.file(modulePath).text(), modulePath).sourceType;
+		sourceType ?? getExtensionSourceAnalysis(await fsx.readText(modulePath), modulePath).sourceType;
 	if (parsedSourceType === "module") {
 		return false;
 	}
 	if (parsedSourceType === "script") {
-		const ast = parseExtensionSource(await Bun.file(modulePath).text(), modulePath);
+		const ast = parseExtensionSource(await fsx.readText(modulePath), modulePath);
 		const hasUnshadowedCommonJsSyntax = collectScopedAstNodes(
 			ast,
 			node => node.type === "CallExpression" || node.type === "MemberExpression",
@@ -2047,7 +2048,7 @@ async function moduleRequiresNativeAddon(modulePath: string): Promise<boolean> {
 async function moduleRequiresNativeAddonUncached(modulePath: string): Promise<boolean> {
 	let source: string;
 	try {
-		source = await Bun.file(modulePath).text();
+		source = await fsx.readText(modulePath);
 	} catch {
 		return false;
 	}
@@ -2247,7 +2248,7 @@ async function collectExtensionModules(entryRealPath: string): Promise<Extension
 		}
 		let source: string;
 		try {
-			source = await Bun.file(file).text();
+			source = await fsx.readText(file);
 		} catch {
 			continue;
 		}
@@ -2585,7 +2586,7 @@ async function prepareCommonJsDefaultModule(modulePath: string, source: string):
 
 	const targetPath = path.join(packageRoot, "commonjs", "canvas-shim.cjs");
 	commonJsFallbackModulePaths.set(modulePath, targetPath);
-	return synthesizeCommonJsDefaultModule(modulePath, await Bun.file(targetPath).text(), targetPath);
+	return synthesizeCommonJsDefaultModule(modulePath, await fsx.readText(targetPath), targetPath);
 }
 
 /**
@@ -2638,7 +2639,7 @@ async function installExtensionGraphHook(
 							asyncModules.delete(sourcePath);
 							raw = cached;
 						} else {
-							raw = await Bun.file(sourcePath).text();
+							raw = await fsx.readText(sourcePath);
 						}
 						return {
 							contents: await rewriteLegacyExtensionSource(raw, sourcePath, mtimeTag, resolvedImportMtimeTag),

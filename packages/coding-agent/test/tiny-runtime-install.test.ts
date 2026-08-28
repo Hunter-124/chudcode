@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import { ensureOnnxRuntimeCudaProviders, formatOnnxRuntimeCudaDiagnostics } from "../src/subprocess/worker-runtime";
 
 const tempDirs: string[] = [];
@@ -47,7 +48,7 @@ describe("tiny runtime CUDA provider repair", () => {
 
 		const binDir = path.join(runtimeDir, "node_modules", "onnxruntime-node", "bin", "napi-v6", "linux", "x64");
 		for (const file of CUDA_PROVIDER_FILES) {
-			expect(await Bun.file(path.join(binDir, file)).exists()).toBe(true);
+			expect(await fsx.exists(path.join(binDir, file))).toBe(true);
 		}
 	});
 
@@ -60,7 +61,7 @@ describe("tiny runtime CUDA provider repair", () => {
 
 			const binDir = path.join(runtimeDir, "node_modules", "onnxruntime-node", "bin", "napi-v6", "linux", "x64");
 			for (const file of CUDA_PROVIDER_FILES) {
-				expect(await Bun.file(path.join(binDir, file)).exists()).toBe(true);
+				expect(await fsx.exists(path.join(binDir, file))).toBe(true);
 			}
 		}
 	});

@@ -14,6 +14,7 @@ import type { AgentSession } from "@oh-my-pi/pi-coding-agent/session/agent-sessi
 import type { SessionManager } from "@oh-my-pi/pi-coding-agent/session/session-manager";
 import { executeAcpBuiltinSlashCommand } from "@oh-my-pi/pi-coding-agent/slash-commands/acp-builtins";
 import { getProjectDir, removeWithRetries, setProjectDir } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 
 interface FakeAcpBuiltinSession {
 	fastMode: boolean;
@@ -218,7 +219,7 @@ function createRuntime() {
 		},
 		async setSessionFile(sessionFile: string) {
 			this._sessionFile = path.resolve(sessionFile);
-			const headerLine = (await Bun.file(this._sessionFile).text()).split("\n", 1)[0] ?? "{}";
+			const headerLine = (await fsx.readText(this._sessionFile)).split("\n", 1)[0] ?? "{}";
 			const header = JSON.parse(headerLine) as { cwd?: string };
 			if (header.cwd) {
 				this._cwd = path.resolve(header.cwd);

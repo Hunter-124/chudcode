@@ -24,6 +24,7 @@ import {
 	writeMarketplacesRegistry,
 } from "@oh-my-pi/pi-coding-agent/extensibility/plugins/marketplace";
 import { removeSyncWithRetries } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 
 // Inline the parseClaudePluginsRegistry validation logic to avoid pulling
 // in discovery/helpers.ts which transitively imports @oh-my-pi/pi-natives.
@@ -286,7 +287,7 @@ describe("registry file I/O", () => {
 		};
 		await writeInstalledPluginsRegistry(installedPath, reg);
 
-		const content = await Bun.file(installedPath).text();
+		const content = await fsx.readText(installedPath);
 		const parsed = validateClaudeRegistryFormat(content);
 		expect(parsed).not.toBeNull();
 		expect(parsed!.version).toBe(2);

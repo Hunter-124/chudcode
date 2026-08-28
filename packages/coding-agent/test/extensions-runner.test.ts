@@ -32,6 +32,7 @@ import { ExtensionToolWrapper } from "@oh-my-pi/pi-coding-agent/extensibility/ex
 import { AuthStorage } from "@oh-my-pi/pi-coding-agent/session/auth-storage";
 import { SessionManager } from "@oh-my-pi/pi-coding-agent/session/session-manager";
 import { getProjectAgentDir, logger, TempDir } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 
 describe("ExtensionRunner", () => {
 	let tempDir: TempDir;
@@ -940,7 +941,7 @@ describe("ExtensionRunner", () => {
 				signal: new AbortController().signal,
 			});
 
-			const events = (await Bun.file(eventsPath).text())
+			const events = (await fsx.readText(eventsPath))
 				.trim()
 				.split("\n")
 				.map(line => JSON.parse(line));
@@ -998,7 +999,7 @@ describe("ExtensionRunner", () => {
 					signal: preAborted.signal,
 				}),
 			).resolves.toBeUndefined();
-			expect(await Bun.file(startedPath).exists()).toBe(false);
+			expect(await fsx.exists(startedPath)).toBe(false);
 
 			const emission = runner.emitSessionStop({
 				messages: [],
@@ -1007,7 +1008,7 @@ describe("ExtensionRunner", () => {
 				stop_hook_active: false,
 				signal: controller.signal,
 			});
-			expect(await Bun.file(startedPath).text()).toBe("started");
+			expect(await fsx.readText(startedPath)).toBe("started");
 			controller.abort();
 
 			await expect(emission).resolves.toBeUndefined();

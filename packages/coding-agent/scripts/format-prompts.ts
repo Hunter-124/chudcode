@@ -1,5 +1,6 @@
 #!/usr/bin/env bun
 import { prompt } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 /**
  * Format prompt files (mixed XML + Markdown + Handlebars).
  *
@@ -41,7 +42,7 @@ async function main() {
 	}
 
 	for (const fullPath of files) {
-		const original = await Bun.file(fullPath).text();
+		const original = await fsx.readText(fullPath);
 		const formatted = prompt.format(original, PROMPT_FORMAT_OPTIONS);
 
 		if (original !== `${formatted}\n`) {

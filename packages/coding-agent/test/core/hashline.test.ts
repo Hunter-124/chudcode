@@ -20,6 +20,7 @@ import {
 import { resolveLocalUrlToPath } from "@oh-my-pi/pi-coding-agent/internal-urls";
 import type { ToolSession } from "@oh-my-pi/pi-coding-agent/tools";
 import { removeWithRetries } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 
 beforeAll(async () => {
 	resetSettingsForTest();
@@ -90,7 +91,7 @@ describe("hashline executor", () => {
 		await withTempDir(async tempDir => {
 			const input = `[new.ts]\nPUT <1:\n${repl("export const x = 1;")}\n`;
 			await expect(executeHashlineSingle(hashlineExecuteOptions(tempDir, input))).rejects.toThrow(/write tool/);
-			expect(await Bun.file(path.join(tempDir, "new.ts")).exists()).toBe(false);
+			expect(await fsx.exists(path.join(tempDir, "new.ts"))).toBe(false);
 		});
 	});
 	it("applies duplicate pure-insert payload literally", async () => {
@@ -105,7 +106,7 @@ describe("hashline executor", () => {
 			const result = await executeHashlineSingle(hashlineExecuteOptions(tempDir, input, undefined, session));
 			const text = result.content[0]?.type === "text" ? result.content[0].text : "";
 
-			expect(await Bun.file(filePath).text()).toBe("aaa\nbbb\nccc\nbbb\nccc\nNEW");
+			expect(await fsx.readText(filePath)).toBe("aaa\nbbb\nccc\nbbb\nccc\nNEW");
 			expect(text).not.toContain("Auto-dropped");
 			expect(text).not.toContain("Auto-absorbed");
 		});
@@ -177,7 +178,7 @@ describe("hashline executor", () => {
 			expect(text).toContain("byte-identical to the file");
 			expect(text).toContain("re-read the file");
 			// The file is untouched.
-			expect(await Bun.file(filePath).text()).toBe(source);
+			expect(await fsx.readText(filePath)).toBe(source);
 		});
 	});
 
@@ -202,8 +203,8 @@ describe("hashline executor", () => {
 			await expect(
 				executeHashlineSingle(hashlineExecuteOptions(tempDir, input, undefined, session)),
 			).rejects.toThrow(/file changed between read and edit|file hashes to|section is bound to/);
-			expect(await Bun.file(aPath).text()).toBe("aaa\n");
-			expect(await Bun.file(bPath).text()).toBe("bbb\n");
+			expect(await fsx.readText(aPath)).toBe("aaa\n");
+			expect(await fsx.readText(bPath)).toBe("bbb\n");
 		});
 	});
 
@@ -226,7 +227,7 @@ describe("hashline executor", () => {
 			await expect(
 				executeHashlineSingle(hashlineExecuteOptions(tempDir, input, undefined, session)),
 			).rejects.toThrow(/resolve to the same file/);
-			expect(await Bun.file(filePath).text()).toBe(source);
+			expect(await fsx.readText(filePath)).toBe(source);
 		});
 	});
 
@@ -262,7 +263,7 @@ describe("hashline executor", () => {
 
 			await executeHashlineSingle(hashlineExecuteOptions(tempDir, input, undefined, session));
 
-			expect(await Bun.file(filePath).text()).toBe(
+			expect(await fsx.readText(filePath)).toBe(
 				[
 					"L1",
 					"L2a",
@@ -359,7 +360,7 @@ describe("hashline — anchor-stale recovery via read snapshot cache", () => {
 			const input = `${header("a.ts", v0Tag)}\n${sameLineRange(tag(2, "L2"))}\n${repl("L2-MODEL")}\n`;
 			const result = await executeHashlineSingle(hashlineExecuteOptions(tempDir, input, undefined, session));
 
-			const finalLines = (await Bun.file(filePath).text()).replace(/\n$/, "").split("\n");
+			const finalLines = (await fsx.readText(filePath)).replace(/\n$/, "").split("\n");
 			// The external insert head AND the model's edit must both be present.
 			expect(finalLines.slice(0, 7)).toEqual(["H1", "H2", "H3", "H4", "H5", "H6", "H7"]);
 			expect(finalLines).toContain("L2-MODEL");
@@ -395,7 +396,7 @@ describe("hashline — anchor-stale recovery via read snapshot cache", () => {
 				executeHashlineSingle(hashlineExecuteOptions(tempDir, input, undefined, session)),
 			).rejects.toThrow(HashlineMismatchError);
 			// Disk content unchanged.
-			expect(await Bun.file(filePath).text()).toBe(`${v1Lines.join("\n")}\n`);
+			expect(await fsx.readText(filePath)).toBe(`${v1Lines.join("\n")}\n`);
 		});
 	});
 
@@ -416,7 +417,7 @@ describe("hashline — anchor-stale recovery via read snapshot cache", () => {
 			await executeHashlineSingle(hashlineExecuteOptions(tempDir, firstInput, undefined, session));
 			const v1Lines = ["alpha", "BETA", "gamma", "delta", "epsilon"];
 			const v1Text = `${v1Lines.join("\n")}\n`;
-			expect(await Bun.file(filePath).text()).toBe(v1Text);
+			expect(await fsx.readText(filePath)).toBe(v1Text);
 			const v1Tag = recordFullSnapshot(getFileReadCache(session), filePath, v1Text);
 			const snap = snapshotHead(getFileReadCache(session), filePath);
 			expect(snap?.text).toBe(v1Text);
@@ -431,7 +432,7 @@ describe("hashline — anchor-stale recovery via read snapshot cache", () => {
 			const secondInput = `${header("a.ts", v1Tag)}\n${sameLineRange(tag(3, "gamma"))}\n${repl("GAMMA")}\n`;
 			const result = await executeHashlineSingle(hashlineExecuteOptions(tempDir, secondInput, undefined, session));
 
-			const finalLines = (await Bun.file(filePath).text()).replace(/\n$/, "").split("\n");
+			const finalLines = (await fsx.readText(filePath)).replace(/\n$/, "").split("\n");
 			expect(finalLines.slice(0, 7)).toEqual(["H1", "H2", "H3", "H4", "H5", "H6", "H7"]);
 			expect(finalLines).toContain("BETA");
 			expect(finalLines).toContain("GAMMA");
@@ -457,7 +458,7 @@ describe("hashline — anchor-stale recovery via read snapshot cache", () => {
 
 			const v1Lines = [...v0Lines];
 			v1Lines[4] = "L5-FIRST";
-			expect(await Bun.file(filePath).text()).toBe(`${v1Lines.join("\n")}\n`);
+			expect(await fsx.readText(filePath)).toBe(`${v1Lines.join("\n")}\n`);
 
 			// Second edit: model is still anchored against v0 (stale hash) and
 			// again targets line 5 — the very line the first edit rewrote.
@@ -467,7 +468,7 @@ describe("hashline — anchor-stale recovery via read snapshot cache", () => {
 			await expect(
 				executeHashlineSingle(hashlineExecuteOptions(tempDir, secondInput, undefined, session)),
 			).rejects.toThrow(HashlineMismatchError);
-			expect(await Bun.file(filePath).text()).toBe(`${v1Lines.join("\n")}\n`);
+			expect(await fsx.readText(filePath)).toBe(`${v1Lines.join("\n")}\n`);
 		});
 	});
 });
@@ -489,12 +490,12 @@ describe("hashline — filename+tag path recovery", () => {
 			const text = result.content[0]?.type === "text" ? result.content[0].text : "";
 
 			// The real nested file was edited despite the bare-filename header.
-			expect(await Bun.file(filePath).text()).toBe("alpha\nBETA\ngamma\n");
+			expect(await fsx.readText(filePath)).toBe("alpha\nBETA\ngamma\n");
 			// The resolved full path is surfaced so the next turn anchors on it.
 			expect(text).toContain("does not exist");
 			expect(text).toContain(path.join("pkg", "test", "autoresearch-tools.test.ts"));
 			// The stray cwd-relative file was never created.
-			expect(await Bun.file(path.join(tempDir, "autoresearch-tools.test.ts")).exists()).toBe(false);
+			expect(await fsx.exists(path.join(tempDir, "autoresearch-tools.test.ts"))).toBe(false);
 		});
 	});
 
@@ -550,9 +551,9 @@ describe("hashline — filename+tag path recovery", () => {
 				const result = await executeHashlineSingle(hashlineExecuteOptions(tempDir, input, undefined, session));
 				const text = result.content[0]?.type === "text" ? result.content[0].text : "";
 
-				expect(await Bun.file(sandboxAbs).text()).toBe("# Plan\n\n## Context\n- new\n");
+				expect(await fsx.readText(sandboxAbs)).toBe("# Plan\n\n## Context\n- new\n");
 				// No stray working-tree file was created at the bare cwd path.
-				expect(await Bun.file(path.join(tempDir, "cfg-module-hygiene-plan.md")).exists()).toBe(false);
+				expect(await fsx.exists(path.join(tempDir, "cfg-module-hygiene-plan.md"))).toBe(false);
 				// The resolved sandbox path is surfaced so the next turn anchors on it.
 				expect(text).toContain("does not exist");
 			} finally {
@@ -584,7 +585,7 @@ describe("hashline — filename+tag path recovery", () => {
 				await expect(
 					executeHashlineSingle(hashlineExecuteOptions(tempDir, input, undefined, session)),
 				).rejects.toThrow(/working tree is read-only/);
-				expect(await Bun.file(wtFile).text()).toBe(source);
+				expect(await fsx.readText(wtFile)).toBe(source);
 			} finally {
 				await fs.rm(artifactsDir, { recursive: true, force: true });
 			}

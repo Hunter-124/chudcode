@@ -4,6 +4,7 @@
  */
 import * as path from "node:path";
 import { logger } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import type { Diagnostic, DiagnosticSeverity, LinterClient, ServerConfig } from "../../lsp/types";
 
 // =============================================================================
@@ -122,7 +123,7 @@ export class BiomeClient implements LinterClient {
 		const result = await runBiome(["format", "--write", filePath], this.cwd, this.config.resolvedCommand);
 
 		if (result.success) {
-			return await Bun.file(filePath).text();
+			return await fsx.readText(filePath);
 		}
 
 		// Format failed, return original

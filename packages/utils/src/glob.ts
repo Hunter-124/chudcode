@@ -1,6 +1,7 @@
 import * as path from "node:path";
 import { Glob } from "bun";
 import { getProjectDir } from "./dirs";
+import * as fsx from "./fsx";
 
 export interface GlobPathsOptions {
 	/** Base directory for glob patterns. Defaults to getProjectDir(). */
@@ -107,7 +108,7 @@ export async function loadGitignorePatterns(baseDir: string): Promise<string[]> 
 		const gitignorePath = path.join(current, ".gitignore");
 
 		try {
-			const content = await Bun.file(gitignorePath).text();
+			const content = await fsx.readText(gitignorePath);
 			const filePatterns = parseGitignorePatterns(content, current, absoluteBase);
 			patterns.push(...filePatterns);
 		} catch {

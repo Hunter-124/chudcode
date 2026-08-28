@@ -4,6 +4,7 @@ import * as os from "node:os";
 import * as path from "node:path";
 import { ApplyPatchError, applyPatch } from "@oh-my-pi/pi-coding-agent/edit";
 import { removeSyncWithRetries } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 
 describe("applyPatch adversarial inputs", () => {
 	let tempDir: string;
@@ -29,7 +30,7 @@ describe("applyPatch adversarial inputs", () => {
 			applyPatch({ path: "same.txt", op: "update", rename: "same.txt", diff: "@@\n-foo\n+bar" }, { cwd: tempDir }),
 		).rejects.toThrow(ApplyPatchError);
 
-		expect(await Bun.file(filePath).text()).toBe("foo\n");
+		expect(await fsx.readText(filePath)).toBe("foo\n");
 	});
 
 	test("respects changeContext for pure additions", async () => {
@@ -45,7 +46,7 @@ describe("applyPatch adversarial inputs", () => {
 			{ cwd: tempDir },
 		);
 
-		expect(await Bun.file(filePath).text()).toBe(
+		expect(await fsx.readText(filePath)).toBe(
 			"function foo() {\n  return 1;\n}\nfunction bar() {\n  console.log('x');\n  return 2;\n}\n",
 		);
 	});
@@ -79,7 +80,7 @@ describe("applyPatch adversarial inputs", () => {
 			{ cwd: tempDir },
 		);
 
-		expect(await Bun.file(filePath).text()).toBe("diff --git a b\nALPHA\nmid\ndiff --git a b\nalpha\n");
+		expect(await fsx.readText(filePath)).toBe("diff --git a b\nALPHA\nmid\ndiff --git a b\nalpha\n");
 	});
 
 	test("applies hunks regardless of order", async () => {
@@ -95,7 +96,7 @@ describe("applyPatch adversarial inputs", () => {
 			{ cwd: tempDir },
 		);
 
-		expect(await Bun.file(filePath).text()).toBe("first\nKEEP1\nsecond\nKEEP2\n");
+		expect(await fsx.readText(filePath)).toBe("first\nKEEP1\nsecond\nKEEP2\n");
 	});
 
 	test("rejects ambiguous changeContext matches", async () => {
@@ -159,7 +160,7 @@ describe("applyPatch adversarial inputs", () => {
 			{ cwd: tempDir },
 		);
 
-		expect(await Bun.file(filePath).text()).toBe("section\nvalue\nx\nsection\nVALUE\n\n");
+		expect(await fsx.readText(filePath)).toBe("section\nvalue\nx\nsection\nVALUE\n\n");
 	});
 
 	test("fuzzy under-indented context can shift indentation", async () => {
@@ -195,7 +196,7 @@ describe("applyPatch adversarial inputs", () => {
 			{ cwd: tempDir },
 		);
 
-		expect(await Bun.file(filePath).text()).toBe(
+		expect(await fsx.readText(filePath)).toBe(
 			"function sum(values, offset) {\n" +
 				"  let total = 0;\n" +
 				'  const tag = "sum";\n' +
@@ -214,7 +215,7 @@ describe("applyPatch adversarial inputs", () => {
 
 		await applyPatch({ path: "crlf.txt", op: "update", diff: "@@\n-foo\n+FOO" }, { cwd: tempDir });
 
-		const content = await Bun.file(filePath).text();
+		const content = await fsx.readText(filePath);
 		expect(content).toBe("FOO\r\nbar\r\n");
 	});
 
@@ -234,7 +235,7 @@ describe("applyPatch adversarial inputs", () => {
 
 		await applyPatch({ path: "nonewline.txt", op: "update", diff: "@@\n-bar\n+baz" }, { cwd: tempDir });
 
-		const content = await Bun.file(filePath).text();
+		const content = await fsx.readText(filePath);
 		expect(content).toBe("foo\nbaz");
 	});
 
@@ -262,7 +263,7 @@ describe("applyPatch adversarial inputs", () => {
 			{ cwd: tempDir },
 		);
 
-		const content = await Bun.file(filePath).text();
+		const content = await fsx.readText(filePath);
 		// Added line should use spaces, not tabs
 		expect(content).toBe(`class Foo {
     method() {
@@ -297,7 +298,7 @@ describe("applyPatch adversarial inputs", () => {
 			{ cwd: tempDir },
 		);
 
-		const content = await Bun.file(filePath).text();
+		const content = await fsx.readText(filePath);
 		// The closing brace of other() should have 4-space indent, not 0
 		expect(content).toBe(`class Foo {
     method() {

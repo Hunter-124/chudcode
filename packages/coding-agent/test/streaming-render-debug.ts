@@ -9,6 +9,7 @@ import { AssistantMessageComponent } from "@oh-my-pi/pi-coding-agent/modes/compo
 import { initTheme } from "@oh-my-pi/pi-coding-agent/modes/theme/theme";
 import { ProcessTerminal, TUI } from "@oh-my-pi/pi-tui";
 import { sleep } from "@oh-my-pi/pi-utils/async";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 
 // Initialize dark theme with full color support
 process.env.COLORTERM = "truecolor";
@@ -17,7 +18,7 @@ initTheme();
 async function main() {
 	// Load the real fixture that caused the bug
 	const fixtureMessage: AssistantMessage = JSON.parse(
-		await Bun.file(path.join(import.meta.dir, "fixtures/assistant-message-with-thinking-code.json")).text(),
+		await fsx.readText(path.join(import.meta.dir, "fixtures/assistant-message-with-thinking-code.json")),
 	);
 
 	// Extract thinking and text content

@@ -1,5 +1,6 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 
 const contentCache = new Map<string, string | null>();
 const dirCache = new Map<string, fs.Dirent[]>();
@@ -25,7 +26,7 @@ export async function readFile(filePath: string): Promise<string | null> {
 			contentCache.set(abs, null);
 			return null;
 		}
-		const content = await Bun.file(abs).text();
+		const content = await fsx.readText(abs);
 		contentCache.set(abs, content);
 		return content;
 	} catch {

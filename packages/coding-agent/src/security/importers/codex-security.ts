@@ -1,5 +1,6 @@
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import type {
 	SecurityCoverage,
 	SecurityEvidence,
@@ -101,7 +102,7 @@ export interface CodexSecurityImportOptions {
 }
 
 async function readJson<T>(filePath: string): Promise<T> {
-	return JSON.parse(await Bun.file(filePath).text()) as T;
+	return JSON.parse(await fsx.readText(filePath)) as T;
 }
 
 function stringArray(value: unknown): string[] {
@@ -331,12 +332,8 @@ export async function importCodexSecurityBundle(
 		sourceKind === "git_diff" ? "ref_diff" : sourceKind === "git_worktree" ? "working_tree" : "imported";
 	const reportPath = path.join(root, "report.md");
 	const sarifPath = path.join(root, "exports", "results.sarif");
-	const report = await Bun.file(reportPath)
-		.text()
-		.catch(() => undefined);
-	const sarifText = await Bun.file(sarifPath)
-		.text()
-		.catch(() => undefined);
+	const report = await fsx.readText(reportPath).catch(() => undefined);
+	const sarifText = await fsx.readText(sarifPath).catch(() => undefined);
 	const scanProvenance: SecurityProvenance = {
 		producer,
 		createdAt,

@@ -15,6 +15,7 @@
 
 import * as path from "node:path";
 import { USER_AGENT } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 
 const PROVIDER_FILE = path.join(import.meta.dir, "../packages/catalog/src/wire/gemini-headers.ts");
 
@@ -60,7 +61,7 @@ const checks: VersionCheck[] = [
 
 async function run() {
 	const doUpdate = process.argv.includes("--update");
-	let source = await Bun.file(PROVIDER_FILE).text();
+	let source = await fsx.readText(PROVIDER_FILE);
 	let anyDrift = false;
 	let anyUpdate = false;
 	let anyChecked = false;

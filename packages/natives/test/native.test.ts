@@ -2,6 +2,7 @@ import { beforeAll, describe, expect, it } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import {
 	AstMatchStrictness,
 	astEdit,
@@ -894,7 +895,7 @@ describe("pi-natives", () => {
 			expect(result.timedOut).toBe(true);
 
 			await Bun.sleep(500);
-			expect(await Bun.file(markerPath).exists()).toBe(false);
+			expect(await fsx.exists(markerPath)).toBe(false);
 		});
 
 		it("should SIGKILL workloads that ignore SIGTERM on timeout", async () => {
@@ -915,7 +916,7 @@ describe("pi-natives", () => {
 			expect(result.timedOut).toBe(true);
 
 			await Bun.sleep(600);
-			expect(await Bun.file(markerPath).exists()).toBe(false);
+			expect(await fsx.exists(markerPath)).toBe(false);
 		});
 	});
 
@@ -1127,7 +1128,7 @@ console.log("ok");
 			expect(result.applied).toBe(true);
 			expect(result.parseErrors).toBeUndefined();
 			expect(result.totalReplacements).toBe(1);
-			expect(await Bun.file(filePath).text()).toBe('(defun greet (name)\n  (format-message "Hello %s" name))\n');
+			expect(await fsx.readText(filePath)).toBe('(defun greet (name)\n  (format-message "Hello %s" name))\n');
 		});
 
 		it("reports parse errors for incomplete source without throwing", async () => {

@@ -11,6 +11,7 @@ import {
 	withFileMutationSession,
 	writeFileWithFallback,
 } from "@oh-my-pi/pi-coding-agent/tools/file-write-fallback";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 
 /** Mimics a Node/Bun filesystem error with a structured `code`, without touching a real fs. */
 function fsError(code: string, message = `${code}: simulated`): NodeJS.ErrnoException {
@@ -360,7 +361,7 @@ describe("writeFileWithFallback", () => {
 					code: expect.stringMatching(/^(EACCES|EPERM)$/),
 				});
 				expect(seen).toEqual([secret]);
-				expect(await Bun.file(secret).text()).toBe("original\n");
+				expect(await fsx.readText(secret)).toBe("original\n");
 			} finally {
 				await fs.chmod(secretDir, 0o700);
 				await fs.chmod(secret, 0o600);
@@ -395,7 +396,7 @@ describe("writeFileWithFallback", () => {
 					code: expect.stringMatching(/^(EACCES|EPERM)$/),
 				});
 				expect(seen).toEqual([victim]);
-				expect(await Bun.file(victim).text()).toBe("original\n");
+				expect(await fsx.readText(victim)).toBe("original\n");
 			} finally {
 				await fs.chmod(outside, 0o700);
 				await fs.chmod(victim, 0o600);
@@ -524,7 +525,7 @@ describe("writeFileWithFallback", () => {
 
 			try {
 				// The premise: the existence check cannot see the file it must not clobber.
-				expect(await Bun.file(victim).exists()).toBe(false);
+				expect(await fsx.exists(victim)).toBe(false);
 
 				await expect(
 					applyPatch({ path: victim, op: "create", diff: "clobbered\n" }, { cwd: root }),
@@ -533,7 +534,7 @@ describe("writeFileWithFallback", () => {
 			} finally {
 				await fs.chmod(opaque, 0o700);
 			}
-			expect(await Bun.file(victim).text()).toBe("original\n");
+			expect(await fsx.readText(victim)).toBe("original\n");
 		});
 	});
 });
@@ -721,7 +722,7 @@ describe("deleteFileWithFallback", () => {
 					code: expect.stringMatching(/^(EACCES|EPERM)$/),
 				});
 				expect(seen).toEqual([{ dst: victim, confirmedFile: true }]);
-				expect(await Bun.file(victim).text()).toBe("keep me");
+				expect(await fsx.readText(victim)).toBe("keep me");
 			} finally {
 				await fs.chmod(outside, 0o700);
 			}
@@ -753,7 +754,7 @@ describe("deleteFileWithFallback", () => {
 
 			expect(seen).toEqual([{ dst: link, confirmedFile: false }]);
 			// The target must be untouched: the seam only ever asked for the link.
-			expect(await Bun.file(path.join(targetDir, "keep.txt")).text()).toBe("keep me");
+			expect(await fsx.readText(path.join(targetDir, "keep.txt"))).toBe("keep me");
 		});
 
 		it("diverts a denied unlink issued through a BunFile handle", async () => {
@@ -790,7 +791,7 @@ describe("deleteFileWithFallback", () => {
 
 			expect(result.change).toMatchObject({ type: "delete", path: target });
 			expect(removed).toEqual([target]);
-			expect(await Bun.file(target).exists()).toBe(false);
+			expect(await fsx.exists(target)).toBe(false);
 		});
 	});
 });

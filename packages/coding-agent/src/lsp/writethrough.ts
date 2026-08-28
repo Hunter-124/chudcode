@@ -1,6 +1,7 @@
 import * as fs from "node:fs";
 import { isEnoent, logger, once, untilAborted } from "@oh-my-pi/pi-utils";
 import { sleep } from "@oh-my-pi/pi-utils/async";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import type { BunFile } from "bun";
 import { isPermissionDeniedError, writeFileWithFallback } from "../tools/file-write-fallback";
 import { FileChangeType, notifyWorkspaceWatchedFiles } from "./client";
@@ -539,7 +540,7 @@ export function createLspWritethrough(cwd: string, options?: WritethroughOptions
 		batch?: LspWritethroughBatchRequest,
 		getDeferred?: (dst: string) => WritethroughDeferredHandle | undefined,
 	) => {
-		const changeType = (await Bun.file(dst).exists()) ? FileChangeType.Changed : FileChangeType.Created;
+		const changeType = (await fsx.exists(dst)) ? FileChangeType.Changed : FileChangeType.Created;
 		if (!batch) {
 			const bundle = getDeferred?.(dst);
 			const deferredInner =

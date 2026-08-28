@@ -1,5 +1,6 @@
 import { expect, it } from "bun:test";
 import * as path from "node:path";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 
 const repoRoot = path.resolve(import.meta.dir, "../../..");
 const cliEntry = path.join(repoRoot, "packages/coding-agent/src/cli.ts");
@@ -14,8 +15,8 @@ it("prints the embedded OMP license and aggregate notices on the exact top-level
 		proc.exited,
 		new Response(proc.stdout).text(),
 		new Response(proc.stderr).text(),
-		Bun.file(path.join(repoRoot, "LICENSE")).text(),
-		Bun.file(path.join(repoRoot, "THIRD-PARTY-NOTICES.txt")).text(),
+		fsx.readText(path.join(repoRoot, "LICENSE")),
+		fsx.readText(path.join(repoRoot, "THIRD-PARTY-NOTICES.txt")),
 	]);
 
 	expect(exitCode).toBe(0);

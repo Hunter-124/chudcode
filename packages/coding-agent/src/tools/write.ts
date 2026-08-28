@@ -21,6 +21,7 @@ import {
 	readArchiveEntries,
 	writeArchive,
 } from "@oh-my-pi/pi-utils/ar";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import { canonicalSnapshotKey, getFileSnapshotStore } from "../edit/file-snapshot-store";
 import { normalizeToLF } from "../edit/normalize";
 import type { RenderResultOptions } from "../extensibility/custom-tools/types";
@@ -855,7 +856,7 @@ export class WriteTool implements AgentTool<typeof writeSchema, WriteToolDetails
 		}
 
 		const expanded = expandContentTokens(replacementContent, entry);
-		const originalText = await Bun.file(absolutePath).text();
+		const originalText = await fsx.readText(absolutePath);
 		const splice = spliceConflict(originalText, entry, expanded);
 		const newContent = splice.text;
 
@@ -1001,7 +1002,7 @@ export class WriteTool implements AgentTool<typeof writeSchema, WriteToolDetails
 			const staleEntries: ConflictEntry[] = [];
 			let failure: string | undefined;
 			try {
-				text = await Bun.file(absolutePath).text();
+				text = await fsx.readText(absolutePath);
 			} catch (error) {
 				failedFiles.push({
 					displayPath: sample.displayPath,

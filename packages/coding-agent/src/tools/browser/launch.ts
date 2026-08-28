@@ -4,6 +4,7 @@ import * as path from "node:path";
 import { $which, getPuppeteerDir, logger, removeWithRetries } from "@oh-my-pi/pi-utils";
 import { sleep } from "@oh-my-pi/pi-utils/async";
 import type * as BrowsersNs from "@oh-my-pi/pi-utils/browsers";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import type { Browser, CDPSession, Page, default as Puppeteer, Target } from "puppeteer-core";
 import stealthTamperingScript from "../puppeteer/00_stealth_tampering.txt" with { type: "text" };
 import stealthActivityScript from "../puppeteer/01_stealth_activity.txt" with { type: "text" };
@@ -651,7 +652,7 @@ function patchSourceUrl(page: Page): void {
 async function resolveMacOsProductVersion(): Promise<string> {
 	if (os.platform() !== "darwin") return "";
 	try {
-		const plist = await Bun.file("/System/Library/CoreServices/SystemVersion.plist").text();
+		const plist = await fsx.readText("/System/Library/CoreServices/SystemVersion.plist");
 		return plist.match(/<key>ProductVersion<\/key>\s*<string>([^<]+)<\/string>/)?.[1] ?? "";
 	} catch {
 		return "";

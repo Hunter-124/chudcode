@@ -6,6 +6,7 @@ import { resetSettingsForTest, Settings } from "@oh-my-pi/pi-coding-agent/config
 import { createTools, type ToolSession } from "@oh-my-pi/pi-coding-agent/tools";
 import { ConflictHistory } from "@oh-my-pi/pi-coding-agent/tools/conflict-detect";
 import { removeWithRetries } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 
 function createTestSession(cwd: string, overrides: Partial<ToolSession> = {}): ToolSession {
 	return {
@@ -326,7 +327,7 @@ describe("write resolves conflicts via conflict://N", () => {
 		});
 
 		expect(getText(result)).toContain("Resolved conflict #1");
-		const after = await Bun.file(filePath).text();
+		const after = await fsx.readText(filePath);
 		expect(after).toBe("line 1\nnewApi(x);\nline N\n");
 		// History is invalidated after resolve so the id no longer works.
 		expect(session.conflictHistory?.get(1)).toBeUndefined();
@@ -361,7 +362,7 @@ describe("write resolves conflicts via conflict://N", () => {
 		const text = getText(result);
 		expect(text).toContain("Resolved conflict #1");
 		expect(text).toContain("dropped 2 content line(s)");
-		expect(await Bun.file(filePath).text()).toBe(
+		expect(await fsx.readText(filePath)).toBe(
 			["function f() {", "\tours();", "\ttheirs();", "\tdone();", "}", ""].join("\n"),
 		);
 	});
@@ -384,7 +385,7 @@ describe("write resolves conflicts via conflict://N", () => {
 		const text = getText(result);
 		expect(text).toContain("Resolved conflict #1");
 		expect(text).toContain("stripped erroneous 'prefix.ts:' prefix");
-		expect(await Bun.file(filePath).text()).toBe("line 1\nnewApi(x)\nline N\n");
+		expect(await fsx.readText(filePath)).toBe("line 1\nnewApi(x)\nline N\n");
 	});
 
 	it("auto-recovers a `<file>:conflict://*` path and bulk-resolves", async () => {
@@ -403,7 +404,7 @@ describe("write resolves conflicts via conflict://N", () => {
 		const text = getText(result);
 		expect(text).toContain("Resolved 1 conflict");
 		expect(text).toContain("stripped erroneous 'bulk-prefix.ts:' prefix");
-		expect(await Bun.file(filePath).text()).toBe("line 1\noldApi(x)\nline N\n");
+		expect(await fsx.readText(filePath)).toBe("line 1\noldApi(x)\nline N\n");
 	});
 
 	it("resolves per-id bulk directives in one call, leaving unlisted ids registered", async () => {
@@ -421,7 +422,7 @@ describe("write resolves conflicts via conflict://N", () => {
 
 		const text = getText(result);
 		expect(text).toContain("Resolved 2 conflicts");
-		expect(await Bun.file(filePath).text()).toBe("a-ours\nmiddle\nb-theirs\ntail\n");
+		expect(await fsx.readText(filePath)).toBe("a-ours\nmiddle\nb-theirs\ntail\n");
 		expect(session.conflictHistory?.get(1)).toBeUndefined();
 		expect(session.conflictHistory?.get(2)).toBeUndefined();
 	});
@@ -442,7 +443,7 @@ describe("write resolves conflicts via conflict://N", () => {
 		const text = getText(result);
 		expect(text).toContain("Resolved 1 conflict");
 		expect(text).toContain("still registered (#1)");
-		expect(await Bun.file(filePath).text()).toBe(
+		expect(await fsx.readText(filePath)).toBe(
 			["<<<<<<< A", "a-ours", "=======", "a-theirs", ">>>>>>> A", "middle", "b-ours", "tail", ""].join("\n"),
 		);
 		expect(session.conflictHistory?.get(1)).toBeDefined();
@@ -466,7 +467,7 @@ describe("write resolves conflicts via conflict://N", () => {
 	it("rejects a per-id block that mixes directives with literal content instead of leaking it", async () => {
 		const filePath = path.join(tempDir, "directives-mixed.ts");
 		await Bun.write(filePath, TWO_BLOCKS);
-		const original = await Bun.file(filePath).text();
+		const original = await fsx.readText(filePath);
 		const session = createTestSession(tempDir);
 		const read = await getTool(session, "read");
 		const write = await getTool(session, "write");
@@ -481,7 +482,7 @@ describe("write resolves conflicts via conflict://N", () => {
 		});
 		await expect(promise).rejects.toThrow(/Malformed `conflict:\/\/\*` per-id block/);
 		// File untouched — the markers are still present, nothing leaked.
-		expect(await Bun.file(filePath).text()).toBe(original);
+		expect(await fsx.readText(filePath)).toBe(original);
 		// Ids stay registered for a corrected retry.
 		expect(session.conflictHistory?.get(1)).toBeDefined();
 		expect(session.conflictHistory?.get(2)).toBeDefined();
@@ -500,7 +501,7 @@ describe("write resolves conflicts via conflict://N", () => {
 			content: "1: @ours\n2: @mine",
 		});
 		await expect(promise).rejects.toThrow(/only accepts the tokens @ours\/@theirs\/@base\/@both/);
-		expect(await Bun.file(filePath).text()).toBe(TWO_BLOCKS);
+		expect(await fsx.readText(filePath)).toBe(TWO_BLOCKS);
 	});
 
 	it("still treats pure-literal content as a uniform bulk write (no false directive rejection)", async () => {
@@ -517,7 +518,7 @@ describe("write resolves conflicts via conflict://N", () => {
 			content: "resolvedApi(x)\n",
 		});
 		expect(getText(result)).toContain("Resolved 1 conflict");
-		expect(await Bun.file(filePath).text()).toBe("line 1\nresolvedApi(x)\nline N\n");
+		expect(await fsx.readText(filePath)).toBe("line 1\nresolvedApi(x)\nline N\n");
 	});
 
 	it("can resolve two blocks in the same file by id, in either order", async () => {
@@ -541,7 +542,7 @@ describe("write resolves conflicts via conflict://N", () => {
 			content: "A-resolved\n",
 		});
 
-		const after = await Bun.file(filePath).text();
+		const after = await fsx.readText(filePath);
 		expect(after).toBe("A-resolved\nmiddle\nB-resolved\ntail\n");
 	});
 
@@ -555,7 +556,7 @@ describe("write resolves conflicts via conflict://N", () => {
 		await read.execute("read-tokens", { path: "tokens.ts" });
 		await write.execute("write-tokens", { path: "conflict://1", content: "@theirs" });
 
-		const after = await Bun.file(filePath).text();
+		const after = await fsx.readText(filePath);
 		expect(after).toBe("line 1\nnewApi(x)\nline N\n");
 	});
 
@@ -569,7 +570,7 @@ describe("write resolves conflicts via conflict://N", () => {
 		await read.execute("read-both", { path: "both.ts" });
 		await write.execute("write-both", { path: "conflict://1", content: "@both" });
 
-		const after = await Bun.file(filePath).text();
+		const after = await fsx.readText(filePath);
 		expect(after).toBe("line 1\noldApi(x)\nnewApi(x)\nline N\n");
 	});
 
@@ -584,7 +585,7 @@ describe("write resolves conflicts via conflict://N", () => {
 		const promise = write.execute("write-nobase", { path: "conflict://1", content: "@base" });
 		await expect(promise).rejects.toThrow(/no base section/);
 		// File untouched.
-		expect(await Bun.file(filePath).text()).toBe(TWO_WAY);
+		expect(await fsx.readText(filePath)).toBe(TWO_WAY);
 	});
 
 	it("errors clearly when the id is unknown", async () => {
@@ -599,7 +600,7 @@ describe("write resolves conflicts via conflict://N", () => {
 		});
 		await expect(promise).rejects.toThrow(/Conflict #99 not found/);
 		// File untouched.
-		expect(await Bun.file(filePath).text()).toBe(TWO_WAY);
+		expect(await fsx.readText(filePath)).toBe(TWO_WAY);
 	});
 
 	it("errors clearly when the URI itself is malformed", async () => {
@@ -629,7 +630,7 @@ describe("write resolves conflicts via conflict://N", () => {
 			/read-only/,
 		);
 		// File untouched.
-		expect(await Bun.file(filePath).text()).toBe(TWO_WAY);
+		expect(await fsx.readText(filePath)).toBe(TWO_WAY);
 	});
 
 	it("rejects stale resolutions when the file changed out of band", async () => {
@@ -649,7 +650,7 @@ describe("write resolves conflicts via conflict://N", () => {
 		});
 		await expect(promise).rejects.toThrow(/stale|outside the current file|no longer/i);
 		// File untouched by the failed write.
-		expect(await Bun.file(filePath).text()).toBe("line 1\nresolved by hand\nline N\n");
+		expect(await fsx.readText(filePath)).toBe("line 1\nresolved by hand\nline N\n");
 	});
 
 	it("strips hashline display prefixes from replacement content when hashline mode is active", async () => {
@@ -665,7 +666,7 @@ describe("write resolves conflicts via conflict://N", () => {
 			content: "[hashed.ts#1a2b]\n42:cleanline\n",
 		});
 		expect(getText(result)).toContain("auto-stripped hashline display prefixes");
-		const after = await Bun.file(filePath).text();
+		const after = await fsx.readText(filePath);
 		expect(after).toBe("line 1\ncleanline\nline N\n");
 	});
 
@@ -693,8 +694,8 @@ describe("write resolves conflicts via conflict://N", () => {
 		expect(text).toContain("bulkB.ts: 1 conflict");
 
 		// Per-entry expansion: each block keeps its own theirs side.
-		expect(await Bun.file(fileA).text()).toBe("a-theirs\nmiddle\nb-theirs\ntail\n");
-		expect(await Bun.file(fileB).text()).toBe("line 1\nnewApi(x)\nline N\n");
+		expect(await fsx.readText(fileA)).toBe("a-theirs\nmiddle\nb-theirs\ntail\n");
+		expect(await fsx.readText(fileB)).toBe("line 1\nnewApi(x)\nline N\n");
 		// History cleared after bulk resolve.
 		expect(session.conflictHistory?.entries()).toHaveLength(0);
 	});
@@ -716,7 +717,7 @@ describe("write resolves conflicts via conflict://N", () => {
 
 		await read.execute("read-shift", { path: "shift.ts" });
 		// Out-of-band edit before the conflict block: shifts line numbers.
-		const shifted = await Bun.file(filePath).text();
+		const shifted = await fsx.readText(filePath);
 		await Bun.write(filePath, `// extra line\n// another extra\n${shifted}`);
 
 		const result = await write.execute("write-shift", {
@@ -724,7 +725,7 @@ describe("write resolves conflicts via conflict://N", () => {
 			content: "@theirs",
 		});
 		expect(getText(result)).toContain("Resolved conflict #1");
-		const after = await Bun.file(filePath).text();
+		const after = await fsx.readText(filePath);
 		expect(after).toBe("// extra line\n// another extra\nline 1\nnewApi(x)\nline N\n");
 	});
 });

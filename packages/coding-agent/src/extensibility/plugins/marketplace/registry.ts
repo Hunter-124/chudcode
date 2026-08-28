@@ -16,6 +16,7 @@ import * as fs from "node:fs/promises";
 import * as path from "node:path";
 
 import { getPluginsDir, isEnoent, logger, tryParseJson } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 
 export { getMarketplacesRegistryPath } from "@oh-my-pi/pi-utils";
 
@@ -77,7 +78,7 @@ function emptyMarketplacesRegistry(): MarketplacesRegistry {
 
 export async function readMarketplacesRegistry(filePath: string): Promise<MarketplacesRegistry> {
 	try {
-		const content = await Bun.file(filePath).text();
+		const content = await fsx.readText(filePath);
 		const data = tryParseJson<MarketplacesRegistry>(content);
 		if (!data || typeof data !== "object" || data.version !== 1 || !Array.isArray(data.marketplaces)) {
 			logger.warn("Invalid marketplaces registry, returning empty", { path: filePath });
@@ -102,7 +103,7 @@ function emptyInstalledPluginsRegistry(): InstalledPluginsRegistry {
 
 export async function readInstalledPluginsRegistry(filePath: string): Promise<InstalledPluginsRegistry> {
 	try {
-		const content = await Bun.file(filePath).text();
+		const content = await fsx.readText(filePath);
 		const data = tryParseJson<InstalledPluginsRegistry>(content);
 		if (
 			!data ||

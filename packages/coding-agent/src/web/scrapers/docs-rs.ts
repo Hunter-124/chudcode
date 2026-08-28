@@ -2,6 +2,7 @@ import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { gunzipSync } from "node:zlib";
 import { getDocsRsCacheDir, isEnoent, logger, ptree, tryParseJson, USER_AGENT } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import { ToolAbortError } from "../../tools/tool-errors";
 import type { RenderResult, SpecialHandler } from "./types";
 import { buildResult, MAX_BYTES } from "./types";
@@ -309,7 +310,7 @@ async function readCachedRustdocCrate(
 ): Promise<{ crate: RustdocCrate; fetchedAt: string } | null> {
 	const cachePath = getDocsRsCachePath(target);
 	try {
-		const [jsonStr, stat] = await Promise.all([Bun.file(cachePath).text(), fs.stat(cachePath)]);
+		const [jsonStr, stat] = await Promise.all([fsx.readText(cachePath), fs.stat(cachePath)]);
 		const crate = tryParseJson<RustdocCrate>(jsonStr);
 		if (!crate?.index) return null;
 		return { crate, fetchedAt: stat.mtime.toISOString() };

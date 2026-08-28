@@ -20,6 +20,7 @@ import { SessionManager } from "@oh-my-pi/pi-coding-agent/session/session-manage
 import { EventBus } from "@oh-my-pi/pi-coding-agent/utils/event-bus";
 import { TempDir } from "@oh-my-pi/pi-utils";
 import { sleep } from "@oh-my-pi/pi-utils/async";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import * as snapcompact from "@oh-my-pi/snapcompact";
 
 const HANDOFF_SECRET = "HANDOFF_SECRET_TOKEN_12345";
@@ -918,7 +919,7 @@ describe("AgentSession handoff", () => {
 		if (compaction?.type !== "compaction") throw new Error("Expected handoff compaction entry");
 		expect(compaction.summary).toContain(handoffText);
 		expect(session.agent.state.messages.some(message => message.role === "compactionSummary")).toBe(true);
-		const persistedSessionText = await Bun.file(sessionFile).text();
+		const persistedSessionText = await fsx.readText(sessionFile);
 		expect(persistedSessionText).toContain(JSON.stringify(handoffText));
 	});
 
@@ -1231,7 +1232,7 @@ describe("AgentSession handoff", () => {
 		expect(result?.savedPath).toBeDefined();
 		if (!result?.savedPath) throw new Error("Expected handoff document path");
 		expect(result.savedPath.endsWith(".md")).toBe(true);
-		const savedText = await Bun.file(result.savedPath).text();
+		const savedText = await fsx.readText(result.savedPath);
 		expect(savedText).toContain(handoffText);
 	});
 

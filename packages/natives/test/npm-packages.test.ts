@@ -2,6 +2,7 @@ import { describe, expect, it, spyOn } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import { buildLeafManifest, generateNpmPackages } from "../scripts/gen-npm-packages";
 
 describe("generated native npm leaf packages", () => {
@@ -80,14 +81,14 @@ describe("generated native npm leaf packages", () => {
 			]);
 			const linuxX64 = leaves.find(leaf => leaf.tag === "linux-x64");
 			expect(linuxX64?.files).toEqual(["pi_natives.linux-x64-baseline.node", "pi_natives.linux-x64-modern.node"]);
-			expect(await Bun.file(path.join(packageDir, "npm/linux-x64/pi_natives.linux-x64-modern.node")).text()).toBe(
+			expect(await fsx.readText(path.join(packageDir, "npm/linux-x64/pi_natives.linux-x64-modern.node"))).toBe(
 				"pi_natives.linux-x64-modern.node",
 			);
 			const manifest = await Bun.file(path.join(packageDir, "npm/linux-x64/package.json")).json();
 			expect(manifest.main).toBe("./pi_natives.linux-x64-baseline.node");
 			expect(manifest.files).toEqual(["*.node", "README.md", "LICENSE", "THIRD-PARTY-NOTICES.txt"]);
-			expect(await Bun.file(path.join(packageDir, "npm/linux-x64/LICENSE")).text()).toBe("MIT payload\n");
-			expect(await Bun.file(path.join(packageDir, "npm/linux-x64/THIRD-PARTY-NOTICES.txt")).text()).toBe(
+			expect(await fsx.readText(path.join(packageDir, "npm/linux-x64/LICENSE"))).toBe("MIT payload\n");
+			expect(await fsx.readText(path.join(packageDir, "npm/linux-x64/THIRD-PARTY-NOTICES.txt"))).toBe(
 				"Notice payload\n",
 			);
 			expect("exports" in manifest).toBe(false);
@@ -109,7 +110,7 @@ describe("generated native npm leaf packages", () => {
 			]);
 
 			await generateNpmPackages({ packageDir, tags: ["darwin-arm64"] });
-			expect(await Bun.file(path.join(packageDir, "npm/darwin-arm64/THIRD-PARTY-NOTICES.txt")).text()).toBe(
+			expect(await fsx.readText(path.join(packageDir, "npm/darwin-arm64/THIRD-PARTY-NOTICES.txt"))).toBe(
 				"Repository notice\n",
 			);
 		} finally {
@@ -132,7 +133,7 @@ describe("generated native npm leaf packages", () => {
 				"darwin-x64",
 				"win32-x64",
 			]);
-			expect(await Bun.file(path.join(packageDir, "npm/darwin-arm64/package.json")).exists()).toBe(false);
+			expect(await fsx.exists(path.join(packageDir, "npm/darwin-arm64/package.json"))).toBe(false);
 		} finally {
 			logSpy.mockRestore();
 			await fs.rm(packageDir, { recursive: true, force: true });

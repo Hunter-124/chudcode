@@ -13,6 +13,7 @@ import { NOOP_HARD_LIMIT } from "@oh-my-pi/pi-coding-agent/edit/hashline/noop-lo
 import type { ToolSession } from "@oh-my-pi/pi-coding-agent/tools";
 import { ToolError } from "@oh-my-pi/pi-coding-agent/tools/tool-errors";
 import { removeWithRetries } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 
 beforeAll(async () => {
 	resetSettingsForTest();
@@ -100,7 +101,7 @@ describe("hashline noop loop guard", () => {
 			expect(message).toContain("a.ts");
 			expect(message).toContain(String(NOOP_HARD_LIMIT));
 			// The escalated message still preserves the file path on disk untouched.
-			expect(await Bun.file(filePath).text()).toBe("aaa\nbbb\nccc\n");
+			expect(await fsx.readText(filePath)).toBe("aaa\nbbb\nccc\n");
 		});
 	});
 	it("does not accumulate across distinct canonical paths", async () => {
@@ -150,7 +151,7 @@ describe("hashline noop loop guard", () => {
 			expect(editResult.content[0]?.type === "text" ? editResult.content[0].text : "").not.toContain(
 				"byte-identical to the file",
 			);
-			expect(await Bun.file(filePath).text()).toBe("aaa\nBBB\nccc\n");
+			expect(await fsx.readText(filePath)).toBe("aaa\nBBB\nccc\n");
 
 			// Now re-snapshot the (changed) file state and produce a fresh no-op
 			// against it. Counter is reset, so this single new no-op stays in the

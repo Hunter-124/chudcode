@@ -10,6 +10,7 @@
  */
 import * as fs from "node:fs/promises";
 import * as pathModule from "node:path";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 
 /**
  * Result returned by {@link Filesystem.writeText}. The patcher echoes back
@@ -241,6 +242,6 @@ export class NodeFilesystem extends Filesystem {
 	}
 
 	override async exists(path: string): Promise<boolean> {
-		return Bun.file(path).exists();
+		return fsx.exists(path);
 	}
 }

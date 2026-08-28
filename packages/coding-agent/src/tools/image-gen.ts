@@ -24,6 +24,7 @@ import {
 	USER_AGENT,
 	untilAborted,
 } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import { isAuthenticated, type ModelRegistry } from "../config/model-registry";
 import { settings } from "../config/settings";
 import type { CustomTool } from "../extensibility/custom-tools/types";
@@ -782,7 +783,7 @@ async function findImageApiKey(
 async function loadImageFromPath(imagePath: string, cwd: string): Promise<InlineImageData> {
 	const resolved = resolveReadPath(imagePath, cwd);
 	try {
-		const buffer = await Bun.file(resolved).bytes();
+		const buffer = await fsx.readBytes(resolved);
 		if (buffer.length > MAX_IMAGE_SIZE) {
 			throw new Error(`Image file too large: ${imagePath}`);
 		}

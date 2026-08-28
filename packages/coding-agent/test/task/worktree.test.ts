@@ -20,6 +20,7 @@ import * as git from "@oh-my-pi/pi-coding-agent/utils/git";
 import * as jj from "@oh-my-pi/pi-coding-agent/utils/jj";
 import * as natives from "@oh-my-pi/pi-natives";
 import { removeWithRetries, setWorktreesDir } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 
 const tempDirs: string[] = [];
 
@@ -356,8 +357,8 @@ describe("worktree isolation helpers", () => {
 						runGit(repo, ["ls-files", "--unmerged"]),
 						runGit(repo, ["stash", "list"]),
 						fs.readFile(path.join(repo, "merged.txt"), "utf8"),
-						Bun.file(path.join(repo, magicName)).exists(),
-						Bun.file(buildLog).exists(),
+						fsx.exists(path.join(repo, magicName)),
+						fsx.exists(buildLog),
 					]);
 
 					expect(result.merged).toEqual([ignoredBranch]);
@@ -673,16 +674,13 @@ describe("detachGitDir", () => {
 		const gitEntry = path.join(iso, ".git");
 		const pointerBefore = await fs.readFile(gitEntry, "utf8");
 		const indexPath = await runGit(iso, ["rev-parse", "--path-format=absolute", "--git-path", "index"]);
-		const bunFile = Bun.file;
-		vi.spyOn(Bun, "file").mockImplementation(((file: string | URL, options?: BlobPropertyBag) => {
-			const handle = bunFile(file, options);
+		const realReadBytes = fsx.readBytes;
+		vi.spyOn(fsx, "readBytes").mockImplementation((file: fsx.PathLike) => {
 			if (file.toString() === indexPath) {
-				vi.spyOn(handle, "bytes").mockRejectedValue(
-					Object.assign(new Error("permission denied"), { code: "EACCES" }),
-				);
+				return Promise.reject(Object.assign(new Error("permission denied"), { code: "EACCES" }));
 			}
-			return handle;
-		}) as typeof Bun.file);
+			return realReadBytes(file);
+		});
 
 		await expect(git.detachGitDir(iso, commonDir)).rejects.toMatchObject({ code: "EACCES" });
 		expect(await fs.readFile(gitEntry, "utf8")).toBe(pointerBefore);
@@ -705,7 +703,7 @@ describe("detachGitDir", () => {
 
 		expect(await git.detachGitDir(iso, srcCommon)).toBe("independent");
 		// Its objects are self-contained: no alternates file was written.
-		expect(await Bun.file(path.join(iso, ".git", "objects", "info", "alternates")).exists()).toBe(false);
+		expect(await fsx.exists(path.join(iso, ".git", "objects", "info", "alternates"))).toBe(false);
 	});
 
 	it("severs a copied linked-worktree whose HEAD is unborn (no commits on the branch)", async () => {
@@ -757,7 +755,7 @@ describe("detachGitDir", () => {
 		await runGit(wt, ["sparse-checkout", "set", "keep"]);
 		// Sparse working tree is clean and `drop/` is not materialised.
 		expect(await runGit(wt, ["status", "--porcelain=v1"])).toBe("");
-		expect(await Bun.file(path.join(wt, "drop", "d.txt")).exists()).toBe(false);
+		expect(await fsx.exists(path.join(wt, "drop", "d.txt"))).toBe(false);
 
 		const iso = await copyTree(wt);
 		expect(await git.detachGitDir(iso, commonDir)).toBe("detached");
@@ -809,7 +807,7 @@ describe("detachGitDir", () => {
 		expect(await runGit(iso, ["status", "--porcelain=v1"])).toBe("");
 		// Shallow boundary: history traversal stops cleanly instead of failing
 		// on the truncated parent, and the boundary file itself was carried.
-		expect(await Bun.file(path.join(iso, ".git", "shallow")).exists()).toBe(true);
+		expect(await fsx.exists(path.join(iso, ".git", "shallow"))).toBe(true);
 		expect((await runGit(iso, ["rev-list", "HEAD"])).split("\n")).toHaveLength(1);
 	});
 

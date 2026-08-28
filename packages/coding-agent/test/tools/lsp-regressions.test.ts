@@ -53,6 +53,7 @@ import * as piUtils from "@oh-my-pi/pi-utils";
 import { sanitizeText, TempDir } from "@oh-my-pi/pi-utils";
 import * as piUtilsAsync from "@oh-my-pi/pi-utils/async";
 import { sleep } from "@oh-my-pi/pi-utils/async";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import type { Subprocess } from "bun";
 import DEFAULTS from "../../src/lsp/defaults.json" with { type: "json" };
 import { renderResult as renderLocalResult } from "../../src/lsp/render";
@@ -2291,7 +2292,7 @@ describe("lsp regressions", () => {
 			expect(fs.existsSync(destFile)).toBe(true);
 
 			// Importer file got the LSP-provided edit
-			const updatedConsumer = await Bun.file(referencingFile).text();
+			const updatedConsumer = await fsx.readText(referencingFile);
 			expect(updatedConsumer).toBe("import { value } from './new';\nconsole.log(value);\n");
 
 			// didRenameFiles notification fired with the same pair list
@@ -2392,8 +2393,8 @@ describe("lsp regressions", () => {
 
 			// Nothing was half-applied: the plain bucket is untouched and the
 			// rename never ran.
-			expect(await Bun.file(plainFile).text()).toBe("import { value } from './old';\n");
-			expect(await Bun.file(snippetFile).text()).toBe("import { value } from './old';\n");
+			expect(await fsx.readText(plainFile)).toBe("import { value } from './old';\n");
+			expect(await fsx.readText(snippetFile)).toBe("import { value } from './old';\n");
 			expect(fs.existsSync(sourceFile)).toBe(true);
 			expect(fs.existsSync(destFile)).toBe(false);
 		} finally {
@@ -2953,7 +2954,7 @@ describe("lsp regressions", () => {
 				symbol: "OldName",
 				new_name: "NewName",
 			});
-			expect(await Bun.file(filePath).text()).toContain("NewName");
+			expect(await fsx.readText(filePath)).toContain("NewName");
 
 			const symbols = await tool.execute("symbols-after-rename", { action: "symbols", file: filePath });
 			expect(textResult(symbols)).toContain("NewName");

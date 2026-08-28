@@ -27,6 +27,7 @@ import * as path from "node:path";
 import { pathToFileURL } from "node:url";
 import { Process, ProcessStatus } from "@oh-my-pi/pi-natives";
 import { sleep } from "@oh-my-pi/pi-utils/async";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import { runShellCommand } from "../src/config/resolve-config-value";
 
 const resolverUrl = pathToFileURL(path.join(import.meta.dir, "../src/config/resolve-config-value.ts")).href;
@@ -98,10 +99,10 @@ test.skipIf(process.platform === "win32")(
 		// the oracle is "the marker never appears" — poll so a leak fails fast
 		// instead of paying the full window on green.
 		const deadline = Date.now() + 2000;
-		while (Date.now() < deadline && !(await Bun.file(marker).exists())) {
+		while (Date.now() < deadline && !(await fsx.exists(marker))) {
 			await sleep(50);
 		}
-		expect(await Bun.file(marker).exists(), "orphaned descendant wrote the marker after the timeout").toBe(false);
+		expect(await fsx.exists(marker), "orphaned descendant wrote the marker after the timeout").toBe(false);
 	},
 );
 
@@ -123,7 +124,7 @@ test.skipIf(process.platform === "win32")(
 			const result = await runShellCommand(command, 150);
 			expect(result).toBeUndefined();
 
-			const pid = Number.parseInt((await Bun.file(pidFile).text()).trim(), 10);
+			const pid = Number.parseInt((await fsx.readText(pidFile)).trim(), 10);
 			escaped = Process.fromPid(pid);
 			expect(escaped?.status(), `reparented descendant ${pid} survived the timeout`).not.toBe(ProcessStatus.Running);
 		} finally {
@@ -150,7 +151,7 @@ test.skipIf(process.platform !== "linux")(
 			const result = await runShellCommand(command, 150);
 			expect(result).toBeUndefined();
 
-			const pid = Number.parseInt((await Bun.file(pidFile).text()).trim(), 10);
+			const pid = Number.parseInt((await fsx.readText(pidFile)).trim(), 10);
 			escaped = Process.fromPid(pid);
 			expect(escaped?.status(), `session-escaping descendant ${pid} survived the timeout`).not.toBe(
 				ProcessStatus.Running,
@@ -175,12 +176,10 @@ test.skipIf(process.platform === "win32")(
 		const result = await runShellCommand(`{ trap '' TERM; sleep 1.5; echo done > "${marker}"; } & sleep 10`, 150);
 		expect(result).toBeUndefined();
 		const deadline = Date.now() + 2000;
-		while (Date.now() < deadline && !(await Bun.file(marker).exists())) {
+		while (Date.now() < deadline && !(await fsx.exists(marker))) {
 			await sleep(50);
 		}
-		expect(await Bun.file(marker).exists(), "SIGTERM-ignoring descendant wrote the marker after the timeout").toBe(
-			false,
-		);
+		expect(await fsx.exists(marker), "SIGTERM-ignoring descendant wrote the marker after the timeout").toBe(false);
 	},
 );
 

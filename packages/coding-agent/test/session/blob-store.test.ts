@@ -7,6 +7,7 @@ import {
 	resolveImageData,
 } from "@oh-my-pi/pi-coding-agent/session/blob-store";
 import { TempDir } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 
 describe("BlobStore image display paths", () => {
 	it("creates an extension-bearing sidecar for image blobs while keeping canonical refs extensionless", async () => {
@@ -18,8 +19,8 @@ describe("BlobStore image display paths", () => {
 		expect(result.path.endsWith(result.hash)).toBe(true);
 		expect(result.displayPath).toBe(`${result.path}.png`);
 		expect(result.ref).toBe(`blob:sha256:${result.hash}`);
-		expect(await Bun.file(result.path).bytes()).toEqual(new Uint8Array(data));
-		expect(await Bun.file(result.displayPath).bytes()).toEqual(new Uint8Array(data));
+		expect(await fsx.readBytes(result.path)).toEqual(new Uint8Array(data));
+		expect(await fsx.readBytes(result.displayPath)).toEqual(new Uint8Array(data));
 	});
 
 	it("externalizes image data with a mime-derived display extension", async () => {
@@ -31,7 +32,7 @@ describe("BlobStore image display paths", () => {
 		const hash = parseBlobRef(ref);
 
 		expect(hash).toBeTruthy();
-		expect(await Bun.file(`${tempDir.path()}/${hash}.webp`).bytes()).toEqual(new Uint8Array(data));
+		expect(await fsx.readBytes(`${tempDir.path()}/${hash}.webp`)).toEqual(new Uint8Array(data));
 		expect(await resolveImageData(store, ref)).toBe(data.toString("base64"));
 	});
 

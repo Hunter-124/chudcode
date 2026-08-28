@@ -1,4 +1,5 @@
 import * as path from "node:path";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import { generateProtoTs, ProtoContext, parseProto } from "./proto-parser";
 
 const PACKAGES_DIR = path.resolve(import.meta.dir, "../..");
@@ -49,7 +50,7 @@ async function collectCursorMessages(): Promise<string[]> {
 	const sourceFiles = await collectTypeScriptFiles(CURSOR_CONSUMER_DIRS);
 
 	for (const sourceFile of sourceFiles) {
-		const source = await Bun.file(sourceFile).text();
+		const source = await fsx.readText(sourceFile);
 		for (const match of source.matchAll(importPattern)) {
 			const modulePath = match[2];
 			if (!modulePath.endsWith("cursor-proto")) continue;
@@ -87,14 +88,14 @@ async function parseProtoDirectory(directory: string): Promise<ProtoContext> {
 	for await (const relativePath of glob.scan({ cwd: directory, onlyFiles: true })) paths.push(relativePath);
 
 	for (const relativePath of paths.sort()) {
-		const source = await Bun.file(path.join(directory, relativePath)).text();
+		const source = await fsx.readText(path.join(directory, relativePath));
 		context.addFile(parseProto(source, relativePath));
 	}
 	return context;
 }
 
 async function generateProtocols(): Promise<void> {
-	const cursorSource = await Bun.file(CURSOR_PROTO).text();
+	const cursorSource = await fsx.readText(CURSOR_PROTO);
 	const cursorContext = new ProtoContext();
 	cursorContext.addFile(parseProto(cursorSource, "agent.proto"));
 

@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "bun:test";
 import { downloadFile } from "@oh-my-pi/pi-coding-agent/utils/tools-manager";
 import { TempDir } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 
 function mockDownloadResponse(response: Response): void {
 	const fetchMock: typeof globalThis.fetch = Object.assign(async () => response, {
@@ -21,7 +22,7 @@ describe("tool asset downloads", () => {
 
 		await downloadFile("https://example.test/tool.bin", dest);
 
-		expect(await Bun.file(dest).text()).toBe("tool-bytes");
+		expect(await fsx.readText(dest)).toBe("tool-bytes");
 	});
 
 	it("aborts a stalled response body and removes the partial file", async () => {
@@ -44,6 +45,6 @@ describe("tool asset downloads", () => {
 		controller.abort(new DOMException("The operation timed out.", "TimeoutError"));
 
 		await expect(download).rejects.toThrow("Download timed out: https://example.test/tool.bin");
-		expect(await Bun.file(dest).exists()).toBe(false);
+		expect(await fsx.exists(dest)).toBe(false);
 	});
 });

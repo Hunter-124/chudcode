@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { createRequire } from "node:module";
 import * as path from "node:path";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import rootManifest from "../../../package.json" with { type: "json" };
 import packageManifest from "../package.json" with { type: "json" };
 import { fastembedRuntimeInstallPlan, prepareWindowsFastembedRuntime } from "../src/core/fastembed-runtime";
@@ -54,7 +55,7 @@ describe("fastembed runtime version pins", () => {
 
 		expect(ortManifest.version).toBe(packageManifest.peerDependencies["onnxruntime-node"]);
 		expect(ortEntry.startsWith(`${ortPackageDir}${path.sep}`)).toBe(true);
-		expect(await Bun.file(path.join(dllDir, "onnxruntime.dll")).exists()).toBe(true);
+		expect(await fsx.exists(path.join(dllDir, "onnxruntime.dll"))).toBe(true);
 		expect(env.PATH).toBe(`${dllDir}${path.delimiter}${inheritedPath}`);
 	});
 });

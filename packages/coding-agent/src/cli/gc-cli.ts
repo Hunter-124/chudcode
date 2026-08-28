@@ -12,6 +12,7 @@ import {
 	getStatsDbPath,
 	readLines,
 } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import { Settings } from "../config/settings";
 import { getDefault } from "../config/settings-schema";
 import { BLOB_HASH_RE } from "../session/blob-store";
@@ -234,9 +235,9 @@ async function statIfPresent(target: string) {
 async function readTextIfPresent(file: string): Promise<string> {
 	try {
 		if (file.endsWith(COMPRESSED_SESSION_SUFFIX)) {
-			return new TextDecoder().decode(gunzipSync(await Bun.file(file).bytes()));
+			return new TextDecoder().decode(gunzipSync(await fsx.readBytes(file)));
 		}
-		return await Bun.file(file).text();
+		return await fsx.readText(file);
 	} catch (error) {
 		if (codeOf(error) === "ENOENT") return "";
 		throw error;
@@ -498,7 +499,7 @@ async function gzipSessionFile(source: string, destination: string): Promise<voi
 	const tempPath = `${destination}.${process.pid}.${Date.now()}.tmp`;
 	let renamed = false;
 	try {
-		const compressed = gzipSync(await Bun.file(source).bytes(), { level: 9 });
+		const compressed = gzipSync(await fsx.readBytes(source), { level: 9 });
 		await Bun.write(tempPath, compressed);
 		await fs.rename(tempPath, destination);
 		renamed = true;
@@ -512,7 +513,7 @@ async function gzipSessionFile(source: string, destination: string): Promise<voi
 
 async function restoreGzipSessionFile(source: string, destination: string): Promise<void> {
 	await fs.mkdir(path.dirname(destination), { recursive: true });
-	const decompressed = gunzipSync(await Bun.file(source).bytes());
+	const decompressed = gunzipSync(await fsx.readBytes(source));
 	await Bun.write(destination, decompressed);
 	await fs.unlink(source);
 }
@@ -1401,7 +1402,7 @@ async function readGcLockSnapshot(lockPath: string): Promise<GcLockSnapshot | nu
 
 	let lockText = "";
 	try {
-		lockText = await Bun.file(lockPath).text();
+		lockText = await fsx.readText(lockPath);
 	} catch (error) {
 		if (codeOf(error) === "ENOENT") return null;
 		throw error;

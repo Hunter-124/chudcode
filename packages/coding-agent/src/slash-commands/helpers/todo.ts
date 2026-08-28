@@ -1,3 +1,4 @@
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import type { TodoPhase } from "../../tools/todo";
 import {
 	applyOpsToPhases,
@@ -145,7 +146,7 @@ async function handleTodoImportCommand(restArgs: string, runtime: SlashCommandRu
 	let content: string;
 	try {
 		target = resolveTodoMarkdownPath(restArgs, runtime.sessionManager.getCwd());
-		content = await Bun.file(target).text();
+		content = await fsx.readText(target);
 	} catch (err) {
 		return usage(`Failed to read todos: ${errorMessage(err)}`, runtime);
 	}

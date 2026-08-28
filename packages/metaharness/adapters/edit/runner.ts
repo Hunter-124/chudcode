@@ -7,6 +7,7 @@
 /// <reference types="./bun-imports.d.ts" />
 import * as fs from "node:fs";
 import * as path from "node:path";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import {
 	type BlockTarget as HashlineBlockTarget,
 	formatHashlineHeader,
@@ -353,7 +354,7 @@ async function collectOriginalFileContents(cwd: string, files: string[]): Promis
 	for (const file of files) {
 		const fullPath = path.join(cwd, file);
 		try {
-			originals.set(fullPath, await Bun.file(fullPath).text());
+			originals.set(fullPath, await fsx.readText(fullPath));
 		} catch {
 			// Ignore missing files; not all tasks include all paths in every run.
 		}
@@ -412,7 +413,7 @@ async function appendNoChangeMutationHint(
 
 	let current: string;
 	try {
-		current = await Bun.file(fullPath).text();
+		current = await fsx.readText(fullPath);
 	} catch {
 		return error;
 	}
@@ -548,8 +549,8 @@ async function evaluateMutationIntent(
 	let currentText: string;
 	let expectedText: string;
 	try {
-		currentText = await Bun.file(currentPath).text();
-		expectedText = await Bun.file(expectedPath).text();
+		currentText = await fsx.readText(currentPath);
+		expectedText = await fsx.readText(expectedPath);
 	} catch {
 		return {
 			matched: false,
@@ -695,11 +696,9 @@ async function buildGuidedContext(
 
 	const actualPath = path.join(cwd, file);
 	const expectedPath = path.join(expectedDir, file);
-	const actual = await Bun.file(actualPath)
-		.text()
+	const actual = await fsx.readText(actualPath)
 		.catch(() => null);
-	const expected = await Bun.file(expectedPath)
-		.text()
+	const expected = await fsx.readText(expectedPath)
 		.catch(() => null);
 	if (actual === null || expected === null) return null;
 

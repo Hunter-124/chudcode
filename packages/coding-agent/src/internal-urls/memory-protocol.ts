@@ -1,6 +1,7 @@
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { getAgentDir, isEnoent } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import { getMemoryRoot } from "../memories";
 import { getMnemopiSessionState, type MnemopiScopedMemoryHit, type MnemopiSessionState } from "../mnemopi/state";
 import { AgentRegistry } from "../registry/agent-registry";
@@ -185,7 +186,7 @@ async function tryResolveInRoot(url: InternalUrl, memoryRoot: string): Promise<I
 		throw new Error(`memory:// URL must resolve to a file or directory: ${url.href}`);
 	}
 
-	const content = await Bun.file(realTargetPath).text();
+	const content = await fsx.readText(realTargetPath);
 	const contentType: InternalResource["contentType"] = isMarkdownPath(realTargetPath) ? "text/markdown" : "text/plain";
 
 	return {

@@ -1,11 +1,12 @@
 import { describe, expect, test } from "bun:test";
 import * as vm from "node:vm";
 import { type Element, parseHTML } from "@oh-my-pi/pi-utils/dom";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import { Marked } from "@oh-my-pi/pi-utils/marked";
 
 const [templateHtml, templateJs] = await Promise.all([
-	Bun.file(new URL("../src/export/html/template.html", import.meta.url)).text(),
-	Bun.file(new URL("../src/export/html/template.js", import.meta.url)).text(),
+	fsx.readText(new URL("../src/export/html/template.html", import.meta.url)),
+	fsx.readText(new URL("../src/export/html/template.js", import.meta.url)),
 ]);
 
 interface MinimalMessageEntry {

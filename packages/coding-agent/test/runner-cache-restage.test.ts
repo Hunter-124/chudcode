@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it } from "bun:test";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import { stageRunnerScript } from "../src/eval/runner-cache";
 
 // stageRunnerScript memoizes the staged path per cache directory, but the warm
@@ -40,7 +41,7 @@ describe("stageRunnerScript re-validation", () => {
 		const second = await stageRunnerScript(dirName, "py", script);
 		expect(second).toBe(first);
 		expect(fs.existsSync(second)).toBe(true);
-		expect(await Bun.file(second).text()).toBe(script);
+		expect(await fsx.readText(second)).toBe(script);
 	});
 
 	it("reuses the memoized path while the file still exists", async () => {

@@ -5,6 +5,7 @@ import { AgentRegistry, MAIN_AGENT_ID } from "@oh-my-pi/pi-coding-agent/registry
 import { registerPersistedSubagents } from "@oh-my-pi/pi-coding-agent/registry/persisted-agents";
 import type { AgentSession } from "@oh-my-pi/pi-coding-agent/session/agent-session";
 import { TempDir } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 
 interface SessionStub {
 	session: AgentSession;
@@ -696,7 +697,7 @@ describe("AgentLifecycleManager", () => {
 
 		// Reopening after the original registry is gone must preserve the terminal
 		// decision from the sidecar, not infer a fresh parked agent from the JSONL.
-		expect(await Bun.file(`${workerSessionFile}.tombstone`).exists()).toBe(true);
+		expect(await fsx.exists(`${workerSessionFile}.tombstone`)).toBe(true);
 		const restoredRegistry = new AgentRegistry();
 		await registerPersistedSubagents(restoredRegistry, rootSessionFile);
 		expect(restoredRegistry.get(workerId)?.status).toBe("aborted");

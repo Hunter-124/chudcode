@@ -11,6 +11,7 @@ import {
 	type Usage,
 } from "@oh-my-pi/pi-ai";
 import { getSessionsDir, isEnoent, readLines } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import type {
 	AgentType,
 	MessageStats,
@@ -371,7 +372,7 @@ export interface ParseSessionResult {
 export async function parseSessionFile(sessionPath: string, fromOffset = 0): Promise<ParseSessionResult> {
 	let bytes: Uint8Array;
 	try {
-		bytes = await Bun.file(sessionPath).bytes();
+		bytes = await fsx.readBytes(sessionPath);
 	} catch (err) {
 		if (isEnoent(err))
 			return { stats: [], userStats: [], userLinks: [], toolCalls: [], toolResults: [], newOffset: fromOffset };

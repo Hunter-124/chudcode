@@ -3,6 +3,7 @@ import * as path from "node:path";
 import { disposeAllKernelSessions, executePythonWithKernel } from "@oh-my-pi/pi-coding-agent/eval/py/executor";
 import { DEFAULT_MAX_BYTES } from "@oh-my-pi/pi-coding-agent/session/streaming-output";
 import { TempDir } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import { FakeKernel } from "./helpers";
 
 describe("executePythonWithKernel", () => {
@@ -120,7 +121,7 @@ describe("executePythonWithKernel", () => {
 		expect(result.artifactId).toBe("0");
 		expect(result.output).toContain("TAIL");
 
-		const fullText = await Bun.file(artifactPath).text();
+		const fullText = await fsx.readText(artifactPath);
 		expect(fullText).toBe(largeOutput);
 	});
 });

@@ -1,6 +1,7 @@
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { getCommitCacheDbPath } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import { ModelRegistry } from "../../config/model-registry";
 import { Settings } from "../../config/settings";
 import { discoverAuthStorage, loadCliExtensionProviders } from "../../sdk";
@@ -158,7 +159,7 @@ async function projectNames(cwd: string): Promise<string[]> {
 		const packages: string[] = [];
 		for (const entry of entries) {
 			if (!entry.isDirectory()) continue;
-			if (await Bun.file(path.join(root, entry.name, "__init__.py")).exists()) packages.push(entry.name);
+			if (await fsx.exists(path.join(root, entry.name, "__init__.py"))) packages.push(entry.name);
 		}
 		if (packages.length === 1 && packages[0]) names.push(packages[0]);
 	} catch {}

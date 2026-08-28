@@ -3,6 +3,7 @@ import * as os from "node:os";
 import * as path from "node:path";
 import { getTerminalId } from "@oh-my-pi/pi-tui";
 import { getSessionsDir, getTerminalSessionsDir, isEnoent, logger, resolveEquivalentPath } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import type { SessionStorage } from "./session-storage";
 
 const migratedSessionRoots = new Set<string>();
@@ -259,7 +260,7 @@ export async function readTerminalBreadcrumbEntry(): Promise<TerminalBreadcrumb 
 
 	try {
 		const breadcrumbFile = path.join(getTerminalSessionsDir(), terminalId);
-		const content = await Bun.file(breadcrumbFile).text();
+		const content = await fsx.readText(breadcrumbFile);
 		const lines = content.trim().split("\n");
 		if (lines.length < 2) return null;
 

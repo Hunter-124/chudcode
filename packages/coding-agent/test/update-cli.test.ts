@@ -39,6 +39,7 @@ import {
 import Update from "@oh-my-pi/pi-coding-agent/commands/update";
 import { removeWithRetries } from "@oh-my-pi/pi-utils";
 import type { CliConfig } from "@oh-my-pi/pi-utils/cli";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import { getThemeByName, setThemeInstance } from "../src/modes/theme/theme";
 
 const tempDirs: string[] = [];
@@ -285,7 +286,7 @@ describe("update-cli install target detection", () => {
 
 		expect(await fs.realpath(aliasPath)).toBe(checkoutCli);
 		expect(target).toEqual({ method: "npm", path: aliasPath });
-		expect(await Bun.file(checkoutCli).text()).toBe("linked checkout");
+		expect(await fsx.readText(checkoutCli)).toBe("linked checkout");
 	});
 
 	it("treats a Bun-bin alias into ~/.bun/custom as foreign", async () => {
@@ -372,7 +373,7 @@ describe("update-cli install target detection", () => {
 
 		expect(await fs.realpath(aliasPath)).toBe(checkoutCli);
 		expect(target).toEqual({ method: "bun", path: aliasPath });
-		expect(await Bun.file(checkoutCli).text()).toBe("linked checkout");
+		expect(await fsx.readText(checkoutCli)).toBe("linked checkout");
 	});
 
 	it("uses binary update when prioritized omp is outside bun global bin", () => {
@@ -697,16 +698,16 @@ describe("update-cli bun cache pruning", () => {
 		const result = await pruneBunInstallCache(dir, new Set(["react", "@oh-my-pi/pi-utils"]));
 
 		expect(result).toEqual({ scannedPackages: 2, removedEntries: 4 });
-		expect(await Bun.file(path.join(dir, "react", "18.3.1@@@1")).exists()).toBe(false);
-		expect(await Bun.file(path.join(dir, "react@18.3.1@@@1", "package.json")).exists()).toBe(false);
-		expect(await Bun.file(path.join(dir, "react", "19.2.6@@@1")).exists()).toBe(true);
-		expect(await Bun.file(path.join(dir, "react@19.2.6@@@1", "package.json")).exists()).toBe(true);
-		expect(await Bun.file(path.join(dir, "@oh-my-pi", "pi-utils", "15.7.6@@@1")).exists()).toBe(false);
-		expect(await Bun.file(path.join(dir, "@oh-my-pi", "pi-utils@15.7.6@@@1", "package.json")).exists()).toBe(false);
-		expect(await Bun.file(path.join(dir, "@oh-my-pi", "pi-utils", "15.8.0@@@1")).exists()).toBe(true);
-		expect(await Bun.file(path.join(dir, "@oh-my-pi", "pi-utils@15.8.0@@@1", "package.json")).exists()).toBe(true);
-		expect(await Bun.file(path.join(dir, "chalk", "4.1.2@@@1")).exists()).toBe(true);
-		expect(await Bun.file(path.join(dir, "chalk@4.1.2@@@1", "package.json")).exists()).toBe(true);
+		expect(await fsx.exists(path.join(dir, "react", "18.3.1@@@1"))).toBe(false);
+		expect(await fsx.exists(path.join(dir, "react@18.3.1@@@1", "package.json"))).toBe(false);
+		expect(await fsx.exists(path.join(dir, "react", "19.2.6@@@1"))).toBe(true);
+		expect(await fsx.exists(path.join(dir, "react@19.2.6@@@1", "package.json"))).toBe(true);
+		expect(await fsx.exists(path.join(dir, "@oh-my-pi", "pi-utils", "15.7.6@@@1"))).toBe(false);
+		expect(await fsx.exists(path.join(dir, "@oh-my-pi", "pi-utils@15.7.6@@@1", "package.json"))).toBe(false);
+		expect(await fsx.exists(path.join(dir, "@oh-my-pi", "pi-utils", "15.8.0@@@1"))).toBe(true);
+		expect(await fsx.exists(path.join(dir, "@oh-my-pi", "pi-utils@15.8.0@@@1", "package.json"))).toBe(true);
+		expect(await fsx.exists(path.join(dir, "chalk", "4.1.2@@@1"))).toBe(true);
+		expect(await fsx.exists(path.join(dir, "chalk@4.1.2@@@1", "package.json"))).toBe(true);
 	});
 
 	it("keeps current registry-qualified marker entries with their materialized package", async () => {
@@ -720,8 +721,8 @@ describe("update-cli bun cache pruning", () => {
 		const result = await pruneBunInstallCache(dir, new Set(["pkg"]));
 
 		expect(result).toEqual({ scannedPackages: 1, removedEntries: 0 });
-		expect(await Bun.file(path.join(dir, "pkg", "1.0.0@@registry.npmjs.org@@@1")).exists()).toBe(true);
-		expect(await Bun.file(path.join(dir, "pkg@1.0.0@@registry.npmjs.org@@@1", "package.json")).exists()).toBe(true);
+		expect(await fsx.exists(path.join(dir, "pkg", "1.0.0@@registry.npmjs.org@@@1"))).toBe(true);
+		expect(await fsx.exists(path.join(dir, "pkg@1.0.0@@registry.npmjs.org@@@1", "package.json"))).toBe(true);
 	});
 
 	it("treats a stable release as newer than a matching prerelease", async () => {
@@ -740,10 +741,10 @@ describe("update-cli bun cache pruning", () => {
 		const result = await pruneBunInstallCache(dir);
 
 		expect(result).toEqual({ scannedPackages: 1, removedEntries: 2 });
-		expect(await Bun.file(path.join(dir, "pkg", "1.0.0-beta.1@@@1")).exists()).toBe(false);
-		expect(await Bun.file(path.join(dir, "pkg@1.0.0-beta.1@@@1", "package.json")).exists()).toBe(false);
-		expect(await Bun.file(path.join(dir, "pkg", "1.0.0@@@1")).exists()).toBe(true);
-		expect(await Bun.file(path.join(dir, "pkg@1.0.0@@@1", "package.json")).exists()).toBe(true);
+		expect(await fsx.exists(path.join(dir, "pkg", "1.0.0-beta.1@@@1"))).toBe(false);
+		expect(await fsx.exists(path.join(dir, "pkg@1.0.0-beta.1@@@1", "package.json"))).toBe(false);
+		expect(await fsx.exists(path.join(dir, "pkg", "1.0.0@@@1"))).toBe(true);
+		expect(await fsx.exists(path.join(dir, "pkg@1.0.0@@@1", "package.json"))).toBe(true);
 	});
 
 	it("compares numeric version segments without precision loss", async () => {
@@ -764,10 +765,10 @@ describe("update-cli bun cache pruning", () => {
 		const result = await pruneBunInstallCache(dir, new Set(["pkg"]));
 
 		expect(result).toEqual({ scannedPackages: 1, removedEntries: 2 });
-		expect(await Bun.file(path.join(dir, "pkg", `${older}@@@1`)).exists()).toBe(false);
-		expect(await Bun.file(path.join(dir, `pkg@${older}@@@1`, "package.json")).exists()).toBe(false);
-		expect(await Bun.file(path.join(dir, "pkg", `${newer}@@@1`)).exists()).toBe(true);
-		expect(await Bun.file(path.join(dir, `pkg@${newer}@@@1`, "package.json")).exists()).toBe(true);
+		expect(await fsx.exists(path.join(dir, "pkg", `${older}@@@1`))).toBe(false);
+		expect(await fsx.exists(path.join(dir, `pkg@${older}@@@1`, "package.json"))).toBe(false);
+		expect(await fsx.exists(path.join(dir, "pkg", `${newer}@@@1`))).toBe(true);
+		expect(await fsx.exists(path.join(dir, `pkg@${newer}@@@1`, "package.json"))).toBe(true);
 	});
 });
 
@@ -861,7 +862,7 @@ describe("update-cli release binary integrity", () => {
 			fetchImpl: async () => new Response(content),
 		});
 
-		expect(await Bun.file(targetPath).text()).toBe(content);
+		expect(await fsx.readText(targetPath)).toBe(content);
 		expect((await fs.stat(targetPath)).mode & 0o777).toBe(0o755);
 	});
 
@@ -890,7 +891,7 @@ describe("update-cli release binary integrity", () => {
 			}),
 		).rejects.toThrow("received at least 2");
 		expect(pulls).toBe(1);
-		expect(await Bun.file(targetPath).exists()).toBe(false);
+		expect(await fsx.exists(targetPath)).toBe(false);
 	});
 
 	it("wraps a timeout during body streaming with a friendly message", async () => {
@@ -915,7 +916,7 @@ describe("update-cli release binary integrity", () => {
 				fetchImpl: async () => new Response(body),
 			}),
 		).rejects.toThrow("Timed out downloading release binary after 15 minutes");
-		expect(await Bun.file(targetPath).exists()).toBe(false);
+		expect(await fsx.exists(targetPath)).toBe(false);
 	});
 
 	it("removes downloads whose size or digest does not match", async () => {
@@ -932,7 +933,7 @@ describe("update-cli release binary integrity", () => {
 				fetchImpl,
 			}),
 		).rejects.toThrow("size mismatch");
-		expect(await Bun.file(targetPath).exists()).toBe(false);
+		expect(await fsx.exists(targetPath)).toBe(false);
 
 		await expect(
 			downloadVerifiedBinary({
@@ -943,7 +944,7 @@ describe("update-cli release binary integrity", () => {
 				fetchImpl,
 			}),
 		).rejects.toThrow("digest mismatch");
-		expect(await Bun.file(targetPath).exists()).toBe(false);
+		expect(await fsx.exists(targetPath)).toBe(false);
 	});
 
 	it("rejects an altered version-reporting executable before replacing the installed binary", async () => {
@@ -985,7 +986,7 @@ describe("update-cli release binary integrity", () => {
 				}),
 			).rejects.toThrow("digest mismatch");
 			expect(metadataAuthorizations).toEqual(["Bearer test-token"]);
-			expect(await Bun.file(targetPath).text()).toBe(installed);
+			expect(await fsx.readText(targetPath)).toBe(installed);
 			expect((await fs.stat(targetPath)).mode & 0o777).toBe(0o755);
 			const newResidue = (await fs.readdir(dir)).filter(name => name.endsWith(".new"));
 			expect(newResidue).toEqual([]);
@@ -1007,7 +1008,7 @@ describe("update-cli release binary integrity", () => {
 				githubToken: "",
 			}),
 		).rejects.toThrow("retry later or set GITHUB_TOKEN or GH_TOKEN");
-		expect(await Bun.file(targetPath).exists()).toBe(false);
+		expect(await fsx.exists(targetPath)).toBe(false);
 	});
 });
 
@@ -1030,9 +1031,9 @@ describe("update-cli binary replacement", () => {
 			}),
 		).rejects.toThrow("restored previous omp binary");
 
-		expect(await Bun.file(targetPath).text()).toBe("old binary");
-		expect(await Bun.file(tempPath).exists()).toBe(false);
-		expect(await Bun.file(backupPath).exists()).toBe(false);
+		expect(await fsx.readText(targetPath)).toBe("old binary");
+		expect(await fsx.exists(tempPath)).toBe(false);
+		expect(await fsx.exists(backupPath)).toBe(false);
 	});
 
 	it("keeps the replacement only after it reports the expected version", async () => {
@@ -1051,9 +1052,9 @@ describe("update-cli binary replacement", () => {
 			verifyInstalledVersion: async () => ({ ok: true, actual: "15.1.8", path: targetPath }),
 		});
 
-		expect(await Bun.file(targetPath).text()).toBe("new binary");
-		expect(await Bun.file(tempPath).exists()).toBe(false);
-		expect(await Bun.file(backupPath).exists()).toBe(false);
+		expect(await fsx.readText(targetPath)).toBe("new binary");
+		expect(await fsx.exists(tempPath)).toBe(false);
+		expect(await fsx.exists(backupPath)).toBe(false);
 	});
 	it("installs at a vacated launcher path when the previous launcher is gone", async () => {
 		// Repairing a launcher a failed package-manager reinstall deleted: there
@@ -1074,8 +1075,8 @@ describe("update-cli binary replacement", () => {
 		});
 
 		expect(result.ok).toBe(true);
-		expect(await Bun.file(targetPath).text()).toBe("new binary");
-		expect(await Bun.file(backupPath).exists()).toBe(false);
+		expect(await fsx.readText(targetPath)).toBe("new binary");
+		expect(await fsx.exists(backupPath)).toBe(false);
 	});
 });
 
@@ -1115,9 +1116,9 @@ describe("update-cli binary replacement on locked backups", () => {
 
 		// New binary is installed and the temp consumed even though the locked
 		// backup survives; the next run's sweep reclaims it once it is unlocked.
-		expect(await Bun.file(targetPath).text()).toBe("new binary");
-		expect(await Bun.file(tempPath).exists()).toBe(false);
-		expect(await Bun.file(backupPath).text()).toBe("old binary");
+		expect(await fsx.readText(targetPath)).toBe("new binary");
+		expect(await fsx.exists(tempPath)).toBe(false);
+		expect(await fsx.readText(backupPath)).toBe("old binary");
 	});
 });
 
@@ -1146,16 +1147,16 @@ describe("update-cli stale update artifact sweep", () => {
 
 		await sweepStaleUpdateArtifacts(targetPath);
 
-		expect(await Bun.file(targetPath).exists()).toBe(true);
-		expect(await Bun.file(`${targetPath}.bak`).exists()).toBe(false);
-		expect(await Bun.file(`${targetPath}.1700000000000.4242.bak`).exists()).toBe(false);
-		expect(await Bun.file(`${targetPath}.1800000000000.99.bak`).exists()).toBe(false);
-		expect(await Bun.file(`${targetPath}.new`).exists()).toBe(false);
-		expect(await Bun.file(`${targetPath}.1700000000000.4242.new`).exists()).toBe(false);
-		expect(await Bun.file(`${targetPath}.9999999999999.7.new`).exists()).toBe(true);
-		expect(await Bun.file(path.join(dir, "notes.bak")).exists()).toBe(true);
-		expect(await Bun.file(`${targetPath}.config.bak`).exists()).toBe(true);
-		expect(await Bun.file(`${targetPath}.config.new`).exists()).toBe(true);
+		expect(await fsx.exists(targetPath)).toBe(true);
+		expect(await fsx.exists(`${targetPath}.bak`)).toBe(false);
+		expect(await fsx.exists(`${targetPath}.1700000000000.4242.bak`)).toBe(false);
+		expect(await fsx.exists(`${targetPath}.1800000000000.99.bak`)).toBe(false);
+		expect(await fsx.exists(`${targetPath}.new`)).toBe(false);
+		expect(await fsx.exists(`${targetPath}.1700000000000.4242.new`)).toBe(false);
+		expect(await fsx.exists(`${targetPath}.9999999999999.7.new`)).toBe(true);
+		expect(await fsx.exists(path.join(dir, "notes.bak"))).toBe(true);
+		expect(await fsx.exists(`${targetPath}.config.bak`)).toBe(true);
+		expect(await fsx.exists(`${targetPath}.config.new`)).toBe(true);
 	});
 });
 
@@ -1252,9 +1253,9 @@ describe("update-cli script-shim takeover", () => {
 			githubToken: "test-token",
 		});
 
-		expect(await Bun.file(path.join(dir, "omp.exe")).text()).toBe(exe);
+		expect(await fsx.readText(path.join(dir, "omp.exe"))).toBe(exe);
 		for (const name in shims) {
-			expect(await Bun.file(path.join(dir, name)).exists()).toBe(false);
+			expect(await fsx.exists(path.join(dir, name))).toBe(false);
 		}
 		const residue = (await fs.readdir(dir)).filter(name => name.endsWith(".bak") || name.endsWith(".new"));
 		expect(residue).toEqual([]);
@@ -1274,7 +1275,7 @@ describe("update-cli script-shim takeover", () => {
 				githubToken: "test-token",
 			}),
 		).rejects.toThrow("is a prerelease");
-		expect(await Bun.file(path.join(dir, "omp.exe")).exists()).toBe(false);
+		expect(await fsx.exists(path.join(dir, "omp.exe"))).toBe(false);
 
 		// allowPrerelease threads through to the asset resolver, so the canary
 		// exe installs and the shims are retired.
@@ -1284,7 +1285,7 @@ describe("update-cli script-shim takeover", () => {
 			allowPrerelease: true,
 			githubToken: "test-token",
 		});
-		expect(await Bun.file(path.join(dir, "omp.exe")).text()).toBe(exe);
+		expect(await fsx.readText(path.join(dir, "omp.exe"))).toBe(exe);
 	});
 
 	it("drops bun's launcher metadata when the standalone binary takes the .exe over", async () => {
@@ -1306,8 +1307,8 @@ describe("update-cli script-shim takeover", () => {
 			verifyInstalledVersion: async () => ({ ok: true, actual: version, path: targetPath }),
 		});
 
-		expect(await Bun.file(targetPath).text()).toBe(exe);
-		expect(await Bun.file(marker).exists()).toBe(false);
+		expect(await fsx.readText(targetPath)).toBe(exe);
+		expect(await fsx.exists(marker)).toBe(false);
 	});
 
 	it("restores the shims and removes the exe when the exe reports the wrong version", async () => {
@@ -1324,9 +1325,9 @@ describe("update-cli script-shim takeover", () => {
 			}),
 		).rejects.toThrow(/still reports 17\.2\.12 \(expected 18\.0\.0\); restored previous omp launcher/);
 
-		expect(await Bun.file(path.join(dir, "omp.exe")).exists()).toBe(false);
+		expect(await fsx.exists(path.join(dir, "omp.exe"))).toBe(false);
 		for (const name in shims) {
-			expect(await Bun.file(path.join(dir, name)).text()).toBe(shims[name]);
+			expect(await fsx.readText(path.join(dir, name))).toBe(shims[name]);
 		}
 		const residue = (await fs.readdir(dir)).filter(name => name.endsWith(".bak") || name.endsWith(".new"));
 		expect(residue).toEqual([]);
@@ -1357,12 +1358,12 @@ describe("update-cli script-shim takeover", () => {
 			renameSpy.mockRestore();
 		}
 
-		expect(await Bun.file(path.join(dir, "omp.exe")).text()).toBe(exe);
-		expect(await Bun.file(path.join(dir, "omp")).exists()).toBe(false);
-		expect(await Bun.file(path.join(dir, "omp.cmd")).exists()).toBe(false);
+		expect(await fsx.readText(path.join(dir, "omp.exe"))).toBe(exe);
+		expect(await fsx.exists(path.join(dir, "omp"))).toBe(false);
+		expect(await fsx.exists(path.join(dir, "omp.cmd"))).toBe(false);
 		// PowerShell resolves .ps1 before .exe: the locked shim must now exec
 		// the new binary instead of keeping its old body.
-		expect(await Bun.file(path.join(dir, "omp.ps1")).text()).toContain('& "$PSScriptRoot\\omp.exe" @args');
+		expect(await fsx.readText(path.join(dir, "omp.ps1"))).toContain('& "$PSScriptRoot\\omp.exe" @args');
 	});
 
 	it("restores a forwarded shim's original body when verification fails", async () => {
@@ -1382,9 +1383,9 @@ describe("update-cli script-shim takeover", () => {
 			renameSpy.mockRestore();
 		}
 
-		expect(await Bun.file(path.join(dir, "omp.exe")).exists()).toBe(false);
+		expect(await fsx.exists(path.join(dir, "omp.exe"))).toBe(false);
 		for (const name in shims) {
-			expect(await Bun.file(path.join(dir, name)).text()).toBe(shims[name]);
+			expect(await fsx.readText(path.join(dir, name))).toBe(shims[name]);
 		}
 	});
 });
@@ -1468,7 +1469,7 @@ describe("update-cli concurrent binary updates", () => {
 		letAFinish.resolve();
 		await runA;
 
-		expect(await Bun.file(targetPath).bytes()).toEqual(new Uint8Array(payload));
+		expect(await fsx.readBytes(targetPath)).toEqual(new Uint8Array(payload));
 		const residue = (await fs.readdir(dir)).filter(name => name.endsWith(".new"));
 		expect(residue).toEqual([]);
 	});
@@ -1503,7 +1504,7 @@ describe("update-cli concurrent binary updates", () => {
 		await expect(runA).rejects.toThrow(/still reports 0\.0\.0 \(expected 999\.0\.0\)/);
 		await runB;
 
-		expect(await Bun.file(targetPath).bytes()).toEqual(new Uint8Array(payload));
+		expect(await fsx.readBytes(targetPath)).toEqual(new Uint8Array(payload));
 		const residue = (await fs.readdir(dir)).filter(name => name.endsWith(".bak") || name.endsWith(".new"));
 		expect(residue).toEqual([]);
 	});

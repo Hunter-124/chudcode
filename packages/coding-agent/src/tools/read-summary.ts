@@ -1,5 +1,6 @@
 import * as path from "node:path";
 import { type SummaryResult, summarizeCode } from "@oh-my-pi/pi-natives";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import { LRUCache } from "@oh-my-pi/pi-utils/lru";
 import { isMarkdownPath } from "../modes/theme/theme";
 import type { ToolSession } from "../sdk";
@@ -70,7 +71,7 @@ export async function trySummarize(
 	try {
 		throwIfAborted(signal);
 		const bridgePromise = routeReadThroughBridge(session, absolutePath);
-		const readDisk = async () => diskText ?? (await Bun.file(absolutePath).text());
+		const readDisk = async () => diskText ?? (await fsx.readText(absolutePath));
 		const code = bridgePromise !== undefined ? await bridgePromise.catch(readDisk) : await readDisk();
 		throwIfAborted(signal);
 		const lineCount = countTextLines(code);

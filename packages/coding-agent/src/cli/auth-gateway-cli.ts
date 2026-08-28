@@ -34,6 +34,7 @@ import { DEFAULT_AUTH_GATEWAY_BIND, startAuthGateway } from "@oh-my-pi/pi-ai/aut
 import { type GeneratedProvider, getBundledModels } from "@oh-my-pi/pi-catalog/models";
 import { getConfigRootDir, isEnoent, logger, VERSION } from "@oh-my-pi/pi-utils";
 import chalk from "@oh-my-pi/pi-utils/chalk";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import { ModelRegistry } from "../config/model-registry";
 import { type AuthBrokerClientConfig, resolveAuthBrokerConfig } from "../session/auth-broker-config";
 
@@ -70,7 +71,7 @@ function getTokenFilePath(): string {
 
 async function readToken(): Promise<string | null> {
 	try {
-		const raw = await Bun.file(getTokenFilePath()).text();
+		const raw = await fsx.readText(getTokenFilePath());
 		const trimmed = raw.trim();
 		return trimmed.length > 0 ? trimmed : null;
 	} catch (err) {

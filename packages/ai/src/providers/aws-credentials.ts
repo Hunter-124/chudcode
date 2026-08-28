@@ -19,6 +19,7 @@ import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 import { $env, isEnoent, logger } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import * as AIError from "../error";
 import type { FetchImpl } from "../types";
 import { raceWithSignal } from "../utils/abort";
@@ -761,7 +762,7 @@ async function assumeRoleWithWebIdentity(
 ): Promise<ResolvedCredentials> {
 	let token: string;
 	try {
-		token = (await Bun.file(params.tokenFile).text()).trim();
+		token = (await fsx.readText(params.tokenFile)).trim();
 	} catch (err) {
 		throw new AIError.AwsCredentialsError(
 			`Unable to read AWS web identity token file: ${String(err)}`,
@@ -845,7 +846,7 @@ async function readContainerCredentials(
 	const authorizationTokenFile = $env.AWS_CONTAINER_AUTHORIZATION_TOKEN_FILE;
 	if (!authorization && authorizationTokenFile) {
 		try {
-			authorization = (await Bun.file(authorizationTokenFile).text()).trim();
+			authorization = (await fsx.readText(authorizationTokenFile)).trim();
 		} catch (err) {
 			throw new AIError.AwsCredentialsError(
 				`Unable to read AWS container authorization token file: ${String(err)}`,

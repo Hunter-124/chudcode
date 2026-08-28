@@ -11,6 +11,7 @@ import {
 	setProfile,
 } from "@oh-my-pi/pi-utils/dirs";
 import { Snowflake } from "@oh-my-pi/pi-utils/snowflake";
+import * as fsx from "../src/fsx";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -91,7 +92,7 @@ describe("getInstallId", () => {
 			const profileRoot = getConfigRootDir();
 			expect(profileRoot).not.toBe(path.dirname(baseFile));
 			expect(getInstallId()).toBe(baseId);
-			expect(await Bun.file(path.join(profileRoot, "install-id")).exists()).toBe(false);
+			expect(await fsx.exists(path.join(profileRoot, "install-id"))).toBe(false);
 		} finally {
 			setProfile(undefined);
 		}

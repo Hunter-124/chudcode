@@ -2,6 +2,7 @@ import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { type } from "@oh-my-pi/omptype";
 import { isEnoent, logger } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import { YAML } from "bun";
 import { expandAtImports } from "../discovery/at-imports";
 import { BUILTIN_TOOL_NAMES, normalizeToolNames } from "../tools/builtin-names";
@@ -222,7 +223,7 @@ export async function resolveAdvisorConfigEditPath(
 	const dir = scope === "user" ? dirs.agentDir : dirs.projectDir;
 	const yml = path.join(dir, "WATCHDOG.yml");
 	const yaml = path.join(dir, "WATCHDOG.yaml");
-	if (!(await Bun.file(yml).exists()) && (await Bun.file(yaml).exists())) return yaml;
+	if (!(await fsx.exists(yml)) && (await fsx.exists(yaml))) return yaml;
 	return yml;
 }
 
@@ -234,7 +235,7 @@ export async function resolveAdvisorConfigEditPath(
 export async function loadWatchdogConfigFile(filePath: string): Promise<WatchdogConfigDoc> {
 	let text: string;
 	try {
-		text = await Bun.file(filePath).text();
+		text = await fsx.readText(filePath);
 	} catch (err) {
 		if (!isEnoent(err))
 			logger.warn("Advisor config: failed to read for edit", { path: filePath, error: String(err) });

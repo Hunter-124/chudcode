@@ -21,6 +21,7 @@ import { ToolChoiceQueue } from "@oh-my-pi/pi-coding-agent/session/tool-choice-q
 import { createTools, type ToolSession } from "@oh-my-pi/pi-coding-agent/tools";
 import type { Text } from "@oh-my-pi/pi-tui";
 import { removeWithRetries } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import { grepToolRenderer } from "../../src/tools/grep";
 
 function createTestSession(cwd: string, overrides: Partial<ToolSession> = {}): ToolSession {
@@ -514,7 +515,7 @@ describe("tool path arrays", () => {
 
 		expect(text).toContain("Successfully wrote 8 bytes to written.txt");
 		expect(text).not.toContain(tmp);
-		expect(await Bun.file(absoluteTarget).text()).toBe("written\n");
+		expect(await fsx.readText(absoluteTarget)).toBe("written\n");
 		await removeWithRetries(tmp);
 	});
 
@@ -683,12 +684,12 @@ describe("tool path arrays", () => {
 		if (!invoker) throw new Error("Expected pending resolve invoker");
 		await invoker({ action: "apply", reason: "apply multi-path ast edit" });
 
-		expect(await Bun.file(path.join(tmp, "apps", "ast.ts")).text()).toContain("modernWrap(appsValue, appsArg)");
-		expect(await Bun.file(path.join(tmp, "packages", "ast.ts")).text()).toContain(
+		expect(await fsx.readText(path.join(tmp, "apps", "ast.ts"))).toContain("modernWrap(appsValue, appsArg)");
+		expect(await fsx.readText(path.join(tmp, "packages", "ast.ts"))).toContain(
 			"modernWrap(packagesValue, packagesArg)",
 		);
-		expect(await Bun.file(path.join(tmp, "phases", "ast.ts")).text()).toContain("modernWrap(phasesValue, phasesArg)");
-		expect(await Bun.file(path.join(tmp, "other", "ast.ts")).text()).toContain("legacyWrap(otherValue, otherArg)");
+		expect(await fsx.readText(path.join(tmp, "phases", "ast.ts"))).toContain("modernWrap(phasesValue, phasesArg)");
+		expect(await fsx.readText(path.join(tmp, "other", "ast.ts"))).toContain("legacyWrap(otherValue, otherArg)");
 		await removeWithRetries(tmp);
 	});
 

@@ -3,6 +3,7 @@ export { truncate } from "@oh-my-pi/pi-utils";
 import * as fs from "node:fs/promises";
 import path from "node:path";
 import { isEnoent } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import { type Theme, theme } from "../modes/theme/theme";
 import { formatGroupedFiles } from "../tools/grouped-file-output";
 import { formatPathRelativeToCwd, resolveToCwd } from "../tools/path-utils";
@@ -695,7 +696,7 @@ function parseSymbolSpec(spec: string): { symbol: string; occurrence: number } {
 export async function resolveSymbolColumn(filePath: string, line: number, symbolSpec?: string): Promise<number> {
 	const lineNumber = Math.max(1, line);
 	try {
-		const fileText = await Bun.file(filePath).text();
+		const fileText = await fsx.readText(filePath);
 		const lines = fileText.split("\n");
 		const targetLine = lines[lineNumber - 1] ?? "";
 		if (!symbolSpec) {
@@ -726,7 +727,7 @@ export async function readLocationContext(filePath: string, line: number, contex
 	const targetLine = Math.max(1, line);
 	const surrounding = Math.max(0, contextLines);
 	try {
-		const fileText = await Bun.file(filePath).text();
+		const fileText = await fsx.readText(filePath);
 		const lines = fileText.split("\n");
 		if (lines.length === 0) return [];
 

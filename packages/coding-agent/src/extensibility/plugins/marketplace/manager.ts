@@ -11,10 +11,10 @@ import * as os from "node:os";
 import * as path from "node:path";
 
 import { isEnoent, logger, pathIsWithin } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import { expandTilde } from "../../../tools/path-utils";
 import { normalizePluginRuntimeConfig } from "../runtime-config";
 import type { PluginRuntimeConfig } from "../types";
-
 import { cachePlugin } from "./cache";
 import { classifySource, fetchMarketplace, parseMarketplaceCatalog, promoteCloneToCache } from "./fetcher";
 import {
@@ -378,7 +378,7 @@ export class MarketplaceManager {
 			if (!pathIsWithin(cachePath, sourcePath)) {
 				throw new Error(`Plugin "${entry.name}" lspServers path escapes the plugin directory`);
 			}
-			const content = await Bun.file(sourcePath).text();
+			const content = await fsx.readText(sourcePath);
 			await Bun.write(targetPath, content);
 			return;
 		}
@@ -398,7 +398,7 @@ export class MarketplaceManager {
 			const extension = path.extname(sourcePath).toLowerCase();
 			const targetFilename = extension === ".yaml" || extension === ".yml" ? `.dap${extension}` : ".dap.json";
 			const targetPath = path.join(cachePath, targetFilename);
-			const content = await Bun.file(sourcePath).text();
+			const content = await fsx.readText(sourcePath);
 			await Bun.write(targetPath, content);
 			return;
 		}
@@ -897,7 +897,7 @@ export class MarketplaceManager {
 	async #readCatalog(entry: MarketplaceRegistryEntry): Promise<MarketplaceCatalog> {
 		const catalogPath = path.resolve(expandTilde(entry.catalogPath));
 		try {
-			const content = await Bun.file(catalogPath).text();
+			const content = await fsx.readText(catalogPath);
 			return parseMarketplaceCatalog(content, catalogPath);
 		} catch (err) {
 			if (isEnoent(err)) {

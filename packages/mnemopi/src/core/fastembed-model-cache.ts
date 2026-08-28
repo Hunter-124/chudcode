@@ -1,4 +1,5 @@
 import * as path from "node:path";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 
 const FASTEMBED_MODEL_SIDECARS = [
 	"config.json",
@@ -25,7 +26,7 @@ export async function ensureFastembedModelSidecars(model: string, cacheDir = "lo
 	const modelDir = path.join(cacheDir, model);
 	for (const fileName of FASTEMBED_MODEL_SIDECARS) {
 		const target = path.join(modelDir, fileName);
-		if (await Bun.file(target).exists()) continue;
+		if (await fsx.exists(target)) continue;
 
 		const response = await fetch(`https://huggingface.co/${repo}/resolve/main/${fileName}`);
 		if (!response.ok) {

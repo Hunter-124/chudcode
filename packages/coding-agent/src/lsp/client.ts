@@ -1,6 +1,7 @@
 import * as path from "node:path";
 import { isEnoent, logger, postmortem, ptree, stableStringifyJson, untilAborted } from "@oh-my-pi/pi-utils";
 import { sleep } from "@oh-my-pi/pi-utils/async";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import { MessageFramer } from "../jsonrpc/message-framing";
 import { ToolAbortError, throwIfAborted } from "../tools/tool-errors";
 import { applyWorkspaceEdit, type ExecutedWorkspaceChange } from "./edits";
@@ -1201,7 +1202,7 @@ export async function ensureFileOpen(client: LspClient, filePath: string, signal
 
 		let content: string;
 		try {
-			content = await Bun.file(filePath).text();
+			content = await fsx.readText(filePath);
 			throwIfAborted(signal);
 		} catch (err) {
 			if (isEnoent(err)) return;
@@ -1430,7 +1431,7 @@ export async function refreshFile(client: LspClient, filePath: string, signal?: 
 
 		let content: string;
 		try {
-			content = await Bun.file(filePath).text();
+			content = await fsx.readText(filePath);
 			throwIfAborted(signal);
 		} catch (err) {
 			if (isEnoent(err)) return;

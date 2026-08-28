@@ -10,6 +10,7 @@ import * as path from "node:path";
 import { type } from "@oh-my-pi/omptype";
 import type { AgentToolResult } from "@oh-my-pi/pi-agent-core";
 import { isEnoent } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import {
 	type FileDiagnosticsResult,
 	flushLspWritethroughBatch,
@@ -140,7 +141,7 @@ async function mkdirAllowingFallback(dir: string): Promise<void> {
 /** Default filesystem implementation using Bun APIs */
 export const defaultFileSystem: FileSystem = {
 	async exists(path: string): Promise<boolean> {
-		return Bun.file(path).exists();
+		return fsx.exists(path);
 	},
 	async read(path: string): Promise<string> {
 		return readEditFileText(path, path);

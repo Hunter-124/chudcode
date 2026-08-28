@@ -1,5 +1,6 @@
 import { describe, expect, it } from "bun:test";
 import * as path from "node:path";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import { TempDir } from "@oh-my-pi/pi-utils/temp";
 import { createHelpers, type HelperContext } from "../../src/eval/js/shared/helpers";
 
@@ -27,12 +28,12 @@ describe("eval js helpers internal-url resolution", () => {
 
 		const written = await helpers.writeFile("local://notes/merge-map.md", "hello");
 		expect(written).toBe(path.join(root, "notes", "merge-map.md"));
-		expect(await Bun.file(written).text()).toBe("hello");
+		expect(await fsx.readText(written)).toBe("hello");
 		expect(await helpers.read("local://notes/merge-map.md")).toBe("hello");
 
 		// Regression: no literal `local:` directory created under the cwd.
-		expect(await Bun.file(path.join(tmp.path(), "local:")).exists()).toBe(false);
-		expect(await Bun.file(path.join(tmp.path(), "local:", "notes", "merge-map.md")).exists()).toBe(false);
+		expect(await fsx.exists(path.join(tmp.path(), "local:"))).toBe(false);
+		expect(await fsx.exists(path.join(tmp.path(), "local:", "notes", "merge-map.md"))).toBe(false);
 	});
 
 	it("rejects traversal and schemes without an injected root", async () => {

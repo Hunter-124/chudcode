@@ -15,6 +15,7 @@ import {
 import { ReadTool } from "@oh-my-pi/pi-coding-agent/tools/read";
 import { GrepOutputMode } from "@oh-my-pi/pi-natives";
 import { removeWithRetries } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import { runGrepCommand } from "../../src/cli/grep-cli";
 import { initTheme } from "../../src/modes/theme/theme";
 import { GrepTool } from "../../src/tools/grep";
@@ -441,7 +442,7 @@ describe("leading-colon path recovery (issue #5508)", () => {
 
 		expect(result.isError).toBeFalsy();
 		expect(getText(result)).not.toMatch(/not found/i);
-		expect(await Bun.file(abs).text()).toBe("replaced\nsecond\n");
+		expect(await fsx.readText(abs)).toBe("replaced\nsecond\n");
 	});
 });
 

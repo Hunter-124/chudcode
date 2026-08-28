@@ -20,6 +20,7 @@ import { initializeWithSettings, reset as resetDiscoveryCache } from "@oh-my-pi/
 import { readMCPConfigFile, setMcpServerEnabled, setServerDisabled } from "@oh-my-pi/pi-coding-agent/mcp/config-writer";
 import { loadAllExtensions } from "@oh-my-pi/pi-coding-agent/modes/components/extensions/state-manager";
 import { __resetDirsFromEnvForTests, getMCPConfigPath, removeWithRetries, setAgentDir } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 
 describe("loadAllExtensions MCP parity with /mcp list (issue #3827)", () => {
 	let projectDir = "";
@@ -255,7 +256,7 @@ describe("loadAllExtensions MCP parity with /mcp list (issue #3827)", () => {
 		});
 
 		// opencode.json MUST stay untouched.
-		const opencodeRaw = JSON.parse(await Bun.file(opencodePath).text()) as {
+		const opencodeRaw = JSON.parse(await fsx.readText(opencodePath)) as {
 			mcp: { "opencode-server": { enabled: boolean } };
 		};
 		expect(opencodeRaw.mcp["opencode-server"].enabled).toBe(false);

@@ -1,6 +1,7 @@
 import * as path from "node:path";
 import { createInterface } from "node:readline/promises";
 import { $env, getProjectDir, isEnoent, prompt } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import { applyChangelogProposals } from "../../commit/changelog";
 import { detectChangelogBoundaries } from "../../commit/changelog/detect";
 import { parseUnreleasedSection } from "../../commit/changelog/parse";
@@ -391,7 +392,7 @@ async function loadExistingChangelogEntries(paths: string[]): Promise<ExistingCh
 		paths.map(async path => {
 			let content: string;
 			try {
-				content = await Bun.file(path).text();
+				content = await fsx.readText(path);
 			} catch (err) {
 				if (isEnoent(err)) return null;
 				throw err;

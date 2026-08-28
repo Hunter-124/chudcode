@@ -2,6 +2,7 @@ import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { $which, isRecord, ptree, sanitizeText } from "@oh-my-pi/pi-utils";
 import { sleep } from "@oh-my-pi/pi-utils/async";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import * as git from "../utils/git";
 import { CLEANSE_PARSER_KINDS, type CleanseParserKind, parseCleanseDiagnostics } from "./parsers";
 import type { CleanseCheckResult, CleanseDiagnostic, CleanseDiagnosticReport, SkippedCleanseCheck } from "./types";
@@ -244,7 +245,7 @@ export async function buildCustomCleanseSuite(
 		let executable: string | undefined;
 		if (/[\\/]/.test(binary)) {
 			const candidate = path.resolve(resolvedCwd, root, binary);
-			executable = (await Bun.file(candidate).exists()) ? candidate : undefined;
+			executable = (await fsx.exists(candidate)) ? candidate : undefined;
 		} else {
 			executable = resolveBinary(resolvedCwd, root, [binary]);
 		}
@@ -610,12 +611,7 @@ async function discoverPython(state: DiscoveryState): Promise<void> {
 	const pyprojectContent = new Map<string, string>();
 	for (const root of pyprojectRoots) {
 		const file = root === "." ? "pyproject.toml" : `${root}/pyproject.toml`;
-		pyprojectContent.set(
-			root,
-			await Bun.file(path.resolve(state.projectCwd, file))
-				.text()
-				.catch(() => ""),
-		);
+		pyprojectContent.set(root, await fsx.readText(path.resolve(state.projectCwd, file)).catch(() => ""));
 	}
 	const withSection = (section: string): string[] =>
 		pyprojectRoots.filter(root => pyprojectContent.get(root)?.includes(section) === true);

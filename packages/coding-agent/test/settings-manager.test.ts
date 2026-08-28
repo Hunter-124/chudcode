@@ -26,6 +26,7 @@ import { SEARCH_PROVIDER_ORDER } from "@oh-my-pi/pi-coding-agent/web/search/type
 import { getProjectAgentDir, isRecord, TempDir } from "@oh-my-pi/pi-utils";
 import { sleep } from "@oh-my-pi/pi-utils/async";
 import * as fileLock from "@oh-my-pi/pi-utils/file-lock";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import { YAML } from "bun";
 import { beginSettingsTest, restoreSettingsTestState, type SettingsTestState } from "./helpers/settings-test-state";
 
@@ -101,9 +102,9 @@ describe("Settings", () => {
 			settings.set("setupVersion", 2);
 			await settings.flush();
 
-			const savedSettings = YAML.parse(await Bun.file(yamlConfigPath).text()) as Record<string, unknown>;
+			const savedSettings = YAML.parse(await fsx.readText(yamlConfigPath)) as Record<string, unknown>;
 			expect(savedSettings.setupVersion).toBe(2);
-			expect(await Bun.file(getConfigPath()).exists()).toBe(false);
+			expect(await fsx.exists(getConfigPath())).toBe(false);
 		});
 
 		it("clones the selected config.yaml path for persisted settings", async () => {
@@ -116,9 +117,9 @@ describe("Settings", () => {
 			cloned.set("setupVersion", 2);
 			await cloned.flush();
 
-			const savedSettings = YAML.parse(await Bun.file(yamlConfigPath).text()) as Record<string, unknown>;
+			const savedSettings = YAML.parse(await fsx.readText(yamlConfigPath)) as Record<string, unknown>;
 			expect(savedSettings.setupVersion).toBe(2);
-			expect(await Bun.file(getConfigPath()).exists()).toBe(false);
+			expect(await fsx.exists(getConfigPath())).toBe(false);
 		});
 
 		it("creates config.yml for new persisted settings when no main config exists", async () => {
@@ -128,8 +129,8 @@ describe("Settings", () => {
 			settings.set("setupVersion", 1);
 			await settings.flush();
 
-			expect(await Bun.file(getConfigPath()).exists()).toBe(true);
-			expect(await Bun.file(yamlConfigPath).exists()).toBe(false);
+			expect(await fsx.exists(getConfigPath())).toBe(true);
+			expect(await fsx.exists(yamlConfigPath)).toBe(false);
 			expect((await readSettings()).setupVersion).toBe(1);
 		});
 
@@ -147,7 +148,7 @@ describe("Settings", () => {
 			settings.set("theme.dark", "titanium");
 			await settings.flush();
 
-			const content = await Bun.file(getConfigPath()).text();
+			const content = await fsx.readText(getConfigPath());
 			expect(content).not.toMatch(/: +$/m);
 			expect(YAML.parse(content)).toEqual({ custom, theme: { dark: "titanium" } });
 		});
@@ -200,10 +201,10 @@ describe("Settings", () => {
 
 			await expect(Settings.init({ cwd: projectDir, agentDir })).rejects.toThrow("Settings config is invalid");
 
-			expect(await Bun.file(configPath).exists()).toBe(false);
+			expect(await fsx.exists(configPath)).toBe(false);
 			const backupNames = fs.readdirSync(agentDir).filter(name => name.startsWith("config.yml.broken-"));
 			expect(backupNames).toHaveLength(1);
-			expect(await Bun.file(path.join(agentDir, backupNames[0])).text()).toBe(original);
+			expect(await fsx.readText(path.join(agentDir, backupNames[0]))).toBe(original);
 		});
 
 		it("rejects when another process quarantines malformed config before the lock is acquired", async () => {
@@ -227,8 +228,8 @@ describe("Settings", () => {
 			);
 
 			expect(movedAside).toBe(true);
-			expect(await Bun.file(configPath).exists()).toBe(false);
-			expect(await Bun.file(backupPath).text()).toBe(original);
+			expect(await fsx.exists(configPath)).toBe(false);
+			expect(await fsx.readText(backupPath)).toBe(original);
 		});
 
 		it("keeps malformed config in place for read-only loads", async () => {
@@ -240,7 +241,7 @@ describe("Settings", () => {
 				"Settings config is invalid",
 			);
 
-			expect(await Bun.file(configPath).text()).toBe(original);
+			expect(await fsx.readText(configPath)).toBe(original);
 			expect(fs.readdirSync(agentDir).filter(name => name.startsWith("config.yml.broken-"))).toEqual([]);
 		});
 
@@ -256,11 +257,11 @@ describe("Settings", () => {
 			settings.set("theme.dark", "anthracite");
 			await expect(settings.flush()).rejects.toThrow("Settings config is invalid");
 
-			expect(await Bun.file(getConfigPath()).exists()).toBe(false);
+			expect(await fsx.exists(getConfigPath())).toBe(false);
 			const backupNames = fs.readdirSync(agentDir).filter(name => name.startsWith("config.yml.broken-"));
 			expect(backupNames).toHaveLength(1);
 			const backupPath = path.join(agentDir, backupNames[0]);
-			expect(await Bun.file(backupPath).text()).toBe(corrupted);
+			expect(await fsx.readText(backupPath)).toBe(corrupted);
 
 			await settings.flush();
 			expect(await readSettings()).toEqual({
@@ -268,7 +269,7 @@ describe("Settings", () => {
 				modelRoles: { default: "keep/default" },
 				theme: { dark: "anthracite" },
 			});
-			expect(await Bun.file(backupPath).text()).toBe(corrupted);
+			expect(await fsx.readText(backupPath)).toBe(corrupted);
 			expect(fs.readdirSync(agentDir).some(name => name.endsWith(".tmp"))).toBe(false);
 			if (process.platform !== "win32") {
 				expect(fs.statSync(getConfigPath()).mode & 0o777).toBe(0o600);
@@ -289,20 +290,20 @@ describe("Settings", () => {
 			settings.setProjectModelRole("smol", "new/smol");
 			await expect(settings.flush()).rejects.toThrow("Settings config is invalid");
 
-			expect(await Bun.file(projectConfigPath).exists()).toBe(false);
+			expect(await fsx.exists(projectConfigPath)).toBe(false);
 			const projectAgentDir = path.dirname(projectConfigPath);
 			const backupNames = fs.readdirSync(projectAgentDir).filter(name => name.startsWith("config.yml.broken-"));
 			expect(backupNames).toHaveLength(1);
 			const backupPath = path.join(projectAgentDir, backupNames[0]);
-			expect(await Bun.file(backupPath).text()).toBe(corrupted);
+			expect(await fsx.readText(backupPath)).toBe(corrupted);
 
 			await settings.flush();
-			const saved = YAML.parse(await Bun.file(projectConfigPath).text()) as Record<string, unknown>;
+			const saved = YAML.parse(await fsx.readText(projectConfigPath)) as Record<string, unknown>;
 			expect(saved).toEqual({
 				modelRoles: { default: "keep/default", smol: "new/smol" },
 				custom: { keep: true },
 			});
-			expect(await Bun.file(backupPath).text()).toBe(corrupted);
+			expect(await fsx.readText(backupPath)).toBe(corrupted);
 		});
 
 		it("preserves a symlinked main config while atomically updating its target", async () => {
@@ -315,7 +316,7 @@ describe("Settings", () => {
 			await settings.flush();
 
 			expect(fs.lstatSync(getConfigPath()).isSymbolicLink()).toBe(true);
-			expect(YAML.parse(await Bun.file(managedConfigPath).text())).toEqual({ setupVersion: 2 });
+			expect(YAML.parse(await fsx.readText(managedConfigPath))).toEqual({ setupVersion: 2 });
 		});
 
 		it("falls back to move-aside replacement when Windows reports EPERM", async () => {
@@ -358,7 +359,7 @@ describe("Settings", () => {
 			await expect(settings.flush()).rejects.toThrow("Failed to read settings config");
 			readSpy.mockRestore();
 
-			expect(await Bun.file(getConfigPath()).text()).toBe(original);
+			expect(await fsx.readText(getConfigPath())).toBe(original);
 			expect(fs.readdirSync(agentDir).some(name => name.startsWith("config.yml.broken-"))).toBe(false);
 			await settings.flush();
 			expect(await readSettings()).toEqual({
@@ -381,12 +382,12 @@ describe("Settings", () => {
 			await expect(settings.flush()).rejects.toThrow("Failed to read settings config");
 			readSpy.mockRestore();
 
-			expect(await Bun.file(projectConfigPath).text()).toBe(original);
+			expect(await fsx.readText(projectConfigPath)).toBe(original);
 			expect(
 				fs.readdirSync(path.dirname(projectConfigPath)).some(name => name.startsWith("config.yml.broken-")),
 			).toBe(false);
 			await settings.flush();
-			expect(YAML.parse(await Bun.file(projectConfigPath).text())).toEqual({
+			expect(YAML.parse(await fsx.readText(projectConfigPath))).toEqual({
 				modelRoles: { default: "keep/default", smol: "new/smol" },
 				custom: { keep: true },
 			});
@@ -437,8 +438,8 @@ describe("Settings", () => {
 
 			await expect(settings.reloadFromDisk()).rejects.toThrow("Settings config is invalid");
 
-			expect(await Bun.file(getConfigPath()).text()).toBe(malformedGlobal);
-			expect(await Bun.file(projectConfigPath).text()).toBe(malformedProject);
+			expect(await fsx.readText(getConfigPath())).toBe(malformedGlobal);
+			expect(await fsx.readText(projectConfigPath)).toBe(malformedProject);
 			expect(fs.readdirSync(agentDir).some(name => name.startsWith("config.yml.broken-"))).toBe(false);
 			expect(
 				fs.readdirSync(path.dirname(projectConfigPath)).some(name => name.startsWith("config.yml.broken-")),
@@ -1141,7 +1142,7 @@ describe("Settings", () => {
 			);
 			await settings.flush();
 
-			const onDisk: unknown = YAML.parse(await Bun.file(getProjectConfigPath()).text());
+			const onDisk: unknown = YAML.parse(await fsx.readText(getProjectConfigPath()));
 			if (!isRecord(onDisk)) throw new Error("Expected project config object");
 			if (!isRecord(onDisk.modelSettings)) throw new Error("Expected project model settings object");
 			const onDiskModelSettings = onDisk.modelSettings;
@@ -1214,7 +1215,7 @@ describe("Settings", () => {
 			await settings.flush();
 
 			const global = await readSettings();
-			const project = YAML.parse(await Bun.file(getProjectConfigPath()).text()) as Record<string, unknown>;
+			const project = YAML.parse(await fsx.readText(getProjectConfigPath())) as Record<string, unknown>;
 			for (const saved of [global, project]) {
 				expect(saved.modelSettings).toEqual({
 					roles: { task: { cacheRetention: "none" } },
@@ -1247,7 +1248,7 @@ describe("Settings", () => {
 			const settings = await Settings.loadIsolated({ cwd: projectDir, agentDir });
 			settings.setModelSettingsField("project", { kind: "model", model: profileModelKey }, "cacheRetention", null);
 			await settings.flush();
-			let onDisk = YAML.parse(await Bun.file(getProjectConfigPath()).text()) as Record<string, unknown>;
+			let onDisk = YAML.parse(await fsx.readText(getProjectConfigPath())) as Record<string, unknown>;
 			expect(onDisk.modelSettings).toEqual({
 				roles: { task: { cacheRetention: "short" } },
 				models: { [profileModelKey]: { thinking: Effort.Low, cacheRetention: null } },
@@ -1263,7 +1264,7 @@ describe("Settings", () => {
 
 			settings.resetModelSettingsField("project", { kind: "model", model: profileModelKey }, "cacheRetention");
 			await settings.flush();
-			onDisk = YAML.parse(await Bun.file(getProjectConfigPath()).text()) as Record<string, unknown>;
+			onDisk = YAML.parse(await fsx.readText(getProjectConfigPath())) as Record<string, unknown>;
 			expect(onDisk.modelSettings).toEqual({
 				roles: { task: { cacheRetention: "short" } },
 				models: { [profileModelKey]: { thinking: Effort.Low } },
@@ -1272,7 +1273,7 @@ describe("Settings", () => {
 			settings.resetModelSettingsField("project", { kind: "model", model: profileModelKey }, "thinking");
 			settings.resetModelSettingsField("project", { kind: "role", role: "task" }, "cacheRetention");
 			await settings.flush();
-			onDisk = YAML.parse(await Bun.file(getProjectConfigPath()).text()) as Record<string, unknown>;
+			onDisk = YAML.parse(await fsx.readText(getProjectConfigPath())) as Record<string, unknown>;
 			expect(onDisk).toEqual({ custom: { keep: true } });
 
 			const reloaded = await Settings.loadIsolated({ cwd: projectDir, agentDir });

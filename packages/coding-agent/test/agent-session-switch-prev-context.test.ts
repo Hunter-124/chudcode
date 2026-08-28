@@ -10,6 +10,7 @@ import { AuthStorage } from "@oh-my-pi/pi-coding-agent/session/auth-storage";
 import type { BuildSessionContextOptions, SessionContext } from "@oh-my-pi/pi-coding-agent/session/session-context";
 import { SessionManager } from "@oh-my-pi/pi-coding-agent/session/session-manager";
 import { TempDir } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 
 /**
  * Regression for issue #3846: in-TUI `/resume` rebuilt the *previous*
@@ -240,7 +241,7 @@ describe("AgentSession.switchSession previous-context build", () => {
 		expect(sessionManager.getCwd()).toBe(sourceDir.path());
 		expect(sessionManager.getRecordedCwd()).toBe(targetDir.path());
 		await sessionManager.addWorkspaceDirectory(extraDir.path());
-		expect(await Bun.file(targetSessionFile!).text()).not.toContain(extraDir.path());
+		expect(await fsx.readText(targetSessionFile!)).not.toContain(extraDir.path());
 	});
 
 	it("fails closed when cwd rollback throws after changing it", async () => {

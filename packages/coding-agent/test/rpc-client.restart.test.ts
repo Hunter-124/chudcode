@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import * as path from "node:path";
 import { RpcClient } from "@oh-my-pi/pi-coding-agent/modes/rpc/rpc-client";
 import { TempDir } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 
 const MOCK_AGENT = path.join(import.meta.dir, "fixtures", "mock-rpc-agent.ts");
 
@@ -105,13 +106,13 @@ describe("RpcClient lifecycle (issue #4079 B)", () => {
 		});
 
 		await client.start();
-		const firstPid = Number(await Bun.file(pidFile).text());
+		const firstPid = Number(await fsx.readText(pidFile));
 
 		const stopped = client.stop();
 		const restarted = client.start();
 		await Promise.all([stopped, restarted]);
 
-		const secondPid = Number(await Bun.file(pidFile).text());
+		const secondPid = Number(await fsx.readText(pidFile));
 		expect(secondPid).not.toBe(firstPid);
 		expect(isProcessAlive(firstPid)).toBe(false);
 		await client.stop();
@@ -169,7 +170,7 @@ describe("RpcClient lifecycle (issue #4079 B)", () => {
 		let pid = 0;
 		try {
 			await client.start();
-			pid = Number(await Bun.file(pidFile).text());
+			pid = Number(await fsx.readText(pidFile));
 
 			await expect(client.getState()).rejects.toThrow(/Agent output reader failed/);
 			await expect(client.getState()).rejects.toThrow("Client not started");

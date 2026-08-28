@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import { parseUnifiedDiff } from "../src/services/git-diff";
 import { GitGraphAdapter } from "../src/services/git-graph";
 import { GitCommandError, GitService } from "../src/services/git-service";
@@ -185,6 +186,6 @@ describe("GitService", () => {
 		await writeFile(join(repositoryRoot, hostile), "literal\n");
 		await git.stage([hostile]);
 		expect((await git.snapshot()).files.find(file => file.path === hostile)?.staged).toBe("added");
-		expect(await Bun.file(join(repositoryRoot, "INJECTED")).exists()).toBe(false);
+		expect(await fsx.exists(join(repositoryRoot, "INJECTED"))).toBe(false);
 	});
 });

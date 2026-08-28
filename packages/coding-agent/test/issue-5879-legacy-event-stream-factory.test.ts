@@ -2,6 +2,7 @@ import { describe, expect, it } from "bun:test";
 import * as path from "node:path";
 import { loadExtensions } from "@oh-my-pi/pi-coding-agent/extensibility/extensions/loader";
 import { __resetDirsFromEnvForTests, setAgentDir, TempDir } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 
 describe("issue #5879: legacy provider compatibility", () => {
 	it("creates a fresh agent database while loading historical auth exports", async () => {
@@ -35,7 +36,7 @@ describe("issue #5879: legacy provider compatibility", () => {
 
 			expect(result.errors).toEqual([]);
 			expect(result.extensions).toHaveLength(1);
-			expect(await Bun.file(path.join(freshAgentDir, "agent.db")).exists()).toBe(true);
+			expect(await fsx.exists(path.join(freshAgentDir, "agent.db"))).toBe(true);
 		} finally {
 			for (const key in originalDirEnv) {
 				const value = originalDirEnv[key];

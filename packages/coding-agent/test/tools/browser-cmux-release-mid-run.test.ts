@@ -42,6 +42,7 @@ import {
 	runInTab,
 } from "@oh-my-pi/pi-coding-agent/tools/browser/tab-supervisor";
 import type { ToolSession } from "@oh-my-pi/pi-coding-agent/tools/index";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import * as logger from "@oh-my-pi/pi-utils/logger";
 
 function makeKind(socketSuffix: string): CmuxKind {
@@ -494,7 +495,7 @@ describe("browser tab-supervisor — cmux tab close mid-run (#4499)", () => {
 		if (typeof savedPath !== "string") throw new Error("tab.screenshot() did not return a path");
 		expect(path.dirname(savedPath)).toBe(os.tmpdir());
 		expect(savedPath).not.toBe("/workspace/screenshots/daemon-owned.png");
-		expect(await Bun.file(savedPath).exists()).toBe(true);
+		expect(await fsx.exists(savedPath)).toBe(true);
 		await fs.rm(savedPath);
 	});
 
@@ -541,7 +542,7 @@ describe("browser tab-supervisor — cmux tab close mid-run (#4499)", () => {
 			expect(typeof savedPath).toBe("string");
 			if (typeof savedPath !== "string") throw new Error("tab.screenshot() did not return a path");
 			expect(path.dirname(savedPath)).toBe(screenshotDir);
-			expect(await Bun.file(savedPath).exists()).toBe(true);
+			expect(await fsx.exists(savedPath)).toBe(true);
 		} finally {
 			await fs.rm(screenshotDir, { recursive: true, force: true });
 		}

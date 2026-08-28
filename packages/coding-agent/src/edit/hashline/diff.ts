@@ -33,6 +33,7 @@ import {
 	stripBom,
 	validateClipboardSequence,
 } from "@oh-my-pi/hashline";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import { resolveToCwd } from "../../tools/path-utils";
 import { generateDiffString } from "../diff";
 import { canonicalSnapshotKey } from "../file-snapshot-store";
@@ -145,7 +146,7 @@ async function readSectionForPreview(
 	streaming: boolean | undefined,
 ): Promise<{ absolutePath: string; rawContent: string }> {
 	const read = streaming ? readSectionTextCached : readSectionText;
-	const recovered = (await Bun.file(authoredAbsolutePath).exists())
+	const recovered = (await fsx.exists(authoredAbsolutePath))
 		? undefined
 		: recoverSectionPathFromTag(section, authoredAbsolutePath, snapshots);
 	const target = recovered ?? authoredAbsolutePath;

@@ -13,6 +13,7 @@ import { AgentSession } from "@oh-my-pi/pi-coding-agent/session/agent-session";
 import type { AuthStorage } from "@oh-my-pi/pi-coding-agent/session/auth-storage";
 import { SessionManager } from "@oh-my-pi/pi-coding-agent/session/session-manager";
 import { TempDir } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import { createAssistantMessage, createInMemoryAuthStorage } from "./helpers/agent-session-setup";
 
 const bashResult = {
@@ -444,7 +445,7 @@ describe("AgentSession bash session ownership", () => {
 		additionalManagers.push(oldSession);
 		const artifactPath = await oldSession.getArtifactPath(artifactId!);
 		expect(artifactPath).not.toBeNull();
-		expect(await Bun.file(artifactPath!).text()).toBe("full old-session output");
+		expect(await fsx.readText(artifactPath!)).toBe("full old-session output");
 		expect(await session.sessionManager.getArtifactPath(artifactId!)).toBeNull();
 		expect(
 			oldSession

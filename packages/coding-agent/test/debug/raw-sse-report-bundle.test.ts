@@ -7,6 +7,7 @@ import { buildModel } from "@oh-my-pi/pi-catalog/build";
 import { RawSseDebugBuffer } from "@oh-my-pi/pi-coding-agent/debug/raw-sse-buffer";
 import { createReportBundle } from "@oh-my-pi/pi-coding-agent/debug/report-bundle";
 import { getConfigRootDir, removeWithRetries, setAgentDir } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 
 const model: Model<"anthropic-messages"> = buildModel({
 	id: "claude-test",
@@ -70,7 +71,7 @@ describe("raw SSE report bundle", () => {
 		const result = await createReportBundle({ sessionFile: undefined, rawSseText });
 
 		expect(result.files).toContain("raw-sse.txt");
-		const archive = new Bun.Archive(await Bun.file(result.path).bytes());
+		const archive = new Bun.Archive(await fsx.readBytes(result.path));
 		const files = await archive.files();
 		expect(await files.get("raw-sse.txt")?.text()).toBe(rawSseText);
 	});

@@ -2,6 +2,7 @@ import type { Stats } from "node:fs";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { getDocumentConversionCacheDir, isEnoent, logger } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import packageJson from "../../package.json" with { type: "json" };
 
 /**
@@ -55,7 +56,7 @@ export async function readMarkitConversionCache(key: string): Promise<MarkitConv
 	const target = cacheEntryPath(key);
 	let raw: string;
 	try {
-		raw = await Bun.file(target).text();
+		raw = await fsx.readText(target);
 	} catch (error) {
 		if (!isEnoent(error)) {
 			logger.debug("document conversion cache read failed", { error: errorMessage(error) });

@@ -24,6 +24,7 @@ import {
 	xdevEntries,
 } from "@oh-my-pi/pi-coding-agent/tools/xdev";
 import { removeWithRetries } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 
 // xdev mounting is default-on: discoverable tools like ast_edit unmount into
 // xd://, and a plain `write xd://ast_edit` dispatches them. These guard the
@@ -107,7 +108,7 @@ describe("read and write route xd:// device URLs", () => {
 			const invoker = queue.peekPendingInvoker();
 			expect(invoker).toBeDefined();
 			await invoker!({ action: "apply", reason: "apply xdev ast edit" });
-			expect(await Bun.file(filePath).text()).toContain("modernWrap(x, value)");
+			expect(await fsx.readText(filePath)).toContain("modernWrap(x, value)");
 		} finally {
 			await removeWithRetries(tempDir);
 		}
@@ -227,15 +228,15 @@ describe("read and write route xd:// device URLs", () => {
 					"Did you mean 'xd://web_search'?",
 				);
 			}
-			expect(await Bun.file(path.join(tempDir, "xdt:/web_search")).exists()).toBe(false);
-			expect(await Bun.file(path.join(tempDir, "xd/web_search")).exists()).toBe(false);
+			expect(await fsx.exists(path.join(tempDir, "xdt:/web_search"))).toBe(false);
+			expect(await fsx.exists(path.join(tempDir, "xd/web_search"))).toBe(false);
 
 			const escaped = await write!.execute("write-explicit-path", {
 				path: "./xd/web_search",
 				content: "intentional file",
 			});
 			expect(escaped.isError).toBeUndefined();
-			expect(await Bun.file(path.join(tempDir, "xd/web_search")).text()).toBe("intentional file");
+			expect(await fsx.readText(path.join(tempDir, "xd/web_search"))).toBe("intentional file");
 
 			// conflict:// has no router handler but is a documented write scheme —
 			// the guard must let it reach the conflict resolver, not reject it.
@@ -736,7 +737,7 @@ describe("device-only write transport for explicit lists omitting write", () => 
 			await expect(
 				write!.execute("write-pending-full-fs", { path: path.join(tempDir, "nope.txt"), content: "x" }),
 			).rejects.toThrow("Filesystem writes are not available");
-			expect(await Bun.file(path.join(tempDir, "nope.txt")).exists()).toBe(false);
+			expect(await fsx.exists(path.join(tempDir, "nope.txt"))).toBe(false);
 
 			session.pendingFullWriteDescription = undefined;
 			expect(write!.description).toBe(restrictedDescription);
@@ -797,7 +798,7 @@ describe("device-only write transport for explicit lists omitting write", () => 
 			const filePath = path.join(tempDir, "ok.txt");
 			const result = await write!.execute("write-full-grant", { path: filePath, content: "hello\n" });
 			expect(result.isError).toBeUndefined();
-			expect(await Bun.file(filePath).text()).toBe("hello\n");
+			expect(await fsx.readText(filePath)).toBe("hello\n");
 		} finally {
 			await removeWithRetries(tempDir);
 		}
@@ -816,7 +817,7 @@ describe("device-only write transport for explicit lists omitting write", () => 
 
 			const filePath = path.join(tempDir, "upgraded.txt");
 			await write!.execute("write-upgraded-grant", { path: filePath, content: "upgraded\n" });
-			expect(await Bun.file(filePath).text()).toBe("upgraded\n");
+			expect(await fsx.readText(filePath)).toBe("upgraded\n");
 		} finally {
 			await removeWithRetries(tempDir);
 		}

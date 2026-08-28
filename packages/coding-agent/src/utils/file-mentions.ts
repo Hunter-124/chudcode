@@ -16,6 +16,7 @@ import {
 import type { AgentMessage } from "@oh-my-pi/pi-agent-core";
 import type { ImageContent } from "@oh-my-pi/pi-ai";
 import { formatAge, formatBytes, isProbablyBinary, readImageMetadata } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import { canonicalSnapshotKey } from "../edit/file-snapshot-store";
 import { normalizeToLF } from "../edit/normalize";
 import type { FileMentionMessage } from "../session/messages";
@@ -272,7 +273,7 @@ export async function generateFileMentionMessages(
 				continue;
 			}
 
-			const content = await Bun.file(absolutePath).text();
+			const content = await fsx.readText(absolutePath);
 			const snapshotStore = options?.useHashLines ? options.snapshotStore : undefined;
 			const normalized = snapshotStore ? normalizeToLF(content) : content;
 			const displayText = snapshotStore ? splitAddressableFileLines(normalized).join("\n") : normalized;

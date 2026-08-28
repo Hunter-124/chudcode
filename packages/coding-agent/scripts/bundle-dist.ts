@@ -3,6 +3,7 @@
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { isEnoent } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import { buildDocsIndexPayload } from "./generate-docs-index";
 
 const packageDir = path.join(import.meta.dir, "..");
@@ -42,7 +43,7 @@ async function runCommand(command: string[]): Promise<void> {
 }
 
 async function ensureShebang(): Promise<void> {
-	const text = await Bun.file(cliPath).text();
+	const text = await fsx.readText(cliPath);
 	if (text.startsWith(shebang)) return;
 	const withoutExisting = text.startsWith("#!") ? text.slice(text.indexOf("\n") + 1) : text;
 	await Bun.write(cliPath, shebang + withoutExisting);

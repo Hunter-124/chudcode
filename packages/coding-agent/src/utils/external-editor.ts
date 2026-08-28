@@ -5,6 +5,7 @@ import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
 import { $env, $which, Snowflake } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 
 /**
  * Returns the user's preferred editor command, or a platform default.
@@ -80,7 +81,7 @@ export async function openInEditor(
 		});
 		const exitCode = await child.exited;
 		if (exitCode === 0) {
-			const text = await Bun.file(tmpFile).text();
+			const text = await fsx.readText(tmpFile);
 			if (options?.trimTrailingNewline === false) {
 				return text;
 			}

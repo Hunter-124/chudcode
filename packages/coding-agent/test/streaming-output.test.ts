@@ -18,6 +18,7 @@ import {
 } from "@oh-my-pi/pi-coding-agent/session/streaming-output";
 import { formatOutputNotice, outputMeta } from "@oh-my-pi/pi-coding-agent/tools/output-meta";
 import { removeWithRetries } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 
 const createdTempDirs: string[] = [];
 const originalForceProtocol = process.env.PI_FORCE_IMAGE_PROTOCOL;
@@ -290,7 +291,7 @@ describe("OutputSink", () => {
 		await sink.push("abc");
 		await sink.push("def");
 		const dumped = await sink.dump();
-		const artifactText = await Bun.file(artifactPath).text();
+		const artifactText = await fsx.readText(artifactPath);
 
 		expect(dumped.truncated).toBe(true);
 		expect(dumped.artifactId).toBe("artifact-1");
@@ -314,7 +315,7 @@ describe("OutputSink", () => {
 		sink.push("abc");
 		sink.push("defgh");
 		const dumped = await sink.dump();
-		const artifactText = await Bun.file(artifactPath).text();
+		const artifactText = await fsx.readText(artifactPath);
 
 		expect(dumped.truncated).toBe(true);
 		expect(artifactText).toBe("headabcdefgh");
@@ -393,7 +394,7 @@ describe("OutputSink", () => {
 		const payload = "0123456789ABCDEF".repeat(4); // 64 bytes
 		await sink.push(payload);
 		await sink.dump();
-		const artifactText = await Bun.file(artifactPath).text();
+		const artifactText = await fsx.readText(artifactPath);
 
 		expect(artifactText.startsWith("0123456789ABCDEF")).toBe(true);
 		expect(artifactText.endsWith("0123456789ABCDEF")).toBe(true);
@@ -420,7 +421,7 @@ describe("OutputSink", () => {
 		await sink.push("abcde");
 		await sink.push("fghij");
 		await sink.dump();
-		const artifactText = await Bun.file(artifactPath).text();
+		const artifactText = await fsx.readText(artifactPath);
 
 		expect(artifactText).toBe("abcdefghij");
 		expect(artifactText).not.toContain("[ARTIFACT TRUNCATED:");
@@ -445,7 +446,7 @@ describe("OutputSink", () => {
 		const payload = "0123456789ABCDEFghijklmn";
 		await sink.push(payload);
 		await sink.dump();
-		const artifactText = await Bun.file(artifactPath).text();
+		const artifactText = await fsx.readText(artifactPath);
 
 		expect(artifactText).toBe(payload);
 		expect(artifactText).not.toContain("[ARTIFACT TRUNCATED:");
@@ -467,7 +468,7 @@ describe("OutputSink", () => {
 			await sink.push(String(i % 10).repeat(4));
 		}
 		await sink.dump();
-		const artifactText = await Bun.file(artifactPath).text();
+		const artifactText = await fsx.readText(artifactPath);
 
 		expect(artifactText).toContain("[ARTIFACT TRUNCATED:");
 		const stripped = artifactText.replace(/\n?\[ARTIFACT TRUNCATED:[^\]]+\]\n?/g, "");
@@ -498,7 +499,7 @@ describe("OutputSink", () => {
 			await sink.push("abcd");
 		}
 		await sink.dump();
-		const artifactText = await Bun.file(artifactPath).text();
+		const artifactText = await fsx.readText(artifactPath);
 
 		expect(artifactText).toContain("[ARTIFACT TRUNCATED:");
 		const stripped = artifactText.replace(/\n?\[ARTIFACT TRUNCATED:[^\]]+\]\n?/g, "");
@@ -518,7 +519,7 @@ describe("OutputSink", () => {
 		const payload = "X".repeat(1024);
 		await sink.push(payload);
 		await sink.dump();
-		const artifactText = await Bun.file(artifactPath).text();
+		const artifactText = await fsx.readText(artifactPath);
 
 		expect(artifactText).toBe(payload);
 		expect(artifactText).not.toContain("[ARTIFACT TRUNCATED:");

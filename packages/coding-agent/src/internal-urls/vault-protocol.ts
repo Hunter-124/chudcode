@@ -1,6 +1,7 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { $which, isEnoent } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import { isSettingsInitialized, settings } from "../config/settings";
 import { getDefault } from "../config/settings-schema";
 import { isMarkdownPath } from "../utils/lang-from-path";
@@ -886,7 +887,7 @@ export class VaultProtocolHandler implements ProtocolHandler {
 			throw new Error(`vault:// URL must resolve to a file or directory: ${parsed.url}`);
 		}
 
-		const content = await Bun.file(realTargetPath).text();
+		const content = await fsx.readText(realTargetPath);
 		return {
 			url: parsed.url,
 			content,

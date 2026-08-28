@@ -16,6 +16,7 @@ import type { OAuthProvider } from "@oh-my-pi/pi-ai/oauth/types";
 import { getGitLabDuoModels } from "@oh-my-pi/pi-ai/providers/gitlab-duo";
 import { getProviderDefinition } from "@oh-my-pi/pi-ai/registry";
 import { $env } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import { buildModel } from "../src/build";
 import { ANTIGRAVITY_PRIMARY_ENDPOINT, fetchAntigravityDiscoveryModels } from "../src/discovery/antigravity";
 import { buildGitLabDuoWorkflowFallbackModel } from "../src/discovery/gitlab-duo-workflow";
@@ -722,7 +723,7 @@ async function generateModels() {
 	await Bun.write(path.join(packageRoot, "src/models.json"), JSON.stringify(MODELS, null, "	"));
 	const binaryPath = path.join(packageRoot, "src/models.bin");
 	await Bun.write(binaryPath, encodeModelCatalog(MODELS));
-	const binaryBytes = await Bun.file(binaryPath).bytes();
+	const binaryBytes = await fsx.readBytes(binaryPath);
 	const binarySha256 = new Bun.CryptoHasher("sha256").update(binaryBytes).digest("hex");
 	const generatedProviderType = Object.keys(MODELS)
 		.map(provider => JSON.stringify(provider))

@@ -5,6 +5,7 @@ import type { Model } from "@oh-my-pi/pi-ai/types";
 import { buildModel } from "@oh-my-pi/pi-catalog/build";
 import type { ModelSpec } from "@oh-my-pi/pi-catalog/types";
 import { isEnoent } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 
 export async function withEnv(
 	overrides: Record<string, string | undefined>,
@@ -97,7 +98,7 @@ async function readAuthGatewayE2EStatus(): Promise<AuthGatewayE2EStatus> {
 	if (!process.env.E2E) return { ok: false, reason: "E2E env not set" };
 	let token: string;
 	try {
-		token = (await Bun.file(AUTH_GATEWAY_TOKEN_PATH).text()).trim();
+		token = (await fsx.readText(AUTH_GATEWAY_TOKEN_PATH)).trim();
 	} catch (err) {
 		if (isEnoent(err)) return { ok: false, reason: `no token at ${AUTH_GATEWAY_TOKEN_PATH}` };
 		throw err;

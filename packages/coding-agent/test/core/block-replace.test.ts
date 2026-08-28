@@ -11,6 +11,7 @@ import {
 } from "@oh-my-pi/pi-coding-agent/edit";
 import type { ToolSession } from "@oh-my-pi/pi-coding-agent/tools";
 import { removeWithRetries } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 
 beforeAll(async () => {
 	resetSettingsForTest();
@@ -74,7 +75,7 @@ describe("PUT N*: — native tree-sitter resolution end-to-end", () => {
 
 			await executeHashlineSingle(executeOptions(tempDir, input, session));
 
-			expect(await Bun.file(filePath).text()).toBe("function x() {\n  if (y || z) {\n  }\n}\n");
+			expect(await fsx.readText(filePath)).toBe("function x() {\n  if (y || z) {\n  }\n}\n");
 		});
 	});
 
@@ -86,7 +87,7 @@ describe("PUT N*: — native tree-sitter resolution end-to-end", () => {
 
 			await executeHashlineSingle(executeOptions(tempDir, input, session));
 
-			expect(await Bun.file(filePath).text()).toBe("function x() {\n  return 42;\n}\n");
+			expect(await fsx.readText(filePath)).toBe("function x() {\n  return 42;\n}\n");
 		});
 	});
 
@@ -98,7 +99,7 @@ describe("PUT N*: — native tree-sitter resolution end-to-end", () => {
 
 			await executeHashlineSingle(executeOptions(tempDir, input, session));
 
-			expect(await Bun.file(filePath).text()).toBe("function x() {\n}\n");
+			expect(await fsx.readText(filePath)).toBe("function x() {\n}\n");
 		});
 	});
 
@@ -111,7 +112,7 @@ describe("PUT N*: — native tree-sitter resolution end-to-end", () => {
 			const result = await executeHashlineSingle(executeOptions(tempDir, input, session));
 			const text = result.content.map(part => (part.type === "text" ? part.text : "")).join("\n");
 
-			expect(await Bun.file(filePath).text()).toBe(
+			expect(await fsx.readText(filePath)).toBe(
 				[
 					"(ert-deftest ogent-zen-test ()",
 					'  "Doc."',
@@ -133,7 +134,7 @@ describe("PUT N*: — native tree-sitter resolution end-to-end", () => {
 
 			await executeHashlineSingle(executeOptions(tempDir, input, session));
 
-			expect(await Bun.file(filePath).text()).toBe(
+			expect(await fsx.readText(filePath)).toBe(
 				["(ert-deftest ogent-zen-test ()", '  "Doc."', "  (should t))", "", '(message "loaded")', ""].join("\n"),
 			);
 		});
@@ -192,7 +193,7 @@ describe("PUT N*: — native tree-sitter resolution end-to-end", () => {
 				/could not resolve a syntactic block beginning on line 3.*PUT 3\.=M:.*^ 1:function x\(\) \{$.*^\*3: {2}\}$/ms,
 			);
 			// Disk untouched — refusal never leaves a partial write.
-			expect(await Bun.file(filePath).text()).toBe(TS_SOURCE);
+			expect(await fsx.readText(filePath)).toBe(TS_SOURCE);
 		});
 	});
 
@@ -206,7 +207,7 @@ describe("PUT N*: — native tree-sitter resolution end-to-end", () => {
 			await expect(executeHashlineSingle(executeOptions(tempDir, input, session))).rejects.toThrow(
 				"Line 1 is blank; no syntactic block can begin there. The next multi-line block begins at line 2 and ends at line 4. Retry `PUT 2*:`.",
 			);
-			expect(await Bun.file(filePath).text()).toBe(source);
+			expect(await fsx.readText(filePath)).toBe(source);
 		});
 	});
 
@@ -220,7 +221,7 @@ describe("PUT N*: — native tree-sitter resolution end-to-end", () => {
 			await expect(executeHashlineSingle(executeOptions(tempDir, input, session))).rejects.toThrow(
 				"For only this statement use `PUT 2:`. The nearest enclosing multi-line block begins at line 1 and ends at line 3; use `PUT 1*:` to target it.",
 			);
-			expect(await Bun.file(filePath).text()).toBe(source);
+			expect(await fsx.readText(filePath)).toBe(source);
 		});
 	});
 
@@ -234,7 +235,7 @@ describe("PUT N*: — native tree-sitter resolution end-to-end", () => {
 			await expect(executeHashlineSingle(executeOptions(tempDir, input, session))).rejects.toThrow(
 				/could not resolve a syntactic block/,
 			);
-			expect(await Bun.file(filePath).text()).toBe(source);
+			expect(await fsx.readText(filePath)).toBe(source);
 		});
 	});
 });
@@ -267,9 +268,7 @@ describe("block ops on markdown headings — whole-section resolution end-to-end
 			const result = await executeHashlineSingle(executeOptions(tempDir, input, session));
 			const text = result.content.map(part => (part.type === "text" ? part.text : "")).join("\n");
 
-			expect(await Bun.file(filePath).text()).toBe(
-				["# Plan", "intro", "", "## Approach", "step one", ""].join("\n"),
-			);
+			expect(await fsx.readText(filePath)).toBe(["# Plan", "intro", "", "## Approach", "step one", ""].join("\n"));
 			expect(text).toContain("CUT 4* → resolved lines 4-10 (7 lines)");
 		});
 	});
@@ -285,7 +284,7 @@ describe("block ops on markdown headings — whole-section resolution end-to-end
 
 			// The new section is inserted after the `## Context` section (line
 			// 10), before `## Approach` — not inside it after `### Detail`.
-			expect(await Bun.file(filePath).text()).toBe(
+			expect(await fsx.readText(filePath)).toBe(
 				[
 					"# Plan",
 					"intro",

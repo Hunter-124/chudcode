@@ -16,6 +16,7 @@ import type { ToolSession } from "@oh-my-pi/pi-coding-agent/tools";
 import { DebugTool } from "@oh-my-pi/pi-coding-agent/tools/debug";
 import { removeWithRetries } from "@oh-my-pi/pi-utils";
 import { sleep } from "@oh-my-pi/pi-utils/async";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 
 const TEST_ADAPTER: DapResolvedAdapter = {
 	name: "lldb-dap",
@@ -461,7 +462,7 @@ describe("DAP launch failure handling", () => {
 			await expect(DapClient.spawn({ adapter, cwd, socketReadyTimeoutMs: 300 })).rejects.toThrow(/Socket not ready/);
 			// Wait for the kill signal to propagate to the detached adapter.
 			await sleep(500);
-			const adapterPid = Number(await Bun.file(pidFilePath).text());
+			const adapterPid = Number(await fsx.readText(pidFilePath));
 			expect(Number.isFinite(adapterPid)).toBe(true);
 			let alive = true;
 			try {
@@ -499,7 +500,7 @@ describe("DAP launch failure handling", () => {
 					/did not connect within/,
 				);
 				await sleep(500);
-				const adapterPid = Number(await Bun.file(pidFilePath).text());
+				const adapterPid = Number(await fsx.readText(pidFilePath));
 				expect(Number.isFinite(adapterPid)).toBe(true);
 				let alive = true;
 				try {

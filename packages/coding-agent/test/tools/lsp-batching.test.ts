@@ -6,6 +6,7 @@ import * as lspConfig from "@oh-my-pi/pi-coding-agent/lsp/config";
 import type { LinterClient, ServerConfig } from "@oh-my-pi/pi-coding-agent/lsp/types";
 import { addFileWriteFallback } from "@oh-my-pi/pi-coding-agent/tools/file-write-fallback";
 import { TempDir } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 
 function createFormatter(format: (filePath: string, content: string) => Promise<string>): ServerConfig {
 	return {
@@ -51,7 +52,7 @@ describe("createLspWritethrough batching", () => {
 		expect(firstResult).toBeUndefined();
 		expect(getServersSpy).toHaveBeenCalledTimes(0);
 		expect(loadConfigSpy).toHaveBeenCalledTimes(0);
-		expect(await Bun.file(fileA).text()).toBe("const a = 1;\n");
+		expect(await fsx.readText(fileA)).toBe("const a = 1;\n");
 
 		const secondResult = await writethrough(fileB, "const b = 2;\n", undefined, undefined, {
 			id: batchId,
@@ -61,8 +62,8 @@ describe("createLspWritethrough batching", () => {
 		expect(secondResult).toBeUndefined();
 		expect(getServersSpy).toHaveBeenCalledTimes(2);
 		expect(loadConfigSpy).toHaveBeenCalledTimes(1);
-		expect(await Bun.file(fileA).text()).toBe("const a = 1;\n");
-		expect(await Bun.file(fileB).text()).toBe("const b = 2;\n");
+		expect(await fsx.readText(fileA)).toBe("const a = 1;\n");
+		expect(await fsx.readText(fileB)).toBe("const b = 2;\n");
 	});
 
 	it("preserves a newer external change made before the batch flush", async () => {
@@ -84,8 +85,8 @@ describe("createLspWritethrough batching", () => {
 			flush: true,
 		});
 
-		expect(await Bun.file(fileA).text()).toBe("const value = 'external';\n");
-		expect(await Bun.file(fileB).text()).toBe("const other = true;\n");
+		expect(await fsx.readText(fileA)).toBe("const value = 'external';\n");
+		expect(await fsx.readText(fileB)).toBe("const other = true;\n");
 	});
 
 	it("does not recreate a file deleted before the batch flush", async () => {
@@ -107,8 +108,8 @@ describe("createLspWritethrough batching", () => {
 			flush: true,
 		});
 
-		expect(await Bun.file(fileA).exists()).toBe(false);
-		expect(await Bun.file(fileB).text()).toBe("const survivor = true;\n");
+		expect(await fsx.exists(fileA)).toBe(false);
+		expect(await fsx.readText(fileB)).toBe("const survivor = true;\n");
 	});
 
 	it("preserves a UTF-8 BOM when batch formatting changes content", async () => {
@@ -185,8 +186,8 @@ describe("createLspWritethrough batching", () => {
 
 		expect(getServersSpy).toHaveBeenCalledTimes(1);
 		expect(loadConfigSpy).toHaveBeenCalledTimes(1);
-		expect(await Bun.file(fileA).text()).toBe("const applied = true;\n");
-		expect(await Bun.file(fileB).exists()).toBe(false);
+		expect(await fsx.readText(fileA)).toBe("const applied = true;\n");
+		expect(await fsx.exists(fileB)).toBe(false);
 	});
 
 	it("runs LSP immediately when no batch is provided", async () => {
@@ -202,7 +203,7 @@ describe("createLspWritethrough batching", () => {
 		expect(result).toBeUndefined();
 		expect(getServersSpy).toHaveBeenCalledTimes(1);
 		expect(loadConfigSpy).toHaveBeenCalledTimes(1);
-		expect(await Bun.file(filePath).text()).toBe("const single = true;\n");
+		expect(await fsx.readText(filePath)).toBe("const single = true;\n");
 	});
 });
 
@@ -258,8 +259,8 @@ describe.skipIf(process.getuid?.() === 0)("createLspWritethrough batching with a
 		await writethrough(sibling, "const other = true;\n", undefined, undefined, { id: batchId, flush: true });
 
 		expect(brokered).toEqual([{ dst: opaque, content: "const after = true;\n" }]);
-		expect(await Bun.file(sibling).text()).toBe("const other = true;\n");
+		expect(await fsx.readText(sibling)).toBe("const other = true;\n");
 		await fs.chmod(opaque, 0o400);
-		expect(await Bun.file(opaque).text()).toBe("const after = true;\n");
+		expect(await fsx.readText(opaque)).toBe("const after = true;\n");
 	});
 });

@@ -2,6 +2,7 @@ import { afterEach, describe, expect, test } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 
 const repoRoot = path.join(import.meta.dir, "..");
 const tempDirs: string[] = [];
@@ -85,6 +86,6 @@ esac
 		expect(result.exitCode, result.stderr).toBe(0);
 		expect(result.stdout).toContain("Using version: v1.0.0");
 		expect(result.stdout).toContain("Downloading omp-linux-musl-x64...");
-		expect(await Bun.file(path.join(installDir, "omp")).text()).toBe('#!/bin/sh\necho "omp v1.0.0"\n');
+		expect(await fsx.readText(path.join(installDir, "omp"))).toBe('#!/bin/sh\necho "omp v1.0.0"\n');
 	});
 });

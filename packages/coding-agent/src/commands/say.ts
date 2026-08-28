@@ -12,6 +12,7 @@
 import { getProjectDir } from "@oh-my-pi/pi-utils";
 import chalk from "@oh-my-pi/pi-utils/chalk";
 import { Args, Command, Flags } from "@oh-my-pi/pi-utils/cli";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import { sayHelp as commandHelp } from "../cli/command-help";
 import { Settings, settings } from "../config/settings";
 import { TTS_LOCAL_VOICE_VALUES } from "../tts/models";
@@ -63,7 +64,7 @@ export default class Say extends Command {
 		});
 
 		try {
-			const text = flags.file ? await Bun.file(flags.file).text() : (args.text ?? "");
+			const text = flags.file ? await fsx.readText(flags.file) : (args.text ?? "");
 			const splitter = new SpeakableStream();
 			const segments = [...splitter.push(text), ...splitter.flush()];
 			if (segments.length === 0) {

@@ -11,6 +11,7 @@ import type { Stats } from "node:fs";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { getStatsDbPath, isEnoent, logger } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import { getTimeRangeConfig } from "./aggregator";
 import { initDb } from "./db";
 import type { GainDashboardStats, GainSourceTotals, GainTimeSeriesPoint } from "./shared-types";
@@ -177,7 +178,7 @@ async function readSnapcompactRecords(cutoff: number | null, project: string | n
 	} else {
 		let text: string;
 		try {
-			text = await Bun.file(filePath).text();
+			text = await fsx.readText(filePath);
 		} catch (readErr) {
 			if (isEnoent(readErr)) return { records: [], projects: new Set() };
 			logger.debug("gain-aggregator: failed to read snapcompact-savings.jsonl", { err: String(readErr) });

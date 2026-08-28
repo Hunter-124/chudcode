@@ -13,6 +13,7 @@ import {
 import * as memoryStorage from "@oh-my-pi/pi-coding-agent/memories/storage";
 import { getAgentDbPath, Snowflake, TempDir } from "@oh-my-pi/pi-utils";
 import { sleep } from "@oh-my-pi/pi-utils/async";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import { restoreEnvValue } from "./helpers/settings-test-state";
 
 interface SessionFixture {
@@ -422,9 +423,9 @@ describe("memories runtime", () => {
 		});
 
 		await settle(fx.whenSettled, "phase2 empty-input cleanup");
-		expect(await Bun.file(path.join(memoryRoot, "MEMORY.md")).exists()).toBe(false);
-		expect(await Bun.file(path.join(memoryRoot, "memory_summary.md")).exists()).toBe(false);
-		expect(await Bun.file(path.join(memoryRoot, "skills")).exists()).toBe(false);
+		expect(await fsx.exists(path.join(memoryRoot, "MEMORY.md"))).toBe(false);
+		expect(await fsx.exists(path.join(memoryRoot, "memory_summary.md"))).toBe(false);
+		expect(await fsx.exists(path.join(memoryRoot, "skills"))).toBe(false);
 		expect((await fs.readFile(path.join(memoryRoot, "raw_memories.md"), "utf8")).trim()).toBe(
 			"# Raw Memories\n\nNo raw memories yet.",
 		);

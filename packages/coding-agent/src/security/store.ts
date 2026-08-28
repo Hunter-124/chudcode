@@ -2,6 +2,7 @@ import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { getSecurityProjectDir, isEnoent } from "@oh-my-pi/pi-utils";
 import { withFileLock } from "@oh-my-pi/pi-utils/file-lock";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import * as git from "../utils/git";
 import { compareSecurityLineage } from "./comparison";
 import type {
@@ -132,12 +133,12 @@ export async function writeSecurityBundleToDirectory(directory: string, input: S
 }
 
 async function readJsonFile(filePath: string): Promise<unknown> {
-	return JSON.parse(await Bun.file(filePath).text()) as unknown;
+	return JSON.parse(await fsx.readText(filePath)) as unknown;
 }
 
 async function readOptionalText(filePath: string): Promise<string | undefined> {
 	try {
-		return await Bun.file(filePath).text();
+		return await fsx.readText(filePath);
 	} catch (error) {
 		if (isEnoent(error)) return undefined;
 		throw error;

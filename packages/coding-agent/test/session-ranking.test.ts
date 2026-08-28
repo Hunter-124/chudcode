@@ -10,6 +10,7 @@ import {
 import { listSessions, type SessionInfo } from "@oh-my-pi/pi-coding-agent/session/session-listing";
 import { MemorySessionStorage } from "@oh-my-pi/pi-coding-agent/session/session-storage";
 import { getHistoryDbPath, getSessionsDir, TempDir } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 
 function makeSession(id: string, overrides: Partial<SessionInfo> = {}): SessionInfo {
 	return {
@@ -106,7 +107,7 @@ describe("slotted session headers", () => {
 			check.close();
 			expect(result.archive?.historyRowsDeleted).toBe(1);
 			expect(rows).toEqual([]);
-			expect(await Bun.file(path.join(getSessionsDir(root), "project", "legacy-name.jsonl")).exists()).toBe(false);
+			expect(await fsx.exists(path.join(getSessionsDir(root), "project", "legacy-name.jsonl"))).toBe(false);
 		} finally {
 			await tempDir.remove().catch(() => {});
 		}

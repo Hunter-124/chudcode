@@ -52,6 +52,7 @@ import {
 	setProjectDir,
 } from "@oh-my-pi/pi-utils";
 import chalk from "@oh-my-pi/pi-utils/chalk";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import { reset as resetCapabilities } from "../capability";
 import type { CollabGuestLink } from "../collab/guest";
 import type { CollabHost } from "../collab/host";
@@ -3391,7 +3392,7 @@ export class InteractiveMode implements InteractiveModeContext {
 	async #readPlanFile(planFilePath: string): Promise<string | null> {
 		const resolvedPath = this.#resolvePlanFilePath(planFilePath);
 		try {
-			return await Bun.file(resolvedPath).text();
+			return await fsx.readText(resolvedPath);
 		} catch (error) {
 			if (isEnoent(error)) {
 				return null;
@@ -3625,7 +3626,7 @@ export class InteractiveMode implements InteractiveModeContext {
 		const resolvedPath = this.#resolvePlanFilePath(planFilePath);
 		let currentText: string;
 		try {
-			currentText = await Bun.file(resolvedPath).text();
+			currentText = await fsx.readText(resolvedPath);
 		} catch (error) {
 			if (isEnoent(error)) {
 				this.showError(`Plan file not found at ${planFilePath}`);

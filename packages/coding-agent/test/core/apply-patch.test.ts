@@ -15,6 +15,7 @@ import {
 } from "@oh-my-pi/pi-coding-agent/edit";
 import type { ToolSession } from "@oh-my-pi/pi-coding-agent/tools";
 import { removeSyncWithRetries } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Test-local adapters over the production Codex envelope API.
@@ -240,7 +241,7 @@ describe("apply-patch scenarios", () => {
 					entries.set(relPath, "dir");
 					await walk(fullPath, relPath);
 				} else if (entry.isFile()) {
-					entries.set(relPath, await Bun.file(fullPath).text());
+					entries.set(relPath, await fsx.readText(fullPath));
 				}
 			}
 		}
@@ -274,7 +275,7 @@ describe("apply-patch scenarios", () => {
 
 			// Read the patch
 			const patchPath = path.join(scenarioDir, "patch.txt");
-			const patch = await Bun.file(patchPath).text();
+			const patch = await fsx.readText(patchPath);
 
 			// Apply the patch using legacy parser (catching errors for rejection tests)
 			try {
@@ -316,7 +317,7 @@ describe("applyPatch", () => {
 	test("create file", async () => {
 		await applyPatch({ path: "add.txt", op: "create", diff: "ab\ncd" }, { cwd: tempDir });
 
-		expect(await Bun.file(path.join(tempDir, "add.txt")).text()).toBe("ab\ncd\n");
+		expect(await fsx.readText(path.join(tempDir, "add.txt"))).toBe("ab\ncd\n");
 	});
 
 	test("create with allowCreateOverwrite replaces an existing file (JSON patch contract)", async () => {
@@ -328,7 +329,7 @@ describe("applyPatch", () => {
 			{ cwd: tempDir, allowCreateOverwrite: true },
 		);
 
-		expect(await Bun.file(target).text()).toBe("replacement\n");
+		expect(await fsx.readText(target)).toBe("replacement\n");
 	});
 
 	test("delete file", async () => {
@@ -346,7 +347,7 @@ describe("applyPatch", () => {
 
 		await applyPatch({ path: "update.txt", op: "update", diff: "@@\n foo\n-bar\n+baz" }, { cwd: tempDir });
 
-		expect(await Bun.file(filePath).text()).toBe("foo\nbaz\n");
+		expect(await fsx.readText(filePath)).toBe("foo\nbaz\n");
 	});
 
 	test("update with move", async () => {
@@ -360,7 +361,7 @@ describe("applyPatch", () => {
 
 		expect(result.change.newPath).toBe(path.join(tempDir, "dst.txt"));
 		expect(fs.existsSync(srcPath)).toBe(false);
-		expect(await Bun.file(path.join(tempDir, "dst.txt")).text()).toBe("line2\n");
+		expect(await fsx.readText(path.join(tempDir, "dst.txt"))).toBe("line2\n");
 	});
 
 	test("multiple hunks in single update", async () => {
@@ -369,7 +370,7 @@ describe("applyPatch", () => {
 
 		await applyPatch({ path: "multi.txt", op: "update", diff: "@@\n-bar\n+BAR\n@@\n-qux\n+QUX" }, { cwd: tempDir });
 
-		expect(await Bun.file(filePath).text()).toBe("foo\nBAR\nbaz\nQUX\n");
+		expect(await fsx.readText(filePath)).toBe("foo\nBAR\nbaz\nQUX\n");
 	});
 
 	test("@@ scope and first context line can be identical", async () => {
@@ -385,7 +386,7 @@ describe("applyPatch", () => {
 			{ cwd: tempDir },
 		);
 
-		expect(await Bun.file(filePath).text()).toBe(
+		expect(await fsx.readText(filePath)).toBe(
 			"## [Unreleased]\n\n### Added\n\n- New feature\n\n### Changed\n\n- Old entry\n",
 		);
 	});
@@ -403,7 +404,7 @@ describe("applyPatch", () => {
 			{ cwd: tempDir },
 		);
 
-		expect(await Bun.file(filePath).text()).toBe("import asyncio  # HELLO\n");
+		expect(await fsx.readText(filePath)).toBe("import asyncio  # HELLO\n");
 	});
 
 	test("dry run does not modify files", async () => {
@@ -416,7 +417,7 @@ describe("applyPatch", () => {
 		);
 
 		expect(result.change.newContent).toBe("modified\n");
-		expect(await Bun.file(filePath).text()).toBe("original\n");
+		expect(await fsx.readText(filePath)).toBe("original\n");
 	});
 
 	test("missing file for update fails", async () => {
@@ -436,7 +437,7 @@ describe("applyPatch", () => {
 		await applyPatch({ path: "nested/deep/file.txt", op: "create", diff: "content" }, { cwd: tempDir });
 
 		const filePath = path.join(tempDir, "nested/deep/file.txt");
-		expect(await Bun.file(filePath).text()).toBe("content\n");
+		expect(await fsx.readText(filePath)).toBe("content\n");
 	});
 
 	test("creates parent directories for move", async () => {
@@ -449,7 +450,7 @@ describe("applyPatch", () => {
 		);
 
 		const dstPath = path.join(tempDir, "nested/deep/dst.txt");
-		expect(await Bun.file(dstPath).text()).toBe("newline\n");
+		expect(await fsx.readText(dstPath)).toBe("newline\n");
 	});
 });
 
@@ -488,7 +489,7 @@ describe("simple replace mode", () => {
 			{ cwd: tempDir },
 		);
 
-		expect(await Bun.file(filePath).text()).toBe('console.log("World");\n');
+		expect(await fsx.readText(filePath)).toBe('console.log("World");\n');
 	});
 
 	test("simple diff adjusts indentation to match actual content", async () => {
@@ -506,7 +507,7 @@ describe("simple replace mode", () => {
 			{ cwd: tempDir },
 		);
 
-		expect(await Bun.file(filePath).text()).toBe("function test() {\n    const x = 42;\n    return x;\n}\n");
+		expect(await fsx.readText(filePath)).toBe("function test() {\n    const x = 42;\n    return x;\n}\n");
 	});
 
 	test("diff with context lines falls back to line-based matching", async () => {
@@ -525,7 +526,7 @@ describe("simple replace mode", () => {
 		);
 
 		// Only the second "foo" should be changed
-		expect(await Bun.file(filePath).text()).toBe("header\nfoo\nbar\nmiddle\nFOO\nbaz\nfooter\n");
+		expect(await fsx.readText(filePath)).toBe("header\nfoo\nbar\nmiddle\nFOO\nbaz\nfooter\n");
 	});
 
 	test("multiple chunks use line-based matching", async () => {
@@ -542,7 +543,7 @@ describe("simple replace mode", () => {
 			{ cwd: tempDir },
 		);
 
-		expect(await Bun.file(filePath).text()).toBe("aaa\nBBB\nccc\nDDD\n");
+		expect(await fsx.readText(filePath)).toBe("aaa\nBBB\nccc\nDDD\n");
 	});
 
 	test("simple diff with @@ context uses line-based matching", async () => {
@@ -559,7 +560,7 @@ describe("simple replace mode", () => {
 			{ cwd: tempDir },
 		);
 
-		expect(await Bun.file(filePath).text()).toBe("class Foo {\n  method() {\n    return 42;\n  }\n}\n");
+		expect(await fsx.readText(filePath)).toBe("class Foo {\n  method() {\n    return 42;\n  }\n}\n");
 	});
 
 	test("simple diff rejects multiple occurrences", async () => {
@@ -677,8 +678,8 @@ describe("applyCodexPatch (production)", () => {
 		expect(result.affected.modified).toEqual(["keep.txt"]);
 		expect(result.affected.deleted).toEqual(["old.txt"]);
 
-		expect(await Bun.file(path.join(tempDir, "new.txt")).text()).toBe("brand new\n");
-		expect(await Bun.file(path.join(tempDir, "keep.txt")).text()).toBe("HELLO\n");
+		expect(await fsx.readText(path.join(tempDir, "new.txt"))).toBe("brand new\n");
+		expect(await fsx.readText(path.join(tempDir, "keep.txt"))).toBe("HELLO\n");
 		expect(fs.existsSync(path.join(tempDir, "old.txt"))).toBe(false);
 	});
 
@@ -701,7 +702,7 @@ describe("applyCodexPatch (production)", () => {
 		expect(result.affected.added).toEqual([]);
 		expect(result.affected.deleted).toEqual([]);
 		expect(fs.existsSync(path.join(tempDir, "src.txt"))).toBe(false);
-		expect(await Bun.file(path.join(tempDir, "dst.txt")).text()).toBe("body2\n");
+		expect(await fsx.readText(path.join(tempDir, "dst.txt"))).toBe("body2\n");
 	});
 
 	test("partial success: earlier ops stay applied when a later op fails", async () => {
@@ -723,7 +724,7 @@ describe("applyCodexPatch (production)", () => {
 		await expect(applyCodexPatch(patch, { cwd: tempDir })).rejects.toThrow();
 
 		// First op should have landed before the failure.
-		expect(await Bun.file(path.join(tempDir, "first.txt")).text()).toBe("A\n");
+		expect(await fsx.readText(path.join(tempDir, "first.txt"))).toBe("A\n");
 	});
 
 	// #4074-A: Add File / Move to must not silently overwrite pre-existing
@@ -739,7 +740,7 @@ describe("applyCodexPatch (production)", () => {
 			applyPatch({ path: "exists.txt", op: "create", diff: "replacement\n" }, { cwd: tempDir }),
 		).rejects.toBeInstanceOf(ApplyPatchError);
 		// Pre-existing content must remain byte-identical.
-		expect(await Bun.file(target).text()).toBe("original\n");
+		expect(await fsx.readText(target)).toBe("original\n");
 	});
 
 	test("applyPatch rename refuses to overwrite an existing destination", async () => {
@@ -755,8 +756,8 @@ describe("applyCodexPatch (production)", () => {
 			),
 		).rejects.toBeInstanceOf(ApplyPatchError);
 		// Both source and destination must remain byte-identical.
-		expect(await Bun.file(src).text()).toBe("source\n");
-		expect(await Bun.file(dst).text()).toBe("destination\n");
+		expect(await fsx.readText(src)).toBe("source\n");
+		expect(await fsx.readText(dst)).toBe("destination\n");
 	});
 
 	test("applyCodexPatch *** Add File over existing file rejects and preserves content", async () => {
@@ -766,7 +767,7 @@ describe("applyCodexPatch (production)", () => {
 		const patch = ["*** Begin Patch", "*** Add File: hello.txt", "+overwritten", "*** End Patch"].join("\n");
 
 		await expect(applyCodexPatch(patch, { cwd: tempDir })).rejects.toBeInstanceOf(ApplyPatchError);
-		expect(await Bun.file(target).text()).toBe("kept\n");
+		expect(await fsx.readText(target)).toBe("kept\n");
 	});
 
 	test("applyCodexPatch *** Move to over existing destination rejects and preserves both files", async () => {
@@ -786,8 +787,8 @@ describe("applyCodexPatch (production)", () => {
 		].join("\n");
 
 		await expect(applyCodexPatch(patch, { cwd: tempDir })).rejects.toBeInstanceOf(ApplyPatchError);
-		expect(await Bun.file(src).text()).toBe("hello\n");
-		expect(await Bun.file(dst).text()).toBe("will-be-preserved\n");
+		expect(await fsx.readText(src)).toBe("hello\n");
+		expect(await fsx.readText(dst)).toBe("will-be-preserved\n");
 	});
 });
 
@@ -841,7 +842,7 @@ describe("EditTool create-over-existing mode split", () => {
 		});
 
 		expect(result.isError).toBeUndefined();
-		expect(await Bun.file(target).text()).toBe("replacement\n");
+		expect(await fsx.readText(target)).toBe("replacement\n");
 	});
 
 	test("apply_patch mode: *** Add File over an existing file still rejects", async () => {
@@ -852,6 +853,6 @@ describe("EditTool create-over-existing mode split", () => {
 		const patch = ["*** Begin Patch", "*** Add File: exists.txt", "+replacement", "*** End Patch", ""].join("\n");
 
 		await expect(tool.execute("envelope-create-reject", { input: patch })).rejects.toThrow(/already exists/);
-		expect(await Bun.file(target).text()).toBe("original\n");
+		expect(await fsx.readText(target)).toBe("original\n");
 	});
 });

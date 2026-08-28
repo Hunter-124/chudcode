@@ -1,6 +1,7 @@
 import * as os from "node:os";
 import * as path from "node:path";
 import { getAgentDir, isEnoent, logger, prompt } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import { expandAtImports } from "../discovery/at-imports";
 import activeRepoWatchdogTemplate from "../prompts/advisor/active-repo-watchdog.md" with { type: "text" };
 import contextFilesTemplate from "../prompts/advisor/context-files.md" with { type: "text" };
@@ -92,7 +93,7 @@ export async function collectConfigCandidates(
 	const items: ConfigCandidate[] = [];
 	for (const candidate of candidates) {
 		try {
-			const content = await Bun.file(candidate).text();
+			const content = await fsx.readText(candidate);
 			const parent = path.dirname(candidate);
 			const baseName = parent.split(path.sep).pop() ?? "";
 			const isUser = userPaths.has(candidate);

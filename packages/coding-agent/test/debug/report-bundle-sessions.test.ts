@@ -4,6 +4,7 @@ import * as os from "node:os";
 import * as path from "node:path";
 import { createReportBundle } from "@oh-my-pi/pi-coding-agent/debug/report-bundle";
 import { getConfigRootDir, removeWithRetries, setAgentDir } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 
 const originalAgentDir = process.env.PI_CODING_AGENT_DIR;
 const originalXdgStateHome = process.env.XDG_STATE_HOME;
@@ -29,7 +30,7 @@ afterEach(async () => {
 });
 
 async function archiveMembers(archivePath: string): Promise<string[]> {
-	const archive = new Bun.Archive(await Bun.file(archivePath).bytes());
+	const archive = new Bun.Archive(await fsx.readBytes(archivePath));
 	return [...(await archive.files()).keys()].sort();
 }
 

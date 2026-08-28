@@ -12,6 +12,7 @@
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { getAvatarCacheDir, logger } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import * as git from "../../utils/git";
 
 const AVATAR_PX = 64;
@@ -97,7 +98,7 @@ export class AvatarLoader {
 		const pngPath = path.join(this.#dir, `${key}.png`);
 		const missPath = path.join(this.#dir, `${key}.miss`);
 		try {
-			const bytes = await Bun.file(pngPath).bytes();
+			const bytes = await fsx.readBytes(pngPath);
 			this.#memory.set(key, Buffer.from(bytes).toBase64());
 			return;
 		} catch {

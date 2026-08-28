@@ -8,8 +8,8 @@ import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
 import { isEnoent, logger } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import * as git from "../../../utils/git";
-
 import type { MarketplaceCatalog, MarketplaceSourceType } from "./types";
 import { isValidNameSegment } from "./types";
 
@@ -208,7 +208,7 @@ async function readMarketplaceCatalog(
 		const displayPath = options.relativeDisplayPaths ? rel : catalogPath;
 		tried.push(displayPath);
 		try {
-			const content = await Bun.file(catalogPath).text();
+			const content = await fsx.readText(catalogPath);
 			return { catalogPath, displayPath, content };
 		} catch (err) {
 			if (isEnoent(err)) continue;

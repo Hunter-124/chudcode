@@ -3,6 +3,7 @@ import * as path from "node:path";
 import { SessionManager } from "@oh-my-pi/pi-coding-agent/session/session-manager";
 import { FileSessionStorage } from "@oh-my-pi/pi-coding-agent/session/session-storage";
 import { removeWithRetries, TempDir } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 
 const tempDirs: TempDir[] = [];
 
@@ -55,7 +56,7 @@ describe("SessionManager cwd adoption on resume", () => {
 		const fileB = await writeSession(projectB, sessionsB);
 
 		// Simulate a legacy session whose header predates the cwd field.
-		const raw = await Bun.file(fileB).text();
+		const raw = await fsx.readText(fileB);
 		const lines = raw.split("\n").filter(Boolean);
 		// The fixed-width title slot is line 0 now; edit the session header itself.
 		const headerIndex = lines.findIndex(line => {

@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { TempDir } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import type { ToolSession } from "../tools";
 import {
 	applySloppy,
@@ -2206,8 +2207,8 @@ describe("executeSloppy multi-file", () => {
 				writethrough,
 				beginDeferredDiagnosticsForPath: deferred,
 			});
-			expect(await Bun.file(dir.join("a.ts")).text()).toBe("const alpha = 10;\n");
-			expect(await Bun.file(dir.join("b.ts")).text()).toBe("const beta = 20;\n");
+			expect(await fsx.readText(dir.join("a.ts"))).toBe("const alpha = 10;\n");
+			expect(await fsx.readText(dir.join("b.ts"))).toBe("const beta = 20;\n");
 			expect(result.details?.perFileResults).toHaveLength(2);
 			const text = result.content?.find(entry => entry.type === "text")?.text ?? "";
 			expect(text).toContain("[a.ts]\n1:const alpha = 10;");
@@ -2232,7 +2233,7 @@ describe("executeSloppy multi-file", () => {
 					beginDeferredDiagnosticsForPath: deferred,
 				}),
 			).rejects.toThrow(/\[b\.ts\]:[\s\S]*sections apply atomically/);
-			expect(await Bun.file(dir.join("a.ts")).text()).toBe("const alpha = 1;\n");
+			expect(await fsx.readText(dir.join("a.ts"))).toBe("const alpha = 1;\n");
 		} finally {
 			await dir.remove();
 		}

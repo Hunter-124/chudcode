@@ -14,6 +14,7 @@
  *   bun scripts/gen-clippy-bazelrc.ts --check  # exit 1 when the file is stale
  */
 import * as path from "node:path";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 
 type LintLevel = "allow" | "warn" | "deny" | "forbid";
 type LintEntry = LintLevel | { level: LintLevel; priority?: number };
@@ -47,7 +48,7 @@ function flagLines(table: LintTable, prefix: string): string[] {
 }
 
 async function render(): Promise<string> {
-	const cargo = Bun.TOML.parse(await Bun.file(path.join(repoRoot, "Cargo.toml")).text()) as {
+	const cargo = Bun.TOML.parse(await fsx.readText(path.join(repoRoot, "Cargo.toml"))) as {
 		workspace?: { lints?: { rust?: LintTable; clippy?: LintTable } };
 	};
 	const lints = cargo.workspace?.lints;
@@ -65,9 +66,7 @@ async function render(): Promise<string> {
 }
 
 const expected = await render();
-const current = await Bun.file(outputPath)
-	.text()
-	.catch(() => "");
+const current = await fsx.readText(outputPath).catch(() => "");
 
 if (process.argv.includes("--check")) {
 	if (current !== expected) {

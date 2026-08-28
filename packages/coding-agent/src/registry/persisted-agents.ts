@@ -3,6 +3,7 @@ import * as path from "node:path";
 import type { AssistantMessage } from "@oh-my-pi/pi-ai";
 import { logger } from "@oh-my-pi/pi-utils";
 import { sleep } from "@oh-my-pi/pi-utils/async";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import { ADVISOR_TRANSCRIPT_FILENAME, isAdvisorTranscriptName } from "../advisor/transcript-recorder";
 import { resolveExplicitModelRole } from "../config/model-resolver";
 import { assistantTurnProducedOutput } from "../session/messages";
@@ -291,7 +292,7 @@ async function readPersistedAgentMetadata(sessionFile: string): Promise<Persiste
 	const artifactBase = sessionFile.slice(0, -".jsonl".length);
 	const outputPath = `${artifactBase}.md`;
 	const patchPath = `${artifactBase}.patch`;
-	const artifactFiles = Promise.all([Bun.file(outputPath).exists(), Bun.file(patchPath).exists()]);
+	const artifactFiles = Promise.all([fsx.exists(outputPath), fsx.exists(patchPath)]);
 	let createdAt: number | undefined;
 	let activity: string | undefined;
 	let history: AgentHistorySummary = {};
@@ -457,7 +458,7 @@ async function resolveRootSessionFile(registry: AgentRegistry, hint?: string | n
 	// top-level siblings invisible to deep children.
 	for (;;) {
 		const parentFile: string = `${path.dirname(current)}.jsonl`;
-		if (parentFile === current || !(await Bun.file(parentFile).exists())) return current;
+		if (parentFile === current || !(await fsx.exists(parentFile))) return current;
 		current = parentFile;
 	}
 }

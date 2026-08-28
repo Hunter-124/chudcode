@@ -17,6 +17,7 @@ import { resolveSoftRequestBudget, runSubprocess } from "@oh-my-pi/pi-coding-age
 import type { AgentDefinition } from "@oh-my-pi/pi-coding-agent/task/types";
 import { EventBus } from "@oh-my-pi/pi-coding-agent/utils/event-bus";
 import { TempDir } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 
 /**
  * Contracts under test — the soft request budget must degrade gracefully
@@ -398,7 +399,7 @@ describe("runSubprocess soft request budget", () => {
 		expect(result.aborted).toBe(true);
 		expect(AgentRegistry.global().get(id)).toBeUndefined();
 		expect(handle.disposeCalls()).toBeGreaterThanOrEqual(1);
-		expect(await Bun.file(`${workerSessionFile}.tombstone`).exists()).toBe(false);
+		expect(await fsx.exists(`${workerSessionFile}.tombstone`)).toBe(false);
 		const restored = new AgentRegistry();
 		await registerPersistedSubagents(restored, rootSessionFile);
 		expect(restored.get(id)?.status).toBe("parked");
@@ -452,7 +453,7 @@ describe("runSubprocess soft request budget", () => {
 		await manager.dispose({ timeoutMs: 1_000 });
 		AsyncJobManager.setInstance(undefined);
 
-		expect(await Bun.file(`${workerSessionFile}.tombstone`).exists()).toBe(false);
+		expect(await fsx.exists(`${workerSessionFile}.tombstone`)).toBe(false);
 		expect(AgentRegistry.global().get(id)).toBeUndefined();
 		const restoredRegistry = new AgentRegistry();
 		await registerPersistedSubagents(restoredRegistry, rootSessionFile);

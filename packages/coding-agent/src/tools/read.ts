@@ -19,6 +19,7 @@ import {
 	prompt,
 	readImageMetadata,
 } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import {
 	canonicalSnapshotKey,
 	getFileSnapshotStore,
@@ -1348,8 +1349,8 @@ export class ReadTool implements AgentTool<typeof readSchema, ReadToolDetails> {
 		// the extension falls through to the plain-text path.
 		if (!mimeType && !isRawSelector(parsed) && fileSize <= MAX_PROFILE_SUMMARY_BYTES) {
 			let rendered: string | null = null;
-			if (isSampleProfilePath(absolutePath)) rendered = renderSampleProfile(await Bun.file(absolutePath).text());
-			else if (isCpuProfilePath(absolutePath)) rendered = renderCpuProfile(await Bun.file(absolutePath).text());
+			if (isSampleProfilePath(absolutePath)) rendered = renderSampleProfile(await fsx.readText(absolutePath));
+			else if (isCpuProfilePath(absolutePath)) rendered = renderCpuProfile(await fsx.readText(absolutePath));
 			if (rendered) {
 				if (isMultiRange(parsed) && parsed.kind === "lines") {
 					return buildInMemoryMultiRangeResult(this.session, rendered, parsed.ranges, {

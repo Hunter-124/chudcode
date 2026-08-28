@@ -4,6 +4,7 @@ import * as os from "node:os";
 import * as path from "node:path";
 import { resetSettingsForTest, Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
 import { getProjectAgentDir, removeSyncWithRetries, Snowflake } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import { YAML } from "bun";
 import { beginSettingsTest, restoreSettingsTestState, type SettingsTestState } from "./helpers/settings-test-state";
 
@@ -255,13 +256,13 @@ describe("Settings.reloadForCwd", () => {
 			try {
 				await expect(settings.reloadForCwd(bareProject)).rejects.toThrow("simulated save failure");
 				expect(settings.getCwd()).toBe(path.normalize(startDir));
-				expect(await Bun.file(path.join(bareProject, ".omp", "config.yml")).exists()).toBe(false);
+				expect(await fsx.exists(path.join(bareProject, ".omp", "config.yml"))).toBe(false);
 			} finally {
 				mkdirSpy.mockRestore();
 			}
 
 			await settings.flush();
-			expect(YAML.parse(await Bun.file(path.join(startDir, ".omp", "config.yml")).text())).toEqual({
+			expect(YAML.parse(await fsx.readText(path.join(startDir, ".omp", "config.yml")))).toEqual({
 				modelRoles: { default: "anthropic/project" },
 			});
 		});
@@ -274,10 +275,10 @@ describe("Settings.reloadForCwd", () => {
 			settings.setProjectModelRole("default", "anthropic/claude-sonnet-4-5");
 			await settings.flush();
 
-			expect(YAML.parse(await Bun.file(projectConfigPath).text())).toEqual({
+			expect(YAML.parse(await fsx.readText(projectConfigPath))).toEqual({
 				modelRoles: { default: "anthropic/claude-sonnet-4-5" },
 			});
-			expect(await Bun.file(globalConfigPath).exists()).toBe(false);
+			expect(await fsx.exists(globalConfigPath)).toBe(false);
 			const reloaded = await Settings.loadIsolated({ cwd: startDir, agentDir });
 			expect(reloaded.getProjectModelRole("default")).toBe("anthropic/claude-sonnet-4-5");
 		});
@@ -291,7 +292,7 @@ describe("Settings.reloadForCwd", () => {
 			settings.setProjectModelRole("smol", "anthropic/project-smol");
 			await settings.flush();
 
-			expect(YAML.parse(await Bun.file(path.join(scopedProject, ".omp", "config.yml")).text())).toEqual({
+			expect(YAML.parse(await fsx.readText(path.join(scopedProject, ".omp", "config.yml")))).toEqual({
 				modelRoles: { smol: "anthropic/project-smol" },
 			});
 			expect(settings.getProjectModelRole("default")).toBe("anthropic/external");
@@ -325,7 +326,7 @@ describe("Settings.reloadForCwd", () => {
 
 			await Promise.all([first.flush(), second.flush()]);
 
-			expect(YAML.parse(await Bun.file(path.join(startDir, ".omp", "config.yml")).text())).toEqual({
+			expect(YAML.parse(await fsx.readText(path.join(startDir, ".omp", "config.yml")))).toEqual({
 				modelRoles: {
 					default: "anthropic/default",
 					smol: "anthropic/smol",
@@ -371,7 +372,7 @@ describe("Settings.reloadForCwd", () => {
 			await settings.flush();
 
 			expect(settings.getModelRole("default")).toBe("anthropic/global");
-			expect(YAML.parse(await Bun.file(path.join(scopedProject, ".omp", "config.yml")).text())).toEqual({
+			expect(YAML.parse(await fsx.readText(path.join(scopedProject, ".omp", "config.yml")))).toEqual({
 				modelRoles: { default: null, smol: "anthropic/project-smol" },
 			});
 			const reloaded = await Settings.loadIsolated({ cwd: scopedProject, agentDir });

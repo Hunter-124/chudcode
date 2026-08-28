@@ -2,6 +2,7 @@ import { describe, expect, it, spyOn } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import { ensureFastembedModelSidecars } from "../src/core/fastembed-model-cache";
 
 describe("fastembed model cache repair", () => {
@@ -32,10 +33,10 @@ describe("fastembed model cache repair", () => {
 				"https://huggingface.co/BAAI/bge-base-en-v1.5/resolve/main/tokenizer_config.json",
 				"https://huggingface.co/BAAI/bge-base-en-v1.5/resolve/main/special_tokens_map.json",
 			]);
-			expect(await Bun.file(path.join(modelDir, "config.json")).text()).toBe("body:config.json");
-			expect(await Bun.file(path.join(modelDir, "tokenizer.json")).text()).toBe("cached-tokenizer");
-			expect(await Bun.file(path.join(modelDir, "tokenizer_config.json")).text()).toBe("body:tokenizer_config.json");
-			expect(await Bun.file(path.join(modelDir, "special_tokens_map.json")).text()).toBe(
+			expect(await fsx.readText(path.join(modelDir, "config.json"))).toBe("body:config.json");
+			expect(await fsx.readText(path.join(modelDir, "tokenizer.json"))).toBe("cached-tokenizer");
+			expect(await fsx.readText(path.join(modelDir, "tokenizer_config.json"))).toBe("body:tokenizer_config.json");
+			expect(await fsx.readText(path.join(modelDir, "special_tokens_map.json"))).toBe(
 				"body:special_tokens_map.json",
 			);
 		} finally {

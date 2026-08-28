@@ -1,5 +1,6 @@
 import { describe, expect, it } from "bun:test";
 import { parseHTML } from "../src/dom";
+import * as fsx from "../src/fsx";
 import type { ReadabilityDocument } from "../src/readability";
 import { isProbablyReaderable, Readability } from "../src/readability";
 
@@ -18,8 +19,8 @@ const fixtureDirectory = `${import.meta.dir}/fixtures/readability`;
 
 async function fixture(name: string): Promise<{ html: string; expected: Golden | null }> {
 	const [html, expected] = await Promise.all([
-		Bun.file(`${fixtureDirectory}/${name}.html`).text(),
-		Bun.file(`${fixtureDirectory}/${name}.expected.json`).json() as Promise<Golden | null>,
+		fsx.readText(`${fixtureDirectory}/${name}.html`),
+		fsx.readJson(`${fixtureDirectory}/${name}.expected.json`) as Promise<Golden | null>,
 	]);
 	return { html, expected };
 }

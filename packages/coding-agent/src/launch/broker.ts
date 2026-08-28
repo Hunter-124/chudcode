@@ -13,6 +13,7 @@ import {
 	setProcessName,
 	sleep,
 } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import { hostHasInheritableConsole } from "../eval/py/spawn-options";
 import { truncateHead, truncateHeadBytes, truncateTail, truncateTailBytes } from "../session/streaming-output";
 import { workerEnvFromParent } from "../subprocess/worker-client";
@@ -1421,7 +1422,7 @@ export async function startDaemonBrokerFromEnvironment(options: DaemonBrokerStar
 			error: error instanceof Error ? error.message : String(error),
 		});
 	});
-	const token = (await Bun.file(path.join(runtimeDir, TOKEN_FILE)).text()).trim();
+	const token = (await fsx.readText(path.join(runtimeDir, TOKEN_FILE))).trim();
 	if (!token) throw new Error("Daemon broker token is empty");
 	const broker = new DaemonBroker(projectDir, runtimeDir, token, idleGraceMs, restartBackoffBaseMs);
 	const cancelCleanup = postmortem.register("daemon-broker", () => broker.shutdown());

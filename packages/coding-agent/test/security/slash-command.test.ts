@@ -3,6 +3,7 @@ import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
 import { refreshDirsFromEnv } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import { Settings } from "../../src/config/settings";
 import { SecurityStore } from "../../src/security";
 import { handleSecurityCommand } from "../../src/slash-commands/helpers/security";
@@ -130,7 +131,7 @@ describe("/security", () => {
 		if (!scan) throw new Error("expected imported scan");
 		await command(`export ${scan.id} --output exported.sarif --format sarif`);
 		expect((await fs.stat(repositoryRoot)).mode & 0o777).toBe(0o755);
-		expect(JSON.parse(await Bun.file(path.join(repositoryRoot, "exported.sarif")).text())).toHaveProperty("version");
+		expect(JSON.parse(await fsx.readText(path.join(repositoryRoot, "exported.sarif")))).toHaveProperty("version");
 	});
 
 	test("validate returns a static OMP-native residual prompt", async () => {

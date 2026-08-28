@@ -3,6 +3,7 @@ import { ThinkingLevel } from "@oh-my-pi/pi-agent-core";
 import type { ImageContent } from "@oh-my-pi/pi-ai";
 import { type AutocompleteProvider, matchesKey, type SlashCommand } from "@oh-my-pi/pi-tui";
 import { isEnoent, logger, sanitizeText } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import { isSettingsInitialized, settings } from "../../config/settings";
 import { resolveLocalRoot } from "../../internal-urls";
 import { AskDialogComponent } from "../../modes/components/ask-dialog";
@@ -182,6 +183,7 @@ export class InputController {
 
 	#enhancedPaste?: EnhancedPasteController;
 	#draftText: string | undefined;
+	#draftCheckpointFailed = false;
 	#focusedLeftTapListenerInstalled = false;
 	#focusedPasteListenerInstalled = false;
 	#btwBranchListenerInstalled = false;
@@ -191,6 +193,29 @@ export class InputController {
 	/** Return the last full editor snapshot delivered by its change contract. */
 	getDraftText(): string {
 		return this.#draftText ?? this.ctx.editor.getText();
+	}
+
+	/** Atomically checkpoint each accepted editor state before returning to the
+	 * terminal input loop. This deliberately avoids a debounce: an uncatchable
+	 * process death provides no final callback, and curated user input is not expendable. */
+	#checkpointDraft(text: string): void {
+		try {
+			this.ctx.sessionManager.saveDraftSync(text);
+			if (this.#draftCheckpointFailed) {
+				this.#draftCheckpointFailed = false;
+				this.ctx.showStatus("Prompt draft saving recovered");
+			}
+		} catch (err) {
+			logger.warn("Failed to checkpoint live prompt draft", {
+				error: err instanceof Error ? err.message : String(err),
+			});
+			if (!this.#draftCheckpointFailed) {
+				this.#draftCheckpointFailed = true;
+				this.ctx.showWarning(
+					`Prompt draft is not being saved: ${err instanceof Error ? err.message : String(err)}`,
+				);
+			}
+		}
 	}
 
 	// Tap counter for the double-← gesture; reset whenever a quiet gap
@@ -482,7 +507,9 @@ export class InputController {
 				this.ctx.ui.requestRender();
 			} else {
 				this.ctx.showStatus(
-					this.ctx.editor.getText().length > 0 ? "Clear the current draft before restoring" : "No cleared draft to restore",
+					this.ctx.editor.getText().length > 0
+						? "Clear the current draft before restoring"
+						: "No cleared draft to restore",
 				);
 			}
 		};
@@ -621,6 +648,7 @@ export class InputController {
 
 		this.ctx.editor.onChange = (text: string) => {
 			this.#draftText = text;
+			this.#checkpointDraft(text);
 			const wasBashMode = this.ctx.isBashMode;
 			const wasPythonMode = this.ctx.isPythonMode;
 			const trimmed = text.trimStart();
@@ -1932,7 +1960,7 @@ export class InputController {
 				this.#pasteCounter++;
 				name = `paste-${this.#pasteCounter}.md`;
 				filePath = path.join(localRoot, name);
-			} while (await Bun.file(filePath).exists());
+			} while (await fsx.exists(filePath));
 			await Bun.write(filePath, text);
 			this.ctx.editor.insertText(`local://${name} `);
 			this.ctx.showStatus(`Saved ${lineCount} pasted lines to local://${name}`);

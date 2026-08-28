@@ -11,6 +11,7 @@ import path from "node:path";
 import { getOAuthApiKey } from "@oh-my-pi/pi-ai/oauth";
 import type { OAuthCredentials, OAuthProvider } from "@oh-my-pi/pi-ai/oauth/types";
 import { $flag, getAgentDir, isEnoent } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 
 /**
  * E2E tests require explicit opt-in via E2E=1 environment variable.
@@ -44,7 +45,7 @@ type AuthStorage = Record<string, AuthCredential>;
 
 async function loadAuthStorage(): Promise<AuthStorage> {
 	try {
-		const content = await Bun.file(AUTH_PATH).text();
+		const content = await fsx.readText(AUTH_PATH);
 		return JSON.parse(content);
 	} catch (err) {
 		if (isEnoent(err)) return {};

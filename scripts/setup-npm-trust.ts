@@ -35,6 +35,7 @@ import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
 import { sleep } from "@oh-my-pi/pi-utils/async";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import { $ } from "bun";
 import { LEAF_TARGETS } from "../packages/natives/scripts/gen-npm-packages.ts";
 import { compareVersions } from "../packages/utils/src/version.ts";
@@ -334,7 +335,7 @@ async function main(): Promise<void> {
 	const repo = opts.repo ?? repoFromManifest ?? FALLBACK_REPO;
 	const workflow = opts.workflow;
 
-	if (!(await Bun.file(path.join(repoRoot, ".github", "workflows", workflow)).exists())) {
+	if (!(await fsx.exists(path.join(repoRoot, ".github", "workflows", workflow)))) {
 		console.warn(
 			`Warning: .github/workflows/${workflow} not found; npm will still accept it, but OIDC won't match a non-existent workflow.`,
 		);

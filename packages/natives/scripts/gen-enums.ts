@@ -15,6 +15,7 @@
  * Run after `napi build`: `bun packages/natives/scripts/gen-enums.ts`
  */
 import * as path from "node:path";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 
 const nativeDir = path.resolve(import.meta.dir, "../native");
 const dtsPath = path.join(nativeDir, "index.d.ts");
@@ -111,8 +112,8 @@ function buildGeneratedBlock(dts: string): string {
 }
 
 export async function generateEnumExports(): Promise<void> {
-	const dts = await Bun.file(dtsPath).text();
-	const existing = await Bun.file(jsPath).text();
+	const dts = await fsx.readText(dtsPath);
+	const existing = await fsx.readText(jsPath);
 	const generatedBlock = buildGeneratedBlock(dts);
 
 	// Patch the generated block in place. `native/index.js` is the hand-edited

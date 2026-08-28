@@ -5,6 +5,7 @@ import * as path from "node:path";
 import { unregisterCustomApis } from "@oh-my-pi/pi-ai/api-registry";
 import { type AuthCredentialStore, AuthStorage, SqliteAuthCredentialStore } from "@oh-my-pi/pi-ai/auth-storage";
 import { createMockModel, type MockResponseSource, registerMockApi } from "@oh-my-pi/pi-ai/providers/mock";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import { $ } from "bun";
 import { ModelRegistry } from "../../src/config/model-registry";
 import { Settings } from "../../src/config/settings";
@@ -291,7 +292,7 @@ describe("native security coordinator", () => {
 					return {
 						prompt: async text => {
 							request = text;
-							reviewedContent = await Bun.file(path.join(input.executionRoot, "src", "app.ts")).text();
+							reviewedContent = await fsx.readText(path.join(input.executionRoot, "src", "app.ts"));
 							return true;
 						},
 						waitForIdle: async () => undefined,

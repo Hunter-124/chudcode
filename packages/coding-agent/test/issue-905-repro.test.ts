@@ -19,6 +19,7 @@ import { AuthStorage } from "@oh-my-pi/pi-ai";
 import { runModelsListing } from "@oh-my-pi/pi-coding-agent/cli/models-cli";
 import { ModelRegistry } from "@oh-my-pi/pi-coding-agent/config/model-registry";
 import { getProjectAgentDir, TempDir } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 
 let tmp: TempDir;
 let extPath: string;
@@ -192,8 +193,8 @@ test("omp models does not execute ambient hooks while retaining explicit provide
 		const output = captured.join("");
 		expect(output).toContain("explicit-gw");
 		expect(output).toContain("explicit-model");
-		expect(await Bun.file(ambientHookMarkerPath).exists()).toBe(false);
-		expect(await Bun.file(configuredHookMarkerPath).exists()).toBe(false);
+		expect(await fsx.exists(ambientHookMarkerPath)).toBe(false);
+		expect(await fsx.exists(configuredHookMarkerPath)).toBe(false);
 	} finally {
 		authStorage.close();
 	}
@@ -212,7 +213,7 @@ test("omp models emits extension shutdown after listing (issue #6297)", async ()
 			disableExtensionDiscovery: true,
 		});
 
-		expect(await Bun.file(shutdownPath).text()).toBe("shutdown");
+		expect(await fsx.readText(shutdownPath)).toBe("shutdown");
 	} finally {
 		authStorage.close();
 	}

@@ -7,6 +7,7 @@ import { ToolChoiceQueue } from "@oh-my-pi/pi-coding-agent/session/tool-choice-q
 import { createTools, type ToolSession } from "@oh-my-pi/pi-coding-agent/tools";
 import { resolveToCwd } from "@oh-my-pi/pi-coding-agent/tools/path-utils";
 import { removeWithRetries } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 
 function createTestSession(cwd: string, overrides: Partial<ToolSession> = {}): ToolSession {
 	return {
@@ -153,7 +154,7 @@ describe("tool path root alias", () => {
 		expect(invoker).toBeDefined();
 		await invoker({ action: "apply", reason: "apply root alias rewrite" });
 
-		expect(await Bun.file(path.join(tempDir, "sample.ts")).text()).toContain(
+		expect(await fsx.readText(path.join(tempDir, "sample.ts"))).toContain(
 			"modernWrap(rootAliasSymbol, anotherValue)",
 		);
 	});

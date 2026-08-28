@@ -1,6 +1,7 @@
 #!/usr/bin/env bun
 
 import * as path from "node:path";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import { $ } from "bun";
 import { $which } from "../packages/utils/src/which";
 
@@ -34,7 +35,7 @@ export function normalizeLockfileVersion(contents: string): string {
 /** Rewrite `bun.lock` in place when Bun 1.4+ stamped it lockfileVersion 2. */
 async function normalizeBunLock(): Promise<void> {
 	const lockPath = path.join(repoRoot, "bun.lock");
-	const contents = await Bun.file(lockPath).text();
+	const contents = await fsx.readText(lockPath);
 	const normalized = normalizeLockfileVersion(contents);
 	if (normalized !== contents) await Bun.write(lockPath, normalized);
 }

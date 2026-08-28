@@ -41,6 +41,7 @@
  *   into bunfs, so `onLoad` never fires; profile with a `bun --preload` dev run.
  */
 import { plugin } from "bun";
+import * as fsx from "./fsx";
 import { moduleLoadBuffer } from "./timing-buffer";
 
 // Restrict to TS/TSX only. node_modules ships CommonJS `.js`/`.cjs` that Bun
@@ -136,7 +137,7 @@ if (process.env.PI_TIMING) {
 			build.onLoad({ filter: MODULE_LOADER_FILTER }, async args => {
 				starts.set(args.path, performance.now());
 				childSetFor(importsByPath, args.path);
-				const contents = await Bun.file(args.path).text();
+				const contents = await fsx.readText(args.path);
 				addImportEdges(importsByPath, args.path, contents);
 				return {
 					contents: instrumentContents(args.path, contents),

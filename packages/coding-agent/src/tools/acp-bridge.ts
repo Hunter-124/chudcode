@@ -8,6 +8,7 @@
  * never be pushed into the editor.
  */
 
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import { FileChangeType, notifyWorkspaceWatchedFiles } from "../lsp/client";
 import type { ToolSession } from ".";
 import { invalidateFsScanAfterWrite } from "./fs-cache-invalidation";
@@ -86,7 +87,7 @@ export async function routeWriteThroughBridge(
 	const bridge = session.getClientBridge?.();
 	if (!bridge?.capabilities.writeTextFile || !bridge.writeTextFile) return undefined;
 
-	const changeType = (await Bun.file(absolutePath).exists()) ? FileChangeType.Changed : FileChangeType.Created;
+	const changeType = (await fsx.exists(absolutePath)) ? FileChangeType.Changed : FileChangeType.Created;
 	// The ACP protocol has no cancellation for fs writes; the most we can do is
 	// refuse to start one after the tool was aborted. Racing the promise would
 	// report failure while the editor still applies the write.
@@ -116,7 +117,7 @@ export async function routeWriteThroughBridge(
 	// instead of a silently wrong tag.
 	let actualText = content;
 	try {
-		actualText = await Bun.file(absolutePath).text();
+		actualText = await fsx.readText(absolutePath);
 	} catch {
 		// Unreadable right after a reported-successful write; nothing more we
 		// can verify here.

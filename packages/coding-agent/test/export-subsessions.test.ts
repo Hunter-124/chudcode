@@ -3,6 +3,7 @@ import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
 import { removeWithRetries } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import { collectSubSessions, exportFromFile } from "../src/export/html";
 
 /**
@@ -76,7 +77,7 @@ describe("collectSubSessions", () => {
 
 		await exportFromFile(mainFile, { outputPath });
 
-		const html = await Bun.file(outputPath).text();
+		const html = await fsx.readText(outputPath);
 		const encoded = html.match(/<script id="session-data" type="application\/json">([^<]+)<\/script>/)?.[1];
 		expect(encoded).toBeDefined();
 		const data = JSON.parse(Buffer.from(encoded!, "base64").toString("utf8")) as {

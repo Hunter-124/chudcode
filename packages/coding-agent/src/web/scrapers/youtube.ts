@@ -2,6 +2,7 @@ import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
 import { ptree, Snowflake } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import { settings } from "../../config/settings";
 import type { AgentStorage } from "../../session/agent-storage";
 import { throwIfAborted } from "../../tools/tool-errors";
@@ -249,7 +250,7 @@ export const handleYouTube: SpecialHandler = async (
 				// Find the downloaded subtitle file using glob
 				const subFiles = await Array.fromAsync(new Bun.Glob(`${tmpBase}*.vtt`).scan({ absolute: true }));
 				if (subFiles.length > 0) {
-					const vttContent = await Bun.file(subFiles[0]).text();
+					const vttContent = await fsx.readText(subFiles[0]);
 					transcript = cleanVttToText(vttContent);
 					transcriptSource = "manual";
 					notes.push("Using manual subtitles");
@@ -280,7 +281,7 @@ export const handleYouTube: SpecialHandler = async (
 			if (autoResult.ok) {
 				const subFiles = await Array.fromAsync(new Bun.Glob(`${tmpBase}*.vtt`).scan({ absolute: true }));
 				if (subFiles.length > 0) {
-					const vttContent = await Bun.file(subFiles[0]).text();
+					const vttContent = await fsx.readText(subFiles[0]);
 					transcript = cleanVttToText(vttContent);
 					transcriptSource = "auto-generated";
 					notes.push("Using auto-generated captions");

@@ -2,6 +2,7 @@ import { expect, test } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import { FileLock } from "../native/index.js";
 
 test("FileLock binds release to one native owner", async () => {
@@ -26,7 +27,7 @@ test("FileLock binds release to one native owner", async () => {
 		expect(successor.acquired).toBe(true);
 
 		const usesInMemoryName = process.platform === "linux" || process.platform === "win32";
-		expect(await Bun.file(lockPath).exists()).toBe(!usesInMemoryName);
+		expect(await fsx.exists(lockPath)).toBe(!usesInMemoryName);
 
 		successor.release();
 		const finalOwner = FileLock.tryAcquire(lockPath);

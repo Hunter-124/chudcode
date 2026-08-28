@@ -4,6 +4,7 @@ import * as os from "node:os";
 import * as path from "node:path";
 import { ArtifactManager, writeArtifact } from "@oh-my-pi/pi-coding-agent/session/artifacts";
 import { removeSyncWithRetries } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 
 describe("ArtifactManager write integrity", () => {
 	const dirs: string[] = [];
@@ -61,7 +62,7 @@ describe("ArtifactManager write integrity", () => {
 
 		await expect(writeArtifact(destination, "replacement report")).rejects.toThrow("Artifact write incomplete");
 
-		expect(await Bun.file(destination).text()).toBe("original valid report");
+		expect(await fsx.readText(destination)).toBe("original valid report");
 		expect(await fs.readdir(dir)).toEqual(["Worker.md"]);
 	});
 
@@ -84,7 +85,7 @@ describe("ArtifactManager write integrity", () => {
 		await writeArtifact(destination, "replacement report");
 
 		expect(injected).toBe(true);
-		expect(await Bun.file(destination).text()).toBe("replacement report");
+		expect(await fsx.readText(destination)).toBe("replacement report");
 		expect(await fs.readdir(dir)).toEqual(["Worker.md"]);
 	});
 });

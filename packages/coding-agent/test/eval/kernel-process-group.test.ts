@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { sleep } from "@oh-my-pi/pi-utils/async";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import { BaseKernel, isSignalableProcessGroup, killProcessGroup } from "../../src/eval/kernel-base";
 
 class TestKernel extends BaseKernel {
@@ -91,7 +92,7 @@ describe("BaseKernel shutdown", () => {
 			// cannot advance fork, signal delivery, or filesystem visibility.
 			await Promise.race([
 				(async () => {
-					while (!(await Bun.file(pidFile).exists())) await sleep(10);
+					while (!(await fsx.exists(pidFile))) await sleep(10);
 				})(),
 				sleep(1_000).then(() => {
 					throw new Error("timed out waiting for the kernel descendant");

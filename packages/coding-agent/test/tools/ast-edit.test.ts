@@ -7,6 +7,7 @@ import { Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
 import { ToolChoiceQueue } from "@oh-my-pi/pi-coding-agent/session/tool-choice-queue";
 import { createTools, type ToolSession } from "@oh-my-pi/pi-coding-agent/tools";
 import { removeWithRetries } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 
 type InvokedToolResult = {
 	content: Array<{ type: string; text?: string }>;
@@ -130,7 +131,7 @@ describe("ast_edit tool schema", () => {
 				(applyResult.details as { sourceResultDetails?: { totalReplacements?: number } } | undefined)
 					?.sourceResultDetails?.totalReplacements,
 			).toBe(1);
-			const updated = await Bun.file(filePath).text();
+			const updated = await fsx.readText(filePath);
 			expect(updated).toContain("modernWrap(x, value)");
 		} finally {
 			await removeWithRetries(tempDir);
@@ -175,7 +176,7 @@ describe("ast_edit tool schema", () => {
 				(applyResult.details as { sourceResultDetails?: { totalReplacements?: number } } | undefined)
 					?.sourceResultDetails?.totalReplacements,
 			).toBe(0);
-			expect(await Bun.file(filePath).text()).toBe(mutatedContent);
+			expect(await fsx.readText(filePath)).toBe(mutatedContent);
 		} finally {
 			await removeWithRetries(tempDir);
 		}
@@ -232,14 +233,10 @@ describe("ast_edit tool schema", () => {
 			const invoker = queue.peekPendingInvoker()!;
 			await invoker({ action: "apply", reason: "apply previewed AST edit with combined globs" });
 
-			expect(await Bun.file(path.join(sourceDir, "root.ts")).text()).toContain("modernWrap(rootValue, rootArg)");
-			expect(await Bun.file(path.join(nestedDir, "child.ts")).text()).toContain("modernWrap(childValue, childArg)");
-			expect(await Bun.file(path.join(sourceDir, "ignore.js")).text()).toContain(
-				"legacyWrap(ignoreValue, ignoreArg)",
-			);
-			expect(await Bun.file(path.join(tempDir, "outside.ts")).text()).toContain(
-				"legacyWrap(outsideValue, outsideArg)",
-			);
+			expect(await fsx.readText(path.join(sourceDir, "root.ts"))).toContain("modernWrap(rootValue, rootArg)");
+			expect(await fsx.readText(path.join(nestedDir, "child.ts"))).toContain("modernWrap(childValue, childArg)");
+			expect(await fsx.readText(path.join(sourceDir, "ignore.js"))).toContain("legacyWrap(ignoreValue, ignoreArg)");
+			expect(await fsx.readText(path.join(tempDir, "outside.ts"))).toContain("legacyWrap(outsideValue, outsideArg)");
 		} finally {
 			await removeWithRetries(tempDir);
 		}
@@ -276,7 +273,7 @@ describe("ast_edit tool schema", () => {
 
 			const invoker = queue.peekPendingInvoker()!;
 			await invoker({ action: "apply", reason: "apply tlaplus AST edit" });
-			expect(await Bun.file(filePath).text()).toContain("Start == x = 0");
+			expect(await fsx.readText(filePath)).toContain("Start == x = 0");
 		} finally {
 			await removeWithRetries(tempDir);
 		}

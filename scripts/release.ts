@@ -1,5 +1,6 @@
 #!/usr/bin/env bun
 import { sleep } from "@oh-my-pi/pi-utils/async";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 /**
  * Release script for pi-mono
  *
@@ -158,7 +159,7 @@ async function updateChangelogsForRelease(version: string): Promise<void> {
 	const date = new Date().toISOString().split("T")[0];
 
 	for await (const changelog of changelogGlob.scan(".")) {
-		let content = await Bun.file(changelog).text();
+		let content = await fsx.readText(changelog);
 
 		if (!content.includes("## [Unreleased]")) {
 			console.log(`  Skipping ${changelog}: no [Unreleased] section`);
@@ -306,7 +307,7 @@ async function cmdRelease(versionOrBump: string): Promise<void> {
 
 	// Update @oh-my-pi/* catalog entries in root package.json
 	console.log("Updating root catalog versions...");
-	let rootPkgRaw = await Bun.file("package.json").text();
+	let rootPkgRaw = await fsx.readText("package.json");
 	rootPkgRaw = rootPkgRaw.replace(/("@oh-my-pi\/[^"]+":\s*)"[^"]+"/g, `$1"${version}"`);
 	await Bun.write("package.json", rootPkgRaw);
 	console.log("  Updated root catalog @oh-my-pi/* entries");
@@ -316,7 +317,7 @@ async function cmdRelease(versionOrBump: string): Promise<void> {
 	await $`sd '^version = "[^"]+"' ${`version = "${version}"`} Cargo.toml`;
 
 	// Verify
-	const cargoToml = await Bun.file("Cargo.toml").text();
+	const cargoToml = await fsx.readText("Cargo.toml");
 	const versionMatch = cargoToml.match(/^\[workspace\.package\][\s\S]*?^version = "([^"]+)"/m);
 	if (versionMatch) {
 		console.log(`  workspace: ${versionMatch[1]}`);
@@ -324,7 +325,7 @@ async function cmdRelease(versionOrBump: string): Promise<void> {
 
 	// List crates using workspace version
 	for await (const cargoPath of cargoTomlGlob.scan(".")) {
-		const content = await Bun.file(cargoPath).text();
+		const content = await fsx.readText(cargoPath);
 		if (content.includes("version.workspace = true")) {
 			const nameMatch = content.match(/^name = "([^"]+)"/m);
 			if (nameMatch) {
@@ -351,7 +352,7 @@ async function cmdRelease(versionOrBump: string): Promise<void> {
 		"packages/natives/native/index.js",
 	];
 	await $`sd '__piNativesV[A-Za-z0-9_]+' ${sentinelName} ${sentinelFiles}`;
-	const libRs = await Bun.file("crates/pi-natives/src/lib.rs").text();
+	const libRs = await fsx.readText("crates/pi-natives/src/lib.rs");
 	if (!libRs.includes(`js_name = "${sentinelName}"`)) {
 		console.error(
 			`Error: pi-natives version sentinel did not move to ${sentinelName} in crates/pi-natives/src/lib.rs. ` +

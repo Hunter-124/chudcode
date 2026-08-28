@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import type { SecurityScanPlan } from "../../src/security";
 import { createSecurityPublicationTool, SecurityStore } from "../../src/security";
 
@@ -106,7 +107,7 @@ describe("security publication", () => {
 			"results.sarif",
 			"scan.json",
 		]);
-		const serializedScan = await Bun.file(path.join(plan.output.root, "scan.json")).text();
+		const serializedScan = await fsx.readText(path.join(plan.output.root, "scan.json"));
 		expect(serializedScan).not.toContain("fixture-workspace");
 		expect(serializedScan).not.toContain("credentialId");
 		expect(JSON.parse(serializedScan)).not.toHaveProperty("plan");

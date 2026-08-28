@@ -1,4 +1,5 @@
 import { Database, type SQLQueryBindings } from "bun:sqlite";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import { formatBytes, replaceTabs, truncateToWidth } from "./render-utils";
 import { ToolError } from "./tool-errors";
 
@@ -21,10 +22,7 @@ function isSqliteCantOpen(error: unknown): boolean {
 async function requiresWalSidecarInitialization(filePath: string): Promise<boolean> {
 	const formatVersions = await Bun.file(filePath).slice(18, 20).bytes();
 	if (formatVersions[0] !== 2 && formatVersions[1] !== 2) return false;
-	const [walExists, shmExists] = await Promise.all([
-		Bun.file(`${filePath}-wal`).exists(),
-		Bun.file(`${filePath}-shm`).exists(),
-	]);
+	const [walExists, shmExists] = await Promise.all([fsx.exists(`${filePath}-wal`), fsx.exists(`${filePath}-shm`)]);
 	return !walExists || !shmExists;
 }
 

@@ -34,6 +34,7 @@
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import { $ } from "bun";
 import {
 	type GeneratedLeafPackage,
@@ -108,9 +109,9 @@ export async function stageLegalPayloads(
 	const files = legalPayloadFiles(license);
 	for (const file of files) {
 		const destination = path.join(pkgDir, file);
-		if (await Bun.file(destination).exists()) continue;
+		if (await fsx.exists(destination)) continue;
 		const source = path.join(sourceRoot, file);
-		if (!(await Bun.file(source).exists())) {
+		if (!(await fsx.exists(source))) {
 			throw new Error(`Missing legal payload ${file} for ${path.relative(repoRoot, pkgDir)}`);
 		}
 		if (write) await fs.copyFile(source, destination);

@@ -43,6 +43,7 @@ import {
 import { type GeneratedProvider, getBundledModel } from "@oh-my-pi/pi-catalog/models";
 import { getAgentDbPath, isEnoent } from "@oh-my-pi/pi-utils";
 import { sleep } from "@oh-my-pi/pi-utils/async";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import SYSTEM_PROMPT from "./audit-prompt.md" with { type: "text" };
 
 const SESSIONS_ROOT = path.join(os.homedir(), ".omp", "agent", "sessions");
@@ -311,7 +312,7 @@ interface PendingCall {
 export async function scanFile(filePath: string): Promise<FileScan | undefined> {
 	let text: string;
 	try {
-		text = await Bun.file(filePath).text();
+		text = await fsx.readText(filePath);
 	} catch {
 		return undefined;
 	}

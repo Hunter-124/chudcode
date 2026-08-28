@@ -28,6 +28,7 @@ import type { AgentSession } from "@oh-my-pi/pi-coding-agent/session/agent-sessi
 import { SessionManager } from "@oh-my-pi/pi-coding-agent/session/session-manager";
 import { VIBE_TOOL_NAMES } from "@oh-my-pi/pi-coding-agent/tools/vibe";
 import { logger, removeSyncWithRetries, Snowflake, untilAborted } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 
 const toolActivationExtension: ExtensionFactory = pi => {
 	pi.registerTool({
@@ -1840,7 +1841,7 @@ describe("createAgentSession defaultInactive tool activation", () => {
 			expect(write).toBeDefined();
 			const filePath = path.join(tempDir, "runtime-write.txt");
 			await write!.execute("runtime-full-write", { path: filePath, content: "runtime\n" });
-			expect(await Bun.file(filePath).text()).toBe("runtime\n");
+			expect(await fsx.readText(filePath)).toBe("runtime\n");
 		} finally {
 			await session.dispose();
 		}

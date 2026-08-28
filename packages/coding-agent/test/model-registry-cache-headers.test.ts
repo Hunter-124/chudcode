@@ -9,6 +9,7 @@ import { resolveModelCacheProviderId } from "@oh-my-pi/pi-catalog/provider-model
 import { ModelRegistry } from "@oh-my-pi/pi-coding-agent/config/model-registry";
 import { AuthStorage } from "@oh-my-pi/pi-coding-agent/session/auth-storage";
 import { removeSyncWithRetries } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 
 describe("startup model cache header restoration (#5780)", () => {
 	let tempDir: string;
@@ -77,8 +78,8 @@ describe("startup model cache header restoration (#5780)", () => {
 		});
 		await primedRegistry.refreshProvider("probe", "online");
 
-		expect(await Bun.file(cacheDbPath).exists()).toBe(true);
-		expect(await Bun.file(path.join(path.dirname(modelsPath), "models.db")).exists()).toBe(false);
+		expect(await fsx.exists(cacheDbPath)).toBe(true);
+		expect(await fsx.exists(path.join(path.dirname(modelsPath), "models.db"))).toBe(false);
 
 		const restartedRegistry = new ModelRegistry(authStorage, modelsPath, {
 			cacheDbPath,

@@ -29,6 +29,7 @@
  * underneath; this only adds curated context.
  */
 
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import { $, Glob } from "bun";
 import { compareVersions } from "../packages/utils/src/version";
 
@@ -254,7 +255,7 @@ async function main(): Promise<void> {
 	const changelogPaths = await Array.fromAsync(changelogGlob.scan("."));
 	changelogPaths.sort();
 	for (const changelogPath of changelogPaths) {
-		const content = await Bun.file(changelogPath).text();
+		const content = await fsx.readText(changelogPath);
 		const merged = mergePackageSection(content, floor, version);
 		if (merged === "") continue;
 		const pkgDir = changelogPath.replace(/\/CHANGELOG\.md$/, "");

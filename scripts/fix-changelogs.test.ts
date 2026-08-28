@@ -2,6 +2,7 @@ import { describe, expect, it } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import { $ } from "bun";
 import {
 	collapseChangelogTail,
@@ -456,7 +457,7 @@ describe("runChangelogFixer size limit", () => {
 				},
 			]);
 
-			const collapsed = await Bun.file(changelogPath).text();
+			const collapsed = await fsx.readText(changelogPath);
 			expect(collapsed).not.toContain("## [1.0.0]");
 			expect(collapsed).toContain("## [1.1.0]");
 			expect(collapsed).toEndWith(`\n${expectedLink}\n`);
@@ -465,7 +466,7 @@ describe("runChangelogFixer size limit", () => {
 			// The footer survives a second run verbatim and nothing is re-collapsed.
 			const second = await runChangelogFixer({ repoRoot, maxBytes });
 			expect(second.changedFiles).toHaveLength(0);
-			expect(await Bun.file(changelogPath).text()).toBe(collapsed);
+			expect(await fsx.readText(changelogPath)).toBe(collapsed);
 		} finally {
 			await fs.rm(repoRoot, { recursive: true, force: true });
 		}

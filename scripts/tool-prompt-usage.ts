@@ -19,6 +19,7 @@ import * as path from "node:path";
 import { parseArgs } from "node:util";
 import { countTokens, Encoding } from "@oh-my-pi/pi-natives";
 import { prompt } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import { loadBundledAgents } from "../packages/coding-agent/src/task/agents";
 
 const REPO_ROOT = path.resolve(import.meta.dir, "..");
@@ -204,7 +205,7 @@ function renderContext(): Record<string, unknown> {
 }
 
 async function estimatePrompt(filePath: string, encoding: Encoding): Promise<PromptEstimate> {
-	const template = await Bun.file(filePath).text();
+	const template = await fsx.readText(filePath);
 	const rendered = prompt.render(template, renderContext());
 	return {
 		path: relativePath(filePath),

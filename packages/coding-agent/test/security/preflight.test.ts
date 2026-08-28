@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import {
 	assertSecurityScanPlanFresh,
 	createSecurityScanPlan,
@@ -201,9 +202,7 @@ describe("security preflight", () => {
 		const prepared = await prepareSecurityOutputDirectory(created.output, "fixture");
 		expect(prepared.archivedTo).toBe(`${created.output.root}.archive-fixture`);
 		expect(await fs.readdir(created.output.root)).toEqual([]);
-		expect(await Bun.file(path.join(`${created.output.root}.archive-fixture`, "existing.txt")).text()).toBe(
-			"existing",
-		);
+		expect(await fsx.readText(path.join(`${created.output.root}.archive-fixture`, "existing.txt"))).toBe("existing");
 	});
 
 	test("symlink output is rejected", async () => {

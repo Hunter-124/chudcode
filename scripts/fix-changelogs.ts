@@ -1,6 +1,7 @@
 #!/usr/bin/env bun
 
 import * as path from "node:path";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import { $, Glob } from "bun";
 
 const CHANGELOG_GLOB = "packages/*/CHANGELOG.md";
@@ -929,7 +930,7 @@ export async function runChangelogFixer(options: RunChangelogFixerOptions = {}):
 
 	for (const changelogPath of paths) {
 		const absolutePath = path.join(repoRoot, changelogPath);
-		const rawContent = await Bun.file(absolutePath).text();
+		const rawContent = await fsx.readText(absolutePath);
 		const { body: currentContent, archiveLink: existingArchiveLink } = splitArchiveFooter(rawContent);
 		const historicalRecovery = historicalRecoveryByPath.get(changelogPath);
 		const recoveredContent =

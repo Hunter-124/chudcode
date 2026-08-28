@@ -12,6 +12,7 @@ import { WriteTool } from "@oh-my-pi/pi-coding-agent/tools/write";
 import { type ptree, TempDir } from "@oh-my-pi/pi-utils";
 import * as piUtils from "@oh-my-pi/pi-utils/async";
 import { sleep } from "@oh-my-pi/pi-utils/async";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 
 const TEST_SERVER: ServerConfig = {
 	command: "test-lsp",
@@ -144,7 +145,7 @@ describe("LSP diagnostics freshness", () => {
 		const result = await writethrough(filePath, ".section {}\n");
 
 		expect(result).toBeUndefined();
-		expect(await Bun.file(filePath).text()).toBe(".section {}\n");
+		expect(await fsx.readText(filePath)).toBe(".section {}\n");
 		expect(notify).toHaveBeenCalledWith(
 			tempDir.path(),
 			[{ filePath, type: lspClient.FileChangeType.Created }],
@@ -168,7 +169,7 @@ describe("LSP diagnostics freshness", () => {
 		const result = await writethrough(filePath, "export const value = 1;\n");
 
 		expect(result).toBeUndefined();
-		expect(await Bun.file(filePath).text()).toBe("export const value = 1;\n");
+		expect(await fsx.readText(filePath)).toBe("export const value = 1;\n");
 		expect(notify).toHaveBeenCalledWith(
 			tempDir.path(),
 			[{ filePath, type: lspClient.FileChangeType.Created }],
@@ -202,7 +203,7 @@ describe("LSP diagnostics freshness", () => {
 		const result = await writethrough(filePath, "export const value=1\n");
 
 		expect(result?.formatter).toBe(FileFormatResult.FORMATTED);
-		expect(await Bun.file(filePath).text()).toBe("export const value = 1;\n");
+		expect(await fsx.readText(filePath)).toBe("export const value = 1;\n");
 		expect(getOrCreate).not.toHaveBeenCalled();
 		expect(sync).not.toHaveBeenCalled();
 		expect(notifySaved).not.toHaveBeenCalled();
@@ -224,7 +225,7 @@ describe("LSP diagnostics freshness", () => {
 		const result = await writethrough(filePath, content);
 
 		expect(result?.formatter).toBe(FileFormatResult.FAILED);
-		expect(await Bun.file(filePath).text()).toBe(content);
+		expect(await fsx.readText(filePath)).toBe(content);
 	});
 
 	it("keeps an earlier formatter failure when a later server is unsupported", async () => {
@@ -349,7 +350,7 @@ describe("LSP diagnostics freshness", () => {
 
 		expect(result?.formatter).toBe(FileFormatResult.FORMATTED);
 		expect(result?.messages).toEqual([]);
-		expect(await Bun.file(filePath).text()).toBe("export const value = 1;\n");
+		expect(await fsx.readText(filePath)).toBe("export const value = 1;\n");
 	});
 
 	it("announces batched sibling writes before syncing the diagnostic target", async () => {
@@ -437,7 +438,7 @@ describe("LSP diagnostics freshness", () => {
 		expect(result?.messages).toEqual([]);
 		expect(result?.summary).toBe("OK");
 		expect(result?.errored).toBe(false);
-		expect(await Bun.file(filePath).text()).toBe("export const value = 2;\n");
+		expect(await fsx.readText(filePath)).toBe("export const value = 2;\n");
 	});
 
 	it("settles on the latest unversioned publish when the server never echoes a version", async () => {
@@ -635,7 +636,7 @@ describe("LSP diagnostics freshness", () => {
 		expect(lateResult.messages.some(m => m.includes("deferred error"))).toBe(true);
 
 		// The edit still landed on disk regardless of diagnostics timing.
-		expect(await Bun.file(filePath).text()).toBe("export const value: number = 'x';\n");
+		expect(await fsx.readText(filePath)).toBe("export const value: number = 'x';\n");
 	});
 
 	it("returns the write tool result before slow diagnostics and queues them for the agent", async () => {
@@ -690,7 +691,7 @@ describe("LSP diagnostics freshness", () => {
 		expect(late.isStale()).toBe(false);
 		expect(late.errored).toBe(true);
 		expect(late.messages.some(message => message.includes("write tool deferred error"))).toBe(true);
-		expect(await Bun.file(filePath).text()).toBe("export const value: number = 'x';\n");
+		expect(await fsx.readText(filePath)).toBe("export const value: number = 'x';\n");
 	});
 
 	it("suppresses TypeScript project diagnostics for orphan files but keeps syntax errors", async () => {
@@ -741,7 +742,7 @@ describe("LSP diagnostics freshness", () => {
 			expect(result?.messages.some(message => message.includes("bun:sqlite"))).toBe(false);
 			expect(result?.messages.some(message => message.includes("Cannot find name 'Bun'"))).toBe(false);
 			expect(result?.messages.some(message => message.includes("';' expected."))).toBe(true);
-			expect(await Bun.file(filePath).text()).toBe('import { Database } from "bun:sqlite";\nawait Bun.sleep(1)\n');
+			expect(await fsx.readText(filePath)).toBe('import { Database } from "bun:sqlite";\nawait Bun.sleep(1)\n');
 		} finally {
 			orphanDir.removeSync();
 		}

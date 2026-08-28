@@ -6,6 +6,7 @@ import { recoverOrphanedBackups } from "@oh-my-pi/pi-coding-agent/session/sessio
 import { SessionManager } from "@oh-my-pi/pi-coding-agent/session/session-manager";
 import { FileSessionStorage, MemorySessionStorage } from "@oh-my-pi/pi-coding-agent/session/session-storage";
 import { sleep } from "@oh-my-pi/pi-utils/async";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 
 class FsCodeError extends Error {
 	code: string;
@@ -158,7 +159,7 @@ describe("FileSessionStorage.writeTextAtomic commitGuard cleanup", () => {
 		const target = path.join(sessionDir, "session.jsonl");
 		await storage.writeTextAtomic(target, "existing\n", { commitGuard: () => false });
 		expect(await listTempFiles()).toEqual([]);
-		expect(await Bun.file(target).exists()).toBe(false);
+		expect(await fsx.exists(target)).toBe(false);
 	});
 
 	it("discards the staged temp when the EPERM move-aside fallback's commitGuard rejects", async () => {
@@ -190,7 +191,7 @@ describe("FileSessionStorage.writeTextAtomic commitGuard cleanup", () => {
 		expect(guardCalls).toBe(2);
 		expect(await listTempFiles()).toEqual([]);
 		// Backup was restored, so target still holds the seed content.
-		expect(await Bun.file(target).text()).toBe("seed\n");
+		expect(await fsx.readText(target)).toBe("seed\n");
 		const backups = (await fsp.readdir(sessionDir)).filter(name => name.endsWith(".bak"));
 		expect(backups).toEqual([]);
 	});
@@ -220,7 +221,7 @@ describe("FileSessionStorage.writeTextAtomic commitGuard cleanup", () => {
 		expect(epermAttempted).toBe(true);
 		expect(guardCalls).toBe(2);
 		expect(await listTempFiles()).toEqual([]);
-		expect(await Bun.file(target).exists()).toBe(false);
+		expect(await fsx.exists(target)).toBe(false);
 	});
 });
 

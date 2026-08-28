@@ -6,6 +6,7 @@ import {
 	splitAddressableFileLines,
 } from "@oh-my-pi/hashline";
 import type { AgentToolResult } from "@oh-my-pi/pi-agent-core";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import { canonicalSnapshotKey, getFileSnapshotStore, recordSeenLines } from "../edit/file-snapshot-store";
 import { normalizeToLF } from "../edit/normalize";
 import { isMarkdownPath } from "../modes/theme/theme";
@@ -72,7 +73,7 @@ export async function readHashlineHeaderContext(
 	absolutePath: string,
 	cwd: string,
 ): Promise<HashlineHeaderContext> {
-	return hashlineHeaderContextForText(session, absolutePath, cwd, await Bun.file(absolutePath).text());
+	return hashlineHeaderContextForText(session, absolutePath, cwd, await fsx.readText(absolutePath));
 }
 
 /**

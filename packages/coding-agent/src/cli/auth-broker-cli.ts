@@ -37,6 +37,7 @@ import { refreshOAuthToken } from "@oh-my-pi/pi-ai/oauth";
 import type { OAuthCredentials } from "@oh-my-pi/pi-ai/oauth/types";
 import { $which, getAgentDbPath, getConfigRootDir, isEnoent, logger, VERSION } from "@oh-my-pi/pi-utils";
 import chalk from "@oh-my-pi/pi-utils/chalk";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import { setTransports as setLoggerTransports } from "@oh-my-pi/pi-utils/logger";
 import { $ } from "bun";
 import { PRODUCT_CLI_NAME } from "../brand";
@@ -92,7 +93,7 @@ function getTokenFilePath(): string {
 
 async function readToken(): Promise<string | null> {
 	try {
-		const raw = await Bun.file(getTokenFilePath()).text();
+		const raw = await fsx.readText(getTokenFilePath());
 		const trimmed = raw.trim();
 		return trimmed.length > 0 ? trimmed : null;
 	} catch (err) {
@@ -601,7 +602,9 @@ function describeImportEntry(entry: ImportPlanEntry): string {
 async function runImport(flags: AuthBrokerCommandArgs["flags"]): Promise<void> {
 	const target = flags.source;
 	if (!target) {
-		throw new Error("Usage: chudcode auth-broker import <file|dir> [--provider=<id>] [--include-disabled] [--dry-run]");
+		throw new Error(
+			"Usage: chudcode auth-broker import <file|dir> [--provider=<id>] [--include-disabled] [--dry-run]",
+		);
 	}
 	const resolvedTarget = path.resolve(target.startsWith("~") ? target.replace(/^~/, os.homedir()) : target);
 	const { entries, skipped } = await loadImportPlan(resolvedTarget, flags.provider, flags.includeDisabled === true);

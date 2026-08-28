@@ -10,6 +10,7 @@ import {
 	setImageProviderOrder,
 } from "@oh-my-pi/pi-coding-agent/tools/image-gen";
 import { removeWithRetries, USER_AGENT } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 
 const originalOpenRouterKey = process.env.OPENROUTER_API_KEY;
 const generatedImagePaths: string[] = [];
@@ -164,7 +165,7 @@ describe("imageGenTool", () => {
 		const savedPath = result.details?.imagePaths[0];
 		if (!savedPath) throw new Error("Expected generated image path");
 		expect(savedPath.endsWith(".webp")).toBe(true);
-		expect(await Bun.file(savedPath).bytes()).toEqual(Buffer.from("fake-webp"));
+		expect(await fsx.readBytes(savedPath)).toEqual(Buffer.from("fake-webp"));
 	});
 
 	it("routes OpenAI Images edits through the Responses image tool", async () => {
@@ -329,7 +330,7 @@ describe("imageGenTool", () => {
 		expect(result.details?.imageCount).toBe(1);
 		const savedPath = result.details?.imagePaths[0];
 		if (!savedPath) throw new Error("Expected generated image path");
-		expect(await Bun.file(savedPath).bytes()).toEqual(Buffer.from("codex-webp"));
+		expect(await fsx.readBytes(savedPath)).toEqual(Buffer.from("codex-webp"));
 	});
 
 	it("falls back when an openai-codex API key lacks a subscription account claim", async () => {
@@ -640,7 +641,7 @@ describe("imageGenTool", () => {
 		expect(result.details?.imageCount).toBe(1);
 		const savedPath = result.details?.imagePaths[0];
 		if (!savedPath) throw new Error("Expected generated image path");
-		expect(await Bun.file(savedPath).bytes()).toEqual(Buffer.from("fake-xai-image"));
+		expect(await fsx.readBytes(savedPath)).toEqual(Buffer.from("fake-xai-image"));
 	});
 
 	it("prefers the active xAI provider over unrelated credentialed providers", async () => {
@@ -869,7 +870,7 @@ describe("imageGenTool", () => {
 		expect(result.details?.imageCount).toBe(1);
 		const savedPath = result.details?.imagePaths[0];
 		if (!savedPath) throw new Error("Expected generated image path");
-		expect(await Bun.file(savedPath).bytes()).toEqual(Buffer.from("fake-deepinfra-image"));
+		expect(await fsx.readBytes(savedPath)).toEqual(Buffer.from("fake-deepinfra-image"));
 	});
 
 	it("skips DeepInfra for edit requests so an edit-capable provider can serve them", async () => {

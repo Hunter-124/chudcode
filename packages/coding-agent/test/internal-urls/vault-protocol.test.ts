@@ -12,6 +12,7 @@ import {
 import * as vaultProtocol from "@oh-my-pi/pi-coding-agent/internal-urls/vault-protocol";
 import { $which, removeWithRetries } from "@oh-my-pi/pi-utils";
 import { sleep } from "@oh-my-pi/pi-utils/async";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 
 async function withTempDir<T>(fn: (dir: string) => Promise<T>): Promise<T> {
 	const dir = await fs.mkdtemp(path.join(os.tmpdir(), "vault-protocol-"));
@@ -219,7 +220,7 @@ describe("VaultProtocolHandler", () => {
 			await handler.write(resourceUrl("vault://Work/scratch.md"), "new body");
 			const resource = await handler.resolve(resourceUrl("vault://Work/scratch.md"));
 
-			expect(await Bun.file(path.join(root, "scratch.md")).text()).toBe("new body");
+			expect(await fsx.readText(path.join(root, "scratch.md"))).toBe("new body");
 			expect(resource.content).toBe("new body");
 			expect(resolveVaultUrlToPath("vault://Work/scratch.md")).toBe(
 				await fs.realpath(path.join(root, "scratch.md")),

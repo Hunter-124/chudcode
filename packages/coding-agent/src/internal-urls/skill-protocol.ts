@@ -11,6 +11,7 @@ import type * as fsTypes from "node:fs";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { isEnoent } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import { resolveContainedPath } from "../discovery/contained-path";
 import { getActiveSkills } from "../extensibility/skills";
 import { isMarkdownPath } from "../utils/lang-from-path";
@@ -111,7 +112,7 @@ export class SkillProtocolHandler implements ProtocolHandler {
 			throw new Error(`skill:// URL must resolve to a file or directory: ${url.href}`);
 		}
 
-		const content = await Bun.file(targetPath).text();
+		const content = await fsx.readText(targetPath);
 		return {
 			url: url.href,
 			content,

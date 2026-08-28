@@ -19,6 +19,7 @@ import { createAcpSessionFactory } from "@oh-my-pi/pi-coding-agent/main";
 import type { CreateAgentSessionOptions, CreateAgentSessionResult } from "@oh-my-pi/pi-coding-agent/sdk";
 import type { AgentSession } from "@oh-my-pi/pi-coding-agent/session/agent-session";
 import { TempDir } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import { createInMemoryAuthStorage } from "./helpers/agent-session-setup";
 
 const authStorage = createInMemoryAuthStorage();
@@ -148,8 +149,8 @@ describe("createAcpSessionFactory MCP isolation (issue #1234)", () => {
 
 			expect(captured?.eventBus).toBeDefined();
 			expect(captured?.preloadedExtensions?.extensions).toHaveLength(1);
-			expect(await Bun.file(firedPath).text()).toBe("fired");
-			expect(await Bun.file(ambientFiredPath).exists()).toBe(false);
+			expect(await fsx.readText(firedPath)).toBe("fired");
+			expect(await fsx.exists(ambientFiredPath)).toBe(false);
 		} finally {
 			await tempDir.remove();
 		}

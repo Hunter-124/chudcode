@@ -17,8 +17,9 @@ import {
 } from "@oh-my-pi/pi-coding-agent/tools/gh";
 import { parseIssueUrl, parsePullRequestUrl } from "@oh-my-pi/pi-coding-agent/tools/gh-common";
 import * as git from "@oh-my-pi/pi-coding-agent/utils/git";
-import { $which, getAgentDir, hashPath, removeWithRetries, setAgentDir, WhichCachePolicy } from "@oh-my-pi/pi-utils";
 import * as piUtils from "@oh-my-pi/pi-utils";
+import { $which, getAgentDir, hashPath, removeWithRetries, setAgentDir, WhichCachePolicy } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 
 const TINY_PNG_BASE64 =
 	"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8DwHwAFBQIAX8jx0gAAAABJRU5ErkJggg==";
@@ -1478,7 +1479,7 @@ echo ok
 			expect(result.details?.watch?.failedLogs?.[0]?.jobName).toBe("test");
 			expect(result.details?.watch?.failedLogs?.[0]?.tail).toContain("zeta");
 
-			const artifactText = await Bun.file(path.join(artifactsDir, "0-github.md")).text();
+			const artifactText = await fsx.readText(path.join(artifactsDir, "0-github.md"));
 			expect(artifactText).toContain("# GitHub Actions Run #77");
 			expect(artifactText).toContain("Full log:");
 			expect(artifactText).toContain("alpha");

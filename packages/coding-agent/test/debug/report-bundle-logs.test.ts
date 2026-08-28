@@ -4,6 +4,7 @@ import * as os from "node:os";
 import * as path from "node:path";
 import { createReportBundle } from "@oh-my-pi/pi-coding-agent/debug/report-bundle";
 import { getConfigRootDir, getLogsDir, removeWithRetries, setAgentDir } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 
 const originalAgentDir = process.env.PI_CODING_AGENT_DIR;
 const originalXdgStateHome = process.env.XDG_STATE_HOME;
@@ -52,7 +53,7 @@ describe("report bundle logs", () => {
 		const result = await createReportBundle({ sessionFile: undefined });
 
 		expect(result.files).toContain("logs.txt");
-		const archive = new Bun.Archive(await Bun.file(result.path).bytes());
+		const archive = new Bun.Archive(await fsx.readBytes(result.path));
 		const files = await archive.files();
 		const logsText = (await files.get("logs.txt")?.text()) ?? "";
 		expect(logsText).toContain(crashedName);

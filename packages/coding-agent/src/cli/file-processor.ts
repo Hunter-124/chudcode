@@ -6,6 +6,7 @@ import * as path from "node:path";
 import type { ImageContent } from "@oh-my-pi/pi-ai";
 import { getProjectDir, isEnoent, readImageMetadata } from "@oh-my-pi/pi-utils";
 import chalk from "@oh-my-pi/pi-utils/chalk";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import { resolveReadPath } from "../tools/path-utils";
 import { formatBytes } from "../tools/render-utils";
 import { formatDimensionNote, resizeImage } from "../utils/image-resize";
@@ -57,7 +58,7 @@ export async function processFileArguments(fileArgs: string[], options?: Process
 		// Read file, handling not-found gracefully
 		let buffer: Uint8Array;
 		try {
-			buffer = await Bun.file(absolutePath).bytes();
+			buffer = await fsx.readBytes(absolutePath);
 		} catch (err) {
 			if (isEnoent(err)) {
 				console.error(chalk.red(`Error: File not found: ${absolutePath}`));

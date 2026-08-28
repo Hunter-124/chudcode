@@ -1,6 +1,7 @@
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import type {
 	SecurityCoverage,
 	SecurityFinding,
@@ -350,7 +351,7 @@ export async function importSarifFile(
 	filePath: string,
 	options: Omit<SarifImportOptions, "sourcePath">,
 ): Promise<SecurityScanBundle> {
-	return importSarif(JSON.parse(await Bun.file(filePath).text()) as unknown, {
+	return importSarif(JSON.parse(await fsx.readText(filePath)) as unknown, {
 		...options,
 		sourcePath: path.resolve(filePath),
 	});

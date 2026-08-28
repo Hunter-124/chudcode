@@ -17,6 +17,7 @@ import * as toolTimeouts from "@oh-my-pi/pi-coding-agent/tools/tool-timeouts";
 import { WriteTool } from "@oh-my-pi/pi-coding-agent/tools/write";
 import { $which, removeSyncWithRetries, Snowflake } from "@oh-my-pi/pi-utils";
 import { openArchive, readArchiveEntries } from "@oh-my-pi/pi-utils/ar";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import { GlobTool } from "../src/tools/glob";
 import { DEFAULT_FILE_LIMIT, GrepTool, MULTI_FILE_PER_FILE_MATCHES } from "../src/tools/grep";
 import { HubTool } from "../src/tools/hub";
@@ -1041,7 +1042,7 @@ describe("Coding Agent Tools", () => {
 					spillManager.getArtifactsDir()!,
 					`${truncation.artifactId}.mcp__server__tool.log`,
 				);
-				expect(await Bun.file(artifactPath).text()).toBe(payload);
+				expect(await fsx.readText(artifactPath)).toBe(payload);
 			} finally {
 				await spillManager.close();
 			}
@@ -1890,7 +1891,7 @@ describe("Coding Agent Tools", () => {
 			);
 			expect(fs.existsSync(archivePath)).toBe(true);
 
-			const archive = new Bun.Archive(await Bun.file(archivePath).bytes());
+			const archive = new Bun.Archive(await fsx.readBytes(archivePath));
 			const files = await archive.files();
 			expect(await files.get("pkg/new.txt")?.text()).toBe(content);
 		});
@@ -1919,7 +1920,7 @@ describe("Coding Agent Tools", () => {
 			expect(bytes[0]).toBe(0x1f);
 			expect(bytes[1]).toBe(0x8b);
 
-			const archive = new Bun.Archive(await Bun.file(archivePath).bytes());
+			const archive = new Bun.Archive(await fsx.readBytes(archivePath));
 			const files = await archive.files();
 			expect(await files.get("pkg/README.md")?.text()).toBe(content);
 			expect(await files.get("pkg/src/index.ts")?.text()).toBe("export const archiveValue = 1;\n");
@@ -1997,7 +1998,7 @@ describe("Coding Agent Tools", () => {
 			});
 
 			expect(getTextOutput(result)).toContain("qux bar qux baz qux");
-			const content = await Bun.file(testFile).text();
+			const content = await fsx.readText(testFile);
 			expect(content).toBe("qux bar qux baz qux");
 		});
 
@@ -2056,7 +2057,7 @@ function b() {
 			});
 
 			expect(getTextOutput(result)).toContain("replaced");
-			const content = await Bun.file(testFile).text();
+			const content = await fsx.readText(testFile);
 			expect(content).toBe("start\nreplaced\nend\nstart\nreplaced\nend");
 		});
 
@@ -2072,7 +2073,7 @@ function b() {
 			});
 
 			expect(getTextOutput(result)).toContain("hello universe");
-			const content = await Bun.file(testFile).text();
+			const content = await fsx.readText(testFile);
 			expect(content).toBe("hello universe");
 		});
 
@@ -2092,7 +2093,7 @@ function b() {
 			});
 
 			expect(result.isError).toBeUndefined();
-			const content = await Bun.file(testFile).text();
+			const content = await fsx.readText(testFile);
 			expect(content).toBe("ALPHA\nBETA\n");
 			const details = result.details as { diff?: string } | undefined;
 			expect(details?.diff).toContain("ALPHA");
@@ -3213,7 +3214,7 @@ describe("edit tool CRLF handling", () => {
 			new_string: "REPLACED\n",
 		});
 
-		const content = await Bun.file(testFile).text();
+		const content = await fsx.readText(testFile);
 		expect(content).toBe("first\r\nREPLACED\r\nthird\r\n");
 	});
 
@@ -3227,7 +3228,7 @@ describe("edit tool CRLF handling", () => {
 			new_string: "REPLACED\n",
 		});
 
-		const content = await Bun.file(testFile).text();
+		const content = await fsx.readText(testFile);
 		expect(content).toBe("first\nREPLACED\nthird\n");
 	});
 
@@ -3256,7 +3257,7 @@ describe("edit tool CRLF handling", () => {
 			new_string: "REPLACED\n",
 		});
 
-		const content = await Bun.file(testFile).text();
+		const content = await fsx.readText(testFile);
 		expect(content).toBe("\uFEFFfirst\r\nREPLACED\r\nthird\r\n");
 	});
 });

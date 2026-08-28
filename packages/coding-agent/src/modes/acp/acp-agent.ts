@@ -3,7 +3,6 @@ import * as path from "node:path";
 import { AgentBusyError, type AgentToolResult } from "@oh-my-pi/pi-agent-core";
 import type { AssistantMessage, Model } from "@oh-my-pi/pi-ai";
 import { getBlobsDir, isEnoent, logger, type postmortem, VERSION } from "@oh-my-pi/pi-utils";
-import { PRODUCT_NAME } from "../../brand";
 import {
 	type Agent,
 	type AgentSideConnection,
@@ -45,6 +44,8 @@ import {
 	type SetSessionModeResponse,
 	type Usage,
 } from "@oh-my-pi/pi-utils/acp";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
+import { PRODUCT_NAME } from "../../brand";
 import { disableProvider, enableProvider, reset as resetCapabilities } from "../../capability";
 import { Settings } from "../../config/settings";
 import { clearPluginRootsAndCaches, resolveActiveProjectRegistryPath } from "../../discovery/helpers";
@@ -1961,7 +1962,7 @@ export class AcpAgent implements Agent {
 	async #readAcpPlanFile(session: AgentSession, planFilePath: string): Promise<string | null> {
 		const resolvedPath = this.#resolveAcpPlanFilePath(session, planFilePath);
 		try {
-			return await Bun.file(resolvedPath).text();
+			return await fsx.readText(resolvedPath);
 		} catch (error) {
 			if (isEnoent(error)) {
 				return null;
