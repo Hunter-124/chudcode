@@ -20,7 +20,7 @@ const BASE64_DUMMY = "AA==";
 const SQUARE_DIMENSIONS = { widthPx: 100, heightPx: 100 };
 const BASE64_ONE_PIXEL_PNG =
 	"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAAAAAA6fptVAAAACklEQVR4nGNgAAAAAgABSK+kcQAAAABJRU5ErkJggg==";
-const ORIGINAL_TMUX = Bun.env.TMUX;
+const ORIGINAL_TMUX = process.env.TMUX;
 
 function parseKittyParam(sequence: string, key: "c" | "r" | "C"): number | null {
 	const match = sequence.match(new RegExp(`${key}=(\\d+)`));
@@ -39,7 +39,7 @@ describe("terminal image rendering", () => {
 	const originalGraphics = { ...getKittyGraphics() };
 
 	beforeEach(() => {
-		delete Bun.env.TMUX;
+		delete process.env.TMUX;
 		originalCellDims = { ...getCellDimensions() };
 		setCellDimensions({ widthPx: 10, heightPx: 10 });
 		terminal.imageProtocol = null;
@@ -50,8 +50,8 @@ describe("terminal image rendering", () => {
 		setCellDimensions(originalCellDims);
 		terminal.imageProtocol = originalProtocol;
 		setKittyGraphics(originalGraphics);
-		if (ORIGINAL_TMUX === undefined) delete Bun.env.TMUX;
-		else Bun.env.TMUX = ORIGINAL_TMUX;
+		if (ORIGINAL_TMUX === undefined) delete process.env.TMUX;
+		else process.env.TMUX = ORIGINAL_TMUX;
 	});
 
 	it("fits Kitty images within max width and max height while preserving aspect ratio", () => {

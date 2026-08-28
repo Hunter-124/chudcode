@@ -24,7 +24,7 @@ const E2E_ENABLED = $flag("E2E");
  */
 export function e2eApiKey(envVar: string): string | undefined {
 	if (!E2E_ENABLED) return undefined;
-	return Bun.env[envVar];
+	return process.env[envVar];
 }
 
 const AUTH_PATH = path.join(getAgentDir(), "testauth.db");

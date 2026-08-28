@@ -93,7 +93,7 @@ function isRustTaskName(value: string | undefined): value is RustTaskName {
 }
 
 function isCI(): boolean {
-	const value = Bun.env.CI;
+	const value = process.env.CI;
 	if (!value) return false;
 	const normalized = value.trim().toLowerCase();
 	return normalized !== "" && normalized !== "0" && normalized !== "false";

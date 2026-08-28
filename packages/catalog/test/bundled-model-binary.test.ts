@@ -12,11 +12,13 @@ describe("bundled binary model catalog", () => {
 	});
 
 	test("preserves generated provider and model insertion order", () => {
-		const providers = getBundledProviders();
+		// The JSON import widens literal unions (`input: string[]`), so compare the
+		// generated payloads structurally rather than through Model<Api>.
+		const providers: string[] = getBundledProviders();
 		expect(providers).toEqual(Object.keys(models));
 		expect(providers).toContain("minimax-cn");
-		expect(getBundledModels("devin")).toEqual(Object.values(models.devin));
-		expect(getBundledModels("nanogpt")).toEqual(Object.values(models.nanogpt));
+		expect(getBundledModels("devin") as unknown[]).toEqual(Object.values(models.devin));
+		expect(getBundledModels("nanogpt") as unknown[]).toEqual(Object.values(models.nanogpt));
 	});
 
 	test("caches model identity and keeps unknown lookups empty", () => {

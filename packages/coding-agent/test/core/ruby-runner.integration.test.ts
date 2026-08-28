@@ -9,7 +9,7 @@ import { disposeAllRubyKernelSessions, executeRubyWithKernel } from "@oh-my-pi/p
 import { RubyKernel } from "@oh-my-pi/pi-coding-agent/eval/rb/kernel";
 import { TempDir } from "@oh-my-pi/pi-utils";
 
-const SHOULD_RUN = Bun.env.PI_RUBY_INTEGRATION === "1";
+const SHOULD_RUN = process.env.PI_RUBY_INTEGRATION === "1";
 
 describe.skipIf(!SHOULD_RUN)("ruby runner subprocess", () => {
 	afterEach(async () => {

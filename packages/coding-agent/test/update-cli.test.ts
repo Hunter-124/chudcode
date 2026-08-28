@@ -975,8 +975,8 @@ describe("update-cli release binary integrity", () => {
 			throw new Error(`Unexpected request: ${requestUrl}`);
 		};
 
-		const previousGitHubToken = Bun.env.GITHUB_TOKEN;
-		Bun.env.GITHUB_TOKEN = "test-token";
+		const previousGitHubToken = process.env.GITHUB_TOKEN;
+		process.env.GITHUB_TOKEN = "test-token";
 		try {
 			await expect(
 				updateViaBinaryAt(targetPath, "17.1.2", {
@@ -990,8 +990,8 @@ describe("update-cli release binary integrity", () => {
 			const newResidue = (await fs.readdir(dir)).filter(name => name.endsWith(".new"));
 			expect(newResidue).toEqual([]);
 		} finally {
-			if (previousGitHubToken === undefined) delete Bun.env.GITHUB_TOKEN;
-			else Bun.env.GITHUB_TOKEN = previousGitHubToken;
+			if (previousGitHubToken === undefined) delete process.env.GITHUB_TOKEN;
+			else process.env.GITHUB_TOKEN = previousGitHubToken;
 		}
 	});
 

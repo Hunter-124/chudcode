@@ -35,12 +35,12 @@ describe("ModelRegistry", () => {
 
 	beforeEach(async () => {
 		resetSettingsForTest();
-		originalOllamaBaseUrl = Bun.env.OLLAMA_BASE_URL;
-		originalOllamaHost = Bun.env.OLLAMA_HOST;
-		originalOllamaContextLength = Bun.env.OLLAMA_CONTEXT_LENGTH;
-		delete Bun.env.OLLAMA_BASE_URL;
-		delete Bun.env.OLLAMA_HOST;
-		delete Bun.env.OLLAMA_CONTEXT_LENGTH;
+		originalOllamaBaseUrl = process.env.OLLAMA_BASE_URL;
+		originalOllamaHost = process.env.OLLAMA_HOST;
+		originalOllamaContextLength = process.env.OLLAMA_CONTEXT_LENGTH;
+		delete process.env.OLLAMA_BASE_URL;
+		delete process.env.OLLAMA_HOST;
+		delete process.env.OLLAMA_CONTEXT_LENGTH;
 		tempDir = path.join(os.tmpdir(), `pi-test-model-registry-${Snowflake.next()}`);
 		fs.mkdirSync(tempDir, { recursive: true });
 		modelsJsonPath = path.join(tempDir, "models.json");
@@ -53,19 +53,19 @@ describe("ModelRegistry", () => {
 	afterEach(() => {
 		resetSettingsForTest();
 		if (originalOllamaBaseUrl === undefined) {
-			delete Bun.env.OLLAMA_BASE_URL;
+			delete process.env.OLLAMA_BASE_URL;
 		} else {
-			Bun.env.OLLAMA_BASE_URL = originalOllamaBaseUrl;
+			process.env.OLLAMA_BASE_URL = originalOllamaBaseUrl;
 		}
 		if (originalOllamaHost === undefined) {
-			delete Bun.env.OLLAMA_HOST;
+			delete process.env.OLLAMA_HOST;
 		} else {
-			Bun.env.OLLAMA_HOST = originalOllamaHost;
+			process.env.OLLAMA_HOST = originalOllamaHost;
 		}
 		if (originalOllamaContextLength === undefined) {
-			delete Bun.env.OLLAMA_CONTEXT_LENGTH;
+			delete process.env.OLLAMA_CONTEXT_LENGTH;
 		} else {
-			Bun.env.OLLAMA_CONTEXT_LENGTH = originalOllamaContextLength;
+			process.env.OLLAMA_CONTEXT_LENGTH = originalOllamaContextLength;
 		}
 		authStorage.close();
 		if (tempDir && fs.existsSync(tempDir)) {
@@ -77,12 +77,12 @@ describe("ModelRegistry", () => {
 		// Build shared registries in a discovery-free, default-settings env so
 		// their results match what `beforeEach` guarantees for in-body tests.
 		resetSettingsForTest();
-		bootOllamaBaseUrl = Bun.env.OLLAMA_BASE_URL;
-		bootOllamaHost = Bun.env.OLLAMA_HOST;
-		bootOllamaContextLength = Bun.env.OLLAMA_CONTEXT_LENGTH;
-		delete Bun.env.OLLAMA_BASE_URL;
-		delete Bun.env.OLLAMA_HOST;
-		delete Bun.env.OLLAMA_CONTEXT_LENGTH;
+		bootOllamaBaseUrl = process.env.OLLAMA_BASE_URL;
+		bootOllamaHost = process.env.OLLAMA_HOST;
+		bootOllamaContextLength = process.env.OLLAMA_CONTEXT_LENGTH;
+		delete process.env.OLLAMA_BASE_URL;
+		delete process.env.OLLAMA_HOST;
+		delete process.env.OLLAMA_CONTEXT_LENGTH;
 		sharedAuth = await AuthStorage.create(":memory:");
 		sharedDir = fs.mkdtempSync(path.join(os.tmpdir(), "pi-test-mr-shared-"));
 		// Unmodified bundled catalog (no custom config); reused by built-in-only
@@ -96,12 +96,12 @@ describe("ModelRegistry", () => {
 	afterAll(() => {
 		sharedAuth.close();
 		removeSyncWithRetries(sharedDir);
-		if (bootOllamaBaseUrl === undefined) delete Bun.env.OLLAMA_BASE_URL;
-		else Bun.env.OLLAMA_BASE_URL = bootOllamaBaseUrl;
-		if (bootOllamaHost === undefined) delete Bun.env.OLLAMA_HOST;
-		else Bun.env.OLLAMA_HOST = bootOllamaHost;
-		if (bootOllamaContextLength === undefined) delete Bun.env.OLLAMA_CONTEXT_LENGTH;
-		else Bun.env.OLLAMA_CONTEXT_LENGTH = bootOllamaContextLength;
+		if (bootOllamaBaseUrl === undefined) delete process.env.OLLAMA_BASE_URL;
+		else process.env.OLLAMA_BASE_URL = bootOllamaBaseUrl;
+		if (bootOllamaHost === undefined) delete process.env.OLLAMA_HOST;
+		else process.env.OLLAMA_HOST = bootOllamaHost;
+		if (bootOllamaContextLength === undefined) delete process.env.OLLAMA_CONTEXT_LENGTH;
+		else process.env.OLLAMA_CONTEXT_LENGTH = bootOllamaContextLength;
 		resetSettingsForTest();
 	});
 
@@ -384,8 +384,8 @@ describe("ModelRegistry", () => {
 		});
 
 		test("apiKey-only override supplies fallback auth for built-in models", async () => {
-			const originalOpenAiKey = Bun.env.OPENAI_API_KEY;
-			delete Bun.env.OPENAI_API_KEY;
+			const originalOpenAiKey = process.env.OPENAI_API_KEY;
+			delete process.env.OPENAI_API_KEY;
 			try {
 				writeRawModelsJson({
 					openai: {
@@ -399,8 +399,8 @@ describe("ModelRegistry", () => {
 				expect(openaiModels.length).toBeGreaterThan(0);
 				await expect(registry.getApiKey(openaiModels[0])).resolves.toBe("issue-typed-key");
 			} finally {
-				if (originalOpenAiKey === undefined) delete Bun.env.OPENAI_API_KEY;
-				else Bun.env.OPENAI_API_KEY = originalOpenAiKey;
+				if (originalOpenAiKey === undefined) delete process.env.OPENAI_API_KEY;
+				else process.env.OPENAI_API_KEY = originalOpenAiKey;
 			}
 		});
 		test("zhipu-coding-plan glm-5.2 chat resolves the zhipu credential with model-scoped hints", async () => {

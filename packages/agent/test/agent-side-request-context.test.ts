@@ -8,15 +8,15 @@ import { Agent } from "../src/agent";
 import type { AgentTool } from "../src/types";
 
 async function withNativeDialectEnv<T>(fn: () => T | Promise<T>): Promise<T> {
-	const previous = Bun.env.PI_DIALECT;
-	delete Bun.env.PI_DIALECT;
+	const previous = process.env.PI_DIALECT;
+	delete process.env.PI_DIALECT;
 	try {
 		return await fn();
 	} finally {
 		if (previous === undefined) {
-			delete Bun.env.PI_DIALECT;
+			delete process.env.PI_DIALECT;
 		} else {
-			Bun.env.PI_DIALECT = previous;
+			process.env.PI_DIALECT = previous;
 		}
 	}
 }

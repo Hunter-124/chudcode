@@ -819,7 +819,7 @@ export class TUI extends Container {
 		this.#watchdog = new LoopWatchdog();
 	}
 	static #initialResizeScrollbackMode(): ResizeScrollbackMode {
-		const mode = Bun.env.PI_TUI_RESIZE_SCROLLBACK;
+		const mode = process.env.PI_TUI_RESIZE_SCROLLBACK;
 		return mode === "append" || mode === "rebuild" || mode === "preserve" ? mode : "preserve";
 	}
 
@@ -2217,7 +2217,7 @@ export class TUI extends Container {
 		let viewport = Array.from(plan.viewport);
 		if (viewport.length > height) {
 			const message = `Frame provider returned ${viewport.length} rows for a ${height}-row viewport`;
-			if (Bun.env.NODE_ENV === "test" || Bun.env.NODE_ENV === "development") throw new Error(message);
+			if (process.env.NODE_ENV === "test" || process.env.NODE_ENV === "development") throw new Error(message);
 			logger.error("TUI layout contract violated", { rows: viewport.length, height });
 			viewport = viewport.slice(0, height);
 		}

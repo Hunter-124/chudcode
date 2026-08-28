@@ -643,7 +643,7 @@ export class FirmwareTool implements AgentTool<typeof firmwareSchema, FirmwareTo
 			}
 			let script = localExists ? localSpec : spec;
 			if (!script.endsWith(".resc") || !localExists || explicitResource) {
-				temporaryScript = path.join(await fs.mkdtemp(path.join(Bun.env.TMPDIR ?? "/tmp", "omp-renode-")), "run.resc");
+				temporaryScript = path.join(await fs.mkdtemp(path.join(process.env.TMPDIR ?? "/tmp", "omp-renode-")), "run.resc");
 				const runSeconds = Math.max(0.1, timeoutMs / 1000 - 0.25);
 				const resource = localExists ? localSpec : spec;
 				const platformCommand = spec.endsWith(".resc")

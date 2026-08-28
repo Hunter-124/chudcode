@@ -61,7 +61,7 @@ describe("ptree timeout", () => {
 		const script = createLinuxSubreaperScript(["libc.so.omp-missing", "libc.so.6", "libc.so"]);
 		const child = Bun.spawn([process.execPath, "-e", script], {
 			env: {
-				...Bun.env,
+				...process.env,
 				BUN_BE_BUN: "1",
 				OMP_PTREE_SUBREAPER_COMMAND: JSON.stringify([
 					process.execPath,
@@ -94,7 +94,7 @@ describe("ptree timeout", () => {
 	it.skipIf(process.platform !== "linux")("preserves caller-supplied BUN_BE_BUN for the command", async () => {
 		const result = await exec(["/bin/sh", "-c", `printf %s "\${BUN_BE_BUN-unset}"`], {
 			subreaper: true,
-			env: { ...Bun.env, BUN_BE_BUN: "1" },
+			env: { ...process.env, BUN_BE_BUN: "1" },
 		});
 
 		expect(result.stdout).toBe("1");
@@ -124,7 +124,7 @@ ${createLinuxSubreaperScript()}
 			{
 				cwd: "/tmp",
 				env: {
-					...Bun.env,
+					...process.env,
 					BUN_BE_BUN: "1",
 					OMP_PTREE_SUBREAPER_COMMAND: JSON.stringify(["/bin/sh", "-c", "printf procfs-free-ok"]),
 				},

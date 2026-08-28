@@ -270,15 +270,15 @@ async function getGpuModel(): Promise<string | null> {
 }
 
 function getTerminalName(): string | undefined {
-	const termProgram = Bun.env.TERM_PROGRAM;
-	const termProgramVersion = Bun.env.TERM_PROGRAM_VERSION;
+	const termProgram = process.env.TERM_PROGRAM;
+	const termProgramVersion = process.env.TERM_PROGRAM_VERSION;
 	if (termProgram) {
 		return termProgramVersion ? `${termProgram} ${termProgramVersion}` : termProgram;
 	}
 
-	if (Bun.env.WT_SESSION) return "Windows Terminal";
+	if (process.env.WT_SESSION) return "Windows Terminal";
 
-	const term = firstNonEmpty(Bun.env.TERM, Bun.env.COLORTERM, Bun.env.TERMINAL_EMULATOR);
+	const term = firstNonEmpty(process.env.TERM, process.env.COLORTERM, process.env.TERMINAL_EMULATOR);
 	return term ?? undefined;
 }
 

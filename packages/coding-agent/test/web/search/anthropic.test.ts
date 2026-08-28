@@ -26,14 +26,14 @@ function makeCaptureFetch(): { fetch: FetchImpl; body: () => Record<string, unkn
 }
 
 function withSearchModel(model: string) {
-	const original = Bun.env.ANTHROPIC_SEARCH_MODEL;
-	Bun.env.ANTHROPIC_SEARCH_MODEL = model;
+	const original = process.env.ANTHROPIC_SEARCH_MODEL;
+	process.env.ANTHROPIC_SEARCH_MODEL = model;
 	return {
 		[Symbol.dispose]() {
 			if (original === undefined) {
-				delete Bun.env.ANTHROPIC_SEARCH_MODEL;
+				delete process.env.ANTHROPIC_SEARCH_MODEL;
 			} else {
-				Bun.env.ANTHROPIC_SEARCH_MODEL = original;
+				process.env.ANTHROPIC_SEARCH_MODEL = original;
 			}
 		},
 	};

@@ -1,6 +1,10 @@
-import { describe, expect, it, vi } from "bun:test";
+import { afterEach, describe, expect, it, vi } from "bun:test";
 import * as AIError from "@oh-my-pi/pi-ai/error";
-import { setBedrockProviderModule, streamBedrock } from "@oh-my-pi/pi-ai/providers/register-builtins";
+import {
+	__resetProviderModuleOverrides,
+	setBedrockProviderModule,
+	streamBedrock,
+} from "@oh-my-pi/pi-ai/providers/register-builtins";
 import type { AssistantMessage, Context, Model } from "@oh-my-pi/pi-ai/types";
 import type { AssistantMessageEventStream } from "@oh-my-pi/pi-ai/utils/event-stream";
 import { buildModel } from "@oh-my-pi/pi-catalog/build";
@@ -58,6 +62,12 @@ function createAssistantMessage(
 const baseContext: Context = { messages: [] };
 
 describe("register-builtins lazy streams", () => {
+	// The Bedrock override is process-global; drop it so later files resolve the
+	// real provider module.
+	afterEach(() => {
+		__resetProviderModuleOverrides();
+	});
+
 	it("resolves the outer stream result from source.result() when no terminal event is iterated", async () => {
 		const finalMessage = createAssistantMessage("stop");
 		const partialMessage = createAssistantMessage("stop");

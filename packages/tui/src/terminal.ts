@@ -26,12 +26,12 @@ const TERMINAL_PROGRESS_KEEPALIVE_MS = 1000;
 const TERMINAL_PROGRESS_ACTIVE_SEQUENCE = "\x1b]9;4;3\x07";
 const TERMINAL_PROGRESS_CLEAR_SEQUENCE = "\x1b]9;4;0;\x07";
 const WINDOWS_TERMINAL_OSC11_POLL_MS = 30_000;
-function shouldEnableModifyOtherKeysFallback(env: NodeJS.ProcessEnv = Bun.env): boolean {
+function shouldEnableModifyOtherKeysFallback(env: NodeJS.ProcessEnv = process.env): boolean {
 	if (!env.SSH_CONNECTION && !env.SSH_TTY && !env.SSH_CLIENT) return true;
 	return TERMINAL.id !== "base" && TERMINAL.id !== "trueColor";
 }
 
-function shouldPollWindowsTerminalAppearance(env: NodeJS.ProcessEnv = Bun.env): boolean {
+function shouldPollWindowsTerminalAppearance(env: NodeJS.ProcessEnv = process.env): boolean {
 	if (process.platform !== "win32") return false;
 	if (!env.WT_SESSION) return false;
 	return !env.TERM_PROGRAM || env.TERM_PROGRAM.toLowerCase() === "windows_terminal";
@@ -1909,7 +1909,7 @@ export class ProcessTerminal implements Terminal {
 
 	get columns(): number {
 		if (this.#inBandResizeActive && this.#reportedColumns) return this.#reportedColumns;
-		return process.stdout.columns || Number(Bun.env.COLUMNS) || 80;
+		return process.stdout.columns || Number(process.env.COLUMNS) || 80;
 	}
 	get pendingOutputBytes(): number {
 		if (this.#outputPump) return this.#outputPump.pending();
@@ -1919,7 +1919,7 @@ export class ProcessTerminal implements Terminal {
 
 	get rows(): number {
 		if (this.#inBandResizeActive && this.#reportedRows) return this.#reportedRows;
-		return process.stdout.rows || Number(Bun.env.LINES) || 24;
+		return process.stdout.rows || Number(process.env.LINES) || 24;
 	}
 
 	moveBy(lines: number): void {

@@ -91,7 +91,7 @@ async function loadJsonConfig(
  * "empty"` mode) rather than aborting discovery.
  */
 async function substituteConfigVars(text: string, configPath: string): Promise<string> {
-	const envExpanded = text.replace(/\{env:([^}]+)\}/g, (_, name: string) => Bun.env[name] ?? "");
+	const envExpanded = text.replace(/\{env:([^}]+)\}/g, (_, name: string) => process.env[name] ?? "");
 
 	const fileMatches = [...envExpanded.matchAll(/\{file:[^}]+\}/g)];
 	if (fileMatches.length === 0) return envExpanded;

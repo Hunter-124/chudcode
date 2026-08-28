@@ -120,12 +120,12 @@ describe("AgentSession bash session ownership", () => {
 	it("applies the registered bash shell environment to user-shell commands", async () => {
 		// BashRunner delegates execution to the global Settings-backed executor, so
 		// keep this extension-env contract independent of the developer's shell rc.
-		const shell = process.platform === "win32" ? (Bun.env.ComSpec ?? "cmd.exe") : "/bin/sh";
+		const shell = process.platform === "win32" ? (process.env.ComSpec ?? "cmd.exe") : "/bin/sh";
 		Settings.instance.set("shellPath", shell);
 		vi.spyOn(Settings.prototype, "getShellConfig").mockReturnValue({
 			shell,
 			args: process.platform === "win32" ? ["/c"] : ["-c"],
-			env: { PATH: Bun.env.PATH ?? "", HOME: tempDir.path(), SHELL: shell },
+			env: { PATH: process.env.PATH ?? "", HOME: tempDir.path(), SHELL: shell },
 			prefix: undefined,
 		});
 		const spawnHook = vi.fn(spawn => ({
@@ -162,12 +162,12 @@ describe("AgentSession bash session ownership", () => {
 		// unchanged and dropped it, while the child shell's real base env (the
 		// filtered spawn env) never contained it — so user shells lost the
 		// variable entirely (the secretsd session-token incident).
-		const shell = process.platform === "win32" ? (Bun.env.ComSpec ?? "cmd.exe") : "/bin/sh";
+		const shell = process.platform === "win32" ? (process.env.ComSpec ?? "cmd.exe") : "/bin/sh";
 		Settings.instance.set("shellPath", shell);
 		vi.spyOn(Settings.prototype, "getShellConfig").mockReturnValue({
 			shell,
 			args: process.platform === "win32" ? ["/c"] : ["-c"],
-			env: { PATH: Bun.env.PATH ?? "", HOME: tempDir.path(), SHELL: shell },
+			env: { PATH: process.env.PATH ?? "", HOME: tempDir.path(), SHELL: shell },
 			prefix: undefined,
 		});
 		const previousMirror = process.env.OMP_USER_SHELL_MIRROR;
@@ -207,12 +207,12 @@ describe("AgentSession bash session ownership", () => {
 		// every later command. On the next call the hook injects the same
 		// value again, it now looks unchanged against the poisoned baseline,
 		// and the adapter silently drops it from the forwarded env.
-		const shell = process.platform === "win32" ? (Bun.env.ComSpec ?? "cmd.exe") : "/bin/sh";
+		const shell = process.platform === "win32" ? (process.env.ComSpec ?? "cmd.exe") : "/bin/sh";
 		Settings.instance.set("shellPath", shell);
 		const cachedShellConfig = {
 			shell,
 			args: process.platform === "win32" ? ["/c"] : ["-c"],
-			env: { PATH: Bun.env.PATH ?? "", HOME: tempDir.path(), SHELL: shell },
+			env: { PATH: process.env.PATH ?? "", HOME: tempDir.path(), SHELL: shell },
 			prefix: undefined,
 		};
 		vi.spyOn(Settings.prototype, "getShellConfig").mockReturnValue(cachedShellConfig);

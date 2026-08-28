@@ -220,8 +220,8 @@ const originalStreamTimeoutEnv: Record<StreamTimeoutEnvKey, string | undefined> 
 
 beforeEach(() => {
 	for (const key of STREAM_TIMEOUT_ENV_KEYS) {
-		originalStreamTimeoutEnv[key] = Bun.env[key];
-		delete Bun.env[key];
+		originalStreamTimeoutEnv[key] = process.env[key];
+		delete process.env[key];
 	}
 });
 
@@ -229,9 +229,9 @@ afterEach(() => {
 	for (const key of STREAM_TIMEOUT_ENV_KEYS) {
 		const previous = originalStreamTimeoutEnv[key];
 		if (previous === undefined) {
-			delete Bun.env[key];
+			delete process.env[key];
 		} else {
-			Bun.env[key] = previous;
+			process.env[key] = previous;
 		}
 	}
 

@@ -236,7 +236,7 @@ describe("global --profile flag", () => {
 				[
 					`import { runCli } from ${JSON.stringify(url.pathToFileURL(cliEntry).href)};`,
 					'await runCli(["--profile", "work", "--help"]);',
-					'process.stdout.write("\\nSENTINEL=" + (Bun.env.OMP_PROFILE_BOOTSTRAP_SENTINEL ?? ""));',
+					'process.stdout.write("\\nSENTINEL=" + (process.env.OMP_PROFILE_BOOTSTRAP_SENTINEL ?? ""));',
 				].join("\n"),
 			);
 

@@ -36,7 +36,7 @@ interface OpenAIResponse {
 
 // `gpt-5.3-codex` is the model we've verified the ChatGPT-subscription Codex
 // backend accepts; older or higher-tier ids 4xx with "model not supported".
-const MODEL = Bun.env.OMP_E2E_OPENAI_RESPONSES_MODEL ?? "gpt-5.3-codex";
+const MODEL = process.env.OMP_E2E_OPENAI_RESPONSES_MODEL ?? "gpt-5.3-codex";
 
 const gateway = await checkAuthGatewayE2EAvailable();
 

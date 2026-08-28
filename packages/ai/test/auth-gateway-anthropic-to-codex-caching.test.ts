@@ -42,7 +42,7 @@ interface AnthropicResponse {
 	error?: { type: string; message: string };
 }
 
-const MODEL = Bun.env.OMP_E2E_CODEX_MODEL ?? "gpt-5.3-codex";
+const MODEL = process.env.OMP_E2E_CODEX_MODEL ?? "gpt-5.3-codex";
 
 const gateway = await checkAuthGatewayE2EAvailable();
 

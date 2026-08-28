@@ -43,8 +43,8 @@ describe("InteractiveMode tiny-title prewarm", () => {
 			vi.spyOn(process.stdin, "setRawMode").mockReturnValue(process.stdin);
 		}
 
-		previousNoTitle = Bun.env.PI_NO_TITLE;
-		delete Bun.env.PI_NO_TITLE;
+		previousNoTitle = process.env.PI_NO_TITLE;
+		delete process.env.PI_NO_TITLE;
 
 		resetSettingsForTest();
 		await Settings.init({ inMemory: true, cwd: tempDir.path() });
@@ -77,8 +77,8 @@ describe("InteractiveMode tiny-title prewarm", () => {
 		vi.restoreAllMocks();
 		await session?.dispose();
 		resetSettingsForTest();
-		if (previousNoTitle === undefined) delete Bun.env.PI_NO_TITLE;
-		else Bun.env.PI_NO_TITLE = previousNoTitle;
+		if (previousNoTitle === undefined) delete process.env.PI_NO_TITLE;
+		else process.env.PI_NO_TITLE = previousNoTitle;
 	});
 
 	afterAll(() => {

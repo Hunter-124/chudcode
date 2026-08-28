@@ -52,12 +52,12 @@ async function main() {
 		await client.start();
 		const availableModels = await client.getAvailableModels();
 		const providerKeyMap: Record<string, string | undefined> = {
-			anthropic: Bun.env.ANTHROPIC_API_KEY,
-			openai: Bun.env.OPENAI_API_KEY,
-			google: Bun.env.GEMINI_API_KEY ?? Bun.env.GOOGLE_API_KEY,
-			xai: Bun.env.XAI_API_KEY,
-			zai: Bun.env.ZAI_API_KEY,
-			perplexity: Bun.env.PERPLEXITY_API_KEY,
+			anthropic: process.env.ANTHROPIC_API_KEY,
+			openai: process.env.OPENAI_API_KEY,
+			google: process.env.GEMINI_API_KEY ?? process.env.GOOGLE_API_KEY,
+			xai: process.env.XAI_API_KEY,
+			zai: process.env.ZAI_API_KEY,
+			perplexity: process.env.PERPLEXITY_API_KEY,
 		};
 		const preferredProviders = ["zai", "google", "anthropic", "openai", "xai", "perplexity"];
 		for (const provider of preferredProviders) {

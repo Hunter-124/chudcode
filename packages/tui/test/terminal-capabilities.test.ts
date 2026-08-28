@@ -122,7 +122,7 @@ describe("Warp terminal capabilities", () => {
 
 	it("resolves the process-wide Warp terminal id and image protocol from TERM_PROGRAM", async () => {
 		const env: Record<string, string | undefined> = {
-			...Bun.env,
+			...process.env,
 			TERM_PROGRAM: "WarpTerminal",
 			COLORTERM: "truecolor",
 		};
@@ -170,7 +170,7 @@ console.log(JSON.stringify({ id: TERMINAL_ID, imageProtocol: TERMINAL.imageProto
 		// Warp lacks Kitty graphics on Windows hosts, including WSL.
 		const windowsHost =
 			process.platform === "win32" ||
-			(process.platform === "linux" && Boolean(Bun.env.WSL_DISTRO_NAME || Bun.env.WSL_INTEROP));
+			(process.platform === "linux" && Boolean(process.env.WSL_DISTRO_NAME || process.env.WSL_INTEROP));
 		expect(warp.imageProtocol).toBe(windowsHost ? null : ImageProtocol.Kitty);
 		expect(warp.trueColor).toBe(true);
 		expect(warp.hyperlinks).toBe(false);
@@ -221,7 +221,7 @@ console.log(JSON.stringify({ id: TERMINAL_ID, imageProtocol: TERMINAL.imageProto
  * independent of which terminal it runs inside (full-suite safe).
  */
 function subprocessEnv(overrides: Record<string, string | undefined>): Record<string, string | undefined> {
-	const env: Record<string, string | undefined> = { ...Bun.env };
+	const env: Record<string, string | undefined> = { ...process.env };
 	for (const key of [
 		"PI_FORCE_IMAGE_PROTOCOL",
 		"PASEO_TERMINAL_ID",

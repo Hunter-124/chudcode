@@ -234,7 +234,7 @@ describe("composer welcome native-history resize", () => {
 	});
 	it("clips retired hard rows instead of reflowing them inside a multiplexer", () => {
 		vi.spyOn(Math, "random").mockReturnValue(0.5);
-		Bun.env.TMUX = "/tmp/tmux-test/default,1,0";
+		process.env.TMUX = "/tmp/tmux-test/default,1,0";
 		const marker = "MUX-SUFFIX";
 		const { composer, terminal } = startRetiredWelcome(`model-aaaa${marker}`);
 		const accepted = plainBuffer(terminal).find(row => row.includes(marker));

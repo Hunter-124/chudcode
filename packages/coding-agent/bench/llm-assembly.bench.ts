@@ -30,7 +30,7 @@ import { convertToLlm } from "../src/session/messages";
 
 const tokenizer = new Tokenizer();
 
-const N = Number(Bun.env.LLM_ASSEMBLY_N ?? 5000);
+const N = Number(process.env.LLM_ASSEMBLY_N ?? 5000);
 const WARMUP = 5;
 const SAMPLES = 25;
 

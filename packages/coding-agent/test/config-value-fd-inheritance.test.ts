@@ -195,7 +195,7 @@ console.log(value === "pathless-ok" ? "PATHLESS-OK" : "PATHLESS-BAD:" + value);`
 	const proc = Bun.spawn({
 		cmd: [process.execPath, "--eval", script],
 		cwd: process.cwd(),
-		env: { ...Bun.env, PATH: emptyPathDir },
+		env: { ...process.env, PATH: emptyPathDir },
 		stdio: ["ignore", "pipe", "pipe"],
 		timeout: 15_000,
 	});

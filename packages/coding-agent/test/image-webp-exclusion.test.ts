@@ -91,15 +91,15 @@ describe("modelLacksWebpSupport", () => {
 });
 
 describe("normalizeModelContextImages model-aware WebP exclusion", () => {
-	const prior = Bun.env.OMP_NO_WEBP;
+	const prior = process.env.OMP_NO_WEBP;
 
 	beforeEach(() => {
-		delete (Bun.env as Record<string, string | undefined>).OMP_NO_WEBP;
+		delete (process.env as Record<string, string | undefined>).OMP_NO_WEBP;
 	});
 
 	afterEach(() => {
-		if (prior === undefined) delete (Bun.env as Record<string, string | undefined>).OMP_NO_WEBP;
-		else Bun.env.OMP_NO_WEBP = prior;
+		if (prior === undefined) delete (process.env as Record<string, string | undefined>).OMP_NO_WEBP;
+		else process.env.OMP_NO_WEBP = prior;
 	});
 
 	test("re-encodes a WebP image out of WebP for an Ollama-family model", async () => {

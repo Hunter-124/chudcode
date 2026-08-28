@@ -32,19 +32,19 @@ const terminal = TERMINAL as unknown as MutableTerminalInfo;
 const BASE64_ONE_PIXEL_PNG =
 	"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAAAAAA6fptVAAAACklEQVR4nGNgAAAAAgABSK+kcQAAAABJRU5ErkJggg==";
 
-const ORIGINAL_TMUX = Bun.env.TMUX;
-const ORIGINAL_HERDR_ENV = Bun.env.HERDR_ENV;
+const ORIGINAL_TMUX = process.env.TMUX;
+const ORIGINAL_HERDR_ENV = process.env.HERDR_ENV;
 
 beforeEach(() => {
-	delete Bun.env.TMUX;
-	delete Bun.env.HERDR_ENV;
+	delete process.env.TMUX;
+	delete process.env.HERDR_ENV;
 });
 
 afterEach(() => {
-	if (ORIGINAL_TMUX === undefined) delete Bun.env.TMUX;
-	else Bun.env.TMUX = ORIGINAL_TMUX;
-	if (ORIGINAL_HERDR_ENV === undefined) delete Bun.env.HERDR_ENV;
-	else Bun.env.HERDR_ENV = ORIGINAL_HERDR_ENV;
+	if (ORIGINAL_TMUX === undefined) delete process.env.TMUX;
+	else process.env.TMUX = ORIGINAL_TMUX;
+	if (ORIGINAL_HERDR_ENV === undefined) delete process.env.HERDR_ENV;
+	else process.env.HERDR_ENV = ORIGINAL_HERDR_ENV;
 });
 
 /** Drive one render pass against the budget with `count` images (ids 1..count, stable across passes). */
@@ -292,7 +292,7 @@ describe("encodeKittyDeleteImage", () => {
 
 describe("tmux Kitty graphics passthrough", () => {
 	beforeEach(() => {
-		Bun.env.TMUX = "/tmp/tmux-1000/default,1,0";
+		process.env.TMUX = "/tmp/tmux-1000/default,1,0";
 	});
 
 	it("wraps every Kitty graphics command in a tmux DCS envelope", () => {
@@ -318,7 +318,7 @@ describe("tmux Kitty graphics passthrough", () => {
 	});
 
 	it("leaves Kitty graphics commands bare outside tmux", () => {
-		delete Bun.env.TMUX;
+		delete process.env.TMUX;
 		expect(encodeKittyTransmit("AA==", 9)).toBe("\x1b_Ga=t,f=100,q=2,i=9;AA==\x1b\\");
 		expect(wrapTmuxPassthrough("\x1b_Gpayload\x1b\\")).toBe("\x1bPtmux;\x1b\x1b_Gpayload\x1b\x1b\\\x1b\\");
 	});
@@ -642,7 +642,7 @@ describe("TUI inline-image budget", () => {
 
 	it("clips a direct Kitty placement during an in-place width repaint", async () => {
 		const originalGraphics = { ...getKittyGraphics() };
-		const originalResizeMode = Bun.env.PI_TUI_RESIZE_IN_PLACE;
+		const originalResizeMode = process.env.PI_TUI_RESIZE_IN_PLACE;
 		const term = new VirtualTerminal(40, 6);
 		const writes: string[] = [];
 		const realWrite = term.write.bind(term);
@@ -652,7 +652,7 @@ describe("TUI inline-image budget", () => {
 		});
 
 		setKittyGraphics({ unicodePlaceholders: false });
-		Bun.env.PI_TUI_RESIZE_IN_PLACE = "1";
+		process.env.PI_TUI_RESIZE_IN_PLACE = "1";
 		const tui = new TUI(term);
 		tui.addChild(
 			new Image(
@@ -678,8 +678,8 @@ describe("TUI inline-image budget", () => {
 		} finally {
 			tui.stop();
 			setKittyGraphics(originalGraphics);
-			if (originalResizeMode === undefined) delete Bun.env.PI_TUI_RESIZE_IN_PLACE;
-			else Bun.env.PI_TUI_RESIZE_IN_PLACE = originalResizeMode;
+			if (originalResizeMode === undefined) delete process.env.PI_TUI_RESIZE_IN_PLACE;
+			else process.env.PI_TUI_RESIZE_IN_PLACE = originalResizeMode;
 		}
 	});
 

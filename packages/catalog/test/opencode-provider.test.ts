@@ -51,9 +51,11 @@ describe("Shared models.dev catalog fallback", () => {
 					return {
 						zai: {
 							models: {
-								"glm-5.3-flash": {
-									id: "glm-5.3-flash",
-									name: "GLM-5.3-Flash",
+								// Deliberately not a bundled zai id: the contract under test is
+								// that a models.dev-only model is merged, cached, and reused.
+								"glm-models-dev-only": {
+									id: "glm-models-dev-only",
+									name: "GLM models.dev only",
 									tool_call: true,
 									reasoning: true,
 									limit: { context: 1_000_000, output: 131_072 },
@@ -92,7 +94,7 @@ describe("Shared models.dev catalog fallback", () => {
 				reasoning: bundledModel.reasoning,
 				input: bundledModel.input,
 			});
-			expect(online.models.find(model => model.id === "glm-5.3-flash")).toMatchObject({
+			expect(online.models.find(model => model.id === "glm-models-dev-only")).toMatchObject({
 				api: "anthropic-messages",
 				baseUrl: "https://api.z.ai/api/anthropic",
 				contextWindow: 1_000_000,
@@ -105,7 +107,7 @@ describe("Shared models.dev catalog fallback", () => {
 			expect(cached.stale).toBe(false);
 			expect(cached.source).toBe("cache");
 			expect(cached.updatedAt).toBe(online.updatedAt);
-			expect(cached.models.some(model => model.id === "glm-5.3-flash")).toBe(true);
+			expect(cached.models.some(model => model.id === "glm-models-dev-only")).toBe(true);
 
 			const staleFallback = await resolveProviderModels(
 				{
@@ -123,7 +125,7 @@ describe("Shared models.dev catalog fallback", () => {
 			expect(staleFallback.stale).toBe(true);
 			expect(staleFallback.source).toBe("cache");
 			expect(staleFallback.updatedAt).toBe(online.updatedAt);
-			expect(staleFallback.models.some(model => model.id === "glm-5.3-flash")).toBe(true);
+			expect(staleFallback.models.some(model => model.id === "glm-models-dev-only")).toBe(true);
 			expect(fetches).toBe(1);
 		} finally {
 			await fs.rm(tempDir, { recursive: true, force: true });

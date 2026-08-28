@@ -358,7 +358,7 @@ function resolveBinary(projectCwd: string, root: string, names: readonly string[
 		if (parent === current || (!parent.startsWith(`${projectCwd}${path.sep}`) && parent !== projectCwd)) break;
 		current = parent;
 	}
-	const searchPath = [...new Set(searchDirectories), Bun.env.PATH ?? ""].filter(Boolean).join(path.delimiter);
+	const searchPath = [...new Set(searchDirectories), process.env.PATH ?? ""].filter(Boolean).join(path.delimiter);
 	for (const name of names) {
 		const executable = $which(name, { cwd, PATH: searchPath });
 		if (executable) return executable;

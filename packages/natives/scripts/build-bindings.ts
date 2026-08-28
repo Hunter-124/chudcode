@@ -77,11 +77,11 @@ const variantSuffix = effectiveVariant ? `-${effectiveVariant}` : "";
 // the target's default CPU features: `-C target-cpu=native` would bake the build
 // host's CPU features into the addon and trips ring 0.17's aarch64-apple
 // const assertion (CAPS_STATIC == MIN_STATIC_FEATURES).
-if (!Bun.env.RUSTFLAGS) {
+if (!process.env.RUSTFLAGS) {
 	if (effectiveVariant === "modern") {
-		Bun.env.RUSTFLAGS = "-C target-cpu=x86-64-v3";
+		process.env.RUSTFLAGS = "-C target-cpu=x86-64-v3";
 	} else if (effectiveVariant === "baseline") {
-		Bun.env.RUSTFLAGS = "-C target-cpu=x86-64-v2";
+		process.env.RUSTFLAGS = "-C target-cpu=x86-64-v2";
 	}
 }
 
@@ -208,7 +208,7 @@ const napiBin = path.join(path.dirname(napiManifestPath), napiBinEntry);
 
 // Profiles live in the root Cargo.toml; `local` trades size for iteration
 // speed, `ci` strips and drops incremental state.
-const cargoProfile = Bun.env.OMP_NATIVE_CARGO_PROFILE?.trim() || "local";
+const cargoProfile = process.env.OMP_NATIVE_CARGO_PROFILE?.trim() || "local";
 
 const napiArgs = [
 	"build",

@@ -43,7 +43,7 @@ export interface TerminalServiceOptions {
 	emit: TerminalEventSink;
 	/** Explicit shell path or executable name. No shell command string is ever evaluated. */
 	shell?: string;
-	/** Source consulted only for names in environmentAllowlist. Defaults to Bun.env. */
+	/** Source consulted only for names in environmentAllowlist. Defaults to process.env. */
 	inheritedEnvironment?: Readonly<Record<string, string | undefined>>;
 	/** Names that may be copied from inheritedEnvironment into the shell. */
 	environmentAllowlist?: readonly string[];

@@ -94,7 +94,7 @@ export interface MuxConnectResult {
  *
  * Every input that changes what the spawned process actually *is* belongs in
  * this key: the registry spawns `[command, ...args]` in `cwd` with
- * `{ ...Bun.env, ...env }`, so two links that agree on command and cwd but
+ * `{ ...process.env, ...env }`, so two links that agree on command and cwd but
  * differ in args or env are not interchangeable. Keying on command and cwd
  * alone let an idle server started with one argument set be handed to a link
  * that asked for another, silently serving the wrong configuration from a

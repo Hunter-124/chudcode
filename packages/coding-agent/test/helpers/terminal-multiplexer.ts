@@ -25,15 +25,15 @@ export function withoutTerminalMultiplexer(): void {
 
 	beforeEach(() => {
 		for (const key of KEYS) {
-			previous.set(key, Bun.env[key]);
-			delete Bun.env[key];
+			previous.set(key, process.env[key]);
+			delete process.env[key];
 		}
 	});
 
 	afterEach(() => {
 		for (const [key, value] of previous) {
-			if (value === undefined) delete Bun.env[key];
-			else Bun.env[key] = value;
+			if (value === undefined) delete process.env[key];
+			else process.env[key] = value;
 		}
 		previous.clear();
 	});

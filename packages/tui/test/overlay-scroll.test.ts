@@ -151,15 +151,15 @@ describe("TUI overlays", () => {
 		// ambient terminal identity to keep the direct-terminal resize/scrollback
 		// assertions below deterministic on any dev machine.
 		for (const key of ["TERM_PROGRAM", "PI_TUI_RESIZE_IN_PLACE", "HERDR_ENV"]) {
-			savedTerminalEnv[key] = Bun.env[key];
-			delete Bun.env[key];
+			savedTerminalEnv[key] = process.env[key];
+			delete process.env[key];
 		}
 	});
 	afterEach(() => {
 		for (const key in savedTerminalEnv) {
 			const value = savedTerminalEnv[key];
-			if (value === undefined) delete Bun.env[key];
-			else Bun.env[key] = value;
+			if (value === undefined) delete process.env[key];
+			else process.env[key] = value;
 		}
 		savedTerminalEnv = {};
 	});

@@ -169,8 +169,8 @@ function gitLabDuoWorkflowModelCacheProviderId(apiKey: string, config: GitLabDuo
 	// namespace/project config OR the same env vars, then the git remote at the
 	// effective cwd. Built-in discovery leaves the config fields empty, so the env +
 	// resolved cwd terms are what actually distinguish two workspaces sharing a token.
-	const namespaceId = config.namespaceId ?? Bun.env.GITLAB_DUO_NAMESPACE_ID ?? "";
-	const projectId = config.projectId ?? Bun.env.GITLAB_DUO_PROJECT_ID ?? Bun.env.GITLAB_DUO_PROJECT_PATH ?? "";
+	const namespaceId = config.namespaceId ?? process.env.GITLAB_DUO_NAMESPACE_ID ?? "";
+	const projectId = config.projectId ?? process.env.GITLAB_DUO_PROJECT_ID ?? process.env.GITLAB_DUO_PROJECT_PATH ?? "";
 	const cwd = config.cwd ?? process.cwd();
 	const scope = [config.baseUrl ?? "", namespaceId, projectId, cwd].join("\u0000");
 	return `gitlab-duo-agent:${Bun.hash(`${apiKey}\u0000${scope}`).toString(36)}`;

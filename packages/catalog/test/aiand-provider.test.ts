@@ -8,17 +8,17 @@ import { aiandModelManagerOptions } from "@oh-my-pi/pi-catalog/provider-models/o
 import type { FetchImpl } from "@oh-my-pi/pi-catalog/types";
 
 const ORIGINAL_ENV = {
-	AIAND_API_KEY: Bun.env.AIAND_API_KEY,
-	AIAND_BASE_URL: Bun.env.AIAND_BASE_URL,
+	AIAND_API_KEY: process.env.AIAND_API_KEY,
+	AIAND_BASE_URL: process.env.AIAND_BASE_URL,
 } as const;
 
 function restoreEnvVar(name: keyof typeof ORIGINAL_ENV): void {
 	const value = ORIGINAL_ENV[name];
 	if (value === undefined) {
-		delete Bun.env[name];
+		delete process.env[name];
 		return;
 	}
-	Bun.env[name] = value;
+	process.env[name] = value;
 }
 
 afterEach(() => {
@@ -37,7 +37,7 @@ function aiandModelsResponse(entries: Record<string, unknown>[]): Response {
 
 describe("ai& provider support", () => {
 	test("resolves the AIAND_API_KEY environment fallback", () => {
-		Bun.env.AIAND_API_KEY = "aiand-test-key";
+		process.env.AIAND_API_KEY = "aiand-test-key";
 		expect(getEnvApiKey("aiand")).toBe("aiand-test-key");
 	});
 
@@ -61,7 +61,7 @@ describe("ai& provider support", () => {
 	});
 
 	test("maps ai& /v1/models metadata: context, capabilities, efforts, and USD pricing", async () => {
-		delete Bun.env.AIAND_BASE_URL;
+		delete process.env.AIAND_BASE_URL;
 		const fetchMock: FetchImpl = vi.fn(async () =>
 			aiandModelsResponse([
 				{
@@ -136,7 +136,7 @@ describe("ai& provider support", () => {
 	});
 
 	test("prefers explicit base URL over AIAND_BASE_URL and appends /v1", async () => {
-		Bun.env.AIAND_BASE_URL = "https://env.aiand.test";
+		process.env.AIAND_BASE_URL = "https://env.aiand.test";
 		const fetchMock: FetchImpl = vi.fn(async () =>
 			aiandModelsResponse([{ id: "openai/gpt-oss-120b" }]),
 		) as unknown as FetchImpl;

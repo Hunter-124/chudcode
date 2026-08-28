@@ -5,8 +5,8 @@ import { type MacAppearanceObserver, MacOSAppearance } from "@oh-my-pi/pi-native
 import type { Terminal, TerminalAppearance } from "@oh-my-pi/pi-tui";
 
 const originalPlatform = process.platform;
-const originalColorfgbg = Bun.env.COLORFGBG;
-const originalZellij = Bun.env.ZELLIJ;
+const originalColorfgbg = process.env.COLORFGBG;
+const originalZellij = process.env.ZELLIJ;
 
 type ThemeTestGlobals = {
 	platform?: NodeJS.Platform;
@@ -21,11 +21,11 @@ const withThemeTestGlobals = (globals: ThemeTestGlobals = {}) => {
 		writable: true,
 	});
 
-	if (globals.colorfgbg === undefined) delete Bun.env.COLORFGBG;
-	else Bun.env.COLORFGBG = globals.colorfgbg;
+	if (globals.colorfgbg === undefined) delete process.env.COLORFGBG;
+	else process.env.COLORFGBG = globals.colorfgbg;
 
-	if (globals.zellij === undefined) delete Bun.env.ZELLIJ;
-	else Bun.env.ZELLIJ = globals.zellij;
+	if (globals.zellij === undefined) delete process.env.ZELLIJ;
+	else process.env.ZELLIJ = globals.zellij;
 
 	return {
 		[Symbol.dispose]() {
@@ -35,10 +35,10 @@ const withThemeTestGlobals = (globals: ThemeTestGlobals = {}) => {
 				configurable: true,
 				writable: true,
 			});
-			if (originalColorfgbg === undefined) delete Bun.env.COLORFGBG;
-			else Bun.env.COLORFGBG = originalColorfgbg;
-			if (originalZellij === undefined) delete Bun.env.ZELLIJ;
-			else Bun.env.ZELLIJ = originalZellij;
+			if (originalColorfgbg === undefined) delete process.env.COLORFGBG;
+			else process.env.COLORFGBG = originalColorfgbg;
+			if (originalZellij === undefined) delete process.env.ZELLIJ;
+			else process.env.ZELLIJ = originalZellij;
 			vi.restoreAllMocks();
 		},
 	};

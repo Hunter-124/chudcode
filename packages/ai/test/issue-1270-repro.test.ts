@@ -25,20 +25,20 @@ const model: Model<"google-vertex"> = buildModel({
 });
 
 describe("issue #1270: Vertex AI global endpoint", () => {
-	const originalApiKey = Bun.env.GOOGLE_CLOUD_API_KEY;
-	const originalCredentials = Bun.env.GOOGLE_APPLICATION_CREDENTIALS;
+	const originalApiKey = process.env.GOOGLE_CLOUD_API_KEY;
+	const originalCredentials = process.env.GOOGLE_APPLICATION_CREDENTIALS;
 
 	afterEach(() => {
 		__resetVertexTokenCache();
-		if (originalApiKey === undefined) delete Bun.env.GOOGLE_CLOUD_API_KEY;
-		else Bun.env.GOOGLE_CLOUD_API_KEY = originalApiKey;
-		if (originalCredentials === undefined) delete Bun.env.GOOGLE_APPLICATION_CREDENTIALS;
-		else Bun.env.GOOGLE_APPLICATION_CREDENTIALS = originalCredentials;
+		if (originalApiKey === undefined) delete process.env.GOOGLE_CLOUD_API_KEY;
+		else process.env.GOOGLE_CLOUD_API_KEY = originalApiKey;
+		if (originalCredentials === undefined) delete process.env.GOOGLE_APPLICATION_CREDENTIALS;
+		else process.env.GOOGLE_APPLICATION_CREDENTIALS = originalCredentials;
 	});
 
 	it("uses the global Vertex AI service host for locations/global", async () => {
-		delete Bun.env.GOOGLE_CLOUD_API_KEY;
-		delete Bun.env.GOOGLE_APPLICATION_CREDENTIALS;
+		delete process.env.GOOGLE_CLOUD_API_KEY;
+		delete process.env.GOOGLE_APPLICATION_CREDENTIALS;
 
 		const urls: string[] = [];
 		const stream = streamGoogleVertex(model, context, {
@@ -77,8 +77,8 @@ describe("issue #1270: Vertex AI global endpoint", () => {
 			host: "europe-west4-aiplatform.googleapis.com",
 		},
 	] as const)("uses the $host host for location $location", async ({ location, host }) => {
-		delete Bun.env.GOOGLE_CLOUD_API_KEY;
-		delete Bun.env.GOOGLE_APPLICATION_CREDENTIALS;
+		delete process.env.GOOGLE_CLOUD_API_KEY;
+		delete process.env.GOOGLE_APPLICATION_CREDENTIALS;
 
 		const urls: string[] = [];
 		const stream = streamGoogleVertex(model, context, {

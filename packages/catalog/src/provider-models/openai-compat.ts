@@ -3873,7 +3873,7 @@ export function lmStudioModelManagerOptions(
 	config?: LmStudioModelManagerConfig,
 ): ModelManagerOptions<"openai-completions"> {
 	const apiKey = config?.apiKey;
-	const baseUrl = config?.baseUrl ?? Bun.env.LM_STUDIO_BASE_URL ?? "http://127.0.0.1:1234/v1";
+	const baseUrl = config?.baseUrl ?? process.env.LM_STUDIO_BASE_URL ?? "http://127.0.0.1:1234/v1";
 	const references = createBundledReferenceMap<"openai-completions">("lm-studio" as any);
 	return {
 		providerId: "lm-studio",
@@ -4235,7 +4235,7 @@ export function coreWeaveModelManagerOptions(
 ): ModelManagerOptions<"openai-completions"> {
 	return createSimpleOpenAICompletionsOptions("coreweave", "https://api.inference.wandb.ai/v1", {
 		...config,
-		headers: () => coreWeaveProjectHeaders(Bun.env),
+		headers: () => coreWeaveProjectHeaders(process.env),
 	});
 }
 
@@ -4480,7 +4480,7 @@ export function moonshotModelManagerOptions(
 		// `MOONSHOT_BASE_URL` redirects discovery (and the streaming request that
 		// inherits this baseUrl) at the Kimi China platform `api.moonshot.cn`; an
 		// explicit `config.baseUrl` still wins. Mirrors LITELLM_BASE_URL/LM_STUDIO_BASE_URL. (#2883)
-		defaultBaseUrl: Bun.env.MOONSHOT_BASE_URL ?? "https://api.moonshot.ai/v1",
+		defaultBaseUrl: process.env.MOONSHOT_BASE_URL ?? "https://api.moonshot.ai/v1",
 		config,
 		requireApiKey: true,
 		mapModel: (entry, defaults, reference) => {
@@ -4597,7 +4597,7 @@ export interface SakanaModelManagerConfig {
 
 export function sakanaModelManagerOptions(config?: SakanaModelManagerConfig): ModelManagerOptions<"openai-responses"> {
 	const apiKey = config?.apiKey;
-	const baseUrl = normalizeSakanaBaseUrl(config?.baseUrl ?? Bun.env.SAKANA_BASE_URL ?? Bun.env.FUGU_BASE_URL);
+	const baseUrl = normalizeSakanaBaseUrl(config?.baseUrl ?? process.env.SAKANA_BASE_URL ?? process.env.FUGU_BASE_URL);
 	const references = createBundledReferenceMap<"openai-responses">("sakana");
 	return {
 		providerId: "sakana",
@@ -4779,7 +4779,7 @@ export interface AiandModelManagerConfig {
  */
 export function aiandModelManagerOptions(config?: AiandModelManagerConfig): ModelManagerOptions<"openai-completions"> {
 	const apiKey = config?.apiKey;
-	const baseUrl = normalizeAiandBaseUrl(config?.baseUrl ?? Bun.env.AIAND_BASE_URL);
+	const baseUrl = normalizeAiandBaseUrl(config?.baseUrl ?? process.env.AIAND_BASE_URL);
 	return {
 		providerId: "aiand",
 		dynamicModelsAuthoritative: true,

@@ -210,7 +210,7 @@ async function installOnnxRuntimeCudaProviders(packageDir: string, runtimeDir: s
 
 	const proc = Bun.spawn([process.execPath, script], {
 		cwd: runtimeDir,
-		env: { ...Bun.env, BUN_BE_BUN: "1", ONNXRUNTIME_NODE_INSTALL: ONNX_RUNTIME_CUDA_INSTALL },
+		env: { ...process.env, BUN_BE_BUN: "1", ONNXRUNTIME_NODE_INSTALL: ONNX_RUNTIME_CUDA_INSTALL },
 		stdout: "pipe",
 		stderr: "pipe",
 	});

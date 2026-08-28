@@ -24,7 +24,7 @@
  */
 import { InMemorySnapshotStore, parsePatch, RECOVERY_SESSION_REPLAY_WARNING, Recovery } from "../src";
 
-const ITERATIONS = Number(Bun.env.HASHLINE_BENCH_ITERATIONS ?? "5000");
+const ITERATIONS = Number(process.env.HASHLINE_BENCH_ITERATIONS ?? "5000");
 const PATH = "/tmp/__hashline-recovery-bench__.ts";
 
 interface Fixture {

@@ -12,19 +12,19 @@ import { sakanaModelManagerOptions } from "@oh-my-pi/pi-catalog/provider-models/
 import type { FetchImpl, ModelSpec, ResolvedOpenAIResponsesCompat } from "@oh-my-pi/pi-catalog/types";
 
 const ORIGINAL_ENV = {
-	SAKANA_API_KEY: Bun.env.SAKANA_API_KEY,
-	FUGU_API_KEY: Bun.env.FUGU_API_KEY,
-	SAKANA_BASE_URL: Bun.env.SAKANA_BASE_URL,
-	FUGU_BASE_URL: Bun.env.FUGU_BASE_URL,
+	SAKANA_API_KEY: process.env.SAKANA_API_KEY,
+	FUGU_API_KEY: process.env.FUGU_API_KEY,
+	SAKANA_BASE_URL: process.env.SAKANA_BASE_URL,
+	FUGU_BASE_URL: process.env.FUGU_BASE_URL,
 } as const;
 
 function restoreEnvVar(name: keyof typeof ORIGINAL_ENV): void {
 	const value = ORIGINAL_ENV[name];
 	if (value === undefined) {
-		delete Bun.env[name];
+		delete process.env[name];
 		return;
 	}
-	Bun.env[name] = value;
+	process.env[name] = value;
 }
 
 afterEach(() => {
@@ -37,11 +37,11 @@ afterEach(() => {
 
 describe("Sakana AI provider support", () => {
 	test("resolves Sakana and Fugu API key environment fallbacks", () => {
-		delete Bun.env.SAKANA_API_KEY;
-		Bun.env.FUGU_API_KEY = "fugu-test-key";
+		delete process.env.SAKANA_API_KEY;
+		process.env.FUGU_API_KEY = "fugu-test-key";
 		expect(getEnvApiKey("sakana")).toBe("fugu-test-key");
 
-		Bun.env.SAKANA_API_KEY = "sakana-test-key";
+		process.env.SAKANA_API_KEY = "sakana-test-key";
 		expect(getEnvApiKey("sakana")).toBe("sakana-test-key");
 	});
 
@@ -71,8 +71,8 @@ describe("Sakana AI provider support", () => {
 	});
 
 	test("discovers models from Sakana Models API with normalized base URL and curated Fugu metadata", async () => {
-		delete Bun.env.SAKANA_BASE_URL;
-		Bun.env.FUGU_BASE_URL = "https://gateway.sakana.test";
+		delete process.env.SAKANA_BASE_URL;
+		process.env.FUGU_BASE_URL = "https://gateway.sakana.test";
 		const fetchMock: FetchImpl = vi.fn(
 			async () =>
 				new Response(JSON.stringify({ data: [{ id: "fugu" }, { id: "fugu-ultra" }, { id: "fugu-next" }] }), {
@@ -147,7 +147,7 @@ describe("Sakana AI provider support", () => {
 		}
 	});
 	test("prefers explicit Sakana model-manager base URL over environment aliases", async () => {
-		Bun.env.SAKANA_BASE_URL = "https://env.sakana.test";
+		process.env.SAKANA_BASE_URL = "https://env.sakana.test";
 		const fetchMock: FetchImpl = vi.fn(
 			async () =>
 				new Response(JSON.stringify({ data: [{ id: "fugu" }] }), {

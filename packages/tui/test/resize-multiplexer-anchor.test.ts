@@ -101,15 +101,15 @@ function useDirectTerminalEnv() {
 	beforeEach(() => {
 		saved = {};
 		for (const key of MUX_SIGNALS) {
-			saved[key] = Bun.env[key];
-			delete Bun.env[key];
+			saved[key] = process.env[key];
+			delete process.env[key];
 		}
-		Bun.env.TERM = "xterm-256color";
+		process.env.TERM = "xterm-256color";
 	});
 	afterEach(() => {
 		for (const key of MUX_SIGNALS) {
-			if (saved[key] === undefined) delete Bun.env[key];
-			else Bun.env[key] = saved[key];
+			if (saved[key] === undefined) delete process.env[key];
+			else process.env[key] = saved[key];
 		}
 	});
 }
@@ -118,12 +118,12 @@ describe("resize anchoring inside a terminal multiplexer", () => {
 	let previousTmux: string | undefined;
 
 	beforeEach(() => {
-		previousTmux = Bun.env.TMUX;
-		Bun.env.TMUX = "/tmp/tmux-1000/default,1,0";
+		previousTmux = process.env.TMUX;
+		process.env.TMUX = "/tmp/tmux-1000/default,1,0";
 	});
 	afterEach(() => {
-		if (previousTmux === undefined) delete Bun.env.TMUX;
-		else Bun.env.TMUX = previousTmux;
+		if (previousTmux === undefined) delete process.env.TMUX;
+		else process.env.TMUX = previousTmux;
 	});
 
 	it("skips the SIGWINCH-side erase so a racing re-layout cannot blank popped scrollback", () => {

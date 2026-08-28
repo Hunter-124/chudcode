@@ -916,11 +916,11 @@ function hasGitLabDuoWorkflowExplicitNamespace(options: GitLabDuoWorkflowOptions
 	return Boolean(
 		nonEmptyString(options.rootNamespaceId) ??
 			nonEmptyString(options.namespaceId) ??
-			nonEmptyString(Bun.env.GITLAB_DUO_NAMESPACE_ID) ??
+			nonEmptyString(process.env.GITLAB_DUO_NAMESPACE_ID) ??
 			nonEmptyString(options.projectId) ??
 			nonEmptyString(options.projectPath) ??
-			nonEmptyString(Bun.env.GITLAB_DUO_PROJECT_ID) ??
-			nonEmptyString(Bun.env.GITLAB_DUO_PROJECT_PATH),
+			nonEmptyString(process.env.GITLAB_DUO_PROJECT_ID) ??
+			nonEmptyString(process.env.GITLAB_DUO_PROJECT_PATH),
 	);
 }
 
@@ -1068,8 +1068,8 @@ async function runGitLabDuoWorkflow(
 	}
 	const workflowDefinition = resolveGitLabDuoWorkflowDefinition(options.workflowDefinition);
 	const explicitNamespace = hasGitLabDuoWorkflowExplicitNamespace(options);
-	const configuredProjectPath = nonEmptyString(options.projectPath) ?? nonEmptyString(Bun.env.GITLAB_DUO_PROJECT_PATH);
-	const configuredProjectId = nonEmptyString(options.projectId) ?? nonEmptyString(Bun.env.GITLAB_DUO_PROJECT_ID);
+	const configuredProjectPath = nonEmptyString(options.projectPath) ?? nonEmptyString(process.env.GITLAB_DUO_PROJECT_PATH);
+	const configuredProjectId = nonEmptyString(options.projectId) ?? nonEmptyString(process.env.GITLAB_DUO_PROJECT_ID);
 	const goal = extractLatestUserPrompt(context.messages);
 
 	// Resolve the namespace and everything scoped to it (settings enable, project
@@ -2769,8 +2769,8 @@ function socketEventErrorText(error: unknown): string | undefined {
 }
 
 export function traceGitLabDuoWorkflow(event: string, data: Record<string, unknown> = {}): void {
-	if (Bun.env[GITLAB_DUO_WORKFLOW_TRACE_ENV] !== "1") return;
-	const traceFile = Bun.env[GITLAB_DUO_WORKFLOW_TRACE_FILE_ENV]?.trim() || DEFAULT_GITLAB_DUO_WORKFLOW_TRACE_FILE;
+	if (process.env[GITLAB_DUO_WORKFLOW_TRACE_ENV] !== "1") return;
+	const traceFile = process.env[GITLAB_DUO_WORKFLOW_TRACE_FILE_ENV]?.trim() || DEFAULT_GITLAB_DUO_WORKFLOW_TRACE_FILE;
 	const line = `${JSON.stringify({
 		time: new Date().toISOString(),
 		event,
@@ -2852,14 +2852,14 @@ export async function resolveGitLabDuoWorkflowNamespaceSelection(
 	const configured =
 		nonEmptyString(options.rootNamespaceId) ??
 		nonEmptyString(options.namespaceId) ??
-		nonEmptyString(Bun.env.GITLAB_DUO_NAMESPACE_ID);
+		nonEmptyString(process.env.GITLAB_DUO_NAMESPACE_ID);
 
 	try {
 		const projectId =
 			nonEmptyString(options.projectId) ??
 			nonEmptyString(options.projectPath) ??
-			nonEmptyString(Bun.env.GITLAB_DUO_PROJECT_ID) ??
-			nonEmptyString(Bun.env.GITLAB_DUO_PROJECT_PATH);
+			nonEmptyString(process.env.GITLAB_DUO_PROJECT_ID) ??
+			nonEmptyString(process.env.GITLAB_DUO_PROJECT_PATH);
 		return await discoverGitLabDuoWorkflowRuntimeNamespace({
 			apiKey,
 			baseUrl,
@@ -2896,7 +2896,7 @@ function resolveGitLabDuoWorkflowDefinition(
 ): GitLabDuoWorkflowDefinition {
 	const configured =
 		nonEmptyString(workflowDefinition) ??
-		nonEmptyString(Bun.env.GITLAB_DUO_WORKFLOW_DEFINITION) ??
+		nonEmptyString(process.env.GITLAB_DUO_WORKFLOW_DEFINITION) ??
 		GITLAB_DUO_WORKFLOW_DEFINITION;
 	return configured;
 }

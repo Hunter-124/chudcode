@@ -19,7 +19,7 @@ const OSC = "\x1b]";
 const ST = "\x1b\\";
 const BEL = "\x07";
 const LINK_END = `${OSC}8;;${ST}`;
-const ORIGINAL_NO_COLOR = Bun.env.NO_COLOR;
+const ORIGINAL_NO_COLOR = process.env.NO_COLOR;
 
 /** Extract the hyperlink URI from a wrapped string. Returns undefined if not wrapped. */
 function extractLinkUri(text: string): string | undefined {
@@ -53,9 +53,9 @@ afterAll(() => {
 afterEach(() => {
 	settings.clearOverride("tui.hyperlinks");
 	if (ORIGINAL_NO_COLOR === undefined) {
-		delete Bun.env.NO_COLOR;
+		delete process.env.NO_COLOR;
 	} else {
-		Bun.env.NO_COLOR = ORIGINAL_NO_COLOR;
+		process.env.NO_COLOR = ORIGINAL_NO_COLOR;
 	}
 });
 
@@ -83,7 +83,7 @@ describe("isHyperlinkEnabled", () => {
 
 	it("returns false in auto mode when NO_COLOR is set", () => {
 		setHyperlinkMode("auto");
-		Bun.env.NO_COLOR = "1";
+		process.env.NO_COLOR = "1";
 		expect(isHyperlinkEnabled()).toBe(false);
 	});
 
@@ -104,7 +104,7 @@ describe("isHyperlinkEnabled", () => {
 
 	it("returns TERMINAL.hyperlinks value in auto mode when conditions are met", () => {
 		setHyperlinkMode("auto");
-		delete Bun.env.NO_COLOR;
+		delete process.env.NO_COLOR;
 		const origTTY = Object.getOwnPropertyDescriptor(process.stdout, "isTTY");
 		try {
 			Object.defineProperty(process.stdout, "isTTY", { value: true, configurable: true });
@@ -253,7 +253,7 @@ describe("urlHyperlink", () => {
 describe("urlHyperlinkAlways", () => {
 	it("wraps HTTP URLs in auto mode even when capability detection would suppress", () => {
 		setHyperlinkMode("auto");
-		Bun.env.NO_COLOR = "1"; // forces isHyperlinkEnabled() to false in auto mode
+		process.env.NO_COLOR = "1"; // forces isHyperlinkEnabled() to false in auto mode
 		const result = urlHyperlinkAlways("www.example.com/path", "example");
 
 		expect(isHyperlinkEnabled()).toBe(false);

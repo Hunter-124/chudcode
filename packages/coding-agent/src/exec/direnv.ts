@@ -60,7 +60,7 @@ function direnvBinary(): string | null {
  *  direnv state so it loads the target `.envrc` from a clean baseline. */
 function cleanSpawnEnv(): Record<string, string> {
 	const out: Record<string, string> = {};
-	for (const [key, value] of Object.entries(Bun.env)) {
+	for (const [key, value] of Object.entries(process.env)) {
 		if (value !== undefined && !key.startsWith("DIRENV_")) out[key] = value;
 	}
 	return out;

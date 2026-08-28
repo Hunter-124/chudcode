@@ -37,14 +37,14 @@ describe("getVertexAccessToken impersonated_service_account ADC", () => {
 
 	beforeEach(async () => {
 		__resetVertexTokenCache();
-		originalGac = Bun.env.GOOGLE_APPLICATION_CREDENTIALS;
+		originalGac = process.env.GOOGLE_APPLICATION_CREDENTIALS;
 		tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "omp-vertex-adc-"));
 	});
 
 	afterEach(async () => {
 		__resetVertexTokenCache();
-		if (originalGac === undefined) delete Bun.env.GOOGLE_APPLICATION_CREDENTIALS;
-		else Bun.env.GOOGLE_APPLICATION_CREDENTIALS = originalGac;
+		if (originalGac === undefined) delete process.env.GOOGLE_APPLICATION_CREDENTIALS;
+		else process.env.GOOGLE_APPLICATION_CREDENTIALS = originalGac;
 		await fs.rm(tmpDir, { recursive: true, force: true });
 	});
 
@@ -65,7 +65,7 @@ describe("getVertexAccessToken impersonated_service_account ADC", () => {
 				},
 			}),
 		);
-		Bun.env.GOOGLE_APPLICATION_CREDENTIALS = adcPath;
+		process.env.GOOGLE_APPLICATION_CREDENTIALS = adcPath;
 
 		const calls: string[] = [];
 		const fetchImpl: FetchImpl = async input => {
@@ -98,7 +98,7 @@ describe("getVertexAccessToken impersonated_service_account ADC", () => {
 				// delegates intentionally omitted — the IAM body must default to [].
 			}),
 		);
-		Bun.env.GOOGLE_APPLICATION_CREDENTIALS = adcPath;
+		process.env.GOOGLE_APPLICATION_CREDENTIALS = adcPath;
 
 		const calls: { url: string; init?: RequestInit }[] = [];
 		const fetchImpl: FetchImpl = async (input, init) => {

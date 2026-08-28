@@ -49,7 +49,7 @@ export interface RequestDebugSession {
 }
 
 function isRequestDebugEnvEnabled(): boolean {
-	return Bun.env[REQUEST_DEBUG_ENV] === "1";
+	return process.env[REQUEST_DEBUG_ENV] === "1";
 }
 
 export function isRequestDebugEnabled(): boolean {

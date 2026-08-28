@@ -25,12 +25,12 @@ function restoreAgentDir(): void {
 	if (originalAgentDir) {
 		setAgentDir(originalAgentDir);
 		process.env.PI_CODING_AGENT_DIR = originalAgentDir;
-		Bun.env.PI_CODING_AGENT_DIR = originalAgentDir;
+		process.env.PI_CODING_AGENT_DIR = originalAgentDir;
 		return;
 	}
 	setAgentDir(fallbackAgentDir);
 	delete process.env.PI_CODING_AGENT_DIR;
-	delete Bun.env.PI_CODING_AGENT_DIR;
+	delete process.env.PI_CODING_AGENT_DIR;
 }
 
 async function writeConfig(

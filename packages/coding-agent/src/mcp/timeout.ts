@@ -6,7 +6,7 @@ const MCP_TIMEOUT_ENV = "OMP_MCP_TIMEOUT_MS";
 let neverAbortController: AbortController | undefined;
 
 export function resolveMCPTimeoutMs(configTimeout?: number): number {
-	const raw = Bun.env[MCP_TIMEOUT_ENV]?.trim();
+	const raw = process.env[MCP_TIMEOUT_ENV]?.trim();
 	if (raw) {
 		const value = Number(raw);
 		if (Number.isFinite(value) && value >= 0) return value;

@@ -80,7 +80,7 @@ async function readJsonFile<T>(filePath: string): Promise<T | undefined> {
 }
 
 async function loadAdcCredentials(): Promise<{ source: string; creds: AdcFileCredentials } | undefined> {
-	const gacPath = Bun.env.GOOGLE_APPLICATION_CREDENTIALS;
+	const gacPath = process.env.GOOGLE_APPLICATION_CREDENTIALS;
 	if (gacPath) {
 		const creds = await readJsonFile<AdcFileCredentials>(gacPath);
 		if (!creds) {
@@ -284,7 +284,7 @@ export async function getVertexAccessToken(options?: { signal?: AbortSignal; fet
 	// An explicit access token (e.g. `gcloud auth print-access-token`) bypasses the cache so a
 	// refreshed env token takes effect immediately. `CLOUDSDK_AUTH_ACCESS_TOKEN` is gcloud's own
 	// override var; `GOOGLE_CLOUD_ACCESS_TOKEN` is the omp-facing alias.
-	const explicitToken = Bun.env.GOOGLE_CLOUD_ACCESS_TOKEN || Bun.env.CLOUDSDK_AUTH_ACCESS_TOKEN;
+	const explicitToken = process.env.GOOGLE_CLOUD_ACCESS_TOKEN || process.env.CLOUDSDK_AUTH_ACCESS_TOKEN;
 	if (explicitToken) return explicitToken;
 	const fetchImpl = options?.fetch ?? globalThis.fetch.bind(globalThis);
 	const skew = getRefreshSkewMs();

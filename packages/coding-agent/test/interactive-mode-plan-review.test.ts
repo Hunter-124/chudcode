@@ -415,8 +415,8 @@ describe("InteractiveMode plan review rendering", () => {
 			"#!/bin/sh\nprintf '%s\\n%s\\n' '- add rollback command' '- include smoke test' > \"$1\"\n",
 		);
 		await fs.chmod(editorPath, 0o755);
-		const previousEditor = Bun.env.EDITOR;
-		const previousVisual = Bun.env.VISUAL;
+		const previousEditor = process.env.EDITOR;
+		const previousVisual = process.env.VISUAL;
 		const keybindings = KeybindingsManager.inMemory({
 			"app.editor.external": "ctrl+e",
 			"tui.select.cancel": "ctrl+g",
@@ -434,8 +434,8 @@ describe("InteractiveMode plan review rendering", () => {
 		const { promise: editorApplied, resolve: markEditorApplied } = Promise.withResolvers<void>();
 
 		try {
-			Bun.env.EDITOR = editorPath;
-			delete Bun.env.VISUAL;
+			process.env.EDITOR = editorPath;
+			delete process.env.VISUAL;
 			const choice = mode.showPlanReview(
 				"# Plan\n\nIntro\n\n## Rollout\n\nSteps\n\n## Verify\n\nChecks\n",
 				"Plan mode - next step",
@@ -465,10 +465,10 @@ describe("InteractiveMode plan review rendering", () => {
 			overlay.handleInput("\r");
 			expect(await choice).toBe("Refine plan");
 		} finally {
-			if (previousEditor === undefined) delete Bun.env.EDITOR;
-			else Bun.env.EDITOR = previousEditor;
-			if (previousVisual === undefined) delete Bun.env.VISUAL;
-			else Bun.env.VISUAL = previousVisual;
+			if (previousEditor === undefined) delete process.env.EDITOR;
+			else process.env.EDITOR = previousEditor;
+			if (previousVisual === undefined) delete process.env.VISUAL;
+			else process.env.VISUAL = previousVisual;
 		}
 	});
 

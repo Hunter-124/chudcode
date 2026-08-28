@@ -26,8 +26,8 @@ afterEach(async () => {
  *  change — direnv's allow entry is content-hashed. */
 async function allowEnvrc(dir: string): Promise<void> {
 	const env: Record<string, string> = {};
-	for (const key in Bun.env) {
-		const value = Bun.env[key];
+	for (const key in process.env) {
+		const value = process.env[key];
 		if (value !== undefined && !key.startsWith("DIRENV_")) env[key] = value;
 	}
 	const proc = Bun.spawn(["direnv", "allow"], { cwd: dir, env, stdout: "ignore", stderr: "ignore" });
@@ -84,14 +84,14 @@ describe.skipIf(!hasDirenv)("loadDirenvEnv (real direnv, allow-list honored)", (
 	beforeEach(() => {
 		const home = tmp();
 		for (const key of ["HOME", "XDG_DATA_HOME", "XDG_CONFIG_HOME", "XDG_CACHE_HOME"]) {
-			savedEnv[key] = Bun.env[key];
-			Bun.env[key] = path.join(home, key.toLowerCase());
+			savedEnv[key] = process.env[key];
+			process.env[key] = path.join(home, key.toLowerCase());
 		}
 	});
 	afterEach(() => {
 		for (const [key, value] of Object.entries(savedEnv)) {
-			if (value === undefined) delete Bun.env[key];
-			else Bun.env[key] = value;
+			if (value === undefined) delete process.env[key];
+			else process.env[key] = value;
 		}
 	});
 
@@ -124,13 +124,13 @@ describe.skipIf(!hasDirenv)("loadDirenvEnv (real direnv, allow-list honored)", (
 		// direnv emits a JSON null for a var only when it was present in the
 		// spawn env and the `.envrc` removes it, so seed it in the parent env.
 		// (Avoid a `DIRENV_`-prefixed name — the loader strips those before spawn.)
-		Bun.env.PI_DIRENV_UNSET_TEST = "present";
+		process.env.PI_DIRENV_UNSET_TEST = "present";
 		try {
 			const diff = await loadDirenvEnv(root);
 			expect(diff?.set.PI_DIRENV_UNSET_TEST).toBeUndefined();
 			expect(diff?.unset).toContain("PI_DIRENV_UNSET_TEST");
 		} finally {
-			delete Bun.env.PI_DIRENV_UNSET_TEST;
+			delete process.env.PI_DIRENV_UNSET_TEST;
 		}
 	});
 
@@ -176,14 +176,14 @@ describe.skipIf(!hasDirenv)("bash executor direnv wiring (end-to-end)", () => {
 	beforeEach(() => {
 		const home = tmp();
 		for (const key of ["HOME", "XDG_DATA_HOME", "XDG_CONFIG_HOME", "XDG_CACHE_HOME"]) {
-			savedEnv[key] = Bun.env[key];
-			Bun.env[key] = path.join(home, key.toLowerCase());
+			savedEnv[key] = process.env[key];
+			process.env[key] = path.join(home, key.toLowerCase());
 		}
 	});
 	afterEach(() => {
 		for (const [key, value] of Object.entries(savedEnv)) {
-			if (value === undefined) delete Bun.env[key];
-			else Bun.env[key] = value;
+			if (value === undefined) delete process.env[key];
+			else process.env[key] = value;
 		}
 	});
 
@@ -209,7 +209,7 @@ describe.skipIf(!hasDirenv)("bash executor direnv wiring (end-to-end)", () => {
 		// exits non-zero and prints nothing when the name is genuinely absent. A
 		// unique sessionKey forces a fresh shell that captures the var we just set.
 		// (Avoid a `DIRENV_`-prefixed name — the loader strips those before spawn.)
-		Bun.env.PI_DIRENV_UNSET_E2E = "leaked";
+		process.env.PI_DIRENV_UNSET_E2E = "leaked";
 		try {
 			const result = await executeBash('printenv PI_DIRENV_UNSET_E2E; printf "rc=%s" "$?"', {
 				cwd: root,
@@ -218,7 +218,7 @@ describe.skipIf(!hasDirenv)("bash executor direnv wiring (end-to-end)", () => {
 			expect(result.output).toContain("rc=1");
 			expect(result.output).not.toContain("leaked");
 		} finally {
-			delete Bun.env.PI_DIRENV_UNSET_E2E;
+			delete process.env.PI_DIRENV_UNSET_E2E;
 		}
 	});
 });
@@ -233,14 +233,14 @@ describe.skipIf(!hasDirenv)("applyDirenvPreflight (shared all-backends preflight
 	beforeEach(() => {
 		const home = tmp();
 		for (const key of ["HOME", "XDG_DATA_HOME", "XDG_CONFIG_HOME", "XDG_CACHE_HOME"]) {
-			savedEnv[key] = Bun.env[key];
-			Bun.env[key] = path.join(home, key.toLowerCase());
+			savedEnv[key] = process.env[key];
+			process.env[key] = path.join(home, key.toLowerCase());
 		}
 	});
 	afterEach(() => {
 		for (const [key, value] of Object.entries(savedEnv)) {
-			if (value === undefined) delete Bun.env[key];
-			else Bun.env[key] = value;
+			if (value === undefined) delete process.env[key];
+			else process.env[key] = value;
 		}
 	});
 
@@ -264,8 +264,8 @@ describe.skipIf(!hasDirenv)("applyDirenvPreflight (shared all-backends preflight
 		const root = tmp();
 		await Bun.write(path.join(root, ".envrc"), "unset PI_PF_UNSET_A\nunset PI_PF_UNSET_B\n");
 		await allowEnvrc(root);
-		Bun.env.PI_PF_UNSET_A = "present";
-		Bun.env.PI_PF_UNSET_B = "present";
+		process.env.PI_PF_UNSET_A = "present";
+		process.env.PI_PF_UNSET_B = "present";
 		try {
 			const { command } = await applyDirenvPreflight("run-it", root, {
 				// Caller re-supplies B, so its unset must be skipped (caller wins).
@@ -276,8 +276,8 @@ describe.skipIf(!hasDirenv)("applyDirenvPreflight (shared all-backends preflight
 			expect(command).not.toContain("PI_PF_UNSET_B");
 			expect(command.endsWith("run-it")).toBe(true);
 		} finally {
-			delete Bun.env.PI_PF_UNSET_A;
-			delete Bun.env.PI_PF_UNSET_B;
+			delete process.env.PI_PF_UNSET_A;
+			delete process.env.PI_PF_UNSET_B;
 		}
 	});
 
@@ -285,7 +285,7 @@ describe.skipIf(!hasDirenv)("applyDirenvPreflight (shared all-backends preflight
 		const root = tmp();
 		await Bun.write(path.join(root, ".envrc"), "unset PI_PF_ORDER\n");
 		await allowEnvrc(root);
-		Bun.env.PI_PF_ORDER = "present";
+		process.env.PI_PF_ORDER = "present";
 		try {
 			const { command } = await applyDirenvPreflight("payload", root, {
 				direnvSetting: "auto",
@@ -294,7 +294,7 @@ describe.skipIf(!hasDirenv)("applyDirenvPreflight (shared all-backends preflight
 			// Ordering must be: `unset -v NAME; <prefix> <command>`.
 			expect(command).toBe("unset -v PI_PF_ORDER; strace -f payload");
 		} finally {
-			delete Bun.env.PI_PF_ORDER;
+			delete process.env.PI_PF_ORDER;
 		}
 	});
 

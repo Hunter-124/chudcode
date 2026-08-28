@@ -14,11 +14,18 @@
 - Added `/cache` with cache hit rate, token classes, honest price coverage, net cache savings, retention/TTL and idle-time reporting; the default cost status now shows cache savings, and cache misses explain that expiry or prompt-prefix changes caused reprocessing.
 - Added `/recent`, a compact ten-session resume picker showing recency, project, message count, and lifecycle status.
 - Grouped the full resume picker by Today, Yesterday, Previous 7 days, and Older, with inline fork, rename, pin/unpin, and copy-path actions.
-- Added `history://<id>/images` and `history://<id>/images/<n>`, which list a transcript's images with role, MIME type and byte size and resolve each to an on-disk path. Transcript image tokens are now numbered (`[image #N]`) to match that listing, so a screenshot captured earlier in a session can be retrieved instead of being rendered as an unrecoverable `[image]`.
+- Added session-owned Linux virtual displays shared by the computer tool and headed managed browsers, plus an optional loopback noVNC viewer, keeping AI focus and input off the user's desktop while retaining normal host access.
+- Added bounded rendered-page scraping with metadata and links, plus authenticated page-context HTTP fetching across managed, connected, relay, and cmux browser tabs.
+- Added the `ultragoon` magic keyword: research the request through parallel read-only subagents first, then settle the load-bearing decisions with you — including consequences found in the code you did not raise — before any construction, and close with a decision ledger.
+- Added the `tokenmaxxing` magic keyword: route a turn onto the strongest harness the task actually needs (intent verification, parallel research, subagent dispatch, or programmatic `eval` fan-out) with evidence required for every claim. Reasoning effort is unchanged — pair it with `ultrathink` for that.
+- Added the `autobot` magic keyword: grant standing authority for a request so ordinary decisions and reversible actions proceed without permission checkpoints, while destructive or externally irreversible actions stay outside the grant.
 
 ### Fixed
 
 - Fixed status-line background-work counts to keep queued tasks and eval jobs visible without double-counting running subagents.
+- Fixed terminal prompts being lost on unexpected process death by atomically checkpointing every accepted edit, and made Windows-style undo/redo keybindings the default so Ctrl+Z undoes instead of suspending Chudcode.
+- Fixed computer display changes retaining the previous native target, desktop workers timing out before native close, and browser cleanup crossing session ownership boundaries.
+- Fixed stage-private headed browsers retaining their temporary Chromium profiles after shutdown.
 
 ## [18.0.8] - 2026-08-27
 

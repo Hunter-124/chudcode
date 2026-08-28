@@ -12,7 +12,7 @@ import { disposeAllKernelSessions, executePythonWithKernel } from "@oh-my-pi/pi-
 import { PythonKernel } from "@oh-my-pi/pi-coding-agent/eval/py/kernel";
 import { TempDir } from "@oh-my-pi/pi-utils";
 
-const SHOULD_RUN = Bun.env.PI_PYTHON_INTEGRATION === "1";
+const SHOULD_RUN = process.env.PI_PYTHON_INTEGRATION === "1";
 
 describe.skipIf(!SHOULD_RUN)("python eval workflow helpers", () => {
 	afterEach(async () => {

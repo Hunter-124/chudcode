@@ -837,7 +837,7 @@ const serviceProviderMap: Record<string, KeyResolver> = {
  * Get API key for provider from known environment variables, e.g. OPENAI_API_KEY.
  *
  * Will not return API keys for providers that require OAuth tokens.
- * Checks Bun.env, then cwd/.env, then ~/.env.
+ * Checks process.env, then cwd/.env, then ~/.env.
  */
 export function getEnvApiKey(provider: string): string | undefined {
 	const resolver = serviceProviderMap[provider];
@@ -1715,7 +1715,7 @@ function maxTokensWithThinkingBudget(
 	return Math.min(uncappedMaxTokens, modelMaxTokens ?? Number.POSITIVE_INFINITY);
 }
 export const OUTPUT_FALLBACK_BUFFER = 4000;
-const ANTHROPIC_USE_INTERLEAVED_THINKING = Bun.env.PI_NO_INTERLEAVED_THINKING !== "1";
+const ANTHROPIC_USE_INTERLEAVED_THINKING = process.env.PI_NO_INTERLEAVED_THINKING !== "1";
 
 export const ANTHROPIC_THINKING: Record<Effort, number> = {
 	minimal: 1024,

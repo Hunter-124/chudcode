@@ -21,7 +21,7 @@ export function getDefaultModelDiscoveryBaseUrl(providerId: string): string | un
 		case "ollama":
 			return "http://127.0.0.1:11434";
 		case "litellm":
-			return Bun.env.LITELLM_BASE_URL ?? "http://localhost:4000/v1";
+			return process.env.LITELLM_BASE_URL ?? "http://localhost:4000/v1";
 		case "opencode-go":
 			return "https://opencode.ai/zen/go/v1";
 		case "opencode-zen":

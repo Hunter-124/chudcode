@@ -38,7 +38,7 @@ describe("browser relay daemon", () => {
 				process.execPath,
 				"-e",
 				`import { probeRelayServer } from ${JSON.stringify(path.resolve(import.meta.dir, "../../src/tools/browser/relay/daemon.ts"))};
-const url = Bun.env.OMP_TEST_RELAY_URL;
+const url = process.env.OMP_TEST_RELAY_URL;
 if (!url) throw new Error("missing relay URL");
 process.stdout.write(String(await probeRelayServer(url)));`,
 			],

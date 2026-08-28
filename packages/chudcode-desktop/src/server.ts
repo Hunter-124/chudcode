@@ -501,7 +501,7 @@ async function resolveWebDist(configured?: string): Promise<string> {
 }
 
 function readConfiguredPort(): number {
-	const raw = Bun.env.CHUDCODE_DESKTOP_PORT;
+	const raw = process.env.CHUDCODE_DESKTOP_PORT;
 	if (!raw) return 0;
 	const port = Number(raw);
 	if (!Number.isInteger(port) || port < 0 || port > 65_535)

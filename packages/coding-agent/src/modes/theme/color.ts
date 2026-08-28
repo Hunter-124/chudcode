@@ -6,7 +6,7 @@ import type { ColorMode, ColorValue } from "./schema";
 // ============================================================================
 
 /** Resolve theme color depth from the shared terminal capability model. */
-export function detectColorMode(env: NodeJS.ProcessEnv = Bun.env): ColorMode {
+export function detectColorMode(env: NodeJS.ProcessEnv = process.env): ColorMode {
 	if (env.WT_SESSION) return "truecolor";
 	const terminal = getTerminalInfo(detectTerminalId(env), process.platform, env);
 	return terminal.trueColor ? "truecolor" : "256color";

@@ -160,15 +160,15 @@ describe("issue #2034: chunk large terminal writes on Windows ConPTY", () => {
 		const stdinIsTtyDescriptor = Object.getOwnPropertyDescriptor(process.stdin, "isTTY");
 		const stdoutIsTtyDescriptor = Object.getOwnPropertyDescriptor(process.stdout, "isTTY");
 		const platformDescriptor = Object.getOwnPropertyDescriptor(process, "platform");
-		const originalWslDistro = Bun.env.WSL_DISTRO_NAME;
-		const originalWslInterop = Bun.env.WSL_INTEROP;
+		const originalWslDistro = process.env.WSL_DISTRO_NAME;
+		const originalWslInterop = process.env.WSL_INTEROP;
 		// This block drives the real ProcessTerminal#write path, so it opts out of
 		// the test-default headless suppression for the duration of each case.
 		let previousHeadless = false;
 
 		function setEnv(key: string, value: string | undefined): void {
-			if (value === undefined) delete Bun.env[key];
-			else Bun.env[key] = value;
+			if (value === undefined) delete process.env[key];
+			else process.env[key] = value;
 		}
 
 		beforeEach(() => {

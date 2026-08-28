@@ -53,7 +53,7 @@ export function isHyperlinkEnabled(): boolean {
 	if (mode === "off") return false;
 	if (mode === "always") return true;
 	// auto: respect terminal capabilities and NO_COLOR
-	if (Bun.env.NO_COLOR) return false;
+	if (process.env.NO_COLOR) return false;
 	if (!process.stdout.isTTY) return false;
 	return TERMINAL.hyperlinks;
 }

@@ -72,15 +72,15 @@ describe("eval tool dynamic schema", () => {
 	beforeEach(() => {
 		savedEnv = {};
 		for (const flag of EVAL_ENV_FLAGS) {
-			savedEnv[flag] = Bun.env[flag];
-			delete Bun.env[flag];
+			savedEnv[flag] = process.env[flag];
+			delete process.env[flag];
 		}
 	});
 	afterEach(() => {
 		for (const flag of EVAL_ENV_FLAGS) {
 			const prior = savedEnv[flag];
-			if (prior === undefined) delete Bun.env[flag];
-			else Bun.env[flag] = prior;
+			if (prior === undefined) delete process.env[flag];
+			else process.env[flag] = prior;
 		}
 	});
 

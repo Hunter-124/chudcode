@@ -22,16 +22,16 @@ const ENV_KEYS = [
 	"LLAMA_CPP_API_KEY",
 	"WANDB_API_KEY",
 ] as const;
-const originalEnv = new Map(ENV_KEYS.map(key => [key, Bun.env[key]]));
+const originalEnv = new Map(ENV_KEYS.map(key => [key, process.env[key]]));
 
 afterEach(() => {
 	unregisterOAuthProviders(FIXTURE_SOURCE);
 	for (const key of ENV_KEYS) {
 		const original = originalEnv.get(key);
 		if (original === undefined) {
-			delete Bun.env[key];
+			delete process.env[key];
 		} else {
-			Bun.env[key] = original;
+			process.env[key] = original;
 		}
 	}
 	vi.restoreAllMocks();
@@ -39,25 +39,25 @@ afterEach(() => {
 
 describe("provider registry auth surface", () => {
 	test("env-key map merges catalog names, registry defs, and legacy keys", () => {
-		Bun.env.ZENMUX_API_KEY = "zenmux-env";
-		Bun.env.EXA_API_KEY = "exa-env";
+		process.env.ZENMUX_API_KEY = "zenmux-env";
+		process.env.EXA_API_KEY = "exa-env";
 		// Plain name derived from the catalog table's `envVars`.
 		expect(getEnvApiKey("zenmux")).toBe("zenmux-env");
-		Bun.env.UMANS_AI_CODING_PLAN_API_KEY = "umans-env";
+		process.env.UMANS_AI_CODING_PLAN_API_KEY = "umans-env";
 		expect(getEnvApiKey("umans")).toBe("umans-env");
-		Bun.env.LLAMA_CPP_API_KEY = "llama-env";
+		process.env.LLAMA_CPP_API_KEY = "llama-env";
 		expect(getEnvApiKey("llama.cpp")).toBe("llama-env");
 		// Exa is derived from the provider registry's `envKeys` definition.
 		expect(getEnvApiKey("exa")).toBe("exa-env");
 	});
 
 	test("multi-var catalog env fallback picks names in order", () => {
-		Bun.env.XAI_OAUTH_TOKEN = "xai-oauth-env";
+		process.env.XAI_OAUTH_TOKEN = "xai-oauth-env";
 		expect(getEnvApiKey("xai-oauth")).toBe("xai-oauth-env");
 
-		Bun.env.WANDB_API_KEY = "wandb-env";
+		process.env.WANDB_API_KEY = "wandb-env";
 		expect(getEnvApiKey("coreweave")).toBe("wandb-env");
-		Bun.env.COREWEAVE_API_KEY = "coreweave-env";
+		process.env.COREWEAVE_API_KEY = "coreweave-env";
 		expect(getEnvApiKey("coreweave")).toBe("coreweave-env");
 	});
 

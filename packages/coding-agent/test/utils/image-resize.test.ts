@@ -217,19 +217,19 @@ describe("resizeImage minimum dimension", () => {
 });
 
 describe("resizeImage env wiring", () => {
-	const prior = Bun.env.OMP_NO_WEBP;
+	const prior = process.env.OMP_NO_WEBP;
 
 	beforeEach(() => {
-		delete (Bun.env as Record<string, string | undefined>).OMP_NO_WEBP;
+		delete (process.env as Record<string, string | undefined>).OMP_NO_WEBP;
 	});
 
 	afterEach(() => {
-		if (prior === undefined) delete (Bun.env as Record<string, string | undefined>).OMP_NO_WEBP;
-		else Bun.env.OMP_NO_WEBP = prior;
+		if (prior === undefined) delete (process.env as Record<string, string | undefined>).OMP_NO_WEBP;
+		else process.env.OMP_NO_WEBP = prior;
 	});
 
 	it("treats OMP_NO_WEBP=1 set at call time as exclusion (not baked at module load)", async () => {
-		Bun.env.OMP_NO_WEBP = "1";
+		process.env.OMP_NO_WEBP = "1";
 
 		const result = await resizeImage({ type: "image", data: smallWebp, mimeType: "image/webp" });
 
@@ -237,11 +237,11 @@ describe("resizeImage env wiring", () => {
 	});
 
 	it("treats OMP_NO_WEBP='' / '0' as NOT excluded", async () => {
-		Bun.env.OMP_NO_WEBP = "";
+		process.env.OMP_NO_WEBP = "";
 		const empty = await resizeImage({ type: "image", data: smallWebp, mimeType: "image/webp" });
 		expect(empty.mimeType).toBe("image/webp");
 
-		Bun.env.OMP_NO_WEBP = "0";
+		process.env.OMP_NO_WEBP = "0";
 		const zero = await resizeImage({ type: "image", data: smallWebp, mimeType: "image/webp" });
 		expect(zero.mimeType).toBe("image/webp");
 	});

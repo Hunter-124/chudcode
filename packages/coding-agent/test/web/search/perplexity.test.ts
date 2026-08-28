@@ -715,21 +715,21 @@ describe("Perplexity OpenRouter auto-chain admission (issue #3251)", () => {
 });
 
 describe("Perplexity Authentication order", () => {
-	const savedCookies = Bun.env.PERPLEXITY_COOKIES || process.env.PERPLEXITY_COOKIES;
+	const savedCookies = process.env.PERPLEXITY_COOKIES || process.env.PERPLEXITY_COOKIES;
 
 	beforeEach(() => {
 		process.env.PERPLEXITY_COOKIES = "user-browser-cookies";
-		Bun.env.PERPLEXITY_COOKIES = "user-browser-cookies";
+		process.env.PERPLEXITY_COOKIES = "user-browser-cookies";
 	});
 
 	afterEach(() => {
 		vi.restoreAllMocks();
 		if (savedCookies === undefined) {
 			delete process.env.PERPLEXITY_COOKIES;
-			delete Bun.env.PERPLEXITY_COOKIES;
+			delete process.env.PERPLEXITY_COOKIES;
 		} else {
 			process.env.PERPLEXITY_COOKIES = savedCookies;
-			Bun.env.PERPLEXITY_COOKIES = savedCookies;
+			process.env.PERPLEXITY_COOKIES = savedCookies;
 		}
 	});
 
@@ -766,7 +766,7 @@ describe("Perplexity Authentication order", () => {
 
 	it("prefers OAuth over API key in getAvailableAuthMethods (for token command)", async () => {
 		delete process.env.PERPLEXITY_COOKIES;
-		delete Bun.env.PERPLEXITY_COOKIES;
+		delete process.env.PERPLEXITY_COOKIES;
 
 		const oauthAndApiKeyAuthStorage = {
 			async getOAuthAccess() {

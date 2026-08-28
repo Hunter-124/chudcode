@@ -313,7 +313,7 @@ export class RpcClient {
 
 		const child = ptree.spawn(launch, {
 			cwd: this.options.cwd,
-			env: { ...Bun.env, ...this.options.env },
+			env: { ...process.env, ...this.options.env },
 			stdin: "pipe",
 		});
 		this.#process = child;

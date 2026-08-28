@@ -3,5 +3,5 @@ import { createCloudCastleIncidentBackend } from "./backend";
 
 /** Chudcode extension entrypoint. Registration ownership is tracked by the host loader. */
 export default function cloudCastleContextExtension(pi: ExtensionAPI): void {
-	pi.registerMemoryBackend(createCloudCastleIncidentBackend(Bun.env));
+	pi.registerMemoryBackend(createCloudCastleIncidentBackend(process.env));
 }

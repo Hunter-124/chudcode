@@ -21,15 +21,15 @@ describe("deepseek built-in provider (issue #830)", () => {
 	});
 
 	test("resolves DEEPSEEK_API_KEY via env", () => {
-		const previous = Bun.env.DEEPSEEK_API_KEY;
-		Bun.env.DEEPSEEK_API_KEY = "deepseek-test-key";
+		const previous = process.env.DEEPSEEK_API_KEY;
+		process.env.DEEPSEEK_API_KEY = "deepseek-test-key";
 		try {
 			expect(getEnvApiKey("deepseek")).toBe("deepseek-test-key");
 		} finally {
 			if (previous === undefined) {
-				delete Bun.env.DEEPSEEK_API_KEY;
+				delete process.env.DEEPSEEK_API_KEY;
 			} else {
-				Bun.env.DEEPSEEK_API_KEY = previous;
+				process.env.DEEPSEEK_API_KEY = previous;
 			}
 		}
 	});

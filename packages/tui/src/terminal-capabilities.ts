@@ -48,7 +48,7 @@ const CMUX_SURFACE_ID_PATTERN = /^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i
  * Returns whether cmux owns delivery so the caller can preserve every existing
  * terminal fallback unchanged when no valid surface is present.
  */
-function sendCmuxNotification(message: string | TerminalNotification, env: NodeJS.ProcessEnv = Bun.env): boolean {
+function sendCmuxNotification(message: string | TerminalNotification, env: NodeJS.ProcessEnv = process.env): boolean {
 	const surfaceId = env.CMUX_SURFACE_ID?.trim();
 	if (!surfaceId || !CMUX_SURFACE_ID_PATTERN.test(surfaceId)) return false;
 
@@ -193,7 +193,7 @@ export class TerminalInfo {
 }
 
 /** Detect terminal multiplexers where scrollback clearing and height-change redraws are hostile. */
-export function isInsideTerminalMultiplexer(env: NodeJS.ProcessEnv = Bun.env): boolean {
+export function isInsideTerminalMultiplexer(env: NodeJS.ProcessEnv = process.env): boolean {
 	// TMUX/STY/ZELLIJ, Herdr, and CMUX workspace/surface/remote-transport
 	// markers are authoritative session signals. TERM can also survive when those are
 	// stripped (`sudo` without -E, `su`, env-sanitizing launchers/ssh). Do not
@@ -208,9 +208,9 @@ export function isInsideTerminalMultiplexer(env: NodeJS.ProcessEnv = Bun.env): b
 /**
  * Whether the agent process is running inside a Zellij session. Read fresh on
  * each call (like {@link isInsideTmux}) so a session attached/detached mid-run
- * is observed and tests can toggle `Bun.env.ZELLIJ` per case.
+ * is observed and tests can toggle `process.env.ZELLIJ` per case.
  */
-export function isInsideZellij(env: NodeJS.ProcessEnv = Bun.env): boolean {
+export function isInsideZellij(env: NodeJS.ProcessEnv = process.env): boolean {
 	return Boolean(env.ZELLIJ);
 }
 
@@ -256,7 +256,7 @@ function parseMajorMinorVersion(versionRaw?: string): { major: number; minor: nu
  * Windows Terminal introduced SIXEL support in preview 1.22.
  */
 export function isWindowsTerminalPreviewSixelSupported(
-	env: NodeJS.ProcessEnv = Bun.env,
+	env: NodeJS.ProcessEnv = process.env,
 	platform: NodeJS.Platform = process.platform,
 ): boolean {
 	if (platform !== "win32") return false;
@@ -275,7 +275,7 @@ export function isWindowsTerminalPreviewSixelSupported(
  * expressed no preference. Shared by the static default and the runtime DECRQM
  * probe so both honor the same precedence — an opt-out beats a force-on.
  */
-export function synchronizedOutputUserOverride(env: NodeJS.ProcessEnv = Bun.env): boolean | null {
+export function synchronizedOutputUserOverride(env: NodeJS.ProcessEnv = process.env): boolean | null {
 	if (env.PI_NO_SYNC_OUTPUT || env.PI_TUI_SYNC_OUTPUT === "0") return false;
 	if (env.PI_FORCE_SYNC_OUTPUT === "1" || env.PI_TUI_SYNC_OUTPUT === "1") return true;
 	return null;
@@ -307,7 +307,7 @@ function advertisesSynchronizedOutput(termFeatures: string | undefined): boolean
  *      `?2026` supported (current zellij, tmux master, foot, contour, mintty…).
  */
 export function shouldEnableSynchronizedOutputByDefault(
-	env: NodeJS.ProcessEnv = Bun.env,
+	env: NodeJS.ProcessEnv = process.env,
 	terminalId: TerminalId = TERMINAL_ID,
 ): boolean {
 	const override = synchronizedOutputUserOverride(env);
@@ -360,7 +360,7 @@ export function shouldEnableSynchronizedOutputByDefault(
  * protocols are not safe to assume through a multiplexer — and via the
  * `PI_NO_DECCARA` kill switch. Pure helper for tests and `TERMINAL` construction.
  */
-export function detectRectangularSgrSupport(terminalId: TerminalId, env: NodeJS.ProcessEnv = Bun.env): boolean {
+export function detectRectangularSgrSupport(terminalId: TerminalId, env: NodeJS.ProcessEnv = process.env): boolean {
 	if (terminalId !== "kitty") return false;
 	const kill = env.PI_NO_DECCARA;
 	if (kill && kill !== "0" && kill.toLowerCase() !== "false") return false;
@@ -375,7 +375,7 @@ export function detectRectangularSgrSupport(terminalId: TerminalId, env: NodeJS.
  * preference. Opt-out beats force-on so a kill switch is unambiguous, mirroring
  * {@link synchronizedOutputUserOverride}.
  */
-export function hyperlinksUserOverride(env: NodeJS.ProcessEnv = Bun.env): boolean | null {
+export function hyperlinksUserOverride(env: NodeJS.ProcessEnv = process.env): boolean | null {
 	if (env.PI_NO_HYPERLINKS === "1") return false;
 	if (env.PI_FORCE_HYPERLINKS === "1") return true;
 	return null;
@@ -417,7 +417,7 @@ function parseTmuxVersionFromEnv(env: NodeJS.ProcessEnv): { major: number; minor
  *   7. Otherwise honor the static terminal capability.
  */
 export function shouldEnableHyperlinksByDefault(
-	env: NodeJS.ProcessEnv = Bun.env,
+	env: NodeJS.ProcessEnv = process.env,
 	terminalId: TerminalId = TERMINAL_ID,
 ): boolean {
 	const override = hyperlinksUserOverride(env);
@@ -448,7 +448,7 @@ export function shouldEnableHyperlinksByDefault(
 
 function getFallbackImageProtocol(
 	terminalId: TerminalId,
-	env: NodeJS.ProcessEnv = Bun.env,
+	env: NodeJS.ProcessEnv = process.env,
 	isTTY: boolean = process.stdout.isTTY === true,
 ): ImageProtocol | null {
 	if (!isTTY) return null;
@@ -467,7 +467,7 @@ function getFallbackImageProtocol(
  */
 export function resolveWarpImageProtocol(
 	platform: NodeJS.Platform = process.platform,
-	env: NodeJS.ProcessEnv = Bun.env,
+	env: NodeJS.ProcessEnv = process.env,
 ): ImageProtocol | null {
 	const windowsHost =
 		platform === "win32" || (platform === "linux" && Boolean(env.WSL_DISTRO_NAME || env.WSL_INTEROP));
@@ -482,7 +482,7 @@ export function resolveWarpImageProtocol(
  * injects `PASEO_TERMINAL_ID` into every terminal it hosts, which makes a
  * reliable embedder signal.
  */
-export function isPaseoEmbedder(env: NodeJS.ProcessEnv = Bun.env): boolean {
+export function isPaseoEmbedder(env: NodeJS.ProcessEnv = process.env): boolean {
 	return Boolean(env.PASEO_TERMINAL_ID);
 }
 
@@ -495,7 +495,7 @@ export function isPaseoEmbedder(env: NodeJS.ProcessEnv = Bun.env): boolean {
  */
 export function resolveImageProtocol(
 	terminalId: TerminalId,
-	env: NodeJS.ProcessEnv = Bun.env,
+	env: NodeJS.ProcessEnv = process.env,
 	isTTY: boolean = process.stdout.isTTY === true,
 ): ImageProtocol | null {
 	let imageProtocol: ImageProtocol | null;
@@ -519,7 +519,7 @@ export function resolveImageProtocol(
 	return imageProtocol;
 }
 
-function getWarpTerminalInfo(platform: NodeJS.Platform, env: NodeJS.ProcessEnv = Bun.env): TerminalInfo {
+function getWarpTerminalInfo(platform: NodeJS.Platform, env: NodeJS.ProcessEnv = process.env): TerminalInfo {
 	return new TerminalInfo(
 		"warp",
 		resolveWarpImageProtocol(platform, env),
@@ -553,7 +553,7 @@ const KNOWN_TERMINALS = Object.freeze({
 });
 
 /** Resolve terminal identity from environment markers used by common emulators. */
-export function detectTerminalId(env: NodeJS.ProcessEnv = Bun.env): TerminalId {
+export function detectTerminalId(env: NodeJS.ProcessEnv = process.env): TerminalId {
 	function caseEq(a: string, b: string): boolean {
 		return a.toLowerCase() === b.toLowerCase(); // For compiler to pattern match
 	}
@@ -596,7 +596,7 @@ export function detectTerminalId(env: NodeJS.ProcessEnv = Bun.env): TerminalId {
 	return "base";
 }
 
-export const TERMINAL_ID: TerminalId = detectTerminalId(Bun.env);
+export const TERMINAL_ID: TerminalId = detectTerminalId(process.env);
 
 /**
  * The process-wide {@link TERMINAL} singleton: a {@link TerminalInfo} whose
@@ -622,21 +622,21 @@ export const TERMINAL: RuntimeTerminal = (() => {
 	if (forcedImageProtocol !== undefined) {
 		resolved.imageProtocol = forcedImageProtocol;
 	} else {
-		resolved.imageProtocol = resolveImageProtocol(resolved.id, Bun.env, process.stdout.isTTY === true);
+		resolved.imageProtocol = resolveImageProtocol(resolved.id, process.env, process.stdout.isTTY === true);
 	}
 	// Hyperlink (OSC 8) capability. The static per-terminal flag lives on
 	// KNOWN_TERMINALS; shouldEnableHyperlinksByDefault folds in runtime context —
 	// PI_FORCE_HYPERLINKS / PI_NO_HYPERLINKS overrides plus a tmux>=3.4 gate so
 	// modern tmux forwards OSC 8 to outer terminals that opt in via
 	// `terminal-features "*:hyperlinks"`.
-	resolved.hyperlinks = shouldEnableHyperlinksByDefault(Bun.env, resolved.id);
+	resolved.hyperlinks = shouldEnableHyperlinksByDefault(process.env, resolved.id);
 	// DECCARA rectangular-SGR background fills. The static per-terminal capability
 	// lives on KNOWN_TERMINALS; here we fold in runtime context — multiplexer and
 	// the PI_NO_DECCARA kill switch via detectRectangularSgrSupport — and force it
 	// off inside the test runtime so the xterm.js-backed virtual terminal (which
 	// ignores DECCARA) exercises the padded-string fallback. Integration tests opt
 	// in explicitly through setTerminalDeccara.
-	resolved.deccara = detectRectangularSgrSupport(resolved.id, Bun.env) && !isBunTestRuntime();
+	resolved.deccara = detectRectangularSgrSupport(resolved.id, process.env) && !isBunTestRuntime();
 	return resolved;
 })();
 
@@ -644,7 +644,7 @@ export const TERMINAL: RuntimeTerminal = (() => {
 // kitty/ghostty are known to honor `U=1` placement; other Kitty-protocol paths
 // (wezterm, tmux/screen fallback) treat the placeholder cells as literal PUA
 // glyphs, which is the "ASCII artifact + laggy scrolling" reported in #1877.
-setKittyGraphics({ unicodePlaceholders: detectKittyUnicodePlaceholdersSupport(TERMINAL.id, Bun.env) });
+setKittyGraphics({ unicodePlaceholders: detectKittyUnicodePlaceholdersSupport(TERMINAL.id, process.env) });
 
 /**
  * Override terminal image protocol at runtime after capability probes complete.
@@ -679,7 +679,7 @@ export function setTerminalTextSizing(enabled: boolean): void {
 export function getTerminalInfo(
 	terminalId: TerminalId,
 	platform: NodeJS.Platform = process.platform,
-	env: NodeJS.ProcessEnv = Bun.env,
+	env: NodeJS.ProcessEnv = process.env,
 ): TerminalInfo {
 	return terminalId === "warp" ? getWarpTerminalInfo(platform, env) : KNOWN_TERMINALS[terminalId];
 }

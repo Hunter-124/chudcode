@@ -15,8 +15,8 @@ export function beginSettingsTest(): SettingsTestState {
 	for (const key in process.env) {
 		env[key] = process.env[key];
 	}
-	for (const key in Bun.env) {
-		env[key] = Bun.env[key];
+	for (const key in process.env) {
+		env[key] = process.env[key];
 	}
 	const state: SettingsTestState = {
 		agentDir: getAgentDir(),
@@ -46,7 +46,7 @@ function restoreEnv(snapshot: Record<string, string | undefined>): void {
 			restoreEnvValue(key, undefined);
 		}
 	}
-	for (const key in Bun.env) {
+	for (const key in process.env) {
 		if (!(key in snapshot)) {
 			restoreEnvValue(key, undefined);
 		}
@@ -60,9 +60,9 @@ function restoreEnv(snapshot: Record<string, string | undefined>): void {
 export function restoreEnvValue(key: string, value: string | undefined): void {
 	if (value === undefined) {
 		delete process.env[key];
-		delete Bun.env[key];
+		delete process.env[key];
 		return;
 	}
 	process.env[key] = value;
-	Bun.env[key] = value;
+	process.env[key] = value;
 }

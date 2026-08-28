@@ -78,10 +78,10 @@ const nativeTools: Tool[] = ["read", "write", "grep", "glob", "bash", "lsp", "to
 
 function restoreOptionalEnv(name: string, value: string | undefined): void {
 	if (value === undefined) {
-		delete Bun.env[name];
+		delete process.env[name];
 		return;
 	}
-	Bun.env[name] = value;
+	process.env[name] = value;
 }
 
 describe("GitLab Duo Workflow provider protocol", () => {
@@ -529,13 +529,13 @@ describe("GitLab Duo Workflow namespace resolution", () => {
 			return new Response("{}", { status: 404 });
 		};
 
-		const originalNamespaceId = Bun.env.GITLAB_DUO_NAMESPACE_ID;
-		const originalProjectId = Bun.env.GITLAB_DUO_PROJECT_ID;
-		const originalProjectPath = Bun.env.GITLAB_DUO_PROJECT_PATH;
+		const originalNamespaceId = process.env.GITLAB_DUO_NAMESPACE_ID;
+		const originalProjectId = process.env.GITLAB_DUO_PROJECT_ID;
+		const originalProjectPath = process.env.GITLAB_DUO_PROJECT_PATH;
 		try {
-			delete Bun.env.GITLAB_DUO_NAMESPACE_ID;
-			delete Bun.env.GITLAB_DUO_PROJECT_ID;
-			delete Bun.env.GITLAB_DUO_PROJECT_PATH;
+			delete process.env.GITLAB_DUO_NAMESPACE_ID;
+			delete process.env.GITLAB_DUO_PROJECT_ID;
+			delete process.env.GITLAB_DUO_PROJECT_PATH;
 			const selection = await resolveGitLabDuoWorkflowNamespaceSelection(
 				model,
 				{ apiKey: "redacted", cwd: "/" },
@@ -586,9 +586,9 @@ describe("GitLab Duo Workflow namespace resolution", () => {
 			return new Response("{}", { status: 404 });
 		};
 
-		const originalProjectId = Bun.env.GITLAB_DUO_PROJECT_ID;
+		const originalProjectId = process.env.GITLAB_DUO_PROJECT_ID;
 		try {
-			Bun.env.GITLAB_DUO_PROJECT_ID = "env-project";
+			process.env.GITLAB_DUO_PROJECT_ID = "env-project";
 			const resolved = await resolveGitLabDuoWorkflowRootNamespaceId(
 				model,
 				{ apiKey: "redacted", projectPath: "group/project" },
@@ -2008,13 +2008,13 @@ describe("GitLab Duo Workflow WebSocket state machine", () => {
 			socketReady.resolve(socket);
 			return socket;
 		};
-		const originalNamespaceId = Bun.env.GITLAB_DUO_NAMESPACE_ID;
-		const originalProjectId = Bun.env.GITLAB_DUO_PROJECT_ID;
-		const originalProjectPath = Bun.env.GITLAB_DUO_PROJECT_PATH;
+		const originalNamespaceId = process.env.GITLAB_DUO_NAMESPACE_ID;
+		const originalProjectId = process.env.GITLAB_DUO_PROJECT_ID;
+		const originalProjectPath = process.env.GITLAB_DUO_PROJECT_PATH;
 		try {
-			delete Bun.env.GITLAB_DUO_NAMESPACE_ID;
-			delete Bun.env.GITLAB_DUO_PROJECT_ID;
-			delete Bun.env.GITLAB_DUO_PROJECT_PATH;
+			delete process.env.GITLAB_DUO_NAMESPACE_ID;
+			delete process.env.GITLAB_DUO_PROJECT_ID;
+			delete process.env.GITLAB_DUO_PROJECT_PATH;
 			const stream = streamGitLabDuoWorkflow(model, context, {
 				apiKey: "pat-token",
 				fetch: fetchImpl,
@@ -4869,13 +4869,13 @@ describe("GitLab Duo Workflow WebSocket state machine", () => {
 	});
 
 	it("never lets trace write failures reject into the caller", async () => {
-		const previousEnabled = Bun.env.GITLAB_DUO_WORKFLOW_TRACE;
-		const previousFile = Bun.env.GITLAB_DUO_WORKFLOW_TRACE_FILE;
+		const previousEnabled = process.env.GITLAB_DUO_WORKFLOW_TRACE;
+		const previousFile = process.env.GITLAB_DUO_WORKFLOW_TRACE_FILE;
 		const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "gitlab-duo-trace-"));
 		const parentFile = path.join(tempDir, "not-a-directory");
 		await Bun.write(parentFile, "already a file");
-		Bun.env.GITLAB_DUO_WORKFLOW_TRACE = "1";
-		Bun.env.GITLAB_DUO_WORKFLOW_TRACE_FILE = path.join(parentFile, "trace.jsonl");
+		process.env.GITLAB_DUO_WORKFLOW_TRACE = "1";
+		process.env.GITLAB_DUO_WORKFLOW_TRACE_FILE = path.join(parentFile, "trace.jsonl");
 		const unhandled: unknown[] = [];
 		const onUnhandled = (reason: unknown): void => {
 			unhandled.push(reason);
@@ -4887,10 +4887,10 @@ describe("GitLab Duo Workflow WebSocket state machine", () => {
 			expect(unhandled).toEqual([]);
 		} finally {
 			process.off("unhandledRejection", onUnhandled);
-			if (previousEnabled === undefined) delete Bun.env.GITLAB_DUO_WORKFLOW_TRACE;
-			else Bun.env.GITLAB_DUO_WORKFLOW_TRACE = previousEnabled;
-			if (previousFile === undefined) delete Bun.env.GITLAB_DUO_WORKFLOW_TRACE_FILE;
-			else Bun.env.GITLAB_DUO_WORKFLOW_TRACE_FILE = previousFile;
+			if (previousEnabled === undefined) delete process.env.GITLAB_DUO_WORKFLOW_TRACE;
+			else process.env.GITLAB_DUO_WORKFLOW_TRACE = previousEnabled;
+			if (previousFile === undefined) delete process.env.GITLAB_DUO_WORKFLOW_TRACE_FILE;
+			else process.env.GITLAB_DUO_WORKFLOW_TRACE_FILE = previousFile;
 			await fs.rm(tempDir, { recursive: true, force: true });
 		}
 	});

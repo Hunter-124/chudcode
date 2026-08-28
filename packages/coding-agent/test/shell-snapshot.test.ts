@@ -10,7 +10,7 @@ import fnEnvHelper from "../src/utils/shell-snapshot-fn-env.sh" with { type: "te
 // same way `bash-executor.test.ts` does so these e2e tests stay portable. The
 // `getOrCreateSnapshot` tests below symlink this under a unique name and skip
 // when no bash is present.
-const REAL_BASH = Bun.env.SHELL?.includes("bash") ? Bun.env.SHELL : "/bin/bash";
+const REAL_BASH = process.env.SHELL?.includes("bash") ? process.env.SHELL : "/bin/bash";
 // Likewise resolve `echo` (the stand-in for the mise binary the captured
 // function invokes): macOS has no `/usr/bin/echo`, so hard-coding it makes the
 // replay fail with `No such file or directory` even though the export landed.

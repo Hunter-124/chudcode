@@ -146,8 +146,8 @@ export function createControlHandler(
 
 /** Boot the blob daemon from worker environment variables and serve forever. */
 export async function startBlobBrokerFromEnvironment(): Promise<void> {
-	const socketPath = Bun.env[BLOB_BROKER_SOCKET_ENV];
-	const configJson = Bun.env[BLOB_BROKER_CONFIG_ENV];
+	const socketPath = process.env[BLOB_BROKER_SOCKET_ENV];
+	const configJson = process.env[BLOB_BROKER_CONFIG_ENV];
 	if (!socketPath || !configJson) {
 		throw new Error(`blob broker worker requires ${BLOB_BROKER_SOCKET_ENV} and ${BLOB_BROKER_CONFIG_ENV}`);
 	}

@@ -17,7 +17,7 @@ let previousCwd: string;
 let tempDir: string | undefined;
 
 beforeEach(async () => {
-	previousDebugFlag = Bun.env.PI_REQ_DEBUG;
+	previousDebugFlag = process.env.PI_REQ_DEBUG;
 	previousCwd = process.cwd();
 	tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "pi-req-debug-"));
 	process.chdir(tempDir);
@@ -26,8 +26,8 @@ beforeEach(async () => {
 afterEach(async () => {
 	clearCustomApis();
 	process.chdir(previousCwd);
-	if (previousDebugFlag === undefined) delete Bun.env.PI_REQ_DEBUG;
-	else Bun.env.PI_REQ_DEBUG = previousDebugFlag;
+	if (previousDebugFlag === undefined) delete process.env.PI_REQ_DEBUG;
+	else process.env.PI_REQ_DEBUG = previousDebugFlag;
 	if (tempDir) await removeWithRetries(tempDir);
 	tempDir = undefined;
 });
@@ -92,13 +92,13 @@ async function findDebugFiles(): Promise<{ requestPath: string; responsePath: st
 
 describe("PI_REQ_DEBUG request/response recording", () => {
 	it("leaves fetch untouched when the flag is disabled", () => {
-		delete Bun.env.PI_REQ_DEBUG;
+		delete process.env.PI_REQ_DEBUG;
 		const fetchImpl: FetchImpl = async () => new Response("ok");
 		expect(wrapFetchForRequestDebug(fetchImpl)).toBe(fetchImpl);
 	});
 
 	it("records every fetch while the env flag is enabled", async () => {
-		Bun.env.PI_REQ_DEBUG = "1";
+		process.env.PI_REQ_DEBUG = "1";
 		let calls = 0;
 		const fetchImpl: FetchImpl = async () => {
 			calls += 1;
@@ -134,7 +134,7 @@ describe("PI_REQ_DEBUG request/response recording", () => {
 	});
 
 	it("records request JSON before fetch and raw response bytes after headers", async () => {
-		Bun.env.PI_REQ_DEBUG = "1";
+		process.env.PI_REQ_DEBUG = "1";
 		const responseBody = new Uint8Array([0x66, 0x69, 0x72, 0x73, 0x74, 0x00, 0xff, 0x0a]);
 		const fetchImpl: FetchImpl = async () => chunkedResponse([responseBody.subarray(0, 5), responseBody.subarray(5)]);
 		const wrapped = wrapFetchForRequestDebug(fetchImpl);
@@ -164,7 +164,7 @@ describe("PI_REQ_DEBUG request/response recording", () => {
 	});
 
 	it("keeps the partial response log when the response body is cancelled", async () => {
-		Bun.env.PI_REQ_DEBUG = "1";
+		process.env.PI_REQ_DEBUG = "1";
 		const firstChunk = enc.encode("partial");
 		let sent = false;
 		const fetchImpl: FetchImpl = async () =>
@@ -192,7 +192,7 @@ describe("PI_REQ_DEBUG request/response recording", () => {
 	});
 
 	it("wraps provider fetch options with request debug recording", async () => {
-		Bun.env.PI_REQ_DEBUG = "1";
+		process.env.PI_REQ_DEBUG = "1";
 		const fetchMock: FetchImpl = async () => new Response("ok", { headers: { "x-debug": "yes" } });
 		registerCustomApi("req-debug-test", (_model, _context, options) => {
 			const events = new AssistantMessageEventStream();

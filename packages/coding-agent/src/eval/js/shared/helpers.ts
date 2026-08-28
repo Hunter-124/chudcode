@@ -78,7 +78,7 @@ export function createHelpers(ctx: HelperContext): HelperBundle {
 				ctx.emitStatus({ op: "env", key, value, action: "set" });
 				return value;
 			}
-			const result = ctx.env.get(key) ?? Bun.env[key];
+			const result = ctx.env.get(key) ?? process.env[key];
 			ctx.emitStatus({ op: "env", key, value: result, action: "get" });
 			return result;
 		},
@@ -87,7 +87,7 @@ export function createHelpers(ctx: HelperContext): HelperBundle {
 
 function getMergedEnv(ctx: HelperContext): Record<string, string> {
 	const merged: Record<string, string> = {};
-	for (const [key, value] of Object.entries(Bun.env)) {
+	for (const [key, value] of Object.entries(process.env)) {
 		if (typeof value === "string") merged[key] = value;
 	}
 	for (const [key, value] of ctx.env) merged[key] = value;

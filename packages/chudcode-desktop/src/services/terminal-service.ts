@@ -140,7 +140,7 @@ function resolveExecutable(
 
 export function resolveTerminalShell(
 	explicitShell: string | undefined,
-	environment: Readonly<Record<string, string | undefined>> = Bun.env,
+	environment: Readonly<Record<string, string | undefined>> = process.env,
 ): string {
 	const pathValue = environment.PATH;
 	const pathExt = environment.PATHEXT;
@@ -217,7 +217,7 @@ export class TerminalService implements AsyncDisposable {
 			);
 		}
 		this.#options = options;
-		this.#inheritedEnvironment = options.inheritedEnvironment ?? Bun.env;
+		this.#inheritedEnvironment = options.inheritedEnvironment ?? process.env;
 		this.#environmentAllowlist = options.environmentAllowlist ?? DEFAULT_TERMINAL_ENVIRONMENT_ALLOWLIST;
 		this.#explicitEnvironment = options.environment ?? {};
 		this.#termName = options.termName ?? "xterm-256color";

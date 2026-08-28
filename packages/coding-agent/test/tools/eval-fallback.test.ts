@@ -14,10 +14,10 @@ let originalPiJl: string | undefined;
 
 function restoreEnv(name: "PI_PY" | "PI_JS" | "PI_RB" | "PI_JL", value: string | undefined): void {
 	if (value === undefined) {
-		delete Bun.env[name];
+		delete process.env[name];
 		return;
 	}
-	Bun.env[name] = value;
+	process.env[name] = value;
 }
 function makeSession(settings = Settings.isolated()): ToolSession {
 	return {
@@ -44,14 +44,14 @@ const mockResult = {
 
 describe("EvalTool language dispatch", () => {
 	beforeEach(() => {
-		originalPiPy = Bun.env.PI_PY;
-		originalPiJs = Bun.env.PI_JS;
-		originalPiRb = Bun.env.PI_RB;
-		originalPiJl = Bun.env.PI_JL;
-		delete Bun.env.PI_PY;
-		delete Bun.env.PI_JS;
-		delete Bun.env.PI_RB;
-		delete Bun.env.PI_JL;
+		originalPiPy = process.env.PI_PY;
+		originalPiJs = process.env.PI_JS;
+		originalPiRb = process.env.PI_RB;
+		originalPiJl = process.env.PI_JL;
+		delete process.env.PI_PY;
+		delete process.env.PI_JS;
+		delete process.env.PI_RB;
+		delete process.env.PI_JL;
 	});
 
 	afterEach(() => {
@@ -170,7 +170,7 @@ describe("EvalTool language dispatch", () => {
 	});
 
 	it("uses settings for eval backends whose env flag is unset", () => {
-		Bun.env.PI_PY = "1";
+		process.env.PI_PY = "1";
 		const settings = Settings.isolated();
 		settings.set("eval.py", false);
 		settings.set("eval.js", false);
@@ -184,7 +184,7 @@ describe("EvalTool language dispatch", () => {
 	});
 
 	it("lets PI_JS disable js execution even when eval.js is enabled", async () => {
-		Bun.env.PI_JS = "0";
+		process.env.PI_JS = "0";
 		const settings = Settings.isolated();
 		settings.set("eval.js", true);
 		const tool = new EvalTool(makeSession(settings));

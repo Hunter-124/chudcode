@@ -5,7 +5,7 @@ import { handlePubMed } from "@oh-my-pi/pi-coding-agent/web/scrapers/pubmed";
 import { handleSemanticScholar } from "@oh-my-pi/pi-coding-agent/web/scrapers/semantic-scholar";
 import type { RenderResult } from "@oh-my-pi/pi-coding-agent/web/scrapers/types";
 
-const SKIP = !Bun.env.WEB_FETCH_INTEGRATION;
+const SKIP = !process.env.WEB_FETCH_INTEGRATION;
 
 describe.skipIf(SKIP)("handleSemanticScholar", () => {
 	it("fetches a known paper", async () => {

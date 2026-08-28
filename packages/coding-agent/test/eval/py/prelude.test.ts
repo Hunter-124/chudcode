@@ -2,7 +2,7 @@ import { describe, expect, it } from "bun:test";
 import { $which } from "@oh-my-pi/pi-utils";
 import { PYTHON_PRELUDE } from "../../../src/eval/py/prelude";
 
-const pythonPath = Bun.env.PYTHON ?? ($which("python3") ? "python3" : "python");
+const pythonPath = process.env.PYTHON ?? ($which("python3") ? "python3" : "python");
 
 async function runPrelude(
 	code: string,

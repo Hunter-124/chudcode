@@ -4,6 +4,7 @@ import * as AIError from "@oh-my-pi/pi-ai/error";
 import type { FetchImpl } from "@oh-my-pi/pi-ai/types";
 import {
 	__resetGlobalProxyFetch,
+	__resetProxyCache,
 	connectProxiedSocket,
 	getProxyForProvider,
 	getProxyForUrl,
@@ -76,7 +77,7 @@ const isProxyEnvKey = (k: string): boolean =>
 	k === "NO_PROXY" ||
 	k === "no_proxy";
 
-// Standard proxy variables set at runtime can be readable but hidden from Bun.env
+// Standard proxy variables set at runtime can be readable but hidden from process.env
 // enumeration, so the sweep must name them explicitly instead of relying on for..in.
 const HIDDEN_PROXY_KEYS = [
 	"HTTP_PROXY",
@@ -91,52 +92,55 @@ const HIDDEN_PROXY_KEYS = [
 
 function proxyEnvKeys(): Set<string> {
 	const keys = new Set(HIDDEN_PROXY_KEYS);
-	for (const key in Bun.env) {
+	for (const key in process.env) {
 		if (isProxyEnvKey(key)) keys.add(key);
 	}
 	return keys;
 }
 
 // Snapshot + clear every proxy-related env var so each test starts clean and
-// leaves nothing behind for later files. Provider-specific tests use unique
-// provider ids so the module-level resolver cache can never cross-contaminate.
+// leaves nothing behind for later files. The resolver memoizes per provider for
+// the process lifetime, and real provider ids (sakana, github-copilot) are also
+// resolved by other suites, so the cache is cleared here instead of relying on
+// unique ids.
 let saved: Record<string, string | undefined>;
 
 beforeEach(() => {
+	__resetProxyCache();
 	saved = {};
 	for (const key of proxyEnvKeys()) {
-		saved[key] = Bun.env[key];
-		delete Bun.env[key];
+		saved[key] = process.env[key];
+		delete process.env[key];
 	}
 });
 
 afterEach(() => {
-	for (const key of proxyEnvKeys()) delete Bun.env[key];
+	for (const key of proxyEnvKeys()) delete process.env[key];
 	for (const key in saved) {
 		const value = saved[key];
-		if (value !== undefined) Bun.env[key] = value;
+		if (value !== undefined) process.env[key] = value;
 	}
 });
 
 describe("getProxyForProvider", () => {
 	it("reads the provider-specific PI_PROXY_<PROVIDER> variable", () => {
-		Bun.env.PI_PROXY_SAKANA = PROXY;
+		process.env.PI_PROXY_SAKANA = PROXY;
 		expect(getProxyForProvider("sakana")).toBe(PROXY);
 	});
 
 	it("normalizes hyphenated provider ids to underscores", () => {
-		Bun.env.PI_PROXY_GITHUB_COPILOT = PROXY;
+		process.env.PI_PROXY_GITHUB_COPILOT = PROXY;
 		expect(getProxyForProvider("github-copilot")).toBe(PROXY);
 	});
 
 	it("falls back to the generic PI_PROXY when no provider-specific var is set", () => {
-		Bun.env.PI_PROXY = PROXY;
+		process.env.PI_PROXY = PROXY;
 		expect(getProxyForProvider("prov-fallback")).toBe(PROXY);
 	});
 
 	it("prefers the provider-specific var over the generic fallback", () => {
-		Bun.env.PI_PROXY = "http://fallback:1";
-		Bun.env.PI_PROXY_PREC_PROV = PROXY;
+		process.env.PI_PROXY = "http://fallback:1";
+		process.env.PI_PROXY_PREC_PROV = PROXY;
 		expect(getProxyForProvider("prec-prov")).toBe(PROXY);
 	});
 
@@ -147,8 +151,8 @@ describe("getProxyForProvider", () => {
 
 describe("getProxyForUrl", () => {
 	it("uses protocol-specific standard proxy variables", () => {
-		Bun.env.HTTPS_PROXY = "http://secure-proxy:8080";
-		Bun.env.HTTP_PROXY = "http://plain-proxy:8080";
+		process.env.HTTPS_PROXY = "http://secure-proxy:8080";
+		process.env.HTTP_PROXY = "http://plain-proxy:8080";
 
 		expect(getProxyForUrl("standard-secure-proxy", new URL("wss://api.openai.com/v1/live"))).toBe(
 			"http://secure-proxy:8080",
@@ -159,14 +163,14 @@ describe("getProxyForUrl", () => {
 	});
 
 	it("falls back to ALL_PROXY", () => {
-		Bun.env.ALL_PROXY = PROXY;
+		process.env.ALL_PROXY = PROXY;
 
 		expect(getProxyForUrl("standard-all-proxy", new URL("wss://api.openai.com/v1/live"))).toBe(PROXY);
 	});
 
 	it("bypasses configured proxies for NO_PROXY targets", () => {
-		Bun.env.PI_PROXY_NO_PROXY_TEST = PROXY;
-		Bun.env.NO_PROXY = "api.openai.com";
+		process.env.PI_PROXY_NO_PROXY_TEST = PROXY;
+		process.env.NO_PROXY = "api.openai.com";
 
 		expect(getProxyForUrl("no-proxy-test", new URL("wss://api.openai.com/v1/live"))).toBeUndefined();
 	});
@@ -219,36 +223,36 @@ describe("isLocalOrMetadataHost / shouldBypassProxy hard-coded ranges", () => {
 
 describe("shouldBypassProxy NO_PROXY rules", () => {
 	it("matches an exact host", () => {
-		Bun.env.NO_PROXY = "api.sakana.ai";
+		process.env.NO_PROXY = "api.sakana.ai";
 		expect(shouldBypassProxy(new URL("https://api.sakana.ai/v1"))).toBe(true);
 		expect(shouldBypassProxy(new URL("https://api.openai.com/v1"))).toBe(false);
 	});
 
 	it("matches a leading-dot suffix and the bare domain", () => {
-		Bun.env.NO_PROXY = ".sakana.ai";
+		process.env.NO_PROXY = ".sakana.ai";
 		expect(shouldBypassProxy(new URL("https://api.sakana.ai/v1"))).toBe(true);
 		expect(shouldBypassProxy(new URL("https://sakana.ai/v1"))).toBe(true);
 	});
 
 	it("treats a bare domain as a suffix for subdomains", () => {
-		Bun.env.NO_PROXY = "sakana.ai";
+		process.env.NO_PROXY = "sakana.ai";
 		expect(shouldBypassProxy(new URL("https://api.sakana.ai/v1"))).toBe(true);
 	});
 
 	it("bypasses everything for the wildcard rule", () => {
-		Bun.env.NO_PROXY = "*";
+		process.env.NO_PROXY = "*";
 		expect(shouldBypassProxy(new URL("https://api.openai.com/v1"))).toBe(true);
 	});
 
 	it("honors a port qualifier on the rule", () => {
-		Bun.env.NO_PROXY = "api.sakana.ai:8080";
+		process.env.NO_PROXY = "api.sakana.ai:8080";
 		// Target is https (port 443) → port mismatch → not bypassed.
 		expect(shouldBypassProxy(new URL("https://api.sakana.ai/v1"))).toBe(false);
 		expect(shouldBypassProxy(new URL("http://api.sakana.ai:8080/v1"))).toBe(true);
 	});
 
 	it("uses port 443 for secure websocket targets", () => {
-		Bun.env.NO_PROXY = "api.sakana.ai:443";
+		process.env.NO_PROXY = "api.sakana.ai:443";
 		expect(shouldBypassProxy(new URL("wss://api.sakana.ai/v1"))).toBe(true);
 	});
 });
@@ -265,7 +269,7 @@ describe("wrapFetchForProxy", () => {
 	}
 
 	it("injects init.proxy for a proxied host when configured", async () => {
-		Bun.env.PI_PROXY_WRAP_INJECT = PROXY;
+		process.env.PI_PROXY_WRAP_INJECT = PROXY;
 		const { fetch, calls } = makeCapture();
 		await wrapFetchForProxy(fetch, "wrap-inject")("https://api.sakana.ai/v1/responses");
 		expect(calls).toHaveLength(1);
@@ -273,7 +277,7 @@ describe("wrapFetchForProxy", () => {
 	});
 
 	it("does not inject a proxy for a bypassed (loopback) host", async () => {
-		Bun.env.PI_PROXY_WRAP_BYPASS = PROXY;
+		process.env.PI_PROXY_WRAP_BYPASS = PROXY;
 		const { fetch, calls } = makeCapture();
 		await wrapFetchForProxy(fetch, "wrap-bypass")("http://127.0.0.1:11434/api/chat");
 		expect(calls[0].proxy).toBeUndefined();
@@ -286,14 +290,14 @@ describe("wrapFetchForProxy", () => {
 	});
 
 	it("does not route one provider's request through another provider's proxy", async () => {
-		Bun.env.PI_PROXY_SAKANA = PROXY;
+		process.env.PI_PROXY_SAKANA = PROXY;
 		const { fetch, calls } = makeCapture();
 		await wrapFetchForProxy(fetch, "wrap-other")("https://api.openai.com/v1");
 		expect(calls[0].proxy).toBeUndefined();
 	});
 
 	it("passes through an unparseable URL without throwing", async () => {
-		Bun.env.PI_PROXY_WRAP_BADURL = PROXY;
+		process.env.PI_PROXY_WRAP_BADURL = PROXY;
 		const { fetch, calls } = makeCapture();
 		await wrapFetchForProxy(fetch, "wrap-badurl")("not a url");
 		expect(calls).toHaveLength(1);
@@ -322,7 +326,7 @@ describe("installGlobalProxyFetch", () => {
 	});
 
 	it("routes bare global fetch through PI_PROXY", async () => {
-		Bun.env.PI_PROXY = PROXY;
+		process.env.PI_PROXY = PROXY;
 		installGlobalProxyFetch();
 		await fetch("https://api.anthropic.com/v1/oauth/token", { method: "POST" });
 		expect(calls[0].proxy).toBe(PROXY);
@@ -337,22 +341,22 @@ describe("installGlobalProxyFetch", () => {
 	});
 
 	it("keeps a caller-supplied proxy so PI_PROXY_<PROVIDER> still wins", async () => {
-		Bun.env.PI_PROXY = PROXY;
-		Bun.env.PI_PROXY_GLOBAL_PREC = "http://127.0.0.1:24561";
+		process.env.PI_PROXY = PROXY;
+		process.env.PI_PROXY_GLOBAL_PREC = "http://127.0.0.1:24561";
 		installGlobalProxyFetch();
 		await wrapFetchForProxy(globalThis.fetch, "global-prec")("https://api.anthropic.com/v1/messages");
 		expect(calls[0].proxy).toBe("http://127.0.0.1:24561");
 	});
 
 	it("bypasses loopback targets so local model servers stay direct", async () => {
-		Bun.env.PI_PROXY = PROXY;
+		process.env.PI_PROXY = PROXY;
 		installGlobalProxyFetch();
 		await fetch("http://127.0.0.1:11434/api/chat");
 		expect(calls[0].proxy).toBeUndefined();
 	});
 
 	it("installs once", async () => {
-		Bun.env.PI_PROXY = PROXY;
+		process.env.PI_PROXY = PROXY;
 		installGlobalProxyFetch();
 		const wrapped = globalThis.fetch;
 		installGlobalProxyFetch();

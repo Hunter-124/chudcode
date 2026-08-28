@@ -66,7 +66,7 @@ function detectMultiplexer(env: NodeJS.ProcessEnv): string | null {
 
 /** Snapshot the active terminal capabilities and the live runtime geometry. */
 export function collectTerminalState(runtime: TerminalRuntimeState): TerminalStateInfo {
-	const env = Bun.env;
+	const env = process.env;
 	const cell = getCellDimensions();
 	return {
 		detectedId: TERMINAL_ID,

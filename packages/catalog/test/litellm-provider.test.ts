@@ -8,7 +8,7 @@ import {
 import type { Api, FetchImpl, ModelSpec } from "@oh-my-pi/pi-catalog/types";
 import * as logger from "@oh-my-pi/pi-utils/logger";
 
-const ORIGINAL_LITELLM_BASE_URL = Bun.env.LITELLM_BASE_URL;
+const ORIGINAL_LITELLM_BASE_URL = process.env.LITELLM_BASE_URL;
 const MODELS_DEV_URL = "https://catalog.stencil.so/models.json.zstd";
 function makeLiteLLMSentinelPlaceholder(modelGroup: string) {
 	return {
@@ -40,10 +40,10 @@ const ALL_TEAM_MODELS_PLACEHOLDER = makeLiteLLMSentinelPlaceholder("all-team-mod
 
 function restoreLiteLLMBaseUrl(): void {
 	if (ORIGINAL_LITELLM_BASE_URL === undefined) {
-		delete Bun.env.LITELLM_BASE_URL;
+		delete process.env.LITELLM_BASE_URL;
 		return;
 	}
-	Bun.env.LITELLM_BASE_URL = ORIGINAL_LITELLM_BASE_URL;
+	process.env.LITELLM_BASE_URL = ORIGINAL_LITELLM_BASE_URL;
 }
 
 function inputUrl(input: string | URL | Request): string {
@@ -121,7 +121,7 @@ afterEach(() => {
 
 describe("LiteLLM provider discovery", () => {
 	test("uses LITELLM_BASE_URL when no explicit baseUrl is configured", async () => {
-		Bun.env.LITELLM_BASE_URL = "http://litellm.example:4100/v1";
+		process.env.LITELLM_BASE_URL = "http://litellm.example:4100/v1";
 		const fetchMock = makeFetchMock("http://litellm.example:4100/v1/models");
 
 		const options = litellmModelManagerOptions({
@@ -144,7 +144,7 @@ describe("LiteLLM provider discovery", () => {
 	});
 
 	test("keeps explicit baseUrl higher precedence than LITELLM_BASE_URL", async () => {
-		Bun.env.LITELLM_BASE_URL = "http://litellm-env.example:4100/v1";
+		process.env.LITELLM_BASE_URL = "http://litellm-env.example:4100/v1";
 		const fetchMock = makeFetchMock("http://litellm-config.example:4200/v1/models");
 
 		const options = litellmModelManagerOptions({

@@ -360,7 +360,7 @@ function logMCPLoadErrors(errors: MCPLoadResult["errors"]): void {
 
 function applyMCPEnvironment(result: { exaApiKeys: string[] }): void {
 	if (result.exaApiKeys.length > 0 && !$env.EXA_API_KEY) {
-		Bun.env.EXA_API_KEY = result.exaApiKeys[0];
+		process.env.EXA_API_KEY = result.exaApiKeys[0];
 	}
 }
 
@@ -1266,7 +1266,7 @@ export function createAutoLearnCaptureRunner(
  * // Full control
  * const { session } = await createAgentSession({
  *   model: myModel,
- *   getApiKey: async () => Bun.env.MY_KEY,
+ *   getApiKey: async () => process.env.MY_KEY,
  *   systemPrompt: ['You are helpful.'],
  *   tools: codingTools({ cwd: getProjectDir() }),
  *   skills: [],

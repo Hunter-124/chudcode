@@ -169,8 +169,8 @@ describe("Bedrock Mantle authentication", () => {
 			async () => {
 				clearAwsCredentialCache();
 				await stream(mantleModel, context, { fetch: rejectingFetch, maxTokens: 16 }).result();
-				Bun.env.AWS_ACCESS_KEY_ID = "AKIASECOND";
-				Bun.env.AWS_SECRET_ACCESS_KEY = "second-secret";
+				process.env.AWS_ACCESS_KEY_ID = "AKIASECOND";
+				process.env.AWS_SECRET_ACCESS_KEY = "second-secret";
 				await stream(mantleModel, context, { fetch: rejectingFetch, maxTokens: 16 }).result();
 			},
 		);

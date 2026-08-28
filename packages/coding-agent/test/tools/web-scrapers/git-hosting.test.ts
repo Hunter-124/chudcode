@@ -2,7 +2,7 @@ import { describe, expect, it } from "bun:test";
 import { handleGitHub, parseGitHubUrl, stripActionsLogTimestamps } from "@oh-my-pi/pi-coding-agent/web/scrapers/github";
 import { handleGitHubGist } from "@oh-my-pi/pi-coding-agent/web/scrapers/github-gist";
 
-const SKIP = !Bun.env.WEB_FETCH_INTEGRATION;
+const SKIP = !process.env.WEB_FETCH_INTEGRATION;
 
 // =============================================================================
 // GitHub Tests

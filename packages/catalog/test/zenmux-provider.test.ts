@@ -5,20 +5,20 @@ import { DEFAULT_MODEL_PER_PROVIDER, PROVIDER_DESCRIPTORS } from "@oh-my-pi/pi-c
 import { zenmuxModelManagerOptions } from "@oh-my-pi/pi-catalog/provider-models/openai-compat";
 import type { FetchImpl } from "@oh-my-pi/pi-catalog/types";
 
-const originalZenMuxApiKey = Bun.env.ZENMUX_API_KEY;
+const originalZenMuxApiKey = process.env.ZENMUX_API_KEY;
 
 afterEach(() => {
 	if (originalZenMuxApiKey === undefined) {
-		delete Bun.env.ZENMUX_API_KEY;
+		delete process.env.ZENMUX_API_KEY;
 	} else {
-		Bun.env.ZENMUX_API_KEY = originalZenMuxApiKey;
+		process.env.ZENMUX_API_KEY = originalZenMuxApiKey;
 	}
 	vi.restoreAllMocks();
 });
 
 describe("zenmux provider support", () => {
 	test("resolves ZENMUX_API_KEY from environment", () => {
-		Bun.env.ZENMUX_API_KEY = "zenmux-test-key";
+		process.env.ZENMUX_API_KEY = "zenmux-test-key";
 		expect(getEnvApiKey("zenmux")).toBe("zenmux-test-key");
 	});
 
@@ -97,7 +97,7 @@ describe("zenmux provider support", () => {
 	});
 
 	test("discovers models without an API key and sends no Authorization header", async () => {
-		delete Bun.env.ZENMUX_API_KEY;
+		delete process.env.ZENMUX_API_KEY;
 		let sentHeaders: RequestInit["headers"];
 		const fetchMock: FetchImpl = vi.fn(
 			async (_input: string | URL | Request, init?: RequestInit): Promise<Response> => {

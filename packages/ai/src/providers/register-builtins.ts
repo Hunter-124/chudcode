@@ -175,6 +175,18 @@ export function setCursorProviderModule(module: CursorProviderModule): void {
 	};
 }
 
+/**
+ * Test seam: drop the provider-module overrides installed by
+ * {@link setBedrockProviderModule} / {@link setCursorProviderModule}.
+ *
+ * The overrides are process-global, so a test file that installs one and exits
+ * would otherwise route every later provider stream through its stub.
+ */
+export function __resetProviderModuleOverrides(): void {
+	bedrockProviderModuleOverride = undefined;
+	cursorProviderModuleOverride = undefined;
+}
+
 // ---------------------------------------------------------------------------
 // Stream forwarding / error helpers
 // ---------------------------------------------------------------------------

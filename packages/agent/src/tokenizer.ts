@@ -6,7 +6,7 @@ import * as snapcompact from "@oh-my-pi/snapcompact";
 import { isEstimateCacheable, messageEstimateVersion } from "./compaction/message-cache";
 import type { AgentMessage } from "./types";
 
-const testEnv = Bun.env.NODE_ENV === "test";
+const testEnv = process.env.NODE_ENV === "test";
 const accurate = process.env.PI_TOKENIZER_ACCURATE === "1" && !testEnv;
 
 const NATIVE_ENCODING: Record<ModelTokenizer, Encoding> = {

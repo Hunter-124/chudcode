@@ -65,7 +65,7 @@ export function shouldBypassProxy(urlObj: URL): boolean {
 		return true;
 	}
 
-	const noProxyVal = Bun.env.NO_PROXY || Bun.env.no_proxy;
+	const noProxyVal = process.env.NO_PROXY || process.env.no_proxy;
 	if (!noProxyVal) {
 		return false;
 	}
@@ -138,14 +138,14 @@ export function getProxyForProvider(provider: string): string | undefined {
 
 	const normalized = provider.toUpperCase().replace(/[^A-Z0-9]/g, "_");
 	const envKey = `PI_PROXY_${normalized}`;
-	const value = Bun.env[envKey] || Bun.env.PI_PROXY;
+	const value = process.env[envKey] || process.env.PI_PROXY;
 	proxyCache.set(provider, value);
 	// Once per provider per process: a silently unproxied provider request is
 	// otherwise indistinguishable from a proxied one until the region block
 	// answers 403.
 	logger.debug("provider proxy resolved", {
 		provider,
-		source: Bun.env[envKey] ? envKey : value ? "PI_PROXY" : "none",
+		source: process.env[envKey] ? envKey : value ? "PI_PROXY" : "none",
 		proxy: value ? proxyLogTarget(value) : undefined,
 	});
 	return value;
@@ -156,9 +156,9 @@ export function getProxyForUrl(provider: string, url: URL): string | undefined {
 	if (shouldBypassProxy(url)) return undefined;
 	const protocolProxy =
 		url.protocol === "https:" || url.protocol === "wss:"
-			? Bun.env.HTTPS_PROXY || Bun.env.https_proxy
-			: Bun.env.HTTP_PROXY || Bun.env.http_proxy;
-	return getProxyForProvider(provider) || protocolProxy || Bun.env.ALL_PROXY || Bun.env.all_proxy || undefined;
+			? process.env.HTTPS_PROXY || process.env.https_proxy
+			: process.env.HTTP_PROXY || process.env.http_proxy;
+	return getProxyForProvider(provider) || protocolProxy || process.env.ALL_PROXY || process.env.all_proxy || undefined;
 }
 
 /**
@@ -190,7 +190,7 @@ function wrapFetchWithProxyUrl(fetchImpl: FetchImpl, proxyUrl: string | undefine
 			if (!isLocalOrMetadataHost(urlObj.hostname)) {
 				logger.debug("proxy bypassed by NO_PROXY", {
 					host: urlObj.host,
-					noProxy: Bun.env.NO_PROXY || Bun.env.no_proxy,
+					noProxy: process.env.NO_PROXY || process.env.no_proxy,
 				});
 			}
 			return fetchImpl(input, init);
@@ -238,16 +238,16 @@ export function __resetGlobalProxyFetch(): void {
  */
 export function installGlobalProxyFetch(): void {
 	if (globalProxyFetchInstalled) return;
-	const proxyUrl = Bun.env.PI_PROXY?.trim();
+	const proxyUrl = process.env.PI_PROXY?.trim();
 	// One line naming every proxy-relevant variable this process can see: a
 	// missing PI_PROXY and a NO_PROXY rule that silences it are otherwise
 	// indistinguishable from a working proxy that the peer rejected.
 	const env = {
 		PI_PROXY: proxyUrl ? proxyLogTarget(proxyUrl) : undefined,
-		PI_PROXY_ANTHROPIC: Bun.env.PI_PROXY_ANTHROPIC ? proxyLogTarget(Bun.env.PI_PROXY_ANTHROPIC) : undefined,
-		HTTPS_PROXY: Bun.env.HTTPS_PROXY || Bun.env.https_proxy ? "set" : undefined,
-		ALL_PROXY: Bun.env.ALL_PROXY || Bun.env.all_proxy ? "set" : undefined,
-		NO_PROXY: Bun.env.NO_PROXY || Bun.env.no_proxy,
+		PI_PROXY_ANTHROPIC: process.env.PI_PROXY_ANTHROPIC ? proxyLogTarget(process.env.PI_PROXY_ANTHROPIC) : undefined,
+		HTTPS_PROXY: process.env.HTTPS_PROXY || process.env.https_proxy ? "set" : undefined,
+		ALL_PROXY: process.env.ALL_PROXY || process.env.all_proxy ? "set" : undefined,
+		NO_PROXY: process.env.NO_PROXY || process.env.no_proxy,
 	};
 	if (!proxyUrl) {
 		logger.debug("global proxy fetch not installed", {

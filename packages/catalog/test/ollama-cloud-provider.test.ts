@@ -6,7 +6,7 @@ import { Effort } from "@oh-my-pi/pi-catalog/effort";
 import { ollamaCloudModelManagerOptions } from "@oh-my-pi/pi-catalog/provider-models/ollama";
 import type { FetchImpl, Model } from "@oh-my-pi/pi-catalog/types";
 
-const originalApiKey = Bun.env.OLLAMA_CLOUD_API_KEY;
+const originalApiKey = process.env.OLLAMA_CLOUD_API_KEY;
 
 const cloudModel: Model<"ollama-chat"> = buildModel({
 	id: "gpt-oss:120b",
@@ -50,16 +50,16 @@ function createNdjsonResponse(lines: unknown[]): Response {
 
 afterEach(() => {
 	if (originalApiKey === undefined) {
-		delete Bun.env.OLLAMA_CLOUD_API_KEY;
+		delete process.env.OLLAMA_CLOUD_API_KEY;
 	} else {
-		Bun.env.OLLAMA_CLOUD_API_KEY = originalApiKey;
+		process.env.OLLAMA_CLOUD_API_KEY = originalApiKey;
 	}
 	vi.restoreAllMocks();
 });
 
 describe("ollama-cloud provider support", () => {
 	test("resolves OLLAMA_CLOUD_API_KEY from environment", () => {
-		Bun.env.OLLAMA_CLOUD_API_KEY = "ollama-cloud-test-key";
+		process.env.OLLAMA_CLOUD_API_KEY = "ollama-cloud-test-key";
 		expect(getEnvApiKey("ollama-cloud")).toBe("ollama-cloud-test-key");
 	});
 

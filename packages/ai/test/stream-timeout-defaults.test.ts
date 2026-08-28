@@ -28,8 +28,8 @@ const originalEnv: Partial<Record<(typeof ENV_KEYS)[number], string | undefined>
 
 beforeEach(() => {
 	for (const key of ENV_KEYS) {
-		originalEnv[key] = Bun.env[key];
-		delete Bun.env[key];
+		originalEnv[key] = process.env[key];
+		delete process.env[key];
 	}
 });
 
@@ -37,9 +37,9 @@ afterEach(() => {
 	for (const key of ENV_KEYS) {
 		const prior = originalEnv[key];
 		if (prior === undefined) {
-			delete Bun.env[key];
+			delete process.env[key];
 		} else {
-			Bun.env[key] = prior;
+			process.env[key] = prior;
 		}
 	}
 	vi.useRealTimers();
@@ -51,12 +51,12 @@ describe("getStreamIdleTimeoutMs(fallbackMs)", () => {
 	});
 
 	it("lets PI_STREAM_IDLE_TIMEOUT_MS override the per-provider fallback", () => {
-		Bun.env.PI_STREAM_IDLE_TIMEOUT_MS = "42";
+		process.env.PI_STREAM_IDLE_TIMEOUT_MS = "42";
 		expect(getStreamIdleTimeoutMs(300_000)).toBe(42);
 	});
 
 	it("treats PI_STREAM_IDLE_TIMEOUT_MS=0 as a watchdog disable", () => {
-		Bun.env.PI_STREAM_IDLE_TIMEOUT_MS = "0";
+		process.env.PI_STREAM_IDLE_TIMEOUT_MS = "0";
 		expect(getStreamIdleTimeoutMs(300_000)).toBeUndefined();
 	});
 });
@@ -67,13 +67,13 @@ describe("getOpenAIStreamIdleTimeoutMs(fallbackMs)", () => {
 	});
 
 	it("lets PI_OPENAI_STREAM_IDLE_TIMEOUT_MS override the fallback before the generic env var", () => {
-		Bun.env.PI_STREAM_IDLE_TIMEOUT_MS = "42";
-		Bun.env.PI_OPENAI_STREAM_IDLE_TIMEOUT_MS = "84";
+		process.env.PI_STREAM_IDLE_TIMEOUT_MS = "42";
+		process.env.PI_OPENAI_STREAM_IDLE_TIMEOUT_MS = "84";
 		expect(getOpenAIStreamIdleTimeoutMs(600_000)).toBe(84);
 	});
 
 	it("treats PI_OPENAI_STREAM_IDLE_TIMEOUT_MS=0 as a watchdog disable", () => {
-		Bun.env.PI_OPENAI_STREAM_IDLE_TIMEOUT_MS = "0";
+		process.env.PI_OPENAI_STREAM_IDLE_TIMEOUT_MS = "0";
 		expect(getOpenAIStreamIdleTimeoutMs(600_000)).toBeUndefined();
 	});
 });
@@ -92,12 +92,12 @@ describe("getStreamFirstEventTimeoutMs(idleTimeoutMs, fallbackMs)", () => {
 	});
 
 	it("lets PI_STREAM_FIRST_EVENT_TIMEOUT_MS override the per-provider fallback", () => {
-		Bun.env.PI_STREAM_FIRST_EVENT_TIMEOUT_MS = "42";
+		process.env.PI_STREAM_FIRST_EVENT_TIMEOUT_MS = "42";
 		expect(getStreamFirstEventTimeoutMs(undefined, 300_000)).toBe(42);
 	});
 
 	it("treats PI_STREAM_FIRST_EVENT_TIMEOUT_MS=0 as a watchdog disable", () => {
-		Bun.env.PI_STREAM_FIRST_EVENT_TIMEOUT_MS = "0";
+		process.env.PI_STREAM_FIRST_EVENT_TIMEOUT_MS = "0";
 		expect(getStreamFirstEventTimeoutMs(undefined, 300_000)).toBeUndefined();
 	});
 
@@ -108,18 +108,18 @@ describe("getStreamFirstEventTimeoutMs(idleTimeoutMs, fallbackMs)", () => {
 
 describe("getOpenAIStreamFirstEventTimeoutMs(idleTimeoutMs, fallbackMs)", () => {
 	it("floors the first-event budget at the caller-resolved idle when the generic env is lower", () => {
-		Bun.env.PI_STREAM_FIRST_EVENT_TIMEOUT_MS = "20";
+		process.env.PI_STREAM_FIRST_EVENT_TIMEOUT_MS = "20";
 		expect(getOpenAIStreamFirstEventTimeoutMs(1500, 100_000)).toBe(1500);
 	});
 
 	it("honors PI_OPENAI_STREAM_FIRST_EVENT_TIMEOUT_MS even when caller pins per-call idle", () => {
-		Bun.env.PI_OPENAI_STREAM_FIRST_EVENT_TIMEOUT_MS = "42";
-		Bun.env.PI_STREAM_FIRST_EVENT_TIMEOUT_MS = "20";
+		process.env.PI_OPENAI_STREAM_FIRST_EVENT_TIMEOUT_MS = "42";
+		process.env.PI_STREAM_FIRST_EVENT_TIMEOUT_MS = "20";
 		expect(getOpenAIStreamFirstEventTimeoutMs(5_000, 100_000)).toBe(42);
 	});
 
 	it("treats PI_OPENAI_STREAM_FIRST_EVENT_TIMEOUT_MS=0 as an explicit watchdog disable", () => {
-		Bun.env.PI_OPENAI_STREAM_FIRST_EVENT_TIMEOUT_MS = "0";
+		process.env.PI_OPENAI_STREAM_FIRST_EVENT_TIMEOUT_MS = "0";
 		expect(getOpenAIStreamFirstEventTimeoutMs(1500, 100_000)).toBe(0);
 	});
 
@@ -128,12 +128,12 @@ describe("getOpenAIStreamFirstEventTimeoutMs(idleTimeoutMs, fallbackMs)", () => 
 	});
 
 	it("falls back to the generic first-event env when OpenAI env vars are unset", () => {
-		Bun.env.PI_STREAM_FIRST_EVENT_TIMEOUT_MS = "42";
+		process.env.PI_STREAM_FIRST_EVENT_TIMEOUT_MS = "42";
 		expect(getOpenAIStreamFirstEventTimeoutMs(undefined, 300_000)).toBe(42);
 	});
 
 	it("respects PI_STREAM_FIRST_EVENT_TIMEOUT_MS=0 disable when no OpenAI override is set", () => {
-		Bun.env.PI_STREAM_FIRST_EVENT_TIMEOUT_MS = "0";
+		process.env.PI_STREAM_FIRST_EVENT_TIMEOUT_MS = "0";
 		expect(getOpenAIStreamFirstEventTimeoutMs(1500, 100_000)).toBe(0);
 	});
 });

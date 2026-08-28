@@ -42,7 +42,7 @@ function shouldUseMacOSAppearanceFallback(): boolean {
 	// Zellij currently breaks OSC 11 passthrough on macOS, so terminal-derived
 	// appearance cannot be trusted there. Fall back to host macOS appearance
 	// without letting it override valid terminal signals elsewhere.
-	return process.platform === "darwin" && !!Bun.env.ZELLIJ;
+	return process.platform === "darwin" && !!process.env.ZELLIJ;
 }
 
 function detectTerminalBackground(): "dark" | "light" {
@@ -52,7 +52,7 @@ function detectTerminalBackground(): "dark" | "light" {
 	}
 
 	// Tier 2: COLORFGBG env var (static at process start, but still terminal-derived).
-	const colorfgbg = Bun.env.COLORFGBG || "";
+	const colorfgbg = process.env.COLORFGBG || "";
 	if (colorfgbg) {
 		const parts = colorfgbg.split(";");
 		if (parts.length >= 2) {

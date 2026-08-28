@@ -116,7 +116,7 @@ export class LspClient {
 		const proc = ptree.spawn([spec.command, ...(spec.args ?? [])], {
 			cwd: rootPath,
 			stdin: "pipe",
-			env: spec.env ? { ...Bun.env, ...spec.env } : undefined,
+			env: spec.env ? { ...process.env, ...spec.env } : undefined,
 		}) as LspTransport;
 		const client = new LspClient(spec, rootPath, rootUri, proc);
 		if (onDiagnostics) client.onDiagnostics(onDiagnostics);

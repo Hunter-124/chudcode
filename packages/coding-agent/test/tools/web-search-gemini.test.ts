@@ -9,8 +9,8 @@ const DEVELOPER_SSE_RESPONSE =
 	'data: {"candidates":[{"content":{"role":"model","parts":[{"text":"Developer answer"}]},"groundingMetadata":{"webSearchQueries":["latest Bun version"],"groundingChunks":[{"web":{"uri":"https://bun.sh","title":"Bun"}}],"groundingSupports":[{"segment":{"text":"Developer answer"},"groundingChunkIndices":[0]}]}}],"usageMetadata":{"promptTokenCount":3,"candidatesTokenCount":4,"totalTokenCount":7},"modelVersion":"gemini-2.5-flash"}\n\n';
 const DEVELOPER_SSE_RESPONSE_WITHOUT_MODEL =
 	'data: {"candidates":[{"content":{"role":"model","parts":[{"text":"Developer answer"}]},"groundingMetadata":{"webSearchQueries":["latest Bun version"],"groundingChunks":[{"web":{"uri":"https://bun.sh","title":"Bun"}}],"groundingSupports":[{"segment":{"text":"Developer answer"},"groundingChunkIndices":[0]}]}}],"usageMetadata":{"promptTokenCount":3,"candidatesTokenCount":4,"totalTokenCount":7}}\n\n';
-const ORIGINAL_GEMINI_SEARCH_MODEL = Bun.env.GEMINI_SEARCH_MODEL;
-const ORIGINAL_GEMINI_BASE_URL = Bun.env.GOOGLE_GEMINI_BASE_URL;
+const ORIGINAL_GEMINI_SEARCH_MODEL = process.env.GEMINI_SEARCH_MODEL;
+const ORIGINAL_GEMINI_BASE_URL = process.env.GOOGLE_GEMINI_BASE_URL;
 
 type CapturedRequest = {
 	url: string;
@@ -69,14 +69,14 @@ describe("searchGemini tools serialization", () => {
 	afterEach(() => {
 		capturedRequest = null;
 		if (ORIGINAL_GEMINI_SEARCH_MODEL === undefined) {
-			delete Bun.env.GEMINI_SEARCH_MODEL;
+			delete process.env.GEMINI_SEARCH_MODEL;
 		} else {
-			Bun.env.GEMINI_SEARCH_MODEL = ORIGINAL_GEMINI_SEARCH_MODEL;
+			process.env.GEMINI_SEARCH_MODEL = ORIGINAL_GEMINI_SEARCH_MODEL;
 		}
 		if (ORIGINAL_GEMINI_BASE_URL === undefined) {
-			delete Bun.env.GOOGLE_GEMINI_BASE_URL;
+			delete process.env.GOOGLE_GEMINI_BASE_URL;
 		} else {
-			Bun.env.GOOGLE_GEMINI_BASE_URL = ORIGINAL_GEMINI_BASE_URL;
+			process.env.GOOGLE_GEMINI_BASE_URL = ORIGINAL_GEMINI_BASE_URL;
 		}
 	});
 
@@ -118,7 +118,7 @@ describe("searchGemini tools serialization", () => {
 	});
 
 	it("routes Cloudflare AI Gateway auth through AuthStorage without leaking a Google API key", async () => {
-		Bun.env.GOOGLE_GEMINI_BASE_URL = "https://gateway.ai.cloudflare.com/v1/account/gateway/google-ai-studio";
+		process.env.GOOGLE_GEMINI_BASE_URL = "https://gateway.ai.cloudflare.com/v1/account/gateway/google-ai-studio";
 		const gatewayAuthStorage = {
 			async getOAuthAccess() {
 				return undefined;
@@ -228,7 +228,7 @@ describe("searchGemini tools serialization", () => {
 	});
 
 	it("lets GEMINI_SEARCH_MODEL override the configured Gemini model", async () => {
-		Bun.env.GEMINI_SEARCH_MODEL = "gemini-2.5-pro";
+		process.env.GEMINI_SEARCH_MODEL = "gemini-2.5-pro";
 		const fetchMock = mockGeminiFetch();
 		await searchGemini({
 			...makeParams("env configured"),

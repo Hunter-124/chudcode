@@ -555,8 +555,8 @@ describe("Coding Agent Tools", () => {
 
 	beforeEach(() => {
 		// Force replace mode for edit tool tests using old_string/new_string
-		originalEditVariant = Bun.env.PI_EDIT_VARIANT;
-		Bun.env.PI_EDIT_VARIANT = "replace";
+		originalEditVariant = process.env.PI_EDIT_VARIANT;
+		process.env.PI_EDIT_VARIANT = "replace";
 
 		// Create a unique temporary directory for each test
 		testDir = path.join(os.tmpdir(), `coding-agent-test-${Snowflake.next()}`);
@@ -580,9 +580,9 @@ describe("Coding Agent Tools", () => {
 
 		// Restore original edit variant
 		if (originalEditVariant === undefined) {
-			delete Bun.env.PI_EDIT_VARIANT;
+			delete process.env.PI_EDIT_VARIANT;
 		} else {
-			Bun.env.PI_EDIT_VARIANT = originalEditVariant;
+			process.env.PI_EDIT_VARIANT = originalEditVariant;
 		}
 		AsyncJobManager.resetForTests();
 	});
@@ -2262,7 +2262,7 @@ function b() {
 		});
 
 		it("should persist environment variables between commands", async () => {
-			if (process.platform === "win32" || Bun.env.PI_SHELL_PERSIST !== "1") {
+			if (process.platform === "win32" || process.env.PI_SHELL_PERSIST !== "1") {
 				return;
 			}
 
@@ -3170,8 +3170,8 @@ describe("edit tool CRLF handling", () => {
 
 	beforeEach(() => {
 		// Force replace mode for edit tool tests using old_string/new_string
-		originalEditVariant = Bun.env.PI_EDIT_VARIANT;
-		Bun.env.PI_EDIT_VARIANT = "replace";
+		originalEditVariant = process.env.PI_EDIT_VARIANT;
+		process.env.PI_EDIT_VARIANT = "replace";
 
 		testDir = path.join(os.tmpdir(), `coding-agent-crlf-test-${Snowflake.next()}`);
 		fs.mkdirSync(testDir, { recursive: true });
@@ -3183,9 +3183,9 @@ describe("edit tool CRLF handling", () => {
 
 		// Restore original edit variant
 		if (originalEditVariant === undefined) {
-			delete Bun.env.PI_EDIT_VARIANT;
+			delete process.env.PI_EDIT_VARIANT;
 		} else {
-			Bun.env.PI_EDIT_VARIANT = originalEditVariant;
+			process.env.PI_EDIT_VARIANT = originalEditVariant;
 		}
 	});
 

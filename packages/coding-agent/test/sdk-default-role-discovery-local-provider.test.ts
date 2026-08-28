@@ -31,8 +31,8 @@ describe("issue #6114 fresh launch default role from discovery-only local provid
 	beforeEach(() => {
 		tempDir = path.join(os.tmpdir(), `pi-sdk-default-role-local-${Snowflake.next()}`);
 		fs.mkdirSync(tempDir, { recursive: true });
-		originalLmStudioBaseUrl = Bun.env.LM_STUDIO_BASE_URL;
-		delete Bun.env.LM_STUDIO_BASE_URL;
+		originalLmStudioBaseUrl = process.env.LM_STUDIO_BASE_URL;
+		delete process.env.LM_STUDIO_BASE_URL;
 	});
 
 	afterEach(() => {
@@ -41,9 +41,9 @@ describe("issue #6114 fresh launch default role from discovery-only local provid
 		}
 		authStoragesToClose.length = 0;
 		if (originalLmStudioBaseUrl === undefined) {
-			delete Bun.env.LM_STUDIO_BASE_URL;
+			delete process.env.LM_STUDIO_BASE_URL;
 		} else {
-			Bun.env.LM_STUDIO_BASE_URL = originalLmStudioBaseUrl;
+			process.env.LM_STUDIO_BASE_URL = originalLmStudioBaseUrl;
 		}
 		if (tempDir && fs.existsSync(tempDir)) {
 			fs.rmSync(tempDir, { recursive: true, force: true });

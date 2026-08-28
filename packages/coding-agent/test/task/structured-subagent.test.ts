@@ -122,8 +122,8 @@ describe("structured subagent primitive", () => {
 	});
 
 	it("gives task and eval invocations identical blocked-agent preflight errors", async () => {
-		const previous = Bun.env.PI_BLOCKED_AGENT;
-		Bun.env.PI_BLOCKED_AGENT = "worker";
+		const previous = process.env.PI_BLOCKED_AGENT;
+		process.env.PI_BLOCKED_AGENT = "worker";
 		try {
 			const discover = vi.spyOn(discoveryModule, "discoverAgents");
 			const taskRequest = request();
@@ -143,8 +143,8 @@ describe("structured subagent primitive", () => {
 			]);
 			expect(discover).not.toHaveBeenCalled();
 		} finally {
-			if (previous === undefined) delete Bun.env.PI_BLOCKED_AGENT;
-			else Bun.env.PI_BLOCKED_AGENT = previous;
+			if (previous === undefined) delete process.env.PI_BLOCKED_AGENT;
+			else process.env.PI_BLOCKED_AGENT = previous;
 		}
 	});
 

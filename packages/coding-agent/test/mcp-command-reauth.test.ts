@@ -35,11 +35,11 @@ const fallbackAgentDir = path.join(getConfigRootDir(), "agent");
 
 function restoreEnvValue(name: string, value: string | undefined): void {
 	if (value === undefined) {
-		delete Bun.env[name];
+		delete process.env[name];
 		delete process.env[name];
 		return;
 	}
-	Bun.env[name] = value;
+	process.env[name] = value;
 	process.env[name] = value;
 }
 function createController(authStorage: AuthStorage, mcpManagerOverrides: Record<string, unknown> = {}) {
@@ -107,8 +107,8 @@ describe("/mcp auth commands", () => {
 		projectDir = await fs.mkdtemp(path.join(os.tmpdir(), "omp-mcp-reauth-project-"));
 		agentDir = await fs.mkdtemp(path.join(os.tmpdir(), "omp-mcp-reauth-agent-"));
 		configPath = path.join(projectDir, ".mcp.json");
-		originalMcpHost = Bun.env.MCP_HOST;
-		Bun.env.MCP_HOST = "mcp.example.com";
+		originalMcpHost = process.env.MCP_HOST;
+		process.env.MCP_HOST = "mcp.example.com";
 		process.env.MCP_HOST = "mcp.example.com";
 		setProjectDir(projectDir);
 		setAgentDir(agentDir);
@@ -666,10 +666,10 @@ describe("/mcp auth commands", () => {
 	test("passes env-expanded OAuth client credentials to the reauth flow", async () => {
 		const authStorage = freshAuthStorage();
 		await authStorage.reload();
-		const originalClientId = Bun.env.MCP_OAUTH_CLIENT_ID;
-		const originalClientSecret = Bun.env.MCP_OAUTH_CLIENT_SECRET;
-		Bun.env.MCP_OAUTH_CLIENT_ID = "expanded-client-id";
-		Bun.env.MCP_OAUTH_CLIENT_SECRET = "expanded-client-secret";
+		const originalClientId = process.env.MCP_OAUTH_CLIENT_ID;
+		const originalClientSecret = process.env.MCP_OAUTH_CLIENT_SECRET;
+		process.env.MCP_OAUTH_CLIENT_ID = "expanded-client-id";
+		process.env.MCP_OAUTH_CLIENT_SECRET = "expanded-client-secret";
 		await Bun.write(
 			configPath,
 			`${JSON.stringify(

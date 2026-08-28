@@ -29,9 +29,9 @@ export interface CodingAgentCompileOptions {
  * graph supplied by an in-memory build plugin rather than generated files.
  */
 export async function compileCodingAgent(options: CodingAgentCompileOptions): Promise<void> {
-	const previousCodesignSetting = Bun.env.BUN_NO_CODESIGN_MACHO_BINARY;
+	const previousCodesignSetting = process.env.BUN_NO_CODESIGN_MACHO_BINARY;
 	if (options.skipBuiltinCodesign) {
-		Bun.env.BUN_NO_CODESIGN_MACHO_BINARY = "1";
+		process.env.BUN_NO_CODESIGN_MACHO_BINARY = "1";
 	}
 	try {
 		const output = await Bun.build({
@@ -67,9 +67,9 @@ export async function compileCodingAgent(options: CodingAgentCompileOptions): Pr
 		}
 	} finally {
 		if (previousCodesignSetting === undefined) {
-			delete Bun.env.BUN_NO_CODESIGN_MACHO_BINARY;
+			delete process.env.BUN_NO_CODESIGN_MACHO_BINARY;
 		} else {
-			Bun.env.BUN_NO_CODESIGN_MACHO_BINARY = previousCodesignSetting;
+			process.env.BUN_NO_CODESIGN_MACHO_BINARY = previousCodesignSetting;
 		}
 	}
 }

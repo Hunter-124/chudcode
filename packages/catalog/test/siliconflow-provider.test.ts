@@ -17,15 +17,15 @@ import {
 import type { FetchImpl } from "@oh-my-pi/pi-catalog/types";
 
 function withEnv(key: string, value: string, run: () => void): void {
-	const previous = Bun.env[key];
-	Bun.env[key] = value;
+	const previous = process.env[key];
+	process.env[key] = value;
 	try {
 		run();
 	} finally {
 		if (previous === undefined) {
-			delete Bun.env[key];
+			delete process.env[key];
 		} else {
-			Bun.env[key] = previous;
+			process.env[key] = previous;
 		}
 	}
 }

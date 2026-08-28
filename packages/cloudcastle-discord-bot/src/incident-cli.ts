@@ -38,7 +38,7 @@ for (const arg of args) {
 	if (arg !== "--once") throw new Error(`Unknown argument: ${arg}`);
 }
 
-const config = parseIncidentDispatcherConfig(Bun.env);
+const config = parseIncidentDispatcherConfig(process.env);
 const abort = new AbortController();
 process.once("SIGINT", () => abort.abort());
 process.once("SIGTERM", () => abort.abort());
@@ -56,7 +56,7 @@ const dispatcher = new IncidentDispatcher({
 		apiBaseUrl: config.apiBaseUrl,
 		apiToken: config.apiToken,
 		timeoutMs: config.diagnosisTimeoutMs,
-		contextEndpoints: Bun.env.CLOUDCASTLE_CONTEXT_ENDPOINTS,
+		contextEndpoints: process.env.CLOUDCASTLE_CONTEXT_ENDPOINTS,
 	}),
 	stateStore: new AtomicFileStateStore(config.statePath),
 	channels: config.channels,

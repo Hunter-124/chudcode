@@ -82,15 +82,15 @@ describe("AIML API built-in provider (issue #2105)", () => {
 	});
 
 	test("resolves AIMLAPI_API_KEY via env", () => {
-		const previous = Bun.env.AIMLAPI_API_KEY;
-		Bun.env.AIMLAPI_API_KEY = "aiml-test-key";
+		const previous = process.env.AIMLAPI_API_KEY;
+		process.env.AIMLAPI_API_KEY = "aiml-test-key";
 		try {
 			expect(getEnvApiKey("aimlapi")).toBe("aiml-test-key");
 		} finally {
 			if (previous === undefined) {
-				delete Bun.env.AIMLAPI_API_KEY;
+				delete process.env.AIMLAPI_API_KEY;
 			} else {
-				Bun.env.AIMLAPI_API_KEY = previous;
+				process.env.AIMLAPI_API_KEY = previous;
 			}
 		}
 	});

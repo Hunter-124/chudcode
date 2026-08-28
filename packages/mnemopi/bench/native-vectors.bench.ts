@@ -179,7 +179,7 @@ for (const count of COUNTS.filter(n => n <= 1000)) {
 	pushRow("mmrRerankIndices (via mmrRerank)", count, ts, native);
 }
 
-const sha = Bun.env.BENCH_SHA ?? Bun.spawnSync(["git", "rev-parse", "HEAD"]).stdout.toString().trim();
+const sha = process.env.BENCH_SHA ?? Bun.spawnSync(["git", "rev-parse", "HEAD"]).stdout.toString().trim();
 const report = {
 	sha,
 	date: new Date().toISOString(),

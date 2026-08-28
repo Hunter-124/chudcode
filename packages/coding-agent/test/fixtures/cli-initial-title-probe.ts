@@ -1,6 +1,6 @@
 import { AgentSession } from "../../src/session/agent-session";
 
-const outputPath = Bun.env.OMP_TITLE_PROBE_PATH;
+const outputPath = process.env.OMP_TITLE_PROBE_PATH;
 if (!outputPath) {
 	throw new Error("OMP_TITLE_PROBE_PATH is required");
 }

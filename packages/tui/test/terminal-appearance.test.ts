@@ -15,11 +15,11 @@ const processPlatformDescriptor = Object.getOwnPropertyDescriptor(process, "plat
 const stdoutColumnsDescriptor = Object.getOwnPropertyDescriptor(process.stdout, "columns");
 const stdoutRowsDescriptor = Object.getOwnPropertyDescriptor(process.stdout, "rows");
 const stdinSetRawModeDescriptor = Object.getOwnPropertyDescriptor(process.stdin, "setRawMode");
-const originalWslDistroName = Bun.env.WSL_DISTRO_NAME;
-const originalWslInterop = Bun.env.WSL_INTEROP;
-const originalWtSession = Bun.env.WT_SESSION;
-const originalTermProgram = Bun.env.TERM_PROGRAM;
-const originalTmux = Bun.env.TMUX;
+const originalWslDistroName = process.env.WSL_DISTRO_NAME;
+const originalWslInterop = process.env.WSL_INTEROP;
+const originalWtSession = process.env.WT_SESSION;
+const originalTermProgram = process.env.TERM_PROGRAM;
+const originalTmux = process.env.TMUX;
 
 // These suites drive the real ProcessTerminal start()/probe pipeline, so they
 // opt out of the test-default headless suppression and restore it per case.
@@ -35,10 +35,10 @@ function restoreProperty(target: object, key: string, descriptor: PropertyDescri
 
 function restoreEnv(key: string, original: string | undefined): void {
 	if (original === undefined) {
-		delete Bun.env[key];
+		delete process.env[key];
 		return;
 	}
-	Bun.env[key] = original;
+	process.env[key] = original;
 }
 
 describe("ProcessTerminal OSC 11 appearance detection", () => {
@@ -47,7 +47,7 @@ describe("ProcessTerminal OSC 11 appearance detection", () => {
 		Object.defineProperty(process.stdout, "isTTY", { value: true, configurable: true });
 		Object.defineProperty(process.stdin, "setRawMode", { value: vi.fn(), configurable: true });
 		previousHeadless = setTerminalHeadless(false);
-		delete Bun.env.TMUX;
+		delete process.env.TMUX;
 	});
 
 	afterEach(() => {
@@ -314,8 +314,8 @@ describe("ProcessTerminal OSC 11 appearance detection", () => {
 	it("periodically re-queries OSC 11 under native Windows Terminal when Mode 2031 is unavailable (#5091)", () => {
 		vi.useFakeTimers();
 		Object.defineProperty(process, "platform", { value: "win32", configurable: true });
-		Bun.env.WT_SESSION = "test-wt-session";
-		Bun.env.TERM_PROGRAM = "Windows_Terminal";
+		process.env.WT_SESSION = "test-wt-session";
+		process.env.TERM_PROGRAM = "Windows_Terminal";
 		const { terminal, queryCount } = setupTerminal();
 
 		process.stdin.emit("data", "\x1b]11;rgb:0000/0000/0000\x07");
@@ -365,7 +365,7 @@ describe("ProcessTerminal OSC 11 appearance detection", () => {
 	});
 
 	it("passes an explicit appearance refresh through tmux without changing the startup probe", () => {
-		Bun.env.TMUX = "/tmp/tmux-1000/default,1234,0";
+		process.env.TMUX = "/tmp/tmux-1000/default,1234,0";
 		const { terminal, writes } = setupTerminal();
 
 		expect(writes).toContain("\x1b]11;?\x07");
@@ -382,7 +382,7 @@ describe("ProcessTerminal OSC 11 appearance detection", () => {
 
 	it("reads tmux's refreshed cache without passing a DA1 reply through tmux", () => {
 		vi.useFakeTimers();
-		Bun.env.TMUX = "/tmp/tmux-1000/default,1234,0";
+		process.env.TMUX = "/tmp/tmux-1000/default,1234,0";
 		const { terminal, received, queryCount } = setupTerminal();
 
 		process.stdin.emit("data", "\x1b]11;rgb:0000/0000/0000\x07");
@@ -415,7 +415,7 @@ describe("ProcessTerminal OSC 11 appearance detection", () => {
 
 	it("cancels a pending tmux appearance cache read during teardown", () => {
 		vi.useFakeTimers();
-		Bun.env.TMUX = "/tmp/tmux-1000/default,1234,0";
+		process.env.TMUX = "/tmp/tmux-1000/default,1234,0";
 		const { terminal, queryCount, sentinelCount } = setupTerminal();
 
 		process.stdin.emit("data", "\x1b]11;rgb:0000/0000/0000\x07");
@@ -477,7 +477,7 @@ describe("ProcessTerminal OSC 11 appearance detection", () => {
 	it("does not periodically re-query OSC 11 under WSL either (#3297)", () => {
 		vi.useFakeTimers();
 		Object.defineProperty(process, "platform", { value: "linux", configurable: true });
-		Bun.env.WSL_INTEROP = "/run/WSL/1_interop";
+		process.env.WSL_INTEROP = "/run/WSL/1_interop";
 		const { terminal, queryCount } = setupTerminal();
 
 		process.stdin.emit("data", "\x1b]11;rgb:ffff/ffff/ffff\x07");

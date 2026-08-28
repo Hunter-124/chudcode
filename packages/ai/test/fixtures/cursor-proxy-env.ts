@@ -27,15 +27,15 @@ if (!proxyAddress || typeof proxyAddress === "string") throw new Error("proxy di
 // Only the standard HTTPS_PROXY var is set; the provider-specific override and
 // PI_PROXY are unset, so a fix that only reads PI_PROXY would connect direct and
 // never reach this proxy.
-delete Bun.env.PI_PROXY;
-delete Bun.env.PI_PROXY_CURSOR;
-delete Bun.env.HTTP_PROXY;
-delete Bun.env.http_proxy;
-delete Bun.env.ALL_PROXY;
-delete Bun.env.all_proxy;
-delete Bun.env.NO_PROXY;
-delete Bun.env.no_proxy;
-Bun.env.HTTPS_PROXY = `http://127.0.0.1:${proxyAddress.port}`;
+delete process.env.PI_PROXY;
+delete process.env.PI_PROXY_CURSOR;
+delete process.env.HTTP_PROXY;
+delete process.env.http_proxy;
+delete process.env.ALL_PROXY;
+delete process.env.all_proxy;
+delete process.env.NO_PROXY;
+delete process.env.no_proxy;
+process.env.HTTPS_PROXY = `http://127.0.0.1:${proxyAddress.port}`;
 
 // TEST-NET-2 (RFC 5737) target: not local/metadata, so the proxy is not bypassed,
 // and unroutable so nothing actually connects past the proxy.

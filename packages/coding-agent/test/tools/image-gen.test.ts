@@ -11,7 +11,7 @@ import {
 } from "@oh-my-pi/pi-coding-agent/tools/image-gen";
 import { removeWithRetries, USER_AGENT } from "@oh-my-pi/pi-utils";
 
-const originalOpenRouterKey = Bun.env.OPENROUTER_API_KEY;
+const originalOpenRouterKey = process.env.OPENROUTER_API_KEY;
 const generatedImagePaths: string[] = [];
 
 afterAll(async () => {
@@ -20,9 +20,9 @@ afterAll(async () => {
 
 afterEach(() => {
 	if (originalOpenRouterKey === undefined) {
-		delete Bun.env.OPENROUTER_API_KEY;
+		delete process.env.OPENROUTER_API_KEY;
 	} else {
-		Bun.env.OPENROUTER_API_KEY = originalOpenRouterKey;
+		process.env.OPENROUTER_API_KEY = originalOpenRouterKey;
 	}
 	setImageProviderOrder([]);
 });

@@ -463,7 +463,7 @@ async function runTestCommand(testCommand: TestCommand): Promise<void> {
 // handled by retrying crashed chunks in a fresh process (MAX_CHUNK_ATTEMPTS).
 function buildChildEnv(): Record<string, string | undefined> {
 	const env: Record<string, string | undefined> = {
-		...Bun.env,
+		...process.env,
 		GITHUB_ACTIONS: "",
 		PI_TEST_RUNTIME: "1",
 		BUN_JSC_useConcurrentGC: "0",
@@ -484,7 +484,7 @@ function buildChildEnv(): Record<string, string | undefined> {
 // After this many seconds the child is SIGKILLed and reported as a failure.
 // Override with OMP_TEST_CHUNK_TIMEOUT (seconds).
 function chunkTimeoutMs(): number {
-	const raw = Number(Bun.env.OMP_TEST_CHUNK_TIMEOUT?.trim());
+	const raw = Number(process.env.OMP_TEST_CHUNK_TIMEOUT?.trim());
 	if (Number.isFinite(raw) && raw >= 1) return raw * 1000;
 	return 600_000;
 }
@@ -531,7 +531,7 @@ export function describeChunkFailure(exitCode: number, timedOut: boolean): strin
 // chunks run sequentially within a job and parallelism happens across jobs.
 // Locally we trade memory for wall-clock and fan the chunks out across cores.
 function isCI(): boolean {
-	const value = Bun.env.CI;
+	const value = process.env.CI;
 	if (!value) return false;
 	const normalized = value.trim().toLowerCase();
 	return normalized !== "" && normalized !== "0" && normalized !== "false";
@@ -542,7 +542,7 @@ function isCI(): boolean {
 // overrides it — a positive integer to pick an exact width (dial down on a
 // memory-constrained laptop), or `all`/`max` to launch every chunk at once.
 function testConcurrency(total: number): number {
-	const raw = Bun.env.OMP_TEST_CONCURRENCY?.trim().toLowerCase();
+	const raw = process.env.OMP_TEST_CONCURRENCY?.trim().toLowerCase();
 	if (!raw) return Math.min(Math.max(1, os.availableParallelism()), total);
 	if (raw === "all" || raw === "max") {
 		return total;
@@ -583,7 +583,7 @@ function budgetedParallel(requested: number, poolWidth: number): number {
 // per-chunk watchdog (chunkTimeoutMs) remains the backstop for a wedged process.
 // Override with OMP_TEST_TIMEOUT (seconds); per-test `it(name, fn, ms)` still wins.
 function testTimeoutMs(): number {
-	const raw = Number(Bun.env.OMP_TEST_TIMEOUT?.trim());
+	const raw = Number(process.env.OMP_TEST_TIMEOUT?.trim());
 	if (Number.isFinite(raw) && raw >= 1) return raw * 1000;
 	return 30_000;
 }
@@ -928,7 +928,7 @@ if (import.meta.main) {
 	}
 
 	const requestedCommands = await commandsForMode(requestedMode as Mode);
-	const explicitConcurrency = Boolean(Bun.env.OMP_TEST_CONCURRENCY?.trim());
+	const explicitConcurrency = Boolean(process.env.OMP_TEST_CONCURRENCY?.trim());
 	// CI defaults to one process at a time, but memory-sized workflow buckets
 	// explicitly opt into bounded process concurrency. Local runs fan out by
 	// default and may use the same override. Resolved before the dry-run check so

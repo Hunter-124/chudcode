@@ -47,8 +47,8 @@ async function drainResponses(
 	model: Model<"openai-responses" | "openrouter">,
 	maxTokens?: number,
 ): Promise<Record<string, unknown>> {
-	const previousOpenRouterResponses = Bun.env.PI_OPENROUTER_RESPONSES;
-	if (model.api === "openrouter") Bun.env.PI_OPENROUTER_RESPONSES = "1";
+	const previousOpenRouterResponses = process.env.PI_OPENROUTER_RESPONSES;
+	if (model.api === "openrouter") process.env.PI_OPENROUTER_RESPONSES = "1";
 	try {
 		const { fetchMock, captured } = captureResponsesBody();
 		const stream = streamSimple(model, ctx, {
@@ -62,9 +62,9 @@ async function drainResponses(
 		return captured;
 	} finally {
 		if (previousOpenRouterResponses === undefined) {
-			delete Bun.env.PI_OPENROUTER_RESPONSES;
+			delete process.env.PI_OPENROUTER_RESPONSES;
 		} else {
-			Bun.env.PI_OPENROUTER_RESPONSES = previousOpenRouterResponses;
+			process.env.PI_OPENROUTER_RESPONSES = previousOpenRouterResponses;
 		}
 	}
 }

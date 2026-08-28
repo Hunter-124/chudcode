@@ -50,20 +50,20 @@ if (libc.symbols.prctl(36, 1, 0, 0, 0) !== 0) {
 	throw new Error("failed to become a Linux child subreaper");
 }
 
-const commandJson = Bun.env.${LINUX_SUBREAPER_COMMAND_ENV};
+const commandJson = process.env.${LINUX_SUBREAPER_COMMAND_ENV};
 if (!commandJson) throw new Error("missing supervised command");
-const callerBunBeBun = Bun.env.${LINUX_SUBREAPER_BUN_BE_BUN_ENV};
-delete Bun.env.${LINUX_SUBREAPER_COMMAND_ENV};
-delete Bun.env.${LINUX_SUBREAPER_BUN_BE_BUN_ENV};
-if (callerBunBeBun === undefined) delete Bun.env.BUN_BE_BUN;
-else Bun.env.BUN_BE_BUN = callerBunBeBun;
+const callerBunBeBun = process.env.${LINUX_SUBREAPER_BUN_BE_BUN_ENV};
+delete process.env.${LINUX_SUBREAPER_COMMAND_ENV};
+delete process.env.${LINUX_SUBREAPER_BUN_BE_BUN_ENV};
+if (callerBunBeBun === undefined) delete process.env.BUN_BE_BUN;
+else process.env.BUN_BE_BUN = callerBunBeBun;
 const command = JSON.parse(commandJson);
 const child = Bun.spawn(command, {
 	stdin: "inherit",
 	stdout: "pipe",
 	stderr: "pipe",
 	windowsHide: true,
-	env: Bun.env,
+	env: process.env,
 });
 
 async function relay(stream, destination) {
@@ -605,7 +605,7 @@ function spawnInternal<In extends InMask = InMask>(
 ): ChildProcess<In> {
 	const { timeout = -1, signal, stderr, detached, subreaper = false, ...rest } = opts ?? {};
 	const useSubreaper = subreaper && process.platform === "linux";
-	const commandEnv = rest.env ?? Bun.env;
+	const commandEnv = rest.env ?? process.env;
 	const child = Bun.spawn(useSubreaper ? [process.execPath, "-e", LINUX_SUBREAPER_SCRIPT] : cmd, {
 		stdin: "ignore",
 		stdout: "pipe",

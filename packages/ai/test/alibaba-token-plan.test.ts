@@ -145,15 +145,15 @@ describe("QwenCloud Token Plan login", () => {
 		const model = getBundledModel<"openai-completions">("alibaba-token-plan", "qwen3.7-plus");
 		if (!model) throw new Error("expected bundled QwenCloud Token Plan model");
 
-		const previous = Bun.env.OPENAI_API_KEY;
-		Bun.env.OPENAI_API_KEY = "sk-generic-openai-secret";
+		const previous = process.env.OPENAI_API_KEY;
+		process.env.OPENAI_API_KEY = "sk-generic-openai-secret";
 		try {
 			expect(() => resolveOpenAIRequestSetup(model, { messages: [] })).toThrow(
 				"No API key for provider: alibaba-token-plan",
 			);
 		} finally {
-			if (previous === undefined) delete Bun.env.OPENAI_API_KEY;
-			else Bun.env.OPENAI_API_KEY = previous;
+			if (previous === undefined) delete process.env.OPENAI_API_KEY;
+			else process.env.OPENAI_API_KEY = previous;
 		}
 	});
 

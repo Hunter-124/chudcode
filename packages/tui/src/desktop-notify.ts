@@ -44,7 +44,7 @@ export interface DesktopNotifier {
  */
 export function hasLinuxDesktopSession(
 	platform: NodeJS.Platform = process.platform,
-	env: NodeJS.ProcessEnv = Bun.env,
+	env: NodeJS.ProcessEnv = process.env,
 	fileExists: (path: string) => boolean = fs.existsSync,
 ): boolean {
 	if (platform !== "linux") return false;
@@ -66,7 +66,7 @@ export function shouldDeliverDesktopNotification(
 	_terminalId: TerminalId,
 	notifyProtocolIsBell: boolean,
 	platform: NodeJS.Platform = process.platform,
-	env: NodeJS.ProcessEnv = Bun.env,
+	env: NodeJS.ProcessEnv = process.env,
 ): boolean {
 	if (!notifyProtocolIsBell) return false;
 	if (!hasLinuxDesktopSession(platform, env)) return false;

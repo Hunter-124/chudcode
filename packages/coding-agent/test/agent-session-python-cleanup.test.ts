@@ -155,15 +155,15 @@ describe("AgentSession python cleanup", () => {
 	let originalNullPrompt: string | undefined;
 
 	beforeEach(() => {
-		originalNullPrompt = Bun.env.NULL_PROMPT;
-		Bun.env.NULL_PROMPT = "true";
+		originalNullPrompt = process.env.NULL_PROMPT;
+		process.env.NULL_PROMPT = "true";
 	});
 
 	afterEach(async () => {
 		if (originalNullPrompt === undefined) {
-			delete Bun.env.NULL_PROMPT;
+			delete process.env.NULL_PROMPT;
 		} else {
-			Bun.env.NULL_PROMPT = originalNullPrompt;
+			process.env.NULL_PROMPT = originalNullPrompt;
 		}
 		originalNullPrompt = undefined;
 		vi.restoreAllMocks();

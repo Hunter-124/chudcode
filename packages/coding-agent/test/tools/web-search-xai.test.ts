@@ -49,13 +49,13 @@ function makeAuthStorage(credentials: string | FakeAuthCredentials | undefined) 
 		},
 		hasAuth(provider: string) {
 			if (provider === "xai") {
-				return Boolean(credentialsByProvider.xai) || Boolean(Bun.env.XAI_API_KEY);
+				return Boolean(credentialsByProvider.xai) || Boolean(process.env.XAI_API_KEY);
 			}
 			if (provider === "xai-oauth") {
 				return (
 					Boolean(credentialsByProvider["xai-oauth"]) ||
-					Boolean(Bun.env.XAI_OAUTH_TOKEN) ||
-					Boolean(Bun.env.XAI_API_KEY)
+					Boolean(process.env.XAI_OAUTH_TOKEN) ||
+					Boolean(process.env.XAI_API_KEY)
 				);
 			}
 			return false;
@@ -71,8 +71,8 @@ function makeAuthStorage(credentials: string | FakeAuthCredentials | undefined) 
 			if (provider === "xai-oauth" || provider === "xai") {
 				const credential = credentialsByProvider[provider];
 				if (credential) return { kind: credential.kind };
-				if (provider === "xai-oauth" && (Bun.env.XAI_OAUTH_TOKEN || Bun.env.XAI_API_KEY)) return { kind: "env" };
-				if (provider === "xai" && Bun.env.XAI_API_KEY) return { kind: "env" };
+				if (provider === "xai-oauth" && (process.env.XAI_OAUTH_TOKEN || process.env.XAI_API_KEY)) return { kind: "env" };
+				if (provider === "xai" && process.env.XAI_API_KEY) return { kind: "env" };
 			}
 			return undefined;
 		},
@@ -336,10 +336,10 @@ describe("xAI web search provider", () => {
 			model: "grok-4.3",
 			output_text: "xAI env answer",
 		});
-		const originalOAuthToken = Bun.env.XAI_OAUTH_TOKEN;
-		const originalApiKey = Bun.env.XAI_API_KEY;
-		delete Bun.env.XAI_OAUTH_TOKEN;
-		Bun.env.XAI_API_KEY = "shared-xai-env-key";
+		const originalOAuthToken = process.env.XAI_OAUTH_TOKEN;
+		const originalApiKey = process.env.XAI_API_KEY;
+		delete process.env.XAI_OAUTH_TOKEN;
+		process.env.XAI_API_KEY = "shared-xai-env-key";
 		try {
 			await searchXAI(
 				makeParams(
@@ -348,10 +348,10 @@ describe("xAI web search provider", () => {
 				),
 			);
 		} finally {
-			if (originalOAuthToken === undefined) delete Bun.env.XAI_OAUTH_TOKEN;
-			else Bun.env.XAI_OAUTH_TOKEN = originalOAuthToken;
-			if (originalApiKey === undefined) delete Bun.env.XAI_API_KEY;
-			else Bun.env.XAI_API_KEY = originalApiKey;
+			if (originalOAuthToken === undefined) delete process.env.XAI_OAUTH_TOKEN;
+			else process.env.XAI_OAUTH_TOKEN = originalOAuthToken;
+			if (originalApiKey === undefined) delete process.env.XAI_API_KEY;
+			else process.env.XAI_API_KEY = originalApiKey;
 		}
 
 		expect(capture.capturedRequest).not.toBeNull();
@@ -366,10 +366,10 @@ describe("xAI web search provider", () => {
 			model: "grok-4.3",
 			output_text: "xAI explicit account answer",
 		});
-		const originalOAuthToken = Bun.env.XAI_OAUTH_TOKEN;
-		const originalApiKey = Bun.env.XAI_API_KEY;
-		delete Bun.env.XAI_OAUTH_TOKEN;
-		Bun.env.XAI_API_KEY = "shared-xai-env-key";
+		const originalOAuthToken = process.env.XAI_OAUTH_TOKEN;
+		const originalApiKey = process.env.XAI_API_KEY;
+		delete process.env.XAI_OAUTH_TOKEN;
+		process.env.XAI_API_KEY = "shared-xai-env-key";
 		try {
 			await searchXAI(
 				makeParams(
@@ -381,10 +381,10 @@ describe("xAI web search provider", () => {
 				),
 			);
 		} finally {
-			if (originalOAuthToken === undefined) delete Bun.env.XAI_OAUTH_TOKEN;
-			else Bun.env.XAI_OAUTH_TOKEN = originalOAuthToken;
-			if (originalApiKey === undefined) delete Bun.env.XAI_API_KEY;
-			else Bun.env.XAI_API_KEY = originalApiKey;
+			if (originalOAuthToken === undefined) delete process.env.XAI_OAUTH_TOKEN;
+			else process.env.XAI_OAUTH_TOKEN = originalOAuthToken;
+			if (originalApiKey === undefined) delete process.env.XAI_API_KEY;
+			else process.env.XAI_API_KEY = originalApiKey;
 		}
 
 		expect(capture.capturedRequest).not.toBeNull();
@@ -403,7 +403,7 @@ describe("xAI web search provider", () => {
 			resolver(provider: string, options?: { sessionId?: string; baseUrl?: string; modelId?: string }) {
 				expect(options?.sessionId).toBe("session-xai-test");
 				return async () => {
-					if (provider === "xai-oauth") return Bun.env.XAI_API_KEY;
+					if (provider === "xai-oauth") return process.env.XAI_API_KEY;
 					if (provider === "xai") return "explicit-xai-runtime-key";
 					return undefined;
 				};
@@ -420,17 +420,17 @@ describe("xAI web search provider", () => {
 				return undefined;
 			},
 		} as unknown as AuthStorage;
-		const originalOAuthToken = Bun.env.XAI_OAUTH_TOKEN;
-		const originalApiKey = Bun.env.XAI_API_KEY;
-		delete Bun.env.XAI_OAUTH_TOKEN;
-		Bun.env.XAI_API_KEY = "shared-xai-env-key";
+		const originalOAuthToken = process.env.XAI_OAUTH_TOKEN;
+		const originalApiKey = process.env.XAI_API_KEY;
+		delete process.env.XAI_OAUTH_TOKEN;
+		process.env.XAI_API_KEY = "shared-xai-env-key";
 		try {
 			await searchXAI(makeParams(capture.fetchMock, authStorage));
 		} finally {
-			if (originalOAuthToken === undefined) delete Bun.env.XAI_OAUTH_TOKEN;
-			else Bun.env.XAI_OAUTH_TOKEN = originalOAuthToken;
-			if (originalApiKey === undefined) delete Bun.env.XAI_API_KEY;
-			else Bun.env.XAI_API_KEY = originalApiKey;
+			if (originalOAuthToken === undefined) delete process.env.XAI_OAUTH_TOKEN;
+			else process.env.XAI_OAUTH_TOKEN = originalOAuthToken;
+			if (originalApiKey === undefined) delete process.env.XAI_API_KEY;
+			else process.env.XAI_API_KEY = originalApiKey;
 		}
 
 		expect(capture.capturedRequest).not.toBeNull();
@@ -441,17 +441,17 @@ describe("xAI web search provider", () => {
 
 	it("reports xAI available through xai when only XAI_API_KEY is set", () => {
 		const provider = new XAIProvider();
-		const originalOAuthToken = Bun.env.XAI_OAUTH_TOKEN;
-		const originalApiKey = Bun.env.XAI_API_KEY;
-		delete Bun.env.XAI_OAUTH_TOKEN;
-		Bun.env.XAI_API_KEY = "shared-xai-env-key";
+		const originalOAuthToken = process.env.XAI_OAUTH_TOKEN;
+		const originalApiKey = process.env.XAI_API_KEY;
+		delete process.env.XAI_OAUTH_TOKEN;
+		process.env.XAI_API_KEY = "shared-xai-env-key";
 		try {
 			expect(provider.isAvailable(makeAuthStorage(undefined))).toBe(true);
 		} finally {
-			if (originalOAuthToken === undefined) delete Bun.env.XAI_OAUTH_TOKEN;
-			else Bun.env.XAI_OAUTH_TOKEN = originalOAuthToken;
-			if (originalApiKey === undefined) delete Bun.env.XAI_API_KEY;
-			else Bun.env.XAI_API_KEY = originalApiKey;
+			if (originalOAuthToken === undefined) delete process.env.XAI_OAUTH_TOKEN;
+			else process.env.XAI_OAUTH_TOKEN = originalOAuthToken;
+			if (originalApiKey === undefined) delete process.env.XAI_API_KEY;
+			else process.env.XAI_API_KEY = originalApiKey;
 		}
 	});
 

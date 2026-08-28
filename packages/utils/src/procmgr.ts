@@ -38,7 +38,7 @@ export function isExecutable(path: string): boolean {
 function buildSpawnEnv(shell: string): Record<string, string> {
 	const noCI = $env.PI_BASH_NO_CI || $env.CLAUDE_BASH_NO_CI;
 	return {
-		...filterChildShellEnv(Bun.env),
+		...filterChildShellEnv(process.env),
 		SHELL: shell,
 		GIT_EDITOR: "true",
 		GPG_TTY: "not a tty",
@@ -143,9 +143,9 @@ export function resolveBasicShell(): string | undefined {
  *    bash.exe when present)
  * 5. cmd.exe from ComSpec
  *
- * Exported for tests; `env` overrides Bun.env-based discovery.
+ * Exported for tests; `env` overrides process.env-based discovery.
  */
-export function resolveWindowsShell(env: Record<string, string | undefined> = Bun.env): string {
+export function resolveWindowsShell(env: Record<string, string | undefined> = process.env): string {
 	const gitRoots = [
 		env.ProgramFiles && path.join(env.ProgramFiles, "Git"),
 		env["ProgramFiles(x86)"] && path.join(env["ProgramFiles(x86)"], "Git"),
@@ -205,7 +205,7 @@ export function getShellConfig(customShellPath?: string, options: ShellConfigOpt
 	}
 
 	// Unix: prefer user's shell from $SHELL if it's bash/zsh and executable
-	const userShell = Bun.env.SHELL;
+	const userShell = process.env.SHELL;
 	const isValidShell = userShell && (userShell.includes("bash") || userShell.includes("zsh"));
 	if (isValidShell && isExecutable(userShell)) {
 		cachedShellConfig = buildConfig(userShell);

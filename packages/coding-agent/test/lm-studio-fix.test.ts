@@ -113,8 +113,8 @@ describe("ModelRegistry LM Studio Fixes", () => {
 	});
 
 	test("LM_STUDIO_BASE_URL can target any local OpenAI-compatible /v1 server", async () => {
-		const originalBaseUrl = Bun.env.LM_STUDIO_BASE_URL;
-		Bun.env.LM_STUDIO_BASE_URL = "http://127.0.0.1:11434/v1";
+		const originalBaseUrl = process.env.LM_STUDIO_BASE_URL;
+		process.env.LM_STUDIO_BASE_URL = "http://127.0.0.1:11434/v1";
 		let requestedUrl = "";
 		try {
 			const fetchMock: FetchImpl = input => {
@@ -139,9 +139,9 @@ describe("ModelRegistry LM Studio Fixes", () => {
 			expect(registry.getAll().some(m => m.provider === "lm-studio" && m.id === "omlx-model")).toBe(true);
 		} finally {
 			if (originalBaseUrl === undefined) {
-				delete Bun.env.LM_STUDIO_BASE_URL;
+				delete process.env.LM_STUDIO_BASE_URL;
 			} else {
-				Bun.env.LM_STUDIO_BASE_URL = originalBaseUrl;
+				process.env.LM_STUDIO_BASE_URL = originalBaseUrl;
 			}
 		}
 	});

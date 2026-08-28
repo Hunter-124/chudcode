@@ -72,10 +72,10 @@ let originalPiAutoQa: string | undefined;
 
 function restoreAutoQaEnv(): void {
 	if (originalPiAutoQa === undefined) {
-		delete Bun.env.PI_AUTO_QA;
+		delete process.env.PI_AUTO_QA;
 		return;
 	}
-	Bun.env.PI_AUTO_QA = originalPiAutoQa;
+	process.env.PI_AUTO_QA = originalPiAutoQa;
 }
 
 describe("flushGrievances", () => {
@@ -83,8 +83,8 @@ describe("flushGrievances", () => {
 
 	beforeEach(() => {
 		__resetAutoQaFlushStateForTests();
-		originalPiAutoQa = Bun.env.PI_AUTO_QA;
-		delete Bun.env.PI_AUTO_QA;
+		originalPiAutoQa = process.env.PI_AUTO_QA;
+		delete process.env.PI_AUTO_QA;
 		db = openTempDb();
 	});
 
@@ -96,13 +96,13 @@ describe("flushGrievances", () => {
 	});
 
 	it("lets PI_AUTO_QA=false disable auto QA when the setting is enabled", () => {
-		Bun.env.PI_AUTO_QA = "0";
+		process.env.PI_AUTO_QA = "0";
 
 		expect(isAutoQaEnabled(Settings.isolated({ "dev.autoqa": true }))).toBe(false);
 	});
 
 	it("lets PI_AUTO_QA=true enable auto QA when the setting is disabled", () => {
-		Bun.env.PI_AUTO_QA = "1";
+		process.env.PI_AUTO_QA = "1";
 
 		expect(isAutoQaEnabled(Settings.isolated({ "dev.autoqa": false }))).toBe(true);
 	});
@@ -369,7 +369,7 @@ describe("dispatchReportIssueDevice", () => {
 	}
 
 	it("records a grievance from `<tool>: <report>` text", async () => {
-		Bun.env.PI_AUTO_QA = "1";
+		process.env.PI_AUTO_QA = "1";
 		const db = openTempDb();
 		const openSpy = vi.spyOn(reportIssue, "openAutoQaDb").mockReturnValue(db);
 		try {
@@ -393,7 +393,7 @@ describe("dispatchReportIssueDevice", () => {
 	});
 
 	it("accepts the two-line fallback body format", async () => {
-		Bun.env.PI_AUTO_QA = "1";
+		process.env.PI_AUTO_QA = "1";
 		const db = openTempDb();
 		const openSpy = vi.spyOn(reportIssue, "openAutoQaDb").mockReturnValue(db);
 		try {
@@ -409,9 +409,9 @@ describe("dispatchReportIssueDevice", () => {
 	});
 
 	it("writes nothing while consent is unresolved", async () => {
-		Bun.env.PI_AUTO_QA = "1";
-		const originalPush = Bun.env.PI_AUTO_QA_PUSH;
-		delete Bun.env.PI_AUTO_QA_PUSH;
+		process.env.PI_AUTO_QA = "1";
+		const originalPush = process.env.PI_AUTO_QA_PUSH;
+		delete process.env.PI_AUTO_QA_PUSH;
 		const db = openTempDb();
 		const openSpy = vi.spyOn(reportIssue, "openAutoQaDb").mockReturnValue(db);
 		try {
@@ -423,8 +423,8 @@ describe("dispatchReportIssueDevice", () => {
 			await settlePipeline();
 			expect(selectIds(db)).toHaveLength(0);
 		} finally {
-			if (originalPush === undefined) delete Bun.env.PI_AUTO_QA_PUSH;
-			else Bun.env.PI_AUTO_QA_PUSH = originalPush;
+			if (originalPush === undefined) delete process.env.PI_AUTO_QA_PUSH;
+			else process.env.PI_AUTO_QA_PUSH = originalPush;
 			openSpy.mockRestore();
 			db.close();
 		}

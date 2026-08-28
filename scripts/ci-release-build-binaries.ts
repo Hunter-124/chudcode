@@ -85,7 +85,7 @@ function parseRequestedTargets(): Set<string> | null {
 	const flagValue =
 		flagIndex >= 0
 			? process.argv[flagIndex + 1]
-			: (process.argv.find(arg => arg.startsWith("--targets="))?.split("=", 2)[1] ?? Bun.env.RELEASE_TARGETS);
+			: (process.argv.find(arg => arg.startsWith("--targets="))?.split("=", 2)[1] ?? process.env.RELEASE_TARGETS);
 
 	if (!flagValue) {
 		return null;
@@ -103,7 +103,7 @@ function shouldAdhocSignDarwinBinary(target: BinaryTarget): boolean {
 	return target.platform === "darwin" && process.platform === "darwin";
 }
 
-async function runCommand(command: string[], cwd: string, env: NodeJS.ProcessEnv = Bun.env): Promise<void> {
+async function runCommand(command: string[], cwd: string, env: NodeJS.ProcessEnv = process.env): Promise<void> {
 	const proc = Bun.spawn(command, {
 		cwd,
 		env,
@@ -123,7 +123,7 @@ async function embedNative(target: BinaryTarget): Promise<void> {
 	}
 
 	await runCommand(["bun", "run", "gen:native"], repoRoot, {
-		...Bun.env,
+		...process.env,
 		TARGET_PLATFORM: target.platform,
 		TARGET_ARCH: target.arch,
 	});

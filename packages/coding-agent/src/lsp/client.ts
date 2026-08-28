@@ -1015,7 +1015,7 @@ export async function getOrCreateClient(
 		proc ??= ptree.spawn([command, ...args], {
 			cwd,
 			stdin: "pipe",
-			env: env ? { ...Bun.env, ...env } : undefined,
+			env: env ? { ...process.env, ...env } : undefined,
 		});
 
 		let resolveProjectLoaded!: () => void;

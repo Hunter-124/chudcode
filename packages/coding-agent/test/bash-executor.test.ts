@@ -44,7 +44,7 @@ function configureBashUserShell(homeDir: string): boolean {
 		shell: "/bin/bash",
 		args: ["-c"],
 		env: {
-			PATH: Bun.env.PATH ?? "",
+			PATH: process.env.PATH ?? "",
 			HOME: homeDir,
 			SHELL: "/bin/bash",
 		},
@@ -248,7 +248,7 @@ exit 64
 			shell: fakeShell,
 			args: ["-l", "-c"],
 			env: {
-				PATH: Bun.env.PATH ?? "",
+				PATH: process.env.PATH ?? "",
 				HOME: tempDir,
 			},
 			prefix: undefined,
@@ -299,7 +299,7 @@ exit 64
 			shell: fakeShell,
 			args: ["-l", "-c"],
 			env: {
-				PATH: Bun.env.PATH ?? "",
+				PATH: process.env.PATH ?? "",
 				HOME: tempDir,
 			},
 			prefix: undefined,
@@ -358,7 +358,7 @@ exit 64
 			return;
 		}
 
-		const originalShell = Bun.env.SHELL;
+		const originalShell = process.env.SHELL;
 		const shellDir = fs.mkdtempSync(path.join(os.tmpdir(), "omp-env-shell-"));
 		const marker = path.join(shellDir, "env-shell-ran");
 		const markerEscaped = marker.replace(/'/g, "'\\''");
@@ -378,13 +378,13 @@ exit 64
 `,
 		);
 		fs.chmodSync(fakeShell, 0o755);
-		Bun.env.SHELL = fakeShell;
+		process.env.SHELL = fakeShell;
 
 		vi.spyOn(Settings.prototype, "getShellConfig").mockReturnValue({
 			shell: "/bin/bash",
 			args: ["-l", "-c"],
 			env: {
-				PATH: Bun.env.PATH ?? "",
+				PATH: process.env.PATH ?? "",
 				HOME: tempDir,
 				SHELL: "/bin/bash",
 			},
@@ -408,9 +408,9 @@ exit 64
 			expect(fs.readFileSync(marker, "utf8")).not.toContain("-l");
 		} finally {
 			if (originalShell === undefined) {
-				delete Bun.env.SHELL;
+				delete process.env.SHELL;
 			} else {
-				Bun.env.SHELL = originalShell;
+				process.env.SHELL = originalShell;
 			}
 			removeSyncWithRetries(shellDir);
 		}
@@ -436,7 +436,7 @@ exit 64
 			shell: zshPath,
 			args: ["-l", "-c"],
 			env: {
-				PATH: Bun.env.PATH ?? "",
+				PATH: process.env.PATH ?? "",
 				HOME: shellDir,
 				// The command runs through an interactive login zsh, which loads the
 				// system `/etc/zshrc`. On macOS that pulls in
@@ -492,7 +492,7 @@ exit 64
 			shell: fishPath,
 			args: ["-l", "-c"],
 			env: {
-				PATH: Bun.env.PATH ?? "",
+				PATH: process.env.PATH ?? "",
 				HOME: shellDir,
 			},
 			prefix: undefined,
@@ -518,7 +518,7 @@ exit 64
 	});
 
 	it("runs zsh shortcut commands on a headless PTY with a color-capable TTY", async () => {
-		if (process.platform === "win32" || Bun.env.PI_NO_PTY === "1") {
+		if (process.platform === "win32" || process.env.PI_NO_PTY === "1") {
 			return;
 		}
 		const zshPath = ["/bin/zsh", "/usr/bin/zsh", "/usr/local/bin/zsh", "/opt/homebrew/bin/zsh"].find(candidate =>
@@ -536,7 +536,7 @@ exit 64
 			shell: zshPath,
 			args: ["-l", "-c"],
 			env: {
-				PATH: Bun.env.PATH ?? "",
+				PATH: process.env.PATH ?? "",
 				HOME: shellDir,
 				SHELL_SESSIONS_DISABLE: "1",
 			},
@@ -1044,7 +1044,7 @@ exit 64
 		if (process.platform === "win32") {
 			return;
 		}
-		const bashPath = Bun.env.SHELL?.includes("bash") ? Bun.env.SHELL : "/bin/bash";
+		const bashPath = process.env.SHELL?.includes("bash") ? process.env.SHELL : "/bin/bash";
 		if (!fs.existsSync(bashPath)) {
 			return;
 		}
@@ -1054,8 +1054,8 @@ exit 64
 			shell: bashPath,
 			args: ["-l", "-c"],
 			env: {
-				PATH: Bun.env.PATH ?? "",
-				HOME: Bun.env.HOME ?? tempDir,
+				PATH: process.env.PATH ?? "",
+				HOME: process.env.HOME ?? tempDir,
 			},
 			prefix: undefined,
 		});
@@ -1070,7 +1070,7 @@ exit 64
 		if (process.platform === "win32") {
 			return;
 		}
-		const realBashPath = Bun.env.SHELL?.includes("bash") ? Bun.env.SHELL : "/bin/bash";
+		const realBashPath = process.env.SHELL?.includes("bash") ? process.env.SHELL : "/bin/bash";
 		if (!fs.existsSync(realBashPath)) {
 			return;
 		}
@@ -1085,14 +1085,14 @@ exit 64
 			shell: bashPath,
 			args: ["-l", "-c"],
 			env: {
-				PATH: Bun.env.PATH ?? "",
+				PATH: process.env.PATH ?? "",
 				HOME: tempDir,
 			},
 			prefix: undefined,
 		});
 
 		const snapshotPath = await shellSnapshot.getOrCreateSnapshot(bashPath, {
-			PATH: Bun.env.PATH ?? "",
+			PATH: process.env.PATH ?? "",
 			HOME: tempDir,
 		});
 		const snapshot = fs.readFileSync(snapshotPath!, "utf8");
@@ -1110,7 +1110,7 @@ exit 64
 
 	it("survives compound aliases from the user's shell snapshot (issue #3234)", async () => {
 		if (process.platform === "win32") return;
-		const bashPath = Bun.env.SHELL?.includes("bash") ? Bun.env.SHELL : "/bin/bash";
+		const bashPath = process.env.SHELL?.includes("bash") ? process.env.SHELL : "/bin/bash";
 		if (!fs.existsSync(bashPath)) return;
 
 		// Pre-seed a snapshot that mirrors Fedora's default `which` alias.
@@ -1138,7 +1138,7 @@ exit 64
 		vi.spyOn(Settings.prototype, "getShellConfig").mockReturnValue({
 			shell: bashPath,
 			args: ["-l", "-c"],
-			env: { PATH: Bun.env.PATH ?? "", HOME: Bun.env.HOME ?? tempDir },
+			env: { PATH: process.env.PATH ?? "", HOME: process.env.HOME ?? tempDir },
 			prefix: undefined,
 		});
 		vi.spyOn(shellSnapshot, "getOrCreateSnapshot").mockResolvedValue(snapshotPath);

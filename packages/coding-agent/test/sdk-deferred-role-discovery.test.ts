@@ -25,8 +25,8 @@ describe("createAgentSession deferred role alias on discoverable provider (#8863
 
 	beforeEach(async () => {
 		for (const key of ["OLLAMA_BASE_URL", "OLLAMA_HOST", "OLLAMA_CONTEXT_LENGTH"] as const) {
-			savedOllamaEnv[key] = Bun.env[key];
-			delete Bun.env[key];
+			savedOllamaEnv[key] = process.env[key];
+			delete process.env[key];
 		}
 		tempDir = path.join(os.tmpdir(), `pi-test-sdk-deferred-role-${Snowflake.next()}`);
 		fs.mkdirSync(tempDir, { recursive: true });
@@ -37,8 +37,8 @@ describe("createAgentSession deferred role alias on discoverable provider (#8863
 	afterEach(() => {
 		for (const key of ["OLLAMA_BASE_URL", "OLLAMA_HOST", "OLLAMA_CONTEXT_LENGTH"] as const) {
 			const original = savedOllamaEnv[key];
-			if (original === undefined) delete Bun.env[key];
-			else Bun.env[key] = original;
+			if (original === undefined) delete process.env[key];
+			else process.env[key] = original;
 		}
 		authStorage.close();
 		if (tempDir && fs.existsSync(tempDir)) removeSyncWithRetries(tempDir);

@@ -220,8 +220,8 @@ describe("agentLoop with owned in-band tool calls", () => {
 	});
 
 	it("uses PI_DIALECT=minimax when config.dialect is unset", async () => {
-		const before = Bun.env.PI_DIALECT;
-		Bun.env.PI_DIALECT = "minimax";
+		const before = process.env.PI_DIALECT;
+		process.env.PI_DIALECT = "minimax";
 		try {
 			const echoArgs: Array<{ msg: string }> = [];
 			const toolSchema = type({ msg: "string" });
@@ -263,8 +263,8 @@ describe("agentLoop with owned in-band tool calls", () => {
 			expect(captured[0].tools).toBeUndefined();
 			expect((captured[0].systemPrompt ?? []).join("\n")).toContain("<minimax:tool_call>");
 		} finally {
-			if (before === undefined) delete Bun.env.PI_DIALECT;
-			else Bun.env.PI_DIALECT = before;
+			if (before === undefined) delete process.env.PI_DIALECT;
+			else process.env.PI_DIALECT = before;
 		}
 	});
 });

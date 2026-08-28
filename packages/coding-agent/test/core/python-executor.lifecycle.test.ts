@@ -11,7 +11,7 @@ import {
 	PythonKernel,
 } from "@oh-my-pi/pi-coding-agent/eval/py/kernel";
 
-Bun.env.PI_PYTHON_SKIP_CHECK = "1";
+process.env.PI_PYTHON_SKIP_CHECK = "1";
 
 class FakeKernel {
 	#result: KernelExecuteResult;

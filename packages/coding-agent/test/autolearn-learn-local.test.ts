@@ -15,7 +15,7 @@ import type { ToolSession } from "@oh-my-pi/pi-coding-agent/tools";
 import { LearnTool } from "@oh-my-pi/pi-coding-agent/tools/learn";
 import { removeWithRetries } from "@oh-my-pi/pi-utils";
 
-Bun.env.PI_PYTHON_SKIP_CHECK = "1";
+process.env.PI_PYTHON_SKIP_CHECK = "1";
 
 describe("learned-lesson storage (local backend)", () => {
 	let tmp: string;

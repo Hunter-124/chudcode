@@ -376,8 +376,8 @@ describe("streamPiNative event flow", () => {
 	});
 
 	it("uses PI_STREAM_FIRST_EVENT_TIMEOUT_MS for silent pi-native streams", async () => {
-		const previous = Bun.env.PI_STREAM_FIRST_EVENT_TIMEOUT_MS;
-		Bun.env.PI_STREAM_FIRST_EVENT_TIMEOUT_MS = "20";
+		const previous = process.env.PI_STREAM_FIRST_EVENT_TIMEOUT_MS;
+		process.env.PI_STREAM_FIRST_EVENT_TIMEOUT_MS = "20";
 		try {
 			const fetchImpl: FetchImpl = (async () =>
 				new Response(stalledBody(), {
@@ -390,9 +390,9 @@ describe("streamPiNative event flow", () => {
 			await expect(stream.result()).rejects.toThrow(/first event/);
 		} finally {
 			if (previous === undefined) {
-				delete Bun.env.PI_STREAM_FIRST_EVENT_TIMEOUT_MS;
+				delete process.env.PI_STREAM_FIRST_EVENT_TIMEOUT_MS;
 			} else {
-				Bun.env.PI_STREAM_FIRST_EVENT_TIMEOUT_MS = previous;
+				process.env.PI_STREAM_FIRST_EVENT_TIMEOUT_MS = previous;
 			}
 		}
 	});

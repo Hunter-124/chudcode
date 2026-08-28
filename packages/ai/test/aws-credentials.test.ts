@@ -93,18 +93,18 @@ describe("resolveAwsCredentials", () => {
 
 	beforeEach(async () => {
 		for (const k of ENV_KEYS) {
-			saved.set(k, Bun.env[k]);
-			delete Bun.env[k];
+			saved.set(k, process.env[k]);
+			delete process.env[k];
 		}
-		Bun.env.AWS_EC2_METADATA_DISABLED = "true";
+		process.env.AWS_EC2_METADATA_DISABLED = "true";
 		tmp = await fs.mkdtemp(path.join(os.tmpdir(), "aws-credproc-"));
 		clearAwsCredentialCache();
 	});
 
 	afterEach(async () => {
 		for (const [k, v] of saved) {
-			if (v === undefined) delete Bun.env[k];
-			else Bun.env[k] = v;
+			if (v === undefined) delete process.env[k];
+			else process.env[k] = v;
 		}
 		saved.clear();
 		await removeWithRetries(tmp);
@@ -120,21 +120,21 @@ describe("resolveAwsCredentials", () => {
 	async function writeConfig(profile: string, line: string): Promise<void> {
 		const cfg = path.join(tmp, "config");
 		await Bun.write(cfg, `[profile ${profile}]\n${line}\n`);
-		Bun.env.AWS_CONFIG_FILE = cfg;
+		process.env.AWS_CONFIG_FILE = cfg;
 		// Point shared credentials at a known-empty file so static-creds resolution
 		// definitely misses.
 		const sharedPath = path.join(tmp, "credentials");
 		await Bun.write(sharedPath, "");
-		Bun.env.AWS_SHARED_CREDENTIALS_FILE = sharedPath;
+		process.env.AWS_SHARED_CREDENTIALS_FILE = sharedPath;
 	}
 
 	async function writeRawConfig(body: string): Promise<void> {
 		const cfg = path.join(tmp, "config");
 		await Bun.write(cfg, body);
-		Bun.env.AWS_CONFIG_FILE = cfg;
+		process.env.AWS_CONFIG_FILE = cfg;
 		const sharedPath = path.join(tmp, "credentials");
 		await Bun.write(sharedPath, "");
-		Bun.env.AWS_SHARED_CREDENTIALS_FILE = sharedPath;
+		process.env.AWS_SHARED_CREDENTIALS_FILE = sharedPath;
 	}
 
 	/** Mock STS: web-identity + AssumeRole exchanges, capturing each request body. */
@@ -224,10 +224,10 @@ describe("resolveAwsCredentials", () => {
 		const credentialsPath = path.join(tmp, "empty-credentials");
 		const configPath = path.join(tmp, "empty-config");
 		await Promise.all([Bun.write(credentialsPath, ""), Bun.write(configPath, "")]);
-		Bun.env.AWS_SHARED_CREDENTIALS_FILE = credentialsPath;
-		Bun.env.AWS_CONFIG_FILE = configPath;
-		Bun.env.AWS_CONTAINER_CREDENTIALS_RELATIVE_URI = "/v2/credentials/test";
-		Bun.env.AWS_CONTAINER_AUTHORIZATION_TOKEN = "container-auth";
+		process.env.AWS_SHARED_CREDENTIALS_FILE = credentialsPath;
+		process.env.AWS_CONFIG_FILE = configPath;
+		process.env.AWS_CONTAINER_CREDENTIALS_RELATIVE_URI = "/v2/credentials/test";
+		process.env.AWS_CONTAINER_AUTHORIZATION_TOKEN = "container-auth";
 		const capture: { url?: string; authorization?: string | null } = {};
 		const fetchImpl: FetchImpl = Object.assign(
 			async (input: string | URL | Request, init?: RequestInit) => {
@@ -259,9 +259,9 @@ describe("resolveAwsCredentials", () => {
 		const credentialsPath = path.join(tmp, "empty-dynamic-credentials");
 		const configPath = path.join(tmp, "empty-dynamic-config");
 		await Promise.all([Bun.write(credentialsPath, ""), Bun.write(configPath, "")]);
-		Bun.env.AWS_SHARED_CREDENTIALS_FILE = credentialsPath;
-		Bun.env.AWS_CONFIG_FILE = configPath;
-		Bun.env.AWS_CONTAINER_CREDENTIALS_RELATIVE_URI = "/v2/credentials/rotating";
+		process.env.AWS_SHARED_CREDENTIALS_FILE = credentialsPath;
+		process.env.AWS_CONFIG_FILE = configPath;
+		process.env.AWS_CONTAINER_CREDENTIALS_RELATIVE_URI = "/v2/credentials/rotating";
 		let calls = 0;
 		const fetchImpl: FetchImpl = Object.assign(
 			async () => {
@@ -283,9 +283,9 @@ describe("resolveAwsCredentials", () => {
 		const credentialsPath = path.join(tmp, "empty-relative-credentials");
 		const configPath = path.join(tmp, "empty-relative-config");
 		await Promise.all([Bun.write(credentialsPath, ""), Bun.write(configPath, "")]);
-		Bun.env.AWS_SHARED_CREDENTIALS_FILE = credentialsPath;
-		Bun.env.AWS_CONFIG_FILE = configPath;
-		Bun.env.AWS_CONTAINER_CREDENTIALS_RELATIVE_URI = "//attacker.invalid/credentials";
+		process.env.AWS_SHARED_CREDENTIALS_FILE = credentialsPath;
+		process.env.AWS_CONFIG_FILE = configPath;
+		process.env.AWS_CONTAINER_CREDENTIALS_RELATIVE_URI = "//attacker.invalid/credentials";
 
 		await expect(resolveAwsCredentials()).rejects.toThrow(/single-host absolute path/);
 	});
@@ -294,10 +294,10 @@ describe("resolveAwsCredentials", () => {
 		const credentialsPath = path.join(tmp, "empty-imds-credentials");
 		const configPath = path.join(tmp, "empty-imds-config");
 		await Promise.all([Bun.write(credentialsPath, ""), Bun.write(configPath, "")]);
-		Bun.env.AWS_SHARED_CREDENTIALS_FILE = credentialsPath;
-		Bun.env.AWS_CONFIG_FILE = configPath;
-		Bun.env.AWS_EC2_METADATA_DISABLED = "false";
-		Bun.env.AWS_EC2_METADATA_SERVICE_ENDPOINT = "http://imds.internal:8181/";
+		process.env.AWS_SHARED_CREDENTIALS_FILE = credentialsPath;
+		process.env.AWS_CONFIG_FILE = configPath;
+		process.env.AWS_EC2_METADATA_DISABLED = "false";
+		process.env.AWS_EC2_METADATA_SERVICE_ENDPOINT = "http://imds.internal:8181/";
 		const requestedUrls: string[] = [];
 		const fetchImpl: FetchImpl = Object.assign(
 			async (input: string | URL | Request) => {
@@ -330,10 +330,10 @@ describe("resolveAwsCredentials", () => {
 		const credentialsPath = path.join(tmp, "empty-ipv6-imds-credentials");
 		const configPath = path.join(tmp, "empty-ipv6-imds-config");
 		await Promise.all([Bun.write(credentialsPath, ""), Bun.write(configPath, "")]);
-		Bun.env.AWS_SHARED_CREDENTIALS_FILE = credentialsPath;
-		Bun.env.AWS_CONFIG_FILE = configPath;
-		Bun.env.AWS_EC2_METADATA_DISABLED = "false";
-		Bun.env.AWS_EC2_METADATA_SERVICE_ENDPOINT_MODE = "IPv6";
+		process.env.AWS_SHARED_CREDENTIALS_FILE = credentialsPath;
+		process.env.AWS_CONFIG_FILE = configPath;
+		process.env.AWS_EC2_METADATA_DISABLED = "false";
+		process.env.AWS_EC2_METADATA_SERVICE_ENDPOINT_MODE = "IPv6";
 		const requestedUrls: string[] = [];
 		const fetchImpl: FetchImpl = Object.assign(
 			async (input: string | URL | Request) => {
@@ -360,10 +360,10 @@ describe("resolveAwsCredentials", () => {
 		const credentialsPath = path.join(tmp, "empty-slow-imds-credentials");
 		const configPath = path.join(tmp, "empty-slow-imds-config");
 		await Promise.all([Bun.write(credentialsPath, ""), Bun.write(configPath, "")]);
-		Bun.env.AWS_SHARED_CREDENTIALS_FILE = credentialsPath;
-		Bun.env.AWS_CONFIG_FILE = configPath;
-		Bun.env.AWS_EC2_METADATA_DISABLED = "false";
-		Bun.env.AWS_EC2_METADATA_SERVICE_ENDPOINT = "http://slow-imds.internal";
+		process.env.AWS_SHARED_CREDENTIALS_FILE = credentialsPath;
+		process.env.AWS_CONFIG_FILE = configPath;
+		process.env.AWS_EC2_METADATA_DISABLED = "false";
+		process.env.AWS_EC2_METADATA_SERVICE_ENDPOINT = "http://slow-imds.internal";
 		let calls = 0;
 		const fetchImpl: FetchImpl = Object.assign(
 			async (_input: string | URL | Request, init?: RequestInit) => {
@@ -390,9 +390,9 @@ describe("resolveAwsCredentials", () => {
 	test("exchanges web identity tokens for STS credentials", async () => {
 		const tokenPath = path.join(tmp, "web-identity-token");
 		await Bun.write(tokenPath, "signed-identity-token\n");
-		Bun.env.AWS_WEB_IDENTITY_TOKEN_FILE = tokenPath;
-		Bun.env.AWS_ROLE_ARN = "arn:aws:iam::123456789012:role/test-role";
-		Bun.env.AWS_ROLE_SESSION_NAME = "test-session";
+		process.env.AWS_WEB_IDENTITY_TOKEN_FILE = tokenPath;
+		process.env.AWS_ROLE_ARN = "arn:aws:iam::123456789012:role/test-role";
+		process.env.AWS_ROLE_SESSION_NAME = "test-session";
 		await writeConfig("regional", "region = cn-north-1");
 		let requestedUrl = "";
 		let requestBody = "";
@@ -427,8 +427,8 @@ describe("resolveAwsCredentials", () => {
 	test("rejects web-identity responses without a valid expiration", async () => {
 		const tokenPath = path.join(tmp, "web-identity-token-without-expiration");
 		await Bun.write(tokenPath, "signed-identity-token\n");
-		Bun.env.AWS_WEB_IDENTITY_TOKEN_FILE = tokenPath;
-		Bun.env.AWS_ROLE_ARN = "arn:aws:iam::123456789012:role/test-role";
+		process.env.AWS_WEB_IDENTITY_TOKEN_FILE = tokenPath;
+		process.env.AWS_ROLE_ARN = "arn:aws:iam::123456789012:role/test-role";
 		const fetchImpl: FetchImpl = Object.assign(
 			async () =>
 				new Response(

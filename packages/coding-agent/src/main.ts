@@ -1517,7 +1517,7 @@ export async function runRootCommand(
 			() => new ModelRegistry(authStorage, undefined, { settings: settingsInstance }),
 		);
 		if (parsedArgs.noPty || parsedArgs.mode === "rpc-ui") {
-			Bun.env.PI_NO_PTY = "1";
+			process.env.PI_NO_PTY = "1";
 		}
 		if (
 			parsedArgs.noTitle ||
@@ -1525,7 +1525,7 @@ export async function runRootCommand(
 			parsedArgs.mode === "rpc-ui" ||
 			parsedArgs.mode === "acp"
 		) {
-			Bun.env.PI_NO_TITLE = "1";
+			process.env.PI_NO_TITLE = "1";
 		}
 
 		// Initialize discovery system with settings for provider persistence

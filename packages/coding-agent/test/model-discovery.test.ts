@@ -33,14 +33,14 @@ describe("ModelRegistry runtime discovery", () => {
 
 	beforeEach(async () => {
 		resetSettingsForTest();
-		originalOllamaBaseUrl = Bun.env.OLLAMA_BASE_URL;
-		originalOllamaHost = Bun.env.OLLAMA_HOST;
-		originalOllamaContextLength = Bun.env.OLLAMA_CONTEXT_LENGTH;
-		originalAnthropicApiKey = Bun.env.ANTHROPIC_API_KEY;
-		delete Bun.env.OLLAMA_BASE_URL;
-		delete Bun.env.OLLAMA_HOST;
-		delete Bun.env.OLLAMA_CONTEXT_LENGTH;
-		delete Bun.env.ANTHROPIC_API_KEY;
+		originalOllamaBaseUrl = process.env.OLLAMA_BASE_URL;
+		originalOllamaHost = process.env.OLLAMA_HOST;
+		originalOllamaContextLength = process.env.OLLAMA_CONTEXT_LENGTH;
+		originalAnthropicApiKey = process.env.ANTHROPIC_API_KEY;
+		delete process.env.OLLAMA_BASE_URL;
+		delete process.env.OLLAMA_HOST;
+		delete process.env.OLLAMA_CONTEXT_LENGTH;
+		delete process.env.ANTHROPIC_API_KEY;
 		tempDir = path.join(os.tmpdir(), `pi-test-model-registry-${Snowflake.next()}`);
 		fs.mkdirSync(tempDir, { recursive: true });
 		modelsJsonPath = path.join(tempDir, "models.json");
@@ -54,24 +54,24 @@ describe("ModelRegistry runtime discovery", () => {
 	afterEach(() => {
 		resetSettingsForTest();
 		if (originalOllamaBaseUrl === undefined) {
-			delete Bun.env.OLLAMA_BASE_URL;
+			delete process.env.OLLAMA_BASE_URL;
 		} else {
-			Bun.env.OLLAMA_BASE_URL = originalOllamaBaseUrl;
+			process.env.OLLAMA_BASE_URL = originalOllamaBaseUrl;
 		}
 		if (originalOllamaHost === undefined) {
-			delete Bun.env.OLLAMA_HOST;
+			delete process.env.OLLAMA_HOST;
 		} else {
-			Bun.env.OLLAMA_HOST = originalOllamaHost;
+			process.env.OLLAMA_HOST = originalOllamaHost;
 		}
 		if (originalOllamaContextLength === undefined) {
-			delete Bun.env.OLLAMA_CONTEXT_LENGTH;
+			delete process.env.OLLAMA_CONTEXT_LENGTH;
 		} else {
-			Bun.env.OLLAMA_CONTEXT_LENGTH = originalOllamaContextLength;
+			process.env.OLLAMA_CONTEXT_LENGTH = originalOllamaContextLength;
 		}
 		if (originalAnthropicApiKey === undefined) {
-			delete Bun.env.ANTHROPIC_API_KEY;
+			delete process.env.ANTHROPIC_API_KEY;
 		} else {
-			Bun.env.ANTHROPIC_API_KEY = originalAnthropicApiKey;
+			process.env.ANTHROPIC_API_KEY = originalAnthropicApiKey;
 		}
 		authStorage.close();
 		if (tempDir && fs.existsSync(tempDir)) {
@@ -91,18 +91,18 @@ describe("ModelRegistry runtime discovery", () => {
 		name: "LLAMA_CPP_BASE_URL" | "LM_STUDIO_BASE_URL" | "OLLAMA_BASE_URL" | "OLLAMA_CONTEXT_LENGTH" | "OLLAMA_HOST",
 		value: string | undefined,
 	) {
-		const original = Bun.env[name];
+		const original = process.env[name];
 		if (value === undefined) {
-			delete Bun.env[name];
+			delete process.env[name];
 		} else {
-			Bun.env[name] = value;
+			process.env[name] = value;
 		}
 		return {
 			[Symbol.dispose]() {
 				if (original === undefined) {
-					delete Bun.env[name];
+					delete process.env[name];
 				} else {
-					Bun.env[name] = original;
+					process.env[name] = original;
 				}
 			},
 		};
@@ -607,8 +607,8 @@ describe("ModelRegistry runtime discovery", () => {
 	});
 
 	test("auto-updates zenmux models keylessly and caches to models.db", async () => {
-		const originalKey = Bun.env.ZENMUX_API_KEY;
-		delete Bun.env.ZENMUX_API_KEY;
+		const originalKey = process.env.ZENMUX_API_KEY;
+		delete process.env.ZENMUX_API_KEY;
 		try {
 			// Phase 1: Online keyless discovery
 			let capturedHeaders: RequestInit["headers"];
@@ -678,9 +678,9 @@ describe("ModelRegistry runtime discovery", () => {
 			expect(offlineFable?.baseUrl).toBe("https://zenmux.ai/api/anthropic");
 		} finally {
 			if (originalKey === undefined) {
-				delete Bun.env.ZENMUX_API_KEY;
+				delete process.env.ZENMUX_API_KEY;
 			} else {
-				Bun.env.ZENMUX_API_KEY = originalKey;
+				process.env.ZENMUX_API_KEY = originalKey;
 			}
 		}
 	});

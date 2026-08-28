@@ -61,13 +61,13 @@ describe("describeChunkFailure", () => {
 	});
 
 	test("the watchdog message reports the configured timeout", () => {
-		const previous = Bun.env.OMP_TEST_CHUNK_TIMEOUT;
-		Bun.env.OMP_TEST_CHUNK_TIMEOUT = "42";
+		const previous = process.env.OMP_TEST_CHUNK_TIMEOUT;
+		process.env.OMP_TEST_CHUNK_TIMEOUT = "42";
 		try {
 			expect(describeChunkFailure(137, true)).toContain("42s");
 		} finally {
-			if (previous === undefined) delete Bun.env.OMP_TEST_CHUNK_TIMEOUT;
-			else Bun.env.OMP_TEST_CHUNK_TIMEOUT = previous;
+			if (previous === undefined) delete process.env.OMP_TEST_CHUNK_TIMEOUT;
+			else process.env.OMP_TEST_CHUNK_TIMEOUT = previous;
 		}
 	});
 });

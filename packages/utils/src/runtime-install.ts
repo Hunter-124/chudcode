@@ -345,7 +345,7 @@ async function runRuntimeInstall(runtimeDir: string): Promise<void> {
 	// `process.execPath` is plain bun in source/bundle mode and the compiled
 	// binary otherwise; BUN_BE_BUN makes the compiled binary act as bun.
 	const proc = Bun.spawn([process.execPath, "install", "--cwd", runtimeDir, "--production"], {
-		env: { ...Bun.env, BUN_BE_BUN: "1" },
+		env: { ...process.env, BUN_BE_BUN: "1" },
 		stdout: "pipe",
 		stderr: "pipe",
 	});

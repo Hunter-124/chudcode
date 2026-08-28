@@ -7,14 +7,14 @@
  * Used by rpc-client lifecycle tests that need to exercise start/stop/start
  * without booting the full agent runtime (which requires provider credentials).
  */
-if (Bun.env.MOCK_RPC_PID_FILE) {
-	await Bun.write(Bun.env.MOCK_RPC_PID_FILE, String(process.pid));
+if (process.env.MOCK_RPC_PID_FILE) {
+	await Bun.write(process.env.MOCK_RPC_PID_FILE, String(process.pid));
 }
-if (Bun.env.MOCK_RPC_IGNORE_SIGTERM === "1") {
+if (process.env.MOCK_RPC_IGNORE_SIGTERM === "1") {
 	process.on("SIGTERM", () => {});
 }
 
-const supportsProtocolV2 = Bun.env.MOCK_RPC_V2 === "1";
+const supportsProtocolV2 = process.env.MOCK_RPC_V2 === "1";
 const legacyState = {
 	thinkingLevel: "off",
 	isStreaming: false,
@@ -29,8 +29,8 @@ const legacyState = {
 	todoPhases: [],
 };
 
-if (Bun.env.MOCK_RPC_EXIT_BEFORE_READY) {
-	const message = Bun.env.MOCK_RPC_EXIT_STDERR ?? "";
+if (process.env.MOCK_RPC_EXIT_BEFORE_READY) {
+	const message = process.env.MOCK_RPC_EXIT_STDERR ?? "";
 	if (message) {
 		// Await the pipe write: exiting immediately can drop unflushed stderr
 		// bytes, leaving the client's startup error without the failure text.
@@ -38,7 +38,7 @@ if (Bun.env.MOCK_RPC_EXIT_BEFORE_READY) {
 		process.stderr.write(message, () => resolve());
 		await promise;
 	}
-	process.exit(Number(Bun.env.MOCK_RPC_EXIT_BEFORE_READY));
+	process.exit(Number(process.env.MOCK_RPC_EXIT_BEFORE_READY));
 }
 
 let protocolV2Enabled = false;
@@ -84,15 +84,15 @@ for await (const raw of console) {
 	try {
 		const frame = JSON.parse(raw) as Record<string, unknown>;
 		if (frame && typeof frame === "object" && typeof frame.type === "string") {
-			if (Bun.env.MOCK_RPC_EXIT_ON_COMMAND) {
-				process.stderr.write(Bun.env.MOCK_RPC_EXIT_STDERR ?? "");
-				process.exit(Number(Bun.env.MOCK_RPC_EXIT_ON_COMMAND));
+			if (process.env.MOCK_RPC_EXIT_ON_COMMAND) {
+				process.stderr.write(process.env.MOCK_RPC_EXIT_STDERR ?? "");
+				process.exit(Number(process.env.MOCK_RPC_EXIT_ON_COMMAND));
 			}
-			if (Bun.env.MOCK_RPC_INVALID_OUTPUT === "1") {
+			if (process.env.MOCK_RPC_INVALID_OUTPUT === "1") {
 				process.stdout.write("{invalid-json\n");
 				continue;
 			}
-			if (Bun.env.MOCK_RPC_IGNORE_COMMANDS === "1") continue;
+			if (process.env.MOCK_RPC_IGNORE_COMMANDS === "1") continue;
 			const id = typeof frame.id === "string" ? frame.id : undefined;
 			if (frame.type === "negotiate_protocol" && frame.protocolVersion === 2) {
 				writeFrame({
@@ -106,7 +106,7 @@ for await (const raw of console) {
 				continue;
 			}
 			if (frame.type === "get_messages_page") {
-				if (Bun.env.MOCK_RPC_PAGE_BUSY === "1") {
+				if (process.env.MOCK_RPC_PAGE_BUSY === "1") {
 					writeFrame({
 						id,
 						type: "response",
@@ -117,7 +117,7 @@ for await (const raw of console) {
 					});
 					continue;
 				}
-				if (Bun.env.MOCK_RPC_PAGE_STALE === "1" && frame.cursor !== undefined) {
+				if (process.env.MOCK_RPC_PAGE_STALE === "1" && frame.cursor !== undefined) {
 					writeFrame({
 						id,
 						type: "response",
@@ -149,7 +149,7 @@ for await (const raw of console) {
 			}
 			if (
 				frame.type === "get_messages" &&
-				(Bun.env.MOCK_RPC_PAGE_BUSY === "1" || Bun.env.MOCK_RPC_PAGE_STALE === "1")
+				(process.env.MOCK_RPC_PAGE_BUSY === "1" || process.env.MOCK_RPC_PAGE_STALE === "1")
 			) {
 				writeFrame({
 					id,
@@ -166,11 +166,11 @@ for await (const raw of console) {
 			}
 			if (
 				frame.type === "get_state" &&
-				(Bun.env.MOCK_RPC_LEGACY_STATE === "1" || Bun.env.MOCK_RPC_INVALID_TPS === "1")
+				(process.env.MOCK_RPC_LEGACY_STATE === "1" || process.env.MOCK_RPC_INVALID_TPS === "1")
 			) {
 				const data = {
 					...legacyState,
-					...(Bun.env.MOCK_RPC_INVALID_TPS === "1" ? { tokensPerSecond: "invalid" } : {}),
+					...(process.env.MOCK_RPC_INVALID_TPS === "1" ? { tokensPerSecond: "invalid" } : {}),
 				};
 				writeFrame({
 					id,

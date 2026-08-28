@@ -79,11 +79,11 @@ realPty("TerminalService real PTY", () => {
 		const events: TerminalServiceEvent[] = [];
 		const service = createService(cwd, events, {
 			inheritedEnvironment: {
-				PATH: Bun.env.PATH,
-				HOME: Bun.env.HOME,
-				USER: Bun.env.USER,
-				LOGNAME: Bun.env.LOGNAME,
-				LANG: Bun.env.LANG,
+				PATH: process.env.PATH,
+				HOME: process.env.HOME,
+				USER: process.env.USER,
+				LOGNAME: process.env.LOGNAME,
+				LANG: process.env.LANG,
 				CHUDCODE_APPROVED: "approved-value",
 				CHUDCODE_SECRET: "must-not-leak",
 			},

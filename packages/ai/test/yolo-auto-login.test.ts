@@ -5,13 +5,13 @@ import { getOAuthProviders } from "@oh-my-pi/pi-ai/registry/oauth";
 import { getEnvApiKey } from "@oh-my-pi/pi-ai/stream";
 import type { FetchImpl } from "@oh-my-pi/pi-ai/types";
 
-const originalYoloAutoApiKey = Bun.env.YOLO_AUTO_API_KEY;
+const originalYoloAutoApiKey = process.env.YOLO_AUTO_API_KEY;
 
 afterEach(() => {
 	if (originalYoloAutoApiKey === undefined) {
-		delete Bun.env.YOLO_AUTO_API_KEY;
+		delete process.env.YOLO_AUTO_API_KEY;
 	} else {
-		Bun.env.YOLO_AUTO_API_KEY = originalYoloAutoApiKey;
+		process.env.YOLO_AUTO_API_KEY = originalYoloAutoApiKey;
 	}
 	vi.restoreAllMocks();
 });
@@ -25,7 +25,7 @@ describe("Yolo-Auto login wiring", () => {
 	});
 
 	test("resolves YOLO_AUTO_API_KEY from environment", () => {
-		Bun.env.YOLO_AUTO_API_KEY = "yolo-env-key";
+		process.env.YOLO_AUTO_API_KEY = "yolo-env-key";
 		expect(getEnvApiKey("yolo-auto")).toBe("yolo-env-key");
 	});
 

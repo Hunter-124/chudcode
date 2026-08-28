@@ -5,13 +5,13 @@ import { getOAuthProviders } from "@oh-my-pi/pi-ai/registry/oauth";
 import { getEnvApiKey } from "@oh-my-pi/pi-ai/stream";
 import type { FetchImpl } from "@oh-my-pi/pi-ai/types";
 
-const originalOpenRouterApiKey = Bun.env.OPENROUTER_API_KEY;
+const originalOpenRouterApiKey = process.env.OPENROUTER_API_KEY;
 
 afterEach(() => {
 	if (originalOpenRouterApiKey === undefined) {
-		delete Bun.env.OPENROUTER_API_KEY;
+		delete process.env.OPENROUTER_API_KEY;
 	} else {
-		Bun.env.OPENROUTER_API_KEY = originalOpenRouterApiKey;
+		process.env.OPENROUTER_API_KEY = originalOpenRouterApiKey;
 	}
 	vi.restoreAllMocks();
 });
@@ -25,7 +25,7 @@ describe("openrouter login wiring", () => {
 	});
 
 	test("resolves OPENROUTER_API_KEY from environment", () => {
-		Bun.env.OPENROUTER_API_KEY = "or-test-key";
+		process.env.OPENROUTER_API_KEY = "or-test-key";
 		expect(getEnvApiKey("openrouter")).toBe("or-test-key");
 	});
 

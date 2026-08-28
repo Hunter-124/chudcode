@@ -263,8 +263,8 @@ describe("InputController orphaned submit", () => {
 		expect(ctx.editor.pendingImageLinks).toEqual([undefined]);
 	});
 	it("skips automatic titles only for locally consumed extension commands", async () => {
-		const previousNoTitle = Bun.env.PI_NO_TITLE;
-		delete Bun.env.PI_NO_TITLE;
+		const previousNoTitle = process.env.PI_NO_TITLE;
+		delete process.env.PI_NO_TITLE;
 		const tempDir = TempDir.createSync("@pi-extension-title-");
 		let session: AgentSession | undefined;
 		let authStorage: AuthStorage | undefined;
@@ -359,9 +359,9 @@ describe("InputController orphaned submit", () => {
 			authStorage?.close();
 			tempDir.removeSync();
 			if (previousNoTitle === undefined) {
-				delete Bun.env.PI_NO_TITLE;
+				delete process.env.PI_NO_TITLE;
 			} else {
-				Bun.env.PI_NO_TITLE = previousNoTitle;
+				process.env.PI_NO_TITLE = previousNoTitle;
 			}
 		}
 	});

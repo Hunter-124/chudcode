@@ -7,18 +7,18 @@ import { $pickenv } from "@oh-my-pi/pi-utils";
 const MODELS_DEV_URL = "https://catalog.stencil.so/models.json.zstd";
 
 const ORIGINAL_ENV: Record<string, string | undefined> = {
-	MOONSHOT_BASE_URL: Bun.env.MOONSHOT_BASE_URL,
-	MOONSHOT_API_KEY: Bun.env.MOONSHOT_API_KEY,
-	KIMI_API_KEY: Bun.env.KIMI_API_KEY,
+	MOONSHOT_BASE_URL: process.env.MOONSHOT_BASE_URL,
+	MOONSHOT_API_KEY: process.env.MOONSHOT_API_KEY,
+	KIMI_API_KEY: process.env.KIMI_API_KEY,
 };
 
 function restoreEnv(): void {
 	for (const key in ORIGINAL_ENV) {
 		const value = ORIGINAL_ENV[key];
 		if (value === undefined) {
-			delete Bun.env[key];
+			delete process.env[key];
 		} else {
-			Bun.env[key] = value;
+			process.env[key] = value;
 		}
 	}
 }
@@ -55,20 +55,20 @@ describe("Moonshot China platform (issue #2883)", () => {
 		const envVars = getCatalogProviderEntry("moonshot")?.envVars;
 		expect(envVars).toEqual(["MOONSHOT_API_KEY", "KIMI_API_KEY"]);
 
-		delete Bun.env.MOONSHOT_API_KEY;
-		Bun.env.KIMI_API_KEY = "kimi-china-key";
+		delete process.env.MOONSHOT_API_KEY;
+		process.env.KIMI_API_KEY = "kimi-china-key";
 		expect($pickenv(...(envVars ?? []))).toBe("kimi-china-key");
 	});
 
 	test("MOONSHOT_API_KEY keeps precedence over the KIMI_API_KEY alias", () => {
 		const envVars = getCatalogProviderEntry("moonshot")?.envVars ?? [];
-		Bun.env.MOONSHOT_API_KEY = "moonshot-primary-key";
-		Bun.env.KIMI_API_KEY = "kimi-fallback-key";
+		process.env.MOONSHOT_API_KEY = "moonshot-primary-key";
+		process.env.KIMI_API_KEY = "kimi-fallback-key";
 		expect($pickenv(...envVars)).toBe("moonshot-primary-key");
 	});
 
 	test("discovers models against api.moonshot.cn when MOONSHOT_BASE_URL is set", async () => {
-		Bun.env.MOONSHOT_BASE_URL = "https://api.moonshot.cn/v1";
+		process.env.MOONSHOT_BASE_URL = "https://api.moonshot.cn/v1";
 		const calls: string[] = [];
 		const options = moonshotModelManagerOptions({ apiKey: "kimi-china-key", fetch: makeFetchMock(calls) });
 		const models = await options.fetchDynamicModels?.();
@@ -81,7 +81,7 @@ describe("Moonshot China platform (issue #2883)", () => {
 	});
 
 	test("explicit config baseUrl keeps precedence over MOONSHOT_BASE_URL", async () => {
-		Bun.env.MOONSHOT_BASE_URL = "https://api.moonshot.cn/v1";
+		process.env.MOONSHOT_BASE_URL = "https://api.moonshot.cn/v1";
 		const calls: string[] = [];
 		const options = moonshotModelManagerOptions({
 			apiKey: "kimi-china-key",

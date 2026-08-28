@@ -9,7 +9,7 @@ const ENV_NAME_RE = /^[A-Za-z_][A-Za-z0-9_]*$/;
 
 /**
  * Strict shell-identifier shape. Used for dotenv keys we accept into
- * `Bun.env` — those should be referenceable as `$NAME` from POSIX shells,
+ * `process.env` — those should be referenceable as `$NAME` from POSIX shells,
  * so we reject anything outside `[A-Za-z_][A-Za-z0-9_]*`.
  */
 export function isValidEnvName(name: string): boolean {
@@ -54,7 +54,7 @@ export function filterProcessEnv(env: Record<string, string | undefined>): Recor
 }
 // Bun autoloads the project's dotenv files into `process.env` before user code
 // runs — including inside `bun build --compile` binaries — so a snapshot of
-// `Bun.env` is only pre-dotenv when autoloading was explicitly disabled. Linux
+// `process.env` is only pre-dotenv when autoloading was explicitly disabled. Linux
 // keeps the original exec environment in procfs, which is authoritative.
 function readLaunchEnv(): ReadonlyMap<string, string> | undefined {
 	if (process.platform === "linux") {
@@ -69,8 +69,8 @@ function readLaunchEnv(): ReadonlyMap<string, string> | undefined {
 	}
 	if (!process.execArgv.includes("--no-env-file")) return undefined;
 	const values = new Map<string, string>();
-	for (const key in Bun.env) {
-		const value = Bun.env[key];
+	for (const key in process.env) {
+		const value = process.env[key];
 		if (value !== undefined) values.set(key, value);
 	}
 	return values;
@@ -230,17 +230,17 @@ const piEnv = parseEnvFile(path.join(getConfigRootDir(), ".env"));
 const agentEnv = parseEnvFile(path.join(getAgentDir(), ".env"));
 const projectEnv = parseEnvFile(path.join(getProjectDir(), ".env"));
 
-for (const key of Object.keys(Bun.env)) {
-	const value = Bun.env[key];
+for (const key of Object.keys(process.env)) {
+	const value = process.env[key];
 	if (!isSafeEnvName(key) || isMacosMallocStackLoggingEnvName(key) || value === undefined || !isSafeEnvValue(value)) {
-		delete Bun.env[key];
+		delete process.env[key];
 	}
 }
 
 for (const file of [projectEnv, agentEnv, piEnv, homeEnv]) {
 	for (const key in file) {
-		if (!isMacosMallocStackLoggingEnvName(key) && !Bun.env[key]) {
-			Bun.env[key] = file[key];
+		if (!isMacosMallocStackLoggingEnvName(key) && !process.env[key]) {
+			process.env[key] = file[key];
 			if (file === projectEnv) projectEnvNamesLoadedByOmp.add(key);
 		}
 	}
@@ -254,13 +254,13 @@ for (const file of [projectEnv, agentEnv, piEnv, homeEnv]) {
 refreshDirsFromEnv();
 
 /**
- * Intentional re-export of Bun.env.
+ * Intentional re-export of process.env.
  *
  * All users should import this env module (import { $env } from "@oh-my-pi/pi-utils")
  * before using environment variables. This ensures that .env files have been loaded and
  * overrides (project, home) have been applied, so $env always reflects the correct values.
  */
-export const $env: Record<string, string> = Bun.env as Record<string, string>;
+export const $env: Record<string, string> = process.env as Record<string, string>;
 
 /**
  * Resolve the first environment variable value from the given keys.
@@ -269,7 +269,7 @@ export const $env: Record<string, string> = Bun.env as Record<string, string>;
  */
 export function $pickenv(...keys: string[]): string | undefined {
 	for (const key of keys) {
-		const value = Bun.env[key]?.trim();
+		const value = process.env[key]?.trim();
 		if (value) {
 			return value;
 		}
@@ -280,7 +280,7 @@ export function $pickenv(...keys: string[]): string | undefined {
 /**
  * Read an environment variable by its EXACT, case-sensitive name.
  *
- * `process.env` / `Bun.env` lookups are case-insensitive on Windows (Node backs
+ * `process.env` / `process.env` lookups are case-insensitive on Windows (Node backs
  * them with `uv_os_getenv`, Bun with a `CaseInsensitiveASCIIStringArrayHashMap`),
  * so a lowercase literal like `public` silently resolves to a differently-cased
  * system variable — Windows ships `PUBLIC=C:\Users\Public`. Enumerated keys are
@@ -322,8 +322,8 @@ const BUN_TEST_ENTRY_PATTERN = /[._](?:test|spec)\.[cm]?[jt]sx?$/;
 
 /** True when the process is an explicitly marked test child or Bun is running a test entrypoint. */
 export function isBunTestRuntime(): boolean {
-	if (Bun.env.PI_TEST_RUNTIME === "1") return true;
-	const hasTestEnvironment = Bun.env.BUN_ENV === "test" || Bun.env.NODE_ENV === "test";
+	if (process.env.PI_TEST_RUNTIME === "1") return true;
+	const hasTestEnvironment = process.env.BUN_ENV === "test" || process.env.NODE_ENV === "test";
 	return hasTestEnvironment && BUN_TEST_ENTRY_PATTERN.test(Bun.main);
 }
 
@@ -404,7 +404,7 @@ export function getDbBusyTimeoutMs(): number {
  * first for cheap fast-path detection.
  */
 export function isCompiledBinary(): boolean {
-	if (process.env.PI_COMPILED || Bun.env.PI_COMPILED) return true;
+	if (process.env.PI_COMPILED || process.env.PI_COMPILED) return true;
 	const url = import.meta.url;
 	return url.includes("$bunfs") || url.includes("~BUN") || url.includes("%7EBUN");
 }

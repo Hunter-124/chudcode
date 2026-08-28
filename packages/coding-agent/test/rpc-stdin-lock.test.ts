@@ -20,7 +20,7 @@ async function expectRpcOwnsStdin(): Promise<void> {
 		],
 		{
 			cwd: path.join(import.meta.dir, ".."),
-			env: { ...Bun.env, PI_NO_TITLE: "1" },
+			env: { ...process.env, PI_NO_TITLE: "1" },
 			stdin: "pipe",
 			stdout: "pipe",
 			stderr: "pipe",

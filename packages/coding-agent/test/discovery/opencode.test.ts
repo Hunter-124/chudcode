@@ -314,9 +314,9 @@ describe("OpenCode MCP discovery", () => {
 			}),
 		);
 
-		delete Bun.env.OMP_TEST_MCP_ABSENT;
-		Bun.env.OMP_TEST_MCP_KEY = "secret-token";
-		Bun.env.OMP_TEST_MCP_PATH = "mcp/server";
+		delete process.env.OMP_TEST_MCP_ABSENT;
+		process.env.OMP_TEST_MCP_KEY = "secret-token";
+		process.env.OMP_TEST_MCP_PATH = "mcp/server";
 		try {
 			const servers = await loadOpenCodeMcpConfig(tempDir);
 			const byName = Object.fromEntries(servers.map(server => [server.name, server]));
@@ -329,8 +329,8 @@ describe("OpenCode MCP discovery", () => {
 			// Unset env expands to empty string, matching OpenCode — never the literal token.
 			expect(byName["missing-server"]?.headers).toEqual({ Authorization: "Bearer " });
 		} finally {
-			delete Bun.env.OMP_TEST_MCP_KEY;
-			delete Bun.env.OMP_TEST_MCP_PATH;
+			delete process.env.OMP_TEST_MCP_KEY;
+			delete process.env.OMP_TEST_MCP_PATH;
 		}
 	});
 });

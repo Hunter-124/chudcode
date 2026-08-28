@@ -67,8 +67,8 @@ interface AvailableAddon extends CandidateAddon {
 	size: number;
 }
 
-const targetPlatform = Bun.env.TARGET_PLATFORM || process.platform;
-const targetArch = Bun.env.TARGET_ARCH || process.arch;
+const targetPlatform = process.env.TARGET_PLATFORM || process.platform;
+const targetArch = process.env.TARGET_ARCH || process.arch;
 const platformTag = `${targetPlatform}-${targetArch}`;
 const candidates: CandidateAddon[] =
 	targetArch === "x64"

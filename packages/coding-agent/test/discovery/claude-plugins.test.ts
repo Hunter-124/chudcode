@@ -63,11 +63,11 @@ describe("parseClaudePluginsRegistry", () => {
 function restoreEnvValue(key: string, value: string | undefined): void {
 	if (value === undefined) {
 		delete process.env[key];
-		delete Bun.env[key];
+		delete process.env[key];
 		return;
 	}
 	process.env[key] = value;
-	Bun.env[key] = value;
+	process.env[key] = value;
 }
 
 describe("listClaudePluginRoots", () => {

@@ -116,7 +116,7 @@ export class DapClient {
 		// debuggee children can reach /dev/tty and trigger SIGTTIN, suspending
 		// the parent harness under shell job control.
 		const env = {
-			...Bun.env,
+			...process.env,
 			...NON_INTERACTIVE_ENV,
 		};
 		const proc = ptree.spawn([adapter.resolvedCommand, ...adapter.args], {
@@ -185,7 +185,7 @@ export class DapClient {
 			cwd,
 			stdin: "pipe",
 			env: {
-				...Bun.env,
+				...process.env,
 				...NON_INTERACTIVE_ENV,
 			},
 			detached: true,
@@ -224,7 +224,7 @@ export class DapClient {
 	 */
 	static async #spawnSocket({ adapter, cwd, socketReadyTimeoutMs }: DapSpawnOptions): Promise<DapClient> {
 		const env = {
-			...Bun.env,
+			...process.env,
 			...NON_INTERACTIVE_ENV,
 		};
 		const timeoutMs = socketReadyTimeoutMs ?? SOCKET_READY_TIMEOUT_MS;

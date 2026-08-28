@@ -36,7 +36,7 @@ const EMBEDDED_CLIENT_ARCHIVE = decodeEmbeddedClientArchive(embeddedClientArchiv
 const CLIENT_DIR = path.join(import.meta.dir, "client");
 const STATIC_DIR = path.join(import.meta.dir, "..", "dist", "client");
 const IS_BUN_COMPILED =
-	Boolean(process.env.PI_COMPILED || Bun.env.PI_COMPILED) ||
+	Boolean(process.env.PI_COMPILED || process.env.PI_COMPILED) ||
 	import.meta.url.includes("$bunfs") ||
 	import.meta.url.includes("~BUN") ||
 	import.meta.url.includes("%7EBUN");
@@ -44,7 +44,7 @@ const IS_BUN_COMPILED =
 // process.env.PI_BUNDLED at build time. Like compiled binaries, it ships no
 // dashboard sources or prebuilt dist/client next to the bundle, so the
 // embedded archive is the only viable asset source.
-const IS_PREBUILT = IS_BUN_COMPILED || Boolean(process.env.PI_BUNDLED || Bun.env.PI_BUNDLED);
+const IS_PREBUILT = IS_BUN_COMPILED || Boolean(process.env.PI_BUNDLED || process.env.PI_BUNDLED);
 const USE_EMBEDDED_CLIENT = EMBEDDED_CLIENT_ARCHIVE !== null || IS_PREBUILT;
 
 const EMBEDDED_CLIENT_DIR_ROOT = path.join(os.tmpdir(), "omp-stats-client");

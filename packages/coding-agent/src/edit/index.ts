@@ -443,7 +443,7 @@ export class EditTool implements AgentTool<TInput> {
 			PI_EDIT_FUZZY: editFuzzy = "auto",
 			PI_EDIT_FUZZY_THRESHOLD: editFuzzyThreshold = "auto",
 			PI_EDIT_VARIANT: envEditVariant = "auto",
-		} = Bun.env;
+		} = process.env;
 
 		this.#editMode = mode ?? resolveConfiguredEditMode(envEditVariant);
 		this.#allowFuzzy = resolveAllowFuzzy(session, editFuzzy);

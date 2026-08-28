@@ -33,7 +33,7 @@ const BASE_DELAY_MS = 1000;
 const RATE_LIMIT_BUDGET_MS = 5 * 60 * 1000;
 
 function resolveGeminiSearchModel(configuredModel: string | undefined): string {
-	const envModel = Bun.env.GEMINI_SEARCH_MODEL?.trim();
+	const envModel = process.env.GEMINI_SEARCH_MODEL?.trim();
 	if (envModel) return envModel;
 	const model = configuredModel?.trim();
 	return model || DEFAULT_MODEL;
@@ -46,7 +46,7 @@ interface GeminiDeveloperEndpoint {
 }
 
 function resolveGeminiDeveloperEndpoint(): GeminiDeveloperEndpoint {
-	const configuredHost = Bun.env.GOOGLE_GEMINI_BASE_URL?.trim().replace(/\/+$/, "");
+	const configuredHost = process.env.GOOGLE_GEMINI_BASE_URL?.trim().replace(/\/+$/, "");
 	const host = configuredHost || DEFAULT_DEVELOPER_API_HOST;
 	let parsed: URL;
 	try {

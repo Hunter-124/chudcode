@@ -866,7 +866,7 @@ export interface NormalizeToolsOptions {
 
 export function normalizeTools(tools: AgentContext["tools"], options: NormalizeToolsOptions): Context["tools"] {
 	const pruneDescriptions = options.pruneDescriptions === true;
-	const injectIntent = options.injectIntent && Bun.env.PI_NO_INTENT !== "1";
+	const injectIntent = options.injectIntent && process.env.PI_NO_INTENT !== "1";
 	return tools?.map(t => {
 		const intentMode = resolveIntentMode(t.intent);
 		const doInjectIntent = injectIntent && intentMode !== "omit";
@@ -1539,7 +1539,7 @@ async function prepareProviderCall(
 
 	const llmMessages = await config.convertToLlm(messages);
 	const normalizedMessages = normalizeMessagesForProvider(llmMessages, model);
-	const ownedDialect: Dialect | undefined = config.dialect ?? resolveOwnedDialectFromEnv(Bun.env.PI_DIALECT);
+	const ownedDialect: Dialect | undefined = config.dialect ?? resolveOwnedDialectFromEnv(process.env.PI_DIALECT);
 	const pruneToolDescriptions = !!config.pruneToolDescriptions && !ownedDialect;
 	let llmContext: Context;
 	if (config.appendOnlyContext) {

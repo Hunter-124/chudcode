@@ -12,23 +12,23 @@ export async function withEnv(
 ): Promise<void> {
 	const previous = new Map<string, string | undefined>();
 	for (const key of Object.keys(overrides)) {
-		previous.set(key, Bun.env[key]);
+		previous.set(key, process.env[key]);
 	}
 	try {
 		for (const [key, value] of Object.entries(overrides)) {
 			if (value === undefined) {
-				delete Bun.env[key];
+				delete process.env[key];
 			} else {
-				Bun.env[key] = value;
+				process.env[key] = value;
 			}
 		}
 		await fn();
 	} finally {
 		for (const [key, value] of previous.entries()) {
 			if (value === undefined) {
-				delete Bun.env[key];
+				delete process.env[key];
 			} else {
-				Bun.env[key] = value;
+				process.env[key] = value;
 			}
 		}
 	}
@@ -81,7 +81,7 @@ export interface AuthGatewayE2EStatus {
 	reason?: string;
 }
 
-export const AUTH_GATEWAY_E2E_URL = Bun.env.OMP_E2E_GATEWAY_URL ?? "http://127.0.0.1:4000";
+export const AUTH_GATEWAY_E2E_URL = process.env.OMP_E2E_GATEWAY_URL ?? "http://127.0.0.1:4000";
 
 const AUTH_GATEWAY_TOKEN_PATH = path.join(os.homedir(), ".omp", "auth-gateway.token");
 const AUTH_GATEWAY_HEALTH_TIMEOUT_MS = 500;
@@ -94,7 +94,7 @@ export function checkAuthGatewayE2EAvailable(): Promise<AuthGatewayE2EStatus> {
 }
 
 async function readAuthGatewayE2EStatus(): Promise<AuthGatewayE2EStatus> {
-	if (!Bun.env.E2E) return { ok: false, reason: "E2E env not set" };
+	if (!process.env.E2E) return { ok: false, reason: "E2E env not set" };
 	let token: string;
 	try {
 		token = (await Bun.file(AUTH_GATEWAY_TOKEN_PATH).text()).trim();
@@ -130,14 +130,14 @@ async function readAuthGatewayE2EStatus(): Promise<AuthGatewayE2EStatus> {
 export function withOfficialAnthropicEndpoint(): void {
 	let previous: string | undefined;
 	beforeEach(() => {
-		previous = Bun.env.ANTHROPIC_BASE_URL;
-		delete Bun.env.ANTHROPIC_BASE_URL;
+		previous = process.env.ANTHROPIC_BASE_URL;
+		delete process.env.ANTHROPIC_BASE_URL;
 	});
 	afterEach(() => {
 		if (previous === undefined) {
-			delete Bun.env.ANTHROPIC_BASE_URL;
+			delete process.env.ANTHROPIC_BASE_URL;
 		} else {
-			Bun.env.ANTHROPIC_BASE_URL = previous;
+			process.env.ANTHROPIC_BASE_URL = previous;
 		}
 	});
 }

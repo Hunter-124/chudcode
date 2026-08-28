@@ -5,13 +5,13 @@ import { getOAuthProviders } from "@oh-my-pi/pi-ai/registry/oauth";
 import { getEnvApiKey } from "@oh-my-pi/pi-ai/stream";
 import type { FetchImpl } from "@oh-my-pi/pi-ai/types";
 
-const originalXaiApiKey = Bun.env.XAI_API_KEY;
+const originalXaiApiKey = process.env.XAI_API_KEY;
 
 afterEach(() => {
 	if (originalXaiApiKey === undefined) {
-		delete Bun.env.XAI_API_KEY;
+		delete process.env.XAI_API_KEY;
 	} else {
-		Bun.env.XAI_API_KEY = originalXaiApiKey;
+		process.env.XAI_API_KEY = originalXaiApiKey;
 	}
 	vi.restoreAllMocks();
 });
@@ -25,14 +25,14 @@ describe("xAI API login wiring", () => {
 	});
 
 	test("resolves XAI_API_KEY from environment", () => {
-		Bun.env.XAI_API_KEY = "xai-env-key";
+		process.env.XAI_API_KEY = "xai-env-key";
 		expect(getEnvApiKey("xai")).toBe("xai-env-key");
 	});
 
 	test("XAI_API_KEY alone does not mark SuperGrok as available", async () => {
-		const originalOauthToken = Bun.env.XAI_OAUTH_TOKEN;
-		Bun.env.XAI_API_KEY = "xai-env-key";
-		delete Bun.env.XAI_OAUTH_TOKEN;
+		const originalOauthToken = process.env.XAI_OAUTH_TOKEN;
+		process.env.XAI_API_KEY = "xai-env-key";
+		delete process.env.XAI_OAUTH_TOKEN;
 		const store = new SqliteAuthCredentialStore(new Database(":memory:"));
 		const storage = new AuthStorage(store);
 		await storage.reload();
@@ -46,18 +46,18 @@ describe("xAI API login wiring", () => {
 			expect(storage.getCredentialOrigin("xai-oauth")).toBeUndefined();
 		} finally {
 			if (originalOauthToken === undefined) {
-				delete Bun.env.XAI_OAUTH_TOKEN;
+				delete process.env.XAI_OAUTH_TOKEN;
 			} else {
-				Bun.env.XAI_OAUTH_TOKEN = originalOauthToken;
+				process.env.XAI_OAUTH_TOKEN = originalOauthToken;
 			}
 			store.close();
 		}
 	});
 
 	test("XAI_OAUTH_TOKEN marks SuperGrok available without a paid API key", async () => {
-		const originalOauthToken = Bun.env.XAI_OAUTH_TOKEN;
-		delete Bun.env.XAI_API_KEY;
-		Bun.env.XAI_OAUTH_TOKEN = "xai-oauth-env";
+		const originalOauthToken = process.env.XAI_OAUTH_TOKEN;
+		delete process.env.XAI_API_KEY;
+		process.env.XAI_OAUTH_TOKEN = "xai-oauth-env";
 		const store = new SqliteAuthCredentialStore(new Database(":memory:"));
 		const storage = new AuthStorage(store);
 		await storage.reload();
@@ -67,9 +67,9 @@ describe("xAI API login wiring", () => {
 			expect(storage.getCredentialOrigin("xai-oauth")).toEqual({ kind: "env" });
 		} finally {
 			if (originalOauthToken === undefined) {
-				delete Bun.env.XAI_OAUTH_TOKEN;
+				delete process.env.XAI_OAUTH_TOKEN;
 			} else {
-				Bun.env.XAI_OAUTH_TOKEN = originalOauthToken;
+				process.env.XAI_OAUTH_TOKEN = originalOauthToken;
 			}
 			store.close();
 		}

@@ -13,16 +13,16 @@ import {
 } from "@oh-my-pi/pi-tui/kitty-graphics";
 
 const ORIGINAL = { ...getKittyGraphics() };
-const ORIGINAL_TMUX = Bun.env.TMUX;
+const ORIGINAL_TMUX = process.env.TMUX;
 
 beforeEach(() => {
-	delete Bun.env.TMUX;
+	delete process.env.TMUX;
 });
 
 afterEach(() => {
 	setKittyGraphics(ORIGINAL);
-	if (ORIGINAL_TMUX === undefined) delete Bun.env.TMUX;
-	else Bun.env.TMUX = ORIGINAL_TMUX;
+	if (ORIGINAL_TMUX === undefined) delete process.env.TMUX;
+	else process.env.TMUX = ORIGINAL_TMUX;
 });
 
 describe("kitty Unicode placeholder encoding", () => {

@@ -318,7 +318,7 @@ function buildCmdExeArgv(comspec: string, command: string, args: readonly string
  * Resolve the subprocess argv used to launch an MCP stdio server.
  *
  * On Windows, our PATH/PATHEXT walk may return `null` for a bare command
- * (e.g. `npx`) — `Bun.env.PATH` empty under a restricted parent process,
+ * (e.g. `npx`) — `process.env.PATH` empty under a restricted parent process,
  * UNC/network mounts that reject `fs.access`, locked-down shells. The
  * legacy fallback handed `Bun.spawn` the bare name, but `CreateProcess`
  * only appends `.exe` for extensionless names — `.cmd`/`.bat` are never
@@ -576,7 +576,7 @@ export class StdioTransport implements MCPTransport {
 		if (this.#connected) return;
 
 		const env = {
-			...Bun.env,
+			...process.env,
 			...this.config.env,
 		};
 		const cwd = this.config.cwd ?? getProjectDir();

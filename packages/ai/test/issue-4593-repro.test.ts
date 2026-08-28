@@ -1,5 +1,9 @@
-import { describe, expect, it } from "bun:test";
-import { setBedrockProviderModule, streamBedrock } from "@oh-my-pi/pi-ai/providers/register-builtins";
+import { afterEach, describe, expect, it } from "bun:test";
+import {
+	__resetProviderModuleOverrides,
+	setBedrockProviderModule,
+	streamBedrock,
+} from "@oh-my-pi/pi-ai/providers/register-builtins";
 import type { AssistantMessage, Context, Model } from "@oh-my-pi/pi-ai/types";
 import { AssistantMessageEventStream } from "@oh-my-pi/pi-ai/utils/event-stream";
 import { iterateWithIdleTimeout } from "@oh-my-pi/pi-ai/utils/idle-iterator";
@@ -58,6 +62,12 @@ function createAssistantMessage(): AssistantMessage {
 const baseContext: Context = { messages: [] };
 
 describe("idle watchdog local-work deferral (issue #4593)", () => {
+	// The Bedrock override is process-global; drop it so later files resolve the
+	// real provider module.
+	afterEach(() => {
+		__resetProviderModuleOverrides();
+	});
+
 	it("slides the idle deadline while consumer-side local work is pending", async () => {
 		const workDone = Promise.withResolvers<void>();
 		let probeCalls = 0;
