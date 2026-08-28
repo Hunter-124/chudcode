@@ -782,6 +782,8 @@ describe("update-cli release binary integrity", () => {
 	const tag = `${PRODUCT_RELEASE_TAG_PREFIX}17.1.2`;
 	const binaryName = "omp-linux-x64";
 	const url = `https://github.com/${PRODUCT_RELEASE_REPO}/releases/download/${tag}/${binaryName}`;
+	// Private-repo downloads authenticate only against the API asset endpoint.
+	const apiUrl = `https://api.github.com/repos/${PRODUCT_RELEASE_REPO}/releases/assets/4242`;
 	const content = "verified binary";
 	const digest = `sha256:${createHash("sha256").update(content).digest("hex")}`;
 
@@ -797,6 +799,7 @@ describe("update-cli release binary integrity", () => {
 					size: Buffer.byteLength(content),
 					digest,
 					browser_download_url: url,
+					url: apiUrl,
 					...overrides,
 				},
 			],
@@ -805,7 +808,7 @@ describe("update-cli release binary integrity", () => {
 
 	it("selects an uploaded asset with a valid SHA-256 digest", () => {
 		expect(resolveReleaseBinaryAsset(releaseAsset(), tag, binaryName)).toEqual({
-			url,
+			url: apiUrl,
 			size: Buffer.byteLength(content),
 			digest,
 		});
@@ -850,7 +853,7 @@ describe("update-cli release binary integrity", () => {
 		// rejected even then.
 		expect(
 			resolveReleaseBinaryAsset({ ...releaseAsset(), prerelease: true }, tag, binaryName, { allowPrerelease: true }),
-		).toEqual({ url, size: Buffer.byteLength(content), digest });
+		).toEqual({ url: apiUrl, size: Buffer.byteLength(content), digest });
 		expect(() =>
 			resolveReleaseBinaryAsset({ ...releaseAsset(), draft: true }, tag, binaryName, { allowPrerelease: true }),
 		).toThrow("is a draft");
@@ -967,6 +970,9 @@ describe("update-cli release binary integrity", () => {
 		const metadataAuthorizations: Array<string | null> = [];
 		const fetchImpl = async (input: string | URL | Request, init?: RequestInit): Promise<Response> => {
 			const requestUrl = String(input);
+			// The asset endpoint shares the api.github.com origin with the
+			// metadata endpoint, so match it first or the download reads JSON.
+			if (requestUrl === apiUrl) return new Response(altered);
 			if (requestUrl.startsWith("https://api.github.com/")) {
 				metadataAuthorizations.push(new Headers(init?.headers).get("Authorization"));
 				return new Response(
@@ -978,7 +984,6 @@ describe("update-cli release binary integrity", () => {
 					),
 				);
 			}
-			if (requestUrl === url) return new Response(altered);
 			throw new Error(`Unexpected request: ${requestUrl}`);
 		};
 
@@ -1190,11 +1195,15 @@ describe("update-cli script-shim takeover", () => {
 	const version = "18.0.0";
 	const binaryName = "omp-windows-x64.exe";
 	const url = `https://github.com/${PRODUCT_RELEASE_REPO}/releases/download/${PRODUCT_RELEASE_TAG_PREFIX}${version}/${binaryName}`;
+	const apiAssetUrl = `https://api.github.com/repos/${PRODUCT_RELEASE_REPO}/releases/assets/4242`;
 
 	function makeFetch(content: string, prerelease = false): (input: string | URL | Request) => Promise<Response> {
 		const digest = `sha256:${createHash("sha256").update(content).digest("hex")}`;
 		return async (input: string | URL | Request): Promise<Response> => {
 			const requestUrl = String(input);
+			// The asset endpoint shares the api.github.com origin with the
+			// metadata endpoint, so match it first or the download reads JSON.
+			if (requestUrl === apiAssetUrl) return new Response(content);
 			if (requestUrl.startsWith("https://api.github.com/")) {
 				return new Response(
 					JSON.stringify({
@@ -1208,6 +1217,7 @@ describe("update-cli script-shim takeover", () => {
 								size: Buffer.byteLength(content),
 								digest,
 								browser_download_url: url,
+								url: apiAssetUrl,
 							},
 						],
 					}),
@@ -1387,6 +1397,7 @@ describe("update-cli concurrent binary updates", () => {
 	const version = "999.0.0";
 	const binaryName = "omp-linux-x64";
 	const url = `https://github.com/${PRODUCT_RELEASE_REPO}/releases/download/${PRODUCT_RELEASE_TAG_PREFIX}${version}/${binaryName}`;
+	const apiAssetUrl = `https://api.github.com/repos/${PRODUCT_RELEASE_REPO}/releases/assets/4242`;
 	const payload = Buffer.alloc(2048, 0x41);
 	const digest = `sha256:${createHash("sha256").update(payload).digest("hex")}`;
 
@@ -1395,14 +1406,23 @@ describe("update-cli concurrent binary updates", () => {
 			tag_name: `${PRODUCT_RELEASE_TAG_PREFIX}${version}`,
 			draft: false,
 			prerelease: false,
-			assets: [{ name: binaryName, state: "uploaded", size: payload.byteLength, digest, browser_download_url: url }],
+			assets: [
+				{
+					name: binaryName,
+					state: "uploaded",
+					size: payload.byteLength,
+					digest,
+					browser_download_url: url,
+					url: apiAssetUrl,
+				},
+			],
 		});
 	}
 
 	const fastFetch = async (input: string | URL | Request): Promise<Response> => {
 		const requestUrl = String(input);
+		if (requestUrl === apiAssetUrl) return new Response(payload);
 		if (requestUrl.startsWith("https://api.github.com/")) return metadata();
-		if (requestUrl === url) return new Response(payload);
 		throw new Error(`Unexpected request: ${requestUrl}`);
 	};
 
@@ -1431,8 +1451,7 @@ describe("update-cli concurrent binary updates", () => {
 		const letAFinish = Promise.withResolvers<void>();
 		const slowFetch = async (input: string | URL | Request): Promise<Response> => {
 			const requestUrl = String(input);
-			if (requestUrl.startsWith("https://api.github.com/")) return metadata();
-			if (requestUrl === url) {
+			if (requestUrl === apiAssetUrl) {
 				return new Response(
 					new ReadableStream<Uint8Array>({
 						async start(controller) {
@@ -1445,6 +1464,7 @@ describe("update-cli concurrent binary updates", () => {
 					}),
 				);
 			}
+			if (requestUrl.startsWith("https://api.github.com/")) return metadata();
 			throw new Error(`Unexpected request: ${requestUrl}`);
 		};
 

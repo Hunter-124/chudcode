@@ -201,23 +201,53 @@ export function resolveReleaseBinaryAsset(
 		throw new Error(`GitHub release asset ${binaryName} has an unsupported digest`);
 	}
 
+	// The public `browser_download_url` is still validated, because it binds the
+	// asset to the exact tag and file name we asked for. It is not what we
+	// download from: this repository is private, where that URL answers 404 even
+	// with a valid bearer token. Only the API asset endpoint authenticates.
 	const expectedUrl = `https://github.com/${REPO}/releases/download/${expectedTag}/${binaryName}`;
 	if (asset.browser_download_url !== expectedUrl) {
 		throw new Error(`GitHub release asset ${binaryName} has an unexpected download URL`);
 	}
+	const apiUrlPattern = new RegExp(`^${GITHUB_API}/repos/${REPO}/releases/assets/\\d+$`);
+	if (typeof asset.url !== "string" || !apiUrlPattern.test(asset.url)) {
+		throw new Error(`GitHub release asset ${binaryName} has an unexpected API URL`);
+	}
 
 	return {
-		url: expectedUrl,
+		url: asset.url,
 		size: asset.size,
 		digest: `sha256:${digest.toLowerCase()}`,
 	};
+}
+
+/**
+ * Bearer token for the GitHub API.
+ *
+ * Releases live in a private repository, so every metadata read and asset
+ * download needs credentials — unauthenticated calls return 404, which is
+ * indistinguishable from "no release published". `gh` is consulted when no token
+ * is in the environment, matching how `install.sh` already authenticates.
+ */
+let cachedGithubToken: string | null | undefined;
+function resolveGithubToken(): string | undefined {
+	const fromEnv = $env.GITHUB_TOKEN || $env.GH_TOKEN;
+	if (fromEnv) return fromEnv;
+	if (cachedGithubToken !== undefined) return cachedGithubToken ?? undefined;
+	cachedGithubToken = null;
+	if ($which("gh") !== undefined) {
+		const result = proc.spawnSync(["gh", "auth", "token"], { stdout: "pipe", stderr: "ignore", timeout: 10_000 });
+		const token = result.exitCode === 0 ? result.stdout.toString().trim() : "";
+		if (token) cachedGithubToken = token;
+	}
+	return cachedGithubToken ?? undefined;
 }
 
 async function getReleaseBinaryAsset(
 	expectedVersion: string,
 	binaryName: string,
 	fetchImpl: Fetch = fetch,
-	githubToken: string | undefined = $env.GITHUB_TOKEN || $env.GH_TOKEN,
+	githubToken: string | undefined = resolveGithubToken(),
 	allowPrerelease = false,
 ): Promise<ReleaseBinaryAsset> {
 	const tag = `${PRODUCT_RELEASE_TAG_PREFIX}${expectedVersion}`;
@@ -258,6 +288,8 @@ export interface VerifiedBinaryDownloadOptions {
 	expectedSize: number;
 	expectedDigest: string;
 	fetchImpl?: Fetch;
+	/** Bearer token; required for assets in a private repository. */
+	githubToken?: string;
 }
 
 /**
@@ -270,6 +302,12 @@ export async function downloadVerifiedBinary(options: VerifiedBinaryDownloadOpti
 	let response: Response;
 	try {
 		response = await fetchImpl(options.url, {
+			// `application/octet-stream` makes the API asset endpoint serve the
+			// bytes (via a redirect to signed storage) instead of JSON metadata.
+			headers: {
+				Accept: "application/octet-stream",
+				...(options.githubToken ? { Authorization: `Bearer ${options.githubToken}` } : {}),
+			},
 			redirect: "follow",
 			signal: withTimeoutSignal(BINARY_DOWNLOAD_TIMEOUT_MS),
 		});
@@ -744,7 +782,7 @@ async function fetchLatestForkRelease(
 		channel === "canary"
 			? `${GITHUB_API}/repos/${REPO}/releases?per_page=10`
 			: `${GITHUB_API}/repos/${REPO}/releases/latest`;
-	const githubToken = $env.GITHUB_TOKEN || $env.GH_TOKEN;
+	const githubToken = resolveGithubToken();
 	let response: Response;
 	try {
 		response = await fetch(endpoint, {
@@ -764,7 +802,12 @@ async function fetchLatestForkRelease(
 		throw err;
 	}
 	if (response.status === 404) {
-		throw new Error(`No published release found for ${REPO}`);
+		throw new Error(
+			githubToken
+				? `No published release found for ${REPO}`
+				: `Cannot read releases for ${REPO}. It is private, so an unauthenticated request is indistinguishable ` +
+						"from an empty repository: install the GitHub CLI and run `gh auth login`, or set GITHUB_TOKEN or GH_TOKEN.",
+		);
 	}
 	if (response.status === 403 || response.status === 429) {
 		throw new Error(
@@ -1727,6 +1770,7 @@ export async function updateViaBinaryAt(
 		expectedSize: asset.size,
 		expectedDigest: asset.digest,
 		fetchImpl: options.fetchImpl,
+		githubToken: options.githubToken ?? resolveGithubToken(),
 	});
 	console.log(chalk.dim(`Verified ${asset.digest}`));
 
@@ -1819,6 +1863,7 @@ export async function updateViaShimTakeover(
 		expectedSize: asset.size,
 		expectedDigest: asset.digest,
 		fetchImpl: options.fetchImpl,
+		githubToken: options.githubToken ?? resolveGithubToken(),
 	});
 	console.log(chalk.dim(`Verified ${asset.digest}`));
 	const forwarded: Array<{ launcher: string; original: string }> = [];
