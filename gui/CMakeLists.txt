@@ -87,8 +87,13 @@ add_library(chud_copilot STATIC src/copilot/copilot_view.cpp)
 target_include_directories(chud_copilot PUBLIC src)
 target_link_libraries(chud_copilot PUBLIC chud_protocol chud_editor chud_ui_foundation)
 
+add_library(chud_session_dag STATIC
+  src/graph/session_dag.cpp src/graph/session_dag_view.cpp)
+target_include_directories(chud_session_dag PUBLIC src)
+target_link_libraries(chud_session_dag PUBLIC chud_copilot chud_graph chud_ui_foundation)
+
 add_executable(chudcode-gui src/app/app.cpp src/app/main.cpp)
-target_link_libraries(chudcode-gui PRIVATE chud_workspace chud_editor chud_terminal chud_vcs chud_graph chud_copilot chud_ui_foundation chud_protocol)
+target_link_libraries(chudcode-gui PRIVATE chud_workspace chud_editor chud_terminal chud_vcs chud_graph chud_copilot chud_session_dag chud_ui_foundation chud_protocol)
 
 include(CTest)
 if(BUILD_TESTING)
@@ -119,4 +124,8 @@ if(BUILD_TESTING)
   target_link_libraries(test_copilot PRIVATE chud_copilot)
   add_test(NAME copilot COMMAND test_copilot)
   add_test(NAME graph COMMAND test_graph)
+
+  add_executable(test_session_dag tests/test_session_dag.cpp)
+  target_link_libraries(test_session_dag PRIVATE chud_session_dag)
+  add_test(NAME session_dag COMMAND test_session_dag)
 endif()

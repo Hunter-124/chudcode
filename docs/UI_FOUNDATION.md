@@ -29,11 +29,24 @@ following matrix passes at 991×863, 1280×800, 1600×1000, light and dark:
 | Shell | `40px / minmax(0,1fr) / 24px` rows; no extra product-title row |
 | Top bar | project switcher at `380px` basis, shared OMP session header in remaining width |
 | Activity bar | 48px icon-only rail, 46px targets, 2px active accent |
-| OMP workspace | primary and widest surface: session tabs, transcript/tool timeline, agents/tasks, composer |
+| OMP workspace | primary and widest surface: session tabs, transcript/tool timeline, agents/tasks, execution DAG, composer |
 | IDE workspace | supporting resizable surface for editor/files/Git/terminal/graph/LSP; collapses before OMP |
 | Narrow layout | OMP remains complete; IDE moves behind the activity buttons rather than squeezing the composer |
 | Status bar | 24px, workspace path left, IDE visibility control right |
 | Typography | Rubik UI and JetBrains Mono code faces at the web token sizes |
+
+### Session execution DAG
+
+The OMP DAG is a deterministic time-layered view of the active session:
+session root, agent spawn hierarchy, nested tasks, tool spans, recovery events,
+and file/artifact references. Existing node positions remain stable while new
+events append. Orphaned parents and unknown states stay visible rather than
+being guessed away. Single-click selects and explains a node; double-clicking
+an agent opens its controls/transcript.
+
+The native renderer is direct ImGui draw-list geometry with bounded pan/zoom
+and fit. Mermaid is an export/interchange format copied as text; Chudcode MUST
+NOT embed Mermaid JS, a browser, or a generic graph-layout runtime for it.
 
 A screenshot that is merely connected or functional does not pass. Component
 geometry, typography, hierarchy, and interaction state MUST be visibly

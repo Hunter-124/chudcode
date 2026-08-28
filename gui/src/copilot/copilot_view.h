@@ -212,6 +212,7 @@ public:
                       std::string text = {});
     bool requestAgentTranscript(std::string_view agentId, std::int64_t fromByte = 0);
     void attachImage(ImageContent image);
+    void selectAgent(std::string_view agentId);
 
     [[nodiscard]] const TranscriptProjection& projection() const noexcept { return projection_; }
     [[nodiscard]] const ScrollLock& scrollLock() const noexcept { return scrollLock_; }

@@ -739,6 +739,10 @@ void CopilotView::attachImage(ImageContent image) {
     if (!wasDirty) notifyDraftDirty(sessionPath_, true);
 }
 
+void CopilotView::selectAgent(std::string_view agentId) {
+    selectedAgentId_ = std::string(agentId);
+}
+
 std::string_view CopilotView::agentTranscript(std::string_view agentId) const noexcept {
     const auto it = agentTranscripts_.find(agentId);
     return it == agentTranscripts_.end() ? std::string_view{} : std::string_view(it->second);

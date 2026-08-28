@@ -30,6 +30,7 @@
 #include "copilot/copilot_view.h"
 #include "editor/editor.h"
 #include "graph/graph_view.h"
+#include "graph/session_dag_view.h"
 #include "net/ws_transport.h"
 #include "protocol/desktop_client.h"
 #include "protocol/desktop_store.h"
@@ -349,7 +350,7 @@ std::optional<std::vector<DesktopSessionTab>> parseTabs(const ResponseFrame& res
 
 enum class ConnectionState { Connecting, Negotiating, Ready, Blocked };
 enum class Activity { Explorer, Search, SourceControl, Terminal, Graph, Sessions };
-enum class OmpUtility { Agents, Tasks };
+enum class OmpUtility { Agents, Tasks, Dag };
 
 std::string_view activityLabel(Activity activity) {
     switch (activity) {
@@ -838,6 +839,7 @@ int run(const AppOptions& options) {
     GraphView graphView;
     graphView.setAccessibleFallback(options.accessibleLists);
     graphView.setOpenSourceCallback([&editor](const SourceLocation& location) { editor.open(location.uri); });
+    session_graph::SessionDagView sessionDagView;
     vcs::VcsView vcsView(client, graphView);
     copilot::CopilotView copilotView(
         store, copilot::CopilotActions{[&client](std::string method, Json params,
@@ -1146,28 +1148,43 @@ int run(const AppOptions& options) {
         ImGui::EndChild();
         ImGui::SetCursorPosY(ImGui::GetCursorPosY() - ImGui::GetStyle().ItemSpacing.y);
 
+        const SessionSnapshot* activeSession = store.activeSession();
+        sessionDagView.sync(copilotView.sessionPath(), activeSession,
+                            copilotView.projection());
         ImGui::BeginChild("##omp-utility", {0.0F, ompMainHeight - transcriptHeight},
                           ImGuiChildFlags_Borders, ImGuiWindowFlags_NoScrollbar);
-        if (ImGui::Button("Agents", {ui::metrics::px(86.0F), ui::metrics::px(28.0F)})) {
+        if (ImGui::Button("Agents", {ui::metrics::px(78.0F), ui::metrics::px(28.0F)})) {
             ompUtility = OmpUtility::Agents;
         }
         ImGui::SameLine();
-        if (ImGui::Button("Tasks", {ui::metrics::px(86.0F), ui::metrics::px(28.0F)})) {
+        if (ImGui::Button("Tasks", {ui::metrics::px(78.0F), ui::metrics::px(28.0F)})) {
             ompUtility = OmpUtility::Tasks;
         }
-        const bool agentsSelected = ompUtility == OmpUtility::Agents;
         ImGui::SameLine();
-        const SessionSnapshot* activeSession = store.activeSession();
+        if (ImGui::Button("DAG", {ui::metrics::px(78.0F), ui::metrics::px(28.0F)})) {
+            ompUtility = OmpUtility::Dag;
+        }
+        const bool agentsSelected = ompUtility == OmpUtility::Agents;
+        const bool tasksSelected = ompUtility == OmpUtility::Tasks;
+        ImGui::SameLine();
         const std::size_t count =
             agentsSelected
                 ? (activeSession != nullptr ? activeSession->agents.size() : 0U)
-                : copilotView.projection().tasks.size();
+                : tasksSelected ? copilotView.projection().tasks.size()
+                                : sessionDagView.dag().nodes.size();
         ImGui::TextColored(ui::palette().textDim, "%zu", count);
         ImGui::Separator();
         if (agentsSelected) {
             copilotView.drawAgentsPanel({0.0F, 0.0F});
-        } else {
+        } else if (tasksSelected) {
             copilotView.drawTasksPanel({0.0F, 0.0F});
+        } else {
+            (void)sessionDagView.draw(
+                "##session-execution-dag", {0.0F, 0.0F},
+                [&](std::string_view agentId) {
+                    copilotView.selectAgent(agentId);
+                    ompUtility = OmpUtility::Agents;
+                });
         }
         ImGui::EndChild();
         ImGui::SetCursorPosY(ImGui::GetCursorPosY() - ImGui::GetStyle().ItemSpacing.y);
