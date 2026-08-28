@@ -33,12 +33,16 @@ import {
 import type { ToolSession } from "./index";
 import { splitPathAndSelPreferringLiteral } from "./path-utils";
 import { ToolError } from "./tool-errors";
+import { preprocessVisionImage } from "./vision/preprocess";
 
 const inspectImageSchema = type({
 	path: type("string").describe(
 		"image file path, local .svg/.svgz path with :img, Image #N label, or attachment://N URI",
 	),
 	question: type("string").describe("question about image"),
+	"preprocess?": type.enumerated("redact", "crop", "redact+crop").describe(
+		"optionally redact sensitive content, auto-crop, or redact then auto-crop with the local pi-vision sidecar before model inspection",
+	),
 	"+": "reject",
 });
 
@@ -203,6 +207,7 @@ export class InspectImageTool implements AgentTool<typeof inspectImageSchema, In
 
 		let imageInput: LoadedImageInput | null;
 		const autoResize = this.session.settings.get("images.autoResize");
+		const sourceAutoResize = params.preprocess ? false : autoResize;
 		const excludeWebP = webpExclusionForModel(model);
 		const attachmentReference = parseImageAttachmentReference(params.path);
 		const imageTarget = attachmentReference
@@ -215,14 +220,14 @@ export class InspectImageTool implements AgentTool<typeof inspectImageSchema, In
 					path: params.path,
 					reference: attachmentReference,
 					attachments: this.session.getImageAttachments?.() ?? [],
-					autoResize,
+					autoResize: sourceAutoResize,
 					excludeWebP,
 				});
 			} else if (isSvgImage && imageTarget) {
 				imageInput = await loadSvgImageInput({
 					path: imageTarget.path,
 					cwd: this.session.cwd,
-					autoResize,
+					autoResize: sourceAutoResize,
 					maxBytes: MAX_IMAGE_INPUT_BYTES,
 					excludeWebP,
 				});
@@ -230,7 +235,7 @@ export class InspectImageTool implements AgentTool<typeof inspectImageSchema, In
 				imageInput = await loadImageInput({
 					path: params.path,
 					cwd: this.session.cwd,
-					autoResize,
+					autoResize: sourceAutoResize,
 					maxBytes: MAX_IMAGE_INPUT_BYTES,
 					excludeWebP,
 				});
@@ -250,7 +255,45 @@ export class InspectImageTool implements AgentTool<typeof inspectImageSchema, In
 			);
 		}
 
+		let preprocessNotice: string | undefined;
+		if (params.preprocess) {
+			const modelDirSetting = this.session.settings.get("vision.modelDir");
+			const autoDownloadSetting = this.session.settings.get("vision.autoDownload");
+			try {
+				const preprocessed = await preprocessVisionImage(imageInput, {
+					mode: params.preprocess,
+					cwd: this.session.cwd,
+					modelDir: typeof modelDirSetting === "string" ? modelDirSetting : undefined,
+					autoDownload: autoDownloadSetting !== false,
+					autoResize,
+					excludeWebP,
+					signal,
+				});
+				if (preprocessed.ok) {
+					imageInput = preprocessed.image;
+				} else {
+					const hint = preprocessed.hint.replace(/\s+/g, " ").trim();
+					preprocessNotice = `[Image preprocessing skipped: ${preprocessed.reason}. ${hint}]`;
+				}
+			} catch (error) {
+				const hint = (error instanceof Error ? error.message : String(error)).replace(/\s+/g, " ").trim();
+				preprocessNotice = `[Image preprocessing skipped: preprocess_failed. ${hint}]`;
+			}
+		}
+
 		const telemetry = resolveTelemetry(this.session.getTelemetry?.(), this.session.getSessionId?.() ?? undefined);
+
+		if (preprocessNotice && autoResize) {
+			const resizedFallback = await loadImageAttachmentInput({
+				image: { type: "image", data: imageInput.data, mimeType: imageInput.mimeType },
+				label: params.path,
+				uri: imageInput.resolvedPath,
+				autoResize: true,
+				maxBytes: MAX_IMAGE_INPUT_BYTES,
+				excludeWebP,
+			});
+			if (resizedFallback) imageInput = resizedFallback;
+		}
 		const timeoutMs = this.session.settings.get("inspect_image.timeoutMs");
 		const hasTimeout = typeof timeoutMs === "number" && Number.isFinite(timeoutMs) && timeoutMs > 0;
 		const timeoutSignal = hasTimeout ? AbortSignal.timeout(timeoutMs) : undefined;
@@ -323,7 +366,7 @@ export class InspectImageTool implements AgentTool<typeof inspectImageSchema, In
 		}
 
 		return {
-			content: [{ type: "text", text }],
+			content: [{ type: "text", text: preprocessNotice ? `${preprocessNotice}\n${text}` : text }],
 			details: {
 				model: `${model.provider}/${model.id}`,
 				imagePath: imageInput.resolvedPath,

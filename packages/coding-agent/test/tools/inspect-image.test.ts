@@ -198,6 +198,28 @@ describe("InspectImageTool", () => {
 		expect(contentParts[0]?.type).toBe("image");
 		expect(contentParts[1]).toEqual({ type: "text", text: "Extract visible UI labels." });
 	});
+
+	it("continues with the original image when local preprocessing is unavailable", async () => {
+		const previous = process.env.OMP_VISION_BIN;
+		process.env.OMP_VISION_BIN = path.join(testDir, "missing-pi-vision");
+		try {
+			const stub = createCompleteSimpleSuccessStub("Original image inspected");
+			const tool = new InspectImageTool(createSession(testDir, visionModel), stub.fn);
+			const result = await tool.execute("call-preprocess-missing", {
+				path: imagePath,
+				question: "Describe it.",
+				preprocess: "redact",
+			});
+
+			const text = result.content[0]?.type === "text" ? result.content[0].text : "";
+			expect(text).toContain("[Image preprocessing skipped: sidecar_missing.");
+			expect(text).toContain("Original image inspected");
+			expect(stub.calls).toHaveLength(1);
+		} finally {
+			if (previous === undefined) delete process.env.OMP_VISION_BIN;
+			else process.env.OMP_VISION_BIN = previous;
+		}
+	});
 	it("rasterizes a selected SVG before sending it to the vision model", async () => {
 		const svgPath = path.join(testDir, "diagram.svg");
 		fs.writeFileSync(svgPath, TINY_SVG);

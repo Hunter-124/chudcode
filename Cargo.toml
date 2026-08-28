@@ -9,6 +9,7 @@ members = [
    "crates/pi-iso",
    "crates/pi-natives",
    "crates/pi-shell",
+   "crates/pi-vision",
    "crates/pi-voice",
    "crates/pi-walker",
    "crates/vendor/brush-core",

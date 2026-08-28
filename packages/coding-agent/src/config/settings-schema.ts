@@ -1057,6 +1057,28 @@ export const SETTINGS_SCHEMA = {
 		},
 	},
 
+	"vision.modelDir": {
+		type: "string",
+		default: "~/.omp/models/vision",
+		ui: {
+			tab: "model",
+			group: "Vision",
+			label: "Vision Model Directory",
+			description: "Directory containing the local pi-vision ONNX model files",
+		},
+	},
+
+	"vision.autoDownload": {
+		type: "boolean",
+		default: true,
+		ui: {
+			tab: "model",
+			group: "Vision",
+			label: "Download Vision Models",
+			description: "Download missing pi-vision model files after verifying their pinned SHA-256 checksums",
+		},
+	},
+
 	"images.urls.enabled": {
 		type: "boolean",
 		default: false,
