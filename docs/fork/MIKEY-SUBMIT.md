@@ -12,6 +12,14 @@ Everything below was re-verified against live `git` and the real GitHub API on
 2026-08-27, not copied from the other docs. Where the other docs turned out to
 be stale or wrong, it's flagged explicitly — see §2.
 
+> **Update, later the same evening:** four more branches were replayed onto the
+> same `upstream/main` and are now equally ready, and the co-author trailer on
+> every branch was corrected so Michael's credit actually resolves on GitHub.
+> That moved the head SHA of both branches below. Current state, rationale, and
+> the exact conflicts resolved are in `HANDOFF-TO-HUNTER.md`; the SHAs in this
+> file have been updated to match. §3's "only two branches remain" is now
+> "six branches are ready".
+
 ---
 
 ## 0. Upstream status right now — READ THIS FIRST
@@ -101,26 +109,32 @@ in #9925/#9926/#9927 — not because your name ends up on a counter anywhere.
 
 ## 3. Final submission plan
 
-Only **two** branches genuinely remain unsubmitted:
+**Six** branches are ready and unsubmitted. Each is exactly 1 commit ahead of
+`upstream/main` @ `caefa61023` and 0 behind:
 
-1. `fix/subagent-label-sanitize` — narrow bug fix, no Discord needed, small
-   diff (4 files, +157/−8). Straightforward per `CONTRIBUTING.md`'s "small
-   changes" tier.
-2. `feat/opt-in-auto-update` — touches startup and can install software.
-   `PR-BODIES.md` line 21-24 correctly flags this as needing **Discord
-   discussion before the PR**, per `CONTRIBUTING.md`'s "major changes" rule
-   (new dependency-adjacent behavior + security-sensitive: SHA-256
-   verification of a downloaded binary). Do not open this PR until that
-   thread exists and you've raised the caveat below in it.
+| # | Branch | Head | Gate |
+| --- | --- | --- | --- |
+| 1 | `fix/subagent-label-sanitize` | `b8fb671f27` | none — send this one first |
+| 2 | `feat/opt-in-escape-dismiss` | `7d651adb06` | none |
+| 3 | `feat/catalog-cursor-effort` | `a00fcca02d` | none; disclose the `models.json` regen gap |
+| 4 | `feat/catalog-release-date` | `0292b2af59` | none |
+| 5 | `feat/cross-platform-antisleep` | `36074ff860` | none; Windows path proven by FFI round-trip, not `powercfg` |
+| 6 | `feat/opt-in-auto-update` | `78f9165f02` | **discussion [#10015](https://github.com/can1357/oh-my-pi/discussions/10015) has no reply yet** |
 
-Order: rebase-check and submit **#1 first** (it's the smaller, less
-contentious change and doesn't need to wait on anyone). Post the Discord
-thread for **#2** whenever it's convenient — it doesn't block #1 — then open
-that PR only after the discussion has happened, not before.
+#3 and #4 are the July branch `feat/catalog-cursor-effort-and-release-date`
+split in two, because its two concerns touch disjoint files and upstream
+requires one logical change per PR. The old combined branch still exists at
+`3a7a838063` and should be ignored or deleted, not submitted.
 
-Do not batch them; `PR-BODIES.md`'s "don't submit all five at once, wait for
-a reaction" advice is still sound for whatever you do send, even though the
-batch is down to two.
+Order: send **#1 first** — smallest, least contentious, no gate. Then wait for a
+reaction before sending more; `PR-BODIES.md`'s "don't submit the whole batch at
+once" advice still holds with six. #6 stays closed until a maintainer answers
+#10015.
+
+Every one of the six still needs two things that cannot be done for you: one
+sentence in your own words in the body, and a hands-on exercise of the
+behaviour. Upstream states `bun check` passing is not sufficient verification,
+and closes PRs whose body lacks the sentence.
 
 ---
 
@@ -132,14 +146,20 @@ PRs. State as of this update:
 
 | Branch | New head | Base | Diff | Verification |
 | --- | --- | --- | --- | --- |
-| `fix/subagent-label-sanitize` | `72fae9c0b4` | `upstream/main` @ `caefa61023` | 5 files, +162/−7 | `tsc` exit 0; 131 pass / 2 skip / 0 fail across 11 label+title+agent-hub test files |
-| `feat/opt-in-auto-update` | `6aa21d7894` | `upstream/main` @ `caefa61023` | 6 files, +269/−15 | `tsc` exit 0; own test file 6/6 pass |
+| `fix/subagent-label-sanitize` | `b8fb671f27` | `upstream/main` @ `caefa61023` | 5 files, +162/−7 | `tsc` exit 0; 131 pass / 2 skip / 0 fail across 11 label+title+agent-hub test files |
+| `feat/opt-in-auto-update` | `78f9165f02` | `upstream/main` @ `caefa61023` | 6 files, +269/−15 | `tsc` exit 0; own test file 6/6 pass |
 
-Both commits keep `Hunter-124` as author and both `Co-authored-by:` trailers
-intact, because he wrote the code. Each now carries its own
-`## [Unreleased]` changelog entry — `### Fixed` for the label fix, `### Added`
-for auto-update. That was the single most common review comment on the three
-sibling PRs, so it is no longer outstanding.
+Both commits keep `Hunter-124` as author, because he wrote the code. Each now
+carries its own `## [Unreleased]` changelog entry — `### Fixed` for the label
+fix, `### Added` for auto-update. That was the single most common review comment
+on the three sibling PRs, so it is no longer outstanding.
+
+The `Co-authored-by:` trailer for Michael was changed from
+`iamnotyobabydaddy@gmail.com` to `iamnotyobabydaddy@users.noreply.github.com`,
+which is the only form measurably proven to resolve to his account — that is
+why the head SHAs moved from `72fae9c0b4`/`6aa21d7894`. The trees are
+byte-identical (asserted via `^{tree}` equality before pushing). Charles's
+trailer is untouched. Evidence in `HANDOFF-TO-HUNTER.md` §2.
 
 **The correction:** the previous version of this section said to
 `git rebase origin/main`. That would have been wrong and would have produced an
@@ -180,9 +200,9 @@ Two things worth knowing about the replay, because a reviewer may ask:
 ## 5. `fix/subagent-label-sanitize`
 
 - **Branch:** `fix/subagent-label-sanitize`
-- **Head SHA:** `72fae9c0b4` — "fix(coding-agent): strip model-emitted title
+- **Head SHA:** `b8fb671f27` — "fix(coding-agent): strip model-emitted title
   markup from subagent labels", replayed onto `upstream/main` @ `caefa61023`.
-  (The old pre-rebase SHA was `b4e528a3ca`; it is gone from the fork.)
+  (Earlier SHAs `b4e528a3ca` and `72fae9c0b4` are superseded and gone.)
 - **Diffstat vs `upstream/main`:** 5 files changed, 162 insertions(+), 7 deletions(-)
   - `packages/coding-agent/CHANGELOG.md` (+4)
   - `packages/coding-agent/src/modes/components/agent-hub-renderer.ts` (+5/−1)
@@ -259,9 +279,9 @@ until then:**
 ## 6. `feat/opt-in-auto-update` — Discord first
 
 - **Branch:** `feat/opt-in-auto-update`
-- **Head SHA:** `6aa21d7894` — "feat(coding-agent): opt-in automatic update
+- **Head SHA:** `78f9165f02` — "feat(coding-agent): opt-in automatic update
   staging", replayed onto `upstream/main` @ `caefa61023`.
-  (The old pre-rebase SHA was `94c56c4898`; it is gone from the fork.)
+  (Earlier SHAs `94c56c4898` and `6aa21d7894` are superseded and gone.)
 - **Diffstat vs `upstream/main`:** 6 files changed, 269 insertions(+), 15 deletions(-)
   - `packages/coding-agent/CHANGELOG.md` (+4)
   - `packages/coding-agent/src/cli/update-cli.ts` (+74/−0 — a pure addition)
@@ -282,6 +302,12 @@ updates and fails closed, because auto-applying an unverified binary would be
 worse than requiring a manual `chudcode update`; package-manager installs
 delegate integrity to the package manager; source/`bun link` checkouts are
 excluded entirely. **Do not open this PR until that thread has happened.**
+
+**Status of that gate:** Discord was unreachable for this account, so upstream's
+public Ideas Discussions were used instead — this branch's thread is
+[#10015](https://github.com/can1357/oh-my-pi/discussions/10015), opened by
+Hunter-124 at 23:50 on 2026-08-27. It has **zero replies** as of this update, so
+the gate is open, not cleared. Nobody posted anything as you.
 
 **Command (after the Discord discussion AND after rebasing):**
 
