@@ -100,6 +100,13 @@ const EMBED_REQUEST_TIMEOUT_MS = 120_000;
 /** Race marker for {@link MnemopiEmbedClient.#awaitRequest}. */
 const REQUEST_TIMED_OUT = Symbol("mnemopi.embed.timedOut");
 
+const DEFAULT_EMBED_WORKER_IDLE_TIMEOUT_MS = 10 * 60_000;
+
+export interface MnemopiEmbedClientOptions {
+	idleTimeoutMs?: number;
+	scheduleIdleTimer?: (callback: () => void, delayMs: number) => { cancel(): void };
+}
+
 export class MnemopiEmbedClient {
 	#worker: MnemopiEmbedWorkerHandle | null = null;
 	#unsubscribeMessage: (() => void) | null = null;
@@ -108,13 +115,40 @@ export class MnemopiEmbedClient {
 	#nextRequestId = 0;
 	#spawnWorker: () => MnemopiEmbedWorkerHandle;
 	#requestTimeoutMs: number;
+	#idleTimeoutMs: number;
+	#idleTimer: { cancel(): void } | null = null;
+	#idleGeneration = 0;
+	#scheduleIdleTimer: (callback: () => void, delayMs: number) => { cancel(): void };
 
 	constructor(
 		spawnWorker: () => MnemopiEmbedWorkerHandle = spawnMnemopiEmbedWorker,
 		requestTimeoutMs: number = EMBED_REQUEST_TIMEOUT_MS,
+		options: MnemopiEmbedClientOptions = {},
 	) {
 		this.#spawnWorker = spawnWorker;
 		this.#requestTimeoutMs = requestTimeoutMs;
+		const idleTimeoutMs = options.idleTimeoutMs ?? DEFAULT_EMBED_WORKER_IDLE_TIMEOUT_MS;
+		this.#idleTimeoutMs = Number.isFinite(idleTimeoutMs)
+			? Math.max(0, idleTimeoutMs)
+			: DEFAULT_EMBED_WORKER_IDLE_TIMEOUT_MS;
+		this.#scheduleIdleTimer =
+			options.scheduleIdleTimer ??
+			((callback, delayMs) => {
+				const timer = setTimeout(callback, delayMs);
+				timer.unref();
+				return { cancel: () => clearTimeout(timer) };
+			});
+	}
+
+	/**
+	 * Apply the runtime idle policy. Zero keeps the worker alive until explicit
+	 * shutdown. Reconfiguration is safe while requests are active: expiry is
+	 * armed only after the pending request set becomes empty.
+	 */
+	setIdleTimeoutMinutes(minutes: number): void {
+		this.#idleTimeoutMs = Number.isFinite(minutes) ? Math.max(0, minutes * 60_000) : DEFAULT_EMBED_WORKER_IDLE_TIMEOUT_MS;
+		this.#cancelIdleTimer();
+		this.#scheduleIdleTeardown();
 	}
 
 	/**
@@ -129,6 +163,7 @@ export class MnemopiEmbedClient {
 		model: MnemopiEmbedModelId,
 		cacheDir: string | undefined,
 	): Promise<MnemopiSubprocessEmbeddingModel | null> {
+		this.#cancelIdleTimer();
 		try {
 			const worker = this.#ensureWorker();
 			const id = String(++this.#nextRequestId);
@@ -140,6 +175,7 @@ export class MnemopiEmbedClient {
 				if (!ok) return null;
 			} finally {
 				this.#pending.delete(id);
+				this.#scheduleIdleTeardown();
 			}
 		} catch (error) {
 			logger.debug("mnemopi-embed: init failed", {
@@ -153,6 +189,7 @@ export class MnemopiEmbedClient {
 
 	async terminate(): Promise<void> {
 		const worker = this.#worker;
+		this.#cancelIdleTimer();
 		this.#worker = null;
 		this.#unsubscribeMessage?.();
 		this.#unsubscribeMessage = null;
@@ -170,12 +207,33 @@ export class MnemopiEmbedClient {
 		}
 	}
 
+	#cancelIdleTimer(): void {
+		this.#idleGeneration += 1;
+		this.#idleTimer?.cancel();
+		this.#idleTimer = null;
+	}
+
+	#scheduleIdleTeardown(): void {
+		if (this.#idleTimeoutMs === 0 || !this.#worker || this.#pending.size !== 0 || this.#idleTimer) return;
+		const worker = this.#worker;
+		const generation = ++this.#idleGeneration;
+		this.#idleTimer = this.#scheduleIdleTimer(() => {
+			// A cancelled callback may already be queued. Never let it clear a
+			// newer timer or shorten the newer request's full idle interval.
+			if (generation !== this.#idleGeneration) return;
+			this.#idleTimer = null;
+			if (this.#worker !== worker || this.#pending.size !== 0) return;
+			void this.terminate();
+		}, this.#idleTimeoutMs);
+	}
+
 	async #embed(
 		model: MnemopiEmbedModelId,
 		cacheDir: string | undefined,
 		texts: string[],
 		batchSize: number | undefined,
 	): Promise<number[][]> {
+		this.#cancelIdleTimer();
 		const worker = this.#ensureWorker();
 		const id = String(++this.#nextRequestId);
 		const { promise, resolve } = Promise.withResolvers<number[][] | Error>();
@@ -192,6 +250,7 @@ export class MnemopiEmbedClient {
 			return result;
 		} finally {
 			this.#pending.delete(id);
+			this.#scheduleIdleTeardown();
 		}
 	}
 

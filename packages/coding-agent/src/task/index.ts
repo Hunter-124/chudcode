@@ -28,6 +28,7 @@ import { TASK_EFFORTS, type TaskEffort } from "../thinking";
 import { truncateForPrompt } from "../tools/approval";
 import { isIrcEnabled } from "../tools/hub";
 import { formatBytes, formatDuration } from "../tools/render-utils";
+import { waitForAvailableMemory } from "../utils/memory";
 import { isReadOnlyAgent } from "./read-only-policy";
 import { isScoutSpawnable, resolveSpawnPolicy } from "./spawn-policy";
 import {
@@ -53,6 +54,10 @@ import { mapWithConcurrencyLimitAllSettled, Semaphore } from "./parallel";
 import { renderResult, renderCall as renderTaskCall } from "./render";
 import { repairTaskParams } from "./repair-args";
 import { resolveEffectiveSubagentPolicy, runStructuredSubagent, StructuredSubagentError } from "./structured-subagent";
+
+const DEFAULT_TASK_MIN_FREE_MEMORY_MB = 1024;
+const TASK_MEMORY_ADMISSION_TIMEOUT_MS = 30_000;
+const TASK_MEMORY_POLL_INTERVAL_MS = 500;
 
 function renderSubagentUserPrompt(assignment: string): string {
 	return prompt.render(subagentUserPromptTemplate, {
@@ -647,6 +652,19 @@ export class TaskTool implements AgentTool<TaskToolSchemaInstance, TaskToolDetai
 		this.#getSpawnSemaphore().release();
 	}
 
+	#minimumFreeMemoryMB(): number {
+		// The schema registration lands independently; this named adapter keeps
+		// rolling-upgrade binaries and narrow test stubs on the documented default.
+		const optionalSettings = this.session.settings as unknown as { get(path: string): unknown };
+		try {
+			const configured = optionalSettings.get("task.minFreeMemMB");
+			if (typeof configured === "number" && Number.isFinite(configured) && configured >= 0) return configured;
+		} catch {
+			// Unknown optional setting.
+		}
+		return DEFAULT_TASK_MIN_FREE_MEMORY_MB;
+	}
+
 	/**
 	 * Resolve the shared policy before detached work exists. The resulting
 	 * policy intentionally stays local: executor dispatch resolves again from
@@ -1115,6 +1133,21 @@ export class TaskTool implements AgentTool<TaskToolSchemaInstance, TaskToolDetai
 				try {
 					await semaphore.acquire(runSignal);
 					semaphoreHeld = true;
+					const minimumFreeMemoryMB = this.#minimumFreeMemoryMB();
+					await waitForAvailableMemory({
+						minimumMB: minimumFreeMemoryMB,
+						maxWaitMs: TASK_MEMORY_ADMISSION_TIMEOUT_MS,
+						pollIntervalMs: TASK_MEMORY_POLL_INTERVAL_MS,
+						signal: runSignal,
+						onTimeout: ({ availableMB, waitedMs }) => {
+							logger.warn("Task spawn memory floor remained unmet; admitting after bounded delay", {
+								agentId,
+								minimumMB: minimumFreeMemoryMB,
+								availableMB,
+								waitedMs,
+							});
+						},
+					});
 				} catch {
 					// Fall through so an acquire-time abort goes through the same
 					// path as the post-acquire race below: progress + onSettled

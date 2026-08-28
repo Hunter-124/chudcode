@@ -28,6 +28,7 @@ import {
 	type MnemopiProviderOptions,
 	truncateApproxTokens,
 } from "./config";
+import { mnemopiEmbedClient } from "./embed-client";
 import {
 	getMnemopiScopedBanks,
 	getMnemopiScopedDbPaths,
@@ -98,11 +99,25 @@ async function installMnemopiState(session: AgentSession, config: MnemopiBackend
 	}
 }
 
+function configureEmbedWorkerIdleTimeout(settings: MemoryBackendStartOptions["settings"]): void {
+	let minutes = 10;
+	// The independently registered setting is intentionally optional here.
+	const optionalSettings = settings as unknown as { get(path: string): unknown };
+	try {
+		const configured = optionalSettings.get("memory.embedWorkerIdleMinutes");
+		if (typeof configured === "number" && Number.isFinite(configured) && configured >= 0) minutes = configured;
+	} catch {
+		// The setting is optional during rolling upgrades and in narrow test stubs.
+	}
+	mnemopiEmbedClient.setIdleTimeoutMinutes(minutes);
+}
+
 export const mnemopiBackend: MemoryBackend = {
 	id: "mnemopi",
 
 	async start(options: MemoryBackendStartOptions): Promise<void> {
 		const { session, settings, agentDir, modelRegistry } = options;
+		configureEmbedWorkerIdleTimeout(settings);
 		const sessionId = session.sessionId;
 		if (!sessionId) return;
 

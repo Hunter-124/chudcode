@@ -302,7 +302,12 @@ async function createDiscordRest(tokenFile: string | undefined): Promise<ReadOnl
 	return { get: (route, options) => client.get(route as `/${string}`, options) };
 }
 
-async function readOwnerOnlyFile(filePath: string, label: string): Promise<string> {
+/**
+ * Read a credential file only if no non-owner principal can read it. Exported
+ * because the session bot loads its gateway token through exactly this guard:
+ * one implementation of the Windows-DACL/POSIX-mode split, not two.
+ */
+export async function readOwnerOnlyFile(filePath: string, label: string): Promise<string> {
 	const stat = await fs.stat(filePath);
 	if (!stat.isFile()) throw new Error(`${label} file must be a regular file`);
 	if (process.platform === "win32") {
