@@ -14,6 +14,7 @@
 - Added `/cache` with cache hit rate, token classes, honest price coverage, net cache savings, retention/TTL and idle-time reporting; the default cost status now shows cache savings, and cache misses explain that expiry or prompt-prefix changes caused reprocessing.
 - Added `/recent`, a compact ten-session resume picker showing recency, project, message count, and lifecycle status.
 - Grouped the full resume picker by Today, Yesterday, Previous 7 days, and Older, with inline fork, rename, pin/unpin, and copy-path actions.
+- Added `history://<id>/images` and `history://<id>/images/<n>`, which list a transcript's images with role, MIME type and byte size and resolve each to an on-disk path. Transcript image tokens are now numbered (`[image #N]`) to match that listing, so a screenshot captured earlier in a session can be retrieved instead of being rendered as an unrecoverable `[image]`.
 
 ### Fixed
 

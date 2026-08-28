@@ -21,10 +21,11 @@ import {
 } from "@oh-my-pi/pi-coding-agent/internal-urls/registry-helpers";
 import { AgentRegistry } from "@oh-my-pi/pi-coding-agent/registry/agent-registry";
 import type { AgentSession } from "@oh-my-pi/pi-coding-agent/session/agent-session";
+import { BlobStore, blobExtensionForImageMimeType } from "@oh-my-pi/pi-coding-agent/session/blob-store";
 import { CURRENT_SESSION_VERSION } from "@oh-my-pi/pi-coding-agent/session/session-entries";
 import type { ToolSession } from "@oh-my-pi/pi-coding-agent/tools";
 import { ReadTool } from "@oh-my-pi/pi-coding-agent/tools/read";
-import { removeWithRetries } from "@oh-my-pi/pi-utils";
+import { getAgentDir, getBlobsDir, removeWithRetries, setAgentDir } from "@oh-my-pi/pi-utils";
 
 async function withTempDir<T>(fn: (dir: string) => Promise<T>): Promise<T> {
 	const dir = await fs.mkdtemp(path.join(os.tmpdir(), "history-protocol-"));
@@ -464,5 +465,216 @@ describe("history:// protocol", () => {
 			expect(output.text).not.toContain("hello from root B");
 			expect(AgentRegistry.global().get("Worker")?.sessionFile).toBe(childA);
 		});
+	});
+});
+
+describe("history://<id>/images", () => {
+	beforeEach(() => {
+		AgentRegistry.resetGlobalForTests();
+		InternalUrlRouter.resetForTests();
+		resetRegisteredArtifactDirsForTests();
+	});
+
+	afterEach(() => {
+		InternalUrlRouter.resetForTests();
+		AgentRegistry.resetGlobalForTests();
+		resetRegisteredArtifactDirsForTests();
+	});
+
+	// The blob store lives at a process-global dir (getBlobsDir()); isolate every
+	// test behind its own temp agent dir so these tests never touch (or race on)
+	// the real ~/.omp/agent/blobs directory.
+	async function withIsolatedBlobsDir<T>(fn: () => Promise<T>): Promise<T> {
+		const originalAgentDir = getAgentDir();
+		const tempAgentDir = await fs.mkdtemp(path.join(os.tmpdir(), "history-protocol-blobs-"));
+		setAgentDir(tempAgentDir);
+		try {
+			return await fn();
+		} finally {
+			setAgentDir(originalAgentDir);
+			await removeWithRetries(tempAgentDir);
+		}
+	}
+
+	it("lists images with #, role, mime, bytes, path columns, resolving a blob:sha256 ref to its on-disk display path", async () => {
+		await withIsolatedBlobsDir(async () => {
+			const store = new BlobStore(getBlobsDir());
+			const data = Buffer.from("fake-png-bytes");
+			const put = await store.put(data, { extension: blobExtensionForImageMimeType("image/png") });
+
+			AgentRegistry.global().register({
+				id: "Shooter",
+				displayName: "task",
+				kind: "sub",
+				session: fakeLiveSession([
+					{
+						role: "user",
+						content: [
+							{ type: "text", text: "screenshot:" },
+							{ type: "image", data: put.ref, mimeType: "image/png" },
+						],
+						timestamp: 1,
+					},
+				]),
+				status: "idle",
+			});
+
+			const resource = await InternalUrlRouter.instance().resolve("history://Shooter/images");
+			expect(resource.contentType).toBe("text/markdown");
+			expect(resource.content).toContain("| # | role | mime | bytes | path |");
+			expect(resource.content).toContain(`| 1 | user | image/png | ${data.length} | ${put.displayPath} |`);
+			expect(resource.content).toContain("Read an image with `read <path>`");
+		});
+	});
+
+	it("materializes inline base64 image data to the blob store and reports its decoded byte length", async () => {
+		await withIsolatedBlobsDir(async () => {
+			const data = Buffer.from("inline-jpeg-bytes");
+			AgentRegistry.global().register({
+				id: "Inliner",
+				displayName: "task",
+				kind: "sub",
+				session: fakeLiveSession([
+					{
+						role: "user",
+						content: [{ type: "image", data: data.toString("base64"), mimeType: "image/jpeg" }],
+						timestamp: 1,
+					},
+				]),
+				status: "idle",
+			});
+
+			const resource = await InternalUrlRouter.instance().resolve("history://Inliner/images");
+			const match = resource.content.match(/\| 1 \| user \| image\/jpeg \| \d+ \| (.+) \|/);
+			expect(match).not.toBeNull();
+			expect(resource.content).toContain(`| 1 | user | image/jpeg | ${data.length} |`);
+			const materializedPath = match![1]!.trim();
+			expect(await fs.readFile(materializedPath)).toEqual(data);
+		});
+	});
+
+	it("renders (blob missing) instead of throwing when a blob:sha256 reference is absent from disk", async () => {
+		await withIsolatedBlobsDir(async () => {
+			const missingHash = "a".repeat(64);
+			AgentRegistry.global().register({
+				id: "Ghost",
+				displayName: "task",
+				kind: "sub",
+				session: fakeLiveSession([
+					{
+						role: "user",
+						content: [{ type: "image", data: `blob:sha256:${missingHash}`, mimeType: "image/png" }],
+						timestamp: 1,
+					},
+				]),
+				status: "idle",
+			});
+
+			const resource = await InternalUrlRouter.instance().resolve("history://Ghost/images");
+			expect(resource.content).toContain("| 1 | user | image/png | — | (blob missing) |");
+		});
+	});
+
+	it("renders a non-error, table-less body when the transcript has no images", async () => {
+		AgentRegistry.global().register({
+			id: "Textual",
+			displayName: "task",
+			kind: "sub",
+			session: fakeLiveSession([{ role: "user", content: "just words", timestamp: 1 }]),
+			status: "idle",
+		});
+
+		const resource = await InternalUrlRouter.instance().resolve("history://Textual/images");
+		expect(resource.contentType).toBe("text/markdown");
+		expect(resource.content).not.toContain("|");
+		expect(resource.content.toLowerCase()).toContain("no images");
+	});
+
+	it("history://<id>/images/<n> resolves the path/content/sourcePath for a single image", async () => {
+		await withIsolatedBlobsDir(async () => {
+			const data = Buffer.from("solo-png-bytes");
+			AgentRegistry.global().register({
+				id: "Solo",
+				displayName: "task",
+				kind: "sub",
+				session: fakeLiveSession([
+					{
+						role: "user",
+						content: [{ type: "image", data: data.toString("base64"), mimeType: "image/png" }],
+						timestamp: 1,
+					},
+				]),
+				status: "idle",
+			});
+
+			const resource = await InternalUrlRouter.instance().resolve("history://Solo/images/1");
+			expect(resource.contentType).toBe("text/plain");
+			expect(resource.sourcePath).toBe(resource.content);
+			expect(resource.content.length).toBeGreaterThan(0);
+			expect(await fs.readFile(resource.content)).toEqual(data);
+		});
+	});
+
+	it("history://<id>/images/<n> throws a clear error for an out-of-range index", async () => {
+		AgentRegistry.global().register({
+			id: "Solo2",
+			displayName: "task",
+			kind: "sub",
+			session: fakeLiveSession([
+				{ role: "user", content: [{ type: "image", data: "aGVsbG8=", mimeType: "image/png" }], timestamp: 1 },
+			]),
+			status: "idle",
+		});
+
+		const error = await InternalUrlRouter.instance()
+			.resolve("history://Solo2/images/5")
+			.then(
+				() => null,
+				err => err as Error,
+			);
+		expect(error).toBeInstanceOf(Error);
+		expect(error?.message).toContain('Invalid image index "5"');
+		expect(error?.message).toContain("valid range: 1-1");
+	});
+
+	it("history://<id>/images/<n> throws a clear error for a non-numeric index", async () => {
+		AgentRegistry.global().register({
+			id: "Solo3",
+			displayName: "task",
+			kind: "sub",
+			session: fakeLiveSession([]),
+			status: "idle",
+		});
+
+		const error = await InternalUrlRouter.instance()
+			.resolve("history://Solo3/images/abc")
+			.then(
+				() => null,
+				err => err as Error,
+			);
+		expect(error).toBeInstanceOf(Error);
+		expect(error?.message).toContain('Invalid image index "abc"');
+		expect(error?.message).toContain("none (this transcript has no images)");
+	});
+
+	it("history://<id>/<unknown> throws an error listing the supported sub-path forms", async () => {
+		AgentRegistry.global().register({
+			id: "Basic",
+			displayName: "task",
+			kind: "sub",
+			session: fakeLiveSession([]),
+			status: "idle",
+		});
+
+		const error = await InternalUrlRouter.instance()
+			.resolve("history://Basic/foo")
+			.then(
+				() => null,
+				err => err as Error,
+			);
+		expect(error).toBeInstanceOf(Error);
+		expect(error?.message).toContain(
+			"Supported forms: history://<id>, history://<id>/images, history://<id>/images/<n>",
+		);
 	});
 });

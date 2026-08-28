@@ -9,7 +9,10 @@
  * - No system prompt / tool catalog sections.
  */
 import { describe, expect, it } from "bun:test";
-import { formatSessionHistoryMarkdown } from "@oh-my-pi/pi-coding-agent/session/session-history-format";
+import {
+	formatSessionHistoryMarkdown,
+	formatToolResultErrorPreview,
+} from "@oh-my-pi/pi-coding-agent/session/session-history-format";
 import { INTENT_FIELD } from "@oh-my-pi/pi-wire";
 
 function buildMessages(): unknown[] {
@@ -386,5 +389,27 @@ describe("formatSessionHistoryMarkdown", () => {
 		expect(output).toContain("→ user-bash! rm -rf .wt/foo ⇒ ok · 0 lines");
 		expect(output).not.toContain("**user**:");
 		expect(output).toContain("## assistant");
+	});
+
+	it("numbers image blocks as [image #N] instead of the bare [image] token", () => {
+		const output = formatSessionHistoryMarkdown([
+			{
+				role: "user",
+				content: [
+					{ type: "text", text: "Two screenshots:" },
+					{ type: "image", data: "aaaa", mimeType: "image/png" },
+					{ type: "image", data: "bbbb", mimeType: "image/png" },
+				],
+				timestamp: 1,
+			},
+		]);
+		expect(output).toContain("[image #1]");
+		expect(output).toContain("[image #2]");
+		expect(output).not.toContain("[image]");
+	});
+
+	it("formatToolResultErrorPreview always emits a bare [image], never a numbered token", () => {
+		const preview = formatToolResultErrorPreview([{ type: "image", data: "aaaa", mimeType: "image/png" }]);
+		expect(preview).toBe("[image]");
 	});
 });
