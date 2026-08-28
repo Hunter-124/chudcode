@@ -1,9 +1,12 @@
 # Mikey — PR submission checklist
 
 Prepared for you, not submitted for you. `ONBOARDING.md` is explicit: "Michael
-submits the ready PRs... Do not submit them for him." Nothing here has been
-sent. No `gh pr create` was run, nothing was pushed, and no `> YOUR SENTENCE
-HERE` line was filled in while preparing this doc.
+submits the ready PRs... Do not submit them for him." No `gh pr create` was run,
+no PR or issue was touched, and no `> YOUR SENTENCE HERE` line was filled in.
+
+Both branches **have** been rebased onto current upstream main and force-pushed
+to the fork's feature branches (never to `main`), so they are ready to submit as
+they stand — see §4. Only your sentence and a hands-on exercise remain (§8).
 
 Everything below was re-verified against live `git` and the real GitHub API on
 2026-08-27, not copied from the other docs. Where the other docs turned out to
@@ -121,45 +124,77 @@ batch is down to two.
 
 ---
 
-## 4. Before you touch either branch
+## 4. Rebase — ALREADY DONE, and one correction
 
-Run this once, from a scratch worktree (never your main checkout —
-`ONBOARDING.md §3` warns `packages/stats/src/db.ts` is Hunter's uncommitted
-work; don't disturb it):
+Both branches have been replayed onto **current upstream main** and force-pushed
+to the fork. You do not need to rebase, install, or build anything to open the
+PRs. State as of this update:
+
+| Branch | New head | Base | Diff | Verification |
+| --- | --- | --- | --- | --- |
+| `fix/subagent-label-sanitize` | `72fae9c0b4` | `upstream/main` @ `caefa61023` | 5 files, +162/−7 | `tsc` exit 0; 131 pass / 2 skip / 0 fail across 11 label+title+agent-hub test files |
+| `feat/opt-in-auto-update` | `6aa21d7894` | `upstream/main` @ `caefa61023` | 6 files, +269/−15 | `tsc` exit 0; own test file 6/6 pass |
+
+Both commits keep `Hunter-124` as author and both `Co-authored-by:` trailers
+intact, because he wrote the code. Each now carries its own
+`## [Unreleased]` changelog entry — `### Fixed` for the label fix, `### Added`
+for auto-update. That was the single most common review comment on the three
+sibling PRs, so it is no longer outstanding.
+
+**The correction:** the previous version of this section said to
+`git rebase origin/main`. That would have been wrong and would have produced an
+unreviewable PR. `origin` is the fork, and the fork's `main` is
+`upstream/main` **plus 47 fork-only commits** — the Chudcode rebrand, the
+CloudCastle packages, the desktop IDE runtime. Rebasing onto it puts all of that
+in the diff. An upstream PR must be based on `can1357/oh-my-pi` main:
 
 ```bash
-git worktree add --detach ~/.cache/omp-rebase-mikey origin/main
-cd ~/.cache/omp-rebase-mikey
-bun install
-bun run build:native   # slow — use a process manager, not a bash timeout
-git checkout fix/subagent-label-sanitize && git rebase origin/main
-# resolve conflicts if any, re-run the branch's test file, force-with-lease
-git checkout feat/opt-in-auto-update && git rebase origin/main
-# same
+git remote add upstream https://github.com/can1357/oh-my-pi.git   # once
+git fetch upstream main
+git switch -c <branch> upstream/main && git cherry-pick <commit>
 ```
 
-Add a one-line `## [Unreleased]` entry to `packages/coding-agent/CHANGELOG.md`
-for each branch before opening its PR (convention from `AGENTS.md:294-305`:
-`### Fixed` for the label fix, `### Added` for auto-update; one line,
-user-facing, e.g. "Fixed `</title>` and similar markup leaking into
-auto-generated subagent labels."). This isn't optional polish — it's the
-single most common review comment on this repo right now.
+Diff purity was confirmed for both branches:
+`git diff upstream/main..HEAD | grep -ci 'chudcode\|cloudcastle'` returns **0**,
+and `git rev-list --count upstream/main..HEAD` returns **1**.
+
+Two things worth knowing about the replay, because a reviewer may ask:
+
+- In `fix/subagent-label-sanitize`, the original patch modified `sanitizeLine()`
+  in `src/modes/components/agent-hub.ts`. Upstream has since moved that function
+  to `src/modes/components/agent-hub-renderer.ts` and split it into
+  `sanitizeDisplayText()` plus truncation, so the change now lands there and
+  `agent-hub.ts` is untouched. Upstream also added `labelEchoesHandle()` to
+  `src/task/label.ts` in the meantime; both guards are kept, and `sanitizeTaskLabel`
+  runs **before** the echo check so markup cannot smuggle a handle-echoing label
+  past it (`Loader</title>` against handle `Loader`).
+- In `feat/opt-in-auto-update`, `src/cli/update-cli.ts` is a pure `+74/−0`
+  addition against pristine upstream. 16 failures in the pre-existing
+  `test/update-cli.test.ts` on a Windows host are environmental (real `fs.symlink`
+  needing elevation, POSIX `0o755` mode assertions, exec'ing a fake non-ELF
+  binary, a hardcoded `curl` installer hint) and touch none of the functions this
+  patch adds. Verify on Linux before quoting numbers to a maintainer.
 
 ---
 
 ## 5. `fix/subagent-label-sanitize`
 
 - **Branch:** `fix/subagent-label-sanitize`
-- **Head SHA (unrebased):** `b4e528a3ca` — "fix(coding-agent): strip
-  model-emitted title markup from subagent labels"
-- **Diffstat vs `main`:** 4 files changed, 157 insertions(+), 8 deletions(-)
-  - `packages/coding-agent/src/modes/components/agent-hub.ts` (+/-)
-  - `packages/coding-agent/src/task/label.ts` (+/-)
-  - `packages/coding-agent/src/utils/title-generator.ts` (+/-)
+- **Head SHA:** `72fae9c0b4` — "fix(coding-agent): strip model-emitted title
+  markup from subagent labels", replayed onto `upstream/main` @ `caefa61023`.
+  (The old pre-rebase SHA was `b4e528a3ca`; it is gone from the fork.)
+- **Diffstat vs `upstream/main`:** 5 files changed, 162 insertions(+), 7 deletions(-)
+  - `packages/coding-agent/CHANGELOG.md` (+4)
+  - `packages/coding-agent/src/modes/components/agent-hub-renderer.ts` (+5/−1)
+  - `packages/coding-agent/src/task/label.ts` (+20/−1)
+  - `packages/coding-agent/src/utils/title-generator.ts` (+10/−5)
   - `packages/coding-agent/test/task-label-sanitization.test.ts` (new, +130)
+  - note: `agent-hub.ts` is deliberately NOT in the diff — see §4.
 - **Title:** `fix(coding-agent): strip model-emitted title markup from subagent labels`
+- **Verified:** `tsc` exit 0; 131 pass / 2 skip / 0 fail across 11 test files,
+  including upstream's own `task-label.test.ts` and `title-generator.test.ts`.
 
-**Command (after rebase, from your branch checkout):**
+**Command — the branch is ready; this is the only step left besides your sentence:**
 
 ```bash
 gh pr create --repo can1357/oh-my-pi \
@@ -224,14 +259,18 @@ until then:**
 ## 6. `feat/opt-in-auto-update` — Discord first
 
 - **Branch:** `feat/opt-in-auto-update`
-- **Head SHA (unrebased):** `94c56c4898` — "feat(coding-agent): opt-in
-  automatic update staging"
-- **Diffstat vs `main`:** 5 files changed, 360 insertions(+), 74 deletions(-)
-  - `packages/coding-agent/src/cli/update-cli.ts` (+210/… largest file)
+- **Head SHA:** `6aa21d7894` — "feat(coding-agent): opt-in automatic update
+  staging", replayed onto `upstream/main` @ `caefa61023`.
+  (The old pre-rebase SHA was `94c56c4898`; it is gone from the fork.)
+- **Diffstat vs `upstream/main`:** 6 files changed, 269 insertions(+), 15 deletions(-)
+  - `packages/coding-agent/CHANGELOG.md` (+4)
+  - `packages/coding-agent/src/cli/update-cli.ts` (+74/−0 — a pure addition)
   - `packages/coding-agent/src/config/settings-schema.ts` (+17)
-  - `packages/coding-agent/src/main.ts` (+118/…)
-  - `packages/coding-agent/src/modes/utils/ui-helpers.ts` (+16/…)
+  - `packages/coding-agent/src/main.ts` (+105/−16)
+  - `packages/coding-agent/src/modes/utils/ui-helpers.ts` (+7/−4)
   - `packages/coding-agent/test/startup-auto-update.test.ts` (new, +73)
+- **Verified:** `tsc` exit 0; own test file 6/6 pass. See §4 on the 16
+  environmental `update-cli.test.ts` failures on Windows.
 - **Title:** `feat(coding-agent): opt-in automatic update staging`
 
 **Discord gate — do this BEFORE opening the PR:** raise it in
@@ -301,15 +340,15 @@ read the diff and run the exercise:**
 
 **Be ready to answer:**
 
-1. Same CHANGELOG gap as the other branch — add the `[Unreleased]` entry
-   first.
+1. CHANGELOG — **already addressed.** The `[Unreleased] / ### Added` entry is in
+   the rebased commit.
 2. What does the user actually see when SHA-256 verification fails on a
    raw-binary update — a visible error, or a silent fall-back to notify-only?
    "Fails closed" needs a concrete, observable answer.
-3. This branch is 5,628 commits behind current `main` (July 23 base) and has
-   never been rebased, unlike the three sibling branches that all needed a
-   real rebase (or hand-reapplication) before they'd merge cleanly. Have you
-   actually rebased and retested this, or only diffed it against an old base?
+3. Staleness — **already addressed.** The branch is now based on
+   `upstream/main` @ `caefa61023`, with `tsc` green and its own test file
+   passing; see §4. If asked, say it was replayed onto current upstream main and
+   retested, not diffed against an old base.
 4. How does the code reliably detect "this is a source checkout / `bun link`"
    to exclude it from `auto`, and what happens if that detection is wrong?
 
@@ -317,11 +356,30 @@ read the diff and run the exercise:**
 
 ## 7. Confirmation
 
-No `gh pr create`, no `git push`, no branch created or rebased, and no
-`> YOUR SENTENCE HERE` line filled in while preparing this document. Every
-branch/commit/diffstat claim above came from local read-only `git`
-(`branch -a --list`, `ls-remote --heads origin`, `log --oneline`,
-`diff --stat`, `merge-base --is-ancestor`) run against this checkout on
-2026-08-27, and every PR-state claim came from a live GitHub lookup
+**Not done, and deliberately left to you:** no `gh pr create` was run, no PR or
+issue was opened, edited, or commented on, and no `> YOUR SENTENCE HERE` line
+was filled in anywhere. Upstream requires that sentence to be yours, and
+`ONBOARDING.md` reserves the submission itself for you.
+
+**Done on your behalf, since it is machine work rather than authorship:** both
+branches were replayed onto `upstream/main` @ `caefa61023`, given their
+`[Unreleased]` changelog entries, typechecked, tested, and force-pushed to the
+fork's own feature branches — never to `main`, on either remote. Original
+authorship (`Hunter-124`) and both `Co-authored-by:` trailers were preserved.
+
+Every branch/commit/diffstat claim came from local `git` run against this
+checkout on 2026-08-27, and every PR-state claim came from a live GitHub lookup
 (`pr://can1357/oh-my-pi/9925`, `/9926`, `/9927`, plus `search_prs` for
 `author:Hunter-124` and for the two remaining branch names) run the same day.
+
+## 8. What is left — two steps
+
+1. Write one sentence per PR in your own words, replacing
+   `> YOUR SENTENCE HERE` in §5 (and §6 after its Discord thread).
+2. Exercise the behavior by hand. Upstream states `bun check` passing is not
+   sufficient. For `fix/subagent-label-sanitize`: build the branch, spawn
+   subagents, and confirm no label renders a stray tag while `Map<K,V>` still
+   shows correctly.
+
+Then run the `gh pr create` in §5. `feat/opt-in-auto-update` additionally waits
+on its Discord thread.
