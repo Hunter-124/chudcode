@@ -10,6 +10,7 @@ import * as path from "node:path";
 import { type } from "@oh-my-pi/omptype";
 import type { Model } from "@oh-my-pi/pi-ai";
 import { buildModel } from "@oh-my-pi/pi-catalog/build";
+import { PRODUCT_NAME } from "@oh-my-pi/pi-coding-agent/brand";
 import { AcpAgent } from "@oh-my-pi/pi-coding-agent/modes/acp/acp-agent";
 import { ACP_TERMINAL_AUTH_FLAG, prepareAcpTerminalAuthArgs } from "@oh-my-pi/pi-coding-agent/modes/acp/terminal-auth";
 import type { AgentSession } from "@oh-my-pi/pi-coding-agent/session/agent-session";
@@ -233,7 +234,9 @@ describe("ACP initialize conformance", () => {
 		expect(response.agentInfo).toEqual(
 			expect.objectContaining({
 				name: "oh-my-pi",
-				title: "Oh My Pi",
+				// The wire `name` stays `oh-my-pi` for client compatibility; only the
+				// human-facing title carries the product brand.
+				title: PRODUCT_NAME,
 				version: VERSION,
 			}),
 		);

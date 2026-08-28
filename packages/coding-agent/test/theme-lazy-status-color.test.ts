@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "bun:test";
+import { PRODUCT_CLI_NAME } from "@oh-my-pi/pi-coding-agent/brand";
 import * as themeModule from "@oh-my-pi/pi-coding-agent/modes/theme/theme";
 import type { InteractiveModeContext } from "@oh-my-pi/pi-coding-agent/modes/types";
 import { UiHelpers } from "@oh-my-pi/pi-coding-agent/modes/utils/ui-helpers";
@@ -122,6 +123,9 @@ describe("lazy status color re-resolves on theme switch", () => {
 			.split("\n")
 			.map(line => line.trim())
 			.filter(line => line === "Update Available" || line.startsWith("New version "));
-		expect(semanticLines).toEqual(["Update Available", "New version 1.2.3 is available. Run: omp update"]);
+		expect(semanticLines).toEqual([
+			"Update Available",
+			`New version 1.2.3 is available. Run: ${PRODUCT_CLI_NAME} update`,
+		]);
 	});
 });

@@ -12,6 +12,7 @@
 import { describe, expect, it, vi } from "bun:test";
 import { AuthBrokerError } from "@oh-my-pi/pi-ai/auth-broker";
 import { MissingApiKeyError } from "@oh-my-pi/pi-ai/error";
+import { PRODUCT_CLI_NAME } from "@oh-my-pi/pi-coding-agent/brand";
 import { parseArgs } from "@oh-my-pi/pi-coding-agent/cli/args";
 import { runRootCommand } from "@oh-my-pi/pi-coding-agent/main";
 import { describeAuthBrokerStartupError } from "@oh-my-pi/pi-coding-agent/session/auth-broker-config";
@@ -32,8 +33,8 @@ describe("describeAuthBrokerStartupError", () => {
 		expect(message).not.toBeNull();
 		expect(message).toContain("Auth broker request failed after 2 attempt(s)");
 		// Both recovery routes the reporter asked for: start it, or disable it.
-		expect(message).toContain("omp auth-broker serve");
-		expect(message).toContain("omp config reset auth.broker.url");
+		expect(message).toContain(`${PRODUCT_CLI_NAME} auth-broker serve`);
+		expect(message).toContain(`${PRODUCT_CLI_NAME} config reset auth.broker.url`);
 		expect(message).toContain("OMP_AUTH_BROKER_URL");
 	});
 
@@ -98,6 +99,6 @@ describe("runRootCommand — unreachable auth broker at startup", () => {
 		expect(thrown).toBeInstanceOf(ProcessExitSignal);
 		expect(exitCodes).toEqual([1]);
 		expect(stderr).toContain("Auth broker request failed after 2 attempt(s)");
-		expect(stderr).toContain("omp auth-broker serve");
+		expect(stderr).toContain(`${PRODUCT_CLI_NAME} auth-broker serve`);
 	}, 15_000);
 });

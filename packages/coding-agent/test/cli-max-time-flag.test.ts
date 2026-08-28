@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "bun:test";
+import { PRODUCT_CLI_NAME } from "@oh-my-pi/pi-coding-agent/brand";
 import { parseArgs } from "@oh-my-pi/pi-coding-agent/cli/args";
 import { Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
 import { runRootCommand } from "@oh-my-pi/pi-coding-agent/main";
@@ -71,7 +72,7 @@ describe("parseArgs — --max-time flag", () => {
 		const stderr = captured.join("");
 		expect(observedExitCode).toBe(2);
 		expect(stderr).toContain("Error: Invalid --max-time value");
-		expect(stderr).toContain("Run `omp --help` for available flags.");
+		expect(stderr).toContain(`Run \`${PRODUCT_CLI_NAME} --help\` for available flags.`);
 		expect(stderr).not.toContain("parseMaxTimeSeconds");
 		expect(stderr).not.toContain("CliUsageError");
 	});
