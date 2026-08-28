@@ -18,6 +18,7 @@ ARTIFACT_DIR="${CHUDCODE_ARTIFACT_DIR:-}"
 RELEASE_BASE_URL="${CHUDCODE_RELEASE_BASE_URL:-}"
 NATIVE_ADDON_REQUIRED="${CHUDCODE_NATIVE_ADDON_REQUIRED:-0}"
 NATIVE_ADDON_ARTIFACT="${CHUDCODE_NATIVE_ADDON_ARTIFACT:-}"
+VISION_ARCHIVE_NAME="${CLI_NAME}-vision-linux-x64.tar.gz"
 FORCE="${CHUDCODE_FORCE:-0}"
 
 say() {
@@ -228,12 +229,16 @@ temp_checksum=$(mktemp "$INSTALL_DIR/.${CLI_NAME}.checksums.XXXXXX")
 temp_native=""
 temp_gui_archive=""
 temp_gui_dir=""
+temp_vision_archive=""
+temp_vision_dir=""
 cleanup() {
 	[ -z "$temp_binary" ] || rm -f "$temp_binary"
 	rm -f "$temp_checksum"
 	[ -z "$temp_native" ] || rm -f "$temp_native"
 	[ -z "$temp_gui_archive" ] || rm -f "$temp_gui_archive"
 	[ -z "$temp_gui_dir" ] || rm -rf "$temp_gui_dir"
+	[ -z "$temp_vision_archive" ] || rm -f "$temp_vision_archive"
+	[ -z "$temp_vision_dir" ] || rm -rf "$temp_vision_dir"
 }
 trap cleanup EXIT HUP INT TERM
 
@@ -280,6 +285,36 @@ fi
 create_aliases
 installed_output=$($install_path --version 2>&1) || die "installed binary failed its startup check"
 [ "$installed_output" = "$EXPECTED_VERSION_OUTPUT" ] || die "installed binary returned an unexpected version: $installed_output"
+
+vision_installed=0
+if [ "$target" = "linux-x64" ]; then
+	temp_vision_archive=$(mktemp "$INSTALL_DIR/.${CLI_NAME}-vision.XXXXXX.tar.gz")
+	if try_fetch_asset "$VISION_ARCHIVE_NAME" "$temp_vision_archive"; then
+		vision_expected_hash=$(checksum_for "$VISION_ARCHIVE_NAME" "$temp_checksum") ||
+			die "SHA256SUMS.txt has no entry for $VISION_ARCHIVE_NAME"
+		[ "$(sha256_file "$temp_vision_archive")" = "$vision_expected_hash" ] ||
+			die "checksum mismatch for $VISION_ARCHIVE_NAME"
+		temp_vision_dir=$(mktemp -d "${TMPDIR:-/tmp}/chudcode-vision-install.XXXXXX")
+		tar -xzf "$temp_vision_archive" -C "$temp_vision_dir"
+		vision_bundle="$temp_vision_dir/${CLI_NAME}-vision-linux-x64"
+		[ -x "$vision_bundle/pi-vision" ] || die "vision archive is missing pi-vision"
+		[ -f "$vision_bundle/libonnxruntime.so" ] || die "vision archive is missing libonnxruntime.so"
+		[ -f "$vision_bundle/ONNXRUNTIME-LICENSE" ] || die "vision archive is missing the ONNX Runtime license"
+		"$vision_bundle/pi-vision" --print-manifest >/dev/null ||
+			die "pi-vision failed its startup check"
+
+		vision_install_dir="$DATA_DIR/chudcode/vision-${PRODUCT_VERSION}"
+		mkdir -p "$DATA_DIR/chudcode"
+		rm -rf "$vision_install_dir"
+		mv "$vision_bundle" "$vision_install_dir"
+		ln -sf "$vision_install_dir/pi-vision" "$INSTALL_DIR/pi-vision"
+		vision_installed=1
+	else
+		rm -f "$temp_vision_archive"
+		temp_vision_archive=""
+	fi
+fi
+
 
 gui_installed=0
 if [ "$target" = "linux-x64" ]; then
@@ -334,5 +369,10 @@ if [ "$gui_installed" = "1" ]; then
 	say "GUI: $GUI_NAME"
 else
 	say "GUI artifact not present; CLI-only installation is valid."
+fi
+if [ "$vision_installed" = "1" ]; then
+	say "Vision: pi-vision"
+else
+	say "Vision artifact not present; image analysis degrades with a structured install hint."
 fi
 print_path_hint

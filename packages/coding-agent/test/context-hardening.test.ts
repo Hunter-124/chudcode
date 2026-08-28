@@ -85,7 +85,7 @@ describe("context hardening", () => {
 		const backend = {
 			id: "hung-test-backend",
 			beforeAgentStartPrompt: async () => await neverCompletes,
-		} as MemoryBackend;
+		} as unknown as MemoryBackend;
 		const session = {} as AgentSession;
 		const pending = awaitMemoryPromptInjection(backend, session, "hello", {
 			scheduleTimeout: (callback, delayMs) => {

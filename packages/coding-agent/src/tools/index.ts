@@ -42,17 +42,22 @@ import { AskTool } from "./ask";
 import { AstEditTool } from "./ast-edit";
 import { AstGrepTool } from "./ast-grep";
 import { BashTool } from "./bash";
+import { BinaryInspectTool } from "./binary-inspect";
 import { BrowserTool } from "./browser";
 import { type BuiltinToolName, type HiddenToolName, normalizeToolNames } from "./builtin-names";
 import { type CheckpointState, CheckpointTool, type CompletedRewindState, RewindTool } from "./checkpoint";
 import { ComputerTool } from "./computer";
+import { CppRuntimeTool } from "./cpp-runtime";
+import { CppStaticTool } from "./cpp-static";
 import { DebugTool } from "./debug";
 import { EvalTool } from "./eval";
 import { resolveEvalBackends } from "./eval-backends";
+import { FirmwareTool } from "./firmware";
 import { GithubTool } from "./gh";
 import { GlobTool } from "./glob";
 import { GrepTool } from "./grep";
 import { HubTool, isIrcEnabled } from "./hub";
+import { ImageAnalyzeTool } from "./image-analyze";
 import { InspectImageTool } from "./inspect-image";
 import { LearnTool } from "./learn";
 import { ManageSkillTool } from "./manage-skill";
@@ -467,6 +472,11 @@ export const BUILTIN_TOOLS: Record<BuiltinToolName, ToolFactory> = {
 	grep: s => new GrepTool(s),
 	lsp: LspTool.createIf,
 	inspect_image: s => new InspectImageTool(s),
+	image_analyze: s => new ImageAnalyzeTool(s),
+	cpp_static: s => new CppStaticTool(s),
+	cpp_runtime: s => new CppRuntimeTool(s),
+	binary_inspect: s => new BinaryInspectTool(s),
+	firmware: s => new FirmwareTool(s),
 	browser: s => new BrowserTool(s),
 	computer: s => new ComputerTool(s),
 	checkpoint: CheckpointTool.createIf,
