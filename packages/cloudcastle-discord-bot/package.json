@@ -8,6 +8,7 @@
   },
   "scripts": {
     "export": "bun src/export-cli.ts",
+    "report": "bun src/report-cli.ts",
     "check": "tsgo -p tsconfig.check.json --noEmit",
     "test": "bun test test"
   },
