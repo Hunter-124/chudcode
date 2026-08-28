@@ -11,6 +11,7 @@
 import * as os from "node:os";
 import * as path from "node:path";
 import { logger, ptree } from "@oh-my-pi/pi-utils";
+import { sleep } from "@oh-my-pi/pi-utils/async";
 import { daemonClientForProject } from "../launch/client";
 import { describeQuietly, stopQuietly, waitReady } from "../launch/ensure";
 import { daemonRuntimeDir } from "../launch/paths";
@@ -312,7 +313,7 @@ export async function smokeTestBlobBroker(): Promise<void> {
 			if (proc.exitCode !== null) break;
 			info = await probeDaemon(socket);
 			if (info) break;
-			await Bun.sleep(200);
+			await sleep(200);
 		}
 		if (!info) {
 			throw new Error(

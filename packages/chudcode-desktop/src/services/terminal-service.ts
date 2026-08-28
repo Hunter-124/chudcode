@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { accessSync, constants, realpathSync, statSync } from "node:fs";
 import { delimiter, isAbsolute, resolve, sep } from "node:path";
 import { Process } from "@oh-my-pi/pi-natives";
+import { sleep } from "@oh-my-pi/pi-utils/async";
 import type { TerminalId, WorkspaceId } from "../protocol";
 import {
 	DEFAULT_TERMINAL_ENVIRONMENT_ALLOWLIST,
@@ -479,7 +480,7 @@ export class TerminalService implements AsyncDisposable {
 				try {
 					const exitCode = await Promise.race([
 						record.process.exited,
-						Bun.sleep(this.#closeTimeoutMs).then(() => record.process?.exitCode ?? -1),
+						sleep(this.#closeTimeoutMs).then(() => record.process?.exitCode ?? -1),
 					]);
 					this.#handleProcessExit(record.id, exitCode);
 				} catch {

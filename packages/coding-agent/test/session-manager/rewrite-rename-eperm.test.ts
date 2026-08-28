@@ -5,6 +5,7 @@ import * as path from "node:path";
 import { recoverOrphanedBackups } from "@oh-my-pi/pi-coding-agent/session/session-listing";
 import { SessionManager } from "@oh-my-pi/pi-coding-agent/session/session-manager";
 import { FileSessionStorage, MemorySessionStorage } from "@oh-my-pi/pi-coding-agent/session/session-storage";
+import { sleep } from "@oh-my-pi/pi-utils/async";
 
 class FsCodeError extends Error {
 	code: string;
@@ -260,7 +261,7 @@ describe("recoverOrphanedBackups", () => {
 		const newer = `${primary}.200.bak`;
 		storage.writeTextSync(older, "older");
 		// Force the newer backup to have a strictly higher mtime so recovery is deterministic.
-		await Bun.sleep(5);
+		await sleep(5);
 		storage.writeTextSync(newer, "newer");
 
 		await recoverOrphanedBackups(dir, storage);

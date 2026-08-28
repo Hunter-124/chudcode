@@ -12,6 +12,7 @@ import { ToolExecutionComponent } from "@oh-my-pi/pi-coding-agent/modes/componen
 import * as themeModule from "@oh-my-pi/pi-coding-agent/modes/theme/theme";
 import { Text, type TUI, visibleWidth } from "@oh-my-pi/pi-tui";
 import { removeWithRetries } from "@oh-my-pi/pi-utils";
+import { sleep } from "@oh-my-pi/pi-utils/async";
 import chalk from "@oh-my-pi/pi-utils/chalk";
 
 beforeAll(async () => {
@@ -41,7 +42,7 @@ async function waitForRenderedText(
 	while (Date.now() < deadline) {
 		rendered = Bun.stripANSI(component.render(width).join("\n"));
 		if (rendered.includes(expectedText)) return rendered;
-		await Bun.sleep(10);
+		await sleep(10);
 	}
 	return rendered;
 }

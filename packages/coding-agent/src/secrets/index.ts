@@ -3,6 +3,7 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import { SENSITIVE_TOKEN_RE } from "@oh-my-pi/pi-ai/providers/transform-messages";
 import { getSecretPlaceholderKeyPath, isEnoent, logger } from "@oh-my-pi/pi-utils";
+import { sleep } from "@oh-my-pi/pi-utils/async";
 import { YAML } from "bun";
 import { type SecretEntry, SecretObfuscator } from "./obfuscator";
 import { sanitizeSecretFriendlyName, secretEntriesNeedPlaceholderKey } from "./placeholder";
@@ -131,7 +132,7 @@ async function readPlaceholderKeyFile(keyPath: string, retry: boolean): Promise<
 	const attempts = retry ? 50 : 1;
 	let invalidValue: string | undefined;
 	for (let attempt = 0; attempt < attempts; attempt++) {
-		if (attempt > 0) await Bun.sleep(10);
+		if (attempt > 0) await sleep(10);
 		try {
 			const value = (await Bun.file(keyPath).text()).trim();
 			if (PLACEHOLDER_KEY_RE.test(value)) return value;

@@ -10,6 +10,8 @@ import { EquivalentUriMap, fileToUri } from "@oh-my-pi/pi-coding-agent/lsp/utils
 import type { DeferredDiagnosticsEntry, ToolSession } from "@oh-my-pi/pi-coding-agent/tools";
 import { WriteTool } from "@oh-my-pi/pi-coding-agent/tools/write";
 import { type ptree, TempDir } from "@oh-my-pi/pi-utils";
+import * as piUtils from "@oh-my-pi/pi-utils/async";
+import { sleep } from "@oh-my-pi/pi-utils/async";
 
 const TEST_SERVER: ServerConfig = {
 	command: "test-lsp",
@@ -111,10 +113,10 @@ class VirtualClock {
  */
 function installVirtualTime(clock: VirtualClock): void {
 	vi.spyOn(Date, "now").mockImplementation(() => clock.now);
-	vi.spyOn(Bun, "sleep").mockImplementation(((ms: number) => {
+	vi.spyOn(piUtils, "sleep").mockImplementation((ms: number) => {
 		clock.advance(ms);
 		return Promise.resolve();
-	}) as typeof Bun.sleep);
+	});
 }
 
 describe("LSP diagnostics freshness", () => {
@@ -297,7 +299,7 @@ describe("LSP diagnostics freshness", () => {
 			enableDiagnostics: false,
 		});
 		const resultPromise = writethrough(filePath, "export const value=1\n");
-		await Bun.sleep(0);
+		await sleep(0);
 		expect(sync).not.toHaveBeenCalled();
 		pendingClient.resolve(client);
 		await resultPromise;

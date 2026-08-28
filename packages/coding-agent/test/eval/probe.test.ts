@@ -6,6 +6,7 @@ import { describe, expect, test } from "bun:test";
 import { rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { sleep } from "@oh-my-pi/pi-utils/async";
 import { probeCandidates, runBoundedProbe } from "../../src/eval/probe";
 
 // A cross-platform "hangs forever" command: re-invoke the running Bun to sleep.
@@ -53,7 +54,7 @@ describe("runBoundedProbe", () => {
 			while (Date.now() < deadline) {
 				try {
 					process.kill(grandchildPid, 0);
-					await Bun.sleep(25);
+					await sleep(25);
 				} catch {
 					break;
 				}

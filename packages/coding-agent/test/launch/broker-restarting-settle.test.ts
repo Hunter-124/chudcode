@@ -8,6 +8,7 @@ import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { Process } from "@oh-my-pi/pi-natives";
 import { TempDir } from "@oh-my-pi/pi-utils";
+import { sleep } from "@oh-my-pi/pi-utils/async";
 import { type DaemonBrokerStartOptions, startDaemonBrokerFromEnvironment } from "../../src/launch/broker";
 import { createDaemonBrokerClient, type DaemonBrokerClient } from "../../src/launch/client";
 import {
@@ -58,7 +59,7 @@ async function waitForState(
 	while (Date.now() < deadline) {
 		const daemon = await snapshotOf(client, name);
 		if (daemon.state === state) return daemon;
-		await Bun.sleep(25);
+		await sleep(25);
 	}
 	throw new Error(`daemon ${name} never reached state ${state}`);
 }
@@ -113,7 +114,7 @@ describe("daemon broker restart settling", () => {
 			expect(stopped.daemon.state).toBe("exited");
 
 			// Cross the configured initial backoff where a leaked timer would fire #launch.
-			await Bun.sleep(INITIAL_RESTART_DELAY_MS + RESTART_SETTLE_MARGIN_MS);
+			await sleep(INITIAL_RESTART_DELAY_MS + RESTART_SETTLE_MARGIN_MS);
 			const afterStop = await snapshotOf(client, name);
 			expect(afterStop.state).toBe("exited");
 			expect(afterStop.pid).toBeUndefined();

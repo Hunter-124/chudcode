@@ -17,6 +17,7 @@ import type {
 } from "@oh-my-pi/pi-coding-agent/extensibility/extensions";
 import * as git from "@oh-my-pi/pi-coding-agent/utils/git";
 import { TempDir } from "@oh-my-pi/pi-utils";
+import { sleep } from "@oh-my-pi/pi-utils/async";
 
 afterEach(() => {
 	vi.restoreAllMocks();
@@ -115,7 +116,7 @@ describe("AutoresearchStorage round-trip", () => {
 	});
 
 	afterEach(async () => {
-		await Bun.sleep(0);
+		await sleep(0);
 		await dbDir.remove().catch(() => {});
 	});
 

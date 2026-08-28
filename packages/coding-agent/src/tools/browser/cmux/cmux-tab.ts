@@ -2,6 +2,7 @@ import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 import { logger, postmortem, Snowflake, untilAborted } from "@oh-my-pi/pi-utils";
+import { sleep } from "@oh-my-pi/pi-utils/async";
 import { JsRuntime, type RuntimeHooks } from "../../../eval/js/shared/runtime";
 import { callSessionTool } from "../../../eval/js/tool-bridge";
 import { resizeImage } from "../../../utils/image-resize";
@@ -640,7 +641,7 @@ export class CmuxTab {
 				this.#lastUrl = result.url;
 				if (pattern.test(result.url)) return result.url;
 			}
-			await untilAborted(signal, () => Bun.sleep(200));
+			await untilAborted(signal, () => sleep(200));
 		}
 		throw new ToolError(`tab.waitForUrl() timed out after ${timeoutMs}ms`);
 	}
@@ -683,7 +684,7 @@ export class CmuxTab {
 					return null;
 				}
 			}
-			await untilAborted(signal, () => Bun.sleep(200));
+			await untilAborted(signal, () => sleep(200));
 		}
 		throw new ToolError(`tab.waitForNavigation() timed out after ${timeoutMs}ms`);
 	}
@@ -743,7 +744,7 @@ export class CmuxTab {
 					return response;
 				}
 			}
-			await untilAborted(signal, () => Bun.sleep(100));
+			await untilAborted(signal, () => sleep(100));
 		}
 		throw new ToolError(`tab.waitForResponse() timed out after ${timeoutMs}ms`);
 	}
@@ -837,7 +838,7 @@ export class CmuxTab {
 		while (Date.now() <= deadline) {
 			const value = typeof fn === "string" ? await this.#evalScript<unknown>(fn) : await this.evaluate(fn, ...args);
 			if (value) return value;
-			await untilAborted(signal, () => Bun.sleep(pollingMs));
+			await untilAborted(signal, () => sleep(pollingMs));
 		}
 		throw new ToolError(`page.waitForFunction() timed out after ${timeoutMs}ms`);
 	}
@@ -988,7 +989,7 @@ export class CmuxTab {
 		const deadline = Date.now() + timeoutMs;
 		while (Date.now() <= deadline) {
 			if (await this.#selectorExists(spec)) return;
-			await untilAborted(signal, () => Bun.sleep(100));
+			await untilAborted(signal, () => sleep(100));
 		}
 		throw new ToolError(`tab.waitFor(${JSON.stringify(selector)}) timed out after ${timeoutMs}ms`);
 	}
@@ -1498,7 +1499,7 @@ export async function runCmuxCode(tab: CmuxTab, opts: RunCmuxCodeOptions): Promi
 		}
 		runAc.abort(runEndedError);
 		// Let rejection callbacks run while this run can still own guest-created promises.
-		await Bun.sleep(0);
+		await sleep(0);
 		if (hasFloatingFailure && !runFailed) await floatingFailure;
 		if (runFailed) {
 			for (const reason of activeRun.floatingRejections) {

@@ -2,6 +2,7 @@ import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 import { $which, getPuppeteerDir, logger, removeWithRetries } from "@oh-my-pi/pi-utils";
+import { sleep } from "@oh-my-pi/pi-utils/async";
 import type * as BrowsersNs from "@oh-my-pi/pi-utils/browsers";
 import type { Browser, CDPSession, Page, default as Puppeteer, Target } from "puppeteer-core";
 import stealthTamperingScript from "../puppeteer/00_stealth_tampering.txt" with { type: "text" };
@@ -302,7 +303,7 @@ async function isChromiumExecutable(p: string): Promise<boolean> {
 		});
 		const stdout = await Promise.race([
 			new Response(proc.stdout).text(),
-			Bun.sleep(probeTimeoutMs + 500).then(() => null),
+			sleep(probeTimeoutMs + 500).then(() => null),
 		]);
 		if (stdout === null) return false;
 		await proc.exited;

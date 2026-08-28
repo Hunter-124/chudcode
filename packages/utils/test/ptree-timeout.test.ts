@@ -1,6 +1,7 @@
 import { describe, expect, it } from "bun:test";
 import { Process, ProcessStatus } from "@oh-my-pi/pi-natives";
 import { createLinuxSubreaperScript, exec, NonZeroExitError, spawn, TimeoutError } from "@oh-my-pi/pi-utils/ptree";
+import { sleep } from "../src/async";
 
 async function supportsLinuxMountNamespaces(): Promise<boolean> {
 	if (process.platform !== "linux") return false;
@@ -243,7 +244,7 @@ ${createLinuxSubreaperScript()}
 				const deadline = Date.now() + 500;
 				let status = Process.fromPid(orphanPid)?.status();
 				while (status === ProcessStatus.Running && Date.now() < deadline) {
-					await Bun.sleep(10);
+					await sleep(10);
 					status = Process.fromPid(orphanPid)?.status();
 				}
 				expect(status).not.toBe(ProcessStatus.Running);
@@ -273,7 +274,7 @@ ${createLinuxSubreaperScript()}
 				const deadline = Date.now() + 500;
 				let status = Process.fromPid(descendantPid)?.status();
 				while (status === ProcessStatus.Running && Date.now() < deadline) {
-					await Bun.sleep(10);
+					await sleep(10);
 					status = Process.fromPid(descendantPid)?.status();
 				}
 				expect(status).not.toBe(ProcessStatus.Running);

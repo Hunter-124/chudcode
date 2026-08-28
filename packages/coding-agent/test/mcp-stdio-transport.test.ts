@@ -4,6 +4,7 @@ import * as os from "node:os";
 import * as path from "node:path";
 import { resolveStdioSpawnCommand, StdioTransport, writeFrame } from "@oh-my-pi/pi-coding-agent/mcp/transports/stdio";
 import { removeWithRetries } from "@oh-my-pi/pi-utils";
+import { sleep } from "@oh-my-pi/pi-utils/async";
 
 describe("resolveStdioSpawnCommand", () => {
 	it("resolves bare Windows commands through PATHEXT and wraps .cmd shims with cmd.exe", async () => {
@@ -647,7 +648,7 @@ describe("writeFrame", () => {
 			// No synchronous throw, so the frame is "accepted"; the async rejection
 			// must be neutralized rather than escaping as an unhandled rejection.
 			expect(writeFrame(sink, "frame\n")).toBe(true);
-			await Bun.sleep(50);
+			await sleep(50);
 			expect(tracker.capture()).toEqual([]);
 		} finally {
 			tracker.release();
@@ -668,7 +669,7 @@ describe("writeFrame", () => {
 		const tracker = trackUnhandled();
 		try {
 			expect(writeFrame(sink, "frame\n")).toBe(true);
-			await Bun.sleep(50);
+			await sleep(50);
 			expect(tracker.capture()).toEqual([]);
 		} finally {
 			tracker.release();
@@ -811,7 +812,7 @@ describe("StdioTransport.close", () => {
 
 		// Wait for the read loop to observe EOF and fire #handleClose.
 		for (let i = 0; i < 100 && transport.connected; i++) {
-			await Bun.sleep(10);
+			await sleep(10);
 		}
 		expect(transport.connected).toBe(false);
 		expect(closeCount).toBe(1);
@@ -889,7 +890,7 @@ describe("StdioTransport.close", () => {
 						await fs.access(readyPath);
 						break;
 					} catch {
-						await Bun.sleep(20);
+						await sleep(20);
 					}
 				}
 

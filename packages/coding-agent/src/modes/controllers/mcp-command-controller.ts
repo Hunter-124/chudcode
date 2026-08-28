@@ -6,6 +6,7 @@
 import * as path from "node:path";
 import { type Component, replaceTabs, Spacer, Text } from "@oh-my-pi/pi-tui";
 import { getMCPConfigPath, getProjectDir } from "@oh-my-pi/pi-utils";
+import { sleep } from "@oh-my-pi/pi-utils/async";
 import { clearCache as clearFsCache } from "../../capability/fs";
 import type { SourceMeta } from "../../capability/types";
 import { expandEnvVarsDeep } from "../../discovery/helpers";
@@ -2395,7 +2396,7 @@ export class MCPCommandController {
 			if (response.status === "error") {
 				throw new Error(response.message ?? "Smithery authorization failed.");
 			}
-			await Bun.sleep(pollIntervalMs);
+			await sleep(pollIntervalMs);
 		}
 
 		throw new Error("Smithery authorization cancelled.");

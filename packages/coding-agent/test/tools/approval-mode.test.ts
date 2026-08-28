@@ -9,6 +9,7 @@ import { createAgentSession } from "@oh-my-pi/pi-coding-agent/sdk";
 import type { AgentSession } from "@oh-my-pi/pi-coding-agent/session/agent-session";
 import { SessionManager } from "@oh-my-pi/pi-coding-agent/session/session-manager";
 import { removeSyncWithRetries, Snowflake } from "@oh-my-pi/pi-utils";
+import { sleep } from "@oh-my-pi/pi-utils/async";
 
 const BASE_SETTINGS = {
 	"async.enabled": false,
@@ -73,7 +74,7 @@ describe("tools.approvalMode setting", () => {
 				const code = (err as NodeJS.ErrnoException).code;
 				if (code !== "EBUSY" && code !== "ENOTEMPTY" && code !== "EPERM") throw err;
 				if (attempt === 4) break; // best-effort: OS will reclaim
-				await Bun.sleep(50 * (attempt + 1));
+				await sleep(50 * (attempt + 1));
 			}
 		}
 	});

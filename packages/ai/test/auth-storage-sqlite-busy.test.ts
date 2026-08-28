@@ -14,6 +14,8 @@ import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
 import { isSqliteBusyError, SqliteAuthCredentialStore } from "@oh-my-pi/pi-ai/auth-storage";
+import * as piUtils from "@oh-my-pi/pi-utils/async";
+import { sleep } from "@oh-my-pi/pi-utils/async";
 import { removeWithRetries } from "../../utils/src/temp";
 
 interface SqliteBusyShape extends Error {
@@ -121,7 +123,7 @@ db.close();`,
 				() => false,
 			);
 			if (locked || locker.exitCode !== null) break;
-			await Bun.sleep(10);
+			await sleep(10);
 		}
 		if (!locked) {
 			throw new Error(`locker never signaled readiness: ${await new Response(locker.stderr).text()}`);
@@ -197,7 +199,7 @@ db.close();`,
 			throw makeBusyError("SQLITE_BUSY_RECOVERY", 261);
 		});
 		// Skip the sleep so the test doesn't take 700ms+ of real time.
-		const sleepSpy = vi.spyOn(Bun, "sleep").mockResolvedValue(undefined);
+		const sleepSpy = vi.spyOn(piUtils, "sleep").mockResolvedValue(undefined);
 
 		await expect(SqliteAuthCredentialStore.open(dbPath)).rejects.toThrow(dbPath);
 		// open uses `maxAttempts = 4`, so the loop sleeps between attempts 0..2

@@ -1,3 +1,4 @@
+import { sleep } from "@oh-my-pi/pi-utils/async";
 import type { ToolSession } from "..";
 
 export type MiValue = string | MiTuple | MiValue[];
@@ -79,7 +80,12 @@ class MiParser {
 		} catch {
 			// GDB occasionally emits C escapes that JSON does not recognize.
 		}
-		return encoded.slice(1, -1).replace(/\\n/g, "\n").replace(/\\t/g, "\t").replace(/\\"/g, '"').replace(/\\\\/g, "\\");
+		return encoded
+			.slice(1, -1)
+			.replace(/\\n/g, "\n")
+			.replace(/\\t/g, "\t")
+			.replace(/\\"/g, '"')
+			.replace(/\\\\/g, "\\");
 	}
 
 	#readUntil(stoppers: string): string {
@@ -144,7 +150,8 @@ export interface GdbMiStartOptions {
 
 function environment(extra?: Record<string, string | undefined>): Record<string, string> {
 	const result: Record<string, string> = {};
-	for (const [key, value] of Object.entries({ ...process.env, ...extra })) if (value !== undefined) result[key] = value;
+	for (const [key, value] of Object.entries({ ...process.env, ...extra }))
+		if (value !== undefined) result[key] = value;
 	return result;
 }
 
@@ -218,16 +225,18 @@ export class GdbMiSession {
 			const waiter: PendingStop = {
 				resolve,
 				reject,
-				timer: setTimeout(() => {
-					const index = this.#stopWaiters.indexOf(waiter);
-					if (index >= 0) this.#stopWaiters.splice(index, 1);
-					reject(new Error("Timed out waiting for GDB/MI stop record"));
-				}, Math.max(1, timeoutMs)),
+				timer: setTimeout(
+					() => {
+						const index = this.#stopWaiters.indexOf(waiter);
+						if (index >= 0) this.#stopWaiters.splice(index, 1);
+						reject(new Error("Timed out waiting for GDB/MI stop record"));
+					},
+					Math.max(1, timeoutMs),
+				),
 			};
 			this.#stopWaiters.push(waiter);
 		});
 	}
-
 
 	stdoutExcerpt(): string {
 		return `${this.#stdoutTruncated ? "… stdout truncated …\n" : ""}${this.#stdout}`;
@@ -247,21 +256,24 @@ export class GdbMiSession {
 		} catch {
 			// Pipe already closed.
 		}
-		await Promise.race([this.exitCode, Bun.sleep(500)]);
+		await Promise.race([this.exitCode, sleep(500)]);
 		if (this.process.exitCode === null) this.process.kill("SIGTERM");
-		await Promise.race([this.exitCode, Bun.sleep(1000)]);
+		await Promise.race([this.exitCode, sleep(1000)]);
 		if (this.process.exitCode === null) this.process.kill("SIGKILL");
-		await Promise.race([this.exitCode, Bun.sleep(1000)]);
+		await Promise.race([this.exitCode, sleep(1000)]);
 	}
 
 	async #requestDirect(command: string, timeoutMs: number): Promise<MiRecord[]> {
 		if (!this.#alive) throw new Error("GDB/MI session is closed");
 		const token = this.#nextToken++;
 		return new Promise<MiRecord[]>((resolve, reject) => {
-			const timer = setTimeout(() => {
-				if (this.#pending?.token === token) this.#pending = undefined;
-				reject(new Error(`GDB/MI request timed out: ${command}`));
-			}, Math.max(1, timeoutMs));
+			const timer = setTimeout(
+				() => {
+					if (this.#pending?.token === token) this.#pending = undefined;
+					reject(new Error(`GDB/MI request timed out: ${command}`));
+				},
+				Math.max(1, timeoutMs),
+			);
 			this.#pending = { token, records: [], resolve, reject, timer };
 			try {
 				this.process.stdin.write(`${token}${command}\n`);
@@ -392,7 +404,7 @@ export async function runGdbMI(options: RunGdbMiOptions): Promise<{
 		await session.close();
 	}
 	return {
-		exitCode: await Promise.race([session.exitCode, Bun.sleep(100).then(() => -1)]),
+		exitCode: await Promise.race([session.exitCode, sleep(100).then(() => -1)]),
 		records,
 		stdout: session.stdoutExcerpt(),
 		stderr: session.stderrExcerpt(),

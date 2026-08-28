@@ -4,6 +4,7 @@ import type { Api, AssistantMessage, Model } from "@oh-my-pi/pi-ai";
 import * as ai from "@oh-my-pi/pi-ai";
 import { Effort } from "@oh-my-pi/pi-ai";
 import { TempDir } from "@oh-my-pi/pi-utils";
+import { sleep } from "@oh-my-pi/pi-utils/async";
 import { $ } from "bun";
 import type { ModelRegistry } from "../../src/config/model-registry";
 import { Settings } from "../../src/config/settings";
@@ -329,7 +330,7 @@ describe("runEvalCompletion", () => {
 			const started = Promise.withResolvers<void>();
 			vi.spyOn(ai, "completeSimple").mockImplementation(async () => {
 				started.resolve();
-				await Bun.sleep(200);
+				await sleep(200);
 				return assistant({ text: "the answer" });
 			});
 

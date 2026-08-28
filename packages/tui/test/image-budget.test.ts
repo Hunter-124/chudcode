@@ -20,6 +20,7 @@ import {
 	TERMINAL,
 	wrapTmuxPassthrough,
 } from "@oh-my-pi/pi-tui/terminal-capabilities";
+import { sleep } from "@oh-my-pi/pi-utils/async";
 import { withoutTerminalMultiplexer } from "./helpers/terminal-multiplexer";
 
 withoutTerminalMultiplexer();
@@ -586,7 +587,7 @@ describe("TUI inline-image budget", () => {
 			const tick = Promise.withResolvers<void>();
 			process.nextTick(tick.resolve);
 			await tick.promise;
-			await Bun.sleep(40);
+			await sleep(40);
 			await term.flush();
 		}
 	}

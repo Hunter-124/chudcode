@@ -3,6 +3,7 @@ import * as themeModule from "@oh-my-pi/pi-coding-agent/modes/theme/theme";
 import * as nativesModule from "@oh-my-pi/pi-natives";
 import { type MacAppearanceObserver, MacOSAppearance } from "@oh-my-pi/pi-natives";
 import type { Terminal, TerminalAppearance } from "@oh-my-pi/pi-tui";
+import { sleep } from "@oh-my-pi/pi-utils/async";
 
 const originalPlatform = process.platform;
 const originalColorfgbg = process.env.COLORFGBG;
@@ -172,7 +173,7 @@ describe("theme auto-detection", () => {
 		expect(themeModule.getCurrentThemeName()).toBe("light");
 
 		observer.emit(MacOSAppearance.Dark);
-		await Bun.sleep(0);
+		await sleep(0);
 
 		expect(themeModule.getCurrentThemeName()).toBe("dark");
 		themeModule.stopThemeWatcher();

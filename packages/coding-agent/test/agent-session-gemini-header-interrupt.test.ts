@@ -20,6 +20,7 @@ import { AuthStorage } from "@oh-my-pi/pi-coding-agent/session/auth-storage";
 import { convertToLlm } from "@oh-my-pi/pi-coding-agent/session/messages";
 import { SessionManager } from "@oh-my-pi/pi-coding-agent/session/session-manager";
 import { TempDir } from "@oh-my-pi/pi-utils";
+import { sleep } from "@oh-my-pi/pi-utils/async";
 
 function emptyUsage(): AssistantMessage["usage"] {
 	return {
@@ -95,7 +96,7 @@ function headerRunawayStream(
 			const delta = `**Refining Stage ${i}**\n\nReworking module_${i} so handler_${i} routes Stage${i}Result through render_${i}.\n\n`;
 			thinking.thinking += delta;
 			stream.push({ type: "thinking_delta", contentIndex: 0, delta, partial });
-			await Bun.sleep(0);
+			await sleep(0);
 		}
 		if (aborted) return;
 		stream.push({ type: "thinking_end", contentIndex: 0, content: thinking.thinking, partial });

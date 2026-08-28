@@ -42,6 +42,7 @@ import {
 } from "@oh-my-pi/pi-ai";
 import { type GeneratedProvider, getBundledModel } from "@oh-my-pi/pi-catalog/models";
 import { getAgentDbPath, isEnoent } from "@oh-my-pi/pi-utils";
+import { sleep } from "@oh-my-pi/pi-utils/async";
 import SYSTEM_PROMPT from "./audit-prompt.md" with { type: "text" };
 
 const SESSIONS_ROOT = path.join(os.homedir(), ".omp", "agent", "sessions");
@@ -1043,7 +1044,7 @@ async function completeStructured<T>(
 		);
 		if (response.stopReason === "error" || response.stopReason === "aborted") {
 			lastError = response.errorMessage ?? response.stopReason;
-			await Bun.sleep(1500 * (attempt + 1));
+			await sleep(1500 * (attempt + 1));
 			continue;
 		}
 		const call = response.content.find((c): c is ToolCall => c.type === "toolCall" && c.name === "respond");

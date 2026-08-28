@@ -12,6 +12,7 @@ import type {
 import type { CredentialDisabledEvent, ImageContent, Model, ProviderResponseMetadata } from "@oh-my-pi/pi-ai";
 import type { KeyId } from "@oh-my-pi/pi-tui";
 import { logger } from "@oh-my-pi/pi-utils";
+import { sleep } from "@oh-my-pi/pi-utils/async";
 import type { ModelRegistry } from "../../config/model-registry";
 import type { Settings } from "../../config/settings";
 import type { LocalProtocolOptions } from "../../internal-urls/local-protocol";
@@ -306,7 +307,7 @@ async function raceHandlerWithTimeout<T>(
 					() => undefined,
 					() => undefined,
 				),
-				Bun.sleep(0),
+				sleep(0),
 			]);
 		}
 		return result;

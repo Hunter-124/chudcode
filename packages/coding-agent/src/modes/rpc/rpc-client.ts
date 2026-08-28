@@ -9,6 +9,7 @@ import type { AgentEvent, AgentMessage, AgentToolResult, ThinkingLevel } from "@
 import type { CompactionResult } from "@oh-my-pi/pi-agent-core/compaction";
 import type { ImageContent, Model } from "@oh-my-pi/pi-ai";
 import { isRecord, ptree, readJsonl } from "@oh-my-pi/pi-utils";
+import { sleep } from "@oh-my-pi/pi-utils/async";
 import type { FileSink } from "bun";
 import type { BashResult } from "../../exec/bash-executor";
 import type { AgentSessionEvent, SessionStats } from "../../session/agent-session";
@@ -368,7 +369,7 @@ export class RpcClient {
 				// nonzero exits), so give it a bounded head start: the exit watcher
 				// below was registered first and rejects with the real stderr text
 				// instead of an empty "Stderr:" (flaked under full-suite load).
-				await Promise.race([child.exited.catch(() => {}), Bun.sleep(250)]);
+				await Promise.race([child.exited.catch(() => {}), sleep(250)]);
 				if (readySettled) return;
 				readySettled = true;
 				readyReject(new Error(`Agent output stream ended before ready. Stderr: ${child.peekStderr()}`));
@@ -379,7 +380,7 @@ export class RpcClient {
 					exitCode => ({ exitCode }),
 					cause => ({ cause }),
 				),
-				Bun.sleep(100).then(() => null),
+				sleep(100).then(() => null),
 			]);
 			const error =
 				exitResult === null

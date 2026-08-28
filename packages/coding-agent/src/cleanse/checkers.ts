@@ -1,6 +1,7 @@
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { $which, isRecord, ptree, sanitizeText } from "@oh-my-pi/pi-utils";
+import { sleep } from "@oh-my-pi/pi-utils/async";
 import * as git from "../utils/git";
 import { CLEANSE_PARSER_KINDS, type CleanseParserKind, parseCleanseDiagnostics } from "./parsers";
 import type { CleanseCheckResult, CleanseDiagnostic, CleanseDiagnosticReport, SkippedCleanseCheck } from "./types";
@@ -1255,7 +1256,7 @@ async function runChecker(
 			onDiagnostics && !plan.mutates
 				? (async () => {
 						while (running) {
-							await Bun.sleep(flushMs);
+							await sleep(flushMs);
 							if (!running) break;
 							// Cut at the last newline: truncated trailing lines and
 							// unterminated JSON documents parse as garbage or nothing.

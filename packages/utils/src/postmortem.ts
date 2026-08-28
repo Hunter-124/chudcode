@@ -9,6 +9,7 @@
 import * as fs from "node:fs";
 import inspector from "node:inspector";
 import { isMainThread } from "node:worker_threads";
+import { sleep } from "./async";
 import * as logger from "./logger";
 import { restoreTerminalStderr } from "./stderr-guard";
 
@@ -526,7 +527,7 @@ async function runQuit(code: number, exitMode: "guarded" | "native", options: Qu
 	if (options.drainStdout !== false && process.stdout.writableLength > 0) {
 		const { promise, resolve } = Promise.withResolvers<void>();
 		process.stdout.once("drain", resolve);
-		await Promise.race([promise, Bun.sleep(5000)]);
+		await Promise.race([promise, sleep(5000)]);
 	}
 
 	switch (exitMode) {

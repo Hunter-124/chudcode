@@ -8,6 +8,7 @@ import {
 import type { AssistantMessage, Context, Model } from "@oh-my-pi/pi-ai/types";
 import type { AssistantMessageEventStream } from "@oh-my-pi/pi-ai/utils/event-stream";
 import { buildModel } from "@oh-my-pi/pi-catalog/build";
+import { sleep } from "@oh-my-pi/pi-utils/async";
 
 async function drainMicrotasksUntil(predicate: () => boolean, errorMessage: string): Promise<void> {
 	for (let i = 0; i < 1000; i++) {
@@ -83,7 +84,7 @@ describe("register-builtins lazy streams", () => {
 		});
 
 		const stream = streamBedrock(createModel(), baseContext, {});
-		const result = await Promise.race([stream.result(), Bun.sleep(100).then(() => "timeout" as const)]);
+		const result = await Promise.race([stream.result(), sleep(100).then(() => "timeout" as const)]);
 
 		expect(result).not.toBe("timeout");
 		if (result === "timeout") {
@@ -106,7 +107,7 @@ describe("register-builtins lazy streams", () => {
 		});
 
 		const stream = streamBedrock(createModel(), baseContext, {});
-		const result = await Promise.race([stream.result(), Bun.sleep(100).then(() => "timeout" as const)]);
+		const result = await Promise.race([stream.result(), sleep(100).then(() => "timeout" as const)]);
 
 		expect(result).not.toBe("timeout");
 		if (result === "timeout") {
@@ -142,7 +143,7 @@ describe("register-builtins lazy streams", () => {
 		});
 
 		const stream = streamBedrock(createModel(), baseContext, { streamIdleTimeoutMs: 10 });
-		const result = await Promise.race([stream.result(), Bun.sleep(500).then(() => "timeout" as const)]);
+		const result = await Promise.race([stream.result(), sleep(500).then(() => "timeout" as const)]);
 
 		expect(result).not.toBe("timeout");
 		if (result === "timeout") {
@@ -193,7 +194,7 @@ describe("register-builtins lazy streams", () => {
 		// the lazy watchdog runs on the platform clock, so fake timers cannot
 		// drive it; the 20ms compat deadline settles the result long before the
 		// bound, which exists only to fail fast instead of hanging the test.
-		const result = await Promise.race([stream.result(), Bun.sleep(2_000).then(() => "timeout" as const)]);
+		const result = await Promise.race([stream.result(), sleep(2_000).then(() => "timeout" as const)]);
 
 		expect(result).not.toBe("timeout");
 		if (result === "timeout") {
@@ -313,7 +314,7 @@ describe("register-builtins lazy streams", () => {
 		expect(firstEvent.value?.type).toBe("start");
 
 		abortController.abort();
-		const result = await Promise.race([stream.result(), Bun.sleep(500).then(() => "timeout" as const)]);
+		const result = await Promise.race([stream.result(), sleep(500).then(() => "timeout" as const)]);
 
 		expect(result).not.toBe("timeout");
 		if (result === "timeout") {

@@ -15,6 +15,7 @@ import { UiHelpers } from "@oh-my-pi/pi-coding-agent/modes/utils/ui-helpers";
 import { buildSessionContext, type SessionContext } from "@oh-my-pi/pi-coding-agent/session/session-context";
 import type { CustomMessageEntry, SessionEntry } from "@oh-my-pi/pi-coding-agent/session/session-entries";
 import { Container } from "@oh-my-pi/pi-tui";
+import { sleep } from "@oh-my-pi/pi-utils/async";
 
 /**
  * Issue #1955: `sendMessage` with `display: true` renders twice during
@@ -216,7 +217,7 @@ describe("issue #1955 — sendMessage(display:true) during session_start", () =>
 
 		// Drain the `.then(applyCustomMessageDisplay)` microtask chain queued by
 		// `actions.sendMessage` before the host's renderInitialMessages fires.
-		await Bun.sleep(0);
+		await sleep(0);
 
 		// Mirror main.ts: after `mode.init()` returns, the host renders the
 		// initial transcript while preserving anything previously added to chat.
@@ -246,7 +247,7 @@ describe("issue #1955 — sendMessage(display:true) during session_start", () =>
 			},
 			{ deliverAs: "nextTurn" },
 		);
-		await Bun.sleep(0);
+		await sleep(0);
 
 		const rendered = Bun.stripANSI(harness.ctx.chatContainer.render(120).join("\n"));
 		expect(countOccurrences(rendered, marker)).toBe(1);

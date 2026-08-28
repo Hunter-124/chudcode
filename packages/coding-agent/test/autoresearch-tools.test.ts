@@ -17,6 +17,7 @@ import type { ASIData, LogDetails, NumericMetricMap, RunDetails } from "@oh-my-p
 import type { ExtensionAPI, ExtensionContext } from "@oh-my-pi/pi-coding-agent/extensibility/extensions";
 import * as git from "@oh-my-pi/pi-coding-agent/utils/git";
 import { TempDir } from "@oh-my-pi/pi-utils";
+import { sleep } from "@oh-my-pi/pi-utils/async";
 import { $ } from "bun";
 
 afterEach(() => {
@@ -99,7 +100,7 @@ beforeAll(async () => {
 
 afterAll(async () => {
 	closeAllAutoresearchStorages();
-	await Bun.sleep(0);
+	await sleep(0);
 	await templateRepo.remove();
 	await templateBranchRepo.remove();
 });
@@ -174,7 +175,7 @@ describe("init_experiment", () => {
 	afterEach(async () => {
 		delete process.env.OMP_AUTORESEARCH_DB_DIR;
 		closeAllAutoresearchStorages();
-		await Bun.sleep(0);
+		await sleep(0);
 		await dbOverride.remove();
 	});
 
@@ -353,7 +354,7 @@ describe("run_experiment", () => {
 	afterEach(async () => {
 		delete process.env.OMP_AUTORESEARCH_DB_DIR;
 		closeAllAutoresearchStorages();
-		await Bun.sleep(0);
+		await sleep(0);
 		await dbOverride.remove();
 	});
 
@@ -444,7 +445,7 @@ describe("log_experiment", () => {
 	afterEach(async () => {
 		delete process.env.OMP_AUTORESEARCH_DB_DIR;
 		closeAllAutoresearchStorages();
-		await Bun.sleep(0);
+		await sleep(0);
 		await dbOverride.remove();
 	});
 
@@ -845,7 +846,7 @@ describe("update_notes", () => {
 	afterEach(async () => {
 		delete process.env.OMP_AUTORESEARCH_DB_DIR;
 		closeAllAutoresearchStorages();
-		await Bun.sleep(0);
+		await sleep(0);
 		await dbOverride.remove().catch(() => {});
 	});
 

@@ -3,7 +3,16 @@ import * as net from "node:net";
 import * as os from "node:os";
 import * as path from "node:path";
 import { Process, type PtyRunResult, PtySession } from "@oh-my-pi/pi-natives";
-import { isEexist, isEnoent, logger, postmortem, procmgr, sanitizeText, setProcessName } from "@oh-my-pi/pi-utils";
+import {
+	isEexist,
+	isEnoent,
+	logger,
+	postmortem,
+	procmgr,
+	sanitizeText,
+	setProcessName,
+	sleep,
+} from "@oh-my-pi/pi-utils";
 import { hostHasInheritableConsole } from "../eval/py/spawn-options";
 import { truncateHead, truncateHeadBytes, truncateTail, truncateTailBytes } from "../session/streaming-output";
 import { workerEnvFromParent } from "../subprocess/worker-client";
@@ -891,7 +900,7 @@ class DaemonBroker {
 
 	async #monitorRecoveredDetached(record: ManagedDaemon, generation: number): Promise<void> {
 		while (!this.#shuttingDown && generation === record.generation && !settledState(record.snapshot.state)) {
-			await Bun.sleep(100);
+			await sleep(100);
 			if (this.#shuttingDown || generation !== record.generation) return;
 			await this.#refreshDetached(record);
 		}
@@ -908,7 +917,7 @@ class DaemonBroker {
 				this.#markReady(record);
 				return;
 			}
-			await Bun.sleep(100);
+			await sleep(100);
 		}
 	}
 
@@ -1176,7 +1185,7 @@ class DaemonBroker {
 			await this.#refreshDetached(record);
 			if (condition()) return true;
 			if (this.#shuttingDown && terminalState(record.snapshot.state)) return condition();
-			await Bun.sleep(50);
+			await sleep(50);
 		}
 		await this.#refreshDetached(record);
 		return condition();

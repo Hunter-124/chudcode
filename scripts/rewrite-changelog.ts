@@ -35,6 +35,7 @@ import { type } from "@oh-my-pi/omptype";
 import { type Api, completeSimple, Effort, type Model, type Tool, type ToolCall } from "@oh-my-pi/pi-ai";
 import { discoverAuthStorage } from "@oh-my-pi/pi-ai/auth-broker";
 import { type GeneratedProvider, getBundledModel } from "@oh-my-pi/pi-catalog/models";
+import { sleep } from "@oh-my-pi/pi-utils/async";
 import {
 	type ChangelogDocument,
 	changelogPaths,
@@ -250,7 +251,7 @@ Consolidate and rewrite this content into user-visible release notes. Keep all p
 
 		if (response.stopReason === "error" || response.stopReason === "aborted") {
 			lastError = response.errorMessage ?? response.stopReason;
-			await Bun.sleep(1500 * (attempt + 1));
+			await sleep(1500 * (attempt + 1));
 			continue;
 		}
 

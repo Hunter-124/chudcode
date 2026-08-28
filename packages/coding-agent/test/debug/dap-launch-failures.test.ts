@@ -15,6 +15,7 @@ import type {
 import type { ToolSession } from "@oh-my-pi/pi-coding-agent/tools";
 import { DebugTool } from "@oh-my-pi/pi-coding-agent/tools/debug";
 import { removeWithRetries } from "@oh-my-pi/pi-utils";
+import { sleep } from "@oh-my-pi/pi-utils/async";
 
 const TEST_ADAPTER: DapResolvedAdapter = {
 	name: "lldb-dap",
@@ -109,11 +110,11 @@ class FakeDapClient {
 	async sendRequest(command: string, args?: unknown): Promise<unknown> {
 		this.requests.push({ command, args });
 		if (command === "launch" && this.options.launchError) {
-			if (this.options.launchErrorDelayMs) await Bun.sleep(this.options.launchErrorDelayMs);
+			if (this.options.launchErrorDelayMs) await sleep(this.options.launchErrorDelayMs);
 			throw new Error(this.options.launchError);
 		}
 		if (command === "attach" && this.options.attachError) {
-			if (this.options.attachErrorDelayMs) await Bun.sleep(this.options.attachErrorDelayMs);
+			if (this.options.attachErrorDelayMs) await sleep(this.options.attachErrorDelayMs);
 			throw new Error(this.options.attachError);
 		}
 		if (command === "configurationDone" && this.options.configurationDoneError) {
@@ -264,7 +265,7 @@ describe("DAP launch failure handling", () => {
 			await expect(
 				manager.launch({ adapter: TEST_ADAPTER, program: "/bin/echo", cwd: process.cwd() }),
 			).rejects.toThrow("launch: failed before stop outcome");
-			await Bun.sleep(10);
+			await sleep(10);
 			expect(unhandled).toEqual([]);
 		} finally {
 			process.off("unhandledRejection", onUnhandled);
@@ -427,13 +428,13 @@ describe("DAP launch failure handling", () => {
 			// Must respect the caller's timeoutMs, not the internal 30 s write cap.
 			expect(Date.now() - start).toBeLessThan(500);
 			// Let any queued unhandled-rejection microtask fire.
-			await Bun.sleep(50);
+			await sleep(50);
 			expect(unhandled).toEqual([]);
 		} finally {
 			process.off("unhandledRejection", onUnhandled);
 			// Let writeMessage's exit-guard resolve so no promise leaks past the test.
 			await client.dispose();
-			await Bun.sleep(20);
+			await sleep(20);
 		}
 	});
 
@@ -459,7 +460,7 @@ describe("DAP launch failure handling", () => {
 			};
 			await expect(DapClient.spawn({ adapter, cwd, socketReadyTimeoutMs: 300 })).rejects.toThrow(/Socket not ready/);
 			// Wait for the kill signal to propagate to the detached adapter.
-			await Bun.sleep(500);
+			await sleep(500);
 			const adapterPid = Number(await Bun.file(pidFilePath).text());
 			expect(Number.isFinite(adapterPid)).toBe(true);
 			let alive = true;
@@ -497,7 +498,7 @@ describe("DAP launch failure handling", () => {
 				await expect(DapClient.spawn({ adapter, cwd, socketReadyTimeoutMs: 300 })).rejects.toThrow(
 					/did not connect within/,
 				);
-				await Bun.sleep(500);
+				await sleep(500);
 				const adapterPid = Number(await Bun.file(pidFilePath).text());
 				expect(Number.isFinite(adapterPid)).toBe(true);
 				let alive = true;
@@ -633,7 +634,7 @@ await Bun.sleep(60_000);
 			push("Debug server listening at 127.0.0.1:43");
 			// Single event-loop turn so the gate's reader consumes the queued
 			// chunks — a scheduling flush, not a tuned wall-clock delay.
-			await Bun.sleep(0);
+			await sleep(0);
 			expect(open).toBe(false);
 			push("210\n");
 			await gate;

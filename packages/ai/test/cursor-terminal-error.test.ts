@@ -17,6 +17,7 @@ import {
 	UpdateTodosToolCallSchema,
 } from "@oh-my-pi/pi-catalog/discovery/cursor-proto";
 import { create, toBinary } from "@oh-my-pi/pi-catalog/discovery/protobuf";
+import { sleep } from "@oh-my-pi/pi-utils/async";
 
 const CONNECT_END_STREAM_FLAG = 0b00000010;
 
@@ -496,7 +497,7 @@ describe("Cursor terminal lifecycle after turnEnded", () => {
 			// processed the end. Yield so the client's `end` handler and every
 			// queued continuation run first: a provider that does not await the
 			// handler settles the stream in exactly that window.
-			await Bun.sleep(0);
+			await sleep(0);
 			try {
 				expect(stream.resultSettled).toBe(false);
 				expect(paired).toEqual([]);
@@ -557,7 +558,7 @@ describe("Cursor terminal lifecycle after turnEnded", () => {
 
 		const gate = (async () => {
 			await Promise.all([handlerStarted.promise, responseFinished.promise]);
-			await Bun.sleep(0);
+			await sleep(0);
 			try {
 				expect(stream.resultSettled).toBe(false);
 				expect(paired).toEqual([]);

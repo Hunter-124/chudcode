@@ -22,6 +22,7 @@ import { __resetProxyCache } from "@oh-my-pi/pi-ai/utils/proxy";
 import { buildModel } from "@oh-my-pi/pi-catalog/build";
 import { Effort } from "@oh-my-pi/pi-catalog/effort";
 import * as piUtils from "@oh-my-pi/pi-utils";
+import { sleep } from "@oh-my-pi/pi-utils/async";
 import { withEnv } from "./helpers";
 
 const { getAgentDir, setAgentDir, TempDir } = piUtils;
@@ -5138,7 +5139,7 @@ describe("openai-codex streaming", () => {
 		}).result();
 
 		// Let both callers reach the handshake before the socket opens.
-		await Bun.sleep(5);
+		await sleep(5);
 		for (const socket of sockets) socket.open();
 
 		await prewarmPromise;

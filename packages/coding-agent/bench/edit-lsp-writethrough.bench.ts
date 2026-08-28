@@ -27,6 +27,7 @@
  */
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
+import { sleep } from "@oh-my-pi/pi-utils/async";
 import { createLspWritethrough, writethroughNoop } from "../src/lsp";
 
 const REPO = path.resolve(import.meta.dir, "../../..");
@@ -93,7 +94,7 @@ try {
 		);
 	}
 	// Give any in-flight late fetches a moment to land before teardown.
-	await Bun.sleep(6000);
+	await sleep(6000);
 
 	console.log("\n--- format writethrough (formatOnWrite) ---");
 	const wtFmt = createLspWritethrough(REPO, { enableDiagnostics: false, enableFormat: true });

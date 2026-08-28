@@ -19,6 +19,7 @@ import { AuthStorage } from "@oh-my-pi/pi-coding-agent/session/auth-storage";
 import { SessionManager } from "@oh-my-pi/pi-coding-agent/session/session-manager";
 import { EventBus } from "@oh-my-pi/pi-coding-agent/utils/event-bus";
 import { TempDir } from "@oh-my-pi/pi-utils";
+import { sleep } from "@oh-my-pi/pi-utils/async";
 import * as snapcompact from "@oh-my-pi/snapcompact";
 
 const HANDOFF_SECRET = "HANDOFF_SECRET_TOKEN_12345";
@@ -46,7 +47,7 @@ describe("AgentSession handoff", () => {
 	 *  its decision and register any compaction pass as a tracked post-prompt task, then
 	 *  `waitForIdle()` drains that task to completion. */
 	async function drainMaintenance(): Promise<void> {
-		await Bun.sleep(0);
+		await sleep(0);
 		await session.waitForIdle();
 	}
 

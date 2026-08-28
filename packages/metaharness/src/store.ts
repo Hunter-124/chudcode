@@ -10,6 +10,7 @@
 import { Database } from "bun:sqlite";
 import * as fs from "node:fs";
 import * as path from "node:path";
+import { sleepSync } from "@oh-my-pi/pi-utils/async";
 import { readBenchmarkSnapshot } from "./benchmarks";
 import { readJobResult } from "./runner";
 
@@ -172,7 +173,7 @@ function enableWal(db: Database): void {
 			return;
 		} catch (err) {
 			if (attempt < attempts && isBusyLock(err)) {
-				Bun.sleepSync(100);
+				sleepSync(100);
 				continue;
 			}
 			throw err;

@@ -1,5 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { freemem } from "node:os";
+import { sleep } from "@oh-my-pi/pi-utils/async";
 
 const BYTES_PER_MIB = 1024 * 1024;
 const KIB_PER_MIB = 1024;
@@ -56,7 +57,7 @@ export interface MemoryAdmissionOptions {
 }
 
 function sleepWithAbort(ms: number, signal?: AbortSignal): Promise<void> {
-	if (!signal) return Bun.sleep(ms);
+	if (!signal) return sleep(ms);
 	if (signal.aborted) return Promise.resolve();
 	const { promise, resolve } = Promise.withResolvers<void>();
 	const finish = () => {
@@ -84,11 +85,7 @@ export async function waitForAvailableMemory(options: MemoryAdmissionOptions): P
 	const readMemory = options.readMemoryMB ?? readAvailableMemoryMB;
 	const startedAt = now();
 
-	const result = (
-		availableMB: number | undefined,
-		timedOut: boolean,
-		aborted: boolean,
-	): MemoryAdmissionResult => ({
+	const result = (availableMB: number | undefined, timedOut: boolean, aborted: boolean): MemoryAdmissionResult => ({
 		availableMB,
 		waitedMs: Math.max(0, now() - startedAt),
 		timedOut,

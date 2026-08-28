@@ -3,6 +3,7 @@ import * as os from "node:os";
 import * as path from "node:path";
 
 import { postmortem, Snowflake, untilAborted, withTimeout } from "@oh-my-pi/pi-utils";
+import { sleep } from "@oh-my-pi/pi-utils/async";
 import type { HTMLElement } from "@oh-my-pi/pi-utils/dom";
 import type {
 	Browser,
@@ -865,13 +866,13 @@ async function clickQueryHandlerText(
 			const target = await resolveActionableQueryHandlerClickTarget(handles);
 			if (!target) {
 				lastReason = handles.length ? "no-visible-candidate" : "no-matches";
-				await untilAborted(clickSignal, () => Bun.sleep(100));
+				await untilAborted(clickSignal, () => sleep(100));
 				continue;
 			}
 			const actionability = await isClickActionable(target);
 			if (!actionability.ok) {
 				lastReason = actionability.reason;
-				await untilAborted(clickSignal, () => Bun.sleep(100));
+				await untilAborted(clickSignal, () => sleep(100));
 				continue;
 			}
 			try {
@@ -879,7 +880,7 @@ async function clickQueryHandlerText(
 				return;
 			} catch (err) {
 				lastReason = err instanceof Error ? err.message : String(err);
-				await untilAborted(clickSignal, () => Bun.sleep(100));
+				await untilAborted(clickSignal, () => sleep(100));
 			}
 		} finally {
 			await Promise.all(handles.map(async handle => handle.dispose().catch(() => undefined)));
@@ -1364,7 +1365,7 @@ export class WorkerCore {
 			failure = { error };
 		} finally {
 			runAc.abort(postmortem.markExpectedCleanupError(new ToolAbortError("Browser run ended")));
-			await Bun.sleep(0);
+			await sleep(0);
 			try {
 				await runPage?.cleanup();
 			} catch (error) {
@@ -1523,7 +1524,7 @@ export class WorkerCore {
 				throw new ToolError(`${label} failed fast after ${afterMs}ms${formatSelectorMatchHint(0)}`);
 			}
 			try {
-				await untilAborted(signal, () => Bun.sleep(ZERO_MATCH_POLL_MS));
+				await untilAborted(signal, () => sleep(ZERO_MATCH_POLL_MS));
 			} catch {
 				break;
 			}
@@ -1540,7 +1541,7 @@ export class WorkerCore {
 		try {
 			const handles = await Promise.race([
 				this.#requirePage().$$(normalizeSelector(selector)),
-				Bun.sleep(1_000).then(() => null),
+				sleep(1_000).then(() => null),
 			]);
 			if (!handles) return "";
 			const count = handles.length;

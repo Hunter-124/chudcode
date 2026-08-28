@@ -8,6 +8,7 @@ import type {
 	ToolApprovalDecision,
 } from "@oh-my-pi/pi-agent-core";
 import { isEnoent, isFsError, logger, prompt, untilAborted } from "@oh-my-pi/pi-utils";
+import { sleep } from "@oh-my-pi/pi-utils/async";
 import { type Theme, theme } from "../modes/theme/theme";
 import lspDescription from "../prompts/tools/lsp.md" with { type: "text" };
 import type { ToolSession } from "../tools";
@@ -1296,7 +1297,7 @@ export class LspTool implements AgentTool<typeof lspSchema, LspToolDetails, Them
 
 						await waitForProjectLoaded(client, signal);
 						throwIfAborted(signal);
-						await untilAborted(signal, () => Bun.sleep(REFERENCES_RETRY_DELAY_MS));
+						await untilAborted(signal, () => sleep(REFERENCES_RETRY_DELAY_MS));
 					}
 
 					if (!result || result.length === 0) {

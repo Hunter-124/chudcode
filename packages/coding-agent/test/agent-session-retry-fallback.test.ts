@@ -29,6 +29,7 @@ import type { ServingModel } from "@oh-my-pi/pi-coding-agent/session/retry-fallb
 import { SessionManager } from "@oh-my-pi/pi-coding-agent/session/session-manager";
 import { EventBus } from "@oh-my-pi/pi-coding-agent/utils/event-bus";
 import { TempDir } from "@oh-my-pi/pi-utils";
+import { sleep } from "@oh-my-pi/pi-utils/async";
 
 type AutoRetryStartEvent = Extract<AgentSessionEvent, { type: "auto_retry_start" }>;
 type AutoRetryEndEvent = Extract<AgentSessionEvent, { type: "auto_retry_end" }>;
@@ -1977,7 +1978,7 @@ describe("AgentSession retry fallback", () => {
 		await session.newSession();
 		releaseCredential.resolve();
 		await credentialReturned.promise;
-		await Bun.sleep(0);
+		await sleep(0);
 
 		expect(credentialSignal?.aborted).toBe(true);
 		expect(session.getAdvisorAgent()?.state.model).toMatchObject({

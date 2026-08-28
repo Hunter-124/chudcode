@@ -3,6 +3,7 @@
  */
 
 import { OPENAI_HEADER_VALUES } from "@oh-my-pi/pi-catalog/wire/codex";
+import { sleep } from "@oh-my-pi/pi-utils/async";
 import * as AIError from "../../error";
 import type { FetchImpl } from "../../types";
 import { isRecord } from "../../utils";
@@ -288,7 +289,7 @@ export async function loginOpenAICodexDevice(ctrl: OAuthController): Promise<OAu
 	ctrl.onProgress?.(`Waiting for browser authorization (code: ${userCode})…`);
 
 	for (let poll = 0; poll < DEVICE_MAX_POLLS; poll++) {
-		await Bun.sleep(poll === 0 ? Math.min(pollIntervalMs, DEVICE_POLL_INTERVAL_MS) : pollIntervalMs);
+		await sleep(poll === 0 ? Math.min(pollIntervalMs, DEVICE_POLL_INTERVAL_MS) : pollIntervalMs);
 
 		if (ctrl.signal?.aborted) {
 			throw new AIError.LoginCancelledError("Device authorization cancelled");

@@ -16,6 +16,7 @@
 
 import { startRemoteDebugger } from "bun:jsc";
 import * as net from "node:net";
+import { sleep } from "@oh-my-pi/pi-utils/async";
 
 const DEFAULT_HOST = "127.0.0.1";
 /** How long to keep probing for the inspector socket before giving up. */
@@ -88,7 +89,7 @@ async function waitForListening(host: string, port: number): Promise<boolean> {
 	const deadline = Date.now() + PROBE_DEADLINE_MS;
 	do {
 		if (await tryConnect(host, port, PROBE_INTERVAL_MS)) return true;
-		await Bun.sleep(PROBE_INTERVAL_MS);
+		await sleep(PROBE_INTERVAL_MS);
 	} while (Date.now() < deadline);
 	return false;
 }

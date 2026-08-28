@@ -1,6 +1,7 @@
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { getAgentDir, getProjectDir } from "@oh-my-pi/pi-utils";
+import { sleep } from "@oh-my-pi/pi-utils/async";
 import type { DesktopFrame, DesktopRequest } from "./protocol";
 import { createDesktopRuntime, type DesktopFrameSink } from "./runtime";
 import {
@@ -193,7 +194,7 @@ async function readPresence(filePath: string): Promise<Presence | undefined> {
 		} catch (error) {
 			if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
 		}
-		await Bun.sleep(PRESENCE_RETRY_MS);
+		await sleep(PRESENCE_RETRY_MS);
 	}
 	return undefined;
 }

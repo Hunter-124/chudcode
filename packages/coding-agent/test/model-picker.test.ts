@@ -9,6 +9,7 @@ import { resolveSegmentPalette } from "@oh-my-pi/pi-coding-agent/modes/component
 import { getThemeByName, setThemeInstance, theme } from "@oh-my-pi/pi-coding-agent/modes/theme/theme";
 import type { ResolvedRoleModel } from "@oh-my-pi/pi-coding-agent/session/agent-session";
 import type { TUI } from "@oh-my-pi/pi-tui";
+import { sleep } from "@oh-my-pi/pi-utils/async";
 
 function normalize(lines: readonly string[]): string {
 	return stripVTControlCharacters(lines.join("\n")).replace(/\s+/g, " ").trim();
@@ -161,7 +162,7 @@ describe("ModelPicker", () => {
 		refreshGate.resolve();
 		// Not a tuned delay: one zero-length tick drains the component's
 		// refresh().then(...) continuation chain deterministically.
-		await Bun.sleep(0);
+		await sleep(0);
 		picker.handleInput("\n");
 		expect(onPick.mock.calls[0]?.[0]?.id).toBe("cc-model");
 	});

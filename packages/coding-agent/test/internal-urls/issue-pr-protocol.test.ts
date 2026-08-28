@@ -14,6 +14,7 @@ import { InternalUrlRouter } from "@oh-my-pi/pi-coding-agent/internal-urls";
 import { resetForTests as resetCacheForTests } from "@oh-my-pi/pi-coding-agent/tools/github-cache";
 import * as git from "@oh-my-pi/pi-coding-agent/utils/git";
 import { removeWithRetries } from "@oh-my-pi/pi-utils";
+import { sleep } from "@oh-my-pi/pi-utils/async";
 
 let tempDir: string;
 let originalEnv: string | undefined;
@@ -184,7 +185,7 @@ describe("issue:// protocol handler", () => {
 
 		const router = InternalUrlRouter.instance();
 		await router.resolve("issue://owner/example/43");
-		await Bun.sleep(1);
+		await sleep(1);
 		spy.mockImplementation(async () => {
 			throw new Error("offline");
 		});

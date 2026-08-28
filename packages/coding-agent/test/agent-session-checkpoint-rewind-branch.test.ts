@@ -20,6 +20,7 @@ import { SessionManager } from "@oh-my-pi/pi-coding-agent/session/session-manage
 import { CheckpointTool, RewindTool, type ToolSession } from "@oh-my-pi/pi-coding-agent/tools";
 import { EventBus } from "@oh-my-pi/pi-coding-agent/utils/event-bus";
 import { TempDir } from "@oh-my-pi/pi-utils";
+import { sleep } from "@oh-my-pi/pi-utils/async";
 
 const checkpointSchema = type({ goal: type("string") });
 const rewindSchema = type({ report: type("string") });
@@ -305,7 +306,7 @@ describe("AgentSession checkpoint rewind branch context", () => {
 			mock.calls.length < 2
 		) {
 			if (Date.now() > deadline) throw new Error("checkpoint reminder/provider call never appeared");
-			await Bun.sleep(10);
+			await sleep(10);
 		}
 		const reminder = session.messages.find(
 			(message): message is Extract<AgentMessage, { role: "custom" }> =>

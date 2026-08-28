@@ -1,4 +1,5 @@
 import { logger } from "@oh-my-pi/pi-utils";
+import { sleep } from "@oh-my-pi/pi-utils/async";
 
 const DELIVERY_RETRY_BASE_MS = 500;
 const DELIVERY_RETRY_MAX_MS = 30_000;
@@ -612,7 +613,7 @@ export class AsyncJobManager {
 				return false;
 			}
 
-			await Promise.race([loop, Bun.sleep(remainingMs)]);
+			await Promise.race([loop, sleep(remainingMs)]);
 			if (Date.now() >= deadline && this.hasPendingDeliveries(filter)) {
 				return false;
 			}
@@ -908,7 +909,7 @@ export class AsyncJobManager {
 		let timedOut = false;
 		await Promise.race([
 			promise,
-			Bun.sleep(remainingMs).then(() => {
+			sleep(remainingMs).then(() => {
 				timedOut = true;
 			}),
 		]);

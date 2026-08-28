@@ -4,6 +4,7 @@ import * as os from "node:os";
 import * as path from "node:path";
 import * as jj from "@oh-my-pi/pi-coding-agent/utils/jj";
 import { removeWithRetries } from "@oh-my-pi/pi-utils";
+import { sleep } from "@oh-my-pi/pi-utils/async";
 import type { Subprocess } from "bun";
 
 describe("jj workspace detection", () => {
@@ -238,7 +239,7 @@ describe("jj subprocess deadlines", () => {
 		await jj.status.summary("/fake", { timeoutMs: 1 });
 		const signal = calls[0]?.signal;
 		expect(signal?.aborted).toBe(false);
-		await Bun.sleep(10);
+		await sleep(10);
 		expect(signal?.aborted).toBe(true);
 	});
 });

@@ -15,6 +15,7 @@
  * (including `notifications/initialized`) are dropped.
  */
 import * as readline from "node:readline";
+import { sleep } from "@oh-my-pi/pi-utils/async";
 
 export const TOOL_NAME = "late_tool";
 export const TOOL_RESULT = "MCP_LATE_CONNECT_OK_9d21";
@@ -66,7 +67,7 @@ function startServer(): void {
 			}
 			if (msg.id === undefined || msg.id === null) return;
 			if (msg.method === "initialize") {
-				await Bun.sleep(INITIALIZE_DELAY_MS);
+				await sleep(INITIALIZE_DELAY_MS);
 			}
 			const response = { jsonrpc: "2.0" as const, id: msg.id, result: buildResult(msg.method) };
 			process.stdout.write(`${JSON.stringify(response)}\n`);

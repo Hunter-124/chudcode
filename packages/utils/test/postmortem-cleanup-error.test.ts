@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { postmortem } from "@oh-my-pi/pi-utils";
+import { sleep } from "../src/async";
 
 const postmortemModuleUrl = pathToFileURL(join(import.meta.dir, "../src/index.ts")).href;
 
@@ -23,7 +24,7 @@ async function runPostmortemProbe(
 		// Process-level regressions can hang the child; the watchdog bounds the fixture without slowing
 		// green runs (the race resolves on exit). Generous deadline: a cold bun spawn transpiling the
 		// pi-utils module graph can take multiple seconds on a loaded parallel CI runner (observed >2s).
-		const watchdog = Bun.sleep(15_000).then(() => {
+		const watchdog = sleep(15_000).then(() => {
 			proc.kill();
 			return -999;
 		});

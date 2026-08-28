@@ -14,6 +14,7 @@ import {
 	rasterizeSvg,
 } from "@oh-my-pi/pi-natives";
 import { BINARY_SNIFF_BYTES, isEnoent, isProbablyBinaryHeader } from "@oh-my-pi/pi-utils";
+import { sleep } from "@oh-my-pi/pi-utils/async";
 import { parseNumstat } from "../../commit/git/diff";
 import type { NumstatEntry } from "../../commit/types";
 import * as git from "../../utils/git";
@@ -658,7 +659,7 @@ export class GitModel {
 			},
 		);
 		while (!done) {
-			await Bun.sleep(4);
+			await sleep(4);
 			emit();
 		}
 		const progress = await reading;

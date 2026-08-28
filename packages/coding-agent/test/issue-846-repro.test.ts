@@ -18,6 +18,7 @@ import { Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
 import { startMemoryStartupTask } from "@oh-my-pi/pi-coding-agent/memories";
 import * as memoryStorage from "@oh-my-pi/pi-coding-agent/memories/storage";
 import { getAgentDbPath, logger, Snowflake, TempDir } from "@oh-my-pi/pi-utils";
+import { sleep } from "@oh-my-pi/pi-utils/async";
 import { restoreEnvValue } from "./helpers/settings-test-state";
 
 interface SessionLike {
@@ -82,7 +83,7 @@ describe("issue #846: phase1 stage1 failures must be logged", () => {
 		vi.restoreAllMocks();
 		restoreEnvValue("XDG_DATA_HOME", savedXdgData);
 		restoreEnvValue("XDG_STATE_HOME", savedXdgState);
-		await Bun.sleep(0);
+		await sleep(0);
 		for (const dir of tempDirs.splice(0)) {
 			await dir.remove();
 		}
@@ -160,7 +161,7 @@ describe("issue #846: phase1 stage1 failures must be logged", () => {
 				lastError = row.last_error;
 				break;
 			}
-			await Bun.sleep(20);
+			await sleep(20);
 		}
 
 		expect(lastError).not.toBeNull();

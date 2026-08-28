@@ -30,6 +30,7 @@ import type { SessionContext } from "@oh-my-pi/pi-coding-agent/session/session-c
 import { SessionManager } from "@oh-my-pi/pi-coding-agent/session/session-manager";
 import { Container, type TUI } from "@oh-my-pi/pi-tui";
 import { removeSyncWithRetries, Snowflake } from "@oh-my-pi/pi-utils";
+import { sleep } from "@oh-my-pi/pi-utils/async";
 
 // 60s of elapsed: 30s between the prompt and the final response's creation,
 // plus a 30s provider request — formatDuration renders this as "1m".
@@ -544,7 +545,7 @@ describe("AgentSession synthetic follow-up marking", () => {
 			// the (buggy) emission stamp identically — a genuine delay is the only
 			// way to separate the two and prove the entry carries the submission.
 			handler: async () => {
-				await Bun.sleep(150);
+				await sleep(150);
 				return { content: ["Done"] };
 			},
 		});

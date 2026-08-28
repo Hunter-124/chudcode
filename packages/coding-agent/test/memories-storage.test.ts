@@ -17,6 +17,7 @@ import {
 	upsertThreads,
 } from "@oh-my-pi/pi-coding-agent/memories/storage";
 import { getAgentDbPath, TempDir } from "@oh-my-pi/pi-utils";
+import { sleep } from "@oh-my-pi/pi-utils/async";
 
 const GLOBAL_KIND = "memory_consolidate_global";
 const PROJECT_CWD = "/repo";
@@ -69,7 +70,7 @@ describe("memories/storage", () => {
 	});
 
 	afterEach(async () => {
-		await Bun.sleep(0);
+		await sleep(0);
 		vi.restoreAllMocks();
 		await tempDir.remove().catch(() => {});
 	});

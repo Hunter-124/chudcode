@@ -15,6 +15,7 @@ import * as shellSnapshot from "@oh-my-pi/pi-coding-agent/utils/shell-snapshot";
 import type { Shell, ShellRunResult } from "@oh-my-pi/pi-natives";
 import * as piNatives from "@oh-my-pi/pi-natives";
 import { removeSyncWithRetries } from "@oh-my-pi/pi-utils";
+import { sleep } from "@oh-my-pi/pi-utils/async";
 
 // Matches the schema default for `tools.artifactHeadBytes` (20 KB) used by
 // OutputSink when bash-executor pulls settings via resolveOutputSinkHeadBytes.
@@ -56,7 +57,7 @@ function configureBashUserShell(homeDir: string): boolean {
 /** Resolve once `predicate()` holds or `deadlineMs` passes, polling every 2ms. */
 async function pollUntil(predicate: () => boolean, deadlineMs: number): Promise<void> {
 	while (!predicate() && Date.now() < deadlineMs) {
-		await Bun.sleep(2);
+		await sleep(2);
 	}
 }
 
@@ -76,9 +77,9 @@ function releaseGuardedWrite(marker: string, release: string, started?: string):
  * it more than one poll interval to write. A killed command never writes `marker`.
  */
 async function expectMarkerNeverWritten(marker: string, release: string): Promise<void> {
-	await Bun.sleep(KILL_SETTLE_MS);
+	await sleep(KILL_SETTLE_MS);
 	fs.writeFileSync(release, "");
-	await Bun.sleep(KILL_REACT_MS);
+	await sleep(KILL_REACT_MS);
 	expect(fs.existsSync(marker)).toBe(false);
 }
 
@@ -694,7 +695,7 @@ exit 64
 
 		const raced = await Promise.race([
 			promise.then(result => ({ type: "result" as const, result })),
-			Bun.sleep(750).then(() => ({ type: "timeout" as const })),
+			sleep(750).then(() => ({ type: "timeout" as const })),
 		]);
 
 		expect(raced.type).toBe("result");
@@ -739,7 +740,7 @@ exit 64
 		await promise;
 
 		nativeResult.resolve({ exitCode: undefined, cancelled: true, timedOut: false });
-		await Bun.sleep(0);
+		await sleep(0);
 		vi.restoreAllMocks();
 
 		await executeBash("export PI_AFTER_ABORT=still_persistent", {
@@ -881,7 +882,7 @@ exit 64
 		});
 		const startDeadline = Date.now() + 4000;
 		while (!fs.existsSync(startMarker) && Date.now() < startDeadline) {
-			await Bun.sleep(2);
+			await sleep(2);
 		}
 		controller.abort();
 		const aborted = await abortPromise;
@@ -1173,7 +1174,7 @@ exit 64
 		});
 		const timed = await Promise.race([
 			runPromise.then(result => ({ type: "result" as const, result })),
-			Bun.sleep(BACKGROUND_COMPLETION_RACE_MS).then(() => ({ type: "timeout" as const })),
+			sleep(BACKGROUND_COMPLETION_RACE_MS).then(() => ({ type: "timeout" as const })),
 		]);
 
 		expect(timed.type).toBe("result");

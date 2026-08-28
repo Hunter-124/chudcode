@@ -13,6 +13,7 @@ import { getThemeByName, setThemeInstance } from "@oh-my-pi/pi-coding-agent/mode
 import { AuthStorage } from "@oh-my-pi/pi-coding-agent/session/auth-storage";
 import type { TUI } from "@oh-my-pi/pi-tui";
 import { removeSyncWithRetries, Snowflake } from "@oh-my-pi/pi-utils";
+import { sleep } from "@oh-my-pi/pi-utils/async";
 
 function normalizeRenderedText(text: string): string {
 	return stripVTControlCharacters(text).replace(/\s+/g, " ").trim();
@@ -44,12 +45,12 @@ async function createHub(state: ProviderDiscoveryState): Promise<ModelHubCompone
 		onUnassign: () => {},
 		onCancel: () => {},
 	});
-	await Bun.sleep(0);
+	await sleep(0);
 	installTestTheme();
 	// Scope-hop is the default arrow mode: one Down moves All models → the
 	// sole provider entry (separators are skipped).
 	hub.handleInput("\x1b[B");
-	await Bun.sleep(0);
+	await sleep(0);
 	return hub;
 }
 

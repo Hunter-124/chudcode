@@ -14,6 +14,7 @@ import {
 	isSqliteBusyError,
 	isSqliteCorruptionError,
 	logger,
+	sleep,
 } from "@oh-my-pi/pi-utils";
 import type {
 	AuthCredential,
@@ -542,7 +543,7 @@ export class SqliteAuthCredentialStore implements AuthCredentialStore {
 				}
 				lastBusyError = err instanceof Error ? err : new Error(String(err));
 				if (attempt < maxAttempts - 1) {
-					await Bun.sleep(baseDelayMs * 2 ** attempt);
+					await sleep(baseDelayMs * 2 ** attempt);
 				}
 			}
 		}

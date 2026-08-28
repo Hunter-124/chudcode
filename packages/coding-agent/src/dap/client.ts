@@ -1,5 +1,6 @@
 import * as fs from "node:fs/promises";
 import { isEnoent, logger, ptree } from "@oh-my-pi/pi-utils";
+import { sleep } from "@oh-my-pi/pi-utils/async";
 import { NON_INTERACTIVE_ENV } from "../exec/non-interactive-env";
 import { MessageFramer } from "../jsonrpc/message-framing";
 import { ToolAbortError } from "../tools/tool-errors";
@@ -778,7 +779,7 @@ async function waitForCondition(
 		if (proc.exitCode !== null) {
 			throw new Error("Adapter process exited before socket was ready");
 		}
-		await Bun.sleep(50);
+		await sleep(50);
 	}
 	throw new Error(`Socket not ready after ${timeoutMs}ms`);
 }
@@ -854,7 +855,7 @@ async function waitForTcpTransport(
 		try {
 			return await connectTcpSocket(host, port);
 		} catch {
-			await Bun.sleep(50);
+			await sleep(50);
 		}
 	}
 	throw new Error(`TCP port ${host}:${port} was not ready after ${timeoutMs}ms`);
@@ -902,7 +903,7 @@ export async function waitForTcpServerListening(
 		}
 		ready.resolve();
 	})();
-	await Promise.race([ready.promise, Bun.sleep(timeoutMs)]);
+	await Promise.race([ready.promise, sleep(timeoutMs)]);
 }
 
 interface SocketTransport {

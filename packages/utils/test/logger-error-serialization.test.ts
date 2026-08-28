@@ -3,6 +3,7 @@ import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 import { logger } from "@oh-my-pi/pi-utils";
+import { sleep } from "../src/async";
 
 /**
  * Regression: Errors logged via `logger.error("msg", { err })` previously
@@ -57,7 +58,7 @@ async function waitForLogEntry(targetMessage: string): Promise<Record<string, un
 				if (entry.message === targetMessage) return entry;
 			}
 		}
-		await Bun.sleep(25);
+		await sleep(25);
 	}
 	throw new Error(`no log entry with message=${targetMessage} observed`);
 }

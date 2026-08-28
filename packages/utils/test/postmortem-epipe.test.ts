@@ -1,6 +1,7 @@
 import { describe, expect, it } from "bun:test";
 import * as fs from "node:fs";
 import { postmortem } from "@oh-my-pi/pi-utils";
+import { sleep } from "../src/async";
 
 const childFlag = "--stdio-epipe-child";
 const raceChildFlag = "--stdio-epipe-race-child";
@@ -14,7 +15,7 @@ if (unrelatedUncaughtChildFlagIndex >= 0) {
 	setImmediate(() => {
 		throw "unrelated fatal exception";
 	});
-	await Bun.sleep(200);
+	await sleep(200);
 	process.exit(0);
 } else if (uncaughtIpcChildFlagIndex >= 0) {
 	const marker = process.argv[uncaughtIpcChildFlagIndex + 1];
@@ -22,7 +23,7 @@ if (unrelatedUncaughtChildFlagIndex >= 0) {
 	setImmediate(() => {
 		throw Object.assign(new Error("broken pipe"), { code: "EPIPE", syscall: "send" });
 	});
-	await Bun.sleep(100);
+	await sleep(100);
 	await Bun.write(marker, "survived uncaught worker IPC EPIPE");
 	process.exit(0);
 } else if (childFlagIndex >= 0) {

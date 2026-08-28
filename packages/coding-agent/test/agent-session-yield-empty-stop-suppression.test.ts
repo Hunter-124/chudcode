@@ -19,6 +19,7 @@ import { AgentSession } from "@oh-my-pi/pi-coding-agent/session/agent-session";
 import { convertToLlm } from "@oh-my-pi/pi-coding-agent/session/messages";
 import { SessionManager } from "@oh-my-pi/pi-coding-agent/session/session-manager";
 import { TempDir } from "@oh-my-pi/pi-utils";
+import { sleep } from "@oh-my-pi/pi-utils/async";
 import { createInMemoryAuthStorage } from "./helpers/agent-session-setup";
 
 const yieldToolSchema = type({ result: type("unknown") });
@@ -174,7 +175,7 @@ describe("AgentSession yield empty-stop suppression", () => {
 		const prompt = session.prompt("retry once then yield");
 		const outcome = await Promise.race([
 			prompt.then(() => "completed" as const),
-			Bun.sleep(1_000).then(() => "stuck" as const),
+			sleep(1_000).then(() => "stuck" as const),
 		]);
 		if (outcome === "stuck") {
 			session.abortRetry();

@@ -9,6 +9,7 @@ import {
 	findLeadingSlashCommandStart,
 } from "@oh-my-pi/pi-tui/autocomplete";
 import { Editor } from "@oh-my-pi/pi-tui/components/editor";
+import { sleep } from "@oh-my-pi/pi-utils/async";
 import { defaultEditorTheme } from "./test-themes";
 
 function onceAutocompleteUpdate(editor: Editor): Promise<void> {
@@ -117,7 +118,7 @@ describe("Editor hash autocomplete actions", () => {
 		editor.setAutocompleteProvider(provider);
 
 		editor.handleInput("#");
-		await Bun.sleep(0);
+		await sleep(0);
 		editor.handleInput("\r");
 
 		expect(editor.getText()).toBe("");
@@ -133,7 +134,7 @@ describe("Editor slash autocomplete acceptance", () => {
 		);
 
 		editor.handleInput("/");
-		await Bun.sleep(0);
+		await sleep(0);
 		expect(editor.isShowingAutocomplete()).toBe(true);
 
 		editor.handleInput("s");
@@ -741,7 +742,7 @@ describe("Editor Enter handler sync slash completion", () => {
 		};
 
 		editor.handleInput("/mo");
-		await Bun.sleep(0); // Let async autocomplete resolve and set state
+		await sleep(0); // Let async autocomplete resolve and set state
 		editor.handleInput("\r");
 
 		// When autocomplete shows a slash command, Enter applies the completion
@@ -761,7 +762,7 @@ describe("Editor Enter handler sync slash completion", () => {
 		};
 
 		editor.handleInput("  /mo");
-		await Bun.sleep(0);
+		await sleep(0);
 		expect(editor.isShowingAutocomplete()).toBe(true);
 
 		editor.handleInput("\r");
@@ -821,7 +822,7 @@ class TodoSubcommandProvider implements AutocompleteProvider {
 describe("Editor autocomplete invalidation on destructive edits (issue #4295)", () => {
 	async function primeAutocomplete(editor: Editor) {
 		editor.handleInput("/todo s");
-		await Bun.sleep(0);
+		await sleep(0);
 		expect(editor.isShowingAutocomplete()).toBe(true);
 	}
 
@@ -871,7 +872,7 @@ describe("Editor autocomplete invalidation on destructive edits (issue #4295)", 
 		editor.handleInput("\x01"); // Ctrl+A: cursor to line start
 		for (const _ of "/todo ") editor.handleInput("\x06"); // Ctrl+F: forward one char
 		editor.handleInput("s"); // trigger autocomplete for "/todo s"
-		await Bun.sleep(0);
+		await sleep(0);
 		expect(editor.isShowingAutocomplete()).toBe(true);
 
 		editor.handleInput("\x1bd"); // Alt+D: delete word forward (consumes remaining "tart")

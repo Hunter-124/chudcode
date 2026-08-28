@@ -3,6 +3,7 @@ import * as fs from "node:fs/promises";
 import * as net from "node:net";
 import * as os from "node:os";
 import * as path from "node:path";
+import { sleep } from "@oh-my-pi/pi-utils/async";
 import { MessageFramer } from "../src/jsonrpc/message-framing";
 import {
 	MUX_CONNECT_METHOD,
@@ -179,7 +180,7 @@ async function pollUntil(check: () => Promise<boolean>, description: string): Pr
 	const deadline = Date.now() + 5_000;
 	while (Date.now() < deadline) {
 		if (await check()) return;
-		await Bun.sleep(25);
+		await sleep(25);
 	}
 	throw new Error(`Timed out waiting for ${description}`);
 }

@@ -1,5 +1,6 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
+import { sleep } from "../../src/async";
 import * as logger from "../../src/logger";
 
 const scenario = process.argv[2];
@@ -168,7 +169,7 @@ switch (scenario) {
 		});
 		logger.info("after-failed-reconfigure", sinkContext);
 		dispose();
-		await Bun.sleep(20);
+		await sleep(20);
 		writeResult({ reconfigureThrew, sinkCount, sinkSameContext });
 		break;
 	}
@@ -208,7 +209,7 @@ switch (scenario) {
 		for (const [index, date] of dates.entries()) {
 			process.env.OMP_LOGGER_TEST_NOW = date;
 			logger.info(`date-${index + 1}`);
-			await Bun.sleep(10);
+			await sleep(10);
 		}
 		disableTransports();
 		break;

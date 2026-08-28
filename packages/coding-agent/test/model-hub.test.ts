@@ -28,6 +28,7 @@ import {
 	parseConfiguredThinkingLevel,
 } from "@oh-my-pi/pi-coding-agent/thinking";
 import type { TUI } from "@oh-my-pi/pi-tui";
+import { sleep } from "@oh-my-pi/pi-utils/async";
 
 function normalize(lines: readonly string[]): string {
 	return stripVTControlCharacters(lines.join("\n")).replace(/\s+/g, " ").trim();
@@ -1380,18 +1381,18 @@ describe("ModelHub", () => {
 			// 120ms setTimeout (no injection seam), and the fetch completion is
 			// a promise chain — fake timers cannot drive the mixed path.
 			hub.handleInput(DOWN); // All models → prov-a, schedules the refresh
-			await Bun.sleep(140);
+			await sleep(140);
 			expect(refreshProvider).toHaveBeenCalledTimes(1);
 			expect(refreshProvider).toHaveBeenCalledWith("prov-a", "online");
 
 			hub.handleInput(UP); // back to All models
 			hub.handleInput(DOWN); // revisit prov-a
-			await Bun.sleep(140);
+			await sleep(140);
 			// Lifetime guard: revisiting must not re-fetch.
 			expect(refreshProvider).toHaveBeenCalledTimes(1);
 
 			hub.handleInput("\x1b[15~"); // F5
-			await Bun.sleep(140);
+			await sleep(140);
 			expect(refreshProvider).toHaveBeenCalledTimes(2);
 		});
 
@@ -1405,11 +1406,11 @@ describe("ModelHub", () => {
 			installTestTheme();
 
 			hub.handleInput(DOWN);
-			await Bun.sleep(140);
+			await sleep(140);
 			expect(normalize(hub.render(220))).toContain("refreshing model list");
 
 			gate.resolve();
-			await Bun.sleep(0);
+			await sleep(0);
 			expect(normalize(hub.render(220))).not.toContain("refreshing model list");
 		});
 	});

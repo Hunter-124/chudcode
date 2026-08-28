@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "bun:test";
 import { type Component, TUI } from "@oh-my-pi/pi-tui";
+import { sleep } from "@oh-my-pi/pi-utils/async";
 import { withoutTerminalMultiplexer } from "./helpers/terminal-multiplexer";
 import { VirtualTerminal } from "./virtual-terminal";
 
@@ -37,14 +38,14 @@ async function settle(term: VirtualTerminal): Promise<void> {
 	const nextTick = Promise.withResolvers<void>();
 	process.nextTick(nextTick.resolve);
 	await nextTick.promise;
-	await Bun.sleep(40);
+	await sleep(40);
 	await term.flush();
 }
 
 // A non-multiplexer resize paints the viewport immediately and defers the
 // authoritative full paint until the drag settles (120 ms window).
 async function settleResize(term: VirtualTerminal): Promise<void> {
-	await Bun.sleep(160);
+	await sleep(160);
 	await settle(term);
 }
 

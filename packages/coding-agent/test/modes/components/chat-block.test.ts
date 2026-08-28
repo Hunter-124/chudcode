@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from "bun:test";
 import { ChatBlock, type ChatBlockHost } from "@oh-my-pi/pi-coding-agent/modes/components/chat-block";
 import type { Component } from "@oh-my-pi/pi-tui";
+import { sleep } from "@oh-my-pi/pi-utils/async";
 
 /** Concrete subclass exposing the protected lifecycle seams for assertions. */
 class TestBlock extends ChatBlock {
@@ -133,11 +134,11 @@ describe("ChatBlock lifecycle", () => {
 		}
 		const block = new TimerBlock();
 		block.mount(host);
-		await Bun.sleep(25);
+		await sleep(25);
 		expect(renders).toBeGreaterThan(0); // timer fired while active
 		block.finish();
 		const settled = renders; // includes finish()'s own render
-		await Bun.sleep(25);
+		await sleep(25);
 		expect(renders).toBe(settled); // interval torn down — no further ticks
 	});
 });

@@ -1,6 +1,7 @@
 import * as fs from "node:fs";
 import path from "node:path";
 import { logger, untilAborted } from "@oh-my-pi/pi-utils";
+import { sleep } from "@oh-my-pi/pi-utils/async";
 import { formatPathRelativeToCwd } from "../tools/path-utils";
 import { throwIfAborted } from "../tools/tool-errors";
 import { getOrCreateClient, sendRequest, supportsDocumentDiagnostics, waitForProjectLoaded } from "./client";
@@ -258,10 +259,10 @@ export async function waitForDiagnostics(
 
 		const pollMs = Math.min(DIAGNOSTICS_POLL_MS, Math.max(0, deadline - Date.now()));
 		if (!pullResultPromise) {
-			await Bun.sleep(pollMs);
+			await sleep(pollMs);
 			continue;
 		}
-		const pullResult = await Promise.race([pullResultPromise, Bun.sleep(pollMs).then(() => undefined)]);
+		const pullResult = await Promise.race([pullResultPromise, sleep(pollMs).then(() => undefined)]);
 		if (pullResult) {
 			pullResultPromise = undefined;
 			pulled = pullResult.diagnostics;

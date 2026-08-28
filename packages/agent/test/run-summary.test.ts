@@ -20,6 +20,7 @@ import { EXECUTE_TOOL_STATUS_ATTR, GenAIAttr, PiGenAIAggregateAttr } from "@oh-m
 import type { AgentEvent, AgentLoopConfig, AgentMessage, AgentTool } from "@oh-my-pi/pi-agent-core/types";
 import type { AssistantMessage, Message } from "@oh-my-pi/pi-ai";
 import { createMockModel } from "@oh-my-pi/pi-ai/providers/mock";
+import { sleep } from "@oh-my-pi/pi-utils/async";
 import type {
 	AttributeValue,
 	Context as OtelContext,
@@ -531,7 +532,7 @@ describe("onRunEnd is non-fatal", () => {
 		expect(messages.length).toBe(2);
 		// `fireOnRunEnd` can run in `runLoop`'s finally, after `result()` resolves — flush
 		// the trailing microtasks of the fire-and-forget agent loop before asserting.
-		await Bun.sleep(5);
+		await sleep(5);
 
 		expect(warnings.length).toBeGreaterThanOrEqual(1);
 		expect(warnings.some(w => w.code === "on_run_end_failed" && w.message.includes("onRunEnd"))).toBe(true);

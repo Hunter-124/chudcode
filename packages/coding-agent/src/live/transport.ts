@@ -7,6 +7,7 @@ import {
 	OPENAI_HEADERS,
 } from "@oh-my-pi/pi-catalog/wire/codex";
 import { LiveWebRtcPeer } from "@oh-my-pi/pi-natives";
+import { sleep } from "@oh-my-pi/pi-utils/async";
 import { generateCodexAttestation } from "./attestation";
 import {
 	buildLiveSessionPayload,
@@ -242,7 +243,7 @@ export class CodexLiveTransport {
 			} catch (cause) {
 				failure = cause instanceof Error ? cause : new Error(String(cause));
 				if (this.#options.signal?.aborted) throw abortReason(this.#options.signal);
-				if (attempt + 1 < SIDEBAND_CONNECT_ATTEMPTS) await Bun.sleep(200 * 2 ** attempt);
+				if (attempt + 1 < SIDEBAND_CONNECT_ATTEMPTS) await sleep(200 * 2 ** attempt);
 			}
 		}
 		throw failure;

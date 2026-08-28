@@ -24,6 +24,7 @@ import { AgentStorage } from "@oh-my-pi/pi-coding-agent/session/agent-storage";
 import { AUTO_IMAGE_PROVIDER_ORDER } from "@oh-my-pi/pi-coding-agent/tools/image-providers";
 import { SEARCH_PROVIDER_ORDER } from "@oh-my-pi/pi-coding-agent/web/search/types";
 import { getProjectAgentDir, isRecord, TempDir } from "@oh-my-pi/pi-utils";
+import { sleep } from "@oh-my-pi/pi-utils/async";
 import * as fileLock from "@oh-my-pi/pi-utils/file-lock";
 import { YAML } from "bun";
 import { beginSettingsTest, restoreSettingsTestState, type SettingsTestState } from "./helpers/settings-test-state";
@@ -85,7 +86,7 @@ describe("Settings", () => {
 		AgentStorage.resetInstance();
 		restoreSettingsTestState(settingsState);
 		settingsState = undefined;
-		await Bun.sleep(0);
+		await sleep(0);
 		await tempDir?.remove();
 	});
 
@@ -1903,7 +1904,7 @@ describe("Settings", () => {
 				const firstResult = first.result();
 				await firstStarted.promise;
 				const second = streamSimple(mock.model, context());
-				await Bun.sleep(20);
+				await sleep(20);
 
 				expect(settings.get("providers.maxInFlightRequests")).toEqual({ openai: 1 });
 				expect(mock.calls).toHaveLength(1);

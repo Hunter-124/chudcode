@@ -11,6 +11,7 @@ import {
 	type SnapshotResponse,
 	startAuthBroker,
 } from "@oh-my-pi/pi-ai/auth-broker";
+import { sleep } from "@oh-my-pi/pi-utils/async";
 import { removeWithRetries } from "../../utils/src/temp";
 import { withEnv } from "./helpers";
 
@@ -32,7 +33,7 @@ async function waitUntil(predicate: () => boolean, timeoutMs = 2_000): Promise<v
 	const deadline = Date.now() + timeoutMs;
 	while (Date.now() < deadline) {
 		if (predicate()) return;
-		await Bun.sleep(10);
+		await sleep(10);
 	}
 	if (!predicate()) throw new Error("waitUntil timeout");
 }
@@ -246,7 +247,7 @@ describe("RemoteAuthCredentialStore SSE integration", () => {
 		// Parked: no reconnect attempts while the store stays unused.
 		// Real delay on purpose: the idle watchdog runs on real unref'd timers
 		// against a live SSE server, so fake timers cannot drive this path.
-		await Bun.sleep(300);
+		await sleep(300);
 		expect(openSpy.mock.calls.length).toBe(1);
 
 		// Any foreground use wakes the loop and re-establishes the stream.

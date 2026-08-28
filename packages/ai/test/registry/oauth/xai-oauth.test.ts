@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "bun:test";
+import * as piUtils from "@oh-my-pi/pi-utils/async";
 import {
 	buildXAICliBillingUrl,
 	extractXAIAccessTokenSubject,
@@ -400,7 +401,7 @@ describe("loginXAIOAuth", () => {
 	});
 
 	it("continues through authorization_pending and slow_down responses", async () => {
-		const sleepSpy = vi.spyOn(Bun, "sleep").mockResolvedValue(undefined);
+		const sleepSpy = vi.spyOn(piUtils, "sleep").mockResolvedValue(undefined);
 		const { fetchMock, requests } = createDeviceFlowFetch([
 			{ status: 400, body: { error: "authorization_pending" } },
 			{ status: 400, body: { error: "slow_down" } },

@@ -32,6 +32,7 @@ import {
 	OPENAI_HEADERS,
 } from "@oh-my-pi/pi-catalog/wire/codex";
 import { $env, logger, stringifyJson } from "@oh-my-pi/pi-utils";
+import { sleep } from "@oh-my-pi/pi-utils/async";
 
 // ============================================================================
 // Types & Configuration
@@ -248,7 +249,7 @@ export async function requestCompactionV2Streaming(
 	}
 
 	const fetchImpl = options?.fetch ?? globalThis.fetch;
-	const retryWait = options?.retryWait ?? ((delayMs: number) => Bun.sleep(delayMs));
+	const retryWait = options?.retryWait ?? ((delayMs: number) => sleep(delayMs));
 	const isCodexResponses = compactionV2Api(model) === "openai-codex-responses" || model.provider === "openai-codex";
 	const codexMetadata =
 		isCodexResponses && !shouldUseCodexProviderTransport(model)

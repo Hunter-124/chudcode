@@ -6,6 +6,7 @@ import type * as MnemopiCoreNs from "@oh-my-pi/pi-mnemopi/core";
 import type { LocalModelInitializer } from "@oh-my-pi/pi-mnemopi/core";
 import type { MemoryHistoryRow } from "@oh-my-pi/pi-mnemopi/core/beam/types";
 import { logger, toError } from "@oh-my-pi/pi-utils";
+import { sleep } from "@oh-my-pi/pi-utils/async";
 import {
 	composeRecallQuery,
 	formatCurrentTime,
@@ -850,7 +851,7 @@ export class MnemopiSessionState {
 			const remainingMs = deadline - performance.now();
 			const completed =
 				remainingMs > 0
-					? await Promise.race([consolidatePromise.then(() => true), Bun.sleep(remainingMs).then(() => false)])
+					? await Promise.race([consolidatePromise.then(() => true), sleep(remainingMs).then(() => false)])
 					: false;
 			if (!completed) {
 				logger.warn("Mnemopi: consolidate-on-dispose exceeded shutdown budget; detaching to background.", {

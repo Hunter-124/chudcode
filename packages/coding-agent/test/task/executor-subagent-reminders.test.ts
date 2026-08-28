@@ -15,6 +15,7 @@ import {
 import type { AgentDefinition } from "@oh-my-pi/pi-coding-agent/task/types";
 import { EventBus } from "@oh-my-pi/pi-coding-agent/utils/event-bus";
 import { logger } from "@oh-my-pi/pi-utils";
+import { sleep } from "@oh-my-pi/pi-utils/async";
 
 function createAssistantStopMessage(text: string): AssistantMessage {
 	return {
@@ -153,7 +154,7 @@ describe("runSubprocess yield reminders", () => {
 		mutableSession.sendUserMessage = async () => {
 			sendStarted = true;
 			messageInFlight = true;
-			await Bun.sleep(20);
+			await sleep(20);
 			messageInFlight = false;
 		};
 		mutableSession.extensionRunner = {
@@ -528,7 +529,7 @@ describe("runSubprocess yield reminders", () => {
 		});
 
 		await validYieldEmitted.promise;
-		await Bun.sleep(20);
+		await sleep(20);
 		expect(abortCalls).toBe(1);
 		expect(settled).toBe(false);
 

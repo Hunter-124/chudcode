@@ -3,6 +3,7 @@ import * as net from "node:net";
 import * as os from "node:os";
 import * as path from "node:path";
 import { getGlobalDaemonRuntimeDir, isEexist, isEnoent, logger, postmortem } from "@oh-my-pi/pi-utils";
+import { sleep } from "@oh-my-pi/pi-utils/async";
 import { hostHasInheritableConsole } from "../eval/py/spawn-options";
 import { resolveWorkerSpawnCmd, workerEnvFromParent } from "../subprocess/worker-client";
 import { canonicalProjectDir, daemonBrokerEndpoint, daemonRuntimeDir } from "./paths";
@@ -88,7 +89,7 @@ async function readOrCreateToken(runtimeDir: string): Promise<string> {
 		} catch (error) {
 			if (!isEexist(error)) throw error;
 		}
-		await Bun.sleep(10);
+		await sleep(10);
 	}
 	throw new Error(`Timed out initializing daemon broker token in ${runtimeDir}`);
 }
@@ -299,7 +300,7 @@ class SocketDaemonClient implements DaemonBrokerClient {
 				return;
 			} catch (error) {
 				lastError = error instanceof Error ? error : new Error(String(error));
-				await Bun.sleep(CONNECT_RETRY_MS);
+				await sleep(CONNECT_RETRY_MS);
 			}
 		}
 		throw new Error(`Failed to start daemon broker: ${lastError?.message ?? "socket unavailable"}`);

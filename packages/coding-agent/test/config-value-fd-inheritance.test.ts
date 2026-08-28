@@ -26,6 +26,7 @@ import * as os from "node:os";
 import * as path from "node:path";
 import { pathToFileURL } from "node:url";
 import { Process, ProcessStatus } from "@oh-my-pi/pi-natives";
+import { sleep } from "@oh-my-pi/pi-utils/async";
 import { runShellCommand } from "../src/config/resolve-config-value";
 
 const resolverUrl = pathToFileURL(path.join(import.meta.dir, "../src/config/resolve-config-value.ts")).href;
@@ -98,7 +99,7 @@ test.skipIf(process.platform === "win32")(
 		// instead of paying the full window on green.
 		const deadline = Date.now() + 2000;
 		while (Date.now() < deadline && !(await Bun.file(marker).exists())) {
-			await Bun.sleep(50);
+			await sleep(50);
 		}
 		expect(await Bun.file(marker).exists(), "orphaned descendant wrote the marker after the timeout").toBe(false);
 	},
@@ -175,7 +176,7 @@ test.skipIf(process.platform === "win32")(
 		expect(result).toBeUndefined();
 		const deadline = Date.now() + 2000;
 		while (Date.now() < deadline && !(await Bun.file(marker).exists())) {
-			await Bun.sleep(50);
+			await sleep(50);
 		}
 		expect(await Bun.file(marker).exists(), "SIGTERM-ignoring descendant wrote the marker after the timeout").toBe(
 			false,

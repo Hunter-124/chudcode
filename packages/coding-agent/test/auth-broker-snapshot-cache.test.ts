@@ -12,6 +12,7 @@ import {
 } from "@oh-my-pi/pi-ai/auth-broker";
 import { discoverAuthStorage } from "@oh-my-pi/pi-coding-agent/sdk";
 import { removeWithRetries } from "@oh-my-pi/pi-utils";
+import { sleep } from "@oh-my-pi/pi-utils/async";
 
 const ENV_KEYS = [
 	"OMP_AUTH_BROKER_URL",
@@ -51,7 +52,7 @@ async function waitUntil(predicate: () => boolean | Promise<boolean>, timeoutMs 
 	const deadline = Date.now() + timeoutMs;
 	while (Date.now() < deadline) {
 		if (await predicate()) return;
-		await Bun.sleep(10);
+		await sleep(10);
 	}
 	if (!(await predicate())) throw new Error("waitUntil timeout");
 }

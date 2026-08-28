@@ -1,6 +1,7 @@
 import { describe, expect, it } from "bun:test";
 import { type Component, TUI } from "@oh-my-pi/pi-tui";
 import type { Terminal, TerminalAppearance } from "@oh-my-pi/pi-tui/terminal";
+import { sleep } from "@oh-my-pi/pi-utils/async";
 
 class CaptureTerminal implements Terminal {
 	writes: string[] = [];
@@ -72,7 +73,7 @@ class RawLinesComponent implements Component {
 }
 
 async function settle(): Promise<void> {
-	await Bun.sleep(0);
+	await sleep(0);
 }
 
 describe("issue #2045: renderer bounds oversized rows", () => {

@@ -7,6 +7,7 @@ import type { MnemopiLlmCompleteOptions } from "@oh-my-pi/pi-mnemopi/core/runtim
 import type * as MnemopiDiagnoseNs from "@oh-my-pi/pi-mnemopi/diagnose";
 import type { DiagnosticSummary } from "@oh-my-pi/pi-mnemopi/diagnose";
 import { logger } from "@oh-my-pi/pi-utils";
+import { sleep } from "@oh-my-pi/pi-utils/async";
 import type { ModelRegistry } from "../config/model-registry";
 import { resolveRoleSelection } from "../config/model-resolver";
 import type {
@@ -177,7 +178,7 @@ export const mnemopiBackend: MemoryBackend = {
 		// fire-and-forget start() has awaited loadMnemopi() (autolearn disabled, or
 		// taskDepth > 0). resetMemoryForTests is re-exported identically from core.
 		requireMnemopiCore().resetMemoryForTests();
-		await Bun.sleep(0);
+		await sleep(0);
 		await removeDbFiles(getMnemopiScopedDbPaths(config));
 		if (!session?.sessionId || previous?.aliasOf || session.settings.get("memory.backend") !== "mnemopi") return;
 		try {
@@ -680,7 +681,7 @@ async function removeWithRetries(target: string): Promise<void> {
 				typeof err.code === "string" &&
 				kRetryableRemoveErrorCodes.has(err.code);
 			if (!retryable || attempt >= kRemoveRetries) throw err;
-			await Bun.sleep(kRemoveRetryDelayMs);
+			await sleep(kRemoveRetryDelayMs);
 		}
 	}
 }

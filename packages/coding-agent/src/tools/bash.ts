@@ -10,6 +10,7 @@ import type {
 import type { Component } from "@oh-my-pi/pi-tui";
 import { ImageProtocol, TERMINAL } from "@oh-my-pi/pi-tui";
 import { getProjectDir, isEnoent, logger, prompt } from "@oh-my-pi/pi-utils";
+import { sleep } from "@oh-my-pi/pi-utils/async";
 import {
 	DEFAULT_AUTO_BACKGROUND_THRESHOLD_MS,
 	formatBackgroundNotice,
@@ -1139,7 +1140,7 @@ export class BashTool implements AgentTool<typeof bashSchemaBase | typeof bashSc
 			const bridgeWallTimeStart = performance.now();
 			const killGraceMs = 1000;
 			const outputSnapshotGraceMs = 2000;
-			// Cancellable timeout: a bare Bun.sleep(timeoutMs) would leave a live,
+			// Cancellable timeout: a bare sleep(timeoutMs) would leave a live,
 			// ref'd timer for the full command timeout after fast completions —
 			// accumulating timers and delaying process shutdown in SDK/headless use.
 			// `timeoutMs` is optional (#4642): without one, no timer is armed and
@@ -1250,7 +1251,7 @@ export class BashTool implements AgentTool<typeof bashSchemaBase | typeof bashSc
 					const racers: Array<Promise<BridgeRaceResult>> = [
 						exitRacer,
 						timeoutPromise,
-						Bun.sleep(250).then(() => ({ kind: "poll" as const })),
+						sleep(250).then(() => ({ kind: "poll" as const })),
 					];
 					if (signal) {
 						racers.push(abortRacer);
@@ -1258,7 +1259,7 @@ export class BashTool implements AgentTool<typeof bashSchemaBase | typeof bashSc
 					const raced = await Promise.race(racers);
 
 					if (raced.kind === "aborted" || signal?.aborted) {
-						await Promise.race([fireKill(), Bun.sleep(killGraceMs)]);
+						await Promise.race([fireKill(), sleep(killGraceMs)]);
 						throw new ToolAbortError("Command aborted");
 					}
 
@@ -1267,12 +1268,12 @@ export class BashTool implements AgentTool<typeof bashSchemaBase | typeof bashSc
 						// RPC cannot let a timed-out command keep running past the
 						// enforced timeout. The handle stays valid post-kill so the
 						// buffered output is still readable.
-						await Promise.race([fireKill(), Bun.sleep(killGraceMs)]);
+						await Promise.race([fireKill(), sleep(killGraceMs)]);
 						let current = lastPolledOutput;
 						try {
 							current = await Promise.race([
 								handle.currentOutput(),
-								Bun.sleep(outputSnapshotGraceMs).then(() => lastPolledOutput),
+								sleep(outputSnapshotGraceMs).then(() => lastPolledOutput),
 							]);
 						} catch (error) {
 							logger.warn("ACP terminal final output read failed", {
@@ -1321,7 +1322,7 @@ export class BashTool implements AgentTool<typeof bashSchemaBase | typeof bashSc
 				try {
 					finalOutput = await Promise.race([
 						handle.currentOutput(),
-						Bun.sleep(outputSnapshotGraceMs).then(() => lastPolledOutput),
+						sleep(outputSnapshotGraceMs).then(() => lastPolledOutput),
 					]);
 				} catch (error) {
 					logger.warn("ACP terminal final output read failed", {
@@ -1371,7 +1372,7 @@ export class BashTool implements AgentTool<typeof bashSchemaBase | typeof bashSc
 						releaseHandle.release().catch((error: unknown) => {
 							logger.warn("ACP terminal release failed", { terminalId: releaseHandle.terminalId, error });
 						}),
-						Bun.sleep(killGraceMs),
+						sleep(killGraceMs),
 					]);
 				}
 			}

@@ -7,6 +7,7 @@ import {
 	iterateWithIdleTimeout,
 	iterateWithTerminalGrace,
 } from "@oh-my-pi/pi-ai/utils/idle-iterator";
+import { sleep } from "@oh-my-pi/pi-utils/async";
 
 /**
  * Per-provider fallback overrides on the stream-watchdog helpers.
@@ -165,7 +166,7 @@ describe("iterateWithIdleTimeout", () => {
 
 		async function* noProgressItems(): AsyncGenerator<{ type: "keepalive" }> {
 			while (true) {
-				await Bun.sleep(2);
+				await sleep(2);
 				yield { type: "keepalive" };
 			}
 		}
@@ -230,7 +231,7 @@ describe("iterateWithIdleTimeout", () => {
 
 		async function* noProgressItems(): AsyncGenerator<{ type: "keepalive" }> {
 			while (true) {
-				await Bun.sleep(2);
+				await sleep(2);
 				yield { type: "keepalive" };
 			}
 		}
@@ -248,7 +249,7 @@ describe("iterateWithIdleTimeout", () => {
 			break;
 		}
 
-		await Bun.sleep(20);
+		await sleep(20);
 		expect(firstItemTimedOut).toBe(false);
 	});
 
@@ -258,7 +259,7 @@ describe("iterateWithIdleTimeout", () => {
 			try {
 				let n = 0;
 				while (true) {
-					await Bun.sleep(1);
+					await sleep(1);
 					yield `item-${n++}`;
 				}
 			} finally {
@@ -277,7 +278,7 @@ describe("iterateWithIdleTimeout", () => {
 		// The wrapper must propagate the consumer's early termination to the source
 		// so the underlying SSE body / SDK stream (and its socket) is released
 		// instead of being left suspended.
-		await Bun.sleep(5);
+		await sleep(5);
 		expect(upstreamClosed).toBe(true);
 	});
 });
@@ -303,7 +304,7 @@ describe("iterateWithTerminalGrace", () => {
 		let finishedAt: number | undefined;
 		async function* source(): AsyncGenerator<string> {
 			yield "finish";
-			await Bun.sleep(5);
+			await sleep(5);
 			yield "usage";
 			await new Promise<never>(() => {}); // server holds the connection open
 		}
@@ -349,7 +350,7 @@ describe("iterateWithTerminalGrace", () => {
 		// caller can abort the transport and release the parked source read.
 		expect(seen).toEqual(["finish"]);
 		expect(graceEnded).toBe(true);
-		await Bun.sleep(5);
+		await sleep(5);
 		expect(upstreamClosed).toBe(false); // parked mid-await; only the abort can release it
 	});
 });

@@ -4,6 +4,7 @@
  */
 import { type } from "@oh-my-pi/omptype";
 import { getAntigravityUserAgent } from "@oh-my-pi/pi-catalog/wire/gemini-headers";
+import { sleep } from "@oh-my-pi/pi-utils/async";
 import * as AIError from "../../error";
 import { raceWithSignal } from "../../utils/abort";
 import { oauthFetch, runGoogleOAuthLogin, throwIfLoginCancelled } from "./google-oauth-shared";
@@ -248,10 +249,7 @@ async function onboardUser(context: CloudCodeContext): Promise<void> {
 			return;
 		}
 
-		await raceWithSignal(
-			Bun.sleep(Math.min(ONBOARD_POLL_INTERVAL_MS, remainingOnboardTime(deadline))),
-			context.signal,
-		);
+		await raceWithSignal(sleep(Math.min(ONBOARD_POLL_INTERVAL_MS, remainingOnboardTime(deadline))), context.signal);
 		throwIfLoginCancelled(context.signal);
 		const operationName = operation.name ?? "";
 		if (operationName.length === 0) {

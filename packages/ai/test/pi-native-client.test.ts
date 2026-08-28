@@ -11,6 +11,7 @@ import type {
 	ProviderResponseMetadata,
 } from "@oh-my-pi/pi-ai/types";
 import { buildModel } from "@oh-my-pi/pi-catalog/build";
+import { sleep } from "@oh-my-pi/pi-utils/async";
 
 function sseBytes(events: AssistantMessageEvent[]): Uint8Array {
 	const encoder = new TextEncoder();
@@ -498,7 +499,7 @@ describe("streamPiNative event flow", () => {
 			signal: controller.signal,
 		});
 
-		await Bun.sleep(0);
+		await sleep(0);
 		expect(captured.signal?.aborted).toBe(false);
 		controller.abort(new Error("caller aborted"));
 

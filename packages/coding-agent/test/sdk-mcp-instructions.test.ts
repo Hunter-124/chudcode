@@ -9,6 +9,7 @@ import { Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
 import { createAgentSession } from "@oh-my-pi/pi-coding-agent/sdk";
 import { SessionManager } from "@oh-my-pi/pi-coding-agent/session/session-manager";
 import { removeSyncWithRetries, Snowflake } from "@oh-my-pi/pi-utils";
+import { sleep } from "@oh-my-pi/pi-utils/async";
 import { getAgentDir, setAgentDir } from "@oh-my-pi/pi-utils/dirs";
 import {
 	BOUNDED_GUIDANCE_MODE,
@@ -116,7 +117,7 @@ describe("createAgentSession MCP server instructions (deferred UI)", () => {
 			const deadline = Date.now() + 12_000;
 			let prompt = session.systemPrompt.join("\n");
 			while (!prompt.includes(SERVER_INSTRUCTIONS) && Date.now() < deadline) {
-				await Bun.sleep(10);
+				await sleep(10);
 				prompt = session.systemPrompt.join("\n");
 			}
 
@@ -171,7 +172,7 @@ describe("createAgentSession MCP server instructions (deferred UI)", () => {
 			expect(prompt).not.toContain(CONTEXT_MODE_ROUTE);
 			const deadline = Date.now() + 12_000;
 			while (!prompt.includes(CONTEXT_MODE_ROUTE) && Date.now() < deadline) {
-				await Bun.sleep(10);
+				await sleep(10);
 				prompt = session.systemPrompt.join("\n");
 			}
 
@@ -224,7 +225,7 @@ describe("createAgentSession MCP server instructions (deferred UI)", () => {
 			const deadline = Date.now() + 12_000;
 			let prompt = session.systemPrompt.join("\n");
 			while (!prompt.includes(SERVER_INSTRUCTIONS) && Date.now() < deadline) {
-				await Bun.sleep(10);
+				await sleep(10);
 				prompt = session.systemPrompt.join("\n");
 			}
 
@@ -275,7 +276,7 @@ describe("createAgentSession MCP server instructions (deferred UI)", () => {
 			let mountedNames = session.getXdevToolEntries().map(entry => entry.name);
 			let activeNames = session.getActiveToolNames();
 			while ((!mountedNames.includes(MCP_TOOL_NAME) || !activeNames.includes("write")) && Date.now() < deadline) {
-				await Bun.sleep(10);
+				await sleep(10);
 				mountedNames = session.getXdevToolEntries().map(entry => entry.name);
 				activeNames = session.getActiveToolNames();
 			}
@@ -315,7 +316,7 @@ describe("createAgentSession MCP server instructions (deferred UI)", () => {
 			const deadline = Date.now() + 12_000;
 			let prompt = session.systemPrompt.join("\n");
 			while (!prompt.includes(SERVER_INSTRUCTIONS) && Date.now() < deadline) {
-				await Bun.sleep(10);
+				await sleep(10);
 				prompt = session.systemPrompt.join("\n");
 			}
 			const activeNames = session.getActiveToolNames();
@@ -353,12 +354,12 @@ describe("createAgentSession MCP server instructions (deferred UI)", () => {
 			const deadline = Date.now() + 12_000;
 			let prompt = session.systemPrompt.join("\n");
 			while (!prompt.includes(SERVER_INSTRUCTIONS) && Date.now() < deadline) {
-				await Bun.sleep(10);
+				await sleep(10);
 				prompt = session.systemPrompt.join("\n");
 			}
 			let activeNames = session.getActiveToolNames();
 			while (!activeNames.includes(MCP_TOOL_NAME) && Date.now() < deadline) {
-				await Bun.sleep(10);
+				await sleep(10);
 				activeNames = session.getActiveToolNames();
 			}
 

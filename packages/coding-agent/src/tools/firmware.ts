@@ -9,6 +9,7 @@ import type {
 	AgentToolUpdateCallback,
 	ToolApprovalDecision,
 } from "@oh-my-pi/pi-agent-core";
+import { sleep } from "@oh-my-pi/pi-utils/async";
 import type { ToolSession } from ".";
 import { probeTools } from "./analyzers/doctor";
 import { GdbMiSession } from "./analyzers/gdb-mi";
@@ -85,8 +86,7 @@ const TOOL_HINTS: Record<string, string> = {
 	ninja: "Install Ninja (`sudo dnf install ninja-build` or `sudo apt install ninja-build`).",
 	"arm-none-eabi-gcc":
 		"Install the ARM cross-toolchain (`sudo dnf install arm-none-eabi-gcc-cs arm-none-eabi-newlib` or `sudo apt install gcc-arm-none-eabi`).",
-	"arm-none-eabi-gdb":
-		"Install ARM GDB (`sudo dnf install arm-none-eabi-gdb` or `sudo apt install gdb-multiarch`).",
+	"arm-none-eabi-gdb": "Install ARM GDB (`sudo dnf install arm-none-eabi-gdb` or `sudo apt install gdb-multiarch`).",
 	"idf.py": "Install ESP-IDF and source its export.sh so idf.py is on PATH.",
 	"arduino-cli": "Install arduino-cli from https://arduino.github.io/arduino-cli/ and put it on PATH.",
 	"qemu-system-arm": "Install QEMU ARM (`sudo dnf install qemu-system-arm` or `sudo apt install qemu-system-arm`).",
@@ -133,7 +133,7 @@ async function stopProcess(proc: Bun.Subprocess): Promise<void> {
 	try {
 		proc.kill("SIGTERM");
 	} catch {}
-	await Promise.race([proc.exited.then(() => undefined), Bun.sleep(400)]);
+	await Promise.race([proc.exited.then(() => undefined), sleep(400)]);
 	if (proc.exitCode === null) {
 		try {
 			proc.kill("SIGKILL");
@@ -142,10 +142,7 @@ async function stopProcess(proc: Bun.Subprocess): Promise<void> {
 	}
 }
 
-async function readPipe(
-	stream: ReadableStream<Uint8Array>,
-	onChunk: (text: string) => void,
-): Promise<void> {
+async function readPipe(stream: ReadableStream<Uint8Array>, onChunk: (text: string) => void): Promise<void> {
 	const reader = stream.getReader();
 	const decoder = new TextDecoder();
 	try {
@@ -226,11 +223,9 @@ async function fileExists(file: string): Promise<boolean> {
 	}
 }
 
-
 function resolveInput(value: string | undefined, cwd: string, fallback = "."): string {
 	return path.resolve(cwd, value ?? fallback);
 }
-
 
 function parseDiagnostics(text: string): JsonObject[] {
 	const diagnostics: JsonObject[] = [];
@@ -326,7 +321,7 @@ async function waitForPort(
 	while (Date.now() < deadline && proc.exitCode === null) {
 		signal?.throwIfAborted();
 		if (await portIsOpen(port)) return true;
-		await Bun.sleep(100);
+		await sleep(100);
 	}
 	return false;
 }
@@ -335,7 +330,6 @@ function openocdConfig(chip: string): string {
 	if (chip.includes("/") || chip.endsWith(".cfg")) return chip;
 	return `target/${chip}.cfg`;
 }
-
 
 export class FirmwareTool implements AgentTool<typeof firmwareSchema, FirmwareToolDetails> {
 	readonly name = "firmware";
@@ -424,7 +418,12 @@ export class FirmwareTool implements AgentTool<typeof firmwareSchema, FirmwareTo
 				{ name: "qemu-system-arm", versionArgs: ["--version"], versionRegex },
 				{ name: "renode", versionArgs: ["--version"], versionRegex },
 				{ name: "probe-rs", versionArgs: ["--version"], versionRegex },
-				{ name: "esptool", command: Bun.which("esptool") ? "esptool" : "esptool.py", versionArgs: ["version"], versionRegex },
+				{
+					name: "esptool",
+					command: Bun.which("esptool") ? "esptool" : "esptool.py",
+					versionArgs: ["version"],
+					versionRegex,
+				},
 				{ name: "openocd", versionArgs: ["--version"], versionRegex },
 			],
 			{ cwd: this.session.cwd, signal },
@@ -464,7 +463,12 @@ export class FirmwareTool implements AgentTool<typeof firmwareSchema, FirmwareTo
 		const family = params.family ?? "cortex-m";
 		const parent = resolveInput(params.dir, this.session.cwd);
 		const target = path.join(parent, name);
-		if (await fs.stat(target).then(() => true, () => false)) {
+		if (
+			await fs.stat(target).then(
+				() => true,
+				() => false,
+			)
+		) {
 			return failure("project_exists", `Refusing to overwrite existing project path ${target}`);
 		}
 		await fs.mkdir(parent, { recursive: true });
@@ -485,7 +489,10 @@ export class FirmwareTool implements AgentTool<typeof firmwareSchema, FirmwareTo
 					command: `arm-none-eabi-gcc -mcpu=cortex-m3 -mthumb -ffunction-sections -fdata-sections -Wall -Wextra -Og -g -c ${JSON.stringify(file)}`,
 					file,
 				}));
-				await fs.writeFile(path.join(staging, "compile_commands.json"), `${JSON.stringify(compileCommands, null, 2)}\n`);
+				await fs.writeFile(
+					path.join(staging, "compile_commands.json"),
+					`${JSON.stringify(compileCommands, null, 2)}\n`,
+				);
 				await fs.rename(staging, target);
 			} catch (error) {
 				await fs.rm(staging, { recursive: true, force: true });
@@ -576,7 +583,10 @@ export class FirmwareTool implements AgentTool<typeof firmwareSchema, FirmwareTo
 				return failure("tool_missing", toolHint("arduino-cli"), { tool: "arduino-cli" });
 			}
 			if (!params.chip) {
-				return failure("chip_required", "Arduino builds require chip to be an arduino-cli FQBN (for example arduino:avr:uno)");
+				return failure(
+					"chip_required",
+					"Arduino builds require chip to be an arduino-cli FQBN (for example arduino:avr:uno)",
+				);
 			}
 			const buildDir = path.join(root, "build");
 			commands = [["arduino-cli", "compile", "--fqbn", params.chip, "--output-dir", buildDir, root]];
@@ -635,7 +645,8 @@ export class FirmwareTool implements AgentTool<typeof firmwareSchema, FirmwareTo
 			backend = "renode";
 			const explicitResource = machine.startsWith("renode:");
 			const spec = explicitResource ? machine.slice("renode:".length) : machine;
-			if (!spec) return failure("platform_required", "renode: must be followed by a .resc/.repl path or resource name");
+			if (!spec)
+				return failure("platform_required", "renode: must be followed by a .resc/.repl path or resource name");
 			const localSpec = resolveInput(spec, this.session.cwd);
 			const localExists = await fileExists(localSpec);
 			if (!localExists && !explicitResource) {
@@ -643,7 +654,10 @@ export class FirmwareTool implements AgentTool<typeof firmwareSchema, FirmwareTo
 			}
 			let script = localExists ? localSpec : spec;
 			if (!script.endsWith(".resc") || !localExists || explicitResource) {
-				temporaryScript = path.join(await fs.mkdtemp(path.join(process.env.TMPDIR ?? "/tmp", "omp-renode-")), "run.resc");
+				temporaryScript = path.join(
+					await fs.mkdtemp(path.join(process.env.TMPDIR ?? "/tmp", "omp-renode-")),
+					"run.resc",
+				);
 				const runSeconds = Math.max(0.1, timeoutMs / 1000 - 0.25);
 				const resource = localExists ? localSpec : spec;
 				const platformCommand = spec.endsWith(".resc")
@@ -821,7 +835,8 @@ export class FirmwareTool implements AgentTool<typeof firmwareSchema, FirmwareTo
 	}
 
 	private async startDebug(params: FirmwareParams, signal?: AbortSignal): Promise<JsonObject> {
-		if (this.debugSession) return failure("debug_session_active", "Stop the current debug session before starting another");
+		if (this.debugSession)
+			return failure("debug_session_active", "Stop the current debug session before starting another");
 		if (!params.elf) return failure("elf_required", "debug start requires elf");
 		if (!params.chip) return failure("chip_required", "debug start requires chip or an OpenOCD target .cfg");
 		if (!Bun.which("openocd")) return failure("tool_missing", toolHint("openocd"), { tool: "openocd" });
@@ -863,7 +878,10 @@ export class FirmwareTool implements AgentTool<typeof firmwareSchema, FirmwareTo
 		if (!ready) {
 			await stopProcess(openocd);
 			await Promise.allSettled(pumps);
-			return failure("openocd_start_failed", excerpt(`${stdout.text}${stderr.text}`) || "OpenOCD did not open its GDB port");
+			return failure(
+				"openocd_start_failed",
+				excerpt(`${stdout.text}${stderr.text}`) || "OpenOCD did not open its GDB port",
+			);
 		}
 		let gdb: GdbMiSession | undefined;
 		try {

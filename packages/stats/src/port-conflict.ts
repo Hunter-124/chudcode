@@ -2,6 +2,7 @@ import type { Dirent } from "node:fs";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { $which } from "@oh-my-pi/pi-utils";
+import { sleep } from "@oh-my-pi/pi-utils/async";
 import { $ } from "bun";
 
 const STATS_PROBE_TIMEOUT_MS = 500;
@@ -200,7 +201,7 @@ async function terminatePortHolder(holder: PortHolder): Promise<void> {
 	}
 
 	for (let attempt = 0; attempt < PROCESS_EXIT_POLLS; attempt++) {
-		await Bun.sleep(PROCESS_EXIT_POLL_MS);
+		await sleep(PROCESS_EXIT_POLL_MS);
 		try {
 			process.kill(holder.pid, 0);
 		} catch (error) {
@@ -215,7 +216,7 @@ async function terminatePortHolder(holder: PortHolder): Promise<void> {
 		if (error instanceof Error && "code" in error && error.code === "ESRCH") return;
 		throw new Error(`Failed to kill ${holder.image} (PID ${holder.pid})`, { cause: error });
 	}
-	await Bun.sleep(PROCESS_EXIT_POLL_MS);
+	await sleep(PROCESS_EXIT_POLL_MS);
 }
 
 async function reclaimStatsPort(port: number): Promise<"retry"> {

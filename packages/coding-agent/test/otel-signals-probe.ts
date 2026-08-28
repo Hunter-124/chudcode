@@ -20,6 +20,7 @@ import {
 	isTelemetryExportEnabled,
 } from "@oh-my-pi/pi-coding-agent/telemetry-export";
 import { logger } from "@oh-my-pi/pi-utils";
+import { sleep } from "@oh-my-pi/pi-utils/async";
 
 const seen = new Set<string>();
 const metricPayloads: Uint8Array[] = [];
@@ -196,7 +197,7 @@ config.onRunEnd?.(summary, coverage);
 
 await flushTelemetryExport();
 // The metric reader exports on its own interval; wait one cycle then flush.
-await Bun.sleep(700);
+await sleep(700);
 await flushTelemetryExport();
 assertSingleMetricPoint("pi.omp.agent.chat.calls");
 assertSingleMetricPoint("pi.omp.agent.tool.calls");

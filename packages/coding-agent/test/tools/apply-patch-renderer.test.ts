@@ -8,6 +8,7 @@ import * as themeModule from "@oh-my-pi/pi-coding-agent/modes/theme/theme";
 import { toolRenderers } from "@oh-my-pi/pi-coding-agent/tools/renderers";
 import type { TUI } from "@oh-my-pi/pi-tui";
 import { removeWithRetries } from "@oh-my-pi/pi-utils";
+import { sleep } from "@oh-my-pi/pi-utils/async";
 
 async function getUiTheme() {
 	await themeModule.initTheme(false, undefined, undefined, "dark", "light");
@@ -28,7 +29,7 @@ async function waitForRenderedText(
 		if (rendered.includes(expectedText)) {
 			return rendered;
 		}
-		await Bun.sleep(10);
+		await sleep(10);
 	}
 	return rendered;
 }

@@ -19,6 +19,7 @@ import { SetupWizardComponent } from "@oh-my-pi/pi-coding-agent/modes/setup-wiza
 import { initTheme, theme } from "@oh-my-pi/pi-coding-agent/modes/theme/theme";
 import type { InteractiveModeContext } from "@oh-my-pi/pi-coding-agent/modes/types";
 import { SEARCH_PROVIDER_OPTIONS, SEARCH_PROVIDER_ORDER } from "@oh-my-pi/pi-coding-agent/web/search/types";
+import { sleep } from "@oh-my-pi/pi-utils/async";
 
 function fakeContextWithConfiguredModel(): InteractiveModeContext {
 	return {
@@ -321,7 +322,7 @@ describe("setup wizard mouse routing", () => {
 		try {
 			void component.run();
 			component.handleInput("\r"); // splash → scene
-			await Bun.sleep(500); // let the splash→scene dissolve (420ms) finish so the frame is the scene
+			await sleep(500); // let the splash→scene dissolve (420ms) finish so the frame is the scene
 			const frame = component.render(80);
 			const row = frame.findIndex(line => line.includes("MARKER-ROW"));
 			expect(row).toBeGreaterThan(0);
@@ -441,11 +442,11 @@ describe("setup wizard theme previews", () => {
 
 		const controller = setupScene!.mount(host);
 		controller.handleInput?.("5");
-		await Bun.sleep(20);
+		await sleep(20);
 		expect(theme.getSymbolPreset()).toBe("ascii");
 
 		controller.handleInput?.("2");
-		await Bun.sleep(20);
+		await sleep(20);
 		expect(settings.get("symbolPreset")).toBe("nerd");
 		expect(theme.getSymbolPreset()).toBe("nerd");
 	});
@@ -475,11 +476,11 @@ describe("setup wizard glyph scene", () => {
 		const controller = scene!.mount(host);
 		// Row "1" is now Nerd Font (it must lead the list).
 		controller.handleInput?.("1");
-		await Bun.sleep(20);
+		await sleep(20);
 		expect(theme.getSymbolPreset()).toBe("nerd");
 
 		controller.handleInput?.("\n");
-		await Bun.sleep(20);
+		await sleep(20);
 		expect(settings.get("symbolPreset")).toBe("nerd");
 		expect(finished).toBe(true);
 	});
@@ -507,7 +508,7 @@ describe("setup wizard web search tab", () => {
 		const tab = new WebSearchTab(host);
 		tab.handleInput("\x1b[B"); // move off "auto" to the next provider
 		tab.handleInput("\n"); // confirm the highlighted provider
-		await Bun.sleep(20);
+		await sleep(20);
 
 		const expected = SEARCH_PROVIDER_OPTIONS[1]!.value;
 		expect(expected).not.toBe("auto");
@@ -535,7 +536,7 @@ describe("setup wizard web search tab", () => {
 			tab.handleInput("\x1b[B");
 		}
 		tab.handleInput("\n");
-		await Bun.sleep(20);
+		await sleep(20);
 
 		const lastOption = SEARCH_PROVIDER_OPTIONS[SEARCH_PROVIDER_OPTIONS.length - 1]!;
 		const lastValue = lastOption.value;

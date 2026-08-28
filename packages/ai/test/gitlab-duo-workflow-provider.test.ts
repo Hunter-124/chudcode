@@ -42,6 +42,7 @@ import type {
 import { AssistantMessageEventStream } from "@oh-my-pi/pi-ai/utils/event-stream";
 import { buildModel } from "@oh-my-pi/pi-catalog/build";
 import { extractHttpStatusFromError } from "@oh-my-pi/pi-utils";
+import { sleep } from "@oh-my-pi/pi-utils/async";
 
 beforeAll(() => configureCredentialRedaction(true));
 afterAll(() => configureCredentialRedaction(false));
@@ -635,7 +636,7 @@ describe("GitLab Duo Workflow per-account namespace cache", () => {
 		// loaded CI runner and leaves `onopen` undelivered, idling the stream to its 5s timeout.
 		// Poll on a real deadline against the socket factory instead of a turn count.
 		for (let waited = 0; waited < 2000 && !socket; waited += 5) {
-			await Bun.sleep(5);
+			await sleep(5);
 		}
 		if (!socket) throw new Error("GitLab Duo Workflow socket was never opened");
 		socket?.onopen?.(new Event("open"));
@@ -1819,7 +1820,7 @@ describe("GitLab Duo Workflow WebSocket state machine", () => {
 		});
 
 		// Give the setup path one microtask hop to reach the first fetch, then cancel.
-		await Bun.sleep(5);
+		await sleep(5);
 		expect(stalledEndpoints.length).toBeGreaterThan(0);
 		controller.abort(new Error("caller cancelled"));
 
@@ -3747,7 +3748,7 @@ describe("GitLab Duo Workflow WebSocket state machine", () => {
 			webSocketFactory,
 		});
 		for (let attempt = 0; attempt < 10 && !socket; attempt++) {
-			await Bun.sleep(0);
+			await sleep(0);
 		}
 		expect(socket).toBeDefined();
 		socket?.onopen?.(new Event("open"));
@@ -3803,7 +3804,7 @@ describe("GitLab Duo Workflow WebSocket state machine", () => {
 			},
 		);
 		for (let attempt = 0; attempt < 10 && sent.length < 2; attempt++) {
-			await Bun.sleep(0);
+			await sleep(0);
 		}
 		expect(socketCount).toBe(1);
 		expect(JSON.parse(sent[1] ?? "{}")).toEqual({
@@ -4077,7 +4078,7 @@ describe("GitLab Duo Workflow WebSocket state machine", () => {
 			webSocketFactory,
 		});
 		for (let attempt = 0; attempt < 20 && sockets.length < 1; attempt++) {
-			await Bun.sleep(0);
+			await sleep(0);
 		}
 		expect(sockets).toHaveLength(1);
 		sockets[0]?.onopen?.(new Event("open"));
@@ -4136,7 +4137,7 @@ describe("GitLab Duo Workflow WebSocket state machine", () => {
 		);
 		// Resume reuses socket 0 (no new socket yet).
 		for (let attempt = 0; attempt < 20 && sockets.length < 1; attempt++) {
-			await Bun.sleep(0);
+			await sleep(0);
 		}
 		sockets[0]?.onmessage?.(
 			new MessageEvent("message", {
@@ -4162,7 +4163,7 @@ describe("GitLab Duo Workflow WebSocket state machine", () => {
 		);
 		// The stall triggers a fresh workflow → a second socket opens; complete it.
 		for (let attempt = 0; attempt < 50 && sockets.length < 2; attempt++) {
-			await Bun.sleep(0);
+			await sleep(0);
 		}
 		expect(sockets).toHaveLength(2);
 		sockets[1]?.onopen?.(new Event("open"));
@@ -4249,7 +4250,7 @@ describe("GitLab Duo Workflow WebSocket state machine", () => {
 			webSocketFactory,
 		});
 		for (let attempt = 0; attempt < 10 && sockets.length < 1; attempt++) {
-			await Bun.sleep(0);
+			await sleep(0);
 		}
 		sockets[0]?.onopen?.(new Event("open"));
 		sockets[0]?.onmessage?.(
@@ -4289,7 +4290,7 @@ describe("GitLab Duo Workflow WebSocket state machine", () => {
 			},
 		);
 		for (let attempt = 0; attempt < 20 && sockets.length < 2; attempt++) {
-			await Bun.sleep(0);
+			await sleep(0);
 		}
 		sockets[1]?.onopen?.(new Event("open"));
 		sockets[1]?.onmessage?.(new MessageEvent("message", { data: JSON.stringify({ status: "INPUT_REQUIRED" }) }));
@@ -4373,7 +4374,7 @@ describe("GitLab Duo Workflow WebSocket state machine", () => {
 			webSocketFactory,
 		});
 		for (let attempt = 0; attempt < 10 && sockets.length < 1; attempt++) {
-			await Bun.sleep(0);
+			await sleep(0);
 		}
 		sockets[0]?.onopen?.(new Event("open"));
 		sockets[0]?.onmessage?.(
@@ -4414,7 +4415,7 @@ describe("GitLab Duo Workflow WebSocket state machine", () => {
 			},
 		);
 		for (let attempt = 0; attempt < 30 && sockets.length < 2; attempt++) {
-			await Bun.sleep(0);
+			await sleep(0);
 		}
 		sockets[1]?.onopen?.(new Event("open"));
 		sockets[1]?.onmessage?.(new MessageEvent("message", { data: JSON.stringify({ status: "INPUT_REQUIRED" }) }));
@@ -4553,7 +4554,7 @@ describe("GitLab Duo Workflow WebSocket state machine", () => {
 			},
 		);
 		for (let attempt = 0; attempt < 20 && sent.length < 1; attempt++) {
-			await Bun.sleep(0);
+			await sleep(0);
 		}
 		socket?.onopen?.(new Event("open"));
 		socket?.onmessage?.(new MessageEvent("message", { data: JSON.stringify({ status: "INPUT_REQUIRED" }) }));
@@ -4628,7 +4629,7 @@ describe("GitLab Duo Workflow WebSocket state machine", () => {
 			webSocketFactory,
 		});
 		for (let attempt = 0; attempt < 10 && !socket; attempt++) {
-			await Bun.sleep(0);
+			await sleep(0);
 		}
 		expect(socket).toBeDefined();
 		socket?.onopen?.(new Event("open"));
@@ -4663,7 +4664,7 @@ describe("GitLab Duo Workflow WebSocket state machine", () => {
 			},
 		);
 		for (let attempt = 0; attempt < 10 && sent.length < 2; attempt++) {
-			await Bun.sleep(0);
+			await sleep(0);
 		}
 		expect(socketCount).toBe(1);
 		// Server drops the resumed socket without ever sending a terminal status.
@@ -4726,7 +4727,7 @@ describe("GitLab Duo Workflow WebSocket state machine", () => {
 			webSocketFactory,
 		});
 		for (let attempt = 0; attempt < 10 && !socket; attempt++) {
-			await Bun.sleep(0);
+			await sleep(0);
 		}
 		socket?.onopen?.(new Event("open"));
 		socket?.onmessage?.(
@@ -4766,7 +4767,7 @@ describe("GitLab Duo Workflow WebSocket state machine", () => {
 			},
 		);
 		for (let attempt = 0; attempt < 10 && sent.length < 2; attempt++) {
-			await Bun.sleep(0);
+			await sleep(0);
 		}
 		// Resume checkpoint emits a segment then crosses a tool boundary → pause_turn.
 		socket?.onmessage?.(
@@ -4883,7 +4884,7 @@ describe("GitLab Duo Workflow WebSocket state machine", () => {
 		process.on("unhandledRejection", onUnhandled);
 		try {
 			traceGitLabDuoWorkflow("test.event", { message: "safe" });
-			await Bun.sleep(20);
+			await sleep(20);
 			expect(unhandled).toEqual([]);
 		} finally {
 			process.off("unhandledRejection", onUnhandled);

@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "bun:test";
 import type { FetchImpl } from "@oh-my-pi/pi-ai/types";
 import { MCPOAuthFlow, refreshMCPOAuthToken } from "@oh-my-pi/pi-coding-agent/mcp/oauth-flow";
+import { sleep } from "@oh-my-pi/pi-utils/async";
 
 afterEach(() => {
 	vi.restoreAllMocks();
@@ -54,7 +55,7 @@ async function completeLocalOAuthCallback(url: string): Promise<void> {
 			return;
 		} catch (error) {
 			lastError = error;
-			await Bun.sleep(5);
+			await sleep(5);
 		}
 	}
 	throw lastError;

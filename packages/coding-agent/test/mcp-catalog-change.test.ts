@@ -9,6 +9,7 @@ import { ExtensionDashboard } from "@oh-my-pi/pi-coding-agent/modes/components/e
 import { snapshotMcpRuntime } from "@oh-my-pi/pi-coding-agent/modes/components/extensions/mcp-runtime";
 import { initTheme } from "@oh-my-pi/pi-coding-agent/modes/theme/theme";
 import { removeSyncWithRetries } from "@oh-my-pi/pi-utils";
+import { sleep } from "@oh-my-pi/pi-utils/async";
 import { PROMPT_NAME, RESOURCE_NAME, RESOURCE_URI, TOOL_NAME } from "./fixtures/delayed-catalog-mcp";
 
 const FIXTURE_PATH = path.join(import.meta.dir, "fixtures", "delayed-catalog-mcp.ts");
@@ -165,7 +166,7 @@ describe("MCP catalog-change after connect", () => {
 		dashboard.dispose();
 		const paintsAtDispose = paints;
 		await manager.refreshServerResources(SERVER);
-		await Bun.sleep(50);
+		await sleep(50);
 		expect(paints).toBe(paintsAtDispose);
 	}, 20_000);
 });

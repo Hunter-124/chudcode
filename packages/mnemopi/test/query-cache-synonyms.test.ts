@@ -5,6 +5,7 @@ import { join } from "node:path";
 
 import { isEnhancedRecallEnabled, isQueryCacheEnabled, QueryCache } from "@oh-my-pi/pi-mnemopi/core/query-cache";
 import { expandQuery, getSynonyms, normalizeQuery } from "@oh-my-pi/pi-mnemopi/core/synonyms";
+import { sleep } from "@oh-my-pi/pi-utils/async";
 
 const openCaches: QueryCache[] = [];
 
@@ -81,7 +82,7 @@ describe("QueryCache", () => {
 	it("expires entries by TTL and invalidates all tiers", async () => {
 		const qc = cache({ maxSize: 100, ttlSeconds: 0.001 });
 		qc.put("query one", [{ content: "test", score: 0.5 }], [1, 0]);
-		await Bun.sleep(5);
+		await sleep(5);
 
 		expect(qc.get("query one", [1, 0])).toBeNull();
 		expect(qc.misses).toBe(1);

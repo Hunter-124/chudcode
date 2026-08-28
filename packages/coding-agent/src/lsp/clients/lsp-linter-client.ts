@@ -3,6 +3,7 @@
  * Uses the Language Server Protocol for formatting and diagnostics.
  */
 import { untilAborted } from "@oh-my-pi/pi-utils";
+import { sleep } from "@oh-my-pi/pi-utils/async";
 import { getOrCreateClient, notifySaved, sendRequest, syncContent } from "../../lsp/client";
 import { applyTextEditsToString } from "../../lsp/edits";
 import { resolveFormatOptions } from "../../lsp/format-options";
@@ -74,7 +75,7 @@ export class LspLinterClient implements LinterClient {
 			if (publishedDiagnostics !== undefined) {
 				return publishedDiagnostics.diagnostics;
 			}
-			await untilAborted(signal, () => Bun.sleep(100));
+			await untilAborted(signal, () => sleep(100));
 		}
 
 		return client.diagnostics.get(uri)?.diagnostics ?? [];

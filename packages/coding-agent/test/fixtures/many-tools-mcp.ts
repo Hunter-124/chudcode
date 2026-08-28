@@ -17,6 +17,7 @@
  * test; the server only starts when run as the entry module (`import.meta.main`).
  */
 import * as readline from "node:readline";
+import { sleep } from "@oh-my-pi/pi-utils/async";
 
 /** Enough tools to push any small session past TOOL_DISCOVERY_AUTO_THRESHOLD (40). */
 export const MANY_TOOL_COUNT = 45;
@@ -74,7 +75,7 @@ function startServer(): void {
 			// Notifications (no `id`) get no response.
 			if (msg.id === undefined || msg.id === null) return;
 			if (msg.method === "initialize" && initializeDelayMs > 0) {
-				await Bun.sleep(initializeDelayMs);
+				await sleep(initializeDelayMs);
 			}
 			const response = { jsonrpc: "2.0" as const, id: msg.id, result: buildResult(msg.method) };
 			process.stdout.write(`${JSON.stringify(response)}\n`);

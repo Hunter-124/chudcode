@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "bun:test";
 import { connectToServer } from "@oh-my-pi/pi-coding-agent/mcp/client";
 import { HttpTransport } from "@oh-my-pi/pi-coding-agent/mcp/transports/http";
+import { sleep } from "@oh-my-pi/pi-utils/async";
 
 const encoder = new TextEncoder();
 const REQUEST_TIMEOUT_MS = 50;
@@ -44,7 +45,7 @@ function stalledBodyResponse(bodyPrefix: string, init?: ResponseInit): Response 
 async function withPendingGuard<T>(promise: Promise<T>, label: string): Promise<T> {
 	return await Promise.race([
 		promise,
-		Bun.sleep(GUARD_TIMEOUT_MS).then(() => {
+		sleep(GUARD_TIMEOUT_MS).then(() => {
 			throw new Error(`${label} stayed pending past ${GUARD_TIMEOUT_MS}ms`);
 		}),
 	]);

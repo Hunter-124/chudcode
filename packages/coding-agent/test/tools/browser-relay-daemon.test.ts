@@ -2,6 +2,7 @@ import { describe, expect, it } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
+import { sleep } from "@oh-my-pi/pi-utils/async";
 import { createDaemonBrokerClient } from "../../src/launch/client";
 import { findFreeCdpPort } from "../../src/tools/browser/attach";
 import { probeRelayServer } from "../../src/tools/browser/relay/daemon";
@@ -10,7 +11,7 @@ async function waitUntil(condition: () => boolean | Promise<boolean>, timeoutMs:
 	const deadline = Date.now() + timeoutMs;
 	while (Date.now() < deadline) {
 		if (await condition()) return true;
-		await Bun.sleep(50);
+		await sleep(50);
 	}
 	return condition();
 }
@@ -137,7 +138,7 @@ try {
 				if (firstExit !== 0) throw new Error(await new Response(first.stderr).text());
 
 				// The global broker's real idle clock must pass while the second client remains connected.
-				await Bun.sleep(500);
+				await sleep(500);
 				expect(await probeRelayServer(cdpUrl)).toBeTrue();
 
 				second.stdin.end();

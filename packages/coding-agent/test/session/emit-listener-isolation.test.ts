@@ -14,6 +14,7 @@ import { AgentSession } from "@oh-my-pi/pi-coding-agent/session/agent-session";
 import { AuthStorage } from "@oh-my-pi/pi-coding-agent/session/auth-storage";
 import { SessionManager } from "@oh-my-pi/pi-coding-agent/session/session-manager";
 import { removeSyncWithRetries, Snowflake } from "@oh-my-pi/pi-utils";
+import { sleep } from "@oh-my-pi/pi-utils/async";
 
 function makeEvent(): AgentEvent {
 	return { type: "tool_execution_start", toolCallId: "probe-1", toolName: "probe", args: {} };
@@ -53,7 +54,7 @@ describe("#emit listener isolation", () => {
 				});
 
 				agent.emitExternalEvent(makeEvent());
-				await Bun.sleep(10);
+				await sleep(10);
 
 				expect(calls).toEqual(["A", "B"]);
 				expect(unhandled).toEqual([]);
@@ -132,7 +133,7 @@ describe("#emit listener isolation", () => {
 				});
 
 				session.emitNotice("info", "probe", "test");
-				await Bun.sleep(10);
+				await sleep(10);
 
 				expect(calls).toEqual(["A", "B"]);
 				expect(unhandled).toEqual([]);

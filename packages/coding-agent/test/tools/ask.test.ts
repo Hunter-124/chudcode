@@ -13,6 +13,7 @@ import type { ToolSession } from "@oh-my-pi/pi-coding-agent/tools";
 import { AskTool, askToolRenderer } from "@oh-my-pi/pi-coding-agent/tools/ask";
 import { ToolAbortError } from "@oh-my-pi/pi-coding-agent/tools/tool-errors";
 import { TERMINAL } from "@oh-my-pi/pi-tui";
+import { sleep } from "@oh-my-pi/pi-utils/async";
 
 function createSession(overrides: Partial<ToolSession> = {}): ToolSession {
 	return {
@@ -339,7 +340,7 @@ describe("AskTool cancellation", () => {
 		const context = createContext({
 			select: async (_prompt, _options, dialogOptions) => {
 				const timeout = dialogOptions?.timeout ?? 1;
-				await Bun.sleep(timeout + 5);
+				await sleep(timeout + 5);
 				dialogOptions?.onTimeout?.();
 				return "Other (type your own)";
 			},
@@ -1215,7 +1216,7 @@ describe("AskTool multi-question navigation", () => {
 				if (prompt.includes("Second?")) {
 					secondVisits += 1;
 					if (secondVisits === 1) {
-						await Bun.sleep(5);
+						await sleep(5);
 						dialogOptions?.onTimeout?.();
 						return undefined;
 					}

@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, setSystemTime, spyOn, vi } from "bun:t
 import { Container, TUI } from "@oh-my-pi/pi-tui";
 import { Loader, type LoaderMessageColorFn } from "@oh-my-pi/pi-tui/components/loader";
 import { visibleWidth } from "@oh-my-pi/pi-tui/utils";
+import { sleep } from "@oh-my-pi/pi-utils/async";
 import { VirtualTerminal } from "./virtual-terminal";
 
 describe("Loader component", () => {
@@ -23,7 +24,7 @@ describe("Loader component", () => {
 		tui.addChild(loader);
 
 		tui.start();
-		await Bun.sleep(0);
+		await sleep(0);
 		await term.flush();
 
 		for (const line of term.getViewport()) {
@@ -315,7 +316,7 @@ describe("Loader component", () => {
 		const spy = spyOn(tui, "requestComponentRender");
 		loader.dispose();
 		const after = spy.mock.calls.length;
-		await Bun.sleep(40); // longer than the spinner interval
+		await sleep(40); // longer than the spinner interval
 		expect(spy.mock.calls.length).toBe(after);
 		expect(() => loader.dispose()).not.toThrow(); // idempotent
 		tui.stop();

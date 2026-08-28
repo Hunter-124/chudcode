@@ -9,6 +9,7 @@ import * as url from "node:url";
 import { isDefinitiveOAuthFailure, type TSchema } from "@oh-my-pi/pi-ai";
 import type { OAuthCredentials } from "@oh-my-pi/pi-ai/oauth/types";
 import { logger } from "@oh-my-pi/pi-utils";
+import { sleep } from "@oh-my-pi/pi-utils/async";
 import type { EffectiveExtensionRoots, SourceMeta } from "../capability/types";
 import { resolveConfigValue } from "../config/resolve-config-value";
 import type { CustomTool } from "../extensibility/custom-tools/types";
@@ -130,7 +131,7 @@ function trackPromise<T>(promise: Promise<T>): TrackedPromise<T> {
 }
 
 function delay(ms: number): Promise<void> {
-	return Bun.sleep(ms);
+	return sleep(ms);
 }
 
 /**
@@ -1171,7 +1172,7 @@ export class MCPManager {
 						attempt: attempt + 1,
 						error: msg,
 					});
-					await Bun.sleep(delays[attempt]);
+					await sleep(delays[attempt]);
 				} else {
 					logger.error("MCP reconnect failed after retries", { path: `mcp:${name}`, error: msg });
 					this.#emitConnectionStatus({ type: "failed", serverName: name, error: msg });

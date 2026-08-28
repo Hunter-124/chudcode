@@ -5,6 +5,7 @@
 
 import { getGeminiCliHeaders } from "@oh-my-pi/pi-catalog/wire/gemini-headers";
 import { $env } from "@oh-my-pi/pi-utils";
+import { sleep } from "@oh-my-pi/pi-utils/async";
 import * as AIError from "../../error";
 import { oauthFetch, runGoogleOAuthLogin, throwIfLoginCancelled } from "./google-oauth-shared";
 import type { OAuthController, OAuthCredentials } from "./types";
@@ -82,7 +83,7 @@ export async function pollOperation(
 		if (attempt > 0) {
 			onProgress?.(`Waiting for project provisioning (attempt ${attempt + 1}/${POLL_MAX_ATTEMPTS})...`);
 			throwIfLoginCancelled(signal);
-			await Bun.sleep(POLL_INTERVAL_MS);
+			await sleep(POLL_INTERVAL_MS);
 		}
 
 		throwIfLoginCancelled(signal);

@@ -1,4 +1,5 @@
 import type { Terminal, TerminalAppearance } from "@oh-my-pi/pi-tui/terminal";
+import { sleep } from "@oh-my-pi/pi-utils/async";
 import { CELL_U32, CellFlags, KittyTerminal, loadModuleSync } from "kitty-vt-wasm";
 
 // ---------------------------------------------------------------------------
@@ -233,10 +234,10 @@ export class VirtualTerminal implements Terminal {
 		const nextTick = Promise.withResolvers<void>();
 		process.nextTick(nextTick.resolve);
 		await nextTick.promise;
-		await Bun.sleep(40);
+		await sleep(40);
 		if (until) {
 			const deadline = Date.now() + 2_000;
-			while (!until() && Date.now() < deadline) await Bun.sleep(10);
+			while (!until() && Date.now() < deadline) await sleep(10);
 		}
 		await this.flush();
 	}

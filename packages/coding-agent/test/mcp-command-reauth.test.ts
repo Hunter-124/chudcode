@@ -17,6 +17,7 @@ import {
 	removeWithRetries,
 	setAgentDir,
 	setProjectDir,
+	sleep,
 } from "@oh-my-pi/pi-utils";
 
 const RAW_SERVER_URL = `https://\${MCP_HOST}/mcp`;
@@ -468,7 +469,7 @@ describe("/mcp auth commands", () => {
 		// Wait for #handleOAuthFlow to install its editor.onEscape hook.
 		const deadline = Date.now() + 1_000;
 		while (typeof editor.onEscape !== "function" && Date.now() < deadline) {
-			await Bun.sleep(10);
+			await sleep(10);
 		}
 		expect(typeof editor.onEscape).toBe("function");
 
@@ -480,7 +481,7 @@ describe("/mcp auth commands", () => {
 		// failure rather than a suite hang.
 		await Promise.race([
 			reauthPromise,
-			Bun.sleep(2_000).then(() => {
+			sleep(2_000).then(() => {
 				throw new Error("reauth did not resolve within 2s of Esc");
 			}),
 		]);
@@ -524,21 +525,21 @@ describe("/mcp auth commands", () => {
 		const firstReauth = controller.handle("/mcp reauth envserver");
 		const claimDeadline = Date.now() + 1_000;
 		while (!oauthManualInput.hasPending() && Date.now() < claimDeadline) {
-			await Bun.sleep(10);
+			await sleep(10);
 		}
 		expect(oauthManualInput.pendingProviderId).toBe("mcp");
 
 		const replacementReauth = new MCPCommandController(ctx).handle("/mcp reauth envserver");
 		await Promise.race([
 			replacementReauth,
-			Bun.sleep(2_000).then(() => {
+			sleep(2_000).then(() => {
 				throw new Error("replacement reauth did not resolve within 2s");
 			}),
 		]);
 		if (oauthManualInput.hasPending()) editor.onEscape?.();
 		await Promise.race([
 			firstReauth,
-			Bun.sleep(2_000).then(() => {
+			sleep(2_000).then(() => {
 				throw new Error("superseded reauth did not resolve within 2s");
 			}),
 		]);
@@ -567,14 +568,14 @@ describe("/mcp auth commands", () => {
 		const reauthPromise = controller.handle("/mcp reauth envserver");
 		const deadline = Date.now() + 1_000;
 		while (typeof editor.onEscape !== "function" && Date.now() < deadline) {
-			await Bun.sleep(10);
+			await sleep(10);
 		}
 		expect(typeof editor.onEscape).toBe("function");
 		editor.onEscape?.();
 
 		await Promise.race([
 			reauthPromise,
-			Bun.sleep(2_000).then(() => {
+			sleep(2_000).then(() => {
 				throw new Error("reauth did not resolve within 2s of pre-wait Esc");
 			}),
 		]);

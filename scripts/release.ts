@@ -1,4 +1,5 @@
 #!/usr/bin/env bun
+import { sleep } from "@oh-my-pi/pi-utils/async";
 /**
  * Release script for pi-mono
  *
@@ -54,7 +55,7 @@ async function watchCI(): Promise<boolean> {
 
 		if (runs.length === 0) {
 			console.log("  Waiting for CI to start...");
-			await Bun.sleep(3000);
+			await sleep(3000);
 			continue;
 		}
 
@@ -137,7 +138,7 @@ async function watchCI(): Promise<boolean> {
 			return true;
 		}
 
-		await Bun.sleep(5000);
+		await sleep(5000);
 	}
 }
 

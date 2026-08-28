@@ -7,6 +7,7 @@ import {
 	type StoredAuthCredential,
 } from "@oh-my-pi/pi-ai/auth-storage";
 import * as oauthUtils from "@oh-my-pi/pi-ai/registry/oauth";
+import { sleep } from "@oh-my-pi/pi-utils/async";
 
 // Env vars short-circuit AuthStorage.getApiKey before the OAuth refresh path runs; suppress
 // them for every test in this file so the credential-disable code path can be exercised.
@@ -203,7 +204,7 @@ describe("AuthStorage credential_disabled subscriptions", () => {
 			try {
 				disableCredential(authStorage, 1);
 				await settled.promise;
-				await Bun.sleep(0);
+				await sleep(0);
 				expect(unhandled).toHaveLength(0);
 			} finally {
 				process.off("unhandledRejection", onUnhandled);
@@ -336,7 +337,7 @@ describe("AuthStorage credential_disabled subscriptions", () => {
 			try {
 				disableCredential(authStorage, 1);
 				await settled.promise;
-				await Bun.sleep(0);
+				await sleep(0);
 				expect(tailEvents).toHaveLength(1);
 				expect(unhandled).toHaveLength(0);
 			} finally {

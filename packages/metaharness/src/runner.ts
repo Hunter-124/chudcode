@@ -2,6 +2,7 @@
 import { spawnSync } from "node:child_process";
 import * as fs from "node:fs";
 import * as path from "node:path";
+import { sleep } from "@oh-my-pi/pi-utils/async";
 /**
  * Harbor benchmark runner for the local `omp` build.
  *
@@ -1670,7 +1671,7 @@ async function runBenchmark(cfg: Config): Promise<BenchmarkRun> {
 		while (!finished) {
 			render(st);
 			st.tick++;
-			await Bun.sleep(isTTY ? 700 : 10000);
+			await sleep(isTTY ? 700 : 10000);
 		}
 		render(st); // final frame
 	} finally {

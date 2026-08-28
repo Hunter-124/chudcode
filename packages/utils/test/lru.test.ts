@@ -1,4 +1,5 @@
 import { describe, expect, test, vi } from "bun:test";
+import { sleep } from "../src/async";
 import { LRUCache } from "../src/lru";
 
 describe("LRUCache", () => {
@@ -70,7 +71,7 @@ describe("LRUCache", () => {
 		});
 		cache.set("a", 1);
 		// Integration against the cache's performance-based clock requires real elapsed time.
-		await Bun.sleep(20);
+		await sleep(20);
 		const has = cache.has("a");
 		const peek = cache.peek("a");
 		const sizeBeforeGet = cache.size;

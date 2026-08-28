@@ -20,6 +20,7 @@ import { ASIDE_MESSAGE_COMMIT, ASIDE_MESSAGE_DISCARD } from "@oh-my-pi/pi-agent-
 import type { AssistantMessage, AssistantMessageEvent, Context, Message, ToolResultMessage } from "@oh-my-pi/pi-ai";
 import { createMockModel, type MockResponse } from "@oh-my-pi/pi-ai/providers/mock";
 import { AssistantMessageEventStream } from "@oh-my-pi/pi-ai/utils/event-stream";
+import { sleep } from "@oh-my-pi/pi-utils/async";
 import { INTENT_FIELD } from "@oh-my-pi/pi-wire";
 import { createAssistantMessage, createUserMessage } from "./helpers";
 
@@ -2299,7 +2300,7 @@ describe("agentLoop with AgentMessage", () => {
 					// fired, then abort the whole run before resolving.
 					await steerTriggered.promise;
 					abortController.abort();
-					await Bun.sleep(1);
+					await sleep(1);
 				}
 				return {
 					content: [{ type: "text", text: `ok:${params.value}` }],
@@ -3041,7 +3042,7 @@ describe("agentLoop event-driven steering watch", () => {
 			for await (const _event of stream) {
 				// drain
 			}
-			await Bun.sleep(0);
+			await sleep(0);
 
 			expect(drained).toBe(true);
 			expect(watchCanceled).toBe(true);
@@ -3215,7 +3216,7 @@ describe("agentLoop event-driven steering watch", () => {
 			parameters: toolSchema,
 			concurrency: "exclusive",
 			async execute(_toolCallId, params) {
-				await Bun.sleep(0);
+				await sleep(0);
 				return { content: [{ type: "text", text: `ok:${params.value}` }], details: { value: params.value } };
 			},
 		};

@@ -1,4 +1,5 @@
 import * as fs from "node:fs/promises";
+import { sleep } from "@oh-my-pi/pi-utils/async";
 import type { GeneratedProvider } from "../src/models";
 
 const DEFAULT_RUNS = 7;
@@ -277,7 +278,7 @@ async function runProbe(scenario: Scenario, provider: string, holdMs: number): P
 	console.log(JSON.stringify(result));
 	if (holdMs > 0) {
 		console.log(`READY pid=${process.pid}`);
-		await Bun.sleep(holdMs);
+		await sleep(holdMs);
 	}
 }
 
@@ -302,9 +303,7 @@ function medianSample(samples: MemorySample[]): MemorySample {
 
 function probeCommand(): string[] {
 	const entry = Bun.main;
-	return entry === process.execPath || entry.startsWith("/$bunfs/")
-		? [process.execPath]
-		: [process.execPath, entry];
+	return entry === process.execPath || entry.startsWith("/$bunfs/") ? [process.execPath] : [process.execPath, entry];
 }
 
 async function runChild(scenario: Scenario, provider: string): Promise<ProbeResult> {
@@ -318,9 +317,7 @@ async function runChild(scenario: Scenario, provider: string): Promise<ProbeResu
 		child.exited,
 	]);
 	if (exitCode !== 0) throw new Error(`Probe ${scenario} failed (${exitCode}): ${stderr.trim() || stdout.trim()}`);
-	const jsonLine = stdout
-		.split("\n")
-		.find(line => line.startsWith('{"mode":"probe"'));
+	const jsonLine = stdout.split("\n").find(line => line.startsWith('{"mode":"probe"'));
 	if (jsonLine === undefined) throw new Error(`Probe ${scenario} emitted no JSON result: ${stdout.trim()}`);
 	return JSON.parse(jsonLine) as ProbeResult;
 }

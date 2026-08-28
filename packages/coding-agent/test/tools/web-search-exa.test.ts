@@ -14,6 +14,7 @@ import {
 	synthesizeAnswer,
 } from "@oh-my-pi/pi-coding-agent/web/search/providers/exa";
 import { removeWithRetries } from "@oh-my-pi/pi-utils";
+import { sleep } from "@oh-my-pi/pi-utils/async";
 
 async function withLocalAuthStorage<T>(run: (authStorage: AuthStorage) => Promise<T>): Promise<T> {
 	const dir = await fs.mkdtemp(path.join(os.tmpdir(), "web-search-exa-auth-"));
@@ -374,7 +375,7 @@ describe("searchExa", () => {
 		const controller = new AbortController();
 		const startedAt = Date.now();
 		const pending = searchExa({ query: "cancelled request", fetch: fetchMock, signal: controller.signal });
-		await Bun.sleep(0);
+		await sleep(0);
 		controller.abort(new Error("cancelled Exa throttle wait"));
 
 		await expect(pending).rejects.toThrow("cancelled Exa throttle wait");
@@ -403,7 +404,7 @@ describe("searchExa", () => {
 		const second = searchExa({ query: "second request", fetch: fetchMock, signal: secondController.signal });
 		const startedAt = Date.now();
 		const third = searchExa({ query: "third request", fetch: fetchMock, signal: thirdController.signal });
-		await Bun.sleep(0);
+		await sleep(0);
 		thirdController.abort(new Error("cancelled queued Exa throttle wait"));
 
 		await expect(third).rejects.toThrow("cancelled queued Exa throttle wait");

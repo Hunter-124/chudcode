@@ -11,6 +11,7 @@ import type {
 	WorkerOutbound,
 } from "@oh-my-pi/pi-coding-agent/eval/js/worker-protocol";
 import { postmortem } from "@oh-my-pi/pi-utils";
+import { sleep } from "@oh-my-pi/pi-utils/async";
 
 interface WorkerHarness {
 	send(message: WorkerInbound): void;
@@ -195,7 +196,7 @@ describe("WorkerCore", () => {
 			});
 
 			// Drain microtasks so a latent fatal would surface.
-			await Bun.sleep(0);
+			await sleep(0);
 			expect(fatal).toEqual([]);
 		} finally {
 			uninstall();
@@ -282,7 +283,7 @@ describe("WorkerCore", () => {
 				error: { message: "Cannot run code while another same-realm JS runtime is running" },
 			});
 
-			await Bun.sleep(0);
+			await sleep(0);
 			expect(fatal).toEqual([]);
 		} finally {
 			uninstall();

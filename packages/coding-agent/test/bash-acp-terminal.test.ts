@@ -3,6 +3,7 @@ import * as os from "node:os";
 import type { ClientBridge, ClientBridgeTerminalHandle } from "@oh-my-pi/pi-coding-agent/session/client-bridge";
 import type { ToolSession } from "@oh-my-pi/pi-coding-agent/tools";
 import { BashTool } from "@oh-my-pi/pi-coding-agent/tools/bash";
+import * as piUtils from "@oh-my-pi/pi-utils/async";
 
 function makeSession(bridge: ClientBridge): ToolSession {
 	return {
@@ -47,11 +48,11 @@ function shortenAcpWaits(): void {
 			typeof ms === "number" && ms >= 1000 ? 50 : ms,
 			...args,
 		)) as typeof globalThis.setTimeout);
-	const realSleep = Bun.sleep.bind(Bun);
-	spyOn(Bun, "sleep").mockImplementation((duration?: number | Date) => {
+	const realSleep = piUtils.sleep;
+	spyOn(piUtils, "sleep").mockImplementation((duration: number) => {
 		if (duration === 250) return realSleep(1);
-		if (typeof duration === "number" && duration >= 1000) return realSleep(5);
-		return realSleep(duration ?? 0);
+		if (duration >= 1000) return realSleep(5);
+		return realSleep(duration);
 	});
 }
 

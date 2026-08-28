@@ -2,6 +2,7 @@ import * as fs from "node:fs";
 import * as fsp from "node:fs/promises";
 import * as Module from "node:module";
 import * as path from "node:path";
+import { sleep } from "./async";
 
 /**
  * On-demand runtime dependency support for native-heavy optional packages
@@ -318,7 +319,7 @@ async function acquireInstallLock(runtimeDir: string, attempts: number, sleepMs:
 			};
 		} catch (error) {
 			if (!isErrnoCode(error, "EEXIST")) throw error;
-			await Bun.sleep(sleepMs);
+			await sleep(sleepMs);
 		}
 	}
 	throw new Error(`Timed out waiting for runtime install lock: ${lockDir}`);

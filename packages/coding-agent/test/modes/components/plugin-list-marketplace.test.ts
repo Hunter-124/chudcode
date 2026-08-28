@@ -14,6 +14,7 @@ import {
 	PluginSettingsComponent,
 } from "@oh-my-pi/pi-coding-agent/modes/components/plugin-settings";
 import { initTheme } from "@oh-my-pi/pi-coding-agent/modes/theme/theme";
+import { sleep } from "@oh-my-pi/pi-utils/async";
 
 beforeAll(async () => {
 	await initTheme();
@@ -174,7 +175,7 @@ describe("PluginSettingsComponent", () => {
 
 			for (let i = 0; i < 20; i++) {
 				if (stripVTControlCharacters(component.render(120).join("\n")).includes("toggle@mkt")) break;
-				await Bun.sleep(1);
+				await sleep(1);
 			}
 			expect(stripVTControlCharacters(component.render(120).join("\n"))).toContain("toggle@mkt");
 			component.handleInput("\n");
@@ -265,7 +266,7 @@ describe("PluginSettingsComponent", () => {
 
 			for (let i = 0; i < 20; i++) {
 				if (stripVTControlCharacters(component.render(120).join("\n")).includes("survivor@mkt")) break;
-				await Bun.sleep(1);
+				await sleep(1);
 			}
 			expect(stripVTControlCharacters(component.render(120).join("\n"))).toContain("survivor@mkt");
 

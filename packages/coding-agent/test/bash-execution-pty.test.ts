@@ -2,6 +2,7 @@ import { beforeAll, describe, expect, it } from "bun:test";
 import { BashExecutionComponent } from "@oh-my-pi/pi-coding-agent/modes/components/bash-execution";
 import { getThemeByName, setThemeInstance } from "@oh-my-pi/pi-coding-agent/modes/theme/theme";
 import type { TUI } from "@oh-my-pi/pi-tui";
+import { sleep } from "@oh-my-pi/pi-utils/async";
 
 const ui = { requestRender: () => {}, requestComponentRender: () => {} } as unknown as TUI;
 
@@ -12,7 +13,7 @@ async function renderUntil(component: BashExecutionComponent, predicate: (text: 
 	const deadline = Date.now() + 2_000;
 	let text = component.render(100).join("\n");
 	while (!predicate(text) && Date.now() < deadline) {
-		await Bun.sleep(10);
+		await sleep(10);
 		text = component.render(100).join("\n");
 	}
 	return text;

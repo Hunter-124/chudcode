@@ -3,6 +3,7 @@ import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 import { clearCache, readFile } from "@oh-my-pi/pi-coding-agent/capability/fs";
+import { sleep } from "@oh-my-pi/pi-utils/async";
 
 const isWindows = process.platform === "win32";
 
@@ -30,7 +31,7 @@ describe("capability/fs readFile on special files", () => {
 		// kernel read() on the FIFO — there is no promise or event to await and
 		// fake timers cannot advance a syscall. The sleep only bounds the
 		// failure; the passing path returns immediately.
-		const result = await Promise.race([readFile(fifo), Bun.sleep(1500).then(() => "HUNG" as const)]);
+		const result = await Promise.race([readFile(fifo), sleep(1500).then(() => "HUNG" as const)]);
 		if (result === "HUNG") {
 			// Regression path: unblock the leaked FIFO reader so the test
 			// process can exit, then fail on the assertion below.

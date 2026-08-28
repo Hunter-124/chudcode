@@ -8,7 +8,15 @@ import {
 	SqliteAuthCredentialStore,
 	type StoredAuthCredential,
 } from "@oh-my-pi/pi-ai";
-import { AsyncDrain, getAgentDbPath, getDbBusyTimeoutMs, getStatsDbPath, isRecord, logger } from "@oh-my-pi/pi-utils";
+import {
+	AsyncDrain,
+	getAgentDbPath,
+	getDbBusyTimeoutMs,
+	getStatsDbPath,
+	isRecord,
+	logger,
+	sleep,
+} from "@oh-my-pi/pi-utils";
 import type { RawSettings as Settings } from "../config/settings";
 
 /** Row shape for settings table queries */
@@ -392,7 +400,7 @@ FROM model_usage_legacy
 				}
 				lastError = err instanceof Error ? err : new Error(String(err));
 				if (attempt < maxRetries - 1) {
-					await Bun.sleep(baseDelayMs * 2 ** attempt);
+					await sleep(baseDelayMs * 2 ** attempt);
 				}
 			}
 		}
@@ -663,7 +671,7 @@ LIMIT ?4`,
 				}
 				if (rows.length < chunk) break;
 				// Yield so a chunked walk never freezes the TUI (bun:sqlite is sync).
-				await Bun.sleep(0);
+				await sleep(0);
 			}
 			if (sums.size > 0) {
 				const upsert = this.#db.prepare(

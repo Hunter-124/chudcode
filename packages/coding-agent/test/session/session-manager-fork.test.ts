@@ -9,7 +9,14 @@ import {
 import { loadEntriesFromFile } from "@oh-my-pi/pi-coding-agent/session/session-loader";
 import { SessionManager } from "@oh-my-pi/pi-coding-agent/session/session-manager";
 import { getTerminalId } from "@oh-my-pi/pi-tui";
-import { getAgentDir, getTerminalSessionsDir, removeWithRetries, setAgentDir, TempDir } from "@oh-my-pi/pi-utils";
+import {
+	getAgentDir,
+	getTerminalSessionsDir,
+	removeWithRetries,
+	setAgentDir,
+	sleep,
+	TempDir,
+} from "@oh-my-pi/pi-utils";
 
 interface JsonlMessageEntry {
 	type: "message";
@@ -85,7 +92,7 @@ describe("SessionManager.forkFrom", () => {
 			const forked = await SessionManager.forkFrom(sourceFile, cwd, sessionDir, undefined, {
 				suppressBreadcrumb: true,
 			});
-			await Bun.sleep(10);
+			await sleep(10);
 			const cloneFile = forked.getSessionFile();
 			expect(cloneFile).toBeString();
 			if (!cloneFile) throw new Error("expected forked session file");

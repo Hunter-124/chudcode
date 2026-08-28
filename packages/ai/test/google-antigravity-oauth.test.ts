@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "bun:test";
+import * as piUtils from "@oh-my-pi/pi-utils/async";
 import { ANTIGRAVITY_LOAD_CODE_ASSIST_METADATA, loginAntigravity } from "../src/registry/oauth/google-antigravity";
 import * as googleOAuth from "../src/registry/oauth/google-oauth-shared";
 
@@ -145,7 +146,7 @@ describe("Antigravity OAuth project discovery", () => {
 	});
 
 	it("polls a pending onboarding operation with GET after one second", async () => {
-		const sleepSpy = vi.spyOn(Bun, "sleep").mockResolvedValue(undefined);
+		const sleepSpy = vi.spyOn(piUtils, "sleep").mockResolvedValue(undefined);
 		const responses = [
 			{ allowedTiers: [{ id: "free-tier" }] },
 			{ name: "operations/onboard-123" },

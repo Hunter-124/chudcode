@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import { type Component, CURSOR_MARKER, type Focusable, type OverlayFocusOwner, TUI } from "@oh-my-pi/pi-tui";
+import { sleep } from "@oh-my-pi/pi-utils/async";
 import { withoutTerminalMultiplexer } from "./helpers/terminal-multiplexer";
 import { VirtualTerminal } from "./virtual-terminal";
 
@@ -132,13 +133,13 @@ function longestBlankRun(lines: string[]): number {
 
 async function flushRender(term: VirtualTerminal): Promise<void> {
 	await new Promise<void>(resolve => process.nextTick(resolve));
-	await Bun.sleep(40);
+	await sleep(40);
 	await term.flush();
 }
 
 // Resize frames use the alternate buffer until the 120 ms quiet window settles.
 async function settleResize(term: VirtualTerminal): Promise<void> {
-	await Bun.sleep(160);
+	await sleep(160);
 	await flushRender(term);
 }
 

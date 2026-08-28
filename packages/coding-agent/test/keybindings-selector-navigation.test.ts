@@ -13,6 +13,7 @@ import type { SessionTreeNode } from "@oh-my-pi/pi-coding-agent/session/session-
 import type { SessionInfo } from "@oh-my-pi/pi-coding-agent/session/session-listing";
 import { setKeybindings } from "@oh-my-pi/pi-tui";
 import { TempDir } from "@oh-my-pi/pi-utils";
+import { sleep } from "@oh-my-pi/pi-utils/async";
 
 const CTRL_N = "\x0e";
 const CTRL_P = "\x10";
@@ -30,7 +31,7 @@ beforeAll(() => {
 afterEach(async () => {
 	setKeybindings(KeybindingsManager.inMemory());
 	HistoryStorage.resetInstance();
-	await Bun.sleep(0);
+	await sleep(0);
 	await Promise.all(tempDirs.splice(0).map(tempDir => tempDir.remove().catch(() => {})));
 });
 

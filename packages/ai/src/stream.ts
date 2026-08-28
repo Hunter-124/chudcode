@@ -16,6 +16,7 @@ import {
 import { CATALOG_PROVIDERS, type ProviderCatalogEntry } from "@oh-my-pi/pi-catalog/provider-models";
 import { CODEX_BASE_URL } from "@oh-my-pi/pi-catalog/wire/codex";
 import { $env, $pickenv, getProviderInFlightRoot, isEnoent, logger, withExtraCaFetch } from "@oh-my-pi/pi-utils";
+import { sleep } from "@oh-my-pi/pi-utils/async";
 import { getCustomApi } from "./api-registry";
 import { createAuthRetryKeyState, isApiKeyResolver, resolveNextAuthRetryKey } from "./auth-retry";
 import * as AIError from "./error";
@@ -538,7 +539,7 @@ async function removeProviderInFlightLeaseDir(leasePath: string): Promise<void> 
 			if (isEnoent(error)) return;
 			const code = (error as NodeJS.ErrnoException).code;
 			if (attempt < 2 && (code === "EBUSY" || code === "ENOTEMPTY" || code === "EPERM")) {
-				await Bun.sleep(25);
+				await sleep(25);
 				continue;
 			}
 			throw error;

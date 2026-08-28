@@ -12,6 +12,7 @@ import {
 } from "@oh-my-pi/pi-ai";
 import { Loader, Markdown, padding, Spacer, Text, visibleWidth } from "@oh-my-pi/pi-tui";
 import { formatDuration, logger, Snowflake, sanitizeText } from "@oh-my-pi/pi-utils";
+import { sleep } from "@oh-my-pi/pi-utils/async";
 import { shouldEnableAppendOnlyContext } from "../../config/append-only-context-mode";
 import { type BashResult, isPersistentShellCdCommand } from "../../exec/bash-executor";
 import { type LoadedCustomShare, loadCustomShare } from "../../export/custom-share";
@@ -861,7 +862,7 @@ export class CommandController {
 			}
 			// Reload the cache after a brief grace so the new content (if the refresh
 			// completes synchronously on the server) flows into the system prompt.
-			await Bun.sleep(500);
+			await sleep(500);
 			await reloadMentalModelsForSession(state.session);
 		} catch (error) {
 			this.ctx.showError(`mm refresh failed: ${error instanceof Error ? error.message : String(error)}`);
@@ -977,7 +978,7 @@ export class CommandController {
 		if (this.ctx.session.isCompacting) {
 			this.ctx.session.abortCompaction();
 			while (this.ctx.session.isCompacting) {
-				await Bun.sleep(10);
+				await sleep(10);
 			}
 		}
 		if (!(await this.ctx.session.newSession(options))) return;
@@ -1015,7 +1016,7 @@ export class CommandController {
 		if (this.ctx.session.isCompacting) {
 			this.ctx.session.abortCompaction();
 			while (this.ctx.session.isCompacting) {
-				await Bun.sleep(10);
+				await sleep(10);
 			}
 		}
 		const result = await this.ctx.session.resetSessionContext();

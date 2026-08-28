@@ -12,6 +12,7 @@ import {
 } from "@oh-my-pi/pi-coding-agent/memories";
 import * as memoryStorage from "@oh-my-pi/pi-coding-agent/memories/storage";
 import { getAgentDbPath, Snowflake, TempDir } from "@oh-my-pi/pi-utils";
+import { sleep } from "@oh-my-pi/pi-utils/async";
 import { restoreEnvValue } from "./helpers/settings-test-state";
 
 interface SessionFixture {
@@ -120,7 +121,7 @@ beforeAll(async () => {
 
 afterAll(async () => {
 	if (sharedRoot) {
-		await Bun.sleep(0);
+		await sleep(0);
 		await sharedRoot.remove();
 	}
 	sharedRoot = undefined;

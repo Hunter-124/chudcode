@@ -40,6 +40,7 @@
 
 import * as path from "node:path";
 import { parseArgs } from "node:util";
+import { sleep } from "@oh-my-pi/pi-utils/async";
 import STYLE_GUIDE from "./rewrite-system-prompt.style.md" with { type: "text" };
 
 const DEFAULT_INPUT = "packages/coding-agent/src/prompts/system/system-prompt.md";
@@ -442,7 +443,7 @@ export function makeOpenRouterRewriter(opts: OpenRouterOptions): RewriteChunk {
 			} catch (err) {
 				lastErr = err;
 			}
-			if (pending.length > 0 && attempt < opts.retries) await Bun.sleep(400 * (attempt + 1));
+			if (pending.length > 0 && attempt < opts.retries) await sleep(400 * (attempt + 1));
 		}
 		if (pending.length > 0) {
 			console.error(

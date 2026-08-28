@@ -1,6 +1,7 @@
 import { afterEach, beforeAll, describe, expect, it } from "bun:test";
 import { agentPauseGate } from "@oh-my-pi/pi-agent-core";
 import type { Component } from "@oh-my-pi/pi-tui";
+import { sleep } from "@oh-my-pi/pi-utils/async";
 import { Settings } from "../../../src/config/settings";
 import {
 	PauseScreenComponent,
@@ -108,7 +109,7 @@ describe("pause screen", () => {
 			expect(agentPauseGate.paused).toBe(false);
 
 			const run = runPauseScreen(host);
-			await Bun.sleep(1);
+			await sleep(1);
 			expect(agentPauseGate.paused).toBe(true);
 			expect(shown.length).toBe(1);
 
@@ -127,7 +128,7 @@ describe("pause screen", () => {
 		it("treats ctrl+c as resume, never as abort-and-stay-paused", async () => {
 			const { host, shown } = makeHost();
 			const run = runPauseScreen(host);
-			await Bun.sleep(1);
+			await sleep(1);
 
 			const component = shown[0];
 			if (component instanceof PauseScreenComponent) {

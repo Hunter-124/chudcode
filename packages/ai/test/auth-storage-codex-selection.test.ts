@@ -14,6 +14,7 @@ import { type AuthCredentialStore, AuthStorage, SqliteAuthCredentialStore } from
 import * as oauthUtils from "@oh-my-pi/pi-ai/registry/oauth";
 import type { OAuthCredentials } from "@oh-my-pi/pi-ai/registry/oauth/types";
 import type { UsageLimit, UsageProvider, UsageReport } from "@oh-my-pi/pi-ai/usage";
+import { sleep } from "@oh-my-pi/pi-utils/async";
 import { removeWithRetries } from "../../utils/src/temp";
 
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
@@ -2201,7 +2202,7 @@ describe("AuthStorage codex oauth ranking", () => {
 								// to abort the fetch, ranking blocks for this long instead of the
 								// ~10ms timeout path. Kept well above the assertion bound so a broken
 								// timeout is still caught, while leaving generous slack for CI jitter.
-								return Promise.race([promise, Bun.sleep(2_000).then(() => null)]);
+								return Promise.race([promise, sleep(2_000).then(() => null)]);
 							},
 						} satisfies UsageProvider)
 					: undefined,

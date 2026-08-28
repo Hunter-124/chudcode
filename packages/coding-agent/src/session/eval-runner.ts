@@ -1,5 +1,6 @@
 import type { Agent } from "@oh-my-pi/pi-agent-core";
 import { logger } from "@oh-my-pi/pi-utils";
+import { sleep } from "@oh-my-pi/pi-utils/async";
 import type { Settings } from "../config/settings";
 import { disposeJuliaKernelSessionsByOwner } from "../eval/jl/executor";
 import { disposeVmContextsByOwner } from "../eval/js/context-manager";
@@ -196,7 +197,7 @@ export class EvalRunner {
 			if (remainingMs <= 0) return false;
 			const settled = await Promise.race([
 				Promise.allSettled(Array.from(this.#activeExecutions)).then(() => true),
-				Bun.sleep(remainingMs).then(() => false),
+				sleep(remainingMs).then(() => false),
 			]);
 			if (!settled && this.#activeExecutions.size > 0) return false;
 		}

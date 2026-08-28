@@ -17,6 +17,7 @@ import type { AgentMessage, ResolvedThinkingLevel, ThinkingLevel } from "@oh-my-
 import type { Model, ToolExample } from "@oh-my-pi/pi-ai";
 import { formatSessionDumpText, RpcClient } from "@oh-my-pi/pi-coding-agent";
 import { prompt } from "@oh-my-pi/pi-utils";
+import { sleep } from "@oh-my-pi/pi-utils/async";
 import { diffLines } from "diff";
 import { formatDirectory } from "@oh-my-pi/typescript-edit-benchmark/formatter";
 import {
@@ -1280,7 +1281,7 @@ async function runSingleTask(
 							maxProviderFailureRetries,
 							delayMs,
 						);
-						await Bun.sleep(delayMs);
+						await sleep(delayMs);
 						attempt--; // Don't consume a regular attempt slot for provider/auth retries
 						continue;
 					}

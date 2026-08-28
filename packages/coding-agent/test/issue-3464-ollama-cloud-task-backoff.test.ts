@@ -13,6 +13,7 @@ import { SessionManager } from "@oh-my-pi/pi-coding-agent/session/session-manage
 import { Semaphore } from "@oh-my-pi/pi-coding-agent/task/parallel";
 import { wrapStreamFnWithProviderConcurrency } from "@oh-my-pi/pi-coding-agent/task/provider-concurrency";
 import { TempDir } from "@oh-my-pi/pi-utils";
+import { sleep } from "@oh-my-pi/pi-utils/async";
 
 interface Deferred {
 	promise: Promise<void>;
@@ -205,11 +206,11 @@ describe("issue #3464: ollama-cloud task backoff", () => {
 			await semaphore.acquire();
 			admitted.push(2);
 		})();
-		await Bun.sleep(0);
+		await sleep(0);
 		expect(admitted).toEqual([]);
 
 		semaphore.resize(3);
-		await Bun.sleep(0);
+		await sleep(0);
 		expect(admitted).toEqual([1, 2]);
 		await Promise.all([w1, w2]);
 	});
@@ -224,18 +225,18 @@ describe("issue #3464: ollama-cloud task backoff", () => {
 			await semaphore.acquire();
 			admitted = true;
 		})();
-		await Bun.sleep(0);
+		await sleep(0);
 		expect(admitted).toBe(false);
 
 		semaphore.resize(1);
 		semaphore.release();
-		await Bun.sleep(0);
+		await sleep(0);
 		expect(admitted).toBe(false);
 		semaphore.release();
-		await Bun.sleep(0);
+		await sleep(0);
 		expect(admitted).toBe(false);
 		semaphore.release();
-		await Bun.sleep(0);
+		await sleep(0);
 		expect(admitted).toBe(true);
 		await waiter;
 		semaphore.release();
@@ -251,13 +252,13 @@ describe("issue #3464: ollama-cloud task backoff", () => {
 			await semaphore.acquire();
 			admitted = true;
 		})();
-		await Bun.sleep(0);
+		await sleep(0);
 		expect(admitted).toBe(false);
 		semaphore.release();
-		await Bun.sleep(0);
+		await sleep(0);
 		expect(admitted).toBe(false);
 		semaphore.release();
-		await Bun.sleep(0);
+		await sleep(0);
 		expect(admitted).toBe(true);
 		await waiter;
 		semaphore.release();

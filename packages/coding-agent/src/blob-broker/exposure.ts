@@ -11,6 +11,7 @@ import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 import { $which, getSafeProjectCwd, logger } from "@oh-my-pi/pi-utils";
+import { sleep } from "@oh-my-pi/pi-utils/async";
 import { credentialString, type DestinationRuntimeConfig, optionString } from "./uploader-runtime";
 
 /** User-selectable exposure strategy. */
@@ -200,7 +201,7 @@ export async function probeExposureHealth(
 		} catch (error) {
 			finalStatus = error instanceof DOMException && error.name === "TimeoutError" ? "timeout" : "request failed";
 		}
-		if (attempt + 1 < attempts && backoffMs > 0) await Bun.sleep(backoffMs);
+		if (attempt + 1 < attempts && backoffMs > 0) await sleep(backoffMs);
 	}
 
 	throw new Error(`Exposure health probe for ${destination} failed with status ${finalStatus}`);
@@ -278,7 +279,7 @@ async function spawnUrlTunnel(
 		if (exitCode !== null) {
 			throw new Error(`${argv[0]} exited with code ${exitCode} before reporting a tunnel URL`);
 		}
-		await Bun.sleep(150);
+		await sleep(150);
 	}
 	killTunnelProcess(proc);
 	throw new Error(`${argv[0]} did not report a tunnel URL within ${READY_TIMEOUT_MS / 1000}s`);
@@ -503,10 +504,7 @@ export async function startExposure(config: ExposureConfig, port: number): Promi
 				],
 				{ env: process.env, stdin: "ignore", stdout: "ignore", stderr: "ignore", cwd: os.homedir() },
 			);
-			const early = await Promise.race([
-				proc.exited.then(code => code),
-				Bun.sleep(SSH_READY_GRACE_MS).then(() => null),
-			]);
+			const early = await Promise.race([proc.exited.then(code => code), sleep(SSH_READY_GRACE_MS).then(() => null)]);
 			if (early !== null) {
 				throw new Error(`ssh reverse forward to ${config.sshTarget} exited with code ${early}`);
 			}

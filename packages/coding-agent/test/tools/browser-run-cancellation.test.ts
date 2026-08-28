@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "bun:test";
 import * as fs from "node:fs/promises";
 import { postmortem } from "@oh-my-pi/pi-utils";
+import { sleep } from "@oh-my-pi/pi-utils/async";
 import { JsRuntime, type RuntimeHooks } from "../../src/eval/js/shared/runtime";
 import {
 	bindRunFacade,
@@ -243,7 +244,7 @@ describe("browser run cancellation", () => {
 					void combined.catch(reason => {
 						throw reason;
 					});
-					await Bun.sleep(20);
+					await sleep(20);
 				},
 			);
 
@@ -284,7 +285,7 @@ describe("browser run cancellation", () => {
 				} catch (error) {
 					caught = error;
 				}
-				await Bun.sleep(10);
+				await sleep(10);
 			},
 		);
 
@@ -419,7 +420,7 @@ describe("browser run cancellation", () => {
 		void facade.ok().finally(() => {
 			throw new Error("finally failed");
 		});
-		await Bun.sleep(20);
+		await sleep(20);
 
 		const messages = floatingRejections
 			.map(reason => (reason instanceof Error ? reason.message : String(reason)))
@@ -444,7 +445,7 @@ describe("browser run cancellation", () => {
 		void facade.fail().catch(reason => {
 			throw reason;
 		});
-		await Bun.sleep(20);
+		await sleep(20);
 
 		expect(isBrowserRunRejection(browserFailure, owner)).toBe(true);
 		expect(floatingRejections).toEqual([browserFailure]);

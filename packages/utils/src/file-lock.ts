@@ -6,6 +6,7 @@
  */
 import * as path from "node:path";
 import { FileLock as NativeFileLock } from "@oh-my-pi/pi-natives";
+import { sleep } from "./async";
 
 /** Controls bounded waiting when an advisory file lock is contended. */
 export interface FileLockOptions {
@@ -36,7 +37,7 @@ async function acquireLock(filePath: string, options: FileLockOptions = {}): Pro
 	for (let attempt = 0; attempt < opts.retries; attempt++) {
 		const lock = tryAcquireLock(lockPath);
 		if (lock) return lock;
-		if (attempt + 1 < opts.retries) await Bun.sleep(opts.retryDelayMs);
+		if (attempt + 1 < opts.retries) await sleep(opts.retryDelayMs);
 	}
 
 	throw new Error(`Failed to acquire lock for ${filePath} after ${opts.retries} attempts`);

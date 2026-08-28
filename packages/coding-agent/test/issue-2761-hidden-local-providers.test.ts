@@ -11,6 +11,7 @@ import {
 } from "@oh-my-pi/pi-coding-agent/modes/components/model-hub";
 import { getThemeByName, setThemeInstance } from "@oh-my-pi/pi-coding-agent/modes/theme/theme";
 import type { TUI } from "@oh-my-pi/pi-tui";
+import { sleep } from "@oh-my-pi/pi-utils/async";
 
 // Issue #2761: implicit local providers (ollama, llama.cpp, lm-studio) used to
 // get a sidebar tab even when nothing was listening on their endpoint. The hub
@@ -82,7 +83,7 @@ function createHub(registry: ModelRegistry): ModelHubComponent {
 /** Flush the constructor's offline-refresh promise chain and any re-probes. */
 async function settle(): Promise<void> {
 	for (let i = 0; i < 5; i++) {
-		await Bun.sleep(0);
+		await sleep(0);
 	}
 }
 

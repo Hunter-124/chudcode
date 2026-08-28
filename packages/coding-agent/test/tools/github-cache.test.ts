@@ -22,6 +22,7 @@ import {
 import { ToolAbortError, throwIfAborted } from "@oh-my-pi/pi-coding-agent/tools/tool-errors";
 import * as git from "@oh-my-pi/pi-coding-agent/utils/git";
 import { removeWithRetries } from "@oh-my-pi/pi-utils";
+import { sleep } from "@oh-my-pi/pi-utils/async";
 
 const TEST_REPO = "owner/example";
 const TEST_AUTH_KEY = "test-auth";
@@ -447,7 +448,7 @@ describe("getOrFetchView (TTL semantics)", () => {
 		for (let i = 0; i < 100; i++) {
 			const refreshed = getCached<{ refreshed: boolean }>(TEST_REPO, "pr-diff", 52, false);
 			if (refreshed?.payload.refreshed) break;
-			await Bun.sleep(0);
+			await sleep(0);
 		}
 
 		expect(fetchFresh).toHaveBeenCalledTimes(1);

@@ -3,6 +3,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Process, ProcessStatus } from "@oh-my-pi/pi-natives";
+import { sleep } from "@oh-my-pi/pi-utils/async";
 import { encodeTerminalDataBase64, TerminalService } from "../src/services/terminal-service";
 import type { TerminalServiceEvent, TerminalServiceOptions } from "../src/services/terminal-types";
 
@@ -34,7 +35,7 @@ async function waitFor(predicate: () => boolean, message: string, timeoutMs = 5_
 	const deadline = Date.now() + timeoutMs;
 	while (!predicate()) {
 		if (Date.now() >= deadline) throw new Error(`Timed out waiting for ${message}`);
-		await Bun.sleep(10);
+		await sleep(10);
 	}
 }
 

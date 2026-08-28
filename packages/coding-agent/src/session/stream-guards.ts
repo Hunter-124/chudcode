@@ -4,6 +4,7 @@ import { GeminiHeaderRunDetector } from "@oh-my-pi/pi-ai/utils/thinking-loop";
 import { type RepeatedToolCallDetection, ToolCallLoopGuard } from "@oh-my-pi/pi-ai/utils/tool-call-loop-guard";
 import { modelFamilyToken } from "@oh-my-pi/pi-catalog/identity";
 import { logger, prompt } from "@oh-my-pi/pi-utils";
+import { sleep } from "@oh-my-pi/pi-utils/async";
 import type { Settings } from "../config/settings";
 import { normalizeDiff, normalizeToLF, ParseError, previewPatch, stripBom } from "../edit";
 import { type LocalProtocolOptions, resolveLocalUrlToPath } from "../internal-urls";
@@ -287,7 +288,7 @@ export class StreamingEditGuard {
 			confirmed.add(lf);
 			this.#confirmedRemovedLines.set(resolvedPath, confirmed);
 			if (performance.now() - sliceStart > 2) {
-				await Bun.sleep(0);
+				await sleep(0);
 				if (this.#abortTriggered || this.#fileCache.get(resolvedPath) !== cached) return;
 				sliceStart = performance.now();
 			}

@@ -14,6 +14,7 @@ import { hindsightBackend, reloadMentalModelsForSession } from "@oh-my-pi/pi-cod
 import { HindsightApi } from "@oh-my-pi/pi-coding-agent/hindsight/client";
 import type { HindsightSessionState } from "@oh-my-pi/pi-coding-agent/hindsight/state";
 import type { AgentSessionEventListener } from "@oh-my-pi/pi-coding-agent/session/agent-session";
+import { sleep } from "@oh-my-pi/pi-utils/async";
 
 interface FakeSessionDeps {
 	sessionId: string | null;
@@ -164,14 +165,14 @@ describe("hindsightBackend.start", () => {
 		entries.push({ role: "user", text: "first user message that is long enough" });
 		entries.push({ role: "assistant", text: "first assistant reply that is long enough" });
 		session.emit({ type: "agent_end", messages: [] });
-		await Bun.sleep(0);
+		await sleep(0);
 		expect(retainSpy).toHaveBeenCalledTimes(0);
 
 		// Turn 2: hits the threshold
 		entries.push({ role: "user", text: "second user message that is long enough" });
 		entries.push({ role: "assistant", text: "second reply that is long enough" });
 		session.emit({ type: "agent_end", messages: [] });
-		await Bun.sleep(0);
+		await sleep(0);
 		expect(retainSpy).toHaveBeenCalledTimes(1);
 		expect(retainSpy.mock.calls[0]?.[2]?.timestamp).toBeInstanceOf(Date);
 	});
@@ -604,7 +605,7 @@ describe("hindsightBackend live bank routing", () => {
 
 		settings.set("hindsight.bankId", "Minigames");
 		// Hook is sync but the rebuild is async; yield once so the handler runs.
-		await Bun.sleep(0);
+		await sleep(0);
 
 		const next = session.getHindsightSessionState();
 		expect(next?.bankId).toBe("Minigames");
@@ -636,7 +637,7 @@ describe("hindsightBackend live bank routing", () => {
 		expect(initial?.retainTags).toBeUndefined();
 
 		settings.set("hindsight.scoping", "per-project");
-		await Bun.sleep(0);
+		await sleep(0);
 
 		const next = session.getHindsightSessionState();
 		expect(next?.bankId).toBe("omp-proj");
@@ -665,7 +666,7 @@ describe("hindsightBackend live bank routing", () => {
 
 		const initial = session.getHindsightSessionState();
 		settings.set("hindsight.bankId", "omp"); // unchanged
-		await Bun.sleep(0);
+		await sleep(0);
 
 		expect(session.getHindsightSessionState()).toBe(initial);
 	});
@@ -700,7 +701,7 @@ describe("hindsightBackend live bank routing", () => {
 		// Operator clears the bankId via the TUI — `settings.set(path, "")` is
 		// the same call shape `#setSettingValue` uses for an empty text input.
 		settings.set("hindsight.bankId", "");
-		await Bun.sleep(0);
+		await sleep(0);
 
 		const next = session.getHindsightSessionState();
 		expect(next).not.toBe(initial);
@@ -739,7 +740,7 @@ describe("hindsightBackend live bank routing", () => {
 		expect(session.getHindsightSessionState()?.bankId).toBe("Minigames-_NEW_XenGameKit");
 
 		settings.set("hindsight.bankId", "");
-		await Bun.sleep(0);
+		await sleep(0);
 
 		const next = session.getHindsightSessionState();
 		expect(next?.bankId).toBe("omp");
@@ -782,14 +783,14 @@ describe("hindsightBackend live bank routing", () => {
 		settings.set("hindsight.bankIdPrefix", "live");
 		settings.set("hindsight.bankId", "Minigames");
 		settings.set("hindsight.scoping", "per-project");
-		await Bun.sleep(0);
+		await sleep(0);
 
 		const next = session.getHindsightSessionState();
 		expect(next?.bankId).toBe("live-Minigames-proj");
 		expect(session.listenerCount()).toBe(1);
 
 		session.emit({ type: "agent_end", messages: [] });
-		await Bun.sleep(0);
+		await sleep(0);
 
 		expect(retainSpy).toHaveBeenCalledTimes(1);
 		expect(retainSpy.mock.calls[0][0]).toBe("live-Minigames-proj");

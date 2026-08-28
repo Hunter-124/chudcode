@@ -16,6 +16,7 @@ import {
 } from "@oh-my-pi/pi-catalog/discovery/cursor-proto";
 import { create, fromBinary, toBinary } from "@oh-my-pi/pi-catalog/discovery/protobuf";
 import type { ModelSpec } from "@oh-my-pi/pi-catalog/types";
+import { sleep } from "@oh-my-pi/pi-utils/async";
 
 const CONNECT_END_STREAM_FLAG = 0b00000010;
 
@@ -143,7 +144,7 @@ async function startServer(): Promise<string> {
 
 			// This HTTP/2 integration fixture verifies reported performance.now()
 			// latency; fake timers would also stall the transport events under test.
-			if (response.delayMs) await Bun.sleep(response.delayMs);
+			if (response.delayMs) await sleep(response.delayMs);
 			stream.respond({
 				":status": 200,
 				"content-type": "application/connect+proto",

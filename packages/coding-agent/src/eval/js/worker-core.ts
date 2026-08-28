@@ -1,3 +1,4 @@
+import { sleep } from "@oh-my-pi/pi-utils/async";
 import { ToolError } from "../../tools/tool-errors";
 import { JsRuntime, type RuntimeHooks } from "./shared/runtime";
 import type {
@@ -298,7 +299,7 @@ export class WorkerCore {
 			// One event-loop turn so rejections the cell already floated surface
 			// while this run can still own them (rejection callbacks run before
 			// timers fire).
-			await Bun.sleep(0);
+			await sleep(0);
 			result = foldFloatingRejections(active, result, hooks);
 		} finally {
 			this.#runs.delete(runId);

@@ -13,6 +13,7 @@ import * as net from "node:net";
 import * as os from "node:os";
 import * as path from "node:path";
 import { logger, ptree } from "@oh-my-pi/pi-utils";
+import { sleep } from "@oh-my-pi/pi-utils/async";
 import { MessageFramer } from "../../jsonrpc/message-framing";
 import { daemonClientForProject } from "../../launch/client";
 import { describeQuietly, stopQuietly, waitReady } from "../../launch/ensure";
@@ -336,7 +337,7 @@ export async function smokeTestLspMux(): Promise<void> {
 				alive = true;
 				break;
 			}
-			await Bun.sleep(200);
+			await sleep(200);
 		}
 		if (!alive) {
 			throw new Error(`lsp mux smoke failed: no ping response (${proc.peekStderr().slice(-500) || "no stderr"})`);

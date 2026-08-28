@@ -1,5 +1,6 @@
 import * as path from "node:path";
 import { isEnoent, logger, postmortem, ptree, stableStringifyJson, untilAborted } from "@oh-my-pi/pi-utils";
+import { sleep } from "@oh-my-pi/pi-utils/async";
 import { MessageFramer } from "../jsonrpc/message-framing";
 import { ToolAbortError, throwIfAborted } from "../tools/tool-errors";
 import { applyWorkspaceEdit, type ExecutedWorkspaceChange } from "./edits";
@@ -810,7 +811,7 @@ async function waitForRustAnalyzerWorkspace(client: LspClient, signal?: AbortSig
 			if (!isRustAnalyzerStatusTimeout(err) || Date.now() >= deadline) {
 				return;
 			}
-			await Bun.sleep(pollMs);
+			await sleep(pollMs);
 			continue;
 		}
 		const ready = typeof status === "string" && !status.startsWith("No workspaces");
@@ -821,7 +822,7 @@ async function waitForRustAnalyzerWorkspace(client: LspClient, signal?: AbortSig
 		if (Date.now() >= deadline) {
 			return;
 		}
-		await Bun.sleep(pollMs);
+		await sleep(pollMs);
 	}
 }
 
@@ -1476,7 +1477,7 @@ async function waitForExit(client: LspClient, timeoutMs: number): Promise<boolea
 			() => true,
 			() => true,
 		),
-		Bun.sleep(timeoutMs).then(() => false),
+		sleep(timeoutMs).then(() => false),
 	]);
 }
 

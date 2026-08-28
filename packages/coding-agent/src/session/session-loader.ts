@@ -1,5 +1,6 @@
 import type { AgentMessage } from "@oh-my-pi/pi-agent-core";
 import { getBlobsDir, isEnoent, parseJsonlLenient } from "@oh-my-pi/pi-utils";
+import { sleep } from "@oh-my-pi/pi-utils/async";
 import * as snapcompact from "@oh-my-pi/snapcompact";
 import { BlobStore, isBlobRef, resolveImageData, resolveImageDataUrl } from "./blob-store";
 import { buildSessionContext } from "./session-context";
@@ -120,7 +121,7 @@ export async function visitEntriesFromFileStream(
 		}
 		bytesSinceYield = 0;
 		entriesSinceYield = 0;
-		await Bun.sleep(0);
+		await sleep(0);
 	};
 
 	const drain = async (): Promise<void> => {

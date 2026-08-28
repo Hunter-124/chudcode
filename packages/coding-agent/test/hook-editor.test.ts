@@ -5,6 +5,7 @@ import { ExtensionUiController } from "@oh-my-pi/pi-coding-agent/modes/controlle
 import { getThemeByName, setThemeInstance } from "@oh-my-pi/pi-coding-agent/modes/theme/theme";
 import type { InteractiveModeContext } from "@oh-my-pi/pi-coding-agent/modes/types";
 import { CURSOR_MARKER, isFocusable, setKeybindings, type TUI } from "@oh-my-pi/pi-tui";
+import { sleep } from "@oh-my-pi/pi-utils/async";
 
 beforeAll(async () => {
 	const theme = await getThemeByName("dark");
@@ -472,14 +473,14 @@ describe("ExtensionUiController hook editor abort", () => {
 		expect(ctx.hookEditor).toBeDefined();
 
 		abortController.abort();
-		await Bun.sleep(0);
+		await sleep(0);
 
 		expect(editorContainer.children).toEqual([editor]);
 		expect(ctx.hookEditor).toBeUndefined();
 		expect(ui.setFocus).toHaveBeenLastCalledWith(editor);
 
 		const pending = Symbol("pending");
-		const result = await Promise.race([promise, Bun.sleep(20).then(() => pending)]);
+		const result = await Promise.race([promise, sleep(20).then(() => pending)]);
 		expect(result).toBeUndefined();
 	});
 
@@ -546,7 +547,7 @@ describe("ExtensionUiController dialog serialization", () => {
 
 		// Resolving A hands the surface to the queued B.
 		abortA.abort();
-		await Bun.sleep(0);
+		await sleep(0);
 		expect(await promiseA).toBeUndefined();
 		const componentB = ctx.hookSelector;
 		expect(componentB).toBeDefined();
@@ -555,7 +556,7 @@ describe("ExtensionUiController dialog serialization", () => {
 
 		// Resolving B restores the core editor.
 		abortB.abort();
-		await Bun.sleep(0);
+		await sleep(0);
 		expect(await promiseB).toBeUndefined();
 		expect(ctx.hookSelector).toBeUndefined();
 		expect(editorContainer.children).toEqual([editor]);
@@ -581,7 +582,7 @@ describe("ExtensionUiController dialog serialization", () => {
 
 		// When A resolves, the skipped B must not be shown — surface returns to editor.
 		abortA.abort();
-		await Bun.sleep(0);
+		await sleep(0);
 		expect(await promiseA).toBeUndefined();
 		expect(ctx.hookSelector).toBeUndefined();
 		expect(editorContainer.children).toEqual([editor]);

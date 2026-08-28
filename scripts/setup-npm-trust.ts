@@ -34,6 +34,7 @@
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
+import { sleep } from "@oh-my-pi/pi-utils/async";
 import { $ } from "bun";
 import { LEAF_TARGETS } from "../packages/natives/scripts/gen-npm-packages.ts";
 import { compareVersions } from "../packages/utils/src/version.ts";
@@ -230,7 +231,7 @@ async function packageExists(name: string): Promise<boolean> {
 async function waitForPackageExists(name: string): Promise<boolean> {
 	for (let attempt = 0; attempt < 6; attempt++) {
 		if (await packageExists(name)) return true;
-		await Bun.sleep(1000 * (attempt + 1));
+		await sleep(1000 * (attempt + 1));
 	}
 	return false;
 }
@@ -384,7 +385,7 @@ async function main(): Promise<void> {
 				console.log(`- ${name}: not published yet — create it first, then re-run.`);
 				continue;
 			}
-			if (shouldThrottle(first)) await Bun.sleep(2000);
+			if (shouldThrottle(first)) await sleep(2000);
 			first = false;
 			console.log(`- ${name}: not published yet — publishing inert ${PLACEHOLDER_VERSION} placeholder.`);
 			if (!(await publishNativeLeafPlaceholder(name, target, repo))) {
@@ -402,7 +403,7 @@ async function main(): Promise<void> {
 
 		// Throttle between mutating calls per npm's bulk-config guidance, but not
 		// before the very first one (it carries the interactive 2FA prompt).
-		if (shouldThrottle(first)) await Bun.sleep(2000);
+		if (shouldThrottle(first)) await sleep(2000);
 		first = false;
 
 		const existing = await trustListJson(name);

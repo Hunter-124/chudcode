@@ -1,3 +1,4 @@
+import { sleep } from "@oh-my-pi/pi-utils/async";
 import * as AIError from "../../error";
 import { generatePKCE } from "./pkce";
 import type { OAuthCredentials } from "./types";
@@ -42,7 +43,7 @@ export async function pollCursorAuth(
 	let consecutiveErrors = 0;
 
 	for (let attempt = 0; attempt < POLL_MAX_ATTEMPTS; attempt++) {
-		await Bun.sleep(delay);
+		await sleep(delay);
 
 		try {
 			const response = await fetch(`${CURSOR_POLL_URL}?uuid=${uuid}&verifier=${verifier}`);

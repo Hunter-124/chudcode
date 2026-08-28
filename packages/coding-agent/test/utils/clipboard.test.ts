@@ -5,6 +5,7 @@ import {
 	readTextFromClipboard,
 } from "@oh-my-pi/pi-coding-agent/utils/clipboard";
 import * as native from "@oh-my-pi/pi-natives/clipboard";
+import { sleep } from "@oh-my-pi/pi-utils/async";
 import type { Subprocess } from "bun";
 
 type SpawnOptions = Bun.SpawnOptions.SpawnOptions<
@@ -337,7 +338,7 @@ describe("readTextFromClipboard", () => {
 			pid: 1,
 			stdout: new ReadableStream<Uint8Array>({
 				async start(controller) {
-					await Bun.sleep(DELAY_MS);
+					await sleep(DELAY_MS);
 					controller.enqueue(new TextEncoder().encode("payload"));
 					controller.close();
 				},
@@ -345,7 +346,7 @@ describe("readTextFromClipboard", () => {
 			stderr: streamOf(""),
 			exitCode: 0,
 			exited: (async () => {
-				await Bun.sleep(DELAY_MS);
+				await sleep(DELAY_MS);
 				return 0;
 			})(),
 			kill: () => true,

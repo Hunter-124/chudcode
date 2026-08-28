@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Added
+
+- Added `sleep(ms, { signal, ref })` and `sleepSync(ms)`, the host-agnostic timer helpers every package now uses in place of the Bun globals.
+
 ## [18.0.8] - 2026-08-27
 
 ### Added

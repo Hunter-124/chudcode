@@ -2,7 +2,7 @@ import { describe, expect, it, spyOn } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-
+import { sleep } from "@oh-my-pi/pi-utils/async";
 import { resolveStdioSpawnCommand, StdioTransport, terminateStdioProcess } from "../../../src/mcp/transports/stdio";
 
 describe("resolveStdioSpawnCommand", () => {
@@ -210,7 +210,7 @@ describe.skipIf(process.platform === "win32")("terminateStdioProcess", () => {
 					await fs.access(readyPath);
 					break;
 				} catch {
-					await Bun.sleep(20);
+					await sleep(20);
 				}
 			}
 
@@ -276,7 +276,7 @@ describe.skipIf(process.platform === "win32")("terminateStdioProcess", () => {
 				try {
 					grandchildPid = Number.parseInt(await fs.readFile(grandchildPidPath, "utf8"), 10);
 				} catch {
-					await Bun.sleep(20);
+					await sleep(20);
 				}
 			}
 			if (grandchildPid === undefined) throw new Error("grandchild never reported its pid");
@@ -290,7 +290,7 @@ describe.skipIf(process.platform === "win32")("terminateStdioProcess", () => {
 			// give the kernel a brief window to finish reaping before asserting.
 			let grandchildAlive = processExists(grandchildPid);
 			for (let i = 0; i < 25 && grandchildAlive; i++) {
-				await Bun.sleep(20);
+				await sleep(20);
 				grandchildAlive = processExists(grandchildPid);
 			}
 			expect(grandchildAlive).toBe(false);
@@ -348,7 +348,7 @@ describe.skipIf(process.platform === "win32")("terminateStdioProcess", () => {
 				try {
 					grandchildPid = Number.parseInt(await fs.readFile(grandchildPidPath, "utf8"), 10);
 				} catch {
-					await Bun.sleep(20);
+					await sleep(20);
 				}
 			}
 			if (grandchildPid === undefined) throw new Error("grandchild never reported its pid");
@@ -365,7 +365,7 @@ describe.skipIf(process.platform === "win32")("terminateStdioProcess", () => {
 
 			let grandchildAlive = processExists(grandchildPid);
 			for (let i = 0; i < 25 && grandchildAlive; i++) {
-				await Bun.sleep(20);
+				await sleep(20);
 				grandchildAlive = processExists(grandchildPid);
 			}
 			expect(grandchildAlive).toBe(false);

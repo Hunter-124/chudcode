@@ -16,6 +16,7 @@ import {
 	isEnoent,
 	logger,
 	prompt,
+	sleep,
 } from "@oh-my-pi/pi-utils";
 import { contextFileCapability } from "./capability/context-file";
 import { systemPromptCapability } from "./capability/system-prompt";
@@ -213,7 +214,7 @@ async function runGpuProbe(cmd: string[]): Promise<string | null> {
 		// keep whatever bytes the reader already captured before cancelling.
 		const drained = await Promise.race([
 			stdoutDone.then(() => "ok" as const).catch(() => "err" as const),
-			Bun.sleep(GPU_PROBE_STDOUT_DRAIN_MS).then(() => "timeout" as const),
+			sleep(GPU_PROBE_STDOUT_DRAIN_MS).then(() => "timeout" as const),
 		]);
 		if (drained !== "ok") {
 			await stdoutReader.cancel().catch(() => undefined);

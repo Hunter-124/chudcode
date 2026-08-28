@@ -1,3 +1,4 @@
+import { sleep } from "@oh-my-pi/pi-utils/async";
 import * as AIError from "../error";
 import type { OAuthController, OAuthCredentials } from "./oauth/types";
 import type { ProviderDefinition } from "./types";
@@ -63,7 +64,7 @@ export async function loginKilo(callbacks: OAuthController): Promise<OAuthCreden
 
 		const pollResponse = await fetchImpl(`${KILO_DEVICE_AUTH_BASE_URL}/codes/${encodeURIComponent(userCode)}`);
 		if (pollResponse.status === 202) {
-			await Bun.sleep(POLL_INTERVAL_MS);
+			await sleep(POLL_INTERVAL_MS);
 			continue;
 		}
 		if (pollResponse.status === 403) {
@@ -101,7 +102,7 @@ export async function loginKilo(callbacks: OAuthController): Promise<OAuthCreden
 			});
 		}
 
-		await Bun.sleep(POLL_INTERVAL_MS);
+		await sleep(POLL_INTERVAL_MS);
 	}
 
 	throw new AIError.OAuthError("Authentication timed out. Please try again.", { kind: "timeout", provider: "kilo" });

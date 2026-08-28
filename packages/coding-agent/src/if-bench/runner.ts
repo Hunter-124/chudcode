@@ -18,6 +18,7 @@ import type {
 	ProviderSessionState,
 } from "@oh-my-pi/pi-ai";
 import { logger } from "@oh-my-pi/pi-utils";
+import { sleep } from "@oh-my-pi/pi-utils/async";
 import type { BenchRuntime, BenchTarget, StreamSimpleFn } from "../cli/bench-runtime";
 import { formatModelSelectorValue, formatModelString } from "../config/model-resolver";
 import { shouldDisableReasoning, toReasoningEffort } from "../thinking";
@@ -283,7 +284,7 @@ async function requestTurnWithRefusalRetry(
 ): Promise<TurnOutcome> {
 	let outcome: TurnOutcome = { text: "", error: "request failed", durationMs: 0 };
 	for (let attempt = 1; attempt <= REFUSAL_MAX_ATTEMPTS; attempt += 1) {
-		if (attempt > 1) await (options.sleep ?? Bun.sleep)(REFUSAL_BACKOFF_MS[attempt - 1] ?? 180_000);
+		if (attempt > 1) await (options.sleep ?? sleep)(REFUSAL_BACKOFF_MS[attempt - 1] ?? 180_000);
 		const sessionId = options.randomSessionId();
 		const apiKey = options.runtime.modelRegistry.resolver(model, sessionId);
 		outcome = await requestTurn(model, context, sessionId, apiKey, providerSessionState, target, options);

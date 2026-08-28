@@ -5,6 +5,7 @@
  */
 import * as fs from "node:fs";
 import * as readline from "node:readline";
+import { sleep } from "@oh-my-pi/pi-utils/async";
 
 export const TOOL_NAME = "catalog_ping";
 export const RESOURCE_URI = "test://delayed-catalog";
@@ -25,7 +26,7 @@ async function waitForGate(): Promise<void> {
 	const deadline = Date.now() + 15_000;
 	while (!fs.existsSync(GATE)) {
 		if (Date.now() > deadline) throw new Error("catalog gate timed out");
-		await Bun.sleep(15);
+		await sleep(15);
 	}
 }
 

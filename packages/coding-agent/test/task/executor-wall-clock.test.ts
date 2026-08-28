@@ -9,6 +9,7 @@ import type { AgentSession, AgentSessionEvent, PromptOptions } from "@oh-my-pi/p
 import { runSubprocess } from "@oh-my-pi/pi-coding-agent/task/executor";
 import type { AgentDefinition } from "@oh-my-pi/pi-coding-agent/task/types";
 import { EventBus } from "@oh-my-pi/pi-coding-agent/utils/event-bus";
+import { sleep } from "@oh-my-pi/pi-utils/async";
 
 /**
  * Contract: when `task.maxRuntimeMs` is set, a subagent whose inference call
@@ -796,7 +797,7 @@ describe("runSubprocess wall clock (task.maxRuntimeMs)", () => {
 				// executor's setTimeout(maxRuntimeMs) and its async teardown, so the
 				// teardown must outlast the deadline against the real clock. Fake
 				// timers would dictate that ordering instead of observing it.
-				await Bun.sleep(1500);
+				await sleep(1500);
 				releaseHang();
 			},
 			dispose: async () => {},
@@ -855,7 +856,7 @@ describe("runSubprocess wall clock (task.maxRuntimeMs)", () => {
 				// Genuine delay: post-yield teardown must outlast the real
 				// setTimeout(maxRuntimeMs) so the timer fires after the yield has
 				// committed. See the budget test above for why fake timers do not fit.
-				await Bun.sleep(1500);
+				await sleep(1500);
 			},
 			dispose: async () => {},
 		};

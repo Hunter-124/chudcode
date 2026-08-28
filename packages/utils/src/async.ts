@@ -1,3 +1,34 @@
+import { setTimeout as delay } from "node:timers/promises";
+
+/**
+ * Resolve after `ms` milliseconds.
+ *
+ * The single sleep seam for the whole repo: it keeps call sites host-agnostic
+ * (no `Bun.sleep`) and gives tests one function to stub when they drive a
+ * virtual clock, which spying on a runtime global used to provide.
+ *
+ * A pending sleep holds the event loop open, matching the timer semantics call
+ * sites were written against. Pass `ref: false` for a sleep that must not keep
+ * the process alive, or `signal` to reject early on abort.
+ */
+export function sleep(ms: number, options?: { signal?: AbortSignal; ref?: boolean }): Promise<void> {
+	return delay(ms, undefined, options);
+}
+
+const SYNC_SLEEP_SLOT = new Int32Array(new SharedArrayBuffer(4));
+
+/**
+ * Block the calling thread for `ms` milliseconds.
+ *
+ * Replaces `Bun.sleepSync`. Only for the rare synchronous retry loop that has no
+ * async seam (temp-directory removal, store compaction); everything else uses
+ * {@link sleep}.
+ */
+export function sleepSync(ms: number): void {
+	if (ms <= 0) return;
+	Atomics.wait(SYNC_SLEEP_SLOT, 0, 0, ms);
+}
+
 /**
  * Wrap a promise with a timeout and optional abort signal.
  * Rejects with the given message if the timeout fires first.

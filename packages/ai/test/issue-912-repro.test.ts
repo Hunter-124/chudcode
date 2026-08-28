@@ -2,6 +2,7 @@ import { describe, expect, it } from "bun:test";
 import { stream } from "@oh-my-pi/pi-ai/stream";
 import type { Context, Model } from "@oh-my-pi/pi-ai/types";
 import { buildModel } from "@oh-my-pi/pi-catalog/build";
+import { sleep } from "@oh-my-pi/pi-utils/async";
 
 function makeCopilotResponsesModel(baseUrl: string): Model<"openai-responses"> {
 	return buildModel({
@@ -87,7 +88,7 @@ describe("issue #912 — github-copilot abort propagation", () => {
 		});
 
 		await fetchInvoked.promise;
-		await Bun.sleep(50);
+		await sleep(50);
 		controller.abort();
 
 		// Bound: 3 seconds. The first-event watchdog default is 100s, so any
@@ -95,7 +96,7 @@ describe("issue #912 — github-copilot abort propagation", () => {
 		// directly rather than waiting for the watchdog.
 		const result = await Promise.race([
 			providerStream.result(),
-			Bun.sleep(3_000).then(() => {
+			sleep(3_000).then(() => {
 				throw new Error("providerStream.result() did not settle within 3s after abort");
 			}),
 		]);

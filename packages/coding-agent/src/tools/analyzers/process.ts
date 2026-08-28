@@ -1,6 +1,7 @@
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
+import { sleep } from "@oh-my-pi/pi-utils/async";
 import type { ToolSession } from "..";
 
 const DEFAULT_CAPTURE_BYTES = 2 * 1024 * 1024;
@@ -191,7 +192,7 @@ export async function runCommand(command: string[], options: RunCommandOptions =
 	} finally {
 		if (proc.exitCode === null) {
 			terminate();
-			await Promise.race([proc.exited, Bun.sleep(1200)]);
+			await Promise.race([proc.exited, sleep(1200)]);
 		}
 		clearTimeout(timer);
 		clearTimeout(killTimer);

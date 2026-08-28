@@ -28,6 +28,7 @@ import {
 	type SearchProviderId,
 	type SearchResponse,
 } from "@oh-my-pi/pi-coding-agent/web/search/types";
+import { sleep } from "@oh-my-pi/pi-utils/async";
 
 const FAKE_SESSION = {} as ToolSession;
 const fakeStorage = {
@@ -41,7 +42,7 @@ const fakeStorage = {
 describe("withHardTimeout", () => {
 	it("returns a signal that aborts on the hard timeout when no caller signal is supplied", async () => {
 		const signal = withHardTimeout(undefined, 10);
-		await Bun.sleep(40);
+		await sleep(40);
 		expect(signal.aborted).toBe(true);
 	});
 
@@ -55,7 +56,7 @@ describe("withHardTimeout", () => {
 	it("fires the hard timeout even when the caller signal stays open", async () => {
 		const ac = new AbortController();
 		const signal = withHardTimeout(ac.signal, 10);
-		await Bun.sleep(40);
+		await sleep(40);
 		expect(signal.aborted).toBe(true);
 		expect(ac.signal.aborted).toBe(false);
 	});

@@ -32,6 +32,7 @@ import {
 	stripPendingSecretPlaceholderSuffix,
 } from "@oh-my-pi/pi-coding-agent/secrets/placeholder";
 import { compileSecretRegex } from "@oh-my-pi/pi-coding-agent/secrets/regex";
+import { sleep } from "@oh-my-pi/pi-utils/async";
 import { getActiveProfile, getAgentDir, setProfile } from "@oh-my-pi/pi-utils/dirs";
 
 describe("compileSecretRegex", () => {
@@ -361,7 +362,7 @@ describe("getSecretPlaceholderKey", () => {
 			const eventualKey = "C".repeat(43);
 			// Real delay is intentional: this exercises readPlaceholderKeyFile's retry
 			// loop against an actual concurrent filesystem write, not a mockable timer.
-			const writer = Bun.sleep(25).then(() => fs.writeFile(keyPath, eventualKey));
+			const writer = sleep(25).then(() => fs.writeFile(keyPath, eventualKey));
 
 			await expect(getExistingSecretPlaceholderKey()).resolves.toBe(eventualKey);
 			await writer;

@@ -9,6 +9,7 @@
  */
 import { createHash } from "node:crypto";
 import { $env, $envExact, extractRetryHint, getAgentDbPath, logger } from "@oh-my-pi/pi-utils";
+import { sleep } from "@oh-my-pi/pi-utils/async";
 import {
 	isSqliteCorruptionError,
 	resolveCredentialIdentityKey,
@@ -2501,7 +2502,7 @@ export class AuthStorage {
 					? OAUTH_REFRESH_LEASE_POLL_MS
 					: Math.min(Math.max(leaseExpiresAt - Date.now(), OAUTH_REFRESH_LEASE_POLL_MS), 250);
 			await raceCredentialRefreshWithSignal(
-				Bun.sleep(waitMs),
+				sleep(waitMs),
 				options.signal,
 				"OAuth refresh ownership wait aborted by caller",
 			);
@@ -2551,7 +2552,7 @@ export class AuthStorage {
 				leasedCredentialId !== undefined
 					? (async () => {
 							while (!stopLeaseRenewal) {
-								await Promise.race([Bun.sleep(OAUTH_REFRESH_LEASE_RENEW_MS), leaseRenewalStopped.promise]);
+								await Promise.race([sleep(OAUTH_REFRESH_LEASE_RENEW_MS), leaseRenewalStopped.promise]);
 								if (stopLeaseRenewal) return;
 								const renewed = this.#store.renewCredentialRefreshLease?.(
 									leasedCredentialId,

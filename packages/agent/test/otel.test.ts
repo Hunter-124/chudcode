@@ -26,6 +26,7 @@ import type { AgentContext, AgentEvent, AgentLoopConfig, AgentMessage, AgentTool
 import type { Message } from "@oh-my-pi/pi-ai";
 import { createMockModel } from "@oh-my-pi/pi-ai/providers/mock";
 import type { EventStream } from "@oh-my-pi/pi-ai/utils/event-stream";
+import { sleep } from "@oh-my-pi/pi-utils/async";
 import { context, SpanStatusCode, trace } from "@opentelemetry/api";
 import { AsyncLocalStorageContextManager } from "@opentelemetry/context-async-hooks";
 import {
@@ -670,7 +671,7 @@ describe("agent-loop OTEL instrumentation", () => {
 		};
 		const ctx: AgentContext = { systemPrompt: [], messages: [], tools: [] };
 		await runAndDrain(agentLoop([createUserMessage("hi")], ctx, config, undefined, mock.stream));
-		await Bun.sleep(1);
+		await sleep(1);
 
 		expect(warnings).toContain("on_chat_usage_failed");
 	});

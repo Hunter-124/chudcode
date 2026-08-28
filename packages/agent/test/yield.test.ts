@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "bun:test";
 import { ExponentialYield, YieldGate } from "@oh-my-pi/pi-agent-core/utils/yield";
+import { sleep } from "@oh-my-pi/pi-utils/async";
 
 const YIELD_INTERVAL_MS = 50;
 
@@ -67,7 +68,7 @@ describe("YieldGate.yieldIfDue", () => {
 describe("ExponentialYield.race", () => {
 	it("returns the racer's value as soon as it settles", async () => {
 		const ey = new ExponentialYield({ minMs: 5_000, maxMs: 10_000 });
-		const racer = Bun.sleep(10).then(() => "done");
+		const racer = sleep(10).then(() => "done");
 		const start = performance.now();
 		const out = await ey.race([racer]);
 		const elapsed = performance.now() - start;
@@ -82,7 +83,7 @@ describe("ExponentialYield.race", () => {
 		// kept fresh timers ticking. We pick a minMs far larger than the racer
 		// delay and assert we return well before it.
 		const ey = new ExponentialYield({ minMs: 2_000, maxMs: 2_000 });
-		const racer = Bun.sleep(20).then(() => 42);
+		const racer = sleep(20).then(() => 42);
 		const start = performance.now();
 		const out = await ey.race([racer]);
 		const elapsed = performance.now() - start;
@@ -92,6 +93,6 @@ describe("ExponentialYield.race", () => {
 		// After race resolves, ensure the AbortController-driven cancel really
 		// unblocked the underlying timer: a short follow-up sleep should not
 		// be perturbed by residual pending timers. (Sanity: this returns.)
-		await Bun.sleep(30);
+		await sleep(30);
 	});
 });

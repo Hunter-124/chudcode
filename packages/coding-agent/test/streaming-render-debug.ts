@@ -8,7 +8,7 @@ import type { AssistantMessage } from "@oh-my-pi/pi-ai";
 import { AssistantMessageComponent } from "@oh-my-pi/pi-coding-agent/modes/components/assistant-message";
 import { initTheme } from "@oh-my-pi/pi-coding-agent/modes/theme/theme";
 import { ProcessTerminal, TUI } from "@oh-my-pi/pi-tui";
-import { sleep } from "bun";
+import { sleep } from "@oh-my-pi/pi-utils/async";
 
 // Initialize dark theme with full color support
 process.env.COLORTERM = "truecolor";

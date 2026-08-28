@@ -19,6 +19,7 @@ import * as path from "node:path";
 import { MCPManager } from "@oh-my-pi/pi-coding-agent/mcp/manager";
 import type { MCPStdioServerConfig } from "@oh-my-pi/pi-coding-agent/mcp/types";
 import { removeSyncWithRetries } from "@oh-my-pi/pi-utils";
+import { sleep } from "@oh-my-pi/pi-utils/async";
 
 const FIXTURE_PATH = path.join(import.meta.dir, "fixtures", "crash-after-init-mcp.ts");
 const BUN_EXEC = process.execPath;
@@ -64,7 +65,7 @@ describe("MCP reconnect storm (issue #1592)", () => {
 			// fixed 3s. Generous deadline stays well under the 15s test timeout.
 			const deadline = Date.now() + 10_000;
 			while (manager.getConnectionStatus("crashy") !== "disconnected" && Date.now() < deadline) {
-				await Bun.sleep(5);
+				await sleep(5);
 			}
 
 			const spawns = countSpawns();

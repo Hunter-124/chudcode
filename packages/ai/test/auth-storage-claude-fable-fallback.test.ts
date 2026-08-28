@@ -7,6 +7,7 @@ import {
 } from "@oh-my-pi/pi-ai/auth-storage";
 import type { UsageLimit, UsageReport } from "@oh-my-pi/pi-ai/usage";
 import * as claudeUsage from "@oh-my-pi/pi-ai/usage/claude";
+import { sleep } from "@oh-my-pi/pi-utils/async";
 
 interface ObservableStore extends AuthCredentialStore {
 	cache: Map<string, { value: string; expiresAtSec: number }>;
@@ -329,7 +330,7 @@ describe("AuthStorage Claude Fable tier fallback", () => {
 					return true;
 				},
 			),
-			Bun.sleep(50).then(() => false),
+			sleep(50).then(() => false),
 		]);
 		releaseUsage.resolve(baseReport("a@example.com"));
 		await marking.catch(() => {});

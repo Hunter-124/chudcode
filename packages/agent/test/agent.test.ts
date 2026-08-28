@@ -5,6 +5,7 @@ import type { SimpleStreamOptions, ToolResultMessage } from "@oh-my-pi/pi-ai";
 import { createMockModel } from "@oh-my-pi/pi-ai/providers/mock";
 import { kCursorExecResolved } from "@oh-my-pi/pi-ai/utils/block-symbols";
 import { AssistantMessageEventStream } from "@oh-my-pi/pi-ai/utils/event-stream";
+import { sleep } from "@oh-my-pi/pi-utils/async";
 import { createAssistantMessage } from "./helpers";
 
 describe("Agent", () => {
@@ -828,7 +829,7 @@ describe("Agent", () => {
 		});
 
 		const turn = agent.prompt("trigger");
-		await Bun.sleep(0);
+		await sleep(0);
 		gate.resolve();
 		await turn;
 

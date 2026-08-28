@@ -25,6 +25,7 @@ import * as executorModule from "@oh-my-pi/pi-coding-agent/task/executor";
 import type { AgentDefinition, SingleResult, TaskParams } from "@oh-my-pi/pi-coding-agent/task/types";
 import type { ToolSession } from "@oh-my-pi/pi-coding-agent/tools";
 import { isRecord } from "@oh-my-pi/pi-utils";
+import { sleep } from "@oh-my-pi/pi-utils/async";
 
 const taskAgent: AgentDefinition = {
 	name: "task",
@@ -684,7 +685,7 @@ describe("task.batch spawning", () => {
 		const deadline = Date.now() + 1_000;
 		while (started.length === 0) {
 			if (Date.now() > deadline) throw new Error("First spawn never reached the executor");
-			await Bun.sleep(5);
+			await sleep(5);
 		}
 		expect(started).toEqual(["First"]);
 		expect(secondJob.queued).toBe(true);

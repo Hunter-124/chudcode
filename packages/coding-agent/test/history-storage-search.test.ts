@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "bun:test";
 import { HistoryStorage } from "@oh-my-pi/pi-coding-agent/session/history-storage";
 import { TempDir } from "@oh-my-pi/pi-utils";
+import { sleep } from "@oh-my-pi/pi-utils/async";
 
 let tempDir: TempDir | null = null;
 
@@ -25,7 +26,7 @@ afterEach(async () => {
 	HistoryStorage.resetInstance();
 	vi.useRealTimers();
 	if (tempDir) {
-		await Bun.sleep(0);
+		await sleep(0);
 		await tempDir.remove().catch(() => {});
 		tempDir = null;
 	}

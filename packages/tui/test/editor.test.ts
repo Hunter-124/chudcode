@@ -8,6 +8,7 @@ import { CombinedAutocompleteProvider } from "@oh-my-pi/pi-tui/autocomplete";
 import { KeybindingsManager, setKeybindings, TUI_KEYBINDINGS } from "@oh-my-pi/pi-tui/keybindings";
 import { setKittyProtocolActive } from "@oh-my-pi/pi-tui/keys";
 import { visibleWidth } from "@oh-my-pi/pi-tui/utils";
+import { sleep } from "@oh-my-pi/pi-utils/async";
 import { defaultEditorTheme } from "./test-themes";
 import { VirtualTerminal } from "./virtual-terminal";
 
@@ -471,14 +472,14 @@ describe("Editor component", () => {
 			);
 
 			editor.handleInput("/");
-			await Bun.sleep(0);
+			await sleep(0);
 			editor.handleInput("m");
 			editor.handleInput("o");
 			editor.handleInput("d");
-			await Bun.sleep(110);
+			await sleep(110);
 
 			editor.handleInput("	");
-			await Bun.sleep(0);
+			await sleep(0);
 
 			expect(editor.getText()).toBe("/model ");
 			expect(editor.isShowingAutocomplete()).toBe(true);
@@ -508,13 +509,13 @@ describe("Editor component", () => {
 			);
 
 			editor.handleInput("/");
-			await Bun.sleep(0);
+			await sleep(0);
 			editor.handleInput("h");
 			editor.handleInput("e");
-			await Bun.sleep(110);
+			await sleep(110);
 
 			editor.handleInput("	");
-			await Bun.sleep(0);
+			await sleep(0);
 
 			expect(editor.getText()).toBe("/help ");
 			expect(editor.isShowingAutocomplete()).toBe(false);

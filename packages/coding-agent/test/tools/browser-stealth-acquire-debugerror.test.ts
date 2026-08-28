@@ -23,6 +23,7 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
+import { sleep } from "@oh-my-pi/pi-utils/async";
 import { CdpFrame } from "puppeteer-core/lib/puppeteer/cdp/Frame.js";
 import { FrameManager } from "puppeteer-core/lib/puppeteer/cdp/FrameManager.js";
 import { MAIN_WORLD, PUPPETEER_WORLD } from "puppeteer-core/lib/puppeteer/cdp/IsolatedWorlds.js";
@@ -91,7 +92,7 @@ describe("stealth FrameManager world acquire — issue #5296", () => {
 			frame: { id: "F1", parentId: undefined, url: "about:blank" },
 			type: "Navigation",
 		});
-		await Bun.sleep(20);
+		await sleep(20);
 
 		// Concurrent pulls on both worlds force the coalescing acquirer to
 		// re-run (`void this.#acquireWorlds` in its `finally`), which is the exact
@@ -102,7 +103,7 @@ describe("stealth FrameManager world acquire — issue #5296", () => {
 		const results = await Promise.allSettled([main.evaluate(() => 1), util.evaluate(() => 1)]);
 
 		// Let the re-triggered acquire settle and any stray rejection surface.
-		await Bun.sleep(ACQUIRE_TIMEOUT_MS + 40);
+		await sleep(ACQUIRE_TIMEOUT_MS + 40);
 
 		const typeErrors = rejections.filter(
 			(reason): reason is TypeError => reason instanceof Error && reason.name === "TypeError",

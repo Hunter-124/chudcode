@@ -11,6 +11,7 @@ import { AgentSession } from "@oh-my-pi/pi-coding-agent/session/agent-session";
 import { AuthStorage } from "@oh-my-pi/pi-coding-agent/session/auth-storage";
 import { SessionManager } from "@oh-my-pi/pi-coding-agent/session/session-manager";
 import { TempDir } from "@oh-my-pi/pi-utils";
+import { sleep } from "@oh-my-pi/pi-utils/async";
 import { VirtualTerminal } from "../../tui/test/virtual-terminal";
 
 function plainRows(rows: readonly string[]): string[] {
@@ -89,10 +90,10 @@ describe("libkitty end-to-end", () => {
 		await term.waitForRender(() => plainRows(term.getViewport()).some(row => row.includes("MARKER_DRAFT")));
 
 		term.resize(120, 40);
-		await Bun.sleep(300);
+		await sleep(300);
 		await term.waitForRender();
 		term.resize(110, 40);
-		await Bun.sleep(300);
+		await sleep(300);
 		await term.waitForRender();
 
 		// Content always fit the screen, so the terminal never pushed live rows
@@ -117,7 +118,7 @@ describe("libkitty end-to-end", () => {
 		// Those pushed rows are unreachable to an inline app; the contract is an
 		// exact screen and no duplicate of the bottom-anchored rows anywhere.
 		term.resize(88, 26);
-		await Bun.sleep(300);
+		await sleep(300);
 		await term.waitForRender();
 
 		const viewport = plainRows(term.getViewport());
@@ -138,18 +139,18 @@ describe("libkitty end-to-end", () => {
 
 		// Drag storm: several unsettled steps inside one settle window.
 		term.resize(112, 30);
-		await Bun.sleep(30);
+		await sleep(30);
 		term.resize(104, 28);
-		await Bun.sleep(30);
+		await sleep(30);
 		term.resize(96, 24);
-		await Bun.sleep(300);
+		await sleep(300);
 		await term.waitForRender();
 		// Height-only shrink, then a combined grow back out.
 		term.resize(96, 18);
-		await Bun.sleep(300);
+		await sleep(300);
 		await term.waitForRender();
 		term.resize(120, 32);
-		await Bun.sleep(300);
+		await sleep(300);
 		await term.waitForRender();
 
 		const buffer = plainRows(term.getScrollBuffer());

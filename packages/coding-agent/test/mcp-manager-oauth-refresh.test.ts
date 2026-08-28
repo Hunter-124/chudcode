@@ -19,6 +19,7 @@ import { MCPManager } from "@oh-my-pi/pi-coding-agent/mcp/manager";
 import * as oauthFlow from "@oh-my-pi/pi-coding-agent/mcp/oauth-flow";
 import type { MCPServerConfig } from "@oh-my-pi/pi-coding-agent/mcp/types";
 import { removeWithRetries } from "@oh-my-pi/pi-utils";
+import * as piUtils from "@oh-my-pi/pi-utils/async";
 
 const CREDENTIAL_ID = "mcp_oauth_test_1908";
 const TOKEN_URL = "https://example.com/oauth/token";
@@ -45,7 +46,7 @@ type ControlledSleep = {
 
 function installControlledBunSleep(): ControlledSleep[] {
 	const calls: ControlledSleep[] = [];
-	vi.spyOn(Bun, "sleep").mockImplementation((ms: number | Date) => {
+	vi.spyOn(piUtils, "sleep").mockImplementation((ms: number | Date) => {
 		const { promise, resolve } = Promise.withResolvers<void>();
 		let call: ControlledSleep;
 		const delayMs = typeof ms === "number" ? ms : Math.max(0, ms.getTime() - Date.now());

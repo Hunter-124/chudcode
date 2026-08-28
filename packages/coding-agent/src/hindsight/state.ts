@@ -1,4 +1,5 @@
 import { logger } from "@oh-my-pi/pi-utils";
+import { sleep } from "@oh-my-pi/pi-utils/async";
 import type { AgentSession } from "../session/agent-session";
 import { type BankScope, ensureBankExists } from "./bank";
 import type { HindsightApi, MemoryItemInput } from "./client";
@@ -424,7 +425,7 @@ export class HindsightSessionState {
 
 	async beforeAgentStartPrompt(promptText: string): Promise<string | undefined> {
 		if (this.config.mentalModelsEnabled && this.mentalModelsLoadPromise && this.mentalModelsLoadedAt === undefined) {
-			await Promise.race([this.mentalModelsLoadPromise, Bun.sleep(MENTAL_MODEL_FIRST_TURN_DEADLINE_MS)]);
+			await Promise.race([this.mentalModelsLoadPromise, sleep(MENTAL_MODEL_FIRST_TURN_DEADLINE_MS)]);
 		}
 
 		if (!this.config.autoRecall || this.hasRecalledForFirstTurn) return undefined;

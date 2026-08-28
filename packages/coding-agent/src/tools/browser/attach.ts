@@ -1,5 +1,6 @@
 import * as net from "node:net";
 import { Process, ProcessStatus } from "@oh-my-pi/pi-natives";
+import { sleep } from "@oh-my-pi/pi-utils/async";
 import type { Socket } from "bun";
 import type { Browser, Page } from "puppeteer-core";
 import { ToolError, throwIfAborted } from "../tool-errors";
@@ -111,7 +112,7 @@ export async function waitForCdp(cdpUrl: string, timeoutMs: number, signal?: Abo
 		const status = await probeCdpStatus(probeUrl, { timeoutMs: 2000, signal });
 		if (status !== null && status >= 200 && status < 300) return;
 		lastStatus = status;
-		await Bun.sleep(150);
+		await sleep(150);
 	}
 	throwIfAborted(signal);
 	throw new ToolError(

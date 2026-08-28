@@ -1,6 +1,7 @@
 import type { ThinkingLevel } from "@oh-my-pi/pi-agent-core";
 import type { Api, ApiKey, AssistantMessage, AuthStorage, Model } from "@oh-my-pi/pi-ai";
 import { completeSimple } from "@oh-my-pi/pi-ai";
+import { sleep } from "@oh-my-pi/pi-utils/async";
 import { toReasoningEffort } from "../../thinking";
 import type { ResolvedCommitModel } from "../model-selection";
 import { type CommitInferenceCache, computeCommitCacheKey } from "./cache";
@@ -160,7 +161,7 @@ export class OmpCommitInference implements CommitInference {
 					error: lastError.message,
 				});
 				if (attempt < this.#config.maxRetries) {
-					await Bun.sleep(Math.max(0, this.#config.initialBackoffMs) * 2 ** (attempt - 1));
+					await sleep(Math.max(0, this.#config.initialBackoffMs) * 2 ** (attempt - 1));
 				}
 			}
 		}

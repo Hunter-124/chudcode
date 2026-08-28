@@ -51,6 +51,8 @@ import { ToolAbortError } from "@oh-my-pi/pi-coding-agent/tools/tool-errors";
 import { clampTimeout } from "@oh-my-pi/pi-coding-agent/tools/tool-timeouts";
 import * as piUtils from "@oh-my-pi/pi-utils";
 import { sanitizeText, TempDir } from "@oh-my-pi/pi-utils";
+import * as piUtilsAsync from "@oh-my-pi/pi-utils/async";
+import { sleep } from "@oh-my-pi/pi-utils/async";
 import type { Subprocess } from "bun";
 import DEFAULTS from "../../src/lsp/defaults.json" with { type: "json" };
 import { renderResult as renderLocalResult } from "../../src/lsp/render";
@@ -517,7 +519,7 @@ describe("lsp regressions", () => {
 			);
 			// Real time is required because fake timers cannot advance a separate Bun process.
 			// The process exit itself proves shutdown released the event loop.
-			const probeExit = await Promise.race([shutdownProbe.exited, Bun.sleep(5_000).then(() => null)]);
+			const probeExit = await Promise.race([shutdownProbe.exited, sleep(5_000).then(() => null)]);
 			if (probeExit === null) {
 				shutdownProbe.kill();
 				await shutdownProbe.exited;
@@ -574,7 +576,7 @@ describe("lsp regressions", () => {
 			void existingClient.then(() => {
 				settled = true;
 			});
-			await Bun.sleep(0);
+			await sleep(0);
 			expect(settled).toBe(false);
 
 			initialize.resolve();
@@ -1717,7 +1719,7 @@ describe("lsp regressions", () => {
 			vi.spyOn(lspClient, "getOrCreateClient").mockResolvedValue(client);
 
 			let poll = 0;
-			vi.spyOn(Bun, "sleep").mockImplementation(async () => {
+			vi.spyOn(piUtilsAsync, "sleep").mockImplementation(async () => {
 				poll++;
 				if (poll === 1) {
 					client.diagnostics.set(otherUri, { diagnostics: [otherDiagnostic], version: 1 });
@@ -4014,7 +4016,7 @@ describe("lsp regressions", () => {
 				() => "resolved",
 				error => String(error),
 			);
-			await Bun.sleep(0);
+			await sleep(0);
 			expect(newServer.received.some(message => message.method === "initialize")).toBe(false);
 			oldServer.send({ jsonrpc: "2.0", id: initialize.id, result: { capabilities: {} } });
 			expect(await oldOutcome).toContain("superseded during initialization");
@@ -4051,7 +4053,7 @@ describe("lsp regressions", () => {
 			const controller = new AbortController();
 			const reason = new Error("reload cancelled");
 			const cleanup = lspClient.shutdownStaleClients(tempDir.path(), [newConfig], controller.signal);
-			await Bun.sleep(0);
+			await sleep(0);
 			controller.abort(reason);
 			await expect(cleanup).rejects.toBeInstanceOf(ToolAbortError);
 
@@ -4447,7 +4449,7 @@ describe("lsp regressions", () => {
 				expect(lspClient.getActiveClients().some(s => s.name === config.command)).toBe(true);
 
 				server.exit(0);
-				await Bun.sleep(0);
+				await sleep(0);
 				expect(lspClient.getActiveClients().some(s => s.name === config.command)).toBe(false);
 			} finally {
 				vi.restoreAllMocks();
@@ -4650,12 +4652,12 @@ describe("lsp regressions", () => {
 			};
 
 			const first = lspClient.sendNotification(client, "workspace/didChangeConfiguration", { settings: {} });
-			await Bun.sleep(0);
+			await sleep(0);
 
 			const controller = new AbortController();
 			const second = lspClient.sendNotification(client, "textDocument/didOpen", {}, controller.signal);
 			controller.abort();
-			await Bun.sleep(0);
+			await sleep(0);
 
 			expect(kill).not.toHaveBeenCalled();
 			firstFlush.resolve(0);

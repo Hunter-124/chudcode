@@ -1,6 +1,7 @@
 import { afterAll, afterEach, describe, expect, it, vi } from "bun:test";
 import { type } from "@oh-my-pi/omptype";
 import type { AgentTool } from "@oh-my-pi/pi-agent-core";
+import { sleep } from "@oh-my-pi/pi-utils/async";
 import { Settings } from "../../src/config/settings";
 import {
 	EVAL_TIMEOUT_PAUSE_OP,
@@ -48,7 +49,7 @@ describe("withBridgeTimeoutPause", () => {
 		const value = await withBridgeTimeoutPause(
 			event => events.push(event),
 			async () => {
-				await Bun.sleep(80);
+				await sleep(80);
 				return "done";
 			},
 			{ deferExternalAbort: true },
@@ -59,7 +60,7 @@ describe("withBridgeTimeoutPause", () => {
 		expect(events.every(event => event.deferExternalAbort === true)).toBe(true);
 
 		const settledCount = events.length;
-		await Bun.sleep(40);
+		await sleep(40);
 		expect(events.length).toBe(settledCount);
 	});
 
@@ -70,7 +71,7 @@ describe("withBridgeTimeoutPause", () => {
 			withBridgeTimeoutPause(
 				event => events.push(event),
 				async () => {
-					await Bun.sleep(20);
+					await sleep(20);
 					throw new Error("boom");
 				},
 			),
@@ -84,7 +85,7 @@ describe("withBridgeTimeoutPause", () => {
 
 		const value = await withBridgeTimeoutPause(undefined, async () => {
 			ran++;
-			await Bun.sleep(20);
+			await sleep(20);
 			return 42;
 		});
 

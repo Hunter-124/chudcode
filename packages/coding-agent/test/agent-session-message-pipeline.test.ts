@@ -32,6 +32,7 @@ import { AuthStorage } from "@oh-my-pi/pi-coding-agent/session/auth-storage";
 import { convertToLlm, wrapSteeringForModel } from "@oh-my-pi/pi-coding-agent/session/messages";
 import { SessionManager } from "@oh-my-pi/pi-coding-agent/session/session-manager";
 import { TempDir } from "@oh-my-pi/pi-utils";
+import { sleep } from "@oh-my-pi/pi-utils/async";
 import { createAssistantMessage } from "./helpers/agent-session-setup";
 
 function createAgent(): Agent {
@@ -842,13 +843,13 @@ describe("AgentSession message pipeline", () => {
 			},
 		} as never);
 
-		await Bun.sleep(0);
+		await sleep(0);
 
 		expect(events.some(event => event.type === "message_update")).toBe(true);
 		expect(extensionEmit).toHaveBeenCalledTimes(1);
 
 		resolve();
-		await Bun.sleep(0);
+		await sleep(0);
 	});
 
 	it("keeps first-turn memory in the stable prompt on the next turn", async () => {

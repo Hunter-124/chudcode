@@ -10,6 +10,8 @@ import { createAgentSession, type ExtensionFactory, type WorkspaceTree } from "@
 import { AgentStorage } from "@oh-my-pi/pi-coding-agent/session/agent-storage";
 import { SessionManager } from "@oh-my-pi/pi-coding-agent/session/session-manager";
 import { Snowflake, TempDir } from "@oh-my-pi/pi-utils";
+import * as piUtils from "@oh-my-pi/pi-utils/async";
+import { sleep } from "@oh-my-pi/pi-utils/async";
 
 const OK_EXECUTION = { status: "ok", cancelled: false, timedOut: false, stdinRequested: false } as const;
 
@@ -92,16 +94,14 @@ const emptyWorkspaceTree = (cwd: string): WorkspaceTree => ({
 });
 
 const mockPositiveSleepsImmediate = () => {
-	const realSleep = Bun.sleep.bind(Bun);
-	return vi.spyOn(Bun, "sleep").mockImplementation((duration?: number | Date) => {
-		if (typeof duration === "number" && duration > 0) {
-			return Promise.resolve();
-		}
-		return realSleep(duration ?? 0);
+	const realSleep = piUtils.sleep;
+	return vi.spyOn(piUtils, "sleep").mockImplementation((duration: number) => {
+		if (duration > 0) return Promise.resolve();
+		return realSleep(duration);
 	});
 };
 
-const expectSleepNear = (sleepSpy: Mock<typeof Bun.sleep>, targetMs: number) => {
+const expectSleepNear = (sleepSpy: Mock<typeof piUtils.sleep>, targetMs: number) => {
 	const minMs = targetMs - 100;
 	expect(
 		sleepSpy.mock.calls.some(
@@ -169,7 +169,7 @@ describe("AgentSession python cleanup", () => {
 		vi.restoreAllMocks();
 		AgentStorage.resetInstance();
 		await pythonExecutor.disposeAllKernelSessions();
-		await Bun.sleep(0);
+		await sleep(0);
 		// Best-effort cleanup: createAgentSession opens AuthStorage/AgentStorage
 		// inside agentDir that may outlive the test (dispose() doesn't close them).
 		// On Windows the leaked SQLite handles keep the dir locked; swallow EBUSY
@@ -355,13 +355,13 @@ describe("AgentSession python cleanup", () => {
 				expect(firstExecutionSettled).toBe(true);
 				firstDisposed = true;
 			});
-			await Bun.sleep(0);
+			await sleep(0);
 			expect(firstDisposed).toBe(false);
 			expect(blockedExecutionSettled).toBe(false);
 			expect(firstExecutionSettled).toBe(false);
 
 			const secondExecution = secondSession.executePython("print('second')");
-			await Bun.sleep(0);
+			await sleep(0);
 
 			expect(firstDisposed).toBe(false);
 			expect(blockedExecutionSettled).toBe(false);
@@ -463,7 +463,7 @@ describe("AgentSession python cleanup", () => {
 		kernel.abortBlockedExecution = false;
 
 		vi.spyOn(pythonKernel, "checkPythonKernelAvailability").mockResolvedValue({ ok: true });
-		const sleepSpy = vi.spyOn(Bun, "sleep").mockResolvedValue(undefined);
+		const sleepSpy = vi.spyOn(piUtils, "sleep").mockResolvedValue(undefined);
 
 		const startSpy = vi
 			.spyOn(pythonKernel.PythonKernel, "start")
@@ -570,7 +570,7 @@ describe("AgentSession python cleanup", () => {
 		const disposeSession = session.dispose().then(() => {
 			disposed = true;
 		});
-		await Bun.sleep(0);
+		await sleep(0);
 		expect(disposed).toBe(false);
 		releaseHook.resolve();
 		await expect(execution).rejects.toThrow("Python execution is unavailable while session disposal is in progress");
@@ -624,7 +624,7 @@ describe("AgentSession python cleanup", () => {
 		const disposeSession = session.dispose().then(() => {
 			disposed = true;
 		});
-		await Bun.sleep(0);
+		await sleep(0);
 		expect(disposed).toBe(false);
 		releaseHook.resolve();
 		await expect(execution).rejects.toThrow("Python execution is unavailable while session disposal is in progress");

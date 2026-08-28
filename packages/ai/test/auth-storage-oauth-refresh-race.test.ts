@@ -10,6 +10,7 @@ import {
 	type StoredAuthCredential,
 } from "@oh-my-pi/pi-ai/auth-storage";
 import * as oauthUtils from "@oh-my-pi/pi-ai/registry/oauth";
+import { sleep } from "@oh-my-pi/pi-utils/async";
 import { removeWithRetries } from "../../utils/src/temp";
 import { withEnv } from "./helpers";
 
@@ -412,7 +413,7 @@ describe("AuthStorage OAuth refresh race", () => {
 					throw new Error('HTTP 400 invalid_grant {"error":"invalid_grant"}');
 				}
 				usedRefreshTokens.add(credentials.refresh);
-				await Bun.sleep(50);
+				await sleep(50);
 				return {
 					...credentials,
 					access: "access-rotated",
