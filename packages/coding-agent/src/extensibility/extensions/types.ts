@@ -59,7 +59,7 @@ import type { BashResult } from "../../exec/bash-executor";
 import type { ExecOptions, ExecResult } from "../../exec/exec";
 import type * as PiCodingAgent from "../../index";
 import type { LocalProtocolOptions } from "../../internal-urls/local-protocol";
-import type { MemoryRuntimeContext } from "../../memory-backend";
+import type { MemoryBackend, MemoryRuntimeContext } from "../../memory-backend";
 import type { CustomEditor } from "../../modes/components/custom-editor";
 import type { Theme } from "../../modes/theme/theme";
 import type { AsyncJobSnapshot } from "../../session/agent-session";
@@ -1526,6 +1526,17 @@ export interface ExtensionAPI {
 	 */
 	unregisterProvider(name: string): void;
 
+	/**
+	 * Register a selectable memory backend owned by this extension.
+	 *
+	 * The registration is source-tracked and removed when the extension runner
+	 * unloads. A different extension cannot claim the same id.
+	 */
+	registerMemoryBackend(backend: MemoryBackend): void;
+
+	/** Unregister a memory backend previously registered by this extension. */
+	unregisterMemoryBackend(id: string): void;
+
 	/** Shared event bus for extension communication. */
 	events: EventBus;
 }
@@ -1677,10 +1688,22 @@ export interface ExtensionRuntimeState {
 	flagValues: Map<string, boolean | string>;
 	/** Provider registrations queued during extension loading, processed during session initialization */
 	pendingProviderRegistrations: Array<{ name: string; config: ProviderConfig; sourceId: string }>;
+	/** Active source-owned memory backend registrations. */
+	memoryBackendRegistrations: Array<{ backend: MemoryBackend; sourceId: string }>;
 	/** Queue a provider registration until initialization, then apply it immediately. */
 	registerProvider(name: string, config: ProviderConfig, sourceId: string): void;
 	/** Remove a queued or initialized provider registration. */
 	unregisterProvider(name: string, sourceId: string): void;
+	/** Apply a source-owned memory backend registration immediately. */
+	registerMemoryBackend(backend: MemoryBackend, sourceId: string): void;
+	/** Remove an active memory backend registration owned by the source. */
+	unregisterMemoryBackend(id: string, sourceId: string): void;
+	/** Restore an earlier registration snapshot after extension load failure. */
+	restoreMemoryBackendRegistrations(
+		registrations: readonly { backend: MemoryBackend; sourceId: string }[],
+	): void;
+	/** Release every memory backend registration owned by this runtime. */
+	disposeMemoryBackends(): void;
 }
 
 /** Action implementations for ExtensionAPI methods. */

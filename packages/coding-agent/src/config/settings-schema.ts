@@ -8,6 +8,7 @@ import {
 } from "../blob-broker/destinations";
 import { DEFAULT_RELAY_URL } from "../collab/protocol";
 import { DEFAULT_LIVE_VOICE, LIVE_VOICE_OPTIONS, LIVE_VOICE_VALUES } from "../live/voices";
+import { getMemoryBackendIds } from "../memory-backend/registry";
 import {
 	COMPACTION_METHOD_CHOICES,
 	type CompactionMethod,
@@ -1967,15 +1968,15 @@ export const SETTINGS_SCHEMA = {
 	"keybindings.preset": {
 		type: "enum",
 		values: ["default", "windows"] as const,
-		default: "default",
+		default: "windows",
 		ui: {
 			tab: "interaction",
 			group: "Input",
 			label: "Keybinding Preset",
 			description: "Choose the default or Windows-style keyboard shortcuts",
 			options: [
-				{ value: "default", label: "Default", description: "Use the standard terminal keybindings" },
-				{ value: "windows", label: "Windows", description: "Use Windows-style editing keybindings" },
+				{ value: "windows", label: "Windows", description: "Use conventional desktop editing keybindings" },
+				{ value: "default", label: "Terminal", description: "Use traditional terminal keybindings" },
 			],
 		},
 	},
@@ -2995,18 +2996,18 @@ export const SETTINGS_SCHEMA = {
 
 	"memories.summaryInjectionTokenLimit": { type: "number", default: 5000 },
 
-	// Memory backend selector — picks between local memories pipeline,
-	// Mnemopi local SQLite, Hindsight remote memory, or off. The legacy
-	// `memories.enabled` flag is migration input only; see config/settings.ts.
+	// Memory backend selector — built-ins plus extension registrations. Runtime
+	// accessors below merge registered ids into validation and UI choices while
+	// keeping the field an enum rather than an arbitrary string input.
 	"memory.backend": {
 		type: "enum",
-		values: ["off", "local", "hindsight", "mnemopi"] as const,
+		values: getMemoryBackendIds(),
 		default: "off",
 		ui: {
 			tab: "memory",
 			group: "General",
 			label: "Memory Backend",
-			description: "Off, local summary pipeline, Mnemopi SQLite, or Hindsight remote memory",
+			description: "Select a built-in or extension-provided memory backend",
 			options: [
 				{ value: "off", label: "Off", description: "No memory subsystem runs" },
 				{ value: "local", label: "Local", description: "Local rollout summarisation pipeline (memory_summary.md)" },
@@ -6201,7 +6202,14 @@ export function isCredential(path: SettingPath): boolean {
 
 /** Get UI metadata for a path (undefined if no UI). Advanced-tier gates are composed with existing conditions. */
 export function getUi(path: SettingPath): AnyUiMetadata | undefined {
-	return UI_METADATA[path];
+	const ui = UI_METADATA[path];
+	const configuredOptions = ui?.options;
+	if (path !== "memory.backend" || !ui || !Array.isArray(configuredOptions)) return ui;
+	const options = getMemoryBackendIds().map(id => {
+		const builtin = configuredOptions.find(option => option.value === id);
+		return builtin ?? { value: id, label: id, description: "Extension-provided memory backend" };
+	});
+	return { ...ui, options };
 }
 
 /** Get all paths for a specific tab */
@@ -6217,8 +6225,9 @@ export function getType(path: SettingPath): SettingDef["type"] {
 	return SETTINGS_SCHEMA[path].type;
 }
 
-/** Get enum values for an enum setting */
+/** Get enum values for an enum setting, including extension-provided runtime values. */
 export function getEnumValues(path: SettingPath): readonly string[] | undefined {
+	if (path === "memory.backend") return getMemoryBackendIds();
 	const def = SETTINGS_SCHEMA[path];
 	return "values" in def ? (def.values as readonly string[]) : undefined;
 }

@@ -377,12 +377,12 @@ export type SwitchSessionHandler = (sessionPath: string) => Promise<{ cancelled:
 export type ShutdownHandler = () => void;
 
 /**
- * Emit `session_shutdown`, dispose file-write-fallback registrations, and clear
- * timers owned by an extension runner.
+ * Emit `session_shutdown`, dispose file-write fallbacks and memory backends,
+ * and clear timers owned by an extension runner.
  *
- * Returns whether any shutdown handlers were present. Fallback disposal and timer
- * cleanup run even when a handler fails so extension background work — and a
- * fallback bound to this session's context — cannot outlive its host.
+ * Returns whether any shutdown handlers were present. Registration disposal
+ * and timer cleanup run even when a handler fails so extension background work
+ * and process-wide registrations cannot outlive their host.
  */
 export async function emitSessionShutdownEvent(extensionRunner: ExtensionRunner | undefined): Promise<boolean> {
 	if (!extensionRunner) return false;
@@ -394,6 +394,7 @@ export async function emitSessionShutdownEvent(extensionRunner: ExtensionRunner 
 		return true;
 	} finally {
 		extensionRunner.disposeFileFallbacks();
+		extensionRunner.disposeMemoryBackends();
 		extensionRunner.clearManagedTimers();
 	}
 }
@@ -675,6 +676,9 @@ export class ExtensionRunner {
 		this.runtime.unregisterProvider = name => {
 			this.modelRegistry.unregisterProvider(name);
 		};
+
+		// Memory backends register during extension binding so settings and session
+		// startup can resolve them before a UI controller initializes the runner.
 
 		// Context actions (required)
 		this.#getModel = contextActions.getModel;
@@ -1209,6 +1213,11 @@ export class ExtensionRunner {
 	 */
 	clearManagedTimers(): void {
 		this.#managedTimers.clearAll();
+	}
+
+	/** Remove only the memory backend registrations installed by this runner's runtime. */
+	disposeMemoryBackends(): void {
+		this.runtime.disposeMemoryBackends();
 	}
 
 	/**

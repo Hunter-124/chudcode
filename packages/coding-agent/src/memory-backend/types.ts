@@ -13,7 +13,8 @@ import type { HindsightSessionState } from "../hindsight/state";
 import type { MnemopiSessionState } from "../mnemopi/state";
 import type { AgentSession } from "../session/agent-session";
 
-export type MemoryBackendId = "off" | "local" | "hindsight" | "mnemopi";
+/** Built-ins use stable literal ids; extensions may register additional ids at runtime. */
+export type MemoryBackendId = string;
 
 export interface MemoryBackendStatus {
 	backend: MemoryBackendId;

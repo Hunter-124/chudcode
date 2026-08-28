@@ -27,6 +27,8 @@ import type { ExecOptions } from "../../exec/exec";
 import { execCommand } from "../../exec/exec";
 // Runtime self-reference: dereference this namespace only inside loader functions to keep the index.ts cycle safe.
 import * as PiCodingAgent from "../../index";
+import type { MemoryBackend } from "../../memory-backend";
+import { registerMemoryBackend as installMemoryBackend } from "../../memory-backend/registry";
 import type { CustomMessagePayload } from "../../session/messages";
 import type { FileDeleteFallbackHandler, FileWriteFallbackHandler } from "../../tools/file-write-fallback";
 import { EventBus } from "../../utils/event-bus";
@@ -75,6 +77,8 @@ export class ExtensionRuntimeNotInitializedError extends Error {
 export class ExtensionRuntime implements IExtensionRuntime {
 	flagValues = new Map<string, boolean | string>();
 	pendingProviderRegistrations: Array<{ name: string; config: ProviderConfig; sourceId: string }> = [];
+	memoryBackendRegistrations: Array<{ backend: MemoryBackend; sourceId: string }> = [];
+	#memoryBackendDisposers = new Map<string, Map<string, () => void>>();
 
 	registerProvider(name: string, config: ProviderConfig, sourceId: string): void {
 		this.pendingProviderRegistrations.push({ name, config, sourceId });
@@ -83,6 +87,56 @@ export class ExtensionRuntime implements IExtensionRuntime {
 	unregisterProvider(name: string): void {
 		const remaining = this.pendingProviderRegistrations.filter(registration => registration.name !== name);
 		this.pendingProviderRegistrations.splice(0, this.pendingProviderRegistrations.length, ...remaining);
+	}
+
+	registerMemoryBackend(backend: MemoryBackend, sourceId: string): void {
+		const dispose = installMemoryBackend(backend, sourceId);
+		const sourceRegistrations = this.#memoryBackendDisposers.get(sourceId) ?? new Map<string, () => void>();
+		const previous = sourceRegistrations.get(backend.id);
+		sourceRegistrations.set(backend.id, dispose);
+		this.#memoryBackendDisposers.set(sourceId, sourceRegistrations);
+		previous?.();
+
+		const remaining = this.memoryBackendRegistrations.filter(
+			registration => registration.backend.id !== backend.id || registration.sourceId !== sourceId,
+		);
+		this.memoryBackendRegistrations.splice(
+			0,
+			this.memoryBackendRegistrations.length,
+			...remaining,
+			{ backend, sourceId },
+		);
+	}
+
+	unregisterMemoryBackend(id: string, sourceId: string): void {
+		const sourceRegistrations = this.#memoryBackendDisposers.get(sourceId);
+		sourceRegistrations?.get(id)?.();
+		sourceRegistrations?.delete(id);
+		if (sourceRegistrations?.size === 0) this.#memoryBackendDisposers.delete(sourceId);
+		const remaining = this.memoryBackendRegistrations.filter(
+			registration => registration.backend.id !== id || registration.sourceId !== sourceId,
+		);
+		this.memoryBackendRegistrations.splice(0, this.memoryBackendRegistrations.length, ...remaining);
+	}
+
+	restoreMemoryBackendRegistrations(registrations: readonly { backend: MemoryBackend; sourceId: string }[]): void {
+		this.disposeMemoryBackends();
+		try {
+			for (const registration of registrations) {
+				this.registerMemoryBackend(registration.backend, registration.sourceId);
+			}
+		} catch (error) {
+			this.disposeMemoryBackends();
+			throw error;
+		}
+	}
+
+	disposeMemoryBackends(): void {
+		for (const sourceRegistrations of this.#memoryBackendDisposers.values()) {
+			for (const dispose of sourceRegistrations.values()) dispose();
+		}
+		this.#memoryBackendDisposers.clear();
+		this.memoryBackendRegistrations.splice(0);
 	}
 
 	sendMessage(): void {
@@ -162,6 +216,9 @@ class ConcreteExtensionAPI implements ExtensionAPI, IExtensionRuntime {
 		config: ProviderConfig;
 		sourceId: string;
 	}> = [];
+	get memoryBackendRegistrations(): Array<{ backend: MemoryBackend; sourceId: string }> {
+		return this.runtime.memoryBackendRegistrations;
+	}
 
 	constructor(
 		public readonly pi: typeof PiCodingAgent,
@@ -332,6 +389,24 @@ class ConcreteExtensionAPI implements ExtensionAPI, IExtensionRuntime {
 	unregisterProvider(name: string): void {
 		this.runtime.unregisterProvider(name, this.extension.path);
 	}
+
+	registerMemoryBackend(backend: MemoryBackend): void {
+		this.runtime.registerMemoryBackend(backend, this.extension.path);
+	}
+
+	unregisterMemoryBackend(id: string): void {
+		this.runtime.unregisterMemoryBackend(id, this.extension.path);
+	}
+
+	restoreMemoryBackendRegistrations(
+		registrations: readonly { backend: MemoryBackend; sourceId: string }[],
+	): void {
+		this.runtime.restoreMemoryBackendRegistrations(registrations);
+	}
+
+	disposeMemoryBackends(): void {
+		this.runtime.disposeMemoryBackends();
+	}
 }
 
 /**
@@ -366,6 +441,7 @@ async function runExtensionFactory(
 	runtime: IExtensionRuntime,
 ): Promise<void> {
 	const providerRegistrationCheckpoint = [...runtime.pendingProviderRegistrations];
+	const memoryBackendRegistrationCheckpoint = [...runtime.memoryBackendRegistrations];
 
 	try {
 		await factory(api);
@@ -375,6 +451,7 @@ async function runExtensionFactory(
 			runtime.pendingProviderRegistrations.length,
 			...providerRegistrationCheckpoint,
 		);
+		runtime.restoreMemoryBackendRegistrations(memoryBackendRegistrationCheckpoint);
 		throw error;
 	}
 }
