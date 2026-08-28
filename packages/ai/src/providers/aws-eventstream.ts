@@ -17,6 +17,7 @@
  * practice (`:event-type`, `:message-type`, `:content-type`, `:exception-type`).
  */
 
+import { crc32 as crc32Ieee } from "@oh-my-pi/pi-utils/hash";
 import * as AIError from "../error";
 
 const PRELUDE_LEN = 8;
@@ -33,7 +34,7 @@ export interface EventStreamMessage {
 
 /** CRC32 (IEEE / zlib polynomial 0xEDB88320), matches `@aws-crypto/crc32`. */
 export function crc32(bytes: Uint8Array): number {
-	return Bun.hash.crc32(bytes) >>> 0;
+	return crc32Ieee(bytes) >>> 0;
 }
 
 /**

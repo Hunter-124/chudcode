@@ -27,6 +27,7 @@ import {
 	Text,
 	type TextSizingScale,
 } from "@oh-my-pi/pi-tui";
+import { crc32 } from "@oh-my-pi/pi-utils/hash";
 import { DynamicBorder } from "../modes/components/dynamic-border";
 import { theme } from "../modes/theme/theme";
 
@@ -38,7 +39,7 @@ function pngChunk(type: string, data: Uint8Array): Uint8Array {
 	const out = Buffer.alloc(body.length + 8);
 	out.writeUInt32BE(data.length, 0);
 	body.copy(out, 4);
-	out.writeUInt32BE(Bun.hash.crc32(body) >>> 0, out.length - 4);
+	out.writeUInt32BE(crc32(body) >>> 0, out.length - 4);
 	return out;
 }
 

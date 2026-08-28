@@ -30,6 +30,18 @@ cc_library(
     linkstatic = True,
 )
 
+cc_library(
+    name = "omp_hash",
+    alwayslink = True,
+    srcs = ["native/hash/omp_hash.c"],
+    hdrs = ["native/hash/omp_hash.h"],
+    copts = select({
+        "@platforms//os:windows": ["/std:c11"],
+        "//conditions:default": ["-std=c11"],
+    }),
+    linkstatic = True,
+)
+
 # The NAPI cdylib. build.rs is intentionally not wired in: its only effects are
 # napi_build::setup() link args (hardcoded in linkopts below — see napi-build
 # src/lib.rs) and a vestigial no-op filter-defs scan that belongs to pi-shell.
@@ -51,6 +63,7 @@ rust_shared_library(
     edition = "2024",
     link_deps = [
         ":omp_catalog",
+        ":omp_hash",
         ":omp_tui",
     ],
     proc_macro_deps = all_crate_deps(proc_macro = True),

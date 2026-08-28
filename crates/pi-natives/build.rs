@@ -9,6 +9,7 @@ fn main() {
 	napi_build::setup();
 	build_c_core("catalog", "omp_catalog");
 	build_c_core("tui", "omp_tui");
+	build_c_core("hash", "omp_hash");
 	generate_minimizer_builtin_filters();
 }
 
