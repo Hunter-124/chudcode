@@ -28,6 +28,7 @@ import {
 	type MnemopiProviderOptions,
 	truncateApproxTokens,
 } from "./config";
+import { mnemopiEmbedClient } from "./embed-client";
 import {
 	getMnemopiScopedBanks,
 	getMnemopiScopedDbPaths,

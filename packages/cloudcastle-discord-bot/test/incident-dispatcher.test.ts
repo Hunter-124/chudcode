@@ -1,16 +1,17 @@
 import { describe, expect, it } from "bun:test";
+import path from "node:path";
 import {
 	computeBackoffMs,
-	IncidentDispatcher,
-	normalizeIncident,
-	parseIncidentDispatcherConfig,
 	type DiagnosisRequest,
 	type DiagnosisRunner,
 	type DiscordPublisher,
 	type DispatcherState,
 	type DispatcherStateStore,
 	type IncidentApi,
+	IncidentDispatcher,
 	type IncidentSource,
+	normalizeIncident,
+	parseIncidentDispatcherConfig,
 } from "../src/incident-dispatcher";
 
 const NOW = new Date("2026-08-27T12:00:00.000Z");
@@ -77,13 +78,15 @@ class RecordingDiagnosis implements DiagnosisRunner {
 	}
 }
 
-function createHarness(options: {
-	api?: MutableApi;
-	store?: MemoryStateStore;
-	discord?: RecordingDiscord;
-	diagnosis?: RecordingDiagnosis;
-	missingPollThreshold?: number;
-} = {}) {
+function createHarness(
+	options: {
+		api?: MutableApi;
+		store?: MemoryStateStore;
+		discord?: RecordingDiscord;
+		diagnosis?: RecordingDiagnosis;
+		missingPollThreshold?: number;
+	} = {},
+) {
 	const api = options.api ?? new MutableApi();
 	const store = options.store ?? new MemoryStateStore();
 	const discord = options.discord ?? new RecordingDiscord();
@@ -260,7 +263,9 @@ describe("normalization and bounded retry", () => {
 		};
 		const config = parseIncidentDispatcherConfig(env, "/srv/cloudcastle");
 		expect(config.pollIntervalMs).toBe(5_000);
-		expect(config.statePath).toBe("/srv/cloudcastle/.cloudcastle-incidents/state.json");
+		// The dispatcher resolves the path, so the expectation must too: on Windows
+		// a rooted POSIX path gains the current drive letter and separators flip.
+		expect(config.statePath).toBe(path.resolve("/srv/cloudcastle", ".cloudcastle-incidents", "state.json"));
 		expect(() =>
 			parseIncidentDispatcherConfig({ ...env, CLOUDCASTLE_INCIDENT_BASE_URL: "http://control.cloudcastle.example" }),
 		).toThrow("must use HTTPS");
