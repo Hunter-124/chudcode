@@ -4,15 +4,18 @@
   "private": true,
   "type": "module",
   "exports": {
-    "./archive": "./src/archive.ts"
+    "./archive": "./src/archive.ts",
+    "./incidents": "./src/incidents.ts"
   },
   "scripts": {
     "export": "bun src/export-cli.ts",
     "report": "bun src/report-cli.ts",
+    "dispatch-incidents": "bun src/incident-cli.ts",
     "check": "tsgo -p tsconfig.check.json --noEmit",
     "test": "bun test test"
   },
   "dependencies": {
+    "@cloudcastle/context-engine": "workspace:*",
     "@oh-my-pi/pi-coding-agent": "catalog:",
     "discord.js": "14.27.0"
   },
