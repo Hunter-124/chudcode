@@ -3,6 +3,7 @@ import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
 import { resolveAuthBrokerConfig } from "@oh-my-pi/pi-ai/auth-broker";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import { removeWithRetries } from "../../utils/src/temp";
 import { withEnv } from "./helpers";
 
@@ -24,7 +25,7 @@ describe("auth-broker config.yml key resolution", () => {
 	});
 
 	async function writeConfig(yaml: string): Promise<void> {
-		await Bun.write(path.join(agentDir, "config.yml"), yaml);
+		await fsx.write(path.join(agentDir, "config.yml"), yaml);
 	}
 
 	test("nested YAML keys resolve broker url and token", async () => {
@@ -63,7 +64,7 @@ describe("auth-broker config.yml key resolution", () => {
 		});
 	});
 	test("config.yaml nested keys resolve broker url and token", async () => {
-		await Bun.write(
+		await fsx.write(
 			path.join(agentDir, "config.yaml"),
 			["auth:", "  broker:", "    url: https://broker.example", "    token: yaml-token", ""].join("\n"),
 		);

@@ -815,7 +815,7 @@ async function syncPhase2Artifacts(memoryRoot: string, outputs: Stage1OutputRow[
 		const body = [`thread_id: ${row.threadId}`, `updated_at: ${row.sourceUpdatedAt}`, "", row.rolloutSummary].join(
 			"\n",
 		);
-		await Bun.write(path.join(summariesDir, filename), `${body.trim()}\n`);
+		await fsx.write(path.join(summariesDir, filename), `${body.trim()}\n`);
 	}
 
 	const currentFiles = await fs.readdir(summariesDir).catch(() => [] as string[]);
@@ -826,7 +826,7 @@ async function syncPhase2Artifacts(memoryRoot: string, outputs: Stage1OutputRow[
 	}
 
 	const rawBody = buildRawMemoriesMarkdown(outputs);
-	await Bun.write(path.join(memoryRoot, "raw_memories.md"), rawBody);
+	await fsx.write(path.join(memoryRoot, "raw_memories.md"), rawBody);
 }
 
 async function cleanupConsolidatedArtifacts(memoryRoot: string): Promise<void> {
@@ -960,8 +960,8 @@ async function applyConsolidation(
 		}>;
 	},
 ): Promise<void> {
-	await Bun.write(path.join(memoryRoot, "MEMORY.md"), `${consolidated.memoryMd.trim()}\n`);
-	await Bun.write(path.join(memoryRoot, "memory_summary.md"), `${consolidated.memorySummary.trim()}\n`);
+	await fsx.write(path.join(memoryRoot, "MEMORY.md"), `${consolidated.memoryMd.trim()}\n`);
+	await fsx.write(path.join(memoryRoot, "memory_summary.md"), `${consolidated.memorySummary.trim()}\n`);
 	const skillsDir = path.join(memoryRoot, "skills");
 	await fs.mkdir(skillsDir, { recursive: true });
 	const keep = new Set<string>();
@@ -982,7 +982,7 @@ async function applyConsolidation(
 		}
 
 		for (const [relativePath, content] of [...files.entries()].sort(([a], [b]) => a.localeCompare(b))) {
-			await Bun.write(path.join(dir, ...relativePath.split("/")), content);
+			await fsx.write(path.join(dir, ...relativePath.split("/")), content);
 		}
 
 		const keepFiles = new Set(files.keys());
@@ -1387,7 +1387,7 @@ async function appendLearnedLine(filePath: string, line: string): Promise<void> 
 			lessonCount--;
 		}
 	}
-	await Bun.write(filePath, `${out.join("\n")}\n`);
+	await fsx.write(filePath, `${out.join("\n")}\n`);
 }
 
 /**

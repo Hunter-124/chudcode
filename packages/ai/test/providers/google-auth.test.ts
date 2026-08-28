@@ -3,6 +3,7 @@ import { Buffer } from "node:buffer";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import { __resetVertexTokenCache, getVertexAccessToken } from "../../src/providers/google-auth";
 import type { FetchImpl } from "../../src/types";
 
@@ -50,7 +51,7 @@ describe("getVertexAccessToken impersonated_service_account ADC", () => {
 
 	it("rejects a malformed service_account_impersonation_url before any network call", async () => {
 		const adcPath = path.join(tmpDir, "impersonated-bad-url.json");
-		await Bun.write(
+		await fsx.write(
 			adcPath,
 			JSON.stringify({
 				type: "impersonated_service_account",
@@ -82,7 +83,7 @@ describe("getVertexAccessToken impersonated_service_account ADC", () => {
 	it("signs an RS256 JWT for a service_account source and reconstructs the IAM URL", async () => {
 		const pem = await generateServiceAccountPem();
 		const adcPath = path.join(tmpDir, "impersonated-sa.json");
-		await Bun.write(
+		await fsx.write(
 			adcPath,
 			JSON.stringify({
 				type: "impersonated_service_account",

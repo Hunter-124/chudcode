@@ -977,7 +977,7 @@ export async function runChangelogFixer(options: RunChangelogFixerOptions = {}):
 		});
 
 		if (options.write !== false) {
-			await Bun.write(absolutePath, finalContent);
+			await fsx.write(absolutePath, finalContent);
 		}
 	}
 

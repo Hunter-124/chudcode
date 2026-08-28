@@ -30,6 +30,7 @@ import type {
 } from "@oh-my-pi/pi-coding-agent/extensibility/extensions/types";
 import { ExtensionUiController } from "@oh-my-pi/pi-coding-agent/modes/controllers/extension-ui-controller";
 import type { InteractiveModeContext, InteractiveSelectorDialogOptions } from "@oh-my-pi/pi-coding-agent/modes/types";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import { installInMemoryRelay, uninstallInMemoryRelay } from "./helpers/in-memory-relay";
 
 // In-memory transport: shared FakeWebSocket + InMemoryRelay harness (see
@@ -280,7 +281,7 @@ let writeSpy: { mockRestore(): void } | null = null;
 
 beforeEach(() => {
 	installInMemoryRelay();
-	writeSpy = spyOn(Bun, "write").mockResolvedValue(0);
+	writeSpy = spyOn(fsx, "write").mockResolvedValue(0);
 });
 
 afterEach(async () => {

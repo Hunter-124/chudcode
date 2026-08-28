@@ -148,7 +148,7 @@ export class PluginManager {
 
 	async #saveRuntimeConfig(): Promise<void> {
 		await this.#ensureConfigLoaded();
-		await Bun.write(getPluginsLockfile(), JSON.stringify(this.#runtimeConfig, null, 2));
+		await fsx.write(getPluginsLockfile(), JSON.stringify(this.#runtimeConfig, null, 2));
 	}
 
 	async #loadProjectOverrides(): Promise<ProjectPluginOverrides> {
@@ -177,7 +177,7 @@ export class PluginManager {
 			await Bun.file(pkgJsonPath).json();
 		} catch (err) {
 			if (isEnoent(err)) {
-				await Bun.write(
+				await fsx.write(
 					pkgJsonPath,
 					JSON.stringify(
 						{
@@ -218,7 +218,7 @@ export class PluginManager {
 			return;
 		}
 		delete pkgJson.dependencies[name];
-		await Bun.write(pkgJsonPath, JSON.stringify(pkgJson, null, 2));
+		await fsx.write(pkgJsonPath, JSON.stringify(pkgJson, null, 2));
 	}
 
 	#collectInstalledNames(deps: Record<string, string>, config: PluginRuntimeConfig): Set<string> {
@@ -360,7 +360,7 @@ export class PluginManager {
 		bunLockBefore: string | null,
 		snapshot: PluginPackageSnapshot | null,
 	): Promise<void> {
-		await Bun.write(getPluginsPackageJson(), packageJsonBefore);
+		await fsx.write(getPluginsPackageJson(), packageJsonBefore);
 
 		// Restore (or remove) bun's lockfile. Without this, a `bun install` +
 		// `bun update` pair that successfully rewrote `bun.lock` would leave the
@@ -369,7 +369,7 @@ export class PluginManager {
 		if (bunLockBefore === null) {
 			await fs.promises.rm(bunLockPath, { force: true });
 		} else {
-			await Bun.write(bunLockPath, bunLockBefore);
+			await fsx.write(bunLockPath, bunLockBefore);
 		}
 
 		// `actualName` may be undefined when the install failed before the dep

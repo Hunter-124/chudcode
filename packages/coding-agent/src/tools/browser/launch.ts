@@ -137,7 +137,7 @@ async function loadPuppeteerImport(safeDir: string, prepareSafeDir: boolean): Pr
 	let loading = puppeteerLoadPromise;
 	if (!loading) {
 		loading = (async () => {
-			if (prepareSafeDir) await Bun.write(path.join(safeDir, "package.json"), "{}");
+			if (prepareSafeDir) await fsx.write(path.join(safeDir, "package.json"), "{}");
 			return importPuppeteerWithSafeCwd(safeDir);
 		})();
 		puppeteerLoadPromise = loading;

@@ -1,4 +1,5 @@
 #!/usr/bin/env bun
+
 //
 // Render the Homebrew formula for `omp` from a published GitHub release and write
 // it to a tap checkout. The release publishes per-platform bare binaries
@@ -9,6 +10,7 @@
 //   bun scripts/ci-update-brew-formula.ts <tag> --out <path/to/Formula/omp.rb>
 //   bun scripts/ci-update-brew-formula.ts v15.10.3        # prints to stdout
 
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import { $ } from "bun";
 
 const REPO = process.env.OMP_REPO ?? "can1357/oh-my-pi";
@@ -123,7 +125,7 @@ async function main(): Promise<void> {
 
 	const formula = renderFormula(version, sums);
 	if (out) {
-		await Bun.write(out, formula);
+		await fsx.write(out, formula);
 		console.log(`wrote ${out} for ${tag}`);
 	} else {
 		process.stdout.write(formula);

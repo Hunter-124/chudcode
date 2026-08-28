@@ -80,6 +80,6 @@ if (process.argv.includes("--check")) {
 } else if (current === expected) {
 	console.log("bazel/clippy.bazelrc already up to date.");
 } else {
-	await Bun.write(outputPath, expected);
+	await fsx.write(outputPath, expected);
 	console.log("Wrote bazel/clippy.bazelrc.");
 }

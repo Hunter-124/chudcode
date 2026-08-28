@@ -168,7 +168,7 @@ async function writeIsolationPatch(
 ): Promise<{ patchPath: string; nestedPatches: NestedRepoPatch[] }> {
 	const delta = await captureDeltaPatch(isolationDir, baseline);
 	const patchPath = path.join(artifactsDir, `${agentId}.patch`);
-	await Bun.write(patchPath, delta.rootPatch);
+	await fsx.write(patchPath, delta.rootPatch);
 	return { patchPath, nestedPatches: delta.nestedPatches };
 }
 

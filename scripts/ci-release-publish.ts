@@ -238,7 +238,7 @@ export async function rewriteManifest(pkg: PublishPackage, write: boolean): Prom
 		if (!hasDist && !files.includes(extra)) files.push(extra);
 	}
 	manifest.files = files;
-	if (write) await Bun.write(manifestPath, `${JSON.stringify(manifest, null, "\t")}\n`);
+	if (write) await fsx.write(manifestPath, `${JSON.stringify(manifest, null, "\t")}\n`);
 	return manifest;
 }
 
@@ -278,7 +278,7 @@ export async function applyPublishBin(pkgRelDir: string, write: boolean): Promis
 	const manifestPath = path.join(repoRoot, pkgRelDir, "package.json");
 	const manifest = (await Bun.file(manifestPath).json()) as PackageManifest;
 	manifest.bin = { ...pkg.publishBin };
-	if (write) await Bun.write(manifestPath, `${JSON.stringify(manifest, null, "\t")}\n`);
+	if (write) await fsx.write(manifestPath, `${JSON.stringify(manifest, null, "\t")}\n`);
 	return manifest;
 }
 
@@ -312,7 +312,7 @@ export async function prepareNativeCorePackage(pkgDir: string, write: boolean): 
 		"README.md",
 		...legalFiles,
 	];
-	if (write) await Bun.write(manifestPath, `${JSON.stringify(manifest, null, "\t")}\n`);
+	if (write) await fsx.write(manifestPath, `${JSON.stringify(manifest, null, "\t")}\n`);
 	return manifest;
 }
 

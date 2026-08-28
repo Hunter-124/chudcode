@@ -384,14 +384,14 @@ describe("runChangelogFixer baseline pin", () => {
 		try {
 			const changelogPath = path.join(repoRoot, "packages/foo/CHANGELOG.md");
 			await git("init", "-b", "main");
-			await Bun.write(changelogPath, RELEASED_ONLY);
+			await fsx.write(changelogPath, RELEASED_ONLY);
 			await git("add", "-A");
 			await git("commit", "-m", "release 1.0.0");
 			await git("tag", "v1.0.0");
 
 			// Simulate a `--recover` restoring a historically released bullet that the
 			// v1.0.0 snapshot no longer carries.
-			await Bun.write(changelogPath, RELEASED_PLUS_RECOVERED);
+			await fsx.write(changelogPath, RELEASED_PLUS_RECOVERED);
 			await git("add", "-A");
 			await git("commit", "-m", "recover dropped bullet");
 
@@ -435,7 +435,7 @@ describe("runChangelogFixer size limit", () => {
 			await git("init", "-b", "main");
 			// The oldest section must outweigh the footer for a collapse to shrink the file.
 			const content = FOUR_SECTIONS.replace("- Fix one.", `- Fix one. ${"x".repeat(400)}`);
-			await Bun.write(changelogPath, content);
+			await fsx.write(changelogPath, content);
 			await git("add", "-A");
 			await git("commit", "-m", "release 1.2.0");
 			await git("tag", "v1.2.0");

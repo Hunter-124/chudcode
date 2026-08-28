@@ -33,9 +33,9 @@ describe("published legal payloads", () => {
 		await fs.mkdir(pkgDir);
 		try {
 			await Promise.all([
-				Bun.write(path.join(root, "LICENSE"), "root MIT\n"),
-				Bun.write(path.join(root, "THIRD-PARTY-NOTICES.txt"), "notices\n"),
-				Bun.write(path.join(pkgDir, "LICENSE"), "package MIT\n"),
+				fsx.write(path.join(root, "LICENSE"), "root MIT\n"),
+				fsx.write(path.join(root, "THIRD-PARTY-NOTICES.txt"), "notices\n"),
+				fsx.write(path.join(pkgDir, "LICENSE"), "package MIT\n"),
 			]);
 
 			const files = await stageLegalPayloads(pkgDir, "MIT", true, root);
@@ -50,7 +50,7 @@ describe("published legal payloads", () => {
 	it("lists every legal file explicitly in the native core package", async () => {
 		const pkgDir = await fs.mkdtemp(path.join(os.tmpdir(), "omp-native-core-"));
 		try {
-			await Bun.write(
+			await fsx.write(
 				path.join(pkgDir, "package.json"),
 				JSON.stringify({
 					name: "@oh-my-pi/pi-natives",

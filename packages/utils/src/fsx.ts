@@ -19,11 +19,12 @@ import { isEacces, isEnoent, isEnotdir } from "./fs-error";
  */
 
 export type PathLike = string | URL;
-export type WritableData = string | Uint8Array | ArrayBuffer | DataView;
+export type WritableData = string | Uint8Array | ArrayBuffer | DataView | Blob;
 
-function toBuffer(data: WritableData): string | Uint8Array {
+async function toBuffer(data: WritableData): Promise<string | Uint8Array> {
 	if (typeof data === "string" || data instanceof Uint8Array) return data;
 	if (data instanceof ArrayBuffer) return new Uint8Array(data);
+	if (data instanceof Blob) return new Uint8Array(await data.arrayBuffer());
 	return new Uint8Array(data.buffer, data.byteOffset, data.byteLength);
 }
 
@@ -75,15 +76,24 @@ export async function size(file: PathLike): Promise<number | undefined> {
 /**
  * Write `data` to `file`, creating parent directories, and return the number of
  * bytes written.
+ *
+ * When the directory cannot be created, the rejection is the original
+ * "destination missing" error with the recovery failure as its `cause` — the
+ * shape `Bun.write` produced, which the write-fallback broker branches on to
+ * report the underlying denial.
  */
 export async function write(file: PathLike, data: WritableData): Promise<number> {
-	const bytes = toBuffer(data);
+	const bytes = await toBuffer(data);
 	try {
 		await fs.writeFile(file, bytes);
 	} catch (error) {
 		if (!isEnoent(error)) throw error;
-		await fs.mkdir(path.dirname(toPath(file)), { recursive: true });
-		await fs.writeFile(file, bytes);
+		try {
+			await fs.mkdir(path.dirname(toPath(file)), { recursive: true });
+			await fs.writeFile(file, bytes);
+		} catch (retryError) {
+			throw Object.assign(error, { cause: retryError });
+		}
 	}
 	return typeof bytes === "string" ? Buffer.byteLength(bytes) : bytes.byteLength;
 }

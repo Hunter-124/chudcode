@@ -22,6 +22,7 @@ import * as path from "node:path";
 import type { AgentMessage, AgentState } from "@oh-my-pi/pi-agent-core";
 import type { AssistantMessage, ImageContent, TextContent } from "@oh-my-pi/pi-ai";
 import { $which, logger } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import { DEFAULT_SHARE_URL } from "@oh-my-pi/pi-wire";
 import { $ } from "bun";
 import { obfuscateToolArguments } from "../secrets/message-transform";
@@ -621,7 +622,7 @@ async function tryCreateGist(sealed: Uint8Array): Promise<{ id: string; url: str
 	const dir = await fs.mkdtemp(path.join(os.tmpdir(), "omp-share-"));
 	try {
 		const file = path.join(dir, GIST_FILENAME);
-		await Bun.write(file, Buffer.from(sealed).toString("base64"));
+		await fsx.write(file, Buffer.from(sealed).toString("base64"));
 		const result = await $`gh gist create --public=false ${file}`.quiet().nothrow();
 		if (result.exitCode !== 0) {
 			logger.warn("share: gist creation failed; falling back to share server", {

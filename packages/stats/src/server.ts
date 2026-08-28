@@ -3,6 +3,7 @@ import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
 import { isEnoent } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import { $ } from "bun";
 import {
 	getBehaviorDashboardStats,
@@ -69,7 +70,7 @@ async function extractEmbeddedClientArchive(archiveBytes: Buffer, outputDir: str
 		if (!destinationPath.startsWith(extractRoot + path.sep)) {
 			throw new Error(`Archive entry escapes extraction directory: ${archivePath}`);
 		}
-		await Bun.write(destinationPath, file);
+		await fsx.write(destinationPath, file);
 	}
 }
 
@@ -188,7 +189,7 @@ const ensureClientBuild = async () => {
 </body>
 </html>`;
 
-	await Bun.write(path.join(STATIC_DIR, "index.html"), indexHtml);
+	await fsx.write(path.join(STATIC_DIR, "index.html"), indexHtml);
 };
 
 /**

@@ -1,6 +1,7 @@
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { getDaemonRuntimeDir, isEisdir, isEnoent } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 
 /** Resolve the private runtime directory shared by omp processes in one project directory. */
 export { getDaemonRuntimeDir as daemonRuntimeDir };
@@ -29,7 +30,7 @@ export async function canonicalProjectDir(projectDir: string): Promise<string> {
  * can map a hash-keyed runtime dir back to its project.
  */
 export async function writeDaemonScopeMeta(runtimeDir: string, projectDir: string): Promise<void> {
-	await Bun.write(path.join(runtimeDir, SCOPE_FILE), JSON.stringify({ projectDir }));
+	await fsx.write(path.join(runtimeDir, SCOPE_FILE), JSON.stringify({ projectDir }));
 }
 
 /** Read the project directory recorded for a runtime dir; undefined when absent or malformed. */

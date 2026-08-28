@@ -797,7 +797,7 @@ function buildApplyArgs(patchPath: string, options: PatchOptions): string[] {
 
 async function writeTempPatch(content: string): Promise<string> {
 	const tempPath = path.join(os.tmpdir(), `omp-git-patch-${Snowflake.next()}.patch`);
-	await Bun.write(tempPath, content);
+	await fsx.write(tempPath, content);
 	return tempPath;
 }
 
@@ -1791,14 +1791,14 @@ export async function detachGitDir(worktreeRoot: string, sourceCommonDir: string
 			alternates.push(path.isAbsolute(entry) ? entry : path.resolve(parentCommon, "objects", entry));
 		}
 	}
-	await Bun.write(path.join(objectsInfo, "alternates"), `${alternates.join("\n")}\n`);
+	await fsx.write(path.join(objectsInfo, "alternates"), `${alternates.join("\n")}\n`);
 
 	// Freeze refs when HEAD is born. Point HEAD at the raw SHA first so
 	// `update-ref` writes land even for the branch HEAD currently names, then
 	// restore the symbolic HEAD. An unborn HEAD has no refs to freeze; `init -b`
 	// above already set the symbolic HEAD to the unborn branch.
 	if (headSha) {
-		await Bun.write(path.join(gitEntry, "HEAD"), `${headSha}\n`);
+		await fsx.write(path.join(gitEntry, "HEAD"), `${headSha}\n`);
 		if (refDump) {
 			const commands = refDump
 				.split("\n")
@@ -1810,10 +1810,10 @@ export async function detachGitDir(worktreeRoot: string, sourceCommonDir: string
 				.join("\n");
 			await runEffect(worktreeRoot, ["update-ref", "--stdin"], { stdin: `${commands}\n` });
 		}
-		if (headRef) await Bun.write(path.join(gitEntry, "HEAD"), `ref: ${headRef}\n`);
+		if (headRef) await fsx.write(path.join(gitEntry, "HEAD"), `ref: ${headRef}\n`);
 	} else if (headRef && !initialBranch) {
 		// Unborn detached HEAD (no branch, no commit) — restore the raw ref target.
-		await Bun.write(path.join(gitEntry, "HEAD"), `ref: ${headRef}\n`);
+		await fsx.write(path.join(gitEntry, "HEAD"), `ref: ${headRef}\n`);
 	}
 
 	// Carry the source identity so isolated commits have an author.
@@ -1823,7 +1823,7 @@ export async function detachGitDir(worktreeRoot: string, sourceCommonDir: string
 	if (splitIndex !== undefined) await config.set(worktreeRoot, "core.splitIndex", splitIndex);
 	// Preserve the shallow boundary so history traversal over the borrowed
 	// object DB stops at the boundary instead of failing on missing parents.
-	if (shallowBoundary !== null) await Bun.write(path.join(gitEntry, "shallow"), shallowBoundary);
+	if (shallowBoundary !== null) await fsx.write(path.join(gitEntry, "shallow"), shallowBoundary);
 
 	// Restore sparse-checkout state before the index so skip-worktree entries
 	// keep resolving against the carried patterns.
@@ -1832,7 +1832,7 @@ export async function detachGitDir(worktreeRoot: string, sourceCommonDir: string
 	if (sparsePatterns !== null) {
 		const infoDir = path.join(gitEntry, "info");
 		await fs.promises.mkdir(infoDir, { recursive: true });
-		await Bun.write(path.join(infoDir, "sparse-checkout"), sparsePatterns);
+		await fsx.write(path.join(infoDir, "sparse-checkout"), sparsePatterns);
 	}
 
 	// Restore the index verbatim (skip-worktree, assume-unchanged, exact stage
@@ -1841,9 +1841,9 @@ export async function detachGitDir(worktreeRoot: string, sourceCommonDir: string
 	// source had no index (a bare-ish/never-staged checkout).
 	if (indexBytes) {
 		for (const shared of sharedIndexFiles) {
-			await Bun.write(path.join(gitEntry, shared.name), shared.bytes);
+			await fsx.write(path.join(gitEntry, shared.name), shared.bytes);
 		}
-		await Bun.write(path.join(gitEntry, "index"), indexBytes);
+		await fsx.write(path.join(gitEntry, "index"), indexBytes);
 	} else if (headSha) {
 		await readTree(worktreeRoot, headSha);
 	}

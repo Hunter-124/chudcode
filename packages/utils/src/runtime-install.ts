@@ -3,6 +3,7 @@ import * as fsp from "node:fs/promises";
 import * as Module from "node:module";
 import * as path from "node:path";
 import { sleep } from "./async";
+import * as fsx from "./fsx";
 
 /**
  * On-demand runtime dependency support for native-heavy optional packages
@@ -334,7 +335,7 @@ export async function writeRuntimeManifest(runtimeDir: string, install: RuntimeI
 	};
 	if (install.overrides && Object.keys(install.overrides).length) manifest.overrides = install.overrides;
 	if (install.trustedDependencies?.length) manifest.trustedDependencies = install.trustedDependencies;
-	await Bun.write(path.join(runtimeDir, "package.json"), `${JSON.stringify(manifest, null, "\t")}\n`);
+	await fsx.write(path.join(runtimeDir, "package.json"), `${JSON.stringify(manifest, null, "\t")}\n`);
 }
 
 async function readPipe(stream: ReadableStream<Uint8Array> | null): Promise<string> {

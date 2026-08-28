@@ -7,6 +7,7 @@
 
 import { readdirSync } from "node:fs";
 import { join } from "node:path";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 
 interface PackageJson {
 	name: string;
@@ -99,7 +100,7 @@ for (const dir in packages) {
 
 	// Write if updated
 	if (updated) {
-		await Bun.write(pkg.path, `${JSON.stringify(pkg.data, null, "\t")}\n`);
+		await fsx.write(pkg.path, `${JSON.stringify(pkg.data, null, "\t")}\n`);
 	}
 }
 

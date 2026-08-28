@@ -22,7 +22,7 @@ describe("ArtifactManager write integrity", () => {
 
 	it("rejects a short write instead of publishing an unreadable artifact id", async () => {
 		const manager = new ArtifactManager(freshDir());
-		vi.spyOn(Bun, "write").mockResolvedValue(1);
+		vi.spyOn(fsx, "write").mockResolvedValue(1);
 
 		await expect(manager.save("complete report", "task")).rejects.toThrow(
 			"Artifact write incomplete: wrote 1 of 15 bytes",
@@ -35,8 +35,8 @@ describe("ArtifactManager write integrity", () => {
 		const destination = path.join(dir, "Worker.md");
 		// Faithfully model a short write: partial bytes land on the staging file,
 		// and Bun.write reports fewer bytes than requested.
-		const realWrite = Bun.write.bind(Bun);
-		vi.spyOn(Bun, "write").mockImplementation(async (target, content) => {
+		const realWrite = fsx.write;
+		vi.spyOn(fsx, "write").mockImplementation(async (target, content) => {
 			await realWrite(target as string, String(content).slice(0, 3));
 			return 3;
 		});
@@ -54,8 +54,8 @@ describe("ArtifactManager write integrity", () => {
 		const destination = path.join(dir, "Worker.md");
 		await writeArtifact(destination, "original valid report");
 
-		const realWrite = Bun.write.bind(Bun);
-		vi.spyOn(Bun, "write").mockImplementation(async (target, content) => {
+		const realWrite = fsx.write;
+		vi.spyOn(fsx, "write").mockImplementation(async (target, content) => {
 			await realWrite(target as string, String(content).slice(0, 2));
 			return 2;
 		});

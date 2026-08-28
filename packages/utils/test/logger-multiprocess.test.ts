@@ -3,6 +3,7 @@ import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
 import { pathToFileURL } from "node:url";
+import * as fsx from "../src/fsx";
 
 const loggerModuleUrl = pathToFileURL(path.join(import.meta.dir, "../src/logger.ts")).href;
 const roots: string[] = [];
@@ -16,7 +17,7 @@ async function makeProbe(logsDir: string): Promise<string> {
 	roots.push(root);
 	const releasePath = path.join(logsDir, ".release");
 	const probePath = path.join(root, "probe.ts");
-	await Bun.write(
+	await fsx.write(
 		probePath,
 		`import * as fs from "node:fs";\n` +
 			`import { info, setTransports } from ${JSON.stringify(loggerModuleUrl)};\n` +
@@ -47,7 +48,7 @@ describe("multiprocess file logging", () => {
 		// are deterministically completed rather than briefly lingering as zombies.
 		const exitedPids = [9_000_001, 9_000_002];
 
-		await Bun.write(path.join(logsDir, ".release"), "");
+		await fsx.write(path.join(logsDir, ".release"), "");
 		const probePath = await makeProbe(logsDir);
 		const seed = Bun.spawn([process.execPath, probePath], {
 			stdin: "pipe",
@@ -73,15 +74,15 @@ describe("multiprocess file logging", () => {
 		for (const pid of exitedPids) {
 			for (let daysAgo = -1; daysAgo <= 5; daysAgo++) {
 				const name = `omp.${localDate(daysAgo)}.${pid}.log`;
-				await Bun.write(path.join(logsDir, name), name);
+				await fsx.write(path.join(logsDir, name), name);
 				await fs.utimes(path.join(logsDir, name), 2, 2);
 				(daysAgo > 0 && daysAgo < 5 ? retainedNames : expiredNames).push(name);
 			}
 			const rolloverName = `omp.${localDate(0)}.${pid}.log.1`;
-			await Bun.write(path.join(logsDir, rolloverName), rolloverName);
+			await fsx.write(path.join(logsDir, rolloverName), rolloverName);
 			await fs.utimes(path.join(logsDir, rolloverName), 2, 2);
 			retainedNames.push(rolloverName);
-			await Bun.write(path.join(logsDir, `.omp.${pid}-audit.json`), "{}");
+			await fsx.write(path.join(logsDir, `.omp.${pid}-audit.json`), "{}");
 		}
 
 		let currentPid = 0;

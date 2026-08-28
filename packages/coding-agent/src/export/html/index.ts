@@ -2,6 +2,7 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import type { AgentState } from "@oh-my-pi/pi-agent-core";
 import { isEnoent } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import { PRODUCT_CLI_NAME } from "../../brand";
 import { getResolvedThemeColors, getThemeExportColors } from "../../modes/theme/theme";
 import type { SessionEntry, SessionHeader } from "../../session/session-entries";
@@ -286,7 +287,7 @@ export async function exportSessionToHtml(
 	const html = await generateHtml(sessionData, palette, opts.themeNames, opts.themeName);
 	const outputPath = opts.outputPath || `${PRODUCT_CLI_NAME}-session-${path.basename(sessionFile, ".jsonl")}.html`;
 
-	await Bun.write(outputPath, html);
+	await fsx.write(outputPath, html);
 	return outputPath;
 }
 
@@ -316,6 +317,6 @@ export async function exportFromFile(inputPath: string, options?: ExportOptions 
 	const html = await generateHtml(sessionData, palette, opts.themeNames, opts.themeName);
 	const outputPath = opts.outputPath || `${PRODUCT_CLI_NAME}-session-${path.basename(inputPath, ".jsonl")}.html`;
 
-	await Bun.write(outputPath, html);
+	await fsx.write(outputPath, html);
 	return outputPath;
 }

@@ -98,6 +98,7 @@ import {
 	stringProperty,
 	withTimeout,
 } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import { type AdvisorConfig, type AdvisorRuntimeStatus, loadAdvisorTranscriptCosts } from "../advisor";
 import { ASYNC_JOB_MANAGER_SHUTDOWN_REASON, type AsyncJob, AsyncJobManager } from "../async";
 import { reset as resetCapabilities } from "../capability";
@@ -156,9 +157,12 @@ import type { IrcMessage } from "../irc/bus";
 import type { DaemonCompletionNotification } from "../launch/protocol";
 import { shutdownMnemopiEmbedClient } from "../mnemopi/embed-client";
 import { getMnemopiSessionState, type MnemopiSessionState, setMnemopiSessionState } from "../mnemopi/state";
+import { AUTOBOT_NOTICE, containsAutobot } from "../modes/autobot";
 import { containsOrchestrate, renderOrchestrateNotice } from "../modes/orchestrate";
 import { theme } from "../modes/theme/theme";
+import { containsTokenmaxxing, renderTokenmaxxingNotice } from "../modes/tokenmaxxing";
 import { parseTurnBudget } from "../modes/turn-budget";
+import { containsUltragoon, renderUltragoonNotice } from "../modes/ultragoon";
 import { containsUltrathink, ULTRATHINK_NOTICE } from "../modes/ultrathink";
 import { computeNonMessageTokens } from "../modes/utils/context-usage";
 import { containsWorkflow, renderWorkflowNotice } from "../modes/workflow";
@@ -5542,7 +5546,9 @@ export class AgentSession {
 		return this.#providerBoundary.normalizeAgentMessageImages(message);
 	}
 
-	#magicKeywordEnabled(keyword: "orchestrate" | "ultrathink" | "workflow"): boolean {
+	#magicKeywordEnabled(
+		keyword: "orchestrate" | "ultrathink" | "workflow" | "ultragoon" | "tokenmaxxing" | "autobot",
+	): boolean {
 		return this.settings.get("magicKeywords.enabled") && this.settings.get(`magicKeywords.${keyword}`);
 	}
 
@@ -5551,46 +5557,62 @@ export class AgentSession {
 		const turnBudget = parseTurnBudget(text);
 		this.sessionManager.beginTurnBudget(turnBudget?.total ?? null, turnBudget?.hard ?? false);
 		const keywordNotices: CustomMessage[] = [];
+		let toolNamesCache: string[] | undefined;
+		const toolNames = (): string[] => (toolNamesCache ??= this.getEnabledToolNames());
+		const push = (customType: string, content: string): void => {
+			keywordNotices.push({ role: "custom", customType, content, display: false, attribution: "user", timestamp });
+		};
 		if (this.#magicKeywordEnabled("ultrathink") && containsUltrathink(text)) {
-			keywordNotices.push({
-				role: "custom",
-				customType: "ultrathink-notice",
-				content: ULTRATHINK_NOTICE,
-				display: false,
-				attribution: "user",
-				timestamp,
-			});
+			push("ultrathink-notice", ULTRATHINK_NOTICE);
 		}
-		if (this.#magicKeywordEnabled("orchestrate") && containsOrchestrate(text)) {
-			const enabledToolNames = this.getEnabledToolNames();
-			// The contract is entirely about `task` subagent dispatch; without the
-			// task tool the notice would demand an unavailable capability.
-			if (enabledToolNames.includes("task")) {
-				keywordNotices.push({
-					role: "custom",
-					customType: "orchestrate-notice",
-					content: renderOrchestrateNotice({ tools: enabledToolNames }),
-					display: false,
-					attribution: "user",
-					timestamp,
-				});
+		// The orchestration contract is entirely about `task` subagent dispatch;
+		// without the task tool the notice would demand an unavailable capability.
+		if (this.#magicKeywordEnabled("orchestrate") && containsOrchestrate(text) && toolNames().includes("task")) {
+			push("orchestrate-notice", renderOrchestrateNotice({ tools: toolNames() }));
+		}
+		if (
+			this.#magicKeywordEnabled("workflow") &&
+			containsWorkflow(text) &&
+			toolNames().includes("task") &&
+			toolNames().includes("eval")
+		) {
+			push(
+				"workflow-notice",
+				renderWorkflowNotice({
+					taskBatch: this.settings.get("task.batch"),
+					scoutAvailable: this.#isScoutAvailable(),
+				}),
+			);
+		}
+		// Intent-first mode needs at least one of its two mechanisms live: `ask`
+		// for the decision round, `task` for the parallel research fan-out.
+		if (
+			this.#magicKeywordEnabled("ultragoon") &&
+			containsUltragoon(text) &&
+			(toolNames().includes("ask") || toolNames().includes("task"))
+		) {
+			push(
+				"ultragoon-notice",
+				renderUltragoonNotice({ tools: toolNames(), scoutAvailable: this.#isScoutAvailable() }),
+			);
+		}
+		if (this.#magicKeywordEnabled("tokenmaxxing") && containsTokenmaxxing(text)) {
+			push(
+				"tokenmaxxing-notice",
+				renderTokenmaxxingNotice({ tools: toolNames(), scoutAvailable: this.#isScoutAvailable() }),
+			);
+			// Its dispatch branch delegates to the orchestration contract rather than
+			// restating it. Inject that contract once, only when `task` can honor it
+			// and the `orchestrate` keyword did not already bring it in.
+			if (
+				toolNames().includes("task") &&
+				!keywordNotices.some(notice => notice.customType === "orchestrate-notice")
+			) {
+				push("orchestrate-notice", renderOrchestrateNotice({ tools: toolNames() }));
 			}
 		}
-		if (this.#magicKeywordEnabled("workflow") && containsWorkflow(text)) {
-			const enabledToolNames = this.getEnabledToolNames();
-			if (enabledToolNames.includes("task") && enabledToolNames.includes("eval")) {
-				keywordNotices.push({
-					role: "custom",
-					customType: "workflow-notice",
-					content: renderWorkflowNotice({
-						taskBatch: this.settings.get("task.batch"),
-						scoutAvailable: this.#isScoutAvailable(),
-					}),
-					display: false,
-					attribution: "user",
-					timestamp,
-				});
-			}
+		if (this.#magicKeywordEnabled("autobot") && containsAutobot(text)) {
+			push("autobot-notice", AUTOBOT_NOTICE);
 		}
 		return keywordNotices;
 	}
@@ -9770,7 +9792,7 @@ export class AgentSession {
 			messages: llmMessages,
 		};
 		const filePath = path.join(os.tmpdir(), `omp-llm-request-${Snowflake.next()}.json`);
-		await Bun.write(filePath, `${JSON.stringify(payload, null, 2)}\n`);
+		await fsx.write(filePath, `${JSON.stringify(payload, null, 2)}\n`);
 		return filePath;
 	}
 

@@ -19,6 +19,7 @@ import { CollabSocket } from "@oh-my-pi/pi-coding-agent/collab/relay-client";
 import type { InteractiveModeContext } from "@oh-my-pi/pi-coding-agent/modes/types";
 import type { SessionEntry } from "@oh-my-pi/pi-coding-agent/session/session-entries";
 import { sleep } from "@oh-my-pi/pi-utils/async";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import { installInMemoryRelay, uninstallInMemoryRelay } from "./helpers/in-memory-relay";
 
 // In-memory transport: shared FakeWebSocket + InMemoryRelay harness (see
@@ -252,7 +253,7 @@ describe("collab chunked welcome (#3144)", () => {
 
 	it("rejects the pending join when snapshot resume fails", async () => {
 		const failure = new Error("replica write failed during snapshot resume");
-		const writeSpy = spyOn(Bun, "write").mockRejectedValue(failure);
+		const writeSpy = spyOn(fsx, "write").mockRejectedValue(failure);
 		const guest = new CollabGuestLink(makeFailingGuestContext(failure));
 		const joinAttempt = guest.join(host.link);
 		try {

@@ -15,6 +15,7 @@
  */
 
 import * as path from "node:path";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 
 export interface ChecksumEntry {
 	name: string;
@@ -45,7 +46,7 @@ async function main(): Promise<void> {
 		}),
 	);
 
-	await Bun.write(outFile, formatChecksums(entries));
+	await fsx.write(outFile, formatChecksums(entries));
 	console.log(`Wrote ${entries.length} checksum(s) to ${outFile}`);
 }
 

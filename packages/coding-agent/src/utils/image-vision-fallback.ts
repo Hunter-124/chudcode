@@ -20,6 +20,7 @@ import {
 } from "@oh-my-pi/pi-agent-core";
 import type { Api, completeSimple, ImageContent, Model, TextContent } from "@oh-my-pi/pi-ai";
 import { logger, prompt, toError } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import { extractTextContent } from "../commit/utils";
 import type { ModelRegistry } from "../config/model-registry";
 import { expandRoleAlias, getModelMatchPreferences, resolveModelFromString } from "../config/model-resolver";
@@ -87,7 +88,7 @@ async function saveImage(image: ImageContent, localRoot: string): Promise<string
 	const fileName = imageFileName(image);
 	const filePath = path.join(localRoot, fileName);
 	// Content-addressed: identical bytes overwrite themselves harmlessly. Bun.write creates parent dirs.
-	await Bun.write(filePath, Buffer.from(image.data, "base64"));
+	await fsx.write(filePath, Buffer.from(image.data, "base64"));
 	return `local://${fileName}`;
 }
 

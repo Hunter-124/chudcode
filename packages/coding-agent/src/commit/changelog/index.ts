@@ -84,7 +84,7 @@ export async function runChangelogFlow({
 
 		const updatedContent = applyChangelogEntries(changelogContent, unreleased, generated.entries);
 		if (!dryRun) {
-			await Bun.write(boundary.changelogPath, updatedContent);
+			await fsx.write(boundary.changelogPath, updatedContent);
 			await git.stage.files(cwd, [path.relative(cwd, boundary.changelogPath)]);
 		}
 		updated.push(boundary.changelogPath);
@@ -128,7 +128,7 @@ export async function applyChangelogProposals({
 		if (Object.keys(normalized).length === 0 && !normalizedDeletions) continue;
 		const updatedContent = applyChangelogEntries(changelogContent, unreleased, normalized, normalizedDeletions);
 		if (!dryRun) {
-			await Bun.write(proposal.path, updatedContent);
+			await fsx.write(proposal.path, updatedContent);
 			await git.stage.files(cwd, [path.relative(cwd, proposal.path)]);
 		}
 		updated.push(proposal.path);

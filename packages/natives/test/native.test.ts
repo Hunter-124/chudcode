@@ -713,7 +713,7 @@ describe("pi-natives", () => {
 		it("passes executable arguments without shell quoting", async () => {
 			const scriptPath = path.join(testDir, "pty-argv.ts");
 			const expected = ["argument with spaces", 'quote"inside', "backslash\\end"];
-			await Bun.write(scriptPath, 'process.stdout.write(JSON.stringify(process.argv.slice(2)) + "\\n");\n');
+			await fsx.write(scriptPath, 'process.stdout.write(JSON.stringify(process.argv.slice(2)) + "\\n");\n');
 			const session = new PtySession();
 			let output = "";
 			let callbackError: Error | null = null;
@@ -787,7 +787,7 @@ describe("pi-natives", () => {
 				const blockBytes = 64 * 1024;
 				const blocks = 80;
 				const scriptPath = path.join(testDir, "pty-slow-consumer.ts");
-				await Bun.write(
+				await fsx.write(
 					scriptPath,
 					`const block = Buffer.alloc(${blockBytes}, 0x78);\n` +
 						`for (let i = 0; i < ${blocks}; i++) process.stdout.write(block);\n` +

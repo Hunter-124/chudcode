@@ -98,7 +98,7 @@ async function run() {
 	}
 
 	if (anyUpdate) {
-		await Bun.write(PROVIDER_FILE, source);
+		await fsx.write(PROVIDER_FILE, source);
 		console.log(`\nWrote updates to ${path.relative(process.cwd(), PROVIDER_FILE)}`);
 	}
 

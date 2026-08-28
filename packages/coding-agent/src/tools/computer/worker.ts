@@ -1,7 +1,6 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 import * as os from "node:os";
 import * as path from "node:path";
-
 import type {
 	AxNode,
 	AxQuery,
@@ -14,6 +13,7 @@ import type {
 	PointerOptions,
 } from "@oh-my-pi/pi-natives";
 import { createDesktopSession } from "@oh-my-pi/pi-natives/desktop";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import * as postmortem from "@oh-my-pi/pi-utils/postmortem";
 import { Snowflake } from "@oh-my-pi/pi-utils/snowflake";
 import { JsRuntime, type RuntimeHooks } from "../../eval/js/shared/runtime";
@@ -193,7 +193,7 @@ async function captureScreenshot(
 		}),
 	);
 	const destination = path.join(os.tmpdir(), `omp-computer-${Snowflake.next()}.png`);
-	await Bun.write(destination, frame.data);
+	await fsx.write(destination, frame.data);
 	const scaled = frame.width !== frame.sourceWidth || frame.height !== frame.sourceHeight;
 	context.screenshots.push({
 		path: destination,
@@ -420,7 +420,9 @@ export class ComputerWorkerCore {
 	readonly #createSession: NativeDesktopSessionFactory;
 	readonly #unsubscribe: () => void;
 	#session?: NativeDesktopSession;
+	#sessionIdentity?: string;
 	#runtime?: JsRuntime;
+	#runtimeSessionId?: string;
 	#active: ActiveRun | null = null;
 	/**
 	 * Per-run context, carried through AsyncLocalStorage so async work leaked
@@ -457,10 +459,20 @@ export class ComputerWorkerCore {
 		}
 	}
 
-	#ensureSession(snapshot: ComputerSessionSnapshot): NativeDesktopSession {
-		if (this.#session) return this.#session;
+	async #ensureSession(snapshot: ComputerSessionSnapshot): Promise<NativeDesktopSession> {
+		const identity = `${snapshot.display}\0${snapshot.displayServer ?? ""}`;
+		if (this.#session && this.#sessionIdentity === identity) return this.#session;
+		if (this.#session) {
+			await this.#session.close();
+			this.#session = undefined;
+			this.#sessionIdentity = undefined;
+		}
 		try {
-			this.#session = this.#createSession({ display: snapshot.display });
+			this.#session = this.#createSession({
+				display: snapshot.display,
+				...(snapshot.displayServer ? { displayServer: snapshot.displayServer } : {}),
+			});
+			this.#sessionIdentity = identity;
 			return this.#session;
 		} catch (error) {
 			throw nativeError(error);
@@ -468,8 +480,10 @@ export class ComputerWorkerCore {
 	}
 
 	#ensureRuntime(snapshot: ComputerSessionSnapshot): JsRuntime {
-		if (this.#runtime) return this.#runtime;
+		if (this.#runtime && this.#runtimeSessionId === snapshot.sessionId) return this.#runtime;
+		this.#runtime?.dispose();
 		this.#runtime = new JsRuntime({ initialCwd: snapshot.cwd, sessionId: snapshot.sessionId });
+		this.#runtimeSessionId = snapshot.sessionId;
 		return this.#runtime;
 	}
 
@@ -512,7 +526,7 @@ export class ComputerWorkerCore {
 		let completed = false;
 		try {
 			throwIfAborted(signal);
-			const session = this.#ensureSession(message.session);
+			const session = await this.#ensureSession(message.session);
 			const runtime = this.#ensureRuntime(message.session);
 			runtime.setCwd(message.session.cwd);
 			const desktop = this.#createDesktopScope(session);
@@ -568,7 +582,10 @@ export class ComputerWorkerCore {
 		} catch (error) {
 			failure = { error };
 		} finally {
-			runAc.abort(postmortem.markExpectedCleanupError(new ToolAbortError("Computer run ended")));
+			const runEnded = postmortem.markExpectedCleanupError(new ToolAbortError("Computer run ended"));
+			for (const pending of active.pendingTools.values()) pending.reject(runEnded);
+			active.pendingTools.clear();
+			runAc.abort(runEnded);
 			if (this.#active?.id === message.id) this.#active = null;
 		}
 		if (failure !== undefined) {
@@ -578,7 +595,7 @@ export class ComputerWorkerCore {
 		if (completed) {
 			let capabilities: DesktopCapabilities;
 			try {
-				capabilities = this.#ensureSession(message.session).capabilities;
+				capabilities = (await this.#ensureSession(message.session)).capabilities;
 			} catch (error) {
 				this.#transport.send({
 					type: "result",
@@ -660,6 +677,18 @@ export class ComputerWorkerCore {
 					throw nativeError(error);
 				}
 			},
+			environment: (): Record<string, string> => {
+				const { signal, snapshot } = getContext();
+				throwIfAborted(signal);
+				if (snapshot.displayServer) {
+					return { DISPLAY: snapshot.displayServer, WAYLAND_DISPLAY: "" };
+				}
+				const environment: Record<string, string> = {};
+				if (process.env.DISPLAY) environment.DISPLAY = process.env.DISPLAY;
+				if (process.env.WAYLAND_DISPLAY) environment.WAYLAND_DISPLAY = process.env.WAYLAND_DISPLAY;
+				if (process.env.XAUTHORITY) environment.XAUTHORITY = process.env.XAUTHORITY;
+				return environment;
+			},
 			displays: async (): Promise<DesktopDisplay[]> => {
 				const { signal } = getContext();
 				return await nativeCall(signal, () => session.listDisplays());
@@ -737,6 +766,10 @@ export class ComputerWorkerCore {
 			// Closing is best-effort; the worker is exiting and has no request to report this against.
 		} finally {
 			this.#session = undefined;
+			this.#sessionIdentity = undefined;
+			this.#runtime?.dispose();
+			this.#runtime = undefined;
+			this.#runtimeSessionId = undefined;
 			this.#unsubscribe();
 			this.#transport.send({ type: "closed" });
 			this.#transport.close();

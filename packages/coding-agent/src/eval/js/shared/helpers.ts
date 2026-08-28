@@ -1,5 +1,5 @@
 import * as path from "node:path";
-
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import { ToolError } from "../../../tools/tool-errors";
 import type { JsStatusEvent } from "./types";
 
@@ -60,9 +60,9 @@ export function createHelpers(ctx: HelperContext): HelperBundle {
 			}
 			const filePath = resolveHelperPath(ctx, rawPath, "write");
 			if (typeof data === "string" || data instanceof Blob || data instanceof ArrayBuffer) {
-				await Bun.write(filePath, data);
+				await fsx.write(filePath, data);
 			} else {
-				await Bun.write(filePath, new Uint8Array(data.buffer, data.byteOffset, data.byteLength));
+				await fsx.write(filePath, new Uint8Array(data.buffer, data.byteOffset, data.byteLength));
 			}
 			ctx.emitStatus({ op: "write", path: filePath, bytes: getDataSize(data) });
 			return filePath;

@@ -8,6 +8,7 @@ import { htmlToMarkdown } from "@oh-my-pi/pi-natives";
 import { type Component, Text } from "@oh-my-pi/pi-tui";
 import { $which, ptree, truncate } from "@oh-my-pi/pi-utils";
 import { type ArchiveFormat, listArchiveRoot, sniffArchiveFormat } from "@oh-my-pi/pi-utils/ar";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import type { Settings } from "../config/settings";
 import { readEditableNotebookText } from "../edit/notebook";
 import type { RenderResultOptions } from "../extensibility/custom-tools/types";
@@ -873,7 +874,7 @@ async function withTempBinaryFile<T>(
 	const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), prefix));
 	const tempPath = path.join(tempDir, `payload${extension}`);
 	try {
-		await Bun.write(tempPath, bytes);
+		await fsx.write(tempPath, bytes);
 		return await readTempFile(tempPath);
 	} finally {
 		await fs.rm(tempDir, { recursive: true, force: true });
@@ -1599,7 +1600,7 @@ async function persistReadUrlArtifact(
 ): Promise<{ id?: string; path?: string } | undefined> {
 	const artifact = await session.allocateOutputArtifact?.("read");
 	if (!artifact?.path) return undefined;
-	await Bun.write(artifact.path, output);
+	await fsx.write(artifact.path, output);
 	return artifact;
 }
 
@@ -1631,7 +1632,7 @@ async function materializeReadUrlContent(session: ToolSession, entry: ReadUrlEnt
 	await fs.mkdir(dir, { recursive: true });
 	const hash = Bun.hash(`${raw ? "raw" : "rendered"}:${entry.details.finalUrl}`).toString(36);
 	const contentPath = path.join(dir, `${hash}${readUrlContentExtension(entry.details.finalUrl)}`);
-	await Bun.write(contentPath, entry.content);
+	await fsx.write(contentPath, entry.content);
 	return contentPath;
 }
 

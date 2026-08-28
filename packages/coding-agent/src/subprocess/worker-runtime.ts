@@ -9,6 +9,7 @@ import {
 	isCompiledBinary,
 	resolveRuntimeModule,
 } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import packageJson from "../../package.json" with { type: "json" };
 
 /**
@@ -167,7 +168,7 @@ export function replayCachedReady<K, M>(
 export async function installSharpStubResolver(runtimeDir: string): Promise<string> {
 	const nodeModules = path.join(runtimeDir, "node_modules");
 	const sharpStub = path.join(runtimeDir, "omp-sharp-stub.cjs");
-	await Bun.write(sharpStub, "module.exports = {};\n");
+	await fsx.write(sharpStub, "module.exports = {};\n");
 	installRuntimeModuleResolver({ runtimeNodeModules: nodeModules, stubs: { sharp: sharpStub } });
 	return nodeModules;
 }

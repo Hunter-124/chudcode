@@ -3,6 +3,7 @@ import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { parseSessionFile } from "@oh-my-pi/omp-stats/parser";
 import { getSessionsDir } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import { installStatsTestIsolation } from "./helpers/temp-agent";
 
 installStatsTestIsolation("@pi-stats-large-session-");
@@ -47,7 +48,7 @@ async function writeLargeSessionFile(): Promise<string> {
 			}),
 		);
 	}
-	await Bun.write(sessionFile, `${lines.join("\n")}\n`);
+	await fsx.write(sessionFile, `${lines.join("\n")}\n`);
 	return sessionFile;
 }
 

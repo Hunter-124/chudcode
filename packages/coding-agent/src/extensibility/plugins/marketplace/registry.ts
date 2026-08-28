@@ -45,7 +45,7 @@ async function atomicWriteJson(filePath: string, data: unknown): Promise<void> {
 	const content = `${JSON.stringify(data, null, 2)}\n`;
 	const tmpPath = `${filePath}.tmp`;
 
-	await Bun.write(tmpPath, content);
+	await fsx.write(tmpPath, content);
 
 	try {
 		await fs.rename(tmpPath, filePath);

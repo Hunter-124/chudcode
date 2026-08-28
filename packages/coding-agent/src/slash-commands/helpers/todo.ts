@@ -133,7 +133,7 @@ async function handleTodoExportCommand(restArgs: string, runtime: SlashCommandRu
 	let target: string;
 	try {
 		target = resolveTodoMarkdownPath(restArgs, runtime.sessionManager.getCwd());
-		await Bun.write(target, phasesToMarkdown(phases));
+		await fsx.write(target, phasesToMarkdown(phases));
 	} catch (err) {
 		return usage(`Failed to write todos: ${errorMessage(err)}`, runtime);
 	}

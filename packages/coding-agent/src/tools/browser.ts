@@ -2,6 +2,7 @@ import { type } from "@oh-my-pi/omptype";
 import type { AgentTool, AgentToolContext, AgentToolResult, AgentToolUpdateCallback } from "@oh-my-pi/pi-agent-core";
 import type { ToolExample } from "@oh-my-pi/pi-ai";
 import { prompt, untilAborted } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import browserDescription from "../prompts/tools/browser.md" with { type: "text" };
 import type { ToolSession } from "../sdk";
 import { enforceInlineByteCap } from "../session/streaming-output";
@@ -24,8 +25,10 @@ import {
 	getTab,
 	releaseAllTabs,
 	releaseTab,
+	releaseTabsForOwner,
 	runInTab,
 } from "./browser/tab-supervisor";
+import { usesComputerStage } from "./computer/stage";
 import type { OutputMeta } from "./output-meta";
 import { resolveToCwd } from "./path-utils";
 import { ToolAbortError, ToolError, throwIfAborted } from "./tool-errors";
@@ -39,7 +42,8 @@ export {
 } from "./browser/aria/aria-snapshot";
 export { cmuxSnapshotToObservation, mapWaitUntil, resolveCmuxKind, serializeEval } from "./browser/cmux/rpc";
 export { CmuxSocketClient } from "./browser/cmux/socket-client";
-export { extractReadableFromHtml, type ReadableFormat, type ReadableResult } from "./browser/readable";
+export * from "./browser/page-fetch";
+export * from "./browser/readable";
 export { DEFAULT_RELAY_URL, type RelayKind, resolveRelayKind } from "./browser/relay/kind";
 export type { Observation, ObservationEntry } from "./browser/tab-protocol";
 
@@ -210,6 +214,7 @@ export class BrowserTool implements AgentTool<typeof browserSchema, BrowserToolD
 	];
 
 	constructor(private readonly session: ToolSession) {}
+	readonly #tabNames = new Map<string, string>();
 	#description?: string;
 	get description(): string {
 		this.#description ??= prompt.render(browserDescription, {});
@@ -218,7 +223,8 @@ export class BrowserTool implements AgentTool<typeof browserSchema, BrowserToolD
 
 	/** Restart browser to apply mode changes (e.g. headless toggle). Drops only headless browsers. */
 	async restartForModeChange(): Promise<void> {
-		await dropHeadlessTabs();
+		await dropHeadlessTabs(this.session.getSessionId?.() ?? undefined);
+		this.#tabNames.clear();
 	}
 
 	async execute(
@@ -263,9 +269,21 @@ export class BrowserTool implements AgentTool<typeof browserSchema, BrowserToolD
 	): Promise<AgentToolResult<BrowserToolDetails>> {
 		const kind = resolveBrowserKind(params, this.session);
 		details.browser = kind.kind;
+		const surface = this.session.settings.get("computer.surface") ?? "auto";
+		const stageOwnerId = this.session.getEvalKernelOwnerId?.() ?? this.session.getSessionId?.();
+		const stage =
+			kind.kind === "headless" && !kind.headless && usesComputerStage(surface)
+				? {
+						ownerId: stageOwnerId ?? "",
+						width: this.session.settings.get("computer.stageWidth"),
+						height: this.session.settings.get("computer.stageHeight"),
+					}
+				: undefined;
+		if (stage && !stage.ownerId) throw new ToolError("Private headed browser stage requires a stable session owner");
+		const registryName = stage ? `${name}:stage:${Bun.hash(stage.ownerId).toString(36)}` : name;
 
 		// If a tab with this name already exists on a different browser kind, fail fast — caller must close first.
-		const existing = getTab(name);
+		const existing = getTab(registryName);
 		if (existing && !sameBrowserKind(existing.browser.kind, kind)) {
 			throw new ToolError(
 				`Tab ${JSON.stringify(name)} is bound to a different browser (${describeKind(existing.browser.kind)}). Close it first.`,
@@ -296,6 +314,7 @@ export class BrowserTool implements AgentTool<typeof browserSchema, BrowserToolD
 						: undefined,
 					appArgs: params.app?.args,
 					signal: openSignal,
+					stage,
 				}),
 			);
 
@@ -311,7 +330,7 @@ export class BrowserTool implements AgentTool<typeof browserSchema, BrowserToolD
 			let result: AcquireTabResult;
 			try {
 				result = await untilAborted(openSignal, () =>
-					acquireTab(name, browser, {
+					acquireTab(registryName, browser, {
 						url: params.url,
 						waitUntil: params.wait_until,
 						viewport: params.viewport
@@ -336,6 +355,7 @@ export class BrowserTool implements AgentTool<typeof browserSchema, BrowserToolD
 				throw error;
 			}
 			await releaseBrowser(browser, { kill: false });
+			this.#tabNames.set(name, registryName);
 
 			const tab = result.tab;
 			const url = tab.info.url;
@@ -368,11 +388,17 @@ export class BrowserTool implements AgentTool<typeof browserSchema, BrowserToolD
 	): Promise<AgentToolResult<BrowserToolDetails>> {
 		const kill = !!params.kill;
 		if (params.all) {
-			const count = await untilAborted(signal, () => releaseAllTabs({ kill, timeoutMs }));
+			const ownerId = this.session.getSessionId?.();
+			const count = await untilAborted(signal, () =>
+				ownerId ? releaseTabsForOwner(ownerId, { kill, timeoutMs }) : releaseAllTabs({ kill, timeoutMs }),
+			);
+			this.#tabNames.clear();
 			details.result = `Released ${count} managed tab${count === 1 ? "" : "s"}`;
 			return toolResult(details).text(details.result).done();
 		}
-		const closed = await untilAborted(signal, () => releaseTab(name, { kill, timeoutMs }));
+		const registryName = this.#tabNames.get(name) ?? name;
+		const closed = await untilAborted(signal, () => releaseTab(registryName, { kill, timeoutMs }));
+		if (closed) this.#tabNames.delete(name);
 		details.result = closed ? `Released managed tab ${JSON.stringify(name)}` : `No tab named ${JSON.stringify(name)}`;
 		return toolResult(details).text(details.result).done();
 	}
@@ -387,13 +413,14 @@ export class BrowserTool implements AgentTool<typeof browserSchema, BrowserToolD
 		if (!params.code?.trim()) {
 			throw new ToolError("Missing required parameter 'code' for action 'run'.");
 		}
-		const tab = getTab(name);
+		const registryName = this.#tabNames.get(name) ?? name;
+		const tab = getTab(registryName);
 		if (tab) {
 			details.browser = tab.browser.kind.kind;
 			details.url = tab.info.url;
 		}
 
-		const { displays, returnValue, screenshots } = await runInTab(name, {
+		const { displays, returnValue, screenshots } = await runInTab(registryName, {
 			code: params.code,
 			timeoutMs,
 			signal,
@@ -436,7 +463,7 @@ async function saveBrowserOutputArtifact(session: ToolSession, fullText: string)
 	try {
 		const alloc = await session.allocateOutputArtifact?.("browser-original");
 		if (!alloc?.path || !alloc.id) return undefined;
-		await Bun.write(alloc.path, fullText);
+		await fsx.write(alloc.path, fullText);
 		return alloc.id;
 	} catch {
 		return undefined;

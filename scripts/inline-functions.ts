@@ -70,6 +70,7 @@ import { rm } from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
 import { parseArgs } from "node:util";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import { $ } from "bun";
 import type {
 	CallExpression,
@@ -977,7 +978,7 @@ async function formatFile(file: string): Promise<void> {
 
 async function showDiff(file: string, updated: string): Promise<void> {
 	const tmp = path.join(os.tmpdir(), `inline-${process.pid}-${path.basename(file)}`);
-	await Bun.write(tmp, updated);
+	await fsx.write(tmp, updated);
 	await $`git --no-pager diff --no-index -- ${file} ${tmp}`.nothrow();
 	await rm(tmp, { force: true });
 }

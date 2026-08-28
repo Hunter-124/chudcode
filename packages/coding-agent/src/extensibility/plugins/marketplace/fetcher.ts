@@ -271,7 +271,7 @@ export async function fetchMarketplace(source: string, cacheDir: string): Promis
 	const catalog = parseMarketplaceCatalog(text, source);
 
 	const catalogDir = path.join(cacheDir, catalog.name);
-	await Bun.write(path.join(catalogDir, "marketplace.json"), text);
+	await fsx.write(path.join(catalogDir, "marketplace.json"), text);
 
 	return { catalog };
 }

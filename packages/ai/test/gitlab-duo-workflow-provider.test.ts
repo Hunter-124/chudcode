@@ -43,6 +43,7 @@ import { AssistantMessageEventStream } from "@oh-my-pi/pi-ai/utils/event-stream"
 import { buildModel } from "@oh-my-pi/pi-catalog/build";
 import { extractHttpStatusFromError } from "@oh-my-pi/pi-utils";
 import { sleep } from "@oh-my-pi/pi-utils/async";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 
 beforeAll(() => configureCredentialRedaction(true));
 afterAll(() => configureCredentialRedaction(false));
@@ -4874,7 +4875,7 @@ describe("GitLab Duo Workflow WebSocket state machine", () => {
 		const previousFile = process.env.GITLAB_DUO_WORKFLOW_TRACE_FILE;
 		const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "gitlab-duo-trace-"));
 		const parentFile = path.join(tempDir, "not-a-directory");
-		await Bun.write(parentFile, "already a file");
+		await fsx.write(parentFile, "already a file");
 		process.env.GITLAB_DUO_WORKFLOW_TRACE = "1";
 		process.env.GITLAB_DUO_WORKFLOW_TRACE_FILE = path.join(parentFile, "trace.jsonl");
 		const unhandled: unknown[] = [];

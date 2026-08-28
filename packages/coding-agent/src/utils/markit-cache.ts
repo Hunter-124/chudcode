@@ -150,7 +150,7 @@ export async function writeMarkitConversionCache(key: string, content: string): 
 	const payload = JSON.stringify({ version: MARKIT_CONVERSION_CACHE_VERSION, content });
 	try {
 		await fs.mkdir(cacheDir, { recursive: true });
-		await Bun.write(tempPath, payload);
+		await fsx.write(tempPath, payload);
 		await fs.rename(tempPath, target);
 	} catch (error) {
 		await fs.rm(tempPath, { force: true }).catch(() => undefined);

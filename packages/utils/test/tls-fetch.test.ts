@@ -10,6 +10,7 @@ import {
 	withExtraCaFetch,
 	wrapFetchForExtraCa,
 } from "@oh-my-pi/pi-utils/tls-fetch";
+import * as fsx from "../src/fsx";
 
 const SAMPLE_PEM =
 	"-----BEGIN CERTIFICATE-----\nMIIBkTCCATegAwIBAgIUF/sample/extra/ca/for/tests/1234567=\n-----END CERTIFICATE-----\n";
@@ -58,7 +59,7 @@ describe("wrapFetchForExtraCa", () => {
 
 	it("loads the CA bundle from a path and seeds the system root store", async () => {
 		const caPath = path.join(tmpDir, "corp.pem");
-		await Bun.write(caPath, SAMPLE_PEM);
+		await fsx.write(caPath, SAMPLE_PEM);
 		process.env.NODE_EXTRA_CA_CERTS = caPath;
 
 		const { fetchImpl, calls } = makeRecordingFetch();
@@ -75,7 +76,7 @@ describe("wrapFetchForExtraCa", () => {
 
 	it("accepts an extensionless path per Node's NODE_EXTRA_CA_CERTS contract", async () => {
 		const caPath = path.join(tmpDir, "corp-ca");
-		await Bun.write(caPath, SAMPLE_PEM);
+		await fsx.write(caPath, SAMPLE_PEM);
 		process.env.NODE_EXTRA_CA_CERTS = caPath;
 
 		const { fetchImpl, calls } = makeRecordingFetch();
@@ -97,7 +98,7 @@ describe("wrapFetchForExtraCa", () => {
 
 	it("appends to existing tls.ca without re-seeding system roots", async () => {
 		const caPath = path.join(tmpDir, "corp.pem");
-		await Bun.write(caPath, SAMPLE_PEM);
+		await fsx.write(caPath, SAMPLE_PEM);
 		process.env.NODE_EXTRA_CA_CERTS = caPath;
 
 		const { fetchImpl, calls } = makeRecordingFetch();
@@ -112,7 +113,7 @@ describe("wrapFetchForExtraCa", () => {
 
 	it("invalidates the cache when the bundle file is rewritten", async () => {
 		const caPath = path.join(tmpDir, "rotating.pem");
-		await Bun.write(caPath, SAMPLE_PEM);
+		await fsx.write(caPath, SAMPLE_PEM);
 		process.env.NODE_EXTRA_CA_CERTS = caPath;
 
 		const { fetchImpl, calls } = makeRecordingFetch();
@@ -123,7 +124,7 @@ describe("wrapFetchForExtraCa", () => {
 		// Bump mtime so the path@mtime cache key changes.
 		const future = new Date(Date.now() + 5_000);
 		await fs.utimes(caPath, future, future);
-		await Bun.write(caPath, SECONDARY_PEM);
+		await fsx.write(caPath, SECONDARY_PEM);
 		await fs.utimes(caPath, future, future);
 
 		await wrapped("https://corp.example/v1");
@@ -142,7 +143,7 @@ describe("wrapFetchForExtraCa", () => {
 
 	it("is idempotent — wrapping a wrapped fetch returns the same reference", async () => {
 		const caPath = path.join(tmpDir, "corp.pem");
-		await Bun.write(caPath, SAMPLE_PEM);
+		await fsx.write(caPath, SAMPLE_PEM);
 		process.env.NODE_EXTRA_CA_CERTS = caPath;
 
 		const { fetchImpl } = makeRecordingFetch();
@@ -177,7 +178,7 @@ describe("withExtraCaFetch", () => {
 
 	it("wraps the supplied fetch when the env var is set", async () => {
 		const caPath = path.join(tmpDir, "corp.pem");
-		await Bun.write(caPath, SAMPLE_PEM);
+		await fsx.write(caPath, SAMPLE_PEM);
 		process.env.NODE_EXTRA_CA_CERTS = caPath;
 
 		const { fetchImpl, calls } = makeRecordingFetch();
@@ -189,7 +190,7 @@ describe("withExtraCaFetch", () => {
 
 	it("wraps globalThis.fetch when no fetch is supplied", async () => {
 		const caPath = path.join(tmpDir, "corp.pem");
-		await Bun.write(caPath, SAMPLE_PEM);
+		await fsx.write(caPath, SAMPLE_PEM);
 		process.env.NODE_EXTRA_CA_CERTS = caPath;
 
 		const wrapped = withExtraCaFetch({} as { fetch?: FetchImpl });

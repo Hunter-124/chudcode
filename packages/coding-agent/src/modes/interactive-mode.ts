@@ -3585,7 +3585,7 @@ export class InteractiveMode implements InteractiveModeContext {
 			return;
 		}
 		try {
-			await Bun.write(destination, planContent);
+			await fsx.write(destination, planContent);
 		} catch (error) {
 			this.showError(
 				`Failed to save plan to ${shortenPath(destination)}: ${error instanceof Error ? error.message : String(error)}`,
@@ -3643,7 +3643,7 @@ export class InteractiveMode implements InteractiveModeContext {
 				trimTrailingNewline: false,
 			});
 			if (result !== null) {
-				await Bun.write(resolvedPath, result);
+				await fsx.write(resolvedPath, result);
 				this.#planReviewOverlay?.setPlanContent(result);
 				this.showStatus("Plan updated in external editor.");
 			}
@@ -4486,7 +4486,7 @@ export class InteractiveMode implements InteractiveModeContext {
 				onExternalEditor: () => void this.#openPlanInExternalEditor(planFilePath),
 				onPlanEdited: content => {
 					editedContent = content;
-					void Bun.write(this.#resolvePlanFilePath(planFilePath), content);
+					void fsx.write(this.#resolvePlanFilePath(planFilePath), content);
 				},
 				onFeedbackChange: value => {
 					feedback = value;
@@ -4527,7 +4527,7 @@ export class InteractiveMode implements InteractiveModeContext {
 				// write so the durable plan file and synthetic prompt carry the same text.
 				const latestPlanContent = editedContent ?? (await this.#readPlanFile(planFilePath));
 				if (editedContent !== undefined) {
-					await Bun.write(this.#resolvePlanFilePath(planFilePath), editedContent);
+					await fsx.write(this.#resolvePlanFilePath(planFilePath), editedContent);
 				}
 				if (!latestPlanContent) {
 					this.showError(`Plan file not found at ${planFilePath}`);

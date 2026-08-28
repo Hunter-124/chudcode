@@ -25,7 +25,7 @@ if (unrelatedUncaughtChildFlagIndex >= 0) {
 		throw Object.assign(new Error("broken pipe"), { code: "EPIPE", syscall: "send" });
 	});
 	await sleep(100);
-	await Bun.write(marker, "survived uncaught worker IPC EPIPE");
+	await fsx.write(marker, "survived uncaught worker IPC EPIPE");
 	process.exit(0);
 } else if (childFlagIndex >= 0) {
 	const marker = process.argv[childFlagIndex + 1];
@@ -34,7 +34,7 @@ if (unrelatedUncaughtChildFlagIndex >= 0) {
 	postmortem.register("stdio-epipe-test", async () => {
 		process.stderr.write("cleanup started\n");
 		await new Response(Bun.stdin.stream()).text();
-		await Bun.write(marker, "cleanup complete");
+		await fsx.write(marker, "cleanup complete");
 	});
 	const err = Object.assign(new Error("broken pipe"), { code: "EPIPE", syscall: "write" });
 	void Promise.reject(err);

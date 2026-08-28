@@ -13,6 +13,7 @@ import { TranscriptContainer } from "@oh-my-pi/pi-coding-agent/modes/components/
 import { initTheme } from "@oh-my-pi/pi-coding-agent/modes/theme/theme";
 import type { InteractiveModeContext } from "@oh-my-pi/pi-coding-agent/modes/types";
 import type { TUI } from "@oh-my-pi/pi-tui";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import { installInMemoryRelay, uninstallInMemoryRelay } from "../../collab/helpers/in-memory-relay";
 
 // Contract under test: live tool previews that render a pending/running status
@@ -341,7 +342,7 @@ describe("ToolExecutionComponent live preview spinners", () => {
 	// intact even though its instance was orphaned.
 	it("unregisters a live tool block from the shared ticker via the guest resync teardown", async () => {
 		installInMemoryRelay();
-		const writeSpy = spyOn(Bun, "write").mockResolvedValue(0);
+		const writeSpy = spyOn(fsx, "write").mockResolvedValue(0);
 		try {
 			vi.useFakeTimers();
 

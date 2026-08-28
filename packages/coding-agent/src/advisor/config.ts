@@ -338,5 +338,5 @@ export async function saveWatchdogConfigFile(filePath: string, doc: WatchdogConf
 		}
 		return;
 	}
-	await Bun.write(filePath, content);
+	await fsx.write(filePath, content);
 }

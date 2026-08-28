@@ -119,8 +119,8 @@ async function renderChunk(args: RenderChunkArgs): Promise<void> {
 
 	// CRLF so each gallery line is its own terminal row regardless of how the
 	// captured shell handles bare LF.
-	await Bun.write(ansiPath, `${args.lines.join("\r\n")}\r\n`);
-	await Bun.write(
+	await fsx.write(ansiPath, `${args.lines.join("\r\n")}\r\n`);
+	await fsx.write(
 		tapePath,
 		buildTape({
 			gifPath,

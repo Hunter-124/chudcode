@@ -19,6 +19,7 @@ import * as path from "node:path";
 import type { ThinkingLevel } from "@oh-my-pi/pi-agent-core";
 import type { ImageContent } from "@oh-my-pi/pi-ai";
 import { getConfigRootDir, logger } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import type { AgentHubRemote, AgentHubRemoteTranscript } from "../modes/components/agent-hub";
 import type { InteractiveModeContext } from "../modes/types";
 import { AgentRegistry } from "../registry/agent-registry";
@@ -435,7 +436,7 @@ export class CollabGuestLink {
 		if (!pending || this.#left) return;
 		const replicaPath = path.join(getConfigRootDir(), "collab", `${this.#roomId}.jsonl`);
 		const lines = [pending.header, ...pending.entries].map(entry => JSON.stringify(entry)).join("\n");
-		await Bun.write(replicaPath, `${lines}\n`);
+		await fsx.write(replicaPath, `${lines}\n`);
 
 		// Resume through AgentSession without adopting the host's cwd.
 		const switched = await this.#ctx.session.switchSession(replicaPath, { preserveLocalCwd: true });

@@ -11,6 +11,7 @@ import type { Component } from "@oh-my-pi/pi-tui";
 import { ImageProtocol, TERMINAL } from "@oh-my-pi/pi-tui";
 import { getProjectDir, isEnoent, logger, prompt } from "@oh-my-pi/pi-utils";
 import { sleep } from "@oh-my-pi/pi-utils/async";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import {
 	DEFAULT_AUTO_BACKGROUND_THRESHOLD_MS,
 	formatBackgroundNotice,
@@ -305,7 +306,7 @@ async function saveBashOriginalArtifact(session: ToolSession, originalText: stri
 	try {
 		const alloc = await session.allocateOutputArtifact?.("bash-original");
 		if (!alloc?.path || !alloc.id) return undefined;
-		await Bun.write(alloc.path, originalText);
+		await fsx.write(alloc.path, originalText);
 		return alloc.id;
 	} catch {
 		return undefined;

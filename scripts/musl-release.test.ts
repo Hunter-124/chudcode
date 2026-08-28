@@ -31,7 +31,7 @@ async function run(
 
 async function writeExecutable(directory: string, name: string, content: string): Promise<void> {
 	const file = path.join(directory, name);
-	await Bun.write(file, content);
+	await fsx.write(file, content);
 	await fs.chmod(file, 0o755);
 }
 

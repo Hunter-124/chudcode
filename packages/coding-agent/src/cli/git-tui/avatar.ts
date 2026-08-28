@@ -126,12 +126,12 @@ export class AvatarLoader {
 		}
 		if (!bytes) {
 			this.#memory.set(key, null);
-			await Bun.write(missPath, "").catch(() => {});
+			await fsx.write(missPath, "").catch(() => {});
 			return;
 		}
 		try {
 			const png = await new Bun.Image(bytes).resize(AVATAR_PX, AVATAR_PX).png().toBuffer();
-			await Bun.write(pngPath, png);
+			await fsx.write(pngPath, png);
 			this.#memory.set(key, png.toBase64());
 		} catch (err) {
 			logger.debug("avatar normalize failed", { error: err instanceof Error ? err.message : String(err) });

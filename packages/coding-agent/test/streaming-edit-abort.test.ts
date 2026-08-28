@@ -334,9 +334,9 @@ it(
 
 		const { promise: heldLoad, resolve: releaseLoad } = Promise.withResolvers<string>();
 		const realReadText = fsx.readText;
-		const fileSpy = vi.spyOn(fsx, "readText").mockImplementation((file: fsx.PathLike) =>
-			file === target ? heldLoad : realReadText(file),
-		);
+		const fileSpy = vi
+			.spyOn(fsx, "readText")
+			.mockImplementation((file: fsx.PathLike) => (file === target ? heldLoad : realReadText(file)));
 
 		const promptPromise = session.prompt("apply patch");
 		let stopWaitingForDeltas = false;

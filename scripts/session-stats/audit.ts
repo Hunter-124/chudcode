@@ -1114,7 +1114,7 @@ async function saveVerdictCache(cache: VerdictCache): Promise<void> {
 	const newest = Object.entries(cache.entries)
 		.sort((a, b) => b[1].ts - a[1].ts)
 		.slice(0, 500);
-	await Bun.write(CACHE_PATH, JSON.stringify({ entries: Object.fromEntries(newest) }));
+	await fsx.write(CACHE_PATH, JSON.stringify({ entries: Object.fromEntries(newest) }));
 }
 
 /** Digest + system-prompt hashes make staleness automatic: any change to the
@@ -1363,7 +1363,7 @@ async function main(): Promise<void> {
 			await mapPool(candidates, opts.concurrency, async g => {
 				const digest = buildDigest(g);
 				if (opts.digestDir) {
-					await Bun.write(path.join(opts.digestDir, `${g.id}.md`), digest);
+					await fsx.write(path.join(opts.digestDir, `${g.id}.md`), digest);
 				}
 				const key = verdictCacheKey(g.id, digest, res.classifierModel ?? opts.model);
 				if (!opts.noCache) {
@@ -1455,7 +1455,7 @@ async function main(): Promise<void> {
 	}
 
 	if (opts.json) {
-		await Bun.write(opts.json, JSON.stringify(exportJson(res), null, 1));
+		await fsx.write(opts.json, JSON.stringify(exportJson(res), null, 1));
 		console.log(`\nwrote ${opts.json}`);
 	}
 }

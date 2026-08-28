@@ -234,7 +234,7 @@ export class OmfgController {
 			}
 
 			request.component.setStatus("saving", `Saving ${candidate.rule.name}…`);
-			await Bun.write(target.filePath, candidate.fileContent);
+			await fsx.write(target.filePath, candidate.fileContent);
 			if (!this.#isActiveRequest(request)) return { kind: "aborted" };
 
 			const savedRule = buildOmfgRuleForPath(

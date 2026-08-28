@@ -210,7 +210,7 @@ export class NodeFilesystem extends Filesystem {
 	}
 
 	async writeText(path: string, content: string): Promise<WriteResult> {
-		await Bun.write(path, content);
+		await fsx.write(path, content);
 		return { text: content };
 	}
 
@@ -225,7 +225,7 @@ export class NodeFilesystem extends Filesystem {
 
 	override async move(from: string, to: string, content?: string): Promise<void> {
 		if (content !== undefined) {
-			await Bun.write(to, content);
+			await fsx.write(to, content);
 			await this.delete(from);
 			return;
 		}

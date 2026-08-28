@@ -1216,7 +1216,7 @@ class DaemonBroker {
 		};
 		record.persistQueue = record.persistQueue
 			.then(async () => {
-				await Bun.write(tempPath, JSON.stringify(metadata));
+				await fsx.write(tempPath, JSON.stringify(metadata));
 				await fs.rename(tempPath, metaPath);
 			})
 			.catch(error => {

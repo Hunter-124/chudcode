@@ -54,10 +54,10 @@ describe("generated native npm leaf packages", () => {
 		const packageDir = await fs.mkdtemp(path.join(os.tmpdir(), "pi-natives-npm-"));
 		try {
 			await fs.mkdir(path.join(packageDir, "native"));
-			await Bun.write(path.join(packageDir, "package.json"), JSON.stringify({ version: "15.5.15" }));
+			await fsx.write(path.join(packageDir, "package.json"), JSON.stringify({ version: "15.5.15" }));
 			await Promise.all([
-				Bun.write(path.join(packageDir, "LICENSE"), "MIT payload\n"),
-				Bun.write(path.join(packageDir, "THIRD-PARTY-NOTICES.txt"), "Notice payload\n"),
+				fsx.write(path.join(packageDir, "LICENSE"), "MIT payload\n"),
+				fsx.write(path.join(packageDir, "THIRD-PARTY-NOTICES.txt"), "Notice payload\n"),
 			]);
 			const addonFiles = [
 				"pi_natives.linux-x64-baseline.node",
@@ -68,7 +68,7 @@ describe("generated native npm leaf packages", () => {
 				"pi_natives.win32-x64-baseline.node",
 			];
 			for (const file of addonFiles) {
-				await Bun.write(path.join(packageDir, "native", file), file);
+				await fsx.write(path.join(packageDir, "native", file), file);
 			}
 
 			const leaves = await generateNpmPackages({ packageDir });
@@ -103,10 +103,10 @@ describe("generated native npm leaf packages", () => {
 		try {
 			await fs.mkdir(path.join(packageDir, "native"), { recursive: true });
 			await Promise.all([
-				Bun.write(path.join(packageDir, "package.json"), JSON.stringify({ version: "15.5.15" })),
-				Bun.write(path.join(packageDir, "native/pi_natives.darwin-arm64.node"), "darwin"),
-				Bun.write(path.join(packageDir, "LICENSE"), "MIT payload\n"),
-				Bun.write(path.join(root, "THIRD-PARTY-NOTICES.txt"), "Repository notice\n"),
+				fsx.write(path.join(packageDir, "package.json"), JSON.stringify({ version: "15.5.15" })),
+				fsx.write(path.join(packageDir, "native/pi_natives.darwin-arm64.node"), "darwin"),
+				fsx.write(path.join(packageDir, "LICENSE"), "MIT payload\n"),
+				fsx.write(path.join(root, "THIRD-PARTY-NOTICES.txt"), "Repository notice\n"),
 			]);
 
 			await generateNpmPackages({ packageDir, tags: ["darwin-arm64"] });
@@ -123,8 +123,8 @@ describe("generated native npm leaf packages", () => {
 		const logSpy = spyOn(console, "log").mockImplementation(() => {});
 		try {
 			await fs.mkdir(path.join(packageDir, "native"));
-			await Bun.write(path.join(packageDir, "package.json"), JSON.stringify({ version: "15.5.15" }));
-			await Bun.write(path.join(packageDir, "native/pi_natives.darwin-arm64.node"), "darwin");
+			await fsx.write(path.join(packageDir, "package.json"), JSON.stringify({ version: "15.5.15" }));
+			await fsx.write(path.join(packageDir, "native/pi_natives.darwin-arm64.node"), "darwin");
 
 			const leaves = await generateNpmPackages({ packageDir, dryRun: true });
 			expect(leaves.filter(leaf => leaf.missing).map(leaf => leaf.tag)).toEqual([

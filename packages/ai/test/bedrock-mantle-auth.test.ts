@@ -8,6 +8,7 @@ import { getProviderDefinition } from "@oh-my-pi/pi-ai/registry";
 import { stream, streamSimple } from "@oh-my-pi/pi-ai/stream";
 import type { Context, FetchImpl, Model, SimpleStreamOptions } from "@oh-my-pi/pi-ai/types";
 import { buildModel } from "@oh-my-pi/pi-catalog/build";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import { removeWithRetries } from "../../utils/src/temp";
 import { withEnv } from "./helpers";
 
@@ -87,7 +88,7 @@ describe("Bedrock Mantle authentication", () => {
 		const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "bedrock-mantle-region-"));
 		try {
 			const configPath = path.join(tmp, "config");
-			await Bun.write(configPath, "[profile regional]\nregion = eu-west-2\n");
+			await fsx.write(configPath, "[profile regional]\nregion = eu-west-2\n");
 			const capture = await runDirect({
 				AWS_BEARER_TOKEN_BEDROCK: "test-token",
 				AWS_PROFILE: "regional",

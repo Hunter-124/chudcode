@@ -11,6 +11,7 @@ import {
 	type PatchHunk,
 	structuredPatchHunks,
 } from "@oh-my-pi/pi-natives";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 
 function applyHunks(oldText: string, hunks: PatchHunk[]): string {
 	if (hunks.length === 0) return oldText;
@@ -164,7 +165,7 @@ describe("native diff correctness", () => {
 		const dir = await fs.mkdtemp(path.join(os.tmpdir(), "pi-diff-stream-"));
 		const file = path.join(dir, "source.txt");
 		try {
-			await Bun.write(file, "first\nsecond\n");
+			await fsx.write(file, "first\nsecond\n");
 			const stream = new DiffStream();
 			stream.finishSide(DiffSide.Old);
 			await stream.openFile(DiffSide.New, file, 1024);

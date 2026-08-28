@@ -4,6 +4,7 @@ import * as path from "node:path";
 import { syncAllSessions } from "@oh-my-pi/omp-stats/aggregator";
 import { getOverallStats } from "@oh-my-pi/omp-stats/db";
 import { getSessionsDir } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import { installStatsTestIsolation } from "./helpers/temp-agent";
 
 installStatsTestIsolation("@pi-stats-sync-serial-");
@@ -43,7 +44,7 @@ async function writeSessionFile(options?: { includeCost?: boolean }): Promise<vo
 			ttft: 5,
 		},
 	};
-	await Bun.write(sessionFile, `${JSON.stringify(assistant)}\n`);
+	await fsx.write(sessionFile, `${JSON.stringify(assistant)}\n`);
 }
 
 describe("stats sync serial mode", () => {

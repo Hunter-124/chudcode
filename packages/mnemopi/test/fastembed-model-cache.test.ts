@@ -24,7 +24,7 @@ describe("fastembed model cache repair", () => {
 
 		try {
 			await fs.mkdir(modelDir, { recursive: true });
-			await Bun.write(path.join(modelDir, "tokenizer.json"), "cached-tokenizer");
+			await fsx.write(path.join(modelDir, "tokenizer.json"), "cached-tokenizer");
 
 			expect(await ensureFastembedModelSidecars(model, cacheDir)).toBe(true);
 

@@ -3,6 +3,7 @@ import * as os from "node:os";
 import * as path from "node:path";
 import type { AgentToolResult } from "@oh-my-pi/pi-agent-core";
 import { getWorktreeDir, hashPath, isEnoent } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import * as git from "../utils/git";
 import type { ToolSession } from ".";
 import type { GhPrCheckoutSummary, GhToolDetails } from "./gh";
@@ -588,7 +589,7 @@ export async function executePrCreate(
 				// argv-length limits and shell-quoting hazards on uncommon platforms.
 				bodyDir = await fs.mkdtemp(path.join(os.tmpdir(), "gh-pr-body-"));
 				const bodyFile = path.join(bodyDir, "body.md");
-				await Bun.write(bodyFile, body);
+				await fsx.write(bodyFile, body);
 				args.push("--body-file", bodyFile);
 			} else {
 				// Avoid gh dropping into an interactive editor when no body is given.

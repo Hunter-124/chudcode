@@ -4,6 +4,7 @@ import * as path from "node:path";
 import { getRecentRequests, initDb, insertMessageStats, insertToolCalls } from "@oh-my-pi/omp-stats/db";
 import { parseSessionFile } from "@oh-my-pi/omp-stats/parser";
 import { getSessionsDir } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import { installStatsTestIsolation } from "./helpers/temp-agent";
 
 installStatsTestIsolation("@pi-stats-malformed-");
@@ -36,7 +37,7 @@ async function writeSession(lines: string[]): Promise<string> {
 	const dir = path.join(getSessionsDir(), "--tmp--malformed");
 	await fs.mkdir(dir, { recursive: true });
 	const file = path.join(dir, "session.jsonl");
-	await Bun.write(file, `${lines.join("\n")}\n`);
+	await fsx.write(file, `${lines.join("\n")}\n`);
 	return file;
 }
 

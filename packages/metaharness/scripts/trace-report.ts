@@ -32,6 +32,7 @@ import { type Api, AuthStorage, completeSimple, type Model, SqliteAuthCredential
 import { type GeneratedProvider, getBundledModel } from "@oh-my-pi/pi-catalog/models";
 import { getAgentDbPath } from "@oh-my-pi/pi-utils";
 import { sleep } from "@oh-my-pi/pi-utils/async";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 
 const DEFAULT_TINY = "openrouter/inclusionai/ling-2.6-flash";
 const DEFAULT_SYNTH = "openrouter/openai/gpt-oss-120b";
@@ -388,7 +389,7 @@ async function main(): Promise<void> {
 		.join("\n\n");
 
 	if (values.out) {
-		await Bun.write(values.out, `${report}\n`);
+		await fsx.write(values.out, `${report}\n`);
 		console.error(`[trace-report] wrote ${values.out}`);
 	} else {
 		console.log(report);

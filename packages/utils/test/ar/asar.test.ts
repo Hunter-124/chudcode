@@ -8,6 +8,7 @@ import { ArchiveError } from "../../src/ar/error";
 import { DEFAULT_ARCHIVE_LIMITS } from "../../src/ar/limits";
 import { memoryByteSource } from "../../src/ar/source";
 import type { ArchiveIndexEntry } from "../../src/ar/types";
+import * as fsx from "../../src/fsx";
 import { arFixture } from "./fixtures";
 
 const TEMP_ROOTS: string[] = [];
@@ -84,9 +85,9 @@ describe("ASAR fixtures", () => {
 		TEMP_ROOTS.push(root);
 		const archivePath = path.join(root, "bundle.asar");
 		const bytes = await arFixture("asar-unpacked.asar");
-		await Bun.write(archivePath, bytes);
+		await fsx.write(archivePath, bytes);
 		await fs.mkdir(`${archivePath}.unpacked`, { recursive: true });
-		await Bun.write(path.join(`${archivePath}.unpacked`, "external.txt"), "short");
+		await fsx.write(path.join(`${archivePath}.unpacked`, "external.txt"), "short");
 		const entries = await readAsar(memoryByteSource(bytes), {
 			archivePath,
 			limits: DEFAULT_ARCHIVE_LIMITS,

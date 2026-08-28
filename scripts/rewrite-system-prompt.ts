@@ -569,7 +569,7 @@ async function main(): Promise<void> {
 				if (done === total || done % 10 === 0) console.error(`  ${file}: ${done}/${total} prose lines`);
 			},
 		});
-		await Bun.write(output, rewritten);
+		await fsx.write(output, rewritten);
 		console.error(
 			`Wrote ${output}: ${stats.changed} changed, ${stats.fallback} fallback, ${stats.proseLines} prose / ${stats.totalLines} lines (model ${opts.model}).`,
 		);

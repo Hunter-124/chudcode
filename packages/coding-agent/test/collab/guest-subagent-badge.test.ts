@@ -14,6 +14,7 @@ import {
 } from "@oh-my-pi/pi-coding-agent/modes/running-subagent-badge";
 import type { InteractiveModeContext } from "@oh-my-pi/pi-coding-agent/modes/types";
 import { AgentRegistry } from "@oh-my-pi/pi-coding-agent/registry/agent-registry";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import { installInMemoryRelay, uninstallInMemoryRelay } from "./helpers/in-memory-relay";
 
 // In-memory transport: shared FakeWebSocket + InMemoryRelay harness (see
@@ -116,7 +117,7 @@ afterEach(() => {
 
 describe("collab guest running-subagents badge", () => {
 	it("uses the guest mirror registry and refreshes on join, resnapshot, and leave", async () => {
-		const writeSpy = spyOn(Bun, "write").mockResolvedValue(0);
+		const writeSpy = spyOn(fsx, "write").mockResolvedValue(0);
 		const roomId = "badge-room-1";
 		const roomKey = generateRoomKey();
 		const cryptoKey = await importRoomKey(roomKey);

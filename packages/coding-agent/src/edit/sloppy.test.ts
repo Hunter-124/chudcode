@@ -2183,14 +2183,14 @@ describe("splitSloppySections", () => {
 describe("executeSloppy multi-file", () => {
 	async function setup(): Promise<{ dir: TempDir; session: ToolSession }> {
 		const dir = await TempDir.create("@sloppy-multifile-");
-		await Bun.write(dir.join("a.ts"), "const alpha = 1;\n");
-		await Bun.write(dir.join("b.ts"), "const beta = 2;\n");
+		await fsx.write(dir.join("a.ts"), "const alpha = 1;\n");
+		await fsx.write(dir.join("b.ts"), "const beta = 2;\n");
 		// Test seam: executeSloppy only reads `cwd` (+ optional plan/bridge hooks) from the session.
 		const session = { cwd: dir.absolute() } as unknown as ToolSession;
 		return { dir, session };
 	}
 	const writethrough = async (dst: string, content: string) => {
-		await Bun.write(dst, content);
+		await fsx.write(dst, content);
 		return undefined;
 	};
 	const deferred = () => ({ close: () => {} }) as never;
@@ -2244,7 +2244,7 @@ describe("computeSloppySectionDiff", () => {
 	test("returns a diff for an applicable section and an error for a miss", async () => {
 		const dir = await TempDir.create("@sloppy-preview-");
 		try {
-			await Bun.write(dir.join("a.ts"), "const alpha = 1;\n");
+			await fsx.write(dir.join("a.ts"), "const alpha = 1;\n");
 			const good = await computeSloppySectionDiff(
 				{ path: "a.ts", body: `${M.open}\nconst alpha = ⟪1⟫;\n${M.put}\n10` },
 				dir.absolute(),

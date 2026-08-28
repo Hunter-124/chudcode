@@ -919,7 +919,7 @@ export class VaultProtocolHandler implements ProtocolHandler {
 			const realParent = await fs.promises.realpath(parentDir);
 			ensureWithinRoot(realParent, root);
 		}
-		await Bun.write(targetPath, content);
+		await fsx.write(targetPath, content);
 	}
 
 	async #runCli(

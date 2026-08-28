@@ -1,3 +1,4 @@
+import * as fsx from "../fsx";
 import { encodeAsar } from "./asar";
 import { gzipCompress } from "./codecs/gzip";
 import { zstdCompress } from "./codecs/zstd";
@@ -51,5 +52,5 @@ export async function writeArchive(
 	format: WritableArchiveFormat,
 	entries: Iterable<readonly [string, ArchiveMemberContent]>,
 ): Promise<void> {
-	await Bun.write(destPath, await encodeArchive(format, entries));
+	await fsx.write(destPath, await encodeArchive(format, entries));
 }

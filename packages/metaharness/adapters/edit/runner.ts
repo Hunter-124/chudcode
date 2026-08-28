@@ -175,7 +175,7 @@ export async function writeConversationDump(params: {
 		thinkingLevel: params.snapshot.thinkingLevel,
 		tools: params.snapshot.dumpTools,
 	});
-	await Bun.write(dumpPath, `${body}\n`);
+	await fsx.write(dumpPath, `${body}\n`);
 	if (params.snapshot.sourceSessionFile) {
 		await copyConversationArtifacts(params.snapshot.sourceSessionFile, dumpPath);
 	}

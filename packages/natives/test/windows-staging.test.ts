@@ -205,7 +205,7 @@ describe("windows native addon staging", () => {
 			await fs.mkdir(path.join(nativesDir, packageJson.version));
 			await fs.mkdir(path.join(nativesDir, futureVersion));
 			await fs.mkdir(path.join(nativesDir, "not-a-version"));
-			await Bun.write(path.join(nativesDir, "README.txt"), "not a version directory");
+			await fsx.write(path.join(nativesDir, "README.txt"), "not a version directory");
 			await fs.utimes(path.join(nativesDir, staleVersion), new Date(0), new Date(0));
 			await fs.utimes(path.join(nativesDir, freshVersion), new Date(0), new Date(0));
 			prepareNativeVersionDir(path.join(nativesDir, freshVersion));

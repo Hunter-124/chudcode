@@ -28,6 +28,7 @@ import {
 	wrapTextWithAnsi,
 } from "@oh-my-pi/pi-tui";
 import { isEnoent, prompt } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import { YAML } from "bun";
 import type { EffectiveExtensionRoots } from "../../capability/types";
 import { getConfigDirs } from "../../config";
@@ -824,7 +825,7 @@ export class AgentsHubComponent implements Component {
 		}
 		const frontmatter = YAML.stringify({ name: spec.identifier, description: spec.whenToUse }, null, 2).trimEnd();
 		const content = `---\n${frontmatter}\n---\n\n${spec.systemPrompt.trim()}\n`;
-		await Bun.write(filePath, content);
+		await fsx.write(filePath, content);
 		await refreshAgentDiscovery(this.#cwd, this.#extensionRoots());
 		this.#clearCreateFlow();
 		this.#notice = `Created agent ${spec.identifier} at ${shortenPath(filePath)}`;

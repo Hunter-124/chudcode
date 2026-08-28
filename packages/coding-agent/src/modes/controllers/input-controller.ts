@@ -1961,7 +1961,7 @@ export class InputController {
 				name = `paste-${this.#pasteCounter}.md`;
 				filePath = path.join(localRoot, name);
 			} while (await fsx.exists(filePath));
-			await Bun.write(filePath, text);
+			await fsx.write(filePath, text);
 			this.ctx.editor.insertText(`local://${name} `);
 			this.ctx.showStatus(`Saved ${lineCount} pasted lines to local://${name}`);
 		} catch (error) {

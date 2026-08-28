@@ -2,6 +2,7 @@ import { afterEach, describe, expect, test } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import { buildArchiveBase64 } from "../scripts/generate-client-bundle";
 
 const tempDirs: string[] = [];
@@ -12,7 +13,7 @@ async function createFixture(order: readonly string[]): Promise<string> {
 	for (const relativePath of order) {
 		const filePath = path.join(root, relativePath);
 		await fs.mkdir(path.dirname(filePath), { recursive: true });
-		await Bun.write(filePath, relativePath === "index.html" ? "<main>OMP</main>" : "body { color: blue; }");
+		await fsx.write(filePath, relativePath === "index.html" ? "<main>OMP</main>" : "body { color: blue; }");
 	}
 	return root;
 }

@@ -5,6 +5,7 @@ import * as path from "node:path";
 import { syncAllSessions } from "@oh-my-pi/omp-stats/aggregator";
 import { closeDb, getBehaviorOverall, getFileOffset, initDb } from "@oh-my-pi/omp-stats/db";
 import { getAgentDir, getStatsDbPath } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import { installStatsTestIsolation } from "./helpers/temp-agent";
 
 installStatsTestIsolation("@pi-stats-behavior-backfill-");
@@ -46,7 +47,7 @@ async function writeSessionFile(): Promise<string> {
 			ttft: 5,
 		},
 	};
-	await Bun.write(sessionFile, `${JSON.stringify(user)}\n${JSON.stringify(assistant)}\n`);
+	await fsx.write(sessionFile, `${JSON.stringify(user)}\n${JSON.stringify(assistant)}\n`);
 	return sessionFile;
 }
 

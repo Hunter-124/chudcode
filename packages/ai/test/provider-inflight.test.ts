@@ -324,7 +324,7 @@ describe("provider in-flight request limits", () => {
 		const providerDir = limiterDir("tests");
 		const externalLease = path.join(providerDir, "external");
 		await fs.mkdir(externalLease, { recursive: true });
-		await Bun.write(
+		await fsx.write(
 			path.join(externalLease, "info.json"),
 			JSON.stringify({ pid: process.pid, timestamp: Date.now(), token: "external" }),
 		);
@@ -341,7 +341,7 @@ describe("provider in-flight request limits", () => {
 		expect(mock.calls).toHaveLength(0);
 
 		await fs.rm(externalLease, { recursive: true, force: true });
-		await Bun.write(path.join(providerDir, ".wakeup"), String(Date.now()));
+		await fsx.write(path.join(providerDir, ".wakeup"), String(Date.now()));
 		const result = await stream.result();
 		expect(result.content).toEqual([{ type: "text", text: "reply" }]);
 		expect(mock.calls).toHaveLength(1);
@@ -352,7 +352,7 @@ describe("provider in-flight request limits", () => {
 		const providerDir = limiterDir("tests");
 		const externalLease = path.join(providerDir, "external");
 		await fs.mkdir(externalLease, { recursive: true });
-		await Bun.write(
+		await fsx.write(
 			path.join(externalLease, "info.json"),
 			JSON.stringify({ pid: process.pid, timestamp: Date.now(), token: "external" }),
 		);
@@ -401,7 +401,7 @@ describe("provider in-flight request limits", () => {
 		registerMockApi();
 		const lockDir = __providerInFlightForTesting.lockDir("tests");
 		await fs.mkdir(lockDir, { recursive: true });
-		await Bun.write(
+		await fsx.write(
 			path.join(lockDir, "info.json"),
 			JSON.stringify({ pid: process.pid, timestamp: Date.now() - 60_000, token: "live-lock" }),
 		);
@@ -429,7 +429,7 @@ describe("provider in-flight request limits", () => {
 		await fs.mkdir(externalLease, { recursive: true });
 		const old = new Date(Date.now() - 60_000);
 		await fs.utimes(externalLease, old, old);
-		await Bun.write(path.join(externalLease, "info.json"), "{");
+		await fsx.write(path.join(externalLease, "info.json"), "{");
 
 		const controller = new AbortController();
 		const mock = createMockModel({ provider: "tests", responses: [{ content: ["reply"] }] });
@@ -450,7 +450,7 @@ describe("provider in-flight request limits", () => {
 	test("does not delete a fresh lock after observing a stale lock", async () => {
 		const lockDir = __providerInFlightForTesting.lockDir("tests");
 		await fs.mkdir(lockDir, { recursive: true });
-		await Bun.write(
+		await fsx.write(
 			path.join(lockDir, "info.json"),
 			JSON.stringify({ pid: 999999, timestamp: Date.now() - 60_000, token: "stale-lock" }),
 		);
@@ -459,7 +459,7 @@ describe("provider in-flight request limits", () => {
 
 		await fs.rm(lockDir, { recursive: true, force: true });
 		await fs.mkdir(lockDir, { recursive: true });
-		await Bun.write(
+		await fsx.write(
 			path.join(lockDir, "info.json"),
 			JSON.stringify({ pid: process.pid, timestamp: Date.now(), token: "fresh-lock" }),
 		);
@@ -478,7 +478,7 @@ describe("provider in-flight request limits", () => {
 
 		await fs.rm(lockDir, { recursive: true, force: true });
 		await fs.mkdir(lockDir, { recursive: true });
-		await Bun.write(
+		await fsx.write(
 			path.join(lockDir, "info.json"),
 			JSON.stringify({ pid: process.pid, timestamp: Date.now(), token: "fresh-lock" }),
 		);

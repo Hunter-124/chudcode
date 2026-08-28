@@ -2,6 +2,7 @@ import * as fs from "node:fs";
 import * as fsp from "node:fs/promises";
 import * as path from "node:path";
 import { isEnoent, logger } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 
 const BLOB_PREFIX = "blob:sha256:";
 
@@ -63,7 +64,7 @@ async function ensureDisplayPath(blobPath: string, displayPath: string, data: Bu
 			error: err instanceof Error ? err.message : String(err),
 		});
 	}
-	await Bun.write(displayPath, data);
+	await fsx.write(displayPath, data);
 }
 
 function ensureDisplayPathSync(blobPath: string, displayPath: string, data: Buffer): void {
@@ -113,7 +114,7 @@ export class BlobStore {
 			},
 		};
 
-		await Bun.write(blobPath, data);
+		await fsx.write(blobPath, data);
 		await ensureDisplayPath(blobPath, displayPath, data);
 		return result;
 	}

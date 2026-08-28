@@ -175,7 +175,7 @@ async function updateChangelogsForRelease(version: string): Promise<void> {
 		// Clean up any existing empty version entries
 		content = removeEmptyVersionEntries(content);
 
-		await Bun.write(changelog, content);
+		await fsx.write(changelog, content);
 		console.log(`  Updated ${changelog}`);
 	}
 }
@@ -309,7 +309,7 @@ async function cmdRelease(versionOrBump: string): Promise<void> {
 	console.log("Updating root catalog versions...");
 	let rootPkgRaw = await fsx.readText("package.json");
 	rootPkgRaw = rootPkgRaw.replace(/("@oh-my-pi\/[^"]+":\s*)"[^"]+"/g, `$1"${version}"`);
-	await Bun.write("package.json", rootPkgRaw);
+	await fsx.write("package.json", rootPkgRaw);
 	console.log("  Updated root catalog @oh-my-pi/* entries");
 
 	// 3. Update Rust workspace version

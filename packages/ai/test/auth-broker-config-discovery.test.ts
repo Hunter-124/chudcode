@@ -5,6 +5,7 @@ import * as path from "node:path";
 import { discoverAuthStorage, resolveAuthBrokerConfig } from "@oh-my-pi/pi-ai/auth-broker";
 import { writeAuthBrokerSnapshotCache } from "@oh-my-pi/pi-ai/auth-broker/snapshot-cache";
 import type { SnapshotResponse } from "@oh-my-pi/pi-ai/auth-broker/types";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import { removeWithRetries } from "../../utils/src/temp";
 import { withEnv } from "./helpers";
 
@@ -29,7 +30,7 @@ describe("resolveAuthBrokerConfig config discovery", () => {
 	});
 
 	test("resolves broker URL and token from config.yaml when config.yml is absent", async () => {
-		await Bun.write(
+		await fsx.write(
 			path.join(agentDir, "config.yaml"),
 			"auth.broker.url: https://yaml-broker.example/v1\nauth.broker.token: yaml-token\n",
 		);
@@ -43,11 +44,11 @@ describe("resolveAuthBrokerConfig config discovery", () => {
 	});
 
 	test("prefers config.yml over config.yaml when both exist", async () => {
-		await Bun.write(
+		await fsx.write(
 			path.join(agentDir, "config.yaml"),
 			"auth.broker.url: https://yaml-broker.example/v1\nauth.broker.token: yaml-token\n",
 		);
-		await Bun.write(
+		await fsx.write(
 			path.join(agentDir, "config.yml"),
 			"auth.broker.url: https://yml-broker.example/v1\nauth.broker.token: yml-token\n",
 		);
@@ -126,7 +127,7 @@ describe("resolveAuthBrokerConfig config discovery", () => {
 				['{"anthropic":[" email:a@example.com"]}', "identity key with surrounding whitespace"],
 			] as const;
 			for (const [content, expectedError] of invalidFiles) {
-				await Bun.write(poolPath, content);
+				await fsx.write(poolPath, content);
 				await expect(discoverAuthStorage({ agentDir })).rejects.toThrow(expectedError);
 			}
 		});

@@ -54,7 +54,7 @@ async function loadAuthStorage(): Promise<AuthStorage> {
 }
 
 async function saveAuthStorage(storage: AuthStorage): Promise<void> {
-	await Bun.write(AUTH_PATH, JSON.stringify(storage, null, 2));
+	await fsx.write(AUTH_PATH, JSON.stringify(storage, null, 2));
 	await fs.chmod(AUTH_PATH, 0o600);
 }
 

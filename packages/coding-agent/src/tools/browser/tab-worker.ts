@@ -5,6 +5,7 @@ import * as path from "node:path";
 import { postmortem, Snowflake, untilAborted, withTimeout } from "@oh-my-pi/pi-utils";
 import { sleep } from "@oh-my-pi/pi-utils/async";
 import type { HTMLElement } from "@oh-my-pi/pi-utils/dom";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import type {
 	Browser,
 	CDPSession,
@@ -1943,7 +1944,7 @@ export class WorkerCore {
 				)
 			: path.join(os.tmpdir(), `omp-sshots-${Snowflake.next()}.${ext}`);
 		await fs.promises.mkdir(path.dirname(dest), { recursive: true });
-		await Bun.write(dest, savedBuffer);
+		await fsx.write(dest, savedBuffer);
 		const info: ScreenshotResult = {
 			dest,
 			mimeType: savedMimeType,

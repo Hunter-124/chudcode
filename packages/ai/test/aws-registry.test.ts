@@ -3,6 +3,7 @@ import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
 import { getEnvApiKey } from "@oh-my-pi/pi-ai/stream";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import { removeWithRetries } from "../../utils/src/temp";
 import { withEnv } from "./helpers";
 
@@ -42,7 +43,7 @@ describe("AWS provider availability", () => {
 		const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "aws-registry-"));
 		try {
 			const credentialsPath = path.join(tmp, "credentials");
-			await Bun.write(credentialsPath, "[default]\naws_access_key_id = test\naws_secret_access_key = test-secret\n");
+			await fsx.write(credentialsPath, "[default]\naws_access_key_id = test\naws_secret_access_key = test-secret\n");
 			await withEnv(
 				{
 					...EMPTY_AWS_ENV,
@@ -63,8 +64,8 @@ describe("AWS provider availability", () => {
 			const credentialsPath = path.join(tmp, "credentials");
 			const configPath = path.join(tmp, "config");
 			await Promise.all([
-				Bun.write(credentialsPath, "[default]\naws_access_key_id = incomplete\n"),
-				Bun.write(configPath, "[default]\nregion = us-east-1\n"),
+				fsx.write(credentialsPath, "[default]\naws_access_key_id = incomplete\n"),
+				fsx.write(configPath, "[default]\nregion = us-east-1\n"),
 			]);
 			await withEnv(
 				{
@@ -86,8 +87,8 @@ describe("AWS provider availability", () => {
 			const credentialsPath = path.join(tmp, "credentials");
 			const configPath = path.join(tmp, "config");
 			await Promise.all([
-				Bun.write(credentialsPath, ""),
-				Bun.write(configPath, "[default]\ncredential_process = /bin/credential-helper\n"),
+				fsx.write(credentialsPath, ""),
+				fsx.write(configPath, "[default]\ncredential_process = /bin/credential-helper\n"),
 			]);
 			const env = {
 				...EMPTY_AWS_ENV,
@@ -109,8 +110,8 @@ describe("AWS provider availability", () => {
 			const credentialsPath = path.join(tmp, "credentials");
 			const configPath = path.join(tmp, "config");
 			await Promise.all([
-				Bun.write(credentialsPath, ""),
-				Bun.write(
+				fsx.write(credentialsPath, ""),
+				fsx.write(
 					configPath,
 					`[profile irsa]\nrole_arn = arn:aws:iam::111122223333:role/workspace\n` +
 						`web_identity_token_file = /var/run/secrets/token\n\n` +
@@ -138,8 +139,8 @@ describe("AWS provider availability", () => {
 			const credentialsPath = path.join(tmp, "credentials");
 			const configPath = path.join(tmp, "config");
 			await Promise.all([
-				Bun.write(credentialsPath, ""),
-				Bun.write(configPath, "[default]\nrole_arn = arn:aws:iam::111122223333:role/user\n"),
+				fsx.write(credentialsPath, ""),
+				fsx.write(configPath, "[default]\nrole_arn = arn:aws:iam::111122223333:role/user\n"),
 			]);
 			await withEnv(
 				{
@@ -161,7 +162,7 @@ describe("AWS provider availability", () => {
 		try {
 			const credentialsPath = path.join(tmp, "credentials");
 			const configPath = path.join(tmp, "config");
-			await Bun.write(credentialsPath, "");
+			await fsx.write(credentialsPath, "");
 			const baseEnv = {
 				...EMPTY_AWS_ENV,
 				AWS_PROFILE: "default",
@@ -171,14 +172,14 @@ describe("AWS provider availability", () => {
 			};
 
 			for (const credentialSource of ["Environment", "EcsContainer", "Ec2InstanceMetadata", "Unknown"]) {
-				await Bun.write(
+				await fsx.write(
 					configPath,
 					`[default]\nrole_arn = arn:aws:iam::111122223333:role/user\ncredential_source = ${credentialSource}\n`,
 				);
 				await withEnv(baseEnv, async () => expect(getEnvApiKey("bedrock-mantle")).toBeUndefined());
 			}
 
-			await Bun.write(
+			await fsx.write(
 				configPath,
 				"[default]\nrole_arn = arn:aws:iam::111122223333:role/user\ncredential_source = Environment\n",
 			);
@@ -187,7 +188,7 @@ describe("AWS provider availability", () => {
 				async () => expect(getEnvApiKey("bedrock-mantle")).toBeDefined(),
 			);
 
-			await Bun.write(
+			await fsx.write(
 				configPath,
 				"[default]\nrole_arn = arn:aws:iam::111122223333:role/user\ncredential_source = EcsContainer\n",
 			);
@@ -195,7 +196,7 @@ describe("AWS provider availability", () => {
 				expect(getEnvApiKey("bedrock-mantle")).toBeDefined(),
 			);
 
-			await Bun.write(
+			await fsx.write(
 				configPath,
 				"[default]\nrole_arn = arn:aws:iam::111122223333:role/user\ncredential_source = Ec2InstanceMetadata\n",
 			);

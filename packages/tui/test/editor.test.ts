@@ -9,6 +9,7 @@ import { KeybindingsManager, setKeybindings, TUI_KEYBINDINGS } from "@oh-my-pi/p
 import { setKittyProtocolActive } from "@oh-my-pi/pi-tui/keys";
 import { visibleWidth } from "@oh-my-pi/pi-tui/utils";
 import { sleep } from "@oh-my-pi/pi-utils/async";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import { defaultEditorTheme } from "./test-themes";
 import { VirtualTerminal } from "./virtual-terminal";
 
@@ -525,7 +526,7 @@ describe("Editor component", () => {
 			vi.useFakeTimers();
 			const baseDir = await fs.mkdtemp(path.join(os.tmpdir(), "slash-tab-no-arg-"));
 			try {
-				await Bun.write(path.join(baseDir, "visible-file.ts"), "export {};\n");
+				await fsx.write(path.join(baseDir, "visible-file.ts"), "export {};\n");
 				const editor = new Editor(defaultEditorTheme);
 				editor.setAutocompleteProvider(
 					new CombinedAutocompleteProvider([{ name: "quit", description: "Quit", allowArgs: false }], baseDir),

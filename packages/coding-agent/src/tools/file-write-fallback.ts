@@ -129,6 +129,7 @@ import { AsyncLocalStorage } from "node:async_hooks";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { isEnoent, isFsError, logger } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import type { BunFile } from "bun";
 import type { ExtensionContext } from "../extensibility/extensions/types";
 import { resolveSyscallTarget } from "./path-utils";
@@ -408,7 +409,7 @@ export async function writeFileWithFallback(dst: string, content: string, file?:
 			if (file) {
 				await file.write(content);
 			} else {
-				await Bun.write(dst, content);
+				await fsx.write(dst, content);
 			}
 			return;
 		} catch (error) {

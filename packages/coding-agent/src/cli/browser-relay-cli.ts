@@ -5,6 +5,7 @@
  */
 import * as path from "node:path";
 import { getBrowserRelayDir } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import { probeRelayServer } from "../tools/browser/relay/daemon";
 import backgroundJs from "../tools/browser/relay/extension-assets/background.js.txt" with { type: "text" };
 import licenseText from "../tools/browser/relay/extension-assets/LICENSE.txt" with { type: "text" };
@@ -52,7 +53,7 @@ export async function runBrowserRelayCommand(args: BrowserRelayCommandArgs): Pro
 async function runInstall(dirOverride: string | undefined): Promise<void> {
 	const dir = dirOverride ? path.resolve(dirOverride) : path.join(getBrowserRelayDir(), "extension");
 	for (const name in EXTENSION_FILES) {
-		await Bun.write(path.join(dir, name), EXTENSION_FILES[name]!);
+		await fsx.write(path.join(dir, name), EXTENSION_FILES[name]!);
 	}
 	console.log(`Installed the Chudcode Browser Relay extension to ${dir}`);
 	console.log("");

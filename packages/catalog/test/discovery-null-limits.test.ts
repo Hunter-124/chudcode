@@ -3,6 +3,7 @@ import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
 import { __resetExtraCaCache } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import { fetchOpenAICompatibleModels } from "../src/discovery/openai-compatible";
 
 describe("discovery null limits", () => {
@@ -61,7 +62,7 @@ describe("discovery extra-CA fallback fetch", () => {
 
 	it("carries the NODE_EXTRA_CA_CERTS bundle on the fallback fetch", async () => {
 		const caPath = path.join(tmpDir, "corp.pem");
-		await Bun.write(caPath, SAMPLE_PEM);
+		await fsx.write(caPath, SAMPLE_PEM);
 		process.env.NODE_EXTRA_CA_CERTS = caPath;
 
 		const inits: (RequestInit & { tls?: { ca?: string | string[] } })[] = [];
@@ -85,7 +86,7 @@ describe("discovery extra-CA fallback fetch", () => {
 
 	it("leaves a caller-injected fetch untouched", async () => {
 		const caPath = path.join(tmpDir, "corp.pem");
-		await Bun.write(caPath, SAMPLE_PEM);
+		await fsx.write(caPath, SAMPLE_PEM);
 		process.env.NODE_EXTRA_CA_CERTS = caPath;
 
 		const inits: (RequestInit & { tls?: { ca?: string | string[] } })[] = [];

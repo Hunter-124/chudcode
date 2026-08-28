@@ -7,6 +7,7 @@ import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { getAgentDir, getProjectDir, isEnoent } from "@oh-my-pi/pi-utils";
 import chalk from "@oh-my-pi/pi-utils/chalk";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import { YAML } from "bun";
 import { theme } from "../modes/theme/theme";
 import { loadBundledAgents } from "../task/agents";
@@ -94,7 +95,7 @@ async function unpackBundledAgents(flags: AgentsCommandArgs["flags"]): Promise<U
 			}
 		}
 
-		await Bun.write(filePath, serializeAgent(agent));
+		await fsx.write(filePath, serializeAgent(agent));
 		written.push(filePath);
 	}
 

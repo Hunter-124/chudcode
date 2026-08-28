@@ -314,7 +314,7 @@ async function loadGpuCache(): Promise<GpuCache | null> {
 async function saveGpuCache(info: GpuCache): Promise<void> {
 	try {
 		const cachePath = getGpuCachePath();
-		await Bun.write(cachePath, JSON.stringify({ version: GPU_CACHE_VERSION, gpu: info.gpu }, null, "\t"));
+		await fsx.write(cachePath, JSON.stringify({ version: GPU_CACHE_VERSION, gpu: info.gpu }, null, "\t"));
 	} catch {
 		// Silently ignore cache write failures
 	}

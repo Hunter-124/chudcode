@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { postmortem } from "@oh-my-pi/pi-utils";
 import { sleep } from "../src/async";
+import * as fsx from "../src/fsx";
 
 const postmortemModuleUrl = pathToFileURL(join(import.meta.dir, "../src/index.ts")).href;
 
@@ -14,7 +15,7 @@ async function runPostmortemProbe(
 	const root = await mkdtemp(join(tmpdir(), "omp-postmortem-probe-"));
 	const probePath = join(root, "probe.ts");
 	try {
-		await Bun.write(probePath, source);
+		await fsx.write(probePath, source);
 		const proc = Bun.spawn([process.execPath, probePath], {
 			cwd: process.cwd(),
 			stdout: "pipe",

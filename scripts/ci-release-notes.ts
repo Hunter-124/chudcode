@@ -237,7 +237,7 @@ async function main(): Promise<void> {
 	const outputPath = process.argv[3] ?? "release-notes.md";
 	if (/^\d+\.\d+\.\d+-canary\.\d+$/.test(version)) {
 		const upcomingVersion = version.replace(/-canary\.\d+$/, "");
-		await Bun.write(
+		await fsx.write(
 			outputPath,
 			`This is a canary prerelease of ${upcomingVersion}. Install it with \`omp update --canary\`.\n`,
 		);
@@ -265,12 +265,12 @@ async function main(): Promise<void> {
 
 	if (sections.length === 0) {
 		console.warn(`No CHANGELOG entries found for version ${version}; writing empty release notes to ${outputPath}.`);
-		await Bun.write(outputPath, "");
+		await fsx.write(outputPath, "");
 		process.exit(0);
 	}
 
 	const body = `${sections.join("\n\n")}\n`;
-	await Bun.write(outputPath, body);
+	await fsx.write(outputPath, body);
 	console.log(
 		`Wrote ${sections.length} package section(s) to ${outputPath} (version ${version}${floor ? `, floor ${floor}` : ""}).`,
 	);

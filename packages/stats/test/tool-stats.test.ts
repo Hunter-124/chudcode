@@ -5,6 +5,7 @@ import { getToolDashboardStats, syncAllSessions } from "@oh-my-pi/omp-stats/aggr
 import { getToolStats, getToolStatsByModel } from "@oh-my-pi/omp-stats/db";
 import type { ToolUsageStats } from "@oh-my-pi/omp-stats/types";
 import { getSessionsDir } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import { installStatsTestIsolation } from "./helpers/temp-agent";
 
 installStatsTestIsolation("@pi-stats-tool-stats-");
@@ -129,7 +130,7 @@ async function writeSessionFile(
 		...(header.parentSession ? { parentSession: header.parentSession } : {}),
 	};
 	const lines = [headerEntry, ...entries].map(entry => JSON.stringify(entry)).join("\n");
-	await Bun.write(sessionFile, `${lines}\n`);
+	await fsx.write(sessionFile, `${lines}\n`);
 	return sessionFile;
 }
 

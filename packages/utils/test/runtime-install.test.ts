@@ -3,6 +3,7 @@ import * as fs from "node:fs/promises";
 import * as Module from "node:module";
 import * as os from "node:os";
 import * as path from "node:path";
+import * as fsx from "../src/fsx";
 import {
 	installRuntimeModuleResolver,
 	resolveRuntimeModule,
@@ -38,9 +39,9 @@ async function makeNodeModules(packages: Record<string, { manifest: Record<strin
 	for (const name in packages) {
 		const pkg = packages[name];
 		const pkgDir = path.join(nodeModules, ...name.split("/"));
-		await Bun.write(path.join(pkgDir, "package.json"), JSON.stringify({ name, ...pkg.manifest }));
+		await fsx.write(path.join(pkgDir, "package.json"), JSON.stringify({ name, ...pkg.manifest }));
 		for (const file of pkg.files) {
-			await Bun.write(path.join(pkgDir, file), "");
+			await fsx.write(path.join(pkgDir, file), "");
 		}
 	}
 	return nodeModules;
@@ -165,7 +166,7 @@ describe("installRuntimeModuleResolver", () => {
 		});
 		const runtimeDir = path.dirname(nodeModules);
 		const sharpStub = path.join(runtimeDir, "sharp-stub.cjs");
-		await Bun.write(sharpStub, "module.exports = {};\n");
+		await fsx.write(sharpStub, "module.exports = {};\n");
 
 		resolverUninstalls.push(
 			installRuntimeModuleResolver({ runtimeNodeModules: nodeModules, stubs: { sharp: sharpStub } }),

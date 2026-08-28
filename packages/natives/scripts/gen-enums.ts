@@ -130,7 +130,7 @@ export async function generateEnumExports(): Promise<void> {
 	}
 	const js = existing.slice(0, blockStart) + generatedBlock + existing.slice(blockEnd + MARKER_END.length);
 
-	await Bun.write(jsPath, js);
+	await fsx.write(jsPath, js);
 
 	// Also fix the .d.ts: replace `const enum` with `enum` so TS allows
 	// assigning string literals to enum types without casts.
@@ -138,7 +138,7 @@ export async function generateEnumExports(): Promise<void> {
 	const dtsContent = dts
 		.replaceAll("export const enum", "export declare enum")
 		.replaceAll("export declare const enum", "export declare enum");
-	await Bun.write(dtsPath, dtsContent);
+	await fsx.write(dtsPath, dtsContent);
 
 	const symbolCount = (generatedBlock.match(/^export const /gm) ?? []).length;
 	console.log(

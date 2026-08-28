@@ -115,7 +115,7 @@ export class MarketplaceManager {
 		);
 
 		// Persist the fetched catalog so subsequent reads don't require re-fetching.
-		await Bun.write(catalogPath, `${JSON.stringify(catalog, null, 2)}\n`);
+		await fsx.write(catalogPath, `${JSON.stringify(catalog, null, 2)}\n`);
 
 		const now = new Date().toISOString();
 		const entry: MarketplaceRegistryEntry = {
@@ -176,7 +176,7 @@ export class MarketplaceManager {
 
 		// Overwrite the cached catalog and migrate legacy home-relative registry entries.
 		const catalogPath = path.resolve(expandTilde(existing.catalogPath));
-		await Bun.write(catalogPath, `${JSON.stringify(catalog, null, 2)}\n`);
+		await fsx.write(catalogPath, `${JSON.stringify(catalog, null, 2)}\n`);
 
 		const updatedEntry: MarketplaceRegistryEntry = {
 			...existing,
@@ -379,11 +379,11 @@ export class MarketplaceManager {
 				throw new Error(`Plugin "${entry.name}" lspServers path escapes the plugin directory`);
 			}
 			const content = await fsx.readText(sourcePath);
-			await Bun.write(targetPath, content);
+			await fsx.write(targetPath, content);
 			return;
 		}
 
-		await Bun.write(targetPath, `${JSON.stringify({ servers: lspServers }, null, 2)}\n`);
+		await fsx.write(targetPath, `${JSON.stringify({ servers: lspServers }, null, 2)}\n`);
 	}
 
 	async #writeEmbeddedDapConfig(entry: MarketplacePluginEntry, cachePath: string): Promise<void> {
@@ -399,12 +399,12 @@ export class MarketplaceManager {
 			const targetFilename = extension === ".yaml" || extension === ".yml" ? `.dap${extension}` : ".dap.json";
 			const targetPath = path.join(cachePath, targetFilename);
 			const content = await fsx.readText(sourcePath);
-			await Bun.write(targetPath, content);
+			await fsx.write(targetPath, content);
 			return;
 		}
 
 		const targetPath = path.join(cachePath, ".dap.json");
-		await Bun.write(targetPath, `${JSON.stringify({ adapters: dapAdapters }, null, 2)}\n`);
+		await fsx.write(targetPath, `${JSON.stringify({ adapters: dapAdapters }, null, 2)}\n`);
 	}
 
 	/**
@@ -789,7 +789,7 @@ export class MarketplaceManager {
 	}
 
 	async #writeRuntimeConfig(scope: "user" | "project", config: PluginRuntimeConfig): Promise<void> {
-		await Bun.write(this.#runtimeLockPath(scope), JSON.stringify(config, null, 2));
+		await fsx.write(this.#runtimeLockPath(scope), JSON.stringify(config, null, 2));
 	}
 
 	async #resolvePluginPackageName(installPath: string, fallbackName: string): Promise<string> {

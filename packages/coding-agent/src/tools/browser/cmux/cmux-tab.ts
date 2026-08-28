@@ -3,6 +3,7 @@ import * as os from "node:os";
 import * as path from "node:path";
 import { logger, postmortem, Snowflake, untilAborted } from "@oh-my-pi/pi-utils";
 import { sleep } from "@oh-my-pi/pi-utils/async";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import { JsRuntime, type RuntimeHooks } from "../../../eval/js/shared/runtime";
 import { callSessionTool } from "../../../eval/js/tool-bridge";
 import { resizeImage } from "../../../utils/image-resize";
@@ -592,7 +593,7 @@ export class CmuxTab {
 				)
 			: path.join(os.tmpdir(), `omp-sshots-${Snowflake.next()}.${ext}`);
 		await fs.promises.mkdir(path.dirname(dest), { recursive: true });
-		await Bun.write(dest, savedBuffer);
+		await fsx.write(dest, savedBuffer);
 		const info: ScreenshotResult = {
 			dest,
 			mimeType: savedMimeType,

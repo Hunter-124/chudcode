@@ -1,6 +1,7 @@
 // Adapted from markit-ai (MIT). See ../NOTICE.
 import * as path from "node:path";
 import { archiveEntryText, readArchiveEntries } from "@oh-my-pi/pi-utils/ar";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import { XMLParser } from "@oh-my-pi/pi-utils/xml";
 import type { ConversionResult, Converter, StreamInfo } from "../types";
 
@@ -211,7 +212,7 @@ export class PptxConverter implements Converter {
 						const ext = normalizedPath.split(".").pop() || "png";
 						const filename = `slide${i + 1}_${imageCount}.${ext}`;
 						const filepath = path.join(imageDir, filename);
-						await Bun.write(filepath, buf);
+						await fsx.write(filepath, buf);
 						slideLines.push(`![${name}](${filepath})`);
 					} catch {
 						slideLines.push(`<!-- image: ${name} (slide ${i + 1}) -->`);

@@ -288,11 +288,11 @@ function placeholderReadme(name: string, target: NativeLeafTarget): string {
 async function publishNativeLeafPlaceholder(name: string, target: NativeLeafTarget, repo: string): Promise<boolean> {
 	const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "omp-native-placeholder-"));
 	try {
-		await Bun.write(
+		await fsx.write(
 			path.join(tmpDir, "package.json"),
 			`${JSON.stringify(placeholderManifest(name, target, repo), null, "\t")}\n`,
 		);
-		await Bun.write(path.join(tmpDir, "README.md"), placeholderReadme(name, target));
+		await fsx.write(path.join(tmpDir, "README.md"), placeholderReadme(name, target));
 		return (await npmInteractive(["publish", tmpDir, "--access", "public"])) === 0;
 	} finally {
 		await fs.rm(tmpDir, { recursive: true, force: true });

@@ -68,7 +68,7 @@ export async function openInEditor(
 	const tmpFile = path.join(os.tmpdir(), `omp-editor-${Snowflake.next()}${ext}`);
 
 	try {
-		await Bun.write(tmpFile, content);
+		await fsx.write(tmpFile, content);
 
 		const spawnCommand = resolveEditorSpawnCommand(editorCmd, tmpFile);
 		// Inherit the real pane pty so terminal editors (including emacsclient,

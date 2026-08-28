@@ -114,27 +114,27 @@ describe("resolveAwsCredentials", () => {
 
 	async function writeFixture(name: string, body: string): Promise<string> {
 		const p = path.join(tmp, name);
-		await Bun.write(p, body);
+		await fsx.write(p, body);
 		return p;
 	}
 
 	async function writeConfig(profile: string, line: string): Promise<void> {
 		const cfg = path.join(tmp, "config");
-		await Bun.write(cfg, `[profile ${profile}]\n${line}\n`);
+		await fsx.write(cfg, `[profile ${profile}]\n${line}\n`);
 		process.env.AWS_CONFIG_FILE = cfg;
 		// Point shared credentials at a known-empty file so static-creds resolution
 		// definitely misses.
 		const sharedPath = path.join(tmp, "credentials");
-		await Bun.write(sharedPath, "");
+		await fsx.write(sharedPath, "");
 		process.env.AWS_SHARED_CREDENTIALS_FILE = sharedPath;
 	}
 
 	async function writeRawConfig(body: string): Promise<void> {
 		const cfg = path.join(tmp, "config");
-		await Bun.write(cfg, body);
+		await fsx.write(cfg, body);
 		process.env.AWS_CONFIG_FILE = cfg;
 		const sharedPath = path.join(tmp, "credentials");
-		await Bun.write(sharedPath, "");
+		await fsx.write(sharedPath, "");
 		process.env.AWS_SHARED_CREDENTIALS_FILE = sharedPath;
 	}
 
@@ -224,7 +224,7 @@ describe("resolveAwsCredentials", () => {
 	test("resolves ECS container credentials with the authorization token", async () => {
 		const credentialsPath = path.join(tmp, "empty-credentials");
 		const configPath = path.join(tmp, "empty-config");
-		await Promise.all([Bun.write(credentialsPath, ""), Bun.write(configPath, "")]);
+		await Promise.all([fsx.write(credentialsPath, ""), fsx.write(configPath, "")]);
 		process.env.AWS_SHARED_CREDENTIALS_FILE = credentialsPath;
 		process.env.AWS_CONFIG_FILE = configPath;
 		process.env.AWS_CONTAINER_CREDENTIALS_RELATIVE_URI = "/v2/credentials/test";
@@ -259,7 +259,7 @@ describe("resolveAwsCredentials", () => {
 	test("rejects dynamic container credentials without expiration", async () => {
 		const credentialsPath = path.join(tmp, "empty-dynamic-credentials");
 		const configPath = path.join(tmp, "empty-dynamic-config");
-		await Promise.all([Bun.write(credentialsPath, ""), Bun.write(configPath, "")]);
+		await Promise.all([fsx.write(credentialsPath, ""), fsx.write(configPath, "")]);
 		process.env.AWS_SHARED_CREDENTIALS_FILE = credentialsPath;
 		process.env.AWS_CONFIG_FILE = configPath;
 		process.env.AWS_CONTAINER_CREDENTIALS_RELATIVE_URI = "/v2/credentials/rotating";
@@ -283,7 +283,7 @@ describe("resolveAwsCredentials", () => {
 	test("rejects container relative URIs that can replace the metadata host", async () => {
 		const credentialsPath = path.join(tmp, "empty-relative-credentials");
 		const configPath = path.join(tmp, "empty-relative-config");
-		await Promise.all([Bun.write(credentialsPath, ""), Bun.write(configPath, "")]);
+		await Promise.all([fsx.write(credentialsPath, ""), fsx.write(configPath, "")]);
 		process.env.AWS_SHARED_CREDENTIALS_FILE = credentialsPath;
 		process.env.AWS_CONFIG_FILE = configPath;
 		process.env.AWS_CONTAINER_CREDENTIALS_RELATIVE_URI = "//attacker.invalid/credentials";
@@ -294,7 +294,7 @@ describe("resolveAwsCredentials", () => {
 	test("honors AWS_EC2_METADATA_SERVICE_ENDPOINT for instance-role credentials", async () => {
 		const credentialsPath = path.join(tmp, "empty-imds-credentials");
 		const configPath = path.join(tmp, "empty-imds-config");
-		await Promise.all([Bun.write(credentialsPath, ""), Bun.write(configPath, "")]);
+		await Promise.all([fsx.write(credentialsPath, ""), fsx.write(configPath, "")]);
 		process.env.AWS_SHARED_CREDENTIALS_FILE = credentialsPath;
 		process.env.AWS_CONFIG_FILE = configPath;
 		process.env.AWS_EC2_METADATA_DISABLED = "false";
@@ -330,7 +330,7 @@ describe("resolveAwsCredentials", () => {
 	test("uses the IPv6 IMDS endpoint when endpoint mode requests it", async () => {
 		const credentialsPath = path.join(tmp, "empty-ipv6-imds-credentials");
 		const configPath = path.join(tmp, "empty-ipv6-imds-config");
-		await Promise.all([Bun.write(credentialsPath, ""), Bun.write(configPath, "")]);
+		await Promise.all([fsx.write(credentialsPath, ""), fsx.write(configPath, "")]);
 		process.env.AWS_SHARED_CREDENTIALS_FILE = credentialsPath;
 		process.env.AWS_CONFIG_FILE = configPath;
 		process.env.AWS_EC2_METADATA_DISABLED = "false";
@@ -360,7 +360,7 @@ describe("resolveAwsCredentials", () => {
 	test("gives each IMDS request its own timeout budget", async () => {
 		const credentialsPath = path.join(tmp, "empty-slow-imds-credentials");
 		const configPath = path.join(tmp, "empty-slow-imds-config");
-		await Promise.all([Bun.write(credentialsPath, ""), Bun.write(configPath, "")]);
+		await Promise.all([fsx.write(credentialsPath, ""), fsx.write(configPath, "")]);
 		process.env.AWS_SHARED_CREDENTIALS_FILE = credentialsPath;
 		process.env.AWS_CONFIG_FILE = configPath;
 		process.env.AWS_EC2_METADATA_DISABLED = "false";
@@ -390,7 +390,7 @@ describe("resolveAwsCredentials", () => {
 
 	test("exchanges web identity tokens for STS credentials", async () => {
 		const tokenPath = path.join(tmp, "web-identity-token");
-		await Bun.write(tokenPath, "signed-identity-token\n");
+		await fsx.write(tokenPath, "signed-identity-token\n");
 		process.env.AWS_WEB_IDENTITY_TOKEN_FILE = tokenPath;
 		process.env.AWS_ROLE_ARN = "arn:aws:iam::123456789012:role/test-role";
 		process.env.AWS_ROLE_SESSION_NAME = "test-session";
@@ -427,7 +427,7 @@ describe("resolveAwsCredentials", () => {
 
 	test("rejects web-identity responses without a valid expiration", async () => {
 		const tokenPath = path.join(tmp, "web-identity-token-without-expiration");
-		await Bun.write(tokenPath, "signed-identity-token\n");
+		await fsx.write(tokenPath, "signed-identity-token\n");
 		process.env.AWS_WEB_IDENTITY_TOKEN_FILE = tokenPath;
 		process.env.AWS_ROLE_ARN = "arn:aws:iam::123456789012:role/test-role";
 		const fetchImpl: FetchImpl = Object.assign(
@@ -449,7 +449,7 @@ describe("resolveAwsCredentials", () => {
 
 	test("chains role_arn + source_profile through web identity then AssumeRole", async () => {
 		const tokenPath = path.join(tmp, "sa-token");
-		await Bun.write(tokenPath, "irsa-jwt\n");
+		await fsx.write(tokenPath, "irsa-jwt\n");
 		await writeRawConfig(
 			`[profile irsa]\nrole_arn = arn:aws:iam::111122223333:role/workspace\nweb_identity_token_file = ${tokenPath}\n\n` +
 				`[profile app]\nrole_arn = arn:aws:iam::111122223333:role/user\nrole_session_name = someone@example.com\n` +

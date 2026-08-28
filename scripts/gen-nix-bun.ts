@@ -37,7 +37,7 @@ async function normalizeBunLock(): Promise<void> {
 	const lockPath = path.join(repoRoot, "bun.lock");
 	const contents = await fsx.readText(lockPath);
 	const normalized = normalizeLockfileVersion(contents);
-	if (normalized !== contents) await Bun.write(lockPath, normalized);
+	if (normalized !== contents) await fsx.write(lockPath, normalized);
 }
 
 type FindExecutable = (command: string) => string | null;

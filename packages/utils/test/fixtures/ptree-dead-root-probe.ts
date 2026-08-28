@@ -5,5 +5,5 @@ const child = Bun.spawn([process.execPath, "-e", "await Bun.sleep(30_000)"], {
 	windowsHide: true,
 });
 
-await Bun.write(Bun.stdout, `${child.pid}\n`);
+process.stdout.write(`${child.pid}\n`);
 process.exit(0);

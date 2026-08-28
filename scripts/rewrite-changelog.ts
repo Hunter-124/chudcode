@@ -368,7 +368,7 @@ async function run(options: RunOptions): Promise<RunResult> {
 
 			const rewrittenCount = rewritten.reduce((sum, sec) => sum + sec.items.length, 0);
 			if (options.write) {
-				await Bun.write(absolutePath, next);
+				await fsx.write(absolutePath, next);
 			}
 
 			results[i] = {

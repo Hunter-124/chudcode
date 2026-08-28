@@ -1,5 +1,6 @@
 import * as path from "node:path";
 import { getLogsDir, isBunTestRuntime } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import * as AIError from "../error/flags";
 import { isCopilotTransientModelError } from "./retry.js";
 import { formatErrorMessageWithRetryAfter } from "./retry-after.js";
@@ -66,7 +67,7 @@ export async function appendRawHttpRequestDumpFor400(
 	const filePath = path.join(getLogsDir(), "http-400-requests", fileName);
 
 	try {
-		await Bun.write(filePath, `${JSON.stringify(payload, null, 2)}\n`);
+		await fsx.write(filePath, `${JSON.stringify(payload, null, 2)}\n`);
 		return `${message}\nraw-http-request=${filePath}`;
 	} catch (writeError) {
 		const writeMessage = writeError instanceof Error ? writeError.message : String(writeError);

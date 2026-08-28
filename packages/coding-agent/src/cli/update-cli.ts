@@ -1858,7 +1858,7 @@ export async function updateViaShimTakeover(
 				if (isEnoent(err)) continue;
 				try {
 					const original = await fsx.readText(launcher);
-					await Bun.write(launcher, SHIM_FORWARDERS[ext]);
+					await fsx.write(launcher, SHIM_FORWARDERS[ext]);
 					forwarded.push({ launcher, original });
 				} catch {
 					stuck.push(launcher);
@@ -1879,7 +1879,7 @@ export async function updateViaShimTakeover(
 			}
 			for (const { launcher, original } of forwarded) {
 				try {
-					await Bun.write(launcher, original);
+					await fsx.write(launcher, original);
 				} catch {}
 			}
 			await unlinkIfExists(exePath);

@@ -500,7 +500,7 @@ async function gzipSessionFile(source: string, destination: string): Promise<voi
 	let renamed = false;
 	try {
 		const compressed = gzipSync(await fsx.readBytes(source), { level: 9 });
-		await Bun.write(tempPath, compressed);
+		await fsx.write(tempPath, compressed);
 		await fs.rename(tempPath, destination);
 		renamed = true;
 		await fs.unlink(source);
@@ -514,7 +514,7 @@ async function gzipSessionFile(source: string, destination: string): Promise<voi
 async function restoreGzipSessionFile(source: string, destination: string): Promise<void> {
 	await fs.mkdir(path.dirname(destination), { recursive: true });
 	const decompressed = gunzipSync(await fsx.readBytes(source));
-	await Bun.write(destination, decompressed);
+	await fsx.write(destination, decompressed);
 	await fs.unlink(source);
 }
 

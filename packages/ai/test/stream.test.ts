@@ -11,6 +11,7 @@ import type { Api, Context, ImageContent, Model, OptionsForApi, Tool, ToolResult
 import { buildModel } from "@oh-my-pi/pi-catalog/build";
 import { getBundledModel } from "@oh-my-pi/pi-catalog/models";
 import { $which } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import { removeWithRetries } from "../../utils/src/temp";
 import { e2eApiKey, resolveApiKey } from "./oauth";
 
@@ -680,7 +681,7 @@ describe("Generate E2E Tests", () => {
 			const originalGac = process.env.GOOGLE_APPLICATION_CREDENTIALS;
 			const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "omp-vertex-impersonation-"));
 			const adcPath = path.join(tmpDir, "impersonated-adc.json");
-			await Bun.write(
+			await fsx.write(
 				adcPath,
 				JSON.stringify({
 					type: "impersonated_service_account",

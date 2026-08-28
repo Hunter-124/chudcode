@@ -455,7 +455,7 @@ export async function readLastChangelogVersion(agentDir?: string): Promise<strin
 /** Persist the last-seen changelog version marker. Best-effort: failures are logged, never thrown. */
 export async function writeLastChangelogVersion(version: string, agentDir?: string): Promise<void> {
 	try {
-		await Bun.write(getLastChangelogVersionPath(agentDir), version);
+		await fsx.write(getLastChangelogVersionPath(agentDir), version);
 	} catch (error) {
 		logger.warn("Failed to persist last-changelog-version marker", { error: String(error) });
 	}

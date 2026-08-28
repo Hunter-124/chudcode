@@ -18,6 +18,7 @@ import {
 	Text,
 } from "@oh-my-pi/pi-tui";
 import { getSessionsDir } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import { PRODUCT_NAME } from "../brand";
 import { DynamicBorder } from "../modes/components/dynamic-border";
 import { OverlayPanel } from "../modes/components/overlay-box";
@@ -233,7 +234,7 @@ export class DebugSelectorComponent extends OverlayPanel {
 
 			// Write SVG to temp file and open in browser
 			const tmpPath = `/tmp/work-profile-${Date.now()}.svg`;
-			await Bun.write(tmpPath, workProfile.svg);
+			await fsx.write(tmpPath, workProfile.svg);
 
 			openPath(tmpPath);
 

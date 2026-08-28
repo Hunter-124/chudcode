@@ -324,7 +324,7 @@ async function readCachedRustdocCrate(
 async function writeCachedRustdocCrate(target: DocsRsTarget, json: string): Promise<void> {
 	const cachePath = getDocsRsCachePath(target);
 	try {
-		await Bun.write(cachePath, json);
+		await fsx.write(cachePath, json);
 	} catch (err) {
 		logger.warn("Failed to write docs.rs cache", { path: cachePath, error: String(err) });
 	}

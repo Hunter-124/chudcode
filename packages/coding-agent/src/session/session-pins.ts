@@ -1,5 +1,6 @@
 import * as path from "node:path";
 import { getAgentDir, isEnoent, logger } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import type { SessionInfo } from "./session-listing";
 
 const PINS_FILENAME = "session-pins.json";
@@ -26,7 +27,7 @@ export async function loadPinnedSessionIds(agentDir: string = getAgentDir()): Pr
 export async function toggleSessionPin(sessionId: string, agentDir: string = getAgentDir()): Promise<boolean> {
 	const pinned = await loadPinnedSessionIds(agentDir);
 	if (!pinned.delete(sessionId)) pinned.add(sessionId);
-	await Bun.write(path.join(agentDir, PINS_FILENAME), JSON.stringify([...pinned], null, "\t"));
+	await fsx.write(path.join(agentDir, PINS_FILENAME), JSON.stringify([...pinned], null, "\t"));
 	return pinned.has(sessionId);
 }
 

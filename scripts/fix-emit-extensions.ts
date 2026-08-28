@@ -83,7 +83,7 @@ export async function fixEmitFile(filePath: string, ext: EmitExt): Promise<numbe
 		out = out.replace(match, replacement);
 		changed++;
 	}
-	await Bun.write(filePath, out);
+	await fsx.write(filePath, out);
 	return changed;
 }
 

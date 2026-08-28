@@ -14,6 +14,7 @@ import {
 	Patcher,
 	type WriteResult,
 } from "@oh-my-pi/hashline";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 
 const PATH = "a.ts";
 
@@ -44,7 +45,7 @@ describe("Patcher snapshot tag integrity", () => {
 		try {
 			const filePath = path.join(tempDir, "Program.cs");
 			const source = "using A;\n";
-			await Bun.write(filePath, new Uint8Array([0xef, 0xbb, 0xbf, ...new TextEncoder().encode(source)]));
+			await fsx.write(filePath, new Uint8Array([0xef, 0xbb, 0xbf, ...new TextEncoder().encode(source)]));
 			const snapshots = new InMemorySnapshotStore();
 			const tag = snapshots.record(filePath, source);
 			const patch = Patch.parse([formatHashlineHeader(filePath, tag), "PUT 1-1:", "+using B;"].join("\n"));

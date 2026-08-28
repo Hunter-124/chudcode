@@ -19,6 +19,7 @@ import { loadTasksFromDir, validateFixturesFromDir } from "@oh-my-pi/typescript-
 import { LiveProgress } from "./live-progress";
 import { generateJsonReport, generateReport } from "./report";
 import { type BenchmarkConfig, type BenchmarkResult, buildBenchmarkResult, runBenchmark } from "./runner";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 
 const EDIT_PACKAGE = path.resolve(import.meta.dir, "..", "..", "..", "typescript-edit-benchmark");
 const RUNS_DIR = path.resolve(import.meta.dir, "..", "..", "..", "..", "runs");
@@ -108,7 +109,7 @@ async function resolveFixtures(fixturesArg: string | undefined): Promise<Resolve
 	const temp = await TempDir.create("@metaharness-edit-fixtures-");
 	const archive = new Bun.Archive(await Bun.file(source).arrayBuffer());
 	for (const [filePath, file] of await archive.files()) {
-		await Bun.write(path.join(temp.path(), filePath), file);
+		await fsx.write(path.join(temp.path(), filePath), file);
 	}
 	const entries = await fs.readdir(temp.path(), { withFileTypes: true });
 	const directories = entries.filter(entry => entry.isDirectory());
@@ -304,7 +305,7 @@ export async function main(argv = process.argv.slice(2)): Promise<void> {
 		let writes = Promise.resolve();
 		const queueReportWrite = (result: BenchmarkResult) => {
 			writes = writes.then(async () => {
-				await Bun.write(outputPath, renderReport(result));
+				await fsx.write(outputPath, renderReport(result));
 			});
 		};
 		// A killed/interrupted run still leaves a usable partial report behind.
@@ -312,7 +313,7 @@ export async function main(argv = process.argv.slice(2)): Promise<void> {
 			if (reason === postmortem.Reason.EXIT) return;
 			progress?.finish();
 			log("Benchmark interrupted; writing partial report...");
-			await Bun.write(outputPath, renderReport(latestResult));
+			await fsx.write(outputPath, renderReport(latestResult));
 			await fixtures.cleanup?.();
 		});
 

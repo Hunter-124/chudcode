@@ -720,9 +720,9 @@ async function generateModels() {
 	}
 
 	// Keep the public JSON snapshot while also emitting the compact native catalog.
-	await Bun.write(path.join(packageRoot, "src/models.json"), JSON.stringify(MODELS, null, "	"));
+	await fsx.write(path.join(packageRoot, "src/models.json"), JSON.stringify(MODELS, null, "	"));
 	const binaryPath = path.join(packageRoot, "src/models.bin");
-	await Bun.write(binaryPath, encodeModelCatalog(MODELS));
+	await fsx.write(binaryPath, encodeModelCatalog(MODELS));
 	const binaryBytes = await fsx.readBytes(binaryPath);
 	const binarySha256 = new Bun.CryptoHasher("sha256").update(binaryBytes).digest("hex");
 	const generatedProviderType = Object.keys(MODELS)
@@ -735,7 +735,7 @@ export const BUNDLED_MODELS_BIN_BYTES = ${binaryBytes.byteLength};
 
 export type GeneratedProvider = ${generatedProviderType || "never"};
 `;
-	await Bun.write(path.join(packageRoot, "src/models-bin-meta.ts"), metadata);
+	await fsx.write(path.join(packageRoot, "src/models-bin-meta.ts"), metadata);
 	console.log("Generated src/models.json, src/models.bin, and src/models-bin-meta.ts");
 
 	// Print statistics

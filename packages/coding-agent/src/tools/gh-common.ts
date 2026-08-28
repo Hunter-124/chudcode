@@ -1,6 +1,7 @@
 import * as path from "node:path";
 import type { AgentToolResult } from "@oh-my-pi/pi-agent-core";
 import { untilAborted } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import * as git from "../utils/git";
 import type { ToolSession } from ".";
 import type { GhToolDetails } from "./gh";
@@ -327,7 +328,7 @@ export async function saveArtifactText(
 		return undefined;
 	}
 
-	await Bun.write(artifactPath, text);
+	await fsx.write(artifactPath, text);
 	return artifactId;
 }
 

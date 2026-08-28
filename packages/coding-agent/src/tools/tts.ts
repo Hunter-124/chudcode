@@ -8,6 +8,7 @@ import type { AgentToolResult } from "@oh-my-pi/pi-agent-core";
 import { type ApiKey, type FetchImpl, withAuth } from "@oh-my-pi/pi-ai";
 import { ProviderHttpError } from "@oh-my-pi/pi-ai/error";
 import { prompt, USER_AGENT } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import { settings } from "../config/settings";
 import type { CustomTool, CustomToolContext } from "../extensibility/custom-tools/types";
 import { resolveXAIHttpCredentials } from "../lib/xai-http";
@@ -208,7 +209,7 @@ async function synthesizeXai(
 	if (!(bytes instanceof Uint8Array)) {
 		return { isError: true, content: [{ type: "text", text: bytes.errorText }] };
 	}
-	await Bun.write(outputPath, bytes);
+	await fsx.write(outputPath, bytes);
 	return {
 		content: [
 			{
@@ -264,7 +265,7 @@ async function synthesizeDeepInfra(
 	if (!(bytes instanceof Uint8Array)) {
 		return { isError: true, content: [{ type: "text", text: bytes.errorText }] };
 	}
-	await Bun.write(outputPath, bytes);
+	await fsx.write(outputPath, bytes);
 	const voiceLabel = params.voice_id ?? "default";
 	return {
 		content: [
@@ -302,7 +303,7 @@ async function synthesizeLocal(
 
 	const { wavPath, substituted } = resolveLocalWavPath(outputPath);
 	const wav = encodeWav(audio.pcm, audio.sampleRate);
-	await Bun.write(wavPath, wav);
+	await fsx.write(wavPath, wav);
 	const displayPath = formatPathRelativeToCwd(wavPath, cwd);
 	const note = substituted
 		? ` No local MP3 encoder is bundled, so WAV (PCM16) was written instead of the requested container.`

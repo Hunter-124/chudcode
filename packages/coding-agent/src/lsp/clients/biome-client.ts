@@ -118,7 +118,7 @@ export class BiomeClient implements LinterClient {
 	async format(filePath: string, content: string): Promise<string> {
 		// Keep the standalone LinterClient contract: callers supply the content to
 		// format, regardless of what is currently on disk.
-		await Bun.write(filePath, content);
+		await fsx.write(filePath, content);
 
 		const result = await runBiome(["format", "--write", filePath], this.cwd, this.config.resolvedCommand);
 

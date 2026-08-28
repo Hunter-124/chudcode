@@ -34,7 +34,7 @@ export async function ensureFastembedModelSidecars(model: string, cacheDir = "lo
 				`Failed to download ${model} ${fileName} from ${repo}: ${response.status} ${response.statusText}`,
 			);
 		}
-		await Bun.write(target, await response.arrayBuffer());
+		await fsx.write(target, await response.arrayBuffer());
 	}
 	return true;
 }

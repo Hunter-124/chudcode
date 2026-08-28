@@ -360,7 +360,7 @@ export async function installProfileAlias(options: ProfileAliasInstallOptions): 
 	const writeFile =
 		options.writeFile ??
 		(async (filePath, content) => {
-			await Bun.write(filePath, content);
+			await fsx.write(filePath, content);
 		});
 
 	const current = await readFile(configPath);

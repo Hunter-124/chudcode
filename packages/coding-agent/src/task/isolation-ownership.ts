@@ -67,7 +67,7 @@ async function processStartToken(pid: number): Promise<string | null> {
 export async function writeIsolationOwner(baseDir: string, id: string): Promise<void> {
 	const startToken = await processStartToken(process.pid);
 	const owner: IsolationOwner = { pid: process.pid, id, ...(startToken ? { startToken } : {}) };
-	await Bun.write(path.join(baseDir, ISOLATION_OWNER_FILE), JSON.stringify(owner));
+	await fsx.write(path.join(baseDir, ISOLATION_OWNER_FILE), JSON.stringify(owner));
 }
 
 /**

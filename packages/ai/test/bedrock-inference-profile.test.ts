@@ -6,6 +6,7 @@ import { streamBedrock } from "@oh-my-pi/pi-ai/providers/amazon-bedrock";
 import type { Context, FetchImpl, Model } from "@oh-my-pi/pi-ai/types";
 import { buildModel } from "@oh-my-pi/pi-catalog/build";
 import { Effort } from "@oh-my-pi/pi-catalog/effort";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import { removeWithRetries } from "../../utils/src/temp";
 import { withEnv } from "./helpers";
 
@@ -221,7 +222,7 @@ describe("Bedrock cross-region inference-profile geo routing", () => {
 		const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "bedrock-profile-region-"));
 		try {
 			const configPath = path.join(tmp, "config");
-			await Bun.write(configPath, "[profile regional]\nregion = eu-west-2\n");
+			await fsx.write(configPath, "[profile regional]\nregion = eu-west-2\n");
 			await withEnv(
 				{
 					AWS_REGION: undefined,

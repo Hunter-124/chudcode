@@ -1,5 +1,6 @@
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 
 const reset = process.argv.includes("--reset");
 const outputPath = path.join(import.meta.dir, "../native/embedded-addon.js");
@@ -43,7 +44,7 @@ ${embeddedAddonTypedefs}
 export const embeddedAddon = null;
 `;
 if (reset) {
-	await Bun.write(outputPath, stubContent);
+	await fsx.write(outputPath, stubContent);
 	try {
 		const entries = await fs.readdir(nativeDir);
 		await Promise.all(
@@ -101,7 +102,7 @@ const archiveEntries: Record<string, Uint8Array> = {};
 for (const addon of available) {
 	archiveEntries[addon.filename] = await fs.readFile(addon.path);
 }
-await Bun.write(archivePath, await new Bun.Archive(archiveEntries, { compress: "gzip", level: 9 }).bytes());
+await fsx.write(archivePath, await new Bun.Archive(archiveEntries, { compress: "gzip", level: 9 }).bytes());
 
 const files = available
 	.map(
@@ -132,4 +133,4 @@ ${files}
 };
 `;
 
-await Bun.write(outputPath, content);
+await fsx.write(outputPath, content);

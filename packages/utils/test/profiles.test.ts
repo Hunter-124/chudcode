@@ -19,6 +19,7 @@ import {
 	setProfile,
 } from "@oh-my-pi/pi-utils/dirs";
 import { Snowflake } from "@oh-my-pi/pi-utils/snowflake";
+import * as fsx from "../src/fsx";
 
 async function readStream(stream: ReadableStream<Uint8Array>): Promise<string> {
 	const reader = stream.getReader();
@@ -282,7 +283,7 @@ describe("dirs module import behavior", () => {
 		try {
 			const probePath = path.join(root, "probe.ts");
 			const dirsUrl = url.pathToFileURL(path.join(import.meta.dir, "..", "src", "dirs.ts")).href;
-			await Bun.write(
+			await fsx.write(
 				probePath,
 				[
 					`import ${JSON.stringify(dirsUrl)};`,
@@ -324,9 +325,9 @@ describe("dirs module import behavior", () => {
 			const workerHostUrl = import.meta.resolve("@oh-my-pi/pi-utils/worker-host");
 			const agentDir = path.join(root, "agent");
 			await fs.mkdir(agentDir, { recursive: true });
-			await Bun.write(path.join(agentDir, ".env"), "OMP_WORKER_HOST_PROBE=from-agent-env\n");
+			await fsx.write(path.join(agentDir, ".env"), "OMP_WORKER_HOST_PROBE=from-agent-env\n");
 			const probePath = path.join(root, "probe.ts");
-			await Bun.write(
+			await fsx.write(
 				probePath,
 				[
 					`import { declareWorkerHostEntry, workerHostEntry } from ${JSON.stringify(workerHostUrl)};`,
@@ -374,7 +375,7 @@ describe("dirs module import behavior", () => {
 
 			for (const ompProfile of ["", "default"]) {
 				const probePath = path.join(root, `default-profile-${ompProfile || "empty"}.ts`);
-				await Bun.write(
+				await fsx.write(
 					probePath,
 					[
 						`import { getActiveProfile, getAgentDir } from ${JSON.stringify(dirsUrl)};`,
@@ -429,13 +430,13 @@ describe("dirs module import behavior", () => {
 			// The profile's agent .env sets a directory-affecting key. env.ts parses
 			// and applies it to the environment *after* dirs.ts froze the resolver at
 			// import time — the exact ordering refreshDirsFromEnv() guards.
-			await Bun.write(path.join(agentDir, ".env"), `XDG_STATE_HOME=${xdgStateRoot}\n`);
+			await fsx.write(path.join(agentDir, ".env"), `XDG_STATE_HOME=${xdgStateRoot}\n`);
 			// Named profiles only adopt XDG when their own XDG path already exists.
 			const xdgProfileRoot = path.join(xdgStateRoot, "omp", "profiles", "work");
 			await fs.mkdir(xdgProfileRoot, { recursive: true });
 
 			const probePath = path.join(root, "probe.ts");
-			await Bun.write(
+			await fsx.write(
 				probePath,
 				[
 					`import ${JSON.stringify(envUrl)};`,

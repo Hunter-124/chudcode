@@ -170,8 +170,8 @@ export async function generateNpmPackages({
 			if (!source) throw new Error(`Missing legal payload ${file} for generated native leaf ${target.tag}`);
 			await fs.copyFile(source, path.join(leafDir, file));
 		}
-		await Bun.write(path.join(leafDir, "package.json"), `${JSON.stringify(manifest, null, "\t")}\n`);
-		await Bun.write(path.join(leafDir, "README.md"), buildReadme(target.tag, manifest));
+		await fsx.write(path.join(leafDir, "package.json"), `${JSON.stringify(manifest, null, "\t")}\n`);
+		await fsx.write(path.join(leafDir, "README.md"), buildReadme(target.tag, manifest));
 	}
 
 	return leaves;

@@ -12,6 +12,7 @@ import {
 	startAuthBroker,
 } from "@oh-my-pi/pi-ai/auth-broker";
 import { sleep } from "@oh-my-pi/pi-utils/async";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import { removeWithRetries } from "../../utils/src/temp";
 import { withEnv } from "./helpers";
 
@@ -356,7 +357,7 @@ describe("RemoteAuthCredentialStore SSE integration", () => {
 		const excluded = initialResult.snapshot.credentials.find(entry => entry.identityKey?.includes("b@example.com"));
 		if (!allowed?.identityKey || !excluded?.identityKey) throw new Error("expected OAuth identity keys");
 		const poolPath = path.join(tempDir, "account-pool.json");
-		await Bun.write(poolPath, JSON.stringify({ anthropic: [allowed.identityKey] }));
+		await fsx.write(poolPath, JSON.stringify({ anthropic: [allowed.identityKey] }));
 
 		await withEnv(
 			{
@@ -374,7 +375,7 @@ describe("RemoteAuthCredentialStore SSE integration", () => {
 						"a@example.com",
 					]);
 
-					await Bun.write(poolPath, JSON.stringify({ anthropic: [allowed.identityKey, excluded.identityKey] }));
+					await fsx.write(poolPath, JSON.stringify({ anthropic: [allowed.identityKey, excluded.identityKey] }));
 					await discovered.reload();
 					expect(discovered.listOAuthAccounts("anthropic").map(account => account.email)).toEqual([
 						"a@example.com",

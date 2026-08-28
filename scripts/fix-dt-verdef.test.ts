@@ -2,6 +2,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import { $ } from "bun";
 
 const DT_VERDEF = 0x6ffffffcn;
@@ -61,7 +62,7 @@ async function createFixture(name: string, options: FixtureOptions = {}) {
 	}
 	const bytes = Buffer.concat([header, sections, dynamic]);
 	const file = path.join(fixtureDirectory, name);
-	await Bun.write(file, bytes);
+	await fsx.write(file, bytes);
 	return { bytes, dynamicOffset, file };
 }
 

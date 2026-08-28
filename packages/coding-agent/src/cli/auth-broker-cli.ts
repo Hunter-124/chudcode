@@ -105,7 +105,7 @@ async function readToken(): Promise<string | null> {
 async function writeToken(token: string): Promise<void> {
 	const file = getTokenFilePath();
 	await fs.mkdir(path.dirname(file), { recursive: true, mode: 0o700 });
-	await Bun.write(file, token);
+	await fsx.write(file, token);
 	try {
 		await fs.chmod(file, 0o600);
 	} catch {

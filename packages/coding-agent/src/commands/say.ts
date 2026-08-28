@@ -98,7 +98,7 @@ export default class Say extends Command {
 					offset += part.length;
 				}
 				const wav = encodeWav(pcm, sampleRate);
-				await Bun.write(flags.out, wav);
+				await fsx.write(flags.out, wav);
 				const durationSec = total / sampleRate;
 				process.stdout.write(
 					`${chalk.green("saved")} ${flags.out} ` +

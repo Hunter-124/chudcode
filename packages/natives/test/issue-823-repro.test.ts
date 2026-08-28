@@ -29,6 +29,7 @@ import { describe, expect, it } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import {
 	detectCompiledBinary,
 	type EmbeddedAddonFile,
@@ -208,7 +209,7 @@ describe("issue 823: standalone-binary native loader path resolution", () => {
 			const baseline = Buffer.from("baseline native addon");
 			const modernFilename = "pi_natives.linux-x64-modern.node";
 			const baselineFilename = "pi_natives.linux-x64-baseline.node";
-			await Bun.write(
+			await fsx.write(
 				archivePath,
 				await new Bun.Archive(
 					{

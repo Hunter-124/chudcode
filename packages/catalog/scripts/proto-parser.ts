@@ -1719,7 +1719,7 @@ Options:
 	});
 
 	if (outPath) {
-		await Bun.write(outPath, code);
+		await fsx.write(outPath, code);
 		console.log(`Generated ${outPath} (${code.split("\n").length} lines)`);
 	} else {
 		process.stdout.write(code);

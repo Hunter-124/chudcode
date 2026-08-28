@@ -2,6 +2,7 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import "@oh-my-pi/pi-utils/env";
 import { getComposerCacheDir } from "@oh-my-pi/pi-utils/dirs";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import type { LspServerInfo, RecentSession } from "./components/welcome";
 import type { ComposerPreferences } from "./composer";
 import type { SymbolPreset } from "./theme/theme";
@@ -220,7 +221,7 @@ export async function writeComposerUiCache(
 	preferences: ComposerPreferences,
 	theme: ComposerThemePreferences,
 ): Promise<void> {
-	await Bun.write(
+	await fsx.write(
 		path.join(projectCacheDir(cwd), "ui.json"),
 		JSON.stringify({ version: CACHE_VERSION, preferences, theme }),
 	);
@@ -228,7 +229,7 @@ export async function writeComposerUiCache(
 
 /** Persist authoritative model/provider labels for the next welcome prepaint. */
 export async function writeComposerWelcomeCache(cwd: string, welcome: ComposerWelcomeCache): Promise<void> {
-	await Bun.write(
+	await fsx.write(
 		path.join(projectCacheDir(cwd), "welcome.json"),
 		JSON.stringify({ version: CACHE_VERSION, ...welcome }),
 	);
@@ -240,12 +241,12 @@ export async function writeComposerRecentSessionsCache(cwd: string, sessions: re
 		.slice(0, 4)
 		.map(session => JSON.stringify(session))
 		.join("\n");
-	await Bun.write(path.join(projectCacheDir(cwd), "recent-sessions.jsonl"), content ? `${content}\n` : "");
+	await fsx.write(path.join(projectCacheDir(cwd), "recent-sessions.jsonl"), content ? `${content}\n` : "");
 }
 
 /** Persist the latest detected project LSP rows for the next prepaint. */
 export async function writeComposerLspCache(cwd: string, servers: readonly LspServerInfo[]): Promise<void> {
-	await Bun.write(
+	await fsx.write(
 		path.join(projectCacheDir(cwd), "lsp-servers.json"),
 		JSON.stringify({ version: CACHE_VERSION, servers }),
 	);

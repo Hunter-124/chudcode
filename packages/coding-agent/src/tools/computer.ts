@@ -10,11 +10,23 @@ import type { Model } from "@oh-my-pi/pi-ai";
 import { isClaudeModelId } from "@oh-my-pi/pi-catalog/identity";
 import type { DesktopCapabilities } from "@oh-my-pi/pi-natives";
 import { once, prompt } from "@oh-my-pi/pi-utils";
+import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import { callSessionTool } from "../eval/js/tool-bridge";
 import computerDescription from "../prompts/tools/computer.md" with { type: "text" };
 import { enforceInlineByteCap } from "../session/streaming-output";
 import { truncateForPrompt } from "./approval";
 import type { ComputerScreenshot, ComputerSessionSnapshot } from "./computer/protocol";
+import {
+	type AcquireComputerStageOptions,
+	acquireComputerStage,
+	type ComputerStageLease,
+	usesComputerStage,
+} from "./computer/stage";
+import {
+	type AcquireComputerStageViewerOptions,
+	acquireComputerStageViewer,
+	type ComputerStageViewerLease,
+} from "./computer/stage-viewer";
 import { type ComputerController, ComputerSupervisor, registerComputerController } from "./computer/supervisor";
 import type { ToolSession } from "./index";
 import { ToolError, throwIfAborted } from "./tool-errors";
@@ -70,10 +82,17 @@ export interface ComputerToolDetails {
 	capturePermission?: string;
 	inputPermission?: string;
 	axPermission?: string;
+	surface?: "host" | "isolated";
+	stageId?: string;
+	viewerUrl?: string;
 }
 
 /** Creates the session-scoped controller used by the computer tool. */
 export type ComputerControllerFactory = (session: ToolSession) => ComputerController;
+export type ComputerStageFactory = (options: AcquireComputerStageOptions) => Promise<ComputerStageLease>;
+export type ComputerStageViewerFactory = (
+	options: AcquireComputerStageViewerOptions,
+) => Promise<ComputerStageViewerLease>;
 /** Maps inspection-only runs to read approval and all other runs to execution approval. */
 export function computerApproval(args: unknown): ToolApprovalDecision {
 	if (args === null || typeof args !== "object" || !("read_only" in args)) return "exec";
@@ -86,7 +105,7 @@ export class ComputerTool implements AgentTool<ComputerSchema, ComputerToolDetai
 	readonly label = "Computer";
 	readonly loadMode = "essential" as const;
 	readonly concurrency = "exclusive" as const;
-	readonly summary = "Control the host desktop with persistent JavaScript and OS accessibility APIs";
+	readonly summary = "Control a private virtual display or the host desktop with persistent JavaScript";
 	readonly strict = false;
 	readonly approval = computerApproval;
 	readonly formatApprovalDetails = (args: unknown): string[] => {
@@ -100,6 +119,10 @@ export class ComputerTool implements AgentTool<ComputerSchema, ComputerToolDetai
 
 	readonly #controller: ComputerController;
 	readonly #unregisterOwner: () => void;
+	readonly #acquireStage: ComputerStageFactory;
+	readonly #acquireViewer: ComputerStageViewerFactory;
+	#viewerLease?: Promise<ComputerStageViewerLease>;
+	#stageLease?: Promise<ComputerStageLease>;
 	#closed = false;
 	#description?: string;
 
@@ -107,10 +130,14 @@ export class ComputerTool implements AgentTool<ComputerSchema, ComputerToolDetai
 		readonly session: ToolSession,
 		createController: ComputerControllerFactory = currentSession =>
 			new ComputerSupervisor(currentSession, undefined, undefined, callSessionTool),
+		acquireStage: ComputerStageFactory = acquireComputerStage,
+		acquireViewer: ComputerStageViewerFactory = acquireComputerStageViewer,
 	) {
 		this.#controller = createController(session);
+		this.#acquireStage = acquireStage;
+		this.#acquireViewer = acquireViewer;
 		this.#unregisterOwner = registerComputerController(
-			session.getEvalKernelOwnerId?.() ?? undefined,
+			session.getEvalKernelOwnerId?.() ?? session.getSessionId?.() ?? undefined,
 			this.#controller,
 		);
 	}
@@ -138,6 +165,8 @@ export class ComputerTool implements AgentTool<ComputerSchema, ComputerToolDetai
 		const coordinateSafe = usesCoordinateSafeImageSizing(this.session.getActiveModel?.());
 		const configuredMaxWidth = this.session.settings.get("computer.maxWidth");
 		const configuredMaxHeight = this.session.settings.get("computer.maxHeight");
+		const stage = await this.#stageForRun(signal);
+		const viewer = stage ? await this.#viewerForStage(stage, signal) : undefined;
 		const snapshot: ComputerSessionSnapshot = {
 			cwd: this.session.cwd,
 			sessionId: this.session.getEvalSessionId?.() ?? this.session.getSessionId?.() ?? "computer",
@@ -148,6 +177,7 @@ export class ComputerTool implements AgentTool<ComputerSchema, ComputerToolDetai
 				? Math.min(configuredMaxHeight, COORDINATE_SAFE_MAX_CAPTURE_HEIGHT)
 				: configuredMaxHeight,
 			display: this.session.settings.get("computer.display") ?? "all",
+			displayServer: stage?.descriptor.displayServer,
 			readOnly: !!params.read_only,
 		};
 		const run = await this.#controller.run(params.code, timeoutSeconds * 1000, snapshot, signal);
@@ -156,7 +186,10 @@ export class ComputerTool implements AgentTool<ComputerSchema, ComputerToolDetai
 		const details: ComputerToolDetails = {
 			code: params.code,
 			readOnly: snapshot.readOnly,
+			surface: stage ? "isolated" : "host",
+			stageId: stage?.descriptor.id,
 			screenshots: run.screenshots,
+			viewerUrl: viewer?.descriptor.url,
 		};
 		if (run.returnValue !== undefined) details.returnValue = stringifyReturnValue(run.returnValue);
 		populateCapabilityDetails(details, run.capabilities);
@@ -165,6 +198,7 @@ export class ComputerTool implements AgentTool<ComputerSchema, ComputerToolDetai
 			.filter((content): content is { type: "text"; text: string } => content.type === "text")
 			.map(content => content.text);
 		if (details.returnValue !== undefined) textBlocks.push(details.returnValue);
+		if (details.viewerUrl) textBlocks.push(`Stage viewer: ${details.viewerUrl}`);
 		if (!textBlocks.length && !run.displays.some(content => content.type === "image")) {
 			textBlocks.push("Ran computer code");
 		}
@@ -188,7 +222,59 @@ export class ComputerTool implements AgentTool<ComputerSchema, ComputerToolDetai
 		if (this.#closed) return;
 		this.#closed = true;
 		this.#unregisterOwner();
-		await this.#controller.close();
+		const viewerLease = this.#viewerLease;
+		this.#viewerLease = undefined;
+		const stageLease = this.#stageLease;
+		this.#stageLease = undefined;
+		try {
+			await this.#controller.close();
+		} finally {
+			const viewer = await viewerLease?.catch(() => undefined);
+			try {
+				await viewer?.release();
+			} finally {
+				const stage = await stageLease?.catch(() => undefined);
+				await stage?.release();
+			}
+		}
+	}
+
+	async #stageForRun(signal?: AbortSignal): Promise<ComputerStageLease | undefined> {
+		const surface = this.session.settings.get("computer.surface") ?? "auto";
+		if (!usesComputerStage(surface)) return undefined;
+		const ownerId = this.session.getEvalKernelOwnerId?.() ?? this.session.getSessionId?.();
+		if (!ownerId) throw new ToolError("Private computer stage requires a stable session owner");
+		if (!this.#stageLease) {
+			let tracked: Promise<ComputerStageLease>;
+			tracked = this.#acquireStage({
+				projectDir: this.session.cwd,
+				ownerId,
+				width: this.session.settings.get("computer.stageWidth"),
+				height: this.session.settings.get("computer.stageHeight"),
+				signal,
+			}).catch(error => {
+				if (this.#stageLease === tracked) this.#stageLease = undefined;
+				throw error;
+			});
+			this.#stageLease = tracked;
+		}
+		return await this.#stageLease;
+	}
+
+	async #viewerForStage(
+		stage: ComputerStageLease,
+		signal?: AbortSignal,
+	): Promise<ComputerStageViewerLease | undefined> {
+		if (this.session.settings.get("computer.viewer") !== "novnc") return undefined;
+		if (!this.#viewerLease) {
+			let tracked: Promise<ComputerStageViewerLease>;
+			tracked = this.#acquireViewer({ stage: stage.descriptor, signal }).catch(error => {
+				if (this.#viewerLease === tracked) this.#viewerLease = undefined;
+				throw error;
+			});
+			this.#viewerLease = tracked;
+		}
+		return await this.#viewerLease;
 	}
 }
 
@@ -214,7 +300,7 @@ async function saveComputerOutputArtifact(session: ToolSession, fullText: string
 	try {
 		const alloc = await session.allocateOutputArtifact?.("computer-original");
 		if (!alloc?.path || !alloc.id) return undefined;
-		await Bun.write(alloc.path, fullText);
+		await fsx.write(alloc.path, fullText);
 		return alloc.id;
 	} catch {
 		return undefined;
