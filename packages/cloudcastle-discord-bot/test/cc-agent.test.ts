@@ -20,6 +20,7 @@ import {
 	describeEvent,
 	MAX_HEARTBEAT_SESSIONS,
 	MemoryStateStore,
+	MIRROR_MAX_AGE_MS,
 	missingChannelPermissionMessage,
 	projectRootsFromEnv,
 	type RpcAgentEvent,
@@ -520,30 +521,36 @@ describe("session channels", () => {
 });
 
 describe("channel renaming", () => {
-	it("takes the first title immediately, then debounces to the latest", async () => {
-		const rigged = rig({ snapshots: [snapshot({ title: null })] });
+	it("names the channel on creation, then debounces retitles to the latest", async () => {
+		// A channel only exists once the session has a title, so creation already
+		// carries the first one. Creation is not a rename against Discord's cap, so
+		// the next retitle is still free -- two mutations, one of which Discord does
+		// not count, which is why the ten-minute cap test below still holds.
+		const rigged = rig({ snapshots: [snapshot({ title: "first guess" })] });
 		await rigged.agent.tick();
-		expect(rigged.rest.created[0]?.options.name).toBe(sessionChannelName(null, "sess-a"));
+		expect(rigged.rest.created[0]?.options.name).toBe("s-first-guess");
 		expect(rigged.rest.modified).toHaveLength(0);
 
-		// Creating a channel spends no rename, so the first real title lands at once.
-		rigged.snapshots[0] = snapshot({ title: "first guess" });
-		await rigged.agent.tick();
-		expect(rigged.rest.modified.map(call => call.options.name)).toEqual(["s-first-guess"]);
-
-		// Two more retitles inside the window are collapsed into nothing.
 		rigged.clock.value = new Date(NOW.getTime() + 30_000);
 		rigged.snapshots[0] = snapshot({ title: "second guess" });
 		await rigged.agent.tick();
+		expect(rigged.rest.modified.map(call => call.options.name)).toEqual(["s-second-guess"]);
+
+		// Now the window is armed, so a further retitle inside it is collapsed.
 		rigged.clock.value = new Date(NOW.getTime() + 60_000);
 		rigged.snapshots[0] = snapshot({ title: "third and best guess" });
 		await rigged.agent.tick();
 		expect(rigged.rest.modified).toHaveLength(1);
 
-		// Past the window, exactly one more rename, to the latest title only.
-		rigged.clock.value = new Date(NOW.getTime() + CHANNEL_RENAME_MIN_INTERVAL_MS + 1_000);
+		// Past the window, exactly one more rename, straight to the latest title --
+		// never a walk through the intermediate ones, which is what burns the cap.
+		// The window runs from the rename at NOW+30s, not from NOW.
+		rigged.clock.value = new Date(NOW.getTime() + 30_000 + CHANNEL_RENAME_MIN_INTERVAL_MS + 1_000);
 		await rigged.agent.tick();
-		expect(rigged.rest.modified.map(call => call.options.name)).toEqual(["s-first-guess", "s-third-and-best-guess"]);
+		expect(rigged.rest.modified.map(call => call.options.name)).toEqual([
+			"s-second-guess",
+			"s-third-and-best-guess",
+		]);
 	});
 
 	it("keeps every ten-minute window inside Discord's two-rename cap", async () => {
@@ -605,6 +612,108 @@ describe("channel renaming", () => {
 		rigged.snapshots[0] = snapshot({ title: "ship it", status: "interrupted" });
 		await rigged.agent.tick();
 		expect(rigged.rest.modified).toHaveLength(0);
+	});
+});
+
+/**
+ * The first live run on a real developer store tried to create twenty-five
+ * channels, all for sessions that had finished days earlier. A channel per
+ * historical session is noise and it spends the channel-create rate limit before
+ * reaching anything anyone is actually watching.
+ */
+describe("which sessions earn a channel", () => {
+	const longAgo = new Date(NOW.getTime() - MIRROR_MAX_AGE_MS - 60_000).toISOString();
+	const recently = new Date(NOW.getTime() - 60_000).toISOString();
+
+	it("skips a session that finished long ago", async () => {
+		const rigged = rig({ snapshots: [snapshot({ status: "complete", updatedAt: longAgo })] });
+		await rigged.agent.tick();
+		expect(rigged.rest.sessionChannels()).toHaveLength(0);
+	});
+
+	it("still mirrors one that finished recently", async () => {
+		const rigged = rig({ snapshots: [snapshot({ status: "complete", updatedAt: recently })] });
+		await rigged.agent.tick();
+		expect(rigged.rest.sessionChannels()).toHaveLength(1);
+	});
+
+	it("mirrors a live session however old its last write", async () => {
+		const rigged = rig({ snapshots: [snapshot({ status: "running", updatedAt: longAgo })] });
+		await rigged.agent.tick();
+		expect(rigged.rest.sessionChannels()).toHaveLength(1);
+	});
+
+	it("skips a session that has sat idle for days", async () => {
+		// The correction the live run forced. `idle` means "open, waiting on a
+		// human", which every abandoned session on the machine satisfies forever;
+		// 22 of the first 25 were exactly this. Age, not status, separates them.
+		const rigged = rig({ snapshots: [snapshot({ status: "idle", updatedAt: longAgo })] });
+		await rigged.agent.tick();
+		expect(rigged.rest.sessionChannels()).toHaveLength(0);
+	});
+
+	it("mirrors one that went idle a minute ago", async () => {
+		const rigged = rig({ snapshots: [snapshot({ status: "idle", updatedAt: recently })] });
+		await rigged.agent.tick();
+		expect(rigged.rest.sessionChannels()).toHaveLength(1);
+	});
+
+	it("skips an untitled session even while it is running", async () => {
+		// Thirteen of the first twenty-five were exactly this: status unknown, no
+		// title, never took a turn. Naming a channel after a uuid is worse than
+		// having no channel.
+		const rigged = rig({
+			snapshots: [snapshot({ title: null, status: "running", updatedAt: recently })],
+		});
+		await rigged.agent.tick();
+		expect(rigged.rest.sessionChannels()).toHaveLength(0);
+	});
+
+	it("mirrors it as soon as chudcode gives it a title", async () => {
+		const rigged = rig({ snapshots: [snapshot({ title: null, status: "running" })] });
+		await rigged.agent.tick();
+		expect(rigged.rest.sessionChannels()).toHaveLength(0);
+
+		rigged.snapshots[0] = snapshot({ title: "ship the bridge", status: "running" });
+		await rigged.agent.tick();
+		const created = rigged.rest.sessionChannels();
+		expect(created).toHaveLength(1);
+		expect(created[0]?.name).toBe("s-ship-the-bridge");
+	});
+
+	it("treats whitespace as no title", async () => {
+		const rigged = rig({ snapshots: [snapshot({ title: "   ", status: "running" })] });
+		await rigged.agent.tick();
+		expect(rigged.rest.sessionChannels()).toHaveLength(0);
+	});
+
+	it("keeps mirroring a session it already owns a channel for", async () => {
+		// Ageing out of a channel mid-run would freeze its status embed on a stale
+		// value, which reads as "still running" forever.
+		const live = snapshot({ status: "running", updatedAt: recently });
+		const rigged = rig({ snapshots: [live] });
+		await rigged.agent.tick();
+		expect(rigged.rest.sessionChannels()).toHaveLength(1);
+
+		rigged.snapshots[0] = snapshot({ status: "complete", updatedAt: longAgo });
+		rigged.rest.modified.length = 0;
+		await rigged.agent.tick();
+		expect(rigged.rest.sessionChannels()).toHaveLength(1);
+		expect(rigged.rest.modified.length).toBeGreaterThan(0);
+	});
+
+	it("heartbeats every session, including ones it gives no channel", async () => {
+		// The mirror is bounded; /session list is not. A teammate must still be
+		// able to see that a finished session exists.
+		const rigged = rig({
+			snapshots: [
+				snapshot({ sessionId: "old", status: "complete", updatedAt: longAgo }),
+				snapshot({ sessionId: "new", status: "running", updatedAt: recently }),
+			],
+		});
+		const seen = await rigged.agent.tick();
+		expect(seen).toHaveLength(2);
+		expect(rigged.rest.sessionChannels()).toHaveLength(1);
 	});
 });
 

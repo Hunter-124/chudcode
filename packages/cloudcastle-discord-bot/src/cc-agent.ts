@@ -37,7 +37,7 @@
  */
 
 import * as fs from "node:fs/promises";
-import { createRequire } from "node:module";
+import { fileURLToPath } from "node:url";
 import * as os from "node:os";
 import * as path from "node:path";
 import { RpcClient } from "@chudware/coding-agent/modes/rpc/rpc-client";
@@ -74,6 +74,23 @@ import { type ScanOptions, scanSessions } from "./session-scan";
 
 /** A heartbeat carries a working set, not an archive. Older sessions stay reachable as channels. */
 export const MAX_HEARTBEAT_SESSIONS = 10;
+/**
+ * How stale a finished session may be and still earn a channel.
+ *
+ * Measured against a real store: without this the first run found twenty-five
+ * sessions, all long finished, and tried to create a channel for every one.
+ */
+export const MIRROR_MAX_AGE_MS = 6 * 60 * 60 * 1000;
+
+/**
+ * Mirror-state key. Session ids are unique per machine, not globally, so the
+ * host is part of the identity; NUL cannot appear in either half, so the join is
+ * unambiguous. Three call sites must agree on this exactly or a restart mirrors
+ * a session twice.
+ */
+export function mirrorKey(host: string, sessionId: string): string {
+	return `${host}\u0000${sessionId}`;
+}
 /** Leaves room under the 2000-char ceiling for Discord's own framing. */
 const MAX_TRANSCRIPT_CHARS = 1_800;
 const MAX_RESULT_DETAIL_CHARS = 800;
@@ -370,9 +387,51 @@ export class CcAgent {
 	async tick(): Promise<readonly SessionSnapshot[]> {
 		await this.ready();
 		const snapshots = await this.#scan({ host: this.host });
-		await this.mirror(snapshots);
+		await this.mirror(this.mirrorable(snapshots));
 		await this.publishHeartbeat(snapshots);
 		return snapshots;
+	}
+
+	/**
+	 * Sessions worth giving a channel to.
+	 *
+	 * The scan returns the newest sessions on the machine regardless of age, and
+	 * on a developer's real store that is a wall of old work: the first live run
+	 * here tried to create twenty-five channels for sessions last touched days
+	 * earlier. A channel per historical session is noise, and it burns the
+	 * channel-create rate limit before reaching anything anyone is watching.
+	 *
+	 * Only `running` bypasses the age window. `idle` deliberately does not, which
+	 * is the correction the live run forced: `idle` means "open, waiting on a
+	 * human", and every abandoned session on the machine satisfies that forever.
+	 * Age is the signal that separates "waiting for me right now" from "I stopped
+	 * caring on Tuesday".
+	 *
+	 * An untitled session is skipped outright, and that is the filter that did the
+	 * real work: of the twenty-five the first live run found, thirteen were
+	 * status `unknown` with no title -- sessions that opened and never took a
+	 * turn. chudcode titles a session as soon as there is real content, so no
+	 * title means nothing happened, and `sessionChannelName(null, id)` would name
+	 * the channel `s-01a04aa0-bf24` after a uuid nobody can read.
+	 *
+	 * A session already carrying a channel keeps being mirrored regardless, because
+	 * dropping it mid-run would freeze its status embed on a stale value that reads
+	 * as still-running forever.
+	 */
+	mirrorable(
+		snapshots: readonly SessionSnapshot[],
+		// The agent's injected clock, never Date.now(): every other time decision
+		// here runs off #now(), and mixing the two makes the age window depend on
+		// wall-clock drift between the two sources.
+		now: number = this.#now().getTime(),
+	): readonly SessionSnapshot[] {
+		return snapshots.filter(snapshot => {
+			if (this.#state.mirrors[mirrorKey(snapshot.host, snapshot.sessionId)]) return true;
+			if ((snapshot.title ?? "").trim().length === 0) return false;
+			if (snapshot.status === "running") return true;
+			const updated = Date.parse(snapshot.updatedAt);
+			return Number.isFinite(updated) && now - updated <= MIRROR_MAX_AGE_MS;
+		});
 	}
 
 	async publishHeartbeat(snapshots: readonly SessionSnapshot[]): Promise<AgentHeartbeat> {
@@ -533,7 +592,7 @@ export class CcAgent {
 	// -- mirroring -----------------------------------------------------------
 
 	async #mirrorOne(snapshot: SessionSnapshot): Promise<MirrorRecord> {
-		const key = `${snapshot.host}\u0000${snapshot.sessionId}`;
+		const key = mirrorKey(snapshot.host, snapshot.sessionId);
 		const embed = this.#renderEmbed(snapshot);
 		const hash = this.#hashEmbed(embed);
 		const existing = this.#state.mirrors[key];
@@ -622,7 +681,7 @@ export class CcAgent {
 				this.#log(`could not recover the status message in ${channel.name ?? channel.id}: ${describeError(error)}`);
 				continue;
 			}
-			mirrors[`${this.host}\u0000${origin.sessionId}`] = {
+			mirrors[mirrorKey(this.host, origin.sessionId)] = {
 				sessionId: origin.sessionId,
 				host: this.host,
 				channelId: channel.id,
@@ -834,7 +893,7 @@ export class CcAgent {
 
 	/** `new` creates the channel; `start` streams into one the gateway already has. */
 	async #adoptChannel(command: CommandRecord, snapshot: SessionSnapshot): Promise<MirrorRecord> {
-		const key = `${snapshot.host}\u0000${snapshot.sessionId}`;
+		const key = mirrorKey(snapshot.host, snapshot.sessionId);
 		const existing = this.#state.mirrors[key];
 		if (existing) return existing;
 		const embed = this.#renderEmbed(snapshot);
@@ -1166,9 +1225,23 @@ function describeError(error: unknown): string {
 
 /** Reported in the heartbeat so `/session list` can show which machines are behind. */
 async function installedChudcodeVersion(): Promise<string> {
-	// The package hides package.json behind an exports map, so resolve a module
-	// it does export and walk up to the manifest beside it.
-	let dir = path.dirname(createRequire(import.meta.url).resolve("@chudware/coding-agent/modes/rpc/rpc-client"));
+	// The package hides package.json behind an exports map, so resolve a module it
+	// does export and walk up to the manifest beside it.
+	//
+	// `import.meta.resolve`, not `createRequire(...).resolve`: coding-agent's
+	// export map declares only the `types` and `import` conditions, so CommonJS
+	// resolution finds no `require` entry and throws "Cannot find module" even
+	// though the ESM import at the top of this file resolves the same specifier
+	// perfectly. That mismatch crashed the daemon on startup, before it published
+	// a single heartbeat.
+	let dir: string;
+	try {
+		dir = path.dirname(fileURLToPath(import.meta.resolve("@chudware/coding-agent/modes/rpc/rpc-client")));
+	} catch {
+		// A version string is telemetry, not a precondition. Never let it stop the
+		// agent from starting.
+		return "unknown";
+	}
 	for (let depth = 0; depth < 8; depth += 1) {
 		try {
 			const parsed: unknown = JSON.parse(await fs.readFile(path.join(dir, "package.json"), "utf8"));

@@ -115,7 +115,14 @@ export class Bus {
 			if (!message) continue;
 			after = message.id;
 			if (message.content.length === 0) {
-				if (this.#botUserId && message.author?.id === this.#botUserId) blindBotMessages += 1;
+				// An embed-only message legitimately has no content, and the session
+				// mirror posts exactly those, so counting them would fire this
+				// tripwire on the bridge's own healthy output. Only a bot message
+				// with neither content nor embeds is evidence of blanking.
+				const hasEmbeds = (message.embeds?.length ?? 0) > 0;
+				if (this.#botUserId && message.author?.id === this.#botUserId && !hasEmbeds) {
+					blindBotMessages += 1;
+				}
 				continue;
 			}
 			const record = decodeRecord(message.content);
