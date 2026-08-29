@@ -16,7 +16,15 @@
 
 export const GUILD_ID = "1542474553320542278";
 
-/** Channels that already exist. Ids are load-bearing; do not edit casually. */
+/**
+ * Channels that exist. Ids are load-bearing; do not edit casually.
+ *
+ * The last four were created by `provision` on 2026-08-29 and their ids are
+ * recorded here deliberately. Provisioning can fall back to matching a channel
+ * by name, and it did on the run that adopted them, but name matching is one
+ * rename away from creating a duplicate — so once a channel exists, its id
+ * belongs here.
+ */
 export const CHANNEL_IDS = {
 	milestones: "1542614939540263073",
 	updates: "1542626782639824916",
@@ -30,16 +38,22 @@ export const CHANNEL_IDS = {
 	priorityTaskList: "1542614871772893244",
 	git: "1542615109686263899",
 	sessions: "1542631105608556574",
+	howWeWork: "1543121166032572546",
+	alerts: "1543121167072886834",
+	decisions: "1543121167877939300",
+	archiveNotice: "1543121168503144559",
 } as const;
 
 export type ChannelKey = keyof typeof CHANNEL_IDS;
 
-/** Categories that already exist, with the name each should end up carrying. */
+/** Categories that exist, with the name each should end up carrying. */
 export const CATEGORY_IDS = {
 	team: "1542474554012864572", // was "talk"
 	intake: "1542614463784558744", // was "task planning & delegation"
 	devFeed: "1542625972111806574", // was "chudcode"
 	archive: "1542629926941761536", // was "WIP" (empty)
+	liveSessions: "1543121162001715313", // created by provision 2026-08-29
+	doneSessions: "1543121163272585267", // created by provision 2026-08-29
 } as const;
 
 export type CategoryKey = keyof typeof CATEGORY_IDS;
@@ -112,7 +126,7 @@ export const TARGET_LAYOUT: readonly ChannelPlan[] = [
 	// ---- start here: the two things a new teammate needs -------------------
 	{
 		key: "howWeWork",
-		id: null,
+		id: CHANNEL_IDS.howWeWork,
 		name: "how-we-work",
 		category: null,
 		role: "feed",
@@ -174,7 +188,7 @@ export const TARGET_LAYOUT: readonly ChannelPlan[] = [
 	},
 	{
 		key: "alerts",
-		id: null,
+		id: CHANNEL_IDS.alerts,
 		name: "alerts",
 		category: "devFeed",
 		role: "feed",
@@ -218,7 +232,7 @@ export const TARGET_LAYOUT: readonly ChannelPlan[] = [
 	},
 	{
 		key: "decisions",
-		id: null,
+		id: CHANNEL_IDS.decisions,
 		name: "decisions",
 		category: "team",
 		role: "feed",
@@ -270,7 +284,7 @@ export const TARGET_LAYOUT: readonly ChannelPlan[] = [
 	// ---- archive: a pointer, not a copy -----------------------------------
 	{
 		key: "archiveNotice",
-		id: null,
+		id: CHANNEL_IDS.archiveNotice,
 		name: "archive-notice",
 		category: "archive",
 		role: "feed",
@@ -311,7 +325,7 @@ export const REQUIRED_PERMISSIONS = [
 	6, // ADD_REACTIONS     - acknowledge intake
 	10, // VIEW_CHANNEL
 	11, // SEND_MESSAGES
-	13, // MANAGE_MESSAGES  - pin the board
+	13, // MANAGE_MESSAGES  - bulk message management
 	14, // EMBED_LINKS
 	15, // ATTACH_FILES
 	16, // READ_MESSAGE_HISTORY
@@ -319,6 +333,13 @@ export const REQUIRED_PERMISSIONS = [
 	34, // MANAGE_THREADS   - enumerate archived private threads for the archive
 	35, // CREATE_PUBLIC_THREADS
 	38, // SEND_MESSAGES_IN_THREADS
+	// PIN_MESSAGES, and it is genuinely separate from MANAGE_MESSAGES: Discord
+	// split pinning out into its own bit. Found the hard way -- a bot holding
+	// MANAGE_MESSAGES with no channel overwrites still got 403/50013 from both
+	// `PUT /channels/{id}/pins/{mid}` and the newer
+	// `PUT /channels/{id}/messages/pins/{mid}`. Every doc that says
+	// MANAGE_MESSAGES covers pins is describing the old model.
+	51,
 ].reduce((mask, bit) => mask | (1n << BigInt(bit)), 0n);
 
 export const WITHHELD_PERMISSIONS: Readonly<Record<string, string>> = {

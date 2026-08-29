@@ -28,7 +28,7 @@ import {
 	type RpcSessionOptions,
 	type RpcSessionState,
 } from "../src/cc-agent";
-import { CREATED_CATEGORY_NAMES } from "../src/channels";
+import { CATEGORY_IDS, CREATED_CATEGORY_NAMES, REQUIRED_PERMISSIONS } from "../src/channels";
 import {
 	DiscordApiError,
 	type CreateChannelOptions,
@@ -444,11 +444,15 @@ describe("session channels", () => {
 		expect(rest.created[0]?.guildId).toBe(GUILD);
 	});
 
-	it("finds the session categories by name when they are not configured", async () => {
+	it("falls back to the recorded live category id when none is configured", async () => {
+		// Was "finds the categories by name". Provision has since created both
+		// categories and their ids are recorded in channels.ts, so the name lookup
+		// became unreachable and was removed. With nothing configured, the recorded
+		// id is what a session channel must land under.
 		const { agent, rest, snapshots } = rig({ resolveCategoriesFromGuild: true });
 		snapshots.push(snapshot());
 		await agent.tick();
-		expect(rest.created[0]?.options.parentId).toBe(LIVE_CATEGORY);
+		expect(rest.created[0]?.options.parentId).toBe(CATEGORY_IDS.liveSessions);
 	});
 
 	it("distinguishes two hosts that report the same session id", async () => {
@@ -466,7 +470,7 @@ describe("session channels", () => {
 
 		const logged = logs.join("\n");
 		expect(logged).toContain("MANAGE_CHANNELS");
-		expect(logged).toContain("permissions=328565124176");
+		expect(logged).toContain(`permissions=${REQUIRED_PERMISSIONS}`);
 		expect(logged).toContain("oauth2/authorize");
 		// The mirror failure must not stop the heartbeat: the host stays visible.
 		expect(rest.busRecords().filter(record => record.kind === "agent.heartbeat")).toHaveLength(1);
@@ -898,7 +902,7 @@ describe("/new authorisation", () => {
 		const [result] = rest.results();
 		expect(result?.outcome).toBe("failed");
 		expect(result?.detail).toContain("MANAGE_CHANNELS");
-		expect(result?.detail).toContain("permissions=328565124176");
+		expect(result?.detail).toContain(`permissions=${REQUIRED_PERMISSIONS}`);
 	});
 
 	it("streams into a channel the gateway already made when the command carries one", async () => {
@@ -1082,9 +1086,9 @@ describe("pure helpers", () => {
 	it("names the permission and the exact re-invite in the missing-grant message", () => {
 		const withApp = missingChannelPermissionMessage("creating a channel", "1542714531409821726");
 		expect(withApp).toContain("MANAGE_CHANNELS");
-		expect(withApp).toContain("permissions=328565124176");
+		expect(withApp).toContain(`permissions=${REQUIRED_PERMISSIONS}`);
 		expect(withApp).toContain("client_id=1542714531409821726");
-		expect(missingChannelPermissionMessage("creating a channel", null)).toContain("permissions=328565124176");
+		expect(missingChannelPermissionMessage("creating a channel", null)).toContain(`permissions=${REQUIRED_PERMISSIONS}`);
 	});
 });
 

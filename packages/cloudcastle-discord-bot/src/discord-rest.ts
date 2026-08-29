@@ -72,6 +72,18 @@ export interface DiscordMessage {
 	 * "X added Y to the thread" as if it were someone's contribution.
 	 */
 	readonly type?: number;
+	/**
+	 * Present because a message can carry all of its content here and none in
+	 * `content` -- DiscMeet posts each meeting transcript as a lone .md file.
+	 * Anything republishing a message must look here before calling it empty.
+	 */
+	readonly attachments?: readonly {
+		readonly id: string;
+		readonly filename: string;
+		readonly url: string;
+		readonly size?: number;
+		readonly content_type?: string;
+	}[];
 }
 
 export interface DiscordChannel {

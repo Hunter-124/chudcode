@@ -294,10 +294,12 @@ function productionGuild(options: { permissions?: bigint } = {}): FakeGuild {
 			parent_id: null,
 			position: index,
 		})),
-		// The session categories have no id yet, so a finished guild has them
-		// under their target names for provision to adopt.
+		// The session categories now carry recorded ids, so a finished guild must
+		// present those exact ids: provision hard-errors on a mapped id that is not
+		// in the guild rather than re-creating it, which is the behaviour that
+		// caught this fixture when the ids were added.
 		...CATEGORIES_TO_CREATE.map((key, index) => ({
-			id: (synthetic++).toString(),
+			id: CATEGORY_IDS[key],
 			name: CREATED_CATEGORY_NAMES[key],
 			type: 4,
 			parent_id: null,
@@ -336,9 +338,23 @@ describe("channels.ts contract", () => {
 		for (const [key, id] of Object.entries(CHANNEL_IDS)) {
 			expect(laidOut.has(id), `CHANNEL_IDS.${key} (${id}) is not in TARGET_LAYOUT`).toBe(true);
 		}
-		for (const key of Object.keys(CATEGORY_IDS) as CategoryKey[]) {
-			expect(CATEGORY_ORDER).toContain(key);
-			expect(CATEGORY_NAMES[key]).toBeTruthy();
+		// CATEGORY_IDS holds two kinds of category now: the laid-out ones, whose
+		// name comes from CATEGORY_NAMES and whose order comes from CATEGORY_ORDER,
+		// and the two session categories provision created, named by
+		// CREATED_CATEGORY_NAMES and deliberately absent from the sidebar order.
+		// The invariant is that every mapped category is named by exactly one of
+		// those sources -- neither both nor neither.
+		for (const key of Object.keys(CATEGORY_IDS)) {
+			const laidOutName = (CATEGORY_NAMES as Record<string, string | undefined>)[key];
+			const createdName = (CREATED_CATEGORY_NAMES as Record<string, string | undefined>)[key];
+			const inOrder = (CATEGORY_ORDER as readonly string[]).includes(key);
+			const isCreated = (CATEGORIES_TO_CREATE as readonly string[]).includes(key);
+			expect(inOrder === isCreated, `CATEGORY_IDS.${key} must be laid out or created, not both`).toBe(
+				false,
+			);
+			expect(laidOutName ?? createdName, `CATEGORY_IDS.${key} has no name`).toBeTruthy();
+			if (inOrder) expect(laidOutName).toBeTruthy();
+			if (isCreated) expect(createdName).toBeTruthy();
 		}
 		for (const key of CATEGORY_ORDER) expect(CATEGORY_NAMES[key]).toBeTruthy();
 	});
@@ -615,14 +631,14 @@ describe("permission preflight", () => {
 			"MANAGE_MESSAGES",
 			"MANAGE_THREADS",
 		]);
-		expect(plan.permissions.reinvitePermissions).toBe("328565124176");
+		expect(plan.permissions.reinvitePermissions).toBe(REQUIRED_PERMISSIONS.toString());
 		expect(plan.actions.length).toBeGreaterThan(0);
 
 		guild.calls.length = 0;
 		const failure = await rejection(applyProvision(plan, { rest: guild.rest }));
 		expect(failure).toBeInstanceOf(PermissionPreflightError);
 		expect(failure.message).toContain("MANAGE_CHANNELS (bit 4");
-		expect(failure.message).toContain("permissions=328565124176");
+		expect(failure.message).toContain(`permissions=${REQUIRED_PERMISSIONS}`);
 		expect(guild.writes()).toEqual([]);
 	});
 

@@ -60,7 +60,13 @@ import {
 	sessionChannelName,
 } from "./bridge-protocol";
 import { agentStateDir, Bus, writeStateFile } from "./bus";
-import { CREATED_CATEGORY_NAMES, GUILD_ID, inviteUrl, REQUIRED_PERMISSIONS } from "./channels";
+import {
+	CATEGORY_IDS,
+	CREATED_CATEGORY_NAMES,
+	GUILD_ID,
+	inviteUrl,
+	REQUIRED_PERMISSIONS,
+} from "./channels";
 import {
 	DiscordApiError,
 	DiscordRest,
@@ -750,34 +756,21 @@ export class CcAgent {
 	}
 
 	/**
-	 * Provisioning creates the two session categories, so their ids are not known
-	 * at author time. Env wins, then a name lookup in the guild, then nothing --
-	 * a channel with no parent is better than no channel.
+	 * Where session channels are parented.
+	 *
+	 * `CC_LIVE_CATEGORY_ID` / `CC_DONE_CATEGORY_ID` win, then the ids recorded in
+	 * channels.ts. There used to be a third step -- look the categories up by
+	 * name -- because provision creates them and their ids were unknown at author
+	 * time. They exist now and their ids are recorded, so that step became
+	 * unreachable and is gone rather than left as a path nothing can exercise.
+	 * A rename in Discord no longer strands new session channels at the top level.
 	 */
 	async #resolveCategories(): Promise<SessionCategories> {
 		if (this.#configuredCategories) return this.#configuredCategories;
-		this.#categories ??= (async () => {
-			const fromEnv: SessionCategories = {
-				live: process.env.CC_LIVE_CATEGORY_ID?.trim() || null,
-				done: process.env.CC_DONE_CATEGORY_ID?.trim() || null,
-			};
-			if (fromEnv.live && fromEnv.done) return fromEnv;
-			try {
-				const channels = await this.#rest.getGuildChannels(this.#guildId);
-				const byName = new Map(
-					channels
-						.filter(channel => channel.type === GUILD_CATEGORY && typeof channel.name === "string")
-						.map(channel => [channel.name?.toLowerCase() ?? "", channel.id]),
-				);
-				return {
-					live: fromEnv.live ?? byName.get(CREATED_CATEGORY_NAMES.liveSessions) ?? null,
-					done: fromEnv.done ?? byName.get(CREATED_CATEGORY_NAMES.doneSessions) ?? null,
-				};
-			} catch (error) {
-				this.#log(`could not resolve the session categories: ${describeError(error)}`);
-				return fromEnv;
-			}
-		})();
+		this.#categories ??= Promise.resolve({
+			live: process.env.CC_LIVE_CATEGORY_ID?.trim() || CATEGORY_IDS.liveSessions,
+			done: process.env.CC_DONE_CATEGORY_ID?.trim() || CATEGORY_IDS.doneSessions,
+		});
 		return this.#categories;
 	}
 

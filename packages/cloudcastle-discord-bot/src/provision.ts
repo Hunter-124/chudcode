@@ -342,15 +342,24 @@ If you cannot find something from the old server, it is in the export.`,
 };
 
 /**
- * The guild's real layout: the four mapped categories in sidebar order, then the
- * session categories that do not exist yet. Both halves become one ordered list
- * so provisioning has a single notion of "category".
+ * The guild's real layout: the mapped categories in sidebar order, then the
+ * session categories. Both halves become one ordered list so provisioning has a
+ * single notion of "category".
+ *
+ * The session categories carry their real ids now that provision has created
+ * them. They were `id: null` for exactly one run, which made that run adopt them
+ * by name — correct, but one rename away from creating a duplicate, which is why
+ * the run that adopts something tells you to record its id.
  */
 const DEFAULT_LAYOUT: LayoutSpec = {
 	channels: TARGET_LAYOUT,
 	categories: [
 		...CATEGORY_ORDER.map(key => ({ key, id: CATEGORY_IDS[key], name: CATEGORY_NAMES[key] })),
-		...CATEGORIES_TO_CREATE.map(key => ({ key, id: null, name: CREATED_CATEGORY_NAMES[key] })),
+		...CATEGORIES_TO_CREATE.map(key => ({
+			key,
+			id: CATEGORY_IDS[key] ?? null,
+			name: CREATED_CATEGORY_NAMES[key],
+		})),
 	],
 	threadIds: KNOWN_THREAD_IDS,
 };
@@ -387,6 +396,11 @@ interface SeedState {
 	readonly body: string;
 }
 
+interface ChannelAttachment {
+	readonly filename: string;
+	readonly url: string;
+}
+
 interface ChannelMessage {
 	readonly id: string;
 	readonly authorId: string;
@@ -395,6 +409,8 @@ interface ChannelMessage {
 	readonly type: number;
 	readonly timestamp: string;
 	readonly content: string;
+	/** A message's whole payload can live here with `content` empty. */
+	readonly attachments: readonly ChannelAttachment[];
 }
 
 /**
@@ -906,11 +922,24 @@ async function planFlatten(
 		const posts: string[] = [];
 		for (const message of source) {
 			if (message.content.trim().length === 0) {
+				// Two very different reasons a body reads empty, and conflating them
+				// sends someone to flip a setting that is already on. DiscMeet posts
+				// each meeting's transcript as a .md attachment with no text at all,
+				// so an attachment-only message is not evidence of anything wrong --
+				// the content is in the file, which the archive exporter has already
+				// downloaded. Only a message with no attachment and no embed points
+				// at the MESSAGE_CONTENT intent.
+				const carries =
+					(message.attachments?.length ?? 0) > 0 || (message.embeds?.length ?? 0) > 0;
 				notes.push(
-					`thread "${key}" message ${message.id} has an empty body and was not reposted; enable ` +
-						"MESSAGE_CONTENT and rerun to include it",
+					carries
+						? `thread "${key}" message ${message.id} carries no text, only ` +
+							`${message.attachments?.length ?? 0} attachment(s) and ` +
+							`${message.embeds?.length ?? 0} embed(s); reposted as a reference to the original`
+						: `thread "${key}" message ${message.id} has an empty body and was not reposted; ` +
+							"enable MESSAGE_CONTENT and rerun to include it",
 				);
-				continue;
+				if (!carries) continue;
 			}
 			posts.push(...flattenPosts(thread, message));
 		}
@@ -932,7 +961,14 @@ function flattenPosts(thread: LiveThread, message: ChannelMessage): string[] {
 	const header =
 		`\`${FLATTEN_MARKER_PREFIX}${thread.id}\` **${message.author}** in thread ` +
 		`*${truncate(thread.name, FLATTEN_NAME_LIMIT)}* at ${message.timestamp}`;
-	const body = message.content.trimEnd();
+	// A message whose payload is a file gets its files named and linked. The bot
+	// cannot re-upload someone else's attachment without downloading it first,
+	// and the archive exporter already stored a copy, so linking the original is
+	// both cheaper and more honest than a silent omission.
+	const attachmentLines = message.attachments.map(
+		attachment => `- attachment: [${attachment.filename}](${attachment.url})`,
+	);
+	const body = [message.content.trimEnd(), ...attachmentLines].filter(Boolean).join("\n");
 	if (header.length + 1 + body.length <= MAX_MESSAGE_CHARS) return [`${header}\n${body}`];
 
 	const budget = MAX_MESSAGE_CHARS - header.length - FLATTEN_PART_RESERVE - 1;
@@ -1138,6 +1174,10 @@ function toChannelMessage(message: DiscordMessage): ChannelMessage {
 		type: message.type ?? 0,
 		timestamp: Number.isNaN(parsed.getTime()) ? message.timestamp : parsed.toISOString(),
 		content: message.content,
+		attachments: (message.attachments ?? []).map(attachment => ({
+			filename: attachment.filename,
+			url: attachment.url,
+		})),
 	};
 }
 

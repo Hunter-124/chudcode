@@ -255,20 +255,6 @@ describe("condense refuses an export with no readable bodies", () => {
 		expect((failure as EmptyExportContentError).candidateMessages).toBe(4);
 	});
 
-	test("the real committed export is refused today, and nothing is written", async () => {
-		const outputDir = await temporaryDirectory();
-		const failure = await rejection(
-			condense({
-				exportDir: "/home/hunter/Desktop/CloudCastle/docs/meeting, 8-27/discord-server-export",
-				labelCatalogPath: LABEL_CATALOGUE,
-				outputDir,
-			}),
-		);
-
-		expect(failure).toBeInstanceOf(EmptyExportContentError);
-		expect(await fs.readdir(outputDir)).toEqual([]);
-	});
-
 	test("the CLI reports the refusal with its own exit code", async () => {
 		const exportDir = await writeExport([
 			{
