@@ -5,17 +5,34 @@
   "type": "module",
   "exports": {
     "./archive": "./src/archive.ts",
-    "./incidents": "./src/incidents.ts"
+    "./incidents": "./src/incidents.ts",
+    "./channels": "./src/channels.ts",
+    "./bridge-protocol": "./src/bridge-protocol.ts",
+    "./discord-rest": "./src/discord-rest.ts",
+    "./bus": "./src/bus.ts",
+    "./session-scan": "./src/session-scan.ts",
+    "./session-render": "./src/session-render.ts",
+    "./provision": "./src/provision.ts",
+    "./condense": "./src/condense.ts"
+  },
+  "bin": {
+    "cc-agent": "./src/cc-agent.ts",
+    "cc-gateway": "./src/cc-gateway.ts"
   },
   "scripts": {
     "export": "bun src/export-cli.ts",
     "dispatch-incidents": "bun src/incident-cli.ts",
+    "agent": "bun src/cc-agent.ts",
+    "gateway": "bun src/cc-gateway.ts",
+    "provision": "bun src/provision-cli.ts",
+    "condense": "bun src/condense.ts",
     "check": "tsgo -p tsconfig.check.json --noEmit",
     "test": "bun test test"
   },
   "dependencies": {
     "@cloudcastle/context-engine": "workspace:*",
     "@chudware/coding-agent": "catalog:",
+    "@chudware/utils": "catalog:",
     "discord.js": "14.27.0"
   },
   "devDependencies": {

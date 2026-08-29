@@ -2,24 +2,59 @@
 
 ## Current state
 
-The safe archive foundation is on `main` in commit `203cb96932` (`feat: add verified Discord archive tooling`). It contains:
+The application EXISTS and its bot is installed in the guild. The
+"Wait! Are you human?" narrative below is history, not a blocker: application
+`1542714531409821726` was created on 2026-08-27 and its bot user
+`cloudcastledevbot` is a member of guild `1542474553320542278`.
 
-- a GET-only Discord exporter in `src/archive.ts`;
-- the `export` CLI in `src/export-cli.ts`;
-- an independent Python verifier in `python/robochud/src/discord_archive_verify.py`;
-- a terminal-classification gate in `python/robochud/src/discord_archive_classify.py`;
-- focused TypeScript and Python contract tests.
+Landed and exercised against the live guild:
 
-The Discord application was **not created**. Discord's Developer Portal repeatedly stopped both Hunter and the operator at its broken “Wait! Are you human?” challenge. Therefore:
+- the GET-only exporter in `src/archive.ts` and its `export` CLI, plus the
+  independent Python verifier and classification gate under `python/robochud/`;
+- `src/channels.ts` — the typed channel map and the target layout;
+- `src/bridge-protocol.ts` — the session/bus wire contract;
+- `src/discord-rest.ts` — bot-token REST with no delete method, by construction;
+- `src/session-scan.ts` / `src/session-render.ts` — the on-disk chudcode session
+  store turned into snapshots and Discord embeds;
+- `src/bus.ts`, `src/cc-agent.ts`, `src/cc-gateway.ts` — one Discord CHANNEL per
+  chudcode session, created by `/new` and named from the session title, with
+  `/session list|say|interrupt|stop|tail`. Threads were built first and rejected
+  by the team: a thread hides its content behind a click.
+- `src/provision.ts` and `src/condense.ts` — drive the guild to the target layout
+  and fold the archive into proposed GitHub issues.
 
-- no Discord bot token exists;
-- no app was installed into the CloudCastle guild;
-- no guild permissions, roles, channels, threads, or messages were changed;
-- no archive export has run;
-- Discmeet was not removed;
-- no legacy channel was frozen or deleted.
+172 tests pass in this package. The archive export has RUN: 15 scopes, 61
+messages, written under `docs/meeting, 8-27/discord-server-export/` in the
+CloudCastle repository.
 
-This is a clean handoff, not a partial live cutover.
+Still true, and still the governing constraint: **no guild channel, role,
+thread or message has been deleted, frozen or redirected, and Discmeet is
+untouched.** The cutover gate below remains in force. `provision` never issues a
+DELETE — `assertNoDeletes` makes that structural rather than a promise.
+
+### The two things that are actually blocking, both one human click
+
+1. **The `MESSAGE_CONTENT` privileged intent is OFF.** `GET /applications/@me`
+   returns `flags: 0`. Consequence, verified rather than assumed: every
+   `GET /channels/{id}/messages` returns `content: ""`. The export therefore
+   preserved 61 messages of metadata with **zero message bodies**, so it is not
+   yet the preservation artifact the cutover gate requires, and both `condense`
+   and `provision --flatten-threads` deliberately refuse rather than invent
+   content. Enable it at Developer Portal -> Applications ->
+   `1542714531409821726` -> Bot -> Privileged Gateway Intents, then re-run the
+   export.
+2. **Three permissions are missing.** Effective guild permissions are
+   `2248473465835073`, inherited entirely from `@everyone`; the bot's own role
+   adds nothing. `MANAGE_CHANNELS` (bit 4), `MANAGE_MESSAGES` (13) and
+   `MANAGE_THREADS` (34) are absent, which is why pinning answers 403/50013 and
+   `enumerate_archived_private_threads` answers 403/50001 on all eleven text
+   channels. Note that the archive-only permission integer recorded further down
+   this file, `17179935744`, already included `MANAGE_THREADS`; the install was
+   made without it. Re-invite with `permissions=328565124176`.
+
+Everything else works now: posting, editing a message in place, creating a
+channel's first message, adding a reaction, and reading message history as
+metadata were all exercised against the real guild.
 
 ## Local secret material
 
