@@ -11,7 +11,7 @@ import {
 import { DesktopStore, type DesktopStoreSnapshot } from "./desktop-store";
 
 const OPEN = 1;
-const DEFAULT_REQUEST_TIMEOUT_MS = 15_000;
+export const DEFAULT_REQUEST_TIMEOUT_MS = 15_000;
 const DEFAULT_RECONNECT_DELAYS_MS = [250, 500, 1_000, 2_000, 4_000, 8_000] as const;
 const DEFAULT_DRAFT_DEBOUNCE_MS = 250;
 

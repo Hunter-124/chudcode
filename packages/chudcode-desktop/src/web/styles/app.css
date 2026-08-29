@@ -311,6 +311,18 @@ button:disabled {
 .ide-shell.has-primary .ide-workbench { grid-template-columns: 48px var(--primary-sidebar-width) 4px minmax(320px, 1fr) 0 0; }
 .ide-shell.has-secondary .ide-workbench { grid-template-columns: 48px 0 0 minmax(320px, 1fr) 4px var(--secondary-sidebar-width); }
 .ide-shell.has-primary.has-secondary .ide-workbench { grid-template-columns: 48px var(--primary-sidebar-width) 4px minmax(320px, 1fr) 4px var(--secondary-sidebar-width); }
+/* Every column is declared even when empty, so each child MUST be pinned to its
+ * own track. Auto-placement is not an option here: `hidden` collapses the
+ * primary sidebar and its resize handle to `display: none`, which drops them out
+ * of the grid entirely and slides the editor group into the 0px track meant for
+ * the sidebar -- a zero-width editor and file tree at every activity except
+ * Sessions. */
+.ide-workbench > .activitybar { grid-column: 1; }
+.ide-workbench > .primary-sidebar { grid-column: 2; }
+.ide-workbench > .primary-resize { grid-column: 3; }
+.ide-workbench > .editor-group { grid-column: 4; }
+.ide-workbench > .secondary-resize { grid-column: 5; }
+.ide-workbench > .secondary-sidebar { grid-column: 6; }
 
 .activitybar {
 	display: flex;

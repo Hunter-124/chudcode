@@ -5,7 +5,7 @@ import { parseHTML } from "@chudware/utils/dom";
 import { act, forwardRef, type ReactNode, useEffect, useImperativeHandle } from "react";
 import type { DesktopSessionInfo, DesktopSessionTab, WorkspaceDescriptor } from "../src/protocol";
 import type { AppComponents, AppEditorWorkspaceProps } from "../src/web/App";
-import type { DesktopClient } from "../src/web/desktop-client";
+import { DEFAULT_REQUEST_TIMEOUT_MS, type DesktopClient } from "../src/web/desktop-client";
 import type { DesktopStoreSnapshot } from "../src/web/desktop-store";
 import type { EditorWorkspaceHandle } from "../src/web/editor/EditorWorkspace";
 
@@ -140,6 +140,7 @@ class FakeDesktopClient {
 	listeners = new Set<() => void>();
 	snapshot: DesktopStoreSnapshot;
 	pickedPath = "/picked/project";
+	pickTimeoutMs: number | undefined;
 
 	constructor(tabs: readonly DesktopSessionTab[] = [tabA, tabB]) {
 		const snapshots = new Map<string, SessionSnapshot>([
@@ -177,8 +178,9 @@ class FakeDesktopClient {
 	close(): void {}
 	emit(): void { for (const listener of this.listeners) listener(); }
 
-	async request(method: string, params: Record<string, unknown>): Promise<unknown> {
+	async request(method: string, params: Record<string, unknown>, options?: { timeoutMs?: number }): Promise<unknown> {
 		this.calls.push({ method, params });
+		if (method === "workspace.pick") this.pickTimeoutMs = options?.timeoutMs;
 		if (method === "workspace.recent") return { projects: [
 			{ rootPath: "/work/alpha", displayName: "alpha", lastOpenedMs: 2 },
 			{ rootPath: "/work/deep/nested/beta", displayName: "beta", lastOpenedMs: 1 },
@@ -252,6 +254,11 @@ describe("project switcher", () => {
 			expect(client.calls).toContainEqual({ method: "workspace.pick", params: { initialPath: "/work/alpha" } });
 			expect(client.calls).toContainEqual({ method: "workspace.open", params: { rootPath: client.pickedPath } });
 			expect(opened.at(-1)?.rootPath).toBe(client.pickedPath);
+			// The host answers workspace.pick only once a person has finished
+			// browsing a modal native dialog. Under the ordinary request timeout the
+			// promise was abandoned mid-dialog, the host still opened the chosen
+			// directory, and picking a folder changed nothing on screen.
+			expect(client.pickTimeoutMs).toBeGreaterThan(DEFAULT_REQUEST_TIMEOUT_MS);
 		} finally {
 			await mounted.unmount();
 		}

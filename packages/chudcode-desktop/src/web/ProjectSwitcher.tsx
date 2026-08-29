@@ -3,8 +3,14 @@ import type { ReactNode } from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { RecentProject, WorkspaceDescriptor } from "../protocol";
 import type { DesktopClient } from "./desktop-client";
+import { useDesktop } from "./use-desktop";
 
 const PROJECT_CHORD_TIMEOUT_MS = 1_500;
+// `workspace.pick` blocks on a modal native file dialog, so the request is only
+// answered once a person finishes browsing. The 15s client default expired long
+// before that: the host still opened the picked directory, but the abandoned
+// promise never reached openWorkspace, so choosing a folder changed nothing.
+const PICKER_TIMEOUT_MS = 10 * 60_000;
 
 export interface ProjectSwitcherProps {
 	client: DesktopClient;
@@ -23,6 +29,7 @@ export function ProjectSwitcher({
 	onError,
 }: ProjectSwitcherProps): ReactNode {
 	const [open, setOpen] = useState(false);
+	const phase = useDesktop(client, snapshot => snapshot.session.phase);
 	const [loading, setLoading] = useState(false);
 	const [recentProjects, setRecentProjects] = useState<readonly RecentProject[]>([]);
 	const [error, setError] = useState<string | null>(null);
@@ -57,9 +64,13 @@ export function ProjectSwitcher({
 		}
 	}, [client, reportError]);
 
+	// The switcher mounts before the WebSocket opens, so a bare mount fetch always
+	// rejects with DesktopDisconnectedError and leaves the menu permanently empty.
+	// Keying the fetch to the live phase also re-lists after a reconnect.
 	useEffect(() => {
+		if (phase !== "live") return;
 		void refreshRecent();
-	}, [refreshRecent]);
+	}, [phase, refreshRecent]);
 
 	useEffect(() => {
 		const clearChord = (): void => {
@@ -121,7 +132,9 @@ export function ProjectSwitcher({
 	const pickWorkspace = useCallback(async (): Promise<void> => {
 		setLoading(true);
 		try {
-			const picked = await client.request("workspace.pick", currentPath ? { initialPath: currentPath } : {});
+			const picked = await client.request("workspace.pick", currentPath ? { initialPath: currentPath } : {}, {
+				timeoutMs: PICKER_TIMEOUT_MS,
+			});
 			if (!picked.cancelled && picked.rootPath) await openWorkspace(picked.rootPath);
 		} catch (cause) {
 			reportError(cause);

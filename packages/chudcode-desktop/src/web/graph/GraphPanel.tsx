@@ -227,10 +227,18 @@ export function GraphPanel({
 				select(this).classed("graph-node--dragging", false);
 				setSelectedId(node.id);
 			});
-		select(scene)
-			.selectAll<SVGGElement, LayoutNode>(".graph-node")
-			.data(filtered.nodes, node => node.id)
-			.call(drag);
+		// React renders these <g> elements, so d3 never bound `__data__` to them.
+		// A keyed `.data()` join calls its key function once per existing element
+		// with that missing datum, so `node.id` threw a TypeError out of this
+		// effect and unmounted the whole shell to a blank page the moment a
+		// workspace opened. Bind each element from the id React stamped on it.
+		// The `leaving` ghosts carry no `data-node-id` and stay undraggable.
+		const nodesById = new Map(filtered.nodes.map(node => [node.id, node]));
+		for (const element of scene.querySelectorAll<SVGGElement>(".graph-node[data-node-id]")) {
+			const node = nodesById.get(element.dataset.nodeId ?? "");
+			if (node === undefined) continue;
+			select<SVGGElement, LayoutNode>(element).datum(node).call(drag);
+		}
 		return () => {
 			select(scene).selectAll(".graph-node").on(".drag", null);
 		};

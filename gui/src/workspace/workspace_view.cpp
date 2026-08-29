@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <array>
 #include <cctype>
+#include <chrono>
 #include <cmath>
 #include <cstdint>
 #include <cstring>
@@ -29,6 +30,12 @@ namespace chud::workspace {
 namespace {
 
 const std::vector<WorkspaceEntry> kNoEntries;
+
+// workspace.pick blocks on a modal native file dialog, so the host answers only
+// once a person has finished browsing. DesktopClient's 10s default expired long
+// before that: the host still opened the chosen directory while the GUI had
+// already given up on the request, so picking a folder did nothing.
+constexpr auto kPickerTimeout = std::chrono::minutes(10);
 
 std::string parentUri(std::string_view uri) {
     const auto slash = uri.find_last_of('/');
@@ -1013,7 +1020,8 @@ void WorkspaceView::requestOpenFolder() {
                         });
                 }
             }
-        });
+        },
+        kPickerTimeout);
 }
 
 void WorkspaceView::refreshRecent() {
