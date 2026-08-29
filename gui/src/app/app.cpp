@@ -386,20 +386,38 @@ bool hasSidePanel(Activity activity) {
            activity == Activity::SourceControl || activity == Activity::Sessions;
 }
 
+constexpr std::array kActivities = {
+    Activity::Explorer, Activity::Search, Activity::SourceControl,
+    Activity::Terminal, Activity::Graph, Activity::Sessions,
+};
+
+/// Width the rail needs for its widest label to render in full.
+///
+/// ImGui::Button clips its label to the button rect, so a rail sized by a magic
+/// constant silently truncates ("Explorer" -> "Explore", "Source Control" ->
+/// "Source") at the default font and truncates differently at every DPI scale.
+/// Measuring the text keeps every label intact at any scale.
+float activityRailWidth() {
+    float widest = 0.0F;
+    for (const auto activity : kActivities) {
+        const auto label = activityLabel(activity);
+        widest = std::max(widest, ImGui::CalcTextSize(label.data(), label.data() + label.size()).x);
+    }
+    const auto& style = ImGui::GetStyle();
+    return widest + (style.FramePadding.x + style.WindowPadding.x + style.ChildBorderSize) * 2.0F;
+}
+
 void drawActivityRail(Activity& selected, terminal::TerminalView& terminalView,
                       workspace::WorkspaceView& workspaceView, bool& focusSidePanel) {
-    static constexpr std::array activities = {
-        Activity::Explorer, Activity::Search, Activity::SourceControl,
-        Activity::Terminal, Activity::Graph, Activity::Sessions,
-    };
     ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 3.0F);
-    for (const auto activity : activities) {
+    for (const auto activity : kActivities) {
         const bool active = selected == activity;
         if (active) {
             ImGui::PushStyleColor(ImGuiCol_Button, ui::palette().accentSoft);
             ImGui::PushStyleColor(ImGuiCol_Text, ui::palette().accent);
         }
-        if (ImGui::Button(activityLabel(activity).data(), ImVec2(-1.0F, 34.0F))) {
+        const auto label = activityLabel(activity);
+        if (ImGui::Button(label.data(), ImVec2(-1.0F, ui::metrics::px(34.0F)))) {
             selected = activity;
             focusSidePanel = hasSidePanel(activity);
             if (activity == Activity::Terminal) terminalView.requestFocus();
@@ -586,14 +604,18 @@ AppOptions parseOptions(int argc, const char* const* argv) {
 }
 
 int run(const AppOptions& options) {
-    glfwSetErrorCallback([](int, const char* description) {
-        if (description != nullptr) std::fputs("chudcode-gui: GLFW error\n", stderr);
+    glfwSetErrorCallback([](int code, const char* description) {
+        std::fprintf(stderr, "chudcode-gui: GLFW error %d: %s\n", code,
+                     description != nullptr ? description : "(no description)");
     });
 #if defined(GLFW_PLATFORM) && defined(GLFW_PLATFORM_X11)
-    // Headless proof uses Xvfb. An inherited WAYLAND_DISPLAY otherwise wins GLFW's
-    // platform selection even when DISPLAY points at Xvfb, then Wayland teardown can
-    // crash after capture. Interactive runs keep native platform auto-selection.
-    if (options.screenshotPath && std::getenv("DISPLAY") != nullptr) {
+    // GLFW treats a WAYLAND_DISPLAY that is merely *present* as a usable Wayland
+    // session, so an empty one makes it try wl_display_connect and abandon init
+    // instead of falling back to X11. Pin X11 whenever there is an X display and
+    // no real Wayland one; a genuine Wayland session still auto-selects Wayland.
+    const char* const waylandDisplay = std::getenv("WAYLAND_DISPLAY");
+    const bool hasWayland = waylandDisplay != nullptr && waylandDisplay[0] != '\0';
+    if (!hasWayland && std::getenv("DISPLAY") != nullptr) {
         glfwInitHint(GLFW_PLATFORM, GLFW_PLATFORM_X11);
     }
 #endif
@@ -625,11 +647,16 @@ int run(const AppOptions& options) {
     setProductIcon(window.window, assets);
 
     IMGUI_CHECKVERSION();
+    // Dear ImGui stores this pointer instead of copying the string, and its
+    // teardown save (ImGui::DestroyContext -> Shutdown -> SaveIniSettingsToDisk)
+    // runs from ~ImGuiLifetime. Declaring the path first makes it outlive that
+    // guard; declared after, the shutdown save read freed memory and wrote the
+    // window layout to a garbage filename in the working directory.
+    const std::string iniPath = (dataDirectory() / "imgui.ini").string();
     ImGui::CreateContext();
     ImGuiLifetime imguiLifetime;
     auto& io = ImGui::GetIO();
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard | ImGuiConfigFlags_DockingEnable;
-    const std::string iniPath = (dataDirectory() / "imgui.ini").string();
     io.IniFilename = iniPath.c_str();
     io.LogFilename = nullptr;
 
@@ -754,7 +781,7 @@ int run(const AppOptions& options) {
                     const auto product = response.result->at("product").get<std::string>();
                     if (protocol != kDesktopProtocolVersion || product != kProduct) {
                         connectionState = ConnectionState::Blocked;
-                        blockedReason = "The Bun desktop service uses an incompatible protocol.";
+                        blockedReason = "The Chudcode desktop service uses an incompatible protocol.";
                         return;
                     }
                 } catch (const nlohmann::json::exception&) {
@@ -862,17 +889,27 @@ int run(const AppOptions& options) {
         ImGui::Begin("Chudcode##shell", nullptr, shellFlags);
         ImGui::PopStyleVar(3);
 
-        const float projectHeight = ui::metrics::px(38.0F);
-        const float sessionHeight = ui::metrics::px(36.0F);
-        const float statusHeight = ui::metrics::px(24.0F);
-        const float bodyHeight = std::max(1.0F, ImGui::GetContentRegionAvail().y - projectHeight -
-                                                    sessionHeight - statusHeight);
+        // Every bar in this stack hosts one row of framed widgets, so its height
+        // follows the font rather than a constant: a short child gives itself a
+        // scrollbar instead of showing its content.
+        const auto& shellStyle = ImGui::GetStyle();
+        const float barChrome = (shellStyle.WindowPadding.y + shellStyle.ChildBorderSize) * 2.0F;
+        const float projectHeight = ImGui::GetFrameHeight() + barChrome;
+        const float sessionHeight = projectHeight;
+        const float statusHeight = ImGui::GetTextLineHeight() + barChrome;
+        // The four children stack vertically, so ImGui inserts ItemSpacing.y
+        // between them. Leaving those three gaps out of the budget overflowed the
+        // shell and crushed the status bar (the last child) to a few dead pixels.
+        const float stackGaps = shellStyle.ItemSpacing.y * 3.0F;
+        const float bodyHeight =
+            std::max(1.0F, ImGui::GetContentRegionAvail().y - projectHeight - sessionHeight -
+                               statusHeight - stackGaps);
 
         ImGui::PushStyleColor(ImGuiCol_ChildBg, ui::palette().headerBg);
         ImGui::BeginChild("##project-switcher", ImVec2(0.0F, projectHeight), ImGuiChildFlags_Borders);
         ImGui::AlignTextToFramePadding();
         ImGui::TextUnformatted("CHUDCODE");
-        ImGui::SameLine(116.0F * scale);
+        ImGui::SameLine(0.0F, shellStyle.ItemSpacing.x * 2.0F);
         workspaceView.drawProjectSwitcher();
         ImGui::EndChild();
 
@@ -883,17 +920,20 @@ int run(const AppOptions& options) {
         ImGui::PopStyleColor();
 
         const float availableWidth = ImGui::GetContentRegionAvail().x;
-        const float railWidth = std::min(ui::metrics::px(112.0F),
-                                         std::max(80.0F, availableWidth * 0.14F));
+        // The rail must fit its labels; the side and copilot panels are capped so a
+        // wide window grows the editor rather than the chrome. The copilot panel is
+        // placed with width 0 and so absorbs any rounding slack, which is why the
+        // center takes an exact budget and needs no fudge factor.
+        const float railWidth =
+            std::min(std::max(activityRailWidth(), ui::metrics::px(96.0F)),
+                     std::max(ui::metrics::px(96.0F), availableWidth * 0.22F));
         const float sideWidth = hasSidePanel(activity)
                                     ? std::min(ui::metrics::px(286.0F), availableWidth * 0.24F)
                                     : 0.0F;
-        const float rightWidth = std::min(
-            ui::metrics::px(430.0F),
-            std::max(availableWidth * 0.26F,
-                     std::min(ui::metrics::px(280.0F), availableWidth * 0.30F)));
+        const float rightWidth =
+            std::min(ui::metrics::px(430.0F), std::max(ui::metrics::px(280.0F), availableWidth * 0.26F));
         const float centerWidth =
-            std::max(1.0F, availableWidth - railWidth - sideWidth - rightWidth - 3.0F);
+            std::max(1.0F, availableWidth - railWidth - sideWidth - rightWidth);
 
         ImGui::BeginChild("##activity-rail", ImVec2(railWidth, bodyHeight), ImGuiChildFlags_Borders);
         drawActivityRail(activity, terminalView, workspaceView, focusSidePanel);
@@ -950,7 +990,11 @@ int run(const AppOptions& options) {
         const auto terminal = terminalByWorkspace.find(activeWorkspace);
         if (terminal == terminalByWorkspace.end()) {
             if (activeWorkspace.empty()) {
+                // Block-level hint in a panel that gets narrow; wrap it rather
+                // than let it run under the panel border.
+                ImGui::PushTextWrapPos(0.0F);
                 kit::dimText("Open a project to start a terminal.");
+                ImGui::PopTextWrapPos();
             } else if (terminalPending.contains(activeWorkspace)) {
                 kit::spinner("Starting terminal");
             } else if (kit::emptyState("Terminal unavailable", "The terminal is not running.", "Start")) {

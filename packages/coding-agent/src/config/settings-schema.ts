@@ -531,17 +531,17 @@ export const SETTINGS_SCHEMA = {
 		},
 	},
 
-	// macOS power assertions (caffeinate flags). No-op on other platforms.
+	// macOS IOKit power assertions and Linux logind inhibitors. No-op elsewhere.
 	"power.sleepPrevention": {
 		type: "enum",
 		values: ["off", "idle", "display", "system"] as const,
 		default: "idle",
 		ui: {
 			tab: "interaction",
-			group: "Power (macOS)",
+			group: "Power",
 			label: "Sleep Prevention",
 			description:
-				"Prevent macOS sleep during active sessions. Each level is cumulative — it adds the flags of all lower levels.",
+				"Keep the machine awake while a prompt is running. Each level is cumulative — it adds the guarantees of all lower levels. macOS takes IOKit power assertions; Linux takes a systemd-logind inhibitor. Ignored on other platforms.",
 			options: [
 				{
 					value: "off",
@@ -551,17 +551,18 @@ export const SETTINGS_SCHEMA = {
 				{
 					value: "idle",
 					label: "Prevent Idle Sleep",
-					description: "Keep the system awake while a session is open (caffeinate -i)",
+					description: "Keep the system awake while work is in flight (macOS caffeinate -i, logind idle)",
 				},
 				{
 					value: "display",
 					label: "Prevent Display Sleep",
-					description: "Also keep the display from idle-sleeping (caffeinate -i -d)",
+					description:
+						"Also keep the display from idle-sleeping (macOS caffeinate -i -d; on Linux, blocking logind idle already stops dimming, blanking, and locking)",
 				},
 				{
 					value: "system",
 					label: "Prevent System Sleep",
-					description: "Also block all system sleep on AC and declare the user active (caffeinate -i -d -s -u)",
+					description: "Also block explicit sleep requests (macOS caffeinate -i -d -s -u, logind idle:sleep)",
 				},
 			],
 		},

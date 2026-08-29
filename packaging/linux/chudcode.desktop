@@ -2,7 +2,7 @@
 Type=Application
 Name=Chudcode
 Comment=Chudware's private coding workspace
-Exec=chudcode-desktop
+Exec=chudcode-desktop --gui
 Icon=chudcode
 StartupWMClass=chudcode
 StartupNotify=true

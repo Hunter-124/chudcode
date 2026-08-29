@@ -556,11 +556,15 @@ void spinner(const char* label) {
 bool emptyState(const char* title, const char* body, const char* actionLabel) {
     const DensityMetrics rhythm = densityMetrics();
     ImGui::Dummy({0.0f, rhythm.sectionGap});
+    // These panels are narrow and their copy is a sentence, so unwrapped text is
+    // clipped mid-word at the panel edge ("Choose Open Folder or a r").
+    ImGui::PushTextWrapPos(0.0f);
     if (ui::fonts().medium != nullptr) ImGui::PushFont(ui::fonts().medium);
     ImGui::TextUnformatted(title);
     if (ui::fonts().medium != nullptr) ImGui::PopFont();
     ImGui::Dummy({0.0f, rhythm.headGap});
     dimText(body);
+    ImGui::PopTextWrapPos();
     if (actionLabel == nullptr) return false;
     ImGui::Dummy({0.0f, rhythm.rowGap});
     return secondaryButton(actionLabel);
@@ -568,9 +572,11 @@ bool emptyState(const char* title, const char* body, const char* actionLabel) {
 
 bool blockedState(const char* reason, const char* hint, const char* actionLabel) {
     const DensityMetrics rhythm = densityMetrics();
+    ImGui::PushTextWrapPos(0.0f);
     inlineStatus(Status::Failed, reason);
     ImGui::Dummy({0.0f, rhythm.headGap});
     dimText(hint);
+    ImGui::PopTextWrapPos();
     if (actionLabel == nullptr) return false;
     ImGui::Dummy({0.0f, rhythm.rowGap});
     return primaryButton(actionLabel);

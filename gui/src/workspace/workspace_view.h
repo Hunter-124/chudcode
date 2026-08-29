@@ -28,7 +28,7 @@ struct FileMotion {
 };
 
 // Owns workspace navigation state only. Every file-system operation is sent to
-// the Bun desktop service through DesktopClient; this class never reads a path.
+// the Chudcode desktop service through DesktopClient; this class never reads a path.
 class WorkspaceView {
 public:
     WorkspaceView(DesktopClient& client, DesktopStore& store, editor::EditorPanel& editor);
@@ -87,9 +87,10 @@ public:
     [[nodiscard]] const std::string& lastError() const noexcept;
     void clearError();
 
-    // draw() always includes the prominent project switcher, quick-open/search,
-    // lazy tree, keyboard navigation, and context menus. drawProjectSwitcher()
-    // is exposed for shells that place it in a global toolbar instead.
+    // draw() renders quick-open/search, the lazy tree, keyboard navigation, and
+    // context menus. The project switcher is deliberately NOT part of it:
+    // drawProjectSwitcher() is called by the shell, which places it in the global
+    // toolbar, and drawing it in both produced two copies of the same control.
     void draw(const char* id, float width = 0.0F, float height = 0.0F);
     void drawProjectSwitcher();
 

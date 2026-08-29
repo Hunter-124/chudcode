@@ -81,7 +81,6 @@ import { resetOpenAICodexHistoryAfterCompaction } from "@chudware/ai/providers/o
 import { toolWireSchema } from "@chudware/ai/utils/schema";
 import { preferredDialect } from "@chudware/catalog/identity";
 import { modelsAreEqual } from "@chudware/catalog/models";
-import { MacOSPowerAssertion } from "@chudware/natives";
 import {
 	$env,
 	escapeXmlText,
@@ -222,6 +221,7 @@ import { resolveFileDisplayMode } from "../utils/file-display-mode";
 import { extractFileMentions, generateFileMentionMessages } from "../utils/file-mentions";
 import { normalizeModelContextImages } from "../utils/image-loading";
 import type { InspectImageMode } from "../utils/inspect-image-mode";
+import { type SleepInhibitor, startSleepInhibitor } from "../utils/power";
 import { resumeCommand } from "../utils/resume-command";
 import { generateSessionTitle } from "../utils/title-generator";
 import { buildNamedToolChoice, isToolChoiceActive } from "../utils/tool-choice";
@@ -498,7 +498,7 @@ export class AgentSession {
 		return this.#extensionRoots();
 	}
 
-	#powerAssertion: MacOSPowerAssertion | undefined;
+	#sleepInhibitor: SleepInhibitor | undefined;
 
 	readonly configWarnings: string[] = [];
 
@@ -720,40 +720,21 @@ export class AgentSession {
 		this.#yieldTerminationPending = false;
 	}
 
-	#acquirePowerAssertion(): void {
-		if (process.platform !== "darwin") return;
-		if (isBunTestRuntime()) return;
-		if (this.#powerAssertion) return;
-		const mode = this.settings.get("power.sleepPrevention");
-		if (mode === "off") return;
-		try {
-			this.#powerAssertion = MacOSPowerAssertion.start({
-				reason: "Chudcode agent session",
-				idle: true,
-				display: mode === "display" || mode === "system",
-				system: mode === "system",
-				user: mode === "system",
-			});
-		} catch (error) {
-			logger.warn("Failed to acquire macOS power assertion", { error: String(error) });
-		}
+	#acquireSleepInhibitor(): void {
+		if (this.#sleepInhibitor) return;
+		this.#sleepInhibitor = startSleepInhibitor(this.settings.get("power.sleepPrevention"), "Chudcode agent session");
 	}
 
-	#releasePowerAssertion(): void {
-		const assertion = this.#powerAssertion;
-		this.#powerAssertion = undefined;
-		if (!assertion) return;
-		try {
-			assertion.stop();
-		} catch (error) {
-			logger.warn("Failed to release macOS power assertion", { error: String(error) });
-		}
+	#releaseSleepInhibitor(): void {
+		const inhibitor = this.#sleepInhibitor;
+		this.#sleepInhibitor = undefined;
+		inhibitor?.stop();
 	}
 
 	#beginInFlight(): void {
 		this.#promptInFlightCount++;
 		if (this.#promptInFlightCount === 1) {
-			this.#acquirePowerAssertion();
+			this.#acquireSleepInhibitor();
 		}
 	}
 
@@ -762,7 +743,7 @@ export class AgentSession {
 		this.#promptInFlightCount = Math.max(0, this.#promptInFlightCount - 1);
 		if (this.#promptInFlightCount !== 0) return;
 		this.yieldQueue.requestIdleFlush();
-		this.#releasePowerAssertion();
+		this.#releaseSleepInhibitor();
 		this.#flushPendingAgentEnd();
 		if (this.#inFlightSettledCallbacks.length === 0) {
 			this.#drainStrandedQueuedMessages();
@@ -954,7 +935,7 @@ export class AgentSession {
 	#resetInFlight(): void {
 		this.#promptInFlightCount = 0;
 		this.yieldQueue.requestIdleFlush();
-		this.#releasePowerAssertion();
+		this.#releaseSleepInhibitor();
 		this.#flushPendingAgentEnd();
 		if (this.#inFlightSettledCallbacks.length === 0) {
 			this.#drainStrandedQueuedMessages();
@@ -4258,7 +4239,7 @@ export class AgentSession {
 			}
 		}
 
-		this.#releasePowerAssertion();
+		this.#releaseSleepInhibitor();
 		await cleanupEmptyMoveSession(this.sessionManager, this.#movedFromEmptySessionFile);
 		this.#movedFromEmptySessionFile = undefined;
 		this.#closeAllProviderSessions("dispose");

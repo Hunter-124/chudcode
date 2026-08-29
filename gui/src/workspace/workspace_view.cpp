@@ -1109,7 +1109,13 @@ void WorkspaceView::drawProjectSwitcher() {
     const auto* project = impl_->activeProject();
     const std::string name = project ? project->descriptor.displayName : "Open a project";
     const std::string path = project ? project->descriptor.rootPath : "Choose a folder to begin";
-    const std::string label = name + "\n" + path + "##project-switcher";
+    // One line only. This button sits in a single-row toolbar, so a second
+    // "\n<path>" line overflowed the bar (leaving it with a permanent scrollbar)
+    // and was clipped mid-word in narrow panels. The path stays in the tooltip.
+    const auto& style = ImGui::GetStyle();
+    const float labelWidth =
+        std::max(0.0F, ImGui::GetContentRegionAvail().x - style.FramePadding.x * 2.0F);
+    const std::string label = kit::elide(name, labelWidth) + "##project-switcher";
     const bool wasOpen = ImGui::IsPopupOpen("Projects##workspace");
     if (impl_->projectPopupRequested) {
         ImGui::OpenPopup("Projects##workspace");
@@ -1155,7 +1161,8 @@ void WorkspaceView::draw(const char* id, float width, float height) {
     ImGui::SetNextWindowSize(ImVec2(width, height), ImGuiCond_Always);
     const bool visible = ImGui::BeginChild(id, ImVec2(width, height), ImGuiChildFlags_Borders);
     if (visible) {
-        drawProjectSwitcher();
+        // No project switcher here: the shell owns it in the global toolbar, and
+        // drawing it twice duplicated the control in the Explorer panel.
         if (!impl_->error.empty()) {
             ImGui::PushStyleColor(ImGuiCol_Text, ui::palette().statusErr);
             ImGui::TextWrapped("%s", impl_->error.c_str());

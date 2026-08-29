@@ -4,6 +4,13 @@
 
 ### Fixed
 
+- Sleep prevention now works on Linux: `power.sleepPrevention` takes a systemd-logind inhibitor for the duration of each prompt, so a long run no longer lets the machine dim, blank, lock, or suspend. It was previously macOS-only and silently did nothing everywhere else.
+- The Chudcode desktop launcher opens the native GUI window instead of a browser tab.
+- The desktop GUI no longer corrupts its own saved layout: it wrote `imgui.ini` through a dangling pointer at shutdown, which scattered garbage-named files into the working directory and lost window state.
+- The desktop GUI status bar is visible again; the shell never budgeted for the gaps between its stacked panels, which crushed the bar to a few dead pixels and hid the connection, project, session, and error indicators.
+- Desktop GUI activity rail labels are no longer clipped mid-word ("Explore", "Termina", "Session"); the rail is sized from its widest label at the current font and DPI scale.
+- Desktop GUI empty-state and blocked-state copy wraps instead of running under the panel border, and the project switcher is a single line shown once in the toolbar rather than twice with a clipped second line.
+- Desktop GUI startup failures report the actual GLFW error, and an empty `WAYLAND_DISPLAY` no longer aborts startup on an X11 display.
 - `chudcode update` now checks this build's own releases instead of upstream chudcode, so it no longer offers a version it cannot install.
 - `chudcode update` verifies a downloaded binary against the version banner this build actually prints, instead of rolling every successful update back.
 - Homebrew, mise, and Nix installs are refused with a pointer to the releases page rather than silently replacing Chudcode with upstream chudcode.
