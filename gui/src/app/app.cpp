@@ -120,6 +120,28 @@ fs::path dataDirectory() {
     return directory;
 }
 
+#if defined(GLFW_PLATFORM) && defined(GLFW_PLATFORM_X11)
+/// Whether a Wayland compositor socket is actually reachable.
+///
+/// GLFW aborts initialization instead of falling back when it selects Wayland and
+/// the connection then fails, so the platform choice cannot be inferred from
+/// WAYLAND_DISPLAY being merely present: libwayland ignores an empty value and an
+/// unset one, falling back to `$XDG_RUNTIME_DIR/wayland-0` either way. Resolve the
+/// socket exactly as libwayland does and check that it exists.
+bool waylandSocketPresent() {
+    auto display = environment("WAYLAND_DISPLAY");
+    if (display.empty()) display = "wayland-0";
+    fs::path socket(display);
+    if (!socket.is_absolute()) {
+        const auto runtimeDir = environment("XDG_RUNTIME_DIR");
+        if (runtimeDir.empty()) return false;
+        socket = fs::path(runtimeDir) / display;
+    }
+    std::error_code error;
+    return fs::exists(socket, error);
+}
+#endif
+
 fs::path findAssets() {
     std::vector<fs::path> roots;
     std::error_code error;
@@ -609,13 +631,12 @@ int run(const AppOptions& options) {
                      description != nullptr ? description : "(no description)");
     });
 #if defined(GLFW_PLATFORM) && defined(GLFW_PLATFORM_X11)
-    // GLFW treats a WAYLAND_DISPLAY that is merely *present* as a usable Wayland
-    // session, so an empty one makes it try wl_display_connect and abandon init
-    // instead of falling back to X11. Pin X11 whenever there is an X display and
-    // no real Wayland one; a genuine Wayland session still auto-selects Wayland.
-    const char* const waylandDisplay = std::getenv("WAYLAND_DISPLAY");
-    const bool hasWayland = waylandDisplay != nullptr && waylandDisplay[0] != '\0';
-    if (!hasWayland && std::getenv("DISPLAY") != nullptr) {
+    // A capture run must be deterministic, so it always uses X11/Xvfb: letting it
+    // pick Wayland makes it block indefinitely against the desktop compositor, and
+    // Wayland teardown has been observed to crash right after capture. Interactive
+    // runs keep Wayland whenever a compositor is genuinely reachable and fall back
+    // to X11 when it is not, because GLFW aborts init rather than falling back.
+    if (std::getenv("DISPLAY") != nullptr && (options.screenshotPath || !waylandSocketPresent())) {
         glfwInitHint(GLFW_PLATFORM, GLFW_PLATFORM_X11);
     }
 #endif
