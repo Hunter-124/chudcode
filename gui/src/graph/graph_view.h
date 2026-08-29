@@ -72,6 +72,11 @@ struct GraphDrawResult {
   bool cameraChanged = false;
 };
 
+// A scene with no nodes is not self-explaining: it can mean no project, a
+// snapshot still in flight, a snapshot that never arrived, or a project whose
+// graph is genuinely empty. The canvas needs all four apart to stay honest.
+enum class GraphSceneState { NoWorkspace, Pending, Unavailable, Ready };
+
 class GraphView {
  public:
   static constexpr int kCacheSchemaVersion = 2;
@@ -88,6 +93,7 @@ class GraphView {
   [[nodiscard]] const std::string& workspace() const noexcept;
   void setKind(GraphKind kind);
   [[nodiscard]] GraphKind kind() const noexcept;
+  [[nodiscard]] GraphSceneState sceneState(GraphKind kind) const;
 
   // Updates only the addressed scene. Code, git, and agent scenes share the
   // same camera and selection authority while retaining independent layouts.

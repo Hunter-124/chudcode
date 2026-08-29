@@ -1,9 +1,13 @@
 #include "theme/theme.h"
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <filesystem>
+#include <span>
 #include <string>
+#include <string_view>
+#include <system_error>
 
 namespace chud::ui {
 namespace {
@@ -45,7 +49,10 @@ Palette darkPalette() {
 
     p.text = rgba(0.898f, 0.918f, 0.945f);
     p.textDim = rgba(0.620f, 0.660f, 0.720f);
-    p.textDisabled = rgba(0.471f, 0.502f, 0.549f);
+    // Placeholder and disabled copy is body-sized, so it needs WCAG AA 4.5:1.
+    // The old rgb(120,128,140) measured 4.10:1 on headerBg; this clears 4.6:1 on
+    // every surface while staying visibly dimmer than textDim (7.20:1).
+    p.textDisabled = rgba(0.503f, 0.536f, 0.586f);
 
     p.button = rgba(0.149f, 0.176f, 0.220f);
     p.buttonHovered = rgba(0.184f, 0.224f, 0.275f);
@@ -135,7 +142,9 @@ Palette lightPalette() {
 
     p.text = rgb8(31, 36, 48);
     p.textDim = rgb8(83, 92, 108);
-    p.textDisabled = rgb8(128, 136, 148);
+    // rgb(128,136,148) measured only 3.13:1 on statusBg — below even the 3.0
+    // large-text floor on some surfaces. This clears 4.6:1 everywhere.
+    p.textDisabled = rgb8(102, 109, 118);
 
     p.button = rgb8(229, 233, 239);
     p.buttonHovered = rgb8(217, 223, 232);
@@ -389,6 +398,41 @@ void setAccentColors(ImVec4 primary, ImVec4 secondary) {
     }
 }
 
+/// Directories the platform keeps its installed fonts in.
+constexpr std::array<std::string_view, 2> kSystemFontRoots = {
+#if defined(__APPLE__)
+    "/System/Library/Fonts", "/Library/Fonts",
+#elif defined(_WIN32)
+    "C:/Windows/Fonts", "C:/Windows/Fonts",
+#else
+    "/usr/share/fonts", "/usr/local/share/fonts",
+#endif
+};
+
+/// First existing file among `names`, searched under the platform font roots.
+///
+/// Linux nests fonts in per-package subdirectories
+/// (`/usr/share/fonts/google-noto/NotoSans-Regular.ttf`), so a flat join never
+/// finds them; this walks recursively and stops at the first hit.
+std::filesystem::path findSystemFont(std::span<const std::string_view> names) {
+    std::error_code error;
+    for (const auto& root : kSystemFontRoots) {
+        const std::filesystem::path base(root);
+        if (!std::filesystem::is_directory(base, error)) continue;
+        for (const auto& name : names) {
+            std::filesystem::recursive_directory_iterator walk(
+                base, std::filesystem::directory_options::skip_permission_denied, error);
+            if (error) continue;
+            for (const auto& entry : walk) {
+                if (entry.is_regular_file(error) && entry.path().filename() == name) {
+                    return entry.path();
+                }
+            }
+        }
+    }
+    return {};
+}
+
 bool loadFonts(const char* assetsDir, float scale) {
     if (ImGui::GetCurrentContext() == nullptr || assetsDir == nullptr) return false;
 
@@ -399,22 +443,44 @@ bool loadFonts(const char* assetsDir, float scale) {
 
     ImGuiIO& io = ImGui::GetIO();
     io.Fonts->Clear();
-    const auto add = [&](const char* file, float size) -> ImFont* {
-        const std::filesystem::path path = root / file;
-        if (!std::filesystem::is_regular_file(path)) return nullptr;
-        return io.Fonts->AddFontFromFileTTF(path.string().c_str(), size * fontScale, nullptr, ranges);
+    // Prefer the bundled asset, then an installed system face of the same weight.
+    // Without the fallback, a build shipped without `assets/fonts` rendered every
+    // role in ImGui's built-in ProggyClean bitmap upscaled to 17.5px: blurry, and
+    // with the whole size/weight hierarchy collapsed onto one face.
+    const auto add = [&](const char* file, std::span<const std::string_view> system,
+                         float size) -> ImFont* {
+        const float pixels = size * fontScale;
+        const std::filesystem::path bundled = root / file;
+        if (std::filesystem::is_regular_file(bundled)) {
+            return io.Fonts->AddFontFromFileTTF(bundled.string().c_str(), pixels, nullptr, ranges);
+        }
+        const std::filesystem::path installed = findSystemFont(system);
+        if (installed.empty()) return nullptr;
+        return io.Fonts->AddFontFromFileTTF(installed.string().c_str(), pixels, nullptr, ranges);
     };
 
-    gFonts.body = add("Rubik-Regular.ttf", 17.5f);
-    gFonts.medium = add("Rubik-Medium.ttf", 17.5f);
-    gFonts.h1 = add("Rubik-Bold.ttf", 30.0f);
-    gFonts.h2 = add("Rubik-SemiBold.ttf", 19.0f);
-    gFonts.mono = add("JetBrainsMono-Regular.ttf", 15.5f);
+    static constexpr std::array<std::string_view, 4> kRegular = {
+        "NotoSans-Regular.ttf", "LiberationSans-Regular.ttf", "DejaVuSans.ttf", "Carlito-Regular.ttf"};
+    static constexpr std::array<std::string_view, 4> kMedium = {
+        "NotoSans-Medium.ttf", "LiberationSans-Bold.ttf", "DejaVuSans-Bold.ttf", "Carlito-Bold.ttf"};
+    static constexpr std::array<std::string_view, 4> kBold = {
+        "NotoSans-Bold.ttf", "LiberationSans-Bold.ttf", "DejaVuSans-Bold.ttf", "Carlito-Bold.ttf"};
+    static constexpr std::array<std::string_view, 4> kMono = {
+        "SourceCodePro-Regular.ttf", "DejaVuSansMono.ttf", "LiberationMono-Regular.ttf",
+        "AdwaitaMono-Regular.ttf"};
+
+    gFonts.body = add("Rubik-Regular.ttf", kRegular, 17.5f);
+    gFonts.medium = add("Rubik-Medium.ttf", kMedium, 17.5f);
+    gFonts.h1 = add("Rubik-Bold.ttf", kBold, 30.0f);
+    gFonts.h2 = add("Rubik-SemiBold.ttf", kMedium, 19.0f);
+    gFonts.mono = add("JetBrainsMono-Regular.ttf", kMono, 15.5f);
 
     const bool complete = gFonts.body && gFonts.medium && gFonts.h1 && gFonts.h2 && gFonts.mono;
     if (gFonts.body == nullptr) {
+        // ProggyClean is a 13px bitmap. Asking for more upscales and blurs it, so
+        // when there is no vector face at all, keep it at its native size.
         ImFontConfig fallback{};
-        fallback.SizePixels = 17.5f * fontScale;
+        fallback.SizePixels = 13.0f;
         gFonts.body = io.Fonts->AddFontDefault(&fallback);
     }
     if (gFonts.medium == nullptr) gFonts.medium = gFonts.body;

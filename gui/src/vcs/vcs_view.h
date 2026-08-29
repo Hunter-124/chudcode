@@ -154,6 +154,7 @@ private:
     [[nodiscard]] std::vector<std::string> pathsFor(StatusGroupKind kind) const;
     void drawToolbar();
     void drawCommit();
+    void drawBulkActions();
     void drawGroups(float height);
     void drawBranchesAndRemotes();
     void drawDiff(float height);

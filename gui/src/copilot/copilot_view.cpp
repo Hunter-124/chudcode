@@ -3,7 +3,9 @@
 #include <algorithm>
 #include <cmath>
 #include <cstring>
+#include <ctime>
 #include <initializer_list>
+#include <optional>
 #include <string>
 #include <utility>
 
@@ -143,7 +145,87 @@ void appendTaskArrays(const Json& payload, std::string_view fallbackPrefix,
     }
 }
 
+// Session ids are minted as "<ISO-8601 UTC>_<uuid>" with ':' and '.' rewritten
+// to '-'. Only the leading timestamp means anything to a human, so a titleless
+// row shows a local date/time and degrades to a short prefix when the id does
+// not parse.
+bool idDigits(const std::string& id, std::size_t offset, std::size_t count, int& out) {
+    if (offset + count > id.size()) return false;
+    int value = 0;
+    for (std::size_t index = 0; index < count; ++index) {
+        const char digit = id[offset + index];
+        if (digit < '0' || digit > '9') return false;
+        value = value * 10 + (digit - '0');
+    }
+    out = value;
+    return true;
+}
+
+// The whole binding list never fits beside Send in a panel capped near px(430),
+// so the composer paints the widest form that measures inside the space it has
+// and keeps every binding in a hover tooltip. Ordered widest first.
+constexpr const char* kHintTiers[] = {
+    "Enter send  Shift+Enter newline  Ctrl/Cmd+A/C/X/V/Z/Y",
+    "Enter send  Shift+Enter newline",
+    "Enter send",
+};
+constexpr const char* kHintTooltip =
+    "Enter: send\n"
+    "Shift+Enter: newline\n"
+    "Ctrl/Cmd + A select all, C copy, X cut, V paste, Z undo, Y redo";
+
+// Index of the widest hint that measures inside `width`. The narrowest tier is
+// the floor: a hint that has to wrap still beats a truncated one.
+int fittingHint(float width) {
+    for (int index = 0; index + 1 < IM_ARRAYSIZE(kHintTiers); ++index)
+        if (ImGui::CalcTextSize(kHintTiers[index]).x <= width) return index;
+    return IM_ARRAYSIZE(kHintTiers) - 1;
+}
+
 }  // namespace
+
+/// Local date/time for a session id, or nullopt when `id` does not start with a
+/// session-id timestamp.
+///
+/// Callers holding only a tab title need this distinction: a title is either a
+/// human-chosen name, which must be shown verbatim, or the server's fallback to
+/// the raw session id, which must be made readable.
+std::optional<std::string> sessionStamp(const std::string& id) {
+    int year = 0;
+    int month = 0;
+    int day = 0;
+    int hour = 0;
+    int minute = 0;
+    if (!idDigits(id, 0, 4, year) || !idDigits(id, 5, 2, month) ||
+        !idDigits(id, 8, 2, day) || !idDigits(id, 11, 2, hour) ||
+        !idDigits(id, 14, 2, minute))
+        return std::nullopt;
+    if (id[4] != '-' || id[7] != '-' || id[10] != 'T' || id[13] != '-') return std::nullopt;
+    if (month < 1 || month > 12 || day < 1 || day > 31 || hour > 23 || minute > 59)
+        return std::nullopt;
+
+    std::tm utc{};
+    utc.tm_year = year - 1900;
+    utc.tm_mon = month - 1;
+    utc.tm_mday = day;
+    utc.tm_hour = hour;
+    utc.tm_min = minute;
+    const std::time_t epoch = timegm(&utc);
+    std::tm local{};
+    if (epoch == static_cast<std::time_t>(-1) || localtime_r(&epoch, &local) == nullptr)
+        return std::nullopt;
+    // Numeric fields only: month names would follow the process locale.
+    char text[24];
+    if (std::strftime(text, sizeof text, "%Y-%m-%d %H:%M", &local) == 0) return std::nullopt;
+    return std::string(text);
+}
+
+std::string sessionLabel(const std::string& id) {
+    if (const std::optional<std::string> stamp = sessionStamp(id)) return *stamp;
+    if (id.empty()) return "Untitled session";
+    constexpr std::size_t kPrefix = 12;
+    return id.size() > kPrefix ? id.substr(0, kPrefix) + "…" : id;
+}
 
 TranscriptProjection TranscriptProjection::from(const SessionSnapshot& snapshot) {
     TranscriptProjection result;
@@ -911,14 +993,29 @@ void CopilotView::drawSessions() {
         (void)kit::emptyState("No saved sessions", "New and recent sessions appear here.");
         return;
     }
+    // rowBegin claims the whole content region, so a full-width row paints its
+    // selection highlight onto the panel border. A padding-free child one
+    // gutter narrower is the only per-row way to reserve that margin.
+    const float listWidth = std::max(ui::metrics::U(16.0f),
+                                     ImGui::GetContentRegionAvail().x -
+                                         ui::metrics::px(8.0f));
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
+    ImGui::BeginChild("##session-list", ImVec2(listWidth, 0.0f),
+                      ImGuiChildFlags_AutoResizeY);
+    ImGui::PopStyleVar();
     for (const DesktopSessionInfo& session : store_.sessions()) {
         ImGui::PushID(session.path.c_str());
         kit::RowStyle style;
         style.secondary = session.cwd.c_str();
         style.meta = session.pinned.value_or(false) ? "pinned" : nullptr;
         (void)kit::rowBegin("##session", style);
-        const std::string title = session.title.value_or(session.id);
-        ImGui::TextUnformatted(title.c_str());
+        const std::string title = session.title.value_or(sessionLabel(session.id));
+        const float labelWidth = std::max(ui::metrics::px(24.0f),
+                                          ImGui::GetContentRegionAvail().x -
+                                              kit::densityMetrics().padX);
+        ImGui::TextUnformatted(kit::elide(title, labelWidth).c_str());
+        // No row in this panel is wide enough for a full id, so it hides here.
+        if (ImGui::IsItemHovered()) ImGui::SetTooltip("%s", session.id.c_str());
         std::string& rename = sessionRenames_[session.path];
         if (rename.empty()) rename = title;
         ImGui::SetNextItemWidth(std::max(ui::metrics::U(16.0f),
@@ -945,6 +1042,7 @@ void CopilotView::drawSessions() {
         kit::rowEnd();
         ImGui::PopID();
     }
+    ImGui::EndChild();
 }
 
 void CopilotView::drawDrawer() {
@@ -1099,8 +1197,22 @@ void CopilotView::drawComposer() {
         ImGui::SameLine();
     }
     if (kit::primaryButton("Send", {}, value.dirty())) submit();
+    // Measured twice: beside Send, and on the line the hint would get to
+    // itself. Spending a whole line is only worth it when the wider measurement
+    // buys a more informative hint, so nothing is ever truncated and no space
+    // is wasted at the widths where the hint already fits the button row.
+    const float ownLineWidth = ImGui::GetContentRegionAvail().x;
     ImGui::SameLine();
-    kit::dimText("Enter send  Shift+Enter newline  Ctrl/Cmd+A/C/X/V/Z/Y");
+    const int inlineTier = fittingHint(ImGui::GetContentRegionAvail().x);
+    const int ownLineTier = fittingHint(ownLineWidth);
+    const bool ownLine = ownLineTier < inlineTier;
+    if (ownLine) ImGui::NewLine();
+    // Wrapping is the last resort: a font that measures wider than the tier
+    // budget must push text down, never under the panel edge.
+    ImGui::PushTextWrapPos(0.0f);
+    kit::dimText(kHintTiers[ownLine ? ownLineTier : inlineTier]);
+    ImGui::PopTextWrapPos();
+    if (ImGui::IsItemHovered()) ImGui::SetTooltip("%s", kHintTooltip);
     if (composerSubmitRequested_ && value.dirty()) submit();
 }
 
@@ -1131,9 +1243,15 @@ void CopilotView::draw(ImVec2 size) {
 
     if (drawer_ != Drawer::None) drawDrawer();
     const float requestReserve = projection_.uiRequest ? ui::metrics::U(28.0f) : 0.0f;
-    const float composerReserve = ImGui::GetTextLineHeightWithSpacing() *
-                                      static_cast<float>(ui::metrics::kComposerMaxLines + 2) +
-                                  requestReserve;
+    // Reserve the composer's real chrome: input box, button row, and the key
+    // hint, which takes its own line whenever it cannot fit beside Send. The
+    // ##copilot child carries no scrollbar, so under-reserving clips the hint
+    // instead of scrolling to it.
+    const float composerReserve =
+        ImGui::GetTextLineHeightWithSpacing() *
+            static_cast<float>(ui::metrics::kComposerMaxLines + 1) +
+        ImGui::GetFrameHeight() + ImGui::GetStyle().ItemSpacing.y * 2.0f +
+        requestReserve;
     drawTranscript(std::max(ui::metrics::U(20.0f),
                             ImGui::GetContentRegionAvail().y - composerReserve));
     drawUiRequest();

@@ -1,8 +1,12 @@
 #include "vcs/vcs_view.h"
 #include <TextDiff.h>
 
+// InputTextEx is the documented escape hatch for a multi-line input that also
+// renders a placeholder hint; the public InputTextWithHint rejects Multiline.
+#include <imgui_internal.h>
 
 #include <algorithm>
+#include <cstddef>
 #include <cstring>
 #include <unordered_set>
 #include <utility>
@@ -113,6 +117,69 @@ std::pair<std::string, std::string> diffSides(const DiffDocument& document) {
     return {std::move(left), std::move(right)};
 }
 
+// kit::elide drops the tail, which for a repository path throws away the
+// basename -- the only part that identifies the file. Drop leading components
+// instead so the filename always survives a narrow panel.
+std::string elideLeading(std::string_view path, float maxWidth) {
+    if (maxWidth <= 0.0F) return {};
+    if (ImGui::CalcTextSize(path.data(), path.data() + path.size()).x <= maxWidth) {
+        return std::string(path);
+    }
+
+    constexpr std::string_view prefix = "…";
+    if (ImGui::CalcTextSize(prefix.data(), prefix.data() + prefix.size()).x > maxWidth) {
+        return {};
+    }
+
+    // Grow the retained tail one UTF-8 code point at a time so a multi-byte
+    // glyph is never split in half.
+    std::size_t kept = path.size();
+    for (std::size_t cursor = path.size(); cursor > 0;) {
+        std::size_t start = cursor - 1;
+        while (start > 0 && (static_cast<unsigned char>(path[start]) & 0xC0U) == 0x80U) --start;
+        std::string candidate(prefix);
+        candidate.append(path.substr(start));
+        if (ImGui::CalcTextSize(candidate.c_str()).x > maxWidth) break;
+        kept = start;
+        cursor = start;
+    }
+    std::string result(prefix);
+    result.append(path.substr(kept));
+    return result;
+}
+
+// The Source Control panel is roughly 250px of usable width, so any fixed
+// buttons-per-row split either wastes a row or pushes an action off-panel.
+// Every label is measured and wrapped onto a further row when it will not fit.
+class ActionFlow {
+public:
+    ActionFlow()
+        : lineWidth_(ImGui::GetContentRegionAvail().x), remaining_(lineWidth_) {}
+
+    void place(const char* label) {
+        const ImGuiStyle& style = ImGui::GetStyle();
+        const float width = ImGui::CalcTextSize(label).x + style.FramePadding.x * 2.0F;
+        if (placed_ && width + style.ItemSpacing.x <= remaining_) {
+            ImGui::SameLine();
+            remaining_ -= width + style.ItemSpacing.x;
+            return;
+        }
+        // A button already ended the line, so the new row needs no SameLine.
+        placed_ = true;
+        remaining_ = lineWidth_ - width;
+    }
+
+private:
+    float lineWidth_;
+    float remaining_;
+    bool placed_ = false;
+};
+
+bool flowButton(ActionFlow& flow, const char* label, bool primary, bool enabled) {
+    flow.place(label);
+    return primary ? kit::primaryButton(label, {}, enabled)
+                   : kit::secondaryButton(label, {}, enabled);
+}
 
 } // namespace
 
@@ -492,21 +559,26 @@ std::vector<std::string> VcsView::pathsFor(StatusGroupKind kind) const {
 }
 
 void VcsView::drawToolbar() {
-    if (kit::secondaryButton("Fetch", {}, !busy())) fetch();
-    ImGui::SameLine();
-    if (kit::secondaryButton("Pull", {}, !busy())) pull();
-    ImGui::SameLine();
-    if (kit::primaryButton("Push", {}, !busy())) push();
-    ImGui::SameLine();
-    if (kit::secondaryButton("History", {}, !busy())) openHistory();
-    ImGui::SameLine();
-    if (kit::secondaryButton("Refresh", {}, !busy())) refresh();
+    // Five actions never fit one row of a ~250px side panel: "History" used to
+    // render as "Hi" and "Refresh" landed entirely off-panel, unclickable.
+    ActionFlow flow;
+    const bool ready = !busy();
+    if (flowButton(flow, "Fetch", false, ready)) fetch();
+    if (flowButton(flow, "Pull", false, ready)) pull();
+    if (flowButton(flow, "Push", true, ready)) push();
+    if (flowButton(flow, "History", false, ready)) openHistory();
+    if (flowButton(flow, "Refresh", false, ready)) refresh();
 }
 
 void VcsView::drawCommit() {
     kit::sectionHeader("Commit", {.first = true});
-    ImGui::InputTextMultiline("##commit-message", commitBuffer_.data(), commitBuffer_.size(),
-                              ImVec2(-1.0F, ImGui::GetTextLineHeight() * 3.0F));
+    // An empty rounded rect reads as dead space, so the box carries a hint.
+    // Dear ImGui offers no multi-line InputTextWithHint; InputTextEx is the
+    // upstream-documented way to combine Multiline with a placeholder.
+    ImGui::InputTextEx("##commit-message", "Describe the change…", commitBuffer_.data(),
+                       static_cast<int>(commitBuffer_.size()),
+                       ImVec2(-1.0F, ImGui::GetTextLineHeight() * 3.0F),
+                       ImGuiInputTextFlags_Multiline);
     const bool hasStaged = !pathsFor(StatusGroupKind::Staged).empty();
     if (kit::primaryButton("Commit staged changes", {}, hasStaged && !busy(),
                            hasStaged ? nullptr : "Stage at least one change first")) {
@@ -514,8 +586,34 @@ void VcsView::drawCommit() {
     }
 }
 
+void VcsView::drawBulkActions() {
+    bool anyStaged = false;
+    bool anyUnstaged = false;
+    for (const StatusGroup& group : groups_) {
+        if (group.files.empty()) continue;
+        if (group.kind == StatusGroupKind::Staged) {
+            anyStaged = true;
+        } else {
+            // stageAll covers conflicts, changes and untracked files.
+            anyUnstaged = true;
+        }
+    }
+    if (!anyStaged && !anyUnstaged) return;
+    ActionFlow flow;
+    const bool ready = !busy();
+    if (anyUnstaged && flowButton(flow, "Stage all", false, ready)) stageAll();
+    if (anyStaged && flowButton(flow, "Unstage all", false, ready)) unstageAll();
+}
+
 void VcsView::drawGroups(float height) {
-    ImGui::BeginChild("##status-groups", ImVec2(0.0F, height), ImGuiChildFlags_Borders);
+    // The bulk actions are pinned above the scroll region. Inside it they ate
+    // the last visible line and left the next group header clipped mid-glyph.
+    const float top = ImGui::GetCursorPosY();
+    drawBulkActions();
+    const float pinned = ImGui::GetCursorPosY() - top;
+    ImGui::BeginChild("##status-groups",
+                      ImVec2(0.0F, std::max(ImGui::GetFrameHeight(), height - pinned)),
+                      ImGuiChildFlags_Borders);
     for (const StatusGroup& group : groups_) {
         if (group.files.empty()) continue;
         const std::string header(statusGroupLabel(group.kind));
@@ -526,27 +624,33 @@ void VcsView::drawGroups(float height) {
             ImGui::PushID(file.path.c_str());
             kit::RowStyle style;
             style.secondary = statusLabel(file, group.kind);
+            // A row-level tooltip would override the stage/unstage button hint,
+            // so the full path hangs off the label item that was elided.
             style.selected = selectedPath_ && *selectedPath_ == file.path && selectedStaged_ == stagedGroup;
             style.iconTone = groupTone(group.kind);
-            style.actionsWidth = 32.0F;
+            const ImGuiStyle& imStyle = ImGui::GetStyle();
+            const char* actionLabel = stagedGroup ? "-" : "+";
+            const float actionWidth =
+                ImGui::CalcTextSize(actionLabel).x + imStyle.FramePadding.x * 2.0F;
+            style.actionsWidth = actionWidth;
             if (kit::rowBegin("##file", style)) requestDiff(file.path, stagedGroup);
-            ImGui::TextUnformatted(file.path.c_str());
-            ImGui::SameLine(ImGui::GetContentRegionAvail().x - 22.0F);
+            const float rowRight = ImGui::GetCursorPosX() + ImGui::GetContentRegionAvail().x;
+            const float pathWidth =
+                ImGui::GetContentRegionAvail().x - actionWidth - imStyle.ItemSpacing.x;
+            ImGui::TextUnformatted(elideLeading(file.path, pathWidth).c_str());
+            if (ImGui::IsItemHovered()) ImGui::SetTooltip("%s", file.path.c_str());
+            ImGui::SameLine();
+            ImGui::SetCursorPosX(std::max(ImGui::GetCursorPosX(), rowRight - actionWidth));
             if (stagedGroup) {
-                if (ImGui::SmallButton("-")) unstageFiles({file.path});
+                if (ImGui::SmallButton(actionLabel)) unstageFiles({file.path});
                 if (ImGui::IsItemHovered()) ImGui::SetTooltip("Unstage file");
             } else {
-                if (ImGui::SmallButton("+")) stageFiles({file.path});
+                if (ImGui::SmallButton(actionLabel)) stageFiles({file.path});
                 if (ImGui::IsItemHovered()) ImGui::SetTooltip("Stage file");
             }
             kit::rowEnd();
             ImGui::PopID();
             ImGui::PopID();
-        }
-        if (stagedGroup) {
-            if (kit::secondaryButton("Unstage all", {}, !busy())) unstageAll();
-        } else if (group.kind != StatusGroupKind::Conflicts) {
-            if (kit::secondaryButton("Stage all", {}, !busy())) stageAll();
         }
     }
     if (!snapshot_) {

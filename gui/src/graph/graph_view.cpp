@@ -14,6 +14,7 @@
 
 #include "theme/anim.h"
 #include "theme/theme.h"
+#include "widgets/kit.h"
 
 namespace chud {
 namespace {
@@ -23,6 +24,10 @@ constexpr float kMaxZoom = 5.0F;
 constexpr float kNodeRadius = 18.0F;
 constexpr float kGitNodeRadius = 15.0F;
 constexpr float kAnimationEpsilon = 0.002F;
+// The shell fires one graph.snapshot request per kind when a project opens. A
+// spinner is only honest while that request can still plausibly be in flight,
+// so the wait is bounded and then reported as a request with no answer yet.
+constexpr float kSnapshotWaitTimeout = 12.0F;
 
 std::size_t sceneIndex(GraphKind kind) {
   switch (kind) {
@@ -127,6 +132,52 @@ ImVec4 nodeColor(std::string_view kind) {
   }
 }
 
+// Draws the states that have no geometry to paint. kit's copy helpers push their
+// own wrap position relative to the current window, so a padded transparent
+// child is what makes that wrap resolve to the canvas edge instead of the
+// enclosing panel edge, keeping prose off the border.
+void drawCanvasPlaceholder(const char* id, ImVec2 origin, ImVec2 size, GraphSceneState state,
+                           GraphKind kind, bool hasNodes) {
+  const float pad = ui::metrics::px(14.0F);
+  const ImVec2 inner(std::max(size.x - pad * 2.0F, ui::metrics::px(64.0F)),
+                     std::max(size.y - pad * 2.0F, ImGui::GetFrameHeight()));
+  const std::string label(kindName(kind));
+  ImGui::SetCursorScreenPos(ImVec2(origin.x + pad, origin.y + pad));
+  ImGui::PushID(id);
+  ImGui::PushStyleColor(ImGuiCol_ChildBg, ImVec4(0.0F, 0.0F, 0.0F, 0.0F));
+  if (ImGui::BeginChild("##graph-placeholder", inner, ImGuiChildFlags_None,
+                        ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse)) {
+    switch (state) {
+      case GraphSceneState::NoWorkspace:
+        (void)kit::emptyState("No project open",
+                              "Open a project to visualise its code, git, and agent graphs.");
+        break;
+      case GraphSceneState::Pending:
+        kit::spinner(("Loading the " + label + " graph…").c_str());
+        break;
+      case GraphSceneState::Unavailable:
+        (void)kit::emptyState(("No " + label + " graph yet").c_str(),
+                              "The desktop service has not answered the graph request for this "
+                              "project. Reopen the project to ask for it again.");
+        break;
+      case GraphSceneState::Ready:
+        if (hasNodes) {
+          (void)kit::emptyState("Nothing matches the current view",
+                                "Every node in this graph is hidden by the active filter or "
+                                "scope. Clear them to see the whole graph again.");
+        } else {
+          (void)kit::emptyState(("This project has an empty " + label + " graph").c_str(),
+                                "There is nothing to visualise yet. The graph fills in as the "
+                                "desktop service reports files, commits, and agent activity.");
+        }
+        break;
+    }
+  }
+  ImGui::EndChild();
+  ImGui::PopStyleColor();
+  ImGui::PopID();
+}
+
 }  // namespace
 
 struct GraphView::VisualNode {
@@ -154,6 +205,10 @@ struct GraphView::Scene {
   std::map<std::string, VisualNode, std::less<>> nodes;
   std::map<std::string, VisualEdge, std::less<>> edges;
   std::map<std::string, GraphVec2, std::less<>> gitTargets;
+  // revision alone cannot answer "did a snapshot ever arrive": a first snapshot
+  // may legitimately carry revision 0 or an empty node set.
+  bool received = false;
+  float waitSeconds = 0.0F;
 };
 
 GraphView::GraphView(ForceGraphConfig config)
@@ -200,6 +255,8 @@ void GraphView::setWorkspace(std::string workspaceId) {
     value.edges.clear();
     value.gitTargets.clear();
     value.revision = -1;
+    value.received = false;
+    value.waitSeconds = 0.0F;
   }
   selection_.reset();
   dragging_.reset();
@@ -222,6 +279,18 @@ void GraphView::setKind(GraphKind kind) {
 }
 
 GraphKind GraphView::kind() const noexcept { return kind_; }
+
+GraphSceneState GraphView::sceneState(GraphKind graphKind) const {
+  if (workspaceId_.empty()) {
+    return GraphSceneState::NoWorkspace;
+  }
+  const Scene& value = scene(graphKind);
+  if (value.received) {
+    return GraphSceneState::Ready;
+  }
+  return value.waitSeconds < kSnapshotWaitTimeout ? GraphSceneState::Pending
+                                                  : GraphSceneState::Unavailable;
+}
 
 void GraphView::update(GraphKind graphKind, const GraphSnapshot& snapshot) {
   Scene& value = scene(graphKind);
@@ -305,6 +374,8 @@ void GraphView::update(GraphKind graphKind, const GraphSnapshot& snapshot) {
   }
 
   value.revision = snapshot.revision;
+  value.received = true;
+  value.waitSeconds = 0.0F;
   if (graphKind == GraphKind::Git) {
     value.gitTargets = computeGitLaneLayout(snapshot);
   }
@@ -339,9 +410,23 @@ void GraphView::tick(float deltaSeconds) {
   const float frameDt = anim::dt(deltaSeconds);
   bool moving = false;
 
+  // Snapshots are requested for every kind when a project opens, so all three
+  // waits advance regardless of which scene is on screen. Keeping the active
+  // scene "moving" is what feeds frames to its spinner until the wait resolves.
+  if (!workspaceId_.empty()) {
+    for (GraphKind pendingKind : {GraphKind::Code, GraphKind::Git, GraphKind::Agent}) {
+      Scene& pending = scene(pendingKind);
+      if (pending.received || pending.waitSeconds >= kSnapshotWaitTimeout) {
+        continue;
+      }
+      pending.waitSeconds = std::min(pending.waitSeconds + frameDt, kSnapshotWaitTimeout);
+      moving = moving || pendingKind == kind_;
+    }
+  }
+
   if (kind_ != GraphKind::Git) {
     value.solver.step(frameDt);
-    moving = !value.solver.cooled();
+    moving = moving || !value.solver.cooled();
   }
 
   std::vector<std::string> retiredNodes;
@@ -746,18 +831,47 @@ GraphDrawResult GraphView::draw(const char* id, ImVec2 size) {
 
 GraphDrawResult GraphView::drawCanvas(const char* id, ImVec2 size) {
   GraphDrawResult result;
-  if (size.x <= 0.0F || size.y <= 0.0F) {
-    return result;
+  // ImGui sizing convention: the shell asks for ImVec2(0, 0) meaning "fill the
+  // dock", and the old guard turned that into an early return that painted
+  // nothing at all. Resolve non-positive extents against the region instead.
+  const ImVec2 available = ImGui::GetContentRegionAvail();
+  const float minimum = ImGui::GetFrameHeight();
+  if (size.x <= 0.0F) {
+    size.x = std::max(available.x + size.x, minimum);
+  }
+  if (size.y <= 0.0F) {
+    size.y = std::max(available.y + size.y, minimum);
   }
   lastViewportSize_ = size;
   const ImVec2 origin = ImGui::GetCursorScreenPos();
   ImGui::InvisibleButton(id, size, ImGuiButtonFlags_MouseButtonLeft |
                                   ImGuiButtonFlags_MouseButtonMiddle);
+  const ImVec2 afterCanvas = ImGui::GetCursorScreenPos();
   const bool hovered = ImGui::IsItemHovered();
   ImDrawList* drawList = ImGui::GetWindowDrawList();
   const ui::Palette& colors = ui::palette();
-  drawList->AddRectFilled(origin, ImVec2(origin.x + size.x, origin.y + size.y),
-                          ui::toU32(colors.panelBg));
+  const ImVec2 corner(origin.x + size.x, origin.y + size.y);
+  const float round = ui::metrics::rounding(6.0F);
+  // The canvas lives inside a panel already painted with panelBg, so filling
+  // with panelBg alone made an empty graph indistinguishable from an empty
+  // panel. A distinct surface plus a border gives the region an edge.
+  drawList->AddRectFilled(origin, corner, ui::toU32(colors.codeBg), round);
+  drawList->AddRect(origin, corner, ui::toU32(colors.border), round, 0,
+                    ui::metrics::stroke(1.0F));
+
+  bool painted = false;
+  for (const ForceNodeState& node : activeScene().solver.nodes()) {
+    if (visible(node.id)) {
+      painted = true;
+      break;
+    }
+  }
+  if (!painted) {
+    drawCanvasPlaceholder(id, origin, size, sceneState(kind_), kind_,
+                          !activeScene().nodes.empty());
+    ImGui::SetCursorScreenPos(afterCanvas);
+    return result;
+  }
 
   if (hovered && ImGui::GetIO().MouseWheel != 0.0F) {
     const ImVec2 mouse = ImGui::GetIO().MousePos;

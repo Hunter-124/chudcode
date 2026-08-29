@@ -16,6 +16,16 @@
 
 namespace chud::copilot {
 
+// Human label for a session id shaped "<ISO-8601 UTC>_<uuid>": the leading
+// timestamp as a local date/time, or a short id prefix when it does not parse.
+// A titleless session would otherwise render an unreadable raw id.
+[[nodiscard]] std::string sessionLabel(const std::string& id);
+
+// Local date/time for a session id, or nullopt when `id` is not one. A caller
+// holding only a tab title needs the distinction: the title is either a
+// human-chosen name, shown verbatim, or the server's fallback to the raw id.
+[[nodiscard]] std::optional<std::string> sessionStamp(const std::string& id);
+
 enum class TranscriptKind {
     User,
     Assistant,

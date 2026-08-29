@@ -457,8 +457,13 @@ void drawSessionList(copilot::CopilotView& copilotView) {
         return;
     }
     for (const auto& tab : tabs) {
-        const std::string label = tab.title + "##session-list-" + tab.path;
+        // tab.title is the server's raw session id when a session was never
+        // named, so show a readable stamp for those and the chosen name verbatim.
+        const std::string shown = copilot::sessionStamp(tab.title).value_or(tab.title);
+        const std::string label =
+            kit::elide(shown, ImGui::GetContentRegionAvail().x) + "##session-list-" + tab.path;
         if (ImGui::Selectable(label.c_str(), tab.active)) copilotView.switchSession(tab.path);
+        if (ImGui::IsItemHovered() && shown != tab.title) ImGui::SetTooltip("%s", tab.title.c_str());
         if (tab.running || tab.unread > 0 || tab.draftDirty) {
             ImGui::SameLine();
             std::string state;
@@ -481,7 +486,7 @@ void drawSessionTabs(copilot::CopilotView& copilotView) {
         if (index != 0) ImGui::SameLine();
         const auto& tab = tabs[index];
         std::string label = tab.running ? "Run " : "";
-        label += tab.title.empty() ? "Session" : tab.title;
+        label += tab.title.empty() ? "Session" : copilot::sessionStamp(tab.title).value_or(tab.title);
         if (tab.unread > 0) label += " (" + std::to_string(tab.unread) + ")";
         if (tab.draftDirty) label += " *";
         label += "##global-session-" + tab.path;
@@ -983,11 +988,18 @@ int run(const AppOptions& options) {
         }
 
         ImGui::BeginChild("##center-stack", ImVec2(centerWidth, bodyHeight), ImGuiChildFlags_Borders);
-        const float maximumTerminalHeight =
-            std::max(100.0F, std::min(ui::metrics::px(260.0F), bodyHeight * 0.45F));
+        // Terminal is the one rail activity with no side panel, so selecting it
+        // has to change the centre or the click reads as dead. Give the terminal
+        // the stage while it is the active activity; otherwise it stays a strip.
+        const float minimumPaneHeight = ui::metrics::px(100.0F);
         const float terminalHeight =
-            std::clamp(bodyHeight * 0.29F, 100.0F, maximumTerminalHeight);
-        const float editorHeight = std::max(1.0F, bodyHeight - terminalHeight);
+            activity == Activity::Terminal
+                ? std::max(minimumPaneHeight, bodyHeight - std::max(minimumPaneHeight, bodyHeight * 0.26F))
+                : std::clamp(bodyHeight * 0.29F, minimumPaneHeight,
+                             std::max(minimumPaneHeight,
+                                      std::min(ui::metrics::px(260.0F), bodyHeight * 0.45F)));
+        const float editorHeight = std::max(
+            minimumPaneHeight, bodyHeight - terminalHeight - shellStyle.ItemSpacing.y);
         ImGui::BeginChild("##editor-or-graph", ImVec2(0.0F, editorHeight), ImGuiChildFlags_Borders);
         if (connectionState == ConnectionState::Blocked) {
             if (kit::blockedState("Desktop service blocked", blockedReason.c_str(), "Retry") && connected) {

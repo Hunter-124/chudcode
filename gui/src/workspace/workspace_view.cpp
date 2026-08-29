@@ -169,6 +169,54 @@ std::optional<editor::FileStamp> editorStamp(const std::optional<FileStamp>& sta
                              static_cast<std::uint64_t>(std::max<std::int64_t>(0, stamp->generation))};
 }
 
+// The shell caps the side panel at min(px(286), width * 0.24), so its content
+// region stays ~254px wide even on a 2560px monitor and a row of three or four
+// framed controls never fits. Measuring what actually fits keeps the full
+// labels whenever they do and lets the remainder fall onto another row, instead
+// of abbreviating (or silently dropping) controls behind a fixed threshold.
+float framedWidth(const char* label) {
+    return ImGui::CalcTextSize(label).x + (ImGui::GetStyle().FramePadding.x * 2.0F);
+}
+
+struct FlowLabel {
+    const char* label;  // what the control draws
+    const char* full;   // the action name, for the hover hint when abbreviated
+    bool compact;
+};
+
+class FlowRow {
+  public:
+    explicit FlowRow(float available)
+        : available_(available), spacing_(ImGui::GetStyle().ItemSpacing.x) {}
+
+    // Call immediately before submitting the control: it either keeps the
+    // control on the current row or leaves it to start the next one.
+    FlowLabel next(const char* full, const char* compact = nullptr) {
+        const char* label = full;
+        if (compact != nullptr && framedWidth(full) > available_) label = compact;
+        const float width = framedWidth(label);
+        if (placed_ && used_ + spacing_ + width <= available_) {
+            ImGui::SameLine();
+            used_ += spacing_ + width;
+        } else {
+            used_ = width;
+        }
+        placed_ = true;
+        return {label, full, label != full};
+    }
+
+  private:
+    float available_;
+    float spacing_;
+    float used_ = 0.0F;
+    bool placed_ = false;
+};
+
+// An abbreviation is never self-explanatory, so name the action on hover.
+void flowHint(const FlowLabel& item) {
+    if (item.compact && ImGui::IsItemHovered()) ImGui::SetTooltip("%s", item.full);
+}
+
 } // namespace
 
 struct WorkspaceView::Impl {
@@ -601,22 +649,27 @@ struct WorkspaceView::Impl {
             return;
         }
 
-        const float available = ImGui::GetContentRegionAvail().x;
-        const bool narrow = available < 280.0F;
-        if (kit::secondaryButton(narrow ? "Find" : "Quick Open", {}, true)) {
+        // Flow the toolbar on measured widths. The previous `available < 280`
+        // test passed at every resolution, which permanently abbreviated these
+        // labels and removed Refresh entirely.
+        FlowRow toolbar(ImGui::GetContentRegionAvail().x);
+        const FlowLabel quickOpen = toolbar.next("Quick Open", "Find");
+        if (kit::secondaryButton(quickOpen.label, {}, true)) {
             showSearch = true;
             focusSearch = true;
             project->searchKind = SearchKind::Files;
             searchBuffer[0] = '\0';
         }
-        ImGui::SameLine();
-        if (kit::secondaryButton(narrow ? "+F" : "New File")) beginPending(PendingAction::CreateFile, nullptr);
-        ImGui::SameLine();
-        if (kit::secondaryButton(narrow ? "+D" : "New Folder")) beginPending(PendingAction::CreateDirectory, nullptr);
-        if (!narrow) {
-            ImGui::SameLine();
-            if (kit::secondaryButton("Refresh")) refreshTree();
-        }
+        flowHint(quickOpen);
+        const FlowLabel newFile = toolbar.next("New File", "+F");
+        if (kit::secondaryButton(newFile.label)) beginPending(PendingAction::CreateFile, nullptr);
+        flowHint(newFile);
+        const FlowLabel newFolder = toolbar.next("New Folder", "+D");
+        if (kit::secondaryButton(newFolder.label)) beginPending(PendingAction::CreateDirectory, nullptr);
+        flowHint(newFolder);
+        const FlowLabel refresh = toolbar.next("Refresh", "Sync");
+        if (kit::secondaryButton(refresh.label)) refreshTree();
+        flowHint(refresh);
 
         std::vector<VisibleEntry> visible;
         collectVisible(*project, "", 0, visible);
@@ -636,14 +689,33 @@ struct WorkspaceView::Impl {
             ImGui::PushID(entry.uri.c_str());
             if (visibleEntry.depth > 0) ImGui::Indent(static_cast<float>(visibleEntry.depth) * 14.0F);
 
-            std::string label;
-            if (entry.directory) label = project->expanded.contains(entry.uri) ? "v " : "> ";
-            else label = "  ";
-            label += entry.name;
-            if (entry.ignored) label += "  [ignored]";
+            // The tree column never exceeds px(286) at any resolution, so a long
+            // name has to elide here rather than wait for width. The secondary
+            // tags are painted after the row so they can carry their own colour
+            // without joining the selectable's label.
+            std::string head = entry.directory
+                ? (project->expanded.contains(entry.uri) ? "v " : "> ")
+                : "  ";
+            head += entry.name;
+            std::string ignoredTag;
+            if (entry.ignored) ignoredTag = "  [ignored]";
+            std::string badgeTag;
             const auto badge = gitBadge(entry);
-            if (!badge.empty()) label += "  [" + badge + "]";
-            label += "##" + entry.uri;
+            if (!badge.empty()) badgeTag = "  [" + badge + "]";
+
+            const float tagWidth =
+                ignoredTag.empty() ? 0.0F : ImGui::CalcTextSize(ignoredTag.c_str()).x;
+            const float badgeWidth =
+                badgeTag.empty() ? 0.0F : ImGui::CalcTextSize(badgeTag.c_str()).x;
+            const float nameBudget = ImGui::GetContentRegionAvail().x - tagWidth - badgeWidth -
+                                     ImGui::GetStyle().ItemSpacing.x;
+            const std::string shown = kit::elide(head, nameBudget);
+            const bool elided = shown != head;
+            const float nameWidth = ImGui::CalcTextSize(shown.c_str()).x;
+            // "###" seeds the id from the uri alone, so eliding the visible name
+            // (or a tag appearing) does not drop hover/selection state on resize.
+            const std::string label = shown + "###" + entry.uri;
+            const ImVec2 rowTextPos = ImGui::GetCursorScreenPos();
 
             float motionAmount = 0.0F;
             const auto moving = project->motions.find(entry.uri);
@@ -669,8 +741,27 @@ struct WorkspaceView::Impl {
                 }
             }
             if (motionAmount > 0.001F) ImGui::PopStyleColor(2);
-            if (ImGui::IsItemHovered() && !entry.relativePath.empty()) {
-                ImGui::SetTooltip("%s", entry.relativePath.c_str());
+            const bool hasTags = !ignoredTag.empty() || !badgeTag.empty();
+            if (hasTags && ImGui::IsItemVisible()) {
+                ImDrawList* drawList = ImGui::GetWindowDrawList();
+                float tagX = rowTextPos.x + nameWidth;
+                if (!ignoredTag.empty()) {
+                    // Secondary colour so a tagged entry reads as de-emphasised.
+                    drawList->AddText(ImVec2(tagX, rowTextPos.y),
+                                      ui::toU32(ui::palette().textDim), ignoredTag.c_str());
+                    tagX += tagWidth;
+                }
+                if (!badgeTag.empty()) {
+                    drawList->AddText(ImVec2(tagX, rowTextPos.y),
+                                      ui::toU32(ui::palette().text), badgeTag.c_str());
+                }
+            }
+            if (ImGui::IsItemHovered()) {
+                if (!entry.relativePath.empty()) {
+                    ImGui::SetTooltip("%s", entry.relativePath.c_str());
+                } else if (elided) {
+                    ImGui::SetTooltip("%s", entry.name.c_str());
+                }
             }
             drawContextMenu(entry);
             if (visibleEntry.depth > 0) ImGui::Unindent(static_cast<float>(visibleEntry.depth) * 14.0F);
@@ -690,14 +781,13 @@ struct WorkspaceView::Impl {
         ImGui::SetNextItemWidth(-1.0F);
         const bool submit = ImGui::InputTextWithHint("##workspace-search", "Search project...",
             searchBuffer.data(), searchBuffer.size(), ImGuiInputTextFlags_EnterReturnsTrue);
-        // Explicit buttons avoid a hidden mode in narrow layouts.
-        if (ImGui::SmallButton("Files")) project->searchKind = SearchKind::Files;
-        ImGui::SameLine();
-        if (ImGui::SmallButton("Content")) project->searchKind = SearchKind::Content;
-        ImGui::SameLine();
-        if (ImGui::SmallButton("Symbols")) project->searchKind = SearchKind::Symbols;
-        ImGui::SameLine();
-        if (ImGui::SmallButton("Close")) showSearch = false;
+        // Four small buttons overflow ~250px, which clipped "Symbols" mid-glyph;
+        // flow them so every filter stays fully readable.
+        FlowRow filters(ImGui::GetContentRegionAvail().x);
+        if (ImGui::SmallButton(filters.next("Files").label)) project->searchKind = SearchKind::Files;
+        if (ImGui::SmallButton(filters.next("Content").label)) project->searchKind = SearchKind::Content;
+        if (ImGui::SmallButton(filters.next("Symbols").label)) project->searchKind = SearchKind::Symbols;
+        if (ImGui::SmallButton(filters.next("Close").label)) showSearch = false;
         if (submit && searchBuffer[0] != '\0') search(searchBuffer.data(), project->searchKind, 200, false);
         if (project->searchPending) kit::spinner("Searching");
         for (const auto& result : project->searchResults) {
