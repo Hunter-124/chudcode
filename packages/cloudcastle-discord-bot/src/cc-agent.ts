@@ -89,6 +89,14 @@ export const MAX_HEARTBEAT_SESSIONS = 10;
 export const MIRROR_MAX_AGE_MS = 6 * 60 * 60 * 1000;
 
 /**
+ * How long a graceful shutdown gets before the process exits regardless.
+ *
+ * Comfortably under systemd's `TimeoutStopSec=30`, so the deadline fires and the
+ * process exits 0 rather than being SIGKILLed and reported as a failure.
+ */
+export const SHUTDOWN_DEADLINE_MS = 8_000;
+
+/**
  * Mirror-state key. Session ids are unique per machine, not globally, so the
  * host is part of the identity; NUL cannot appear in either half, so the join is
  * unambiguous. Three call sites must agree on this exactly or a restart mirrors
@@ -542,6 +550,57 @@ export class CcAgent {
 
 	/** Daemon entry: timers plus signal handling. Tests drive `tick`/`pollCommands` directly. */
 	async start(): Promise<void> {
+		// Signals first, before any await. The first tick creates and edits channels
+		// and can take seconds against a real guild; registering afterwards leaves a
+		// window where SIGTERM hits the default disposition and the process dies
+		// having skipped shutdown entirely.
+		for (const signal of ["SIGINT", "SIGTERM"] as const) {
+			// Clear inherited listeners BEFORE registering ours, not inside the
+			// handler. Importing `@chudware/coding-agent` for RpcClient registers a
+			// process-wide SIGTERM listener at module load that terminates the
+			// process. Being registered first, it ran first: ours started an async
+			// shutdown and the process died microseconds later having done none of
+			// the cleanup, exiting 143. Removing it from inside our own handler was
+			// too late -- theirs had already fired.
+			//
+			// Proven in isolation: importing that module alone takes
+			// `process.listenerCount("SIGTERM")` from 0 to 1, and a plain async
+			// handler after it never reaches its own timeout. A library that claims
+			// a process-wide signal at import time hijacks its host's shutdown.
+			process.removeAllListeners(signal);
+			const handler = () => {
+				// A second signal now hits the default disposition, which is the right
+				// escape hatch for "stop now".
+				process.removeAllListeners(signal);
+				this.#signalHandlers = [];
+
+				// Exit is guaranteed by a deadline, not by shutdown finishing.
+				// `shutdown` awaits every in-flight tick and then a bus publish,
+				// none of which is bounded, so a slow tick or a rate-limited POST
+				// left the process alive indefinitely with `process.exit(0)`
+				// unreachable. Best-effort cleanup, hard bound, always exit.
+				//
+				// The timer is deliberately NOT unref'd. `shutdown` clears the two
+				// intervals, so once they are gone an unref'd timer leaves nothing
+				// holding the event loop open: it drains, and Bun exits
+				// 128+SIGTERM=143 before either branch of the race resolves --
+				// which systemd reports as `code=exited, status=143` and calls the
+				// unit failed. Holding a ref keeps the process alive precisely long
+				// enough to exit 0 on purpose.
+				const deadline = new Promise<void>(resolve => {
+					setTimeout(() => {
+						this.#log(`shutdown did not finish within ${SHUTDOWN_DEADLINE_MS}ms; exiting anyway`);
+						resolve();
+					}, SHUTDOWN_DEADLINE_MS);
+				});
+				void Promise.race([
+					this.shutdown(signal).catch(error => this.#log(`shutdown failed: ${describeError(error)}`)),
+					deadline,
+				]).then(() => process.exit(0));
+			};
+			process.on(signal, handler);
+			this.#signalHandlers.push({ signal, handler });
+		}
 		await this.ready();
 		await this.tick();
 		this.#timers = [
@@ -552,13 +611,6 @@ export class CcAgent {
 				this.#track(this.pollCommands());
 			}, COMMAND_POLL_INTERVAL_MS),
 		];
-		for (const signal of ["SIGINT", "SIGTERM"] as const) {
-			const handler = () => {
-				void this.shutdown(signal).then(() => process.exit(0));
-			};
-			process.on(signal, handler);
-			this.#signalHandlers.push({ signal, handler });
-		}
 	}
 
 	/**

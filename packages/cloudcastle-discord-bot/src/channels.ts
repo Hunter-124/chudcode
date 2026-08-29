@@ -42,6 +42,7 @@ export const CHANNEL_IDS = {
 	alerts: "1543121167072886834",
 	decisions: "1543121167877939300",
 	archiveNotice: "1543121168503144559",
+	bus: "1543124326205751418",
 } as const;
 
 export type ChannelKey = keyof typeof CHANNEL_IDS;
@@ -291,6 +292,25 @@ export const TARGET_LAYOUT: readonly ChannelPlan[] = [
 		type: "text",
 		topic: "Where the pre-reorganisation server archive lives, and how to read it.",
 		position: 0,
+	},
+	{
+		/**
+		 * The session bridge's command log. Machine-readable by design: one fenced
+		 * JSON record per message.
+		 *
+		 * It gets its own channel because the fallback is to share #sessions, and
+		 * sharing puts agent heartbeats — raw JSON, one a minute, forever — in a
+		 * channel humans are meant to read. Parked under `archive` so it sits at
+		 * the bottom of the sidebar rather than in the working set.
+		 */
+		key: "bus",
+		id: CHANNEL_IDS.bus,
+		name: "cc-bus",
+		category: "archive",
+		role: "feed",
+		type: "text",
+		topic: "Machine channel: the session bridge's command log. Not for conversation; the bot reads every message here.",
+		position: 1,
 	},
 ];
 
