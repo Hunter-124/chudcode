@@ -518,6 +518,19 @@ export class RpcClient {
 	}
 
 	/**
+	 * Subscribe to extension UI requests emitted by the RPC-hosted agent.
+	 *
+	 * Hosts normally need only agent events, but UI state such as `setTitle`
+	 * belongs to this stream. Keeping this generic avoids teaching RpcClient
+	 * CloudCastle's channel naming policy while still letting a real UI host
+	 * mirror the title the session itself chose.
+	 */
+	onExtensionUiRequest(listener: (request: RpcExtensionUIRequest) => void): () => void {
+		this.#extensionUiListeners.add(listener);
+		return () => this.#extensionUiListeners.delete(listener);
+	}
+
+	/**
 	 * Subscribe to subagent lifecycle frames after setSubagentSubscription("progress" | "events").
 	 */
 	onSubagentLifecycle(listener: RpcSubagentLifecycleListener): () => void {
@@ -821,6 +834,11 @@ export class RpcClient {
 	async branch(entryId: string): Promise<{ text: string; cancelled: boolean }> {
 		const response = await this.#send({ type: "branch", entryId });
 		return this.#getData(response);
+	}
+
+	/** Persist the display title used by every host for this session. */
+	async setSessionName(name: string): Promise<void> {
+		await this.#send({ type: "set_session_name", name });
 	}
 
 	/**

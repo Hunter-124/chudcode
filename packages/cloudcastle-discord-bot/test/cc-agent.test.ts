@@ -196,6 +196,8 @@ class StubRpc implements RpcSessionHandle {
 	readonly prompts: string[] = [];
 	readonly followUps: string[] = [];
 	#listeners: Array<(event: RpcAgentEvent) => void> = [];
+	readonly sessionNames: string[] = [];
+	#titleListeners: Array<(title: string) => void> = [];
 
 	constructor(
 		readonly options: RpcSessionOptions,
@@ -213,6 +215,17 @@ class StubRpc implements RpcSessionHandle {
 		};
 	}
 
+	onTitle(listener: (title: string) => void) {
+		this.#titleListeners.push(listener);
+		return () => {
+			this.#titleListeners = this.#titleListeners.filter(candidate => candidate !== listener);
+		};
+	}
+
+	emitTitle(title: string) {
+		for (const listener of [...this.#titleListeners]) listener(title);
+	}
+
 	emit(event: RpcAgentEvent) {
 		for (const listener of [...this.#listeners]) listener(event);
 	}
@@ -223,6 +236,10 @@ class StubRpc implements RpcSessionHandle {
 
 	async followUp(message: string) {
 		this.followUps.push(message);
+	}
+
+	async setSessionName(title: string) {
+		this.sessionNames.push(title);
 	}
 
 	async steer() {}
@@ -837,6 +854,8 @@ describe("/new authorisation", () => {
 		await bus.ready();
 		await bus.publish(command({ id: "cmd-ok", cwd: inside, prompt: "refactor the bus" }));
 		await agent.pollCommands();
+		expect(StubRpc.created[0]?.sessionNames).toEqual(["refactor the bus"]);
+		expect(rest.sessionChannels()[0]?.name).toBe("s-refactor-the-bus");
 
 		expect(StubRpc.created).toHaveLength(1);
 		expect(StubRpc.created[0]?.options.cwd).toBe(inside);
@@ -846,6 +865,18 @@ describe("/new authorisation", () => {
 		const [result] = rest.results();
 		expect(result?.outcome).toBe("accepted");
 		expect(result?.channelId).toBe(rest.sessionChannels()[0]?.id);
+	});
+
+	it("renames a new channel to the title emitted by the chudcode session", async () => {
+		const { agent, bus, rest } = rig({ projectRoots: [root] });
+		await bus.ready();
+		await bus.publish(command({ id: "cmd-title", cwd: inside, prompt: "refactor the bus" }));
+		await agent.pollCommands();
+
+		StubRpc.created[0]?.emitTitle("Refactor the Discord bus transport");
+		await agent.drain();
+
+		expect(rest.modified.map(call => call.options.name)).toContain("s-refactor-the-discord-bus-transport");
 	});
 
 	it("refuses a cwd outside every allowlisted root", async () => {

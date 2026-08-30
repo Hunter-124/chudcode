@@ -105,6 +105,29 @@ export const SHUTDOWN_DEADLINE_MS = 8_000;
 export function mirrorKey(host: string, sessionId: string): string {
 	return `${host}\u0000${sessionId}`;
 }
+
+/**
+ * Give an RPC session a useful persisted title before its first token.
+ *
+ * Interactive mode has a background tiny-model title worker. An RPC host can
+ * finish a short turn and stop the child before that worker returns, leaving the
+ * session file and Discord channel on an opaque UUID forever. The first prompt
+ * is already the user's description of the work, so its first non-empty line is
+ * the deterministic provisional title; a later explicit title change still
+ * flows through onTitle().
+ */
+export function sessionTitleFromPrompt(prompt: string): string {
+	const first = prompt
+		.split(/\r?\n/)
+		.map(line => line.trim())
+		.find(Boolean);
+	const collapsed = (first ?? "New chudcode session")
+		.replace(/^#{1,6}\s+/, "")
+		.replace(/\s+/g, " ")
+		.trim();
+	const codePoints = [...collapsed];
+	return codePoints.length <= 120 ? collapsed : `${codePoints.slice(0, 119).join("").replace(/\s+$/g, "")}…`;
+}
 /** Leaves room under the 2000-char ceiling for Discord's own framing. */
 const MAX_TRANSCRIPT_CHARS = 1_800;
 const MAX_RESULT_DETAIL_CHARS = 800;
@@ -148,8 +171,10 @@ export interface RpcSessionState {
 export interface RpcSessionHandle {
 	start(): Promise<void>;
 	onEvent(listener: (event: RpcAgentEvent) => void): () => void;
+	onTitle(listener: (title: string) => void): () => void;
 	prompt(message: string): Promise<void>;
 	followUp(message: string): Promise<void>;
+	setSessionName(title: string): Promise<void>;
 	steer(message: string): Promise<void>;
 	abort(): Promise<void>;
 	stop(): Promise<void>;
@@ -165,16 +190,33 @@ export interface RpcSessionOptions {
 
 export type RpcSessionFactory = (options: RpcSessionOptions) => Promise<RpcSessionHandle>;
 
-/** Production wiring. Everything above this line is what the tests substitute for. */
+/**
+ * Production wiring. Resolve both the runtime and the CLI entry point
+ * absolutely: systemd intentionally gives services a small PATH, and the RPC
+ * client's default `["bun", "dist/cli.js"]` assumes both a shell-like PATH and
+ * a cwd containing a built `dist/`. Neither is true for cc-agent.
+ */
 export const defaultRpcSessionFactory: RpcSessionFactory = async options => {
+	const rpcClientModule = fileURLToPath(
+		import.meta.resolve("@chudware/coding-agent/modes/rpc/rpc-client"),
+	);
+	const cliPath =
+		options.cliPath ??
+		process.env.CC_AGENT_CLI_PATH ??
+		path.resolve(path.dirname(rpcClientModule), "../../cli.ts");
 	const client = new RpcClient({
 		cwd: options.cwd,
 		model: options.model,
-		cliPath: options.cliPath ?? process.env.CC_AGENT_CLI_PATH,
-		env: options.env,
+		cliPath,
+		command: [process.execPath, cliPath],
+		env: { ...options.env, CHUDCODE_RPC_EMIT_TITLE: "1" },
 	});
 	return {
 		start: () => client.start(),
+		onTitle: listener =>
+			client.onExtensionUiRequest(request => {
+				if (request.method === "setTitle") listener(request.title);
+			}),
 		// AgentEvent is a closed union; RpcAgentEvent is the open structural read
 		// of it. Inference cannot unify the two, and there is nothing to validate:
 		// the value came from our own child process.
@@ -182,6 +224,7 @@ export const defaultRpcSessionFactory: RpcSessionFactory = async options => {
 		prompt: message => client.prompt(message),
 		followUp: message => client.followUp(message),
 		steer: message => client.steer(message),
+		setSessionName: title => client.setSessionName(title),
 		abort: () => client.abort(),
 		stop: () => client.stop(),
 		getState: async () => {
@@ -871,36 +914,39 @@ export class CcAgent {
 
 		const client = await this.#rpc({ cwd: allowed.cwd, model: command.model ?? undefined });
 		await client.start();
+		const initialTitle = sessionTitleFromPrompt(prompt);
+		await client.setSessionName(initialTitle);
 		const state = await client.getState();
 		const sessionId = state.sessionId;
 
 		// The channel exists before the first token, so the transcript has a home
 		// and the scan loop adopts this channel instead of creating a rival.
 		const now = this.#now().toISOString();
+		const initialSnapshot: SessionSnapshot = {
+			sessionId,
+			host: this.host,
+			sessionFile: state.sessionFile ?? "",
+			cwd: allowed.cwd,
+			// The scan corrects this to the repo-relative label on the next tick.
+			project: path.basename(allowed.cwd),
+			title: initialTitle,
+			model: command.model,
+			status: "running",
+			startedAt: now,
+			updatedAt: now,
+			messageCount: 0,
+			costUsd: null,
+			tokensIn: null,
+			tokensOut: null,
+			lastTool: null,
+			lastText: prompt.slice(0, 160),
+			originCommandId: command.id,
+			requestedBy: command.requestedBy,
+			channelId: command.channelId,
+		};
 		let mirror: MirrorRecord;
 		try {
-			mirror = await this.#adoptChannel(command, {
-				sessionId,
-				host: this.host,
-				sessionFile: state.sessionFile ?? "",
-				cwd: allowed.cwd,
-				// The scan corrects this to the repo-relative label on the next tick.
-				project: path.basename(allowed.cwd),
-				title: null,
-				model: command.model,
-				status: "running",
-				startedAt: now,
-				updatedAt: now,
-				messageCount: 0,
-				costUsd: null,
-				tokensIn: null,
-				tokensOut: null,
-				lastTool: null,
-				lastText: prompt.slice(0, 160),
-				originCommandId: command.id,
-				requestedBy: command.requestedBy,
-				channelId: command.channelId,
-			});
+			mirror = await this.#adoptChannel(command, initialSnapshot);
 		} catch (error) {
 			await client.stop();
 			await this.#publishResult(command, "failed", describeError(error), { sessionId });
@@ -926,11 +972,36 @@ export class CcAgent {
 			unsubscribe: () => {},
 		};
 		this.#sessions.set(sessionId, session);
-		session.unsubscribe = client.onEvent(event => {
+		const unsubscribeEvent = client.onEvent(event => {
 			const line = describeEvent(event);
 			if (line) transcript.push(line);
 			if (event.type === "agent_end") this.#track(this.#finish(session, "done", "turn complete"));
 		});
+
+		// Title generation happens inside chudcode after the prompt starts. RPC
+		// suppresses UI title events by default, so the production factory opts
+		// in and this listener makes the Discord channel follow the title the
+		// session itself chose. Serialising the callbacks matters: two title
+		// updates can otherwise both observe lastRenamedAt=null and spend both
+		// rename slots at once.
+		const key = mirrorKey(this.host, sessionId);
+		let titleQueue = Promise.resolve();
+		const unsubscribeTitle = client.onTitle(title => {
+			const clean = title.trim();
+			if (!clean) return;
+			titleQueue = titleQueue.then(async () => {
+				mirror = await this.#renameIfDue(
+					key,
+					{ ...initialSnapshot, title: clean, updatedAt: this.#now().toISOString() },
+					mirror,
+				);
+			});
+			this.#track(titleQueue);
+		});
+		session.unsubscribe = () => {
+			unsubscribeEvent();
+			unsubscribeTitle();
+		};
 
 		transcript.push(`▶ <@${command.requestedBy}> started this session: ${prompt.slice(0, 300)}`);
 		await client.prompt(prompt);

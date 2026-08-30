@@ -739,6 +739,23 @@ export async function runRpcMode(
 			frameEncoder.setProtocolVersion(2);
 	};
 	const emitRpcTitles = shouldEmitRpcTitles();
+	// Interactive mode starts automatic naming from its input controller. RPC
+	// has no input controller, so it must explicitly trigger the same path when
+	// it accepts a normal prompt below. Forward the persisted title change as a
+	// UI request so hosts can update their own chrome (Discord channel names,
+	// window titles, and so on) without polling the session file.
+	if (emitRpcTitles) {
+		session.sessionManager.onSessionNameChanged(() => {
+			const title = session.sessionName;
+			if (!title) return;
+			output({
+				type: "extension_ui_request",
+				id: Snowflake.next() as string,
+				method: "setTitle",
+				title,
+			} as RpcExtensionUIRequest);
+		});
+	}
 
 	const success = <T extends RpcCommand["type"]>(
 		id: string | undefined,
@@ -1055,6 +1072,11 @@ export async function runRpcMode(
 					// request as non-agent work while the agent is running.
 					return success(id, "prompt", { agentInvoked: builtinResult.agentInvoked === true });
 				}
+
+				// Interactive submissions call this in InputController; RPC prompts
+				// bypass that controller. Without parity here every RPC session
+				// keeps an empty title slot and UI hosts fall back to an opaque UUID.
+				session.maybeStartTitleGeneration(command.message);
 
 				// Don't await - events will stream
 				// Extension commands are executed immediately, file prompt templates are expanded
