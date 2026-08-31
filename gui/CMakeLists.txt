@@ -22,7 +22,7 @@ set(BUILD_DEMO OFF CACHE BOOL "" FORCE)
 set(IXWEBSOCKET_INSTALL OFF CACHE BOOL "" FORCE)
 FetchContent_Declare(ixwebsocket GIT_REPOSITORY https://github.com/machinezone/IXWebSocket.git GIT_TAG v12.0.1 GIT_SHALLOW TRUE)
 
-FetchContent_Declare(texteditor GIT_REPOSITORY https://github.com/goossens/ImGuiColorTextEdit.git GIT_TAG cfc3f68 GIT_SHALLOW TRUE)
+FetchContent_Declare(texteditor GIT_REPOSITORY https://github.com/goossens/ImGuiColorTextEdit.git GIT_TAG a20e4493bb618a8b738bbb33e00932f842ae8595 GIT_SHALLOW TRUE)
 FetchContent_Declare(libvterm GIT_REPOSITORY https://github.com/neovim/libvterm.git GIT_TAG 934bc2fbf21800ac3458a499df8820ca5fb45fd3)
 
 FetchContent_MakeAvailable(glfw imgui json ixwebsocket)
@@ -58,6 +58,15 @@ add_library(chud_ui_foundation STATIC
 target_include_directories(chud_ui_foundation PUBLIC src)
 target_link_libraries(chud_ui_foundation PUBLIC chud_imgui)
 
+add_library(chud_icons STATIC src/icons/icons.cpp)
+target_include_directories(chud_icons PUBLIC src)
+target_link_libraries(chud_icons PUBLIC chud_imgui nlohmann_json::nlohmann_json)
+
+# Shared headless dependencies for native GUI tests. Keep icon loading free of
+# GLFW/OpenGL so every consumer can exercise atlas metadata without a display.
+add_library(chud_gui_tests INTERFACE)
+target_link_libraries(chud_gui_tests INTERFACE chud_icons)
+
 add_library(chud_protocol STATIC
   src/protocol/json_codec.cpp src/protocol/desktop_store.cpp src/protocol/desktop_client.cpp src/net/ws_transport.cpp)
 target_include_directories(chud_protocol PUBLIC src)
@@ -87,8 +96,17 @@ add_library(chud_copilot STATIC src/copilot/copilot_view.cpp)
 target_include_directories(chud_copilot PUBLIC src)
 target_link_libraries(chud_copilot PUBLIC chud_protocol chud_editor chud_ui_foundation)
 
+add_library(chud_session_dag STATIC
+  src/graph/session_dag.cpp src/graph/session_dag_view.cpp)
+target_include_directories(chud_session_dag PUBLIC src)
+target_link_libraries(chud_session_dag PUBLIC chud_copilot chud_graph chud_ui_foundation)
+
 add_executable(chudcode-gui src/app/app.cpp src/app/main.cpp)
-target_link_libraries(chudcode-gui PRIVATE chud_workspace chud_editor chud_terminal chud_vcs chud_graph chud_copilot chud_ui_foundation chud_protocol)
+target_link_libraries(chudcode-gui PRIVATE chud_workspace chud_editor chud_terminal chud_vcs chud_graph chud_copilot chud_session_dag chud_icons chud_ui_foundation chud_protocol)
+add_custom_command(TARGET chudcode-gui POST_BUILD
+  COMMAND ${CMAKE_COMMAND} -E copy_directory
+    ${CMAKE_CURRENT_SOURCE_DIR}/assets
+    $<TARGET_FILE_DIR:chudcode-gui>/assets)
 
 include(CTest)
 if(BUILD_TESTING)
@@ -119,4 +137,27 @@ if(BUILD_TESTING)
   target_link_libraries(test_copilot PRIVATE chud_copilot)
   add_test(NAME copilot COMMAND test_copilot)
   add_test(NAME graph COMMAND test_graph)
+
+  add_executable(test_session_dag tests/test_session_dag.cpp)
+  target_link_libraries(test_session_dag PRIVATE chud_session_dag)
+  add_test(NAME session_dag COMMAND test_session_dag)
+
+  add_executable(test_icons tests/test_icons.cpp)
+  target_link_libraries(test_icons PRIVATE chud_gui_tests)
+  add_test(NAME icons COMMAND test_icons ${CMAKE_CURRENT_SOURCE_DIR}/assets)
+
+  add_executable(test_app_ini tests/test_app_ini.cpp)
+  target_compile_definitions(test_app_ini PRIVATE
+    CHUDCODE_GUI_VERSION="${PROJECT_VERSION}")
+  add_dependencies(test_app_ini chudcode-gui)
+  find_program(XVFB_RUN_EXECUTABLE xvfb-run)
+  if(XVFB_RUN_EXECUTABLE)
+    add_test(NAME app_ini COMMAND ${XVFB_RUN_EXECUTABLE} -a
+      $<TARGET_FILE:test_app_ini> $<TARGET_FILE:chudcode-gui>)
+  else()
+    add_test(NAME app_ini COMMAND $<TARGET_FILE:test_app_ini>
+      $<TARGET_FILE:chudcode-gui>)
+  endif()
+  set_tests_properties(app_ini PROPERTIES TIMEOUT 30
+    ENVIRONMENT "LIBGL_ALWAYS_SOFTWARE=1")
 endif()

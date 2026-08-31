@@ -1,0 +1,301 @@
+{
+  "atlas_px": [
+    274,
+    170
+  ],
+  "cell": {
+    "agent@20": {
+      "h": 20,
+      "w": 20,
+      "x": 134,
+      "y": 104
+    },
+    "agent@32": {
+      "h": 32,
+      "w": 32,
+      "x": 206,
+      "y": 2
+    },
+    "attach@20": {
+      "h": 20,
+      "w": 20,
+      "x": 46,
+      "y": 104
+    },
+    "attach@32": {
+      "h": 32,
+      "w": 32,
+      "x": 70,
+      "y": 2
+    },
+    "close-tab@20": {
+      "h": 20,
+      "w": 20,
+      "x": 90,
+      "y": 104
+    },
+    "close-tab@32": {
+      "h": 32,
+      "w": 32,
+      "x": 138,
+      "y": 2
+    },
+    "delete@20": {
+      "h": 20,
+      "w": 20,
+      "x": 112,
+      "y": 126
+    },
+    "delete@32": {
+      "h": 32,
+      "w": 32,
+      "x": 172,
+      "y": 36
+    },
+    "diff@20": {
+      "h": 20,
+      "w": 20,
+      "x": 24,
+      "y": 148
+    },
+    "diff@32": {
+      "h": 32,
+      "w": 32,
+      "x": 36,
+      "y": 70
+    },
+    "fork@20": {
+      "h": 20,
+      "w": 20,
+      "x": 68,
+      "y": 126
+    },
+    "fork@32": {
+      "h": 32,
+      "w": 32,
+      "x": 104,
+      "y": 36
+    },
+    "git-branch@20": {
+      "h": 20,
+      "w": 20,
+      "x": 134,
+      "y": 126
+    },
+    "git-branch@32": {
+      "h": 32,
+      "w": 32,
+      "x": 206,
+      "y": 36
+    },
+    "git-commit@20": {
+      "h": 20,
+      "w": 20,
+      "x": 156,
+      "y": 126
+    },
+    "git-commit@32": {
+      "h": 32,
+      "w": 32,
+      "x": 240,
+      "y": 36
+    },
+    "new-session@20": {
+      "h": 20,
+      "w": 20,
+      "x": 68,
+      "y": 104
+    },
+    "new-session@32": {
+      "h": 32,
+      "w": 32,
+      "x": 104,
+      "y": 2
+    },
+    "open-folder@20": {
+      "h": 20,
+      "w": 20,
+      "x": 112,
+      "y": 104
+    },
+    "open-folder@32": {
+      "h": 32,
+      "w": 32,
+      "x": 172,
+      "y": 2
+    },
+    "pin@20": {
+      "h": 20,
+      "w": 20,
+      "x": 46,
+      "y": 126
+    },
+    "pin@32": {
+      "h": 32,
+      "w": 32,
+      "x": 70,
+      "y": 36
+    },
+    "recovery@20": {
+      "h": 20,
+      "w": 20,
+      "x": 24,
+      "y": 126
+    },
+    "recovery@32": {
+      "h": 32,
+      "w": 32,
+      "x": 36,
+      "y": 36
+    },
+    "rename@20": {
+      "h": 20,
+      "w": 20,
+      "x": 90,
+      "y": 126
+    },
+    "rename@32": {
+      "h": 32,
+      "w": 32,
+      "x": 138,
+      "y": 36
+    },
+    "send@20": {
+      "h": 20,
+      "w": 20,
+      "x": 2,
+      "y": 104
+    },
+    "send@32": {
+      "h": 32,
+      "w": 32,
+      "x": 2,
+      "y": 2
+    },
+    "settings@20": {
+      "h": 20,
+      "w": 20,
+      "x": 46,
+      "y": 148
+    },
+    "settings@32": {
+      "h": 32,
+      "w": 32,
+      "x": 70,
+      "y": 70
+    },
+    "stop@20": {
+      "h": 20,
+      "w": 20,
+      "x": 24,
+      "y": 104
+    },
+    "stop@32": {
+      "h": 32,
+      "w": 32,
+      "x": 36,
+      "y": 2
+    },
+    "task@20": {
+      "h": 20,
+      "w": 20,
+      "x": 156,
+      "y": 104
+    },
+    "task@32": {
+      "h": 32,
+      "w": 32,
+      "x": 240,
+      "y": 2
+    },
+    "terminal@20": {
+      "h": 20,
+      "w": 20,
+      "x": 2,
+      "y": 148
+    },
+    "terminal@32": {
+      "h": 32,
+      "w": 32,
+      "x": 2,
+      "y": 70
+    },
+    "tool@20": {
+      "h": 20,
+      "w": 20,
+      "x": 2,
+      "y": 126
+    },
+    "tool@32": {
+      "h": 32,
+      "w": 32,
+      "x": 2,
+      "y": 36
+    },
+    "usage@20": {
+      "h": 20,
+      "w": 20,
+      "x": 68,
+      "y": 148
+    },
+    "usage@32": {
+      "h": 32,
+      "w": 32,
+      "x": 104,
+      "y": 70
+    }
+  },
+  "cell_sizes": [
+    20,
+    32
+  ],
+  "generator": "gui/scripts/make_icons.py",
+  "inputs": "procedural PIL line art only; no third-party artwork, no photographs, no fonts",
+  "license": "in-house: generated in this repository; no external assets",
+  "names": [
+    "send",
+    "stop",
+    "attach",
+    "new-session",
+    "close-tab",
+    "open-folder",
+    "agent",
+    "task",
+    "tool",
+    "recovery",
+    "pin",
+    "fork",
+    "rename",
+    "delete",
+    "git-branch",
+    "git-commit",
+    "terminal",
+    "diff",
+    "settings",
+    "usage"
+  ],
+  "palette": {
+    "dark": {
+      "accent": "#F28216",
+      "secondary": "#3D9BE9",
+      "statusErr": "#F58C6B",
+      "statusOk": "#75DB8C",
+      "statusWarn": "#F3C26B",
+      "text": "#E5EAF1",
+      "textDim": "#9EA8B8"
+    },
+    "light": {
+      "accent": "#C25E05",
+      "secondary": "#005CA6",
+      "statusErr": "#C44131",
+      "statusOk": "#258E45",
+      "statusWarn": "#AE710A",
+      "text": "#1F2430",
+      "textDim": "#535C6C"
+    }
+  },
+  "pattern_provenance": "pipeline shape after CAD:contracts/icons.md (deterministic dual-theme atlases, one shared layout); inventory is Chudcode IDE-domain",
+  "png_encoding": "stored-deflate (zlib level 0), filter 0 scanlines",
+  "schema": "chudcode-icons-v1",
+  "supersample": 8
+}

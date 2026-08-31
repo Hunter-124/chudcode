@@ -251,12 +251,31 @@ headGap / gutter`, all pre-multiplied by `uiScale`:
 - **Therefore: never use Unicode symbols for UI affordances.** Status marks
   are `kit::statusGlyph` (vector) or atlas icons, never string glyphs. This is
   the single most common way to ship a broken-looking build.
-- Icon pipeline: deterministic script generation → `atlas_dark.png` +
-  `atlas_light.png` + `atlas.json`, both atlases sharing one layout so a theme
-  switch swaps textures with identical UVs; cells at 20 px and 32 px; glyph
-  redraws are free but **names and UVs stay stable**. Chudcode inventory is
-  IDE-domain (file/folder kinds, git status, diff, search, terminal, graph,
-  LSP symbol kinds) and lives in `docs/icons.md` (append-only names section).
+- Icon pipeline (SHIPPED): `gui/scripts/make_icons.py` deterministically
+  generates `gui/assets/icons/atlas_dark.png` + `atlas_light.png` +
+  `atlas.json`, both atlases sharing one computed layout so a theme switch
+  swaps textures with identical UVs; cells at 20 px and 32 px, drawn at 8×
+  supersample, LANCZOS downsample. Glyph redraws are free but **names and
+  UVs stay stable**; `--verify` byte-compares a fresh regeneration against
+  the committed files. PNGs are stored-deflate (zlib level 0, filter 0) on
+  purpose so the loader (`gui/src/icons/icons.{h,cpp}`, GL-free via an
+  injected `TextureBackend`) needs no zlib; do not re-encode them.
+- **Icon inventory (append-only; mirrors `kIconNames` in
+  `gui/src/icons/icons.h` and `ICON_NAMES` in the generator — the loader
+  refuses an atlas missing any name at any size):** `send, stop, attach,
+  new-session, close-tab, open-folder, agent, task, tool, recovery, pin,
+  fork, rename, delete, git-branch, git-commit, terminal, diff, settings,
+  usage`. IDE-domain only — no CAD glyphs. A missing name renders an honest
+  placeholder (box + diagonal cross in the caller's tint), never a blank.
+- **Icon provenance/license:** procedural PIL line art generated in-repo —
+  in-house, no third-party artwork, no fonts, no photographs; generator +
+  inputs + palette are recorded inside `atlas.json` (§1 reproducibility
+  rule). Baked stroke colors mirror the §3 semantic roles (`text`,
+  `textDim`, `accent`, `secondary`, `statusOk/Warn/Err`); where a role
+  cannot survive as a 2 px hairline the baked value is a derived variant
+  recorded in `atlas.json` (light accent `#C25E05`, light secondary
+  `#005CA6`, dark secondary `#3D9BE9`). C++ callers tint only via palette
+  roles (identity tint by default); Unicode glyph substitutes remain banned.
 
 ---
 
@@ -275,7 +294,7 @@ Hard rules (kit contract):
    literal `ImU32`/`ImVec4`.
 2. Sizes come from Density accessors or `ui::metrics` — never a fresh pixel
    literal.
-3. Icons come from `docs/icons.md` by name — never a Unicode glyph.
+3. Icons come from the §6 inventory by name — never a Unicode glyph.
 4. Motion comes from `chud_ui_anim` — never a hand-rolled smoothstep or a bare
    duration literal.
 
@@ -414,7 +433,7 @@ Static registry in `chud_ui_kit` (`chud/ui/kit/panel.h`):
 PanelDesc {
   const char* id;            // stable kebab-case, e.g. "vcs.status"
   const char* title;
-  const char* icon;          // docs/icons.md name
+  const char* icon;          // §6 inventory name (atlas.json cell)
   Density     defaultDensity;
   float       minWidthDp;
   bool        multiInstance;
@@ -710,8 +729,8 @@ that alters the corresponding code:
 4. §4 glass levels/groups, adaptive-surface constants, scrollbar/gauge/mark
    contracts.
 5. §5 metrics primitives + Density rhythm values.
-6. §6 font faces/sizes, glyph-range allowlist, `docs/icons.md` name inventory
-   (append-only).
+6. §6 font faces/sizes, glyph-range allowlist, icon name inventory (§6,
+   append-only).
 7. §7 kit widget inventory and its four hard rules.
 8. §8 motion tokens, easings, per-surface vocabulary, reduced-motion
    semantics.

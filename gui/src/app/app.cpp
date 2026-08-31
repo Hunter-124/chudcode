@@ -32,6 +32,7 @@
 #include "copilot/copilot_view.h"
 #include "editor/editor.h"
 #include "graph/graph_view.h"
+#include "graph/session_dag_view.h"
 #include "net/ws_transport.h"
 #include "protocol/desktop_client.h"
 #include "protocol/desktop_store.h"
@@ -712,6 +713,7 @@ int run(const AppOptions& options) {
     GraphView graphView;
     graphView.setAccessibleFallback(options.accessibleLists);
     graphView.setOpenSourceCallback([&editor](const SourceLocation& location) { editor.open(location.uri); });
+    session_graph::SessionDagView sessionDagView;
     vcs::VcsView vcsView(client, graphView);
     copilot::CopilotView copilotView(
         store, copilot::CopilotActions{[&client](std::string method, Json params,
@@ -886,6 +888,9 @@ int run(const AppOptions& options) {
         if (store.activeSessionPath() && copilotView.sessionPath() != *store.activeSessionPath()) {
             copilotView.setSessionPath(*store.activeSessionPath());
         }
+        sessionDagView.sync(
+            copilotView.sessionPath(), store.session(copilotView.sessionPath()),
+            copilotView.projection());
 
         ImGui_ImplOpenGL3_NewFrame();
         ImGui_ImplGlfw_NewFrame();
@@ -1004,6 +1009,14 @@ int run(const AppOptions& options) {
         if (connectionState == ConnectionState::Blocked) {
             if (kit::blockedState("Desktop service blocked", blockedReason.c_str(), "Retry") && connected) {
                 bootstrap();
+            }
+        } else if (activity == Activity::Sessions) {
+            if (copilotView.sessionPath().empty()) {
+                (void)kit::emptyState(
+                    "No active session",
+                    "Select a session to inspect its execution hierarchy.");
+            } else {
+                (void)sessionDagView.draw("##session-dag-view", ImVec2(0.0F, 0.0F));
             }
         } else if (activeWorkspace.empty()) {
             if (kit::emptyState("Open a project", "Choose a recent project or open a folder to begin.",
