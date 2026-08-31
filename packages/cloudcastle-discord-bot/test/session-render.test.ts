@@ -114,7 +114,10 @@ describe("renderSessionEmbed", () => {
 	test("reports unknown elapsed for unusable timestamps instead of NaN", () => {
 		expect(fieldValue(rendered(snapshot({ startedAt: "not a date" })), "Elapsed")).toBe("unknown");
 		expect(
-			fieldValue(rendered(snapshot({ startedAt: "2026-08-28T10:00:00.000Z", updatedAt: "2026-08-28T09:00:00.000Z" })), "Elapsed"),
+			fieldValue(
+				rendered(snapshot({ startedAt: "2026-08-28T10:00:00.000Z", updatedAt: "2026-08-28T09:00:00.000Z" })),
+				"Elapsed",
+			),
 		).toBe("unknown");
 	});
 
@@ -192,7 +195,9 @@ describe("embedHash", () => {
 		const base = renderSessionEmbed(snapshot());
 
 		expect(embedHash(renderSessionEmbed(snapshot({ status: "idle" })))).not.toBe(embedHash(base));
-		expect(embedHash(renderSessionEmbed(snapshot({ lastText: "Applying the final patch." })))).not.toBe(embedHash(base));
+		expect(embedHash(renderSessionEmbed(snapshot({ lastText: "Applying the final patch." })))).not.toBe(
+			embedHash(base),
+		);
 		expect(embedHash(renderSessionEmbed(snapshot({ messageCount: 43 })))).toBe(embedHash(base));
 		expect(embedHash(renderSessionEmbed(snapshot({ lastTool: "bash" })))).toBe(embedHash(base));
 		expect(embedHash({ ...base, extra: undefined })).toBe(embedHash(base));
@@ -256,9 +261,14 @@ describe("renderTail", () => {
 	});
 
 	test("chunks a long fenced code block without ever splitting the fence", async () => {
-		const codeLines = Array.from({ length: 140 }, (_, index) => `const line${index} = ${index}; // ${"x".repeat(30)}`);
+		const codeLines = Array.from(
+			{ length: 140 },
+			(_, index) => `const line${index} = ${index}; // ${"x".repeat(30)}`,
+		);
 		const session = await transcript([
-			messageLine("assistant", [{ type: "text", text: `Here is the fix:\n\n\`\`\`typescript\n${codeLines.join("\n")}\n\`\`\`\n\nDone.` }]),
+			messageLine("assistant", [
+				{ type: "text", text: `Here is the fix:\n\n\`\`\`typescript\n${codeLines.join("\n")}\n\`\`\`\n\nDone.` },
+			]),
 		]);
 
 		const chunks = await renderTail(session, 1);
@@ -275,9 +285,7 @@ describe("renderTail", () => {
 		for (const chunk of chunks.slice(1)) expect(chunk.startsWith("```typescript\n")).toBe(true);
 
 		// Every code line survives, exactly once, in order.
-		const emitted = chunks
-			.flatMap(chunk => chunk.split("\n"))
-			.filter(line => line.startsWith("const line"));
+		const emitted = chunks.flatMap(chunk => chunk.split("\n")).filter(line => line.startsWith("const line"));
 		expect(emitted).toEqual(codeLines);
 		expect(chunks[0].startsWith("**Agent**\nHere is the fix:")).toBe(true);
 		expect(chunks[chunks.length - 1].endsWith("Done.")).toBe(true);

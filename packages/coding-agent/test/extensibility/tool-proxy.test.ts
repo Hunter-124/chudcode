@@ -1,6 +1,6 @@
 import { describe, expect, it } from "bun:test";
-import { type } from "@chudware/chudtype";
 import { isArkSchema } from "@chudware/ai/utils/schema";
+import { type } from "@chudware/chudtype";
 import { applyToolProxy } from "../../src/extensibility/tool-proxy";
 
 describe("applyToolProxy", () => {

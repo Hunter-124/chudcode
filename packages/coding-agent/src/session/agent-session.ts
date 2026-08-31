@@ -18,8 +18,6 @@ import * as os from "node:os";
 import * as path from "node:path";
 import { scheduler } from "node:timers/promises";
 import { isPromise } from "node:util/types";
-
-import type { Clipboard, InMemorySnapshotStore } from "@chudware/hashline";
 import {
 	type AfterToolCallContext,
 	type AfterToolCallResult,
@@ -81,6 +79,7 @@ import { resetOpenAICodexHistoryAfterCompaction } from "@chudware/ai/providers/o
 import { toolWireSchema } from "@chudware/ai/utils/schema";
 import { preferredDialect } from "@chudware/catalog/identity";
 import { modelsAreEqual } from "@chudware/catalog/models";
+import type { Clipboard, InMemorySnapshotStore } from "@chudware/hashline";
 import {
 	$env,
 	escapeXmlText,

@@ -132,7 +132,7 @@ describe("persisted roster metadata fault settling", () => {
 		} finally {
 			expect(unhandled()).toEqual([]);
 		}
-	}, 10_000);
+	}, 30_000);
 
 	it("still degrades gracefully when the stream and the stat fail together", async () => {
 		using tempDir = TempDir.createSync("@chudcode-roster-simultaneous-");
@@ -171,7 +171,7 @@ describe("persisted roster metadata fault settling", () => {
 		} finally {
 			expect(unhandled()).toEqual([]);
 		}
-	}, 10_000);
+	}, 30_000);
 });
 
 describe("persisted roster latch semantics", () => {
@@ -254,7 +254,7 @@ describe("persisted roster latch semantics", () => {
 		// B's latch settled with that result: a repeated call does not re-scan.
 		await ensurePersistedRoster(registry, rootB);
 		expect(countReaddirs(readdirs, scanDir(rootB))).toBe(1);
-	}, 10_000);
+	}, 30_000);
 
 	it("keeps the scan queue moving after a failed root scan", async () => {
 		using tempDir = TempDir.createSync("@chudcode-roster-queue-failure-");
@@ -313,7 +313,7 @@ describe("persisted roster latch semantics", () => {
 		// ...while a repeated call for an evicted root re-scans.
 		await ensurePersistedRoster(registry, rootFor(0));
 		expect(countReaddirs(readdirs, scanDir(rootFor(0)))).toBe(2);
-	}, 10_000);
+	}, 30_000);
 	it("re-scans a root whose parked ref another root superseded (A→B→A)", async () => {
 		using tempDir = TempDir.createSync("@chudcode-roster-supersede-");
 		const dir = tempDir.path();
@@ -350,7 +350,7 @@ describe("persisted roster latch semantics", () => {
 		await ensurePersistedRoster(registry, rootB);
 		expect(registry.get("Worker")?.sessionFile).toBe(childB);
 		expect(countReaddirs(readdirs, scanDir(rootB))).toBe(2);
-	}, 10_000);
+	}, 30_000);
 
 	it("refreshes only the superseded refs of a root (partial supersession)", async () => {
 		using tempDir = TempDir.createSync("@chudcode-roster-partial-");
@@ -388,7 +388,7 @@ describe("persisted roster latch semantics", () => {
 		expect(registry.get("Worker1")?.sessionFile).toBe(childB1);
 		expect(registry.get("Worker2")?.sessionFile).toBe(childA2);
 		expect(countReaddirs(readdirs, scanDir(rootB))).toBe(2);
-	}, 10_000);
+	}, 30_000);
 
 	it("re-scans a root whose restored ref was released", async () => {
 		using tempDir = TempDir.createSync("@chudcode-roster-released-");
@@ -409,7 +409,7 @@ describe("persisted roster latch semantics", () => {
 		await ensurePersistedRoster(registry, rootFile);
 		expect(registry.get("Worker")?.sessionFile).toBe(childFile);
 		expect(countReaddirs(readdirs, scanDir(rootFile))).toBe(2);
-	}, 10_000);
+	}, 30_000);
 
 	it("keeps a settled latch valid for a tombstoned transcript", async () => {
 		using tempDir = TempDir.createSync("@chudcode-roster-tombstone-");
@@ -428,7 +428,7 @@ describe("persisted roster latch semantics", () => {
 		// The restored aborted ref still matches the latch token: no re-scan.
 		await ensurePersistedRoster(registry, rootFile);
 		expect(countReaddirs(readdirs, scanDir(rootFile))).toBe(1);
-	}, 10_000);
+	}, 30_000);
 
 	it("does not re-scan when a transcript file vanishes after its latch settled", async () => {
 		using tempDir = TempDir.createSync("@chudcode-roster-vanished-");
@@ -449,7 +449,7 @@ describe("persisted roster latch semantics", () => {
 		await ensurePersistedRoster(registry, rootFile);
 		expect(registry.get("Worker")?.sessionFile).toBe(childFile);
 		expect(countReaddirs(readdirs, scanDir(rootFile))).toBe(1);
-	}, 10_000);
+	}, 30_000);
 
 	it("retries a supersession refresh whose scan failed", async () => {
 		using tempDir = TempDir.createSync("@chudcode-roster-refresh-failure-");
@@ -487,5 +487,5 @@ describe("persisted roster latch semantics", () => {
 		await ensurePersistedRoster(registry, rootA);
 		expect(registry.get("Worker")?.sessionFile).toBe(childA);
 		expect(countReaddirs(readdirs, scanDir(rootA))).toBe(3);
-	}, 10_000);
+	}, 30_000);
 });

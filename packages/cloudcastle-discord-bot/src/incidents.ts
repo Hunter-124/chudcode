@@ -1,2 +1,2 @@
-export { ChudcodeDiagnosisRunner, type ChudcodeDiagnosisOptions } from "./chudcode-diagnosis";
+export { type ChudcodeDiagnosisOptions, ChudcodeDiagnosisRunner } from "./chudcode-diagnosis";
 export * from "./incident-dispatcher";

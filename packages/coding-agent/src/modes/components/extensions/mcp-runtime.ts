@@ -80,6 +80,7 @@ export interface MCPToggleManager {
 		sources: Record<string, SourceMeta>,
 		onStatus?: (event: McpConnectionStatusEvent) => void,
 	): Promise<Pick<MCPLoadResult, "errors"> | MCPLoadResult>;
+	waitForServerReady?(name: string): Promise<unknown>;
 }
 
 export interface MCPToggleSession {
@@ -126,6 +127,7 @@ export async function applyMcpToggleRuntime(options: ApplyMcpToggleRuntimeOption
 	}
 	const source = sources[name];
 	await manager.connectServers({ [name]: config }, source ? { [name]: source } : {}, onStatus);
+	if (manager.waitForServerReady) await manager.waitForServerReady(name);
 	await session?.refreshMCPTools(manager.getTools());
 }
 

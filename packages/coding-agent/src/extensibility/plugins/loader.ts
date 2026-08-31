@@ -124,7 +124,7 @@ async function collectPluginsAtRoot(
 			throw err;
 		}
 
-		const manifest: PluginManifest | undefined = pluginPkg.chudcode;
+		const manifest: PluginManifest | undefined = pluginPkg.chudcode ?? pluginPkg.chud;
 		if (!manifest) {
 			// Not an chudcode plugin, skip
 			continue;
@@ -271,7 +271,7 @@ function readDeclaredManifestEntries(dir: string): DeclaredManifestEntries {
 	} catch {
 		return { declared: false, files: [] };
 	}
-	const declared = (pkg.chudcode)?.extensions;
+	const declared = (pkg.chudcode ?? pkg.chud)?.extensions;
 	if (!Array.isArray(declared) || declared.length === 0) {
 		return { declared: false, files: [] };
 	}

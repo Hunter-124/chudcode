@@ -1,7 +1,6 @@
 import * as fs from "node:fs/promises";
 import * as net from "node:net";
 import * as path from "node:path";
-import { type } from "@chudware/chudtype";
 import type {
 	AgentTool,
 	AgentToolContext,
@@ -9,6 +8,7 @@ import type {
 	AgentToolUpdateCallback,
 	ToolApprovalDecision,
 } from "@chudware/agent-core";
+import { type } from "@chudware/chudtype";
 import { sleep } from "@chudware/utils/async";
 import type { ToolSession } from ".";
 import { probeTools } from "./analyzers/doctor";

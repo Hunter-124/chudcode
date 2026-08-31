@@ -75,12 +75,14 @@ function getDefaultSessionDirName(cwd: string): {
 	const tempRelative = path.relative(canonicalTempRoot, canonicalCwd);
 	let encodedDirName: string;
 	let scope: "home" | "tmp" | "abs";
-	if (homeRelative === "" || (!homeRelative.startsWith("..") && !path.isAbsolute(homeRelative))) {
-		encodedDirName = encodeRelativeSessionDirName("-", homeRelative);
-		scope = "home";
-	} else if (tempRelative === "" || (!tempRelative.startsWith("..") && !path.isAbsolute(tempRelative))) {
+	if (tempRelative === "" || (!tempRelative.startsWith("..") && !path.isAbsolute(tempRelative))) {
+		// A disk-backed TMPDIR may live under $HOME; temp scope must win so
+		// disposable sessions do not masquerade as durable home projects.
 		encodedDirName = encodeRelativeSessionDirName("-tmp", tempRelative);
 		scope = "tmp";
+	} else if (homeRelative === "" || (!homeRelative.startsWith("..") && !path.isAbsolute(homeRelative))) {
+		encodedDirName = encodeRelativeSessionDirName("-", homeRelative);
+		scope = "home";
 	} else {
 		encodedDirName = encodeLegacyAbsoluteSessionDirName(canonicalCwd);
 		scope = "abs";
@@ -189,10 +191,13 @@ export function computeDefaultSessionDir(
 	sessionsRoot: string = getSessionsDir(),
 ): string {
 	const { encodedDirName, hashedDirName, resolvedCwd } = getDefaultSessionDirName(cwd);
-	migrateHomeSessionDirs(sessionsRoot);
 	const sessionDir = path.join(sessionsRoot, encodedDirName);
+	// Targeted migration must run before the broad home-prefix sweep: TMPDIR can
+	// live under $HOME, and the sweep would otherwise move its legacy directory
+	// to a durable home name before temp classification can claim it.
 	migrateLegacyAbsoluteSessionDir(resolvedCwd, sessionDir, sessionsRoot);
 	migrateHashedSessionDir(hashedDirName, sessionDir, sessionsRoot);
+	migrateHomeSessionDirs(sessionsRoot);
 	storage.ensureDirSync(sessionDir);
 	return sessionDir;
 }

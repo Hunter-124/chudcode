@@ -15,8 +15,7 @@ import {
 import type { ToolSession } from "../index";
 import { splitPathAndSelPreferringLiteral } from "../path-utils";
 
-const ATTACHMENT_REFERENCE =
-	/^\s*(?:\[?Image #([1-9]\d*)(?:,[^\]\n]*)?\]?|(?:attachment|image):\/\/([1-9]\d*))\s*$/i;
+const ATTACHMENT_REFERENCE = /^\s*(?:\[?Image #([1-9]\d*)(?:,[^\]\n]*)?\]?|(?:attachment|image):\/\/([1-9]\d*))\s*$/i;
 
 export interface LoadVisionImageOptions {
 	session: ToolSession;
@@ -25,9 +24,7 @@ export interface LoadVisionImageOptions {
 	excludeWebP?: boolean;
 }
 
-export type LoadVisionImageResult =
-	| { ok: true; image: LoadedImageInput }
-	| { ok: false; reason: string; hint: string };
+export type LoadVisionImageResult = { ok: true; image: LoadedImageInput } | { ok: false; reason: string; hint: string };
 
 function attachmentIndex(input: string): number | undefined {
 	const match = ATTACHMENT_REFERENCE.exec(input);
@@ -69,7 +66,10 @@ export async function loadVisionImage(options: LoadVisionImageOptions): Promise<
 				excludeWebP: options.excludeWebP,
 			});
 		} else if (options.path.startsWith("artifact://")) {
-			const file = await resolveArtifactFile(parseInternalUrl(options.path), internalResolutionContext(options.session));
+			const file = await resolveArtifactFile(
+				parseInternalUrl(options.path),
+				internalResolutionContext(options.session),
+			);
 			image = await loadImageInput({
 				path: file.path,
 				resolvedPath: file.path,
@@ -81,7 +81,11 @@ export async function loadVisionImage(options: LoadVisionImageOptions): Promise<
 		} else if (options.path.startsWith("local://")) {
 			const file = await resolveLocalUrlToFile(options.path, internalResolutionContext(options.session));
 			if (!file) {
-				return { ok: false, reason: "image_not_found", hint: `${options.path} does not resolve to a regular file.` };
+				return {
+					ok: false,
+					reason: "image_not_found",
+					hint: `${options.path} does not resolve to a regular file.`,
+				};
 			}
 			image = await loadImageInput({
 				path: file.path,
@@ -142,7 +146,10 @@ function extensionForMime(mimeType: string): string {
 }
 
 export async function materializeLoadedImage(image: LoadedImageInput, label = "input"): Promise<string> {
-	const filePath = path.join(os.tmpdir(), `chudcode-vision-${label}-${crypto.randomUUID()}${extensionForMime(image.mimeType)}`);
+	const filePath = path.join(
+		os.tmpdir(),
+		`chudcode-vision-${label}-${crypto.randomUUID()}${extensionForMime(image.mimeType)}`,
+	);
 	await fs.writeFile(filePath, Buffer.from(image.data, "base64"), { mode: 0o600 });
 	return filePath;
 }

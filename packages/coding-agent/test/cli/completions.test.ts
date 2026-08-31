@@ -119,7 +119,9 @@ describe("generateCompletion — fish", () => {
 	});
 
 	it("maps value sources to fish completion args", () => {
-		expect(out).toContain("-l model -d 'Model to use' -x -a '(command chudcode __complete models -- (commandline -ct))'");
+		expect(out).toContain(
+			"-l model -d 'Model to use' -x -a '(command chudcode __complete models -- (commandline -ct))'",
+		);
 		expect(out).toContain("-l thinking -d 'Effort' -x -a 'low high'");
 		expect(out).toContain("-l tools -d 'Tools' -x -a 'read bash'");
 		expect(out).toContain("-s r -l resume -d 'Resume' -x -a '(command chudcode __complete sessions");
@@ -203,10 +205,10 @@ describe("live completion surface", () => {
 		expect(stdout).toContain("_omp_cmd_commit");
 		expect(stdout).toContain("'completions:");
 		// zsh routes single-value dynamic flags through the _omp_call action, which
-		// itself shells out to `chudcode __complete $kind`.
+		// itself shells out to `chud __complete $kind`.
 		expect(stdout).toContain("_omp_call models");
 		expect(stdout).toContain("_omp_call sessions");
-		expect(stdout).toContain("command chudcode __complete $kind");
+		expect(stdout).toContain("command chud __complete $kind");
 		// Hidden/default commands must NOT surface as completable subcommands.
 		expect(stdout).not.toContain("_omp_cmd_launch");
 		expect(stdout).not.toContain("_omp_cmd___complete");

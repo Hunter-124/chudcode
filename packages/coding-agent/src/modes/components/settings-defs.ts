@@ -219,9 +219,10 @@ function resolveOptions(ui: AnyUiMetadata): OptionList | "runtime" | undefined {
 	return ui.options;
 }
 
-function resolveCondition(
-	name: string | undefined,
-): { test: (() => boolean) | undefined; dependencies: readonly SettingPath[] } {
+function resolveCondition(name: string | undefined): {
+	test: (() => boolean) | undefined;
+	dependencies: readonly SettingPath[];
+} {
 	if (!name) return { test: undefined, dependencies: [] };
 	if (!isSettingConditionResolvable(name)) return { test: undefined, dependencies: [] };
 	const definitions = name.split("&").map(part => CONDITIONS[part]);

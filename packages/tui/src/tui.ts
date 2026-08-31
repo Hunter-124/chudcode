@@ -2864,7 +2864,8 @@ export class TUI extends Container {
 		// only the rows that changed between keystrokes. A forced repaint
 		// (resetDisplay, requestRender(true)) must repair a corrupted modal even
 		// when the cached frame is byte-identical.
-		const screen = (this.#altScreen ??= new TuiScreen());
+		this.#altScreen ??= new TuiScreen();
+		const screen = this.#altScreen;
 		if (this.#forceViewportRepaintOnNextRender) screen.forceRepaint();
 		this.#forceViewportRepaintOnNextRender = false;
 		screen.beginFrame(height);

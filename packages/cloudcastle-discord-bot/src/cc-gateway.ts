@@ -17,13 +17,13 @@
  */
 
 import * as path from "node:path";
-import { Client, GatewayIntentBits, REST, Routes } from "discord.js";
 import type { AutocompleteInteraction, ChatInputCommandInteraction, Message } from "discord.js";
+import { Client, GatewayIntentBits, REST, Routes } from "discord.js";
 import {
 	AGENT_STALE_AFTER_MS,
 	BUS_PROTOCOL_VERSION,
-	COMMAND_POLL_INTERVAL_MS,
 	type BusRecord,
+	COMMAND_POLL_INTERVAL_MS,
 	type CommandName,
 	type CommandRecord,
 	type CommandResult,
@@ -31,7 +31,7 @@ import {
 } from "./bridge-protocol";
 import { Bus } from "./bus";
 import { CHANNEL_IDS, GUILD_ID } from "./channels";
-import { DiscordRest, readOwnerOnlyFile, DEFAULT_TOKEN_FILE } from "./discord-rest";
+import { DEFAULT_TOKEN_FILE, DiscordRest, readOwnerOnlyFile } from "./discord-rest";
 import { taskStatusLabel } from "./session-render";
 
 /** Bun's `Timer`, Node's `Timeout`, the DOM's number. */
@@ -116,9 +116,7 @@ export class HeartbeatRegistry {
 
 export function renderTaskList(views: readonly HostView[]): string {
 	const tasks = views.flatMap(view =>
-		view.sessions
-			.filter(session => session.channelId)
-			.map(session => ({ view, session })),
+		view.sessions.filter(session => session.channelId).map(session => ({ view, session })),
 	);
 	if (tasks.length === 0) {
 		return "No Discord tasks are active or recently completed. Use `/task start` to begin one.";
@@ -129,12 +127,16 @@ export function renderTaskList(views: readonly HostView[]): string {
 	if (active.length === 0) lines.push("None.");
 	for (const { view, session } of active) {
 		const offline = view.stale ? " · runner offline" : "";
-		lines.push(`- <#${session.channelId}> · ${taskStatusLabel(session.status)}${offline} · ${session.title ?? "Untitled task"}`);
+		lines.push(
+			`- <#${session.channelId}> · ${taskStatusLabel(session.status)}${offline} · ${session.title ?? "Untitled task"}`,
+		);
 	}
 	if (completed.length > 0) {
 		lines.push("", "**Recently completed**");
 		for (const { session } of completed.slice(0, 8)) {
-			lines.push(`- <#${session.channelId}> · ${taskStatusLabel(session.status)} · ${session.title ?? "Untitled task"}`);
+			lines.push(
+				`- <#${session.channelId}> · ${taskStatusLabel(session.status)} · ${session.title ?? "Untitled task"}`,
+			);
 		}
 	}
 	return lines.join("\n").slice(0, 1_900);
@@ -282,7 +284,9 @@ export class CommandBroker {
 
 	start(): void {
 		this.#timer ??= setInterval(() => {
-			void this.pump().catch(error => this.#log(`bus poll failed: ${error instanceof Error ? error.message : error}`));
+			void this.pump().catch(error =>
+				this.#log(`bus poll failed: ${error instanceof Error ? error.message : error}`),
+			);
 		}, this.#pollIntervalMs);
 		this.#timer.unref?.();
 	}
@@ -318,10 +322,12 @@ export class CommandBroker {
 	}
 
 	buildRecord(input: DispatchInput): CommandRecord {
+		const idTimestamp = this.#now().getTime().toString(36);
+		this.#sequence += 1;
 		return {
 			kind: "command",
 			v: BUS_PROTOCOL_VERSION,
-			id: `cmd-${this.#now().getTime().toString(36)}-${(this.#sequence += 1).toString(36)}`,
+			id: `cmd-${idTimestamp}-${this.#sequence.toString(36)}`,
 			name: input.name,
 			host: input.host,
 			sessionId: input.sessionId ?? null,
@@ -460,7 +466,8 @@ export class SessionBridgeGateway {
 
 	async start(): Promise<void> {
 		const token =
-			this.#options.token ?? (await readOwnerOnlyFile(this.#options.tokenFile ?? DEFAULT_TOKEN_FILE, "Discord bot token"));
+			this.#options.token ??
+			(await readOwnerOnlyFile(this.#options.tokenFile ?? DEFAULT_TOKEN_FILE, "Discord bot token"));
 		const rest = this.#options.rest ?? new DiscordRest({ token });
 		const application = await rest.getApplication();
 		const bus = this.#options.bus ?? new Bus({ rest, botUserId: application.bot?.id ?? application.id });
@@ -554,7 +561,8 @@ export class SessionBridgeGateway {
 	async #message(message: Message): Promise<void> {
 		const broker = this.#broker;
 		const instruction = message.content.trim();
-		if (!broker || message.author.bot || !message.inGuild() || message.guildId !== this.#guildId || !instruction) return;
+		if (!broker || message.author.bot || !message.inGuild() || message.guildId !== this.#guildId || !instruction)
+			return;
 		const now = new Date();
 		const located = broker.registry.findSessionByChannel(message.channelId, now);
 		const remembered = this.#taskRoutes.get(message.channelId);
@@ -570,7 +578,8 @@ export class SessionBridgeGateway {
 		const sessionId = located?.snapshot.sessionId ?? remembered?.sessionId;
 		if (!host || !sessionId || !broker.registry.liveHosts(now).some(view => view.host === host)) {
 			await message.reply({
-				content: "The task runner is offline, so I could not send that direction. Try again when `/task list` shows it online.",
+				content:
+					"The task runner is offline, so I could not send that direction. Try again when `/task list` shows it online.",
 				allowedMentions: { repliedUser: false },
 			});
 			return;
@@ -658,7 +667,10 @@ export class SessionBridgeGateway {
 			case "stop":
 				return { action: "stop", input: { ...base, name: "stop" } };
 			case "transcript":
-				return { action: "transcript", input: { ...base, name: "tail", lines: interaction.options.getInteger("turns") } };
+				return {
+					action: "transcript",
+					input: { ...base, name: "tail", lines: interaction.options.getInteger("turns") },
+				};
 			default:
 				return `\`/task ${subcommand}\` is not available.`;
 		}

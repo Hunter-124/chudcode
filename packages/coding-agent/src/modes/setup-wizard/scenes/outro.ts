@@ -1,5 +1,5 @@
 import { padding, truncateToWidth, visibleWidth } from "@chudware/tui";
-import { gradientLogo, CHUDCODE_LOGO } from "../../components/welcome";
+import { CHUDCODE_LOGO, gradientLogo } from "../../components/welcome";
 import { theme } from "../../theme/theme";
 import { renderStarfield, SETUP_TICK_MS } from "./splash";
 

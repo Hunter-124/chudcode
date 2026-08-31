@@ -856,41 +856,84 @@ const CANONICAL_PI_SCOPE = "@chudware";
 // canonical imports still pass through the same host-bundled package resolution
 // path instead of pulling a duplicate copy from plugin node_modules.
 const CHUDCODE_SCOPE_ALIASES = ["chudware", "mariozechner", "earendil-works"] as const;
+const CHUDCODE_PACKAGE_NAMES = ["agent-core", "ai", "coding-agent", "natives", "tui", "utils"] as const;
 
 // Internal pi-* package basenames bundled inside the chudcode binary.
-const CHUDCODE_PACKAGE_NAMES = ["chud-agent-core", "chud-ai", "chudcode-agent", "chud-natives", "chud-tui", "chud-utils"] as const;
+const LEGACY_PI_PACKAGE_NAMES = [
+	"pi-agent-core",
+	"pi-ai",
+	"pi-coding-agent",
+	"pi-natives",
+	"pi-tui",
+	"pi-utils",
+	"chud-agent-core",
+	"chud-ai",
+	"chudcode-agent",
+	"chud-natives",
+	"chud-tui",
+	"chud-utils",
+] as const;
 
 const CHUDCODE_SCOPE_ALTERNATION = CHUDCODE_SCOPE_ALIASES.join("|");
-const CHUDCODE_PACKAGE_ALTERNATION = CHUDCODE_PACKAGE_NAMES.join("|");
+const CHUDCODE_PACKAGE_ALTERNATION = [...CHUDCODE_PACKAGE_NAMES, ...LEGACY_PI_PACKAGE_NAMES].join("|");
 
-// Upstream `@mariozechner/*` packages exposed a few subpaths at the package
-// root that we relocated under a different folder. Each entry rewrites
-// `<pkg>/<from>` → `<pkg>/<to>` after the scope has been canonicalised, so
-// plugins importing the upstream layout still resolve to a real file in our
-// bundled copy. Entries ending in `/` rewrite the whole subtree; add new
-// `pkg/from -> pkg/to` pairs whenever an upstream-only subpath breaks resolution.
-const CHUDCODE_SUBPATH_REMAPS: ReadonlyMap<string, string> = new Map<string, string>([
-	["chud-ai/utils/oauth", "chud-ai/oauth"],
-	["chud-ai/utils/oauth/", "chud-ai/oauth/"],
-	["chud-ai/compat", "chud-ai"],
-]);
+// Historical package basenames and relocated subpaths canonicalize onto the
+// actual @chudware package names used by the monorepo.
+const CHUDCODE_SUBPATH_REMAPS: Readonly<Record<string, string>> = {
+	"pi-agent-core": "agent-core",
+	"pi-agent-core/": "agent-core/",
+	"chud-agent-core": "agent-core",
+	"chud-agent-core/": "agent-core/",
+	"pi-ai": "ai",
+	"pi-ai/": "ai/",
+	"chud-ai": "ai",
+	"chud-ai/": "ai/",
+	"pi-ai/compat": "ai",
+	"chud-ai/compat": "ai",
+	"pi-ai/utils/oauth": "ai/oauth",
+	"pi-ai/utils/oauth/": "ai/oauth/",
+	"chud-ai/utils/oauth": "ai/oauth",
+	"chud-ai/utils/oauth/": "ai/oauth/",
+	"pi-coding-agent": "coding-agent",
+	"pi-coding-agent/": "coding-agent/",
+	"chudcode-agent": "coding-agent",
+	"chudcode-agent/": "coding-agent/",
+	"pi-natives": "natives",
+	"pi-natives/": "natives/",
+	"chud-natives": "natives",
+	"chud-natives/": "natives/",
+	"pi-tui": "tui",
+	"pi-tui/": "tui/",
+	"chud-tui": "tui",
+	"chud-tui/": "tui/",
+	"pi-utils": "utils",
+	"pi-utils/": "utils/",
+	"chud-utils": "utils",
+	"chud-utils/": "utils/",
+	"ai/utils/oauth": "ai/oauth",
+	"ai/utils/oauth/": "ai/oauth/",
+	"ai/compat": "ai",
+};
+const CHUDCODE_SUBPATH_PREFIX_REMAPS = Object.entries(CHUDCODE_SUBPATH_REMAPS)
+	.filter(([from]) => from.endsWith("/"))
+	.sort(([a], [b]) => b.length - a.length);
 
 function remapLegacyPiSubpath(rest: string): string {
-	const exact = CHUDCODE_SUBPATH_REMAPS.get(rest);
-	if (exact) {
-		return exact;
-	}
+	const exact = CHUDCODE_SUBPATH_REMAPS[rest];
+	if (exact) return exact;
 
-	for (const [from, to] of CHUDCODE_SUBPATH_REMAPS) {
+	for (const [from, to] of CHUDCODE_SUBPATH_PREFIX_REMAPS) {
 		if (from.endsWith("/") && rest.startsWith(from)) {
 			return `${to}${rest.slice(from.length)}`;
 		}
 	}
-
 	return rest;
 }
 
-const LEGACY_PI_SPECIFIER_FILTER = new RegExp(`^@(?:${CHUDCODE_SCOPE_ALTERNATION})/(?:${CHUDCODE_PACKAGE_ALTERNATION})(?:/.*)?$`);
+const LEGACY_PI_SPECIFIER_FILTER = new RegExp(
+	`^@(?:${CHUDCODE_SCOPE_ALTERNATION})/(?:${CHUDCODE_PACKAGE_ALTERNATION})(?:/.*)?$`,
+);
+const CANONICAL_CHUDCODE_SPECIFIER_FILTER = new RegExp(`^@chudware/(?:${CHUDCODE_PACKAGE_NAMES.join("|")})(?:/.*)?$`);
 const resolvedSpecifierFallbacks = new Map<string, string>();
 const SOURCE_MODULE_EXTENSIONS = [".ts", ".tsx", ".mts", ".cts", ".js", ".jsx", ".mjs", ".cjs"] as const;
 const SUPPORTED_PACKAGE_IMPORT_CONDITIONS = new Set(["bun", "node", "import", "default"]);
@@ -1005,7 +1048,7 @@ const TYPEBOX_SHIM_PATH = __resolveTypeBoxShimPath(IS_COMPILED_BINARY, sourceShi
 // imports such as `@chudware/ai/oauth` continue to resolve directly
 // against the bundled chud-ai package.
 const LEGACY_PI_AI_SHIM_PATH = IS_COMPILED_BINARY
-	? bundledModuleVirtualSpecifier(`${CANONICAL_PI_SCOPE}/pi-ai`)
+	? bundledModuleVirtualSpecifier(`${CANONICAL_PI_SCOPE}/ai`)
 	: sourceShimPath("legacy-pi-ai-shim.ts");
 
 // The coding-agent's own `./src/index.ts` cannot be listed as an extra
@@ -1016,14 +1059,14 @@ const LEGACY_PI_AI_SHIM_PATH = IS_COMPILED_BINARY
 // sibling source shim whose distinct file path avoids the #1474 collision
 // while still re-exporting the canonical package surface.
 const LEGACY_PI_CODING_AGENT_SHIM_PATH = IS_COMPILED_BINARY
-	? bundledModuleVirtualSpecifier(`${CANONICAL_PI_SCOPE}/chudcode-agent`)
+	? bundledModuleVirtualSpecifier(`${CANONICAL_PI_SCOPE}/coding-agent`)
 	: sourceShimPath("legacy-chudcode-agent-shim.ts");
 
 // Legacy chud-tui exported `decodeKittyPrintable` from its package root. The
 // canonical TUI replaced it with the broader `decodePrintableKey`; route only
 // legacy root imports through a sibling shim that preserves the old name.
 const LEGACY_PI_TUI_SHIM_PATH = IS_COMPILED_BINARY
-	? bundledModuleVirtualSpecifier(`${CANONICAL_PI_SCOPE}/pi-tui`)
+	? bundledModuleVirtualSpecifier(`${CANONICAL_PI_SCOPE}/tui`)
 	: sourceShimPath("legacy-pi-tui-shim.ts");
 
 // Package-root overrides. Shim entries (`chud-ai`, `chudcode-agent`, `chud-tui`)
@@ -1076,9 +1119,9 @@ export function __buildLegacyPiPackageRootOverrides(
 	bundledModuleKeys: Iterable<string> = [],
 ): Record<string, string> {
 	const candidates: Record<string, string> = {
-		[`${CANONICAL_PI_SCOPE}/pi-ai`]: LEGACY_PI_AI_SHIM_PATH,
-		[`${CANONICAL_PI_SCOPE}/chudcode-agent`]: LEGACY_PI_CODING_AGENT_SHIM_PATH,
-		[`${CANONICAL_PI_SCOPE}/pi-tui`]: LEGACY_PI_TUI_SHIM_PATH,
+		[`${CANONICAL_PI_SCOPE}/ai`]: LEGACY_PI_AI_SHIM_PATH,
+		[`${CANONICAL_PI_SCOPE}/coding-agent`]: LEGACY_PI_CODING_AGENT_SHIM_PATH,
+		[`${CANONICAL_PI_SCOPE}/tui`]: LEGACY_PI_TUI_SHIM_PATH,
 	};
 	if (isCompiled) {
 		for (const key of bundledModuleKeys) {
@@ -1196,13 +1239,20 @@ async function rewriteLegacyExtensionSource(
 
 		const specifier = reference.specifier;
 		let replacement: string | null = null;
-		const remappedSpecifier = remapLegacyPiSpecifier(specifier);
-		if (remappedSpecifier) {
+		if (CANONICAL_CHUDCODE_SPECIFIER_FILTER.test(specifier)) {
 			try {
-				replacement = toImportSpecifier(resolveCanonicalPiSpecifier(remappedSpecifier));
+				replacement = toImportSpecifier(getResolvedSpecifier(specifier));
 			} catch {
-				// Compiled fallback may be absent from a malformed build. Continue to
-				// the extension's on-disk peer dependency resolution below.
+				// Continue to extension-owned peer dependency resolution below.
+			}
+		} else {
+			const remappedSpecifier = remapLegacyPiSpecifier(specifier);
+			if (remappedSpecifier) {
+				try {
+					replacement = toImportSpecifier(resolveCanonicalPiSpecifier(remappedSpecifier));
+				} catch {
+					// Compiled fallback may be absent from a malformed build.
+				}
 			}
 		}
 		if (!replacement && TYPEBOX_SHIM_PATH && (specifier === "typebox" || specifier === "@sinclair/typebox")) {
@@ -2832,6 +2882,13 @@ function getLoader(path: string): "js" | "jsx" | "ts" | "tsx" {
 }
 
 function resolveLegacyPiSpecifier(args: { path: string; importer: string }): LegacyPiResolveResult | undefined {
+	if (CANONICAL_CHUDCODE_SPECIFIER_FILTER.test(args.path)) {
+		try {
+			return toLegacyPiResolveResult(getResolvedSpecifier(args.path));
+		} catch {
+			return undefined;
+		}
+	}
 	const remappedSpecifier = remapLegacyPiSpecifier(args.path);
 	if (!remappedSpecifier) {
 		return undefined;

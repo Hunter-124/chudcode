@@ -55,7 +55,10 @@ describe("describeAuthBrokerStartupError", () => {
 	});
 
 	it("passes through a missing-token message unchanged", async () => {
-		const err = new MissingApiKeyError(undefined, "CHUDCODE_AUTH_BROKER_URL is set but no bearer token is available.");
+		const err = new MissingApiKeyError(
+			undefined,
+			"CHUDCODE_AUTH_BROKER_URL is set but no bearer token is available.",
+		);
 		expect(await describeAuthBrokerStartupError(err)).toBe(err.message);
 	});
 

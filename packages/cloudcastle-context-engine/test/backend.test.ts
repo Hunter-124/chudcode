@@ -146,10 +146,13 @@ describe("cloudcastle-incident MemoryBackend", () => {
 		const invalidBackend = createCloudCastleIncidentBackend(
 			{ CLOUDCASTLE_CONTEXT_BASE_URL: "https://control.cloudcastle.example" },
 			{
-				fetch: Object.assign(async () => {
-					calls += 1;
-					return Response.json({ fabricated: true });
-				}, { preconnect() {} }),
+				fetch: Object.assign(
+					async () => {
+						calls += 1;
+						return Response.json({ fabricated: true });
+					},
+					{ preconnect() {} },
+				),
 				now: () => NOW,
 			},
 		);

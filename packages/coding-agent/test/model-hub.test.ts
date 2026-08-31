@@ -107,13 +107,11 @@ function createHub(options: {
 	hub?: ModelHubOptions;
 	callbacks?: Partial<ModelHubCallbacks>;
 	modelSettingsPersistence?: boolean;
-	tier?: "basic" | "advanced";
 	terminalRows?: number;
 }): HubHarness {
 	installTestTheme();
 	const modelsFn = typeof options.models === "function" ? options.models : () => options.models as Model[];
 	const settings = options.settings ?? Settings.isolated({});
-	settings.override("settings.tier", options.tier ?? "advanced");
 	const registry = makeRegistry(modelsFn, options.registry);
 	const ui = { requestRender: vi.fn(), terminal: { rows: options.terminalRows ?? 40 } } as unknown as TUI;
 	const onAssign = vi.fn();
@@ -1219,13 +1217,14 @@ describe("ModelHub", () => {
 			expect(advancedRender).toContain("Ctrl+E Customize settings");
 
 			const basic = Settings.isolated({ modelRoles: { default: selector } });
-			basic.setModelSettingsField("global", { kind: "model", model: selector }, "cacheRetention", "long");
+			basic.setModelSettingsField("global", { kind: "role", role: "default" }, "cacheRetention", "long");
 			basic.setModelSettingsField("global", { kind: "model", model: selector }, "thinking", ThinkingLevel.High);
-			const basicHub = createHub({ models: [model], scoped: true, settings: basic, tier: "basic" }).hub;
+			const basicHub = createHub({ models: [model], scoped: true, settings: basic }).hub;
+			basicHub.handleInput(UP);
 			basicHub.handleInput("\t");
 			const basicRender = normalize(basicHub.render(220));
 			expect(basicRender).toContain("Effective: Thinking High · Prompt cache Long");
-			expect(basicRender).not.toContain("Role assignments");
+			expect(basicRender).toContain("Role assignments");
 			expect(basicRender).not.toContain("Effective settings");
 			expect(basicRender).not.toContain("Customize");
 			expect(basicRender).not.toContain("Global model rule");

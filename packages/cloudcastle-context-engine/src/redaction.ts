@@ -1,9 +1,11 @@
 import { isUnknownRecord } from "./guards";
 
-const SENSITIVE_KEY_PATTERN = /authorization|cookie|csrf|pass(?:word|wd)|secret|token|api[-_]?key|private[-_]?key|credential/i;
-const SENSITIVE_QUERY_PATTERN = /access[-_]?token|api[-_]?key|authorization|auth|code|cookie|key|password|secret|signature|token/i;
+const SENSITIVE_KEY_PATTERN =
+	/authorization|cookie|csrf|pass(?:word|wd)|secret|token|api[-_]?key|private[-_]?key|credential/i;
+const SENSITIVE_QUERY_PATTERN =
+	/access[-_]?token|api[-_]?key|authorization|auth|code|cookie|key|password|secret|signature|token/i;
 const JWT_PATTERN = /\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\b/g;
-const AUTH_PATTERN = /\b(?:Bearer|Basic)\s+[A-Za-z0-9._~+\/-]{8,}=*/gi;
+const AUTH_PATTERN = /\b(?:Bearer|Basic)\s+[A-Za-z0-9._~+/-]{8,}=*/gi;
 const PEM_PATTERN = /-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?-----END [A-Z ]*PRIVATE KEY-----/g;
 const ASSIGNMENT_SECRET_PATTERN = /\b(api[-_]?key|access[-_]?token|client[-_]?secret|password)\s*[:=]\s*[^\s,;]+/gi;
 const MAX_STRING_CHARS = 1_200;

@@ -21,7 +21,11 @@ describe("parseArgs — Windows extension paths", () => {
 
 describe("parseArgs — trusted extension allowlist", () => {
 	it("accepts repeatable native absolute paths", () => {
-		const parsed = parseArgs(["--trusted-extension", "/opt/chudcode/policy.ts", "--trusted-extension=/opt/chudcode/audit.ts"]);
+		const parsed = parseArgs([
+			"--trusted-extension",
+			"/opt/chudcode/policy.ts",
+			"--trusted-extension=/opt/chudcode/audit.ts",
+		]);
 
 		expect(parsed.trustedExtensions).toEqual(["/opt/chudcode/policy.ts", "/opt/chudcode/audit.ts"]);
 	});

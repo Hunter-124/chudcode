@@ -5,28 +5,27 @@ import {
 	CATEGORY_IDS,
 	CATEGORY_NAMES,
 	CATEGORY_ORDER,
-	type CategoryKey,
-	CREATED_CATEGORY_NAMES,
 	CHANNEL_IDS,
 	type ChannelPlan,
+	CREATED_CATEGORY_NAMES,
 	KNOWN_THREAD_IDS,
 	REQUIRED_PERMISSIONS,
 	TARGET_LAYOUT,
 } from "../src/channels";
+import type { DiscordMessage, DiscordRestClient } from "../src/discord-rest";
 import {
 	applyProvision,
 	assertNoDeletes,
 	EmptyThreadContentError,
 	type LayoutSpec,
 	PermissionPreflightError,
-	planProvision,
 	type ProvisionAction,
 	type ProvisionPlan,
+	planProvision,
 	SEED_CONTENT,
 	StaleChannelMapError,
 } from "../src/provision";
 import { runProvisionCli } from "../src/provision-cli";
-import { type DiscordMessage, type DiscordRestClient } from "../src/discord-rest";
 
 const GUILD = "900000000000000001";
 const BOT = "900000000000000002";
@@ -351,9 +350,7 @@ describe("channels.ts contract", () => {
 			const createdName = (CREATED_CATEGORY_NAMES as Record<string, string | undefined>)[key];
 			const inOrder = (CATEGORY_ORDER as readonly string[]).includes(key);
 			const isCreated = (CATEGORIES_TO_CREATE as readonly string[]).includes(key);
-			expect(inOrder === isCreated, `CATEGORY_IDS.${key} must be laid out or created, not both`).toBe(
-				false,
-			);
+			expect(inOrder === isCreated, `CATEGORY_IDS.${key} must be laid out or created, not both`).toBe(false);
 			expect(laidOutName ?? createdName, `CATEGORY_IDS.${key} has no name`).toBeTruthy();
 			if (inOrder) expect(laidOutName).toBeTruthy();
 			if (isCreated) expect(createdName).toBeTruthy();
@@ -366,9 +363,9 @@ describe("channels.ts contract", () => {
 			expect(body.length, `${key} seed is ${body.length} chars`).toBeLessThanOrEqual(MAX_MESSAGE_CHARS);
 			expect(body.length).toBeGreaterThan(200);
 		}
-		expect(SEED_CONTENT["archiveNotice"]).toContain("docs/meeting, 8-27/discord-server-export/");
-		expect(SEED_CONTENT["archiveNotice"]).toContain("including message bodies");
-		expect(SEED_CONTENT["archiveNotice"]).toContain("No archive claim authorises deleting");
+		expect(SEED_CONTENT.archiveNotice).toContain("docs/meeting, 8-27/discord-server-export/");
+		expect(SEED_CONTENT.archiveNotice).toContain("including message bodies");
+		expect(SEED_CONTENT.archiveNotice).toContain("No archive claim authorises deleting");
 	});
 });
 
@@ -463,8 +460,8 @@ describe("planProvision then applyProvision", () => {
 
 		expect(guild.channels.get("200")?.name).toBe("dev feed");
 		expect(guild.channels.get("101")?.parent_id).toBe("200");
-		const seeded = report.createdChannelIds["howWeWork"] ?? "";
-		expect(guild.messages.get(seeded)?.[0]).toMatchObject({ content: SEED_CONTENT["howWeWork"], pinned: true });
+		const seeded = report.createdChannelIds.howWeWork ?? "";
+		expect(guild.messages.get(seeded)?.[0]).toMatchObject({ content: SEED_CONTENT.howWeWork, pinned: true });
 
 		// The same unchanged layout, re-planned against the mutated guild. The
 		// created channels are adopted by name, so nothing is created twice.
@@ -499,9 +496,10 @@ describe("planProvision then applyProvision", () => {
 		});
 
 		const plan = await planProvision({ rest: guild.rest, guildId: GUILD, layout });
-		expect(
-			plan.actions.filter(action => action.kind === "update-category").map(action => action.key),
-		).toEqual(["devFeed", "archive"]);
+		expect(plan.actions.filter(action => action.kind === "update-category").map(action => action.key)).toEqual([
+			"devFeed",
+			"archive",
+		]);
 
 		await applyProvision(plan, { rest: guild.rest });
 		expect(guild.channels.get("200")?.position).toBe(0);
@@ -553,7 +551,7 @@ describe("planProvision then applyProvision", () => {
 			"create-category:doneSessions",
 		]);
 		const report = await applyProvision(first, { rest: guild.rest });
-		const liveSessions = report.createdCategoryIds["liveSessions"] ?? "";
+		const liveSessions = report.createdCategoryIds.liveSessions ?? "";
 		expect(guild.channels.get(liveSessions)).toMatchObject({ name: "live sessions", type: 4, position: 1 });
 
 		// The bot opens one channel per chudcode session at run time. Those are
@@ -692,7 +690,7 @@ describe("seed content", () => {
 				key: "howWeWork",
 				channelId: "400",
 				messageId: "500",
-				body: SEED_CONTENT["howWeWork"] ?? "",
+				body: SEED_CONTENT.howWeWork ?? "",
 			},
 		]);
 
@@ -701,14 +699,14 @@ describe("seed content", () => {
 			{ operation: "editMessage", target: "400", kind: "edit-seed", key: "howWeWork" },
 		]);
 		expect(guild.messages.get("400")?.length).toBe(1);
-		expect(guild.messages.get("400")?.[0]?.content).toBe(SEED_CONTENT["howWeWork"]);
+		expect(guild.messages.get("400")?.[0]?.content).toBe(SEED_CONTENT.howWeWork);
 	});
 
 	test("a matching pin produces no action", async () => {
 		const guild = fakeGuild({
 			channels: seedChannels(),
 			threads: [KNOWN_THREAD],
-			messages: { "400": [{ id: "500", content: SEED_CONTENT["howWeWork"] ?? "", authorId: BOT, pinned: true }] },
+			messages: { "400": [{ id: "500", content: SEED_CONTENT.howWeWork ?? "", authorId: BOT, pinned: true }] },
 		});
 		expect((await planProvision({ rest: guild.rest, guildId: GUILD, layout: seedLayout() })).actions).toEqual([]);
 	});
@@ -721,7 +719,7 @@ describe("seed content", () => {
 		});
 		const plan = await planProvision({ rest: guild.rest, guildId: GUILD, layout: seedLayout() });
 		expect(plan.actions).toEqual([
-			{ kind: "post-seed", key: "howWeWork", channelId: "400", body: SEED_CONTENT["howWeWork"] ?? "" },
+			{ kind: "post-seed", key: "howWeWork", channelId: "400", body: SEED_CONTENT.howWeWork ?? "" },
 		]);
 	});
 
@@ -776,7 +774,14 @@ describe("flatten threads", () => {
 		});
 
 	const flattenChannels = (): FakeChannel[] => [
-		{ id: "600", name: "meeting-transcripts", type: 0, parent_id: null, position: 0, topic: "topic for meetingTranscripts" },
+		{
+			id: "600",
+			name: "meeting-transcripts",
+			type: 0,
+			parent_id: null,
+			position: 0,
+			topic: "topic for meetingTranscripts",
+		},
 	];
 
 	const threadMessages = (): FakeMessage[] => [

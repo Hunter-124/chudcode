@@ -60,7 +60,13 @@ const WINDOWS_ENV_ALLOWLIST = [
 	"USERPROFILE",
 ];
 
-const DEFAULT_ENV_DENYLIST = ["CHUDCODE_API_KEY", "CHUDCODE_TOKEN", "CHUDCODE_PASSWORD", "CHUDCODE_SESSION", "CHUDCODE_TOOL_BRIDGE_TOKEN"];
+const DEFAULT_ENV_DENYLIST = [
+	"CHUDCODE_API_KEY",
+	"CHUDCODE_TOKEN",
+	"CHUDCODE_PASSWORD",
+	"CHUDCODE_SESSION",
+	"CHUDCODE_TOOL_BRIDGE_TOKEN",
+];
 
 // Julia version managers and package layout live behind these prefixes; passing them
 // through lets Julia discover packages and configure its runtime consistently.

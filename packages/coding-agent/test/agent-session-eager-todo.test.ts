@@ -1,11 +1,11 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "bun:test";
 import * as path from "node:path";
-import { type } from "@chudware/chudtype";
 import { Agent, type AgentMessage, type AgentTool } from "@chudware/agent-core";
 import type { AssistantMessage, TextContent, ToolCall } from "@chudware/ai";
 import * as ai from "@chudware/ai";
 import { AssistantMessageEventStream } from "@chudware/ai/utils/event-stream";
 import { getBundledModel } from "@chudware/catalog/models";
+import { type } from "@chudware/chudtype";
 import { ModelRegistry } from "@chudware/coding-agent/config/model-registry";
 import { Settings } from "@chudware/coding-agent/config/settings";
 import { AgentSession, type AgentSessionConfig } from "@chudware/coding-agent/session/agent-session";

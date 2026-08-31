@@ -5,7 +5,11 @@ export type SecurityCoverageCompleteness = "complete" | "partial" | "unknown";
 export type SecurityValidationStatus = "unvalidated" | "validated" | "rejected" | "partial" | "error";
 export type SecurityDispositionStatus = "open" | "false_positive" | "accepted_risk" | "fixed" | "wont_fix";
 export type SecurityTargetKind = "repository" | "scoped_path" | "ref_diff" | "working_tree" | "imported";
-export type SecurityProducerKind = "chudcode-native" | "codex-security-bundle" | "codex-security-cloud" | "sarif-import";
+export type SecurityProducerKind =
+	| "chudcode-native"
+	| "codex-security-bundle"
+	| "codex-security-cloud"
+	| "sarif-import";
 
 export interface SecurityProducer {
 	kind: SecurityProducerKind;

@@ -5,9 +5,6 @@
  * They can provide custom rendering for tool calls and results in the TUI.
  */
 
-import type { type as ArkType } from "@chudware/chudtype";
-import type * as TypeBox from "@chudware/chudtype/typebox";
-import type * as zod from "@chudware/chudtype/zod";
 import type {
 	AgentToolResult,
 	AgentToolUpdateCallback,
@@ -18,6 +15,9 @@ import type {
 } from "@chudware/agent-core";
 import type { CompactionResult } from "@chudware/agent-core/compaction";
 import type { FetchImpl, Model, Static, TSchema } from "@chudware/ai";
+import type { type as ArkType } from "@chudware/chudtype";
+import type * as TypeBox from "@chudware/chudtype/typebox";
+import type * as zod from "@chudware/chudtype/zod";
 import type { Component } from "@chudware/tui";
 import type { logger as ChudLogger } from "@chudware/utils";
 import type { Rule } from "../../capability/rule";

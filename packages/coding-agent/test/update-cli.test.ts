@@ -454,7 +454,11 @@ describe("update-cli package manager commands", () => {
 
 	it("targets the mise GitHub backend tool and force-reinstalls the checked version when requested", () => {
 		expect(buildMiseUpgradeArgs()).toEqual(["upgrade", "github:Hunter-124/chudcode", "--bump"]);
-		expect(buildMiseForceInstallArgs("15.10.5")).toEqual(["install", "--force", "github:Hunter-124/chudcode@15.10.5"]);
+		expect(buildMiseForceInstallArgs("15.10.5")).toEqual([
+			"install",
+			"--force",
+			"github:Hunter-124/chudcode@15.10.5",
+		]);
 	});
 
 	it("pins npm package installs to the official registry and the checked native package versions", () => {
@@ -670,35 +674,35 @@ describe("update-cli bun install command", () => {
 describe("update-cli bun cache pruning", () => {
 	it("keeps only the newest cached version for filtered global install packages", async () => {
 		const dir = await makeTempDir();
-		await fsx.write(path.join(dir, "react", "18.3.1@@@1"), "");
 		await fsx.write(path.join(dir, "react", "19.2.6@@@1"), "");
-		await fsx.write(
-			path.join(dir, "react@18.3.1@@@1", "package.json"),
-			JSON.stringify({ name: "react", version: "18.3.1" }),
-		);
+		await fsx.write(path.join(dir, "react", "18.3.1@@@1"), "");
 		await fsx.write(
 			path.join(dir, "react@19.2.6@@@1", "package.json"),
 			JSON.stringify({ name: "react", version: "19.2.6" }),
 		);
-		await fsx.write(path.join(dir, "@chudware", "chud-utils", "15.7.6@@@1"), "");
-		await fsx.write(path.join(dir, "@chudware", "chud-utils", "15.8.0@@@1"), "");
 		await fsx.write(
-			path.join(dir, "@chudware", "chud-utils@15.7.6@@@1", "package.json"),
-			JSON.stringify({ name: "@chudware/utils", version: "15.7.6" }),
+			path.join(dir, "react@18.3.1@@@1", "package.json"),
+			JSON.stringify({ name: "react", version: "18.3.1" }),
 		);
+		await fsx.write(path.join(dir, "@chudware", "utils", "15.8.0@@@1"), "");
+		await fsx.write(path.join(dir, "@chudware", "utils", "15.7.6@@@1"), "");
 		await fsx.write(
-			path.join(dir, "@chudware", "chud-utils@15.8.0@@@1", "package.json"),
+			path.join(dir, "@chudware", "utils@15.8.0@@@1", "package.json"),
 			JSON.stringify({ name: "@chudware/utils", version: "15.8.0" }),
 		);
-		await fsx.write(path.join(dir, "chalk", "4.1.2@@@1"), "");
-		await fsx.write(path.join(dir, "chalk", "5.6.2@@@1"), "");
 		await fsx.write(
-			path.join(dir, "chalk@4.1.2@@@1", "package.json"),
-			JSON.stringify({ name: "chalk", version: "4.1.2" }),
+			path.join(dir, "@chudware", "utils@15.7.6@@@1", "package.json"),
+			JSON.stringify({ name: "@chudware/utils", version: "15.7.6" }),
 		);
+		await fsx.write(path.join(dir, "chalk", "5.6.2@@@1"), "");
+		await fsx.write(path.join(dir, "chalk", "4.1.2@@@1"), "");
 		await fsx.write(
 			path.join(dir, "chalk@5.6.2@@@1", "package.json"),
 			JSON.stringify({ name: "chalk", version: "5.6.2" }),
+		);
+		await fsx.write(
+			path.join(dir, "chalk@4.1.2@@@1", "package.json"),
+			JSON.stringify({ name: "chalk", version: "4.1.2" }),
 		);
 
 		const result = await pruneBunInstallCache(dir, new Set(["react", "@chudware/utils"]));
@@ -708,12 +712,14 @@ describe("update-cli bun cache pruning", () => {
 		expect(await fsx.exists(path.join(dir, "react@18.3.1@@@1", "package.json"))).toBe(false);
 		expect(await fsx.exists(path.join(dir, "react", "19.2.6@@@1"))).toBe(true);
 		expect(await fsx.exists(path.join(dir, "react@19.2.6@@@1", "package.json"))).toBe(true);
-		expect(await fsx.exists(path.join(dir, "@chudware", "chud-utils", "15.7.6@@@1"))).toBe(false);
-		expect(await fsx.exists(path.join(dir, "@chudware", "chud-utils@15.7.6@@@1", "package.json"))).toBe(false);
-		expect(await fsx.exists(path.join(dir, "@chudware", "chud-utils", "15.8.0@@@1"))).toBe(true);
-		expect(await fsx.exists(path.join(dir, "@chudware", "chud-utils@15.8.0@@@1", "package.json"))).toBe(true);
+		expect(await fsx.exists(path.join(dir, "@chudware", "utils", "15.7.6@@@1"))).toBe(false);
+		expect(await fsx.exists(path.join(dir, "@chudware", "utils@15.7.6@@@1", "package.json"))).toBe(false);
+		expect(await fsx.exists(path.join(dir, "@chudware", "utils", "15.8.0@@@1"))).toBe(true);
+		expect(await fsx.exists(path.join(dir, "@chudware", "utils@15.8.0@@@1", "package.json"))).toBe(true);
 		expect(await fsx.exists(path.join(dir, "chalk", "4.1.2@@@1"))).toBe(true);
 		expect(await fsx.exists(path.join(dir, "chalk@4.1.2@@@1", "package.json"))).toBe(true);
+		expect(await fsx.exists(path.join(dir, "chalk", "5.6.2@@@1"))).toBe(true);
+		expect(await fsx.exists(path.join(dir, "chalk@5.6.2@@@1", "package.json"))).toBe(true);
 	});
 
 	it("keeps current registry-qualified marker entries with their materialized package", async () => {

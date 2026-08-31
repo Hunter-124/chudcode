@@ -43,7 +43,7 @@ describe("issue #983: multi-file legacy Chud extensions", () => {
 				"",
 				"export default function(chud) {",
 				"\tconst { Type } = chud.typebox;",
-				"\tpi.registerTool({",
+				"\tchud.registerTool({",
 				"\t\tname: foo,",
 				'\t\tdescription: "Issue #983 regression test",',
 				"\t\tparameters: Type.Object({}),",

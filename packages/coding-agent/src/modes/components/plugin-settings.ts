@@ -18,6 +18,7 @@ import {
 	Text,
 } from "@chudware/tui";
 import { logger } from "@chudware/utils";
+import { PRODUCT_CLI_NAME } from "../../brand";
 import { clearPluginRootsAndCaches, resolveOrDefaultProjectRegistryPath } from "../../discovery/helpers";
 import { PluginManager } from "../../extensibility/plugins/manager";
 import {
@@ -179,9 +180,15 @@ export class PluginListComponent extends OverlayPanel {
 		if (entries.length === 0) {
 			this.addChild(new Text(theme.fg("muted", "No plugins installed"), 0, 0));
 			this.addChild(new Spacer(1));
-			this.addChild(new Text(theme.fg("dim", "Install npm plugins:        chudcode plugin install <package>"), 0, 0));
 			this.addChild(
-				new Text(theme.fg("dim", "Install marketplace plugins: chudcode plugin install <name>@<marketplace>"), 0, 0),
+				new Text(theme.fg("dim", `Install npm plugins:        ${PRODUCT_CLI_NAME} plugin install <package>`), 0, 0),
+			);
+			this.addChild(
+				new Text(
+					theme.fg("dim", `Install marketplace plugins: ${PRODUCT_CLI_NAME} plugin install <name>@<marketplace>`),
+					0,
+					0,
+				),
 			);
 			this.addChild(new Spacer(1));
 

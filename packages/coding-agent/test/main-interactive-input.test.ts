@@ -2,11 +2,7 @@ import { afterEach, describe, expect, it, vi } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import {
-	applyResolvedSystemPromptInputs,
-	readPipedInput,
-	submitInteractiveInput,
-} from "@chudware/coding-agent/main";
+import { applyResolvedSystemPromptInputs, readPipedInput, submitInteractiveInput } from "@chudware/coding-agent/main";
 import type { SubmittedUserInput } from "@chudware/coding-agent/modes/types";
 import type { CreateAgentSessionOptions } from "@chudware/coding-agent/sdk";
 import { discoverTitleSystemPromptFile } from "@chudware/coding-agent/system-prompt";

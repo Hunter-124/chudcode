@@ -749,7 +749,10 @@ describe("listClaudePluginRoots", () => {
 				path.join(ompPluginPath, ".claude-plugin", "plugin.json"),
 				JSON.stringify({ mcpServers: "./mcp-claude.json" }),
 			),
-			fs.writeFile(path.join(ompPluginPath, "mcp-chudcode.json"), JSON.stringify({ "from-chudcode": { command: "chudcode" } })),
+			fs.writeFile(
+				path.join(ompPluginPath, "mcp-chudcode.json"),
+				JSON.stringify({ "from-chudcode": { command: "chudcode" } }),
+			),
 			fs.writeFile(
 				path.join(ompPluginPath, "mcp-claude.json"),
 				JSON.stringify({ "from-claude": { command: "claude" } }),
@@ -773,8 +776,8 @@ describe("listClaudePluginRoots", () => {
 
 		expect(result.warnings).toEqual([]);
 		expect(result.all.map(server => server.name).sort()).toEqual([
-			"claude-pointer:from-claude",
 			"chudcode-pointer:from-chudcode",
+			"claude-pointer:from-claude",
 		]);
 	});
 

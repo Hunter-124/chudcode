@@ -123,6 +123,14 @@ describe("task command copy", () => {
 		expect(COMMAND_DEFINITIONS).toHaveLength(1);
 		expect(COMMAND_DEFINITIONS[0]?.name).toBe("task");
 		const options = COMMAND_DEFINITIONS[0]?.options as Array<{ name: string }>;
-		expect(options.map(option => option.name)).toEqual(["start", "list", "status", "steer", "pause", "stop", "transcript"]);
+		expect(options.map(option => option.name)).toEqual([
+			"start",
+			"list",
+			"status",
+			"steer",
+			"pause",
+			"stop",
+			"transcript",
+		]);
 	});
 });

@@ -125,7 +125,13 @@ Loaded via symbolic link.
 	it("SDK invocation root scope isolates disabled discovery and merges normal discovery", async () => {
 		const explicitPackage = path.join(tempDir, "sdk-explicit-extension");
 		const settingsPackage = path.join(tempDir, "sdk-settings-extension");
-		const installedPackage = path.join(tempHomeDir, ".chudcode", "plugins", "node_modules", "sdk-installed-extension");
+		const installedPackage = path.join(
+			tempHomeDir,
+			".chudcode",
+			"plugins",
+			"node_modules",
+			"sdk-installed-extension",
+		);
 		createExtensionSkill(explicitPackage, "sdk-explicit-skill");
 		createExtensionSkill(settingsPackage, "sdk-settings-skill");
 		createExtensionSkill(installedPackage, "sdk-installed-skill");

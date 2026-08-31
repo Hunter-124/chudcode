@@ -273,7 +273,8 @@ class AgentMetricRecorder {
 			if (counters.totalLatencyMs > 0) this.#toolDurationMs.record(counters.totalLatencyMs, toolAttrs);
 			for (const status of TOOL_STATUSES) {
 				const count = counters[status];
-				if (count > 0) this.#toolCalls.add(count, metricAttributes({ ...toolAttrs, "chud.chudcode.tool.status": status }));
+				if (count > 0)
+					this.#toolCalls.add(count, metricAttributes({ ...toolAttrs, "chud.chudcode.tool.status": status }));
 			}
 		}
 		for (const errorType in summary.errors.byType) {

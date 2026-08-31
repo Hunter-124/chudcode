@@ -1,5 +1,5 @@
-import { type } from "@chudware/chudtype";
 import type { AgentTool, AgentToolResult } from "@chudware/agent-core";
+import { type } from "@chudware/chudtype";
 import { logger, untilAborted } from "@chudware/utils";
 import { ensureBankExists } from "../hindsight/bank";
 import reflectDescription from "../prompts/tools/reflect.md" with { type: "text" };

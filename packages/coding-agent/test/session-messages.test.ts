@@ -2,11 +2,7 @@ import { describe, expect, it } from "bun:test";
 import { type AgentMessage, filterProviderReplayMessages } from "@chudware/agent-core";
 import type { ImageContent, Message, TextContent } from "@chudware/ai";
 import { inferCopilotInitiator } from "@chudware/ai/providers/github-copilot-headers";
-import {
-	convertToLlm,
-	SKILL_PROMPT_MESSAGE_TYPE,
-	wrapSteeringForModel,
-} from "@chudware/coding-agent/session/messages";
+import { convertToLlm, SKILL_PROMPT_MESSAGE_TYPE, wrapSteeringForModel } from "@chudware/coding-agent/session/messages";
 import { COLLAB_PROMPT_MESSAGE_TYPE } from "@chudware/wire";
 
 function expectAttribution(message: Message | undefined, expected: "user" | "agent" | undefined): void {

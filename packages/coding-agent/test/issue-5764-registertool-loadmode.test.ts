@@ -12,10 +12,7 @@ import { CustomToolAdapter } from "@chudware/coding-agent/extensibility/custom-t
 import type { ExtensionRunner } from "@chudware/coding-agent/extensibility/extensions/runner";
 import { RegisteredToolAdapter } from "@chudware/coding-agent/extensibility/extensions/wrapper";
 import { BUILTIN_TOOLS, type ToolSession } from "@chudware/coding-agent/tools";
-import {
-	defaultLoadModeForToolName,
-	ESSENTIAL_BUILTIN_TOOL_NAMES,
-} from "@chudware/coding-agent/tools/essential-tools";
+import { defaultLoadModeForToolName, ESSENTIAL_BUILTIN_TOOL_NAMES } from "@chudware/coding-agent/tools/essential-tools";
 import { isMountableUnderXdev } from "@chudware/coding-agent/tools/xdev";
 
 function makeSession(): ToolSession {

@@ -1,6 +1,5 @@
 import { afterEach, describe, expect, it } from "bun:test";
 import * as path from "node:path";
-import { type } from "@chudware/chudtype";
 import { Agent, type AgentMessage, type AgentTool } from "@chudware/agent-core";
 import type { AssistantMessage, Message, ThinkingContent } from "@chudware/ai";
 import {
@@ -9,6 +8,7 @@ import {
 	type MockModel,
 	type MockResponseSource,
 } from "@chudware/ai/providers/mock";
+import { type } from "@chudware/chudtype";
 import { ModelRegistry } from "@chudware/coding-agent/config/model-registry";
 import { Settings } from "@chudware/coding-agent/config/settings";
 import { ExtensionRuntime, loadExtensionFromFactory } from "@chudware/coding-agent/extensibility/extensions/loader";

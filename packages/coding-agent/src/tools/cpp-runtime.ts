@@ -1,6 +1,5 @@
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
-import { type } from "@chudware/chudtype";
 import type {
 	AgentTool,
 	AgentToolContext,
@@ -8,6 +7,7 @@ import type {
 	AgentToolUpdateCallback,
 	ToolApprovalDecision,
 } from "@chudware/agent-core";
+import { type } from "@chudware/chudtype";
 import type { ToolSession } from ".";
 import { parseDhatJson } from "./analyzers/dhat-json";
 import { missingTool, probeTools } from "./analyzers/doctor";
@@ -66,8 +66,13 @@ interface RuntimeFailure {
 	artifacts?: string[];
 }
 
-function jsonResult(action: CppRuntimeParams["action"], response: Record<string, unknown>): AgentToolResult<CppRuntimeDetails> {
-	return toolResult<CppRuntimeDetails>({ action, response }).text(JSON.stringify(response, null, 2)).done();
+function jsonResult(
+	action: CppRuntimeParams["action"],
+	response: Record<string, unknown>,
+): AgentToolResult<CppRuntimeDetails> {
+	return toolResult<CppRuntimeDetails>({ action, response })
+		.text(JSON.stringify(response, null, 2))
+		.done();
 }
 
 function invalid(reason: string, hint: string): RuntimeFailure {
@@ -90,7 +95,10 @@ async function symbolizeSanitizerReports(
 ): Promise<void> {
 	const addr2line = Bun.which("addr2line");
 	if (!addr2line || !(await exists(binary))) return;
-	const frames = reports.flatMap(report => report.frames).filter(frame => !frame.file && frame.address).slice(0, 500);
+	const frames = reports
+		.flatMap(report => report.frames)
+		.filter(frame => !frame.file && frame.address)
+		.slice(0, 500);
 	const addresses = [...new Set(frames.map(frame => frame.address!))];
 	if (addresses.length === 0) return;
 	const resolved = await runCommand([addr2line, "-Cfpe", binary, ...addresses], {
@@ -221,7 +229,8 @@ async function parsePerfSymbols(file: string, top: number): Promise<Array<{ symb
 export class CppRuntimeTool implements AgentTool<typeof cppRuntimeSchema, CppRuntimeDetails> {
 	readonly name = "cpp_runtime";
 	readonly approval = (args: unknown): ToolApprovalDecision => {
-		const action = args !== null && typeof args === "object" && "action" in args ? Reflect.get(args, "action") : undefined;
+		const action =
+			args !== null && typeof args === "object" && "action" in args ? Reflect.get(args, "action") : undefined;
 		return action === "doctor" ? "read" : "exec";
 	};
 	readonly label = "C/C++ Runtime Analysis";
@@ -293,14 +302,21 @@ export class CppRuntimeTool implements AgentTool<typeof cppRuntimeSchema, CppRun
 		}
 	}
 
-	async #prepareBuild(params: CppRuntimeParams, sanitize: boolean, signal?: AbortSignal): Promise<PreparedRun | RuntimeFailure> {
+	async #prepareBuild(
+		params: CppRuntimeParams,
+		sanitize: boolean,
+		signal?: AbortSignal,
+	): Promise<PreparedRun | RuntimeFailure> {
 		const build = params.build;
 		if (!build || build.system === "none") {
 			return { ok: true, cwd: path.resolve(this.session.cwd, params.run?.cwd ?? "."), build_results: [] };
 		}
 		const buildExecutable = Bun.which(build.system);
 		if (!buildExecutable) {
-			return missingTool(build.system, `Install ${build.system} and ensure it is on PATH before requesting a ${build.system} build.`);
+			return missingTool(
+				build.system,
+				`Install ${build.system} and ensure it is on PATH before requesting a ${build.system} build.`,
+			);
 		}
 		const directory = path.resolve(this.session.cwd, build.dir);
 		const flags = `-fsanitize=${(params.sanitizers ?? ["address", "undefined"]).join(",")} -fno-omit-frame-pointer -g -O1`;
@@ -327,13 +343,16 @@ export class CppRuntimeTool implements AgentTool<typeof cppRuntimeSchema, CppRun
 			});
 			results.push({ command: configured.command, exit_code: configured.exitCode, artifacts: configured.artifacts });
 			if (configured.exitCode !== 0) return commandFailure(configured, "build_failed", "CMake configure failed.");
-			const built = await runCommand([buildExecutable, "--build", output, ...(build.target ? ["--target", build.target] : [])], {
-				cwd: directory,
-				signal,
-				timeoutMs: timeoutMs(params),
-				session: this.session,
-				artifactType: "runtime-build",
-			});
+			const built = await runCommand(
+				[buildExecutable, "--build", output, ...(build.target ? ["--target", build.target] : [])],
+				{
+					cwd: directory,
+					signal,
+					timeoutMs: timeoutMs(params),
+					session: this.session,
+					artifactType: "runtime-build",
+				},
+			);
 			results.push({ command: built.command, exit_code: built.exitCode, artifacts: built.artifacts });
 			if (built.exitCode !== 0) return commandFailure(built, "build_failed", "CMake build failed.");
 			return { ok: true, cwd: path.resolve(output, params.run?.cwd ?? "."), build_results: results };
@@ -347,14 +366,17 @@ export class CppRuntimeTool implements AgentTool<typeof cppRuntimeSchema, CppRun
 					LDFLAGS: `-fsanitize=${(params.sanitizers ?? ["address", "undefined"]).join(",")}`,
 				}
 			: {};
-		const built = await runCommand([buildExecutable, "-B", "-C", directory, ...(build.target ? [build.target] : [])], {
-			cwd: directory,
-			env: makeEnv,
-			signal,
-			timeoutMs: timeoutMs(params),
-			session: this.session,
-			artifactType: "runtime-build",
-		});
+		const built = await runCommand(
+			[buildExecutable, "-B", "-C", directory, ...(build.target ? [build.target] : [])],
+			{
+				cwd: directory,
+				env: makeEnv,
+				signal,
+				timeoutMs: timeoutMs(params),
+				session: this.session,
+				artifactType: "runtime-build",
+			},
+		);
 		results.push({ command: built.command, exit_code: built.exitCode, artifacts: built.artifacts });
 		if (built.exitCode !== 0) return commandFailure(built, "build_failed", "Make build failed.");
 		return { ok: true, cwd: path.resolve(directory, params.run?.cwd ?? "."), build_results: results };
@@ -367,7 +389,10 @@ export class CppRuntimeTool implements AgentTool<typeof cppRuntimeSchema, CppRun
 			return invalid("incompatible_sanitizers", "thread and memory sanitizers cannot be combined.");
 		}
 		if (sanitizers.includes("address") && (sanitizers.includes("thread") || sanitizers.includes("memory"))) {
-			return invalid("incompatible_sanitizers", "thread and memory sanitizers cannot be combined with address sanitizer.");
+			return invalid(
+				"incompatible_sanitizers",
+				"thread and memory sanitizers cannot be combined with address sanitizer.",
+			);
 		}
 		if (params.build && params.build.system !== "none" && !Bun.which("clang")) {
 			return missingTool("clang", "Install clang to build sanitizer-instrumented code.");
@@ -436,7 +461,8 @@ export class CppRuntimeTool implements AgentTool<typeof cppRuntimeSchema, CppRun
 				session: this.session,
 				artifactType: `valgrind-${tool}`,
 			});
-			if (!(await exists(output))) return commandFailure(run, undefined, `Valgrind ${tool} did not produce its output file.`);
+			if (!(await exists(output)))
+				return commandFailure(run, undefined, `Valgrind ${tool} did not produce its output file.`);
 			const raw = await readTextBounded(output);
 			if (tool === "memcheck") {
 				return {
@@ -457,7 +483,13 @@ export class CppRuntimeTool implements AgentTool<typeof cppRuntimeSchema, CppRun
 				};
 			}
 			if (tool === "massif") {
-				return { ok: true, ...parseMassif(raw), exit_code: run.exitCode, timed_out: run.timedOut, artifacts: run.artifacts };
+				return {
+					ok: true,
+					...parseMassif(raw),
+					exit_code: run.exitCode,
+					timed_out: run.timedOut,
+					artifacts: run.artifacts,
+				};
 			}
 			const annotate = Bun.which("callgrind_annotate");
 			if (!annotate) return missingTool("callgrind_annotate", "Install Valgrind's callgrind_annotate utility.");
@@ -484,7 +516,8 @@ export class CppRuntimeTool implements AgentTool<typeof cppRuntimeSchema, CppRun
 	async #heaptrack(params: CppRuntimeParams, signal?: AbortSignal): Promise<Record<string, unknown>> {
 		const executable = Bun.which("heaptrack");
 		const printer = Bun.which("heaptrack_print");
-		if (!executable || !printer) return missingTool("heaptrack", "Install heaptrack and ensure heaptrack plus heaptrack_print are on PATH.");
+		if (!executable || !printer)
+			return missingTool("heaptrack", "Install heaptrack and ensure heaptrack plus heaptrack_print are on PATH.");
 		const prepared = await this.#prepareBuild(params, false, signal);
 		if (!prepared.ok) return prepared;
 		const temp = await makeTempDir("chud-heaptrack-");
@@ -522,21 +555,25 @@ export class CppRuntimeTool implements AgentTool<typeof cppRuntimeSchema, CppRun
 
 	async #perf(params: CppRuntimeParams, signal?: AbortSignal): Promise<Record<string, unknown>> {
 		const executable = Bun.which("perf");
-		if (!executable) return missingTool("perf", "Install Linux perf matching the running kernel and ensure perf is on PATH.");
+		if (!executable)
+			return missingTool("perf", "Install Linux perf matching the running kernel and ensure perf is on PATH.");
 		const prepared = await this.#prepareBuild(params, false, signal);
 		if (!prepared.ok) return prepared;
 		const temp = await makeTempDir("chud-perf-");
 		try {
 			const data = path.join(temp, "perf.data");
 			const json = path.join(temp, "perf.json");
-			const run = await runCommand([executable, "record", "-g", "-o", data, "--", params.run!.cmd, ...(params.run!.args ?? [])], {
-				cwd: prepared.cwd,
-				env: params.run!.env,
-				signal,
-				timeoutMs: timeoutMs(params),
-				session: this.session,
-				artifactType: "perf-record",
-			});
+			const run = await runCommand(
+				[executable, "record", "-g", "-o", data, "--", params.run!.cmd, ...(params.run!.args ?? [])],
+				{
+					cwd: prepared.cwd,
+					env: params.run!.env,
+					signal,
+					timeoutMs: timeoutMs(params),
+					session: this.session,
+					artifactType: "perf-record",
+				},
+			);
 			if (!(await exists(data))) {
 				return commandFailure(
 					run,
@@ -552,7 +589,11 @@ export class CppRuntimeTool implements AgentTool<typeof cppRuntimeSchema, CppRun
 				artifactType: "perf-convert",
 			});
 			if (converted.exitCode !== 0 || !(await exists(json))) {
-				return commandFailure(converted, undefined, "perf data convert --to-json failed; install a perf build with JSON conversion support.");
+				return commandFailure(
+					converted,
+					undefined,
+					"perf data convert --to-json failed; install a perf build with JSON conversion support.",
+				);
 			}
 			return {
 				ok: true,
@@ -571,13 +612,16 @@ export class CppRuntimeTool implements AgentTool<typeof cppRuntimeSchema, CppRun
 		if (!executable) return missingTool("rr", "Install rr and ensure rr is on PATH.");
 		const probeTemp = await makeTempDir("chud-rr-probe-");
 		try {
-			const probe = await runCommand([executable, "record", "-n", "-o", path.join(probeTemp, "trace"), "/bin/true"], {
-				cwd: this.session.cwd,
-				signal,
-				timeoutMs: 30_000,
-				session: this.session,
-				artifactType: "rr-probe",
-			});
+			const probe = await runCommand(
+				[executable, "record", "-n", "-o", path.join(probeTemp, "trace"), "/bin/true"],
+				{
+					cwd: this.session.cwd,
+					signal,
+					timeoutMs: 30_000,
+					session: this.session,
+					artifactType: "rr-probe",
+				},
+			);
 			if (probe.exitCode !== 0) {
 				return {
 					ok: false,
@@ -592,14 +636,17 @@ export class CppRuntimeTool implements AgentTool<typeof cppRuntimeSchema, CppRun
 		if (!prepared.ok) return prepared;
 		const parent = await makeTempDir("chud-rr-");
 		const trace = path.join(parent, "trace");
-		const record = await runCommand([executable, "record", "-o", trace, "--", params.run!.cmd, ...(params.run!.args ?? [])], {
-			cwd: prepared.cwd,
-			env: params.run!.env,
-			signal,
-			timeoutMs: timeoutMs(params),
-			session: this.session,
-			artifactType: "rr-record",
-		});
+		const record = await runCommand(
+			[executable, "record", "-o", trace, "--", params.run!.cmd, ...(params.run!.args ?? [])],
+			{
+				cwd: prepared.cwd,
+				env: params.run!.env,
+				signal,
+				timeoutMs: timeoutMs(params),
+				session: this.session,
+				artifactType: "rr-record",
+			},
+		);
 		if (record.exitCode !== 0 || !(await exists(trace))) {
 			await removeTempDir(parent);
 			return commandFailure(record, undefined, "rr record failed.");

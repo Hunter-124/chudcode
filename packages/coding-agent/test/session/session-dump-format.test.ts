@@ -8,8 +8,8 @@
  * previous `<parameter>`-per-key JSON Schema dump dropped entirely.
  */
 import { describe, expect, it } from "bun:test";
-import { type } from "@chudware/chudtype";
 import type { Model, Usage } from "@chudware/ai";
+import { type } from "@chudware/chudtype";
 import { formatSessionDumpText } from "@chudware/coding-agent/session/session-dump-format";
 import { INTENT_FIELD } from "@chudware/wire";
 

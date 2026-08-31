@@ -3,8 +3,8 @@
 import type { Agent, AgentMessage } from "@chudware/agent-core";
 import type { CompactionPreparation } from "@chudware/agent-core/compaction";
 import type { AssistantMessage, ImageContent, Message, Model, SimpleStreamOptions, TextContent } from "@chudware/ai";
-import { isRecord, logger } from "@chudware/utils";
 import * as snapcompact from "@chudware/snapcompact";
+import { isRecord, logger } from "@chudware/utils";
 import type { ModelRegistry } from "../config/model-registry";
 import { formatModelString } from "../config/model-resolver";
 import type { Settings } from "../config/settings";

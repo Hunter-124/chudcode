@@ -12,10 +12,10 @@
  * in, text (or, with `schema`, a structured object) out.
  */
 
-import { type } from "@chudware/chudtype";
 import { instrumentedCompleteSimple, resolveTelemetry } from "@chudware/agent-core";
 import { type Api, Effort, type Model, type Tool } from "@chudware/ai";
 import { getSupportedEfforts } from "@chudware/catalog/model-thinking";
+import { type } from "@chudware/chudtype";
 import { extractTextContent, extractToolCall, parseJsonPayload } from "../commit/utils";
 
 import {

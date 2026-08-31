@@ -621,7 +621,8 @@ async function callPerplexityAsk(
 	params: PerplexitySearchParams,
 	filters: PerplexityNativeFilters,
 ): Promise<{ answer: string; sources: SearchSource[]; model?: string; requestId?: string }> {
-	const subscriptionModel = params.subscription_model?.trim() || $env.CHUDCODE_PERPLEXITY_MODEL?.trim() || "experimental";
+	const subscriptionModel =
+		params.subscription_model?.trim() || $env.CHUDCODE_PERPLEXITY_MODEL?.trim() || "experimental";
 	const requestId = crypto.randomUUID();
 	// The consumer `perplexity_ask` endpoint is itself a research assistant and
 	// has no system-message slot. Prepending the API-style system prompt to the

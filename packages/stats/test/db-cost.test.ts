@@ -1,5 +1,6 @@
 import { Database } from "bun:sqlite";
 import { describe, expect, it } from "bun:test";
+import { getBundledModel } from "@chudware/catalog/models";
 import {
 	closeDb,
 	getCostTimeSeries,
@@ -11,7 +12,6 @@ import {
 	insertMessageStats,
 } from "@chudware/stats/db";
 import type { MessageStats } from "@chudware/stats/types";
-import { getBundledModel } from "@chudware/catalog/models";
 import { getStatsDbPath } from "@chudware/utils";
 import { installStatsTestIsolation } from "./helpers/temp-agent";
 

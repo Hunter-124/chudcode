@@ -4,8 +4,6 @@
 import type * as fs1 from "node:fs";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
-import { type } from "@chudware/chudtype";
-import * as zod from "@chudware/chudtype/zod";
 import type { ThinkingLevel } from "@chudware/agent-core";
 import type {
 	ImageContent,
@@ -16,6 +14,8 @@ import type {
 	TextContent,
 	TSchema,
 } from "@chudware/ai";
+import { type } from "@chudware/chudtype";
+import * as zod from "@chudware/chudtype/zod";
 import { isBuiltinComposerStyle, type KeyId } from "@chudware/tui";
 import { hasFsCode, isEacces, isEnoent, logger } from "@chudware/utils";
 import * as fsx from "@chudware/utils/fsx";
@@ -568,7 +568,7 @@ interface ExtensionManifest {
 async function readExtensionManifest(packageJsonPath: string): Promise<ExtensionManifest | null> {
 	try {
 		const pkg = (await fsx.readJson(packageJsonPath)) as { chudcode?: ExtensionManifest; chud?: ExtensionManifest };
-		const manifest = pkg.chudcode;
+		const manifest = pkg.chudcode ?? pkg.chud;
 		if (manifest && typeof manifest === "object") {
 			return manifest;
 		}

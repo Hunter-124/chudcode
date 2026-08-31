@@ -31,6 +31,7 @@ import {
 } from "@chudware/ai/auth-broker/discover";
 import { MissingApiKeyError } from "@chudware/ai/error";
 import { getAgentDir } from "@chudware/utils";
+import { PRODUCT_CLI_NAME } from "../brand";
 import { resolveConfigValue } from "../config/resolve-config-value";
 import type { AuthStorage } from "./auth-storage";
 
@@ -122,9 +123,9 @@ export async function describeAuthBrokerStartupError(error: unknown): Promise<st
 	const target = url ? ` at ${url}` : "";
 	return (
 		`Auth broker${target} is unreachable (${error.message}). ` +
-		"chudcode is configured to use this broker for credentials and will not fall back to local credentials automatically.\n" +
-		"Start the broker with `chudcode auth-broker serve`, or disable it with " +
-		"`chudcode config reset auth.broker.url` and `chudcode config reset auth.broker.token` " +
+		`${PRODUCT_CLI_NAME} is configured to use this broker for credentials and will not fall back to local credentials automatically.\n` +
+		`Start the broker with \`${PRODUCT_CLI_NAME} auth-broker serve\`, or disable it with ` +
+		`\`${PRODUCT_CLI_NAME} config reset auth.broker.url\` and \`${PRODUCT_CLI_NAME} config reset auth.broker.token\` ` +
 		"(or unset CHUDCODE_AUTH_BROKER_URL / CHUDCODE_AUTH_BROKER_TOKEN)."
 	);
 }

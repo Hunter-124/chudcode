@@ -1,10 +1,10 @@
 import { afterEach, describe, expect, it, vi } from "bun:test";
 import * as fs from "node:fs";
 import * as path from "node:path";
-import { type } from "@chudware/chudtype";
 import { Agent, type AgentTool } from "@chudware/agent-core";
 import * as compactionModule from "@chudware/agent-core/compaction";
 import { createMockModel, type MockResponse } from "@chudware/ai/providers/mock";
+import { type } from "@chudware/chudtype";
 import { ModelRegistry } from "@chudware/coding-agent/config/model-registry";
 import { Settings } from "@chudware/coding-agent/config/settings";
 import { loadExtensions } from "@chudware/coding-agent/extensibility/extensions/loader";
@@ -67,11 +67,11 @@ describe("AgentSession mid-turn compaction dead-end", () => {
 			const extensionPath = path.join(extensionsDir, "compaction-short-circuit.ts");
 			const extensionLines = ["export default function(chud) {"];
 			if (options.delayMessageEndPersistence) {
-				extensionLines.push('\tpi.on("message_end", async () => {', "\t\tawait Promise.resolve();", "\t});");
+				extensionLines.push('\tchud.on("message_end", async () => {', "\t\tawait Promise.resolve();", "\t});");
 			}
 			if (options.shortCircuitCompaction) {
 				extensionLines.push(
-					'\tpi.on("session_before_compact", async (event) => ({',
+					'\tchud.on("session_before_compact", async (event) => ({',
 					"\t\tcompaction: {",
 					'\t\t\tsummary: "compacted",',
 					"\t\t\tshortSummary: undefined,",

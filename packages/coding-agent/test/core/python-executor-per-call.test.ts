@@ -3,7 +3,6 @@ import { executePython } from "@chudware/coding-agent/eval/py/executor";
 import type { KernelExecuteOptions, KernelExecuteResult } from "@chudware/coding-agent/eval/py/kernel";
 import { PythonKernel } from "@chudware/coding-agent/eval/py/kernel";
 import { TempDir } from "@chudware/utils";
-import { sleep } from "@chudware/utils/async";
 
 interface KernelStub {
 	execute: (code: string, options?: KernelExecuteOptions) => Promise<KernelExecuteResult>;

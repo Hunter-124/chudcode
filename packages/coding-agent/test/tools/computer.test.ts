@@ -363,7 +363,9 @@ describe("computer worker round trips", () => {
 		expect(result.payload.displays[0]).toEqual(
 			expect.objectContaining({
 				type: "text",
-				text: expect.stringMatching(/^screenshot desktop 64×32 \(scaled from 128×64\) → .*chudcode-computer-.*\.png$/),
+				text: expect.stringMatching(
+					/^screenshot desktop 64×32 \(scaled from 128×64\) → .*chudcode-computer-.*\.png$/,
+				),
 			}),
 		);
 		expect(result.payload.screenshots[0]).toMatchObject({

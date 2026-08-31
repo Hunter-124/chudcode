@@ -3,9 +3,9 @@ import type { Api, Model } from "@chudware/ai";
 import { formatNumber } from "@chudware/utils";
 import { formatCost } from "../../modes/components/agent-hub-renderer";
 import {
+	type CacheRetentionMode,
 	calculateCacheMetrics,
 	describeCacheRetention,
-	type CacheRetentionMode,
 } from "../../modes/components/status-line/cache-metrics";
 import { formatDuration } from "./format";
 
@@ -23,9 +23,10 @@ export function buildCacheReportText(input: CacheReportInput): string {
 	const retention = describeCacheRetention(input.retention);
 	const coverage = `${metrics.pricedModels} of ${metrics.totalModels} model${metrics.totalModels === 1 ? "" : "s"} priced`;
 	const hitRate = metrics.hitRate === undefined ? "—" : `${(metrics.hitRate * 100).toFixed(1)}%`;
-	const hitDetail = metrics.promptTokens > 0
-		? ` (${formatNumber(metrics.cacheRead)} of ${formatNumber(metrics.promptTokens)} prompt tokens)`
-		: "";
+	const hitDetail =
+		metrics.promptTokens > 0
+			? ` (${formatNumber(metrics.cacheRead)} of ${formatNumber(metrics.promptTokens)} prompt tokens)`
+			: "";
 	const savings =
 		metrics.savings === undefined
 			? `unknown — ${coverage}`

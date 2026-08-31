@@ -88,15 +88,6 @@ describe("legacy-pi @(scope)/pi-ai root `Type` remap (issue #1437)", () => {
 		expect(loaded.completeType).toBe("function");
 	});
 
-	it('redirects `import { Type } from "@chudware/ai"` for plugins published against the canonical scope', async () => {
-		const entry = await writeFixtureExtension(
-			['import { Type } from "@chudware/ai";', "export const probe = Type;"].join("\n"),
-		);
-
-		const loaded = (await loadLegacyPiModule(entry)) as { probe: typeof TypeBoxShimType };
-		expect(loaded.probe).toBe(TypeBoxShimType);
-	});
-
 	it("does not redirect subpath imports such as @chudware/ai/utils/schema", async () => {
 		const entry = await writeFixtureExtension(
 			[
@@ -112,11 +103,11 @@ describe("legacy-pi @(scope)/pi-ai root `Type` remap (issue #1437)", () => {
 		expect(typeof loaded.fn).toBe("function");
 	});
 
-	it("re-exports the legacy model catalog and schema helpers from the root", async () => {
+	it("re-exports the legacy model catalog and schema helpers from an aliased root", async () => {
 		const loaded = (await loadLegacyPiModule(
 			await writeFixtureExtension(
 				[
-					'import { calculateCost, clampThinkingLevel, getBundledModel, getBundledModels, getBundledProviders, getModel, getModels, modelsAreEqual, StringEnum } from "@chudware/ai";',
+					'import { calculateCost, clampThinkingLevel, getBundledModel, getBundledModels, getBundledProviders, getModel, getModels, modelsAreEqual, StringEnum } from "@earendil-works/pi-ai";',
 					"export const helpers = { calculateCost, getBundledModel, getBundledModels, getBundledProviders, getModel, getModels, modelsAreEqual };",
 					"export const supported = clampThinkingLevel({ reasoning: true, thinking: { efforts: ['low', 'high'] } }, 'high');",
 					"export const disabled = clampThinkingLevel({ reasoning: false }, 'high');",

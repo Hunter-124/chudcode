@@ -1,7 +1,7 @@
 import * as os from "node:os";
 import * as path from "node:path";
-import { type } from "@chudware/chudtype";
 import type { AgentTool, AgentToolContext, AgentToolResult, AgentToolUpdateCallback } from "@chudware/agent-core";
+import { type } from "@chudware/chudtype";
 import type { ToolSession } from ".";
 import { parseClangTidy } from "./analyzers/clang-tidy-parse";
 import { missingTool, probeTools } from "./analyzers/doctor";
@@ -40,8 +40,13 @@ function field(value: unknown, key: string): unknown {
 	return value !== null && typeof value === "object" && key in value ? Reflect.get(value, key) : undefined;
 }
 
-function jsonResult(action: CppStaticParams["action"], response: Record<string, unknown>): AgentToolResult<CppStaticDetails> {
-	return toolResult<CppStaticDetails>({ action, response }).text(JSON.stringify(response, null, 2)).done();
+function jsonResult(
+	action: CppStaticParams["action"],
+	response: Record<string, unknown>,
+): AgentToolResult<CppStaticDetails> {
+	return toolResult<CppStaticDetails>({ action, response })
+		.text(JSON.stringify(response, null, 2))
+		.done();
 }
 
 function invalid(reason: string, hint: string): Record<string, unknown> {
@@ -51,7 +56,9 @@ function invalid(reason: string, hint: string): Record<string, unknown> {
 function selectFiles(files: string[], requested: string[] | undefined, cwd: string): string[] {
 	if (!requested || requested.length === 0) return files.slice(0, 10_000);
 	const targets = requested.map(entry => path.resolve(cwd, entry));
-	return files.filter(file => targets.some(target => file === target || file.startsWith(`${target}${path.sep}`))).slice(0, 10_000);
+	return files
+		.filter(file => targets.some(target => file === target || file.startsWith(`${target}${path.sep}`)))
+		.slice(0, 10_000);
 }
 
 function parseIwyu(output: string): AnalyzerFinding[] {
@@ -191,7 +198,10 @@ export class CppStaticTool implements AgentTool<typeof cppStaticSchema, CppStati
 				? await discoverCompileCommands(this.session.cwd, params.compile_commands)
 				: undefined;
 		if (!compileCommands && (!params.paths || params.paths.length === 0)) {
-			return invalid("input_missing", "Pass paths, or generate compile_commands.json with CMAKE_EXPORT_COMPILE_COMMANDS=ON.");
+			return invalid(
+				"input_missing",
+				"Pass paths, or generate compile_commands.json with CMAKE_EXPORT_COMPILE_COMMANDS=ON.",
+			);
 		}
 		const temp = await makeTempDir("chud-cppcheck-");
 		try {
@@ -212,7 +222,8 @@ export class CppStaticTool implements AgentTool<typeof cppStaticSchema, CppStati
 				session: this.session,
 				artifactType: "cppcheck",
 			});
-			if (!(await exists(sarifPath))) return commandFailure(result, undefined, "cppcheck did not produce SARIF output.");
+			if (!(await exists(sarifPath)))
+				return commandFailure(result, undefined, "cppcheck did not produce SARIF output.");
 			const findings = parseSarif(await readTextBounded(sarifPath), "cppcheck");
 			return {
 				ok: true,
@@ -273,7 +284,10 @@ export class CppStaticTool implements AgentTool<typeof cppStaticSchema, CppStati
 			}),
 		);
 		if (findings.length === 0 && exitCodes.some(code => code !== 0)) {
-			return invalid("tool_failed", "clang-tidy failed before producing parseable diagnostics; inspect its artifact output.");
+			return invalid(
+				"tool_failed",
+				"clang-tidy failed before producing parseable diagnostics; inspect its artifact output.",
+			);
 		}
 		return {
 			ok: true,
@@ -291,7 +305,8 @@ export class CppStaticTool implements AgentTool<typeof cppStaticSchema, CppStati
 		signal?: AbortSignal,
 	): Promise<Record<string, unknown>> {
 		const executable = Bun.which("CodeChecker");
-		if (!executable) return missingTool("codechecker", "Install with pipx install codechecker and ensure CodeChecker is on PATH.");
+		if (!executable)
+			return missingTool("codechecker", "Install with pipx install codechecker and ensure CodeChecker is on PATH.");
 		const temp = await makeTempDir("chud-codechecker-");
 		try {
 			const reports = path.join(temp, "reports");
@@ -357,7 +372,8 @@ export class CppStaticTool implements AgentTool<typeof cppStaticSchema, CppStati
 			artifactType: "iwyu",
 		});
 		const findings = parseIwyu(`${result.stdout}\n${result.stderr}`);
-		if (result.exitCode !== 0 && findings.length === 0) return commandFailure(result, undefined, "iwyu_tool.py failed.");
+		if (result.exitCode !== 0 && findings.length === 0)
+			return commandFailure(result, undefined, "iwyu_tool.py failed.");
 		return {
 			ok: true,
 			...capFindings(findings, params.max_findings),
@@ -388,7 +404,8 @@ export class CppStaticTool implements AgentTool<typeof cppStaticSchema, CppStati
 				},
 			);
 			const report = path.join(results, "report.json");
-			if (!(await exists(report))) return commandFailure(run, undefined, "Infer did not produce infer-out/report.json.");
+			if (!(await exists(report)))
+				return commandFailure(run, undefined, "Infer did not produce infer-out/report.json.");
 			const findings = parseInfer(await readTextBounded(report));
 			return {
 				ok: true,

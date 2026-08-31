@@ -31,8 +31,8 @@ import {
 	applyProvision,
 	describeAction,
 	PermissionPreflightError,
-	planProvision,
 	type ProvisionPlan,
+	planProvision,
 } from "./provision";
 
 interface CliArguments {
@@ -106,9 +106,7 @@ function renderPlan(plan: ProvisionPlan, apply: boolean): string {
 		lines.push("permissions: every mutating permission present");
 	} else {
 		lines.push(
-			`permissions: MISSING ${plan.permissions.missing
-				.map(entry => `${entry.name} (bit ${entry.bit})`)
-				.join(", ")}`,
+			`permissions: MISSING ${plan.permissions.missing.map(entry => `${entry.name} (bit ${entry.bit})`).join(", ")}`,
 		);
 		for (const entry of plan.permissions.missing) lines.push(`  ${entry.name} is needed to ${entry.needed}`);
 		lines.push(`  re-invite the application with permissions=${plan.permissions.reinvitePermissions}`);

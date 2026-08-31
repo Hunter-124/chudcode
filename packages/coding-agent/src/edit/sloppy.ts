@@ -1,6 +1,6 @@
 import * as nodePath from "node:path";
-import { type } from "@chudware/chudtype";
 import type { AgentToolResult } from "@chudware/agent-core";
+import { type } from "@chudware/chudtype";
 import { isEnoent } from "@chudware/utils";
 import * as fsx from "@chudware/utils/fsx";
 import type { FileDiagnosticsResult, WritethroughCallback, WritethroughDeferredHandle } from "../lsp";

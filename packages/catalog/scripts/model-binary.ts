@@ -18,7 +18,8 @@ function align8(value: number): number {
 }
 
 function assertSafeInteger(value: number, label: string): void {
-	if (!Number.isSafeInteger(value) || value < 0) throw new RangeError(`${label} exceeds JavaScript's safe integer range`);
+	if (!Number.isSafeInteger(value) || value < 0)
+		throw new RangeError(`${label} exceeds JavaScript's safe integer range`);
 }
 
 /** Encode a model catalog without sorting or mutating its provider/model entries. */

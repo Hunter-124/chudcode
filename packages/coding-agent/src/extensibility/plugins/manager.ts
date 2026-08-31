@@ -107,6 +107,7 @@ interface RuntimePackageJson {
 	name?: unknown;
 	version: string;
 	chudcode?: PluginManifest;
+	chud?: PluginManifest;
 }
 // =============================================================================
 // Plugin Manager
@@ -245,7 +246,7 @@ export class PluginManager {
 		}
 
 		const name = typeof pluginPkg.name === "string" && pluginPkg.name.length > 0 ? pluginPkg.name : fallbackName;
-		const manifest: PluginManifest = pluginPkg.chudcode || { version: pluginPkg.version };
+		const manifest: PluginManifest = pluginPkg.chudcode ?? pluginPkg.chud ?? { version: pluginPkg.version };
 		manifest.version = pluginPkg.version;
 		const runtimeState = config.plugins[name] || {
 			version: pluginPkg.version,
@@ -580,7 +581,7 @@ export class PluginManager {
 				}
 				throw err;
 			}
-			const manifest: PluginManifest = pkg.chudcode || { version: pkg.version };
+			const manifest: PluginManifest = pkg.chudcode ?? pkg.chud ?? { version: pkg.version };
 			manifest.version = pkg.version;
 
 			// Resolve enabled features
@@ -805,7 +806,7 @@ export class PluginManager {
 
 		await fs.promises.symlink(absolutePath, linkPath);
 
-		const manifest: PluginManifest = pkg.chudcode || { version: pkg.version };
+		const manifest: PluginManifest = pkg.chudcode ?? pkg.chud ?? { version: pkg.version };
 		manifest.version = pkg.version;
 
 		// Add to runtime config
@@ -1018,8 +1019,8 @@ export class PluginManager {
 				}
 				throw err;
 			}
-			const hasManifest = !!(pluginPkg.chudcode);
-			const manifest: PluginManifest | undefined = pluginPkg.chudcode;
+			const manifest = pluginPkg.chudcode ?? pluginPkg.chud;
+			const hasManifest = !!manifest;
 
 			checks.push({
 				name: `plugin:${name}`,

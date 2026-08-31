@@ -40,7 +40,12 @@ export function resolveEditMode(session: EditModeSessionLike): EditMode {
 
 	const settingsMode = normalizeEditMode(String(session.settings.get("edit.mode") ?? ""));
 	const mode = settingsMode ?? DEFAULT_EDIT_MODE;
-	if (mode === "hashline" && !$flag("CHUDCODE_STRICT_EDIT_MODE") && activeModel && !supportsHashlineEdits(activeModel)) {
+	if (
+		mode === "hashline" &&
+		!$flag("CHUDCODE_STRICT_EDIT_MODE") &&
+		activeModel &&
+		!supportsHashlineEdits(activeModel)
+	) {
 		return "sloppy";
 	}
 	return mode;

@@ -11,7 +11,6 @@
  *      user), and either decision tool resets the counter.
  */
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "bun:test";
-import { type } from "@chudware/chudtype";
 import {
 	Agent,
 	type AgentMessage,
@@ -22,6 +21,7 @@ import {
 } from "@chudware/agent-core";
 import { createMockModel, type MockModel, type MockResponse } from "@chudware/ai/providers/mock";
 import { getBundledModel } from "@chudware/catalog/models";
+import { type } from "@chudware/chudtype";
 import { ModelRegistry } from "@chudware/coding-agent/config/model-registry";
 import { Settings } from "@chudware/coding-agent/config/settings";
 import type { CustomTool } from "@chudware/coding-agent/extensibility/custom-tools/types";

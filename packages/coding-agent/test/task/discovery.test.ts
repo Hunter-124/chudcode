@@ -129,7 +129,10 @@ describe("discoverAgents", () => {
 		);
 
 		await fs.mkdir(path.join(projectDir, ".chudcode"), { recursive: true });
-		await fs.writeFile(path.join(projectDir, ".chudcode", "settings.json"), JSON.stringify({ extensions: [projectExt] }));
+		await fs.writeFile(
+			path.join(projectDir, ".chudcode", "settings.json"),
+			JSON.stringify({ extensions: [projectExt] }),
+		);
 		injectOmpExtensionCliRoots([cliExt], tempHome, projectDir);
 
 		const { agents } = await discoverAgents(projectDir, tempHome);
@@ -156,7 +159,10 @@ describe("discoverAgents", () => {
 			);
 		}
 		await fs.mkdir(path.join(projectDir, ".chudcode"), { recursive: true });
-		await fs.writeFile(path.join(projectDir, ".chudcode", "settings.json"), JSON.stringify({ extensions: [settingsExt] }));
+		await fs.writeFile(
+			path.join(projectDir, ".chudcode", "settings.json"),
+			JSON.stringify({ extensions: [settingsExt] }),
+		);
 		await writeOmpPluginAgent(tempHome);
 
 		injectOmpExtensionCliRoots([staleExt], tempHome, projectDir);

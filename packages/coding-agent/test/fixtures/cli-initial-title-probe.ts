@@ -2,9 +2,9 @@ import { sleep } from "@oh-my-pi/pi-utils/async";
 import * as fsx from "@oh-my-pi/pi-utils/fsx";
 import { AgentSession } from "../../src/session/agent-session";
 
-const outputPath = process.env.OMP_TITLE_PROBE_PATH;
+const outputPath = process.env.CHUDCODE_TITLE_PROBE_PATH;
 if (!outputPath) {
-	throw new Error("OMP_TITLE_PROBE_PATH is required");
+	throw new Error("CHUDCODE_TITLE_PROBE_PATH is required");
 }
 
 let generatedFrom: string | undefined;

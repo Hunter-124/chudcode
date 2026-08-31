@@ -7,14 +7,14 @@
  */
 import * as fs from "node:fs/promises";
 import path from "node:path";
+import type { AgentMessage } from "@chudware/agent-core";
+import type { ImageContent } from "@chudware/ai";
 import {
 	formatHashlineHeader,
 	formatNumberedLines,
 	type SnapshotStore,
 	splitAddressableFileLines,
 } from "@chudware/hashline";
-import type { AgentMessage } from "@chudware/agent-core";
-import type { ImageContent } from "@chudware/ai";
 import { formatAge, formatBytes, isProbablyBinary, readImageMetadata } from "@chudware/utils";
 import * as fsx from "@chudware/utils/fsx";
 import { canonicalSnapshotKey } from "../edit/file-snapshot-store";

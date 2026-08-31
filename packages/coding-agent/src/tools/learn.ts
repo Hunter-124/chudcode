@@ -1,5 +1,5 @@
-import { type } from "@chudware/chudtype";
 import type { AgentTool, AgentToolResult } from "@chudware/agent-core";
+import { type } from "@chudware/chudtype";
 import { sanitizeSkillName, writeManagedSkill } from "../autolearn/managed-skills";
 import { isNameClaimedByAuthoredSkill } from "../extensibility/skills";
 import { localBackend } from "../memory-backend/local-backend";

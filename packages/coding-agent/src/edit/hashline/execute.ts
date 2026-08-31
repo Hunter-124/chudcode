@@ -10,6 +10,8 @@
  * batch's `flush` flag to true only for the final write so diagnostics
  * round-trip once.
  */
+
+import type { AgentToolResult } from "@chudware/agent-core";
 import {
 	type BlockResolution,
 	type Clipboard,
@@ -22,7 +24,6 @@ import {
 	type PreparedSection,
 	startClipboardBatch,
 } from "@chudware/hashline";
-import type { AgentToolResult } from "@chudware/agent-core";
 import type { FileDiagnosticsResult, WritethroughCallback, WritethroughDeferredHandle } from "../../lsp";
 import type { ToolSession } from "../../tools";
 import { ToolError } from "../../tools/tool-errors";

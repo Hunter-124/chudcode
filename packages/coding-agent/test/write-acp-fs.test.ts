@@ -2,7 +2,6 @@ import { afterEach, beforeEach, describe, expect, it, spyOn } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import { computeFileHash } from "@chudware/hashline";
 import type { AgentToolResult } from "@chudware/agent-core";
 import { Settings } from "@chudware/coding-agent/config/settings";
 import { resolveLocalUrlToPath } from "@chudware/coding-agent/internal-urls";
@@ -10,6 +9,7 @@ import type { PlanModeState } from "@chudware/coding-agent/plan-mode/state";
 import type { ClientBridge } from "@chudware/coding-agent/session/client-bridge";
 import type { ToolSession } from "@chudware/coding-agent/tools";
 import { WriteTool } from "@chudware/coding-agent/tools/write";
+import { computeFileHash } from "@chudware/hashline";
 import { removeWithRetries } from "@chudware/utils";
 import * as fsx from "@chudware/utils/fsx";
 

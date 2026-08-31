@@ -2,11 +2,11 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import { formatHashlineHeader } from "@chudware/hashline";
 import { resetSettingsForTest, Settings } from "@chudware/coding-agent/config/settings";
 import { canonicalSnapshotKey, EditTool, getFileSnapshotStore, type PatchParams } from "@chudware/coding-agent/edit";
 import type { ToolSession } from "@chudware/coding-agent/tools";
 import type { EditMode } from "@chudware/coding-agent/utils/edit-mode";
+import { formatHashlineHeader } from "@chudware/hashline";
 import { removeWithRetries } from "@chudware/utils";
 import * as fsx from "@chudware/utils/fsx";
 

@@ -1,10 +1,10 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "bun:test";
 import * as path from "node:path";
-import { type } from "@chudware/chudtype";
 import { Agent, type AgentTool, ThinkingLevel } from "@chudware/agent-core";
 import { type Api, Effort, type Model } from "@chudware/ai";
 import { createMockModel, type MockResponse } from "@chudware/ai/providers/mock";
 import { getBundledModel } from "@chudware/catalog/models";
+import { type } from "@chudware/chudtype";
 import { ModelRegistry } from "@chudware/coding-agent/config/model-registry";
 import { Settings } from "@chudware/coding-agent/config/settings";
 import type { InteractiveModeContext } from "@chudware/coding-agent/modes/types";

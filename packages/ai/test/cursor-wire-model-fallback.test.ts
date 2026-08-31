@@ -15,6 +15,8 @@ import {
 	TurnEndedUpdateSchema,
 } from "@chudware/catalog/discovery/cursor-proto";
 import { create, fromBinary, toBinary } from "@chudware/catalog/discovery/protobuf";
+import { Effort } from "@chudware/catalog/effort";
+import { resolveWireModelId } from "@chudware/catalog/model-thinking";
 import type { ModelSpec } from "@chudware/catalog/types";
 import { sleep } from "@chudware/utils/async";
 
@@ -185,6 +187,17 @@ function makeModel(baseUrl: string): Model<"cursor-agent"> {
 		provider: "cursor",
 		baseUrl,
 		reasoning: true,
+		thinking: {
+			mode: "effort",
+			efforts: [Effort.Low, Effort.Medium, Effort.High, Effort.XHigh],
+			effortRouting: {
+				off: "gpt-5.6-sol-none",
+				[Effort.Low]: "gpt-5.6-sol-low",
+				[Effort.Medium]: "gpt-5.6-sol-medium",
+				[Effort.High]: "gpt-5.6-sol-high",
+				[Effort.XHigh]: "gpt-5.6-sol-xhigh",
+			},
+		},
 		input: ["text"],
 		cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
 		contextWindow: 1_000_000,
@@ -197,10 +210,11 @@ const context: Context = {
 };
 
 async function runStream(baseUrl: string): Promise<{ events: string[]; result: AssistantMessage }> {
-	const stream = streamCursor(makeModel(baseUrl), context, {
+	const model = makeModel(baseUrl);
+	const stream = streamCursor(model, context, {
 		apiKey: "test-token",
 		sessionId: crypto.randomUUID(),
-		wireModelId: "gpt-5.6-sol-medium",
+		wireModelId: resolveWireModelId(model, Effort.Medium),
 	});
 	const events: string[] = [];
 	for await (const event of stream) events.push(event.type);
@@ -227,58 +241,54 @@ afterEach(async () => {
 	await stopServer();
 });
 
-describe("Cursor discovered effort wire fallback", () => {
-	it("retries not_found once with the exact discovered sibling id", async () => {
-		responses = [
-			{ kind: "error", code: "not_found", message: "Error" },
-			{ kind: "success", text: "OK" },
-		];
+describe("Cursor exact discovered effort wire routing", () => {
+	it("sends the effortRouting sibling on the first and only attempt", async () => {
+		responses = [{ kind: "success", text: "OK" }];
 		const baseUrl = await startServer();
 		const { events, result } = await runStream(baseUrl);
 
 		expect(events.filter(event => event === "start")).toHaveLength(1);
 		expect(result.stopReason).toBe("stop");
-		expect(requests).toHaveLength(2);
-		expect(requests[0].requestedModel?.modelId).toBe("gpt-5.6-sol");
-		expect(requests[0].requestedModel?.parameters).toEqual([
-			expect.objectContaining({ id: "reasoning", value: "medium" }),
-		]);
-		expect(requests[1].requestedModel?.modelId).toBe("gpt-5.6-sol-medium");
-		expect(requests[1].requestedModel?.parameters).toEqual([]);
-		expect(requests[1].modelDetails?.modelId).toBe("gpt-5.6-sol-medium");
+		expect(requests).toHaveLength(1);
+		expect(requests[0].requestedModel?.modelId).toBe("gpt-5.6-sol-medium");
+		expect(requests[0].requestedModel?.parameters).toEqual([]);
+		expect(requests[0].modelDetails?.modelId).toBe("gpt-5.6-sol-medium");
 	});
 
-	it("still retries when a heartbeat precedes the not_found", async () => {
-		responses = [
-			{ kind: "error", code: "not_found", message: "Error", heartbeat: true },
-			{ kind: "success", text: "OK" },
-		];
+	it("reports not_found from the exact sibling without a guessed retry", async () => {
+		responses = [{ kind: "error", code: "not_found", message: "exact sibling unavailable" }];
 		const baseUrl = await startServer();
 		const { result } = await runStream(baseUrl);
 
-		expect(result.stopReason).toBe("stop");
-		expect(requests).toHaveLength(2);
-		expect(requests[1].requestedModel?.modelId).toBe("gpt-5.6-sol-medium");
+		expect(result.stopReason).toBe("error");
+		expect(result.errorMessage).toContain("exact sibling unavailable");
+		expect(requests).toHaveLength(1);
+		expect(requests[0].requestedModel?.modelId).toBe("gpt-5.6-sol-medium");
 	});
 
-	it("does not start the fallback after the request is canceled", async () => {
-		responses = [
-			{ kind: "error", code: "not_found", message: "Error" },
-			{ kind: "success", text: "must not be requested" },
-		];
+	it("keeps a heartbeat before not_found observable without a second attempt", async () => {
+		responses = [{ kind: "error", code: "not_found", message: "Error", heartbeat: true }];
+		const baseUrl = await startServer();
+		const { events, result } = await runStream(baseUrl);
+
+		expect(events.filter(event => event === "start")).toHaveLength(1);
+		expect(result.stopReason).toBe("error");
+		expect(requests).toHaveLength(1);
+	});
+
+	it("stays single-attempt when the request is canceled", async () => {
+		responses = [{ kind: "error", code: "not_found", message: "Error" }];
 		const baseUrl = await startServer();
 		const controller = new AbortController();
-		// Model cancellation at the exact retry boundary without a timer race:
-		// once the fixture receives attempt one, the signal is already aborted
-		// when the not_found catch decides whether to launch attempt two.
 		Object.defineProperty(controller.signal, "aborted", {
 			configurable: true,
 			get: () => requests.length > 0,
 		});
-		const stream = streamCursor(makeModel(baseUrl), context, {
+		const model = makeModel(baseUrl);
+		const stream = streamCursor(model, context, {
 			apiKey: "test-token",
 			sessionId: crypto.randomUUID(),
-			wireModelId: "gpt-5.6-sol-medium",
+			wireModelId: resolveWireModelId(model, Effort.Medium),
 			signal: controller.signal,
 		});
 		for await (const _event of stream) {
@@ -290,25 +300,18 @@ describe("Cursor discovered effort wire fallback", () => {
 		expect(requests).toHaveLength(1);
 	});
 
-	it("reports latency across both wire attempts", async () => {
-		responses = [
-			{ kind: "error", code: "not_found", message: "Error", delayMs: 40 },
-			{ kind: "success", text: "OK", delayMs: 20 },
-		];
+	it("reports first-attempt latency for the exact routed sibling", async () => {
+		responses = [{ kind: "success", text: "OK", delayMs: 40 }];
 		const baseUrl = await startServer();
 		const { result } = await runStream(baseUrl);
 
 		expect(result.stopReason).toBe("stop");
-		expect(result.duration).toBeGreaterThanOrEqual(50);
-		expect(result.ttft).toBeGreaterThanOrEqual(50);
-		expect(requests).toHaveLength(2);
+		expect(result.duration).toBeGreaterThanOrEqual(30);
+		expect(result.ttft).toBeGreaterThanOrEqual(30);
+		expect(requests).toHaveLength(1);
 	});
 
-	it.each([
-		["permission_denied", "authentication"],
-		["resource_exhausted", "quota"],
-		["unavailable", "network"],
-	])("does not retry %s %s errors", async code => {
+	it.each(["permission_denied", "resource_exhausted", "unavailable"])("does not retry %s errors", async code => {
 		responses = [{ kind: "error", code, message: "Error" }];
 		const baseUrl = await startServer();
 		const { result } = await runStream(baseUrl);
@@ -317,14 +320,15 @@ describe("Cursor discovered effort wire fallback", () => {
 		expect(requests).toHaveLength(1);
 	});
 
-	it("does not retry when onPayload replaced the normalized effort model", async () => {
+	it("honors an onPayload model replacement on the only attempt", async () => {
 		responses = [{ kind: "error", code: "not_found", message: "hook model unavailable" }];
 		const baseUrl = await startServer();
 		let hookCalls = 0;
-		const stream = streamCursor(makeModel(baseUrl), context, {
+		const model = makeModel(baseUrl);
+		const stream = streamCursor(model, context, {
 			apiKey: "test-token",
 			sessionId: crypto.randomUUID(),
-			wireModelId: "gpt-5.6-sol-medium",
+			wireModelId: resolveWireModelId(model, Effort.Medium),
 			onPayload: payload => {
 				hookCalls++;
 				if (!isAgentRunRequest(payload)) throw new Error("expected Cursor AgentRunRequest payload");
@@ -351,20 +355,7 @@ describe("Cursor discovered effort wire fallback", () => {
 		expect(requests[0].modelDetails?.modelId).toBe("hook-selected-model");
 	});
 
-	it("attempts the discovered sibling at most once", async () => {
-		responses = [
-			{ kind: "error", code: "not_found", message: "normalized unavailable" },
-			{ kind: "error", code: "not_found", message: "sibling unavailable" },
-		];
-		const baseUrl = await startServer();
-		const { result } = await runStream(baseUrl);
-
-		expect(result.stopReason).toBe("error");
-		expect(result.errorMessage).toContain("sibling unavailable");
-		expect(requests).toHaveLength(2);
-	});
-
-	it("does not retry after the server emits partial output", async () => {
+	it("retains partial output from the single failed attempt", async () => {
 		responses = [{ kind: "error", code: "not_found", message: "late failure", partialText: "partial" }];
 		const baseUrl = await startServer();
 		const { result } = await runStream(baseUrl);
@@ -374,15 +365,16 @@ describe("Cursor discovered effort wire fallback", () => {
 		expect(requests).toHaveLength(1);
 	});
 
-	it("keeps the fallback turn's exec bridge busy state on the watched outer stream", async () => {
-		responses = [{ kind: "error", code: "not_found", message: "Error" }, { kind: "exec-success" }];
+	it("tracks exec bridge busy state on the first attempt", async () => {
+		responses = [{ kind: "exec-success" }];
 		const baseUrl = await startServer();
 		const execStarted = Promise.withResolvers<void>();
 		const releaseExec = Promise.withResolvers<void>();
-		const stream = streamCursor(makeModel(baseUrl), context, {
+		const model = makeModel(baseUrl);
+		const stream = streamCursor(model, context, {
 			apiKey: "test-token",
 			sessionId: crypto.randomUUID(),
-			wireModelId: "gpt-5.6-sol-medium",
+			wireModelId: resolveWireModelId(model, Effort.Medium),
 			execHandlers: {
 				async read() {
 					execStarted.resolve();
@@ -406,15 +398,12 @@ describe("Cursor discovered effort wire fallback", () => {
 		})();
 
 		await execStarted.promise;
-		// The watchdog reads the outer stream; the exec bridge marked the inner
-		// fallback stream busy. Without forwarding, this would read false and the
-		// idle watchdog would abort a healthy tool run.
 		expect(stream.hasPendingLocalWork).toBe(true);
 		releaseExec.resolve();
 
 		const result = await drain;
 		expect(result.stopReason).toBe("stop");
 		expect(stream.hasPendingLocalWork).toBe(false);
-		expect(requests).toHaveLength(2);
+		expect(requests).toHaveLength(1);
 	});
 });

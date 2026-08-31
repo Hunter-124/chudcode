@@ -1,4 +1,3 @@
-import { type Type, type } from "@chudware/chudtype";
 import type {
 	AgentTool,
 	AgentToolContext,
@@ -8,6 +7,7 @@ import type {
 } from "@chudware/agent-core";
 import type { Model } from "@chudware/ai";
 import { isClaudeModelId } from "@chudware/catalog/identity";
+import { type Type, type } from "@chudware/chudtype";
 import type { DesktopCapabilities } from "@chudware/natives";
 import { once, prompt } from "@chudware/utils";
 import * as fsx from "@chudware/utils/fsx";

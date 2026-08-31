@@ -676,6 +676,10 @@ export class MCPManager {
 				Promise.allSettled(connectionTasks.map(task => task.tracked.promise)),
 				delay(STARTUP_TIMEOUT_MS),
 			]);
+			// `trackPromise` and the tool-registration handler observe the same
+			// toolsPromise. Flush that sibling reaction before reporting status so
+			// an awaited incremental connect cannot transiently remain "connecting".
+			await Promise.resolve();
 
 			const cachedTools = new Map<string, MCPToolDefinition[]>();
 			const pendingTasks = connectionTasks.filter(task => task.tracked.status === "pending");
@@ -916,6 +920,22 @@ export class MCPManager {
 			if (result) return result;
 		}
 		throw new Error(`MCP server not connected: ${name}`);
+	}
+	/**
+	 * Wait until a server's tool catalog has been registered, not merely until
+	 * its transport socket connects. Interactive enable/refresh callers use
+	 * this barrier before publishing the new tool snapshot.
+	 */
+	async waitForServerReady(name: string): Promise<MCPServerConnection> {
+		const connection = await this.waitForConnection(name);
+		const pendingTools = this.#pendingToolLoads.get(name);
+		if (pendingTools) {
+			await pendingTools;
+			while (this.#pendingToolLoads.get(name) === pendingTools) {
+				await Promise.resolve();
+			}
+		}
+		return connection;
 	}
 
 	/**

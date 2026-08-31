@@ -2,7 +2,6 @@ import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import { type } from "@chudware/chudtype";
 import type { AgentEvent, AgentTool, AgentToolContext } from "@chudware/agent-core";
 import { type BlockState, handleServerMessage, type ToolCallState } from "@chudware/ai/providers/cursor";
 import { buildPiLsResult, piTruncation } from "@chudware/ai/providers/cursor/exec-modern";
@@ -18,6 +17,7 @@ import {
 	ShellArgsSchema,
 } from "@chudware/catalog/discovery/cursor-proto";
 import { create, fromBinary } from "@chudware/catalog/discovery/protobuf";
+import { type } from "@chudware/chudtype";
 import { Settings } from "@chudware/coding-agent/config/settings";
 import { CursorExecHandlers } from "@chudware/coding-agent/cursor";
 import {

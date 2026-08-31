@@ -123,12 +123,17 @@ function cppQuotedArray(source: string, name: string): string[] {
 	if (start < 0) return [];
 	const end = source.indexOf("});", start);
 	if (end < 0) return [];
-	return [...source.slice(start, end).matchAll(/"([^"]+)"/g)].map((match) => match[1]);
+	return [...source.slice(start, end).matchAll(/"([^"]+)"/g)].map(match => match[1]);
 }
 
 function cppEnum(source: string, name: string): string[] {
 	const match = source.match(new RegExp(`enum\\s+class\\s+${name}\\s*\\{([^}]+)\\}`));
-	return match ? match[1].split(",").map((value) => value.trim()).filter(Boolean) : [];
+	return match
+		? match[1]
+				.split(",")
+				.map(value => value.trim())
+				.filter(Boolean)
+		: [];
 }
 
 function cppNumber(source: string, name: string): number | undefined {
@@ -155,12 +160,9 @@ function verifyManifestShape(manifest: SharedManifest): void {
 	expectUnique("semanticRoles", manifest.semanticRoles);
 	expectUnique("tones", manifest.tones);
 	expectUnique("densities", manifest.densities);
-	const cadDomainPrefixes = [
-		"viewport", "plane", "sketch", "sim", "flow", "cam", "fit", "plan",
-		"parts", "ribbon",
-	];
+	const cadDomainPrefixes = ["viewport", "plane", "sketch", "sim", "flow", "cam", "fit", "plan", "parts", "ribbon"];
 	for (const role of manifest.semanticRoles) {
-		const matched = cadDomainPrefixes.find((prefix) => role.toLowerCase().startsWith(prefix));
+		const matched = cadDomainPrefixes.find(prefix => role.toLowerCase().startsWith(prefix));
 		if (matched) drift(`semanticRoles.${role}`, "general cross-product role", `CAD-domain prefix ${matched}`);
 	}
 	for (const font of manifest.fonts.files) {
@@ -168,20 +170,36 @@ function verifyManifestShape(manifest: SharedManifest): void {
 			drift(`fonts.${font.file}.path`, "repository-relative path", font.path);
 		}
 	}
-	if (!(manifest.usageThresholds.warning >= 0 &&
-		manifest.usageThresholds.warning < manifest.usageThresholds.critical &&
-		manifest.usageThresholds.critical <= 1)) {
+	if (
+		!(
+			manifest.usageThresholds.warning >= 0 &&
+			manifest.usageThresholds.warning < manifest.usageThresholds.critical &&
+			manifest.usageThresholds.critical <= 1
+		)
+	) {
 		drift("usageThresholds", "0 <= warning < critical <= 1", manifest.usageThresholds);
 	}
 	for (const role of Object.keys(manifest.surfaceRoleSemantics)) {
-		if (!manifest.semanticRoles.includes(role)) drift(`surfaceRoleSemantics.${role}`, "declared semantic role", "missing");
+		if (!manifest.semanticRoles.includes(role))
+			drift(`surfaceRoleSemantics.${role}`, "declared semantic role", "missing");
 	}
 	for (const role of [
-		"usageTrack", "usageOk", "usageWarn", "usageErr", "usageUnknown",
-		"attachmentBg", "attachmentBorder", "attachmentHovered", "attachmentSelected",
-		"dagEdge", "dagEdgeActive", "dagNodeBg", "dagNodeHovered",
+		"usageTrack",
+		"usageOk",
+		"usageWarn",
+		"usageErr",
+		"usageUnknown",
+		"attachmentBg",
+		"attachmentBorder",
+		"attachmentHovered",
+		"attachmentSelected",
+		"dagEdge",
+		"dagEdgeActive",
+		"dagNodeBg",
+		"dagNodeHovered",
 	]) {
-		if (!manifest.surfaceRoleSemantics[role]) drift(`surfaceRoleSemantics.${role}`, "non-empty semantics", manifest.surfaceRoleSemantics[role]);
+		if (!manifest.surfaceRoleSemantics[role])
+			drift(`surfaceRoleSemantics.${role}`, "non-empty semantics", manifest.surfaceRoleSemantics[role]);
 	}
 }
 
@@ -191,8 +209,7 @@ function verifyTheme(root: string, manifest: SharedManifest, paths: Verification
 	const kit = readRequired(path.join(root, paths.kitHeader), paths.kitHeader);
 
 	expectEqual("theme.kManifestSchema", manifest.schema, cppQuotedArray(theme, "kManifestSchema")[0]);
-	expectEqual("theme.kSharedSemanticRoleNames", manifest.semanticRoles,
-		cppQuotedArray(theme, "kSemanticRoleNames"));
+	expectEqual("theme.kSharedSemanticRoleNames", manifest.semanticRoles, cppQuotedArray(theme, "kSemanticRoleNames"));
 	expectEqual("theme.kToneNames", manifest.tones, cppQuotedArray(theme, "kToneNames"));
 	expectEqual("theme.kDensityNames", manifest.densities, cppQuotedArray(theme, "kDensityNames"));
 	expectEqual("kit.Tone", manifest.tones, cppEnum(kit, "Tone"));
@@ -219,22 +236,39 @@ function verifyTheme(root: string, manifest: SharedManifest, paths: Verification
 	}
 
 	const thresholdBlock = theme.match(/kUsageThresholds\s*\{([^}]+)\}/)?.[1] ?? "";
-	const thresholdValues = [...thresholdBlock.matchAll(/-?\d+(?:\.\d+)?/g)].map((match) => Number(match[0]));
-	expectEqual("theme.kUsageThresholds", [manifest.usageThresholds.warning, manifest.usageThresholds.critical], thresholdValues);
-	expectEqual("theme.kIconPipelineVersion", manifest.iconPipeline.version,
-		cppQuotedArray(theme, "kIconPipelineVersion")[0]);
+	const thresholdValues = [...thresholdBlock.matchAll(/-?\d+(?:\.\d+)?/g)].map(match => Number(match[0]));
+	expectEqual(
+		"theme.kUsageThresholds",
+		[manifest.usageThresholds.warning, manifest.usageThresholds.critical],
+		thresholdValues,
+	);
+	expectEqual(
+		"theme.kIconPipelineVersion",
+		manifest.iconPipeline.version,
+		cppQuotedArray(theme, "kIconPipelineVersion")[0],
+	);
 
 	const fontBlock = theme.slice(theme.indexOf("kFontAssets"), theme.indexOf("});", theme.indexOf("kFontAssets")));
-	const fontPairs = [...fontBlock.matchAll(/\{"([^"]+)",\s*"([a-f0-9]{64})"\}/g)]
-		.map((match) => ({ file: match[1], sha256: match[2] }));
-	expectEqual("theme.kFontAssets", manifest.fonts.files.map(({ file, sha256 }) => ({ file, sha256 })), fontPairs);
+	const fontPairs = [...fontBlock.matchAll(/\{"([^"]+)",\s*"([a-f0-9]{64})"\}/g)].map(match => ({
+		file: match[1],
+		sha256: match[2],
+	}));
+	expectEqual(
+		"theme.kFontAssets",
+		manifest.fonts.files.map(({ file, sha256 }) => ({ file, sha256 })),
+		fontPairs,
+	);
 }
 
 function verifyAssets(root: string, manifest: SharedManifest, paths: VerificationPaths): void {
 	const licensePath = path.join(root, paths.fontLicense);
 	const license = readRequired(licensePath, paths.fontLicense);
 	expectEqual("fonts.license.spdx", "OFL-1.1", manifest.fonts.license.spdx);
-	for (const marker of ["SIL OPEN FONT LICENSE Version 1.1", "The Rubik Project Authors", "The JetBrains Mono Project Authors"]) {
+	for (const marker of [
+		"SIL OPEN FONT LICENSE Version 1.1",
+		"The Rubik Project Authors",
+		"The JetBrains Mono Project Authors",
+	]) {
 		if (!license.includes(marker)) drift(`fonts.license.text:${marker}`, "present", "missing");
 	}
 
@@ -283,7 +317,9 @@ function main(): void {
 		process.exitCode = 1;
 		return;
 	}
-	console.log(`UI shared contract verified: ${manifest.schema} (${manifest.semanticRoles.length} roles, ${manifest.fonts.files.length} fonts)`);
+	console.log(
+		`UI shared contract verified: ${manifest.schema} (${manifest.semanticRoles.length} roles, ${manifest.fonts.files.length} fonts)`,
+	);
 }
 
 try {

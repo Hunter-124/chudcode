@@ -3,12 +3,6 @@ import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
 import {
-	forkClipboard,
-	formatHashlineHeader,
-	InMemorySnapshotStore,
-	missingSnapshotTagMessage,
-} from "@chudware/hashline";
-import {
 	adjustIndentation,
 	computeEditDiff,
 	computeHashlineDiff,
@@ -16,6 +10,12 @@ import {
 	findMatch,
 	replaceText,
 } from "@chudware/coding-agent/edit";
+import {
+	forkClipboard,
+	formatHashlineHeader,
+	InMemorySnapshotStore,
+	missingSnapshotTagMessage,
+} from "@chudware/hashline";
 import { removeWithRetries } from "@chudware/utils";
 import * as fsx from "@chudware/utils/fsx";
 

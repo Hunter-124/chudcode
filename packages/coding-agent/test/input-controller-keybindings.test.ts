@@ -234,6 +234,7 @@ async function createContext() {
 		canCopyBtw,
 		handleBtwCopyKey,
 		showError,
+		showWarning: vi.fn(),
 		showStatus: vi.fn(),
 	} as unknown as InteractiveModeContext;
 

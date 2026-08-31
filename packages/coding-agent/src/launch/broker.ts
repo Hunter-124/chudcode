@@ -3,16 +3,7 @@ import * as net from "node:net";
 import * as os from "node:os";
 import * as path from "node:path";
 import { Process, type PtyRunResult, PtySession } from "@chudware/natives";
-import {
-	isEexist,
-	isEnoent,
-	logger,
-	postmortem,
-	procmgr,
-	sanitizeText,
-	setProcessName,
-	sleep,
-} from "@chudware/utils";
+import { isEexist, isEnoent, logger, postmortem, procmgr, sanitizeText, setProcessName, sleep } from "@chudware/utils";
 import * as fsx from "@chudware/utils/fsx";
 import { hostHasInheritableConsole } from "../eval/py/spawn-options";
 import { truncateHead, truncateHeadBytes, truncateTail, truncateTailBytes } from "../session/streaming-output";

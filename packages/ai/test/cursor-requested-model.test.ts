@@ -36,20 +36,18 @@ function capture(model: Model<"cursor-agent">): Promise<AgentRunRequest> {
 }
 
 describe("Cursor requestedModel wire shape", () => {
-	it("splits a GPT reasoning-sibling slug into base id + reasoning parameter", async () => {
+	it("sends a GPT reasoning-sibling slug as its exact discovered id", async () => {
 		const payload = await capture(cursorModel("gpt-5.4-mini-low"));
-		expect(payload.requestedModel?.modelId).toBe("gpt-5.4-mini");
-		expect(payload.requestedModel?.parameters).toEqual([expect.objectContaining({ id: "reasoning", value: "low" })]);
-		// modelDetails is still read server-side, so it must carry the base id too.
-		expect(payload.modelDetails?.modelId).toBe("gpt-5.4-mini");
+		expect(payload.requestedModel?.modelId).toBe("gpt-5.4-mini-low");
+		expect(payload.requestedModel?.parameters).toEqual([]);
+		expect(payload.modelDetails?.modelId).toBe("gpt-5.4-mini-low");
 	});
 
-	it("handles multi-segment GPT bases and the xhigh tier", async () => {
+	it("preserves multi-segment GPT bases and the xhigh tier", async () => {
 		const payload = await capture(cursorModel("gpt-5.6-sol-xhigh"));
-		expect(payload.requestedModel?.modelId).toBe("gpt-5.6-sol");
-		expect(payload.requestedModel?.parameters).toEqual([
-			expect.objectContaining({ id: "reasoning", value: "xhigh" }),
-		]);
+		expect(payload.requestedModel?.modelId).toBe("gpt-5.6-sol-xhigh");
+		expect(payload.requestedModel?.parameters).toEqual([]);
+		expect(payload.modelDetails?.modelId).toBe("gpt-5.6-sol-xhigh");
 	});
 
 	it("leaves Cursor-native ids untouched with no parameters", async () => {

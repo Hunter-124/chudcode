@@ -127,6 +127,8 @@ export interface LoadSkillsOptions extends SkillsSettings {
 	 * extensions all survive outside the construction-time invocation scope.
 	 */
 	extensionRoots?: EffectiveExtensionRoots;
+	/** Include Chudcode-managed auto-learn skills. Defaults to true. */
+	enableManagedSkills?: boolean;
 }
 
 /**
@@ -144,6 +146,7 @@ export async function loadSkills(options: LoadSkillsOptions = {}): Promise<LoadS
 		enablePiProject = true,
 		enableAgentsUser = true,
 		enableAgentsProject = true,
+		enableManagedSkills = true,
 		customDirectories = [],
 		ignoredSkills = [],
 		includeSkills = [],
@@ -168,10 +171,10 @@ export async function loadSkills(options: LoadSkillsOptions = {}): Promise<LoadS
 
 	function isSourceEnabled(source: SourceMeta): boolean {
 		const { provider, level } = source;
-		// Managed skills (auto-learn) are Chudcode-native and discovered unconditionally
-		// — third-party CLI toggles must never silently hide them (cf. #2401). The
-		// master `enabled` flag above still gates them.
-		if (provider === MANAGED_SKILLS_PROVIDER_ID) return true;
+		// Managed skills (auto-learn) are Chudcode-native and independent of
+		// third-party toggles. Callers that need a hermetic/custom-only scan can
+		// disable them explicitly; the default remains enabled.
+		if (provider === MANAGED_SKILLS_PROVIDER_ID) return enableManagedSkills;
 		if (provider === "codex" && level === "user") return enableCodexUser;
 		if (provider === "claude" && level === "user") return enableClaudeUser;
 		if (provider === "claude" && level === "project") return enableClaudeProject;
@@ -344,14 +347,15 @@ export async function loadSkills(options: LoadSkillsOptions = {}): Promise<LoadS
 	}
 
 	// Managed (auto-learn) skills resolve dead-last with first-wins. Source from
-	// result.all (pre-dedup): capability-level dedup runs BEFORE isSourceEnabled,
-	// so a managed skill can be shadowed by a higher-priority authored skill that
-	// is itself disabled here — managed must stay visible regardless of toggles.
+	// result.all (pre-dedup): capability-level dedup runs BEFORE isSourceEnabled.
+	// They stay visible regardless of third-party toggles unless the caller
+	// explicitly requests a hermetic/custom-only scan.
 	// Validate the on-disk name (a hand-placed managed file could carry an unsafe
 	// frontmatter name) and re-sanitize the description on read. Descriptions and
 	// names both render unescaped into the system prompt.
 	const managedCandidates = result.all.filter(
 		capSkill =>
+			enableManagedSkills &&
 			capSkill._source.provider === MANAGED_SKILLS_PROVIDER_ID &&
 			isValidManagedSkillName(capSkill.name) &&
 			!disabledSkillNames.has(capSkill.name) &&

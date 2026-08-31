@@ -6,9 +6,9 @@
  * internals, which massively overcounts.
  */
 import { describe, expect, it } from "bun:test";
-import { type } from "@chudware/chudtype";
 import { Tokenizer } from "@chudware/agent-core";
 import { arkToWireSchema } from "@chudware/ai/utils/schema";
+import { type } from "@chudware/chudtype";
 import {
 	type ContextBreakdown,
 	computeNonMessageBreakdown,

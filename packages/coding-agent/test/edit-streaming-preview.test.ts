@@ -2,8 +2,8 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import { computeFileHash, formatHashlineHeader, InMemorySnapshotStore } from "@chudware/hashline";
 import { dropIncompleteLastEdit, EDIT_MODE_STRATEGIES } from "@chudware/coding-agent/edit";
+import { computeFileHash, formatHashlineHeader, InMemorySnapshotStore } from "@chudware/hashline";
 import { removeWithRetries } from "@chudware/utils";
 import * as fsx from "@chudware/utils/fsx";
 

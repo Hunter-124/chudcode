@@ -1001,7 +1001,7 @@ describe("Cursor modern exec frames: MCP state", () => {
 		if (answer.case !== "mcpStateExecResult") throw new Error(`got ${answer.case}`);
 		if (answer.value.result.case !== "success") throw new Error("expected success");
 		const servers = answer.value.result.value.servers;
-		expect(servers.map(server => server.serverIdentifier).sort()).toEqual(["fixture", "chud-agent"]);
+		expect(servers.map(server => server.serverIdentifier).sort()).toEqual(["chud-agent", "fixture"]);
 		const piAgent = servers.find(server => server.serverIdentifier === "chud-agent");
 		expect(piAgent?.tools.map(t => t.name)).toEqual(["task", "hub"]);
 	});

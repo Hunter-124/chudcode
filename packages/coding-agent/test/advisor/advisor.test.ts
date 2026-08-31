@@ -1,9 +1,9 @@
 import { describe, expect, it, vi } from "bun:test";
-import { type } from "@chudware/chudtype";
 import { type AgentMessage, type AgentTelemetryConfig, Tokenizer } from "@chudware/agent-core";
 import type { AssistantMessage } from "@chudware/ai";
 import * as AIError from "@chudware/ai/error";
 import { kCursorExecResolved } from "@chudware/ai/utils/block-symbols";
+import { type } from "@chudware/chudtype";
 import type { TUI } from "@chudware/tui";
 import {
 	AdviseTool,
@@ -5718,7 +5718,8 @@ describe("advisor", () => {
 			// Render once so the frame geometry is recorded; the first advisor sits on
 			// the first body row (0-based screen row 1 → SGR 1-based row 2).
 			overlay.render(120);
-			overlay.handleInput("\x1b[<0;4;2M"); // left-button press, col 4, row 2
+			overlay.handleInput("\x1b[<0;4;2M"); // first click selects the advisor
+			overlay.handleInput("\x1b[<0;4;2M"); // second click activates detail editing
 			const text = strip(overlay.render(120));
 			expect(text).toContain("Editing");
 			expect(text).toContain("Architecture");

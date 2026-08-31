@@ -2,11 +2,7 @@ import { beforeAll, describe, expect, test } from "bun:test";
 import type { Model } from "@chudware/ai";
 import { buildModel } from "@chudware/catalog/build";
 import { Settings } from "@chudware/coding-agent/config/settings";
-import {
-	buildBrowserItems,
-	ModelBrowser,
-	sortModelItems,
-} from "@chudware/coding-agent/modes/components/model-browser";
+import { buildBrowserItems, ModelBrowser, sortModelItems } from "@chudware/coding-agent/modes/components/model-browser";
 import { initTheme } from "@chudware/coding-agent/modes/theme/theme";
 
 function makeModel(provider: string, id: string): Model {

@@ -1,7 +1,7 @@
 import { beforeAll, describe, expect, it, spyOn, vi } from "bun:test";
 import { stripVTControlCharacters } from "node:util";
-import { type } from "@chudware/chudtype";
 import type { AgentToolContext } from "@chudware/agent-core";
+import { type } from "@chudware/chudtype";
 import { Settings } from "@chudware/coding-agent/config/settings";
 import type {
 	ExtensionAskDialogQuestion,

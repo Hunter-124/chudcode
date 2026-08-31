@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "bun:test";
-import { type } from "@chudware/chudtype";
 import type { AgentTool, AgentToolContext, AgentToolResult } from "@chudware/agent-core";
+import { type } from "@chudware/chudtype";
 import { Settings } from "@chudware/coding-agent/config/settings";
 import { callSessionTool } from "@chudware/coding-agent/eval/js/tool-bridge";
 import type { ToolSession } from "@chudware/coding-agent/tools";

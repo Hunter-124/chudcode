@@ -12,11 +12,11 @@ import { CommitInferenceCache } from "./cache";
 import { type ConventionalGenerationConfig, conventionalGenerationConfig } from "./config";
 import { type ConventionalGenerationContext, generateConventionalCommit } from "./generate";
 import {
+	ChudCommitInference,
 	type CommitInference,
 	type CommitInferenceRequest,
 	type CommitInferenceResponse,
 	type CommitProgress,
-	ChudCommitInference,
 } from "./inference";
 import { detectRepositoryContext, formatRepositoryContext } from "./repo-context";
 

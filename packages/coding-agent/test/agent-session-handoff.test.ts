@@ -18,10 +18,10 @@ import { AgentSession, type AgentSessionEvent } from "@chudware/coding-agent/ses
 import { AuthStorage } from "@chudware/coding-agent/session/auth-storage";
 import { SessionManager } from "@chudware/coding-agent/session/session-manager";
 import { EventBus } from "@chudware/coding-agent/utils/event-bus";
+import * as snapcompact from "@chudware/snapcompact";
 import { TempDir } from "@chudware/utils";
 import { sleep } from "@chudware/utils/async";
 import * as fsx from "@chudware/utils/fsx";
-import * as snapcompact from "@chudware/snapcompact";
 
 const HANDOFF_SECRET = "HANDOFF_SECRET_TOKEN_12345";
 const UNRENDERABLE_SNAPCOMPACT_TEXT = "\uE000\uE001\uE002\uE003\uE004\uE005\uE006\uE007\uE008\uE009";

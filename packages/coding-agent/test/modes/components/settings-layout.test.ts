@@ -8,11 +8,7 @@ import {
 	type SettingTab,
 	TAB_GROUPS,
 } from "@chudware/coding-agent/config/settings-schema";
-import {
-	getSettingDef,
-	getSettingsForTab,
-	isSettingConditionResolvable,
-} from "@chudware/coding-agent/modes/components/settings-defs";
+import { getSettingsForTab, isSettingConditionResolvable } from "@chudware/coding-agent/modes/components/settings-defs";
 
 interface UiShape {
 	tab: SettingTab;

@@ -15,7 +15,6 @@ export type * from "./config/prompt-templates";
 export * from "./config/prompt-templates";
 export type { RetrySettings, SkillsSettings } from "./config/settings";
 export { Settings, settings } from "./config/settings";
-export * from "./memory-backend";
 // Custom commands
 export type * from "./extensibility/custom-commands/types";
 export type * from "./extensibility/custom-tools";
@@ -32,6 +31,7 @@ export { type FileSlashCommand, loadSlashCommands as discoverSlashCommands } fro
 export type * from "./lsp";
 // Main entry point
 export * from "./main";
+export * from "./memory-backend";
 // Run modes for programmatic SDK usage
 export * from "./modes";
 export * from "./modes/components";

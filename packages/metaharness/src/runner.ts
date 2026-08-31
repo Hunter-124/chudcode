@@ -1616,7 +1616,8 @@ async function runBenchmark(cfg: Config): Promise<BenchmarkRun> {
 		process.stdout.write(bold("chudcode env:\n"));
 		for (const key in harborEnv) {
 			if (key === "CHUDCODE_BENCH_FORWARD_ENV") continue;
-			if (key.startsWith("CHUDCODE_BENCH_") || key === "PYTHONPATH") process.stdout.write(`  ${key}=${harborEnv[key]}\n`);
+			if (key.startsWith("CHUDCODE_BENCH_") || key === "PYTHONPATH")
+				process.stdout.write(`  ${key}=${harborEnv[key]}\n`);
 		}
 		if (harborEnv.CHUDCODE_BENCH_FORWARD_ENV) {
 			const parsedForwardEnv: unknown = JSON.parse(harborEnv.CHUDCODE_BENCH_FORWARD_ENV);

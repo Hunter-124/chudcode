@@ -52,8 +52,8 @@ import type { AssistantMessage, CodexCompactionContext, Message, Model, Provider
 import * as AIError from "@chudware/ai/error";
 import { preferredDialect } from "@chudware/catalog/identity";
 import { modelsAreEqual } from "@chudware/catalog/models";
-import { logger, Snowflake } from "@chudware/utils";
 import * as snapcompact from "@chudware/snapcompact";
+import { logger, Snowflake } from "@chudware/utils";
 import type { ModelRegistry } from "../config/model-registry";
 import { MODEL_ROLE_IDS } from "../config/model-roles";
 import type { CompactionSettings as ConfiguredCompactionSettings, Settings } from "../config/settings";

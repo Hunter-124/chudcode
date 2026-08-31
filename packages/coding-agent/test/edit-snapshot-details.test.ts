@@ -2,7 +2,6 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import { formatHashlineHeader } from "@chudware/hashline";
 import { resetSettingsForTest, Settings } from "@chudware/coding-agent/config/settings";
 import {
 	canonicalSnapshotKey,
@@ -18,6 +17,7 @@ import {
 } from "@chudware/coding-agent/edit";
 import { writethroughNoop } from "@chudware/coding-agent/lsp";
 import type { ToolSession } from "@chudware/coding-agent/tools";
+import { formatHashlineHeader } from "@chudware/hashline";
 import { removeWithRetries } from "@chudware/utils";
 import * as fsx from "@chudware/utils/fsx";
 

@@ -9,7 +9,11 @@ import { removeWithRetries } from "@chudware/utils";
 import * as fsx from "@chudware/utils/fsx";
 
 const BROKER_TOKEN = "gateway-account-pool-token";
-const ENV_KEYS = ["CHUDCODE_AUTH_BROKER_URL", "CHUDCODE_AUTH_BROKER_TOKEN", "CHUDCODE_AUTH_BROKER_ACCOUNT_POOL_FILE"] as const;
+const ENV_KEYS = [
+	"CHUDCODE_AUTH_BROKER_URL",
+	"CHUDCODE_AUTH_BROKER_TOKEN",
+	"CHUDCODE_AUTH_BROKER_ACCOUNT_POOL_FILE",
+] as const;
 
 describe("auth-gateway account pool", () => {
 	let tempDir = "";

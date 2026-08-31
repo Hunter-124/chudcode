@@ -29,6 +29,7 @@ import { type SlashCommand, slashCommandCapability } from "../capability/slash-c
 import { type CustomTool, toolCapability } from "../capability/tool";
 import type { LoadContext, LoadResult } from "../capability/types";
 import { legacyProviderAllowed } from "./agent-plugin-format";
+import { type ChudExtensionRoot, listOmpExtensionRoots } from "./chudcode-extension-roots";
 import {
 	buildRuleFromMarkdown,
 	createSourceMeta,
@@ -37,7 +38,6 @@ import {
 	parseRequestIdFormat,
 	scanSkillsFromDir,
 } from "./helpers";
-import { listOmpExtensionRoots, type ChudExtensionRoot } from "./chudcode-extension-roots";
 import { resolvePluginStdioPaths } from "./substitute-plugin-root";
 
 const PROVIDER_ID = "chudcode-plugins";
@@ -320,7 +320,9 @@ async function loadMCPServers(ctx: LoadContext): Promise<LoadResult<MCPServer>> 
 			if (!serverCfg || typeof serverCfg !== "object" || Array.isArray(serverCfg)) continue;
 			const cfg = serverCfg as RawMcpServer;
 			if (typeof cfg.command !== "string" && typeof cfg.url !== "string") {
-				warnings.push(`[chudcode-plugins] Skipping MCP server "${serverName}" in ${mcpPath}: missing command or url`);
+				warnings.push(
+					`[chudcode-plugins] Skipping MCP server "${serverName}" in ${mcpPath}: missing command or url`,
+				);
 				continue;
 			}
 			// Root relative command/cwd at the plugin's config directory, not the

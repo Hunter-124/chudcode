@@ -227,7 +227,8 @@ async function selectGitLabDuoWorkflowCandidate<TSelection>(
 	resolveCandidate: GitLabDuoWorkflowCandidateResolver<TSelection>,
 	enrichNamespaceOverride = false,
 ): Promise<TSelection | null> {
-	const namespaceId = normalizeIdentifier(config.namespaceId) ?? normalizeIdentifier(process.env.GITLAB_DUO_NAMESPACE_ID);
+	const namespaceId =
+		normalizeIdentifier(config.namespaceId) ?? normalizeIdentifier(process.env.GITLAB_DUO_NAMESPACE_ID);
 	if (namespaceId) {
 		const candidate = enrichNamespaceOverride
 			? ((await fetchNamespaceOverrideCandidate(config, baseUrl, namespaceId)) ?? {

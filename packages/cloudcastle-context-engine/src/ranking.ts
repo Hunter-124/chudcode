@@ -17,7 +17,9 @@ export function rankAndMergeEvidence(evidence: readonly IncidentEvidence[], toke
 			classPriority: Math.max(...items.map(item => item.classPriority)),
 			items: items.sort(compareEvidenceWithinClass),
 		}))
-		.sort((left, right) => right.classPriority - left.classPriority || compareStrings(left.className, right.className));
+		.sort(
+			(left, right) => right.classPriority - left.classPriority || compareStrings(left.className, right.className),
+		);
 
 	const candidates: IncidentEvidence[] = [];
 	const longestClass = Math.max(0, ...classes.map(group => group.items.length));

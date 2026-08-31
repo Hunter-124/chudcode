@@ -8,9 +8,9 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "bun:test";
 import * as os from "node:os";
 import * as path from "node:path";
-import { type } from "@chudware/chudtype";
 import { Agent, type AgentTool } from "@chudware/agent-core";
 import { type Api, Effort, type Model } from "@chudware/ai";
+import { type } from "@chudware/chudtype";
 import { ModelRegistry } from "@chudware/coding-agent/config/model-registry";
 import type { PromptTemplate } from "@chudware/coding-agent/config/prompt-templates";
 import { resetSettingsForTest, Settings } from "@chudware/coding-agent/config/settings";

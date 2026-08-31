@@ -7,11 +7,7 @@ import { Settings } from "@chudware/coding-agent/config/settings";
 import type { ToolSession } from "@chudware/coding-agent/tools";
 import type { ReadToolDetails } from "@chudware/coding-agent/tools/read";
 import { ReadTool } from "@chudware/coding-agent/tools/read";
-import {
-	demangleSymbol,
-	parseSampleProfile,
-	renderSampleProfile,
-} from "@chudware/coding-agent/utils/sample-profile";
+import { demangleSymbol, parseSampleProfile, renderSampleProfile } from "@chudware/coding-agent/utils/sample-profile";
 import { removeWithRetries } from "@chudware/utils";
 
 const BOX_MEASURE = "_RNvNtCsfMEenOU8j5j_11slab_kernel6layout11box_measure";

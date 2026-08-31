@@ -330,7 +330,11 @@ export class DiscordRest implements DiscordRestClient {
 		return this.#request<DiscordGuildMember>("GET", `/guilds/${guildId}/members/${userId}`);
 	}
 
-	async #request<T>(method: string, route: string, init: { body?: unknown; query?: URLSearchParams } = {}): Promise<T> {
+	async #request<T>(
+		method: string,
+		route: string,
+		init: { body?: unknown; query?: URLSearchParams } = {},
+	): Promise<T> {
 		const token = await this.#resolveToken();
 		const query = init.query?.toString();
 		const url = `${this.#baseUrl}${route}${query ? `?${query}` : ""}`;

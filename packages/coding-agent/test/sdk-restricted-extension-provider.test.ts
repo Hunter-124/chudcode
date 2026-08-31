@@ -5,11 +5,7 @@ import * as path from "node:path";
 import { createAssistantMessageEventStream, getCustomApi } from "@chudware/ai";
 import { ModelRegistry } from "@chudware/coding-agent/config/model-registry";
 import { Settings } from "@chudware/coding-agent/config/settings";
-import {
-	type CreateAgentSessionOptions,
-	createAgentSession,
-	type ExtensionFactory,
-} from "@chudware/coding-agent/sdk";
+import { type CreateAgentSessionOptions, createAgentSession, type ExtensionFactory } from "@chudware/coding-agent/sdk";
 import type { AuthStorage } from "@chudware/coding-agent/session/auth-storage";
 import { SessionManager } from "@chudware/coding-agent/session/session-manager";
 import { removeSyncWithRetries, Snowflake } from "@chudware/utils";

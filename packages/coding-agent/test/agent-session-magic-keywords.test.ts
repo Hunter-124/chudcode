@@ -2,10 +2,10 @@ import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "bun:te
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import { type } from "@chudware/chudtype";
 import { Agent, type AgentTool } from "@chudware/agent-core";
 import { Effort } from "@chudware/ai";
 import { getBundledModel } from "@chudware/catalog/models";
+import { type } from "@chudware/chudtype";
 import * as autoThinkingClassifier from "@chudware/coding-agent/auto-thinking/classifier";
 import { ModelRegistry } from "@chudware/coding-agent/config/model-registry";
 import { Settings } from "@chudware/coding-agent/config/settings";

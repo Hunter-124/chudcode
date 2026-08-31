@@ -1,8 +1,8 @@
 import { createHash, randomUUID } from "node:crypto";
-import { type FileHandle, open, mkdir, readFile, rename, unlink } from "node:fs/promises";
+import { type FileHandle, mkdir, open, readFile, rename, unlink } from "node:fs/promises";
 import path from "node:path";
-import { REST, Routes } from "discord.js";
 import { redactText } from "@cloudcastle/context-engine";
+import { REST, Routes } from "discord.js";
 import { isUnknownRecord } from "./incident-guards";
 
 export type IncidentSource = "product-defect" | "escalation";
@@ -226,7 +226,8 @@ export class AtomicFileStateStore implements DispatcherStateStore {
 		await mkdir(directory, { recursive: true, mode: 0o700 });
 		const temporary = `${this.#statePath}.${process.pid}.${randomUUID()}.tmp`;
 		const payload = `${JSON.stringify(state)}\n`;
-		if (Buffer.byteLength(payload) > MAX_STATE_BYTES) throw new Error("Incident dispatcher state exceeds the size limit");
+		if (Buffer.byteLength(payload) > MAX_STATE_BYTES)
+			throw new Error("Incident dispatcher state exceeds the size limit");
 		let handle: FileHandle | undefined;
 		try {
 			handle = await open(temporary, "wx", 0o600);
@@ -293,7 +294,9 @@ export class IncidentDispatcher {
 
 		if (stateChanged) await this.#store.save(state);
 
-		const ordered = Object.values(state.incidents).sort((left, right) => compareIncidents(left.pending?.incident ?? left.latest, right.pending?.incident ?? right.latest));
+		const ordered = Object.values(state.incidents).sort((left, right) =>
+			compareIncidents(left.pending?.incident ?? left.latest, right.pending?.incident ?? right.latest),
+		);
 		for (const incidentState of ordered) {
 			if (incidentState.pending) {
 				try {
@@ -311,10 +314,8 @@ export class IncidentDispatcher {
 					await this.#store.save(state);
 				} catch (error) {
 					failures.push(asSafeError(error, this.#secrets, "Discord lifecycle post failed"));
-					continue;
 				}
 			}
-
 		}
 
 		for (const incidentState of ordered) {
@@ -360,7 +361,10 @@ export class IncidentDispatcher {
 				const safe = asSafeError(error, this.#secrets, "Incident dispatcher poll failed");
 				options.onError?.(safe.message);
 				if (options.once) throw safe;
-				await sleep(computeBackoffMs(consecutiveFailures, options.pollIntervalMs, options.maxBackoffMs, random), options.signal);
+				await sleep(
+					computeBackoffMs(consecutiveFailures, options.pollIntervalMs, options.maxBackoffMs, random),
+					options.signal,
+				);
 			}
 		}
 	}
@@ -415,12 +419,18 @@ export class IncidentDispatcher {
 		}
 
 		for (const [key, current] of Object.entries(state.incidents)) {
-			if (current.latest.source !== source || seenKeys.has(key) || current.deliveredLifecycle === "resolved") continue;
+			if (current.latest.source !== source || seenKeys.has(key) || current.deliveredLifecycle === "resolved")
+				continue;
 			current.missedPolls += 1;
 			current.lastObservedAt = observedAt;
 			changed = true;
 			if (current.missedPolls < this.#missingPollThreshold) continue;
-			const resolved: NormalizedIncident = { ...current.latest, status: "resolved", terminal: true, updatedAt: observedAt };
+			const resolved: NormalizedIncident = {
+				...current.latest,
+				status: "resolved",
+				terminal: true,
+				updatedAt: observedAt,
+			};
 			current.latest = resolved;
 			current.latestFingerprint = fingerprintIncident(resolved);
 			current.resolvedAt = observedAt;
@@ -531,13 +541,39 @@ export function parseIncidentDispatcherConfig(
 		...(env.CLOUDCASTLE_INCIDENT_ORG_ID?.trim() ? { orgId: env.CLOUDCASTLE_INCIDENT_ORG_ID.trim() } : {}),
 		discordToken,
 		channels,
-		statePath: path.resolve(env.CLOUDCASTLE_INCIDENT_STATE_PATH?.trim() || path.join(cwd, ".cloudcastle-incidents", "state.json")),
+		statePath: path.resolve(
+			env.CLOUDCASTLE_INCIDENT_STATE_PATH?.trim() || path.join(cwd, ".cloudcastle-incidents", "state.json"),
+		),
 		diagnosisCwd: path.resolve(env.CLOUDCASTLE_INCIDENT_DIAGNOSIS_CWD?.trim() || cwd),
 		pollIntervalMs: parseBoundedInteger(env.CLOUDCASTLE_INCIDENT_POLL_MS, 30_000, 5_000, 900_000, "poll interval"),
-		maxBackoffMs: parseBoundedInteger(env.CLOUDCASTLE_INCIDENT_MAX_BACKOFF_MS, 900_000, 30_000, 1_800_000, "maximum backoff"),
-		requestTimeoutMs: parseBoundedInteger(env.CLOUDCASTLE_INCIDENT_REQUEST_TIMEOUT_MS, 10_000, 1_000, 60_000, "request timeout"),
-		diagnosisTimeoutMs: parseBoundedInteger(env.CLOUDCASTLE_INCIDENT_DIAGNOSIS_TIMEOUT_MS, 180_000, 15_000, 600_000, "diagnosis timeout"),
-		missingPollThreshold: parseBoundedInteger(env.CLOUDCASTLE_INCIDENT_MISSING_POLLS, 2, 1, 10, "missing poll threshold"),
+		maxBackoffMs: parseBoundedInteger(
+			env.CLOUDCASTLE_INCIDENT_MAX_BACKOFF_MS,
+			900_000,
+			30_000,
+			1_800_000,
+			"maximum backoff",
+		),
+		requestTimeoutMs: parseBoundedInteger(
+			env.CLOUDCASTLE_INCIDENT_REQUEST_TIMEOUT_MS,
+			10_000,
+			1_000,
+			60_000,
+			"request timeout",
+		),
+		diagnosisTimeoutMs: parseBoundedInteger(
+			env.CLOUDCASTLE_INCIDENT_DIAGNOSIS_TIMEOUT_MS,
+			180_000,
+			15_000,
+			600_000,
+			"diagnosis timeout",
+		),
+		missingPollThreshold: parseBoundedInteger(
+			env.CLOUDCASTLE_INCIDENT_MISSING_POLLS,
+			2,
+			1,
+			10,
+			"missing poll threshold",
+		),
 	};
 }
 
@@ -574,7 +610,10 @@ function canonicalizeIncidents(incidents: readonly NormalizedIncident[]): readon
 }
 
 function compareCanonical(left: NormalizedIncident, right: NormalizedIncident): number {
-	return compareStrings(left.updatedAt ?? "", right.updatedAt ?? "") || compareStrings(fingerprintIncident(left), fingerprintIncident(right));
+	return (
+		compareStrings(left.updatedAt ?? "", right.updatedAt ?? "") ||
+		compareStrings(fingerprintIncident(left), fingerprintIncident(right))
+	);
 }
 
 function incidentKey(incident: Pick<NormalizedIncident, "source" | "id">): string {
@@ -582,12 +621,16 @@ function incidentKey(incident: Pick<NormalizedIncident, "source" | "id">): strin
 }
 
 function createNonce(kind: IncidentLifecycle, incident: NormalizedIncident, fingerprint: string): string {
-	return createHash("sha256").update(`${kind}\u0000${incidentKey(incident)}\u0000${fingerprint}`).digest("hex").slice(0, 24);
+	return createHash("sha256")
+		.update(`${kind}\u0000${incidentKey(incident)}\u0000${fingerprint}`)
+		.digest("hex")
+		.slice(0, 24);
 }
 
 async function readBoundedJson(response: Response, maxBytes: number): Promise<unknown> {
 	const contentLength = Number(response.headers.get("content-length"));
-	if (Number.isFinite(contentLength) && contentLength > maxBytes) throw new Error("CloudCastle API response exceeds the size limit");
+	if (Number.isFinite(contentLength) && contentLength > maxBytes)
+		throw new Error("CloudCastle API response exceeds the size limit");
 	if (!response.body) return JSON.parse(await response.text());
 	const reader = response.body.getReader();
 	const chunks: Uint8Array[] = [];
@@ -698,7 +741,10 @@ function safeIncidentId(value: string): string {
 }
 
 function safeEnum(value: string, fallback: string): string {
-	const normalized = value.trim().toLowerCase().replace(/[-\s]+/g, "_");
+	const normalized = value
+		.trim()
+		.toLowerCase()
+		.replace(/[-\s]+/g, "_");
 	return normalized && SAFE_ENUM_PATTERN.test(normalized) ? normalized : fallback;
 }
 
@@ -721,14 +767,36 @@ function normalizeSeverity(value: string | undefined): NormalizedIncident["sever
 function normalizePriority(value: string | undefined, severity: NormalizedIncident["severity"]): number {
 	const matched = value?.trim().match(/^(?:p|tier\s*)?([1-5])$/i);
 	if (matched) return Number(matched[1]);
-	return severity === "critical" ? 1 : severity === "high" ? 2 : severity === "medium" ? 3 : severity === "low" ? 4 : 5;
+	return severity === "critical"
+		? 1
+		: severity === "high"
+			? 2
+			: severity === "medium"
+				? 3
+				: severity === "low"
+					? 4
+					: 5;
 }
 
 function severityRank(value: NormalizedIncident["severity"]): number {
-	return value === "critical" ? 5 : value === "high" ? 4 : value === "medium" ? 3 : value === "low" ? 2 : value === "info" ? 1 : 0;
+	return value === "critical"
+		? 5
+		: value === "high"
+			? 4
+			: value === "medium"
+				? 3
+				: value === "low"
+					? 2
+					: value === "info"
+						? 1
+						: 0;
 }
 
-export function redactOperationalText(value: string, explicitSecrets: readonly string[] = [], maxChars = 1_200): string {
+export function redactOperationalText(
+	value: string,
+	explicitSecrets: readonly string[] = [],
+	maxChars = 1_200,
+): string {
 	const redacted = redactText(value, explicitSecrets)
 		.replace(URL_PATTERN, "[REDACTED_URL]")
 		.replace(EMAIL_PATTERN, "[REDACTED_EMAIL]")
@@ -752,7 +820,10 @@ function escapeInlineCode(value: string): string {
 }
 
 function escapeDiscordText(value: string): string {
-	return value.replace(/([\\*_~|])/g, "\\$1").replace(/</g, "‹").replace(/>/g, "›");
+	return value
+		.replace(/([\\*_~|])/g, "\\$1")
+		.replace(/</g, "‹")
+		.replace(/>/g, "›");
 }
 
 function requireEnv(env: Readonly<Record<string, string | undefined>>, key: string): string {
@@ -775,7 +846,9 @@ function parseSecureUrl(value: string): URL {
 		throw new Error("CLOUDCASTLE_INCIDENT_BASE_URL is not a valid URL");
 	}
 	if (url.username || url.password) throw new Error("CLOUDCASTLE_INCIDENT_BASE_URL must not contain credentials");
-	const loopback = url.protocol === "http:" && (url.hostname === "localhost" || url.hostname === "127.0.0.1" || url.hostname === "[::1]");
+	const loopback =
+		url.protocol === "http:" &&
+		(url.hostname === "localhost" || url.hostname === "127.0.0.1" || url.hostname === "[::1]");
 	if (url.protocol !== "https:" && !loopback) throw new Error("CLOUDCASTLE_INCIDENT_BASE_URL must use HTTPS");
 	url.hash = "";
 	url.search = "";
@@ -783,7 +856,13 @@ function parseSecureUrl(value: string): URL {
 	return url;
 }
 
-function parseBoundedInteger(value: string | undefined, fallback: number, minimum: number, maximum: number, label: string): number {
+function parseBoundedInteger(
+	value: string | undefined,
+	fallback: number,
+	minimum: number,
+	maximum: number,
+	label: string,
+): number {
 	if (!value?.trim()) return fallback;
 	const parsed = Number(value);
 	if (!Number.isSafeInteger(parsed) || parsed < minimum || parsed > maximum) throw new Error(`Invalid ${label}`);
@@ -792,12 +871,17 @@ function parseBoundedInteger(value: string | undefined, fallback: number, minimu
 
 function asSafeError(error: unknown, secrets: readonly string[], fallback: string): Error {
 	if (error instanceof AggregateError) {
-		return new Error(redactOperationalText(error.errors.map(item => (item instanceof Error ? item.message : String(item))).join("; "), secrets, 1_000));
+		return new Error(
+			redactOperationalText(
+				error.errors.map(item => (item instanceof Error ? item.message : String(item))).join("; "),
+				secrets,
+				1_000,
+			),
+		);
 	}
 	const message = error instanceof Error ? error.message : fallback;
 	return new Error(redactOperationalText(message || fallback, secrets, 1_000));
 }
-
 
 function isNodeError(error: unknown): error is NodeJS.ErrnoException {
 	return error instanceof Error && "code" in error;

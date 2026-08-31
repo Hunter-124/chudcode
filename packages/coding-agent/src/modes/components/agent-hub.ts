@@ -587,7 +587,7 @@ export class AgentHubOverlayComponent extends Container implements SelectListMou
 				const emptyState = [
 					`${theme.fg("muted", theme.status.shadowed)} ${theme.bold("No agents in this session")}`,
 					theme.fg("dim", "Finished, parked, and killed subagents remain with the session that created them."),
-					theme.fg("dim", "Resume that session with chudcode-dev --continue, or spawn a task here."),
+					theme.fg("dim", "Run chud --continue for that session, or spawn a task here."),
 				];
 				for (const line of emptyState.slice(0, budget)) {
 					lines.push(line);

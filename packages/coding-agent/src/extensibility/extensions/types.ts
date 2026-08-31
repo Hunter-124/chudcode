@@ -8,9 +8,6 @@
  * - Interact with the user via UI primitives
  */
 
-import type { type as ArkType } from "@chudware/chudtype";
-import type * as TypeBox from "@chudware/chudtype/typebox";
-import type * as zod from "@chudware/chudtype/zod";
 import type {
 	AgentMessage,
 	AgentToolResult,
@@ -39,6 +36,9 @@ import type {
 	UsageProvider,
 } from "@chudware/ai";
 import type { OAuthCredentials, OAuthLoginCallbacks } from "@chudware/ai/oauth/types";
+import type { type as ArkType } from "@chudware/chudtype";
+import type * as TypeBox from "@chudware/chudtype/typebox";
+import type * as zod from "@chudware/chudtype/zod";
 import type {
 	AutocompleteItem,
 	AutocompleteProvider,
@@ -1699,9 +1699,7 @@ export interface ExtensionRuntimeState {
 	/** Remove an active memory backend registration owned by the source. */
 	unregisterMemoryBackend(id: string, sourceId: string): void;
 	/** Restore an earlier registration snapshot after extension load failure. */
-	restoreMemoryBackendRegistrations(
-		registrations: readonly { backend: MemoryBackend; sourceId: string }[],
-	): void;
+	restoreMemoryBackendRegistrations(registrations: readonly { backend: MemoryBackend; sourceId: string }[]): void;
 	/** Release every memory backend registration owned by this runtime. */
 	disposeMemoryBackends(): void;
 }

@@ -20,8 +20,9 @@ import { getActiveProfile, MIN_BUN_VERSION, resolveProfileEnv, setProfile } from
 import { interceptUnhandledRejections } from "@chudware/utils/postmortem";
 import { setProcessName } from "@chudware/utils/process-name";
 import { declareWorkerHostEntry, installWorkerInbox, isWorkerHostSelector } from "@chudware/utils/worker-host";
-import { PRODUCT_CLI_NAME, PRODUCT_CLI_VERSION, PRODUCT_NAME, PRODUCT_VERSION } from "./brand";
+import thirdPartyNotices from "../../../THIRD-PARTY-NOTICES.txt" with { type: "text" };
 import { BLOB_BROKER_WORKER_ARG } from "./blob-broker/protocol";
+import { PRODUCT_CLI_NAME, PRODUCT_CLI_VERSION, PRODUCT_NAME, PRODUCT_VERSION } from "./brand";
 import { installProfileAlias, resolveProfileAliasCommandFromProcess } from "./cli/profile-alias";
 import { extractProfileFlags } from "./cli/profile-bootstrap";
 import { startJsEvalProcess } from "./eval/js/process-entry";
@@ -30,7 +31,6 @@ import { DAEMON_BROKER_WORKER_ARG } from "./launch/protocol";
 import { TERMINAL_OUTPUT_WORKER_ARG } from "./launch/terminal-output-worker-protocol";
 import { LSP_MUX_WORKER_ARG } from "./lsp/mux/protocol";
 import rootLicense from "./tools/browser/relay/extension-assets/LICENSE.txt" with { type: "text" };
-import thirdPartyNotices from "./tools/browser/relay/extension-assets/THIRD-PARTY-NOTICES.txt" with { type: "text" };
 import { COMPUTER_WORKER_ARG } from "./tools/computer/protocol";
 import { smokeTestComputerWorker } from "./tools/computer/supervisor";
 

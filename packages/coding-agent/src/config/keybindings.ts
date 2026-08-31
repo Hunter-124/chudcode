@@ -667,10 +667,7 @@ export class KeybindingsManager extends TuiKeybindingsManager {
 	/**
 	 * Create an in-memory keybindings manager without file persistence.
 	 */
-	static inMemory(
-		userBindings: KeybindingsConfig = {},
-		preset: KeybindingPreset = "default",
-	): KeybindingsManager {
+	static inMemory(userBindings: KeybindingsConfig = {}, preset: KeybindingPreset = "default"): KeybindingsManager {
 		return new KeybindingsManager(userBindings, undefined, undefined, preset);
 	}
 

@@ -1,6 +1,6 @@
-import type { Clipboard, InMemorySnapshotStore } from "@chudware/hashline";
 import type { AgentOptions, AgentTelemetryConfig, AgentTool, AgentToolContext } from "@chudware/agent-core";
 import type { FetchImpl, ImageContent, Model, ServiceTierByFamily, ToolChoice } from "@chudware/ai";
+import type { Clipboard, InMemorySnapshotStore } from "@chudware/hashline";
 import { logger } from "@chudware/utils";
 import type { AsyncJobManager } from "../async/job-manager";
 import type { Rule } from "../capability/rule";

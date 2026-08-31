@@ -196,7 +196,10 @@ export function parseMarketplaceCatalog(content: string, filePath: string): Mark
  * Catalog paths tried in priority order: chudcode-namespaced override first, then
  * the Claude Code-compatible fallback so existing marketplaces keep loading.
  */
-const CATALOG_RELATIVE_PATHS: readonly string[] = [".chudcode-plugin/marketplace.json", ".claude-plugin/marketplace.json"];
+const CATALOG_RELATIVE_PATHS: readonly string[] = [
+	".chudcode-plugin/marketplace.json",
+	".claude-plugin/marketplace.json",
+];
 
 async function readMarketplaceCatalog(
 	root: string,

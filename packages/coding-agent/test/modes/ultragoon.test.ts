@@ -1,10 +1,6 @@
 import { beforeAll, describe, expect, it } from "bun:test";
 import { initTheme } from "@chudware/coding-agent/modes/theme/theme";
-import {
-	containsUltragoon,
-	highlightUltragoon,
-	renderUltragoonNotice,
-} from "@chudware/coding-agent/modes/ultragoon";
+import { containsUltragoon, highlightUltragoon, renderUltragoonNotice } from "@chudware/coding-agent/modes/ultragoon";
 
 beforeAll(() => {
 	// highlightUltragoon reads the global theme's color mode.

@@ -1068,7 +1068,8 @@ async function runGitLabDuoWorkflow(
 	}
 	const workflowDefinition = resolveGitLabDuoWorkflowDefinition(options.workflowDefinition);
 	const explicitNamespace = hasGitLabDuoWorkflowExplicitNamespace(options);
-	const configuredProjectPath = nonEmptyString(options.projectPath) ?? nonEmptyString(process.env.GITLAB_DUO_PROJECT_PATH);
+	const configuredProjectPath =
+		nonEmptyString(options.projectPath) ?? nonEmptyString(process.env.GITLAB_DUO_PROJECT_PATH);
 	const configuredProjectId = nonEmptyString(options.projectId) ?? nonEmptyString(process.env.GITLAB_DUO_PROJECT_ID);
 	const goal = extractLatestUserPrompt(context.messages);
 

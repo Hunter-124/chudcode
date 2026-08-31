@@ -3,12 +3,7 @@ import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
 import { Tokenizer } from "@chudware/agent-core";
-import type {
-	ResetCreditAccountStatus,
-	ResetCreditRedeemOutcome,
-	ResetCreditTarget,
-	UsageReport,
-} from "@chudware/ai";
+import type { ResetCreditAccountStatus, ResetCreditRedeemOutcome, ResetCreditTarget, UsageReport } from "@chudware/ai";
 import { Settings } from "@chudware/coding-agent/config/settings";
 import type { AgentSession } from "@chudware/coding-agent/session/agent-session";
 import type { SessionManager } from "@chudware/coding-agent/session/session-manager";

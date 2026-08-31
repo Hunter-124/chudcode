@@ -167,6 +167,7 @@ describe("multiselect settings (array-of-enum)", () => {
 	});
 
 	it("edits providers.webSearchExclude as an unordered toggle set", () => {
+		Settings.instance.set("settings.tier", "advanced");
 		const comp = createSelector();
 		for (const ch of "excluded web search providers") comp.handleInput(ch);
 		expect(comp.render(120).join("\n")).toContain("none");
@@ -215,6 +216,7 @@ describe("multiselect settings (array-of-enum)", () => {
 
 describe("settings section sidebar", () => {
 	it("does not toggle the selected section's first setting", () => {
+		Settings.instance.set("settings.tier", "advanced");
 		const comp = createSelector();
 		for (let i = 0; i < 7; i++) comp.handleInput("\x1b[C");
 		expect(settings.get("dev.autoqa")).toBe(true);

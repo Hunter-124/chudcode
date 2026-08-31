@@ -207,7 +207,7 @@ describe("exportGuild", () => {
 				return undefined;
 			},
 		);
-		const fetchImpl = (async (input: RequestInfo | URL) => {
+		const fetchImpl = (async (input: string | URL | Request) => {
 			expect(String(input)).toBe("https://cdn.discordapp.com/attachments/proof");
 			return new Response("exact attachment bytes\n", { status: 200 });
 		}) as typeof fetch;

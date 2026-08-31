@@ -3,8 +3,8 @@
  * immediately runs `/join <link>`.
  */
 
-import { PRODUCT_CLI_NAME } from "../brand";
 import { Args, Command } from "@chudware/utils/cli";
+import { PRODUCT_CLI_NAME } from "../brand";
 import { parseArgs } from "../cli/args";
 import { joinHelp as commandHelp } from "../cli/command-help";
 import { runRootCommand } from "../main";

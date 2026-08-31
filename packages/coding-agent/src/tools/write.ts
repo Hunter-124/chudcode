@@ -1,9 +1,6 @@
 import { Database } from "bun:sqlite";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
-
-import { formatHashlineHeader, stripHashlinePrefixes } from "@chudware/hashline";
-import { type } from "@chudware/chudtype";
 import type {
 	AgentTool,
 	AgentToolContext,
@@ -11,6 +8,8 @@ import type {
 	AgentToolUpdateCallback,
 	ToolApprovalDecision,
 } from "@chudware/agent-core";
+import { type } from "@chudware/chudtype";
+import { formatHashlineHeader, stripHashlinePrefixes } from "@chudware/hashline";
 import { type Component, Text } from "@chudware/tui";
 import { isEnoent, isRecord, prompt, untilAborted } from "@chudware/utils";
 import {

@@ -30,7 +30,11 @@ describe("plugin manifest path resolution", () => {
 			// directory resolver returned the extension module for every key).
 			fs.writeFileSync(
 				path.join(dir, "package.json"),
-				JSON.stringify({ name: "fixture-plugin", version: "1.0.0", chudcode: { extensions: ["./ext.ts"], tools: "." } }),
+				JSON.stringify({
+					name: "fixture-plugin",
+					version: "1.0.0",
+					chudcode: { extensions: ["./ext.ts"], tools: "." },
+				}),
 			);
 			fs.writeFileSync(path.join(dir, "index.ts"), "export default {};");
 			fs.writeFileSync(path.join(dir, "ext.ts"), "export default function () {};");

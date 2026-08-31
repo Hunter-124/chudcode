@@ -9,14 +9,7 @@ import {
 import { loadEntriesFromFile } from "@chudware/coding-agent/session/session-loader";
 import { SessionManager } from "@chudware/coding-agent/session/session-manager";
 import { getTerminalId } from "@chudware/tui";
-import {
-	getAgentDir,
-	getTerminalSessionsDir,
-	removeWithRetries,
-	setAgentDir,
-	sleep,
-	TempDir,
-} from "@chudware/utils";
+import { getAgentDir, getTerminalSessionsDir, removeWithRetries, setAgentDir, sleep, TempDir } from "@chudware/utils";
 import * as fsx from "@chudware/utils/fsx";
 
 interface JsonlMessageEntry {

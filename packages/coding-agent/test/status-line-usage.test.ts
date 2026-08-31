@@ -69,7 +69,7 @@ async function flushUsageRefresh(): Promise<void> {
 }
 
 describe("usage status-line segment", () => {
-	it("renders untiered five-hour and seven-day limits", () => {
+	it("renders the compact primary rate-limit window", () => {
 		const result = renderSegment("usage", {
 			usage: { fiveHour: { percent: 24, resetMinutes: 30 }, sevenDay: { percent: 8, resetHours: 141 } },
 		} as unknown as SegmentContext);
@@ -78,10 +78,9 @@ describe("usage status-line segment", () => {
 		expect(result.visible).toBe(true);
 		expect(content).toContain("5h");
 		expect(content).toContain("24%");
-		expect(content).toContain("30m");
-		expect(content).toContain("7d");
-		expect(content).toContain("8%");
-		expect(content).toContain("5d 21h");
+		expect(content).not.toContain("30m");
+		expect(content).not.toContain("7d");
+		expect(content).not.toContain("5d 21h");
 	});
 
 	it("renders tiered usage fetched from provider reports", async () => {
@@ -421,7 +420,7 @@ describe("usage status-line segment", () => {
 		expect(content).not.toContain("66%");
 	});
 
-	it("renders tiered limits with the tier label", () => {
+	it("keeps tier detail out of the compact status-line summary", () => {
 		const result = renderSegment("usage", {
 			usage: {
 				tier: "prolite",
@@ -432,14 +431,14 @@ describe("usage status-line segment", () => {
 		const content = stripVTControlCharacters(result.content);
 
 		expect(result.visible).toBe(true);
-		expect(content).toContain("prolite");
+		expect(content).not.toContain("prolite");
 		expect(content).toContain("5h");
 		expect(content).toContain("50%");
-		expect(content).toContain("7d");
-		expect(content).toContain("10%");
+		expect(content).not.toContain("7d");
+		expect(content).not.toContain("10%");
 	});
 
-	it("sanitizes tier labels before rendering", () => {
+	it("does not render untrusted tier labels in the compact summary", () => {
 		const result = renderSegment("usage", {
 			usage: {
 				tier: "\u001b[31mbad\t tier\nvalue\u001b[0m",
@@ -449,7 +448,7 @@ describe("usage status-line segment", () => {
 		const content = stripVTControlCharacters(result.content);
 
 		expect(result.visible).toBe(true);
-		expect(content).toContain("bad tier value");
+		expect(content).not.toContain("bad tier value");
 		expect(result.content).not.toContain("\u001b[31m");
 		expect(result.content).not.toContain("\t");
 		expect(result.content).not.toContain("\n");
@@ -490,7 +489,7 @@ describe("usage status-line segment", () => {
 		// Match Cursor web dashboard flooring (1.88 → 1%), not Math.round → 2%.
 		expect(content).toContain("1%");
 		expect(content).not.toContain("2%");
-		expect(content).toContain("30d 23h");
+		expect(content).not.toContain("30d 23h");
 		expect(content).not.toContain("5h");
 		expect(content).not.toContain("7d");
 	});

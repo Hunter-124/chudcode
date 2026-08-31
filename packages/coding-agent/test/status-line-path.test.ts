@@ -286,12 +286,12 @@ describe("status line path segment in a linked worktree", () => {
 
 	it("keeps the worktree dir when it diverges from the branch", () => {
 		const rendered = renderSegment("path", worktreeContext({ projectName: "chud", worktreeName: "wt-icon" }, "icon"));
-		expect(Bun.stripANSI(rendered.content)).toBe(`${theme.icon.worktree} pi/wt-icon`);
+		expect(Bun.stripANSI(rendered.content)).toBe(`${theme.icon.worktree} chud/wt-icon`);
 	});
 
 	it("keeps the worktree dir when no branch is shown", () => {
 		const rendered = renderSegment("path", worktreeContext({ projectName: "chud", worktreeName: "xx" }, null));
-		expect(Bun.stripANSI(rendered.content)).toBe(`${theme.icon.worktree} pi/xx`);
+		expect(Bun.stripANSI(rendered.content)).toBe(`${theme.icon.worktree} chud/xx`);
 	});
 
 	it("falls back to the on-disk path when stripWorkPrefix is disabled", () => {

@@ -2,8 +2,8 @@
  * List, search, and refresh available models.
  */
 
-import { PRODUCT_CLI_NAME } from "../brand";
 import { Args, Command, Flags } from "@chudware/utils/cli";
+import { PRODUCT_CLI_NAME } from "../brand";
 import { modelsHelp as commandHelp } from "../cli/command-help";
 import { resolveModelsArgs, runModelsCommand } from "../cli/models-cli";
 

@@ -443,7 +443,10 @@ describe("createAgentSession session storage isolation", () => {
 			}
 
 			fs.mkdirSync(path.join(cwd, ".chudcode"), { recursive: true });
-			fs.writeFileSync(path.join(cwd, ".chudcode", "secrets.yml"), `- type: plain\n  content: ${configuredSecret}\n`);
+			fs.writeFileSync(
+				path.join(cwd, ".chudcode", "secrets.yml"),
+				`- type: plain\n  content: ${configuredSecret}\n`,
+			);
 
 			const withSecrets = await createAgentSession(commonOptions);
 			try {

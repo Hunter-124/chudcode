@@ -4,7 +4,6 @@ import * as os from "node:os";
 import * as path from "node:path";
 import type { CommandRecord, CommandResult, SessionSnapshot } from "../src/bridge-protocol";
 import {
-	ARCHIVED_SESSION_CHANNEL_PREFIX,
 	BUS_PROTOCOL_VERSION,
 	CHANNEL_RENAME_MIN_INTERVAL_MS,
 	decodeRecord,
@@ -28,13 +27,13 @@ import {
 	type RpcSessionOptions,
 	type RpcSessionState,
 	sessionTitleFromPrompt,
-	taskChannelIntro,
 	TranscriptBuffer,
+	taskChannelIntro,
 } from "../src/cc-agent";
 import { CATEGORY_IDS, CREATED_CATEGORY_NAMES, REQUIRED_PERMISSIONS } from "../src/channels";
 import {
-	DiscordApiError,
 	type CreateChannelOptions,
+	DiscordApiError,
 	type DiscordApplication,
 	type DiscordChannel,
 	type DiscordGuildMember,
@@ -70,8 +69,9 @@ class FakeRest implements DiscordRestClient {
 	#next = 9_000_000_000_000;
 
 	async createMessage(channelId: string, payload: MessagePayload): Promise<DiscordMessage> {
+		this.#next += 1;
 		const message: DiscordMessage = {
-			id: String((this.#next += 1)),
+			id: String(this.#next),
 			channel_id: channelId,
 			content: payload.content ?? "",
 			timestamp: new Date().toISOString(),
@@ -105,10 +105,11 @@ class FakeRest implements DiscordRestClient {
 	}
 
 	async createChannel(guildId: string, options: CreateChannelOptions): Promise<DiscordChannel> {
+		this.#next += 1;
 		if (this.createFailure) throw this.createFailure;
 		this.created.push({ guildId, options });
 		const channel: DiscordChannel = {
-			id: String((this.#next += 1)),
+			id: String(this.#next),
 			name: options.name,
 			type: 0,
 			guild_id: guildId,
@@ -498,7 +499,10 @@ describe("session channels", () => {
 
 	it("keeps mirroring the other sessions when one of them cannot be mirrored", async () => {
 		const rest = new FakeRest();
-		const { agent, snapshots } = rig({ rest, snapshots: [snapshot({ sessionId: "a" }), snapshot({ sessionId: "b" })] });
+		const { agent, snapshots } = rig({
+			rest,
+			snapshots: [snapshot({ sessionId: "a" }), snapshot({ sessionId: "b" })],
+		});
 		let calls = 0;
 		const realCreate = rest.createChannel.bind(rest);
 		rest.createChannel = async (guildId, options) => {
@@ -695,7 +699,9 @@ describe("which sessions earn a task channel", () => {
 		});
 		await rigged.agent.tick();
 		const heartbeat = rigged.rest.busRecords().find(record => record.kind === "agent.heartbeat");
-		expect(heartbeat?.kind === "agent.heartbeat" ? heartbeat.sessions.map(item => item.sessionId) : []).toEqual(["task"]);
+		expect(heartbeat?.kind === "agent.heartbeat" ? heartbeat.sessions.map(item => item.sessionId) : []).toEqual([
+			"task",
+		]);
 	});
 });
 
@@ -854,11 +860,11 @@ describe("/new authorisation", () => {
 	});
 
 	it("refuses a symlink inside the root that points out of it", async () => {
-		const escape = path.join(root, "escape");
-		await fs.symlink(outside, escape);
+		const escapePath = path.join(root, "escape");
+		await fs.symlink(outside, escapePath);
 		const { agent, bus, rest } = rig({ projectRoots: [root] });
 		await bus.ready();
-		await bus.publish(command({ id: "cmd-symlink", cwd: escape, prompt: "sneak out" }));
+		await bus.publish(command({ id: "cmd-symlink", cwd: escapePath, prompt: "sneak out" }));
 		await agent.pollCommands();
 
 		expect(StubRpc.created).toHaveLength(0);
@@ -949,12 +955,16 @@ describe("steering a running session", () => {
 
 	it("prompts an idle session and follows up on a streaming one", async () => {
 		const live = await started();
-		await live.bus.publish(command({ id: "cmd-say-1", name: "say", sessionId: "sess-live", prompt: "also fix the docs" }));
+		await live.bus.publish(
+			command({ id: "cmd-say-1", name: "say", sessionId: "sess-live", prompt: "also fix the docs" }),
+		);
 		await live.agent.pollCommands();
 		expect(live.client.prompts).toEqual(["begin", "also fix the docs"]);
 
 		live.client.streaming = true;
-		await live.bus.publish(command({ id: "cmd-say-2", name: "say", sessionId: "sess-live", prompt: "and the tests" }));
+		await live.bus.publish(
+			command({ id: "cmd-say-2", name: "say", sessionId: "sess-live", prompt: "and the tests" }),
+		);
 		await live.agent.pollCommands();
 		expect(live.client.followUps).toEqual(["and the tests"]);
 	});
@@ -993,7 +1003,10 @@ describe("steering a running session", () => {
 		const before = live.rest.messagesIn(live.channelId).length;
 		live.client.emit({ type: "tool_execution_start", toolName: "read", intent: "Reading bus" });
 		live.client.emit({ type: "tool_execution_start", toolName: "edit", intent: "Patching" });
-		live.client.emit({ type: "message_end", message: { role: "assistant", content: [{ type: "text", text: "done" }] } });
+		live.client.emit({
+			type: "message_end",
+			message: { role: "assistant", content: [{ type: "text", text: "done" }] },
+		});
 		live.client.emit({ type: "turn_start" });
 		await live.agent.drain();
 
@@ -1057,7 +1070,9 @@ describe("pure helpers", () => {
 		expect(describeEvent({ type: "tool_execution_start", toolName: "bash", intent: "Running tests" })).toBe(
 			"**Working on**\nRunning tests",
 		);
-		expect(describeEvent({ type: "tool_execution_end", toolName: "bash", isError: true })).toContain("Needs attention");
+		expect(describeEvent({ type: "tool_execution_end", toolName: "bash", isError: true })).toContain(
+			"Needs attention",
+		);
 		expect(describeEvent({ type: "tool_execution_end", toolName: "bash" })).toBeNull();
 		expect(
 			describeEvent({ type: "message_end", message: { role: "user", content: [{ type: "text", text: "hi" }] } }),
@@ -1066,7 +1081,9 @@ describe("pure helpers", () => {
 	});
 
 	it("creates short readable task titles and channel instructions", () => {
-		const title = sessionTitleFromPrompt("# Fix the Discord bridge interaction because the current channel names are impossible to scan quickly");
+		const title = sessionTitleFromPrompt(
+			"# Fix the Discord bridge interaction because the current channel names are impossible to scan quickly",
+		);
 		expect(title.startsWith("Fix the Discord bridge")).toBe(true);
 		expect([...title].length).toBeLessThanOrEqual(MAX_TASK_TITLE_CHARS);
 		const intro = taskChannelIntro(snapshot({ title, lastText: "Make task progress easy to follow." }));
@@ -1113,7 +1130,9 @@ describe("pure helpers", () => {
 		expect(withApp).toContain("MANAGE_CHANNELS");
 		expect(withApp).toContain(`permissions=${REQUIRED_PERMISSIONS}`);
 		expect(withApp).toContain("client_id=1542714531409821726");
-		expect(missingChannelPermissionMessage("creating a channel", null)).toContain(`permissions=${REQUIRED_PERMISSIONS}`);
+		expect(missingChannelPermissionMessage("creating a channel", null)).toContain(
+			`permissions=${REQUIRED_PERMISSIONS}`,
+		);
 	});
 });
 

@@ -1,4 +1,3 @@
-import { type } from "@chudware/chudtype";
 import type { AgentTool, AgentToolContext, AgentToolResult, AgentToolUpdateCallback } from "@chudware/agent-core";
 import { instrumentedCompleteSimple, resolveTelemetry } from "@chudware/agent-core";
 import {
@@ -9,6 +8,7 @@ import {
 	type Model,
 	type ToolExample,
 } from "@chudware/ai";
+import { type } from "@chudware/chudtype";
 import { prompt } from "@chudware/utils";
 import { extractTextContent } from "../commit/utils";
 
@@ -40,9 +40,11 @@ const inspectImageSchema = type({
 		"image file path, local .svg/.svgz path with :img, Image #N label, or attachment://N URI",
 	),
 	question: type("string").describe("question about image"),
-	"preprocess?": type.enumerated("redact", "crop", "redact+crop").describe(
-		"optionally redact sensitive content, auto-crop, or redact then auto-crop with the local chud-vision sidecar before model inspection",
-	),
+	"preprocess?": type
+		.enumerated("redact", "crop", "redact+crop")
+		.describe(
+			"optionally redact sensitive content, auto-crop, or redact then auto-crop with the local chud-vision sidecar before model inspection",
+		),
 	"+": "reject",
 });
 

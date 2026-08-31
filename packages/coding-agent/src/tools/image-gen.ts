@@ -1,6 +1,5 @@
 import * as os from "node:os";
 import * as path from "node:path";
-import { type } from "@chudware/chudtype";
 import type { AgentToolResult } from "@chudware/agent-core";
 import { type ApiKey, type FetchImpl, getEnvApiKey, getOpenRouterHeaders, type Model, withAuth } from "@chudware/ai";
 import { ProviderHttpError } from "@chudware/ai/error";
@@ -13,6 +12,7 @@ import {
 	URL_PATHS,
 } from "@chudware/catalog/wire/codex";
 import { getAntigravityUserAgent } from "@chudware/catalog/wire/gemini-headers";
+import { type } from "@chudware/chudtype";
 import {
 	$env,
 	isEnoent,

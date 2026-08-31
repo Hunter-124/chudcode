@@ -1,8 +1,8 @@
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "bun:test";
 import * as path from "node:path";
-import { type } from "@chudware/chudtype";
 import { Agent, type AgentTool } from "@chudware/agent-core";
 import { type Api, Effort, type Model } from "@chudware/ai";
+import { type } from "@chudware/chudtype";
 import { resetSettingsForTest, Settings } from "@chudware/coding-agent/config/settings";
 import { initTheme } from "@chudware/coding-agent/modes/theme/theme";
 import { AgentSession } from "@chudware/coding-agent/session/agent-session";

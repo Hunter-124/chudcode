@@ -1,13 +1,9 @@
 import type { AgentSession, MemoryBackend } from "@chudware/coding-agent";
-import { fetchIncidentContext, DEFAULT_CONTEXT_DEPENDENCIES } from "./client";
-import { rankAndMergeEvidence } from "./ranking";
-import { parseCloudCastleContextSettings, type CloudCastleContextEnv } from "./settings";
+import { DEFAULT_CONTEXT_DEPENDENCIES, fetchIncidentContext } from "./client";
 import incidentContextTemplate from "./prompts/incident-context.md" with { type: "text" };
-import {
-	CLOUDCASTLE_INCIDENT_BACKEND_ID,
-	type CloudCastleContextDependencies,
-	type EvidenceCoverage,
-} from "./types";
+import { rankAndMergeEvidence } from "./ranking";
+import { type CloudCastleContextEnv, parseCloudCastleContextSettings } from "./settings";
+import { CLOUDCASTLE_INCIDENT_BACKEND_ID, type CloudCastleContextDependencies, type EvidenceCoverage } from "./types";
 
 const MAX_QUERY_CHARS = 16_000;
 
@@ -88,7 +84,10 @@ export function createCloudCastleIncidentBackend(
 				};
 			}
 			const limit = Math.max(0, Math.min(options?.limit ?? 10, 20));
-			const ranked = rankAndMergeEvidence(context.evidence, parsedSettings.settings.tokenBudget).evidence.slice(0, limit);
+			const ranked = rankAndMergeEvidence(context.evidence, parsedSettings.settings.tokenBudget).evidence.slice(
+				0,
+				limit,
+			);
 			return {
 				backend: CLOUDCASTLE_INCIDENT_BACKEND_ID,
 				query,

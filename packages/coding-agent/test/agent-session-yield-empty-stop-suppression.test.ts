@@ -9,9 +9,9 @@
  */
 import { afterAll, afterEach, describe, expect, it, vi } from "bun:test";
 import { scheduler } from "node:timers/promises";
-import { type } from "@chudware/chudtype";
 import { Agent, type AgentMessage, type AgentTool } from "@chudware/agent-core";
 import { createMockModel, type MockModel, type MockResponse } from "@chudware/ai/providers/mock";
+import { type } from "@chudware/chudtype";
 import { ModelRegistry } from "@chudware/coding-agent/config/model-registry";
 import { Settings } from "@chudware/coding-agent/config/settings";
 import type { IrcMessage } from "@chudware/coding-agent/irc/bus";

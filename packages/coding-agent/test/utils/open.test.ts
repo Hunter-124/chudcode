@@ -13,8 +13,6 @@ type SpawnOptions = Bun.SpawnOptions.SpawnOptions<
 >;
 type SpawnCall = { cmd: string[]; options: SpawnOptions };
 
-type SpawnSyncOptions = Bun.SpawnOptions.SpawnSyncOptions<"ignore", "pipe", "ignore">;
-
 const existingLinuxPath = "/mnt/c/Users/example/Downloads/session.html";
 const windowsPath = "C:\\Users\\example\\Downloads\\session.html";
 

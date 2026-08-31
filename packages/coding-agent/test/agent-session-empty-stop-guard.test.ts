@@ -1,10 +1,10 @@
 import { afterAll, afterEach, describe, expect, it, vi } from "bun:test";
 import * as path from "node:path";
 import { scheduler } from "node:timers/promises";
-import { type } from "@chudware/chudtype";
 import { Agent, type AgentMessage, type AgentTool } from "@chudware/agent-core";
 import type { ThinkingContent } from "@chudware/ai";
 import { createMockModel, type MockModel, type MockResponse } from "@chudware/ai/providers/mock";
+import { type } from "@chudware/chudtype";
 import { ModelRegistry } from "@chudware/coding-agent/config/model-registry";
 import { type SettingPath, Settings } from "@chudware/coding-agent/config/settings";
 import type { ExtensionRunner } from "@chudware/coding-agent/extensibility/extensions/runner";

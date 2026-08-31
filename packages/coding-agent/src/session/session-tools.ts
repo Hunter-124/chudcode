@@ -139,10 +139,7 @@ export async function awaitMemoryPromptInjection(
 			return () => clearTimeout(timer);
 		})();
 	try {
-		const winner = await Promise.race([
-			backend.beforeAgentStartPrompt(session, promptText),
-			timeout,
-		]);
+		const winner = await Promise.race([backend.beforeAgentStartPrompt(session, promptText), timeout]);
 		if (winner === MEMORY_PROMPT_INJECTION_TIMED_OUT) return { timedOut: true, injected: undefined };
 		return { timedOut: false, injected: winner };
 	} finally {
@@ -1666,11 +1663,7 @@ export class SessionTools {
 		if (!backend.beforeAgentStartPrompt) return this.#baseSystemPrompt;
 
 		try {
-			const injection = await awaitMemoryPromptInjection(
-				backend,
-				this.#host.memoryBackendSession(),
-				promptText,
-			);
+			const injection = await awaitMemoryPromptInjection(backend, this.#host.memoryBackendSession(), promptText);
 			if (injection.timedOut) {
 				logger.warn("Memory backend beforeAgentStartPrompt timed out; proceeding without injection", {
 					backend: backend.id,

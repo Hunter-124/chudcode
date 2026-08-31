@@ -1,6 +1,6 @@
 import * as path from "node:path";
-import { type } from "@chudware/chudtype";
 import type { AgentTool, AgentToolResult } from "@chudware/agent-core";
+import { type } from "@chudware/chudtype";
 import {
 	deleteManagedSkill,
 	getManagedSkillsDir,

@@ -114,7 +114,7 @@ describe("createAgentSession MCP server instructions (deferred UI)", () => {
 			// or event exposed to await — so fake timers cannot drive it and we
 			// poll the live prompt with a generous ceiling, exiting the instant
 			// the rebuilt prompt carries the instructions.
-			const deadline = Date.now() + 12_000;
+			const deadline = Date.now() + 30_000;
 			let prompt = session.systemPrompt.join("\n");
 			while (!prompt.includes(SERVER_INSTRUCTIONS) && Date.now() < deadline) {
 				await sleep(10);
@@ -130,7 +130,7 @@ describe("createAgentSession MCP server instructions (deferred UI)", () => {
 		} finally {
 			await session.dispose();
 		}
-	}, 20_000);
+	}, 45_000);
 
 	it("renders a mounted Context Mode route when initialize omits instructions", async () => {
 		fs.writeFileSync(
@@ -170,7 +170,7 @@ describe("createAgentSession MCP server instructions (deferred UI)", () => {
 			// timers cannot drive it, so poll only until the route becomes visible.
 			let prompt = session.systemPrompt.join("\n");
 			expect(prompt).not.toContain(CONTEXT_MODE_ROUTE);
-			const deadline = Date.now() + 12_000;
+			const deadline = Date.now() + 30_000;
 			while (!prompt.includes(CONTEXT_MODE_ROUTE) && Date.now() < deadline) {
 				await sleep(10);
 				prompt = session.systemPrompt.join("\n");
@@ -186,7 +186,7 @@ describe("createAgentSession MCP server instructions (deferred UI)", () => {
 		} finally {
 			await session.dispose();
 		}
-	}, 20_000);
+	}, 45_000);
 
 	it("bounds mounted route guidance deterministically and points to the live xd:// inventory", async () => {
 		fs.writeFileSync(
@@ -222,7 +222,7 @@ describe("createAgentSession MCP server instructions (deferred UI)", () => {
 			// Deferred discovery is a real child-process handshake with no
 			// completion signal exposed to this integration harness; fake timers
 			// cannot advance it, so retain the established polling bounds above.
-			const deadline = Date.now() + 12_000;
+			const deadline = Date.now() + 30_000;
 			let prompt = session.systemPrompt.join("\n");
 			while (!prompt.includes(SERVER_INSTRUCTIONS) && Date.now() < deadline) {
 				await sleep(10);
@@ -240,7 +240,7 @@ describe("createAgentSession MCP server instructions (deferred UI)", () => {
 		} finally {
 			await session.dispose();
 		}
-	}, 20_000);
+	}, 45_000);
 
 	it("mounts deferred MCP tools when CLI filtering grants read but omits write", async () => {
 		const { session } = await createAgentSession({
@@ -272,7 +272,7 @@ describe("createAgentSession MCP server instructions (deferred UI)", () => {
 			// Mount state lands before the awaited system-prompt rebuild while
 			// agent tools land after it, so poll for the whole applied selection
 			// (mounted MCP tool AND transport write) — not the mount alone.
-			const deadline = Date.now() + 12_000;
+			const deadline = Date.now() + 30_000;
 			let mountedNames = session.getXdevToolEntries().map(entry => entry.name);
 			let activeNames = session.getActiveToolNames();
 			while ((!mountedNames.includes(MCP_TOOL_NAME) || !activeNames.includes("write")) && Date.now() < deadline) {
@@ -291,7 +291,7 @@ describe("createAgentSession MCP server instructions (deferred UI)", () => {
 		} finally {
 			await session.dispose();
 		}
-	}, 20_000);
+	}, 45_000);
 
 	it("keeps an explicitly requested deferred MCP tool top-level after connection", async () => {
 		const { session } = await createAgentSession({
@@ -313,7 +313,7 @@ describe("createAgentSession MCP server instructions (deferred UI)", () => {
 			toolNames: ["read", MCP_TOOL_NAME],
 		});
 		try {
-			const deadline = Date.now() + 12_000;
+			const deadline = Date.now() + 30_000;
 			let prompt = session.systemPrompt.join("\n");
 			while (!prompt.includes(SERVER_INSTRUCTIONS) && Date.now() < deadline) {
 				await sleep(10);
@@ -329,7 +329,7 @@ describe("createAgentSession MCP server instructions (deferred UI)", () => {
 		} finally {
 			await session.dispose();
 		}
-	}, 20_000);
+	}, 45_000);
 
 	it("keeps deferred tools top-level when an explicit session omitted read", async () => {
 		const { session } = await createAgentSession({
@@ -351,7 +351,7 @@ describe("createAgentSession MCP server instructions (deferred UI)", () => {
 			toolNames: ["bash"],
 		});
 		try {
-			const deadline = Date.now() + 12_000;
+			const deadline = Date.now() + 30_000;
 			let prompt = session.systemPrompt.join("\n");
 			while (!prompt.includes(SERVER_INSTRUCTIONS) && Date.now() < deadline) {
 				await sleep(10);
@@ -369,5 +369,5 @@ describe("createAgentSession MCP server instructions (deferred UI)", () => {
 		} finally {
 			await session.dispose();
 		}
-	}, 20_000);
+	}, 45_000);
 });

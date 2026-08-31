@@ -1,7 +1,7 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it, setDefaultTimeout, vi } from "bun:test";
 import * as path from "node:path";
-import { type } from "@chudware/chudtype";
 import type { AgentTool, AgentToolResult } from "@chudware/agent-core";
+import { type } from "@chudware/chudtype";
 import { Settings } from "@chudware/coding-agent/config/settings";
 import { disposeAllVmContexts } from "@chudware/coding-agent/eval/js/context-manager";
 import { executeJs, type JsResult } from "@chudware/coding-agent/eval/js/executor";

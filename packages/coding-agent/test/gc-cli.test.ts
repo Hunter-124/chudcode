@@ -4,9 +4,9 @@ import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
 import { gunzipSync, gzipSync } from "node:zlib";
-import { withStatsSyncLock } from "@chudware/stats/aggregator";
 import { type GcResult, runGcCommand } from "@chudware/coding-agent/cli/gc-cli";
 import { Settings } from "@chudware/coding-agent/config/settings";
+import { withStatsSyncLock } from "@chudware/stats/aggregator";
 import {
 	getAgentDir,
 	getBlobsDir,

@@ -240,7 +240,10 @@ export async function getOrCreateSnapshot(
 	// exclusive dir and every other account's pre-create write below fails with
 	// EACCES — which used to escape into `executeBash` and break every bash call.
 	const uid = process.getuid?.();
-	const snapshotDir = path.join(os.tmpdir(), uid === undefined ? "chudcode-shell-snapshots" : `chudcode-shell-snapshots-${uid}`);
+	const snapshotDir = path.join(
+		os.tmpdir(),
+		uid === undefined ? "chudcode-shell-snapshots" : `chudcode-shell-snapshots-${uid}`,
+	);
 
 	// Generate unique snapshot path
 	const shellName = shell.includes("zsh") ? "zsh" : shell.includes("bash") ? "bash" : "sh";

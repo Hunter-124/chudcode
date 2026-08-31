@@ -157,12 +157,7 @@ function withStatus(parsed: ParsedSession, now: number): SessionSnapshot {
 	return { ...parsed.facts, status };
 }
 
-async function cachedParse(
-	file: string,
-	host: string,
-	mtimeMs: number,
-	size: number,
-): Promise<ParsedSession | null> {
+async function cachedParse(file: string, host: string, mtimeMs: number, size: number): Promise<ParsedSession | null> {
 	// `host` is baked into the snapshot, so it is part of the identity.
 	const key = `${host}\0${file}`;
 	const cached = parseCache.get(key);

@@ -1,13 +1,13 @@
+import { upgradeJsonSchemaTo202012, validateJsonSchemaValue } from "@chudware/ai/utils/schema";
 import { type } from "@chudware/chudtype";
 import { IR_BRAND } from "@chudware/chudtype/ir";
 import {
 	type AnySchema,
-	type ObjectOpts,
 	Type as ChudType,
 	type TypeBuilder as ChudTypeBuilder,
+	type ObjectOpts,
 	type TUnsafe,
 } from "@chudware/chudtype/typebox";
-import { upgradeJsonSchemaTo202012, validateJsonSchemaValue } from "@chudware/ai/utils/schema";
 
 export * from "@chudware/chudtype/typebox";
 

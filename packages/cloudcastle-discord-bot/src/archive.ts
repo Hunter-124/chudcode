@@ -158,7 +158,10 @@ export async function exportGuild(options: ExportGuildOptions): Promise<ArchiveM
 	const encryptTar = options.dependencies?.encryptTar ?? encryptTarWithAge;
 	const secretObfuscator = Object.hasOwn(options.dependencies ?? {}, "secretObfuscator")
 		? options.dependencies?.secretObfuscator
-		: await buildSecretObfuscator(repoRoot, process.env.CHUDCODE_AGENT_DIR ?? path.join(homedir(), ".chudcode", "agent"));
+		: await buildSecretObfuscator(
+				repoRoot,
+				process.env.CHUDCODE_AGENT_DIR ?? path.join(homedir(), ".chudcode", "agent"),
+			);
 	const deps: ArchiveDependencies = { rest, fetch: fetchImpl, now, secretObfuscator, encryptTar };
 
 	await fs.mkdir(outputDir, { recursive: true });

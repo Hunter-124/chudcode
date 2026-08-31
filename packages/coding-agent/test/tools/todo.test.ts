@@ -1,7 +1,7 @@
 import { beforeAll, describe, expect, it } from "bun:test";
 import * as path from "node:path";
-import { type } from "@chudware/chudtype";
 import { toolWireSchema } from "@chudware/ai";
+import { type } from "@chudware/chudtype";
 import { Settings } from "@chudware/coding-agent/config/settings";
 import { initTheme, theme } from "@chudware/coding-agent/modes/theme/theme";
 import type { ToolSession } from "@chudware/coding-agent/tools";

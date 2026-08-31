@@ -4,8 +4,8 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { CHANNEL_IDS, GUILD_ID } from "../src/channels";
 import {
-	condense,
 	type CondensePlan,
+	condense,
 	EmptyExportContentError,
 	renderCondenseJson,
 	renderCondenseMarkdown,
@@ -276,10 +276,7 @@ describe("condense groups and skips", () => {
 
 		expect(plan.issues.filter(entry => entry.sources[0]?.scopeId === THREAD_ID)).toHaveLength(1);
 		expect(issue.title).toBe("Equity Structure & Funding Strategy");
-		expect(issue.sources.map(source => source.messageId)).toEqual([
-			"1542493200000000001",
-			"1542493200000000002",
-		]);
+		expect(issue.sources.map(source => source.messageId)).toEqual(["1542493200000000001", "1542493200000000002"]);
 		expect(issue.sources.map(source => source.author)).toEqual(["Hunter", "Affenmensch"]);
 		expect(issue.sources.map(source => source.timestamp)).toEqual([
 			"2026-08-27T20:14:03.622Z",
@@ -516,7 +513,9 @@ describe("condense output", () => {
 		const { plan } = await populatedPlan();
 		const serialised = renderCondenseJson(plan);
 		expect(plan.exportGeneratedAt).toBe("2026-08-28T23:20:17.216Z");
-		expect(serialised).not.toContain(new Date().getFullYear() === 2026 ? "PLACEHOLDER" : String(new Date().getFullYear()));
+		expect(serialised).not.toContain(
+			new Date().getFullYear() === 2026 ? "PLACEHOLDER" : String(new Date().getFullYear()),
+		);
 		expect(plan.exportManifestSha256).toMatch(/^[0-9a-f]{64}$/);
 	});
 
@@ -540,9 +539,9 @@ describe("condense output", () => {
 	test("the CLI writes the plan and exits 0", async () => {
 		const exportDir = await writeExport(populatedScopes());
 		const outputDir = await temporaryDirectory();
-		expect(
-			await runCondenseCli(["--export-dir", exportDir, "--labels", LABEL_CATALOGUE, "--out", outputDir]),
-		).toBe(0);
+		expect(await runCondenseCli(["--export-dir", exportDir, "--labels", LABEL_CATALOGUE, "--out", outputDir])).toBe(
+			0,
+		);
 		expect((await fs.readdir(outputDir)).sort()).toEqual(["condense-plan.json", "condense-plan.md", "issues"]);
 	});
 });

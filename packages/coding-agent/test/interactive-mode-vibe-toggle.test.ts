@@ -9,9 +9,9 @@
  */
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "bun:test";
 import * as path from "node:path";
-import { type } from "@chudware/chudtype";
 import { Agent, type AgentTool, type StreamFn } from "@chudware/agent-core";
 import { AssistantMessageEventStream } from "@chudware/ai/utils/event-stream";
+import { type } from "@chudware/chudtype";
 import { ModelRegistry } from "@chudware/coding-agent/config/model-registry";
 import { resetSettingsForTest, Settings } from "@chudware/coding-agent/config/settings";
 import { InteractiveMode } from "@chudware/coding-agent/modes/interactive-mode";

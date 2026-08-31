@@ -1,6 +1,6 @@
-import { type } from "@chudware/chudtype";
 import type { AgentTool, AgentToolContext, AgentToolResult, AgentToolUpdateCallback } from "@chudware/agent-core";
 import type { ImageContent, ToolExample } from "@chudware/ai";
+import { type } from "@chudware/chudtype";
 import { prompt } from "@chudware/utils";
 import {
 	DEFAULT_AUTO_BACKGROUND_THRESHOLD_MS,

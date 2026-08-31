@@ -25,8 +25,8 @@ const testTheme = {
 	},
 };
 
-// 30 cells/s with classic padding 10 positions the crest on the first cell.
-const CLASSIC_CREST_VISIBLE_MS = 333;
+// 12 cells/s with classic padding 10 positions the crest on the first cell.
+const CLASSIC_CREST_VISIBLE_MS = 833;
 
 describe("renderAsciiBar", () => {
 	beforeEach(() => {

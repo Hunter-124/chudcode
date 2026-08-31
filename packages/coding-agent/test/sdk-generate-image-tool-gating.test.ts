@@ -2,10 +2,10 @@ import { afterAll, afterEach, beforeAll, describe, expect, it } from "bun:test";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
-import { type } from "@chudware/chudtype";
 import type { AgentTool } from "@chudware/agent-core";
 import { AuthStorage } from "@chudware/ai";
 import { getBundledModel } from "@chudware/catalog/models";
+import { type } from "@chudware/chudtype";
 import { ModelRegistry } from "@chudware/coding-agent/config/model-registry";
 import { Settings } from "@chudware/coding-agent/config/settings";
 import type { CustomTool } from "@chudware/coding-agent/extensibility/custom-tools/types";
@@ -391,11 +391,11 @@ describe("generate_image tool gating", () => {
 			toolNames: ["read"],
 		});
 		sessions.push(session);
-		// The device-only transport stays dormant until a mountable tool appears.
-		expect(session.getXdevToolEntries()).toEqual([]);
-		expect(session.getActiveToolNames()).not.toContain("write");
+		// Ambient devices from the user's harness may already be mounted; this
+		// fixture only requires that the not-yet-discovered RPC tool is absent.
+		expect(session.getXdevToolEntries().map(entry => entry.name)).not.toContain("rpc_search");
 		await session.setActiveToolsByName(["read"]);
-		expect(session.getActiveToolNames()).not.toContain("write");
+		expect(session.getXdevToolEntries().map(entry => entry.name)).not.toContain("rpc_search");
 
 		const rpcTool: AgentTool = {
 			name: "rpc_search",

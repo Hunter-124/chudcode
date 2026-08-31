@@ -31,10 +31,10 @@
 
 import * as path from "node:path";
 import { parseArgs } from "node:util";
-import { type } from "@chudware/chudtype";
 import { type Api, completeSimple, Effort, type Model, type Tool, type ToolCall } from "@chudware/ai";
 import { discoverAuthStorage } from "@chudware/ai/auth-broker";
 import { type GeneratedProvider, getBundledModel } from "@chudware/catalog/models";
+import { type } from "@chudware/chudtype";
 import { sleep } from "@chudware/utils/async";
 import * as fsx from "@chudware/utils/fsx";
 import {

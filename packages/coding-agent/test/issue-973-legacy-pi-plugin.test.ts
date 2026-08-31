@@ -38,7 +38,7 @@ describe("issue #973: legacy Chud plugin imports", () => {
 				'if (legacyExtensions !== modernExtensions) throw new Error("legacy extension import did not remap");',
 				"",
 				"export default function(chud) {",
-				'\tpi.registerCommand("legacy-pi-ext", { handler: async () => {} });',
+				'\tchud.registerCommand("legacy-pi-ext", { handler: async () => {} });',
 				"}",
 			].join("\n"),
 		);

@@ -2,11 +2,6 @@ import { beforeAll, describe, expect, it } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import {
-	type InMemorySnapshotStore as FileReadCache,
-	formatHashlineHeader,
-	MismatchError as HashlineMismatchError,
-} from "@chudware/hashline";
 import { type Type, type } from "@chudware/chudtype";
 import { resetSettingsForTest, Settings } from "@chudware/coding-agent/config/settings";
 import {
@@ -19,6 +14,11 @@ import {
 } from "@chudware/coding-agent/edit";
 import { resolveLocalUrlToPath } from "@chudware/coding-agent/internal-urls";
 import type { ToolSession } from "@chudware/coding-agent/tools";
+import {
+	type InMemorySnapshotStore as FileReadCache,
+	formatHashlineHeader,
+	MismatchError as HashlineMismatchError,
+} from "@chudware/hashline";
 import { removeWithRetries } from "@chudware/utils";
 import * as fsx from "@chudware/utils/fsx";
 

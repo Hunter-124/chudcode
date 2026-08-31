@@ -1,6 +1,6 @@
 import * as path from "node:path";
-import { type } from "@chudware/chudtype";
 import type { AgentTool, AgentToolContext, AgentToolResult, AgentToolUpdateCallback } from "@chudware/agent-core";
+import { type } from "@chudware/chudtype";
 import type { ToolSession } from ".";
 import { missingTool, probeTools } from "./analyzers/doctor";
 import { exists } from "./analyzers/files";
@@ -29,8 +29,13 @@ function field(value: unknown, key: string): unknown {
 	return value !== null && typeof value === "object" && key in value ? Reflect.get(value, key) : undefined;
 }
 
-function jsonResult(action: BinaryInspectParams["action"], response: Record<string, unknown>): AgentToolResult<BinaryInspectDetails> {
-	return toolResult<BinaryInspectDetails>({ action, response }).text(JSON.stringify(response, null, 2)).done();
+function jsonResult(
+	action: BinaryInspectParams["action"],
+	response: Record<string, unknown>,
+): AgentToolResult<BinaryInspectDetails> {
+	return toolResult<BinaryInspectDetails>({ action, response })
+		.text(JSON.stringify(response, null, 2))
+		.done();
 }
 
 function limit(params: BinaryInspectParams, fallback = 100): number {
@@ -42,7 +47,11 @@ function parseHeaders(output: string): Record<string, string> {
 	for (const line of output.split(/\r?\n/)) {
 		const match = /^\s*([^:]+):\s*(.*?)\s*$/.exec(line);
 		if (!match) continue;
-		const key = match[1]!.trim().toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "");
+		const key = match[1]!
+			.trim()
+			.toLowerCase()
+			.replace(/[^a-z0-9]+/g, "_")
+			.replace(/^_|_$/g, "");
 		if (key && Object.keys(headers).length < 100) headers[key] = match[2]!;
 	}
 	return headers;
@@ -91,7 +100,12 @@ function parseDependencies(output: string, top: number): Array<Record<string, un
 		if (!text) continue;
 		let match = /^(\S+)\s+=>\s+(\S+)(?:\s+\((0x[0-9a-fA-F]+)\))?$/.exec(text);
 		if (match) {
-			dependencies.push({ name: match[1], path: match[2], ...(match[3] ? { address: match[3] } : {}), found: match[2] !== "not" });
+			dependencies.push({
+				name: match[1],
+				path: match[2],
+				...(match[3] ? { address: match[3] } : {}),
+				found: match[2] !== "not",
+			});
 		} else {
 			match = /^(\S+)\s+\((0x[0-9a-fA-F]+)\)$/.exec(text);
 			if (match) dependencies.push({ name: match[1], address: match[2], found: true });
@@ -132,7 +146,8 @@ function parseCsv(input: string, top: number): Array<Record<string, string>> {
 	const header = rows.shift() ?? [];
 	return rows.slice(0, top).map(values => {
 		const object: Record<string, string> = {};
-		for (let index = 0; index < Math.min(header.length, values.length); index++) object[header[index]!] = values[index]!;
+		for (let index = 0; index < Math.min(header.length, values.length); index++)
+			object[header[index]!] = values[index]!;
 		return object;
 	});
 }
@@ -187,7 +202,8 @@ export class BinaryInspectTool implements AgentTool<typeof binaryInspectSchema, 
 		}
 		if (!params.path) return { ok: false, reason: "path_missing", hint: "path is required for this action." };
 		const binary = path.resolve(this.session.cwd, params.path);
-		if (!(await exists(binary))) return { ok: false, reason: "binary_missing", hint: `Binary does not exist: ${binary}` };
+		if (!(await exists(binary)))
+			return { ok: false, reason: "binary_missing", hint: `Binary does not exist: ${binary}` };
 		switch (params.action) {
 			case "headers":
 				return this.#readelf(params, binary, "-hW", signal);
@@ -251,9 +267,16 @@ export class BinaryInspectTool implements AgentTool<typeof binaryInspectSchema, 
 			artifactType: "ldd",
 		});
 		const output = `${result.stdout}\n${result.stderr}`;
-		if (/not a dynamic executable|statically linked/i.test(output)) return { ok: true, static: true, dependencies: [] };
-		if (result.exitCode !== 0) return commandFailure(result, undefined, "ldd could not inspect dynamic dependencies.");
-		return { ok: true, static: false, dependencies: parseDependencies(output, limit(params, 500)), artifacts: result.artifacts };
+		if (/not a dynamic executable|statically linked/i.test(output))
+			return { ok: true, static: true, dependencies: [] };
+		if (result.exitCode !== 0)
+			return commandFailure(result, undefined, "ldd could not inspect dynamic dependencies.");
+		return {
+			ok: true,
+			static: false,
+			dependencies: parseDependencies(output, limit(params, 500)),
+			artifacts: result.artifacts,
+		};
 	}
 
 	async #disasm(params: BinaryInspectParams, binary: string, signal?: AbortSignal): Promise<Record<string, unknown>> {
@@ -278,7 +301,11 @@ export class BinaryInspectTool implements AgentTool<typeof binaryInspectSchema, 
 					return {
 						ok: true,
 						backend: "rizin",
-						function: { name: field(document, "name"), address: field(document, "addr"), size: field(document, "size") },
+						function: {
+							name: field(document, "name"),
+							address: field(document, "addr"),
+							size: field(document, "size"),
+						},
 						instructions: Array.isArray(ops) ? ops.slice(0, limit(params, 500)) : [],
 						artifacts: result.artifacts,
 					};
@@ -293,7 +320,8 @@ export class BinaryInspectTool implements AgentTool<typeof binaryInspectSchema, 
 			session: this.session,
 			artifactType: "objdump-disasm",
 		});
-		if (result.exitCode !== 0) return commandFailure(result, undefined, "Neither rizin nor objdump could disassemble the symbol.");
+		if (result.exitCode !== 0)
+			return commandFailure(result, undefined, "Neither rizin nor objdump could disassemble the symbol.");
 		return {
 			ok: true,
 			backend: "objdump",
@@ -302,7 +330,11 @@ export class BinaryInspectTool implements AgentTool<typeof binaryInspectSchema, 
 		};
 	}
 
-	async #functions(params: BinaryInspectParams, binary: string, signal?: AbortSignal): Promise<Record<string, unknown>> {
+	async #functions(
+		params: BinaryInspectParams,
+		binary: string,
+		signal?: AbortSignal,
+	): Promise<Record<string, unknown>> {
 		const executable = Bun.which("rizin");
 		if (!executable) return missingTool("rizin", "Install rizin and ensure rizin is on PATH for function analysis.");
 		const result = await runCommand([executable, "-q", "-c", "aaa; aflj", binary], {
@@ -318,7 +350,8 @@ export class BinaryInspectTool implements AgentTool<typeof binaryInspectSchema, 
 		} catch {
 			return { ok: false, reason: "parse_failed", hint: "rizin returned non-JSON function output." };
 		}
-		if (!Array.isArray(document)) return { ok: false, reason: "parse_failed", hint: "rizin aflj output was not an array." };
+		if (!Array.isArray(document))
+			return { ok: false, reason: "parse_failed", hint: "rizin aflj output was not an array." };
 		const functions = document
 			.map(entry => ({
 				name: String(field(entry, "name") ?? "<unknown>"),
@@ -355,14 +388,19 @@ export class BinaryInspectTool implements AgentTool<typeof binaryInspectSchema, 
 		const executable = Bun.which("bloaty");
 		if (!executable) return missingTool("bloaty", "Install bloaty and ensure bloaty is on PATH.");
 		const baseline = params.baseline ? path.resolve(this.session.cwd, params.baseline) : undefined;
-		if (baseline && !(await exists(baseline))) return { ok: false, reason: "baseline_missing", hint: `Baseline does not exist: ${baseline}` };
-		const result = await runCommand([executable, "--csv", "-d", "sections,symbols", binary, ...(baseline ? ["--", baseline] : [])], {
-			cwd: this.session.cwd,
-			signal,
-			session: this.session,
-			artifactType: "bloaty",
-		});
-		if (result.exitCode !== 0) return commandFailure(result, undefined, "bloaty failed to inspect or compare this binary.");
+		if (baseline && !(await exists(baseline)))
+			return { ok: false, reason: "baseline_missing", hint: `Baseline does not exist: ${baseline}` };
+		const result = await runCommand(
+			[executable, "--csv", "-d", "sections,symbols", binary, ...(baseline ? ["--", baseline] : [])],
+			{
+				cwd: this.session.cwd,
+				signal,
+				session: this.session,
+				artifactType: "bloaty",
+			},
+		);
+		if (result.exitCode !== 0)
+			return commandFailure(result, undefined, "bloaty failed to inspect or compare this binary.");
 		return { ok: true, rows: parseCsv(result.stdout, limit(params, 500)), baseline, artifacts: result.artifacts };
 	}
 }

@@ -9,6 +9,7 @@
  * regression that motivated the split.
  */
 import type { CommandEntry } from "@chudware/utils/cli";
+import { PRODUCT_CLI_NAME } from "./brand";
 import * as commandHelp from "./cli/command-help";
 import {
 	EXTENSION_SHADOWABLE_STRING_FLAGS,
@@ -240,23 +241,15 @@ export const commands: CommandEntry[] = [
 // a hint pointing there. See {@link reservedTopLevelWordMessage} for when a hint
 // fires vs. when the argv still falls through to `launch`.
 const RESERVED_TOP_LEVEL_WORDS: Record<string, string> = {
-	extensions:
-		'`chudcode extensions` is not a management command. Use `chudcode plugin list` / `chudcode plugin install`, or run `chudcode launch extensions` if you meant to send "extensions" as a prompt.',
-	list: '`chudcode list` is not a top-level command. Use `chudcode plugin list` to list installed plugins, or run `chudcode launch list` if you meant to send "list" as a prompt.',
-	remove:
-		'`chudcode remove` is not a top-level command. Use `chudcode plugin uninstall <name>` to remove a plugin, or run `chudcode launch remove` if you meant to send "remove" as a prompt.',
-	uninstall:
-		'`chudcode uninstall` is not a top-level command. Use `chudcode plugin uninstall <name@marketplace>` to remove a plugin, or run `chudcode launch uninstall` if you meant to send "uninstall" as a prompt.',
-	marketplace:
-		'`chudcode marketplace` is not a top-level command. Use `chudcode plugin marketplace <add|remove|update|list>` to manage marketplaces, or run `chudcode launch marketplace` if you meant to send "marketplace" as a prompt.',
-	discover:
-		'`chudcode discover` is not a top-level command. Use `chudcode plugin discover [marketplace]` to browse available plugins, or run `chudcode launch discover` if you meant to send "discover" as a prompt.',
-	upgrade:
-		'`chudcode upgrade` is not a top-level command. Use `chudcode plugin upgrade [name@marketplace]` to upgrade plugins, or run `chudcode launch upgrade` if you meant to send "upgrade" as a prompt.',
-	enable:
-		'`chudcode enable` is not a top-level command. Use `chudcode plugin enable <name@marketplace>` to enable a plugin, or run `chudcode launch enable` if you meant to send "enable" as a prompt.',
-	disable:
-		'`chudcode disable` is not a top-level command. Use `chudcode plugin disable <name@marketplace>` to disable a plugin, or run `chudcode launch disable` if you meant to send "disable" as a prompt.',
+	extensions: `\`${PRODUCT_CLI_NAME} extensions\` is not a management command. Use \`${PRODUCT_CLI_NAME} plugin list\` / \`${PRODUCT_CLI_NAME} plugin install\`, or run \`${PRODUCT_CLI_NAME} launch extensions\` if you meant to send "extensions" as a prompt.`,
+	list: `\`${PRODUCT_CLI_NAME} list\` is not a top-level command. Use \`${PRODUCT_CLI_NAME} plugin list\` to list installed plugins, or run \`${PRODUCT_CLI_NAME} launch list\` if you meant to send "list" as a prompt.`,
+	remove: `\`${PRODUCT_CLI_NAME} remove\` is not a top-level command. Use \`${PRODUCT_CLI_NAME} plugin uninstall <name>\` to remove a plugin, or run \`${PRODUCT_CLI_NAME} launch remove\` if you meant to send "remove" as a prompt.`,
+	uninstall: `\`${PRODUCT_CLI_NAME} uninstall\` is not a top-level command. Use \`${PRODUCT_CLI_NAME} plugin uninstall <name@marketplace>\` to remove a plugin, or run \`${PRODUCT_CLI_NAME} launch uninstall\` if you meant to send "uninstall" as a prompt.`,
+	marketplace: `\`${PRODUCT_CLI_NAME} marketplace\` is not a top-level command. Use \`${PRODUCT_CLI_NAME} plugin marketplace <add|remove|update|list>\` to manage marketplaces, or run \`${PRODUCT_CLI_NAME} launch marketplace\` if you meant to send "marketplace" as a prompt.`,
+	discover: `\`${PRODUCT_CLI_NAME} discover\` is not a top-level command. Use \`${PRODUCT_CLI_NAME} plugin discover [marketplace]\` to browse available plugins, or run \`${PRODUCT_CLI_NAME} launch discover\` if you meant to send "discover" as a prompt.`,
+	upgrade: `\`${PRODUCT_CLI_NAME} upgrade\` is not a top-level command. Use \`${PRODUCT_CLI_NAME} plugin upgrade [name@marketplace]\` to upgrade plugins, or run \`${PRODUCT_CLI_NAME} launch upgrade\` if you meant to send "upgrade" as a prompt.`,
+	enable: `\`${PRODUCT_CLI_NAME} enable\` is not a top-level command. Use \`${PRODUCT_CLI_NAME} plugin enable <name@marketplace>\` to enable a plugin, or run \`${PRODUCT_CLI_NAME} launch enable\` if you meant to send "enable" as a prompt.`,
+	disable: `\`${PRODUCT_CLI_NAME} disable\` is not a top-level command. Use \`${PRODUCT_CLI_NAME} plugin disable <name@marketplace>\` to disable a plugin, or run \`${PRODUCT_CLI_NAME} launch disable\` if you meant to send "disable" as a prompt.`,
 };
 
 // Sub-actions that make `chudcode marketplace <sub>` unambiguously a management

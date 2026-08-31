@@ -1,5 +1,5 @@
-import * as fs from "node:fs/promises";
 import { constants as fsConstants } from "node:fs";
+import * as fs from "node:fs/promises";
 import { createRequire } from "node:module";
 import * as os from "node:os";
 import * as path from "node:path";
@@ -71,9 +71,7 @@ export async function resolveVisionSidecar(): Promise<VisionBinaryResolution> {
 	const nativeDirs = nativeAddonDirectories();
 	const explicit = process.env.CHUDCODE_VISION_BIN?.trim();
 	if (explicit) {
-		const resolved = path.isAbsolute(explicit)
-			? explicit
-			: (Bun.which(explicit) ?? path.resolve(explicit));
+		const resolved = path.isAbsolute(explicit) ? explicit : (Bun.which(explicit) ?? path.resolve(explicit));
 		if (await isExecutable(resolved)) return { ok: true, path: resolved, nativeDirs };
 		return {
 			ok: false,
@@ -99,8 +97,7 @@ export async function resolveVisionSidecar(): Promise<VisionBinaryResolution> {
 	return {
 		ok: false,
 		reason: "sidecar_missing",
-		hint:
-			"chud-vision is not installed. Install the optional vision sidecar beside the chudcode executable, put it on PATH, or set CHUDCODE_VISION_BIN to its absolute path.",
+		hint: "chud-vision is not installed. Install the optional vision sidecar beside the chudcode executable, put it on PATH, or set CHUDCODE_VISION_BIN to its absolute path.",
 	};
 }
 
@@ -134,11 +131,7 @@ async function findOrtDylib(sidecarPath: string, nativeDirs: readonly string[]):
 	return undefined;
 }
 
-async function readBounded(
-	stream: ReadableStream<Uint8Array>,
-	limit: number,
-	onOverflow: () => void,
-): Promise<string> {
+async function readBounded(stream: ReadableStream<Uint8Array>, limit: number, onOverflow: () => void): Promise<string> {
 	const reader = stream.getReader();
 	const chunks: Uint8Array[] = [];
 	let bytes = 0;
@@ -172,7 +165,13 @@ interface SpawnResult {
 async function spawnBounded(
 	binaryPath: string,
 	args: readonly string[],
-	options: { stdin?: string; modelDir?: string; timeoutMs: number; signal?: AbortSignal; nativeDirs: readonly string[] },
+	options: {
+		stdin?: string;
+		modelDir?: string;
+		timeoutMs: number;
+		signal?: AbortSignal;
+		nativeDirs: readonly string[];
+	},
 ): Promise<SpawnResult> {
 	const ortDylib = await findOrtDylib(binaryPath, options.nativeDirs);
 	const timeoutController = new AbortController();
@@ -233,7 +232,10 @@ function validManifestEntry(value: unknown): value is VisionModelManifestEntry {
 const manifestCache = new Map<string, Promise<VisionModelManifestEntry[]>>();
 
 /** Read and validate the sidecar's compiled-in model manifest. */
-export function getVisionManifest(binaryPath: string, nativeDirs: readonly string[] = []): Promise<VisionModelManifestEntry[]> {
+export function getVisionManifest(
+	binaryPath: string,
+	nativeDirs: readonly string[] = [],
+): Promise<VisionModelManifestEntry[]> {
 	let pending = manifestCache.get(binaryPath);
 	if (pending) return pending;
 	pending = (async () => {

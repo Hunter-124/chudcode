@@ -6,13 +6,7 @@
  * the split diff pane, and the staging/commit actions the sidebar triggers.
  */
 import * as path from "node:path";
-import {
-	DiffSide,
-	DiffStream,
-	type DiffStreamProgress,
-	type DiffStreamResult,
-	rasterizeSvg,
-} from "@chudware/natives";
+import { DiffSide, DiffStream, type DiffStreamProgress, type DiffStreamResult, rasterizeSvg } from "@chudware/natives";
 import { BINARY_SNIFF_BYTES, isEnoent, isProbablyBinaryHeader } from "@chudware/utils";
 import { sleep } from "@chudware/utils/async";
 import * as fsx from "@chudware/utils/fsx";

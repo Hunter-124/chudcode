@@ -5,9 +5,9 @@
  * directories do not depend on workspace module resolution.
  */
 import * as path from "node:path";
+import type { AgentToolResult } from "@chudware/agent-core";
 import { type } from "@chudware/chudtype";
 import * as zod from "@chudware/chudtype/zod";
-import type { AgentToolResult } from "@chudware/agent-core";
 import { logger } from "@chudware/utils";
 import { toolCapability } from "../../capability/tool";
 import { type CustomTool, loadCapability } from "../../discovery";

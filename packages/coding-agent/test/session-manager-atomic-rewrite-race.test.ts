@@ -4,10 +4,7 @@ import {
 	IndexedSessionStorage,
 	type SessionStorageBackend,
 } from "@chudware/coding-agent/session/indexed-session-storage";
-import {
-	SessionManager,
-	SessionPersistenceIndeterminateError,
-} from "@chudware/coding-agent/session/session-manager";
+import { SessionManager, SessionPersistenceIndeterminateError } from "@chudware/coding-agent/session/session-manager";
 import {
 	MemorySessionStorage,
 	type SessionStorageWriter,

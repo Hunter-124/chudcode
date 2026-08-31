@@ -1,11 +1,11 @@
 /**
  * Fullscreen /models hub, shown on the alternate screen like /settings.
  *
- * Layout: a sidebar of scopes (recently used, all models, and one entry per
- * provider — locked providers included) beside a {@link ModelBrowser} body.
- * Advanced adds role assignments: it shows the concrete model and effort
- * behind each @role before offering model, thinking, and fallback edits.
- * Locked providers forward to the /login flow.
+ * Layout: a sidebar of scopes (role assignments, recently used, all models,
+ * and one entry per provider — locked providers included) beside a
+ * {@link ModelBrowser} body. Role assignments show the concrete model and
+ * effort behind each @role; Advanced additionally reveals source-aware model
+ * settings and customization controls. Locked providers forward to /login.
  * Fully mouse-navigable (hover, wheel, click). Session-only switching lives
  * in the compact alt+p picker ({@link ./model-picker}).
  */
@@ -610,25 +610,21 @@ export class ModelHubComponent implements Component {
 			catalogCount: catalogCounts.get(providerId) ?? 0,
 		});
 
-		// The transparent /agents assignment view is the everyday surface.
-		// Expert role/fallback editing remains available in Advanced without
-		// presenting a second competing assignment view in Basic.
-		const fixed: SidebarEntry[] = [];
-		if (this.#settings.get("settings.tier") === "advanced") {
-			const visibleRoles = this.#visibleRoleIds();
-			let assignedCount = 0;
-			for (const role of visibleRoles) {
-				const assignment = this.#roles[role];
-				if (assignment && !assignment.autoSelected) assignedCount++;
-			}
-			fixed.push({
+		const visibleRoles = this.#visibleRoleIds();
+		let assignedCount = 0;
+		for (const role of visibleRoles) {
+			const assignment = this.#roles[role];
+			if (assignment && !assignment.autoSelected) assignedCount++;
+		}
+		const fixed: SidebarEntry[] = [
+			{
 				id: "roles",
 				kind: "roles",
 				label: "Role assignments",
 				annotation: `${assignedCount}/${visibleRoles.length}`,
-			});
-		}
-		fixed.push({ id: "all", kind: "all", label: "All models", annotation: String(availableModels.length) });
+			},
+			{ id: "all", kind: "all", label: "All models", annotation: String(availableModels.length) },
+		];
 
 		this.#fixedEntries = fixed;
 		this.#unlockedProviderEntries = [...unlocked]

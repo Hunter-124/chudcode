@@ -1,9 +1,9 @@
 import * as nodePath from "node:path";
+import type { AgentTool, AgentToolContext, AgentToolResult, AgentToolUpdateCallback } from "@chudware/agent-core";
+import type { ToolExample } from "@chudware/ai";
 import { MismatchError as HashlineMismatchError } from "@chudware/hashline";
 import hashlineGrammar from "@chudware/hashline/grammar.lark" with { type: "text" };
 import hashlineDescription from "@chudware/hashline/prompt.md" with { type: "text" };
-import type { AgentTool, AgentToolContext, AgentToolResult, AgentToolUpdateCallback } from "@chudware/agent-core";
-import type { ToolExample } from "@chudware/ai";
 import { isEnoent, isEnotdir, logger, prompt } from "@chudware/utils";
 import * as fsx from "@chudware/utils/fsx";
 import { createLspWritethrough, flushLspWritethroughBatch, type WritethroughCallback, writethroughNoop } from "../lsp";

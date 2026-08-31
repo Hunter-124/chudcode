@@ -3,7 +3,13 @@ import { createReadStream, type Stats } from "node:fs";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import { defaultVisionModelDir, getVisionManifest, resolveVisionSidecar, type VisionFailure } from "./sidecar";
+import {
+	defaultVisionModelDir,
+	getVisionManifest,
+	resolveVisionSidecar,
+	type VisionFailure,
+	type VisionModelManifestEntry,
+} from "./sidecar";
 
 export interface EnsureVisionModelsOptions {
 	binaryPath?: string;
@@ -13,9 +19,7 @@ export interface EnsureVisionModelsOptions {
 	signal?: AbortSignal;
 }
 
-export type EnsureVisionModelsResult =
-	| { ok: true; modelDir: string; paths: Record<string, string> }
-	| VisionFailure;
+export type EnsureVisionModelsResult = { ok: true; modelDir: string; paths: Record<string, string> } | VisionFailure;
 
 interface VerifiedFile {
 	size: number;
@@ -110,11 +114,7 @@ async function downloadAndInstall(
 			hash.update(next.value);
 			let offset = 0;
 			while (offset < next.value.byteLength) {
-				const { bytesWritten } = await handle.write(
-					next.value,
-					offset,
-					next.value.byteLength - offset,
-				);
+				const { bytesWritten } = await handle.write(next.value, offset, next.value.byteLength - offset);
 				if (bytesWritten === 0) throw new Error(`Unable to write model part file ${partPath}`);
 				offset += bytesWritten;
 			}
@@ -180,7 +180,7 @@ export async function ensureVisionModels(
 		: await resolveVisionSidecar();
 	if (!resolution.ok) return resolution;
 
-	let manifest;
+	let manifest: VisionModelManifestEntry[];
 	try {
 		manifest = await getVisionManifest(resolution.path, resolution.nativeDirs);
 	} catch (error) {

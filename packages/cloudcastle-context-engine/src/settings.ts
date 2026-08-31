@@ -1,9 +1,5 @@
 import { isUnknownRecord } from "./guards";
-import type {
-	CloudCastleContextSettings,
-	CloudCastleEndpointSettings,
-	CloudCastleSettingsResult,
-} from "./types";
+import type { CloudCastleEndpointSettings, CloudCastleSettingsResult } from "./types";
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const CLASS_NAME_PATTERN = /^[a-z][a-z0-9_-]{0,47}$/;
@@ -146,15 +142,21 @@ function parseEndpoints(raw: string | undefined): readonly CloudCastleEndpointSe
 			maxItems,
 		});
 	}
-	return endpoints.sort((left, right) => right.classPriority - left.classPriority || left.className.localeCompare(right.className));
+	return endpoints.sort(
+		(left, right) => right.classPriority - left.classPriority || left.className.localeCompare(right.className),
+	);
 }
 
 function isReadOnlyIncidentPath(pathTemplate: string): boolean {
 	if (!pathTemplate.startsWith("/") || pathTemplate.startsWith("//")) return false;
 	if (!pathTemplate.includes("{incidentId}")) return false;
-	if (pathTemplate.includes("#") || pathTemplate.includes("\\") || ACTION_SEGMENT_PATTERN.test(pathTemplate)) return false;
+	if (pathTemplate.includes("#") || pathTemplate.includes("\\") || ACTION_SEGMENT_PATTERN.test(pathTemplate))
+		return false;
 	try {
-		const probe = new URL(pathTemplate.replaceAll("{incidentId}", "00000000-0000-4000-8000-000000000000"), "https://control.invalid");
+		const probe = new URL(
+			pathTemplate.replaceAll("{incidentId}", "00000000-0000-4000-8000-000000000000"),
+			"https://control.invalid",
+		);
 		return probe.origin === "https://control.invalid";
 	} catch {
 		return false;
@@ -172,7 +174,6 @@ function parseBound(raw: string | undefined, fallback: number, minimum: number, 
 	const value = Number(raw);
 	return Number.isSafeInteger(value) && value >= minimum && value <= maximum ? value : undefined;
 }
-
 
 function stringField(value: Record<string, unknown>, key: string): string | undefined {
 	const field = value[key];

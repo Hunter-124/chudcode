@@ -80,7 +80,10 @@ describe("generated native npm leaf packages", () => {
 				"win32-x64",
 			]);
 			const linuxX64 = leaves.find(leaf => leaf.tag === "linux-x64");
-			expect(linuxX64?.files).toEqual(["chud_natives.linux-x64-baseline.node", "chud_natives.linux-x64-modern.node"]);
+			expect(linuxX64?.files).toEqual([
+				"chud_natives.linux-x64-baseline.node",
+				"chud_natives.linux-x64-modern.node",
+			]);
 			expect(await fsx.readText(path.join(packageDir, "npm/linux-x64/chud_natives.linux-x64-modern.node"))).toBe(
 				"chud_natives.linux-x64-modern.node",
 			);

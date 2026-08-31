@@ -5,8 +5,8 @@
 
 import { afterAll, beforeAll, describe, expect, it } from "bun:test";
 import * as path from "node:path";
-import { Type } from "@chudware/chudtype/typebox";
 import type { AgentTool } from "@chudware/agent-core";
+import { Type } from "@chudware/chudtype/typebox";
 import { ModelRegistry } from "@chudware/coding-agent/config/model-registry";
 import { HookRunner, type LoadedHook } from "@chudware/coding-agent/extensibility/hooks";
 import { HookToolWrapper } from "@chudware/coding-agent/extensibility/hooks/tool-wrapper";

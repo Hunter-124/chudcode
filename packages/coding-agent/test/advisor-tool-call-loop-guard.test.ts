@@ -1,9 +1,9 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "bun:test";
-import { type } from "@chudware/chudtype";
 import { Agent, type AgentMessage, type AgentTool, type AgentTurnEndContext } from "@chudware/agent-core";
 import type { AssistantMessage, Context, ToolResultMessage } from "@chudware/ai";
 import { createMockModel } from "@chudware/ai/providers/mock";
 import { AssistantMessageEventStream } from "@chudware/ai/utils/event-stream";
+import { type } from "@chudware/chudtype";
 import { ModelRegistry } from "@chudware/coding-agent/config/model-registry";
 import { Settings } from "@chudware/coding-agent/config/settings";
 import { AgentSession } from "@chudware/coding-agent/session/agent-session";

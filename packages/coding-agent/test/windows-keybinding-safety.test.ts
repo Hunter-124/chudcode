@@ -121,6 +121,7 @@ describe("Windows Ctrl+C routing", () => {
 			},
 			showCopySelector,
 			showStatus,
+			showWarning: vi.fn(),
 			isBashMode: false,
 			isPythonMode: false,
 			updateEditorBorderColor: vi.fn(),

@@ -1,7 +1,5 @@
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
-import { splitAddressableFileLines } from "@chudware/hashline";
-import { type } from "@chudware/chudtype";
 import type {
 	AgentTool,
 	AgentToolContext,
@@ -10,6 +8,8 @@ import type {
 	ToolTier,
 } from "@chudware/agent-core";
 import type { ImageContent, TextContent } from "@chudware/ai";
+import { type } from "@chudware/chudtype";
+import { splitAddressableFileLines } from "@chudware/hashline";
 import {
 	BINARY_SNIFF_BYTES,
 	type ImageMetadata,

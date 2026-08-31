@@ -1,8 +1,8 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
-import { type } from "@chudware/chudtype";
 import type { AgentTool, AgentToolContext, AgentToolResult, AgentToolUpdateCallback } from "@chudware/agent-core";
 import type { ToolExample } from "@chudware/ai";
+import { type } from "@chudware/chudtype";
 import * as natives from "@chudware/natives";
 import type { Component } from "@chudware/tui";
 import { Text } from "@chudware/tui";
@@ -303,9 +303,6 @@ export class GlobTool implements AgentTool<typeof findSchema, GlobToolDetails> {
 			const effectiveLimit = Math.min(MAX_LIMIT, Math.max(1, Math.floor(requestedLimit)));
 			const includeHidden = hidden ?? true;
 			const useGitignore = gitignore ?? true;
-			const timeoutMs = this.#timeoutMs;
-			const timeoutSignal = AbortSignal.timeout(timeoutMs);
-			const combinedSignal = signal ? AbortSignal.any([signal, timeoutSignal]) : timeoutSignal;
 			const formatMatchPath = (matchPath: string, base: string, fileType?: natives.FileType): string => {
 				const hadTrailingSlash = matchPath.endsWith("/") || matchPath.endsWith("\\");
 				const absolutePath = path.isAbsolute(matchPath) ? matchPath : path.resolve(base, matchPath);
@@ -442,6 +439,14 @@ export class GlobTool implements AgentTool<typeof findSchema, GlobToolDetails> {
 				signal.removeEventListener("abort", abortPreparation);
 			}
 			throwIfAborted(signal);
+
+			// Start the native-walk budget only after every asynchronous stat has
+			// settled. An already-aborted signal can otherwise be handed to the
+			// native binding before its abort listener exists, leaving cleanup
+			// dependent on scheduler timing during a busy test or host.
+			const timeoutMs = this.#timeoutMs;
+			const timeoutSignal = AbortSignal.timeout(timeoutMs);
+			const combinedSignal = signal ? AbortSignal.any([signal, timeoutSignal]) : timeoutSignal;
 
 			const onUpdateMatches: string[] = [];
 			const onUpdateMtimes: number[] = [];

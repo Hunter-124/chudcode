@@ -1,5 +1,5 @@
-import { type } from "@chudware/chudtype";
 import type { AgentTool, AgentToolResult } from "@chudware/agent-core";
+import { type } from "@chudware/chudtype";
 import retainDescription from "../prompts/tools/retain.md" with { type: "text" };
 import type { ToolSession } from ".";
 

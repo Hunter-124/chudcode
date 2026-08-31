@@ -9,10 +9,10 @@ import {
 	RECENT_CHANGELOG_ENTRY_LIMIT,
 	renderChangelogEntries,
 } from "../utils/changelog";
-import { formatTokenCount, refreshStatusLine } from "./builtin-modes";
 import { buildContextReportText } from "./helpers/context-report";
 import { formatDuration } from "./helpers/format";
 import { handleMcpAcp } from "./helpers/mcp";
+import { formatTokenCount, refreshStatusLine } from "./helpers/mode-ui";
 import { commandConsumed, errorMessage, parseSubcommand, usage } from "./helpers/parse";
 import { describeRedeemOutcome, type ResetUsageAccount, toResetUsageAccounts } from "./helpers/reset-usage";
 import { matchSessionPinAccounts, toSessionPinAccounts } from "./helpers/session-pin";

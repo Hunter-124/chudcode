@@ -1,5 +1,4 @@
 import { afterEach, beforeAll, describe, expect, it, vi } from "bun:test";
-import type { StoppingCriteria, TextGenerationPipeline } from "@huggingface/transformers";
 import type { Api, Model } from "@chudware/ai";
 import * as ai from "@chudware/ai";
 import { getBundledModel } from "@chudware/catalog/models";
@@ -23,13 +22,10 @@ import {
 	TINY_TITLE_MODEL_OPTIONS,
 	TINY_TITLE_MODEL_VALUES,
 } from "@chudware/coding-agent/tiny/models";
-import {
-	createTinyTitleSubprocess,
-	TinyTitleClient,
-	tinyTitleClient,
-} from "@chudware/coding-agent/tiny/title-client";
+import { createTinyTitleSubprocess, TinyTitleClient, tinyTitleClient } from "@chudware/coding-agent/tiny/title-client";
 import type { TinyTitleWorkerInbound, TinyTitleWorkerOutbound } from "@chudware/coding-agent/tiny/title-protocol";
 import { generateSessionTitle } from "@chudware/coding-agent/utils/title-generator";
+import type { StoppingCriteria, TextGenerationPipeline } from "@huggingface/transformers";
 import type { Subprocess } from "bun";
 import { buildCompletionPrompt } from "../src/tiny/completion-prompt";
 import { createStopOnTextCriteria, type TransformersRuntime } from "../src/tiny/worker";

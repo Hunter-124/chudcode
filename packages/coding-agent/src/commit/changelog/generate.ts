@@ -1,7 +1,7 @@
-import { type } from "@chudware/chudtype";
 import type { ThinkingLevel } from "@chudware/agent-core";
 import type { Api, ApiKey, AssistantMessage, Model } from "@chudware/ai";
 import { completeSimple, retryTransientCompletion, validateToolCall } from "@chudware/ai";
+import { type } from "@chudware/chudtype";
 import { prompt } from "@chudware/utils";
 import changelogSystemPrompt from "../../commit/prompts/changelog-system.md" with { type: "text" };
 import changelogUserPrompt from "../../commit/prompts/changelog-user.md" with { type: "text" };

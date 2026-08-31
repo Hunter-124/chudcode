@@ -3,6 +3,7 @@
  */
 
 import { Command, Flags } from "@chudware/utils/cli";
+import { PRODUCT_CLI_NAME } from "../brand";
 import { updateHelp as commandHelp } from "../cli/command-help";
 import * as pluginCli from "../cli/plugin-cli";
 import * as updateCli from "../cli/update-cli";
@@ -20,10 +21,10 @@ export default class Update extends Command {
 	};
 
 	static examples = [
-		"chudcode update",
-		"chudcode update --check",
-		"chudcode update --canary",
-		"# If GitHub rate-limits release metadata, set GITHUB_TOKEN or GH_TOKEN\n  GITHUB_TOKEN=... chudcode update",
+		`${PRODUCT_CLI_NAME} update`,
+		`${PRODUCT_CLI_NAME} update --check`,
+		`${PRODUCT_CLI_NAME} update --canary`,
+		`# If GitHub rate-limits release metadata, set GITHUB_TOKEN or GH_TOKEN\n  GITHUB_TOKEN=... ${PRODUCT_CLI_NAME} update`,
 	];
 
 	async run(): Promise<void> {

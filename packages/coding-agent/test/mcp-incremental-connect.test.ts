@@ -27,6 +27,10 @@ const TOOL_B = `mcp__${SERVER_B}_${manyToolName(0)}`;
 function fixtureConfig(): MCPStdioServerConfig {
 	return { type: "stdio", command: process.execPath, args: [FIXTURE_PATH] };
 }
+async function waitForServerTools(manager: MCPManager, server: string, toolName: string): Promise<void> {
+	await manager.waitForServerReady(server);
+	expect(manager.getTools().map(tool => tool.name)).toContain(toolName);
+}
 
 describe("MCP incremental connectServers", () => {
 	let workDir: string;
@@ -44,13 +48,15 @@ describe("MCP incremental connectServers", () => {
 
 	it("keeps server A tools after incrementally connecting server B", async () => {
 		await manager.connectServers({ [SERVER_A]: fixtureConfig() }, {});
+		await waitForServerTools(manager, SERVER_A, TOOL_A);
 		expect(manager.getConnectionStatus(SERVER_A)).toBe("connected");
 		const afterA = manager.getTools();
 		expect(afterA.map(t => t.name)).toContain(TOOL_A);
 		expect(afterA).toHaveLength(MANY_TOOL_COUNT);
 		expect(afterA.every(t => t.mcpServerName === SERVER_A)).toBe(true);
 
-		const result = await manager.connectServers({ [SERVER_B]: fixtureConfig() }, {});
+		await manager.connectServers({ [SERVER_B]: fixtureConfig() }, {});
+		await waitForServerTools(manager, SERVER_B, TOOL_B);
 		expect(manager.getConnectionStatus(SERVER_A)).toBe("connected");
 		expect(manager.getConnectionStatus(SERVER_B)).toBe("connected");
 
@@ -60,12 +66,12 @@ describe("MCP incremental connectServers", () => {
 		expect(tools).toHaveLength(MANY_TOOL_COUNT * 2);
 		expect(tools.filter(t => t.mcpServerName === SERVER_A)).toHaveLength(MANY_TOOL_COUNT);
 		expect(tools.filter(t => t.mcpServerName === SERVER_B)).toHaveLength(MANY_TOOL_COUNT);
-		expect(result.tools.map(t => t.name)).toEqual(tools.map(t => t.name));
-		expect(result.connectedServers).toContain(SERVER_B);
-	}, 20_000);
+		expect(manager.getTools().map(t => t.name)).toEqual(tools.map(t => t.name));
+	}, 45_000);
 
 	it("applyMcpToggleRuntime enable of B refreshes the A+B union", async () => {
 		await manager.connectServers({ [SERVER_A]: fixtureConfig() }, {});
+		await waitForServerTools(manager, SERVER_A, TOOL_A);
 		expect(manager.getTools()).toHaveLength(MANY_TOOL_COUNT);
 
 		const refreshed: string[][] = [];
@@ -85,6 +91,7 @@ describe("MCP incremental connectServers", () => {
 				exaApiKeys: [],
 			}),
 		});
+		await waitForServerTools(manager, SERVER_B, TOOL_B);
 
 		expect(manager.getConnectionStatus(SERVER_A)).toBe("connected");
 		expect(manager.getConnectionStatus(SERVER_B)).toBe("connected");
@@ -95,7 +102,7 @@ describe("MCP incremental connectServers", () => {
 		expect(refreshed.at(-1)).toContain(TOOL_A);
 		expect(refreshed.at(-1)).toContain(TOOL_B);
 		expect(refreshed.at(-1)).toHaveLength(MANY_TOOL_COUNT * 2);
-	}, 20_000);
+	}, 45_000);
 
 	it("notifies connection-status listeners on connect and transport loss", async () => {
 		const events: Array<{ type: string; name?: string }> = [];

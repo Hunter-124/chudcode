@@ -1,9 +1,9 @@
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import { type } from "@chudware/chudtype";
 import type { AgentTool, AgentToolContext, AgentToolResult, AgentToolUpdateCallback } from "@chudware/agent-core";
 import type { ImageContent } from "@chudware/ai";
+import { type } from "@chudware/chudtype";
 import { resizeImage } from "../utils/image-resize";
 import type { ToolSession } from "./index";
 import { asImageContent, loadProcessedImage, loadVisionImage, materializeLoadedImage } from "./vision/image-input";
@@ -26,9 +26,9 @@ const imageAnalyzeSchema = type({
 		all_text: "boolean?",
 		"+": "reject",
 	}).describe("redaction switches; faces, emails, phones, cards, and keys default true"),
-	"attach?": type.enumerated("none", "processed").describe(
-		"attach processed output to the result; defaults to processed for redact, crop, and diff",
-	),
+	"attach?": type
+		.enumerated("none", "processed")
+		.describe("attach processed output to the result; defaults to processed for redact, crop, and diff"),
 	"max_results?": type("number").describe("maximum results returned per result family; default 25, maximum 100"),
 	"+": "reject",
 });
@@ -69,10 +69,7 @@ function modelIdsFor(params: ImageAnalyzeParams): string[] {
 				redaction?.phones !== false ||
 				redaction?.cards !== false ||
 				redaction?.keys !== false;
-			return [
-				...(needsFaces ? ["yunet"] : []),
-				...(needsText ? ["ppocr_det", "ppocr_rec", "ppocr_dict"] : []),
-			];
+			return [...(needsFaces ? ["yunet"] : []), ...(needsText ? ["ppocr_det", "ppocr_rec", "ppocr_dict"] : [])];
 		}
 		case "diff":
 			return [];
@@ -187,7 +184,11 @@ export class ImageAnalyzeTool implements AgentTool<typeof imageAnalyzeSchema, Im
 			const attach =
 				params.attach ??
 				(params.action === "redact" || params.action === "crop" || params.action === "diff" ? "processed" : "none");
-			if (params.action === "redact" || params.action === "crop" || (params.action === "diff" && attach === "processed")) {
+			if (
+				params.action === "redact" ||
+				params.action === "crop" ||
+				(params.action === "diff" && attach === "processed")
+			) {
 				outputPath = path.join(os.tmpdir(), `chudcode-vision-${params.action}-${crypto.randomUUID()}.png`);
 			}
 			const maxResults = boundedMaxResults(params.max_results);
@@ -222,7 +223,10 @@ export class ImageAnalyzeTool implements AgentTool<typeof imageAnalyzeSchema, Im
 			if (response.ok && attach === "processed" && outputPath) {
 				const processed = await loadProcessedImage(outputPath, { cwd: this.session.cwd, autoResize: false });
 				if (!processed) {
-					response = failure("processed_image_invalid", "chud-vision did not produce a supported processed image.");
+					response = failure(
+						"processed_image_invalid",
+						"chud-vision did not produce a supported processed image.",
+					);
 				} else {
 					const resized = await resizeImage(asImageContent(processed));
 					attachment = { type: "image", data: resized.data, mimeType: resized.mimeType };

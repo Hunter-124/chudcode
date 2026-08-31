@@ -211,7 +211,7 @@ describe.skipIf(SKIP)("handleGitHubGist", () => {
 describe("parseGitHubUrl — Actions", () => {
 	it("classifies a workflow run URL", () => {
 		const gh = parseGitHubUrl("https://github.com/Hunter-124/chudcode/actions/runs/27070071296");
-		expect(gh).toEqual({ type: "actions-run", owner: "Hunter-124", repo: "chudware", runId: 27070071296 });
+		expect(gh).toEqual({ type: "actions-run", owner: "Hunter-124", repo: "chudcode", runId: 27070071296 });
 	});
 
 	it("classifies a job URL using the web-form singular `job` segment", () => {
@@ -219,7 +219,7 @@ describe("parseGitHubUrl — Actions", () => {
 		expect(gh).toEqual({
 			type: "actions-job",
 			owner: "Hunter-124",
-			repo: "chudware",
+			repo: "chudcode",
 			runId: 27070071296,
 			jobId: 79897931171,
 		});
@@ -247,11 +247,13 @@ describe("parseGitHubUrl — Actions", () => {
 
 describe("parseGitHubUrl — commit", () => {
 	it("classifies a commit URL with a full SHA", () => {
-		const gh = parseGitHubUrl("https://github.com/Hunter-124/chudcode/commit/c1a1cb6149e73b345919dd4cf629b0d9ac74fb57");
+		const gh = parseGitHubUrl(
+			"https://github.com/Hunter-124/chudcode/commit/c1a1cb6149e73b345919dd4cf629b0d9ac74fb57",
+		);
 		expect(gh).toEqual({
 			type: "commit",
 			owner: "Hunter-124",
-			repo: "chudware",
+			repo: "chudcode",
 			ref: "c1a1cb6149e73b345919dd4cf629b0d9ac74fb57",
 		});
 	});
@@ -260,7 +262,7 @@ describe("parseGitHubUrl — commit", () => {
 		expect(parseGitHubUrl("https://github.com/Hunter-124/chudcode/commit/c1a1cb6")).toEqual({
 			type: "commit",
 			owner: "Hunter-124",
-			repo: "chudware",
+			repo: "chudcode",
 			ref: "c1a1cb6",
 		});
 	});

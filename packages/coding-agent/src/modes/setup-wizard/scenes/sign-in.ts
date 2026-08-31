@@ -1,14 +1,7 @@
 import type { AuthStorage } from "@chudware/ai";
 import { PASTE_CODE_LOGIN_PROVIDERS } from "@chudware/ai";
 import type { OAuthProvider } from "@chudware/ai/oauth/types";
-import {
-	type Component,
-	type Focusable,
-	Input,
-	matchesKey,
-	type SgrMouseEvent,
-	wrapTextWithAnsi,
-} from "@chudware/tui";
+import { type Component, type Focusable, Input, matchesKey, type SgrMouseEvent, wrapTextWithAnsi } from "@chudware/tui";
 import { getAgentDbPath } from "@chudware/utils";
 import { copyToClipboard } from "../../../utils/clipboard";
 import { OAuthSelectorComponent } from "../../components/oauth-selector";

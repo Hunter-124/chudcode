@@ -11,8 +11,12 @@ describe("tinyWorkerEnvOverlay", () => {
 	});
 
 	it("lets a present env var win over the persisted setting", () => {
-		expect(tinyWorkerEnvOverlay({ CHUDCODE_TINY_DEVICE: "cpu" }, "cuda", "fp16")).toEqual({ CHUDCODE_TINY_DTYPE: "fp16" });
-		expect(tinyWorkerEnvOverlay({ CHUDCODE_TINY_DTYPE: "q8" }, "cuda", "fp16")).toEqual({ CHUDCODE_TINY_DEVICE: "cuda" });
+		expect(tinyWorkerEnvOverlay({ CHUDCODE_TINY_DEVICE: "cpu" }, "cuda", "fp16")).toEqual({
+			CHUDCODE_TINY_DTYPE: "fp16",
+		});
+		expect(tinyWorkerEnvOverlay({ CHUDCODE_TINY_DTYPE: "q8" }, "cuda", "fp16")).toEqual({
+			CHUDCODE_TINY_DEVICE: "cuda",
+		});
 	});
 
 	it("omits a var when its setting is the default sentinel or unset", () => {

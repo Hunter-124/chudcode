@@ -1,5 +1,5 @@
-import type { Clipboard, SnapshotStore } from "@chudware/hashline";
 import type { AgentTool } from "@chudware/agent-core";
+import type { Clipboard, SnapshotStore } from "@chudware/hashline";
 import {
 	Box,
 	type Component,

@@ -7,6 +7,7 @@ import {
 	visibleWidth,
 	wrapTextWithAnsi,
 } from "@chudware/tui";
+import { PRODUCT_NAME } from "../../brand";
 import { theme } from "../../modes/theme/theme";
 import tipsText from "./tips.txt" with { type: "text" };
 
@@ -296,6 +297,7 @@ export class WelcomeComponent implements Component {
 			this.#centerText(theme.bold("Welcome back!"), leftCol),
 			"",
 			...logoColored.map(l => this.#centerText(l, leftCol)),
+			this.#centerText(theme.bold(PRODUCT_NAME), leftCol),
 			"",
 			this.#centerText(theme.fg("muted", this.modelName), leftCol),
 			this.#centerText(theme.fg("borderMuted", this.providerName), leftCol),

@@ -1,7 +1,6 @@
 import * as fsp from "node:fs/promises";
 import { createRequire } from "node:module";
 import * as path from "node:path";
-import type { ProgressInfo } from "@huggingface/transformers";
 import {
 	ensureRuntimeInstalled,
 	getTinyModelsCacheDir,
@@ -10,6 +9,7 @@ import {
 	resolveRuntimeModule,
 } from "@chudware/utils";
 import * as fsx from "@chudware/utils/fsx";
+import type { ProgressInfo } from "@huggingface/transformers";
 import packageJson from "../../package.json" with { type: "json" };
 
 /**

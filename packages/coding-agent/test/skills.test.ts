@@ -43,6 +43,7 @@ const DISABLE_ALL_BUILTIN_SKILLS = {
 	enablePiProject: false,
 	enableAgentsUser: false,
 	enableAgentsProject: false,
+	enableManagedSkills: false,
 } as const;
 
 describe("skills", () => {

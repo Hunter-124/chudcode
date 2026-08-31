@@ -82,12 +82,17 @@ class FakeDiscord {
 		const postMatch = target.pathname.match(/^\/api\/v10\/channels\/(\d+)\/messages$/);
 		if (init.method === "POST" && postMatch?.[1]) {
 			if (this.errorBody) {
-				return new Response(JSON.stringify(this.errorBody), { status: 400, headers: { "content-type": "application/json" } });
+				return new Response(JSON.stringify(this.errorBody), {
+					status: 400,
+					headers: { "content-type": "application/json" },
+				});
 			}
 			const body: unknown = JSON.parse(String(init.body));
 			const content = body !== null && typeof body === "object" && "content" in body ? String(body.content) : "";
+			this.#nextId += 1;
+			const messageId: string = String(this.#nextId);
 			const message: StoredMessage = {
-				id: String((this.#nextId += 1)),
+				id: messageId,
 				channel_id: postMatch[1],
 				content,
 				timestamp: new Date().toISOString(),
@@ -103,7 +108,10 @@ class FakeDiscord {
 			// Discord returns the newest `limit` normally, but the OLDEST `limit`
 			// after a cursor. The bus's paging correctness depends on that.
 			const page = after
-				? inChannel.filter(message => BigInt(message.id) > BigInt(after)).slice(0, limit).reverse()
+				? inChannel
+						.filter(message => BigInt(message.id) > BigInt(after))
+						.slice(0, limit)
+						.reverse()
 				: inChannel.slice(-limit).reverse();
 			return new Response(JSON.stringify(page), { status: 200, headers: { "content-type": "application/json" } });
 		}
@@ -112,8 +120,10 @@ class FakeDiscord {
 
 	/** Drop a message into the channel that this bot did not write. */
 	human(content: string, channelId = BUS_CHANNEL): void {
+		this.#nextId += 1;
+		const messageId: string = String(this.#nextId);
 		this.messages.push({
-			id: String((this.#nextId += 1)),
+			id: messageId,
 			channel_id: channelId,
 			content,
 			timestamp: new Date().toISOString(),
@@ -163,7 +173,7 @@ describe("codec", () => {
 	});
 
 	it("rejects a foreign protocol version rather than handing a consumer a shape it cannot read", () => {
-		const wrongVersion = "```cc-bus\n" + JSON.stringify({ ...HEARTBEAT, v: 99 }) + "\n```";
+		const wrongVersion = `\`\`\`cc-bus\n${JSON.stringify({ ...HEARTBEAT, v: 99 })}\n\`\`\``;
 		expect(decodeRecord(wrongVersion)).toBeNull();
 	});
 });
@@ -212,7 +222,7 @@ describe("Bus.poll", () => {
 		await bus.ready();
 		api.human("is this thing on?");
 		api.human("```cc-bus\n{not json}\n```");
-		api.human("```cc-bus\n" + JSON.stringify({ kind: "nope", v: BUS_PROTOCOL_VERSION, id: "x" }) + "\n```");
+		api.human(`\`\`\`cc-bus\n${JSON.stringify({ kind: "nope", v: BUS_PROTOCOL_VERSION, id: "x" })}\n\`\`\``);
 		await bus.publish(COMMAND);
 
 		const result = await bus.poll();

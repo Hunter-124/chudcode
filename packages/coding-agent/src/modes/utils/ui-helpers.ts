@@ -4,6 +4,7 @@ import { getStreamingPartialJson } from "@chudware/ai/utils/block-symbols";
 import { type Component, Spacer, Text, TruncatedText } from "@chudware/tui";
 import { logger } from "@chudware/utils";
 import type { AdvisorMessageDetails } from "../../advisor";
+import { PRODUCT_CLI_NAME } from "../../brand";
 import { COLLAB_PROMPT_MESSAGE_TYPE, type CollabPromptDetails } from "../../collab/protocol";
 import { settings } from "../../config/settings";
 import { getEditClipboard } from "../../edit/edit-clipboard";
@@ -995,7 +996,7 @@ export class UiHelpers {
 		block.addChild(new DynamicBorder(text => theme.fg("warning", text)));
 		const title = "Update Available";
 		const prefix = `New version ${newVersion} is available. Run: `;
-		const command = "chudcode update";
+		const command = `${PRODUCT_CLI_NAME} update`;
 		block.addChild(
 			new Text(`${title}\n${prefix}${command}`, 1, 0).setStyleFn(
 				() =>

@@ -119,8 +119,8 @@ describe("PluginListComponent", () => {
 
 		const text = stripVTControlCharacters(component.render(120).join("\n"));
 		expect(text).toContain("No plugins installed");
-		expect(text).toContain("chudcode plugin install <package>");
-		expect(text).toContain("chudcode plugin install <name>@<marketplace>");
+		expect(text).toContain("chud plugin install <package>");
+		expect(text).toContain("chud plugin install <name>@<marketplace>");
 	});
 
 	it("routes enter on a marketplace entry to onMarketplaceSelect", () => {

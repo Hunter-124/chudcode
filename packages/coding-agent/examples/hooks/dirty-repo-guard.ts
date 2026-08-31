@@ -6,7 +6,11 @@
  */
 import type { HookAPI, HookContext } from "@chudware/coding-agent";
 
-async function checkDirtyRepo(chud: HookAPI, ctx: HookContext, action: string): Promise<{ cancel: boolean } | undefined> {
+async function checkDirtyRepo(
+	chud: HookAPI,
+	ctx: HookContext,
+	action: string,
+): Promise<{ cancel: boolean } | undefined> {
 	// Check for uncommitted changes
 	const { stdout, code } = await chud.exec("git", ["status", "--porcelain"]);
 

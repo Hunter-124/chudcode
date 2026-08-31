@@ -1,5 +1,4 @@
 import * as fs from "node:fs/promises";
-import { type } from "@chudware/chudtype";
 import type {
 	AgentTool,
 	AgentToolContext,
@@ -9,6 +8,7 @@ import type {
 	ToolApprovalDecision,
 } from "@chudware/agent-core";
 import type { ToolExample } from "@chudware/ai";
+import { type } from "@chudware/chudtype";
 import { type Component, Text } from "@chudware/tui";
 import { isEnoent, prompt } from "@chudware/utils";
 import {

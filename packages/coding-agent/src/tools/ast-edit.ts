@@ -1,8 +1,8 @@
 import * as path from "node:path";
-import { formatHashlineHeader } from "@chudware/hashline";
-import { type } from "@chudware/chudtype";
 import type { AgentTool, AgentToolContext, AgentToolResult, AgentToolUpdateCallback } from "@chudware/agent-core";
 import type { ToolExample } from "@chudware/ai";
+import { type } from "@chudware/chudtype";
+import { formatHashlineHeader } from "@chudware/hashline";
 import { type AstReplaceChange, type AstReplaceFileChange, astEdit } from "@chudware/natives";
 import type { Component } from "@chudware/tui";
 import { replaceTabs, Text } from "@chudware/tui";

@@ -181,7 +181,10 @@ describe("structured subagent primitive", () => {
 		} as ToolSession;
 
 		try {
-			await fsx.write(path.join(projectDir, ".chudcode", "config.yml"), "modelRoles:\n  hot_worker: kimi-code/k3:max\n");
+			await fsx.write(
+				path.join(projectDir, ".chudcode", "config.yml"),
+				"modelRoles:\n  hot_worker: kimi-code/k3:max\n",
+			);
 			await fsx.write(
 				path.join(projectDir, ".chudcode", "agents", "hot-worker.md"),
 				'---\nname: hot-worker\ndescription: Newly added worker.\nmodel: "@hot_worker"\n---\n\nInspect the assignment.\n',

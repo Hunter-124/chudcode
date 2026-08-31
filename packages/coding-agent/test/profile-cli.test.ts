@@ -43,16 +43,12 @@ describe("global --profile flag", () => {
 	let originalProfile: string | undefined;
 	let originalAgentDir = "";
 	let originalAgentDirEnv: string | undefined;
-	let originalOmpProfileEnv: string | undefined;
-	let originalPiProfileEnv: string | undefined;
 	let originalConfigDir: string | undefined;
 
 	beforeEach(() => {
 		originalProfile = getActiveProfile();
 		originalAgentDir = getAgentDir();
 		originalAgentDirEnv = process.env.CHUDCODE_CODING_AGENT_DIR;
-		originalOmpProfileEnv = process.env.CHUDCODE_PROFILE;
-		originalPiProfileEnv = process.env.CHUDCODE_PROFILE;
 		originalConfigDir = process.env.CHUDCODE_CONFIG_DIR;
 		configDir = `.chudcode-profile-cli-test-${Snowflake.next()}`;
 		process.env.CHUDCODE_CONFIG_DIR = configDir;
@@ -73,16 +69,6 @@ describe("global --profile flag", () => {
 			setAgentDir(originalAgentDir);
 		} else {
 			setProfile(undefined);
-		}
-		if (originalOmpProfileEnv === undefined) {
-			delete process.env.CHUDCODE_PROFILE;
-		} else {
-			process.env.CHUDCODE_PROFILE = originalOmpProfileEnv;
-		}
-		if (originalPiProfileEnv === undefined) {
-			delete process.env.CHUDCODE_PROFILE;
-		} else {
-			process.env.CHUDCODE_PROFILE = originalPiProfileEnv;
 		}
 		if (originalAgentDirEnv === undefined) {
 			delete process.env.CHUDCODE_CODING_AGENT_DIR;
@@ -109,7 +95,6 @@ describe("global --profile flag", () => {
 		const writeSpy = vi.spyOn(process.stdout, "write").mockImplementation(() => true);
 		setProfile(undefined);
 		process.env.CHUDCODE_PROFILE = "work";
-		delete process.env.CHUDCODE_PROFILE;
 
 		await runCli(["--version"]);
 
@@ -301,7 +286,6 @@ describe("global --profile flag", () => {
 				CHUDCODE_PROFILE: "..",
 				NO_COLOR: "1",
 			};
-			delete childEnv.CHUDCODE_PROFILE;
 			delete childEnv.CHUDCODE_CODING_AGENT_DIR;
 
 			const proc = Bun.spawn([process.execPath, probePath], {

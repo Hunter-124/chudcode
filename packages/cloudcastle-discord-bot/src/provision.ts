@@ -239,7 +239,7 @@ export class EmptyThreadContentError extends Error {
 		super(
 			`thread ${threadId} ("${threadName}") has ${messageCount} message(s) and not one readable body, so there is ` +
 				"nothing to flatten into the parent channel. That is the MESSAGE_CONTENT privileged intent being off: the " +
-				"Discord API returns content: \"\" for every message until it is enabled. Enable MESSAGE_CONTENT under the " +
+				'Discord API returns content: "" for every message until it is enabled. Enable MESSAGE_CONTENT under the ' +
 				"application's Bot settings and run --flatten-threads again. Refusing to repost empty messages.",
 		);
 		this.threadId = threadId;
@@ -921,15 +921,14 @@ async function planFlatten(
 				// the content is in the file, which the archive exporter has already
 				// downloaded. Only a message with no attachment and no embed points
 				// at the MESSAGE_CONTENT intent.
-				const carries =
-					message.attachments.length > 0 || message.embedCount > 0;
+				const carries = message.attachments.length > 0 || message.embedCount > 0;
 				notes.push(
 					carries
 						? `thread "${key}" message ${message.id} carries no text, only ` +
-							`${message.attachments.length} attachment(s) and ` +
-							`${message.embedCount} embed(s); reposted as a reference to the original`
+								`${message.attachments.length} attachment(s) and ` +
+								`${message.embedCount} embed(s); reposted as a reference to the original`
 						: `thread "${key}" message ${message.id} has an empty body and was not reposted; ` +
-							"enable MESSAGE_CONTENT and rerun to include it",
+								"enable MESSAGE_CONTENT and rerun to include it",
 				);
 				if (!carries) continue;
 			}

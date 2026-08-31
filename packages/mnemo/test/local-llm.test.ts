@@ -91,7 +91,7 @@ describe("local LLM TypeScript port", () => {
 			);
 
 		expect(await summarizeMemories(["Mnemo uses multilingual-e5-large."], "", { fetch: fetchMock })).toBe(
-			"Mnemo uses multilingual-e5-large.",
+			"Mnemopi uses multilingual-e5-large.",
 		);
 	});
 

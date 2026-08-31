@@ -12,7 +12,10 @@ let originalPiJs: string | undefined;
 let originalPiRb: string | undefined;
 let originalPiJl: string | undefined;
 
-function restoreEnv(name: "CHUDCODE_PY" | "CHUDCODE_JS" | "CHUDCODE_RB" | "CHUDCODE_JL", value: string | undefined): void {
+function restoreEnv(
+	name: "CHUDCODE_PY" | "CHUDCODE_JS" | "CHUDCODE_RB" | "CHUDCODE_JL",
+	value: string | undefined,
+): void {
 	if (value === undefined) {
 		delete process.env[name];
 		return;

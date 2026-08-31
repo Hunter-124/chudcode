@@ -1,8 +1,8 @@
 import { describe, expect, test } from "bun:test";
 import { encodeModelCatalog } from "../scripts/model-binary";
 import { getBundledModel, getBundledModels, getBundledProviders } from "../src/models";
-import type { GeneratedProvider } from "../src/models-bin-meta";
 import models from "../src/models.json" with { type: "json" };
+import type { GeneratedProvider } from "../src/models-bin-meta";
 
 describe("bundled binary model catalog", () => {
 	test("encodes the same in-memory catalog to identical bytes", () => {

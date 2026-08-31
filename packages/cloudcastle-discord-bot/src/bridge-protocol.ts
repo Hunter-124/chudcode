@@ -231,7 +231,8 @@ export const MAX_MESSAGE_CHARS = 2000;
 
 export function encodeRecord(record: BusRecord): string {
 	const body = JSON.stringify(record);
-	const framed = "```" + BUS_FENCE + "\n" + body + "\n```";
+	const fence = "```";
+	const framed = `${fence}${BUS_FENCE}\n${body}\n${fence}`;
 	if (framed.length > MAX_MESSAGE_CHARS) {
 		throw new Error(
 			`bus record ${record.kind}/${record.id} encodes to ${framed.length} chars, over the ${MAX_MESSAGE_CHARS} limit`,
@@ -256,11 +257,7 @@ export function decodeRecord(content: string): BusRecord | null {
 	if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) return null;
 	const candidate = parsed as { kind?: unknown; v?: unknown; id?: unknown };
 	if (typeof candidate.id !== "string" || candidate.v !== BUS_PROTOCOL_VERSION) return null;
-	if (
-		candidate.kind !== "agent.heartbeat" &&
-		candidate.kind !== "command" &&
-		candidate.kind !== "command.result"
-	) {
+	if (candidate.kind !== "agent.heartbeat" && candidate.kind !== "command" && candidate.kind !== "command.result") {
 		return null;
 	}
 	return parsed as BusRecord;

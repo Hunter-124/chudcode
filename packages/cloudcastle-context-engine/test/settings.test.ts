@@ -62,8 +62,9 @@ describe("CloudCastle context settings", () => {
 	});
 
 	it("rejects limits outside the schema caps", () => {
-		expect(
-			parseCloudCastleContextSettings({ ...BASE_ENV, CLOUDCASTLE_CONTEXT_TOKEN_BUDGET: "4001" }),
-		).toEqual({ ok: false, errorCode: "invalid_limits" });
+		expect(parseCloudCastleContextSettings({ ...BASE_ENV, CLOUDCASTLE_CONTEXT_TOKEN_BUDGET: "4001" })).toEqual({
+			ok: false,
+			errorCode: "invalid_limits",
+		});
 	});
 });

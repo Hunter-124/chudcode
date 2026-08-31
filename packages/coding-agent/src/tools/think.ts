@@ -1,6 +1,6 @@
-import { type } from "@chudware/chudtype";
 import type { AgentTool, AgentToolResult } from "@chudware/agent-core";
 import type { Model } from "@chudware/ai";
+import { type } from "@chudware/chudtype";
 import { type Component, Markdown } from "@chudware/tui";
 import type { RenderResultOptions } from "../extensibility/custom-tools/types";
 import { getMarkdownTheme, type Theme } from "../modes/theme/theme";

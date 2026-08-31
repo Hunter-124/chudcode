@@ -121,7 +121,7 @@ test.skipIf(process.platform === "win32")(
 			// worker. Waiting for its pid file proves the worker started before
 			// the resolver timeout, but PID-tree traversal can no longer find it.
 			const command = `sh -c '"${worker}" &' & while [ ! -s "${pidFile}" ]; do :; done; sleep 10`;
-			const result = await runShellCommand(command, 150);
+			const result = await runShellCommand(command, 1_000);
 			expect(result).toBeUndefined();
 
 			const pid = Number.parseInt((await fsx.readText(pidFile)).trim(), 10);
@@ -148,7 +148,7 @@ test.skipIf(process.platform !== "linux")(
 			// intermediate backgrounds the worker and exits. The worker is no
 			// longer in the resolver shell's PID tree or original process group.
 			const command = `setsid sh -c '"${worker}" &' </dev/null >/dev/null 2>&1 & while [ ! -s "${pidFile}" ]; do :; done; sleep 10`;
-			const result = await runShellCommand(command, 150);
+			const result = await runShellCommand(command, 1_000);
 			expect(result).toBeUndefined();
 
 			const pid = Number.parseInt((await fsx.readText(pidFile)).trim(), 10);

@@ -10,11 +10,7 @@ import { AgentSession } from "@chudware/coding-agent/session/agent-session";
 import { AuthStorage } from "@chudware/coding-agent/session/auth-storage";
 import { SKILL_PROMPT_MESSAGE_TYPE } from "@chudware/coding-agent/session/messages";
 import { SessionManager } from "@chudware/coding-agent/session/session-manager";
-import {
-	AUTO_THINKING,
-	clampAutoThinkingEffort,
-	resolveProvisionalAutoLevel,
-} from "@chudware/coding-agent/thinking";
+import { AUTO_THINKING, clampAutoThinkingEffort, resolveProvisionalAutoLevel } from "@chudware/coding-agent/thinking";
 import { TempDir } from "@chudware/utils";
 import { createAssistantMessage } from "./helpers/agent-session-setup";
 

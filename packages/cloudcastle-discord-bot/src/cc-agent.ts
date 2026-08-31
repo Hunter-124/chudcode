@@ -37,43 +37,37 @@
  */
 
 import * as fs from "node:fs/promises";
-import { fileURLToPath } from "node:url";
 import * as os from "node:os";
 import * as path from "node:path";
+import { fileURLToPath } from "node:url";
 import { RpcClient } from "@chudware/coding-agent/modes/rpc/rpc-client";
 import {
+	type AgentHeartbeat,
 	ARCHIVED_SESSION_CHANNEL_PREFIX,
 	BUS_PROTOCOL_VERSION,
 	CHANNEL_RENAME_MIN_INTERVAL_MS,
 	COMMAND_POLL_INTERVAL_MS,
-	HEARTBEAT_INTERVAL_MS,
-	MAX_MESSAGE_CHARS,
-	SESSION_CHANNEL_PREFIX,
-	type AgentHeartbeat,
 	type CommandOutcome,
 	type CommandRecord,
 	type CommandResult,
+	encodeRecord,
+	HEARTBEAT_INTERVAL_MS,
+	MAX_MESSAGE_CHARS,
+	SESSION_CHANNEL_PREFIX,
 	type SessionMirrorState,
 	type SessionSnapshot,
 	type SessionStatus,
-	encodeRecord,
 	sessionChannelName,
 } from "./bridge-protocol";
 import { agentStateDir, Bus, writeStateFile } from "./bus";
-import {
-	CATEGORY_IDS,
-	CREATED_CATEGORY_NAMES,
-	GUILD_ID,
-	inviteUrl,
-	REQUIRED_PERMISSIONS,
-} from "./channels";
+import { CATEGORY_IDS, GUILD_ID, inviteUrl, REQUIRED_PERMISSIONS } from "./channels";
 import {
 	DiscordApiError,
+	type DiscordChannel,
 	DiscordRest,
+	type DiscordRestClient,
 	MISSING_PERMISSIONS_CODE,
 	messageContentIntentEnabled,
-	type DiscordChannel,
-	type DiscordRestClient,
 } from "./discord-rest";
 import { embedHash, renderSessionEmbed, renderTail } from "./session-render";
 import { type ScanOptions, scanSessions } from "./session-scan";
@@ -135,8 +129,6 @@ const DEFAULT_TRANSCRIPT_FLUSH_MS = 5_000;
 /** A command older than this is audit history. Replaying it on a cold start would be a surprise, not a service. */
 const DEFAULT_MAX_COMMAND_AGE_MS = 10 * 60_000;
 const TASK_NOT_RUNNING_MESSAGE = "This task is no longer running. Start a new task if you want to continue the work.";
-/** Discord's category channel type. */
-const GUILD_CATEGORY = 4;
 
 /** Statuses after which a session never changes again, so its channel is frozen and archived. */
 const TERMINAL_STATUS: Readonly<Partial<Record<SessionStatus, true>>> = { complete: true, aborted: true, error: true };
@@ -198,13 +190,9 @@ export type RpcSessionFactory = (options: RpcSessionOptions) => Promise<RpcSessi
  * a cwd containing a built `dist/`. Neither is true for cc-agent.
  */
 export const defaultRpcSessionFactory: RpcSessionFactory = async options => {
-	const rpcClientModule = fileURLToPath(
-		import.meta.resolve("@chudware/coding-agent/modes/rpc/rpc-client"),
-	);
+	const rpcClientModule = fileURLToPath(import.meta.resolve("@chudware/coding-agent/modes/rpc/rpc-client"));
 	const cliPath =
-		options.cliPath ??
-		process.env.CC_AGENT_CLI_PATH ??
-		path.resolve(path.dirname(rpcClientModule), "../../cli.ts");
+		options.cliPath ?? process.env.CC_AGENT_CLI_PATH ?? path.resolve(path.dirname(rpcClientModule), "../../cli.ts");
 	const client = new RpcClient({
 		cwd: options.cwd,
 		model: options.model,
@@ -283,7 +271,8 @@ export function createFileStateStore(filePath: string): AgentStateStore {
 			}
 			if (parsed === null || typeof parsed !== "object") return EMPTY_AGENT_STATE;
 			const cursor = "cursor" in parsed && typeof parsed.cursor === "string" ? parsed.cursor : null;
-			const stored = "mirrors" in parsed && parsed.mirrors !== null && typeof parsed.mirrors === "object" ? parsed.mirrors : {};
+			const stored =
+				"mirrors" in parsed && parsed.mirrors !== null && typeof parsed.mirrors === "object" ? parsed.mirrors : {};
 			const mirrors: Record<string, MirrorRecord> = {};
 			for (const [key, value] of Object.entries(stored)) {
 				const record = parseMirrorRecord(value);
@@ -485,10 +474,12 @@ export class CcAgent {
 	 * offline. `lastText` goes first because the session channel already has it.
 	 */
 	buildHeartbeat(snapshots: readonly SessionSnapshot[]): AgentHeartbeat {
+		const idTimestamp = this.#now().getTime().toString(36);
+		this.#sequence += 1;
 		const base = {
 			kind: "agent.heartbeat",
 			v: BUS_PROTOCOL_VERSION,
-			id: `hb-${this.host}-${this.#now().getTime().toString(36)}-${(this.#sequence += 1).toString(36)}`,
+			id: `hb-${this.host}-${idTimestamp}-${this.#sequence.toString(36)}`,
 			host: this.host,
 			projects: this.projectRoots,
 			chudcodeVersion: this.#chudcodeVersion,
@@ -571,7 +562,10 @@ export class CcAgent {
 	/** Resolves once every transcript flush and session-completion callback has settled. */
 	async drain(): Promise<void> {
 		for (;;) {
-			const pending = [...this.#inFlight, ...[...this.#sessions.values()].map(session => session.transcript.drain())];
+			const pending = [
+				...this.#inFlight,
+				...[...this.#sessions.values()].map(session => session.transcript.drain()),
+			];
 			if (pending.length === 0) return;
 			await Promise.allSettled(pending);
 			if (this.#inFlight.size === 0) return;
@@ -713,7 +707,9 @@ export class CcAgent {
 			channelId = channel.id;
 		} catch (error) {
 			if (error instanceof DiscordApiError && error.code === MISSING_PERMISSIONS_CODE) {
-				throw new Error(missingChannelPermissionMessage(`creating a channel for ${snapshot.sessionId}`, this.#applicationId));
+				throw new Error(
+					missingChannelPermissionMessage(`creating a channel for ${snapshot.sessionId}`, this.#applicationId),
+				);
 			}
 			throw error;
 		}
@@ -809,7 +805,9 @@ export class CcAgent {
 		if (record.channelName.startsWith(ARCHIVED_SESSION_CHANNEL_PREFIX)) return record;
 		const terminal = TERMINAL_STATUS[snapshot.status] === true;
 		const live = sessionChannelName(snapshot.title, snapshot.sessionId);
-		const desired = terminal ? `${ARCHIVED_SESSION_CHANNEL_PREFIX}${live.slice(SESSION_CHANNEL_PREFIX.length)}` : live;
+		const desired = terminal
+			? `${ARCHIVED_SESSION_CHANNEL_PREFIX}${live.slice(SESSION_CHANNEL_PREFIX.length)}`
+			: live;
 		if (desired === record.channelName) return record;
 
 		const sinceLast = record.lastRenamedAt
@@ -1144,7 +1142,9 @@ export class CcAgent {
 	async #finish(session: RunningSession, outcome: CommandOutcome, detail: string): Promise<void> {
 		if (!this.#sessions.has(session.sessionId)) return;
 		this.#sessions.delete(session.sessionId);
-		session.transcript.push("**Task finished**\nThe agent completed the requested work. The latest summary is above.");
+		session.transcript.push(
+			"**Task finished**\nThe agent completed the requested work. The latest summary is above.",
+		);
 		session.unsubscribe();
 		await session.transcript.drain();
 		try {
@@ -1159,7 +1159,6 @@ export class CcAgent {
 	}
 
 	// -- helpers -------------------------------------------------------------
-
 
 	async #resolveAllowedCwd(candidate: string): Promise<{ ok: true; cwd: string } | { ok: false; reason: string }> {
 		let resolved: string;
@@ -1179,7 +1178,10 @@ export class CcAgent {
 				continue;
 			}
 			const relative = path.relative(resolvedRoot, resolved);
-			if (relative === "" || (!relative.startsWith(`..${path.sep}`) && relative !== ".." && !path.isAbsolute(relative))) {
+			if (
+				relative === "" ||
+				(!relative.startsWith(`..${path.sep}`) && relative !== ".." && !path.isAbsolute(relative))
+			) {
 				return { ok: true, cwd: resolved };
 			}
 		}
@@ -1195,10 +1197,12 @@ export class CcAgent {
 		detail: string,
 		target: { sessionId?: string | null; channelId?: string | null },
 	): Promise<void> {
+		const resultIdPrefix = `${command.id}:${outcome}:`;
+		this.#sequence += 1;
 		const result: CommandResult = {
 			kind: "command.result",
 			v: BUS_PROTOCOL_VERSION,
-			id: `${command.id}:${outcome}:${(this.#sequence += 1).toString(36)}`,
+			id: `${resultIdPrefix}${this.#sequence.toString(36)}`,
 			commandId: command.id,
 			host: this.host,
 			outcome,
@@ -1311,7 +1315,9 @@ export function describeEvent(event: RpcAgentEvent): string | null {
 			return intent ? `**Working on**\n${intent}` : null;
 		}
 		case "tool_execution_end":
-			return event.isError ? "**Needs attention**\nA work step failed. The agent will report whether it can continue." : null;
+			return event.isError
+				? "**Needs attention**\nA work step failed. The agent will report whether it can continue."
+				: null;
 		case "message_end": {
 			const text = assistantText(event.message);
 			return text ? `**Agent update**\n${text}` : null;
@@ -1411,7 +1417,12 @@ async function installedChudcodeVersion(): Promise<string> {
 	for (let depth = 0; depth < 8; depth += 1) {
 		try {
 			const parsed: unknown = JSON.parse(await fs.readFile(path.join(dir, "package.json"), "utf8"));
-			if (parsed !== null && typeof parsed === "object" && "version" in parsed && typeof parsed.version === "string") {
+			if (
+				parsed !== null &&
+				typeof parsed === "object" &&
+				"version" in parsed &&
+				typeof parsed.version === "string"
+			) {
 				return parsed.version;
 			}
 		} catch {

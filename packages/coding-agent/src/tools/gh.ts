@@ -1,4 +1,3 @@
-import { type } from "@chudware/chudtype";
 import type {
 	AgentTool,
 	AgentToolContext,
@@ -6,6 +5,7 @@ import type {
 	AgentToolUpdateCallback,
 	ToolApprovalDecision,
 } from "@chudware/agent-core";
+import { type } from "@chudware/chudtype";
 import {
 	BINARY_SNIFF_BYTES,
 	formatBytes,

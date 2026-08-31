@@ -91,7 +91,7 @@ describe("legacy-pi in-place module loading (issue #1674)", () => {
 			}),
 			"node_modules/direct/index.js": 'module.exports = require("@mariozechner/chud-ai").Type;\n',
 			"index.ts": [
-				'import { Type } from "@chudware/ai";',
+				'import { Type } from "@earendil-works/pi-ai";',
 				'import requiredType from "direct";',
 				"export const sharesHostType = requiredType === Type;",
 				"export default function (chud) { void chud; }",
@@ -715,7 +715,9 @@ describe("legacy-pi in-place module loading (issue #1674)", () => {
 				"const here = path.dirname(fileURLToPath(import.meta.url));",
 				'export const css = readFileSync(path.join(here, "widget.css"), "utf8");',
 			].join("\n"),
-			"index.ts": ['export { css } from "./sub/widget.ts";', "export default function (chud) { void chud; }"].join("\n"),
+			"index.ts": ['export { css } from "./sub/widget.ts";', "export default function (chud) { void chud; }"].join(
+				"\n",
+			),
 		});
 
 		const mod = (await loadLegacyPiModule(path.join(dir, "index.ts"))) as { css: string };
@@ -1492,7 +1494,9 @@ describe("legacy-pi in-place module loading (issue #1674)", () => {
 	it("does not rewrite sibling files outside the loaded extension's import graph", async () => {
 		const dir = await writePackage({
 			"package.json": JSON.stringify({ name: "scoped-ext", version: "1.0.0" }),
-			"index.ts": ['export { local } from "./local.ts";', "export default function (chud) { void chud; }"].join("\n"),
+			"index.ts": ['export { local } from "./local.ts";', "export default function (chud) { void chud; }"].join(
+				"\n",
+			),
 			"local.ts": 'export const local = "local-ok";',
 			// Not imported by index.ts, so it must stay outside the rewrite scope.
 			// `@earendil-works/*` only resolves via the rewrite, so an un-rewritten

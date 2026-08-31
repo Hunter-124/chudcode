@@ -7,10 +7,7 @@ import {
 	type ProviderFileClient,
 	type ProviderFileHandle,
 } from "@chudware/coding-agent/blob-broker/provider-file-types";
-import {
-	type ProviderFileClientFactory,
-	ProviderFileManager,
-} from "@chudware/coding-agent/blob-broker/provider-files";
+import { type ProviderFileClientFactory, ProviderFileManager } from "@chudware/coding-agent/blob-broker/provider-files";
 import { createAnthropicFileClient } from "@chudware/coding-agent/blob-broker/provider-files-anthropic";
 import { createGeminiProviderFileClient } from "@chudware/coding-agent/blob-broker/provider-files-gemini";
 import { createOpenAIFileClient } from "@chudware/coding-agent/blob-broker/provider-files-openai";

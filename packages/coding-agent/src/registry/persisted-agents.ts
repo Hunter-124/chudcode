@@ -393,6 +393,7 @@ async function readPersistedVibeChildIds(sessionFile: string, shouldContinue: ()
 const MAX_PERSISTED_ROSTER_LATCHES = 32;
 
 const kPersistedRosterLatches = Symbol("persistedRosterLatches");
+const kPersistedRosterRequestOrder = Symbol("persistedRosterRequestOrder");
 
 /**
  * Failure-tolerant serialization tail for scan bodies. Distinct roots share one
@@ -406,6 +407,8 @@ const kPersistedRosterLatches = Symbol("persistedRosterLatches");
 const kPersistedRosterScanTail = Symbol("persistedRosterScanTail");
 
 interface PersistedRosterLatch {
+	/** Monotonic call order captured before asynchronous root resolution. */
+	order: number;
 	/** Settles when the root's roster scan finishes (success or logged failure). */
 	pending: Promise<void>;
 	/** True once `pending` has settled; only settled latches are evictable. */
@@ -425,6 +428,7 @@ interface PersistedRosterLatch {
 
 interface RegistryWithPersistedRosterLatches extends AgentRegistry {
 	[kPersistedRosterLatches]?: Map<string, PersistedRosterLatch>;
+	[kPersistedRosterRequestOrder]?: number;
 	[kPersistedRosterScanTail]?: Promise<void>;
 }
 
@@ -503,6 +507,9 @@ export async function ensurePersistedRoster(
 	registry: AgentRegistry,
 	sessionFileHint?: string | null,
 ): Promise<string | undefined> {
+	const taggedRegistry = registry as RegistryWithPersistedRosterLatches;
+	const requestOrder = (taggedRegistry[kPersistedRosterRequestOrder] ?? 0) + 1;
+	taggedRegistry[kPersistedRosterRequestOrder] = requestOrder;
 	let root: string | undefined;
 	try {
 		root = await resolveRootSessionFile(registry, sessionFileHint);
@@ -514,7 +521,6 @@ export async function ensurePersistedRoster(
 	}
 	if (!root) return undefined;
 
-	const taggedRegistry = registry as RegistryWithPersistedRosterLatches;
 	let latches = taggedRegistry[kPersistedRosterLatches];
 	if (!latches) {
 		latches = new Map();
@@ -550,16 +556,19 @@ export async function ensurePersistedRoster(
 	// process that visits many roots doesn't accumulate one entry per root.
 	// In-flight scans are never evicted: their latch is the single-flight guard.
 	if (latches.size >= MAX_PERSISTED_ROSTER_LATCHES) {
-		for (const [latchedRoot, latch] of latches) {
+		const settledOldestFirst = [...latches.entries()]
+			.filter(([, latch]) => latch.settled)
+			.sort(([, a], [, b]) => a.order - b.order);
+		for (const [latchedRoot] of settledOldestFirst) {
 			if (latches.size < MAX_PERSISTED_ROSTER_LATCHES) break;
-			if (latch.settled) latches.delete(latchedRoot);
+			latches.delete(latchedRoot);
 		}
 	}
 	// Chain the scan body behind any other root's in-flight scan (same-root
 	// calls never reach here: they joined the latch above). The tail always
 	// stores a settled wrapper, so a failed scan settles it and the next root
 	// still proceeds.
-	const latch: PersistedRosterLatch = { pending: undefined!, settled: false, owned: new Map() };
+	const latch: PersistedRosterLatch = { pending: undefined!, settled: false, order: requestOrder, owned: new Map() };
 	const tail = taggedRegistry[kPersistedRosterScanTail] ?? Promise.resolve();
 	const scan = tail.then(() =>
 		registerPersistedSubagents(registry, root, { hydrateHistory: false, owned: latch.owned }),

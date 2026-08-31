@@ -11,8 +11,8 @@
  * stacked, each showing its tool calls and streamed text as it works.
  */
 
-import { type } from "@chudware/chudtype";
 import type { AgentTool, AgentToolResult, AgentToolUpdateCallback } from "@chudware/agent-core";
+import { type } from "@chudware/chudtype";
 import type { Component } from "@chudware/tui";
 import { Text } from "@chudware/tui";
 import { prompt } from "@chudware/utils";

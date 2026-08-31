@@ -55,6 +55,7 @@ describe("MCP tool ownership with prefix-colliding server names", () => {
 
 	it("refreshing one server keeps the sibling server's tools registered", async () => {
 		await manager.connectServers({ [SHORT_SERVER]: fixtureConfig(), [COLON_SERVER]: fixtureConfig() }, {});
+		await Promise.all([manager.waitForServerReady(SHORT_SERVER), manager.waitForServerReady(COLON_SERVER)]);
 		const names = () => manager.getTools().map(t => t.name);
 		expect(names()).toContain(SHORT_TOOL);
 		expect(names()).toContain(COLON_TOOL);
@@ -77,10 +78,11 @@ describe("MCP tool ownership with prefix-colliding server names", () => {
 			expect(payload).toContain(COLON_TOOL);
 			expect(payload).toHaveLength(MANY_TOOL_COUNT * 2);
 		}
-	}, 20_000);
+	}, 45_000);
 
 	it("disconnecting a server with sanitized name characters removes exactly its tools", async () => {
 		await manager.connectServers({ [SHORT_SERVER]: fixtureConfig(), [COLON_SERVER]: fixtureConfig() }, {});
+		await Promise.all([manager.waitForServerReady(SHORT_SERVER), manager.waitForServerReady(COLON_SERVER)]);
 		const payloads: string[][] = [];
 		manager.setOnToolsChanged(tools => {
 			payloads.push(tools.map(t => t.name));
@@ -96,5 +98,5 @@ describe("MCP tool ownership with prefix-colliding server names", () => {
 		// the colon-named server's tools lingered as callable zombies).
 		expect(payloads.at(-1)?.some(name => name === COLON_TOOL)).toBe(false);
 		expect(payloads.at(-1)).toHaveLength(MANY_TOOL_COUNT);
-	}, 20_000);
+	}, 45_000);
 });

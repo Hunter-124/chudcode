@@ -5,8 +5,8 @@
  * fallback strategies for finding text in files.
  */
 
-import { type } from "@chudware/chudtype";
 import type { AgentToolResult } from "@chudware/agent-core";
+import { type } from "@chudware/chudtype";
 import type { FileDiagnosticsResult, WritethroughCallback, WritethroughDeferredHandle } from "../../lsp";
 import type { ToolSession } from "../../tools";
 import { routeWriteThroughBridge } from "../../tools/acp-bridge";

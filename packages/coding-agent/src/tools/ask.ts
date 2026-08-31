@@ -15,10 +15,9 @@
  *   - Questions may time out and auto-select the recommended option (configurable, disabled in plan mode)
  */
 
-import { PRODUCT_NAME } from "../brand";
-import { type as arkType } from "@chudware/chudtype";
 import type { AgentTool, AgentToolContext, AgentToolResult, AgentToolUpdateCallback } from "@chudware/agent-core";
 import type { ToolExample } from "@chudware/ai";
+import { type as arkType } from "@chudware/chudtype";
 import {
 	type Component,
 	Ellipsis,
@@ -32,6 +31,7 @@ import {
 	visibleWidth,
 } from "@chudware/tui";
 import { prompt, untilAborted } from "@chudware/utils";
+import { PRODUCT_NAME } from "../brand";
 import type { RenderResultOptions } from "../extensibility/custom-tools/types";
 import type { ExtensionUISelectItem } from "../extensibility/extensions";
 import { getMarkdownTheme, type Theme, theme } from "../modes/theme/theme";

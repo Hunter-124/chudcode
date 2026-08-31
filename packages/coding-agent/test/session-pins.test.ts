@@ -3,11 +3,7 @@ import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
 import type { SessionInfo } from "@chudware/coding-agent/session/session-listing";
-import {
-	loadPinnedSessionIds,
-	sortPinnedFirst,
-	toggleSessionPin,
-} from "@chudware/coding-agent/session/session-pins";
+import { loadPinnedSessionIds, sortPinnedFirst, toggleSessionPin } from "@chudware/coding-agent/session/session-pins";
 import * as fsx from "@chudware/utils/fsx";
 
 describe("session-pins", () => {

@@ -6,11 +6,11 @@
  * behavior they have in the TUI.
  */
 import { afterAll, afterEach, beforeAll, expect, it, spyOn } from "bun:test";
-import { type } from "@chudware/chudtype";
 import { Agent, type AgentTool } from "@chudware/agent-core";
 import { createMockModel, type MockModelOptions } from "@chudware/ai/providers/mock";
 import { AssistantMessageEventStream } from "@chudware/ai/utils/event-stream";
 import { getBundledModel } from "@chudware/catalog/models";
+import { type } from "@chudware/chudtype";
 import { type SettingPath, Settings } from "@chudware/coding-agent/config/settings";
 import { EditTool } from "@chudware/coding-agent/edit";
 import { AgentSession } from "@chudware/coding-agent/session/agent-session";

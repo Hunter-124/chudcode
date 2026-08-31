@@ -72,7 +72,8 @@ async function runCommand(
 
 async function main(): Promise<void> {
 	const crossBuild = resolveCrossBuild(process.env.CROSS_TARGET);
-	const shouldAdhocSign = process.platform === "darwin" && !crossBuild && process.env.BUN_NO_CODESIGN_MACHO_BINARY !== "1";
+	const shouldAdhocSign =
+		process.platform === "darwin" && !crossBuild && process.env.BUN_NO_CODESIGN_MACHO_BINARY !== "1";
 	const outName = crossBuild ? `chudcode-${crossBuild.id}` : "chudcode";
 	const outputPath = path.join(packageDir, "dist", outName);
 	// Generate inside the try so the finally always restores the empty checked-in
@@ -86,7 +87,9 @@ async function main(): Promise<void> {
 		await runCommand(["bun", "--cwd=../collab-web", "run", "gen:tool-views"]);
 		await runCommand(
 			["bun", "--cwd=../natives", "run", "gen:native"],
-			crossBuild ? { ...process.env, TARGET_PLATFORM: crossBuild.platform, TARGET_ARCH: crossBuild.arch } : process.env,
+			crossBuild
+				? { ...process.env, TARGET_PLATFORM: crossBuild.platform, TARGET_ARCH: crossBuild.arch }
+				: process.env,
 		);
 		try {
 			await compileCodingAgent({

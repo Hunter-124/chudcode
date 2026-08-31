@@ -210,7 +210,16 @@ export async function runRenderCommand(args: RenderCommandArgs): Promise<number>
 			tuiOptions: { renderScheduler: scheduler },
 			preferences: { quiet: true },
 		});
-		mode = new InteractiveMode(session, PRODUCT_VERSION, undefined, undefined, undefined, undefined, undefined, composer);
+		mode = new InteractiveMode(
+			session,
+			PRODUCT_VERSION,
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			composer,
+		);
 		await mode.init({ suppressWelcomeIntro: true });
 		scheduler.drain();
 

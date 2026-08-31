@@ -7,19 +7,14 @@ import {
 } from "../config/model-resolver";
 import type { SettingPath, Settings } from "../config/settings";
 import { describeLoopLimitRuntime } from "../modes/loop-limit";
-import type { InteractiveModeContext } from "../modes/types";
 import type { AgentSession } from "../session/agent-session";
 import type { ComputerTool } from "../tools/computer";
 import { computerExposureMode } from "../tools/computer/exposure";
 import type { InspectImageMode } from "../utils/inspect-image-mode";
+import { refreshStatusLine } from "./helpers/mode-ui";
 import { commandConsumed, errorMessage, usage } from "./helpers/parse";
 import { handleSecurityCommand } from "./helpers/security";
 import type { ParsedSlashCommand, SlashCommandSpec, TuiSlashCommandRuntime } from "./types";
-
-export function refreshStatusLine(ctx: InteractiveModeContext): void {
-	ctx.statusLine.invalidate();
-	ctx.ui.requestRender();
-}
 
 async function runWithDetachedModeDraft(
 	command: ParsedSlashCommand,
@@ -173,10 +168,6 @@ const AUTOCOMPLETE_DETAIL_LIMIT = 48;
 function shortDetail(value: string, limit = AUTOCOMPLETE_DETAIL_LIMIT): string {
 	const singleLine = value.replace(/\s+/g, " ").trim();
 	return singleLine.length <= limit ? singleLine : `${singleLine.slice(0, limit - 1)}…`;
-}
-
-export function formatTokenCount(value: number): string {
-	return value.toLocaleString();
 }
 
 export const BUILTIN_MODE_SLASH_COMMANDS: ReadonlyArray<SlashCommandSpec> = [

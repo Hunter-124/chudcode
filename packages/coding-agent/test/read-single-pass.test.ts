@@ -10,7 +10,6 @@ import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import { Patch, Patcher } from "@chudware/hashline";
 import type { AgentToolResult } from "@chudware/agent-core";
 import { Settings } from "@chudware/coding-agent/config/settings";
 import { getFileSnapshotStore } from "@chudware/coding-agent/edit/file-snapshot-store";
@@ -20,6 +19,7 @@ import type { ToolSession } from "@chudware/coding-agent/tools";
 import type { ReadToolDetails } from "@chudware/coding-agent/tools/read";
 import { ReadTool } from "@chudware/coding-agent/tools/read";
 import { formatBytes } from "@chudware/coding-agent/tools/render-utils";
+import { Patch, Patcher } from "@chudware/hashline";
 import { removeWithRetries } from "@chudware/utils";
 
 function textOutput(result: AgentToolResult<ReadToolDetails>): string {

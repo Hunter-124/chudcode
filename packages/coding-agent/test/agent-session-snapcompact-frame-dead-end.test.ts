@@ -12,8 +12,8 @@ import { AgentSession } from "@chudware/coding-agent/session/agent-session";
 import { AuthStorage } from "@chudware/coding-agent/session/auth-storage";
 import type { CompactionEntry } from "@chudware/coding-agent/session/session-entries";
 import { SessionManager } from "@chudware/coding-agent/session/session-manager";
-import { getProjectAgentDir, TempDir } from "@chudware/utils";
 import * as snapcompact from "@chudware/snapcompact";
+import { getProjectAgentDir, TempDir } from "@chudware/utils";
 
 /**
  * Regression test for the snapcompact frame dead-end.
@@ -96,7 +96,7 @@ describe("AgentSession snapcompact frame dead-end rescue", () => {
 				extensionPath,
 				[
 					"export default function(chud) {",
-					'\tpi.on("session_before_compact", async (event) => {',
+					'\tchud.on("session_before_compact", async (event) => {',
 					"\t\treturn {",
 					"\t\t\tcompaction: {",
 					'\t\t\t\tsummary: "compacted",',

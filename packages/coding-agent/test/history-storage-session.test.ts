@@ -6,7 +6,9 @@ import { sleep } from "@chudware/utils/async";
 
 let tempDir: TempDir | null = null;
 
-async function freshStorage(prefix = "chudcode-history-session-"): Promise<{ storage: HistoryStorage; dbPath: string }> {
+async function freshStorage(
+	prefix = "chudcode-history-session-",
+): Promise<{ storage: HistoryStorage; dbPath: string }> {
 	tempDir = TempDir.createSync(`@${prefix}`);
 	const dbPath = tempDir.join("history.db");
 	HistoryStorage.resetInstance();

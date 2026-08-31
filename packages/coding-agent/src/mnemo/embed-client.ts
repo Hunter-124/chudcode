@@ -146,7 +146,9 @@ export class MnemopiEmbedClient {
 	 * armed only after the pending request set becomes empty.
 	 */
 	setIdleTimeoutMinutes(minutes: number): void {
-		this.#idleTimeoutMs = Number.isFinite(minutes) ? Math.max(0, minutes * 60_000) : DEFAULT_EMBED_WORKER_IDLE_TIMEOUT_MS;
+		this.#idleTimeoutMs = Number.isFinite(minutes)
+			? Math.max(0, minutes * 60_000)
+			: DEFAULT_EMBED_WORKER_IDLE_TIMEOUT_MS;
 		this.#cancelIdleTimer();
 		this.#scheduleIdleTeardown();
 	}

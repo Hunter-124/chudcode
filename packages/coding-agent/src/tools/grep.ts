@@ -1,8 +1,6 @@
 import { mkdtemp, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import * as path from "node:path";
-import { formatHashlineHeader } from "@chudware/hashline";
-import { type } from "@chudware/chudtype";
 import type {
 	AgentTool,
 	AgentToolContext,
@@ -10,6 +8,8 @@ import type {
 	AgentToolUpdateCallback,
 	ToolTier,
 } from "@chudware/agent-core";
+import { type } from "@chudware/chudtype";
+import { formatHashlineHeader } from "@chudware/hashline";
 import { type GrepMatch, GrepOutputMode, type GrepResult, grep } from "@chudware/natives";
 import type { Component } from "@chudware/tui";
 import { Text } from "@chudware/tui";

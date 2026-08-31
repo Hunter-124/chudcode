@@ -10,7 +10,10 @@ export interface AnalyzerFinding {
 	message: string;
 }
 
-export function capFindings(findings: AnalyzerFinding[], requested?: number): {
+export function capFindings(
+	findings: AnalyzerFinding[],
+	requested?: number,
+): {
 	findings: AnalyzerFinding[];
 	total_findings: number;
 	truncated: boolean;

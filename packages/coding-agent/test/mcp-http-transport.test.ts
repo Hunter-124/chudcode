@@ -4,8 +4,8 @@ import { HttpTransport } from "@chudware/coding-agent/mcp/transports/http";
 import { sleep } from "@chudware/utils/async";
 
 const encoder = new TextEncoder();
-const REQUEST_TIMEOUT_MS = 50;
-const GUARD_TIMEOUT_MS = 500;
+const REQUEST_TIMEOUT_MS = 500;
+const GUARD_TIMEOUT_MS = 2_000;
 
 let server: Bun.Server<undefined> | null = null;
 
@@ -287,7 +287,9 @@ describe("MCP Streamable HTTP protocol version header", () => {
 		const transport = new HttpTransport({
 			type: "http",
 			url: `http://127.0.0.1:${server.port}/mcp`,
-			timeout: REQUEST_TIMEOUT_MS,
+			// This test asserts header ownership, not the 50 ms timeout boundary;
+			// leave enough scheduler room under the parallel full-suite gate.
+			timeout: 1_000,
 			headers: { "MCP-Protocol-Version": "1999-01-01" },
 		});
 		await transport.connect();

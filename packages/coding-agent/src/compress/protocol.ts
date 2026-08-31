@@ -13,8 +13,9 @@
  * const tools = [protocol.rewriteTool(), protocol.approveTool()];
  * // …drive a session, then read protocol.latest / protocol.approved
  */
-import { type } from "@chudware/chudtype";
+
 import { Tokenizer } from "@chudware/agent-core";
+import { type } from "@chudware/chudtype";
 import type { ToolDefinition } from "../extensibility/extensions";
 import approveDescription from "../prompts/tools/approve.md" with { type: "text" };
 import rewriteDescription from "../prompts/tools/rewrite.md" with { type: "text" };

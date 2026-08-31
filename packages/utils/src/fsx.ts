@@ -53,7 +53,6 @@ export async function readText(file: PathLike): Promise<string> {
  * immediately, and `unknown` would demand a hand-written shape at each one
  * without adding any real check. Pass an explicit `T` for new code.
  */
-// biome-ignore lint/suspicious/noExplicitAny: parity with the BunFile.json() contract this replaces.
 export async function readJson<T = any>(file: PathLike): Promise<T> {
 	return JSON.parse(await readText(file)) as T;
 }

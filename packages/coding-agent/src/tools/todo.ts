@@ -1,6 +1,6 @@
-import { type } from "@chudware/chudtype";
 import type { AgentTool, AgentToolContext, AgentToolResult, AgentToolUpdateCallback } from "@chudware/agent-core";
 import type { ToolExample } from "@chudware/ai";
+import { type } from "@chudware/chudtype";
 import type { Component } from "@chudware/tui";
 import { Text } from "@chudware/tui";
 import { isRecord, prompt, sanitizeText } from "@chudware/utils";

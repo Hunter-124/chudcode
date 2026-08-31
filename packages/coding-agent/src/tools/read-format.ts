@@ -1,11 +1,11 @@
 import * as path from "node:path";
+import type { AgentToolResult } from "@chudware/agent-core";
 import {
 	formatHashlineHeader,
 	formatNumberedLine,
 	formatNumberedLines,
 	splitAddressableFileLines,
 } from "@chudware/hashline";
-import type { AgentToolResult } from "@chudware/agent-core";
 import * as fsx from "@chudware/utils/fsx";
 import { canonicalSnapshotKey, getFileSnapshotStore, recordSeenLines } from "../edit/file-snapshot-store";
 import { normalizeToLF } from "../edit/normalize";

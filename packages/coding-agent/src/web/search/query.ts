@@ -53,7 +53,7 @@ export interface StructuredQuery {
 	text: string;
 	/** Ordered free-text terms (phrases, exclusions, OR groups). */
 	terms: QueryTerm[];
-	/** `site:`/`domain:`/`host:` includes — any-of. Lowercased, scheme stripped, may carry a path (`github.com/anthropics`). */
+	/** `site:`/`domain:`/`host:` includes — any-of. Host lowercased, path case preserved, scheme stripped. */
 	sites: string[];
 	/** `-site:` exclusions, same normalization as {@link sites}. */
 	excludedSites: string[];
@@ -265,13 +265,14 @@ export function parseDateValue(value: string): string | undefined {
 	return undefined;
 }
 
-/** Lowercase a `site:` value and strip scheme, `*.` wildcard, and trailing slash/dot. */
+/** Lowercase a `site:` host and strip scheme, `*.` wildcard, and trailing slash/dot while preserving path case. */
 function normalizeSite(value: string): string {
-	let site = value.trim().toLowerCase();
-	site = site.replace(/^[a-z][a-z0-9+.-]*:\/\//, "");
+	let site = value.trim().replace(/^[a-z][a-z0-9+.-]*:\/\//i, "");
 	if (site.startsWith("*.")) site = site.slice(2);
 	site = site.replace(/[/.]+$/, "");
-	return site;
+	const slash = site.indexOf("/");
+	if (slash === -1) return site.toLowerCase();
+	return `${site.slice(0, slash).toLowerCase()}${site.slice(slash)}`;
 }
 
 /** Directive names mapped to their canonical field. */

@@ -79,7 +79,13 @@ function assistantEntry(fields: Record<string, unknown>): Record<string, unknown
 		id: `a${entryCounter}`,
 		parentId: null,
 		timestamp: "2026-08-28T10:05:00.000Z",
-		message: { role: "assistant", api: "anthropic-messages", provider: "anthropic", model: "claude-opus-5", ...fields },
+		message: {
+			role: "assistant",
+			api: "anthropic-messages",
+			provider: "anthropic",
+			model: "claude-opus-5",
+			...fields,
+		},
 	};
 }
 
@@ -167,7 +173,10 @@ describe("readSessionSnapshot", () => {
 			entries: [changed],
 		});
 		const headerOnly = await writeSession(directory, "header-title.jsonl", { headerTitle: "Original title" });
-		const blankSlot = await writeSession(directory, "blank-slot.jsonl", { slotTitle: "", headerTitle: "Original title" });
+		const blankSlot = await writeSession(directory, "blank-slot.jsonl", {
+			slotTitle: "",
+			headerTitle: "Original title",
+		});
 		const untitled = await writeSession(directory, "untitled.jsonl", { slotTitle: "" });
 
 		expect((await readSessionSnapshot(withSlot, HOST))?.title).toBe("Current title");
@@ -236,10 +245,22 @@ describe("readSessionSnapshot", () => {
 
 describe("status derivation", () => {
 	const cases: [string, Record<string, unknown>, SessionStatus][] = [
-		["assistant text with no pending tools", { content: [{ type: "text", text: "ok" }], stopReason: "stop" }, "complete"],
+		[
+			"assistant text with no pending tools",
+			{ content: [{ type: "text", text: "ok" }], stopReason: "stop" },
+			"complete",
+		],
 		["assistant stopReason error", { content: [], stopReason: "error", errorMessage: "boom" }, "error"],
-		["assistant stopReason aborted", { content: [{ type: "text", text: "partial" }], stopReason: "aborted" }, "aborted"],
-		["assistant stopReason length", { content: [{ type: "text", text: "cut" }], stopReason: "length" }, "interrupted"],
+		[
+			"assistant stopReason aborted",
+			{ content: [{ type: "text", text: "partial" }], stopReason: "aborted" },
+			"aborted",
+		],
+		[
+			"assistant stopReason length",
+			{ content: [{ type: "text", text: "cut" }], stopReason: "length" },
+			"interrupted",
+		],
 	];
 
 	for (const [label, message, expected] of cases) {
@@ -274,7 +295,12 @@ describe("status derivation", () => {
 			["user prompt awaiting a reply", [userEntry("do the thing")]],
 			[
 				"assistant awaiting a tool result",
-				[assistantEntry({ content: [{ type: "toolCall", id: "c1", name: "bash", arguments: {} }], stopReason: "toolUse" })],
+				[
+					assistantEntry({
+						content: [{ type: "toolCall", id: "c1", name: "bash", arguments: {} }],
+						stopReason: "toolUse",
+					}),
+				],
 			],
 			[
 				"tool result awaiting the next turn",
@@ -461,7 +487,9 @@ describe("bridge origin markers", () => {
 			],
 		});
 		const idOnly = await writeSession(directory, "label-id.jsonl", {
-			entries: [{ type: "label", id: "l2", parentId: null, timestamp: "z", targetId: "h", label: "cc-origin:cmd-9" }],
+			entries: [
+				{ type: "label", id: "l2", parentId: null, timestamp: "z", targetId: "h", label: "cc-origin:cmd-9" },
+			],
 		});
 		const unrelated = await writeSession(directory, "label-other.jsonl", {
 			entries: [{ type: "label", id: "l3", parentId: null, timestamp: "z", targetId: "h", label: "interesting" }],
@@ -535,7 +563,10 @@ describe("scanSessions", () => {
 		expect((await readSessionSnapshot(file, HOST))?.lastText).toBe("AAAAAAAA");
 
 		// A different size is a different identity, so the change is picked up.
-		await fs.appendFile(file, `${JSON.stringify(assistantEntry({ content: [{ type: "text", text: "CCC" }], stopReason: "stop" }))}\n`);
+		await fs.appendFile(
+			file,
+			`${JSON.stringify(assistantEntry({ content: [{ type: "text", text: "CCC" }], stopReason: "stop" }))}\n`,
+		);
 		await fs.utimes(file, stamp, stamp);
 		expect((await readSessionSnapshot(file, HOST))?.lastText).toBe("CCC");
 	});

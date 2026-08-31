@@ -135,7 +135,7 @@ describe("plugin extension discovery", () => {
 				"",
 				"export default function(chud) {",
 				"\tconst { Type } = chud.typebox;",
-				"\tpi.registerTool({",
+				"\tchud.registerTool({",
 				'\t\tname: "legacy-pi-ext",',
 				'\t\tdescription: "Legacy Chud extension smoke test",',
 				"\t\tparameters: Type.Object({}),",
@@ -191,7 +191,7 @@ describe("plugin extension discovery", () => {
 				'import { commandName } from "#src/feature/command";',
 				"",
 				"export default function(chud) {",
-				"\tpi.registerCommand(commandName, { handler: async () => {} });",
+				"\tchud.registerCommand(commandName, { handler: async () => {} });",
 				"}",
 			].join("\n"),
 		);
@@ -254,7 +254,7 @@ describe("plugin extension discovery", () => {
 				'import { commandName } from "#src/command";',
 				"",
 				"export default function(chud) {",
-				"\tpi.registerCommand(commandName, { handler: async () => {} });",
+				"\tchud.registerCommand(commandName, { handler: async () => {} });",
 				"}",
 			].join("\n"),
 		);
@@ -312,7 +312,7 @@ describe("plugin extension discovery", () => {
 				'import schema from "#schema" with { type: "json" };',
 				"",
 				"export default function(chud) {",
-				"\tpi.registerCommand(schema.commandName, { handler: async () => {} });",
+				"\tchud.registerCommand(schema.commandName, { handler: async () => {} });",
 				"}",
 			].join("\n"),
 		);
@@ -362,7 +362,7 @@ describe("plugin extension discovery", () => {
 				'import { commandName } from "#src/internal";',
 				"",
 				"export default function(chud) {",
-				"\tpi.registerCommand(commandName, { handler: async () => {} });",
+				"\tchud.registerCommand(commandName, { handler: async () => {} });",
 				"}",
 			].join("\n"),
 		);
@@ -414,7 +414,7 @@ describe("plugin extension discovery", () => {
 				'import { commandName } from "#blocked";',
 				"",
 				"export default function(chud) {",
-				"\tpi.registerCommand(commandName, { handler: async () => {} });",
+				"\tchud.registerCommand(commandName, { handler: async () => {} });",
 				"}",
 			].join("\n"),
 		);
@@ -470,7 +470,7 @@ describe("plugin extension discovery", () => {
 				"",
 				"export default function(chud) {",
 				'\tif (!globalThis.__sideEffectMarker?.ok) throw new Error("register side-effect did not run");',
-				'\tpi.registerCommand("side-effect-ext", { handler: async () => {} });',
+				'\tchud.registerCommand("side-effect-ext", { handler: async () => {} });',
 				"}",
 			].join("\n"),
 		);
@@ -538,7 +538,7 @@ describe("plugin extension discovery", () => {
 			extensionPath,
 			[
 				"export default function(chud) {",
-				'\tpi.registerCommand("dir-entry-ext", { handler: async () => {} });',
+				'\tchud.registerCommand("dir-entry-ext", { handler: async () => {} });',
 				"}",
 			].join("\n"),
 		);
@@ -585,7 +585,7 @@ describe("plugin extension discovery", () => {
 			extensionPath,
 			[
 				"export default function(chud) {",
-				'\tpi.registerCommand("subdir-entry-ext", { handler: async () => {} });',
+				'\tchud.registerCommand("subdir-entry-ext", { handler: async () => {} });',
 				"}",
 			].join("\n"),
 		);
@@ -634,7 +634,7 @@ describe("plugin extension discovery", () => {
 			realEntry,
 			[
 				"export default function(chud) {",
-				'\tpi.registerCommand("nested-manifest-ext", { handler: async () => {} });',
+				'\tchud.registerCommand("nested-manifest-ext", { handler: async () => {} });',
 				"}",
 			].join("\n"),
 		);
@@ -642,7 +642,7 @@ describe("plugin extension discovery", () => {
 			path.join(featureDir, "index.ts"),
 			[
 				"export default function(chud) {",
-				'\tpi.registerCommand("decoy-index-ext", { handler: async () => {} });',
+				'\tchud.registerCommand("decoy-index-ext", { handler: async () => {} });',
 				"}",
 			].join("\n"),
 		);
@@ -692,7 +692,7 @@ describe("plugin extension discovery", () => {
 			path.join(featureDir, "index.ts"),
 			[
 				"export default function(chud) {",
-				'\tpi.registerCommand("decoy-index-ext", { handler: async () => {} });',
+				'\tchud.registerCommand("decoy-index-ext", { handler: async () => {} });',
 				"}",
 			].join("\n"),
 		);
@@ -730,9 +730,11 @@ describe("plugin extension discovery", () => {
 		);
 		fs.writeFileSync(
 			moduleEntry,
-			["export default function(chud) {", '\tpi.registerCommand("dts-ext", { handler: async () => {} });', "}"].join(
-				"\n",
-			),
+			[
+				"export default function(chud) {",
+				'\tchud.registerCommand("dts-ext", { handler: async () => {} });',
+				"}",
+			].join("\n"),
 		);
 		// A sibling declaration file must be ignored — importing it would fail.
 		fs.writeFileSync(path.join(extensionsDir, "ext.d.ts"), "export default function (chud: unknown): void;\n");

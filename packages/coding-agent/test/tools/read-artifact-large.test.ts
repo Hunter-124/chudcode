@@ -68,7 +68,10 @@ describe("read tool large artifact handling", () => {
 
 		expect(output).toContain("Unbounded raw read blocked for artifact://0");
 		expect(output).toContain("artifact://0:raw:1-3000");
-		expect(output).toContain(artifactDir);
+		const displayArtifactDir = artifactDir.startsWith(`${os.homedir()}${path.sep}`)
+			? `~${artifactDir.slice(os.homedir().length)}`
+			: artifactDir;
+		expect(output).toContain(displayArtifactDir);
 		expect(output).not.toContain("line-001");
 	});
 

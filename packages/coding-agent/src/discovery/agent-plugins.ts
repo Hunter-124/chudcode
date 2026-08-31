@@ -31,9 +31,9 @@ import {
 	parseAgentPluginMcp,
 	validateAgentSkillFrontmatter,
 } from "./agent-plugin-format";
+import { listOmpExtensionRoots } from "./chudcode-extension-roots";
 import { resolveContainedPath } from "./contained-path";
 import { compareSkillOrder, createSourceMeta, listClaudePluginRoots } from "./helpers";
-import { listOmpExtensionRoots } from "./chudcode-extension-roots";
 
 const PROVIDER_ID = "agent-plugins";
 const DISPLAY_NAME = "Agent Plugins";

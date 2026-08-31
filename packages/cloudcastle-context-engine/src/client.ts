@@ -47,7 +47,9 @@ export async function fetchIncidentContext(
 
 	const retrievedAt = dependencies.now().toISOString();
 	const results = await Promise.all(
-		settings.endpoints.map(endpoint => fetchEndpoint(settings, endpoint, incidentId, query, retrievedAt, dependencies)),
+		settings.endpoints.map(endpoint =>
+			fetchEndpoint(settings, endpoint, incidentId, query, retrievedAt, dependencies),
+		),
 	);
 	const coverage = results.map(result => result.coverage);
 	const error = coverage.find(item => item.state === "Error");
@@ -131,8 +133,7 @@ async function fetchEndpoint(
 			},
 		};
 	} catch (error) {
-		const wasAborted =
-			controller.signal.aborted || (error instanceof DOMException && error.name === "AbortError");
+		const wasAborted = controller.signal.aborted || (error instanceof DOMException && error.name === "AbortError");
 		return endpointError(endpoint, sourceUrl, incidentId, retrievedAt, wasAborted ? "timeout" : "network");
 	} finally {
 		clearTimeout(timeout);
@@ -153,11 +154,12 @@ function normalizeEvidence(
 	const content = JSON.stringify(redacted) ?? "null";
 	const record = isUnknownRecord(redacted) ? redacted : undefined;
 	const recordId = firstString(record, ["id", "event_id", "entity_id"]) ?? `${incidentId}:${index}`;
-	const timestamp = normalizeTimestamp(
-		firstString(record, ["timestamp", "occurred_at", "created_at", "updated_at", "at"]),
-	) ?? retrievedAt;
+	const timestamp =
+		normalizeTimestamp(firstString(record, ["timestamp", "occurred_at", "created_at", "updated_at", "at"])) ??
+		retrievedAt;
 	const entityId = firstString(record, ["entity", "entity_id", "device_id", "incident_id", "id"]) ?? incidentId;
-	const provenance = firstString(record, ["provenance", "source", "origin"]) ?? `control-api:${endpoint.className}:${index}`;
+	const provenance =
+		firstString(record, ["provenance", "source", "origin"]) ?? `control-api:${endpoint.className}:${index}`;
 	const explicitPriority = numberField(record, "priority");
 	const severity = firstString(record, ["severity", "level"])?.toLowerCase();
 	const evidencePriority = clampPriority(
@@ -305,4 +307,3 @@ function normalizeTimestamp(value: string | undefined): string | undefined {
 function clampPriority(value: number): number {
 	return Math.max(0, Math.min(100, Math.round(value)));
 }
-

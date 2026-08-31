@@ -1,9 +1,9 @@
 import { afterEach, describe, expect, it, vi } from "bun:test";
-import { type } from "@chudware/chudtype";
 import { Agent, type AgentMessage, type AgentTool } from "@chudware/agent-core";
 import type { Message, Model } from "@chudware/ai";
 import { createMockModel, type MockResponseSource } from "@chudware/ai/providers/mock";
 import { buildModel } from "@chudware/catalog/build";
+import { type } from "@chudware/chudtype";
 import { Settings } from "@chudware/coding-agent/config/settings";
 import type { CustomTool } from "@chudware/coding-agent/extensibility/custom-tools/types";
 import type { ExtensionRunner } from "@chudware/coding-agent/extensibility/extensions";

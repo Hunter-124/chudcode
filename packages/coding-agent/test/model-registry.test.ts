@@ -2048,8 +2048,8 @@ describe("ModelRegistry", () => {
 								},
 								...bundledModels.slice(1),
 								buildModel({
-									id: "glm-5.3-flash",
-									name: "GLM-5.3-Flash",
+									id: "glm-cache-only-regression",
+									name: "GLM Cache-Only Regression",
 									api: "anthropic-messages",
 									provider: "zai",
 									baseUrl: "https://api.z.ai/api/anthropic",
@@ -2527,7 +2527,7 @@ describe("ModelRegistry", () => {
 				contextWindow: bundledModel.contextWindow,
 				maxTokens: bundledModel.maxTokens,
 			});
-			expect(sharedCatalogCache.find("zai", "glm-5.3-flash")).toMatchObject({
+			expect(sharedCatalogCache.find("zai", "glm-cache-only-regression")).toMatchObject({
 				contextWindow: 1_000_000,
 				maxTokens: 131_072,
 			});

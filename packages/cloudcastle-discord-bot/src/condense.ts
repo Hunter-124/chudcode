@@ -154,7 +154,10 @@ const PRIORITY_PATTERNS: readonly { readonly label: string; readonly pattern: Re
 const AREA_PATTERNS: readonly { readonly label: string; readonly pattern: RegExp }[] = [
 	{ label: "area:rmm", pattern: /\b(rmm|technician console|control[ -]api|remote desktop|patch management)\b/i },
 	{ label: "area:defender", pattern: /\b(defender|edr|agentd|detection engine|sensor)\b/i },
-	{ label: "area:webservice", pattern: /\b(marketing site|public site|customer portal|signup|sign[ -]up|billing|pricing page|admin console)\b/i },
+	{
+		label: "area:webservice",
+		pattern: /\b(marketing site|public site|customer portal|signup|sign[ -]up|billing|pricing page|admin console)\b/i,
+	},
 	{ label: "area:emailsec", pattern: /\b(email security|emailsec|quarantine|phishing|dmarc|spf)\b/i },
 	{ label: "area:cloudsec", pattern: /\b(cloud posture|ztna|sdp|network security)\b/i },
 	{ label: "area:eventstore", pattern: /\b(event store|eventstore|event ingestion|retention policy)\b/i },
@@ -195,7 +198,7 @@ export async function condense(options: CondenseOptions): Promise<CondensePlan> 
 
 	const manifestBytes = await fs.readFile(path.join(exportDir, "manifest.json"));
 	const manifest = asObject(JSON.parse(manifestBytes.toString("utf8")) as unknown);
-	const scopes = parseScopes(manifest["scopes"]);
+	const scopes = parseScopes(manifest.scopes);
 	const catalogue = await readLabelCatalogue(options.labelCatalogPath);
 
 	const skippedScopes: SkippedScope[] = [];
@@ -249,7 +252,8 @@ export async function condense(options: CondenseOptions): Promise<CondensePlan> 
 		loaded.push({ scope, messages: eligible, skippedBots });
 	}
 
-	if (candidateMessages > 0 && messagesWithContent === 0) throw new EmptyExportContentError(exportDir, candidateMessages);
+	if (candidateMessages > 0 && messagesWithContent === 0)
+		throw new EmptyExportContentError(exportDir, candidateMessages);
 
 	const exportManifestSha256 = createHash("sha256").update(manifestBytes).digest("hex");
 	const issues: ProposedIssue[] = [];
@@ -407,7 +411,12 @@ export async function runCondenseCli(argv: string[]): Promise<number> {
 			...(values["--out"] ? { outputDir: values["--out"] } : {}),
 			...(values["--guild"] ? { guildId: values["--guild"] } : {}),
 			...(values["--content-bots"]
-				? { contentBotAuthorIds: (values["--content-bots"] ?? "").split(",").map(id => id.trim()).filter(Boolean) }
+				? {
+						contentBotAuthorIds: (values["--content-bots"] ?? "")
+							.split(",")
+							.map(id => id.trim())
+							.filter(Boolean),
+					}
 				: {}),
 		});
 		process.stdout.write(
@@ -453,14 +462,14 @@ async function readScopeMessages(exportDir: string, scope: ManifestScope): Promi
 	for (const line of raw.split("\n")) {
 		if (line.trim().length === 0) continue;
 		const record = asObject(JSON.parse(line) as unknown);
-		const author = asObject(record["author"]);
+		const author = asObject(record.author);
 		const timestamp = stringField(record, "timestamp");
 		const parsed = new Date(timestamp);
 		messages.push({
 			id: stringField(record, "id"),
 			authorId: stringField(author, "id"),
 			author: stringField(author, "global_name") || stringField(author, "username") || stringField(author, "id"),
-			authorIsBot: author["bot"] === true,
+			authorIsBot: author.bot === true,
 			type: numberField(record, "type"),
 			timestamp: Number.isNaN(parsed.getTime()) ? timestamp : parsed.toISOString(),
 			content: stringField(record, "content"),
@@ -569,7 +578,7 @@ function inferLabels(scope: ManifestScope, content: string, catalogue: LabelCata
 async function readLabelCatalogue(catalogPath: string): Promise<LabelCatalogue> {
 	const parsed = asObject(JSON.parse(await fs.readFile(path.resolve(catalogPath), "utf8")) as unknown);
 	const catalogue: LabelCatalogue = new Map();
-	for (const entry of asArray(parsed["labels"])) {
+	for (const entry of asArray(parsed.labels)) {
 		const name = stringField(asObject(entry), "name");
 		if (name) catalogue.set(name, catalogue.size);
 	}
@@ -598,12 +607,12 @@ function shellQuote(value: string): string {
 function parseScopes(value: unknown): ManifestScope[] {
 	const scopes = asArray(value)
 		.map(asObject)
-		.filter(scope => typeof scope["id"] === "string" && typeof scope["jsonl_path"] === "string")
+		.filter(scope => typeof scope.id === "string" && typeof scope.jsonl_path === "string")
 		.map(scope => ({
 			id: stringField(scope, "id"),
 			name: stringField(scope, "name"),
 			kind: stringField(scope, "kind") === "thread" ? ("thread" as const) : ("channel" as const),
-			parentId: typeof scope["parent_id"] === "string" ? scope["parent_id"] : null,
+			parentId: typeof scope.parent_id === "string" ? scope.parent_id : null,
 			jsonlPath: stringField(scope, "jsonl_path"),
 			messageCount: numberField(scope, "message_count"),
 		}));
@@ -643,7 +652,9 @@ function compareSnowflakes(left: string, right: string): number {
 }
 
 function asObject(value: unknown): Record<string, unknown> {
-	return value !== null && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
+	return value !== null && typeof value === "object" && !Array.isArray(value)
+		? (value as Record<string, unknown>)
+		: {};
 }
 
 function asArray(value: unknown): unknown[] {

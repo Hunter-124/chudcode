@@ -30,10 +30,7 @@ import {
 	unpackEnvelope,
 } from "@chudware/coding-agent/collab/protocol";
 import { CollabSocket } from "@chudware/coding-agent/collab/relay-client";
-import {
-	MAX_REPLICATED_PAYLOAD_BYTES,
-	shrinkForReplication,
-} from "@chudware/coding-agent/collab/replication-shrink";
+import { MAX_REPLICATED_PAYLOAD_BYTES, shrinkForReplication } from "@chudware/coding-agent/collab/replication-shrink";
 import type { InteractiveModeContext } from "@chudware/coding-agent/modes/types";
 import type { SessionEntry } from "@chudware/coding-agent/session/session-entries";
 

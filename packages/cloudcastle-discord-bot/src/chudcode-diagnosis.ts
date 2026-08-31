@@ -1,12 +1,17 @@
 import { createAgentSession, SessionManager } from "@chudware/coding-agent";
 import {
+	type CloudCastleContextEnv,
 	fetchIncidentContext,
+	type IncidentEvidence,
 	parseCloudCastleContextSettings,
 	rankAndMergeEvidence,
-	type CloudCastleContextEnv,
-	type IncidentEvidence,
 } from "@cloudcastle/context-engine";
-import { redactOperationalText, type DiagnosisRequest, type DiagnosisRunner, type NormalizedIncident } from "./incident-dispatcher";
+import {
+	type DiagnosisRequest,
+	type DiagnosisRunner,
+	type NormalizedIncident,
+	redactOperationalText,
+} from "./incident-dispatcher";
 import { isUnknownRecord } from "./incident-guards";
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -47,10 +52,12 @@ export class ChudcodeDiagnosisRunner implements DiagnosisRunner {
 			throw new Error("Chudcode diagnosis requires a UUID incident reference");
 		}
 		const contextSettings = parseCloudCastleContextSettings(this.#contextEnvironment(request.incident.id));
-		if (!contextSettings.ok) throw new Error(`CloudCastle context configuration failed: ${contextSettings.errorCode}`);
+		if (!contextSettings.ok)
+			throw new Error(`CloudCastle context configuration failed: ${contextSettings.errorCode}`);
 		const query = diagnosisQuery(request.incident);
 		const context = await fetchIncidentContext(contextSettings.settings, query);
-		if (context.failedClosed) throw new Error(`CloudCastle context retrieval failed: ${context.errorCode ?? "unknown"}`);
+		if (context.failedClosed)
+			throw new Error(`CloudCastle context retrieval failed: ${context.errorCode ?? "unknown"}`);
 		const ranked = rankAndMergeEvidence(context.evidence, contextSettings.settings.tokenBudget);
 		const sessionManager = request.sessionPath
 			? await SessionManager.open(request.sessionPath)
@@ -82,29 +89,32 @@ export class ChudcodeDiagnosisRunner implements DiagnosisRunner {
 			],
 		});
 		let timeout: NodeJS.Timeout | undefined;
-		let completed = false;
+		let failure: { readonly error: unknown } | undefined;
 		try {
 			const sessionPath = session.sessionManager.getSessionFile();
 			if (!sessionPath) throw new Error("Chudcode diagnosis session was not persisted");
 			if (!request.sessionPath) await request.registerSession(sessionPath);
 			await Promise.race([
-				session.prompt(renderDiagnosisPrompt(request.incident, ranked.evidence, context.coverage, [this.#options.apiToken])),
+				session.prompt(
+					renderDiagnosisPrompt(request.incident, ranked.evidence, context.coverage, [this.#options.apiToken]),
+				),
 				new Promise<never>((_resolve, reject) => {
-					timeout = setTimeout(() => reject(new Error("Chudcode diagnosis reached its time limit")), this.#options.timeoutMs);
+					timeout = setTimeout(
+						() => reject(new Error("Chudcode diagnosis reached its time limit")),
+						this.#options.timeoutMs,
+					);
 				}),
 			]);
-			completed = true;
 		} catch (error) {
-			await session.abort({ goalReason: "internal", reason: "bounded incident diagnosis stopped" }).catch(() => undefined);
-			throw error;
+			failure = { error };
+			await session
+				.abort({ goalReason: "internal", reason: "bounded incident diagnosis stopped" })
+				.catch(() => undefined);
 		} finally {
 			clearTimeout(timeout);
-			try {
-				await session.dispose();
-			} catch (error) {
-				if (!completed) throw error;
-			}
+			await session.dispose().catch(() => undefined);
 		}
+		if (failure) throw failure.error;
 	}
 
 	#contextEnvironment(incidentId: string): CloudCastleContextEnv {
@@ -112,7 +122,9 @@ export class ChudcodeDiagnosisRunner implements DiagnosisRunner {
 			CLOUDCASTLE_CONTEXT_BASE_URL: this.#options.apiBaseUrl.toString(),
 			CLOUDCASTLE_CONTEXT_TOKEN: this.#options.apiToken,
 			CLOUDCASTLE_CONTEXT_INCIDENT_ID: incidentId,
-			CLOUDCASTLE_CONTEXT_TIMEOUT_MS: String(Math.max(1_000, Math.min(15_000, Math.floor(this.#options.timeoutMs / 4)))),
+			CLOUDCASTLE_CONTEXT_TIMEOUT_MS: String(
+				Math.max(1_000, Math.min(15_000, Math.floor(this.#options.timeoutMs / 4))),
+			),
 			CLOUDCASTLE_CONTEXT_TOKEN_BUDGET: String(this.#options.contextTokenBudget ?? 1_200),
 			CLOUDCASTLE_CONTEXT_MAX_RESPONSE_BYTES: String(this.#options.contextMaxResponseBytes ?? 131_072),
 			...(this.#options.contextEndpoints ? { CLOUDCASTLE_CONTEXT_ENDPOINTS: this.#options.contextEndpoints } : {}),
@@ -132,33 +144,40 @@ function renderDiagnosisPrompt(
 	coverage: readonly { readonly className: string; readonly state: string; readonly itemCount: number }[],
 	explicitSecrets: readonly string[],
 ): string {
-	const safeIncident = escapeXml(redactOperationalText(JSON.stringify({
-		reference: incident.id,
-		source: incident.source,
-		status: incident.status,
-		title: incident.title,
-		category: incident.category,
-		severity: incident.severity,
-		priority: incident.priority,
-	}), explicitSecrets));
-	const safeEvidence = evidence.map(item => {
-		let parsed: unknown;
-		try {
-			parsed = JSON.parse(item.content);
-		} catch {
-			parsed = undefined;
-		}
-		const fields: Record<string, string | number | boolean> = {};
-		if (isUnknownRecord(parsed)) {
-			for (const [key, value] of Object.entries(parsed)) {
-				if (SAFE_EVIDENCE_KEYS[key] !== true) continue;
-				if (typeof value === "string") fields[key] = redactOperationalText(value, explicitSecrets, 160);
-				else if (typeof value === "number" && Number.isFinite(value)) fields[key] = value;
-				else if (typeof value === "boolean") fields[key] = value;
+	const safeIncident = escapeXml(
+		redactOperationalText(
+			JSON.stringify({
+				reference: incident.id,
+				source: incident.source,
+				status: incident.status,
+				title: incident.title,
+				category: incident.category,
+				severity: incident.severity,
+				priority: incident.priority,
+			}),
+			explicitSecrets,
+		),
+	);
+	const safeEvidence = evidence
+		.map(item => {
+			let parsed: unknown;
+			try {
+				parsed = JSON.parse(item.content);
+			} catch {
+				parsed = undefined;
 			}
-		}
-		return `${item.className}:${item.timestamp ?? "unknown"}:${JSON.stringify(fields)}`;
-	}).join("\n");
+			const fields: Record<string, string | number | boolean> = {};
+			if (isUnknownRecord(parsed)) {
+				for (const [key, value] of Object.entries(parsed)) {
+					if (SAFE_EVIDENCE_KEYS[key] !== true) continue;
+					if (typeof value === "string") fields[key] = redactOperationalText(value, explicitSecrets, 160);
+					else if (typeof value === "number" && Number.isFinite(value)) fields[key] = value;
+					else if (typeof value === "boolean") fields[key] = value;
+				}
+			}
+			return `${item.className}:${item.timestamp ?? "unknown"}:${JSON.stringify(fields)}`;
+		})
+		.join("\n");
 	const safeCoverage = coverage.map(item => `${item.className}:${item.state}:${item.itemCount}`).join(", ");
 	return [
 		"Diagnose this incident without taking any action.",

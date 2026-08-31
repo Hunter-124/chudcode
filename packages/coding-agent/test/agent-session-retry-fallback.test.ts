@@ -1,7 +1,6 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "bun:test";
 import * as path from "node:path";
 import { scheduler } from "node:timers/promises";
-import { type } from "@chudware/chudtype";
 import { Agent, type AgentTool } from "@chudware/agent-core";
 import {
 	type Api,
@@ -17,6 +16,7 @@ import { AssistantMessageEventStream } from "@chudware/ai/utils/event-stream";
 import { buildModel } from "@chudware/catalog/build";
 import { writeModelCache } from "@chudware/catalog/model-cache";
 import { getBundledModel } from "@chudware/catalog/models";
+import { type } from "@chudware/chudtype";
 import { ModelRegistry } from "@chudware/coding-agent/config/model-registry";
 import { parseModelPattern, parseModelString } from "@chudware/coding-agent/config/model-resolver";
 import { Settings } from "@chudware/coding-agent/config/settings";
@@ -3936,7 +3936,7 @@ describe("AgentSession retry fallback", () => {
 				requestedModels.push(requested);
 				if (requestedModel.provider === "openrouter" && primaryAttempts === 0) {
 					primaryAttempts += 1;
-					mock.push({ throw: "rate limit exceeded retry-after-ms=200" });
+					mock.push({ throw: "rate limit exceeded retry-after-ms=5000" });
 				} else {
 					mock.push({ content: [`ok:${requested}`] });
 				}

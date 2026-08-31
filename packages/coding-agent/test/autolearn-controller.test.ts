@@ -1,10 +1,10 @@
 import { describe, expect, it } from "bun:test";
-import { type } from "@chudware/chudtype";
 import { Agent, type AgentMessage, type AgentOptions, type AgentTool } from "@chudware/agent-core";
 import type { AssistantMessage, FetchImpl, Model, ProviderSessionState, Usage } from "@chudware/ai";
 import { streamGoogle } from "@chudware/ai/providers/google";
 import { createMockModel } from "@chudware/ai/providers/mock";
 import { buildModel } from "@chudware/catalog/build";
+import { type } from "@chudware/chudtype";
 import { AutoLearnController, buildAutoLearnInstructions } from "@chudware/coding-agent/autolearn/controller";
 import { Settings } from "@chudware/coding-agent/config/settings";
 import { createAutoLearnCaptureRunner } from "@chudware/coding-agent/sdk";

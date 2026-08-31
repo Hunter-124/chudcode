@@ -1,5 +1,5 @@
 import { padding, truncateToWidth, visibleWidth } from "@chudware/tui";
-import { gradientEscape, gradientLogo, CHUDCODE_LOGO, type ShineConfig } from "../../components/welcome";
+import { CHUDCODE_LOGO, gradientEscape, gradientLogo, type ShineConfig } from "../../components/welcome";
 import { theme } from "../../theme/theme";
 
 export const SETUP_SPLASH_MS = 2600;

@@ -34,12 +34,7 @@ describe("incident evidence ranking", () => {
 			],
 			4_000,
 		);
-		expect(ranked.evidence.map(item => item.id)).toEqual([
-			"incident",
-			"timeline-high",
-			"entity",
-			"timeline-low",
-		]);
+		expect(ranked.evidence.map(item => item.id)).toEqual(["incident", "timeline-high", "entity", "timeline-low"]);
 	});
 
 	it("uses stable ids to break equal-priority and equal-time ties", () => {

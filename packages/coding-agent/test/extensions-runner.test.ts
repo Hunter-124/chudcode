@@ -5,10 +5,10 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, expectTypeOf, it, vi } from "bun:test";
 import * as fs from "node:fs";
 import * as path from "node:path";
-import { Type } from "@chudware/chudtype/typebox";
 import type { AgentMessage, AgentTool } from "@chudware/agent-core";
 import type { ImageContent, TextContent } from "@chudware/ai";
 import { getBundledModel } from "@chudware/catalog/models";
+import { Type } from "@chudware/chudtype/typebox";
 import { ModelRegistry } from "@chudware/coding-agent/config/model-registry";
 import { Settings } from "@chudware/coding-agent/config/settings";
 import { ExtensionRuntime, loadExtensions } from "@chudware/coding-agent/extensibility/extensions/loader";

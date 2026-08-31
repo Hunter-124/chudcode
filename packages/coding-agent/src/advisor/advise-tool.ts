@@ -1,4 +1,3 @@
-import { type } from "@chudware/chudtype";
 import type {
 	AgentIdentity,
 	AgentTelemetryConfig,
@@ -7,6 +6,7 @@ import type {
 	AgentToolResult,
 	AgentToolUpdateCallback,
 } from "@chudware/agent-core";
+import { type } from "@chudware/chudtype";
 import { escapeXmlAttribute, escapeXmlText } from "@chudware/utils";
 import adviseDescription from "../prompts/advisor/advise-tool.md" with { type: "text" };
 

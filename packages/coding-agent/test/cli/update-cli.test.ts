@@ -16,7 +16,11 @@ describe("runUpdateCommand fetch cancellation", () => {
 		const fetchStub = Object.assign(
 			async (_input: FetchInput, init?: FetchInit) => {
 				requestSignal = init?.signal ?? undefined;
-				return Response.json({ version: "999.0.0" });
+				return Response.json({
+					tag_name: `${PRODUCT_RELEASE_TAG_PREFIX}999.0.0`,
+					draft: false,
+					prerelease: false,
+				});
 			},
 			{ preconnect: globalThis.fetch.preconnect },
 		);
@@ -59,7 +63,7 @@ describe("getLatestRelease fork release channel", () => {
 		expect(release.dist).toBe("binary");
 		expect(urls).toEqual(["https://api.github.com/repos/Hunter-124/chudcode/releases/latest"]);
 		expect(urls[0]).not.toContain("registry.npmjs.org");
-		expect(urls[0]).not.toContain("Hunter-124");
+		expect(urls[0]).not.toContain("can1357/oh-my-pi");
 	});
 
 	it("ignores an inherited upstream tag that is not namespaced to this fork", async () => {

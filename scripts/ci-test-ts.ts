@@ -552,7 +552,9 @@ function testConcurrency(total: number): number {
 	if (Number.isFinite(override) && override >= 1) {
 		return Math.min(Math.floor(override), total);
 	}
-	throw new Error(`Invalid CHUDCODE_TEST_CONCURRENCY=${JSON.stringify(raw)}; expected a positive integer, all, or max`);
+	throw new Error(
+		`Invalid CHUDCODE_TEST_CONCURRENCY=${JSON.stringify(raw)}; expected a positive integer, all, or max`,
+	);
 }
 
 // Test files interleave real IO — sqlite writes, temp dirs, spawned CLIs — with

@@ -17,6 +17,8 @@ type PipedSubprocess<In extends InMask = InMask> = Subprocess<In, "pipe", "pipe"
 
 const LINUX_SUBREAPER_COMMAND_ENV = "CHUDCODE_PTREE_SUBREAPER_COMMAND";
 const LINUX_SUBREAPER_BUN_BE_BUN_ENV = "CHUDCODE_PTREE_SUBREAPER_BUN_BE_BUN";
+const LINUX_SUBREAPER_READY_MESSAGE = "chudcode:ptree:ready";
+const NATIVES_MODULE_URL = import.meta.resolve("@chudware/natives");
 
 /**
  * Build the Linux child-subreaper entrypoint.
@@ -27,6 +29,9 @@ const LINUX_SUBREAPER_BUN_BE_BUN_ENV = "CHUDCODE_PTREE_SUBREAPER_BUN_BE_BUN";
 export function createLinuxSubreaperScript(libcCandidates: readonly string[] = ["libc.so.6", "libc.so"]): string {
 	return `
 import { dlopen, FFIType } from "bun:ffi";
+// The generated supervisor can run from an unrelated cwd; embed the parent's
+// resolved module URL instead of relying on package resolution in the child.
+const { Process } = await import(${JSON.stringify(NATIVES_MODULE_URL)});
 
 let libc;
 for (const soname of ${JSON.stringify(libcCandidates)}) {
@@ -62,9 +67,27 @@ const child = Bun.spawn(command, {
 	stdin: "inherit",
 	stdout: "pipe",
 	stderr: "pipe",
+	detached: true,
 	windowsHide: true,
 	env: process.env,
 });
+
+let terminating = false;
+async function terminateChildren() {
+	if (terminating) return;
+	terminating = true;
+	try {
+		process.kill(-child.pid, "SIGKILL");
+	} catch {}
+	const supervisor = Process.fromPid(process.pid);
+	while (hasLiveChildren()) {
+		for (const process of supervisor?.children() ?? []) process.killTree(9);
+		await Bun.sleep(1);
+	}
+	process.exit(1);
+}
+process.on("SIGUSR2", () => void terminateChildren());
+process.send?.(${JSON.stringify(LINUX_SUBREAPER_READY_MESSAGE)});
 
 async function relay(stream, destination) {
 	const writer = destination.writer();
@@ -341,13 +364,24 @@ export class ChildProcess<In extends InMask = InMask> {
 			if (this.proc.exitCode !== null) this.#exitReason = reason;
 		}
 		if (gracefulMs !== undefined && gracefulMs < 0 && this.#hardKillTree && this.proc.exitCode === null) {
-			// terminate() sends its polite wave to the root before rebuilding the
-			// hard-kill tree. A subreaper root can die in that gap and release its
-			// adopted descendants, so snapshot and hard-kill the live tree first.
+			// Keep the Linux subreaper alive while it hard-kills and waitpid()s
+			// every supervised descendant. Killing the supervisor in the same
+			// tree snapshot would reparent zombies before we could prove cleanup
+			// complete to wait().
 			const root = Process.fromPid(this.proc.pid);
 			if (root) {
-				root.killTree(9);
-				this.#terminating = Promise.resolve();
+				this.#terminating = (async () => {
+					try {
+						process.kill(this.proc.pid, "SIGUSR2");
+					} catch {
+						root.killTree(9);
+						await root.waitForExit({ timeoutMs: 1_000 });
+						return;
+					}
+					if (await root.waitForExit({ timeoutMs: 1_000 })) return;
+					root.killTree(9);
+					await root.waitForExit({ timeoutMs: 1_000 });
+				})();
 				return;
 			}
 		}
@@ -606,6 +640,13 @@ function spawnInternal<In extends InMask = InMask>(
 	const { timeout = -1, signal, stderr, detached, subreaper = false, ...rest } = opts ?? {};
 	const useSubreaper = subreaper && process.platform === "linux";
 	const commandEnv = rest.env ?? process.env;
+	let managed: ChildProcess<In> | undefined;
+	let readyBeforeManaged = false;
+	const startTimeout = (): void => {
+		if (timeout <= 0) return;
+		if (managed) managed.attachTimeout(timeout);
+		else readyBeforeManaged = true;
+	};
 	const child = Bun.spawn(useSubreaper ? [process.execPath, "-e", LINUX_SUBREAPER_SCRIPT] : cmd, {
 		stdin: "ignore",
 		stdout: "pipe",
@@ -621,10 +662,18 @@ function spawnInternal<In extends InMask = InMask>(
 					[LINUX_SUBREAPER_BUN_BE_BUN_ENV]: commandEnv.BUN_BE_BUN,
 				}
 			: rest.env,
+		...(useSubreaper
+			? {
+					ipc(message: unknown) {
+						if (message === LINUX_SUBREAPER_READY_MESSAGE) startTimeout();
+					},
+				}
+			: {}),
 	});
 	const cp = new ChildProcess(child, stderr === "full", retainFullStderr, detached === true, useSubreaper);
+	managed = cp;
 	if (signal) cp.attachSignal(signal);
-	if (timeout > 0) cp.attachTimeout(timeout);
+	if (timeout > 0 && (!useSubreaper || readyBeforeManaged)) cp.attachTimeout(timeout);
 	return cp;
 }
 

@@ -23,7 +23,7 @@ import {
 	VERSION,
 } from "@chudware/utils";
 import chalk from "@chudware/utils/chalk";
-import { PRODUCT_SEMVER, PRODUCT_VERSION } from "./brand";
+import { PRODUCT_CLI_NAME, PRODUCT_SEMVER, PRODUCT_VERSION } from "./brand";
 import { reset as resetCapabilities } from "./capability";
 import { type Args, reportUnrecognizedFlags, validateToolNames } from "./cli/args";
 import { applyExtensionFlags, type ExtensionFlagSink } from "./cli/extension-flags";
@@ -48,13 +48,13 @@ import { ModelsConfigFile } from "./config/models-config";
 import { serviceTierSettingToTier } from "./config/service-tier";
 import { getDefault, type SettingPath, Settings, type SettingValue, settings } from "./config/settings";
 import { initializeWithSettings } from "./discovery";
+import { injectOmpExtensionCliRoots } from "./discovery/chudcode-extension-roots";
 import {
 	clearPluginRootsAndCaches,
 	injectPluginDirRoots,
 	preloadPluginRoots,
 	resolveActiveProjectRegistryPath,
 } from "./discovery/helpers";
-import { injectOmpExtensionCliRoots } from "./discovery/chudcode-extension-roots";
 import { formatExtensionLoadNotifications } from "./extensibility/extensions/load-errors";
 import { loadExtensions } from "./extensibility/extensions/loader";
 import { ExtensionRunner } from "./extensibility/extensions/runner";
@@ -948,7 +948,7 @@ export async function createSessionManager(
 		if (!match) {
 			throw new SessionResolutionError(
 				`Session "${forkSource}" not found.`,
-				"Run `chudcode --resume` without an argument to pick from recent sessions, or `chudcode` to start a new one.",
+				`Run \`${PRODUCT_CLI_NAME} --resume\` without an argument to pick from recent sessions, or \`${PRODUCT_CLI_NAME}\` to start a new one.`,
 			);
 		}
 		return await SessionManager.forkFrom(match.session.path, cwd, parsed.sessionDir);
@@ -968,7 +968,7 @@ export async function createSessionManager(
 		if (!match) {
 			throw new SessionResolutionError(
 				`Session "${sessionArg}" not found.`,
-				"Run `chudcode --resume` without an argument to pick from recent sessions, or `chudcode` to start a new one.",
+				`Run \`${PRODUCT_CLI_NAME} --resume\` without an argument to pick from recent sessions, or \`${PRODUCT_CLI_NAME}\` to start a new one.`,
 			);
 		}
 		if (match.scope === "local") {

@@ -207,7 +207,11 @@ describe("PluginManager.install load validation", () => {
 	test("restores the previous package tree when reinstall validation fails", async () => {
 		await fsx.write(
 			pluginsPkgJson,
-			JSON.stringify({ name: "chudcode-plugins", private: true, dependencies: { "broken-plugin": "1.0.0" } }, null, 2),
+			JSON.stringify(
+				{ name: "chudcode-plugins", private: true, dependencies: { "broken-plugin": "1.0.0" } },
+				null,
+				2,
+			),
 		);
 		await fsx.write(
 			path.join(tmpRoot, "chudcode-plugins.lock.json"),
@@ -295,7 +299,11 @@ describe("PluginManager.install load validation", () => {
 					await fsx.write(
 						pluginsPkgJson,
 						JSON.stringify(
-							{ name: "chudcode-plugins", private: true, dependencies: { "git-plugin": "github:org/plugin#v2" } },
+							{
+								name: "chudcode-plugins",
+								private: true,
+								dependencies: { "git-plugin": "github:org/plugin#v2" },
+							},
 							null,
 							2,
 						),
