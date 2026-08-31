@@ -18,7 +18,23 @@ type PipedSubprocess<In extends InMask = InMask> = Subprocess<In, "pipe", "pipe"
 const LINUX_SUBREAPER_COMMAND_ENV = "CHUDCODE_PTREE_SUBREAPER_COMMAND";
 const LINUX_SUBREAPER_BUN_BE_BUN_ENV = "CHUDCODE_PTREE_SUBREAPER_BUN_BE_BUN";
 const LINUX_SUBREAPER_READY_MESSAGE = "chudcode:ptree:ready";
-const NATIVES_MODULE_URL = import.meta.resolve("@chudware/natives");
+
+/**
+ * Resolve the natives module for the generated supervisor.
+ *
+ * The supervisor can run from an unrelated cwd, so the parent's resolved URL is
+ * embedded when one exists. `import.meta.resolve` throws inside a compiled
+ * single-file binary (the specifier has no on-disk module), and evaluating it
+ * at module scope took the whole process down at import time — so resolve
+ * lazily and fall back to the bare specifier the child can still resolve.
+ */
+function nativesModuleSpecifier(): string {
+	try {
+		return import.meta.resolve("@chudware/natives");
+	} catch {
+		return "@chudware/natives";
+	}
+}
 
 /**
  * Build the Linux child-subreaper entrypoint.
@@ -31,7 +47,7 @@ export function createLinuxSubreaperScript(libcCandidates: readonly string[] = [
 import { dlopen, FFIType } from "bun:ffi";
 // The generated supervisor can run from an unrelated cwd; embed the parent's
 // resolved module URL instead of relying on package resolution in the child.
-const { Process } = await import(${JSON.stringify(NATIVES_MODULE_URL)});
+const { Process } = await import(${JSON.stringify(nativesModuleSpecifier())});
 
 let libc;
 for (const soname of ${JSON.stringify(libcCandidates)}) {
