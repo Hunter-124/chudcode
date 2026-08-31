@@ -2,16 +2,12 @@ import { describe, expect, it } from "bun:test";
 import type { AgentMessage } from "@chudware/agent-core";
 import type { ImageContent, TextContent } from "@chudware/ai";
 import { BlobStore, isBlobRef } from "@chudware/coding-agent/session/blob-store";
-import type {
-	CompactionEntry,
-	FileEntry,
-	SessionMessageEntry,
-} from "@chudware/coding-agent/session/session-entries";
+import type { CompactionEntry, FileEntry, SessionMessageEntry } from "@chudware/coding-agent/session/session-entries";
 import { resolveBlobRefsInEntries } from "@chudware/coding-agent/session/session-loader";
 import { prepareEntryForPersistence } from "@chudware/coding-agent/session/session-persistence";
-import { TempDir } from "@chudware/utils";
 import type { Archive } from "@chudware/snapcompact";
 import * as snapcompact from "@chudware/snapcompact";
+import { TempDir } from "@chudware/utils";
 
 type ImagePayload = { data: string; mimeType: string; type?: "image" };
 type ToolResultMessage = Extract<AgentMessage, { role: "toolResult" }>;
@@ -73,6 +69,73 @@ describe("session image persistence", () => {
 		expect(resolvedContentImage?.data).toBe(contentImageData);
 		expect(resolvedDetails.images[0]?.data).toBe(generatedImageData);
 		expect(resolvedDetails.images[1]?.data).toBe(typedDetailImageData);
+	});
+
+	it("keeps a resumed turn usable when its persisted image blob is missing", async () => {
+		using tempDir = TempDir.createSync("@session-missing-image-");
+		const blobStore = new BlobStore(tempDir.path());
+		const missingRef = `blob:sha256:${"a".repeat(64)}`;
+		const loaded: FileEntry[] = [
+			{
+				type: "message",
+				id: "entry-missing-image",
+				parentId: null,
+				timestamp: new Date(0).toISOString(),
+				message: {
+					role: "user",
+					content: [text("continue this session"), png(missingRef)],
+					timestamp: 0,
+				},
+			},
+		];
+		const repaired = await resolveBlobRefsInEntries(loaded, blobStore);
+
+		expect(repaired).toBe(true);
+
+		const entry = loaded[0];
+		if (entry?.type !== "message" || entry.message.role !== "user") {
+			throw new Error("expected resumed user message");
+		}
+		expect(entry.message.content).toEqual([
+			text("continue this session"),
+			text("[Image unavailable: persisted image data is missing]"),
+		]);
+		expect(JSON.stringify(entry)).not.toContain("blob:sha256:");
+	});
+
+	it("drops a native replay item when its nested screenshot blob is missing", async () => {
+		using tempDir = TempDir.createSync("@session-missing-native-image-");
+		const blobStore = new BlobStore(tempDir.path());
+		const missingRef = `blob:sha256:${"b".repeat(64)}`;
+		const entry: CompactionEntry = {
+			type: "compaction",
+			id: "compaction-missing-image",
+			parentId: null,
+			timestamp: new Date(0).toISOString(),
+			summary: "summary",
+			firstKeptEntryId: "entry-1",
+			tokensBefore: 5000,
+			preserveData: {
+				openaiRemoteCompaction: {
+					provider: "openai",
+					replacementHistory: [
+						{
+							type: "computer_call_output",
+							call_id: "call-1",
+							output: { type: "computer_screenshot", image_url: missingRef },
+						},
+					],
+				},
+			},
+		};
+
+		const repaired = await resolveBlobRefsInEntries([entry], blobStore);
+
+		expect(repaired).toBe(true);
+		expect(entry.preserveData?.openaiRemoteCompaction).toEqual({
+			provider: "openai",
+			replacementHistory: [],
+		});
 	});
 
 	it("externalizes and restores native Responses images in assistant content and provider history", async () => {

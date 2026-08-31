@@ -1,12 +1,12 @@
 import type { AgentMessage } from "@chudware/agent-core";
+import * as snapcompact from "@chudware/snapcompact";
 import { getBlobsDir, isEnoent, parseJsonlLenient } from "@chudware/utils";
 import { sleep } from "@chudware/utils/async";
-import * as snapcompact from "@chudware/snapcompact";
 import { BlobStore, isBlobRef, resolveImageData, resolveImageDataUrl } from "./blob-store";
 import { buildSessionContext } from "./session-context";
 import type { FileEntry, RawFileEntry, SessionEntry, SessionHeader } from "./session-entries";
 import { migrateToCurrentVersion } from "./session-migrations";
-import { isExternalizableImagePosition, isPersistenceTruncatedString } from "./session-persistence";
+import { isExternalizableImagePosition, isImageBlock, isPersistenceTruncatedString } from "./session-persistence";
 import { FileSessionStorage, type SessionStorage } from "./session-storage";
 import {
 	parseTitleSlotFromContent,
@@ -332,6 +332,69 @@ function hasImageUrl(value: unknown): value is { image_url: string } {
 	return typeof value === "object" && value !== null && "image_url" in value && typeof value.image_url === "string";
 }
 
+const OMIT_UNAVAILABLE_IMAGE = Symbol("omit-unavailable-image");
+const UNAVAILABLE_IMAGE_TEXT = "[Image unavailable: persisted image data is missing]";
+
+function isUnavailablePersistedImageData(value: unknown): value is string {
+	return typeof value === "string" && (isBlobRef(value) || isPersistenceTruncatedString(value));
+}
+
+/**
+ * Remove provider-native images whose backing blob could not be restored, and
+ * turn canonical message images into text so an otherwise image-only turn
+ * remains valid. Missing historical image bytes must never wedge the session.
+ */
+function repairUnavailablePersistedImages(
+	value: unknown,
+	key: string | undefined,
+	state: { changed: boolean },
+): unknown | typeof OMIT_UNAVAILABLE_IMAGE {
+	const omit = (): typeof OMIT_UNAVAILABLE_IMAGE => {
+		state.changed = true;
+		return OMIT_UNAVAILABLE_IMAGE;
+	};
+	if (isExternalizableImagePosition(value, key) && isUnavailablePersistedImageData(value.data)) {
+		if (key !== "content" || !isImageBlock(value)) return omit();
+		state.changed = true;
+		return { type: "text", text: UNAVAILABLE_IMAGE_TEXT };
+	}
+
+	if (
+		typeof value === "object" &&
+		value !== null &&
+		"type" in value &&
+		value.type === "image_generation_call" &&
+		"result" in value &&
+		isUnavailablePersistedImageData(value.result)
+	) {
+		return omit();
+	}
+
+	if (hasImageUrl(value) && isUnavailablePersistedImageData(value.image_url)) {
+		return omit();
+	}
+
+	if (Array.isArray(value)) {
+		let writeIndex = 0;
+		for (const item of value) {
+			const repaired = repairUnavailablePersistedImages(item, key, state);
+			if (repaired === OMIT_UNAVAILABLE_IMAGE) continue;
+			value[writeIndex++] = repaired;
+		}
+		value.length = writeIndex;
+		return value;
+	}
+
+	if (typeof value !== "object" || value === null) return value;
+	const record = value as Record<string, unknown>;
+	for (const [childKey, item] of Object.entries(record)) {
+		const repaired = repairUnavailablePersistedImages(item, childKey, state);
+		if (repaired === OMIT_UNAVAILABLE_IMAGE) return OMIT_UNAVAILABLE_IMAGE;
+		record[childKey] = repaired;
+	}
+	return value;
+}
+
 async function resolvePersistedBlobRefs(value: unknown, blobStore: BlobStore, key?: string): Promise<void> {
 	if (isExternalizableImagePosition(value, key) && isBlobRef(value.data)) {
 		value.data = await resolveImageData(blobStore, value.data);
@@ -405,8 +468,9 @@ function repairTruncatedSnapcompactFrames(entry: FileEntry): void {
 	});
 }
 
-export async function resolveBlobRefsInEntries(entries: FileEntry[], blobStore: BlobStore): Promise<void> {
+export async function resolveBlobRefsInEntries(entries: FileEntry[], blobStore: BlobStore): Promise<boolean> {
 	const pending: Promise<void>[] = [];
+	const repairState = { changed: false };
 	// Interleave precheck + initiation per entry so a positive entry begins resolution at the same
 	// relative point as the old filter+map schedule (no scan-all-first pass that could observe a
 	// later entry before an earlier resolution mutates it).
@@ -414,9 +478,14 @@ export async function resolveBlobRefsInEntries(entries: FileEntry[], blobStore: 
 		if (entry.type === "session") continue;
 		repairTruncatedSnapcompactFrames(entry);
 		if (!containsBlobRef(entry)) continue;
-		pending.push(resolvePersistedBlobRefs(entry, blobStore));
+		pending.push(
+			resolvePersistedBlobRefs(entry, blobStore).then(() => {
+				repairUnavailablePersistedImages(entry, undefined, repairState);
+			}),
+		);
 	}
 	await Promise.all(pending);
+	return repairState.changed;
 }
 
 /**

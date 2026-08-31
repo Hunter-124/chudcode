@@ -4,6 +4,7 @@
 
 ### Fixed
 
+- Sessions with missing historical image blobs now resume normally, showing an unavailable-image marker instead of repeatedly sending malformed base64 to the provider.
 - Sleep prevention now works on Linux: `power.sleepPrevention` takes a systemd-logind inhibitor for the duration of each prompt, so a long run no longer lets the machine dim, blank, lock, or suspend. It was previously macOS-only and silently did nothing everywhere else.
 - The Chudcode desktop launcher opens the native GUI window instead of a browser tab.
 - The desktop GUI no longer corrupts its own saved layout: it wrote `imgui.ini` through a dangling pointer at shutdown, which scattered garbage-named files into the working directory and lost window state.
