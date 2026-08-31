@@ -2,7 +2,7 @@
 set -eu
 
 PRODUCT_NAME="Chudcode"
-PRODUCT_VERSION="0.1.0"
+PRODUCT_VERSION="0.3.0"
 GUI_NAME="chudcode-gui"
 TARGET="${CHUDCODE_GUI_TARGET:-linux-x64}"
 CAD_ROOT="${CHUDCODE_CAD_ROOT:-/home/hunter/Repositories/CAD}"

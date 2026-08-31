@@ -3,6 +3,7 @@ import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
 import { $ } from "bun";
+import { PRODUCT_CLI_VERSION } from "../packages/coding-agent/src/brand";
 import {
 	buildReleaseManifest,
 	DESKTOP_RELEASE_TARGETS,
@@ -17,7 +18,7 @@ afterEach(async () => {
 
 const noticeTokens = "GLFW ImGui IXWebSocket libvterm stb_image Rubik JetBrains Mono Monaco xterm.js Bun\n";
 
-async function makeOfflineRelease(root: string, version = "0.2.0"): Promise<string> {
+async function makeOfflineRelease(root: string, version = PRODUCT_CLI_VERSION): Promise<string> {
 	const artifacts = path.join(root, "artifacts");
 	const payload = path.join(root, "payload");
 	await Promise.all([
