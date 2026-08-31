@@ -975,10 +975,12 @@ describe("steering a running session", () => {
 		await live.agent.pollCommands();
 		expect(live.client.aborts).toBe(1);
 		expect(live.client.stopped).toBe(false);
+		expect(live.rest.edits.at(-1)?.payload.embeds?.[0]).toMatchObject({ status: "interrupted" });
 
 		await live.bus.publish(command({ id: "cmd-stop", name: "stop", sessionId: "sess-live" }));
 		await live.agent.pollCommands();
 		expect(live.client.stopped).toBe(true);
+		expect(live.rest.modified.at(-1)?.options).toMatchObject({ name: "done-begin", parentId: DONE_CATEGORY });
 
 		// The session is gone; a further say must be refused, not silently dropped.
 		await live.bus.publish(command({ id: "cmd-say-dead", name: "say", sessionId: "sess-live", prompt: "hi" }));

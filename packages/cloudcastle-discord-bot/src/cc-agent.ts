@@ -370,6 +370,7 @@ interface RunningSession {
 	readonly client: RpcSessionHandle;
 	readonly transcript: TranscriptBuffer;
 	readonly channelId: string;
+	readonly snapshot: SessionSnapshot;
 	unsubscribe: () => void;
 }
 
@@ -961,6 +962,7 @@ export class CcAgent {
 			command,
 			client,
 			transcript,
+			snapshot: initialSnapshot,
 			channelId: mirror.channelId,
 			unsubscribe: () => {},
 		};
@@ -1068,6 +1070,17 @@ export class CcAgent {
 		}
 		if (command.name === "interrupt") {
 			await session.client.abort();
+			try {
+				await this.#mirrorOne({
+					...session.snapshot,
+					status: "interrupted",
+					updatedAt: this.#now().toISOString(),
+					lastText: "Current work paused by a teammate.",
+					channelId: session.channelId,
+				});
+			} catch (error) {
+				this.#log(`could not update the paused task status for ${session.sessionId}: ${describeError(error)}`);
+			}
 			session.transcript.push(`**Current work paused by <@${command.requestedBy}>**`);
 			await this.#publishResult(command, "done", "Current work paused. The task channel remains available.", {
 				sessionId: session.sessionId,
@@ -1079,6 +1092,17 @@ export class CcAgent {
 		await session.client.stop();
 		this.#sessions.delete(session.sessionId);
 		session.transcript.push(`**Task stopped by <@${command.requestedBy}>**`);
+		try {
+			await this.#mirrorOne({
+				...session.snapshot,
+				status: "aborted",
+				updatedAt: this.#now().toISOString(),
+				lastText: "Task stopped by a teammate.",
+				channelId: session.channelId,
+			});
+		} catch (error) {
+			this.#log(`could not archive the stopped task ${session.sessionId}: ${describeError(error)}`);
+		}
 		await session.transcript.drain();
 		await this.#publishResult(command, "done", "Task stopped.", {
 			sessionId: session.sessionId,
