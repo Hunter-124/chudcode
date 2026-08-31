@@ -6,6 +6,7 @@ import {
 	type SessionMessageEntry,
 } from "@chudware/agent-core/compaction";
 import type { AssistantMessage, Model, ProviderResponseMetadata, Usage } from "@chudware/ai";
+import { calculateUsageCostTotal, calculateUsageTokenComponents } from "@chudware/catalog/models";
 import { isRecord } from "@chudware/utils";
 import type { ModelRegistry } from "../config/model-registry";
 import type { ContextUsage } from "../extensibility/extensions/types";
@@ -95,6 +96,17 @@ export class SessionStatsTracker {
 		let totalTokens = 0;
 		let totalCost = 0;
 		let totalPremiumRequests = 0;
+		const addUsage = (usage: Usage): void => {
+			const tokens = calculateUsageTokenComponents(usage);
+			totalInput += tokens.input;
+			totalOutput += tokens.output;
+			totalReasoning += usage.reasoningTokens ?? 0;
+			totalCacheRead += tokens.cacheRead;
+			totalCacheWrite += tokens.cacheWrite;
+			totalTokens += tokens.input + tokens.output + tokens.cacheRead + tokens.cacheWrite;
+			totalPremiumRequests += usage.premiumRequests ?? 0;
+			totalCost += calculateUsageCostTotal(usage);
+		};
 		for (const message of state.messages) {
 			if (message.role === "assistant") {
 				const assistant = message;
@@ -102,26 +114,12 @@ export class SessionStatsTracker {
 				// Persisted and imported transcripts can predate usage metadata despite the current message type.
 				const usage = assistant.usage;
 				if (!usage) continue;
-				totalInput += usage.input;
-				totalOutput += usage.output;
-				totalReasoning += usage.reasoningTokens ?? 0;
-				totalCacheRead += usage.cacheRead;
-				totalCacheWrite += usage.cacheWrite;
-				totalTokens += usage.totalTokens;
-				totalPremiumRequests += usage.premiumRequests ?? 0;
-				totalCost += usage.cost.total;
+				addUsage(usage);
 			}
 			if (message.role === "toolResult" && message.toolName === "task") {
 				const usage = taskToolUsage(message.details);
 				if (!usage) continue;
-				totalInput += usage.input;
-				totalOutput += usage.output;
-				totalReasoning += usage.reasoningTokens ?? 0;
-				totalCacheRead += usage.cacheRead;
-				totalCacheWrite += usage.cacheWrite;
-				totalTokens += usage.totalTokens;
-				totalPremiumRequests += usage.premiumRequests ?? 0;
-				totalCost += usage.cost.total;
+				addUsage(usage);
 			}
 		}
 		return {
@@ -360,6 +358,10 @@ function isUsage(value: unknown): value is Usage {
 		typeof value.cacheRead === "number" &&
 		typeof value.cacheWrite === "number" &&
 		typeof value.totalTokens === "number" &&
+		typeof value.cost.input === "number" &&
+		typeof value.cost.output === "number" &&
+		typeof value.cost.cacheRead === "number" &&
+		typeof value.cost.cacheWrite === "number" &&
 		typeof value.cost.total === "number"
 	);
 }

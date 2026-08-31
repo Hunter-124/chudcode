@@ -595,6 +595,15 @@ export class RemoteAuthCredentialStore implements AuthCredentialStore {
 		return this.#client.listDisabledCredentials(provider, signal);
 	}
 
+	/**
+	 * Broker-backed maintenance hint. The client timestamp is intentionally not
+	 * forwarded; the broker owns retention decisions and applies its own clock.
+	 */
+	async pruneDisabledCredentials(_nowMs: number): Promise<void> {
+		this.#noteActivity();
+		await this.#client.pruneDisabledCredentials(this.#backgroundAbort.signal);
+	}
+
 	getCredentialBlock(credentialId: number, providerKey: string, blockScope: string): number | undefined {
 		this.#noteActivity();
 		const nowMs = Date.now();

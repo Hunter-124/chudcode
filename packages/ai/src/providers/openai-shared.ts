@@ -2,7 +2,7 @@ import type { Effort } from "@chudware/catalog/effort";
 import { toFirepassWireModelId, toFireworksWireModelId } from "@chudware/catalog/fireworks-model-id";
 import { isGlm52ReasoningEffortModelId, isKimiK3ModelId } from "@chudware/catalog/identity";
 import { getSupportedEfforts } from "@chudware/catalog/model-thinking";
-import { calculateCost } from "@chudware/catalog/models";
+import { calculateCost, calculateUsageTokenComponents, calculateUsageTotalTokens } from "@chudware/catalog/models";
 import type {
 	OpenAICompat,
 	OpenAIReasoningDisableMode,
@@ -402,11 +402,24 @@ export function applyOpenRouterReportedCost(model: Pick<Model, "provider">, usag
 		usage.cost.cacheRead *= scale;
 		usage.cost.cacheWrite *= scale;
 	} else {
-		// Keep legacy component-only aggregators additive when catalog pricing is unavailable.
-		usage.cost.input = reportedCost;
-		usage.cost.output = 0;
-		usage.cost.cacheRead = 0;
-		usage.cost.cacheWrite = 0;
+		// With no usable rate card, preserve the same token-component basis instead
+		// of disguising the entire authoritative charge as uncached input.
+		const componentTokens = calculateUsageTokenComponents(usage);
+		const totalTokens =
+			componentTokens.input + componentTokens.output + componentTokens.cacheRead + componentTokens.cacheWrite;
+		if (totalTokens > 0) {
+			usage.cost.input = reportedCost * (componentTokens.input / totalTokens);
+			usage.cost.output = reportedCost * (componentTokens.output / totalTokens);
+			usage.cost.cacheRead = reportedCost * (componentTokens.cacheRead / totalTokens);
+			usage.cost.cacheWrite = reportedCost - usage.cost.input - usage.cost.output - usage.cost.cacheRead;
+		} else {
+			// There is no component basis to reconcile; retain an additive total
+			// for legacy consumers that sum the four cost fields.
+			usage.cost.input = reportedCost;
+			usage.cost.output = 0;
+			usage.cost.cacheRead = 0;
+			usage.cost.cacheWrite = 0;
+		}
 	}
 	usage.cost.total = reportedCost;
 }
@@ -3758,7 +3771,7 @@ export function populateResponsesUsageFromResponse(
 			...(orchestrationInputCached > 0 ? { cacheRead: orchestrationInputCached } : {}),
 			...(orchestrationOutputTokens > 0 ? { output: orchestrationOutputTokens } : {}),
 		};
-		accounting.totalTokens = reportedTotalTokens ?? accounting.totalTokens + orchestrationTotal;
+		accounting.totalTokens = calculateUsageTotalTokens(accounting);
 	}
 
 	// Wholesale replacement must not drop provider-annotated extras (Copilot

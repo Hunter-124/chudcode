@@ -1,4 +1,5 @@
 import type { Usage } from "@chudware/ai";
+import { calculateUsageTokenComponents } from "@chudware/catalog/models";
 import { Container, Spacer, Text } from "@chudware/tui";
 import { formatDuration, formatNumber } from "@chudware/utils";
 import { theme } from "../../modes/theme/theme";
@@ -39,7 +40,8 @@ export function formatUsageRow(
 	timestamp?: number,
 	turnElapsedMs?: number,
 ): string {
-	const totalInput = usage.input + usage.cacheWrite;
+	const billable = calculateUsageTokenComponents(usage);
+	const totalInput = billable.input + billable.cacheWrite;
 	const parts: string[] = [];
 	// Lead with the turn's local wall-clock time (down to the second), log-line style.
 	if (timestamp !== undefined && Number.isFinite(timestamp) && timestamp > 0) {
@@ -54,18 +56,18 @@ export function formatUsageRow(
 		parts.push(`${theme.icon.time}Δ${formatDuration(Math.round(turnElapsedMs))}`);
 	}
 	parts.push(`${theme.icon.input} ${formatNumber(totalInput)}`);
-	parts.push(`${theme.icon.output} ${formatNumber(usage.output)}`);
-	if (usage.cacheRead > 0) {
-		parts.push(`${theme.icon.cache} ${formatNumber(usage.cacheRead)}`);
+	parts.push(`${theme.icon.output} ${formatNumber(billable.output)}`);
+	if (billable.cacheRead > 0) {
+		parts.push(`${theme.icon.cache} ${formatNumber(billable.cacheRead)}`);
 	}
 	if (ttftMs && ttftMs > 0) {
 		parts.push(`${theme.icon.time} ${(ttftMs / 1000).toFixed(1)}s`);
 	}
-	if (durationMs && durationMs > MIN_DURATION_MS && usage.output > 0) {
+	if (durationMs && durationMs > MIN_DURATION_MS && billable.output > 0) {
 		// TPS over the total request duration — the post-TTFT window undercounts
 		// generation time when reasoning tokens are hidden before the first
 		// visible byte, inflating the rate.
-		const tokPerSec = (usage.output / durationMs) * 1000;
+		const tokPerSec = (billable.output / durationMs) * 1000;
 		parts.push(`${theme.icon.throughput} ${tokPerSec.toFixed(1)}/s`);
 	}
 	return parts.join("  ");

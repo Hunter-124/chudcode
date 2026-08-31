@@ -1,5 +1,6 @@
 import { stripVTControlCharacters } from "node:util";
 import { ThinkingLevel } from "@chudware/agent-core";
+import { calculateUsageTokenComponents } from "@chudware/catalog/models";
 import { type Component, padding, truncateToWidth, visibleWidth } from "@chudware/tui";
 import { formatNumber, getProjectDir } from "@chudware/utils";
 import { settings } from "../../config/settings";
@@ -100,25 +101,26 @@ export class FooterComponent implements Component {
 
 	render(width: number): readonly string[] {
 		const state = this.session.state;
-
-		// Calculate cumulative usage from ALL session entries (not just post-compaction messages)
-		let totalInput = 0;
-		let totalOutput = 0;
-		let totalCacheRead = 0;
-		let totalCacheWrite = 0;
-		let totalCost = 0;
-		let totalPremiumRequests = 0;
-
-		for (const entry of this.session.sessionManager.getEntries()) {
-			if (entry.type === "message" && entry.message.role === "assistant") {
-				totalInput += entry.message.usage.input;
-				totalOutput += entry.message.usage.output;
-				totalCacheRead += entry.message.usage.cacheRead;
-				totalCacheWrite += entry.message.usage.cacheWrite;
-				totalCost += entry.message.usage.cost.total;
-				totalPremiumRequests += entry.message.usage.premiumRequests ?? 0;
-			}
-		}
+		// SessionManager's index includes assistant and delegated-task usage from
+		// every persisted entry, including history no longer in active context.
+		const usageStats = this.session.sessionManager.getUsageStatistics();
+		const billableTokens = calculateUsageTokenComponents({
+			input: usageStats.input,
+			output: usageStats.output,
+			cacheRead: usageStats.cacheRead,
+			cacheWrite: usageStats.cacheWrite,
+			orchestration: {
+				input: usageStats.orchestrationInput,
+				output: usageStats.orchestrationOutput,
+				cacheRead: usageStats.orchestrationCacheRead,
+			},
+		});
+		const totalInput = billableTokens.input;
+		const totalOutput = billableTokens.output;
+		const totalCacheRead = billableTokens.cacheRead;
+		const totalCacheWrite = billableTokens.cacheWrite;
+		const totalCost = usageStats.cost;
+		const totalPremiumRequests = usageStats.premiumRequests;
 
 		// Calculate context usage from session (handles compaction correctly).
 		// After compaction, tokens are unknown until the next LLM response.

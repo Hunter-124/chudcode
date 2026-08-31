@@ -363,6 +363,15 @@ export class AuthBrokerClient {
 		}
 	}
 
+	/**
+	 * Ask the broker to run its bounded tombstone maintenance. The disabled-list
+	 * route deliberately carries no client timestamp: the broker applies its
+	 * own authoritative clock and returns only token-free summaries.
+	 */
+	async pruneDisabledCredentials(signal?: AbortSignal): Promise<void> {
+		await this.listDisabledCredentials(undefined, signal);
+	}
+
 	async uploadCredential(
 		provider: string,
 		credential: AuthCredential,

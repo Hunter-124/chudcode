@@ -1,3 +1,4 @@
+import { calculateUsageCostTotal, calculateUsageTokenComponents } from "@chudware/catalog/models";
 import type { AgentMetricsSummary, AgentRef, AgentStatus } from "../../registry/agent-registry";
 import { MAIN_AGENT_ID } from "../../registry/agent-registry";
 import type { ObservableSession } from "../session-observer-registry";
@@ -89,9 +90,11 @@ function readSessionMetrics(session: NonNullable<AgentRef["session"]>): AgentMet
 		for (const message of messages) {
 			if (message.role !== "assistant") continue;
 			requests++;
-			tokens += message.usage.input + message.usage.output + message.usage.cacheWrite;
+			const usage = message.usage;
+			const billable = calculateUsageTokenComponents(usage);
+			tokens += billable.input + billable.output + billable.cacheWrite;
 			tools += message.content.filter(content => content.type === "toolCall").length;
-			cost += message.usage.cost.total;
+			cost += calculateUsageCostTotal(usage);
 		}
 		return {
 			tokens,

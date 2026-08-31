@@ -667,7 +667,8 @@ export class ModelBrowser implements Component {
 
 	/**
 	 * Route a mouse event. `line` is relative to the browser's first rendered
-	 * row (the search row).
+	 * row (the search row). Shared-overlay events select on the first click and
+	 * activate on the classified double-click.
 	 */
 	routeMouse(event: SgrMouseEvent, line: number): void {
 		if (event.wheel !== null) {
@@ -684,8 +685,11 @@ export class ModelBrowser implements Component {
 		const index = this.#hoverIndexAt(line);
 		const item = index !== null ? this.#visibleItems[index] : undefined;
 		if (index === null || !item) return;
-		// Settings idiom: click selects, click-again activates.
-		if (index === this.#selectedIndex) {
+		const clickCount = "clickCount" in event && typeof event.clickCount === "number" ? event.clickCount : undefined;
+		if (clickCount !== undefined) {
+			this.#setSelectedIndex(index);
+			if (clickCount === 2) this.onActivate?.(item);
+		} else if (index === this.#selectedIndex) {
 			this.onActivate?.(item);
 		} else {
 			this.#setSelectedIndex(index);

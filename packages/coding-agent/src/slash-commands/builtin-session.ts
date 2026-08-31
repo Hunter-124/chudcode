@@ -1,6 +1,8 @@
 import { getOAuthProviders } from "@chudware/ai/oauth";
 import type { AgentSession } from "../session/agent-session";
 import type { SessionOAuthAccountList } from "../session/agent-session-types";
+import { doctorSessionFile } from "../session/session-doctor";
+import type { SessionManager } from "../session/session-manager";
 import {
 	getChangelogPath,
 	parseChangelog,
@@ -136,6 +138,54 @@ async function handleSessionPinCommand(
 	await output(`Pinned ${account.label} to this session for ${providerName}.`);
 }
 
+async function handleSessionDoctorCommand(
+	arg: string,
+	session: AgentSession,
+	sessionManager: SessionManager,
+	output: SlashCommandRuntime["output"],
+): Promise<void> {
+	const option = arg.trim().toLowerCase();
+	if (option !== "" && option !== "repair" && option !== "--repair") {
+		await output("Usage: /session doctor [--repair]");
+		return;
+	}
+	if (session.isStreaming) {
+		await output("Cannot inspect or repair the session while streaming.");
+		return;
+	}
+	const sessionFile = sessionManager.getSessionFile();
+	if (!sessionFile) {
+		await output("No persisted session file to inspect (in-memory session).");
+		return;
+	}
+	try {
+		await sessionManager.flush();
+		if (option !== "") {
+			// Reloading the same path closes the active append writer before the
+			// doctor atomically replaces the journal. Header corruption may make
+			// the reload fail, but the writer is already closed and the doctor can
+			// still return its non-mutating invalid-header diagnosis.
+			try {
+				await sessionManager.setSessionFile(sessionFile);
+			} catch {
+				// The writer is closed; the repair engine now decides whether the persisted bytes are safely repairable.
+			}
+		}
+		const summary = await doctorSessionFile(sessionFile, { repair: option !== "" });
+		if (summary.changed) {
+			try {
+				await sessionManager.setSessionFile(sessionFile);
+			} catch (reloadError) {
+				await output(JSON.stringify({ ...summary, reloadError: errorMessage(reloadError) }, null, 2));
+				return;
+			}
+		}
+		await output(JSON.stringify(summary, null, 2));
+	} catch (error) {
+		await output(`Session doctor failed: ${errorMessage(error)}`);
+	}
+}
+
 export const BUILTIN_SESSION_SLASH_COMMANDS: ReadonlyArray<SlashCommandSpec> = [
 	{
 		name: "todo",
@@ -189,7 +239,7 @@ export const BUILTIN_SESSION_SLASH_COMMANDS: ReadonlyArray<SlashCommandSpec> = [
 		icon: "session",
 		description: "Session management commands",
 		acpDescription: "Show or configure the current session",
-		acpInputHint: "[info|delete|pin [account]]",
+		acpInputHint: "[info|delete|pin [account]|doctor [--repair]]",
 		subcommands: [
 			{ name: "info", description: "Show session info and stats" },
 			{ name: "delete", description: "Delete current session and return to selector" },
@@ -197,6 +247,11 @@ export const BUILTIN_SESSION_SLASH_COMMANDS: ReadonlyArray<SlashCommandSpec> = [
 				name: "pin",
 				description: "Pin the current provider to a stored OAuth account",
 				usage: "[account]",
+			},
+			{
+				name: "doctor",
+				description: "Diagnose the persisted session; repair only with --repair",
+				usage: "[--repair]",
 			},
 		],
 		allowArgs: true,
@@ -235,7 +290,11 @@ export const BUILTIN_SESSION_SLASH_COMMANDS: ReadonlyArray<SlashCommandSpec> = [
 				await handleSessionPinCommand(rest, runtime.session, runtime.output);
 				return commandConsumed();
 			}
-			return usage("Usage: /session [info|delete|pin [account]]", runtime);
+			if (verb === "doctor") {
+				await handleSessionDoctorCommand(rest, runtime.session, runtime.sessionManager, runtime.output);
+				return commandConsumed();
+			}
+			return usage("Usage: /session [info|delete|pin [account]|doctor [--repair]]", runtime);
 		},
 		handleTui: async (command, runtime) => {
 			const { verb, rest } = parseSubcommand(command.args);
@@ -254,10 +313,17 @@ export const BUILTIN_SESSION_SLASH_COMMANDS: ReadonlyArray<SlashCommandSpec> = [
 				runtime.ctx.editor.setText("");
 				return;
 			}
+			if (verb === "doctor") {
+				await handleSessionDoctorCommand(rest, runtime.ctx.session, runtime.ctx.sessionManager, text =>
+					runtime.ctx.showStatus(text),
+				);
+				runtime.ctx.editor.setText("");
+				return;
+			}
 			if (!verb || (verb === "info" && !rest)) {
 				await runtime.ctx.handleSessionCommand();
 			} else {
-				runtime.ctx.showStatus("Usage: /session [info|delete|pin [account]]");
+				runtime.ctx.showStatus("Usage: /session [info|delete|pin [account]|doctor [--repair]]");
 			}
 			runtime.ctx.editor.setText("");
 		},

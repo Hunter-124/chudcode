@@ -5,6 +5,7 @@ import * as path from "node:path";
 import type { AgentMessage } from "@chudware/agent-core";
 import { type ApiKey, completeSimple, Effort, type Model, retryTransientCompletion } from "@chudware/ai";
 import { clampThinkingLevelForModel } from "@chudware/catalog/model-thinking";
+import { calculateUsageTokenComponents } from "@chudware/catalog/models";
 import { getAgentDbPath, getMemoriesDir, isEnoent, logger, parseJsonlLenient, prompt } from "@chudware/utils";
 import * as fsx from "@chudware/utils/fsx";
 import type { ModelRegistry } from "../config/model-registry";
@@ -451,11 +452,12 @@ async function runPhase1(options: MemoryStartupOptions): Promise<void> {
 			stats.succeeded += 1;
 			stats.produced += 1;
 			if (result.usage) {
-				stats.usage.input += result.usage.input;
-				stats.usage.output += result.usage.output;
-				stats.usage.cacheRead += result.usage.cacheRead;
-				stats.usage.cacheWrite += result.usage.cacheWrite;
-				stats.usage.total += result.usage.totalTokens || 0;
+				const billable = calculateUsageTokenComponents(result.usage);
+				stats.usage.input += billable.input;
+				stats.usage.output += billable.output;
+				stats.usage.cacheRead += billable.cacheRead;
+				stats.usage.cacheWrite += billable.cacheWrite;
+				stats.usage.total += billable.input + billable.output + billable.cacheRead + billable.cacheWrite;
 			}
 		});
 

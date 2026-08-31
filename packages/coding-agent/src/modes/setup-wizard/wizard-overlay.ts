@@ -3,13 +3,12 @@ import {
 	matchesKey,
 	type OverlayFocusOwner,
 	padding,
-	routeSgrMouseInput,
-	type SgrMouseEvent,
 	truncateToWidth,
 	visibleWidth,
 } from "@chudware/tui";
 import { PRODUCT_CLI_NAME } from "../../brand";
-import { gradientLogo, CHUDCODE_LOGO } from "../components/welcome";
+import { type OverlayMouseEvent, OverlayMouseRouter } from "../components/mouse-routing";
+import { CHUDCODE_LOGO, gradientLogo } from "../components/welcome";
 import { theme } from "../theme/theme";
 import type { InteractiveModeContext } from "../types";
 import { renderSetupOutro, SETUP_OUTRO_MS } from "./scenes/outro";
@@ -72,6 +71,8 @@ export class SetupWizardComponent implements Component, OverlayFocusOwner {
 	#disposed = false;
 	/** Screen row where the active scene's body began in the last rendered frame. */
 	#bodyRowStart = 0;
+	#frameRows = 0;
+	#mouse = new OverlayMouseRouter();
 	#sceneFocusTarget: Component | undefined;
 
 	constructor(
@@ -104,12 +105,33 @@ export class SetupWizardComponent implements Component, OverlayFocusOwner {
 
 	handleInput(data: string): void {
 		if (this.#phase === "done") return;
-		if (data.startsWith("\x1b[<")) {
-			routeSgrMouseInput(data, event => {
-				this.#routeMouseEvent(event);
-			});
-			return;
-		}
+		const scene = this.#activeScene;
+		const phase = this.#phase;
+		const routed = this.#mouse.route(data, () => ({
+			regions: [
+				{
+					id: `setup-${phase}`,
+					rowStart: 0,
+					rowCount: this.#frameRows || Math.max(1, this.ctx.ui.terminal.rows),
+					onMouse: (event: OverlayMouseEvent) => {
+						if (phase === "splash" || phase === "outro") {
+							if (event.clickCount === 0) return;
+							if (phase === "splash") this.#beginScene();
+							else this.#complete();
+							return;
+						}
+						if (!scene) return;
+						if (scene.routeMouse) {
+							scene.routeMouse(event, event.row - this.#bodyRowStart, event.col - SCENE_MARGIN_X);
+						} else if (event.wheel !== null) {
+							scene.handleInput?.(event.wheel === -1 ? "\x1b[A" : "\x1b[B");
+						}
+					},
+				},
+			],
+			consumeOutside: true,
+		}));
+		if (routed) return;
 		if (matchesKey(data, "ctrl+c")) {
 			this.#beginOutro();
 			return;
@@ -139,37 +161,10 @@ export class SetupWizardComponent implements Component, OverlayFocusOwner {
 		this.#activeScene?.handleInput?.(data);
 	}
 
-	/**
-	 * Mouse handling for the fullscreen wizard (SGR tracking is on while the
-	 * overlay holds the alternate screen). The frame paints from screen row 0,
-	 * so report coordinates index directly into the last rendered lines: scene
-	 * body rows start at #bodyRowStart, indented by SCENE_MARGIN_X. Scenes
-	 * that implement routeMouse get hit-tested events (wheel, hover, click);
-	 * for the rest a wheel notch falls back to an arrow key. A left click
-	 * advances the splash/outro like Enter. Raw reports never reach scene
-	 * keyboard input.
-	 */
-	#routeMouseEvent(event: SgrMouseEvent): void {
-		if (this.#phase === "splash" || this.#phase === "outro") {
-			if (!event.leftClick) return;
-			if (this.#phase === "splash") this.#beginScene();
-			else this.#complete();
-			return;
-		}
-		const scene = this.#activeScene;
-		if (!scene) return;
-		if (scene.routeMouse) {
-			scene.routeMouse(event, event.row - this.#bodyRowStart, event.col - SCENE_MARGIN_X);
-			return;
-		}
-		if (event.wheel !== null) {
-			scene.handleInput?.(event.wheel === -1 ? "\x1b[A" : "\x1b[B");
-		}
-	}
-
 	render(width: number): readonly string[] {
 		const safeWidth = Math.max(1, width);
 		const height = Math.max(1, this.ctx.ui.terminal.rows);
+		this.#frameRows = height;
 		let lines: string[];
 		switch (this.#phase) {
 			case "splash":

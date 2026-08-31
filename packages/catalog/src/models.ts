@@ -1,5 +1,5 @@
-import { openBundledModelCatalog } from "./models-binary";
 import type { GeneratedProvider } from "./models-bin-meta";
+import { openBundledModelCatalog } from "./models-binary";
 import type { Api, KnownProvider, Model, ModelCost, TokenCost, Usage } from "./types";
 
 export type { GeneratedProvider } from "./models-bin-meta";
@@ -45,6 +45,48 @@ export function getBundledModels(provider: GeneratedProvider): Model<Api>[] {
 	const models = getProviderModels(provider);
 	return models ? (Array.from(models.values()) as Model<Api>[]) : [];
 }
+export interface UsageTokenComponents {
+	input: number;
+	output: number;
+	cacheRead: number;
+	cacheWrite: number;
+}
+
+/** Fold provider-side orchestration into the matching billable token buckets exactly once. */
+export function calculateUsageTokenComponents(
+	usage: Pick<Usage, "input" | "output" | "cacheRead" | "cacheWrite" | "orchestration">,
+): UsageTokenComponents {
+	const orchestration = usage.orchestration;
+	return {
+		input: usage.input + (orchestration?.input ?? 0),
+		output: usage.output + (orchestration?.output ?? 0),
+		cacheRead: usage.cacheRead + (orchestration?.cacheRead ?? 0),
+		cacheWrite: usage.cacheWrite,
+	};
+}
+
+/** Sum every billable token bucket represented by one usage record. */
+export function calculateUsageTotalTokens(
+	usage: Pick<Usage, "input" | "output" | "cacheRead" | "cacheWrite" | "orchestration">,
+): number {
+	const components = calculateUsageTokenComponents(usage);
+	return components.input + components.output + components.cacheRead + components.cacheWrite;
+}
+
+/** Sum the four reconciled dollar buckets instead of counting a provider-reported total twice. */
+export function calculateUsageCostTotal(usage: Pick<Usage, "cost">): number {
+	return usage.cost.input + usage.cost.output + usage.cost.cacheRead + usage.cost.cacheWrite;
+}
+
+/** Whether a model has a complete, usable rate card rather than a zero-filled unknown placeholder. */
+export function hasKnownModelPricing(model: Pick<Model, "cost" | "pricingKnown"> | undefined): boolean {
+	if (!model || model.pricingKnown === false) return false;
+	const rates = model.cost;
+	const values = [rates.input, rates.output, rates.cacheRead, rates.cacheWrite];
+	if (!values.every(value => Number.isFinite(value) && value >= 0)) return false;
+	return model.pricingKnown === true || values.some(value => value > 0);
+}
+
 function resolveTokenCost(cost: ModelCost, promptInputTokens: number): TokenCost {
 	const longContext = cost.longContext;
 	if (!longContext) return cost;
@@ -62,15 +104,15 @@ export function calculateUncachedInputCost(cost: ModelCost, promptInputTokens: n
 
 /** Price one usage record from a token rate card, including active context tiers. */
 export function calculateUsageCost(cost: ModelCost, usage: Usage): Usage["cost"] {
-	const orchestration = usage.orchestration;
-	const promptInputTokens =
-		usage.input + usage.cacheRead + usage.cacheWrite + (orchestration?.input ?? 0) + (orchestration?.cacheRead ?? 0);
+	const components = calculateUsageTokenComponents(usage);
+	usage.totalTokens = components.input + components.output + components.cacheRead + components.cacheWrite;
+	const promptInputTokens = components.input + components.cacheRead + components.cacheWrite;
 	const rates = resolveTokenCost(cost, promptInputTokens);
-	usage.cost.input = (rates.input / 1000000) * (usage.input + (orchestration?.input ?? 0));
-	usage.cost.output = (rates.output / 1000000) * (usage.output + (orchestration?.output ?? 0));
-	usage.cost.cacheRead = (rates.cacheRead / 1000000) * (usage.cacheRead + (orchestration?.cacheRead ?? 0));
+	usage.cost.input = (rates.input / 1000000) * components.input;
+	usage.cost.output = (rates.output / 1000000) * components.output;
+	usage.cost.cacheRead = (rates.cacheRead / 1000000) * components.cacheRead;
 	usage.cost.cacheWrite = cacheWriteCost(rates, usage);
-	usage.cost.total = usage.cost.input + usage.cost.output + usage.cost.cacheRead + usage.cost.cacheWrite;
+	usage.cost.total = calculateUsageCostTotal(usage);
 	return usage.cost;
 }
 
@@ -85,14 +127,13 @@ export function calculateCost<TApi extends Api>(model: Model<TApi>, usage: Usage
  * is the net cache benefit for the request rather than gross read savings.
  */
 export function calculatePromptCacheSavings(cost: ModelCost, usage: Usage): number {
-	const orchestration = usage.orchestration;
-	const promptInputTokens =
-		usage.input + usage.cacheRead + usage.cacheWrite + (orchestration?.input ?? 0) + (orchestration?.cacheRead ?? 0);
+	const components = calculateUsageTokenComponents(usage);
+	const promptInputTokens = components.input + components.cacheRead + components.cacheWrite;
 	const rates = resolveTokenCost(cost, promptInputTokens);
 	const uncachedCost = (rates.input / 1_000_000) * promptInputTokens;
 	const actualCost =
-		(rates.input / 1_000_000) * (usage.input + (orchestration?.input ?? 0)) +
-		(rates.cacheRead / 1_000_000) * (usage.cacheRead + (orchestration?.cacheRead ?? 0)) +
+		(rates.input / 1_000_000) * components.input +
+		(rates.cacheRead / 1_000_000) * components.cacheRead +
 		cacheWriteCost(rates, usage);
 	return uncachedCost - actualCost;
 }

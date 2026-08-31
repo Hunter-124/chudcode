@@ -8,6 +8,7 @@ import type {
 	TextContent,
 	Usage,
 } from "@chudware/ai";
+import { calculateUsageCostTotal, calculateUsageTotalTokens } from "@chudware/catalog/models";
 import {
 	directoryIsEnterable,
 	getBlobsDir,
@@ -190,12 +191,12 @@ function addUsage(target: UsageStatistics, usage: Usage | undefined): void {
 	target.output += usage.output;
 	target.cacheRead += usage.cacheRead;
 	target.cacheWrite += usage.cacheWrite;
-	target.totalTokens += usage.totalTokens;
+	target.totalTokens += calculateUsageTotalTokens(usage);
 	target.orchestrationInput += usage.orchestration?.input ?? 0;
 	target.orchestrationOutput += usage.orchestration?.output ?? 0;
 	target.orchestrationCacheRead += usage.orchestration?.cacheRead ?? 0;
 	target.premiumRequests += usage.premiumRequests ?? 0;
-	target.cost += usage.cost.total;
+	target.cost += calculateUsageCostTotal(usage);
 }
 
 function isAssistantEntry(entry: SessionEntry): boolean {

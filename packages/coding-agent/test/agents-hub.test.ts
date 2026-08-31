@@ -97,13 +97,49 @@ describe("AgentsHub layout", () => {
 		// top border + content rows + divider + footer + bottom border = terminal rows.
 		expect(lines.length).toBe(30);
 		const rendered = strip();
-		expect(rendered).toContain("Agents");
+		expect(rendered).toContain("Agent assignments");
 		expect(rendered).toContain("All agents");
 		expect(rendered).toContain("Project");
 		expect(rendered).toContain("Bundled");
 		expect(rendered).toContain("dev");
 		expect(rendered).toContain("scout");
 		expect(rendered).toContain("+ New agent");
+		expect(rendered).not.toContain("capabilities:");
+	});
+
+	test("shows the resolved role, provider/model/effort, and injected-context provenance in one assignment view", async () => {
+		vi.spyOn(discovery, "discoverAgents").mockResolvedValue({
+			projectAgentsDir: null,
+			agents: [
+				{
+					name: "scout",
+					description: "Read-only research",
+					systemPrompt: "embedded instructions",
+					source: "bundled",
+					filePath: "embedded:scout.md",
+					model: ["@smol"],
+					thinkingLevel: Effort.Medium,
+					tools: ["read", "grep"],
+					spawns: [],
+					prewalk: "@smol",
+					advisor: true,
+				},
+			],
+		});
+		const selector = `${sonnet.provider}/${sonnet.id}`;
+		const settings = Settings.isolated({ modelRoles: { smol: selector, advisor: selector } });
+		settings.set("settings.tier", "advanced");
+		const { hub } = await createHub(settings);
+		const rendered = hub.render(180).join("\n").replace(ANSI_PATTERN, "");
+
+		expect(rendered).toContain(`@smol → ${selector}`);
+		expect(rendered).toContain("effort medium");
+		expect(rendered).toContain("model source: embedded agent role");
+		expect(rendered).toContain("prompt context: embedded bundled prompt · embedded:scout.md");
+		expect(rendered).toContain(`prewalk context: @smol → ${selector} (embedded frontmatter)`);
+		expect(rendered).toContain(`advisor context: @advisor → ${selector}`);
+		expect(rendered).toContain("Enter change assignment/context");
+		expect(rendered).toContain("capabilities: tools read, grep · spawns none");
 	});
 
 	test("sidebar scope filters the rows to one source", async () => {
@@ -112,7 +148,7 @@ describe("AgentsHub layout", () => {
 		hub.handleInput("\x1b[D"); // left → scope focus
 		hub.handleInput("\x1b[B"); // down → Project
 		const rendered = strip();
-		expect(rendered).toContain("Project agents · 1");
+		expect(rendered).toContain("Project agent assignments · 1");
 		expect(rendered).toContain("dev");
 		expect(rendered).not.toContain("scout");
 	});

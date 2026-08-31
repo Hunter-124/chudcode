@@ -210,27 +210,27 @@ describe("CustomEditor bracketed path paste", () => {
 		expect(extractBracketedImagePastePaths(bracketedPaste("/tmp/report.csv"))).toBeUndefined();
 	});
 
-	it("inserts non-image path pastes as literal text instead of attaching them", () => {
+	it("routes explicit non-image paths through the typed path attachment callback", () => {
 		const { editor } = makeEditor();
-		let imagePathCalls = 0;
-		editor.onPasteImagePath = () => {
-			imagePathCalls++;
+		const pasted: string[] = [];
+		editor.onPastePath = path => {
+			pasted.push(path);
 		};
 
 		editor.handleInput(bracketedPaste("/tmp/report.csv"));
 
-		expect(editor.getText()).toBe("/tmp/report.csv");
-		expect(imagePathCalls).toBe(0);
+		expect(pasted).toEqual(["/tmp/report.csv"]);
+		expect(editor.getText()).toBe("");
 	});
 
-	it("attaches a spaced screenshot path as an image instead of inserting it as literal text", () => {
+	it("attaches a spaced screenshot path instead of inserting it as literal text", () => {
 		// #6578: the raw macOS "copy screenshot path" payload has unescaped
-		// spaces, which defeats the segment splitter. Before the whole-text
-		// fallback the paste degraded to literal text in the prompt.
+		// spaces, which defeats the segment splitter. The anchored whole-text
+		// path pass keeps it one attachment.
 		const { editor } = makeEditor();
 		const screenshot = "/Users/me/Desktop/Screenshot 2026-07-24 at 1.55.12 PM.png";
 		const pasted: string[] = [];
-		editor.onPasteImagePath = path => {
+		editor.onPastePath = path => {
 			pasted.push(path);
 		};
 
@@ -242,15 +242,14 @@ describe("CustomEditor bracketed path paste", () => {
 
 	it("keeps a two-file drag with unescaped spaces as text instead of attaching one fused path", () => {
 		// PR #6582 review: selecting two screenshots and dropping them together
-		// emits a single space-separated payload the splitter also refuses
-		// (`PM.png` carries no directory). Fusing it into one path attaches
-		// nothing — `handleImagePathPaste` hits ENOENT and only shows a status,
-		// never restoring the text — so the drop must degrade to a text paste.
+		// emits a single space-separated payload the splitter also refuses.
+		// Fusing it into one path would lose both files, so ambiguity remains
+		// a plain text paste.
 		const { editor } = makeEditor();
 		const dropped =
 			"/Users/me/Desktop/Screenshot 2026-07-24 at 1.55.12 PM.png /Users/me/Desktop/Screenshot 2026-07-24 at 1.56.00 PM.png";
 		const pasted: string[] = [];
-		editor.onPasteImagePath = path => {
+		editor.onPastePath = path => {
 			pasted.push(path);
 		};
 

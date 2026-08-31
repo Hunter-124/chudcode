@@ -1,18 +1,17 @@
 /**
  * Fullscreen /agents hub, shown on the alternate screen like /models.
  *
- * Layout mirrors the model hub: a sidebar of scopes (All agents, per-source
- * groups, "+ New agent"), a body listing agents with type-to-filter search,
- * and a footer that turns into a chip strip while configuring. Enter on an
- * agent opens its property strip (enabled / model / prewalk / advisor); a
- * property opens a value strip whose "pick model…" chip dives into the real
- * ModelBrowser and whose "pattern…" chip opens an inline pattern input, so
- * every per-agent knob is picked instead of memorized.
+ * The main body is the transparent assignment view: every agent row names its
+ * @role (or direct source), resolved provider/model, and effective effort. The
+ * selected detail explains prompt/prewalk/advisor context provenance and Enter
+ * opens the one per-agent assignment strip. A scope sidebar and type-to-filter
+ * search keep larger rosters navigable; the model picker is embedded instead
+ * of duplicating a second assignment surface.
  */
 
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
-import type { AgentMessage } from "@chudware/agent-core";
+import { type AgentMessage, ThinkingLevel } from "@chudware/agent-core";
 import {
 	type Component,
 	Editor,
@@ -20,8 +19,6 @@ import {
 	Input,
 	matchesKey,
 	replaceTabs,
-	routeSgrMouseInput,
-	type SgrMouseEvent,
 	type TUI,
 	truncateToWidth,
 	visibleWidth,
@@ -35,7 +32,7 @@ import { getConfigDirs } from "../../config";
 import type { ModelRegistry } from "../../config/model-registry";
 import {
 	resolveAgentAdvisorSelection,
-	resolveAgentModelPatterns,
+	resolveAgentModelSelection,
 	resolveAgentPrewalkPattern,
 	resolveConfiguredModelPatterns,
 	resolveModelOverride,
@@ -48,6 +45,7 @@ import { refreshAgentDiscovery } from "../../task";
 import { discoverAgents } from "../../task/discovery";
 import { resolveAgentPrewalkDefault } from "../../task/prewalk";
 import type { AgentDefinition, AgentSource } from "../../task/types";
+import { getConfiguredThinkingLevelMetadata } from "../../thinking";
 import { shortenPath } from "../../tools/render-utils";
 import { getEditorTheme, theme } from "../theme/theme";
 import {
@@ -57,6 +55,7 @@ import {
 	matchesSelectUp,
 } from "../utils/keybinding-matchers";
 import { buildBrowserItems, ModelBrowser, type ModelBrowserItem, sortModelItems } from "./model-browser";
+import { type OverlayMouseEvent, OverlayMouseRouter } from "./mouse-routing";
 import { bottomBorder, dividerSplit, row, splitBodyWidth, splitRow, topBorderSplit } from "./overlay-box";
 
 /** One agent with its per-agent settings overrides resolved for display. */
@@ -137,8 +136,10 @@ export interface AgentsHubCallbacks {
 	onCancel: () => void;
 }
 
+const HUB_TITLE = "Agent assignments";
 const SIDEBAR_MIN_WIDTH = 16;
 const SIDEBAR_MAX_WIDTH = 24;
+const BODY_MIN_WIDTH = 30;
 const IDENTIFIER_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+){1,5}$/;
 
 function extractAssistantText(messages: AgentMessage[]): string | null {
@@ -253,6 +254,7 @@ export class AgentsHubComponent implements Component {
 	#footerRow = 0;
 	/** First agent-list row's offset in body-line coordinates (after the status row). */
 	#listRowStart = 2;
+	#mouse = new OverlayMouseRouter();
 
 	private constructor(
 		tui: TUI,
@@ -398,23 +400,61 @@ export class AgentsHubComponent implements Component {
 	// Effective per-agent values
 	// ═══════════════════════════════════════════════════════════════════════
 
-	#effectiveModelPatterns(agent: HubAgent): string[] {
-		return resolveAgentModelPatterns({
+	#assignmentSummary(agent: HubAgent): {
+		patterns: string[];
+		role?: string;
+		resolved?: string;
+		effort: string;
+		source: string;
+	} {
+		const selection = resolveAgentModelSelection({
 			settingsOverride: agent.overrideModel,
 			agentModel: agent.model,
 			settings: this.#settings,
 			activeModelPattern: this.#modelContext.activeModelPattern,
 			fallbackModelPattern: this.#modelContext.defaultModelPattern,
 		});
+		const registry = this.#modelContext.modelRegistry;
+		const resolved =
+			registry && selection.patterns.length > 0
+				? resolveModelOverride(selection.patterns, registry, this.#settings)
+				: undefined;
+		const effortValue =
+			resolved?.explicitThinkingLevel && resolved.thinkingLevel
+				? resolved.thinkingLevel
+				: (agent.thinkingLevel ?? resolved?.thinkingLevel);
+		const effort =
+			effortValue && effortValue !== ThinkingLevel.Inherit
+				? getConfiguredThinkingLevelMetadata(effortValue).label
+				: "provider default";
+		const resolvedLabel = resolved?.model ? `${resolved.model.provider}/${resolved.model.id}` : undefined;
+		const overridePatterns = resolveConfiguredModelPatterns(agent.overrideModel, this.#settings);
+		let source: string;
+		if (overridePatterns.length > 0) {
+			source = "per-agent override";
+		} else if (selection.role && agent.model && agent.model.length > 0) {
+			source = `${agent.source === "bundled" ? "embedded" : agent.source} agent role`;
+		} else if (agent.model && agent.model.length > 0 && selection.patterns.length > 0) {
+			source = `${agent.source === "bundled" ? "embedded" : agent.source} agent file`;
+		} else if (this.#modelContext.activeModelPattern?.trim()) {
+			source = "active session model";
+		} else {
+			source = "default model role";
+		}
+		return { patterns: selection.patterns, role: selection.role, resolved: resolvedLabel, effort, source };
 	}
 
-	#resolvePatterns(patterns: string[]): string | undefined {
+	#resolveContextPattern(pattern: string | undefined): string | undefined {
 		const registry = this.#modelContext.modelRegistry;
-		if (!registry || patterns.length === 0) return undefined;
-		const { model, thinkingLevel, explicitThinkingLevel } = resolveModelOverride(patterns, registry, this.#settings);
-		if (!model) return undefined;
-		const level = explicitThinkingLevel && thinkingLevel ? `:${thinkingLevel}` : "";
-		return `${model.provider}/${model.id}${level}`;
+		if (!registry || !pattern) return undefined;
+		const patterns = resolveConfiguredModelPatterns(pattern, this.#settings);
+		if (patterns.length === 0) return undefined;
+		const resolved = resolveModelOverride(patterns, registry, this.#settings);
+		if (!resolved.model) return undefined;
+		const effort = resolved.thinkingLevel
+			? ` · ${getConfiguredThinkingLevelMetadata(resolved.thinkingLevel).label}`
+			: "";
+		return `${resolved.model.provider}/${resolved.model.id}${effort}`;
 	}
 
 	#effectivePrewalkPattern(agent: HubAgent): string | undefined {
@@ -430,6 +470,21 @@ export class AgentsHubComponent implements Component {
 			agentAdvisor: agent.advisor,
 		});
 		return selection ? (selection.model ?? "@advisor") : undefined;
+	}
+
+	#prewalkSource(agent: HubAgent): string {
+		if (agent.prewalkOverride) return "task.agentPrewalk";
+		if (agent.prewalk !== undefined) return `${agent.source === "bundled" ? "embedded" : agent.source} frontmatter`;
+		if (this.#settings.get("task.prewalk") && agent.source === "bundled" && agent.name === "task") {
+			return "task.prewalk";
+		}
+		return "none";
+	}
+
+	#advisorSource(agent: HubAgent): string {
+		if (agent.advisorOverride) return "task.agentAdvisor";
+		if (agent.advisor !== undefined) return `${agent.source === "bundled" ? "embedded" : agent.source} frontmatter`;
+		return "none";
 	}
 
 	// ═══════════════════════════════════════════════════════════════════════
@@ -495,10 +550,11 @@ export class AgentsHubComponent implements Component {
 	#describeProperty(agent: HubAgent, property: PropertyKind): string {
 		switch (property) {
 			case "model": {
-				const patterns = this.#effectiveModelPatterns(agent);
-				const resolved = this.#resolvePatterns(patterns);
-				const base = agent.overrideModel ?? (patterns.length > 0 ? patterns.join(",") : "session model");
-				return `${agent.name} model: ${base}${resolved ? ` → ${resolved}` : ""}`;
+				const assignment = this.#assignmentSummary(agent);
+				const base =
+					agent.overrideModel ??
+					(assignment.patterns.length > 0 ? assignment.patterns.join(",") : "session model");
+				return `${agent.name} model: ${base}${assignment.resolved ? ` → ${assignment.resolved} · ${assignment.effort}` : ""}`;
 			}
 			case "prewalk": {
 				const pattern = this.#effectivePrewalkPattern(agent);
@@ -837,8 +893,85 @@ export class AgentsHubComponent implements Component {
 	// ═══════════════════════════════════════════════════════════════════════
 
 	handleInput(data: string): void {
-		if (data.startsWith("\x1b[<")) {
-			routeSgrMouseInput(data, event => this.#routeMouseEvent(event));
+		const sidebarColEnd = 2 + this.#sidebarWidthLast;
+		const bodyColStart = this.#sidebarWidthLast + 5;
+		const routed = this.#mouse.route(data, () => ({
+			regions: [
+				{
+					id: "agents-footer",
+					rowStart: this.#footerRow,
+					rowCount: 1,
+					onMouse: (event: OverlayMouseEvent) => {
+						if (event.clickCount === 0 || this.#strip?.kind !== "chips") return;
+						for (const range of this.#chipRanges) {
+							if (event.col >= range.start && event.col < range.end) {
+								this.#strip.index = range.index;
+								this.#activateStripChip();
+								return;
+							}
+						}
+					},
+				},
+				{
+					id: "agents-sidebar",
+					rowStart: this.#contentRowStart,
+					rowCount: this.#contentRowCount,
+					colCount: sidebarColEnd,
+					onMouse: (event: OverlayMouseEvent) => {
+						if (this.#assigning || this.#createActive || this.#strip) return;
+						if (event.wheel !== null) {
+							const maxScroll = Math.max(0, this.#entries.length - this.#contentRowCount);
+							this.#sidebarScroll = Math.max(0, Math.min(this.#sidebarScroll + event.wheel, maxScroll));
+							return;
+						}
+						if (event.clickCount > 0) {
+							const clicked = this.#entries[this.#sidebarScroll + event.localRow];
+							if (!clicked || clicked.kind === "separator") return;
+							if (clicked.kind === "new") {
+								this.#beginCreateFlow();
+							} else {
+								this.#activeEntryId = clicked.id;
+								this.#buildRows();
+								this.#rowIndex = 0;
+								this.#focus = "scope";
+							}
+						}
+					},
+				},
+				{
+					id: "agents-body",
+					rowStart: this.#contentRowStart,
+					rowCount: this.#contentRowCount,
+					colStart: bodyColStart,
+					onMouse: (event: OverlayMouseEvent) => {
+						const bodyLine = event.localRow - 1;
+						if (this.#assigning) {
+							this.#browser.routeMouse(event, bodyLine);
+							return;
+						}
+						if (this.#createActive || this.#strip) return;
+						if (event.wheel !== null) {
+							this.#rowIndex = Math.max(0, Math.min(this.#rows.length - 1, this.#rowIndex + event.wheel));
+							return;
+						}
+						const listLine = bodyLine - this.#listRowStart + this.#listScroll;
+						if (event.motion) {
+							this.#rowHover = listLine >= 0 && listLine < this.#rows.length ? listLine : null;
+							return;
+						}
+						if (event.clickCount > 0 && listLine >= 0 && listLine < this.#rows.length) {
+							this.#focus = "list";
+							this.#rowIndex = listLine;
+							if (event.clickCount === 2) this.#activateRow(this.#rows[listLine]);
+						}
+					},
+				},
+			],
+			fallback: (event: OverlayMouseEvent) => {
+				if (event.motion) this.#rowHover = null;
+			},
+		}));
+		if (routed) {
 			this.#tui.requestRender();
 			return;
 		}
@@ -1072,87 +1205,6 @@ export class AgentsHubComponent implements Component {
 	}
 
 	// ═══════════════════════════════════════════════════════════════════════
-	// Mouse
-	// ═══════════════════════════════════════════════════════════════════════
-
-	#routeMouseEvent(event: SgrMouseEvent): boolean {
-		const contentLine = event.row - this.#contentRowStart;
-		const overContent = contentLine >= 0 && contentLine < this.#contentRowCount;
-		const sidebarColEnd = 2 + this.#sidebarWidthLast;
-		const bodyColStart = this.#sidebarWidthLast + 5;
-		const overSidebar = overContent && event.col >= 0 && event.col < sidebarColEnd;
-		const overBody = overContent && event.col >= bodyColStart;
-		const bodyLine = contentLine - 1; // body row 0 is the status row
-
-		if (event.row === this.#footerRow && this.#strip?.kind === "chips") {
-			const strip = this.#strip;
-			if (event.leftClick) {
-				for (const range of this.#chipRanges) {
-					if (event.col >= range.start && event.col < range.end) {
-						strip.index = range.index;
-						this.#activateStripChip();
-						return true;
-					}
-				}
-			}
-			return true;
-		}
-
-		if (this.#assigning) {
-			if (overBody) this.#browser.routeMouse(event, bodyLine);
-			return true;
-		}
-		if (this.#createActive || this.#strip) return true;
-
-		if (event.wheel !== null) {
-			if (overSidebar) {
-				const maxScroll = Math.max(0, this.#entries.length - this.#contentRowCount);
-				this.#sidebarScroll = Math.max(0, Math.min(this.#sidebarScroll + event.wheel, maxScroll));
-			} else if (overBody) {
-				this.#rowIndex = Math.max(0, Math.min(this.#rows.length - 1, this.#rowIndex + event.wheel));
-			}
-			return true;
-		}
-
-		if (event.motion) {
-			// Hover is stored as an absolute row index so paint and click agree.
-			const hoverRow = bodyLine - this.#listRowStart + this.#listScroll;
-			this.#rowHover = overBody && hoverRow >= 0 && hoverRow < this.#rows.length ? hoverRow : null;
-			return true;
-		}
-
-		if (!event.leftClick) return true;
-
-		if (overSidebar) {
-			const index = this.#sidebarScroll + contentLine;
-			const clicked = this.#entries[index];
-			if (clicked && clicked.kind !== "separator") {
-				if (clicked.kind === "new") {
-					this.#beginCreateFlow();
-				} else {
-					this.#activeEntryId = clicked.id;
-					this.#buildRows();
-					this.#rowIndex = 0;
-					this.#focus = "scope";
-				}
-			}
-			return true;
-		}
-		if (overBody) {
-			this.#focus = "list";
-			const listLine = bodyLine - this.#listRowStart + this.#listScroll;
-			if (listLine >= 0 && listLine < this.#rows.length) {
-				if (listLine === this.#rowIndex) {
-					this.#activateRow(this.#rows[listLine]);
-				} else {
-					this.#rowIndex = listLine;
-				}
-			}
-		}
-		return true;
-	}
-
-	// ═══════════════════════════════════════════════════════════════════════
 	// Rendering
 	// ═══════════════════════════════════════════════════════════════════════
 
@@ -1160,12 +1212,13 @@ export class AgentsHubComponent implements Component {
 		return Math.max(16, this.#tui.terminal?.rows || process.stdout.rows || 40);
 	}
 
-	#sidebarWidth(): number {
-		let longest = 0;
+	#sidebarWidth(frameWidth: number): number {
+		let longest = visibleWidth(HUB_TITLE) + 1;
 		for (const entry of this.#entries) {
 			longest = Math.max(longest, visibleWidth(entry.label) + visibleWidth(entry.annotation ?? "") + 5);
 		}
-		return Math.max(SIDEBAR_MIN_WIDTH, Math.min(SIDEBAR_MAX_WIDTH, longest));
+		const maxWithReadableBody = Math.max(SIDEBAR_MIN_WIDTH, frameWidth - BODY_MIN_WIDTH - 7);
+		return Math.max(SIDEBAR_MIN_WIDTH, Math.min(SIDEBAR_MAX_WIDTH, maxWithReadableBody, longest));
 	}
 
 	#renderSidebar(width: number, rows: number): string[] {
@@ -1218,7 +1271,7 @@ export class AgentsHubComponent implements Component {
 		}
 		if (this.#notice) return truncateToWidth(theme.fg("success", ` ${this.#notice}`), width);
 		const entry = this.#activeEntry();
-		const scopeLabel = entry.kind === "source" ? `${entry.label} agents` : "All agents";
+		const scopeLabel = entry.kind === "source" ? `${entry.label} agent assignments` : "All agent assignments";
 		const count = this.#rows.filter(rowDef => rowDef.kind === "agent").length;
 		return truncateToWidth(theme.fg("muted", ` ${scopeLabel} · ${count}`), width);
 	}
@@ -1230,12 +1283,12 @@ export class AgentsHubComponent implements Component {
 		lines.push("");
 		this.#listRowStart = lines.length;
 
-		const detailRows = 4;
+		const showCapabilities = this.#settings.get("settings.tier") === "advanced";
+		const detailRows = showCapabilities ? 8 : 7;
 		const visibleRows = Math.max(3, rows - lines.length - detailRows);
 		if (this.#rowIndex < this.#listScroll) this.#listScroll = this.#rowIndex;
 		else if (this.#rowIndex >= this.#listScroll + visibleRows) this.#listScroll = this.#rowIndex - visibleRows + 1;
 		this.#listScroll = Math.max(0, Math.min(this.#listScroll, Math.max(0, this.#rows.length - visibleRows)));
-
 		let nameWidth = 0;
 		for (const rowDef of this.#rows) {
 			if (rowDef.kind === "agent") nameWidth = Math.max(nameWidth, visibleWidth(rowDef.agent.name));
@@ -1264,20 +1317,11 @@ export class AgentsHubComponent implements Component {
 				: selected
 					? theme.bold(theme.fg("accent", name))
 					: name;
-			const badges: string[] = [];
-			if (agent.overrideModel) badges.push(theme.fg("warning", agent.overrideModel));
-			const prewalk = this.#effectivePrewalkPattern(agent);
-			if (prewalk) badges.push(theme.fg("dim", `pre:${prewalk}`));
-			const advisor = this.#effectiveAdvisorPattern(agent);
-			if (advisor) badges.push(theme.fg("dim", `adv:${advisor}`));
+			const assignment = this.#assignmentSummary(agent);
+			const role = assignment.role ? `@${assignment.role}` : assignment.source;
+			const target = assignment.resolved ?? assignment.patterns[0] ?? "unresolved";
 			const sourceTag = theme.fg("dim", SOURCE_LABEL[agent.source].toLowerCase());
-			let line = ` ${cursor} ${dot} ${nameStyled}  ${sourceTag}`;
-			const right = badges.join("  ");
-			const rightWidth = visibleWidth(right);
-			const lineWidth = visibleWidth(line);
-			if (rightWidth > 0 && lineWidth + rightWidth + 2 <= width) {
-				line = `${line}${" ".repeat(width - lineWidth - rightWidth - 1)}${right}`;
-			}
+			let line = ` ${cursor} ${dot} ${nameStyled}  ${sourceTag}  ${theme.fg("muted", role)} ${theme.fg("dim", "→")} ${theme.fg(selected ? "accent" : "muted", target)} ${theme.fg("dim", `· ${assignment.effort}`)}`;
 			line = truncateToWidth(line, width);
 			if (hovered) {
 				const w = visibleWidth(line);
@@ -1293,24 +1337,57 @@ export class AgentsHubComponent implements Component {
 		lines.push(theme.fg("border", "─".repeat(Math.max(1, width))));
 		if (agent) {
 			lines.push(truncateToWidth(` ${theme.fg("dim", replaceTabs(agent.description))}`, width));
-			const patterns = this.#effectiveModelPatterns(agent);
-			const resolved = this.#resolvePatterns(patterns);
-			const modelLine = `${theme.fg("muted", "model:")} ${patterns.length > 0 ? replaceTabs(patterns.join(",")) : theme.fg("dim", "(session model)")}${resolved ? ` ${theme.fg("dim", "→")} ${theme.fg("success", resolved)}` : ""}`;
-			lines.push(truncateToWidth(` ${modelLine}`, width));
+			const assignment = this.#assignmentSummary(agent);
+			const patterns = assignment.patterns.length > 0 ? replaceTabs(assignment.patterns.join(",")) : "(unresolved)";
+			const role = assignment.role ? `@${assignment.role}` : "direct";
+			const resolved = assignment.resolved ?? patterns;
+			lines.push(
+				truncateToWidth(
+					` ${theme.fg("muted", "assignment:")} ${theme.fg("accent", role)} ${theme.fg("dim", "→")} ${theme.fg("success", resolved)} ${theme.fg("dim", `· effort ${assignment.effort}`)}`,
+					width,
+				),
+			);
+			lines.push(
+				truncateToWidth(
+					` ${theme.fg("muted", "model source:")} ${assignment.source} ${theme.fg("dim", `(${patterns}) · Enter to change`)}`,
+					width,
+				),
+			);
+			const promptSource = agent.source === "bundled" ? "embedded bundled prompt" : `${agent.source} agent file`;
+			const promptPath = agent.filePath ? ` · ${shortenPath(agent.filePath)}` : "";
+			lines.push(truncateToWidth(` ${theme.fg("muted", "prompt context:")} ${promptSource}${promptPath}`, width));
 			const prewalk = this.#effectivePrewalkPattern(agent);
+			const prewalkResolved = this.#resolveContextPattern(prewalk);
+			const prewalkValue = prewalk ? `${prewalk}${prewalkResolved ? ` → ${prewalkResolved}` : ""}` : "off";
+			lines.push(
+				truncateToWidth(
+					` ${theme.fg("muted", "prewalk context:")} ${prewalkValue} ${theme.fg("dim", `(${this.#prewalkSource(agent)})`)}`,
+					width,
+				),
+			);
 			const advisor = this.#effectiveAdvisorPattern(agent);
-			const flagLine = [
-				`${theme.fg("muted", "prewalk:")} ${prewalk ? theme.fg("success", prewalk) : theme.fg("dim", "off")}`,
-				`${theme.fg("muted", "advisor:")} ${advisor ? theme.fg("success", advisor) : theme.fg("dim", "off")}`,
-				agent.filePath ? theme.fg("dim", shortenPath(agent.filePath)) : "",
-			]
-				.filter(Boolean)
-				.join("   ");
-			lines.push(truncateToWidth(` ${flagLine}`, width));
+			const advisorResolved = this.#resolveContextPattern(advisor);
+			const advisorValue = advisor ? `${advisor}${advisorResolved ? ` → ${advisorResolved}` : ""}` : "off";
+			lines.push(
+				truncateToWidth(
+					` ${theme.fg("muted", "advisor context:")} ${advisorValue} ${theme.fg("dim", `(${this.#advisorSource(agent)})`)}`,
+					width,
+				),
+			);
+			if (showCapabilities) {
+				const tools = agent.tools?.length ? agent.tools.join(", ") : "default tool set";
+				const spawns = agent.spawns === "*" ? "any agent" : agent.spawns?.length ? agent.spawns.join(", ") : "none";
+				const skills = agent.autoloadSkills?.length ? ` · skills ${agent.autoloadSkills.join(", ")}` : "";
+				lines.push(
+					truncateToWidth(
+						` ${theme.fg("muted", "capabilities:")} tools ${tools} · spawns ${spawns}${skills}`,
+						width,
+					),
+				);
+			}
 		} else {
-			lines.push(theme.fg("dim", " Select an agent to inspect"));
-			lines.push("");
-			lines.push("");
+			lines.push(theme.fg("dim", " Select an agent assignment to inspect"));
+			for (let i = 0; i < detailRows - 2; i++) lines.push("");
 		}
 		return lines.slice(0, rows);
 	}
@@ -1400,7 +1477,7 @@ export class AgentsHubComponent implements Component {
 		if (this.#focus === "scope") {
 			return "↑/↓ scopes · →/Enter agents · Esc close";
 		}
-		return "Enter configure · Space enable/disable · ↑/↓ rows · type to search · Ctrl+R reload · Esc close";
+		return "Enter change assignment/context · Space enable/disable · ↑/↓ rows · type to search · Ctrl+R reload · Esc close";
 	}
 
 	#renderFooter(width: number): string {
@@ -1441,7 +1518,7 @@ export class AgentsHubComponent implements Component {
 
 	render(width: number): string[] {
 		const height = this.#terminalRows();
-		const sidebarWidth = this.#sidebarWidth();
+		const sidebarWidth = this.#sidebarWidth(width);
 		this.#sidebarWidthLast = sidebarWidth;
 		const bodyWidth = splitBodyWidth(width, sidebarWidth);
 		const contentRows = Math.max(10, height - 4);
@@ -1460,7 +1537,7 @@ export class AgentsHubComponent implements Component {
 
 		const sidebarLines = this.#renderSidebar(sidebarWidth, contentRows);
 		const out: string[] = [];
-		out.push(topBorderSplit(width, "Agents", sidebarWidth));
+		out.push(topBorderSplit(width, HUB_TITLE, sidebarWidth));
 		this.#contentRowStart = out.length;
 		for (let i = 0; i < contentRows; i++) {
 			out.push(splitRow(sidebarLines[i] ?? "", bodyLines[i] ?? "", width, sidebarWidth));

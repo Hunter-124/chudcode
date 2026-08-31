@@ -15,7 +15,7 @@
 import { describe, expect, it } from "bun:test";
 import { complete } from "@chudware/ai/stream";
 import type { Api, Context, Model, OptionsForApi, Usage } from "@chudware/ai/types";
-import { getBundledModel } from "@chudware/catalog/models";
+import { calculateUsageTotalTokens, getBundledModel } from "@chudware/catalog/models";
 import { e2eApiKey, resolveApiKey } from "./oauth";
 
 // Resolve OAuth tokens at module level (async, runs before tests)
@@ -81,7 +81,7 @@ async function testTotalTokensWithCache<TApi extends Api>(
 }
 
 function logUsage(label: string, usage: Usage) {
-	const computed = usage.input + usage.output + usage.cacheRead + usage.cacheWrite;
+	const computed = calculateUsageTotalTokens(usage);
 	console.log(`  ${label}:`);
 	console.log(
 		`    input: ${usage.input}, output: ${usage.output}, cacheRead: ${usage.cacheRead}, cacheWrite: ${usage.cacheWrite}`,
@@ -90,7 +90,7 @@ function logUsage(label: string, usage: Usage) {
 }
 
 function assertTotalTokensEqualsComponents(usage: Usage) {
-	const computed = usage.input + usage.output + usage.cacheRead + usage.cacheWrite;
+	const computed = calculateUsageTotalTokens(usage);
 	expect(usage.totalTokens).toBe(computed);
 }
 

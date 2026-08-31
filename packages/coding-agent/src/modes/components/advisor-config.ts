@@ -22,10 +22,8 @@ import {
 	type Component,
 	Input,
 	type MouseRoutable,
-	routeSgrMouseInput,
 	type SelectItem,
 	SelectList,
-	type SgrMouseEvent,
 	type TUI,
 	truncateToWidth,
 } from "@chudware/tui";
@@ -44,6 +42,7 @@ import { formatCompactQuota } from "../controllers/command-controller";
 import { getSelectListTheme, theme } from "../theme/theme";
 import { HookEditorComponent } from "./hook-editor";
 import { buildBrowserItems, ModelBrowser, sortModelItems } from "./model-browser";
+import { type OverlayMouseEvent, OverlayMouseRouter } from "./mouse-routing";
 import {
 	bottomBorder,
 	divider,
@@ -147,6 +146,8 @@ export class AdvisorConfigOverlayComponent implements Component {
 	// Frame geometry from the last render (the frame paints from screen row 0,
 	// so SGR `event.row`/`event.col` — already 0-based — index it directly).
 	#bodyRowStart = 0;
+	#bodyRowCount = 0;
+	#mouse = new OverlayMouseRouter();
 	#dividerCol = 0;
 
 	constructor(
@@ -184,6 +185,7 @@ export class AdvisorConfigOverlayComponent implements Component {
 	render(width: number): readonly string[] {
 		const height = Math.max(14, process.stdout.rows || 40);
 		const bodyRows = Math.max(3, height - 4);
+		this.#bodyRowCount = bodyRows;
 		const title = `Advisor configuration · ${this.#scope}${this.#dirty ? "  ● unsaved" : ""}`;
 		const out: string[] = [];
 
@@ -215,34 +217,61 @@ export class AdvisorConfigOverlayComponent implements Component {
 	// ───────────────────────────── input ─────────────────────────────
 
 	handleInput(data: string): void {
-		if (data.startsWith("\x1b[<")) {
-			routeSgrMouseInput(data, event => this.#routeMouseEvent(event));
+		if (!data.startsWith("\x1b[<")) {
+			this.#active.handleInput?.(data);
 			return;
 		}
-		this.#active.handleInput?.(data);
-	}
-
-	/** Forward enhanced-paste transports into a multiline instructions editor. */
-	pasteText(text: string): void {
-		if (this.#active instanceof HookEditorComponent) this.#active.pasteText(text);
-	}
-
-	#routeMouseEvent(event: SgrMouseEvent): boolean {
-		// Right pane of the split (the preview) only scrolls; everything left of the
-		// divider routes into the active list/component at frame-local coordinates.
-		if (this.#screen === "list" && event.col >= this.#dividerCol) {
-			if (event.wheel !== null) {
-				this.#previewScroll = Math.max(0, this.#previewScroll + event.wheel);
+		const active = this.#active as Partial<MouseRoutable>;
+		const routeActive = (event: OverlayMouseEvent): void => {
+			if (this.#active instanceof SelectList) {
+				if (event.wheel !== null) {
+					this.#active.handleWheel(event.wheel);
+				} else {
+					const index = this.#active.hitTest(event.localRow);
+					if (event.motion) {
+						this.#active.setHoverIndex(index ?? null);
+					} else if (event.clickCount > 0 && index !== undefined) {
+						this.#active.setSelectedIndex(index);
+						if (event.clickCount === 2) this.#active.clickItem(index);
+					}
+				}
 				this.#cb.requestRender();
+				return;
 			}
-			return true;
-		}
-		const el = this.#active as Partial<MouseRoutable>;
-		if (typeof el.routeMouse === "function") {
-			el.routeMouse(event, event.row - this.#bodyRowStart, event.col);
-			return true;
-		}
-		return false;
+			active.routeMouse?.(event, event.localRow, event.localCol);
+		};
+		const regions =
+			this.#screen === "list"
+				? [
+						{
+							id: "advisor-preview",
+							rowStart: this.#bodyRowStart,
+							rowCount: this.#bodyRowCount,
+							colStart: this.#dividerCol,
+							onMouse: (event: OverlayMouseEvent) => {
+								if (event.wheel !== null) {
+									this.#previewScroll = Math.max(0, this.#previewScroll + event.wheel);
+									this.#cb.requestRender();
+								}
+							},
+						},
+						{
+							id: "advisor-list",
+							rowStart: this.#bodyRowStart,
+							rowCount: this.#bodyRowCount,
+							colCount: this.#dividerCol,
+							onMouse: routeActive,
+						},
+					]
+				: [
+						{
+							id: "advisor-detail",
+							rowStart: this.#bodyRowStart,
+							rowCount: this.#bodyRowCount,
+							onMouse: routeActive,
+						},
+					];
+		this.#mouse.route(data, { regions, consumeOutside: true });
 	}
 
 	// ───────────────────────────── preview ───────────────────────────

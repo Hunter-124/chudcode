@@ -1,11 +1,11 @@
 /**
  * Fullscreen /models hub, shown on the alternate screen like /settings.
  *
- * Layout: a sidebar of scopes (recently used, role management, all models,
- * one entry per provider — locked providers included, dimmed) beside a
- * {@link ModelBrowser} body. The Roles view manages assignments directly:
- * pick a role, pick a model, adjust thinking in an inline strip, or clear the
- * role back to auto-selection. Locked providers forward to the /login flow.
+ * Layout: a sidebar of scopes (recently used, all models, and one entry per
+ * provider — locked providers included) beside a {@link ModelBrowser} body.
+ * Advanced adds role assignments: it shows the concrete model and effort
+ * behind each @role before offering model, thinking, and fallback edits.
+ * Locked providers forward to the /login flow.
  * Fully mouse-navigable (hover, wheel, click). Session-only switching lives
  * in the compact alt+p picker ({@link ./model-picker}).
  */
@@ -21,8 +21,6 @@ import {
 	getKeybindings,
 	Input,
 	matchesKey,
-	routeSgrMouseInput,
-	type SgrMouseEvent,
 	type TUI,
 	truncateToWidth,
 	visibleWidth,
@@ -56,6 +54,7 @@ import {
 	sortModelItems,
 	thinkingLevelGlyph,
 } from "./model-browser";
+import { type OverlayMouseEvent, OverlayMouseRouter } from "./mouse-routing";
 import { bottomBorder, dividerSplit, row, splitBodyWidth, splitRow, topBorderSplit } from "./overlay-box";
 import { renderSegmentTrack } from "./segment-track";
 
@@ -407,6 +406,7 @@ export class ModelHubComponent implements Component {
 	#chipRanges: ChipRange[] = [];
 	#lockedLoginLine: number | null = null;
 	#rolesRowStart = 1;
+	#mouse = new OverlayMouseRouter();
 
 	constructor(
 		tui: TUI,
@@ -610,24 +610,25 @@ export class ModelHubComponent implements Component {
 			catalogCount: catalogCounts.get(providerId) ?? 0,
 		});
 
-		const visibleRoles = this.#visibleRoleIds();
-		let assignedCount = 0;
-		for (const role of visibleRoles) {
-			const assignment = this.#roles[role];
-			if (assignment && !assignment.autoSelected) assignedCount++;
-		}
-
-		// Roles leads the fixed section so downward hops from Recent head into
-		// model scopes instead of being captured by the roles view.
-		const fixed: SidebarEntry[] = [
-			{
+		// The transparent /agents assignment view is the everyday surface.
+		// Expert role/fallback editing remains available in Advanced without
+		// presenting a second competing assignment view in Basic.
+		const fixed: SidebarEntry[] = [];
+		if (this.#settings.get("settings.tier") === "advanced") {
+			const visibleRoles = this.#visibleRoleIds();
+			let assignedCount = 0;
+			for (const role of visibleRoles) {
+				const assignment = this.#roles[role];
+				if (assignment && !assignment.autoSelected) assignedCount++;
+			}
+			fixed.push({
 				id: "roles",
 				kind: "roles",
-				label: "Roles",
+				label: "Role assignments",
 				annotation: `${assignedCount}/${visibleRoles.length}`,
-			},
-			{ id: "all", kind: "all", label: "All models", annotation: String(availableModels.length) },
-		];
+			});
+		}
+		fixed.push({ id: "all", kind: "all", label: "All models", annotation: String(availableModels.length) });
 
 		this.#fixedEntries = fixed;
 		this.#unlockedProviderEntries = [...unlocked]
@@ -1537,10 +1538,116 @@ export class ModelHubComponent implements Component {
 	// ═══════════════════════════════════════════════════════════════════════
 
 	handleInput(data: string): void {
-		if (data.startsWith("\x1b[<")) {
-			routeSgrMouseInput(data, event => this.#routeMouseEvent(event));
-			return;
-		}
+		const entry = this.#activeEntry();
+		const sidebarColStart = 2;
+		const bodyColStart = this.#sidebarWidthLast + 5;
+		const routed = this.#mouse.route(data, () => ({
+			regions: [
+				{
+					id: "models-footer",
+					rowStart: this.#footerRow,
+					rowCount: 1,
+					onMouse: (event: OverlayMouseEvent) => {
+						if (event.clickCount === 0 || !this.#strip || this.#strip.kind === "roleName") return;
+						for (const range of this.#chipRanges) {
+							if (event.col >= range.start && event.col < range.end) {
+								this.#strip.index = range.index;
+								this.#activateStripChip();
+								return;
+							}
+						}
+					},
+				},
+				{
+					id: "models-sidebar",
+					rowStart: this.#contentRowStart,
+					rowCount: this.#contentRowCount,
+					colStart: sidebarColStart,
+					colCount: this.#sidebarWidthLast,
+					onMouse: (event: OverlayMouseEvent) => {
+						const index = this.#sidebarEntryIndexAt(event.localRow);
+						if (event.wheel !== null) {
+							const maxScroll = Math.max(0, this.#entries.length - this.#contentRowCount);
+							this.#sidebarScroll = Math.max(0, Math.min(this.#sidebarScroll + event.wheel, maxScroll));
+							this.#sidebarHover = this.#sidebarEntryIndexAt(event.localRow);
+							return;
+						}
+						if (event.motion) {
+							this.#sidebarHover = index;
+							return;
+						}
+						if (event.clickCount > 0) {
+							const clicked = index !== null ? this.#entries[index] : undefined;
+							if (!clicked || clicked.kind === "separator") return;
+							if (clicked.kind === "roles") this.#assigning = null;
+							this.#setActiveEntry(clicked.id);
+							if (clicked.kind === "roles") this.#focus = "list";
+							if (event.clickCount === 2 && clicked.kind === "provider" && clicked.locked) {
+								this.#requestLogin(clicked);
+							}
+						}
+					},
+				},
+				{
+					id: "models-body",
+					rowStart: this.#contentRowStart,
+					rowCount: this.#contentRowCount,
+					colStart: bodyColStart,
+					onMouse: (event: OverlayMouseEvent) => {
+						const bodyLine = event.localRow - 1;
+						if (event.wheel !== null) {
+							if (entry.kind === "roles" && this.#assigning === null) {
+								this.#roleIndex = this.#stepRoleIndex(this.#roleIndex, event.wheel > 0 ? 1 : -1, {
+									wrap: false,
+								});
+							} else if (this.#isBrowserView(entry)) {
+								this.#browser.routeMouse(event, bodyLine);
+							}
+							return;
+						}
+						if (event.motion) {
+							if (entry.kind === "roles" && this.#assigning === null) {
+								const roleLine = bodyLine - this.#rolesRowStart;
+								this.#roleHover =
+									roleLine >= 0 && roleLine < this.#rolesVisibleCount
+										? roleLine + this.#roleScrollStart
+										: null;
+							} else {
+								this.#roleHover = null;
+								if (this.#isBrowserView(entry)) this.#browser.routeMouse(event, bodyLine);
+								else this.#browser.clearHover();
+							}
+							return;
+						}
+						if (event.clickCount === 0) return;
+						if (entry.kind === "roles" && this.#assigning === null) {
+							this.#focus = "list";
+							const listLine = bodyLine - this.#rolesRowStart;
+							if (listLine < 0 || listLine >= this.#rolesVisibleCount) return;
+							const roleLine = listLine + this.#roleScrollStart;
+							const rowDef = this.#rolesRows[roleLine];
+							if (!rowDef || rowDef.kind === "separator") return;
+							this.#roleIndex = roleLine;
+							if (event.clickCount === 2) this.#activateRolesRow(rowDef);
+						} else if (entry.kind === "provider" && entry.locked && this.#assigning === null) {
+							if (this.#lockedLoginLine !== null && bodyLine === this.#lockedLoginLine) {
+								this.#requestLogin(entry);
+							}
+						} else if (this.#isBrowserView(entry)) {
+							this.#browser.routeMouse(event, bodyLine);
+						}
+					},
+				},
+			],
+			fallback: (event: OverlayMouseEvent) => {
+				if (event.motion) {
+					this.#sidebarHover = null;
+					this.#roleHover = null;
+					this.#browser.clearHover();
+				}
+			},
+		}));
+		if (routed) return;
 
 		if (this.#strip) {
 			this.#handleStripInput(data);
@@ -1561,7 +1668,6 @@ export class ModelHubComponent implements Component {
 			return;
 		}
 
-		const entry = this.#activeEntry();
 		const rolesView = entry.kind === "roles" && this.#assigning === null;
 		const lockedView = entry.kind === "provider" && entry.locked && this.#assigning === null;
 
@@ -1872,115 +1978,6 @@ export class ModelHubComponent implements Component {
 		}
 	}
 
-	// ═══════════════════════════════════════════════════════════════════════
-	// Mouse
-	// ═══════════════════════════════════════════════════════════════════════
-
-	#routeMouseEvent(event: SgrMouseEvent): boolean {
-		const contentLine = event.row - this.#contentRowStart;
-		const overContent = contentLine >= 0 && contentLine < this.#contentRowCount;
-		const sidebarColStart = 2;
-		const sidebarColEnd = sidebarColStart + this.#sidebarWidthLast;
-		const bodyColStart = this.#sidebarWidthLast + 5;
-		const overSidebar = overContent && event.col >= 0 && event.col < sidebarColEnd;
-		const overBody = overContent && event.col >= bodyColStart;
-		const bodyLine = contentLine - 1; // body row 0 is the status row
-		const entry = this.#activeEntry();
-
-		// Footer strip chips.
-		if (event.row === this.#footerRow && this.#strip) {
-			const strip = this.#strip;
-			if (event.leftClick && strip.kind !== "roleName") {
-				for (const range of this.#chipRanges) {
-					if (event.col >= range.start && event.col < range.end) {
-						strip.index = range.index;
-						this.#activateStripChip();
-						return true;
-					}
-				}
-			}
-			return true;
-		}
-
-		if (event.wheel !== null) {
-			if (overSidebar) {
-				// Wheel pans the sidebar viewport; picking a scope is click/keys only.
-				const maxScroll = Math.max(0, this.#entries.length - this.#contentRowCount);
-				this.#sidebarScroll = Math.max(0, Math.min(this.#sidebarScroll + event.wheel, maxScroll));
-				this.#sidebarHover = this.#sidebarEntryIndexAt(contentLine);
-			} else if (overBody) {
-				if (entry.kind === "roles" && this.#assigning === null) {
-					this.#roleIndex = this.#stepRoleIndex(this.#roleIndex, event.wheel > 0 ? 1 : -1, { wrap: false });
-				} else if (this.#isBrowserView(entry)) {
-					this.#browser.routeMouse(event, bodyLine);
-				}
-			}
-			return true;
-		}
-
-		if (event.motion) {
-			this.#sidebarHover = overSidebar ? this.#sidebarEntryIndexAt(contentLine) : null;
-			if (overBody && entry.kind === "roles" && this.#assigning === null) {
-				const roleLine = bodyLine - this.#rolesRowStart;
-				this.#roleHover =
-					roleLine >= 0 && roleLine < this.#rolesVisibleCount ? roleLine + this.#roleScrollStart : null;
-			} else {
-				this.#roleHover = null;
-				if (overBody && this.#isBrowserView(entry)) {
-					this.#browser.routeMouse(event, bodyLine);
-				} else {
-					// Pointer left the browser pane: without this, the last
-					// hovered row keeps its band while the sidebar hovers too.
-					this.#browser.clearHover();
-				}
-			}
-			return true;
-		}
-
-		if (!event.leftClick) return true;
-
-		if (overSidebar) {
-			const index = this.#sidebarEntryIndexAt(contentLine);
-			const clicked = index !== null ? this.#entries[index] : undefined;
-			if (clicked && clicked.kind !== "separator") {
-				const already = clicked.id === this.#activeEntryId;
-				if (clicked.kind === "roles") this.#assigning = null;
-				this.#setActiveEntry(clicked.id);
-				// A click on Roles is a deliberate dive into the rows.
-				if (clicked.kind === "roles") this.#focus = "list";
-				if (already && clicked.kind === "provider" && clicked.locked) {
-					this.#requestLogin(clicked);
-				}
-			}
-			return true;
-		}
-
-		if (overBody) {
-			if (entry.kind === "roles" && this.#assigning === null) {
-				this.#focus = "list";
-				const listLine = bodyLine - this.#rolesRowStart;
-				if (listLine >= 0 && listLine < this.#rolesVisibleCount) {
-					const roleLine = listLine + this.#roleScrollStart;
-					const rowDef = this.#rolesRows[roleLine];
-					if (rowDef && rowDef.kind !== "separator") {
-						if (roleLine === this.#roleIndex) {
-							this.#activateRolesRow(rowDef);
-						} else {
-							this.#roleIndex = roleLine;
-						}
-					}
-				}
-			} else if (entry.kind === "provider" && entry.locked && this.#assigning === null) {
-				if (this.#lockedLoginLine !== null && bodyLine === this.#lockedLoginLine) {
-					this.#requestLogin(entry);
-				}
-			} else if (this.#isBrowserView(entry)) {
-				this.#browser.routeMouse(event, bodyLine);
-			}
-		}
-		return true;
-	}
-
 	/** Map a content-line index to a sidebar entry index (accounting for scroll). */
 	#sidebarEntryIndexAt(contentLine: number): number | null {
 		const index = this.#sidebarScroll + contentLine;
@@ -2119,7 +2116,7 @@ export class ModelHubComponent implements Component {
 				text = `Recently used models${scopedSuffix}`;
 				break;
 			case "roles":
-				text = "Model roles — f adds a retry fallback, cleared roles fall back to auto-selection";
+				text = "Role assignments — agents resolve @role here; Enter changes the selected provider/model";
 				break;
 			case "provider":
 				if (entry.locked) {
@@ -2240,14 +2237,17 @@ export class ModelHubComponent implements Component {
 				tagStyled = theme.fg(info.color ?? "muted", tag);
 				value = `${theme.fg("dim", `${assignment.model.provider}/`)}${selected ? theme.fg("accent", assignment.model.id) : assignment.model.id}`;
 				const glyph = thinkingLevelGlyph(assignment.thinkingLevel);
-				const label = getConfiguredThinkingLevelMetadata(assignment.thinkingLevel).label;
-				if (assignment.thinkingLevel !== ThinkingLevel.Inherit) {
-					levelStyled = theme.fg("dim", glyph ? `${glyph} ${label}` : label);
-				}
+				const configuredLabel = getConfiguredThinkingLevelMetadata(assignment.thinkingLevel).label;
+				const label = configuredLabel === "inherit" ? "provider default" : configuredLabel;
+				levelStyled = theme.fg("dim", `${glyph ? `${glyph} ` : ""}effort ${label}`);
 			} else if (assignment) {
 				dot = theme.fg("dim", theme.status.shadowed);
 				tagStyled = theme.fg("dim", tag);
 				value = theme.fg("dim", `auto → ${assignment.model.provider}/${assignment.model.id}`);
+				const glyph = thinkingLevelGlyph(assignment.thinkingLevel);
+				const configuredLabel = getConfiguredThinkingLevelMetadata(assignment.thinkingLevel).label;
+				const label = configuredLabel === "inherit" ? "provider default" : configuredLabel;
+				levelStyled = theme.fg("dim", `${glyph ? `${glyph} ` : ""}effort ${label}`);
 			} else {
 				dot = theme.fg("dim", theme.status.shadowed);
 				tagStyled = theme.fg("dim", tag);

@@ -1,4 +1,8 @@
+import type { Stats } from "node:fs";
+import { opendir } from "node:fs/promises";
+import * as os from "node:os";
 import * as path from "node:path";
+import { pathToFileURL } from "node:url";
 import { ThinkingLevel } from "@chudware/agent-core";
 import type { ImageContent } from "@chudware/ai";
 import { type AutocompleteProvider, matchesKey, type SlashCommand } from "@chudware/tui";
@@ -8,7 +12,7 @@ import { isSettingsInitialized, settings } from "../../config/settings";
 import { resolveLocalRoot } from "../../internal-urls";
 import { AskDialogComponent } from "../../modes/components/ask-dialog";
 import { AssistantMessageComponent } from "../../modes/components/assistant-message";
-import { extractImagePathFromText } from "../../modes/components/custom-editor";
+import { extractImagePathFromText, extractPastePathsFromText } from "../../modes/components/custom-editor";
 import { ReadToolGroupComponent } from "../../modes/components/read-tool-group";
 import { renderSegmentTrack } from "../../modes/components/segment-track";
 import { TinyTitleDownloadProgressComponent } from "../../modes/components/tiny-title-download-progress";
@@ -41,6 +45,7 @@ import { EnhancedPasteController } from "../../utils/enhanced-paste";
 import { getEditorCommand, openInEditor } from "../../utils/external-editor";
 import { ensureSupportedImageInput, ImageInputTooLargeError, loadImageInput } from "../../utils/image-loading";
 import { resizeImage } from "../../utils/image-resize";
+import { CONVERTIBLE_EXTENSIONS, convertFileWithMarkit } from "../../utils/markit";
 
 /**
  * Slash commands that may carry secrets in their arguments should never be
@@ -560,7 +565,7 @@ export class InputController {
 		// supplies the existing cross-platform clipboard implementation here.
 		this.ctx.editor.onCopy = text => void copyToClipboard(text);
 		this.ctx.editor.onPaste = () => void this.handleImagePaste();
-		this.ctx.editor.onPasteImagePath = path => this.handleImagePathPaste(path);
+		this.ctx.editor.onPastePath = pastedPath => this.handlePathPaste(pastedPath);
 		this.ctx.editor.setActionKeys(
 			"app.clipboard.pasteTextRaw",
 			this.ctx.keybindings.getKeys("app.clipboard.pasteTextRaw"),
@@ -1712,6 +1717,142 @@ export class InputController {
 		}
 	}
 
+	/**
+	 * Route a pasted filesystem path by its actual type. Images retain their
+	 * established byte-attachment path; markit documents get a bounded converted
+	 * preview plus an authoritative read reference; directories expose only
+	 * bounded direct-entry metadata and are never recursively ingested.
+	 */
+	async handlePathPaste(pastedPath: string): Promise<void> {
+		const cwd = this.ctx.sessionManager.getCwd();
+		const expanded =
+			pastedPath === "~"
+				? os.homedir()
+				: pastedPath.startsWith("~/")
+					? path.join(os.homedir(), pastedPath.slice(2))
+					: pastedPath;
+		const absolutePath = path.resolve(cwd, expanded);
+		const isImagePath = extractImagePathFromText(pastedPath) !== undefined;
+		const cleanPath = sanitizeText(pastedPath)
+			.replace(/[\r\n\t]+/g, " ")
+			.trim();
+		const displayPath = truncateToWidth(shortenPath(cleanPath), TRUNCATE_LENGTHS.CONTENT);
+		let stat: Stats;
+		try {
+			stat = await fsx.stat(absolutePath);
+		} catch (error) {
+			// A transient screenshot path may already have disappeared while its
+			// real bytes remain on the clipboard. Preserve that image-specific
+			// recovery, but only after an existing path had a chance to classify
+			// as a directory (including folders with image-like suffixes).
+			if (isImagePath) {
+				await this.handleImagePathPaste(pastedPath);
+				return;
+			}
+			this.ctx.showStatus(
+				isEnoent(error)
+					? `Attachment path not found at ${displayPath}`
+					: `Failed to read attachment path ${displayPath}`,
+			);
+			return;
+		}
+
+		if (stat.isDirectory()) {
+			const entries: string[] = [];
+			let hasMore = false;
+			try {
+				const directory = await opendir(absolutePath);
+				for await (const entry of directory) {
+					if (entries.length === 8) {
+						hasMore = true;
+						break;
+					}
+					const safeName = sanitizeText(entry.name)
+						.replace(/[\r\n\t]+/g, " ")
+						.slice(0, 128);
+					entries.push(`${safeName}${entry.isDirectory() ? "/" : ""}`);
+				}
+			} catch {
+				this.ctx.showStatus(`Failed to read attachment folder ${displayPath}`);
+				return;
+			}
+			entries.sort((a, b) => a.localeCompare(b));
+			const countSummary = hasMore ? `${entries.length}+ direct entries` : `${entries.length} direct entries`;
+			const preview = [countSummary, ...entries.slice(0, 3)].join("\n");
+			const expansion = [
+				"<folder_attachment>",
+				`path=${JSON.stringify(absolutePath)}`,
+				`preview=${JSON.stringify(entries)}`,
+				"Attached by path only. Use the read tool on this exact path to inspect it; the preview is bounded and non-recursive.",
+				"</folder_attachment>",
+			].join("\n");
+			this.ctx.editor.insertPathAttachment(
+				{
+					kind: "folder",
+					title: sanitizeText(path.basename(absolutePath) || absolutePath).replace(/[\r\n\t]+/g, " "),
+					sourcePath: absolutePath,
+					sourceLink: pathToFileURL(absolutePath).href,
+					detail: countSummary,
+				},
+				preview,
+				expansion,
+			);
+			this.ctx.ui.requestRender();
+			return;
+		}
+
+		if (isImagePath) {
+			await this.handleImagePathPaste(pastedPath);
+			return;
+		}
+
+		if (!stat.isFile()) {
+			this.ctx.showStatus(`Attachment path is not a regular file or folder: ${displayPath}`);
+			return;
+		}
+
+		const extension = path.extname(absolutePath).toLowerCase();
+		if (!CONVERTIBLE_EXTENSIONS.has(extension)) {
+			this.ctx.showStatus(`Unsupported attachment format ${extension || "(no extension)"} at ${displayPath}`);
+			return;
+		}
+
+		const converted = await convertFileWithMarkit(absolutePath);
+		if (!converted.ok) {
+			const reason = converted.error ? `: ${sanitizeText(converted.error).slice(0, 160)}` : "";
+			this.ctx.showStatus(`Failed to convert attachment ${displayPath}${reason}`);
+			return;
+		}
+
+		const normalizedPreview = sanitizeText(converted.content.slice(0, 4096))
+			.replace(/[\r\n\t ]+/g, " ")
+			.trim();
+		const preview =
+			normalizedPreview.length > 320 ? `${normalizedPreview.slice(0, 319).trimEnd()}…` : normalizedPreview;
+		const format = extension.slice(1).toUpperCase();
+		const detail = `${format} · ${stat.size} B`;
+		const expansion = [
+			"<document_attachment>",
+			`path=${JSON.stringify(absolutePath)}`,
+			`format=${JSON.stringify(format)}`,
+			`conversion_summary=${JSON.stringify(`${converted.content.length} markdown chars; preview: ${preview}`)}`,
+			"Attached by path. Use the read tool on this exact path for the full converted document.",
+			"</document_attachment>",
+		].join("\n");
+		this.ctx.editor.insertPathAttachment(
+			{
+				kind: "document",
+				title: sanitizeText(path.basename(absolutePath)).replace(/[\r\n\t]+/g, " "),
+				sourcePath: absolutePath,
+				sourceLink: pathToFileURL(absolutePath).href,
+				detail,
+			},
+			preview || "Converted document (no textual preview)",
+			expansion,
+		);
+		this.ctx.ui.requestRender();
+	}
+
 	async handleImagePathPaste(path: string): Promise<void> {
 		try {
 			const image = await loadImageInput({
@@ -1783,38 +1924,22 @@ export class InputController {
 			const focusedNow = this.ctx.ui.getFocused();
 			const promptTarget =
 				focusedNow && focusedNow !== this.ctx.editor && hasPasteText(focusedNow) ? focusedNow : null;
-			// #8769: On macOS, Finder `Cmd+C` on an image file puts BOTH a
-			// `public.file-url` representation and a generated 1024x1024
-			// file-icon bitmap on the pasteboard. `arboard::get_image()`
-			// succeeds with the icon, so probing the image representation first
-			// would attach the generic Finder icon instead of the copied
-			// screenshot — a vision model then sees a white `PNG` document
-			// icon. Probe the file URLs before the bitmap and let any that
-			// resolve to a supported image file win over the icon: the
-			// authoritative file bytes are what the user copied.
-			//
-			// #3506: this branch also recovers file-url-only pasteboards
-			// (Finder selections, certain screenshot tools) where
-			// `arboard::get_image()` returns `ContentNotAvailable` and
-			// `pbpaste` is empty. Every image-shaped path routes through
-			// {@link handleImagePathPaste}, matching the bracketed-paste
-			// handler in `CustomEditor.handleInput`; multi-image Finder
-			// selections must not silently drop after the first attach.
-			// `readMacFileUrls` returns an empty list off Darwin, so on every
-			// other platform this is a no-op and the bitmap read below still
-			// runs first.
+			// Finder file URLs are authoritative for every supported path type.
+			// Probe them before the generated icon bitmap: images attach their
+			// real bytes, documents become converted reference chips, and folders
+			// become bounded path chips. This also covers file-url-only
+			// pasteboards where the bitmap/text representations are absent.
 			const fileUrls = promptTarget ? [] : ((await this.clipboard.readMacFileUrls?.()) ?? []);
-			let attachedFromFileUrls = false;
+			let handledFileUrl = false;
 			for (const url of fileUrls) {
-				const candidate = extractImagePathFromText(url);
-				if (!candidate) continue;
-				await this.handleImagePathPaste(candidate);
-				attachedFromFileUrls = true;
+				const candidates = extractPastePathsFromText(url);
+				if (!candidates) continue;
+				for (const candidate of candidates) await this.handlePathPaste(candidate);
+				handledFileUrl = true;
 			}
-			if (attachedFromFileUrls) return true;
-			// No usable image-file URL (pure bitmap pasteboard: screenshots,
-			// browser copies, or a non-image Finder selection). Fall to the
-			// image representation.
+			if (handledFileUrl) return true;
+			// No filesystem URL (pure bitmap pasteboard: screenshots or browser
+			// copies). Fall to the image representation.
 			const image = await this.clipboard.readImage();
 			if (image) {
 				if (promptTarget) {
@@ -1840,13 +1965,17 @@ export class InputController {
 				this.ctx.showStatus("Clipboard is empty");
 				return false;
 			}
-			// #3506: when the clipboard text is an explicit image file path,
-			// route through {@link handleImagePathPaste} so the image is
-			// loaded and attached instead of pasting the path as literal
-			// text. Covers terminals that paste the Finder file path as
-			// plain text rather than as a `public.file-url` (most macOS
-			// terminals do this for image clipboards).
-			const imagePath = promptTarget ? null : extractImagePathFromText(text);
+			// Explicit filesystem paths are attachments, not prompt prose. Route
+			// all extracted paths in order; an image path uses the established
+			// byte/thumbnail flow inside handlePathPaste.
+			const pastedPaths = promptTarget ? undefined : extractPastePathsFromText(text);
+			if (pastedPaths) {
+				for (const pastedPath of pastedPaths) await this.handlePathPaste(pastedPath);
+				return true;
+			}
+			// Preserve the image-only whole-path fallback for any legacy terminal
+			// shape the generic parser intentionally declines.
+			const imagePath = promptTarget ? undefined : extractImagePathFromText(text);
 			if (imagePath) {
 				await this.handleImagePathPaste(imagePath);
 				return true;

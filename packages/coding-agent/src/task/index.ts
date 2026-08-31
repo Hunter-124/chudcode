@@ -16,6 +16,7 @@
 import path from "node:path";
 import type { AgentTool, AgentToolResult, AgentToolUpdateCallback } from "@chudware/agent-core";
 import type { Usage } from "@chudware/ai";
+import { calculateUsageCostTotal, calculateUsageTotalTokens } from "@chudware/catalog/models";
 import { $env, logger, prompt } from "@chudware/utils";
 import type { ToolSession } from "..";
 import type { EffectiveExtensionRoots } from "../capability/types";
@@ -79,7 +80,6 @@ function addUsageTotals(target: Usage, usage: Partial<Usage>): void {
 	const output = usage.output ?? 0;
 	const cacheRead = usage.cacheRead ?? 0;
 	const cacheWrite = usage.cacheWrite ?? 0;
-	const totalTokens = usage.totalTokens ?? input + output + cacheRead + cacheWrite;
 	const cost =
 		usage.cost ??
 		({
@@ -94,12 +94,19 @@ function addUsageTotals(target: Usage, usage: Partial<Usage>): void {
 	target.output += output;
 	target.cacheRead += cacheRead;
 	target.cacheWrite += cacheWrite;
-	target.totalTokens += totalTokens;
+	const orchestration = usage.orchestration;
+	if (orchestration) {
+		target.orchestration ??= {};
+		target.orchestration.input = (target.orchestration.input ?? 0) + (orchestration.input ?? 0);
+		target.orchestration.output = (target.orchestration.output ?? 0) + (orchestration.output ?? 0);
+		target.orchestration.cacheRead = (target.orchestration.cacheRead ?? 0) + (orchestration.cacheRead ?? 0);
+	}
+	target.totalTokens = calculateUsageTotalTokens(target);
 	target.cost.input += cost.input;
 	target.cost.output += cost.output;
 	target.cost.cacheRead += cost.cacheRead;
 	target.cost.cacheWrite += cost.cacheWrite;
-	target.cost.total += cost.total;
+	target.cost.total = calculateUsageCostTotal(target);
 }
 
 // Re-export types and utilities

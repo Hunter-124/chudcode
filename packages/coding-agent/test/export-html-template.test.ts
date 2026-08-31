@@ -19,9 +19,9 @@ interface TemplateProbeResult {
 }
 
 const expectedTemplate: TemplateProbeResult = {
-	chars: 376_586,
-	bytes: 376_742,
-	sha256: "d1832d9fc1e2033e4d998856bfdd7739aa3be94bff74c21154d7fa6a51788269",
+	chars: 377_358,
+	bytes: 377_514,
+	sha256: "514dab3612ad1cc209dcd3b9a655558f7a593e3ecf2f3bbab4350206805ab6c4",
 	stableCache: true,
 	assetsRemoved: 0,
 };
@@ -36,6 +36,9 @@ const compiledPath = path.join(tempRoot, "compiled-template-probe");
 let bundlePath: string;
 const bundledDependencyStubs: Record<string, string> = {
 	"@chudware/utils": 'export const APP_NAME = "chudcode"; export const isEnoent = () => false;',
+	"@chudware/catalog/models":
+		"export const calculateUsageTokenComponents = usage => { const orchestration = usage.orchestration ?? {}; return { input: usage.input + (orchestration.input ?? 0), output: usage.output + (orchestration.output ?? 0), cacheRead: usage.cacheRead + (orchestration.cacheRead ?? 0), cacheWrite: usage.cacheWrite }; }; export const calculateUsageCostTotal = usage => usage.cost.input + usage.cost.output + usage.cost.cacheRead + usage.cost.cacheWrite; export const calculateUsageTotalTokens = usage => { const components = calculateUsageTokenComponents(usage); return components.input + components.output + components.cacheRead + components.cacheWrite; };",
+	"@chudware/utils/fsx": "export const write = async () => {};",
 	"../../modes/theme/theme":
 		"export const getResolvedThemeColors = async () => ({}); export const getThemeExportColors = async () => ({});",
 	"../../session/session-loader": "export const loadEntriesFromFile = async () => [];",

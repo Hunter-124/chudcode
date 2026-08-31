@@ -21,6 +21,7 @@ export * from "./logout-account-selector";
 export * from "./model-browser";
 export * from "./model-hub";
 export * from "./model-picker";
+export * from "./mouse-routing";
 export * from "./oauth-selector";
 export * from "./queue-mode-selector";
 export * from "./read-tool-group";

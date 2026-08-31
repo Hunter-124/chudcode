@@ -1,5 +1,6 @@
 import type { ThinkingLevel } from "@chudware/agent-core";
 import type { Effort } from "@chudware/ai";
+import type { ShapeTarget } from "@chudware/snapcompact";
 import {
 	type Component,
 	Container,
@@ -12,7 +13,6 @@ import {
 	matchesKey,
 	replaceTabs,
 	routeSelectListMouse,
-	routeSgrMouseInput,
 	type SelectItem,
 	SelectList,
 	type SettingItem,
@@ -25,7 +25,6 @@ import {
 	truncateToWidth,
 	visibleWidth,
 } from "@chudware/tui";
-import type { ShapeTarget } from "@chudware/snapcompact";
 import {
 	getDefault,
 	getType,
@@ -47,6 +46,7 @@ import { AUTO_THINKING, type ConfiguredThinkingLevel } from "../../thinking";
 import { getTabBarTheme } from "../shared";
 import { type ComposerPreviewStatusSource, ComposerShapePreview } from "./composer-shape-preview";
 import { getComposerShapeOptions } from "./composer-shape-registry";
+import { type OverlayMouseEvent, OverlayMouseRouter } from "./mouse-routing";
 import { bottomBorder, divider, row, topBorder } from "./overlay-box";
 import { handleInputOrEscape, PluginSettingsComponent } from "./plugin-settings";
 import { getSettingDef, getSettingsForTab, type SettingDef } from "./settings-defs";
@@ -89,8 +89,12 @@ class TextInputSubmenu extends Container {
 		}
 		this.#error = new Text("", 0, 0);
 		this.#input.onSubmit = value => {
+			if (!this.allowEmpty && value.trim() === "") {
+				this.#error.setText(theme.fg("error", "A value is required."));
+				return;
+			}
 			try {
-				this.onSubmit(value); // empty string clears the setting
+				this.onSubmit(value); // empty string clears settings that allow it
 			} catch (error) {
 				const message = error instanceof Error ? error.message : String(error);
 				this.#error.setText(theme.fg("error", truncateToWidth(replaceTabs(message).replace(/[\r\n]+/g, " "), 100)));
@@ -99,7 +103,7 @@ class TextInputSubmenu extends Container {
 		this.addChild(this.#input);
 		this.addChild(new Spacer(1));
 		this.addChild(this.#error);
-		const hint = allowEmpty
+		const hint = this.allowEmpty
 			? "  Enter to save · Esc to cancel · Clear field to unset"
 			: "  Enter to save · Esc to cancel";
 		this.addChild(new Text(theme.fg("dim", hint), 0, 0));
@@ -218,9 +222,19 @@ class SelectSubmenu extends Container {
 		return lines;
 	}
 
-	/** Mouse routed from the host: wheel steps, hover lights, click confirms. */
+	/** Mouse routed from the host: wheel steps, hover lights, double-click confirms. */
 	routeMouse(event: SgrMouseEvent, line: number, _col: number): void {
-		routeSelectListMouse(this.#selectList, event, line - this.#selectListLineOffset);
+		const localLine = line - this.#selectListLineOffset;
+		if (event.wheel !== null || event.motion || !("clickCount" in event)) {
+			routeSelectListMouse(this.#selectList, event, localLine);
+			return;
+		}
+		if (typeof event.clickCount !== "number" || event.clickCount === 0) return;
+		const index = this.#selectList.hitTest(localLine);
+		if (index === undefined) return;
+		this.#selectList.setSelectedIndex(index);
+		this.#updatePreview();
+		if (event.clickCount === 2) this.#selectList.clickItem(index);
 	}
 
 	handleInput(data: string): void {
@@ -695,6 +709,7 @@ export class SettingsSelectorComponent implements Component {
 	#tabRowCount = 0;
 	#contentRowStart = 0;
 	#contentRowCount = 0;
+	#mouse = new OverlayMouseRouter();
 
 	constructor(
 		private readonly context: SettingsRuntimeContext,
@@ -827,69 +842,8 @@ export class SettingsSelectorComponent implements Component {
 		return out;
 	}
 
-	/**
-	 * Route an SGR mouse report against the frame geometry of the last render.
-	 * Wheel scrolls the focused list, motion drives the hover highlights (tabs
-	 * and rows), and a left click activates: tabs switch (or jump, while
-	 * searching), a row click selects, and a click on the already-selected row
-	 * activates it (toggle / open submenu).
-	 */
-	#handleMouse(data: string): boolean {
-		return routeSgrMouseInput(data, event => this.#routeMouseEvent(event));
-	}
-
-	#routeMouseEvent(event: SgrMouseEvent): boolean {
-		const list = this.#searchList ?? this.#currentList;
-		// row() insets content by the border column plus a space.
-		const contentColInset = 2;
-		const innerCol = event.col - contentColInset;
-		const contentLine = event.row - this.#contentRowStart;
-
-		// An open submenu owns the pointer: wheel, hover, and clicks route into
-		// it (text-input submenus ignore routed events).
-		if (list?.hasOpenSubmenu()) {
-			list.routeSubmenuMouse(event, contentLine, innerCol);
-			return true;
-		}
-
-		const tabLine = event.row - this.#tabRowStart;
-		const overTabs = tabLine >= 0 && tabLine < this.#tabRowCount;
-		const overContent = contentLine >= 0 && contentLine < this.#contentRowCount;
-
-		if (event.wheel !== null) {
-			if (overContent) {
-				list?.handleWheelAt(event.wheel, contentLine, innerCol);
-			}
-			return true;
-		}
-
-		if (event.motion) {
-			const hovered = overTabs ? this.#tabBar.tabAt(tabLine, innerCol) : undefined;
-			this.#tabBar.setHoverTab(hovered && !hovered.muted ? hovered.id : null);
-			// hoverTest: never light up pane rows while the pointer is on the
-			// sidebar — only rows the pointer is actually on.
-			list?.setHoverItem(overContent ? (list.hoverTest(contentLine, innerCol) ?? null) : null);
-			return true;
-		}
-		if (!event.leftClick) return true;
-
-		if (overTabs) {
-			const tab = this.#tabBar.tabAt(tabLine, innerCol);
-			if (tab) this.#tabBar.selectTab(tab.id);
-			return true;
-		}
-		if (overContent && list) {
-			const itemId = list.hoverTest(contentLine, innerCol);
-			const id = itemId ?? list.hitTest(contentLine, innerCol);
-			if (id !== undefined) {
-				const wasSelected = list.getSelectedItem()?.id === id;
-				list.selectItem(id);
-				// Only repeated setting-row clicks activate. Sidebar section clicks navigate.
-				if (wasSelected && itemId !== undefined) list.handleInput("\n");
-			}
-		}
-		return true;
-	}
+	// Mouse routing is centralized in handleInput so tab/content geometry,
+	// click counting, and local coordinates share the overlay router.
 
 	// ═══════════════════════════════════════════════════════════════════════
 	// Global search (type-to-search across every tab)
@@ -1532,11 +1486,63 @@ export class SettingsSelectorComponent implements Component {
 	}
 
 	handleInput(data: string): void {
-		// SGR mouse reports (the fullscreen overlay enables tracking).
-		if (data.startsWith("\x1b[<")) {
-			this.#handleMouse(data);
-			return;
-		}
+		const activeList = this.#searchList ?? this.#currentList;
+		const routed = this.#mouse.route(data, () => ({
+			regions: [
+				{
+					id: "settings-tabs",
+					rowStart: this.#tabRowStart,
+					rowCount: this.#tabRowCount,
+					colStart: 2,
+					onMouse: (event: OverlayMouseEvent) => {
+						if (event.motion) {
+							const hovered = this.#tabBar.tabAt(event.localRow, event.localCol);
+							this.#tabBar.setHoverTab(hovered && !hovered.muted ? hovered.id : null);
+						} else if (event.clickCount > 0) {
+							const tab = this.#tabBar.tabAt(event.localRow, event.localCol);
+							if (tab) this.#tabBar.selectTab(tab.id);
+						}
+					},
+				},
+				{
+					id: "settings-content",
+					rowStart: this.#contentRowStart,
+					rowCount: this.#contentRowCount,
+					colStart: 2,
+					onMouse: (event: OverlayMouseEvent) => {
+						if (activeList?.hasOpenSubmenu()) {
+							activeList.routeSubmenuMouse(event, event.localRow, event.localCol);
+							return;
+						}
+						if (event.wheel !== null) {
+							activeList?.handleWheelAt(event.wheel, event.localRow, event.localCol);
+							return;
+						}
+						if (event.motion) {
+							activeList?.setHoverItem(activeList.hoverTest(event.localRow, event.localCol) ?? null);
+							return;
+						}
+						if (event.clickCount > 0 && activeList) {
+							const itemId = activeList.hoverTest(event.localRow, event.localCol);
+							const id = itemId ?? activeList.hitTest(event.localRow, event.localCol);
+							if (id !== undefined) {
+								activeList.selectItem(id);
+								if (event.clickCount === 2 && itemId !== undefined) activeList.handleInput("\n");
+							}
+						}
+					},
+				},
+			],
+			fallback: (event: OverlayMouseEvent) => {
+				if (activeList?.hasOpenSubmenu()) {
+					activeList.routeSubmenuMouse(event, event.row - this.#contentRowStart, event.col - 2);
+				} else if (event.motion) {
+					this.#tabBar.setHoverTab(null);
+					activeList?.setHoverItem(null);
+				}
+			},
+		}));
+		if (routed) return;
 
 		// Text-input submenus take every byte: arrow keys must reach the
 		// cursor and Tab must not switch tabs.
@@ -1544,8 +1550,6 @@ export class SettingsSelectorComponent implements Component {
 			(this.#searchList ?? this.#currentList)?.handleInput(data);
 			return;
 		}
-
-		const activeList = this.#searchList ?? this.#currentList;
 
 		// An open submenu owns input entirely — Tab/arrows/typing belong to it.
 		if (activeList?.hasOpenSubmenu()) {

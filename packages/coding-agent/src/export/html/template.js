@@ -1190,6 +1190,19 @@
       // HEADER / STATS
       // ============================================================
 
+      // Standalone mirror of catalog/models.calculateUsageTokenComponents.
+      // Export HTML has no module loader, so keep this one local fold at the
+      // boundary where persisted raw usage becomes user-facing billable totals.
+      function usageTokenComponents(usage) {
+        const orchestration = usage.orchestration || {};
+        return {
+          input: (usage.input || 0) + (orchestration.input || 0),
+          output: (usage.output || 0) + (orchestration.output || 0),
+          cacheRead: (usage.cacheRead || 0) + (orchestration.cacheRead || 0),
+          cacheWrite: usage.cacheWrite || 0,
+        };
+      }
+
       function computeStats(entryList) {
         let userMessages = 0, developerMessages = 0, assistantMessages = 0, toolResults = 0;
         let customMessages = 0, compactions = 0, branchSummaries = 0, toolCalls = 0;
@@ -1202,24 +1215,32 @@
             const msg = entry.message;
             if (msg.role === 'user') userMessages++;
             if (msg.role === 'developer') developerMessages++;
+            let usage;
             if (msg.role === 'assistant') {
               assistantMessages++;
               if (msg.model) models.add(msg.provider ? `${msg.provider}/${msg.model}` : msg.model);
-              if (msg.usage) {
-                tokens.input += msg.usage.input || 0;
-                tokens.output += msg.usage.output || 0;
-                tokens.cacheRead += msg.usage.cacheRead || 0;
-                tokens.cacheWrite += msg.usage.cacheWrite || 0;
-                if (msg.usage.cost) {
-                  cost.input += msg.usage.cost.input || 0;
-                  cost.output += msg.usage.cost.output || 0;
-                  cost.cacheRead += msg.usage.cost.cacheRead || 0;
-                  cost.cacheWrite += msg.usage.cost.cacheWrite || 0;
-                }
-              }
+              usage = msg.usage;
               toolCalls += msg.content.filter(c => c.type === 'toolCall').length;
             }
-            if (msg.role === 'toolResult') toolResults++;
+            if (msg.role === 'toolResult') {
+              toolResults++;
+              if (msg.toolName === 'task' && msg.details && typeof msg.details === 'object') {
+                usage = msg.details.usage;
+              }
+            }
+            if (usage) {
+              const usageTokens = usageTokenComponents(usage);
+              tokens.input += usageTokens.input;
+              tokens.output += usageTokens.output;
+              tokens.cacheRead += usageTokens.cacheRead;
+              tokens.cacheWrite += usageTokens.cacheWrite;
+              if (usage.cost) {
+                cost.input += usage.cost.input || 0;
+                cost.output += usage.cost.output || 0;
+                cost.cacheRead += usage.cost.cacheRead || 0;
+                cost.cacheWrite += usage.cost.cacheWrite || 0;
+              }
+            }
           } else if (entry.type === 'compaction') {
             compactions++;
           } else if (entry.type === 'branch_summary') {

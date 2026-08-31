@@ -1,6 +1,11 @@
 import type { AgentMessage } from "@chudware/agent-core";
-import { calculatePromptCacheSavings } from "@chudware/catalog/models";
 import type { Api, Model, Usage } from "@chudware/ai";
+import {
+	calculatePromptCacheSavings,
+	calculateUsageCostTotal,
+	calculateUsageTokenComponents,
+	hasKnownModelPricing,
+} from "@chudware/catalog/models";
 
 export type CacheRetentionMode = "auto" | "short" | "long" | "none";
 
@@ -11,6 +16,7 @@ export interface CacheMetrics {
 	cacheWrite: number;
 	promptTokens: number;
 	hitRate: number | undefined;
+	/** Spend backed by either a known rate card or an authoritative provider-reported charge. */
 	pricedSpend: number;
 	savings: number | undefined;
 	pricedModels: number;
@@ -29,23 +35,8 @@ interface ModelPricingState {
 	priced: boolean;
 }
 
-function isUsablePrice(value: number): boolean {
-	return Number.isFinite(value) && value >= 0;
-}
-
 function resolvePricing(model: Model<Api> | undefined): ModelPricingState {
-	if (!model || model.pricingKnown === false) return { model, priced: false };
-	const cost = model.cost;
-	const ratesAreUsable =
-		isUsablePrice(cost.input) &&
-		isUsablePrice(cost.output) &&
-		isUsablePrice(cost.cacheRead) &&
-		isUsablePrice(cost.cacheWrite);
-	// Legacy discovery paths encoded absent prices as an all-zero card. Unless
-	// the source explicitly vouched for that card, zero is unknown—not free.
-	const hasExplicitOrNonzeroPricing =
-		model.pricingKnown === true || cost.input > 0 || cost.output > 0 || cost.cacheRead > 0 || cost.cacheWrite > 0;
-	return { model, priced: ratesAreUsable && hasExplicitOrNonzeroPricing };
+	return { model, priced: hasKnownModelPricing(model) };
 }
 
 /** Aggregate cache economics from persisted assistant turns. */
@@ -65,10 +56,11 @@ export function calculateCacheMetrics(
 	for (const message of messages) {
 		if (message.role !== "assistant" || !message.usage) continue;
 		const usage: Usage = message.usage;
-		input += usage.input;
-		output += usage.output;
-		cacheRead += usage.cacheRead;
-		cacheWrite += usage.cacheWrite;
+		const tokens = calculateUsageTokenComponents(usage);
+		input += tokens.input;
+		output += tokens.output;
+		cacheRead += tokens.cacheRead;
+		cacheWrite += tokens.cacheWrite;
 		if (Number.isFinite(message.timestamp)) {
 			lastResponseAt = Math.max(lastResponseAt ?? 0, message.timestamp);
 		}
@@ -76,8 +68,9 @@ export function calculateCacheMetrics(
 		const key = `${message.provider}\u0000${message.model}`;
 		const pricing = models[key] ?? resolvePricing(findModel(message.provider, message.model));
 		models[key] = pricing;
+		const turnSpend = calculateUsageCostTotal(usage);
+		if (pricing.priced || turnSpend > 0) pricedSpend += turnSpend;
 		if (!pricing.priced || !pricing.model) continue;
-		pricedSpend += usage.cost.total;
 		measuredSavings += calculatePromptCacheSavings(pricing.model.cost, usage);
 	}
 

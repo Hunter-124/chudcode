@@ -73,6 +73,7 @@ import { xaiOauthUsageProvider } from "./usage/xai-oauth";
 import { zaiRankingStrategy, zaiUsageProvider } from "./usage/zai";
 
 export {
+	DISABLED_CREDENTIAL_TOMBSTONE_TTL_MS,
 	isSqliteBusyError,
 	isSqliteCorruptionError,
 	SqliteAuthCredentialStore,
@@ -408,6 +409,12 @@ export interface AuthCredentialStore {
 	 * endpoint); stores without tombstones omit it.
 	 */
 	listDisabledCredentials?(provider?: string, signal?: AbortSignal): Promise<DisabledCredentialSummary[]>;
+	/**
+	 * Hard-prune disabled rows that have exceeded the bounded retention policy.
+	 * Remote implementations ask the broker to run the same maintenance with
+	 * its authoritative clock.
+	 */
+	pruneDisabledCredentials?(nowMs: number): void | Promise<void>;
 	updateAuthCredential(id: number, credential: AuthCredential): void;
 	deleteAuthCredential(id: number, disabledCause: string): void;
 	tryDisableAuthCredentialIfMatches(
@@ -628,6 +635,11 @@ export type AuthStorageOptions = {
 	 */
 	sourceLabel?: string;
 	/**
+	 * Clock used only for bounded credential-tombstone maintenance. Tests inject
+	 * this rather than changing process time.
+	 */
+	maintenanceNow?: () => number;
+	/**
 	 * Override `fetchUsageReports`. When set, `AuthStorage.fetchUsageReports`
 	 * calls this instead of fanning out per-credential. The primary use case is
 	 * routing through a broker that egresses from a less-throttled IP — e.g. a
@@ -738,6 +750,8 @@ const OAUTH_REFRESH_OPERATION_TIMEOUT_MS = 10_000;
  * pathological detach-without-reattach loops can't grow memory unboundedly.
  */
 const MAX_PENDING_DISABLED_EVENTS = 32;
+/** Re-check tombstone retention at most once per day in long-lived processes. */
+const DISABLED_CREDENTIAL_PRUNE_INTERVAL_MS = 24 * 60 * 60_000;
 
 // Re-exported from the error module (its new home) to preserve the public
 // `@chudware/ai` entrypoint and the in-module call sites below.
@@ -1340,6 +1354,8 @@ export class AuthStorage {
 	#refreshOAuthCredentialOverride?: AuthStorageOptions["refreshOAuthCredential"];
 	#fetchUsageReportsOverride?: AuthStorageOptions["fetchUsageReports"];
 	#sourceLabel?: string;
+	#maintenanceNow: () => number;
+	#nextDisabledCredentialPruneAtMs = 0;
 	#credentialDisabledListeners: Set<(event: CredentialDisabledEvent) => void | Promise<void>> = new Set();
 	/**
 	 * Buffer for credential_disabled events fired while no listener is subscribed.
@@ -1356,8 +1372,22 @@ export class AuthStorage {
 	#oauthCredentialRefreshInFlight: Map<number, Promise<OAuthCredentials>> = new Map();
 	#closed = false;
 
+	async #maybePruneDisabledCredentials(): Promise<void> {
+		const prune = this.#store.pruneDisabledCredentials;
+		if (!prune) return;
+		const nowMs = this.#maintenanceNow();
+		if (!Number.isFinite(nowMs) || nowMs < this.#nextDisabledCredentialPruneAtMs) return;
+		this.#nextDisabledCredentialPruneAtMs = nowMs + DISABLED_CREDENTIAL_PRUNE_INTERVAL_MS;
+		try {
+			await prune.call(this.#store, nowMs);
+		} catch (error) {
+			logger.debug("disabled credential tombstone pruning failed", { error: String(error) });
+		}
+	}
+
 	constructor(store: AuthCredentialStore, options: AuthStorageOptions = {}) {
 		this.#store = store;
+		this.#maintenanceNow = options.maintenanceNow ?? Date.now;
 		this.#configValueResolver = options.configValueResolver ?? defaultConfigValueResolver;
 		this.#usageProviderResolver = options.usageProviderResolver ?? resolveDefaultUsageProvider;
 		this.#rankingStrategyResolver = options.rankingStrategyResolver ?? resolveDefaultRankingStrategy;
@@ -1377,6 +1407,7 @@ export class AuthStorage {
 			// immediately so the first evaluation doesn't re-query a broken DB.
 			this.#handlePersistedBlockStoreError(err);
 		}
+		void this.#maybePruneDisabledCredentials();
 		this.#usageFetch = options.usageFetch ?? fetch;
 		this.#usageRequestTimeoutMs = options.usageRequestTimeoutMs ?? DEFAULT_USAGE_REQUEST_TIMEOUT_MS;
 		this.#refreshOAuthCredentialOverride = options.refreshOAuthCredential;
@@ -1565,6 +1596,7 @@ export class AuthStorage {
 	 * Reload credentials from storage.
 	 */
 	async reload(): Promise<void> {
+		await this.#maybePruneDisabledCredentials();
 		let records: StoredAuthCredential[];
 		try {
 			records = this.#store.listAuthCredentials();
@@ -6605,6 +6637,7 @@ export class AuthStorage {
 	 * keeps no tombstones or the remote broker predates the endpoint.
 	 */
 	async listDisabledCredentials(provider?: string, signal?: AbortSignal): Promise<DisabledCredentialSummary[]> {
+		await this.#maybePruneDisabledCredentials();
 		if (!this.#store.listDisabledCredentials) return [];
 		return this.#store.listDisabledCredentials(provider, signal);
 	}

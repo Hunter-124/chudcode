@@ -1,6 +1,7 @@
 import * as path from "node:path";
 import type { AgentMessage } from "@chudware/agent-core";
 import type { AssistantMessage, UsageLimit, UsageReport } from "@chudware/ai";
+import { calculateUsageTokenComponents } from "@chudware/catalog/models";
 import {
 	type Component,
 	type ComposerStyle,
@@ -27,7 +28,7 @@ import {
 	type CodexResetUsageSnapshot,
 	detectCodexResetFireworks,
 } from "../codex-reset-fireworks";
-import { calculateCacheMetrics, type CacheMetrics } from "./cache-metrics";
+import { type CacheMetrics, calculateCacheMetrics } from "./cache-metrics";
 import { canReuseCachedPr, createPrCacheContext, isSamePrCacheContext, type PrCacheContext } from "./git-utils";
 import { getPreset } from "./presets";
 import { renderSegment, type SegmentContext } from "./segments";
@@ -1674,12 +1675,7 @@ export class StatusLineComponent implements Component {
 		const length = messages.length;
 		const lastFingerprint = length > 0 ? messageFingerprint(messages[length - 1]!) : undefined;
 		const memo = this.#cacheMetricsMemo;
-		if (
-			memo &&
-			memo.messagesRef === messages &&
-			memo.length === length &&
-			memo.lastFingerprint === lastFingerprint
-		) {
+		if (memo && memo.messagesRef === messages && memo.length === length && memo.lastFingerprint === lastFingerprint) {
 			return memo.metrics;
 		}
 		const metrics = calculateCacheMetrics(messages, (provider, modelId) =>
@@ -1715,8 +1711,20 @@ export class StatusLineComponent implements Component {
 			premiumRequests: 0,
 			cost: 0,
 		};
+		const billableUsage = calculateUsageTokenComponents({
+			input: aggregateUsageStats.input,
+			output: aggregateUsageStats.output,
+			cacheRead: aggregateUsageStats.cacheRead,
+			cacheWrite: aggregateUsageStats.cacheWrite,
+			orchestration: {
+				input: aggregateUsageStats.orchestrationInput,
+				output: aggregateUsageStats.orchestrationOutput,
+				cacheRead: aggregateUsageStats.orchestrationCacheRead,
+			},
+		});
 		const usageStats = {
 			...aggregateUsageStats,
+			...billableUsage,
 			tokensPerSecond: this.#getTokensPerSecond(),
 		};
 

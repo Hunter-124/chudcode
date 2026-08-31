@@ -37,10 +37,11 @@ interface ImageContentWithPng extends ImageContent {
  * The composer attachment band: one rounded card per staged attachment, rendered directly above
  * the prompt box. Image cards show a live thumbnail (Kitty Unicode placeholders — the only
  * protocol whose output is plain text cells and therefore composable inside a border row) with
- * the pixel dimensions as the bottom caption; text-paste cards show the leading snippet with a
- * `+N lines` / `N chars` caption. The top caption is the same `<icon> #N` token that sits in
- * the editor buffer, in the same identity color. Cards that no longer fit the terminal width
- * are omitted rather than wrapped. Renders to nothing while no attachment is staged.
+ * pixel dimensions as the bottom caption. Document and folder cards show a bounded path preview
+ * and conversion/direct-entry summary; text-paste cards show the leading snippet with a
+ * `+N lines` / `N chars` caption. The top caption is the same `<icon> #N` identity that sits in
+ * the editor buffer. Cards that no longer fit the terminal width are omitted rather than wrapped.
+ * Renders to nothing while no attachment is staged.
  */
 export class AttachmentChipsBand implements Component {
 	constructor(
@@ -65,17 +66,27 @@ export class AttachmentChipsBand implements Component {
 	}
 
 	#card(chip: ComposerChipDescriptor): string[] {
-		const sgr = attachmentSgr(chip.kind, chip.n);
-		const icon = theme.symbol(chip.kind === "image" ? "chip.image" : "chip.paste");
+		const sgr = attachmentSgr(chip.kind === "image" ? "image" : "paste", chip.n);
+		const icon =
+			chip.kind === "image"
+				? theme.symbol("chip.image")
+				: chip.kind === "folder"
+					? theme.symbol("icon.folder")
+					: chip.kind === "document"
+						? theme.symbol("icon.file")
+						: theme.symbol("chip.paste");
 		let bottomCaption: string;
 		let interior: string[];
 		if (chip.kind === "image") {
 			const dims = this.#imageDims(chip.image);
 			bottomCaption = dims ? `${dims.width}x${dims.height}` : "";
 			interior = this.#imageInterior(chip.image, dims);
-		} else {
+		} else if (chip.kind === "paste") {
 			bottomCaption = chip.text.lineCount > 1 ? `+${chip.text.lineCount} lines` : `${chip.text.charCount} chars`;
 			interior = this.#textInterior(chip.text);
+		} else {
+			bottomCaption = chip.text.path?.detail ?? "";
+			interior = this.#pathInterior(chip.text);
 		}
 		const vertical = `${sgr}${theme.symbol("boxRound.vertical")}${RESET_FG}`;
 		return [
@@ -181,6 +192,19 @@ export class AttachmentChipsBand implements Component {
 	/** Leading 4 rows x 12 cols of the pasted text, muted. */
 	#textInterior(entry: TextAttachment): string[] {
 		const lines = entry.content.split("\n");
+		const rows: string[] = [];
+		for (let r = 0; r < INNER_ROWS; r++) {
+			const cut = truncateToWidth(replaceTabs(lines[r] ?? ""), INNER_COLS);
+			const pad = INNER_COLS - visibleWidth(cut);
+			rows.push(theme.fg("muted", cut) + " ".repeat(Math.max(0, pad)));
+		}
+		return rows;
+	}
+
+	/** Bounded document/folder preview: basename first, followed by conversion
+	 * or direct-entry metadata supplied by the paste controller. */
+	#pathInterior(entry: TextAttachment): string[] {
+		const lines = [entry.path?.title ?? "", ...entry.content.split("\n")];
 		const rows: string[] = [];
 		for (let r = 0; r < INNER_ROWS; r++) {
 			const cut = truncateToWidth(replaceTabs(lines[r] ?? ""), INNER_COLS);

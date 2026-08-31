@@ -57,6 +57,9 @@ const USAGE_HISTORY_BUCKET_MS = 60 * 60_000;
  */
 const CLIENT_USAGE_BUCKET_MS = 5 * 60_000;
 
+/** Disabled grants stay actionable for six weeks before permanent tombstones are discarded. */
+export const DISABLED_CREDENTIAL_TOMBSTONE_TTL_MS = 42 * 24 * 60 * 60_000;
+
 // ─────────────────────────────────────────────────────────────────────────────
 // SqliteAuthCredentialStore
 // ─────────────────────────────────────────────────────────────────────────────
@@ -73,6 +76,11 @@ type AuthRow = {
 
 /** {@link AuthRow} plus `updated_at` — disabled-tombstone queries surface when the row was torn down. */
 type DisabledAuthRow = AuthRow & { updated_at: number | null };
+
+type ExpiredDisabledAuthRow = {
+	id: number;
+	disabled_cause: string;
+};
 
 type CredentialBlockRow = {
 	credential_id: number;
@@ -161,6 +169,11 @@ function normalizeDisabledCause(disabledCause: string): string {
 	const normalized = disabledCause.trim();
 	return normalized.length > 0 ? normalized : "disabled";
 }
+
+const MANUAL_DELETE_CAUSE = "deleted by user";
+
+const PERMANENT_DISABLED_CAUSE_PATTERN =
+	/\b(?:deleted by user|replaced by (?:newer credential|oauth login)|deduplicated duplicate credential)\b/i;
 
 function toStoredAuthCredential(row: AuthRow, credential: AuthCredential): StoredAuthCredential {
 	return { id: row.id, provider: row.provider, credential, disabledCause: row.disabled_cause };
@@ -347,6 +360,7 @@ export class SqliteAuthCredentialStore implements AuthCredentialStore {
 	#listActiveByProviderStmt: Statement;
 	#listDisabledStmt: Statement;
 	#listDisabledByProviderStmt: Statement;
+	#listExpiredDisabledStmt: Statement;
 	#insertStmt: Statement;
 	#updateStmt: Statement;
 	#deleteStmt: Statement;
@@ -354,6 +368,7 @@ export class SqliteAuthCredentialStore implements AuthCredentialStore {
 	#updateIfMatchesStmt: Statement;
 	#deleteByProviderStmt: Statement;
 	#hardDeleteStmt: Statement;
+	#hardDeleteByProviderStmt: Statement;
 	#getCacheStmt: Statement;
 	#getCacheIncludingExpiredStmt: Statement;
 	#upsertCacheStmt: Statement;
@@ -400,6 +415,9 @@ export class SqliteAuthCredentialStore implements AuthCredentialStore {
 		this.#listDisabledByProviderStmt = this.#db.prepare(
 			"SELECT id, provider, credential_type, data, disabled_cause, identity_key, updated_at FROM auth_credentials WHERE provider = ? AND disabled_cause IS NOT NULL ORDER BY id ASC",
 		);
+		this.#listExpiredDisabledStmt = this.#db.prepare(
+			"SELECT id, disabled_cause FROM auth_credentials WHERE disabled_cause IS NOT NULL AND updated_at IS NOT NULL AND updated_at <= ? ORDER BY id ASC",
+		);
 		this.#insertStmt = this.#db.prepare(
 			`INSERT INTO auth_credentials (provider, credential_type, data, identity_key, created_at, updated_at) VALUES (?, ?, ?, ?, ${SQLITE_NOW_EPOCH}, ${SQLITE_NOW_EPOCH}) RETURNING id`,
 		);
@@ -437,6 +455,7 @@ export class SqliteAuthCredentialStore implements AuthCredentialStore {
 			`UPDATE auth_credentials SET disabled_cause = ?, updated_at = ${SQLITE_NOW_EPOCH} WHERE provider = ? AND disabled_cause IS NULL`,
 		);
 		this.#hardDeleteStmt = this.#db.prepare("DELETE FROM auth_credentials WHERE id = ?");
+		this.#hardDeleteByProviderStmt = this.#db.prepare("DELETE FROM auth_credentials WHERE provider = ?");
 		this.#getCacheStmt = this.#db.prepare(
 			`SELECT value FROM cache WHERE key = ? AND expires_at > ${SQLITE_NOW_EPOCH}`,
 		);
@@ -1231,6 +1250,28 @@ export class SqliteAuthCredentialStore implements AuthCredentialStore {
 		return results;
 	}
 
+	/**
+	 * Hard-delete only old tombstones whose cause proves the credential is
+	 * permanently unusable. Unknown and transient causes remain available for
+	 * diagnosis regardless of age.
+	 */
+	pruneDisabledCredentials(nowMs: number): void {
+		if (!Number.isFinite(nowMs)) return;
+		const cutoffSec = Math.floor((nowMs - DISABLED_CREDENTIAL_TOMBSTONE_TTL_MS) / 1000);
+		const prune = this.#db.transaction((cutoff: number) => {
+			const rows = this.#listExpiredDisabledStmt.all(cutoff) as ExpiredDisabledAuthRow[];
+			for (const row of rows) {
+				if (
+					PERMANENT_DISABLED_CAUSE_PATTERN.test(row.disabled_cause) ||
+					AIError.isDefinitiveOAuthFailure(row.disabled_cause)
+				) {
+					this.#hardDeleteStmt.run(row.id);
+				}
+			}
+		});
+		prune(cutoffSec);
+	}
+
 	replaceAuthCredentialsForProvider(provider: string, credentials: AuthCredential[]): StoredAuthCredential[] {
 		const replace = this.#db.transaction((providerName: string, items: AuthCredential[]) => {
 			const existingRows = this.#listActiveByProviderStmt.all(providerName) as AuthRow[];
@@ -1453,7 +1494,12 @@ export class SqliteAuthCredentialStore implements AuthCredentialStore {
 
 	deleteAuthCredential(id: number, disabledCause: string): void {
 		try {
-			this.#deleteStmt.run(normalizeDisabledCause(disabledCause), id);
+			const normalizedCause = normalizeDisabledCause(disabledCause);
+			if (normalizedCause === MANUAL_DELETE_CAUSE) {
+				this.#hardDeleteStmt.run(id);
+			} else {
+				this.#deleteStmt.run(normalizedCause, id);
+			}
 		} catch {
 			// Ignore delete failures
 		}
@@ -1487,7 +1533,12 @@ export class SqliteAuthCredentialStore implements AuthCredentialStore {
 	}
 	deleteAuthCredentialsForProvider(provider: string, disabledCause: string): void {
 		try {
-			this.#deleteByProviderStmt.run(normalizeDisabledCause(disabledCause), provider);
+			const normalizedCause = normalizeDisabledCause(disabledCause);
+			if (normalizedCause === MANUAL_DELETE_CAUSE) {
+				this.#hardDeleteByProviderStmt.run(provider);
+			} else {
+				this.#deleteByProviderStmt.run(normalizedCause, provider);
+			}
 		} catch {
 			// Ignore delete failures
 		}
@@ -1983,12 +2034,14 @@ export class SqliteAuthCredentialStore implements AuthCredentialStore {
 		this.#listActiveByProviderStmt.finalize();
 		this.#listDisabledStmt.finalize();
 		this.#listDisabledByProviderStmt.finalize();
+		this.#listExpiredDisabledStmt.finalize();
 		this.#insertStmt.finalize();
 		this.#updateStmt.finalize();
 		this.#deleteStmt.finalize();
 		this.#deleteIfMatchesStmt.finalize();
 		this.#deleteByProviderStmt.finalize();
 		this.#hardDeleteStmt.finalize();
+		this.#hardDeleteByProviderStmt.finalize();
 		this.#getCacheStmt.finalize();
 		this.#getCacheIncludingExpiredStmt.finalize();
 		this.#upsertCacheStmt.finalize();

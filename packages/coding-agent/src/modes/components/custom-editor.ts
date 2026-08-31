@@ -241,10 +241,25 @@ function splitPastedPathSegments(payload: string): string[] | undefined {
  * Returns the segments only when EVERY segment looks like an explicit path
  * (`/`, `\`, drive letter, or `file://`); otherwise undefined so the caller
  * falls back to a plain text paste.
+ *
+ * An anchored, unquoted payload with spaces and no second path anchor is one
+ * path. This is the shape emitted for Finder/Explorer folders and documents
+ * such as `/tmp/Quarterly Report/report.pdf`; splitting it on spaces would
+ * invent multiple nonexistent paths.
  */
 function extractExplicitPathSegments(payload: string): string[] | undefined {
 	const pasted = payload.trim();
 	if (!pasted) return undefined;
+
+	if (
+		ABSOLUTE_PATH_PREFIX_REGEX.test(pasted) &&
+		!/["']/.test(pasted) &&
+		/(?<!\\)\s/.test(pasted) &&
+		!INTERIOR_PATH_ANCHOR_REGEX.test(pasted)
+	) {
+		const wholePath = normalizePastedPath(pasted);
+		return wholePath && isExplicitPastedPath(wholePath) ? [wholePath] : undefined;
+	}
 
 	const segments = splitPastedPathSegments(pasted);
 	if (!segments) return undefined;
@@ -387,15 +402,27 @@ function isEditorTheme(value: unknown): value is EditorTheme {
 	);
 }
 
-/** A large text paste staged as a composer chip. `content` feeds the band card's snippet and
- *  captions; the submit-time expansion (verbatim content or a wrapped block) lives in the
- *  editor's atom table under `label`. */
+/** Metadata for a document or folder staged by path. The source remains a
+ * reference: previews are deliberately bounded and never replace a later
+ * `read` of the authoritative path. */
+export interface PathAttachmentMetadata {
+	kind: "document" | "folder";
+	title: string;
+	sourcePath: string;
+	sourceLink: string;
+	detail: string;
+}
+
+/** A large paste or path reference staged as a composer chip. `content` feeds
+ * the card preview; submit-time expansion lives in the atom table under
+ * `label`. Plain pastes omit `path`, preserving their existing wire shape. */
 export interface TextAttachment {
 	n: number;
 	label: string;
 	content: string;
 	lineCount: number;
 	charCount: number;
+	path?: PathAttachmentMetadata;
 }
 
 interface ClearedDraft {
@@ -408,10 +435,11 @@ interface ClearedDraft {
 	textAttachmentCounter: number;
 }
 
-/** One visible composer attachment, in band order (images first, then text pastes). */
+/** One visible composer attachment, in band order (images first, then path
+ * references and text pastes in insertion order). */
 export type ComposerChipDescriptor =
 	| { kind: "image"; n: number; image: ImageContent; link: string | undefined }
-	| { kind: "paste"; n: number; text: TextAttachment };
+	| { kind: "paste" | "document" | "folder"; n: number; text: TextAttachment };
 
 /**
  * Custom editor that handles configurable app-level shortcuts for coding-agent.
@@ -426,9 +454,9 @@ export class CustomEditor extends Editor {
 	/** Per-image source links (file:// targets) parallel to {@link pendingImages};
 	 *  `undefined` entries are images without a backing reference yet. */
 	pendingImageLinks: (string | undefined)[] = [];
-	/** Large text pastes staged as compact chip tokens; expansion lives in the atom table.
-	 *  Numbered by a per-draft monotonic counter so a deleted chip never recycles its number
-	 *  (labels key the atom table). */
+	/** Large text pastes and path references staged as compact chip tokens.
+	 * Numbered by a per-draft monotonic counter so a deleted chip never recycles
+	 * its identity (labels key the atom table). */
 	pendingTexts: TextAttachment[] = [];
 	#textAttachmentCounter = 0;
 	/** Mirror of the base editor's private atom table, needed for lossless draft snapshots. */
@@ -486,6 +514,20 @@ export class CustomEditor extends Editor {
 	override clearAtoms(): void {
 		super.clearAtoms();
 		this.#draftAtoms.clear();
+	}
+
+	/** Expand draft atoms while dropping the separator that `insertAtom` adds
+	 * after a terminal document/folder chip. The separator remains when prompt
+	 * text follows the chip, so attachment boundaries stay readable. */
+	override getExpandedText(): string {
+		const draftText = this.getText();
+		const expanded = super.getExpandedText();
+		for (const attachment of this.pendingTexts) {
+			if (attachment.path && draftText.endsWith(`${attachment.label} `)) {
+				return expanded.slice(0, -1);
+			}
+		}
+		return expanded;
 	}
 
 	/** Clear the composer draft: optionally commit `historyText` to history, then
@@ -574,7 +616,7 @@ export class CustomEditor extends Editor {
 	}
 
 	/** Stage `content` as a text-attachment chip: inserts the compact token at the cursor and
-	 *  registers `expansion` (default: the content itself) in the atom table for submit. */
+	 * registers `expansion` (default: the content itself) in the atom table for submit. */
 	insertTextAttachment(content: string, expansion: string = content): void {
 		this.#textAttachmentCounter++;
 		const n = this.#textAttachmentCounter;
@@ -589,8 +631,26 @@ export class CustomEditor extends Editor {
 		this.insertAtom(label, expansion);
 	}
 
+	/** Stage a document/folder by authoritative path. `preview` is only for the
+	 * bounded card; `expansion` tells the model to use the existing read
+	 * semantics on `sourcePath` for full contents. */
+	insertPathAttachment(path: PathAttachmentMetadata, preview: string, expansion: string): void {
+		this.#textAttachmentCounter++;
+		const n = this.#textAttachmentCounter;
+		const label = chipLabel("paste", n);
+		this.pendingTexts.push({
+			n,
+			label,
+			content: preview,
+			lineCount: preview.split("\n").length,
+			charCount: preview.length,
+			path,
+		});
+		this.insertAtom(label, expansion);
+	}
+
 	/** Attachments whose chip token (or legacy bracketed marker) is still present in the buffer —
-	 *  deleting the inline token hides the chip and drops the attachment from the submission. */
+	 * deleting the inline token hides the chip and drops the attachment from the submission. */
 	composerChips(): ComposerChipDescriptor[] {
 		const text = this.getText();
 		const chips: ComposerChipDescriptor[] = [];
@@ -603,7 +663,7 @@ export class CustomEditor extends Editor {
 		}
 		for (const entry of this.pendingTexts) {
 			if (!text.includes(entry.label)) continue;
-			chips.push({ kind: "paste", n: entry.n, text: entry });
+			chips.push({ kind: entry.path?.kind ?? "paste", n: entry.n, text: entry });
 		}
 		return chips;
 	}
@@ -698,10 +758,20 @@ export class CustomEditor extends Editor {
 				locateSource(value);
 				if (form === "chip") {
 					// Chip tokens carry their attachment identity color (matches the band card).
-					const styled = `${attachmentSgr(kind, index)}\x1b[1m${value}\x1b[22m\x1b[39m`;
-					return kind === "image"
-						? this.imageReferenceHyperlink(value, index, this.imageLinks, () => styled)
-						: styled;
+					const pathAttachment =
+						kind === "paste" ? this.pendingTexts.find(entry => entry.n === index)?.path : undefined;
+					const displayValue =
+						pathAttachment?.kind === "folder"
+							? `${theme.symbol("icon.folder")} #${index}`
+							: pathAttachment?.kind === "document"
+								? `${theme.symbol("icon.file")} #${index}`
+								: value;
+					const styled = `${attachmentSgr(kind, index)}\x1b[1m${displayValue}\x1b[22m\x1b[39m`;
+					if (kind === "image") {
+						return this.imageReferenceHyperlink(value, index, this.imageLinks, () => styled);
+					}
+					const sourceLink = pathAttachment?.sourceLink;
+					return sourceLink ? this.imageReferenceHyperlink(value, 1, [sourceLink], () => styled) : styled;
 				}
 				return kind === "image"
 					? this.imageReferenceHyperlink(value, index, this.imageLinks, label =>
@@ -778,10 +848,10 @@ export class CustomEditor extends Editor {
 	onSelectModelTemporary?: () => void;
 	/** Called when the configured copy-prompt shortcut is pressed. */
 	onCopyPrompt?: () => void;
-	/** Called when the configured image-paste shortcut is pressed. */
+	/** Called when the configured smart-paste shortcut is pressed. */
 	onPasteImage?: () => Promise<boolean>;
-	/** Called when a bracketed paste contains one or more image-file paths. */
-	onPasteImagePath?: (path: string) => void | Promise<void>;
+	/** Called when a bracketed paste contains one or more explicit filesystem paths. */
+	onPastePath?: (path: string) => void | Promise<void>;
 	/** Called when the configured raw text-paste shortcut is pressed. */
 	onPasteTextRaw?: () => void;
 	/** Called when the configured dequeue shortcut is pressed. */
@@ -808,13 +878,13 @@ export class CustomEditor extends Editor {
 	#customMatchKeys = new Map<string, () => void>();
 	/** Bracketed-paste assembler that runs ahead of the inherited handler so terminals which
 	 *  deliver `\x1b[200~` and `\x1b[201~` in separate stdin chunks still resolve to a single
-	 *  assembled payload here; the empty-paste / image-path branches must see the full content,
-	 *  not the raw single-chunk byte sequence. */
+	 *  assembled payload here; the empty-paste and filesystem-path branches must see the full
+	 *  content, not the raw single-chunk byte sequence. */
 	#pasteHandler = new BracketedPasteHandler();
-	/** Number of async pastes (clipboard-image reads / image-path attachments) currently in flight.
+	/** Number of async pastes (clipboard reads / path attachments) currently in flight.
 	 *  While > 0, `handleInput` queues subsequent keystrokes into {@link #pendingInput} instead of
-	 *  dispatching them so a trailing `Enter` after `Cmd+V` can't submit before the image lands on
-	 *  `pendingImages` (Codex PR #3602 review). */
+	 *  dispatching them so a trailing `Enter` after paste cannot submit before the attachment
+	 *  reaches the draft (Codex PR #3602 review). */
 	#pasteInFlight = 0;
 	/** Input chunks deferred behind an in-flight paste, drained in FIFO order once the paste
 	 *  count returns to zero. */
@@ -1019,7 +1089,7 @@ export class CustomEditor extends Editor {
 		// the assembled content regardless of chunk boundaries:
 		//  - empty payload → `onPasteImage` (#3601: `Cmd+V`/`Ctrl+V` on an
 		//    image-only macOS pasteboard the terminal stripped to `""` first);
-		//  - explicit image-file paths → `onPasteImagePath` (#3506);
+		//  - explicit file/folder paths → `onPastePath`;
 		//  - anything else → the base editor's `pasteText` so `[Paste #N]`
 		//    markers, autocomplete, and undo state stay intact.
 		const paste = this.#pasteHandler.process(data);
@@ -1035,11 +1105,11 @@ export class CustomEditor extends Editor {
 				this.#trackAsyncPaste(Promise.resolve(this.onPasteImage()));
 				return;
 			}
-			const imagePaths = extractImagePastePathsFromText(content);
-			if (imagePaths && this.onPasteImagePath) {
+			const pastedPaths = extractPastePathsFromText(content) ?? extractImagePastePathsFromText(content);
+			if (pastedPaths && this.onPastePath) {
 				this.#trackAsyncPaste(
 					(async () => {
-						for (const p of imagePaths) await this.onPasteImagePath?.(p);
+						for (const path of pastedPaths) await this.onPastePath?.(path);
 					})(),
 				);
 				return;

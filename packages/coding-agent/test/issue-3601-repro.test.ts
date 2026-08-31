@@ -103,14 +103,14 @@ describe("CustomEditor empty bracketed paste (issue #3601)", () => {
 	it("does not hijack a bracketed paste that resolves to an explicit image-file path (existing #3506 path)", () => {
 		const { editor } = createCtx();
 		const onPasteImage = vi.fn(async () => true);
-		const onPasteImagePath = vi.fn();
+		const onPastePath = vi.fn();
 		editor.onPasteImage = onPasteImage;
-		editor.onPasteImagePath = onPasteImagePath;
+		editor.onPastePath = onPastePath;
 
 		editor.handleInput(`${BRACKETED_PASTE_START}/tmp/screenshot.png${BRACKETED_PASTE_END}`);
 
-		// The image-path branch fires; the empty-paste branch must stay out of the way.
-		expect(onPasteImagePath).toHaveBeenCalledWith("/tmp/screenshot.png");
+		// The path-attachment branch fires; the empty-paste branch must stay out of the way.
+		expect(onPastePath).toHaveBeenCalledWith("/tmp/screenshot.png");
 		expect(onPasteImage).not.toHaveBeenCalled();
 	});
 
@@ -146,18 +146,18 @@ describe("CustomEditor empty bracketed paste (issue #3601)", () => {
 		expect(editor.getText()).toBe("");
 	});
 
-	it("routes an image-file path that arrives split across stdin chunks to onPasteImagePath", () => {
+	it("routes an image-file path that arrives split across stdin chunks to onPastePath", () => {
 		// Same chunking hazard as the empty-paste case, but for an explicit
 		// image-file path (#3506). The assembled router re-runs the path
 		// detection over the joined payload so the image still attaches.
 		const { editor } = createCtx();
-		const onPasteImagePath = vi.fn();
-		editor.onPasteImagePath = onPasteImagePath;
+		const onPastePath = vi.fn();
+		editor.onPastePath = onPastePath;
 
 		editor.handleInput(`${BRACKETED_PASTE_START}/tmp/sc`);
 		editor.handleInput(`reenshot.png${BRACKETED_PASTE_END}`);
 
-		expect(onPasteImagePath).toHaveBeenCalledWith("/tmp/screenshot.png");
+		expect(onPastePath).toHaveBeenCalledWith("/tmp/screenshot.png");
 	});
 
 	it("forwards a split text paste to the underlying editor exactly once (no double-insertion)", () => {

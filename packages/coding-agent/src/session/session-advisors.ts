@@ -34,7 +34,7 @@ import type {
 } from "@chudware/ai";
 import { isUsageLimitOutcome, resolveModelServiceTier, streamSimple } from "@chudware/ai";
 import * as AIError from "@chudware/ai/error";
-import { modelsAreEqual } from "@chudware/catalog/models";
+import { calculateUsageCostTotal, calculateUsageTokenComponents, modelsAreEqual } from "@chudware/catalog/models";
 import { extractHttpStatusFromError, extractRetryHint, logger } from "@chudware/utils";
 import {
 	ADVISOR_DEFAULT_TOOL_NAMES,
@@ -1218,7 +1218,8 @@ export class SessionAdvisors {
 	}
 
 	#recordAdvisorCost(advisor: ActiveAdvisor, message: AssistantMessage): void {
-		this.#advisorCosts.set(advisor.slug, (this.#advisorCosts.get(advisor.slug) ?? 0) + message.usage.cost.total);
+		const cost = calculateUsageCostTotal(message.usage);
+		this.#advisorCosts.set(advisor.slug, (this.#advisorCosts.get(advisor.slug) ?? 0) + cost);
 	}
 
 	/** Subscribe the advisor agent's finalized messages into the transcript recorder.
@@ -1922,12 +1923,13 @@ export class SessionAdvisors {
 			if (message.role === "assistant") {
 				assistant++;
 				const assistantMsg = message as AssistantMessage;
-				input += assistantMsg.usage.input;
-				output += assistantMsg.usage.output;
+				const billable = calculateUsageTokenComponents(assistantMsg.usage);
+				input += billable.input;
+				output += billable.output;
 				reasoning += assistantMsg.usage.reasoningTokens ?? 0;
-				cacheRead += assistantMsg.usage.cacheRead;
-				cacheWrite += assistantMsg.usage.cacheWrite;
-				totalTokens += assistantMsg.usage.totalTokens;
+				cacheRead += billable.cacheRead;
+				cacheWrite += billable.cacheWrite;
+				totalTokens += billable.input + billable.output + billable.cacheRead + billable.cacheWrite;
 			}
 		}
 		return {

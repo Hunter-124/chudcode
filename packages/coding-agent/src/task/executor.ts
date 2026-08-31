@@ -8,6 +8,11 @@ import path from "node:path";
 import type { AgentEvent, AgentIdentity, AgentMessage, AgentTelemetryConfig } from "@chudware/agent-core";
 import { EventLoopKeepalive, recordHandoff, resolveTelemetry } from "@chudware/agent-core";
 import type { Api, Model, ServiceTierByFamily, Usage } from "@chudware/ai";
+import {
+	calculateUsageCostTotal,
+	calculateUsageTokenComponents,
+	calculateUsageTotalTokens,
+} from "@chudware/catalog/models";
 import { logger, popLoopPhase, prompt, pushLoopPhase, untilAborted } from "@chudware/utils";
 import { ASYNC_JOB_MANAGER_SHUTDOWN_REASON, AsyncJobManager } from "../async";
 import type { Rule } from "../capability/rule";
@@ -818,7 +823,8 @@ function firstNumberField(record: Record<string, unknown>, keys: string[]): numb
 }
 
 /**
- * Tokens for progress display: input + output + cacheWrite per turn.
+ * Tokens for progress display: billable input + output + cacheWrite per turn,
+ * with provider orchestration folded into its matching input/output buckets.
  *
  * Deliberately excludes cacheRead. With prompt caching, cacheRead in each turn
  * equals the full cached context (potentially hundreds of KB), so summing it
@@ -834,8 +840,23 @@ function getUsageTokens(usage: unknown): number {
 
 	const input = firstNumberField(record, ["input", "input_tokens", "inputTokens"]) ?? 0;
 	const output = firstNumberField(record, ["output", "output_tokens", "outputTokens"]) ?? 0;
+	const cacheRead = firstNumberField(record, ["cacheRead", "cache_read", "cacheReadTokens"]) ?? 0;
 	const cacheWrite = firstNumberField(record, ["cacheWrite", "cache_write", "cacheWriteTokens"]) ?? 0;
-	const computed = input + output + cacheWrite;
+	const orchestration = isRecord(record.orchestration) ? record.orchestration : undefined;
+	const billable = calculateUsageTokenComponents({
+		input,
+		output,
+		cacheRead,
+		cacheWrite,
+		orchestration: orchestration
+			? {
+					input: getNumberField(orchestration, "input") ?? 0,
+					output: getNumberField(orchestration, "output") ?? 0,
+					cacheRead: getNumberField(orchestration, "cacheRead") ?? 0,
+				}
+			: undefined,
+	});
+	const computed = billable.input + billable.output + billable.cacheWrite;
 	if (computed > 0) return computed;
 	// Fallback for providers that only surface a pre-summed total without individual
 	// field breakdown. This total includes cacheRead, but returning it is still better
@@ -1696,7 +1717,22 @@ function createSubagentRunMonitor(args: RunMonitorArgs): SubagentRunMonitor {
 						accumulatedUsage.output += getNumberField(messageUsage, "output") ?? 0;
 						accumulatedUsage.cacheRead += getNumberField(messageUsage, "cacheRead") ?? 0;
 						accumulatedUsage.cacheWrite += getNumberField(messageUsage, "cacheWrite") ?? 0;
-						accumulatedUsage.totalTokens += getNumberField(messageUsage, "totalTokens") ?? 0;
+						const orchestrationRecord = isRecord(messageUsage.orchestration)
+							? messageUsage.orchestration
+							: undefined;
+						if (orchestrationRecord) {
+							accumulatedUsage.orchestration ??= {};
+							accumulatedUsage.orchestration.input =
+								(accumulatedUsage.orchestration.input ?? 0) +
+								(getNumberField(orchestrationRecord, "input") ?? 0);
+							accumulatedUsage.orchestration.output =
+								(accumulatedUsage.orchestration.output ?? 0) +
+								(getNumberField(orchestrationRecord, "output") ?? 0);
+							accumulatedUsage.orchestration.cacheRead =
+								(accumulatedUsage.orchestration.cacheRead ?? 0) +
+								(getNumberField(orchestrationRecord, "cacheRead") ?? 0);
+						}
+						accumulatedUsage.totalTokens = calculateUsageTotalTokens(accumulatedUsage);
 						accumulatedUsage.reasoningTokens =
 							(accumulatedUsage.reasoningTokens ?? 0) + (getNumberField(messageUsage, "reasoningTokens") ?? 0);
 						if (costRecord) {
@@ -1704,7 +1740,7 @@ function createSubagentRunMonitor(args: RunMonitorArgs): SubagentRunMonitor {
 							accumulatedUsage.cost.output += getNumberField(costRecord, "output") ?? 0;
 							accumulatedUsage.cost.cacheRead += getNumberField(costRecord, "cacheRead") ?? 0;
 							accumulatedUsage.cost.cacheWrite += getNumberField(costRecord, "cacheWrite") ?? 0;
-							accumulatedUsage.cost.total += getNumberField(costRecord, "total") ?? 0;
+							accumulatedUsage.cost.total = calculateUsageCostTotal(accumulatedUsage);
 							progress.cost = accumulatedUsage.cost.total;
 						}
 					}
