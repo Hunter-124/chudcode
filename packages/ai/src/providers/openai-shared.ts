@@ -2606,6 +2606,24 @@ export function applyReasoningSummaryDone(
 	stream.push({ type: "thinking_delta", contentIndex, delta, partial: output });
 }
 
+function responseMessageRefusalExplanation(item: ResponseOutputMessage): string | undefined {
+	let explanation = "";
+	let foundRefusal = false;
+	for (const part of item.content ?? []) {
+		if (part.type !== "refusal") continue;
+		foundRefusal = true;
+		explanation += part.refusal ?? "";
+	}
+	return foundRefusal ? explanation : undefined;
+}
+
+function markOpenAIContentRefusal(output: AssistantMessage, explanation: string): void {
+	output.stopReason = "error";
+	output.stopDetails = { type: "refusal", explanation };
+	const displayExplanation = explanation.trim();
+	output.errorMessage = displayExplanation ? `Refusal: ${displayExplanation}` : "Refusal";
+}
+
 export function appendMessageContentPart(
 	item: ResponseOutputMessage,
 	part: ResponseContentPartAddedEvent["part"] | undefined,
@@ -2641,6 +2659,10 @@ export function appendMessageTextDelta(
 		lastPart.text += delta;
 	} else {
 		lastPart.refusal += delta;
+		markOpenAIContentRefusal(
+			output,
+			`${output.stopDetails?.type === "refusal" ? (output.stopDetails.explanation ?? "") : ""}${delta}`,
+		);
 	}
 	stream.push({ type: "text_delta", contentIndex, delta, partial: output });
 }
@@ -3206,6 +3228,8 @@ export async function processResponsesStream<TApi extends Api>(
 			} else if (item.type === "message") {
 				const block = entry?.block.type === "text" ? entry.block : undefined;
 				const text = finalizeMessageText(item, block?.text ?? "");
+				const refusalExplanation = responseMessageRefusalExplanation(item);
+				if (refusalExplanation !== undefined) markOpenAIContentRefusal(output, refusalExplanation);
 				const textSignature = encodeTextSignatureV1(item.id, item.phase ?? undefined);
 				let contentIndex: number;
 				if (block) {
@@ -3479,6 +3503,10 @@ export function promoteResponsesToolUseStopReason(
 	endTurn: boolean | undefined,
 	promoteIncompleteToolUse = false,
 ): void {
+	if (output.stopDetails?.type === "refusal") {
+		output.stopReason = "error";
+		return;
+	}
 	if (
 		output.content.some(block => block.type === "toolCall") &&
 		(output.stopReason === "stop" || (promoteIncompleteToolUse && output.stopReason === "length"))

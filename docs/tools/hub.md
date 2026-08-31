@@ -1,8 +1,8 @@
 # hub
 
-> The single agent-coordination surface: peer messaging over the process-global mailbox bus, background-job control, and supervision of shared long-running processes.
+> The single agent-coordination surface: direct peer messaging, durable topic and blackboard coordination, background-job control, and supervision of shared long-running processes.
 
-Merged from the former `irc`, `job`, and `launch` tools; each op family keeps its old behavior and rendering.
+Merged from the former `irc`, `job`, and `launch` tools; each existing op family keeps its old behavior and rendering. Durable coordination extends that wire contract without changing DM, broadcast, wait, inbox, reply, or wake semantics.
 
 ## Source
 - Entry: `packages/coding-agent/src/tools/hub/index.ts` (schema, `HubTool`, unified `wait`, renderer dispatch)
@@ -12,7 +12,7 @@ Merged from the former `irc`, `job`, and `launch` tools; each op family keeps it
 - Shared types: `packages/coding-agent/src/tools/hub/types.ts`
 - Model-facing prompt: `packages/coding-agent/src/prompts/tools/hub.md`
 - Key collaborators:
-  - `packages/coding-agent/src/irc/bus.ts` — process-global `IrcBus`: per-agent mailboxes, delivery, waiter matching.
+  - `packages/coding-agent/src/irc/bus.ts` — process-global `IrcBus`: per-agent mailboxes, delivery, waiter matching, and live delivery to topic subscribers.
   - `packages/coding-agent/src/registry/agent-registry.ts` — process-global agent directory and status.
   - `packages/coding-agent/src/registry/agent-lifecycle.ts` — revival of parked recipients on direct send.
   - `packages/coding-agent/src/session/agent-session.ts` — `deliverIrcMessage(...)`: recipient-side injection and wake turns.
@@ -24,15 +24,21 @@ Merged from the former `irc`, `job`, and `launch` tools; each op family keeps it
 
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
-| `op` | `"send" \| "wait" \| "inbox" \| "list" \| "jobs" \| "cancel" \| "start" \| "ps" \| "logs" \| "stop" \| "restart" \| "describe"` | Yes | Operation. |
+| `op` | `"send" \| "wait" \| "inbox" \| "list" \| "subscribe" \| "publish" \| "read" \| "blackboard_get" \| "blackboard_set" \| "jobs" \| "cancel" \| "start" \| "ps" \| "logs" \| "stop" \| "restart" \| "describe"` | Yes | Operation. Existing operation names and shapes are unchanged. |
 | `to` | `string` | `send` (peer) | Recipient agent id, or `"all"` for broadcast. Mutually exclusive with `name`. |
-| `message` | `string` | `send` (peer) | Message body. Empty-after-trim is rejected. |
+| `message` | `string` | `send` / `publish` | Plain-prose DM or topic publication. Empty-after-trim is rejected; topic publication bodies are stored and delivered unchanged. |
 | `replyTo` | `string` | No | `send`: message id being answered. |
 | `await` | `boolean` | No | Peer `send`: after delivery, block until the next message from that peer arrives. Invalid with `to: "all"`. |
 | `from` | `string` | No | `wait`: only accept a message from this agent id (pure message wait). |
 | `ids` | `string[]` | No | `wait`: job ids to watch (omit = all running jobs); `cancel`: job ids to kill (required). |
 | `timeoutMs` | `number` | No | Peer `send` with `await`, and message/job `wait`: milliseconds; `0` waits indefinitely. Defaults to `irc.timeoutMs` for a reply/pure-message wait and to the poll window when jobs are watched. |
 | `peek` | `boolean` | No | `inbox`: leave messages in the process-global bus mailbox. Note that messages already buffered on the live recipient session are still drained into this result by the current implementation. |
+| `topic` | `string` | topic ops | Durable topic name, 1-64 characters: ASCII letter/digit first, then letters, digits, `.`, `_`, `:`, `/`, or `-`. |
+| `afterRevision` | non-negative integer | No | `read`: return retained topic messages with a higher revision, oldest first for cursor-based paging. Without it, reads return the latest retained messages. |
+| `limit` | positive number | No | `list`: peer row limit; `read`: retained message limit (default 50, maximum 100). |
+| `key` | `string` | blackboard ops | Shared blackboard key, 1-128 characters, using the topic-name character set. |
+| `value` | JSON value | `blackboard_set` | Structured blackboard value. Structured coordination state belongs here, not in peer/topic message envelopes. |
+| `expectedRevision` | non-negative integer | No | `blackboard_set`: compare-and-set guard. `0` succeeds only when the key is absent; omitted means unconditional update. |
 | `name` | `string` | process ops | Stable project-scoped launch name (1-48 chars). On `send`/`wait` it routes the op to the process broker. |
 | `application`, `args`, `env`, `cwd`, `pty`, `ready`, `restart`, `persist`, `detached` | — | `start` | Launch spec, unchanged from the former `launch` tool. |
 | `lines`, `head`, `grep`, `follow`, `cursor` | — | `logs` | Log window controls, unchanged. |
@@ -41,11 +47,13 @@ Merged from the former `irc`, `job`, and `launch` tools; each op family keeps it
 | `timeout` | `number` | No | `logs`/`stop`/`wait`-with-`name`: seconds; default 30 (stop: 5). |
 
 ## Op families and dispatch
-- **Messaging** — `send` (with `to`), `inbox`, `list`, and `wait` with `from`. Fire-and-forget sends return delivery receipts (`injected`/`woken`/`revived`/`failed`); direct sends can revive parked agents, while broadcasts target visible live peers without reviving every parked agent. `await: true` waits for one reply after delivery. A busy recipient with async execution disabled may auto-reply rather than strand an awaiting sender.
+- **Direct messaging** — `send` (with `to`), `inbox`, `list`, and `wait` with `from`. Fire-and-forget sends return delivery receipts (`injected`/`woken`/`revived`/`failed`); direct sends can revive parked agents, while broadcasts target visible live peers without reviving every parked agent. `await: true` waits for one reply after delivery. A busy recipient with async execution disabled may auto-reply rather than strand an awaiting sender.
+- **Durable topics** — `subscribe`, `publish`, and `read`, keyed by `topic`. Subscriptions and publications are stored in the root session's artifact directory by atomic replace. A publication is committed before it is delivered through the existing `IrcBus` to every currently running/idle subscriber except the publisher; parked subscribers are not stampede-revived. `read` is non-consuming and survives process/session restart.
+- **Blackboard** — `blackboard_get` and `blackboard_set`, keyed by `key`. Values are JSON and carry per-key monotonically increasing revisions. `expectedRevision` provides atomic in-process compare-and-set; stale writes fail and return the current entry in `details.blackboard`.
 - **Jobs** — `wait` (bare or with `ids`), `cancel`, `jobs`. Owner-scoped visibility, watch/unwatch delivery suppression, `acknowledgeDeliveries` on returned completions, 500 ms `onUpdate` snapshots while waiting, and the `async.pollWaitDuration` fixed/smart wait window. `jobs` is the former job-list snapshot plus the roster of running subagents with no running job entry.
 - **Processes** — `start`, `ps`, `logs`, `stop`, `restart`, `describe`, plus `send`/`wait` when they carry `name`. Exact behavior of the former `launch` tool; `ps` is the broker's `list`. See the launch sections below.
 
-`send` with both `to` and `name` is rejected as ambiguous. `wait` routes by target: `name` → process wait; otherwise the unified coordination wait.
+`send` with both `to` and `name` is rejected as ambiguous. `wait` routes by target: `name` → process wait; otherwise the unified coordination wait. Topic and blackboard ops require a session transcript because their scope is the root session, not the current process.
 
 ## The unified `wait`
 One blocking primitive. It resolves job legs (explicit `ids`, owner-scoped and silently filtered, or every running job the caller owns) and — when the session can message peers — parks a bus waiter, then races:
@@ -64,18 +72,20 @@ Outcomes:
 Smart-ladder bookkeeping (`recordPollWaitEnd`) runs only when the smart window was actually used (no explicit `timeoutMs`).
 
 ## Outputs
-- Messaging and job results: single text block plus `details: CoordinationDetails` — `{ op, from?, to?, receipts?, waited?, inbox?, peers?, jobs?, cancelled?, agents? }`. Shapes are unchanged from the former tools except that job-op details now carry `op` (`"wait" | "cancel" | "jobs"`).
-- Process results: `details: LaunchToolDetails` — `{ op, daemon?, daemons?, cursor?, timedOut?, state?, terminalRows?, matched?, spec? }`, unchanged from the former `launch` tool (internally `ps` stores the broker op `list`).
-- Streaming: job-watching waits emit `onUpdate` every 500 ms with fresh snapshots; everything else is single-shot.
+- Direct messaging and job results keep the existing `CoordinationDetails` wire fields and text formats.
+- Topic results add `{ topic, topicMessages?, subscribers?, receipts? }`; each retained publication is `{ id, topic, revision, from, body, ts }`.
+- Blackboard results add `blackboard`, either `null` or `{ key, value, revision, updatedAt, updatedBy }`. A stale compare-and-set is `isError: true` and includes the current entry.
+- Process results remain `LaunchToolDetails` — `{ op, daemon?, daemons?, cursor?, timedOut?, state?, terminalRows?, matched?, spec? }`.
+- Streaming remains unchanged: job-watching waits emit `onUpdate` every 500 ms; everything else is single-shot.
 
 ## Availability
 - The tool is always registered (`loadMode: "essential"`).
-- Messaging ops require an `AgentRegistry` and a caller agent id; otherwise they return `Peer messaging is unavailable in this session.` (`isIrcEnabled` still gates the peer-roster prompt sections: true for every subagent and for any session that can still spawn subagents).
+- Messaging and durable coordination require an `AgentRegistry` and caller agent id. Durable operations additionally require a `.jsonl` session transcript; their atomic state file is `<root-session-artifact-dir>/hub-state.json`.
 - Job ops require `session.asyncJobManager`; otherwise `Async execution is disabled; no background jobs are available.`
 - Process ops require `launch.enabled`; otherwise `Process supervision is disabled (launch.enabled=false).`
 
 ## Approval
-`hubApproval` (per-call): `start`, `stop`, `restart`, and `send`-to-process are `exec`; everything else — messaging, job control, `ps`/`logs`/`describe`/`wait` — is `read`.
+`hubApproval` (per-call): `start`, `stop`, `restart`, and `send`-to-process are `exec`; direct messaging, durable topics/blackboard, job control, `ps`/`logs`/`describe`/`wait` are `read`.
 
 ## Starting and readiness (processes)
 `application` and `args` are separate fields, so callers do not need shell quoting:
@@ -107,20 +117,26 @@ Each logs result returns a byte cursor; `follow: true` waits until output advanc
 Unchanged from the former `launch` tool: the first process op starts a detached broker over a private socket under `~/.chudcode/run/daemons/<project-hash>/`; every Chudcode instance in the project shares names, logs, and state. After the last Chudcode process exits, the broker stops non-persistent processes and exits. `persist: true` opts out of last-client teardown; restart policies (`no`/`on-failure`/`always`) use bounded exponential backoff up to 30 s.
 
 ## Limits & Caps
-- Mailboxes: 100 messages per agent (`MAILBOX_CAP`); oldest dropped beyond the cap.
+- Direct mailboxes: 100 messages per agent (`MAILBOX_CAP`); oldest dropped beyond the cap.
+- Durable topics: 64 topics, 100 subscribers per topic, 100 retained publications per topic, and 500 retained publications across the session. Oldest publications are removed first. Publication bodies are limited to 16 KiB UTF-8.
+- Topic reads: default 50 messages, maximum 100.
+- Blackboard: 128 keys, 32 KiB of JSON per value. New keys are rejected at the cap; existing keys remain updatable.
 - `irc.timeoutMs` default `120_000`; `0` disables; negative/non-finite fall back to the default.
 - Poll window: `async.pollWaitDuration` — `5s`/`10s`/`30s`/`1m`/`5m`/`smart` (default); smart ladder `[5s..5m]` climbing per back-to-back wait, resetting after 60 s without waiting.
 - Job retention 5 min; manager max-running fallback 15; `async.maxJobs` clamped 1..100.
 - Launch names 1-48 chars; `ready.port` 1..65535; `logs`/`wait`/`stop` timeouts capped at one hour.
 
 ## Errors
-- Most validation/availability failures are text results with `isError: true`: messaging unavailable, missing `to`/`message`, self-send (`Cannot send a message to yourself.`), `await` with `to:"all"`, `to`+`name` on one send, missing `ids` on `cancel`, and launch disabled. The async-disabled `jobs`/`cancel` response is an exception: it returns `Async execution is disabled; no background jobs are available.` with an empty job list and no `isError` flag.
-- Launch validation (missing `name`/`application`, bad `ready.port`, unsupported key) throws `ToolError`, exactly as before.
-- A `wait` timeout is a normal result (`waited: null` or an all-running snapshot flagged `useless`), never an error.
-- Per-recipient delivery failures surface as `failed` receipts; `send` is `isError` only when nothing was delivered.
+- Existing validation and delivery behavior is unchanged for direct messaging, jobs, and processes.
+- Topic operations reject missing/invalid topic names, missing/empty publications, oversized bodies, missing session persistence, and retention-cap exhaustion.
+- Blackboard operations reject invalid keys, absent/non-JSON/oversized values, missing session persistence, entry-cap exhaustion, invalid expected revisions, and stale compare-and-set revisions.
+- A `wait` timeout and an empty topic `read` are normal results, never errors.
+- Per-recipient delivery failures surface as `failed` receipts; a topic publication remains successful once durably committed even when no subscriber is currently live.
 
 ## Notes
-- The IRC bus, agent registry, job manager, and launch broker are unchanged subsystems; only the tool surface merged.
-- A running recipient still gets messages injected as non-interrupting asides (`irc:incoming` custom messages, `prompts/system/irc-incoming.md`); replies are real turns.
-- Messaging a parked agent revives it — the only resume primitive; the task tool has no `resume` parameter.
-- TUI rendering is preserved per family: messaging cards (`IRC ➤ / ⟵` headers), job waiting frames (displaceable, shimmering rows), and launch frames render byte-identically to the pre-merge tools; the `hub` renderer only dispatches.
+- Existing DMs, broadcasts, replies, waits, inbox drains, and idle/parked wake behavior are unchanged. Their bodies remain plain prose and their wire shapes do not gain structured envelopes.
+- Topic publication bodies also remain plain prose. Topic metadata is returned in tool result details and persisted separately.
+- The durable state is root-session scoped, moves with the session artifact directory, and is written through a private temporary file followed by rename. Per-file operations are serialized so topic revisions and blackboard compare-and-set are deterministic within the agent process.
+- A running topic subscriber receives the publication through the same recipient-side `deliverIrcMessage(...)` path as a DM. Idle subscribers wake normally; parked subscribers retain their subscription and can read history after revival but are not revived by a publication.
+- Messaging a parked agent directly still revives it — the only resume primitive; the task tool has no `resume` parameter.
+- TUI rendering remains family-compatible; durable coordination uses the messaging renderer's generic Hub result frame.

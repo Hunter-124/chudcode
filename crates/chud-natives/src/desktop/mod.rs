@@ -1341,3 +1341,57 @@ mod capture_tests {
 		assert_eq!(err.code, ErrorCode::WindowNotFound);
 	}
 }
+
+#[cfg(test)]
+mod session_option_tests {
+	use super::*;
+
+	#[test]
+	fn sessions_keep_monitor_filters_and_display_servers_independent() {
+		let first = DesktopSession::new(Some(DesktopSessionOptions {
+			display:        Some("monitor-a".to_string()),
+			display_server: Some(":41".to_string()),
+		}))
+		.expect("first session should be created");
+		let second = DesktopSession::new(Some(DesktopSessionOptions {
+			display:        Some("monitor-b".to_string()),
+			display_server: Some(":42".to_string()),
+		}))
+		.expect("second session should be created");
+
+		assert!(
+			matches!(&first.core.selector, DisplaySelector::Id(id) if id == "monitor-a"),
+			"monitor selection must remain separate from the X11 server address"
+		);
+		assert_eq!(first.core.display_server.as_deref(), Some(":41"));
+		assert!(
+			matches!(&second.core.selector, DisplaySelector::Id(id) if id == "monitor-b"),
+			"monitor selection must remain separate from the X11 server address"
+		);
+		assert_eq!(second.core.display_server.as_deref(), Some(":42"));
+	}
+
+	#[test]
+	fn absent_display_server_keeps_default_discovery() {
+		let session = DesktopSession::new(None).expect("default session should be created");
+
+		assert!(matches!(&session.core.selector, DisplaySelector::All));
+		assert_eq!(session.core.display_server.as_deref(), None);
+	}
+
+	#[cfg(target_os = "linux")]
+	#[test]
+	fn invalid_explicit_display_server_error_names_requested_target() {
+		let requested = "not-an-x11-display";
+		let Err(error) = create_backend(DisplaySelector::All, Some(requested)) else {
+			panic!("invalid X11 display target should fail");
+		};
+
+		assert_eq!(error.code, super::error::ErrorCode::CaptureFailed);
+		assert!(
+			error.message.contains(requested),
+			"connection error must name the requested display: {}",
+			error.message
+		);
+	}
+}

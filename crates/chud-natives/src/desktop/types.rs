@@ -96,7 +96,11 @@ impl DesktopCapabilities {
 #[napi(object)]
 #[derive(Debug, Clone, Default)]
 pub struct DesktopSessionOptions {
+	/// Monitor id used to filter capture; unrelated to the display-server
+	/// connection.
 	pub display:        Option<String>,
+	/// Explicit X11 display address (for example `:1`); omitted for platform
+	/// discovery.
 	pub display_server: Option<String>,
 }
 

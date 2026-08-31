@@ -157,8 +157,7 @@ import {
 	toBinary,
 	toJson,
 } from "@chudware/catalog/discovery/protobuf";
-import { THINKING_EFFORTS } from "@chudware/catalog/effort";
-import { isKimiK3ModelId, parseOpenAIModel } from "@chudware/catalog/identity";
+import { isKimiK3ModelId } from "@chudware/catalog/identity";
 import { calculateCost } from "@chudware/catalog/models";
 import {
 	$env,
@@ -186,7 +185,6 @@ import type {
 	ImageContent,
 	Message,
 	Model,
-	StreamFunction,
 	StreamOptions,
 	TextContent,
 	ThinkingContent,
@@ -317,8 +315,6 @@ const CURSOR_PROXY_TUNNEL_TIMEOUT_MS = 30_000;
 const NOT_IMPLEMENTED_SUFFIX = "not implemented by this client";
 /** Bare gRPC `resource_exhausted` end-streams (also inside a Connect error message). */
 const RESOURCE_EXHAUSTED_PATTERN = /resource.?exhausted/i;
-/** Model-resolution failures that can safely retry the exact discovery id before any server output. */
-const CURSOR_MODEL_NOT_FOUND_PATTERN = /^(?:Connect error not_found:|gRPC error 5:)/i;
 const NOT_IMPLEMENTED = `Not implemented by this client`;
 
 const conversationStateCache = new Map<string, ConversationStateStructure>();
@@ -346,13 +342,6 @@ export interface CursorOptions extends StreamOptions {
 	wireModelId?: string;
 }
 
-type CursorWireMode = "normalized" | "discovered";
-
-interface CursorStreamTiming {
-	startTime: number;
-	timestamp: number;
-}
-
 interface CursorRequestState {
 	conversationId: string;
 	blobStore: Map<string, Uint8Array>;
@@ -364,11 +353,6 @@ interface CursorGrpcRequest {
 	requestBytes: Uint8Array;
 	blobStore: Map<string, Uint8Array>;
 	conversationState: ConversationStateStructure;
-}
-
-interface CursorTransportRequest extends CursorGrpcRequest {
-	/** Exact discovery id eligible for a retry because the normalized effort payload was serialized unchanged. */
-	fallbackWireModelId?: string;
 }
 
 const CONNECT_END_STREAM_FLAG = 0b00000010;
@@ -566,17 +550,16 @@ function omitTypeName(record: Record<string, unknown>): Record<string, unknown> 
 	return rest;
 }
 
-function streamCursorWithWireMode(
+/** Streams a Cursor Agent turn using the exact effort-routed discovery id. */
+export function streamCursor(
 	model: Model<"cursor-agent">,
 	context: Context,
-	options: CursorOptions | undefined,
-	wireMode: CursorWireMode,
-	timing?: CursorStreamTiming,
+	options?: CursorOptions,
 ): AssistantMessageEventStream {
 	const stream = new AssistantMessageEventStream();
 
 	(async () => {
-		const startTime = timing?.startTime ?? performance.now();
+		const startTime = performance.now();
 		let firstTokenTime: number | undefined;
 
 		const output: AssistantMessage = {
@@ -594,7 +577,7 @@ function streamCursorWithWireMode(
 				cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
 			},
 			stopReason: "stop",
-			timestamp: timing?.timestamp ?? Date.now(),
+			timestamp: Date.now(),
 		};
 
 		// Declared outside the `try` because BOTH exits must drain it: an exec
@@ -638,11 +621,6 @@ function streamCursorWithWireMode(
 		let h2Settled = false;
 		let sawTurnEnded = false;
 		let endStreamError: Error | null = null;
-		// Blocks the discovered-id retry once the turn produced observable output or
-		// ran a side effect (streamed content/tool call, exec bridge, permission
-		// reply). Pure keepalive heartbeats never set it, so a `not_found` that
-		// arrives after a heartbeat but before any real work still falls back.
-		let sawProgressOrSideEffect = false;
 		// Reachable from the catch: a stream that dies mid-turn must still close
 		// and pair the blocks it left open, and `state` itself is scoped to the
 		// try below.
@@ -674,7 +652,6 @@ function streamCursorWithWireMode(
 		let baseConversationId: string | undefined;
 		let conversationId: string | undefined;
 		let usageState: UsageState | undefined;
-		let serializedFallbackWireModelId: string | undefined;
 		try {
 			const apiKey = options?.apiKey;
 			if (!apiKey) {
@@ -687,20 +664,13 @@ function streamCursorWithWireMode(
 			const blobStore = conversationBlobStores.get(conversationId) ?? new Map<string, Uint8Array>();
 			conversationBlobStores.set(conversationId, blobStore);
 			const cachedState = rotatedFresh ? undefined : conversationStateCache.get(conversationId);
-			const builtRequest = await buildGrpcRequestForWireMode(
-				model,
-				context,
-				options,
-				{
-					conversationId,
-					blobStore,
-					conversationState: cachedState,
-					rotatedFresh,
-				},
-				wireMode,
-			);
+			const builtRequest = await buildGrpcRequestInternal(model, context, options, {
+				conversationId,
+				blobStore,
+				conversationState: cachedState,
+				rotatedFresh,
+			});
 			const { requestBytes, conversationState } = builtRequest;
-			serializedFallbackWireModelId = builtRequest.fallbackWireModelId;
 			conversationStateCache.set(conversationId, conversationState);
 			const requestContextTools = buildMcpToolDefinitions(context.tools);
 			const requestContextRules = buildCursorRequestContextRules(context.systemPrompt);
@@ -845,9 +815,6 @@ function streamCursorWithWireMode(
 							serverMessage.message.case === "interactionUpdate" ? serverMessage.message.value : undefined;
 						const interactionCase = interaction?.message?.case;
 						// A heartbeat is a pure keepalive `processInteractionUpdate` ignores;
-						// every other frame is progress or a side effect that must block the
-						// discovered-id retry.
-						if (interactionCase !== "heartbeat") sawProgressOrSideEffect = true;
 						const isTurnEnded = interactionCase === "turnEnded";
 						// Dispatch is fire-and-forget so the socket keeps draining while a
 						// handler runs, but the promise is tracked: `done` must not be
@@ -961,43 +928,6 @@ function streamCursorWithWireMode(
 			});
 			stream.end();
 		} catch (error) {
-			const fallbackWireModelId =
-				wireMode === "normalized" &&
-				!sawProgressOrSideEffect &&
-				!options?.signal?.aborted &&
-				error instanceof Error &&
-				CURSOR_MODEL_NOT_FOUND_PATTERN.test(error.message)
-					? serializedFallbackWireModelId
-					: undefined;
-			if (fallbackWireModelId !== undefined) {
-				if (heartbeatTimer) {
-					clearInterval(heartbeatTimer);
-					heartbeatTimer = null;
-				}
-				h2Request?.close();
-				h2Client?.close();
-
-				const fallbackStream = streamCursorWithWireMode(model, context, options, "discovered", {
-					startTime,
-					timestamp: output.timestamp,
-				});
-				// The lazy watchdog observes THIS outer stream; the fallback's exec
-				// bridge marks the inner stream busy via `trackLocalWork`. Forward
-				// that busy state so a local tool on the retry turn is not aborted as
-				// a stalled provider stream (#4593 protection must survive the retry).
-				stream.forwardLocalWorkFrom(fallbackStream);
-				try {
-					for await (const event of fallbackStream) {
-						if (event.type === "start") continue;
-						stream.push(event);
-					}
-					const fallbackResult = await fallbackStream.result();
-					if (!stream.resultSettled) stream.end(fallbackResult);
-				} finally {
-					stream.forwardLocalWorkFrom(undefined);
-				}
-				return;
-			}
 			// Same reason as the success path: the Agent finalizes the synthesized
 			// call from this terminal error and clears its Cursor result buffer, so
 			// a handler still running would land its real result after `agent_end`
@@ -1075,10 +1005,6 @@ function streamCursorWithWireMode(
 
 	return stream;
 }
-
-/** Streams a Cursor Agent turn, retrying a discovered effort id when its normalized wire id is unavailable. */
-export const streamCursor: StreamFunction<"cursor-agent"> = (model, context, options) =>
-	streamCursorWithWireMode(model, context, options, "normalized");
 
 export type ToolCallState = ToolCall & {
 	[kStreamingBlockIndex]: number;
@@ -5194,43 +5120,21 @@ function extractImages(content: (TextContent | ImageContent)[]) {
 }
 
 /**
- * Resolve the Cursor Run wire model id and its parameter list.
+ * Resolve the exact Cursor model id selected by catalog effort routing.
  *
- * Cursor's `GetUsableModels` lists reasoning models as per-effort sibling
- * slugs (`gpt-5.4-mini-low`, `gpt-5.6-sol-high`), and Chudcode copies those ids 1:1.
- * The Run endpoint rejects a sibling slug as the wire `model_id` with
- * `resource_exhausted` (errorId 528384); the official `cursor-agent` splits the
- * slug into its base model id plus a `reasoning` effort parameter. Mirror that
- * for OpenAI-family ids: strip a trailing effort tier and emit
- * `{ id: "reasoning", value: <effort> }`.
- *
- * Non-OpenAI ids pass through unchanged — Cursor-native ids (`composer-*`,
- * `cursor-grok-*`, `default`) carry no effort suffix, and Claude/other siblings
- * need additional parameters (`thinking`, `context`) whose per-model values are
- * not exposed by the decoded `GetUsableModels` schema, so guessing them would
- * re-trigger 528384.
+ * `GetUsableModels` advertises effort and fast variants as concrete sibling
+ * ids. Those ids are opaque: replacing a suffix with a guessed parameter can
+ * select a different deployment or fail model resolution. The sole parameter
+ * exception is Composer 2.5's documented Standard-lane pin.
  */
 function resolveCursorWireModel(
 	model: Model<"cursor-agent">,
 	requestModelId: string | undefined,
-	wireMode: CursorWireMode = "normalized",
 ): {
 	modelId: string;
 	parameters: RequestedModel_ModelParameterbytes[];
 } {
 	const wireModelId = requestModelId ?? model.requestModelId ?? model.id;
-	if (wireMode === "discovered") return { modelId: wireModelId, parameters: [] };
-	// Cursor's fast lane follows the effort token (`-high-fast`), while the
-	// standard lane ends at it (`-high`). Preserve the lane in the base id.
-	const match = /^(.*)-(minimal|low|medium|high|xhigh|max)(-fast)?$/.exec(wireModelId);
-	const base = match?.[1];
-	const effort = match?.[2];
-	if (base && effort && (THINKING_EFFORTS as readonly string[]).includes(effort) && parseOpenAIModel(base) !== null) {
-		return {
-			modelId: `${base}${match[3] ?? ""}`,
-			parameters: [create(RequestedModel_ModelParameterbytesSchema, { id: "reasoning", value: effort })],
-		};
-	}
 	// A bare `composer-2.5` id resolves to the Fast variant server-side
 	// (Hunter-124/chudcode#9012). Pin the Standard tier explicitly; `-fast`
 	// selections keep the Fast lane by omitting the parameter.
@@ -5243,13 +5147,12 @@ function resolveCursorWireModel(
 	return { modelId: wireModelId, parameters: [] };
 }
 
-async function buildGrpcRequestForWireMode(
+async function buildGrpcRequestInternal(
 	model: Model<"cursor-agent">,
 	context: Context,
 	options: CursorOptions | undefined,
 	state: CursorRequestState,
-	wireMode: CursorWireMode,
-): Promise<CursorTransportRequest> {
+): Promise<CursorGrpcRequest> {
 	const blobStore = state.blobStore;
 
 	const systemPromptIds = buildCursorSystemPromptJsons(context.systemPrompt).map(json =>
@@ -5350,11 +5253,7 @@ async function buildGrpcRequestForWireMode(
 		turns,
 	});
 
-	const { modelId: wireModelId, parameters: wireParameters } = resolveCursorWireModel(
-		model,
-		options?.wireModelId,
-		wireMode,
-	);
+	const { modelId: wireModelId, parameters: wireParameters } = resolveCursorWireModel(model, options?.wireModelId);
 	const cursorMaxMode = model.cursorMaxMode === true;
 	const modelDetails = create(ModelDetailsSchema, {
 		modelId: wireModelId,
@@ -5388,21 +5287,6 @@ async function buildGrpcRequestForWireMode(
 	const replacementRequest = await options?.onPayload?.(runRequest, model);
 	if (replacementRequest !== undefined) runRequest = replacementRequest as typeof runRequest;
 
-	const discoveredWireModelId = options?.wireModelId ?? model.requestModelId ?? model.id;
-	const serializedParameters = runRequest.requestedModel?.parameters;
-	const normalizedEffortPayloadSerialized =
-		wireMode === "normalized" &&
-		wireParameters.length > 0 &&
-		wireModelId !== discoveredWireModelId &&
-		runRequest.requestedModel?.modelId === wireModelId &&
-		runRequest.modelDetails?.modelId === wireModelId &&
-		serializedParameters?.length === wireParameters.length &&
-		serializedParameters.every((parameter, index) => {
-			const expected = wireParameters[index];
-			return expected !== undefined && parameter.id === expected.id && parameter.value === expected.value;
-		});
-	const fallbackWireModelId = normalizedEffortPayloadSerialized ? discoveredWireModelId : undefined;
-
 	const clientMessage = create(AgentClientMessageSchema, {
 		message: { case: "runRequest", value: runRequest },
 	});
@@ -5421,17 +5305,17 @@ async function buildGrpcRequestForWireMode(
 		detail: detail || undefined,
 	});
 
-	return { requestBytes, blobStore, conversationState, fallbackWireModelId };
+	return { requestBytes, blobStore, conversationState };
 }
 
-/** Builds the normalized Cursor Run request used by transport callers and request inspection hooks. */
+/** Builds the Cursor Run request used by transport callers and request inspection hooks. */
 export async function buildGrpcRequest(
 	model: Model<"cursor-agent">,
 	context: Context,
 	options: CursorOptions | undefined,
 	state: CursorRequestState,
 ): Promise<CursorGrpcRequest> {
-	return buildGrpcRequestForWireMode(model, context, options, state, "normalized");
+	return buildGrpcRequestInternal(model, context, options, state);
 }
 
 function hasImages(content: (TextContent | ImageContent)[]): boolean {

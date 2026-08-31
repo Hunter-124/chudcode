@@ -7,11 +7,7 @@ import type {
 } from "@chudware/coding-agent/mnemo/embed-protocol";
 import type { AgentSession } from "@chudware/coding-agent/session/agent-session";
 import { awaitMemoryPromptInjection } from "@chudware/coding-agent/session/session-tools";
-import {
-	parseMemAvailableMB,
-	readAvailableMemoryMB,
-	waitForAvailableMemory,
-} from "@chudware/coding-agent/utils/memory";
+import { parseMemAvailableMB, readAvailableMemoryMB } from "@chudware/coding-agent/utils/memory";
 
 describe("context hardening", () => {
 	it("uses Linux MemAvailable and falls back when procfs is unavailable", async () => {
@@ -25,56 +21,6 @@ describe("context hardening", () => {
 				freeMemoryBytes: () => 5 * 1024 * 1024,
 			}),
 		).toBe(5);
-	});
-
-	it("defers low-memory admission until the floor recovers", async () => {
-		const readings = [256, 512, 2048];
-		const sleeps: number[] = [];
-		let now = 0;
-		const admitted = await waitForAvailableMemory({
-			minimumMB: 1024,
-			readMemoryMB: async () => readings.shift() ?? 2048,
-			now: () => now,
-			sleep: async ms => {
-				sleeps.push(ms);
-				now += ms;
-			},
-		});
-
-		expect(sleeps).toEqual([500, 500]);
-		expect(admitted).toEqual({ availableMB: 2048, waitedMs: 1000, timedOut: false, aborted: false });
-	});
-
-	it("disables memory admission reads when the configured floor is zero", async () => {
-		let reads = 0;
-		const admitted = await waitForAvailableMemory({
-			minimumMB: 0,
-			readMemoryMB: async () => {
-				reads += 1;
-				return 0;
-			},
-		});
-		expect(reads).toBe(0);
-		expect(admitted.timedOut).toBe(false);
-	});
-
-	it("admits with a warning callback after the bounded low-memory wait", async () => {
-		let now = 0;
-		let warning: { availableMB: number | undefined; waitedMs: number } | undefined;
-		const admitted = await waitForAvailableMemory({
-			minimumMB: 1024,
-			readMemoryMB: async () => 128,
-			now: () => now,
-			sleep: async ms => {
-				now += ms;
-			},
-			onTimeout: result => {
-				warning = { availableMB: result.availableMB, waitedMs: result.waitedMs };
-			},
-		});
-
-		expect(admitted).toEqual({ availableMB: 128, waitedMs: 30_000, timedOut: true, aborted: false });
-		expect(warning).toEqual({ availableMB: 128, waitedMs: 30_000 });
 	});
 
 	it("times out a hung first-turn memory injection without waiting for the backend", async () => {

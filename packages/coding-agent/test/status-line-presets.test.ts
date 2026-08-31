@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "bun:test";
 import { stripVTControlCharacters } from "node:util";
 import type { UsageReport } from "@chudware/ai";
 import { Settings, settings } from "@chudware/coding-agent/config/settings";
-import { StatusLineComponent } from "@chudware/coding-agent/modes/components/status-line";
+import { STATUS_LINE_PRESETS, StatusLineComponent } from "@chudware/coding-agent/modes/components/status-line";
 import { initTheme } from "@chudware/coding-agent/modes/theme/theme";
 import { beginSettingsTest, restoreSettingsTestState, type SettingsTestState } from "./helpers/settings-test-state";
 
@@ -54,9 +54,10 @@ function makeComponent(): StatusLineComponent {
 		name: "GPT-5.6 Sol",
 		contextWindow: 100_000,
 		provider: "openai-codex",
+		thinking: true,
 	};
 	const session = {
-		state: { messages, model },
+		state: { messages, model, thinkingLevel: "high" },
 		messages,
 		model,
 		contextUsageRevision: 0,
@@ -80,7 +81,7 @@ function makeComponent(): StatusLineComponent {
 			},
 		},
 		sessionManager: {
-			getSessionName: () => undefined,
+			getSessionName: () => "Capacity Planning",
 			getUsageStatistics: () => ({
 				input: 0,
 				output: 0,
@@ -133,9 +134,36 @@ describe("status line presets", () => {
 		expect(content).toContain(EXPECTED_USAGE_OUTPUT);
 	});
 
-	it("does not render account usage in the default preset", async () => {
+	it("renders account capacity in the default preset", async () => {
 		const content = await renderPreset("default");
 
-		expect(content).not.toContain(EXPECTED_USAGE_OUTPUT);
+		expect(content).toContain(EXPECTED_USAGE_OUTPUT);
+	});
+
+	it("prioritizes title, actual model, effort, and one context limit in default and full", async () => {
+		for (const preset of ["default", "full"] as const) {
+			const content = await renderPreset(preset);
+			expect(content).toContain("Capacity Planning");
+			expect(content).toContain("GPT-5.6 Sol");
+			expect(content).toContain("high");
+			expect(content).toContain("0%");
+			expect(content.split("100K")).toHaveLength(2);
+			expect(STATUS_LINE_PRESETS[preset].rightSegments.slice(0, 3)).toEqual([
+				"session_name",
+				"model",
+				"context_pct",
+			]);
+		}
+	});
+
+	it("keeps agent counts and duplicate context totals out of built-in presets", () => {
+		for (const [name, preset] of Object.entries(STATUS_LINE_PRESETS)) {
+			if (name === "custom") continue;
+			const segments = [...preset.leftSegments, ...preset.rightSegments];
+			expect(segments).not.toContain("subagents");
+			expect(segments.filter(segment => segment === "context_pct" || segment === "context_total")).toEqual([
+				"context_pct",
+			]);
+		}
 	});
 });

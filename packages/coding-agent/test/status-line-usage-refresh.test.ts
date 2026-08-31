@@ -2,9 +2,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "bun:test";
 import { stripVTControlCharacters } from "node:util";
 import { resetSettingsForTest, Settings } from "@chudware/coding-agent/config/settings";
 import type { CodexResetFireworksEvent } from "@chudware/coding-agent/modes/components/codex-reset-fireworks";
-import { StatusLineComponent } from "@chudware/coding-agent/modes/components/status-line";
+import { StatusLineComponent, StatusLineUsageAnimation } from "@chudware/coding-agent/modes/components/status-line";
 import { initTheme } from "@chudware/coding-agent/modes/theme/theme";
 import type { AgentSession } from "@chudware/coding-agent/session/agent-session";
+import type { RenderScheduler } from "@chudware/tui";
 
 async function flushMicrotasks(): Promise<void> {
 	await Promise.resolve();
@@ -137,6 +138,41 @@ async function refreshUsage(component: StatusLineComponent, advanceMs = 0): Prom
 
 function plain(text: string): string {
 	return stripVTControlCharacters(text);
+}
+
+class ManualRenderScheduler implements RenderScheduler {
+	#now = 0;
+	readonly #pending = new Set<{ callback: () => void; delayMs: number }>();
+
+	get pendingCount(): number {
+		return this.#pending.size;
+	}
+
+	now(): number {
+		return this.#now;
+	}
+
+	scheduleImmediate(callback: () => void): void {
+		callback();
+	}
+
+	scheduleRender(callback: () => void, delayMs: number): { cancel(): void } {
+		const task = { callback, delayMs };
+		this.#pending.add(task);
+		return {
+			cancel: () => {
+				this.#pending.delete(task);
+			},
+		};
+	}
+
+	advanceOneFrame(): void {
+		const task = this.#pending.values().next().value;
+		if (!task) return;
+		this.#pending.delete(task);
+		this.#now += task.delayMs;
+		task.callback();
+	}
 }
 
 describe("StatusLineComponent usage refresh", () => {
@@ -569,6 +605,45 @@ describe("StatusLineComponent usage refresh", () => {
 
 		expect(calls).toBe(3);
 		expect(events).toEqual([]);
+		component.dispose();
+	});
+
+	it("keeps usage animation scheduler-owned and releases it on stop", async () => {
+		const session = makeSession(async () => usageReport(42));
+		const component = new StatusLineComponent(session);
+		component.updateSettings({
+			preset: "custom",
+			leftSegments: ["usage"],
+			rightSegments: [],
+			separator: "powerline-thin",
+		});
+		await refreshUsage(component);
+		const narrow = component.getTopBorder(64);
+		expect(narrow.width).toBeLessThanOrEqual(64);
+		expect(plain(narrow.content)).toContain("5h 42%");
+		expect(plain(narrow.content)).not.toContain("(1m)");
+
+		const scheduler = new ManualRenderScheduler();
+		let repaints = 0;
+		const animation = new StatusLineUsageAnimation(session, scheduler, () => {
+			repaints++;
+		});
+		const staticRender = component.getTopBorder(120).content;
+		expect(component.getTopBorder(120).content).toBe(staticRender);
+
+		animation.start();
+		animation.start();
+		expect(scheduler.pendingCount).toBe(1);
+		const firstFrame = component.getTopBorder(120).content;
+		scheduler.advanceOneFrame();
+		expect(repaints).toBe(1);
+		expect(scheduler.pendingCount).toBe(1);
+		expect(component.getTopBorder(120).content).not.toBe(firstFrame);
+
+		animation.stop();
+		animation.stop();
+		expect(scheduler.pendingCount).toBe(0);
+		expect(component.getTopBorder(120).content).toBe(staticRender);
 		component.dispose();
 	});
 });

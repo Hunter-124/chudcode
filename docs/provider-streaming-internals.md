@@ -73,7 +73,7 @@ Normalization points:
 
 - `response.output_item.added` starts reasoning/text/function-call/custom-tool blocks
 - reasoning summary events (`response.reasoning_summary_text.delta`) and raw reasoning events (`response.reasoning_text.delta`) become `thinking_delta`
-- output/refusal deltas become `text_delta`
+- output deltas and refusal explanations both remain visible as `text_delta`; refusal parts additionally set `stopDetails: { type: "refusal", explanation }` and an `error` stop
 - `response.function_call_arguments.delta` and `response.custom_tool_call_input.delta` become `toolcall_delta`
 - `response.output_item.done` emits `thinking_end` / `text_end` / `toolcall_end`
 - `response.completed` maps status to stop reason and usage; `response.failed` / SDK `error` events throw into the wrapper's terminal `error` path
@@ -136,6 +136,34 @@ If provider stream throws or signals failure, each provider wrapper catches and 
 - `stopReason = "aborted"` when abort signal is set
 - otherwise `stopReason = "error"`
 - `errorMessage = finalizeErrorMessage(error, rawRequestDump)` (`packages/ai/src/utils/http-inspector.ts`), which wraps `formatErrorMessageWithRetryAfter()` and appends any captured HTTP-error body / raw-request dump (the `cursor` wrapper calls `formatErrorMessageWithRetryAfter()` directly)
+
+### Public content-refusal contract
+
+Consumers should use the exported `isContentRefusal(value)` predicate instead of matching provider prose:
+
+```ts
+import { isContentRefusal } from "@chudware/ai";
+
+const message = await stream.result();
+if (isContentRefusal(message)) {
+	// The provider declined the request; this is not an outage.
+}
+
+try {
+	await providerOperation();
+} catch (error) {
+	if (isContentRefusal(error)) {
+		// The same contract covers thrown provider errors.
+	}
+}
+```
+
+The predicate accepts both public failure forms:
+
+- returned `AssistantMessage` values with refusal/sensitive `stopDetails`
+- returned messages or thrown errors carrying `ContentBlocked` / `AccountPolicy` classification flags, including typed provider safety errors and structured account-policy error codes
+
+It does not inspect assistant content blocks, so ordinary text that discusses policies, safety, or refusals is not classified. OpenAI Responses refusal parts retain their explanation in the normal text block for display and copy the refusal-only explanation into `stopDetails.explanation`; the final message uses `stopReason: "error"`. Anthropic's `stop_details` explanation/category remain intact. This contract only normalizes classification and presentation: it does not change provider retry, credential fallback, or model fallback policy.
 
 ## Malformed chunk / SSE parse failure behavior
 
@@ -210,6 +238,7 @@ Provider-specific (not fully abstracted):
 ## Implementation files
 
 - [`../../ai/src/stream.ts`](../packages/ai/src/stream.ts) — provider dispatch, option mapping, API key/session plumbing, custom API dispatch, and provider-specific credential handling.
+- [`../../ai/src/types.ts`](../packages/ai/src/types.ts) and [`../../ai/src/error/flags.ts`](../packages/ai/src/error/flags.ts) — public assistant-message shapes and the shared `isContentRefusal()` message/error predicate.
 - [`../../ai/src/utils/event-stream.ts`](../packages/ai/src/utils/event-stream.ts) — generic stream queue + final-result resolution.
 - [`../../utils/src/json-parse.ts`](../packages/utils/src/json-parse.ts) — partial JSON parsing for streamed tool arguments.
 - [`../../ai/src/providers/anthropic.ts`](../packages/ai/src/providers/anthropic.ts) — Anthropic event translation and tool JSON delta accumulation.

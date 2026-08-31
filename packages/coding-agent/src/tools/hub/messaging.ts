@@ -9,6 +9,8 @@
  * drains pending messages; `list` shows actionable running+idle peers by default.
  */
 
+import * as fs from "node:fs/promises";
+import * as path from "node:path";
 import type { AgentToolResult } from "@chudware/agent-core";
 import { type Component, Text } from "@chudware/tui";
 import { formatAge, formatDuration } from "@chudware/utils";
@@ -32,9 +34,12 @@ import {
 import {
 	type CoordinationDetails,
 	DEFAULT_HUB_LIST_LIMIT,
+	type HubBlackboardEntry,
 	type HubListStatus,
+	type HubOp,
 	type HubRenderArgs,
 	type HubRosterCounts,
+	type HubTopicMessage,
 	hubErrorResult,
 	MAX_HUB_LIST_LIMIT,
 } from "./types";
@@ -451,6 +456,643 @@ export function executeInbox(
 }
 
 // =============================================================================
+// Durable topics and blackboard
+// =============================================================================
+
+export const MAX_HUB_TOPICS = 64;
+export const MAX_TOPIC_MESSAGES = 100;
+export const MAX_RETAINED_TOPIC_MESSAGES = 500;
+export const MAX_TOPIC_SUBSCRIBERS = 100;
+export const MAX_BLACKBOARD_ENTRIES = 128;
+export const MAX_TOPIC_MESSAGE_BYTES = 16 * 1024;
+export const MAX_BLACKBOARD_VALUE_BYTES = 32 * 1024;
+export const DEFAULT_TOPIC_READ_LIMIT = 50;
+
+const HUB_STATE_VERSION = 1;
+const HUB_STATE_FILENAME = "hub-state.json";
+const MAX_TOPIC_NAME_LENGTH = 64;
+const MAX_BLACKBOARD_KEY_LENGTH = 128;
+const topicNamePattern = /^[A-Za-z0-9][A-Za-z0-9._:/-]*$/;
+const blackboardKeyPattern = /^[A-Za-z0-9][A-Za-z0-9._:/-]*$/;
+let temporaryFileSequence = 0;
+
+interface PersistedTopic {
+	revision: number;
+	subscribers: string[];
+	messages: HubTopicMessage[];
+}
+
+interface PersistedHubState {
+	version: typeof HUB_STATE_VERSION;
+	topics: Record<string, PersistedTopic>;
+	blackboard: Record<string, HubBlackboardEntry>;
+}
+
+interface DurableMessagingDeps {
+	registry: AgentRegistry;
+	senderId: string;
+	sessionFileHint?: string | null;
+}
+
+interface TopicParams {
+	topic?: string;
+	message?: string;
+	afterRevision?: number;
+	limit?: number;
+}
+
+interface BlackboardParams {
+	key?: string;
+	value?: unknown;
+	expectedRevision?: number;
+}
+
+type TopicSubscriptionOutcome =
+	| { kind: "subscribed"; subscribers: string[]; revision: number }
+	| { kind: "full"; subscribers: string[]; revision: number };
+
+type BlackboardSetOutcome =
+	| { kind: "stale"; entry: HubBlackboardEntry | null; currentRevision: number }
+	| { kind: "full"; entry: null; currentRevision: number }
+	| { kind: "written"; entry: HubBlackboardEntry; currentRevision: number };
+
+function emptyHubState(): PersistedHubState {
+	return { version: HUB_STATE_VERSION, topics: {}, blackboard: {} };
+}
+
+function recordValue(value: unknown): Record<string, unknown> | undefined {
+	return typeof value === "object" && value !== null && !Array.isArray(value)
+		? (value as Record<string, unknown>)
+		: undefined;
+}
+
+function isTopicMessage(value: unknown): value is HubTopicMessage {
+	const row = recordValue(value);
+	return (
+		!!row &&
+		typeof row.id === "string" &&
+		typeof row.topic === "string" &&
+		typeof row.revision === "number" &&
+		Number.isSafeInteger(row.revision) &&
+		row.revision > 0 &&
+		typeof row.from === "string" &&
+		typeof row.body === "string" &&
+		typeof row.ts === "number" &&
+		Number.isFinite(row.ts)
+	);
+}
+
+function isBlackboardEntry(value: unknown): value is HubBlackboardEntry {
+	const row = recordValue(value);
+	return (
+		!!row &&
+		typeof row.key === "string" &&
+		"value" in row &&
+		typeof row.revision === "number" &&
+		Number.isSafeInteger(row.revision) &&
+		row.revision > 0 &&
+		typeof row.updatedAt === "number" &&
+		Number.isFinite(row.updatedAt) &&
+		typeof row.updatedBy === "string"
+	);
+}
+
+function parseHubState(text: string, filePath: string): PersistedHubState {
+	const parsed = JSON.parse(text) as unknown;
+	const root = recordValue(parsed);
+	const topics = recordValue(root?.topics);
+	const blackboard = recordValue(root?.blackboard);
+	if (root?.version !== HUB_STATE_VERSION || !topics || !blackboard) {
+		throw new Error(`Unsupported or malformed durable hub state: ${filePath}`);
+	}
+	for (const [topic, value] of Object.entries(topics)) {
+		const row = recordValue(value);
+		if (
+			!row ||
+			typeof row.revision !== "number" ||
+			!Number.isSafeInteger(row.revision) ||
+			row.revision < 0 ||
+			!Array.isArray(row.subscribers) ||
+			!row.subscribers.every(subscriber => typeof subscriber === "string") ||
+			!Array.isArray(row.messages) ||
+			!row.messages.every(isTopicMessage) ||
+			row.messages.some(message => message.topic !== topic)
+		) {
+			throw new Error(`Malformed durable hub topic "${topic}": ${filePath}`);
+		}
+	}
+	for (const [key, value] of Object.entries(blackboard)) {
+		if (!isBlackboardEntry(value) || value.key !== key) {
+			throw new Error(`Malformed durable hub blackboard entry "${key}": ${filePath}`);
+		}
+	}
+	return parsed as PersistedHubState;
+}
+
+/**
+ * Resolve the root transcript through the same persisted-agent convention, then
+ * keep hub state in that session's artifact directory.
+ */
+export async function durableHubStatePath(
+	registry: AgentRegistry,
+	sessionFileHint?: string | null,
+): Promise<string | undefined> {
+	const mainSessionFile = registry.get(MAIN_AGENT_ID)?.sessionFile;
+	const candidate =
+		typeof mainSessionFile === "string" && mainSessionFile.endsWith(".jsonl") ? mainSessionFile : sessionFileHint;
+	const rootSessionFile = await ensurePersistedRoster(registry, candidate);
+	if (!rootSessionFile?.endsWith(".jsonl")) return undefined;
+	return path.join(rootSessionFile.slice(0, -".jsonl".length), HUB_STATE_FILENAME);
+}
+
+async function readHubState(filePath: string): Promise<PersistedHubState> {
+	try {
+		return parseHubState(await fs.readFile(filePath, "utf8"), filePath);
+	} catch (error) {
+		if ((error as NodeJS.ErrnoException | null)?.code === "ENOENT") return emptyHubState();
+		throw error;
+	}
+}
+
+async function writeHubStateAtomic(filePath: string, state: PersistedHubState): Promise<void> {
+	await fs.mkdir(path.dirname(filePath), { recursive: true, mode: 0o700 });
+	const temporaryPath = `${filePath}.${process.pid}.${++temporaryFileSequence}.tmp`;
+	try {
+		await fs.writeFile(temporaryPath, `${JSON.stringify(state)}\n`, {
+			encoding: "utf8",
+			mode: 0o600,
+			flag: "wx",
+		});
+		try {
+			await fs.rename(temporaryPath, filePath);
+		} catch (error) {
+			const code = (error as NodeJS.ErrnoException | null)?.code;
+			if (process.platform !== "win32" || (code !== "EEXIST" && code !== "EPERM")) throw error;
+			await fs.rm(filePath, { force: true });
+			await fs.rename(temporaryPath, filePath);
+		}
+	} finally {
+		await fs.rm(temporaryPath, { force: true }).catch(() => {});
+	}
+}
+
+const stateTails = new Map<string, Promise<void>>();
+
+/** Serialize each file's read-modify-write operations inside this process. */
+async function withHubState<T>(
+	filePath: string,
+	operation: (state: PersistedHubState) => Promise<{ value: T; changed: boolean }> | { value: T; changed: boolean },
+): Promise<T> {
+	const prior = stateTails.get(filePath) ?? Promise.resolve();
+	let release!: () => void;
+	const turn = new Promise<void>(resolve => {
+		release = resolve;
+	});
+	const tail = prior.catch(() => {}).then(() => turn);
+	stateTails.set(filePath, tail);
+	await prior.catch(() => {});
+	try {
+		const state = await readHubState(filePath);
+		const result = await operation(state);
+		if (result.changed) await writeHubStateAtomic(filePath, state);
+		return result.value;
+	} finally {
+		release();
+		if (stateTails.get(filePath) === tail) stateTails.delete(filePath);
+	}
+}
+
+function normalizeTopic(value: string | undefined): string | undefined {
+	const topic = value?.trim();
+	return topic && topic.length <= MAX_TOPIC_NAME_LENGTH && topicNamePattern.test(topic) ? topic : undefined;
+}
+
+function normalizeBlackboardKey(value: string | undefined): string | undefined {
+	const key = value?.trim();
+	return key && key.length <= MAX_BLACKBOARD_KEY_LENGTH && blackboardKeyPattern.test(key) ? key : undefined;
+}
+
+function resolveTopicReadLimit(value: number | undefined): number {
+	if (value === undefined || !Number.isFinite(value) || value <= 0) return DEFAULT_TOPIC_READ_LIMIT;
+	return Math.min(MAX_TOPIC_MESSAGES, Math.max(1, Math.floor(value)));
+}
+
+function trimRetainedMessages(state: PersistedHubState, topic: PersistedTopic): void {
+	if (topic.messages.length > MAX_TOPIC_MESSAGES) {
+		topic.messages.splice(0, topic.messages.length - MAX_TOPIC_MESSAGES);
+	}
+	const messages = Object.values(state.topics).flatMap(row => row.messages);
+	if (messages.length <= MAX_RETAINED_TOPIC_MESSAGES) return;
+	const remove = new Set(
+		messages
+			.sort((a, b) => a.ts - b.ts || a.topic.localeCompare(b.topic) || a.revision - b.revision)
+			.slice(0, messages.length - MAX_RETAINED_TOPIC_MESSAGES)
+			.map(message => message.id),
+	);
+	for (const row of Object.values(state.topics)) {
+		row.messages = row.messages.filter(message => !remove.has(message.id));
+	}
+}
+
+function durableUnavailable(op: HubOp, senderId: string): AgentToolResult<CoordinationDetails> {
+	return hubErrorResult("Durable hub state is unavailable without a session transcript.", {
+		op,
+		from: senderId,
+	});
+}
+
+function durableFailure(
+	op: HubOp,
+	senderId: string,
+	error: unknown,
+	details: Partial<CoordinationDetails> = {},
+): AgentToolResult<CoordinationDetails> {
+	return hubErrorResult(error instanceof Error ? error.message : String(error), {
+		...details,
+		op,
+		from: senderId,
+	});
+}
+
+export async function executeTopicSubscribe(
+	deps: DurableMessagingDeps,
+	params: TopicParams,
+): Promise<AgentToolResult<CoordinationDetails>> {
+	const topic = normalizeTopic(params.topic);
+	if (!topic) {
+		return hubErrorResult('`topic` must be a 1-64 character name for op="subscribe".', {
+			op: "subscribe",
+			from: deps.senderId,
+		});
+	}
+	const filePath = await durableHubStatePath(deps.registry, deps.sessionFileHint);
+	if (!filePath) return durableUnavailable("subscribe", deps.senderId);
+	try {
+		const snapshot = await withHubState<TopicSubscriptionOutcome>(
+			filePath,
+			(state): { value: TopicSubscriptionOutcome; changed: boolean } => {
+				let row = state.topics[topic];
+				if (!row) {
+					if (Object.keys(state.topics).length >= MAX_HUB_TOPICS) {
+						return {
+							value: { kind: "full", subscribers: [], revision: 0 },
+							changed: false,
+						};
+					}
+					row = { revision: 0, subscribers: [], messages: [] };
+					state.topics[topic] = row;
+				}
+				if (row.subscribers.includes(deps.senderId)) {
+					return {
+						value: { kind: "subscribed", subscribers: [...row.subscribers], revision: row.revision },
+						changed: false,
+					};
+				}
+				if (row.subscribers.length >= MAX_TOPIC_SUBSCRIBERS) {
+					return {
+						value: { kind: "full", subscribers: [...row.subscribers], revision: row.revision },
+						changed: false,
+					};
+				}
+				row.subscribers.push(deps.senderId);
+				return {
+					value: { kind: "subscribed", subscribers: [...row.subscribers], revision: row.revision },
+					changed: true,
+				};
+			},
+		);
+		if (snapshot.kind === "full") {
+			return hubErrorResult(`Topic or subscriber retention limit reached for "${topic}".`, {
+				op: "subscribe",
+				from: deps.senderId,
+				topic,
+				subscribers: snapshot.subscribers,
+			});
+		}
+		return {
+			content: [
+				{
+					type: "text",
+					text: `Subscribed ${deps.senderId} to topic "${topic}" at revision ${snapshot.revision}.`,
+				},
+			],
+			details: {
+				op: "subscribe",
+				from: deps.senderId,
+				topic,
+				subscribers: snapshot.subscribers,
+			},
+		};
+	} catch (error) {
+		return durableFailure("subscribe", deps.senderId, error, { topic });
+	}
+}
+
+export async function executeTopicPublish(
+	deps: DurableMessagingDeps,
+	params: TopicParams,
+): Promise<AgentToolResult<CoordinationDetails>> {
+	const topic = normalizeTopic(params.topic);
+	if (!topic) {
+		return hubErrorResult('`topic` must be a 1-64 character name for op="publish".', {
+			op: "publish",
+			from: deps.senderId,
+		});
+	}
+	const message = params.message;
+	if (typeof message !== "string" || !message.trim()) {
+		return hubErrorResult('`message` is required for op="publish".', {
+			op: "publish",
+			from: deps.senderId,
+			topic,
+		});
+	}
+	if (Buffer.byteLength(message, "utf8") > MAX_TOPIC_MESSAGE_BYTES) {
+		return hubErrorResult(`Topic messages are limited to ${MAX_TOPIC_MESSAGE_BYTES} UTF-8 bytes.`, {
+			op: "publish",
+			from: deps.senderId,
+			topic,
+		});
+	}
+	const filePath = await durableHubStatePath(deps.registry, deps.sessionFileHint);
+	if (!filePath) return durableUnavailable("publish", deps.senderId);
+	try {
+		const stored = await withHubState(filePath, state => {
+			let row = state.topics[topic];
+			if (!row) {
+				if (Object.keys(state.topics).length >= MAX_HUB_TOPICS) {
+					return { value: undefined, changed: false };
+				}
+				row = { revision: 0, subscribers: [], messages: [] };
+				state.topics[topic] = row;
+			}
+			row.revision += 1;
+			const publication: HubTopicMessage = {
+				id: `${topic}:${row.revision}`,
+				topic,
+				revision: row.revision,
+				from: deps.senderId,
+				body: message,
+				ts: Date.now(),
+			};
+			row.messages.push(publication);
+			trimRetainedMessages(state, row);
+			return {
+				value: { publication, subscribers: [...row.subscribers] },
+				changed: true,
+			};
+		});
+		if (!stored) {
+			return hubErrorResult(`Topic retention limit reached; cannot create "${topic}".`, {
+				op: "publish",
+				from: deps.senderId,
+				topic,
+			});
+		}
+		const subscribed = new Set(stored.subscribers);
+		const targets = deps.registry
+			.listVisibleTo(deps.senderId)
+			.map(ref => ref.id)
+			.filter(id => subscribed.has(id));
+		const suppressRelay = targets.includes(MAIN_AGENT_ID);
+		const receipts = await Promise.all(
+			targets.map(target =>
+				IrcBus.global().send(
+					{ from: deps.senderId, to: target, body: message },
+					{ suppressRelay: suppressRelay || undefined },
+				),
+			),
+		);
+		const lines = [
+			`Published topic "${topic}" revision ${stored.publication.revision}; delivered to ${receipts.filter(receipt => receipt.outcome !== "failed").length} live subscriber(s).`,
+			...receipts.map(receipt =>
+				receipt.outcome === "failed"
+					? `- ${receipt.to}: failed — ${receipt.error ?? "unknown error"}`
+					: `- ${receipt.to}: ${receipt.outcome}`,
+			),
+		];
+		return {
+			content: [{ type: "text", text: lines.join("\n") }],
+			details: {
+				op: "publish",
+				from: deps.senderId,
+				topic,
+				topicMessages: [stored.publication],
+				subscribers: targets,
+				receipts,
+			},
+		};
+	} catch (error) {
+		return durableFailure("publish", deps.senderId, error, { topic });
+	}
+}
+
+export async function executeTopicRead(
+	deps: DurableMessagingDeps,
+	params: TopicParams,
+): Promise<AgentToolResult<CoordinationDetails>> {
+	const topic = normalizeTopic(params.topic);
+	if (!topic) {
+		return hubErrorResult('`topic` must be a 1-64 character name for op="read".', {
+			op: "read",
+			from: deps.senderId,
+		});
+	}
+	if (
+		params.afterRevision !== undefined &&
+		(!Number.isSafeInteger(params.afterRevision) || params.afterRevision < 0)
+	) {
+		return hubErrorResult("`afterRevision` must be a non-negative integer.", {
+			op: "read",
+			from: deps.senderId,
+			topic,
+		});
+	}
+	const filePath = await durableHubStatePath(deps.registry, deps.sessionFileHint);
+	if (!filePath) return durableUnavailable("read", deps.senderId);
+	try {
+		const messages = await withHubState(filePath, state => {
+			const afterRevision = params.afterRevision ?? 0;
+			const matching = (state.topics[topic]?.messages ?? []).filter(message => message.revision > afterRevision);
+			const limit = resolveTopicReadLimit(params.limit);
+			return {
+				value: params.afterRevision === undefined ? matching.slice(-limit) : matching.slice(0, limit),
+				changed: false,
+			};
+		});
+		if (messages.length === 0) {
+			return {
+				content: [{ type: "text", text: `No retained messages in topic "${topic}".` }],
+				details: { op: "read", from: deps.senderId, topic, topicMessages: [] },
+				useless: true,
+			};
+		}
+		return {
+			content: [
+				{
+					type: "text",
+					text: [
+						`${messages.length} retained message(s) in topic "${topic}":`,
+						...messages.map(message => `- [${message.revision}] ${message.from}: ${message.body}`),
+					].join("\n"),
+				},
+			],
+			details: { op: "read", from: deps.senderId, topic, topicMessages: messages },
+		};
+	} catch (error) {
+		return durableFailure("read", deps.senderId, error, { topic });
+	}
+}
+
+export async function executeBlackboardGet(
+	deps: DurableMessagingDeps,
+	params: BlackboardParams,
+): Promise<AgentToolResult<CoordinationDetails>> {
+	const key = normalizeBlackboardKey(params.key);
+	if (!key) {
+		return hubErrorResult('`key` must be a 1-128 character name for op="blackboard_get".', {
+			op: "blackboard_get",
+			from: deps.senderId,
+		});
+	}
+	const filePath = await durableHubStatePath(deps.registry, deps.sessionFileHint);
+	if (!filePath) return durableUnavailable("blackboard_get", deps.senderId);
+	try {
+		const entry = await withHubState(filePath, state => ({
+			value: state.blackboard[key] ?? null,
+			changed: false,
+		}));
+		return {
+			content: [
+				{
+					type: "text",
+					text: entry
+						? `Blackboard "${key}" revision ${entry.revision}:\n${JSON.stringify(entry.value)}`
+						: `Blackboard "${key}" is unset.`,
+				},
+			],
+			details: { op: "blackboard_get", from: deps.senderId, blackboard: entry },
+		};
+	} catch (error) {
+		return durableFailure("blackboard_get", deps.senderId, error);
+	}
+}
+
+export async function executeBlackboardSet(
+	deps: DurableMessagingDeps,
+	params: BlackboardParams,
+): Promise<AgentToolResult<CoordinationDetails>> {
+	const key = normalizeBlackboardKey(params.key);
+	if (!key) {
+		return hubErrorResult('`key` must be a 1-128 character name for op="blackboard_set".', {
+			op: "blackboard_set",
+			from: deps.senderId,
+		});
+	}
+	if (!("value" in params) || params.value === undefined) {
+		return hubErrorResult('`value` is required for op="blackboard_set".', {
+			op: "blackboard_set",
+			from: deps.senderId,
+		});
+	}
+	if (
+		params.expectedRevision !== undefined &&
+		(!Number.isSafeInteger(params.expectedRevision) || params.expectedRevision < 0)
+	) {
+		return hubErrorResult("`expectedRevision` must be a non-negative integer.", {
+			op: "blackboard_set",
+			from: deps.senderId,
+		});
+	}
+	let encoded: string | undefined;
+	try {
+		encoded = JSON.stringify(params.value);
+	} catch {
+		encoded = undefined;
+	}
+	if (encoded === undefined) {
+		return hubErrorResult("Blackboard values must be JSON-serializable.", {
+			op: "blackboard_set",
+			from: deps.senderId,
+		});
+	}
+	if (Buffer.byteLength(encoded, "utf8") > MAX_BLACKBOARD_VALUE_BYTES) {
+		return hubErrorResult(`Blackboard values are limited to ${MAX_BLACKBOARD_VALUE_BYTES} UTF-8 bytes.`, {
+			op: "blackboard_set",
+			from: deps.senderId,
+		});
+	}
+	const normalizedValue = JSON.parse(encoded) as unknown;
+	const filePath = await durableHubStatePath(deps.registry, deps.sessionFileHint);
+	if (!filePath) return durableUnavailable("blackboard_set", deps.senderId);
+	try {
+		const outcome = await withHubState<BlackboardSetOutcome>(
+			filePath,
+			(state): { value: BlackboardSetOutcome; changed: boolean } => {
+				const current = state.blackboard[key] ?? null;
+				const currentRevision = current?.revision ?? 0;
+				if (params.expectedRevision !== undefined && params.expectedRevision !== currentRevision) {
+					return {
+						value: { kind: "stale", entry: current, currentRevision },
+						changed: false,
+					};
+				}
+				if (!current && Object.keys(state.blackboard).length >= MAX_BLACKBOARD_ENTRIES) {
+					return {
+						value: { kind: "full", entry: null, currentRevision },
+						changed: false,
+					};
+				}
+				const entry: HubBlackboardEntry = {
+					key,
+					value: normalizedValue,
+					revision: currentRevision + 1,
+					updatedAt: Date.now(),
+					updatedBy: deps.senderId,
+				};
+				state.blackboard[key] = entry;
+				return {
+					value: { kind: "written", entry, currentRevision: entry.revision },
+					changed: true,
+				};
+			},
+		);
+		if (outcome.kind === "stale") {
+			return hubErrorResult(
+				`Blackboard compare-and-set rejected for "${key}": expected revision ${params.expectedRevision}, current revision ${outcome.currentRevision}.`,
+				{
+					op: "blackboard_set",
+					from: deps.senderId,
+					blackboard: outcome.entry,
+				},
+			);
+		}
+		if (outcome.kind === "full") {
+			return hubErrorResult(`Blackboard entry limit (${MAX_BLACKBOARD_ENTRIES}) reached.`, {
+				op: "blackboard_set",
+				from: deps.senderId,
+				blackboard: null,
+			});
+		}
+		return {
+			content: [
+				{
+					type: "text",
+					text: `Blackboard "${key}" written at revision ${outcome.entry.revision}.`,
+				},
+			],
+			details: {
+				op: "blackboard_set",
+				from: deps.senderId,
+				blackboard: outcome.entry,
+			},
+		};
+	} catch (error) {
+		return durableFailure("blackboard_set", deps.senderId, error);
+	}
+}
+
+// =============================================================================
 // TUI Renderer (messaging half)
 // =============================================================================
 
@@ -534,6 +1176,16 @@ function callTitle(args: HubRenderArgs | undefined, theme: Theme): string {
 			return "IRC inbox";
 		case "list":
 			return "IRC peers";
+		case "subscribe":
+			return `Hub subscribe ${args.topic?.trim() || "…"}`;
+		case "publish":
+			return `Hub publish ${args.topic?.trim() || "…"}`;
+		case "read":
+			return `Hub read ${args.topic?.trim() || "…"}`;
+		case "blackboard_get":
+			return `Hub get ${args.key?.trim() || "…"}`;
+		case "blackboard_set":
+			return `Hub set ${args.key?.trim() || "…"}`;
 		default:
 			return "Hub";
 	}
@@ -548,6 +1200,10 @@ function callMeta(args: HubRenderArgs | undefined): string[] {
 	}
 	if (args?.op === "wait" && args.timeoutMs) meta.push(`timeout ${formatDuration(args.timeoutMs)}`);
 	if (args?.op === "inbox" && args.peek) meta.push("peek");
+	if (args?.op === "read" && args.afterRevision !== undefined) meta.push(`after r${args.afterRevision}`);
+	if (args?.op === "blackboard_set" && args.expectedRevision !== undefined) {
+		meta.push(`CAS r${args.expectedRevision}`);
+	}
 	return meta;
 }
 
@@ -823,12 +1479,12 @@ function buildResultLines(
 	}
 }
 
-/** Pending-call frame for messaging ops (send/wait-from/inbox/list). */
+/** Pending-call frame for direct and durable messaging operations. */
 export function messagingRenderCall(args: HubRenderArgs, _options: RenderResultOptions, uiTheme: Theme): Component {
 	const lines = [
 		renderStatusLine({ icon: "pending", title: callTitle(args, uiTheme), meta: callMeta(args) }, uiTheme),
 	];
-	if (args?.op === "send" && args.message?.trim()) {
+	if ((args?.op === "send" || args?.op === "publish") && args.message?.trim()) {
 		lines.push(...bodyLines(args.message, false, uiTheme, { indent: "  ", tone: "dim", collapsedLines: 1 }));
 	}
 	return new Text(lines.join("\n"), 0, 0);

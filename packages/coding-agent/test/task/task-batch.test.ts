@@ -54,7 +54,11 @@ function createSession(
 	return {
 		cwd: "/tmp",
 		hasUI: false,
-		settings: Settings.isolated(options.settings ?? {}),
+		settings: Settings.isolated({
+			"task.minFreeMemMB": 0,
+			"task.sessionMemoryMB": 0,
+			...(options.settings ?? {}),
+		}),
 		getSessionFile: () => null,
 		getSessionSpawns: () => options.spawns ?? "*",
 		getAgentId: () => options.agentId ?? null,
@@ -634,6 +638,68 @@ describe("task.batch spawning", () => {
 
 		expect(text).not.toContain("agent://MissingArtifact");
 		expect(text).toContain(":END");
+	});
+
+	it("releases a running task's memory reservation on cancellation so queued work starts", async () => {
+		mockDiscovery();
+		const firstStarted = Promise.withResolvers<void>();
+		const secondStarted = Promise.withResolvers<void>();
+		const started: string[] = [];
+		vi.spyOn(executorModule, "runSubprocess").mockImplementation(async options => {
+			const id = options.id ?? "?";
+			started.push(id);
+			if (id === "First") {
+				const runSignal = options.signal;
+				if (!runSignal) throw new Error("Background task did not receive its cancellation signal");
+				firstStarted.resolve();
+				await new Promise<void>(resolve => {
+					if (runSignal.aborted) {
+						resolve();
+						return;
+					}
+					runSignal.addEventListener("abort", () => resolve(), { once: true });
+				});
+				return makeResult(id, { aborted: true, exitCode: 130 });
+			}
+			secondStarted.resolve();
+			return makeResult(id);
+		});
+
+		const manager = createManager();
+		const tool = await TaskTool.create(
+			createSession({
+				manager,
+				settings: {
+					"async.enabled": true,
+					"task.batch": true,
+					"task.maxConcurrency": 4,
+					"task.minFreeMemMB": 1024,
+					"task.sessionMemoryMB": 1024,
+				},
+			}),
+			{ memoryPressureSampler: () => 1024 },
+		);
+		await tool.execute("tc-memory-cancel", {
+			context: "ctx",
+			tasks: [
+				{ name: "First", task: "Do A." },
+				{ name: "Second", task: "Do B." },
+			],
+		} as TaskParams);
+
+		await firstStarted.promise;
+		expect(started).toEqual(["First"]);
+		const firstJob = manager.getJob("First")!;
+		const secondJob = manager.getJob("Second")!;
+		expect(secondJob.queued).toBe(true);
+
+		expect(manager.cancel(firstJob.id)).toBe(true);
+		await firstJob.promise;
+		await secondStarted.promise;
+		await secondJob.promise;
+
+		expect(started).toEqual(["First", "Second"]);
+		expect(secondJob.status).toBe("completed");
 	});
 
 	it("settles the batch async aggregate when a queued spawn is cancelled mid-flight", async () => {

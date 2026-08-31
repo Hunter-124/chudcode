@@ -1,12 +1,7 @@
-// Regression (#9246): the cursor transport hard-pinned every request to
-// `model.requestModelId` (the collapsed `-none` off tier), so thinking-effort
-// selection never reached the wire. `mapOptionsForApi` now resolves the effort
-// to a routed wire id; `buildGrpcRequest` splits an OpenAI effort suffix off
-// `options.wireModelId` into a `reasoning` parameter (suffixed sibling ids
-// trigger Cursor's 528384) and sends the base id on both `requestedModel` and
-// `modelDetails`, keeping the logical id only as the display id.
-// buildGrpcRequest is exercised directly (the transport is HTTP/2)
-// and the serialized run request is decoded back from the wire bytes.
+// Cursor catalog rows collapse per-effort sibling ids into one logical model,
+// but AgentService.Run still requires the exact opaque id advertised by
+// GetUsableModels. buildGrpcRequest is exercised directly (the transport is
+// HTTP/2) and the serialized run request is decoded back from the wire bytes.
 import { describe, expect, it } from "bun:test";
 import { buildGrpcRequest } from "@chudware/ai/providers/cursor";
 import type { Context, Model } from "@chudware/ai/types";
@@ -51,7 +46,7 @@ function decodeRunRequest(requestBytes: Uint8Array): { case: string; value: Reco
 }
 
 describe("cursor effort routing", () => {
-	it("sends the effort-routed wire id, not the collapsed off tier", async () => {
+	it("sends the exact effort-routed wire id", async () => {
 		const { requestBytes } = await buildGrpcRequest(
 			model,
 			context,
@@ -59,12 +54,51 @@ describe("cursor effort routing", () => {
 			{ conversationId: "conv-1", blobStore: new Map() },
 		);
 		const run = decodeRunRequest(requestBytes).value;
-		expect(run.requestedModel.modelId).toBe("gpt-5.6-terra");
-		expect(run.modelDetails.modelId).toBe("gpt-5.6-terra");
-		expect(run.requestedModel.parameters).toEqual([expect.objectContaining({ id: "reasoning", value: "medium" })]);
+		expect(run.requestedModel.modelId).toBe("gpt-5.6-terra-medium");
+		expect(run.modelDetails.modelId).toBe("gpt-5.6-terra-medium");
+		expect(run.requestedModel.parameters).toEqual([]);
 
 		// Logical id stays as the display id for local attribution.
 		expect(run.modelDetails.displayModelId).toBe("gpt-5.6-terra");
+	});
+
+	it("preserves the fast lane in the exact routed id", async () => {
+		const { requestBytes } = await buildGrpcRequest(
+			model,
+			context,
+			{ wireModelId: "gpt-5.6-terra-xhigh-fast" },
+			{ conversationId: "conv-fast", blobStore: new Map() },
+		);
+		const run = decodeRunRequest(requestBytes).value;
+		expect(run.requestedModel.modelId).toBe("gpt-5.6-terra-xhigh-fast");
+		expect(run.modelDetails.modelId).toBe("gpt-5.6-terra-xhigh-fast");
+		expect(run.requestedModel.parameters).toEqual([]);
+	});
+
+	it("preserves an explicit thinking fast variant as an opaque id", async () => {
+		const { requestBytes } = await buildGrpcRequest(
+			model,
+			context,
+			{ wireModelId: "claude-opus-5-thinking-xhigh-fast" },
+			{ conversationId: "conv-thinking-fast", blobStore: new Map() },
+		);
+		const run = decodeRunRequest(requestBytes).value;
+		expect(run.requestedModel.modelId).toBe("claude-opus-5-thinking-xhigh-fast");
+		expect(run.modelDetails.modelId).toBe("claude-opus-5-thinking-xhigh-fast");
+		expect(run.requestedModel.parameters).toEqual([]);
+	});
+
+	it("leaves a non-variant routed id unchanged", async () => {
+		const { requestBytes } = await buildGrpcRequest(
+			model,
+			context,
+			{ wireModelId: "cursor-grok-4.6" },
+			{ conversationId: "conv-non-variant", blobStore: new Map() },
+		);
+		const run = decodeRunRequest(requestBytes).value;
+		expect(run.requestedModel.modelId).toBe("cursor-grok-4.6");
+		expect(run.modelDetails.modelId).toBe("cursor-grok-4.6");
+		expect(run.requestedModel.parameters).toEqual([]);
 	});
 
 	it("falls back to requestModelId when no wire id is routed", async () => {

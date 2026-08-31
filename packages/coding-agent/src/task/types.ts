@@ -1,5 +1,5 @@
-import { type BaseType, type } from "@chudware/chudtype";
 import type { Usage } from "@chudware/ai";
+import { type BaseType, type } from "@chudware/chudtype";
 import { $env } from "@chudware/utils";
 import type { AgentSessionEvent } from "../session/agent-session";
 import type { ConfiguredThinkingLevel, TaskEffort } from "../thinking";
@@ -54,6 +54,24 @@ export const MAX_OUTPUT_BYTES = parseNumber($env.CHUDCODE_TASK_MAX_OUTPUT_BYTES,
 
 /** Maximum output lines per agent */
 export const MAX_OUTPUT_LINES = parseNumber($env.CHUDCODE_TASK_MAX_OUTPUT_LINES, 5000);
+
+/** Samples memory currently available to additional in-process agent sessions, in MiB. */
+export type MemoryPressureSampler = () => number | Promise<number>;
+
+/** Optional memory safety policy for a concurrency semaphore. */
+export interface SemaphoreMemoryOptions {
+	/** Free memory that must remain available in addition to session reservations, in MiB. */
+	minimumFreeMB: number;
+	/** Conservative amount of available memory reserved by each admitted holder, in MiB. */
+	reservationMB: number;
+	/** Injectable platform sampler; tests can supply deterministic pressure readings. */
+	sampleAvailableMemoryMB: MemoryPressureSampler;
+}
+
+/** Dependency overrides for task-tool admission. */
+export interface TaskToolCreateOptions {
+	memoryPressureSampler?: MemoryPressureSampler;
+}
 
 /** EventBus channel for raw subagent events */
 export const TASK_SUBAGENT_EVENT_CHANNEL = "task:subagent:event";

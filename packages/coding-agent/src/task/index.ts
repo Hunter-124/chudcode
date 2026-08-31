@@ -28,7 +28,7 @@ import { TASK_EFFORTS, type TaskEffort } from "../thinking";
 import { truncateForPrompt } from "../tools/approval";
 import { isIrcEnabled } from "../tools/hub";
 import { formatBytes, formatDuration } from "../tools/render-utils";
-import { waitForAvailableMemory } from "../utils/memory";
+import { readAvailableMemoryMB } from "../utils/memory";
 import { isReadOnlyAgent } from "./read-only-policy";
 import { isScoutSpawnable, resolveSpawnPolicy } from "./spawn-policy";
 import {
@@ -36,9 +36,11 @@ import {
 	type AgentProgress,
 	canSpawnAtDepth,
 	getTaskSchema,
+	type MemoryPressureSampler,
 	type SingleResult,
 	type TaskItem,
 	type TaskParams,
+	type TaskToolCreateOptions,
 	type TaskToolDetails,
 	type TaskToolSchemaInstance,
 } from "./types";
@@ -54,10 +56,6 @@ import { mapWithConcurrencyLimitAllSettled, Semaphore } from "./parallel";
 import { renderResult, renderCall as renderTaskCall } from "./render";
 import { repairTaskParams } from "./repair-args";
 import { resolveEffectiveSubagentPolicy, runStructuredSubagent, StructuredSubagentError } from "./structured-subagent";
-
-const DEFAULT_TASK_MIN_FREE_MEMORY_MB = 1024;
-const TASK_MEMORY_ADMISSION_TIMEOUT_MS = 30_000;
-const TASK_MEMORY_POLL_INTERVAL_MS = 500;
 
 function renderSubagentUserPrompt(assignment: string): string {
 	return prompt.render(subagentUserPromptTemplate, {
@@ -583,11 +581,11 @@ export class TaskTool implements AgentTool<TaskToolSchemaInstance, TaskToolDetai
 	readonly #discoveredAgents: AgentDefinition[];
 	readonly #blockedAgent: string | undefined;
 	/**
-	 * One semaphore per TaskTool instance (i.e. per session): bounds concurrent
-	 * subagents across parallel `task` calls within the session. Resized in
-	 * place from `task.maxConcurrency` before every acquire/release so a
-	 * mid-session settings change (UI toggle, `/settings`) applies to both new
-	 * spawns and work already parked in the semaphore queue.
+	 * One semaphore per TaskTool instance bounds subagents across parallel task
+	 * calls by both the independent hard count ceiling and the host-memory
+	 * admission policy. Resizing the same instance before every acquire/release
+	 * keeps in-flight reservations intact while live settings changes are
+	 * applied to queued work.
 	 */
 	#spawnSemaphore: Semaphore | undefined;
 
@@ -629,6 +627,7 @@ export class TaskTool implements AgentTool<TaskToolSchemaInstance, TaskToolDetai
 	private constructor(
 		private readonly session: ToolSession,
 		discoveredAgents: AgentDefinition[],
+		private readonly memoryPressureSampler: MemoryPressureSampler,
 	) {
 		this.#blockedAgent = $env.CHUDCODE_BLOCKED_AGENT;
 		this.#discoveredAgents = discoveredAgents;
@@ -640,10 +639,15 @@ export class TaskTool implements AgentTool<TaskToolSchemaInstance, TaskToolDetai
 
 	#getSpawnSemaphore(): Semaphore {
 		const max = this.session.settings.get("task.maxConcurrency");
+		const memory = this.#memoryAdmissionSettings();
 		if (this.#spawnSemaphore) {
+			this.#spawnSemaphore.resizeMemoryAdmission(memory.minimumFreeMB, memory.reservationMB);
 			this.#spawnSemaphore.resize(max);
 		} else {
-			this.#spawnSemaphore = new Semaphore(max);
+			this.#spawnSemaphore = new Semaphore(max, {
+				...memory,
+				sampleAvailableMemoryMB: this.memoryPressureSampler,
+			});
 		}
 		return this.#spawnSemaphore;
 	}
@@ -652,17 +656,11 @@ export class TaskTool implements AgentTool<TaskToolSchemaInstance, TaskToolDetai
 		this.#getSpawnSemaphore().release();
 	}
 
-	#minimumFreeMemoryMB(): number {
-		// The schema registration lands independently; this named adapter keeps
-		// rolling-upgrade binaries and narrow test stubs on the documented default.
-		const optionalSettings = this.session.settings as unknown as { get(path: string): unknown };
-		try {
-			const configured = optionalSettings.get("task.minFreeMemMB");
-			if (typeof configured === "number" && Number.isFinite(configured) && configured >= 0) return configured;
-		} catch {
-			// Unknown optional setting.
-		}
-		return DEFAULT_TASK_MIN_FREE_MEMORY_MB;
+	#memoryAdmissionSettings(): { minimumFreeMB: number; reservationMB: number } {
+		return {
+			minimumFreeMB: this.session.settings.get("task.minFreeMemMB"),
+			reservationMB: this.session.settings.get("task.sessionMemoryMB"),
+		};
 	}
 
 	/**
@@ -692,9 +690,9 @@ export class TaskTool implements AgentTool<TaskToolSchemaInstance, TaskToolDetai
 	/**
 	 * Create a TaskTool instance with async agent discovery.
 	 */
-	static async create(session: ToolSession): Promise<TaskTool> {
+	static async create(session: ToolSession, options: TaskToolCreateOptions = {}): Promise<TaskTool> {
 		const { agents } = await discoverAgentsForCreate(session.cwd, session.effectiveExtensionRoots?.());
-		return new TaskTool(session, agents);
+		return new TaskTool(session, agents, options.memoryPressureSampler ?? readAvailableMemoryMB);
 	}
 
 	async execute(
@@ -1133,21 +1131,8 @@ export class TaskTool implements AgentTool<TaskToolSchemaInstance, TaskToolDetai
 				try {
 					await semaphore.acquire(runSignal);
 					semaphoreHeld = true;
-					const minimumFreeMemoryMB = this.#minimumFreeMemoryMB();
-					await waitForAvailableMemory({
-						minimumMB: minimumFreeMemoryMB,
-						maxWaitMs: TASK_MEMORY_ADMISSION_TIMEOUT_MS,
-						pollIntervalMs: TASK_MEMORY_POLL_INTERVAL_MS,
-						signal: runSignal,
-						onTimeout: ({ availableMB, waitedMs }) => {
-							logger.warn("Task spawn memory floor remained unmet; admitting after bounded delay", {
-								agentId,
-								minimumMB: minimumFreeMemoryMB,
-								availableMB,
-								waitedMs,
-							});
-						},
-					});
+					// Memory admission is part of the same permit: no post-acquire
+					// polling window can let count and memory capacity diverge.
 				} catch {
 					// Fall through so an acquire-time abort goes through the same
 					// path as the post-acquire race below: progress + onSettled

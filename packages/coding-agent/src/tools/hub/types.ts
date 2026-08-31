@@ -1,7 +1,6 @@
 /**
- * Shared types for the hub tool — the merged agent-coordination surface
- * covering peer messaging (IRC bus), background-job control, and supervised
- * long-running processes (launch).
+ * Shared types for the hub tool — peer messaging, durable topic/blackboard
+ * coordination, background-job control, and supervised processes.
  */
 
 import type { AgentToolResult } from "@chudware/agent-core";
@@ -10,15 +9,22 @@ import type { IrcDeliveryReceipt, IrcMessage } from "../../irc/bus";
 import type { LaunchParams, LaunchToolDetails } from "./launch";
 
 /**
- * Hub operations: messaging (`send`/`wait`/`inbox`/`list`), jobs
- * (`wait`/`cancel`/`jobs`), and process supervision (`start`/`ps`/`logs`/
- * `stop`/`restart`/`describe`, plus `send`/`wait` when they carry `name`).
+ * Hub operations: direct messaging (`send`/`wait`/`inbox`/`list`), durable
+ * topics (`subscribe`/`publish`/`read`), shared blackboard state
+ * (`blackboard_get`/`blackboard_set`), jobs (`wait`/`cancel`/`jobs`), and
+ * process supervision (`start`/`ps`/`logs`/`stop`/`restart`/`describe`, plus
+ * `send`/`wait` when they carry `name`).
  */
 export type HubOp =
 	| "send"
 	| "wait"
 	| "inbox"
 	| "list"
+	| "subscribe"
+	| "publish"
+	| "read"
+	| "blackboard_get"
+	| "blackboard_set"
 	| "jobs"
 	| "cancel"
 	| "start"
@@ -45,6 +51,25 @@ export type HubListStatus = "running" | "idle" | "parked";
 /** Model-facing roster bounds shared by the hub schema and executor. */
 export const DEFAULT_HUB_LIST_LIMIT = 32;
 export const MAX_HUB_LIST_LIMIT = 100;
+
+/** One publication retained in a named durable topic. */
+export interface HubTopicMessage {
+	id: string;
+	topic: string;
+	revision: number;
+	from: string;
+	body: string;
+	ts: number;
+}
+
+/** One versioned value in the session-shared blackboard. */
+export interface HubBlackboardEntry {
+	key: string;
+	value: unknown;
+	revision: number;
+	updatedAt: number;
+	updatedBy: string;
+}
 
 /** Addressable roster tallies always returned by `op:"list"`. */
 export interface HubRosterCounts {
@@ -98,7 +123,7 @@ export interface AgentActivitySnapshot {
 	live: boolean;
 }
 
-/** Result details for messaging and job ops; fields are disjoint per op. */
+/** Result details for direct messaging, durable coordination, and job ops. */
 export interface CoordinationDetails {
 	op: HubOp;
 	from?: string;
@@ -108,6 +133,14 @@ export interface CoordinationDetails {
 	waited?: IrcMessage | null;
 	inbox?: IrcMessage[];
 	peers?: HubPeerInfo[];
+	/** Topic selected by `subscribe`, `publish`, or `read`. */
+	topic?: string;
+	/** Persisted publications returned by `publish` or `read`. */
+	topicMessages?: HubTopicMessage[];
+	/** Subscriber ids after `subscribe`, or targeted by `publish`. */
+	subscribers?: string[];
+	/** Blackboard value returned by get/set, or the current value on a stale CAS. */
+	blackboard?: HubBlackboardEntry | null;
 	/** Present on `op:"list"`: addressable running/idle/parked plus page size. */
 	counts?: HubRosterCounts;
 	jobs?: JobSnapshot[];
@@ -130,6 +163,12 @@ export type HubRenderArgs = {
 	timeoutMs?: number;
 	peek?: boolean;
 	ids?: string[];
+	topic?: string;
+	key?: string;
+	value?: unknown;
+	expectedRevision?: number;
+	afterRevision?: number;
+	limit?: number;
 } & Partial<Omit<LaunchParams, "op">>;
 
 export function hubErrorResult(text: string, details: CoordinationDetails): AgentToolResult<HubDetails> {

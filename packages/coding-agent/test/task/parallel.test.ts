@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import { mapWithConcurrencyLimitAllSettled } from "@chudware/coding-agent/task/parallel";
+import { mapWithConcurrencyLimitAllSettled, Semaphore } from "@chudware/coding-agent/task/parallel";
 
 describe("mapWithConcurrencyLimitAllSettled", () => {
 	it("waits for valid siblings after one item rejects and keeps input order", async () => {
@@ -54,5 +54,83 @@ describe("mapWithConcurrencyLimitAllSettled", () => {
 		expect(started).toEqual([0]);
 		expect(settled.aborted).toBe(true);
 		expect(settled.results).toEqual([{ status: "fulfilled", value: 0 }, undefined]);
+	});
+});
+
+describe("Semaphore memory admission", () => {
+	it("enforces the free-memory floor plus reservations independently of the hard count ceiling", async () => {
+		let availableMB = 300;
+		let sampleCount = 0;
+		const thirdSampled = Promise.withResolvers<void>();
+		const semaphore = new Semaphore(3, {
+			minimumFreeMB: 100,
+			reservationMB: 100,
+			sampleAvailableMemoryMB: () => {
+				sampleCount++;
+				if (sampleCount === 2) thirdSampled.resolve();
+				return availableMB;
+			},
+		});
+
+		await semaphore.acquire();
+		await semaphore.acquire();
+		const third = semaphore.acquire();
+		await thirdSampled.promise;
+		let thirdAdmitted = false;
+		void third.then(() => {
+			thirdAdmitted = true;
+		});
+		await Promise.resolve();
+		expect(thirdAdmitted).toBe(false);
+
+		availableMB = 400;
+		semaphore.notifyMemoryCapacityChanged();
+		await third;
+		expect(thirdAdmitted).toBe(true);
+
+		const countLimited = new Semaphore(1, {
+			minimumFreeMB: 100,
+			reservationMB: 100,
+			sampleAvailableMemoryMB: () => 10_000,
+		});
+		await countLimited.acquire();
+		const secondCountPermit = countLimited.acquire();
+		let secondCountAdmitted = false;
+		void secondCountPermit.then(() => {
+			secondCountAdmitted = true;
+		});
+		await Promise.resolve();
+		expect(secondCountAdmitted).toBe(false);
+		countLimited.release();
+		await secondCountPermit;
+
+		semaphore.release();
+		semaphore.release();
+		semaphore.release();
+		countLimited.release();
+	});
+
+	it("keeps a one-task progress floor and removes cancelled waiters without leaking reservations", async () => {
+		const lowMemorySampled = Promise.withResolvers<void>();
+		const semaphore = new Semaphore(4, {
+			minimumFreeMB: 1024,
+			reservationMB: 1024,
+			sampleAvailableMemoryMB: () => {
+				lowMemorySampled.resolve();
+				return 0;
+			},
+		});
+		await semaphore.acquire();
+
+		const cancelled = new AbortController();
+		const cancelledPermit = semaphore.acquire(cancelled.signal);
+		await lowMemorySampled.promise;
+		cancelled.abort(new Error("cancel queued task"));
+		await expect(cancelledPermit).rejects.toThrow("cancel queued task");
+
+		const nextPermit = semaphore.acquire();
+		semaphore.release();
+		await nextPermit;
+		semaphore.release();
 	});
 });

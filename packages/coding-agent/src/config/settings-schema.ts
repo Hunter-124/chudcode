@@ -1,6 +1,6 @@
 import { THINKING_EFFORTS } from "@chudware/ai";
-import { DEFAULT_SHARE_URL } from "@chudware/wire";
 import { SHAPE_VARIANT_NAMES } from "@chudware/snapcompact";
+import { DEFAULT_SHARE_URL } from "@chudware/wire";
 import {
 	type BlobDestinationId,
 	type BlobDestinationMetadata,
@@ -697,7 +697,8 @@ export const SETTINGS_SCHEMA = {
 				{
 					value: "project",
 					label: "Per-project",
-					description: "Save project role models in .chudcode/config.yml; missing project roles use global defaults",
+					description:
+						"Save project role models in .chudcode/config.yml; missing project roles use global defaults",
 				},
 			],
 		},
@@ -4584,7 +4585,8 @@ export const SETTINGS_SCHEMA = {
 			tab: "tools",
 			group: "GitHub",
 			label: "GitHub View Cache",
-			description: "Cache rendered issue/PR view output in ~/.chudcode/cache/github-cache.db so repeated reads are free",
+			description:
+				"Cache rendered issue/PR view output in ~/.chudcode/cache/github-cache.db so repeated reads are free",
 		},
 	},
 
@@ -5167,8 +5169,21 @@ export const SETTINGS_SCHEMA = {
 		ui: {
 			tab: "tasks",
 			group: "Subagents",
-			label: "Minimum Free Memory",
-			description: "Delay new subagents while available memory is below this many MiB; 0 disables the guard",
+			label: "Free Memory Safety Floor",
+			description:
+				"Keep at least this many MiB available beyond active subagent reservations; 0 disables only the floor",
+		},
+	},
+
+	"task.sessionMemoryMB": {
+		type: "number",
+		default: 1024,
+		ui: {
+			tab: "tasks",
+			group: "Subagents",
+			label: "Memory per Task",
+			description:
+				"Advanced estimate reserved per running in-process subagent, conservatively rounded from a measured ~768 MiB worker footprint; 0 disables reservations",
 		},
 	},
 

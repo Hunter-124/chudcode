@@ -1,10 +1,12 @@
 /**
- * Hub tool — the single agent-coordination surface: peer messaging over the
- * IrcBus, lifecycle control for async background jobs, and supervision of
- * project-scoped long-running processes (launch).
+ * Hub tool — the single agent-coordination surface: direct peer messaging,
+ * durable topics and blackboard state, background-job control, and supervision
+ * of project-scoped long-running processes.
  *
  * Op families:
  * - messaging: `send` (with `to`), `inbox`, `list`, `wait` (with `from`);
+ * - durable coordination: `subscribe`, `publish`, `read`, `blackboard_get`,
+ *   `blackboard_set`;
  * - jobs: `wait` (bare or with `ids`), `cancel`, `jobs`;
  * - processes: `start`, `ps`, `logs`, `stop`, `restart`, `describe`, plus
  *   `send`/`wait` when they carry a process `name`.
@@ -15,7 +17,6 @@
  * when the agent has nothing else to do.
  */
 
-import { type } from "@chudware/chudtype";
 import type {
 	AgentTool,
 	AgentToolContext,
@@ -24,6 +25,7 @@ import type {
 	ToolApprovalDecision,
 } from "@chudware/agent-core";
 import type { ToolExample } from "@chudware/ai";
+import { type } from "@chudware/chudtype";
 import type { Component } from "@chudware/tui";
 import { prompt } from "@chudware/utils";
 import type { RenderResultOptions } from "../../extensibility/custom-tools/types";
@@ -55,22 +57,21 @@ import {
 } from "./launch";
 import {
 	drainPendingInbox,
+	executeBlackboardGet,
+	executeBlackboardSet,
 	executeInbox,
 	executeList,
 	executeMessageWait,
 	executeSend,
+	executeTopicPublish,
+	executeTopicRead,
+	executeTopicSubscribe,
 	messageResult,
 	messagingRenderCall,
 	messagingRenderResult,
 	normalizeIrcTimeoutMs,
 } from "./messaging";
-import {
-	DEFAULT_HUB_LIST_LIMIT,
-	type HubDetails,
-	type HubRenderArgs,
-	hubErrorResult,
-	MAX_HUB_LIST_LIMIT,
-} from "./types";
+import { type HubDetails, type HubRenderArgs, hubErrorResult, MAX_HUB_LIST_LIMIT } from "./types";
 
 export { isWaitingPollDetails } from "./jobs";
 export type { LaunchParams, LaunchToolDetails } from "./launch";
@@ -79,7 +80,7 @@ export * from "./types";
 
 const hubSchema = type({
 	op: type(
-		"'send' | 'wait' | 'inbox' | 'list' | 'jobs' | 'cancel' | 'start' | 'ps' | 'logs' | 'stop' | 'restart' | 'describe'",
+		"'send' | 'wait' | 'inbox' | 'list' | 'subscribe' | 'publish' | 'read' | 'blackboard_get' | 'blackboard_set' | 'jobs' | 'cancel' | 'start' | 'ps' | 'logs' | 'stop' | 'restart' | 'describe'",
 	).describe("hub operation"),
 	"to?": type("string").describe('send: recipient agent id or "all"'),
 	"message?": type("string").describe("send: message body"),
@@ -91,7 +92,14 @@ const hubSchema = type({
 	"peek?": type("boolean").describe("inbox: list messages without consuming them"),
 	"status?": type("'running' | 'idle' | 'parked'").describe("list: filter by status; omit for running+idle"),
 	"limit?": type("number > 0").describe(
-		`list: max peer rows; default ${DEFAULT_HUB_LIST_LIMIT}, max ${MAX_HUB_LIST_LIMIT}`,
+		`list/read: max returned rows; peer max ${MAX_HUB_LIST_LIMIT}, topic-message max 100`,
+	),
+	"topic?": type("string <= 64").describe("topics: durable topic name"),
+	"afterRevision?": type("number >= 0").describe("read: only topic messages newer than this revision"),
+	"key?": type("string <= 128").describe("blackboard: shared state key"),
+	"value?": type("unknown").describe("blackboard_set: JSON value"),
+	"expectedRevision?": type("number >= 0").describe(
+		"blackboard_set: compare-and-set revision; 0 requires an absent key",
 	),
 	"name?": type("string <= 48").describe("process ops: stable project-scoped launch name"),
 	"application?": type("string > 0").describe("start: executable or application path"),
@@ -138,7 +146,7 @@ interface MessagingDeps {
 
 const PROGRESS_INTERVAL_MS = 500;
 
-/** Mutating process ops require exec approval; messaging, jobs, and inspection are read-only. */
+/** Process mutations require exec approval; coordination state remains read-tier. */
 function hubApproval(params: unknown): ToolApprovalDecision {
 	if (typeof params !== "object" || params === null || !("op" in params)) return "exec";
 	const op = params.op;
@@ -149,6 +157,11 @@ function hubApproval(params: unknown): ToolApprovalDecision {
 		case "jobs":
 		case "cancel":
 		case "ps":
+		case "subscribe":
+		case "publish":
+		case "read":
+		case "blackboard_get":
+		case "blackboard_set":
 		case "logs":
 		case "describe":
 			return "read";
@@ -168,7 +181,7 @@ export class HubTool implements AgentTool<typeof hubSchema, HubDetails> {
 	readonly name = "hub";
 	readonly approval = hubApproval;
 	readonly label = "Hub";
-	readonly summary = "Message peer agents, control background jobs, and supervise long-running processes";
+	readonly summary = "Message agents, share durable topics/state, control jobs, and supervise processes";
 	readonly description: string;
 	readonly parameters = hubSchema;
 	readonly strict = true;
@@ -202,6 +215,23 @@ export class HubTool implements AgentTool<typeof hubSchema, HubDetails> {
 				to: "Main",
 				message: "JWT or session cookies for the auth flow?",
 				await: true,
+			},
+		},
+		{
+			caption: "Publish durable coordination context",
+			call: {
+				op: "publish",
+				topic: "auth-contract",
+				message: "JWT validation stays in src/server/auth.ts.",
+			},
+		},
+		{
+			caption: "Update shared state with compare-and-set",
+			call: {
+				op: "blackboard_set",
+				key: "auth-owner",
+				value: { agent: "AuthLoader" },
+				expectedRevision: 0,
 			},
 		},
 		{
@@ -303,6 +333,36 @@ export class HubTool implements AgentTool<typeof hubSchema, HubDetails> {
 				const messaging = this.#messaging();
 				if (!messaging) return hubErrorResult("Peer messaging is unavailable in this session.", { op: "inbox" });
 				return executeInbox(messaging.registry, messaging.senderId, params.peek);
+			}
+			case "subscribe": {
+				const messaging = this.#messaging();
+				if (!messaging)
+					return hubErrorResult("Peer messaging is unavailable in this session.", { op: "subscribe" });
+				return executeTopicSubscribe(messaging, params);
+			}
+			case "publish": {
+				const messaging = this.#messaging();
+				if (!messaging) return hubErrorResult("Peer messaging is unavailable in this session.", { op: "publish" });
+				return executeTopicPublish(messaging, params);
+			}
+			case "read": {
+				const messaging = this.#messaging();
+				if (!messaging) return hubErrorResult("Peer messaging is unavailable in this session.", { op: "read" });
+				return executeTopicRead(messaging, params);
+			}
+			case "blackboard_get": {
+				const messaging = this.#messaging();
+				if (!messaging) {
+					return hubErrorResult("Peer messaging is unavailable in this session.", { op: "blackboard_get" });
+				}
+				return executeBlackboardGet(messaging, params);
+			}
+			case "blackboard_set": {
+				const messaging = this.#messaging();
+				if (!messaging) {
+					return hubErrorResult("Peer messaging is unavailable in this session.", { op: "blackboard_set" });
+				}
+				return executeBlackboardSet(messaging, params);
 			}
 			case "wait":
 				if (params.name?.trim()) return this.#launch(params, "wait", signal);
@@ -585,7 +645,9 @@ export const hubToolRenderer = {
 		else if (op === "wait" && (hubArgs.from || hubArgs.name)) detail = `wait ${hubArgs.from ?? hubArgs.name}`;
 		else if ((op === "wait" || op === "cancel") && hubArgs.ids?.length) {
 			detail = `${op} ${hubArgs.ids.length} job${hubArgs.ids.length === 1 ? "" : "s"}`;
-		} else if (hubArgs.name) detail = `${op} ${hubArgs.name}`;
+		} else if (hubArgs.topic) detail = `${op} ${hubArgs.topic}`;
+		else if (hubArgs.key) detail = `${op} ${hubArgs.key}`;
+		else if (hubArgs.name) detail = `${op} ${hubArgs.name}`;
 		return { label: "Hub", detail };
 	},
 	// Only launch pending frames consume the spinner (broker RPC in flight);
@@ -617,7 +679,12 @@ export const hubToolRenderer = {
 		}
 		if (
 			coordination &&
-			("receipts" in coordination || "waited" in coordination || "inbox" in coordination || "peers" in coordination)
+			("receipts" in coordination ||
+				"waited" in coordination ||
+				"inbox" in coordination ||
+				"peers" in coordination ||
+				"topicMessages" in coordination ||
+				"blackboard" in coordination)
 		) {
 			return messagingRenderResult({ ...result, details: coordination }, options, uiTheme, args);
 		}

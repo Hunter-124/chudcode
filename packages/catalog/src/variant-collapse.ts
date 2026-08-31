@@ -36,6 +36,7 @@ import { Effort, THINKING_EFFORTS } from "./effort";
 import { stripThinkingVariantToken } from "./identity/family";
 import { resolveModelThinking } from "./model-thinking";
 import type { Api, Model, ModelSpec, Provider, ThinkingConfig } from "./types";
+import { parseCursorModelVariant } from "./wire/cursor";
 
 /**
  * Structural bound for collapse inputs: both raw `ModelSpec`s and built
@@ -799,28 +800,24 @@ export const CURSOR_VARIANT_COLLAPSE_TABLE: VariantCollapseTable = {
 	],
 };
 
-type CursorTierToken = "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
-
+type CursorTierToken = "none" | Effort;
 interface CursorTierMember<TSpec extends VariantSpecLike> {
 	baseId: string;
+	thinkingVariant: boolean;
 	fast: boolean;
 	spec: TSpec;
 	tier: CursorTierToken;
 }
 
-const CURSOR_TIER_ID_PATTERN = /^(.+?)-(extra-high|none|minimal|low|medium|high|xhigh|max)(-fast)?$/;
+/** Exact wire id this raw tier contributes after preserving its existing routing metadata. */
+function cursorTierMemberWireId<TSpec extends VariantSpecLike>(member: CursorTierMember<TSpec>): string {
+	if (member.thinkingVariant) return member.spec.id;
+	const effort = member.tier === "none" ? "off" : member.tier;
+	return member.spec.thinking?.effortRouting?.[effort] ?? member.spec.id;
+}
+
 const CURSOR_TIER_BASE_PATTERN = /-(extra-high|none|minimal|low|medium|high|xhigh|max)$/;
 const CURSOR_THINKING_TOKEN_PATTERN = /(^|-)thinking($|-)/;
-const CURSOR_TIER_BY_TOKEN: Readonly<Record<string, CursorTierToken | undefined>> = {
-	none: "none",
-	minimal: "minimal",
-	low: "low",
-	medium: "medium",
-	high: "high",
-	"extra-high": "xhigh",
-	xhigh: "xhigh",
-	max: "max",
-};
 
 /** Whether an existing logical row already routes every live member in `members`. */
 function collapsedCursorLogicalMatches<TSpec extends VariantSpecLike>(
@@ -830,10 +827,11 @@ function collapsedCursorLogicalMatches<TSpec extends VariantSpecLike>(
 	const routing = spec.thinking?.effortRouting;
 	if (!routing) return false;
 	for (const member of members) {
-		if (spec.requestModelId === member.spec.id) continue;
+		const memberWireId = cursorTierMemberWireId(member);
+		if (spec.requestModelId === member.spec.id || spec.requestModelId === memberWireId) continue;
 		let matched = false;
 		for (const effort of VARIANT_ROUTING_KEYS) {
-			if (routing[effort] === member.spec.id) {
+			if (routing[effort] === memberWireId) {
 				matched = true;
 				break;
 			}
@@ -844,10 +842,11 @@ function collapsedCursorLogicalMatches<TSpec extends VariantSpecLike>(
 }
 
 /**
- * Derive safe Cursor per-effort families from live wire ids. A family is
- * intentionally left expanded when its base is an independent live SKU, any
- * member already has a thinking ladder, member metadata differs, or a tier
- * token is also part of a product name.
+ * Derive safe Cursor per-effort families from live wire ids. Existing member
+ * effort routing is authoritative: a previously collapsed `X`/`X-thinking`
+ * pair contributes its exact thinking wire id for that tier. A family remains
+ * expanded when its base is an independent live SKU, member metadata differs,
+ * or a tier token is part of the product name.
  */
 function deriveCursorEffortFamilies<TSpec extends VariantSpecLike>(specs: readonly TSpec[]): EffortVariantFamily[] {
 	const byId = new Map<string, TSpec>();
@@ -856,13 +855,11 @@ function deriveCursorEffortFamilies<TSpec extends VariantSpecLike>(specs: readon
 
 	for (const spec of specs) {
 		if (!byId.has(spec.id)) byId.set(spec.id, spec);
-		const match = CURSOR_TIER_ID_PATTERN.exec(spec.id);
-		if (!match) continue;
-		const baseId = match[1];
-		const tier = CURSOR_TIER_BY_TOKEN[match[2] ?? ""];
-		const fast = match[3] !== undefined;
-		if (!baseId || !tier) continue;
-		const member = { baseId, fast, spec, tier };
+		const variant = parseCursorModelVariant(spec.id);
+		if (!variant) continue;
+		const { baseId, fast, thinking: thinkingVariant } = variant;
+		const tier: CursorTierToken = variant.effort === "off" ? "none" : variant.effort;
+		const member = { baseId, fast, spec, thinkingVariant, tier };
 		const key = `${baseId}\0${fast ? "fast" : "standard"}`;
 		const group = groups.get(key);
 		if (group) {
@@ -887,14 +884,11 @@ function deriveCursorEffortFamilies<TSpec extends VariantSpecLike>(specs: readon
 		if (
 			independentStandardBase ||
 			independentLaneBase ||
-			new Set(group.map(member => member.tier)).size !== group.length ||
+			new Set(group.map(member => `${member.tier}\0${member.thinkingVariant ? "thinking" : "plain"}`)).size !==
+				group.length ||
 			CURSOR_TIER_BASE_PATTERN.test(baseId) ||
 			CURSOR_THINKING_TOKEN_PATTERN.test(baseId) ||
-			candidateBases.has(`${baseId}-thinking`) ||
-			byId.has(`${baseId}-thinking`) ||
-			byId.has(`${baseId}-thinking-fast`) ||
-			byId.has(`${baseId}-fast-thinking`) ||
-			group.some(member => member.spec.thinking !== undefined || member.spec.requestModelId !== undefined) ||
+			group.some(member => member.spec.requestModelId !== undefined) ||
 			group.some(member => candidateBases.has(`${baseId}-${member.tier}`))
 		) {
 			unsafeBases.add(baseId);
@@ -921,11 +915,14 @@ function deriveCursorEffortFamilies<TSpec extends VariantSpecLike>(specs: readon
 		}
 
 		const routes: TierRoutes = {};
+		const memberIds: string[] = [];
 		for (const member of group) {
+			const wireModelId = cursorTierMemberWireId(member);
+			memberIds.push(member.spec.id, wireModelId);
 			if (member.tier === "none") {
-				routes.off = member.spec.id;
+				routes.off = wireModelId;
 			} else {
-				routes[member.tier] = member.spec.id;
+				routes[member.tier] = wireModelId;
 			}
 		}
 		const efforts = THINKING_EFFORTS.filter(effort => routes[effort] !== undefined);
@@ -934,8 +931,15 @@ function deriveCursorEffortFamilies<TSpec extends VariantSpecLike>(specs: readon
 			.replace(/\s+(extra-high|none|minimal|low|medium|high|xhigh|max)(\s+fast)?$/i, "")
 			.trim();
 		const baseName = strippedName === first.spec.id ? first.baseId : strippedName || first.baseId;
+		const laneName = first.fast && !/\sfast$/i.test(baseName) ? `${baseName} Fast` : baseName;
 		const suffix = first.fast ? "-fast" : "";
-		families.push(tierFamily(`${first.baseId}${suffix}`, `${baseName}${first.fast ? " Fast" : ""}`, routes, efforts));
+		const family = tierFamily(`${first.baseId}${suffix}`, laneName, routes, efforts);
+		const preserveAbsentEffortRoutes = group.some(member => cursorTierMemberWireId(member) !== member.spec.id);
+		families.push({
+			...family,
+			members: [...new Set([...memberIds, ...family.members])],
+			...(preserveAbsentEffortRoutes ? { preserveAbsentEffortRoutes: true } : undefined),
+		});
 	}
 	return families;
 }

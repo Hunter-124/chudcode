@@ -627,6 +627,39 @@ export function isAccountPolicyError(error: unknown, api?: Api): boolean {
 }
 
 /**
+ * Whether a returned assistant message or thrown provider error represents a
+ * content refusal rather than an outage.
+ *
+ * Returned messages use structured stop details (`refusal` / Anthropic's
+ * `sensitive`) or their persisted error flags. Thrown errors use the same
+ * classifier flags, including account-policy denials. Assistant prose is never
+ * inspected, so discussing policies or refusals in ordinary output is safe.
+ */
+export function isContentRefusal(value: unknown, api?: Api): boolean {
+	if (value && typeof value === "object") {
+		const stopDetails =
+			"stopDetails" in value && value.stopDetails && typeof value.stopDetails === "object"
+				? value.stopDetails
+				: undefined;
+		if (
+			stopDetails &&
+			"type" in stopDetails &&
+			(stopDetails.type === "refusal" || stopDetails.type === "sensitive")
+		) {
+			return true;
+		}
+
+		if ("role" in value && value.role === "assistant") {
+			const id = classifyMessage(value as AssistantMessage);
+			return is(id, Flag.ContentBlocked) || is(id, Flag.AccountPolicy);
+		}
+	}
+
+	const id = classify(value, api);
+	return is(id, Flag.ContentBlocked) || is(id, Flag.AccountPolicy);
+}
+
+/**
  * Model id from Codex's exact ChatGPT-account entitlement denial. Generic
  * unsupported-model invalid requests deliberately do not match.
  */

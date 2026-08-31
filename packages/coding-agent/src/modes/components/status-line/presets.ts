@@ -2,8 +2,8 @@ import type { PresetDef, StatusLinePreset } from "./types";
 
 export const STATUS_LINE_PRESETS: Record<StatusLinePreset, PresetDef> = {
 	default: {
-		leftSegments: ["chud", "model", "mode", "collab", "path", "git", "pr", "context_pct", "cost"],
-		rightSegments: ["session_name"],
+		leftSegments: ["chud", "mode", "collab", "path", "git", "pr"],
+		rightSegments: ["session_name", "model", "context_pct", "usage", "cost"],
 		separator: "powerline-thin",
 		segmentOptions: {
 			model: { showThinkingLevel: true },
@@ -33,17 +33,18 @@ export const STATUS_LINE_PRESETS: Record<StatusLinePreset, PresetDef> = {
 	},
 
 	full: {
-		leftSegments: ["chud", "hostname", "model", "mode", "path", "git", "pr", "subagents"],
+		leftSegments: ["chud", "hostname", "mode", "collab", "path", "git", "pr"],
 		rightSegments: [
 			"session_name",
+			"model",
+			"context_pct",
+			"usage",
 			"cache_hit",
 			"token_in",
 			"token_out",
 			"token_rate",
 			"cache_read",
 			"cost",
-			"usage",
-			"context_pct",
 			"time_spent",
 			"time",
 		],
@@ -58,18 +59,18 @@ export const STATUS_LINE_PRESETS: Record<StatusLinePreset, PresetDef> = {
 
 	nerd: {
 		// Full preset with all Nerd Font icons
-		leftSegments: ["chud", "hostname", "model", "mode", "path", "git", "pr", "session", "subagents"],
+		leftSegments: ["chud", "hostname", "mode", "path", "git", "pr", "session"],
 		rightSegments: [
 			"session_name",
+			"model",
+			"context_pct",
+			"usage",
 			"token_in",
 			"token_out",
 			"cache_read",
 			"cache_write",
 			"token_rate",
 			"cost",
-			"usage",
-			"context_pct",
-			"context_total",
 			"time_spent",
 			"time",
 		],

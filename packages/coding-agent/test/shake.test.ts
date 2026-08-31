@@ -131,6 +131,55 @@ describe("AgentSession shake", () => {
 			expect(text).toContain("shaken");
 		});
 
+		it("preserves mixed tool-result images in place while collapsing all text into one marker", async () => {
+			const largeText = "mixed tool output ".repeat(2_000);
+			const imageBefore: ImageContent = { type: "image", data: "before", mimeType: "image/png" };
+			const imageMiddle: ImageContent = { type: "image", data: "middle", mimeType: "image/png" };
+			const imageAfter: ImageContent = { type: "image", data: "after", mimeType: "image/png" };
+			seedHeavyToolResult(largeText);
+			const [mixedResult] = branchToolResults();
+			mixedResult.content = [
+				imageBefore,
+				{ type: "text", text: "" },
+				imageMiddle,
+				{ type: "text", text: largeText },
+				imageAfter,
+				{ type: "text", text: "trailing text" },
+			];
+			appendRecentProtectedTail();
+
+			const result = await session.shake("elide");
+
+			expect(result.toolResultsDropped).toBe(1);
+			expect(mixedResult.content).toHaveLength(4);
+			expect(mixedResult.content[0]).toBe(imageBefore);
+			expect(mixedResult.content[1]).toBe(imageMiddle);
+			const marker = mixedResult.content[2];
+			expect(marker?.type).toBe("text");
+			if (marker?.type !== "text") throw new Error("Expected shake replacement marker");
+			expect(marker.text).toContain("shaken");
+			expect(mixedResult.content[3]).toBe(imageAfter);
+			const tokenizer = new Tokenizer();
+			expect(result.tokensFreed).toBe(
+				tokenizer.countTokens([largeText, "trailing text"]) - tokenizer.countTokens(marker.text),
+			);
+		});
+
+		it("keeps text-only tool-result replacement byte-for-byte equivalent", async () => {
+			const largeText = "text-only tool output ".repeat(2_000);
+			seedHeavyToolResult(largeText);
+			appendRecentProtectedTail();
+
+			const result = await session.shake("elide");
+
+			expect(result.toolResultsDropped).toBe(1);
+			expect(result.artifactId).toBeDefined();
+			const expected =
+				`[shaken ~${new Tokenizer().countTokens(largeText)} tokens — ` +
+				`recover: artifact://${result.artifactId} (region 1)]`;
+			expect(branchToolResults()[0].content).toEqual([{ type: "text", text: expected }]);
+		});
+
 		it("updates provider-anchored context usage immediately after rewriting prompt history", async () => {
 			seedHeavyToolResult("X".repeat(20_000));
 			sessionManager.appendMessage({

@@ -874,6 +874,46 @@ describe("Cursor generic tier routing (issue #9237)", () => {
 		expect(resolveWireModelId(buildModel(fast), Effort.Max)).toBe("gpt-5.5-max-fast");
 	});
 
+	it("folds reference-backed per-tier thinking routes without reconstructing their wire ids", () => {
+		const efforts = [Effort.Low, Effort.Medium, Effort.High, Effort.XHigh] as const;
+		const raw = efforts.flatMap(effort =>
+			[false, true].map(fast => {
+				const suffix = fast ? "-fast" : "";
+				const baseId = `claude-opus-5-${effort}${suffix}`;
+				const thinkingId = `claude-opus-5-thinking-${effort}${suffix}`;
+				return cursorMemberSpec(baseId, {
+					name: `Claude Opus 5 ${effort}${fast ? " Fast" : ""}`,
+					reasoning: true,
+					cursorMaxMode: fast,
+					thinking: {
+						mode: "effort",
+						efforts,
+						effortRouting: { off: baseId, [effort]: thinkingId },
+					},
+				});
+			}),
+		);
+		const collapsed = collapseEffortVariantsAcrossProviders(raw);
+		expect(collapsed.map(model => model.id).sort()).toEqual(["claude-opus-5", "claude-opus-5-fast"]);
+
+		const standard = collapsed.find(model => model.id === "claude-opus-5");
+		const fast = collapsed.find(model => model.id === "claude-opus-5-fast");
+		if (!standard || !fast) throw new Error("Claude Opus 5 lanes did not collapse");
+		expect(standard.reasoning).toBe(true);
+		expect(standard.thinking?.effortRouting).toEqual({
+			[Effort.Low]: "claude-opus-5-thinking-low",
+			[Effort.Medium]: "claude-opus-5-thinking-medium",
+			[Effort.High]: "claude-opus-5-thinking-high",
+			[Effort.XHigh]: "claude-opus-5-thinking-xhigh",
+		});
+		expect(fast.thinking?.effortRouting).toEqual({
+			[Effort.Low]: "claude-opus-5-thinking-low-fast",
+			[Effort.Medium]: "claude-opus-5-thinking-medium-fast",
+			[Effort.High]: "claude-opus-5-thinking-high-fast",
+			[Effort.XHigh]: "claude-opus-5-thinking-xhigh-fast",
+		});
+	});
+
 	it("maps Cursor's extra-high suffix to xhigh", () => {
 		const raw = ["none", "low", "extra-high"].map(tier =>
 			cursorMemberSpec(`gpt-5.5-${tier}`, { name: `GPT-5.5 ${tier}` }),
@@ -926,7 +966,7 @@ describe("Cursor generic tier routing (issue #9237)", () => {
 		expect(collapseEffortVariantsAcrossProviders(raw).map(model => model.id)).toEqual(raw.map(model => model.id));
 	});
 
-	it("does not treat product -max or split -thinking names as effort-only families", () => {
+	it("keeps product -max names separate while folding Claude thinking tiers", () => {
 		const ids = [
 			"gpt-5.1-codex-low",
 			"gpt-5.1-codex-max",
@@ -939,9 +979,18 @@ describe("Cursor generic tier routing (issue #9237)", () => {
 			"claude-opus-5-thinking-max",
 		];
 
-		expect(collapseEffortVariantsAcrossProviders(ids.map(id => cursorMemberSpec(id))).map(model => model.id)).toEqual(
-			ids,
-		);
+		const collapsed = collapseEffortVariantsAcrossProviders(ids.map(id => cursorMemberSpec(id)));
+		expect(collapsed.map(model => model.id)).toEqual([
+			"gpt-5.1-codex-low",
+			"gpt-5.1-codex-max",
+			"gpt-5.1-codex-max-high",
+			"gpt-5.1-codex-max-xhigh",
+			"claude-opus-5",
+		]);
+		const claude = collapsed.find(model => model.id === "claude-opus-5");
+		if (!claude) throw new Error("Claude Opus 5 did not collapse");
+		expect(claude.reasoning).toBe(true);
+		expect(claude.thinking?.effortRouting?.[Effort.XHigh]).toBe("claude-opus-5-thinking-xhigh");
 	});
 
 	it("dedupes live tiers beside matching collapsed static rows", () => {

@@ -54,9 +54,12 @@ export interface ThinkingConfig {
 	 */
 	supportsDisplay?: boolean;
 	/**
-	 * Per-effort upstream wire-id routing for collapsed effort-tier variants
-	 * (`variant-collapse.ts`). Keyed by chud effort; `"off"` applies when
-	 * thinking is disabled. Missing keys fall back to `requestModelId ?? id`.
+	 * Per-effort exact upstream wire-id routing for collapsed effort-tier
+	 * variants (`variant-collapse.ts`). Values are opaque provider discovery
+	 * ids: request transports MUST NOT reconstruct them from the logical id or
+	 * replace suffixes with guessed parameters. Keyed by chud effort; `"off"`
+	 * applies when thinking is disabled. Missing keys fall back to
+	 * `requestModelId ?? id`.
 	 */
 	effortRouting?: Readonly<Partial<Record<Effort | "off", string>>>;
 	/**

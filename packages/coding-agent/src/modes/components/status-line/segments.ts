@@ -1,7 +1,7 @@
 import * as os from "node:os";
 import * as path from "node:path";
 import { ThinkingLevel } from "@chudware/agent-core";
-import { TERMINAL } from "@chudware/tui";
+import { type RenderScheduler, type RenderTimer, TERMINAL } from "@chudware/tui";
 import { formatDuration, formatNumber, getProjectDir, pathIsWithin, relativePathWithinRoot } from "@chudware/utils";
 import { type Theme, type ThemeColor, theme } from "../../../modes/theme/theme";
 import { shortenPath, TRUNCATE_LENGTHS, truncateToWidth } from "../../../tools/render-utils";
@@ -13,6 +13,62 @@ import { formatContextUsage, getContextUsageLevel, getContextUsageThemeColor } f
 import type { RenderedSegment, SegmentContext, StatusLineSegment, StatusLineSegmentId } from "./types";
 
 export type { SegmentContext } from "./types";
+
+const USAGE_CAPACITY_FRAMES = ["◐", "◓", "◑", "◒"] as const;
+const USAGE_CAPACITY_FRAME_MS = 750;
+
+interface UsageCapacityAnimationState {
+	frame: number;
+}
+
+const usageCapacityAnimationBySession = new WeakMap<SegmentContext["session"], UsageCapacityAnimationState>();
+
+/**
+ * Drives the account-capacity glyph outside segment rendering. Interactive
+ * mode owns this lifecycle; render-only consumers never schedule work and
+ * therefore keep byte-for-byte deterministic output.
+ */
+export class StatusLineUsageAnimation {
+	readonly #state: UsageCapacityAnimationState = { frame: 0 };
+	readonly #session: SegmentContext["session"];
+	readonly #scheduler: RenderScheduler;
+	readonly #requestRender: () => void;
+	#timer: RenderTimer | undefined;
+	#running = false;
+
+	constructor(session: SegmentContext["session"], scheduler: RenderScheduler, requestRender: () => void) {
+		this.#session = session;
+		this.#scheduler = scheduler;
+		this.#requestRender = requestRender;
+	}
+
+	start(): void {
+		if (this.#running) return;
+		this.#running = true;
+		this.#state.frame = 0;
+		usageCapacityAnimationBySession.set(this.#session, this.#state);
+		this.#scheduleNextFrame();
+	}
+
+	stop(): void {
+		this.#running = false;
+		this.#timer?.cancel();
+		this.#timer = undefined;
+		if (usageCapacityAnimationBySession.get(this.#session) === this.#state) {
+			usageCapacityAnimationBySession.delete(this.#session);
+		}
+	}
+
+	#scheduleNextFrame(): void {
+		this.#timer = this.#scheduler.scheduleRender(() => {
+			this.#timer = undefined;
+			if (!this.#running) return;
+			this.#state.frame = (this.#state.frame + 1) % USAGE_CAPACITY_FRAMES.length;
+			this.#requestRender();
+			if (this.#running) this.#scheduleNextFrame();
+		}, USAGE_CAPACITY_FRAME_MS);
+	}
+}
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Helpers
@@ -702,49 +758,66 @@ function formatUsageReset(value: number, unit: "m" | "h"): string {
 	return hours > 0 ? `${days}d ${hours}h` : `${days}d`;
 }
 
+function formatUsageWindow(
+	label: string,
+	percent: number,
+	resetValue: number | undefined,
+	resetUnit: "m" | "h",
+	showReset: boolean,
+	floorPercent = false,
+): string {
+	const roundedPercent = floorPercent ? Math.floor(percent) : Math.round(percent);
+	const reset =
+		showReset && resetValue !== undefined ? theme.fg("muted", ` (${formatUsageReset(resetValue, resetUnit)})`) : "";
+	return `${label} ${theme.fg(pickUsageColor(percent), `${roundedPercent}%`)}${reset}`;
+}
+
 const usageSegment: StatusLineSegment = {
 	id: "usage",
 	render(ctx) {
-		const u = ctx.usage;
-		if (!u || (!u.fiveHour && !u.sevenDay && !u.monthly)) {
+		const usage = ctx.usage;
+		if (!usage || (!usage.fiveHour && !usage.sevenDay && !usage.monthly)) {
 			return { content: "", visible: false };
 		}
+
+		const showAllWindows = ctx.width >= 96;
+		const showTier = ctx.width >= 112;
+		const showResets = ctx.width >= 132;
 		const parts: string[] = [];
-		if (u.tier) {
-			const tier = truncateToWidth(sanitizeStatusText(u.tier), TRUNCATE_LENGTHS.SHORT);
+		if (showTier && usage.tier) {
+			const tier = truncateToWidth(sanitizeStatusText(usage.tier), TRUNCATE_LENGTHS.SHORT);
 			if (tier) parts.push(theme.fg("accent", tier));
 		}
-		if (u.fiveHour) {
-			const pct = u.fiveHour.percent;
-			const pctText = theme.fg(pickUsageColor(pct), `${Math.round(pct)}%`);
-			const reset =
-				u.fiveHour.resetMinutes !== undefined
-					? theme.fg("muted", ` (${formatUsageReset(u.fiveHour.resetMinutes, "m")})`)
-					: "";
-			parts.push(`5h ${pctText}${reset}`);
+
+		const fiveHourPercent = usage.fiveHour?.percent ?? -1;
+		const sevenDayPercent = usage.sevenDay?.percent ?? -1;
+		const monthlyPercent = usage.monthly?.percent ?? -1;
+		const highestPercent = Math.max(fiveHourPercent, sevenDayPercent, monthlyPercent, 0);
+
+		if (showAllWindows) {
+			if (usage.fiveHour) {
+				parts.push(formatUsageWindow("5h", usage.fiveHour.percent, usage.fiveHour.resetMinutes, "m", showResets));
+			}
+			if (usage.sevenDay) {
+				parts.push(formatUsageWindow("7d", usage.sevenDay.percent, usage.sevenDay.resetHours, "h", showResets));
+			}
+			if (usage.monthly) {
+				// Cursor and OpenCode Go floor monthly percentages upstream.
+				parts.push(formatUsageWindow("mo", usage.monthly.percent, usage.monthly.resetHours, "h", showResets, true));
+			}
+		} else if (usage.fiveHour && fiveHourPercent === highestPercent) {
+			parts.push(formatUsageWindow("5h", fiveHourPercent, undefined, "m", false));
+		} else if (usage.sevenDay && sevenDayPercent === highestPercent) {
+			parts.push(formatUsageWindow("7d", sevenDayPercent, undefined, "h", false));
+		} else if (usage.monthly) {
+			parts.push(formatUsageWindow("mo", monthlyPercent, undefined, "h", false, true));
 		}
-		if (u.sevenDay) {
-			const pct = u.sevenDay.percent;
-			const pctText = theme.fg(pickUsageColor(pct), `${Math.round(pct)}%`);
-			const reset =
-				u.sevenDay.resetHours !== undefined
-					? theme.fg("muted", ` (${formatUsageReset(u.sevenDay.resetHours, "h")})`)
-					: "";
-			parts.push(`7d ${pctText}${reset}`);
-		}
-		if (u.monthly) {
-			const pct = u.monthly.percent;
-			// Cursor and OpenCode Go (normalize gates monthly to those providers).
-			// Both floor used percents upstream (Cursor's dashboard shows 1.88 →
-			// "1% used"; OpenCode's endpoint already emits floored integers).
-			const pctText = theme.fg(pickUsageColor(pct), `${Math.floor(pct)}%`);
-			const reset =
-				u.monthly.resetHours !== undefined
-					? theme.fg("muted", ` (${formatUsageReset(u.monthly.resetHours, "h")})`)
-					: "";
-			parts.push(`mo ${pctText}${reset}`);
-		}
-		const content = withIcon(theme.icon.time, parts.join(theme.sep.dot));
+
+		const animation = usageCapacityAnimationBySession.get(ctx.session);
+		const indicator = ctx.width < 72 ? "" : animation ? USAGE_CAPACITY_FRAMES[animation.frame] : theme.icon.time;
+		const content = indicator
+			? `${theme.fg(pickUsageColor(highestPercent), indicator)} ${parts.join(theme.sep.dot)}`
+			: parts.join(theme.sep.dot);
 		return { content, visible: true };
 	},
 };

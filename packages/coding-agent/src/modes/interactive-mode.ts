@@ -4,13 +4,7 @@
  */
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
-import {
-	type Agent,
-	AgentBusyError,
-	type AgentMessage,
-	EventLoopKeepalive,
-	ThinkingLevel,
-} from "@chudware/agent-core";
+import { type Agent, AgentBusyError, type AgentMessage, EventLoopKeepalive, ThinkingLevel } from "@chudware/agent-core";
 import type { CompactionOutcome } from "@chudware/agent-core/compaction";
 import type { AssistantMessage, ImageContent, Message, Model, Usage, UsageReport } from "@chudware/ai";
 import { modelsAreEqual } from "@chudware/catalog/models";
@@ -20,7 +14,9 @@ import type {
 	EditorTheme,
 	LoaderMessageColorFn,
 	OverlayHandle,
+	RenderScheduler,
 	SlashCommand,
+	TUI,
 } from "@chudware/tui";
 import {
 	Container,
@@ -33,7 +29,6 @@ import {
 	setTuiTight,
 	TERMINAL,
 	Text,
-	type TUI,
 	visibleWidth,
 } from "@chudware/tui";
 import type { TerminalAppearanceRequestToken } from "@chudware/tui/terminal";
@@ -100,7 +95,7 @@ import planModeApprovedPrompt from "../prompts/system/plan-mode-approved.md" wit
 import planModeCompactInstructionsPrompt from "../prompts/system/plan-mode-compact-instructions.md" with {
 	type: "text",
 };
-import { type AgentRegistry, MAIN_AGENT_ID } from "../registry/agent-registry";
+import { MAIN_AGENT_ID } from "../registry/agent-registry";
 import {
 	type AgentSession,
 	type AgentSessionEvent,
@@ -172,7 +167,7 @@ import type { HookInputComponent } from "./components/hook-input";
 import type { HookSelectorComponent, HookSelectorSlider } from "./components/hook-selector";
 import { type PlanReviewAnnotationState, PlanReviewOverlay } from "./components/plan-review-overlay";
 import { PlanSaveOverlay, type PlanSaveOverlayResult } from "./components/plan-save-overlay";
-import { StatusLineComponent } from "./components/status-line";
+import { StatusLineComponent, StatusLineUsageAnimation } from "./components/status-line";
 import { stopSharedSpinnerTicker, type ToolExecutionHandle } from "./components/tool-execution";
 import { TranscriptContainer } from "./components/transcript-container";
 import type { LspServerInfo as WelcomeLspServerInfo } from "./components/welcome";
@@ -203,7 +198,6 @@ import {
 	parseLoopLimitArgs,
 } from "./loop-limit";
 import { OAuthManualInputManager } from "./oauth-manual-input";
-import { getRunningSubagentBadgeAgentIds, getRunningSubagentBadgeRegistry } from "./running-subagent-badge";
 import {
 	type ObservableSession,
 	type SessionObserverChangeKind,
@@ -240,6 +234,21 @@ import type {
 import { UiHelpers } from "./utils/ui-helpers";
 
 const STILL_CLOSING_DELAY_MS = 3_000;
+const STATUS_LINE_USAGE_RENDER_SCHEDULER: RenderScheduler = {
+	now: () => performance.now(),
+	scheduleImmediate: callback => {
+		setImmediate(callback);
+	},
+	scheduleRender: (callback, delayMs) => {
+		const timer = setTimeout(callback, delayMs);
+		timer.unref?.();
+		return {
+			cancel: () => {
+				clearTimeout(timer);
+			},
+		};
+	},
+};
 
 const HINT_SHIMMER_PALETTE: ShimmerPalette = {
 	low: "dim",
@@ -599,6 +608,7 @@ export class InteractiveMode implements InteractiveModeContext {
 	hookWidgetContainerAbove: Container;
 	hookWidgetContainerBelow: Container;
 	statusLine: StatusLineComponent;
+	readonly #statusLineUsageAnimation: StatusLineUsageAnimation;
 
 	isInitialized = false;
 	initialChatRendered = false;
@@ -826,8 +836,6 @@ export class InteractiveMode implements InteractiveModeContext {
 	#eventBusUnsubscribers: Array<() => void> = [];
 	#observerUiSyncTimer?: NodeJS.Timeout;
 	#observerUiSyncNeedsTodoReconcile = false;
-	#agentRegistryUnsubscribe?: () => void;
-	#agentRegistrySubscriptionTarget?: AgentRegistry;
 	#mcpStatusOrder: string[] = [];
 	#mcpPendingServers = new Set<string>();
 	#mcpConnectedServers = new Set<string>();
@@ -973,6 +981,9 @@ export class InteractiveMode implements InteractiveModeContext {
 		this.editorContainer.addChild(this.editor);
 		this.statusLine = new StatusLineComponent(session);
 		this.statusLine.setAutoCompactEnabled(session.autoCompactionEnabled);
+		this.#statusLineUsageAnimation = new StatusLineUsageAnimation(session, STATUS_LINE_USAGE_RENDER_SCHEDULER, () =>
+			this.ui.requestRender(),
+		);
 		this.#codexResetFireworksController = new CodexResetFireworksController(this);
 		this.statusLine.setCodexResetFireworksHandler(event => {
 			this.#codexResetFireworksController.show(event);
@@ -1413,6 +1424,7 @@ export class InteractiveMode implements InteractiveModeContext {
 			// replay with the newly detected palette.
 			onTerminalAppearanceChange(mode, appearanceRefreshWasRequested ? {} : undefined);
 		});
+		this.#statusLineUsageAnimation.start();
 	}
 
 	/** Reload the title-generation system prompt override for the provided working
@@ -2168,18 +2180,12 @@ export class InteractiveMode implements InteractiveModeContext {
 		this.ui.requestRender();
 	}
 
-	/** Refresh the running-subagents status badge from the active local or collab registry. */
+	/**
+	 * Repaint after registry changes without copying the agent count into the
+	 * status line. Live agent detail belongs to the anchored subagents view.
+	 */
 	syncRunningSubagentBadge(options: { requestRender?: boolean } = {}): void {
-		const registry = getRunningSubagentBadgeRegistry(this.collabGuest);
-		if (this.#agentRegistrySubscriptionTarget !== registry) {
-			this.#agentRegistryUnsubscribe?.();
-			this.#agentRegistrySubscriptionTarget = registry;
-			this.#agentRegistryUnsubscribe = registry.onChange(() => {
-				this.syncRunningSubagentBadge();
-			});
-		}
-		const agentIds = getRunningSubagentBadgeAgentIds(registry);
-		this.statusLine.setRunningSubagents(agentIds);
+		this.statusLine.setRunningSubagents([]);
 		if (options.requestRender !== false) this.ui.requestRender();
 	}
 
@@ -4661,6 +4667,7 @@ export class InteractiveMode implements InteractiveModeContext {
 
 	stop(): void {
 		this.#appearanceRefreshRequest = undefined;
+		this.#statusLineUsageAnimation.stop();
 		if (this.loadingAnimation) {
 			this.#stopLoadingAnimation(false);
 		}
@@ -4684,9 +4691,6 @@ export class InteractiveMode implements InteractiveModeContext {
 		}
 		this.#eventBusUnsubscribers = [];
 		this.#observerRegistry.dispose();
-		this.#agentRegistryUnsubscribe?.();
-		this.#agentRegistryUnsubscribe = undefined;
-		this.#agentRegistrySubscriptionTarget = undefined;
 		this.#eventController.dispose();
 		this.#codexResetFireworksController.dispose();
 		this.statusLine.dispose();
