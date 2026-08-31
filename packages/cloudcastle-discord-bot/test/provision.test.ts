@@ -56,6 +56,7 @@ interface FakeMessage {
 	type?: number;
 	timestamp?: string;
 	pinned?: boolean;
+	embedCount?: number;
 }
 
 interface FakeThread {
@@ -117,6 +118,7 @@ function fakeGuild(options: {
 			global_name: message.authorName ?? "Someone",
 			bot: message.authorIsBot ?? message.authorId === BOT,
 		},
+		embeds: Array.from({ length: message.embedCount ?? 0 }, () => ({})),
 	});
 	const requireChannel = (channelId: string): FakeChannel => {
 		const found = channels.get(channelId);
@@ -830,6 +832,39 @@ describe("flatten threads", () => {
 		expect(guild.messages.get("600")?.map(message => message.content)).toEqual([...action.posts]);
 		// The source thread is untouched.
 		expect(guild.messages.get("300")?.length).toBe(3);
+	});
+
+	test("keeps an embed-only contribution when the thread also has readable text", async () => {
+		const guild = fakeGuild({
+			channels: flattenChannels(),
+			threads: [THREAD],
+			messages: {
+				"300": [
+					...threadMessages(),
+					{
+						id: "313",
+						content: "",
+						authorId: NOTE_TAKER,
+						authorName: "DiscMeet - Note Taker",
+						authorIsBot: true,
+						embedCount: 1,
+					},
+				],
+			},
+		});
+		const plan = await planProvision({
+			rest: guild.rest,
+			guildId: GUILD,
+			layout: flattenLayout(),
+			flattenThreads: true,
+		});
+		const action = plan.actions.find(entry => entry.kind === "flatten-thread");
+		if (action?.kind !== "flatten-thread") throw new Error("expected a flatten-thread action");
+
+		expect(action.sourceMessageCount).toBe(3);
+		expect(action.posts).toHaveLength(3);
+		expect(action.posts[2]).toContain("**DiscMeet - Note Taker**");
+		expect(plan.notes.join("\n")).toContain("1 embed(s); reposted as a reference to the original");
 	});
 
 	test("a second run recognises its own headers and reposts nothing", async () => {

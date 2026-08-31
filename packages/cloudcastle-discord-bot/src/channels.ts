@@ -72,6 +72,7 @@ export type CategoryKey = keyof typeof CATEGORY_IDS;
 export const CATEGORIES_TO_CREATE = ["liveSessions", "doneSessions"] as const;
 
 export type CreatedCategoryKey = (typeof CATEGORIES_TO_CREATE)[number];
+export type StandingCategoryKey = Exclude<CategoryKey, CreatedCategoryKey>;
 
 export const CREATED_CATEGORY_NAMES: Readonly<Record<CreatedCategoryKey, string>> = {
 	liveSessions: "live sessions",
@@ -314,7 +315,7 @@ export const TARGET_LAYOUT: readonly ChannelPlan[] = [
 	},
 ];
 
-export const CATEGORY_NAMES: Readonly<Record<CategoryKey, string>> = {
+export const CATEGORY_NAMES: Readonly<Record<StandingCategoryKey, string>> = {
 	devFeed: "dev feed",
 	intake: "intake",
 	team: "team",
@@ -322,7 +323,7 @@ export const CATEGORY_NAMES: Readonly<Record<CategoryKey, string>> = {
 };
 
 /** Ordering of the categories themselves in the sidebar. */
-export const CATEGORY_ORDER: readonly CategoryKey[] = ["devFeed", "intake", "team", "archive"];
+export const CATEGORY_ORDER: readonly StandingCategoryKey[] = ["devFeed", "intake", "team", "archive"];
 
 export function planFor(key: string): ChannelPlan {
 	const plan = TARGET_LAYOUT.find(entry => entry.key === key);

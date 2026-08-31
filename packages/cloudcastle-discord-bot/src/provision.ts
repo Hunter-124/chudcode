@@ -411,6 +411,7 @@ interface ChannelMessage {
 	readonly content: string;
 	/** A message's whole payload can live here with `content` empty. */
 	readonly attachments: readonly ChannelAttachment[];
+	readonly embedCount: number;
 }
 
 /**
@@ -930,12 +931,12 @@ async function planFlatten(
 				// downloaded. Only a message with no attachment and no embed points
 				// at the MESSAGE_CONTENT intent.
 				const carries =
-					(message.attachments?.length ?? 0) > 0 || (message.embeds?.length ?? 0) > 0;
+					message.attachments.length > 0 || message.embedCount > 0;
 				notes.push(
 					carries
 						? `thread "${key}" message ${message.id} carries no text, only ` +
-							`${message.attachments?.length ?? 0} attachment(s) and ` +
-							`${message.embeds?.length ?? 0} embed(s); reposted as a reference to the original`
+							`${message.attachments.length} attachment(s) and ` +
+							`${message.embedCount} embed(s); reposted as a reference to the original`
 						: `thread "${key}" message ${message.id} has an empty body and was not reposted; ` +
 							"enable MESSAGE_CONTENT and rerun to include it",
 				);
@@ -1178,6 +1179,7 @@ function toChannelMessage(message: DiscordMessage): ChannelMessage {
 			filename: attachment.filename,
 			url: attachment.url,
 		})),
+		embedCount: message.embeds?.length ?? 0,
 	};
 }
 
