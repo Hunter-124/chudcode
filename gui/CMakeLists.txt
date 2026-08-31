@@ -92,9 +92,13 @@ add_library(chud_graph STATIC src/graph/force_graph.cpp src/graph/graph_view.cpp
 target_include_directories(chud_graph PUBLIC src)
 target_link_libraries(chud_graph PUBLIC chud_protocol chud_ui_foundation)
 
-add_library(chud_copilot STATIC src/copilot/copilot_view.cpp)
+add_library(chud_copilot STATIC
+  src/copilot/copilot_view.cpp src/copilot/image_textures.cpp)
 target_include_directories(chud_copilot PUBLIC src)
-target_link_libraries(chud_copilot PUBLIC chud_protocol chud_editor chud_ui_foundation)
+# Vendored stb_image v2.30 (third_party/stb, MIT OR public domain; license
+# text at the end of the header) decodes draft-attachment thumbnails.
+target_include_directories(chud_copilot PRIVATE third_party)
+target_link_libraries(chud_copilot PUBLIC chud_protocol chud_editor chud_ui_foundation chud_icons)
 
 add_library(chud_session_dag STATIC
   src/graph/session_dag.cpp src/graph/session_dag_view.cpp)
@@ -145,6 +149,10 @@ if(BUILD_TESTING)
   add_executable(test_icons tests/test_icons.cpp)
   target_link_libraries(test_icons PRIVATE chud_gui_tests)
   add_test(NAME icons COMMAND test_icons ${CMAKE_CURRENT_SOURCE_DIR}/assets)
+
+  add_executable(test_theme tests/test_theme.cpp)
+  target_link_libraries(test_theme PRIVATE chud_ui_foundation nlohmann_json::nlohmann_json)
+  add_test(NAME theme COMMAND test_theme ${CMAKE_CURRENT_SOURCE_DIR}/..)
 
   add_executable(test_app_ini tests/test_app_ini.cpp)
   target_compile_definitions(test_app_ini PRIVATE

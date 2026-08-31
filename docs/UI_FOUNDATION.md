@@ -24,11 +24,20 @@ Rule keywords are RFC 2119.
   anyway.)
 - A `docs/licenses.md` row MUST land **in the same change** as any new
   dependency or asset (rule proven at `CAD:contracts/licenses.md:103`).
-- License texts ship next to the binaries they cover: `assets/fonts/OFL.txt`
-  for Rubik and JetBrains Mono. (CAD ships the `.ttf` files without the OFL
-  text — verified 2026-08-27 — do not repeat that.)
+- License texts ship next to the binaries they cover:
+  `gui/assets/fonts/OFL.txt` covers the bundled Rubik and JetBrains Mono
+  faces and preserves both upstream copyright notices.
 - Generated assets MUST record their generator script + inputs so they are
   reproducible and provenance-auditable.
+- `assets/ui-shared-manifest.json` is the portable, repository-independent
+  authority for the cross-product role names, Tone/Density taxonomies,
+  animation and usage thresholds, icon-pipeline version, and font hashes.
+  `bun scripts/verify-ui-shared.ts` resolves its repository from the script
+  path (or `--root`), byte-checks the fonts, and names every drifted key. A
+  consumer may vendor only the JSON and verifier, then point
+  `--theme-header`, `--animation-header`, `--kit-header`, `--icon-manifest`,
+  `--fonts-dir`, and `--font-license` at its own repository-relative mirrors;
+  neither product checkout is required at verification runtime.
 - Chudcode starts with an **empty license-debt register**. CAD's
   `contracts/license_debt.md` rows (Gemma weights, scraping adapters, GPL
   solvers, CC-BY-NC models) are not UI dependencies and are **not inherited**.
@@ -39,6 +48,7 @@ Rule keywords are RFC 2119.
 | --- | --- | --- |
 | Dear ImGui `v1.91.6-docking`, upstream `ocornut/imgui`, FetchContent-pinned | MIT | attribution in licenses.md |
 | GLFW 3.4 (FetchContent; Emscripten uses its own port) | zlib/libpng | attribution |
+| stb_image v2.30, upstream commit `2c980bb59875b0d32144a71867fbdebb2f77cd20` | MIT OR Unlicense | retain the license block inside `gui/third_party/stb/stb_image.h` |
 | Rubik Regular/Medium/SemiBold/Bold | SIL OFL 1.1 | ship OFL text alongside |
 | JetBrains Mono Regular/Medium | SIL OFL 1.1 | ship OFL text alongside |
 | Theme/kit/anim/metrics source ported from CAD | in-house (same owner), private→private | keep provenance headers (`CAD:` file + commit) so drift stays traceable |
@@ -110,6 +120,17 @@ time and recorded here when they land):** editor gutter + line-highlight +
 current-line, search-match / search-current, terminal 16-color ANSI ramp,
 graph node tones (rides `kit::Tone`), scrollbar pill, tab strip roles,
 inline-diagnostic error/warn/hint underlines.
+
+The shared manifest also freezes the surface-role spellings consumed by the
+native copilot: `usageTrack`, `usageOk`, `usageWarn`, `usageErr`,
+`usageUnknown`; `attachmentBg`, `attachmentBorder`, `attachmentHovered`,
+`attachmentSelected`; and `dagEdge`, `dagEdgeActive`, `dagNodeBg`,
+`dagNodeHovered`. Unknown usage is an explicit
+server-authority state, never zero. Attachment selected is persistent and
+therefore stronger than hover. DAG active edges denote the selected/live
+relationship; resting and hovered node surfaces remain separate. Chudcode
+owns the actual dark/light values in `theme.cpp`; neither product imports the
+other's implementation, values, headers, or binaries.
 
 ### Accent — user-owned, single authority
 
@@ -201,6 +222,10 @@ Provenance `CAD:host/src/ui_theme.h:338-520`.
   every budget/usage readout (context window, provider limits, toast
   countdown). Stacked spans clamp the total so an over-budget sum cannot wrap
   past 12 o'clock and read as nearly empty.
+- Context usage uses the manifest ladder: `usageOk` below 0.50,
+  `usageWarn` from 0.50 through 0.899…, and `usageErr` at or above 0.90.
+  Missing or non-authoritative data uses `usageUnknown`; it MUST NOT paint a
+  green 0% gauge. These thresholds are visual semantics, not provider policy.
 - `busyLabel(label)` is the **one** inline working indicator (mark + label on
   one baseline). ASCII dot / braille / `|-\` spinner cycles spliced into label
   strings are banned.
@@ -236,6 +261,11 @@ headGap / gutter`, all pre-multiplied by `uiScale`:
 
 `pushDensity/popDensity` nest. **Never invent a fourth rhythm.**
 
+The only density names are the manifest's ordered `Compact, Cozy, Roomy`
+taxonomy. `theme.h` mirrors that array for native compile-time consumers and
+the verifier compares it with `kit::Density`; the per-product rhythm values
+remain independent.
+
 ---
 
 ## 6. Fonts and icons
@@ -244,6 +274,14 @@ headGap / gutter`, all pre-multiplied by `uiScale`:
   (verified `CAD:host/src/ui_theme.cpp:842-846`): body Rubik Regular 17.5,
   medium Rubik Medium 17.5, h1 Rubik Bold 30.0, h2 Rubik SemiBold 19.0, mono
   JetBrains Mono Regular 15.5. **Strip the CADSymbols.ttf merge** (§1).
+- The six committed shared font files are frozen by SHA-256 in
+  `assets/ui-shared-manifest.json`: Rubik Regular 400, Medium 500, SemiBold
+  600, Bold 700; JetBrains Mono Regular 400 and Medium 500. They are
+  byte-identical shared product assets, not filesystem links. Rubik retains
+  its 2015 Rubik Project Authors provenance and JetBrains Mono its 2020
+  JetBrains Mono Project Authors provenance; all six are `OFL-1.1` and the
+  adjacent `OFL.txt` carries both notices. `verify-ui-shared.ts` fails on a
+  missing file, a mismatched hash, a missing notice, or a license-id drift.
 - **Glyph range is deliberately narrow:** `0x0020–0x00FF`,
   `0x2010–0x2027`, `0x2070–0x209F`. The font DOES carry `…` `—` `·` `×` `•`;
   it does NOT carry arrows, checkmarks, crosses, geometric shapes,
@@ -257,7 +295,10 @@ headGap / gutter`, all pre-multiplied by `uiScale`:
   swaps textures with identical UVs; cells at 20 px and 32 px, drawn at 8×
   supersample, LANCZOS downsample. Glyph redraws are free but **names and
   UVs stay stable**; `--verify` byte-compares a fresh regeneration against
-  the committed files. PNGs are stored-deflate (zlib level 0, filter 0) on
+  the committed files. The shared pipeline identifier is
+  `chudcode-icons-v1`; the identifier, generator path and cell sizes are
+  manifest-owned and verifier-checked against `atlas.json`.
+  PNGs are stored-deflate (zlib level 0, filter 0) on
   purpose so the loader (`gui/src/icons/icons.{h,cpp}`, GL-free via an
   injected `TextureBackend`) needs no zlib; do not re-encode them.
 - **Icon inventory (append-only; mirrors `kIconNames` in
@@ -356,6 +397,11 @@ Owned entirely by `chud_ui_anim` (fork-doc omission; drift D2). Provenance
 | `kStagger` | 0.02 | per-item delay in an entrance wave |
 | `kBreathe` | 2.40 | ambient "alive / recently changed" pulse |
 | `kMarch` | 1.10 | marching-ants / flow phase wrap |
+
+The numeric authority is `assets/ui-shared-manifest.json`; this table explains
+use. `theme.cpp` statically asserts every `chud::anim` constant against its
+`theme.h` manifest mirror, and `verify-ui-shared.ts` compares both source
+headers with the JSON so changing either side alone reports the exact token.
 
 Anything slower than `kSlow` on an interactive control feels broken, not
 premium.

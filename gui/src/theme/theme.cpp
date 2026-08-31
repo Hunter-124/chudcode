@@ -1,4 +1,5 @@
 #include "theme/theme.h"
+#include "theme/anim.h"
 
 #include <algorithm>
 #include <array>
@@ -13,6 +14,14 @@ namespace chud::ui {
 namespace {
 
 constexpr float kDefaultScale = 1.0f;
+static_assert(anim::kInstant == shared::kAnimationSeconds.instant);
+static_assert(anim::kFast == shared::kAnimationSeconds.fast);
+static_assert(anim::kBase == shared::kAnimationSeconds.base);
+static_assert(anim::kSlow == shared::kAnimationSeconds.slow);
+static_assert(anim::kStagger == shared::kAnimationSeconds.stagger);
+static_assert(anim::kBreathe == shared::kAnimationSeconds.breathe);
+static_assert(anim::kMarch == shared::kAnimationSeconds.march);
+static_assert(anim::kMaxDeltaTime == shared::kAnimationSeconds.maxDeltaTime);
 
 Palette gPalette{};
 Fonts gFonts{};
@@ -34,6 +43,22 @@ ImVec4 dimRgb(ImVec4 color) {
     color.y *= 0.70f;
     color.z *= 0.70f;
     return color;
+}
+
+void installSurfaceBaseRoles(Palette& p) {
+    p.usageTrack = p.gaugeTrack;
+    p.usageOk = p.statusOk;
+    p.usageWarn = p.statusWarn;
+    p.usageErr = p.statusErr;
+    p.usageUnknown = p.statusPending;
+
+    p.attachmentBg = p.codeBg;
+    p.attachmentBorder = p.border;
+    p.attachmentHovered = p.buttonHovered;
+
+    p.dagEdge = p.borderStrong;
+    p.dagNodeBg = p.panelBg;
+    p.dagNodeHovered = p.buttonHovered;
 }
 
 Palette darkPalette() {
@@ -126,6 +151,7 @@ Palette darkPalette() {
     p.diagnosticHint = p.statusInfo;
     p.rule = rgba(0.165f, 0.184f, 0.227f, 0.62f);
     p.disabledWash = withAlpha(p.panelBg, 0.55f);
+    installSurfaceBaseRoles(p);
     return p;
 }
 
@@ -218,6 +244,7 @@ Palette lightPalette() {
     p.diagnosticHint = p.statusInfo;
     p.rule = rgb8(183, 190, 201, 0.72f);
     p.disabledWash = withAlpha(p.panelBg, 0.58f);
+    installSurfaceBaseRoles(p);
     return p;
 }
 
@@ -248,6 +275,8 @@ void installAccent(Palette& p, Theme value) {
     p.gaugeFill = p.accent;
     p.tabUnderline = p.accent;
     p.focusRing = withAlpha(p.accent, 0.82f);
+    p.attachmentSelected = p.accentSelection;
+    p.dagEdgeActive = p.accent;
     p.consoleDefault = p.terminalForeground;
     p.consoleOk = p.statusOk;
     p.consoleWarn = p.statusWarn;

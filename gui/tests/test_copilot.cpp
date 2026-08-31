@@ -1,10 +1,18 @@
 #include "copilot/copilot_view.h"
 
+#include <algorithm>
+#include <cstdint>
 #include <iostream>
+#include <set>
 #include <stdexcept>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
+
+#include "copilot/image_textures.h"
+#include "graph/session_dag.h"
+#include "icons/icons.h"
 
 using namespace chud;
 using namespace chud::copilot;
@@ -52,6 +60,119 @@ CopilotActions actionsRecording(std::vector<Call>& calls) {
 void applyUserEdit(SoftWrappedText& text, std::string edited, std::size_t cursor) {
     text.recordEdit(edited, cursor);
     text.applyEdited(std::move(edited));
+}
+
+// --- image fixtures ---------------------------------------------------------
+
+void putBe32(std::vector<unsigned char>& out, std::uint32_t value) {
+    out.push_back(static_cast<unsigned char>(value >> 24));
+    out.push_back(static_cast<unsigned char>(value >> 16));
+    out.push_back(static_cast<unsigned char>(value >> 8));
+    out.push_back(static_cast<unsigned char>(value));
+}
+
+void pngChunk(std::vector<unsigned char>& png, const char* tag,
+              const std::vector<unsigned char>& data) {
+    putBe32(png, static_cast<std::uint32_t>(data.size()));
+    png.insert(png.end(), tag, tag + 4);
+    png.insert(png.end(), data.begin(), data.end());
+    putBe32(png, 0);  // CRC: stb_image does not verify chunk CRCs
+}
+
+// Minimal valid 8-bit RGBA PNG (stored-deflate zlib, filter 0). `shade`
+// varies the pixels so distinct attachments hash to distinct cache keys.
+std::vector<unsigned char> encodePng(int width, int height, unsigned char shade) {
+    std::vector<unsigned char> scan;
+    for (int y = 0; y < height; ++y) {
+        scan.push_back(0);  // filter 0
+        for (int x = 0; x < width * 4; ++x) scan.push_back(shade);
+    }
+    std::vector<unsigned char> idat = {0x78, 0x01};
+    const std::size_t len = scan.size();
+    idat.push_back(1);  // final stored block
+    idat.push_back(static_cast<unsigned char>(len & 0xFF));
+    idat.push_back(static_cast<unsigned char>(len >> 8));
+    idat.push_back(static_cast<unsigned char>(~len & 0xFF));
+    idat.push_back(static_cast<unsigned char>((~len >> 8) & 0xFF));
+    idat.insert(idat.end(), scan.begin(), scan.end());
+    // adler32 over the raw scanline bytes; stb tolerates it either way but a
+    // correct trailer keeps the fixture a genuinely valid PNG.
+    std::uint32_t a = 1;
+    std::uint32_t b = 0;
+    for (const unsigned char byte : scan) {
+        a = (a + byte) % 65521U;
+        b = (b + a) % 65521U;
+    }
+    putBe32(idat, (b << 16) | a);
+
+    std::vector<unsigned char> png = {0x89, 'P', 'N', 'G', '\r', '\n', 0x1A, '\n'};
+    std::vector<unsigned char> ihdr;
+    putBe32(ihdr, static_cast<std::uint32_t>(width));
+    putBe32(ihdr, static_cast<std::uint32_t>(height));
+    ihdr.insert(ihdr.end(), {8, 6, 0, 0, 0});
+    pngChunk(png, "IHDR", ihdr);
+    pngChunk(png, "IDAT", idat);
+    pngChunk(png, "IEND", {});
+    return png;
+}
+
+std::string encodeBase64(const std::vector<unsigned char>& bytes) {
+    static constexpr char alphabet[] =
+        "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    std::string output;
+    for (std::size_t index = 0; index < bytes.size(); index += 3) {
+        const std::uint32_t one = bytes[index];
+        const std::uint32_t two = index + 1 < bytes.size() ? bytes[index + 1] : 0;
+        const std::uint32_t three = index + 2 < bytes.size() ? bytes[index + 2] : 0;
+        const std::uint32_t packed = (one << 16) | (two << 8) | three;
+        output.push_back(alphabet[(packed >> 18) & 63]);
+        output.push_back(alphabet[(packed >> 12) & 63]);
+        output.push_back(index + 1 < bytes.size() ? alphabet[(packed >> 6) & 63] : '=');
+        output.push_back(index + 2 < bytes.size() ? alphabet[packed & 63] : '=');
+    }
+    return output;
+}
+
+ImageContent pngAttachment(unsigned char shade, int width = 2, int height = 2) {
+    return {encodeBase64(encodePng(width, height, shade)), "image/png"};
+}
+
+struct CountingBackend {
+    int uploads = 0;
+    int destroys = 0;
+    std::set<ImTextureID> live;
+    ImTextureID next = 500;
+
+    icons::TextureBackend backend() {
+        return {
+            [this](const unsigned char* rgba, int width, int height) -> ImTextureID {
+                check(rgba != nullptr && width > 0 && height > 0,
+                      "backend upload received an invalid image");
+                ++uploads;
+                const ImTextureID id = next++;
+                live.insert(id);
+                return id;
+            },
+            [this](ImTextureID id) {
+                ++destroys;
+                check(live.erase(id) == 1, "double or foreign texture destroy");
+            },
+        };
+    }
+};
+
+session_graph::SessionDagNode agentNode(std::string id, std::string parent,
+                                        std::string reference, bool orphan,
+                                        bool recoverable) {
+    session_graph::SessionDagNode node;
+    node.id = std::move(id);
+    node.parentId = std::move(parent);
+    node.referenceId = std::move(reference);
+    node.label = node.referenceId;
+    node.kind = session_graph::NodeKind::Agent;
+    node.orphan = orphan;
+    node.recoverable = recoverable;
+    return node;
 }
 
 void testHardBreakTrackingAndCopyNormalization() {
@@ -312,6 +433,175 @@ void testCloseGuards() {
     check(view.closeSession("/clean"), "clean close was not dispatched");
 }
 
+void testAgentHierarchyGrouping() {
+    session_graph::SessionDag dag;
+    session_graph::SessionDagNode root;
+    root.id = "session:root";
+    root.referenceId = "/session";
+    root.label = "Session";
+    root.kind = session_graph::NodeKind::Session;
+    dag.nodes.push_back(root);
+    dag.nodes.push_back(agentNode("agent:main", "session:root", "main", false, false));
+    dag.nodes.push_back(agentNode("agent:child", "agent:main", "child", false, true));
+    dag.nodes.push_back(agentNode("agent:grand", "agent:child", "grand", false, false));
+    dag.nodes.push_back(agentNode("agent:child2", "agent:main", "child2", false, false));
+    dag.nodes.push_back(agentNode("agent:lost", "session:root", "lost", true, true));
+
+    const std::vector<AgentTreeRow> rows = agentHierarchy(dag);
+    check(rows.size() == 5, "hierarchy dropped or invented agents");
+    check(rows[0].agentId == "main" && rows[0].depth == 0 && !rows[0].lastChild,
+          "main agent was not the first root");
+    check(rows[1].agentId == "child" && rows[1].depth == 1 && !rows[1].lastChild &&
+              rows[1].trunkMask == 0x1,
+          "first child was not grouped under its parent");
+    check(rows[1].recoverable, "recoverable flag was lost in flattening");
+    check(rows[2].agentId == "grand" && rows[2].depth == 2 && rows[2].lastChild &&
+              rows[2].trunkMask == 0x3,
+          "grandchild depth/trunk state was wrong");
+    check(rows[3].agentId == "child2" && rows[3].depth == 1 && rows[3].lastChild &&
+              rows[3].trunkMask == 0x1,
+          "second child was not the last sibling under main");
+    check(rows[4].agentId == "lost" && rows[4].depth == 0 && rows[4].orphan &&
+              rows[4].recoverable && rows[4].lastChild,
+          "orphan root lost its orphan/recoverable state");
+
+    // A self-parented agent must terminate as a root, and a mutual parent
+    // cycle must terminate (unreachable rows beat an infinite loop).
+    session_graph::SessionDag degenerate;
+    degenerate.nodes.push_back(agentNode("agent:self", "agent:self", "self", false, false));
+    degenerate.nodes.push_back(agentNode("agent:a", "agent:b", "a", false, false));
+    degenerate.nodes.push_back(agentNode("agent:b", "agent:a", "b", false, false));
+    const std::vector<AgentTreeRow> loops = agentHierarchy(degenerate);
+    check(loops.size() == 1 && loops[0].agentId == "self" && loops[0].depth == 0,
+          "degenerate parent links were not contained");
+}
+
+void testUsageGaugeThresholds() {
+    const auto usage = [](std::int64_t tokens, std::int64_t window) {
+        return ContextUsage{tokens, window, std::nullopt};
+    };
+    check(usageLevel(usage(20000, 200000)) == UsageLevel::Ok,
+          "10% of a standard window was not Ok");
+    check(usageLevel(usage(100000, 200000)) == UsageLevel::Warn,
+          "50% did not reach the amber compaction tier");
+    check(usageLevel(usage(99000, 200000)) == UsageLevel::Ok,
+          "just under 50% was already amber");
+    check(usageLevel(usage(180000, 200000)) == UsageLevel::Err,
+          "90% did not reach the red capacity tier");
+    // Token clamps: a giant window goes amber/red on absolute pressure while
+    // its percentage still looks small (min(percent, tokens) semantics).
+    check(usageLevel(usage(150000, 1000000)) == UsageLevel::Warn,
+          "150k tokens in a 1M window was not amber");
+    check(usageLevel(usage(500000, 1000000)) == UsageLevel::Err,
+          "500k tokens in a 1M window was not red");
+    check(usageLevel(usage(100000, 1000000)) == UsageLevel::Ok,
+          "100k tokens in a 1M window was not Ok");
+
+    // Percent-only reports (window unknown) use pure percent thresholds.
+    check(usageLevel(ContextUsage{std::nullopt, std::nullopt, 55.0}) == UsageLevel::Warn,
+          "percent-only 55% was not amber");
+    check(usageLevel(ContextUsage{std::nullopt, std::nullopt, 95.0}) == UsageLevel::Err,
+          "percent-only 95% was not red");
+
+    // Nothing known → Unknown, honest label, no fraction claim.
+    check(usageLevel(ContextUsage{}) == UsageLevel::Unknown,
+          "empty usage was not Unknown");
+    check(!usageFraction(ContextUsage{}).has_value(),
+          "unknown usage claimed a fraction");
+    check(usageLabel(ContextUsage{}) == "context usage unknown",
+          "unknown usage label was not honest");
+    check(usageLabel(ContextUsage{12345, std::nullopt, std::nullopt}) ==
+              "12.3k tokens / window unknown",
+          "tokens-without-window label was wrong");
+    check(usageLabel(usage(100000, 200000)) == "50.0% of 200.0k",
+          "known-window label was wrong");
+    const auto fraction = usageFraction(usage(50000, 200000));
+    check(fraction && *fraction > 0.249 && *fraction < 0.251,
+          "usage fraction was not tokens/window");
+}
+
+void testImageDecoderAndCacheLifecycle() {
+    // Decoder: a real 2x2 PNG round-trips through base64 into RGBA8.
+    const ImageContent attachment = pngAttachment(0x40);
+    const auto bytes = decodeBase64(attachment.data);
+    check(bytes.has_value(), "canonical base64 did not decode");
+    const DecodedImage decoded = decodeImageBytes(bytes->data(), bytes->size());
+    check(decoded.valid() && decoded.width == 2 && decoded.height == 2,
+          "valid PNG bytes did not decode to 2x2 RGBA");
+    check(decoded.rgba[0] == 0x40, "decoded pixel value was wrong");
+    check(!decodeBase64("not base64 !!").has_value(), "garbage base64 was accepted");
+    check(!decodeBase64("AB=C").has_value(), "misplaced padding was accepted");
+
+    // Cache: hits do not re-upload; the bound evicts LRU; clear releases all.
+    CountingBackend counting;
+    {
+        ImageTextureCache cache(counting.backend(), 2);
+        const ImageTexture first = cache.acquire(attachment);
+        check(first.valid && first.width == 2 && first.height == 2,
+              "first acquire did not upload a texture");
+        check(counting.uploads == 1, "first acquire uploaded more than once");
+        const ImageTexture again = cache.acquire(attachment);
+        check(again.valid && again.texture == first.texture && counting.uploads == 1,
+              "cache hit re-uploaded");
+        (void)cache.acquire(pngAttachment(0x41));
+        check(counting.uploads == 2 && counting.destroys == 0,
+              "second attachment did not fit the bound");
+        (void)cache.acquire(pngAttachment(0x42));
+        check(counting.uploads == 3 && counting.destroys == 1 &&
+                  cache.textureCount() == 2,
+              "texture bound was not enforced by LRU eviction");
+        cache.clear();
+        check(counting.live.empty() && cache.textureCount() == 0 &&
+                  cache.entryCount() == 0,
+              "clear did not release every texture");
+    }
+    check(counting.uploads == counting.destroys,
+          "cache leaked textures across its lifetime");
+}
+
+void testMissingImageFallback() {
+    CountingBackend counting;
+    ImageTextureCache cache(counting.backend(), 4);
+
+    // Not base64 at all.
+    const ImageTexture garbage = cache.acquire({"!!definitely not base64!!", "image/png"});
+    check(!garbage.valid && garbage.texture == 0, "undecodable base64 claimed pixels");
+    check(counting.uploads == 0, "invalid payload reached the GPU backend");
+
+    // Valid base64, but not an image; the failure is cached, not re-decoded.
+    const ImageContent broken{encodeBase64({'h', 'e', 'l', 'l', 'o'}), "image/png"};
+    check(!cache.acquire(broken).valid, "non-image bytes claimed pixels");
+    const std::size_t entries = cache.entryCount();
+    check(!cache.acquire(broken).valid && cache.entryCount() == entries,
+          "failed decode was not remembered");
+
+    // Empty attachments produce no cache entry at all.
+    check(!cache.acquire(ImageContent{}).valid, "empty attachment claimed pixels");
+    check(cache.entryCount() == entries, "empty attachment grew the cache");
+    check(counting.uploads == 0 && counting.destroys == 0,
+          "fallback paths touched the texture backend");
+}
+
+void testActionIconLookup() {
+    const Action actions[] = {
+        Action::Send,          Action::Stop,          Action::AttachImage,
+        Action::RemoveAttachment, Action::NewSession, Action::OpenSession,
+        Action::RenameSession, Action::ForkSession,   Action::PinSession,
+        Action::DeleteSession, Action::AgentMessage,  Action::AgentTranscript,
+        Action::AgentRevive,   Action::AgentKill,
+    };
+    for (const Action action : actions) {
+        const char* name = actionIconName(action);
+        check(name != nullptr && *name != '\0', "action mapped to no icon name");
+        const bool known = std::any_of(
+            icons::kIconNames.begin(), icons::kIconNames.end(),
+            [&](const char* candidate) { return std::string_view(candidate) == name; });
+        check(known, (std::string("action icon '") + name +
+                      "' is not in the atlas inventory")
+                         .c_str());
+    }
+}
+
 }  // namespace
 
 int main() {
@@ -323,6 +613,11 @@ int main() {
         testScrollLockReleaseAndRelock();
         testAskResponseAndAgentCommands();
         testCloseGuards();
+        testAgentHierarchyGrouping();
+        testUsageGaugeThresholds();
+        testImageDecoderAndCacheLifecycle();
+        testMissingImageFallback();
+        testActionIconLookup();
         std::cout << "copilot tests passed\n";
         return 0;
     } catch (const std::exception& error) {

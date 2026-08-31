@@ -11,6 +11,7 @@
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
+#include <initializer_list>
 #include <limits>
 #include <map>
 #include <optional>
@@ -33,6 +34,7 @@
 #include "editor/editor.h"
 #include "graph/graph_view.h"
 #include "graph/session_dag_view.h"
+#include "icons/icons.h"
 #include "net/ws_transport.h"
 #include "protocol/desktop_client.h"
 #include "protocol/desktop_store.h"
@@ -143,7 +145,12 @@ bool waylandSocketPresent() {
 }
 #endif
 
-fs::path findAssets() {
+// Nearest ancestor `assets/` directory containing any of `markers` (relative
+// paths), searched from the working directory and the executable's directory.
+// Two distinct roots exist: the repo-root brand assets (logo sources) and the
+// GUI runtime assets (fonts + icon atlases, copied beside the binary), so
+// each caller names the files that identify the root it needs.
+fs::path findAssets(std::initializer_list<const char*> markers) {
     std::vector<fs::path> roots;
     std::error_code error;
     roots.push_back(fs::current_path(error));
@@ -155,9 +162,8 @@ fs::path findAssets() {
         auto cursor = root;
         for (int level = 0; level < 6 && !cursor.empty(); ++level) {
             const auto candidate = cursor / "assets";
-            if (fs::is_regular_file(candidate / "logo_icon.png", error) ||
-                fs::is_regular_file(candidate / "make_logo.py", error)) {
-                return candidate;
+            for (const char* marker : markers) {
+                if (fs::is_regular_file(candidate / marker, error)) return candidate;
             }
             const auto parent = cursor.parent_path();
             if (parent == cursor) break;
@@ -568,6 +574,46 @@ struct ImGuiLifetime {
     }
 };
 
+// The icon loader owns both theme atlas textures; this guard releases them
+// while the GL context is still alive (declared after WindowLifetime, so it
+// destructs first).
+struct IconAtlasLifetime {
+    ~IconAtlasLifetime() { icons::unloadIcons(); }
+};
+
+#ifndef GL_CLAMP_TO_EDGE
+#define GL_CLAMP_TO_EDGE 0x812F
+#endif
+
+// RGBA8 texture upload/destroy against the app's live GL context. Shared by
+// the icon atlas loader and the copilot attachment-thumbnail cache; both own
+// (and provably release) every texture they create through it.
+icons::TextureBackend makeGlTextureBackend() {
+    return {
+        [](const unsigned char* rgba, int width, int height) -> ImTextureID {
+            GLuint texture = 0;
+            glGenTextures(1, &texture);
+            if (texture == 0) return 0;
+            GLint previous = 0;
+            glGetIntegerv(GL_TEXTURE_BINDING_2D, &previous);
+            glBindTexture(GL_TEXTURE_2D, texture);
+            glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, width, height, 0, GL_RGBA,
+                         GL_UNSIGNED_BYTE, rgba);
+            glBindTexture(GL_TEXTURE_2D, static_cast<GLuint>(previous));
+            return static_cast<ImTextureID>(texture);
+        },
+        [](ImTextureID texture) {
+            const auto id = static_cast<GLuint>(texture);
+            glDeleteTextures(1, &id);
+        },
+    };
+}
+
 }  // namespace
 
 const char* usage() noexcept {
@@ -670,8 +716,11 @@ int run(const AppOptions& options) {
     glfwMakeContextCurrent(window.window);
     glfwSwapInterval(1);
 
-    const auto assets = findAssets();
-    setProductIcon(window.window, assets);
+    // Brand assets (window icon sources) live at the repo root; runtime UI
+    // assets (fonts, icon atlases) are the gui/assets tree copied beside the
+    // binary. Different roots, so they are located independently.
+    setProductIcon(window.window, findAssets({"logo_icon.png", "make_logo.py"}));
+    const auto assets = findAssets({"icons/atlas.json", "fonts/Rubik-Regular.ttf"});
 
     IMGUI_CHECKVERSION();
     // Dear ImGui stores this pointer instead of copying the string, and its
@@ -705,6 +754,23 @@ int run(const AppOptions& options) {
     }
     imguiLifetime.openGlBackend = true;
 
+    // Icon atlas: uploaded through the injected GL backend, released by the
+    // guard while the context is still current. A load failure is survivable —
+    // icon-backed controls fall back to their full text labels — but is
+    // reported, because a missing atlas is an install problem worth fixing.
+    IconAtlasLifetime iconAtlasLifetime;
+    if (!assets.empty()) {
+        std::string iconError;
+        if (!icons::loadIcons(assets.string(), makeGlTextureBackend(), &iconError)) {
+            std::fprintf(stderr, "chudcode-gui: icon atlas unavailable: %s\n",
+                         iconError.c_str());
+        }
+        icons::setIconTheme(ui::Theme::Dark);
+    } else {
+        std::fprintf(stderr,
+                     "chudcode-gui: assets directory not found; controls use text labels\n");
+    }
+
     WsTransport transport(WsTransportConfig{options.url, options.token});
     DesktopStore store;
     DesktopClient client(transport, store);
@@ -720,6 +786,12 @@ int run(const AppOptions& options) {
                                                 copilot::CopilotActions::Response response) {
             (void)client.request(std::move(method), std::move(params), std::move(response));
         }});
+    // Draft-attachment thumbnails share the icon backend; the cache owns its
+    // textures and CopilotView is destroyed before the GL context.
+    copilotView.setImageBackend(makeGlTextureBackend());
+    // Borrowed pointer to the DAG the app re-syncs each frame; supplies the
+    // agents drawer's grouping/orphan/recoverable state.
+    copilotView.setSessionDag(&sessionDagView.dag());
 
     terminal::TerminalModels terminalModels(terminal::TerminalProtocolCallbacks{
         [&client](std::string_view terminalId, std::span<const std::uint8_t> bytes) {

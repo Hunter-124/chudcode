@@ -12,7 +12,12 @@
 
 #include <imgui.h>
 
+#include "copilot/image_textures.h"
 #include "protocol/desktop_store.h"
+
+namespace chud::session_graph {
+struct SessionDag;
+}  // namespace chud::session_graph
 
 namespace chud::copilot {
 
@@ -25,6 +30,71 @@ namespace chud::copilot {
 // holding only a tab title needs the distinction: the title is either a
 // human-chosen name, shown verbatim, or the server's fallback to the raw id.
 [[nodiscard]] std::optional<std::string> sessionStamp(const std::string& id);
+
+// The primary copilot actions, each backed by a named atlas icon
+// (docs/UI_FOUNDATION.md §6 inventory). actionIconName() is total: every
+// action maps to a member of chud::icons::kIconNames, and the tooltip string
+// is the action's accessible label — icon buttons are never unlabeled.
+enum class Action {
+    Send,
+    Stop,
+    AttachImage,
+    RemoveAttachment,
+    NewSession,
+    OpenSession,
+    RenameSession,
+    ForkSession,
+    PinSession,
+    DeleteSession,
+    AgentMessage,
+    AgentTranscript,
+    AgentRevive,
+    AgentKill,
+};
+
+[[nodiscard]] const char* actionIconName(Action action) noexcept;
+
+// Context-capacity tone tiers with the TUI status line's semantics
+// (packages/coding-agent/src/modes/components/status-line/context-thresholds.ts):
+// amber from min(ui::shared::kUsageThresholds.warning, 150k tokens) — where
+// compaction pressure begins — and red from min(kUsageThresholds.critical,
+// 500k tokens) — near capacity. The TUI's intermediate 70% tier folds into
+// Warn; the GUI palette carries usage ok/warn/err/unknown roles.
+enum class UsageLevel { Unknown, Ok, Warn, Err };
+
+[[nodiscard]] UsageLevel usageLevel(const ContextUsage& usage) noexcept;
+// Used fraction of the window in [0,1] (clamped), or nullopt when unknowable.
+[[nodiscard]] std::optional<double> usageFraction(const ContextUsage& usage) noexcept;
+// Honest label: "42.0% of 200.0k" with a known window, "12.3k tokens /
+// window unknown" without one, "context usage unknown" with nothing. Never
+// renders a fake 0%.
+[[nodiscard]] std::string usageLabel(const ContextUsage& usage);
+
+// One row of the agent tree: agents grouped under their parentId in DFS
+// order. `orphan` and `recoverable` carry the SessionDag semantics
+// (graph/session_dag.h): an orphan's parent id names no live agent; parked
+// and failed agents are recoverable. `trunkMask` bit d says an ancestor at
+// depth d still has siblings below (draw a continuation line); `lastChild`
+// picks the elbow versus tee connector at this row's own depth.
+struct AgentTreeRow {
+    std::string agentId;
+    std::string label;
+    std::string detail;
+    int depth = 0;
+    bool orphan = false;
+    bool recoverable = false;
+    bool lastChild = false;
+    std::uint32_t trunkMask = 0;
+
+    bool operator==(const AgentTreeRow&) const = default;
+};
+
+// Flattens the DAG's agent nodes into indented rows. Orphans hang off the
+// session root (exactly as buildSessionDag parents them) and keep their
+// orphan flag; parent cycles are broken by the visited guard rather than
+// looping.
+[[nodiscard]] std::vector<AgentTreeRow> agentHierarchy(
+    const session_graph::SessionDag& dag);
 
 enum class TranscriptKind {
     User,
@@ -209,6 +279,17 @@ public:
     [[nodiscard]] ComposerDraft& draft(std::string_view sessionPath);
     [[nodiscard]] const DraftStore& drafts() const noexcept { return drafts_; }
 
+    // The session DAG built by the app for the Sessions activity; borrowed,
+    // not owned. Supplies grouping/orphan/recoverable state for the agents
+    // drawer. May be null (headless, or before the first sync).
+    void setSessionDag(const session_graph::SessionDag* dag) noexcept { sessionDag_ = dag; }
+    // Enables real draft-image thumbnails. Without a backend (headless tests)
+    // attachments render as typed mime chips — pixels are never faked.
+    void setImageBackend(icons::TextureBackend backend);
+    [[nodiscard]] ImageTextureCache* imageTextures() noexcept {
+        return imageTextures_ ? &*imageTextures_ : nullptr;
+    }
+
     [[nodiscard]] std::span<const SessionTabView> sessionTabs() const;
     [[nodiscard]] CloseGuard closeGuard(std::string_view sessionPath) const;
     bool switchSession(std::string_view sessionPath);
@@ -260,6 +341,9 @@ private:
     void drawTasks();
     void drawSessions();
     void drawUiRequest();
+    void drawUsageGauge();
+    void drawDraftImages(ComposerDraft& draft);
+    void drawLightbox(ComposerDraft& draft);
     void drawComposer();
     void notifyDraftDirty(std::string_view path, bool dirty);
 
@@ -278,6 +362,10 @@ private:
         agentMessages_;
     std::unordered_map<std::string, std::string, TransparentStringHash, std::equal_to<>>
         sessionRenames_;
+    const session_graph::SessionDag* sessionDag_ = nullptr;
+    std::optional<ImageTextureCache> imageTextures_;
+    std::optional<std::size_t> lightboxImage_;
+    bool lightboxOpened_ = false;
     std::string uiResponse_;
     std::size_t composerSelectionFirst_ = 0;
     std::size_t composerSelectionLast_ = 0;

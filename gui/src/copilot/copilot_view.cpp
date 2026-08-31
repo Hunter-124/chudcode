@@ -2,13 +2,19 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdint>
+#include <cstdio>
 #include <cstring>
 #include <ctime>
 #include <initializer_list>
 #include <optional>
 #include <string>
+#include <unordered_map>
 #include <utility>
+#include <vector>
 
+#include "graph/session_dag.h"
+#include "icons/icons.h"
 #include "theme/theme.h"
 #include "widgets/kit.h"
 
@@ -182,6 +188,97 @@ int fittingHint(float width) {
     return IM_ARRAYSIZE(kHintTiers) - 1;
 }
 
+// Percent tiers come from the cross-product ui::shared contract (one
+// authority, verified against the shared manifest); the absolute-token clamps
+// mirror the TUI status line
+// (packages/coding-agent/src/modes/components/status-line/context-thresholds.ts).
+// Each tier fires at min(percent-of-window, absolute-token) pressure; the
+// token clamps make huge windows go amber/red while their percentage still
+// looks comfortable.
+constexpr double kUsageWarnPercent =
+    static_cast<double>(ui::shared::kUsageThresholds.warning) * 100.0;
+constexpr double kUsageWarnTokens = 150000.0;
+constexpr double kUsageErrPercent =
+    static_cast<double>(ui::shared::kUsageThresholds.critical) * 100.0;
+constexpr double kUsageErrTokens = 500000.0;
+
+std::optional<double> usagePercentOf(const ContextUsage& usage) {
+    if (usage.percent && std::isfinite(*usage.percent)) return *usage.percent;
+    if (usage.tokens && usage.contextWindow && *usage.contextWindow > 0) {
+        return 100.0 * static_cast<double>(*usage.tokens) /
+               static_cast<double>(*usage.contextWindow);
+    }
+    return std::nullopt;
+}
+
+bool reachesUsageThreshold(double percent, std::int64_t window,
+                           double percentThreshold, double tokenThreshold) {
+    if (percent <= 0.0) return false;
+    if (window <= 0) return percent >= percentThreshold;
+    return percent >= std::min(percentThreshold,
+                               tokenThreshold / static_cast<double>(window) * 100.0);
+}
+
+// One spelling for token quantities: "812", "12.3k", "1.2M".
+std::string fmtTokens(std::int64_t tokens) {
+    char text[32];
+    if (tokens < 1000) {
+        std::snprintf(text, sizeof text, "%lld", static_cast<long long>(tokens));
+    } else if (tokens < 1000000) {
+        std::snprintf(text, sizeof text, "%.1fk",
+                      static_cast<double>(tokens) / 1000.0);
+    } else {
+        std::snprintf(text, sizeof text, "%.1fM",
+                      static_cast<double>(tokens) / 1000000.0);
+    }
+    return text;
+}
+
+enum class ButtonKind { Primary, Secondary, Danger };
+
+bool kitButton(ButtonKind kind, const char* label, ImVec2 size, bool enabled,
+               const char* disabledReason) {
+    switch (kind) {
+    case ButtonKind::Primary: return kit::primaryButton(label, size, enabled, disabledReason);
+    case ButtonKind::Danger: return kit::dangerButton(label, size, enabled, disabledReason);
+    case ButtonKind::Secondary: break;
+    }
+    return kit::secondaryButton(label, size, enabled, disabledReason);
+}
+
+// Icon-backed action button: a frame-height square kit button carrying the
+// action's atlas icon, with the accessible label in a REQUIRED tooltip
+// (docs/UI_FOUNDATION.md §7/§10). When the atlas is not loaded (headless run,
+// missing assets) it degrades to the full-text kit button — an action never
+// renders as an empty square. Callers wrap rows in PushID, so `label` doubles
+// as the ImGui id.
+bool iconActionButton(Action action, const char* label, ButtonKind kind,
+                      bool enabled = true, const char* disabledReason = nullptr) {
+    if (!icons::iconsLoaded()) return kitButton(kind, label, {}, enabled, disabledReason);
+
+    std::string id("##icon-action-");
+    id += label;
+    const float side = ImGui::GetFrameHeight();
+    const bool pressed = kitButton(kind, id.c_str(), ImVec2(side, side), enabled,
+                                   disabledReason);
+    const ImVec2 rectMin = ImGui::GetItemRectMin();
+    const float iconPx = std::min(side - ui::metrics::px(6.0f), ui::metrics::px(20.0f));
+    const float inset = (side - iconPx) * 0.5f;
+    // Identity tint: the atlas is theme-baked (§6); disabled state dims it.
+    const ImU32 tint = enabled ? IM_COL32_WHITE
+                               : ImGui::GetColorU32(ImGuiCol_Text,
+                                                    ui::palette().textDisabled.w);
+    icons::drawIcon(ImGui::GetWindowDrawList(), actionIconName(action),
+                    ImVec2(rectMin.x + inset, rectMin.y + inset), iconPx, tint);
+    // The accessible label. When disabled, the kit button already tooltips the
+    // disabled reason; do not fight it.
+    if ((enabled || disabledReason == nullptr) &&
+        ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled)) {
+        ImGui::SetTooltip("%s", label);
+    }
+    return pressed;
+}
+
 }  // namespace
 
 /// Local date/time for a session id, or nullopt when `id` does not start with a
@@ -225,6 +322,123 @@ std::string sessionLabel(const std::string& id) {
     if (id.empty()) return "Untitled session";
     constexpr std::size_t kPrefix = 12;
     return id.size() > kPrefix ? id.substr(0, kPrefix) + "…" : id;
+}
+
+const char* actionIconName(Action action) noexcept {
+    switch (action) {
+    case Action::Send: return "send";
+    case Action::Stop: return "stop";
+    case Action::AttachImage: return "attach";
+    case Action::RemoveAttachment: return "close-tab";
+    case Action::NewSession: return "new-session";
+    case Action::OpenSession: return "open-folder";
+    case Action::RenameSession: return "rename";
+    case Action::ForkSession: return "fork";
+    case Action::PinSession: return "pin";
+    case Action::DeleteSession: return "delete";
+    case Action::AgentMessage: return "send";
+    case Action::AgentTranscript: return "terminal";
+    case Action::AgentRevive: return "recovery";
+    case Action::AgentKill: return "stop";
+    }
+    return "tool";
+}
+
+UsageLevel usageLevel(const ContextUsage& usage) noexcept {
+    const std::optional<double> percent = usagePercentOf(usage);
+    if (!percent) return UsageLevel::Unknown;
+    const std::int64_t window = usage.contextWindow.value_or(0);
+    if (reachesUsageThreshold(*percent, window, kUsageErrPercent, kUsageErrTokens))
+        return UsageLevel::Err;
+    if (reachesUsageThreshold(*percent, window, kUsageWarnPercent, kUsageWarnTokens))
+        return UsageLevel::Warn;
+    return UsageLevel::Ok;
+}
+
+std::optional<double> usageFraction(const ContextUsage& usage) noexcept {
+    const std::optional<double> percent = usagePercentOf(usage);
+    if (!percent) return std::nullopt;
+    return std::clamp(*percent / 100.0, 0.0, 1.0);
+}
+
+std::string usageLabel(const ContextUsage& usage) {
+    const std::optional<double> percent = usagePercentOf(usage);
+    const std::int64_t window = usage.contextWindow.value_or(0);
+    char text[64];
+    if (percent && window > 0) {
+        std::snprintf(text, sizeof text, "%.1f%% of %s", *percent,
+                      fmtTokens(window).c_str());
+        return text;
+    }
+    if (percent) {
+        std::snprintf(text, sizeof text, "%.1f%% used", *percent);
+        return text;
+    }
+    if (usage.tokens) {
+        std::snprintf(text, sizeof text, "%s tokens / window unknown",
+                      fmtTokens(*usage.tokens).c_str());
+        return text;
+    }
+    return "context usage unknown";
+}
+
+std::vector<AgentTreeRow> agentHierarchy(const session_graph::SessionDag& dag) {
+    using session_graph::NodeKind;
+
+    std::vector<const session_graph::SessionDagNode*> agents;
+    for (const session_graph::SessionDagNode& node : dag.nodes) {
+        if (node.kind == NodeKind::Agent) agents.push_back(&node);
+    }
+
+    std::unordered_map<std::string_view, std::size_t> byId;
+    byId.reserve(agents.size());
+    for (std::size_t index = 0; index < agents.size(); ++index)
+        byId.emplace(agents[index]->id, index);
+
+    std::vector<std::vector<std::size_t>> children(agents.size());
+    std::vector<std::size_t> roots;
+    for (std::size_t index = 0; index < agents.size(); ++index) {
+        const auto parent = byId.find(agents[index]->parentId);
+        if (parent != byId.end() && parent->second != index)
+            children[parent->second].push_back(index);
+        else
+            roots.push_back(index);  // parented to the session root (or orphan)
+    }
+
+    struct Frame {
+        std::size_t index;
+        int depth;
+        std::uint32_t trunkMask;
+        bool lastChild;
+    };
+    std::vector<AgentTreeRow> rows;
+    rows.reserve(agents.size());
+    std::vector<bool> visited(agents.size(), false);
+    std::vector<Frame> stack;
+    for (std::size_t position = roots.size(); position-- > 0;)
+        stack.push_back({roots[position], 0, 0, position == roots.size() - 1});
+    while (!stack.empty()) {
+        const Frame frame = stack.back();
+        stack.pop_back();
+        if (visited[frame.index]) continue;  // defensive: malformed parent cycle
+        visited[frame.index] = true;
+
+        const session_graph::SessionDagNode& node = *agents[frame.index];
+        rows.push_back({node.referenceId, node.label, node.detail, frame.depth,
+                        node.orphan, node.recoverable, frame.lastChild,
+                        frame.trunkMask});
+
+        const std::vector<std::size_t>& kids = children[frame.index];
+        const int childDepth = frame.depth + 1;
+        const std::uint32_t childMask =
+            frame.lastChild || frame.depth >= 31
+                ? frame.trunkMask
+                : frame.trunkMask | (1U << static_cast<unsigned>(frame.depth));
+        for (std::size_t position = kids.size(); position-- > 0;)
+            stack.push_back({kids[position], childDepth, childMask,
+                             position == kids.size() - 1});
+    }
+    return rows;
 }
 
 TranscriptProjection TranscriptProjection::from(const SessionSnapshot& snapshot) {
@@ -658,6 +872,10 @@ void CopilotView::setSessionPath(std::string_view sessionPath) {
     composerSelectionFirst_ = 0;
     composerSelectionLast_ = 0;
     uiResponse_.clear();
+    // The lightbox indexes into the previous session's draft; never let it
+    // open onto another session's attachment.
+    lightboxImage_.reset();
+    lightboxOpened_ = false;
     ComposerDraft& value = drafts_.forSession(sessionPath_);
     value.editBuffer = value.text.displayText();
     refreshProjection();
@@ -920,11 +1138,39 @@ void CopilotView::drawAgents() {
                               "Subagents will appear here when they are delegated work.");
         return;
     }
-    for (const AgentSnapshot& agent : snapshot->agents) {
+
+    std::unordered_map<std::string_view, const AgentSnapshot*> agentsById;
+    agentsById.reserve(snapshot->agents.size());
+    for (const AgentSnapshot& agent : snapshot->agents) agentsById.emplace(agent.id, &agent);
+
+    // Grouping/orphan/recoverable state comes from the SessionDag the app
+    // syncs each frame. Before the first sync (or headless) the flat fallback
+    // still names every agent rather than hiding hierarchy behind a blank.
+    std::vector<AgentTreeRow> rows;
+    if (sessionDag_ != nullptr) rows = agentHierarchy(*sessionDag_);
+    if (rows.empty()) {
+        for (const AgentSnapshot& agent : snapshot->agents) {
+            rows.push_back({agent.id, agent.displayName, {}, 0, false,
+                            agent.status == AgentSnapshot::Status::Parked ||
+                                agent.status == AgentSnapshot::Status::Aborted,
+                            true, 0});
+        }
+    }
+
+    const ui::Palette& p = ui::palette();
+    const float indentStep = ui::metrics::U(4.0f);
+    for (const AgentTreeRow& treeRow : rows) {
+        const auto found = agentsById.find(treeRow.agentId);
+        if (found == agentsById.end()) continue;  // dag lags a just-removed agent
+        const AgentSnapshot& agent = *found->second;
+        const int depth = std::min(treeRow.depth, 8);
+        const float indent = indentStep * static_cast<float>(depth);
+
         ImGui::PushID(agent.id.c_str());
         kit::RowStyle style;
         style.actionsWidth = ui::metrics::U(42.0f);
         (void)kit::rowBegin("##agent", style);
+        if (indent > 0.0f) ImGui::Indent(indent);
         kit::statusGlyphInline(agent.status == AgentSnapshot::Status::Running
                                    ? kit::Status::Running
                                    : agent.status == AgentSnapshot::Status::Aborted
@@ -932,25 +1178,78 @@ void CopilotView::drawAgents() {
                                          : kit::Status::Done);
         ImGui::SameLine();
         ImGui::TextUnformatted(agent.displayName.c_str());
+        if (treeRow.orphan) {
+            ImGui::SameLine();
+            (void)kit::chip("orphan", kit::Tone::Warn);
+            if (ImGui::IsItemHovered())
+                ImGui::SetTooltip("Parent agent is no longer part of this session");
+        }
+        if (treeRow.recoverable) {
+            ImGui::SameLine();
+            (void)kit::chip("recoverable", kit::Tone::Info);
+            if (ImGui::IsItemHovered())
+                ImGui::SetTooltip("Parked or failed agent — Revive resumes it");
+        }
+        if (!treeRow.detail.empty()) kit::dimText(treeRow.detail.c_str());
         std::string& message = agentMessages_[agent.id];
         ImGui::SetNextItemWidth(std::max(ui::metrics::U(20.0f),
                                         ImGui::GetContentRegionAvail().x - ui::metrics::U(34.0f)));
         inputTextString("##agent-message", message);
         ImGui::SameLine();
-        if (kit::secondaryButton("Send") && !message.empty()) {
+        if (iconActionButton(Action::AgentMessage, "Send message to this agent",
+                             ButtonKind::Secondary, !message.empty(),
+                             "Type a message for this agent first")) {
             commandAgent(agent.id, "chat", message);
             message.clear();
         }
-        if (kit::secondaryButton("Transcript")) requestAgentTranscript(agent.id);
+        if (iconActionButton(Action::AgentTranscript, "Fetch agent transcript",
+                             ButtonKind::Secondary))
+            requestAgentTranscript(agent.id);
         ImGui::SameLine();
         if (agent.status == AgentSnapshot::Status::Parked ||
             agent.status == AgentSnapshot::Status::Aborted) {
-            if (kit::secondaryButton("Revive")) commandAgent(agent.id, "revive");
-        } else if (kit::dangerButton("Kill")) {
+            if (iconActionButton(Action::AgentRevive, "Revive this agent",
+                                 ButtonKind::Secondary))
+                commandAgent(agent.id, "revive");
+        } else if (iconActionButton(Action::AgentKill, "Kill this agent",
+                                    ButtonKind::Danger)) {
             commandAgent(agent.id, "kill");
         }
+        if (indent > 0.0f) ImGui::Unindent(indent);
         kit::rowEnd();
+
+        // Connectors after rowEnd: its reserving Dummy is the last item, so
+        // the item rect is the full painted row (gap included) and vertical
+        // trunks meet across rows with no seams.
+        if (depth > 0) {
+            const ImVec2 rowMin = ImGui::GetItemRectMin();
+            const ImVec2 rowMax = ImGui::GetItemRectMax();
+            ImDrawList* drawList = ImGui::GetWindowDrawList();
+            const ImU32 edge = ui::toU32(agent.status == AgentSnapshot::Status::Running
+                                             ? p.dagEdgeActive
+                                             : p.dagEdge);
+            const float stroke = ui::metrics::stroke();
+            const float baseX = rowMin.x + kit::densityMetrics().padX;
+            const auto laneX = [&](int lane) {
+                return baseX + indentStep * (static_cast<float>(lane) + 0.5f);
+            };
+            for (int lane = 0; lane + 1 < depth; ++lane) {
+                if ((treeRow.trunkMask & (1U << static_cast<unsigned>(lane))) != 0U)
+                    drawList->AddLine({laneX(lane), rowMin.y}, {laneX(lane), rowMax.y},
+                                      edge, stroke);
+            }
+            const float elbowX = laneX(depth - 1);
+            const float midY = rowMin.y + kit::densityMetrics().padY +
+                               ImGui::GetTextLineHeight() * 0.5f;
+            drawList->AddLine({elbowX, rowMin.y},
+                              {elbowX, treeRow.lastChild ? midY : rowMax.y}, edge,
+                              stroke);
+            drawList->AddLine({elbowX, midY}, {elbowX + indentStep * 0.45f, midY},
+                              edge, stroke);
+        }
+
         if (const std::string_view transcript = agentTranscript(agent.id); !transcript.empty()) {
+            if (indent > 0.0f) ImGui::Indent(indent);
             kit::CardOptions options{"Transcript", nullptr, kit::Tone::Neutral, false};
             const bool body = kit::cardBegin("##agent-transcript", options);
             if (body) {
@@ -959,6 +1258,7 @@ void CopilotView::drawAgents() {
                 ImGui::PopTextWrapPos();
             }
             kit::cardEnd();
+            if (indent > 0.0f) ImGui::Unindent(indent);
         }
         ImGui::PopID();
     }
@@ -986,7 +1286,8 @@ void CopilotView::drawSessions() {
         if (snapshot->state) newSessionCwd = snapshot->state->cwd;
         else if (snapshot->header) newSessionCwd = snapshot->header->cwd;
     }
-    if (!newSessionCwd.empty() && kit::primaryButton("New session"))
+    if (!newSessionCwd.empty() &&
+        iconActionButton(Action::NewSession, "New session", ButtonKind::Primary))
         dispatch("session.new", {{"cwd", newSessionCwd}});
 
     if (store_.sessions().empty()) {
@@ -1023,21 +1324,26 @@ void CopilotView::drawSessions() {
                                             ui::metrics::U(17.0f)));
         inputTextString("##rename", rename);
         ImGui::SameLine();
-        if (kit::secondaryButton("Rename", {}, !rename.empty() && rename != title))
+        if (iconActionButton(Action::RenameSession, "Rename session",
+                             ButtonKind::Secondary, !rename.empty() && rename != title,
+                             "Edit the name first"))
             dispatch("session.rename", {{"path", session.path}, {"title", rename}});
-        if (kit::secondaryButton("Open")) {
+        if (iconActionButton(Action::OpenSession, "Open session", ButtonKind::Secondary)) {
             setSessionPath(session.path);
             dispatch("session.select", {{"path", session.path}});
         }
         ImGui::SameLine();
-        if (kit::secondaryButton("Fork"))
+        if (iconActionButton(Action::ForkSession, "Fork session", ButtonKind::Secondary))
             dispatch("session.fork", {{"path", session.path}});
         ImGui::SameLine();
-        if (kit::secondaryButton(session.pinned.value_or(false) ? "Unpin" : "Pin"))
+        if (iconActionButton(Action::PinSession,
+                             session.pinned.value_or(false) ? "Unpin session"
+                                                            : "Pin session",
+                             ButtonKind::Secondary))
             dispatch("session.pin", {{"path", session.path},
                                       {"pinned", !session.pinned.value_or(false)}});
         ImGui::SameLine();
-        if (kit::dangerButton("Delete"))
+        if (iconActionButton(Action::DeleteSession, "Delete session", ButtonKind::Danger))
             dispatch("session.delete", {{"path", session.path}});
         kit::rowEnd();
         ImGui::PopID();
@@ -1146,6 +1452,208 @@ int CopilotView::composerInputCallback(ImGuiInputTextCallbackData* data) {
     return 0;
 }
 
+void CopilotView::setImageBackend(icons::TextureBackend backend) {
+    imageTextures_.emplace(std::move(backend));
+}
+
+// Context-capacity gauge: usage icon, slim bar, and an honest label. Tone
+// follows the TUI thresholds (usageLevel): amber once compaction pressure
+// begins, red near capacity, usageUnknown when the provider reported nothing
+// — never a fake empty bar.
+void CopilotView::drawUsageGauge() {
+    const SessionSnapshot* snapshot = store_.session(sessionPath_);
+    if (snapshot == nullptr || !snapshot->state) return;
+    const ContextUsage usage = snapshot->state->contextUsage.value_or(ContextUsage{});
+    const UsageLevel level = usageLevel(usage);
+    const std::optional<double> fraction = usageFraction(usage);
+    const std::string label = usageLabel(usage);
+
+    const ui::Palette& p = ui::palette();
+    const ImVec4 tone = level == UsageLevel::Err    ? p.usageErr
+                        : level == UsageLevel::Warn ? p.usageWarn
+                        : level == UsageLevel::Ok   ? p.usageOk
+                                                    : p.usageUnknown;
+    const float lineHeight = ImGui::GetTextLineHeight();
+    const float spacing = ImGui::GetStyle().ItemSpacing.x;
+
+    ImGui::PushID("##usage-gauge");
+    if (icons::iconsLoaded()) {
+        const ImVec2 iconPos = ImGui::GetCursorScreenPos();
+        ImGui::Dummy(ImVec2(lineHeight, lineHeight));
+        icons::drawIcon(ImGui::GetWindowDrawList(), "usage", iconPos, lineHeight);
+        ImGui::SameLine(0.0f, kit::densityMetrics().headGap);
+    }
+
+    std::string tooltip = "Context usage: " + label;
+    if (usage.tokens && usage.contextWindow && *usage.contextWindow > 0) {
+        tooltip += "\n" + fmtTokens(*usage.tokens) + " of " +
+                   fmtTokens(*usage.contextWindow) + " tokens";
+    }
+    tooltip += "\nAmber: compaction pressure. Red: near capacity.";
+
+    const float labelWidth = ImGui::CalcTextSize(label.c_str()).x;
+    const float available = ImGui::GetContentRegionAvail().x;
+    const float barMinimum = ui::metrics::px(48.0f);
+    if (available >= labelWidth + barMinimum + spacing) {
+        // Draw-list convention: hit item + visual pair, cursor flows inline.
+        const float barWidth = available - labelWidth - spacing;
+        const float barHeight = ui::metrics::px(6.0f);
+        const ImVec2 start = ImGui::GetCursorScreenPos();
+        ImGui::InvisibleButton("##usage-bar", ImVec2(barWidth, lineHeight));
+        if (ImGui::IsItemHovered()) ImGui::SetTooltip("%s", tooltip.c_str());
+        ImDrawList* drawList = ImGui::GetWindowDrawList();
+        const float top = start.y + (lineHeight - barHeight) * 0.5f;
+        const float round = barHeight * 0.5f;
+        drawList->AddRectFilled({start.x, top}, {start.x + barWidth, top + barHeight},
+                                ui::toU32(p.usageTrack), round);
+        if (fraction && *fraction > 0.0) {
+            drawList->AddRectFilled(
+                {start.x, top},
+                {start.x + barWidth * static_cast<float>(*fraction), top + barHeight},
+                ui::toU32(tone), round);
+        }
+        ImGui::SameLine(0.0f, spacing);
+        ImGui::PushStyleColor(ImGuiCol_Text,
+                              level == UsageLevel::Ok ? p.textDim : tone);
+        ImGui::TextUnformatted(label.c_str());
+        ImGui::PopStyleColor();
+    } else {
+        // Too narrow for a meaningful bar: tone-tinted label only, elided with
+        // the full story in the tooltip — degraded, never clipped.
+        ImGui::PushStyleColor(ImGuiCol_Text,
+                              level == UsageLevel::Ok ? p.textDim : tone);
+        ImGui::TextUnformatted(
+            kit::elide(label, std::max(ui::metrics::px(24.0f), available)).c_str());
+        ImGui::PopStyleColor();
+    }
+    if (ImGui::IsItemHovered()) ImGui::SetTooltip("%s", tooltip.c_str());
+    ImGui::PopID();
+}
+
+// Real thumbnails for draft attachments. Pixels come from the bounded
+// ImageTextureCache; when they are unavailable (no GL backend, undecodable
+// payload) the attachment stays a typed mime chip with the reason in its
+// tooltip. Click enlarges; the close-tab icon button removes.
+void CopilotView::drawDraftImages(ComposerDraft& value) {
+    if (value.images.empty()) return;
+    const ui::Palette& p = ui::palette();
+    const float thumbHeight = ui::metrics::U(14.0f);
+    const float removeSide = ImGui::GetFrameHeight();
+    std::optional<std::size_t> removeIndex;
+
+    for (std::size_t index = 0; index < value.images.size(); ++index) {
+        const ImageContent& image = value.images[index];
+        ImGui::PushID(static_cast<int>(index));
+        const ImageTexture texture =
+            imageTextures_ ? imageTextures_->acquire(image) : ImageTexture{};
+
+        float itemWidth;
+        if (texture.valid) {
+            const float aspect = texture.height > 0
+                                     ? static_cast<float>(texture.width) /
+                                           static_cast<float>(texture.height)
+                                     : 1.0f;
+            itemWidth = std::clamp(thumbHeight * aspect, thumbHeight * 0.5f,
+                                   thumbHeight * 2.5f);
+        } else {
+            itemWidth = ImGui::CalcTextSize((image.mimeType + " · no preview").c_str()).x +
+                        kit::densityMetrics().padX * 2.0f;
+        }
+        // Flow layout: wrap before the panel edge instead of clipping.
+        if (index != 0 &&
+            ImGui::GetContentRegionAvail().x >=
+                itemWidth + removeSide + ImGui::GetStyle().ItemSpacing.x * 2.0f)
+            ImGui::SameLine();
+
+        if (texture.valid) {
+            const ImVec2 start = ImGui::GetCursorScreenPos();
+            ImGui::InvisibleButton("##thumb", ImVec2(itemWidth, thumbHeight));
+            const bool hovered = ImGui::IsItemHovered();
+            const bool clicked = ImGui::IsItemClicked();
+            ImDrawList* drawList = ImGui::GetWindowDrawList();
+            const float round = kit::densityMetrics().rowRound;
+            const ImVec2 end(start.x + itemWidth, start.y + thumbHeight);
+            drawList->AddRectFilled(start, end, ui::toU32(p.attachmentBg), round);
+            drawList->AddImageRounded(texture.texture, start, end, ImVec2(0.0f, 0.0f),
+                                      ImVec2(1.0f, 1.0f), IM_COL32_WHITE, round);
+            const bool selected = lightboxImage_ && *lightboxImage_ == index;
+            drawList->AddRect(start, end,
+                              ui::toU32(hovered    ? p.attachmentHovered
+                                        : selected ? p.attachmentSelected
+                                                   : p.attachmentBorder),
+                              round, 0, ui::metrics::stroke(hovered || selected ? 2.0f : 1.0f));
+            if (hovered)
+                ImGui::SetTooltip("%s · %dx%d\nClick to enlarge", image.mimeType.c_str(),
+                                  texture.width, texture.height);
+            if (clicked) {
+                lightboxImage_ = index;
+                lightboxOpened_ = false;
+            }
+        } else {
+            const std::string label = image.mimeType + " · no preview";
+            (void)kit::chip(label.c_str(), kit::Tone::Info);
+            if (ImGui::IsItemHovered())
+                ImGui::SetTooltip("%s", imageTextures_
+                                            ? "Attachment did not decode as an image; "
+                                              "it will still be sent as attached"
+                                            : "Thumbnails need the GPU texture backend; "
+                                              "the attachment will still be sent");
+        }
+        ImGui::SameLine();
+        if (iconActionButton(Action::RemoveAttachment, "Remove attachment",
+                             ButtonKind::Secondary))
+            removeIndex = index;
+        ImGui::PopID();
+    }
+
+    if (removeIndex) {
+        if (lightboxImage_ && *lightboxImage_ >= *removeIndex) lightboxImage_.reset();
+        value.images.erase(value.images.begin() +
+                           static_cast<std::ptrdiff_t>(*removeIndex));
+        if (!value.dirty()) notifyDraftDirty(sessionPath_, false);
+    }
+}
+
+void CopilotView::drawLightbox(ComposerDraft& value) {
+    if (!lightboxImage_) return;
+    if (*lightboxImage_ >= value.images.size() || !imageTextures_) {
+        lightboxImage_.reset();
+        return;
+    }
+    const ImageContent& image = value.images[*lightboxImage_];
+    const ImageTexture texture = imageTextures_->acquire(image);
+    if (!texture.valid) {
+        lightboxImage_.reset();
+        return;
+    }
+
+    if (!lightboxOpened_) {
+        ImGui::OpenPopup("##attachment-lightbox");
+        lightboxOpened_ = true;
+    }
+    const ImGuiViewport* viewport = ImGui::GetMainViewport();
+    ImGui::SetNextWindowPos(viewport->GetCenter(), ImGuiCond_Appearing,
+                            ImVec2(0.5f, 0.5f));
+    if (ImGui::BeginPopup("##attachment-lightbox")) {
+        const ImVec2 bound(viewport->WorkSize.x * 0.8f, viewport->WorkSize.y * 0.8f);
+        const float scale = std::min(
+            1.0f, std::min(bound.x / static_cast<float>(texture.width),
+                           bound.y / static_cast<float>(texture.height)));
+        const ImVec2 shown(static_cast<float>(texture.width) * scale,
+                           static_cast<float>(texture.height) * scale);
+        ImGui::Image(texture.texture, shown);
+        char caption[96];
+        std::snprintf(caption, sizeof caption, "%s · %dx%d · Esc closes",
+                      image.mimeType.c_str(), texture.width, texture.height);
+        kit::dimText(caption);
+        ImGui::EndPopup();
+    } else {
+        // Escape or an outside click dismissed the popup.
+        lightboxImage_.reset();
+        lightboxOpened_ = false;
+    }
+}
+
 void CopilotView::drawComposer() {
     ComposerDraft& value = draft();
     const float glyphWidth = std::max(1.0f, ImGui::CalcTextSize("M").x);
@@ -1155,20 +1663,7 @@ void CopilotView::drawComposer() {
     if (value.editBuffer != value.text.displayText()) value.editBuffer = value.text.displayText();
     value.editBuffer.reserve(std::max<std::size_t>(value.editBuffer.size() + 1024, 4096));
 
-    if (!value.images.empty()) {
-        for (std::size_t index = 0; index < value.images.size(); ++index) {
-            ImGui::PushID(static_cast<int>(index));
-            if (index != 0) ImGui::SameLine();
-            const std::string label = value.images[index].mimeType + " image";
-            if (kit::chip(label.c_str(), kit::Tone::Info)) {
-                value.images.erase(value.images.begin() + static_cast<std::ptrdiff_t>(index));
-                if (!value.dirty()) notifyDraftDirty(sessionPath_, false);
-                ImGui::PopID();
-                break;
-            }
-            ImGui::PopID();
-        }
-    }
+    drawDraftImages(value);
 
     const bool wasDirty = value.dirty();
     ComposerCallbackContext context{this, &value, &value.editBuffer};
@@ -1193,10 +1688,13 @@ void CopilotView::drawComposer() {
     const bool streaming = store_.session(sessionPath_) && store_.session(sessionPath_)->state &&
                            store_.session(sessionPath_)->state->isStreaming;
     if (streaming) {
-        if (kit::dangerButton("Stop")) stop();
+        if (iconActionButton(Action::Stop, "Stop the running turn", ButtonKind::Danger))
+            stop();
         ImGui::SameLine();
     }
-    if (kit::primaryButton("Send", {}, value.dirty())) submit();
+    if (iconActionButton(Action::Send, "Send message (Enter)", ButtonKind::Primary,
+                         value.dirty(), "Type a message or attach an image first"))
+        submit();
     // Measured twice: beside Send, and on the line the hint would get to
     // itself. Spending a whole line is only worth it when the wider measurement
     // buys a more informative hint, so nothing is ever truncated and no space
@@ -1243,19 +1741,44 @@ void CopilotView::draw(ImVec2 size) {
 
     if (drawer_ != Drawer::None) drawDrawer();
     const float requestReserve = projection_.uiRequest ? ui::metrics::U(28.0f) : 0.0f;
-    // Reserve the composer's real chrome: input box, button row, and the key
-    // hint, which takes its own line whenever it cannot fit beside Send. The
-    // ##copilot child carries no scrollbar, so under-reserving clips the hint
-    // instead of scrolling to it.
+    // Reserve the composer's real chrome: attachment thumbnails, the context
+    // gauge, input box, button row, and the key hint, which takes its own line
+    // whenever it cannot fit beside Send. The ##copilot child carries no
+    // scrollbar, so under-reserving clips the hint instead of scrolling to it.
+    const ComposerDraft* activeDraft = drafts_.find(sessionPath_);
+    float attachmentsReserve = 0.0f;
+    if (activeDraft != nullptr && !activeDraft->images.empty()) {
+        // Worst-case flow estimate: widest thumbnail (or fallback chip) plus
+        // its remove button per item. Overestimating shrinks the transcript a
+        // little; underestimating clips the composer's key hint.
+        const float itemWorstWidth = std::max(ui::metrics::U(14.0f) * 2.5f,
+                                              ui::metrics::px(240.0f)) +
+                                     ImGui::GetFrameHeight() +
+                                     ImGui::GetStyle().ItemSpacing.x * 2.0f;
+        const float rowWidth = std::max(itemWorstWidth, ImGui::GetContentRegionAvail().x);
+        const std::size_t perRow = std::max<std::size_t>(
+            1, static_cast<std::size_t>(rowWidth / itemWorstWidth));
+        const std::size_t rows =
+            (activeDraft->images.size() + perRow - 1) / perRow;
+        attachmentsReserve =
+            static_cast<float>(rows) *
+            (ui::metrics::U(14.0f) + ImGui::GetStyle().ItemSpacing.y);
+    }
+    const SessionSnapshot* snapshot = store_.session(sessionPath_);
+    const float gaugeReserve = snapshot != nullptr && snapshot->state
+                                   ? ImGui::GetTextLineHeightWithSpacing()
+                                   : 0.0f;
     const float composerReserve =
         ImGui::GetTextLineHeightWithSpacing() *
             static_cast<float>(ui::metrics::kComposerMaxLines + 1) +
         ImGui::GetFrameHeight() + ImGui::GetStyle().ItemSpacing.y * 2.0f +
-        requestReserve;
+        requestReserve + attachmentsReserve + gaugeReserve;
     drawTranscript(std::max(ui::metrics::U(20.0f),
                             ImGui::GetContentRegionAvail().y - composerReserve));
+    drawUsageGauge();
     drawUiRequest();
     drawComposer();
+    drawLightbox(draft());
     ImGui::EndChild();
     ImGui::PopID();
 }
