@@ -113,9 +113,9 @@ export const CHANNEL_RENAME_MIN_INTERVAL_MS = 360_000;
 
 /** Discord's channel-name ceiling. Names are prefixed, so the budget is smaller. */
 export const MAX_CHANNEL_NAME_CHARS = 100;
-export const SESSION_CHANNEL_PREFIX = "s-";
-/** Finished sessions are renamed with this prefix so live ones sort first. */
-export const ARCHIVED_SESSION_CHANNEL_PREFIX = "z-";
+export const SESSION_CHANNEL_PREFIX = "task-";
+/** Finished tasks are renamed so active work stays visually distinct. */
+export const ARCHIVED_SESSION_CHANNEL_PREFIX = "done-";
 
 /**
  * Discord accepts mixed case and silently rewrites it, which makes a stored

@@ -16,8 +16,9 @@
  * by the agent's poll interval, which is longer than that on a bad day.
  */
 
+import * as path from "node:path";
 import { Client, GatewayIntentBits, REST, Routes } from "discord.js";
-import type { AutocompleteInteraction, ChatInputCommandInteraction } from "discord.js";
+import type { AutocompleteInteraction, ChatInputCommandInteraction, Message } from "discord.js";
 import {
 	AGENT_STALE_AFTER_MS,
 	BUS_PROTOCOL_VERSION,
@@ -31,6 +32,7 @@ import {
 import { Bus } from "./bus";
 import { CHANNEL_IDS, GUILD_ID } from "./channels";
 import { DiscordRest, readOwnerOnlyFile, DEFAULT_TOKEN_FILE } from "./discord-rest";
+import { taskStatusLabel } from "./session-render";
 
 /** Bun's `Timer`, Node's `Timeout`, the DOM's number. */
 type TimerHandle = ReturnType<typeof setInterval>;
@@ -102,30 +104,51 @@ export class HeartbeatRegistry {
 		}
 		return null;
 	}
+
+	findSessionByChannel(channelId: string, now: Date): LocatedSession | null {
+		for (const view of this.hosts(now)) {
+			const snapshot = view.sessions.find(candidate => candidate.channelId === channelId);
+			if (snapshot) return { host: view.host, snapshot };
+		}
+		return null;
+	}
 }
 
-export function renderSessionList(views: readonly HostView[]): string {
-	if (views.length === 0) {
-		return "No agent has reported in. Start `cc-agent` on a machine and it will appear here within a minute.";
+export function renderTaskList(views: readonly HostView[]): string {
+	const tasks = views.flatMap(view =>
+		view.sessions
+			.filter(session => session.channelId)
+			.map(session => ({ view, session })),
+	);
+	if (tasks.length === 0) {
+		return "No Discord tasks are active or recently completed. Use `/task start` to begin one.";
 	}
-	const lines: string[] = [];
-	for (const view of views) {
-		const age = Math.round(view.ageMs / 1000);
-		lines.push(
-			view.stale
-				? `**${view.host}** — offline, last heard ${age}s ago (sessions below may be out of date)`
-				: `**${view.host}** — online, chudcode ${view.chudcodeVersion}`,
-		);
-		if (view.sessions.length === 0) {
-			lines.push("· no sessions");
-			continue;
-		}
-		for (const session of view.sessions) {
-			const where = session.channelId ? `<#${session.channelId}>` : session.project;
-			lines.push(`· ${where} — ${session.status} — ${session.title ?? session.sessionId} \`${session.sessionId}\``);
+	const active = tasks.filter(({ session }) => !["complete", "aborted", "error"].includes(session.status));
+	const completed = tasks.filter(({ session }) => ["complete", "aborted", "error"].includes(session.status));
+	const lines: string[] = ["**Active tasks**"];
+	if (active.length === 0) lines.push("None.");
+	for (const { view, session } of active) {
+		const offline = view.stale ? " · runner offline" : "";
+		lines.push(`- <#${session.channelId}> · ${taskStatusLabel(session.status)}${offline} · ${session.title ?? "Untitled task"}`);
+	}
+	if (completed.length > 0) {
+		lines.push("", "**Recently completed**");
+		for (const { session } of completed.slice(0, 8)) {
+			lines.push(`- <#${session.channelId}> · ${taskStatusLabel(session.status)} · ${session.title ?? "Untitled task"}`);
 		}
 	}
 	return lines.join("\n").slice(0, 1_900);
+}
+
+export function renderTaskStatus(located: LocatedSession): string {
+	const { snapshot } = located;
+	const channel = snapshot.channelId ? `<#${snapshot.channelId}>` : "Task channel unavailable";
+	const summary = snapshot.lastText?.trim() || "No progress summary is available yet.";
+	return `**${snapshot.title ?? "Untitled task"}**
+${taskStatusLabel(snapshot.status)} · ${channel}
+
+**Latest update**
+${summary}`.slice(0, 1_900);
 }
 
 export interface Choice {
@@ -150,19 +173,21 @@ export function projectChoices(views: readonly HostView[], query: string, host: 
 		for (const project of view.projects) {
 			if (seen.has(project) || !project.toLowerCase().includes(needle)) continue;
 			seen.add(project);
-			choices.push({ name: project.slice(-100), value: project.slice(0, 100) });
+			const label = `${path.basename(project)} · ${view.host}`;
+			choices.push({ name: label.slice(0, 100), value: project.slice(0, 100) });
 			if (choices.length === MAX_AUTOCOMPLETE_CHOICES) return choices;
 		}
 	}
 	return choices;
 }
 
-export function sessionChoices(views: readonly HostView[], query: string): Choice[] {
+export function taskChoices(views: readonly HostView[], query: string): Choice[] {
 	const needle = query.trim().toLowerCase();
 	const choices: Choice[] = [];
 	for (const view of views) {
 		for (const session of view.sessions) {
-			const label = `${session.title ?? session.project} · ${view.host} · ${session.status}`;
+			if (!session.channelId) continue;
+			const label = `${session.title ?? "Untitled task"} · ${taskStatusLabel(session.status)}`;
 			if (!label.toLowerCase().includes(needle) && !session.sessionId.includes(needle)) continue;
 			choices.push({ name: label.slice(0, 100), value: session.sessionId.slice(0, 100) });
 			if (choices.length === MAX_AUTOCOMPLETE_CHOICES) return choices;
@@ -321,81 +346,87 @@ export class CommandBroker {
 	}
 }
 
-/** What the user reads back. Kept out of the discord.js wiring so it can be checked directly. */
-export function renderOutcome(result: CommandResult | null, host: string, action: string): string {
-	if (!result) {
-		return `No answer from **${host}** within ${Math.round(COMMAND_RESULT_TIMEOUT_MS / 1000)}s. The agent there may be stopped or offline; \`/session list\` shows what has reported in.`;
-	}
-	const where = result.channelId ? ` → <#${result.channelId}>` : "";
-	switch (result.outcome) {
-		case "accepted":
-			return `${action} on **${host}**${where} — ${result.detail}`;
-		case "done":
-			return `${action} on **${host}**${where} — done: ${result.detail}`;
-		case "rejected":
-			return `**${host}** refused: ${result.detail}`;
-		default:
-			return `**${host}** failed: ${result.detail}`;
-	}
-}
+export type TaskAction = "start" | "steer" | "pause" | "stop" | "transcript";
 
-// ---------------------------------------------------------------------------
-// Slash command definitions
-// ---------------------------------------------------------------------------
+/** What a teammate reads after a task command. No host/session jargon on success. */
+export function renderOutcome(result: CommandResult | null, host: string, action: TaskAction): string {
+	if (!result) {
+		return `The task runner on **${host}** did not answer within ${Math.round(COMMAND_RESULT_TIMEOUT_MS / 1000)} seconds. Use \`/task list\` to check whether it is online.`;
+	}
+	const channel = result.channelId ? `<#${result.channelId}>` : "the task";
+	if (result.outcome === "rejected") return result.detail;
+	if (result.outcome === "failed") return `The task runner could not complete that request: ${result.detail}`;
+	switch (action) {
+		case "start":
+			return `Task started in ${channel}. Open it to watch progress, and reply in that channel to steer the work.`;
+		case "steer":
+			return `Direction sent to ${channel}. If the agent is busy, it will apply the message next.`;
+		case "pause":
+			return `Current work paused in ${channel}. The task stays available for more direction.`;
+		case "stop":
+			return `Task stopped in ${channel}.`;
+		case "transcript":
+			return `${result.detail} Open ${channel} to read it.`;
+	}
+	return result.detail;
+}
 
 const STRING_OPTION = 3;
 const INTEGER_OPTION = 4;
 const SUBCOMMAND_OPTION = 1;
 
-/**
- * Hand-built rather than SlashCommandBuilder: these are plain JSON in the
- * registration payload, and writing them out makes the whole command surface
- * readable in one screen.
- */
+/** One task-oriented command surface, written as registration JSON for auditability. */
 export const COMMAND_DEFINITIONS: readonly Record<string, unknown>[] = [
 	{
-		name: "new",
-		description: "Start a chudcode session in its own channel",
+		name: "task",
+		description: "Start, follow, and steer coding tasks",
 		options: [
-			{ type: STRING_OPTION, name: "prompt", description: "What the agent should do", required: true },
-			{ type: STRING_OPTION, name: "project", description: "Absolute repo path on the host", autocomplete: true },
-			{ type: STRING_OPTION, name: "host", description: "Machine to run on", autocomplete: true },
-			{ type: STRING_OPTION, name: "model", description: "Model override" },
-		],
-	},
-	{
-		name: "session",
-		description: "Inspect and steer chudcode sessions",
-		options: [
-			{ type: SUBCOMMAND_OPTION, name: "list", description: "Hosts and their sessions" },
 			{
 				type: SUBCOMMAND_OPTION,
-				name: "say",
-				description: "Send another turn into a running session",
+				name: "start",
+				description: "Start a task and create its progress channel",
 				options: [
-					{ type: STRING_OPTION, name: "session", description: "Session", required: true, autocomplete: true },
-					{ type: STRING_OPTION, name: "message", description: "What to say", required: true },
+					{ type: STRING_OPTION, name: "goal", description: "The result you want", required: true },
+					{ type: STRING_OPTION, name: "project", description: "Project to work in", autocomplete: true },
+					{ type: STRING_OPTION, name: "host", description: "Task runner (optional)", autocomplete: true },
+					{ type: STRING_OPTION, name: "model", description: "Model override (optional)" },
+				],
+			},
+			{ type: SUBCOMMAND_OPTION, name: "list", description: "Show active and recently completed tasks" },
+			{
+				type: SUBCOMMAND_OPTION,
+				name: "status",
+				description: "Show the latest progress summary for a task",
+				options: [{ type: STRING_OPTION, name: "task", description: "Task", required: true, autocomplete: true }],
+			},
+			{
+				type: SUBCOMMAND_OPTION,
+				name: "steer",
+				description: "Change direction while a task is working",
+				options: [
+					{ type: STRING_OPTION, name: "task", description: "Task", required: true, autocomplete: true },
+					{ type: STRING_OPTION, name: "instruction", description: "What should change", required: true },
 				],
 			},
 			{
 				type: SUBCOMMAND_OPTION,
-				name: "interrupt",
-				description: "Stop the in-flight turn without ending the session",
-				options: [{ type: STRING_OPTION, name: "session", description: "Session", required: true, autocomplete: true }],
+				name: "pause",
+				description: "Pause the task's current work without closing it",
+				options: [{ type: STRING_OPTION, name: "task", description: "Task", required: true, autocomplete: true }],
 			},
 			{
 				type: SUBCOMMAND_OPTION,
 				name: "stop",
-				description: "End the session process",
-				options: [{ type: STRING_OPTION, name: "session", description: "Session", required: true, autocomplete: true }],
+				description: "Stop a task",
+				options: [{ type: STRING_OPTION, name: "task", description: "Task", required: true, autocomplete: true }],
 			},
 			{
 				type: SUBCOMMAND_OPTION,
-				name: "tail",
-				description: "Repost the last turns into the session channel",
+				name: "transcript",
+				description: "Post the latest conversation into the task channel",
 				options: [
-					{ type: STRING_OPTION, name: "session", description: "Session", required: true, autocomplete: true },
-					{ type: INTEGER_OPTION, name: "lines", description: "How many entries (1-25)" },
+					{ type: STRING_OPTION, name: "task", description: "Task", required: true, autocomplete: true },
+					{ type: INTEGER_OPTION, name: "turns", description: "Conversation turns (1-25)" },
 				],
 			},
 		],
@@ -420,6 +451,7 @@ export class SessionBridgeGateway {
 	readonly #options: GatewayOptions;
 	#broker: CommandBroker | undefined;
 	#client: Client | undefined;
+	readonly #taskRoutes = new Map<string, { host: string; sessionId: string }>();
 
 	constructor(options: GatewayOptions = {}) {
 		this.#options = options;
@@ -442,9 +474,11 @@ export class SessionBridgeGateway {
 		await broker.prime();
 		broker.start();
 
-		// `Guilds` only: slash commands and interactions carry everything the
-		// gateway reads, and this app has no privileged intent.
-		const client = new Client({ intents: [GatewayIntentBits.Guilds] });
+		// Task channels accept ordinary replies as steering input. The limited
+		// message-content intent is enabled for this private, single-guild app.
+		const client = new Client({
+			intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent],
+		});
 		this.#client = client;
 		client.on("interactionCreate", interaction => {
 			if (interaction.isAutocomplete()) {
@@ -452,6 +486,9 @@ export class SessionBridgeGateway {
 				return;
 			}
 			if (interaction.isChatInputCommand()) void this.#command(interaction);
+		});
+		client.on("messageCreate", message => {
+			void this.#message(message);
 		});
 		await client.login(token);
 	}
@@ -472,23 +509,29 @@ export class SessionBridgeGateway {
 				? hostChoices(views, focused.value)
 				: focused.name === "project"
 					? projectChoices(views, focused.value, interaction.options.getString("host"))
-					: sessionChoices(views, focused.value);
+					: taskChoices(views, focused.value);
 		await interaction.respond(choices);
 	}
 
 	async #command(interaction: ChatInputCommandInteraction): Promise<void> {
 		const broker = this.#broker;
-		if (!broker) return;
+		if (!broker || interaction.commandName !== "task") return;
 		const now = new Date();
-		// `/session list` answers from memory, so it can defer and reply at once.
-		if (interaction.commandName === "session" && interaction.options.getSubcommand() === "list") {
-			await interaction.deferReply();
-			await interaction.editReply(renderSessionList(broker.registry.hosts(now)));
+		const subcommand = interaction.options.getSubcommand();
+		await interaction.deferReply();
+
+		if (subcommand === "list") {
+			await interaction.editReply(renderTaskList(broker.registry.hosts(now)));
 			return;
 		}
-		// Deferred before anything that can block: the interaction budget is three
-		// seconds and a bus round trip is not.
-		await interaction.deferReply();
+		if (subcommand === "status") {
+			const taskId = interaction.options.getString("task", true);
+			const located = broker.registry.findSession(taskId, now);
+			await interaction.editReply(
+				located ? renderTaskStatus(located) : "I cannot find that task. Use `/task list` to see what is available.",
+			);
+			return;
+		}
 
 		const plan = this.#plan(interaction, broker, now);
 		if (typeof plan === "string") {
@@ -497,9 +540,60 @@ export class SessionBridgeGateway {
 		}
 		try {
 			const result = await broker.dispatch(plan.input);
+			if (plan.action === "start" && result?.channelId && result.sessionId) {
+				this.#taskRoutes.set(result.channelId, { host: result.host, sessionId: result.sessionId });
+			}
 			await interaction.editReply(renderOutcome(result, plan.input.host, plan.action));
 		} catch (error) {
-			await interaction.editReply(`Could not reach the bus: ${error instanceof Error ? error.message : String(error)}`);
+			await interaction.editReply(
+				`The task service could not send that request: ${error instanceof Error ? error.message : String(error)}`,
+			);
+		}
+	}
+
+	async #message(message: Message): Promise<void> {
+		const broker = this.#broker;
+		const instruction = message.content.trim();
+		if (!broker || message.author.bot || !message.inGuild() || message.guildId !== this.#guildId || !instruction) return;
+		const now = new Date();
+		const located = broker.registry.findSessionByChannel(message.channelId, now);
+		const remembered = this.#taskRoutes.get(message.channelId);
+		if (!located && !remembered) return;
+		if (located && ["complete", "aborted", "error"].includes(located.snapshot.status)) {
+			await message.reply({
+				content: "This task has finished. Use `/task start` to continue as a new task.",
+				allowedMentions: { repliedUser: false },
+			});
+			return;
+		}
+		const host = located?.host ?? remembered?.host;
+		const sessionId = located?.snapshot.sessionId ?? remembered?.sessionId;
+		if (!host || !sessionId || !broker.registry.liveHosts(now).some(view => view.host === host)) {
+			await message.reply({
+				content: "The task runner is offline, so I could not send that direction. Try again when `/task list` shows it online.",
+				allowedMentions: { repliedUser: false },
+			});
+			return;
+		}
+		const acknowledgement = await message.reply({
+			content: "Sending this direction to the task…",
+			allowedMentions: { repliedUser: false },
+		});
+		try {
+			const result = await broker.dispatch({
+				name: "say",
+				host,
+				sessionId,
+				channelId: message.channelId,
+				prompt: instruction,
+				requestedBy: message.author.id,
+				replyChannelId: message.channelId,
+			});
+			await acknowledgement.edit(renderOutcome(result, host, "steer"));
+		} catch (error) {
+			await acknowledgement.edit(
+				`The task service could not send that direction: ${error instanceof Error ? error.message : String(error)}`,
+			);
 		}
 	}
 
@@ -508,31 +602,31 @@ export class SessionBridgeGateway {
 		interaction: ChatInputCommandInteraction,
 		broker: CommandBroker,
 		now: Date,
-	): { input: DispatchInput; action: string } | string {
+	): { input: DispatchInput; action: TaskAction } | string {
 		const requestedBy = interaction.user.id;
 		const replyChannelId = interaction.channelId ?? CHANNEL_IDS.sessions;
 		const live = broker.registry.liveHosts(now);
+		const subcommand = interaction.options.getSubcommand();
 
-		if (interaction.commandName === "new") {
+		if (subcommand === "start") {
 			const requested = interaction.options.getString("host");
 			const host = requested ?? (live.length === 1 ? live[0]?.host : undefined);
 			if (!host) {
 				return live.length === 0
-					? "No agent is online. Start `cc-agent` on the machine you want to run on."
-					: `Several machines are online (${live.map(view => view.host).join(", ")}). Pass \`host:\`.`;
+					? "No task runner is online yet. Start `cc-agent` on a development machine and try again."
+					: "More than one task runner is online. Choose one in the `host` field.";
 			}
-			if (!live.some(view => view.host === host)) {
-				return `**${host}** has not reported in within the staleness window, so it is presumed offline. \`/session list\` shows what has.`;
-			}
-			const project = interaction.options.getString("project") ?? live.find(view => view.host === host)?.projects[0];
-			if (!project) return `**${host}** reported no project roots, so there is nowhere to start a session.`;
+			const runner = live.find(view => view.host === host);
+			if (!runner) return "That task runner is offline. Use `/task list` to check the current state.";
+			const project = interaction.options.getString("project") ?? runner.projects[0];
+			if (!project) return "That task runner has no available project. Check its `CC_AGENT_PROJECT_ROOTS` setting.";
 			return {
-				action: "Starting a session",
+				action: "start",
 				input: {
 					name: "new",
 					host,
 					cwd: project,
-					prompt: interaction.options.getString("prompt", true),
+					prompt: interaction.options.getString("goal", true),
 					model: interaction.options.getString("model"),
 					requestedBy,
 					replyChannelId,
@@ -540,31 +634,33 @@ export class SessionBridgeGateway {
 			};
 		}
 
-		const subcommand = interaction.options.getSubcommand();
-		const sessionId = interaction.options.getString("session", true);
-		const located = broker.registry.findSession(sessionId, now);
-		if (!located) return `No host is reporting session \`${sessionId}\`. \`/session list\` shows what is live.`;
+		const taskId = interaction.options.getString("task", true);
+		const located = broker.registry.findSession(taskId, now);
+		if (!located) return "I cannot find that task. Use `/task list` to see what is available.";
 		if (!live.some(view => view.host === located.host)) {
-			return `**${located.host}** owns \`${sessionId}\` but is presumed offline, so the command would not be picked up.`;
+			return "The task runner is offline, so the command cannot be delivered yet.";
 		}
 		const base = {
 			host: located.host,
-			sessionId,
+			sessionId: taskId,
 			channelId: located.snapshot.channelId,
 			requestedBy,
 			replyChannelId,
 		};
 		switch (subcommand) {
-			case "say":
-				return { action: "Message sent", input: { ...base, name: "say", prompt: interaction.options.getString("message", true) } };
-			case "interrupt":
-				return { action: "Interrupt", input: { ...base, name: "interrupt" } };
+			case "steer":
+				return {
+					action: "steer",
+					input: { ...base, name: "say", prompt: interaction.options.getString("instruction", true) },
+				};
+			case "pause":
+				return { action: "pause", input: { ...base, name: "interrupt" } };
 			case "stop":
-				return { action: "Stop", input: { ...base, name: "stop" } };
-			case "tail":
-				return { action: "Tail", input: { ...base, name: "tail", lines: interaction.options.getInteger("lines") } };
+				return { action: "stop", input: { ...base, name: "stop" } };
+			case "transcript":
+				return { action: "transcript", input: { ...base, name: "tail", lines: interaction.options.getInteger("turns") } };
 			default:
-				return `\`/session ${subcommand}\` is not a command this gateway knows.`;
+				return `\`/task ${subcommand}\` is not available.`;
 		}
 	}
 }

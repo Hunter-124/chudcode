@@ -80,13 +80,6 @@ import { type ScanOptions, scanSessions } from "./session-scan";
 
 /** A heartbeat carries a working set, not an archive. Older sessions stay reachable as channels. */
 export const MAX_HEARTBEAT_SESSIONS = 10;
-/**
- * How stale a finished session may be and still earn a channel.
- *
- * Measured against a real store: without this the first run found twenty-five
- * sessions, all long finished, and tried to create a channel for every one.
- */
-export const MIRROR_MAX_AGE_MS = 6 * 60 * 60 * 1000;
 
 /**
  * How long a graceful shutdown gets before the process exits regardless.
@@ -116,6 +109,8 @@ export function mirrorKey(host: string, sessionId: string): string {
  * the deterministic provisional title; a later explicit title change still
  * flows through onTitle().
  */
+export const MAX_TASK_TITLE_CHARS = 72;
+
 export function sessionTitleFromPrompt(prompt: string): string {
 	const first = prompt
 		.split(/\r?\n/)
@@ -126,7 +121,12 @@ export function sessionTitleFromPrompt(prompt: string): string {
 		.replace(/\s+/g, " ")
 		.trim();
 	const codePoints = [...collapsed];
-	return codePoints.length <= 120 ? collapsed : `${codePoints.slice(0, 119).join("").replace(/\s+$/g, "")}…`;
+	return codePoints.length <= MAX_TASK_TITLE_CHARS
+		? collapsed
+		: `${codePoints
+				.slice(0, MAX_TASK_TITLE_CHARS - 1)
+				.join("")
+				.replace(/\s+$/g, "")}…`;
 }
 /** Leaves room under the 2000-char ceiling for Discord's own framing. */
 const MAX_TRANSCRIPT_CHARS = 1_800;
@@ -134,6 +134,7 @@ const MAX_RESULT_DETAIL_CHARS = 800;
 const DEFAULT_TRANSCRIPT_FLUSH_MS = 5_000;
 /** A command older than this is audit history. Replaying it on a cold start would be a surprise, not a service. */
 const DEFAULT_MAX_COMMAND_AGE_MS = 10 * 60_000;
+const TASK_NOT_RUNNING_MESSAGE = "This task is no longer running. Start a new task if you want to continue the work.";
 /** Discord's category channel type. */
 const GUILD_CATEGORY = 4;
 
@@ -245,6 +246,8 @@ export const defaultRpcSessionFactory: RpcSessionFactory = async options => {
  */
 export interface MirrorRecord extends SessionMirrorState {
 	readonly channelName: string;
+	/** Only Discord-started work belongs in the task UI. */
+	readonly createdFromDiscord: boolean;
 }
 
 export interface AgentState {
@@ -289,7 +292,7 @@ export function createFileStateStore(filePath: string): AgentStateStore {
 			return { cursor, mirrors };
 		},
 		async write(state) {
-			await writeStateFile(filePath, `${JSON.stringify({ version: 2, ...state }, null, 2)}\n`);
+			await writeStateFile(filePath, `${JSON.stringify({ version: 3, ...state }, null, 2)}\n`);
 		},
 	};
 }
@@ -306,6 +309,10 @@ function parseMirrorRecord(value: unknown): MirrorRecord | null {
 		channelId: value.channelId,
 		statusMessageId: value.statusMessageId,
 		channelName: "channelName" in value && typeof value.channelName === "string" ? value.channelName : "",
+		createdFromDiscord:
+			"createdFromDiscord" in value && typeof value.createdFromDiscord === "boolean"
+				? value.createdFromDiscord
+				: false,
 		renderHash: "renderHash" in value && typeof value.renderHash === "string" ? value.renderHash : "",
 		lastTitle: "lastTitle" in value && typeof value.lastTitle === "string" ? value.lastTitle : null,
 		lastRenamedAt: "lastRenamedAt" in value && typeof value.lastRenamedAt === "string" ? value.lastRenamedAt : null,
@@ -450,44 +457,17 @@ export class CcAgent {
 	}
 
 	/**
-	 * Sessions worth giving a channel to.
+	 * Only work started through Discord belongs in Discord.
 	 *
-	 * The scan returns the newest sessions on the machine regardless of age, and
-	 * on a developer's real store that is a wall of old work: the first live run
-	 * here tried to create twenty-five channels for sessions last touched days
-	 * earlier. A channel per historical session is noise, and it burns the
-	 * channel-create rate limit before reaching anything anyone is watching.
-	 *
-	 * Only `running` bypasses the age window. `idle` deliberately does not, which
-	 * is the correction the live run forced: `idle` means "open, waiting on a
-	 * human", and every abandoned session on the machine satisfies that forever.
-	 * Age is the signal that separates "waiting for me right now" from "I stopped
-	 * caring on Tuesday".
-	 *
-	 * An untitled session is skipped outright, and that is the filter that did the
-	 * real work: of the twenty-five the first live run found, thirteen were
-	 * status `unknown` with no title -- sessions that opened and never took a
-	 * turn. chudcode titles a session as soon as there is real content, so no
-	 * title means nothing happened, and `sessionChannelName(null, id)` would name
-	 * the channel `s-01a04aa0-bf24` after a uuid nobody can read.
-	 *
-	 * A session already carrying a channel keeps being mirrored regardless, because
-	 * dropping it mid-run would freeze its status embed on a stale value that reads
-	 * as still-running forever.
+	 * The old age/title heuristic mirrored every recent local chudcode session
+	 * and filled the guild with channels that had one technical status card and
+	 * no transcript. A persisted Discord-origin bit is the actual boundary.
 	 */
-	mirrorable(
-		snapshots: readonly SessionSnapshot[],
-		// The agent's injected clock, never Date.now(): every other time decision
-		// here runs off #now(), and mixing the two makes the age window depend on
-		// wall-clock drift between the two sources.
-		now: number = this.#now().getTime(),
-	): readonly SessionSnapshot[] {
+	mirrorable(snapshots: readonly SessionSnapshot[]): readonly SessionSnapshot[] {
 		return snapshots.filter(snapshot => {
-			if (this.#state.mirrors[mirrorKey(snapshot.host, snapshot.sessionId)]) return true;
-			if ((snapshot.title ?? "").trim().length === 0) return false;
-			if (snapshot.status === "running") return true;
-			const updated = Date.parse(snapshot.updatedAt);
-			return Number.isFinite(updated) && now - updated <= MIRROR_MAX_AGE_MS;
+			const existing = this.#state.mirrors[mirrorKey(snapshot.host, snapshot.sessionId)];
+			if (existing) return existing.createdFromDiscord;
+			return snapshot.originCommandId !== null;
 		});
 	}
 
@@ -513,7 +493,13 @@ export class CcAgent {
 			chudcodeVersion: this.#chudcodeVersion,
 			sentAt: this.#now().toISOString(),
 		} as const;
-		let sessions = [...snapshots]
+		let sessions = snapshots
+			.map(snapshot => {
+				if (snapshot.channelId) return snapshot;
+				const record = this.#state.mirrors[mirrorKey(snapshot.host, snapshot.sessionId)];
+				return record?.createdFromDiscord ? { ...snapshot, channelId: record.channelId } : snapshot;
+			})
+			.filter(snapshot => snapshot.channelId !== null)
 			.sort((left, right) => Date.parse(right.updatedAt) - Date.parse(left.updatedAt))
 			.slice(0, MAX_HEARTBEAT_SESSIONS);
 		let strippedText = false;
@@ -731,6 +717,9 @@ export class CcAgent {
 			throw error;
 		}
 		const status = await this.#rest.createMessage(channelId, { embeds: [embed] });
+		if (snapshot.originCommandId) {
+			await this.#rest.createMessage(channelId, { content: taskChannelIntro(snapshot) });
+		}
 		const now = this.#now().toISOString();
 		const record: MirrorRecord = {
 			sessionId: snapshot.sessionId,
@@ -738,6 +727,7 @@ export class CcAgent {
 			channelId,
 			statusMessageId: status.id,
 			channelName: name,
+			createdFromDiscord: snapshot.originCommandId !== null,
 			renderHash: hash,
 			lastTitle: snapshot.title,
 			// Creating a channel does not spend a rename, so the first real title is
@@ -788,6 +778,9 @@ export class CcAgent {
 				channelId: channel.id,
 				statusMessageId,
 				channelName: channel.name ?? "",
+				createdFromDiscord:
+					(channel.name ?? "").startsWith(SESSION_CHANNEL_PREFIX) ||
+					(channel.name ?? "").startsWith(ARCHIVED_SESSION_CHANNEL_PREFIX),
 				// Unknown, so the next tick edits once and resyncs. One redundant
 				// edit beats trusting a hash nobody wrote down.
 				renderHash: "",
@@ -953,7 +946,7 @@ export class CcAgent {
 			return;
 		}
 
-		await this.#publishResult(command, "accepted", `started in ${allowed.cwd}`, {
+		await this.#publishResult(command, "accepted", "Task channel ready.", {
 			sessionId,
 			channelId: mirror.channelId,
 		});
@@ -975,7 +968,7 @@ export class CcAgent {
 		const unsubscribeEvent = client.onEvent(event => {
 			const line = describeEvent(event);
 			if (line) transcript.push(line);
-			if (event.type === "agent_end") this.#track(this.#finish(session, "done", "turn complete"));
+			if (event.type === "agent_end") this.#track(this.#finish(session, "done", "Task finished."));
 		});
 
 		// Title generation happens inside chudcode after the prompt starts. RPC
@@ -1003,7 +996,7 @@ export class CcAgent {
 			unsubscribeTitle();
 		};
 
-		transcript.push(`▶ <@${command.requestedBy}> started this session: ${prompt.slice(0, 300)}`);
+		transcript.push(`**Task started by <@${command.requestedBy}>**\n${prompt.slice(0, 600)}`);
 		await client.prompt(prompt);
 	}
 
@@ -1023,6 +1016,7 @@ export class CcAgent {
 			channelId: command.channelId,
 			statusMessageId: status.id,
 			channelName: sessionChannelName(snapshot.title, snapshot.sessionId),
+			createdFromDiscord: true,
 			renderHash: hash,
 			lastTitle: snapshot.title,
 			lastRenamedAt: null,
@@ -1035,12 +1029,14 @@ export class CcAgent {
 	async #executeSay(command: CommandRecord): Promise<void> {
 		const message = command.prompt?.trim();
 		if (!message) {
-			await this.#publishResult(command, "rejected", "say needs a message", { sessionId: command.sessionId });
+			await this.#publishResult(command, "rejected", "Add the direction you want the task to follow.", {
+				sessionId: command.sessionId,
+			});
 			return;
 		}
 		const session = command.sessionId ? this.#sessions.get(command.sessionId) : undefined;
 		if (!session) {
-			await this.#publishResult(command, "rejected", this.#unownedReason(command.sessionId), {
+			await this.#publishResult(command, "rejected", TASK_NOT_RUNNING_MESSAGE, {
 				sessionId: command.sessionId,
 			});
 			return;
@@ -1050,25 +1046,30 @@ export class CcAgent {
 		const state = await session.client.getState();
 		if (state.isStreaming) await session.client.followUp(message);
 		else await session.client.prompt(message);
-		session.transcript.push(`💬 <@${command.requestedBy}>: ${message.slice(0, 300)}`);
-		await this.#publishResult(command, "accepted", state.isStreaming ? "queued as a follow-up" : "sent", {
-			sessionId: session.sessionId,
-			channelId: session.channelId,
-		});
+		session.transcript.push(`**New direction from <@${command.requestedBy}>**\n${message.slice(0, 600)}`);
+		await this.#publishResult(
+			command,
+			"accepted",
+			state.isStreaming ? "Direction queued for the current task." : "Direction sent to the task.",
+			{
+				sessionId: session.sessionId,
+				channelId: session.channelId,
+			},
+		);
 	}
 
 	async #executeLifecycle(command: CommandRecord): Promise<void> {
 		const session = command.sessionId ? this.#sessions.get(command.sessionId) : undefined;
 		if (!session) {
-			await this.#publishResult(command, "rejected", this.#unownedReason(command.sessionId), {
+			await this.#publishResult(command, "rejected", TASK_NOT_RUNNING_MESSAGE, {
 				sessionId: command.sessionId,
 			});
 			return;
 		}
 		if (command.name === "interrupt") {
 			await session.client.abort();
-			session.transcript.push(`⏹ interrupted by <@${command.requestedBy}>`);
-			await this.#publishResult(command, "done", "turn aborted", {
+			session.transcript.push(`**Current work paused by <@${command.requestedBy}>**`);
+			await this.#publishResult(command, "done", "Current work paused. The task channel remains available.", {
 				sessionId: session.sessionId,
 				channelId: session.channelId,
 			});
@@ -1077,9 +1078,9 @@ export class CcAgent {
 		session.unsubscribe();
 		await session.client.stop();
 		this.#sessions.delete(session.sessionId);
-		session.transcript.push(`🛑 stopped by <@${command.requestedBy}>`);
+		session.transcript.push(`**Task stopped by <@${command.requestedBy}>**`);
 		await session.transcript.drain();
-		await this.#publishResult(command, "done", "session stopped", {
+		await this.#publishResult(command, "done", "Task stopped.", {
 			sessionId: session.sessionId,
 			channelId: session.channelId,
 		});
@@ -1087,13 +1088,13 @@ export class CcAgent {
 
 	async #executeTail(command: CommandRecord): Promise<void> {
 		if (!command.sessionId) {
-			await this.#publishResult(command, "rejected", "tail needs a session", {});
+			await this.#publishResult(command, "rejected", "Choose a task before requesting its transcript.", {});
 			return;
 		}
 		const snapshots = await this.#scan({ host: this.host });
 		const snapshot = snapshots.find(candidate => candidate.sessionId === command.sessionId);
 		if (!snapshot) {
-			await this.#publishResult(command, "rejected", `${this.host} has no session ${command.sessionId}`, {
+			await this.#publishResult(command, "rejected", "That task is no longer available on this machine.", {
 				sessionId: command.sessionId,
 			});
 			return;
@@ -1101,7 +1102,7 @@ export class CcAgent {
 		const mirror = await this.#mirrorOne(snapshot);
 		const lines = await this.#tail(snapshot, Math.min(Math.max(command.lines ?? 5, 1), 25));
 		if (lines.length === 0) {
-			await this.#publishResult(command, "done", "nothing to tail yet", {
+			await this.#publishResult(command, "done", "No conversation has been recorded for this task yet.", {
 				sessionId: snapshot.sessionId,
 				channelId: mirror.channelId,
 			});
@@ -1110,7 +1111,7 @@ export class CcAgent {
 		for (const chunk of chunkLines(lines, MAX_TRANSCRIPT_CHARS)) {
 			await this.#rest.createMessage(mirror.channelId, { content: chunk });
 		}
-		await this.#publishResult(command, "done", `posted ${lines.length} entries`, {
+		await this.#publishResult(command, "done", `Posted ${lines.length} transcript section(s).`, {
 			sessionId: snapshot.sessionId,
 			channelId: mirror.channelId,
 		});
@@ -1119,6 +1120,7 @@ export class CcAgent {
 	async #finish(session: RunningSession, outcome: CommandOutcome, detail: string): Promise<void> {
 		if (!this.#sessions.has(session.sessionId)) return;
 		this.#sessions.delete(session.sessionId);
+		session.transcript.push("**Task finished**\nThe agent completed the requested work. The latest summary is above.");
 		session.unsubscribe();
 		await session.transcript.drain();
 		try {
@@ -1134,9 +1136,6 @@ export class CcAgent {
 
 	// -- helpers -------------------------------------------------------------
 
-	#unownedReason(sessionId: string | null): string {
-		return `${this.host} does not own the process for session ${sessionId ?? "?"}; only a session this agent started can be steered`;
-	}
 
 	async #resolveAllowedCwd(candidate: string): Promise<{ ok: true; cwd: string } | { ok: false; reason: string }> {
 		let resolved: string;
@@ -1225,6 +1224,10 @@ export class TranscriptBuffer {
 	push(line: string): void {
 		if (line.length === 0) return;
 		this.#lines.push(line);
+		this.#schedule();
+	}
+
+	#schedule(): void {
 		if (this.#timer) return;
 		this.#timer = setTimeout(() => {
 			this.#timer = undefined;
@@ -1242,10 +1245,16 @@ export class TranscriptBuffer {
 			const pending = this.#lines;
 			if (pending.length === 0) return;
 			this.#lines = [];
+			const chunks = chunkLines(pending, MAX_TRANSCRIPT_CHARS);
+			let next = 0;
 			try {
-				for (const chunk of chunkLines(pending, MAX_TRANSCRIPT_CHARS)) await this.flush(chunk);
+				for (; next < chunks.length; next += 1) await this.flush(chunks[next]);
 			} catch (error) {
+				// Session JSONL remains authoritative, but the live channel must not
+				// silently lose an update because one Discord request failed.
+				this.#lines = [...chunks.slice(next), ...this.#lines];
 				this.onError(error);
+				this.#schedule();
 			}
 		});
 		return this.#queue;
@@ -1273,12 +1282,16 @@ export function chunkLines(lines: readonly string[], limit: number): string[] {
 /** Null for events a human reading a session channel would not care about. */
 export function describeEvent(event: RpcAgentEvent): string | null {
 	switch (event.type) {
-		case "tool_execution_start":
-			return `\`${event.toolName ?? "tool"}\`${event.intent ? ` — ${event.intent}` : ""}`;
+		case "tool_execution_start": {
+			const intent = event.intent?.trim();
+			return intent ? `**Working on**\n${intent}` : null;
+		}
 		case "tool_execution_end":
-			return event.isError ? `⚠️ \`${event.toolName ?? "tool"}\` failed` : null;
-		case "message_end":
-			return assistantText(event.message);
+			return event.isError ? "**Needs attention**\nA work step failed. The agent will report whether it can continue." : null;
+		case "message_end": {
+			const text = assistantText(event.message);
+			return text ? `**Agent update**\n${text}` : null;
+		}
 		default:
 			return null;
 	}
@@ -1306,6 +1319,19 @@ function assistantText(message: unknown): string | null {
  */
 export function sessionTopic(snapshot: SessionSnapshot): string {
 	return `chudcode session ${snapshot.sessionId} on ${snapshot.host} · ${snapshot.project}`;
+}
+
+export function taskChannelIntro(snapshot: SessionSnapshot): string {
+	const requester = snapshot.requestedBy ? `<@${snapshot.requestedBy}>` : "A teammate";
+	const goal = snapshot.lastText?.trim() || snapshot.title?.trim() || "No goal was recorded.";
+	return `**Task controls**
+${requester} started this task.
+
+**Goal**
+${goal.slice(0, 800)}
+
+Reply normally in this channel to change direction while the task is working.
+Use \`/task status\`, \`/task transcript\`, \`/task pause\`, or \`/task stop\` for explicit controls.`;
 }
 
 const SESSION_TOPIC_PATTERN = /^chudcode session (\S+) on (\S+)(?: |$)/;

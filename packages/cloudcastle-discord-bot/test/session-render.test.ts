@@ -69,27 +69,27 @@ function fieldValue(embed: RenderedEmbed, name: string): string | undefined {
 }
 
 describe("renderSessionEmbed", () => {
-	test("carries every fact a reader needs, plus a correlating footer", () => {
+	test("shows task state and latest progress without machine-accounting noise", () => {
 		const embed = rendered(snapshot());
 
-		expect(embed.title).toBe("Restructure admin rail navigation");
-		expect(embed.description).toBe("Reading the rail component to find where the active item is computed.");
-		expect(fieldValue(embed, "Status")).toBe("running");
-		expect(fieldValue(embed, "Host")).toBe("garrison-pc");
+		expect(embed.title).toBe("Task: Restructure admin rail navigation");
+		expect(embed.description).toBe(
+			"**Latest update**\nReading the rail component to find where the active item is computed.",
+		);
+		expect(fieldValue(embed, "State")).toBe("Working");
 		expect(fieldValue(embed, "Project")).toBe("CloudCastle");
-		expect(fieldValue(embed, "Model")).toBe("anthropic/claude-opus-5");
-		expect(fieldValue(embed, "Messages")).toBe("42");
-		expect(fieldValue(embed, "Cost")).toBe("$1.2346");
-		expect(fieldValue(embed, "Tokens")).toBe("328,214 in / 4,561 out");
-		expect(fieldValue(embed, "Last tool")).toBe("`read`");
-		// Session duration from the snapshot's own timestamps, never the wall clock.
 		expect(fieldValue(embed, "Elapsed")).toBe("25m 0s");
-		expect(embed.footer.text).toBe("11111111-2222-4333-8444-555555555555 · garrison-pc");
+		expect(fieldValue(embed, "Started")).toBe("<t:1787911200:R>");
+		expect(fieldValue(embed, "Last update")).toBe("<t:1787912700:R>");
+		expect(embed.fields.map(field => field.name)).not.toContain("Model");
+		expect(embed.fields.map(field => field.name)).not.toContain("Tokens");
+		expect(embed.fields.map(field => field.name)).not.toContain("Cost");
+		expect(embed.footer.text).toBe("Task 11111111-222 · garrison-pc");
 	});
 
-	test("titles fall back to the project when the session has no title", () => {
-		expect(rendered(snapshot({ title: null })).title).toBe("CloudCastle");
-		expect(rendered(snapshot({ title: "   " })).title).toBe("CloudCastle");
+	test("titles fall back to the project when the task has no title", () => {
+		expect(rendered(snapshot({ title: null })).title).toBe("Task: CloudCastle");
+		expect(rendered(snapshot({ title: "   " })).title).toBe("Task: CloudCastle");
 	});
 
 	test("colours by status", () => {
@@ -102,13 +102,13 @@ describe("renderSessionEmbed", () => {
 		expect(rendered(snapshot({ status: "unknown" })).color).toBe(0x4f545c);
 	});
 
-	test("omits fields whose data is absent rather than printing zeroes", () => {
+	test("uses clear fallback copy when no progress summary exists", () => {
 		const embed = rendered(
 			snapshot({ model: null, costUsd: null, tokensIn: null, tokensOut: null, lastTool: null, lastText: null }),
 		);
 
-		expect(embed.fields.map(field => field.name)).toEqual(["Status", "Host", "Project", "Messages", "Elapsed"]);
-		expect(embed.description).toBeUndefined();
+		expect(embed.fields.map(field => field.name)).toEqual(["State", "Project", "Elapsed", "Started", "Last update"]);
+		expect(embed.description).toBe("**Latest update**\nThe agent is working. Progress updates will appear below.");
 	});
 
 	test("reports unknown elapsed for unusable timestamps instead of NaN", () => {
@@ -172,8 +172,8 @@ describe("renderSessionEmbed", () => {
 		);
 
 		expect(embedTotal(embed)).toBeLessThanOrEqual(6000);
-		// The status is the first fact, so it survives the trimming.
-		expect(embed.fields[0]?.name).toBe("Status");
+		// Task state is the first fact, so it survives the trimming.
+		expect(embed.fields[0]?.name).toBe("State");
 	});
 });
 
@@ -188,14 +188,14 @@ describe("embedHash", () => {
 		expect(embedHash({ a: 1, b: { c: 2, d: [3, 4] } })).toBe(embedHash({ b: { d: [3, 4], c: 2 }, a: 1 }));
 	});
 
-	test("changes for a real change and ignores keys Discord would not send", () => {
+	test("changes for task-visible progress and ignores hidden accounting details", () => {
 		const base = renderSessionEmbed(snapshot());
 
 		expect(embedHash(renderSessionEmbed(snapshot({ status: "idle" })))).not.toBe(embedHash(base));
-		expect(embedHash(renderSessionEmbed(snapshot({ messageCount: 43 })))).not.toBe(embedHash(base));
-		expect(embedHash(renderSessionEmbed(snapshot({ lastTool: "bash" })))).not.toBe(embedHash(base));
+		expect(embedHash(renderSessionEmbed(snapshot({ lastText: "Applying the final patch." })))).not.toBe(embedHash(base));
+		expect(embedHash(renderSessionEmbed(snapshot({ messageCount: 43 })))).toBe(embedHash(base));
+		expect(embedHash(renderSessionEmbed(snapshot({ lastTool: "bash" })))).toBe(embedHash(base));
 		expect(embedHash({ ...base, extra: undefined })).toBe(embedHash(base));
-		// Array order is meaningful, unlike key order.
 		expect(embedHash({ a: [1, 2] })).not.toBe(embedHash({ a: [2, 1] }));
 	});
 });
@@ -233,18 +233,18 @@ describe("renderTail", () => {
 
 		// Two short turns fit in one Discord message; boundaries stay visible.
 		expect(chunks.length).toBe(1);
-		expect(chunks[0]).toBe("**user**\nsecond prompt\n\n**assistant**\nsecond answer");
+		expect(chunks[0]).toBe("**You**\nsecond prompt\n\n**Agent**\nsecond answer");
 		expect(chunks[0]).not.toContain("first");
 	});
 
-	test("summarises a turn that only called tools, and skips non-conversation roles", async () => {
+	test("omits tool-only and non-conversation records", async () => {
 		const session = await transcript([
 			messageLine("assistant", [{ type: "toolCall", id: "c1", name: "bash", arguments: {} }]),
 			`${JSON.stringify({ type: "custom", id: "x", parentId: null, timestamp: "z", customType: "session_exit" })}\n`,
 			messageLine("toolResult", [{ type: "text", text: "output" }]),
 		]);
 
-		expect(await renderTail(session, 5)).toEqual(["**assistant**\n_calling `bash`_"]);
+		expect(await renderTail(session, 5)).toEqual([]);
 	});
 
 	test("returns nothing for an unreadable file or a non-positive limit", async () => {
@@ -279,7 +279,7 @@ describe("renderTail", () => {
 			.flatMap(chunk => chunk.split("\n"))
 			.filter(line => line.startsWith("const line"));
 		expect(emitted).toEqual(codeLines);
-		expect(chunks[0].startsWith("**assistant**\nHere is the fix:")).toBe(true);
+		expect(chunks[0].startsWith("**Agent**\nHere is the fix:")).toBe(true);
 		expect(chunks[chunks.length - 1].endsWith("Done.")).toBe(true);
 	});
 

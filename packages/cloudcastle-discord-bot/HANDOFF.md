@@ -19,14 +19,15 @@ Landed and exercised against the live guild:
 - `src/discord-rest.ts` — bot-token REST with no delete method, by construction;
 - `src/session-scan.ts` / `src/session-render.ts` — the on-disk chudcode session
   store turned into snapshots and Discord embeds;
-- `src/bus.ts`, `src/cc-agent.ts`, `src/cc-gateway.ts` — one Discord CHANNEL per
-  chudcode session, created by `/new` and named from the session title, with
-  `/session list|say|interrupt|stop|tail`. Threads were built first and rejected
-  by the team: a thread hides its content behind a click.
+- `src/bus.ts`, `src/cc-agent.ts`, `src/cc-gateway.ts` — one Discord channel per
+  Discord-started task. `/task start|list|status|steer|pause|stop|transcript`
+  is the complete slash-command surface, and an ordinary human reply inside an
+  active task channel steers it without a slash command. Local chudcode sessions
+  are deliberately excluded so developer background work cannot flood the guild.
 - `src/provision.ts` and `src/condense.ts` — drive the guild to the target layout
   and fold the archive into proposed GitHub issues.
 
-181 tests pass in this package (`bun test test`).
+185 tests pass in this package (`bun test test`).
 
 Still true, and still the governing constraint: **no guild channel, role,
 thread or message has been deleted, frozen or redirected, and Discmeet is
@@ -65,14 +66,13 @@ was cleared by a route worth recording:
 
 Current state, all of it verified against the live guild:
 
-- **The guild is provisioned and idempotent.** The first apply made 26 REST
-  calls and a follow-up 2 more; a further run plans nothing. New channels
-  `#how-we-work`, `#alerts`, `#decisions`, `#archive-notice`, `#cc-bus`; new
-  categories **live sessions** and **finished sessions**; `chudcode` → **dev
-  feed**, `task planning & delegation` → **intake**, `talk` → **team**, `WIP` →
-  **archive**; `#chat` → `#general`, `#documents` → `#docs`. Every action was a
-  create, a rename or a reparent. **Nothing was deleted.** `#how-we-work`,
-  `#archive-notice` and the task board are pinned.
+- **The guild is provisioned idempotently.** Working categories are **active
+  tasks** and **completed tasks**; the standing categories remain **dev feed**,
+  **intake**, **team**, and **archive**. `#how-we-work` is a short task-oriented
+  guide, `#sessions` names the task controls, and `#archive-notice` now states
+  accurately that the verified export contains message bodies. Every automated
+  layout action is a create, rename, reparent, topic update, or pinned-message
+  edit. `provision` still cannot plan or issue a delete.
 - **The meeting threads are flattened** into `#meeting-transcripts`: 18 bot posts
   carrying a `cc-flatten:<threadId>` marker, the original author and timestamp,
   and a link to the original `.md`/`.txt` attachment. Idempotent — a rerun plans
@@ -86,15 +86,14 @@ Current state, all of it verified against the live guild:
   Technology partners*. Each body carries Discord permalinks, authors and
   timestamps. A fourth candidate, *Test of Audio Setup*, was judged noise and
   deliberately not filed.
-- **`/new` and `/session list|say|interrupt|stop|tail` are registered** as guild
-  commands for `1542474553320542278`, so they appear with no global propagation
-  delay.
-- **Four session channels are live**, named from real chudcode session titles:
-  `#s-fix-and-sync-discord-bot` and `#s-fix-cloudcastle-admin-panel-navigation`
-  under **live sessions**, `#z-rename-mnemopi-to-mnemo` and
-  `#z-restructure-admin-rail-navigation-ui` renamed and reparented into
-  **finished sessions**. Each carries one status embed showing host, project,
-  model, message count, elapsed time, cost and last tool.
+- **`/task start|list|status|steer|pause|stop|transcript` is registered** for
+  guild `1542474553320542278`, with no global propagation delay. Starting a task
+  creates `#task-…` under **active tasks**. It gets a plain-language status card,
+  a controls message, readable progress updates, and the task conversation.
+  Human replies in that channel are forwarded as steering while work is active.
+  Completion adds a final summary marker, renames the channel `#done-…`, and
+  moves it to **completed tasks**. Status cards no longer lead with host, model,
+  token, cost, tool, message-count, or session-id accounting.
 - **Two systemd user services are installed, enabled and running**:
   `cc-agent.service` and `cc-gateway.service`, unit files under
   `~/.config/systemd/user/`. `loginctl enable-linger hunter` is set so they
@@ -102,10 +101,10 @@ Current state, all of it verified against the live guild:
   `cc-gateway` holds the single gateway websocket for the whole team. A clean
   `cc-agent` stop reports `ExecMainStatus=0` / `Result=success`. Environment:
   `CC_BUS_CHANNEL_ID=1543124326205751418`, and `CC_AGENT_PROJECT_ROOTS`, a
-  colon-separated realpath-checked allowlist of directories a Discord `/new` may
-  start a session in — a security boundary, since without it `/new` is arbitrary
-  code execution from a chat surface. `docs/tracking/RUNBOOK.md` §5 in the
-  CloudCastle repository is the operator view.
+  colon-separated realpath-checked allowlist of directories a Discord
+  `/task start` may use — a security boundary, since without it the task command
+  is arbitrary code execution from a chat surface. `docs/tracking/RUNBOOK.md`
+  §5 in the CloudCastle repository is the operator view.
 - **The archive is re-exported and complete**: 15 scopes, 67 messages, 0
   unresolved, **with message bodies**, under
   `docs/meeting, 8-27/discord-server-export/` in the CloudCastle repository. The

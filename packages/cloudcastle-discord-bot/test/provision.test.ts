@@ -367,8 +367,8 @@ describe("channels.ts contract", () => {
 			expect(body.length).toBeGreaterThan(200);
 		}
 		expect(SEED_CONTENT["archiveNotice"]).toContain("docs/meeting, 8-27/discord-server-export/");
-		expect(SEED_CONTENT["archiveNotice"]).toContain("Nothing was deleted");
-		expect(SEED_CONTENT["archiveNotice"]).toContain("MESSAGE_CONTENT");
+		expect(SEED_CONTENT["archiveNotice"]).toContain("including message bodies");
+		expect(SEED_CONTENT["archiveNotice"]).toContain("No archive claim authorises deleting");
 	});
 });
 

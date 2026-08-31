@@ -19,14 +19,17 @@ import {
 	chunkLines,
 	describeEvent,
 	MAX_HEARTBEAT_SESSIONS,
+	MAX_TASK_TITLE_CHARS,
 	MemoryStateStore,
-	MIRROR_MAX_AGE_MS,
 	missingChannelPermissionMessage,
 	projectRootsFromEnv,
 	type RpcAgentEvent,
 	type RpcSessionHandle,
 	type RpcSessionOptions,
 	type RpcSessionState,
+	sessionTitleFromPrompt,
+	taskChannelIntro,
+	TranscriptBuffer,
 } from "../src/cc-agent";
 import { CATEGORY_IDS, CREATED_CATEGORY_NAMES, REQUIRED_PERMISSIONS } from "../src/channels";
 import {
@@ -275,9 +278,9 @@ function snapshot(overrides: Partial<SessionSnapshot> = {}): SessionSnapshot {
 		tokensOut: 500,
 		lastTool: "edit",
 		lastText: "patching cc-agent",
-		originCommandId: null,
-		requestedBy: null,
-		channelId: null,
+		originCommandId: "cmd-origin",
+		requestedBy: REQUESTER,
+		channelId: "1570000000000000001",
 		...overrides,
 	};
 }
@@ -417,7 +420,7 @@ describe("heartbeat", () => {
 });
 
 describe("session channels", () => {
-	it("creates one channel and one status message per session, then edits forever across a restart", async () => {
+	it("creates one task channel with status and instructions, then edits the status forever", async () => {
 		const store = new MemoryStateStore();
 		const rest = new FakeRest();
 		const first = rig({ store, rest, snapshots: [snapshot()] });
@@ -425,20 +428,20 @@ describe("session channels", () => {
 		await first.agent.tick();
 		expect(rest.sessionChannels()).toHaveLength(1);
 		const channelId = rest.sessionChannels()[0]?.id ?? "";
-		expect(rest.messagesIn(channelId)).toHaveLength(1);
+		expect(rest.messagesIn(channelId)).toHaveLength(2);
 		expect(rest.edits).toHaveLength(0);
 		const statusMessageId = rest.messagesIn(channelId)[0]?.id;
 
 		// Unchanged snapshot: no API call at all.
 		await first.agent.tick();
 		expect(rest.sessionChannels()).toHaveLength(1);
-		expect(rest.messagesIn(channelId)).toHaveLength(1);
+		expect(rest.messagesIn(channelId)).toHaveLength(2);
 		expect(rest.edits).toHaveLength(0);
 
 		// Changed snapshot: the same status message is edited in place.
 		first.snapshots[0] = snapshot({ messageCount: 20 });
 		await first.agent.tick();
-		expect(rest.messagesIn(channelId)).toHaveLength(1);
+		expect(rest.messagesIn(channelId)).toHaveLength(2);
 		expect(rest.edits).toHaveLength(1);
 		expect(rest.edits[0]?.messageId).toBe(statusMessageId);
 
@@ -447,7 +450,7 @@ describe("session channels", () => {
 		const restarted = rig({ store, rest, snapshots: [snapshot({ messageCount: 21 })] });
 		await restarted.agent.tick();
 		expect(rest.sessionChannels()).toHaveLength(1);
-		expect(rest.messagesIn(channelId)).toHaveLength(1);
+		expect(rest.messagesIn(channelId)).toHaveLength(2);
 		expect(rest.edits).toHaveLength(2);
 		expect(rest.edits[1]?.messageId).toBe(statusMessageId);
 	});
@@ -456,7 +459,7 @@ describe("session channels", () => {
 		const { agent, rest, snapshots } = rig();
 		snapshots.push(snapshot({ title: "Fix the Windows installer DOA!! (urgent)" }));
 		await agent.tick();
-		expect(rest.created[0]?.options.name).toBe("s-fix-the-windows-installer-doa-urgent");
+		expect(rest.created[0]?.options.name).toBe("task-fix-the-windows-installer-doa-urgent");
 		expect(rest.created[0]?.options.parentId).toBe(LIVE_CATEGORY);
 		expect(rest.created[0]?.guildId).toBe(GUILD);
 	});
@@ -521,7 +524,7 @@ describe("session channels", () => {
 		await recovered.agent.tick();
 
 		expect(rest.sessionChannels()).toHaveLength(1);
-		expect(rest.messagesIn(channelId ?? "")).toHaveLength(1);
+		expect(rest.messagesIn(channelId ?? "")).toHaveLength(2);
 		expect(rest.edits.map(edit => edit.messageId)).toEqual([statusMessageId]);
 		expect(recovered.logs.join("\n")).toContain("recovered 1 session channel");
 	});
@@ -549,13 +552,13 @@ describe("channel renaming", () => {
 		// not count, which is why the ten-minute cap test below still holds.
 		const rigged = rig({ snapshots: [snapshot({ title: "first guess" })] });
 		await rigged.agent.tick();
-		expect(rigged.rest.created[0]?.options.name).toBe("s-first-guess");
+		expect(rigged.rest.created[0]?.options.name).toBe("task-first-guess");
 		expect(rigged.rest.modified).toHaveLength(0);
 
 		rigged.clock.value = new Date(NOW.getTime() + 30_000);
 		rigged.snapshots[0] = snapshot({ title: "second guess" });
 		await rigged.agent.tick();
-		expect(rigged.rest.modified.map(call => call.options.name)).toEqual(["s-second-guess"]);
+		expect(rigged.rest.modified.map(call => call.options.name)).toEqual(["task-second-guess"]);
 
 		// Now the window is armed, so a further retitle inside it is collapsed.
 		rigged.clock.value = new Date(NOW.getTime() + 60_000);
@@ -569,8 +572,8 @@ describe("channel renaming", () => {
 		rigged.clock.value = new Date(NOW.getTime() + 30_000 + CHANNEL_RENAME_MIN_INTERVAL_MS + 1_000);
 		await rigged.agent.tick();
 		expect(rigged.rest.modified.map(call => call.options.name)).toEqual([
-			"s-second-guess",
-			"s-third-and-best-guess",
+			"task-second-guess",
+			"task-third-and-best-guess",
 		]);
 	});
 
@@ -609,7 +612,7 @@ describe("channel renaming", () => {
 		await rigged.agent.tick();
 
 		expect(rigged.rest.modified).toHaveLength(1);
-		expect(rigged.rest.modified[0]?.options.name).toBe("z-ship-it");
+		expect(rigged.rest.modified[0]?.options.name).toBe("done-ship-it");
 		expect(rigged.rest.modified[0]?.options.parentId).toBe(DONE_CATEGORY);
 
 		// A late title change on a finished session must not spend a rename.
@@ -642,124 +645,82 @@ describe("channel renaming", () => {
  * historical session is noise and it spends the channel-create rate limit before
  * reaching anything anyone is actually watching.
  */
-describe("which sessions earn a channel", () => {
-	const longAgo = new Date(NOW.getTime() - MIRROR_MAX_AGE_MS - 60_000).toISOString();
-	const recently = new Date(NOW.getTime() - 60_000).toISOString();
-
-	it("skips a session that finished long ago", async () => {
-		const rigged = rig({ snapshots: [snapshot({ status: "complete", updatedAt: longAgo })] });
-		await rigged.agent.tick();
-		expect(rigged.rest.sessionChannels()).toHaveLength(0);
-	});
-
-	it("still mirrors one that finished recently", async () => {
-		const rigged = rig({ snapshots: [snapshot({ status: "complete", updatedAt: recently })] });
-		await rigged.agent.tick();
-		expect(rigged.rest.sessionChannels()).toHaveLength(1);
-	});
-
-	it("mirrors a live session however old its last write", async () => {
-		const rigged = rig({ snapshots: [snapshot({ status: "running", updatedAt: longAgo })] });
-		await rigged.agent.tick();
-		expect(rigged.rest.sessionChannels()).toHaveLength(1);
-	});
-
-	it("skips a session that has sat idle for days", async () => {
-		// The correction the live run forced. `idle` means "open, waiting on a
-		// human", which every abandoned session on the machine satisfies forever;
-		// 22 of the first 25 were exactly this. Age, not status, separates them.
-		const rigged = rig({ snapshots: [snapshot({ status: "idle", updatedAt: longAgo })] });
-		await rigged.agent.tick();
-		expect(rigged.rest.sessionChannels()).toHaveLength(0);
-	});
-
-	it("mirrors one that went idle a minute ago", async () => {
-		const rigged = rig({ snapshots: [snapshot({ status: "idle", updatedAt: recently })] });
-		await rigged.agent.tick();
-		expect(rigged.rest.sessionChannels()).toHaveLength(1);
-	});
-
-	it("skips an untitled session even while it is running", async () => {
-		// Thirteen of the first twenty-five were exactly this: status unknown, no
-		// title, never took a turn. Naming a channel after a uuid is worse than
-		// having no channel.
+describe("which sessions earn a task channel", () => {
+	it("never mirrors an ordinary local chudcode session", async () => {
 		const rigged = rig({
-			snapshots: [snapshot({ title: null, status: "running", updatedAt: recently })],
+			snapshots: [
+				snapshot({
+					originCommandId: null,
+					requestedBy: null,
+					channelId: null,
+					status: "running",
+				}),
+			],
 		});
 		await rigged.agent.tick();
 		expect(rigged.rest.sessionChannels()).toHaveLength(0);
+		const heartbeat = rigged.rest.busRecords().find(record => record.kind === "agent.heartbeat");
+		expect(heartbeat?.kind === "agent.heartbeat" ? heartbeat.sessions : []).toEqual([]);
 	});
 
-	it("mirrors it as soon as chudcode gives it a title", async () => {
-		const rigged = rig({ snapshots: [snapshot({ title: null, status: "running" })] });
+	it("mirrors a Discord-started task regardless of its current status", async () => {
+		const rigged = rig({ snapshots: [snapshot({ status: "complete" })] });
 		await rigged.agent.tick();
-		expect(rigged.rest.sessionChannels()).toHaveLength(0);
-
-		rigged.snapshots[0] = snapshot({ title: "ship the bridge", status: "running" });
-		await rigged.agent.tick();
-		const created = rigged.rest.sessionChannels();
-		expect(created).toHaveLength(1);
-		expect(created[0]?.name).toBe("s-ship-the-bridge");
+		expect(rigged.rest.sessionChannels()).toHaveLength(1);
 	});
 
-	it("treats whitespace as no title", async () => {
-		const rigged = rig({ snapshots: [snapshot({ title: "   ", status: "running" })] });
-		await rigged.agent.tick();
-		expect(rigged.rest.sessionChannels()).toHaveLength(0);
-	});
-
-	it("keeps mirroring a session it already owns a channel for", async () => {
-		// Ageing out of a channel mid-run would freeze its status embed on a stale
-		// value, which reads as "still running" forever.
-		const live = snapshot({ status: "running", updatedAt: recently });
-		const rigged = rig({ snapshots: [live] });
+	it("keeps mirroring after the JSONL scan loses the in-memory origin marker", async () => {
+		const rigged = rig({ snapshots: [snapshot({ status: "running" })] });
 		await rigged.agent.tick();
 		expect(rigged.rest.sessionChannels()).toHaveLength(1);
 
-		rigged.snapshots[0] = snapshot({ status: "complete", updatedAt: longAgo });
+		rigged.snapshots[0] = snapshot({
+			originCommandId: null,
+			requestedBy: null,
+			channelId: null,
+			status: "complete",
+		});
 		rigged.rest.modified.length = 0;
 		await rigged.agent.tick();
 		expect(rigged.rest.sessionChannels()).toHaveLength(1);
 		expect(rigged.rest.modified.length).toBeGreaterThan(0);
 	});
 
-	it("heartbeats every session, including ones it gives no channel", async () => {
-		// The mirror is bounded; /session list is not. A teammate must still be
-		// able to see that a finished session exists.
+	it("heartbeats only Discord task channels, not unrelated local sessions", async () => {
 		const rigged = rig({
 			snapshots: [
-				snapshot({ sessionId: "old", status: "complete", updatedAt: longAgo }),
-				snapshot({ sessionId: "new", status: "running", updatedAt: recently }),
+				snapshot({ sessionId: "local", originCommandId: null, requestedBy: null, channelId: null }),
+				snapshot({ sessionId: "task" }),
 			],
 		});
-		const seen = await rigged.agent.tick();
-		expect(seen).toHaveLength(2);
-		expect(rigged.rest.sessionChannels()).toHaveLength(1);
+		await rigged.agent.tick();
+		const heartbeat = rigged.rest.busRecords().find(record => record.kind === "agent.heartbeat");
+		expect(heartbeat?.kind === "agent.heartbeat" ? heartbeat.sessions.map(item => item.sessionId) : []).toEqual(["task"]);
 	});
 });
 
 describe("the channel-name sanitiser", () => {
 	it("produces predictable, Discord-stable names", () => {
 		expect(sessionChannelName("Fix the Windows installer DOA!! (urgent)", "x")).toBe(
-			"s-fix-the-windows-installer-doa-urgent",
+			"task-fix-the-windows-installer-doa-urgent",
 		);
-		expect(sessionChannelName("🚀 ship it — now", "x")).toBe("s-ship-it-now");
-		expect(sessionChannelName("MiXeD CaSe", "x")).toBe("s-mixed-case");
+		expect(sessionChannelName("🚀 ship it — now", "x")).toBe("task-ship-it-now");
+		expect(sessionChannelName("MiXeD CaSe", "x")).toBe("task-mixed-case");
 	});
 
 	it("falls back to the session id when there is no usable title", () => {
-		expect(sessionChannelName(null, "1f9d2a6b9c0d4e5f")).toBe("s-1f9d2a6b9c0d");
-		expect(sessionChannelName("", "1f9d2a6b9c0d4e5f")).toBe("s-1f9d2a6b9c0d");
-		expect(sessionChannelName("   ", "1f9d2a6b9c0d4e5f")).toBe("s-1f9d2a6b9c0d");
-		expect(sessionChannelName("!!! ??? ***", "1f9d2a6b9c0d4e5f")).toBe("s-1f9d2a6b9c0d");
-		expect(sessionChannelName("日本語だけ", "1f9d2a6b9c0d4e5f")).toBe("s-1f9d2a6b9c0d");
+		expect(sessionChannelName(null, "1f9d2a6b9c0d4e5f")).toBe("task-1f9d2a6b9c0d");
+		expect(sessionChannelName("", "1f9d2a6b9c0d4e5f")).toBe("task-1f9d2a6b9c0d");
+		expect(sessionChannelName("   ", "1f9d2a6b9c0d4e5f")).toBe("task-1f9d2a6b9c0d");
+		expect(sessionChannelName("!!! ??? ***", "1f9d2a6b9c0d4e5f")).toBe("task-1f9d2a6b9c0d");
+		expect(sessionChannelName("日本語だけ", "1f9d2a6b9c0d4e5f")).toBe("task-1f9d2a6b9c0d");
 	});
 
 	it("fits inside Discord's channel-name ceiling and never ends on a separator", () => {
 		const long = sessionChannelName("word ".repeat(60), "x");
-		expect(long.length).toBe(MAX_CHANNEL_NAME_CHARS);
+		expect(long.length).toBeLessThanOrEqual(MAX_CHANNEL_NAME_CHARS);
 		expect(long.endsWith("-")).toBe(false);
-		expect(long.startsWith("s-")).toBe(true);
+		expect(long.startsWith("task-")).toBe(true);
 	});
 
 	it("is stable and Discord-safe, so the same title never provokes a second rename", () => {
@@ -855,7 +816,7 @@ describe("/new authorisation", () => {
 		await bus.publish(command({ id: "cmd-ok", cwd: inside, prompt: "refactor the bus" }));
 		await agent.pollCommands();
 		expect(StubRpc.created[0]?.sessionNames).toEqual(["refactor the bus"]);
-		expect(rest.sessionChannels()[0]?.name).toBe("s-refactor-the-bus");
+		expect(rest.sessionChannels()[0]?.name).toBe("task-refactor-the-bus");
 
 		expect(StubRpc.created).toHaveLength(1);
 		expect(StubRpc.created[0]?.options.cwd).toBe(inside);
@@ -876,7 +837,7 @@ describe("/new authorisation", () => {
 		StubRpc.created[0]?.emitTitle("Refactor the Discord bus transport");
 		await agent.drain();
 
-		expect(rest.modified.map(call => call.options.name)).toContain("s-refactor-the-discord-bus-transport");
+		expect(rest.modified.map(call => call.options.name)).toContain("task-refactor-the-discord-bus-transport");
 	});
 
 	it("refuses a cwd outside every allowlisted root", async () => {
@@ -1005,7 +966,7 @@ describe("steering a running session", () => {
 		await agent.pollCommands();
 		const [result] = rest.results();
 		expect(result?.outcome).toBe("rejected");
-		expect(result?.detail).toContain("does not own the process");
+		expect(result?.detail).toContain("no longer running");
 	});
 
 	it("interrupts without ending the session, and stop ends it", async () => {
@@ -1085,21 +1046,52 @@ describe("tail", () => {
 		await bus.ready();
 		await bus.publish(command({ id: "cmd-tail-miss", name: "tail", sessionId: "ghost", lines: 3 }));
 		await agent.pollCommands();
-		expect(rest.results()[0]?.detail).toContain("no session ghost");
+		expect(rest.results()[0]?.detail).toContain("no longer available");
 	});
 });
 
 describe("pure helpers", () => {
 	it("renders only the events a human would care about", () => {
 		expect(describeEvent({ type: "tool_execution_start", toolName: "bash", intent: "Running tests" })).toBe(
-			"`bash` — Running tests",
+			"**Working on**\nRunning tests",
 		);
-		expect(describeEvent({ type: "tool_execution_end", toolName: "bash", isError: true })).toContain("failed");
+		expect(describeEvent({ type: "tool_execution_end", toolName: "bash", isError: true })).toContain("Needs attention");
 		expect(describeEvent({ type: "tool_execution_end", toolName: "bash" })).toBeNull();
 		expect(
 			describeEvent({ type: "message_end", message: { role: "user", content: [{ type: "text", text: "hi" }] } }),
 		).toBeNull();
 		expect(describeEvent({ type: "turn_end" })).toBeNull();
+	});
+
+	it("creates short readable task titles and channel instructions", () => {
+		const title = sessionTitleFromPrompt("# Fix the Discord bridge interaction because the current channel names are impossible to scan quickly");
+		expect(title.startsWith("Fix the Discord bridge")).toBe(true);
+		expect([...title].length).toBeLessThanOrEqual(MAX_TASK_TITLE_CHARS);
+		const intro = taskChannelIntro(snapshot({ title, lastText: "Make task progress easy to follow." }));
+		expect(intro).toContain("Reply normally in this channel");
+		expect(intro).toContain("/task transcript");
+		expect(intro).not.toContain("sessionId");
+	});
+
+	it("retries a failed transcript flush instead of losing the update", async () => {
+		let attempts = 0;
+		const posted: string[] = [];
+		const errors: unknown[] = [];
+		const buffer = new TranscriptBuffer(
+			async text => {
+				attempts += 1;
+				if (attempts === 1) throw new Error("Discord unavailable");
+				posted.push(text);
+			},
+			60_000,
+			error => errors.push(error),
+		);
+		buffer.push("Readable progress");
+		await buffer.drain();
+		expect(posted).toEqual([]);
+		expect(errors).toHaveLength(1);
+		await buffer.drain();
+		expect(posted).toEqual(["Readable progress"]);
 	});
 
 	it("packs lines up to the limit and splits a line that is too long on its own", () => {

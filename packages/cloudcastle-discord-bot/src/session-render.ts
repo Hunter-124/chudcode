@@ -54,53 +54,69 @@ interface EmbedField {
 	inline: boolean;
 }
 
-export function renderSessionEmbed(snapshot: SessionSnapshot): Record<string, unknown> {
-	const title = truncate(snapshot.title?.trim() || snapshot.project || snapshot.sessionId, TITLE_LIMIT);
-	// Stable across the session's whole life so a human can tie any embed back to
-	// a file on a machine, even after the title changes.
-	const footer = truncate(`${snapshot.sessionId} · ${snapshot.host}`, FOOTER_LIMIT);
-
-	const facts: [string, string][] = [
-		["Status", snapshot.status],
-		["Host", snapshot.host],
-		["Project", snapshot.project],
-	];
-	if (snapshot.model) facts.push(["Model", snapshot.model]);
-	facts.push(["Messages", String(snapshot.messageCount)], ["Elapsed", formatElapsed(snapshot)]);
-	if (snapshot.costUsd !== null) facts.push(["Cost", `$${snapshot.costUsd.toFixed(4)}`]);
-	if (snapshot.tokensIn !== null || snapshot.tokensOut !== null) {
-		const tokensIn = (snapshot.tokensIn ?? 0).toLocaleString("en-US");
-		const tokensOut = (snapshot.tokensOut ?? 0).toLocaleString("en-US");
-		facts.push(["Tokens", `${tokensIn} in / ${tokensOut} out`]);
+export function taskStatusLabel(status: SessionStatus): string {
+	switch (status) {
+		case "running":
+			return "Working";
+		case "idle":
+			return "Waiting for direction";
+		case "complete":
+			return "Finished";
+		case "interrupted":
+			return "Paused";
+		case "aborted":
+			return "Stopped";
+		case "error":
+			return "Needs attention";
+		default:
+			return "Status unavailable";
 	}
-	if (snapshot.lastTool) facts.push(["Last tool", `\`${snapshot.lastTool}\``]);
+}
+
+export function renderSessionEmbed(snapshot: SessionSnapshot): Record<string, unknown> {
+	const taskTitle = snapshot.title?.trim() || snapshot.project || "Untitled task";
+	const title = truncate(`Task: ${taskTitle}`, TITLE_LIMIT);
+	const footer = truncate(`Task ${snapshot.sessionId.slice(0, 12)} · ${snapshot.host}`, FOOTER_LIMIT);
+	const facts: [string, string][] = [
+		["State", taskStatusLabel(snapshot.status)],
+		["Project", snapshot.project],
+		["Elapsed", formatElapsed(snapshot)],
+	];
+	const started = discordTimestamp(snapshot.startedAt);
+	const updated = discordTimestamp(snapshot.updatedAt);
+	if (started) facts.push(["Started", started]);
+	if (updated) facts.push(["Last update", updated]);
+	if (snapshot.requestedBy) facts.push(["Started by", `<@${snapshot.requestedBy}>`]);
 
 	const fields: EmbedField[] = facts.slice(0, FIELD_COUNT_LIMIT).map(([name, value]) => ({
 		name: truncate(name, FIELD_NAME_LIMIT),
-		// Discord rejects an empty field value outright.
 		value: truncate(value, FIELD_VALUE_LIMIT) || "—",
 		inline: true,
 	}));
 
 	let used = title.length + footer.length;
 	for (const field of fields) used += field.name.length + field.value.length;
-	// The structured facts outrank the free-text tail, so trailing facts are only
-	// dropped when the facts alone bust the ceiling.
 	while (used > TOTAL_LIMIT) {
 		const dropped = fields.pop();
 		if (!dropped) break;
 		used -= dropped.name.length + dropped.value.length;
 	}
-	const description = truncate(snapshot.lastText ?? "", Math.min(DESCRIPTION_LIMIT, TOTAL_LIMIT - used));
+	const fallback =
+		snapshot.status === "complete"
+			? "The task finished."
+			: snapshot.status === "running"
+				? "The agent is working. Progress updates will appear below."
+				: "No progress summary is available yet.";
+	const summary = snapshot.lastText?.trim() || fallback;
+	const description = truncate(`**Latest update**\n${summary}`, Math.min(DESCRIPTION_LIMIT, TOTAL_LIMIT - used));
 
-	const embed: Record<string, unknown> = {
+	return {
 		title,
+		description,
 		color: STATUS_COLORS[snapshot.status] ?? STATUS_COLORS.unknown,
 		fields,
 		footer: { text: footer },
 	};
-	if (description) embed.description = description;
-	return embed;
 }
 
 export function embedHash(embed: Record<string, unknown>): string {
@@ -131,8 +147,7 @@ export async function renderTail(snapshot: SessionSnapshot, limit: number): Prom
 	for (const turn of turns.slice(-limit)) {
 		const chunks = splitFenceAware(turn, MAX_MESSAGE_CHARS);
 		// A turn small enough to stand alone may share a message with the previous
-		// turn. A turn that had to be split owns its messages outright: merging a
-		// piece carrying a reopened fence with unrelated prose would nest fences.
+		// turn. A split turn owns its messages so reopened code fences stay valid.
 		if (chunks.length === 1 && current && current.length + 2 + chunks[0].length <= MAX_MESSAGE_CHARS) {
 			current += `\n\n${chunks[0]}`;
 			continue;
@@ -147,21 +162,17 @@ export async function renderTail(snapshot: SessionSnapshot, limit: number): Prom
 
 function renderTurn(role: string, message: Record<string, unknown>): string {
 	const texts: string[] = [];
-	const tools: string[] = [];
 	if (typeof message.content === "string") {
 		texts.push(message.content);
 	} else if (Array.isArray(message.content)) {
 		for (const block of message.content) {
 			if (!isUnknownRecord(block)) continue;
 			if (block.type === "text" && typeof block.text === "string") texts.push(block.text);
-			else if (block.type === "toolCall" && typeof block.name === "string") tools.push(block.name);
 		}
 	}
-
-	const body =
-		texts.join("\n\n").trim() ||
-		(tools.length > 0 ? `_calling ${tools.map(tool => `\`${tool}\``).join(", ")}_` : "");
-	return body ? `**${role}**\n${body}` : "";
+	const body = texts.join("\n\n").trim();
+	if (!body) return "";
+	return role === "user" ? `**You**\n${body}` : `**Agent**\n${body}`;
 }
 
 /**
@@ -201,6 +212,7 @@ function splitFenceAware(text: string, limit: number): string[] {
 		body = body === null ? line : `${body}\n${line}`;
 
 		const fence = FENCE_PATTERN.exec(line);
+
 		if (!fence) continue;
 		if (marker === null) {
 			marker = fence[1];
@@ -222,6 +234,12 @@ function splitFenceAware(text: string, limit: number): string[] {
  * "time since last update": that would move on every scan and defeat
  * {@link embedHash}.
  */
+function discordTimestamp(value: string): string | null {
+	const millis = Date.parse(value);
+	if (!Number.isFinite(millis)) return null;
+	return `<t:${Math.floor(millis / 1000)}:R>`;
+}
+
 function formatElapsed(snapshot: SessionSnapshot): string {
 	const started = Date.parse(snapshot.startedAt);
 	const updated = Date.parse(snapshot.updatedAt);

@@ -75,8 +75,8 @@ export type CreatedCategoryKey = (typeof CATEGORIES_TO_CREATE)[number];
 export type StandingCategoryKey = Exclude<CategoryKey, CreatedCategoryKey>;
 
 export const CREATED_CATEGORY_NAMES: Readonly<Record<CreatedCategoryKey, string>> = {
-	liveSessions: "live sessions",
-	doneSessions: "finished sessions",
+	liveSessions: "active tasks",
+	doneSessions: "completed tasks",
 };
 
 /**
@@ -175,7 +175,7 @@ export const TARGET_LAYOUT: readonly ChannelPlan[] = [
 		category: "devFeed",
 		role: "feed",
 		type: "text",
-		topic: "Live chudcode sessions across the team. One message per session, edited as it runs; thread carries the detail.",
+		topic: "Task bridge status and help. Use /task start, /task list, or open an active task channel and reply there.",
 		position: 2,
 	},
 	{

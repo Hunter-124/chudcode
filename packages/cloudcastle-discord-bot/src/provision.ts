@@ -292,53 +292,44 @@ const ACTION_METHODS = {
  * channel key, so a layout without those keys simply has no seed work.
  */
 export const SEED_CONTENT: Readonly<Record<string, string>> = {
-	howWeWork: `**How this team works**
+	howWeWork: `**CloudCastle Discord, in plain English**
 
-Everything trackable lives in GitHub issues on \`Hunter-124/CloudCastle\`. Discord is where we talk about the work and where the bot reports it. Discord is not the system of record.
+**Start and run a task**
+1. Use \`/task start\` and describe the result you want.
+2. The bot creates one channel under **active tasks**.
+3. Open that channel to watch readable progress updates.
+4. Reply normally in the task channel to change direction while it is working. No slash command is required.
+5. Use \`/task status\`, \`/task transcript\`, \`/task pause\`, or \`/task stop\` when you need an explicit control.
 
-**Where things go**
-- \`#que\` - task requests. Post it, then react :white_check_mark: to file it as an issue.
-- \`#problems\` - something is broken. Same :white_check_mark: to file it.
-- \`#git\` - every push, PR, and CI run, reported automatically.
-- \`#priority-task-list\` - the live board. One message, edited in place, p0 to p3.
-- \`#updates\` - daily digest of who did what and what went stale.
-- \`#alerts\` - CI failures and production alerts that need someone now.
-- \`#decisions\` - settled decisions, mirrored from \`docs/DECISIONS.md\`.
-- \`#general\` - talk. Not tracked, not projected anywhere.
-- \`#not-for-analysis\` - excluded from archival analysis and from any AI projection.
+When the task finishes, its channel moves to **completed tasks**. \`/task list\` shows the active work without exposing machine or session internals.
 
-Live chudcode sessions get their own channel under the sessions category while they run, and move to the session archive when they finish. Meeting content is posted straight into its channel; nothing important is buried in a thread.
+**Where everything else goes**
+- \`#general\`: team conversation.
+- \`#que\`: requests that should become GitHub issues, not live agent tasks.
+- \`#problems\`: defects that should become GitHub issues.
+- \`#git\`: pushes, pull requests, and CI results.
+- \`#priority-task-list\`: the current GitHub work board.
+- \`#alerts\`: failures that need attention.
+- \`#decisions\`: settled product and business decisions.
+- \`#docs\` and \`#meeting-transcripts\`: durable references.
+- \`#not-for-analysis\`: content excluded from archival analysis and AI projection.
 
-**How work gets tracked**
-1. Say it in \`#que\` or \`#problems\`.
-2. A human reacts :white_check_mark:. Nothing is filed without that.
-3. The bot opens the issue with \`prio:*\` and \`area:*\` labels and links back to your message.
-4. Progress shows up in \`#git\` and on the board. Nobody should have to ask what you pushed.
+GitHub issues remain the system of record for planned work. Discord task channels are the live control room for work happening now.`,
 
-**Rules that matter**
-- Priority is \`prio:p0\` through \`prio:p3\`. p0 means drop everything.
-- The bot never deletes a channel, a thread, or a message. Reorganisation only renames and reparents.
-- Anything you do not want read by tooling goes in \`#not-for-analysis\`.`,
+	archiveNotice: `**Server archive**
 
-	archiveNotice: `**The pre-reorganisation server archive**
+The server was exported before reorganisation. The archive contains every readable channel, message, thread, reaction, and attachment from that snapshot, including message bodies.
 
-Nothing was deleted to build this layout. Every message, thread, reaction, and attachment that existed before the reorganisation was exported first and committed to git. Channels were renamed and reparented, never removed. Thread content was copied into its parent channel, and the threads themselves were left in place.
+**Location**
+\`docs/meeting, 8-27/discord-server-export/\` in \`Hunter-124/CloudCastle\`.
 
-**Where it lives**
-\`docs/meeting, 8-27/discord-server-export/\` in the \`Hunter-124/CloudCastle\` repository.
+**Start with**
+- \`INDEX.md\`: human-readable scope and message index.
+- \`manifest.json\`: message ids, scope ids, and file hashes.
+- \`<scope>-<id>.md\`: readable transcript.
+- \`<scope>-<id>.jsonl\`: source records.
 
-**How to read it**
-- \`INDEX.md\` - start here: every scope, its message count, and the file holding it.
-- \`manifest.json\` - machine-readable index: scope ids, message ids, per-file SHA-256.
-- \`<scope>-<id>.jsonl\` - one JSON object per message, oldest first, as the API returned it.
-- \`<scope>-<id>.md\` - the same messages rendered for people.
-
-**What is in it, and one thing that is not**
-- Included: every readable scope, including the three \`#meeting-transcripts\` threads.
-- Excluded from analysis: \`#not-for-analysis\`, deliberately and permanently.
-- Message bodies in that export are empty. The MESSAGE_CONTENT privileged intent was off when it ran, so Discord returned \`""\` for every body. Scope ids, message ids, authors, timestamps, and hashes are correct; the bodies are not there. Enabling the intent and re-running the exporter is the fix.
-
-If you cannot find something from the old server, it is in the export.`,
+\`#not-for-analysis\` remains intentionally excluded from analysis. No archive claim authorises deleting live Discord content; cleanup targets are reviewed separately.`,
 };
 
 /**
