@@ -44,6 +44,7 @@ import { isRpcHostUriResult, RpcHostUriBridge } from "./host-uris";
 import { MAX_RPC_FRAME_BYTES, MAX_RPC_REASSEMBLED_BYTES, RpcFrameEncoder } from "./rpc-frame";
 import { claimRpcInput, readRpcInputFrames } from "./rpc-input";
 import { pageRpcMessages, RPC_MESSAGES_PAGE_BUSY_ERROR, RpcMessagesPageError } from "./rpc-messages";
+import { RpcSttService } from "./rpc-stt";
 import { RpcSubagentRegistry, readRpcSubagentTranscript } from "./rpc-subagents";
 import type {
 	RpcAuthAccountState,
@@ -536,20 +537,31 @@ export function dispatchRpcControlFrame(parsed: unknown, deps: RpcInputFrameDeps
 	return false;
 }
 
+/** Commands that must not block cancellation/status frames behind serialized work. */
+export function isRpcBackgroundCommand(command: RpcCommand): boolean {
+	return (
+		command.type === "bash" ||
+		command.type === "stt_status" ||
+		command.type === "stt_start" ||
+		command.type === "stt_stop" ||
+		command.type === "stt_cancel"
+	);
+}
+
 /**
  * Dispatch a single parsed frame from the RPC input stream.
  *
- * Bash commands are dispatched in the background so the caller can keep reading
- * subsequent frames while a shell command is still running. This lets a client
- * send `abort_bash` while a long-running `bash` is in flight. Response
- * correlation is preserved via each command's `id`; ordering across concurrent
- * commands is not guaranteed and clients MUST match on `id`.
+ * Long-running commands are dispatched in the background so the caller keeps
+ * reading cancellation and status frames. `bash` can be overtaken by
+ * `abort_bash`; speech setup/transcription can be overtaken by `stt_cancel` and
+ * observed with `stt_status`. Response correlation is preserved via each
+ * command's `id`; ordering across concurrent commands is not guaranteed and
+ * clients MUST match on `id`.
  *
- * @returns `undefined` when the frame was routed to a side-channel handler
- *   (extension UI response, host tool/URI frames) or dispatched in the
- *   background (`bash`). Otherwise a promise that resolves once the response
- *   for the command has been emitted via `output`. Errors from `handleCommand`
- *   on non-`bash` commands propagate; the caller is expected to wrap them.
+ * @returns `undefined` when the frame was routed to a side-channel handler or
+ * dispatched in the background. Otherwise a promise that resolves after the
+ * command response is emitted. Background errors are converted to responses;
+ * serial-command errors propagate to the caller.
  */
 export function dispatchRpcInputFrame(parsed: unknown, deps: RpcInputFrameDeps): Promise<void> | undefined {
 	if (dispatchRpcControlFrame(parsed, deps)) return undefined;
@@ -559,17 +571,15 @@ export function dispatchRpcInputFrame(parsed: unknown, deps: RpcInputFrameDeps):
 	// the union here.
 	const command = parsed as RpcCommand;
 
-	// `bash` can run for a long time. Dispatch it in the background so a
-	// subsequent `abort_bash` frame can be read and handled without waiting
-	// for the shell command to finish on its own. The response is emitted
-	// when `handleCommand` resolves; clients correlate via `command.id`.
-	if (command.type === "bash") {
+	// Long-running operations are dispatched in the background so cancellation
+	// and status commands keep flowing. Responses retain command correlation by id.
+	if (isRpcBackgroundCommand(command)) {
 		const task = (async () => {
 			try {
 				deps.output(await deps.handleCommand(command));
 			} catch (err: unknown) {
 				const message = err instanceof Error ? err.message : String(err);
-				deps.output(deps.errorResponse(command.id, "bash", message));
+				deps.output(deps.errorResponse(command.id, command.type, message));
 			}
 		})();
 		deps.trackBackgroundTask?.(task);
@@ -599,7 +609,7 @@ export class RpcInputDispatcher {
 			if (dispatchRpcControlFrame(parsed, this.#deps)) return;
 
 			const command = parsed as RpcCommand;
-			if (command.type === "bash") {
+			if (isRpcBackgroundCommand(command)) {
 				dispatchRpcInputFrame(command, this.#deps);
 				return;
 			}
@@ -642,12 +652,11 @@ export class RpcInputDispatcher {
 /**
  * Coordinates deferred shutdown with in-flight background input tasks.
  *
- * `chud.shutdown()` from an extension only *requests* shutdown; the process must
- * not exit while a background-dispatched command (`bash`, see
+ * `chud.shutdown()` must not exit while a background-dispatched command (see
  * {@link dispatchRpcInputFrame}) still owes the client a response frame. The
  * coordinator tracks those tasks, re-checks the shutdown request whenever one
- * settles (covering a shutdown requested mid-bash with no follow-up client
- * frame), and drains every tracked task before invoking `performShutdown`.
+ * settles, prepares cancellable process resources, and drains every tracked
+ * task before invoking `performShutdown`.
  * The shutdown sequence is latched so concurrent triggers (input loop and
  * settling tasks) run it exactly once.
  */
@@ -655,10 +664,16 @@ export class RpcShutdownCoordinator {
 	#tasks = new Set<Promise<void>>();
 	#shutdown: Promise<void> | undefined;
 	readonly #isShutdownRequested: () => boolean;
+	readonly #prepareShutdown: (() => Promise<void>) | undefined;
 	readonly #performShutdown: () => Promise<void>;
 
-	constructor(options: { isShutdownRequested: () => boolean; performShutdown: () => Promise<void> }) {
+	constructor(options: {
+		isShutdownRequested: () => boolean;
+		prepareShutdown?: () => Promise<void>;
+		performShutdown: () => Promise<void>;
+	}) {
 		this.#isShutdownRequested = options.isShutdownRequested;
+		this.#prepareShutdown = options.prepareShutdown;
 		this.#performShutdown = options.performShutdown;
 	}
 
@@ -692,7 +707,11 @@ export class RpcShutdownCoordinator {
 	checkShutdownRequested(): Promise<void> {
 		if (!this.#shutdown) {
 			if (!this.#isShutdownRequested()) return Promise.resolve();
-			this.#shutdown = this.drain().then(() => this.#performShutdown());
+			this.#shutdown = (async () => {
+				await this.#prepareShutdown?.();
+				await this.drain();
+				await this.#performShutdown();
+			})();
 		}
 		return this.#shutdown;
 	}
@@ -1012,6 +1031,7 @@ export async function runRpcMode(
 	const hostToolBridge = new RpcHostToolBridge(output);
 	const hostUriBridge = new RpcHostUriBridge(output);
 	const subagentRegistry = eventBus ? new RpcSubagentRegistry(eventBus, output) : undefined;
+	const sttService = new RpcSttService(output);
 
 	// Shutdown request flag (wrapped in object to allow mutation with const)
 	const shutdownState = { requested: false };
@@ -1409,6 +1429,22 @@ export async function runRpcMode(
 			case "get_available_commands": {
 				return success(id, "get_available_commands", { commands: await getAvailableCommands() });
 			}
+
+			// =================================================================
+			// Speech-to-text
+			// =================================================================
+
+			case "stt_status":
+				return success(id, "stt_status", sttService.status());
+
+			case "stt_start":
+				return success(id, "stt_start", await sttService.start());
+
+			case "stt_stop":
+				return success(id, "stt_stop", await sttService.stop());
+
+			case "stt_cancel":
+				return success(id, "stt_cancel", await sttService.cancel());
 
 			case "set_todos": {
 				session.setTodoPhases(command.phases);
@@ -1884,12 +1920,11 @@ export async function runRpcMode(
 		}
 	};
 
-	// Deferred shutdown (chud.shutdown() from an extension) must not kill the
-	// process while a background-dispatched bash still owes the client its
-	// response frame. The coordinator drains tracked tasks before exiting and
-	// re-checks the request as each task settles.
+	// Deferred shutdown first cancels STT, then drains every background response
+	// before exiting.
 	const shutdownCoordinator = new RpcShutdownCoordinator({
 		isShutdownRequested: () => shutdownState.requested,
+		prepareShutdown: () => sttService.dispose(),
 		performShutdown: async () => {
 			// Route through the idempotent session.dispose() so the browser
 			// reaper (releaseTabsForOwner) and other bounded teardown run before
@@ -1918,11 +1953,9 @@ export async function runRpcMode(
 	});
 
 	// Keep the stdin reader moving: side-channel frames dispatch immediately,
-	// ordinary commands serialize through inputDispatcher, and bash remains
-	// background-dispatched so abort_bash can overtake it. Frames are read
-	// line-by-line by readRpcInputFrames so a single malformed line is reported
-	// as an error frame and the loop keeps running instead of throwing out of
-	// the reader and killing the whole process (issue #5194).
+	// ordinary commands serialize through inputDispatcher, and background
+	// commands remain overtaken by cancellation/status frames. Frames are read
+	// line-by-line so one malformed line is reported without killing the reader.
 	await readRpcInputFrames(
 		input ?? Bun.stdin.stream(),
 		parsed => inputDispatcher.dispatch(parsed),
@@ -1934,6 +1967,7 @@ export async function runRpcMode(
 	pendingExtensionRequests.rejectAll("RPC client disconnected before extension UI response completed");
 	hostToolBridge.close("RPC client disconnected before host tool execution completed");
 	hostUriBridge.clear("RPC client disconnected before host URI request completed");
+	await sttService.dispose();
 	await inputDispatcher.drain();
 	await shutdownCoordinator.drain();
 	subagentRegistry?.dispose();

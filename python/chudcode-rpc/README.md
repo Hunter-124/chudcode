@@ -15,6 +15,7 @@ provides:
 - helpers for collecting prompt runs and handling extension UI requests in manual or headless mode
 - typed host-tool helpers so Python RPC owners can expose custom tools with JSON Schema metadata
 - typed, secret-safe provider authentication and project-memory commands for embedding hosts
+- typed local speech status/start/stop/cancel wrappers with bounded transcripts
 
 ## Basic Usage
 
@@ -103,6 +104,36 @@ with RpcClient(
 ) as client:
     print(client.get_state().session_id)
 ```
+
+## Speech-to-Text
+
+The client exposes the four native speech commands without introducing another
+audio or ASR implementation:
+
+```python
+from chudcode_rpc import RpcClient
+
+with RpcClient(no_session=True, request_timeout=600.0) as client:
+    status = client.stt_status()
+    if status.available:
+        client.stt_start()
+        # Keep consuming passive extension UI requests while recording.
+        result = client.stt_stop()
+        print(result.text)
+    else:
+        print(status.error or "Speech-to-text is disabled")
+```
+
+`stt_status()` returns typed availability, state, selected model, optional model
+download progress, and a secret-sanitized error. `stt_start()` allows one
+capture per RPC process. `stt_stop()` flushes the warm streaming worker and
+returns at most 64 KiB of text. `stt_cancel()` is safe in idle, model setup,
+recording, and transcription states and discards accumulated text.
+
+Model progress, listening/transcribing state, partial transcript text, and
+errors arrive as passive `ExtensionUiRequest` values (`setStatus`,
+`set_editor_text`, and `notify`). They do not require UI responses. Closing the
+client closes stdin; the server then stops capture and terminates its ASR worker.
 
 ## Provider Authentication and Project Memory
 

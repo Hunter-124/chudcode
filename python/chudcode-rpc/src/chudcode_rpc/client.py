@@ -59,6 +59,10 @@ from .protocol import (
     SessionState,
     SessionStats,
     SetApiKeyResult,
+    SttCancelResult,
+    SttStartResult,
+    SttStatus,
+    SttStopResult,
     SteeringMode,
     StreamingBehavior,
     ThinkingLevel,
@@ -97,6 +101,10 @@ from .protocol import (
     parse_session_state,
     parse_session_stats,
     parse_set_api_key_result,
+    parse_stt_cancel_result,
+    parse_stt_start_result,
+    parse_stt_status,
+    parse_stt_stop_result,
     parse_thinking_level_cycle_result,
     parse_todo_phases,
 )
@@ -959,6 +967,22 @@ class RpcClient:
     def get_state(self) -> SessionState:
         payload = self._request("get_state")
         return parse_session_state(payload)
+
+    def stt_status(self) -> SttStatus:
+        """Return local speech availability, model, progress, and capture state."""
+        return parse_stt_status(self._request("stt_status"))
+
+    def stt_start(self) -> SttStartResult:
+        """Warm speech dependencies and begin the process-wide capture."""
+        return parse_stt_start_result(self._request("stt_start"))
+
+    def stt_stop(self) -> SttStopResult:
+        """Stop capture, flush streaming ASR, and return the bounded transcript."""
+        return parse_stt_stop_result(self._request("stt_stop"))
+
+    def stt_cancel(self) -> SttCancelResult:
+        """Idempotently discard active speech capture or transcription."""
+        return parse_stt_cancel_result(self._request("stt_cancel"))
 
     def get_auth_state(self, provider_id: str | None = None) -> AuthState:
         return parse_auth_state(self._request("get_auth_state", providerId=provider_id))

@@ -48,6 +48,12 @@ export type RpcCommand =
 	| { id?: string; type: "get_subagents" }
 	| { id?: string; type: "get_subagent_messages"; subagentId?: string; sessionFile?: string; fromByte?: number }
 
+	// Speech-to-text
+	| { id?: string; type: "stt_status" }
+	| { id?: string; type: "stt_start" }
+	| { id?: string; type: "stt_stop" }
+	| { id?: string; type: "stt_cancel" }
+
 	// Model
 	| { id?: string; type: "set_model"; provider: string; modelId: string }
 	| { id?: string; type: "cycle_model" }
@@ -307,6 +313,34 @@ export interface RpcMemoryRecallInput {
 	tokenBudget?: number;
 	kind?: string;
 }
+
+export type RpcSttState = "idle" | "recording" | "transcribing";
+
+export interface RpcSttStatus {
+	ok: true;
+	available: boolean;
+	state: RpcSttState;
+	model: string;
+	progress?: number;
+	error?: string;
+}
+
+export interface RpcSttStartResult {
+	ok: true;
+	state: "recording";
+	model: string;
+}
+
+export interface RpcSttStopResult {
+	ok: true;
+	text: string;
+	state: "idle";
+}
+
+export interface RpcSttCancelResult {
+	ok: true;
+	state: "idle";
+}
 // ============================================================================
 // RPC Responses (stdout)
 // ============================================================================
@@ -370,6 +404,12 @@ export type RpcResponse =
 			success: true;
 			data: RpcSubagentMessagesResult;
 	  }
+
+	// Speech-to-text
+	| { id?: string; type: "response"; command: "stt_status"; success: true; data: RpcSttStatus }
+	| { id?: string; type: "response"; command: "stt_start"; success: true; data: RpcSttStartResult }
+	| { id?: string; type: "response"; command: "stt_stop"; success: true; data: RpcSttStopResult }
+	| { id?: string; type: "response"; command: "stt_cancel"; success: true; data: RpcSttCancelResult }
 
 	// Model
 	| {

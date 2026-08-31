@@ -133,6 +133,39 @@ Important edge behavior from runtime:
 - `{ id?, type: "get_subagents" }`
 - `{ id?, type: "get_subagent_messages", subagentId?: string, sessionFile?: string, fromByte?: number }`
 
+### Speech-to-text
+
+- `{ id?, type: "stt_status" }`
+- `{ id?, type: "stt_start" }`
+- `{ id?, type: "stt_stop" }`
+- `{ id?, type: "stt_cancel" }`
+
+`stt_status` returns
+`{ ok, available, state, model, progress?, error? }`, where `state` is
+`"idle" | "recording" | "transcribing"` and `progress` is an integer percentage
+for model preparation. `available` reflects the process's `stt.enabled`
+configuration. `stt_start` warms or downloads the configured local model and
+then begins one microphone capture for the RPC process. A second start while
+setup, recording, or transcription is active fails instead of opening another
+capture.
+
+`stt_stop` stops the microphone, flushes the shared streaming ASR worker, and
+returns `{ ok: true, text, state: "idle" }`. The transcript is bounded to 64 KiB.
+`stt_cancel` is idempotent in every state: it aborts model setup, capture, or
+transcription, discards committed and volatile text, and returns
+`{ ok: true, state: "idle" }`. Cancellation keeps the model worker warm for the
+next capture. RPC EOF and extension-triggered shutdown additionally stop the
+capture and terminate the worker so neither can outlive the RPC process.
+
+All four speech commands dispatch concurrently with the serialized command
+queue so status and cancellation can overtake a model download or final
+transcription. Their responses can therefore arrive out of order and MUST be
+matched by `id`.
+
+The bundled clients expose typed `sttStatus()` / `stt_status()`,
+`sttStart()` / `stt_start()`, `sttStop()` / `stt_stop()`, and
+`sttCancel()` / `stt_cancel()` wrappers.
+
 ### Model
 
 - `{ id?, type: "set_model", provider: string, modelId: string }`
@@ -672,6 +705,13 @@ Extensions in RPC mode use request/response UI frames.
     render descriptions can continue using `options` alone.
 - `notify`, `setStatus`, `setWidget`, `setTitle`, `set_editor_text`
 - `open_url` (emitted by RPC login flows)
+
+Speech capture uses passive extension requests only: `setStatus` with
+`statusKey: "stt"` carries download/listening/transcription state,
+`set_editor_text` carries the bounded committed-plus-volatile transcript, and
+`notify` with `notifyType: "error"` carries secret-sanitized capture/model
+failures. Hosts MUST NOT send `extension_ui_response` frames for these passive
+updates.
 
 Runtime note:
 

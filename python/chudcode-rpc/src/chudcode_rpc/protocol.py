@@ -27,6 +27,7 @@ TodoStatus: TypeAlias = Literal[
 AuthOrigin: TypeAlias = Literal[
     "runtime", "config", "oauth", "api_key", "env", "fallback"
 ]
+SttState: TypeAlias = Literal["idle", "recording", "transcribing"]
 ExtensionUiMethod: TypeAlias = Literal[
     "select",
     "confirm",
@@ -218,6 +219,12 @@ def _require_bool(payload: JsonObject, field: str) -> bool:
     if not isinstance(value, bool):
         raise ValueError(f"{field} must be a boolean")
     return value
+
+
+def _require_true(payload: JsonObject, field: str) -> Literal[True]:
+    if not _require_bool(payload, field):
+        raise ValueError(f"{field} must be true")
+    return True
 
 
 def _optional_str(payload: JsonObject, field: str) -> str | None:
@@ -1031,6 +1038,36 @@ class MemoryStatsResult:
 
 
 @dataclass(slots=True, frozen=True)
+class SttStatus:
+    ok: Literal[True]
+    available: bool
+    state: SttState
+    model: str
+    progress: int | None = None
+    error: str | None = None
+
+
+@dataclass(slots=True, frozen=True)
+class SttStartResult:
+    ok: Literal[True]
+    state: Literal["recording"]
+    model: str
+
+
+@dataclass(slots=True, frozen=True)
+class SttStopResult:
+    ok: Literal[True]
+    text: str
+    state: Literal["idle"]
+
+
+@dataclass(slots=True, frozen=True)
+class SttCancelResult:
+    ok: Literal[True]
+    state: Literal["idle"]
+
+
+@dataclass(slots=True, frozen=True)
 class ReadyEvent:
     protocol_version: int | None = None
     supported_protocol_versions: tuple[int, ...] | None = None
@@ -1760,6 +1797,60 @@ def parse_memory_stats(payload: JsonObject) -> MemoryStats:
 def parse_memory_stats_result(payload: JsonObject) -> MemoryStatsResult:
     stats = _clone_json_object(payload.get("stats"), field="memoryStats.stats")
     return MemoryStatsResult(stats=parse_memory_stats(stats))
+
+
+def parse_stt_status(payload: JsonObject) -> SttStatus:
+    state = cast(
+        SttState,
+        _require_literal(
+            payload.get("state"),
+            frozenset({"idle", "recording", "transcribing"}),
+            field="sttStatus.state",
+        ),
+    )
+    progress_value = payload.get("progress")
+    return SttStatus(
+        ok=_require_true(payload, "ok"),
+        available=_require_bool(payload, "available"),
+        state=state,
+        model=_require_str(payload, "model"),
+        progress=int(progress_value)
+        if isinstance(progress_value, (int, float))
+        else None,
+        error=_optional_str(payload, "error"),
+    )
+
+
+def parse_stt_start_result(payload: JsonObject) -> SttStartResult:
+    state = _require_literal(
+        payload.get("state"), frozenset({"recording"}), field="sttStart.state"
+    )
+    return SttStartResult(
+        ok=_require_true(payload, "ok"),
+        state=cast(Literal["recording"], state),
+        model=_require_str(payload, "model"),
+    )
+
+
+def parse_stt_stop_result(payload: JsonObject) -> SttStopResult:
+    state = _require_literal(
+        payload.get("state"), frozenset({"idle"}), field="sttStop.state"
+    )
+    return SttStopResult(
+        ok=_require_true(payload, "ok"),
+        text=_require_str(payload, "text"),
+        state=cast(Literal["idle"], state),
+    )
+
+
+def parse_stt_cancel_result(payload: JsonObject) -> SttCancelResult:
+    state = _require_literal(
+        payload.get("state"), frozenset({"idle"}), field="sttCancel.state"
+    )
+    return SttCancelResult(
+        ok=_require_true(payload, "ok"),
+        state=cast(Literal["idle"], state),
+    )
 
 
 def parse_context_usage(payload: JsonObject | None) -> ContextUsage | None:

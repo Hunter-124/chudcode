@@ -44,6 +44,10 @@ import type {
 	RpcResponse,
 	RpcSessionState,
 	RpcSetApiKeyResult,
+	RpcSttCancelResult,
+	RpcSttStartResult,
+	RpcSttStatus,
+	RpcSttStopResult,
 	RpcSubagentEventFrame,
 	RpcSubagentLifecycleFrame,
 	RpcSubagentMessagesResult,
@@ -651,6 +655,30 @@ export class RpcClient {
 					? state.tokensPerSecond
 					: null,
 		};
+	}
+
+	/** Inspect local speech capture availability and current bounded state. */
+	async sttStatus(): Promise<RpcSttStatus> {
+		const response = await this.#send({ type: "stt_status" });
+		return this.#getData<RpcSttStatus>(response);
+	}
+
+	/** Warm dependencies and begin the process-wide microphone capture. */
+	async sttStart(): Promise<RpcSttStartResult> {
+		const response = await this.#send({ type: "stt_start" }, 10 * 60_000);
+		return this.#getData<RpcSttStartResult>(response);
+	}
+
+	/** Stop capture, flush streaming ASR, and return the bounded transcript. */
+	async sttStop(): Promise<RpcSttStopResult> {
+		const response = await this.#send({ type: "stt_stop" }, 10 * 60_000);
+		return this.#getData<RpcSttStopResult>(response);
+	}
+
+	/** Idempotently discard capture/transcription work without unloading the warm worker. */
+	async sttCancel(): Promise<RpcSttCancelResult> {
+		const response = await this.#send({ type: "stt_cancel" });
+		return this.#getData<RpcSttCancelResult>(response);
 	}
 
 	/**

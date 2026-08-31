@@ -2,22 +2,28 @@ import { AudioCapture } from "@chudware/natives";
 import { logger } from "@chudware/utils";
 import { settings } from "../config/settings";
 import { type SttStreamHandle, sttClient } from "./asr-client";
-import { downloadSttModel, isSttModelCached } from "./downloader";
+import { downloadSttModel, isSttModelCached, type SttDownloadProgress } from "./downloader";
 import { resolveSttModelSpec } from "./models";
 import { evaluateSubmitTrigger } from "./submit-trigger";
 
 export type SttState = "idle" | "recording" | "transcribing";
 
-interface ToggleOptions {
+export interface SttControllerOptions {
 	showWarning(msg: string): void;
 	showStatus(msg: string): void;
 	onStateChange(state: SttState): void;
 	/** Force a redraw after async edits to the composer (live segment/preview inserts). */
 	requestRender?(): void;
+	/** Structured model progress for non-interactive hosts. */
+	onProgress?(progress: SttDownloadProgress): void;
+	/** Interactive composer submit triggers are disabled by headless RPC callers. */
+	allowSubmitTrigger?: boolean;
+	/** Sanitize native/worker failures before UI callbacks and logs (identity in interactive mode). */
+	sanitizeError?(message: string): string;
 }
 
 /** The slice of the composer editor the controller drives. */
-interface Editor {
+export interface SttEditor {
 	insertText(text: string): void;
 	setVolatileText(text: string): void;
 	clearVolatileText(): void;
@@ -26,11 +32,11 @@ interface Editor {
 	deleteBeforeCursor(count: number): void;
 }
 
-interface CaptureHandle {
+export interface SttCaptureHandle {
 	stop(): void;
 }
 
-type CaptureFactory = (onAudio: (error: Error | null, samples: Float32Array) => void) => CaptureHandle;
+export type SttCaptureFactory = (onAudio: (error: Error | null, samples: Float32Array) => void) => SttCaptureHandle;
 
 /** Coordinates native microphone capture with incremental local transcription. */
 export class STTController {
@@ -39,18 +45,19 @@ export class STTController {
 	#toggling = false;
 	#stopAfterStart = false;
 	#disposed = false;
-	readonly #createCapture: CaptureFactory;
+	readonly #createCapture: SttCaptureFactory;
+	#startAbort: AbortController | null = null;
 
 	// Live streaming capture.
 	#stream: SttStreamHandle | null = null;
-	#streamRecorder: CaptureHandle | null = null;
-	#streamEditor: Editor | null = null;
+	#streamRecorder: SttCaptureHandle | null = null;
+	#streamEditor: SttEditor | null = null;
 	#streamCommitted = false;
 	#streamAbort: AbortController | null = null;
 	#streamUtterance = "";
 
 	/** Creates a controller; tests may replace the hardware capture boundary. */
-	constructor(createCapture: CaptureFactory = onAudio => new AudioCapture(16_000, onAudio)) {
+	constructor(createCapture: SttCaptureFactory = onAudio => new AudioCapture(16_000, onAudio)) {
 		this.#createCapture = createCapture;
 	}
 
@@ -58,12 +65,12 @@ export class STTController {
 		return this.#state;
 	}
 
-	#setState(state: SttState, options: ToggleOptions): void {
+	#setState(state: SttState, options: SttControllerOptions): void {
 		this.#state = state;
 		options.onStateChange(state);
 	}
 
-	async toggle(editor: Editor, options: ToggleOptions): Promise<void> {
+	async toggle(editor: SttEditor, options: SttControllerOptions): Promise<void> {
 		if (this.#toggling) {
 			if (this.#state === "idle" || this.#state === "recording") this.#stopAfterStart = true;
 			return;
@@ -72,7 +79,7 @@ export class STTController {
 		try {
 			switch (this.#state) {
 				case "idle":
-					await this.#start(editor, options);
+					await this.#start(editor, options, false);
 					break;
 				case "recording":
 					await this.#stop(options);
@@ -92,16 +99,46 @@ export class STTController {
 		}
 	}
 
-	async #ensureDeps(options: ToggleOptions): Promise<boolean> {
+	/** Start one explicit capture. Returns false when unavailable, cancelled, or already active. */
+	async start(editor: SttEditor, options: SttControllerOptions): Promise<boolean> {
+		if (this.#disposed) throw new Error("STT controller is disposed");
+		if (this.#toggling || this.#state !== "idle") return false;
+		this.#toggling = true;
+		try {
+			return await this.#start(editor, options, true);
+		} finally {
+			this.#toggling = false;
+		}
+	}
+
+	/** Stop and flush an active capture. Returns false unless recording was active. */
+	async stop(options: SttControllerOptions): Promise<boolean> {
+		if (this.#disposed) throw new Error("STT controller is disposed");
+		if (this.#toggling || this.#state !== "recording") return false;
+		this.#toggling = true;
+		try {
+			await this.#stop(options);
+			return true;
+		} finally {
+			this.#toggling = false;
+		}
+	}
+
+	#safeError(message: string, options: SttControllerOptions): string {
+		const safe = options.sanitizeError?.(message);
+		return safe || message;
+	}
+
+	async #ensureDeps(options: SttControllerOptions, signal: AbortSignal, cancellable: boolean): Promise<boolean> {
 		const modelKey = resolveSttModelSpec(settings.get("stt.modelName") as string | undefined).key;
 		// Keyed on the model rather than a one-shot flag: switching stt.modelName
 		// mid-session must re-run preflight so an uncached new tier downloads here
 		// (with progress) instead of blocking silently at stop.
 		if (this.#resolvedModelKey === modelKey) return true;
+		let wroteStatus = false;
 		try {
 			// Only clear the status line when preflight emitted progress; the
 			// cached-model fast path emits nothing.
-			let wroteStatus = false;
 			const status = (msg: string): void => {
 				wroteStatus = true;
 				options.showStatus(msg);
@@ -114,15 +151,24 @@ export class STTController {
 			// Only a genuine first-use download blocks, with explicit progress, so we
 			// never record silently against missing weights.
 			if (await isSttModelCached(modelKey)) {
-				this.#warmModel(modelKey);
+				if (signal.aborted) return false;
+				this.#warmModel(modelKey, options);
 			} else {
-				await downloadSttModel(modelKey, p => status(`Downloading speech model ${p.label} (${p.percent}%)`));
+				const progress = (event: SttDownloadProgress): void => {
+					options.onProgress?.(event);
+					status(`Downloading speech model ${event.label} (${event.percent}%)`);
+				};
+				if (cancellable) await downloadSttModel(modelKey, progress, { signal });
+				else await downloadSttModel(modelKey, progress);
 			}
+			if (signal.aborted) return false;
 			if (wroteStatus) options.showStatus("");
 			this.#resolvedModelKey = modelKey;
 			return true;
 		} catch (err) {
-			const msg = err instanceof Error ? err.message : "Failed to setup STT dependencies";
+			if (wroteStatus) options.showStatus("");
+			if (signal.aborted || (err instanceof DOMException && err.name === "AbortError")) return false;
+			const msg = this.#safeError(err instanceof Error ? err.message : "Failed to setup STT dependencies", options);
 			options.showWarning(msg);
 			logger.error("STT dependency setup failed", { error: msg });
 			return false;
@@ -135,22 +181,28 @@ export class STTController {
 	 *  cached, so no network fetch happens. On load failure (corrupt cache, OOM,
 	 *  runtime install) invalidate the resolved key so the next toggle re-runs
 	 *  preflight and retries instead of skipping it forever. */
-	#warmModel(modelKey: string): void {
+	#warmModel(modelKey: string, options: SttControllerOptions): void {
 		void downloadSttModel(modelKey).catch(err => {
 			// Guard against a concurrent model switch clobbering a newer resolution.
 			if (!this.#disposed && this.#resolvedModelKey === modelKey) this.#resolvedModelKey = null;
 			logger.debug("stt: background model warmup failed", {
-				error: err instanceof Error ? err.message : String(err),
+				error: this.#safeError(err instanceof Error ? err.message : String(err), options),
 			});
 		});
 	}
 
-	async #start(editor: Editor, options: ToggleOptions): Promise<void> {
-		if (!(await this.#ensureDeps(options))) return;
-		await this.#startStreaming(editor, options);
+	async #start(editor: SttEditor, options: SttControllerOptions, cancellable: boolean): Promise<boolean> {
+		const abort = new AbortController();
+		this.#startAbort = abort;
+		try {
+			if (!(await this.#ensureDeps(options, abort.signal, cancellable)) || abort.signal.aborted) return false;
+			return await this.#startStreaming(editor, options, abort.signal);
+		} finally {
+			if (this.#startAbort === abort) this.#startAbort = null;
+		}
 	}
 
-	async #stop(options: ToggleOptions): Promise<void> {
+	async #stop(options: SttControllerOptions): Promise<void> {
 		await this.#stopStreaming(options);
 	}
 
@@ -164,48 +216,63 @@ export class STTController {
 		return this.#streamCommitted ? ` ${normalized}` : normalized;
 	}
 
-	async #startStreaming(editor: Editor, options: ToggleOptions): Promise<void> {
+	async #startStreaming(editor: SttEditor, options: SttControllerOptions, startSignal: AbortSignal): Promise<boolean> {
+		if (startSignal.aborted) return false;
 		const modelKey = resolveSttModelSpec(settings.get("stt.modelName") as string | undefined).key;
 		const language = settings.get("stt.language") as string | undefined;
 		this.#streamEditor = editor;
 		this.#streamCommitted = false;
 		this.#streamUtterance = "";
 		this.#streamAbort = new AbortController();
-		const stream = sttClient.startStream(modelKey, {
-			language: language || undefined,
-			signal: this.#streamAbort.signal,
-			onPartial: text => {
-				if (this.#disposed || this.#state !== "recording") return;
-				this.#streamEditor?.setVolatileText(this.#prefixed(text));
-				options.requestRender?.();
-			},
-			onSegment: text => {
-				if (this.#disposed) return;
-				const prefixed = this.#prefixed(text);
-				if (prefixed) {
-					this.#streamEditor?.commitVolatileText(prefixed);
-					this.#streamCommitted = true;
-					this.#streamUtterance += prefixed;
-				} else {
-					this.#streamEditor?.clearVolatileText();
-				}
-				options.requestRender?.();
-			},
-		});
+		let stream: SttStreamHandle;
+		try {
+			stream = sttClient.startStream(modelKey, {
+				language: language || undefined,
+				signal: this.#streamAbort.signal,
+				onPartial: text => {
+					if (this.#disposed || this.#state !== "recording") return;
+					this.#streamEditor?.setVolatileText(this.#prefixed(text));
+					options.requestRender?.();
+				},
+				onSegment: text => {
+					if (this.#disposed) return;
+					const prefixed = this.#prefixed(text);
+					if (prefixed) {
+						this.#streamEditor?.commitVolatileText(prefixed);
+						this.#streamCommitted = true;
+						this.#streamUtterance += prefixed;
+					} else {
+						this.#streamEditor?.clearVolatileText();
+					}
+					options.requestRender?.();
+				},
+			});
+		} catch (err) {
+			this.#cleanupStream();
+			if (startSignal.aborted) return false;
+			const msg = this.#safeError(
+				err instanceof Error ? err.message : "Failed to start speech recognition",
+				options,
+			);
+			options.showWarning(msg);
+			logger.error("STT recognition failed to start", { error: msg });
+			return false;
+		}
 		this.#stream = stream;
-		let recorder: CaptureHandle;
+		let recorder: SttCaptureHandle;
 		try {
 			recorder = this.#createCapture((error, samples) => {
 				if (this.#disposed || this.#stream !== stream || this.#state !== "recording") return;
 				if (error) {
-					logger.error("Native microphone capture failed", { error: error.message });
+					const message = this.#safeError(error.message, options);
+					logger.error("Native microphone capture failed", { error: message });
 					const activeRecorder = this.#streamRecorder;
 					this.#streamRecorder = null;
 					try {
 						activeRecorder?.stop();
 					} catch (cause) {
 						logger.debug("stt: microphone cleanup failed", {
-							error: cause instanceof Error ? cause.message : String(cause),
+							error: this.#safeError(cause instanceof Error ? cause.message : String(cause), options),
 						});
 					}
 					this.#streamAbort?.abort(error);
@@ -214,7 +281,7 @@ export class STTController {
 					options.requestRender?.();
 					this.#cleanupStream();
 					this.#setState("idle", options);
-					options.showWarning(error.message);
+					options.showWarning(message);
 					return;
 				}
 				stream.pushAudio(samples);
@@ -222,17 +289,32 @@ export class STTController {
 		} catch (err) {
 			stream.cancel();
 			this.#cleanupStream();
-			const msg = err instanceof Error ? err.message : "Failed to start microphone capture";
+			if (startSignal.aborted) return false;
+			const msg = this.#safeError(
+				err instanceof Error ? err.message : "Failed to start microphone capture",
+				options,
+			);
 			options.showWarning(msg);
 			logger.error("STT recording failed to start", { error: msg });
-			return;
+			return false;
+		}
+		if (startSignal.aborted) {
+			try {
+				recorder.stop();
+			} catch {
+				// best effort cancellation
+			}
+			stream.cancel();
+			this.#cleanupStream();
+			return false;
 		}
 		this.#streamRecorder = recorder;
 		this.#setState("recording", options);
 		logger.debug("STT live recording started", { modelKey });
+		return true;
 	}
 
-	async #stopStreaming(options: ToggleOptions): Promise<void> {
+	async #stopStreaming(options: SttControllerOptions): Promise<void> {
 		const stream = this.#stream;
 		const recorder = this.#streamRecorder;
 		if (!stream) {
@@ -245,7 +327,7 @@ export class STTController {
 			recorder?.stop();
 		} catch (err) {
 			logger.debug("stt: streaming recorder stop failed", {
-				error: err instanceof Error ? err.message : String(err),
+				error: this.#safeError(err instanceof Error ? err.message : String(err), options),
 			});
 		}
 		this.#streamRecorder = null;
@@ -257,7 +339,7 @@ export class STTController {
 		} catch (err) {
 			failed = true;
 			if (!this.#disposed) {
-				const msg = err instanceof Error ? err.message : "Transcription failed";
+				const msg = this.#safeError(err instanceof Error ? err.message : "Transcription failed", options);
 				options.showWarning(msg);
 				logger.error("STT live transcription failed", { error: msg });
 			}
@@ -276,8 +358,7 @@ export class STTController {
 		}
 		options.requestRender?.();
 		if (!failed) options.showStatus(this.#streamCommitted ? "" : "No speech detected.");
-
-		if (this.#streamCommitted && !failed && this.#streamEditor) {
+		if (options.allowSubmitTrigger !== false && this.#streamCommitted && !failed && this.#streamEditor) {
 			const trigger = settings.get("stt.submitTrigger");
 			const { submit, trimTrailing } = evaluateSubmitTrigger(this.#streamUtterance, trigger);
 			if (trimTrailing > 0) {
@@ -301,8 +382,11 @@ export class STTController {
 		this.#streamUtterance = "";
 	}
 
-	dispose(): void {
-		this.#disposed = true;
+	/** Idempotently abort dependency setup, capture, and transcription without committing more text. */
+	cancel(options?: SttControllerOptions): void {
+		this.#stopAfterStart = false;
+		this.#startAbort?.abort();
+		this.#startAbort = null;
 		if (this.#streamAbort) {
 			this.#streamAbort.abort();
 			this.#streamAbort = null;
@@ -313,8 +397,19 @@ export class STTController {
 		} catch {
 			// best effort cleanup
 		}
+		this.#streamEditor?.clearVolatileText();
 		this.#cleanupStream();
-		this.#state = "idle";
+		if (this.#state !== "idle") {
+			if (options) this.#setState("idle", options);
+			else this.#state = "idle";
+		}
+		options?.requestRender?.();
+	}
+
+	dispose(): void {
+		if (this.#disposed) return;
+		this.#disposed = true;
+		this.cancel();
 		this.#resolvedModelKey = null;
 	}
 }
