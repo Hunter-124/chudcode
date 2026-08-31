@@ -11,9 +11,13 @@
  * - Extension UI: Extension UI requests are emitted, client responds with extension_ui_response
  */
 import { once } from "node:events";
+import * as fs from "node:fs/promises";
+import * as path from "node:path";
+import { completeSimple } from "@chudware/ai";
 import { getOAuthProviders } from "@chudware/ai/oauth";
+import { getProviderDefinition, PROVIDER_REGISTRY } from "@chudware/ai/registry";
 import { toolWireSchema } from "@chudware/ai/utils/schema";
-import { $env, isRecord, Snowflake } from "@chudware/utils";
+import { $env, isRecord, pathIsWithin, Snowflake } from "@chudware/utils";
 import { reset as resetCapabilities } from "../../capability";
 import { clearPluginRootsAndCaches, resolveActiveProjectRegistryPath } from "../../discovery/helpers";
 import {
@@ -25,6 +29,7 @@ import {
 } from "../../extensibility/extensions";
 import { buildSkillPromptMessage, parseSkillInvocation } from "../../extensibility/skills";
 import { loadSlashCommands } from "../../extensibility/slash-commands";
+import { createSessionMemoryRuntimeContext } from "../../memory-backend";
 import { type Theme, theme } from "../../modes/theme/theme";
 import type { AgentSession } from "../../session/agent-session";
 import { SKILL_PROMPT_MESSAGE_TYPE, USER_INTERRUPT_LABEL } from "../../session/messages";
@@ -41,6 +46,8 @@ import { claimRpcInput, readRpcInputFrames } from "./rpc-input";
 import { pageRpcMessages, RPC_MESSAGES_PAGE_BUSY_ERROR, RpcMessagesPageError } from "./rpc-messages";
 import { RpcSubagentRegistry, readRpcSubagentTranscript } from "./rpc-subagents";
 import type {
+	RpcAuthAccountState,
+	RpcAuthProviderState,
 	RpcCommand,
 	RpcExtensionUIRequest,
 	RpcExtensionUIResponse,
@@ -53,6 +60,8 @@ import type {
 	RpcHostUriCancelRequest,
 	RpcHostUriRequest,
 	RpcHostUriResult,
+	RpcMemoryHit,
+	RpcMemoryStats,
 	RpcResponse,
 	RpcSessionState,
 	RpcSubagentSubscriptionLevel,
@@ -248,6 +257,231 @@ export function watchAndReportLocalOnlyPromptResult(input: {
 		hasExtensionAgentMessageTask: trackedPrompt.hasAgentMessageTask,
 		waitForExtensionAgentMessageTasks: trackedPrompt.waitForAgentMessageTasks,
 	});
+}
+
+export const RPC_AUTH_API_KEY_MAX_BYTES = 64 * 1024;
+export const RPC_MEMORY_ROOT_MAX_BYTES = 4 * 1024;
+export const RPC_MEMORY_CONTENT_MAX_BYTES = 64 * 1024;
+export const RPC_MEMORY_QUERY_MAX_BYTES = 8 * 1024;
+export const RPC_MEMORY_LIMIT_MAX = 100;
+export const RPC_MEMORY_TOKEN_BUDGET_DEFAULT = 4_096;
+export const RPC_MEMORY_TOKEN_BUDGET_MAX = 32_768;
+
+function requireBoundedString(value: unknown, field: string, maxBytes: number, allowEmpty = false): string {
+	if (typeof value !== "string") throw new Error(`${field} must be a string`);
+	const normalized = value.trim();
+	if (!allowEmpty && !normalized) throw new Error(`${field} cannot be empty`);
+	if (Buffer.byteLength(value) > maxBytes) throw new Error(`${field} exceeds the ${maxBytes}-byte limit`);
+	return normalized;
+}
+
+function requireOptionalBoundedString(value: unknown, field: string, maxBytes: number): string | undefined {
+	if (value === undefined) return undefined;
+	return requireBoundedString(value, field, maxBytes);
+}
+
+function requireProviderId(value: unknown): string {
+	const providerId = requireBoundedString(value, "providerId", 128);
+	if (!/^[a-z0-9][a-z0-9._-]*$/i.test(providerId)) throw new Error("providerId has an invalid format");
+	return providerId;
+}
+
+function isKnownRpcProvider(session: AgentSession, providerId: string): boolean {
+	return (
+		getProviderDefinition(providerId) !== undefined ||
+		session.modelRegistry.hasProvider(providerId) ||
+		session.modelRegistry.authStorage.list().includes(providerId)
+	);
+}
+
+function requireKnownRpcProvider(session: AgentSession, value: unknown): string {
+	const providerId = requireProviderId(value);
+	if (!isKnownRpcProvider(session, providerId)) throw new Error(`Unknown provider: ${providerId}`);
+	return providerId;
+}
+
+function sanitizeRpcAuthAccount(credential: unknown): RpcAuthAccountState | undefined {
+	if (!isRecord(credential) || credential.type !== "oauth") return undefined;
+	const account: RpcAuthAccountState = {};
+	for (const field of ["accountId", "email", "projectId", "orgId", "orgName"] as const) {
+		const value = credential[field];
+		if (typeof value === "string" && value.length > 0 && value.length <= 1_024) account[field] = value;
+	}
+	return Object.keys(account).length > 0 ? account : undefined;
+}
+
+export function getRpcAuthProviderState(session: AgentSession, providerId: string): RpcAuthProviderState {
+	const authStorage = session.modelRegistry.authStorage;
+	const origin = authStorage.getCredentialOrigin(providerId)?.kind;
+	const rows = authStorage.listStoredCredentials(providerId);
+	const accounts: RpcAuthAccountState[] = [];
+	const seenAccounts = new Set<string>();
+	let hasStoredApiKey = false;
+	for (const row of rows) {
+		if (row.credential.type === "api_key") hasStoredApiKey = true;
+		const account = sanitizeRpcAuthAccount(row.credential);
+		if (!account) continue;
+		const key = JSON.stringify(account);
+		if (seenAccounts.has(key)) continue;
+		seenAccounts.add(key);
+		accounts.push(account);
+	}
+	const definition = getProviderDefinition(providerId);
+	return {
+		providerId,
+		name: definition?.name ?? providerId,
+		authenticated: authStorage.hasAuth(providerId),
+		hasApiKey:
+			hasStoredApiKey ||
+			origin === "runtime" ||
+			origin === "config" ||
+			origin === "api_key" ||
+			origin === "env" ||
+			origin === "fallback",
+		hasOAuth: authStorage.hasOAuth(providerId),
+		...(origin ? { origin } : {}),
+		accounts,
+	};
+}
+
+function listRpcAuthProviderStates(session: AgentSession, providerId?: string): RpcAuthProviderState[] {
+	if (providerId !== undefined)
+		return [getRpcAuthProviderState(session, requireKnownRpcProvider(session, providerId))];
+	const ids = new Set(PROVIDER_REGISTRY.map(provider => provider.id));
+	for (const model of session.getAvailableModels()) ids.add(model.provider);
+	for (const storedProvider of session.modelRegistry.authStorage.list()) ids.add(storedProvider);
+	return Array.from(ids)
+		.sort()
+		.map(id => getRpcAuthProviderState(session, id));
+}
+
+async function validateRpcApiKey(session: AgentSession, providerId: string, apiKey: string): Promise<boolean> {
+	await session.modelRegistry.awaitBackgroundRefresh();
+	const model = session.getAvailableModels().find(candidate => candidate.provider === providerId);
+	try {
+		if (model) {
+			await completeSimple(
+				model,
+				{ messages: [{ role: "user", content: "Reply with OK.", timestamp: Date.now() }] },
+				{
+					apiKey,
+					maxTokens: 1,
+					disableReasoning: true,
+					signal: AbortSignal.timeout(15_000),
+				},
+			);
+			return true;
+		}
+		const definition = getProviderDefinition(providerId);
+		if (!definition?.login) throw new Error("No API-key validator");
+		const result = await definition.login({
+			onAuth: () => {},
+			onProgress: () => {},
+			onPrompt: async () => apiKey,
+			signal: AbortSignal.timeout(15_000),
+		});
+		return typeof result === "string" && result.trim().length > 0;
+	} catch {
+		return false;
+	}
+}
+
+async function refreshRpcProviderBestEffort(session: AgentSession, providerId: string): Promise<void> {
+	try {
+		await session.modelRegistry.refreshProvider(providerId, "online");
+	} catch {
+		// Credential persistence is authoritative; model discovery refresh is best-effort.
+	}
+}
+
+export async function resolveRpcMemoryRoot(session: AgentSession, value: unknown): Promise<string> {
+	const requested = requireBoundedString(value, "root", RPC_MEMORY_ROOT_MAX_BYTES);
+	const configuredRoot = await fs.realpath(session.sessionManager.getCwd());
+	const candidate = path.resolve(configuredRoot, requested);
+	if (!pathIsWithin(configuredRoot, candidate)) throw new Error("Memory root escapes the active project");
+	const canonical = await fs.realpath(candidate);
+	if (!pathIsWithin(configuredRoot, canonical)) throw new Error("Memory root escapes the active project");
+	const stat = await fs.stat(canonical);
+	if (!stat.isDirectory()) throw new Error("Memory root must be a directory");
+	return canonical;
+}
+
+function requireMemoryLimit(value: unknown): number {
+	if (value === undefined) return 10;
+	if (typeof value !== "number" || !Number.isSafeInteger(value) || value < 1 || value > RPC_MEMORY_LIMIT_MAX) {
+		throw new Error(`limit must be an integer from 1 to ${RPC_MEMORY_LIMIT_MAX}`);
+	}
+	return value;
+}
+
+function requireMemoryTokenBudget(value: unknown): number {
+	if (value === undefined) return RPC_MEMORY_TOKEN_BUDGET_DEFAULT;
+	if (typeof value !== "number" || !Number.isSafeInteger(value) || value < 1 || value > RPC_MEMORY_TOKEN_BUDGET_MAX) {
+		throw new Error(`tokenBudget must be an integer from 1 to ${RPC_MEMORY_TOKEN_BUDGET_MAX}`);
+	}
+	return value;
+}
+
+function boundedOptionalMemoryString(value: unknown, maxChars: number): string | undefined {
+	return typeof value === "string" && value.length > 0 ? value.slice(0, maxChars) : undefined;
+}
+
+/** Bound memory recall output by both hit count and the protocol's approximate four-chars/token budget. */
+export function boundRpcMemoryHits(
+	items: ReadonlyArray<{ id?: string; content: string; source?: string; timestamp?: string; score?: number }>,
+	limit: number,
+	tokenBudget: number,
+): RpcMemoryHit[] {
+	let remainingChars = tokenBudget * 4;
+	const hits: RpcMemoryHit[] = [];
+	for (const item of items.slice(0, limit)) {
+		if (remainingChars <= 0) break;
+		const memoryId = boundedOptionalMemoryString(item.id, 512);
+		const source = boundedOptionalMemoryString(item.source, 1_024);
+		const timestamp = boundedOptionalMemoryString(item.timestamp, 128);
+		const metadata = {
+			...(memoryId ? { id: memoryId } : {}),
+			...(source ? { source } : {}),
+			...(timestamp ? { timestamp } : {}),
+			...(typeof item.score === "number" && Number.isFinite(item.score) ? { score: item.score } : {}),
+		};
+		const metadataChars = JSON.stringify(metadata).length + 16;
+		if (metadataChars >= remainingChars) break;
+		const content = typeof item.content === "string" ? item.content.slice(0, remainingChars - metadataChars) : "";
+		if (!content) continue;
+		const hit: RpcMemoryHit = { ...metadata, content };
+		hits.push(hit);
+		remainingChars -= JSON.stringify(hit).length;
+	}
+	return hits;
+}
+
+function sanitizeRpcMemoryStats(status: {
+	backend: string;
+	active: boolean;
+	writable: boolean;
+	searchable: boolean;
+	scope?: string;
+	workingCount?: number;
+	episodicCount?: number;
+	tripleCount?: number;
+}): RpcMemoryStats {
+	const safeCount = (value: unknown): number | undefined =>
+		typeof value === "number" && Number.isSafeInteger(value) && value >= 0 ? value : undefined;
+	const scope = boundedOptionalMemoryString(status.scope, 1_024);
+	const workingCount = safeCount(status.workingCount);
+	const episodicCount = safeCount(status.episodicCount);
+	const tripleCount = safeCount(status.tripleCount);
+	return {
+		backend: status.backend,
+		active: status.active === true,
+		writable: status.writable === true,
+		searchable: status.searchable === true,
+		...(scope ? { scope } : {}),
+		...(workingCount !== undefined ? { workingCount } : {}),
+		...(episodicCount !== undefined ? { episodicCount } : {}),
+		...(tripleCount !== undefined ? { tripleCount } : {}),
+	};
 }
 
 /**
@@ -1436,8 +1670,152 @@ export async function runRpcMode(
 			}
 
 			// =================================================================
-			// Login
+			// Authentication
 			// =================================================================
+
+			case "get_auth_state": {
+				return success(id, "get_auth_state", {
+					providers: listRpcAuthProviderStates(session, command.providerId),
+				});
+			}
+
+			case "validate_api_key": {
+				let apiKey = "";
+				try {
+					const providerId = requireKnownRpcProvider(session, command.providerId);
+					apiKey = requireBoundedString(command.apiKey, "apiKey", RPC_AUTH_API_KEY_MAX_BYTES);
+					const valid = await validateRpcApiKey(session, providerId, apiKey);
+					return success(id, "validate_api_key", { providerId, valid });
+				} finally {
+					command.apiKey = "";
+					apiKey = "";
+				}
+			}
+
+			case "set_api_key": {
+				let apiKey = "";
+				try {
+					const providerId = requireKnownRpcProvider(session, command.providerId);
+					apiKey = requireBoundedString(command.apiKey, "apiKey", RPC_AUTH_API_KEY_MAX_BYTES);
+					try {
+						await session.modelRegistry.authStorage.set(providerId, {
+							type: "api_key",
+							key: apiKey,
+							source: "login",
+						});
+					} catch {
+						return error(id, "set_api_key", "Failed to persist API key");
+					}
+					await refreshRpcProviderBestEffort(session, providerId);
+					return success(id, "set_api_key", { provider: getRpcAuthProviderState(session, providerId) });
+				} finally {
+					command.apiKey = "";
+					apiKey = "";
+				}
+			}
+
+			case "remove_api_key": {
+				const providerId = requireKnownRpcProvider(session, command.providerId);
+				const accountId = requireOptionalBoundedString(command.accountId, "accountId", 1_024);
+				const authStorage = session.modelRegistry.authStorage;
+				const stored = authStorage.listStoredCredentials(providerId);
+				const remaining = stored
+					.filter(row => row.credential.type !== "api_key" || accountId !== undefined)
+					.map(row => row.credential);
+				const removed = remaining.length !== stored.length;
+				if (removed) {
+					if (remaining.length === 0) await authStorage.remove(providerId);
+					else await authStorage.set(providerId, remaining);
+					await refreshRpcProviderBestEffort(session, providerId);
+				}
+				return success(id, "remove_api_key", {
+					providerId,
+					removed,
+					provider: getRpcAuthProviderState(session, providerId),
+				});
+			}
+
+			case "logout_provider": {
+				const providerId = requireKnownRpcProvider(session, command.providerId);
+				const accountId = requireOptionalBoundedString(command.accountId, "accountId", 1_024);
+				const authStorage = session.modelRegistry.authStorage;
+				let loggedOut = false;
+				if (accountId === undefined) {
+					loggedOut = authStorage.listStoredCredentials(providerId).length > 0;
+					if (loggedOut) await authStorage.logout(providerId);
+				} else {
+					const credential = authStorage
+						.listStoredCredentials(providerId)
+						.find(
+							row =>
+								row.credential.type === "oauth" &&
+								isRecord(row.credential) &&
+								row.credential.accountId === accountId,
+						);
+					if (credential) loggedOut = await authStorage.removeCredential(providerId, credential.id);
+				}
+				if (loggedOut) await refreshRpcProviderBestEffort(session, providerId);
+				return success(id, "logout_provider", {
+					providerId,
+					loggedOut,
+					provider: getRpcAuthProviderState(session, providerId),
+				});
+			}
+
+			// =================================================================
+			// Project memory
+			// =================================================================
+
+			case "memory_remember": {
+				const root = await resolveRpcMemoryRoot(session, command.root);
+				const content = requireBoundedString(command.content, "content", RPC_MEMORY_CONTENT_MAX_BYTES);
+				const kind = requireOptionalBoundedString(command.kind, "kind", 128);
+				const source = requireOptionalBoundedString(command.source, "source", 1_024);
+				if (
+					command.importance !== undefined &&
+					(typeof command.importance !== "number" ||
+						!Number.isFinite(command.importance) ||
+						command.importance < 0 ||
+						command.importance > 1)
+				) {
+					throw new Error("importance must be a finite number from 0 to 1");
+				}
+				const memory = createSessionMemoryRuntimeContext(session, session.settings.getAgentDir(), root);
+				const stored = await memory.save({
+					content,
+					...(kind ? { context: `kind:${kind}` } : {}),
+					...(source ? { source } : {}),
+					...(command.importance !== undefined ? { importance: command.importance } : {}),
+				});
+				if (stored.stored < 1) throw new Error("Memory backend did not store the value");
+				const backendId = requireBoundedString(stored.backend, "memory backend id", 128);
+				const storedId = stored.ids?.[0];
+				const memoryId =
+					typeof storedId === "string" && storedId.length > 0 && storedId.length <= 512
+						? storedId
+						: `${backendId}:${Snowflake.next()}`;
+				return success(id, "memory_remember", { id: memoryId });
+			}
+
+			case "memory_recall": {
+				const root = await resolveRpcMemoryRoot(session, command.root);
+				const query = requireBoundedString(command.query, "query", RPC_MEMORY_QUERY_MAX_BYTES);
+				requireOptionalBoundedString(command.kind, "kind", 128);
+				const limit = requireMemoryLimit(command.limit);
+				const tokenBudget = requireMemoryTokenBudget(command.tokenBudget);
+				const memory = createSessionMemoryRuntimeContext(session, session.settings.getAgentDir(), root);
+				const result = await memory.search(query, { limit });
+				return success(id, "memory_recall", {
+					hits: boundRpcMemoryHits(result.items, limit, tokenBudget),
+				});
+			}
+
+			case "memory_stats": {
+				const root = await resolveRpcMemoryRoot(session, command.root);
+				const memory = createSessionMemoryRuntimeContext(session, session.settings.getAgentDir(), root);
+				const status = await memory.status();
+				return success(id, "memory_stats", { stats: sanitizeRpcMemoryStats(status) });
+			}
 
 			case "get_login_providers": {
 				const providers = getOAuthProviders().map(provider => ({

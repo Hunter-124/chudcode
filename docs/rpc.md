@@ -197,6 +197,38 @@ The bundled TypeScript `RpcClient.getMessages()` and Python `RpcClient.get_messa
 - `{ id?, type: "get_login_providers" }`
 - `{ id?, type: "login", providerId: string }`
 
+### Authentication
+
+- `{ id?, type: "get_auth_state", providerId?: string }`
+- `{ id?, type: "validate_api_key", providerId: string, apiKey: string }`
+- `{ id?, type: "set_api_key", providerId: string, apiKey: string }`
+- `{ id?, type: "remove_api_key", providerId: string, accountId?: string }`
+- `{ id?, type: "logout_provider", providerId: string, accountId?: string }`
+
+`login` remains the interactive OAuth command. The additive API-key commands
+use the same provider registry and `AuthStorage` as model execution. Provider
+IDs must resolve through the built-in, runtime, or stored provider registry.
+Authentication responses never contain API keys, access/refresh tokens,
+authorization headers, or raw credential records. Request API-key strings are
+discarded after each command settles, including failures.
+
+### Project memory
+
+- `{ id?, type: "memory_remember", root: string, content: string, kind?: string, source?: string, importance?: number }`
+- `{ id?, type: "memory_recall", root: string, query: string, limit?: number, tokenBudget?: number, kind?: string }`
+- `{ id?, type: "memory_stats", root: string }`
+
+These commands resolve the configured memory backend for the active session;
+they do not create a second memory database. `root` is canonicalized beneath
+the active project directory. Absolute or relative paths that escape that
+scope, including symlink escapes, fail as ordinary recoverable RPC errors.
+
+Bounds are enforced before backend work: roots are at most 4 KiB, remember
+content 64 KiB, queries 8 KiB, recall `limit` is 1–100, and `tokenBudget` is
+1–32,768 (default 4,096). Recall output is truncated to the requested
+approximate token budget. `importance`, when supplied, is finite and between
+0 and 1.
+
 ## Response Schema
 
 All command results use `RpcResponse`:
@@ -468,6 +500,51 @@ previous set — schemes missing from the new list are unregistered.
 `security://` is reserved for Chudcode's producer-neutral software-security resource
 store. RPC hosts cannot register or shadow that scheme.
 
+
+### Authentication payloads
+
+`get_auth_state` returns `{ providers }`. Every provider is secret-free:
+
+```ts
+interface RpcAuthProviderState {
+  providerId: string;
+  name: string;
+  authenticated: boolean;
+  hasApiKey: boolean;
+  hasOAuth: boolean;
+  origin?: "runtime" | "config" | "oauth" | "api_key" | "env" | "fallback";
+  accounts: Array<{
+    accountId?: string;
+    email?: string;
+    projectId?: string;
+    orgId?: string;
+    orgName?: string;
+  }>;
+}
+```
+
+`validate_api_key` returns `{ providerId, valid }` and does not persist the
+key. It makes a bounded provider-native validation request (or uses the
+provider's registered API-key login validator when it has no model transport).
+Provider authentication failures are collapsed to `valid: false`; neither
+provider response bodies nor the submitted key are reflected into RPC output.
+`set_api_key` persists through `AuthStorage` and returns `{ provider }`.
+`remove_api_key` returns `{ providerId, removed, provider }`.
+`logout_provider` returns `{ providerId, loggedOut, provider }`. The returned
+`provider` is the post-operation sanitized state, so environment/config
+credentials that remain visible are reported honestly.
+
+### Project-memory payloads
+
+- `memory_remember`: `{ id: string }`
+- `memory_recall`: `{ hits: RpcMemoryHit[] }`, where each hit contains bounded
+  `content` and optional `id`, `source`, `timestamp`, and finite `score`
+- `memory_stats`: `{ stats }`, containing only `backend`, `active`, `writable`,
+  `searchable`, optional `scope`, and optional non-negative
+  `workingCount`/`episodicCount`/`tripleCount`
+
+Paths, database names, backend diagnostics, and unbounded backend messages are
+not included in memory responses.
 ## Event Stream Schema
 
 RPC mode forwards `AgentSessionEvent` objects from `AgentSession.subscribe(...)`.
@@ -849,6 +926,44 @@ stdin:
 { "type": "extension_ui_response", "id": "ui_7", "value": "feature/rpc-host" }
 ```
 
+### 5) Host authentication and project memory
+
+Raw hosts can correlate setup calls independently, then prompt on the same
+single session:
+
+```jsonl
+{ "id": "auth-1", "type": "set_api_key", "providerId": "anthropic", "apiKey": "<host-provided-secret>" }
+{ "id": "mem-1", "type": "memory_remember", "root": ".", "content": "Assembly units are millimeters.", "kind": "project", "source": "host-settings" }
+{ "id": "mem-2", "type": "memory_recall", "root": ".", "query": "assembly units", "limit": 5, "tokenBudget": 512 }
+{ "id": "turn-1", "type": "prompt", "message": "Use the project units and inspect the assembly." }
+```
+
+Responses may arrive amid session events; match `auth-1`, `mem-1`, `mem-2`,
+and `turn-1` by `id`. Never write the first request or its response-adjacent
+buffers to host logs.
+
+The TypeScript client exposes the same flow without bypassing framing or
+correlation:
+
+```ts
+const client = new RpcClient({ cwd: projectRoot });
+await client.start();
+await client.setApiKey("anthropic", process.env.ANTHROPIC_API_KEY!);
+await client.memoryRemember({
+  root: projectRoot,
+  content: "Assembly units are millimeters.",
+  kind: "project",
+  source: "host-settings",
+});
+const recalled = await client.memoryRecall({
+  root: projectRoot,
+  query: "assembly units",
+  limit: 5,
+  tokenBudget: 512,
+});
+await client.prompt(`Use this project memory: ${recalled.hits.map(hit => hit.content).join("\n")}`);
+```
+
 ## Client libraries
 
 ### TypeScript helper
@@ -861,7 +976,9 @@ Current helper characteristics:
 - Correlates responses by generated `req_<n>` ids
 - Dispatches recognized core `AgentEvent` types to listeners
 - Supports host-owned custom tools via `setCustomTools()` and automatic handling of `host_tool_call` / `host_tool_cancel`
-- Wraps common protocol commands including OAuth `getLoginProviders()` / `login(...)`; use raw protocol frames for any surface not wrapped by the helper.
+- Wraps auth/OAuth and project-memory commands, including `getAuthState()`,
+  `validateApiKey()`, `setApiKey()`, `removeApiKey()`, `logoutProvider()`,
+  `memoryRemember()`, `memoryRecall()`, and `memoryStats()`
 
 ### Python package
 

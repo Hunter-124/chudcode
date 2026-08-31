@@ -14,6 +14,7 @@ provides:
 - typed per-event listeners plus a typed catch-all notification hook
 - helpers for collecting prompt runs and handling extension UI requests in manual or headless mode
 - typed host-tool helpers so Python RPC owners can expose custom tools with JSON Schema metadata
+- typed, secret-safe provider authentication and project-memory commands for embedding hosts
 
 ## Basic Usage
 
@@ -52,12 +53,16 @@ way to seed todos before the first prompt:
 ```python
 from chudcode_rpc import MessageUpdateEvent, RpcClient
 
+
 def on_message_update(event: MessageUpdateEvent) -> None:
     assistant_event = event.assistant_message_event
     if assistant_event.get("type") == "text_delta":
         print(assistant_event["delta"], end="", flush=True)
 
-with RpcClient(model="openrouter/anthropic/claude-sonnet-4.6", no_session=True) as client:
+
+with RpcClient(
+    model="openrouter/anthropic/claude-sonnet-4.6", no_session=True
+) as client:
     client.on_message_update(on_message_update)
     client.set_todos(
         [
@@ -98,6 +103,69 @@ with RpcClient(
 ) as client:
     print(client.get_state().session_id)
 ```
+
+## Provider Authentication and Project Memory
+
+Embedding hosts can inspect and update the same credential store used by
+Chudcode without reading token material. Auth results contain only provider
+status, credential-kind presence, and sanitized account identities:
+
+```python
+import os
+
+from chudcode_rpc import RpcClient
+
+with RpcClient(no_session=True) as client:
+    state = client.get_auth_state("anthropic")
+    provider = state.providers[0]
+    print(provider.authenticated, provider.has_api_key, provider.accounts)
+
+    api_key = os.environ["ANTHROPIC_API_KEY"]
+    if client.validate_api_key("anthropic", api_key).valid:
+        result = client.set_api_key("anthropic", api_key)
+        print(result.provider.authenticated)
+
+    client.remove_api_key("anthropic", account_id="account-1")
+    client.logout_provider("anthropic", account_id="account-1")
+```
+
+`validate_api_key()` and `set_api_key()` accept keys up to 64 KiB and never
+place the key in a result dataclass. If transport or server failure text
+contains the submitted key, the client replaces it with `[REDACTED]` before
+raising. `login(provider_id)` keeps the existing OAuth flow; handle its
+`extension_ui_request` notifications (for example `open_url` or `input`)
+before the final typed `LoginResult`.
+
+Project memory uses the configured Chudcode memory backend and scopes each
+operation to an explicit project root:
+
+```python
+from chudcode_rpc import RpcClient
+
+with RpcClient(no_session=True) as client:
+    stored = client.memory_remember(
+        "/work/acme",
+        "The release branch is main.",
+        kind="working",
+        source="project settings",
+        importance=0.8,
+    )
+    recalled = client.memory_recall(
+        "/work/acme",
+        "release branch",
+        limit=5,
+        token_budget=800,
+        kind="working",
+    )
+    stats = client.memory_stats("/work/acme")
+
+    print(stored.id, recalled.hits[0].content, stats.stats.backend)
+```
+
+Recall results are returned as an immutable tuple of typed `MemoryHit` values.
+The daemon bounds `limit` to 1–100 hits and `token_budget` to 1–32768 tokens
+(default 4096); project roots are limited to 4 KiB, remembered content to
+64 KiB, and recall queries to 8 KiB.
 
 ## Host-Owned Custom Tools
 
@@ -156,27 +224,27 @@ rows: dict[str, str] = {"42": "id=42\nname=Alice\n"}
 
 
 def read_row(url: str, _ctx) -> str:
-	row_id = url.removeprefix("db://users/")
-	return rows[row_id]
+    row_id = url.removeprefix("db://users/")
+    return rows[row_id]
 
 
 def write_row(url: str, content: str, _ctx) -> None:
-	row_id = url.removeprefix("db://users/")
-	rows[row_id] = content
+    row_id = url.removeprefix("db://users/")
+    rows[row_id] = content
 
 
 with RpcClient(
-	no_session=True,
-	host_uris=(
-		host_uri(
-			scheme="db",
-			description="Virtual db row files",
-			read=read_row,
-			write=write_row,
-		),
-	),
+    no_session=True,
+    host_uris=(
+        host_uri(
+            scheme="db",
+            description="Virtual db row files",
+            read=read_row,
+            write=write_row,
+        ),
+    ),
 ) as client:
-	client.prompt_and_wait("Read db://users/42 and rewrite it with name=Bob")
+    client.prompt_and_wait("Read db://users/42 and rewrite it with name=Bob")
 ```
 
 Schemes registered as read-only (no `write=`) reject `write` calls with a

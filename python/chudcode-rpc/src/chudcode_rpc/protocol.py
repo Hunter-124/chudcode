@@ -24,6 +24,9 @@ WidgetPlacement: TypeAlias = Literal["aboveEditor", "belowEditor"]
 TodoStatus: TypeAlias = Literal[
     "pending", "in_progress", "completed", "abandoned", "blocked"
 ]
+AuthOrigin: TypeAlias = Literal[
+    "runtime", "config", "oauth", "api_key", "env", "fallback"
+]
 ExtensionUiMethod: TypeAlias = Literal[
     "select",
     "confirm",
@@ -81,6 +84,9 @@ _WIDGET_PLACEMENT_VALUES: Final[frozenset[str]] = frozenset(
 )
 _TODO_STATUS_VALUES: Final[frozenset[str]] = frozenset(
     {"pending", "in_progress", "completed", "abandoned", "blocked"}
+)
+_AUTH_ORIGIN_VALUES: Final[frozenset[str]] = frozenset(
+    {"runtime", "config", "oauth", "api_key", "env", "fallback"}
 )
 _EXTENSION_UI_METHOD_VALUES: Final[frozenset[str]] = frozenset(
     {
@@ -934,6 +940,97 @@ class SessionStats:
 
 
 @dataclass(slots=True, frozen=True)
+class AuthAccountState:
+    account_id: str | None = None
+    email: str | None = None
+    project_id: str | None = None
+    org_id: str | None = None
+    org_name: str | None = None
+
+
+@dataclass(slots=True, frozen=True)
+class AuthProviderState:
+    provider_id: str
+    name: str
+    authenticated: bool
+    has_api_key: bool
+    has_oauth: bool
+    accounts: tuple[AuthAccountState, ...]
+    origin: AuthOrigin | None = None
+
+
+@dataclass(slots=True, frozen=True)
+class AuthState:
+    providers: tuple[AuthProviderState, ...]
+
+
+@dataclass(slots=True, frozen=True)
+class ApiKeyValidationResult:
+    provider_id: str
+    valid: bool
+
+
+@dataclass(slots=True, frozen=True)
+class SetApiKeyResult:
+    provider: AuthProviderState
+
+
+@dataclass(slots=True, frozen=True)
+class RemoveApiKeyResult:
+    provider_id: str
+    removed: bool
+    provider: AuthProviderState
+
+
+@dataclass(slots=True, frozen=True)
+class LogoutProviderResult:
+    provider_id: str
+    logged_out: bool
+    provider: AuthProviderState
+
+
+@dataclass(slots=True, frozen=True)
+class LoginResult:
+    provider_id: str
+
+
+@dataclass(slots=True, frozen=True)
+class MemoryRememberResult:
+    id: str
+
+
+@dataclass(slots=True, frozen=True)
+class MemoryHit:
+    content: str
+    id: str | None = None
+    source: str | None = None
+    timestamp: str | None = None
+    score: float | None = None
+
+
+@dataclass(slots=True, frozen=True)
+class MemoryRecallResult:
+    hits: tuple[MemoryHit, ...]
+
+
+@dataclass(slots=True, frozen=True)
+class MemoryStats:
+    backend: str
+    active: bool
+    writable: bool
+    searchable: bool
+    scope: str | None = None
+    working_count: int | None = None
+    episodic_count: int | None = None
+    triple_count: int | None = None
+
+
+@dataclass(slots=True, frozen=True)
+class MemoryStatsResult:
+    stats: MemoryStats
+
+
+@dataclass(slots=True, frozen=True)
 class ReadyEvent:
     protocol_version: int | None = None
     supported_protocol_versions: tuple[int, ...] | None = None
@@ -1547,6 +1644,122 @@ def parse_session_stats(payload: JsonObject) -> SessionStats:
         premium_requests=int(payload.get("premiumRequests", 0)),
         cost=float(payload.get("cost", 0.0)),
     )
+
+
+def parse_auth_account_state(payload: JsonObject) -> AuthAccountState:
+    return AuthAccountState(
+        account_id=_optional_str(payload, "accountId"),
+        email=_optional_str(payload, "email"),
+        project_id=_optional_str(payload, "projectId"),
+        org_id=_optional_str(payload, "orgId"),
+        org_name=_optional_str(payload, "orgName"),
+    )
+
+
+def parse_auth_provider_state(payload: JsonObject) -> AuthProviderState:
+    accounts = _clone_json_objects(
+        payload.get("accounts"), field="authProvider.accounts"
+    )
+    return AuthProviderState(
+        provider_id=_require_str(payload, "providerId"),
+        name=_require_str(payload, "name"),
+        authenticated=_require_bool(payload, "authenticated"),
+        has_api_key=_require_bool(payload, "hasApiKey"),
+        has_oauth=_require_bool(payload, "hasOAuth"),
+        accounts=tuple(parse_auth_account_state(account) for account in accounts),
+        origin=cast(
+            AuthOrigin | None,
+            _optional_literal(
+                payload.get("origin"),
+                _AUTH_ORIGIN_VALUES,
+                field="authProvider.origin",
+            ),
+        ),
+    )
+
+
+def parse_auth_state(payload: JsonObject) -> AuthState:
+    providers = _clone_json_objects(
+        payload.get("providers"), field="authState.providers"
+    )
+    return AuthState(
+        providers=tuple(parse_auth_provider_state(provider) for provider in providers)
+    )
+
+
+def parse_api_key_validation_result(payload: JsonObject) -> ApiKeyValidationResult:
+    return ApiKeyValidationResult(
+        provider_id=_require_str(payload, "providerId"),
+        valid=_require_bool(payload, "valid"),
+    )
+
+
+def parse_set_api_key_result(payload: JsonObject) -> SetApiKeyResult:
+    provider = _clone_json_object(payload.get("provider"), field="setApiKey.provider")
+    return SetApiKeyResult(provider=parse_auth_provider_state(provider))
+
+
+def parse_remove_api_key_result(payload: JsonObject) -> RemoveApiKeyResult:
+    provider = _clone_json_object(
+        payload.get("provider"), field="removeApiKey.provider"
+    )
+    return RemoveApiKeyResult(
+        provider_id=_require_str(payload, "providerId"),
+        removed=_require_bool(payload, "removed"),
+        provider=parse_auth_provider_state(provider),
+    )
+
+
+def parse_logout_provider_result(payload: JsonObject) -> LogoutProviderResult:
+    provider = _clone_json_object(
+        payload.get("provider"), field="logoutProvider.provider"
+    )
+    return LogoutProviderResult(
+        provider_id=_require_str(payload, "providerId"),
+        logged_out=_require_bool(payload, "loggedOut"),
+        provider=parse_auth_provider_state(provider),
+    )
+
+
+def parse_login_result(payload: JsonObject) -> LoginResult:
+    return LoginResult(provider_id=_require_str(payload, "providerId"))
+
+
+def parse_memory_remember_result(payload: JsonObject) -> MemoryRememberResult:
+    return MemoryRememberResult(id=_require_str(payload, "id"))
+
+
+def parse_memory_hit(payload: JsonObject) -> MemoryHit:
+    return MemoryHit(
+        id=_optional_str(payload, "id"),
+        content=_require_str(payload, "content"),
+        source=_optional_str(payload, "source"),
+        timestamp=_optional_str(payload, "timestamp"),
+        score=_optional_float(payload, "score"),
+    )
+
+
+def parse_memory_recall_result(payload: JsonObject) -> MemoryRecallResult:
+    hits = _clone_json_objects(payload.get("hits"), field="memoryRecall.hits")
+    return MemoryRecallResult(hits=tuple(parse_memory_hit(hit) for hit in hits))
+
+
+def parse_memory_stats(payload: JsonObject) -> MemoryStats:
+    return MemoryStats(
+        backend=_require_str(payload, "backend"),
+        active=_require_bool(payload, "active"),
+        writable=_require_bool(payload, "writable"),
+        searchable=_require_bool(payload, "searchable"),
+        scope=_optional_str(payload, "scope"),
+        working_count=_optional_int(payload, "workingCount"),
+        episodic_count=_optional_int(payload, "episodicCount"),
+        triple_count=_optional_int(payload, "tripleCount"),
+    )
+
+
+def parse_memory_stats_result(payload: JsonObject) -> MemoryStatsResult:
+    stats = _clone_json_object(payload.get("stats"), field="memoryStats.stats")
+    return MemoryStatsResult(stats=parse_memory_stats(stats))
 
 
 def parse_context_usage(payload: JsonObject | None) -> ContextUsage | None:

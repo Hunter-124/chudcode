@@ -21,6 +21,8 @@ import {
 	type RpcMessagesPageOptions,
 } from "./rpc-messages";
 import type {
+	RpcApiKeyValidationResult,
+	RpcAuthStateResult,
 	RpcAvailableCommandsUpdateFrame,
 	RpcAvailableSlashCommand,
 	RpcCommand,
@@ -32,8 +34,16 @@ import type {
 	RpcHostToolDefinition,
 	RpcHostToolResult,
 	RpcHostToolUpdate,
+	RpcLogoutProviderResult,
+	RpcMemoryRecallInput,
+	RpcMemoryRecallResult,
+	RpcMemoryRememberInput,
+	RpcMemoryRememberResult,
+	RpcMemoryStatsResult,
+	RpcRemoveApiKeyResult,
 	RpcResponse,
 	RpcSessionState,
+	RpcSetApiKeyResult,
 	RpcSubagentEventFrame,
 	RpcSubagentLifecycleFrame,
 	RpcSubagentMessagesResult,
@@ -896,6 +906,54 @@ export class RpcClient {
 		}
 		const response = await this.#send({ type: "get_messages" });
 		return this.#getData<{ messages: AgentMessage[] }>(response).messages;
+	}
+
+	/** Return secret-free authentication state for one provider or the complete provider registry. */
+	async getAuthState(providerId?: string): Promise<RpcAuthStateResult> {
+		const response = await this.#send({ type: "get_auth_state", providerId });
+		return this.#getData<RpcAuthStateResult>(response);
+	}
+
+	/** Validate an API key without persisting it or returning it in the result. */
+	async validateApiKey(providerId: string, apiKey: string): Promise<RpcApiKeyValidationResult> {
+		const response = await this.#send({ type: "validate_api_key", providerId, apiKey });
+		return this.#getData<RpcApiKeyValidationResult>(response);
+	}
+
+	/** Atomically replace the provider's persisted credentials with this API key. */
+	async setApiKey(providerId: string, apiKey: string): Promise<RpcSetApiKeyResult> {
+		const response = await this.#send({ type: "set_api_key", providerId, apiKey });
+		return this.#getData<RpcSetApiKeyResult>(response);
+	}
+
+	/** Remove persisted API-key credentials, optionally narrowed to an account identity. */
+	async removeApiKey(providerId: string, accountId?: string): Promise<RpcRemoveApiKeyResult> {
+		const response = await this.#send({ type: "remove_api_key", providerId, accountId });
+		return this.#getData<RpcRemoveApiKeyResult>(response);
+	}
+
+	/** Log out all stored credentials for a provider, or one OAuth account. */
+	async logoutProvider(providerId: string, accountId?: string): Promise<RpcLogoutProviderResult> {
+		const response = await this.#send({ type: "logout_provider", providerId, accountId });
+		return this.#getData<RpcLogoutProviderResult>(response);
+	}
+
+	/** Persist one value through the configured project-memory backend. */
+	async memoryRemember(input: RpcMemoryRememberInput): Promise<RpcMemoryRememberResult> {
+		const response = await this.#send({ type: "memory_remember", ...input });
+		return this.#getData<RpcMemoryRememberResult>(response);
+	}
+
+	/** Recall bounded project-memory hits through the configured backend. */
+	async memoryRecall(input: RpcMemoryRecallInput): Promise<RpcMemoryRecallResult> {
+		const response = await this.#send({ type: "memory_recall", ...input });
+		return this.#getData<RpcMemoryRecallResult>(response);
+	}
+
+	/** Return path-free, secret-free statistics for the configured project-memory backend. */
+	async memoryStats(root: string): Promise<RpcMemoryStatsResult> {
+		const response = await this.#send({ type: "memory_stats", root });
+		return this.#getData<RpcMemoryStatsResult>(response);
 	}
 
 	/**

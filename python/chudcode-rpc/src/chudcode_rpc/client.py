@@ -9,33 +9,41 @@ import signal
 import subprocess
 import threading
 import time
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Callable, Generic, Mapping, Sequence, TypeVar, cast
+from typing import Any, Generic, Self, TypeVar, cast
 
 from .host_tools import HostTool, HostToolContext
 from .host_uris import HostUri, HostUriContext, normalize_read_result
 from .protocol import (
-    AgentStartEvent,
     AgentEndEvent,
     AgentMessage,
+    AgentStartEvent,
+    ApiKeyValidationResult,
     AssistantMessage,
+    AuthState,
     AutoCompactionEndEvent,
     AutoCompactionStartEvent,
     AutoRetryEndEvent,
     AutoRetryStartEvent,
     BashResult,
-    FastModeResult,
     BranchMessage,
     BranchResult,
     CancellationResult,
     CompactionResult,
     ExtensionError,
     ExtensionUiRequest,
+    FastModeResult,
     ImageContent,
     InterruptMode,
     JsonObject,
     JsonValue,
+    LoginResult,
+    LogoutProviderResult,
+    MemoryRecallResult,
+    MemoryRememberResult,
+    MemoryStatsResult,
     MessageEndEvent,
     MessagesPage,
     MessageStartEvent,
@@ -43,21 +51,23 @@ from .protocol import (
     ModelCycleResult,
     ModelInfo,
     ReadyEvent,
+    RemoveApiKeyResult,
     RetryFallbackAppliedEvent,
     RetryFallbackSucceededEvent,
     RpcAgentEvent,
     RpcNotification,
     SessionState,
     SessionStats,
+    SetApiKeyResult,
     SteeringMode,
     StreamingBehavior,
     ThinkingLevel,
     ThinkingLevelCycleResult,
+    TodoAutoClearEvent,
     TodoItem,
     TodoPhase,
-    TodoStatus,
-    TodoAutoClearEvent,
     TodoReminderEvent,
+    TodoStatus,
     ToolExecutionEndEvent,
     ToolExecutionStartEvent,
     ToolExecutionUpdateEvent,
@@ -67,17 +77,26 @@ from .protocol import (
     UnknownNotification,
     assistant_text,
     parse_agent_messages,
+    parse_api_key_validation_result,
+    parse_auth_state,
     parse_bash_result,
-    parse_fast_mode_result,
     parse_branch_messages,
     parse_branch_result,
     parse_cancellation_result,
     parse_compaction_result,
+    parse_fast_mode_result,
+    parse_login_result,
+    parse_logout_provider_result,
+    parse_memory_recall_result,
+    parse_memory_remember_result,
+    parse_memory_stats_result,
     parse_model_cycle_result,
     parse_model_info,
     parse_notification,
+    parse_remove_api_key_result,
     parse_session_state,
     parse_session_stats,
+    parse_set_api_key_result,
     parse_thinking_level_cycle_result,
     parse_todo_phases,
 )
@@ -351,6 +370,28 @@ class RpcProtocolError(RpcError):
         super().__init__(" ".join(fragments))
 
 
+def _secret_safe_rpc_error(error: Exception, secret: str) -> RpcError:
+    def redact(value: str | None) -> str | None:
+        if value is None or not secret:
+            return value
+        return value.replace(secret, "[REDACTED]")
+
+    message = redact(str(error)) or ""
+    if isinstance(error, RpcCommandError):
+        return RpcCommandError(
+            command=redact(error.command) or "",
+            error=redact(error.error) or "",
+            code=redact(error.code),
+        )
+    if isinstance(error, RpcTimeoutError):
+        return RpcTimeoutError(message)
+    if isinstance(error, RpcProcessExitError):
+        return RpcProcessExitError(message)
+    if isinstance(error, RpcConcurrencyError):
+        return RpcConcurrencyError(message)
+    return RpcError(message)
+
+
 @dataclass(slots=True, frozen=True)
 class ListenerErrorEvent:
     listener_kind: str
@@ -547,8 +588,9 @@ class RpcClient:
         self._protocol_error_listeners: list[ProtocolErrorListener] = []
         self._listener_error_listeners: list[ListenerErrorListener] = []
 
-    def __enter__(self) -> RpcClient:
-        return self.start()
+    def __enter__(self) -> Self:
+        self.start()
+        return self
 
     def __exit__(self, _exc_type: object, _exc: object, _tb: object) -> None:
         self.stop()
@@ -918,6 +960,89 @@ class RpcClient:
         payload = self._request("get_state")
         return parse_session_state(payload)
 
+    def get_auth_state(self, provider_id: str | None = None) -> AuthState:
+        return parse_auth_state(self._request("get_auth_state", providerId=provider_id))
+
+    def validate_api_key(
+        self, provider_id: str, api_key: str
+    ) -> ApiKeyValidationResult:
+        return parse_api_key_validation_result(
+            self._request_with_api_key("validate_api_key", provider_id, api_key)
+        )
+
+    def set_api_key(self, provider_id: str, api_key: str) -> SetApiKeyResult:
+        return parse_set_api_key_result(
+            self._request_with_api_key("set_api_key", provider_id, api_key)
+        )
+
+    def remove_api_key(
+        self, provider_id: str, account_id: str | None = None
+    ) -> RemoveApiKeyResult:
+        return parse_remove_api_key_result(
+            self._request(
+                "remove_api_key",
+                providerId=provider_id,
+                accountId=account_id,
+            )
+        )
+
+    def logout_provider(
+        self, provider_id: str, account_id: str | None = None
+    ) -> LogoutProviderResult:
+        return parse_logout_provider_result(
+            self._request(
+                "logout_provider",
+                providerId=provider_id,
+                accountId=account_id,
+            )
+        )
+
+    def login(self, provider_id: str) -> LoginResult:
+        return parse_login_result(self._request("login", providerId=provider_id))
+
+    def memory_remember(
+        self,
+        root: str | Path,
+        content: str,
+        *,
+        kind: str | None = None,
+        source: str | None = None,
+        importance: float | None = None,
+    ) -> MemoryRememberResult:
+        return parse_memory_remember_result(
+            self._request(
+                "memory_remember",
+                root=str(root),
+                content=content,
+                kind=kind,
+                source=source,
+                importance=importance,
+            )
+        )
+
+    def memory_recall(
+        self,
+        root: str | Path,
+        query: str,
+        *,
+        limit: int | None = None,
+        token_budget: int | None = None,
+        kind: str | None = None,
+    ) -> MemoryRecallResult:
+        return parse_memory_recall_result(
+            self._request(
+                "memory_recall",
+                root=str(root),
+                query=query,
+                limit=limit,
+                tokenBudget=token_budget,
+                kind=kind,
+            )
+        )
+
+    def memory_stats(self, root: str | Path) -> MemoryStatsResult:
+        return parse_memory_stats_result(self._request("memory_stats", root=str(root)))
+
     def set_fast_mode(self, enabled: bool) -> FastModeResult:
         return parse_fast_mode_result(self._request("set_fast_mode", enabled=enabled))
 
@@ -1230,6 +1355,23 @@ class RpcClient:
 
     def request_raw(self, command_type: str, **payload: JsonValue) -> JsonObject:
         return self._request(command_type, **payload)
+
+    def _request_with_api_key(
+        self, command_type: str, provider_id: str, api_key: str
+    ) -> JsonObject:
+        secret_safe_error: RpcError | None = None
+        try:
+            return self._request(
+                command_type,
+                providerId=provider_id,
+                apiKey=api_key,
+            )
+        except Exception as error:  # noqa: BLE001 - detach and redact every failure
+            secret_safe_error = _secret_safe_rpc_error(error, api_key)
+
+        if secret_safe_error is None:
+            raise RpcError("API-key RPC request failed")
+        raise secret_safe_error
 
     def _current_event_index(self) -> int:
         with self._event_condition:
@@ -1966,10 +2108,7 @@ class RpcClient:
 
                 event = cast(RpcAgentEvent, notification)
                 self._append_event(payload)
-                if (
-                    isinstance(event, AgentEndEvent)
-                    and event.is_terminal is not False
-                ):
+                if isinstance(event, AgentEndEvent) and event.is_terminal is not False:
                     self._mark_agent_run_completed()
                 self._dispatch_listeners(
                     "event", event.type, self._event_listeners, event
