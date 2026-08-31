@@ -65,33 +65,27 @@ bun --cwd packages/chudcode-desktop run build
 This creates:
 
 - `packages/chudcode-desktop/dist/web/` — minified browser HTML, JavaScript, CSS, Monaco workers, and assets.
-- `packages/chudcode-desktop/dist/server/server.js` — the Bun server entry point.
+- `packages/chudcode-desktop/dist/chudcode-desktop[.exe]` — a compiled standalone server/launcher with its Bun runtime and JavaScript dependency graph embedded.
 
-The build does not package a Bun executable and does not copy legal notices. A distributable must include `THIRD_PARTY_NOTICES.md`; see that file for the direct dependency manifest and the additional requirements if a release embeds Bun.
+Release archives are produced by `scripts/package-chudcode-desktop.ts`. They contain the compiled CLI, desktop launcher, native GUI, adjacent runtime assets, version metadata, and repository notices. Customer payloads contain no source tree, `node_modules`, or Bun interpreter dependency.
 
 ## Run
 
-To launch the integrated local server and open the preferred browser app window from source:
+Inside an unpacked release archive, the compiled launcher resolves `chud`, `chudcode-gui`, `web/`, `assets/`, `VERSION`, and notices only beside its own executable. It launches the adjacent native GUI by default:
 
 ```sh
-bun packages/chudcode-desktop/src/launch.ts
+./chudcode-desktop
+```
+
+Use `--browser` to attach a browser client instead. Packaged mode fails before starting the server if any adjacent component is absent.
+
+Source execution is intentionally explicit and accepted only in a Chudcode checkout with built web assets:
+
+```sh
+bun packages/chudcode-desktop/src/launch.ts --source-mode
 ```
 
 The launcher uses the current project directory as the initial workspace context, creates a single-instance lease under the Chudcode agent runtime directory, and reuses the existing desktop process when one is already active.
-
-To run the built server without opening a browser:
-
-```sh
-bun packages/chudcode-desktop/dist/server/server.js
-```
-
-The server prints a one-time bootstrap URL. Open that exact URL locally; it exchanges the bearer token for an HTTP-only cookie and redirects to the clean root URL. Stop with `Ctrl+C` or `SIGTERM` so the runtime, sockets, terminals, language servers, and lease are released.
-
-By default the OS selects an ephemeral port. For repeatable local development only, set a loopback port:
-
-```sh
-CHUDCODE_DESKTOP_PORT=3210 bun packages/chudcode-desktop/dist/server/server.js
-```
 
 ## Development
 
@@ -114,7 +108,7 @@ bun build packages/chudcode-desktop/src/web/index.html \
 bun --cwd packages/chudcode-desktop run dev
 ```
 
-Open the bootstrap URL printed by the host. A host restart creates a new random bearer token, so use the newly printed URL after a restart. The browser build watcher does not provide hot-module replacement; refresh after it emits updated assets.
+The dev launcher opens the native GUI. Pass `--browser` directly to the source entrypoint when testing the browser client. The browser build watcher does not provide hot-module replacement; refresh after it emits updated assets.
 
 Useful focused commands:
 

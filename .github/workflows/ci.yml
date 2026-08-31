@@ -63,17 +63,16 @@ on:
             type: boolean
             default: false
 
-# Release runs publish a `v*` tag pushed atomically with main HEAD; sharing
-# the cheap branch-wide `CI-refs/heads/main` group meant a later main push
-# silently cancelled the in-flight release and left the tag without a GitHub
-# Release or npm publish (#2564). Detect release runs at workflow-scheduling
-# time via the release-script commit subject (`chore: bump version to vX.Y.Z`),
-# via `v*` tag-ref dispatches, and via manual dispatches whose tag-on-HEAD
-# status is only known after checkout; scope them to a per-sha group with no
-# cancellation. Every other event keeps branch-wide cancellation for PR/main churn.
+# Release runs publish either the product-namespaced `chudcode-v*` tag or an
+# inherited workspace `v*` tag atomically with main HEAD; sharing the cheap
+# branch-wide `CI-refs/heads/main` group meant a later main push silently
+# cancelled the in-flight release. Detect both tag families at scheduling time,
+# plus release-script commits and manual dispatches whose tag-on-HEAD status is
+# only known after checkout; scope releases to a per-sha group with no
+# cancellation.
 concurrency:
-   group: "${{ github.workflow }}-${{ (startsWith(github.event.head_commit.message, 'chore: bump version to ') || startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch') && format('release-{0}', github.sha) || github.ref }}"
-   cancel-in-progress: "${{ !(startsWith(github.event.head_commit.message, 'chore: bump version to ') || startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch') }}"
+   group: "${{ github.workflow }}-${{ (startsWith(github.event.head_commit.message, 'chore: bump version to ') || startsWith(github.ref, 'refs/tags/v') || startsWith(github.ref, 'refs/tags/chudcode-v') || github.event_name == 'workflow_dispatch') && format('release-{0}', github.sha) || github.ref }}"
+   cancel-in-progress: "${{ !(startsWith(github.event.head_commit.message, 'chore: bump version to ') || startsWith(github.ref, 'refs/tags/v') || startsWith(github.ref, 'refs/tags/chudcode-v') || github.event_name == 'workflow_dispatch') }}"
 
 env:
    FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
@@ -90,8 +89,8 @@ jobs:
    # full build AND, when HEAD carries a release tag, the release/publish jobs.
    # `release_metadata` resolves that tag once so downstream jobs switch on
    # `is-release` and address the tag by name — `github.ref` is
-   # `refs/heads/main` here, not the tag. A `workflow_dispatch` from a `v*` tag
-   # ref (or from a tagged main HEAD) is also treated as a release.
+   # `refs/heads/main` here, not the tag. A `workflow_dispatch` from either
+   # supported tag family (or from a tagged main HEAD) is also a release.
    release_metadata:
       name: Resolve release metadata
       # Hosted, not chudcode-kata: this ~20 s git-tag probe gates the whole release
@@ -121,12 +120,12 @@ jobs:
               release_tag=""
               channel=stable
               case "${{ github.ref }}" in
-                refs/tags/v[0-9]*)
+                refs/tags/v[0-9]*|refs/tags/chudcode-v[0-9]*)
                   release_tag="${{ github.ref_name }}"
                   ;;
                 refs/heads/main)
                   if [ "${{ github.event_name }}" != "pull_request" ]; then
-                    release_tag=$(git tag --points-at HEAD | grep -E '^v[0-9]' | head -n1 || true)
+                    release_tag=$(git tag --points-at HEAD | grep -E '^(chudcode-)?v[0-9]' | head -n1 || true)
                   fi
                   ;;
               esac
@@ -694,6 +693,181 @@ jobs:
               name: chudcode-binary-${{ matrix.target_id }}
               path: ${{ matrix.binary_path }}
 
+   # Produce source-checkout-free native desktop bundles on the architecture
+   # named by each artifact. Every leg builds and executes its own native GUI;
+   # there is deliberately no cross-architecture fallback.
+   desktop_release:
+      name: "Desktop bundle: ${{ matrix.target }}"
+      if: ${{ needs.release_metadata.outputs.is-release == 'true' && !cancelled() &&
+         needs.native_addons.result == 'success' }}
+      needs: [release_metadata, native_addons]
+      strategy:
+         fail-fast: false
+         matrix:
+            include:
+               - target: linux-x64
+                 os: ubuntu-22.04
+                 archive: chudcode-desktop-linux-x64.tar.gz
+                 native_source: artifact
+                 native_targets: linux-x64-baseline linux-x64-modern
+               - target: linux-arm64
+                 os: ubuntu-24.04-arm
+                 archive: chudcode-desktop-linux-arm64.tar.gz
+                 native_source: artifact
+                 native_targets: linux-arm64
+               - target: macos-x64
+                 os: macos-15-intel
+                 archive: chudcode-desktop-macos-x64.tar.gz
+                 native_source: build
+                 native_targets: darwin-x64-baseline
+               - target: macos-arm64
+                 os: macos-14
+                 archive: chudcode-desktop-macos-arm64.tar.gz
+                 native_source: build
+                 native_targets: darwin-arm64
+               - target: windows-x64
+                 os: windows-2022
+                 archive: chudcode-desktop-windows-x64.zip
+                 native_source: artifact
+                 native_targets: win32-x64-baseline
+               - target: windows-arm64
+                 os: windows-11-arm
+                 archive: chudcode-desktop-windows-arm64.zip
+                 native_source: none
+                 native_targets: ""
+      runs-on: ${{ matrix.os }}
+      permissions:
+         contents: read
+      env:
+         BUN_VERSION: "1.4.0"
+         CMAKE_VERSION: "3.31.6"
+         NINJA_VERSION: "1.11.1.4"
+         DESKTOP_TARGET: ${{ matrix.target }}
+         DESKTOP_ARCHIVE: ${{ matrix.archive }}
+         GUI_BUILD_DIR: out/desktop/${{ matrix.target }}/gui
+      steps:
+         - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+         - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+           with:
+              bun-version: ${{ env.BUN_VERSION }}
+         - name: Install pinned CMake and Ninja
+           if: runner.os != 'Windows'
+           shell: bash
+           run: python3 -m pip install --disable-pip-version-check "cmake==${CMAKE_VERSION}" "ninja==${NINJA_VERSION}"
+         - name: Install pinned CMake (Windows)
+           if: runner.os == 'Windows'
+           shell: pwsh
+           run: python -m pip install --disable-pip-version-check "cmake==$env:CMAKE_VERSION"
+         # Dependency downloads are intentionally not cached. Only CMake/Ninja
+         # outputs below are build intermediates; customer archives contain no
+         # package manager cache, source tree, node_modules, or Bun interpreter.
+         - name: Install workspace dependencies
+           run: bun install --frozen-lockfile
+         - name: Install target native addon
+           if: matrix.native_source == 'artifact'
+           uses: ./.github/actions/native-artifacts
+           with:
+              targets: ${{ matrix.native_targets }}
+         - name: Build target native addon
+           if: matrix.native_source == 'build'
+           uses: ./.github/actions/bazel-natives
+           with:
+              targets: ${{ matrix.native_targets }}
+              cache-scope: desktop-${{ matrix.target }}
+         - name: Install Linux GUI toolchain
+           if: runner.os == 'Linux'
+           shell: bash
+           run: |
+              sudo apt-get update
+              sudo apt-get install -y --no-install-recommends \
+                gcc-12 g++-12 binutils xvfb xauth libgl1-mesa-dev xorg-dev
+         - name: Build and test Linux GUI
+           if: runner.os == 'Linux'
+           shell: bash
+           env:
+              CC: gcc-12
+              CXX: g++-12
+           run: |
+              case "$DESKTOP_TARGET:$(dpkg --print-architecture)" in
+                linux-x64:amd64) expected_machine='Advanced Micro Devices X86-64' ;;
+                linux-arm64:arm64) expected_machine='AArch64' ;;
+                *) echo "runner architecture does not match $DESKTOP_TARGET" >&2; exit 1 ;;
+              esac
+              cmake -S gui -B "$GUI_BUILD_DIR" -G Ninja \
+                -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON
+              cmake --build "$GUI_BUILD_DIR" --parallel "$(nproc)"
+              ctest --test-dir "$GUI_BUILD_DIR" --output-on-failure
+              test -x "$GUI_BUILD_DIR/chudcode-gui"
+              readelf -h "$GUI_BUILD_DIR/chudcode-gui" |
+                grep -F 'Machine:' | grep -F "$expected_machine"
+         - name: Select pinned Xcode
+           if: runner.os == 'macOS'
+           shell: bash
+           run: |
+              sudo xcode-select --switch /Applications/Xcode_16.2.app
+              test "$(xcodebuild -version | sed -n '1p')" = 'Xcode 16.2'
+         - name: Build and test macOS GUI
+           if: runner.os == 'macOS'
+           shell: bash
+           run: bash packaging/macos/build-desktop.sh "$DESKTOP_TARGET" "$GUI_BUILD_DIR"
+         - name: Build and test Windows GUI
+           if: runner.os == 'Windows'
+           shell: pwsh
+           run: packaging/windows/build-desktop.ps1 -Target $env:DESKTOP_TARGET -BuildDir $env:GUI_BUILD_DIR
+         - name: Stage Linux or macOS bundle
+           if: runner.os != 'Windows'
+           shell: bash
+           run: |
+              version=$(bun -e 'import { PRODUCT_CLI_VERSION } from "./packages/coding-agent/src/brand.ts"; process.stdout.write(PRODUCT_CLI_VERSION)')
+              epoch=$(git show -s --format=%ct "$GITHUB_SHA")
+              mkdir -p dist/desktop
+              bun scripts/package-chudcode-desktop.ts \
+                --target "$DESKTOP_TARGET" \
+                --gui "$GUI_BUILD_DIR/chudcode-gui" \
+                --output "dist/desktop/$DESKTOP_ARCHIVE" \
+                --version "$version" \
+                --epoch "$epoch"
+              bun scripts/ci-release-publish.ts \
+                --verify-desktop-archive "dist/desktop/$DESKTOP_ARCHIVE" \
+                --version "$version" \
+                --run-executables
+              if command -v sha256sum >/dev/null 2>&1; then
+                sha256sum "dist/desktop/$DESKTOP_ARCHIVE" > "dist/desktop/$DESKTOP_ARCHIVE.sha256"
+              else
+                hash=$(shasum -a 256 "dist/desktop/$DESKTOP_ARCHIVE" | cut -d ' ' -f 1)
+                printf '%s  %s\n' "$hash" "$DESKTOP_ARCHIVE" > "dist/desktop/$DESKTOP_ARCHIVE.sha256"
+              fi
+         - name: Stage Windows bundle
+           if: runner.os == 'Windows'
+           shell: pwsh
+           run: |
+              $version = (bun -e 'import { PRODUCT_CLI_VERSION } from "./packages/coding-agent/src/brand.ts"; process.stdout.write(PRODUCT_CLI_VERSION)').Trim()
+              $epoch = git show -s --format=%ct $env:GITHUB_SHA
+              New-Item -ItemType Directory -Force -Path dist/desktop | Out-Null
+              bun scripts/package-chudcode-desktop.ts `
+                --target $env:DESKTOP_TARGET `
+                --gui "$env:GUI_BUILD_DIR/Release/chudcode-gui.exe" `
+                --output "dist/desktop/$env:DESKTOP_ARCHIVE" `
+                --version $version `
+                --epoch $epoch
+              if ($LASTEXITCODE -ne 0) { throw "desktop packaging failed" }
+              bun scripts/ci-release-publish.ts `
+                --verify-desktop-archive "dist/desktop/$env:DESKTOP_ARCHIVE" `
+                --version $version `
+                --run-executables
+              if ($LASTEXITCODE -ne 0) { throw "desktop archive verification failed" }
+              $hash = (Get-FileHash -Algorithm SHA256 "dist/desktop/$env:DESKTOP_ARCHIVE").Hash.ToLowerInvariant()
+              "$hash  $env:DESKTOP_ARCHIVE" | Set-Content -NoNewline -Encoding ascii "dist/desktop/$env:DESKTOP_ARCHIVE.sha256"
+         - name: Upload desktop bundle and job hash
+           uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+           with:
+              name: chudcode-desktop-${{ matrix.target }}
+              path: |
+                 dist/desktop/${{ matrix.archive }}
+                 dist/desktop/${{ matrix.archive }}.sha256
+              if-no-files-found: error
+              retention-days: 3
+
    # Publishes the five @chudware/natives-<tag> leaf packages once
    # validation passes and every binary built. Runs on one linux runner: leaf
    # publishing is platform-agnostic file packaging (gen-npm-packages reads
@@ -762,8 +936,9 @@ jobs:
       if: ${{ needs.release_metadata.outputs.is-release == 'true' && !cancelled() &&
          needs.release_gate.result == 'success' &&
          needs.release_binary.result == 'success' &&
-         needs.release_binary_darwin.result == 'success' }}
-      needs: [release_metadata, release_gate, release_binary, release_binary_darwin]
+         needs.release_binary_darwin.result == 'success' &&
+         needs.desktop_release.result == 'success' }}
+      needs: [release_metadata, release_gate, release_binary, release_binary_darwin, desktop_release]
       runs-on: ubuntu-22.04
       permissions:
          contents: write
@@ -771,7 +946,13 @@ jobs:
          - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
          - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
            with:
-              bun-version: "1.4"
+              bun-version: "1.4.0"
+         - name: Resolve Chudcode product version
+           id: desktop-version
+           shell: bash
+           run: |
+              version=$(bun -e 'import { PRODUCT_CLI_VERSION } from "./packages/coding-agent/src/brand.ts"; process.stdout.write(PRODUCT_CLI_VERSION)')
+              echo "version=$version" >> "$GITHUB_OUTPUT"
          - name: Generate release notes from CHANGELOGs
            env:
               # `gh release list` (used to find the latest published GitHub
@@ -787,6 +968,12 @@ jobs:
               pattern: chudcode-binary-*
               path: packages/coding-agent/binaries
               merge-multiple: true
+         - name: Download desktop release bundles
+           uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+           with:
+              pattern: chudcode-desktop-*
+              path: dist/desktop
+              merge-multiple: true
          # Dependency-free build (bun APIs + zip only), so no `bun install`
          # is needed on this runner.
          - name: Build browser relay artifacts
@@ -799,8 +986,27 @@ jobs:
               bun run ci:release:checksums SHA256SUMS.txt \
                 packages/coding-agent/binaries/chudcode-* \
                 packages/browser-relay/dist/chudcode-browser-relay-extension.zip \
+                dist/desktop/chudcode-desktop-linux-x64.tar.gz \
+                dist/desktop/chudcode-desktop-linux-arm64.tar.gz \
+                dist/desktop/chudcode-desktop-macos-x64.tar.gz \
+                dist/desktop/chudcode-desktop-macos-arm64.tar.gz \
+                dist/desktop/chudcode-desktop-windows-x64.zip \
+                dist/desktop/chudcode-desktop-windows-arm64.zip \
+                dist/desktop/chudcode-desktop-linux-x64.tar.gz.sha256 \
+                dist/desktop/chudcode-desktop-linux-arm64.tar.gz.sha256 \
+                dist/desktop/chudcode-desktop-macos-x64.tar.gz.sha256 \
+                dist/desktop/chudcode-desktop-macos-arm64.tar.gz.sha256 \
+                dist/desktop/chudcode-desktop-windows-x64.zip.sha256 \
+                dist/desktop/chudcode-desktop-windows-arm64.zip.sha256 \
                 LICENSE \
-                THIRD-PARTY-NOTICES.txt
+                THIRD-PARTY-NOTICES.txt \
+                --version "${{ steps.desktop-version.outputs.version }}"
+         - name: Verify complete desktop release manifest
+           run: |
+              bun scripts/ci-release-publish.ts \
+                --verify-desktop-release dist/desktop \
+                --manifest release-manifest.json \
+                --version "${{ steps.desktop-version.outputs.version }}"
          - name: Create GitHub Release
            uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2.6.2
            with:
@@ -809,9 +1015,11 @@ jobs:
               files: |
                  packages/coding-agent/binaries/chudcode-*
                  packages/browser-relay/dist/chudcode-browser-relay-extension.zip
+                 dist/desktop/chudcode-desktop-*
                  LICENSE
                  THIRD-PARTY-NOTICES.txt
                  SHA256SUMS.txt
+                 release-manifest.json
               body_path: release-notes.md
               generate_release_notes: true
 

@@ -3,37 +3,91 @@ set -eu
 
 PRODUCT_NAME="Chudcode"
 PRODUCT_VERSION="0.2.0"
-CLI_NAME="chud"
-GUI_NAME="chudcode-gui"
-COMPAT_ALIAS="chudcode"
 RELEASE_TAG="chudcode-v${PRODUCT_VERSION}"
 RELEASE_REPOSITORY="Hunter-124/chudcode"
-EXPECTED_VERSION_OUTPUT="${CHUDCODE_EXPECTED_VERSION_OUTPUT:-${PRODUCT_NAME} v${PRODUCT_VERSION}}"
 INSTALL_DIR="${CHUDCODE_INSTALL_DIR:-${HOME}/.local/bin}"
 DATA_DIR="${CHUDCODE_DATA_DIR:-${HOME}/.local/share}"
+INSTALL_ROOT="${CHUDCODE_INSTALL_ROOT:-${DATA_DIR}/chudcode}"
 ARTIFACT_DIR="${CHUDCODE_ARTIFACT_DIR:-}"
 RELEASE_BASE_URL="${CHUDCODE_RELEASE_BASE_URL:-}"
-NATIVE_ADDON_REQUIRED="${CHUDCODE_NATIVE_ADDON_REQUIRED:-0}"
-NATIVE_ADDON_ARTIFACT="${CHUDCODE_NATIVE_ADDON_ARTIFACT:-}"
-VISION_ARCHIVE_NAME="${CLI_NAME}-vision-linux-x64.tar.gz"
+INSTALL_DESKTOP="${CHUDCODE_INSTALL_DESKTOP:-1}"
 FORCE="${CHUDCODE_FORCE:-0}"
 
-say() {
-	printf '%s\n' "$*"
-}
+say() { printf '%s\n' "$*"; }
+die() { printf 'error: %s\n' "$*" >&2; exit 1; }
+command_exists() { command -v "$1" >/dev/null 2>&1; }
 
-die() {
-	printf '%s\n' "error: $*" >&2
-	exit 1
-}
+case "$INSTALL_DESKTOP" in 0|1) ;; *) die "CHUDCODE_INSTALL_DESKTOP must be 0 or 1" ;; esac
 
-command_exists() {
-	command -v "$1" >/dev/null 2>&1
+# Chudware owns its embedded runtime. The standalone installer never writes to a
+# marked or recognizably private Chudware runtime, even with CHUDCODE_FORCE=1.
+assert_standalone_destination() {
+	candidate=$1
+	case "$candidate" in
+		*chudware*/embedded*|*chudware*/private*|*Chudware*/embedded*|*Chudware*/private*)
+			die "refusing to overwrite a Chudware-private embedded runtime: $candidate" ;;
+	esac
+	probe=$candidate
+	while [ -n "$probe" ] && [ "$probe" != "/" ]; do
+		[ ! -e "$probe/.chudware-private-runtime" ] ||
+			die "refusing to overwrite a Chudware-private embedded runtime: $candidate"
+		parent=$(dirname "$probe")
+		[ "$parent" != "$probe" ] || break
+		probe=$parent
+	done
 }
+assert_standalone_destination "$INSTALL_ROOT"
+assert_standalone_destination "$INSTALL_DIR"
+
+os_name=$(uname -s 2>/dev/null || true)
+arch_name=$(uname -m 2>/dev/null || true)
+case "$arch_name" in
+	x86_64|amd64) release_arch="x64" ;;
+	aarch64|arm64) release_arch="arm64" ;;
+	*) die "unsupported architecture: $arch_name" ;;
+esac
+case "$os_name" in
+	Linux) release_os="linux"; archive_ext="tar.gz"; exe_suffix="" ;;
+	Darwin) release_os="macos"; archive_ext="tar.gz"; exe_suffix="" ;;
+	MINGW*|MSYS*|CYGWIN*) release_os="windows"; archive_ext="zip"; exe_suffix=".exe" ;;
+	*) die "unsupported operating system: $os_name" ;;
+esac
+target="${release_os}-${release_arch}"
+artifact_name="chudcode-desktop-${target}.${archive_ext}"
+
+case "$target" in
+	linux-x64|linux-arm64|macos-x64|macos-arm64|windows-x64|windows-arm64) ;;
+	*) die "no canonical desktop artifact for $target" ;;
+esac
+
+work_dir=$(mktemp -d "${TMPDIR:-/tmp}/chudcode-install.XXXXXX")
+stage_dir=""
+release_dir=""
+replaced_release_backup=""
+activated=0
+success=0
+old_current=""
+cleanup() {
+	if [ "$success" != "1" ] && [ "$activated" = "1" ]; then
+		if [ -n "$old_current" ]; then
+			rollback_link="$INSTALL_ROOT/.current.rollback.$$"
+			ln -s "$old_current" "$rollback_link" 2>/dev/null && mv -f "$rollback_link" "$INSTALL_ROOT/current" || true
+		else
+			rm -f "$INSTALL_ROOT/current"
+		fi
+	fi
+	if [ "$success" != "1" ] && [ -n "$replaced_release_backup" ] && [ -n "$release_dir" ]; then
+		rm -rf "$release_dir"
+		mv "$replaced_release_backup" "$release_dir" 2>/dev/null || true
+		replaced_release_backup=""
+	fi
+	rm -rf "$work_dir"
+	[ -z "$stage_dir" ] || rm -rf "$stage_dir"
+}
+trap cleanup EXIT HUP INT TERM
 
 download_url() {
-	url=$1
-	destination=$2
+	url=$1; destination=$2
 	if command_exists curl; then
 		if [ -n "${GITHUB_TOKEN:-}" ]; then
 			curl -fL --retry 3 -H "Authorization: Bearer ${GITHUB_TOKEN}" -o "$destination" "$url"
@@ -51,11 +105,10 @@ download_url() {
 	fi
 }
 
-try_fetch_asset() {
-	asset=$1
-	destination=$2
+fetch_asset() {
+	asset=$1; destination=$2
 	if [ -n "$ARTIFACT_DIR" ]; then
-		[ -f "$ARTIFACT_DIR/$asset" ] || return 1
+		[ -f "$ARTIFACT_DIR/$asset" ] || die "release asset not found: $asset"
 		cp "$ARTIFACT_DIR/$asset" "$destination"
 	elif [ -n "$RELEASE_BASE_URL" ]; then
 		download_url "${RELEASE_BASE_URL%/}/$asset" "$destination"
@@ -66,304 +119,228 @@ try_fetch_asset() {
 	fi
 }
 
-fetch_asset() {
-	try_fetch_asset "$1" "$2" || die "release asset not found: $1"
-}
-
 sha256_file() {
-	if command_exists sha256sum; then
-		value=$(sha256sum "$1")
-	elif command_exists shasum; then
-		value=$(shasum -a 256 "$1")
-	else
-		die "sha256sum or shasum is required to verify release artifacts"
+	if command_exists sha256sum; then value=$(sha256sum "$1")
+	elif command_exists shasum; then value=$(shasum -a 256 "$1")
+	else die "sha256sum or shasum is required to verify release artifacts"
 	fi
 	printf '%s\n' "${value%% *}"
 }
 
 checksum_for() {
-	wanted=$1
-	checksum_file=$2
+	wanted=$1; checksum_file=$2
 	while read -r checksum filename; do
-		if [ "$filename" = "$wanted" ]; then
-			printf '%s\n' "$checksum"
-			return 0
-		fi
+		[ "$filename" = "$wanted" ] || continue
+		case "$checksum" in *[!0-9a-fA-F]*|'') return 1 ;; esac
+		[ "${#checksum}" = "64" ] || return 1
+		printf '%s\n' "$checksum"
+		return 0
 	done < "$checksum_file"
 	return 1
 }
 
-verify_gui_lock() {
-	bundle=$1
-	lock="$bundle/CHUDCODE_GUI.lock"
-	[ -f "$lock" ] || die "GUI archive is missing CHUDCODE_GUI.lock"
-	[ "$(sed -n 's/^schema //p' "$lock")" = "1" ] || die "unsupported GUI lock schema"
-	[ "$(sed -n 's/^target //p' "$lock")" = "$target" ] || die "GUI lock target mismatch"
-	recorded=$(mktemp "${TMPDIR:-/tmp}/chudcode-gui-recorded.XXXXXX")
-	actual=$(mktemp "${TMPDIR:-/tmp}/chudcode-gui-actual.XXXXXX")
-	sed -n '/^file /p' "$lock" > "$recorded"
-	find "$bundle" -type f ! -name CHUDCODE_GUI.lock -print |
-		LC_ALL=C sort |
-		while IFS= read -r file; do
-			relative=${file#"$bundle/"}
-			printf 'file %s %s\n' "$(sha256_file "$file")" "$relative"
-		done > "$actual"
-	if ! cmp -s "$recorded" "$actual"; then
-		rm -f "$recorded" "$actual"
-		die "GUI archive has missing, extra, or changed files"
-	fi
-	rm -f "$recorded" "$actual"
+manifest_hash_for() {
+	wanted=$1; manifest=$2
+	awk -v wanted="$wanted" '
+		$0 ~ "\\\"file\\\": \\\"" wanted "\\\"" { found=1; next }
+		found && /"sha256":/ { gsub(/.*"sha256": "/, ""); gsub(/".*/, ""); print; exit }
+	' "$manifest"
 }
 
-installed_product_version() {
-	output=$1
-	case "$output" in
-		"$PRODUCT_NAME v"*)
-			value=${output#"$PRODUCT_NAME v"}
-			printf '%s\n' "${value%% *}"
+manifest_target_for() {
+	wanted=$1; manifest=$2
+	awk -v wanted="$wanted" '
+		/"target":/ { target=$0; gsub(/.*"target": "/, "", target); gsub(/".*/, "", target) }
+		$0 ~ "\\\"file\\\": \\\"" wanted "\\\"" { print target; exit }
+	' "$manifest"
+}
+
+verify_version_output() {
+	executable=$1
+	output=$("$executable" --version 2>&1) || die "$executable failed its --version check"
+	case "$executable" in
+		*/chud|*/chud.exe)
+			printf '%s\n' "$output" | awk -v version="$PRODUCT_VERSION" '
+				NR == 1 && $0 ~ ("^Chudcode v" version "( \\(based on omp [0-9]+\\.[0-9]+\\.[0-9]+(-[0-9A-Za-z.-]+)?\\))?$") { valid = 1 }
+				NR > 1 { extra = 1 }
+				END { exit(valid && !extra ? 0 : 1) }
+			' || die "$executable returned unexpected --version output: $output"
 			;;
+		*/chudcode-desktop|*/chudcode-desktop.exe)
+			[ "$output" = "$PRODUCT_VERSION" ] || die "$executable returned unexpected --version output: $output"
+			;;
+		*) die "no version-output contract for $executable" ;;
 	esac
 }
 
-is_newer_version() (
-	candidate=$1
-	current=$2
-	old_ifs=$IFS
-	IFS=.
-	set -- $candidate
-	candidate_major=${1:-0}; candidate_minor=${2:-0}; candidate_patch=${3:-0}
-	set -- $current
-	current_major=${1:-0}; current_minor=${2:-0}; current_patch=${3:-0}
-	IFS=$old_ifs
-	[ "$candidate_major" -gt "$current_major" ] ||
-		{ [ "$candidate_major" -eq "$current_major" ] && [ "$candidate_minor" -gt "$current_minor" ]; } ||
-		{ [ "$candidate_major" -eq "$current_major" ] && [ "$candidate_minor" -eq "$current_minor" ] && [ "$candidate_patch" -gt "$current_patch" ]; }
-)
+checksums="$work_dir/SHA256SUMS.txt"
+manifest="$work_dir/release-manifest.json"
+archive="$work_dir/$artifact_name"
+fetch_asset "SHA256SUMS.txt" "$checksums"
+fetch_asset "release-manifest.json" "$manifest"
 
-create_aliases() {
-	ln -sf "$binary_filename" "$INSTALL_DIR/$compat_alias_filename"
-}
+manifest_expected=$(checksum_for "release-manifest.json" "$checksums") ||
+	die "SHA256SUMS.txt has no release-manifest.json entry"
+[ "$(sha256_file "$manifest")" = "$manifest_expected" ] || die "release-manifest.json checksum mismatch"
 
-print_path_hint() {
-	case ":${PATH:-}:" in
-		*":$INSTALL_DIR:"*) ;;
-		*)
-			say ""
-			say "Add the install directory to PATH:"
-			say "  export PATH=\"$INSTALL_DIR:\$PATH\""
+manifest_version=$(sed -n 's/^[[:space:]]*"productVersion": "\([^"]*\)",*$/\1/p' "$manifest")
+[ "$manifest_version" = "$PRODUCT_VERSION" ] || die "release manifest product version mismatch"
+awk '
+	/"rpc": \[/ {
+		getline
+		first = $0
+		getline
+		second = $0
+		gsub(/[^0-9]/, "", first)
+		gsub(/[^0-9]/, "", second)
+		if (first == "1" && second == "2") found = 1
+	}
+	END { exit(found ? 0 : 1) }
+' "$manifest" || die "release manifest RPC protocol version mismatch"
+grep -q '"desktop": 1' "$manifest" || die "release manifest desktop protocol version mismatch"
+manifest_artifact_count=$(grep -c '^[[:space:]]*"file": "chudcode-desktop-' "$manifest" || true)
+[ "$manifest_artifact_count" = "6" ] || die "release manifest does not contain the canonical six-target set"
+for canonical_asset in \
+	chudcode-desktop-linux-x64.tar.gz \
+	chudcode-desktop-linux-arm64.tar.gz \
+	chudcode-desktop-macos-x64.tar.gz \
+	chudcode-desktop-macos-arm64.tar.gz \
+	chudcode-desktop-windows-x64.zip \
+	chudcode-desktop-windows-arm64.zip; do
+	grep -q "\"file\": \"$canonical_asset\"" "$manifest" || die "release manifest is missing $canonical_asset"
+done
+[ "$(manifest_target_for "$artifact_name" "$manifest")" = "$target" ] || die "release manifest target mismatch"
+
+fetch_asset "$artifact_name" "$archive"
+archive_expected=$(checksum_for "$artifact_name" "$checksums") || die "SHA256SUMS.txt has no entry for $artifact_name"
+archive_actual=$(sha256_file "$archive")
+[ "$archive_actual" = "$archive_expected" ] || die "checksum mismatch for $artifact_name"
+[ "$(manifest_hash_for "$artifact_name" "$manifest")" = "$archive_actual" ] || die "release manifest hash mismatch for $artifact_name"
+
+listing="$work_dir/archive.list"
+if [ "$archive_ext" = "zip" ]; then
+	command_exists unzip || die "unzip is required for Windows desktop archives"
+	unzip -Z1 "$archive" > "$listing" || die "could not inspect $artifact_name"
+else
+	command_exists tar || die "tar is required for desktop archives"
+	tar -tzf "$archive" > "$listing" || die "could not inspect $artifact_name"
+fi
+while IFS= read -r member; do
+	case "$member" in
+		/*|../*|*/../*|*/..) die "archive contains an unsafe path: $member" ;;
+		.git/*|*/.git/*|node_modules/*|*/node_modules/*|src/*|*/src/*|*.c|*.cc|*.cpp|*.cxx|*.h|*.hh|*.hpp|*.hxx|*.m|*.mm|*.py|*.pyc|*.pyo|*.rs|*.ts|*.tsx|*.jsx|*.map|bun.lock|*/bun.lock|package.json|*/package.json|CMakeLists.txt|*/CMakeLists.txt)
+			die "archive is not source-free: $member" ;;
+	esac
+	case "$member" in
+		*.js)
+			case "$member" in web/*|./web/*) ;; *) die "archive contains JavaScript outside compiled web assets: $member" ;; esac
 			;;
 	esac
+done < "$listing"
+
+payload="$work_dir/payload"
+mkdir "$payload"
+if [ "$archive_ext" = "zip" ]; then unzip -q "$archive" -d "$payload"
+else tar -xzf "$archive" -C "$payload"
+fi
+
+for required in "chud${exe_suffix}" "chudcode-desktop${exe_suffix}" "chudcode-gui${exe_suffix}" VERSION NOTICE THIRD-PARTY-NOTICES.txt; do
+	[ -f "$payload/$required" ] || die "$artifact_name is missing $required"
+done
+[ -d "$payload/web" ] || die "$artifact_name is missing web assets"
+[ -d "$payload/assets" ] || die "$artifact_name is missing native GUI assets"
+[ -s "$payload/NOTICE" ] || die "$artifact_name contains an empty NOTICE"
+[ -s "$payload/THIRD-PARTY-NOTICES.txt" ] || die "$artifact_name contains empty third-party notices"
+[ "$(cat "$payload/VERSION")" = "$PRODUCT_VERSION" ] || die "$artifact_name VERSION mismatch"
+for notice_token in GLFW ImGui IXWebSocket libvterm stb_image Rubik "JetBrains Mono" Monaco xterm.js Bun; do
+	grep -q "$notice_token" "$payload/THIRD-PARTY-NOTICES.txt" || die "$artifact_name notices omit $notice_token"
+done
+chmod 755 "$payload/chud${exe_suffix}" "$payload/chudcode-desktop${exe_suffix}" "$payload/chudcode-gui${exe_suffix}"
+verify_version_output "$payload/chud${exe_suffix}"
+verify_version_output "$payload/chudcode-desktop${exe_suffix}"
+
+
+mkdir -p "$INSTALL_ROOT/releases" "$INSTALL_DIR"
+assert_standalone_destination "$INSTALL_ROOT/releases"
+release_dir="$INSTALL_ROOT/releases/${PRODUCT_VERSION}-${target}"
+stage_dir=$(mktemp -d "$INSTALL_ROOT/releases/.${PRODUCT_VERSION}-${target}.XXXXXX")
+cp -R "$payload/." "$stage_dir/"
+
+# Validate the installed copy before it can become current.
+verify_version_output "$stage_dir/chud${exe_suffix}"
+[ "$(cat "$stage_dir/VERSION")" = "$PRODUCT_VERSION" ] || die "staged VERSION changed"
+
+assert_install_link_replaceable() {
+	existing="$INSTALL_DIR/$1"
+	if [ -e "$existing" ] || [ -L "$existing" ]; then
+		if [ -L "$existing" ]; then
+			existing_target=$(readlink "$existing")
+			case "$existing_target" in *chudware*|*Chudware*) die "refusing to replace Chudware-private link $existing" ;; esac
+		elif [ "$FORCE" != "1" ]; then
+			die "$existing is not a managed symlink; set CHUDCODE_FORCE=1 to replace it"
+		fi
+	fi
+}
+assert_install_link_replaceable "chud${exe_suffix}"
+assert_install_link_replaceable "chudcode${exe_suffix}"
+if [ "$INSTALL_DESKTOP" = "1" ]; then
+	assert_install_link_replaceable "chudcode-desktop${exe_suffix}"
+	assert_install_link_replaceable "chudcode-gui${exe_suffix}"
+fi
+
+if [ -L "$INSTALL_ROOT/current" ]; then old_current=$(readlink "$INSTALL_ROOT/current")
+elif [ -e "$INSTALL_ROOT/current" ]; then die "$INSTALL_ROOT/current exists and is not a managed symlink"
+fi
+
+if [ -e "$release_dir" ]; then
+	[ "$FORCE" = "1" ] || {
+		[ "$(sha256_file "$release_dir/chud${exe_suffix}")" = "$(sha256_file "$stage_dir/chud${exe_suffix}")" ] ||
+			die "$release_dir already exists with different contents; set CHUDCODE_FORCE=1 to replace it"
+	}
+	replaced_release_backup="$INSTALL_ROOT/releases/.old-${PRODUCT_VERSION}-${target}.$$"
+	mv "$release_dir" "$replaced_release_backup"
+	mv "$stage_dir" "$release_dir"
+	stage_dir=""
+else
+	mv "$stage_dir" "$release_dir"
+	stage_dir=""
+fi
+
+next_current="$INSTALL_ROOT/.current.$$"
+ln -s "$release_dir" "$next_current"
+mv -f "$next_current" "$INSTALL_ROOT/current"
+activated=1
+
+install_link() {
+	name=$1; destination=$2
+	existing="$INSTALL_DIR/$name"
+	if [ -e "$existing" ] || [ -L "$existing" ]; then
+		if [ -L "$existing" ]; then
+			existing_target=$(readlink "$existing")
+			case "$existing_target" in *chudware*|*Chudware*) die "refusing to replace Chudware-private link $existing" ;; esac
+		elif [ "$FORCE" != "1" ]; then
+			die "$existing is not a managed symlink; set CHUDCODE_FORCE=1 to replace it"
+		fi
+	fi
+	tmp_link="$INSTALL_DIR/.${name}.$$"
+	ln -s "$destination" "$tmp_link"
+	mv -f "$tmp_link" "$existing"
 }
 
-os_name=$(uname -s 2>/dev/null || true)
-arch_name=$(uname -m 2>/dev/null || true)
-
-case "$arch_name" in
-	x86_64|amd64) release_arch="x64" ;;
-	aarch64|arm64) release_arch="arm64" ;;
-	*) die "unsupported architecture: $arch_name" ;;
-esac
-
-case "$os_name" in
-	Linux)
-		release_os="linux"
-		if command_exists ldd && ldd_output=$(ldd --version 2>&1); then
-			case "$ldd_output" in *musl*) release_os="linux-musl" ;; esac
-		fi
-		;;
-	Darwin) release_os="darwin" ;;
-	MINGW*|MSYS*|CYGWIN*) release_os="win32" ;;
-	*) die "unsupported operating system: $os_name" ;;
-esac
-
-case "$release_os-$release_arch" in
-	darwin-arm64|darwin-x64|linux-x64|linux-arm64|linux-musl-x64|linux-musl-arm64|win32-x64)
-		target="$release_os-$release_arch"
-		;;
-	*) die "no release target for $release_os/$release_arch" ;;
-esac
-
-binary_filename="$CLI_NAME"
-compat_alias_filename="$COMPAT_ALIAS"
-artifact_name="${CLI_NAME}-${target}"
-case "$release_os" in
-	win32)
-		binary_filename="${binary_filename}.exe"
-		compat_alias_filename="${compat_alias_filename}.exe"
-		artifact_name="${artifact_name}.exe"
-		;;
-esac
-install_path="$INSTALL_DIR/$binary_filename"
-
-mkdir -p "$INSTALL_DIR"
-cli_current=0
-
-if [ -e "$install_path" ] || [ -L "$install_path" ]; then
-	if installed_output=$($install_path --version 2>&1); then
-		installed_version=$(installed_product_version "$installed_output")
-		if [ "$installed_output" = "$EXPECTED_VERSION_OUTPUT" ]; then
-			cli_current=1
-			say "$PRODUCT_NAME $PRODUCT_VERSION is already installed at $install_path"
-		elif [ -n "$installed_version" ] && is_newer_version "$installed_version" "$PRODUCT_VERSION"; then
-			say "$PRODUCT_NAME $installed_version is newer than $PRODUCT_VERSION; leaving it unchanged."
-			exit 0
-		elif [ -z "$installed_version" ] && [ "$FORCE" != "1" ]; then
-			die "$install_path is not a recognized $PRODUCT_NAME install; set CHUDCODE_FORCE=1 to replace it"
-		fi
-	else
-		[ "$FORCE" = "1" ] || die "$install_path does not start; set CHUDCODE_FORCE=1 to replace it"
-	fi
+install_link "chud${exe_suffix}" "$INSTALL_ROOT/current/chud${exe_suffix}"
+install_link "chudcode${exe_suffix}" "$INSTALL_ROOT/current/chud${exe_suffix}"
+if [ "$INSTALL_DESKTOP" = "1" ]; then
+	install_link "chudcode-desktop${exe_suffix}" "$INSTALL_ROOT/current/chudcode-desktop${exe_suffix}"
+	install_link "chudcode-gui${exe_suffix}" "$INSTALL_ROOT/current/chudcode-gui${exe_suffix}"
 fi
 
-temp_binary=""
-temp_checksum=$(mktemp "$INSTALL_DIR/.${CLI_NAME}.checksums.XXXXXX")
-temp_native=""
-temp_gui_archive=""
-temp_gui_dir=""
-temp_vision_archive=""
-temp_vision_dir=""
-cleanup() {
-	[ -z "$temp_binary" ] || rm -f "$temp_binary"
-	rm -f "$temp_checksum"
-	[ -z "$temp_native" ] || rm -f "$temp_native"
-	[ -z "$temp_gui_archive" ] || rm -f "$temp_gui_archive"
-	[ -z "$temp_gui_dir" ] || rm -rf "$temp_gui_dir"
-	[ -z "$temp_vision_archive" ] || rm -f "$temp_vision_archive"
-	[ -z "$temp_vision_dir" ] || rm -rf "$temp_vision_dir"
-}
-trap cleanup EXIT HUP INT TERM
-
-if ! try_fetch_asset "SHA256SUMS.txt" "$temp_checksum"; then
-	if [ "$cli_current" = "1" ]; then
-		create_aliases
-		say "Release checksums are unavailable; existing CLI was left unchanged and optional GUI installation was skipped."
-		print_path_hint
-		exit 0
-	fi
-	die "release asset not found: SHA256SUMS.txt"
+verify_version_output "$INSTALL_DIR/chud${exe_suffix}"
+success=1
+[ -z "$replaced_release_backup" ] || rm -rf "$replaced_release_backup"
+replaced_release_backup=""
+say "Installed $PRODUCT_NAME $PRODUCT_VERSION for $target"
+say "CLI: $INSTALL_DIR/chud${exe_suffix}"
+if [ "$INSTALL_DESKTOP" = "1" ]; then say "Desktop: $INSTALL_DIR/chudcode-desktop${exe_suffix}"
+else say "Desktop launchers were not exposed (CLI-only installation)."
 fi
-
-if [ "$cli_current" = "0" ]; then
-	say "Installing $PRODUCT_NAME $PRODUCT_VERSION for $target..."
-	temp_binary=$(mktemp "$INSTALL_DIR/.${CLI_NAME}.XXXXXX")
-	fetch_asset "$artifact_name" "$temp_binary"
-	expected_hash=$(checksum_for "$artifact_name" "$temp_checksum") ||
-		die "SHA256SUMS.txt has no entry for $artifact_name"
-	[ "$(sha256_file "$temp_binary")" = "$expected_hash" ] || die "checksum mismatch for $artifact_name"
-	chmod 755 "$temp_binary"
-	version_output=$($temp_binary --version 2>&1) || die "downloaded binary did not start"
-	[ "$version_output" = "$EXPECTED_VERSION_OUTPUT" ] || die "unexpected --version output: $version_output"
-
-	if [ "$NATIVE_ADDON_REQUIRED" = "1" ]; then
-		[ -n "$NATIVE_ADDON_ARTIFACT" ] || die "native addon is required but CHUDCODE_NATIVE_ADDON_ARTIFACT is unset"
-		temp_native=$(mktemp "$INSTALL_DIR/.${CLI_NAME}.native.XXXXXX")
-		fetch_asset "$NATIVE_ADDON_ARTIFACT" "$temp_native"
-		native_expected_hash=$(checksum_for "$NATIVE_ADDON_ARTIFACT" "$temp_checksum") ||
-			die "SHA256SUMS.txt has no entry for $NATIVE_ADDON_ARTIFACT"
-		[ "$(sha256_file "$temp_native")" = "$native_expected_hash" ] ||
-			die "checksum mismatch for $NATIVE_ADDON_ARTIFACT"
-		chmod 755 "$temp_native"
-	fi
-
-	mv "$temp_binary" "$install_path"
-	temp_binary=""
-	if [ "$NATIVE_ADDON_REQUIRED" = "1" ]; then
-		mv "$temp_native" "$INSTALL_DIR/$NATIVE_ADDON_ARTIFACT"
-		temp_native=""
-	fi
-fi
-
-create_aliases
-installed_output=$($install_path --version 2>&1) || die "installed binary failed its startup check"
-[ "$installed_output" = "$EXPECTED_VERSION_OUTPUT" ] || die "installed binary returned an unexpected version: $installed_output"
-
-vision_installed=0
-if [ "$target" = "linux-x64" ]; then
-	temp_vision_archive=$(mktemp "$INSTALL_DIR/.${CLI_NAME}-vision.XXXXXX.tar.gz")
-	if try_fetch_asset "$VISION_ARCHIVE_NAME" "$temp_vision_archive"; then
-		vision_expected_hash=$(checksum_for "$VISION_ARCHIVE_NAME" "$temp_checksum") ||
-			die "SHA256SUMS.txt has no entry for $VISION_ARCHIVE_NAME"
-		[ "$(sha256_file "$temp_vision_archive")" = "$vision_expected_hash" ] ||
-			die "checksum mismatch for $VISION_ARCHIVE_NAME"
-		temp_vision_dir=$(mktemp -d "${TMPDIR:-/tmp}/chudcode-vision-install.XXXXXX")
-		tar -xzf "$temp_vision_archive" -C "$temp_vision_dir"
-		vision_bundle="$temp_vision_dir/${CLI_NAME}-vision-linux-x64"
-		[ -x "$vision_bundle/chud-vision" ] || die "vision archive is missing chud-vision"
-		[ -f "$vision_bundle/libonnxruntime.so" ] || die "vision archive is missing libonnxruntime.so"
-		[ -f "$vision_bundle/ONNXRUNTIME-LICENSE" ] || die "vision archive is missing the ONNX Runtime license"
-		"$vision_bundle/chud-vision" --print-manifest >/dev/null ||
-			die "chud-vision failed its startup check"
-
-		vision_install_dir="$DATA_DIR/chudcode/vision-${PRODUCT_VERSION}"
-		mkdir -p "$DATA_DIR/chudcode"
-		rm -rf "$vision_install_dir"
-		mv "$vision_bundle" "$vision_install_dir"
-		ln -sf "$vision_install_dir/chud-vision" "$INSTALL_DIR/chud-vision"
-		vision_installed=1
-	else
-		rm -f "$temp_vision_archive"
-		temp_vision_archive=""
-	fi
-fi
-
-
-gui_installed=0
-if [ "$target" = "linux-x64" ]; then
-	gui_archive_name="${GUI_NAME}-${target}.tar.gz"
-	temp_gui_archive=$(mktemp "$INSTALL_DIR/.${GUI_NAME}.XXXXXX.tar.gz")
-	if try_fetch_asset "$gui_archive_name" "$temp_gui_archive"; then
-		gui_expected_hash=$(checksum_for "$gui_archive_name" "$temp_checksum") ||
-			die "SHA256SUMS.txt has no entry for $gui_archive_name"
-		[ "$(sha256_file "$temp_gui_archive")" = "$gui_expected_hash" ] ||
-			die "checksum mismatch for $gui_archive_name"
-		temp_gui_dir=$(mktemp -d "${TMPDIR:-/tmp}/chudcode-gui-install.XXXXXX")
-		tar -xzf "$temp_gui_archive" -C "$temp_gui_dir"
-		gui_bundle="$temp_gui_dir/${GUI_NAME}-${target}"
-		verify_gui_lock "$gui_bundle"
-		[ -x "$gui_bundle/$GUI_NAME" ] || die "GUI archive is missing $GUI_NAME"
-		[ -d "$gui_bundle/assets" ] || die "GUI archive is missing assets"
-		[ -f "$gui_bundle/packaging/linux/chudcode.desktop" ] || die "GUI archive is missing chudcode.desktop"
-
-		mkdir -p "$DATA_DIR/chudcode" "$DATA_DIR/applications" "$DATA_DIR/icons/hicolor"
-		rm -rf "$DATA_DIR/chudcode/assets"
-		cp -R "$gui_bundle/assets" "$DATA_DIR/chudcode/assets"
-		cp "$gui_bundle/CHUDCODE_GUI.lock" "$DATA_DIR/chudcode/CHUDCODE_GUI.lock"
-		cp "$gui_bundle/packaging/linux/chudcode.desktop" "$DATA_DIR/applications/chudcode.desktop"
-		cp -R "$gui_bundle/icons/hicolor/." "$DATA_DIR/icons/hicolor/"
-		cp "$gui_bundle/$GUI_NAME" "$INSTALL_DIR/$GUI_NAME"
-		chmod 755 "$INSTALL_DIR/$GUI_NAME"
-		if [ -e "$INSTALL_DIR/assets" ] && [ ! -L "$INSTALL_DIR/assets" ]; then
-			die "$INSTALL_DIR/assets exists and is not a symlink; cannot expose GUI assets beside the executable"
-		fi
-		ln -sf "$DATA_DIR/chudcode/assets" "$INSTALL_DIR/assets"
-
-		ldd_output=$(ldd "$INSTALL_DIR/$GUI_NAME" 2>&1) || die "$GUI_NAME failed its dependency check: $ldd_output"
-		case "$ldd_output" in *"not found"*) die "$GUI_NAME has unresolved shared libraries: $ldd_output" ;; esac
-		screenshot="$temp_gui_dir/chudcode-ui.png"
-		if [ -n "${DISPLAY:-}" ]; then
-			PATH="$INSTALL_DIR:${PATH:-}" "$INSTALL_DIR/$GUI_NAME" --code --ui-screenshot "$screenshot" ||
-				die "$GUI_NAME screenshot verification failed"
-		elif command_exists xvfb-run; then
-			PATH="$INSTALL_DIR:${PATH:-}" xvfb-run -a "$INSTALL_DIR/$GUI_NAME" --code --ui-screenshot "$screenshot" ||
-				die "$GUI_NAME Xvfb screenshot verification failed"
-		fi
-		gui_installed=1
-	else
-		rm -f "$temp_gui_archive"
-		temp_gui_archive=""
-	fi
-fi
-
-say "Installed $installed_output"
-say "Commands: $CLI_NAME, $COMPAT_ALIAS"
-if [ "$gui_installed" = "1" ]; then
-	say "GUI: $GUI_NAME"
-else
-	say "GUI artifact not present; CLI-only installation is valid."
-fi
-if [ "$vision_installed" = "1" ]; then
-	say "Vision: chud-vision"
-else
-	say "Vision artifact not present; image analysis degrades with a structured install hint."
-fi
-print_path_hint
+case ":${PATH:-}:" in *":$INSTALL_DIR:"*) ;; *) say "Add $INSTALL_DIR to PATH." ;; esac

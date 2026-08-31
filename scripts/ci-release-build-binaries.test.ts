@@ -22,6 +22,17 @@ describe("Windows release binary target", () => {
 		expect(output).not.toContain("bun-windows-x64-modern");
 	});
 
+	it("builds the Windows ARM64 CLI used by the canonical desktop archive", async () => {
+		const result = await $`bun scripts/ci-release-build-binaries.ts --dry-run --targets win32-arm64`
+			.cwd(repoRoot)
+			.quiet()
+			.nothrow();
+		expect(result.exitCode).toBe(0);
+		expect(result.text()).toContain(
+			"DRY RUN Bun.build target=bun-windows-arm64 outfile=packages/coding-agent/binaries/chudcode-windows-arm64.exe",
+		);
+	});
+
 	it("uses the baseline runtime for local Windows cross-build aliases", () => {
 		expect(resolveCrossBuild("win32-x64")).toEqual({
 			id: "win32-x64",

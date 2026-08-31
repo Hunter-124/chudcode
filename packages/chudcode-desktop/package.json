@@ -4,8 +4,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "bun build ./src/web/index.html --outdir=dist/web --target=browser --minify && bun build ./src/launch.ts --outdir=dist/server --target=bun --external=chudcode-legacy-pi-modules --external=fastembed --external=onnxruntime-node && mkdir -p dist/native && cp ../natives/native/chud_natives.*.node dist/native/",
-    "dev": "bun --watch src/launch.ts",
+    "build": "bun ../../scripts/package-chudcode-desktop.ts --build-only --output dist",
+    "dev": "bun --watch src/launch.ts --source-mode",
     "check": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.web.json"
   },
   "dependencies": {

@@ -41,7 +41,19 @@ import {
 	generateNpmPackages,
 	LEAF_TARGETS,
 } from "../packages/natives/scripts/gen-npm-packages.ts";
+import {
+	assertCompleteDesktopRelease,
+	hashReleaseFile,
+	normalizeProductVersion,
+	verifyReleaseManifest,
+} from "./ci-release-checksums.ts";
 import { fixEmitExtensions } from "./fix-emit-extensions.ts";
+import {
+	canonicalArchiveName,
+	TARGETS as DESKTOP_TARGETS,
+	type DesktopTarget,
+	validatePayloadTree,
+} from "./package-chudcode-desktop.ts";
 
 export interface PublishPackage {
 	dir: string;
@@ -315,6 +327,174 @@ export async function prepareNativeCorePackage(pkgDir: string, write: boolean): 
 	if (write) await fsx.write(manifestPath, `${JSON.stringify(manifest, null, "\t")}\n`);
 	return manifest;
 }
+const DESKTOP_NOTICE_TOKENS = [
+	"GLFW",
+	"ImGui",
+	"IXWebSocket",
+	"libvterm",
+	"stb_image",
+	"Rubik",
+	"JetBrains Mono",
+	"Monaco",
+	"xterm.js",
+	"Bun",
+] as const;
+
+function desktopTargetForArchive(archivePath: string): DesktopTarget {
+	const name = path.basename(archivePath);
+	const target = DESKTOP_TARGETS.find(candidate => canonicalArchiveName(candidate) === name);
+	if (!target) throw new Error(`Not a canonical desktop archive: ${name}`);
+	return target;
+}
+
+async function runChecked(command: readonly string[], cwd?: string): Promise<string> {
+	const process = Bun.spawn(command, { cwd, stdout: "pipe", stderr: "pipe" });
+	const [exitCode, stdout, stderr] = await Promise.all([
+		process.exited,
+		new Response(process.stdout).text(),
+		new Response(process.stderr).text(),
+	]);
+	if (exitCode !== 0) {
+		throw new Error(`Command failed (${exitCode}): ${command.join(" ")}\n${stderr.trim()}`);
+	}
+	return stdout.trim();
+}
+
+function hostDesktopTarget(): DesktopTarget | null {
+	const osName = process.platform === "darwin" ? "macos" : process.platform === "win32" ? "windows" : process.platform;
+	const archName = process.arch === "x64" || process.arch === "arm64" ? process.arch : null;
+	const candidate = archName ? `${osName}-${archName}` : "";
+	return (DESKTOP_TARGETS as readonly string[]).includes(candidate) ? (candidate as DesktopTarget) : null;
+}
+
+export function isCanonicalCliVersionOutput(output: string, productVersion: string): boolean {
+	const version = normalizeProductVersion(productVersion).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+	return new RegExp(
+		`^Chudcode v${version}(?: \\(based on omp [0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z.-]+)?\\))?$`,
+	).test(output);
+}
+
+export async function verifyDesktopExecutableVersions(
+	payloadRoot: string,
+	target: DesktopTarget,
+	productVersion: string,
+): Promise<void> {
+	const hostTarget = hostDesktopTarget();
+	if (hostTarget !== target) {
+		throw new Error(`Cannot execute ${target} payload on ${hostTarget ?? `${process.platform}-${process.arch}`}`);
+	}
+	const suffix = target.startsWith("windows-") ? ".exe" : "";
+	const expected = normalizeProductVersion(productVersion);
+	for (const executable of [`chud${suffix}`, `chudcode-desktop${suffix}`]) {
+		const output = await runChecked([path.join(payloadRoot, executable), "--version"], payloadRoot);
+		const valid =
+			executable === `chud${suffix}` ? isCanonicalCliVersionOutput(output, expected) : output === expected;
+		if (!valid) {
+			const expectedOutput =
+				executable === `chud${suffix}`
+					? `Chudcode v${expected} (optionally followed by documented OMP build provenance)`
+					: expected;
+			throw new Error(
+				`${executable} --version mismatch: expected ${expectedOutput}, received ${JSON.stringify(output)}`,
+			);
+		}
+	}
+}
+
+export async function verifyDesktopPayload(
+	payloadRoot: string,
+	target: DesktopTarget,
+	productVersion: string,
+	runExecutables = false,
+): Promise<void> {
+	const expected = normalizeProductVersion(productVersion);
+	await validatePayloadTree(payloadRoot, target);
+	const version = (await fs.readFile(path.join(payloadRoot, "VERSION"), "utf8")).trim();
+	if (version !== expected)
+		throw new Error(`VERSION mismatch for ${target}: expected ${expected}, received ${version}`);
+
+	for (const legalFile of ["NOTICE", "THIRD-PARTY-NOTICES.txt"]) {
+		const text = await fs.readFile(path.join(payloadRoot, legalFile), "utf8");
+		if (!text.trim()) throw new Error(`${target} contains an empty ${legalFile}`);
+	}
+	const notices = await fs.readFile(path.join(payloadRoot, "THIRD-PARTY-NOTICES.txt"), "utf8");
+	for (const token of DESKTOP_NOTICE_TOKENS) {
+		if (!notices.includes(token)) throw new Error(`${target} third-party notices omit ${token}`);
+	}
+	if (runExecutables) await verifyDesktopExecutableVersions(payloadRoot, target, expected);
+}
+
+export async function verifyDesktopArchive(
+	archivePath: string,
+	productVersion: string,
+	runExecutables = false,
+): Promise<DesktopTarget> {
+	const target = desktopTargetForArchive(archivePath);
+	const extractRoot = await fs.mkdtemp(path.join(os.tmpdir(), "chudcode-desktop-verify-"));
+	try {
+		if (archivePath.endsWith(".zip")) await runChecked(["unzip", "-q", archivePath, "-d", extractRoot]);
+		else await runChecked(["tar", "-xzf", archivePath, "-C", extractRoot]);
+		await verifyDesktopPayload(extractRoot, target, productVersion, runExecutables);
+		return target;
+	} finally {
+		await fs.rm(extractRoot, { recursive: true, force: true });
+	}
+}
+
+export async function verifyDesktopRelease(
+	releaseDirectory: string,
+	productVersion: string,
+	runExecutables = false,
+	manifestPath?: string,
+): Promise<void> {
+	const directoryNames = await fs.readdir(releaseDirectory);
+	const canonicalNames = DESKTOP_TARGETS.map(canonicalArchiveName);
+	const names = directoryNames.filter(name => canonicalNames.includes(name));
+	if (names.length !== DESKTOP_TARGETS.length) {
+		assertCompleteDesktopRelease(names.length ? names : [canonicalNames[0]!]);
+	}
+	assertCompleteDesktopRelease(names);
+
+	const resolvedManifest =
+		manifestPath ??
+		(
+			await Promise.all(
+				[
+					path.join(releaseDirectory, "release-manifest.json"),
+					path.join(path.dirname(releaseDirectory), "release-manifest.json"),
+					path.join(process.cwd(), "release-manifest.json"),
+				].map(async candidate => ((await fsx.exists(candidate)) ? candidate : null)),
+			)
+		).find((candidate): candidate is string => candidate !== null);
+	if (!resolvedManifest) throw new Error("release-manifest.json is required for desktop release publication");
+	await verifyReleaseManifest(resolvedManifest, releaseDirectory, productVersion);
+
+	for (const name of canonicalNames) {
+		const sidecar = path.join(releaseDirectory, `${name}.sha256`);
+		if (!(await fsx.exists(sidecar))) continue;
+		const recorded = (await fs.readFile(sidecar, "utf8")).trim().split(/\s+/, 1)[0];
+		const actual = await hashReleaseFile(path.join(releaseDirectory, name));
+		if (recorded !== actual.sha256) throw new Error(`Per-target checksum mismatch for ${name}`);
+	}
+	for (const target of DESKTOP_TARGETS) {
+		await verifyDesktopArchive(
+			path.join(releaseDirectory, canonicalArchiveName(target)),
+			productVersion,
+			runExecutables,
+		);
+	}
+}
+
+function argumentValue(argv: readonly string[], name: string): string | null {
+	const index = argv.indexOf(name);
+	if (index >= 0) {
+		const value = argv[index + 1];
+		if (!value || value.startsWith("--")) throw new Error(`${name} requires a value`);
+		return value;
+	}
+	const prefixed = argv.find(argument => argument.startsWith(`${name}=`));
+	return prefixed ? prefixed.slice(name.length + 1) : null;
+}
 
 /**
  * Pack with `bun pm pack`, then publish the resolved tarball with `npm publish`.
@@ -461,11 +641,32 @@ async function publishPackage(pkg: PublishPackage): Promise<void> {
 }
 
 if (import.meta.main) {
-	if (nativeLeafTag) {
+	const argv = process.argv.slice(2);
+	const verifyArchivePath = argumentValue(argv, "--verify-desktop-archive");
+	const verifyReleaseDirectory = argumentValue(argv, "--verify-desktop-release");
+	if (verifyArchivePath || verifyReleaseDirectory) {
+		if (verifyArchivePath && verifyReleaseDirectory) {
+			throw new Error("Choose one desktop release verification mode");
+		}
+		const version =
+			argumentValue(argv, "--version") ?? process.env.CHUDCODE_PRODUCT_VERSION ?? process.env.RELEASE_TAG;
+		if (!version) throw new Error("Desktop release verification requires --version");
+		const runExecutables = argv.includes("--run-executables");
+		if (verifyArchivePath) {
+			const target = await verifyDesktopArchive(verifyArchivePath, version, runExecutables);
+			console.log(`Verified desktop archive ${target}`);
+		} else {
+			await verifyDesktopRelease(
+				verifyReleaseDirectory!,
+				version,
+				runExecutables,
+				argumentValue(argv, "--manifest") ?? undefined,
+			);
+			console.log("Verified canonical six-target desktop release");
+		}
+	} else if (nativeLeafTag) {
 		await publishNativeLeafPackage(nativeLeafTag);
 	} else {
-		for (const pkg of packages) {
-			await publishPackage(pkg);
-		}
+		for (const pkg of packages) await publishPackage(pkg);
 	}
 }

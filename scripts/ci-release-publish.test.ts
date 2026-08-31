@@ -4,12 +4,14 @@ import * as os from "node:os";
 import * as path from "node:path";
 import * as fsx from "@chudware/utils/fsx";
 import {
+	isCanonicalCliVersionOutput,
 	legalPayloadFiles,
 	npmDistTag,
 	packages,
 	prepareNativeCorePackage,
 	rewriteManifest,
 	stageLegalPayloads,
+	verifyDesktopPayload,
 } from "./ci-release-publish";
 
 describe("npm dist-tags", () => {
@@ -17,6 +19,17 @@ describe("npm dist-tags", () => {
 		expect(npmDistTag("0.13.0-canary.2")).toBe("canary");
 		expect(npmDistTag("0.13.0")).toBe("latest");
 		expect(() => npmDistTag("0.13.0-rc.1")).toThrow("Unsupported prerelease version");
+	});
+});
+
+describe("desktop executable versions", () => {
+	it("accepts only the canonical CLI product version and documented OMP provenance", () => {
+		expect(isCanonicalCliVersionOutput("Chudcode v0.2.0", "0.2.0")).toBe(true);
+		expect(isCanonicalCliVersionOutput("Chudcode v0.2.0 (based on omp 18.0.8)", "chudcode-v0.2.0")).toBe(true);
+		expect(isCanonicalCliVersionOutput("Chudcode v0.2.1 (based on omp 18.0.8)", "0.2.0")).toBe(false);
+		expect(isCanonicalCliVersionOutput("Chudcode v0.2.0 (based on omp 18.0.8) modified", "0.2.0")).toBe(false);
+		expect(isCanonicalCliVersionOutput("Other v0.2.0 (based on omp 18.0.8)", "0.2.0")).toBe(false);
+		expect(isCanonicalCliVersionOutput("Chudcode v0.2.0 (based on omp nope)", "0.2.0")).toBe(false);
 	});
 });
 
@@ -135,5 +148,71 @@ describe("published manifest topology", () => {
 				import: "./src/ar/index.ts",
 			},
 		});
+	});
+});
+
+const desktopNoticeTokens = [
+	"GLFW",
+	"ImGui",
+	"IXWebSocket",
+	"libvterm",
+	"stb_image",
+	"Rubik",
+	"JetBrains Mono",
+	"Monaco",
+	"xterm.js",
+	"Bun",
+];
+
+async function createLinuxDesktopPayload(): Promise<string> {
+	const root = await fs.mkdtemp(path.join(os.tmpdir(), "chudcode-desktop-payload-"));
+	await Promise.all([
+		fs.mkdir(path.join(root, "web"), { recursive: true }),
+		fs.mkdir(path.join(root, "assets", "fonts"), { recursive: true }),
+		fs.mkdir(path.join(root, "assets", "icons"), { recursive: true }),
+		fs.mkdir(path.join(root, "assets", "appicon"), { recursive: true }),
+		fs.mkdir(path.join(root, "packaging", "linux"), { recursive: true }),
+	]);
+	await Promise.all([
+		fs.copyFile("/bin/true", path.join(root, "chud")),
+		fs.copyFile("/bin/true", path.join(root, "chudcode-desktop")),
+		fs.copyFile("/bin/true", path.join(root, "chudcode-gui")),
+		fs.writeFile(path.join(root, "VERSION"), "0.2.0\n"),
+		fs.writeFile(path.join(root, "NOTICE"), "Chudcode notice\n"),
+		fs.writeFile(path.join(root, "THIRD-PARTY-NOTICES.txt"), desktopNoticeTokens.join("\n")),
+		fs.writeFile(path.join(root, "web", "index.html"), "<!doctype html>"),
+		fs.writeFile(path.join(root, "assets", "fonts", "font.ttf"), "font"),
+		fs.writeFile(path.join(root, "assets", "icons", "icon.png"), "icon"),
+		fs.writeFile(path.join(root, "assets", "appicon", "icon.png"), "appicon"),
+		fs.writeFile(path.join(root, "packaging", "linux", "chudcode.desktop"), "[Desktop Entry]\n"),
+	]);
+	await Promise.all(["chud", "chudcode-desktop", "chudcode-gui"].map(name => fs.chmod(path.join(root, name), 0o755)));
+	return root;
+}
+
+describe("desktop release publication gate", () => {
+	it("accepts a complete source-free payload and rejects version, notice, source, and architecture tampering", async () => {
+		const root = await createLinuxDesktopPayload();
+		try {
+			await verifyDesktopPayload(root, "linux-x64", "chudcode-v0.2.0");
+
+			await fs.writeFile(path.join(root, "VERSION"), "0.2.1\n");
+			await expect(verifyDesktopPayload(root, "linux-x64", "0.2.0")).rejects.toThrow("VERSION mismatch");
+			await fs.writeFile(path.join(root, "VERSION"), "0.2.0\n");
+
+			await fs.writeFile(path.join(root, "THIRD-PARTY-NOTICES.txt"), "GLFW\n");
+			await expect(verifyDesktopPayload(root, "linux-x64", "0.2.0")).rejects.toThrow("notices omit");
+			await fs.writeFile(path.join(root, "THIRD-PARTY-NOTICES.txt"), desktopNoticeTokens.join("\n"));
+
+			await fs.writeFile(path.join(root, "web", "leaked-source.ts"), "export {};\n");
+			await expect(verifyDesktopPayload(root, "linux-x64", "0.2.0")).rejects.toThrow("forbidden source file");
+			await fs.rm(path.join(root, "web", "leaked-source.ts"));
+
+			await expect(verifyDesktopPayload(root, "linux-arm64", "0.2.0")).rejects.toThrow(
+				/architecture|machine|target|expected/i,
+			);
+		} finally {
+			await fs.rm(root, { recursive: true, force: true });
+		}
 	});
 });

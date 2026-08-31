@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "productName": "Chudcode Desktop",
+  "applicationId": "sh.chudware.chudcode.desktop",
+  "scope": "private-adjacent",
+  "launcher": "chudcode-desktop.exe",
+  "payload": {
+    "cli": "chud.exe",
+    "gui": "chudcode-gui.exe",
+    "web": "web",
+    "assets": "assets"
+  },
+  "pathIntegration": false,
+  "sharedUserBin": false
+}

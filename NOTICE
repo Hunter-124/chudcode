@@ -1,20 +1,19 @@
-This repository is a private derivative work of chudware.
+Chudcode
 
-Upstream project:  https://github.com/Hunter-124/chudcode
-Upstream license:  MIT (see LICENSE)
+Copyright (c) 2026 Hunter and contributors.
+
+Chudcode includes and modifies software from Oh My Pi:
+https://github.com/can1357/oh-my-pi
 
 Copyright (c) 2025 Mario Zechner
 Copyright (c) 2025-2026 Can Bölük
+Copyright (c) 2026 Stencil Labs, Inc.
 
-The MIT License permits private modification and redistribution provided the
-above copyright notice and the permission notice are retained. LICENSE is
-therefore kept intact and unmodified, and must stay that way. Do not delete,
-rewrite, or relicense it, and do not remove upstream copyright lines from files
-that carry them.
+Chudcode and the upstream Oh My Pi work are distributed under the MIT License
+included as LICENSE. Redistributions must retain that license and the copyright
+notices above.
 
-Modifications in this repository are copyright (c) 2026 Hunter and contributors,
-and are likewise made available under the MIT License.
-
-Fixes developed here that are generally useful are contributed back upstream as
-pull requests rather than kept private. See docs/fork/ONBOARDING.md for the
-current state of that effort and docs/fork/HANDOFF.md for the detailed record.
+The standalone desktop archives combine the compiled Chudcode command-line
+agent, the Chudcode desktop launcher/server, the native Chudcode GUI, web and
+native GUI assets, icons, and fonts. THIRD-PARTY-NOTICES.txt identifies the
+third-party software and font licenses that accompany those archives.

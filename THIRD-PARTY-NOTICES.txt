@@ -22907,3 +22907,201 @@ the following restrictions:
     misrepresented as being the original software.
 
 3.  This notice may not be removed or altered from any source distribution.
+
+NATIVE GUI AND DESKTOP RELEASE PAYLOAD
+======================================
+
+The standalone desktop archives additionally distribute the following native
+GUI, desktop-web, icon, and font components. This inventory is part of the
+aggregate release notice and is shipped as THIRD-PARTY-NOTICES.txt in every
+desktop archive.
+
+- GLFW 3.4 (https://github.com/glfw/glfw), zlib/libpng license. Used for native
+  windows, input, cursors, and OpenGL contexts.
+- Dear ImGui v1.92.9-docking (https://github.com/ocornut/imgui), MIT. Used for
+  the native immediate-mode GUI and its GLFW/OpenGL backends.
+- nlohmann/json v3.11.3 (https://github.com/nlohmann/json), MIT. Used for
+  desktop protocol, icon metadata, and settings JSON.
+- IXWebSocket v12.0.1 (https://github.com/machinezone/IXWebSocket), BSD-3-Clause.
+  Used for the local desktop WebSocket transport.
+- ImGuiColorTextEdit revision a20e4493bb618a8b738bbb33e00932f842ae8595
+  (https://github.com/goossens/ImGuiColorTextEdit), MIT. Used by the native
+  editor and diff views.
+- libvterm revision 934bc2fbf21800ac3458a499df8820ca5fb45fd3
+  (https://github.com/neovim/libvterm), MIT. Used by the native terminal.
+- stb_image v2.30 (https://github.com/nothings/stb), MIT OR public domain.
+  Used to decode copilot attachment thumbnails. The vendored header retains
+  the complete dual-license notice.
+- Monaco Editor 0.56.0, xterm.js 6.0.0, @xterm/addon-fit 0.11.0, D3 7.9.0,
+  Lucide React 1.34.0, React 19.2.7, and React DOM 19.2.7. These components
+  are bundled into the desktop web assets. Their MIT/ISC notices and copyright
+  texts are reproduced earlier in this aggregate.
+- Bun 1.4.0 compiled runtime. The `chud` and `chudcode-desktop` executables are
+  self-contained Bun compiled programs; customers do not need a Bun
+  interpreter. Bun's MIT and bundled third-party notices are reproduced in the
+  Bun/NPM inventory above.
+- Rubik Regular, Medium, SemiBold, and Bold. Copyright 2015 The Rubik Project
+  Authors. SIL Open Font License 1.1.
+- JetBrains Mono Regular and Medium. Copyright 2020 The JetBrains Mono Project
+  Authors. SIL Open Font License 1.1.
+
+OpenGL and operating-system thread/window libraries are dynamically provided by
+the target operating system and are not copied into the release archive.
+
+SIL OPEN FONT LICENSE Version 1.1 - 26 February 2007
+----------------------------------------------------
+
+PREAMBLE
+The goals of the Open Font License (OFL) are to stimulate worldwide
+development of collaborative font projects, to support the font creation
+efforts of academic and linguistic communities, and to provide a free and open
+framework in which fonts may be shared and improved in partnership with others.
+
+The OFL allows the licensed fonts to be used, studied, modified and
+redistributed freely as long as they are not sold by themselves. The fonts,
+including any derivative works, can be bundled, embedded, redistributed and/or
+sold with any software provided that any reserved names are not used by
+derivative works. The fonts and derivatives, however, cannot be released under
+any other type of license. The requirement for fonts to remain under this
+license does not apply to any document created using the fonts or their
+derivatives.
+
+DEFINITIONS
+\"Font Software\" refers to the set of files released by the Copyright Holder(s)
+under this license and clearly marked as such. This may include source files,
+build scripts and documentation.
+
+\"Reserved Font Name\" refers to any names specified as such after the copyright
+statement(s).
+
+\"Original Version\" refers to the collection of Font Software components as
+distributed by the Copyright Holder(s).
+
+\"Modified Version\" refers to any derivative made by adding to, deleting, or
+substituting -- in part or in whole -- any of the components of the Original
+Version, by changing formats or by porting the Font Software to a new
+environment.
+
+\"Author\" refers to any designer, engineer, programmer, technical writer or
+other person who contributed to the Font Software.
+
+PERMISSION & CONDITIONS
+Permission is hereby granted, free of charge, to any person obtaining a copy of
+the Font Software, to use, study, copy, merge, embed, modify, redistribute, and
+sell modified and unmodified copies of the Font Software, subject to the
+following conditions:
+
+1) Neither the Font Software nor any of its individual components, in Original
+or Modified Versions, may be sold by itself.
+
+2) Original or Modified Versions of the Font Software may be bundled,
+redistributed and/or sold with any software, provided that each copy contains
+the above copyright notice and this license. These can be included either as
+stand-alone text files, human-readable headers or in the appropriate
+machine-readable metadata fields within text or binary files as long as those
+fields can be easily viewed by the user.
+
+3) No Modified Version of the Font Software may use the Reserved Font Name(s)
+unless explicit written permission is granted by the corresponding Copyright
+Holder. This restriction only applies to the primary font name as presented to
+the users.
+
+4) The name(s) of the Copyright Holder(s) or the Author(s) shall not be used to
+promote, endorse or advertise any Modified Version, except to acknowledge the
+contribution(s) of the Copyright Holder(s) and the Author(s) or with their
+explicit written permission.
+
+5) The Font Software, modified or unmodified, in part or in whole, must be
+distributed entirely under this license, and must not be distributed under any
+other license. The requirement for fonts to remain under this license does not
+apply to any document created using the Font Software.
+
+TERMINATION
+This license becomes null and void if any of the above conditions are not met.
+
+DISCLAIMER
+THE FONT SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO ANY WARRANTIES OF MERCHANTABILITY, FITNESS
+FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT OF COPYRIGHT, PATENT, TRADEMARK, OR
+OTHER RIGHT. IN NO EVENT SHALL THE COPYRIGHT HOLDER BE LIABLE FOR ANY CLAIM,
+DAMAGES OR OTHER LIABILITY, INCLUDING ANY GENERAL, SPECIAL, INDIRECT, INCIDENTAL,
+OR CONSEQUENTIAL DAMAGES, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
+ARISING FROM, OUT OF THE USE OR INABILITY TO USE THE FONT SOFTWARE OR FROM OTHER
+DEALINGS IN THE FONT SOFTWARE.
+
+BUN 1.4.0 UPSTREAM LICENSE MANIFEST
+===================================
+
+Bun itself is MIT-licensed.
+
+JavaScriptCore
+--------------
+
+Bun statically links JavaScriptCore (and WebKit) which is LGPL-2 licensed.
+WebCore files from WebKit are also licensed under LGPL2. Per LGPL2:
+
+If you statically link against an LGPL'd library, you must also provide your
+application in an object (not necessarily source) format, so that a user has
+the opportunity to modify the library and relink the application.
+
+The patched version of WebKit used by Bun is available at
+https://github.com/oven-sh/webkit. Bun's version-matched relink procedure is:
+
+- git clone https://github.com/oven-sh/WebKit vendor/WebKit
+- bun sync-webkit-source (checks out the version pinned in WEBKIT_VERSION in
+  scripts/build/deps/webkit.ts)
+- bun run build:local
+
+This compiles JavaScriptCore, compiles Bun's C++ bindings for JavaScriptCore
+(the object files using JavaScriptCore), and outputs a new Bun binary with the
+changes.
+
+Linked libraries
+----------------
+
+- boringssl — several licenses
+- brotli — MIT
+- libarchive — several licenses
+- lol-html — BSD 3-Clause
+- ls-hpack — MIT
+- ls-qpack — MIT
+- lsquic — MIT; portions derived from Chromium proto-quic, BSD 3-Clause
+- mimalloc — MIT
+- picohttp — Perl License OR MIT
+- zstd — BSD OR GPLv2
+- simdutf — Apache-2.0
+- tinycc — LGPL-2.1
+- uSockets — Apache-2.0
+- zlib-ng — zlib
+- c-ares — MIT
+- libicu 78 — ICU license
+- libbase64 — BSD 2-Clause
+- libuv (Windows) — MIT
+- libdeflate — MIT
+- libjpeg-turbo — BSD 3-Clause / IJG / zlib
+- libspng — BSD 2-Clause
+- libwebp — BSD 3-Clause
+- highway — Apache-2.0
+- uucode — MIT
+- uWebSockets fork — Apache-2.0
+- parts of TigerBeetle's IO code — Apache-2.0
+- LLVM libc++abi __cxa_thread_atexit fallback — Apache-2.0 with LLVM exception
+
+Polyfills
+---------
+
+The following packages are embedded into Bun's binary and injected if imported:
+acorn (MIT), acorn-walk (MIT), assert (MIT), browserify-zlib (MIT), buffer
+(MIT), constants-browserify (MIT), crypto-browserify (MIT), domain-browser
+(MIT), events (MIT), https-browserify (MIT), os-browserify (MIT),
+path-browserify (MIT), process (MIT), punycode (MIT), querystring-es3 (MIT),
+stream-browserify (MIT), stream-http (MIT), string_decoder (MIT),
+timers-browserify (MIT), tty-browserify (MIT), url (MIT), util (MIT), and
+vm-browserify (MIT).
+
+Additional credits
+------------------
+
+Bun's JavaScript transpiler, CSS lexer, and Node.js module resolver source code
+is a port of Evan Wallace's esbuild project. Credit for the name Bun belongs to
+Kipply.

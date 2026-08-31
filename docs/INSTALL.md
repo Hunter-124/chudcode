@@ -1,70 +1,111 @@
 # Install Chudcode
 
-## Prerequisites
+Chudcode desktop releases are standalone, source-checkout-free archives. They do
+not require Bun, `node_modules`, a repository checkout, or a runtime download.
+Each archive contains adjacent compiled `chud`, `chudcode-desktop`, and
+`chudcode-gui` executables plus the web/native GUI assets, fonts, icons,
+`VERSION`, `NOTICE`, and `THIRD-PARTY-NOTICES.txt`.
 
-- A 64-bit Linux, macOS, or Windows environment supported by the installer.
-- `gh` authenticated to the private `Hunter-124/chudcode` repository. (`curl` or `wget` can be used with an explicit release URL.)
-- `sha256sum` on Linux or `shasum` on macOS.
-- No root access is needed; files go under `~/.local/bin`.
+## Supported release artifacts
 
-The v0.2.0 release has been started and native-smoke-tested only on glibc Linux x64. The installer detects every target the builder supports, but an artifact is not published until it has started successfully on matching hardware and libc.
+| Operating system | Architecture | Asset |
+| --- | --- | --- |
+| Linux | x86-64 | `chudcode-desktop-linux-x64.tar.gz` |
+| Linux | ARM64 | `chudcode-desktop-linux-arm64.tar.gz` |
+| macOS | Intel x86-64 | `chudcode-desktop-macos-x64.tar.gz` |
+| macOS | Apple silicon | `chudcode-desktop-macos-arm64.tar.gz` |
+| Windows (Git Bash/MSYS2) | x86-64 | `chudcode-desktop-windows-x64.zip` |
+| Windows (Git Bash/MSYS2) | ARM64 | `chudcode-desktop-windows-arm64.zip` |
+
+A release is incomplete unless all six assets are present. The release root also
+contains `SHA256SUMS.txt` and `release-manifest.json`. The manifest records the
+product version, RPC and desktop protocol versions, target/architecture, size,
+and SHA-256 hash for each canonical archive.
 
 ## Install
 
-Run this authenticated one-liner:
+Download `install.sh` from the same release, inspect it, then run it:
 
 ```sh
-gh api -H 'Accept: application/vnd.github.raw+json' 'repos/Hunter-124/chudcode/contents/install.sh?ref=chudcode-v0.2.0' | sh
+gh api \
+  -H 'Accept: application/vnd.github.raw+json' \
+  /repos/Hunter-124/chudcode/contents/install.sh?ref=chudcode-v0.2.0 \
+  > /tmp/chudcode-install.sh
+sh /tmp/chudcode-install.sh
 ```
 
-Or, from a checkout of the release tag:
+Without `gh`, set `CHUDCODE_RELEASE_BASE_URL` to an authenticated or public
+release-asset URL and run the script. `curl` or `wget` is required. Linux and
+macOS need `sha256sum` or `shasum`; Windows archive extraction needs `unzip`.
+
+The installer detects the operating system and architecture, chooses exactly one
+canonical archive, and fails closed unless all of these agree:
+
+1. `release-manifest.json` has the expected Chudcode and protocol versions.
+2. `SHA256SUMS.txt` authenticates the manifest and selected archive hashes.
+3. The selected archive hash also matches its manifest record.
+4. The archive name, manifest target, and detected host OS/architecture agree.
+5. The archive is path-safe and contains no checkout, `node_modules`, TypeScript,
+   source tree, Bun lockfile, or package manifest.
+6. `VERSION`, all three executable `--version` results, required assets, and the
+   legal notices agree with the installer version.
+
+macOS and Windows release jobs additionally validate their native platform code
+signatures before publication. Hash and manifest mismatches, a wrong binary
+architecture (which cannot pass the native startup check), missing or incomplete
+notices, and source-bearing payloads abort before installation changes.
+
+The default locations are:
+
+- immutable payload: `~/.local/share/chudcode/releases/<version>-<target>/`
+- atomic active link: `~/.local/share/chudcode/current`
+- command links: `~/.local/bin/`
+
+Set `CHUDCODE_INSTALL_ROOT`, `CHUDCODE_DATA_DIR`, or `CHUDCODE_INSTALL_DIR` to
+change these. Activation swaps one `current` symlink only after the staged copy
+passes its checks. A failed download, validation, staging, or activation restores
+the previous active release. Repeating the same install is safe; different
+same-version contents are refused unless `CHUDCODE_FORCE=1` is explicit.
+
+The standalone installer never writes into Chudware's embedded runtime. A path
+marked with `.chudware-private-runtime`, or a Chudware private/embedded runtime
+path, is refused even when force mode is enabled.
+
+## CLI-only installation
+
+The desktop archive always carries the complete, verified payload, but command
+exposure can remain CLI-only:
 
 ```sh
-./install.sh
+CHUDCODE_INSTALL_DESKTOP=0 sh /tmp/chudcode-install.sh
 ```
 
-The installer downloads the matching checked release asset, verifies its SHA-256 checksum and `--version` output, and creates both CLI names:
+This installs/exposes `chud` and its `chudcode` compatibility alias without
+adding `chudcode-desktop` or `chudcode-gui` command links. Set the value back to
+`1` on a later run to expose the desktop commands.
 
-- `chud` (primary)
-- `chudcode` (alias)
+## Offline installation
 
-The compiled release contains its matching native addon archive and extracts the addon to `~/.chudcode/natives/18.0.8/` when native functionality is first used. A `.node` file does not need to be placed beside the CLI.
-
-When the Linux x64 GUI bundle is present in the release, the same installer also installs `chudcode-gui`, its asset tree under `~/.local/share/chudcode/`, the desktop entry, and hicolor icons. A release without the optional GUI archive remains a valid CLI-only install.
-
-If `~/.local/bin` is not already on `PATH`, follow the command printed by the installer, then open a new shell.
-
-## Verify
+Put the selected archive, `SHA256SUMS.txt`, and `release-manifest.json` in one
+trusted directory, then run:
 
 ```sh
-chud --version
-chudcode --version
+CHUDCODE_ARTIFACT_DIR=/media/chudcode-release sh ./install.sh
 ```
 
-Both should print:
+Offline mode performs the same manifest, hash, target, version, notice,
+source-free, and executable startup checks. It never installs dependencies from
+the network.
 
-```text
-Chudcode v0.2.0
-```
+## Manual verification
 
-## Update
-
-Re-run the install command. Installing the same version is an idempotent no-op apart from repairing the alias. An older Chudcode install is replaced after the downloaded artifact passes verification. A newer install is reported and left untouched.
-
-## Uninstall
+From a directory containing a complete release:
 
 ```sh
-rm -f ~/.local/bin/chud ~/.local/bin/chudcode
-rm -f ~/.local/bin/chudcode-gui ~/.local/bin/assets
-rm -f ~/.local/share/applications/chudcode.desktop
-rm -rf ~/.local/share/chudcode
-find ~/.local/share/icons/hicolor -path '*/apps/chudcode.png' -delete
+sha256sum -c SHA256SUMS.txt       # Linux
+shasum -a 256 -c SHA256SUMS.txt  # macOS
 ```
 
-This deliberately leaves configuration, credentials, profiles, session history, and extracted native files in `~/.chudcode`. Remove that directory separately only if you intend to erase all local Chudcode state.
-
-## Desktop app
-
-`chudcode-desktop` starts the loopback agent server and attaches the native `chudcode-gui` window to it over an authenticated WebSocket. That launcher is what the `Chudcode` desktop entry runs, so the taskbar icon opens the full workspace: explorer, search, source control, terminal, graph, sessions, and the agent composer.
-
-The server half is a Bun program that runs from the workspace checkout. `chudcode-desktop` resolves it at `$CHUDCODE_REPO`, defaulting to `~/Repositories/omp`; set that variable if the checkout lives elsewhere.
+Then inspect `release-manifest.json` and the archive's `VERSION`, `NOTICE`, and
+`THIRD-PARTY-NOTICES.txt`. Do not install a release whose six-target set or
+metadata is incomplete.

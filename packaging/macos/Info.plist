@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "https://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>CFBundleDevelopmentRegion</key>
+  <string>en</string>
+  <key>CFBundleDisplayName</key>
+  <string>Chudcode Desktop</string>
+  <key>CFBundleExecutable</key>
+  <string>chudcode-desktop</string>
+  <key>CFBundleIdentifier</key>
+  <string>sh.chudware.chudcode.desktop</string>
+  <key>CFBundleInfoDictionaryVersion</key>
+  <string>6.0</string>
+  <key>CFBundleName</key>
+  <string>Chudcode Desktop</string>
+  <key>ChudcodeAdjacentPayload</key>
+  <dict>
+    <key>Assets</key>
+    <string>assets</string>
+    <key>CLI</key>
+    <string>chud</string>
+    <key>GUI</key>
+    <string>chudcode-gui</string>
+    <key>Web</key>
+    <string>web</string>
+  </dict>
+  <key>CFBundlePackageType</key>
+  <string>APPL</string>
+  <key>CFBundleShortVersionString</key>
+  <string>0.1.0</string>
+  <key>CFBundleVersion</key>
+  <string>1</string>
+  <key>LSApplicationCategoryType</key>
+  <string>public.app-category.developer-tools</string>
+  <key>LSMinimumSystemVersion</key>
+  <string>13.0</string>
+  <key>NSHighResolutionCapable</key>
+  <true/>
+  <key>NSHumanReadableCopyright</key>
+  <string>Copyright Chudware contributors. MIT License.</string>
+</dict>
+</plist>
