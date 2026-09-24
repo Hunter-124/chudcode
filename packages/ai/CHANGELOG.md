@@ -5,6 +5,7 @@
 ### Fixed
 
 - Fixed the OAuth success page's close-window action to fall back to manual-close guidance when the browser refuses to close the tab.
+- Anthropic subscription (OAuth) requests identify as Claude Code 2.1.281. Anthropic rejects newer models such as `claude-opus-5-5` from clients older than 2.1.280 with `400 claude_code_version_too_old`, so every turn on those models failed before producing output.
 
 ## [18.0.8] - 2026-08-27
 

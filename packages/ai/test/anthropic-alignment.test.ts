@@ -176,7 +176,7 @@ describe("Anthropic request fingerprint alignment", () => {
 		expect(headers.Accept).toBe("application/json");
 		// Pinned literally (not via the imported constant) so a wrong version bump is caught
 		// on an observable wire header: this is the exact User-Agent the upstream expects.
-		expect(headers["User-Agent"]).toBe("claude-cli/2.1.246 (external, claude-desktop)");
+		expect(headers["User-Agent"]).toBe("claude-cli/2.1.281 (external, claude-desktop)");
 		expect(headers["X-Claude-Code-Session-Id"]).toBe(sessionId);
 		expect(headers["X-Stainless-Arch"]).toBe(mapStainlessArch(process.arch));
 		expect(headers["X-Stainless-OS"]).toBe("Linux");
