@@ -101,6 +101,10 @@ export type RpcAvailableCommandsUpdateListener = (commands: RpcAvailableSlashCom
 export interface RpcClientToolContext<TDetails = unknown> {
 	toolCallId: string;
 	signal: AbortSignal;
+	/** Registry id of the nested (task sub-)agent making the call; undefined for the top-level session. */
+	agentId?: string;
+	/** Registry id of `agentId`'s spawner; undefined for the top-level session. */
+	parentAgentId?: string;
 	sendUpdate(partialResult: RpcClientToolResult<TDetails>): void;
 }
 
@@ -1283,6 +1287,8 @@ export class RpcClient {
 			const result = await tool.execute(request.arguments, {
 				toolCallId: request.toolCallId,
 				signal: controller.signal,
+				agentId: request.agentId,
+				parentAgentId: request.parentAgentId,
 				sendUpdate,
 			});
 			if (controller.signal.aborted) return;

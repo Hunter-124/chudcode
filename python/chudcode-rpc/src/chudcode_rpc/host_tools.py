@@ -30,6 +30,10 @@ class HostToolContext(Generic[TDetails]):
     tool_call_id: str
     _cancel_event: threading.Event
     _send_update: Callable[[JsonObject], None]
+    # Registry id of the nested (task sub-)agent making the call, and its
+    # spawner's id; both None for the top-level session's own calls.
+    agent_id: str | None = None
+    parent_agent_id: str | None = None
 
     @property
     def cancelled(self) -> bool:

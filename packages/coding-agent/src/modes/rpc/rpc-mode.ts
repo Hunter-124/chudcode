@@ -1029,6 +1029,8 @@ export async function runRpcMode(
 
 	const pendingExtensionRequests = new RpcPendingExtensionRequests();
 	const hostToolBridge = new RpcHostToolBridge(output);
+	// Task sub-agents inherit the host's tools and dispatch over this same client.
+	session.setHostToolSource(hostToolBridge);
 	const hostUriBridge = new RpcHostUriBridge(output);
 	const subagentRegistry = eventBus ? new RpcSubagentRegistry(eventBus, output) : undefined;
 	const sttService = new RpcSttService(output);

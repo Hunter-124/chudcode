@@ -157,6 +157,7 @@ import { shutdownMnemopiEmbedClient } from "../mnemo/embed-client";
 import { getMnemopiSessionState, type MnemopiSessionState, setMnemopiSessionState } from "../mnemo/state";
 import { AUTOBOT_NOTICE, containsAutobot } from "../modes/autobot";
 import { containsOrchestrate, renderOrchestrateNotice } from "../modes/orchestrate";
+import type { HostToolSource } from "../modes/rpc/host-tools";
 import { theme } from "../modes/theme/theme";
 import { containsTokenmaxxing, renderTokenmaxxingNotice } from "../modes/tokenmaxxing";
 import { parseTurnBudget } from "../modes/turn-budget";
@@ -4946,6 +4947,18 @@ export class AgentSession {
 	/** Replaces host-owned RPC tools before the next model call. */
 	refreshRpcHostTools(rpcTools: AgentTool[]): Promise<void> {
 		return this.#tools.refreshRpcHostTools(rpcTools);
+	}
+
+	#hostToolSource: HostToolSource | undefined;
+
+	/** Host tool source nested agents spawned from this session inherit (RPC host tools). */
+	getHostToolSource(): HostToolSource | undefined {
+		return this.#hostToolSource;
+	}
+
+	/** Registers the host tool source nested agents inherit; set by RPC mode and by inherited sub-agent sessions. */
+	setHostToolSource(source: HostToolSource | undefined): void {
+		this.#hostToolSource = source;
 	}
 
 	/** Whether auto-compaction is currently running */

@@ -21,6 +21,7 @@ import type { LocalProtocolOptions } from "../internal-urls";
 import type { DaemonCompletionNotification } from "../launch/protocol";
 import { LspTool } from "../lsp";
 import type { MCPManager } from "../mcp";
+import type { HostToolSource } from "../modes/rpc/host-tools";
 import type { MnemopiSessionState } from "../mnemo/state";
 import type { PlanModeState } from "../plan-mode/state";
 import type { AgentLifecycleManager } from "../registry/agent-lifecycle";
@@ -325,6 +326,8 @@ export interface ToolSession {
 	getInspectImageModeOverride?: () => InspectImageMode | undefined;
 	/** Get the session's live per-family service tiers (undefined = none). Source of truth for subagent `tier.subagent: inherit`. */
 	getServiceTierByFamily?: () => ServiceTierByFamily | undefined;
+	/** RPC host tools this session's sub-agents inherit (undefined outside RPC-hosted trees). */
+	getHostToolSource?: () => HostToolSource | undefined;
 	/** Auth storage for passing to subagents (avoids re-discovery) */
 	authStorage?: import("../session/auth-storage").AuthStorage;
 	/** Model registry for passing to subagents (avoids re-discovery) */

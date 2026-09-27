@@ -1349,6 +1349,7 @@ export class VibeSessionRegistry {
 			modelRegistry: session.modelRegistry,
 			settings: session.settings,
 			mcpManager: session.mcpManager ?? MCPManager.instance(),
+			inheritedHostTools: session.getHostToolSource?.(),
 			contextFiles: session.contextFiles?.filter(file => path.basename(file.path).toLowerCase() !== "agents.md"),
 			skills: [...(session.skills ?? [])],
 			workspaceTree: session.workspaceTree,

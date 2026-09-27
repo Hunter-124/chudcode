@@ -137,6 +137,7 @@ import { MCP_CONNECTION_STATUS_EVENT_CHANNEL, type McpConnectionStatusEvent } fr
 import { createSessionMemoryRuntimeContext, resolveMemoryBackend } from "./memory-backend";
 import { MEMORY_BACKEND_TOOL_NAMES } from "./memory-backend/tool-names";
 import type { MnemopiSessionState } from "./mnemo/state";
+import type { HostToolSource } from "./modes/rpc/host-tools";
 import mcpXdevGuidanceTemplate from "./prompts/system/mcp-xdev-guidance.md" with { type: "text" };
 import lateDiagnosticTemplate from "./prompts/tools/lsp-late-diagnostic.md" with { type: "text" };
 import { AgentLifecycleManager } from "./registry/agent-lifecycle";
@@ -582,6 +583,15 @@ export interface CreateAgentSessionOptions {
 	parentAgentId?: string;
 	/** Inherited eval executor session id for subagents sharing parent eval state. */
 	parentEvalSessionId?: string;
+	/**
+	 * RPC host tools inherited from the spawning session. Registered as this
+	 * session's host-owned tools, bound to its agent id so every call reaches the
+	 * same RPC host attributed to this agent, kept in sync with the host's later
+	 * `set_host_tools`, and passed on to this session's own sub-agents. An
+	 * explicit `toolNames` list admits only the host tools it names; restricted
+	 * sessions inherit none.
+	 */
+	inheritedHostTools?: HostToolSource;
 
 	/** Session manager. Default: session stored under the configured agentDir sessions root */
 	sessionManager?: SessionManager;
@@ -1816,6 +1826,7 @@ async function createAgentSessionScoped(options: CreateAgentSessionOptions): Pro
 			getActiveModel: () => agent?.state.model ?? model,
 			getInspectImageModeOverride: () => session?.getInspectImageModeOverride(),
 			getServiceTierByFamily: () => session?.serviceTierByFamily,
+			getHostToolSource: () => session?.getHostToolSource(),
 			getImageAttachments: () => session?.getImageAttachments() ?? [],
 			getPlanModeState: () => session?.getPlanModeState(),
 			getPlanReferencePath: () => session?.getPlanReferencePath() ?? "local://PLAN.md",
@@ -3854,6 +3865,31 @@ async function createAgentSessionScoped(options: CreateAgentSessionOptions): Pro
 					await scheduleToolRegistration(registered);
 				}
 			}
+		}
+		const inheritedHostTools = restrictToolNames ? undefined : options.inheritedHostTools;
+		if (inheritedHostTools) {
+			// Sub-agents of an RPC-hosted session call the host's tools over the same
+			// client; each adapter stamps this agent's id on its `host_tool_call`.
+			const hostToolScope = { agentId: resolvedAgentId, parentAgentId: options.parentAgentId };
+			const admittedHostToolNames = options.toolNames ? new Set(normalizeToolNames(options.toolNames)) : undefined;
+			const inheritHostTools = () =>
+				session.refreshRpcHostTools(
+					inheritedHostTools
+						.createTools(hostToolScope)
+						.filter(tool => !admittedHostToolNames || admittedHostToolNames.has(tool.name)),
+				);
+			session.setHostToolSource(inheritedHostTools);
+			await inheritHostTools();
+			disposeCallbacks.add(
+				inheritedHostTools.subscribe(() => {
+					inheritHostTools().catch(error => {
+						logger.warn("Failed to refresh inherited RPC host tools", {
+							agentId: resolvedAgentId,
+							error: error instanceof Error ? error.message : String(error),
+						});
+					});
+				}),
+			);
 		}
 		session.yieldQueue.register<McpNotificationEntry>("mcp-notification", {
 			build: buildMcpNotificationBatchMessage,

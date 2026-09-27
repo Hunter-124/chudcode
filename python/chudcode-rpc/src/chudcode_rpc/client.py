@@ -1681,6 +1681,9 @@ class RpcClient:
         pending_call = _PendingHostToolCall(cancel_event=threading.Event())
         self._pending_host_tool_calls[request_id] = pending_call
 
+        agent_id = payload.get("agentId")
+        parent_agent_id = payload.get("parentAgentId")
+
         def run_tool() -> None:
             try:
                 params = tool.parse_params(cast(JsonObject, dict(raw_arguments)))
@@ -1693,6 +1696,10 @@ class RpcClient:
                             "id": request_id,
                             "partialResult": result,
                         }
+                    ),
+                    agent_id=agent_id if isinstance(agent_id, str) else None,
+                    parent_agent_id=(
+                        parent_agent_id if isinstance(parent_agent_id, str) else None
                     ),
                 )
                 result = tool.execute(params, context)
@@ -2066,6 +2073,16 @@ class RpcClient:
                 payload_type = payload.get("type")
                 if payload_type in ("tool_execution_update", "tool_execution_end"):
                     self._normalize_host_tool_event(payload)
+                elif payload_type == "subagent_event":
+                    # A sub-agent's inherited host-tool calls end inside its
+                    # forwarded event stream, not as top-level tool events.
+                    subagent = payload.get("payload")
+                    nested = subagent.get("event") if isinstance(subagent, dict) else None
+                    if isinstance(nested, dict) and nested.get("type") in (
+                        "tool_execution_update",
+                        "tool_execution_end",
+                    ):
+                        self._normalize_host_tool_event(nested)
                 try:
                     notification = parse_notification(payload)
                 except (TypeError, ValueError) as exc:

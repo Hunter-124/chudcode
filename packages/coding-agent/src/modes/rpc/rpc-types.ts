@@ -671,6 +671,14 @@ export interface RpcHostToolCallRequest {
 	toolCallId: string;
 	toolName: string;
 	arguments: Record<string, unknown>;
+	/**
+	 * Registry id of the nested agent (task sub-agent) making this call; matches
+	 * `subagent_lifecycle.payload.id` / `subagent_event.payload.id`. Absent for
+	 * the top-level session's own calls.
+	 */
+	agentId?: string;
+	/** Registry id of `agentId`'s spawner (`"Main"` for first-level sub-agents). Absent when `agentId` is. */
+	parentAgentId?: string;
 }
 
 /** Emitted by the RPC server when a pending host tool call should be aborted. */

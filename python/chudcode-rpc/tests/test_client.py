@@ -78,6 +78,7 @@ FAKE_SERVER = textwrap.dedent(
     registered_host_tools = []
     host_event_tool_call_id = "toolu_host_1"
     host_event_tool_name = "echo_host"
+    host_event_subagent_id = None
 
     def current_state():
         return {
@@ -460,6 +461,26 @@ FAKE_SERVER = textwrap.dedent(
                     flush=True,
                 )
                 continue
+            if message == "needs subagent host tool":
+                print(json.dumps({"type": "agent_start"}), flush=True)
+                host_event_tool_call_id = "toolu_sub_write_1"
+                host_event_tool_name = "write"
+                host_event_subagent_id = "CubeBuilder"
+                print(
+                    json.dumps(
+                        {
+                            "type": "host_tool_call",
+                            "id": "host-call-3",
+                            "toolCallId": "toolu_sub_write_1",
+                            "toolName": "echo_host",
+                            "arguments": {"message": "cube"},
+                            "agentId": "CubeBuilder",
+                            "parentAgentId": "Main",
+                        }
+                    ),
+                    flush=True,
+                )
+                continue
             if message == "notifications":
                 print(json.dumps({"type": "extension_error", "extensionPath": "/tmp/ext.py", "event": "run", "error": "boom"}), flush=True)
                 print(json.dumps({"type": "unknown_future_event", "value": 1}), flush=True)
@@ -483,18 +504,19 @@ FAKE_SERVER = textwrap.dedent(
                 flush=True,
             )
         elif command_type == "host_tool_result":
-            print(
-                json.dumps(
-                    {
-                        "type": "tool_execution_end",
-                        "toolCallId": host_event_tool_call_id,
-                        "toolName": host_event_tool_name,
-                        "result": command["result"],
-                        "isError": command.get("isError", False),
-                    }
-                ),
-                flush=True,
-            )
+            end_event = {
+                "type": "tool_execution_end",
+                "toolCallId": host_event_tool_call_id,
+                "toolName": host_event_tool_name,
+                "result": command["result"],
+                "isError": command.get("isError", False),
+            }
+            if host_event_subagent_id:
+                end_event = {
+                    "type": "subagent_event",
+                    "payload": {"id": host_event_subagent_id, "event": end_event},
+                }
+            print(json.dumps(end_event), flush=True)
             print(json.dumps({"type": "agent_end", "messages": []}), flush=True)
         else:
             respond(request_id, command_type, success=False, error=f"unsupported: {command_type}")
@@ -1090,6 +1112,47 @@ class RpcClientTests(unittest.TestCase):
             self.assertEqual([event.tool_name for event in end_events], ["echo_host"])
             self.assertEqual(end_events[0].tool_call_id, "toolu_write_1")
             self.assertEqual(end_events[0].result["content"][0]["text"], "host:hello")
+
+    def test_subagent_host_tool_call_carries_agent_identity(self) -> None:
+        """A task sub-agent's inherited host-tool call names the calling agent.
+
+        The host attributes and guards CAD calls per sub-agent from
+        `HostToolContext.agent_id`; the top-level session's calls leave it None.
+        The sub-agent's own `tool_execution_end` arrives inside its forwarded
+        `subagent_event` and is renamed from the `write` transport like a
+        top-level xd:// dispatch.
+        """
+        seen: list[tuple[str | None, str | None]] = []
+
+        def echo_host(args: dict[str, str], context) -> str:
+            seen.append((context.agent_id, context.parent_agent_id))
+            return f"host:{args['message']}"
+
+        tool = host_tool(
+            name="echo_host",
+            description="Echo from the Python host process",
+            parameters={
+                "type": "object",
+                "properties": {"message": {"type": "string"}},
+                "required": ["message"],
+                "additionalProperties": False,
+            },
+            execute=echo_host,
+        )
+        with self.make_client(custom_tools=(tool,)) as client:
+            nested: list[dict] = []
+            client.on_notification(
+                lambda notification: nested.append(notification.payload)
+                if getattr(notification, "payload", {}).get("type") == "subagent_event"
+                else None
+            )
+            client.prompt_and_wait("needs host tool", timeout=2.0)
+            client.prompt_and_wait("needs subagent host tool", timeout=2.0)
+
+        self.assertEqual(seen, [(None, None), ("CubeBuilder", "Main")])
+        self.assertEqual(len(nested), 1)
+        self.assertEqual(nested[0]["payload"]["id"], "CubeBuilder")
+        self.assertEqual(nested[0]["payload"]["event"]["toolName"], "echo_host")
 
     def test_extension_ui_round_trip(self) -> None:
         with self.make_client() as client:
