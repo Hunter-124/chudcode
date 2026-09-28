@@ -229,7 +229,7 @@ import {
 	xdevDocsAll,
 	xdevEntries,
 } from "./tools";
-import { isMCPToolName, normalizeToolNames } from "./tools/builtin-names";
+import { applyToolAllowlist, isMCPToolName, normalizeToolNames } from "./tools/builtin-names";
 import { ToolContextStore } from "./tools/context";
 import { isIrcEnabled } from "./tools/hub";
 import { getImageGenTools } from "./tools/image-gen";
@@ -537,6 +537,13 @@ export interface CreateAgentSessionOptions {
 	skipPythonPreflight?: boolean;
 	/** Tool names explicitly requested (enables disabled-by-default tools) */
 	toolNames?: string[];
+	/**
+	 * Tool ceiling for this session and every sub-agent it spawns (the CLI
+	 * `--tools` restriction). Requested built-in tools — {@link toolNames}, or the
+	 * default set when omitted — are intersected with it. Host, custom, and MCP
+	 * tools are unaffected; RPC host tools stay admitted by {@link toolNames} alone.
+	 */
+	toolAllowlist?: readonly string[];
 	/** Limit the session to explicitly supplied tool names, without discovered extras. */
 	restrictToolNames?: boolean;
 	/**
@@ -1694,6 +1701,8 @@ async function createAgentSessionScoped(options: CreateAgentSessionOptions): Pro
 	let hasSession = false;
 	let hasRegistered = false;
 	const restrictToolNames = options.restrictToolNames === true;
+	// Built-in tools this session requests, clamped to the inherited `--tools` ceiling.
+	const requestedToolNamesOption = applyToolAllowlist(options.toolNames, options.toolAllowlist);
 	const enableLsp = options.enableLsp ?? !restrictToolNames;
 	const lspReadOnly = options.lspReadOnly ?? restrictToolNames;
 	const asyncMaxJobs = Math.min(100, Math.max(1, settings.get("async.maxJobs") ?? 100));
@@ -1777,8 +1786,11 @@ async function createAgentSessionScoped(options: CreateAgentSessionOptions): Pro
 			lspReadOnly,
 			enableIrc: restrictToolNames ? false : options.enableIrc,
 			restrictToolNames,
+			toolAllowlist: options.toolAllowlist,
 			get hasEditTool() {
-				const requestedToolNames = options.toolNames ? normalizeToolNames(options.toolNames) : undefined;
+				const requestedToolNames = requestedToolNamesOption
+					? normalizeToolNames(requestedToolNamesOption)
+					: undefined;
 				return restrictToolNames
 					? requestedToolNames?.includes("edit") === true
 					: !requestedToolNames || requestedToolNames.includes("edit");
@@ -1928,7 +1940,7 @@ async function createAgentSessionScoped(options: CreateAgentSessionOptions): Pro
 		);
 
 		// Create built-in tools (already wrapped with meta notice formatting)
-		await logger.time("createAllTools", createTools, toolSession, options.toolNames);
+		await logger.time("createAllTools", createTools, toolSession, requestedToolNamesOption);
 
 		// Restricted sessions cannot inherit or discover MCP capabilities.
 		const enableMCP = !restrictToolNames && (options.enableMCP ?? true);
@@ -2043,7 +2055,7 @@ async function createAgentSessionScoped(options: CreateAgentSessionOptions): Pro
 			// (filtered in `createTools`), custom tools are force-activated via
 			// `alwaysInclude` below, so an explicit `--no-tools`/whitelist must be
 			// honored here or image-gen would leak past every filter (issue #5305).
-			const imageGenRequested = !options.toolNames || options.toolNames.includes("generate_image");
+			const imageGenRequested = !requestedToolNamesOption || requestedToolNamesOption.includes("generate_image");
 			if (settings.get("generate_image.enabled") && imageGenRequested) {
 				const imageGenTools = await logger.time("getImageGenTools", () => getImageGenTools(modelRegistry, model));
 				if (imageGenTools.length > 0) {
@@ -2056,7 +2068,7 @@ async function createAgentSessionScoped(options: CreateAgentSessionOptions): Pro
 			}
 
 			// Add web search tools
-			if (options.toolNames?.includes("web_search")) {
+			if (requestedToolNamesOption?.includes("web_search")) {
 				customTools.push(...getSearchTools());
 			}
 
@@ -2842,7 +2854,7 @@ async function createAgentSessionScoped(options: CreateAgentSessionOptions): Pro
 			return tool ? { tool, makeContext: () => toolContextStore.getContext() } : undefined;
 		});
 		if (deferMCPDiscoveryForUI && mcpManager) {
-			for (const name of collectPendingMCPToolNames(options.toolNames)) {
+			for (const name of collectPendingMCPToolNames(requestedToolNamesOption)) {
 				if (!toolRegistry.has(name)) {
 					toolRegistry.set(name, createPendingMCPTool(name));
 					initialMcpManagerToolNames.add(name);
@@ -3151,7 +3163,9 @@ async function createAgentSessionScoped(options: CreateAgentSessionOptions): Pro
 		};
 
 		const toolNamesFromRegistry = Array.from(toolRegistry.keys());
-		const explicitlyRequestedToolNames = options.toolNames ? normalizeToolNames(options.toolNames) : undefined;
+		const explicitlyRequestedToolNames = requestedToolNamesOption
+			? normalizeToolNames(requestedToolNamesOption)
+			: undefined;
 		// When `requireYieldTool` is set, the subagent's prompts and idle-reminders demand a
 		// `yield` call to terminate. The tool registry already includes `yield` (see
 		// `createTools`), but an explicit `toolNames` list would otherwise drop it from the
@@ -3211,7 +3225,7 @@ async function createAgentSessionScoped(options: CreateAgentSessionOptions): Pro
 			(explicitlyRequestedToolNameSet === undefined ||
 				explicitlyRequestedToolNameSet.has("write") ||
 				toolSession.deviceOnlyWrite === true);
-		const initialRequestedActiveToolNames = options.toolNames
+		const initialRequestedActiveToolNames = requestedToolNamesOption
 			? requestedActiveToolNames
 			: requestedActiveToolNames.filter(name => !defaultInactiveToolNames.has(name));
 		let initialToolNames = [...initialRequestedActiveToolNames];

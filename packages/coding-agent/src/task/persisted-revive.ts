@@ -28,6 +28,10 @@ export interface PersistedSubagentReviveContext {
 	settings: Settings;
 	/** LSP policy of the top-level session; revived subagents inherit it rather than defaulting on. */
 	enableLsp: boolean;
+	/** MCP policy of the top-level session (`--no-mcp` passes false). Default: true. */
+	enableMCP?: boolean;
+	/** Process `--tools` ceiling inherited by revived subagents and their children. */
+	toolAllowlist?: readonly string[];
 	/**
 	 * Shared event bus feeding RPC/collab subagent subscriptions. Passed through
 	 * to the wake-turn monitor so an IRC send to a cold-revived subagent emits
@@ -118,7 +122,7 @@ export function createPersistedSubagentReviverFactory(
 			// A restricted persisted contract must not consult process-global MCP
 			// state: same-name MCP tools are untrusted capability sources.
 			const restrictToolNames = init.restrictToolNames === true;
-			const mcpManager = restrictToolNames ? undefined : MCPManager.instance();
+			const mcpManager = restrictToolNames || ctx.enableMCP === false ? undefined : MCPManager.instance();
 			const mcpProxyTools = mcpManager ? createMCPProxyTools(mcpManager) : [];
 			const { session } = await createAgentSession({
 				cwd: ctx.session.sessionManager.getCwd(),
@@ -135,6 +139,7 @@ export function createPersistedSubagentReviverFactory(
 				expectedAgentRef: expectedRef,
 				taskDepth,
 				toolNames: revivedToolNames,
+				toolAllowlist: ctx.toolAllowlist,
 				outputSchema: init.outputSchema,
 				outputSchemaMode: init.outputSchemaMode,
 				restrictToolNames: restrictToolNames || undefined,
@@ -154,7 +159,7 @@ export function createPersistedSubagentReviverFactory(
 							preloadedCustomToolPaths: [],
 						}
 					: {
-							enableMCP: !mcpManager,
+							enableMCP: ctx.enableMCP !== false && !mcpManager,
 							mcpManager,
 							customTools: mcpProxyTools.length > 0 ? mcpProxyTools : undefined,
 						}),

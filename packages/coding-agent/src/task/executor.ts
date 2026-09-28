@@ -60,6 +60,7 @@ import { SessionManager } from "../session/session-manager";
 import { truncateTail } from "../session/streaming-output";
 import { type ConfiguredThinkingLevel, prewalkWouldBeNoop, resolveTaskEffortLevel, type TaskEffort } from "../thinking";
 import type { ContextFileEntry, ToolSession } from "../tools";
+import { applyToolAllowlist } from "../tools/builtin-names";
 import { resolveEvalBackends } from "../tools/eval-backends";
 import { isIrcEnabled } from "../tools/hub";
 import { LIST_STATUS_ORDER } from "../tools/hub/messaging";
@@ -463,6 +464,8 @@ export interface ExecutorOptions {
 	 * tool, suppressing discovered and always-included capabilities.
 	 */
 	restrictToolNames?: boolean;
+	/** Parent process `--tools` ceiling (see `CreateAgentSessionOptions.toolAllowlist`). */
+	toolAllowlist?: readonly string[];
 	signal?: AbortSignal;
 	onProgress?: (progress: AgentProgress) => void;
 	/**
@@ -2909,7 +2912,9 @@ export async function runSubprocess(options: ExecutorOptions): Promise<SingleRes
 				: agent.spawns.join(",");
 
 	const lspEnabled = enableLsp ?? true;
-	const skipPythonPreflight = Array.isArray(toolNames) && !toolNames.includes("eval");
+	// Built-ins the child is actually granted once the parent's `--tools` ceiling applies.
+	const grantedToolNames = applyToolAllowlist(toolNames, options.toolAllowlist);
+	const skipPythonPreflight = Array.isArray(grantedToolNames) && !grantedToolNames.includes("eval");
 
 	const monitor = createSubagentRunMonitor({
 		index,
@@ -3209,6 +3214,7 @@ export async function runSubprocess(options: ExecutorOptions): Promise<SingleRes
 				thinkingLevel: effectiveThinkingLevel,
 				thinkingLevelCeiling: spawnEffortCeiling,
 				toolNames,
+				toolAllowlist: options.toolAllowlist,
 				outputSchema,
 				outputSchemaMode: options.outputSchemaMode,
 				restrictToolNames: options.restrictToolNames,
@@ -3372,7 +3378,7 @@ export async function runSubprocess(options: ExecutorOptions): Promise<SingleRes
 			// replayed as an explicit grant during cold revival, so persist write
 			// only when the original agent contract granted it.
 			const persistedSubagentTools =
-				toolNames !== undefined && !toolNames.includes("write")
+				grantedToolNames !== undefined && !grantedToolNames.includes("write")
 					? enabledSubagentTools.filter(name => name !== "write")
 					: enabledSubagentTools;
 

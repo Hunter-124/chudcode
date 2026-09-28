@@ -16,6 +16,7 @@ import type { AgentDefinition, TaskParams } from "@chudware/coding-agent/task/ty
 import type { IsolationHandle, WorktreeBaseline } from "@chudware/coding-agent/task/worktree";
 import * as worktreeModule from "@chudware/coding-agent/task/worktree";
 import type { ToolSession } from "@chudware/coding-agent/tools";
+import { applyToolAllowlist } from "@chudware/coding-agent/tools/builtin-names";
 import { removeWithRetries } from "@chudware/utils";
 import "@chudware/coding-agent/tools/yield";
 import { EventBus } from "@chudware/coding-agent/utils/event-bus";
@@ -94,6 +95,8 @@ function createSession(
 	options: {
 		isolationMode?: "none" | "auto";
 		parentEnableLsp?: boolean;
+		parentEnableMCP?: boolean;
+		parentToolAllowlist?: readonly string[];
 		planMode?: PlanModeState;
 		sessionFile?: string | null;
 		taskEnableLsp?: boolean;
@@ -110,6 +113,8 @@ function createSession(
 		cwd: "/tmp",
 		hasUI: false,
 		enableLsp: options.parentEnableLsp,
+		enableMCP: options.parentEnableMCP,
+		toolAllowlist: options.parentToolAllowlist,
 		settings: Settings.isolated({
 			"async.enabled": false,
 			"task.isolation.mode": options.isolationMode ?? "none",
@@ -290,5 +295,46 @@ describe("subagent LSP availability", () => {
 		expect(options?.toolNames).not.toContain("memory_edit");
 		expect(options?.toolNames).not.toContain("retain");
 		expect(options?.toolNames).not.toContain("todo");
+	});
+});
+
+describe("subagents inherit the parent process restrictions", () => {
+	afterEach(() => {
+		vi.restoreAllMocks();
+	});
+
+	it("spawns children under the parent's --tools ceiling with MCP and LSP off", async () => {
+		mockAgents({ name: "task", description: "Task agent", systemPrompt: "Work.", source: "bundled" });
+		const { getOptions } = mockCreateAgentSession();
+		const parentToolAllowlist = ["read", "bash", "hub", "task"];
+
+		const tool = await TaskTool.create(
+			createSession({ parentToolAllowlist, parentEnableMCP: false, parentEnableLsp: false, taskEnableLsp: true }),
+		);
+		await tool.execute("tool-call", TEST_TASK);
+
+		const options = getOptions();
+		expect(options?.toolAllowlist).toEqual(parentToolAllowlist);
+		expect(applyToolAllowlist(options?.toolNames, options?.toolAllowlist)).toEqual(parentToolAllowlist);
+		expect(options?.enableMCP).toBe(false);
+		expect(options?.mcpManager).toBeUndefined();
+		expect(options?.enableLsp).toBe(false);
+	});
+
+	it("narrows an agent's own tool allowlist to the parent ceiling", async () => {
+		mockAgents({
+			name: "task",
+			description: "Task agent",
+			systemPrompt: "Work.",
+			source: "bundled",
+			tools: ["read", "edit", "debug"],
+		});
+		const { getOptions } = mockCreateAgentSession();
+
+		const tool = await TaskTool.create(createSession({ parentToolAllowlist: ["read", "bash", "hub"] }));
+		await tool.execute("tool-call", TEST_TASK);
+
+		const options = getOptions();
+		expect(applyToolAllowlist(options?.toolNames, options?.toolAllowlist)).toEqual(["read", "hub"]);
 	});
 });

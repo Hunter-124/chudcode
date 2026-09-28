@@ -155,6 +155,31 @@ describe("task sub-agents inherit RPC host tools", () => {
 		expect(devices(open)).toContain("mate_parts");
 	});
 
+	it("clamps built-ins to the parent's --tools ceiling without dropping host tools", async () => {
+		const host = createHost([MAKE_BOX, MEASURE]);
+		const toolAllowlist = ["read", "bash", "task"];
+		const inheriting = await createSubagentSession("CeilingWorker", host.bridge, { toolAllowlist });
+		const narrowed = await createSubagentSession("NarrowWorker", host.bridge, {
+			toolAllowlist,
+			toolNames: ["read", "edit", "measure"],
+		});
+
+		const inheritingTools = inheriting.getAllToolNames();
+		const inheritingDevices = inheriting.getXdevToolEntries().map(entry => entry.name);
+		// The default built-in set collapses to the ceiling: no edit/debug/github devices ride along.
+		expect(inheritingTools).toEqual(expect.arrayContaining(["read", "bash"]));
+		for (const dropped of ["edit", "grep", "debug", "github", "ast_edit", "eval"]) {
+			expect(inheritingTools).not.toContain(dropped);
+			expect(inheritingDevices).not.toContain(dropped);
+		}
+		expect(inheritingDevices).toEqual(expect.arrayContaining(["make_box", "measure"]));
+		// An agent allowlist narrows further; host tools stay governed by it alone.
+		expect(narrowed.getActiveToolNames()).toEqual(expect.arrayContaining(["read", "measure"]));
+		expect(narrowed.getAllToolNames()).not.toContain("edit");
+		expect(narrowed.getAllToolNames()).not.toContain("bash");
+		expect(narrowed.getAllToolNames()).not.toContain("make_box");
+	});
+
 	it("routes parallel sub-agent calls to the host attributed to each sub-agent", async () => {
 		const host = createHost([MAKE_BOX]);
 		const cube = await createSubagentSession("CubeBuilder", host.bridge);

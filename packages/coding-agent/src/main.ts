@@ -1320,9 +1320,18 @@ export async function buildSessionOptions(
 	} else if (parsed.tools) {
 		options.toolNames = parsed.tools;
 	}
+	// An explicit `--tools` list is a process-wide ceiling: task sub-agents
+	// inherit it instead of carrying the full default tool set.
+	if (parsed.tools && parsed.tools.length > 0) {
+		options.toolAllowlist = parsed.tools;
+	}
 
 	if (parsed.noLsp) {
 		options.enableLsp = false;
+	}
+
+	if (parsed.noMcp) {
+		options.enableMCP = false;
 	}
 
 	// Skills
@@ -1981,6 +1990,8 @@ export async function runRootCommand(
 					modelRegistry,
 					settings: settingsInstance,
 					enableLsp: sessionOptions.enableLsp ?? true,
+					enableMCP: sessionOptions.enableMCP ?? true,
+					toolAllowlist: sessionOptions.toolAllowlist,
 					eventBus,
 				}),
 				Math.trunc(Number(settingsInstance.get("task.agentIdleTtlMs") ?? 420_000) || 0),

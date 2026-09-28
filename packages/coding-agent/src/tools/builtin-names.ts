@@ -69,6 +69,22 @@ export function normalizeToolNames(names: Iterable<string>): string[] {
 	return out;
 }
 
+/**
+ * Clamp a requested tool list to an inherited allowlist (the process `--tools`
+ * restriction). Only built-in names are clamped: host, custom, and MCP names
+ * the caller requested pass through. An undefined request means "the default
+ * set", which the allowlist replaces. Without an allowlist the request is unchanged.
+ */
+export function applyToolAllowlist(
+	requested: string[] | undefined,
+	allowlist: readonly string[] | undefined,
+): string[] | undefined {
+	if (!allowlist) return requested;
+	if (!requested) return normalizeToolNames(allowlist);
+	const allowed = new Set(normalizeToolNames(allowlist));
+	return normalizeToolNames(requested).filter(name => allowed.has(name) || !Object.hasOwn(CANONICAL_TOOL_NAMES, name));
+}
+
 /** MCP tool names carry the `mcp__<server>_<tool>` prefix minted by `createMCPToolName`. */
 export function isMCPToolName(name: string): boolean {
 	return name.startsWith("mcp__");

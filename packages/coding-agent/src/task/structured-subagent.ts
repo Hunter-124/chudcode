@@ -424,6 +424,7 @@ function buildExecutorOptions(
 		enableIrc: policy.enableIrc,
 		maxRuntimeMs: request.maxRuntimeMs,
 		restrictToolNames,
+		toolAllowlist: session.toolAllowlist,
 		keepAlive: request.keepAlive,
 		signal: request.signal,
 		eventBus: session.eventBus,

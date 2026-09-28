@@ -232,6 +232,11 @@ export interface ToolSession {
 	 * prohibits inherited-manager and process-global MCP fallback.
 	 */
 	enableMCP?: boolean;
+	/**
+	 * Process-level tool ceiling (CLI `--tools`) forwarded to every child
+	 * session, whose requested built-in tools are intersected with it.
+	 */
+	toolAllowlist?: readonly string[];
 	/** Whether an edit-capable tool is available in this session (controls hashline output) */
 	hasEditTool?: boolean;
 	/** Event bus for tool/extension communication */
