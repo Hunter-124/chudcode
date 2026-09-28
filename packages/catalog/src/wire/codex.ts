@@ -6,8 +6,10 @@ export const CODEX_BASE_URL = "https://chatgpt.com/backend-api";
 
 /**
  * Pinned OpenAI Codex client version (corresponds to @openai/codex package version).
+ * The Codex model list is gated by `client_version`: 0.144.1 hides the GPT-6 family,
+ * which the backend only lists from 0.156.0 on.
  */
-export const CODEX_CLIENT_VERSION = "0.144.1";
+export const CODEX_CLIENT_VERSION = "0.157.1";
 
 export const OPENAI_HEADERS = {
 	BETA: "OpenAI-Beta",
