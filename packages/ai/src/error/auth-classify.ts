@@ -14,16 +14,42 @@ export function isDefinitiveOAuthFailure(errorMsg: string): boolean {
 }
 
 const INVALIDATED_OAUTH_TOKEN_PATTERN = /\binvalidated oauth token\b/i;
+/**
+ * Anthropic `403 permission_error` with `error_code: oauth_not_allowed_for_organization`:
+ * the account's organization forbids OAuth (subscription) access. An org admin
+ * policy, not a token or quota state — refresh and backoff never heal it.
+ */
+const OAUTH_NOT_ALLOWED_FOR_ORGANIZATION_PATTERN =
+	/\boauth_not_allowed_for_organization\b|\bOAuth authentication is currently not allowed for this organization\b/i;
 
-/** Whether an upstream response explicitly says the supplied OAuth bearer was invalidated. */
-export function isInvalidatedOAuthTokenError(error: unknown): boolean {
+function authErrorMatches(error: unknown, pattern: RegExp): boolean {
 	if (typeof error === "object" && error !== null && "errorMessage" in error) {
 		const errorMessage =
 			"errorClassificationMessage" in error ? error.errorClassificationMessage : error.errorMessage;
-		if (typeof errorMessage === "string" && INVALIDATED_OAUTH_TOKEN_PATTERN.test(errorMessage)) return true;
+		if (typeof errorMessage === "string" && pattern.test(errorMessage)) return true;
 	}
 	const message = error instanceof Error ? error.message : typeof error === "string" ? error : undefined;
-	return message !== undefined && INVALIDATED_OAUTH_TOKEN_PATTERN.test(message);
+	return message !== undefined && pattern.test(message);
+}
+
+/** Whether an upstream response explicitly says the supplied OAuth bearer was invalidated. */
+export function isInvalidatedOAuthTokenError(error: unknown): boolean {
+	return authErrorMatches(error, INVALIDATED_OAUTH_TOKEN_PATTERN);
+}
+
+/** Whether upstream refused OAuth access for the credential's whole organization. */
+export function isOAuthNotAllowedForOrganizationError(error: unknown): boolean {
+	return authErrorMatches(error, OAUTH_NOT_ALLOWED_FOR_ORGANIZATION_PATTERN);
+}
+
+/**
+ * Whether an upstream rejection permanently disqualifies the OAuth credential
+ * that sent it (invalidated bearer, organization forbids OAuth). Such a
+ * credential is disabled and leaves rotation instead of taking a timed block,
+ * so concurrent sessions sharing the auth storage stop selecting it.
+ */
+export function isRevokedOAuthCredentialError(error: unknown): boolean {
+	return isInvalidatedOAuthTokenError(error) || isOAuthNotAllowedForOrganizationError(error);
 }
 
 /**
@@ -40,7 +66,7 @@ export function isAuthRetryableError(error: unknown): boolean {
 	if (error instanceof OAuthError && error.kind === "token-refresh") return true;
 	if (isUsageLimit(error)) return true;
 	if (isAccountPolicyError(error)) return true;
-	if (isInvalidatedOAuthTokenError(error)) return true;
+	if (isRevokedOAuthCredentialError(error)) return true;
 	const httpStatus = extractHttpStatusFromError(error);
 	const message = error instanceof Error ? error.message : typeof error === "string" ? error : undefined;
 	const embeddedStatus = message ? extractHttpStatusFromError({ message }) : undefined;

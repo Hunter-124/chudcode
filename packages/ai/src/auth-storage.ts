@@ -2186,7 +2186,7 @@ export class AuthStorage {
 			let { blockedUntil } = result;
 			let blocked = blockedUntil !== undefined;
 			const scopedLimits = usage ? this.#getScopedUsageLimits(strategy, usage, args.rankingContext) : undefined;
-			if (!blocked && scopedLimits && this.#isUsageLimitReached(scopedLimits)) {
+			if (!blocked && scopedLimits && this.#isUsageLimitReached(scopedLimits, nowMs)) {
 				const resetAtMs = this.#getUsageResetAtMs(scopedLimits, nowMs);
 				blockedUntil = resetAtMs ?? Date.now() + AuthStorage.#defaultBackoffMs;
 				this.#markCredentialBlocked(
@@ -3872,9 +3872,18 @@ export class AuthStorage {
 		return strategy.scopeLimits?.(report, context) ?? report.limits;
 	}
 
-	/** Returns true if usage indicates rate limit has been reached. */
-	#isUsageLimitReached(limits: UsageLimit[]): boolean {
-		return limits.some(limit => this.#isUsageLimitExhausted(limit));
+	/**
+	 * Returns true if usage indicates rate limit has been reached. A window whose
+	 * reset time has already passed no longer describes the live quota: a failed
+	 * usage fetch serves the last good report, and its pre-reset exhaustion must
+	 * not block a credential that is usable again.
+	 */
+	#isUsageLimitReached(limits: UsageLimit[], nowMs: number): boolean {
+		return limits.some(limit => {
+			const resetsAt = limit.window?.resetsAt;
+			if (typeof resetsAt === "number" && Number.isFinite(resetsAt) && resetsAt <= nowMs) return false;
+			return this.#isUsageLimitExhausted(limit);
+		});
 	}
 
 	/** Extracts the earliest reset timestamp from exhausted windows (in ms). */
@@ -4583,7 +4592,7 @@ export class AuthStorage {
 			);
 			if (report) {
 				const scopedLimits = this.#getScopedUsageLimits(routing.strategy, report, routing.rankingContext);
-				if (this.#isUsageLimitReached(scopedLimits)) {
+				if (this.#isUsageLimitReached(scopedLimits, Date.now())) {
 					const resetAtMs = this.#getUsageResetAtMs(scopedLimits, Date.now());
 					if (resetAtMs && resetAtMs > blockedUntil) {
 						blockedUntil = resetAtMs;
@@ -4787,7 +4796,7 @@ export class AuthStorage {
 			let { blockedUntil } = result;
 			let blocked = blockedUntil !== undefined;
 			const scopedLimits = usage ? this.#getScopedUsageLimits(strategy, usage, args.rankingContext) : undefined;
-			if (!blocked && scopedLimits && this.#isUsageLimitReached(scopedLimits)) {
+			if (!blocked && scopedLimits && this.#isUsageLimitReached(scopedLimits, nowMs)) {
 				const resetAtMs = this.#getUsageResetAtMs(scopedLimits, nowMs);
 				blockedUntil = resetAtMs ?? Date.now() + AuthStorage.#defaultBackoffMs;
 				this.#markCredentialBlocked(
@@ -5432,7 +5441,7 @@ export class AuthStorage {
 			}
 			if (checkUsage && !allowBlocked && usage && strategy && rankingContext) {
 				const scopedLimits = this.#getScopedUsageLimits(strategy, usage, rankingContext);
-				if (this.#isUsageLimitReached(scopedLimits)) {
+				if (this.#isUsageLimitReached(scopedLimits, Date.now())) {
 					const resetAtMs = this.#getUsageResetAtMs(scopedLimits, Date.now());
 					this.#markCredentialBlocked(
 						provider,
@@ -5512,7 +5521,7 @@ export class AuthStorage {
 				}
 				if (checkUsage && !allowBlocked && usage && strategy && rankingContext) {
 					const scopedLimits = this.#getScopedUsageLimits(strategy, usage, rankingContext);
-					if (this.#isUsageLimitReached(scopedLimits)) {
+					if (this.#isUsageLimitReached(scopedLimits, Date.now())) {
 						const resetAtMs = this.#getUsageResetAtMs(scopedLimits, Date.now());
 						this.#markCredentialBlocked(
 							provider,
@@ -6236,7 +6245,7 @@ export class AuthStorage {
 		if (report.provider !== "openai-codex") return false;
 		const metadata = report.metadata;
 		if (metadata?.allowed !== true || metadata.limitReached !== false) return false;
-		return !this.#isUsageLimitReached(report.limits);
+		return !this.#isUsageLimitReached(report.limits, Date.now());
 	}
 
 	#reconcileCodexUsageBlockForCredential(provider: Provider, credentialId: number, report: UsageReport): void {
@@ -6443,6 +6452,11 @@ export class AuthStorage {
 	 *   temporarily block only that requested model, then rotate.
 	 * - other account-scoped policy denial → temporarily block that account
 	 *   without marking its credential suspect, then rotate through siblings.
+	 * - revoked OAuth credential (invalidated bearer, or the organization forbids
+	 *   OAuth: Anthropic `oauth_not_allowed_for_organization`) → disable the row
+	 *   with the upstream error as `disabled_cause` and emit `credential_disabled`,
+	 *   so every session sharing this storage stops selecting it. A timed block
+	 *   would expire and hand the credential back to the next resolve.
 	 * - otherwise (hard 401 / auth failure) → mark the credential suspect (or
 	 *   reload when no broker hook is wired) and block it, then drop matching
 	 *   sticky state.
@@ -6533,8 +6547,8 @@ export class AuthStorage {
 			Date.now() + AuthStorage.#defaultBackoffMs,
 		);
 
-		if (target && AIError.isInvalidatedOAuthTokenError(error)) {
-			const disabledCause = message ?? "upstream reported invalidated OAuth token";
+		if (target && AIError.isRevokedOAuthCredentialError(error)) {
+			const disabledCause = message ?? "upstream revoked the OAuth credential";
 			const deleted = this.#store.deleteAuthCredentialRemote
 				? await this.#store.deleteAuthCredentialRemote(target.id, disabledCause)
 				: this.disableCredentialById(target.id, disabledCause);

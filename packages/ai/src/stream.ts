@@ -19,7 +19,7 @@ import { $env, $pickenv, getProviderInFlightRoot, isEnoent, logger, withExtraCaF
 import { sleep } from "@chudware/utils/async";
 import * as fsx from "@chudware/utils/fsx";
 import { getCustomApi } from "./api-registry";
-import { createAuthRetryKeyState, isApiKeyResolver, resolveNextAuthRetryKey } from "./auth-retry";
+import { AuthRetryFailures, createAuthRetryKeyState, isApiKeyResolver, resolveNextAuthRetryKey } from "./auth-retry";
 import * as AIError from "./error";
 import { ProviderHttpError } from "./error";
 import { isConcurrencyCapExclusion, isUsageLimitOutcome } from "./error/rate-limit";
@@ -1562,19 +1562,20 @@ function streamSimpleRequest<TApi extends Api>(
 				return;
 			}
 			const retryState = createAuthRetryKeyState(lastKey);
-			let failure = await runAttempt(lastKey);
-			if (!failure) return;
+			const first = await runAttempt(lastKey);
+			if (!first) return;
+			const failures = new AuthRetryFailures(first);
 			while (true) {
 				// Caller aborted between attempts: don't mint a fresh token or fire
 				// another doomed request — emit the captured failure instead.
 				if (signal?.aborted) break;
-				const nextKey = await resolveNextAuthRetryKey(retryState, apiKeyResolver, failure.error, signal);
+				const nextKey = await resolveNextAuthRetryKey(retryState, apiKeyResolver, failures.last.error, signal);
 				if (nextKey === undefined) break;
 				const next = await runAttempt(nextKey);
 				if (!next) return;
-				failure = next;
+				failures.note(next);
 			}
-			emitFailure(failure);
+			emitFailure(failures.terminal());
 		})();
 		return outer;
 	}

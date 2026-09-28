@@ -6,6 +6,8 @@
 
 - Fixed the OAuth success page's close-window action to fall back to manual-close guidance when the browser refuses to close the tab.
 - Anthropic subscription (OAuth) requests identify as Claude Code 2.1.281. Anthropic rejects newer models such as `claude-opus-5-5` from clients older than 2.1.280 with `400 claude_code_version_too_old`, so every turn on those models failed before producing output.
+- Fixed an Anthropic OAuth credential rejected with `403 oauth_not_allowed_for_organization` staying in rotation behind a 60-second block: it is now disabled (the upstream error is its `disabled_cause`, announced via `credential_disabled`), the request retries on a working sibling immediately, and every session sharing the auth storage — including sub-agents — stops selecting it. When no sibling works, the retained credential's failure (e.g. its usage limit, which the retry layer can wait out) is surfaced instead of the revoked credential's 403.
+- Fixed a failed usage-report fetch blocking a working credential: the last good report served in its place no longer counts a window that has already reset as exhausted.
 
 ## [18.0.8] - 2026-08-27
 

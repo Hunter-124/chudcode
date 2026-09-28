@@ -1,7 +1,7 @@
 import { extractHttpStatusFromError } from "@chudware/utils";
 import type { OAuthAccess } from "./auth-storage";
 import * as AIError from "./error";
-import { isAuthRetryableError, isInvalidatedOAuthTokenError } from "./error/auth-classify";
+import { isAuthRetryableError, isRevokedOAuthCredentialError } from "./error/auth-classify";
 import { isAccountPolicyError, isUsageLimit } from "./error/flags";
 import { isConcurrencyCapExclusion, isUsageLimitOutcome } from "./error/rate-limit";
 
@@ -92,7 +92,7 @@ export const AUTH_RETRY_MAX_ATTEMPTS = 64;
 
 function isDirectCredentialRotationError(error: unknown): boolean {
 	if (isAccountPolicyError(error)) return true;
-	if (isUsageLimit(error) || isInvalidatedOAuthTokenError(error)) return true;
+	if (isUsageLimit(error) || isRevokedOAuthCredentialError(error)) return true;
 	const status = AIError.status(error);
 	const message = error instanceof Error ? error.message : typeof error === "string" ? error : undefined;
 	// A 403 normally means a valid token lacks access, so rotate through
@@ -247,26 +247,60 @@ export async function withAuth<T>(
 	if (initialKey === undefined) throw missingKey();
 
 	const state = createAuthRetryKeyState(initialKey);
-	let lastError: unknown;
+	let failures: AuthRetryFailures<{ error: unknown }>;
 	try {
 		return await attempt(initialKey);
 	} catch (error) {
 		if (!isAuthError(error)) throw error;
-		lastError = error;
+		failures = new AuthRetryFailures({ error });
 	}
 
 	while (true) {
-		const nextKey = await resolveNextAuthRetryKey(state, resolver, lastError, signal);
+		const nextKey = await resolveNextAuthRetryKey(state, resolver, failures.last.error, signal);
 		if (nextKey === undefined) break;
 		try {
 			return await attempt(nextKey);
 		} catch (error) {
 			if (!isAuthError(error)) throw error;
-			lastError = error;
+			failures.note({ error });
 		}
 	}
 
-	throw lastError;
+	throw failures.terminal().error;
+}
+
+/**
+ * Failed attempts of one auth-retry operation. The latest failure drives the
+ * next retry step; {@link AuthRetryFailures.terminal} picks what to surface
+ * once retries stop.
+ */
+export class AuthRetryFailures<F extends { error: unknown }> {
+	#last: F;
+	#retained: F | undefined;
+
+	constructor(first: F) {
+		this.#last = first;
+		this.#retained = isRevokedOAuthCredentialError(first.error) ? undefined : first;
+	}
+
+	get last(): F {
+		return this.#last;
+	}
+
+	note(failure: F): void {
+		this.#last = failure;
+		if (!isRevokedOAuthCredentialError(failure.error)) this.#retained = failure;
+	}
+
+	/**
+	 * A failure from a credential that was just revoked (and so left rotation)
+	 * is not the operation's actionable outcome: surface the latest failure of a
+	 * credential still in rotation — e.g. a usage limit the caller's retry layer
+	 * can wait out — when one exists, else the latest failure.
+	 */
+	terminal(): F {
+		return this.#retained ?? this.#last;
+	}
 }
 
 /**
@@ -349,8 +383,9 @@ export async function withOAuthAccess<T>(
 	let attemptResult = await runOAuthAttempt(lastAccess, attempt, isAuthError);
 	if (attemptResult.ok) return attemptResult.result;
 
-	let lastError = attemptResult.error;
+	const failures = new AuthRetryFailures(attemptResult);
 	while (true) {
+		const lastError = failures.last.error;
 		let next: OAuthAccess | undefined;
 		if (signal?.aborted || attemptCount >= AUTH_RETRY_MAX_ATTEMPTS) break;
 		const tokenRefreshReplay = lastError instanceof AIError.OAuthError && lastError.kind === "token-refresh";
@@ -372,7 +407,7 @@ export async function withOAuthAccess<T>(
 			lastAccess = next;
 			attemptResult = await runOAuthAttempt(next, attempt, isAuthError);
 			if (attemptResult.ok) return attemptResult.result;
-			lastError = attemptResult.error;
+			failures.note(attemptResult);
 			continue;
 		}
 
@@ -396,7 +431,7 @@ export async function withOAuthAccess<T>(
 						lastAccess = next;
 						attemptResult = await runOAuthAttempt(next, attempt, isAuthError);
 						if (attemptResult.ok) return attemptResult.result;
-						lastError = attemptResult.error;
+						failures.note(attemptResult);
 						continue;
 					}
 				}
@@ -433,8 +468,8 @@ export async function withOAuthAccess<T>(
 		if (!directRotation) legacyAuthSwitchUsed = true;
 		attemptResult = await runOAuthAttempt(next, attempt, isAuthError);
 		if (attemptResult.ok) return attemptResult.result;
-		lastError = attemptResult.error;
+		failures.note(attemptResult);
 	}
 
-	throw lastError;
+	throw failures.terminal().error;
 }

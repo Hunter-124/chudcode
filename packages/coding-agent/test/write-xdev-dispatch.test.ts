@@ -78,6 +78,17 @@ describe("read and write route xd:// device URLs", () => {
 			expect(listing.content.find(entry => entry.type === "text")?.text).toContain("xd://ast_edit");
 			const docs = await read!.execute("read-xd-docs", { path: "xd://ast_edit" });
 			expect(docs.content.find(entry => entry.type === "text")?.text).toContain("# ast_edit");
+			// The eval prelude's `read("xd://ast_edit", offset, limit)` delegates as
+			// `xd://ast_edit:<start>-<end>`; the selector must page the device docs,
+			// not become part of the device name ("No such tool: xd://ast_edit:1-400").
+			const docLines = (docs.content.find(entry => entry.type === "text")?.text ?? "").split("\n");
+			const target = docLines.findIndex((line, index) => index >= 15 && line.trim().length > 0);
+			expect(target).toBeGreaterThan(0);
+			const paged = await read!.execute("read-xd-docs-range", { path: `xd://ast_edit:${target + 1}-${target + 1}` });
+			expect(paged.isError).toBeUndefined();
+			const pagedText = paged.content.find(entry => entry.type === "text")?.text ?? "";
+			expect(pagedText).toContain(docLines[target]);
+			expect(pagedText).not.toContain(docLines[0]);
 
 			const content = JSON.stringify({
 				ops: [{ pat: "legacyWrap($A, $B)", out: "modernWrap($A, $B)" }],
