@@ -180,7 +180,12 @@ function projectBank(configured: string | undefined, cwd: string): string {
 	return limitBankName(base ? `${base}-${project}` : project);
 }
 
-function projectBankSegment(projectRoot: string): string {
+/**
+ * Per-project bank segment: `<sanitized-basename>-<Bun.hash(projectRoot).toString(36)>`,
+ * clamped to the bank-name limit. Shared by mnemo bank scoping and the
+ * sharpshooter project store so both subsystems key a project identically.
+ */
+export function projectBankSegment(projectRoot: string): string {
 	const project = sanitizeBankName(path.basename(projectRoot)) ?? "default";
 	return limitBankName(`${project}-${Bun.hash(projectRoot).toString(36)}`);
 }

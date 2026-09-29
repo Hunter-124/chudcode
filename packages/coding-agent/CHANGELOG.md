@@ -19,6 +19,7 @@
 
 ### Added
 
+- Added the `sharpshooter` memory backend (`memory.backend: sharpshooter`): after each user prompt a model extracts friction-earned project decisions into a per-project queue, a background pass consolidates them into `architecture.md`/`product.md`/`style.md` under `<agentDir>/memories/sharpshooter/<project-bank>/`, and those files are injected into the system prompt (bounded by `sharpshooter.injectionTokenLimit`). The model is `sharpshooter.model`, else the `smol` role, else the session's own model, so it also runs in RPC sessions with no model roles configured. It exposes no memory tools.
 - Finalized the product identity as Chudcode v0.1.0, replacing the prior Chudware Code name; `chudcode` is now the primary command, with `chudware-code`, `chcode`, and `chudcode` retained as compatibility aliases.
 - Added account quota usage to the `full` and `nerd` status-line presets ([#9929](https://github.com/Hunter-124/chudcode/issues/9929)).
 - Added a schema guard against settings UI conditions that do not resolve to visibility predicates.

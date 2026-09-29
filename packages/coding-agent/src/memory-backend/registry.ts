@@ -1,6 +1,6 @@
 import type { MemoryBackend } from "./types";
 
-export const BUILTIN_MEMORY_BACKEND_IDS = ["off", "local", "hindsight", "mnemo"] as const;
+export const BUILTIN_MEMORY_BACKEND_IDS = ["off", "local", "hindsight", "mnemo", "sharpshooter"] as const;
 
 export type BuiltinMemoryBackendId = (typeof BUILTIN_MEMORY_BACKEND_IDS)[number];
 

@@ -3078,6 +3078,12 @@ export const SETTINGS_SCHEMA = {
 					label: "Mnemo",
 					description: "Local SQLite recall/retain backend with optional embeddings",
 				},
+				{
+					value: "sharpshooter",
+					label: "Sharpshooter",
+					description:
+						"Friction-gated project decision files (architecture/product/style), consolidated in the background",
+				},
 			],
 		},
 	},
@@ -3092,6 +3098,20 @@ export const SETTINGS_SCHEMA = {
 			description: "Stop the local embedding worker after this many idle minutes; 0 keeps it running",
 		},
 	},
+
+	// Sharpshooter: friction-gated per-project decision memory.
+	"sharpshooter.model": {
+		type: "string",
+		default: undefined,
+		ui: {
+			tab: "memory",
+			group: "Sharpshooter",
+			label: "Sharpshooter Model",
+			description: "Model selector for extraction/consolidation, empty = smol role, then the session model",
+		},
+	},
+	"sharpshooter.intervalMinutes": { type: "number", default: 5 },
+	"sharpshooter.injectionTokenLimit": { type: "number", default: 15000 },
 
 	// Auto-Learn (experimental): post-stop nudge to capture lessons to memory
 	// and mint/enhance isolated managed skills under ~/.chudcode/agent/managed-skills.

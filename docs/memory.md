@@ -1,6 +1,6 @@
 # Autonomous Memory
 
-Chudcode supports four memory modes. Memory is disabled by default; select one backend via `/settings` or `config.yml`:
+Chudcode supports five memory modes. Memory is disabled by default; select one backend via `/settings` or `config.yml`:
 
 | `memory.backend` | Storage and behavior                                                   | Guide                                                   |
 | ---------------- | ---------------------------------------------------------------------- | ------------------------------------------------------- |
@@ -8,6 +8,7 @@ Chudcode supports four memory modes. Memory is disabled by default; select one b
 | `local`          | Project-scoped summaries and lessons generated from persisted sessions | This page                                               |
 | `hindsight`      | Remote, bank-scoped Hindsight memory                                   | [Hindsight](#hindsight-remote-backend)                  |
 | `mnemo`        | Local Mnemo SQLite memory                                            | [Mnemo memory backend](./mnemosyne-memory-backend.md) |
+| `sharpshooter` | Per-project decision files distilled from the user's corrections     | [Sharpshooter](#sharpshooter-decision-backend)          |
 
 Enable the local summary pipeline:
 
@@ -143,6 +144,25 @@ The primary session recalls on its first model turn (`hindsight.autoRecall: true
 Recall is injected as background context, not instructions, and recalled memory is also available as extra context during compaction. Selecting Hindsight exposes `recall`, `retain`, and `reflect`; `memory_edit` is not available because upstream Hindsight memories are not edited through this backend.
 
 `/memory view`, `/memory stats`, `/memory diagnose`, and `/memory enqueue` operate through the active Hindsight state. `/memory clear` first drains pending retains, then clears only the local session state and recall cache. It **does not delete the server-side bank**; delete that bank with the Hindsight UI or API.
+
+## Sharpshooter decision backend
+
+```yaml
+memory:
+  backend: sharpshooter
+```
+
+Sharpshooter keeps three small decision files per project — `architecture.md`, `product.md`, `style.md` — under `<agentDir>/memories/sharpshooter/<project-bank>/`, next to a `queue/` of pending deltas and `state.json`. The bank id is derived from the working directory exactly like Mnemo's per-project bank (`<basename>-<hash of the absolute path>`), so two folders never share a bank and nothing is written into the project tree.
+
+After each user prompt of the top-level session (16+ characters, not a slash command), a model call extracts "friction-earned" decisions — corrections, regressions, subtle invariants — each backed by an exact substring of the prompt, and writes them as one JSON file per delta to `queue/<sessionId>/`. A background pass (checked every minute, run once `sharpshooter.intervalMinutes` has elapsed; `/memory enqueue` forces it) rewrites the three files from the queue and consumes exactly the deltas it read, under a per-bank lock. The files are injected into the system prompt, capped at `sharpshooter.injectionTokenLimit` approximate tokens.
+
+Extraction and consolidation use `sharpshooter.model` when set, else the `smol` role, else the session's own model — so protocol hosts that configure no model roles still get extraction. Sharpshooter exposes no memory tools (`recall`, `retain`, `reflect`, `memory_edit`, `learn` stay unavailable); `/memory stats`, `/memory diagnose`, and `/memory clear` operate on the current project's bank.
+
+| Setting                            | Default | Description                                                     |
+| ---------------------------------- | ------- | --------------------------------------------------------------- |
+| `sharpshooter.model`               | unset   | Model selector for extraction and consolidation                 |
+| `sharpshooter.intervalMinutes`     | `5`     | Minimum minutes between background consolidation passes        |
+| `sharpshooter.injectionTokenLimit` | `15000` | Approximate token cap for the decision files in the system prompt |
 
 ## Key files
 
