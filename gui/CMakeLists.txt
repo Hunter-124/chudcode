@@ -22,7 +22,7 @@ set(BUILD_DEMO OFF CACHE BOOL "" FORCE)
 set(IXWEBSOCKET_INSTALL OFF CACHE BOOL "" FORCE)
 FetchContent_Declare(ixwebsocket GIT_REPOSITORY https://github.com/machinezone/IXWebSocket.git GIT_TAG v12.0.1 GIT_SHALLOW TRUE)
 
-FetchContent_Declare(texteditor GIT_REPOSITORY https://github.com/goossens/ImGuiColorTextEdit.git GIT_TAG a20e4493bb618a8b738bbb33e00932f842ae8595 GIT_SHALLOW TRUE)
+FetchContent_Declare(texteditor GIT_REPOSITORY https://github.com/goossens/ImGuiColorTextEdit.git GIT_TAG a20e4493bb618a8b738bbb33e00932f842ae8595)
 FetchContent_Declare(libvterm GIT_REPOSITORY https://github.com/neovim/libvterm.git GIT_TAG 934bc2fbf21800ac3458a499df8820ca5fb45fd3)
 
 FetchContent_MakeAvailable(glfw imgui json ixwebsocket)
