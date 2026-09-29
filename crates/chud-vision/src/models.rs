@@ -1,15 +1,16 @@
-use serde::Serialize;
 use std::path::{Path, PathBuf};
+
+use serde::Serialize;
 
 use crate::protocol::VisionError;
 
 #[derive(Debug, Clone, Copy, Serialize)]
 pub struct ModelSpec {
-    pub id: &'static str,
-    pub filename: &'static str,
-    pub sha256: &'static str,
-    pub url: &'static str,
-    pub bytes: u64,
+	pub id:       &'static str,
+	pub filename: &'static str,
+	pub sha256:   &'static str,
+	pub url:      &'static str,
+	pub bytes:    u64,
 }
 
 pub static MANIFEST: &[ModelSpec] = &[
@@ -58,30 +59,27 @@ pub static MANIFEST: &[ModelSpec] = &[
 ];
 
 pub fn model_dir(request_dir: Option<&str>) -> PathBuf {
-    if let Some(dir) = request_dir.filter(|v| !v.is_empty()) {
-        return PathBuf::from(dir);
-    }
-    if let Some(dir) = std::env::var_os("CHUDCODE_VISION_MODEL_DIR") {
-        return PathBuf::from(dir);
-    }
-    let home = std::env::var_os("HOME").unwrap_or_else(|| ".".into());
-    PathBuf::from(home).join(".chudcode/models/vision")
+	if let Some(dir) = request_dir.filter(|v| !v.is_empty()) {
+		return PathBuf::from(dir);
+	}
+	if let Some(dir) = std::env::var_os("CHUDCODE_VISION_MODEL_DIR") {
+		return PathBuf::from(dir);
+	}
+	let home = std::env::var_os("HOME").unwrap_or_else(|| ".".into());
+	PathBuf::from(home).join(".chudcode/models/vision")
 }
 
 pub fn model_path(dir: &Path, id: &str) -> Result<PathBuf, VisionError> {
-    let spec = MANIFEST.iter().find(|spec| spec.id == id).ok_or_else(|| {
-        VisionError::new("unknown_model", format!("unknown vision model id {id}"))
-    })?;
-    let path = dir.join(spec.filename);
-    if !path.is_file() {
-        return Err(VisionError::new(
-            "model_missing",
-            format!(
-                "place model {} at {} or enable vision.autoDownload",
-                spec.id,
-                path.display()
-            ),
-        ));
-    }
-    Ok(path)
+	let spec = MANIFEST
+		.iter()
+		.find(|spec| spec.id == id)
+		.ok_or_else(|| VisionError::new("unknown_model", format!("unknown vision model id {id}")))?;
+	let path = dir.join(spec.filename);
+	if !path.is_file() {
+		return Err(VisionError::new(
+			"model_missing",
+			format!("place model {} at {} or enable vision.autoDownload", spec.id, path.display()),
+		));
+	}
+	Ok(path)
 }
