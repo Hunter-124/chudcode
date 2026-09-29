@@ -3,6 +3,7 @@ set -euo pipefail
 
 cd "$(dirname "$0")/../.."
 ROOT_DIR="$(pwd)"
+host_tag="$(bun -e 'process.stdout.write(`${process.platform}-${process.arch}`)')"
 WORK_DIR="$(mktemp -d)"
 TMP_WORK_DIR="$WORK_DIR/tmp"
 mkdir -p "$TMP_WORK_DIR"
@@ -36,18 +37,20 @@ smoke_cli() {
 }
 
 find_tarball() {
-   local pattern="$1"
-   local matches=()
-   shopt -s nullglob
-   matches=("$pattern")
-   shopt -u nullglob
+   local manifest="$ROOT_DIR/$1/package.json"
+   local name version archive
+   name="$(jq -er '.name' "$manifest")"
+   version="$(jq -er '.version' "$manifest")"
+   # Bun names a scoped pack @scope/name as scope-name-version.tgz.
+   name="${name#@}"
+   archive="$TARBALL_DIR/${name//\//-}-$version.tgz"
 
-   if [ "${#matches[@]}" -ne 1 ]; then
-      echo "Expected exactly one tarball matching: $pattern"
+   if [ ! -f "$archive" ]; then
+      echo "Missing packed tarball for $1: $archive" >&2
       exit 1
    fi
 
-   echo "${matches[0]}"
+   printf '%s\n' "$archive"
 }
 
 align_native_manifest() {
@@ -56,7 +59,7 @@ align_native_manifest() {
    local candidate_version
    local candidates=()
    shopt -s nullglob
-   candidates=("$ROOT_DIR"/packages/natives/native/chud_natives.*.node)
+   candidates=("$ROOT_DIR"/packages/natives/native/chud_natives."$host_tag"-*.node)
    shopt -u nullglob
 
    if [ "${#candidates[@]}" -eq 0 ]; then
@@ -105,7 +108,6 @@ SOURCE_BUN_HOME="$WORK_DIR/bun-source"
 section "Tarball install smoke"
 TARBALL_DIR="$WORK_DIR/tarballs"
 mkdir -p "$TARBALL_DIR"
-host_tag="$(bun -e "process.stdout.write(\`\${process.platform}-\${process.arch}\`)")"
 
 # Native addon split: the published core ships only the loader (no `.node`); the
 # prebuilt binary lives in a per-platform leaf package pulled in as an optional
@@ -158,21 +160,21 @@ agent_rc=0
 cp "$agent_pkg_backup" "$ROOT_DIR/packages/coding-agent/package.json"
 [ "$agent_rc" -eq 0 ] || exit "$agent_rc"
 
-utils_tgz="$(find_tarball "$TARBALL_DIR"/chudware-pi-utils-*.tgz)"
-wire_tgz="$(find_tarball "$TARBALL_DIR"/chudware-pi-wire-*.tgz)"
-omptype_tgz="$(find_tarball "$TARBALL_DIR"/chudware-chudtype-*.tgz)"
-natives_tgz="$(find_tarball "$TARBALL_DIR"/chudware-chud-natives-[0-9]*.tgz)"
-natives_leaf_tgz="$(find_tarball "$TARBALL_DIR"/chudware-chud-natives-"$host_tag"-*.tgz)"
-hashline_tgz="$(find_tarball "$TARBALL_DIR"/chudware-hashline-*.tgz)"
-catalog_tgz="$(find_tarball "$TARBALL_DIR"/chudware-pi-catalog-*.tgz)"
-ai_tgz="$(find_tarball "$TARBALL_DIR"/chudware-pi-ai-*.tgz)"
-mnemopi_tgz="$(find_tarball "$TARBALL_DIR"/chudware-pi-mnemo-*.tgz)"
-snapcompact_tgz="$(find_tarball "$TARBALL_DIR"/chudware-snapcompact-*.tgz)"
-agent_tgz="$(find_tarball "$TARBALL_DIR"/chudware-pi-agent-core-*.tgz)"
-tui_tgz="$(find_tarball "$TARBALL_DIR"/chudware-pi-tui-*.tgz)"
-stats_tgz="$(find_tarball "$TARBALL_DIR"/chudware-chudcode-stats-*.tgz)"
-coding_agent_tgz="$(find_tarball "$TARBALL_DIR"/chudware-chudcode-agent-*.tgz)"
-collab_web_tgz="$(find_tarball "$TARBALL_DIR"/chudware-collab-web-*.tgz)"
+utils_tgz="$(find_tarball packages/utils)"
+wire_tgz="$(find_tarball packages/wire)"
+omptype_tgz="$(find_tarball packages/chudtype)"
+natives_tgz="$(find_tarball packages/natives)"
+natives_leaf_tgz="$(find_tarball "packages/natives/npm/$host_tag")"
+hashline_tgz="$(find_tarball packages/hashline)"
+catalog_tgz="$(find_tarball packages/catalog)"
+ai_tgz="$(find_tarball packages/ai)"
+mnemopi_tgz="$(find_tarball packages/mnemo)"
+snapcompact_tgz="$(find_tarball packages/snapcompact)"
+agent_tgz="$(find_tarball packages/agent)"
+tui_tgz="$(find_tarball packages/tui)"
+stats_tgz="$(find_tarball packages/stats)"
+coding_agent_tgz="$(find_tarball packages/coding-agent)"
+collab_web_tgz="$(find_tarball packages/collab-web)"
 
 TARBALL_APP_DIR="$WORK_DIR/tarball-install"
 mkdir -p "$TARBALL_APP_DIR"

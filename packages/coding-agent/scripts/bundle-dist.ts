@@ -73,6 +73,7 @@ async function cleanBundleOutputs(): Promise<void> {
 					entry.endsWith(".node") ||
 					entry.endsWith(".js.map") ||
 					(entry.startsWith("CHANGELOG-") && entry.endsWith(".md")) ||
+					(entry.startsWith("models-") && entry.endsWith(".bin")) ||
 					legacyHtmlExportAssetPattern.test(entry),
 			)
 			.map(entry => fs.rm(path.join(outDir, entry), { force: true })),
