@@ -13,7 +13,7 @@ import { discoverTitleSystemPromptFile } from "@oh-my-pi/pi-coding-agent/system-
 import type { CreateAgentSessionOptions } from "@oh-my-pi/pi-coding-agent/sdk";
 import { AuthStorage } from "@oh-my-pi/pi-coding-agent/session/auth-storage";
 import { SessionManager } from "@oh-my-pi/pi-coding-agent/session/session-manager";
-import { removeWithRetries } from "@oh-my-pi/pi-utils";
+import { CONFIG_DIR_NAME, removeWithRetries } from "@oh-my-pi/pi-utils";
 
 const cleanupDirs: string[] = [];
 
@@ -36,7 +36,7 @@ describe("discoverTitleSystemPromptFile", () => {
 	it("discovers TITLE_SYSTEM.md from the project omp config directory", async () => {
 		const projectDir = await fs.mkdtemp(path.join(os.tmpdir(), "omp-title-system-"));
 		cleanupDirs.push(projectDir);
-		const configDir = path.join(projectDir, ".omp");
+		const configDir = path.join(projectDir, CONFIG_DIR_NAME);
 		await fs.mkdir(configDir, { recursive: true });
 		const promptPath = path.join(configDir, "TITLE_SYSTEM.md");
 		await fs.writeFile(promptPath, "custom title prompt");
@@ -79,8 +79,8 @@ describe("system prompt template CLI resolution", () => {
 	it("discovers SYSTEM_TEMPLATE.md and preserves the raw template", async () => {
 		const projectDir = await fs.mkdtemp(path.join(os.tmpdir(), "omp-system-template-"));
 		cleanupDirs.push(projectDir);
-		await fs.mkdir(path.join(projectDir, ".omp"), { recursive: true });
-		await fs.writeFile(path.join(projectDir, ".omp", "SYSTEM_TEMPLATE.md"), "Hello {{model}}");
+		await fs.mkdir(path.join(projectDir, CONFIG_DIR_NAME), { recursive: true });
+		await fs.writeFile(path.join(projectDir, CONFIG_DIR_NAME, "SYSTEM_TEMPLATE.md"), "Hello {{model}}");
 
 		const options = await buildPromptOptions(projectDir, []);
 
@@ -91,8 +91,8 @@ describe("system prompt template CLI resolution", () => {
 	it("lets an explicit literal prompt suppress discovered templates", async () => {
 		const projectDir = await fs.mkdtemp(path.join(os.tmpdir(), "omp-system-prompt-"));
 		cleanupDirs.push(projectDir);
-		await fs.mkdir(path.join(projectDir, ".omp"), { recursive: true });
-		await fs.writeFile(path.join(projectDir, ".omp", "SYSTEM_TEMPLATE.md"), "discovered");
+		await fs.mkdir(path.join(projectDir, CONFIG_DIR_NAME), { recursive: true });
+		await fs.writeFile(path.join(projectDir, CONFIG_DIR_NAME, "SYSTEM_TEMPLATE.md"), "discovered");
 
 		const options = await buildPromptOptions(projectDir, ["--system-prompt", "inline literal"]);
 
