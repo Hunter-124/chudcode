@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
-import type { Api, Model, OAuthAccess } from "@chudware/ai";
-import { type DryBalanceModelRegistry, runDryBalanceCommand } from "@chudware/coding-agent/cli/dry-balance-cli";
-import { Settings } from "@chudware/coding-agent/config/settings";
+import type { Api, Model, OAuthAccess } from "@oh-my-pi/pi-ai";
+import { type DryBalanceModelRegistry, runDryBalanceCommand } from "@oh-my-pi/pi-coding-agent/cli/dry-balance-cli";
+import { Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
 
 function fakeModel(provider: string, id: string): Model<Api> {
 	return {
@@ -19,8 +19,9 @@ test("dry-balance resolves configured bare role names", async () => {
 	const model = fakeModel("acme", "balance-model");
 	const registry: DryBalanceModelRegistry = {
 		authStorage: {
-			getOAuthAccess: async () =>
-				({ accessToken: "test-token", email: "test@example.com" }) as unknown as OAuthAccess,
+			oauth: {
+				access: async () => ({ accessToken: "test-token", email: "test@example.com" }) as unknown as OAuthAccess,
+			},
 		},
 		getAll: () => [model],
 		getAvailable: () => [model],

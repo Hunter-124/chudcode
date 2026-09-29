@@ -7,38 +7,31 @@
 /// <reference types="./bun-imports.d.ts" />
 import * as fs from "node:fs";
 import * as path from "node:path";
-import * as fsx from "@chudware/utils/fsx";
-import {
-	type BlockTarget as HashlineBlockTarget,
-	formatHashlineHeader,
-	InMemorySnapshotStore,
-	Tokenizer as HashlineTokenizer,
-} from "@chudware/hashline";
-import type { AgentMessage, ResolvedThinkingLevel, ThinkingLevel } from "@chudware/agent-core";
-import type { Model, ToolExample } from "@chudware/ai";
-import { formatSessionDumpText, RpcClient } from "@chudware/coding-agent";
-import { prompt } from "@chudware/utils";
-import { sleep } from "@chudware/utils/async";
+import { EditStore, hashlineCountOps, hashlineFormatHeader } from "@oh-my-pi/pi-natives";
+import type { AgentMessage, ResolvedThinkingLevel, ThinkingLevel } from "@oh-my-pi/pi-agent-core";
+import type { Model, ToolExample } from "@oh-my-pi/pi-ai";
+import { formatSessionDumpText, RpcClient } from "@oh-my-pi/pi-coding-agent";
+import { prompt } from "@oh-my-pi/pi-utils";
 import { diffLines } from "diff";
-import { formatDirectory } from "@chudware/typescript-edit-benchmark/formatter";
+import { formatDirectory } from "@oh-my-pi/typescript-edit-benchmark/formatter";
 import {
 	discoverSharedInfra,
 	InProcessClient,
 	type SharedInfra,
-} from "@chudware/typescript-edit-benchmark/in-process-client";
+} from "@oh-my-pi/typescript-edit-benchmark/in-process-client";
 import benchmarkRetryPrompt from "./prompts/benchmark-retry.md" with { type: "text" };
 import benchmarkSystemPrompt from "./prompts/benchmark-system.md" with { type: "text" };
 import benchmarkTaskPrompt from "./prompts/benchmark-task.md" with { type: "text" };
-import type { EditTask } from "@chudware/typescript-edit-benchmark/tasks";
+import type { EditTask } from "@oh-my-pi/typescript-edit-benchmark/tasks";
 import {
 	verifyExpectedFileSubset,
 	verifyExpectedFiles,
-} from "@chudware/typescript-edit-benchmark/verify";
+} from "@oh-my-pi/typescript-edit-benchmark/verify";
 
 const REPO_ROOT = path.resolve(import.meta.dir, "..", "..", "..", "..");
 const RUNS_DIR = path.join(REPO_ROOT, "runs");
 const TMP = path.join(RUNS_DIR, `rb-${Math.random().toString(36).slice(2, 10)}`);
-const CLI_PATH = Bun.fileURLToPath(import.meta.resolve("@chudware/coding-agent/cli"));
+const CLI_PATH = Bun.fileURLToPath(import.meta.resolve("@oh-my-pi/pi-coding-agent/cli"));
 
 function formatLogPath(logFile: string): string {
 	const relativePath = path.relative(REPO_ROOT, logFile);
@@ -175,7 +168,7 @@ export async function writeConversationDump(params: {
 		thinkingLevel: params.snapshot.thinkingLevel,
 		tools: params.snapshot.dumpTools,
 	});
-	await fsx.write(dumpPath, `${body}\n`);
+	await Bun.write(dumpPath, `${body}\n`);
 	if (params.snapshot.sourceSessionFile) {
 		await copyConversationArtifacts(params.snapshot.sourceSessionFile, dumpPath);
 	}
@@ -285,52 +278,6 @@ function isMutationTool(toolName: unknown): boolean {
 	return isEditTool(toolName) || toolName === "write";
 }
 
-// Pure classification — single shared tokenizer is safe.
-const HASHLINE_OP_TOKENIZER = new HashlineTokenizer();
-
-function hashlinePutSuffix(register: string | undefined, hadColon: boolean, allowsAnonymousPaste: boolean): string {
-	if (register !== undefined) return hadColon ? " @reg: (invalid)" : " @reg";
-	if (hadColon) return ":";
-	return allowsAnonymousPaste ? "" : " (invalid)";
-}
-
-function hashlineCutSuffix(register: string | undefined, hadColon: boolean): string {
-	if (register !== undefined) return hadColon ? " @reg: (invalid)" : " @reg";
-	return hadColon ? ": (invalid)" : "";
-}
-
-/** Display the canonical S3 header shape for a parsed hashline target. */
-function hashlineOpLabel(target: HashlineBlockTarget, hadColon: boolean): string {
-	switch (target.kind) {
-		case "replace": {
-			const locator = target.range.start.line === target.range.end.line ? "N.=N" : "N.=M";
-			return `PUT ${locator}${hashlinePutSuffix(target.register, hadColon, false)}`;
-		}
-		case "block":
-			return `PUT N*${hashlinePutSuffix(target.register, hadColon, false)}`;
-		case "insert_before":
-			return `PUT <N${hashlinePutSuffix(target.register, hadColon, true)}`;
-		case "insert_after":
-			return `PUT >N${hashlinePutSuffix(target.register, hadColon, true)}`;
-		case "bof":
-			return `PUT <1${hashlinePutSuffix(target.register, hadColon, true)}`;
-		case "eof":
-			return `PUT >$${hashlinePutSuffix(target.register, hadColon, true)}`;
-		case "insert_after_block":
-			return `PUT >N*${hashlinePutSuffix(target.register, hadColon, true)}`;
-		case "cut": {
-			const locator = target.range.start.line === target.range.end.line ? "N.=N" : "N.=M";
-			return `CUT ${locator}${hashlineCutSuffix(target.register, hadColon)}`;
-		}
-		case "cut_block":
-			return `CUT N*${hashlineCutSuffix(target.register, hadColon)}`;
-		case "rem":
-			return "REM";
-		case "move":
-			return "MV";
-	}
-}
-
 /**
  * Count canonical hashline op header shapes (`PUT N.=M:`, `CUT N*`,
  * `PUT >N @reg`, …) in an edit call's patch input. Returns `null` when
@@ -340,13 +287,9 @@ function countHashlineOps(args: unknown): Record<string, number> | null {
 	if (!args || typeof args !== "object" || !("input" in args)) return null;
 	const input = args.input;
 	if (typeof input !== "string" || input.length === 0) return null;
-	const counts: Record<string, number> = {};
-	for (const token of HASHLINE_OP_TOKENIZER.tokenizeAll(input)) {
-		if (token.kind !== "op-block") continue;
-		const label = hashlineOpLabel(token.target, token.hadColon);
-		counts[label] = (counts[label] ?? 0) + 1;
-	}
-	return Object.keys(counts).length > 0 ? counts : null;
+	const entries = hashlineCountOps(input);
+	if (entries.length === 0) return null;
+	return Object.fromEntries(entries.map(entry => [entry.label, entry.count]));
 }
 
 async function collectOriginalFileContents(cwd: string, files: string[]): Promise<Map<string, string>> {
@@ -354,7 +297,7 @@ async function collectOriginalFileContents(cwd: string, files: string[]): Promis
 	for (const file of files) {
 		const fullPath = path.join(cwd, file);
 		try {
-			originals.set(fullPath, await fsx.readText(fullPath));
+			originals.set(fullPath, await Bun.file(fullPath).text());
 		} catch {
 			// Ignore missing files; not all tasks include all paths in every run.
 		}
@@ -413,7 +356,7 @@ async function appendNoChangeMutationHint(
 
 	let current: string;
 	try {
-		current = await fsx.readText(fullPath);
+		current = await Bun.file(fullPath).text();
 	} catch {
 		return error;
 	}
@@ -549,8 +492,8 @@ async function evaluateMutationIntent(
 	let currentText: string;
 	let expectedText: string;
 	try {
-		currentText = await fsx.readText(currentPath);
-		expectedText = await fsx.readText(expectedPath);
+		currentText = await Bun.file(currentPath).text();
+		expectedText = await Bun.file(expectedPath).text();
 	} catch {
 		return {
 			matched: false,
@@ -676,9 +619,9 @@ function buildGuidedHashlinePatch(file: string, actual: string, expected: string
 
 	if (ops.length === 0) return null;
 	const normalizedActual = actual.replace(/\r\n?/g, "\n");
-	const snapshots = new InMemorySnapshotStore();
-	const tag = snapshots.record(file, normalizedActual);
-	const header = formatHashlineHeader(file, tag);
+	const snapshots = new EditStore();
+	const tag = snapshots.recordSnapshot(file, normalizedActual);
+	const header = hashlineFormatHeader(file, tag);
 	return `${header}\n${ops.join("\n")}`;
 }
 
@@ -696,9 +639,11 @@ async function buildGuidedContext(
 
 	const actualPath = path.join(cwd, file);
 	const expectedPath = path.join(expectedDir, file);
-	const actual = await fsx.readText(actualPath)
+	const actual = await Bun.file(actualPath)
+		.text()
 		.catch(() => null);
-	const expected = await fsx.readText(expectedPath)
+	const expected = await Bun.file(expectedPath)
+		.text()
 		.catch(() => null);
 	if (actual === null || expected === null) return null;
 
@@ -1105,11 +1050,11 @@ async function runSingleTask(
 	let providerFailureRetries = 0;
 
 	const previousEnv = {
-		CHUDCODE_EDIT_VARIANT: process.env.CHUDCODE_EDIT_VARIANT,
-		CHUDCODE_EDIT_FUZZY: process.env.CHUDCODE_EDIT_FUZZY,
-		CHUDCODE_EDIT_FUZZY_THRESHOLD: process.env.CHUDCODE_EDIT_FUZZY_THRESHOLD,
-		CHUDCODE_STRICT_EDIT_MODE: process.env.CHUDCODE_STRICT_EDIT_MODE,
-		CHUDCODE_NO_TITLE: process.env.CHUDCODE_NO_TITLE,
+		PI_EDIT_VARIANT: process.env.PI_EDIT_VARIANT,
+		PI_EDIT_FUZZY: process.env.PI_EDIT_FUZZY,
+		PI_EDIT_FUZZY_THRESHOLD: process.env.PI_EDIT_FUZZY_THRESHOLD,
+		PI_STRICT_EDIT_MODE: process.env.PI_STRICT_EDIT_MODE,
+		PI_NO_TITLE: process.env.PI_NO_TITLE,
 	};
 	try {
 		const sessionSetup = await prepareBenchmarkSessionSetup({
@@ -1124,14 +1069,14 @@ async function runSingleTask(
 			`{"type":"meta","task":"${task.id}","run":${runIndex},"workDir":"${cwd}","providerSessionId":${JSON.stringify(sessionSetup.providerSessionId)}}\n`,
 		);
 
-		if (config.editVariant !== undefined) process.env.CHUDCODE_EDIT_VARIANT = config.editVariant;
+		if (config.editVariant !== undefined) process.env.PI_EDIT_VARIANT = config.editVariant;
 		if (config.editFuzzy !== undefined)
-			process.env.CHUDCODE_EDIT_FUZZY = config.editFuzzy === "auto" ? "auto" : config.editFuzzy ? "1" : "0";
+			process.env.PI_EDIT_FUZZY = config.editFuzzy === "auto" ? "auto" : config.editFuzzy ? "1" : "0";
 		if (config.editFuzzyThreshold !== undefined)
-			process.env.CHUDCODE_EDIT_FUZZY_THRESHOLD =
+			process.env.PI_EDIT_FUZZY_THRESHOLD =
 				config.editFuzzyThreshold === "auto" ? "auto" : String(config.editFuzzyThreshold);
-		process.env.CHUDCODE_STRICT_EDIT_MODE = "1";
-		process.env.CHUDCODE_NO_TITLE = "1";
+		process.env.PI_STRICT_EDIT_MODE = "1";
+		process.env.PI_NO_TITLE = "1";
 
 		const useInProcess = config.inProcess !== false;
 		const client: BenchmarkClient = useInProcess
@@ -1280,7 +1225,7 @@ async function runSingleTask(
 							maxProviderFailureRetries,
 							delayMs,
 						);
-						await sleep(delayMs);
+						await Bun.sleep(delayMs);
 						attempt--; // Don't consume a regular attempt slot for provider/auth retries
 						continue;
 					}
@@ -1421,11 +1366,11 @@ async function runSingleTask(
 				process.env[key] = value;
 			}
 		};
-		restoreEnvKey("CHUDCODE_EDIT_VARIANT");
-		restoreEnvKey("CHUDCODE_EDIT_FUZZY");
-		restoreEnvKey("CHUDCODE_EDIT_FUZZY_THRESHOLD");
-		restoreEnvKey("CHUDCODE_STRICT_EDIT_MODE");
-		restoreEnvKey("CHUDCODE_NO_TITLE");
+		restoreEnvKey("PI_EDIT_VARIANT");
+		restoreEnvKey("PI_EDIT_FUZZY");
+		restoreEnvKey("PI_EDIT_FUZZY_THRESHOLD");
+		restoreEnvKey("PI_STRICT_EDIT_MODE");
+		restoreEnvKey("PI_NO_TITLE");
 	}
 
 	const duration = Date.now() - startTime;

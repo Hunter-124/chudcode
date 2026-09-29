@@ -9,7 +9,8 @@ import {
 	getDbBusyTimeoutMs,
 	parseEnvFile,
 	setInteractiveHost,
-} from "@chudware/utils/env";
+	stripGitRepoLocationEnv,
+} from "@oh-my-pi/pi-utils/env";
 
 const tempDirs: string[] = [];
 const runtimeProbePath = path.join(import.meta.dir, "fixtures", "test-runtime-probe.ts");
@@ -21,7 +22,7 @@ afterEach(() => {
 });
 
 function writeTempEnv(content: string): string {
-	const dir = fs.mkdtempSync(path.join(os.tmpdir(), "chud-utils-env-"));
+	const dir = fs.mkdtempSync(path.join(os.tmpdir(), "pi-utils-env-"));
 	tempDirs.push(dir);
 	const filePath = path.join(dir, ".env");
 	fs.writeFileSync(filePath, content);
@@ -88,6 +89,15 @@ describe("parseEnvFile", () => {
 		});
 	});
 
+	it("mirrors valid OMP_ variables to PI_ variables", () => {
+		const filePath = writeTempEnv("OMP_FEATURE=enabled\nOMP_BAD=before\0after\n");
+
+		expect(parseEnvFile(filePath)).toEqual({
+			OMP_FEATURE: "enabled",
+			PI_FEATURE: "enabled",
+		});
+	});
+
 	it("matches Bun dotenv syntax for export prefixes and inline comments", () => {
 		const filePath = writeTempEnv(
 			[
@@ -102,7 +112,7 @@ describe("parseEnvFile", () => {
 			EXPORTED: "value",
 			COMMENTED: "secret",
 			QUOTED_HASH: "keep # this",
-			NO_SPACE: "http://host/path#frag",
+			NO_SPACE: "http://host/path",
 		});
 	});
 
@@ -112,6 +122,18 @@ describe("parseEnvFile", () => {
 		expect(parseEnvFile(filePath)).toEqual({
 			JSON: '{\\"a\\":1}',
 			SINGLE: "it\\'s",
+		});
+	});
+
+	it("parses quoted multiline and escaped-newline values across the whole file", () => {
+		const filePath = writeTempEnv(
+			['MULTILINE="first', 'second"', 'ESCAPED_NEWLINE="first\\nsecond"', "BACKTICK=`first", "second`"].join("\n"),
+		);
+
+		expect(parseEnvFile(filePath)).toEqual({
+			MULTILINE: "first\nsecond",
+			ESCAPED_NEWLINE: "first\nsecond",
+			BACKTICK: "first\nsecond",
 		});
 	});
 });
@@ -161,59 +183,94 @@ describe("filterProcessEnv", () => {
 });
 
 describe("filterChildShellEnv", () => {
-	// filterChildShellEnv resolves the mode-local dotenv name from the *launch*
-	// NODE_ENV (on Linux, /proc/self/environ — e.g. `test` inside a parallel
-	// bun-test worker), so the fixture must target that same mode instead of
-	// assuming `development`.
-	function launchDotenvMode(): string {
-		if (process.platform === "linux") {
-			try {
-				for (const entry of fs.readFileSync("/proc/self/environ", "utf8").split("\0")) {
-					if (entry.startsWith("NODE_ENV=")) return entry.slice("NODE_ENV=".length) || "development";
-				}
-				return "development";
-			} catch {}
-		}
-		return "development";
-	}
+	it("removes quoted multiline project values without a launch snapshot", () => {
+		const cwd = path.dirname(
+			writeTempEnv(['MULTILINE="first', 'second"', 'ESCAPED_NEWLINE="first\\nsecond"'].join("\n")),
+		);
 
-	it("drops values Bun loaded from the default mode-local dotenv file", () => {
+		expect(
+			filterChildShellEnv(
+				{
+					MULTILINE: "first\nsecond",
+					ESCAPED_NEWLINE: "first\nsecond",
+					UNCHANGED: "parent-value",
+				},
+				cwd,
+			),
+		).toEqual({ UNCHANGED: "parent-value" });
+	});
+
+	it("uses the supplied mode for an isolated environment and cwd", async () => {
 		const cwd = path.dirname(writeTempEnv(""));
 		fs.writeFileSync(
-			path.join(cwd, `.env.${launchDotenvMode()}.local`),
-			"CHUDCODE_DOTENV_REPRO_MARKER=synthetic-mode-local-value\n",
+			path.join(cwd, ".env.development.local"),
+			"OMP_DOTENV_REPRO_MARKER=synthetic-mode-local-value\n",
 		);
+		const envModulePath = path.join(import.meta.dir, "..", "src", "env.ts");
+		const script = [
+			`import { filterChildShellEnv } from ${JSON.stringify(envModulePath)};`,
+			"const child = filterChildShellEnv(",
+			'  { OMP_DOTENV_REPRO_MARKER: "synthetic-mode-local-value", UNCHANGED: "parent-value" },',
+			`  ${JSON.stringify(cwd)},`,
+			");",
+			"process.stdout.write(JSON.stringify(child));",
+		].join("\n");
+		const proc = Bun.spawn([process.execPath, "--no-install", "--eval", script], {
+			env: { ...process.env, NODE_ENV: "test", OMP_DOTENV_REPRO_MARKER: undefined },
+			stdout: "pipe",
+			stderr: "pipe",
+		});
+		const [stdout, stderr, exitCode] = await Promise.all([
+			new Response(proc.stdout).text(),
+			new Response(proc.stderr).text(),
+			proc.exited,
+		]);
 
-		const child = filterChildShellEnv(
-			{
-				CHUDCODE_DOTENV_REPRO_MARKER: "synthetic-mode-local-value",
-				UNCHANGED: "parent-value",
-			},
-			cwd,
-		);
+		expect(exitCode, stderr).toBe(0);
+		expect(JSON.parse(stdout)).toEqual({ UNCHANGED: "parent-value" });
+	});
 
-		expect(child).toEqual({ UNCHANGED: "parent-value" });
+	it("drops inherited git repo-location overrides", () => {
+		const cwd = path.dirname(writeTempEnv(""));
+		// A bash call with `cwd` in a secondary worktree must not mutate the
+		// primary one: forwarding the agent's own repo-location variables makes
+		// child `git` ignore the command's cwd (issue #11082).
+		expect(
+			filterChildShellEnv(
+				{
+					GIT_DIR: "/primary/.git",
+					GIT_COMMON_DIR: "/primary/.git",
+					GIT_WORK_TREE: "/primary",
+					GIT_INDEX_FILE: "/primary/.git/index",
+					GIT_OBJECT_DIRECTORY: "/primary/.git/objects",
+					GIT_ALTERNATE_OBJECT_DIRECTORIES: "/primary/.git/objects",
+					GIT_EDITOR: "true",
+					GIT_AUTHOR_NAME: "Agent",
+				},
+				cwd,
+			),
+		).toEqual({ GIT_EDITOR: "true", GIT_AUTHOR_NAME: "Agent" });
 	});
 
 	it("uses the launch mode when dotenv changes NODE_ENV", async () => {
 		const cwd = path.dirname(writeTempEnv("NODE_ENV=production\n"));
 		fs.writeFileSync(
 			path.join(cwd, ".env.development.local"),
-			"CHUDCODE_DOTENV_REPRO_MARKER=synthetic-mode-local-value\n",
+			"OMP_DOTENV_REPRO_MARKER=synthetic-mode-local-value\n",
 		);
 		const envModulePath = path.join(import.meta.dir, "..", "src", "env.ts");
 		const script = [
 			`import { filterChildShellEnv } from ${JSON.stringify(envModulePath)};`,
 			"const child = filterChildShellEnv(process.env, process.cwd());",
 			"process.stdout.write(JSON.stringify({",
-			"  processValue: process.env.CHUDCODE_DOTENV_REPRO_MARKER ?? null,",
-			"  childValue: child.CHUDCODE_DOTENV_REPRO_MARKER ?? null,",
+			"  processValue: process.env.OMP_DOTENV_REPRO_MARKER ?? null,",
+			"  childValue: child.OMP_DOTENV_REPRO_MARKER ?? null,",
 			"  nodeEnv: process.env.NODE_ENV ?? null,",
 			"}));",
 		].join("\n");
 		const proc = Bun.spawn([process.execPath, "--no-install", "--eval", script], {
 			cwd,
-			env: { ...process.env, NODE_ENV: undefined, CHUDCODE_DOTENV_REPRO_MARKER: undefined },
+			env: { ...process.env, NODE_ENV: undefined, OMP_DOTENV_REPRO_MARKER: undefined },
 			stdout: "pipe",
 			stderr: "pipe",
 		});
@@ -230,20 +287,61 @@ describe("filterChildShellEnv", () => {
 			nodeEnv: "production",
 		});
 	});
+
+	it.skipIf(process.platform === "win32")(
+		"keeps filtering after the process working directory is deleted",
+		async () => {
+			const cwd = path.dirname(writeTempEnv(""));
+			const envModulePath = path.join(import.meta.dir, "..", "src", "env.ts");
+			const dirsModulePath = path.join(import.meta.dir, "..", "src", "dirs.ts");
+			const script = [
+				'import * as fs from "node:fs";',
+				`import { filterChildShellEnv } from ${JSON.stringify(envModulePath)};`,
+				`import { getProjectDir } from ${JSON.stringify(dirsModulePath)};`,
+				"getProjectDir();",
+				"fs.rmSync(process.cwd(), { recursive: true });",
+				'const child = filterChildShellEnv({ UNCHANGED: "parent-value" });',
+				"process.stdout.write(JSON.stringify(child));",
+			].join("\n");
+			const proc = Bun.spawn([process.execPath, "--no-install", "--eval", script], {
+				cwd,
+				stdout: "pipe",
+				stderr: "pipe",
+			});
+			const [stdout, stderr, exitCode] = await Promise.all([
+				new Response(proc.stdout).text(),
+				new Response(proc.stderr).text(),
+				proc.exited,
+			]);
+
+			expect(exitCode, stderr).toBe(0);
+			expect(JSON.parse(stdout)).toEqual({ UNCHANGED: "parent-value" });
+		},
+	);
+});
+
+describe("stripGitRepoLocationEnv", () => {
+	it("matches case-insensitively on win32 and exactly on POSIX", () => {
+		// Windows env lookups are case-insensitive, so a `git_dir` block binds
+		// there; POSIX names are case-sensitive and must not be over-stripped.
+		const win32Env: Record<string, string> = { GIT_DIR: "a", git_dir: "b", GIT_WORK_TREE: "c", KEEP: "d" };
+		stripGitRepoLocationEnv(win32Env, "win32");
+		expect(win32Env).toEqual({ KEEP: "d" });
+
+		const posixEnv: Record<string, string> = { GIT_DIR: "a", git_dir: "b", KEEP: "d" };
+		stripGitRepoLocationEnv(posixEnv, "linux");
+		expect(posixEnv).toEqual({ git_dir: "b", KEEP: "d" });
+	});
 });
 
 describe("isBunTestRuntime", () => {
 	it("does not treat shared application env names as a test runner signal", async () => {
-		expect(await runRuntimeProbe({ NODE_ENV: "test", BUN_ENV: undefined, CHUDCODE_TEST_RUNTIME: undefined })).toBe(
-			false,
-		);
-		expect(await runRuntimeProbe({ NODE_ENV: undefined, BUN_ENV: "test", CHUDCODE_TEST_RUNTIME: undefined })).toBe(
-			false,
-		);
+		expect(await runRuntimeProbe({ NODE_ENV: "test", BUN_ENV: undefined, PI_TEST_RUNTIME: undefined })).toBe(false);
+		expect(await runRuntimeProbe({ NODE_ENV: undefined, BUN_ENV: "test", PI_TEST_RUNTIME: undefined })).toBe(false);
 	});
 
 	it("honors the private test runner signal", async () => {
-		expect(await runRuntimeProbe({ NODE_ENV: undefined, BUN_ENV: undefined, CHUDCODE_TEST_RUNTIME: "1" })).toBe(true);
+		expect(await runRuntimeProbe({ NODE_ENV: undefined, BUN_ENV: undefined, PI_TEST_RUNTIME: "1" })).toBe(true);
 	});
 
 	it("recognizes Bun's underscore test entrypoints", async () => {
@@ -256,7 +354,7 @@ describe("isBunTestRuntime", () => {
 		);
 		expect(
 			await runRuntimeProbe(
-				{ NODE_ENV: "test", BUN_ENV: undefined, CHUDCODE_TEST_RUNTIME: undefined },
+				{ NODE_ENV: "test", BUN_ENV: undefined, PI_TEST_RUNTIME: undefined },
 				underscoreProbePath,
 			),
 		).toBe(true);
@@ -288,15 +386,6 @@ function windowsLikeEnv(backing: Record<string, string>): Record<string, string 
 }
 
 describe("$envExact", () => {
-	it("returns the value for an exact-case key", () => {
-		const env = { OPENCODE_API_KEY: "sk-live", PATH: "/usr/bin" };
-		expect($envExact("OPENCODE_API_KEY", env)).toBe("sk-live");
-	});
-
-	it("returns undefined for an absent name", () => {
-		expect($envExact("MISSING_VAR", { PATH: "/usr/bin" })).toBeUndefined();
-	});
-
 	it("does not hijack a literal via a case-differing Windows system var", () => {
 		// Windows ships PUBLIC=C:\Users\Public and reads are case-insensitive, so
 		// a bare `env["public"]` returns it — the /login #7361 401 root cause.
@@ -312,7 +401,7 @@ describe("$envExact", () => {
 	});
 
 	it("reads process.env by default", () => {
-		const name = `CHUDCODE_ENVEXACT_TEST_${Date.now()}`;
+		const name = `PI_ENVEXACT_TEST_${Date.now()}`;
 		process.env[name] = "value";
 		try {
 			expect($envExact(name)).toBe("value");

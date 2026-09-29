@@ -1,31 +1,31 @@
 # syntax=docker/dockerfile:1.7-labs
 ###############################################################################
-# chudware — chud image
+# oh-my-pi — pi image
 #
 # Stages:
-#   natives-builder — Rust + Bun → chud_natives.linux-<arch>.node
-#   wheel-builder   — chudcode_rpc Python wheel
-#   chud-base         — python + bun + rustup launcher + natives + chudcode_rpc
-#                     + /usr/local/bin/chudcode shim
-#   chud-runtime      — chud-base + chud source + bun install      (DEFAULT, runnable)
+#   natives-builder — Rust + Bun → pi_natives.linux-<arch>.node
+#   wheel-builder   — omp_rpc Python wheel
+#   pi-base         — python + bun + rustup launcher + natives + omp_rpc
+#                     + /usr/local/bin/omp shim
+#   pi-runtime      — pi-base + pi source + bun install      (DEFAULT, runnable)
 #
 # Build:
-#     docker build -t chudware/chudcode:dev .                          # default = chud-runtime
-#     docker build --target chud-base -t chudware/pi-base:dev .    # base for derived images
+#     docker build -t oh-my-pi/pi:dev .                          # default = pi-runtime
+#     docker build --target pi-base -t oh-my-pi/pi-base:dev .    # base for derived images
 #
 # Run:
-#     docker run --rm chudware/chudcode:dev --help
-#     docker run --rm -it -v "$PWD":/work chudware/chudcode:dev cli    # interactive chudcode
+#     docker run --rm oh-my-pi/pi:dev --help
+#     docker run --rm -it -v "$PWD":/work oh-my-pi/pi:dev cli    # interactive omp
 #
-# Consume as a base in another Dockerfile (see Dockerfile.robochud):
-#     ARG CHUDCODE_BASE=chudware/chudcode:dev
-#     FROM ${CHUDCODE_BASE} AS chud-base
+# Consume as a base in another Dockerfile (see Dockerfile.robomp):
+#     ARG PI_BASE=oh-my-pi/pi:dev
+#     FROM ${PI_BASE} AS pi-base
 ###############################################################################
 
-ARG BUN_VERSION=1.4.0
+ARG BUN_VERSION=1.4.2
 
 ############################
-# 1) natives-builder — Rust + Bun → chud_natives.linux-<arch>.node (local cargo)
+# 1) natives-builder — Rust + Bun → pi_natives.linux-<arch>.node (local cargo)
 ############################
 FROM rust:1.86-slim-bookworm AS natives-builder
 
@@ -39,10 +39,10 @@ ARG BUN_VERSION
 ENV BUN_INSTALL=/opt/bun \
     PATH=/opt/bun/bin:/usr/local/cargo/bin:/usr/local/bin:/usr/bin:/bin \
     CARGO_TERM_COLOR=never \
-    CHUDCODE_NATIVE_CARGO_PROFILE=ci
+    OMP_NATIVE_CARGO_PROFILE=ci
 
 # clang/libclang-dev: bindgen for pipewire-sys/libspa-sys (Linux desktop capture);
-# cmake/make/ninja-build: audiopus_sys builds bundled libopus via CMake.
+# cmake/make/ninja-build: opusic-sys builds bundled libopus via CMake.
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
         curl ca-certificates pkg-config libssl-dev unzip git \
@@ -69,7 +69,7 @@ COPY --parents \
     Cargo.toml Cargo.lock rust-toolchain.toml \
     packages/*/package.json \
     packages/tsconfig.workspace.json \
-    python/robochud/web/package.json \
+    python/robomp/web/package.json \
     crates/*/Cargo.toml \
     /pi/
 
@@ -81,7 +81,7 @@ RUN bun install --frozen-lockfile --ignore-scripts
 # is preserved across this COPY because it's never in the build context.
 COPY . /pi/
 
-# Layer 4 — compile chud-natives to a Linux N-API addon. Persistent caches keep
+# Layer 4 — compile pi-natives to a Linux N-API addon. Persistent caches keep
 # repeat builds incremental: cargo's package index + git-deps (CARGO_HOME is
 # /usr/local/cargo in the rust image, not ~/.cargo) + the workspace target dir.
 RUN --mount=type=cache,target=/usr/local/cargo/registry \
@@ -90,10 +90,10 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry \
     set -eux; \
     bun --cwd=packages/natives run build; \
     mkdir -p /out; \
-    cp packages/natives/native/chud_natives.linux-*.node /out/
+    cp packages/natives/native/pi_natives.linux-*.node /out/
 
 ############################
-# 2) wheel-builder — chudcode-rpc wheel
+# 2) wheel-builder — omp-rpc wheel
 ############################
 FROM python:3.12-slim-bookworm AS wheel-builder
 
@@ -104,18 +104,18 @@ RUN apt-get update \
 RUN pip install --upgrade pip build
 
 WORKDIR /src
-COPY python/chudcode-rpc /src
+COPY python/omp-rpc /src
 RUN python -m build --wheel --outdir /out
 
 ############################
-# 3) chud-base — python + bun + rustup + natives + chudcode_rpc + chudcode shim
+# 3) pi-base — python + bun + rustup + natives + omp_rpc + omp shim
 #
-# Sharable runtime base. Derived images (chud-runtime below, Dockerfile.robochud)
-# extend this and overlay their own source tree. Default CHUDCODE_ROOT=/work/pi is
-# friendly to derived images that mount a host chud checkout there; chud-runtime
+# Sharable runtime base. Derived images (pi-runtime below, Dockerfile.robomp)
+# extend this and overlay their own source tree. Default PI_ROOT=/work/pi is
+# friendly to derived images that mount a host pi checkout there; pi-runtime
 # overrides it to /pi because its source is baked in.
 ############################
-FROM python:3.12-slim-bookworm AS chud-base
+FROM python:3.12-slim-bookworm AS pi-base
 
 ARG BUN_VERSION
 ENV PYTHONDONTWRITEBYTECODE=1 \
@@ -123,11 +123,11 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PIP_NO_CACHE_DIR=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1 \
     BUN_INSTALL=/opt/bun \
-    CHUDCODE_ROOT=/work/pi \
+    PI_ROOT=/work/pi \
     CARGO_HOME=/data/cache/cargo \
     CARGO_TARGET_DIR=/data/cache/cargo-target \
     RUSTUP_HOME=/data/cache/rustup \
-    PATH=/opt/bun/bin:/usr/local/cargo/bin:/usr/local/bin:/usr/bin:/bin
+    PATH=/opt/bun/bin:/usr/local/cargo/bin:/usr/local/bin:/usr/bin:/bin:/usr/local/bun-node-fallback-bin
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
@@ -138,8 +138,16 @@ RUN apt-get update \
 RUN curl -fsSL https://bun.sh/install | bash -s "bun-v${BUN_VERSION}" \
     && /opt/bun/bin/bun --version
 
+# `node` → bun, last on PATH (same layout as the oven/bun images) so
+# `#!/usr/bin/env node` package bins (oxlint, oxfmt, …) run for every uid.
+# Bun's own fallback is a /tmp/bun-node-<hash> dir created 0700 by the first
+# user that needs it; the image build runs as root, so it would bake a dir
+# no robomp slot user can enter.
+RUN mkdir -p /usr/local/bun-node-fallback-bin \
+    && ln -s /opt/bun/bin/bun /usr/local/bun-node-fallback-bin/node
+
 # Rustup launcher only — the real toolchain is fetched lazily into RUSTUP_HOME
-# on first cargo invocation, driven by chud's `rust-toolchain.toml`. Keeps the
+# on first cargo invocation, driven by pi's `rust-toolchain.toml`. Keeps the
 # image small while sharing the toolchain across reboots when /data is mounted.
 RUN curl -fsSL https://sh.rustup.rs -o /tmp/rustup-init.sh \
     && CARGO_HOME=/usr/local/cargo RUSTUP_HOME=/usr/local/rustup-bootstrap \
@@ -148,39 +156,39 @@ RUN curl -fsSL https://sh.rustup.rs -o /tmp/rustup-init.sh \
     && rm -rf /usr/local/rustup-bootstrap \
     && /usr/local/cargo/bin/rustup --version
 
-# chud-natives addon: chud's loader probes /opt/bun/bin as a fallback path.
-COPY --from=natives-builder /out/chud_natives.linux-*.node /opt/bun/bin/
+# pi-natives addon: pi's loader probes /opt/bun/bin as a fallback path.
+COPY --from=natives-builder /out/pi_natives.linux-*.node /opt/bun/bin/
 
-# chudcode-rpc Python wheel.
+# omp-rpc Python wheel.
 COPY --from=wheel-builder /out/*.whl /tmp/wheels/
-RUN pip install /tmp/wheels/chudcode_rpc-*.whl && rm -rf /tmp/wheels
+RUN pip install /tmp/wheels/omp_rpc-*.whl && rm -rf /tmp/wheels
 
-# Legal payload for the reusable SDKs and the Chudcode product installed in this image.
-COPY LICENSE  THIRD-PARTY-NOTICES.txt /usr/share/doc/chudcode/
+# Legal payload for the reusable SDKs and the OMP product installed in this image.
+COPY LICENSE  THIRD-PARTY-NOTICES.txt /usr/share/doc/omp/
 
-# `chudcode` shim — runs the coding-agent CLI against $CHUDCODE_ROOT via Bun. Derived
-# images override CHUDCODE_ROOT to point at wherever their chud source lives.
+# `omp` shim — runs the coding-agent CLI against $PI_ROOT via Bun. Derived
+# images override PI_ROOT to point at wherever their pi source lives.
 RUN printf '%s\n' \
     '#!/usr/bin/env bash' \
     'set -euo pipefail' \
-    ': "${CHUDCODE_ROOT:=/work/pi}"' \
-    'if [ ! -d "$CHUDCODE_ROOT/packages/coding-agent" ]; then' \
-    '  echo "chud: CHUDCODE_ROOT=$CHUDCODE_ROOT does not look like a chud checkout" >&2' \
+    ': "${PI_ROOT:=/work/pi}"' \
+    'if [ ! -d "$PI_ROOT/packages/coding-agent" ]; then' \
+    '  echo "pi: PI_ROOT=$PI_ROOT does not look like a pi checkout" >&2' \
     '  exit 127' \
     'fi' \
-    'exec bun "$CHUDCODE_ROOT/packages/coding-agent/src/cli.ts" "$@"' \
-    > /usr/local/bin/chudcode \
-    && chmod +x /usr/local/bin/chudcode
+    'exec bun "$PI_ROOT/packages/coding-agent/src/cli.ts" "$@"' \
+    > /usr/local/bin/omp \
+    && chmod +x /usr/local/bin/omp
 
 ############################
-# 4) chud-runtime — chud-base + chud source + bun install (DEFAULT)
+# 4) pi-runtime — pi-base + pi source + bun install (DEFAULT)
 #
-# A self-contained, runnable chudcode image. `docker run chudware/chudcode:dev --help`
+# A self-contained, runnable omp image. `docker run oh-my-pi/pi:dev --help`
 # Just Works without a host checkout.
 ############################
-FROM chud-base AS chud-runtime
+FROM pi-base AS pi-runtime
 
-ENV CHUDCODE_ROOT=/pi
+ENV PI_ROOT=/pi
 WORKDIR /pi
 
 # Same manifests-only layered install pattern as natives-builder — `bun install`
@@ -191,12 +199,12 @@ COPY --parents \
     tsconfig.base.json tsconfig.json \
     packages/*/package.json \
     packages/tsconfig.workspace.json \
-    python/robochud/web/package.json \
+    python/robomp/web/package.json \
     /pi/
 
 RUN bun install --frozen-lockfile --ignore-scripts
 
-# Chud source. `Dockerfile.dockerignore` keeps **/node_modules out of the context
+# Pi source. `Dockerfile.dockerignore` keeps **/node_modules out of the context
 # so stale isolated-linker symlinks from a host install can't shadow the
 # hoisted node_modules that `bun install` just produced.
 COPY . /pi/
@@ -205,5 +213,5 @@ COPY . /pi/
 # package.json's `prepare` script normally handles these on a vanilla install.
 RUN bun --cwd=packages/coding-agent run gen:tool-views
 
-ENTRYPOINT ["/usr/bin/tini", "--", "/usr/local/bin/chudcode"]
+ENTRYPOINT ["/usr/bin/tini", "--", "/usr/local/bin/omp"]
 CMD ["--help"]

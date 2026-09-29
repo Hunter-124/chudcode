@@ -7,18 +7,18 @@ import {
 	truncateToWidth as nativeTruncateToWidth,
 	wrapTextWithAnsi as nativeWrapTextWithAnsi,
 	type SliceResult,
-} from "@chudware/natives";
-import { DEFAULT_TAB_WIDTH } from "@chudware/utils";
+} from "@oh-my-pi/pi-natives";
+import { DEFAULT_TAB_WIDTH } from "@oh-my-pi/pi-utils";
 
-export { Ellipsis } from "@chudware/natives";
+export { Ellipsis } from "@oh-my-pi/pi-natives";
 
-export { DEFAULT_TAB_WIDTH } from "@chudware/utils";
+export { DEFAULT_TAB_WIDTH } from "@oh-my-pi/pi-utils";
 
 export type HangulCompatibilityJamoWidth = "platform" | "unicode" | 1 | 2;
 
 let hangulCompatibilityJamoWidth: HangulCompatibilityJamoWidth = "platform";
 
-// Wire encoding for the native override (see crates/chud-natives text.rs):
+// Wire encoding for the native override (see crates/pi-natives text.rs):
 // 0 = platform default, 1 = narrow, 2 = wide, 3 = unicode (no correction).
 function nativeHangulCompatibilityJamoOverride(width: HangulCompatibilityJamoWidth): number {
 	if (width === "unicode") return 3;
@@ -209,6 +209,14 @@ export function padding(n: number): string {
 	return " ".repeat(n);
 }
 
+/** Center a line in a field of `width` columns, truncating when too wide. */
+export function centerLine(line: string, width: number): string {
+	const lineWidth = visibleWidth(line);
+	if (lineWidth >= width) return truncateToWidth(line, width);
+	const left = Math.floor((width - lineWidth) / 2);
+	return padding(left) + line + padding(width - left - lineWidth);
+}
+
 // Grapheme segmenter (shared instance)
 const segmenter = new Intl.Segmenter(undefined, { granularity: "grapheme" });
 
@@ -229,10 +237,13 @@ const OSC66_PREFIX = "\x1b]66;";
 // virtual-placement prefix on Unicode-placeholder image lines, or the TUI's
 // BEL-terminated cursor marker. `Bun.stringWidth` strips CSI/OSC but counts APC
 // payloads as printable text, so they are removed before measuring (they occupy
-// zero cells — matching the native width engine in chud-natives/text.rs).
+// zero cells — matching the native width engine in pi-natives/text.rs).
 const APC_SPAN_REGEX = /\x1b_[\s\S]*?(?:\x07|\x1b\\)/g;
 const APC_PREFIX = "\x1b_";
 const PRINTABLE_ASCII_REGEX = /^[\u0020-\u007e]*$/;
+// Keep native escape parsing: a JS SGR parser costs more than Bun's scanner.
+// Test Jamo separately from the ASCII correction markers to keep scans cheap.
+const HANGUL_COMPAT_JAMO_REGEX = /[\u3131-\u318e]/;
 
 // Pin Bun.stringWidth semantics to the native width engine and guard against Bun
 // default drift: strip ANSI/OSC (don't count escape bytes) and treat
@@ -255,7 +266,7 @@ const HANGUL_COMPAT_JAMO_BUN_WIDTH = 2;
 
 // Effective target cell width for Compatibility Jamo, or `null` to follow the
 // Unicode width (no correction). Mirrors `hangul_compat_jamo_target_width` in
-// crates/chud-natives/src/text.rs.
+// crates/pi-natives/src/text.rs.
 function hangulCompatibilityJamoTargetWidth(): 1 | 2 | null {
 	switch (hangulCompatibilityJamoWidth) {
 		case 1:
@@ -274,7 +285,7 @@ function hangulCompatibilityJamoTargetWidth(): 1 | 2 | null {
 // width engine: subtract Bun's per-jamo cell count and add back the effective
 // width — the runtime target when one is active, otherwise the `unicode-width`
 // value. Mirrors `char_width_corrected` / `apply_hangul_compat_jamo_delta` in
-// crates/chud-natives/src/text.rs, including the rule that the zero-width filler
+// crates/pi-natives/src/text.rs, including the rule that the zero-width filler
 // (U+3164) is never widened past the narrow correction (a wide terminal still
 // renders it at its Unicode width of 0).
 function correctHangulCompatibilityJamoWidth(
@@ -329,6 +340,18 @@ export function visibleWidth(str: string): number {
 		return str.length;
 	}
 
+	// The extra gate pays for itself on long uncached lines, not short cache
+	// misses. APC and OSC 66 still need their existing payload corrections.
+	if (
+		!cacheable &&
+		!str.includes("\t") &&
+		!HANGUL_COMPAT_JAMO_REGEX.test(str) &&
+		!str.includes(APC_PREFIX) &&
+		!str.includes(OSC66_PREFIX)
+	) {
+		return Bun.stringWidth(str, STRING_WIDTH_OPTS);
+	}
+
 	let tabCount = 0;
 	let compatibilityJamoCount = 0;
 	let fillerCount = 0;
@@ -374,6 +397,70 @@ export function visibleWidth(str: string): number {
 		visibleWidthCache.set(str, width);
 	}
 	return width;
+}
+
+/** Remove ANSI, OSC, and APC control sequences while preserving visible text. */
+export function stripTerminalSequences(str: string): string {
+	if (!str.includes("\x1b")) return str;
+	let result = "";
+	let i = 0;
+	while (i < str.length) {
+		const ansi = extractAnsiCode(str, i);
+		if (ansi) {
+			i += ansi.length;
+			continue;
+		}
+		result += str[i];
+		i++;
+	}
+	return result;
+}
+
+/**
+ * Extract ANSI escape sequences from a string at the given position.
+ * Copied verbatim from pi-mono `packages/tui/src/utils.ts` alongside
+ * `stripTerminalSequences` so both behave identically to upstream pi. Kept
+ * module-private: it was removed from the public API in 9.6.2 and this port
+ * does not reintroduce that export.
+ */
+function extractAnsiCode(str: string, pos: number): { code: string; length: number } | null {
+	if (pos >= str.length || str[pos] !== "\x1b") return null;
+
+	const next = str[pos + 1];
+
+	// CSI sequence: ESC [ ... m/G/K/H/J
+	if (next === "[") {
+		let j = pos + 2;
+		while (j < str.length && !/[mGKHJ]/.test(str[j]!)) j++;
+		if (j < str.length) return { code: str.substring(pos, j + 1), length: j + 1 - pos };
+		return null;
+	}
+
+	// OSC sequence: ESC ] ... BEL or ESC ] ... ST (ESC \)
+	// Used for hyperlinks (OSC 8), window titles, etc.
+	if (next === "]") {
+		let j = pos + 2;
+		while (j < str.length) {
+			if (str[j] === "\x07") return { code: str.substring(pos, j + 1), length: j + 1 - pos };
+			if (str[j] === "\x1b" && str[j + 1] === "\\") return { code: str.substring(pos, j + 2), length: j + 2 - pos };
+			j++;
+		}
+		return null;
+	}
+
+	// APC sequence: ESC _ ... BEL or ESC _ ... ST (ESC \)
+	// Used for cursor marker and application-specific commands
+	if (next === "_") {
+		let j = pos + 2;
+		while (j < str.length) {
+			if (str[j] === "\x07") return { code: str.substring(pos, j + 1), length: j + 1 - pos };
+			if (str[j] === "\x1b" && str[j + 1] === "\\") return { code: str.substring(pos, j + 2), length: j + 2 - pos };
+			j++;
+		}
+		return null;
+	}
+
+	return null;
 }
 
 /**
@@ -623,7 +710,16 @@ export function applyBackgroundToLine(line: string, width: number, bgFn: (text: 
 	const paddingNeeded = Math.max(0, width - visibleLen);
 
 	// Apply background to content + padding
-	const withPadding = line + padding(paddingNeeded);
+	let withPadding = line + padding(paddingNeeded);
+	// Nested background resets (e.g. inline color chips closing with \x1b[49m)
+	// would terminate a plain open…close background wrapper early; re-open the
+	// line background after each one (same trick as Theme.bgFill).
+	if (line.includes("\x1b[49m")) {
+		const probe = bgFn("\x01");
+		const probeIdx = probe.indexOf("\x01");
+		const open = probeIdx > 0 ? probe.slice(0, probeIdx) : "";
+		if (open) withPadding = withPadding.replaceAll("\x1b[49m", `\x1b[49m${open}`);
+	}
 	return bgFn(withPadding);
 }
 

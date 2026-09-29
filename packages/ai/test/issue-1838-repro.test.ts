@@ -19,7 +19,7 @@
  *   > the entire reasoning content from the context.
  *
  * Without `keep: "all"` the Moonshot backend silently drops every prior turn's
- * `reasoning_content` even though chudcode already sends it on the wire (the Kimi
+ * `reasoning_content` even though omp already sends it on the wire (the Kimi
  * compat path sets `requiresReasoningContentForToolCalls`). K2.6 then has to
  * re-derive its full chain-of-thought from the user prompt on every iteration
  * of an agent loop, which the reporter sees as the agent "stops in between
@@ -33,10 +33,10 @@
  * own native format and would reject the extra key.
  */
 import { describe, expect, it } from "bun:test";
-import { streamOpenAICompletions } from "@chudware/ai/providers/openai-completions";
-import type { AssistantMessage, Context, FetchImpl, Model, ModelSpec } from "@chudware/ai/types";
-import { buildModel } from "@chudware/catalog/build";
-import { getBundledModel } from "@chudware/catalog/models";
+import { streamOpenAICompletions } from "@oh-my-pi/pi-ai/providers/openai-completions";
+import type { AssistantMessage, Context, FetchImpl, Model, ModelSpec } from "@oh-my-pi/pi-ai/types";
+import { buildModel } from "@oh-my-pi/pi-catalog/build";
+import { getBundledModel } from "@oh-my-pi/pi-catalog/models";
 
 function abortedSignal(): AbortSignal {
 	const controller = new AbortController();
@@ -127,11 +127,6 @@ function findCompletionAssistantWireMessage(
 }
 
 describe("issue #1838 — kimi-k2.6 preserves historical reasoning across tool calls", () => {
-	it("sends thinking.keep='all' on native Moonshot kimi-k2.6 when reasoning is enabled", async () => {
-		const payload = (await capturePayload(moonshotKimiModel("kimi-k2.6"), { reasoning: "high" })) as CompletionBody;
-		expect(payload.thinking).toEqual({ type: "enabled", keep: "all" });
-	});
-
 	it("preserves the Moonshot-native gate against gateway IDs that match the kimi-k2.6 prefix", async () => {
 		// Sanity: the Moonshot-native gate is provider+baseUrl driven, not id-only.
 		// A made-up host with `kimi-k2.6` in the id but a non-Moonshot baseUrl must

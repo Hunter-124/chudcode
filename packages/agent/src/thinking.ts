@@ -1,4 +1,4 @@
-import { Effort } from "@chudware/ai";
+import { Effort } from "@oh-my-pi/pi-catalog/effort";
 
 /**
  * Agent-local thinking selector.

@@ -1,44 +1,44 @@
 /**
  * Regression test for #2935 and #4845: the plugins/marketplace docs advertise
- * `chud list` / `chud remove` / `chud marketplace <sub>` / `chud uninstall …` etc.
- * as top-level commands, but only `chud install` is registered. Before the fix,
+ * `omp list` / `omp remove` / `omp marketplace <sub>` / `omp uninstall …` etc.
+ * as top-level commands, but only `omp install` is registered. Before the fix,
  * `resolveCliArgv(["list"])` rewrote the bare verb to `["launch", "list"]`, so
- * `chud list` silently started an interactive agent session with "list" as the
+ * `omp list` silently started an interactive agent session with "list" as the
  * initial LLM prompt instead of managing plugins (the real command is
- * `chud plugin list`). #4845 extended the same footgun to the multi-word
- * documented grammar: `chud marketplace add xyz` leaked the whole argv to the
+ * `omp plugin list`). #4845 extended the same footgun to the multi-word
+ * documented grammar: `omp marketplace add xyz` leaked the whole argv to the
  * model as a prompt.
  *
  * These tests pin the chosen bugfix: a documented plugin/marketplace verb that
  * is bare, or that follows the documented grammar (a marketplace sub-action or a
  * `name@marketplace` plugin id), yields a helpful hint pointing at the real
- * `chud plugin <action>` command rather than leaking to the model — while
+ * `omp plugin <action>` command rather than leaking to the model — while
  * genuine prose prompts that merely begin with one of these words still fall
  * through to `launch`.
  *
- * Imported via a relative path (not the `@chudware/coding-agent` alias) so the
+ * Imported via a relative path (not the `@oh-my-pi/pi-coding-agent` alias) so the
  * assertions exercise this checkout's `cli-commands.ts` directly.
  */
 import { describe, expect, test } from "bun:test";
 import { isSubcommand, resolveCliArgv } from "../src/cli-commands";
 
 describe("documented-but-unregistered plugin verbs do not leak to launch (#2935)", () => {
-	test("bare `chud list` hints at `chud plugin list` instead of launching with 'list' as the prompt", () => {
+	test("bare `omp list` hints at `omp plugin list` instead of launching with 'list' as the prompt", () => {
 		const result = resolveCliArgv(["list"]);
 		// Must NOT be the old silent-launch behavior.
 		expect(result).not.toEqual({ argv: ["launch", "list"] });
 		expect(result).not.toHaveProperty("argv");
 		// Must point at the real command.
 		expect(result).toHaveProperty("error");
-		expect("error" in result && result.error).toContain("chud plugin list");
+		expect("error" in result && result.error).toContain("omp plugin list");
 	});
 
-	test("bare `chud remove` hints at `chud plugin uninstall` instead of launching with 'remove' as the prompt", () => {
+	test("bare `omp remove` hints at `omp plugin uninstall` instead of launching with 'remove' as the prompt", () => {
 		const result = resolveCliArgv(["remove"]);
 		expect(result).not.toEqual({ argv: ["launch", "remove"] });
 		expect(result).not.toHaveProperty("argv");
 		expect(result).toHaveProperty("error");
-		expect("error" in result && result.error).toContain("chud plugin uninstall");
+		expect("error" in result && result.error).toContain("omp plugin uninstall");
 	});
 
 	test("genuine multi-word prompts beginning with these verbs still route to launch", () => {
@@ -51,28 +51,22 @@ describe("documented-but-unregistered plugin verbs do not leak to launch (#2935)
 		});
 	});
 
-	test("the hint path does not pretend these are real subcommands", () => {
-		// We surface guidance; we do not invent new top-level commands.
-		expect(isSubcommand("list")).toBe(false);
-		expect(isSubcommand("remove")).toBe(false);
-	});
-
-	test("multi-word `chud marketplace add xyz` hints at `chud plugin marketplace` instead of leaking to the prompt (#4845)", () => {
+	test("multi-word `omp marketplace add xyz` hints at `omp plugin marketplace` instead of leaking to the prompt (#4845)", () => {
 		const result = resolveCliArgv(["marketplace", "add", "xyz"]);
 		expect(result).not.toEqual({ argv: ["launch", "marketplace", "add", "xyz"] });
 		expect(result).not.toHaveProperty("argv");
 		expect(result).toHaveProperty("error");
-		expect("error" in result && result.error).toContain("chud plugin marketplace");
+		expect("error" in result && result.error).toContain("omp plugin marketplace");
 	});
 
-	test("bare marketplace-family verbs hint at their `chud plugin` command (#4845)", () => {
+	test("bare marketplace-family verbs hint at their `omp plugin` command (#4845)", () => {
 		for (const [verb, hint] of [
-			["marketplace", "chud plugin marketplace"],
-			["discover", "chud plugin discover"],
-			["upgrade", "chud plugin upgrade"],
-			["uninstall", "chud plugin uninstall"],
-			["enable", "chud plugin enable"],
-			["disable", "chud plugin disable"],
+			["marketplace", "omp plugin marketplace"],
+			["discover", "omp plugin discover"],
+			["upgrade", "omp plugin upgrade"],
+			["uninstall", "omp plugin uninstall"],
+			["enable", "omp plugin enable"],
+			["disable", "omp plugin disable"],
 		] as const) {
 			const result = resolveCliArgv([verb]);
 			expect(result).not.toHaveProperty("argv");
@@ -104,5 +98,20 @@ describe("documented-but-unregistered plugin verbs do not leak to launch (#2935)
 		expect(resolveCliArgv(["marketplace", "research", "for", "me"])).toEqual({
 			argv: ["launch", "marketplace", "research", "for", "me"],
 		});
+	});
+});
+
+describe("`omp plugins` is a registered alias of `omp plugin`", () => {
+	// The TUI builtin is `/plugins` while the CLI command is `plugin`. Dispatch
+	// resolves `CommandEntry.aliases`, not the command class's `static aliases`,
+	// so dropping the registry entry would make `omp plugins list` stop reaching
+	// the plugin command again.
+	test("`omp plugins list` routes to the plugin command instead of launch", () => {
+		expect(isSubcommand("plugins")).toBe(true);
+		expect(resolveCliArgv(["plugins", "list"])).toEqual({ argv: ["plugins", "list"] });
+	});
+
+	test("bare `omp plugins` routes to the plugin command, which defaults to list", () => {
+		expect(resolveCliArgv(["plugins"])).toEqual({ argv: ["plugins"] });
 	});
 });

@@ -22,12 +22,13 @@ This document describes operator-visible behavior for session export, sharing, c
 | `/new`                                  | Interactive slash command    | Yes (starts an empty conversation)            | Switches identity; assigns a new transcript path in persistent mode                        | None                                                                                |
 | `/fresh`                                | Slash command (TUI/headless) | Yes (provider-facing in-memory id/state only) | No; keeps current session file/header                                                      | None                                                                                |
 | `/clear`                                | Interactive slash command    | Yes (clears live/model conversation context)  | No; retains session identity, metadata, transcript file, and full on-disk history          | Appends a durable `reset_boundary`                                                  |
-| `/drop`                                 | Interactive slash command    | Yes (starts an empty conversation)            | Attempts to delete the current persisted session and artifacts, then switches to a new one | None                                                                                |
+| `/delete`                               | Interactive slash command    | Yes (starts an empty conversation)            | Attempts to delete the current persisted session and artifacts, then switches to a new one | None                                                                                |
 | `/fork`                                 | Interactive slash command    | Yes (active session identity changes)         | Creates new session file and switches current session to it (persistent mode only)         | Copies artifact directory to new session namespace when present                     |
 | `--fork <id\|path>`                     | CLI startup                  | Yes after session creation                    | Creates a new session fork from the selected source into current cwd/session dir           | None                                                                                |
 | `/resume [id\|@claude\|@codex]`         | Interactive slash command    | Yes (active in-memory state replaced)         | Switches to a selected/matched session, or imports a selected foreign session              | None                                                                                |
-| `--resume`                              | CLI startup picker           | Yes after session creation                    | Opens selected existing session file                                                       | None                                                                                |
+| `--resume`                              | CLI startup picker           | Yes after session creation                    | Opens selected existing session file (picker opens in current-folder scope; the global list is preloaded only for the empty-everything early exit and instant Tab switching) | None                |
 | `--resume <id\|path>`                   | CLI startup                  | Yes after session creation                    | Opens existing session; a missing recorded cwd may be re-rooted into the current directory | None                                                                                |
+| `/restart`                              | Interactive slash command    | Yes (process relaunches)                      | Relaunches omp with the original launch flags and resumes the current session in place     | None                                                                                |
 | `--continue`                            | CLI startup                  | Yes after session creation                    | Opens terminal breadcrumb or most-recent session; creates new one if none exists           | None                                                                                |
 
 ## Export and dump
@@ -46,7 +47,7 @@ Behavior details:
 - `--copy`, `clipboard`, and `copy` arguments are explicitly rejected with a warning to use `/dump`.
 - Export embeds session header/entries/leaf plus current `systemPrompt` and tool descriptions from agent state.
 - Subagent transcripts stored next to the session file (`<session>/<AgentId>.jsonl`, recursively for nested spawns) are embedded as `subSessions` (`collectSubSessions` in `src/export/html/index.ts`; disable with `includeSubSessions: false` in `ExportOptions`). In the page, agent ids in task tool cards open a breadcrumbed sub-session overlay.
-- Tool calls render through the `<chudcode-tool-view>` web component — the React per-tool renderers shared with collab-web (`packages/collab-web/src/tool-render/`), prebuilt into `src/export/html/tool-views.generated.js` by `bun run gen:tool-views`.
+- Tool calls render through the `<omp-tool-view>` web component — the React per-tool renderers shared with collab-web (`packages/collab-web/src/tool-render/`), prebuilt into `src/export/html/tool-views.generated.js` by `bun run gen:tool-views`.
 - No session entries are appended during export.
 
 Caveat:
@@ -85,7 +86,7 @@ Dump transcript content includes:
 - Tool results and execution blocks (except `excludeFromContext` bash/python entries)
 - Custom/hook/file mention/branch summary/compaction summary entries
 
-The best-effort JSON sidecar is named `chudcode-llm-request-<id>.json` under the OS temporary directory. It contains the current model, thinking level, service tier, system prompt, wire tool schemas, and LLM-converted messages. It persists after the command and can contain raw context or secrets; protect or remove it accordingly. A sidecar failure does not suppress the transcript (the TUI reports the failure; headless execution silently omits the path).
+The best-effort JSON sidecar is named `omp-llm-request-<id>.json` under the OS temporary directory. It contains the current model, thinking level, service tier, system prompt, wire tool schemas, and LLM-converted messages. It persists after the command and can contain raw context or secrets; protect or remove it accordingly. A sidecar failure does not suppress the transcript (the TUI reports the failure; headless execution silently omits the path).
 
 No session persistence entries are appended by dumping.
 
@@ -96,7 +97,7 @@ a viewer link. Implementation: [`../packages/coding-agent/src/export/share.ts`](
 
 ### TUI phase 1: custom share handler (if present)
 
-The interactive TUI's `loadCustomShare()` checks `~/.chudcode/agent` for the first existing candidate:
+The interactive TUI's `loadCustomShare()` checks `~/.omp/agent` for the first existing candidate:
 
 - `share.ts`
 - `share.js`
@@ -134,7 +135,7 @@ For headless execution, or in the TUI only when no custom share handler is found
    (`[12B IV][ciphertext+tag]`).
 4. Upload target is chosen by `share.store`:
    - **Share server** (default, `store: "blob"`) — `POST <share.serverUrl>`
-     (default `https://my.chudware.sh/s`) with the raw blob, capped at 1 MB.
+     (default `https://my.omp.sh/s`) with the raw blob, capped at 1 MB.
      Oversized snapshots are trimmed until they fit: inline images first,
      then long strings (32 KB → 8 KB → 2 KB → 512 B caps), then oldest
      entries.
@@ -173,7 +174,7 @@ keeping the conversation you can see.
   abort it first.
 - Closes every cached provider-session state entry (server-side conversation /
   prompt-cache handles) and reports how many were pruned.
-- Mints a fresh provider session id and re-keys hindsight and mnemo memory to
+- Mints a fresh provider session id and re-keys hindsight and mnemopi memory to
   it, and invalidates the append-only context so the next turn re-sends the full
   local transcript to the provider.
 - Leaves the local transcript, session file, and session identity unchanged, so
@@ -181,7 +182,7 @@ keeping the conversation you can see.
 
 Because it keeps both the visible and model-facing conversation, `/fresh`
 differs from `/clear` (clear the live/model conversation in place), `/new`
-(start a brand-new empty session), and `/drop` (attempt to delete the current
+(start a brand-new empty session), and `/delete` (attempt to delete the current
 session and start a new one). Only `/fresh` preserves the existing conversation
 while giving the provider stream state a clean slate.
 
@@ -210,8 +211,14 @@ command aborts it and waits for it to stop before resetting.
 The TUI clears its rendered transcript after a successful clear. This differs
 from `/fresh`, which rotates provider stream state without clearing the
 conversation; `/new`, which creates a new session identity and transcript file;
-and `/drop`, which attempts to delete the old persisted session before starting
+and `/delete`, which attempts to delete the old persisted session before starting
 a new one.
+
+## BTW history
+
+`/btw` history is stored alongside session artifacts and remains outside the main
+conversation. See the [BTW command reference](slash-command-internals.md#11-built-in-command-note-btw)
+for keyboard controls, follow-ups, persistence, and migration safety.
 
 ## Fork
 
@@ -261,7 +268,7 @@ Startup `--fork` is resolved before normal session creation:
 4. The forked file is created in the current cwd/session-dir scope and becomes the active session manager for startup.
 5. Full-context forks automatically seed `providerPromptCacheKey` from the source header's inherited key, falling back to the source session id. Startup drops that automatic inheritance when `--model`, `--thinking`, `--system-prompt`, `--append-system-prompt`, `--tools`, or `--no-tools` changes the provider route or prompt/tool shape.
 
-Use `--prompt-cache-key <key>` to pin the provider prompt-cache identity explicitly and independently from both the Chudcode session id and `--provider-session-id`. `--provider-session-id` continues to control provider session/routing headers and sticky credential selection; `--prompt-cache-key` controls the OpenAI Responses `prompt_cache_key` payload where supported.
+Use `--prompt-cache-key <key>` to pin the provider prompt-cache identity explicitly and independently from both the OMP session id and `--provider-session-id`. `--provider-session-id` continues to control provider session/routing headers and sticky credential selection; `--prompt-cache-key` controls the OpenAI Responses `prompt_cache_key` payload where supported.
 
 ## Resume and continue
 
@@ -269,22 +276,22 @@ Use `--prompt-cache-key <key>` to pin the provider prompt-cache identity explici
 
 Without an argument:
 
-1. Opens the session selector populated via `SessionManager.list(currentCwd, currentSessionDir)`.
-2. The picker starts in current-folder scope; Tab toggles to all-projects scope, lazily loading and caching `SessionManager.listAll()`.
+1. Opens the session selector populated via `SessionManager.list(currentCwd, currentSessionDir)`. The picker always opens in current-folder scope; the empty state (`No sessions in current folder. Press Tab to view all.`) invites Tab into all-projects instead of auto-switching (issue #3099).
+2. Tab toggles to all-projects scope, lazily loading and caching `SessionManager.listAll()`.
 3. On selection, `SelectorController.handleResumeSession(sessionPath)` calls `session.switchSession(sessionPath)`. If the switch is rejected, it returns `false` and the selector stops without applying the new-session UI state.
 4. After a successful switch, UI clears/rebuilds chat and todos, then reports `Resumed session` (or `Resumed session in <dir>` when the resumed session belongs to another project, in which case the process cwd and cwd-derived caches are re-pointed via `applyCwdChange`).
 
 With an argument:
 
 - `/resume <id>` resolves an id/filename prefix with local-first, then global fallback and switches directly to the matched file; an unknown value reports `Session "<value>" not found`.
-- `/resume @claude` and `/resume @codex` open a foreign-session picker. Selecting one converts and persists it under a fresh Chudcode session identity, then switches to that new session.
+- `/resume @claude` and `/resume @codex` open a foreign-session picker. Selecting one converts and persists it under a fresh OMP session identity, then switches to that new session.
 
 ## CLI `--resume`
 
 ### `--resume` (no value)
 
-- `main.ts` lists sessions for the current cwd/sessionDir and opens the picker in current-folder scope. When that list is empty it preloads `SessionManager.listAll()` so a user-initiated Tab switch to all-projects scope is immediate; it does not auto-switch scopes. `No sessions found` is printed only when the global list is also empty.
-- Selected path is opened with `SessionManager.open(selectedPath)` before session creation. Selecting a session from another project first switches the process into that project's directory and reloads cwd-scoped settings/caches.
+- `main.ts` lists sessions for the current cwd/sessionDir and opens the picker in current-folder scope. When that list is empty it preloads `SessionManager.listAll()` so a user-initiated Tab switch to all-projects scope is immediate; it does not auto-switch scopes (issue #3099). `No sessions found` is printed only when the global list is also empty.
+- Selected path is opened with `SessionManager.open(selectedPath)` before session creation; the process/project scope then switches to the resumed session's cwd (`switchToResumedProject`), reloading cwd-scoped settings and plugin caches and re-resolving scoped models.
 
 ### `--resume <value>`
 
@@ -388,8 +395,8 @@ When session manager is created with `SessionManager.inMemory()` (`--no-session`
 
 - `/share` custom-share failures do not degrade to the default encrypted share flow; they terminate the TUI command with an error.
 - `/export` argument tokenization does not preserve quoted paths with spaces.
-- `/drop` treats deletion as best-effort: it attempts to delete the current
+- `/delete` treats deletion as best-effort: it attempts to delete the current
   session JSONL and artifact directory, logs any deletion failure, and still
   creates and switches to a new session. A failed or partial deletion can leave
-  the old session or its artifacts on disk, so `/drop` is not a guaranteed
+  the old session or its artifacts on disk, so `/delete` is not a guaranteed
   erasure boundary.

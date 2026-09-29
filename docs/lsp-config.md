@@ -1,6 +1,6 @@
-# LSP configuration in Chudcode
+# LSP configuration in OMP
 
-This guide explains how to configure language servers for the Chudcode coding agent.
+This guide explains how to configure language servers for the OMP coding agent.
 
 Source of truth in code:
 
@@ -10,7 +10,7 @@ Source of truth in code:
 
 ## Auto-detection
 
-When no config file contributes a server override, Chudcode auto-detects built-in servers by intersecting two conditions:
+When no config file contributes a server override, OMP auto-detects built-in servers by intersecting two conditions:
 
 1. The current working directory contains at least one of the server's `rootMarkers`.
 2. The server binary is available — checked in supported project-local bin directories first (for example `node_modules/.bin/`, Python virtual environments, Ruby binstubs, and project `bin/` for Go), then `$PATH`.
@@ -19,28 +19,28 @@ Root-marker detection at startup is cwd-only; it does not search parent director
 
 ## Config file locations
 
-Chudcode merges LSP config from multiple sources, lowest to highest precedence:
+OMP merges LSP config from multiple sources, lowest to highest precedence:
 
 | Precedence | Location                                                                                                     |
 | ---------: | ------------------------------------------------------------------------------------------------------------ |
 |     Lowest | `~/lsp.json`, `~/.lsp.json`, `~/lsp.yaml`, `~/.lsp.yaml`, `~/lsp.yml`, `~/.lsp.yml`                          |
 |            | Plugin LSP configs (marketplace / `--plugin-dir` roots)                                                      |
 |            | User config dirs: active native agent directory, then `~/.claude/lsp.*`, `~/.codex/lsp.*`, `~/.gemini/lsp.*` |
-|            | Cwd config dirs: `<cwd>/.chudcode/lsp.*`, `<cwd>/.claude/lsp.*`, `<cwd>/.codex/lsp.*`, `<cwd>/.gemini/lsp.*`      |
+|            | Cwd config dirs: `<cwd>/.omp/lsp.*`, `<cwd>/.claude/lsp.*`, `<cwd>/.codex/lsp.*`, `<cwd>/.gemini/lsp.*`      |
 |    Highest | Cwd root: `<cwd>/lsp.*` and `<cwd>/.lsp.*`                                                                   |
 
 Each location accepts `.json`, `.yaml`, and `.yml`, including hidden variants. When multiple variants coexist in one location, precedence from highest to lowest is `lsp.json`, `.lsp.json`, `lsp.yaml`, `.lsp.yaml`, `lsp.yml`, `.lsp.yml`.
 
 Merging is shallow per server: a higher-precedence server object overrides only its top-level fields, but object-valued fields such as `settings`, `initOptions`, `capabilities`, and `workspaceReadyTimings` replace the lower value as a whole rather than deep-merging it. Servers absent from override files remain at built-in defaults.
 
-The native user config directory follows `CHUDCODE_CONFIG_DIR` and active profiles; `~/.chudcode/agent/lsp.json` is the default-profile spelling. This shared config lookup does not use `CHUDCODE_CODING_AGENT_DIR` as an arbitrary replacement base. Project and cwd sources do not walk ancestors.
+The native user config directory follows `PI_CONFIG_DIR` and active profiles; `~/.omp/agent/lsp.json` is the default-profile spelling. This shared config lookup does not use `PI_CODING_AGENT_DIR` as an arbitrary replacement base. Project and cwd sources do not walk ancestors.
 
 **Recommended locations:**
 
 - User-wide preferences → active native agent directory's `lsp.json`
-- Project-specific overrides → `<cwd>/.chudcode/lsp.json`
+- Project-specific overrides → `<cwd>/.omp/lsp.json`
 
-> **Note:** Auto-detection mode is skipped only when at least one readable config contributes a non-empty server map. A config that only sets `idleTimeoutMs` still uses built-in auto-detection. With server overrides, Chudcode first merges them onto all defaults, then keeps servers whose root markers match the cwd, whose binary resolves, and whose merged config is not `disabled`.
+> **Note:** Auto-detection mode is skipped only when at least one readable config contributes a non-empty server map. A config that only sets `idleTimeoutMs` still uses built-in auto-detection. With server overrides, OMP first merges them onto all defaults, then keeps servers whose root markers match the cwd, whose binary resolves, and whose merged config is not `disabled`.
 
 ## File shape
 
@@ -84,7 +84,7 @@ Do not mix wrapped and flat server entries: when `servers` is present, sibling k
 | `settings`              | `object`   |                        no | Pushed via `workspace/didChangeConfiguration`                                                            |
 | `disabled`              | `boolean`  |                        no | Set `true` to disable this server                                                                        |
 | `warmupTimeoutMs`       | `number`   |                        no | Startup timeout for this server in milliseconds                                                          |
-| `isLinter`              | `boolean`  |                        no | Marks a linter/formatter-only server; excludes it from type-intelligence operations                      |
+| `isLinter`              | `boolean`  |                        no | Marks a dedicated linter/formatter server: excluded from type-intelligence, but preferred over type-checkers when choosing the `formatOnWrite` formatter |
 | `capabilities`          | `object`   |                        no | Opt-in server-specific features; see [Capabilities](#capabilities)                                       |
 | `workspaceReadyTimings` | `object`   |                        no | Advanced rust-analyzer workspace-readiness timing overrides; see below                                   |
 
@@ -92,7 +92,7 @@ The required fields may be omitted from an override of a built-in server because
 
 ### Capabilities
 
-The `capabilities` object enables optional server-specific features that Chudcode supports on a per-server basis:
+The `capabilities` object enables optional server-specific features that OMP supports on a per-server basis:
 
 ```json
 {
@@ -195,7 +195,7 @@ Shut down language servers that have been inactive for more than five minutes:
 
 ### Disable a server for one project, keep it globally
 
-Place the override in `<project>/.chudcode/lsp.json`:
+Place the override in `<project>/.omp/lsp.json`:
 
 ```json
 {
@@ -207,7 +207,7 @@ Place the override in `<project>/.chudcode/lsp.json`:
 }
 ```
 
-The user-level config in `~/.chudcode/agent/lsp.json` is unaffected; pylsp is only suppressed in this project.
+The user-level config in `~/.omp/agent/lsp.json` is unaffected; pylsp is only suppressed in this project.
 
 ## Built-in server list
 
@@ -219,7 +219,8 @@ The following servers ship in `defaults.json` and are eligible for auto-detectio
 | `clangd`                      | C, C++, ObjC                  | `clangd`                          |
 | `zls`                         | Zig                           | `zls`                             |
 | `gopls`                       | Go                            | `gopls`                           |
-| `typescript-language-server`  | TypeScript, JavaScript        | `typescript-language-server`      |
+| `typescript-language-server`  | TypeScript, JavaScript (≤ 6)  | `typescript-language-server`      |
+| `typescript-native`           | TypeScript, JavaScript (7+)   | `tsc --lsp --stdio`               |
 | `denols`                      | TypeScript, JavaScript (Deno) | `deno`                            |
 | `biome`                       | TS/JS/JSON (linter)           | `biome`                           |
 | `eslint`                      | TS/JS/Vue/Svelte (linter)     | `vscode-eslint-language-server`   |
@@ -233,6 +234,7 @@ The following servers ship in `defaults.json` and are eligible for auto-detectio
 | `pyright`                     | Python                        | `pyright-langserver`              |
 | `basedpyright`                | Python                        | `basedpyright-langserver`         |
 | `pylsp`                       | Python                        | `pylsp`                           |
+| `ty`                          | Python                        | `ty`                              |
 | `ruff`                        | Python (linter)               | `ruff`                            |
 | `jdtls`                       | Java                          | `jdtls`                           |
 | `kotlin-lsp`                  | Kotlin                        | `kotlin-lsp`                      |
@@ -268,3 +270,5 @@ The following servers ship in `defaults.json` and are eligible for auto-detectio
 | `sourcekit-lsp`               | Swift                         | `sourcekit-lsp`                   |
 | `swiftlint`                   | Swift (linter)                | `swiftlint`                       |
 | `tlaplus`                     | TLA+                          | `tlapm_lsp`                       |
+
+Only one TypeScript server is kept per project: when the resolved `tsc` belongs to a TypeScript install without `lib/tsserver.js` (TypeScript 7+), `typescript-native` wins and `typescript-language-server` is dropped, since it cannot drive that install; otherwise `typescript-native` is dropped because older `tsc` rejects `--lsp`.

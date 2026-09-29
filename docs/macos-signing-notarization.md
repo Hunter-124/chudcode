@@ -1,11 +1,11 @@
 # macOS signing & notarization
 
-The compiled macOS `chudcode` binaries shipped on GitHub Releases can be signed with a
+The compiled macOS `omp` binaries shipped on GitHub Releases can be signed with a
 **Developer ID Application** certificate and **notarized** by Apple. This makes
 them Gatekeeper-acceptable and is the prerequisite for an official Homebrew
-submission (see [#776](https://github.com/Hunter-124/chudcode/issues/776)).
+submission (see [#776](https://github.com/can1357/oh-my-pi/issues/776)).
 
-Signing happens in CI on the macOS x64 `cc-mac-intel` release leg
+Signing happens in CI in the Darwin legs of the `release_binary_hosted` matrix
 (`.github/workflows/ci.yml`), via `scripts/ci-macos-sign.sh`. The workflow step
 **auto-skips** unless all five `APPLE_*` repository secrets below are configured,
 so releases remain ad-hoc signed when credentials are absent. The script itself
@@ -13,27 +13,29 @@ does not skip: invoking it without any required credential is an error.
 
 ## How it works
 
-1. `ci:release:build-binaries` builds and **ad-hoc** signs the binary (so it can
-   run on the build runner).
+1. `ci:release:build-binaries` builds and **ad-hoc** signs the binary with the
+   required entitlements (so it can run on the build runner).
 2. `scripts/ci-macos-sign.sh` then:
    - imports the Developer ID cert into a throwaway keychain;
    - re-signs with `--options runtime --timestamp` (hardened runtime + secure
      timestamp) and `--entitlements scripts/macos-entitlements.plist`;
    - runs `--version` and `--smoke-test` under the new signature to fail fast;
    - notarizes the binary via `notarytool submit --wait`.
-3. `release_github_verify` re-downloads the published x64 asset, runs
+3. `release_github_verify` re-downloads the published arm64 asset, runs
    `codesign --verify --strict` and both launch checks, and—when signing secrets
    are configured—also asserts that the signature is not ad-hoc.
 
 ### Why the entitlements are mandatory
 
-The binary is a Bun single-file executable, so the hardened runtime needs:
+The binary is a Bun single-file executable that also launches Xcode's MCP
+bridge, so the hardened runtime needs:
 
 | Entitlement                                              | Reason                                                                                                                                                                                                                                                                                                                        |
 | -------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `com.apple.security.cs.allow-jit`                        | JavaScriptCore JITs at runtime.                                                                                                                                                                                                                                                                                               |
 | `com.apple.security.cs.allow-unsigned-executable-memory` | JSC executable memory pages.                                                                                                                                                                                                                                                                                                  |
-| `com.apple.security.cs.disable-library-validation`       | Chudcode extracts its native addon (`chud_natives.<triple>.node`) and other optional dylibs to a runtime cache and `dlopen()`s them. They do not share the main binary's Team ID, so without this the hardened runtime aborts with _"mapping process and mapped file have different Team IDs"_ — breaking effectively every command. |
+| `com.apple.security.automation.apple-events`             | Allows macOS to prompt for Automation permission when `xcrun mcpbridge` connects to Xcode; without it, first-time Xcode MCP initialization hangs until timeout.                                                                                                                                                                |
+| `com.apple.security.cs.disable-library-validation`       | omp extracts its native addon (`pi_natives.<triple>.node`) and other optional dylibs to a runtime cache and `dlopen()`s them. They do not share the main binary's Team ID, so without this the hardened runtime aborts with _"mapping process and mapped file have different Team IDs"_ — breaking effectively every command. |
 
 Without `disable-library-validation`, a signed+notarized binary signs and
 notarizes fine but **fails at first real use**. `scripts/ci-macos-sign.sh` runs
@@ -52,7 +54,7 @@ signing or credential failure.
 
 What this means in practice:
 
-- `curl https://chudware.sh/install | sh` — `curl` sets no quarantine bit, so
+- `curl https://omp.sh/install | sh` — `curl` sets no quarantine bit, so
   Gatekeeper is not consulted.
 - Homebrew **formula** installs — Homebrew does not quarantine formula files, so
   Gatekeeper is not consulted.
@@ -78,7 +80,7 @@ signing to engage.
 
 ### Producing the credential files
 
-Drop these into a working directory (default `~/chudcode-signing`):
+Drop these into a working directory (default `~/omp-signing`):
 
 | File                 | How                                                                                                                                                                                                                                     |
 | -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -99,9 +101,9 @@ your password, sanity-checks the `.p8`) and pipes each value to `gh secret set`
 over stdin — no secret is ever printed to the terminal, argv, or shell history:
 
 ```sh
-scripts/ci-macos-upload-secrets.sh ~/chudcode-signing --dry-run   # validate first
-scripts/ci-macos-upload-secrets.sh ~/chudcode-signing             # upload all five
-gh secret list --repo Hunter-124/chudcode                       # confirm
+scripts/ci-macos-upload-secrets.sh ~/omp-signing --dry-run   # validate first
+scripts/ci-macos-upload-secrets.sh ~/omp-signing             # upload all five
+gh secret list --repo can1357/oh-my-pi                       # confirm
 ```
 
 Re-run it whenever the certificate is renewed.
@@ -122,8 +124,8 @@ You can exercise the full sign+notarize path locally (real cert + API key) by
 exporting the five env vars and running:
 
 ```sh
-RELEASE_TARGETS=darwin-x64 bun run ci:release:build-binaries
+RELEASE_TARGETS=darwin-arm64 bun run ci:release:build-binaries
 APPLE_CERTIFICATE_P12=… APPLE_CERTIFICATE_PASSWORD=… \
 APPLE_API_KEY_ID=… APPLE_API_ISSUER_ID=… APPLE_API_KEY=… \
-  bash scripts/ci-macos-sign.sh packages/coding-agent/binaries/chudcode-darwin-x64
+  bash scripts/ci-macos-sign.sh packages/coding-agent/binaries/omp-darwin-arm64
 ```

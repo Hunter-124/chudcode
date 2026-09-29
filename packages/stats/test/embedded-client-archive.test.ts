@@ -2,25 +2,24 @@ import { afterEach, describe, expect, test } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import * as fsx from "@chudware/utils/fsx";
 import { buildArchiveBase64 } from "../scripts/generate-client-bundle";
 
 const tempDirs: string[] = [];
 
 async function createFixture(order: readonly string[]): Promise<string> {
-	const root = await fs.mkdtemp(path.join(os.tmpdir(), "chudcode-stats-archive-"));
+	const root = await fs.mkdtemp(path.join(os.tmpdir(), "omp-stats-archive-"));
 	tempDirs.push(root);
 	for (const relativePath of order) {
 		const filePath = path.join(root, relativePath);
 		await fs.mkdir(path.dirname(filePath), { recursive: true });
-		await fsx.write(filePath, relativePath === "index.html" ? "<main>Chudcode</main>" : "body { color: blue; }");
+		await Bun.write(filePath, relativePath === "index.html" ? "<main>OMP</main>" : "body { color: blue; }");
 	}
 	return root;
 }
 
 function tarHeaderMtimes(bytes: Uint8Array): number[] {
 	const mtimes: number[] = [];
-	for (let offset = 0; offset + 512 <= bytes.length; ) {
+	for (let offset = 0; offset + 512 <= bytes.length;) {
 		const header = bytes.subarray(offset, offset + 512);
 		if (header.every(byte => byte === 0)) break;
 		const sizeField = Buffer.from(header.subarray(124, 136)).toString("ascii").replace(/\0.*$/, "").trim();
@@ -51,7 +50,7 @@ describe("embedded stats client archive", () => {
 		expect(tarHeaderMtimes(tarBytes)).toEqual([0, 0]);
 
 		const files = await new Bun.Archive(gzipBytes).files();
-		expect(await files.get("index.html")?.text()).toBe("<main>Chudcode</main>");
+		expect(await files.get("index.html")?.text()).toBe("<main>OMP</main>");
 		expect(await files.get("assets/app.css")?.text()).toBe("body { color: blue; }");
 	});
 });

@@ -1,12 +1,12 @@
 import { afterEach, describe, expect, it } from "bun:test";
-import type { Component } from "@chudware/tui";
-import { TERMINAL } from "@chudware/tui/terminal-capabilities";
+import type { Component } from "@oh-my-pi/pi-tui";
+import { TERMINAL } from "@oh-my-pi/pi-tui/terminal-capabilities";
 import {
 	createProcessTerminalRenderHarness,
 	type ProcessTerminalRenderHarness,
 } from "./process-terminal-render-harness";
 
-// Progressive-enhancement probe ordering contract. chudcode sends `CSI ? u \\ CSI c`
+// Progressive-enhancement probe ordering contract. omp sends `CSI ? u \\ CSI c`
 // at startup: the kitty reply (`CSI ? <flags> u`) authoritatively says the
 // terminal speaks the kitty keyboard protocol; the DA1 reply (`CSI ? ... c`)
 // is only a sentinel that guarantees a reply even from terminals that ignore
@@ -19,18 +19,18 @@ class ModalProbe implements Component {
 		return ["modal"];
 	}
 }
-const originalSshConnection = process.env.SSH_CONNECTION;
-const originalSshTty = process.env.SSH_TTY;
-const originalSshClient = process.env.SSH_CLIENT;
-const originalTmux = process.env.TMUX;
+const originalSshConnection = Bun.env.SSH_CONNECTION;
+const originalSshTty = Bun.env.SSH_TTY;
+const originalSshClient = Bun.env.SSH_CLIENT;
+const originalTmux = Bun.env.TMUX;
 const originalTerminalId = TERMINAL.id;
 
 function restoreEnv(name: "SSH_CONNECTION" | "SSH_TTY" | "SSH_CLIENT" | "TMUX", value: string | undefined): void {
 	if (value === undefined) {
-		delete process.env[name];
+		delete Bun.env[name];
 		return;
 	}
-	process.env[name] = value;
+	Bun.env[name] = value;
 }
 
 describe("ProcessTerminal kitty keyboard progressive-enhancement ordering", () => {
@@ -118,9 +118,9 @@ describe("ProcessTerminal kitty keyboard progressive-enhancement ordering", () =
 	});
 
 	it("skips modifyOtherKeys fallback for SSH_CONNECTION-only unknown terminals", async () => {
-		process.env.SSH_CONNECTION = "192.0.2.10 54321 192.0.2.20 22";
-		delete process.env.SSH_TTY;
-		delete process.env.SSH_CLIENT;
+		Bun.env.SSH_CONNECTION = "192.0.2.10 54321 192.0.2.20 22";
+		delete Bun.env.SSH_TTY;
+		delete Bun.env.SSH_CLIENT;
 		Object.defineProperty(TERMINAL, "id", { value: "base", configurable: true });
 		harness = createProcessTerminalRenderHarness(100, 30);
 		await harness.settle();
@@ -135,15 +135,15 @@ describe("ProcessTerminal kitty keyboard progressive-enhancement ordering", () =
 	});
 
 	it("enables modifyOtherKeys fallback under tmux so extended-keys panes keep modified keys (#5620)", async () => {
-		// tmux answers DA1 but not `CSI ? u`. chudcode must still request the xterm
+		// tmux answers DA1 but not `CSI ? u`. omp must still request the xterm
 		// modifyOtherKeys fallback; tmux honors it under `extended-keys on`/`always`
 		// (delivering Ctrl+H and Shift+Enter distinctly) and ignores it under
-		// `extended-keys off`, so tmux — not chudcode — is the capability gate. A blanket
+		// `extended-keys off`, so tmux — not omp — is the capability gate. A blanket
 		// tmux exclusion (#5502) collapsed those keys to legacy bytes in every pane.
-		process.env.TMUX = "/tmp/tmux-501/default,1234,0";
-		delete process.env.SSH_CONNECTION;
-		delete process.env.SSH_TTY;
-		delete process.env.SSH_CLIENT;
+		Bun.env.TMUX = "/tmp/tmux-501/default,1234,0";
+		delete Bun.env.SSH_CONNECTION;
+		delete Bun.env.SSH_TTY;
+		delete Bun.env.SSH_CLIENT;
 		harness = createProcessTerminalRenderHarness(100, 30);
 		await harness.settle();
 		harness.writes.length = 0;

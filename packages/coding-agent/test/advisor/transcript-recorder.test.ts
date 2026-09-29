@@ -15,15 +15,14 @@ import { describe, expect, it } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import type { AgentMessage } from "@chudware/agent-core";
+import type { AgentMessage } from "@oh-my-pi/pi-agent-core";
 import {
 	ADVISOR_TRANSCRIPT_FILENAME,
 	AdvisorTranscriptRecorder,
 	advisorTranscriptFilename,
 	loadAdvisorTranscriptCosts,
-} from "@chudware/coding-agent/advisor/transcript-recorder";
-import { removeWithRetries } from "@chudware/utils";
-import * as fsx from "@chudware/utils/fsx";
+} from "@oh-my-pi/pi-coding-agent/advisor/transcript-recorder";
+import { removeWithRetries } from "@oh-my-pi/pi-utils";
 
 interface AdvisorEntry {
 	type?: string;
@@ -48,7 +47,7 @@ async function withTempDir<T>(fn: (dir: string) => Promise<T>): Promise<T> {
 
 /** Parse the message entries (skipping the session header) from an advisor JSONL. */
 async function readMessageEntries(file: string): Promise<AdvisorEntry[]> {
-	const text = await fsx.readText(file);
+	const text = await Bun.file(file).text();
 	// JSON.parse returns `any`; assigning to the typed array narrows reads below.
 	const entries: AdvisorEntry[] = text
 		.trim()
@@ -57,12 +56,12 @@ async function readMessageEntries(file: string): Promise<AdvisorEntry[]> {
 	return entries.filter(entry => entry.type === "message");
 }
 
-function assistantMessage(text: string, inputTokens: number, cost = 0): AgentMessage {
+function assistantMessage(text: string, inputTokens: number, cost = 0, provider = "anthropic"): AgentMessage {
 	const message = {
 		role: "assistant" as const,
 		content: [{ type: "text" as const, text }],
 		api: "anthropic-messages",
-		provider: "anthropic",
+		provider,
 		model: "test-advisor-model",
 		usage: {
 			input: inputTokens,
@@ -297,6 +296,23 @@ describe("AdvisorTranscriptRecorder", () => {
 				"": 0.25,
 				security: 0.75,
 			});
+		});
+	});
+
+	it("excludes providers that only produced zero-cost turns from subscription attribution", async () => {
+		await withTempDir(async dir => {
+			const sessionFile = path.join(dir, "sess.jsonl");
+			const recorder = new AdvisorTranscriptRecorder(
+				() => sessionFile,
+				() => dir,
+			);
+			recorder.record(assistantMessage("paid", 1, 0.25, "openai"));
+			recorder.record(assistantMessage("failed subscription fallback", 1, 0, "anthropic"));
+			await recorder.close();
+
+			const providersBySlug = new Map<string, Set<string>>();
+			await loadAdvisorTranscriptCosts(sessionFile, { providersBySlug });
+			expect([...(providersBySlug.get("") ?? [])]).toEqual(["openai"]);
 		});
 	});
 

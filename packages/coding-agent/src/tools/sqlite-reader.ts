@@ -1,7 +1,6 @@
 import { Database, type SQLQueryBindings } from "bun:sqlite";
-import * as fsx from "@chudware/utils/fsx";
-import { formatBytes, replaceTabs, truncateToWidth } from "./render-utils";
-import { ToolError } from "./tool-errors";
+import { formatBytes, replaceTabs, truncateToWidth } from "@oh-my-pi/pi-tui/render/render-utils";
+import { ToolError } from "@oh-my-pi/pi-tui/tools/tool-errors";
 
 const SQLITE_MAGIC = new Uint8Array([
 	0x53, 0x51, 0x4c, 0x69, 0x74, 0x65, 0x20, 0x66, 0x6f, 0x72, 0x6d, 0x61, 0x74, 0x20, 0x33, 0x00,
@@ -22,7 +21,10 @@ function isSqliteCantOpen(error: unknown): boolean {
 async function requiresWalSidecarInitialization(filePath: string): Promise<boolean> {
 	const formatVersions = await Bun.file(filePath).slice(18, 20).bytes();
 	if (formatVersions[0] !== 2 && formatVersions[1] !== 2) return false;
-	const [walExists, shmExists] = await Promise.all([fsx.exists(`${filePath}-wal`), fsx.exists(`${filePath}-shm`)]);
+	const [walExists, shmExists] = await Promise.all([
+		Bun.file(`${filePath}-wal`).exists(),
+		Bun.file(`${filePath}-shm`).exists(),
+	]);
 	return !walExists || !shmExists;
 }
 

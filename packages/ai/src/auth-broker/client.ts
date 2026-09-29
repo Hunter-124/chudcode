@@ -1,18 +1,19 @@
 /**
- * HTTP client for the chudcode auth-broker server.
+ * HTTP client for the omp auth-broker server.
  *
  * Used by {@link RemoteAuthCredentialStore} (snapshot pulls) and by
- * `chudcode auth-broker status` (liveness checks). All endpoints except
+ * `omp auth-broker status` (liveness checks). All endpoints except
  * `/v1/healthz` require a bearer token.
  */
 
-import { type } from "@chudware/chudtype";
-import { readSseEvents } from "@chudware/utils";
-import type { AuthCredential, DisabledCredentialSummary } from "../auth-storage";
+import { type } from "@oh-my-pi/omptype";
+import { readSseEvents } from "@oh-my-pi/pi-utils";
+import type { AuthCredential, DisabledCredentialSummary, OAuthRefreshReason } from "../auth-storage";
 import type {
 	ClientUsageReportRequest,
 	ClientUsageReportResponse,
 	ClientUsageSummaryResponse,
+	CredentialBlockDeleteRequest,
 	CredentialBlockRequest,
 	CredentialBlockResponse,
 	CredentialBlocksDeleteResponse,
@@ -30,6 +31,7 @@ import type {
 	UsageStaleResponse,
 } from "./types";
 import { AUTH_BROKER_CAPABILITIES_HEADER, AUTH_BROKER_CAPABILITY_CODEX_METER_BLOCK_SCOPES } from "./types";
+import { parseGenerationTag } from "./protocol";
 import {
 	clientUsageReportResponseSchema,
 	clientUsageSummaryResponseSchema,
@@ -110,18 +112,6 @@ export interface FetchSnapshotOptions {
 export type FetchSnapshotResult =
 	| { status: 200; snapshot: SnapshotResponse; generation: number }
 	| { status: 304; generation: number };
-
-function parseGenerationTag(header: string | null): number | undefined {
-	if (!header) return undefined;
-	let value = header.trim();
-	if (value.startsWith("W/")) value = value.slice(2).trim();
-	if (value.startsWith('"') && value.endsWith('"') && value.length >= 2) {
-		value = value.slice(1, -1);
-	}
-	const generation = Number(value);
-	if (!Number.isInteger(generation) || generation < 0) return undefined;
-	return generation;
-}
 
 const DEFAULT_TIMEOUT_MS = 10_000;
 const DEFAULT_MAX_RETRIES = 1;
@@ -326,8 +316,13 @@ export class AuthBrokerClient {
 		});
 	}
 
-	async refreshCredential(id: number, signal?: AbortSignal): Promise<CredentialRefreshResponse> {
-		return this.#request<CredentialRefreshResponse>("POST", `/v1/credential/${id}/refresh`, {
+	async refreshCredential(
+		id: number,
+		signal?: AbortSignal,
+		reason?: OAuthRefreshReason,
+	): Promise<CredentialRefreshResponse> {
+		const suffix = reason === "auth-recovery" ? "?reason=auth-recovery" : "";
+		return this.#request<CredentialRefreshResponse>("POST", `/v1/credential/${id}/refresh${suffix}`, {
 			schema: "credentialRefreshResponseSchema",
 			signal,
 		});
@@ -363,15 +358,6 @@ export class AuthBrokerClient {
 		}
 	}
 
-	/**
-	 * Ask the broker to run its bounded tombstone maintenance. The disabled-list
-	 * route deliberately carries no client timestamp: the broker applies its
-	 * own authoritative clock and returns only token-free summaries.
-	 */
-	async pruneDisabledCredentials(signal?: AbortSignal): Promise<void> {
-		await this.listDisabledCredentials(undefined, signal);
-	}
-
 	async uploadCredential(
 		provider: string,
 		credential: AuthCredential,
@@ -394,6 +380,18 @@ export class AuthBrokerClient {
 		return this.#request<CredentialBlockResponse>("POST", `/v1/credential/${id}/block`, {
 			body,
 			schema: "credentialBlockResponseSchema",
+			signal,
+		});
+	}
+
+	async deleteCredentialBlock(
+		id: number,
+		block: CredentialBlockDeleteRequest,
+		signal?: AbortSignal,
+	): Promise<CredentialBlocksDeleteResponse> {
+		return this.#request<CredentialBlocksDeleteResponse>("DELETE", `/v1/credential/${id}/block`, {
+			body: block,
+			schema: "credentialBlocksDeleteResponseSchema",
 			signal,
 		});
 	}
@@ -454,7 +452,7 @@ export class AuthBrokerClient {
 	): Promise<Response> {
 		const auth = opts.auth ?? true;
 		const url = `${this.#baseUrl}${path}`;
-		const headers: Record<string, string> = { Accept: "application/json", ...(opts.headers ?? {}) };
+		const headers: Record<string, string> = { Accept: "application/json", ...opts.headers };
 		if (auth) headers.Authorization = `Bearer ${this.#token}`;
 		let payload: string | undefined;
 		if (opts.body !== undefined) {

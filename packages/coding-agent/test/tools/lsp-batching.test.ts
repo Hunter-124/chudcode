@@ -1,12 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
-import { createLspWritethrough, FileFormatResult } from "@chudware/coding-agent/lsp";
-import * as lspConfig from "@chudware/coding-agent/lsp/config";
-import type { LinterClient, ServerConfig } from "@chudware/coding-agent/lsp/types";
-import { addFileWriteFallback } from "@chudware/coding-agent/tools/file-write-fallback";
-import { TempDir } from "@chudware/utils";
-import * as fsx from "@chudware/utils/fsx";
+import { createLspWritethrough } from "@oh-my-pi/pi-coding-agent/lsp";
+import { FileFormatResult } from "@oh-my-pi/pi-tui/tools/lsp";
+import * as lspConfig from "@oh-my-pi/pi-coding-agent/lsp/config";
+import type { LinterClient, ServerConfig } from "@oh-my-pi/pi-coding-agent/lsp/types";
+import { addFileWriteFallback } from "@oh-my-pi/pi-coding-agent/tools/file-write-fallback";
+import { TempDir } from "@oh-my-pi/pi-utils";
 
 function createFormatter(format: (filePath: string, content: string) => Promise<string>): ServerConfig {
 	return {
@@ -25,7 +25,7 @@ describe("createLspWritethrough batching", () => {
 	let tempDir: TempDir;
 
 	beforeEach(() => {
-		tempDir = TempDir.createSync("@chudcode-lsp-batch-");
+		tempDir = TempDir.createSync("@omp-lsp-batch-");
 	});
 
 	afterEach(() => {
@@ -49,21 +49,21 @@ describe("createLspWritethrough batching", () => {
 			flush: false,
 		});
 
-		expect(firstResult).toBeUndefined();
+		expect(firstResult.finalContent).toBe("const a = 1;\n");
 		expect(getServersSpy).toHaveBeenCalledTimes(0);
 		expect(loadConfigSpy).toHaveBeenCalledTimes(0);
-		expect(await fsx.readText(fileA)).toBe("const a = 1;\n");
+		expect(await Bun.file(fileA).text()).toBe("const a = 1;\n");
 
 		const secondResult = await writethrough(fileB, "const b = 2;\n", undefined, undefined, {
 			id: batchId,
 			flush: true,
 		});
 
-		expect(secondResult).toBeUndefined();
+		expect(secondResult.finalContent).toBe("const b = 2;\n");
 		expect(getServersSpy).toHaveBeenCalledTimes(2);
 		expect(loadConfigSpy).toHaveBeenCalledTimes(1);
-		expect(await fsx.readText(fileA)).toBe("const a = 1;\n");
-		expect(await fsx.readText(fileB)).toBe("const b = 2;\n");
+		expect(await Bun.file(fileA).text()).toBe("const a = 1;\n");
+		expect(await Bun.file(fileB).text()).toBe("const b = 2;\n");
 	});
 
 	it("preserves a newer external change made before the batch flush", async () => {
@@ -79,14 +79,14 @@ describe("createLspWritethrough batching", () => {
 			flush: false,
 		});
 
-		await fsx.write(fileA, "const value = 'external';\n");
+		await Bun.write(fileA, "const value = 'external';\n");
 		await writethrough(fileB, "const other = true;\n", undefined, undefined, {
 			id: batchId,
 			flush: true,
 		});
 
-		expect(await fsx.readText(fileA)).toBe("const value = 'external';\n");
-		expect(await fsx.readText(fileB)).toBe("const other = true;\n");
+		expect(await Bun.file(fileA).text()).toBe("const value = 'external';\n");
+		expect(await Bun.file(fileB).text()).toBe("const other = true;\n");
 	});
 
 	it("does not recreate a file deleted before the batch flush", async () => {
@@ -108,8 +108,8 @@ describe("createLspWritethrough batching", () => {
 			flush: true,
 		});
 
-		expect(await fsx.exists(fileA)).toBe(false);
-		expect(await fsx.readText(fileB)).toBe("const survivor = true;\n");
+		expect(await Bun.file(fileA).exists()).toBe(false);
+		expect(await Bun.file(fileB).text()).toBe("const survivor = true;\n");
 	});
 
 	it("preserves a UTF-8 BOM when batch formatting changes content", async () => {
@@ -128,10 +128,11 @@ describe("createLspWritethrough batching", () => {
 			id: batchId,
 			flush: false,
 		});
-		await writethrough(fileB, "const other=1\n", undefined, undefined, {
+		const result = await writethrough(fileB, "const other=1\n", undefined, undefined, {
 			id: batchId,
 			flush: true,
 		});
+		expect(result.finalContent).toBe("const other = 1;\n");
 
 		const bytes = new Uint8Array(await Bun.file(fileA).arrayBuffer());
 		expect([...bytes.subarray(0, 3)]).toEqual([0xef, 0xbb, 0xbf]);
@@ -158,7 +159,7 @@ describe("createLspWritethrough batching", () => {
 			flush: true,
 		});
 
-		expect(result?.formatter).toBe(FileFormatResult.FAILED);
+		expect(result.diagnostics?.formatter).toBe(FileFormatResult.FAILED);
 	});
 
 	it("flushes earlier entries when the final batch write fails", async () => {
@@ -175,7 +176,7 @@ describe("createLspWritethrough batching", () => {
 			id: batchId,
 			flush: false,
 		});
-		vi.spyOn(fsx, "write").mockRejectedValueOnce(new Error("ENOSPC"));
+		vi.spyOn(Bun, "write").mockRejectedValueOnce(new Error("ENOSPC"));
 
 		await expect(
 			writethrough(fileB, "const failed = true;\n", undefined, undefined, {
@@ -186,8 +187,8 @@ describe("createLspWritethrough batching", () => {
 
 		expect(getServersSpy).toHaveBeenCalledTimes(1);
 		expect(loadConfigSpy).toHaveBeenCalledTimes(1);
-		expect(await fsx.readText(fileA)).toBe("const applied = true;\n");
-		expect(await fsx.exists(fileB)).toBe(false);
+		expect(await Bun.file(fileA).text()).toBe("const applied = true;\n");
+		expect(await Bun.file(fileB).exists()).toBe(false);
 	});
 
 	it("runs LSP immediately when no batch is provided", async () => {
@@ -200,10 +201,10 @@ describe("createLspWritethrough batching", () => {
 		const filePath = path.join(tempDir.path(), "single.ts");
 		const result = await writethrough(filePath, "const single = true;\n");
 
-		expect(result).toBeUndefined();
+		expect(result.finalContent).toBe("const single = true;\n");
 		expect(getServersSpy).toHaveBeenCalledTimes(1);
 		expect(loadConfigSpy).toHaveBeenCalledTimes(1);
-		expect(await fsx.readText(filePath)).toBe("const single = true;\n");
+		expect(await Bun.file(filePath).text()).toBe("const single = true;\n");
 	});
 });
 
@@ -216,7 +217,7 @@ describe.skipIf(process.getuid?.() === 0)("createLspWritethrough batching with a
 	const disposers: Array<() => void> = [];
 
 	beforeEach(async () => {
-		tempDir = TempDir.createSync("@chudcode-lsp-batch-broker-");
+		tempDir = TempDir.createSync("@omp-lsp-batch-broker-");
 		// The seam hands handlers a symlink-resolved path and `os.tmpdir()` sits
 		// under `/var` — itself a link — on macOS, so a lexical fixture root would
 		// differ from the brokered path for a reason unrelated to this test.
@@ -239,7 +240,7 @@ describe.skipIf(process.getuid?.() === 0)("createLspWritethrough batching with a
 		// hides a path produces: the direct write fails, a privileged helper lands
 		// the bytes, and this process still cannot read them back.
 		const opaque = path.join(root, "opaque.ts");
-		await fsx.write(opaque, "const before = true;\n");
+		await Bun.write(opaque, "const before = true;\n");
 		await fs.chmod(opaque, 0o000);
 
 		const brokered: Array<{ dst: string; content: string }> = [];
@@ -247,7 +248,7 @@ describe.skipIf(process.getuid?.() === 0)("createLspWritethrough batching with a
 			addFileWriteFallback(async req => {
 				brokered.push({ dst: req.dst, content: req.content });
 				await fs.chmod(req.dst, 0o600);
-				await fsx.write(req.dst, req.content);
+				await Bun.write(req.dst, req.content);
 				await fs.chmod(req.dst, 0o000);
 				return true;
 			}),
@@ -259,8 +260,8 @@ describe.skipIf(process.getuid?.() === 0)("createLspWritethrough batching with a
 		await writethrough(sibling, "const other = true;\n", undefined, undefined, { id: batchId, flush: true });
 
 		expect(brokered).toEqual([{ dst: opaque, content: "const after = true;\n" }]);
-		expect(await fsx.readText(sibling)).toBe("const other = true;\n");
+		expect(await Bun.file(sibling).text()).toBe("const other = true;\n");
 		await fs.chmod(opaque, 0o400);
-		expect(await fsx.readText(opaque)).toBe("const after = true;\n");
+		expect(await Bun.file(opaque).text()).toBe("const after = true;\n");
 	});
 });

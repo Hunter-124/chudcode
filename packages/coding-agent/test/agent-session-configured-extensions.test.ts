@@ -11,19 +11,21 @@ import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
-import { Agent } from "@chudware/agent-core";
-import { getBundledModel } from "@chudware/catalog/models";
-import type { EffectiveExtensionRoots } from "@chudware/coding-agent/capability/types";
-import { ModelRegistry } from "@chudware/coding-agent/config/model-registry";
-import { Settings } from "@chudware/coding-agent/config/settings";
-import "@chudware/coding-agent/discovery";
-import { setActiveSkills } from "@chudware/coding-agent/extensibility/skills";
-import { AgentSession } from "@chudware/coding-agent/session/agent-session";
-import { AuthStorage } from "@chudware/coding-agent/session/auth-storage";
-import { convertToLlm } from "@chudware/coding-agent/session/messages";
-import { SessionManager } from "@chudware/coding-agent/session/session-manager";
-import { discoverAgents } from "@chudware/coding-agent/task/discovery";
-import { removeSyncWithRetries } from "@chudware/utils";
+import { Agent } from "@oh-my-pi/pi-agent-core";
+import { getBundledModel } from "@oh-my-pi/pi-catalog/models";
+import type { EffectiveExtensionRoots } from "@oh-my-pi/pi-coding-agent/capability/types";
+import { ModelRegistry } from "@oh-my-pi/pi-coding-agent/config/model-registry";
+import { Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
+import "@oh-my-pi/pi-coding-agent/discovery";
+import { setActiveSkills } from "@oh-my-pi/pi-coding-agent/extensibility/skills";
+import { AgentSession } from "@oh-my-pi/pi-coding-agent/session/agent-session";
+import { AuthStorage } from "@oh-my-pi/pi-coding-agent/session/auth-storage";
+import { convertToLlm } from "@oh-my-pi/pi-coding-agent/session/messages";
+import { SessionManager } from "@oh-my-pi/pi-coding-agent/session/session-manager";
+import { discoverAgents } from "@oh-my-pi/pi-coding-agent/task/discovery";
+import { removeSyncWithRetries } from "@oh-my-pi/pi-utils";
+
+import { cfgExtensions } from "@oh-my-pi/pi-coding-agent/extensibility/settings";
 
 interface SessionInputs {
 	additionalExtensionPaths?: readonly string[];
@@ -56,7 +58,7 @@ describe("AgentSession extension-root discovery (post-startup)", () => {
 	let tempDir: string;
 
 	beforeEach(() => {
-		tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "chudcode-session-ext-"));
+		tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "omp-session-ext-"));
 	});
 
 	afterEach(async () => {
@@ -154,7 +156,7 @@ describe("AgentSession extension-root discovery (post-startup)", () => {
 		expect(session.skills.map(skill => skill.name)).not.toContain("configured-skill");
 
 		// The live getter reads settings per call, so the override lands on refresh.
-		session.settings.override("extensions", [configuredExt]);
+		cfgExtensions.override(session.settings, [configuredExt]);
 		await session.refreshSkills();
 		expect(session.skills.map(skill => skill.name)).toContain("configured-skill");
 	});

@@ -1,32 +1,28 @@
 import { describe, expect, it } from "bun:test";
 import * as path from "node:path";
-import { pathToFileURL } from "node:url";
-import { loadExtensions } from "@chudware/coding-agent/extensibility/extensions/loader";
-import { __resetDirsFromEnvForTests, setAgentDir, TempDir } from "@chudware/utils";
-import * as fsx from "@chudware/utils/fsx";
+import { loadExtensions } from "@oh-my-pi/pi-coding-agent/extensibility/extensions/loader";
+import { __resetDirsFromEnvForTests, setAgentDir, TempDir } from "@oh-my-pi/pi-utils";
 
-describe("issue #5879: provider extension compatibility", () => {
-	it("creates a fresh agent database while loading current auth exports", async () => {
+describe("issue #5879: legacy provider compatibility", () => {
+	it("creates a fresh agent database while loading historical auth exports", async () => {
 		const projectDir = TempDir.createSync("@issue-5879-");
 		const freshAgentDir = projectDir.join("fresh", "agent");
 		const originalDirEnv: Record<string, string | undefined> = {
-			CHUDCODE_CODING_AGENT_DIR: process.env.CHUDCODE_CODING_AGENT_DIR,
-			CHUDCODE_PROFILE: process.env.CHUDCODE_PROFILE,
+			PI_CODING_AGENT_DIR: process.env.PI_CODING_AGENT_DIR,
+			OMP_PROFILE: process.env.OMP_PROFILE,
+			PI_PROFILE: process.env.PI_PROFILE,
 		};
-		const extensionPath = path.join(projectDir.path(), "chud-provider-like-plugin", "index.ts");
-		const aiModule = pathToFileURL(path.resolve(import.meta.dir, "../../ai/src/index.ts")).href;
-		const authStorageModule = pathToFileURL(path.resolve(import.meta.dir, "../src/session/auth-storage.ts")).href;
-		const authDbPath = path.join(freshAgentDir, "agent.db");
-		await fsx.write(
+		const extensionPath = path.join(projectDir.path(), "pi-provider-like-plugin", "index.ts");
+		await Bun.write(
 			extensionPath,
 			[
-				`import { createAssistantMessageEventStream } from ${JSON.stringify(aiModule)};`,
-				`import { AuthStorage } from ${JSON.stringify(authStorageModule)};`,
+				'import { createAssistantMessageEventStream } from "@earendil-works/pi-ai";',
+				'import { AuthStorage } from "@earendil-works/pi-coding-agent";',
 				"",
-				"export default async function() {",
+				"export default function() {",
 				"\tconst stream = createAssistantMessageEventStream();",
-				`\tconst auth = await AuthStorage.create(${JSON.stringify(authDbPath)});`,
-				'\tif (auth.list().includes("issue-5879-missing-provider")) throw new Error("Unexpected test credential");',
+				'\tconst credential = AuthStorage.create().get("issue-5879-missing-provider");',
+				'\tif (credential !== undefined) throw new Error("Unexpected test credential");',
 				'\tif (typeof stream.push !== "function") throw new Error("Invalid assistant message event stream");',
 				"}",
 			].join("\n"),
@@ -39,7 +35,7 @@ describe("issue #5879: provider extension compatibility", () => {
 
 			expect(result.errors).toEqual([]);
 			expect(result.extensions).toHaveLength(1);
-			expect(await fsx.exists(path.join(freshAgentDir, "agent.db"))).toBe(true);
+			expect(await Bun.file(path.join(freshAgentDir, "agent.db")).exists()).toBe(true);
 		} finally {
 			for (const key in originalDirEnv) {
 				const value = originalDirEnv[key];

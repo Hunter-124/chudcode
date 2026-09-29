@@ -1,8 +1,8 @@
 import { Database } from "bun:sqlite";
 import { afterEach, describe, expect, it } from "bun:test";
 import * as path from "node:path";
-import { AgentStorage, SCHEMA_VERSION } from "@chudware/coding-agent/session/agent-storage";
-import { TempDir } from "@chudware/utils";
+import { AgentStorage, SCHEMA_VERSION } from "@oh-my-pi/pi-coding-agent/session/agent-storage";
+import { TempDir } from "@oh-my-pi/pi-utils";
 import { readTableSql } from "./helpers/sqlite-inspect";
 
 const LEGACY_TIMESTAMP = 1_700_000_000;
@@ -36,7 +36,7 @@ describe("AgentStorage SQLite compatibility", () => {
 	let tempDir: TempDir;
 
 	afterEach(async () => {
-		AgentStorage.resetInstance();
+		AgentStorage.close();
 		if (tempDir) {
 			try {
 				await tempDir.remove();
@@ -46,7 +46,7 @@ describe("AgentStorage SQLite compatibility", () => {
 	});
 
 	it("creates fresh storage without unixepoch defaults", async () => {
-		tempDir = TempDir.createSync("@chudcode-agent-storage-fresh-");
+		tempDir = TempDir.createSync("@omp-agent-storage-fresh-");
 		const dbPath = path.join(tempDir.path(), "agent.db");
 
 		const storage = await AgentStorage.open(dbPath);
@@ -61,7 +61,7 @@ describe("AgentStorage SQLite compatibility", () => {
 	});
 
 	it("migrates legacy settings and model usage schemas away from unixepoch defaults", async () => {
-		tempDir = TempDir.createSync("@chudcode-agent-storage-legacy-");
+		tempDir = TempDir.createSync("@omp-agent-storage-legacy-");
 		const dbPath = path.join(tempDir.path(), "agent.db");
 		const legacyDb = new Database(dbPath);
 		legacyDb.exec(`
@@ -95,5 +95,28 @@ describe("AgentStorage SQLite compatibility", () => {
 		expect(storage.getSettings()).toEqual({ theme: "dark" });
 		expect(storage.getModelUsageOrder()).toEqual(["anthropic/claude-sonnet-4-5"]);
 		expect(readSettingsRows(dbPath)).toEqual([{ key: "theme", value: '"dark"', updated_at: LEGACY_TIMESTAMP }]);
+	});
+
+	it("clears migrated settings rows", async () => {
+		tempDir = TempDir.createSync("@omp-agent-storage-clear-settings-");
+		const dbPath = path.join(tempDir.path(), "agent.db");
+		const seed = new Database(dbPath);
+		seed.exec(`
+			CREATE TABLE settings (
+				key TEXT PRIMARY KEY,
+				value TEXT NOT NULL,
+				updated_at INTEGER NOT NULL DEFAULT 0
+			);
+		`);
+		seed
+			.prepare("INSERT INTO settings (key, value, updated_at) VALUES (?, ?, ?)")
+			.run("theme", '"dark"', LEGACY_TIMESTAMP);
+		seed.close();
+
+		const storage = await AgentStorage.open(dbPath);
+		expect(storage.getSettings()).toEqual({ theme: "dark" });
+		storage.clearMigratedSettings();
+		expect(storage.getSettings()).toBeNull();
+		expect(readSettingsRows(dbPath)).toEqual([]);
 	});
 });

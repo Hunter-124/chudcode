@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, test, vi } from "bun:test";
-import { ollamaModelManagerOptions } from "@chudware/catalog/provider-models/openai-compat";
-import type { FetchImpl } from "@chudware/catalog/types";
+import { ollamaModelManagerOptions } from "@oh-my-pi/pi-catalog/provider-models/openai-compat";
+import type { FetchImpl } from "@oh-my-pi/pi-catalog/types";
 
 afterEach(() => {
 	vi.restoreAllMocks();

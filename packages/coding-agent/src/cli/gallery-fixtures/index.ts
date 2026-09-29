@@ -1,5 +1,5 @@
 /**
- * Aggregated sample data for the `chudcode gallery` command.
+ * Aggregated sample data for the `omp gallery` command.
  *
  * Each fixture drives one tool's renderer through the four lifecycle states the
  * gallery showcases: arguments streaming in, arguments complete but awaiting a
@@ -15,6 +15,7 @@
  */
 import { agenticFixtures } from "./agentic";
 import { codeintelFixtures } from "./codeintel";
+import { coordinationFixtures } from "./coordination";
 import { editFixtures } from "./edit";
 import { fsFixtures } from "./fs";
 import { interactionFixtures } from "./interaction";
@@ -25,6 +26,8 @@ import { shellFixtures } from "./shell";
 import { statusLineFixtures } from "./status-line";
 import { webFixtures } from "./web";
 
+export * from "./composer";
+export * from "./segments";
 export * from "./types";
 
 export const galleryFixtures = {
@@ -34,6 +37,7 @@ export const galleryFixtures = {
 	...searchFixtures,
 	...editFixtures,
 	...agenticFixtures,
+	...coordinationFixtures,
 	...memoryFixtures,
 	...webFixtures,
 	...codeintelFixtures,

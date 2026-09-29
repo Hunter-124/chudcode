@@ -32,8 +32,8 @@
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { parseArgs } from "node:util";
-import { computeDefaultSessionDir } from "@chudware/coding-agent/session/session-paths";
-import { FileSessionStorage } from "@chudware/coding-agent/session/session-storage";
+import { computeDefaultSessionDir } from "@oh-my-pi/pi-coding-agent/session/session-paths";
+import { FileSessionStorage } from "@oh-my-pi/pi-coding-agent/session/session-storage";
 
 const EDIT_TOOL_NAMES: Record<string, true> = { edit: true, apply_patch: true };
 const SIZE_BUCKETS: Array<[string, number]> = [
@@ -321,9 +321,12 @@ async function main(): Promise<number> {
 	const workers = Array.from({ length: 16 }, async () => {
 		while (next < sessionFiles.length) {
 			const file = sessionFiles[next++];
-			const scan = await collectSessionEdits(file).catch(
-				(): SessionScan => ({ edits: [], requestFiles: [], formats: new Map(), skipped: 0 }),
-			);
+			const scan = await collectSessionEdits(file).catch((): SessionScan => ({
+				edits: [],
+				requestFiles: [],
+				formats: new Map(),
+				skipped: 0,
+			}));
 			skipped += scan.skipped;
 			for (const [format, count] of scan.formats) {
 				formatCounts.set(format, (formatCounts.get(format) ?? 0) + count);

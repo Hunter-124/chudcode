@@ -2,17 +2,17 @@ import { afterEach, beforeAll, beforeEach, describe, expect, test, vi } from "bu
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import { clearCache, readFile } from "@chudware/coding-agent/capability/fs";
-import type { MCPServerConfig } from "@chudware/coding-agent/mcp/types";
-import { MCPCommandController } from "@chudware/coding-agent/modes/controllers/mcp-command-controller";
-import { initTheme } from "@chudware/coding-agent/modes/theme/theme";
-import { getMCPConfigPath, getProjectDir, removeWithRetries, setProjectDir } from "@chudware/utils";
-import * as fsx from "@chudware/utils/fsx";
+import { clearCache, readFile } from "@oh-my-pi/pi-coding-agent/capability/fs";
+import type { MCPServerConfig } from "@oh-my-pi/pi-coding-agent/mcp/types";
+import { MCPCommandController } from "@oh-my-pi/pi-coding-agent/modes/controllers/mcp-command-controller";
+import { initTheme } from "@oh-my-pi/pi-tui/theme";
+import { getMCPConfigPath, getProjectDir, removeWithRetries, setProjectDir } from "@oh-my-pi/pi-utils";
+import { createInteractiveModeContext, createMcpManagerStub } from "./helpers/interactive-mode-context";
 
 const originalProjectDir = getProjectDir();
 
 async function writeExternalProjectConfig(projectDir: string, servers: Record<string, MCPServerConfig>): Promise<void> {
-	await fsx.write(
+	await Bun.write(
 		getMCPConfigPath("project", projectDir),
 		`${JSON.stringify(
 			{
@@ -27,11 +27,7 @@ async function writeExternalProjectConfig(projectDir: string, servers: Record<st
 function createController(discoveredCommands: string[]) {
 	const refreshMCPTools = vi.fn(async () => {});
 	const setMCPPromptCommands = vi.fn();
-	const settings = {
-		get: vi.fn((key: string) => (key === "mcp.enableProjectConfig" ? true : undefined)),
-	};
-	const mcpManager = {
-		disconnectAll: vi.fn(async () => {}),
+	const mcpManager = createMcpManagerStub({
 		discoverAndConnect: vi.fn(async () => {
 			const configPath = getMCPConfigPath("project", getProjectDir());
 			const content = await readFile(configPath);
@@ -48,41 +44,15 @@ function createController(discoveredCommands: string[]) {
 					}
 				}
 			}
-			return { errors: new Map<string, string>() };
+			return { errors: new Map<string, string>(), connectedServers: [], tools: [], exaApiKeys: [] };
 		}),
-		disconnectServer: vi.fn(async () => {}),
-		connectServers: vi.fn(async (_configs: Record<string, MCPServerConfig>, _sources: Record<string, unknown>) => ({
-			errors: new Map<string, string>(),
-			connectedServers: [],
-			tools: [],
-			exaApiKeys: [],
-		})),
-		getTools: vi.fn(() => []),
-		waitForConnection: vi.fn(async () => ({})),
-		getConnectionStatus: vi.fn(() => "connected"),
-		getSource: vi.fn(() => undefined),
-	};
-	const controller = new MCPCommandController({
-		chatContainer: { addChild: vi.fn() },
-		present: vi.fn(),
-		presentCommandOutput: vi.fn(),
-		ui: { requestRender: vi.fn() },
-		editor: {},
-		showError: vi.fn(),
-		showStatus: vi.fn(),
-		oauthManualInput: {
-			hasPending: vi.fn(() => false),
-			pendingProviderId: undefined,
-			tryClaimInput: vi.fn(),
-		},
-		session: {
-			refreshMCPTools,
-			setMCPPromptCommands,
-			modelRegistry: { authStorage: undefined },
-		},
-		settings,
-		mcpManager,
-	} as never);
+	});
+	const controller = new MCPCommandController(
+		createInteractiveModeContext({
+			session: { refreshMCPTools, setMCPPromptCommands },
+			mcpManager,
+		}),
+	);
 
 	return { controller, mcpManager, refreshMCPTools, setMCPPromptCommands };
 }
@@ -95,7 +65,7 @@ describe("/mcp reload picks up external mcp.json edits", () => {
 	});
 
 	beforeEach(async () => {
-		projectDir = await fs.mkdtemp(path.join(os.tmpdir(), "chudcode-mcp-reload-project-"));
+		projectDir = await fs.mkdtemp(path.join(os.tmpdir(), "omp-mcp-reload-project-"));
 		setProjectDir(projectDir);
 		clearCache();
 	});
@@ -116,7 +86,7 @@ describe("/mcp reload picks up external mcp.json edits", () => {
 		const primed = await readFile(configPath);
 		expect(primed).toContain("old-cmd");
 
-		await fsx.write(
+		await Bun.write(
 			configPath,
 			`${JSON.stringify({ mcpServers: { test: { type: "stdio", command: "new-cmd" } } }, null, 2)}\n`,
 		);

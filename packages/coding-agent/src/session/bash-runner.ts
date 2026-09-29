@@ -1,6 +1,6 @@
 import * as path from "node:path";
-import type { Agent } from "@chudware/agent-core";
-import { logger } from "@chudware/utils";
+import type { Agent } from "@oh-my-pi/pi-agent-core";
+import { logger } from "@oh-my-pi/pi-utils";
 import type { Settings } from "../config/settings";
 import { type BashPtyOptions, type BashResult, executeBash as executeBashCommand } from "../exec/bash-executor";
 import type { ExtensionRunner } from "../extensibility/extensions";
@@ -8,6 +8,8 @@ import { outputMeta } from "../tools/output-meta";
 import { clampTimeout } from "../tools/tool-timeouts";
 import type { BashExecutionMessage } from "./messages";
 import type { SessionManager } from "./session-manager";
+
+import { cfgToolsMaxTimeout } from "../tools/settings";
 
 /** Destination that owns a bash result after a session or branch transition. */
 export type BashAppendDestination =
@@ -116,7 +118,7 @@ export class BashRunner {
 					signal: abortController.signal,
 					sessionKey: target.sessionId,
 					cwd,
-					timeout: clampTimeout("bash", undefined, this.#host.settings.get("tools.maxTimeout")) * 1000,
+					timeout: clampTimeout("bash", undefined, cfgToolsMaxTimeout.get(this.#host.settings)) * 1000,
 					onMinimizedSave: originalText => this.#saveOriginalArtifact(target, originalText),
 					env: shellEnv,
 					useUserShell: options?.useUserShell,
@@ -286,6 +288,7 @@ export class BashRunner {
 			exitCode: result.exitCode,
 			cancelled: result.cancelled,
 			truncated: result.truncated,
+			images: result.images,
 			meta,
 			timestamp: Date.now(),
 			excludeFromContext: options?.excludeFromContext,

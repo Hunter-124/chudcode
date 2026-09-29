@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "bun:test";
-import { emergencyTerminalRestore, ProcessTerminal, setAltScreenActive } from "@chudware/tui/terminal";
-import { setTerminalHeadless } from "@chudware/utils";
+import { type TerminalFrameProvider, TUI } from "@oh-my-pi/pi-tui";
+import { emergencyTerminalRestore, ProcessTerminal, setAltScreenActive } from "@oh-my-pi/pi-tui/terminal";
+import { setTerminalHeadless } from "@oh-my-pi/pi-utils";
 
 // Regression coverage for the Windows shell-handoff corruption on exit:
 // `emergencyTerminalRestore()` used to write DECRST 1049 ("leave alternate
@@ -124,6 +125,39 @@ describe("emergencyTerminalRestore alt-screen gating", () => {
 		expect(activeRestore).toContain("\x1b[?1006l");
 		expect(activeRestore).toContain("\x1b[?1003l");
 		expect(activeRestore).toContain("\x1b[?1000l");
+	});
+	it("restores the alternate screen when a deferred replacement paint throws", () => {
+		const { writes, terminal } = startCapturedTerminal();
+		let failReplacement = false;
+		const provider: TerminalFrameProvider = {
+			renderFrame: () => {
+				if (failReplacement) throw new Error("replacement failed");
+				return { viewport: ["old session"] };
+			},
+			acknowledgeHistory: () => {},
+		};
+		const immediateScheduler = {
+			now: () => 0,
+			scheduleImmediate: (callback: () => void) => callback(),
+			scheduleRender: (callback: () => void) => {
+				callback();
+				return { cancel() {} };
+			},
+		};
+		const tui = new TUI(terminal, undefined, { renderScheduler: immediateScheduler });
+		tui.setFrameProvider(provider);
+		const overlay = tui.showOverlay(
+			{ render: () => ["session selector"] },
+			{ fullscreen: true, width: "100%", maxHeight: "100%" },
+		);
+		tui.requestRender(true, { clearScrollback: true });
+		failReplacement = true;
+
+		expect(() => overlay.hide()).toThrow("replacement failed");
+		writes.length = 0;
+		emergencyTerminalRestore();
+
+		expect(writes.join("")).toContain("\x1b[?1049l");
 	});
 	it("pops keyboard enhancement frames on both screens when crashing from a fullscreen overlay", () => {
 		const { terminal, writes } = startCapturedTerminal();

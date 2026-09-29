@@ -5,8 +5,8 @@
  * Endpoint: POST https://api.synthetic.new/v2/search
  */
 
-import { type ApiKey, type AuthStorage, type FetchImpl, getEnvApiKey, withAuth } from "@chudware/ai";
-import type { SearchResponse, SearchSource } from "../../../web/search/types";
+import { type ApiKey, type AuthStorage, type FetchImpl, getEnvApiKey, withAuth } from "@oh-my-pi/pi-ai";
+import type { SearchResponse, SearchSource } from "../types";
 import { SearchProviderError } from "../../../web/search/types";
 import { formatQuery, parseSearchQuery } from "../query";
 import type { SearchParams } from "./base";
@@ -34,7 +34,7 @@ export function findApiKey(
 	sessionId?: string,
 	signal?: AbortSignal,
 ): Promise<string | undefined> {
-	return authStorage.getApiKey("synthetic", sessionId, { signal });
+	return authStorage.keys.get("synthetic", sessionId, { signal });
 }
 
 /** Call Synthetic search API. */
@@ -71,7 +71,7 @@ async function callSyntheticSearch(
 
 /** Execute Synthetic web search. */
 export async function searchSynthetic(params: SearchParamsWithFetch): Promise<SearchResponse> {
-	const keyOrResolver: ApiKey = params.authStorage.resolver("synthetic", {
+	const keyOrResolver: ApiKey = params.authStorage.keys.resolver("synthetic", {
 		sessionId: params.sessionId,
 	});
 
@@ -87,7 +87,7 @@ export async function searchSynthetic(params: SearchParamsWithFetch): Promise<Se
 		{
 			signal: params.signal,
 			missingKeyMessage:
-				"Synthetic credentials not found. Set SYNTHETIC_API_KEY or login with 'chudcode /login synthetic'.",
+				"Synthetic credentials not found. Set SYNTHETIC_API_KEY or login with 'omp /login synthetic'.",
 		},
 	);
 	const sources: SearchSource[] = [];
@@ -117,7 +117,7 @@ export class SyntheticProvider extends SearchProvider {
 	readonly label = "Synthetic";
 
 	isAvailable(authStorage: AuthStorage): boolean {
-		return authStorage.hasAuth("synthetic") || !!getEnvApiKey("synthetic");
+		return authStorage.keys.source("synthetic") !== undefined || !!getEnvApiKey("synthetic");
 	}
 
 	search(params: SearchParamsWithFetch): Promise<SearchResponse> {

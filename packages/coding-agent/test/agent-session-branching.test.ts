@@ -11,16 +11,16 @@ import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
-import { Agent } from "@chudware/agent-core";
-import type { ImageContent, UserMessage } from "@chudware/ai";
-import { getBundledModel } from "@chudware/catalog/models";
-import { ModelRegistry } from "@chudware/coding-agent/config/model-registry";
-import { Settings } from "@chudware/coding-agent/config/settings";
-import { AgentSession } from "@chudware/coding-agent/session/agent-session";
-import { AuthStorage } from "@chudware/coding-agent/session/auth-storage";
-import { SessionManager } from "@chudware/coding-agent/session/session-manager";
-import { createTools, type ToolSession } from "@chudware/coding-agent/tools";
-import { removeSyncWithRetries, Snowflake } from "@chudware/utils";
+import { Agent } from "@oh-my-pi/pi-agent-core";
+import type { ImageContent, UserMessage } from "@oh-my-pi/pi-ai";
+import { getBundledModel } from "@oh-my-pi/pi-catalog/models";
+import { ModelRegistry } from "@oh-my-pi/pi-coding-agent/config/model-registry";
+import { Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
+import { AgentSession } from "@oh-my-pi/pi-coding-agent/session/agent-session";
+import { AuthStorage } from "@oh-my-pi/pi-coding-agent/session/auth-storage";
+import { SessionManager } from "@oh-my-pi/pi-coding-agent/session/session-manager";
+import { createTools, type ToolSession } from "@oh-my-pi/pi-coding-agent/tools";
+import { removeSyncWithRetries, Snowflake } from "@oh-my-pi/pi-utils";
 import { assistantMsg, createTestSession, e2eApiKey } from "./utilities";
 
 describe.skipIf(!e2eApiKey("ANTHROPIC_API_KEY"))("AgentSession branching", () => {
@@ -31,7 +31,7 @@ describe.skipIf(!e2eApiKey("ANTHROPIC_API_KEY"))("AgentSession branching", () =>
 
 	beforeEach(() => {
 		// Create temp directory for session files
-		tempDir = path.join(os.tmpdir(), `chud-branching-test-${Snowflake.next()}`);
+		tempDir = path.join(os.tmpdir(), `pi-branching-test-${Snowflake.next()}`);
 		fs.mkdirSync(tempDir, { recursive: true });
 	});
 
@@ -223,25 +223,6 @@ describe("AgentSession historical image prompts", () => {
 		}
 	});
 
-	it("returns the target images when navigating to a user prompt", async () => {
-		const ctx = await createTestSession({ inMemory: true });
-		try {
-			const text = "Compare [Image #1, 1x1]";
-			const entryId = ctx.sessionManager.appendMessage(historicalImagePrompt(text));
-			ctx.sessionManager.appendMessage(assistantMsg("Compared."));
-
-			const result = await ctx.session.navigateTree(entryId);
-
-			expect(result).toMatchObject({
-				editorText: text,
-				editorImages: [HISTORICAL_IMAGE],
-				cancelled: false,
-			});
-		} finally {
-			await ctx.cleanup();
-		}
-	});
-
 	it("preserves multi-image order so positional markers stay aligned", async () => {
 		const ctx = await createTestSession({ inMemory: true });
 		try {
@@ -277,6 +258,30 @@ describe("AgentSession historical image prompts", () => {
 
 			expect(result.editorText).toBe("plain text turn");
 			expect(result.editorImages).toBeUndefined();
+		} finally {
+			await ctx.cleanup();
+		}
+	});
+
+	it("rewinds past a user prompt that is the current leaf", async () => {
+		// A turn aborted before any assistant reply leaves the user prompt as
+		// the leaf; rewinding to it must still move the leaf to its parent and
+		// hand the prompt back, not report a no-op.
+		const ctx = await createTestSession({ inMemory: true });
+		try {
+			ctx.sessionManager.appendMessage({ role: "user", content: "first", timestamp: Date.now() });
+			const parentId = ctx.sessionManager.appendMessage(assistantMsg("reply"));
+			const leafId = ctx.sessionManager.appendMessage({
+				role: "user",
+				content: "aborted prompt",
+				timestamp: Date.now(),
+			});
+			expect(ctx.sessionManager.getLeafId()).toBe(leafId);
+
+			const result = await ctx.session.navigateTree(leafId);
+
+			expect(result).toMatchObject({ editorText: "aborted prompt", cancelled: false });
+			expect(ctx.sessionManager.getLeafId()).toBe(parentId);
 		} finally {
 			await ctx.cleanup();
 		}

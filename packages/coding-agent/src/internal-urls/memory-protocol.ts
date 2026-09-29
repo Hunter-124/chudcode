@@ -1,25 +1,50 @@
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
-import { getAgentDir, isEnoent } from "@chudware/utils";
-import * as fsx from "@chudware/utils/fsx";
+import { getAgentDir, isEnoent } from "@oh-my-pi/pi-utils";
 import { getMemoryRoot } from "../memories";
-import { getMnemopiSessionState, type MnemopiScopedMemoryHit, type MnemopiSessionState } from "../mnemo/state";
+import { getMnemopiSessionState, type MnemopiScopedMemoryHit, type MnemopiSessionState } from "../mnemopi/state";
+import memoryDoc from "../prompts/internal-urls/memory.md" with { type: "text" };
 import { AgentRegistry } from "../registry/agent-registry";
-import { isMarkdownPath } from "../utils/lang-from-path";
-import { buildDirectoryResource } from "./filesystem-resource";
-import { parseInternalUrl } from "./parse";
-import { validateRelativePath } from "./skill-protocol";
-import type { InternalResource, InternalUrl, ProtocolHandler, ResolveContext, UrlCompletion } from "./types";
+import type { AgentSession } from "../session/agent-session";
+import {
+	buildDirectoryResource,
+	containedRealPath,
+	contentTypeForPath,
+	ensureCreatableWithinRoot,
+	validateRelativePath,
+} from "./filesystem-resource";
+import type {
+	InternalResource,
+	InternalUrl,
+	LocateOptions,
+	ProtocolHandler,
+	ResolveContext,
+	SchemeHost,
+	SchemeSpec,
+	UrlCompletion,
+} from "./types";
+
+import { cfgMemoryBackend } from "../memory-backend/settings";
 
 const DEFAULT_MEMORY_FILE = "memory_summary.md";
 const MEMORY_NAMESPACE = "root";
+
+/**
+ * Hindsight keeps memories server-side and exposes no `memory://<id>`
+ * addressing, yet the shared `recall` tool description still steers a
+ * follow-up `read memory://<id>`. This corrective pointer lets that stray read
+ * self-correct in one turn instead of derailing on the generic namespace
+ * error (issue #7587).
+ */
+const HINDSIGHT_UNADDRESSABLE =
+	"Hindsight memories are not addressable via memory://. Recall results are final — use `recall` to search or `reflect` to synthesize. `read memory://<id>` is only available with memory.backend=mnemopi.";
 
 /**
  * Snapshot of memory roots for every registered session, deduped.
  * Each session has its own cwd (possibly a worktree), so subagents and main
  * may see different roots.
  */
-export function memoryRootsFromRegistry(): string[] {
+function memoryRootsFromRegistry(): string[] {
 	const agentDir = getAgentDir();
 	const roots: string[] = [];
 	for (const ref of AgentRegistry.global().list()) {
@@ -31,91 +56,22 @@ export function memoryRootsFromRegistry(): string[] {
 	return roots;
 }
 
-function memoryRootsForContext(context?: ResolveContext): string[] {
-	if (context?.cwd) return [getMemoryRoot(getAgentDir(), context.cwd)];
+/**
+ * File-backed memory roots visible to one caller. A context that names a cwd
+ * pins the root to it; otherwise the bound caller's own cwd is used, so a
+ * session-id-only caller never reads a peer project's summary. Contextless
+ * legacy callers keep the registry-wide sweep.
+ */
+function memoryRootsForContext(context: ResolveContext | undefined, caller: AgentSession | undefined): string[] {
+	const cwd = context?.cwd ?? caller?.sessionManager.getCwd();
+	if (cwd) return [getMemoryRoot(getAgentDir(), cwd)];
 	return memoryRootsFromRegistry();
-}
-
-function ensureWithinRoot(targetPath: string, rootPath: string): void {
-	if (targetPath !== rootPath && !targetPath.startsWith(`${rootPath}${path.sep}`)) {
-		throw new Error("memory:// URL escapes memory root");
-	}
-}
-
-function toMemoryValidationError(error: unknown): Error {
-	const message = error instanceof Error ? error.message : String(error);
-	return new Error(message.replace("skill://", "memory://"));
-}
-
-export interface MemoryGlobPattern {
-	baseUrl: string;
-	globPattern: string;
-}
-
-/**
- * Decode percent-escapes in a raw glob-suffix segment, bracket-escaping any
- * glob metacharacter that was percent-encoded so it stays a literal filename
- * character instead of becoming glob syntax.
- */
-function decodeGlobSuffixSegment(rawSegment: string): string {
-	// Escape runs are decoded together so multi-byte UTF-8 sequences survive.
-	return rawSegment.replace(/(?:%[0-9a-f]{2})+/gi, run => decodeURIComponent(run).replace(/[*?[{]/g, "[$&]"));
-}
-
-/**
- * Split a memory:// glob at its first wildcard after validating the complete
- * decoded path. The suffix is validated before filesystem globbing so `..`
- * cannot escape a safely resolved base directory.
- */
-export function splitMemoryGlobPattern(input: string): MemoryGlobPattern {
-	const urlMatch = input.match(/^([a-z][a-z0-9+.-]*:\/\/[^/?#]*)(\/.*)?$/i);
-	if (!urlMatch) {
-		throw new Error(`Invalid memory glob URL: ${input}`);
-	}
-
-	// Parse only the scheme and authority. A literal `?` in the path is glob
-	// syntax, not a query delimiter, and must survive unchanged.
-	const url = parseInternalUrl(urlMatch[1]);
-	const namespace = url.rawHost || url.hostname;
-	if (url.protocol !== "memory:" || namespace !== MEMORY_NAMESPACE) {
-		throw new Error(`Memory glob patterns require the ${MEMORY_NAMESPACE} namespace: ${input}`);
-	}
-
-	const rawPathname = urlMatch[2] ?? "";
-	if (/%(?:2f|5c)/i.test(rawPathname)) {
-		throw new Error(`Encoded path separators are not allowed in memory:// glob patterns: ${input}`);
-	}
-
-	let relativePath: string;
-	try {
-		relativePath = decodeURIComponent(rawPathname.replace(/^\//, ""));
-	} catch {
-		throw new Error(`Invalid URL encoding in memory:// path: ${input}`);
-	}
-
-	try {
-		validateRelativePath(relativePath);
-	} catch (error) {
-		throw toMemoryValidationError(error);
-	}
-
-	const rawSegments = rawPathname.replace(/^\//, "").split("/");
-	const firstGlobIndex = rawSegments.findIndex(segment => ["*", "?", "[", "{"].some(char => segment.includes(char)));
-	if (firstGlobIndex === -1) {
-		throw new Error(`memory:// URL does not contain a glob pattern: ${input}`);
-	}
-
-	const rawBasePath = rawSegments.slice(0, firstGlobIndex).join("/") || ".";
-	return {
-		baseUrl: `memory://${namespace}/${rawBasePath}`,
-		globPattern: rawSegments.slice(firstGlobIndex).map(decodeGlobSuffixSegment).join("/"),
-	};
 }
 
 /**
  * Resolve a memory:// URL to an absolute filesystem path under memory root.
  */
-export function resolveMemoryUrlToPath(url: InternalUrl, memoryRoot: string): string {
+function resolveMemoryUrlToPath(url: InternalUrl, memoryRoot: string): string {
 	const namespace = url.rawHost || url.hostname;
 	if (!namespace) {
 		throw new Error("memory:// URL requires a namespace: memory://root");
@@ -136,47 +92,42 @@ export function resolveMemoryUrlToPath(url: InternalUrl, memoryRoot: string): st
 		throw new Error(`Invalid URL encoding in memory:// path: ${url.href}`);
 	}
 
-	try {
-		validateRelativePath(relativePath);
-	} catch (error) {
-		throw toMemoryValidationError(error);
-	}
+	validateRelativePath(relativePath, "memory");
 
 	return path.resolve(memoryRoot, relativePath);
 }
 
-async function tryResolveInRoot(url: InternalUrl, memoryRoot: string): Promise<InternalResource | undefined> {
-	const resolved = path.resolve(memoryRoot);
+/**
+ * Contained location of a `memory://root` URL under one memory root: `real` is
+ * the realpath of an existing target, `target` the would-be path under the
+ * realpathed `root`. A bare `memory://root` addresses the summary file, or the
+ * root itself when `directory` is set. Undefined when the root does not exist.
+ */
+async function locateInRoot(
+	url: InternalUrl,
+	memoryRoot: string,
+	directory: boolean,
+): Promise<{ root: string; target: string; real: string | undefined } | undefined> {
 	let resolvedRoot: string;
 	try {
-		resolvedRoot = await fs.realpath(resolved);
+		resolvedRoot = await fs.realpath(path.resolve(memoryRoot));
 	} catch (error) {
 		if (isEnoent(error)) return undefined;
 		throw error;
 	}
+	const target = directory && isBareMemoryUrl(url) ? resolvedRoot : resolveMemoryUrlToPath(url, resolvedRoot);
+	return { root: resolvedRoot, target, real: await containedRealPath(target, resolvedRoot, "memory", url.href) };
+}
 
-	const targetPath = resolveMemoryUrlToPath(url, resolvedRoot);
-	ensureWithinRoot(targetPath, resolvedRoot);
+/** True for `memory://root` with no path, which reads the default summary file. */
+function isBareMemoryUrl(url: InternalUrl): boolean {
+	const rawPathname = url.rawPathname ?? url.pathname;
+	return !rawPathname || rawPathname === "/";
+}
 
-	if (targetPath !== resolvedRoot) {
-		const parentDir = path.dirname(targetPath);
-		try {
-			const realParent = await fs.realpath(parentDir);
-			ensureWithinRoot(realParent, resolvedRoot);
-		} catch (error) {
-			if (!isEnoent(error)) throw error;
-		}
-	}
-
-	let realTargetPath: string;
-	try {
-		realTargetPath = await fs.realpath(targetPath);
-	} catch (error) {
-		if (isEnoent(error)) return undefined;
-		throw error;
-	}
-
-	ensureWithinRoot(realTargetPath, resolvedRoot);
+async function tryResolveInRoot(url: InternalUrl, memoryRoot: string): Promise<InternalResource | undefined> {
+	const realTargetPath = (await locateInRoot(url, memoryRoot, false))?.real;
+	if (realTargetPath === undefined) return undefined;
 
 	const stat = await fs.stat(realTargetPath);
 	if (stat.isDirectory()) {
@@ -186,13 +137,12 @@ async function tryResolveInRoot(url: InternalUrl, memoryRoot: string): Promise<I
 		throw new Error(`memory:// URL must resolve to a file or directory: ${url.href}`);
 	}
 
-	const content = await fsx.readText(realTargetPath);
-	const contentType: InternalResource["contentType"] = isMarkdownPath(realTargetPath) ? "text/markdown" : "text/plain";
+	const content = await Bun.file(realTargetPath).text();
 
 	return {
 		url: url.href,
 		content,
-		contentType,
+		contentType: contentTypeForPath(realTargetPath),
 		size: Buffer.byteLength(content, "utf-8"),
 		sourcePath: realTargetPath,
 		notes: [],
@@ -200,7 +150,7 @@ async function tryResolveInRoot(url: InternalUrl, memoryRoot: string): Promise<I
 }
 
 /**
- * Snapshot of live mnemo session states, deduplicated. A mnemo backend
+ * Snapshot of live mnemopi session states, deduplicated. A mnemopi backend
  * always keeps its state on the {@link AgentSession} it was initialised for;
  * subagents alias their parent's state, so different `session` objects can
  * point at the same underlying banks. The dedupe below picks the
@@ -224,19 +174,103 @@ function mnemopiSessionStatesFromRegistry(): MnemopiSessionState[] {
 }
 
 function memoryBackendFromContext(context?: ResolveContext): string | undefined {
-	if (!context?.settings || typeof context.settings !== "object") return undefined;
-	try {
-		const get = Reflect.get(context.settings, "get");
-		if (typeof get !== "function") return undefined;
-		const backend = Reflect.apply(get, context.settings, ["memory.backend"]);
-		return typeof backend === "string" ? backend : undefined;
-	} catch {
-		return undefined;
-	}
+	return context?.settings ? cfgMemoryBackend.get(context.settings) : undefined;
 }
 
 /**
- * Look up a mnemo memory row by id across every live session's scoped banks.
+ * Memory identity of the session that issued a `memory://` URL.
+ *
+ * `session` is the live caller once it is bound. `legacy` marks the callers
+ * that named no identity at all — contextless reads and settings-only
+ * contexts — which keep the historical registry-wide lookup; a context that
+ * names a cwd is scoped even when no single live session sits in it.
+ */
+interface MemoryCallerBinding {
+	readonly session: AgentSession | undefined;
+	readonly backend: string | undefined;
+	readonly legacy: boolean;
+}
+
+/**
+ * Live session that issued the URL. `sessionFile` and `sessionId` are exact
+ * identities and win; a shared cwd only binds when exactly one live session
+ * sits in it, so two sessions in one worktree never impersonate each other.
+ */
+function findCallerSession(context: ResolveContext): AgentSession | undefined {
+	const refs = (context.agentRegistry ?? AgentRegistry.global()).list();
+	if (context.sessionFile !== undefined) {
+		const byFile = refs.find(ref => ref.session?.sessionFile === context.sessionFile)?.session;
+		if (byFile) return byFile;
+	}
+	if (context.sessionId !== undefined) {
+		const byId = refs.find(ref => ref.session?.sessionManager.getSessionId() === context.sessionId)?.session;
+		if (byId) return byId;
+	}
+	// An exact identity that matches no live session is a stale caller, never a
+	// cue to fall back to whoever else shares its cwd.
+	if (context.sessionFile !== undefined || context.sessionId !== undefined) return undefined;
+	if (context.cwd === undefined) return undefined;
+	const sameCwd = refs.filter(ref => ref.session?.sessionManager.getCwd() === context.cwd);
+	return sameCwd.length === 1 ? (sameCwd[0]?.session ?? undefined) : undefined;
+}
+
+function resolveMemoryCaller(context?: ResolveContext): MemoryCallerBinding {
+	if (!context) return { session: undefined, backend: undefined, legacy: true };
+	const session = findCallerSession(context);
+	// The caller's own session owns the backend decision: not every tool threads
+	// its settings blob, and a same-cwd peer's backend is not an answer.
+	if (session) return { session, backend: cfgMemoryBackend.get(session.settings), legacy: false };
+	if (context.sessionFile !== undefined || context.sessionId !== undefined) {
+		// The named caller is gone; a surviving peer may not answer for it.
+		return { session: undefined, backend: "off", legacy: false };
+	}
+	// A cwd that names no single live session still scopes the file-backed root,
+	// but it identifies no bank: peer memory ids stay unreachable.
+	return { session: undefined, backend: memoryBackendFromContext(context), legacy: context.cwd === undefined };
+}
+
+/**
+ * Canonical mnemopi state of one session. Subagents alias their parent's
+ * state, so the alias is resolved to the state that owns the banks.
+ */
+function callerMnemopiState(session: AgentSession): MnemopiSessionState | undefined {
+	const state = getMnemopiSessionState(session);
+	return state?.aliasOf ?? state;
+}
+
+function unknownNamespaceError(namespace: string): Error {
+	return new Error(
+		`Unknown memory namespace: ${namespace}. Supported: ${MEMORY_NAMESPACE} (file-backed memory summary), or a mnemopi memory id when memory.backend=mnemopi is active.`,
+	);
+}
+
+/**
+ * Error for the file-backed `memory://root` namespace when it is unavailable.
+ * Only `memory.backend=local` owns this namespace; hindsight keeps memory
+ * server-side and mnemopi in SQLite banks. Non-local callers must not see
+ * potentially stale files left by an earlier local session. The backend-aware
+ * message points at the tools that can actually answer instead of prescribing
+ * "enable memories" to a caller whose backend is already healthy.
+ */
+function fileBackedRootUnavailableError(backend: string | undefined): Error {
+	if (backend === undefined || backend === "local") {
+		return new Error(
+			"Memory artifacts are not available for this project yet. Run a session with memories enabled first.",
+		);
+	}
+	const searchHint =
+		backend === "mnemopi"
+			? " Use `recall`/`reflect` to search Mnemopi memories, or `read memory://<memory-id>` for a full row."
+			: backend === "hindsight"
+				? " Use `recall`/`reflect` to search Hindsight memories."
+				: "";
+	return new Error(
+		`File-backed memory artifacts only exist with memory.backend=local (active backend: ${backend}).${searchHint}`,
+	);
+}
+
+/**
+ * Look up a mnemopi memory row by id across every live session's scoped banks.
  * First hit wins; returns `null` when the id is not stored anywhere in scope.
  */
 function tryResolveMnemopiMemory(id: string): MnemopiScopedMemoryHit | null {
@@ -248,7 +282,7 @@ function tryResolveMnemopiMemory(id: string): MnemopiScopedMemoryHit | null {
 }
 
 /**
- * Render a mnemo memory row as text/markdown with a small YAML-front-matter
+ * Render a mnemopi memory row as text/markdown with a small YAML-front-matter
  * header. The frontmatter carries the metadata an agent needs to reason about
  * a working vs episodic memory (bank, store, timestamps, importance) without
  * having to reconstruct it from the recall preview.
@@ -268,22 +302,9 @@ function renderMnemopiMemory(url: InternalUrl, hit: MnemopiScopedMemoryHit): Int
 		(row.importance != null ? `importance: ${row.importance}\n` : "") +
 		(row.veracity ? `veracity: ${row.veracity}\n` : "") +
 		(row.session_id ? `session_id: ${row.session_id}\n` : "") +
-		(row.history.length > 0 ? `history_events: ${row.history.length}\n` : "") +
 		meta +
 		"---\n\n";
-	const history =
-		row.history.length === 0
-			? ""
-			: `\n\n## Mutation history (newest first)\n\n${row.history
-					.map(
-						event =>
-							`- ${event.created_at} · ${event.event} · ${event.memory_store}` +
-							(event.replacement_id ? ` · replacement \`${event.replacement_id}\`` : "") +
-							`\n  - old: \`${event.old_content_sha256 ?? "none"}\` ${JSON.stringify(event.old_content_preview)}` +
-							`\n  - new: \`${event.new_content_sha256 ?? "none"}\` ${JSON.stringify(event.new_content_preview)}`,
-					)
-					.join("\n")}`;
-	const content = `${header}${row.content}${history}`;
+	const content = `${header}${row.content}`;
 	return {
 		url: url.href,
 		content,
@@ -295,16 +316,73 @@ function renderMnemopiMemory(url: InternalUrl, hit: MnemopiScopedMemoryHit): Int
 
 /**
  * Protocol handler for memory:// URLs.
- * Resolves file-backed roots against the calling session cwd when provided.
- * Contextless callers fall back to the live-session registry for legacy
- * cross-session lookups.
+ * Binds the URL to the session that issued it: the caller's own memory
+ * backend decides how `memory://<id>` is answered, and its cwd decides which
+ * file-backed root is read. Callers that name no identity keep the legacy
+ * registry-wide lookup.
  */
 export class MemoryProtocolHandler implements ProtocolHandler {
 	readonly scheme = "memory";
-	readonly immutable = true;
+	readonly spec: SchemeSpec = {
+		backing: "file",
+		selectors: "lines",
+		immutable: true,
+		linkable: true,
+	};
+
+	/** Advertised only when the session's memory backend owns the file-backed `memory://root` namespace. */
+	promptDoc(host: SchemeHost): string | undefined {
+		return host.memoryBackend === "local" ? memoryDoc.trim() : undefined;
+	}
+
+	/**
+	 * File backing `memory://root[/<path>]` for a local-backend caller; null for
+	 * mnemopi ids, non-local backends, and missing entries without `create`.
+	 */
+	async locate(url: InternalUrl, context?: ResolveContext, options?: LocateOptions): Promise<string | null> {
+		const caller = resolveMemoryCaller(context);
+		if (caller.backend === "off") return null;
+		const namespace = url.rawHost || url.hostname;
+		if (!namespace) {
+			throw new Error("memory:// URL requires a namespace: memory://root or memory://<memory-id>");
+		}
+		if (namespace !== MEMORY_NAMESPACE) return null;
+		if (caller.backend !== undefined && caller.backend !== "local") return null;
+
+		const directory = options?.directory === true;
+		let wouldBe: { root: string; target: string } | undefined;
+		for (const root of memoryRootsForContext(context, caller.session)) {
+			const located = await locateInRoot(url, root, directory);
+			if (located?.real !== undefined) return located.real;
+			wouldBe ??= located ?? {
+				root: path.resolve(root),
+				target:
+					directory && isBareMemoryUrl(url) ? path.resolve(root) : resolveMemoryUrlToPath(url, path.resolve(root)),
+			};
+		}
+		if (!options?.create || !wouldBe) return null;
+		await ensureCreatableWithinRoot(wouldBe.target, wouldBe.root, "memory", url.href);
+		return wouldBe.target;
+	}
+
+	locateSync(url: InternalUrl): string | undefined {
+		try {
+			for (const root of memoryRootsFromRegistry()) {
+				try {
+					return resolveMemoryUrlToPath(url, root);
+				} catch {
+					// Try the next root; some sessions may not have this namespace mounted.
+				}
+			}
+		} catch {
+			return undefined;
+		}
+		return undefined;
+	}
 
 	async resolve(url: InternalUrl, context?: ResolveContext): Promise<InternalResource> {
-		const backend = memoryBackendFromContext(context);
+		const caller = resolveMemoryCaller(context);
+		const backend = caller.backend;
 		if (backend === "off") {
 			throw new Error("Unknown protocol: memory://");
 		}
@@ -313,12 +391,24 @@ export class MemoryProtocolHandler implements ProtocolHandler {
 			throw new Error("memory:// URL requires a namespace: memory://root or memory://<memory-id>");
 		}
 
-		// Mnemo rows live in SQLite banks per session, keyed by memory id.
+		// Mnemopi rows live in SQLite banks per session, keyed by memory id.
 		// Any host other than the file-backed `root` namespace is treated as a
-		// mnemo memory id lookup. This is the read counterpart to
+		// mnemopi memory id lookup. This is the read counterpart to
 		// `memory_edit update` and lets agents inspect the full content of a
 		// clipped recall preview before overwriting it (issue #4443).
 		if (namespace !== MEMORY_NAMESPACE) {
+			if (!caller.legacy) {
+				if (backend === "hindsight") throw new Error(HINDSIGHT_UNADDRESSABLE);
+				if (backend === "mnemopi") {
+					const hit = caller.session ? callerMnemopiState(caller.session)?.getScopedMemory(namespace) : undefined;
+					if (hit) return renderMnemopiMemory(url, hit);
+					throw new Error(
+						`Mnemopi memory ${namespace} not found in the calling session's scoped bank. Use \`recall\` to list available ids.`,
+					);
+				}
+				throw unknownNamespaceError(namespace);
+			}
+
 			const mnemopiStates = mnemopiSessionStatesFromRegistry();
 			const hindsightActive =
 				backend === "hindsight" ||
@@ -327,33 +417,29 @@ export class MemoryProtocolHandler implements ProtocolHandler {
 						.list()
 						.some(ref => ref.session?.getHindsightSessionState?.()));
 			if (hindsightActive) {
-				// Hindsight keeps memories server-side and exposes no
-				// `memory://<id>` addressing, yet the shared `recall` tool
-				// description still steers a follow-up `read memory://<id>`.
-				// Return a corrective pointer so that stray read self-corrects in
-				// one turn instead of derailing on the generic namespace error
-				// (issue #7587).
-				throw new Error(
-					"Hindsight memories are not addressable via memory://. Recall results are final — use `recall` to search or `reflect` to synthesize. `read memory://<id>` is only available with memory.backend=mnemo.",
-				);
+				throw new Error(HINDSIGHT_UNADDRESSABLE);
 			}
 			if (mnemopiStates.length === 0) {
-				throw new Error(
-					`Unknown memory namespace: ${namespace}. Supported: ${MEMORY_NAMESPACE} (file-backed memory summary), or a mnemo memory id when memory.backend=mnemo is active.`,
-				);
+				throw unknownNamespaceError(namespace);
 			}
 			const hit = tryResolveMnemopiMemory(namespace);
 			if (hit) return renderMnemopiMemory(url, hit);
 			throw new Error(
-				`Mnemo memory ${namespace} not found in any scoped bank. Use \`recall\` to list available ids.`,
+				`Mnemopi memory ${namespace} not found in any scoped bank. Use \`recall\` to list available ids.`,
 			);
 		}
 
-		const roots = memoryRootsForContext(context);
+		// A project may retain files from an earlier local session. Reject known
+		// non-local callers before probing the filesystem so those stale
+		// artifacts cannot leak across backend changes. Contextless legacy
+		// callers have no active backend to gate and retain the registry sweep.
+		if (backend !== undefined && backend !== "local") {
+			throw fileBackedRootUnavailableError(backend);
+		}
+
+		const roots = memoryRootsForContext(context, caller.session);
 		if (roots.length === 0) {
-			throw new Error(
-				"Memory artifacts are not available for this project yet. Run a session with memories enabled first.",
-			);
+			throw fileBackedRootUnavailableError(backend);
 		}
 
 		let anyExists = false;
@@ -370,23 +456,28 @@ export class MemoryProtocolHandler implements ProtocolHandler {
 		}
 
 		if (!anyExists) {
-			throw new Error(
-				"Memory artifacts are not available for this project yet. Run a session with memories enabled first.",
-			);
+			throw fileBackedRootUnavailableError(backend);
 		}
 
 		throw new Error(`Memory file not found: ${url.href}`);
 	}
 
 	async complete(_query?: string, context?: ResolveContext): Promise<UrlCompletion[]> {
+		const caller = resolveMemoryCaller(context);
+		if (caller.backend === "off") return [];
 		const completions: UrlCompletion[] = [];
-		if (memoryRootsForContext(context).length > 0) {
+		if (caller.backend === "local") {
 			completions.push({ value: MEMORY_NAMESPACE, description: "Project memory summary" });
 		}
-		if (mnemopiSessionStatesFromRegistry().length > 0) {
+		const mnemopiAvailable = caller.legacy
+			? mnemopiSessionStatesFromRegistry().length > 0
+			: caller.backend === "mnemopi" &&
+				caller.session !== undefined &&
+				callerMnemopiState(caller.session) !== undefined;
+		if (mnemopiAvailable) {
 			completions.push({
 				value: "<memory-id>",
-				description: "Full mnemo memory by id (from recall)",
+				description: "Full mnemopi memory by id (from recall)",
 			});
 		}
 		return completions;

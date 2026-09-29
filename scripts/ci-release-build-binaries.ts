@@ -30,32 +30,60 @@ const transformersVersion = transformersManifest.version;
 const isDryRun = process.argv.includes("--dry-run");
 const targets: BinaryTarget[] = [
 	{
+		id: "darwin-arm64",
+		platform: "darwin",
+		arch: "arm64",
+		target: "bun-darwin-arm64",
+		outfile: "packages/coding-agent/binaries/omp-darwin-arm64",
+	},
+	{
 		id: "darwin-x64",
 		platform: "darwin",
 		arch: "x64",
 		target: "bun-darwin-x64",
-		outfile: "packages/coding-agent/binaries/chudcode-darwin-x64",
+		outfile: "packages/coding-agent/binaries/omp-darwin-x64",
 	},
 	{
 		id: "linux-x64",
 		platform: "linux",
 		arch: "x64",
 		target: "bun-linux-x64-baseline",
-		outfile: "packages/coding-agent/binaries/chudcode-linux-x64",
+		outfile: "packages/coding-agent/binaries/omp-linux-x64",
+	},
+	{
+		id: "linux-arm64",
+		platform: "linux",
+		arch: "arm64",
+		target: "bun-linux-arm64",
+		outfile: "packages/coding-agent/binaries/omp-linux-arm64",
 	},
 	{
 		id: "linux-musl-x64",
 		platform: "linux",
 		arch: "x64",
 		target: "bun-linux-x64-musl-baseline",
-		outfile: "packages/coding-agent/binaries/chudcode-linux-musl-x64",
+		outfile: "packages/coding-agent/binaries/omp-linux-musl-x64",
+	},
+	{
+		id: "linux-musl-arm64",
+		platform: "linux",
+		arch: "arm64",
+		target: "bun-linux-arm64-musl",
+		outfile: "packages/coding-agent/binaries/omp-linux-musl-arm64",
 	},
 	{
 		id: "win32-x64",
 		platform: "win32",
 		arch: "x64",
 		target: "bun-windows-x64-baseline",
-		outfile: "packages/coding-agent/binaries/chudcode-windows-x64.exe",
+		outfile: "packages/coding-agent/binaries/omp-windows-x64.exe",
+	},
+	{
+		id: "win32-arm64",
+		platform: "win32",
+		arch: "arm64",
+		target: "bun-windows-arm64",
+		outfile: "packages/coding-agent/binaries/omp-windows-arm64.exe",
 	},
 ];
 
@@ -64,7 +92,7 @@ function parseRequestedTargets(): Set<string> | null {
 	const flagValue =
 		flagIndex >= 0
 			? process.argv[flagIndex + 1]
-			: (process.argv.find(arg => arg.startsWith("--targets="))?.split("=", 2)[1] ?? process.env.RELEASE_TARGETS);
+			: (process.argv.find(arg => arg.startsWith("--targets="))?.split("=", 2)[1] ?? Bun.env.RELEASE_TARGETS);
 
 	if (!flagValue) {
 		return null;
@@ -82,7 +110,7 @@ function shouldAdhocSignDarwinBinary(target: BinaryTarget): boolean {
 	return target.platform === "darwin" && process.platform === "darwin";
 }
 
-async function runCommand(command: string[], cwd: string, env: NodeJS.ProcessEnv = process.env): Promise<void> {
+async function runCommand(command: string[], cwd: string, env: NodeJS.ProcessEnv = Bun.env): Promise<void> {
 	const proc = Bun.spawn(command, {
 		cwd,
 		env,
@@ -102,7 +130,7 @@ async function embedNative(target: BinaryTarget): Promise<void> {
 	}
 
 	await runCommand(["bun", "run", "gen:native"], repoRoot, {
-		...process.env,
+		...Bun.env,
 		TARGET_PLATFORM: target.platform,
 		TARGET_ARCH: target.arch,
 	});
@@ -129,7 +157,18 @@ async function buildBinary(target: BinaryTarget): Promise<void> {
 	});
 	// Bun 1.3.12 emits a truncated Mach-O signature on darwin builds.
 	if (shouldAdhocSignDarwinBinary(target)) {
-		await runCommand(["codesign", "--force", "--sign", "-", path.join(repoRoot, target.outfile)], repoRoot);
+		await runCommand(
+			[
+				"codesign",
+				"--force",
+				"--sign",
+				"-",
+				"--entitlements",
+				path.join(repoRoot, "scripts", "macos-entitlements.plist"),
+				path.join(repoRoot, target.outfile),
+			],
+			repoRoot,
+		);
 	}
 }
 

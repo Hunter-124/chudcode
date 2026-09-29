@@ -1,15 +1,15 @@
 # Extension Examples
 
-Example extensions for chudcode-agent.
+Example extensions for pi-coding-agent.
 
 ## Usage
 
 ```bash
 # Load an extension with --extension flag
-chud --extension examples/extensions/permission-gate.ts
+pi --extension examples/extensions/permission-gate.ts
 
 # Or copy to extensions directory for auto-discovery
-cp permission-gate.ts ~/.chudcode/agent/extensions/
+cp permission-gate.ts ~/.omp/agent/extensions/
 ```
 
 ## Examples
@@ -34,15 +34,15 @@ cp permission-gate.ts ~/.chudcode/agent/extensions/
 
 ### Commands & UI
 
-| Extension        | Description                                                                    |
-| ---------------- | ------------------------------------------------------------------------------ |
-| `plan-mode.ts`   | Claude Code-style plan mode for read-only exploration with `/plan` command     |
-| `tools.ts`       | Interactive `/tools` command to enable/disable tools with session persistence  |
-| `handoff.ts`     | Transfer context to a new focused session via `/handoff <goal>`                |
-| `qna.ts`         | Extracts questions from last response into editor via `ctx.ui.setEditorText()` |
-| `status-line.ts` | Shows turn progress in footer via `ctx.ui.setStatus()` with themed colors      |
+| Extension          | Description                                                                    |
+| ------------------ | ------------------------------------------------------------------------------ |
+| `plan-mode.ts`     | Claude Code-style plan mode for read-only exploration with `/plan` command     |
+| `tools.ts`         | Interactive `/tools` command to enable/disable tools with session persistence  |
+| `handoff.ts`       | Transfer context to a new focused session via `/handoff <goal>`                |
+| `qna.ts`           | Extracts questions from last response into editor via `ctx.ui.setEditorText()` |
+| `status-line.ts`   | Shows turn progress in footer via `ctx.ui.setStatus()` with themed colors      |
 | `thinking-note.ts` | Adds display-only supplemental UI below assistant thinking blocks              |
-| `snake.ts`       | Snake game with custom UI, keyboard handling, and session persistence          |
+| `snake.ts`         | Snake game with custom UI, keyboard handling, and session persistence          |
 
 ### Git Integration
 
@@ -71,13 +71,13 @@ cp permission-gate.ts ~/.chudcode/agent/extensions/
 See [docs/extensions.md](../../docs/extensions.md) for full documentation.
 
 ```typescript
-import type { ExtensionAPI } from "@chudware/coding-agent";
+import type { ExtensionAPI } from "@oh-my-pi/pi-coding-agent";
 
-export default function (chud: ExtensionAPI) {
-	const z = chud.zod;
+export default function (pi: ExtensionAPI) {
+	const z = pi.zod;
 
 	// Subscribe to lifecycle events
-	chud.on("tool_call", async (event, ctx) => {
+	pi.on("tool_call", async (event, ctx) => {
 		if (event.toolName === "bash" && event.input.command?.includes("rm -rf")) {
 			const ok = await ctx.ui.confirm("Dangerous!", "Allow rm -rf?");
 			if (!ok) return { block: true, reason: "Blocked by user" };
@@ -85,7 +85,7 @@ export default function (chud: ExtensionAPI) {
 	});
 
 	// Register custom tools
-	chud.registerTool({
+	pi.registerTool({
 		name: "greet",
 		label: "Greeting",
 		description: "Generate a greeting",
@@ -101,7 +101,7 @@ export default function (chud: ExtensionAPI) {
 	});
 
 	// Register commands
-	chud.registerCommand("hello", {
+	pi.registerCommand("hello", {
 		description: "Say hello",
 		handler: async (args, ctx) => {
 			ctx.ui.notify("Hello!", "info");
@@ -109,12 +109,13 @@ export default function (chud: ExtensionAPI) {
 	});
 }
 ```
+
 ## Key Patterns
 
 **Use `z.enum` for discriminated string tool args:**
 
 ```typescript
-const z = chud.zod;
+const z = pi.zod;
 
 parameters: z.object({
 	action: z.enum(["list", "add"]),
@@ -131,7 +132,7 @@ return {
 };
 
 // Reconstruct on session events
-chud.on("session_start", async (_event, ctx) => {
+pi.on("session_start", async (_event, ctx) => {
 	for (const entry of ctx.sessionManager.getBranch()) {
 		if (entry.type === "message" && entry.message.toolName === "my_tool") {
 			const details = entry.message.details;

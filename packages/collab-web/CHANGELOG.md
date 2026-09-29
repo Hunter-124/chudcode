@@ -2,6 +2,52 @@
 
 ## [Unreleased]
 
+## [18.4.1] - 2026-09-28
+
+### Fixed
+
+- Prevented iOS Safari from zooming collab text fields on focus in wide touch viewports, including landscape orientation ([#13371](https://github.com/can1357/oh-my-pi/pull/13371) by [@andersennl](https://github.com/andersennl)).
+
+## [18.4.0] - 2026-09-28
+
+### Changed
+
+- Redesigned the web client: black chassis with one inset session panel, glass top bar with the omp mark and a live status pill, a docked composer card, prompts shown as cards in the transcript, a sectioned agents rail, and a floating agent drawer; the connect screen was rebuilt too
+
+## [18.3.1] - 2026-09-25
+
+### Fixed
+
+- Improved large-session browsing and reconnect behavior: recent transcript entries load quickly, earlier entries can be loaded on demand without losing your place, and the existing transcript remains visible with download progress during reconnects.
+
+## [18.3.0] - 2026-09-24
+
+### Added
+
+- Added support for rendering coordinated job and messaging views through the `wait` tool.
+
+### Removed
+
+- Removed the obsolete `hub` tool renderer.
+
+## [18.2.1] - 2026-09-15
+
+### Fixed
+
+- Browser collab guests now automatically rejoin when a transient host network drop recreates the relay room ([#11858](https://github.com/can1357/oh-my-pi/issues/11858)).
+
+## [18.1.17] - 2026-09-10
+
+### Fixed
+
+- Transcript links are now allowed by the scheme the browser will actually resolve, so a destination that only becomes `javascript:` after URL normalization is dropped like any other unsafe scheme ([#11562](https://github.com/can1357/oh-my-pi/pull/11562) by [@alphastorm](https://github.com/alphastorm)).
+
+## [18.1.3] - 2026-09-02
+
+### Fixed
+
+- The guest transcript now returns to the latest message after an initial connection or reconnect.
+
 ## [18.0.8] - 2026-08-27
 
 ### Added
@@ -19,7 +65,7 @@
 
 ### Changed
 
-- Updated the Markdown parsing implementation to use @chudware/utils.
+- Updated the Markdown parsing implementation to use @oh-my-pi/pi-utils.
 
 ## [17.2.2] - 2026-07-31
 
@@ -50,7 +96,7 @@
 
 ### Fixed
 
-- Rendered user and host transcript messages as Markdown and separated adjacent assistant content blocks. ([#5559](https://github.com/Hunter-124/chudcode/issues/5559))
+- Rendered user and host transcript messages as Markdown and separated adjacent assistant content blocks. ([#5559](https://github.com/can1357/oh-my-pi/issues/5559))
 
 ## [17.0.0] - 2026-07-15
 
@@ -106,7 +152,7 @@
 
 ### Fixed
 
-- Hid advisory wrapper tags in collab transcript Markdown while preserving their content. ([#3559](https://github.com/Hunter-124/chudcode/issues/3559))
+- Hid advisory wrapper tags in collab transcript Markdown while preserving their content. ([#3559](https://github.com/can1357/oh-my-pi/issues/3559))
 
 ## [16.1.16] - 2026-06-23
 
@@ -134,7 +180,7 @@
 
 ### Fixed
 
-- Fixed the guest hanging in the "waiting" phase on large host sessions: the client now accumulates `snapshot-chunk` frames into the transcript snapshot and only transitions to `live` after the final chunk lands (or immediately when the host's snapshot is empty). ([#3144](https://github.com/Hunter-124/chudcode/issues/3144))
+- Fixed the guest hanging in the "waiting" phase on large host sessions: the client now accumulates `snapshot-chunk` frames into the transcript snapshot and only transitions to `live` after the final chunk lands (or immediately when the host's snapshot is empty). ([#3144](https://github.com/can1357/oh-my-pi/issues/3144))
 
 ## [16.0.10] - 2026-06-18
 
@@ -210,7 +256,7 @@
 - Added a `readOnly` field to guest snapshots to indicate whether the connected guest has view-only access
 - Link parsing accepts full web deep links (`https://<relay>/#<link>`) pasted into the connect screen, matching the URL `/collab` now prints
 - Site metadata for the deployed client: favicon set, web app manifest, robots.txt, sitemap, JSON-LD, and Open Graph/Twitter cards with a collab-specific og-image; static assets live in `public/` and are copied into `dist/` at build
-- Added `src/tool-render/`: a shared per-tool React renderer suite (one view per built-in tool — bash, read, edit diffs, todo boards, eval cells, task batches, LSP, search, browser screenshots, …) with a common chrome (`ToolView`), design tokens that adapt to the host theme, and an `<chudcode-tool-view>` web-component wrapper; `scripts/build-tool-views.ts` bundles it (React included) for embedding into coding-agent HTML session exports
+- Added `src/tool-render/`: a shared per-tool React renderer suite (one view per built-in tool — bash, read, edit diffs, todo boards, eval cells, task batches, LSP, search, browser screenshots, …) with a common chrome (`ToolView`), design tokens that adapt to the host theme, and an `<omp-tool-view>` web-component wrapper; `scripts/build-tool-views.ts` bundles it (React included) for embedding into coding-agent HTML session exports
 - Task tool cards now render agent ids as drill-down links: clicking one opens the matching subagent drawer in the live client (and the embedded sub-session overlay in HTML exports) via the new `ToolRenderHost` seam
 
 ### Changed
@@ -218,7 +264,7 @@
 - Changed composer input to disable prompting and show a read-only session placeholder when guests connect in view-only mode
 - Changed agent drawer to hide kill/revive controls and message input for read-only guests
 - Changed header bar to show a read-only session chip and label read-only participants as view-only
-- Restyled the client onto the chudcode brand palette: deep-purple surfaces, pink accent, cyan focus ring (was warm amber); og-image re-rendered to match
+- Restyled the client onto the omp brand palette: deep-purple surfaces, pink accent, cyan focus ring (was warm amber); og-image re-rendered to match
 - Transcript tool cards now use the per-tool renderers instead of the generic args/result JSON dump — structured summaries in the collapsed header and tool-specific bodies (commands, diffs, todo boards, result images) when expanded
 
 ## [15.11.8] - 2026-06-12
@@ -234,7 +280,7 @@
 
 - Changed relay socket behavior to retry transient disconnections with exponential backoff while treating terminal relay-close conditions and decryption failures as non-retriable
 - Changed subagent transcript decoding to handle streamed JSONL payload chunks incrementally by preserving carry-over data across chunks
-- Replaced the vendored collab wire type mirror with shared `@chudware/wire` protocol contracts.
+- Replaced the vendored collab wire type mirror with shared `@oh-my-pi/pi-wire` protocol contracts.
 
 ### Security
 

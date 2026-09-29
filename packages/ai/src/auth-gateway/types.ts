@@ -1,4 +1,4 @@
-import type { Effort } from "@chudware/catalog/effort";
+import type { Effort } from "@oh-my-pi/pi-catalog/effort";
 import type {
 	AssistantMessage,
 	AssistantMessageEventStream,
@@ -10,12 +10,12 @@ import type {
 } from "../types";
 
 /**
- * Wire types for the chudcode auth-gateway.
+ * Wire types for the omp auth-gateway.
  *
- * The gateway sits between unauthenticated clients (containerized chudcode,
+ * The gateway sits between unauthenticated clients (containerized omp,
  * llm-git, …) and the broker. It accepts provider-format HTTP requests
  * (OpenAI chat-completions / Anthropic messages / OpenAI Responses),
- * dispatches them through chud-ai's `streamSimple()`, and translates the
+ * dispatches them through pi-ai's `streamSimple()`, and translates the
  * canonical event stream back to the matching wire format. The gateway
  * injects `Authorization` server-side so clients never see access tokens.
  */
@@ -60,6 +60,11 @@ export interface AuthGatewayParsedRequestOptions {
 	/** Force-disable reasoning (Anthropic `thinking: { type: "disabled" }`). */
 	disableReasoning?: boolean;
 	/**
+	 * Preserve an explicit wire-level reasoning-off request through providers
+	 * that distinguish it from the generic disable hint.
+	 */
+	forceReasoningOff?: boolean;
+	/**
 	 * Explicit Anthropic `thinking.budget_tokens`. Mirrors Rust's
 	 * `resolve_thinking_budget`: pins onto whichever effort the client
 	 * requested (defaulting to High when unspecified). Preferred over the
@@ -72,6 +77,8 @@ export interface AuthGatewayParsedRequestOptions {
 	hideThinkingSummary?: boolean;
 	/** Anthropic `output_config.task_budget` advisory loop budget. */
 	taskBudget?: TokenTaskBudget;
+	/** Anthropic preserved-thinking behavior for a changed conversation prefix. */
+	anthropicPrefixMismatchBehavior?: "drop_block" | "error";
 
 	// ── Service / routing ─────────────────────────────────────────────────
 	/** OpenAI service tier (auto|default|flex|scale|priority). */
@@ -92,6 +99,8 @@ export interface AuthGatewayParsedRequestOptions {
 	 * free-form bag. The gateway forwards as-is.
 	 */
 	metadata?: Record<string, unknown>;
+	/** Anthropic User Profile attribution from the inbound request header. */
+	userProfileId?: string;
 	/**
 	 * Captured allow-listed passthrough headers (anthropic-beta,
 	 * anthropic-version, openai-organization, openai-project, openai-beta,

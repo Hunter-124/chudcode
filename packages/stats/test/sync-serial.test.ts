@@ -1,10 +1,9 @@
 import { afterEach, describe, expect, it, vi } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
-import { syncAllSessions } from "@chudware/stats/aggregator";
-import { getOverallStats } from "@chudware/stats/db";
-import { getSessionsDir } from "@chudware/utils";
-import * as fsx from "@chudware/utils/fsx";
+import { syncAllSessions } from "@oh-my-pi/omp-stats/aggregator";
+import { getOverallStats } from "@oh-my-pi/omp-stats/rollup";
+import { getSessionsDir } from "@oh-my-pi/pi-utils";
 import { installStatsTestIsolation } from "./helpers/temp-agent";
 
 installStatsTestIsolation("@pi-stats-sync-serial-");
@@ -44,7 +43,7 @@ async function writeSessionFile(options?: { includeCost?: boolean }): Promise<vo
 			ttft: 5,
 		},
 	};
-	await fsx.write(sessionFile, `${JSON.stringify(assistant)}\n`);
+	await Bun.write(sessionFile, `${JSON.stringify(assistant)}\n`);
 }
 
 describe("stats sync serial mode", () => {

@@ -28,18 +28,6 @@ export interface Keybindings {
 	"tui.editor.yankPop": true;
 	"tui.editor.undo": true;
 	"tui.editor.spellingSuggestions": true;
-	"tui.editor.redo": true;
-	"tui.editor.selectAll": true;
-	"tui.editor.selectLeft": true;
-	"tui.editor.selectRight": true;
-	"tui.editor.selectUp": true;
-	"tui.editor.selectDown": true;
-	"tui.editor.selectWordLeft": true;
-	"tui.editor.selectWordRight": true;
-	"tui.editor.selectToLineStart": true;
-	"tui.editor.selectToLineEnd": true;
-	"tui.editor.cut": true;
-	"tui.editor.paste": true;
 	// Generic input actions
 	"tui.input.newLine": true;
 	"tui.input.submit": true;
@@ -131,18 +119,6 @@ export const TUI_KEYBINDINGS = {
 	"tui.editor.yank": { defaultKeys: "ctrl+y", description: "Yank" },
 	"tui.editor.yankPop": { defaultKeys: "alt+y", description: "Yank pop" },
 	"tui.editor.undo": { defaultKeys: ["ctrl+-", "ctrl+_"], description: "Undo" },
-	"tui.editor.redo": { defaultKeys: ["alt+-", "alt+_"], description: "Redo" },
-	"tui.editor.selectAll": { defaultKeys: [], description: "Select all text" },
-	"tui.editor.selectLeft": { defaultKeys: [], description: "Extend selection left" },
-	"tui.editor.selectRight": { defaultKeys: [], description: "Extend selection right" },
-	"tui.editor.selectUp": { defaultKeys: [], description: "Extend selection up" },
-	"tui.editor.selectDown": { defaultKeys: [], description: "Extend selection down" },
-	"tui.editor.selectWordLeft": { defaultKeys: [], description: "Extend selection one word left" },
-	"tui.editor.selectWordRight": { defaultKeys: [], description: "Extend selection one word right" },
-	"tui.editor.selectToLineStart": { defaultKeys: [], description: "Extend selection to line start" },
-	"tui.editor.selectToLineEnd": { defaultKeys: [], description: "Extend selection to line end" },
-	"tui.editor.cut": { defaultKeys: [], description: "Cut selected text" },
-	"tui.editor.paste": { defaultKeys: [], description: "Paste clipboard text" },
 	"tui.editor.spellingSuggestions": {
 		defaultKeys: "ctrl+.",
 		description: "Show spelling replacements",
@@ -270,19 +246,13 @@ function normalizeKeys(keys: KeyId | KeyId[] | undefined): KeyId[] {
 
 export class KeybindingsManager {
 	#definitions: KeybindingDefinitions;
-	#presetBindings: KeybindingsConfig;
 	#userBindings: KeybindingsConfig;
 	#keysById = new Map<Keybinding, KeyId[]>();
 	#matchKeysById = new Map<Keybinding, Set<string>>();
 	#conflicts: KeybindingConflict[] = [];
 
-	constructor(
-		definitions: KeybindingDefinitions,
-		userBindings: KeybindingsConfig = {},
-		presetBindings: KeybindingsConfig = {},
-	) {
+	constructor(definitions: KeybindingDefinitions, userBindings: KeybindingsConfig = {}) {
 		this.#definitions = definitions;
-		this.#presetBindings = presetBindings;
 		this.#userBindings = userBindings;
 		this.#rebuild();
 	}
@@ -292,17 +262,17 @@ export class KeybindingsManager {
 		this.#matchKeysById.clear();
 		this.#conflicts = [];
 
-		const configuredClaims = new Map<KeyId, Set<Keybinding>>();
-		for (const id of Object.keys(this.#definitions)) {
-			const configuredKeys = this.#userBindings[id] ?? this.#presetBindings[id];
-			for (const key of normalizeKeys(configuredKeys)) {
-				const claimants = configuredClaims.get(key) ?? new Set<Keybinding>();
-				claimants.add(id as Keybinding);
-				configuredClaims.set(key, claimants);
+		const userClaims = new Map<KeyId, Set<Keybinding>>();
+		for (const [keybinding, keys] of Object.entries(this.#userBindings)) {
+			if (!(keybinding in this.#definitions)) continue;
+			for (const key of normalizeKeys(keys)) {
+				const claimants = userClaims.get(key) ?? new Set<Keybinding>();
+				claimants.add(keybinding as Keybinding);
+				userClaims.set(key, claimants);
 			}
 		}
 
-		for (const [key, keybindings] of configuredClaims) {
+		for (const [key, keybindings] of userClaims) {
 			if (keybindings.size > 1) {
 				this.#conflicts.push({ key, keybindings: [...keybindings] });
 			}
@@ -310,13 +280,7 @@ export class KeybindingsManager {
 
 		for (const [id, definition] of Object.entries(this.#definitions)) {
 			const userKeys = this.#userBindings[id];
-			const presetKeys = this.#presetBindings[id];
-			const keys =
-				userKeys === undefined
-					? presetKeys === undefined
-						? normalizeKeys(definition.defaultKeys)
-						: normalizeKeys(presetKeys)
-					: normalizeKeys(userKeys);
+			const keys = userKeys === undefined ? normalizeKeys(definition.defaultKeys) : normalizeKeys(userKeys);
 			this.#keysById.set(id as Keybinding, keys);
 			const matchKeys = new Set<string>();
 			for (const key of keys) {
@@ -357,14 +321,6 @@ export class KeybindingsManager {
 	setUserBindings(userBindings: KeybindingsConfig): void {
 		this.#userBindings = userBindings;
 		this.#rebuild();
-	}
-	setPresetBindings(presetBindings: KeybindingsConfig): void {
-		this.#presetBindings = presetBindings;
-		this.#rebuild();
-	}
-
-	getPresetBindings(): KeybindingsConfig {
-		return { ...this.#presetBindings };
 	}
 
 	getUserBindings(): KeybindingsConfig {

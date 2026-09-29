@@ -1,7 +1,7 @@
 import { describe, expect, it } from "bun:test";
-import { type BlockState, handleServerMessage, type ToolCallState } from "@chudware/ai/providers/cursor";
-import type { AssistantMessage } from "@chudware/ai/types";
-import { AssistantMessageEventStream } from "@chudware/ai/utils/event-stream";
+import { type BlockState, handleServerMessage, type ToolCallState } from "@oh-my-pi/pi-ai/providers/cursor";
+import type { AssistantMessage } from "@oh-my-pi/pi-ai/types";
+import { AssistantMessageEventStream } from "@oh-my-pi/pi-ai/utils/event-stream";
 import {
 	type AgentClientMessage,
 	AgentClientMessageSchema,
@@ -15,8 +15,8 @@ import {
 	SetupVmEnvironmentArgsSchema,
 	SwitchModeRequestQuerySchema,
 	WebSearchRequestQuerySchema,
-} from "@chudware/catalog/discovery/cursor-proto";
-import { create, fromBinary } from "@chudware/catalog/discovery/protobuf";
+} from "@oh-my-pi/pi-catalog/discovery/cursor-proto";
+import { create, fromBinary } from "@oh-my-pi/pi-catalog/discovery/protobuf";
 
 type ProtoUnknownField = { no: number; wireType: number; data: Uint8Array };
 type ProtoUnknownBag = { $unknown?: ProtoUnknownField[] };

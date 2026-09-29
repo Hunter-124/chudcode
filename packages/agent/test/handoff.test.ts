@@ -1,18 +1,17 @@
 import { afterEach, describe, expect, test, vi } from "bun:test";
-import type { AgentMessage, AgentTool } from "@chudware/agent-core";
+import { type } from "@oh-my-pi/omptype";
+import type { AgentMessage, AgentTool } from "@oh-my-pi/pi-agent-core";
 import {
 	createCompactionSummaryMessage,
 	defaultConvertToLlm,
 	generateHandoff,
 	generateHandoffFromContext,
-	renderHandoffPrompt,
-} from "@chudware/agent-core/compaction";
-import { ThinkingLevel } from "@chudware/agent-core/thinking";
-import type { AssistantMessage, Model, ToolCall } from "@chudware/ai";
-import * as ai from "@chudware/ai";
-import { Effort } from "@chudware/ai";
-import { getBundledModel } from "@chudware/catalog/models";
-import { type } from "@chudware/chudtype";
+} from "@oh-my-pi/pi-agent-core/compaction";
+import { ThinkingLevel } from "@oh-my-pi/pi-agent-core/thinking";
+import type { AssistantMessage, Model, ToolCall } from "@oh-my-pi/pi-ai";
+import * as ai from "@oh-my-pi/pi-ai";
+import { Effort } from "@oh-my-pi/pi-ai";
+import { getBundledModel } from "@oh-my-pi/pi-catalog/models";
 
 function createAssistantMessage(content: AssistantMessage["content"]): AssistantMessage {
 	return {
@@ -100,11 +99,6 @@ describe("handoff summary injection", () => {
 });
 
 describe("handoff helpers", () => {
-	test("renders custom focus into the handoff prompt", () => {
-		const rendered = renderHandoffPrompt("preserve failing test name");
-		expect(rendered).toContain("preserve failing test name");
-	});
-
 	test("generates handoff with the live cache prefix and tool use disabled", async () => {
 		const strayToolCall: ToolCall = { type: "toolCall", id: "call_1", name: "read", arguments: {} };
 		const completeSimpleSpy = vi

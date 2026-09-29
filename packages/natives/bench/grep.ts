@@ -2,7 +2,7 @@ import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { GrepOutputMode, grep } from "../native/index.js";
 
-const ITERATIONS = Number(process.env.GREP_BENCH_ITERATIONS ?? "50");
+const ITERATIONS = Number(Bun.env.GREP_BENCH_ITERATIONS ?? "50");
 const CONCURRENCY = 2;
 
 const packages = path.resolve(import.meta.dir, "../..");
@@ -48,7 +48,7 @@ const cases: BenchCase[] = [
 	},
 ];
 
-const cargoRegistry = path.join(process.env.HOME ?? "", ".cargo/registry/src");
+const cargoRegistry = path.join(Bun.env.HOME ?? "", ".cargo/registry/src");
 try {
 	if ((await fs.stat(cargoRegistry)).isDirectory()) {
 		cases.push({

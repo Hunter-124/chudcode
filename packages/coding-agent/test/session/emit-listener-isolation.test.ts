@@ -5,16 +5,15 @@ import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
-import { Agent, type AgentEvent } from "@chudware/agent-core";
-import { createMockModel } from "@chudware/ai/providers/mock";
-import { getBundledModel } from "@chudware/catalog/models";
-import { ModelRegistry } from "@chudware/coding-agent/config/model-registry";
-import { Settings } from "@chudware/coding-agent/config/settings";
-import { AgentSession } from "@chudware/coding-agent/session/agent-session";
-import { AuthStorage } from "@chudware/coding-agent/session/auth-storage";
-import { SessionManager } from "@chudware/coding-agent/session/session-manager";
-import { removeSyncWithRetries, Snowflake } from "@chudware/utils";
-import { sleep } from "@chudware/utils/async";
+import { Agent, type AgentEvent } from "@oh-my-pi/pi-agent-core";
+import { createMockModel } from "@oh-my-pi/pi-ai/providers/mock";
+import { getBundledModel } from "@oh-my-pi/pi-catalog/models";
+import { ModelRegistry } from "@oh-my-pi/pi-coding-agent/config/model-registry";
+import { Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
+import { AgentSession } from "@oh-my-pi/pi-coding-agent/session/agent-session";
+import { AuthStorage } from "@oh-my-pi/pi-coding-agent/session/auth-storage";
+import { SessionManager } from "@oh-my-pi/pi-coding-agent/session/session-manager";
+import { removeSyncWithRetries, Snowflake } from "@oh-my-pi/pi-utils";
 
 function makeEvent(): AgentEvent {
 	return { type: "tool_execution_start", toolCallId: "probe-1", toolName: "probe", args: {} };
@@ -54,7 +53,7 @@ describe("#emit listener isolation", () => {
 				});
 
 				agent.emitExternalEvent(makeEvent());
-				await sleep(10);
+				await Bun.sleep(10);
 
 				expect(calls).toEqual(["A", "B"]);
 				expect(unhandled).toEqual([]);
@@ -70,12 +69,12 @@ describe("#emit listener isolation", () => {
 		let authStorage: AuthStorage | undefined;
 
 		beforeEach(async () => {
-			tempDir = path.join(os.tmpdir(), `chud-emit-iso-${Snowflake.next()}`);
+			tempDir = path.join(os.tmpdir(), `pi-emit-iso-${Snowflake.next()}`);
 			fs.mkdirSync(tempDir, { recursive: true });
 			const model = getBundledModel("anthropic", "claude-sonnet-4-5");
 			if (!model) throw new Error("Test model not found");
 			authStorage = await AuthStorage.create(path.join(tempDir, "auth.db"));
-			authStorage.setRuntimeApiKey("anthropic", "test-key");
+			authStorage.keys.setRuntime("anthropic", "test-key");
 			const modelRegistry = new ModelRegistry(authStorage, path.join(tempDir, "models.yml"));
 			const mock = createMockModel({ responses: [{ content: ["ok"] }] });
 			const agent = new Agent({
@@ -133,7 +132,7 @@ describe("#emit listener isolation", () => {
 				});
 
 				session.emitNotice("info", "probe", "test");
-				await sleep(10);
+				await Bun.sleep(10);
 
 				expect(calls).toEqual(["A", "B"]);
 				expect(unhandled).toEqual([]);

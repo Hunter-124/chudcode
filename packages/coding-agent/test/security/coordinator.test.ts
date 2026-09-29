@@ -2,10 +2,10 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, test, vi 
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import { unregisterCustomApis } from "@chudware/ai/api-registry";
-import { type AuthCredentialStore, AuthStorage, SqliteAuthCredentialStore } from "@chudware/ai/auth-storage";
-import { createMockModel, type MockResponseSource, registerMockApi } from "@chudware/ai/providers/mock";
-import * as fsx from "@chudware/utils/fsx";
+import { unregisterCustomApis } from "@oh-my-pi/pi-ai/api-registry";
+import { type AuthCredentialStore, AuthStorage, SqliteAuthCredentialStore } from "@oh-my-pi/pi-ai/auth-storage";
+import { createMockModel, type MockResponseSource, registerMockApi } from "@oh-my-pi/pi-ai/providers/mock";
+import { getBundledModel } from "@oh-my-pi/pi-catalog/models";
 import { $ } from "bun";
 import { ModelRegistry } from "../../src/config/model-registry";
 import { Settings } from "../../src/config/settings";
@@ -43,10 +43,10 @@ const gitAdapter: SecurityGitAdapter = {
 // Credentials and the bundled-model view are immutable fixtures. Keep their SQLite
 // store and registry for the suite; repository/store state remains fresh per test.
 beforeAll(async () => {
-	registryRoot = await fs.mkdtemp(path.join(os.tmpdir(), "chudcode-security-coordinator-auth-"));
+	registryRoot = await fs.mkdtemp(path.join(os.tmpdir(), "omp-security-coordinator-auth-"));
 	credentialStore = await SqliteAuthCredentialStore.open(path.join(registryRoot, "agent.db"));
 	authStorage = new AuthStorage(credentialStore);
-	await authStorage.set("openai-codex", {
+	await authStorage.credentials.set("openai-codex", {
 		type: "oauth",
 		access: "fixture-access-token",
 		refresh: "fixture-refresh-token",
@@ -56,18 +56,18 @@ beforeAll(async () => {
 		orgId: "workspace-fixture",
 		orgName: "pro",
 	});
-	const account = authStorage.listOAuthAccounts("openai-codex")[0];
+	const account = authStorage.oauth.accounts("openai-codex")[0];
 	if (!account) throw new Error("expected fixture OAuth account");
 	credentialId = account.credentialId;
 	modelRegistry = new ModelRegistry(authStorage, path.join(registryRoot, "models.yml"));
 });
 
 beforeEach(async () => {
-	temporaryRoot = await fs.mkdtemp(path.join(os.tmpdir(), "chudcode-security-coordinator-"));
+	temporaryRoot = await fs.mkdtemp(path.join(os.tmpdir(), "omp-security-coordinator-"));
 	repositoryRoot = path.join(temporaryRoot, "repo");
 	stateRoot = path.join(temporaryRoot, "state");
 	await fs.mkdir(path.join(repositoryRoot, "src"), { recursive: true });
-	await fsx.write(path.join(repositoryRoot, "src", "app.ts"), "export const app = true;\n");
+	await Bun.write(path.join(repositoryRoot, "src", "app.ts"), "export const app = true;\n");
 	settings = Settings.isolated({ "security.enabled": true, "compaction.enabled": false });
 	registerMockApi(MOCK_SOURCE_ID);
 });
@@ -111,6 +111,23 @@ function coordinatorWithMockSession(responses: MockResponseSource) {
 }
 
 describe("native security coordinator", () => {
+	test("preflight accepts provider-owned Bedrock auth without an OAuth row", async () => {
+		const bedrockModel = getBundledModel("amazon-bedrock", "us.anthropic.claude-opus-4-8");
+		if (!bedrockModel) throw new Error("Expected bundled Bedrock model");
+		const coordinator = new SecurityCoordinator(
+			{
+				cwd: repositoryRoot,
+				settings,
+				authStorage,
+				modelRegistry,
+				activeModel: bedrockModel,
+			},
+			{ openStore: storeFactory, gitAdapter },
+		);
+		const plan = await coordinator.preflight();
+		expect(plan.account).toEqual({ provider: "amazon-bedrock", api: "bedrock-converse-stream" });
+	});
+
 	test("scripted mock model publishes a canonical completed scan and restartable session", async () => {
 		const { coordinator, mock } = coordinatorWithMockSession([
 			{
@@ -268,7 +285,7 @@ describe("native security coordinator", () => {
 		await $`git add src/app.ts`.cwd(repositoryRoot).quiet();
 		await $`git commit -m base`.cwd(repositoryRoot).quiet();
 		const baseRevision = (await $`git rev-parse HEAD`.cwd(repositoryRoot).text()).trim();
-		await fsx.write(path.join(repositoryRoot, "src", "app.ts"), "export const app = 'head';\n");
+		await Bun.write(path.join(repositoryRoot, "src", "app.ts"), "export const app = 'head';\n");
 		await $`git add src/app.ts`.cwd(repositoryRoot).quiet();
 		await $`git commit -m head`.cwd(repositoryRoot).quiet();
 		const headRevision = (await $`git rev-parse HEAD`.cwd(repositoryRoot).text()).trim();
@@ -292,7 +309,7 @@ describe("native security coordinator", () => {
 					return {
 						prompt: async text => {
 							request = text;
-							reviewedContent = await fsx.readText(path.join(input.executionRoot, "src", "app.ts"));
+							reviewedContent = await Bun.file(path.join(input.executionRoot, "src", "app.ts")).text();
 							return true;
 						},
 						waitForIdle: async () => undefined,
@@ -332,7 +349,7 @@ describe("native security coordinator", () => {
 		});
 		const interrupted: SecurityScanBundle = {
 			scan: {
-				documentType: "chudcode-security.scan",
+				documentType: "omp-security.scan",
 				schemaVersion: "1.0",
 				id: scanId,
 				projectKey: store.projectKey,

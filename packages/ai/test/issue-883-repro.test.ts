@@ -1,8 +1,8 @@
 import { describe, expect, it } from "bun:test";
-import { convertMessages } from "@chudware/ai/providers/openai-completions";
-import type { AssistantMessage, Model, ModelSpec } from "@chudware/ai/types";
-import { buildModel } from "@chudware/catalog/build";
-import { getBundledModel } from "@chudware/catalog/models";
+import { convertMessages } from "@oh-my-pi/pi-ai/providers/openai-completions";
+import type { AssistantMessage, Model, ModelSpec } from "@oh-my-pi/pi-ai/types";
+import { buildModel } from "@oh-my-pi/pi-catalog/build";
+import { getBundledModel } from "@oh-my-pi/pi-catalog/models";
 
 interface OpenAICompletionAssistantWireMessage {
 	role: "assistant";
@@ -61,24 +61,6 @@ function assistantWithToolCall(model: Model<"openai-completions">): AssistantMes
 }
 
 describe("issue #883 / #810 — DeepSeek V4 reasoning_content tool-call replay", () => {
-	it("flags requiresReasoningContentForToolCalls for deepseek-v4-pro on the official endpoint", () => {
-		const compat = deepseekModel({
-			provider: "deepseek",
-			baseUrl: "https://api.deepseek.com/v1",
-			id: "deepseek-v4-pro",
-		}).compat;
-		expect(compat.requiresReasoningContentForToolCalls).toBe(true);
-	});
-
-	it("flags requiresReasoningContentForToolCalls for deepseek-v4 served by a non-deepseek host (e.g. Deepinfra)", () => {
-		const compat = deepseekModel({
-			provider: "deepinfra",
-			baseUrl: "https://api.deepinfra.com/v1/openai",
-			id: "deepseek-ai/DeepSeek-V4-Flash",
-		}).compat;
-		expect(compat.requiresReasoningContentForToolCalls).toBe(true);
-	});
-
 	it("sets reasoning_content to empty string for deepseek-v4-pro tool-call turn with no thinking blocks", () => {
 		const model = deepseekModel({
 			provider: "deepseek",

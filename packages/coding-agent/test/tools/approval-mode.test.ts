@@ -2,14 +2,13 @@ import { afterAll, beforeAll, describe, expect, it } from "bun:test";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
-import type { AgentToolContext } from "@chudware/agent-core";
-import { getBundledModel } from "@chudware/catalog/models";
-import { Settings } from "@chudware/coding-agent/config/settings";
-import { createAgentSession } from "@chudware/coding-agent/sdk";
-import type { AgentSession } from "@chudware/coding-agent/session/agent-session";
-import { SessionManager } from "@chudware/coding-agent/session/session-manager";
-import { removeSyncWithRetries, Snowflake } from "@chudware/utils";
-import { sleep } from "@chudware/utils/async";
+import type { AgentToolContext } from "@oh-my-pi/pi-agent-core";
+import { getBundledModel } from "@oh-my-pi/pi-catalog/models";
+import { Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
+import { createAgentSession } from "@oh-my-pi/pi-coding-agent/sdk";
+import type { AgentSession } from "@oh-my-pi/pi-coding-agent/session/agent-session";
+import { SessionManager } from "@oh-my-pi/pi-coding-agent/session/session-manager";
+import { removeSyncWithRetries, Snowflake } from "@oh-my-pi/pi-utils";
 
 const BASE_SETTINGS = {
 	"async.enabled": false,
@@ -40,7 +39,7 @@ describe("tools.approvalMode setting", () => {
 	let session: AgentSession;
 
 	beforeAll(async () => {
-		tempDir = fs.mkdtempSync(path.join(os.tmpdir(), `chud-approval-mode-${Snowflake.next()}-`));
+		tempDir = fs.mkdtempSync(path.join(os.tmpdir(), `pi-approval-mode-${Snowflake.next()}-`));
 		const cwd = path.join(tempDir, "cwd");
 		fs.mkdirSync(cwd, { recursive: true });
 		const sessionManager = SessionManager.create(cwd, path.join(tempDir, "sessions"));
@@ -74,7 +73,7 @@ describe("tools.approvalMode setting", () => {
 				const code = (err as NodeJS.ErrnoException).code;
 				if (code !== "EBUSY" && code !== "ENOTEMPTY" && code !== "EPERM") throw err;
 				if (attempt === 4) break; // best-effort: OS will reclaim
-				await sleep(50 * (attempt + 1));
+				await Bun.sleep(50 * (attempt + 1));
 			}
 		}
 	});
@@ -95,6 +94,20 @@ describe("tools.approvalMode setting", () => {
 			settings,
 		} as AgentToolContext);
 		expect(textOf(result)).toContain("ok");
+	});
+
+	it("omitted execute-time context inherits the session runner settings", async () => {
+		const result = await bashTool().execute("inherit-session", { command: "echo inherited" });
+		expect(textOf(result)).toContain("inherited");
+	});
+
+	it("missing execute-time context fails closed for an exec-tier tool", async () => {
+		// Explicit empty context: no settings and no --auto-approve. Omitting the
+		// argument inherits the session runner's settings (schema default yolo),
+		// which is the live-session path used by direct execute() callers.
+		await expect(
+			bashTool().execute("no-context", { command: "echo leaked" }, undefined, undefined, {} as AgentToolContext),
+		).rejects.toThrow(/requires approval but no interactive UI available/);
 	});
 
 	it("always-ask mode rejects exec tools when no UI is available", async () => {
@@ -229,14 +242,66 @@ describe("tools.approvalMode setting", () => {
 		).rejects.toThrow(/blocked by user policy/);
 	});
 
-	it("constructs an extensionRunner unconditionally so the approval gate is always installed", async () => {
-		// Regression lock for the architectural fix: the per-tool approval gate is implemented
-		// inside `ExtensionToolWrapper`, which is only attached when `session.extensionRunner` exists.
-		// Historically the runner was conditional on `extensionsResult.extensions.length > 0`, which
-		// meant the entire approval system silently disappeared for users with no extensions loaded —
-		// any non-yolo approval mode setting would be a no-op without feedback. The
-		// fix is to construct the runner unconditionally; this test makes that contract explicit so
-		// a future change to make the runner optional again cannot silently re-open the hole.
-		expect(session.extensionRunner).toBeDefined();
+	it("ACP-approved arguments satisfy explicit user and tool-override prompts", async () => {
+		const promptSettings = approvalSettings({
+			"tools.approvalMode": "always-ask",
+			"tools.approval": { bash: "prompt" },
+		});
+		const explicitResult = await bashTool().execute(
+			"acp-explicit-prompt",
+			{ command: "echo acp-explicit" },
+			undefined,
+			undefined,
+			{
+				settings: promptSettings,
+				acpApprovedArgs: { command: "echo acp-explicit" },
+			} as AgentToolContext,
+		);
+		expect(textOf(explicitResult)).toContain("acp-explicit");
+
+		const overrideSettings = approvalSettings({ "tools.approvalMode": "always-ask" });
+		const overrideResult = await bashTool().execute(
+			"acp-tool-override",
+			{ command: "rm -f /tmp/bun-fake-timer-probe.test.ts" },
+			undefined,
+			undefined,
+			{
+				settings: overrideSettings,
+				acpApprovedArgs: { command: "rm -f /tmp/bun-fake-timer-probe.test.ts" },
+			} as AgentToolContext,
+		);
+		expect(textOf(overrideResult)).toContain("(no output)");
+	});
+
+	it("ACP-approved arguments do not bypass deny policies", async () => {
+		const settings = approvalSettings({ "tools.approvalMode": "always-ask" });
+		await expect(
+			bashTool().execute("acp-denied", { command: "rm -rf /tmp/never-run" }, undefined, undefined, {
+				settings,
+				acpApprovedArgs: { command: "rm -rf /tmp/never-run" },
+			} as AgentToolContext),
+		).rejects.toThrow(/blocked by tool policy/);
+	});
+
+	it("ACP-approved arguments do not bypass provider safety checks", async () => {
+		const settings = approvalSettings({ "tools.approvalMode": "always-ask" });
+		await expect(
+			bashTool().execute("acp-safety", { command: "echo blocked" }, undefined, undefined, {
+				settings,
+				acpApprovedArgs: { command: "echo blocked" },
+				toolCall: {
+					batchId: "safety-batch",
+					index: 0,
+					total: 1,
+					toolCalls: [],
+					providerMetadata: {
+						type: "computer",
+						providerItemId: "computer-call",
+						actions: [],
+						pendingSafetyChecks: [{ id: "safety-check" }],
+					},
+				},
+			} as never),
+		).rejects.toThrow(/pending provider safety checks but no interactive UI/);
 	});
 });

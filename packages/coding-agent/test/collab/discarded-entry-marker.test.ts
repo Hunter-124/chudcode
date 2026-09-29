@@ -1,15 +1,16 @@
 import { afterAll, beforeAll, describe, expect, it } from "bun:test";
-import { importRoomKey } from "@chudware/coding-agent/collab/crypto";
-import { CollabHost } from "@chudware/coding-agent/collab/host";
-import { COLLAB_PROTO, type CollabFrame, parseCollabLink } from "@chudware/coding-agent/collab/protocol";
-import { CollabSocket } from "@chudware/coding-agent/collab/relay-client";
-import type { InteractiveModeContext } from "@chudware/coding-agent/modes/types";
-import { SessionManager } from "@chudware/coding-agent/session/session-manager";
+import { importRoomKey } from "@oh-my-pi/pi-coding-agent/collab/crypto";
+import { CollabHost } from "@oh-my-pi/pi-coding-agent/collab/host";
+import { COLLAB_PROTO, type CollabFrame, parseCollabLink } from "@oh-my-pi/pi-coding-agent/collab/protocol";
+import { CollabSocket } from "@oh-my-pi/pi-coding-agent/collab/relay-client";
+import { Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
+import type { InteractiveModeContext } from "@oh-my-pi/pi-coding-agent/modes/types";
+import { SessionManager } from "@oh-my-pi/pi-coding-agent/session/session-manager";
 import { installInMemoryRelay, uninstallInMemoryRelay } from "./helpers/in-memory-relay";
 
 function makeHostContext(manager: SessionManager): InteractiveModeContext {
 	return {
-		settings: { get: () => "" },
+		settings: Settings.isolated(),
 		sessionManager: manager,
 		session: {
 			isStreaming: false,

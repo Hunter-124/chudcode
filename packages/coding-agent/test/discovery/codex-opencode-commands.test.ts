@@ -2,19 +2,16 @@ import { afterEach, beforeAll, beforeEach, describe, expect, test, vi } from "bu
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import { clearCache as clearFsCache } from "@chudware/coding-agent/capability/fs";
-import { type SlashCommand, slashCommandCapability } from "@chudware/coding-agent/capability/slash-command";
-import { resetSettingsForTest } from "@chudware/coding-agent/config/settings";
-import { loadCapability } from "@chudware/coding-agent/discovery";
-import {
-	commandInspectorData,
-	commandPreview,
-} from "@chudware/coding-agent/modes/components/extensions/inspector-model";
-import { InspectorPanel } from "@chudware/coding-agent/modes/components/extensions/inspector-panel";
-import { applyFilter } from "@chudware/coding-agent/modes/components/extensions/state-manager";
-import type { Extension } from "@chudware/coding-agent/modes/components/extensions/types";
-import { initTheme } from "@chudware/coding-agent/modes/theme/theme";
-import { removeWithRetries } from "@chudware/utils";
+import { clearCache as clearFsCache } from "@oh-my-pi/pi-coding-agent/capability/fs";
+import { type SlashCommand, slashCommandCapability } from "@oh-my-pi/pi-coding-agent/capability/slash-command";
+import { resetSettingsForTest } from "@oh-my-pi/pi-coding-agent/config/settings";
+import { loadCapability } from "@oh-my-pi/pi-coding-agent/discovery";
+import { commandInspectorData, commandPreview } from "@oh-my-pi/pi-tui/overlays/extensions/inspector-model";
+import { InspectorPanel } from "@oh-my-pi/pi-tui/overlays/extensions/inspector-panel";
+import { applyFilter } from "@oh-my-pi/pi-tui/overlays/extensions/state-manager";
+import type { Extension } from "@oh-my-pi/pi-tui/overlays/extensions/types";
+import { initTheme } from "@oh-my-pi/pi-tui/theme";
+import { removeWithRetries } from "@oh-my-pi/pi-utils";
 
 const COMMAND_FILE = `---
 description: Deploy a service
@@ -58,7 +55,7 @@ describe("Codex and OpenCode slash-command frontmatter", () => {
 		clearFsCache();
 		resetSettingsForTest();
 		originalHome = process.env.HOME;
-		root = await fs.mkdtemp(path.join(os.tmpdir(), "chudcode-provider-commands-"));
+		root = await fs.mkdtemp(path.join(os.tmpdir(), "omp-provider-commands-"));
 		home = path.join(root, "home");
 		project = path.join(root, "project");
 		process.env.HOME = home;

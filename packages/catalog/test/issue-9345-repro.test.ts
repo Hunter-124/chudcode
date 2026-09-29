@@ -1,5 +1,5 @@
 /**
- * Issue #9345 — `Can't use qwen3-6-35b-a3b on Venice because Chudcode sends some
+ * Issue #9345 — `Can't use qwen3-6-35b-a3b on Venice because OMP sends some
  * incorrect params.`
  *
  * Reporter: with `venice/qwen3-6-35b-a3b` configured as the `smol` model role,
@@ -19,13 +19,13 @@
  * carries `reasoning_effort` instead of `enable_thinking`.
  */
 import { describe, expect, it } from "bun:test";
-import { streamOpenAICompletions } from "@chudware/ai/providers/openai-completions";
-import type { Context } from "@chudware/ai/types";
-import { buildOpenAICompat } from "@chudware/catalog/compat/openai";
-import { Effort } from "@chudware/catalog/effort";
-import { getBundledModel } from "@chudware/catalog/models";
-import type { FetchImpl, ModelSpec } from "@chudware/catalog/types";
-import { isRecord } from "@chudware/utils";
+import { streamOpenAICompletions } from "@oh-my-pi/pi-ai/providers/openai-completions";
+import type { Context } from "@oh-my-pi/pi-ai/types";
+import { resolveModelPolicy } from "@oh-my-pi/pi-catalog/compat/resolve";
+import { Effort } from "@oh-my-pi/pi-catalog/effort";
+import { getBundledModel } from "@oh-my-pi/pi-catalog/models";
+import type { FetchImpl, ModelSpec } from "@oh-my-pi/pi-catalog/types";
+import { isRecord } from "@oh-my-pi/pi-utils";
 
 function veniceQwenSpec(overrides: Partial<ModelSpec<"openai-completions">> = {}): ModelSpec<"openai-completions"> {
 	return {
@@ -86,12 +86,12 @@ async function captureVeniceQwenBody(options: VeniceReasoningOptions) {
 
 describe("issue #9345 — Venice qwen thinking format", () => {
 	it("resolves Venice-hosted qwen models to the reasoning_effort thinking format", () => {
-		const compat = buildOpenAICompat(veniceQwenSpec());
+		const compat = resolveModelPolicy(veniceQwenSpec()).compat;
 		expect(compat.thinkingFormat).toBe("openai");
 	});
 
 	it("detects Venice by baseUrl even when the provider id is a custom loopback", () => {
-		const compat = buildOpenAICompat(veniceQwenSpec({ provider: "custom" }));
+		const compat = resolveModelPolicy(veniceQwenSpec({ provider: "custom" })).compat;
 		expect(compat.thinkingFormat).toBe("openai");
 	});
 
@@ -104,7 +104,7 @@ describe("issue #9345 — Venice qwen thinking format", () => {
 			provider: "alibaba-coding-plan",
 			baseUrl: "https://dashscope.aliyuncs.com/compatible-mode/v1",
 		});
-		expect(buildOpenAICompat(dashscope).thinkingFormat).toBe("qwen");
+		expect(resolveModelPolicy(dashscope).compat.thinkingFormat).toBe("qwen");
 	});
 
 	it("emits reasoning_effort — never top-level enable_thinking — on the wire", async () => {

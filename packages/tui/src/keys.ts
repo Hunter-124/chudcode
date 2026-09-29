@@ -18,12 +18,12 @@
  * - isKittyProtocolActive() - Query global Kitty protocol state
  */
 
-import type { KeyEventType } from "@chudware/natives";
+import type { KeyEventType } from "@oh-my-pi/pi-natives";
 import {
 	matchesKey as matchesKeyNative,
 	parseKey as parseKeyNative,
 	parseKittySequence as parseKittySequenceNative,
-} from "@chudware/natives";
+} from "@oh-my-pi/pi-natives";
 import { isInsideTerminalMultiplexer } from "./terminal-capabilities";
 
 // =============================================================================
@@ -44,14 +44,14 @@ export function isWindowsTerminalSession(): boolean {
  * Backspace as `0x7f` (DEL). Remote/container sessions lose terminal identity,
  * and multiplexers (tmux/screen/Zellij) inherit `WT_SESSION` while emitting
  * raw `0x08` for plain Backspace themselves, so the automatic heuristic is
- * limited to direct Windows Terminal sessions. `CHUDCODE_TUI_RAW_BACKSPACE_IS_CTRL=1`
+ * limited to direct Windows Terminal sessions. `PI_TUI_RAW_BACKSPACE_IS_CTRL=1`
  * explicitly opts into the mapping everywhere.
  */
 export function matchesRawBackspace(data: string, expectedModifier: number): boolean {
 	if (data === "\x7f") return expectedModifier === 0;
 	if (data !== "\x08") return false;
 	const rawBackspaceIsCtrl =
-		process.env.CHUDCODE_TUI_RAW_BACKSPACE_IS_CTRL === "1" ||
+		process.env.PI_TUI_RAW_BACKSPACE_IS_CTRL === "1" ||
 		(isWindowsTerminalSession() && !isInsideTerminalMultiplexer(process.env));
 	return rawBackspaceIsCtrl ? expectedModifier === 4 : expectedModifier === 0;
 }
@@ -111,7 +111,7 @@ type Letter =
 
 type Digit = "0" | "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9";
 
-type SymbolKey =
+type KeySymbol =
 	| "`"
 	| "-"
 	| "="
@@ -176,8 +176,9 @@ type SpecialKey =
 	| "f11"
 	| "f12";
 
-type BaseKey = Letter | Digit | SymbolKey | SpecialKey;
-type ModifierName = "ctrl" | "shift" | "alt" | "super";
+type BaseKey = Letter | Digit | KeySymbol | SpecialKey;
+/** Modifier key names as they appear in {@link KeyId} chords. */
+export type ModifierName = "ctrl" | "shift" | "alt" | "super";
 
 type ModifiedKeyId<Key extends string, RemainingModifiers extends ModifierName = ModifierName> = {
 	[M in RemainingModifiers]: `${M}+${Key}` | `${M}+${ModifiedKeyId<Key, Exclude<RemainingModifiers, M>>}`;
@@ -197,8 +198,8 @@ export type KeyId = BaseKey | ModifiedKeyId<BaseKey>;
  * that each property is typed to the exact `KeyId` literal it produces and the
  * modifier methods return precisely-typed concatenations (e.g. `Key.ctrl("c")`
  * is `"ctrl+c"`, not just `string`). This mirrors the upstream
- * `@mariozechner/chud-tui` `Key` export verbatim so plugins built against any
- * scope alias (`@mariozechner`, `@earendil-works`, `@chudware`) keep working
+ * `@mariozechner/pi-tui` `Key` export verbatim so plugins built against any
+ * scope alias (`@mariozechner`, `@earendil-works`, `@oh-my-pi`) keep working
  * once the specifier shim remaps them to this package.
  */
 export const Key = {

@@ -7,10 +7,9 @@ import {
 	IndexedSessionStorage,
 	type SessionStorageBackend,
 	type SessionStorageIndexEntry,
-} from "@chudware/coding-agent/session/indexed-session-storage";
-import { FileSessionStorage } from "@chudware/coding-agent/session/session-storage";
-import { type SessionTitleUpdate, serializeTitleSlot } from "@chudware/coding-agent/session/session-title-slot";
-import * as fsx from "@chudware/utils/fsx";
+} from "@oh-my-pi/pi-coding-agent/session/indexed-session-storage";
+import { FileSessionStorage, SessionLockError } from "@oh-my-pi/pi-coding-agent/session/session-storage";
+import { type SessionTitleUpdate, serializeTitleSlot } from "@oh-my-pi/pi-coding-agent/session/session-title-slot";
 
 class ControlledTitleUpdateBackend implements SessionStorageBackend {
 	readonly #sessionPath: string;
@@ -93,7 +92,7 @@ describe("FileSessionStorage writer", () => {
 	let storage: FileSessionStorage;
 
 	beforeEach(async () => {
-		tempDir = await fsp.mkdtemp(path.join(os.tmpdir(), "chudcode-session-writer-"));
+		tempDir = await fsp.mkdtemp(path.join(os.tmpdir(), "omp-session-writer-"));
 		storage = new FileSessionStorage();
 	});
 
@@ -169,6 +168,56 @@ describe("FileSessionStorage writer", () => {
 		expect(() => appendSync("partial entry\n")).toThrow("ENOSPC");
 		expect(fs.readFileSync(sessionPath, "utf8")).toBe("complete\n");
 	});
+
+	it("rolls back a partial append through a reopened handle when the append handle refuses truncation", () => {
+		const sessionPath = path.join(tempDir, "append-handle-no-truncate.jsonl");
+		fs.writeFileSync(sessionPath, "complete\n");
+		const writer = storage.openWriter(sessionPath);
+		const ftruncateSync = fs.ftruncateSync;
+		// Windows refuses ftruncate on an O_APPEND handle; the reopened handle must succeed.
+		vi.spyOn(fs, "ftruncateSync")
+			.mockImplementationOnce(() => {
+				throw Object.assign(new Error("EPERM: operation not permitted, ftruncate"), { code: "EPERM" });
+			})
+			.mockImplementation((fd, len) => ftruncateSync(fd, len));
+		vi.spyOn(fs, "writeSync")
+			.mockImplementationOnce(() => {
+				fs.appendFileSync(sessionPath, "par");
+				return 3;
+			})
+			.mockImplementation(() => {
+				throw Object.assign(new Error("ENOSPC: no space left on device"), { code: "ENOSPC" });
+			});
+
+		const appendSync = writer.appendSync?.bind(writer);
+		if (!appendSync) throw new Error("File writer must expose appendSync");
+		expect(() => appendSync("partial entry\n")).toThrow("ENOSPC");
+		expect(fs.readFileSync(sessionPath, "utf8")).toBe("complete\n");
+	});
+
+	it("does not truncate a replacement session when append rollback reopens the path", async () => {
+		const sessionPath = path.join(tempDir, "original.jsonl");
+		const replacementPath = path.join(tempDir, "replacement.jsonl");
+		fs.writeFileSync(sessionPath, "old\n");
+		fs.writeFileSync(replacementPath, "replacement session\n");
+		const writer = storage.openWriter(sessionPath);
+		const openSync = fs.openSync;
+		vi.spyOn(fs, "writeSync").mockImplementation(() => {
+			throw new Error("disk full");
+		});
+		vi.spyOn(fs, "ftruncateSync").mockImplementationOnce(() => {
+			throw new Error("append handle cannot truncate");
+		});
+		vi.spyOn(fs, "openSync").mockImplementation((file, flags, mode) =>
+			openSync(file === sessionPath && flags === "r+" ? replacementPath : file, flags, mode),
+		);
+
+		const appendSync = writer.appendSync?.bind(writer);
+		if (!appendSync) throw new Error("File writer must expose appendSync");
+		expect(() => appendSync("new\n")).toThrow("partial bytes could not be rolled back");
+		expect(fs.readFileSync(replacementPath, "utf8")).toBe("replacement session\n");
+		await expect(writer.close()).rejects.toThrow("partial bytes could not be rolled back");
+	});
 });
 
 describe("FileSessionStorage.deleteSessionWithArtifacts", () => {
@@ -176,7 +225,7 @@ describe("FileSessionStorage.deleteSessionWithArtifacts", () => {
 	let storage: FileSessionStorage;
 
 	beforeEach(async () => {
-		tempDir = await fsp.mkdtemp(path.join(os.tmpdir(), "chudcode-session-storage-"));
+		tempDir = await fsp.mkdtemp(path.join(os.tmpdir(), "omp-session-storage-"));
 		storage = new FileSessionStorage();
 	});
 
@@ -187,7 +236,7 @@ describe("FileSessionStorage.deleteSessionWithArtifacts", () => {
 
 	async function createSessionFile(name: string): Promise<string> {
 		const sessionPath = path.join(tempDir, `${name}.jsonl`);
-		await fsx.write(
+		await Bun.write(
 			sessionPath,
 			`${JSON.stringify({ type: "session", id: "session-id", timestamp: "2025-01-01T00:00:00Z", cwd: tempDir })}\n`,
 		);
@@ -210,7 +259,7 @@ describe("FileSessionStorage.deleteSessionWithArtifacts", () => {
 		const sessionPath = await createSessionFile("cleanup-failure");
 		const artifactsDir = sessionPath.slice(0, -6);
 		await fsp.mkdir(artifactsDir, { recursive: true });
-		await fsx.write(path.join(artifactsDir, "artifact.txt"), "artifact payload");
+		await Bun.write(path.join(artifactsDir, "artifact.txt"), "artifact payload");
 
 		const rmError = new Error("permission denied");
 		const rmSpy = vi.spyOn(fsp, "rm").mockRejectedValueOnce(rmError);
@@ -228,7 +277,7 @@ describe("FileSessionStorage.writeTextSync", () => {
 	let tempDir: string;
 
 	beforeEach(async () => {
-		tempDir = await fsp.mkdtemp(path.join(os.tmpdir(), "chudcode-session-storage-"));
+		tempDir = await fsp.mkdtemp(path.join(os.tmpdir(), "omp-session-storage-"));
 	});
 
 	afterEach(async () => {
@@ -245,7 +294,175 @@ describe("FileSessionStorage.writeTextSync", () => {
 		const second = fs.statSync(sessionPath);
 
 		expect(second.ino).not.toBe(first.ino);
-		expect(await fsx.readText(sessionPath)).toBe("second\n");
+		expect(await Bun.file(sessionPath).text()).toBe("second\n");
+	});
+
+	it("keeps open readers on the old file when replacement initially fails with EPERM", async () => {
+		const storage = new FileSessionStorage();
+		const sessionPath = path.join(tempDir, "session.jsonl");
+		storage.writeTextSync(sessionPath, "original snapshot\n");
+		const reader = fs.openSync(sessionPath, "r");
+		const original = fs.fstatSync(reader);
+		const rename = fs.renameSync;
+		let failed = false;
+		const renameSpy = vi.spyOn(fs, "renameSync").mockImplementation((source, target) => {
+			if (!failed && target === sessionPath) {
+				failed = true;
+				throw Object.assign(new Error("replace blocked"), { code: "EPERM" });
+			}
+			rename(source, target);
+		});
+		try {
+			storage.writeTextSync(sessionPath, "replacement snapshot\n");
+			expect(fs.readFileSync(reader, "utf8")).toBe("original snapshot\n");
+			expect(fs.statSync(sessionPath).ino).not.toBe(original.ino);
+			expect(await Bun.file(sessionPath).text()).toBe("replacement snapshot\n");
+			expect((await fsp.readdir(tempDir)).filter(file => file !== ".session.jsonl.lock.os")).toEqual([
+				"session.jsonl",
+			]);
+		} finally {
+			renameSpy.mockRestore();
+			fs.closeSync(reader);
+		}
+	});
+
+	it("restores the original identity and content if the EPERM replacement retry fails", async () => {
+		const storage = new FileSessionStorage();
+		const sessionPath = path.join(tempDir, "session.jsonl");
+		storage.writeTextSync(sessionPath, "original\n");
+		const original = fs.statSync(sessionPath);
+		const rename = fs.renameSync;
+		let attempts = 0;
+		const renameSpy = vi.spyOn(fs, "renameSync").mockImplementation((source, target) => {
+			if (typeof source === "string" && source.endsWith(".tmp") && target === sessionPath) {
+				attempts++;
+				throw Object.assign(new Error(attempts === 1 ? "replace blocked" : "retry failed"), {
+					code: attempts === 1 ? "EPERM" : "EIO",
+				});
+			}
+			rename(source, target);
+		});
+		try {
+			expect(() => storage.writeTextSync(sessionPath, "replacement\n")).toThrow("retry failed");
+			expect(fs.statSync(sessionPath).ino).toBe(original.ino);
+			expect(await Bun.file(sessionPath).text()).toBe("original\n");
+			expect((await fsp.readdir(tempDir)).filter(file => file !== ".session.jsonl.lock.os")).toEqual([
+				"session.jsonl",
+			]);
+		} finally {
+			renameSpy.mockRestore();
+		}
+	});
+
+	it("preserves the original when staging the replacement fails with EPERM", async () => {
+		const storage = new FileSessionStorage();
+		const sessionPath = path.join(tempDir, "session.jsonl");
+		storage.writeTextSync(sessionPath, "original\n");
+		const original = fs.statSync(sessionPath);
+		const write = fs.writeFileSync;
+		const writeSpy = vi.spyOn(fs, "writeFileSync").mockImplementation((file, content, options) => {
+			if (typeof file === "string" && path.dirname(file) === tempDir && file.endsWith(".tmp")) {
+				throw Object.assign(new Error("staging denied"), { code: "EPERM" });
+			}
+			write(file, content, options);
+		});
+		try {
+			expect(() => storage.writeTextSync(sessionPath, "replacement\n")).toThrow("staging denied");
+			expect(fs.statSync(sessionPath).ino).toBe(original.ino);
+			expect(await Bun.file(sessionPath).text()).toBe("original\n");
+			expect((await fsp.readdir(tempDir)).filter(file => file !== ".session.jsonl.lock.os")).toEqual([
+				"session.jsonl",
+			]);
+		} finally {
+			writeSpy.mockRestore();
+		}
+	});
+
+	it("keeps an open writer appending to the replaced file after a rewrite", async () => {
+		const storage = new FileSessionStorage();
+		const sessionPath = path.join(tempDir, "session.jsonl");
+		storage.writeTextSync(sessionPath, "header\n");
+		const writer = storage.openWriter(sessionPath);
+		try {
+			// A rewrite renames a fresh inode over the path; a writer opened before
+			// it would otherwise keep appending to the orphaned file and lose the
+			// turn. Re-opening the live path under the publish lock must place the
+			// line in the replaced file.
+			storage.writeTextSync(sessionPath, "rewritten\n");
+			const appendSync = writer.appendSync?.bind(writer);
+			if (!appendSync) throw new Error("File writer must expose appendSync");
+			appendSync("appended\n");
+			expect(await Bun.file(sessionPath).text()).toBe("rewritten\nappended\n");
+			const files = await fsp.readdir(tempDir);
+			expect(files).not.toContain(".session.jsonl.lock");
+			expect(files.some(file => file.endsWith(".tmp"))).toBe(false);
+		} finally {
+			await writer.close();
+		}
+	});
+
+	it("fails closed for a held publish lock instead of writing outside it", async () => {
+		const storage = new FileSessionStorage();
+		const sessionPath = path.join(tempDir, "session.jsonl");
+		storage.writeTextSync(sessionPath, "original\n");
+		const lockPath = path.join(tempDir, ".session.jsonl.lock");
+		// A live holder (this process) is never stolen: both the writer and the
+		// rewrite must wait out the bounded retry window and then reject rather
+		// than publish around the lock.
+		fs.writeFileSync(lockPath, `${process.pid}:${Date.now()}\n`);
+		try {
+			await expect(storage.writeTextAtomic(sessionPath, "replacement\n")).rejects.toBeInstanceOf(SessionLockError);
+			expect(() => storage.writeTextSync(sessionPath, "replacement\n")).toThrow(SessionLockError);
+			expect(await Bun.file(sessionPath).text()).toBe("original\n");
+		} finally {
+			fs.unlinkSync(lockPath);
+		}
+	});
+
+	it("steals a contentless publish lock orphaned by a crash instead of bricking the file", () => {
+		const storage = new FileSessionStorage();
+		const sessionPath = path.join(tempDir, "session.jsonl");
+		storage.writeTextSync(sessionPath, "original\n");
+		const lockPath = path.join(tempDir, ".session.jsonl.lock");
+		// A kill between lock create and holder record leaves a contentless
+		// file no live process owns. Once older than the acquisition budget
+		// it must be stealable, or every later publish fails until manual
+		// removal (hV-oE).
+		fs.writeFileSync(lockPath, "");
+		const aged = new Date(Date.now() - 60_000);
+		fs.utimesSync(lockPath, aged, aged);
+		storage.writeTextSync(sessionPath, "replacement\n");
+		expect(fs.readFileSync(sessionPath, "utf8")).toBe("replacement\n");
+	});
+
+	it("waits out the budget before stealing a sub-budget contentless lock", () => {
+		const storage = new FileSessionStorage();
+		const sessionPath = path.join(tempDir, "session.jsonl");
+		storage.writeTextSync(sessionPath, "original\n");
+		const lockPath = path.join(tempDir, ".session.jsonl.lock");
+		// A live acquirer may still be between create and record, so a
+		// contentless file younger than the acquisition budget must not be
+		// stolen on sight: backdate to 400ms (100ms shy of the 500ms budget)
+		// and require the acquisition to wait for it to age out instead of
+		// succeeding instantly (hV-oE).
+		fs.writeFileSync(lockPath, "");
+		const backdated = new Date(Date.now() - 400);
+		fs.utimesSync(lockPath, backdated, backdated);
+		const start = Date.now();
+		storage.writeTextSync(sessionPath, "replacement\n");
+		expect(Date.now() - start).toBeGreaterThanOrEqual(50);
+		expect(fs.readFileSync(sessionPath, "utf8")).toBe("replacement\n");
+	});
+
+	it("steals a dead holder publish lock", () => {
+		const storage = new FileSessionStorage();
+		const sessionPath = path.join(tempDir, "session.jsonl");
+		storage.writeTextSync(sessionPath, "original\n");
+		const lockPath = path.join(tempDir, ".session.jsonl.lock");
+		// 2^30 is above any real PID maximum: recovery must reclaim the lock.
+		fs.writeFileSync(lockPath, `${2 ** 30}:${Date.now()}\n`);
+		storage.writeTextSync(sessionPath, "replacement\n");
+		expect(fs.readFileSync(sessionPath, "utf8")).toBe("replacement\n");
 	});
 });
 
@@ -254,7 +471,7 @@ describe("FileSessionStorage.updateSessionTitle", () => {
 	let storage: FileSessionStorage;
 
 	beforeEach(async () => {
-		tempDir = await fsp.mkdtemp(path.join(os.tmpdir(), "chudcode-session-storage-"));
+		tempDir = await fsp.mkdtemp(path.join(os.tmpdir(), "omp-session-storage-"));
 		storage = new FileSessionStorage();
 	});
 
@@ -272,7 +489,7 @@ describe("FileSessionStorage.updateSessionTitle", () => {
 
 		await storage.updateSessionTitle(sessionPath, { title: "New", source: "user", updatedAt: "t2" });
 
-		const content = await fsx.readText(sessionPath);
+		const content = await Bun.file(sessionPath).text();
 		const [slotLine, ...rest] = content.split("\n");
 		expect(JSON.parse(slotLine)).toMatchObject({ type: "title", title: "New", source: "user", updatedAt: "t2" });
 		expect(`${rest.join("\n")}`).toBe(tail);

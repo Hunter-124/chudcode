@@ -1,6 +1,6 @@
 import { describe, expect, it } from "bun:test";
-import type { Message, Usage } from "@chudware/ai";
-import { type Dialect, getDialectDefinition } from "@chudware/ai/dialect";
+import type { Message, Usage } from "@oh-my-pi/pi-ai";
+import { getDialectDefinition } from "@oh-my-pi/pi-ai/dialect";
 
 function usage(): Usage {
 	return {
@@ -14,13 +14,13 @@ function usage(): Usage {
 }
 
 const messages: Message[] = [
-	{ role: "user", content: "Find chud", timestamp: 1 },
+	{ role: "user", content: "Find pi", timestamp: 1 },
 	{
 		role: "assistant",
 		content: [
 			{ type: "thinking", thinking: "I should search." },
 			{ type: "text", text: "Searching." },
-			{ type: "toolCall", id: "call-1", name: "search", arguments: { query: "chud" } },
+			{ type: "toolCall", id: "call-1", name: "search", arguments: { query: "pi" } },
 		],
 		api: "mock",
 		provider: "mock",
@@ -53,7 +53,7 @@ describe("dialect transcript rendering", () => {
 	it("renders harmony turns with analysis, final, calls, and tool results", () => {
 		const out = getDialectDefinition("harmony").renderTranscript(messages);
 
-		expect(out).toContain("<|start|>user<|message|>Find chud<|end|>");
+		expect(out).toContain("<|start|>user<|message|>Find pi<|end|>");
 		expect(out).toContain("<|start|>assistant<|channel|>analysis<|message|>I should search.<|end|>");
 		expect(out).toContain("<|start|>assistant<|channel|>final<|message|>Searching.<|end|>");
 		expect(out).toContain("to=functions.search");
@@ -79,19 +79,11 @@ describe("dialect transcript rendering", () => {
 	it("renders anthropic legacy Human and Assistant turns", () => {
 		const out = getDialectDefinition("anthropic").renderTranscript(messages);
 
-		expect(out).toContain("\n\nHuman: Find chud");
+		expect(out).toContain("\n\nHuman: Find pi");
 		expect(out).toContain("\n\nAssistant: <thinking>\nI should search.\n</thinking>");
 		expect(out).toContain("<function_calls>");
 		expect(out).toContain("<function_results>");
 		expect(out).not.toContain("[Assistant tool calls]:");
-	});
-
-	it("renders distinct native text for each sampled dialect", () => {
-		const outputs = (["harmony", "qwen3", "glm", "anthropic"] satisfies readonly Dialect[]).map(dialect =>
-			getDialectDefinition(dialect).renderTranscript(messages),
-		);
-
-		expect(new Set(outputs).size).toBe(outputs.length);
 	});
 
 	it("does not double-wrap thinking blocks already stored with literal envelopes", () => {

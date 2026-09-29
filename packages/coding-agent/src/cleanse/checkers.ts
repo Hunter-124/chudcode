@@ -1,9 +1,7 @@
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
-import { $which, isRecord, ptree, sanitizeText } from "@chudware/utils";
-import { sleep } from "@chudware/utils/async";
-import * as fsx from "@chudware/utils/fsx";
-import * as git from "../utils/git";
+import * as vcs from "@oh-my-pi/pi-natives/vcs";
+import { $which, isRecord, ptree, sanitizeText } from "@oh-my-pi/pi-utils";
 import { CLEANSE_PARSER_KINDS, type CleanseParserKind, parseCleanseDiagnostics } from "./parsers";
 import type { CleanseCheckResult, CleanseDiagnostic, CleanseDiagnosticReport, SkippedCleanseCheck } from "./types";
 
@@ -245,7 +243,7 @@ export async function buildCustomCleanseSuite(
 		let executable: string | undefined;
 		if (/[\\/]/.test(binary)) {
 			const candidate = path.resolve(resolvedCwd, root, binary);
-			executable = (await fsx.exists(candidate)) ? candidate : undefined;
+			executable = (await Bun.file(candidate).exists()) ? candidate : undefined;
 		} else {
 			executable = resolveBinary(resolvedCwd, root, [binary]);
 		}
@@ -278,7 +276,11 @@ function normalizeCustomRoot(projectCwd: string, cwd: string | undefined): strin
 
 async function listProjectFiles(cwd: string): Promise<string[]> {
 	try {
-		const [tracked, untracked] = await Promise.all([git.ls.files(cwd), git.ls.untracked(cwd)]);
+		const repository = vcs.require(cwd);
+		const [tracked, untracked] = await Promise.all([
+			repository.lsFiles(false, false),
+			repository.lsFiles(true, true),
+		]);
 		return normalizeFiles([...tracked, ...untracked]);
 	} catch {
 		const files: string[] = [];
@@ -360,7 +362,7 @@ function resolveBinary(projectCwd: string, root: string, names: readonly string[
 		if (parent === current || (!parent.startsWith(`${projectCwd}${path.sep}`) && parent !== projectCwd)) break;
 		current = parent;
 	}
-	const searchPath = [...new Set(searchDirectories), process.env.PATH ?? ""].filter(Boolean).join(path.delimiter);
+	const searchPath = [...new Set(searchDirectories), Bun.env.PATH ?? ""].filter(Boolean).join(path.delimiter);
 	for (const name of names) {
 		const executable = $which(name, { cwd, PATH: searchPath });
 		if (executable) return executable;
@@ -611,7 +613,12 @@ async function discoverPython(state: DiscoveryState): Promise<void> {
 	const pyprojectContent = new Map<string, string>();
 	for (const root of pyprojectRoots) {
 		const file = root === "." ? "pyproject.toml" : `${root}/pyproject.toml`;
-		pyprojectContent.set(root, await fsx.readText(path.resolve(state.projectCwd, file)).catch(() => ""));
+		pyprojectContent.set(
+			root,
+			await Bun.file(path.resolve(state.projectCwd, file))
+				.text()
+				.catch(() => ""),
+		);
 	}
 	const withSection = (section: string): string[] =>
 		pyprojectRoots.filter(root => pyprojectContent.get(root)?.includes(section) === true);
@@ -746,7 +753,7 @@ async function discoverPackageTests(state: DiscoveryState): Promise<void> {
 		if (path.posix.basename(file) !== "package.json") continue;
 		let manifest: unknown;
 		try {
-			manifest = await fsx.readJson(path.resolve(state.projectCwd, file));
+			manifest = await Bun.file(path.resolve(state.projectCwd, file)).json();
 		} catch {
 			continue;
 		}
@@ -1252,7 +1259,7 @@ async function runChecker(
 			onDiagnostics && !plan.mutates
 				? (async () => {
 						while (running) {
-							await sleep(flushMs);
+							await Bun.sleep(flushMs);
 							if (!running) break;
 							// Cut at the last newline: truncated trailing lines and
 							// unterminated JSON documents parse as garbage or nothing.

@@ -6,8 +6,8 @@ The critical distinction: **notebook support is file conversion/editing, not not
 
 ## Implementation files
 
-- [`src/edit/notebook.ts`](../packages/coding-agent/src/edit/notebook.ts)
-- [`src/edit/read-file.ts`](../packages/coding-agent/src/edit/read-file.ts)
+- [`crates/pi-edit/src/notebook.rs`](../crates/pi-edit/src/notebook.rs)
+- [`crates/pi-edit/src/files.rs`](../crates/pi-edit/src/files.rs)
 - [`src/tools/read.ts`](../packages/coding-agent/src/tools/read.ts)
 - [`src/tools/eval.ts`](../packages/coding-agent/src/tools/eval.ts)
 - [`src/eval/py/executor.ts`](../packages/coding-agent/src/eval/py/executor.ts)
@@ -16,7 +16,7 @@ The critical distinction: **notebook support is file conversion/editing, not not
 
 ## 1) Runtime boundary: editing vs executing
 
-## `.ipynb` file conversion (`src/edit/notebook.ts`)
+## `.ipynb` file conversion (`crates/pi-edit/src/notebook.rs`)
 
 - `read` treats `.ipynb` files as notebooks unless the selector is `:raw`.
 - The default notebook view is editable text with markers:
@@ -24,7 +24,7 @@ The critical distinction: **notebook support is file conversion/editing, not not
   - `# %% [markdown] cell:N`
   - `# %% [raw] cell:N`
 - Line selectors and multi-range selectors operate on that virtual text.
-- The edit pipeline round-trips virtual text back to notebook JSON through `serializeEditedNotebookText(...)`.
+- The edit pipeline round-trips virtual text back to notebook JSON through `serialize_edited_notebook_text(...)`.
 - Existing notebook metadata is preserved when a marker references an existing unused `cell:N`; new cells get fresh empty metadata.
 - A missing notebook passed to the serializer starts from an empty nbformat 4.5 notebook.
 - The standalone `write` tool is not notebook-aware: it replaces the file with the supplied bytes. Use it only with valid notebook JSON, not the virtual marker representation.
@@ -115,12 +115,12 @@ In session mode:
 
 Kernel startup and per-execution environment patching can receive:
 
-- `CHUDCODE_SESSION_FILE`
-- `CHUDCODE_ARTIFACTS_DIR`
-- `CHUDCODE_TOOL_BRIDGE_URL`
-- `CHUDCODE_TOOL_BRIDGE_TOKEN`
-- `CHUDCODE_TOOL_BRIDGE_SESSION`
-- `CHUDCODE_EVAL_LOCAL_ROOTS`
+- `PI_SESSION_FILE`
+- `PI_ARTIFACTS_DIR`
+- `PI_TOOL_BRIDGE_URL`
+- `PI_TOOL_BRIDGE_TOKEN`
+- `PI_TOOL_BRIDGE_SESSION`
+- `PI_EVAL_LOCAL_ROOTS`
 
 The runner initializes process state so code executes in the requested cwd, managed env entries are reflected in `os.environ`, and cwd is available on `sys.path`.
 
@@ -143,7 +143,7 @@ Structured outputs captured separately include:
 
 - `application/json` -> JSON display output
 - `image/png` / `image/jpeg` -> image output
-- `application/x-chudcode-status` -> status event
+- `application/x-omp-status` -> status event
 
 Cancellation/timeout:
 

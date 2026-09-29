@@ -2,7 +2,7 @@
  * Contract: a large session snapshot is delivered as a small `welcome` frame
  * plus a train of `snapshot-chunk` frames, so the guest can clear its 30s
  * first-welcome timeout long before the full transcript arrives — the fix for
- * [#3144](https://github.com/Hunter-124/chudcode/issues/3144) where a multi-MB
+ * [#3144](https://github.com/can1357/oh-my-pi/issues/3144) where a multi-MB
  * single-frame welcome timed out on the default relay.
  *
  * The test drives the production `CollabHost` (real sealing, real envelopes)
@@ -11,15 +11,14 @@
  * are stubbed.
  */
 import { afterAll, afterEach, beforeAll, describe, expect, it, spyOn } from "bun:test";
-import { importRoomKey } from "@chudware/coding-agent/collab/crypto";
-import { CollabGuestLink } from "@chudware/coding-agent/collab/guest";
-import { CollabHost } from "@chudware/coding-agent/collab/host";
-import { COLLAB_PROTO, type CollabFrame, parseCollabLink } from "@chudware/coding-agent/collab/protocol";
-import { CollabSocket } from "@chudware/coding-agent/collab/relay-client";
-import type { InteractiveModeContext } from "@chudware/coding-agent/modes/types";
-import type { SessionEntry } from "@chudware/coding-agent/session/session-entries";
-import { sleep } from "@chudware/utils/async";
-import * as fsx from "@chudware/utils/fsx";
+import { importRoomKey } from "@oh-my-pi/pi-coding-agent/collab/crypto";
+import { CollabGuestLink } from "@oh-my-pi/pi-coding-agent/collab/guest";
+import { CollabHost } from "@oh-my-pi/pi-coding-agent/collab/host";
+import { COLLAB_PROTO, type CollabFrame, parseCollabLink } from "@oh-my-pi/pi-coding-agent/collab/protocol";
+import { CollabSocket } from "@oh-my-pi/pi-coding-agent/collab/relay-client";
+import { Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
+import type { InteractiveModeContext } from "@oh-my-pi/pi-coding-agent/modes/types";
+import type { SessionEntry } from "@oh-my-pi/pi-coding-agent/session/session-entries";
 import { installInMemoryRelay, uninstallInMemoryRelay } from "./helpers/in-memory-relay";
 
 // In-memory transport: shared FakeWebSocket + InMemoryRelay harness (see
@@ -58,7 +57,7 @@ function makeLargeSnapshot(): SizedSnapshot {
 
 function makeHostContext(snapshot: SizedSnapshot): InteractiveModeContext {
 	const ctx = {
-		settings: { get: () => "" },
+		settings: Settings.isolated(),
 		sessionManager: {
 			getSessionId: () => snapshot.header.id,
 			getCwd: () => snapshot.header.cwd,
@@ -91,7 +90,7 @@ function makeHostContext(snapshot: SizedSnapshot): InteractiveModeContext {
 
 function makeFailingGuestContext(failure: Error): InteractiveModeContext {
 	const ctx = {
-		settings: { get: () => "" },
+		settings: Settings.isolated(),
 		sessionManager: {
 			getSessionFile: () => null,
 			switchSession: () => Promise.reject(failure),
@@ -107,6 +106,7 @@ function makeFailingGuestContext(failure: Error): InteractiveModeContext {
 		streamingMessage: undefined,
 		transcriptMessageComponents: new WeakMap(),
 		pendingTools: new Map(),
+		eventController: { handleEvent: () => Promise.resolve(), takeDisplaceableComponents: () => [] },
 		loadingAnimation: undefined,
 		statusLine: {
 			setCollabStatus: () => {},
@@ -118,6 +118,7 @@ function makeFailingGuestContext(failure: Error): InteractiveModeContext {
 		resetObserverRegistry: () => {},
 		renderInitialMessages: () => {},
 		reloadTodos: () => Promise.resolve(),
+		syncRunningSubagentBadge: () => {},
 		showStatus: () => {},
 		updateEditorTopBorder: () => {},
 		updateEditorBorderColor: () => {},
@@ -130,7 +131,7 @@ function makeCancelledSwitchGuestContext(
 	events: string[],
 ): InteractiveModeContext {
 	return {
-		settings: { get: () => "" },
+		settings: Settings.isolated(),
 		sessionManager: {
 			getSessionFile: () => null,
 			getSessionName: () => undefined,
@@ -154,6 +155,7 @@ function makeCancelledSwitchGuestContext(
 		streamingMessage: undefined,
 		transcriptMessageComponents: new WeakMap(),
 		pendingTools: new Map(),
+		eventController: { handleEvent: () => Promise.resolve(), takeDisplaceableComponents: () => [] },
 		loadingAnimation: undefined,
 		statusLine: {
 			setCollabStatus: () => {},
@@ -196,6 +198,25 @@ afterEach(() => {
 });
 
 describe("collab chunked welcome (#3144)", () => {
+	it("releases join ownership when the transport constructor rejects", async () => {
+		const original = globalThis.WebSocket;
+		const failure = new Error("transport setup failed");
+		globalThis.WebSocket = class {
+			constructor() {
+				throw failure;
+			}
+		} as unknown as typeof WebSocket;
+		const ctx = makeCancelledSwitchGuestContext(async () => true, []);
+		const guest = new CollabGuestLink(ctx);
+		try {
+			await expect(guest.join(host.link)).rejects.toBe(failure);
+			expect(ctx.collabGuest).toBeUndefined();
+		} finally {
+			globalThis.WebSocket = original;
+			await guest.leave("test cleanup").catch(() => {});
+		}
+	});
+
 	it("delivers a small welcome before chunking the transcript across multiple frames", async () => {
 		const parsed = parseCollabLink(host.link);
 		if ("error" in parsed) throw new Error(parsed.error);
@@ -253,14 +274,14 @@ describe("collab chunked welcome (#3144)", () => {
 
 	it("rejects the pending join when snapshot resume fails", async () => {
 		const failure = new Error("replica write failed during snapshot resume");
-		const writeSpy = spyOn(fsx, "write").mockRejectedValue(failure);
+		const writeSpy = spyOn(Bun, "write").mockRejectedValue(failure);
 		const guest = new CollabGuestLink(makeFailingGuestContext(failure));
 		const joinAttempt = guest.join(host.link);
 		try {
 			await expect(
 				Promise.race([
 					joinAttempt,
-					sleep(250).then(() => {
+					Bun.sleep(250).then(() => {
 						throw new Error("join did not reject");
 					}),
 				]),

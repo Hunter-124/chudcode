@@ -2,12 +2,19 @@ import type { Database } from "bun:sqlite";
 import type * as fsNode from "node:fs";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
-import type { AgentMessage } from "@chudware/agent-core";
-import { type ApiKey, completeSimple, Effort, type Model, retryTransientCompletion } from "@chudware/ai";
-import { clampThinkingLevelForModel } from "@chudware/catalog/model-thinking";
-import { calculateUsageTokenComponents } from "@chudware/catalog/models";
-import { getAgentDbPath, getMemoriesDir, isEnoent, logger, parseJsonlLenient, prompt } from "@chudware/utils";
-import * as fsx from "@chudware/utils/fsx";
+import type { AgentMessage } from "@oh-my-pi/pi-agent-core";
+import { type ApiKey, completeSimple, Effort, type Model, retryTransientCompletion } from "@oh-my-pi/pi-ai";
+import { clampThinkingLevelForModel } from "@oh-my-pi/pi-catalog/model-thinking";
+import {
+	getAgentDbPath,
+	getMemoriesDir,
+	isEnoent,
+	logger,
+	parseJsonlLenient,
+	peekFile,
+	prompt,
+} from "@oh-my-pi/pi-utils";
+
 import type { ModelRegistry } from "../config/model-registry";
 import { getModelMatchPreferences, resolveModelRoleValue } from "../config/model-resolver";
 import type { Settings } from "../config/settings";
@@ -33,12 +40,32 @@ import {
 	markStage1Failed,
 	markStage1SucceededNoOutput,
 	markStage1SucceededWithOutput,
+	normalizeScopeCwd,
 	openMemoryDb,
 	type Stage1Claim,
 	type Stage1OutputRow,
 	tryClaimGlobalPhase2Job,
 	upsertThreads,
 } from "./storage";
+
+import {
+	cfgMemoriesFallbackTokenLimit,
+	cfgMemoriesMaxRawMemoriesForGlobal,
+	cfgMemoriesMaxRolloutAgeDays,
+	cfgMemoriesMaxRolloutsPerStartup,
+	cfgMemoriesMinRolloutIdleHours,
+	cfgMemoriesPhase1InputTokenLimit,
+	cfgMemoriesPhase2HeartbeatSeconds,
+	cfgMemoriesPhase2LeaseSeconds,
+	cfgMemoriesPhase2RetryDelaySeconds,
+	cfgMemoriesRolloutPayloadPercent,
+	cfgMemoriesStage1Concurrency,
+	cfgMemoriesStage1LeaseSeconds,
+	cfgMemoriesStage1RetryDelaySeconds,
+	cfgMemoriesSummaryInjectionTokenLimit,
+	cfgMemoriesThreadScanLimit,
+} from "./settings";
+import { cfgMemoryBackend } from "../memory-backend/settings";
 
 interface MemoryRuntimeConfig {
 	enabled: boolean;
@@ -58,25 +85,6 @@ interface MemoryRuntimeConfig {
 	fallbackTokenLimit: number;
 	summaryInjectionTokenLimit: number;
 }
-
-const DEFAULTS: MemoryRuntimeConfig = {
-	enabled: false,
-	maxRolloutsPerStartup: 64,
-	maxRolloutAgeDays: 30,
-	minRolloutIdleHours: 12,
-	threadScanLimit: 300,
-	maxRawMemoriesForGlobal: 200,
-	stage1Concurrency: 8,
-	stage1LeaseSeconds: 120,
-	stage1RetryDelaySeconds: 120,
-	phase2LeaseSeconds: 180,
-	phase2RetryDelaySeconds: 180,
-	phase2HeartbeatSeconds: 30,
-	rolloutPayloadPercent: 0.7,
-	phase1InputTokenLimit: 4_000,
-	fallbackTokenLimit: 16_000,
-	summaryInjectionTokenLimit: 5_000,
-};
 
 interface Stage1Stats {
 	claimed: number;
@@ -191,7 +199,7 @@ async function readMemoryToolDeveloperInstructionsSnapshot(
 
 	let summary = "";
 	try {
-		summary = (await fsx.readText(path.join(memoryRoot, "memory_summary.md"))).trim();
+		summary = (await Bun.file(path.join(memoryRoot, "memory_summary.md")).text()).trim();
 	} catch {
 		// Missing or unreadable summary — injection is best-effort; fall through
 		// so any captured lessons still surface on their own.
@@ -330,7 +338,7 @@ interface MemoryStartupOptions {
 }
 
 function isMemoryStartupActive(options: MemoryStartupOptions): boolean {
-	return !options.signal.aborted && !options.session.isDisposed && options.settings.get("memory.backend") === "local";
+	return !options.signal.aborted && !options.session.isDisposed && cfgMemoryBackend.get(options.settings) === "local";
 }
 
 async function runMemoryStartup(options: MemoryStartupOptions): Promise<void> {
@@ -405,6 +413,7 @@ async function runPhase1(options: MemoryStartupOptions): Promise<void> {
 				claim,
 				model: phase1Model,
 				apiKey: modelRegistry.resolver(phase1Model, session.sessionId),
+				sessionId: session.sessionId,
 				modelMaxTokens: computeModelTokenBudget(phase1Model, config),
 				config,
 				metadata: session.agent?.metadataForProvider(phase1Model.provider),
@@ -453,12 +462,11 @@ async function runPhase1(options: MemoryStartupOptions): Promise<void> {
 			stats.succeeded += 1;
 			stats.produced += 1;
 			if (result.usage) {
-				const billable = calculateUsageTokenComponents(result.usage);
-				stats.usage.input += billable.input;
-				stats.usage.output += billable.output;
-				stats.usage.cacheRead += billable.cacheRead;
-				stats.usage.cacheWrite += billable.cacheWrite;
-				stats.usage.total += billable.input + billable.output + billable.cacheRead + billable.cacheWrite;
+				stats.usage.input += result.usage.input;
+				stats.usage.output += result.usage.output;
+				stats.usage.cacheRead += result.usage.cacheRead;
+				stats.usage.cacheWrite += result.usage.cacheWrite;
+				stats.usage.total += result.usage.totalTokens || 0;
 			}
 		});
 
@@ -568,6 +576,7 @@ async function runPhase2(options: MemoryStartupOptions): Promise<void> {
 				memoryRoot,
 				model: phase2Model,
 				apiKey: modelRegistry.resolver(phase2Model, session.sessionId),
+				sessionId: session.sessionId,
 				metadata: session.agent?.metadataForProvider(phase2Model.provider),
 			});
 			if (!isMemoryStartupActive(options)) return;
@@ -641,7 +650,8 @@ function markPhase2FailureWithFallback(
 	}
 }
 
-async function collectThreads(session: AgentSession, currentThreadId?: string): Promise<MemoryThread[]> {
+/** @internal Exported for unit-testing. */
+export async function collectThreads(session: AgentSession, currentThreadId?: string): Promise<MemoryThread[]> {
 	const sessionDir = session.sessionManager.getSessionDir();
 	const files = await fs.readdir(sessionDir);
 	const threads: MemoryThread[] = [];
@@ -657,10 +667,26 @@ async function collectThreads(session: AgentSession, currentThreadId?: string): 
 		let cwd = "";
 		let id = name.slice(0, -6);
 		try {
-			const fileText = await fsx.readText(fullPath);
+			// Bounded head read: session files can grow to hundreds of MBs, but the
+			// session header line always lives at line 1 (or line 2 after a title
+			// slot). Reading a small head slice avoids full-file read and line-split
+			// allocations on startup for every past session. If the candidate line
+			// falls on the slice boundary, fall back to a full read.
+			const HEAD_CAP = 64 * 1024;
+			let isLarge = stat.size > HEAD_CAP;
+			let fileText = isLarge
+				? await peekFile(fullPath, HEAD_CAP, bytes => new TextDecoder().decode(bytes))
+				: await Bun.file(fullPath).text();
+			let lines = fileText.split(/\r?\n/);
 			let sawTitleSlot = false;
-			for (const rawLine of fileText.split(/\r?\n/)) {
-				const line = rawLine.trim();
+			for (let i = 0; i < lines.length; i++) {
+				// If the slice was cut before this line terminated, fall back to full read
+				if (isLarge && i === lines.length - 1) {
+					fileText = await Bun.file(fullPath).text();
+					lines = fileText.split(/\r?\n/);
+					isLarge = false;
+				}
+				const line = lines[i].trim();
 				if (!line) continue;
 				const parsed = parseJsonlLenient<Record<string, unknown>>(line);
 				const header = Array.isArray(parsed) && parsed.length > 0 ? parsed[0] : undefined;
@@ -726,6 +752,7 @@ async function runStage1Job(options: {
 	claim: Stage1Claim;
 	model: Model;
 	apiKey: ApiKey;
+	sessionId: string;
 	modelMaxTokens: number;
 	config: MemoryRuntimeConfig;
 	metadata?: Record<string, unknown>;
@@ -740,7 +767,7 @@ async function runStage1Job(options: {
 > {
 	const { claim, model, apiKey, modelMaxTokens, config } = options;
 	try {
-		const rolloutRaw = await fsx.readText(claim.rolloutPath);
+		const rolloutRaw = await Bun.file(claim.rolloutPath).text();
 		const persisted = extractPersistableMessages(rolloutRaw);
 		const serializedItems = JSON.stringify(persisted);
 		const budgetTokens = Math.min(
@@ -753,20 +780,23 @@ async function runStage1Job(options: {
 			response_items_json: truncatedItems,
 		});
 
-		const response = await retryTransientCompletion(() =>
-			completeSimple(
-				model,
-				{
-					systemPrompt: [stageOneSystemTemplate],
-					messages: [{ role: "user", content: [{ type: "text", text: inputPrompt }], timestamp: Date.now() }],
-				},
-				{
-					apiKey,
-					metadata: options.metadata,
-					maxTokens: Math.max(1024, Math.min(4096, Math.floor(modelMaxTokens * 0.2))),
-					reasoning: clampThinkingLevelForModel(model, Effort.Low),
-				},
-			),
+		const response = await retryTransientCompletion(
+			() =>
+				completeSimple(
+					model,
+					{
+						systemPrompt: [stageOneSystemTemplate],
+						messages: [{ role: "user", content: [{ type: "text", text: inputPrompt }], timestamp: Date.now() }],
+					},
+					{
+						apiKey,
+						sessionId: options.sessionId,
+						metadata: options.metadata,
+						maxTokens: Math.max(1024, Math.min(4096, Math.floor(modelMaxTokens * 0.2))),
+						reasoning: clampThinkingLevelForModel(model, Effort.Low),
+					},
+				),
+			{ provider: model.provider },
 		);
 
 		if (response.stopReason === "error") {
@@ -818,7 +848,7 @@ async function syncPhase2Artifacts(memoryRoot: string, outputs: Stage1OutputRow[
 		const body = [`thread_id: ${row.threadId}`, `updated_at: ${row.sourceUpdatedAt}`, "", row.rolloutSummary].join(
 			"\n",
 		);
-		await fsx.write(path.join(summariesDir, filename), `${body.trim()}\n`);
+		await Bun.write(path.join(summariesDir, filename), `${body.trim()}\n`);
 	}
 
 	const currentFiles = await fs.readdir(summariesDir).catch(() => [] as string[]);
@@ -829,7 +859,7 @@ async function syncPhase2Artifacts(memoryRoot: string, outputs: Stage1OutputRow[
 	}
 
 	const rawBody = buildRawMemoriesMarkdown(outputs);
-	await fsx.write(path.join(memoryRoot, "raw_memories.md"), rawBody);
+	await Bun.write(path.join(memoryRoot, "raw_memories.md"), rawBody);
 }
 
 async function cleanupConsolidatedArtifacts(memoryRoot: string): Promise<void> {
@@ -858,7 +888,9 @@ async function readRolloutSummaries(memoryRoot: string): Promise<string> {
 
 	const blocks: string[] = [];
 	for (const name of summaryNames) {
-		const text = await fsx.readText(path.join(summariesDir, name)).catch(() => "");
+		const text = await Bun.file(path.join(summariesDir, name))
+			.text()
+			.catch(() => "");
 		if (!text.trim()) continue;
 		blocks.push(`--- ${name} ---\n${text.trim()}`);
 	}
@@ -870,6 +902,7 @@ async function runConsolidationModel(options: {
 	memoryRoot: string;
 	model: Model;
 	apiKey: ApiKey;
+	sessionId: string;
 	metadata?: Record<string, unknown>;
 }): Promise<{
 	memoryMd: string;
@@ -883,27 +916,30 @@ async function runConsolidationModel(options: {
 	}>;
 }> {
 	const { memoryRoot, model, apiKey } = options;
-	const rawMemories = await fsx.readText(path.join(memoryRoot, "raw_memories.md"));
+	const rawMemories = await Bun.file(path.join(memoryRoot, "raw_memories.md")).text();
 	const rolloutSummaries = await readRolloutSummaries(memoryRoot);
 	const input = prompt.render(consolidationTemplate, {
 		raw_memories: truncateByApproxTokens(rawMemories, 20_000),
 		rollout_summaries: truncateByApproxTokens(rolloutSummaries, 12_000),
 	});
 
-	const response = await retryTransientCompletion(() =>
-		completeSimple(
-			model,
-			{
-				systemPrompt: [consolidationSystemTemplate],
-				messages: [{ role: "user", content: [{ type: "text", text: input }], timestamp: Date.now() }],
-			},
-			{
-				apiKey,
-				metadata: options.metadata,
-				maxTokens: 8192,
-				reasoning: clampThinkingLevelForModel(model, Effort.Medium),
-			},
-		),
+	const response = await retryTransientCompletion(
+		() =>
+			completeSimple(
+				model,
+				{
+					systemPrompt: [consolidationSystemTemplate],
+					messages: [{ role: "user", content: [{ type: "text", text: input }], timestamp: Date.now() }],
+				},
+				{
+					apiKey,
+					sessionId: options.sessionId,
+					metadata: options.metadata,
+					maxTokens: 8192,
+					reasoning: clampThinkingLevelForModel(model, Effort.Medium),
+				},
+			),
+		{ provider: model.provider },
 	);
 	if (response.stopReason === "error") {
 		throw new Error(response.errorMessage || "phase2 model error");
@@ -963,8 +999,8 @@ async function applyConsolidation(
 		}>;
 	},
 ): Promise<void> {
-	await fsx.write(path.join(memoryRoot, "MEMORY.md"), `${consolidated.memoryMd.trim()}\n`);
-	await fsx.write(path.join(memoryRoot, "memory_summary.md"), `${consolidated.memorySummary.trim()}\n`);
+	await Bun.write(path.join(memoryRoot, "MEMORY.md"), `${consolidated.memoryMd.trim()}\n`);
+	await Bun.write(path.join(memoryRoot, "memory_summary.md"), `${consolidated.memorySummary.trim()}\n`);
 	const skillsDir = path.join(memoryRoot, "skills");
 	await fs.mkdir(skillsDir, { recursive: true });
 	const keep = new Set<string>();
@@ -985,7 +1021,7 @@ async function applyConsolidation(
 		}
 
 		for (const [relativePath, content] of [...files.entries()].sort(([a], [b]) => a.localeCompare(b))) {
-			await fsx.write(path.join(dir, ...relativePath.split("/")), content);
+			await Bun.write(path.join(dir, ...relativePath.split("/")), content);
 		}
 
 		const keepFiles = new Set(files.keys());
@@ -1233,28 +1269,27 @@ async function resolveMemoryModel(options: {
 
 function loadMemoryConfig(settings: Settings): MemoryRuntimeConfig {
 	return {
-		enabled: settings.get("memory.backend") === "local",
-		maxRolloutsPerStartup: settings.get("memories.maxRolloutsPerStartup") ?? DEFAULTS.maxRolloutsPerStartup,
-		maxRolloutAgeDays: settings.get("memories.maxRolloutAgeDays") ?? DEFAULTS.maxRolloutAgeDays,
-		minRolloutIdleHours: settings.get("memories.minRolloutIdleHours") ?? DEFAULTS.minRolloutIdleHours,
-		threadScanLimit: settings.get("memories.threadScanLimit") ?? DEFAULTS.threadScanLimit,
-		maxRawMemoriesForGlobal: settings.get("memories.maxRawMemoriesForGlobal") ?? DEFAULTS.maxRawMemoriesForGlobal,
-		stage1Concurrency: settings.get("memories.stage1Concurrency") ?? DEFAULTS.stage1Concurrency,
-		stage1LeaseSeconds: settings.get("memories.stage1LeaseSeconds") ?? DEFAULTS.stage1LeaseSeconds,
-		stage1RetryDelaySeconds: settings.get("memories.stage1RetryDelaySeconds") ?? DEFAULTS.stage1RetryDelaySeconds,
-		phase2LeaseSeconds: settings.get("memories.phase2LeaseSeconds") ?? DEFAULTS.phase2LeaseSeconds,
-		phase2RetryDelaySeconds: settings.get("memories.phase2RetryDelaySeconds") ?? DEFAULTS.phase2RetryDelaySeconds,
-		phase2HeartbeatSeconds: settings.get("memories.phase2HeartbeatSeconds") ?? DEFAULTS.phase2HeartbeatSeconds,
-		rolloutPayloadPercent: settings.get("memories.rolloutPayloadPercent") ?? DEFAULTS.rolloutPayloadPercent,
-		phase1InputTokenLimit: settings.get("memories.phase1InputTokenLimit") ?? DEFAULTS.phase1InputTokenLimit,
-		fallbackTokenLimit: settings.get("memories.fallbackTokenLimit") ?? DEFAULTS.fallbackTokenLimit,
-		summaryInjectionTokenLimit:
-			settings.get("memories.summaryInjectionTokenLimit") ?? DEFAULTS.summaryInjectionTokenLimit,
+		enabled: cfgMemoryBackend.get(settings) === "local",
+		maxRolloutsPerStartup: cfgMemoriesMaxRolloutsPerStartup.get(settings),
+		maxRolloutAgeDays: cfgMemoriesMaxRolloutAgeDays.get(settings),
+		minRolloutIdleHours: cfgMemoriesMinRolloutIdleHours.get(settings),
+		threadScanLimit: cfgMemoriesThreadScanLimit.get(settings),
+		maxRawMemoriesForGlobal: cfgMemoriesMaxRawMemoriesForGlobal.get(settings),
+		stage1Concurrency: cfgMemoriesStage1Concurrency.get(settings),
+		stage1LeaseSeconds: cfgMemoriesStage1LeaseSeconds.get(settings),
+		stage1RetryDelaySeconds: cfgMemoriesStage1RetryDelaySeconds.get(settings),
+		phase2LeaseSeconds: cfgMemoriesPhase2LeaseSeconds.get(settings),
+		phase2RetryDelaySeconds: cfgMemoriesPhase2RetryDelaySeconds.get(settings),
+		phase2HeartbeatSeconds: cfgMemoriesPhase2HeartbeatSeconds.get(settings),
+		rolloutPayloadPercent: cfgMemoriesRolloutPayloadPercent.get(settings),
+		phase1InputTokenLimit: cfgMemoriesPhase1InputTokenLimit.get(settings),
+		fallbackTokenLimit: cfgMemoriesFallbackTokenLimit.get(settings),
+		summaryInjectionTokenLimit: cfgMemoriesSummaryInjectionTokenLimit.get(settings),
 	};
 }
 
 export function getMemoryRoot(agentDir: string, cwd: string): string {
-	return path.join(getMemoriesDir(agentDir), encodeProjectPath(cwd));
+	return path.join(getMemoriesDir(agentDir), encodeProjectPath(normalizeScopeCwd(cwd)));
 }
 
 /**
@@ -1343,7 +1378,7 @@ export async function saveLearnedLesson(
 async function appendLearnedLine(filePath: string, line: string): Promise<void> {
 	let existing = "";
 	try {
-		existing = await fsx.readText(filePath);
+		existing = await Bun.file(filePath).text();
 	} catch (err) {
 		if (!isEnoent(err)) throw err;
 	}
@@ -1371,7 +1406,7 @@ async function appendLearnedLine(filePath: string, line: string): Promise<void> 
 			lessonCount--;
 		}
 	}
-	await fsx.write(filePath, `${out.join("\n")}\n`);
+	await Bun.write(filePath, `${out.join("\n")}\n`);
 }
 
 /**
@@ -1382,7 +1417,7 @@ async function appendLearnedLine(filePath: string, line: string): Promise<void> 
 async function readLearnedLessons(memoryRoot: string): Promise<string> {
 	let raw = "";
 	try {
-		raw = (await fsx.readText(path.join(memoryRoot, LEARNED_LESSONS_FILE))).trim();
+		raw = (await Bun.file(path.join(memoryRoot, LEARNED_LESSONS_FILE)).text()).trim();
 	} catch {
 		return "";
 	}
@@ -1409,6 +1444,7 @@ async function runWithConcurrency<T>(
 	worker: (item: T) => Promise<void>,
 ): Promise<void> {
 	const queue = [...items];
+	// oxlint-disable-next-line unicorn/no-new-array -- length preallocation
 	const workers = new Array(Math.max(1, concurrency)).fill(0).map(async () => {
 		while (queue.length > 0) {
 			const item = queue.shift();

@@ -1,5 +1,5 @@
-import type { AgentMessage } from "@chudware/agent-core";
-import { isRecord } from "@chudware/utils";
+import type { AgentMessage } from "@oh-my-pi/pi-agent-core";
+import { isRecord } from "@oh-my-pi/pi-utils";
 
 const DEFAULT_RPC_MESSAGE_PAGE_LIMIT = 100;
 const MAX_RPC_MESSAGE_PAGE_LIMIT = 256;

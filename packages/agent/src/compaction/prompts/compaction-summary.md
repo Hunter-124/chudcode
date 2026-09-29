@@ -1,38 +1,38 @@
-You MUST curate the conversation above into a compact, current handoff for another LLM.
+You MUST summarize the conversation above into a structured handoff summary for another LLM to resume the task.
 
-Treat project context as an evolving working set, not an append-only transcript:
-- Keep current goals, open work, blockers, constraints, and the next executable actions detailed.
-- Keep completed work only when it changed durable project state: shipped behavior, interfaces, migrations, pushed commits, accepted decisions, verified invariants, or a failed approach whose cause prevents repeating it.
-- Collapse routine completed steps into the durable outcome they established. Do not preserve a cumulative task log.
-- Remove resolved blockers, dropped ideas, obsolete instructions, superseded plans, and stale intermediate state unless their timeline position is still required to understand the current project.
-- When information conflicts, state the newest supported version as current. Preserve the earlier version only when the transition itself matters.
-- Preserve exact paths, symbols, versions, errors, commit SHAs, and evidence that the next agent will actually need.
-- If the conversation ends with an unanswered question or request awaiting the user, preserve it exactly.
+IMPORTANT: If the conversation ends with an unanswered question or a request awaiting user response (e.g., "Please run command and paste output"), you MUST preserve that exact question/request.
 
-Use this format; omit empty sections:
+You MUST use this format (sections can be omitted if not applicable):
 
 ## Goal
-[Only current user goals.]
+[User goals; list multiple if session covers different tasks.]
 
 ## Constraints & Preferences
-- [Current constraints and stable preferences.]
+- [Constraints or requirements mentioned]
 
-## Current State
-- [What is true now, including durable completed outcomes.]
+## Progress
 
-## In Progress
-- [Current work only.]
+### Done
+- [x] [Completed tasks/changes]
 
-## Blocked
-- [Unresolved blockers and the exact missing prerequisite.]
+### In Progress
+- [ ] [Current work]
+
+### Blocked
+- [Issues preventing progress]
 
 ## Key Decisions
-- **[Current decision]**: [Brief rationale and supersession note only when relevant.]
+- **[Decision]**: [Brief rationale]
 
 ## Next Steps
-1. [Ordered executable actions.]
+1. [Ordered list of next actions]
 
 ## Critical Context
-- [Minimal timeline, references, repository state, and evidence needed to continue safely.]
+- [Important data, pending questions, references]
 
-You MUST output only the structured handoff. Keep it concise and aggressively remove information whose relevance has expired.
+## Additional Notes
+[Anything else important not covered above]
+
+You MUST output only the structured summary; you NEVER include extra text.
+
+Sections MUST be kept concise. You MUST preserve exact file paths, function names, error messages, and relevant tool outputs or command results. You MUST include repository state changes (branch, uncommitted changes) if mentioned.

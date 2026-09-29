@@ -1,8 +1,8 @@
 import { describe, expect, it } from "bun:test";
-import * as AIError from "@chudware/ai/error";
-import { AnthropicMessagesClient } from "@chudware/ai/providers/anthropic-client";
-import type { MessageCreateParamsStreaming } from "@chudware/ai/providers/anthropic-wire";
-import type { FetchImpl } from "@chudware/ai/types";
+import * as AIError from "@oh-my-pi/pi-ai/error";
+import { AnthropicMessagesClient } from "@oh-my-pi/pi-ai/providers/anthropic-client";
+import type { MessageCreateParamsStreaming } from "@oh-my-pi/pi-ai/providers/anthropic-wire";
+import type { FetchImpl } from "@oh-my-pi/pi-ai/types";
 
 const params: MessageCreateParamsStreaming = {
 	model: "claude-sonnet-4-5",
@@ -58,6 +58,37 @@ describe("AnthropicMessagesClient error mapping", () => {
 		expect(apiError.message).toContain("compiled grammar is too large");
 		expect(apiError.requestId).toBe("req_err");
 		// 400 is not retryable: exactly one attempt.
+		expect(calls.length).toBe(1);
+	});
+
+	it("extracts error_code from details onto AnthropicApiError.code", async () => {
+		const body = JSON.stringify({
+			type: "error",
+			error: {
+				type: "permission_error",
+				message: "OAuth authentication is currently not allowed for this organization.",
+				details: { error_code: "oauth_not_allowed_for_organization" },
+			},
+			request_id: "req_oauth_403",
+		});
+		const { calls, fetch } = createFetchMock([
+			new Response(body, { status: 403, headers: { "request-id": "req_oauth_403" } }),
+		]);
+		const client = new AnthropicMessagesClient({ apiKey: "sk-test", baseURL: "https://api.anthropic.com", fetch });
+
+		const error = await client.messages
+			.create(params)
+			.asResponse()
+			.then(
+				() => undefined,
+				err => err,
+			);
+
+		expect(error).toBeInstanceOf(AIError.AnthropicApiError);
+		const apiError = error as AIError.AnthropicApiError;
+		expect(apiError.status).toBe(403);
+		expect(apiError.code).toBe("oauth_not_allowed_for_organization");
+		expect(apiError.requestId).toBe("req_oauth_403");
 		expect(calls.length).toBe(1);
 	});
 

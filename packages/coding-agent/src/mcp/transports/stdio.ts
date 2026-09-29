@@ -7,8 +7,7 @@
 
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
-import { getProjectDir, readJsonl } from "@chudware/utils";
-import * as fsx from "@chudware/utils/fsx";
+import { getProjectDir, readJsonl } from "@oh-my-pi/pi-utils";
 import type { Subprocess } from "bun";
 import { hostHasInheritableConsole } from "../../eval/py/spawn-options";
 import type {
@@ -21,8 +20,10 @@ import type {
 	MCPTransport,
 } from "../../mcp/types";
 import { toJsonRpcError } from "../../mcp/types";
+import { createMCPJsonRpcError, MCPTransportError, normalizeMCPTransportError } from "../errors";
 import { RequestIdAllocator } from "../request-id";
 import { isMCPTimeoutEnabled, resolveMCPTimeoutMs } from "../timeout";
+import { isThenable } from "../../utils/ipc";
 
 /** Subprocess argv and platform-derived spawn flags for an MCP stdio server. */
 export interface StdioSpawnCommand {
@@ -30,7 +31,7 @@ export interface StdioSpawnCommand {
 	/**
 	 * Hide the Windows console window for the direct child.
 	 *
-	 * Windows uses this only when the Chudcode host has no console to share. When
+	 * Windows uses this only when the OMP host has no console to share. When
 	 * the host is running inside a terminal, `windowsHide: true` maps to
 	 * `CREATE_NO_WINDOW`, which strips that inheritable console from hidden
 	 * `cmd.exe` / PowerShell wrapper chains. Their console grandchildren then
@@ -52,7 +53,7 @@ export interface StdioSpawnCommand {
 	 * for servers such as `xcrun mcpbridge` (#4987).
 	 *
 	 * Windows: `false`. There is no SIGTSTP/SIGTTIN to escape, and Windows
-	 * wrapper chains must stay in the Chudcode console session so nested console
+	 * wrapper chains must stay in the OMP console session so nested console
 	 * grandchildren keep stdout routed through our pipe (#3544).
 	 */
 	detached: boolean;
@@ -183,7 +184,7 @@ async function resolveWindowsNpmShimCommand(
 
 	let content: string;
 	try {
-		content = await fsx.readText(commandPath);
+		content = await Bun.file(commandPath).text();
 	} catch {
 		return null;
 	}
@@ -319,7 +320,7 @@ function buildCmdExeArgv(comspec: string, command: string, args: readonly string
  * Resolve the subprocess argv used to launch an MCP stdio server.
  *
  * On Windows, our PATH/PATHEXT walk may return `null` for a bare command
- * (e.g. `npx`) — `process.env.PATH` empty under a restricted parent process,
+ * (e.g. `npx`) — `Bun.env.PATH` empty under a restricted parent process,
  * UNC/network mounts that reject `fs.access`, locked-down shells. The
  * legacy fallback handed `Bun.spawn` the bare name, but `CreateProcess`
  * only appends `.exe` for extensionless names — `.cmd`/`.bat` are never
@@ -344,7 +345,7 @@ export async function resolveStdioSpawnCommand(
 	// is not a batch script. Everything else (resolved .cmd/.bat, or an
 	// unresolved extensionless command) goes through cmd.exe so PATHEXT runs.
 	// Windows stdio servers stay attached so wrapper grandchildren inherit the
-	// same console session. Only hide the child when Chudcode itself has no console
+	// same console session. Only hide the child when OMP itself has no console
 	// to share; CREATE_NO_WINDOW breaks console inheritance for nested wrappers.
 	const detached = false;
 	const needsCmdExe = resolved === null || isWindowsBatchCommand(resolvedCommand);
@@ -362,15 +363,6 @@ export async function resolveStdioSpawnCommand(
 interface FrameSink {
 	write(chunk: string): unknown;
 	flush(): unknown;
-}
-
-/** Narrow a value to a thenable so a rejection handler can be attached. */
-function isThenable(value: unknown): value is PromiseLike<unknown> {
-	return (
-		value != null &&
-		(typeof value === "object" || typeof value === "function") &&
-		typeof (value as { then?: unknown }).then === "function"
-	);
 }
 
 /**
@@ -577,7 +569,7 @@ export class StdioTransport implements MCPTransport {
 		if (this.#connected) return;
 
 		const env = {
-			...process.env,
+			...Bun.env,
 			...this.config.env,
 		};
 		const cwd = this.config.cwd ?? getProjectDir();
@@ -621,21 +613,40 @@ export class StdioTransport implements MCPTransport {
 
 	async #startReadLoop(): Promise<void> {
 		if (!this.#process?.stdout) return;
+		let closeError: MCPTransportError | undefined;
 		try {
 			for await (const line of readJsonl(this.#process.stdout)) {
 				if (!this.#connected) break;
 				try {
 					this.#handleMessage(line as JsonRpcMessage);
 				} catch {
-					// Skip malformed lines
+					// Skip malformed message shapes; malformed JSON is handled by readJsonl.
 				}
 			}
 		} catch (error) {
+			closeError = normalizeMCPTransportError(error, {
+				transport: "stdio",
+				stage: error instanceof SyntaxError ? "decode" : "receive",
+			});
 			if (this.#connected) {
-				this.onError?.(error instanceof Error ? error : new Error(String(error)));
+				this.onError?.(closeError);
 			}
 		} finally {
-			this.#handleClose();
+			if (this.#connected && closeError === undefined) {
+				const exitCode = this.#process?.exitCode;
+				closeError = new MCPTransportError({
+					transport: "stdio",
+					stage: "receive",
+					failure: "eof",
+					message:
+						exitCode === null || exitCode === undefined
+							? "MCP subprocess closed stdout before responding"
+							: `MCP subprocess exited with code ${exitCode} before responding`,
+					retryable: true,
+					code: exitCode ?? undefined,
+				});
+			}
+			this.#handleClose(closeError);
 		}
 	}
 
@@ -681,7 +692,7 @@ export class StdioTransport implements MCPTransport {
 			if (pending) {
 				this.#pendingRequests.delete(response.id);
 				if (response.error) {
-					pending.reject(new Error(`MCP error ${response.error.code}: ${response.error.message}`));
+					pending.reject(createMCPJsonRpcError("stdio", response.error));
 				} else {
 					pending.resolve(response.result);
 				}
@@ -719,13 +730,21 @@ export class StdioTransport implements MCPTransport {
 		writeFrame(this.#process.stdin, `${JSON.stringify(response)}\n`);
 	}
 
-	#handleClose(): void {
+	#handleClose(error?: Error): void {
 		if (!this.#connected) return;
 		this.#connected = false;
 
-		// Reject all pending requests
+		const closeError =
+			error ??
+			new MCPTransportError({
+				transport: "stdio",
+				stage: "receive",
+				failure: "closed",
+				message: "Transport closed",
+				retryable: true,
+			});
 		for (const [, pending] of this.#pendingRequests) {
-			pending.reject(new Error("Transport closed"));
+			pending.reject(closeError);
 		}
 		this.#pendingRequests.clear();
 
@@ -738,7 +757,13 @@ export class StdioTransport implements MCPTransport {
 		options?: MCPRequestOptions,
 	): Promise<T> {
 		if (!this.#connected || !this.#process?.stdin) {
-			throw new Error("Transport not connected");
+			throw new MCPTransportError({
+				transport: "stdio",
+				stage: "connect",
+				failure: "closed",
+				message: "Transport not connected",
+				retryable: true,
+			});
 		}
 
 		const id = this.#requestIds.next(this.config.requestIdFormat);
@@ -798,7 +823,15 @@ export class StdioTransport implements MCPTransport {
 		if (isMCPTimeoutEnabled(timeout)) {
 			timer = setTimeout(() => {
 				cleanup();
-				reject(new Error(`Request timeout after ${timeout}ms`));
+				reject(
+					new MCPTransportError({
+						transport: "stdio",
+						stage: "receive",
+						failure: "timeout",
+						message: `Request timeout after ${timeout}ms`,
+						retryable: false,
+					}),
+				);
 			}, timeout);
 		}
 
@@ -807,7 +840,7 @@ export class StdioTransport implements MCPTransport {
 		const failFromSend = (error: unknown) => {
 			if (settled) return;
 			cleanup();
-			reject(error instanceof Error ? error : new Error(String(error)));
+			reject(normalizeMCPTransportError(error, { transport: "stdio", stage: "send" }));
 		};
 		try {
 			// Never `await` write/flush. Bun's FileSink returns a pending Promise
@@ -832,7 +865,13 @@ export class StdioTransport implements MCPTransport {
 
 	async notify(method: string, params?: Record<string, unknown>): Promise<void> {
 		if (!this.#connected || !this.#process?.stdin) {
-			throw new Error("Transport not connected");
+			throw new MCPTransportError({
+				transport: "stdio",
+				stage: "connect",
+				failure: "closed",
+				message: "Transport not connected",
+				retryable: true,
+			});
 		}
 
 		const notification = {
@@ -852,8 +891,15 @@ export class StdioTransport implements MCPTransport {
 		// `onClose` handler, so a swallowed failure there would yield a
 		// "connected" handle wrapping a dead transport. See #1710.
 		if (!writeFrame(this.#process.stdin, `${JSON.stringify(notification)}\n`)) {
-			this.#handleClose();
-			throw new Error(`Transport closed while sending notification "${method}"`);
+			const error = new MCPTransportError({
+				transport: "stdio",
+				stage: "send",
+				failure: "eof",
+				message: `Transport closed while sending notification "${method}"`,
+				retryable: true,
+			});
+			this.#handleClose(error);
+			throw error;
 		}
 	}
 
@@ -905,6 +951,10 @@ export class StdioTransport implements MCPTransport {
  */
 export async function createStdioTransport(config: MCPStdioServerConfig): Promise<StdioTransport> {
 	const transport = new StdioTransport(config);
-	await transport.connect();
-	return transport;
+	try {
+		await transport.connect();
+		return transport;
+	} catch (error) {
+		throw normalizeMCPTransportError(error, { transport: "stdio", stage: "connect" });
+	}
 }

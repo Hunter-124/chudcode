@@ -1,4 +1,4 @@
-import { tryParseJson } from "@chudware/utils";
+import { tryParseJson } from "@oh-my-pi/pi-utils";
 import type { SpecialHandler } from "./types";
 import { buildResult, decodeHtmlEntities, formatIsoDate, loadPage } from "./types";
 

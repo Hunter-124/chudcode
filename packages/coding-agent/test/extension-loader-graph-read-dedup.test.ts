@@ -1,33 +1,57 @@
 import { afterEach, beforeEach, describe, expect, it, type Mock, spyOn } from "bun:test";
 import * as fs from "node:fs";
 import * as path from "node:path";
-import { loadExtensions } from "@chudware/coding-agent/extensibility/extensions/loader";
-import { loadLegacyPiModule } from "@chudware/coding-agent/extensibility/plugins/legacy-pi-compat";
-import { TempDir } from "@chudware/utils";
-import * as fsx from "@chudware/utils/fsx";
+import { loadExtensions } from "@oh-my-pi/pi-coding-agent/extensibility/extensions/loader";
+import { loadLegacyPiModule } from "@oh-my-pi/pi-coding-agent/extensibility/plugins/legacy-pi-compat";
+import { TempDir } from "@oh-my-pi/pi-utils";
+import type { BunFile } from "bun";
 
 describe("Extension Loader Graph Read Dedup", () => {
 	let tempDir: TempDir;
 	let reads: Map<string, number>;
-	let readSpy: Mock<typeof fsx.readText>;
+	let fileSpy: Mock<typeof Bun.file>;
 
 	beforeEach(() => {
 		tempDir = TempDir.createSync("@pi-ext-dedup-");
 		reads = new Map<string, number>();
 
-		const realReadText = fsx.readText;
-		readSpy = spyOn(fsx, "readText").mockImplementation((file: fsx.PathLike) => {
-			if (typeof file === "string") {
-				const key = fs.existsSync(file) ? fs.realpathSync(file) : file;
-				reads.set(key, (reads.get(key) ?? 0) + 1);
+		const realBunFile = Bun.file.bind(Bun);
+
+		const spyImpl = (path: string | URL, options?: BlobPropertyBag): BunFile => {
+			const handle = realBunFile(path, options);
+			if (typeof path === "string") {
+				const key = fs.existsSync(path) ? fs.realpathSync(path) : path;
+				const bump = () => {
+					reads.set(key, (reads.get(key) ?? 0) + 1);
+				};
+
+				return new Proxy(handle, {
+					get(target: BunFile, prop: string | symbol, recv: unknown): unknown {
+						if (prop === "text" || prop === "arrayBuffer" || prop === "bytes" || prop === "json") {
+							const original = Reflect.get(target, prop, recv) as ((...a: unknown[]) => unknown) | undefined;
+							if (typeof original === "function") {
+								return (...methodArgs: unknown[]): unknown => {
+									bump();
+									return original.apply(target, methodArgs);
+								};
+							}
+						}
+						return Reflect.get(target, prop, recv);
+					},
+				});
 			}
-			return realReadText(file);
-		});
+			return handle;
+		};
+		fileSpy = spyOn(Bun, "file").mockImplementation(spyImpl as typeof Bun.file);
 	});
 
 	afterEach(() => {
-		readSpy?.mockRestore();
-		tempDir?.removeSync();
+		if (fileSpy) {
+			fileSpy.mockRestore();
+		}
+		if (tempDir) {
+			tempDir.removeSync();
+		}
 	});
 
 	it("should read each extension module from disk exactly once", async () => {
@@ -48,9 +72,9 @@ describe("Extension Loader Graph Read Dedup", () => {
 
 		const entryPath = path.join(extDir, "index.ts");
 		const entryContent = `import "./mod-0.ts";
-export default function(chud) {
-    const { Type } = chud.typebox;
-    chud.registerTool({
+export default function(pi) {
+    const { Type } = pi.typebox;
+    pi.registerTool({
         name: "dedup-tool",
         label: "dedup-tool",
         description: "Test tool",

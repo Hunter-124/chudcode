@@ -1,11 +1,11 @@
 import { describe, expect, it } from "bun:test";
-import { streamAnthropic } from "@chudware/ai/providers/anthropic";
-import { streamOpenAICompletions } from "@chudware/ai/providers/openai-completions";
-import { streamOpenAIResponses } from "@chudware/ai/providers/openai-responses";
-import { streamSimple } from "@chudware/ai/stream";
-import type { Context, FetchImpl, ModelSpec } from "@chudware/ai/types";
-import { buildModel } from "@chudware/catalog/build";
-import { Effort } from "@chudware/catalog/effort";
+import { streamAnthropic } from "@oh-my-pi/pi-ai/providers/anthropic";
+import { streamOpenAICompletions } from "@oh-my-pi/pi-ai/providers/openai-completions";
+import { streamOpenAIResponses } from "@oh-my-pi/pi-ai/providers/openai-responses";
+import { streamSimple } from "@oh-my-pi/pi-ai/stream";
+import type { Context, FetchImpl, ModelSpec } from "@oh-my-pi/pi-ai/types";
+import { buildModel } from "@oh-my-pi/pi-catalog/build";
+import { Effort } from "@oh-my-pi/pi-catalog/effort";
 
 const ctx: Context = {
 	systemPrompt: ["hi"],
@@ -89,7 +89,7 @@ describe("null maxTokens fallback wire tests", () => {
 		}
 
 		expect(capturedPayload).not.toBeNull();
-		expect(capturedPayload!.max_tokens).toBe(64000); // fallback CLAUDE_CODE_MAX_OUTPUT_TOKENS
+		expect(capturedPayload!.max_tokens).toBe(64000); // fallback for unknown model ceilings
 	});
 
 	it("verifies openai completions clamps to OPENAI_MAX_OUTPUT_TOKENS when maxTokens is null", async () => {

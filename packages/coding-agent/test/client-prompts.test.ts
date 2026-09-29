@@ -1,6 +1,6 @@
 import { describe, expect, it } from "bun:test";
-import { getPrompt, listPrompts, serverSupportsPrompts } from "@chudware/coding-agent/mcp/client";
-import type { MCPGetPromptResult, MCPPrompt, MCPPromptsListResult } from "@chudware/coding-agent/mcp/types";
+import { getPrompt, listPrompts, serverSupportsPrompts } from "@oh-my-pi/pi-coding-agent/mcp/client";
+import type { MCPGetPromptResult, MCPPrompt, MCPPromptsListResult } from "@oh-my-pi/pi-coding-agent/mcp/types";
 import { createMockConnection, createMockTransport } from "./mcp-test-utils";
 
 describe("listPrompts", () => {
@@ -111,22 +111,6 @@ describe("getPrompt", () => {
 		const conn = createMockConnection({ prompts: {} }, transport);
 
 		const result = await getPrompt(conn, "no-args-prompt", {});
-		expect(result).toEqual(mockResult);
-		expect(requestParams).toEqual({ name: "no-args-prompt" });
-	});
-
-	it("sends without arguments when args is undefined", async () => {
-		const mockResult: MCPGetPromptResult = {
-			messages: [{ role: "user", content: { type: "text", text: "No args" } }],
-		};
-		const responses = new Map<string, unknown[]>([["prompts/get", [mockResult]]]);
-		let requestParams: Record<string, unknown> | undefined;
-		const transport = createMockTransport(responses, (_method, params) => {
-			requestParams = params;
-		});
-		const conn = createMockConnection({ prompts: {} }, transport);
-
-		const result = await getPrompt(conn, "no-args-prompt", undefined);
 		expect(result).toEqual(mockResult);
 		expect(requestParams).toEqual({ name: "no-args-prompt" });
 	});

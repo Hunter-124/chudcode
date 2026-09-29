@@ -15,13 +15,13 @@ import { afterAll, beforeAll, describe, expect, it } from "bun:test";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
-import { ModelRegistry } from "@chudware/coding-agent/config/model-registry";
-import { Settings } from "@chudware/coding-agent/config/settings";
-import type { LoadExtensionsResult } from "@chudware/coding-agent/extensibility/extensions/types";
-import { createAgentSession } from "@chudware/coding-agent/sdk";
-import type { AuthStorage } from "@chudware/coding-agent/session/auth-storage";
-import { SessionManager } from "@chudware/coding-agent/session/session-manager";
-import { removeSyncWithRetries } from "@chudware/utils";
+import { ModelRegistry } from "@oh-my-pi/pi-coding-agent/config/model-registry";
+import { Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
+import type { LoadExtensionsResult } from "@oh-my-pi/pi-coding-agent/extensibility/extensions/types";
+import { createAgentSession } from "@oh-my-pi/pi-coding-agent/sdk";
+import type { AuthStorage } from "@oh-my-pi/pi-coding-agent/session/auth-storage";
+import { SessionManager } from "@oh-my-pi/pi-coding-agent/session/session-manager";
+import { removeSyncWithRetries } from "@oh-my-pi/pi-utils";
 import { createInMemoryAuthStorage } from "./helpers/agent-session-setup";
 
 describe("createAgentSession preloadedExtensions isolation (issue #2190)", () => {
@@ -30,7 +30,7 @@ describe("createAgentSession preloadedExtensions isolation (issue #2190)", () =>
 	let modelRegistry: ModelRegistry;
 
 	beforeAll(() => {
-		sharedDir = fs.mkdtempSync(path.join(os.tmpdir(), "chud-preloaded-ext-"));
+		sharedDir = fs.mkdtempSync(path.join(os.tmpdir(), "pi-preloaded-ext-"));
 		authStorage = createInMemoryAuthStorage();
 		modelRegistry = new ModelRegistry(authStorage, path.join(sharedDir, "models.yml"));
 	});
@@ -47,7 +47,6 @@ describe("createAgentSession preloadedExtensions isolation (issue #2190)", () =>
 			runtime: {
 				flagValues: new Map(),
 				pendingProviderRegistrations: [],
-				memoryBackendRegistrations: [],
 				// Cast: only the fields we touch matter; the SDK happily accepts a
 				// minimal runtime when no extension hooks fire.
 			} as unknown as LoadExtensionsResult["runtime"],

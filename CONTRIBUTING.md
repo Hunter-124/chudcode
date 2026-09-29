@@ -1,7 +1,13 @@
-# Contributing to the internal agent runtime
+# Contributing to omp
 
-Keep changes focused, understand the work you submit, and be prepared to explain
-and maintain it.
+Pull requests are welcome. Keep them focused, understand the work you submit,
+and be prepared to explain and maintain it.
+
+> [!NOTE]
+> Pull requests are **temporarily open to everyone** as a trial. We previously
+> required a vouch before accepting PRs; that requirement is lifted for now
+> while we evaluate how open contributions go. Depending on the results, the
+> vouch system may return.
 
 ## Before you start
 
@@ -12,14 +18,17 @@ straight to a pull request.
 
 ### Major changes
 
-Discuss major features and broad architectural or behavioral changes with
-maintainers before implementation. This includes new subsystems, large UI
-changes, new dependencies, and changes spanning several packages.
+Discuss major features and broad architectural or behavioral changes in
+[Discord](https://discord.gg/4NMW9cdXZa) **before writing the implementation**.
+This includes new subsystems, large UI changes, new dependencies, and changes
+that span several packages. A GitHub issue is not a substitute for this
+discussion, and prior discussion does not guarantee that a pull request will be
+merged.
 
 ### Do not open an issue for work you are about to submit
 
 If you intend to implement a change yourself, **do not create an issue for it
-first**. robochud treats actionable issues as work to pick up and may start the
+first**. robomp treats actionable issues as work to pick up and may start the
 same fix in parallel, wasting compute and maintainer time.
 
 Open an issue when you are reporting a problem or proposing work that you are
@@ -72,7 +81,7 @@ agreed scope.
 
 ## Contribution licensing
 
-A contribution intentionally submitted for inclusion in this repository is licensed under
+A contribution intentionally submitted for inclusion in OMP is licensed under
 the MIT License.
 
 This policy does not relicense third-party or vendored code. You must have the
@@ -87,6 +96,6 @@ Maintainers review the submitted behavior and the contributor's understanding
 of it—not the volume of generated code. Respond to review feedback yourself,
 and only apply suggestions you have checked.
 
-Changes may be rejected when they skip required prior discussion, lack the
+Pull requests may be closed when they skip required prior discussion, lack the
 human-written explanation, contain unreviewed agent output, or mix unrelated
 changes.

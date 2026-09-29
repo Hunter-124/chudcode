@@ -2,35 +2,33 @@
  * Cross-process contract for the broker-owned blob daemon.
  *
  * One blob daemon runs per project scope (launched through the same daemon
- * broker that owns the shared Chromium and LSP mux), so every chudcode process in
+ * broker that owns the shared Chromium and LSP mux), so every omp process in
  * the project shares one exposure (tunnel or uploader) and one URL per blob.
  * Control traffic rides HTTP over a Unix socket in the daemon runtime dir;
  * public traffic reaches the same store through the exposure.
  */
 import * as path from "node:path";
+export { BLOB_BROKER_WORKER_ARG } from "../cli/worker-selectors";
 import type { BlobDestinationId } from "./destinations";
 import type { BlobPublication, RemoteDeleteAction } from "./publication";
 import type { BlobBrokerSavingsStatus } from "./savings";
 import type { DestinationRuntimeConfig } from "./uploader-runtime";
 
-/** Hidden CLI selector used to re-enter the blob broker worker. */
-export const BLOB_BROKER_WORKER_ARG = "__omp_worker_blob_broker";
-
 /** Environment key carrying the control socket path the worker listens on. */
-export const BLOB_BROKER_SOCKET_ENV = "CHUDCODE_BLOB_BROKER_SOCKET";
+export const BLOB_BROKER_SOCKET_ENV = "OMP_BLOB_BROKER_SOCKET";
 
 /** Environment key carrying the JSON {@link BlobBrokerWorkerConfig}. */
-export const BLOB_BROKER_CONFIG_ENV = "CHUDCODE_BLOB_BROKER_CONFIG";
+export const BLOB_BROKER_CONFIG_ENV = "OMP_BLOB_BROKER_CONFIG";
 
 /** Stable broker daemon name for the shared blob broker. */
-export const BLOB_BROKER_DAEMON_NAME = "chudcode.blob.broker";
+export const BLOB_BROKER_DAEMON_NAME = "omp.blob.broker";
 
 /** Broker readiness regex matched against the banner printed by the worker. */
-export const BLOB_BROKER_READY_PATTERN = String.raw`chudcode blob broker serving \S+`;
+export const BLOB_BROKER_READY_PATTERN = String.raw`omp blob broker serving \S+`;
 
 /** Banner printed on stdout once the exposure is up and control is listening. */
 export function blobBrokerReadyBanner(baseUrl: string): string {
-	return `chudcode blob broker serving ${baseUrl}`;
+	return `omp blob broker serving ${baseUrl}`;
 }
 
 /** Resolve the control socket path for one project scope. */
@@ -231,4 +229,4 @@ export interface BlobBrokerPurgeResponse {
 /** Path prefix of the session-side render callback server. */
 export const RENDER_CALLBACK_PATH = "/render/";
 /** Header carrying {@link EnsureLazyRequest.callbackToken} on render callbacks. */
-export const RENDER_CALLBACK_TOKEN_HEADER = "x-chudcode-blob-token";
+export const RENDER_CALLBACK_TOKEN_HEADER = "x-omp-blob-token";

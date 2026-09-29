@@ -2,20 +2,20 @@ import { afterAll, afterEach, describe, expect, it, vi } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import { Settings } from "@chudware/coding-agent/config/settings";
+import { Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
 import {
 	DefaultPackageManager,
 	DefaultResourceLoader,
 	createAgentSession as legacyCreateAgentSession,
-} from "@chudware/coding-agent/extensibility/legacy-chudcode-agent-shim";
-import type { Skill } from "@chudware/coding-agent/extensibility/skills";
-import type { CreateAgentSessionOptions, CreateAgentSessionResult } from "@chudware/coding-agent/sdk";
-import * as sdkModule from "@chudware/coding-agent/sdk";
-import { removeWithRetries } from "@chudware/utils";
+} from "@oh-my-pi/pi-coding-agent/extensibility/legacy-pi-coding-agent-shim";
+import type { Skill } from "@oh-my-pi/pi-coding-agent/extensibility/skills";
+import type { CreateAgentSessionOptions, CreateAgentSessionResult } from "@oh-my-pi/pi-coding-agent/sdk";
+import * as sdkModule from "@oh-my-pi/pi-coding-agent/sdk";
+import { removeWithRetries } from "@oh-my-pi/pi-utils";
 
-// Issue #4567: every published version of chud-schedule-prompt (and every chud
+// Issue #4567: every published version of pi-schedule-prompt (and every pi
 // extension spawning subagents) imports `DefaultResourceLoader` at module
-// scope from `@earendil-works/chudcode-agent` and hands it to
+// scope from `@earendil-works/pi-coding-agent` and hands it to
 // `createAgentSession({ resourceLoader })`. Before the fix the shim never
 // exported the class, so those extensions failed to parse; even once exported,
 // the shim's `createAgentSession` MUST translate the loader's captured state
@@ -43,8 +43,8 @@ async function mkTempCwd(prefix: string): Promise<string> {
 }
 
 describe("DefaultPackageManager.resolve() (issue #5658)", () => {
-	it("enumerates configured extension paths through Chudcode discovery", async () => {
-		const tmp = await mkTempCwd("chudcode-legacy-default-package-manager-");
+	it("enumerates configured extension paths through OMP discovery", async () => {
+		const tmp = await mkTempCwd("omp-legacy-default-package-manager-");
 		const cwd = path.join(tmp, "project");
 		const agentDir = path.join(tmp, "agent");
 		const extensionPath = path.join(cwd, "configured-extension.ts");
@@ -73,7 +73,7 @@ describe("DefaultPackageManager.resolve() (issue #5658)", () => {
 
 describe("DefaultResourceLoader.reload() (issue #4567)", () => {
 	it("populates the discovery snapshot honoring no* flags and applying every override", async () => {
-		const tmp = await mkTempCwd("chudcode-legacy-default-resource-loader-reload-");
+		const tmp = await mkTempCwd("omp-legacy-default-resource-loader-reload-");
 		const injected: Skill = {
 			name: "issue-4567-synthesized",
 			description: "injected via skillsOverride",
@@ -117,7 +117,7 @@ describe("DefaultResourceLoader.reload() (issue #4567)", () => {
 		// The skills override callback ran on the (empty) base result and its
 		// injected entry survived into the stored snapshot. Proves the
 		// override hook is applied even when the discovery arm is disabled,
-		// which is the contract chud extensions rely on to inject synthetic
+		// which is the contract pi extensions rely on to inject synthetic
 		// entries without touching the filesystem.
 		const skillNames = loader.getSkills().skills.map(s => s.name);
 		expect(skillNames).toContain(injected.name);
@@ -129,7 +129,7 @@ describe("DefaultResourceLoader.reload() (issue #4567)", () => {
 		expect(loader.getAgentsFiles().agentsFiles).toEqual([]);
 	});
 	it("loads relative additional skills and prompt templates before override callbacks when discovery is disabled", async () => {
-		const tmp = await mkTempCwd("chudcode-legacy-default-resource-loader-additional-paths-");
+		const tmp = await mkTempCwd("omp-legacy-default-resource-loader-additional-paths-");
 		const skillName = "issue-4567-explicit-skill";
 		const skillDescription = "Loaded from an explicit additionalSkillPaths directory";
 		const skillRoot = path.join(tmp, "extra-skills");
@@ -192,7 +192,7 @@ describe("DefaultResourceLoader.reload() (issue #4567)", () => {
 
 describe("createAgentSession({ resourceLoader }) (issue #4567)", () => {
 	it("translates a DefaultResourceLoader into the SDK's option surface without silently discarding it", async () => {
-		const tmp = await mkTempCwd("chudcode-legacy-default-resource-loader-session-");
+		const tmp = await mkTempCwd("omp-legacy-default-resource-loader-session-");
 
 		let captured: CreateAgentSessionOptions | undefined;
 		const spy = vi

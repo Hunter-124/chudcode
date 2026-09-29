@@ -1,8 +1,7 @@
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
-import { isEnoent, logger } from "@chudware/utils";
-import { getAgentDir } from "@chudware/utils/dirs";
-import * as fsx from "@chudware/utils/fsx";
+import { isEnoent, logger } from "@oh-my-pi/pi-utils";
+import { getAgentDir } from "@oh-my-pi/pi-utils/dirs";
 import { withTimeoutSignal } from "../utils/fetch-timeout";
 
 const SMITHERY_AUTH_FILENAME = "smithery.json";
@@ -72,7 +71,7 @@ export async function getSmitheryApiKey(): Promise<string | undefined> {
 
 	const authPath = getSmitheryAuthPath();
 	try {
-		const payload = (await fsx.readJson(authPath)) as SmitheryAuthPayload;
+		const payload = (await Bun.file(authPath).json()) as SmitheryAuthPayload;
 		return normalizeApiKey(payload.apiKey);
 	} catch (error) {
 		if (isEnoent(error)) return undefined;
@@ -89,7 +88,7 @@ export async function saveSmitheryApiKey(apiKey: string): Promise<void> {
 
 	const authPath = getSmitheryAuthPath();
 	const payload: SmitheryAuthPayload = { apiKey: normalized };
-	await fsx.write(authPath, `${JSON.stringify(payload, null, 2)}\n`);
+	await Bun.write(authPath, `${JSON.stringify(payload, null, 2)}\n`);
 	try {
 		await fs.chmod(authPath, 0o600);
 	} catch (error) {

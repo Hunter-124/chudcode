@@ -1,10 +1,11 @@
-import type { DesktopCapabilities } from "@chudware/natives";
-import { withTimeout } from "@chudware/utils/async";
-import * as logger from "@chudware/utils/logger";
-import { Snowflake } from "@chudware/utils/snowflake";
-import { workerHostEntry } from "@chudware/utils/worker-host";
+import type { DesktopCapabilities } from "@oh-my-pi/pi-natives";
+import { withTimeout } from "@oh-my-pi/pi-utils/async";
+import * as logger from "@oh-my-pi/pi-utils/logger";
+import { Snowflake } from "@oh-my-pi/pi-utils/snowflake";
+import { workerHostEntry } from "@oh-my-pi/pi-utils/worker-host";
 import type { ToolSession } from "../index";
-import { ToolAbortError, ToolError } from "../tool-errors";
+import { ToolAbortError, toWorkerErrorPayload } from "../tool-errors";
+import { ToolError } from "@oh-my-pi/pi-tui/tools/tool-errors";
 import {
 	COMPUTER_WORKER_ARG,
 	type ComputerRunOk,
@@ -15,9 +16,12 @@ import {
 } from "./protocol";
 
 const START_TIMEOUT_MS = 10_000;
-const CLOSE_TIMEOUT_MS = 2_500;
+const CLOSE_TIMEOUT_MS = 1_500;
 const GRACE_MS = 750;
 const SMOKE_TIMEOUT_MS = 5_000;
+// A capabilities request only ensures the native session and reads a getter, but
+// the first ensure may load the desktop addon, so it shares the start budget.
+const CAPABILITIES_TIMEOUT_MS = 10_000;
 const RESTART_MESSAGE = "computer worker restarted; captures and ax refs were reset";
 
 /** Runs desktop scripts and owns their persistent worker session. */
@@ -28,7 +32,7 @@ export interface ComputerController {
 		snapshot: ComputerSessionSnapshot,
 		signal?: AbortSignal,
 	): Promise<ComputerRunOk>;
-	capabilities(): Promise<DesktopCapabilities | undefined>;
+	capabilities(snapshot: ComputerSessionSnapshot, signal?: AbortSignal): Promise<DesktopCapabilities | undefined>;
 	close(): Promise<void>;
 }
 
@@ -66,6 +70,11 @@ interface PendingRun {
 	reject(error: unknown): void;
 	signal?: AbortSignal;
 	toolCalls: Map<string, AbortController>;
+}
+
+interface PendingCapabilities {
+	resolve(value: DesktopCapabilities | undefined): void;
+	reject(error: unknown): void;
 }
 
 function wrapWorker(worker: Worker): ComputerWorkerHandle {
@@ -119,19 +128,6 @@ function errorFromPayload(payload: RunErrorPayload): Error {
 	return error;
 }
 
-function toErrorPayload(error: unknown): RunErrorPayload {
-	if (error instanceof Error) {
-		return {
-			name: error.name,
-			message: error.message,
-			stack: error.stack,
-			isAbort: error.name === "AbortError" || error.name === "ToolAbortError",
-			isToolError: error instanceof ToolError || error.name === "ToolError",
-		};
-	}
-	return { name: "Error", message: String(error), isAbort: false, isToolError: false };
-}
-
 /** Supervises one lazy, crash-isolated computer worker per agent session. */
 export class ComputerSupervisor implements ComputerController {
 	readonly #session: ToolSession;
@@ -142,7 +138,7 @@ export class ComputerSupervisor implements ComputerController {
 	#startPromise?: Promise<void>;
 	#startReject?: (error: unknown) => void;
 	#startResolve?: () => void;
-	#latestCapabilities?: DesktopCapabilities;
+	#pendingCapabilities = new Map<string, PendingCapabilities>();
 	#pending = new Map<string, PendingRun>();
 	#nextId = 0;
 	#closed = false;
@@ -163,8 +159,28 @@ export class ComputerSupervisor implements ComputerController {
 		this.#callSessionTool = callSessionTool;
 	}
 
-	async capabilities(): Promise<DesktopCapabilities | undefined> {
-		return this.#latestCapabilities;
+	async capabilities(
+		snapshot: ComputerSessionSnapshot,
+		signal?: AbortSignal,
+	): Promise<DesktopCapabilities | undefined> {
+		if (this.#closed) throw new ToolError("Computer session is closed");
+		if (signal?.aborted) throw new ToolAbortError();
+		await this.#start();
+		if (signal?.aborted) throw new ToolAbortError();
+
+		const id = `computer-cap-${++this.#nextId}`;
+		const { promise, resolve, reject } = Promise.withResolvers<DesktopCapabilities | undefined>();
+		this.#pendingCapabilities.set(id, { resolve, reject });
+		const abort = (): void => reject(signal?.reason instanceof Error ? signal.reason : new ToolAbortError());
+		if (signal?.aborted) abort();
+		else signal?.addEventListener("abort", abort, { once: true });
+		try {
+			this.#safeSend({ type: "capabilities", id, session: snapshot });
+			return await withTimeout(promise, CAPABILITIES_TIMEOUT_MS, "Timed out fetching computer capabilities");
+		} finally {
+			signal?.removeEventListener("abort", abort);
+			this.#pendingCapabilities.delete(id);
+		}
 	}
 
 	async run(
@@ -177,8 +193,6 @@ export class ComputerSupervisor implements ComputerController {
 		if (signal?.aborted) throw new ToolAbortError();
 		await this.#start();
 		if (signal?.aborted) throw new ToolAbortError();
-		const worker = this.#worker;
-		if (!worker) throw new ToolError(RESTART_MESSAGE);
 
 		const id = `computer-${++this.#nextId}`;
 		const { promise, resolve, reject } = Promise.withResolvers<ComputerRunOk>();
@@ -192,13 +206,10 @@ export class ComputerSupervisor implements ComputerController {
 		else signal?.addEventListener("abort", abort, { once: true });
 
 		try {
-			worker.send({ type: "run", id, code, timeoutMs, session: snapshot });
+			this.#worker?.send({ type: "run", id, code, timeoutMs, session: snapshot });
 			return await this.#raceWithGrace(promise, timeoutMs);
 		} finally {
 			signal?.removeEventListener("abort", abort);
-			for (const controller of pending.toolCalls.values())
-				controller.abort(new ToolAbortError("Computer run ended"));
-			pending.toolCalls.clear();
 			this.#pending.delete(id);
 		}
 	}
@@ -240,16 +251,17 @@ export class ComputerSupervisor implements ComputerController {
 		if (message.type === "result") {
 			const pending = this.#pending.get(message.id);
 			if (!pending) return;
-			for (const controller of pending.toolCalls.values())
-				controller.abort(new ToolAbortError("Computer run ended"));
-			pending.toolCalls.clear();
 			this.#pending.delete(message.id);
-			if (message.ok) {
-				this.#latestCapabilities = message.payload.capabilities;
-				pending.resolve(message.payload);
-			} else {
-				pending.reject(errorFromPayload(message.error));
-			}
+			if (message.ok) pending.resolve(message.payload);
+			else pending.reject(errorFromPayload(message.error));
+			return;
+		}
+		if (message.type === "capabilities") {
+			const pending = this.#pendingCapabilities.get(message.id);
+			if (!pending) return;
+			this.#pendingCapabilities.delete(message.id);
+			if (message.ok) pending.resolve(message.capabilities);
+			else pending.reject(errorFromPayload(message.error));
 			return;
 		}
 		if (message.type === "tool-call") {
@@ -283,7 +295,11 @@ export class ComputerSupervisor implements ComputerController {
 			});
 			this.#safeSend({ type: "tool-reply", id: message.id, reply: { ok: true, value } });
 		} catch (error) {
-			this.#safeSend({ type: "tool-reply", id: message.id, reply: { ok: false, error: toErrorPayload(error) } });
+			this.#safeSend({
+				type: "tool-reply",
+				id: message.id,
+				reply: { ok: false, error: toWorkerErrorPayload(error) },
+			});
 		} finally {
 			pending.toolCalls.delete(message.id);
 			pending.signal?.removeEventListener("abort", onParentAbort);
@@ -336,6 +352,8 @@ export class ComputerSupervisor implements ComputerController {
 			pending.reject(reason);
 		}
 		this.#pending.clear();
+		for (const pending of this.#pendingCapabilities.values()) pending.reject(reason);
+		this.#pendingCapabilities.clear();
 		await worker?.terminate().catch(() => undefined);
 	}
 

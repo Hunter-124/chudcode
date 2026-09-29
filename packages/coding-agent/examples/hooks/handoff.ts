@@ -11,9 +11,11 @@
  *
  * The generated prompt appears as a draft in the editor for review/editing.
  */
-import { complete, type Message } from "@chudware/ai";
-import type { HookAPI, SessionEntry } from "@chudware/coding-agent";
-import { BorderedLoader, convertToLlm, serializeConversation } from "@chudware/coding-agent";
+import { serializeConversation } from "@oh-my-pi/pi-agent-core/compaction";
+import { complete, type Message } from "@oh-my-pi/pi-ai";
+import type { SessionEntry } from "@oh-my-pi/pi-coding-agent";
+import { BorderedLoader, convertToLlm } from "@oh-my-pi/pi-coding-agent";
+import type { HookAPI } from "@oh-my-pi/pi-coding-agent/extensibility/hooks";
 
 const SYSTEM_PROMPT = `You are a context transfer assistant. Given a conversation history and the user's goal for a new thread, generate a focused prompt that:
 
@@ -37,8 +39,8 @@ Files involved:
 ## Task
 [Clear description of what to do next based on user's goal]`;
 
-export default function (chud: HookAPI) {
-	chud.registerCommand("handoff", {
+export default function (pi: HookAPI) {
+	pi.registerCommand("handoff", {
 		description: "Transfer context to a new focused session",
 		handler: async (args, ctx) => {
 			if (!ctx.hasUI) {
@@ -74,7 +76,7 @@ export default function (chud: HookAPI) {
 			const currentSessionFile = ctx.sessionManager.getSessionFile();
 
 			// Generate the handoff prompt with loader UI
-			const result = await ctx.ui.custom<string | null>((tui, theme, done) => {
+			const result = await ctx.ui.custom<string | null>((tui, theme, _keybindings, done) => {
 				const loader = new BorderedLoader(tui, theme, `Generating handoff prompt...`);
 				loader.onAbort = () => done(null);
 

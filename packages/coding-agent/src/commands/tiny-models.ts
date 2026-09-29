@@ -1,4 +1,4 @@
-import { Args, Command, Flags } from "@chudware/utils/cli";
+import { Args, Command, Flags } from "@oh-my-pi/pi-utils/cli";
 import { tinyModelsHelp as commandHelp } from "../cli/command-help";
 import { runTinyModelsCommand, type TinyModelsAction, type TinyModelsCommandArgs } from "../cli/tiny-models-cli";
 
@@ -13,7 +13,7 @@ export default class TinyModels extends Command {
 			options: ACTIONS,
 		}),
 		model: Args.string({
-			description: "Model key, or all",
+			description: "Model key (`smollm` = word completion), or all",
 			required: false,
 		}),
 	};

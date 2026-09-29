@@ -5,9 +5,9 @@
  * Target commit: b0950f7ed
  *
  * The fix lives in `crates/vendor/brush-core/src/commands.rs` and is
- * verified at the unit level by `chud-natives::shell::tests::child_session_action`
+ * verified at the unit level by `pi-natives::shell::tests::child_session_action`
  * (truth-table) and `embedded_external_command_runs_in_its_own_session` (real
- * brush spawn). This test pulls the fix end-to-end through the Chudcode coding
+ * brush spawn). This test pulls the fix end-to-end through the OMP coding
  * agent stack:
  *
  *   AgentSession.prompt
@@ -15,7 +15,7 @@
  *       → Agent loop dispatches a tool call
  *         → BashTool.execute
  *           → executeBash
- *             → chud-natives `Shell.run` (real native binding)
+ *             → pi-natives `Shell.run` (real native binding)
  *               → brush-core::execute_external_command (the patched code)
  *                 → spawned child reports getsid()/getpid()
  *
@@ -34,24 +34,24 @@
  *
  * If this test ever starts failing on macOS/Linux, the embedded-host bug is
  * back and `BashTool` invocations that touch `/dev/tty` or `tcsetpgrp` can
- * SIGTTIN/SIGTTOU the Chudcode host process.
+ * SIGTTIN/SIGTTOU the OMP host process.
  */
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "bun:test";
 import { spawnSync } from "node:child_process";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
-import { Agent, type AgentMessage, type AgentTool } from "@chudware/agent-core";
-import { createMockModel, type MockResponse } from "@chudware/ai/providers/mock";
-import { getBundledModel } from "@chudware/catalog/models";
-import { ModelRegistry } from "@chudware/coding-agent/config/model-registry";
-import { resetSettingsForTest, Settings } from "@chudware/coding-agent/config/settings";
-import { AgentSession } from "@chudware/coding-agent/session/agent-session";
-import type { AuthStorage } from "@chudware/coding-agent/session/auth-storage";
-import { convertToLlm } from "@chudware/coding-agent/session/messages";
-import { SessionManager } from "@chudware/coding-agent/session/session-manager";
-import { BashTool, type ToolSession } from "@chudware/coding-agent/tools";
-import { removeSyncWithRetries, Snowflake } from "@chudware/utils";
+import { Agent, type AgentMessage, type AgentTool } from "@oh-my-pi/pi-agent-core";
+import { createMockModel, type MockResponse } from "@oh-my-pi/pi-ai/providers/mock";
+import { getBundledModel } from "@oh-my-pi/pi-catalog/models";
+import { ModelRegistry } from "@oh-my-pi/pi-coding-agent/config/model-registry";
+import { resetSettingsForTest, Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
+import { AgentSession } from "@oh-my-pi/pi-coding-agent/session/agent-session";
+import type { AuthStorage } from "@oh-my-pi/pi-coding-agent/session/auth-storage";
+import { convertToLlm } from "@oh-my-pi/pi-coding-agent/session/messages";
+import { SessionManager } from "@oh-my-pi/pi-coding-agent/session/session-manager";
+import { BashTool, type ToolSession } from "@oh-my-pi/pi-coding-agent/tools";
+import { removeSyncWithRetries, Snowflake } from "@oh-my-pi/pi-utils";
 import { createInMemoryAuthStorage } from "./helpers/agent-session-setup";
 
 /** Scripted assistant turn that issues a single `bash` tool call. */
@@ -129,7 +129,7 @@ describe("BashTool through AgentSession runs children in their own session (e2e)
 	beforeEach(async () => {
 		if (skip) return;
 
-		tempDir = path.join(os.tmpdir(), `chud-bash-detach-test-${Snowflake.next()}`);
+		tempDir = path.join(os.tmpdir(), `pi-bash-detach-test-${Snowflake.next()}`);
 		fs.mkdirSync(tempDir, { recursive: true });
 
 		resetSettingsForTest();
@@ -138,7 +138,7 @@ describe("BashTool through AgentSession runs children in their own session (e2e)
 		await Settings.init({ inMemory: true, cwd: tempDir });
 
 		authStorage = createInMemoryAuthStorage();
-		authStorage.setRuntimeApiKey("anthropic", "test-key");
+		authStorage.keys.setRuntime("anthropic", "test-key");
 
 		const model = getBundledModel("anthropic", "claude-sonnet-4-5");
 		if (!model) throw new Error("expected claude-sonnet-4-5 to be bundled");

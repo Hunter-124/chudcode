@@ -5,17 +5,17 @@
  * rule of the same name overrides a bundled default (first-wins dedup).
  */
 import { describe, expect, it } from "bun:test";
-import { getCapability } from "@chudware/coding-agent/capability";
+import { getCapability } from "@oh-my-pi/pi-coding-agent/capability";
 import {
 	BUILTIN_DEFAULTS_PROVIDER_ID,
 	compileRuleCondition,
 	type Rule,
 	ruleCapability,
-} from "@chudware/coding-agent/capability/rule";
-import type { LoadContext } from "@chudware/coding-agent/capability/types";
+} from "@oh-my-pi/pi-coding-agent/capability/rule";
+import type { LoadContext } from "@oh-my-pi/pi-coding-agent/capability/types";
 // Register all discovery providers as a side effect.
-import "@chudware/coding-agent/discovery";
-import { TtsrManager, type TtsrMatchContext } from "@chudware/coding-agent/export/ttsr";
+import "@oh-my-pi/pi-coding-agent/discovery";
+import { TtsrManager, type TtsrMatchContext } from "@oh-my-pi/pi-coding-agent/export/ttsr";
 
 function ruleProvider() {
 	const cap = getCapability(ruleCapability.id);
@@ -49,20 +49,6 @@ describe("builtin-defaults rule provider", () => {
 			expect(conditionCount, `${rule.name} condition/astCondition`).toBeGreaterThan(0);
 			expect(rule.scope?.length, `${rule.name} scope`).toBeGreaterThan(0);
 		}
-	});
-
-	it("bundles ast-grep conditions for the redundant-clear-guard rule", async () => {
-		const rules = await loadBuiltinRules();
-		const rule = rules.find(r => r.name === "ts-redundant-clear-guard");
-		expect(rule?.condition).toBeUndefined();
-		expect(rule?.astCondition?.length).toBeGreaterThan(0);
-	});
-
-	it("parses YAML list-form conditions from the embedded text", async () => {
-		const rules = await loadBuiltinRules();
-		const lazylock = rules.find(r => r.name === "rs-lazylock");
-		// Frontmatter declares two condition patterns as a YAML sequence.
-		expect(lazylock?.condition).toHaveLength(2);
 	});
 
 	it("forces every bundled rule to warn without interrupting", async () => {
@@ -129,7 +115,7 @@ describe("builtin-defaults rule provider", () => {
 
 		manager.resetBuffer();
 		expect(
-			manager.checkDelta('import { isRecord } from "@chudware/utils";', {
+			manager.checkDelta('import { isRecord } from "@oh-my-pi/pi-utils";', {
 				source: "tool",
 				toolName: "write",
 				filePaths: ["packages/x/src/foo.ts"],

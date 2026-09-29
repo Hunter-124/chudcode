@@ -1,11 +1,11 @@
 /**
- * Session factory for `chudcode compress`.
+ * Session factory for `omp compress`.
  *
  * Deliberately minimal: two custom tools, no extensions, no MCP, no IRC, no LSP,
  * no file or shell access. Everything the agent needs arrives in the conversation,
  * so nothing outside the source text can influence the output.
  */
-import { getProjectDir } from "@chudware/utils";
+import { getProjectDir } from "@oh-my-pi/pi-utils";
 import { ModelRegistry } from "../config/model-registry";
 import { formatModelString, resolveCliModel } from "../config/model-resolver";
 import { Settings } from "../config/settings";
@@ -29,7 +29,8 @@ export async function createCompressSession(options: {
 	agentId?: string;
 }): Promise<CompressSession> {
 	const cwd = options.cwd ?? getProjectDir();
-	const [settings, authStorage] = await Promise.all([Settings.init({ cwd }), discoverAuthStorage()]);
+	const settings = await Settings.init({ cwd });
+	const authStorage = await discoverAuthStorage(undefined, { settings });
 	const modelRegistry = new ModelRegistry(authStorage);
 	await modelRegistry.refresh();
 	// An absent selector means "whatever the session is configured to use", which
@@ -43,6 +44,7 @@ export async function createCompressSession(options: {
 		settings,
 		authStorage,
 		modelRegistry,
+		cacheWarming: false,
 		...(resolved?.model ? { model: resolved.model } : {}),
 		customTools: [options.protocol.rewriteTool(), options.protocol.approveTool()],
 		toolNames: ["rewrite", "approve"],

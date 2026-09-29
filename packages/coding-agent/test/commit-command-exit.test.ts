@@ -1,10 +1,10 @@
 import { afterEach, describe, expect, it, vi } from "bun:test";
-import CommitCommand from "@chudware/coding-agent/commands/commit";
-import * as commitModule from "@chudware/coding-agent/commit";
-import * as themeModule from "@chudware/coding-agent/modes/theme/theme";
-import { postmortem } from "@chudware/utils";
+import CommitCommand from "@oh-my-pi/pi-coding-agent/commands/commit";
+import * as commitModule from "@oh-my-pi/pi-coding-agent/commit";
+import * as themeModule from "@oh-my-pi/pi-tui/theme";
+import { postmortem } from "@oh-my-pi/pi-utils";
 
-describe("chudcode commit command lifecycle (issue #1041)", () => {
+describe("omp commit command lifecycle (issue #1041)", () => {
 	afterEach(() => {
 		vi.restoreAllMocks();
 	});
@@ -19,7 +19,7 @@ describe("chudcode commit command lifecycle (issue #1041)", () => {
 		const quitSpy = vi.spyOn(postmortem, "quit").mockResolvedValue(undefined);
 
 		const command = new CommitCommand([], {
-			bin: "chudcode",
+			bin: "omp",
 			version: "0.0.0-test",
 			commands: new Map(),
 		});
@@ -39,7 +39,7 @@ describe("chudcode commit command lifecycle (issue #1041)", () => {
 		const quitSpy = vi.spyOn(postmortem, "quit").mockResolvedValue(undefined);
 
 		const command = new CommitCommand([], {
-			bin: "chudcode",
+			bin: "omp",
 			version: "0.0.0-test",
 			commands: new Map(),
 		});
@@ -59,7 +59,7 @@ describe("chudcode commit command lifecycle (issue #1041)", () => {
 		const quitSpy = vi.spyOn(postmortem, "quit").mockResolvedValue(undefined);
 
 		const command = new CommitCommand([], {
-			bin: "chudcode",
+			bin: "omp",
 			version: "0.0.0-test",
 			commands: new Map(),
 		});
@@ -77,7 +77,7 @@ describe("chudcode commit command lifecycle (issue #1041)", () => {
 		const quitSpy = vi.spyOn(postmortem, "quit").mockResolvedValue(undefined);
 
 		const command = new CommitCommand([], {
-			bin: "chudcode",
+			bin: "omp",
 			version: "0.0.0-test",
 			commands: new Map(),
 		});

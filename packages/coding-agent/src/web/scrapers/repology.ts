@@ -1,4 +1,4 @@
-import { tryParseJson } from "@chudware/utils";
+import { tryParseJson } from "@oh-my-pi/pi-utils";
 import { buildResult, loadPage, type RenderResult, type SpecialHandler } from "./types";
 
 interface RepologyPackage {

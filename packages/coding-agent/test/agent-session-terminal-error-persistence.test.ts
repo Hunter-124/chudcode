@@ -1,15 +1,15 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "bun:test";
-import { Agent, type AgentMessage, type AgentTool } from "@chudware/agent-core";
-import type { AssistantMessage } from "@chudware/ai";
-import { createMockModel, type MockResponse } from "@chudware/ai/providers/mock";
-import { type } from "@chudware/chudtype";
-import { ModelRegistry } from "@chudware/coding-agent/config/model-registry";
-import { Settings } from "@chudware/coding-agent/config/settings";
-import { AgentSession } from "@chudware/coding-agent/session/agent-session";
-import { AuthStorage } from "@chudware/coding-agent/session/auth-storage";
-import { convertToLlm } from "@chudware/coding-agent/session/messages";
-import { SessionManager } from "@chudware/coding-agent/session/session-manager";
-import { TempDir } from "@chudware/utils";
+import { type } from "@oh-my-pi/omptype";
+import { Agent, type AgentMessage, type AgentTool } from "@oh-my-pi/pi-agent-core";
+import type { AssistantMessage } from "@oh-my-pi/pi-ai";
+import { createMockModel, type MockResponse } from "@oh-my-pi/pi-ai/providers/mock";
+import { ModelRegistry } from "@oh-my-pi/pi-coding-agent/config/model-registry";
+import { Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
+import { AgentSession } from "@oh-my-pi/pi-coding-agent/session/agent-session";
+import { AuthStorage } from "@oh-my-pi/pi-coding-agent/session/auth-storage";
+import { convertToLlm } from "@oh-my-pi/pi-coding-agent/session/messages";
+import { SessionManager } from "@oh-my-pi/pi-coding-agent/session/session-manager";
+import { TempDir } from "@oh-my-pi/pi-utils";
 
 const failingToolSchema = type({ value: type("string") });
 const failingTool: AgentTool<typeof failingToolSchema, Record<string, never>> = {
@@ -29,7 +29,7 @@ let modelRegistry: ModelRegistry;
 
 beforeAll(async () => {
 	authStorage = await AuthStorage.create(":memory:");
-	authStorage.setRuntimeApiKey("mock", "test-key");
+	authStorage.keys.setRuntime("mock", "test-key");
 	modelRegistry = new ModelRegistry(authStorage);
 });
 

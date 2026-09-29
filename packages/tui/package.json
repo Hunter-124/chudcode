@@ -1,21 +1,21 @@
 {
   "type": "module",
-  "name": "@chudware/tui",
-  "version": "18.0.8",
+  "name": "@oh-my-pi/pi-tui",
+  "version": "18.4.4",
   "description": "Terminal User Interface library with differential rendering for efficient text-based applications",
-  "homepage": "https://chudware.sh",
-  "author": "Chudware",
+  "homepage": "https://omp.sh",
+  "author": { "name": "Stencil Labs, Inc.", "url": "https://stencil.so" },
   "contributors": [
     "Mario Zechner"
   ],
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/Hunter-124/chudcode.git",
+    "url": "git+https://github.com/can1357/oh-my-pi.git",
     "directory": "packages/tui"
   },
   "bugs": {
-    "url": "https://github.com/Hunter-124/chudcode/issues"
+    "url": "https://github.com/can1357/oh-my-pi/issues"
   },
   "keywords": [
     "tui",
@@ -29,16 +29,23 @@
   "main": "./src/index.ts",
   "types": "./src/index.ts",
   "scripts": {
-    "check": "biome check . && bun run check:types",
+    "check": "oxlint . && oxfmt --check --no-error-on-unmatched-pattern 'src/**/*.{ts,tsx}' '{test,bench,examples,scripts}/**/*.ts' '*.ts' && bun run check:types",
     "check:types": "tsgo -p tsconfig.json --noEmit",
-    "lint": "biome lint .",
+    "lint": "oxlint .",
     "test": "bun test --parallel test/*.test.ts",
-    "fix": "biome check --write --unsafe .",
-    "fmt": "biome format --write ."
+    "fix": "oxlint --fix --fix-suggestions . && bun run fmt",
+    "fmt": "oxfmt --no-error-on-unmatched-pattern 'src/**/*.{ts,tsx}' '{test,bench,examples,scripts}/**/*.ts' '*.ts'",
+    "gen:glyphs": "bun scripts/gen-glyphs.ts"
   },
   "dependencies": {
-    "@chudware/natives": "catalog:",
-    "@chudware/utils": "catalog:"
+    "@oh-my-pi/omptype": "catalog:",
+    "@oh-my-pi/pi-agent-core": "catalog:",
+    "@oh-my-pi/pi-ai": "catalog:",
+    "@oh-my-pi/pi-catalog": "catalog:",
+    "@oh-my-pi/pi-natives": "catalog:",
+    "@oh-my-pi/pi-utils": "catalog:",
+    "@oh-my-pi/pi-wire": "catalog:",
+    "@oh-my-pi/snapcompact": "catalog:"
   },
   "devDependencies": {
     "kitty-vt-wasm": "catalog:"
@@ -55,6 +62,34 @@
     ".": {
       "types": "./src/index.ts",
       "import": "./src/index.ts"
+    },
+    "./theme": {
+      "types": "./src/theme/index.ts",
+      "import": "./src/theme/index.ts"
+    },
+    "./theme/defaults": {
+      "types": "./src/theme/defaults/index.ts",
+      "import": "./src/theme/defaults/index.ts"
+    },
+    "./theme/*": {
+      "types": "./src/theme/*.ts",
+      "import": "./src/theme/*.ts"
+    },
+    "./render": {
+      "types": "./src/render/index.ts",
+      "import": "./src/render/index.ts"
+    },
+    "./chrome": {
+      "types": "./src/chrome/index.ts",
+      "import": "./src/chrome/index.ts"
+    },
+    "./tools": {
+      "types": "./src/tools/index.ts",
+      "import": "./src/tools/index.ts"
+    },
+    "./status-line": {
+      "types": "./src/status-line/index.ts",
+      "import": "./src/status-line/index.ts"
     },
     "./*": {
       "types": "./src/*.ts",

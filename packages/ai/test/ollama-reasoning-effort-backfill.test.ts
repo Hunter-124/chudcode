@@ -1,9 +1,9 @@
 import { describe, expect, it } from "bun:test";
-import { streamOpenAIResponses } from "@chudware/ai/providers/openai-responses";
-import type { Context } from "@chudware/ai/types";
-import { buildModel } from "@chudware/catalog/build";
-import { Effort } from "@chudware/catalog/effort";
-import { clampThinkingLevelForModel, getSupportedEfforts } from "@chudware/catalog/model-thinking";
+import { streamOpenAIResponses } from "@oh-my-pi/pi-ai/providers/openai-responses";
+import type { Context } from "@oh-my-pi/pi-ai/types";
+import { buildModel } from "@oh-my-pi/pi-catalog/build";
+import { Effort } from "@oh-my-pi/pi-catalog/effort";
+import { clampThinkingLevelForModel, getSupportedEfforts } from "@oh-my-pi/pi-catalog/model-thinking";
 
 const testContext: Context = {
 	messages: [{ role: "user", content: "hi", timestamp: 0 }],
@@ -16,12 +16,9 @@ function abortedSignal(): AbortSignal {
 }
 
 describe("ollama effort ladder normalization reaches the Responses wire", () => {
-	it("normalizes a stale ollama spec and sends native max on the wire", async () => {
-		// A cached/custom spec from before the wire-exact ladder existed:
-		// reasoning-capable with `minimal` offered. buildModel must normalize
-		// the ladder to Ollama's low/medium/high/max vocabulary so requests at
-		// the top tier serialize `max` verbatim (HTTP 400 `invalid reasoning
-		// value: "minimal"` was the historical failure of the stale surface).
+	it("resolves Ollama's provider ladder and sends native max on the wire", async () => {
+		// Ollama's provider policy owns the low/medium/high/max wire vocabulary,
+		// so requests at the top tier serialize `max` verbatim.
 		const model = buildModel({
 			id: "gemma4:e4b",
 			name: "gemma4:e4b",
@@ -33,7 +30,6 @@ describe("ollama effort ladder normalization reaches the Responses wire", () => 
 			cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
 			contextWindow: 128_000,
 			maxTokens: 8_192,
-			thinking: { mode: "effort", efforts: [Effort.Minimal, Effort.Low, Effort.Medium, Effort.High] },
 		});
 
 		// The stale `minimal` tier is gone; selecting it clamps to the floor.

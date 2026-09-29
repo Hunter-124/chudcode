@@ -1,6 +1,6 @@
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
-import { getAgentDir, getProjectDir, isEnoent } from "@chudware/utils";
+import { getAgentDir, getProjectDir } from "@oh-my-pi/pi-utils";
 import { extractPackageName } from "./parser";
 import type { InstalledPlugin } from "./types";
 
@@ -41,7 +41,7 @@ export async function installPlugin(packageName: string): Promise<InstalledPlugi
 	const pkgJsonPath = path.join(PLUGINS_DIR, "package.json");
 	const pkgJson = Bun.file(pkgJsonPath);
 	if (!(await pkgJson.exists())) {
-		await pkgJson.write(JSON.stringify({ name: "chudcode-plugins", private: true, dependencies: {} }, null, 2));
+		await pkgJson.write(JSON.stringify({ name: "omp-plugins", private: true, dependencies: {} }, null, 2));
 	}
 
 	// Run npm install in plugins directory
@@ -80,7 +80,7 @@ export async function installPlugin(packageName: string): Promise<InstalledPlugi
 		name: pkg.name,
 		version: pkg.version,
 		path: path.join(PLUGINS_DIR, "node_modules", actualName),
-		manifest: pkg.chudcode ?? pkg.chud ?? { version: pkg.version },
+		manifest: pkg.omp || pkg.pi || { version: pkg.version },
 		enabledFeatures: null,
 		enabled: true,
 	};
@@ -129,7 +129,7 @@ export async function listPlugins(): Promise<InstalledPlugin[]> {
 				name,
 				version: pkg.version,
 				path: pluginPath,
-				manifest: pkg.chudcode ?? pkg.chud ?? { version: pkg.version },
+				manifest: pkg.omp || pkg.pi || { version: pkg.version },
 				enabledFeatures: null,
 				enabled: true,
 			});
@@ -186,16 +186,9 @@ export async function linkPlugin(localPath: string): Promise<void> {
 		await fs.mkdir(scopeDir, { recursive: true });
 	}
 
-	// Remove existing if present
-	try {
-		const stats = await fs.lstat(linkPath);
-		if (stats.isSymbolicLink() || stats.isDirectory()) {
-			await fs.unlink(linkPath);
-		}
-	} catch (err) {
-		if (!isEnoent(err)) throw err;
-	}
+	// Whatever is there — a stale link, or a real directory from a git install.
+	await fs.rm(linkPath, { recursive: true, force: true });
 
-	// Create symlink using fs instead of shell command
-	await fs.symlink(absolutePath, linkPath);
+	// Junction on Windows: a plain directory symlink EPERMs outside developer mode.
+	await fs.symlink(absolutePath, linkPath, process.platform === "win32" ? "junction" : "dir");
 }

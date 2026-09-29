@@ -25,7 +25,7 @@ async function runProbe(childPath: string): Promise<CacheProbeResult> {
 	return JSON.parse(stdout) as CacheProbeResult;
 }
 
-describe("legacy Chud Babel startup closure", () => {
+describe("legacy Pi Babel startup closure", () => {
 	test("detector observes a substantial traverse/types positive-control closure", async () => {
 		const result = await runProbe(positiveControlPath);
 		expect(result.modules, JSON.stringify(result)).toBeGreaterThanOrEqual(100);

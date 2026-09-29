@@ -1,11 +1,11 @@
 import { describe, expect, it, vi } from "bun:test";
-import { streamAzureOpenAIResponses } from "@chudware/ai/providers/azure-openai-responses";
-import { streamOpenAICompletions } from "@chudware/ai/providers/openai-completions";
-import { streamOpenAIResponses } from "@chudware/ai/providers/openai-responses";
-import { streamSimple } from "@chudware/ai/stream";
-import type { Context, FetchImpl, Model, TextContent } from "@chudware/ai/types";
-import { buildModel } from "@chudware/catalog/build";
-import { getBundledModel } from "@chudware/catalog/models";
+import { streamAzureOpenAIResponses } from "@oh-my-pi/pi-ai/providers/azure-openai-responses";
+import { streamOpenAICompletions } from "@oh-my-pi/pi-ai/providers/openai-completions";
+import { streamOpenAIResponses } from "@oh-my-pi/pi-ai/providers/openai-responses";
+import { streamSimple } from "@oh-my-pi/pi-ai/stream";
+import type { Context, FetchImpl, Model, TextContent } from "@oh-my-pi/pi-ai/types";
+import { buildModel } from "@oh-my-pi/pi-catalog/build";
+import { getBundledModel } from "@oh-my-pi/pi-catalog/models";
 import { waitForDelayOrAbort } from "./helpers";
 
 const openAIResponsesModel = getBundledModel("openai", "gpt-5-mini") as Model<"openai-responses">;
@@ -356,12 +356,12 @@ describe("OpenAI-family first-event timeouts", () => {
 		);
 	});
 
-	it("lets CHUDCODE_OPENAI_STREAM_IDLE_TIMEOUT_MS widen OpenAI responses first-event request setup", async () => {
-		const previousOpenAIIdleTimeout = process.env.CHUDCODE_OPENAI_STREAM_IDLE_TIMEOUT_MS;
-		const previousGenericFirstEventTimeout = process.env.CHUDCODE_STREAM_FIRST_EVENT_TIMEOUT_MS;
+	it("lets PI_OPENAI_STREAM_IDLE_TIMEOUT_MS widen OpenAI responses first-event request setup", async () => {
+		const previousOpenAIIdleTimeout = Bun.env.PI_OPENAI_STREAM_IDLE_TIMEOUT_MS;
+		const previousGenericFirstEventTimeout = Bun.env.PI_STREAM_FIRST_EVENT_TIMEOUT_MS;
 		const timeoutHeaders: string[] = [];
-		process.env.CHUDCODE_OPENAI_STREAM_IDLE_TIMEOUT_MS = "1500";
-		process.env.CHUDCODE_STREAM_FIRST_EVENT_TIMEOUT_MS = "20";
+		Bun.env.PI_OPENAI_STREAM_IDLE_TIMEOUT_MS = "1500";
+		Bun.env.PI_STREAM_FIRST_EVENT_TIMEOUT_MS = "20";
 		const fetchMock = createDelayedFetch(30, createOpenAIResponsesSuccessResponse, (input, init) => {
 			timeoutHeaders.push(getRequestHeader(input, init, "X-Stainless-Timeout") ?? "");
 		});
@@ -377,23 +377,23 @@ describe("OpenAI-family first-event timeouts", () => {
 			expect(timeoutHeaders).toContain("1");
 		} finally {
 			if (previousOpenAIIdleTimeout === undefined) {
-				delete process.env.CHUDCODE_OPENAI_STREAM_IDLE_TIMEOUT_MS;
+				delete Bun.env.PI_OPENAI_STREAM_IDLE_TIMEOUT_MS;
 			} else {
-				process.env.CHUDCODE_OPENAI_STREAM_IDLE_TIMEOUT_MS = previousOpenAIIdleTimeout;
+				Bun.env.PI_OPENAI_STREAM_IDLE_TIMEOUT_MS = previousOpenAIIdleTimeout;
 			}
 			if (previousGenericFirstEventTimeout === undefined) {
-				delete process.env.CHUDCODE_STREAM_FIRST_EVENT_TIMEOUT_MS;
+				delete Bun.env.PI_STREAM_FIRST_EVENT_TIMEOUT_MS;
 			} else {
-				process.env.CHUDCODE_STREAM_FIRST_EVENT_TIMEOUT_MS = previousGenericFirstEventTimeout;
+				Bun.env.PI_STREAM_FIRST_EVENT_TIMEOUT_MS = previousGenericFirstEventTimeout;
 			}
 		}
 	});
 
-	it("lets CHUDCODE_OPENAI_STREAM_IDLE_TIMEOUT_MS widen native Ollama first-event request setup", async () => {
-		const previousOpenAIIdleTimeout = process.env.CHUDCODE_OPENAI_STREAM_IDLE_TIMEOUT_MS;
-		const previousGenericFirstEventTimeout = process.env.CHUDCODE_STREAM_FIRST_EVENT_TIMEOUT_MS;
-		process.env.CHUDCODE_OPENAI_STREAM_IDLE_TIMEOUT_MS = "1500";
-		process.env.CHUDCODE_STREAM_FIRST_EVENT_TIMEOUT_MS = "20";
+	it("lets PI_OPENAI_STREAM_IDLE_TIMEOUT_MS widen native Ollama first-event request setup", async () => {
+		const previousOpenAIIdleTimeout = Bun.env.PI_OPENAI_STREAM_IDLE_TIMEOUT_MS;
+		const previousGenericFirstEventTimeout = Bun.env.PI_STREAM_FIRST_EVENT_TIMEOUT_MS;
+		Bun.env.PI_OPENAI_STREAM_IDLE_TIMEOUT_MS = "1500";
+		Bun.env.PI_STREAM_FIRST_EVENT_TIMEOUT_MS = "20";
 		const fetchMock = createDelayedFetch(30, createOllamaChatSuccessResponse);
 
 		try {
@@ -406,24 +406,24 @@ describe("OpenAI-family first-event timeouts", () => {
 			expect(getFirstTextContent(result)).toMatchObject({ type: "text", text: "Hello delayed" });
 		} finally {
 			if (previousOpenAIIdleTimeout === undefined) {
-				delete process.env.CHUDCODE_OPENAI_STREAM_IDLE_TIMEOUT_MS;
+				delete Bun.env.PI_OPENAI_STREAM_IDLE_TIMEOUT_MS;
 			} else {
-				process.env.CHUDCODE_OPENAI_STREAM_IDLE_TIMEOUT_MS = previousOpenAIIdleTimeout;
+				Bun.env.PI_OPENAI_STREAM_IDLE_TIMEOUT_MS = previousOpenAIIdleTimeout;
 			}
 			if (previousGenericFirstEventTimeout === undefined) {
-				delete process.env.CHUDCODE_STREAM_FIRST_EVENT_TIMEOUT_MS;
+				delete Bun.env.PI_STREAM_FIRST_EVENT_TIMEOUT_MS;
 			} else {
-				process.env.CHUDCODE_STREAM_FIRST_EVENT_TIMEOUT_MS = previousGenericFirstEventTimeout;
+				Bun.env.PI_STREAM_FIRST_EVENT_TIMEOUT_MS = previousGenericFirstEventTimeout;
 			}
 		}
 	});
 
-	it("honors CHUDCODE_OPENAI_STREAM_FIRST_EVENT_TIMEOUT_MS even when caller pins streamIdleTimeoutMs", async () => {
-		const previousOpenAIFirstEventTimeout = process.env.CHUDCODE_OPENAI_STREAM_FIRST_EVENT_TIMEOUT_MS;
-		const previousGenericFirstEventTimeout = process.env.CHUDCODE_STREAM_FIRST_EVENT_TIMEOUT_MS;
+	it("honors PI_OPENAI_STREAM_FIRST_EVENT_TIMEOUT_MS even when caller pins streamIdleTimeoutMs", async () => {
+		const previousOpenAIFirstEventTimeout = Bun.env.PI_OPENAI_STREAM_FIRST_EVENT_TIMEOUT_MS;
+		const previousGenericFirstEventTimeout = Bun.env.PI_STREAM_FIRST_EVENT_TIMEOUT_MS;
 		const timeoutHeaders: string[] = [];
-		process.env.CHUDCODE_OPENAI_STREAM_FIRST_EVENT_TIMEOUT_MS = "1500";
-		process.env.CHUDCODE_STREAM_FIRST_EVENT_TIMEOUT_MS = "20";
+		Bun.env.PI_OPENAI_STREAM_FIRST_EVENT_TIMEOUT_MS = "1500";
+		Bun.env.PI_STREAM_FIRST_EVENT_TIMEOUT_MS = "20";
 		const fetchMock = createDelayedFetch(30, createOpenAIResponsesSuccessResponse, (input, init) => {
 			timeoutHeaders.push(getRequestHeader(input, init, "X-Stainless-Timeout") ?? "");
 		});
@@ -440,14 +440,14 @@ describe("OpenAI-family first-event timeouts", () => {
 			expect(timeoutHeaders).toContain("1");
 		} finally {
 			if (previousOpenAIFirstEventTimeout === undefined) {
-				delete process.env.CHUDCODE_OPENAI_STREAM_FIRST_EVENT_TIMEOUT_MS;
+				delete Bun.env.PI_OPENAI_STREAM_FIRST_EVENT_TIMEOUT_MS;
 			} else {
-				process.env.CHUDCODE_OPENAI_STREAM_FIRST_EVENT_TIMEOUT_MS = previousOpenAIFirstEventTimeout;
+				Bun.env.PI_OPENAI_STREAM_FIRST_EVENT_TIMEOUT_MS = previousOpenAIFirstEventTimeout;
 			}
 			if (previousGenericFirstEventTimeout === undefined) {
-				delete process.env.CHUDCODE_STREAM_FIRST_EVENT_TIMEOUT_MS;
+				delete Bun.env.PI_STREAM_FIRST_EVENT_TIMEOUT_MS;
 			} else {
-				process.env.CHUDCODE_STREAM_FIRST_EVENT_TIMEOUT_MS = previousGenericFirstEventTimeout;
+				Bun.env.PI_STREAM_FIRST_EVENT_TIMEOUT_MS = previousGenericFirstEventTimeout;
 			}
 		}
 	});
@@ -655,6 +655,41 @@ describe("OpenAI-family first-event timeouts", () => {
 				}).result(),
 			() => createOpenAICompletionsSuccessResponse(openAICompletionsModel.id),
 		);
+	});
+
+	it("disarms the completions first-event watchdog before onResponse runs", async () => {
+		let releaseHook: (() => void) | undefined;
+		vi.useFakeTimers();
+		try {
+			const hookEntered = Promise.withResolvers<void>();
+			const gate = Promise.withResolvers<void>();
+			releaseHook = gate.resolve;
+			const fetchMock: FetchImpl = () =>
+				Promise.resolve(createOpenAICompletionsSuccessResponse(openAICompletionsModel.id));
+			const resultPromise = streamOpenAICompletions(openAICompletionsModel, baseContext(), {
+				apiKey: "test-key",
+				streamFirstEventTimeoutMs: 20,
+				fetch: fetchMock,
+				onResponse: async () => {
+					hookEntered.resolve();
+					await gate.promise;
+				},
+			}).result();
+
+			await hookEntered.promise;
+			for (let i = 0; i < 10; i++) await Promise.resolve();
+			// A still-armed timer would abort the connected body while the hook
+			// below is parked; nothing else in this path arms a timer, so zero
+			// here proves the headers-arrival disarm ran before the hook.
+			expect(vi.getTimerCount()).toBe(0);
+			releaseHook();
+			const result = await resultPromise;
+			expect(result.stopReason).toBe("stop");
+			expect(getFirstTextContent(result)).toMatchObject({ type: "text", text: "Hello delayed" });
+		} finally {
+			releaseHook?.();
+			vi.useRealTimers();
+		}
 	});
 
 	it("does not arm the first-event watchdog before Azure OpenAI responses setup finishes", async () => {

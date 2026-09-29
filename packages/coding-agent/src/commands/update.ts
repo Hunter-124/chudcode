@@ -2,13 +2,12 @@
  * Check for and install updates.
  */
 
-import { Command, Flags } from "@chudware/utils/cli";
-import { PRODUCT_CLI_NAME } from "../brand";
+import { Command, Flags } from "@oh-my-pi/pi-utils/cli";
 import { updateHelp as commandHelp } from "../cli/command-help";
 import * as pluginCli from "../cli/plugin-cli";
 import * as updateCli from "../cli/update-cli";
 import { CliUsageError } from "../cli/usage-error";
-import { initTheme } from "../modes/theme/theme";
+import { initTheme } from "@oh-my-pi/pi-tui/theme";
 
 export default class Update extends Command {
 	static description = commandHelp.description;
@@ -21,10 +20,10 @@ export default class Update extends Command {
 	};
 
 	static examples = [
-		`${PRODUCT_CLI_NAME} update`,
-		`${PRODUCT_CLI_NAME} update --check`,
-		`${PRODUCT_CLI_NAME} update --canary`,
-		`# If GitHub rate-limits release metadata, set GITHUB_TOKEN or GH_TOKEN\n  GITHUB_TOKEN=... ${PRODUCT_CLI_NAME} update`,
+		"omp update",
+		"omp update --check",
+		"omp update --canary",
+		"# If GitHub rate-limits release metadata, set GITHUB_TOKEN or GH_TOKEN\n  GITHUB_TOKEN=... omp update",
 	];
 
 	async run(): Promise<void> {

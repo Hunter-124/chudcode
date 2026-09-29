@@ -1,5 +1,5 @@
 /**
- * `chudcode render` — draw a session's entire thread through the production
+ * `omp render` — draw a session's entire thread through the production
  * transcript pipeline, headlessly.
  *
  * Replays the session into a real `InteractiveMode` + `TUI` wired to an
@@ -14,16 +14,16 @@
 import { Database } from "bun:sqlite";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
-import { Agent } from "@chudware/agent-core";
-import type { Terminal, TerminalAppearance, TerminalAppearanceRequestToken } from "@chudware/tui/terminal";
-import type { RenderScheduler } from "@chudware/tui/tui";
-import { getProjectDir, isEnoent, logger, TempDir } from "@chudware/utils";
-import { PRODUCT_VERSION } from "../brand";
+import { Agent } from "@oh-my-pi/pi-agent-core";
+import type { Terminal, TerminalAppearance, TerminalAppearanceRequestToken } from "@oh-my-pi/pi-tui/terminal";
+import type { RenderScheduler } from "@oh-my-pi/pi-tui/tui";
+import { formatBytes, getProjectDir, isEnoent, logger, TempDir } from "@oh-my-pi/pi-utils";
+import { VERSION } from "@oh-my-pi/pi-utils/dirs";
 import { ModelRegistry } from "../config/model-registry";
 import { Settings } from "../config/settings";
-import { Composer } from "../modes/composer";
+import { Composer } from "@oh-my-pi/pi-tui/prompt/composer";
 import { InteractiveMode } from "../modes/interactive-mode";
-import { initTheme } from "../modes/theme/theme";
+import { initTheme } from "@oh-my-pi/pi-tui/theme";
 import { AgentSession } from "../session/agent-session";
 import { AuthStorage, SqliteAuthCredentialStore } from "../session/auth-storage";
 import { findMostRecentSession, resolveResumableSession } from "../session/session-listing";
@@ -154,12 +154,6 @@ async function resolveTargetSession(sessionArg: string | undefined, cwd: string)
 	return recent;
 }
 
-function formatBytes(bytes: number): string {
-	if (bytes >= 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MiB`;
-	if (bytes >= 1024) return `${(bytes / 1024).toFixed(1)} KiB`;
-	return `${bytes} B`;
-}
-
 function formatMs(ms: number): string {
 	return `${ms.toFixed(0)} ms`;
 }
@@ -175,8 +169,8 @@ export async function runRenderCommand(args: RenderCommandArgs): Promise<number>
 
 	// Copy before opening: SessionManager.open takes the single-writer lock and
 	// session teardown appends a session_exit entry — neither may touch a live
-	// session file the user has open in another chudcode.
-	const tempDir = TempDir.createSync("@chudcode-render-");
+	// session file the user has open in another omp.
+	const tempDir = TempDir.createSync("@omp-render-");
 	const workingCopy = path.join(tempDir.path(), path.basename(sourcePath));
 
 	const width = args.width ?? (process.stdout.isTTY ? process.stdout.columns : undefined) ?? 120;
@@ -210,16 +204,7 @@ export async function runRenderCommand(args: RenderCommandArgs): Promise<number>
 			tuiOptions: { renderScheduler: scheduler },
 			preferences: { quiet: true },
 		});
-		mode = new InteractiveMode(
-			session,
-			PRODUCT_VERSION,
-			undefined,
-			undefined,
-			undefined,
-			undefined,
-			undefined,
-			composer,
-		);
+		mode = new InteractiveMode(session, VERSION, undefined, undefined, undefined, undefined, undefined, composer);
 		await mode.init({ suppressWelcomeIntro: true });
 		scheduler.drain();
 
@@ -284,7 +269,7 @@ export async function runRenderCommand(args: RenderCommandArgs): Promise<number>
 			mode?.stop();
 			await session?.dispose();
 		} catch (err) {
-			logger.debug("chudcode render teardown failed", { error: String(err) });
+			logger.debug("omp render teardown failed", { error: String(err) });
 		}
 		tempDir.removeSync();
 	}

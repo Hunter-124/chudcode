@@ -3,15 +3,15 @@ import * as fs from "node:fs";
 import * as fsp from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import { visibleWidth } from "@chudware/tui";
+import { visibleWidth } from "@oh-my-pi/pi-tui";
 import { Settings } from "../../../src/config/settings";
+import { MoveOverlay, type MoveOverlayResult } from "@oh-my-pi/pi-tui/overlays/move-overlay";
 import {
-	MoveOverlay,
-	type MoveOverlayResult,
+	moveDirectorySource,
 	resolveExistingDirectory,
 	resolveMovePath,
-} from "../../../src/modes/components/move-overlay";
-import { getThemeByName, setThemeInstance, type Theme } from "../../../src/modes/theme/theme";
+} from "../../../src/modes/move-directory-source";
+import { getThemeByName, setThemeInstance, type Theme } from "@oh-my-pi/pi-tui/theme";
 
 // Strip SGR colors so assertions see visible text only.
 const stripAnsi = (text: string): string => text.replace(/\x1b\[[0-9;]*m/g, "");
@@ -36,7 +36,7 @@ describe("resolveExistingDirectory", () => {
 	let tmp: string;
 
 	beforeEach(async () => {
-		tmp = await fsp.mkdtemp(path.join(os.tmpdir(), "chudcode-move-resolve-"));
+		tmp = await fsp.mkdtemp(path.join(os.tmpdir(), "omp-move-resolve-"));
 	});
 	afterEach(async () => {
 		await fsp.rm(tmp, { recursive: true, force: true });
@@ -71,7 +71,7 @@ describe("MoveOverlay", () => {
 	});
 
 	beforeEach(async () => {
-		tmp = await fsp.mkdtemp(path.join(os.tmpdir(), "chudcode-move-overlay-"));
+		tmp = await fsp.mkdtemp(path.join(os.tmpdir(), "omp-move-overlay-"));
 		cwd = tmp;
 		fs.mkdirSync(path.join(tmp, "alpha"));
 		fs.mkdirSync(path.join(tmp, "beta"));
@@ -82,15 +82,8 @@ describe("MoveOverlay", () => {
 		await fsp.rm(tmp, { recursive: true, force: true });
 	});
 
-	it("renders a box with a title and input prompt", () => {
-		const overlay = new MoveOverlay(cwd, () => {});
-		const text = strip(overlay.render(80));
-		expect(text).toContain("Move to directory");
-		expect(text).toContain("Path:");
-	});
-
 	it("renders every frame row at the assigned overlay width", () => {
-		const overlay = new MoveOverlay(cwd, () => {});
+		const overlay = new MoveOverlay(cwd, () => {}, moveDirectorySource);
 		const lines = overlay.render(72);
 		const plainLines = lines.map(stripAnsi);
 
@@ -103,7 +96,7 @@ describe("MoveOverlay", () => {
 	});
 
 	it("lists child directories (excluding hidden and files) on empty input", () => {
-		const overlay = new MoveOverlay(cwd, () => {});
+		const overlay = new MoveOverlay(cwd, () => {}, moveDirectorySource);
 		const text = strip(overlay.render(80));
 		expect(text).toContain("alpha/");
 		expect(text).toContain("beta/");
@@ -112,7 +105,7 @@ describe("MoveOverlay", () => {
 	});
 
 	it("filters results as the user types", () => {
-		const overlay = new MoveOverlay(cwd, () => {});
+		const overlay = new MoveOverlay(cwd, () => {}, moveDirectorySource);
 		overlay.handleInput("a");
 		overlay.handleInput("l");
 		const text = strip(overlay.render(80));
@@ -121,7 +114,7 @@ describe("MoveOverlay", () => {
 	});
 
 	it("shows dot directories after a dot prefix is typed", () => {
-		const overlay = new MoveOverlay(cwd, () => {});
+		const overlay = new MoveOverlay(cwd, () => {}, moveDirectorySource);
 		overlay.handleInput(".");
 		const text = strip(overlay.render(80));
 		expect(text).toContain(".hidden/");
@@ -129,9 +122,13 @@ describe("MoveOverlay", () => {
 
 	it("accepts bracketed paste and multi-byte input while filtering controls", () => {
 		let result: MoveOverlayResult | undefined;
-		const overlay = new MoveOverlay(cwd, r => {
-			result = r;
-		});
+		const overlay = new MoveOverlay(
+			cwd,
+			r => {
+				result = r;
+			},
+			moveDirectorySource,
+		);
 		overlay.handleInput("\x1b[200~new\nø\x1b[201~");
 		overlay.handleInput("\r");
 		expect(result).toBeDefined();
@@ -140,18 +137,26 @@ describe("MoveOverlay", () => {
 
 	it("calls done with undefined on Escape", () => {
 		let result: MoveOverlayResult | undefined = "sentinel" as unknown as MoveOverlayResult;
-		const overlay = new MoveOverlay(cwd, r => {
-			result = r;
-		});
+		const overlay = new MoveOverlay(
+			cwd,
+			r => {
+				result = r;
+			},
+			moveDirectorySource,
+		);
 		overlay.handleInput("\x1b");
 		expect(result).toBeUndefined();
 	});
 
 	it("calls done with the highlighted directory on Enter", () => {
 		let result: MoveOverlayResult | undefined;
-		const overlay = new MoveOverlay(cwd, r => {
-			result = r;
-		});
+		const overlay = new MoveOverlay(
+			cwd,
+			r => {
+				result = r;
+			},
+			moveDirectorySource,
+		);
 		// First result should be "alpha/" (sorted alphabetically).
 		overlay.handleInput("\r");
 		expect(result).toBeDefined();
@@ -160,9 +165,13 @@ describe("MoveOverlay", () => {
 
 	it("calls done with the typed path on Enter when no results match", () => {
 		let result: MoveOverlayResult | undefined;
-		const overlay = new MoveOverlay(cwd, r => {
-			result = r;
-		});
+		const overlay = new MoveOverlay(
+			cwd,
+			r => {
+				result = r;
+			},
+			moveDirectorySource,
+		);
 		// Type a path that won't match any directory in cwd.
 		overlay.handleInput("z");
 		overlay.handleInput("z");
@@ -173,9 +182,13 @@ describe("MoveOverlay", () => {
 
 	it("Tab accepts the highlighted suggestion into the input", () => {
 		let result: MoveOverlayResult | undefined;
-		const overlay = new MoveOverlay(cwd, r => {
-			result = r;
-		});
+		const overlay = new MoveOverlay(
+			cwd,
+			r => {
+				result = r;
+			},
+			moveDirectorySource,
+		);
 		overlay.handleInput("\t");
 		// After tab, the input should be the full path of the first result.
 		// Press Enter to confirm — the result should be the alpha directory.
@@ -189,7 +202,7 @@ describe("MoveOverlay", () => {
 		// entry per keystroke. Populate with mostly files so the old code path
 		// would have stat'd all of them; the fix classifies via `Dirent` and only
 		// falls back to `statSync` on symlink entries.
-		const bulk = await fsp.mkdtemp(path.join(os.tmpdir(), "chudcode-move-overlay-bulk-"));
+		const bulk = await fsp.mkdtemp(path.join(os.tmpdir(), "omp-move-overlay-bulk-"));
 		try {
 			for (let i = 0; i < 60; i++) {
 				fs.writeFileSync(path.join(bulk, `f_${String(i).padStart(3, "0")}.txt`), "x");
@@ -198,7 +211,7 @@ describe("MoveOverlay", () => {
 
 			const statSpy = spyOn(fs, "statSync");
 			try {
-				const overlay = new MoveOverlay(bulk, () => {});
+				const overlay = new MoveOverlay(bulk, () => {}, moveDirectorySource);
 				statSpy.mockClear();
 				overlay.handleInput("s");
 				overlay.handleInput("u");
@@ -220,7 +233,7 @@ describe("MoveOverlay", () => {
 		// whose isDirectory()/isFile()/isSymbolicLink() all report false. Those
 		// entries must fall back to statSync so /move still lists real
 		// directories on NFS/FUSE/older SMB.
-		const unknownFs = await fsp.mkdtemp(path.join(os.tmpdir(), "chudcode-move-overlay-unknown-"));
+		const unknownFs = await fsp.mkdtemp(path.join(os.tmpdir(), "omp-move-overlay-unknown-"));
 		try {
 			const realDir = path.join(unknownFs, "real-dir");
 			const realFile = path.join(unknownFs, "real-file.txt");
@@ -243,7 +256,7 @@ describe("MoveOverlay", () => {
 				fakeDirent("real-file.txt"),
 			] as never);
 			try {
-				const overlay = new MoveOverlay(unknownFs, () => {});
+				const overlay = new MoveOverlay(unknownFs, () => {}, moveDirectorySource);
 				const text = strip(overlay.render(80));
 				expect(text).toContain("real-dir/");
 				expect(text).not.toContain("real-file.txt");

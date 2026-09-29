@@ -2,8 +2,7 @@ import { afterAll, beforeAll, describe, expect, it, spyOn } from "bun:test";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
-import { logger } from "@chudware/utils";
-import { sleep } from "../src/async";
+import { logger } from "@oh-my-pi/pi-utils";
 
 /**
  * Regression: `setTransports({ file: false, console: false })` left the shared
@@ -19,16 +18,16 @@ let tempDir: string;
 let prevAgentDir: string | undefined;
 
 beforeAll(() => {
-	tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "chud-logger-no-transports-"));
-	prevAgentDir = process.env.CHUDCODE_AGENT_DIR;
-	process.env.CHUDCODE_AGENT_DIR = tempDir;
+	tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "pi-logger-no-transports-"));
+	prevAgentDir = process.env.OMP_AGENT_DIR;
+	process.env.OMP_AGENT_DIR = tempDir;
 });
 
 afterAll(() => {
 	if (prevAgentDir === undefined) {
-		delete process.env.CHUDCODE_AGENT_DIR;
+		delete process.env.OMP_AGENT_DIR;
 	} else {
-		process.env.CHUDCODE_AGENT_DIR = prevAgentDir;
+		process.env.OMP_AGENT_DIR = prevAgentDir;
 	}
 	// Detach the file transport before deleting tempDir so no live handle points
 	// at a removed dir. With the silent fix this is a harmless no-op, not a leak.
@@ -59,24 +58,5 @@ describe("logger with no transports", () => {
 			args.some(a => typeof a === "string" && a.includes("Attempt to write logs with no transports")),
 		);
 		expect(noTransportWarnings).toEqual([]);
-	});
-
-	it("resumes writing once a transport is re-enabled", async () => {
-		logger.setTransports({ file: false, console: false });
-		// Re-attaching a transport must clear the silent flag set above.
-		logger.setTransports({ file: tempDir, console: false });
-		logger.warn("no-transports-resume-fixture");
-
-		let found = false;
-		for (let i = 0; i < 40 && !found; i++) {
-			for (const f of fs.readdirSync(tempDir).filter(n => n.startsWith("chudcode.") && n.endsWith(".log"))) {
-				if (fs.readFileSync(path.join(tempDir, f), "utf8").includes("no-transports-resume-fixture")) {
-					found = true;
-					break;
-				}
-			}
-			if (!found) await sleep(25);
-		}
-		expect(found).toBe(true);
 	});
 });

@@ -2,40 +2,38 @@
  * Cross-process contract for the broker-owned LSP mux daemon.
  *
  * One mux daemon runs per project scope (launched through the same daemon
- * broker that owns the shared Chromium and `hub start` processes). It assigns
- * each concurrent Chudcode link its own language-server process, then retains idle
+ * broker that owns the shared Chromium and `bash` services). It assigns
+ * each concurrent OMP link its own language-server process, then retains idle
  * processes briefly for reuse by later links. The link speaks plain
  * Content-Length-framed LSP JSON-RPC after a one-request handshake
  * ({@link MUX_CONNECT_METHOD}); everything below is shared by the worker
  * entry (`server.ts`), the client connector (`daemon.ts`), and tests.
  */
 import * as path from "node:path";
-
-/** Hidden CLI selector used to re-enter the LSP mux worker. */
-export const LSP_MUX_WORKER_ARG = "__omp_worker_lsp_mux";
+export { LSP_MUX_WORKER_ARG } from "../../cli/worker-selectors";
 
 /** Environment key carrying the socket endpoint the mux must listen on. */
-export const LSP_MUX_SOCKET_ENV = "CHUDCODE_LSP_MUX_SOCKET";
+export const LSP_MUX_SOCKET_ENV = "OMP_LSP_MUX_SOCKET";
 
 /** Environment key carrying the canonical project directory the mux serves. */
-export const LSP_MUX_PROJECT_DIR_ENV = "CHUDCODE_LSP_MUX_PROJECT_DIR";
+export const LSP_MUX_PROJECT_DIR_ENV = "OMP_LSP_MUX_PROJECT_DIR";
 
 /** Stable broker daemon name for the shared LSP mux. */
-export const LSP_MUX_DAEMON_NAME = "chudcode.lsp.mux";
+export const LSP_MUX_DAEMON_NAME = "omp.lsp.mux";
 
 /** Broker readiness regex matched against the banner printed by the worker. */
-export const LSP_MUX_READY_PATTERN = String.raw`chudcode lsp mux listening on \S+`;
+export const LSP_MUX_READY_PATTERN = String.raw`omp lsp mux listening on \S+`;
 
 /** Banner printed on stdout once the mux socket accepts connections. */
 export function lspMuxReadyBanner(endpoint: string): string {
-	return `chudcode lsp mux listening on ${endpoint}`;
+	return `omp lsp mux listening on ${endpoint}`;
 }
 
 /** Resolve the Unix socket or Windows named pipe for one project scope. */
 export function lspMuxEndpoint(projectDir: string, runtimeDir: string): string {
 	if (process.platform === "win32") {
 		const key = Bun.hash.wyhash(path.resolve(projectDir)).toString(16).padStart(16, "0");
-		return `\\\\.\\pipe\\chudcode-lsp-mux-${key}`;
+		return `\\\\.\\pipe\\omp-lsp-mux-${key}`;
 	}
 	return path.join(runtimeDir, "lsp-mux.sock");
 }
@@ -50,13 +48,13 @@ export function lspMuxEndpoint(projectDir: string, runtimeDir: string): string {
  * result: {@link MuxConnectResult}. After the response the link carries
  * ordinary LSP traffic for that server.
  */
-export const MUX_CONNECT_METHOD = "chudcode/muxConnect";
+export const MUX_CONNECT_METHOD = "omp/muxConnect";
 
 /**
  * Liveness probe answered with {@link MUX_PING_RESULT} without binding the
  * link to a server. Used by the smoke probe and the ensure loop.
  */
-export const MUX_PING_METHOD = "chudcode/muxPing";
+export const MUX_PING_METHOD = "omp/muxPing";
 export const MUX_PING_RESULT = "pong";
 
 /**
@@ -65,7 +63,7 @@ export const MUX_PING_RESULT = "pong";
  * a plain per-session `shutdown`/`exit` is intercepted by the mux so the
  * process can linger for reuse.
  */
-export const MUX_RESTART_METHOD = "chudcode/muxRestartServer";
+export const MUX_RESTART_METHOD = "omp/muxRestartServer";
 
 /** Handshake parameters identifying a reusable server process. */
 export interface MuxConnectParams {
@@ -94,7 +92,7 @@ export interface MuxConnectResult {
  *
  * Every input that changes what the spawned process actually *is* belongs in
  * this key: the registry spawns `[command, ...args]` in `cwd` with
- * `{ ...process.env, ...env }`, so two links that agree on command and cwd but
+ * `{ ...Bun.env, ...env }`, so two links that agree on command and cwd but
  * differ in args or env are not interchangeable. Keying on command and cwd
  * alone let an idle server started with one argument set be handed to a link
  * that asked for another, silently serving the wrong configuration from a

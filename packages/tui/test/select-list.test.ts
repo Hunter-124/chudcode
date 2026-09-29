@@ -1,8 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
-import { SelectList, type SelectListTheme } from "@chudware/tui/components/select-list";
-import { KeybindingsManager, setKeybindings, TUI_KEYBINDINGS } from "@chudware/tui/keybindings";
-import type { SgrMouseEvent } from "@chudware/tui/mouse";
-import { visibleWidth } from "@chudware/tui/utils";
+import { SelectList, type SelectListTheme } from "@oh-my-pi/pi-tui/components/select-list";
+import { KeybindingsManager, setKeybindings, TUI_KEYBINDINGS } from "@oh-my-pi/pi-tui/keybindings";
+import type { SgrMouseEvent } from "@oh-my-pi/pi-tui/mouse";
+import { visibleWidth } from "@oh-my-pi/pi-tui/utils";
 
 const testTheme = {
 	selectedPrefix: (text: string) => text,
@@ -59,6 +59,15 @@ describe("SelectList", () => {
 
 	afterEach(() => {
 		setKeybindings(new KeybindingsManager(TUI_KEYBINDINGS));
+	});
+
+	it("re-sanitizes a reused item object whose label changed", () => {
+		const item = { value: "test", label: "before", description: "desc" };
+		const list = new SelectList([item], 5, testTheme);
+		expect(list.render(80)[0]).toContain("before");
+		item.label = "after";
+		list.setItems([item]);
+		expect(list.render(80)[0]).toContain("after");
 	});
 
 	it("normalizes multiline descriptions to single line", () => {

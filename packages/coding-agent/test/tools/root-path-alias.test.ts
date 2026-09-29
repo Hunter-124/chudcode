@@ -2,12 +2,11 @@ import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import { Settings } from "@chudware/coding-agent/config/settings";
-import { ToolChoiceQueue } from "@chudware/coding-agent/session/tool-choice-queue";
-import { createTools, type ToolSession } from "@chudware/coding-agent/tools";
-import { resolveToCwd } from "@chudware/coding-agent/tools/path-utils";
-import { removeWithRetries } from "@chudware/utils";
-import * as fsx from "@chudware/utils/fsx";
+import { Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
+import { ToolChoiceQueue } from "@oh-my-pi/pi-coding-agent/session/tool-choice-queue";
+import { createTools, type ToolSession } from "@oh-my-pi/pi-coding-agent/tools";
+import { resolveToCwd } from "@oh-my-pi/pi-coding-agent/tools/path-utils";
+import { removeWithRetries } from "@oh-my-pi/pi-utils";
 
 function createTestSession(cwd: string, overrides: Partial<ToolSession> = {}): ToolSession {
 	return {
@@ -32,8 +31,8 @@ describe("tool path root alias", () => {
 
 	beforeEach(async () => {
 		tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "tool-root-alias-"));
-		await fsx.write(path.join(tempDir, "search.txt"), "root-alias-needle\n");
-		await fsx.write(
+		await Bun.write(path.join(tempDir, "search.txt"), "root-alias-needle\n");
+		await Bun.write(
 			path.join(tempDir, "sample.ts"),
 			"const rootAliasSymbol = 1;\nlegacyWrap(rootAliasSymbol, anotherValue);\n",
 		);
@@ -47,6 +46,25 @@ describe("tool path root alias", () => {
 		expect(resolveToCwd("/", tempDir)).toBe(tempDir);
 		expect(resolveToCwd("///", tempDir)).toBe(tempDir);
 	});
+
+	it.skipIf(process.platform === "win32")(
+		"preserves an absolute path verbatim so the kernel resolves `..` across a symlink (#11587)",
+		async () => {
+			// `link -> other/dir`; the kernel resolves `base/link/../target.txt` to
+			// `other/target.txt`, but a lexical path.resolve would collapse it to the
+			// nonexistent `base/target.txt`. resolveToCwd must not canonicalize here.
+			await fs.mkdir(path.join(tempDir, "other", "dir"), { recursive: true });
+			await fs.mkdir(path.join(tempDir, "base"), { recursive: true });
+			await Bun.write(path.join(tempDir, "other", "target.txt"), "kernel-correct\n");
+			await Bun.write(path.join(tempDir, "base", "target.txt"), "lexical-wrong\n");
+			await fs.symlink(path.join(tempDir, "other", "dir"), path.join(tempDir, "base", "link"));
+
+			const input = `${path.join(tempDir, "base", "link")}${path.sep}..${path.sep}target.txt`;
+			const resolved = resolveToCwd(input, tempDir);
+			expect(resolved).toBe(input);
+			expect(await Bun.file(resolved).text()).toBe("kernel-correct\n");
+		},
+	);
 
 	it("rejects local:/ (single-slash) as an internal URL", () => {
 		expect(() => resolveToCwd("local:/PLAN.md", tempDir)).toThrow("internal scheme");
@@ -154,7 +172,7 @@ describe("tool path root alias", () => {
 		expect(invoker).toBeDefined();
 		await invoker({ action: "apply", reason: "apply root alias rewrite" });
 
-		expect(await fsx.readText(path.join(tempDir, "sample.ts"))).toContain(
+		expect(await Bun.file(path.join(tempDir, "sample.ts")).text()).toContain(
 			"modernWrap(rootAliasSymbol, anotherValue)",
 		);
 	});

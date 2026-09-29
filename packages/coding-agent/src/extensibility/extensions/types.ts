@@ -8,6 +8,25 @@
  * - Interact with the user via UI primitives
  */
 
+import {
+	type ExtensionUiComponent,
+	type ExtensionUiComponentFactory,
+	type ExtensionWidgetContent,
+	type MessageRenderer,
+	type AssistantThinkingRenderer,
+} from "@oh-my-pi/pi-tui/chat/extension-types";
+export {
+	type ExtensionUiComponent,
+	type ExtensionUiComponentFactory,
+	type ExtensionWidgetContent,
+	type MessageRenderOptions,
+	type MessageRenderer,
+	type AssistantThinkingRenderContext,
+	type AssistantThinkingRenderer,
+} from "@oh-my-pi/pi-tui/chat/extension-types";
+import type { type as ArkType } from "@oh-my-pi/omptype";
+import type * as TypeBox from "@oh-my-pi/omptype/typebox";
+import type * as zod from "@oh-my-pi/omptype/zod";
 import type {
 	AgentMessage,
 	AgentToolResult,
@@ -15,10 +34,12 @@ import type {
 	ThinkingLevel,
 	ToolApproval,
 	ToolLoadMode,
-} from "@chudware/agent-core";
-import type { CompactionResult } from "@chudware/agent-core/compaction";
+} from "@oh-my-pi/pi-agent-core";
+import type { CompactionResult } from "@oh-my-pi/pi-agent-core/compaction";
+import type { ContextUsage } from "@oh-my-pi/pi-tui/status-line/types";
 import type {
 	Api,
+	AssistantMessage,
 	AssistantMessageEvent,
 	AssistantMessageEventStream,
 	Context,
@@ -34,50 +55,44 @@ import type {
 	TextContent,
 	TSchema,
 	UsageProvider,
-} from "@chudware/ai";
-import type { OAuthCredentials, OAuthLoginCallbacks } from "@chudware/ai/oauth/types";
-import type { type as ArkType } from "@chudware/chudtype";
-import type * as TypeBox from "@chudware/chudtype/typebox";
-import type * as zod from "@chudware/chudtype/zod";
+} from "@oh-my-pi/pi-ai";
+import type { OAuthCredentials, OAuthLoginCallbacks } from "@oh-my-pi/pi-ai/oauth/types";
 import type {
 	AutocompleteItem,
 	AutocompleteProvider,
 	Component,
-	ComposerStyle,
 	EditorTheme,
 	KeyId,
 	OverlayHandle,
 	OverlayOptions,
 	TUI,
-} from "@chudware/tui";
-import type { logger as ChudLogger } from "@chudware/utils";
-import type { KeybindingsManager } from "../../config/keybindings";
+} from "@oh-my-pi/pi-tui";
+import type { logger as PiLogger } from "@oh-my-pi/pi-utils";
+import type { KeybindingsManager } from "@oh-my-pi/pi-tui/app-keybindings";
+import type { ComposerShapeDefinition } from "@oh-my-pi/pi-tui/overlays/composer-shape-registry";
+export type { ComposerShapeDefinition } from "@oh-my-pi/pi-tui/overlays/composer-shape-registry";
 import type { ModelRegistry } from "../../config/model-registry";
-import type { EditToolDetails } from "../../edit";
+import type { EditToolDetails } from "@oh-my-pi/pi-tui/tools/edit";
 import type { PythonResult } from "../../eval/py/executor";
 import type { BashResult } from "../../exec/bash-executor";
 import type { ExecOptions, ExecResult } from "../../exec/exec";
-import type * as ChudCodingAgent from "../../index";
+import type * as PiCodingAgent from "../../index";
 import type { LocalProtocolOptions } from "../../internal-urls/local-protocol";
-import type { MemoryBackend, MemoryRuntimeContext } from "../../memory-backend";
-import type { CustomEditor } from "../../modes/components/custom-editor";
-import type { Theme } from "../../modes/theme/theme";
-import type { AsyncJobSnapshot } from "../../session/agent-session";
+import type { MemoryRuntimeContext } from "../../memory-backend";
+import type { CustomEditor } from "@oh-my-pi/pi-tui/prompt/custom-editor";
+import type { Theme } from "@oh-my-pi/pi-tui/theme";
+import type { NativeToolView } from "@oh-my-pi/pi-tui/tools/renderer";
+import type { AsyncJobSnapshot, SendUserMessageOptions } from "../../session/agent-session";
+import type { EphemeralTurnOptions, EphemeralTurnResult } from "../../session/agent-session-types";
 import type { CompactMode } from "../../session/compact-modes";
-import type { CustomMessage, CustomMessagePayload } from "../../session/messages";
+import type { CustomMessagePayload } from "../../session/messages";
 import type { ReadonlySessionManager, SessionManager } from "../../session/session-manager";
-import type {
-	BashToolDetails,
-	BashToolInput,
-	GlobToolDetails,
-	GlobToolInput,
-	GrepToolDetails,
-	GrepToolInput,
-	ReadToolDetails,
-	ReadToolInput,
-	WriteToolInput,
-} from "../../tools";
+import type { BashToolInput, GlobToolInput, GrepToolInput, ReadToolInput, WriteToolInput } from "../../tools";
+import type { GlobToolDetails } from "@oh-my-pi/pi-tui/tools/glob";
+import type { GrepToolDetails } from "@oh-my-pi/pi-tui/tools/grep";
+import type { ReadToolDetails } from "@oh-my-pi/pi-tui/tools/read";
 import type { ApprovalMode } from "../../tools/approval";
+import type { BashToolDetails } from "@oh-my-pi/pi-tui/tools/bash";
 import type { FileDeleteFallbackHandler, FileWriteFallbackHandler } from "../../tools/file-write-fallback";
 import type { EventBus } from "../../utils/event-bus";
 import type {
@@ -87,6 +102,8 @@ import type {
 	AutoCompactionStartEvent,
 	AutoRetryEndEvent,
 	AutoRetryStartEvent,
+	CacheWarmingDecisionEvent,
+	CacheWarmingDecisionEventResult,
 	ContextEvent,
 	GoalUpdatedEvent,
 	RetryFallbackAppliedEvent,
@@ -119,8 +136,8 @@ import type {
 } from "../shared-events";
 import type { SlashCommandInfo } from "../slash-commands";
 
-export type { OverlayHandle, OverlayOptions } from "@chudware/tui";
-export type { AppKeybinding, KeybindingsManager } from "../../config/keybindings";
+export type { OverlayHandle, OverlayOptions } from "@oh-my-pi/pi-tui";
+export type { AppKeybinding, KeybindingsManager } from "@oh-my-pi/pi-tui/app-keybindings";
 export type { ExecOptions, ExecResult } from "../../exec/exec";
 export type { AgentToolResult, AgentToolUpdateCallback };
 
@@ -135,45 +152,15 @@ export interface ExtensionUISelectOption {
 
 export type ExtensionUISelectItem = string | ExtensionUISelectOption;
 
-export interface ExtensionAskDialogOption {
-	label: string;
-	description?: string;
-	preview?: string;
-}
-
-export interface ExtensionAskDialogQuestion {
-	id: string;
-	question: string;
-	header?: string;
-	options: ExtensionAskDialogOption[];
-	multi?: boolean;
-	recommended?: number;
-}
-
-export interface ExtensionAskDialogResultItem {
-	id: string;
-	question: string;
-	options: string[];
-	multi: boolean;
-	selectedOptions: string[];
-	customInput?: string;
-	note?: string;
-	timedOut?: boolean;
-}
-
-export interface ExtensionAskDialogSubmitResult {
-	kind: "submit";
-	results: ExtensionAskDialogResultItem[];
-}
-
-/** Chat-redirect result: the user chose "Chat about this" instead of
- *  answering. Distinct from `undefined` (cancel) so AskTool can hand off to
- *  the chat loop rather than aborting. */
-export interface ExtensionAskDialogChatResult {
-	kind: "chat";
-}
-
-export type ExtensionAskDialogResult = ExtensionAskDialogSubmitResult | ExtensionAskDialogChatResult;
+import type { ExtensionAskDialogQuestion, ExtensionAskDialogResult } from "@oh-my-pi/pi-tui/overlays/ask-dialog";
+export type {
+	ExtensionAskDialogOption,
+	ExtensionAskDialogQuestion,
+	ExtensionAskDialogResultItem,
+	ExtensionAskDialogSubmitResult,
+	ExtensionAskDialogChatResult,
+	ExtensionAskDialogResult,
+} from "@oh-my-pi/pi-tui/overlays/ask-dialog";
 
 export function getExtensionUISelectOptionLabel(option: ExtensionUISelectItem): string {
 	return typeof option === "string" ? option : option.label;
@@ -214,6 +201,8 @@ export interface ExtensionUIDialogOptions {
 	 *  trailing options (e.g. "Other"/"Done" actions) keep the plain cursor.
 	 *  Defaults to all options when `selectionMarker` is set. */
 	markableCount?: number;
+	/** Allow image pastes in rich ask-dialog custom-answer and note prompts. */
+	acceptImages?: boolean;
 }
 
 /** Raw terminal input listener for extensions. */
@@ -224,10 +213,6 @@ export type WidgetPlacement = "aboveEditor" | "belowEditor";
 export interface ExtensionWidgetOptions {
 	placement?: WidgetPlacement;
 }
-
-export type ExtensionUiComponent = Component & { dispose?(): void };
-export type ExtensionUiComponentFactory = (tui: TUI, theme: Theme) => ExtensionUiComponent;
-export type ExtensionWidgetContent = string[] | ExtensionUiComponentFactory | undefined;
 
 /** Options for `ExtensionUIContext.custom()` (overlay rendering of a custom component). */
 export interface ExtensionCustomOptions {
@@ -241,7 +226,7 @@ export interface ExtensionCustomOptions {
 	signal?: AbortSignal;
 }
 
-/** Wrap the current autocomplete provider with additional behavior (chud-compatible). */
+/** Wrap the current autocomplete provider with additional behavior (pi-compatible). */
 export type AutocompleteProviderFactory = (current: AutocompleteProvider) => AutocompleteProvider;
 
 /**
@@ -334,7 +319,7 @@ export interface ExtensionUIContext {
 
 	/**
 	 * Stack additional autocomplete behavior on top of the built-in provider
-	 * (chud-compatible). Interactive mode rebuilds the editor's provider through
+	 * (pi-compatible). Interactive mode rebuilds the editor's provider through
 	 * every registered factory, in registration order; headless modes (print,
 	 * RPC, ACP, subagents) accept and ignore the factory.
 	 */
@@ -370,27 +355,11 @@ export interface ExtensionUIContext {
 	setToolsExpanded(expanded: boolean): void;
 }
 
-/** Visual composer style and selector copy registered by an extension. */
-export interface ComposerShapeDefinition {
-	/** User-facing name shown in composer-shape selectors. */
-	label: string;
-	/** Optional detail shown under the selector label. */
-	description?: string;
-	/** Renderer contract; its id becomes the persisted `composer.shape` value. */
-	style: ComposerStyle;
-}
-
 // ============================================================================
 // Extension Context
 // ============================================================================
 
-export interface ContextUsage {
-	/** Estimated context tokens. */
-	tokens: number;
-	contextWindow: number;
-	/** Context usage as percentage of context window. */
-	percent: number;
-}
+export type { ContextUsage };
 
 export interface CompactOptions {
 	onComplete?: (result: CompactionResult) => void;
@@ -413,6 +382,17 @@ export interface CompactOptions {
 	 * `customInstructions`.
 	 */
 	internalGuidance?: string;
+	/**
+	 * A manual compaction aborts any turn in flight and, once the summary is
+	 * committed (or at once when there was nothing to compact), resumes it with
+	 * the auto-continue nudge. Set this when the caller dispatches its own
+	 * follow-up turn after compaction — plan-mode "Approve and compact context" —
+	 * so the two don't double-prompt. Compactions that interrupt nothing never
+	 * continue. Steer/follow-up messages queued during the compaction are
+	 * unaffected: they always drain once compaction ends (issue #5800), before
+	 * and independent of this option.
+	 */
+	suppressContinuation?: boolean;
 }
 
 /**
@@ -452,6 +432,29 @@ export interface ExtensionModelQuery {
 /** Runtime host mode exposed to Pi-compatible extensions. */
 export type ExtensionMode = "tui" | "rpc" | "json" | "print";
 
+/**
+ * The agent a session runs. Extension factories are rebound to every subagent session
+ * (task tool, eval `agent()`, `/tan` clones), so this tells a handler which agent it is serving.
+ */
+export interface ExtensionAgentIdentity {
+	/**
+	 * `"main"` for a top-level session, `"sub"` for any spawned session. Check this, not `depth`,
+	 * to tell subagents apart: `/tan` clones are subagents at depth 0.
+	 */
+	kind: "main" | "sub";
+	/** Agent registry id, e.g. `"Main"` or `"0-Explore"`. */
+	id: string;
+	/**
+	 * Lowercased agent definition name, e.g. `"main"`, `"task"`, `"explore"`. Subagents spawned
+	 * without a definition (such as `/tan` clones) report `"sub"`.
+	 */
+	name: string;
+	/** Task-tool nesting depth: 0 for a top-level session and for subagents not spawned by `task`. */
+	depth: number;
+	/** Registry id of the spawning agent; absent for a top-level session. */
+	parentId?: string;
+}
+
 export interface ExtensionContext {
 	/** UI methods for user interaction */
 	ui: ExtensionUIContext;
@@ -485,8 +488,26 @@ export interface ExtensionContext {
 	hasPendingMessages(): boolean;
 	/** Gracefully shutdown and exit. */
 	shutdown(): void;
+	/** Identity of the agent this session runs: the top-level session or a subagent. */
+	agent: ExtensionAgentIdentity;
+	/**
+	 * Whether the current project/workspace is trusted. OMP performs no
+	 * project-trust gating — project-level settings and extensions load
+	 * unconditionally — so this always returns `true`. Exposed for
+	 * compatibility with extensions authored against upstream Pi, whose
+	 * `SettingsManager` accepts a `projectTrusted` flag.
+	 */
+	isProjectTrusted(): boolean;
 	/** Get the current effective system prompt. */
 	getSystemPrompt(): string[];
+
+	/** Run a /btw-style side turn without appending to history or executing tool calls.
+	 * Pass tools: false to omit tool definitions; existing context/provider hooks still run.
+	 * Inherits event-handler and registered-tool cancellation, combined with options.signal.
+	 * Hooks reached within a running side turn cannot start another one (bounded recursion).
+	 * Optional for compatibility with hosts that do not provide side turns.
+	 */
+	runEphemeralTurn?(options: EphemeralTurnOptions): Promise<EphemeralTurnResult>;
 	/** Structured memory runtime for status/search/save across the configured backend. */
 	memory?: MemoryRuntimeContext;
 	/**
@@ -508,6 +529,13 @@ export interface ExtensionContext {
 	/** Clear a timer scheduled via {@link setInterval} or {@link setTimeout}. */
 	clearTimer(timer: Timer): void;
 	/**
+	 * Attach trusted, extension-authored instructions to the next provider
+	 * request with developer/system priority where supported. Present only while
+	 * a registered tool is executing. Raw tool output and other untrusted data
+	 * must stay in the ordinary tool result.
+	 */
+	addAdditionalContext?(context: string): void;
+	/**
 	 * Run the NATIVE built-in implementation of the tool this handler re-registered, with `params`,
 	 * and return its result. Lets a tool that re-registers a built-in (e.g. wrapping `write` to add
 	 * logging or a policy check) delegate to the original instead of reimplementing it — the native
@@ -525,16 +553,16 @@ export interface ExtensionContext {
 
 	/**
 	 * Whether project-local inputs for the current working directory (extensions, settings,
-	 * skills, resources) are trusted. Upstream `@earendil-works/chudcode-agent` (>=0.79) asks the
+	 * skills, resources) are trusted. Upstream `@earendil-works/pi-coding-agent` (>=0.79) asks the
 	 * user once per directory before loading project-local inputs and exposes the saved decision
 	 * here; extensions written against that API (e.g. Plannotator) feature-detect this method to
 	 * decide whether project-local config is safe to load, and warn when it is absent.
 	 *
-	 * Chudcode has no equivalent per-directory trust gate: `.chudcode/extensions`, `.chudcode/config.yml`, and
+	 * OMP has no equivalent per-directory trust gate: `.omp/extensions`, `.omp/config.yml`, and
 	 * other project-local inputs are already discovered and loaded unconditionally (see
 	 * `docs/extension-loading.md`). This method exists for compatibility with that upstream surface
-	 * and always returns `true`, truthfully reflecting that Chudcode already trusts project-local inputs
-	 * by default -- it does not narrow or widen Chudcode's own security model.
+	 * and always returns `true`, truthfully reflecting that OMP already trusts project-local inputs
+	 * by default -- it does not narrow or widen OMP's own security model.
 	 */
 	isProjectTrusted(): boolean;
 }
@@ -629,6 +657,8 @@ export interface ToolDefinition<TParams extends TSchema = TSchema, TDetails = un
 	loadMode?: ToolLoadMode;
 	/** If true, tool may stage deferred changes that require explicit resolve/discard. */
 	deferrable?: boolean;
+	/** Whether this tool can read `skill://` instruction content. */
+	readsSkillUris?: boolean;
 	/** Tool approval tier. Defaults to `"exec"` when omitted.
 	 *  `"read"`: read-only operations. `"write"`: mutations. `"exec"`: code execution. */
 	approval?: ToolApproval;
@@ -639,6 +669,9 @@ export interface ToolDefinition<TParams extends TSchema = TSchema, TDetails = un
 	mcpServerName?: string;
 	/** Original MCP tool name for discovery/search metadata. */
 	mcpToolName?: string;
+	/** Previous public name when a rename changed minting. Forwarded through
+	 *  RegisteredToolAdapter so approval falls back to legacy `deny`/`prompt`. */
+	legacyName?: string;
 	/** Optional environment hook applied when the interactive user shell invokes this tool's shell surface. */
 	shellEnv?: ToolShellEnvironmentHook;
 	/** Authoritative originating file for a discovered custom-tool module. */
@@ -655,7 +688,13 @@ export interface ToolDefinition<TParams extends TSchema = TSchema, TDetails = un
 	/** Called on session lifecycle events - use to reconstruct state or cleanup resources */
 	onSession?: (event: ToolSessionEvent, ctx: ExtensionContext) => void | Promise<void>;
 
-	/** Custom rendering for tool call display */
+	/**
+	 * Custom rendering for tool call display.
+	 *
+	 * At runtime `options` also answers the {@link Theme} API, so renderers
+	 * ported from upstream pi — declared `renderCall(args, theme, context)` —
+	 * keep styling correctly.
+	 */
 	renderCall?: (args: Static<TParams>, options: ToolRenderResultOptions, theme: Theme) => Component;
 
 	/** Custom rendering for tool result display */
@@ -665,6 +704,16 @@ export interface ToolDefinition<TParams extends TSchema = TSchema, TDetails = un
 		theme: Theme,
 		args?: Static<TParams>,
 	) => Component;
+
+	/** Semantic call view for TSP terminals (the native counterpart of {@link renderCall}). */
+	describeCall?: (args: Static<TParams>, options: ToolRenderResultOptions) => NativeToolView | undefined;
+
+	/** Semantic result view for TSP terminals (the native counterpart of {@link renderResult}). */
+	describeResult?: (
+		result: AgentToolResult<TDetails>,
+		options: ToolRenderResultOptions,
+		args?: Static<TParams>,
+	) => NativeToolView | undefined;
 }
 
 /** Whether a tool's source is scoped to the user, the project, or a transient runtime session. */
@@ -675,8 +724,8 @@ export type SourceOrigin = "package" | "top-level";
 
 /**
  * Provenance metadata describing where a registered tool came from. Mirrors the
- * `@earendil-works/chudcode-agent` `SourceInfo` contract so extensions authored
- * against upstream chud (e.g. gentle-pi) can read `sourceInfo.source` unchanged.
+ * `@earendil-works/pi-coding-agent` `SourceInfo` contract so extensions authored
+ * against upstream pi (e.g. gentle-pi) can read `sourceInfo.source` unchanged.
  */
 export interface SourceInfo {
 	/** Synthetic or on-disk identifier for the tool's origin (e.g. `<builtin:read>`). */
@@ -741,6 +790,18 @@ export type {
 
 export type { ContextEvent } from "../shared-events";
 
+// ============================================================================
+// Cache Warming Events
+// ============================================================================
+
+export type { CacheWarmingDecisionEvent, CacheWarmingDecisionEventResult } from "../shared-events";
+export type {
+	CacheWarmingAction,
+	CacheWarmingDecision,
+	CacheWarmingMode,
+	CacheWarmingStatus,
+} from "../../session/cache-warmer";
+
 /** Fired before a provider request is sent. Can replace the payload. */
 export interface BeforeProviderRequestEvent {
 	type: "before_provider_request";
@@ -752,12 +813,28 @@ export interface AfterProviderResponseEvent extends ProviderResponseMetadata {
 	type: "after_provider_response";
 }
 
-/** Fired after user submits prompt but before agent loop. */
+/** Fired before an ordinary prompt or an actually dequeued user-containing batch reaches the provider. */
 export interface BeforeAgentStartEvent {
 	type: "before_agent_start";
+	/** Already-transformed text; queued batches join user messages with two newlines, excluding agent companions. */
 	prompt: string;
+	/** Already-normalized user images in delivery order. */
 	images?: ImageContent[];
 	systemPrompt: string[];
+}
+
+/** Fired in the parent session before a subagent (task tool or eval `agent()`) resolves its model. */
+export interface BeforeSubagentSpawnEvent {
+	type: "before_subagent_spawn";
+	/** Agent definition name being spawned. */
+	agent: string;
+	invocationKind: "task" | "eval";
+	/** Pre-expansion role alias the patterns came from (`@task` -> "task"); undefined for explicit selectors. */
+	modelRole?: string;
+	/** Expanded model patterns core would spawn with, in attempt order. */
+	patterns: string[];
+	/** Stable per-spawn key for deterministic selection, when the caller supplies one. */
+	spawnKey?: string;
 }
 
 export type {
@@ -785,10 +862,33 @@ export interface MessageUpdateEvent {
 /**
  * Fired when a message ends. Notification-only: the message is a detached
  * snapshot, so in-place changes do not rewrite agent or provider context.
+ * Persistence and subscriber delivery do not wait for this handler to finish.
+ * Use `assistant_message` to rewrite a finalized assistant message.
  */
 export interface MessageEndEvent {
 	type: "message_end";
 	message: AgentMessage;
+}
+
+/**
+ * Fired once per finalized assistant message, after the provider stream settles
+ * and before the message reaches agent context, `message_end` listeners (TUI,
+ * RPC, exporters), session persistence, or tool dispatch. Return
+ * {@link AssistantMessageRewriteResult} to replace its content; the replacement
+ * is the single source of truth for history, persistence, `message_end`
+ * consumers, and the next provider request. Text already streamed through
+ * `message_update` is not retracted, so stream-rendering clients may keep
+ * showing the original. Handlers chain: each sees the previous handler's
+ * replacement.
+ *
+ * `message` is a detached copy — in-place mutation has no effect; return
+ * `content` instead. If cancellation arrives while handlers are pending,
+ * rewrites accepted so far are returned and remaining handlers are skipped.
+ * This event is not fired if the provider stream is cut off before finalizing.
+ */
+export interface AssistantMessageRewriteEvent {
+	type: "assistant_message";
+	message: AssistantMessage;
 }
 
 /** Fired when a tool starts executing */
@@ -836,6 +936,14 @@ export interface CredentialDisabledEvent {
 	provider: string;
 	/** Verbatim error captured for forensics (truncated upstream). */
 	disabledCause: string;
+	/** Database row id of the disabled credential. */
+	credentialId?: number;
+	/** Account identity recorded on the disabled OAuth credential, when the provider supplied one. */
+	email?: string;
+	accountId?: string;
+	/** Organization/workspace the credential was scoped to. */
+	orgId?: string;
+	orgName?: string;
 }
 
 // ============================================================================
@@ -847,7 +955,7 @@ export interface CredentialDisabledEvent {
  * AFTER the runtime's own handling of known list/update methods. Unknown or
  * server-custom methods are delivered too — extensions can bridge them into
  * session behavior by inspecting `method`/`params` and injecting a follow-up
- * via `chud.sendMessage(..., { deliverAs })` or `chud.sendUserMessage(...)`.
+ * via `pi.sendMessage(..., { deliverAs })` or `pi.sendUserMessage(...)`.
  */
 export interface McpNotificationEvent {
 	type: "mcp_notification";
@@ -1069,9 +1177,11 @@ export type ExtensionEvent =
 	| ResourcesDiscoverEvent
 	| SessionEvent
 	| ContextEvent
+	| CacheWarmingDecisionEvent
 	| BeforeProviderRequestEvent
 	| AfterProviderResponseEvent
 	| BeforeAgentStartEvent
+	| BeforeSubagentSpawnEvent
 	| AgentStartEvent
 	| AgentEndEvent
 	| SessionStopEvent
@@ -1080,6 +1190,7 @@ export type ExtensionEvent =
 	| MessageStartEvent
 	| MessageUpdateEvent
 	| MessageEndEvent
+	| AssistantMessageRewriteEvent
 	| ToolExecutionStartEvent
 	| ToolExecutionUpdateEvent
 	| ToolExecutionEndEvent
@@ -1108,6 +1219,21 @@ export type ExtensionEvent =
 
 export interface ContextEventResult {
 	messages?: AgentMessage[];
+}
+
+/**
+ * Result from an `assistant_message` handler. Return `undefined` to leave the
+ * message unchanged.
+ *
+ * Text blocks must remain in their original positions: only their `text` may
+ * change. Non-text blocks and all other block metadata must remain unchanged.
+ * A text block with unchanged text keeps its original `textSignature` even if
+ * a handler replaces it; editing text removes its signature because that
+ * provider replay state cannot be reused for different text. Invalid
+ * replacements are reported as extension errors and skipped.
+ */
+export interface AssistantMessageRewriteResult {
+	content?: AssistantMessage["content"];
 }
 
 export type BeforeProviderRequestEventResult = unknown;
@@ -1140,8 +1266,19 @@ export type { ToolResultEventResult } from "../shared-events";
 
 export interface BeforeAgentStartEventResult {
 	message?: CustomMessagePayload;
-	/** Replace the system prompt for this turn. If multiple extensions return this, they are chained. */
+	/** Replace policy for the next request and its continuations, until the next preparation. Extensions chain in order. */
 	systemPrompt?: string[];
+}
+
+export interface BeforeSubagentSpawnEventResult {
+	/** Replacement model patterns in attempt order (selectors or role aliases). Role identity is preserved. */
+	model?: string | string[];
+	/** Refuse the spawn. */
+	block?: boolean;
+	/** Refusal reason surfaced to the caller. */
+	reason?: string;
+	/** Human-readable routing explanation surfaced with the resolved model. */
+	note?: string;
 }
 
 export type {
@@ -1155,28 +1292,6 @@ export type {
 // ============================================================================
 // Message Rendering
 // ============================================================================
-
-export interface MessageRenderOptions {
-	expanded: boolean;
-}
-
-export type MessageRenderer<T = unknown> = (
-	message: CustomMessage<T>,
-	options: MessageRenderOptions,
-	theme: Theme,
-) => Component | undefined;
-
-export interface AssistantThinkingRenderContext {
-	contentIndex: number;
-	thinkingIndex: number;
-	text: string;
-	requestRender(): void;
-}
-
-export type AssistantThinkingRenderer = (
-	context: AssistantThinkingRenderContext,
-	theme: Theme,
-) => Component | undefined;
 
 // ============================================================================
 // Command Registration
@@ -1208,6 +1323,8 @@ export type ExtensionServiceTier<Family extends ServiceTierFamily> = Family exte
 
 /**
  * ExtensionAPI passed to extension factory functions.
+ *
+ * Methods retain their extension binding when destructured or passed as callbacks.
  */
 export interface ExtensionAPI {
 	// =========================================================================
@@ -1215,19 +1332,19 @@ export interface ExtensionAPI {
 	// =========================================================================
 
 	/** File logger for error/warning/debug messages */
-	logger: typeof ChudLogger;
+	logger: typeof PiLogger;
 
 	/** Injected TypeBox shim for legacy `Type.Object(...)` parameter authoring. */
 	typebox: typeof TypeBox;
 
-	/** Injected chudtype schema builder for extension tools. */
+	/** Injected omptype schema builder for extension tools. */
 	arktype: typeof ArkType;
 
-	/** Injected Zod-compatible chudtype builder for extension tools. */
+	/** Injected Zod-compatible omptype builder for extension tools. */
 	zod: typeof zod;
 
-	/** Injected chudcode-agent exports for accessing SDK utilities */
-	chud: typeof ChudCodingAgent;
+	/** Injected pi-coding-agent exports for accessing SDK utilities */
+	pi: typeof PiCodingAgent;
 
 	// =========================================================================
 	// Event Subscription
@@ -1250,6 +1367,10 @@ export interface ExtensionAPI {
 		handler: ExtensionHandler<SessionBeforeCompactEvent, SessionBeforeCompactResult>,
 	): void;
 	on(event: "session.compacting", handler: ExtensionHandler<SessionCompactingEvent, SessionCompactingResult>): void;
+	on(
+		event: "cache_warming_decision",
+		handler: ExtensionHandler<CacheWarmingDecisionEvent, CacheWarmingDecisionEventResult>,
+	): void;
 	on(event: "session_compact", handler: ExtensionHandler<SessionCompactEvent>): void;
 	on(event: "session_shutdown", handler: ExtensionHandler<SessionShutdownEvent>): void;
 	on(event: "session_before_tree", handler: ExtensionHandler<SessionBeforeTreeEvent, SessionBeforeTreeResult>): void;
@@ -1261,6 +1382,10 @@ export interface ExtensionAPI {
 	): void;
 	on(event: "after_provider_response", handler: ExtensionHandler<AfterProviderResponseEvent>): void;
 	on(event: "before_agent_start", handler: ExtensionHandler<BeforeAgentStartEvent, BeforeAgentStartEventResult>): void;
+	on(
+		event: "before_subagent_spawn",
+		handler: ExtensionHandler<BeforeSubagentSpawnEvent, BeforeSubagentSpawnEventResult>,
+	): void;
 	on(event: "agent_start", handler: ExtensionHandler<AgentStartEvent>): void;
 	on(event: "agent_end", handler: ExtensionHandler<AgentEndEvent>): void;
 	on(event: "session_stop", handler: ExtensionHandler<SessionStopEvent, SessionStopEventResult>): void;
@@ -1269,6 +1394,10 @@ export interface ExtensionAPI {
 	on(event: "message_start", handler: ExtensionHandler<MessageStartEvent>): void;
 	on(event: "message_update", handler: ExtensionHandler<MessageUpdateEvent>): void;
 	on(event: "message_end", handler: ExtensionHandler<MessageEndEvent>): void;
+	on(
+		event: "assistant_message",
+		handler: ExtensionHandler<AssistantMessageRewriteEvent, AssistantMessageRewriteResult>,
+	): void;
 	on(event: "tool_execution_start", handler: ExtensionHandler<ToolExecutionStartEvent>): void;
 	on(event: "tool_execution_update", handler: ExtensionHandler<ToolExecutionUpdateEvent>): void;
 	on(event: "tool_execution_end", handler: ExtensionHandler<ToolExecutionEndEvent>): void;
@@ -1419,20 +1548,28 @@ export interface ExtensionAPI {
 	/**
 	 * Send a custom message to the session.
 	 *
+	 * With the default delivery (no `deliverAs`), an idle `display: true` message renders in the
+	 * transcript immediately, even with `triggerTurn: false`, without starting a turn. This does
+	 * not apply to `deliverAs: "nextTurn"` or `deliverAs: "aside"`, which keep the semantics
+	 * described below (`nextTurn` stays hidden until consumed; `aside` starts a turn when idle).
+	 *
 	 * `deliverAs: "nextTurn"` keeps the message hidden from the editable pending-message UI.
 	 * If `triggerTurn` is also true while the current turn is still unwinding, the session schedules
 	 * an internal continuation that consumes the message on the next turn.
+	 *
+	 * `deliverAs: "aside"` injects the message at the next agent step boundary without interrupting
+	 * the in-flight tool batch; when the session is idle it starts a turn regardless of `triggerTurn`
+	 * (plan mode folds it into context instead).
 	 */
 	sendMessage<T = unknown>(
 		message: CustomMessagePayload<T>,
-		options?: { triggerTurn?: boolean; deliverAs?: "steer" | "followUp" | "nextTurn" },
+		options?: { triggerTurn?: boolean; deliverAs?: "steer" | "followUp" | "nextTurn" | "aside" },
 	): void;
 
-	/** Send a user prompt: idle starts a turn; streaming queues as steer unless deliverAs is set. */
-	sendUserMessage(
-		content: string | (TextContent | ImageContent)[],
-		options?: { deliverAs?: "steer" | "followUp" },
-	): void;
+	/** Send a user prompt: idle starts a turn; streaming queues as steer unless deliverAs is set.
+	 *  `deliverAs: "aside"` injects at the next step boundary without interrupting the in-flight tool
+	 *  batch while streaming; idle still starts a turn. */
+	sendUserMessage(content: string | (TextContent | ImageContent)[], options?: SendUserMessageOptions): void;
 
 	/** Append a custom entry to the session for state persistence (not sent to LLM). */
 	appendEntry<T = unknown>(customType: string, data?: T): void;
@@ -1492,7 +1629,7 @@ export interface ExtensionAPI {
 	 *
 	 * @example
 	 * // Register a new provider with custom models and streaming
-	 * chud.registerProvider("google-vertex-claude", {
+	 * pi.registerProvider("google-vertex-claude", {
 	 *   baseUrl: "https://us-east5-aiplatform.googleapis.com",
 	 *   apiKey: "GOOGLE_CLOUD_PROJECT",
 	 *   api: "vertex-claude-api",
@@ -1512,7 +1649,7 @@ export interface ExtensionAPI {
 	 *
 	 * @example
 	 * // Override baseUrl for an existing provider
-	 * chud.registerProvider("anthropic", {
+	 * pi.registerProvider("anthropic", {
 	 *   baseUrl: "https://proxy.example.com"
 	 * });
 	 */
@@ -1526,17 +1663,6 @@ export interface ExtensionAPI {
 	 */
 	unregisterProvider(name: string): void;
 
-	/**
-	 * Register a selectable memory backend owned by this extension.
-	 *
-	 * The registration is source-tracked and removed when the extension runner
-	 * unloads. A different extension cannot claim the same id.
-	 */
-	registerMemoryBackend(backend: MemoryBackend): void;
-
-	/** Unregister a memory backend previously registered by this extension. */
-	unregisterMemoryBackend(id: string): void;
-
 	/** Shared event bus for extension communication. */
 	events: EventBus;
 }
@@ -1545,7 +1671,7 @@ export interface ExtensionAPI {
 // Provider Registration Types
 // ============================================================================
 
-/** Configuration for registering a provider via chud.registerProvider(). */
+/** Configuration for registering a provider via pi.registerProvider(). */
 export interface ProviderConfig {
 	/** Base URL for the API endpoint. Required when defining models. */
 	baseUrl?: string;
@@ -1617,7 +1743,7 @@ export interface ProviderModelConfig {
 }
 
 /** Extension factory function type. Supports both sync and async initialization. */
-export type ExtensionFactory = (chud: ExtensionAPI) => void | Promise<void>;
+export type ExtensionFactory = (pi: ExtensionAPI) => void | Promise<void>;
 
 // ============================================================================
 // Loaded Extension Types
@@ -1626,6 +1752,13 @@ export type ExtensionFactory = (chud: ExtensionAPI) => void | Promise<void>;
 export interface RegisteredTool<TParams extends TSchema = TSchema, TDetails = unknown> {
 	definition: ToolDefinition<TParams, TDetails>;
 	extensionPath: string;
+	/**
+	 * Upstream-shaped provenance mirroring {@link SourceInfo}. Extensions authored
+	 * against `@earendil-works/pi-coding-agent` — whose registered tools expose
+	 * `sourceInfo` — read `sourceInfo.path` off `getAllRegisteredTools()` entries,
+	 * so it carries the same value `SessionTools.getAllToolInfos()` synthesizes.
+	 */
+	sourceInfo: SourceInfo;
 }
 
 /** Internal observer invoked when an already-loaded extension registers or replaces a tool. */
@@ -1654,13 +1787,17 @@ export type SendMessageHandler = <T = unknown>(
 	 * `deliverAs: "nextTurn"` queues hidden custom context for the next turn.
 	 * When paired with `triggerTurn: true` during prompt teardown, the session schedules
 	 * an internal continuation without surfacing the message in the editable pending queue.
+	 * `deliverAs: "aside"` injects at the next step boundary without interrupting the in-flight
+	 * tool batch; idle starts a turn regardless of `triggerTurn` (plan mode folds into context).
 	 */
-	options?: { triggerTurn?: boolean; deliverAs?: "steer" | "followUp" | "nextTurn" },
+	options?: { triggerTurn?: boolean; deliverAs?: "steer" | "followUp" | "nextTurn" | "aside" },
 ) => void;
 
+/** `deliverAs: "aside"` injects at the next step boundary without interrupting the in-flight tool
+ *  batch while streaming; idle still starts a turn. */
 export type SendUserMessageHandler = (
 	content: string | (TextContent | ImageContent)[],
-	options?: { deliverAs?: "steer" | "followUp" },
+	options?: SendUserMessageOptions,
 ) => void;
 
 export type AppendEntryHandler = <T = unknown>(customType: string, data?: T) => void;
@@ -1688,20 +1825,10 @@ export interface ExtensionRuntimeState {
 	flagValues: Map<string, boolean | string>;
 	/** Provider registrations queued during extension loading, processed during session initialization */
 	pendingProviderRegistrations: Array<{ name: string; config: ProviderConfig; sourceId: string }>;
-	/** Active source-owned memory backend registrations. */
-	memoryBackendRegistrations: Array<{ backend: MemoryBackend; sourceId: string }>;
 	/** Queue a provider registration until initialization, then apply it immediately. */
 	registerProvider(name: string, config: ProviderConfig, sourceId: string): void;
 	/** Remove a queued or initialized provider registration. */
 	unregisterProvider(name: string, sourceId: string): void;
-	/** Apply a source-owned memory backend registration immediately. */
-	registerMemoryBackend(backend: MemoryBackend, sourceId: string): void;
-	/** Remove an active memory backend registration owned by the source. */
-	unregisterMemoryBackend(id: string, sourceId: string): void;
-	/** Restore an earlier registration snapshot after extension load failure. */
-	restoreMemoryBackendRegistrations(registrations: readonly { backend: MemoryBackend; sourceId: string }[]): void;
-	/** Release every memory backend registration owned by this runtime. */
-	disposeMemoryBackends(): void;
 }
 
 /** Action implementations for ExtensionAPI methods. */
@@ -1733,6 +1860,7 @@ export interface ExtensionContextActions {
 	getContextUsage: () => ContextUsage | undefined;
 	compact: (instructionsOrOptions?: string | CompactOptions) => Promise<void>;
 	getSystemPrompt: () => string[];
+	runEphemeralTurn?: (options: EphemeralTurnOptions) => Promise<EphemeralTurnResult>;
 }
 
 /** Actions for ExtensionCommandContext (ctx.* in command handlers). */

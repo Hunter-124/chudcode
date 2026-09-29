@@ -1,22 +1,22 @@
 import { describe, expect, it, mock } from "bun:test";
-import type { AssistantMessage, Context } from "@chudware/ai";
-import { createMockModel } from "@chudware/ai/providers/mock";
-import { AssistantMessageEventStream } from "@chudware/ai/utils/event-stream";
-import { buildModel } from "@chudware/catalog/build";
-import { type } from "@chudware/chudtype";
+import { type } from "@oh-my-pi/omptype";
+import type { AssistantMessage, Context } from "@oh-my-pi/pi-ai";
+import { createMockModel } from "@oh-my-pi/pi-ai/providers/mock";
+import { AssistantMessageEventStream } from "@oh-my-pi/pi-ai/utils/event-stream";
+import { buildModel } from "@oh-my-pi/pi-catalog/build";
 import { Agent } from "../src/agent";
 import type { AgentTool } from "../src/types";
 
 async function withNativeDialectEnv<T>(fn: () => T | Promise<T>): Promise<T> {
-	const previous = process.env.CHUDCODE_DIALECT;
-	delete process.env.CHUDCODE_DIALECT;
+	const previous = Bun.env.PI_DIALECT;
+	delete Bun.env.PI_DIALECT;
 	try {
 		return await fn();
 	} finally {
 		if (previous === undefined) {
-			delete process.env.CHUDCODE_DIALECT;
+			delete Bun.env.PI_DIALECT;
 		} else {
-			process.env.CHUDCODE_DIALECT = previous;
+			Bun.env.PI_DIALECT = previous;
 		}
 	}
 }
@@ -63,27 +63,6 @@ describe("Agent — buildSideRequestContext", () => {
 		parameters: type({ arg: type("string") }) as unknown as AgentTool["parameters"],
 		execute: async () => ({ content: [{ type: "text", text: "success" }], details: { value: "success" } }),
 	};
-
-	it("forwards the tool catalog for native providers", async () => {
-		await withNativeDialectEnv(async () => {
-			const agent = new Agent({
-				initialState: {
-					model,
-					systemPrompt: ["system"],
-					tools: [tool],
-				},
-			});
-
-			const context = await agent.buildSideRequestContext([
-				{ role: "user", content: [{ type: "text", text: "Q?" }], timestamp: Date.now() },
-			]);
-
-			expect(context.tools).toBeDefined();
-			expect(context.tools!.length).toBe(1);
-			expect(context.tools![0].name).toBe("test_tool");
-			expect(context.systemPrompt).toEqual(["system"]);
-		});
-	});
 
 	it("matches the main loop's native stable prefix", async () => {
 		await withNativeDialectEnv(async () => {

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "bun:test";
-import { streamOpenAICompletions } from "@chudware/ai/providers/openai-completions";
-import type { Context, FetchImpl } from "@chudware/ai/types";
-import { buildModel } from "@chudware/catalog/build";
+import { streamOpenAICompletions } from "@oh-my-pi/pi-ai/providers/openai-completions";
+import type { Context, FetchImpl } from "@oh-my-pi/pi-ai/types";
+import { buildModel } from "@oh-my-pi/pi-catalog/build";
 
 // Issue #9433: the openai-completions consumer threw
 // `OpenAI completions stream closed before a finish_reason was received` whenever

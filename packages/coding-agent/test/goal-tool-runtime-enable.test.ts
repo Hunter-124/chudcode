@@ -1,12 +1,15 @@
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
-import { getBundledModel } from "@chudware/catalog/models";
-import { ModelRegistry } from "@chudware/coding-agent/config/model-registry";
-import { resetSettingsForTest, Settings } from "@chudware/coding-agent/config/settings";
-import { createAgentSession } from "@chudware/coding-agent/sdk";
-import type { AgentSession } from "@chudware/coding-agent/session/agent-session";
-import { SessionManager } from "@chudware/coding-agent/session/session-manager";
-import { TempDir } from "@chudware/utils";
+import { getBundledModel } from "@oh-my-pi/pi-catalog/models";
+import { ModelRegistry } from "@oh-my-pi/pi-coding-agent/config/model-registry";
+import { resetSettingsForTest, Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
+import { createAgentSession } from "@oh-my-pi/pi-coding-agent/sdk";
+import type { AgentSession } from "@oh-my-pi/pi-coding-agent/session/agent-session";
+import { SessionManager } from "@oh-my-pi/pi-coding-agent/session/session-manager";
+import { TempDir } from "@oh-my-pi/pi-utils";
 import { createInMemoryAuthStorage } from "./helpers/agent-session-setup";
+
+import { cfgAsyncEnabled, cfgToolsXdev } from "@oh-my-pi/pi-coding-agent/tools/settings";
+import { cfgGoalEnabled } from "@oh-my-pi/pi-coding-agent/goals/settings";
 
 describe("goal tool registration when goal mode is enabled at runtime", () => {
 	let tempDir: TempDir;
@@ -27,13 +30,13 @@ describe("goal tool registration when goal mode is enabled at runtime", () => {
 
 	async function makeSession(goalEnabledAtStartup: boolean): Promise<AgentSession> {
 		const authStorage = createInMemoryAuthStorage();
-		authStorage.setRuntimeApiKey("anthropic", "test-key");
+		authStorage.keys.setRuntime("anthropic", "test-key");
 		const modelRegistry = new ModelRegistry(authStorage, tempDir.join("models.yml"));
 		const sessionManager = SessionManager.inMemory(tempDir.path());
 		const settings = Settings.instance;
-		settings.set("async.enabled", false);
-		settings.set("tools.xdev", true);
-		settings.set("goal.enabled", goalEnabledAtStartup);
+		cfgAsyncEnabled.set(settings, false);
+		cfgToolsXdev.set(settings, true);
+		cfgGoalEnabled.set(settings, goalEnabledAtStartup);
 		const { session: created } = await createAgentSession({
 			cwd: tempDir.path(),
 			agentDir: tempDir.path(),
@@ -79,7 +82,7 @@ describe("goal tool registration when goal mode is enabled at runtime", () => {
 		// reload) left the tool registry without `goal`, so entering goal mode
 		// silently dropped the name and `xd://goal` failed with "No such tool".
 		session = await makeSession(false);
-		Settings.instance.set("goal.enabled", true);
+		cfgGoalEnabled.set(Settings.instance, true);
 
 		await enterGoalMode(session);
 

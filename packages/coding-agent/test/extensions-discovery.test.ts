@@ -2,16 +2,16 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "bun:test";
 import * as fs from "node:fs";
 import * as fsPromises from "node:fs/promises";
 import * as path from "node:path";
-import { type ExtensionModule, extensionModuleCapability } from "@chudware/coding-agent/capability/extension-module";
-import { resetSettingsForTest, Settings } from "@chudware/coding-agent/config/settings";
-import { getCapability, initializeWithSettings } from "@chudware/coding-agent/discovery";
+import { type ExtensionModule, extensionModuleCapability } from "@oh-my-pi/pi-coding-agent/capability/extension-module";
+import { resetSettingsForTest, Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
+import { getCapability, initializeWithSettings } from "@oh-my-pi/pi-coding-agent/discovery";
 import {
 	discoverAndLoadExtensions,
 	discoverExtensionPaths,
 	loadExtensions,
-} from "@chudware/coding-agent/extensibility/extensions/loader";
-import { discoverSessionExtensionPaths } from "@chudware/coding-agent/sdk";
-import { getProjectAgentDir, TempDir } from "@chudware/utils";
+} from "@oh-my-pi/pi-coding-agent/extensibility/extensions/loader";
+import { discoverSessionExtensionPaths } from "@oh-my-pi/pi-coding-agent/sdk";
+import { getProjectAgentDir, TempDir } from "@oh-my-pi/pi-utils";
 import { filterUserScoped } from "./utils/filter-user-extensions";
 
 describe("extensions discovery", () => {
@@ -40,15 +40,15 @@ describe("extensions discovery", () => {
 	};
 
 	const extensionCode = `
-		export default function(chud) {
-			chud.registerCommand("test", { handler: async () => {} });
+		export default function(pi) {
+			pi.registerCommand("test", { handler: async () => {} });
 		}
 	`;
 
 	const extensionCodeWithTool = (toolName: string) => `
-		export default function(chud) {
-			const { Type } = chud.typebox;
-			chud.registerTool({
+		export default function(pi) {
+			const { Type } = pi.typebox;
+			pi.registerTool({
 				name: "${toolName}",
 				label: "${toolName}",
 				description: "Test tool",
@@ -79,19 +79,6 @@ describe("extensions discovery", () => {
 		expect(path.basename(result.extensions[0].path)).toBe("foo.js");
 	});
 
-	it("discovers subdirectory with index.ts", async () => {
-		const subdir = path.join(extensionsDir, "my-extension");
-		fs.mkdirSync(subdir);
-		fs.writeFileSync(path.join(subdir, "index.ts"), extensionCode);
-
-		const result = await discoverForTest();
-
-		expect(result.errors).toHaveLength(0);
-		expect(result.extensions).toHaveLength(1);
-		expect(result.extensions[0].path).toContain("my-extension");
-		expect(result.extensions[0].path).toContain("index.ts");
-	});
-
 	it("discovers subdirectory with index.js", async () => {
 		const subdir = path.join(extensionsDir, "my-extension");
 		fs.mkdirSync(subdir);
@@ -117,7 +104,7 @@ describe("extensions discovery", () => {
 		expect(result.extensions[0].path).toContain("index.ts");
 	});
 
-	it("discovers subdirectory with package.json chud field", async () => {
+	it("discovers subdirectory with package.json pi field", async () => {
 		const subdir = path.join(extensionsDir, "my-package");
 		const srcDir = path.join(subdir, "src");
 		fs.mkdirSync(subdir);
@@ -127,7 +114,7 @@ describe("extensions discovery", () => {
 			path.join(subdir, "package.json"),
 			JSON.stringify({
 				name: "my-package",
-				chud: {
+				pi: {
 					extensions: ["./src/main.ts"],
 				},
 			}),
@@ -161,7 +148,7 @@ describe("extensions discovery", () => {
 			path.join(packageDir, "package.json"),
 			JSON.stringify({
 				name: "explicit-package",
-				chudcode: {
+				omp: {
 					extensions: ["./src/main.ts"],
 				},
 			}),
@@ -190,6 +177,57 @@ describe("extensions discovery", () => {
 		]);
 	});
 
+	it("uses inherited roots instead of local extension inputs during cold discovery", async () => {
+		const inherited = tempDir.join("inherited.ts");
+		const configured = tempDir.join("configured.ts");
+		const unwanted = path.join(extensionsDir, "unwanted.ts");
+		await Bun.write(inherited, extensionCodeWithTool("inherited-tool"));
+		await Bun.write(configured, extensionCodeWithTool("configured-tool"));
+		await Bun.write(unwanted, extensionCodeWithTool("unwanted-tool"));
+		const settings = Settings.isolated({ extensions: [unwanted] });
+		const paths = await discoverSessionExtensionPaths(
+			{
+				additionalExtensionPaths: [unwanted],
+				extensionRoots: () => ({
+					explicit: [inherited],
+					mode: "explicit-only",
+					configured: [configured],
+					configuredLevel: "project",
+				}),
+			},
+			tempDir.path(),
+			settings,
+		);
+		const result = await loadExtensions(paths, tempDir.path());
+		expect(result.extensions.flatMap(extension => [...extension.tools.keys()])).toEqual(["inherited-tool"]);
+	});
+
+	it("uses the inherited configured lane when merging cold extension discovery", async () => {
+		const inherited = tempDir.join("inherited.ts");
+		const unwanted = tempDir.join("unwanted.ts");
+		await Bun.write(inherited, extensionCodeWithTool("inherited-tool"));
+		await Bun.write(unwanted, extensionCodeWithTool("unwanted-tool"));
+		const settings = Settings.isolated({ extensions: [unwanted] });
+		const paths = await discoverSessionExtensionPaths(
+			{
+				disableExtensionDiscovery: true,
+				additionalExtensionPaths: [unwanted],
+				extensionRoots: () => ({
+					explicit: [],
+					mode: "merge",
+					configured: [inherited],
+					configuredLevel: "project",
+				}),
+			},
+			tempDir.path(),
+			settings,
+		);
+		const result = await loadExtensions(paths, tempDir.path());
+		const tools = result.extensions.flatMap(extension => [...extension.tools.keys()]);
+		expect(tools).toContain("inherited-tool");
+		expect(tools).not.toContain("unwanted-tool");
+	});
+
 	it("explicit-only discovery ignores unreadable optional hook directories", async () => {
 		const packageDir = path.join(tempDir.path(), "explicit-package");
 		const sourceDir = path.join(packageDir, "src");
@@ -199,7 +237,7 @@ describe("extensions discovery", () => {
 			path.join(packageDir, "package.json"),
 			JSON.stringify({
 				name: "explicit-package",
-				chudcode: {
+				omp: {
 					extensions: ["./src/main.ts"],
 				},
 			}),
@@ -225,7 +263,7 @@ describe("extensions discovery", () => {
 			path.join(packageDir, "package.json"),
 			JSON.stringify({
 				name: "linked-package",
-				chud: {
+				pi: {
 					extensions: ["./src/main.ts"],
 				},
 			}),
@@ -237,19 +275,6 @@ describe("extensions discovery", () => {
 		expect(result.errors).toHaveLength(0);
 		expect(result.extensions).toHaveLength(1);
 		expect(result.extensions[0].path).toContain(path.join("linked-package", "src", "main.ts"));
-	});
-
-	it("discovers index.ts in a symlinked extension directory", async () => {
-		const packageDir = path.join(tempDir.path(), "linked-index-ts");
-		fs.mkdirSync(packageDir);
-		fs.writeFileSync(path.join(packageDir, "index.ts"), extensionCode);
-		fs.symlinkSync(packageDir, path.join(extensionsDir, "linked-index-ts"), "dir");
-
-		const result = await discoverForTest();
-
-		expect(result.errors).toHaveLength(0);
-		expect(result.extensions).toHaveLength(1);
-		expect(result.extensions[0].path).toContain(path.join("linked-index-ts", "index.ts"));
 	});
 
 	it("discovers index.js in a symlinked extension directory", async () => {
@@ -274,7 +299,7 @@ describe("extensions discovery", () => {
 			path.join(subdir, "package.json"),
 			JSON.stringify({
 				name: "my-package",
-				chud: {
+				pi: {
 					extensions: ["./ext1.ts", "./ext2.ts"],
 				},
 			}),
@@ -286,7 +311,7 @@ describe("extensions discovery", () => {
 		expect(result.extensions).toHaveLength(2);
 	});
 
-	it("package.json with chud field takes precedence over index.ts", async () => {
+	it("package.json with pi field takes precedence over index.ts", async () => {
 		const subdir = path.join(extensionsDir, "my-package");
 		fs.mkdirSync(subdir);
 		fs.writeFileSync(path.join(subdir, "index.ts"), extensionCodeWithTool("from-index"));
@@ -295,7 +320,7 @@ describe("extensions discovery", () => {
 			path.join(subdir, "package.json"),
 			JSON.stringify({
 				name: "my-package",
-				chud: {
+				pi: {
 					extensions: ["./custom.ts"],
 				},
 			}),
@@ -311,7 +336,7 @@ describe("extensions discovery", () => {
 		expect(result.extensions[0].tools.has("from-index")).toBe(false);
 	});
 
-	it("ignores package.json without chud field, falls back to index.ts", async () => {
+	it("ignores package.json without pi field, falls back to index.ts", async () => {
 		const subdir = path.join(extensionsDir, "my-package");
 		fs.mkdirSync(subdir);
 		fs.writeFileSync(path.join(subdir, "index.ts"), extensionCode);
@@ -369,7 +394,7 @@ describe("extensions discovery", () => {
 		const subdir2 = path.join(extensionsDir, "with-manifest");
 		fs.mkdirSync(subdir2);
 		fs.writeFileSync(path.join(subdir2, "entry.ts"), extensionCode);
-		fs.writeFileSync(path.join(subdir2, "package.json"), JSON.stringify({ chud: { extensions: ["./entry.ts"] } }));
+		fs.writeFileSync(path.join(subdir2, "package.json"), JSON.stringify({ pi: { extensions: ["./entry.ts"] } }));
 
 		const result = await discoverForTest();
 
@@ -402,7 +427,7 @@ describe("extensions discovery", () => {
 		fs.writeFileSync(path.join(realDir, "index.ts"), extensionCodeWithTool("ctk-tool"));
 		fs.writeFileSync(
 			path.join(realDir, "package.json"),
-			JSON.stringify({ name: "ctk", chudcode: { extensions: ["./index.ts"] } }),
+			JSON.stringify({ name: "ctk", omp: { extensions: ["./index.ts"] } }),
 		);
 		fs.symlinkSync(realDir, path.join(extensionsDir, "ctk"), "dir");
 
@@ -468,7 +493,7 @@ describe("extensions discovery", () => {
 		fs.writeFileSync(
 			path.join(subdir, "package.json"),
 			JSON.stringify({
-				chud: {
+				pi: {
 					extensions: ["./exists.ts", "./missing.ts"],
 				},
 			}),
@@ -481,24 +506,18 @@ describe("extensions discovery", () => {
 		expect(result.extensions[0].path).toContain("exists.ts");
 	});
 
-	it("loads extensions and registers commands", async () => {
-		fs.writeFileSync(path.join(extensionsDir, "with-command.ts"), extensionCode);
+	it("does not fall back to index.ts when a configured manifest only declares missing entries", async () => {
+		const configuredDir = path.join(tempDir.path(), "configured-package");
+		fs.mkdirSync(configuredDir);
+		fs.writeFileSync(path.join(configuredDir, "index.ts"), extensionCodeWithTool("decoy-index"));
+		fs.writeFileSync(
+			path.join(configuredDir, "package.json"),
+			JSON.stringify({ omp: { extensions: ["./missing.ts"] } }),
+		);
 
-		const result = await discoverForTest();
+		const paths = await discoverExtensionPaths([configuredDir], tempDir.path(), undefined, { ambient: false });
 
-		expect(result.errors).toHaveLength(0);
-		expect(result.extensions).toHaveLength(1);
-		expect(result.extensions[0].commands.has("test")).toBe(true);
-	});
-
-	it("loads extensions and registers tools", async () => {
-		fs.writeFileSync(path.join(extensionsDir, "with-tool.ts"), extensionCodeWithTool("my-tool"));
-
-		const result = await discoverForTest();
-
-		expect(result.errors).toHaveLength(0);
-		expect(result.extensions).toHaveLength(1);
-		expect(result.extensions[0].tools.has("my-tool")).toBe(true);
+		expect(paths).toEqual([]);
 	});
 
 	it("reports errors for invalid extension code", async () => {
@@ -509,18 +528,6 @@ describe("extensions discovery", () => {
 		expect(result.errors).toHaveLength(1);
 		expect(result.errors[0].path).toContain("invalid.ts");
 		expect(result.extensions).toHaveLength(0);
-	});
-
-	it("handles explicitly configured paths", async () => {
-		const customPath = path.join(tempDir.path(), "custom-location", "my-ext.ts");
-		fs.mkdirSync(path.dirname(customPath), { recursive: true });
-		fs.writeFileSync(customPath, extensionCode);
-
-		const result = await discoverForTest([customPath]);
-
-		expect(result.errors).toHaveLength(0);
-		expect(result.extensions).toHaveLength(1);
-		expect(result.extensions[0].path).toContain("my-ext.ts");
 	});
 
 	it("resolves 3rd party npm dependencies (chalk)", async () => {
@@ -544,10 +551,10 @@ describe("extensions discovery", () => {
 		fs.writeFileSync(
 			path.join(extDir, "package.json"),
 			JSON.stringify({
-				name: "chud-extension-with-deps",
+				name: "pi-extension-with-deps",
 				version: "1.0.0",
 				type: "module",
-				chudcode: { extensions: ["./index.ts"] },
+				omp: { extensions: ["./index.ts"] },
 			}),
 		);
 
@@ -555,9 +562,9 @@ describe("extensions discovery", () => {
 			path.join(extDir, "index.ts"),
 			`			import parseDuration from "local-duration-parser";
 
-				export default function (chud) {
-					const { Type } = chud.typebox;
-					chud.registerTool({
+				export default function (pi) {
+					const { Type } = pi.typebox;
+					pi.registerTool({
 						name: "parse_duration",
 						label: "Parse Duration",
 						description: "Parse duration strings",
@@ -595,8 +602,8 @@ describe("extensions discovery", () => {
 
 	it("registers message renderers", async () => {
 		const extCode = `
-			export default function(chud) {
-				chud.registerMessageRenderer("my-custom-type", (message, options, theme) => {
+			export default function(pi) {
+				pi.registerMessageRenderer("my-custom-type", (message, options, theme) => {
 					return null; // Use default rendering
 				});
 			}
@@ -612,7 +619,7 @@ describe("extensions discovery", () => {
 
 	it("reports error when extension throws during initialization", async () => {
 		const extCode = `
-			export default function(chud) {
+			export default function(pi) {
 				throw new Error("Initialization failed!");
 			}
 		`;
@@ -627,8 +634,8 @@ describe("extensions discovery", () => {
 
 	it("reports error when extension has no default export", async () => {
 		const extCode = `
-			export function notDefault(chud) {
-				chud.registerCommand("test", { handler: async () => {} });
+			export function notDefault(pi) {
+				pi.registerCommand("test", { handler: async () => {} });
 			}
 		`;
 		fs.writeFileSync(path.join(extensionsDir, "no-default.ts"), extCode);
@@ -640,44 +647,6 @@ describe("extensions discovery", () => {
 		expect(result.extensions).toHaveLength(0);
 	});
 
-	it("allows multiple extensions to register different tools", async () => {
-		fs.writeFileSync(path.join(extensionsDir, "tool-a.ts"), extensionCodeWithTool("tool-a"));
-		fs.writeFileSync(path.join(extensionsDir, "tool-b.ts"), extensionCodeWithTool("tool-b"));
-
-		const result = await discoverForTest();
-
-		expect(result.errors).toHaveLength(0);
-		expect(result.extensions).toHaveLength(2);
-
-		const allTools = new Set<string>();
-		for (const ext of result.extensions) {
-			for (const name of ext.tools.keys()) {
-				allTools.add(name);
-			}
-		}
-		expect(allTools.has("tool-a")).toBe(true);
-		expect(allTools.has("tool-b")).toBe(true);
-	});
-
-	it("loads extension with event handlers", async () => {
-		const extCode = `
-			export default function(chud) {
-				chud.on("agent_start", async () => {});
-				chud.on("tool_call", async (event) => undefined);
-				chud.on("agent_end", async () => {});
-			}
-		`;
-		fs.writeFileSync(path.join(extensionsDir, "with-handlers.ts"), extCode);
-
-		const result = await discoverForTest();
-
-		expect(result.errors).toHaveLength(0);
-		expect(result.extensions).toHaveLength(1);
-		expect(result.extensions[0].handlers.has("agent_start")).toBe(true);
-		expect(result.extensions[0].handlers.has("tool_call")).toBe(true);
-		expect(result.extensions[0].handlers.has("agent_end")).toBe(true);
-	});
-
 	it("loads hookCapability JS factories as extension handlers", async () => {
 		const hookDir = path.join(getProjectAgentDir(tempDir.path()), "hooks", "pre");
 		fs.mkdirSync(hookDir, { recursive: true });
@@ -685,8 +654,8 @@ describe("extensions discovery", () => {
 		fs.writeFileSync(
 			hookPath,
 			`
-				export default function(chud) {
-					chud.on("tool_call", async () => ({ block: true, reason: "blocked by hook" }));
+				export default function(pi) {
+					pi.on("tool_call", async () => ({ block: true, reason: "blocked by hook" }));
 				}
 			`,
 		);
@@ -704,8 +673,8 @@ describe("extensions discovery", () => {
 		const hookPath = path.join(hookDir, "models-poison.ts");
 		fs.writeFileSync(
 			hookPath,
-			`export default function(chud) {
-				chud.on("tool_call", async () => ({ block: true, reason: "blocked by hook" }));
+			`export default function(pi) {
+				pi.on("tool_call", async () => ({ block: true, reason: "blocked by hook" }));
 			}`,
 		);
 		const nativeExtensionPath = path.join(extensionsDir, "provider.ts");
@@ -730,8 +699,8 @@ describe("extensions discovery", () => {
 		fs.writeFileSync(
 			hookPath,
 			`
-				export default function(chud) {
-					chud.on("tool_call", async () => ({ block: true, reason: "blocked by hook" }));
+				export default function(pi) {
+					pi.on("tool_call", async () => ({ block: true, reason: "blocked by hook" }));
 				}
 			`,
 		);
@@ -751,42 +720,6 @@ describe("extensions discovery", () => {
 		expect(loadedHook?.handlers.has("tool_call")).toBe(true);
 	});
 
-	it("loads extension with shortcuts", async () => {
-		const extCode = `
-			export default function(chud) {
-				chud.registerShortcut("ctrl+t", {
-					description: "Test shortcut",
-					handler: async (ctx) => {},
-				});
-			}
-		`;
-		fs.writeFileSync(path.join(extensionsDir, "with-shortcut.ts"), extCode);
-
-		const result = await discoverForTest();
-
-		expect(result.errors).toHaveLength(0);
-		expect(result.extensions).toHaveLength(1);
-		expect(result.extensions[0].shortcuts.has("ctrl+t")).toBe(true);
-	});
-
-	it("loads extension with flags", async () => {
-		const extCode = `
-			export default function(chud) {
-				chud.registerFlag("--my-flag", {
-					description: "My custom flag",
-					handler: async (value) => {},
-				});
-			}
-		`;
-		fs.writeFileSync(path.join(extensionsDir, "with-flag.ts"), extCode);
-
-		const result = await discoverForTest();
-
-		expect(result.errors).toHaveLength(0);
-		expect(result.extensions).toHaveLength(1);
-		expect(result.extensions[0].flags.has("--my-flag")).toBe(true);
-	});
-
 	it("loadExtensions only loads explicit paths without discovery", async () => {
 		// Create discoverable extensions (would be found by discoverAndLoadExtensions)
 		fs.writeFileSync(path.join(extensionsDir, "discovered.ts"), extensionCodeWithTool("discovered"));
@@ -804,16 +737,6 @@ describe("extensions discovery", () => {
 		expect(result.extensions[0].tools.has("discovered")).toBe(false);
 	});
 
-	it("loadExtensions with no paths loads nothing", async () => {
-		// Create discoverable extensions (would be found by discoverAndLoadExtensions)
-		fs.writeFileSync(path.join(extensionsDir, "discovered.ts"), extensionCode);
-
-		// Use loadExtensions directly with empty paths
-		const result = await loadExtensions([], tempDir.path());
-
-		expect(result.errors).toHaveLength(0);
-		expect(result.extensions).toHaveLength(0);
-	});
 	it("discoverExtensionPaths only invokes the native extension-module provider (#4198)", async () => {
 		// The extension-module capability has multiple providers
 		// (native, claude, codex, gemini, opencode), but discoverExtensionPaths

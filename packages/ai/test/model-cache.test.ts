@@ -3,9 +3,9 @@ import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import type { Model } from "@chudware/ai/types";
-import { buildModel } from "@chudware/catalog/build";
-import { readModelCache, writeModelCache } from "@chudware/catalog/model-cache";
+import type { Model } from "@oh-my-pi/pi-ai/types";
+import { buildModel } from "@oh-my-pi/pi-catalog/build";
+import { readModelCache, writeModelCache } from "@oh-my-pi/pi-catalog/model-cache";
 import { removeWithRetries } from "../../utils/src/temp";
 
 const TTL_MS = 24 * 60 * 60 * 1000;
@@ -35,7 +35,7 @@ describe("model cache migrations", () => {
 	let dbPath = "";
 
 	beforeEach(async () => {
-		tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "chud-ai-model-cache-"));
+		tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "pi-ai-model-cache-"));
 		dbPath = path.join(tempDir, "models.db");
 	});
 
@@ -117,5 +117,25 @@ describe("model cache migrations", () => {
 		expect(cached?.models[0]?.headers).toBeUndefined();
 		expect(cached?.headerOmittedModelIds).toEqual(["gated-model"]);
 		expect(cached?.unrestorableHeaderModelIds).toEqual(["gated-model"]);
+	});
+
+	it("fails closed and securely deletes corrupt header provenance", () => {
+		const model = createModel("corrupt-provenance", "Corrupt Provenance");
+		writeModelCache("runtime-ext", Date.now(), [model], true, "static-v1", dbPath);
+
+		const db = new Database(dbPath);
+		db.run("UPDATE model_cache SET header_omitted_model_ids = ? WHERE provider_id = ?", [
+			JSON.stringify({ invalid: "not-an-id-list" }),
+			"runtime-ext",
+		]);
+		db.close();
+
+		expect(readModelCache("runtime-ext", TTL_MS, Date.now, dbPath)).toBeNull();
+		const verified = new Database(dbPath, { readonly: true });
+		const row = verified
+			.query<{ count: number }, []>("SELECT COUNT(*) AS count FROM model_cache WHERE provider_id = 'runtime-ext'")
+			.get();
+		verified.close();
+		expect(row?.count).toBe(0);
 	});
 });

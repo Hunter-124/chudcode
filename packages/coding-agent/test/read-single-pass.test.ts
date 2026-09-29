@@ -10,17 +10,16 @@ import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import type { AgentToolResult } from "@chudware/agent-core";
-import { Settings } from "@chudware/coding-agent/config/settings";
-import { getFileSnapshotStore } from "@chudware/coding-agent/edit/file-snapshot-store";
-import { HashlineFilesystem } from "@chudware/coding-agent/edit/hashline/filesystem";
-import { writethroughNoop } from "@chudware/coding-agent/lsp";
-import type { ToolSession } from "@chudware/coding-agent/tools";
-import type { ReadToolDetails } from "@chudware/coding-agent/tools/read";
-import { ReadTool } from "@chudware/coding-agent/tools/read";
-import { formatBytes } from "@chudware/coding-agent/tools/render-utils";
-import { Patch, Patcher } from "@chudware/hashline";
-import { removeWithRetries } from "@chudware/utils";
+import type { AgentToolResult } from "@oh-my-pi/pi-agent-core";
+import { Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
+import { EditTool } from "@oh-my-pi/pi-coding-agent/edit";
+import type { ToolSession } from "@oh-my-pi/pi-coding-agent/tools";
+import type { ReadToolDetails } from "@oh-my-pi/pi-tui/tools/read";
+import { ReadTool } from "@oh-my-pi/pi-coding-agent/tools/read";
+import { formatBytes } from "@oh-my-pi/pi-tui/render/render-utils";
+import { removeWithRetries } from "@oh-my-pi/pi-utils";
+
+import { cfgReadSummarizeEnabled } from "@oh-my-pi/pi-coding-agent/tools/settings";
 
 function textOutput(result: AgentToolResult<ReadToolDetails>): string {
 	return result.content
@@ -33,7 +32,7 @@ function createSession(cwd: string): ToolSession {
 	const settings = Settings.isolated();
 	// Structural summarization would answer whole-file reads from the summarizer
 	// instead of the range path under test.
-	settings.set("read.summarize.enabled", false);
+	cfgReadSummarizeEnabled.set(settings, false);
 	return {
 		cwd,
 		hasUI: false,
@@ -68,19 +67,9 @@ describe("read tool single-pass file access", () => {
 		const header = textOutput(await new ReadTool(session).execute("bom-read", { path: filePath })).split("\n")[0];
 		expect(header).toMatch(/^\[bom\.ts#[0-9A-F]{4}\]$/);
 
-		const patcher = new Patcher({
-			fs: new HashlineFilesystem({
-				session,
-				writethrough: writethroughNoop,
-				beginDeferredDiagnosticsForPath: () => {
-					throw new Error("deferred diagnostics are unused");
-				},
-			}),
-			snapshots: getFileSnapshotStore(session),
+		await new EditTool(session, "hashline").execute("bom-edit", {
+			input: `${header}\nPUT 2.=2:\n+export const b = 22;`,
 		});
-		const applied = await patcher.apply(Patch.parse(`${header}\nPUT 2.=2:\n+export const b = 22;`, { cwd: tmpDir }));
-
-		expect(applied.sections[0]?.warnings).toEqual([]);
 		// The BOM survives the write; only the addressed line changed.
 		expect(await fs.readFile(filePath, "utf8")).toBe("\uFEFFexport const a = 1;\nexport const b = 22;\n");
 	});

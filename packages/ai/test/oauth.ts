@@ -1,5 +1,5 @@
 /**
- * Test helper for resolving API keys from ~/.chudcode/agent/testauth.db
+ * Test helper for resolving API keys from ~/.omp/agent/testauth.db
  *
  * Supports both API key and OAuth credentials.
  * OAuth tokens are automatically refreshed if expired and saved back to testauth.db.
@@ -8,10 +8,9 @@
  */
 import * as fs from "node:fs/promises";
 import path from "node:path";
-import { getOAuthApiKey } from "@chudware/ai/oauth";
-import type { OAuthCredentials, OAuthProvider } from "@chudware/ai/oauth/types";
-import { $flag, getAgentDir, isEnoent } from "@chudware/utils";
-import * as fsx from "@chudware/utils/fsx";
+import { getOAuthApiKey } from "@oh-my-pi/pi-ai/oauth";
+import type { OAuthCredentials, OAuthProvider } from "@oh-my-pi/pi-ai/oauth/types";
+import { $flag, getAgentDir, isEnoent } from "@oh-my-pi/pi-utils";
 
 /**
  * E2E tests require explicit opt-in via E2E=1 environment variable.
@@ -25,7 +24,7 @@ const E2E_ENABLED = $flag("E2E");
  */
 export function e2eApiKey(envVar: string): string | undefined {
 	if (!E2E_ENABLED) return undefined;
-	return process.env[envVar];
+	return Bun.env[envVar];
 }
 
 const AUTH_PATH = path.join(getAgentDir(), "testauth.db");
@@ -45,7 +44,7 @@ type AuthStorage = Record<string, AuthCredential>;
 
 async function loadAuthStorage(): Promise<AuthStorage> {
 	try {
-		const content = await fsx.readText(AUTH_PATH);
+		const content = await Bun.file(AUTH_PATH).text();
 		return JSON.parse(content);
 	} catch (err) {
 		if (isEnoent(err)) return {};
@@ -54,12 +53,12 @@ async function loadAuthStorage(): Promise<AuthStorage> {
 }
 
 async function saveAuthStorage(storage: AuthStorage): Promise<void> {
-	await fsx.write(AUTH_PATH, JSON.stringify(storage, null, 2));
+	await Bun.write(AUTH_PATH, JSON.stringify(storage, null, 2));
 	await fs.chmod(AUTH_PATH, 0o600);
 }
 
 /**
- * Resolve API key for a provider from ~/.chudcode/agent/testauth.db
+ * Resolve API key for a provider from ~/.omp/agent/testauth.db
  *
  * For API key credentials, returns the key directly.
  * For OAuth credentials, returns the access token (refreshing if expired and saving back).

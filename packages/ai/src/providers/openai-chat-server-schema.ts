@@ -7,7 +7,7 @@
  * `stream_options.include_obfuscation`) — does not trip 400s on shapes we simply ignore.
  */
 
-import { type } from "@chudware/chudtype";
+import { type } from "@oh-my-pi/omptype";
 import type {
 	ChatCompletionContentPart,
 	ChatCompletionCreateParams,
@@ -27,7 +27,7 @@ export const textPartSchema = type({
 /**
  * OpenAI documents `image_url` as either `{ url: string, detail?: ... }` or —
  * older clients — a bare string. Accept both shapes; downstream we extract a
- * URL. `detail` is accepted for forward-compat but currently dropped (chud-ai's
+ * URL. `detail` is accepted for forward-compat but currently dropped (pi-ai's
  * `ImageContent` has no detail field — TODO: plumb through if/when added).
  */
 export const imagePartSchema = type({
@@ -210,7 +210,7 @@ export const openaiChatRequestSchema = type({
 	"frequency_penalty?": "number",
 	"logit_bias?": type({ "[string]": "number" }),
 	"user?": "string",
-	"reasoning_effort?": "'minimal' | 'low' | 'medium' | 'high' | 'xhigh' | 'max'",
+	"reasoning_effort?": "'none' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh' | 'max'",
 	"parallel_tool_calls?": "boolean",
 	"service_tier?": "'auto' | 'default' | 'flex' | 'scale' | 'priority'",
 	"metadata?": type({ "[string]": "unknown" }),

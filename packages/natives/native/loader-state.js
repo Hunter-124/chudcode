@@ -6,15 +6,16 @@ import * as path from "node:path";
 import * as zlib from "node:zlib";
 import packageJson from "../package.json" with { type: "json" };
 import { embeddedAddon } from "./embedded-addon.js";
+import { bindingsHaveReleaseIdentity, bindingsReleaseVersion, containsVersionStamp } from "./version-sentinel.js";
 
 /**
- * Native addon loader for `@chudware/natives`.
+ * Native addon loader for `@oh-my-pi/pi-natives`.
  *
  * Owns every step between "Node imports `native/index.js`" and "the right
- * `chud_natives.<platform>-<arch>*.node` is required, validated, and returned":
+ * `pi_natives.<platform>-<arch>*.node` is required, validated, and returned":
  * platform/variant detection, candidate-path resolution, on-disk staging from
  * `node_modules` (Windows update safety), embedded-addon extraction (Bun
- * standalone binaries), version-sentinel validation, and the aggregated error
+ * standalone binaries), release-stamp validation, and the aggregated error
  * surface for diagnostic-friendly failures.
  *
  * `native/index.js` is reduced to one `loadNative()` call plus the generated
@@ -22,8 +23,8 @@ import { embeddedAddon } from "./embedded-addon.js";
  * `scripts/gen-enums.ts`); everything else lives here so the pure helpers stay
  * unit-testable without triggering the side-effectful module-load path.
  *
- * Background (issue #823): `bun build --compile --define CHUDCODE_COMPILED=true`
- * substitutes the bare identifier `CHUDCODE_COMPILED`, NOT `process.env.CHUDCODE_COMPILED`,
+ * Background (issue #823): `bun build --compile --define PI_COMPILED=true`
+ * substitutes the bare identifier `PI_COMPILED`, NOT `process.env.PI_COMPILED`,
  * so a runtime read of the env var returns `undefined`. Older CommonJS loader
  * code also saw the original build-host absolute path in `__filename`; ESM
  * `import.meta.url` is rewritten to the bunfs URL. The embedded-addon
@@ -31,16 +32,23 @@ import { embeddedAddon } from "./embedded-addon.js";
  * post-build `--reset` stub) is the authoritative compiled-mode signal.
  */
 
-const SUPPORTED_PLATFORMS = ["linux-x64", "linux-arm64", "darwin-x64", "darwin-arm64", "win32-x64"];
+const SUPPORTED_PLATFORMS = [
+	"linux-x64",
+	"linux-arm64",
+	"darwin-x64",
+	"darwin-arm64",
+	"win32-x64",
+	"win32-arm64",
+];
 
 /**
- * Streaming startup marker, enabled by `CHUDCODE_DEBUG_STARTUP`. Local copy of the
- * chud-utils helper (this loader cannot depend on chud-utils). Synchronous on
+ * Streaming startup marker, enabled by `PI_DEBUG_STARTUP`. Local copy of the
+ * pi-utils helper (this loader cannot depend on pi-utils). Synchronous on
  * purpose: extraction/dlopen hangs must still leave the `:start` marker.
  * @param {string} text
  */
 function startupMarker(text) {
-	if (!process.env.CHUDCODE_DEBUG_STARTUP) return;
+	if (!process.env.PI_DEBUG_STARTUP) return;
 	try {
 		fs.writeSync(2, `[startup] ${text}\n`);
 	} catch {
@@ -50,16 +58,16 @@ function startupMarker(text) {
 
 function getNativesDir() {
 	const xdgDataHome = process.env.XDG_DATA_HOME;
-	if (xdgDataHome && fs.existsSync(path.join(xdgDataHome, "chudcode"))) {
-		return path.join(xdgDataHome, "chudcode", "natives");
+	if (xdgDataHome && fs.existsSync(path.join(xdgDataHome, "omp"))) {
+		return path.join(xdgDataHome, "omp", "natives");
 	}
-	return path.join(os.homedir(), ".chudcode", "natives");
+	return path.join(os.homedir(), ".omp", "natives");
 }
 
 function resolveLeafPackageDir(platformTag) {
 	try {
 		const require_ = createRequire(import.meta.url);
-		return path.dirname(require_.resolve(`@chudware/natives-${platformTag}/package.json`));
+		return path.dirname(require_.resolve(`@oh-my-pi/pi-natives-${platformTag}/package.json`));
 	} catch {
 		return null;
 	}
@@ -79,7 +87,7 @@ function resolveLeafPackageDir(platformTag) {
  */
 export function detectCompiledBinary({ embeddedAddon, env, importMetaUrl }) {
 	if (embeddedAddon) return true;
-	if (env && env.CHUDCODE_COMPILED) return true;
+	if (env && env.PI_COMPILED) return true;
 	if (typeof importMetaUrl === "string") {
 		if (importMetaUrl.includes("$bunfs")) return true;
 		if (importMetaUrl.includes("~BUN")) return true;
@@ -92,10 +100,10 @@ export function detectCompiledBinary({ embeddedAddon, env, importMetaUrl }) {
  * @returns {string[]}
  */
 export function getAddonFilenames({ tag, arch, variant }) {
-	const defaultFilename = `chud_natives.${tag}.node`;
+	const defaultFilename = `pi_natives.${tag}.node`;
 	if (arch !== "x64" || !variant) return [defaultFilename];
-	const baselineFilename = `chud_natives.${tag}-baseline.node`;
-	const modernFilename = `chud_natives.${tag}-modern.node`;
+	const baselineFilename = `pi_natives.${tag}-baseline.node`;
+	const modernFilename = `pi_natives.${tag}-modern.node`;
 	if (variant === "modern") {
 		return [modernFilename, baselineFilename, defaultFilename];
 	}
@@ -104,14 +112,14 @@ export function getAddonFilenames({ tag, arch, variant }) {
 
 /**
  * Decide whether the loader should mirror the package's `native/<filename>.node`
- * into the per-version cache directory (`~/.chudcode/natives/<version>/`) before loading.
+ * into the per-version cache directory (`~/.omp/natives/<version>/`) before loading.
  *
- * Windows-only safety net for `bun install -g` updates: when a previous `chudcode`
+ * Windows-only safety net for `bun install -g` updates: when a previous `omp`
  * process is running, bun cannot overwrite the locked `.node` inside
- * `node_modules/@chudware/natives/native/`, leaving an old binary next to a
+ * `node_modules/@oh-my-pi/pi-natives/native/`, leaving an old binary next to a
  * newer `index.js` and producing `<sym> is not a function` crashes on the next
  * launch. Staging into the version-pinned cache:
- *   1. Gives every package version its own filesystem path, so concurrent chudcode
+ *   1. Gives every package version its own filesystem path, so concurrent omp
  *      processes never collide on the same file.
  *   2. Makes the running process keep its handle on the cache copy, freeing bun
  *      to overwrite the `node_modules` copy on subsequent updates.
@@ -195,7 +203,7 @@ function isOlderReleaseVersion(candidate, current) {
 	return false;
 }
 
-// A concurrently starting older Chudcode binary creates or refreshes this directory
+// A concurrently starting older OMP binary creates or refreshes this directory
 // before extracting its addon. Keep fresh directories long enough for that
 // startup to finish; a later launch can reclaim them once they are genuinely
 // stale.
@@ -290,7 +298,7 @@ function runCommand(command, args) {
 }
 
 function getVariantOverride() {
-	const value = process.env.CHUDCODE_NATIVE_VARIANT;
+	const value = process.env.PI_NATIVE_VARIANT;
 	if (!value) return null;
 	if (value === "modern" || value === "baseline") return value;
 	return null;
@@ -364,7 +372,7 @@ function detectAvx2Support() {
 /**
  * Pure variant-selection helper, exposed for unit tests. Resolution order:
  *
- *   1. `override` (user-facing `CHUDCODE_NATIVE_VARIANT` env var). Always wins.
+ *   1. `override` (user-facing `PI_NATIVE_VARIANT` env var). Always wins.
  *   2. The private `__PI_NATIVE_VARIANT_CACHE` env var, populated by the first
  *      context that detected at runtime. Lets child workers / subprocesses
  *      inherit the main thread's verdict instead of re-spawning `sysctl` etc.
@@ -648,16 +656,15 @@ function maybeStageNodeModulesAddon(ctx, errors) {
 	return stagedPath;
 }
 
-
 /**
- * Before version sentinels were exported, published native addons still shared
+ * Before release identities existed, published native addons still shared
  * this stable core ABI. Let those on-disk addons bridge a package-version bump
- * when they expose the signature; keep every versioned addon and a current
+ * when they expose the signature; keep every identified addon and a current
  * on-disk file paired with resident old exports on the strict path below.
  */
-function isCompatiblePreSentinelNativeAddon(bindings, diskHasExpectedSentinel) {
-	if (diskHasExpectedSentinel) return false;
-	if (Object.keys(bindings).some(key => /^__piNativesV[A-Za-z0-9_]+$/.test(key))) return false;
+function isCompatiblePreSentinelNativeAddon(bindings, diskHasExpectedStamp) {
+	if (diskHasExpectedStamp) return false;
+	if (bindingsHaveReleaseIdentity(bindings)) return false;
 	return (
 		typeof bindings.countTokens === "function" &&
 		typeof bindings.executeShell === "function" &&
@@ -672,51 +679,129 @@ function isCompatiblePreSentinelNativeAddon(bindings, diskHasExpectedSentinel) {
 export function validateLoadedBindings(ctx, bindings, candidate) {
 	// In workspace dev (running out of `packages/natives/native/` rather than a
 	// `node_modules` install or a compiled bundle) the local `.node` only gains
-	// the renamed sentinel after `bun --cwd=packages/natives run build`. Skip
+	// the new release stamp after `bun --cwd=packages/natives run build`. Skip
 	// validation there so a stale post-pull dev tree boots while the rebuild
-	// completes; install and compiled-binary paths still validate.
+	// completes; install and compiled-binary paths still validate. The mismatch
+	// is not swallowed silently: `native/index.js` exports `missingNativeExport`
+	// for every symbol the stale addon predates, so the first call through one
+	// reports the addon, both releases, and the rebuild command.
 	if (ctx.isWorkspaceLoad) return;
-	if (typeof bindings[ctx.versionSentinelExport] === "function") return;
+	const residentVersion = bindingsReleaseVersion(bindings);
+	if (residentVersion === ctx.packageVersion) return;
 
-	// The expected sentinel is missing. Distinguish two failure modes by the
-	// sentinel the bindings DO carry:
+	// The bindings report another release (or none). Distinguish two failure
+	// modes by what the file on disk carries:
 	//   - disk stale: the `.node` on disk predates this loader (its own build);
 	//     reinstalling re-syncs the file.
 	//   - process stale: an in-place upgrade landed a new release on disk while
 	//     this process still holds the previous addon generation resident in the
 	//     dynamic-loader's native-module cache. `require` returns those old
-	//     exports, which carry the PRIOR sentinel — disk is already consistent,
+	//     exports, which report the PRIOR release — disk is already consistent,
 	//     so reinstall is a no-op and only restarting the process re-syncs.
-	const residentSentinel = Object.keys(bindings).find(
-		key => key !== ctx.versionSentinelExport && /^__piNativesV[A-Za-z0-9_]+$/.test(key),
-	);
-	// A prior sentinel alone cannot distinguish a resident old module from an
-	// actually stale file: `require` returns the same exports in both cases.
-	// The restart diagnosis is valid only when the selected file itself carries
-	// the current sentinel; otherwise a restart would simply reload stale disk.
-	let diskHasExpectedSentinel = false;
+	// Resident exports alone cannot tell these apart: `require` returns the
+	// same exports in both cases. The restart diagnosis is valid only when the
+	// selected file itself carries the current stamp; otherwise a restart would
+	// simply reload stale disk.
+	let diskHasExpectedStamp = false;
 	try {
-		diskHasExpectedSentinel = fs.readFileSync(candidate).includes(ctx.versionSentinelExport);
+		diskHasExpectedStamp = containsVersionStamp(fs.readFileSync(candidate), ctx.packageVersion);
 	} catch {
 		// The successful require above normally guarantees readability. If the
 		// file disappears concurrently, retain the safe reinstall diagnosis.
 	}
-	if (isCompatiblePreSentinelNativeAddon(bindings, diskHasExpectedSentinel)) return;
-	if (residentSentinel && diskHasExpectedSentinel) {
-		const residentVersion = residentSentinel.slice("__piNativesV".length).replace(/_/g, ".");
+	if (isCompatiblePreSentinelNativeAddon(bindings, diskHasExpectedStamp)) return;
+	if (residentVersion && diskHasExpectedStamp) {
 		throw new Error(
-			`Loaded ${candidate}, which exposes the @chudware/natives@${residentVersion} version ` +
-				`sentinel \`${residentSentinel}\` but not the @${ctx.packageVersion} sentinel ` +
-				`\`${ctx.versionSentinelExport}\` this loader expects. chudcode was upgraded to ` +
-				`${ctx.packageVersion} while this session was running; the ${residentVersion} addon is ` +
-				"still resident in this process. Disk is already consistent — restart chudcode to pick up " +
-				`${ctx.packageVersion} (reinstalling changes nothing).`,
+			`Loaded ${candidate}, which reports @oh-my-pi/pi-natives@${residentVersion}, but this loader is ` +
+				`@${ctx.packageVersion}. omp was upgraded to ${ctx.packageVersion} while this session was running; ` +
+				`the ${residentVersion} addon is still resident in this process. Disk is already consistent — ` +
+				`restart omp to pick up ${ctx.packageVersion} (reinstalling changes nothing).`,
 		);
 	}
 	throw new Error(
-		`Loaded ${candidate} but it does not expose the @chudware/natives@${ctx.packageVersion} ` +
-			`version sentinel \`${ctx.versionSentinelExport}\`. The .node file on disk is from a different ` +
+		`Loaded ${candidate} but it reports ${residentVersion ? `@oh-my-pi/pi-natives@${residentVersion}` : "no release version"}, ` +
+			`not the @${ctx.packageVersion} this loader expects. The .node file on disk is from a different ` +
 			"release than this loader — reinstall to re-sync.",
+	);
+}
+
+/**
+ * Identity of the addon `loadNative()` returned, in the shape the
+ * missing-export diagnostic reports. Null until a load succeeds.
+ * @type {{ path: string; version: string | null; packageVersion: string; stale: boolean } | null}
+ */
+let loadedAddon = null;
+
+/**
+ * Describe a loaded addon so a symbol it predates can name the file, the
+ * release the file came from, and the release this tree expects.
+ * @param {Record<string, unknown>} bindings
+ * @param {string} candidate
+ * @param {{ packageVersion: string }} ctx
+ */
+function describeLoadedAddon(bindings, candidate, ctx) {
+	const version = bindingsReleaseVersion(bindings);
+	return {
+		path: candidate,
+		version,
+		packageVersion: ctx.packageVersion,
+		stale: version !== ctx.packageVersion,
+	};
+}
+
+/**
+ * The addon behind this process's `@oh-my-pi/pi-natives` exports.
+ * @returns {{ path: string; version: string | null; packageVersion: string; stale: boolean } | null}
+ */
+export function nativeAddonStatus() {
+	return loadedAddon;
+}
+
+/**
+ * Stand-in for an export the loaded addon does not provide.
+ *
+ * A workspace tree tolerates a release mismatch on purpose: a checkout that
+ * pulled a new release keeps running until `bun run build:native` finishes
+ * (see `validateLoadedBindings`), and PR CI loads release addons under a newer
+ * checkout the same way. Such an addon has no value for any symbol added after
+ * its build, so a bare `undefined` export surfaced as `<symbol> is not a
+ * function` — every `write` call in a tree that pulled the read-projection
+ * guard, for one — with nothing naming the stale addon.
+ *
+ * Only a stale addon gets the stub. On a current addon an absent export is not
+ * version drift but a symbol this build does not implement, and callers probe
+ * for exactly that (`typeof native.x === "function"`); they must keep seeing
+ * `undefined`.
+ * @param {string} symbolName
+ * @param {ReturnType<typeof nativeAddonStatus>} [addon]
+ * @returns {((...args: unknown[]) => never) | undefined}
+ */
+export function missingNativeExport(symbolName, addon = loadedAddon) {
+	if (!addon?.stale) return undefined;
+	return () => {
+		throw new Error(missingNativeExportMessage(symbolName, addon));
+	};
+}
+
+/**
+ * Actionable text for {@link missingNativeExport}. `addon` is injectable so the
+ * wording can be pinned without a stale `.node` on disk.
+ * @param {string} symbolName
+ * @param {ReturnType<typeof nativeAddonStatus>} [addon]
+ * @returns {string}
+ */
+export function missingNativeExportMessage(symbolName, addon = loadedAddon) {
+	const rebuild = "rebuild it with `bun run build:native`";
+	if (!addon) return `@oh-my-pi/pi-natives does not export \`${symbolName}\`; ${rebuild}.`;
+	if (!addon.stale) {
+		return `@oh-my-pi/pi-natives export \`${symbolName}\` is missing from ${addon.path}; ${rebuild}.`;
+	}
+	const loaded = addon.version
+		? `the @oh-my-pi/pi-natives@${addon.version} addon`
+		: "an addon without a release stamp";
+	return (
+		`@oh-my-pi/pi-natives export \`${symbolName}\` is missing: ${addon.path} is ${loaded}, not ` +
+		`@${addon.packageVersion} — ${rebuild}.`
 	);
 }
 
@@ -745,7 +830,7 @@ function buildHelpMessage(ctx) {
 		const expectedPaths = ctx.addonFilenames.map(filename => `  ${path.join(ctx.versionedDir, filename)}`).join("\n");
 		const downloadHints = ctx.addonFilenames
 			.map(filename => {
-				const downloadUrl = `https://github.com/Hunter-124/chudcode/releases/latest/download/${filename}`;
+				const downloadUrl = `https://github.com/can1357/oh-my-pi/releases/latest/download/${filename}`;
 				const targetPath = path.join(ctx.versionedDir, filename);
 				return `  curl -fsSL "${downloadUrl}" -o "${targetPath}"`;
 			})
@@ -756,7 +841,7 @@ function buildHelpMessage(ctx) {
 		);
 	}
 	return (
-		"If installed via npm/bun, try reinstalling: bun install @chudware/natives\n" +
+		"If installed via npm/bun, try reinstalling: bun install @oh-my-pi/pi-natives\n" +
 		"If developing locally, build with: bun --cwd=packages/natives run build\n" +
 		"Explicit targets: bun scripts/bazel-natives.ts <target> --dest packages/natives/native"
 	);
@@ -781,7 +866,7 @@ export function initLoaderContext(overrides = {}) {
 	const versionedDir = path.join(nativesDir, packageVersion);
 	const userDataDir =
 		platform === "win32"
-			? path.join(process.env.LOCALAPPDATA || path.join(os.homedir(), "AppData", "Local"), "chudcode")
+			? path.join(process.env.LOCALAPPDATA || path.join(os.homedir(), "AppData", "Local"), "omp")
 			: path.join(os.homedir(), ".local", "bin");
 
 	const isCompiledBinary =
@@ -823,14 +908,12 @@ export function initLoaderContext(overrides = {}) {
 		userDataDir,
 	});
 
-	// Version sentinel emitted by the Rust addon under a `js_name` that encodes
-	// the package version (`__piNativesV{major}_{minor}_{patch}`).
-	// `scripts/release.ts` bumps the name in `crates/chud-natives/src/lib.rs` in
-	// lock-step with the version, so a `.node` from a different release
-	// physically cannot expose the symbol this loader is looking for. That
-	// turns the silent `<sym> is not a function` crash from a Windows
-	// locked-file update into an actionable load-time error.
-	const versionSentinelExport = `__piNativesV${packageVersion.replace(/[^A-Za-z0-9]/g, "_")}`;
+	// Release validation compares `__piNativesBuildVersion()` — the version the
+	// build pipeline stamps into the addon after linking
+	// (`scripts/stamp-native-version.ts`) — with `package.json#version`, so a
+	// `.node` from a different release is rejected at load time instead of
+	// surfacing later as a silent `<sym> is not a function` crash from a
+	// Windows locked-file update.
 
 	return {
 		platformTag,
@@ -844,7 +927,6 @@ export function initLoaderContext(overrides = {}) {
 		addonFilenames,
 		addonLabel,
 		candidates,
-		versionSentinelExport,
 		isWorkspaceLoad,
 		nativesDir,
 	};
@@ -867,6 +949,7 @@ export function loadNative() {
 			const bindings = require_(candidate);
 			validateLoadedBindings(ctx, bindings, candidate);
 			installNativeTokioRuntime(bindings);
+			loadedAddon = describeLoadedAddon(bindings, candidate, ctx);
 	        cleanupStaleNativeVersions({ nativesDir: ctx.nativesDir, currentVersion: ctx.packageVersion });
 			startupMarker("native:loadNative:done");
 			return bindings;
@@ -885,6 +968,6 @@ export function loadNative() {
 	}
 	const details = errors.map(error => `- ${error}`).join("\n");
 	throw new Error(
-		`Failed to load chud_natives native addon for ${ctx.addonLabel}.\n\nTried:\n${details}\n\n${buildHelpMessage(ctx)}`,
+		`Failed to load pi_natives native addon for ${ctx.addonLabel}.\n\nTried:\n${details}\n\n${buildHelpMessage(ctx)}`,
 	);
 }

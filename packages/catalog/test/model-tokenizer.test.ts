@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
-import { buildModel } from "@chudware/catalog/build";
-import { resolveModelTokenizer } from "@chudware/catalog/model-tokenizer";
-import type { ModelSpec } from "@chudware/catalog/types";
+import { buildModel } from "@oh-my-pi/pi-catalog/build";
+import { resolveModelTokenizer } from "@oh-my-pi/pi-catalog/model-tokenizer";
+import type { ModelSpec } from "@oh-my-pi/pi-catalog/types";
 
 function spec(id: string): ModelSpec<"openai-completions"> {
 	return {
@@ -31,6 +31,8 @@ describe("resolveModelTokenizer", () => {
 		expect(resolveModelTokenizer("moonshot-v1-128k")).toBeUndefined();
 		expect(resolveModelTokenizer("glm-5.2")).toBe("glm5");
 		expect(resolveModelTokenizer("glm-4.7")).toBeUndefined();
+		expect(resolveModelTokenizer("yolo")).toBeUndefined();
+		expect(resolveModelTokenizer("yolo-auto/yolo", "yolo-auto")).toBe("qwen3");
 	});
 	test("buildModel materializes wire-model tokenizer policy and preserves explicit policy", () => {
 		expect(buildModel(spec("deepseek-v4-pro")).tokenizer).toBe("deepseek-v3");

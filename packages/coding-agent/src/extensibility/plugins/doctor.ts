@@ -1,5 +1,5 @@
-import { $which } from "@chudware/utils";
-import { theme } from "../../modes/theme/theme";
+import { $which } from "@oh-my-pi/pi-utils";
+import { theme } from "@oh-my-pi/pi-tui/theme";
 import type { DoctorCheck } from "./types";
 
 export async function runDoctorChecks(): Promise<DoctorCheck[]> {
@@ -29,7 +29,7 @@ export async function runDoctorChecks(): Promise<DoctorCheck[]> {
 	];
 
 	for (const key of apiKeys) {
-		const hasKey = !!process.env[key.name];
+		const hasKey = !!Bun.env[key.name];
 		checks.push({
 			name: key.name,
 			status: hasKey ? "ok" : "warning",

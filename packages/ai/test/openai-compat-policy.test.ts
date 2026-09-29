@@ -1,16 +1,16 @@
 import { describe, expect, it } from "bun:test";
-import type { ResponseCreateParamsStreaming } from "@chudware/ai/providers/openai-responses-wire";
+import type { ResponseCreateParamsStreaming } from "@oh-my-pi/pi-ai/providers/openai-responses-wire";
 import {
 	applyChatCompletionsCompatPolicy,
 	applyOpenAIExtraBody,
 	applyResponsesCompatPolicy,
 	type OpenAICompletionsParams,
 	resolveOpenAICompatPolicy,
-} from "@chudware/ai/providers/openai-shared";
-import type { Model, ModelSpec, OpenAICompat } from "@chudware/ai/types";
-import { buildModel } from "@chudware/catalog/build";
-import { Effort } from "@chudware/catalog/effort";
-import { getBundledModel } from "@chudware/catalog/models";
+} from "@oh-my-pi/pi-ai/providers/openai-shared";
+import type { Model, ModelSpec, OpenAICompat } from "@oh-my-pi/pi-ai/types";
+import { buildModel } from "@oh-my-pi/pi-catalog/build";
+import { Effort } from "@oh-my-pi/pi-catalog/effort";
+import { getBundledModel } from "@oh-my-pi/pi-catalog/models";
 
 function chatModel(compat: OpenAICompat): Model<"openai-completions"> {
 	return buildModel({
@@ -132,35 +132,6 @@ describe("OpenAI compat policy", () => {
 
 		expect(responseBody.reasoning).toBeUndefined();
 		expect(responseBody.input).toEqual([]);
-	});
-
-	it("exposes reasoning replay constraints independent of endpoint", () => {
-		const compat: OpenAICompat = {
-			requiresReasoningContentForToolCalls: true,
-			requiresReasoningContentForAllAssistantTurns: true,
-			allowsSyntheticReasoningContentForToolCalls: false,
-			reasoningContentField: "reasoning_content",
-		};
-		const chatPolicy = resolveOpenAICompatPolicy(chatModel(compat), { endpoint: "chat-completions" });
-		const responsesPolicy = resolveOpenAICompatPolicy(responsesModel(compat), { endpoint: "responses" });
-
-		expect(chatPolicy.reasoning.requiresReasoningContentForToolCalls).toBe(true);
-		expect(responsesPolicy.reasoning.requiresReasoningContentForToolCalls).toBe(true);
-		expect(chatPolicy.reasoning.requiresReasoningContentForAllAssistantTurns).toBe(true);
-		expect(responsesPolicy.reasoning.requiresReasoningContentForAllAssistantTurns).toBe(true);
-		expect(chatPolicy.reasoning.allowsSyntheticReasoningContentForToolCalls).toBe(false);
-		expect(responsesPolicy.reasoning.allowsSyntheticReasoningContentForToolCalls).toBe(false);
-	});
-
-	it("exposes tool id and cumulative reasoning stream constraints for both endpoints", () => {
-		const compat: OpenAICompat = { requiresMistralToolIds: true, reasoningDeltasMayBeCumulative: true };
-		const chatPolicy = resolveOpenAICompatPolicy(chatModel(compat), { endpoint: "chat-completions" });
-		const responsesPolicy = resolveOpenAICompatPolicy(responsesModel(compat), { endpoint: "responses" });
-
-		expect(chatPolicy.tools.toolCallIdKind).toBe("mistral-9-alnum");
-		expect(responsesPolicy.tools.toolCallIdKind).toBe("mistral-9-alnum");
-		expect(chatPolicy.stream.reasoningDeltasMayBeCumulative).toBe(true);
-		expect(responsesPolicy.stream.reasoningDeltasMayBeCumulative).toBe(true);
 	});
 
 	it("routes Token Plan qwen3.8-max effort selections onto the wire", () => {

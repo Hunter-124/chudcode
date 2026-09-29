@@ -1,12 +1,11 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import * as fs from "node:fs";
 import * as path from "node:path";
-import { ConfigFile } from "@chudware/coding-agent/config/config-file";
-import { ModelRegistry } from "@chudware/coding-agent/config/model-registry";
-import { ModelsConfigSchema } from "@chudware/coding-agent/config/models-config-schema";
-import { AuthStorage } from "@chudware/coding-agent/session/auth-storage";
-import { TempDir } from "@chudware/utils";
-import * as fsx from "@chudware/utils/fsx";
+import { ConfigFile } from "@oh-my-pi/pi-coding-agent/config/config-file";
+import { ModelRegistry } from "@oh-my-pi/pi-coding-agent/config/model-registry";
+import { ModelsConfigSchema } from "@oh-my-pi/pi-coding-agent/config/models-config-schema";
+import { AuthStorage } from "@oh-my-pi/pi-coding-agent/session/auth-storage";
+import { TempDir } from "@oh-my-pi/pi-utils";
 
 describe("ModelRegistry.create() factory (F6)", () => {
 	let tempDir: TempDir;
@@ -21,28 +20,13 @@ describe("ModelRegistry.create() factory (F6)", () => {
 		await tempDir.remove().catch(() => {});
 	});
 
-	test("produces an instance whose authStorage matches and that exposes bundled models", async () => {
-		const authStorage = await AuthStorage.create(":memory:");
-		try {
-			const registry = new ModelRegistry(authStorage, path.join(tempDir.path(), "models.yml"));
-			expect(registry.authStorage).toBe(authStorage);
-			// The constructor's bundled-model load runs after warmup, so the
-			// factory's returned instance must be queryable immediately.
-			const claude = registry.find("anthropic", "claude-sonnet-4-5");
-			expect(claude).toBeDefined();
-			expect(claude?.id).toBe("claude-sonnet-4-5");
-		} finally {
-			authStorage.close();
-		}
-	});
-
 	test("migrates legacy models.json → models.yml ahead of the sync constructor", async () => {
 		const yml = path.join(tempDir.path(), "models.yml");
 		const json = path.join(tempDir.path(), "models.json");
 
 		// Seed a legacy JSON config; factory should migrate it asynchronously
 		// before the sync constructor reads from the yml path.
-		await fsx.write(json, JSON.stringify({ models: [] }));
+		await Bun.write(json, JSON.stringify({ models: [] }));
 		expect(fs.existsSync(yml)).toBe(false);
 
 		const authStorage = await AuthStorage.create(":memory:");
@@ -57,7 +41,7 @@ describe("ModelRegistry.create() factory (F6)", () => {
 	test("ConfigFile migration is idempotent — second load is a no-op", async () => {
 		const yml = path.join(tempDir.path(), "models.yml");
 		const json = path.join(tempDir.path(), "models.json");
-		await fsx.write(json, JSON.stringify({ models: [] }));
+		await Bun.write(json, JSON.stringify({ models: [] }));
 
 		const cf = new ConfigFile("models", ModelsConfigSchema, yml);
 		cf.tryLoad();
@@ -74,7 +58,7 @@ describe("ModelRegistry.create() factory (F6)", () => {
 	test("ConfigFile migrates legacy models.json containing comments", async () => {
 		const yml = path.join(tempDir.path(), "models.yml");
 		const json = path.join(tempDir.path(), "models.json");
-		await fsx.write(
+		await Bun.write(
 			json,
 			`{
 				// Custom models comment

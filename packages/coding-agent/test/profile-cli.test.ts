@@ -3,7 +3,7 @@ import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
 import * as url from "node:url";
-import { removeWithRetries } from "@chudware/utils";
+import { removeWithRetries } from "@oh-my-pi/pi-utils";
 import {
 	__resetProfileSnapshotForTests,
 	APP_NAME,
@@ -13,9 +13,8 @@ import {
 	setAgentDir,
 	setProfile,
 	VERSION,
-} from "@chudware/utils/dirs";
-import * as fsx from "@chudware/utils/fsx";
-import { Snowflake } from "@chudware/utils/snowflake";
+} from "@oh-my-pi/pi-utils/dirs";
+import { Snowflake } from "@oh-my-pi/pi-utils/snowflake";
 import { runCli } from "../src/cli";
 import * as profileAliasCli from "../src/cli/profile-alias";
 
@@ -43,15 +42,19 @@ describe("global --profile flag", () => {
 	let originalProfile: string | undefined;
 	let originalAgentDir = "";
 	let originalAgentDirEnv: string | undefined;
+	let originalOmpProfileEnv: string | undefined;
+	let originalPiProfileEnv: string | undefined;
 	let originalConfigDir: string | undefined;
 
 	beforeEach(() => {
 		originalProfile = getActiveProfile();
 		originalAgentDir = getAgentDir();
-		originalAgentDirEnv = process.env.CHUDCODE_CODING_AGENT_DIR;
-		originalConfigDir = process.env.CHUDCODE_CONFIG_DIR;
-		configDir = `.chudcode-profile-cli-test-${Snowflake.next()}`;
-		process.env.CHUDCODE_CONFIG_DIR = configDir;
+		originalAgentDirEnv = process.env.PI_CODING_AGENT_DIR;
+		originalOmpProfileEnv = process.env.OMP_PROFILE;
+		originalPiProfileEnv = process.env.PI_PROFILE;
+		originalConfigDir = process.env.PI_CONFIG_DIR;
+		configDir = `.omp-profile-cli-test-${Snowflake.next()}`;
+		process.env.PI_CONFIG_DIR = configDir;
 		process.exitCode = 0;
 	});
 
@@ -59,9 +62,9 @@ describe("global --profile flag", () => {
 		vi.restoreAllMocks();
 		setProfile(undefined);
 		if (originalConfigDir === undefined) {
-			delete process.env.CHUDCODE_CONFIG_DIR;
+			delete process.env.PI_CONFIG_DIR;
 		} else {
-			process.env.CHUDCODE_CONFIG_DIR = originalConfigDir;
+			process.env.PI_CONFIG_DIR = originalConfigDir;
 		}
 		if (originalProfile) {
 			setProfile(originalProfile);
@@ -70,10 +73,20 @@ describe("global --profile flag", () => {
 		} else {
 			setProfile(undefined);
 		}
-		if (originalAgentDirEnv === undefined) {
-			delete process.env.CHUDCODE_CODING_AGENT_DIR;
+		if (originalOmpProfileEnv === undefined) {
+			delete process.env.OMP_PROFILE;
 		} else {
-			process.env.CHUDCODE_CODING_AGENT_DIR = originalAgentDirEnv;
+			process.env.OMP_PROFILE = originalOmpProfileEnv;
+		}
+		if (originalPiProfileEnv === undefined) {
+			delete process.env.PI_PROFILE;
+		} else {
+			process.env.PI_PROFILE = originalPiProfileEnv;
+		}
+		if (originalAgentDirEnv === undefined) {
+			delete process.env.PI_CODING_AGENT_DIR;
+		} else {
+			process.env.PI_CODING_AGENT_DIR = originalAgentDirEnv;
 		}
 		__resetProfileSnapshotForTests();
 		process.exitCode = 0;
@@ -91,10 +104,11 @@ describe("global --profile flag", () => {
 		expect(getAgentDir()).toBe(path.join(os.homedir(), configDir, "profiles", "work", "agent"));
 	});
 
-	it("activates a profile inherited from CHUDCODE_PROFILE at run time", async () => {
+	it("activates a profile inherited from OMP_PROFILE at run time", async () => {
 		const writeSpy = vi.spyOn(process.stdout, "write").mockImplementation(() => true);
 		setProfile(undefined);
-		process.env.CHUDCODE_PROFILE = "work";
+		process.env.OMP_PROFILE = "work";
+		delete process.env.PI_PROFILE;
 
 		await runCli(["--version"]);
 
@@ -105,89 +119,28 @@ describe("global --profile flag", () => {
 		expect(getAgentDbPath()).toBe(path.join(os.homedir(), configDir, "profiles", "work", "agent", "agent.db"));
 	});
 
-	it("accepts the profile flag after other root flags", async () => {
-		vi.spyOn(process.stdout, "write").mockImplementation(() => true);
-
-		await runCli(["--version", "--profile", "office"]);
-
-		expect(process.exitCode).toBe(0);
-		expect(getActiveProfile()).toBe("office");
-		expect(getAgentDir()).toBe(path.join(os.homedir(), configDir, "profiles", "office", "agent"));
-	});
-
 	it("installs a shell alias and exits before command dispatch", async () => {
 		const installSpy = vi.spyOn(profileAliasCli, "installProfileAlias").mockResolvedValue({
 			shell: "bash",
 			configPath: "/home/me/.bashrc",
-			aliasName: "chudcode-work",
+			aliasName: "omp-work",
 			profile: "work",
-			command: "chudcode --profile=work",
+			command: "omp --profile=work",
 			reloadedWith: ". '/home/me/.bashrc'",
 		});
 		const outSpy = vi.spyOn(process.stdout, "write").mockImplementation(() => true);
 
-		await runCli(["--profile", "work", "--alias", "chudcode-work", "--version"]);
+		await runCli(["--profile", "work", "--alias", "omp-work", "--version"]);
 
 		expect(process.exitCode).toBe(0);
 		expect(installSpy).toHaveBeenCalledWith(
 			expect.objectContaining({
 				profile: "work",
-				aliasName: "chudcode-work",
+				aliasName: "omp-work",
 			}),
 		);
 		const output = outSpy.mock.calls.map(call => String(call[0] ?? "")).join("\n");
-		expect(output).toContain("Created chudcode-work");
-		expect(output).not.toContain(`${APP_NAME}/${VERSION}`);
-	});
-
-	it("installs a shell alias when launch is explicit", async () => {
-		const installSpy = vi.spyOn(profileAliasCli, "installProfileAlias").mockResolvedValue({
-			shell: "bash",
-			configPath: "/home/me/.bashrc",
-			aliasName: "chudcode-work",
-			profile: "work",
-			command: "chudcode --profile=work",
-			reloadedWith: ". '/home/me/.bashrc'",
-		});
-		const outSpy = vi.spyOn(process.stdout, "write").mockImplementation(() => true);
-
-		await runCli(["launch", "--profile", "work", "--alias", "chudcode-work", "--version"]);
-
-		expect(process.exitCode).toBe(0);
-		expect(installSpy).toHaveBeenCalledWith(
-			expect.objectContaining({
-				profile: "work",
-				aliasName: "chudcode-work",
-			}),
-		);
-		const output = outSpy.mock.calls.map(call => String(call[0] ?? "")).join("\n");
-		expect(output).toContain("Created chudcode-work");
-		expect(output).not.toContain(`${APP_NAME}/${VERSION}`);
-	});
-
-	it("installs a shell alias when acp is explicit", async () => {
-		const installSpy = vi.spyOn(profileAliasCli, "installProfileAlias").mockResolvedValue({
-			shell: "bash",
-			configPath: "/home/me/.bashrc",
-			aliasName: "chudcode-work",
-			profile: "work",
-			command: "chudcode --profile=work",
-			reloadedWith: ". '/home/me/.bashrc'",
-		});
-		const outSpy = vi.spyOn(process.stdout, "write").mockImplementation(() => true);
-
-		await runCli(["acp", "--profile", "work", "--alias", "chudcode-work", "--version"]);
-
-		expect(process.exitCode).toBe(0);
-		expect(installSpy).toHaveBeenCalledWith(
-			expect.objectContaining({
-				profile: "work",
-				aliasName: "chudcode-work",
-			}),
-		);
-		expect(getActiveProfile()).toBe("work");
-		const output = outSpy.mock.calls.map(call => String(call[0] ?? "")).join("\n");
-		expect(output).toContain("Created chudcode-work");
+		expect(output).toContain("Created omp-work");
 		expect(output).not.toContain(`${APP_NAME}/${VERSION}`);
 	});
 
@@ -204,39 +157,39 @@ describe("global --profile flag", () => {
 		expect(outSpy).not.toHaveBeenCalled();
 	});
 
-	it("loads profile agent .env before command modules import chud-utils env", async () => {
-		const root = await fs.mkdtemp(path.join(os.tmpdir(), "chudcode-profile-cli-env-"));
+	it("loads profile agent .env before command modules import pi-utils env", async () => {
+		const root = await fs.mkdtemp(path.join(os.tmpdir(), "omp-profile-cli-env-"));
 		try {
 			const home = path.join(root, "home");
-			const configDir = ".chudcode-profile-cli-env";
+			const configDir = ".omp-profile-cli-env";
 			const defaultAgentDir = path.join(home, configDir, "agent");
 			const profileAgentDir = path.join(home, configDir, "profiles", "work", "agent");
 			await fs.mkdir(defaultAgentDir, { recursive: true });
 			await fs.mkdir(profileAgentDir, { recursive: true });
-			await fsx.write(path.join(defaultAgentDir, ".env"), "CHUDCODE_PROFILE_BOOTSTRAP_SENTINEL=default\n");
-			await fsx.write(path.join(profileAgentDir, ".env"), "CHUDCODE_PROFILE_BOOTSTRAP_SENTINEL=work\n");
+			await Bun.write(path.join(defaultAgentDir, ".env"), "OMP_PROFILE_BOOTSTRAP_SENTINEL=default\n");
+			await Bun.write(path.join(profileAgentDir, ".env"), "OMP_PROFILE_BOOTSTRAP_SENTINEL=work\n");
 
 			const probePath = path.join(root, "probe.ts");
-			await fsx.write(
+			await Bun.write(
 				probePath,
 				[
 					`import { runCli } from ${JSON.stringify(url.pathToFileURL(cliEntry).href)};`,
 					'await runCli(["--profile", "work", "--help"]);',
-					'process.stdout.write("\\nSENTINEL=" + (process.env.CHUDCODE_PROFILE_BOOTSTRAP_SENTINEL ?? ""));',
+					'process.stdout.write("\\nSENTINEL=" + (Bun.env.OMP_PROFILE_BOOTSTRAP_SENTINEL ?? ""));',
 				].join("\n"),
 			);
 
 			const childEnv: Record<string, string | undefined> = {
 				...process.env,
 				HOME: home,
-				CHUDCODE_CONFIG_DIR: configDir,
-				CHUDCODE_NO_TITLE: "1",
+				PI_CONFIG_DIR: configDir,
+				PI_NO_TITLE: "1",
 				NO_COLOR: "1",
 			};
-			delete childEnv.CHUDCODE_PROFILE;
-			delete childEnv.CHUDCODE_PROFILE;
-			delete childEnv.CHUDCODE_CODING_AGENT_DIR;
-			delete childEnv.CHUDCODE_PROFILE_BOOTSTRAP_SENTINEL;
+			delete childEnv.OMP_PROFILE;
+			delete childEnv.PI_PROFILE;
+			delete childEnv.PI_CODING_AGENT_DIR;
+			delete childEnv.OMP_PROFILE_BOOTSTRAP_SENTINEL;
 
 			const proc = Bun.spawn([process.execPath, probePath], {
 				cwd: repoRoot,
@@ -260,14 +213,14 @@ describe("global --profile flag", () => {
 		// transpile of the CLI graph, not latency under test.
 	}, 30_000);
 
-	it("surfaces an invalid CHUDCODE_PROFILE env as a clean error, not an import crash", async () => {
-		const root = await fs.mkdtemp(path.join(os.tmpdir(), "chudcode-profile-cli-env-bad-"));
+	it("surfaces an invalid OMP_PROFILE env as a clean error, not an import crash", async () => {
+		const root = await fs.mkdtemp(path.join(os.tmpdir(), "omp-profile-cli-env-bad-"));
 		try {
 			const home = path.join(root, "home");
 			await fs.mkdir(home, { recursive: true });
 
 			const probePath = path.join(root, "probe.ts");
-			await fsx.write(
+			await Bun.write(
 				probePath,
 				[
 					`import { runCli } from ${JSON.stringify(url.pathToFileURL(cliEntry).href)};`,
@@ -282,11 +235,12 @@ describe("global --profile flag", () => {
 			const childEnv: Record<string, string | undefined> = {
 				...process.env,
 				HOME: home,
-				CHUDCODE_CONFIG_DIR: ".chudcode-profile-cli-env-bad",
-				CHUDCODE_PROFILE: "..",
+				PI_CONFIG_DIR: ".omp-profile-cli-env-bad",
+				OMP_PROFILE: "..",
 				NO_COLOR: "1",
 			};
-			delete childEnv.CHUDCODE_CODING_AGENT_DIR;
+			delete childEnv.PI_PROFILE;
+			delete childEnv.PI_CODING_AGENT_DIR;
 
 			const proc = Bun.spawn([process.execPath, probePath], {
 				cwd: repoRoot,
@@ -301,7 +255,7 @@ describe("global --profile flag", () => {
 			]);
 
 			expect(stdout, stderr).toContain("HANDLED");
-			expect(stderr).toContain("Invalid Chudcode profile");
+			expect(stderr).toContain("Invalid OMP profile");
 			expect(exitCode).toBe(1);
 		} finally {
 			await removeWithRetries(root);

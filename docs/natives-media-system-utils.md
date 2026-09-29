@@ -1,24 +1,24 @@
 # Natives media + system utilities
 
-This document covers the media/system/conversion exports currently present in `@chudware/natives`: audio capture/playback and live WebRTC media, terminal SIXEL and snapcompact PNG encoding, HTML conversion, clipboard access, token counting, DeviceCheck, macOS appearance/power helpers, and work profiling.
+This document covers the media/system/conversion exports currently present in `@oh-my-pi/pi-natives`: audio capture/playback and live WebRTC media, terminal SIXEL and snapcompact PNG encoding, HTML conversion, clipboard access, token counting, DeviceCheck, macOS appearance/power helpers, and work profiling.
 
 ## Implementation files
 
-- `crates/chud-natives/src/audio.rs`
-- `crates/chud-natives/src/live.rs`
-- `crates/chud-natives/src/snapcompact.rs`
-- `crates/chud-natives/src/sixel.rs`
-- `crates/chud-natives/src/html.rs`
-- `crates/chud-natives/src/clipboard.rs`
-- `crates/chud-natives/src/tokens.rs`
-- `crates/chud-natives/src/devicecheck.rs`
-- `crates/chud-natives/src/appearance.rs`
-- `crates/chud-natives/src/power.rs`
-- `crates/chud-natives/src/prof.rs`
-- `crates/chud-natives/src/task.rs`
+- `crates/pi-natives/src/audio.rs`
+- `crates/pi-natives/src/live.rs`
+- `crates/pi-natives/src/snapcompact.rs`
+- `crates/pi-natives/src/sixel.rs`
+- `crates/pi-natives/src/html.rs`
+- `crates/pi-natives/src/clipboard.rs`
+- `crates/pi-natives/src/tokens.rs`
+- `crates/pi-natives/src/devicecheck.rs`
+- `crates/pi-natives/src/appearance.rs`
+- `crates/pi-natives/src/power.rs`
+- `crates/pi-natives/src/prof.rs`
+- `crates/pi-natives/src/task.rs`
 - `packages/natives/native/index.d.ts`
 
-There is no native `PhotonImage` class, `image.rs`, or ProjFS overlay helper module in the current `chud-natives` addon. General-purpose image decode/resize/encode is expected to live outside this surface; the image-specific exports here are terminal SIXEL encoding and snapcompact PNG frame rendering.
+There is no native `PhotonImage` class, `image.rs`, or ProjFS overlay helper module in the current `pi-natives` addon. General-purpose image decode/resize/encode is expected to live outside this surface; the image-specific exports here are terminal SIXEL encoding and snapcompact PNG frame rendering.
 
 ## JS API ↔ Rust export/module mapping
 
@@ -36,7 +36,7 @@ There is no native `PhotonImage` class, `image.rs`, or ProjFS overlay helper mod
 | `countTokens(input, encoding?)`          | `count_tokens`                 | `tokens.rs`      |
 | `detectMacOSAppearance()`                | `detect_macos_appearance`      | `appearance.rs`  |
 | `MacAppearanceObserver.start(cb)`        | `MacAppearanceObserver::start` | `appearance.rs`  |
-| `MacOSPowerAssertion.start(options?)`    | `MacOSPowerAssertion::start`   | `power.rs`       |
+| `PowerAssertion.start(options?)`         | `PowerAssertion::start`        | `power.rs`       |
 | `getWorkProfile(lastSeconds)`            | `get_work_profile`             | `prof.rs`        |
 | `deviceCheckGenerateToken()`             | `device_check_generate_token`  | `devicecheck.rs` |
 
@@ -95,11 +95,11 @@ There is no current `packages/natives` TS wrapper that emits OSC52, handles Term
 
 `deviceCheckGenerateToken()` resolves within the native helper's one-second wait with `{ supported, tokenBase64?, error?, latencyMs }`. It reports unsupported platforms/devices and generation failures in the result rather than requiring a token to be present.
 
-### macOS appearance and power helpers
+### macOS appearance and cross-platform power helpers
 
 - `detectMacOSAppearance()` returns `"dark"`, `"light"`, or `null` on non-macOS.
 - `MacAppearanceObserver.start(callback)` returns a handle with `stop()`; on macOS it uses distributed notifications plus a 2-second polling fallback, and on non-macOS it is a no-op observer.
-- `MacOSPowerAssertion.start(options?)` returns a handle with `stop()`; on macOS it acquires one or more IOKit assertions, and on other platforms it is a no-op handle.
+- `PowerAssertion.start(options?)` returns a handle with `stop()`; it uses IOKit on macOS, a login1 inhibitor on Linux, and thread-affine execution state on Windows. Unsupported platforms receive a no-op handle.
 - Power assertion options are `{ reason?, idle?, system?, user?, display? }`. If every boolean is unset or omitted, `idle` behavior is used by default.
 
 ### Work profiling (`prof`)

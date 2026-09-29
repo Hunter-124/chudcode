@@ -4,15 +4,11 @@
  * Prevents session changes when there are uncommitted git changes.
  * Useful to ensure work is committed before switching context.
  */
-import type { HookAPI, HookContext } from "@chudware/coding-agent";
+import type { HookAPI, HookContext } from "@oh-my-pi/pi-coding-agent/extensibility/hooks";
 
-async function checkDirtyRepo(
-	chud: HookAPI,
-	ctx: HookContext,
-	action: string,
-): Promise<{ cancel: boolean } | undefined> {
+async function checkDirtyRepo(pi: HookAPI, ctx: HookContext, action: string): Promise<{ cancel: boolean } | undefined> {
 	// Check for uncommitted changes
-	const { stdout, code } = await chud.exec("git", ["status", "--porcelain"]);
+	const { stdout, code } = await pi.exec("git", ["status", "--porcelain"]);
 
 	if (code !== 0) {
 		// Not a git repo, allow the action
@@ -43,13 +39,13 @@ async function checkDirtyRepo(
 	}
 }
 
-export default function (chud: HookAPI) {
-	chud.on("session_before_switch", async (event, ctx) => {
+export default function (pi: HookAPI) {
+	pi.on("session_before_switch", async (event, ctx) => {
 		const action = event.reason === "new" ? "new session" : "switch session";
-		return checkDirtyRepo(chud, ctx, action);
+		return checkDirtyRepo(pi, ctx, action);
 	});
 
-	chud.on("session_before_branch", async (_event, ctx) => {
-		return checkDirtyRepo(chud, ctx, "branch");
+	pi.on("session_before_branch", async (_event, ctx) => {
+		return checkDirtyRepo(pi, ctx, "branch");
 	});
 }

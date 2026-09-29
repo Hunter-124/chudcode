@@ -1,21 +1,9 @@
-export * from "@chudware/catalog/effort";
-export * from "@chudware/catalog/types";
+export * from "@oh-my-pi/pi-catalog/effort";
+export * from "@oh-my-pi/pi-catalog/types";
 
+import type { Type } from "@oh-my-pi/omptype";
+import type { AnthropicSlowModeHooks } from "./providers/anthropic-slow-mode";
 import type {
-	ChudBashExecArgs,
-	ChudBashExecResult,
-	ChudEditExecArgs,
-	ChudEditExecResult,
-	ChudFindExecArgs,
-	ChudFindExecResult,
-	ChudGrepExecArgs,
-	ChudGrepExecResult,
-	ChudLsExecArgs,
-	ChudLsExecResult,
-	ChudReadExecArgs,
-	ChudReadExecResult,
-	ChudWriteExecArgs,
-	ChudWriteExecResult,
 	DeleteArgs,
 	DeleteResult,
 	DiagnosticsArgs,
@@ -25,23 +13,36 @@ import type {
 	LsArgs,
 	LsResult,
 	McpResult,
+	PiBashExecArgs,
+	PiBashExecResult,
+	PiEditExecArgs,
+	PiEditExecResult,
+	PiFindExecArgs,
+	PiFindExecResult,
+	PiGrepExecArgs,
+	PiGrepExecResult,
+	PiLsExecArgs,
+	PiLsExecResult,
+	PiReadExecArgs,
+	PiReadExecResult,
+	PiWriteExecArgs,
+	PiWriteExecResult,
 	ReadArgs,
 	ReadResult,
 	ShellArgs,
 	ShellResult,
 	WriteArgs,
 	WriteResult,
-} from "@chudware/catalog/discovery/cursor-proto";
-import type { Effort } from "@chudware/catalog/effort";
-import { isOpenAIModelId } from "@chudware/catalog/identity/family";
-import type { Api, FetchImpl, KnownApi, Model, Provider, ThinkingBudgets, Usage } from "@chudware/catalog/types";
-import type { Type } from "@chudware/chudtype";
+} from "@oh-my-pi/pi-catalog/discovery/cursor-proto";
+import type { Effort } from "@oh-my-pi/pi-catalog/effort";
+import type { Api, FetchImpl, KnownApi, Model, Provider, ThinkingBudgets, Usage } from "@oh-my-pi/pi-catalog/types";
 import type { ApiKey } from "./auth-retry";
 import type { BedrockOptions } from "./providers/amazon-bedrock";
 import type { AnthropicOptions } from "./providers/anthropic";
 import type { FallbackParam, StopDetails } from "./providers/anthropic-wire";
 import type { AzureOpenAIResponsesOptions } from "./providers/azure-openai-responses";
 import type { CursorOptions } from "./providers/cursor";
+import type { AppleFoundationModelsOptions } from "./providers/apple-foundation-models";
 import type { DevinOptions } from "./providers/devin";
 import type { GitLabDuoWorkflowOptions } from "./providers/gitlab-duo-workflow";
 import type { GoogleOptions } from "./providers/google";
@@ -54,14 +55,12 @@ import type { OpenAIResponsesOptions } from "./providers/openai-responses";
 import type { kStreamingPartialJson } from "./utils/block-symbols";
 import type { AssistantMessageEventStream } from "./utils/event-stream";
 
-export { isContentRefusal } from "./error/flags";
 export type { StopDetails } from "./providers/anthropic-wire";
 export type { AssistantMessageEventStream } from "./utils/event-stream";
 
 /**
- * Ceiling on the output-token count chudcode requests from any OpenAI-family endpoint
- * (openai-responses, azure/xai responses, and openai-completions). Mirrors
- * Anthropic's {@link CLAUDE_CODE_MAX_OUTPUT_TOKENS}.
+ * Ceiling on the output-token count omp requests from any OpenAI-family endpoint
+ * (openai-responses, azure/xai responses, and openai-completions).
  *
  * Catalog `maxTokens` frequently reflects a model's context window rather than a
  * given upstream's real per-request output cap. OpenRouter, for instance,
@@ -86,6 +85,7 @@ export interface ApiOptionsMap {
 	"cursor-agent": CursorOptions;
 	"gitlab-duo-agent": GitLabDuoWorkflowOptions;
 	"devin-agent": DevinOptions;
+	"apple-foundation-models": AppleFoundationModelsOptions;
 }
 // Compile-time exhaustiveness check - this will fail if ApiOptionsMap doesn't have all KnownApi keys
 type _CheckExhaustive =
@@ -127,7 +127,9 @@ export type CacheRetention = "none" | "short" | "long";
  * values providers consume on the wire:
  *
  * - OpenAI / OpenAI-Codex: sent verbatim as the `service_tier` field
- *   (`flex`/`scale`/`priority`).
+ *   (`flex`/`scale`/`priority`/`ultrafast`). `ultrafast` is a separate
+ *   low-latency serving path: sent to the OpenAI API as-is (preview access is
+ *   per project), and to Codex only for models whose discovery advertises it.
  * - Google (Gemini API + Vertex AI): sent as the top-level `serviceTier`
  *   field (`flex`/`priority`).
  * - OpenRouter: passed through as `service_tier`; OpenRouter realizes it for
@@ -139,7 +141,7 @@ export type CacheRetention = "none" | "short" | "long";
  * Per-family scoping is expressed by {@link ServiceTierByFamily}, not by
  * scoped sentinel values — see {@link serviceTierFamily}.
  */
-export type ServiceTier = "auto" | "default" | "flex" | "scale" | "priority";
+export type ServiceTier = "auto" | "default" | "flex" | "scale" | "priority" | "ultrafast";
 
 /** Provider families that expose an independent service-tier knob. */
 export type ServiceTierFamily = "openai" | "anthropic" | "google";
@@ -152,7 +154,15 @@ export type ServiceTierFamily = "openai" | "anthropic" | "google";
  */
 export type ServiceTierByFamily = Partial<Record<ServiceTierFamily, ServiceTier>>;
 
-type ServiceTierModel = Pick<Model, "provider" | "api" | "id">;
+type ServiceTierModel = Pick<Model, "provider" | "api" | "identity"> & Partial<Pick<Model, "serviceTiers">>;
+// The service-tier matrix below intentionally stays in TypeScript rather than
+// the KDL compat tree: `shouldSendServiceTier` accepts bare provider strings
+// (agent telemetry, google-shared header placement) and the stats parser
+// rebuilds slim `{ provider, api, identity }` models from historical session
+// JSONL — neither path holds a resolved compat record, so a KDL axis would
+// merely duplicate this table as its own fallback. The functions branch on
+// structured `classifyModel` facts, api, and a short provider list, which is
+// the sanctioned mechanism layer.
 
 function isOpenAIServiceTierApi(api: Api | undefined): boolean {
 	return api === "openai-completions" || api === "openai-responses" || api === "openai-codex-responses";
@@ -168,7 +178,7 @@ function isOpenAIServiceTierModel(model: ServiceTierModel): boolean {
 	return (
 		!excludesInferredOpenAIServiceTier(model.provider) &&
 		isOpenAIServiceTierApi(model.api) &&
-		isOpenAIModelId(model.id)
+		model.identity.class === "openai"
 	);
 }
 
@@ -186,10 +196,9 @@ function isOpenAIServiceTierModel(model: ServiceTierModel): boolean {
 export function serviceTierFamily(model: ServiceTierModel): ServiceTierFamily | undefined {
 	const provider = model.provider;
 	if (provider === "openrouter") {
-		const id = model.id.toLowerCase();
-		if (id.startsWith("anthropic/")) return "anthropic";
-		if (id.startsWith("google/")) return "google";
-		if (id.startsWith("openai/")) return "openai";
+		if (model.identity.class === "anthropic") return "anthropic";
+		if (model.identity.class === "gemini") return "google";
+		if (model.identity.class === "openai") return "openai";
 		return undefined;
 	}
 	if (provider === "openai" || provider === "openai-codex") return "openai";
@@ -205,7 +214,7 @@ export function serviceTierFamily(model: ServiceTierModel): ServiceTierFamily | 
  */
 export function resolveModelServiceTier(
 	tiers: ServiceTierByFamily | null | undefined,
-	model: Pick<Model, "provider" | "api" | "id">,
+	model: ServiceTierModel,
 ): ServiceTier | undefined {
 	if (!tiers) return undefined;
 	const family = serviceTierFamily(model);
@@ -221,6 +230,15 @@ export function resolveModelServiceTier(
  * Vertex) and OpenRouter accept `flex`/`priority`; Fireworks Serverless
  * realizes only its Priority serving path. Anthropic is absent because it
  * realizes `priority` via `speed: "fast"`.
+ *
+ * Codex-backend models (`openai-codex-responses`): `ultrafast` is sent only
+ * when the model's discovered `service_tiers` lists it. `priority`/`scale`
+ * are dropped only when that list is non-empty and omits them (codex-rs
+ * `service_tier_for_request`); an empty or missing list counts as "not
+ * reported" — accounts whose `/models` lists no tiers keep `/fast` — so the
+ * provider-level answer stands. `flex` and `default` are never gated.
+ * First-party OpenAI takes `ultrafast` as-is. A bare provider string cannot
+ * carry the list, so it answers for the provider alone.
  */
 export function shouldSendServiceTier(
 	serviceTier: ServiceTier | null | undefined,
@@ -228,6 +246,19 @@ export function shouldSendServiceTier(
 ): boolean {
 	if (!serviceTier || serviceTier === "auto") return false;
 	const provider = typeof target === "string" ? target : target?.provider;
+	if (
+		typeof target !== "string" &&
+		target?.api === "openai-codex-responses" &&
+		serviceTier !== "flex" &&
+		serviceTier !== "default"
+	) {
+		const advertised = target.serviceTiers;
+		if (serviceTier === "ultrafast") return advertised?.includes(serviceTier) === true;
+		if (advertised !== undefined && advertised.length > 0) return advertised.includes(serviceTier);
+	}
+	if (serviceTier === "ultrafast") {
+		return provider === "openai" || (typeof target === "string" && provider === "openai-codex");
+	}
 	if (provider === "openai" || provider === "openai-codex") return true;
 	if (provider === "openrouter") {
 		return serviceTier === "flex" || serviceTier === "scale" || serviceTier === "priority";
@@ -252,7 +283,7 @@ export function shouldSendServiceTier(
  */
 export function realizesPriorityServiceTier(
 	serviceTier: ServiceTier | null | undefined,
-	model: Pick<Model, "provider" | "api" | "id">,
+	model: ServiceTierModel,
 ): boolean {
 	if (serviceTier !== "priority") return false;
 	if (model.provider === "anthropic") return true;
@@ -278,7 +309,7 @@ export function realizesPriorityServiceTier(
  */
 export function getPriorityPremiumRequests(
 	serviceTier: ServiceTier | null | undefined,
-	model: Pick<Model, "provider" | "api" | "id">,
+	model: ServiceTierModel,
 ): number {
 	if (!realizesPriorityServiceTier(serviceTier, model)) return 0;
 	const provider = model.provider;
@@ -304,7 +335,14 @@ export function coerceServiceTierByFamily(value: unknown): ServiceTierByFamily |
 		const out: ServiceTierByFamily = {};
 		for (const family of ["openai", "anthropic", "google"] as const) {
 			const tier = src[family];
-			if (tier === "auto" || tier === "default" || tier === "flex" || tier === "scale" || tier === "priority") {
+			if (
+				tier === "auto" ||
+				tier === "default" ||
+				tier === "flex" ||
+				tier === "scale" ||
+				tier === "priority" ||
+				tier === "ultrafast"
+			) {
 				out[family] = tier;
 			}
 		}
@@ -352,7 +390,7 @@ export interface CodexCompactionContext {
 	/** Stable only for one logical compaction, including parallel summary calls. */
 	operationId: string;
 	trigger: "manual" | "auto";
-	reason: "user_requested" | "context_limit" | "model_downshift" | "cchud_hash_changed";
+	reason: "user_requested" | "context_limit" | "model_downshift" | "comp_hash_changed";
 	phase: "standalone_turn" | "pre_turn" | "mid_turn";
 	strategy: "memento" | "prefix_compaction";
 }
@@ -360,7 +398,7 @@ export interface CodexCompactionContext {
 /** Canonical nested metadata serialized into the Codex turn envelope. */
 export interface CodexCompactionMetadata {
 	trigger: "manual" | "auto";
-	reason: "user_requested" | "context_limit" | "model_downshift" | "cchud_hash_changed";
+	reason: "user_requested" | "context_limit" | "model_downshift" | "comp_hash_changed";
 	implementation: "responses" | "responses_compaction_v2" | "responses_compact";
 	phase: "standalone_turn" | "pre_turn" | "mid_turn";
 	strategy: "memento" | "prefix_compaction";
@@ -369,6 +407,12 @@ export interface CodexCompactionMetadata {
 /** Dispatch context combining canonical metadata with its local operation identity. */
 export interface CodexCompactionRequestContext extends CodexCompactionMetadata {
 	operationId: string;
+}
+
+/** On-demand compaction request (`compact-2026-09-04` beta). */
+export interface AnthropicCompactionRequest {
+	/** Custom summarization prompt; replaces the API default entirely when set. */
+	instructions?: string;
 }
 
 /** OpenAI's GPT-5.6+ explicit prompt-cache controls. */
@@ -412,17 +456,23 @@ export interface StreamOptions {
 	maxTokens?: number;
 	signal?: AbortSignal;
 	apiKey?: string;
+	/** @internal Stored credential row serving this request, when known. */
+	credentialId?: number;
 	cacheRetention?: CacheRetention;
 	/**
-	 * Keep Anthropic's 5-minute prompt cache warm across bounded idle gaps.
-	 *
-	 * This is an ownership flag, not a general provider default: exactly one
-	 * primary agent loop sharing `providerSessionState` should enable it.
-	 * Side-channel and advisor requests must leave it unset.
+	 * Anthropic preserved-thinking behavior when a signed block no longer matches
+	 * its conversation prefix. Binding-capable models default to `"drop_block"`.
 	 */
-	anthropicCacheRefresh?: boolean;
-	/** @internal Marks a replay-only Anthropic request that must use non-streaming `max_tokens: 0`. */
-	anthropicCacheRefreshRequest?: boolean;
+	anthropicPrefixMismatchBehavior?: "drop_block" | "error";
+	/**
+	 * Anthropic on-demand compaction (`compact-2026-09-04` beta). Sends a
+	 * top-level `compaction: { type: "summarize", instructions? }` request; the
+	 * signed summary arrives as an {@link AnthropicCompactionPayload}.
+	 * Ignored by providers and endpoints without on-demand compaction support.
+	 */
+	anthropicCompaction?: AnthropicCompactionRequest;
+	/** Attribute Anthropic Messages requests to this user profile (`anthropic-user-profile-id`). */
+	userProfileId?: string;
 	/**
 	 * Additional headers to include in provider requests.
 	 * These are merged on top of model-defined headers.
@@ -500,6 +550,13 @@ export interface StreamOptions {
 	 * Providers can use this to persist transport/session state between turns.
 	 */
 	providerSessionState?: Map<string, ProviderSessionState>;
+	/**
+	 * Source of user steering a provider may deliver into the response it is
+	 * streaming (OpenAI Responses `response.steer` over the Codex WebSocket).
+	 * Providers without mid-response input ignore it; unclaimed steering stays
+	 * with the caller for its next request.
+	 */
+	liveSteering?: LiveSteering;
 	/** Canonical Codex compaction classification; ignored by other providers. */
 	codexCompaction?: CodexCompactionRequestContext;
 	/** Codex Code Mode tool exposure snapshot emitted as `tool_namespaces_info` turn metadata; ignored by other providers. */
@@ -507,7 +564,7 @@ export interface StreamOptions {
 	/**
 	 * Optional per-provider concurrent request cap for LLM stream calls. Keys are
 	 * provider ids (`model.provider`); positive numeric values cap in-flight
-	 * requests across local Chudcode processes that share the same config root. Omitted
+	 * requests across local OMP processes that share the same config root. Omitted
 	 * providers are unlimited. Non-chat provider APIs that bypass stream helpers
 	 * are not covered.
 	 */
@@ -516,11 +573,15 @@ export interface StreamOptions {
 	 * Optional callback for inspecting or replacing provider payloads before sending.
 	 * Return undefined to keep the payload unchanged.
 	 */
-	onPayload?: (payload: unknown, model?: Model<Api>) => unknown | undefined | Promise<unknown | undefined>;
+	onPayload?: (
+		payload: unknown,
+		model?: Model<Api>,
+		signal?: AbortSignal,
+	) => unknown | undefined | Promise<unknown | undefined>;
 	/**
 	 * Optional callback for provider response metadata after headers are received.
 	 */
-	onResponse?: (response: ProviderResponseMetadata, model?: Model<Api>) => void | Promise<void>;
+	onResponse?: (response: ProviderResponseMetadata, model?: Model<Api>, signal?: AbortSignal) => void | Promise<void>;
 	/**
 	 * Optional callback for raw Server-Sent Events as they arrive from HTTP streaming providers,
 	 * plus synthesized SSE-shaped frames for the Codex WebSocket transport (one synthetic frame
@@ -538,11 +599,11 @@ export interface StreamOptions {
 	 * in the iterator while waiting for the first semantic stream event. Set to
 	 * `0` to disable both layers for this request. After the first semantic
 	 * event arrives, `streamIdleTimeoutMs` governs inter-event stalls. Falls
-	 * back to `CHUDCODE_STREAM_FIRST_EVENT_TIMEOUT_MS` and then to a 100s default.
+	 * back to `PI_STREAM_FIRST_EVENT_TIMEOUT_MS` and then to a 100s default.
 	 * OpenAI-family transports additionally honor
-	 * `CHUDCODE_OPENAI_STREAM_FIRST_EVENT_TIMEOUT_MS` as the most-specific override and
+	 * `PI_OPENAI_STREAM_FIRST_EVENT_TIMEOUT_MS` as the most-specific override and
 	 * floor the first-event budget at the resolved idle (per-call
-	 * `streamIdleTimeoutMs` or `CHUDCODE_OPENAI_STREAM_IDLE_TIMEOUT_MS`) so slow local
+	 * `streamIdleTimeoutMs` or `PI_OPENAI_STREAM_IDLE_TIMEOUT_MS`) so slow local
 	 * OpenAI-compatible servers are not undercut during prompt processing.
 	 *
 	 * Iterator-level honored by: every built-in provider (via the lazy-stream
@@ -556,7 +617,7 @@ export interface StreamOptions {
 	 * milliseconds. Once the first event arrives, this guards against silent
 	 * mid-stream stalls (broker dies, half-open socket, model produces no real
 	 * progress for too long). Set to `0` to disable. Falls back to
-	 * `CHUDCODE_STREAM_IDLE_TIMEOUT_MS` (alias: `CHUDCODE_OPENAI_STREAM_IDLE_TIMEOUT_MS`)
+	 * `PI_STREAM_IDLE_TIMEOUT_MS` (alias: `PI_OPENAI_STREAM_IDLE_TIMEOUT_MS`)
 	 * and then to a 120s default.
 	 */
 	streamIdleTimeoutMs?: number;
@@ -591,6 +652,42 @@ export interface StreamOptions {
 
 	/** Cursor exec/MCP tool handlers (cursor-agent only). */
 	execHandlers?: CursorExecHandlers;
+	/**
+	 * Anthropic fallback credit redemption handle from a prior classifier refusal.
+	 * When present, the Anthropic provider replays the frozen request body and betas with
+	 * the new model and `fallback_credit_token` to redeem prompt cache credit.
+	 */
+	fallbackCreditRedemption?: AnthropicFallbackCreditHandle;
+	/**
+	 * Anthropic subscription usage-limit state machine (wrap-up allowance and
+	 * Claude Code's `/low-priority`). Consulted only for first-party OAuth
+	 * `anthropic` requests: stamps `anthropic-usage-limit: slow` while active,
+	 * observes limit headers, and decides capacity waits.
+	 */
+	anthropicSlowMode?: AnthropicSlowModeHooks;
+}
+
+/**
+ * Caller-owned queue of user steering that a provider pulls from while a
+ * response streams. See {@link StreamOptions.liveSteering}.
+ */
+export interface LiveSteering {
+	/** Resolves once steering may be claimable, or when `signal` aborts. Never consumes input. */
+	wait(signal: AbortSignal): Promise<void>;
+	/** Takes the queued steering as provider messages; `undefined` when none is deliverable now. */
+	claim(signal: AbortSignal): Promise<LiveSteerClaim | undefined>;
+}
+
+/**
+ * Steering taken from a {@link LiveSteering} source. The provider settles it
+ * exactly once; later calls are ignored.
+ */
+export interface LiveSteerClaim {
+	readonly messages: readonly UserMessage[];
+	/** The server owns the input: the caller records it right after the current response. */
+	accept(): void;
+	/** Not delivered: the caller sends the input with its next request. */
+	reject(): void;
 }
 
 // Unified options with reasoning passed to streamSimple() and completeSimple()
@@ -636,6 +733,8 @@ export interface SimpleStreamOptions extends Omit<StreamOptions, "apiKey"> {
 	 * A rejecting transformer is swallowed and the reserved payload stands in.
 	 */
 	cursorOnToolResult?: CursorToolResultHandler;
+	/** Cursor hands unhandled MCP calls to an external executor instead of reporting them as missing. */
+	cursorExternalToolExecutor?: boolean;
 	/**
 	 * Amazon Bedrock Guardrail settings forwarded through transports that do not
 	 * dispatch directly to the Bedrock provider. Model-level values take
@@ -644,6 +743,13 @@ export interface SimpleStreamOptions extends Omit<StreamOptions, "apiKey"> {
 	guardrailIdentifier?: string;
 	guardrailVersion?: string;
 	guardrailTrace?: "enabled" | "disabled" | "enabled_full";
+	/**
+	 * Bedrock invocation-log tags forwarded through transports that do not dispatch
+	 * directly to the Bedrock provider. Unlike the guardrail fields above, these
+	 * MERGE per key with the model's own `requestMetadata` (these win) rather than
+	 * replacing it wholesale — they are independent attribution tags, not one value.
+	 */
+	requestMetadata?: Record<string, string>;
 	/** Optional tool choice override for compatible providers */
 	toolChoice?: ToolChoice;
 	/** OpenAI service tier for processing priority/cost control. Ignored by non-OpenAI providers. */
@@ -859,7 +965,85 @@ export interface OpenAIResponsesHistoryPayload {
 	items: Array<Record<string, unknown>>;
 }
 
-export type ProviderPayload = OpenAIResponsesHistoryPayload;
+/** Anthropic `output_config.effort` level. */
+export type AnthropicOutputEffort = "low" | "medium" | "high" | "xhigh" | "max";
+
+/** One `tool_addition`/`tool_removal` block of an Anthropic mid-conversation system message. */
+export interface AnthropicToolChange {
+	type: "tool_addition" | "tool_removal";
+	name: string;
+}
+
+/** Anthropic-only controls attached to a mid-conversation system message. */
+export interface AnthropicMessagePayload {
+	type: "anthropicMessage";
+	clearAt?: "never" | "next_user_message";
+	effort?: AnthropicOutputEffort;
+	toolChanges?: AnthropicToolChange[];
+}
+
+/**
+ * Controls an Anthropic request declared, recorded on its response so later
+ * requests over the same transcript replay a byte-identical prefix.
+ * Written by the Anthropic provider; read by it and by the Agent's inactive-tool lookup.
+ */
+export interface AnthropicRequestControls {
+	/**
+	 * `context.messages.length` of the request that produced this response, i.e. the
+	 * response's own index. A record found at another index belongs to a history that was
+	 * rewritten before it (compaction, dropped messages) and is not replayed as controls.
+	 */
+	messageIndex: number;
+	/** Present when the request kept a stable tool declaration (`supportsMidConversationToolChanges`). Source tool names, not wire names. */
+	tools?: {
+		/** Top-level `tools` in wire order. */
+		declared: string[];
+		/** Subset of `declared` sent with `defer_loading: true`. */
+		deferred: string[];
+		/** Tools active at the end of the request, in `context.tools` order. */
+		active: string[];
+	};
+	/** Present when the request kept a stable effort (`supportsPerMessageEffort`); `null` = API default. */
+	effort?: { topLevel: AnthropicOutputEffort | null; tail: AnthropicOutputEffort | null };
+}
+
+/**
+ * Anthropic on-demand compaction summary (`compact-2026-09-04` beta).
+ *
+ * Produced by the Anthropic provider on the assistant message of a request
+ * that streamed a `compaction` content block, and attached to the user-role
+ * compaction summary message that replaces the compacted history so the
+ * provider can replay the block verbatim: the API drops every block that
+ * precedes it. `content` is the plain-text summary, so every other provider
+ * reads the message text and ignores the payload.
+ */
+export interface AnthropicCompactionPayload {
+	type: "anthropicCompaction";
+	/** Provider that produced the summary; only that provider replays it natively. */
+	provider: string;
+	content: string;
+	/** Signature of an on-demand block; replayed verbatim. */
+	signature?: string;
+	/** Legacy threshold block state (`compact-2026-01-12`); replay-only. */
+	encryptedContent?: string;
+	/**
+	 * Harness-appended file metadata (`<files>` section) kept out of the
+	 * byte-identical block. Replayed as a user message after the native block:
+	 * the converter replaces the summary message with the block and skips its
+	 * text, so without this the metadata would be invisible to this provider.
+	 */
+	filesText?: string;
+}
+
+export type ProviderPayload = OpenAIResponsesHistoryPayload | AnthropicMessagePayload | AnthropicCompactionPayload;
+
+/** Provider-reported rewrite applied to request content before inference. */
+export interface ProviderInputTransformation {
+	type: string;
+	path?: string;
+	reason?: string;
+	[key: string]: unknown;
+}
 
 export interface UserMessage {
 	role: "user";
@@ -868,6 +1052,10 @@ export interface UserMessage {
 	synthetic?: boolean;
 	/** True when injected mid-turn as a steer; consumed by the agent's pre-LLM transform to wrap it for emphasis. Never rendered. */
 	steering?: boolean;
+	/** True when the provider delivered this steer into the response it was streaming (`response.steer`). Display-only; never sent. */
+	liveSteered?: boolean;
+	/** Timestamp of a client-side history rewrite represented by this message. */
+	historyRewriteAt?: number;
 	/** Who initiated this message for billing/attribution semantics. */
 	attribution?: MessageAttribution;
 	/** Provider-specific opaque payload used to reconstruct transport-native history. */
@@ -945,6 +1133,8 @@ export interface AssistantMessage {
 	api: Api;
 	provider: Provider;
 	model: string;
+	/** Stored credential row that produced this turn; absent for external or unknown keys. */
+	credentialId?: number;
 	contextSnapshot?: ContextSnapshot;
 	retryRecovery?: AssistantRetryRecovery;
 	responseId?: string; // Provider-specific response/message identifier when the upstream API exposes one
@@ -956,12 +1146,22 @@ export interface AssistantMessage {
 	 * providers that expose no such field.
 	 */
 	upstreamProvider?: string;
+	/**
+	 * Concrete model that produced this turn when it is knowable independently
+	 * of the requested id: reported by a router that selected one, or recovered
+	 * from a signed thinking block (Anthropic signatures name the serving
+	 * model). Compared against `model` to notice a gateway serving something
+	 * other than what was requested.
+	 */
+	upstreamModel?: string;
 	usage: Usage;
 	stopReason: StopReason;
 	stopDetails?: StopDetails | null;
 	errorMessage?: string;
 	/** Stable recovery-classification text when errorMessage includes display-only diagnostics. */
 	errorClassificationMessage?: string;
+	/** True only when an exact request-body-read timeout failed on a full Responses replay, not a previous-response delta. */
+	requestBodyReadTimeoutFullReplay?: boolean;
 	/** Per-tool abort messages used when an aborted assistant turn needs different placeholder results per tool call. */
 	toolCallAbortMessages?: Record<string, string>;
 	/** HTTP status surfaced by the provider when the request failed. Populated by every provider's catch block alongside `errorMessage` so consumers (auth retry, telemetry, UI) can branch without regex-scraping the message. */
@@ -976,8 +1176,17 @@ export interface AssistantMessage {
 	 * server's actual state.
 	 */
 	disabledFeatures?: string[];
+	/** Provider-reported input rewrites such as dropped bound-thinking blocks. */
+	inputTransformations?: ProviderInputTransformation[];
+	/**
+	 * Controls an Anthropic request declared, recorded on its response so later
+	 * requests over the same transcript replay a byte-identical prefix.
+	 */
+	requestControls?: AnthropicRequestControls;
 	/** Provider-specific opaque payload used to reconstruct transport-native history. */
 	providerPayload?: ProviderPayload;
+	/** In-memory fallback credit handle attached when a refusal response carries a fallback credit token. */
+	fallbackCreditHandle?: AnthropicFallbackCreditHandle;
 	timestamp: number; // Unix timestamp in milliseconds
 	duration?: number; // Request duration in milliseconds
 	ttft?: number; // Time to first token in milliseconds
@@ -1092,6 +1301,7 @@ export type CursorTodoSyncHandler = (
 	snapshot: CursorTodoSnapshot | null,
 	toolCallId: string,
 	error: string | null,
+	origin?: "read" | "update",
 ) => ToolResultMessage;
 
 export interface CursorShellStreamCallbacks {
@@ -1100,9 +1310,9 @@ export interface CursorShellStreamCallbacks {
 }
 
 /**
- * A modern Chud exec frame plus the call id the dispatcher minted for it.
+ * A modern Pi exec frame plus the call id the dispatcher minted for it.
  *
- * Unlike the legacy exec args (`ReadArgs`, `ShellArgs`, ...), the Chud frames
+ * Unlike the legacy exec args (`ReadArgs`, `ShellArgs`, ...), the Pi frames
  * carry no `tool_call_id` field: on modern builds the id rides the streamed
  * `ToolCall` envelope (`ToolCall.tool_call_id = 57`) instead of each variant's
  * args. The exec channel has no access to that envelope, so the dispatcher
@@ -1175,17 +1385,17 @@ export interface CursorExecHandlers {
 	 */
 	mcpApprovalPreflight?: (call: CursorMcpCall) => Promise<boolean>;
 	/**
-	 * Modern Cursor CLI Chud tool frames (`ExecServerMessage` 45-51). They are a
+	 * Modern Cursor CLI Pi tool frames (`ExecServerMessage` 45-51). They are a
 	 * distinct frame family from the legacy `readArgs`/`shellArgs`/... set, not
 	 * an alias: different args, different result oneofs, and no `tool_call_id`.
 	 */
-	piRead?: (call: CursorPiCall<ChudReadExecArgs>) => Promise<CursorExecHandlerResult<ChudReadExecResult>>;
-	piBash?: (call: CursorPiCall<ChudBashExecArgs>) => Promise<CursorExecHandlerResult<ChudBashExecResult>>;
-	piEdit?: (call: CursorPiCall<ChudEditExecArgs>) => Promise<CursorExecHandlerResult<ChudEditExecResult>>;
-	piWrite?: (call: CursorPiCall<ChudWriteExecArgs>) => Promise<CursorExecHandlerResult<ChudWriteExecResult>>;
-	piGrep?: (call: CursorPiCall<ChudGrepExecArgs>) => Promise<CursorExecHandlerResult<ChudGrepExecResult>>;
-	piFind?: (call: CursorPiCall<ChudFindExecArgs>) => Promise<CursorExecHandlerResult<ChudFindExecResult>>;
-	piLs?: (call: CursorPiCall<ChudLsExecArgs>) => Promise<CursorExecHandlerResult<ChudLsExecResult>>;
+	piRead?: (call: CursorPiCall<PiReadExecArgs>) => Promise<CursorExecHandlerResult<PiReadExecResult>>;
+	piBash?: (call: CursorPiCall<PiBashExecArgs>) => Promise<CursorExecHandlerResult<PiBashExecResult>>;
+	piEdit?: (call: CursorPiCall<PiEditExecArgs>) => Promise<CursorExecHandlerResult<PiEditExecResult>>;
+	piWrite?: (call: CursorPiCall<PiWriteExecArgs>) => Promise<CursorExecHandlerResult<PiWriteExecResult>>;
+	piGrep?: (call: CursorPiCall<PiGrepExecArgs>) => Promise<CursorExecHandlerResult<PiGrepExecResult>>;
+	piFind?: (call: CursorPiCall<PiFindExecArgs>) => Promise<CursorExecHandlerResult<PiFindExecResult>>;
+	piLs?: (call: CursorPiCall<PiLsExecArgs>) => Promise<CursorExecHandlerResult<PiLsExecResult>>;
 	/**
 	 * The resources the host's MCP servers advertise, optionally filtered to one
 	 * server. Without a handler the provider answers an empty catalog, which
@@ -1251,6 +1461,8 @@ export interface Tool<TParameters extends TSchema = TSchema> {
 	parameters: TParameters;
 	/** If true, tool is strictly typed and validated against the parameters schema before execution */
 	strict?: boolean;
+	/** Withhold this Anthropic tool until a `tool_addition` message references it. */
+	deferLoading?: boolean;
 	/**
 	 * Optional grammar constraint for OpenAI custom-tool emission.
 	 * When set, providers that support grammar-constrained tools (currently only
@@ -1285,6 +1497,8 @@ export interface Context {
 	systemPrompt?: string[];
 	messages: Message[];
 	tools?: Tool[];
+	/** Definitions of tools the transcript's latest Anthropic request declared but that are no longer in `tools`; only the Anthropic provider reads it. */
+	inactiveTools?: Tool[];
 }
 
 export type AssistantMessageEvent =
@@ -1311,3 +1525,14 @@ export type AssistantMessageEvent =
 			reason: Extract<StopReason, "aborted" | "error">;
 			error: AssistantMessage;
 	  };
+
+export interface AnthropicFallbackCreditHandle {
+	token: string;
+	prefillClaim?: boolean | null;
+	params: unknown;
+	betas?: readonly string[];
+	betaHeader?: string;
+	expiresAt: number;
+	/** The refused response's content, in `AssistantMessage` block form. */
+	refusedContent?: AssistantMessage["content"];
+}

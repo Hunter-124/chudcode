@@ -1,13 +1,16 @@
 import { describe, expect, it } from "bun:test";
-import { convertAnthropicMessages } from "@chudware/ai/providers/anthropic";
-import { convertMessages as convertGoogleMessages } from "@chudware/ai/providers/google-shared";
-import { convertCodexResponsesMessages } from "@chudware/ai/providers/openai-codex-responses";
-import { convertMessages as convertOpenAICompletionsMessages } from "@chudware/ai/providers/openai-completions";
-import { appendResponsesToolResultMessages, convertResponsesInputContent } from "@chudware/ai/providers/openai-shared";
-import { NON_VISION_IMAGE_PLACEHOLDER } from "@chudware/ai/providers/vision-guard";
-import type { Api, AssistantMessage, Context, Model, ModelSpec, ToolResultMessage, Usage } from "@chudware/ai/types";
-import { buildModel } from "@chudware/catalog/build";
-import type { ResolvedOpenAICompat } from "@chudware/catalog/types";
+import { convertAnthropicMessages } from "@oh-my-pi/pi-ai/providers/anthropic";
+import { convertMessages as convertGoogleMessages } from "@oh-my-pi/pi-ai/providers/google-shared";
+import { convertCodexResponsesMessages } from "@oh-my-pi/pi-ai/providers/openai-codex-responses";
+import { convertMessages as convertOpenAICompletionsMessages } from "@oh-my-pi/pi-ai/providers/openai-completions";
+import {
+	appendResponsesToolResultMessages,
+	convertResponsesInputContent,
+} from "@oh-my-pi/pi-ai/providers/openai-shared";
+import { NON_VISION_IMAGE_PLACEHOLDER } from "@oh-my-pi/pi-ai/providers/vision-guard";
+import type { Api, AssistantMessage, Context, Model, ModelSpec, ToolResultMessage, Usage } from "@oh-my-pi/pi-ai/types";
+import { buildModel } from "@oh-my-pi/pi-catalog/build";
+import type { ResolvedOpenAICompat } from "@oh-my-pi/pi-catalog/types";
 
 const emptyUsage: Usage = {
 	input: 0,
@@ -65,6 +68,13 @@ const compat: ResolvedOpenAICompat = {
 	emptyLengthFinishIsContextError: false,
 	usesOpenAIToolCallIdLimit: false,
 	dropThinkingWhenReasoningEffort: false,
+	nativeKimiK3Reasoning: false,
+	zaiReasoningEffortDialect: false,
+	clampOutputToModelMax: false,
+	stripImageInput: false,
+	rejectRootObjectUnion: false,
+	retryWithoutStrictOnGrammarError: false,
+	supportsPromptCacheKey: false,
 };
 
 function makeModel<TApi extends Api>(api: TApi, provider: Model["provider"]): Model<TApi> {

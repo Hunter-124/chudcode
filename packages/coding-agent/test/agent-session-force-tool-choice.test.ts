@@ -1,16 +1,16 @@
 import { afterEach, beforeEach, expect, it, vi } from "bun:test";
 import * as path from "node:path";
-import { Agent, type AgentTool } from "@chudware/agent-core";
-import { createMockModel, type MockModel } from "@chudware/ai/providers/mock";
-import { getBundledModel } from "@chudware/catalog/models";
-import { type } from "@chudware/chudtype";
-import { ModelRegistry } from "@chudware/coding-agent/config/model-registry";
-import { Settings } from "@chudware/coding-agent/config/settings";
-import { AgentSession } from "@chudware/coding-agent/session/agent-session";
-import type { AuthStorage } from "@chudware/coding-agent/session/auth-storage";
-import { convertToLlm } from "@chudware/coding-agent/session/messages";
-import { SessionManager } from "@chudware/coding-agent/session/session-manager";
-import { TempDir } from "@chudware/utils";
+import { type } from "@oh-my-pi/omptype";
+import { Agent, type AgentTool } from "@oh-my-pi/pi-agent-core";
+import { createMockModel, type MockModel } from "@oh-my-pi/pi-ai/providers/mock";
+import { getBundledModel } from "@oh-my-pi/pi-catalog/models";
+import { ModelRegistry } from "@oh-my-pi/pi-coding-agent/config/model-registry";
+import { Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
+import { AgentSession } from "@oh-my-pi/pi-coding-agent/session/agent-session";
+import type { AuthStorage } from "@oh-my-pi/pi-coding-agent/session/auth-storage";
+import { convertToLlm } from "@oh-my-pi/pi-coding-agent/session/messages";
+import { SessionManager } from "@oh-my-pi/pi-coding-agent/session/session-manager";
+import { TempDir } from "@oh-my-pi/pi-utils";
 import { createInMemoryAuthStorage } from "./helpers/agent-session-setup";
 
 let tempDir: TempDir;
@@ -25,7 +25,7 @@ beforeEach(() => {
 	if (!model) throw new Error("Expected claude-sonnet-4-5 model to exist");
 
 	authStorage = createInMemoryAuthStorage();
-	authStorage.setRuntimeApiKey("anthropic", "test-key");
+	authStorage.keys.setRuntime("anthropic", "test-key");
 	const modelRegistry = new ModelRegistry(authStorage, path.join(tempDir.path(), "models.yml"));
 	const settings = Settings.isolated({ "compaction.enabled": false });
 	sessionManager = SessionManager.inMemory(tempDir.path());

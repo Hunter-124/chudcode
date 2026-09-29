@@ -1,4 +1,4 @@
-import { parseJsonWithRepair } from "@chudware/utils";
+import { parseJsonWithRepair } from "@oh-my-pi/pi-utils";
 import type { Message, ToolCall } from "../types";
 import { asRecord, mintToolCallId, partialSuffixOverlapAny } from "./coercion";
 import dialectPrompt from "./harmony.md" with { type: "text" };
@@ -298,7 +298,7 @@ function renderThinking(text: string): string {
 
 function renderTranscript(messages: readonly Message[], options: DialectRenderOptions = {}): string {
 	let out = "";
-	for (let i = 0; i < messages.length; ) {
+	for (let i = 0; i < messages.length;) {
 		const message = messages[i]!;
 		if (message.role === "assistant") {
 			const parts = assistantTranscriptParts(message);

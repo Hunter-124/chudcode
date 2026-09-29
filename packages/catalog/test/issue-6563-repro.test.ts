@@ -14,10 +14,7 @@
  * keep the provider base URL.
  */
 import { describe, expect, it } from "bun:test";
-import { buildModel } from "@chudware/catalog/build";
-import { Effort } from "@chudware/catalog/effort";
-import { createModelManager } from "@chudware/catalog/model-manager";
-import { anthropicModelManagerOptions } from "@chudware/catalog/provider-models/openai-compat";
+import { anthropicModelManagerOptions } from "@oh-my-pi/pi-catalog/provider-models/openai-compat";
 
 const PROVIDER_BASE_URL = "https://api.anthropic.com";
 
@@ -86,63 +83,4 @@ describe("issue #6563 — anthropic discovery base URL missing /v1", () => {
 		expect(unbundled?.input).toContain("image");
 		expect(unbundled?.baseUrl).toBe(PROVIDER_BASE_URL);
 	});
-});
-
-it("derives a future Claude's adaptive ladder from /v1/models without a bundled or shared-catalog row", async () => {
-	const modelId = "claude-sonnet-5-7";
-	const fetchMock = (async (input: string | URL | Request): Promise<Response> => {
-		const url = String(input instanceof Request ? input.url : input);
-		if (url === "https://catalog.stencil.so/models.json.zstd") {
-			return new Response(JSON.stringify({ anthropic: { models: {} } }));
-		}
-		if (url === `${PROVIDER_BASE_URL}/v1/models`) {
-			return new Response(
-				JSON.stringify({ data: [{ type: "model", id: modelId, display_name: "Claude Sonnet 5.7" }] }),
-			);
-		}
-		throw new Error(`Unexpected discovery URL: ${url}`);
-	}) as typeof fetch;
-
-	const specs = await anthropicModelManagerOptions({ apiKey: "sk-ant-test", fetch: fetchMock }).fetchDynamicModels?.();
-	const discovered = specs?.find(spec => spec.id === modelId);
-	expect(discovered?.reasoning).toBe(true);
-	expect(discovered && buildModel(discovered).thinking).toEqual({
-		mode: "anthropic-adaptive",
-		efforts: [Effort.Low, Effort.Medium, Effort.High, Effort.XHigh, Effort.Max],
-		supportsDisplay: true,
-	});
-});
-
-it("online refresh adds a future Claude from the shared catalog without a binary update", async () => {
-	const modelId = "claude-opus-5-8";
-	const fetchMock = (async (input: string | URL | Request): Promise<Response> => {
-		const url = String(input instanceof Request ? input.url : input);
-		if (url !== "https://catalog.stencil.so/models.json.zstd") throw new Error(`Unexpected discovery URL: ${url}`);
-		return new Response(
-			JSON.stringify({
-				anthropic: {
-					models: {
-						[modelId]: {
-							name: "Claude Opus 5.8",
-							tool_call: true,
-							reasoning: true,
-							modalities: { input: ["text", "image"] },
-							limit: { context: 1_000_000, output: 128_000 },
-							cost: { input: 5, output: 25, cache_read: 0.25, cache_write: 6.25 },
-						},
-					},
-				},
-			}),
-		);
-	}) as typeof fetch;
-
-	const manager = createModelManager({
-		...anthropicModelManagerOptions({ fetch: fetchMock }),
-		cacheDbPath: ":memory:",
-	});
-	const refreshed = await manager.refresh("online");
-	const discovered = refreshed.models.find(model => model.id === modelId);
-	expect(refreshed.source).toBe("models.dev");
-	expect(discovered?.thinking?.efforts).toEqual([Effort.Low, Effort.Medium, Effort.High, Effort.XHigh, Effort.Max]);
-	expect(discovered?.cost).toEqual({ input: 5, output: 25, cacheRead: 0.25, cacheWrite: 6.25 });
 });

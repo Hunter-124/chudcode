@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from "bun:test";
 import { stripVTControlCharacters } from "node:util";
-import { latexToBlock } from "@chudware/tui/latex-block";
-import { TERMINAL } from "@chudware/tui/terminal-capabilities";
+import { latexToBlock } from "@oh-my-pi/pi-tui/latex-block";
+import { TERMINAL } from "@oh-my-pi/pi-tui/terminal-capabilities";
 
 const originalTrueColor = TERMINAL.trueColor;
 afterEach(() => {
@@ -31,7 +31,7 @@ describe("latexToBlock (stacked display fractions)", () => {
 	});
 
 	it("raises a non-convertible exponent as a block (Euler's identity)", () => {
-		expect(latexToBlock("e^{i\\chud} + 1 = 0").map(line => line.trimEnd())).toEqual([" iπ", "e   + 1 = 0"]);
+		expect(latexToBlock("e^{i\\pi} + 1 = 0").map(line => line.trimEnd())).toEqual([" iπ", "e   + 1 = 0"]);
 	});
 
 	it("stacks fractions inside wrapper environments (equation)", () => {
@@ -317,6 +317,14 @@ describe("latexToBlock (2-D layout)", () => {
 
 	it("styles fonts across a stacked fraction (\\mathbf)", () => {
 		expect(latexToBlock("\\mathbf{\\frac{a}{b}}")).toEqual([" 𝐚 ", "───", " 𝐛 "]);
+	});
+
+	it("styles text-mode fonts across a stacked fraction", () => {
+		const lines = latexToBlock(String.raw`\textbf{\frac{a}{b}}`);
+
+		expect(lines.map(stripVTControlCharacters)).toEqual([" a ", "───", " b "]);
+		expect(lines[0]).toContain("\x1b[1m");
+		expect(lines[2]).toContain("\x1b[1m");
 	});
 
 	it("stacks limit operators inside styling wrappers", () => {

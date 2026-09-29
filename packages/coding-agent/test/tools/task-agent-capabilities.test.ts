@@ -1,7 +1,7 @@
 import { describe, expect, it } from "bun:test";
-import { isReadOnlyAgent } from "@chudware/coding-agent/task";
-import { loadBundledAgents } from "@chudware/coding-agent/task/agents";
-import type { AgentDefinition } from "@chudware/coding-agent/task/types";
+import { isReadOnlyAgent } from "@oh-my-pi/pi-coding-agent/task";
+import { loadBundledAgents } from "@oh-my-pi/pi-coding-agent/task/agents";
+import type { AgentDefinition } from "@oh-my-pi/pi-coding-agent/task/types";
 
 function agentByName(agents: AgentDefinition[], name: string): AgentDefinition {
 	const agent = agents.find(candidate => candidate.name === name);
@@ -14,25 +14,15 @@ describe("task agent capability descriptions", () => {
 		const agents = loadBundledAgents();
 
 		expect(isReadOnlyAgent(agentByName(agents, "scout"))).toBe(true);
-		for (const name of ["task", "sonic", "reviewer", "designer"]) {
+		for (const name of ["task", "sonic", "reviewer"]) {
 			expect(isReadOnlyAgent(agentByName(agents, name))).toBe(false);
 		}
 	});
 
-	it("disables read summarization for scout and librarian, leaves other agents summarizing", () => {
-		const agents = loadBundledAgents();
+	it("keeps `wait` read-only while any exec-tier tool disqualifies the agent", () => {
+		const scout = agentByName(loadBundledAgents(), "scout");
 
-		expect(agentByName(agents, "scout").readSummarize).toBe(false);
-		expect(agentByName(agents, "librarian").readSummarize).toBe(false);
-		for (const name of ["task", "sonic", "reviewer", "designer"]) {
-			expect(agentByName(agents, name).readSummarize).toBeUndefined();
-		}
-	});
-	it("ships every bundled agent without prewalk; hand-off is opt-in via task.agentPrewalk", () => {
-		const agents = loadBundledAgents();
-
-		for (const name of ["task", "scout", "sonic", "reviewer", "designer", "librarian"]) {
-			expect(agentByName(agents, name).prewalk).toBeUndefined();
-		}
+		expect(isReadOnlyAgent({ ...scout, tools: ["read", "grep", "wait", "yield"] })).toBe(true);
+		expect(isReadOnlyAgent({ ...scout, tools: ["read", "grep", "wait", "bash"] })).toBe(false);
 	});
 });

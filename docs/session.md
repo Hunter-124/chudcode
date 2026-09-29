@@ -37,7 +37,7 @@ Does not cover `/tree` UI rendering behavior beyond semantics that affect sessio
 Default file-session location:
 
 ```text
-~/.chudcode/agent/sessions/<encoded-cwd>/<timestamp>_<sessionId>.jsonl
+~/.omp/agent/sessions/<encoded-cwd>/<timestamp>_<sessionId>.jsonl
 ```
 
 `<encoded-cwd>` is derived from the canonicalized cwd (so symlink aliases share a bucket): `-<relative>` for directories under home, `-tmp-<relative>` for directories under the temp root, and `--<encoded-absolute>--` for anything else, with path separators replaced by `-`.
@@ -47,13 +47,13 @@ On access, buckets written by the short-lived hashed scheme (`<scope>-<project-b
 Blob store location:
 
 ```text
-~/.chudcode/agent/blobs/<sha256>
+~/.omp/agent/blobs/<sha256>
 ```
 
 Terminal breadcrumb files are written under:
 
 ```text
-~/.chudcode/agent/terminal-sessions/<terminal-id>
+~/.omp/agent/terminal-sessions/<terminal-id>
 ```
 
 Breadcrumb content is original cwd and session file path, plus an optional third line `fresh`. A fresh breadcrumb preserves a `/new` boundary whose lazily-created JSONL file does not exist yet, preventing `continueRecent()` from reopening the previous session. Writes are synchronous, ordered, and best-effort.
@@ -161,6 +161,42 @@ Stores an `AgentMessage` directly.
 }
 ```
 
+The persisted `message.role` discriminant is **camelCase**, not the snake_case used by
+the LLM wire format or extension hook names. Ordinary conversation records use these
+roles under `type: "message"`:
+
+| Persisted `message.role` | Owner package | Notes                                                                             |
+| ------------------------ | ------------- | --------------------------------------------------------------------------------- |
+| `user`                   | pi-ai         | User/tool-feedback turn.                                                          |
+| `developer`              | pi-ai         | Developer-role instruction turn.                                                  |
+| `assistant`              | pi-ai         | Model turn; tool calls live in its `content` as `{ "type": "toolCall" }` blocks.  |
+| `toolResult`             | pi-ai         | Result of one tool call — **not** `tool_result`. Carries `toolCallId`/`toolName`. |
+| `bashExecution`          | coding-agent  | Standalone `!`-bash run.                                                          |
+| `pythonExecution`        | coding-agent  | Standalone python run.                                                            |
+| `hookMessage`            | coding-agent  | Legacy hook-injected message, retained for migration; new code uses `custom`.     |
+| `fileMention`            | coding-agent  | Inlined `@file` mention contents.                                                 |
+
+Branch and compaction summary roles are synthesized from dedicated top-level entries
+during session-context reconstruction. Extension messages sent through `pi.sendMessage`
+likewise persist as `custom_message` entries and reconstruct as `custom`:
+
+| Persisted entry type | Reconstructed role  |
+| -------------------- | ------------------- |
+| `branch_summary`     | `branchSummary`     |
+| `compaction`         | `compactionSummary` |
+| `custom_message`     | `custom`            |
+
+Internal callers can append a `custom` message directly, so readers must discriminate on
+`entry.type` rather than infer the persisted shape from the reconstructed role.
+
+`toolCall` is a **content-block type inside an `assistant` message's `content` array**, not
+a message role. An extension keying off `message.role` that matches snake_case constants
+(`tool_result`, `tool_call`) or lowercases the role before comparing will silently skip
+`toolResult` (and every other camelCase role) — no error is raised. Match the camelCase
+values above verbatim. The base roles are `Message` in `packages/ai/src/types.ts`; the rest
+are merged into `CustomAgentMessages` (`packages/agent/src/compaction/messages.ts`,
+`packages/coding-agent/src/session/messages.ts`).
+
 ### `model_change`
 
 ```json
@@ -188,7 +224,7 @@ Stores an `AgentMessage` directly.
 }
 ```
 
-`serviceTier` is a per-family map keyed by `openai`/`anthropic`/`google` (each value `auto`/`default`/`flex`/`scale`/`priority`), or `null` when no tier is active. Legacy entries that stored a single string (`"flex"`, `"openai-only"`, `"claude-only"`, …) are normalized to this map on read.
+`serviceTier` is a per-family map keyed by `openai`/`anthropic`/`google` (each value `auto`/`default`/`flex`/`scale`/`priority`/`ultrafast`), or `null` when no tier is active. Legacy entries that stored a single string (`"flex"`, `"openai-only"`, `"claude-only"`, …) are normalized to this map on read.
 
 ### `thinking_level_change`
 
@@ -308,6 +344,8 @@ Extension-provided message that does participate in LLM context. `content` can b
 ### `title_change`
 
 Append-only audit entry for a session rename. It records `title`, `source` (`auto` or `user`), and optionally `previousTitle` and `trigger`. The current title is also updated in the fixed-width title slot so listing does not require a full-file rewrite.
+
+`/rename <title>` sets an explicit title. `/rename` without a title generates one from recent conversation using the configured tiny title model. Both are user-requested renames (`source: "user"`), so later automatic titling cannot replace them. Empty conversation or failed generation leaves the current title unchanged. A session switch or newer rename while generation runs discards the stale result. Local tiny-model failures never fall back to an online provider.
 
 ### `ttsr_injection`
 
@@ -487,6 +525,14 @@ Implementations and adapters:
 
 `SessionStorageWriter` exposes `append`, optional `appendSync`, `flush`, optional `flushSync`, `isOpen`, `close`, and `getError`.
 
+### Manual storage maintenance
+
+`omp gc` previews maintenance by default; `--apply` is required to sweep unreferenced blobs, archive eligible cold sessions, or checkpoint database WALs. Storage maintenance is separate from model-context compaction.
+
+Journal payload I/O is streamed during blob-reference scans, archive history/stats reconciliation, gzip creation, and rollback. Active `.jsonl`, recoverable `.jsonl.*.bak`, and archived `.jsonl.gz` records all participate in reference discovery, including references in malformed JSON text. Compressed scans drain and validate the complete stream before their results can authorize deletion. Archives retain the original JSONL bytes when decompressed, and artifact trees keep their existing layout.
+
+Streaming avoids materializing a whole journal; it does not make GC constant-memory. A single long record, reference sets, and history/stats identity collections still consume memory. Original files and temporary compressed output also coexist during archive publication.
+
 ## Session Discovery Utilities
 
 Discovery helpers live in `session-listing.ts`; `SessionManager` exposes project-scoped wrappers:
@@ -504,7 +550,7 @@ Recent/most-recent scans read only a 4 KiB prefix. Full lists read that prefix p
 
 `HistoryStorage` (`history-storage.ts`) is a separate SQLite subsystem for prompt recall/search, not session replay.
 
-- DB: `~/.chudcode/agent/history.db`
+- DB: `~/.omp/agent/history.db`
 - Table: `history(id, prompt, created_at, cwd, session_id)`
 - FTS5 index: `history_fts` with trigger-maintained sync
 - Deduplicates consecutive identical prompts using in-memory last-prompt cache

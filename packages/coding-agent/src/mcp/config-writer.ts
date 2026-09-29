@@ -1,13 +1,13 @@
 /**
  * MCP Configuration File Writer
  *
- * Utilities for reading/writing .chudcode/mcp.json files at user or project level.
+ * Utilities for reading/writing .omp/mcp.json files at user or project level.
  */
 import { randomUUID } from "node:crypto";
 import * as fs from "node:fs";
 import * as path from "node:path";
-import { isEnoent } from "@chudware/utils";
-import { withFileLock } from "@chudware/utils/file-lock";
+import { isEnoent } from "@oh-my-pi/pi-utils";
+import { withFileLock } from "@oh-my-pi/pi-utils/file-lock";
 import { invalidate as invalidateFsCache } from "../capability/fs";
 
 import { validateServerConfig } from "./config";
@@ -90,13 +90,15 @@ export function validateServerName(name: string): string | undefined {
 	if (name.length > 100) {
 		return "Server name is too long (max 100 characters)";
 	}
-	// Check for invalid characters. Colon is allowed so namespaced plugin servers
-	// (e.g. "cloudflare:cloudflare-api" from a Claude Code marketplace plugin) can
-	// be persisted: the runtime already accepts colons in server names (tool names
-	// sanitize them via createMCPToolName) and `/mcp reauth` writes such names back
-	// as a user-config override that shadows the discovered entry.
-	if (!/^[a-zA-Z0-9_.:-]+$/.test(name)) {
-		return "Server name can only contain letters, numbers, dash, underscore, dot, and colon";
+	// Check for invalid characters. Colons and spaces are allowed so namespaced
+	// plugin servers (e.g. "cloudflare:cloudflare-api" from a Claude Code
+	// marketplace plugin) and human display labels (e.g. "MaaS Slack") can be
+	// persisted: the runtime already accepts them in server names (tool names
+	// sanitize them via createMCPToolName, ownership matches on the raw name) and
+	// `/mcp reauth` writes such names back as a user-config override that shadows
+	// the discovered entry.
+	if (!/^[a-zA-Z0-9_.:-]+(?: [a-zA-Z0-9_.:-]+)*$/.test(name)) {
+		return "Server name can only contain letters, numbers, dash, underscore, dot, colon, and single spaces";
 	}
 	return undefined;
 }
@@ -297,7 +299,7 @@ export interface SetMcpServerEnabledOptions {
 	projectPath: string;
 	/**
 	 * Absolute path to the loaded row's source mcp.json. Provide ONLY for
-	 * formats this codebase owns (native `.chudcode/mcp.json` and `mcp-json`
+	 * formats this codebase owns (native `.omp/mcp.json` and `mcp-json`
 	 * `mcp.json`/`.mcp.json`). Tool-owned configs (opencode.json, claude.json,
 	 * settings.json …) MUST be omitted; we never mutate another tool's file.
 	 */

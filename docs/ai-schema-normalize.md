@@ -1,6 +1,6 @@
 # AI tool-schema normalization
 
-`@chudware/ai` exposes one unified schema normalizer that providers consume
+`@oh-my-pi/pi-ai` exposes one unified schema normalizer that providers consume
 before tools are sent on the wire. All walkers live in
 `packages/ai/src/utils/schema/normalize.ts`; the operational contract is
 `packages/ai/src/utils/schema/CONSTRAINTS.md`.
@@ -12,7 +12,7 @@ share the same option-driven walk.
 
 ## Entry points
 
-All exports live under `@chudware/ai/utils/schema`:
+All exports live under `@oh-my-pi/pi-ai/utils/schema`:
 
 - `normalizeSchema(value, options)` — generic option-driven walker.
 - `normalizeSchemaForGoogle(value)` — Gemini / Vertex / Gemini CLI.
@@ -31,7 +31,7 @@ All exports live under `@chudware/ai/utils/schema`:
 - `adaptSchemaForStrict(schema, strict)` from `./adapt` — thin composer that
   upgrades draft-07 inputs to 2020-12 and wraps `tryEnforceStrictSchema` for
   provider call sites. `./adapt` also exports the `NO_STRICT` global-bypass
-  flag (env `CHUDCODE_NO_STRICT`) honored by every provider that emits `strict: true`.
+  flag (env `PI_NO_STRICT`) honored by every provider that emits `strict: true`.
 - `normalizeSchemaForMoonshot(value)` — Moonshot/Kimi's MFJS subset.
 - `sanitizeSchemaForOllama(schema)` — rewrites boolean subschemas, type
   arrays, and boolean object-openness keywords for Ollama's Go schema parser.
@@ -44,7 +44,7 @@ Removed in the unified-flow refactor:
 - `strict-mode.ts` (merged into `normalize.ts`).
 - `sanitize-google.ts` and `normalize-cca.ts` (replaced by
   `normalizeSchemaFor*` dispatchers).
-- `StringEnum` helper — use `type.enumerated(...)`; chudtype emits
+- `StringEnum` helper — use `type.enumerated(...)`; omptype emits
   provider-compatible JSON Schema.
 - `sanitizeSchemaFor{Google,CCA,MCP}` / `prepareSchemaForCCA` — renamed to
   `normalizeSchemaFor{Google,CCA,MCP}`.
@@ -56,9 +56,9 @@ Removed in the unified-flow refactor:
 | `openai-completions`                                               | `adaptSchemaForStrict` (sanitize + enforce when strict mode is enabled)      |
 | `openai-responses`, `openai-codex-responses`                       | `sanitizeSchemaForOpenAIResponses` before strict-mode adaptation             |
 | `azure-openai-responses`                                           | `sanitizeSchemaForOpenAIResponses`; emits `strict: false` without adaptation |
-| Moonshot/Kimi native hosts using MFJS                              | `normalizeSchemaForMoonshot`                                                 |
-| Grammar-flavored OpenAI-compatible hosts                           | `sanitizeSchemaForGrammar`                                                   |
-| `ollama`                                                           | `sanitizeSchemaForOllama`                                                    |
+| Moonshot/Kimi native hosts using MFJS (`toolSchemaFlavor: "moonshot-mfjs"`) | `normalizeSchemaForMoonshot`                                |
+| Grammar-flavored OpenAI-compatible hosts (`toolSchemaFlavor: "grammar"`) | `sanitizeSchemaForGrammar`                                     |
+| `ollama` / `ollama-cloud` tool parameters                          | `toolWireSchema` → `sanitizeSchemaForOllama`                                 |
 | `google-generative-ai`, `google-vertex`, Gemini CLI                | `normalizeSchemaForGoogle`                                                   |
 | Cloud Code Assist Claude (Antigravity + GCA, `claude-*` model ids) | `normalizeSchemaForCCA`                                                      |
 | MCP `inputSchema` ingestion                                        | `normalizeSchemaForMCP`                                                      |

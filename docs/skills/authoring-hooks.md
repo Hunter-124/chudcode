@@ -1,21 +1,21 @@
 ---
 name: authoring-hooks
-description: Use when creating a new Chudcode hook. Covers HookAPI, event catalog, blocking/overriding tool calls, and context modification.
+description: Use when creating a new omp hook. Covers HookAPI, event catalog, blocking/overriding tool calls, and context modification.
 ---
 
 # Authoring Hooks
 
-Hooks are event-driven interceptors that run alongside the agent loop. They are best used for cross-cutting concerns: safety policy, secret redaction, context pruning, audit logging. A hook module registers handlers via `chud.on(event, handler)` and can block tool execution, override tool output, or rewrite the message context before each LLM call.
+Hooks are event-driven interceptors that run alongside the agent loop. They are best used for cross-cutting concerns: safety policy, secret redaction, context pruning, audit logging. A hook module registers handlers via `pi.on(event, handler)` and can block tool execution, override tool output, or rewrite the message context before each LLM call.
 
 > **Relationship to extensions:** The hook subsystem (`HookAPI`) is the legacy API. The extension runner now handles everything hooks can do plus more. `ExtensionAPI` supports the hook event model plus extension-only events. Use `ExtensionAPI` for new work; use `HookAPI` only if you are maintaining an existing hook module.
 
 ## Factory signature
 
 ```ts
-import type { HookAPI } from "@chudware/coding-agent/extensibility/hooks";
+import type { HookAPI } from "@oh-my-pi/pi-coding-agent/extensibility/hooks";
 
-export default function myHook(Chudcode: HookAPI): void {
-  chudcode.on("tool_call", async (event, ctx) => {
+export default function myHook(omp: HookAPI): void {
+  omp.on("tool_call", async (event, ctx) => {
     // intercept every tool call
   });
 }
@@ -26,10 +26,10 @@ The default export must be a function (not a class). It receives a `HookAPI` ins
 Alternatively, using `ExtensionAPI` (preferred):
 
 ```ts
-import type { ExtensionAPI } from "@chudware/coding-agent";
+import type { ExtensionAPI } from "@oh-my-pi/pi-coding-agent";
 
-export default function myExtension(chud: ExtensionAPI): void {
-  chud.on("tool_call", async (event, ctx) => { /* ... */ });
+export default function myExtension(pi: ExtensionAPI): void {
+  pi.on("tool_call", async (event, ctx) => { /* ... */ });
 }
 ```
 
@@ -39,8 +39,8 @@ export default function myExtension(chud: ExtensionAPI): void {
 
 | Event | Fires | Can return |
 |---|---|---|
-| `tool_call` | Before every tool execution | `{ block?: boolean; reason?: string; input?: Record<string, unknown> }` |
-| `tool_result` | After every tool execution | `{ content?; details?; isError?: boolean }` |
+| `tool_call` | Before every tool execution | `{ block?: boolean; reason?: string; input?: Record<string, unknown>; additionalContext?: string }` |
+| `tool_result` | After every tool execution | `{ content?; details?; isError?: boolean; additionalContext?: string }` |
 
 ### Session lifecycle
 
@@ -82,7 +82,7 @@ Extension-only events such as `tool_execution_start`, `tool_execution_update`, `
 Return `{ block: true, reason: "..." }` from a `tool_call` handler to prevent execution:
 
 ```ts
-chudcode.on("tool_call", async (event, ctx) => {
+omp.on("tool_call", async (event, ctx) => {
   if (event.toolName === "bash") {
     const cmd = String(event.input.command ?? "");
     if (/\brm\s+-rf\s+\//.test(cmd)) {
@@ -97,15 +97,16 @@ Contract:
 - If **any** handler returns `{ block: true }`, execution stops immediately.
 - `reason` becomes the tool error text the LLM sees.
 - If a handler **throws**, the tool is also blocked (fail-closed).
-- Last non-blocking return wins; first `block: true` short-circuits.
-- A non-blocking handler can return `input` to replace the raw arguments passed to the tool. Handlers do not see earlier input revisions, and input replacement is ignored for `computer` calls.
+- A non-blocking handler can return `additionalContext` carrying trusted handler-authored instructions for the next provider request. Distinct non-empty values from all handlers are preserved in registration order and emitted after the batch's tool results in assistant call order with developer/system priority where supported; a call whose joined context is identical to an earlier call's in the same batch is emitted once. They are delivered only when the call runs and returns a non-error result: a later block, approval denial, interrupt skip, or failed execution discards them. Raw tool output and other untrusted data must stay in the tool result.
+- A non-blocking handler can return `input` to replace the raw arguments passed to the tool. The last replacement wins, and handlers do not see earlier input revisions.
+- Eval prelude calls such as `browser.open(...)`, direct `BrowserTab` helpers, `tab.run(...)`, direct `computer` helpers, and `computer.run(fnOrCode, options)` are not tool calls and do not emit these hooks.
 
 ## Post-tool override contract
 
-Return `{ content, details, isError }` from a `tool_result` handler to patch what the LLM sees:
+Return `{ content, details, isError, additionalContext }` from a `tool_result` handler to patch what the LLM sees and/or attach trusted guidance outside the tool output:
 
 ```ts
-chudcode.on("tool_result", async (event, ctx) => {
+omp.on("tool_result", async (event, ctx) => {
   if (event.toolName === "read" && !event.isError) {
     const redacted = event.content.map(chunk => {
       if (chunk.type !== "text") return chunk;
@@ -114,25 +115,29 @@ chudcode.on("tool_result", async (event, ctx) => {
         text: chunk.text.replace(/(?:sk|pk)-[a-zA-Z0-9]{20,}/g, "[REDACTED_API_KEY]"),
       };
     });
-    return { content: redacted };
+    return {
+      content: redacted,
+      additionalContext: "Use the redacted result for subsequent reasoning.",
+    };
   }
 });
 ```
 
 Contract:
 
-- Handlers run in registration order. For `HookAPI`, each handler receives the original tool result event, and the last returned override wins.
+- Handlers run in registration order. For `HookAPI`, each handler receives the original tool result event; returned `content`/`details`/`isError` merge per field, so a later handler's defined field wins while fields it leaves unset keep earlier overrides (a handler returning only `details`, `isError`, or `additionalContext` never erases an earlier `content` redaction).
 - `content` replaces the full content array for the LLM.
 - `details` replaces the structured details object.
+- `additionalContext` is not part of the tool result. Distinct non-blank values are retained in registration order (repeats, compared ignoring surrounding whitespace, are dropped) and delivered before that call's `tool_call` context; a call whose joined context is identical to an earlier call's in the same batch is delivered once.
 - `isError` exists on the shared result type, but `HookToolWrapper` does not propagate it into a successful tool result; on a tool failure, the original error is rethrown after handlers complete.
-- On a tool failure, `tool_result` is still emitted with `isError: true`.
+- On a tool failure, `tool_result` is still emitted with `isError: true`, and returned `additionalContext` is delivered. Filter on `event.isError` so success-only and failure-only handlers cannot fire on the opposite outcome.
 
 ## Context modification contract
 
 Return `{ messages: [...] }` from a `context` handler to rewrite the message list before each LLM API call:
 
 ```ts
-chudcode.on("context", async (event, ctx) => {
+omp.on("context", async (event, ctx) => {
   // Remove debug-only custom messages from LLM context
   const filtered = event.messages.filter(
     msg => !(msg.role === "custom" && msg.customType === "debug-only")
@@ -152,10 +157,10 @@ Contract:
 ### 1. rm-rf blocker
 
 ```ts
-import type { HookAPI } from "@chudware/coding-agent/extensibility/hooks";
+import type { HookAPI } from "@oh-my-pi/pi-coding-agent/extensibility/hooks";
 
-export default function rmRfBlocker(Chudcode: HookAPI): void {
-  chudcode.on("tool_call", async (event, ctx) => {
+export default function rmRfBlocker(omp: HookAPI): void {
+  omp.on("tool_call", async (event, ctx) => {
     if (event.toolName !== "bash") return;
 
     const cmd = String(event.input.command ?? "");
@@ -178,7 +183,7 @@ export default function rmRfBlocker(Chudcode: HookAPI): void {
 ### 2. API-key redactor
 
 ```ts
-import type { HookAPI } from "@chudware/coding-agent/extensibility/hooks";
+import type { HookAPI } from "@oh-my-pi/pi-coding-agent/extensibility/hooks";
 
 // Common API-key shapes. Not exhaustive — providers using bespoke formats
 // (Anthropic `sk-ant-…`, JWT-style bearers, gateway-specific prefixes, etc.)
@@ -192,8 +197,8 @@ const SECRET_PATTERNS = [
   /\b[a-zA-Z0-9_-]{20,}\s*=\s*["']?[a-zA-Z0-9._/+=-]{20,}["']?/g,
 ];
 
-export default function apiKeyRedactor(Chudcode: HookAPI): void {
-  chudcode.on("tool_result", async (event) => {
+export default function apiKeyRedactor(omp: HookAPI): void {
+  omp.on("tool_result", async (event) => {
     if (event.isError) return;
 
     let changed = false;
@@ -215,10 +220,10 @@ export default function apiKeyRedactor(Chudcode: HookAPI): void {
 ### 3. Context filter
 
 ```ts
-import type { HookAPI } from "@chudware/coding-agent/extensibility/hooks";
+import type { HookAPI } from "@oh-my-pi/pi-coding-agent/extensibility/hooks";
 
-export default function contextFilter(Chudcode: HookAPI): void {
-  chudcode.on("context", async (event) => {
+export default function contextFilter(omp: HookAPI): void {
+  omp.on("context", async (event) => {
     const MAX_TOOL_OUTPUT_CHARS = 8_000;
 
     const trimmed = event.messages.map(msg => {

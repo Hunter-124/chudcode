@@ -40,8 +40,6 @@
 
 import * as path from "node:path";
 import { parseArgs } from "node:util";
-import { sleep } from "@chudware/utils/async";
-import * as fsx from "@chudware/utils/fsx";
 import STYLE_GUIDE from "./rewrite-system-prompt.style.md" with { type: "text" };
 
 const DEFAULT_INPUT = "packages/coding-agent/src/prompts/system/system-prompt.md";
@@ -58,7 +56,6 @@ const PROMPT_GLOBS = [
 	"packages/agent/src/compaction/prompts/*.md",
 	"packages/ai/src/prompts/*.md",
 	"packages/typescript-edit-benchmark/src/prompts/*.md",
-	"packages/hashline/src/prompt.md",
 ];
 
 /** Matches one inline token that must survive a rewrite untouched. */
@@ -176,6 +173,7 @@ export function preservesTokens(rewritten: string, tokens: readonly string[]): b
  * otherwise read as prose and get rewritten.
  */
 export function blockSkipMask(lines: readonly string[]): boolean[] {
+	// oxlint-disable-next-line unicorn/no-new-array -- length preallocation
 	const skip = new Array<boolean>(lines.length).fill(false);
 	let start = 0;
 	// Leading YAML frontmatter: `---` on the first line, closed by the next `---`.
@@ -240,6 +238,7 @@ async function mapPool<T, R>(
 	limit: number,
 	fn: (item: T, index: number) => Promise<R>,
 ): Promise<R[]> {
+	// oxlint-disable-next-line unicorn/no-new-array -- length preallocation
 	const results = new Array<R>(items.length);
 	let next = 0;
 	const width = Math.max(1, Math.min(limit, items.length));
@@ -418,8 +417,8 @@ export function makeOpenRouterRewriter(opts: OpenRouterOptions): RewriteChunk {
 					headers: {
 						Authorization: `Bearer ${opts.apiKey}`,
 						"Content-Type": "application/json",
-						"HTTP-Referer": "https://chudware.sh/",
-						"X-Title": "chudcode",
+						"HTTP-Referer": "https://omp.sh/",
+						"X-Title": "omp",
 					},
 					body,
 				});
@@ -444,7 +443,7 @@ export function makeOpenRouterRewriter(opts: OpenRouterOptions): RewriteChunk {
 			} catch (err) {
 				lastErr = err;
 			}
-			if (pending.length > 0 && attempt < opts.retries) await sleep(400 * (attempt + 1));
+			if (pending.length > 0 && attempt < opts.retries) await Bun.sleep(400 * (attempt + 1));
 		}
 		if (pending.length > 0) {
 			console.error(
@@ -532,7 +531,7 @@ async function main(): Promise<void> {
 
 	if (opts.dryRun) {
 		for (const file of files) {
-			const content = await fsx.readText(file);
+			const content = await Bun.file(file).text();
 			const plan = planRewrite(content);
 			const groups = chunk(opts.limit > 0 ? plan.prose.slice(0, opts.limit) : plan.prose, opts.chunkSize);
 			console.error(
@@ -560,7 +559,7 @@ async function main(): Promise<void> {
 
 	for (const file of files) {
 		const output = opts.all ? file : opts.output;
-		const content = await fsx.readText(file);
+		const content = await Bun.file(file).text();
 		const { content: rewritten, stats } = await rewriteAll(content, rewriteChunk, {
 			chunkSize: opts.chunkSize,
 			concurrency: opts.concurrency,
@@ -569,7 +568,7 @@ async function main(): Promise<void> {
 				if (done === total || done % 10 === 0) console.error(`  ${file}: ${done}/${total} prose lines`);
 			},
 		});
-		await fsx.write(output, rewritten);
+		await Bun.write(output, rewritten);
 		console.error(
 			`Wrote ${output}: ${stats.changed} changed, ${stats.fallback} fallback, ${stats.proseLines} prose / ${stats.totalLines} lines (model ${opts.model}).`,
 		);

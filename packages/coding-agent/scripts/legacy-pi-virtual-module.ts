@@ -1,11 +1,10 @@
 import * as path from "node:path";
-import { isEnoent } from "@chudware/utils/fs-error";
-import * as fsx from "@chudware/utils/fsx";
+import { isEnoent } from "@oh-my-pi/pi-utils/fs-error";
 
-/** Build-time specifier resolved to bundled legacy Chud module namespaces. */
-export const LEGACY_PI_MODULES_SPECIFIER = "chudcode-legacy-pi-modules";
+/** Build-time specifier resolved to bundled legacy Pi module namespaces. */
+export const LEGACY_PI_MODULES_SPECIFIER = "omp-legacy-pi-modules";
 
-const VIRTUAL_NAMESPACE = "chudcode-legacy-pi-modules-build";
+const VIRTUAL_NAMESPACE = "omp-legacy-pi-modules-build";
 const packageDir = path.resolve(import.meta.dir, "..");
 const repoRoot = path.resolve(packageDir, "..", "..");
 
@@ -16,12 +15,12 @@ interface BundledPackage {
 }
 
 const BUNDLED_PACKAGES: readonly BundledPackage[] = [
-	{ dir: "agent", identifier: "ChudAgentCore", rootShim: null },
-	{ dir: "ai", identifier: "ChudAi", rootShim: "legacy-pi-ai-shim.ts" },
-	{ dir: "coding-agent", identifier: "ChudCodingAgent", rootShim: "legacy-chudcode-agent-shim.ts" },
-	{ dir: "natives", identifier: "ChudNatives", rootShim: null },
-	{ dir: "tui", identifier: "ChudTui", rootShim: "legacy-pi-tui-shim.ts" },
-	{ dir: "utils", identifier: "ChudUtils", rootShim: null },
+	{ dir: "agent", identifier: "PiAgentCore", rootShim: null },
+	{ dir: "ai", identifier: "PiAi", rootShim: "legacy-pi-ai-shim.ts" },
+	{ dir: "coding-agent", identifier: "PiCodingAgent", rootShim: "legacy-pi-coding-agent-shim.ts" },
+	{ dir: "natives", identifier: "PiNatives", rootShim: null },
+	{ dir: "tui", identifier: "PiTui", rootShim: "legacy-pi-tui-shim.ts" },
+	{ dir: "utils", identifier: "PiUtils", rootShim: null },
 ];
 
 const TYPEBOX_MODULE_KEY = "typebox";
@@ -97,7 +96,7 @@ function shimSpecifier(file: string): string {
 }
 
 /**
- * Derive the bundled legacy Chud module surface from current package exports.
+ * Derive the bundled legacy Pi module surface from current package exports.
  * Named wildcard exports are expanded from source; root catch-alls stay out to
  * avoid importing CLI entrypoints and other non-extension surfaces.
  */
@@ -108,7 +107,7 @@ export async function collectBundledPiEntries(): Promise<BundledPiEntry[]> {
 	function addEntry(key: string, binding: string, importSpecifier: string): void {
 		if (seenKeys.has(key)) return;
 		if (seenBindings.has(binding)) {
-			throw new Error(`Duplicate bundled Chud binding ${binding} for ${key}`);
+			throw new Error(`Duplicate bundled Pi binding ${binding} for ${key}`);
 		}
 		seenKeys.add(key);
 		seenBindings.add(binding);
@@ -118,9 +117,9 @@ export async function collectBundledPiEntries(): Promise<BundledPiEntry[]> {
 	for (const pkg of BUNDLED_PACKAGES) {
 		const packageRoot = path.join(repoRoot, "packages", pkg.dir);
 		const manifestPath = path.join(packageRoot, "package.json");
-		const manifest: unknown = await fsx.readJson(manifestPath);
+		const manifest: unknown = await Bun.file(manifestPath).json();
 		if (!isRecord(manifest) || typeof manifest.name !== "string") {
-			throw new Error(`Bundled Chud package manifest has no name: ${manifestPath}`);
+			throw new Error(`Bundled Pi package manifest has no name: ${manifestPath}`);
 		}
 		const exportsField = isRecord(manifest.exports) ? manifest.exports : {};
 		const rootSpecifier = pkg.rootShim ? shimSpecifier(pkg.rootShim) : manifest.name;
@@ -190,16 +189,16 @@ export function __renderLegacyPiVirtualModule(entries: readonly BundledPiEntry[]
 }
 
 /**
- * Build plugin that materializes lazy legacy Chud module loaders entirely in
+ * Build plugin that materializes lazy legacy Pi module loaders entirely in
  * memory. Literal dynamic imports retain every compile-time edge without
  * evaluating unrelated host modules during extension bootstrap.
  */
 export async function createLegacyPiVirtualModulePlugin(): Promise<Bun.BunPlugin> {
 	const source = __renderLegacyPiVirtualModule(await collectBundledPiEntries());
 	return {
-		name: "chudcode:legacy-pi-modules",
+		name: "omp:legacy-pi-modules",
 		setup(build) {
-			build.onResolve({ filter: /^chudcode-legacy-pi-modules$/ }, () => ({
+			build.onResolve({ filter: /^omp-legacy-pi-modules$/ }, () => ({
 				path: LEGACY_PI_MODULES_SPECIFIER,
 				namespace: VIRTUAL_NAMESPACE,
 			}));

@@ -1,9 +1,8 @@
-import { afterEach, describe, expect, it } from "bun:test";
+import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import * as path from "node:path";
-import { SessionManager } from "@chudware/coding-agent/session/session-manager";
-import { FileSessionStorage } from "@chudware/coding-agent/session/session-storage";
-import { removeWithRetries, TempDir } from "@chudware/utils";
-import * as fsx from "@chudware/utils/fsx";
+import { SessionManager } from "@oh-my-pi/pi-coding-agent/session/session-manager";
+import { FileSessionStorage } from "@oh-my-pi/pi-coding-agent/session/session-storage";
+import { __resetDirsFromEnvForTests, removeWithRetries, setAgentDir, TempDir } from "@oh-my-pi/pi-utils";
 
 const tempDirs: TempDir[] = [];
 
@@ -13,7 +12,27 @@ function makeTempDir(prefix: string): string {
 	return dir.path();
 }
 
+const originalAgentDir = process.env.PI_CODING_AGENT_DIR;
+const originalPiProfile = process.env.PI_PROFILE;
+const originalOmpProfile = process.env.OMP_PROFILE;
+
+function restoreEnv(key: string, value: string | undefined): void {
+	if (value === undefined) {
+		delete process.env[key];
+	} else {
+		process.env[key] = value;
+	}
+}
+
+beforeEach(() => {
+	setAgentDir(path.join(makeTempDir("@pi-cwd-agent-dir-"), "agent"));
+});
+
 afterEach(async () => {
+	restoreEnv("PI_CODING_AGENT_DIR", originalAgentDir);
+	restoreEnv("PI_PROFILE", originalPiProfile);
+	restoreEnv("OMP_PROFILE", originalOmpProfile);
+	__resetDirsFromEnvForTests();
 	await Promise.all(tempDirs.splice(0).map(dir => dir.remove()));
 });
 
@@ -56,7 +75,7 @@ describe("SessionManager cwd adoption on resume", () => {
 		const fileB = await writeSession(projectB, sessionsB);
 
 		// Simulate a legacy session whose header predates the cwd field.
-		const raw = await fsx.readText(fileB);
+		const raw = await Bun.file(fileB).text();
 		const lines = raw.split("\n").filter(Boolean);
 		// The fixed-width title slot is line 0 now; edit the session header itself.
 		const headerIndex = lines.findIndex(line => {
@@ -70,7 +89,7 @@ describe("SessionManager cwd adoption on resume", () => {
 		const header = JSON.parse(lines[headerIndex]) as Record<string, unknown>;
 		header.cwd = "";
 		lines[headerIndex] = JSON.stringify(header);
-		await fsx.write(fileB, `${lines.join("\n")}\n`);
+		await Bun.write(fileB, `${lines.join("\n")}\n`);
 
 		const launchDir = path.join(projectA, "sessions");
 		const manager = SessionManager.create(projectA, launchDir);
@@ -124,7 +143,7 @@ describe("SessionManager cwd adoption on resume", () => {
 		const launch = makeTempDir("@pi-cwd-launch-");
 		const store = makeTempDir("@pi-cwd-store-");
 		const goneProject = makeTempDir("@pi-cwd-gone-");
-		// The session file survives in `store` (like ~/.chudcode), but its header cwd
+		// The session file survives in `store` (like ~/.omp), but its header cwd
 		// points at a project directory that we then delete.
 		const file = await writeSession(goneProject, store);
 		await removeWithRetries(goneProject);

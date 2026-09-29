@@ -4,8 +4,7 @@
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import { $env, $which, Snowflake } from "@chudware/utils";
-import * as fsx from "@chudware/utils/fsx";
+import { $env, $which, Snowflake } from "@oh-my-pi/pi-utils";
 
 /**
  * Returns the user's preferred editor command, or a platform default.
@@ -65,10 +64,10 @@ export async function openInEditor(
 	options?: OpenInEditorOptions,
 ): Promise<string | null> {
 	const ext = options?.extension ?? ".md";
-	const tmpFile = path.join(os.tmpdir(), `chudcode-editor-${Snowflake.next()}${ext}`);
+	const tmpFile = path.join(os.tmpdir(), `omp-editor-${Snowflake.next()}${ext}`);
 
 	try {
-		await fsx.write(tmpFile, content);
+		await Bun.write(tmpFile, content);
 
 		const spawnCommand = resolveEditorSpawnCommand(editorCmd, tmpFile);
 		// Inherit the real pane pty so terminal editors (including emacsclient,
@@ -81,7 +80,7 @@ export async function openInEditor(
 		});
 		const exitCode = await child.exited;
 		if (exitCode === 0) {
-			const text = await fsx.readText(tmpFile);
+			const text = await Bun.file(tmpFile).text();
 			if (options?.trimTrailingNewline === false) {
 				return text;
 			}

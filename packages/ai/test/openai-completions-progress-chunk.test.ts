@@ -1,8 +1,11 @@
 import { describe, expect, it } from "bun:test";
-import { isOpenAICompletionsProgressChunk, streamOpenAICompletions } from "@chudware/ai/providers/openai-completions";
-import type { Context, FetchImpl, Model, ModelSpec } from "@chudware/ai/types";
-import { buildModel } from "@chudware/catalog/build";
-import { getBundledModel } from "@chudware/catalog/models";
+import {
+	isOpenAICompletionsProgressChunk,
+	streamOpenAICompletions,
+} from "@oh-my-pi/pi-ai/providers/openai-completions";
+import type { Context, FetchImpl, Model, ModelSpec } from "@oh-my-pi/pi-ai/types";
+import { buildModel } from "@oh-my-pi/pi-catalog/build";
+import { getBundledModel } from "@oh-my-pi/pi-catalog/models";
 
 const openAICompletionsModel = {
 	...(getBundledModel("openai", "gpt-4o-mini") as Model<"openai-completions">),
@@ -77,19 +80,6 @@ function createKeepaliveOnlyCompletionsResponse(modelId: string, signal: AbortSi
 }
 
 describe("resolveOpenAICompat stream idle timeout", () => {
-	it("widens GLM 5.1 coding-plan stream watchdogs", () => {
-		const model = buildModel({
-			...openAICompletionsModel,
-			id: "glm-5.1",
-			name: "GLM-5.1",
-			provider: "zhipu-coding-plan",
-			baseUrl: "https://open.bigmodel.cn/api/coding/paas/v4",
-			compat: openAICompletionsModel.compatConfig,
-		} as ModelSpec<"openai-completions">);
-
-		expect(model.compat.streamIdleTimeoutMs).toBe(600_000);
-	});
-
 	it("also widens custom Z.AI OpenAI-compatible GLM 5.1 endpoints", () => {
 		const model = buildModel({
 			...openAICompletionsModel,
@@ -145,7 +135,7 @@ describe("resolveOpenAICompat stream idle timeout", () => {
 	});
 
 	it("widens Kimi K2.6 reasoning streams across OpenAI-compatible hosts", () => {
-		const bundled = getBundledModel<"openai-completions">("firepass", "kimi-k2.6-turbo");
+		const bundled = getBundledModel<"openai-completions">("fireworks", "kimi-k2.6");
 		const canonicalRouter = buildModel({
 			...bundled,
 			id: "accounts/fireworks/routers/kimi-k2p6-turbo",

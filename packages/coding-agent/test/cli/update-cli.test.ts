@@ -1,6 +1,8 @@
 import { afterEach, describe, expect, it, vi } from "bun:test";
-import { PRODUCT_RELEASE_TAG_PREFIX } from "../../src/brand";
+import { fixedNpmRegistry } from "../../src/cli/npm-registry";
 import { getLatestRelease, runUpdateCommand } from "../../src/cli/update-cli";
+
+const npmjs = fixedNpmRegistry();
 
 type FetchInput = string | URL | Request;
 type FetchInit = RequestInit | BunFetchRequestInit;
@@ -16,11 +18,7 @@ describe("runUpdateCommand fetch cancellation", () => {
 		const fetchStub = Object.assign(
 			async (_input: FetchInput, init?: FetchInit) => {
 				requestSignal = init?.signal ?? undefined;
-				return Response.json({
-					tag_name: `${PRODUCT_RELEASE_TAG_PREFIX}999.0.0`,
-					draft: false,
-					prerelease: false,
-				});
+				return Response.json({ version: "999.0.0" });
 			},
 			{ preconnect: globalThis.fetch.preconnect },
 		);
@@ -32,18 +30,27 @@ describe("runUpdateCommand fetch cancellation", () => {
 	});
 });
 
-describe("getLatestRelease fork release channel", () => {
+describe("getLatestRelease rename pointers", () => {
 	afterEach(() => {
 		vi.restoreAllMocks();
 	});
 
-	function stubGithub(payload: unknown, init?: ResponseInit): string[] {
+	function stubRegistry(manifests: Record<string, unknown>): string[] {
 		const urls: string[] = [];
 		const fetchStub = Object.assign(
 			async (input: FetchInput) => {
-				urls.push(String(input));
-				if (init) return new Response(null, init);
-				return Response.json(payload);
+				const url = String(input);
+				urls.push(url);
+				const decoded = decodeURIComponent(url);
+				let manifest: unknown;
+				for (const pkg in manifests) {
+					if (decoded.includes(pkg)) {
+						manifest = manifests[pkg];
+						break;
+					}
+				}
+				if (!manifest) return new Response(null, { status: 404, statusText: "Not Found" });
+				return Response.json(manifest);
 			},
 			{ preconnect: globalThis.fetch.preconnect },
 		);
@@ -51,65 +58,126 @@ describe("getLatestRelease fork release channel", () => {
 		return urls;
 	}
 
-	it("reads the fork's own GitHub release and never the npm registry or upstream repo", async () => {
-		const urls = stubGithub({ tag_name: `${PRODUCT_RELEASE_TAG_PREFIX}0.3.0`, draft: false, prerelease: false });
+	it("follows omp.rename to the new package and resolves version, dist, and names from its manifest", async () => {
+		const urls = stubRegistry({
+			"@new/omp": { version: "999.1.0", omp: { dist: "npm" } },
+			"@oh-my-pi/pi-coding-agent": {
+				version: "999.0.0",
+				omp: { dist: "binary", rename: { package: "@new/omp", natives: "@new/natives" } },
+			},
+		});
 
-		const release = await getLatestRelease();
+		const release = await getLatestRelease({ registries: npmjs });
 
-		expect(release.version).toBe("0.3.0");
-		expect(release.tag).toBe(`${PRODUCT_RELEASE_TAG_PREFIX}0.3.0`);
-		// Binary distribution keeps the package-manager paths unreachable, so an
-		// update can never run `bun add @chudware/coding-agent` over the fork.
-		expect(release.dist).toBe("binary");
-		expect(urls).toEqual(["https://api.github.com/repos/Hunter-124/chudcode/releases/latest"]);
-		expect(urls[0]).not.toContain("registry.npmjs.org");
-		expect(urls[0]).not.toContain("can1357/oh-my-pi");
-	});
-
-	it("ignores an inherited upstream tag that is not namespaced to this fork", async () => {
-		// The fork's 0.x line collides with 193 upstream `v0.*` tags, so an
-		// un-prefixed tag must never be mistaken for a chudcode release.
-		stubGithub({ tag_name: "v0.50.1", draft: false, prerelease: false });
-
-		await expect(getLatestRelease()).rejects.toThrow(/No published release/);
-	});
-
-	it("refuses a prerelease on the stable channel", async () => {
-		stubGithub({ tag_name: `${PRODUCT_RELEASE_TAG_PREFIX}0.4.0-rc.1`, draft: false, prerelease: true });
-
-		await expect(getLatestRelease()).rejects.toThrow(/No published release/);
-	});
-
-	it("refuses a draft release", async () => {
-		stubGithub({ tag_name: `${PRODUCT_RELEASE_TAG_PREFIX}0.4.0`, draft: true, prerelease: false });
-
-		await expect(getLatestRelease()).rejects.toThrow(/No published release/);
-	});
-
-	it("takes the newest prerelease from the release list on the canary channel", async () => {
-		const urls = stubGithub([
-			{ tag_name: `${PRODUCT_RELEASE_TAG_PREFIX}0.4.0-canary.2`, draft: true, prerelease: true },
-			{ tag_name: `${PRODUCT_RELEASE_TAG_PREFIX}0.4.0-canary.1`, draft: false, prerelease: true },
-			{ tag_name: `${PRODUCT_RELEASE_TAG_PREFIX}0.3.0`, draft: false, prerelease: false },
+		expect(release.version).toBe("999.1.0");
+		expect(release.dist).toBe("npm");
+		expect(release.packages).toEqual({ pkg: "@new/omp", natives: "@new/natives" });
+		expect(urls).toEqual([
+			"https://registry.npmjs.org/@oh-my-pi%2fpi-coding-agent/latest",
+			"https://registry.npmjs.org/@new%2fomp/latest",
 		]);
+	});
+	it("fetches the canary dist-tag when checking the canary channel", async () => {
+		const urls = stubRegistry({
+			"@oh-my-pi/pi-coding-agent": { version: "999.0.0-canary.1" },
+		});
 
-		const release = await getLatestRelease({ channel: "canary" });
+		await getLatestRelease({ channel: "canary", registries: npmjs });
 
-		// The draft is skipped even on canary; drafts have no downloadable assets.
-		expect(release.version).toBe("0.4.0-canary.1");
-		expect(urls[0]).toContain("/releases?per_page=");
+		expect(urls).toEqual(["https://registry.npmjs.org/@oh-my-pi%2fpi-coding-agent/canary"]);
 	});
 
-	it("reports rate limiting as actionable guidance instead of a bare status", async () => {
-		stubGithub(null, { status: 403, statusText: "rate limit exceeded" });
+	it("ignores a rename pointer that cycles back to an already-visited package", async () => {
+		const urls = stubRegistry({
+			"@oh-my-pi/pi-coding-agent": {
+				version: "999.0.0",
+				omp: { rename: { package: "@oh-my-pi/pi-coding-agent" } },
+			},
+		});
 
-		await expect(getLatestRelease()).rejects.toThrow(/GITHUB_TOKEN/);
+		const release = await getLatestRelease({ registries: npmjs });
+
+		expect(urls).toHaveLength(1);
+		expect(release.version).toBe("999.0.0");
+		expect(release.packages).toEqual({ pkg: "@oh-my-pi/pi-coding-agent", natives: "@oh-my-pi/pi-natives" });
+	});
+});
+
+describe("getLatestRelease configured registry", () => {
+	afterEach(() => {
+		vi.restoreAllMocks();
 	});
 
-	it("reports a repository with no releases yet", async () => {
-		stubGithub(null, { status: 404, statusText: "Not Found" });
+	const feed = () => ({
+		url: "https://npm.corp.example/api/npm/feed/",
+		source: "/home/u/.npmrc",
+		authorization: "Bearer s3cret",
+	});
 
-		await expect(getLatestRelease()).rejects.toThrow(/No published release found/);
+	it("queries the configured feed with its credentials and reports it for the install pin", async () => {
+		const requests: { url: string; authorization: string | null }[] = [];
+		vi.spyOn(globalThis, "fetch").mockImplementation(
+			Object.assign(
+				async (input: FetchInput, init?: FetchInit) => {
+					requests.push({ url: String(input), authorization: new Headers(init?.headers).get("authorization") });
+					return Response.json({ version: "999.0.0" });
+				},
+				{ preconnect: globalThis.fetch.preconnect },
+			),
+		);
+
+		const release = await getLatestRelease({ registries: feed });
+
+		expect(requests).toEqual([
+			{
+				url: "https://npm.corp.example/api/npm/feed/@oh-my-pi%2fpi-coding-agent/latest",
+				authorization: "Bearer s3cret",
+			},
+		]);
+		expect(release.registry).toBe("https://npm.corp.example/api/npm/feed/");
+	});
+
+	it("falls back to the full packument when the feed does not serve the dist-tag shortcut", async () => {
+		const urls: string[] = [];
+		vi.spyOn(globalThis, "fetch").mockImplementation(
+			Object.assign(
+				async (input: FetchInput) => {
+					const url = String(input);
+					urls.push(url);
+					if (url.endsWith("/latest")) return new Response(null, { status: 404, statusText: "Not Found" });
+					return Response.json({
+						"dist-tags": { latest: "999.2.0" },
+						versions: { "999.2.0": { version: "999.2.0", omp: { dist: "binary" } } },
+					});
+				},
+				{ preconnect: globalThis.fetch.preconnect },
+			),
+		);
+
+		const release = await getLatestRelease({ registries: feed });
+
+		expect(urls).toEqual([
+			"https://npm.corp.example/api/npm/feed/@oh-my-pi%2fpi-coding-agent/latest",
+			"https://npm.corp.example/api/npm/feed/@oh-my-pi%2fpi-coding-agent",
+		]);
+		expect(release.version).toBe("999.2.0");
+		expect(release.dist).toBe("binary");
+	});
+
+	it("reports a missing canary dist-tag on the feed as no canary release", async () => {
+		vi.spyOn(globalThis, "fetch").mockImplementation(
+			Object.assign(
+				async (input: FetchInput) =>
+					String(input).endsWith("/canary")
+						? new Response(null, { status: 404, statusText: "Not Found" })
+						: Response.json({ "dist-tags": { latest: "1.0.0" }, versions: { "1.0.0": { version: "1.0.0" } } }),
+				{ preconnect: globalThis.fetch.preconnect },
+			),
+		);
+
+		await expect(getLatestRelease({ channel: "canary", registries: feed })).rejects.toThrow(
+			"No canary release has been published",
+		);
 	});
 });
 
@@ -122,7 +190,7 @@ describe("getLatestRelease proxy errors", () => {
 		const fetchStub = Object.assign(
 			async () => {
 				throw new Error(
-					'UnsupportedProxyProtocol fetching "https://registry.npmjs.org/@chudware/coding-agent/latest". ' +
+					'UnsupportedProxyProtocol fetching "https://registry.npmjs.org/@oh-my-pi/pi-coding-agent/latest". ' +
 						"For more information, pass `verbose: true` in the second argument to fetch()",
 				);
 			},
@@ -130,7 +198,7 @@ describe("getLatestRelease proxy errors", () => {
 		);
 		vi.spyOn(globalThis, "fetch").mockImplementation(fetchStub);
 
-		const err = await getLatestRelease({ timeoutMs: 5000 }).then(
+		const err = await getLatestRelease({ timeoutMs: 5000, registries: npmjs }).then(
 			() => null,
 			(e: unknown) => e as Error,
 		);

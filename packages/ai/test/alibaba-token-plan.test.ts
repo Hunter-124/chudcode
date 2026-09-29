@@ -1,8 +1,21 @@
 import { describe, expect, test } from "bun:test";
-import { resolveOpenAIRequestSetup } from "@chudware/ai/providers/openai-shared";
-import { loginAlibabaTokenPlan } from "@chudware/ai/registry/alibaba-token-plan";
-import { getOAuthProviders } from "@chudware/ai/registry/oauth";
-import { getBundledModel } from "@chudware/catalog/models";
+import { resolveOpenAIRequestSetup } from "@oh-my-pi/pi-ai/providers/openai-shared";
+import { getOAuthProviders } from "@oh-my-pi/pi-ai/registry/oauth";
+import type { OAuthController } from "@oh-my-pi/pi-ai/oauth/types";
+import { getProviderDefinition } from "@oh-my-pi/pi-ai/registry";
+import { getBundledModel } from "@oh-my-pi/pi-catalog/models";
+
+function registeredLogin(options: OAuthController) {
+	const login = getProviderDefinition("alibaba-token-plan")?.login;
+	if (!login) throw new Error("QwenCloud Token Plan login is not registered");
+	return login(options);
+}
+
+async function loginAlibabaTokenPlan(options: OAuthController): Promise<string> {
+	const result = await registeredLogin(options);
+	if (typeof result !== "string") throw new Error("Expected QwenCloud Token Plan API-key credential");
+	return result;
+}
 
 describe("QwenCloud Token Plan login", () => {
 	test("International (default) region opens Individual page and validates without inference", async () => {
@@ -145,15 +158,15 @@ describe("QwenCloud Token Plan login", () => {
 		const model = getBundledModel<"openai-completions">("alibaba-token-plan", "qwen3.7-plus");
 		if (!model) throw new Error("expected bundled QwenCloud Token Plan model");
 
-		const previous = process.env.OPENAI_API_KEY;
-		process.env.OPENAI_API_KEY = "sk-generic-openai-secret";
+		const previous = Bun.env.OPENAI_API_KEY;
+		Bun.env.OPENAI_API_KEY = "sk-generic-openai-secret";
 		try {
 			expect(() => resolveOpenAIRequestSetup(model, { messages: [] })).toThrow(
 				"No API key for provider: alibaba-token-plan",
 			);
 		} finally {
-			if (previous === undefined) delete process.env.OPENAI_API_KEY;
-			else process.env.OPENAI_API_KEY = previous;
+			if (previous === undefined) delete Bun.env.OPENAI_API_KEY;
+			else Bun.env.OPENAI_API_KEY = previous;
 		}
 	});
 

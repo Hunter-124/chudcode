@@ -1,5 +1,5 @@
 import * as path from "node:path";
-import { isRecord, sanitizeText } from "@chudware/utils";
+import { isRecord, sanitizeText } from "@oh-my-pi/pi-utils";
 import type { CleanseDiagnostic, CleanseSeverity } from "./types";
 
 /** Machine and fallback output formats understood by cleanse. */

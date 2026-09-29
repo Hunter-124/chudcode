@@ -1,10 +1,10 @@
 import * as path from "node:path";
-import { isCompiledBinary, logger, withTimeout, workerHostEntry } from "@chudware/utils";
+import { isCompiledBinary, logger, withTimeout, workerHostEntry } from "@oh-my-pi/pi-utils";
 import type { Subprocess } from "bun";
 import type { Browser, CDPSession } from "puppeteer-core";
-import { acquireComputerStage, type ComputerStageLease } from "../computer/stage";
-import { ToolAbortError, ToolError } from "../tool-errors";
-import { findFreeCdpPort, findReusableCdp, gracefulKillTreeOnce, killExistingByPath, waitForCdp } from "./attach";
+import { ToolAbortError } from "../tool-errors";
+import { ToolError } from "@oh-my-pi/pi-tui/tools/tool-errors";
+import { findFreeCdpPort, findReusableCdp, gracefulKillTreeOnce, resolveSpawnArgs, waitForCdp } from "./attach";
 import type { CmuxKind } from "./cmux/rpc";
 import { CmuxSocketClient } from "./cmux/socket-client";
 import {
@@ -15,17 +15,28 @@ import {
 	removeUserDataDir,
 	type UserAgentOverride,
 } from "./launch";
+import { reapOrphanSharedTargets } from "./orphan-registry";
 import { ensureRelayDaemon, isLoopbackRelayUrl } from "./relay/daemon";
 import type { RelayKind } from "./relay/kind";
+import { waitForRelayExtension } from "./relay/probe";
 import { ensureSharedBrowser } from "./shared-daemon";
+import type { TernKind } from "./tern/kind";
+import { TernSocketClient } from "./tern/wire";
 
 export type PuppeteerBrowserKind =
-	| { kind: "headless"; headless: boolean }
-	| { kind: "spawned"; path: string }
+	| {
+			kind: "headless";
+			headless: boolean;
+			/** Process-local launch flag; shared browsers use the tab-scoped CDP override instead. */
+			ignoreHttpsErrors?: boolean;
+			/** Process-local file access launch flag, unsupported by an already-running shared browser. */
+			allowFileAccess?: boolean;
+	  }
+	| { kind: "spawned"; path: string; args?: string[] }
 	| { kind: "connected"; cdpUrl: string }
 	| RelayKind;
 
-export type BrowserKind = PuppeteerBrowserKind | CmuxKind;
+export type BrowserKind = PuppeteerBrowserKind | CmuxKind | TernKind;
 
 export type BrowserKindTag = BrowserKind["kind"];
 
@@ -35,12 +46,6 @@ export type BrowserKindTag = BrowserKind["kind"];
  * forever (issue #5260), so we cap the wait and force-kill on timeout.
  */
 const HEADLESS_CLOSE_TIMEOUT_MS = 5_000;
-/**
- * How long a relay open waits for the extension handshake (503 → 200). A
- * reaped extension service worker is revived by its 30s keepalive alarm, so
- * the wait must cover one full alarm period plus the dial.
- */
-const RELAY_EXTENSION_WAIT_MS = 35_000;
 
 interface BrowserHandleCommon {
 	key: string;
@@ -53,17 +58,11 @@ export interface PuppeteerBrowserHandle extends BrowserHandleCommon {
 	browser: Browser;
 	cdpUrl?: string;
 	pid?: number;
-	/** Chudcode-owned temp Chromium profile directory removed on dispose (process-local headless launches). */
+	/** OMP-owned temp Chromium profile directory removed on dispose (process-local headless launches). */
 	userDataDir?: string;
 	/** Broker daemon backing this handle; dispose disconnects instead of closing, kill routes to the broker. */
 	sharedDaemon?: { name: string; projectDir: string };
 	subprocess?: Subprocess;
-	/**
-	 * Private computer stage this Chromium is pinned to. Held for the handle's
-	 * whole lifetime and released on dispose — the stage is ref-counted, so
-	 * dropping it early would tear the Xvfb display out from under the browser.
-	 */
-	stageLease?: ComputerStageLease;
 	stealth: { browserSession: CDPSession | null; override: UserAgentOverride | null };
 }
 
@@ -73,7 +72,14 @@ export interface CmuxBrowserHandle extends BrowserHandleCommon {
 	surface?: string;
 }
 
-export type BrowserHandle = PuppeteerBrowserHandle | CmuxBrowserHandle;
+/** A connection to the Tern daemon whose browser PiPs host this handle's tabs. */
+export interface TernBrowserHandle extends BrowserHandleCommon {
+	kind: TernKind;
+	/** The daemon connection every tab of this handle drives its PiP through. */
+	tern: TernSocketClient;
+}
+
+export type BrowserHandle = PuppeteerBrowserHandle | CmuxBrowserHandle | TernBrowserHandle;
 
 /** Controls bounded browser-handle teardown and identifies the owning resource in timeout diagnostics. */
 export interface ReleaseBrowserOptions {
@@ -86,52 +92,37 @@ const browsers = new Map<string, BrowserHandle>();
 /** In-flight opens by browser key, so concurrent acquisitions share one launch instead of storming Chromium. */
 const pendingOpens = new Map<string, Promise<BrowserHandle>>();
 
-/**
- * A staged browser is keyed per owner: the stage is one session's private
- * display, so two owners asking for a headed browser must not share the single
- * `headless:0` handle and land on each other's desktop.
- */
-function browserKey(kind: BrowserKind, stageOwnerId?: string): string {
+export function browserKey(kind: BrowserKind): string {
 	switch (kind.kind) {
 		case "headless":
-			return `headless:${kind.headless ? "1" : "0"}${stageOwnerId ? `:stage:${stageOwnerId}` : ""}`;
+			return `headless:${kind.headless ? "1" : "0"}:${kind.ignoreHttpsErrors ? "tls" : ""}:${kind.allowFileAccess ? "file" : ""}`;
 		case "spawned":
-			return `spawned:${kind.path}`;
+			return `spawned:${JSON.stringify([kind.path, kind.args ?? []])}`;
 		case "connected":
 			return `connected:${kind.cdpUrl}`;
 		case "relay":
 			return `relay:${kind.cdpUrl}`;
 		case "cmux":
 			return `cmux:${kind.socketPath}`;
+		case "tern":
+			return `tern:${kind.socketPath}:${kind.pane}`;
 	}
-}
-
-/** Request for a private computer stage to pin a headed browser to. */
-export interface BrowserStageRequest {
-	ownerId: string;
-	width: number;
-	height: number;
 }
 
 export interface AcquireBrowserOptions {
 	cwd: string;
 	viewport?: { width: number; height: number; deviceScaleFactor?: number };
-	appArgs?: string[];
 	signal?: AbortSignal;
-	/**
-	 * Pin a headed browser to this owner's private computer stage instead of the
-	 * real desktop. Only meaningful for a headed `headless` kind.
-	 */
-	stage?: BrowserStageRequest;
 }
 
 export async function acquireBrowser(kind: BrowserKind, opts: AcquireBrowserOptions): Promise<BrowserHandle> {
-	const key = browserKey(kind, opts.stage?.ownerId);
+	if (kind.kind === "spawned") kind = { ...kind, args: resolveSpawnArgs(kind.path, kind.args, opts.cwd) };
+	const key = browserKey(kind);
 	for (;;) {
 		const existing = browsers.get(key);
 		if (existing) {
 			if ("client" in existing) return existing;
-			if (existing.browser.connected) return existing;
+			if ("tern" in existing ? existing.tern.connected : existing.browser.connected) return existing;
 			browsers.delete(key);
 			await disposeBrowserHandle(existing, { kill: false });
 			continue;
@@ -189,51 +180,20 @@ async function openBrowserHandle(kind: BrowserKind, opts: AcquireBrowserOptions)
 		const client = new CmuxSocketClient({ socketPath: kind.socketPath, password: kind.password });
 		await client.connect();
 		return {
-			key: browserKey(kind, opts.stage?.ownerId),
+			key: browserKey(kind),
 			kind,
 			client,
 			surface: kind.surface,
 			refCount: 0,
 		};
 	}
+	if (kind.kind === "tern") {
+		const tern = new TernSocketClient({ socketPath: kind.socketPath });
+		await tern.connect();
+		return { key: browserKey(kind), kind, tern, refCount: 0 };
+	}
 	if (kind.kind === "headless") {
-		// A staged browser is one session's private display, so it cannot use the
-		// project-shared broker Chromium (shared by every session) and must launch
-		// in-process against the stage's environment. `acquireComputerStage`
-		// throws when no ready stage exists, so this fails closed: a headed
-		// browser never falls through to the real desktop.
-		if (opts.stage) {
-			const stageLease = await acquireComputerStage({
-				projectDir: opts.cwd,
-				ownerId: opts.stage.ownerId,
-				width: opts.stage.width,
-				height: opts.stage.height,
-				signal: opts.signal,
-			});
-			try {
-				const { browser, userDataDir } = await launchHeadlessBrowser({
-					headless: kind.headless,
-					viewport: opts.viewport,
-					env: stageLease.descriptor.env,
-					unsetEnv: stageLease.descriptor.unsetEnv,
-				});
-				return {
-					key: browserKey(kind, opts.stage.ownerId),
-					kind,
-					browser,
-					userDataDir,
-					refCount: 0,
-					stageLease,
-					stealth: { browserSession: null, override: null },
-				};
-			} catch (error) {
-				// The handle never reached the registry, so dispose will not run:
-				// drop our stage hold here or the Xvfb daemon leaks.
-				await stageLease.release();
-				throw error;
-			}
-		}
-		// Every real chudcode process (session, subagent, worker — anything with a CLI
+		// Every real omp process (session, subagent, worker — anything with a CLI
 		// worker host) MUST go through the project-shared broker-owned Chromium:
 		// per-process launches are what produced launch storms and orphaned
 		// process trees. The process-local launch survives only for hosts that
@@ -244,6 +204,8 @@ async function openBrowserHandle(kind: BrowserKind, opts: AcquireBrowserOptions)
 		const { browser, userDataDir } = await launchHeadlessBrowser({
 			headless: kind.headless,
 			viewport: opts.viewport,
+			ignoreHttpsErrors: kind.ignoreHttpsErrors,
+			allowFileAccess: kind.allowFileAccess,
 		});
 		return {
 			key: browserKey(kind),
@@ -278,22 +240,21 @@ async function openBrowserHandle(kind: BrowserKind, opts: AcquireBrowserOptions)
 		// on demand (the extension dials in on its own). Hosts without a CLI
 		// worker entry (bun test, SDK embedding) never spawn brokers. Remote
 		// relay URLs must already be serving.
-		let autoStarted = false;
 		if (isLoopbackRelayUrl(cdpUrl) && (isCompiledBinary() || workerHostEntry() !== null)) {
-			autoStarted = await ensureRelayDaemon({ cdpUrl, signal: opts.signal });
+			await ensureRelayDaemon({ cdpUrl, signal: opts.signal });
 		}
-		// The relay answers /json/version with 503 until its extension dials in.
-		// A freshly revived extension service worker can take up to ~30s (its
-		// keepalive alarm) to reconnect, so give the handshake that long.
-		try {
-			await waitForCdp(cdpUrl, RELAY_EXTENSION_WAIT_MS, opts.signal);
-		} catch (err) {
-			if (err instanceof ToolAbortError) throw err;
-			if (err instanceof Error && err.name === "AbortError") throw err;
+		// The relay answers /json/version with 503 until its extension dials in;
+		// the wait fails fast when nothing serves the port or the server has
+		// already outlived the window an installed extension needs to connect.
+		const outcome = await waitForRelayExtension(cdpUrl, opts.signal);
+		if (outcome === "unreachable") {
 			throw new ToolError(
-				autoStarted
-					? `chudcode browser relay is serving at ${cdpUrl} but its extension never connected. Install it with \`chudcode browser-relay install\` and check the toolbar badge shows "on".`
-					: `chudcode browser relay is not reachable at ${cdpUrl}. Start it with \`chudcode browser-relay\` (or check the endpoint), and make sure the Chudcode Browser Relay extension is loaded in Chrome.`,
+				`omp browser relay is not reachable at ${cdpUrl}. Start it with \`omp browser-relay\` (or check the endpoint), and make sure the OMP Browser Relay extension is loaded in Chrome.`,
+			);
+		}
+		if (outcome === "no-extension") {
+			throw new ToolError(
+				`omp browser relay is serving at ${cdpUrl} but its extension never connected. Install it with \`omp browser-relay install\` and check the toolbar badge shows "on".`,
 			);
 		}
 		const puppeteer = await loadPuppeteer();
@@ -318,7 +279,8 @@ async function openBrowserHandle(kind: BrowserKind, opts: AcquireBrowserOptions)
 			`app.path must be absolute (got ${JSON.stringify(exe)}). Pass the binary inside Foo.app/Contents/MacOS/, not the .app bundle.`,
 		);
 	}
-	const reused = await findReusableCdp(exe, opts.signal);
+	const appArgs = kind.args ?? [];
+	const reused = await findReusableCdp(exe, { signal: opts.signal, appArgs });
 	let cdpUrl: string;
 	let pid: number;
 	let subprocess: Subprocess | undefined;
@@ -327,11 +289,10 @@ async function openBrowserHandle(kind: BrowserKind, opts: AcquireBrowserOptions)
 		cdpUrl = reused.cdpUrl;
 		pid = reused.pid;
 	} else {
-		const killed = await killExistingByPath(exe, opts.signal);
-		if (killed > 0) logger.debug("Killed existing instances before attach", { exe, killed });
 		const port = await findFreeCdpPort();
-		const launchArgs = [...(opts.appArgs ?? []), `--remote-debugging-port=${port}`];
+		const launchArgs = [...appArgs, `--remote-debugging-port=${port}`];
 		const child = Bun.spawn([exe, ...launchArgs], {
+			cwd: opts.cwd,
 			stdout: "ignore",
 			stderr: "ignore",
 			stdin: "ignore",
@@ -389,31 +350,13 @@ export async function releaseBrowser(handle: BrowserHandle, opts: ReleaseBrowser
 	}
 }
 
-/**
- * Tear down a handle and always drop its stage hold. The transport teardown has
- * several early returns (cmux, broker-owned Chromium) and can throw on a wedged
- * browser, so the release lives in a `finally` — a missed release leaks the
- * Xvfb stage daemon for the rest of the project's life.
- */
 async function disposeBrowserHandle(handle: BrowserHandle, opts: ReleaseBrowserOptions): Promise<void> {
-	try {
-		await disposeBrowserTransport(handle, opts);
-	} finally {
-		const lease = "client" in handle ? undefined : handle.stageLease;
-		if (lease && !("client" in handle)) {
-			handle.stageLease = undefined;
-			try {
-				await lease.release();
-			} catch (err) {
-				logger.debug("Failed to release browser computer stage", { error: (err as Error).message });
-			}
-		}
-	}
-}
-
-async function disposeBrowserTransport(handle: BrowserHandle, opts: ReleaseBrowserOptions): Promise<void> {
 	if ("client" in handle) {
 		handle.client.close();
+		return;
+	}
+	if ("tern" in handle) {
+		handle.tern.close();
 		return;
 	}
 	if (handle.kind.kind === "headless") {
@@ -421,8 +364,8 @@ async function disposeBrowserTransport(handle: BrowserHandle, opts: ReleaseBrows
 			// The broker owns the Chromium; this process only drops its CDP
 			// connection. `kill` is scoped to spawned-app browsers — stopping the
 			// shared daemon here would tear down every other session's tabs. The
-			// daemon dies with the last chudcode client in the project (broker idle
-			// teardown), or via an explicit hub stop.
+			// daemon dies with the last omp client in the project (broker idle
+			// teardown), or via an explicit stop (`write proc://<name>/kill`).
 			if (handle.browser.connected) {
 				try {
 					handle.browser.disconnect();
@@ -446,7 +389,7 @@ async function disposeBrowserTransport(handle: BrowserHandle, opts: ReleaseBrows
 				if (proc?.pid !== undefined) await gracefulKillTreeOnce(proc.pid).catch(() => undefined);
 			}
 		}
-		// Chudcode owns the profile directory (puppeteer's temp cleanup is disabled by
+		// OMP owns the profile directory (puppeteer's temp cleanup is disabled by
 		// our explicit --user-data-dir), so remove it now the process tree has
 		// exited. Tolerant of the Windows lock-held window (issue #7058).
 		if (handle.userDataDir) await removeUserDataDir(handle.userDataDir);
@@ -470,7 +413,10 @@ async function disposeBrowserTransport(handle: BrowserHandle, opts: ReleaseBrows
 			logger.debug("Failed to disconnect from spawned browser", { error: (err as Error).message });
 		}
 	}
-	if (opts.kill && handle.pid !== undefined) await gracefulKillTreeOnce(handle.pid);
+	// A discovered CDP PID is borrowed, not ours to kill on close or abort.
+	if (opts.kill && handle.subprocess && handle.subprocess.exitCode === null) {
+		await gracefulKillTreeOnce(handle.subprocess.pid);
+	}
 }
 
 /**
@@ -483,6 +429,11 @@ async function openSharedHeadlessHandle(
 	kind: Extract<PuppeteerBrowserKind, { kind: "headless" }>,
 	opts: AcquireBrowserOptions,
 ): Promise<PuppeteerBrowserHandle> {
+	if (kind.allowFileAccess) {
+		throw new ToolError(
+			"browser.open({ allow_file_access:true }) requires a process-local Chromium launch and cannot be applied to the project-shared browser. Use app.path to launch a dedicated browser.",
+		);
+	}
 	const vp = opts.viewport ?? DEFAULT_VIEWPORT;
 	try {
 		const shared = await ensureSharedBrowser({
@@ -493,7 +444,7 @@ async function openSharedHeadlessHandle(
 		});
 		if (!shared) {
 			throw new ToolError(
-				"Shared browser daemon unavailable (broker start or Chromium launch failed); check `hub ps` for chudcode.browser.* daemons and ~/.chudcode/logs for details",
+				"Shared browser daemon unavailable (broker start or Chromium launch failed); check `omp ps` for omp.browser.* daemons and ~/.omp/logs for details",
 			);
 		}
 		const puppeteer = await loadPuppeteer();
@@ -508,6 +459,11 @@ async function openSharedHeadlessHandle(
 				: null,
 			protocolTimeout: BROWSER_PROTOCOL_TIMEOUT_MS,
 		});
+		// Attaching to the shared daemon is the natural point to sweep targets
+		// left behind by omp processes that died without teardown — bounds
+		// accumulation without a background timer. Best-effort and detached so a
+		// slow reap never delays the open (issue #10022).
+		void reapOrphanSharedTargets(browser, { projectDir: shared.projectDir, daemonName: shared.daemonName });
 		return {
 			key: browserKey(kind),
 			kind,

@@ -9,21 +9,21 @@
  * generic Finder icon and never reached the authoritative file URL. A vision
  * model then saw a white document icon labelled `PNG` instead of the screenshot.
  *
- * Defended contract: when the pasteboard exposes a file URL, that typed file
- * attachment is authoritative. Supported images attach their file bytes;
- * documents/folders route through typed attachment handling; neither may be
- * replaced by Finder's generated icon bitmap. Only a pure bitmap pasteboard
- * (screenshots, browser copies) falls back to the image representation.
+ * Defended contract: when the pasteboard exposes a file URL resolving to a
+ * supported image file, `handleImagePaste` MUST attach that file's bytes and
+ * NEVER let the co-advertised icon bitmap win. Non-image file URLs and pure
+ * bitmap pasteboards (screenshots, browser copies) still fall to the image
+ * representation.
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import type { ImageContent } from "@chudware/ai";
-import { resetSettingsForTest, Settings } from "@chudware/coding-agent/config/settings";
-import { InputController } from "@chudware/coding-agent/modes/controllers/input-controller";
-import type { InteractiveModeContext } from "@chudware/coding-agent/modes/types";
+import type { ImageContent } from "@oh-my-pi/pi-ai";
+import { resetSettingsForTest, Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
+import { InputController } from "@oh-my-pi/pi-coding-agent/modes/controllers/input-controller";
+import type { InteractiveModeContext } from "@oh-my-pi/pi-coding-agent/modes/types";
 
 // A real, decodable 1x1 PNG standing in for the copied screenshot's bytes.
 const FILE_PNG = Buffer.from(
@@ -131,7 +131,7 @@ describe("InputController.handleImagePaste (issue #8769)", () => {
 		expect(spies.pendingImages[0]?.data).toBe(ICON_PNG_BASE64);
 	});
 
-	it("does not attach Finder's icon when the file URL is a document", async () => {
+	it("falls to the bitmap when the file URL is a non-image file", async () => {
 		const { ctx, spies } = createCtx();
 		const readMacFileUrls = vi.fn(async () => ["/Users/me/Documents/report.pdf"]);
 		const controller = new InputController(ctx, {
@@ -147,7 +147,7 @@ describe("InputController.handleImagePaste (issue #8769)", () => {
 		const result = await controller.handleImagePaste();
 
 		expect(result).toBe(true);
-		expect(spies.pendingImages).toHaveLength(0);
-		expect(spies.showStatus).toHaveBeenCalled();
+		expect(spies.pendingImages.length).toBe(1);
+		expect(spies.pendingImages[0]?.data).toBe(ICON_PNG_BASE64);
 	});
 });

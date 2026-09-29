@@ -2,14 +2,14 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it } from "bun:test
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
-import { resetSettingsForTest, Settings } from "@chudware/coding-agent/config/settings";
-import { MCPManager } from "@chudware/coding-agent/mcp/manager";
-import type { MCPStdioServerConfig } from "@chudware/coding-agent/mcp/types";
-import { ExtensionDashboard } from "@chudware/coding-agent/modes/components/extensions/extension-dashboard";
-import { snapshotMcpRuntime } from "@chudware/coding-agent/modes/components/extensions/mcp-runtime";
-import { initTheme } from "@chudware/coding-agent/modes/theme/theme";
-import { removeSyncWithRetries } from "@chudware/utils";
-import { sleep } from "@chudware/utils/async";
+import { resetSettingsForTest, Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
+import { MCPManager } from "@oh-my-pi/pi-coding-agent/mcp/manager";
+import type { MCPStdioServerConfig } from "@oh-my-pi/pi-coding-agent/mcp/types";
+import { ExtensionDashboard } from "@oh-my-pi/pi-tui/overlays/extensions/extension-dashboard";
+import { snapshotMcpRuntime } from "@oh-my-pi/pi-tui/overlays/extensions/mcp-runtime";
+import { createExtensionDashboardRuntime } from "@oh-my-pi/pi-coding-agent/modes/components/extensions/dashboard-runtime";
+import { initTheme } from "@oh-my-pi/pi-tui/theme";
+import { removeSyncWithRetries } from "@oh-my-pi/pi-utils";
 import { PROMPT_NAME, RESOURCE_NAME, RESOURCE_URI, TOOL_NAME } from "./fixtures/delayed-catalog-mcp";
 
 const FIXTURE_PATH = path.join(import.meta.dir, "fixtures", "delayed-catalog-mcp.ts");
@@ -53,7 +53,7 @@ describe("MCP catalog-change after connect", () => {
 
 	beforeEach(() => {
 		resetSettingsForTest();
-		workDir = fs.mkdtempSync(path.join(os.tmpdir(), "chudcode-mcp-catalog-"));
+		workDir = fs.mkdtempSync(path.join(os.tmpdir(), "omp-mcp-catalog-"));
 		gate = path.join(workDir, "release-catalog");
 		manager = new MCPManager(workDir);
 	});
@@ -102,7 +102,7 @@ describe("MCP catalog-change after connect", () => {
 			{
 				name: SERVER,
 				command: process.execPath,
-				_source: { provider: "native", providerName: "Chudcode", level: "user", path: workDir },
+				_source: { provider: "native", providerName: "OMP", level: "user", path: workDir },
 			},
 			manager,
 		);
@@ -114,9 +114,7 @@ describe("MCP catalog-change after connect", () => {
 	it("repaints after reconnect catalogs finish, then stops after dashboard dispose", async () => {
 		const settings = await Settings.init({ inMemory: true, cwd: workDir });
 		const dashboard = await ExtensionDashboard.create({
-			cwd: workDir,
-			settings,
-			mcpManager: manager,
+			runtime: createExtensionDashboardRuntime({ cwd: workDir, settings, mcpManager: manager }),
 		});
 		let paints = 0;
 		dashboard.onRequestRender = () => {
@@ -166,7 +164,7 @@ describe("MCP catalog-change after connect", () => {
 		dashboard.dispose();
 		const paintsAtDispose = paints;
 		await manager.refreshServerResources(SERVER);
-		await sleep(50);
+		await Bun.sleep(50);
 		expect(paints).toBe(paintsAtDispose);
 	}, 20_000);
 });

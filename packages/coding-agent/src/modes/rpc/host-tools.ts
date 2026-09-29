@@ -1,8 +1,8 @@
-import type { AgentTool, AgentToolResult, AgentToolUpdateCallback, ToolLoadMode } from "@chudware/agent-core";
-import type { Static, TSchema } from "@chudware/ai";
-import { Snowflake } from "@chudware/utils";
+import type { AgentTool, AgentToolResult, AgentToolUpdateCallback, ToolLoadMode } from "@oh-my-pi/pi-agent-core";
+import type { Static, TSchema } from "@oh-my-pi/pi-ai";
+import { Snowflake } from "@oh-my-pi/pi-utils";
 import { applyToolProxy } from "../../extensibility/tool-proxy";
-import type { Theme } from "../../modes/theme/theme";
+import type { Theme } from "@oh-my-pi/pi-tui/theme";
 import { defaultLoadModeForToolName } from "../../tools/essential-tools";
 import type {
 	RpcHostToolCallRequest,
@@ -13,27 +13,6 @@ import type {
 } from "./rpc-types";
 
 type RpcHostToolOutput = (frame: RpcHostToolCallRequest | RpcHostToolCancelRequest) => void;
-
-/**
- * Identity of a nested agent executing host tools on behalf of the RPC
- * session. Stamped onto its `host_tool_call` frames so the host can attribute
- * and guard each call; the top-level session's calls carry no scope.
- */
-export interface HostToolAgentScope {
-	agentId: string;
-	parentAgentId?: string;
-}
-
-/**
- * Live source of the RPC session's host-owned tools, inherited by nested
- * agents (task sub-agents) so they call the same host over the same client.
- */
-export interface HostToolSource {
-	/** Build fresh adapters for the current host tool set, bound to `scope`. */
-	createTools(scope: HostToolAgentScope): AgentTool[];
-	/** Observe host tool set replacements; returns the unsubscribe callback. */
-	subscribe(listener: () => void): () => void;
-}
 
 type PendingHostToolCall = {
 	resolve: (result: AgentToolResult<unknown>) => void;
@@ -59,9 +38,11 @@ export function isRpcHostToolUpdate(value: unknown): value is RpcHostToolUpdate 
 	return frame.type === "host_tool_update" && typeof frame.id === "string" && isAgentToolResult(frame.partialResult);
 }
 
-class RpcHostToolAdapter<TParams extends TSchema = TSchema, TTheme extends Theme = Theme>
-	implements AgentTool<TParams, unknown, TTheme>
-{
+class RpcHostToolAdapter<TParams extends TSchema = TSchema, TTheme extends Theme = Theme> implements AgentTool<
+	TParams,
+	unknown,
+	TTheme
+> {
 	declare name: string;
 	declare label: string;
 	declare description: string;
@@ -71,12 +52,10 @@ class RpcHostToolAdapter<TParams extends TSchema = TSchema, TTheme extends Theme
 	readonly loadMode: ToolLoadMode;
 	#bridge: RpcHostToolBridge;
 	#definition: RpcHostToolDefinition;
-	#scope: HostToolAgentScope | undefined;
 
-	constructor(definition: RpcHostToolDefinition, bridge: RpcHostToolBridge, scope?: HostToolAgentScope) {
+	constructor(definition: RpcHostToolDefinition, bridge: RpcHostToolBridge) {
 		this.#definition = definition;
 		this.#bridge = bridge;
-		this.#scope = scope;
 		applyToolProxy(definition, this);
 		this.loadMode = defaultLoadModeForToolName(definition.name, definition.loadMode);
 	}
@@ -93,16 +72,14 @@ class RpcHostToolAdapter<TParams extends TSchema = TSchema, TTheme extends Theme
 			params as Record<string, unknown>,
 			signal,
 			onUpdate,
-			this.#scope,
 		);
 	}
 }
 
-export class RpcHostToolBridge implements HostToolSource {
+export class RpcHostToolBridge {
 	#output: RpcHostToolOutput;
 	#definitions = new Map<string, RpcHostToolDefinition>();
 	#pendingCalls = new Map<string, PendingHostToolCall>();
-	#listeners = new Set<() => void>();
 	#closedError: Error | undefined;
 
 	constructor(output: RpcHostToolOutput) {
@@ -115,19 +92,7 @@ export class RpcHostToolBridge implements HostToolSource {
 
 	setTools(tools: RpcHostToolDefinition[]): AgentTool[] {
 		this.#definitions = new Map(tools.map(tool => [tool.name, tool]));
-		for (const listener of this.#listeners) listener();
 		return tools.map(tool => new RpcHostToolAdapter(tool, this));
-	}
-
-	createTools(scope: HostToolAgentScope): AgentTool[] {
-		return Array.from(this.#definitions.values(), tool => new RpcHostToolAdapter(tool, this, scope));
-	}
-
-	subscribe(listener: () => void): () => void {
-		this.#listeners.add(listener);
-		return () => {
-			this.#listeners.delete(listener);
-		};
 	}
 
 	handleResult(frame: RpcHostToolResult): boolean {
@@ -162,7 +127,6 @@ export class RpcHostToolBridge implements HostToolSource {
 		args: Record<string, unknown>,
 		signal?: AbortSignal,
 		onUpdate?: AgentToolUpdateCallback<unknown>,
-		scope?: HostToolAgentScope,
 	): Promise<AgentToolResult<unknown>> {
 		if (signal?.aborted) {
 			return Promise.reject(new Error(`Host tool "${definition.name}" was aborted`));
@@ -216,9 +180,6 @@ export class RpcHostToolBridge implements HostToolSource {
 			toolCallId,
 			toolName: definition.name,
 			arguments: args,
-			...(scope
-				? { agentId: scope.agentId, ...(scope.parentAgentId ? { parentAgentId: scope.parentAgentId } : {}) }
-				: {}),
 		});
 
 		return promise;

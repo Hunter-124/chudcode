@@ -8,7 +8,7 @@
  *                              tag and recall filters on it but still surfaces
  *                              untagged ("global") memories alongside.
  *
- * The base bank id is `bankIdPrefix-bankId` (default `chudcode`). Per-project mode
+ * The base bank id is `bankIdPrefix-bankId` (default `omp`). Per-project mode
  * appends `-<project>`; tagged mode leaves the bank untouched and uses tags.
  *
  * Bank existence is idempotent at module level — a banksSet keeps track of
@@ -21,12 +21,12 @@
  */
 
 import * as path from "node:path";
-import { logger } from "@chudware/utils";
-import * as git from "../utils/git";
+import * as vcs from "@oh-my-pi/pi-natives/vcs";
+import { logger } from "@oh-my-pi/pi-utils";
 import type { HindsightApi } from "./client";
 import type { HindsightConfig } from "./config";
 
-const DEFAULT_BANK_NAME = "chudcode";
+const DEFAULT_BANK_NAME = "omp";
 const PROJECT_TAG_PREFIX = "project:";
 const UNKNOWN_PROJECT = "unknown";
 const MISSION_SET_CAP = 10_000;
@@ -57,9 +57,9 @@ function baseBankId(config: HindsightConfig): string {
 /**
  * Best-effort project label from a working-directory path.
  *
- * When `directory` lives inside a git repository we resolve the primary
+ * When `directory` lives inside a repository we resolve the primary
  * checkout root (or the shared common dir for bare-repo worktrees) via
- * {@link git.repo.primaryRootSync} and basename that, so every linked
+ * the native VCS adapter and basename that, so every linked
  * worktree of one repo shares the same `project:<name>` tag.
  * Outside a repo (or when resolution fails), fall back to the cwd basename.
  *
@@ -70,12 +70,11 @@ function baseBankId(config: HindsightConfig): string {
  *
  * Sync only: this runs on the hot path of `computeBankScope`, which is
  * exposed as a sync API to callers like `backend.ts` and must stay sync.
- * `git.repo.primaryRootSync` walks `.git`/`commondir` with sync file reads —
- * no subprocess — so the cost is one or two `stat`s and a small `readFile`.
+ * Native repository discovery never launches a subprocess.
  */
 function projectLabel(directory: string): string {
 	if (!directory) return UNKNOWN_PROJECT;
-	const primary = git.repo.primaryRootSync(directory);
+	const primary = vcs.repo(directory)?.primaryRoot() ?? null;
 	return path.basename(primary ?? directory).toLowerCase() || UNKNOWN_PROJECT;
 }
 

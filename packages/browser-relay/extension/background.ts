@@ -1,5 +1,5 @@
 /**
- * Chudcode Browser Relay — MV3 service worker.
+ * OMP Browser Relay — MV3 service worker.
  *
  * Dumb pipe by design: all CDP orchestration lives in the relay server. This
  * worker (1) keeps a websocket to the relay, (2) executes its RPCs against
@@ -20,6 +20,23 @@ let ws: WebSocket | null = null;
 let reconnectDelay = RECONNECT_MIN_MS;
 let pingTimer: NodeJS.Timeout | null = null;
 const relayInitiatedDetachTabs = new Set<number>();
+
+/**
+ * Stable per-install browser identity, persisted in `chrome.storage.local` and
+ * sent in every hello. The relay namespaces tab registries per instance, so
+ * several browsers can share one relay and a service-worker restart keeps the
+ * browser's tab registry instead of replacing another browser's connection.
+ */
+let instanceId: string | null = null;
+async function ensureInstanceId(): Promise<string> {
+	if (instanceId) return instanceId;
+	const key = "relayInstanceId";
+	const stored = await chrome.storage.local.get({ [key]: "" });
+	const existing = stored[key];
+	instanceId = typeof existing === "string" && existing.length > 0 ? existing : crypto.randomUUID();
+	await chrome.storage.local.set({ [key]: instanceId } as Record<string, string>);
+	return instanceId;
+}
 
 interface RelaySettings {
 	port: number;
@@ -48,13 +65,13 @@ function snapshot(tab: ChromeTab): TabSnapshot | null {
 	};
 }
 
-/** Title of the chudcode tab group; mirrored to session storage so a restarted service worker can still dissolve it. */
+/** Title of the omp tab group; mirrored to session storage so a restarted service worker can still dissolve it. */
 let ompGroupTitle: string | null = null;
 
 /**
  * Serialize group mutations. Chrome's query→group→set-title sequence is not
  * atomic: two concurrent runs both miss the not-yet-titled group and mint
- * duplicate "chudcode" groups in the same window.
+ * duplicate "omp" groups in the same window.
  */
 let groupOps: Promise<unknown> = Promise.resolve();
 function enqueueGroupOp<T>(fn: () => Promise<T>): Promise<T> {
@@ -63,7 +80,7 @@ function enqueueGroupOp<T>(fn: () => Promise<T>): Promise<T> {
 	return result;
 }
 
-/** Move tabs into the per-window chudcode group, creating or reusing it by title. */
+/** Move tabs into the per-window omp group, creating or reusing it by title. */
 async function groupTabs(tabIds: number[], title: string, color: string): Promise<{ grouped: Record<string, number> }> {
 	ompGroupTitle = title;
 	void chrome.storage.session.set({ ompGroupTitle: title });
@@ -102,7 +119,7 @@ async function groupTabs(tabIds: number[], title: string, color: string): Promis
 	return { grouped };
 }
 
-/** Dissolve every chudcode-titled group (relay disconnected or asked us to release tabs). */
+/** Dissolve every omp-titled group (relay disconnected or asked us to release tabs). */
 async function restoreGroups(): Promise<void> {
 	if (!ompGroupTitle) {
 		// Service worker restarted since the last group op; recover the title.
@@ -145,6 +162,7 @@ async function buildHello(): Promise<ExtToRelayMessage> {
 	const versionMatch = /Chrome\/[\d.]+/.exec(navigator.userAgent);
 	return {
 		t: "hello",
+		instanceId: await ensureInstanceId(),
 		userAgent: navigator.userAgent,
 		browserVersion: versionMatch?.[0] ?? "Chrome/unknown",
 		tabs: snapshots,
@@ -277,9 +295,9 @@ chrome.tabs.onRemoved.addListener(tabId => {
 
 // ---- lifecycle ----------------------------------------------------------------
 
-chrome.alarms.create("chudcode-relay-keepalive", { periodInMinutes: 0.5 });
+chrome.alarms.create("omp-relay-keepalive", { periodInMinutes: 0.5 });
 chrome.alarms.onAlarm.addListener(alarm => {
-	if (alarm.name === "chudcode-relay-keepalive") void connect();
+	if (alarm.name === "omp-relay-keepalive") void connect();
 });
 
 chrome.storage.onChanged.addListener((_changes, areaName) => {

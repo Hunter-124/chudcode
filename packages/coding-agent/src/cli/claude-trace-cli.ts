@@ -9,16 +9,15 @@ import * as net from "node:net";
 import * as path from "node:path";
 import * as tls from "node:tls";
 import * as zlib from "node:zlib";
-import { PtySession } from "@chudware/natives";
-import { sleep } from "@chudware/utils/async";
-import xterm from "@chudware/utils/vterm";
+import { PtySession } from "@oh-my-pi/pi-natives";
+import xterm from "@oh-my-pi/pi-utils/vterm";
 
 const DEFAULT_PROXY_HOST = "127.0.0.1";
 const DEFAULT_PROXY_PORT = 8080;
 const DEFAULT_COMMAND = "claude";
 const DEFAULT_MESSAGE = "hi";
 const DEFAULT_TIMEOUT_MS = 120_000;
-const DEFAULT_INPUT_DELAY_MS = 1_000;
+const DEFAULT_INPUT_DELAY_MS = 3_000;
 const DEFAULT_COLS = 120;
 const DEFAULT_ROWS = 40;
 const DOUBLE_CRLF = Buffer.from("\r\n\r\n", "latin1");
@@ -578,61 +577,78 @@ export class ClaudeMessagesProxy {
 	#handleProxyRequest(socket: net.Socket, head: string, rest: Buffer): void {
 		const firstLine = head.split("\r\n", 1)[0] ?? "";
 		const parts = firstLine.split(/\s+/u);
-		if (parts[0] !== "CONNECT") {
-			socket.end("HTTP/1.1 501 Not Implemented\r\nConnection: close\r\n\r\n");
+		if (parts[0] === "CONNECT") {
+			const target = parseConnectTarget(parts[1] ?? "");
+			if (!target) {
+				socket.end("HTTP/1.1 400 Bad Request\r\nConnection: close\r\n\r\n");
+				return;
+			}
+			socket.write("HTTP/1.1 200 Connection Established\r\n\r\n", () => this.#openMitmTunnel(socket, target, rest));
 			return;
 		}
-		const target = parseConnectTarget(parts[1] ?? "");
+		this.#handleForwardProxyRequest(socket, head, rest);
+	}
+
+	#handleForwardProxyRequest(socket: net.Socket, head: string, rest: Buffer): void {
+		const firstLine = head.split("\r\n", 1)[0] ?? "";
+		const parts = firstLine.split(/\s+/u);
+		const targetUrl = parts[1] ?? "";
+		let target: ConnectTarget | null = null;
+		if (targetUrl.startsWith("http://") || targetUrl.startsWith("https://")) {
+			try {
+				const parsed = new URL(targetUrl);
+				const isHttps = parsed.protocol === "https:";
+				const port = parsed.port ? Number.parseInt(parsed.port, 10) : isHttps ? 443 : 80;
+				if (Number.isSafeInteger(port) && port > 0 && port <= 65535) {
+					target = { host: parsed.hostname, port, display: `${parsed.hostname}:${port}` };
+				}
+			} catch {}
+		}
+		if (!target) {
+			const headers = parseHeaders(head).headers;
+			const hostHeader = headerValue(headers, "host");
+			if (hostHeader) {
+				target = parseConnectTarget(hostHeader);
+			}
+		}
 		if (!target) {
 			socket.end("HTTP/1.1 400 Bad Request\r\nConnection: close\r\n\r\n");
 			return;
 		}
-		socket.write("HTTP/1.1 200 Connection Established\r\n\r\n", () => this.#openMitmTunnel(socket, target, rest));
+		const upstream = this.#track(
+			net.connect({ host: target.host, port: target.port }, () => {
+				upstream.write(head);
+				upstream.write(DOUBLE_CRLF);
+				if (rest.length > 0) upstream.write(rest);
+				socket.pipe(upstream);
+				upstream.pipe(socket);
+			}),
+		);
+		upstream.on("error", () => socket.destroy());
 	}
 
 	#openMitmTunnel(socket: net.Socket, target: ConnectTarget, rest: Buffer): void {
-		void this.#openMitmTunnelAsync(socket, target, rest).catch(() => socket.destroy());
-	}
-
-	async #openMitmTunnelAsync(socket: net.Socket, target: ConnectTarget, rest: Buffer): Promise<void> {
-		const clientReady = Promise.withResolvers<tls.TLSSocket>();
-		const tlsServer = tls.createServer(
-			{ cert: CLAUDE_TRACE_DEBUG_CERT, key: CLAUDE_TRACE_DEBUG_KEY, ALPNProtocols: ["http/1.1"] },
-			clientTls => {
-				this.#track(clientTls);
-				clientReady.resolve(clientTls);
-			},
-		);
-		tlsServer.once("error", error => clientReady.reject(error));
-		const listening = Promise.withResolvers<void>();
-		tlsServer.listen(0, DEFAULT_PROXY_HOST, () => listening.resolve());
-		await listening.promise;
-		const address = tlsServer.address();
-		if (!address || typeof address === "string") {
-			tlsServer.close();
-			throw new Error("Internal TLS bridge did not bind to a TCP address");
-		}
-		const bridge = this.#track(net.connect({ host: DEFAULT_PROXY_HOST, port: address.port }));
-		const connected = Promise.withResolvers<void>();
-		bridge.once("connect", () => connected.resolve());
-		bridge.once("error", error => connected.reject(error));
-		await connected.promise;
-		socket.pipe(bridge);
-		bridge.pipe(socket);
-		const closeInternalServer = () => tlsServer.close();
-		socket.once("close", closeInternalServer);
-		bridge.once("close", closeInternalServer);
-		if (rest.length > 0) bridge.write(rest);
-		const clientTls = await clientReady.promise;
-		const upstreamTls = this.#track(
-			tls.connect({
-				host: target.host,
-				port: target.port,
-				servername: net.isIP(target.host) ? undefined : target.host,
-				rejectUnauthorized: this.#upstreamTlsRejectUnauthorized,
+		const clientTls = this.#track(
+			new tls.TLSSocket(socket, {
+				isServer: true,
+				cert: CLAUDE_TRACE_DEBUG_CERT,
+				key: CLAUDE_TRACE_DEBUG_KEY,
 				ALPNProtocols: ["http/1.1"],
 			}),
 		);
+		if (rest.length > 0) {
+			clientTls.unshift(rest);
+		}
+		const upstreamTlsSocket: tls.TLSSocket = tls.connect({
+			host: target.host,
+			port: target.port,
+			servername: net.isIP(target.host) ? undefined : target.host,
+			rejectUnauthorized: this.#upstreamTlsRejectUnauthorized,
+			ALPNProtocols: ["http/1.1"],
+		});
+		// Annotate: `tls.connect` infers `any` under some @types/node versions,
+		// which would leave the "data" listener parameter untyped below.
+		const upstreamTls = this.#track(upstreamTlsSocket);
 		const requestParser = new HttpMessageParser("request");
 		const responseParser = new HttpMessageParser("response");
 		const responseQueue: Array<PendingCapturedRequest | null> = [];
@@ -644,8 +660,7 @@ export class ClaudeMessagesProxy {
 			}
 		};
 		clientTls.on("data", chunk => {
-			if (!Buffer.isBuffer(chunk)) return;
-			const data = Buffer.from(chunk);
+			const data = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
 			upstreamTls.write(data);
 			const messages = requestParser.push(data);
 			for (const message of messages) {
@@ -657,8 +672,7 @@ export class ClaudeMessagesProxy {
 			}
 		});
 		upstreamTls.on("data", chunk => {
-			if (!Buffer.isBuffer(chunk)) return;
-			const data = Buffer.from(chunk);
+			const data = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
 			clientTls.write(data);
 			flushResponses(responseParser.push(data));
 		});
@@ -676,7 +690,6 @@ export class ClaudeMessagesProxy {
 		});
 		clientTls.on("error", () => upstreamTls.destroy());
 		upstreamTls.on("error", () => clientTls.destroy());
-		clientTls.once("close", closeInternalServer);
 	}
 }
 function errorMessage(error: unknown): string {
@@ -687,7 +700,7 @@ async function shutdownPty(session: PtySession, runPromise: Promise<unknown>): P
 	try {
 		session.write("\x03");
 	} catch {}
-	await sleep(100);
+	await Bun.sleep(100);
 	try {
 		session.kill();
 	} catch {}
@@ -746,11 +759,11 @@ export async function runClaudeMessagesCapture(args: ClaudeTraceCommandArgs = {}
 	try {
 		const outputSuffix = () => (ptyOutput.trim() ? `\n\nClaude output:\n${ptyOutput}` : "");
 		void (async () => {
-			await sleep(args.inputDelayMs ?? DEFAULT_INPUT_DELAY_MS);
+			await Bun.sleep(args.inputDelayMs ?? DEFAULT_INPUT_DELAY_MS);
 			try {
 				session.write(`${message}\r`);
 			} catch (error) {
-				ptyOutput += `\n[chudcode input write failed: ${errorMessage(error)}]\n`;
+				ptyOutput += `\n[omp input write failed: ${errorMessage(error)}]\n`;
 			}
 		})();
 		const captureRace = proxy.waitForCapture(timeoutMs).then(
@@ -769,7 +782,7 @@ export async function runClaudeMessagesCapture(args: ClaudeTraceCommandArgs = {}
 		if (first.kind === "capture-error") {
 			throw new Error(`${errorMessage(first.error)}${outputSuffix()}`);
 		}
-		const late = await Promise.race([captureRace, sleep(250).then(() => ({ kind: "late-timeout" as const }))]);
+		const late = await Promise.race([captureRace, Bun.sleep(250).then(() => ({ kind: "late-timeout" as const }))]);
 		if (late.kind === "capture") {
 			await shutdownPty(session, runPromise);
 			return late.exchange;

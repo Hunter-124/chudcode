@@ -1,14 +1,14 @@
 import { afterEach, describe, expect, it, spyOn, vi } from "bun:test";
-import { DapClient } from "@chudware/coding-agent/dap/client";
-import { DapSessionManager } from "@chudware/coding-agent/dap/session";
+import { DapClient } from "@oh-my-pi/pi-coding-agent/dap/client";
+import { DapSessionManager } from "@oh-my-pi/pi-coding-agent/dap/session";
 import type {
 	DapCapabilities,
 	DapClientState,
 	DapEventMessage,
 	DapResolvedAdapter,
 	DapThread,
-} from "@chudware/coding-agent/dap/types";
-import { type ChildProcess, ptree } from "@chudware/utils";
+} from "@oh-my-pi/pi-coding-agent/dap/types";
+import { type ChildProcess, ptree } from "@oh-my-pi/pi-utils";
 
 const TEST_ADAPTER: DapResolvedAdapter = {
 	name: "js-debug-adapter",

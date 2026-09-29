@@ -1,9 +1,9 @@
 import { beforeAll, describe, expect, it } from "bun:test";
-import { runStartupSplash } from "@chudware/coding-agent/modes/setup-wizard/startup-splash";
-import { initTheme } from "@chudware/coding-agent/modes/theme/theme";
-import type { InteractiveModeContext } from "@chudware/coding-agent/modes/types";
-import { shouldShowStartupSplash } from "@chudware/coding-agent/startup-splash";
-import type { Component } from "@chudware/tui";
+import { runStartupSplash } from "@oh-my-pi/pi-tui/setup/startup-splash";
+import { initTheme } from "@oh-my-pi/pi-tui/theme";
+import type { InteractiveModeContext } from "@oh-my-pi/pi-coding-agent/modes/types";
+import { shouldShowStartupSplash } from "@oh-my-pi/pi-coding-agent/startup-splash";
+import type { Component } from "@oh-my-pi/pi-tui";
 
 beforeAll(async () => {
 	await initTheme(false);

@@ -19,9 +19,8 @@
 
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
-import type { Model } from "@chudware/ai";
-import { getStatsDbPath, isEnoent, logger } from "@chudware/utils";
-import * as fsx from "@chudware/utils/fsx";
+import type { Model } from "@oh-my-pi/pi-ai";
+import { getStatsDbPath, isEnoent, logger } from "@oh-my-pi/pi-utils";
 
 export interface SnapcompactSavingsRecord {
 	/** Epoch milliseconds when the swap was applied. */
@@ -34,7 +33,7 @@ export interface SnapcompactSavingsRecord {
 	savedTokens: number;
 }
 
-/** `~/.chudcode/.../snapcompact-savings.jsonl`, colocated with stats.db. */
+/** `~/.omp/.../snapcompact-savings.jsonl`, colocated with stats.db. */
 export function snapcompactSavingsJournalPath(): string {
 	return path.join(path.dirname(getStatsDbPath()), "snapcompact-savings.jsonl");
 }
@@ -96,7 +95,7 @@ export async function readSnapcompactSavingsJournal(
 ): Promise<SnapcompactSavingsRecord[]> {
 	let text: string;
 	try {
-		text = await fsx.readText(journalPath);
+		text = await Bun.file(journalPath).text();
 	} catch (err) {
 		if (isEnoent(err)) return [];
 		throw err;

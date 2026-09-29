@@ -5,14 +5,14 @@
  */
 
 import { isPromise } from "node:util/types";
-import type { AgentEvent, AgentMessage, AgentToolResult, ThinkingLevel } from "@chudware/agent-core";
-import type { CompactionResult } from "@chudware/agent-core/compaction";
-import type { ImageContent, Model } from "@chudware/ai";
-import { isRecord, ptree, readJsonl } from "@chudware/utils";
-import { sleep } from "@chudware/utils/async";
+import type { AgentEvent, AgentMessage, AgentToolResult, ThinkingLevel } from "@oh-my-pi/pi-agent-core";
+import type { CompactionResult } from "@oh-my-pi/pi-agent-core/compaction";
+import type { ImageContent, Model } from "@oh-my-pi/pi-ai";
+import { isRecord, ptree, readJsonl } from "@oh-my-pi/pi-utils";
 import type { FileSink } from "bun";
 import type { BashResult } from "../../exec/bash-executor";
 import type { AgentSessionEvent, SessionStats } from "../../session/agent-session";
+import type { SessionEntry, SessionTreeNode } from "../../session/session-entries";
 import { MAX_RPC_FRAME_BYTES, MAX_RPC_REASSEMBLED_BYTES, RpcFrameDecoder, type RpcProtocolVersion } from "./rpc-frame";
 import {
 	RPC_MESSAGES_PAGE_BUSY_ERROR,
@@ -21,8 +21,6 @@ import {
 	type RpcMessagesPageOptions,
 } from "./rpc-messages";
 import type {
-	RpcApiKeyValidationResult,
-	RpcAuthStateResult,
 	RpcAvailableCommandsUpdateFrame,
 	RpcAvailableSlashCommand,
 	RpcCommand,
@@ -34,20 +32,11 @@ import type {
 	RpcHostToolDefinition,
 	RpcHostToolResult,
 	RpcHostToolUpdate,
-	RpcLogoutProviderResult,
-	RpcMemoryRecallInput,
-	RpcMemoryRecallResult,
-	RpcMemoryRememberInput,
-	RpcMemoryRememberResult,
-	RpcMemoryStatsResult,
-	RpcRemoveApiKeyResult,
+	RpcOpenSessionResult,
+	RpcPromptResultFrame,
 	RpcResponse,
+	RpcSessionSettledFrame,
 	RpcSessionState,
-	RpcSetApiKeyResult,
-	RpcSttCancelResult,
-	RpcSttStartResult,
-	RpcSttStatus,
-	RpcSttStopResult,
 	RpcSubagentEventFrame,
 	RpcSubagentLifecycleFrame,
 	RpcSubagentMessagesResult,
@@ -62,6 +51,17 @@ type DistributiveOmit<T, K extends keyof T> = T extends unknown ? Omit<T, K> : n
 /** RpcCommand without the id field (for internal send) */
 type RpcCommandBody = DistributiveOmit<RpcCommand, "id">;
 
+/** Process transport consumed by {@link RpcClient}. */
+export interface RpcAgentProcess {
+	stdin: {
+		write(data: string | Uint8Array): unknown;
+	};
+	stdout: ReadableStream<Uint8Array>;
+	peekStderr(): string;
+	kill(signal?: Parameters<ptree.ChildProcess["kill"]>[0], graceMs?: number): void;
+	exited: Promise<number>;
+}
+
 export interface RpcClientOptions {
 	/** Path to the CLI entry point (default: `dist/cli.js`). */
 	cliPath?: string;
@@ -69,8 +69,14 @@ export interface RpcClientOptions {
 	 * Agent launcher override. An argv prefix receives the normal RPC/model args
 	 * appended; a builder receives those args and returns the complete argv.
 	 * Builders support transports such as SSH that must quote the final argv.
+	 * Ignored when {@link spawn} is provided.
 	 */
 	command?: string[] | ((agentArgs: string[]) => string[]);
+	/**
+	 * Spawn the RPC agent over a custom transport instead of a local child process.
+	 * Takes precedence over {@link command}.
+	 */
+	spawn?: (agentArgs: string[]) => RpcAgentProcess | Promise<RpcAgentProcess>;
 	/** Working directory for the agent */
 	cwd?: string;
 	/** Environment variables */
@@ -97,14 +103,12 @@ export type RpcSubagentLifecycleListener = (payload: RpcSubagentLifecycleFrame["
 export type RpcSubagentProgressListener = (payload: RpcSubagentProgressFrame["payload"]) => void;
 export type RpcSubagentEventListener = (payload: RpcSubagentEventFrame["payload"]) => void;
 export type RpcAvailableCommandsUpdateListener = (commands: RpcAvailableSlashCommand[]) => void;
+export type RpcPromptResultListener = (result: RpcPromptResultFrame) => void;
+export type RpcSessionSettledListener = () => void;
 
 export interface RpcClientToolContext<TDetails = unknown> {
 	toolCallId: string;
 	signal: AbortSignal;
-	/** Registry id of the nested (task sub-)agent making the call; undefined for the top-level session. */
-	agentId?: string;
-	/** Registry id of `agentId`'s spawner; undefined for the top-level session. */
-	parentAgentId?: string;
 	sendUpdate(partialResult: RpcClientToolResult<TDetails>): void;
 }
 
@@ -138,6 +142,7 @@ const agentEventTypes = new Set<AgentEvent["type"]>([
 	"message_end",
 	"tool_execution_start",
 	"tool_execution_update",
+	"tool_stream_update",
 	"tool_execution_end",
 ]);
 
@@ -157,6 +162,7 @@ const sessionEventTypes = new Set<AgentSessionEvent["type"]>([
 	"thinking_level_changed",
 	"model_changed",
 	"goal_updated",
+	"queue_update",
 ]);
 
 function isRpcResponse(value: unknown): value is RpcResponse {
@@ -208,6 +214,15 @@ function isRpcSubagentProgressFrame(value: unknown): value is RpcSubagentProgres
 function isRpcSubagentEventFrame(value: unknown): value is RpcSubagentEventFrame {
 	if (!isRecord(value)) return false;
 	return value.type === "subagent_event" && isRecord(value.payload);
+}
+
+function isRpcPromptResultFrame(value: unknown): value is RpcPromptResultFrame {
+	if (!isRecord(value)) return false;
+	return value.type === "prompt_result" && typeof value.agentInvoked === "boolean";
+}
+
+function isRpcSessionSettledFrame(value: unknown): value is RpcSessionSettledFrame {
+	return isRecord(value) && value.type === "session_settled";
 }
 
 function isRpcAvailableCommandsUpdateFrame(value: unknown): value is RpcAvailableCommandsUpdateFrame {
@@ -270,7 +285,7 @@ function isPageFallbackError(error: unknown): boolean {
 // ============================================================================
 
 export class RpcClient {
-	#process: ptree.ChildProcess | null = null;
+	#process: RpcAgentProcess | null = null;
 	#reaping: Promise<void> | null = null;
 	#eventListeners: RpcEventListener[] = [];
 	#sessionEventListeners: RpcSessionEventListener[] = [];
@@ -278,6 +293,10 @@ export class RpcClient {
 	#subagentProgressListeners = new Set<RpcSubagentProgressListener>();
 	#subagentEventListeners = new Set<RpcSubagentEventListener>();
 	#availableCommandsUpdateListeners = new Set<RpcAvailableCommandsUpdateListener>();
+	#promptResultListeners = new Set<RpcPromptResultListener>();
+	#sessionSettledListeners = new Set<RpcSessionSettledListener>();
+	/** `promptAndWait` completions keyed by request id; registered before the prompt is sent. */
+	#promptResultWaiters = new Map<string, (result: RpcPromptResultFrame) => void>();
 	#pendingRequests: Map<string, { resolve: (response: RpcResponse) => void; reject: (error: Error) => void }> =
 		new Map();
 	#customTools: RpcClientCustomTool[] = [];
@@ -325,16 +344,18 @@ export class RpcClient {
 		if (this.options.args) {
 			args.push(...this.options.args);
 		}
-		const launch =
-			typeof this.options.command === "function"
-				? this.options.command(args)
-				: [...(this.options.command ?? ["bun", cliPath]), ...args];
-
-		const child = ptree.spawn(launch, {
-			cwd: this.options.cwd,
-			env: { ...process.env, ...this.options.env },
-			stdin: "pipe",
-		});
+		const child = this.options.spawn
+			? await this.options.spawn(args)
+			: ptree.spawn(
+					typeof this.options.command === "function"
+						? this.options.command(args)
+						: [...(this.options.command ?? ["bun", cliPath]), ...args],
+					{
+						cwd: this.options.cwd,
+						env: { ...Bun.env, ...this.options.env },
+						stdin: "pipe",
+					},
+				);
 		this.#process = child;
 
 		// Wait for the "ready" signal or process exit
@@ -387,7 +408,7 @@ export class RpcClient {
 				// nonzero exits), so give it a bounded head start: the exit watcher
 				// below was registered first and rejects with the real stderr text
 				// instead of an empty "Stderr:" (flaked under full-suite load).
-				await Promise.race([child.exited.catch(() => {}), sleep(250)]);
+				await Promise.race([child.exited.catch(() => {}), Bun.sleep(250)]);
 				if (readySettled) return;
 				readySettled = true;
 				readyReject(new Error(`Agent output stream ended before ready. Stderr: ${child.peekStderr()}`));
@@ -398,7 +419,7 @@ export class RpcClient {
 					exitCode => ({ exitCode }),
 					cause => ({ cause }),
 				),
-				sleep(100).then(() => null),
+				Bun.sleep(100).then(() => null),
 			]);
 			const error =
 				exitResult === null
@@ -497,7 +518,7 @@ export class RpcClient {
 		void this.stop();
 	}
 
-	#waitForExit(child: ptree.ChildProcess): Promise<void> {
+	#waitForExit(child: RpcAgentProcess): Promise<void> {
 		const reaping = child.exited.then(
 			() => {},
 			() => {},
@@ -536,19 +557,6 @@ export class RpcClient {
 	}
 
 	/**
-	 * Subscribe to extension UI requests emitted by the RPC-hosted agent.
-	 *
-	 * Hosts normally need only agent events, but UI state such as `setTitle`
-	 * belongs to this stream. Keeping this generic avoids teaching RpcClient
-	 * CloudCastle's channel naming policy while still letting a real UI host
-	 * mirror the title the session itself chose.
-	 */
-	onExtensionUiRequest(listener: (request: RpcExtensionUIRequest) => void): () => void {
-		this.#extensionUiListeners.add(listener);
-		return () => this.#extensionUiListeners.delete(listener);
-	}
-
-	/**
 	 * Subscribe to subagent lifecycle frames after setSubagentSubscription("progress" | "events").
 	 */
 	onSubagentLifecycle(listener: RpcSubagentLifecycleListener): () => void {
@@ -580,6 +588,25 @@ export class RpcClient {
 		return () => this.#availableCommandsUpdateListeners.delete(listener);
 	}
 
+	/** Subscribe to `prompt_result` frames: the terminal outcome of each prompt, correlated by request id. */
+	onPromptResult(listener: RpcPromptResultListener): () => void {
+		this.#promptResultListeners.add(listener);
+		return () => {
+			this.#promptResultListeners.delete(listener);
+		};
+	}
+
+	/**
+	 * Subscribe to `session_settled`: the session is done — the agent yielded and no
+	 * background work remains that could inject messages and wake it again.
+	 */
+	onSessionSettled(listener: RpcSessionSettledListener): () => void {
+		this.#sessionSettledListeners.add(listener);
+		return () => {
+			this.#sessionSettledListeners.delete(listener);
+		};
+	}
+
 	/**
 	 * Get collected stderr output (useful for debugging).
 	 */
@@ -599,11 +626,13 @@ export class RpcClient {
 
 	/**
 	 * Send a prompt to the agent.
-	 * Returns immediately after sending; use onEvent() to receive streaming events.
-	 * Use waitForIdle() to wait for completion.
+	 * Returns the request id once accepted; use onEvent() to receive streaming events
+	 * and onPromptResult() to observe its completion under that id.
 	 */
-	async prompt(message: string, images?: ImageContent[]): Promise<void> {
-		await this.#send({ type: "prompt", message, images });
+	async prompt(message: string, images?: ImageContent[]): Promise<string> {
+		const response = await this.#send({ type: "prompt", message, images });
+		this.#getData(response);
+		return response.id ?? "";
 	}
 
 	/**
@@ -621,6 +650,14 @@ export class RpcClient {
 	}
 
 	/**
+	 * Remove the first matching user message and its companions from one pending queue.
+	 */
+	async removeQueuedMessage(message: string, queue: "steering" | "followUp"): Promise<{ removed: boolean }> {
+		const response = await this.#send({ type: "remove_queued_message", message, queue });
+		return this.#getData(response);
+	}
+
+	/**
 	 * Abort current operation.
 	 */
 	async abort(): Promise<void> {
@@ -632,6 +669,24 @@ export class RpcClient {
 	 */
 	async abortAndPrompt(message: string, images?: ImageContent[]): Promise<void> {
 		await this.#send({ type: "abort_and_prompt", message, images });
+	}
+
+	/**
+	 * Continue the newest session in `sessionDir`, or start a fresh one there.
+	 * Lets a pre-spawned process bind to a host-keyed conversation.
+	 */
+	async openSession(sessionDir: string): Promise<RpcOpenSessionResult> {
+		const response = await this.#send({ type: "open_session", sessionDir });
+		return this.#getData(response);
+	}
+
+	/**
+	 * Forward only the listed session event types (`null` forwards all).
+	 * Responses, prompt results, and UI/host frames are never filtered.
+	 */
+	async setEventFilter(events: string[] | null): Promise<string[] | null> {
+		const response = await this.#send({ type: "set_event_filter", events });
+		return this.#getData<{ events: string[] | null }>(response).events;
 	}
 
 	/**
@@ -659,30 +714,6 @@ export class RpcClient {
 					? state.tokensPerSecond
 					: null,
 		};
-	}
-
-	/** Inspect local speech capture availability and current bounded state. */
-	async sttStatus(): Promise<RpcSttStatus> {
-		const response = await this.#send({ type: "stt_status" });
-		return this.#getData<RpcSttStatus>(response);
-	}
-
-	/** Warm dependencies and begin the process-wide microphone capture. */
-	async sttStart(): Promise<RpcSttStartResult> {
-		const response = await this.#send({ type: "stt_start" }, 10 * 60_000);
-		return this.#getData<RpcSttStartResult>(response);
-	}
-
-	/** Stop capture, flush streaming ASR, and return the bounded transcript. */
-	async sttStop(): Promise<RpcSttStopResult> {
-		const response = await this.#send({ type: "stt_stop" }, 10 * 60_000);
-		return this.#getData<RpcSttStopResult>(response);
-	}
-
-	/** Idempotently discard capture/transcription work without unloading the warm worker. */
-	async sttCancel(): Promise<RpcSttCancelResult> {
-		const response = await this.#send({ type: "stt_cancel" });
-		return this.#getData<RpcSttCancelResult>(response);
 	}
 
 	/**
@@ -761,6 +792,33 @@ export class RpcClient {
 	async getAvailableCommands(): Promise<RpcAvailableSlashCommand[]> {
 		const response = await this.#send({ type: "get_available_commands" });
 		return this.#getData<{ commands: RpcAvailableSlashCommand[] }>(response).commands;
+	}
+
+	/**
+	 * Pi-compatible append-history read. Delegates to the canonical
+	 * `SessionManager` on the server: no `since` returns all entries in append
+	 * order, `since` returns entries strictly after the matching durable entry.
+	 */
+	async getEntries(since?: string): Promise<{ entries: SessionEntry[]; leafId: string | null }> {
+		const response = await this.#send({ type: "get_entries", since });
+		return this.#getData<{ entries: SessionEntry[]; leafId: string | null }>(response);
+	}
+
+	/**
+	 * Pi-compatible raw session tree plus the current leaf id.
+	 */
+	async getTree(): Promise<{ tree: SessionTreeNode[]; leafId: string | null }> {
+		const response = await this.#send({ type: "get_tree" });
+		return this.#getData<{ tree: SessionTreeNode[]; leafId: string | null }>(response);
+	}
+
+	/**
+	 * Selectable thinking levels for the live model, with `off` first.
+	 * OMP-only `auto`/`inherit` selectors are omitted from discovery.
+	 */
+	async getAvailableThinkingLevels(): Promise<ThinkingLevel[]> {
+		const response = await this.#send({ type: "get_available_thinking_levels" });
+		return this.#getData<{ levels: ThinkingLevel[] }>(response).levels;
 	}
 
 	/**
@@ -845,7 +903,7 @@ export class RpcClient {
 	}
 
 	/**
-	 * Hand off session context to a new session.
+	 * Summarize the session into a handoff document and compact it in place.
 	 */
 	async handoff(customInstructions?: string): Promise<RpcHandoffResult | null> {
 		const response = await this.#send({ type: "handoff", customInstructions });
@@ -876,11 +934,6 @@ export class RpcClient {
 	async branch(entryId: string): Promise<{ text: string; cancelled: boolean }> {
 		const response = await this.#send({ type: "branch", entryId });
 		return this.#getData(response);
-	}
-
-	/** Persist the display title used by every host for this session. */
-	async setSessionName(name: string): Promise<void> {
-		await this.#send({ type: "set_session_name", name });
 	}
 
 	/**
@@ -938,54 +991,6 @@ export class RpcClient {
 		}
 		const response = await this.#send({ type: "get_messages" });
 		return this.#getData<{ messages: AgentMessage[] }>(response).messages;
-	}
-
-	/** Return secret-free authentication state for one provider or the complete provider registry. */
-	async getAuthState(providerId?: string): Promise<RpcAuthStateResult> {
-		const response = await this.#send({ type: "get_auth_state", providerId });
-		return this.#getData<RpcAuthStateResult>(response);
-	}
-
-	/** Validate an API key without persisting it or returning it in the result. */
-	async validateApiKey(providerId: string, apiKey: string): Promise<RpcApiKeyValidationResult> {
-		const response = await this.#send({ type: "validate_api_key", providerId, apiKey });
-		return this.#getData<RpcApiKeyValidationResult>(response);
-	}
-
-	/** Atomically replace the provider's persisted credentials with this API key. */
-	async setApiKey(providerId: string, apiKey: string): Promise<RpcSetApiKeyResult> {
-		const response = await this.#send({ type: "set_api_key", providerId, apiKey });
-		return this.#getData<RpcSetApiKeyResult>(response);
-	}
-
-	/** Remove persisted API-key credentials, optionally narrowed to an account identity. */
-	async removeApiKey(providerId: string, accountId?: string): Promise<RpcRemoveApiKeyResult> {
-		const response = await this.#send({ type: "remove_api_key", providerId, accountId });
-		return this.#getData<RpcRemoveApiKeyResult>(response);
-	}
-
-	/** Log out all stored credentials for a provider, or one OAuth account. */
-	async logoutProvider(providerId: string, accountId?: string): Promise<RpcLogoutProviderResult> {
-		const response = await this.#send({ type: "logout_provider", providerId, accountId });
-		return this.#getData<RpcLogoutProviderResult>(response);
-	}
-
-	/** Persist one value through the configured project-memory backend. */
-	async memoryRemember(input: RpcMemoryRememberInput): Promise<RpcMemoryRememberResult> {
-		const response = await this.#send({ type: "memory_remember", ...input });
-		return this.#getData<RpcMemoryRememberResult>(response);
-	}
-
-	/** Recall bounded project-memory hits through the configured backend. */
-	async memoryRecall(input: RpcMemoryRecallInput): Promise<RpcMemoryRecallResult> {
-		const response = await this.#send({ type: "memory_recall", ...input });
-		return this.#getData<RpcMemoryRecallResult>(response);
-	}
-
-	/** Return path-free, secret-free statistics for the configured project-memory backend. */
-	async memoryStats(root: string): Promise<RpcMemoryStatsResult> {
-		const response = await this.#send({ type: "memory_stats", root });
-		return this.#getData<RpcMemoryStatsResult>(response);
 	}
 
 	/**
@@ -1070,6 +1075,7 @@ export class RpcClient {
 			parameters: tool.parameters,
 			hidden: tool.hidden,
 			loadMode: tool.loadMode,
+			readsSkillUris: tool.readsSkillUris,
 		}));
 		const response = await this.#send({ type: "set_host_tools", tools: definitions });
 		return this.#getData<{ toolNames: string[] }>(response).toolNames;
@@ -1131,12 +1137,52 @@ export class RpcClient {
 	}
 
 	/**
-	 * Send prompt and wait for completion, returning all events.
+	 * Wait until the session is done, not merely yielded: resolves at once when
+	 * `get_state` reports it settled, otherwise at the next `session_settled`.
+	 * Use after {@link promptAndWait} when background jobs may still wake the agent.
+	 */
+	async waitForSettled(timeout = 60000): Promise<void> {
+		const { promise, resolve, reject } = Promise.withResolvers<void>();
+		const unsubscribe = this.onSessionSettled(resolve);
+		let timeoutId: NodeJS.Timeout | undefined;
+		try {
+			// Subscribed before asking, so a settle between the two cannot be missed.
+			if ((await this.getState()).isSettled) return;
+			timeoutId = this.#startTimeout(timeout, () => {
+				reject(new Error(`Timeout waiting for session_settled. Stderr: ${this.#process?.peekStderr() ?? ""}`));
+			});
+			await promise;
+		} finally {
+			unsubscribe();
+			clearTimeout(timeoutId);
+		}
+	}
+
+	/**
+	 * Send a prompt and wait for its own `prompt_result`, returning the agent events
+	 * streamed meanwhile. A local-only prompt answered synchronously resolves with
+	 * the events seen so far.
 	 */
 	async promptAndWait(message: string, images?: ImageContent[], timeout = 60000): Promise<AgentEvent[]> {
-		const eventsPromise = this.collectEvents(timeout);
-		await this.prompt(message, images);
-		return eventsPromise;
+		const id = `req_${++this.#requestId}`;
+		const events: AgentEvent[] = [];
+		const { promise, resolve, reject } = Promise.withResolvers<AgentEvent[]>();
+		const unsubscribe = this.onEvent(event => events.push(event));
+		this.#promptResultWaiters.set(id, () => resolve(events));
+		let timeoutId: NodeJS.Timeout | undefined;
+		try {
+			const response = await this.#send({ type: "prompt", message, images }, 30_000, id);
+			const data = this.#getData<{ agentInvoked?: boolean } | undefined>(response);
+			if (data?.agentInvoked === false) return events;
+			timeoutId = this.#startTimeout(timeout, () => {
+				reject(new Error(`Timeout waiting for prompt_result. Stderr: ${this.#process?.peekStderr() ?? ""}`));
+			});
+			return await promise;
+		} finally {
+			unsubscribe();
+			clearTimeout(timeoutId);
+			this.#promptResultWaiters.delete(id);
+		}
 	}
 
 	// =========================================================================
@@ -1193,6 +1239,21 @@ export class RpcClient {
 			return;
 		}
 
+		if (isRpcSessionSettledFrame(data)) {
+			for (const listener of this.#sessionSettledListeners) {
+				listener();
+			}
+			return;
+		}
+
+		if (isRpcPromptResultFrame(data)) {
+			if (data.id !== undefined) this.#promptResultWaiters.get(data.id)?.(data);
+			for (const listener of this.#promptResultListeners) {
+				listener(data);
+			}
+			return;
+		}
+
 		if (isRpcAvailableCommandsUpdateFrame(data)) {
 			for (const listener of this.#availableCommandsUpdateListeners) {
 				listener(data.commands);
@@ -1213,12 +1274,10 @@ export class RpcClient {
 		}
 	}
 
-	#send(command: RpcCommandBody, timeoutMs = 30_000): Promise<RpcResponse> {
+	#send(command: RpcCommandBody, timeoutMs = 30_000, id = `req_${++this.#requestId}`): Promise<RpcResponse> {
 		if (!this.#process?.stdin) {
 			throw new Error("Client not started");
 		}
-
-		const id = `req_${++this.#requestId}`;
 		const fullCommand = { ...command, id } as RpcCommand;
 		const { promise, resolve, reject } = Promise.withResolvers<RpcResponse>();
 		let settled = false;
@@ -1287,8 +1346,6 @@ export class RpcClient {
 			const result = await tool.execute(request.arguments, {
 				toolCallId: request.toolCallId,
 				signal: controller.signal,
-				agentId: request.agentId,
-				parentAgentId: request.parentAgentId,
 				sendUpdate,
 			});
 			if (controller.signal.aborted) return;
@@ -1320,9 +1377,10 @@ export class RpcClient {
 		if (!this.#process?.stdin) {
 			throw new Error("Client not started");
 		}
-		const stdin = this.#process.stdin as FileSink;
+		const stdin = this.#process.stdin;
 		stdin.write(`${JSON.stringify(frame)}\n`);
-		const flushResult = stdin.flush();
+		if (!("flush" in stdin)) return;
+		const flushResult = (stdin as FileSink).flush();
 		if (isPromise(flushResult)) {
 			flushResult.catch((err: Error) => {
 				onError?.(err);

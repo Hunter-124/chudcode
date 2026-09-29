@@ -1,9 +1,7 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
-import type { AssistantMessage } from "@chudware/ai";
-import { logger } from "@chudware/utils";
-import { sleep } from "@chudware/utils/async";
-import * as fsx from "@chudware/utils/fsx";
+import type { AssistantMessage } from "@oh-my-pi/pi-ai";
+import { logger } from "@oh-my-pi/pi-utils";
 import { ADVISOR_TRANSCRIPT_FILENAME, isAdvisorTranscriptName } from "../advisor/transcript-recorder";
 import { resolveExplicitModelRole } from "../config/model-resolver";
 import { assistantTurnProducedOutput } from "../session/messages";
@@ -273,11 +271,28 @@ async function readPersistedAgentHistory(
 }
 
 /**
+ * Nested-repo patch files the isolation runner wrote beside a transcript,
+ * picked out of the directory listing the scan already holds:
+ * `<id>.nested-<n>-<path>.patch`, in capture order.
+ */
+function nestedPatchFilesFor(dir: string, transcriptName: string, entries: readonly fs.Dirent[]): string[] {
+	const prefix = `${transcriptName.slice(0, -".jsonl".length)}.nested-`;
+	return entries
+		.filter(entry => entry.isFile() && entry.name.startsWith(prefix) && entry.name.endsWith(".patch"))
+		.map(entry => entry.name)
+		.sort((a, b) => Number.parseInt(a.slice(prefix.length), 10) - Number.parseInt(b.slice(prefix.length), 10))
+		.map(name => path.join(dir, name));
+}
+
+/**
  * Read only the small session prefix needed by the Hub. A subagent's first
  * `session_init` is written before its conversation, so this never walks a
  * multi-megabyte historical transcript just to populate one roster row.
  */
-async function readPersistedAgentMetadata(sessionFile: string): Promise<PersistedAgentMetadata> {
+async function readPersistedAgentMetadata(
+	sessionFile: string,
+	nestedPatchPaths: readonly string[] = [],
+): Promise<PersistedAgentMetadata> {
 	// Settle immediately instead of leaving a rejecting promise pending while
 	// the transcript stream runs: a stat fault (EACCES/EMFILE/EIO) must not
 	// surface as an unhandled rejection if the stream errors first or takes
@@ -292,7 +307,7 @@ async function readPersistedAgentMetadata(sessionFile: string): Promise<Persiste
 	const artifactBase = sessionFile.slice(0, -".jsonl".length);
 	const outputPath = `${artifactBase}.md`;
 	const patchPath = `${artifactBase}.patch`;
-	const artifactFiles = Promise.all([fsx.exists(outputPath), fsx.exists(patchPath)]);
+	const artifactFiles = Promise.all([Bun.file(outputPath).exists(), Bun.file(patchPath).exists()]);
 	let createdAt: number | undefined;
 	let activity: string | undefined;
 	let history: AgentHistorySummary = {};
@@ -363,6 +378,7 @@ async function readPersistedAgentMetadata(sessionFile: string): Promise<Persiste
 			...history,
 			...(hasOutput ? { outputPath } : {}),
 			...(hasPatch ? { patchPath } : {}),
+			...(nestedPatchPaths.length > 0 ? { nestedPatchPaths: [...nestedPatchPaths] } : {}),
 		},
 	};
 }
@@ -393,7 +409,6 @@ async function readPersistedVibeChildIds(sessionFile: string, shouldContinue: ()
 const MAX_PERSISTED_ROSTER_LATCHES = 32;
 
 const kPersistedRosterLatches = Symbol("persistedRosterLatches");
-const kPersistedRosterRequestOrder = Symbol("persistedRosterRequestOrder");
 
 /**
  * Failure-tolerant serialization tail for scan bodies. Distinct roots share one
@@ -407,8 +422,6 @@ const kPersistedRosterRequestOrder = Symbol("persistedRosterRequestOrder");
 const kPersistedRosterScanTail = Symbol("persistedRosterScanTail");
 
 interface PersistedRosterLatch {
-	/** Monotonic call order captured before asynchronous root resolution. */
-	order: number;
 	/** Settles when the root's roster scan finishes (success or logged failure). */
 	pending: Promise<void>;
 	/** True once `pending` has settled; only settled latches are evictable. */
@@ -428,7 +441,6 @@ interface PersistedRosterLatch {
 
 interface RegistryWithPersistedRosterLatches extends AgentRegistry {
 	[kPersistedRosterLatches]?: Map<string, PersistedRosterLatch>;
-	[kPersistedRosterRequestOrder]?: number;
 	[kPersistedRosterScanTail]?: Promise<void>;
 }
 
@@ -462,7 +474,7 @@ async function resolveRootSessionFile(registry: AgentRegistry, hint?: string | n
 	// top-level siblings invisible to deep children.
 	for (;;) {
 		const parentFile: string = `${path.dirname(current)}.jsonl`;
-		if (parentFile === current || !(await fsx.exists(parentFile))) return current;
+		if (parentFile === current || !(await Bun.file(parentFile).exists())) return current;
 		current = parentFile;
 	}
 }
@@ -507,9 +519,6 @@ export async function ensurePersistedRoster(
 	registry: AgentRegistry,
 	sessionFileHint?: string | null,
 ): Promise<string | undefined> {
-	const taggedRegistry = registry as RegistryWithPersistedRosterLatches;
-	const requestOrder = (taggedRegistry[kPersistedRosterRequestOrder] ?? 0) + 1;
-	taggedRegistry[kPersistedRosterRequestOrder] = requestOrder;
 	let root: string | undefined;
 	try {
 		root = await resolveRootSessionFile(registry, sessionFileHint);
@@ -521,6 +530,7 @@ export async function ensurePersistedRoster(
 	}
 	if (!root) return undefined;
 
+	const taggedRegistry = registry as RegistryWithPersistedRosterLatches;
 	let latches = taggedRegistry[kPersistedRosterLatches];
 	if (!latches) {
 		latches = new Map();
@@ -556,19 +566,16 @@ export async function ensurePersistedRoster(
 	// process that visits many roots doesn't accumulate one entry per root.
 	// In-flight scans are never evicted: their latch is the single-flight guard.
 	if (latches.size >= MAX_PERSISTED_ROSTER_LATCHES) {
-		const settledOldestFirst = [...latches.entries()]
-			.filter(([, latch]) => latch.settled)
-			.sort(([, a], [, b]) => a.order - b.order);
-		for (const [latchedRoot] of settledOldestFirst) {
+		for (const [latchedRoot, latch] of latches) {
 			if (latches.size < MAX_PERSISTED_ROSTER_LATCHES) break;
-			latches.delete(latchedRoot);
+			if (latch.settled) latches.delete(latchedRoot);
 		}
 	}
 	// Chain the scan body behind any other root's in-flight scan (same-root
 	// calls never reach here: they joined the latch above). The tail always
 	// stores a settled wrapper, so a failed scan settles it and the next root
 	// still proceeds.
-	const latch: PersistedRosterLatch = { pending: undefined!, settled: false, order: requestOrder, owned: new Map() };
+	const latch: PersistedRosterLatch = { pending: undefined!, settled: false, owned: new Map() };
 	const tail = taggedRegistry[kPersistedRosterScanTail] ?? Promise.resolve();
 	const scan = tail.then(() =>
 		registerPersistedSubagents(registry, root, { hydrateHistory: false, owned: latch.owned }),
@@ -672,12 +679,16 @@ async function registerPersistedSubagentsFromDir(
 		throw error;
 	}
 	if (!shouldContinue()) return;
+	const childDirectories = new Set<string>();
+	for (const entry of entries) {
+		if (entry.isDirectory()) childDirectories.add(entry.name);
+	}
 	let entriesSinceYield = 0;
 	for (const entry of entries) {
 		if (!shouldContinue()) return;
 		if (++entriesSinceYield >= 16) {
 			entriesSinceYield = 0;
-			await sleep(0);
+			await Bun.sleep(0);
 		}
 		if (!shouldContinue()) return;
 		if (!entry.isFile() || !entry.name.endsWith(".jsonl") || entry.name.includes(".bak")) continue;
@@ -766,7 +777,7 @@ async function registerPersistedSubagentsFromDir(
 			}
 		} else {
 			const expected = existing ?? null;
-			const metadata = await readPersistedAgentMetadata(sessionFile);
+			const metadata = await readPersistedAgentMetadata(sessionFile, nestedPatchFilesFor(dir, entry.name, entries));
 			if (!shouldContinue()) return;
 			// Metadata reads yield. A spawn may claim the id while this scan is
 			// inspecting the file; never replace that live generation with a
@@ -805,15 +816,19 @@ async function registerPersistedSubagentsFromDir(
 				}
 			}
 		}
-		await registerPersistedSubagentsFromDir(
-			registry,
-			path.join(dir, id),
-			id,
-			vibeOwnedIds,
-			transcripts,
-			shouldContinue,
-			rootSessionFile,
-			owned,
-		);
+		// A transcript stem is not proof of a child directory: "." and ".."
+		// revisit ancestors, and symlinks can point back into the same tree.
+		if (childDirectories.has(id)) {
+			await registerPersistedSubagentsFromDir(
+				registry,
+				path.join(dir, id),
+				id,
+				vibeOwnedIds,
+				transcripts,
+				shouldContinue,
+				rootSessionFile,
+				owned,
+			);
+		}
 	}
 }

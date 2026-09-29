@@ -5,7 +5,7 @@
  * Rules (applied in order):
  *  0. Looks like a filesystem path (`.`, `..`, `./…`, `..\…`, `/…`, `~/…`,
  *     `C:\…`, `\\unc`) -> local. Routed through `PluginManager.link()` so the
- *     `chudcode plugin install <path>` and `chudcode plugin link <path>` flows agree.
+ *     `omp plugin install <path>` and `omp plugin link <path>` flows agree.
  *  1. Starts with `@` (scoped npm) -> always npm.
  *  2. Contains `@` after the first character -> split on the LAST `@`.
  *     If the right-hand side is a known marketplace name, it's a marketplace ref.
@@ -51,6 +51,43 @@ export type ClassifiedInstallTarget =
 	| { type: "local"; path: string }
 	| { type: "marketplace"; name: string; marketplace: string }
 	| { type: "npm"; spec: string };
+
+export type MarketplaceInstallOptions = { dryRun: boolean; force?: boolean; scope?: "user" | "project" };
+
+export type MarketplaceInstallPreview = {
+	dryRun: true;
+	action: "install";
+	plugin: string;
+	marketplace: string;
+};
+
+export interface MarketplacePreviewReader {
+	validateInstallPlugin(
+		name: string,
+		marketplace: string,
+		options?: Omit<MarketplaceInstallOptions, "dryRun">,
+	): Promise<void>;
+}
+
+export async function handleMarketplaceInstall(
+	manager: MarketplacePreviewReader,
+	target: Extract<ClassifiedInstallTarget, { type: "marketplace" }>,
+	options: MarketplaceInstallOptions,
+	emitPreview: (preview: MarketplaceInstallPreview) => void,
+): Promise<boolean> {
+	if (!options.dryRun) return false;
+	await manager.validateInstallPlugin(target.name, target.marketplace, {
+		force: options.force,
+		scope: options.scope,
+	});
+	emitPreview({
+		dryRun: true,
+		action: "install",
+		plugin: target.name,
+		marketplace: target.marketplace,
+	});
+	return true;
+}
 
 export function classifyInstallTarget(spec: string, knownMarketplaces: Set<string>): ClassifiedInstallTarget {
 	// Rule 0: filesystem path — bypass npm/marketplace validation entirely.

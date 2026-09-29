@@ -1,15 +1,14 @@
 import { afterEach, describe, expect, it } from "bun:test";
 import * as os from "node:os";
 import * as path from "node:path";
-import { ArtifactManager } from "@chudware/coding-agent/session/artifacts";
-import { removeSyncWithRetries } from "@chudware/utils";
-import * as fsx from "@chudware/utils/fsx";
+import { ArtifactManager } from "@oh-my-pi/pi-coding-agent/session/artifacts";
+import { removeSyncWithRetries } from "@oh-my-pi/pi-utils";
 
 describe("ArtifactManager tool-type sanitization", () => {
 	const dirs: string[] = [];
 
 	function freshDir(): string {
-		const dir = path.join(os.tmpdir(), `chudcode-artifacts-${crypto.randomUUID()}`, "session");
+		const dir = path.join(os.tmpdir(), `omp-artifacts-${crypto.randomUUID()}`, "session");
 		dirs.push(path.dirname(dir));
 		return dir;
 	}
@@ -58,6 +57,6 @@ describe("ArtifactManager tool-type sanitization", () => {
 		const filePath = await mgr.getPath(id);
 		expect(filePath).not.toBeNull();
 		expect(path.dirname(filePath as string)).toBe(dir);
-		expect(await fsx.readText(filePath as string)).toBe("FULL-ORIGINAL-CONTENT");
+		expect(await Bun.file(filePath as string).text()).toBe("FULL-ORIGINAL-CONTENT");
 	});
 });

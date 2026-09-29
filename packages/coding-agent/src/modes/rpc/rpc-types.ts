@@ -4,21 +4,17 @@
  * Commands are sent as JSON lines on stdin.
  * Responses and events are emitted as JSON lines on stdout.
  */
-import type { AgentMessage, AgentToolResult, ThinkingLevel, ToolLoadMode } from "@chudware/agent-core";
-import type { CompactionResult } from "@chudware/agent-core/compaction";
-import type { Effort, ImageContent, Model, ToolExample } from "@chudware/ai";
+import type { AgentMessage, AgentToolResult, ThinkingLevel, ToolLoadMode } from "@oh-my-pi/pi-agent-core";
+import type { CompactionResult } from "@oh-my-pi/pi-agent-core/compaction";
+import type { Effort, ImageContent, Model, ToolExample } from "@oh-my-pi/pi-ai";
 import type { BashResult } from "../../exec/bash-executor";
 import type { ContextUsage } from "../../extensibility/extensions/types";
 import type { AgentSessionEvent, SessionStats } from "../../session/agent-session";
-import type { FileEntry } from "../../session/session-entries";
+import type { FileEntry, SessionEntry, SessionTreeNode } from "../../session/session-entries";
 import type { AvailableSlashCommandSource } from "../../slash-commands/available-commands";
-import type {
-	AgentProgress,
-	SubagentEventPayload,
-	SubagentLifecyclePayload,
-	SubagentProgressPayload,
-} from "../../task";
-import type { TodoPhase } from "../../tools/todo";
+import type { AgentProgress } from "@oh-my-pi/pi-tui/tools/task";
+import type { SubagentEventPayload, SubagentLifecyclePayload, SubagentProgressPayload } from "../../task";
+import type { TodoPhase } from "@oh-my-pi/pi-tui/tools/todo";
 import type { RpcMessagesPage } from "./rpc-messages";
 
 // ============================================================================
@@ -33,26 +29,25 @@ export type RpcCommand =
 	| { id?: string; type: "prompt"; message: string; images?: ImageContent[]; streamingBehavior?: "steer" | "followUp" }
 	| { id?: string; type: "steer"; message: string; images?: ImageContent[] }
 	| { id?: string; type: "follow_up"; message: string; images?: ImageContent[] }
+	| { id?: string; type: "remove_queued_message"; message: string; queue: "steering" | "followUp" }
 	| { id?: string; type: "abort" }
 	| { id?: string; type: "abort_and_prompt"; message: string; images?: ImageContent[] }
 	| { id?: string; type: "new_session"; parentSession?: string }
+	| { id?: string; type: "open_session"; sessionDir: string }
 
 	// State
 	| { id?: string; type: "get_state" }
 	| { id?: string; type: "set_fast_mode"; enabled: boolean }
 	| { id?: string; type: "get_available_commands" }
+	| { id?: string; type: "get_entries"; since?: string }
+	| { id?: string; type: "get_tree" }
 	| { id?: string; type: "set_todos"; phases: TodoPhase[] }
 	| { id?: string; type: "set_host_tools"; tools: RpcHostToolDefinition[] }
 	| { id?: string; type: "set_host_uri_schemes"; schemes: RpcHostUriSchemeDefinition[] }
 	| { id?: string; type: "set_subagent_subscription"; level: RpcSubagentSubscriptionLevel }
+	| { id?: string; type: "set_event_filter"; events: string[] | null }
 	| { id?: string; type: "get_subagents" }
 	| { id?: string; type: "get_subagent_messages"; subagentId?: string; sessionFile?: string; fromByte?: number }
-
-	// Speech-to-text
-	| { id?: string; type: "stt_status" }
-	| { id?: string; type: "stt_start" }
-	| { id?: string; type: "stt_stop" }
-	| { id?: string; type: "stt_cancel" }
 
 	// Model
 	| { id?: string; type: "set_model"; provider: string; modelId: string }
@@ -62,6 +57,7 @@ export type RpcCommand =
 	// Thinking
 	| { id?: string; type: "set_thinking_level"; level: ThinkingLevel }
 	| { id?: string; type: "cycle_thinking_level" }
+	| { id?: string; type: "get_available_thinking_levels" }
 
 	// Queue modes
 	| { id?: string; type: "set_steering_mode"; mode: "all" | "one-at-a-time" }
@@ -94,35 +90,9 @@ export type RpcCommand =
 	| { id?: string; type: "get_messages" }
 	| { id?: string; type: "get_messages_page"; cursor?: string; limit?: number }
 
-	// Authentication
+	// Login
 	| { id?: string; type: "get_login_providers" }
-	| { id?: string; type: "login"; providerId: string }
-	| { id?: string; type: "get_auth_state"; providerId?: string }
-	| { id?: string; type: "validate_api_key"; providerId: string; apiKey: string }
-	| { id?: string; type: "set_api_key"; providerId: string; apiKey: string }
-	| { id?: string; type: "remove_api_key"; providerId: string; accountId?: string }
-	| { id?: string; type: "logout_provider"; providerId: string; accountId?: string }
-
-	// Project memory
-	| {
-			id?: string;
-			type: "memory_remember";
-			root: string;
-			content: string;
-			kind?: string;
-			source?: string;
-			importance?: number;
-	  }
-	| {
-			id?: string;
-			type: "memory_recall";
-			root: string;
-			query: string;
-			limit?: number;
-			tokenBudget?: number;
-			kind?: string;
-	  }
-	| { id?: string; type: "memory_stats"; root: string };
+	| { id?: string; type: "login"; providerId: string };
 
 // ============================================================================
 // RPC State
@@ -145,6 +115,14 @@ export interface RpcSessionState {
 	tokensPerSecond: number | null;
 	messageCount: number;
 	queuedMessageCount: number;
+	/** Background jobs or deliveries can still inject a follow-up and wake the session. */
+	hasPendingAsyncWork: boolean;
+	/** Same predicate as `session_settled`: idle with nothing queued or pending. */
+	isSettled: boolean;
+	/** Displayable queue-chip text for pending user-authored messages, mirroring
+	 *  `AgentSession.getQueuedMessages()`. Render the queue from this snapshot
+	 *  (and the `queue_update` event) instead of tracking chips independently. */
+	queuedMessages: { steering: string[]; followUp: string[] };
 	todoPhases: TodoPhase[];
 	/** For session dump / export (plain-text parity with /dump). */
 	systemPrompt?: string[];
@@ -167,10 +145,57 @@ export interface RpcAvailableCommandsUpdateFrame {
 	commands: RpcAvailableSlashCommand[];
 }
 
+/** How a prompt's work ended, as reported by its {@link RpcPromptResultFrame}. */
+export type RpcPromptStatus = "completed" | "aborted" | "error";
+
+/**
+ * Failure detail for a `prompt_result` with `status: "error"`. `message` is the
+ * provider's error text without OMP-local diagnostics (e.g. request dump paths).
+ */
+export interface RpcPromptError {
+	message: string;
+	provider?: string;
+	model?: string;
+	/** HTTP status reported by the provider, when the failure came from a request. */
+	httpStatus?: number;
+	/** The failure is classified transient: resubmitting later may succeed. OMP's own retries are already exhausted. */
+	retryable: boolean;
+}
+
+/**
+ * Terminal frame emitted exactly once per accepted `prompt`/`abort_and_prompt`,
+ * after all work the prompt caused has settled. Correlate on `id`.
+ */
 export interface RpcPromptResultFrame {
 	type: "prompt_result";
 	id?: string;
+	/** False when the prompt completed locally (slash command) or failed before reaching the agent. */
 	agentInvoked: boolean;
+	status: RpcPromptStatus;
+	error?: RpcPromptError;
+	/**
+	 * The agent yielded and nothing will wake the session again: no run is live and no
+	 * queued message or background job (async bash/task/eval) will inject a follow-up.
+	 * When false, a {@link RpcSessionSettledFrame} follows once that work is done.
+	 */
+	sessionSettled: boolean;
+}
+
+/**
+ * Emitted when the session goes quiet after agent activity: the last run yielded
+ * and no background work remains that could inject messages and wake it again.
+ * Distinct from a terminal `agent_end`, which only means one run yielded.
+ */
+export interface RpcSessionSettledFrame {
+	type: "session_settled";
+}
+
+/** `open_session` result: `resumed` is false when a fresh session was started in the directory. */
+export interface RpcOpenSessionResult {
+	cancelled: boolean;
+	resumed: boolean;
+	sessionId: string;
+	sessionFile?: string;
 }
 
 export interface RpcReadyFrame {
@@ -220,127 +245,6 @@ export interface RpcSubagentMessagesResult {
 	messages: AgentMessage[];
 }
 
-export type RpcAuthCredentialOrigin = "runtime" | "config" | "oauth" | "api_key" | "env" | "fallback";
-
-export interface RpcAuthAccountState {
-	accountId?: string;
-	email?: string;
-	projectId?: string;
-	orgId?: string;
-	orgName?: string;
-}
-
-/** Secret-free provider authentication state. */
-export interface RpcAuthProviderState {
-	providerId: string;
-	name: string;
-	authenticated: boolean;
-	hasApiKey: boolean;
-	hasOAuth: boolean;
-	origin?: RpcAuthCredentialOrigin;
-	accounts: RpcAuthAccountState[];
-}
-
-export interface RpcMemoryHit {
-	id?: string;
-	content: string;
-	source?: string;
-	timestamp?: string;
-	score?: number;
-}
-
-/** Bounded, path-free memory status safe to expose to an embedding host. */
-export interface RpcMemoryStats {
-	backend: string;
-	active: boolean;
-	writable: boolean;
-	searchable: boolean;
-	scope?: string;
-	workingCount?: number;
-	episodicCount?: number;
-	tripleCount?: number;
-}
-
-export interface RpcAuthStateResult {
-	providers: RpcAuthProviderState[];
-}
-
-export interface RpcApiKeyValidationResult {
-	providerId: string;
-	valid: boolean;
-}
-
-export interface RpcSetApiKeyResult {
-	provider: RpcAuthProviderState;
-}
-
-export interface RpcRemoveApiKeyResult {
-	providerId: string;
-	removed: boolean;
-	provider: RpcAuthProviderState;
-}
-
-export interface RpcLogoutProviderResult {
-	providerId: string;
-	loggedOut: boolean;
-	provider: RpcAuthProviderState;
-}
-
-export interface RpcMemoryRememberResult {
-	id: string;
-}
-
-export interface RpcMemoryRecallResult {
-	hits: RpcMemoryHit[];
-}
-
-export interface RpcMemoryStatsResult {
-	stats: RpcMemoryStats;
-}
-
-export interface RpcMemoryRememberInput {
-	root: string;
-	content: string;
-	kind?: string;
-	source?: string;
-	importance?: number;
-}
-
-export interface RpcMemoryRecallInput {
-	root: string;
-	query: string;
-	limit?: number;
-	tokenBudget?: number;
-	kind?: string;
-}
-
-export type RpcSttState = "idle" | "recording" | "transcribing";
-
-export interface RpcSttStatus {
-	ok: true;
-	available: boolean;
-	state: RpcSttState;
-	model: string;
-	progress?: number;
-	error?: string;
-}
-
-export interface RpcSttStartResult {
-	ok: true;
-	state: "recording";
-	model: string;
-}
-
-export interface RpcSttStopResult {
-	ok: true;
-	text: string;
-	state: "idle";
-}
-
-export interface RpcSttCancelResult {
-	ok: true;
-	state: "idle";
-}
 // ============================================================================
 // RPC Responses (stdout)
 // ============================================================================
@@ -360,9 +264,11 @@ export type RpcResponse =
 	| { id?: string; type: "response"; command: "prompt"; success: true; data?: { agentInvoked: boolean } }
 	| { id?: string; type: "response"; command: "steer"; success: true }
 	| { id?: string; type: "response"; command: "follow_up"; success: true }
+	| { id?: string; type: "response"; command: "remove_queued_message"; success: true; data: { removed: boolean } }
 	| { id?: string; type: "response"; command: "abort"; success: true }
 	| { id?: string; type: "response"; command: "abort_and_prompt"; success: true }
 	| { id?: string; type: "response"; command: "new_session"; success: true; data: { cancelled: boolean } }
+	| { id?: string; type: "response"; command: "open_session"; success: true; data: RpcOpenSessionResult }
 
 	// State
 	| { id?: string; type: "response"; command: "get_state"; success: true; data: RpcSessionState }
@@ -380,9 +286,24 @@ export type RpcResponse =
 			success: true;
 			data: { commands: RpcAvailableSlashCommand[] };
 	  }
+	| {
+			id?: string;
+			type: "response";
+			command: "get_entries";
+			success: true;
+			data: { entries: SessionEntry[]; leafId: string | null };
+	  }
+	| {
+			id?: string;
+			type: "response";
+			command: "get_tree";
+			success: true;
+			data: { tree: SessionTreeNode[]; leafId: string | null };
+	  }
 	| { id?: string; type: "response"; command: "set_todos"; success: true; data: { todoPhases: TodoPhase[] } }
 	| { id?: string; type: "response"; command: "set_host_tools"; success: true; data: { toolNames: string[] } }
 	| { id?: string; type: "response"; command: "set_host_uri_schemes"; success: true; data: { schemes: string[] } }
+	| { id?: string; type: "response"; command: "set_event_filter"; success: true; data: { events: string[] | null } }
 	| {
 			id?: string;
 			type: "response";
@@ -404,12 +325,6 @@ export type RpcResponse =
 			success: true;
 			data: RpcSubagentMessagesResult;
 	  }
-
-	// Speech-to-text
-	| { id?: string; type: "response"; command: "stt_status"; success: true; data: RpcSttStatus }
-	| { id?: string; type: "response"; command: "stt_start"; success: true; data: RpcSttStartResult }
-	| { id?: string; type: "response"; command: "stt_stop"; success: true; data: RpcSttStopResult }
-	| { id?: string; type: "response"; command: "stt_cancel"; success: true; data: RpcSttCancelResult }
 
 	// Model
 	| {
@@ -442,6 +357,13 @@ export type RpcResponse =
 			command: "cycle_thinking_level";
 			success: true;
 			data: { level: Effort } | null;
+	  }
+	| {
+			id?: string;
+			type: "response";
+			command: "get_available_thinking_levels";
+			success: true;
+			data: { levels: ThinkingLevel[] };
 	  }
 
 	// Queue modes
@@ -487,7 +409,7 @@ export type RpcResponse =
 	| { id?: string; type: "response"; command: "get_messages"; success: true; data: { messages: AgentMessage[] } }
 	| { id?: string; type: "response"; command: "get_messages_page"; success: true; data: RpcMessagesPage }
 
-	// Authentication
+	// Login
 	| {
 			id?: string;
 			type: "response";
@@ -496,58 +418,6 @@ export type RpcResponse =
 			data: { providers: Array<{ id: string; name: string; available: boolean; authenticated: boolean }> };
 	  }
 	| { id?: string; type: "response"; command: "login"; success: true; data: { providerId: string } }
-	| {
-			id?: string;
-			type: "response";
-			command: "get_auth_state";
-			success: true;
-			data: RpcAuthStateResult;
-	  }
-	| {
-			id?: string;
-			type: "response";
-			command: "validate_api_key";
-			success: true;
-			data: RpcApiKeyValidationResult;
-	  }
-	| {
-			id?: string;
-			type: "response";
-			command: "set_api_key";
-			success: true;
-			data: RpcSetApiKeyResult;
-	  }
-	| {
-			id?: string;
-			type: "response";
-			command: "remove_api_key";
-			success: true;
-			data: RpcRemoveApiKeyResult;
-	  }
-	| {
-			id?: string;
-			type: "response";
-			command: "logout_provider";
-			success: true;
-			data: RpcLogoutProviderResult;
-	  }
-
-	// Project memory
-	| { id?: string; type: "response"; command: "memory_remember"; success: true; data: RpcMemoryRememberResult }
-	| {
-			id?: string;
-			type: "response";
-			command: "memory_recall";
-			success: true;
-			data: RpcMemoryRecallResult;
-	  }
-	| {
-			id?: string;
-			type: "response";
-			command: "memory_stats";
-			success: true;
-			data: RpcMemoryStatsResult;
-	  }
 
 	// Error response (any command can fail); `code` is an optional machine-readable reason.
 	| { id?: string; type: "response"; command: string; success: false; error: string; code?: string };
@@ -573,7 +443,22 @@ export interface RpcSubagentEventFrame {
 
 export type RpcSubagentFrame = RpcSubagentLifecycleFrame | RpcSubagentProgressFrame | RpcSubagentEventFrame;
 
-export type RpcSessionEventFrame = AgentSessionEvent | RpcSubagentFrame;
+/** Message lifecycle event kinds that RPC mode stamps with a `messageId`. */
+export type RpcMessageEventType = "message_start" | "message_update" | "message_end";
+
+/**
+ * Message lifecycle frame as written by RPC mode. `messageId` is shared by the
+ * `message_start`, every `message_update`, and the `message_end` of one message;
+ * it is unique within the RPC process.
+ */
+export type RpcMessageEventFrame = Extract<AgentSessionEvent, { type: RpcMessageEventType }> & { messageId: string };
+
+/** Session event as written to stdout: message lifecycle events carry a `messageId`. */
+export type RpcAgentSessionEventFrame =
+	| Exclude<AgentSessionEvent, { type: RpcMessageEventType }>
+	| RpcMessageEventFrame;
+
+export type RpcSessionEventFrame = RpcAgentSessionEventFrame | RpcSubagentFrame;
 
 // ============================================================================
 // Extension UI Events (stdout)
@@ -662,6 +547,8 @@ export interface RpcHostToolDefinition {
 	hidden?: boolean;
 	/** How this host tool is presented when enabled; omission normalizes to `"discoverable"` at the adapter boundary. */
 	loadMode?: ToolLoadMode;
+	/** Whether this host tool can read `skill://` instruction content. */
+	readsSkillUris?: boolean;
 }
 
 /** Emitted by the RPC server when it needs the host to execute a registered tool. */
@@ -671,14 +558,6 @@ export interface RpcHostToolCallRequest {
 	toolCallId: string;
 	toolName: string;
 	arguments: Record<string, unknown>;
-	/**
-	 * Registry id of the nested agent (task sub-agent) making this call; matches
-	 * `subagent_lifecycle.payload.id` / `subagent_event.payload.id`. Absent for
-	 * the top-level session's own calls.
-	 */
-	agentId?: string;
-	/** Registry id of `agentId`'s spawner (`"Main"` for first-level sub-agents). Absent when `agentId` is. */
-	parentAgentId?: string;
 }
 
 /** Emitted by the RPC server when a pending host tool call should be aborted. */

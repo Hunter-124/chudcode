@@ -1,9 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "bun:test";
 import * as fs from "node:fs";
 import * as path from "node:path";
-import { openPath } from "@chudware/coding-agent/utils/open";
-import * as piUtils from "@chudware/utils";
-import * as proc from "@chudware/utils/proc";
+import { openPath } from "@oh-my-pi/pi-coding-agent/utils/open";
+import * as piUtils from "@oh-my-pi/pi-utils";
 import type { Subprocess } from "bun";
 
 type SpawnOptions = Bun.SpawnOptions.SpawnOptions<
@@ -12,6 +11,8 @@ type SpawnOptions = Bun.SpawnOptions.SpawnOptions<
 	Bun.SpawnOptions.Readable
 >;
 type SpawnCall = { cmd: string[]; options: SpawnOptions };
+
+type SpawnSyncOptions = Bun.SpawnOptions.SpawnSyncOptions<"ignore", "pipe", "ignore">;
 
 const existingLinuxPath = "/mnt/c/Users/example/Downloads/session.html";
 const windowsPath = "C:\\Users\\example\\Downloads\\session.html";
@@ -49,20 +50,24 @@ function spySpawn(calls: SpawnCall[]) {
 }
 
 function spyWslPath(calls: string[][], output: string, exitCode = 0) {
-	const result: proc.SpawnSyncResult = {
+	const result = {
 		stdout: Buffer.from(output),
-		stderr: Buffer.alloc(0),
+		stderr: null,
 		exitCode,
-		signalCode: null,
-		exitedDueToTimeout: false,
 		success: exitCode === 0,
-	};
+		resourceUsage: {},
+		pid: 1,
+	} as unknown as Bun.SyncSubprocess<"pipe", "ignore">;
 
-	function mockSpawnSync(first: readonly string[] | proc.SpawnSyncOptions): proc.SpawnSyncResult {
-		calls.push(Array.isArray(first) ? [...first] : [...(first as proc.SpawnSyncOptions).cmd!]);
+	function mockSpawnSync(opts: SpawnSyncOptions & { cmd: string[] }): Bun.SyncSubprocess<"pipe", "ignore">;
+	function mockSpawnSync(cmd: string[], opts?: SpawnSyncOptions): Bun.SyncSubprocess<"pipe", "ignore">;
+	function mockSpawnSync(
+		first: string[] | (SpawnSyncOptions & { cmd: string[] }),
+	): Bun.SyncSubprocess<"pipe", "ignore"> {
+		calls.push(Array.isArray(first) ? first : first.cmd);
 		return result;
 	}
-	return vi.spyOn(proc, "spawnSync").mockImplementation(mockSpawnSync);
+	return vi.spyOn(Bun, "spawnSync").mockImplementation(mockSpawnSync);
 }
 
 beforeEach(() => {
@@ -111,7 +116,7 @@ describe("openPath", () => {
 		setPlatform("linux");
 		process.env.WSL_INTEROP = "/run/WSL/1_interop";
 		vi.spyOn(piUtils, "$which").mockReturnValue("/usr/bin/wslview");
-		const spawnSyncSpy = vi.spyOn(proc, "spawnSync");
+		const spawnSyncSpy = vi.spyOn(Bun, "spawnSync");
 		const spawnCalls: SpawnCall[] = [];
 		spySpawn(spawnCalls);
 
@@ -125,7 +130,7 @@ describe("openPath", () => {
 		setPlatform("linux");
 		process.env.WSL_DISTRO_NAME = "Ubuntu";
 		vi.spyOn(piUtils, "$which").mockReturnValue(null);
-		const spawnSyncSpy = vi.spyOn(proc, "spawnSync");
+		const spawnSyncSpy = vi.spyOn(Bun, "spawnSync");
 		const spawnCalls: SpawnCall[] = [];
 		spySpawn(spawnCalls);
 

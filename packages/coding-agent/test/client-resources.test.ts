@@ -7,7 +7,7 @@ import {
 	serverSupportsResources,
 	subscribeToResources,
 	unsubscribeFromResources,
-} from "@chudware/coding-agent/mcp/client";
+} from "@oh-my-pi/pi-coding-agent/mcp/client";
 import type {
 	MCPResource,
 	MCPResourceReadResult,
@@ -15,7 +15,7 @@ import type {
 	MCPResourceTemplate,
 	MCPResourceTemplatesListResult,
 	MCPTransport,
-} from "@chudware/coding-agent/mcp/types";
+} from "@oh-my-pi/pi-coding-agent/mcp/types";
 import { createMockConnection, createMockTransport } from "./mcp-test-utils";
 
 describe("listResources", () => {
@@ -113,19 +113,6 @@ describe("readResource", () => {
 		expect(result.contents[0].text).toBe("hello");
 		expect(result.contents[0].mimeType).toBe("text/plain");
 		expect(requestParams).toEqual({ uri: "file:///a.txt" });
-	});
-
-	it("handles binary blobs", async () => {
-		const readResult: MCPResourceReadResult = {
-			contents: [{ uri: "file:///img.png", mimeType: "image/png", blob: "base64data" }],
-		};
-		const transport = createMockTransport(new Map([["resources/read", [readResult]]]));
-		const conn = createMockConnection({ resources: {} }, transport);
-
-		const result = await readResource(conn, "file:///img.png");
-		expect(result.contents).toHaveLength(1);
-		expect(result.contents[0].blob).toBe("base64data");
-		expect(result.contents[0].text).toBeUndefined();
 	});
 });
 

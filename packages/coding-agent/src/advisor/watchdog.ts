@@ -1,12 +1,12 @@
 import * as os from "node:os";
 import * as path from "node:path";
-import { getAgentDir, isEnoent, logger, prompt } from "@chudware/utils";
-import * as fsx from "@chudware/utils/fsx";
+import * as vcs from "@oh-my-pi/pi-natives/vcs";
+import { getAgentDir, isEnoent, logger, prompt } from "@oh-my-pi/pi-utils";
 import { expandAtImports } from "../discovery/at-imports";
 import activeRepoWatchdogTemplate from "../prompts/advisor/active-repo-watchdog.md" with { type: "text" };
 import contextFilesTemplate from "../prompts/advisor/context-files.md" with { type: "text" };
-import type { ActiveRepoContext } from "../utils/active-repo-context";
-import { repo } from "../utils/git";
+import memoryContextTemplate from "../prompts/advisor/memory-context.md" with { type: "text" };
+import type { ActiveRepoContext } from "@oh-my-pi/pi-tui/status-line/host";
 import { normalizePromptPath } from "../utils/prompt-path";
 
 export function formatActiveRepoWatchdogPrompt(activeRepoContext: ActiveRepoContext): string {
@@ -32,6 +32,18 @@ export function formatAdvisorContextPrompt(
 }
 
 /**
+ * Wrap the active memory backend's developer instructions (the same block the
+ * primary agent gets appended to its system prompt) for an advisor's system
+ * prompt. The wrapper marks the block as shared background knowledge and warns
+ * that memory tools mentioned inside may be absent from the advisor's own tool
+ * list. Returns undefined when the backend injected nothing.
+ */
+export function formatAdvisorMemoryPrompt(memoryInstructions: string | undefined): string | undefined {
+	if (!memoryInstructions?.trim()) return undefined;
+	return prompt.render(memoryContextTemplate, { memoryInstructions: memoryInstructions.trim() }).trim() || undefined;
+}
+
+/**
  * A readable config candidate discovered on the watchdog/advisor search path,
  * with raw (un-expanded) content and its position metadata.
  */
@@ -45,7 +57,7 @@ export interface ConfigCandidate {
 /**
  * Walk the watchdog/advisor config search path — the user agent dir plus every
  * directory from `cwd` up to the repo root (or home), probing both `<F>` and
- * `.chudcode/<F>` for each given filename — and return the readable candidates with
+ * `.omp/<F>` for each given filename — and return the readable candidates with
  * their raw content, sorted user-first then project ancestor→leaf (depth
  * descending, so the leaf directory is most specific/last). Shared by
  * {@link discoverWatchdogFiles} and `discoverAdvisorConfigs`. Content is returned
@@ -61,14 +73,14 @@ export async function collectConfigCandidates(
 	const userPaths = new Set<string>();
 	let repoRoot: string | null = null;
 	try {
-		repoRoot = await repo.root(cwd);
+		repoRoot = vcs.repo(cwd)?.root() ?? null;
 	} catch (err) {
-		logger.debug("Failed to resolve git root for config discovery", { err: String(err) });
+		logger.debug("Failed to resolve VCS root for config discovery", { err: String(err) });
 	}
 
 	const candidates = new Set<string>();
 
-	// 1. User level: ~/.chudcode/<F> (or active profile agent dir)
+	// 1. User level: ~/.omp/<F> (or active profile agent dir)
 	if (resolvedAgentDir) {
 		for (const filename of filenames) {
 			const userPath = path.resolve(resolvedAgentDir, filename);
@@ -77,11 +89,11 @@ export async function collectConfigCandidates(
 		}
 	}
 
-	// 2. Project levels (both standalone and native config .chudcode/): walk up from cwd to repoRoot / home
+	// 2. Project levels (both standalone and native config .omp/): walk up from cwd to repoRoot / home
 	let current = cwd;
 	while (true) {
 		for (const filename of filenames) {
-			candidates.add(path.resolve(current, ".chudcode", filename));
+			candidates.add(path.resolve(current, ".omp", filename));
 			candidates.add(path.resolve(current, filename));
 		}
 		if (current === (repoRoot ?? home)) break;
@@ -93,13 +105,13 @@ export async function collectConfigCandidates(
 	const items: ConfigCandidate[] = [];
 	for (const candidate of candidates) {
 		try {
-			const content = await fsx.readText(candidate);
+			const content = await Bun.file(candidate).text();
 			const parent = path.dirname(candidate);
 			const baseName = parent.split(path.sep).pop() ?? "";
 			const isUser = userPaths.has(candidate);
-			const ownerDir = baseName === ".chudcode" ? path.dirname(parent) : parent;
+			const ownerDir = baseName === ".omp" ? path.dirname(parent) : parent;
 			const ownerBaseName = ownerDir.split(path.sep).pop() ?? "";
-			if (isUser || !ownerBaseName.startsWith(".") || baseName === ".chudcode") {
+			if (isUser || !ownerBaseName.startsWith(".") || baseName === ".omp") {
 				const relative = path.relative(cwd, ownerDir);
 				const depth = relative === "" ? 0 : relative.split(path.sep).filter(Boolean).length;
 				items.push({ path: candidate, content, level: isUser ? "user" : "project", depth });
@@ -122,7 +134,7 @@ export async function collectConfigCandidates(
 }
 
 /**
- * Discover and load WATCHDOG.md files walking up from cwd, project .chudcode folder, and user agent dir.
+ * Discover and load WATCHDOG.md files walking up from cwd, project .omp folder, and user agent dir.
  * Returns formatted watchdog file blocks ready to be appended to the advisor system prompt.
  */
 export async function discoverWatchdogFiles(cwd: string, agentDir?: string): Promise<string[]> {

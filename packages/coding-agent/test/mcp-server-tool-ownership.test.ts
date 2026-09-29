@@ -22,9 +22,9 @@ import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
-import { MCPManager } from "@chudware/coding-agent/mcp/manager";
-import type { MCPStdioServerConfig } from "@chudware/coding-agent/mcp/types";
-import { removeSyncWithRetries } from "@chudware/utils";
+import { MCPManager } from "@oh-my-pi/pi-coding-agent/mcp/manager";
+import type { MCPStdioServerConfig } from "@oh-my-pi/pi-coding-agent/mcp/types";
+import { removeSyncWithRetries } from "@oh-my-pi/pi-utils";
 import { MANY_TOOL_COUNT, manyToolName } from "./fixtures/many-tools-mcp";
 
 const FIXTURE_PATH = path.join(import.meta.dir, "fixtures", "many-tools-mcp.ts");
@@ -44,7 +44,7 @@ describe("MCP tool ownership with prefix-colliding server names", () => {
 	let manager: MCPManager;
 
 	beforeEach(() => {
-		workDir = fs.mkdtempSync(path.join(os.tmpdir(), "chudcode-mcp-ownership-"));
+		workDir = fs.mkdtempSync(path.join(os.tmpdir(), "omp-mcp-ownership-"));
 		manager = new MCPManager(workDir);
 	});
 
@@ -55,7 +55,6 @@ describe("MCP tool ownership with prefix-colliding server names", () => {
 
 	it("refreshing one server keeps the sibling server's tools registered", async () => {
 		await manager.connectServers({ [SHORT_SERVER]: fixtureConfig(), [COLON_SERVER]: fixtureConfig() }, {});
-		await Promise.all([manager.waitForServerReady(SHORT_SERVER), manager.waitForServerReady(COLON_SERVER)]);
 		const names = () => manager.getTools().map(t => t.name);
 		expect(names()).toContain(SHORT_TOOL);
 		expect(names()).toContain(COLON_TOOL);
@@ -78,11 +77,10 @@ describe("MCP tool ownership with prefix-colliding server names", () => {
 			expect(payload).toContain(COLON_TOOL);
 			expect(payload).toHaveLength(MANY_TOOL_COUNT * 2);
 		}
-	}, 45_000);
+	}, 20_000);
 
 	it("disconnecting a server with sanitized name characters removes exactly its tools", async () => {
 		await manager.connectServers({ [SHORT_SERVER]: fixtureConfig(), [COLON_SERVER]: fixtureConfig() }, {});
-		await Promise.all([manager.waitForServerReady(SHORT_SERVER), manager.waitForServerReady(COLON_SERVER)]);
 		const payloads: string[][] = [];
 		manager.setOnToolsChanged(tools => {
 			payloads.push(tools.map(t => t.name));
@@ -98,5 +96,5 @@ describe("MCP tool ownership with prefix-colliding server names", () => {
 		// the colon-named server's tools lingered as callable zombies).
 		expect(payloads.at(-1)?.some(name => name === COLON_TOOL)).toBe(false);
 		expect(payloads.at(-1)).toHaveLength(MANY_TOOL_COUNT);
-	}, 45_000);
+	}, 20_000);
 });

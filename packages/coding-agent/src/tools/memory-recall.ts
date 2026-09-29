@@ -1,9 +1,13 @@
-import type { AgentTool, AgentToolResult } from "@chudware/agent-core";
-import { type } from "@chudware/chudtype";
-import { logger, untilAborted } from "@chudware/utils";
+import { type } from "@oh-my-pi/omptype";
+import type { AgentTool, AgentToolResult } from "@oh-my-pi/pi-agent-core";
+import { logger, prompt, untilAborted } from "@oh-my-pi/pi-utils";
+import { isHindsightConfigured, loadHindsightConfig } from "../hindsight/config";
 import { formatCurrentTime, formatMemories } from "../hindsight/content";
 import recallDescription from "../prompts/tools/recall.md" with { type: "text" };
+import { sessionMemoryToolRefs } from "../memory-backend/tool-names";
 import type { ToolSession } from ".";
+
+import { cfgMemoryBackend } from "../memory-backend/settings";
 
 const memoryRecallSchema = type({
 	query: type("string").describe("natural language search query"),
@@ -15,7 +19,11 @@ export class MemoryRecallTool implements AgentTool<typeof memoryRecallSchema> {
 	readonly name = "recall";
 	readonly approval = "read" as const;
 	readonly label = "Recall";
-	readonly description = recallDescription;
+	get description(): string {
+		return prompt.render(recallDescription, {
+			toolRefs: sessionMemoryToolRefs(this.session),
+		});
+	}
 	readonly parameters = memoryRecallSchema;
 	readonly strict = true;
 	readonly loadMode = "discoverable";
@@ -24,18 +32,19 @@ export class MemoryRecallTool implements AgentTool<typeof memoryRecallSchema> {
 	constructor(private readonly session: ToolSession) {}
 
 	static createIf(session: ToolSession): MemoryRecallTool | null {
-		const backend = session.settings.get("memory.backend");
-		if (backend !== "hindsight" && backend !== "mnemo") return null;
+		const backend = cfgMemoryBackend.get(session.settings);
+		if (backend !== "hindsight" && backend !== "mnemopi") return null;
+		if (backend === "hindsight" && !isHindsightConfigured(loadHindsightConfig(session.settings))) return null;
 		return new MemoryRecallTool(session);
 	}
 
 	async execute(_id: string, params: MemoryRecallParams, signal?: AbortSignal): Promise<AgentToolResult> {
 		return untilAborted(signal, async () => {
-			const backend = this.session.settings.get("memory.backend");
-			if (backend === "mnemo") {
+			const backend = cfgMemoryBackend.get(this.session.settings);
+			if (backend === "mnemopi") {
 				const state = this.session.getMnemopiSessionState?.();
 				if (!state) {
-					throw new Error("Mnemo backend is not initialised for this session.");
+					throw new Error("Mnemopi backend is not initialised for this session.");
 				}
 				try {
 					const results = await state.recallResultsScoped(params.query);
@@ -57,7 +66,7 @@ export class MemoryRecallTool implements AgentTool<typeof memoryRecallSchema> {
 						details: {},
 					};
 				} catch (err) {
-					logger.warn("recall failed", { backend: "mnemo", bank: state.config.bank, error: String(err) });
+					logger.warn("recall failed", { backend: "mnemopi", bank: state.config.bank, error: String(err) });
 					throw err instanceof Error ? err : new Error(String(err));
 				}
 			}

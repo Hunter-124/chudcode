@@ -1,9 +1,9 @@
 import { afterEach, describe, expect, it } from "bun:test";
 import * as http2 from "node:http2";
-import * as AIError from "@chudware/ai/error";
-import { streamCursor } from "@chudware/ai/providers/cursor";
-import type { Context, CursorToolResultHandler, Model, ToolResultMessage } from "@chudware/ai/types";
-import { buildModel } from "@chudware/catalog/build";
+import * as AIError from "@oh-my-pi/pi-ai/error";
+import { streamCursor } from "@oh-my-pi/pi-ai/providers/cursor";
+import type { Context, CursorToolResultHandler, Model, ToolResultMessage } from "@oh-my-pi/pi-ai/types";
+import { buildModel } from "@oh-my-pi/pi-catalog/build";
 import {
 	AgentServerMessageSchema,
 	ExecServerMessageSchema,
@@ -15,9 +15,8 @@ import {
 	TurnEndedUpdateSchema,
 	UpdateTodosArgsSchema,
 	UpdateTodosToolCallSchema,
-} from "@chudware/catalog/discovery/cursor-proto";
-import { create, toBinary } from "@chudware/catalog/discovery/protobuf";
-import { sleep } from "@chudware/utils/async";
+} from "@oh-my-pi/pi-catalog/discovery/cursor-proto";
+import { create, toBinary } from "@oh-my-pi/pi-catalog/discovery/protobuf";
 
 const CONNECT_END_STREAM_FLAG = 0b00000010;
 
@@ -29,6 +28,7 @@ type Scenario =
 	| { kind: "grpc-trailer-after-turn" }
 	| { kind: "end-before-turn" }
 	| { kind: "hang-after-turn" }
+	| { kind: "end-frame-awaits-half-close" }
 	| { kind: "exec-in-final-chunk"; responseFinished: PromiseWithResolvers<void> }
 	| { kind: "exec-then-transport-error"; responseFinished: PromiseWithResolvers<void> }
 	| { kind: "exec-then-hang" }
@@ -265,6 +265,15 @@ async function startServer(): Promise<string> {
 			return;
 		}
 
+		if (scenario.kind === "end-frame-awaits-half-close") {
+			// Through an HTTP CONNECT proxy the server's Connect end frame is the
+			// last byte until the client half-closes; only then does the HTTP/2
+			// stream end. A client that never ends its request side hangs here.
+			stream.write(frameConnectMessage(Buffer.from("{}"), CONNECT_END_STREAM_FLAG));
+			stream.on("end", () => stream.end());
+			return;
+		}
+
 		stream.end();
 	});
 
@@ -347,6 +356,14 @@ describe("Cursor terminal lifecycle after turnEnded", () => {
 		expect(eventTypes).toEqual(["start", "text_start", "text_delta", "text_end", "done"]);
 		expect(result.stopReason).toBe("stop");
 		expect(result.errorMessage).toBeUndefined();
+	});
+
+	it("half-closes its request once the Connect end frame arrives", async () => {
+		scenario = { kind: "end-frame-awaits-half-close" };
+		const baseUrl = await startServer();
+		const { eventTypes, result } = await collectStream(makeModel(baseUrl), { signal: AbortSignal.timeout(5000) });
+		expect(eventTypes.at(-1)).toBe("done");
+		expect(result.stopReason).toBe("stop");
 	});
 
 	it("surfaces CONNECT end-stream errors that arrive after turnEnded", async () => {
@@ -497,7 +514,7 @@ describe("Cursor terminal lifecycle after turnEnded", () => {
 			// processed the end. Yield so the client's `end` handler and every
 			// queued continuation run first: a provider that does not await the
 			// handler settles the stream in exactly that window.
-			await sleep(0);
+			await Bun.sleep(0);
 			try {
 				expect(stream.resultSettled).toBe(false);
 				expect(paired).toEqual([]);
@@ -558,7 +575,7 @@ describe("Cursor terminal lifecycle after turnEnded", () => {
 
 		const gate = (async () => {
 			await Promise.all([handlerStarted.promise, responseFinished.promise]);
-			await sleep(0);
+			await Bun.sleep(0);
 			try {
 				expect(stream.resultSettled).toBe(false);
 				expect(paired).toEqual([]);

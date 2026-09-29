@@ -1,19 +1,19 @@
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "bun:test";
 import * as path from "node:path";
-import { Agent } from "@chudware/agent-core";
-import type { AssistantMessage } from "@chudware/ai";
-import { ModelRegistry } from "@chudware/coding-agent/config/model-registry";
-import { resetSettingsForTest, Settings } from "@chudware/coding-agent/config/settings";
-import { AssistantMessageComponent } from "@chudware/coding-agent/modes/components/assistant-message";
-import { ToolExecutionComponent } from "@chudware/coding-agent/modes/components/tool-execution";
-import { InteractiveMode } from "@chudware/coding-agent/modes/interactive-mode";
-import { initTheme } from "@chudware/coding-agent/modes/theme/theme";
-import type { AgentSessionEvent } from "@chudware/coding-agent/session/agent-session";
-import { AgentSession } from "@chudware/coding-agent/session/agent-session";
-import { AuthStorage } from "@chudware/coding-agent/session/auth-storage";
-import { HistoryStorage } from "@chudware/coding-agent/session/history-storage";
-import { SessionManager } from "@chudware/coding-agent/session/session-manager";
-import { TempDir } from "@chudware/utils";
+import { Agent } from "@oh-my-pi/pi-agent-core";
+import type { AssistantMessage } from "@oh-my-pi/pi-ai";
+import { ModelRegistry } from "@oh-my-pi/pi-coding-agent/config/model-registry";
+import { resetSettingsForTest, Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
+import { AssistantMessageComponent } from "@oh-my-pi/pi-tui/chat/assistant-message";
+import { ToolExecutionComponent } from "@oh-my-pi/pi-tui/chat/tool-execution";
+import { InteractiveMode } from "@oh-my-pi/pi-coding-agent/modes/interactive-mode";
+import { initTheme } from "@oh-my-pi/pi-tui/theme";
+import type { AgentSessionEvent } from "@oh-my-pi/pi-coding-agent/session/agent-session";
+import { AgentSession } from "@oh-my-pi/pi-coding-agent/session/agent-session";
+import { AuthStorage } from "@oh-my-pi/pi-coding-agent/session/auth-storage";
+import { HistoryStorage } from "@oh-my-pi/pi-coding-agent/session/history-storage";
+import { SessionManager } from "@oh-my-pi/pi-coding-agent/session/session-manager";
+import { TempDir } from "@oh-my-pi/pi-utils";
 
 /**
  * Regression for issue #3656 — running `/shake` (or any mid-stream rebuild)
@@ -90,7 +90,7 @@ describe("issue #3656 /shake mid-stream preserves the in-flight assistant turn",
 
 	afterEach(async () => {
 		mode?.stop();
-		HistoryStorage.resetInstance();
+		HistoryStorage.close();
 		vi.restoreAllMocks();
 		await session?.dispose();
 		authStorage?.close();
@@ -128,15 +128,6 @@ describe("issue #3656 /shake mid-stream preserves the in-flight assistant turn",
 
 		expect(mode.chatContainer.children).toContain(streamingComponent);
 		expect(mode.streamingComponent).toBe(streamingComponent);
-	});
-
-	it("keeps in-flight tool components attached and tracked in pendingTools", () => {
-		const { pendingTool } = makeStreamingFixture();
-
-		mode.rebuildChatFromMessages();
-
-		expect(mode.chatContainer.children).toContain(pendingTool);
-		expect(mode.pendingTools.get("call-1")).toBe(pendingTool);
 	});
 
 	it("routes later streamed tool-call deltas into the preserved on-screen component", async () => {

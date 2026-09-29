@@ -1,8 +1,7 @@
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { gunzipSync } from "node:zlib";
-import { getDocsRsCacheDir, isEnoent, logger, ptree, tryParseJson, USER_AGENT } from "@chudware/utils";
-import * as fsx from "@chudware/utils/fsx";
+import { getDocsRsCacheDir, isEnoent, logger, ptree, tryParseJson, USER_AGENT } from "@oh-my-pi/pi-utils";
 import { ToolAbortError } from "../../tools/tool-errors";
 import type { RenderResult, SpecialHandler } from "./types";
 import { buildResult, MAX_BYTES } from "./types";
@@ -310,7 +309,7 @@ async function readCachedRustdocCrate(
 ): Promise<{ crate: RustdocCrate; fetchedAt: string } | null> {
 	const cachePath = getDocsRsCachePath(target);
 	try {
-		const [jsonStr, stat] = await Promise.all([fsx.readText(cachePath), fs.stat(cachePath)]);
+		const [jsonStr, stat] = await Promise.all([Bun.file(cachePath).text(), fs.stat(cachePath)]);
 		const crate = tryParseJson<RustdocCrate>(jsonStr);
 		if (!crate?.index) return null;
 		return { crate, fetchedAt: stat.mtime.toISOString() };
@@ -324,7 +323,7 @@ async function readCachedRustdocCrate(
 async function writeCachedRustdocCrate(target: DocsRsTarget, json: string): Promise<void> {
 	const cachePath = getDocsRsCachePath(target);
 	try {
-		await fsx.write(cachePath, json);
+		await Bun.write(cachePath, json);
 	} catch (err) {
 		logger.warn("Failed to write docs.rs cache", { path: cachePath, error: String(err) });
 	}

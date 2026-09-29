@@ -2,8 +2,7 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import { removeWithRetries } from "@chudware/utils";
-import * as fsx from "@chudware/utils/fsx";
+import { removeWithRetries } from "@oh-my-pi/pi-utils";
 import { collectSubSessions, exportFromFile } from "../src/export/html";
 
 /**
@@ -44,9 +43,9 @@ describe("collectSubSessions", () => {
 	let mainFile: string;
 
 	beforeEach(async () => {
-		root = await fs.mkdtemp(path.join(os.tmpdir(), "chudcode-subsessions-"));
+		root = await fs.mkdtemp(path.join(os.tmpdir(), "omp-subsessions-"));
 		mainFile = path.join(root, "main.jsonl");
-		await fsx.write(mainFile, sessionJsonl("main", ["m1"]));
+		await Bun.write(mainFile, sessionJsonl("main", ["m1"]));
 	});
 
 	afterEach(async () => {
@@ -54,9 +53,9 @@ describe("collectSubSessions", () => {
 	});
 
 	test("collects nested subagent sessions with parent links and leaf ids", async () => {
-		await fsx.write(path.join(root, "main/Alpha.jsonl"), sessionJsonl("alpha", ["a1", "a2"]));
-		await fsx.write(path.join(root, "main/Alpha/Child.jsonl"), sessionJsonl("child", ["c1"]));
-		await fsx.write(path.join(root, "main/Beta.jsonl"), sessionJsonl("beta", ["b1"]));
+		await Bun.write(path.join(root, "main/Alpha.jsonl"), sessionJsonl("alpha", ["a1", "a2"]));
+		await Bun.write(path.join(root, "main/Alpha/Child.jsonl"), sessionJsonl("child", ["c1"]));
+		await Bun.write(path.join(root, "main/Beta.jsonl"), sessionJsonl("beta", ["b1"]));
 
 		const subs = await collectSubSessions(mainFile);
 
@@ -71,13 +70,13 @@ describe("collectSubSessions", () => {
 	test("omits internal move history from standalone HTML", async () => {
 		const mainPreviousPath = "/Users/private/main.jsonl";
 		const subPreviousPath = "/Users/private/Alpha.jsonl";
-		await fsx.write(mainFile, sessionJsonl("main", ["m1"], [mainPreviousPath]));
-		await fsx.write(path.join(root, "main/Alpha.jsonl"), sessionJsonl("alpha", ["a1"], [subPreviousPath]));
+		await Bun.write(mainFile, sessionJsonl("main", ["m1"], [mainPreviousPath]));
+		await Bun.write(path.join(root, "main/Alpha.jsonl"), sessionJsonl("alpha", ["a1"], [subPreviousPath]));
 		const outputPath = path.join(root, "export.html");
 
 		await exportFromFile(mainFile, { outputPath });
 
-		const html = await fsx.readText(outputPath);
+		const html = await Bun.file(outputPath).text();
 		const encoded = html.match(/<script id="session-data" type="application\/json">([^<]+)<\/script>/)?.[1];
 		expect(encoded).toBeDefined();
 		const data = JSON.parse(Buffer.from(encoded!, "base64").toString("utf8")) as {
@@ -90,12 +89,21 @@ describe("collectSubSessions", () => {
 		expect(html).not.toContain(subPreviousPath);
 	});
 
+	test("rejects a missing input without creating session or export files", async () => {
+		const missingInput = path.join(root, "missing.jsonl");
+		const outputPath = path.join(root, "export.html");
+
+		await expect(exportFromFile(missingInput, { outputPath })).rejects.toThrow(`File not found: ${missingInput}`);
+		expect(await Bun.file(missingInput).exists()).toBe(false);
+		expect(await Bun.file(outputPath).exists()).toBe(false);
+	});
+
 	test("skips corrupt, empty, backup, and non-jsonl files", async () => {
-		await fsx.write(path.join(root, "main/Good.jsonl"), sessionJsonl("good", ["g1"]));
-		await fsx.write(path.join(root, "main/corrupt.jsonl"), "{not json\n");
-		await fsx.write(path.join(root, "main/empty.jsonl"), "");
-		await fsx.write(path.join(root, "main/Good.jsonl.123.bak"), sessionJsonl("bak", ["x1"]));
-		await fsx.write(path.join(root, "main/notes.md"), "# notes\n");
+		await Bun.write(path.join(root, "main/Good.jsonl"), sessionJsonl("good", ["g1"]));
+		await Bun.write(path.join(root, "main/corrupt.jsonl"), "{not json\n");
+		await Bun.write(path.join(root, "main/empty.jsonl"), "");
+		await Bun.write(path.join(root, "main/Good.jsonl.123.bak"), sessionJsonl("bak", ["x1"]));
+		await Bun.write(path.join(root, "main/notes.md"), "# notes\n");
 
 		const subs = await collectSubSessions(mainFile);
 

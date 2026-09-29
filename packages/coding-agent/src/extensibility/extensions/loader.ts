@@ -4,7 +4,9 @@
 import type * as fs1 from "node:fs";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
-import type { ThinkingLevel } from "@chudware/agent-core";
+import { type } from "@oh-my-pi/omptype";
+import * as zod from "@oh-my-pi/omptype/zod";
+import type { ThinkingLevel } from "@oh-my-pi/pi-agent-core";
 import type {
 	ImageContent,
 	Model,
@@ -13,12 +15,9 @@ import type {
 	ServiceTierFamily,
 	TextContent,
 	TSchema,
-} from "@chudware/ai";
-import { type } from "@chudware/chudtype";
-import * as zod from "@chudware/chudtype/zod";
-import { isBuiltinComposerStyle, type KeyId } from "@chudware/tui";
-import { hasFsCode, isEacces, isEnoent, logger } from "@chudware/utils";
-import * as fsx from "@chudware/utils/fsx";
+} from "@oh-my-pi/pi-ai";
+import { isBuiltinComposerStyle, type KeyId } from "@oh-my-pi/pi-tui";
+import { hasFsCode, isEacces, isEnoent, logger } from "@oh-my-pi/pi-utils";
 import { type ExtensionModule, extensionModuleCapability } from "../../capability/extension-module";
 import { type Hook, hookCapability } from "../../capability/hook";
 import { isServiceTierFamily, isServiceTierForFamily } from "../../config/service-tier";
@@ -27,20 +26,21 @@ import { getExtensionNameFromPath } from "../../discovery/helpers";
 import type { ExecOptions } from "../../exec/exec";
 import { execCommand } from "../../exec/exec";
 // Runtime self-reference: dereference this namespace only inside loader functions to keep the index.ts cycle safe.
-import * as ChudCodingAgent from "../../index";
-import type { MemoryBackend } from "../../memory-backend";
-import { registerMemoryBackend as installMemoryBackend } from "../../memory-backend/registry";
+import * as PiCodingAgent from "../../index";
+import type { SendUserMessageOptions } from "../../session/agent-session";
 import type { CustomMessagePayload } from "../../session/messages";
 import type { FileDeleteFallbackHandler, FileWriteFallbackHandler } from "../../tools/file-write-fallback";
+import { isFilesystemSourcePath } from "../../tools/path-utils";
 import { EventBus } from "../../utils/event-bus";
 import * as TypeBox from "../legacy-typebox";
+import { resolveExtensionDirectory } from "./directory-resolution";
 import { installLegacyPiSpecifierShim, loadLegacyPiModule } from "../plugins/legacy-pi-compat";
 import { getAllPluginExtensionPaths } from "../plugins/loader";
 
 import { resolvePath, withHostGuard } from "../utils";
+import type { ComposerShapeDefinition } from "@oh-my-pi/pi-tui/overlays/composer-shape-registry";
 import type {
 	AssistantThinkingRenderer,
-	ComposerShapeDefinition,
 	Extension,
 	ExtensionAPI,
 	ExtensionContext,
@@ -51,6 +51,7 @@ import type {
 	PreparedExtension,
 	ProviderConfig,
 	RegisteredCommand,
+	SourceInfo,
 	ToolDefinition,
 	ToolInfo,
 } from "./types";
@@ -63,6 +64,27 @@ type LoadedExtensionModule = ExtensionFactory | { default?: ExtensionFactory };
 function getExtensionFactory(module: LoadedExtensionModule): ExtensionFactory | null {
 	const candidate = typeof module === "function" ? module : module.default;
 	return typeof candidate === "function" ? candidate : null;
+}
+
+/**
+ * Upstream-shaped provenance for an extension-registered tool. Consumers that
+ * read `sourceInfo` off `getAllRegisteredTools()` (e.g. pi-fabric) receive an
+ * absolute on-disk path: the tool's own `sourcePath` when it is filesystem-
+ * absolute, otherwise the extension's resolved entry (`fallbackPath`). A tool
+ * with no absolute origin at all falls back to the synthetic `<extension:name>`.
+ */
+export function extensionToolSourceInfo(
+	definition: Pick<ToolDefinition, "name" | "sourcePath">,
+	fallbackPath: string,
+): SourceInfo {
+	const sourcePath = definition.sourcePath;
+	const path =
+		sourcePath && isFilesystemSourcePath(sourcePath)
+			? sourcePath
+			: isFilesystemSourcePath(fallbackPath)
+				? fallbackPath
+				: `<extension:${definition.name}>`;
+	return { path, source: "extension", scope: "temporary", origin: "top-level" };
 }
 
 export class ExtensionRuntimeNotInitializedError extends Error {
@@ -78,8 +100,6 @@ export class ExtensionRuntimeNotInitializedError extends Error {
 export class ExtensionRuntime implements IExtensionRuntime {
 	flagValues = new Map<string, boolean | string>();
 	pendingProviderRegistrations: Array<{ name: string; config: ProviderConfig; sourceId: string }> = [];
-	memoryBackendRegistrations: Array<{ backend: MemoryBackend; sourceId: string }> = [];
-	#memoryBackendDisposers = new Map<string, Map<string, () => void>>();
 
 	registerProvider(name: string, config: ProviderConfig, sourceId: string): void {
 		this.pendingProviderRegistrations.push({ name, config, sourceId });
@@ -88,54 +108,6 @@ export class ExtensionRuntime implements IExtensionRuntime {
 	unregisterProvider(name: string): void {
 		const remaining = this.pendingProviderRegistrations.filter(registration => registration.name !== name);
 		this.pendingProviderRegistrations.splice(0, this.pendingProviderRegistrations.length, ...remaining);
-	}
-
-	registerMemoryBackend(backend: MemoryBackend, sourceId: string): void {
-		const dispose = installMemoryBackend(backend, sourceId);
-		const sourceRegistrations = this.#memoryBackendDisposers.get(sourceId) ?? new Map<string, () => void>();
-		const previous = sourceRegistrations.get(backend.id);
-		sourceRegistrations.set(backend.id, dispose);
-		this.#memoryBackendDisposers.set(sourceId, sourceRegistrations);
-		previous?.();
-
-		const remaining = this.memoryBackendRegistrations.filter(
-			registration => registration.backend.id !== backend.id || registration.sourceId !== sourceId,
-		);
-		this.memoryBackendRegistrations.splice(0, this.memoryBackendRegistrations.length, ...remaining, {
-			backend,
-			sourceId,
-		});
-	}
-
-	unregisterMemoryBackend(id: string, sourceId: string): void {
-		const sourceRegistrations = this.#memoryBackendDisposers.get(sourceId);
-		sourceRegistrations?.get(id)?.();
-		sourceRegistrations?.delete(id);
-		if (sourceRegistrations?.size === 0) this.#memoryBackendDisposers.delete(sourceId);
-		const remaining = this.memoryBackendRegistrations.filter(
-			registration => registration.backend.id !== id || registration.sourceId !== sourceId,
-		);
-		this.memoryBackendRegistrations.splice(0, this.memoryBackendRegistrations.length, ...remaining);
-	}
-
-	restoreMemoryBackendRegistrations(registrations: readonly { backend: MemoryBackend; sourceId: string }[]): void {
-		this.disposeMemoryBackends();
-		try {
-			for (const registration of registrations) {
-				this.registerMemoryBackend(registration.backend, registration.sourceId);
-			}
-		} catch (error) {
-			this.disposeMemoryBackends();
-			throw error;
-		}
-	}
-
-	disposeMemoryBackends(): void {
-		for (const sourceRegistrations of this.#memoryBackendDisposers.values()) {
-			for (const dispose of sourceRegistrations.values()) dispose();
-		}
-		this.#memoryBackendDisposers.clear();
-		this.memoryBackendRegistrations.splice(0);
 	}
 
 	sendMessage(): void {
@@ -215,17 +187,25 @@ class ConcreteExtensionAPI implements ExtensionAPI, IExtensionRuntime {
 		config: ProviderConfig;
 		sourceId: string;
 	}> = [];
-	get memoryBackendRegistrations(): Array<{ backend: MemoryBackend; sourceId: string }> {
-		return this.runtime.memoryBackendRegistrations;
-	}
 
 	constructor(
-		public readonly chud: typeof ChudCodingAgent,
+		public readonly pi: typeof PiCodingAgent,
 		private readonly extension: Extension,
 		private readonly runtime: IExtensionRuntime,
 		private readonly cwd: string,
 		public readonly events: EventBus,
-	) {}
+	) {
+		// Extensions destructure `pi.on` or forward API methods as callbacks, so every
+		// prototype method must keep its receiver when detached. Walk the prototype
+		// rather than listing methods: a new method is bound without touching this.
+		const prototype = ConcreteExtensionAPI.prototype;
+		for (const name of Object.getOwnPropertyNames(prototype)) {
+			if (name === "constructor") continue;
+			const descriptor = Object.getOwnPropertyDescriptor(prototype, name);
+			if (typeof descriptor?.value !== "function") continue;
+			Object.defineProperty(this, name, { value: descriptor.value.bind(this), writable: true, configurable: true });
+		}
+	}
 
 	on<F extends HandlerFn>(event: string, handler: F): void {
 		const list = this.extension.handlers.get(event) ?? [];
@@ -237,6 +217,7 @@ class ConcreteExtensionAPI implements ExtensionAPI, IExtensionRuntime {
 		const registered = {
 			definition: tool,
 			extensionPath: this.extension.path,
+			sourceInfo: extensionToolSourceInfo(tool, this.extension.resolvedPath),
 		};
 		this.extension.tools.set(tool.name, registered);
 		for (const listener of this.extension.toolRegistrationListeners ?? []) listener(tool.name);
@@ -314,15 +295,12 @@ class ConcreteExtensionAPI implements ExtensionAPI, IExtensionRuntime {
 
 	sendMessage<T = unknown>(
 		message: CustomMessagePayload<T>,
-		options?: { triggerTurn?: boolean; deliverAs?: "steer" | "followUp" | "nextTurn" },
+		options?: { triggerTurn?: boolean; deliverAs?: "steer" | "followUp" | "nextTurn" | "aside" },
 	): void {
 		this.runtime.sendMessage(message, options);
 	}
 
-	sendUserMessage(
-		content: string | (TextContent | ImageContent)[],
-		options?: { deliverAs?: "steer" | "followUp" },
-	): void {
+	sendUserMessage(content: string | (TextContent | ImageContent)[], options?: SendUserMessageOptions): void {
 		this.runtime.sendUserMessage(content, options);
 	}
 
@@ -388,22 +366,6 @@ class ConcreteExtensionAPI implements ExtensionAPI, IExtensionRuntime {
 	unregisterProvider(name: string): void {
 		this.runtime.unregisterProvider(name, this.extension.path);
 	}
-
-	registerMemoryBackend(backend: MemoryBackend): void {
-		this.runtime.registerMemoryBackend(backend, this.extension.path);
-	}
-
-	unregisterMemoryBackend(id: string): void {
-		this.runtime.unregisterMemoryBackend(id, this.extension.path);
-	}
-
-	restoreMemoryBackendRegistrations(registrations: readonly { backend: MemoryBackend; sourceId: string }[]): void {
-		this.runtime.restoreMemoryBackendRegistrations(registrations);
-	}
-
-	disposeMemoryBackends(): void {
-		this.runtime.disposeMemoryBackends();
-	}
 }
 
 /**
@@ -438,7 +400,6 @@ async function runExtensionFactory(
 	runtime: IExtensionRuntime,
 ): Promise<void> {
 	const providerRegistrationCheckpoint = [...runtime.pendingProviderRegistrations];
-	const memoryBackendRegistrationCheckpoint = [...runtime.memoryBackendRegistrations];
 
 	try {
 		await factory(api);
@@ -448,7 +409,6 @@ async function runExtensionFactory(
 			runtime.pendingProviderRegistrations.length,
 			...providerRegistrationCheckpoint,
 		);
-		runtime.restoreMemoryBackendRegistrations(memoryBackendRegistrationCheckpoint);
 		throw error;
 	}
 }
@@ -488,7 +448,7 @@ async function bindExtension(
 	}
 	try {
 		const extension = createExtension(extensionPath, imported.resolvedPath);
-		const api = new ConcreteExtensionAPI(ChudCodingAgent, extension, runtime, cwd, eventBus);
+		const api = new ConcreteExtensionAPI(PiCodingAgent, extension, runtime, cwd, eventBus);
 		await withHostGuard(() => runExtensionFactory(factory, api, runtime));
 
 		return { extension, error: null };
@@ -509,7 +469,7 @@ export async function loadExtensionFromFactory(
 	name = "<inline>",
 ): Promise<Extension> {
 	const extension = createExtension(name, name);
-	const api = new ConcreteExtensionAPI(ChudCodingAgent, extension, runtime, cwd, eventBus);
+	const api = new ConcreteExtensionAPI(PiCodingAgent, extension, runtime, cwd, eventBus);
 	await runExtensionFactory(factory, api, runtime);
 	return extension;
 }
@@ -559,129 +519,19 @@ export async function bindPreparedExtensions(
 	};
 }
 
-interface ExtensionManifest {
-	extensions?: string[];
-	themes?: string[];
-	skills?: string[];
-}
-
-async function readExtensionManifest(packageJsonPath: string): Promise<ExtensionManifest | null> {
-	try {
-		const pkg = (await fsx.readJson(packageJsonPath)) as { chudcode?: ExtensionManifest; chud?: ExtensionManifest };
-		const manifest = pkg.chudcode ?? pkg.chud;
-		if (manifest && typeof manifest === "object") {
-			return manifest;
-		}
-		return null;
-	} catch (error) {
-		if (isEnoent(error) || isEacces(error) || hasFsCode(error, "EPERM")) {
-			return null;
-		}
-		logger.warn("Failed to read extension manifest", { path: packageJsonPath, error: String(error) });
-		return null;
-	}
-}
-
 function isExtensionFile(name: string): boolean {
 	return name.endsWith(".ts") || name.endsWith(".js");
 }
 
-/**
- * Resolve extension entry points from a directory.
- */
-async function resolveExtensionEntries(dir: string): Promise<string[] | null> {
-	const packageJsonPath = path.join(dir, "package.json");
-	const manifest = await readExtensionManifest(packageJsonPath);
-	if (manifest?.extensions?.length) {
-		const entries: string[] = [];
-		for (const extPath of manifest.extensions) {
-			const resolvedExtPath = path.resolve(dir, extPath);
-			try {
-				await fs.stat(resolvedExtPath);
-				entries.push(resolvedExtPath);
-			} catch (err) {
-				if (isEnoent(err) || isEacces(err) || hasFsCode(err, "EPERM")) continue;
-				throw err;
-			}
-		}
-		if (entries.length > 0) {
-			return entries;
-		}
-	}
+const CONFIGURED_EXTENSION_DIRECTORY_OPTIONS = {
+	indexNames: ["index.ts", "index.js"],
+	isScanFile: isExtensionFile,
+	throwUnexpectedStatErrors: true,
+	onReadError: (filePath: string, error: unknown) => {
+		logger.warn("Failed to resolve extension directory", { path: filePath, error: String(error) });
+	},
+};
 
-	const indexTs = path.join(dir, "index.ts");
-	const indexJs = path.join(dir, "index.js");
-	try {
-		await fs.stat(indexTs);
-		return [indexTs];
-	} catch (err) {
-		if (isEnoent(err) || isEacces(err) || hasFsCode(err, "EPERM")) {
-			// Ignore
-		} else {
-			throw err;
-		}
-	}
-	try {
-		await fs.stat(indexJs);
-		return [indexJs];
-	} catch (err) {
-		if (isEnoent(err) || isEacces(err) || hasFsCode(err, "EPERM")) {
-			// Ignore
-		} else {
-			throw err;
-		}
-	}
-
-	return null;
-}
-
-/**
- * Discover extensions in a directory.
- *
- * Discovery rules:
- * 1. Direct files: `extensions/*.ts` or `*.js` → load
- * 2. Subdirectory with index: `extensions/<ext>/index.ts` or `index.js` → load
- * 3. Subdirectory with package.json: `extensions/<ext>/package.json` with "chudcode"/"chud" field → load declared paths
- *
- * No recursion beyond one level. Complex packages must use package.json manifest.
- */
-async function discoverExtensionsInDir(dir: string): Promise<string[]> {
-	const discovered: string[] = [];
-
-	// First check if this directory itself has explicit extension entries (package.json or index)
-	const rootEntries = await resolveExtensionEntries(dir);
-	if (rootEntries) {
-		return rootEntries;
-	}
-
-	// Otherwise, discover extensions from directory contents
-	let entries: fs1.Dirent[];
-	try {
-		entries = await fs.readdir(dir, { withFileTypes: true });
-	} catch (err) {
-		if (isEnoent(err)) return [];
-		logger.warn("Failed to discover extensions in directory", { path: dir, error: String(err) });
-		return [];
-	}
-
-	for (const entry of entries) {
-		const entryPath = path.join(dir, entry.name);
-
-		if ((entry.isFile() || entry.isSymbolicLink()) && isExtensionFile(entry.name)) {
-			discovered.push(entryPath);
-			continue;
-		}
-
-		if (entry.isDirectory() || entry.isSymbolicLink()) {
-			const resolved = await resolveExtensionEntries(entryPath);
-			if (resolved) {
-				discovered.push(...resolved);
-			}
-		}
-	}
-
-	return discovered;
-}
 async function discoverHooksInPackageRoot(root: string): Promise<string[]> {
 	const hooks: string[] = [];
 	for (const hookType of ["pre", "post"]) {
@@ -705,7 +555,7 @@ async function discoverHooksInPackageRoot(root: string): Promise<string[]> {
 /**
  * Discover absolute paths of extensions to load, without importing or
  * binding factories. Hot path on session startup — the scan walks native
- * `.chudcode`/`.pi` extension capabilities, JS/TS hook factories, the
+ * `.omp`/`.pi` extension capabilities, JS/TS hook factories, the
  * installed-plugin tree, and any configured paths.
  *
  * The root session imports these paths once and forwards prepared factories to
@@ -749,7 +599,7 @@ export async function discoverExtensionPaths(
 
 	const ambient = options.ambient !== false;
 	if (ambient) {
-		// 1. Discover extension modules via capability API (native .chudcode/.pi only).
+		// 1. Discover extension modules via capability API (native .omp/.pi only).
 		// Scope the load to the native provider — the extension-module capability
 		// also has claude/codex/gemini/opencode providers, and their items were
 		// discarded here anyway (see #4198). The provider filter skips the walk
@@ -800,16 +650,7 @@ export async function discoverExtensionPaths(
 		}
 
 		if (stat?.isDirectory()) {
-			const entries = await resolveExtensionEntries(resolved);
-			if (entries) {
-				addPaths(entries);
-				continue;
-			}
-
-			const discovered = await discoverExtensionsInDir(resolved);
-			if (discovered.length > 0) {
-				addPaths(discovered);
-			}
+			addPaths(resolveExtensionDirectory(resolved, CONFIGURED_EXTENSION_DIRECTORY_OPTIONS).files);
 			continue;
 		}
 

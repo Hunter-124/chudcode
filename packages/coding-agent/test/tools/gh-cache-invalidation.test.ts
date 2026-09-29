@@ -4,13 +4,13 @@
  * leaving unrelated commands and read-only `gh` calls alone.
  */
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "bun:test";
-import { invalidateGithubCacheForBashCommand } from "@chudware/coding-agent/tools/gh-cache-invalidation";
+import { invalidateGithubCacheForBashCommand } from "@oh-my-pi/pi-coding-agent/tools/gh-cache-invalidation";
 import {
 	clearAll,
 	getCached,
 	putCached,
 	resetForTests as resetCacheForTests,
-} from "@chudware/coding-agent/tools/github-cache";
+} from "@oh-my-pi/pi-coding-agent/tools/github-cache";
 
 const REPO = "owner/example";
 
@@ -76,8 +76,8 @@ function seedPr(number: number, repo = REPO): void {
 let originalEnv: string | undefined;
 
 beforeAll(() => {
-	originalEnv = process.env.CHUDCODE_GITHUB_CACHE_DB;
-	process.env.CHUDCODE_GITHUB_CACHE_DB = ":memory:";
+	originalEnv = process.env.OMP_GITHUB_CACHE_DB;
+	process.env.OMP_GITHUB_CACHE_DB = ":memory:";
 	resetCacheForTests();
 });
 
@@ -88,29 +88,17 @@ beforeEach(() => {
 afterAll(() => {
 	resetCacheForTests();
 	if (originalEnv === undefined) {
-		delete process.env.CHUDCODE_GITHUB_CACHE_DB;
+		delete process.env.OMP_GITHUB_CACHE_DB;
 	} else {
-		process.env.CHUDCODE_GITHUB_CACHE_DB = originalEnv;
+		process.env.OMP_GITHUB_CACHE_DB = originalEnv;
 	}
 });
 
 describe("invalidateGithubCacheForBashCommand", () => {
-	it("drops cache for `gh issue close <num>`", () => {
-		seedIssue(42);
-		invalidateGithubCacheForBashCommand("gh issue close 42");
-		expect(getCached(REPO, "issue", 42, true)).toBeNull();
-	});
-
 	it("drops cache for `gh pr merge <num>` with extra flags", () => {
 		seedPr(7);
 		invalidateGithubCacheForBashCommand("gh pr merge 7 --squash --delete-branch");
 		expect(getCached(REPO, "pr", 7, true)).toBeNull();
-	});
-
-	it("drops cache for a full PR URL argument", () => {
-		seedPr(123, "other/repo");
-		invalidateGithubCacheForBashCommand("gh pr close https://github.com/other/repo/pull/123");
-		expect(getCached("other/repo", "pr", 123, true)).toBeNull();
 	});
 
 	it("drops the bare row for a mixed-case github.com URL", () => {
@@ -126,12 +114,6 @@ describe("invalidateGithubCacheForBashCommand", () => {
 		expect(getCached("ghe.example.com/other/repo", "pr", 5, true)).toBeNull();
 		// Same slug on github.com is a different repository and keeps its row.
 		expect(getCached("other/repo", "pr", 5, true)?.rendered).toBe("pr-other/repo-5");
-	});
-
-	it("drops cache when --repo is supplied separately", () => {
-		seedIssue(9, "third/repo");
-		invalidateGithubCacheForBashCommand("gh issue reopen 9 --repo third/repo");
-		expect(getCached("third/repo", "issue", 9, true)).toBeNull();
 	});
 
 	it("drops cache for combined `--repo=<owner/repo>` form", () => {

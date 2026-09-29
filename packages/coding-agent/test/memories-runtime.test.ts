@@ -2,18 +2,16 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, test, vi 
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import * as ai from "@chudware/ai";
-import { Effort, type Model } from "@chudware/ai";
-import { Settings } from "@chudware/coding-agent/config/settings";
+import * as ai from "@oh-my-pi/pi-ai";
+import { Effort, type Model } from "@oh-my-pi/pi-ai";
+import { Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
 import {
 	buildMemoryToolDeveloperInstructions,
 	getMemoryRoot,
 	startMemoryStartupTask,
-} from "@chudware/coding-agent/memories";
-import * as memoryStorage from "@chudware/coding-agent/memories/storage";
-import { getAgentDbPath, Snowflake, TempDir } from "@chudware/utils";
-import { sleep } from "@chudware/utils/async";
-import * as fsx from "@chudware/utils/fsx";
+} from "@oh-my-pi/pi-coding-agent/memories";
+import * as memoryStorage from "@oh-my-pi/pi-coding-agent/memories/storage";
+import { getAgentDbPath, Snowflake, TempDir } from "@oh-my-pi/pi-utils";
 import { restoreEnvValue } from "./helpers/settings-test-state";
 
 interface SessionFixture {
@@ -74,7 +72,7 @@ async function createFixture(overrides?: Partial<Record<string, unknown>>): Prom
 		"memories.maxRolloutsPerStartup": 16,
 		"memories.threadScanLimit": 64,
 		"memories.phase2HeartbeatSeconds": 1,
-		...(overrides ?? {}),
+		...overrides,
 	});
 	const model = createModel();
 	const modelRegistry = createModelRegistry(model);
@@ -122,7 +120,7 @@ beforeAll(async () => {
 
 afterAll(async () => {
 	if (sharedRoot) {
-		await sleep(0);
+		await Bun.sleep(0);
 		await sharedRoot.remove();
 	}
 	sharedRoot = undefined;
@@ -423,9 +421,9 @@ describe("memories runtime", () => {
 		});
 
 		await settle(fx.whenSettled, "phase2 empty-input cleanup");
-		expect(await fsx.exists(path.join(memoryRoot, "MEMORY.md"))).toBe(false);
-		expect(await fsx.exists(path.join(memoryRoot, "memory_summary.md"))).toBe(false);
-		expect(await fsx.exists(path.join(memoryRoot, "skills"))).toBe(false);
+		expect(await Bun.file(path.join(memoryRoot, "MEMORY.md")).exists()).toBe(false);
+		expect(await Bun.file(path.join(memoryRoot, "memory_summary.md")).exists()).toBe(false);
+		expect(await Bun.file(path.join(memoryRoot, "skills")).exists()).toBe(false);
 		expect((await fs.readFile(path.join(memoryRoot, "raw_memories.md"), "utf8")).trim()).toBe(
 			"# Raw Memories\n\nNo raw memories yet.",
 		);

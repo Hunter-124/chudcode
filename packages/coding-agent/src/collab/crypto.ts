@@ -4,7 +4,7 @@
  * The room key lives only in the link fragment; the relay sees opaque bytes.
  * Sealed layout: `[12B IV][ciphertext+tag]`.
  */
-import { ROOM_KEY_BYTES, WRITE_TOKEN_BYTES } from "@chudware/wire";
+import { ROOM_KEY_BYTES, WRITE_TOKEN_BYTES } from "@oh-my-pi/pi-wire";
 import type { CollabFrame } from "./protocol";
 
 const AES_ALGORITHM = "AES-GCM";
@@ -32,9 +32,13 @@ export function importRoomKey(raw: Uint8Array): Promise<CryptoKey> {
 }
 
 export async function seal(key: CryptoKey, frame: CollabFrame): Promise<Uint8Array> {
+	return sealSerialized(key, JSON.stringify(frame));
+}
+
+export async function sealSerialized(key: CryptoKey, frame: string): Promise<Uint8Array> {
 	const iv = new Uint8Array(IV_LENGTH);
 	crypto.getRandomValues(iv);
-	const plaintext = TEXT_ENCODER.encode(JSON.stringify(frame));
+	const plaintext = TEXT_ENCODER.encode(frame);
 	const ciphertext = new Uint8Array(await crypto.subtle.encrypt({ name: AES_ALGORITHM, iv }, key, plaintext));
 	const out = new Uint8Array(IV_LENGTH + ciphertext.byteLength);
 	out.set(iv, 0);

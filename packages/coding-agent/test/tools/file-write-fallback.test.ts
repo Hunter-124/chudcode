@@ -2,7 +2,6 @@ import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import { applyPatch } from "@chudware/coding-agent/edit/modes/patch";
 import {
 	addFileDeleteFallback,
 	addFileWriteFallback,
@@ -10,8 +9,7 @@ import {
 	isPermissionDeniedError,
 	withFileMutationSession,
 	writeFileWithFallback,
-} from "@chudware/coding-agent/tools/file-write-fallback";
-import * as fsx from "@chudware/utils/fsx";
+} from "@oh-my-pi/pi-coding-agent/tools/file-write-fallback";
 
 /** Mimics a Node/Bun filesystem error with a structured `code`, without touching a real fs. */
 function fsError(code: string, message = `${code}: simulated`): NodeJS.ErrnoException {
@@ -315,7 +313,7 @@ describe("writeFileWithFallback", () => {
 
 		it("leaves an ENOENT alone when a path component is a file rather than a directory", async () => {
 			const blocker = path.join(root, "blocker");
-			await fsx.write(blocker, "not a directory");
+			await Bun.write(blocker, "not a directory");
 			let called = false;
 			disposers.push(
 				addFileWriteFallback(async () => {
@@ -340,7 +338,7 @@ describe("writeFileWithFallback", () => {
 			const secretDir = path.join(root, "off-limits");
 			await fs.mkdir(secretDir);
 			const secret = path.join(secretDir, "authorized_keys");
-			await fsx.write(secret, "original\n");
+			await Bun.write(secret, "original\n");
 			await fs.chmod(secret, 0o400);
 			await fs.chmod(secretDir, 0o500);
 
@@ -361,7 +359,7 @@ describe("writeFileWithFallback", () => {
 					code: expect.stringMatching(/^(EACCES|EPERM)$/),
 				});
 				expect(seen).toEqual([secret]);
-				expect(await fsx.readText(secret)).toBe("original\n");
+				expect(await Bun.file(secret).text()).toBe("original\n");
 			} finally {
 				await fs.chmod(secretDir, 0o700);
 				await fs.chmod(secret, 0o600);
@@ -376,7 +374,7 @@ describe("writeFileWithFallback", () => {
 			const outside = path.join(root, "off-limits");
 			await fs.mkdir(outside);
 			const victim = path.join(outside, "secret.txt");
-			await fsx.write(victim, "original\n");
+			await Bun.write(victim, "original\n");
 			await fs.chmod(victim, 0o400);
 			await fs.chmod(outside, 0o500);
 
@@ -396,7 +394,7 @@ describe("writeFileWithFallback", () => {
 					code: expect.stringMatching(/^(EACCES|EPERM)$/),
 				});
 				expect(seen).toEqual([victim]);
-				expect(await fsx.readText(victim)).toBe("original\n");
+				expect(await Bun.file(victim).text()).toBe("original\n");
 			} finally {
 				await fs.chmod(outside, 0o700);
 				await fs.chmod(victim, 0o600);
@@ -454,89 +452,6 @@ describe("writeFileWithFallback", () => {
 			}
 		});
 	});
-
-	// `apply_patch` creates a missing parent before writing, so a denial there used
-	// to throw before the write — and therefore before the seam — was ever reached.
-	describe.skipIf(process.getuid?.() === 0)("apply_patch into a denied new directory", () => {
-		let root = "";
-		let locked = "";
-
-		beforeEach(async () => {
-			root = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), "fallback-patch-")));
-			locked = path.join(root, "locked");
-			await fs.mkdir(locked);
-			await fs.chmod(locked, 0o500);
-		});
-		afterEach(async () => {
-			await fs.chmod(locked, 0o700).catch(() => {});
-			await fs.rm(root, { recursive: true, force: true });
-		});
-
-		it("reaches a registered handler with the bytes for the created file", async () => {
-			const brokered: Array<{ dst: string; content: string }> = [];
-			disposers.push(
-				addFileWriteFallback(async req => {
-					brokered.push({ dst: req.dst, content: req.content });
-					return true;
-				}),
-			);
-
-			const target = path.join(locked, "sub", "new.txt");
-			const result = await applyPatch({ path: target, op: "create", diff: "hello\n" }, { cwd: root });
-
-			expect(result.change).toMatchObject({ type: "create", path: target });
-			expect(brokered).toEqual([{ dst: target, content: "hello\n" }]);
-		});
-
-		it("still fails when no handler is registered", async () => {
-			const target = path.join(locked, "sub", "new.txt");
-			await expect(applyPatch({ path: target, op: "create", diff: "hello\n" }, { cwd: root })).rejects.toMatchObject(
-				{
-					code: expect.stringMatching(/^(EACCES|EPERM)$/),
-				},
-			);
-		});
-
-		it("never brokers an exclusive create whose destination cannot be proven absent", async () => {
-			// `apply_patch`'s `create` refuses to overwrite, and it decides that with
-			// `Bun.file(dst).exists()`, which reports `false` when the parent hides the
-			// target's metadata instead of distinguishing "absent" from "unknown". The
-			// non-overwrite contract survives regardless, because the same denied `lstat`
-			// that fools the existence check also stops the seam from brokering: a
-			// privileged writer is never handed a destination whose identity is unproven,
-			// and it is the only party that could have enforced exclusivity itself.
-			//
-			// Those are two independent guards in two files, so this pins the pair. If the
-			// seam is ever relaxed to broker an unverifiable path, a `create` would start
-			// silently clobbering a protected file it was told not to touch.
-			const opaque = path.join(root, "opaque");
-			await fs.mkdir(opaque);
-			const victim = path.join(opaque, "victim.txt");
-			await fsx.write(victim, "original\n");
-			await fs.chmod(opaque, 0o000);
-
-			let called = false;
-			disposers.push(
-				addFileWriteFallback(async () => {
-					called = true;
-					return true;
-				}),
-			);
-
-			try {
-				// The premise: the existence check cannot see the file it must not clobber.
-				expect(await fsx.exists(victim)).toBe(false);
-
-				await expect(
-					applyPatch({ path: victim, op: "create", diff: "clobbered\n" }, { cwd: root }),
-				).rejects.toMatchObject({ code: expect.stringMatching(/^(EACCES|EPERM)$/) });
-				expect(called).toBe(false);
-			} finally {
-				await fs.chmod(opaque, 0o700);
-			}
-			expect(await fsx.readText(victim)).toBe("original\n");
-		});
-	});
 });
 
 describe("deleteFileWithFallback", () => {
@@ -592,7 +507,7 @@ describe("deleteFileWithFallback", () => {
 		/** A file whose containing directory denies the unlink. */
 		async function lockedFile(name = "victim.txt"): Promise<string> {
 			const target = path.join(locked, name);
-			await fsx.write(target, "payload");
+			await Bun.write(target, "payload");
 			await fs.chmod(locked, 0o500);
 			return target;
 		}
@@ -658,7 +573,7 @@ describe("deleteFileWithFallback", () => {
 			const opaque = path.join(root, "opaque");
 			await fs.mkdir(opaque);
 			const victim = path.join(opaque, "buried.txt");
-			await fsx.write(victim, "payload");
+			await Bun.write(victim, "payload");
 			await fs.chmod(opaque, 0o000);
 
 			const seen: Array<{ dst: string; confirmedFile: boolean }> = [];
@@ -681,7 +596,7 @@ describe("deleteFileWithFallback", () => {
 			// `ENOTDIR` from a path component that is a file is a genuinely bad path, not
 			// a boundary, so the seam must not paper over it by consulting a handler.
 			const blocker = path.join(root, "not-a-dir");
-			await fsx.write(blocker, "payload");
+			await Bun.write(blocker, "payload");
 			let called = false;
 			disposers.push(
 				addFileDeleteFallback(async () => {
@@ -703,7 +618,7 @@ describe("deleteFileWithFallback", () => {
 			const outside = path.join(root, "off-limits");
 			await fs.mkdir(outside);
 			const victim = path.join(outside, "keep.txt");
-			await fsx.write(victim, "keep me");
+			await Bun.write(victim, "keep me");
 			await fs.chmod(outside, 0o500);
 
 			const linkDir = path.join(root, "innocent-dir");
@@ -722,7 +637,7 @@ describe("deleteFileWithFallback", () => {
 					code: expect.stringMatching(/^(EACCES|EPERM)$/),
 				});
 				expect(seen).toEqual([{ dst: victim, confirmedFile: true }]);
-				expect(await fsx.readText(victim)).toBe("keep me");
+				expect(await Bun.file(victim).text()).toBe("keep me");
 			} finally {
 				await fs.chmod(outside, 0o700);
 			}
@@ -737,7 +652,7 @@ describe("deleteFileWithFallback", () => {
 			// though `lstat` succeeded.
 			const targetDir = path.join(root, "link-target-dir");
 			await fs.mkdir(targetDir);
-			await fsx.write(path.join(targetDir, "keep.txt"), "keep me");
+			await Bun.write(path.join(targetDir, "keep.txt"), "keep me");
 			const link = path.join(locked, "dir-link");
 			await fs.symlink(targetDir, link);
 			await fs.chmod(locked, 0o500);
@@ -754,7 +669,7 @@ describe("deleteFileWithFallback", () => {
 
 			expect(seen).toEqual([{ dst: link, confirmedFile: false }]);
 			// The target must be untouched: the seam only ever asked for the link.
-			expect(await fsx.readText(path.join(targetDir, "keep.txt"))).toBe("keep me");
+			expect(await Bun.file(path.join(targetDir, "keep.txt")).text()).toBe("keep me");
 		});
 
 		it("diverts a denied unlink issued through a BunFile handle", async () => {
@@ -773,25 +688,6 @@ describe("deleteFileWithFallback", () => {
 			await deleteFileWithFallback(target, Bun.file(target));
 
 			expect(seen).toEqual([target]);
-		});
-
-		it("routes an apply_patch delete op through the seam", async () => {
-			const target = await lockedFile("doomed.txt");
-			const removed: string[] = [];
-			disposers.push(
-				addFileDeleteFallback(async req => {
-					await fs.chmod(locked, 0o700);
-					await fs.unlink(req.dst);
-					removed.push(req.dst);
-					return true;
-				}),
-			);
-
-			const result = await applyPatch({ path: target, op: "delete" }, { cwd: root });
-
-			expect(result.change).toMatchObject({ type: "delete", path: target });
-			expect(removed).toEqual([target]);
-			expect(await fsx.exists(target)).toBe(false);
 		});
 	});
 });

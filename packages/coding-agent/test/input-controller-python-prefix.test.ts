@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "bun:test";
-import type { ImageContent } from "@chudware/ai";
-import { InputController } from "@chudware/coding-agent/modes/controllers/input-controller";
-import type { InteractiveModeContext } from "@chudware/coding-agent/modes/types";
+import type { ImageContent } from "@oh-my-pi/pi-ai";
+import { InputController } from "@oh-my-pi/pi-coding-agent/modes/controllers/input-controller";
+import type { InteractiveModeContext } from "@oh-my-pi/pi-coding-agent/modes/types";
 
 type FakeEditor = {
 	onSubmit?: (text: string) => Promise<void>;
@@ -93,12 +93,15 @@ describe("InputController Python prompt prefix", () => {
 		await editor.onSubmit?.("$HOME is home");
 
 		expect(handlePythonCommand).not.toHaveBeenCalled();
-		expect(startPendingSubmission).toHaveBeenCalledWith({
-			text: "$HOME is home",
-			images: undefined,
-			imageLinks: undefined,
-			streamingBehavior: "steer",
-		});
+		expect(startPendingSubmission).toHaveBeenCalledWith(
+			{
+				text: "$HOME is home",
+				images: undefined,
+				imageLinks: undefined,
+				streamingBehavior: "steer",
+			},
+			{ clearEditor: false },
+		);
 		expect(onInputCallback).toHaveBeenCalledTimes(1);
 		expect(submitted).toEqual([
 			{
@@ -110,7 +113,7 @@ describe("InputController Python prompt prefix", () => {
 		]);
 	});
 
-	it("submits pasted shell-prompt transcripts with Chudcode chrome as a normal prompt", async () => {
+	it("submits pasted shell-prompt transcripts with OMP chrome as a normal prompt", async () => {
 		const transcript =
 			"$ cd ~/project && sudo ./build-and-push.sh o5.7 2>&1 | tail -4\n" +
 			" |\n" +
@@ -123,12 +126,15 @@ describe("InputController Python prompt prefix", () => {
 		await editor.onSubmit?.(transcript);
 
 		expect(handlePythonCommand).not.toHaveBeenCalled();
-		expect(startPendingSubmission).toHaveBeenCalledWith({
-			text: transcript,
-			images: undefined,
-			imageLinks: undefined,
-			streamingBehavior: "steer",
-		});
+		expect(startPendingSubmission).toHaveBeenCalledWith(
+			{
+				text: transcript,
+				images: undefined,
+				imageLinks: undefined,
+				streamingBehavior: "steer",
+			},
+			{ clearEditor: false },
+		);
 		expect(onInputCallback).toHaveBeenCalledTimes(1);
 		expect(submitted).toEqual([
 			{

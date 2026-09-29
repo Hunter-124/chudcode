@@ -2,23 +2,22 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import { AuthStorage, SqliteAuthCredentialStore } from "@chudware/ai";
+import { AuthStorage, SqliteAuthCredentialStore } from "@oh-my-pi/pi-ai";
 import {
 	type AuthBrokerServerHandle,
 	readAuthBrokerSnapshotCache,
 	type SnapshotResponse,
 	startAuthBroker,
 	writeAuthBrokerSnapshotCache,
-} from "@chudware/ai/auth-broker";
-import { discoverAuthStorage } from "@chudware/coding-agent/sdk";
-import { removeWithRetries } from "@chudware/utils";
-import { sleep } from "@chudware/utils/async";
+} from "@oh-my-pi/pi-ai/auth-broker";
+import { discoverAuthStorage } from "@oh-my-pi/pi-coding-agent/sdk";
+import { removeWithRetries } from "@oh-my-pi/pi-utils";
 
 const ENV_KEYS = [
-	"CHUDCODE_AUTH_BROKER_URL",
-	"CHUDCODE_AUTH_BROKER_TOKEN",
-	"CHUDCODE_AUTH_BROKER_SNAPSHOT_CACHE",
-	"CHUDCODE_AUTH_BROKER_SNAPSHOT_TTL_MS",
+	"OMP_AUTH_BROKER_URL",
+	"OMP_AUTH_BROKER_TOKEN",
+	"OMP_AUTH_BROKER_SNAPSHOT_CACHE",
+	"OMP_AUTH_BROKER_SNAPSHOT_TTL_MS",
 ] as const;
 const PROVIDER = "unit-auth-broker-cache";
 const TOKEN = "coding-agent-cache-token";
@@ -52,7 +51,7 @@ async function waitUntil(predicate: () => boolean | Promise<boolean>, timeoutMs 
 	const deadline = Date.now() + timeoutMs;
 	while (Date.now() < deadline) {
 		if (await predicate()) return;
-		await sleep(10);
+		await Bun.sleep(10);
 	}
 	if (!(await predicate())) throw new Error("waitUntil timeout");
 }
@@ -76,10 +75,10 @@ describe("discoverAuthStorage auth-broker snapshot cache", () => {
 	test("boots from a fresh encrypted cache when the broker is down", async () => {
 		const cachePath = path.join(tempDir, "snapshot.enc");
 		const downUrl = "http://127.0.0.1:1";
-		process.env.CHUDCODE_AUTH_BROKER_URL = downUrl;
-		process.env.CHUDCODE_AUTH_BROKER_TOKEN = TOKEN;
-		process.env.CHUDCODE_AUTH_BROKER_SNAPSHOT_CACHE = cachePath;
-		process.env.CHUDCODE_AUTH_BROKER_SNAPSHOT_TTL_MS = "3600000";
+		process.env.OMP_AUTH_BROKER_URL = downUrl;
+		process.env.OMP_AUTH_BROKER_TOKEN = TOKEN;
+		process.env.OMP_AUTH_BROKER_SNAPSHOT_CACHE = cachePath;
+		process.env.OMP_AUTH_BROKER_SNAPSHOT_TTL_MS = "3600000";
 		await writeAuthBrokerSnapshotCache({
 			path: cachePath,
 			token: TOKEN,
@@ -89,7 +88,7 @@ describe("discoverAuthStorage auth-broker snapshot cache", () => {
 
 		const storage = await discoverAuthStorage(tempDir);
 		try {
-			expect(await storage.getApiKey(PROVIDER)).toBe("cached-api-key");
+			expect(await storage.keys.get(PROVIDER)).toBe("cached-api-key");
 		} finally {
 			storage.close();
 		}
@@ -98,9 +97,9 @@ describe("discoverAuthStorage auth-broker snapshot cache", () => {
 	test("seeds the encrypted cache after an initial broker fetch", async () => {
 		const cachePath = path.join(tempDir, "snapshot.enc");
 		const brokerStore = await SqliteAuthCredentialStore.open(path.join(tempDir, "broker.db"));
-		brokerStore.saveApiKey(PROVIDER, "broker-api-key");
+		await brokerStore.saveApiKey(PROVIDER, "broker-api-key");
 		const brokerStorage = new AuthStorage(brokerStore);
-		await brokerStorage.reload();
+		await brokerStorage.credentials.reload();
 		let handle: AuthBrokerServerHandle | undefined;
 		let storage: AuthStorage | undefined;
 		try {
@@ -110,13 +109,13 @@ describe("discoverAuthStorage auth-broker snapshot cache", () => {
 				bearerTokens: [TOKEN],
 				disableRefresher: true,
 			});
-			process.env.CHUDCODE_AUTH_BROKER_URL = handle.url;
-			process.env.CHUDCODE_AUTH_BROKER_TOKEN = TOKEN;
-			process.env.CHUDCODE_AUTH_BROKER_SNAPSHOT_CACHE = cachePath;
-			process.env.CHUDCODE_AUTH_BROKER_SNAPSHOT_TTL_MS = "3600000";
+			process.env.OMP_AUTH_BROKER_URL = handle.url;
+			process.env.OMP_AUTH_BROKER_TOKEN = TOKEN;
+			process.env.OMP_AUTH_BROKER_SNAPSHOT_CACHE = cachePath;
+			process.env.OMP_AUTH_BROKER_SNAPSHOT_TTL_MS = "3600000";
 
 			storage = await discoverAuthStorage(tempDir);
-			expect(await storage.getApiKey(PROVIDER)).toBe("broker-api-key");
+			expect(await storage.keys.get(PROVIDER)).toBe("broker-api-key");
 			await waitUntil(async () => {
 				const cached = await readAuthBrokerSnapshotCache({
 					path: cachePath,
@@ -151,10 +150,10 @@ describe("discoverAuthStorage auth-broker snapshot cache", () => {
 		const url = server.url.toString();
 		let storage: AuthStorage | undefined;
 		try {
-			process.env.CHUDCODE_AUTH_BROKER_URL = url;
-			process.env.CHUDCODE_AUTH_BROKER_TOKEN = TOKEN;
-			process.env.CHUDCODE_AUTH_BROKER_SNAPSHOT_CACHE = cachePath;
-			process.env.CHUDCODE_AUTH_BROKER_SNAPSHOT_TTL_MS = "3600000";
+			process.env.OMP_AUTH_BROKER_URL = url;
+			process.env.OMP_AUTH_BROKER_TOKEN = TOKEN;
+			process.env.OMP_AUTH_BROKER_SNAPSHOT_CACHE = cachePath;
+			process.env.OMP_AUTH_BROKER_SNAPSHOT_TTL_MS = "3600000";
 			await writeAuthBrokerSnapshotCache({
 				path: cachePath,
 				token: TOKEN,
@@ -163,7 +162,7 @@ describe("discoverAuthStorage auth-broker snapshot cache", () => {
 			});
 
 			storage = await discoverAuthStorage(tempDir);
-			expect(await storage.getApiKey(PROVIDER)).toBe("cached-api-key");
+			expect(await storage.keys.get(PROVIDER)).toBe("cached-api-key");
 		} finally {
 			storage?.close();
 			server.stop(true);

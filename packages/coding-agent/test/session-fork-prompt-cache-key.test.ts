@@ -1,20 +1,19 @@
 import { describe, expect, it } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
-import { ThinkingLevel } from "@chudware/agent-core";
-import { getBundledModel } from "@chudware/catalog/models";
-import { type Args, parseArgs } from "@chudware/coding-agent/cli/args";
-import { ModelRegistry } from "@chudware/coding-agent/config/model-registry";
-import type { ScopedModel } from "@chudware/coding-agent/config/model-resolver";
-import { Settings } from "@chudware/coding-agent/config/settings";
-import { buildSessionOptions } from "@chudware/coding-agent/main";
-import { type CreateAgentSessionOptions, createAgentSession } from "@chudware/coding-agent/sdk";
-import type { AgentSession } from "@chudware/coding-agent/session/agent-session";
-import { AuthStorage } from "@chudware/coding-agent/session/auth-storage";
-import { CURRENT_SESSION_VERSION, type SessionHeader } from "@chudware/coding-agent/session/session-entries";
-import { SessionManager } from "@chudware/coding-agent/session/session-manager";
-import { TempDir } from "@chudware/utils";
-import * as fsx from "@chudware/utils/fsx";
+import { ThinkingLevel } from "@oh-my-pi/pi-agent-core";
+import { getBundledModel } from "@oh-my-pi/pi-catalog/models";
+import { type Args, parseArgs } from "@oh-my-pi/pi-coding-agent/cli/args";
+import { ModelRegistry } from "@oh-my-pi/pi-coding-agent/config/model-registry";
+import type { ScopedModel } from "@oh-my-pi/pi-coding-agent/config/model-resolver";
+import { Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
+import { buildSessionOptions } from "@oh-my-pi/pi-coding-agent/main";
+import { type CreateAgentSessionOptions, createAgentSession } from "@oh-my-pi/pi-coding-agent/sdk";
+import type { AgentSession } from "@oh-my-pi/pi-coding-agent/session/agent-session";
+import { AuthStorage } from "@oh-my-pi/pi-coding-agent/session/auth-storage";
+import { CURRENT_SESSION_VERSION, type SessionHeader } from "@oh-my-pi/pi-coding-agent/session/session-entries";
+import { SessionManager } from "@oh-my-pi/pi-coding-agent/session/session-manager";
+import { TempDir } from "@oh-my-pi/pi-utils";
 
 const OPENAI_TEST_MODEL = getBundledModel("openai", "gpt-4o-mini");
 
@@ -44,7 +43,7 @@ async function createSourceSessionFixture(tempDir: TempDir, parentId: string): P
 		timestamp: new Date().toISOString(),
 		cwd,
 	};
-	await fsx.write(sourceFile, `${JSON.stringify(sourceHeader)}\n`);
+	await Bun.write(sourceFile, `${JSON.stringify(sourceHeader)}\n`);
 	return { cwd, sourceFile, sourceHeader, forkSessionDir };
 }
 
@@ -53,7 +52,7 @@ async function createMinimalSession(
 	options: CreateAgentSessionOptions,
 ): Promise<{ session: AgentSession; authStorage: AuthStorage }> {
 	const authStorage = await AuthStorage.create(tempDir.join("sdk-auth.db"));
-	authStorage.setRuntimeApiKey("openai", "test-key");
+	authStorage.keys.setRuntime("openai", "test-key");
 	const shouldSupplyModel = options.sessionManager?.getHeader()?.parentSession === undefined;
 	const result = await createAgentSession({
 		...options,
@@ -104,7 +103,7 @@ describe("provider prompt-cache key session affinity", () => {
 	});
 
 	it("creates an agent whose prompt-cache key can differ from provider request lineage", async () => {
-		using tempDir = TempDir.createSync("@chudcode-prompt-cache-sdk-");
+		using tempDir = TempDir.createSync("@omp-prompt-cache-sdk-");
 		let session: AgentSession | undefined;
 		let authStorage: AuthStorage | undefined;
 		try {
@@ -126,7 +125,7 @@ describe("provider prompt-cache key session affinity", () => {
 	});
 
 	it("initializes a full fork with child request lineage and parent prompt-cache affinity", async () => {
-		using tempDir = TempDir.createSync("@chudcode-prompt-cache-fork-");
+		using tempDir = TempDir.createSync("@omp-prompt-cache-fork-");
 		const source = await createSourceSessionFixture(tempDir, "parent-cache-session");
 		const forkedManager = await SessionManager.forkFrom(source.sourceFile, source.cwd, source.forkSessionDir);
 		let session: AgentSession | undefined;
@@ -173,7 +172,7 @@ describe("provider prompt-cache key session affinity", () => {
 		];
 
 		for (const entry of cases) {
-			using tempDir = TempDir.createSync(`@chudcode-prompt-cache-fork-${entry.name}-`);
+			using tempDir = TempDir.createSync(`@omp-prompt-cache-fork-${entry.name}-`);
 			const source = await createSourceSessionFixture(tempDir, `parent-cache-session-${entry.name}`);
 			const forkedManager = await SessionManager.forkFrom(source.sourceFile, source.cwd, source.forkSessionDir);
 			let session: AgentSession | undefined;
@@ -197,11 +196,11 @@ describe("provider prompt-cache key session affinity", () => {
 	});
 
 	it("does not pre-pin parent prompt-cache affinity when a scoped model selects the startup route", async () => {
-		using tempDir = TempDir.createSync("@chudcode-prompt-cache-scoped-model-");
+		using tempDir = TempDir.createSync("@omp-prompt-cache-scoped-model-");
 		const source = await createSourceSessionFixture(tempDir, "parent-cache-session-scoped");
 		const forkedManager = await SessionManager.forkFrom(source.sourceFile, source.cwd, source.forkSessionDir);
 		const authStorage = await AuthStorage.create(tempDir.join("scoped-auth.db"));
-		authStorage.setRuntimeApiKey(OPENAI_TEST_MODEL.provider, "test-key");
+		authStorage.keys.setRuntime(OPENAI_TEST_MODEL.provider, "test-key");
 		try {
 			const modelRegistry = new ModelRegistry(authStorage, tempDir.join("models.yml"));
 			const parsed = parseArgs([

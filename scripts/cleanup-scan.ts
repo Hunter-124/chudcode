@@ -16,7 +16,6 @@
  */
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
-import * as fsx from "@chudware/utils/fsx";
 import { ts } from "@ts-morph/common";
 
 const DEFAULT_PKGS = ["coding-agent", "ai", "catalog", "utils"];
@@ -295,7 +294,7 @@ async function computePublicSurface(pkgs: string[], byRel: Map<string, FileInfo>
 	for (const pkg of pkgs) {
 		let exportsMap: Record<string, unknown>;
 		try {
-			const pkgJson: { exports?: Record<string, unknown> } = await fsx.readJson(`packages/${pkg}/package.json`);
+			const pkgJson: { exports?: Record<string, unknown> } = await Bun.file(`packages/${pkg}/package.json`).json();
 			exportsMap = pkgJson.exports ?? {};
 		} catch {
 			continue;
@@ -351,7 +350,7 @@ async function main() {
 		for await (const p of glob.scan({ cwd: root, onlyFiles: true })) {
 			const rel = `${root}/${p}`.replaceAll("\\", "/");
 			if (rel.includes("node_modules/") || /(-gen\/|\/vendor\/)/.test(rel)) continue;
-			const text = await fsx.readText(rel);
+			const text = await Bun.file(rel).text();
 			const isTest = /(\.test\.ts$|__tests__\/)/.test(rel);
 			for (const m of text.matchAll(/[A-Za-z_$][A-Za-z0-9_$]*/g)) {
 				const name = m[0];
@@ -421,7 +420,7 @@ async function main() {
 			const refs = corpusIdents.get(name);
 			if (!refs) continue;
 			const others = [...refs].filter(r => r !== f.rel && r !== `test:${f.rel}`);
-			if (others.length > 0 && others.some(r => !r.startsWith("test:"))) continue;
+			if (others.some(r => !r.startsWith("test:"))) continue;
 			deadExports.push({
 				file: f.rel,
 				name,

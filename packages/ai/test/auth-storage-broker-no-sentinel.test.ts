@@ -7,8 +7,8 @@ import {
 	AuthStorage,
 	REMOTE_REFRESH_SENTINEL,
 	SqliteAuthCredentialStore,
-} from "@chudware/ai/auth-storage";
-import * as oauthUtils from "@chudware/ai/registry/oauth";
+} from "@oh-my-pi/pi-ai/auth-storage";
+import * as oauthUtils from "@oh-my-pi/pi-ai/registry/oauth";
 import { removeWithRetries } from "../../utils/src/temp";
 
 describe("AuthStorage broker sentinel refresh", () => {
@@ -18,7 +18,7 @@ describe("AuthStorage broker sentinel refresh", () => {
 	let brokerRefreshCalls = 0;
 
 	beforeEach(async () => {
-		tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "chud-ai-auth-broker-no-sentinel-"));
+		tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "pi-ai-auth-broker-no-sentinel-"));
 		store = await SqliteAuthCredentialStore.open(path.join(tempDir, "agent.db"));
 		brokerRefreshCalls = 0;
 		authStorage = new AuthStorage(store, {
@@ -52,7 +52,7 @@ describe("AuthStorage broker sentinel refresh", () => {
 	test("getOAuthAccess refreshes expired broker credentials through the store hook only", async () => {
 		if (!authStorage || !store) throw new Error("test setup failed");
 
-		await authStorage.set("anthropic", [
+		await authStorage.credentials.set("anthropic", [
 			{
 				type: "oauth",
 				access: "broker-access-stale",
@@ -66,7 +66,7 @@ describe("AuthStorage broker sentinel refresh", () => {
 			throw new Error("provider-direct refresh must not be called");
 		});
 
-		const access = await authStorage.getOAuthAccess("anthropic", "broker-session");
+		const access = await authStorage.oauth.access("anthropic", "broker-session");
 
 		expect(access).toEqual({
 			accessToken: "broker-access-rotated",

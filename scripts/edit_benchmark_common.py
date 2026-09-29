@@ -20,9 +20,9 @@ from pathlib import Path
 from typing import Any, Callable
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(REPO_ROOT / "python/chudcode-rpc/src"))
+sys.path.insert(0, str(REPO_ROOT / "python/omp-rpc/src"))
 
-from chudcode_rpc import (
+from omp_rpc import (
     MessageEndEvent,
     MessageStartEvent,
     MessageUpdateEvent,
@@ -639,10 +639,10 @@ def resolve_omp_bin(raw: str | None) -> str:
     repo_bin = resolve_repo_omp_bin()
     if repo_bin:
         return repo_bin
-    found = shutil.which("chudcode")
+    found = shutil.which("omp")
     if not found:
         raise SystemExit(
-            "Could not find `chudcode` on PATH and could not resolve the repo CLI. Set --chudcode-bin or CHUDCODE_BIN."
+            "Could not find `omp` on PATH and could not resolve the repo CLI. Set --omp-bin or OMP_BIN."
         )
     return found
 
@@ -730,7 +730,7 @@ def run_benchmark_for_model(
     *,
     spec: BenchmarkSpec,
     model: str,
-    chudcode_bin: str,
+    omp_bin: str,
     workspace: Path,
     timeout: float,
     log_mode: str | None,
@@ -753,7 +753,7 @@ def run_benchmark_for_model(
 
     try:
         with RpcClient(
-            executable=chudcode_bin,
+            executable=omp_bin,
             model=model,
             cwd=workspace,
             env={**spec.env},
@@ -841,7 +841,7 @@ def run_benchmark_for_model(
 async def run_all(
     spec: BenchmarkSpec, args: argparse.Namespace
 ) -> dict[str, dict[str, Any]]:
-    chudcode_bin = resolve_omp_bin(args.chudcode_bin)
+    omp_bin = resolve_omp_bin(args.omp_bin)
 
     timestamp = time.strftime("%Y%m%d-%H%M%S")
     workspace_root = (
@@ -862,7 +862,7 @@ async def run_all(
                 run_benchmark_for_model,
                 spec=spec,
                 model=model,
-                chudcode_bin=chudcode_bin,
+                omp_bin=omp_bin,
                 workspace=workspace,
                 timeout=args.timeout,
                 log_mode="verbose"
@@ -910,9 +910,9 @@ async def run_all(
 def parse_args(description: str) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=description)
     parser.add_argument(
-        "--chudcode-bin",
-        default=os.environ.get("CHUDCODE_BIN"),
-        help="Executable to launch. Defaults to the repo checkout CLI, then falls back to `chudcode` on PATH.",
+        "--omp-bin",
+        default=os.environ.get("OMP_BIN"),
+        help="Executable to launch. Defaults to the repo checkout CLI, then falls back to `omp` on PATH.",
     )
     parser.add_argument(
         "--timeout", type=float, default=60.0, help="Per-turn timeout in seconds."

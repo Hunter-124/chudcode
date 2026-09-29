@@ -9,17 +9,21 @@
  * model into the worker's cache.
  */
 
-import { getProjectDir } from "@chudware/utils";
-import chalk from "@chudware/utils/chalk";
-import { Args, Command, Flags } from "@chudware/utils/cli";
-import * as fsx from "@chudware/utils/fsx";
+import { getProjectDir } from "@oh-my-pi/pi-utils";
+import chalk from "@oh-my-pi/pi-utils/chalk";
+import { Args, Command, Flags } from "@oh-my-pi/pi-utils/cli";
 import { sayHelp as commandHelp } from "../cli/command-help";
-import { Settings, settings } from "../config/settings";
+import { ModelRegistry } from "../config/model-registry";
+import { Settings } from "../config/settings";
+import { discoverAuthStorage } from "../sdk";
 import { TTS_LOCAL_VOICE_VALUES } from "../tts/models";
 import { SpeakableStream } from "../tts/speakable";
 import { StreamingAudioPlayer } from "../tts/streaming-player";
 import { shutdownTtsClient, ttsClient } from "../tts/tts-client";
+import { resolveLocalSpeechModelId } from "../tts/vocalizer";
 import { encodeWav } from "../tts/wav";
+
+import { cfgTtsLocalVoice } from "../tts/settings";
 
 export default class Say extends Command {
 	static description = commandHelp.description;
@@ -35,9 +39,9 @@ export default class Say extends Command {
 	};
 
 	static examples = [
-		'chudcode say "hello world"',
-		"chudcode say --file notes.md --voice bm_fable",
-		'chudcode say "hello world" --out /tmp/hello.wav',
+		'omp say "hello world"',
+		"omp say --file notes.md --voice bm_fable",
+		'omp say "hello world" --out /tmp/hello.wav',
 	];
 
 	async run(): Promise<void> {
@@ -47,9 +51,9 @@ export default class Say extends Command {
 			process.exit(1);
 		}
 
-		await Settings.init({ cwd: getProjectDir() });
-		const model = flags.model ?? settings.get("tts.localModel");
-		const voice = flags.voice ?? settings.get("tts.localVoice");
+		const settings = await Settings.init({ cwd: getProjectDir() });
+		const model = flags.model ?? (await this.#resolveDefaultModel(settings));
+		const voice = flags.voice ?? cfgTtsLocalVoice.get(settings);
 
 		let exitCode = 0;
 		const unsubscribe = ttsClient.onProgress(event => {
@@ -64,7 +68,7 @@ export default class Say extends Command {
 		});
 
 		try {
-			const text = flags.file ? await fsx.readText(flags.file) : (args.text ?? "");
+			const text = flags.file ? await Bun.file(flags.file).text() : (args.text ?? "");
 			const splitter = new SpeakableStream();
 			const segments = [...splitter.push(text), ...splitter.flush()];
 			if (segments.length === 0) {
@@ -98,7 +102,7 @@ export default class Say extends Command {
 					offset += part.length;
 				}
 				const wav = encodeWav(pcm, sampleRate);
-				await fsx.write(flags.out, wav);
+				await Bun.write(flags.out, wav);
 				const durationSec = total / sampleRate;
 				process.stdout.write(
 					`${chalk.green("saved")} ${flags.out} ` +
@@ -137,10 +141,20 @@ export default class Say extends Command {
 		if (exitCode !== 0) process.exit(exitCode);
 	}
 
+	async #resolveDefaultModel(settings: Settings): Promise<string> {
+		const authStorage = await discoverAuthStorage(undefined, { settings });
+		try {
+			const registry = new ModelRegistry(authStorage, undefined, { settings });
+			return resolveLocalSpeechModelId({ settings, registry });
+		} finally {
+			authStorage.close();
+		}
+	}
+
 	#synthesisFailed(model: string): void {
 		process.stderr.write(
 			chalk.red(
-				`error: could not synthesize with local TTS model "${model}". Run \`chudcode setup speech\` to install it.\n`,
+				`error: could not synthesize with local TTS model "${model}". Run \`omp setup speech\` to install it.\n`,
 			),
 		);
 	}

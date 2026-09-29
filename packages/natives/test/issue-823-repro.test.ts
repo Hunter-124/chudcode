@@ -1,13 +1,13 @@
 /**
- * Regression for https://github.com/Hunter-124/chudcode/issues/823.
+ * Regression for https://github.com/can1357/oh-my-pi/issues/823.
  *
  * On WSL (and any host where the user moves the standalone binary away from the
- * build-time native artifacts), the compiled `chudcode` binary fails to load
- * `chud_natives.linux-x64-*.node`. Root cause: the old loader's
+ * build-time native artifacts), the compiled `omp` binary fails to load
+ * `pi_natives.linux-x64-*.node`. Root cause: the old loader's
  * `isCompiledBinary` detection relied on signals that are unreliable in a Bun
  * standalone binary:
- *   - `process.env.CHUDCODE_COMPILED` — never set, because `bun build --compile
- *     --define CHUDCODE_COMPILED=true` substitutes the bare identifier, not
+ *   - `process.env.PI_COMPILED` — never set, because `bun build --compile
+ *     --define PI_COMPILED=true` substitutes the bare identifier, not
  *     property accesses on `process.env`.
  *   - CommonJS `__filename` bunfs markers — Bun's compiled binaries kept the
  *     original build-host absolute path there, while `import.meta.url` is the
@@ -15,7 +15,7 @@
  *
  * When both signals were false, the loader skipped the embedded-addon
  * extraction path and only tried `nativeDir` (the dev machine's checkout) and
- * `execDir`. On WSL with `~/.local/bin/chudcode` and no sibling `.node` file, this
+ * `execDir`. On WSL with `~/.local/bin/omp` and no sibling `.node` file, this
  * failed with the error reported in the issue.
  *
  * The fix is to make the loader's compiled-binary detection authoritative on
@@ -29,7 +29,6 @@ import { describe, expect, it } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import * as fsx from "@chudware/utils/fsx";
 import {
 	detectCompiledBinary,
 	type EmbeddedAddonFile,
@@ -41,7 +40,7 @@ import {
 describe("issue 823: standalone-binary native loader path resolution", () => {
 	it("detects compiled-binary mode from embedded-addon presence when env and url markers are absent", () => {
 		// Mirrors what a Bun standalone binary actually sees on linux-x64 / WSL:
-		// - `process.env.CHUDCODE_COMPILED` is undefined (the build flag does not substitute property accesses).
+		// - `process.env.PI_COMPILED` is undefined (the build flag does not substitute property accesses).
 		// - `import.meta.url` points at `$bunfs` for bundled modules; the old CJS
 		//   loader used `__filename`, which is NOT rewritten.
 		// The embedded-addon module is the authoritative compiled-mode signal: it is `null` in
@@ -55,8 +54,8 @@ describe("issue 823: standalone-binary native loader path resolution", () => {
 					files: [
 						{
 							variant: "modern",
-							filename: "chud_natives.linux-x64-modern.node",
-							filePath: "/$bunfs/root/packages/natives/native/chud_natives.linux-x64-modern.node",
+							filename: "pi_natives.linux-x64-modern.node",
+							filePath: "/$bunfs/root/packages/natives/native/pi_natives.linux-x64-modern.node",
 						},
 					],
 				},
@@ -74,11 +73,11 @@ describe("issue 823: standalone-binary native loader path resolution", () => {
 			}),
 		).toBe(false);
 
-		// Env override (e.g. user-set CHUDCODE_COMPILED=1) still wins.
+		// Env override (e.g. user-set PI_COMPILED=1) still wins.
 		expect(
 			detectCompiledBinary({
 				embeddedAddon: null,
-				env: { CHUDCODE_COMPILED: "1" },
+				env: { PI_COMPILED: "1" },
 				importMetaUrl: "/anywhere",
 			}),
 		).toBe(true);
@@ -94,7 +93,7 @@ describe("issue 823: standalone-binary native loader path resolution", () => {
 	});
 
 	it("places embedded-extracted candidates ahead of build-host candidates for linux-x64 standalone", () => {
-		const versionedDir = "/home/u/.chudcode/natives/14.5.2";
+		const versionedDir = "/home/u/.omp/natives/14.5.2";
 		const userDataDir = "/home/u/.local/bin";
 		const nativeDir = "/build-host/packages/natives/native";
 		const execDir = "/home/u/.local/bin";
@@ -107,14 +106,14 @@ describe("issue 823: standalone-binary native loader path resolution", () => {
 			userDataDir,
 		});
 
-		const versionedModern = path.join(versionedDir, "chud_natives.linux-x64-modern.node");
-		const versionedBaseline = path.join(versionedDir, "chud_natives.linux-x64-baseline.node");
-		const userDataModern = path.join(userDataDir, "chud_natives.linux-x64-modern.node");
-		const buildHostModern = path.join(nativeDir, "chud_natives.linux-x64-modern.node");
+		const versionedModern = path.join(versionedDir, "pi_natives.linux-x64-modern.node");
+		const versionedBaseline = path.join(versionedDir, "pi_natives.linux-x64-baseline.node");
+		const userDataModern = path.join(userDataDir, "pi_natives.linux-x64-modern.node");
+		const buildHostModern = path.join(nativeDir, "pi_natives.linux-x64-modern.node");
 
 		// Versioned cache and user-data dir candidates must exist for compiled binaries —
-		// these are where the embedded-addon extraction lands (~/.chudcode/natives/<v>) and where
-		// `chudcode update` writes the standalone binary on linux (~/.local/bin).
+		// these are where the embedded-addon extraction lands (~/.omp/natives/<v>) and where
+		// `omp update` writes the standalone binary on linux (~/.local/bin).
 		expect(candidates).toContain(versionedModern);
 		expect(candidates).toContain(versionedBaseline);
 		expect(candidates).toContain(userDataModern);
@@ -124,44 +123,29 @@ describe("issue 823: standalone-binary native loader path resolution", () => {
 		expect(candidates.indexOf(versionedModern)).toBeLessThan(candidates.indexOf(buildHostModern));
 	});
 
-	it("does not probe user-data candidates when running outside a standalone binary", () => {
-		const versionedDir = "/home/u/.chudcode/natives/14.5.2";
-		const userDataDir = "/home/u/.local/bin";
-		const candidates = resolveLoaderCandidates({
-			addonFilenames: getAddonFilenames({ tag: "linux-x64", arch: "x64", variant: "baseline" }),
-			isCompiledBinary: false,
-			nativeDir: "/repo/packages/natives/native",
-			execDir: "/usr/bin",
-			versionedDir,
-			userDataDir,
-		});
-		expect(candidates).not.toContain(path.join(versionedDir, "chud_natives.linux-x64-baseline.node"));
-		expect(candidates).not.toContain(path.join(userDataDir, "chud_natives.linux-x64-baseline.node"));
-	});
-
 	it("prefers platform leaf package candidates ahead of core nativeDir candidates on npm installs", () => {
-		const leafPackageDir = "/app/node_modules/@chudware/natives-linux-x64";
-		const nativeDir = "/app/node_modules/@chudware/natives/native";
+		const leafPackageDir = "/app/node_modules/@oh-my-pi/pi-natives-linux-x64";
+		const nativeDir = "/app/node_modules/@oh-my-pi/pi-natives/native";
 		const candidates = resolveLoaderCandidates({
 			addonFilenames: getAddonFilenames({ tag: "linux-x64", arch: "x64", variant: "baseline" }),
 			isCompiledBinary: false,
 			leafPackageDir,
 			nativeDir,
 			execDir: "/app/node_modules/.bin",
-			versionedDir: "/home/u/.chudcode/natives/15.5.15",
+			versionedDir: "/home/u/.omp/natives/15.5.15",
 			userDataDir: "/home/u/.local/bin",
 		});
 
-		const leafBaseline = path.join(leafPackageDir, "chud_natives.linux-x64-baseline.node");
-		const coreBaseline = path.join(nativeDir, "chud_natives.linux-x64-baseline.node");
+		const leafBaseline = path.join(leafPackageDir, "pi_natives.linux-x64-baseline.node");
+		const coreBaseline = path.join(nativeDir, "pi_natives.linux-x64-baseline.node");
 		expect(candidates).toContain(leafBaseline);
 		expect(candidates.indexOf(leafBaseline)).toBeLessThan(candidates.indexOf(coreBaseline));
 	});
 
 	it("keeps Windows staging ahead of leaf package and core nativeDir candidates", () => {
-		const versionedDir = "/home/u/.chudcode/natives/15.5.15";
-		const leafPackageDir = "/app/node_modules/@chudware/natives-win32-x64";
-		const nativeDir = "/app/node_modules/@chudware/natives/native";
+		const versionedDir = "/home/u/.omp/natives/15.5.15";
+		const leafPackageDir = "/app/node_modules/@oh-my-pi/pi-natives-win32-x64";
+		const nativeDir = "/app/node_modules/@oh-my-pi/pi-natives/native";
 		const candidates = resolveLoaderCandidates({
 			addonFilenames: getAddonFilenames({ tag: "win32-x64", arch: "x64", variant: "baseline" }),
 			isCompiledBinary: false,
@@ -170,12 +154,12 @@ describe("issue 823: standalone-binary native loader path resolution", () => {
 			nativeDir,
 			execDir: "/app/node_modules/.bin",
 			versionedDir,
-			userDataDir: "/home/u/AppData/Local/chudcode",
+			userDataDir: "/home/u/AppData/Local/omp",
 		});
 
-		const stagedBaseline = path.join(versionedDir, "chud_natives.win32-x64-baseline.node");
-		const leafBaseline = path.join(leafPackageDir, "chud_natives.win32-x64-baseline.node");
-		const coreBaseline = path.join(nativeDir, "chud_natives.win32-x64-baseline.node");
+		const stagedBaseline = path.join(versionedDir, "pi_natives.win32-x64-baseline.node");
+		const leafBaseline = path.join(leafPackageDir, "pi_natives.win32-x64-baseline.node");
+		const coreBaseline = path.join(nativeDir, "pi_natives.win32-x64-baseline.node");
 		expect(candidates.indexOf(stagedBaseline)).toBeLessThan(candidates.indexOf(leafBaseline));
 		expect(candidates.indexOf(leafBaseline)).toBeLessThan(candidates.indexOf(coreBaseline));
 	});
@@ -189,7 +173,7 @@ describe("issue 823: standalone-binary native loader path resolution", () => {
 			isCompiledBinary: false,
 			nativeDir,
 			execDir,
-			versionedDir: "/home/u/.chudcode/natives/15.5.15",
+			versionedDir: "/home/u/.omp/natives/15.5.15",
 			userDataDir: "/home/u/.local/bin",
 		});
 
@@ -207,9 +191,9 @@ describe("issue 823: standalone-binary native loader path resolution", () => {
 
 			const modern = Buffer.from("modern native addon");
 			const baseline = Buffer.from("baseline native addon");
-			const modernFilename = "chud_natives.linux-x64-modern.node";
-			const baselineFilename = "chud_natives.linux-x64-baseline.node";
-			await fsx.write(
+			const modernFilename = "pi_natives.linux-x64-modern.node";
+			const baselineFilename = "pi_natives.linux-x64-baseline.node";
+			await Bun.write(
 				archivePath,
 				await new Bun.Archive(
 					{

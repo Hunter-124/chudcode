@@ -2,7 +2,6 @@
  * Prettier formatting utilities for edit benchmarks.
  */
 import * as path from "node:path";
-import * as fsx from "@chudware/utils/fsx";
 import * as prettier from "prettier";
 import { listFiles } from "./shared";
 
@@ -61,10 +60,10 @@ export async function formatDirectory(rootDir: string): Promise<void> {
 
 	for (const file of files) {
 		const fullPath = path.join(rootDir, file);
-		const content = await fsx.readText(fullPath);
+		const content = await Bun.file(fullPath).text();
 		const result = await formatContent(fullPath, content);
 		if (result.didFormat && result.formatted !== content) {
-			await fsx.write(fullPath, result.formatted);
+			await Bun.write(fullPath, result.formatted);
 		}
 	}
 }

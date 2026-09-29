@@ -1,6 +1,5 @@
 import { describe, expect, test } from "bun:test";
 import * as path from "node:path";
-import * as fsx from "@chudware/utils/fsx";
 
 interface SeedManifest {
 	schemaVersion: number;
@@ -12,7 +11,7 @@ const ROOT = path.join(import.meta.dir, "..", "fixtures", "security", "seeded-re
 
 describe("security seeded validation repository", () => {
 	test("manifest points only at present non-production fixture files", async () => {
-		const manifest = (await fsx.readJson(path.join(ROOT, "manifest.json"))) as SeedManifest;
+		const manifest = (await Bun.file(path.join(ROOT, "manifest.json")).json()) as SeedManifest;
 		expect(manifest.schemaVersion).toBe(1);
 		expect(manifest.nonProduction).toBeTrue();
 		expect(manifest.seeds).toHaveLength(8);
@@ -30,7 +29,7 @@ describe("security seeded validation repository", () => {
 			expect(seed.id in expectedClasses).toBeTrue();
 			expect(expectedClasses[seed.id]).toBe(seed.expectedClass);
 			expect(["finding", "no-finding"]).toContain(seed.expectedDisposition);
-			expect(await fsx.exists(path.join(ROOT, seed.path))).toBeTrue();
+			expect(await Bun.file(path.join(ROOT, seed.path)).exists()).toBeTrue();
 		}
 	});
 });

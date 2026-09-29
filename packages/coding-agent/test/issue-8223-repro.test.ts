@@ -1,19 +1,19 @@
 import { expect, test } from "bun:test";
 import * as path from "node:path";
-import { Agent, type StreamFn } from "@chudware/agent-core";
-import { type FetchImpl, streamSimple } from "@chudware/ai";
-import { getBundledModel } from "@chudware/catalog/models";
-import { ModelRegistry } from "@chudware/coding-agent/config/model-registry";
-import { Settings } from "@chudware/coding-agent/config/settings";
-import { AgentSession } from "@chudware/coding-agent/session/agent-session";
-import { AuthStorage } from "@chudware/coding-agent/session/auth-storage";
-import { SessionManager } from "@chudware/coding-agent/session/session-manager";
-import { TempDir } from "@chudware/utils";
+import { Agent, type StreamFn } from "@oh-my-pi/pi-agent-core";
+import { type FetchImpl, streamSimple } from "@oh-my-pi/pi-ai";
+import { getBundledModel } from "@oh-my-pi/pi-catalog/models";
+import { ModelRegistry } from "@oh-my-pi/pi-coding-agent/config/model-registry";
+import { Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
+import { AgentSession } from "@oh-my-pi/pi-coding-agent/session/agent-session";
+import { AuthStorage } from "@oh-my-pi/pi-coding-agent/session/auth-storage";
+import { SessionManager } from "@oh-my-pi/pi-coding-agent/session/session-manager";
+import { TempDir } from "@oh-my-pi/pi-utils";
 
 test("keeps Gemini 3.6 advisor context and accepts a silent review", async () => {
 	const temp = TempDir.createSync("@issue-8223-");
 	const auth = await AuthStorage.create(path.join(temp.path(), "auth.db"));
-	auth.setRuntimeApiKey("google", "test-key");
+	auth.keys.setRuntime("google", "test-key");
 	const registry = new ModelRegistry(auth);
 	const model = getBundledModel("google", "gemini-3.6-flash");
 	if (!model) throw new Error("missing bundled model");

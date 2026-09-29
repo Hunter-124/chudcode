@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
 /**
- * Generate edit benchmark cases from TypeScript sources in a chudcode-mono-style repo.
+ * Generate edit benchmark cases from TypeScript sources in a pi-mono-style repo.
  *
  * The goal is testing edit precision, not bug-finding ability. The mutation can
  * be trivial - what matters is whether the model can surgically apply the patch
@@ -24,8 +24,7 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { parseArgs } from "node:util";
-import { prompt, TempDir } from "@chudware/utils";
-import * as fsx from "@chudware/utils/fsx";
+import { prompt, TempDir } from "@oh-my-pi/pi-utils";
 import { $ } from "bun";
 import { diffLines } from "diff";
 import { formatContent } from "./formatter";
@@ -47,10 +46,10 @@ import mutationTaskTemplate from "./prompts/mutation-task.md" with { type: "text
 import structuralTaskTemplate from "./prompts/structural-task.md" with { type: "text" };
 
 const SUPPORTED_EXTENSIONS = new Set([".js", ".jsx", ".ts", ".tsx"]);
-using DEFAULT_SOURCE_REPO_DIR = TempDir.createSync("@chudcode-mono-source");
+using DEFAULT_SOURCE_REPO_DIR = TempDir.createSync("@pi-mono-source");
 const DEFAULT_OUTPUT = path.join(import.meta.dir, "../fixtures.tar.gz");
 /** Default when no `--typescript-dir` is passed: shallow-clone this repo and scan `packages/`. */
-const DEFAULT_SOURCE_REPO_URL = "https://github.com/badlogic/chudcode-mono.git";
+const DEFAULT_SOURCE_REPO_URL = "https://github.com/badlogic/pi-mono.git";
 
 const EXCLUDE_DIRS = new Set([
 	"__tests__",
@@ -188,13 +187,13 @@ async function ensureSourceRepo(typescriptDir: string): Promise<void> {
 		throw new Error(`Directory exists but missing packages/: ${typescriptDir}`);
 	}
 
-	console.log(`Cloning chudcode-mono repository to ${typescriptDir}…`);
+	console.log(`Cloning pi-mono repository to ${typescriptDir}…`);
 	fs.mkdirSync(path.dirname(typescriptDir), { recursive: true });
 	const result = await $`git clone --depth 1 ${DEFAULT_SOURCE_REPO_URL} ${typescriptDir}`.quiet().nothrow();
 	if (result.exitCode !== 0) {
 		const decoder = new TextDecoder();
 		const stderr = result.stderr ? decoder.decode(result.stderr) : "";
-		throw new Error(`Failed to clone chudcode-mono: ${stderr.trim()}`);
+		throw new Error(`Failed to clone pi-mono: ${stderr.trim()}`);
 	}
 	console.log("Clone complete.");
 }
@@ -240,7 +239,7 @@ async function collectFiles(typescriptDir: string): Promise<string[]> {
 }
 
 async function readFileAsync(filePath: string): Promise<string> {
-	return fsx.readText(filePath);
+	return Bun.file(filePath).text();
 }
 
 function findRepeatedLines(content: string, minRepeats = 2): Map<string, number[]> {

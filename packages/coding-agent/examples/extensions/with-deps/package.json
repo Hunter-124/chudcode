@@ -1,9 +1,9 @@
 {
-	"name": "chud-extension-with-deps",
+	"name": "pi-extension-with-deps",
 	"version": "1.0.0",
-	"homepage": "https://chudware.sh",
+	"homepage": "https://omp.sh",
 	"type": "module",
-	"chudcode": {
+	"omp": {
 		"extensions": [
 			"./index.ts"
 		]

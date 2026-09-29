@@ -1,5 +1,5 @@
 import * as path from "node:path";
-import { getSafeProjectCwd } from "@chudware/utils";
+import { getSafeProjectCwd } from "@oh-my-pi/pi-utils";
 import { writeRemoteFile } from "../ssh/file-transfer";
 import type { BlobDestinationId } from "./destinations";
 import type { BlobUploader, BlobUploadRequest, RemoteDeleteAction } from "./publication";
@@ -433,9 +433,12 @@ function createSeafileUploader(config: DestinationRuntimeConfig): BlobUploader {
 			if (!location) throw new Error("seafile share response did not include a Location URL");
 			const resultUrl = new URL(location, apiUrl);
 			if (raw) resultUrl.searchParams.set("raw", "1");
-			return publication("seafile", request, resultUrl.toString(), {
-				...(expiryInfo.expiresAt === undefined ? {} : { expiresAt: expiryInfo.expiresAt }),
-			});
+			return publication(
+				"seafile",
+				request,
+				resultUrl.toString(),
+				expiryInfo.expiresAt === undefined ? {} : { expiresAt: expiryInfo.expiresAt },
+			);
 		},
 	};
 }

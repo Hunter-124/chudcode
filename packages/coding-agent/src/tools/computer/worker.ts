@@ -1,6 +1,7 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 import * as os from "node:os";
 import * as path from "node:path";
+
 import type {
 	AxNode,
 	AxQuery,
@@ -11,13 +12,10 @@ import type {
 	DesktopSessionOptions,
 	DesktopWindow,
 	PointerOptions,
-} from "@chudware/natives";
-import { createDesktopSession } from "@chudware/natives/desktop";
-import * as fsx from "@chudware/utils/fsx";
-import * as postmortem from "@chudware/utils/postmortem";
-import { Snowflake } from "@chudware/utils/snowflake";
+} from "@oh-my-pi/pi-natives";
+import * as postmortem from "@oh-my-pi/pi-utils/postmortem";
+import { Snowflake } from "@oh-my-pi/pi-utils/snowflake";
 import { JsRuntime, type RuntimeHooks } from "../../eval/js/shared/runtime";
-import { copyToClipboard, readTextFromClipboard } from "../../utils/clipboard";
 import { cloneSafe, RunOutput } from "../browser/run-output";
 import {
 	bindRunFacade,
@@ -26,7 +24,8 @@ import {
 	type WaitPredicateOptions,
 	waitForRun,
 } from "../run-scope";
-import { ToolAbortError, ToolError, throwIfAborted } from "../tool-errors";
+import { ToolAbortError, throwIfAborted } from "../tool-errors";
+import { ToolError } from "@oh-my-pi/pi-tui/tools/tool-errors";
 import type {
 	ComputerScreenshot,
 	ComputerSessionSnapshot,
@@ -75,14 +74,16 @@ export interface NativeDesktopSession {
 }
 
 /** Creates the native session co-located with the computer worker runtime. */
-export type NativeDesktopSessionFactory = (options: DesktopSessionOptions) => NativeDesktopSession;
+export type NativeDesktopSessionFactory = (
+	options: DesktopSessionOptions,
+) => NativeDesktopSession | Promise<NativeDesktopSession>;
 
-type WindowFilter = { app?: string; title?: string };
-type DeliveryOptions = { delivery?: string };
+type WindowFilter = { id?: string | number; app?: string; title?: string };
+type InputOptions = { takeover?: boolean };
 type ScreenshotOptions = { silent?: boolean };
-type ClickOptions = DeliveryOptions & { button?: string; count?: number; modifiers?: string[] };
-type DragOptions = DeliveryOptions & { modifiers?: string[] };
-type ScrollOptions = DeliveryOptions & { dx?: number; dy?: number };
+type ClickOptions = InputOptions & { button?: string; count?: number; modifiers?: string[] };
+type DragOptions = InputOptions & { modifiers?: string[] };
+type ScrollOptions = InputOptions & { dx?: number; dy?: number };
 type AxOptions = Pick<AxSnapshotOptions, "all" | "maxDepth">;
 
 type PendingTool = { resolve(value: unknown): void; reject(reason?: unknown): void };
@@ -145,13 +146,13 @@ async function nativeCall<T>(signal: AbortSignal, call: () => Promise<T>): Promi
 	}
 }
 
-function pointerOptions(options?: ClickOptions | DragOptions | DeliveryOptions): PointerOptions | undefined {
+function pointerOptions(options?: ClickOptions | DragOptions | InputOptions): PointerOptions | undefined {
 	if (!options) return undefined;
 	const mapped: PointerOptions = {};
 	if ("button" in options && options.button !== undefined) mapped.button = options.button;
 	if ("count" in options && options.count !== undefined) mapped.count = options.count;
 	if ("modifiers" in options && options.modifiers !== undefined) mapped.modifiers = options.modifiers;
-	if (options.delivery !== undefined) mapped.deliveryMode = options.delivery;
+	if (options.takeover !== undefined) mapped.takeover = options.takeover;
 	return mapped;
 }
 
@@ -169,6 +170,7 @@ function matchesFilter(window: DesktopWindow, filter?: WindowFilter): boolean {
 	const app = filter.app?.toLocaleLowerCase();
 	const title = filter.title?.toLocaleLowerCase();
 	return (
+		(filter.id === undefined || window.id === String(filter.id)) &&
 		(!app || window.app.toLocaleLowerCase().includes(app)) &&
 		(!title || window.title.toLocaleLowerCase().includes(title))
 	);
@@ -192,8 +194,8 @@ async function captureScreenshot(
 			maxHeight: context.snapshot.captureMaxHeight,
 		}),
 	);
-	const destination = path.join(os.tmpdir(), `chudcode-computer-${Snowflake.next()}.png`);
-	await fsx.write(destination, frame.data);
+	const destination = path.join(os.tmpdir(), `omp-computer-${Snowflake.next()}.png`);
+	await Bun.write(destination, frame.data);
 	const scaled = frame.width !== frame.sourceWidth || frame.height !== frame.sourceHeight;
 	context.screenshots.push({
 		path: destination,
@@ -285,7 +287,7 @@ class El {
 		await nativeCall(context.signal, () => this.#session.axPerform(this.ref, "press"));
 	}
 
-	async click(options?: DeliveryOptions): Promise<void> {
+	async click(options?: InputOptions): Promise<void> {
 		const context = this.#getContext();
 		guardRun(context, "click");
 		await nativeCall(context.signal, () => this.#session.axClick(this.ref, pointerOptions(options)));
@@ -376,13 +378,13 @@ class Win {
 		);
 	}
 
-	async type(text: string, options?: DeliveryOptions): Promise<void> {
+	async type(text: string, options?: InputOptions): Promise<void> {
 		const context = this.#getContext();
 		guardRun(context, "type");
 		await nativeCall(context.signal, () => this.#session.typeText(this.id, text, pointerOptions(options)));
 	}
 
-	async press(chord: string | string[], options?: DeliveryOptions): Promise<void> {
+	async press(chord: string | string[], options?: InputOptions): Promise<void> {
 		const context = this.#getContext();
 		guardRun(context, "press");
 		await nativeCall(context.signal, () =>
@@ -417,12 +419,12 @@ class Win {
 /** Hosts the persistent JavaScript runtime and native desktop session. */
 export class ComputerWorkerCore {
 	readonly #transport: ComputerWorkerTransport;
-	readonly #createSession: NativeDesktopSessionFactory;
+	readonly #createSession?: NativeDesktopSessionFactory;
 	readonly #unsubscribe: () => void;
 	#session?: NativeDesktopSession;
-	#sessionIdentity?: string;
+	/** In-flight lazy session creation, shared so concurrent run/capabilities requests never double-create. */
+	#sessionInit?: Promise<NativeDesktopSession>;
 	#runtime?: JsRuntime;
-	#runtimeSessionId?: string;
 	#active: ActiveRun | null = null;
 	/**
 	 * Per-run context, carried through AsyncLocalStorage so async work leaked
@@ -432,7 +434,7 @@ export class ComputerWorkerCore {
 	readonly #runContexts = new AsyncLocalStorage<ComputerRunContext>();
 	#closed = false;
 
-	constructor(transport: ComputerWorkerTransport, createSession: NativeDesktopSessionFactory = createDesktopSession) {
+	constructor(transport: ComputerWorkerTransport, createSession?: NativeDesktopSessionFactory) {
 		this.#transport = transport;
 		this.#createSession = createSession;
 		this.#unsubscribe = transport.onMessage(message => this.handle(message));
@@ -448,6 +450,9 @@ export class ComputerWorkerCore {
 			case "run":
 				void this.#run(message);
 				return;
+			case "capabilities":
+				void this.#capabilities(message);
+				return;
 			case "abort":
 				if (this.#active?.id === message.id) this.#active.ac.abort(new ToolAbortError());
 				return;
@@ -460,30 +465,34 @@ export class ComputerWorkerCore {
 	}
 
 	async #ensureSession(snapshot: ComputerSessionSnapshot): Promise<NativeDesktopSession> {
-		const identity = `${snapshot.display}\0${snapshot.displayServer ?? ""}`;
-		if (this.#session && this.#sessionIdentity === identity) return this.#session;
-		if (this.#session) {
-			await this.#session.close();
-			this.#session = undefined;
-			this.#sessionIdentity = undefined;
-		}
+		if (this.#session) return this.#session;
+		// Single-flight: share one creation promise so a run and a capabilities
+		// request racing on a cold worker cannot each build (and leak) a session.
+		this.#sessionInit ??= (async () => {
+			try {
+				// The worker must answer its readiness handshake without loading the native
+				// addon; normal CLI startup and selector pings never execute desktop code.
+				const createSession =
+					this.#createSession ?? (await import("@oh-my-pi/pi-natives/desktop")).createDesktopSession;
+				const session = await createSession({ display: snapshot.display });
+				this.#session = session;
+				return session;
+			} catch (error) {
+				throw nativeError(error);
+			}
+		})();
 		try {
-			this.#session = this.#createSession({
-				display: snapshot.display,
-				...(snapshot.displayServer ? { displayServer: snapshot.displayServer } : {}),
-			});
-			this.#sessionIdentity = identity;
-			return this.#session;
+			return await this.#sessionInit;
 		} catch (error) {
-			throw nativeError(error);
+			// A failed attempt must not pin the rejection; let the next request retry.
+			this.#sessionInit = undefined;
+			throw error;
 		}
 	}
 
 	#ensureRuntime(snapshot: ComputerSessionSnapshot): JsRuntime {
-		if (this.#runtime && this.#runtimeSessionId === snapshot.sessionId) return this.#runtime;
-		this.#runtime?.dispose();
+		if (this.#runtime) return this.#runtime;
 		this.#runtime = new JsRuntime({ initialCwd: snapshot.cwd, sessionId: snapshot.sessionId });
-		this.#runtimeSessionId = snapshot.sessionId;
 		return this.#runtime;
 	}
 
@@ -582,10 +591,7 @@ export class ComputerWorkerCore {
 		} catch (error) {
 			failure = { error };
 		} finally {
-			const runEnded = postmortem.markExpectedCleanupError(new ToolAbortError("Computer run ended"));
-			for (const pending of active.pendingTools.values()) pending.reject(runEnded);
-			active.pendingTools.clear();
-			runAc.abort(runEnded);
+			runAc.abort(postmortem.markExpectedCleanupError(new ToolAbortError("Computer run ended")));
 			if (this.#active?.id === message.id) this.#active = null;
 		}
 		if (failure !== undefined) {
@@ -610,6 +616,34 @@ export class ComputerWorkerCore {
 				id: message.id,
 				ok: true,
 				payload: { displays: output.finish(), returnValue: cloneSafe(returnValue), screenshots, capabilities },
+			});
+		}
+	}
+
+	/**
+	 * Answers a direct capabilities request without executing a script. Unlike a
+	 * run, this never touches `#active`, so it resolves even while a run is in
+	 * flight and always reports the session's current permission/backend state.
+	 */
+	async #capabilities(message: Extract<ComputerWorkerInbound, { type: "capabilities" }>): Promise<void> {
+		if (this.#closed) {
+			this.#transport.send({
+				type: "capabilities",
+				id: message.id,
+				ok: false,
+				error: errorPayload(new ToolError("Computer worker is closed")),
+			});
+			return;
+		}
+		try {
+			const session = await this.#ensureSession(message.session);
+			this.#transport.send({ type: "capabilities", id: message.id, ok: true, capabilities: session.capabilities });
+		} catch (error) {
+			this.#transport.send({
+				type: "capabilities",
+				id: message.id,
+				ok: false,
+				error: errorPayload(error instanceof ToolAbortError ? error : nativeError(error)),
 			});
 		}
 	}
@@ -677,18 +711,6 @@ export class ComputerWorkerCore {
 					throw nativeError(error);
 				}
 			},
-			environment: (): Record<string, string> => {
-				const { signal, snapshot } = getContext();
-				throwIfAborted(signal);
-				if (snapshot.displayServer) {
-					return { DISPLAY: snapshot.displayServer, WAYLAND_DISPLAY: "" };
-				}
-				const environment: Record<string, string> = {};
-				if (process.env.DISPLAY) environment.DISPLAY = process.env.DISPLAY;
-				if (process.env.WAYLAND_DISPLAY) environment.WAYLAND_DISPLAY = process.env.WAYLAND_DISPLAY;
-				if (process.env.XAUTHORITY) environment.XAUTHORITY = process.env.XAUTHORITY;
-				return environment;
-			},
 			displays: async (): Promise<DesktopDisplay[]> => {
 				const { signal } = getContext();
 				return await nativeCall(signal, () => session.listDisplays());
@@ -699,12 +721,12 @@ export class ComputerWorkerCore {
 					matchesFilter(window, filter),
 				);
 			},
-			window: async (selector: string | WindowFilter): Promise<Win> => {
+			window: async (selector: string | number | WindowFilter): Promise<Win> => {
 				const { signal } = getContext();
 				const windows = await nativeCall(signal, () => session.listWindows());
 				const matches =
-					typeof selector === "string"
-						? windows.filter(window => window.id === selector)
+					typeof selector === "string" || typeof selector === "number"
+						? windows.filter(window => window.id === String(selector))
 						: windows.filter(window => matchesFilter(window, selector));
 				if (matches.length === 0) throw new ToolError(`no window matches ${JSON.stringify(selector)}`);
 				if (matches.length > 1) {
@@ -738,10 +760,17 @@ export class ComputerWorkerCore {
 				const node = await nativeCall(signal, () => session.axFocused());
 				return node ? el(node) : null;
 			},
+			ref: async (ref: string): Promise<El> => {
+				const { signal } = getContext();
+				return el(await nativeCall(signal, () => session.axNode(ref)));
+			},
 			clipboard: {
 				read: async (): Promise<string> => {
 					const { signal } = getContext();
 					throwIfAborted(signal);
+					// Clipboard access is part of the native desktop surface and remains
+					// outside the worker's readiness-only import graph.
+					const { readTextFromClipboard } = await import("../../utils/clipboard");
 					const text = await readTextFromClipboard();
 					throwIfAborted(signal);
 					return text;
@@ -749,6 +778,9 @@ export class ComputerWorkerCore {
 				write: async (text: string): Promise<void> => {
 					const context = getContext();
 					guardRun(context, "clipboard.write");
+					// Clipboard access is part of the native desktop surface and remains
+					// outside the worker's readiness-only import graph.
+					const { copyToClipboard } = await import("../../utils/clipboard");
 					await copyToClipboard(text);
 					throwIfAborted(context.signal);
 				},
@@ -766,10 +798,7 @@ export class ComputerWorkerCore {
 			// Closing is best-effort; the worker is exiting and has no request to report this against.
 		} finally {
 			this.#session = undefined;
-			this.#sessionIdentity = undefined;
-			this.#runtime?.dispose();
-			this.#runtime = undefined;
-			this.#runtimeSessionId = undefined;
+			this.#sessionInit = undefined;
 			this.#unsubscribe();
 			this.#transport.send({ type: "closed" });
 			this.#transport.close();

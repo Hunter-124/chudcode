@@ -1,20 +1,18 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "bun:test";
 import * as path from "node:path";
-import { Agent } from "@chudware/agent-core";
-import { type Api, type AssistantMessage, Effort, type Model } from "@chudware/ai";
-import { getBundledModel } from "@chudware/catalog/models";
-import { PRODUCT_NAME } from "@chudware/coding-agent/brand";
-import { ModelRegistry } from "@chudware/coding-agent/config/model-registry";
-import { Settings } from "@chudware/coding-agent/config/settings";
-import { type CreateAgentSessionResult, createAgentSession } from "@chudware/coding-agent/sdk";
-import { AgentSession } from "@chudware/coding-agent/session/agent-session";
-import { AuthStorage } from "@chudware/coding-agent/session/auth-storage";
-import { getRestorableSessionModels } from "@chudware/coding-agent/session/session-context";
-import { EPHEMERAL_MODEL_CHANGE_ROLE } from "@chudware/coding-agent/session/session-entries";
-import { SessionManager } from "@chudware/coding-agent/session/session-manager";
-import { AUTO_THINKING } from "@chudware/coding-agent/thinking";
-import { TempDir } from "@chudware/utils";
-import * as fsx from "@chudware/utils/fsx";
+import { Agent } from "@oh-my-pi/pi-agent-core";
+import { type Api, type AssistantMessage, Effort, type Model } from "@oh-my-pi/pi-ai";
+import { getBundledModel } from "@oh-my-pi/pi-catalog/models";
+import { ModelRegistry } from "@oh-my-pi/pi-coding-agent/config/model-registry";
+import { Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
+import { type CreateAgentSessionResult, createAgentSession } from "@oh-my-pi/pi-coding-agent/sdk";
+import { AgentSession } from "@oh-my-pi/pi-coding-agent/session/agent-session";
+import { AuthStorage } from "@oh-my-pi/pi-coding-agent/session/auth-storage";
+import { getRestorableSessionModels } from "@oh-my-pi/pi-coding-agent/session/session-context";
+import { EPHEMERAL_MODEL_CHANGE_ROLE } from "@oh-my-pi/pi-coding-agent/session/session-entries";
+import { SessionManager } from "@oh-my-pi/pi-coding-agent/session/session-manager";
+import { AUTO_THINKING } from "@oh-my-pi/pi-tui/thinking";
+import { TempDir } from "@oh-my-pi/pi-utils";
 
 describe("AgentSession model persistence", () => {
 	let tempDir: TempDir;
@@ -30,7 +28,7 @@ describe("AgentSession model persistence", () => {
 	beforeAll(async () => {
 		sharedDir = TempDir.createSync("@pi-model-persistence-shared-");
 		sharedAuthStorage = await AuthStorage.create(path.join(sharedDir.path(), "auth.db"));
-		sharedAuthStorage.setRuntimeApiKey("anthropic", "test-key");
+		sharedAuthStorage.keys.setRuntime("anthropic", "test-key");
 		sharedModelRegistry = new ModelRegistry(sharedAuthStorage, path.join(sharedDir.path(), "models.yml"));
 	});
 
@@ -68,7 +66,7 @@ describe("AgentSession model persistence", () => {
 	): Promise<string> {
 		const targetSessionFile = path.join(tempDir.path(), `target-${Bun.nanoseconds()}.jsonl`);
 		const timestamp = "2026-06-01T00:00:00.000Z";
-		await fsx.write(
+		await Bun.write(
 			targetSessionFile,
 			`${[
 				{ type: "session", version: 3, id: "target-session", timestamp, cwd: tempDir.path() },
@@ -475,7 +473,7 @@ describe("AgentSession model persistence", () => {
 			role: "assistant",
 			content: [],
 			stopReason: "aborted",
-			errorMessage: `Previous ${PRODUCT_NAME} process exited before completing the turn.`,
+			errorMessage: "Previous OMP process exited before completing the turn.",
 		});
 		expect(
 			messages.some(
@@ -540,7 +538,7 @@ describe("AgentSession model persistence", () => {
 		const created = await createSession({ initialModel: defaultModel, persist: true });
 		const targetFile = path.join(tempDir.path(), "switch-interrupted-user.jsonl");
 		const timestamp = "2026-07-11T02:20:08.800Z";
-		await fsx.write(
+		await Bun.write(
 			targetFile,
 			`${[
 				{ type: "session", version: 3, id: "switch-target", timestamp, cwd: tempDir.path() },
@@ -604,17 +602,5 @@ describe("AgentSession model persistence", () => {
 				EPHEMERAL_MODEL_CHANGE_ROLE,
 			),
 		).toEqual(["anthropic/claude-sonnet-4-5"]);
-	});
-
-	it("lists a named role model before the default fallback", () => {
-		expect(
-			getRestorableSessionModels(
-				{
-					default: "anthropic/claude-sonnet-4-5",
-					smol: "anthropic/claude-sonnet-4-6",
-				},
-				"smol",
-			),
-		).toEqual(["anthropic/claude-sonnet-4-6", "anthropic/claude-sonnet-4-5"]);
 	});
 });

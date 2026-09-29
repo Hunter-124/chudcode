@@ -1,7 +1,7 @@
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
-import { FileType, glob } from "@chudware/natives";
+import { FileType, glob } from "@oh-my-pi/pi-natives";
 import {
 	CONFIG_DIR_NAME,
 	getAgentDir,
@@ -10,16 +10,24 @@ import {
 	getProjectDir,
 	parseFrontmatter,
 	tryParseJson,
-} from "@chudware/utils";
-import * as fsx from "@chudware/utils/fsx";
+} from "@oh-my-pi/pi-utils";
+import { isUserSourceEnabled } from "../capability";
+import type { ContextFile } from "../capability/context-file";
 import type { ExtensionModule } from "../capability/extension-module";
 import { invalidate as invalidateFsCache, readDirEntries, readFile } from "../capability/fs";
-import { parseRuleConditionAndScope, type Rule, type RuleFrontmatter } from "../capability/rule";
+import {
+	MAIN_AGENT_RULE_NAME,
+	parseRuleAgents,
+	parseRuleConditionAndScope,
+	type Rule,
+	type RuleFrontmatter,
+	SUB_AGENT_RULE_NAME,
+} from "../capability/rule";
 import type { Skill, SkillFrontmatter } from "../capability/skill";
 import type { LoadContext, LoadResult, SourceMeta } from "../capability/types";
 import { resolveClaudePaths } from "../config/claude-paths";
 import type { MCPRequestIdFormat } from "../mcp/types";
-import { type ConfiguredThinkingLevel, parseConfiguredThinkingLevel } from "../thinking";
+import { type ConfiguredThinkingLevel, parseConfiguredThinkingLevel } from "@oh-my-pi/pi-tui/thinking";
 import { normalizeToolNames } from "../tools/builtin-names";
 
 import { realpathIfExists, resolveContainedPath } from "./contained-path";
@@ -88,9 +96,12 @@ export const SOURCE_PATHS = {
 export type SourceId = keyof typeof SOURCE_PATHS;
 
 /**
- * Get user-level path for a source.
+ * Resolve a user-level path for a source without the `~/` opt-in gate.
+ * Only for callers that hold their own explicit opt-in (a per-capability
+ * `skills.enable*User` / `commands.enable*User` toggle); everything else
+ * goes through {@link getUserPath}.
  */
-export function getUserPath(ctx: LoadContext, source: SourceId, subpath: string): string | null {
+export function resolveUserPath(ctx: LoadContext, source: SourceId, subpath: string): string | null {
 	// Native user config is profile-scoped via getAgentDir() (the active profile's
 	// agent dir), matching builtin.ts and getMCPConfigPath("user").
 	if (source === "native") return path.join(getAgentDir(), subpath);
@@ -98,6 +109,15 @@ export function getUserPath(ctx: LoadContext, source: SourceId, subpath: string)
 	const paths = SOURCE_PATHS[source];
 	if (!paths.userAgent) return null;
 	return path.join(ctx.home, paths.userAgent, subpath);
+}
+
+/**
+ * Get user-level path for a source, or null when its `~/` config is not
+ * opted in (see {@link isUserSourceEnabled}).
+ */
+export function getUserPath(ctx: LoadContext, source: SourceId, subpath: string): string | null {
+	if (!isUserSourceEnabled(source, ctx)) return null;
+	return resolveUserPath(ctx, source, subpath);
 }
 
 /**
@@ -124,12 +144,20 @@ export function resolveCopilotHome(home: string): string {
 /**
  * Create source metadata for an item.
  */
-export function createSourceMeta(provider: string, filePath: string, level: "user" | "project"): SourceMeta {
+export function createSourceMeta(
+	provider: string,
+	filePath: string,
+	level: "user" | "project",
+	origin?: string,
+	pluginName?: string,
+): SourceMeta {
 	return {
 		provider,
 		providerName: "", // Filled in by registry
 		path: path.resolve(filePath),
 		level,
+		...(origin !== undefined && { origin }),
+		...(pluginName !== undefined && { pluginName }),
 	};
 }
 
@@ -178,21 +206,20 @@ export function parseArrayOrCSV(value: unknown): string[] | undefined {
 	return undefined;
 }
 
-/**
- * Build a canonical rule item from a markdown/markdown-frontmatter document.
- */
-export function buildRuleFromMarkdown(
+interface RuleMarkdownOptions {
+	ruleName?: string;
+	stripNamePattern?: RegExp;
+}
+
+function buildRule(
 	name: string,
-	content: string,
+	body: string,
+	frontmatter: RuleFrontmatter,
 	filePath: string,
 	source: SourceMeta,
-	options?: {
-		ruleName?: string;
-		stripNamePattern?: RegExp;
-	},
+	options?: RuleMarkdownOptions,
 ): Rule {
-	const { frontmatter, body } = parseFrontmatter(content, { source: filePath });
-	const { condition, astCondition, scope } = parseRuleConditionAndScope(frontmatter as RuleFrontmatter);
+	const { condition, astCondition, question, scope } = parseRuleConditionAndScope(frontmatter);
 
 	let globs: string[] | undefined;
 	if (Array.isArray(frontmatter.globs)) {
@@ -216,10 +243,37 @@ export function buildRuleFromMarkdown(
 		description: typeof frontmatter.description === "string" ? frontmatter.description : undefined,
 		condition,
 		astCondition,
+		question,
 		scope,
+		agents: parseRuleAgents(frontmatter.agents),
 		interruptMode,
 		_source: source,
 	};
+}
+
+/** Build a canonical rule from Markdown, including explicitly loaded disabled files. */
+export function buildRuleFromMarkdown(
+	name: string,
+	content: string,
+	filePath: string,
+	source: SourceMeta,
+	options?: RuleMarkdownOptions,
+): Rule {
+	const { frontmatter, body } = parseFrontmatter(content, { source: filePath });
+	return buildRule(name, body, frontmatter as RuleFrontmatter, filePath, source, options);
+}
+
+/** Build a discovered rule from Markdown, returning null when its frontmatter disables it. */
+export function discoverRuleFromMarkdown(
+	name: string,
+	content: string,
+	filePath: string,
+	source: SourceMeta,
+	options?: RuleMarkdownOptions,
+): Rule | null {
+	const { frontmatter, body } = parseFrontmatter(content, { source: filePath });
+	if (frontmatter.enabled === false) return null;
+	return buildRule(name, body, frontmatter as RuleFrontmatter, filePath, source, options);
 }
 
 /**
@@ -259,6 +313,16 @@ export function parseAgentFields(frontmatter: Record<string, unknown>): ParsedAg
 	const description = typeof frontmatter.description === "string" ? frontmatter.description : undefined;
 
 	if (!name || !description) {
+		return null;
+	}
+	// "main" is the sentinel `agentName` for the top-level session (see
+	// MAIN_AGENT_RULE_NAME); "sub" is the fallback `agentName` for a subagent
+	// session with no explicit name (see SUB_AGENT_RULE_NAME / sdk.ts). A
+	// custom agent definition sharing either name would resolve to the same
+	// sentinel value, letting it load rules scoped `agents: [main]` or
+	// `agents: [sub]` that are documented to target only that session kind.
+	const normalizedName = name.trim().toLowerCase();
+	if (normalizedName === MAIN_AGENT_RULE_NAME || normalizedName === SUB_AGENT_RULE_NAME) {
 		return null;
 	}
 
@@ -362,6 +426,19 @@ export interface ScanSkillsFromDirOptions {
 	 * semantic every non-Claude provider relies on.
 	 */
 	includeSelf?: boolean;
+	/**
+	 * Registry/CLI origin of the plugin root supplying these skills, forwarded
+	 * to {@link SourceMeta.origin} so user-scope gating can tell omp's own
+	 * installs (`omp`, `plugin-dir`) from the foreign Claude tree (`claude`).
+	 */
+	origin?: string;
+	/**
+	 * Plugin name supplying these skills, forwarded to {@link SourceMeta.pluginName}
+	 * so `skillNamespace` in `extensibility/skills.ts` can namespace by plugin
+	 * identity instead of parsing a path segment that may only hold a version
+	 * (Claude Code's own plugin cache layout).
+	 */
+	pluginName?: string;
 }
 
 // Stable ordering used for skill lists in prompts: name (case-insensitive), then name, then path.
@@ -405,13 +482,19 @@ export async function scanSkillsFromDir(
 			const skillDirName = path.basename(path.dirname(skillPath));
 			const rawName = frontmatter.name;
 			const name = typeof rawName === "string" ? rawName.trim() || skillDirName : skillDirName;
+			// `/` is reserved for collision namespaces (`<namespace>/<name>`) and
+			// path resolution in skill:// URLs; a raw name must never claim one.
+			if (/[\\/]/.test(name)) {
+				warnings.push(`Skill name "${name}" contains a path separator, skipping: ${skillPath}`);
+				return;
+			}
 			items.push({
 				name,
 				path: skillPath,
 				content: body,
 				frontmatter: frontmatter as SkillFrontmatter,
 				level,
-				_source: createSourceMeta(providerId, skillPath, level),
+				_source: createSourceMeta(providerId, skillPath, level, options.origin, options.pluginName),
 			});
 		} catch {
 			warnings.push(`Failed to read skill file: ${skillPath}`);
@@ -442,13 +525,32 @@ export async function scanSkillsFromDir(
 }
 
 /**
+ * Resolve a placeholder name against `extraEnv`, then the ambient environment.
+ *
+ * Inherited members of either map (`__proto__`, `constructor`, `toString`, …)
+ * are never substitutable: `extraEnv` is consulted by own property only, and
+ * `Bun.env`'s getter falls through to `Object.prototype`, so `${constructor}`
+ * would otherwise stringify into the value as `function Object() { [native
+ * code] }`. Every real variable is a string, so a non-string ambient hit means
+ * the name resolved to a prototype member and counts as unset.
+ */
+function lookupEnvValue(varName: string, extraEnv?: Record<string, string>): string | undefined {
+	if (extraEnv !== undefined && Object.hasOwn(extraEnv, varName)) return extraEnv[varName];
+	const ambient = Bun.env[varName];
+	return typeof ambient === "string" ? ambient : undefined;
+}
+
+/**
  * Expand environment variables in a string.
  * Supports ${VAR} and ${VAR:-default} syntax.
  */
 function expandEnvVars(value: string, extraEnv?: Record<string, string>): string {
 	return value.replace(/\$\{([^}:]+)(?::-([^}]*))?\}/g, (_, varName: string, defaultValue?: string) => {
-		const envValue = extraEnv?.[varName] ?? process.env[varName];
-		if (envValue !== undefined) return envValue;
+		const envValue = lookupEnvValue(varName, extraEnv);
+		// `${VAR:-default}` follows POSIX `:-`: the default applies when the
+		// variable is unset OR empty. Plain `${VAR}` keeps the value verbatim
+		// (even an empty one) and stays literal when unset.
+		if (envValue !== undefined && (defaultValue === undefined || envValue !== "")) return envValue;
 		if (defaultValue !== undefined) return defaultValue;
 		return `\${${varName}}`;
 	});
@@ -490,6 +592,8 @@ export async function loadFilesFromDir<T>(
 		transform: (name: string, content: string, path: string, source: SourceMeta) => T | null;
 		/** Whether to recurse into subdirectories (default: false) */
 		recursive?: boolean;
+		/** Registry/CLI origin forwarded to {@link SourceMeta.origin} (see {@link createSourceMeta}). */
+		origin?: string;
 	},
 ): Promise<LoadResult<T>> {
 	const items: T[] = [];
@@ -542,7 +646,7 @@ export async function loadFilesFromDir<T>(
 		}
 
 		const name = path.basename(filePath);
-		const source = createSourceMeta(provider, filePath, level);
+		const source = createSourceMeta(provider, filePath, level, options.origin);
 
 		try {
 			const item = options.transform(name, content, filePath, source);
@@ -565,6 +669,102 @@ export async function loadFilesFromDir<T>(
  */
 export function calculateDepth(cwd: string, targetDir: string, separator: string): number {
 	return cwd.split(separator).length - targetDir.split(separator).length;
+}
+// =============================================================================
+// Standalone context-file walker (AGENTS.md, CLAUDE.md, …)
+// =============================================================================
+
+/**
+ * Compare paths while tolerating Windows drive casing.
+ */
+function samePath(left: string, right: string): boolean {
+	const normalizedLeft = path.resolve(left);
+	const normalizedRight = path.resolve(right);
+	return process.platform === "win32"
+		? normalizedLeft.toLowerCase() === normalizedRight.toLowerCase()
+		: normalizedLeft === normalizedRight;
+}
+
+/**
+ * Return whether `child` is at or below `parent`.
+ */
+function isWithin(parent: string, child: string): boolean {
+	const normalizedParent = path.resolve(parent);
+	const normalizedChild = path.resolve(child);
+	const relative = path.relative(
+		process.platform === "win32" ? normalizedParent.toLowerCase() : normalizedParent,
+		process.platform === "win32" ? normalizedChild.toLowerCase() : normalizedChild,
+	);
+	return relative === "" || (!relative.startsWith(`..${path.sep}`) && relative !== ".." && !path.isAbsolute(relative));
+}
+
+/**
+ * Load standalone context files (e.g. AGENTS.md, CLAUDE.md) by walking up from
+ * cwd. Shared across providers whose files live in project root rather than
+ * config directories (which their own providers handle).
+ *
+ * When a repository is nested below the user's home directory, continue past
+ * the Git root to discover workspace-level files, but stop before loading the
+ * home directory's own copy as project context. A repository rooted at the
+ * home directory itself is not "nested below" it, so the home-level file
+ * remains project context.
+ */
+export async function loadStandaloneContextFiles(
+	ctx: LoadContext,
+	providerId: string,
+	fileName: string,
+): Promise<LoadResult<ContextFile>> {
+	const items: ContextFile[] = [];
+	const warnings: string[] = [];
+	const home = path.resolve(ctx.home);
+	const cwd = path.resolve(ctx.cwd);
+	const repoRoot = ctx.repoRoot ? path.resolve(ctx.repoRoot) : null;
+	const filesystemRoot = path.parse(cwd).root;
+	const cwdIsUnderHome = isWithin(home, cwd);
+	const repoIsHome = repoRoot !== null && samePath(home, repoRoot);
+	const repoIsUnderHome = repoRoot !== null && isWithin(home, repoRoot) && !repoIsHome;
+	const scanToHome = repoRoot !== null && cwdIsUnderHome && repoIsUnderHome;
+	const boundary = scanToHome ? home : (repoRoot ?? (cwdIsUnderHome ? home : filesystemRoot));
+	const includeBoundary = repoRoot === null ? cwdIsUnderHome : !samePath(boundary, home) || repoIsHome;
+	const excludeHome = scanToHome;
+
+	let current = cwd;
+	while (true) {
+		const atBoundary = samePath(current, boundary);
+		const atHome = excludeHome && samePath(current, home);
+		if (!(atHome || (atBoundary && !includeBoundary))) {
+			const candidate = path.join(current, fileName);
+			const content = await readFile(candidate);
+
+			// Empty files contribute nothing and must not claim the depth scope:
+			// at a priority tie, an empty first-registered file would shadow a
+			// non-empty sibling (e.g. an empty AGENTS.md shadowing CLAUDE.md).
+			if (content !== null && content !== "") {
+				const parent = path.dirname(candidate);
+				const baseName = parent.split(path.sep).pop() ?? "";
+
+				if (!baseName.startsWith(".")) {
+					const fileDir = path.dirname(candidate);
+					const calculatedDepth = calculateDepth(cwd, fileDir, path.sep);
+
+					items.push({
+						path: candidate,
+						content,
+						level: "project",
+						depth: calculatedDepth,
+						_source: createSourceMeta(providerId, candidate, "project"),
+					});
+				}
+			}
+		}
+		if (atBoundary) break;
+
+		const parent = path.dirname(current);
+		if (parent === current) break;
+		current = parent;
+	}
+
+	return { items, warnings };
 }
 
 interface ExtensionModuleManifest {
@@ -614,8 +814,8 @@ async function readExtensionModuleManifest(
 	const content = await readFile(packageJsonPath);
 	if (!content) return null;
 
-	const pkg = tryParseJson<{ chudcode?: ExtensionModuleManifest; chud?: ExtensionModuleManifest }>(content);
-	const manifest = pkg?.chudcode;
+	const pkg = tryParseJson<{ omp?: ExtensionModuleManifest; pi?: ExtensionModuleManifest }>(content);
+	const manifest = pkg?.omp ?? pkg?.pi;
 	if (manifest && typeof manifest === "object") {
 		return manifest;
 	}
@@ -628,7 +828,7 @@ async function readExtensionModuleManifest(
  * Discovery rules:
  * 1. Direct files: `extensions/*.ts` or `*.js` → load
  * 2. Subdirectory with index: `extensions/<ext>/index.ts` or `index.js` → load
- * 3. Subdirectory with package.json: `extensions/<ext>/package.json` with "chudcode"/"chud" field → load declared paths
+ * 3. Subdirectory with package.json: `extensions/<ext>/package.json` with "omp"/"pi" field → load declared paths
  *
  * No recursion beyond one level. Complex packages must use package.json manifest.
  * Uses native glob for fast filesystem scanning with gitignore support.
@@ -804,6 +1004,8 @@ export interface ClaudePluginRoot {
 	path: string;
 	/** Whether this is a user or project scope plugin */
 	scope: "user" | "project";
+	/** Registry or explicit CLI source that supplied this root. */
+	origin: "claude" | "omp" | "plugin-dir";
 }
 
 /**
@@ -826,18 +1028,18 @@ export function parseClaudePluginsRegistry(content: string): ClaudePluginsRegist
  * Resolve the active project registry path by walking up from `cwd`.
  *
  * Walk order:
- * 1. Walk up from `cwd` looking for the nearest directory containing `.chudcode/`.
- *    The first match returns `<dir>/.chudcode/plugins/installed_plugins.json`.
- * 2. If no `.chudcode/` is found, rescan from `cwd` upward looking for `.git`.
- *    The git root is used as an anchor: `<gitRoot>/.chudcode/plugins/installed_plugins.json`.
+ * 1. Walk up from `cwd` looking for the nearest directory containing `.omp/`.
+ *    The first match returns `<dir>/.omp/plugins/installed_plugins.json`.
+ * 2. If no `.omp/` is found, rescan from `cwd` upward looking for `.git`.
+ *    The git root is used as an anchor: `<gitRoot>/.omp/plugins/installed_plugins.json`.
  * 3. If neither is found, return `null` — no project context is active.
  *
  * This is the single source of truth for "active project root" used by install,
  * uninstall, list, upgrade, discovery, and doctor. Deterministic for a given `cwd`.
  */
 export async function resolveActiveProjectRegistryPath(cwd: string): Promise<string | null> {
-	// Pass 1: walk up looking for an existing .chudcode/ directory (nearest wins).
-	// Stop before os.homedir() — ~/.chudcode/ is the user-level config dir, not a project root.
+	// Pass 1: walk up looking for an existing .omp/ directory (nearest wins).
+	// Stop before os.homedir() — ~/.omp/ is the user-level config dir, not a project root.
 	const homeDir = os.homedir();
 	let dir = path.resolve(cwd);
 	while (dir !== homeDir) {
@@ -872,11 +1074,11 @@ export async function resolveActiveProjectRegistryPath(cwd: string): Promise<str
 }
 
 /**
- * Like resolveActiveProjectRegistryPath, but falls back to `<cwd>/.chudcode/plugins/installed_plugins.json`
- * when no project anchor (.chudcode/ or .git/) is found.
+ * Like resolveActiveProjectRegistryPath, but falls back to `<cwd>/.omp/plugins/installed_plugins.json`
+ * when no project anchor (.omp/ or .git/) is found.
  *
  * Use this when the caller accepts an explicit --scope project so that installing into a freshly
- * bootstrapped directory (no .chudcode/ or .git/ yet) works: writeInstalledPluginsRegistry auto-creates
+ * bootstrapped directory (no .omp/ or .git/ yet) works: writeInstalledPluginsRegistry auto-creates
  * the directory tree on first write.
  *
  * Returns undefined when cwd is os.homedir() — that path is already the user registry and must
@@ -945,9 +1147,9 @@ export function registerPluginCacheInvalidator(invalidator: () => void): void {
 
 /**
  * List all installed Claude Code plugin roots from its active plugin cache and
- * ~/.chudcode/plugins/installed_plugins.json, plus the nearest project registry when present.
+ * ~/.omp/plugins/installed_plugins.json, plus the nearest project registry when present.
  *
- * Results are cached per Claude and Chudcode config directories, project registry, and canonical active project.
+ * Results are cached per Claude and OMP config directories, project registry, and canonical active project.
  */
 export async function listClaudePluginRoots(
 	home: string,
@@ -1023,18 +1225,19 @@ export async function listClaudePluginRoots(
 						version: entry.version || "unknown",
 						path: entry.installPath,
 						scope: entry.scope === "local" ? "project" : entry.scope || "user",
+						origin: "claude",
 					});
 				}
 			}
 		}
 	}
 
-	// ── Chudcode installed plugins registry ───────────────────────────────────────
-	// Chudcode registry is authoritative: its entries replace Claude's entries for the same plugin ID.
+	// ── OMP installed plugins registry ───────────────────────────────────────
+	// OMP registry is authoritative: its entries replace Claude's entries for the same plugin ID.
 	// In production `home` is `os.homedir()`, so `getPluginsDir(home)` resolves to the
 	// same XDG-aware path the marketplace writer uses (reads and writes always agree).
 	// Tests pass a temp dir, which short-circuits the resolver for deterministic isolation.
-	// Computed before the cache lookup because isolated SDK homes select distinct Chudcode registries.
+	// Computed before the cache lookup because isolated SDK homes select distinct OMP registries.
 	const ompContent = await readFile(ompRegistryPath);
 	if (ompContent) {
 		const ompRegistry = parseClaudePluginsRegistry(ompContent);
@@ -1050,7 +1253,7 @@ export async function listClaudePluginRoots(
 				const pluginName = pluginId.slice(0, atIndex);
 				const marketplace = pluginId.slice(atIndex + 1);
 
-				// Chudcode is authoritative: drop all Claude-sourced entries for this plugin ID
+				// OMP is authoritative: drop all Claude-sourced entries for this plugin ID
 				const filtered = roots.filter(r => r.id !== pluginId);
 				roots.length = 0;
 				roots.push(...filtered);
@@ -1071,16 +1274,17 @@ export async function listClaudePluginRoots(
 						version: entry.version || "unknown",
 						path: entry.installPath,
 						scope: entry.scope === "local" ? "project" : entry.scope || "user",
+						origin: "omp",
 					});
 				}
 			}
 		} else {
-			warnings.push(`Failed to parse Chudcode plugin registry: ${ompRegistryPath}`);
+			warnings.push(`Failed to parse OMP plugin registry: ${ompRegistryPath}`);
 		}
 	}
 
-	// ── Project-scoped Chudcode registry ────────────────────────────────────────
-	// Loaded from the nearest .chudcode/plugins/installed_plugins.json relative to cwd.
+	// ── Project-scoped OMP registry ────────────────────────────────────────
+	// Loaded from the nearest .omp/plugins/installed_plugins.json relative to cwd.
 	// Project entries take precedence over user entries for the same plugin ID.
 	if (resolvedProjectPath) {
 		const projectContent = await readFile(resolvedProjectPath);
@@ -1109,6 +1313,7 @@ export async function listClaudePluginRoots(
 							version: entry.version || "unknown",
 							path: entry.installPath,
 							scope: "project",
+							origin: "omp",
 						});
 					}
 				}
@@ -1195,7 +1400,7 @@ export function getPreloadedPluginRoots(): readonly ClaudePluginRoot[] {
 
 /**
  * Inject synthetic plugin roots from --plugin-dir paths.
- * These are prepended to the cache with highest precedence (before Chudcode/Claude entries).
+ * These are prepended to the cache with highest precedence (before OMP/Claude entries).
  * Must be called before any listClaudePluginRoots() access.
  */
 export async function injectPluginDirRoots(home: string, dirs: string[], cwd?: string): Promise<void> {
@@ -1217,7 +1422,7 @@ export async function injectPluginDirRoots(home: string, dirs: string[], cwd?: s
 				const contained = await resolveContainedPath(realRoot, manifestPath);
 				if (contained.status !== "ok") continue;
 				try {
-					const manifest = await fsx.readJson<{ name?: unknown }>(contained.realPath);
+					const manifest = await Bun.file(contained.realPath).json();
 					if (typeof manifest?.name === "string" && manifest.name) {
 						pluginName = manifest.name;
 						break;

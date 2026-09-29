@@ -1,9 +1,9 @@
 import { describe, expect, test } from "bun:test";
-import { buildParams, convertTools } from "@chudware/ai/providers/openai-responses";
-import type { Context, Model, ModelSpec, Tool } from "@chudware/ai/types";
-import { findStrictToolSchemaViolation } from "@chudware/ai/utils/schema";
-import { buildModel } from "@chudware/catalog/build";
-import { type } from "@chudware/chudtype";
+import { type } from "@oh-my-pi/omptype";
+import { buildParams, convertTools } from "@oh-my-pi/pi-ai/providers/openai-responses";
+import type { Context, Model, ModelSpec, Tool } from "@oh-my-pi/pi-ai/types";
+import { findStrictToolSchemaViolation } from "@oh-my-pi/pi-ai/utils/schema";
+import { buildModel } from "@oh-my-pi/pi-catalog/build";
 
 function makeModel(provider: "openai" | "xai-oauth" = "openai"): Model<"openai-responses"> {
 	return buildModel({
@@ -19,15 +19,6 @@ function makeModel(provider: "openai" | "xai-oauth" = "openai"): Model<"openai-r
 		maxTokens: 128000,
 	} as ModelSpec<"openai-responses">);
 }
-
-const leftoverRootUnion = {
-	type: "object",
-	properties: { kind: { type: "string" } },
-	anyOf: [
-		{ required: ["kind"], minProperties: 1 },
-		{ required: ["kind"], minProperties: 2 },
-	],
-} as const;
 
 describe("findStrictToolSchemaViolation (#2652)", () => {
 	test("flags a non-null enum on a null-typed node (nullable-enum shape)", () => {
@@ -64,11 +55,6 @@ describe("findStrictToolSchemaViolation (#2652)", () => {
 		expect(findStrictToolSchemaViolation({ enum: ["x"] })).toBeNull();
 	});
 
-	test("flags a leftover xAI root anyOf only when the xAI option is on", () => {
-		expect(findStrictToolSchemaViolation(leftoverRootUnion)).toBeNull();
-		expect(findStrictToolSchemaViolation(leftoverRootUnion, "#", { rejectXaiRootObjectUnion: true })).toBe("#/anyOf");
-	});
-
 	test("accepts a root anyOf of typed object branches even for xAI", () => {
 		expect(
 			findStrictToolSchemaViolation(
@@ -79,7 +65,7 @@ describe("findStrictToolSchemaViolation (#2652)", () => {
 					],
 				},
 				"#",
-				{ rejectXaiRootObjectUnion: true },
+				{ rejectRootObjectUnion: true },
 			),
 		).toBeNull();
 	});
@@ -128,10 +114,6 @@ describe("convertTools quarantine (#2652)", () => {
 		expect(names).toContain("read_file");
 		expect(names).not.toContain("mcp__server__bad");
 		expect(out).toHaveLength(1);
-	});
-
-	test("emits every tool when all schemas are valid", () => {
-		expect(convertTools([goodTool], true, makeModel())).toHaveLength(1);
 	});
 
 	test("flattens an exclusive-required MCP tool on xAI Responses", () => {

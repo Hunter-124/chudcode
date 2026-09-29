@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "bun:test";
-import * as piNatives from "@chudware/natives";
+import * as piNatives from "@oh-my-pi/pi-natives";
 import { PdfConverter } from "../src/markit/converters/pdf";
 
 describe("PdfConverter", () => {
@@ -28,7 +28,7 @@ describe("PdfConverter", () => {
 		const result = await new PdfConverter().convert(Buffer.from("image-only pdf"), { extension: ".pdf" });
 
 		expect(result.markdown).toBe(
-			"Text extraction is incomplete for PDF pages 1, 3. Use the browser tool to render those pages or OCR them.",
+			"Text extraction is incomplete for PDF pages 1, 3. Use the browser prelude to render those pages or OCR them.",
 		);
 		expect(result.markdown.length).toBeGreaterThan(0);
 	});

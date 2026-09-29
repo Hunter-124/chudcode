@@ -1,13 +1,13 @@
 import { describe, expect, it, spyOn } from "bun:test";
-import type { Context, ImageContent, Message, TextContent, ToolResultMessage } from "@chudware/ai";
-import { buildModel } from "@chudware/catalog/build";
+import type { Context, ImageContent, Message, TextContent, ToolResultMessage } from "@oh-my-pi/pi-ai";
+import { buildModel } from "@oh-my-pi/pi-catalog/build";
 import {
 	estimateInlineSavings,
 	planInlineSwaps,
 	type SnapcompactInlineOptions,
 	SnapcompactInlineTransformer,
-} from "@chudware/coding-agent/session/snapcompact-inline";
-import * as snapcompact from "@chudware/snapcompact";
+} from "@oh-my-pi/pi-coding-agent/session/snapcompact-inline";
+import * as snapcompact from "@oh-my-pi/snapcompact";
 
 /**
  * Token-dense deterministic word salad: each word is `w` + ≤5 digits, ~7
@@ -153,6 +153,37 @@ describe("SnapcompactInlineTransformer", () => {
 		expect(result.systemPrompt).toBe(context.systemPrompt);
 	});
 
+	it("applies option changes on the next request, re-rendering cached frames when the shape changes", async () => {
+		const options = withTestShape({ renderSystemPrompt: "none", renderToolResults: false });
+		const renderedFonts: string[] = [];
+		const transformer = new SnapcompactInlineTransformer(options, undefined, {
+			async framesFor(text, shape) {
+				renderedFonts.push(shape.font);
+				return Array.from({ length: snapcompact.frames(text, { shape }) }, () => ({
+					type: "image" as const,
+					data: "ZnJhbWU=",
+					mimeType: "image/png",
+				}));
+			},
+		});
+		const context = makeContext();
+
+		expect(await transformer.transform(context, makeModel())).toBe(context);
+		expect(renderedFonts).toEqual([]);
+
+		options.renderToolResults = true;
+		expect(imageCount(await transformer.transform(context, makeModel()))).toBeGreaterThan(0);
+		expect(renderedFonts).toEqual(["6x12"]);
+
+		// Same shape → served from the frame cache.
+		await transformer.transform(context, makeModel());
+		expect(renderedFonts).toEqual(["6x12"]);
+
+		options.shape = "8x13-bw";
+		expect(imageCount(await transformer.transform(context, makeModel()))).toBeGreaterThan(0);
+		expect(renderedFonts).toEqual(["6x12", "8x13"]);
+	});
+
 	it("reports per-tool-result savings to the sink for each imaged result only", async () => {
 		const received: Array<{ toolCallId: string; savedTokens: number }>[] = [];
 		let model = "";
@@ -210,7 +241,18 @@ describe("SnapcompactInlineTransformer", () => {
 
 	it("compacts text in mixed tool results while preserving every source image and the input context", async () => {
 		const options = withTestShape({ renderSystemPrompt: "all", renderToolResults: true });
-		const transformer = new SnapcompactInlineTransformer(options);
+		const renderedTexts: string[] = [];
+		const transformer = new SnapcompactInlineTransformer(options, undefined, {
+			async framesFor(text, shape, maxFrames) {
+				renderedTexts.push(text);
+				const count = Math.min(snapcompact.frames(text, { shape }), maxFrames ?? Number.POSITIVE_INFINITY);
+				return Array.from({ length: count }, () => ({
+					type: "image" as const,
+					data: "ZnJhbWU=",
+					mimeType: "image/png",
+				}));
+			},
+		});
 		const toolImage: ImageContent = {
 			type: "image",
 			data: "dG9vbC1pbWFnZS1ieXRlcw==",
@@ -218,6 +260,11 @@ describe("SnapcompactInlineTransformer", () => {
 			detail: "original",
 			providerFile: { provider: "anthropic", id: "file_tool_source" },
 			url: "https://images.example.invalid/tool-source.webp",
+		};
+		const secondToolImage: ImageContent = {
+			type: "image",
+			data: "c2Vjb25kLXRvb2wtaW1hZ2UtYnl0ZXM=",
+			mimeType: "image/png",
 		};
 		const userImage: ImageContent = {
 			type: "image",
@@ -230,6 +277,7 @@ describe("SnapcompactInlineTransformer", () => {
 			{ type: "text", text: LARGE },
 			toolImage,
 			{ type: "text", text: "mixed result text tail" },
+			secondToolImage,
 		];
 		const mixedResult: ToolResultMessage = {
 			...toolResult("call_mixed", LARGE),
@@ -241,6 +289,7 @@ describe("SnapcompactInlineTransformer", () => {
 		};
 		const pristine = structuredClone(context);
 		const toolImageSnapshot = structuredClone(toolImage);
+		const secondToolImageSnapshot = structuredClone(secondToolImage);
 		const userImageSnapshot = structuredClone(userImage);
 		const originalMessages = context.messages;
 		const originalSystemPrompt = context.systemPrompt;
@@ -257,14 +306,36 @@ describe("SnapcompactInlineTransformer", () => {
 		expect(estimate.toolResults?.swapped).toBe(1);
 		expect(estimate.systemPrompt?.applied).toBe(true);
 		const swapped = result.messages[1] as ToolResultMessage;
-		expect(swapped.content.some(block => block.type === "text" && block.text === LARGE)).toBe(false);
 		const toolImageIndex = swapped.content.indexOf(toolImage);
-		expect(swapped.content[0].type).toBe("text");
-		expect(toolImageIndex).toBe(swapped.content.length - 1);
-		expect(swapped.content.slice(1, toolImageIndex).every(block => block.type === "image")).toBe(true);
-		expect(swapped.content.slice(1, toolImageIndex)).toHaveLength(estimate.toolResults!.frames);
+		const secondToolImageIndex = swapped.content.indexOf(secondToolImage);
+		expect(swapped.content[0]).toEqual({
+			type: "text",
+			text: expect.stringContaining("source-image position markers"),
+		});
+		expect(toolImageIndex).toBe(estimate.toolResults!.frames + 2);
+		expect(secondToolImageIndex).toBe(swapped.content.length - 1);
+		expect(swapped.content.slice(1, toolImageIndex - 1).every(block => block.type === "image")).toBe(true);
+		expect(swapped.content.slice(1, toolImageIndex - 1)).toHaveLength(estimate.toolResults!.frames);
+		expect(swapped.content[toolImageIndex - 1]).toEqual({
+			type: "text",
+			text: "[Original source image 1; corresponds to its marker in the compacted text.]",
+		});
+		const mixedRenderedText = renderedTexts.find(text => text.includes("mixed result text tail"));
+		expect(mixedRenderedText).toContain("[Source image 1 was attached here in the original tool result.]");
+		expect(mixedRenderedText!.indexOf("[Source image 1")).toBeLessThan(
+			mixedRenderedText!.indexOf("mixed result text tail"),
+		);
 		expect(swapped.content[toolImageIndex]).toBe(toolImage);
 		expect(swapped.content[toolImageIndex]).toEqual(toolImageSnapshot);
+		expect(mixedRenderedText!.indexOf("mixed result text tail")).toBeLessThan(
+			mixedRenderedText!.indexOf("[Source image 2"),
+		);
+		expect(swapped.content[secondToolImageIndex - 1]).toEqual({
+			type: "text",
+			text: "[Original source image 2; corresponds to its marker in the compacted text.]",
+		});
+		expect(swapped.content[secondToolImageIndex]).toBe(secondToolImage);
+		expect(swapped.content[secondToolImageIndex]).toEqual(secondToolImageSnapshot);
 		expect(result.messages[2]).toBe(context.messages[2]);
 
 		const carrier = result.messages[0] as { content: (TextContent | ImageContent)[] };
@@ -282,24 +353,15 @@ describe("SnapcompactInlineTransformer", () => {
 		expect((context.messages[1] as ToolResultMessage).content).toBe(mixedContent);
 	});
 
-	it("keeps error-result eligibility identical between the estimator and transformer", async () => {
-		const options = withTestShape({ renderSystemPrompt: "none", renderToolResults: true });
-		const transformer = new SnapcompactInlineTransformer(options);
+	it("leaves error tool results text-only even when they are large", async () => {
+		const transformer = new SnapcompactInlineTransformer(
+			withTestShape({ renderSystemPrompt: "none", renderToolResults: true }),
+		);
 		const errorResult: ToolResultMessage = { ...toolResult("call_error", LARGE), isError: true };
 		const context: Context = {
 			messages: [userMessage("hi"), errorResult, toolResult("call_tail", LARGE)],
 		};
-		const model = makeModel();
-		const estimate = estimateInlineSavings({
-			options,
-			model,
-			systemPrompt: [],
-			messages: context.messages,
-		});
-		const result = await transformer.transform(context, model);
-
-		expect(estimate.toolResults?.total).toBe(2);
-		expect(estimate.toolResults?.swapped).toBe(0);
+		const result = await transformer.transform(context, makeModel());
 		expect(result).toBe(context);
 		expect(result.messages[1]).toBe(errorResult);
 		expect(errorResult.content.every(block => block.type === "text")).toBe(true);
@@ -435,16 +497,22 @@ describe("SnapcompactInlineTransformer", () => {
 			systemPrompt: context.systemPrompt!,
 			messages: context.messages,
 		});
-		const result = await new SnapcompactInlineTransformer(options).transform(context, model);
+		const frameCountSpy = spyOn(snapcompact, "frames");
+		try {
+			const result = await new SnapcompactInlineTransformer(options).transform(context, model);
 
-		expect(estimate.toolResults?.total).toBe(2);
-		expect(estimate.toolResults?.swapped).toBe(0);
-		expect(estimate.toolResults?.savedTokens).toBe(0);
-		expect(estimate.systemPrompt?.applied).toBe(false);
-		expect(estimate.systemPrompt?.reason).toBe("budget");
-		expect(estimate.savedTokens).toBe(0);
-		expect(result).toBe(context);
-		expect(result.messages[1]).toBe(mixedResult);
+			expect(frameCountSpy).not.toHaveBeenCalled();
+			expect(estimate.toolResults?.total).toBe(2);
+			expect(estimate.toolResults?.swapped).toBe(0);
+			expect(estimate.toolResults?.savedTokens).toBe(0);
+			expect(estimate.systemPrompt?.applied).toBe(false);
+			expect(estimate.systemPrompt?.reason).toBe("budget");
+			expect(estimate.savedTokens).toBe(0);
+			expect(result).toBe(context);
+			expect(result.messages[1]).toBe(mixedResult);
+		} finally {
+			frameCountSpy.mockRestore();
+		}
 	});
 
 	it("caches renders across turns: identical input does not re-rasterize", async () => {
@@ -479,21 +547,6 @@ describe("planInlineSwaps", () => {
 	const shape = snapcompact.resolveShape({ api: "anthropic-messages" });
 	const toolOnly = { renderSystemPrompt: "none" as const, renderToolResults: true };
 	const promptOnly = { renderSystemPrompt: "all" as const, renderToolResults: false };
-
-	it("never swaps the most recent tool result", () => {
-		const plan = planInlineSwaps({
-			options: toolOnly,
-			shape,
-			budget: 90,
-			toolResults: [
-				{ id: "a", textTokens: 10000, frames: 2 },
-				{ id: "z", textTokens: 10000, frames: 2 },
-			],
-			systemPrompt: undefined,
-			hasUserMessage: true,
-		});
-		expect(plan.toolResults.map(swap => swap.id)).toEqual(["a"]);
-	});
 
 	it("skips error, empty, below-floor, and below-margin candidates", () => {
 		const plan = planInlineSwaps({

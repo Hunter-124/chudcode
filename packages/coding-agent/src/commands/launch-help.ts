@@ -1,6 +1,7 @@
-import { Args, type CommandMetadata, Flags } from "@chudware/utils/cli";
-import { PRODUCT_CLI_NAME } from "../brand";
-import { CLI_THINKING_LEVELS } from "../cli/thinking-levels";
+import { Args, type CommandMetadata, Flags } from "@oh-my-pi/pi-utils/cli";
+import { APP_NAME } from "@oh-my-pi/pi-utils/dirs";
+import { formatKeyHint } from "@oh-my-pi/pi-tui/key-hint-format";
+import { CLI_THINKING_LEVELS } from "@oh-my-pi/pi-tui/thinking";
 import { SERVICE_TIER_OPENAI_VALUES } from "../config/service-tier";
 
 export const launchHelp = {
@@ -17,9 +18,9 @@ export const launchHelp = {
 		model: Flags.string({
 			description: 'Model to use (fuzzy match: "opus", "gpt-5.2", or "openai/gpt-5.2")',
 		}),
-		smol: Flags.string({ description: "Smol/fast model for lightweight tasks (or CHUDCODE_SMOL_MODEL env)" }),
-		slow: Flags.string({ description: "Slow/reasoning model for thorough analysis (or CHUDCODE_SLOW_MODEL env)" }),
-		plan: Flags.string({ description: "Plan model for architectural planning (or CHUDCODE_PLAN_MODEL env)" }),
+		smol: Flags.string({ description: "Smol/fast model for lightweight tasks (or PI_SMOL_MODEL env)" }),
+		slow: Flags.string({ description: "Slow/reasoning model for thorough analysis (or PI_SLOW_MODEL env)" }),
+		plan: Flags.string({ description: "Plan model for architectural planning (or PI_PLAN_MODEL env)" }),
 		prewalk: Flags.boolean({
 			description:
 				"Switch from the active model to a fast/cheap model at the first edit/write after the plan's todo list exists (default off; see prewalk.enabled)",
@@ -34,6 +35,9 @@ export const launchHelp = {
 		provider: Flags.string({ description: "Provider to use (legacy; prefer --model)" }),
 		"api-key": Flags.string({ description: "API key (defaults to env vars)" }),
 		"system-prompt": Flags.string({ description: "System prompt (default: coding assistant prompt)" }),
+		"system-prompt-template": Flags.string({
+			description: "Handlebars system prompt template (mutually exclusive with --system-prompt)",
+		}),
 		"append-system-prompt": Flags.string({ description: "Append text or file contents to the system prompt" }),
 		"allow-home": Flags.boolean({ description: "Allow starting in ~ without auto-switching to a temp dir" }),
 		profile: Flags.string({ description: "Use an isolated profile for auth, sessions, settings, and caches" }),
@@ -54,14 +58,13 @@ export const launchHelp = {
 		print: Flags.boolean({ char: "p", description: "Non-interactive mode: process prompt and exit" }),
 		continue: Flags.boolean({ char: "c", description: "Continue previous session" }),
 		resume: Flags.string({ char: "r", description: "Resume a session (by ID prefix, path, or picker if omitted)" }),
-		"from-claude": Flags.boolean({ description: "Import a Claude Code session into Chudcode" }),
-		"from-codex": Flags.boolean({ description: "Import a Codex session into Chudcode" }),
+		"from-claude": Flags.boolean({ description: "Import a Claude Code session into OMP" }),
+		"from-codex": Flags.boolean({ description: "Import a Codex session into OMP" }),
 		"session-dir": Flags.string({ description: "Directory for session storage and lookup" }),
 		"no-session": Flags.boolean({ description: "Don't save session (ephemeral)" }),
-		models: Flags.string({ description: "Comma-separated model patterns for Ctrl+P cycling" }),
+		models: Flags.string({ description: `Comma-separated model patterns for ${formatKeyHint("ctrl+p")} cycling` }),
 		"no-tools": Flags.boolean({ description: "Disable all built-in tools" }),
 		"no-lsp": Flags.boolean({ description: "Disable LSP tools, formatting, and diagnostics" }),
-		"no-mcp": Flags.boolean({ description: "Disable MCP server discovery and MCP tools" }),
 		"no-pty": Flags.boolean({ description: "Disable PTY-based interactive bash execution" }),
 		tools: Flags.string({ description: "Comma-separated list of tools to enable (default: all)" }),
 		thinking: Flags.string({
@@ -96,6 +99,9 @@ export const launchHelp = {
 		"no-rules": Flags.boolean({ description: "Disable rules discovery and loading" }),
 		export: Flags.string({ description: "Export session file to HTML and exit" }),
 		"no-title": Flags.boolean({ description: "Disable title auto-generation" }),
+		"no-ui": Flags.boolean({
+			description: "With --mode rpc: run extensions headless (no extension_ui_request dialogs for the host)",
+		}),
 		"print-thoughts": Flags.boolean({ description: "Include thinking blocks in print mode text output" }),
 		"max-time": Flags.string({ description: "Stop the session after this duration (e.g., 600, 10m, 1h)" }),
 		"auto-approve": Flags.boolean({
@@ -108,14 +114,14 @@ export const launchHelp = {
 		}),
 	},
 	examples: [
-		`# Interactive mode\n  ${PRODUCT_CLI_NAME}`,
-		`# Interactive mode with initial prompt\n  ${PRODUCT_CLI_NAME} "List all .ts files in src/"`,
-		`# Include files in initial message\n  ${PRODUCT_CLI_NAME} @prompt.md @image.png "What color is the sky?"`,
-		`# Non-interactive mode (process and exit)\n  ${PRODUCT_CLI_NAME} -p "List all .ts files in src/"`,
-		`# Continue previous session\n  ${PRODUCT_CLI_NAME} --continue "What did we discuss?"`,
-		`# Create a shell shortcut for a work profile\n  ${PRODUCT_CLI_NAME} --profile work --alias chudcode-work`,
-		`# Use different model (fuzzy matching)\n  ${PRODUCT_CLI_NAME} --model opus "Help me refactor this code"`,
-		`# Limit model cycling to specific models\n  ${PRODUCT_CLI_NAME} --models claude-sonnet,claude-haiku,gpt-4o`,
-		`# Export a session file to HTML\n  ${PRODUCT_CLI_NAME} --export ~/.chudcode/agent/sessions/--path--/session.jsonl`,
+		`# Interactive mode\n  ${APP_NAME}`,
+		`# Interactive mode with initial prompt\n  ${APP_NAME} "List all .ts files in src/"`,
+		`# Include files in initial message\n  ${APP_NAME} @prompt.md @image.png "What color is the sky?"`,
+		`# Non-interactive mode (process and exit)\n  ${APP_NAME} -p "List all .ts files in src/"`,
+		`# Continue previous session\n  ${APP_NAME} --continue "What did we discuss?"`,
+		`# Create a shell shortcut for a work profile\n  ${APP_NAME} --profile work --alias omp-work`,
+		`# Use different model (fuzzy matching)\n  ${APP_NAME} --model opus "Help me refactor this code"`,
+		`# Limit model cycling to specific models\n  ${APP_NAME} --models claude-sonnet,claude-haiku,gpt-4o`,
+		`# Export a session file to HTML\n  ${APP_NAME} --export ~/.omp/agent/sessions/--path--/session.jsonl`,
 	],
 } satisfies CommandMetadata;

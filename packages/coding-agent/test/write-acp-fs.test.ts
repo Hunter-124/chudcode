@@ -2,16 +2,15 @@ import { afterEach, beforeEach, describe, expect, it, spyOn } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import type { AgentToolResult } from "@chudware/agent-core";
-import { Settings } from "@chudware/coding-agent/config/settings";
-import { resolveLocalUrlToPath } from "@chudware/coding-agent/internal-urls";
-import type { PlanModeState } from "@chudware/coding-agent/plan-mode/state";
-import type { ClientBridge } from "@chudware/coding-agent/session/client-bridge";
-import type { ToolSession } from "@chudware/coding-agent/tools";
-import { WriteTool } from "@chudware/coding-agent/tools/write";
-import { computeFileHash } from "@chudware/hashline";
-import { removeWithRetries } from "@chudware/utils";
-import * as fsx from "@chudware/utils/fsx";
+import { hashlineFileHash } from "@oh-my-pi/pi-natives";
+import type { AgentToolResult } from "@oh-my-pi/pi-agent-core";
+import { Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
+import { resolveLocalUrlToPath } from "@oh-my-pi/pi-coding-agent/internal-urls";
+import type { PlanModeState } from "@oh-my-pi/pi-coding-agent/plan-mode/state";
+import type { ClientBridge } from "@oh-my-pi/pi-coding-agent/session/client-bridge";
+import type { ToolSession } from "@oh-my-pi/pi-coding-agent/tools";
+import { WriteTool } from "@oh-my-pi/pi-coding-agent/tools/write";
+import { removeWithRetries } from "@oh-my-pi/pi-utils";
 
 const FILE_CONTENT = "bridge write content\n";
 
@@ -67,7 +66,7 @@ describe("write tool ACP fs routing", () => {
 		};
 
 		const bridgeSpy = spyOn(bridge, "writeTextFile");
-		const bunWriteSpy = spyOn(fsx, "write");
+		const bunWriteSpy = spyOn(Bun, "write");
 
 		try {
 			const session = createSession(tmpDir, { bridge });
@@ -92,7 +91,7 @@ describe("write tool ACP fs routing", () => {
 		const bridge: ClientBridge = {
 			capabilities: { writeTextFile: true },
 			writeTextFile: async ({ path: target, content }) => {
-				await fsx.write(target, content.replace(/^ {4}/gm, "\t"));
+				await Bun.write(target, content.replace(/^ {4}/gm, "\t"));
 			},
 		};
 		const session = createSession(tmpDir, { bridge });
@@ -100,9 +99,9 @@ describe("write tool ACP fs routing", () => {
 		const result = await new WriteTool(session).execute("call-drift", { path: filePath, content: requested });
 		const text = resultText(result);
 
-		expect(await fsx.readText(filePath)).toBe(persisted);
-		expect(text).toContain(`[formatted.ts#${computeFileHash(persisted)}]`);
-		expect(text).not.toContain(`[formatted.ts#${computeFileHash(requested)}]`);
+		expect(await Bun.file(filePath).text()).toBe(persisted);
+		expect(text).toContain(`[formatted.ts#${hashlineFileHash(persisted)}]`);
+		expect(text).not.toContain(`[formatted.ts#${hashlineFileHash(requested)}]`);
 	});
 
 	it("emits a progress snapshot before filesystem writes complete", async () => {
@@ -147,12 +146,12 @@ describe("write tool ACP fs routing", () => {
 
 		expect(bridgeSpy).not.toHaveBeenCalled();
 		expect(
-			await fsx.readText(
+			await Bun.file(
 				resolveLocalUrlToPath(planPath, {
 					getArtifactsDir: session.getArtifactsDir,
 					getSessionId: session.getSessionId,
 				}),
-			),
+			).text(),
 		).toBe(planContent);
 	});
 
@@ -178,12 +177,12 @@ describe("write tool ACP fs routing", () => {
 		// still session-local artifacts and stay on disk under the local sandbox.
 		expect(bridgeSpy).not.toHaveBeenCalled();
 		expect(
-			await fsx.readText(
+			await Bun.file(
 				resolveLocalUrlToPath(scratchPath, {
 					getArtifactsDir: session.getArtifactsDir,
 					getSessionId: session.getSessionId,
 				}),
-			),
+			).text(),
 		).toBe(scratchContent);
 	});
 
@@ -200,7 +199,7 @@ describe("write tool ACP fs routing", () => {
 			rejection = error;
 		}
 
-		expect(await fsx.exists(leakedPath)).toBe(false);
+		expect(await Bun.file(leakedPath).exists()).toBe(false);
 		if (!(rejection instanceof Error)) throw new Error("Expected memory:// write to reject");
 		expect(rejection.message).toContain("memory:// URLs are read-only for write");
 	});

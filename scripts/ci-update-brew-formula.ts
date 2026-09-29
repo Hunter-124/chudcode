@@ -1,20 +1,18 @@
 #!/usr/bin/env bun
-
 //
-// Render the Homebrew formula for `chudcode` from a published GitHub release and write
+// Render the Homebrew formula for `omp` from a published GitHub release and write
 // it to a tap checkout. The release publishes per-platform bare binaries
-// (chudcode-<platform>-<arch>); this reads their sha256 digests straight from the
+// (omp-<platform>-<arch>); this reads their sha256 digests straight from the
 // release metadata so the formula never drifts from the shipped assets.
 //
 // Usage:
-//   bun scripts/ci-update-brew-formula.ts <tag> --out <path/to/Formula/chudcode.rb>
+//   bun scripts/ci-update-brew-formula.ts <tag> --out <path/to/Formula/omp.rb>
 //   bun scripts/ci-update-brew-formula.ts v15.10.3        # prints to stdout
 
-import * as fsx from "@chudware/utils/fsx";
 import { $ } from "bun";
 
-const REPO = process.env.CHUDCODE_REPO ?? "Hunter-124/chudcode";
-const HOMEPAGE = "https://chudware.sh";
+const REPO = process.env.OMP_REPO ?? "can1357/oh-my-pi";
+const HOMEPAGE = "https://omp.sh";
 const DESC = "Coding agent with the IDE wired in";
 
 interface ReleaseAsset {
@@ -60,42 +58,55 @@ export function renderFormula(version: string, sums: Record<string, string>): st
 	// Each `url` carries `using: :nounzip` because the release assets are bare
 	// Mach-O/ELF executables, not archives. Without it Homebrew's default
 	// CurlDownloadStrategy routes through UnpackStrategy::Uncompressed#extract_nestedly,
-	// which nests the file outside the staging CWD; `Dir["chudcode-*"].first` then
-	// returns `nil` and `bin.install nil => "chudcode"` raises.
+	// which nests the file outside the staging CWD; `Dir["omp-*"].first` then
+	// returns `nil` and `bin.install nil => "omp"` raises.
 	//
 	// `with_env(HOME: buildpath)` redirects the CLI's `os.homedir()` lookup to
 	// the writable staging dir so `generate_completions_from_executable` does
-	// not touch the real `/Users/<user>/.chudcode` (denied by Homebrew's sandbox
+	// not touch the real `/Users/<user>/.omp` (denied by Homebrew's sandbox
 	// profile, which would otherwise fail the popen).
-	return `class Chudcode < Formula
+	return `class Omp < Formula
   desc "${DESC}"
   homepage "${HOMEPAGE}"
   version "${version}"
   license "MIT"
-  depends_on arch: :x86_64
 
   on_macos do
-    url "https://github.com/${REPO}/releases/download/v#{version}/chudcode-darwin-x64",
-        using: :nounzip
-    sha256 "${sums["chudcode-darwin-x64"]}"
+    on_arm do
+      url "https://github.com/${REPO}/releases/download/v#{version}/omp-darwin-arm64",
+          using: :nounzip
+      sha256 "${sums["omp-darwin-arm64"]}"
+    end
+    on_intel do
+      url "https://github.com/${REPO}/releases/download/v#{version}/omp-darwin-x64",
+          using: :nounzip
+      sha256 "${sums["omp-darwin-x64"]}"
+    end
   end
 
   on_linux do
-    url "https://github.com/${REPO}/releases/download/v#{version}/chudcode-linux-x64",
-        using: :nounzip
-    sha256 "${sums["chudcode-linux-x64"]}"
+    on_arm do
+      url "https://github.com/${REPO}/releases/download/v#{version}/omp-linux-arm64",
+          using: :nounzip
+      sha256 "${sums["omp-linux-arm64"]}"
+    end
+    on_intel do
+      url "https://github.com/${REPO}/releases/download/v#{version}/omp-linux-x64",
+          using: :nounzip
+      sha256 "${sums["omp-linux-x64"]}"
+    end
   end
 
   def install
-    bin.install Dir["chudcode-*"].first => "chudcode"
-    (bin/"chudcode").chmod 0555
+    bin.install Dir["omp-*"].first => "omp"
+    (bin/"omp").chmod 0555
     with_env(HOME: buildpath) do
-      generate_completions_from_executable(bin/"chudcode", "completions", shells: [:bash, :zsh, :fish])
+      generate_completions_from_executable(bin/"omp", "completions", shells: [:bash, :zsh, :fish])
     end
   end
 
   test do
-    assert_match version.to_s, shell_output("#{bin}/chudcode --version")
+    assert_match version.to_s, shell_output("#{bin}/omp --version")
   end
 end
 `;
@@ -106,13 +117,13 @@ async function main(): Promise<void> {
 	const version = tag.replace(/^v/, "");
 	const assets = await fetchAssets(tag);
 
-	const targets = ["chudcode-darwin-x64", "chudcode-linux-x64"];
+	const targets = ["omp-darwin-arm64", "omp-darwin-x64", "omp-linux-arm64", "omp-linux-x64"];
 	const sums: Record<string, string> = {};
 	for (const name of targets) sums[name] = sha256For(assets, name);
 
 	const formula = renderFormula(version, sums);
 	if (out) {
-		await fsx.write(out, formula);
+		await Bun.write(out, formula);
 		console.log(`wrote ${out} for ${tag}`);
 	} else {
 		process.stdout.write(formula);

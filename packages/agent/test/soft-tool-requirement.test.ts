@@ -1,16 +1,16 @@
 import { describe, expect, it } from "bun:test";
-import { agentLoop } from "@chudware/agent-core/agent-loop";
+import { type } from "@oh-my-pi/omptype";
+import { agentLoop } from "@oh-my-pi/pi-agent-core/agent-loop";
 import type {
 	AgentContext,
 	AgentLoopConfig,
 	AgentMessage,
 	AgentTool,
 	SoftToolRequirement,
-} from "@chudware/agent-core/types";
-import type { Message, ToolChoice } from "@chudware/ai";
-import { createMockModel } from "@chudware/ai/providers/mock";
-import { type } from "@chudware/chudtype";
-import { createUserMessage } from "./helpers";
+} from "@oh-my-pi/pi-agent-core/types";
+import type { Message, ToolChoice } from "@oh-my-pi/pi-ai";
+import { createMockModel } from "@oh-my-pi/pi-ai/providers/mock";
+import { createHarmonyMitigationModel, createUserMessage } from "./helpers";
 
 function identityConverter(messages: AgentMessage[]): Message[] {
 	return messages.filter(m => m.role === "user" || m.role === "assistant" || m.role === "toolResult") as Message[];
@@ -249,7 +249,7 @@ describe("agentLoop soft tool requirement", () => {
 			responses: [{ content: [leak] }, { content: ["clean retry"] }],
 		});
 		const config: AgentLoopConfig = {
-			model: mock.model,
+			model: createHarmonyMitigationModel(),
 			convertToLlm: identityConverter,
 			getToolChoice: () => queue.shift(),
 		};

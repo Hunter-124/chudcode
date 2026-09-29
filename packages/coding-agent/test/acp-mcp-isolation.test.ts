@@ -1,7 +1,7 @@
 /**
  * Regression test for issue #1234.
  *
- * `chudcode acp` must not auto-discover host `.mcp.json` servers when creating a
+ * `omp acp` must not auto-discover host `.mcp.json` servers when creating a
  * session for an ACP client. MCP server ownership belongs entirely to the ACP
  * client (`session/new.mcpServers` → `AcpAgent#configureMcpServers`); letting
  * `createAgentSession` run on-disk discovery in parallel registers host MCP
@@ -13,13 +13,12 @@
  */
 
 import { afterAll, describe, expect, it } from "bun:test";
-import { ModelRegistry } from "@chudware/coding-agent/config/model-registry";
-import { Settings } from "@chudware/coding-agent/config/settings";
-import { createAcpSessionFactory } from "@chudware/coding-agent/main";
-import type { CreateAgentSessionOptions, CreateAgentSessionResult } from "@chudware/coding-agent/sdk";
-import type { AgentSession } from "@chudware/coding-agent/session/agent-session";
-import { TempDir } from "@chudware/utils";
-import * as fsx from "@chudware/utils/fsx";
+import { ModelRegistry } from "@oh-my-pi/pi-coding-agent/config/model-registry";
+import { Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
+import { createAcpSessionFactory } from "@oh-my-pi/pi-coding-agent/main";
+import type { CreateAgentSessionOptions, CreateAgentSessionResult } from "@oh-my-pi/pi-coding-agent/sdk";
+import type { AgentSession } from "@oh-my-pi/pi-coding-agent/session/agent-session";
+import { TempDir } from "@oh-my-pi/pi-utils";
 import { createInMemoryAuthStorage } from "./helpers/agent-session-setup";
 
 const authStorage = createInMemoryAuthStorage();
@@ -61,7 +60,7 @@ describe("createAcpSessionFactory MCP isolation (issue #1234)", () => {
 				sessionDir: tempDir.join("sessions"),
 				authStorage,
 				modelRegistry,
-				parsedArgs: {},
+				parsedArgs: { invalidFlagValues: [] },
 				rawArgs: [],
 				createSession,
 			});
@@ -93,7 +92,7 @@ describe("createAcpSessionFactory MCP isolation (issue #1234)", () => {
 				sessionDir: tempDir.join("sessions"),
 				authStorage,
 				modelRegistry,
-				parsedArgs: { tools: ["read", "missing"] },
+				parsedArgs: { tools: ["read", "missing"], invalidFlagValues: [] },
 				rawArgs: ["--tools", "read,missing"],
 				createSession: async () => ({ session: fakeSession }) as CreateAgentSessionResult,
 			});
@@ -112,13 +111,13 @@ describe("createAcpSessionFactory MCP isolation (issue #1234)", () => {
 			const trustedPath = tempDir.join("trusted.ts");
 			const firedPath = tempDir.join("trusted-event-fired");
 			const ambientFiredPath = tempDir.join("ambient-extension-loaded");
-			await fsx.write(
-				tempDir.join(".chudcode/extensions/ambient.ts"),
+			await Bun.write(
+				tempDir.join(".omp/extensions/ambient.ts"),
 				`import { writeFileSync } from "node:fs"; writeFileSync(${JSON.stringify(ambientFiredPath)}, "loaded"); export default function () {}`,
 			);
-			await fsx.write(
+			await Bun.write(
 				trustedPath,
-				`import { writeFileSync } from "node:fs"; export default function (chud) { chud.events.on("acp-session-live", () => writeFileSync(${JSON.stringify(firedPath)}, "fired")); }`,
+				`import { writeFileSync } from "node:fs"; export default function (pi) { pi.events.on("acp-session-live", () => writeFileSync(${JSON.stringify(firedPath)}, "fired")); }`,
 			);
 			let captured: CreateAgentSessionOptions | undefined;
 			const fakeSession = {} as AgentSession;
@@ -131,7 +130,7 @@ describe("createAcpSessionFactory MCP isolation (issue #1234)", () => {
 				sessionDir: tempDir.join("sessions"),
 				authStorage,
 				modelRegistry,
-				parsedArgs: { trustedExtensions: [trustedPath] },
+				parsedArgs: { trustedExtensions: [trustedPath], invalidFlagValues: [] },
 				rawArgs: [],
 				createSession: async options => {
 					captured = options;
@@ -149,8 +148,8 @@ describe("createAcpSessionFactory MCP isolation (issue #1234)", () => {
 
 			expect(captured?.eventBus).toBeDefined();
 			expect(captured?.preloadedExtensions?.extensions).toHaveLength(1);
-			expect(await fsx.readText(firedPath)).toBe("fired");
-			expect(await fsx.exists(ambientFiredPath)).toBe(false);
+			expect(await Bun.file(firedPath).text()).toBe("fired");
+			expect(await Bun.file(ambientFiredPath).exists()).toBe(false);
 		} finally {
 			await tempDir.remove();
 		}
@@ -161,7 +160,7 @@ describe("createAcpSessionFactory MCP isolation (issue #1234)", () => {
 		try {
 			const settings = Settings.isolated({});
 			const trustedPath = tempDir.join("throwing.ts");
-			await fsx.write(trustedPath, 'throw new Error("trusted extension fixture");');
+			await Bun.write(trustedPath, 'throw new Error("trusted extension fixture");');
 			let createCalls = 0;
 			const factory = createAcpSessionFactory({
 				baseOptions: {
@@ -172,7 +171,7 @@ describe("createAcpSessionFactory MCP isolation (issue #1234)", () => {
 				sessionDir: tempDir.join("sessions"),
 				authStorage,
 				modelRegistry,
-				parsedArgs: { trustedExtensions: [trustedPath] },
+				parsedArgs: { trustedExtensions: [trustedPath], invalidFlagValues: [] },
 				rawArgs: [],
 				createSession: async () => {
 					createCalls++;
@@ -195,7 +194,7 @@ describe("createAcpSessionFactory TITLE_SYSTEM.md per-cwd resolution (PR #3736)"
 			const settings = Settings.isolated({});
 
 			const projectDir = tempDir.join("project");
-			await fsx.write(`${projectDir}/.chudcode/TITLE_SYSTEM.md`, "Project-specific title policy.");
+			await Bun.write(`${projectDir}/.omp/TITLE_SYSTEM.md`, "Project-specific title policy.");
 
 			const fakeSession = {} as AgentSession;
 			const captured: CreateAgentSessionOptions[] = [];
@@ -227,7 +226,7 @@ describe("createAcpSessionFactory TITLE_SYSTEM.md per-cwd resolution (PR #3736)"
 				sessionDir: tempDir.join("sessions"),
 				authStorage,
 				modelRegistry,
-				parsedArgs: {},
+				parsedArgs: { invalidFlagValues: [] },
 				rawArgs: [],
 				createSession,
 			});

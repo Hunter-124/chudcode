@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import type { AssistantMessage, Context, ToolCall, ToolResultMessage, Usage } from "@chudware/ai";
+import type { AssistantMessage, Context, ToolCall, ToolResultMessage, Usage } from "@oh-my-pi/pi-ai";
 import {
 	createInbandScanner,
 	type Dialect,
@@ -8,8 +8,7 @@ import {
 	getDialectDefinition,
 	type InbandScanEvent,
 	parseInbandToolMessage,
-	renderInbandToolPrompt,
-} from "@chudware/ai/dialect";
+} from "@oh-my-pi/pi-ai/dialect";
 
 const TOOLS = [
 	{
@@ -150,16 +149,6 @@ const XML_PARAMETER_STREAMS: readonly { dialect: Dialect; chunks: readonly strin
 ];
 
 describe("in-band tool dialects", () => {
-	it("renders a tool prompt for every dialect", () => {
-		for (const dialect of DIALECTS) {
-			const prompt = renderInbandToolPrompt(TOOLS, dialect);
-			expect(prompt).toContain("<tools>");
-			expect(prompt).toContain("</tools>");
-			expect(prompt).toContain('"name":"read"');
-			expect(prompt).toContain(getDialectDefinition(dialect).prompt.trim().split("\n", 1)[0]!);
-		}
-	});
-
 	it("each dialect renders calls that its scanner parses back", () => {
 		const call: ToolCall = {
 			type: "toolCall",

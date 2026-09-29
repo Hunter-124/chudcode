@@ -1,8 +1,8 @@
 #!/bin/sh
 set -e
 
-# Chudcode Coding Agent Installer
-# Usage: curl -fsSL https://raw.githubusercontent.com/Hunter-124/chudcode/main/scripts/install.sh | sh
+# OMP Coding Agent Installer
+# Usage: curl -fsSL https://raw.githubusercontent.com/can1357/oh-my-pi/main/scripts/install.sh | sh
 #
 # Options:
 #   --source       Install via bun (installs bun if needed)
@@ -10,9 +10,9 @@ set -e
 #   --ref <ref>    Install specific tag/commit/branch
 #   -r <ref>       Shorthand for --ref
 
-REPO="Hunter-124/chudcode"
-PACKAGE="@chudware/coding-agent"
-INSTALL_DIR="${CHUDCODE_INSTALL_DIR:-$HOME/.local/bin}"
+REPO="can1357/oh-my-pi"
+PACKAGE="@oh-my-pi/pi-coding-agent"
+INSTALL_DIR="${PI_INSTALL_DIR:-$HOME/.local/bin}"
 MIN_BUN_VERSION="1.3.14"
 
 # Parse arguments
@@ -211,8 +211,8 @@ install_via_bun() {
         }
     fi
     echo ""
-    echo "✓ Installed chudcode via bun"
-    echo "Run 'chudcode' to get started!"
+    echo "✓ Installed omp via bun"
+    echo "Run 'omp' to get started!"
 }
 
 # Install binary from GitHub releases
@@ -238,7 +238,7 @@ install_binary() {
         fi
     fi
 
-    BINARY="chudcode-${PLATFORM}-${ARCH}"
+    BINARY="omp-${PLATFORM}-${ARCH}"
     # Get release tag
     if [ -n "$REF" ]; then
         echo "Fetching release $REF..."
@@ -265,21 +265,21 @@ install_binary() {
     # Download binary
     BINARY_URL="https://github.com/${REPO}/releases/download/${LATEST}/${BINARY}"
     echo "Downloading ${BINARY}..."
-    curl -fsSL --connect-timeout 10 --speed-limit 1024 --speed-time 30 "$BINARY_URL" -o "${INSTALL_DIR}/chudcode"
-    chmod +x "${INSTALL_DIR}/chudcode"
+    curl -fsSL --connect-timeout 10 --speed-limit 1024 --speed-time 30 "$BINARY_URL" -o "${INSTALL_DIR}/omp"
+    chmod +x "${INSTALL_DIR}/omp"
 
     # Verify the freshly installed binary can actually start before reporting
     # success. Bun's musl-target binaries link libstdc++/libgcc dynamically,
     # which stock Alpine/musl systems do not ship, so the download succeeds while
     # the binary exits 127 with relocation errors. Never claim success for a
     # binary that cannot run.
-    if ! SMOKE_OUTPUT="$("${INSTALL_DIR}/chudcode" --version 2>&1)"; then
+    if ! SMOKE_OUTPUT="$("${INSTALL_DIR}/omp" --version 2>&1)"; then
         echo ""
-        echo "✗ chudcode was downloaded to ${INSTALL_DIR}/chudcode but cannot start:"
+        echo "✗ omp was downloaded to ${INSTALL_DIR}/omp but cannot start:"
         echo "$SMOKE_OUTPUT" | sed 's/^/    /'
         if [ "$PLATFORM" = "linux-musl" ]; then
             echo ""
-            echo "The musl build links libstdc++/libgcc dynamically. Install them, then re-run 'chudcode':"
+            echo "The musl build links libstdc++/libgcc dynamically. Install them, then re-run 'omp':"
             if command -v apk >/dev/null 2>&1; then
                 echo "    apk add libstdc++ libgcc"
             else
@@ -290,12 +290,12 @@ install_binary() {
     fi
 
     echo ""
-    echo "✓ Installed chudcode to ${INSTALL_DIR}/chudcode"
+    echo "✓ Installed omp to ${INSTALL_DIR}/omp"
 
     # Check if in PATH
     case ":$PATH:" in
-        *":$INSTALL_DIR:"*) echo "Run 'chudcode' to get started!" ;;
-        *) echo "Add ${INSTALL_DIR} to your PATH, then run 'chudcode'" ;;
+        *":$INSTALL_DIR:"*) echo "Run 'omp' to get started!" ;;
+        *) echo "Add ${INSTALL_DIR} to your PATH, then run 'omp'" ;;
     esac
 }
 

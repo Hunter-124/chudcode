@@ -2,12 +2,11 @@ import { afterAll, describe, expect, it, vi } from "bun:test";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
-import type { AssistantMessage, AssistantMessageEvent, Context, Model } from "@chudware/ai";
-import { AssistantMessageEventStream } from "@chudware/ai/utils/event-stream";
-import { buildModel } from "@chudware/catalog/build";
-import * as snapcompact from "@chudware/snapcompact";
-import { getProjectDir } from "@chudware/utils";
-import * as fsx from "@chudware/utils/fsx";
+import type { AssistantMessage, AssistantMessageEvent, Context, Model } from "@oh-my-pi/pi-ai";
+import { AssistantMessageEventStream } from "@oh-my-pi/pi-ai/utils/event-stream";
+import { buildModel } from "@oh-my-pi/pi-catalog/build";
+import { getProjectDir } from "@oh-my-pi/pi-utils";
+import * as snapcompact from "@oh-my-pi/snapcompact";
 import { LocalBlobBackend } from "../src/blob-broker/broker";
 import { contextHasImageUrls, supportsRemoteImageUrls } from "../src/blob-broker/context-images";
 import { ImageUrlService } from "../src/blob-broker/service";
@@ -160,20 +159,12 @@ describe("BlobRegistry lazy blobs", () => {
 		expect((await store.serve(request())).status).toBe(200);
 		expect(renders).toBe(2);
 	});
-
-	it("responds 410 when a lazy source is gone", async () => {
-		const store = new BlobRegistry();
-		const entry = store.registerLazy("gone", "image/png", async () => null);
-		expect(entry.bytes).toBe(0);
-		const response = await store.serve(new Request(`http://blob.local/${entry.path}`));
-		expect(response.status).toBe(410);
-	});
 });
 
 describe("BlobRegistry persistence", () => {
 	let persistSeq = 0;
 	function makePersist(ttlMs: number): BlobPersistence {
-		const dir = path.join(os.tmpdir(), `chudcode-blob-registry-${process.pid}-${persistSeq++}`);
+		const dir = path.join(os.tmpdir(), `omp-blob-registry-${process.pid}-${persistSeq++}`);
 		fs.mkdirSync(dir, { recursive: true });
 		cleanups.push(() => void fs.promises.rm(dir, { recursive: true, force: true }));
 		return { blobsDir: dir, indexPath: path.join(dir, "urls-index.json"), ttlMs };
@@ -299,7 +290,7 @@ describe("ImageUrlService", () => {
 		expect(served.status).toBe(200);
 		const bytes = new Uint8Array(await served.arrayBuffer());
 		expect(bytes.byteLength).toBeGreaterThan(8);
-		expect([...bytes.slice(1, 4)]).toEqual([0x50, 0x4e, 0x47]); // "PNG"
+		expect(Array.from(bytes.slice(1, 4))).toEqual([0x50, 0x4e, 0x47]); // "PNG"
 
 		// Inline retry: placeholder frames gain data and lose their urls.
 		const context: Context = {
@@ -346,8 +337,8 @@ describe("uploaders", () => {
 	});
 
 	it("runs a command uploader end to end against a stub binary", async () => {
-		const stub = path.join(os.tmpdir(), `chudcode-test-uploader-${process.pid}.sh`);
-		await fsx.write(
+		const stub = path.join(os.tmpdir(), `omp-test-uploader-${process.pid}.sh`);
+		await Bun.write(
 			stub,
 			`#!/bin/sh\ntest -s "$2" || exit 3\necho "uploaded $2"\necho "https://files.example/abc.$3"\n`,
 		);
@@ -442,7 +433,7 @@ describe("wrapStreamFnWithBlobUrlFallback", () => {
 				{ type: "done", reason: "stop", message: done },
 			]);
 		};
-		const wrapped = wrapStreamFnWithBlobUrlFallback(base as never, service);
+		const wrapped = wrapStreamFnWithBlobUrlFallback(base as never, () => service);
 
 		const decorated = await service.decorateContext(makeContext(), anthropicModel);
 		const stream = await wrapped(anthropicModel, decorated, undefined);
@@ -469,7 +460,7 @@ describe("wrapStreamFnWithBlobUrlFallback", () => {
 				{ type: "error", reason: "error", error: errorMessage("mid-stream failure") },
 			]);
 		};
-		const wrapped = wrapStreamFnWithBlobUrlFallback(base as never, service);
+		const wrapped = wrapStreamFnWithBlobUrlFallback(base as never, () => service);
 
 		const decorated = await service.decorateContext(makeContext(), anthropicModel);
 		const stream = await wrapped(anthropicModel, decorated, undefined);

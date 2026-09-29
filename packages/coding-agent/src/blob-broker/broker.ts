@@ -4,7 +4,7 @@
  * `LocalBlobBackend` runs everything in-process — either a loopback HTTP
  * server behind a tunnel/direct exposure (serve mode) or a push-once uploader
  * (upload mode). The daemon-shared variant in `daemon.ts` implements the same
- * {@link BlobBackend} contract over the project blob daemon so every chudcode
+ * {@link BlobBackend} contract over the project blob daemon so every omp
  * process reuses one exposure and one URL per blob.
  *
  * Design invariants:
@@ -14,7 +14,7 @@
  *   provider may refetch on a cache miss — single-use tokens would break all
  *   three.
  * - **Unguessable URL is the only authorization.** 128-bit random token per
- *   blob. `User-Agent` attribution (chud-catalog fetcher registry) is telemetry,
+ *   blob. `User-Agent` attribution (pi-catalog fetcher registry) is telemetry,
  *   never a gate.
  * - **Fail toward inline.** Missing binary, tunnel crash, failed upload, or a
  *   provider rejection all degrade to inline base64.
@@ -22,7 +22,7 @@
 
 import * as fs from "node:fs";
 import * as path from "node:path";
-import { logger } from "@chudware/utils";
+import { logger } from "@oh-my-pi/pi-utils";
 import type { BlobDestinationId } from "./destinations";
 import { type ExposureConfig, type ExposureKind, probeExposureHealth, startExposure } from "./exposure";
 import type {
@@ -128,7 +128,7 @@ export class LocalBlobBackend implements BlobBackend {
 				hostname: this.#config.bindHost,
 				port: 0,
 				fetch: request => {
-					if (new URL(request.url).pathname === "/.well-known/chudcode-blob-health") {
+					if (new URL(request.url).pathname === "/.well-known/omp-blob-health") {
 						return new Response(null, { status: 204 });
 					}
 					return this.#store.serve(request);

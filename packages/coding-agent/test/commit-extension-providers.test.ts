@@ -1,8 +1,7 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from "bun:test";
 import * as path from "node:path";
-import { runCommitCommand } from "@chudware/coding-agent/commit";
-import { getProjectAgentDir, setAgentDir, setProjectDir, TempDir } from "@chudware/utils";
-import * as fsx from "@chudware/utils/fsx";
+import { runCommitCommand } from "@oh-my-pi/pi-coding-agent/commit";
+import { getProjectAgentDir, setAgentDir, setProjectDir, TempDir } from "@oh-my-pi/pi-utils";
 import { $ } from "bun";
 import { beginSettingsTest, restoreSettingsTestState, type SettingsTestState } from "./helpers/settings-test-state";
 
@@ -22,10 +21,10 @@ beforeEach(async () => {
 	setAgentDir(agentTmp.path());
 
 	const extensionPath = tmp.join("provider.ts");
-	await fsx.write(
+	await Bun.write(
 		extensionPath,
-		`export default function (chud) {
-	chud.registerProvider("${PROVIDER}", {
+		`export default function (pi) {
+	pi.registerProvider("${PROVIDER}", {
 		baseUrl: "https://example.invalid/v1",
 		apiKey: "fixture-key",
 		api: "openai-completions",
@@ -42,7 +41,7 @@ beforeEach(async () => {
 }
 `,
 	);
-	await fsx.write(
+	await Bun.write(
 		path.join(getProjectAgentDir(tmp.path()), "settings.json"),
 		JSON.stringify({
 			extensions: [extensionPath],

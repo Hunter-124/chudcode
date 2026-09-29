@@ -6,17 +6,12 @@
 import { describe, expect, it } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
-import { Process } from "@chudware/natives";
-import { TempDir } from "@chudware/utils";
-import { sleep } from "@chudware/utils/async";
+import { Process } from "@oh-my-pi/pi-natives";
+import { TempDir } from "@oh-my-pi/pi-utils";
 import { type DaemonBrokerStartOptions, startDaemonBrokerFromEnvironment } from "../../src/launch/broker";
 import { createDaemonBrokerClient, type DaemonBrokerClient } from "../../src/launch/client";
-import {
-	DAEMON_IDLE_GRACE_ENV,
-	DAEMON_PROJECT_DIR_ENV,
-	DAEMON_RUNTIME_DIR_ENV,
-	type DaemonSnapshot,
-} from "../../src/launch/protocol";
+import { DAEMON_IDLE_GRACE_ENV, DAEMON_PROJECT_DIR_ENV, DAEMON_RUNTIME_DIR_ENV } from "../../src/launch/protocol";
+import { type DaemonSnapshot } from "@oh-my-pi/pi-tui/tools/daemon";
 
 const RESTART_BACKOFF_BASE_MS = 250;
 const INITIAL_RESTART_DELAY_MS = RESTART_BACKOFF_BASE_MS * 2;
@@ -59,14 +54,14 @@ async function waitForState(
 	while (Date.now() < deadline) {
 		const daemon = await snapshotOf(client, name);
 		if (daemon.state === state) return daemon;
-		await sleep(25);
+		await Bun.sleep(25);
 	}
 	throw new Error(`daemon ${name} never reached state ${state}`);
 }
 
 describe("daemon broker restart settling", () => {
 	it("does not re-settle a restarting detached daemon on ops, keeping stop authoritative", async () => {
-		using tempDir = TempDir.createSync("@chudcode-launch-restart-");
+		using tempDir = TempDir.createSync("@omp-launch-restart-");
 		const projectDir = path.join(tempDir.path(), "project");
 		const runtimeDir = path.join(tempDir.path(), "runtime");
 		await fs.mkdir(projectDir);
@@ -114,7 +109,7 @@ describe("daemon broker restart settling", () => {
 			expect(stopped.daemon.state).toBe("exited");
 
 			// Cross the configured initial backoff where a leaked timer would fire #launch.
-			await sleep(INITIAL_RESTART_DELAY_MS + RESTART_SETTLE_MARGIN_MS);
+			await Bun.sleep(INITIAL_RESTART_DELAY_MS + RESTART_SETTLE_MARGIN_MS);
 			const afterStop = await snapshotOf(client, name);
 			expect(afterStop.state).toBe("exited");
 			expect(afterStop.pid).toBeUndefined();
@@ -129,7 +124,7 @@ describe("daemon broker restart settling", () => {
 	}, 20_000);
 
 	it("settles a recovered detached daemon once across concurrent refreshes", async () => {
-		using tempDir = TempDir.createSync("@chudcode-launch-recovered-restart-");
+		using tempDir = TempDir.createSync("@omp-launch-recovered-restart-");
 		const projectDir = path.join(tempDir.path(), "project");
 		const runtimeDir = path.join(tempDir.path(), "runtime");
 		await fs.mkdir(projectDir);

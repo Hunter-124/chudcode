@@ -1,18 +1,18 @@
 import { afterEach, beforeAll, describe, expect, it, vi } from "bun:test";
 import * as path from "node:path";
-import { Agent, AgentBusyError } from "@chudware/agent-core";
-import type { ImageContent } from "@chudware/ai";
-import { ModelRegistry } from "@chudware/coding-agent/config/model-registry";
-import { resetSettingsForTest, Settings } from "@chudware/coding-agent/config/settings";
-import { GoalTool } from "@chudware/coding-agent/goals/tools/goal-tool";
-import { InteractiveMode } from "@chudware/coding-agent/modes/interactive-mode";
-import { initTheme } from "@chudware/coding-agent/modes/theme/theme";
-import type { AgentSessionEvent } from "@chudware/coding-agent/session/agent-session";
-import { AgentSession } from "@chudware/coding-agent/session/agent-session";
-import { AuthStorage } from "@chudware/coding-agent/session/auth-storage";
-import { SessionManager } from "@chudware/coding-agent/session/session-manager";
-import { createTools, type Tool, type ToolSession } from "@chudware/coding-agent/tools";
-import { TempDir } from "@chudware/utils";
+import { Agent, AgentBusyError } from "@oh-my-pi/pi-agent-core";
+import type { ImageContent } from "@oh-my-pi/pi-ai";
+import { ModelRegistry } from "@oh-my-pi/pi-coding-agent/config/model-registry";
+import { resetSettingsForTest, Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
+import { GoalTool } from "@oh-my-pi/pi-coding-agent/goals/tools/goal-tool";
+import { InteractiveMode } from "@oh-my-pi/pi-coding-agent/modes/interactive-mode";
+import { initTheme } from "@oh-my-pi/pi-tui/theme";
+import type { AgentSessionEvent } from "@oh-my-pi/pi-coding-agent/session/agent-session";
+import { AgentSession } from "@oh-my-pi/pi-coding-agent/session/agent-session";
+import { AuthStorage } from "@oh-my-pi/pi-coding-agent/session/auth-storage";
+import { SessionManager } from "@oh-my-pi/pi-coding-agent/session/session-manager";
+import { createTools, type Tool, type ToolSession } from "@oh-my-pi/pi-coding-agent/tools";
+import { TempDir } from "@oh-my-pi/pi-utils";
 
 function createToolSession(cwd: string, settings: Settings, overrides: Partial<ToolSession> = {}): ToolSession {
 	return {

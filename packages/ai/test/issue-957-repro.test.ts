@@ -2,8 +2,9 @@ import { afterEach, describe, expect, it, vi } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import { AuthStorage, SqliteAuthCredentialStore } from "@chudware/ai/auth-storage";
-import * as kimiOauth from "@chudware/ai/registry/oauth/kimi";
+import { AuthStorage, SqliteAuthCredentialStore } from "@oh-my-pi/pi-ai/auth-storage";
+import { getProviderDefinition } from "@oh-my-pi/pi-ai/registry";
+import * as kimiOauth from "@oh-my-pi/pi-ai/registry/oauth/kimi";
 import { removeWithRetries } from "../../utils/src/temp";
 
 afterEach(() => {
@@ -21,11 +22,11 @@ const kimiHeadersStub = {
 } as const;
 
 describe("issue #957 - Kimi OAuth refresh", () => {
-	it("subtracts the 5-minute skew when parsing Kimi token expiry", async () => {
+	it("subtracts the 5-minute skew when mapping Kimi token expiry", async () => {
 		// Kimi tokens claim a 60-minute lifetime via `expires_in`, but in
 		// practice the server invalidates them roughly 5 minutes earlier than
-		// that. parseTokenPayload subtracts OAUTH_EXPIRY_SKEW_MS (5 min) so we
-		// schedule the refresh before the real server cutoff.
+		// that. The declarative credential map applies the standard 5-minute
+		// OAuth skew so we schedule the refresh before the real server cutoff.
 		const issuedAt = 1_700_000_000_000;
 		vi.spyOn(Date, "now").mockReturnValue(issuedAt);
 		vi.spyOn(kimiOauth, "getKimiCommonHeaders").mockReturnValue(kimiHeadersStub);
@@ -48,7 +49,9 @@ describe("issue #957 - Kimi OAuth refresh", () => {
 			),
 		);
 
-		const refreshed = await kimiOauth.refreshKimiToken("refresh-0");
+		const refreshToken = getProviderDefinition("kimi-code")?.refreshToken;
+		if (!refreshToken) throw new Error("expected kimi-code refresh");
+		const refreshed = await refreshToken({ access: "access-0", refresh: "refresh-0", expires: issuedAt });
 
 		expect(refreshed.access).toBe("access-1");
 		expect(refreshed.refresh).toBe("refresh-1");
@@ -84,11 +87,11 @@ describe("issue #957 - Kimi OAuth refresh", () => {
 			),
 		);
 
-		const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "chud-ai-issue-957-"));
+		const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "pi-ai-issue-957-"));
 		const store = await SqliteAuthCredentialStore.open(path.join(tempDir, "agent.db"));
 		const authStorage = new AuthStorage(store);
 		try {
-			await authStorage.set("kimi-code", [
+			await authStorage.credentials.set("kimi-code", [
 				{
 					type: "oauth",
 					access: "access-stored",
@@ -100,7 +103,7 @@ describe("issue #957 - Kimi OAuth refresh", () => {
 				},
 			]);
 
-			const apiKey = await authStorage.getApiKey("kimi-code");
+			const apiKey = await authStorage.keys.get("kimi-code");
 			expect(apiKey).toBe("access-refreshed");
 			expect(refreshCalls).toBe(1);
 

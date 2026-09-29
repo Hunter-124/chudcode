@@ -1,23 +1,22 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "bun:test";
-import { createAutoresearchExtension } from "@chudware/coding-agent/autoresearch";
+import { createAutoresearchExtension } from "@oh-my-pi/pi-coding-agent/autoresearch";
 import {
 	buildExperimentState,
 	computeConfidence,
-	findBaselineMetric,
-	findBaselineRunNumber,
 	findBestKeptMetric,
 	reconstructControlState,
-} from "@chudware/coding-agent/autoresearch/state";
-import { AutoresearchStorage, closeAllAutoresearchStorages } from "@chudware/coding-agent/autoresearch/storage";
-import type { ExperimentResult } from "@chudware/coding-agent/autoresearch/types";
+} from "@oh-my-pi/pi-coding-agent/autoresearch/state";
+import { AutoresearchStorage, closeAllAutoresearchStorages } from "@oh-my-pi/pi-coding-agent/autoresearch/storage";
+import type { ExperimentResult } from "@oh-my-pi/pi-tui/tools/autoresearch";
+import { findBaselineMetric, findBaselineRunNumber } from "@oh-my-pi/pi-tui/apps/autoresearch-data";
 import type {
 	ExtensionAPI,
 	ExtensionCommandContext,
 	RegisteredCommand,
-} from "@chudware/coding-agent/extensibility/extensions";
-import * as git from "@chudware/coding-agent/utils/git";
-import { TempDir } from "@chudware/utils";
-import { sleep } from "@chudware/utils/async";
+} from "@oh-my-pi/pi-coding-agent/extensibility/extensions";
+import type { VcsGitRepo, VcsGitRepoInfo } from "@oh-my-pi/pi-natives";
+import * as vcs from "@oh-my-pi/pi-natives/vcs";
+import { TempDir } from "@oh-my-pi/pi-utils";
 
 afterEach(() => {
 	vi.restoreAllMocks();
@@ -116,7 +115,7 @@ describe("AutoresearchStorage round-trip", () => {
 	});
 
 	afterEach(async () => {
-		await sleep(0);
+		await Bun.sleep(0);
 		await dbDir.remove().catch(() => {});
 	});
 
@@ -411,39 +410,44 @@ function createCommandHarness(
 		return execImpl ? execImpl("git", args) : { code: 0, stderr: "", stdout: "" };
 	};
 
-	vi.spyOn(git.repo, "root").mockImplementation(async () => {
-		const result = await runGitMock(["rev-parse", "--show-toplevel"]);
-		if (result.code !== 0) return null;
-		const repoRoot = result.stdout.trim();
-		return repoRoot.length > 0 ? repoRoot : null;
-	});
-	vi.spyOn(git.show, "prefix").mockImplementation(async () => {
-		const result = await runGitMock(["rev-parse", "--show-prefix"]);
-		return result.code === 0 ? result.stdout.trim() : "";
-	});
-	vi.spyOn(git.branch, "current").mockImplementation(async () => {
-		const result = await runGitMock(["branch", "--show-current"]);
-		if (result.code !== 0) return null;
-		const branch = result.stdout.trim();
-		return branch.length > 0 ? branch : null;
-	});
-	const mockStatus = Object.assign(
-		async (_cwd: string) => {
+	const repoInfo: VcsGitRepoInfo = {
+		commonDir: `${cwd}/.git`,
+		gitDir: `${cwd}/.git`,
+		gitEntryPath: `${cwd}/.git`,
+		headPath: `${cwd}/.git/HEAD`,
+		isReftable: false,
+		repoRoot: cwd,
+	};
+	const repository = {
+		checkoutNewBranch: async (branchName: string) => {
+			const result = await runGitMock(["checkout", "-b", branchName]);
+			if (result.code !== 0) throw new Error(result.stderr || "git checkout failed");
+		},
+		currentBranch: async () => {
+			const result = await runGitMock(["branch", "--show-current"]);
+			if (result.code !== 0) return null;
+			const branch = result.stdout.trim();
+			return branch.length > 0 ? branch : null;
+		},
+		info: () => repoInfo,
+		prefixOf: () => {
+			execCalls.push({ args: ["rev-parse", "--show-prefix"], command: "git" });
+			return "";
+		},
+		refExists: async (refName: string) => {
+			const result = await runGitMock(["show-ref", "--verify", "--quiet", refName]);
+			return result.code === 0;
+		},
+		statusPorcelain: async () => {
 			const result = await runGitMock(["status", "--porcelain=v1", "--untracked-files=all", "-z"]);
 			if (result.code !== 0) throw new Error(result.stderr || "git status failed");
 			return result.stdout;
 		},
-		{ parse: git.status.parse, summary: git.status.summary },
-	);
-	vi.spyOn(git, "status").mockImplementation(mockStatus);
-	vi.spyOn(git.ref, "exists").mockImplementation(async (_workDir, refName) => {
-		const result = await runGitMock(["show-ref", "--verify", "--quiet", refName]);
-		return result.code === 0;
-	});
-	vi.spyOn(git.branch, "checkoutNew").mockImplementation(async (_workDir, branchName) => {
-		const result = await runGitMock(["checkout", "-b", branchName]);
-		if (result.code !== 0) throw new Error(result.stderr || "git checkout failed");
-	});
+	} as unknown as VcsGitRepo;
+	vi.spyOn(vcs, "git").mockReturnValue(repository);
+	vi.spyOn(vcs, "requireGit").mockReturnValue(repository);
+	vi.spyOn(vcs, "gitInfo").mockReturnValue(repoInfo);
+	vi.spyOn(vcs, "isPureJj").mockReturnValue(false);
 
 	const api = {
 		appendEntry(): void {},
@@ -518,12 +522,12 @@ describe("autoresearch slash command", () => {
 
 	beforeEach(() => {
 		dbOverride = TempDir.createSync("@pi-autoresearch-cmd-");
-		process.env.CHUDCODE_AUTORESEARCH_DB_DIR = dbOverride.path();
+		process.env.OMP_AUTORESEARCH_DB_DIR = dbOverride.path();
 		cleanups.push(dbOverride);
 	});
 
 	afterEach(() => {
-		delete process.env.CHUDCODE_AUTORESEARCH_DB_DIR;
+		delete process.env.OMP_AUTORESEARCH_DB_DIR;
 		closeAllAutoresearchStorages();
 		for (const dir of cleanups.splice(0)) {
 			dir.removeSync();
@@ -585,12 +589,12 @@ describe("autoresearch tool-call hook", () => {
 
 	beforeEach(() => {
 		dbOverride = TempDir.createSync("@pi-autoresearch-hook-");
-		process.env.CHUDCODE_AUTORESEARCH_DB_DIR = dbOverride.path();
+		process.env.OMP_AUTORESEARCH_DB_DIR = dbOverride.path();
 		cleanups.push(dbOverride);
 	});
 
 	afterEach(() => {
-		delete process.env.CHUDCODE_AUTORESEARCH_DB_DIR;
+		delete process.env.OMP_AUTORESEARCH_DB_DIR;
 		closeAllAutoresearchStorages();
 		for (const dir of cleanups.splice(0)) {
 			dir.removeSync();

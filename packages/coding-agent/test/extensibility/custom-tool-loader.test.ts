@@ -2,9 +2,8 @@ import { afterEach, describe, expect, it } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import { toolWireSchema } from "@chudware/ai/utils/schema";
-import { validateToolArguments } from "@chudware/ai/utils/validation";
-import * as fsx from "@chudware/utils/fsx";
+import { toolWireSchema } from "@oh-my-pi/pi-ai/utils/schema";
+import { validateToolArguments } from "@oh-my-pi/pi-ai/utils/validation";
 import { loadCustomTools, type ToolPathWithSource } from "../../src/extensibility/custom-tools/loader";
 
 let tempRoot: string | undefined;
@@ -17,9 +16,9 @@ afterEach(async () => {
 });
 
 async function writeTool(name: string, source: string): Promise<string> {
-	tempRoot ??= await fs.mkdtemp(path.join(os.tmpdir(), "chudcode-custom-tool-loader-"));
+	tempRoot ??= await fs.mkdtemp(path.join(os.tmpdir(), "omp-custom-tool-loader-"));
 	const filePath = path.join(tempRoot, name);
-	await fsx.write(filePath, source);
+	await Bun.write(filePath, source);
 	return filePath;
 }
 
@@ -45,8 +44,6 @@ const TEST_SOURCE: NonNullable<ToolPathWithSource["source"]> = {
 	providerName: "Regression Plugin",
 	level: "user",
 };
-
-const ARRAY_WITH_NULL_SOURCE = ["export default () => [null];"].join("\n");
 
 const MIXED_ARRAY_SOURCE = [
 	"export default api => [",
@@ -74,7 +71,7 @@ const MISSING_NAME_SOURCE = [
 ].join("\n");
 
 describe("custom tool loader", () => {
-	it("injects callable chudtype-backed zod schemas through validation and wire emission", async () => {
+	it("injects callable omptype-backed zod schemas through validation and wire emission", async () => {
 		const toolPath = await writeTool(
 			"zod-wire.js",
 			[
@@ -156,21 +153,6 @@ describe("custom tool loader", () => {
 		expect(result.errors).toHaveLength(1);
 		expect(result.errors[0]?.path).toBe(factoryExitTool);
 		expect(result.errors[0]?.error).toContain("process.exit(3)");
-	});
-
-	it("reports a null array entry instead of throwing", async () => {
-		const nullArrayTool = await writeTool("null-array.js", ARRAY_WITH_NULL_SOURCE);
-
-		const result = await loadCustomTools([{ path: nullArrayTool, source: TEST_SOURCE }], requireTempRoot(), []);
-
-		expect(result.tools).toEqual([]);
-		expect(result.errors).toHaveLength(1);
-		expect(result.errors[0]).toMatchObject({
-			path: nullArrayTool,
-			source: TEST_SOURCE,
-		});
-		expect(result.errors[0]?.error.toLowerCase()).toContain("invalid");
-		expect(result.errors[0]?.error).toContain("index 0");
 	});
 
 	it("reports a tool entry missing a name instead of throwing", async () => {

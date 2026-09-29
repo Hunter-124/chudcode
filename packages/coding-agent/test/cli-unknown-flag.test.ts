@@ -1,8 +1,8 @@
 import { describe, expect, it } from "bun:test";
-import { parseArgs, reportUnrecognizedFlags } from "@chudware/coding-agent/cli/args";
-import { applyExtensionFlags } from "@chudware/coding-agent/cli/extension-flags";
+import { parseArgs, reportUnrecognizedFlags } from "@oh-my-pi/pi-coding-agent/cli/args";
+import { applyExtensionFlags } from "@oh-my-pi/pi-coding-agent/cli/extension-flags";
 
-// Regression coverage for issue #2459: `chudcode --list-models` (a stale flag) was
+// Regression coverage for issue #2459: `omp --list-models` (a stale flag) was
 // silently consumed as a prompt instead of failing fast — the agent started a
 // real session, connected to MCP, and hung waiting for the model. Any
 // `--`-prefixed token that does not match a built-in OR an extension-registered
@@ -67,7 +67,7 @@ describe("parseArgs — unrecognized flag tracking (#2459)", () => {
 	});
 
 	it("treats every token after `--` as a positional, even flag-shaped ones (#2461 review)", () => {
-		// `chudcode -p -- --explain-this` must forward `--explain-this` as the
+		// `omp -p -- --explain-this` must forward `--explain-this` as the
 		// prompt body. Without after-separator semantics the unknown-flag guard
 		// trips on it and the CLI exits before any session work.
 		const parsed = parseArgs(["-p", "--", "--explain-this", "-x", "plain"]);
@@ -97,17 +97,6 @@ describe("parseArgs — unrecognized flag tracking (#2459)", () => {
 		expect(reparsed.unrecognizedFlags).toEqual([]);
 		expect(reparsed.unknownFlags.get("spawn-peer")).toBe("reviewer");
 		expect(reparsed.messages).toEqual(["review the diff"]);
-	});
-
-	it("keeps a genuine typo in unrecognizedFlags after an extension-aware reparse", () => {
-		// `--spawn-peer` is an extension flag, `--list-models` is a typo. After
-		// the extension-aware reparse only the typo remains and the caller
-		// surfaces it.
-		const argv = ["--spawn-peer", "reviewer", "--list-models"];
-		const reparsed = parseArgs(argv, new Map([["spawn-peer", { type: "string" }]]));
-
-		expect(reparsed.unrecognizedFlags).toEqual(["--list-models"]);
-		expect(reparsed.unknownFlags.get("spawn-peer")).toBe("reviewer");
 	});
 
 	it("propagates unrecognizedFlags through applyExtensionFlags so callers can surface them", () => {

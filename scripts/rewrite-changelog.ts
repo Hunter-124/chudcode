@@ -8,7 +8,7 @@
  * the final shipped behavior belongs in release notes.
  *
  * For every non-empty `[Unreleased]` section this script hands the whole section
- * to a small model (default `openai-codex/gpt-5.6-luna` via `@chudware/ai`),
+ * to a small model (default `openai-codex/gpt-5.6-luna` via `@oh-my-pi/pi-ai`),
  * and asks for a complete replacement grouped by changelog category. The model
  * returns structured sections/items; markdown is rendered locally so only the
  * Unreleased section changes and formatting stays deterministic.
@@ -25,18 +25,16 @@
  *   bun scripts/rewrite-changelog.ts --package coding-agent
  *   bun scripts/rewrite-changelog.ts --model google/gemini-3.5-flash
  *
- * Auth: resolves the provider API key through chudcode's auth storage
- * (~/.chudcode/agent/agent.db: stored key, OAuth, or env var fallback).
+ * Auth: resolves the provider API key through omp's auth storage
+ * (~/.omp/agent/agent.db: stored key, OAuth, or env var fallback).
  */
 
 import * as path from "node:path";
 import { parseArgs } from "node:util";
-import { type Api, completeSimple, Effort, type Model, type Tool, type ToolCall } from "@chudware/ai";
-import { discoverAuthStorage } from "@chudware/ai/auth-broker";
-import { type GeneratedProvider, getBundledModel } from "@chudware/catalog/models";
-import { type } from "@chudware/chudtype";
-import { sleep } from "@chudware/utils/async";
-import * as fsx from "@chudware/utils/fsx";
+import { type } from "@oh-my-pi/omptype";
+import { type Api, completeSimple, Effort, type Model, type Tool, type ToolCall } from "@oh-my-pi/pi-ai";
+import { discoverAuthStorage } from "@oh-my-pi/pi-ai/auth-broker";
+import { type GeneratedProvider, getBundledModel } from "@oh-my-pi/pi-catalog/models";
 import {
 	type ChangelogDocument,
 	changelogPaths,
@@ -104,12 +102,13 @@ async function openModel(modelSpec: string): Promise<RewriteModel> {
 	const modelId = modelSpec.slice(slash + 1);
 	const model = getBundledModel(provider as GeneratedProvider, modelId);
 	if (!model) throw new Error(`unknown model "${modelSpec}" (not in bundled catalog)`);
-	const storage = await discoverAuthStorage({ sourceLabel: "rewrite-changelog" });
+	const sourceLabel = "rewrite-changelog";
+	const storage = await discoverAuthStorage({ sourceLabel });
 	try {
-		const apiKey = await storage.getApiKey(provider);
+		const apiKey = await storage.keys.get(provider);
 		if (!apiKey) {
 			throw new Error(
-				`no credentials for provider "${provider}" via ${storage.sourceLabel ?? "auth storage"} (check broker or run \`chudcode login\`)`,
+				`no credentials for provider "${provider}" via ${sourceLabel} (check broker or run \`omp login\`)`,
 			);
 		}
 		return { model, apiKey, spec: modelSpec };
@@ -252,7 +251,7 @@ Consolidate and rewrite this content into user-visible release notes. Keep all p
 
 		if (response.stopReason === "error" || response.stopReason === "aborted") {
 			lastError = response.errorMessage ?? response.stopReason;
-			await sleep(1500 * (attempt + 1));
+			await Bun.sleep(1500 * (attempt + 1));
 			continue;
 		}
 
@@ -340,6 +339,7 @@ async function run(options: RunOptions): Promise<RunResult> {
 		throw lastError;
 	}
 	const concurrency = options.concurrency ?? 4;
+	// oxlint-disable-next-line unicorn/no-new-array -- length preallocation
 	const results: Array<RewrittenFile | undefined> = new Array(paths.length);
 
 	let pathIndex = 0;
@@ -349,7 +349,7 @@ async function run(options: RunOptions): Promise<RunResult> {
 			const changelogPath = paths[i];
 			if (!changelogPath) continue;
 			const absolutePath = path.join(repoRoot, changelogPath);
-			const content = await fsx.readText(absolutePath);
+			const content = await Bun.file(absolutePath).text();
 			const document = parseChangelog(content);
 			const section = unreleasedSection(document);
 			if (!section) continue;
@@ -368,7 +368,7 @@ async function run(options: RunOptions): Promise<RunResult> {
 
 			const rewrittenCount = rewritten.reduce((sum, sec) => sum + sec.items.length, 0);
 			if (options.write) {
-				await fsx.write(absolutePath, next);
+				await Bun.write(absolutePath, next);
 			}
 
 			results[i] = {

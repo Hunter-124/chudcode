@@ -1,28 +1,27 @@
 import { afterAll, afterEach, beforeAll, describe, expect, test, vi } from "bun:test";
-import type { AgentMessage } from "@chudware/agent-core";
-import type { ImageContent, TextContent } from "@chudware/ai";
-import { resetSettingsForTest, Settings } from "@chudware/coding-agent/config/settings";
+import type { AgentMessage } from "@oh-my-pi/pi-agent-core";
+import type { ImageContent, TextContent } from "@oh-my-pi/pi-ai";
+import { resetSettingsForTest, Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
 import type {
 	ExtensionActions,
 	ExtensionCommandContextActions,
 	ExtensionContextActions,
 	ExtensionUIContext,
-} from "@chudware/coding-agent/extensibility/extensions";
-import { ExtensionUiController } from "@chudware/coding-agent/modes/controllers/extension-ui-controller";
-import { initTheme } from "@chudware/coding-agent/modes/theme/theme";
-import type { InteractiveModeContext, RenderSessionContextOptions } from "@chudware/coding-agent/modes/types";
-import { UiHelpers } from "@chudware/coding-agent/modes/utils/ui-helpers";
-import { buildSessionContext, type SessionContext } from "@chudware/coding-agent/session/session-context";
-import type { CustomMessageEntry, SessionEntry } from "@chudware/coding-agent/session/session-entries";
-import { Container } from "@chudware/tui";
-import { sleep } from "@chudware/utils/async";
+} from "@oh-my-pi/pi-coding-agent/extensibility/extensions";
+import { ExtensionUiController } from "@oh-my-pi/pi-coding-agent/modes/controllers/extension-ui-controller";
+import { initTheme } from "@oh-my-pi/pi-tui/theme";
+import type { InteractiveModeContext, RenderSessionContextOptions } from "@oh-my-pi/pi-coding-agent/modes/types";
+import { UiHelpers } from "@oh-my-pi/pi-coding-agent/modes/utils/ui-helpers";
+import { buildSessionContext, type SessionContext } from "@oh-my-pi/pi-coding-agent/session/session-context";
+import type { CustomMessageEntry, SessionEntry } from "@oh-my-pi/pi-coding-agent/session/session-entries";
+import { Container } from "@oh-my-pi/pi-tui";
 
 /**
  * Issue #1955: `sendMessage` with `display: true` renders twice during
  * `session_start`.
  *
  * Repro:
- * - Extension calls `chud.sendMessage({ display: true, ... })` from a
+ * - Extension calls `pi.sendMessage({ display: true, ... })` from a
  *   `session_start` handler while the session is idle.
  * - `ExtensionUiController.#applyCustomMessageDisplay` rebuilds the chat from
  *   the freshly-persisted session entry, so the chat container ends up holding
@@ -72,7 +71,6 @@ interface Harness {
 function createHarness(): Harness {
 	const entries: SessionEntry[] = [];
 	let capturedActions: ExtensionActions | undefined;
-	let helpers!: UiHelpers;
 	const fakeRunner = {
 		initialize: (
 			a: ExtensionActions,
@@ -161,7 +159,7 @@ function createHarness(): Harness {
 			helpers.renderSessionContext(buildSessionContext(entries));
 		},
 	} as unknown as InteractiveModeContext;
-	helpers = new UiHelpers(ctx);
+	const helpers = new UiHelpers(ctx);
 
 	const controller = new ExtensionUiController(ctx);
 
@@ -204,7 +202,7 @@ describe("issue #1955 — sendMessage(display:true) during session_start", () =>
 		expect(actions).toBeDefined();
 
 		// Simulate the extension's session_start handler firing
-		// `chud.sendMessage({ display: true, ... })`.
+		// `pi.sendMessage({ display: true, ... })`.
 		actions!.sendMessage(
 			{
 				customType: "issue-1955-probe",
@@ -217,7 +215,7 @@ describe("issue #1955 — sendMessage(display:true) during session_start", () =>
 
 		// Drain the `.then(applyCustomMessageDisplay)` microtask chain queued by
 		// `actions.sendMessage` before the host's renderInitialMessages fires.
-		await sleep(0);
+		await Bun.sleep(0);
 
 		// Mirror main.ts: after `mode.init()` returns, the host renders the
 		// initial transcript while preserving anything previously added to chat.
@@ -247,7 +245,7 @@ describe("issue #1955 — sendMessage(display:true) during session_start", () =>
 			},
 			{ deliverAs: "nextTurn" },
 		);
-		await sleep(0);
+		await Bun.sleep(0);
 
 		const rendered = Bun.stripANSI(harness.ctx.chatContainer.render(120).join("\n"));
 		expect(countOccurrences(rendered, marker)).toBe(1);

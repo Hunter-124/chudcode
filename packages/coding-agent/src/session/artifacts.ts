@@ -6,7 +6,6 @@
  */
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
-import * as fsx from "@chudware/utils/fsx";
 import { replaceFileAtomically } from "../utils/atomic-file";
 
 /**
@@ -46,7 +45,7 @@ export async function writeArtifact(path: string, content: string): Promise<numb
 	const expectedBytes = Buffer.byteLength(content);
 	const tempPath = `${path}.tmp-${crypto.randomUUID()}`;
 	try {
-		const writtenBytes = await fsx.write(tempPath, content);
+		const writtenBytes = await Bun.write(tempPath, content);
 		if (writtenBytes !== expectedBytes) {
 			throw new Error(`Artifact write incomplete: wrote ${writtenBytes} of ${expectedBytes} bytes`);
 		}

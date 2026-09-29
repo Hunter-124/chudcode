@@ -2,12 +2,12 @@ import { afterEach, describe, expect, it } from "bun:test";
 import * as fsp from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import { getBundledModel } from "@chudware/catalog/models";
-import { listSessions } from "@chudware/coding-agent/session/session-listing";
-import { loadEntriesFromFile } from "@chudware/coding-agent/session/session-loader";
-import { SessionManager } from "@chudware/coding-agent/session/session-manager";
-import { MemorySessionStorage } from "@chudware/coding-agent/session/session-storage";
-import * as snapcompact from "@chudware/snapcompact";
+import { getBundledModel } from "@oh-my-pi/pi-catalog/models";
+import { listSessions } from "@oh-my-pi/pi-coding-agent/session/session-listing";
+import { loadEntriesFromFile } from "@oh-my-pi/pi-coding-agent/session/session-loader";
+import { SessionManager } from "@oh-my-pi/pi-coding-agent/session/session-manager";
+import { MemorySessionStorage } from "@oh-my-pi/pi-coding-agent/session/session-storage";
+import * as snapcompact from "@oh-my-pi/snapcompact";
 
 class CountingMemorySessionStorage extends MemorySessionStorage {
 	writeTextSyncCalls = 0;
@@ -122,7 +122,7 @@ describe("large session memory guards", () => {
 	});
 
 	it("streams large session files without discarding historical compactions", async () => {
-		const tempDir = await fsp.mkdtemp(path.join(os.tmpdir(), "chudcode-large-session-"));
+		const tempDir = await fsp.mkdtemp(path.join(os.tmpdir(), "omp-large-session-"));
 		tempDirs.push(tempDir);
 		const sessionFile = path.join(tempDir, "large.jsonl");
 		const oldSummary = `old-${"x".repeat(5 * 1024 * 1024)}`;
@@ -205,7 +205,7 @@ describe("large session memory guards", () => {
 	});
 
 	it("preserves loaded compactions on every branch", async () => {
-		const tempDir = await fsp.mkdtemp(path.join(os.tmpdir(), "chudcode-branch-load-"));
+		const tempDir = await fsp.mkdtemp(path.join(os.tmpdir(), "omp-branch-load-"));
 		tempDirs.push(tempDir);
 		const sessionFile = path.join(tempDir, "branched.jsonl");
 		const branchASummary = `branch-a-${"x".repeat(1024)}`;

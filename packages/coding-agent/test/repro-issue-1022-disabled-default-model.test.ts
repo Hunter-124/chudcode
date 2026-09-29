@@ -2,14 +2,15 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
-import { ModelRegistry } from "@chudware/coding-agent/config/model-registry";
-import { resetSettingsForTest, Settings } from "@chudware/coding-agent/config/settings";
-import { createAgentSession } from "@chudware/coding-agent/sdk";
-import { AuthStorage } from "@chudware/coding-agent/session/auth-storage";
-import { SessionManager } from "@chudware/coding-agent/session/session-manager";
-import { removeSyncWithRetries, Snowflake } from "@chudware/utils";
-import * as fsx from "@chudware/utils/fsx";
+import { ModelRegistry } from "@oh-my-pi/pi-coding-agent/config/model-registry";
+import { resetSettingsForTest, Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
+import { createAgentSession } from "@oh-my-pi/pi-coding-agent/sdk";
+import { AuthStorage } from "@oh-my-pi/pi-coding-agent/session/auth-storage";
+import { SessionManager } from "@oh-my-pi/pi-coding-agent/session/session-manager";
+import { removeSyncWithRetries, Snowflake } from "@oh-my-pi/pi-utils";
 import { YAML } from "bun";
+
+import { cfgDisabledProviders, cfgEnabledModels } from "@oh-my-pi/pi-coding-agent/config/model-settings";
 
 /**
  * Issue #1022: when path-scoped `enabledModels`/`disabledProviders` are
@@ -30,7 +31,7 @@ describe("issue #1022 — path-scoped enabledModels respected by default fallbac
 
 	beforeEach(() => {
 		resetSettingsForTest();
-		testDir = path.join(os.tmpdir(), `chud-issue-1022-${Snowflake.next()}`);
+		testDir = path.join(os.tmpdir(), `pi-issue-1022-${Snowflake.next()}`);
 		agentDir = path.join(testDir, "agent");
 		cwd = path.join(testDir, "private", "sub");
 		fs.mkdirSync(agentDir, { recursive: true });
@@ -44,7 +45,7 @@ describe("issue #1022 — path-scoped enabledModels respected by default fallbac
 
 	test("does not pick a disallowed provider when enabledModels excludes it", async () => {
 		const privatePath = path.join(testDir, "private");
-		await fsx.write(
+		await Bun.write(
 			path.join(agentDir, "config.yml"),
 			YAML.stringify({
 				enabledModels: [{ path: privatePath, models: ["openai-codex"] }],
@@ -55,13 +56,13 @@ describe("issue #1022 — path-scoped enabledModels respected by default fallbac
 
 		const settings = await Settings.init({ cwd, agentDir });
 		// Sanity-check the path-scoped values resolved correctly for this cwd.
-		expect(settings.get("enabledModels")).toEqual(["openai-codex"]);
-		expect(settings.get("disabledProviders")).toEqual(["github-copilot"]);
+		expect(cfgEnabledModels.get(settings)).toEqual(["openai-codex"]);
+		expect(cfgDisabledProviders.get(settings)).toEqual(["github-copilot"]);
 
 		const authStorage = await AuthStorage.create(":memory:");
 		// Only anthropic has credentials. Per `enabledModels` the path allows
 		// only openai-codex, so no anthropic model should be selected.
-		authStorage.setRuntimeApiKey("anthropic", "test-anthropic-key");
+		authStorage.keys.setRuntime("anthropic", "test-anthropic-key");
 
 		const modelRegistry = new ModelRegistry(authStorage, path.join(testDir, "models.yml"));
 
@@ -84,7 +85,7 @@ describe("issue #1022 — path-scoped enabledModels respected by default fallbac
 			});
 
 			try {
-				// Bug: chudcode falls back to anthropic Haiku here, ignoring the
+				// Bug: omp falls back to anthropic Haiku here, ignoring the
 				// path-scoped enabledModels allow-list.
 				expect(session.model?.provider).not.toBe("anthropic");
 				expect(session.model?.provider).not.toBe("github-copilot");

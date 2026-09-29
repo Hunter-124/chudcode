@@ -1,22 +1,23 @@
 import { describe, expect, it } from "bun:test";
-import type { AssistantMessage, FetchImpl } from "@chudware/ai";
-import { buildModel } from "@chudware/catalog/build";
-import { Effort } from "@chudware/catalog/effort";
+import type { AssistantMessage, FetchImpl } from "@oh-my-pi/pi-ai";
+import { buildModel } from "@oh-my-pi/pi-catalog/build";
+import { Effort } from "@oh-my-pi/pi-catalog/effort";
 import {
+	anthropicMessagesApi,
 	isContextOverflow,
 	parseJsonWithRepair,
 	parseStreamingJson,
 	repairJson,
 	streamSimpleOpenAIResponses,
-} from "@chudware/coding-agent/extensibility/legacy-pi-ai-shim";
+} from "@oh-my-pi/pi-coding-agent/extensibility/legacy-pi-ai-shim";
 
-// Issue #6859: chud extensions import runtime helpers from the `@earendil-works/pi-ai`
-// (aliased to `@chudware/ai`) package root that chudcode's barrel no longer forwards.
-// `isContextOverflow` moved under `@chudware/ai/error` and the JSON-repair
-// helpers moved to `@chudware/utils`, so `export * from "@chudware/ai"` left
+// Issue #6859: pi extensions import runtime helpers from the `@earendil-works/pi-ai`
+// (aliased to `@oh-my-pi/pi-ai`) package root that omp's barrel no longer forwards.
+// `isContextOverflow` moved under `@oh-my-pi/pi-ai/error` and the JSON-repair
+// helpers moved to `@oh-my-pi/pi-utils`, so `export * from "@oh-my-pi/pi-ai"` left
 // them off the shim surface and a named import tripped Bun's static
 // "No matching export" check during plugin validation (e.g.
-// `chudcode plugin install chud-blackhole`). This pins the bridged root surface so it
+// `omp plugin install pi-blackhole`). This pins the bridged root surface so it
 // cannot silently regress the way #6583 / #6648 did one symbol at a time.
 function createErrorMessage(errorMessage: string): AssistantMessage {
 	return {
@@ -39,14 +40,14 @@ function createErrorMessage(errorMessage: string): AssistantMessage {
 	};
 }
 
-describe("legacy chud-ai shim root exports", () => {
+describe("legacy pi-ai shim root exports", () => {
 	it("re-exports isContextOverflow with its classification behavior", () => {
 		expect(typeof isContextOverflow).toBe("function");
 		expect(isContextOverflow(createErrorMessage("prompt is too long: 300000 tokens > 200000 maximum"))).toBe(true);
 		expect(isContextOverflow(createErrorMessage("400 Bad Request: invalid API key"))).toBe(false);
 	});
 
-	it("re-exports the JSON-repair helpers that upstream exposed at the chud-ai root", () => {
+	it("re-exports the JSON-repair helpers that upstream exposed at the pi-ai root", () => {
 		// repairJson escapes a raw control char inside a string so JSON.parse stops throwing.
 		const broken = `{"a": "b${String.fromCharCode(1)}c"}`;
 		expect(() => JSON.parse(broken)).toThrow();
@@ -56,6 +57,50 @@ describe("legacy chud-ai shim root exports", () => {
 		// parseStreamingJson completes a truncated object at the streaming edge.
 		expect(parseStreamingJson<{ a: number }>('{"a": 1')).toEqual({ a: 1 });
 	});
+
+	it("exposes the host Anthropic transport through the legacy compat adapter", async () => {
+		const urls: string[] = [];
+		const fetchMock: FetchImpl = Object.assign(
+			async (input: string | URL | Request) => {
+				urls.push(input instanceof Request ? input.url : input.toString());
+				return new Response(
+					JSON.stringify({
+						type: "error",
+						error: { type: "invalid_request_error", message: "intentional test response" },
+					}),
+					{ status: 400, headers: { "content-type": "application/json" } },
+				);
+			},
+			{ preconnect: fetch.preconnect },
+		);
+		const model = buildModel({
+			id: "legacy-anthropic-adapter",
+			name: "Legacy Anthropic Adapter",
+			api: "anthropic-messages",
+			provider: "anthropic",
+			baseUrl: "https://anthropic.example.test",
+			reasoning: false,
+			input: ["text"],
+			cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+			contextWindow: 200_000,
+			maxTokens: 8_192,
+		});
+
+		const result = await anthropicMessagesApi()
+			.streamSimple(
+				model,
+				{ messages: [{ role: "user", content: "hello", timestamp: 0 }] },
+				{
+					apiKey: "test-key",
+					fetch: fetchMock,
+				},
+			)
+			.result();
+
+		expect(result.stopReason).toBe("error");
+		expect(urls).toEqual(["https://anthropic.example.test/v1/messages"]);
+	});
+
 	it("maps legacy simple options before streaming OpenAI Responses", async () => {
 		const requests: unknown[] = [];
 		const fetchMock: FetchImpl = Object.assign(

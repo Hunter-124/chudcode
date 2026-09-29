@@ -1,12 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
-import { coworkFetch } from "@chudware/ai/providers/cowork-fetch";
+import { coworkFetch } from "@oh-my-pi/pi-ai/providers/cowork-fetch";
 
 /**
  * `coworkFetch` runs on `node:https`, whose Bun shim ignores
  * `agent.createConnection` / `options.createConnection`. A CONNECT tunnel handed
  * to it is dropped and the request dials the provider directly, so a configured
  * proxy has to take the request off this transport entirely — otherwise every
- * `CHUDCODE_PROXY` setting is a silent no-op for Anthropic inference.
+ * `PI_PROXY` setting is a silent no-op for Anthropic inference.
  */
 describe("coworkFetch proxy handling", () => {
 	const nativeFetch = globalThis.fetch;

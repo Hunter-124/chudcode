@@ -1,21 +1,24 @@
 #!/usr/bin/env bun
 import * as path from "node:path";
-import { isEnoent } from "@chudware/utils";
-import * as fsx from "@chudware/utils/fsx";
+import { isEnoent } from "@oh-my-pi/pi-utils";
 import { compareSecurityProducers, importCodexSecurityBundle, parseSecurityScanBundle } from "../src/security";
 
 async function readBundle(directory: string) {
 	const root = path.resolve(directory);
 	let scan: unknown;
 	try {
-		scan = JSON.parse(await fsx.readText(path.join(root, "scan.json"))) as unknown;
+		scan = JSON.parse(await Bun.file(path.join(root, "scan.json")).text()) as unknown;
 	} catch (error) {
 		if (!isEnoent(error)) throw error;
 		return importCodexSecurityBundle(root, { repositoryRoot: root });
 	}
-	const findings = JSON.parse(await fsx.readText(path.join(root, "findings.json"))) as unknown;
-	const report = await fsx.readText(path.join(root, "report.md")).catch(() => undefined);
-	const sarifText = await fsx.readText(path.join(root, "results.sarif")).catch(() => undefined);
+	const findings = JSON.parse(await Bun.file(path.join(root, "findings.json")).text()) as unknown;
+	const report = await Bun.file(path.join(root, "report.md"))
+		.text()
+		.catch(() => undefined);
+	const sarifText = await Bun.file(path.join(root, "results.sarif"))
+		.text()
+		.catch(() => undefined);
 	return parseSecurityScanBundle({
 		scan,
 		findings,
@@ -33,5 +36,5 @@ if (!referenceDirectory || !candidateDirectory) {
 }
 const report = compareSecurityProducers(await readBundle(referenceDirectory), await readBundle(candidateDirectory));
 const serialized = `${JSON.stringify(report, null, 2)}\n`;
-if (outputPath) await fsx.write(path.resolve(outputPath), serialized);
+if (outputPath) await Bun.write(path.resolve(outputPath), serialized);
 else process.stdout.write(serialized);

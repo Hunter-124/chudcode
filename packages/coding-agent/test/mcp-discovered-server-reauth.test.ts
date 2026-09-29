@@ -1,6 +1,6 @@
 /**
  * Regression coverage for `/mcp reauth` (and `/mcp test|unauth`) on a server
- * that `/mcp list` shows but that lives in no writable Chudcode config — e.g. a
+ * that `/mcp list` shows but that lives in no writable OMP config — e.g. a
  * server installed from a Claude Code marketplace plugin, registered under a
  * namespaced name like `cloudflare:cloudflare-api`.
  *
@@ -21,9 +21,9 @@ import { describe, expect, it } from "bun:test";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
-import { removeSyncWithRetries } from "@chudware/utils";
+import { removeSyncWithRetries } from "@oh-my-pi/pi-utils";
 import type { SourceMeta } from "../src/capability/types";
-import { readMCPConfigFile, updateMCPServer, validateServerName } from "../src/mcp/config-writer";
+import { readMCPConfigFile, updateMCPServer } from "../src/mcp/config-writer";
 import { MCPManager } from "../src/mcp/manager";
 import type { MCPHttpServerConfig, MCPStdioServerConfig } from "../src/mcp/types";
 
@@ -33,7 +33,7 @@ const BUN_EXEC = process.execPath;
 describe("MCP discovered-server reauth", () => {
 	describe("manager surfaces discovered configs for unconnected servers", () => {
 		it("exposes config + source for a discovered server that failed to connect", async () => {
-			const workDir = fs.mkdtempSync(path.join(os.tmpdir(), "chudcode-mcp-discovered-"));
+			const workDir = fs.mkdtempSync(path.join(os.tmpdir(), "omp-mcp-discovered-"));
 			const manager = new MCPManager(workDir);
 
 			// Exits before speaking MCP, so the connect attempt fails and the
@@ -75,14 +75,8 @@ describe("MCP discovered-server reauth", () => {
 	});
 
 	describe("config writer persists namespaced plugin server names", () => {
-		it("validateServerName accepts a colon-namespaced name", () => {
-			expect(validateServerName(NAMESPACED_NAME)).toBeUndefined();
-			// Sanity: genuinely invalid characters are still rejected.
-			expect(validateServerName("has space")).toBeDefined();
-		});
-
 		it("updateMCPServer round-trips a namespaced HTTP server with an oauth auth block", async () => {
-			const workDir = fs.mkdtempSync(path.join(os.tmpdir(), "chudcode-mcp-persist-"));
+			const workDir = fs.mkdtempSync(path.join(os.tmpdir(), "omp-mcp-persist-"));
 			const filePath = path.join(workDir, "mcp.json");
 
 			// Exactly the shape `/mcp reauth` writes: the discovered config plus

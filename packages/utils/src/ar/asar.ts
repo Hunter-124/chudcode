@@ -1,4 +1,3 @@
-import * as crypto from "node:crypto";
 import * as path from "node:path";
 import { readUInt32LE, writeUInt32LE } from "./bytes";
 import { ArchiveError } from "./error";
@@ -92,7 +91,7 @@ function parseIntegrity(value: unknown, entryPath: string, size: number): AsarIn
 
 function verifyIntegrity(bytes: Uint8Array, integrity: AsarIntegrity | undefined, memberPath: string): void {
 	if (!integrity) return;
-	const actual = crypto.createHash("sha256").update(bytes).digest("hex");
+	const actual = new Bun.CryptoHasher("sha256").update(bytes).digest("hex");
 	if (actual !== integrity.hash) {
 		throw new ArchiveError(
 			`ASAR member '${formatArchivePathForError(memberPath)}' failed SHA256 integrity verification`,

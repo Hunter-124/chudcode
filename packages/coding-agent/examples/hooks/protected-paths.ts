@@ -4,12 +4,12 @@
  * Blocks write and edit operations to protected paths.
  * Useful for preventing accidental modifications to sensitive files.
  */
-import type { HookAPI } from "@chudware/coding-agent";
+import type { HookAPI } from "@oh-my-pi/pi-coding-agent/extensibility/hooks";
 
-export default function (chud: HookAPI) {
+export default function (pi: HookAPI) {
 	const protectedPaths = [".env", ".git/", "node_modules/"];
 
-	chud.on("tool_call", async (event, ctx) => {
+	pi.on("tool_call", async (event, ctx) => {
 		if (event.toolName !== "write" && event.toolName !== "edit") {
 			return undefined;
 		}

@@ -5,14 +5,14 @@
  * tool that queues a follow-up command to trigger reload.
  */
 
-import type { ExtensionAPI } from "@chudware/coding-agent";
+import type { ExtensionAPI } from "@oh-my-pi/pi-coding-agent";
 
-export default function (chud: ExtensionAPI) {
-	const z = chud.zod;
+export default function (pi: ExtensionAPI) {
+	const z = pi.zod;
 
 	// Command entrypoint for reload.
 	// Treat reload as terminal for this handler.
-	chud.registerCommand("reload-runtime", {
+	pi.registerCommand("reload-runtime", {
 		description: "Reload extensions, skills, prompts, and themes",
 		handler: async (_args, ctx) => {
 			await ctx.reload();
@@ -22,13 +22,13 @@ export default function (chud: ExtensionAPI) {
 
 	// LLM-callable tool. Tools get ExtensionContext, so they cannot call ctx.reload() directly.
 	// Instead, queue a follow-up user command that executes the command above.
-	chud.registerTool({
+	pi.registerTool({
 		name: "reload_runtime",
 		label: "Reload Runtime",
 		description: "Reload extensions, skills, prompts, and themes",
 		parameters: z.object({}),
 		async execute() {
-			chud.sendUserMessage("/reload-runtime", { deliverAs: "followUp" });
+			pi.sendUserMessage("/reload-runtime", { deliverAs: "followUp", attribution: "agent" });
 			return {
 				content: [{ type: "text", text: "Queued /reload-runtime as a follow-up command." }],
 				details: {},

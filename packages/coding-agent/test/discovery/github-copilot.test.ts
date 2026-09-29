@@ -12,19 +12,19 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
-import { loadCapability, setDisabledProviders } from "@chudware/coding-agent/capability";
-import type { ContextFile } from "@chudware/coding-agent/capability/context-file";
-import { clearCache } from "@chudware/coding-agent/capability/fs";
-import type { Instruction } from "@chudware/coding-agent/capability/instruction";
-import type { Prompt } from "@chudware/coding-agent/capability/prompt";
-import { type Rule, resetActiveRulesForTests, setActiveRules } from "@chudware/coding-agent/capability/rule";
-import { RuleProtocolHandler } from "@chudware/coding-agent/internal-urls/rule-protocol";
-import { removeSyncWithRetries } from "@chudware/utils";
-import "@chudware/coding-agent/capability/context-file";
-import "@chudware/coding-agent/capability/instruction";
-import "@chudware/coding-agent/capability/prompt";
-import "@chudware/coding-agent/capability/rule";
-import "@chudware/coding-agent/discovery/github";
+import { loadCapability, setDisabledProviders } from "@oh-my-pi/pi-coding-agent/capability";
+import type { ContextFile } from "@oh-my-pi/pi-coding-agent/capability/context-file";
+import { clearCache } from "@oh-my-pi/pi-coding-agent/capability/fs";
+import type { Instruction } from "@oh-my-pi/pi-coding-agent/capability/instruction";
+import type { Prompt } from "@oh-my-pi/pi-coding-agent/capability/prompt";
+import { type Rule, resetActiveRulesForTests, setActiveRules } from "@oh-my-pi/pi-coding-agent/capability/rule";
+import { RuleProtocolHandler } from "@oh-my-pi/pi-coding-agent/internal-urls/rule-protocol";
+import { removeSyncWithRetries } from "@oh-my-pi/pi-utils";
+import "@oh-my-pi/pi-coding-agent/capability/context-file";
+import "@oh-my-pi/pi-coding-agent/capability/instruction";
+import "@oh-my-pi/pi-coding-agent/capability/prompt";
+import "@oh-my-pi/pi-coding-agent/capability/rule";
+import "@oh-my-pi/pi-coding-agent/discovery/github";
 
 const ENV_KEYS = ["COPILOT_HOME", "COPILOT_CUSTOM_INSTRUCTIONS_DIRS"] as const;
 
@@ -42,7 +42,7 @@ describe("github discovery — Copilot user-global surface", () => {
 	beforeEach(() => {
 		clearCache();
 		for (const key of ENV_KEYS) savedEnv[key] = process.env[key];
-		tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "chud-github-copilot-"));
+		tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "pi-github-copilot-"));
 		cwd = path.join(tempDir, "project");
 		copilotHome = path.join(tempDir, "copilot-home");
 		fs.mkdirSync(cwd, { recursive: true });

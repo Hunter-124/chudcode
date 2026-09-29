@@ -1,5 +1,5 @@
-import type { Context, ImageContent, Model } from "@chudware/ai";
-import { logger } from "@chudware/utils";
+import type { Context, ImageContent, Model } from "@oh-my-pi/pi-ai";
+import { logger } from "@oh-my-pi/pi-utils";
 import { contextHasImages, decorateContextProviderFiles } from "./context-images";
 import {
 	hashProviderFileContent,

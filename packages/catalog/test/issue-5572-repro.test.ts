@@ -1,8 +1,8 @@
 import { describe, expect, it } from "bun:test";
-import { buildAnthropicClientOptions, streamAnthropic } from "@chudware/ai/providers/anthropic";
-import type { Context, TJsonSchema, Tool } from "@chudware/ai/types";
-import { buildModel } from "@chudware/catalog/build";
-import type { ModelSpec } from "@chudware/catalog/types";
+import { buildAnthropicClientOptions, streamAnthropic } from "@oh-my-pi/pi-ai/providers/anthropic";
+import type { Context, TJsonSchema, Tool } from "@oh-my-pi/pi-ai/types";
+import { buildModel } from "@oh-my-pi/pi-catalog/build";
+import type { ModelSpec } from "@oh-my-pi/pi-catalog/types";
 
 const CUSTOM_MODEL_SPEC: ModelSpec<"anthropic-messages"> = {
 	id: "claude-haiku-4.5",
@@ -71,7 +71,7 @@ describe("issue #5572 — custom Anthropic endpoints reject eager_input_streamin
 	});
 
 	it("omits eager_input_streaming when a baseUrl-only override reroutes a canonical model", async () => {
-		// Mirrors `chud.registerProvider("anthropic", { baseUrl })`: the registry
+		// Mirrors `pi.registerProvider("anthropic", { baseUrl })`: the registry
 		// mutates `baseUrl` without rebuilding compat, so the resolved
 		// `supportsEagerToolInputStreaming` stays canonical-true. The authored
 		// spec never opted in, so the custom endpoint must not receive the flag.
@@ -137,15 +137,5 @@ describe("issue #5572 — custom Anthropic endpoints reject eager_input_streamin
 
 		const payload = (await promise) as { tools?: Array<Record<string, unknown>> };
 		expect(payload.tools?.[0]).toHaveProperty("eager_input_streaming", true);
-	});
-
-	it("keeps eager tool input streaming on the official Anthropic endpoint", () => {
-		const model = buildModel({
-			...CUSTOM_MODEL_SPEC,
-			provider: "anthropic",
-			baseUrl: "https://api.anthropic.com",
-		});
-
-		expect(model.compat.supportsEagerToolInputStreaming).toBe(true);
 	});
 });

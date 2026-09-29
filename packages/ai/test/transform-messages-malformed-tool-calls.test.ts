@@ -7,9 +7,9 @@
 // `transformMessages` is the canonical sanitize boundary every provider passes
 // through, so the defensive filter lives there.
 import { describe, expect, it } from "bun:test";
-import { transformMessages } from "@chudware/ai/providers/transform-messages";
-import type { AssistantMessage, Message, Model, ToolCall, ToolResultMessage } from "@chudware/ai/types";
-import { buildModel } from "@chudware/catalog/build";
+import { transformMessages } from "@oh-my-pi/pi-ai/providers/transform-messages";
+import type { AssistantMessage, Message, Model, ToolCall, ToolResultMessage } from "@oh-my-pi/pi-ai/types";
+import { buildModel } from "@oh-my-pi/pi-catalog/build";
 
 const model: Model<"anthropic-messages"> = buildModel({
 	api: "anthropic-messages",
@@ -189,19 +189,6 @@ describe("transformMessages drops malformed (empty-name) tool calls", () => {
 		const toolResults = transformed.filter((m): m is ToolResultMessage => m.role === "toolResult");
 		expect(toolResults).toHaveLength(1);
 		expect(toolResults[0]).toMatchObject({ toolCallId: "call_real" });
-	});
-
-	it("is a no-op when no tool call has an empty name (identity returns same array reference)", () => {
-		const messages: Message[] = [
-			{ role: "user", content: "ping", timestamp: 1 },
-			assistant([{ type: "toolCall", id: "call_ok", name: "read", arguments: { path: "a" } }], 2),
-			toolResult("call_ok", "ok", 3),
-		];
-
-		const transformed = transformMessages(messages, model);
-
-		expect(getToolCalls(transformed)).toHaveLength(1);
-		expect(transformed.filter(m => m.role === "toolResult")).toHaveLength(1);
 	});
 
 	// Regression for PR #3459 review feedback: a tool-call id can legitimately

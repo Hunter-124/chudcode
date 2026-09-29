@@ -7,11 +7,10 @@
 import type { Dirent } from "node:fs";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
-import type { WorkProfile } from "@chudware/natives";
-import { APP_NAME, getLogPath, getLogsDir, getReportsDir, isEnoent } from "@chudware/utils";
-import { writeArchive } from "@chudware/utils/ar";
-import * as fsx from "@chudware/utils/fsx";
-import type { CpuProfile, HeapSnapshot } from "./profiler";
+import type { WorkProfile } from "@oh-my-pi/pi-natives";
+import { APP_NAME, getLogPath, getLogsDir, getReportsDir, isEnoent, localDay } from "@oh-my-pi/pi-utils";
+import { writeArchive } from "@oh-my-pi/pi-utils/ar";
+import type { CpuProfile, MemoryStats } from "./profiler";
 import { collectSystemInfo, sanitizeEnv } from "./system-info";
 
 /** Maximum number of log lines to load into memory at once. */
@@ -45,8 +44,8 @@ export interface ReportBundleOptions {
 	settings?: Record<string, unknown>;
 	/** CPU profile (for performance reports) */
 	cpuProfile?: CpuProfile;
-	/** Heap snapshot (for memory reports) */
-	heapSnapshot?: HeapSnapshot;
+	/** Numeric memory statistics, never raw heap contents */
+	memoryStats?: MemoryStats;
 	/** Work profile (for work scheduling reports) */
 	workProfile?: WorkProfile;
 	/** Raw provider SSE diagnostics captured by the session buffer */
@@ -78,7 +77,7 @@ export interface DebugLogSource {
  * - profile.cpuprofile: CPU profile (performance report only)
  * - raw-sse.txt: Recent raw provider SSE diagnostics (when captured)
  * - profile.md: Markdown CPU profile (performance report only)
- * - heap.heapsnapshot: Heap snapshot (memory report only)
+ * - memory.json: Numeric process and heap statistics (memory report only)
  * - work.folded: Work profile folded stacks (work report only)
  * - work.md: Work profile summary (work report only)
  * - work.svg: Work profile flamegraph (work report only)
@@ -88,9 +87,9 @@ export async function createReportBundle(options: ReportBundleOptions): Promise<
 	await fs.mkdir(reportsDir, { recursive: true });
 
 	const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
-	const outputPath = path.join(reportsDir, `chudcode-report-${timestamp}.tar.gz`);
+	const outputPath = path.join(reportsDir, `omp-report-${timestamp}.tar.gz`);
 
-	const data: Record<string, string> = {};
+	const data: Record<string, string | Uint8Array> = {};
 	const files: string[] = [];
 
 	// Collect system info
@@ -99,7 +98,7 @@ export async function createReportBundle(options: ReportBundleOptions): Promise<
 	files.push("system.json");
 
 	// Sanitized environment
-	data["env.json"] = JSON.stringify(sanitizeEnv(process.env as Record<string, string>), null, 2);
+	data["env.json"] = JSON.stringify(sanitizeEnv(Bun.env as Record<string, string>), null, 2);
 	files.push("env.json");
 
 	// Settings/config
@@ -126,7 +125,7 @@ export async function createReportBundle(options: ReportBundleOptions): Promise<
 	// Session file
 	if (options.sessionFile) {
 		try {
-			const sessionContent = await fsx.readText(options.sessionFile);
+			const sessionContent = await Bun.file(options.sessionFile).text();
 			data["session.jsonl"] = sessionContent;
 			files.push("session.jsonl");
 		} catch {
@@ -149,10 +148,10 @@ export async function createReportBundle(options: ReportBundleOptions): Promise<
 		files.push("profile.md");
 	}
 
-	// Heap snapshot
-	if (options.heapSnapshot) {
-		data["heap.heapsnapshot"] = options.heapSnapshot.data;
-		files.push("heap.heapsnapshot");
+	// Memory statistics exclude heap contents, which can contain credentials.
+	if (options.memoryStats) {
+		data["memory.json"] = JSON.stringify(options.memoryStats, null, 2);
+		files.push("memory.json");
 	}
 
 	// Work profile
@@ -175,7 +174,7 @@ export async function createReportBundle(options: ReportBundleOptions): Promise<
 
 /** Recursively add every file under a directory to the archive. */
 async function addDirectoryToArchive(
-	data: Record<string, string>,
+	data: Record<string, string | Uint8Array>,
 	files: string[],
 	dirPath: string,
 	archivePrefix: string,
@@ -196,7 +195,7 @@ async function addDirectoryToArchive(
 		}
 		if (!entry.isFile()) continue;
 		try {
-			data[archivePath] = await fsx.readText(entryPath);
+			data[archivePath] = await Bun.file(entryPath).text();
 			files.push(archivePath);
 		} catch {
 			// Skip files we can't read
@@ -211,12 +210,15 @@ export async function getLogText(): Promise<string> {
 
 /**
  * Concatenate the tail of every same-day process log so a report generated
- * after a crash still captures the fatal PID's `chudcode.<date>.<pid>.log`. Files
+ * after a crash still captures the fatal PID's `omp.<date>.<pid>.log`. Files
  * are ordered oldest-first by mtime and separated by a filename header.
  */
 async function collectSameDayLogs(linesPerFile: number): Promise<string> {
 	const logsDir = getLogsDir();
-	const today = new Date().toISOString().slice(0, 10);
+	// Log files are named with the local day (see localDay / RotatingFileSink),
+	// so match them with the local day too — the UTC key misses the live log
+	// between local midnight and UTC midnight.
+	const today = localDay(new Date());
 	const sameDay: Array<{ name: string; mtimeMs: number }> = [];
 	try {
 		const entries = await fs.readdir(logsDir, { withFileTypes: true });

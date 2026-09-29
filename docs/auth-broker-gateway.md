@@ -2,8 +2,8 @@
 
 The auth broker and auth gateway are two cooperating HTTP services that move OAuth refresh tokens and provider access tokens off developer laptops and into a single broker host.
 
-- **`chudcode auth-broker serve`** holds the canonical SQLite credential vault, performs OAuth refreshes, and exposes snapshot, credential, block, usage, and health APIs under `/v1`.
-- **`chudcode auth-gateway serve`** is a forward-proxy. It accepts OpenAI Chat Completions, Anthropic Messages, OpenAI Responses, and chud-native stream requests, resolves the broker-backed credential, and dispatches through `chud-ai` provider logic. Clients (containerised Chudcode, llm-git, the macOS usage widget, …) never see the access token.
+- **`omp auth-broker serve`** holds the canonical SQLite credential vault, performs OAuth refreshes, and exposes snapshot, credential, block, usage, and health APIs under `/v1`.
+- **`omp auth-gateway serve`** is a forward-proxy. It accepts OpenAI Chat Completions, Anthropic Messages, OpenAI Responses, pi-native stream, TypeSafe System One judgment, and OpenAI/OpenRouter-style image, speech, transcription, embedding, rerank, and video requests, resolves the broker-backed credential, and dispatches through `pi-ai` provider logic. Clients (containerised omp, llm-git, the macOS usage widget, …) never see the access token.
 
 Transport security between operator, broker, and gateway is delegated to the operator (Tailscale / Wireguard / reverse proxy + TLS). Every endpoint except `/v1/healthz` (broker) and `/healthz` (gateway) requires a bearer token.
 
@@ -16,15 +16,15 @@ Source: `packages/ai/src/auth-broker/`, `packages/ai/src/auth-gateway/`, `packag
                 │ broker host                                                │
                 │                                                            │
   developer ──▶ │  ┌──────────────────────────┐    ┌────────────────────┐    │
-  laptop /      │  │  Chudcode auth-broker serve   │◀──▶│  SQLite agent.db    │    │
-  CI / robochud   │  │  - holds refresh tokens  │    │  (canonical writer)│    │
+  laptop /      │  │  omp auth-broker serve   │◀──▶│  SQLite agent.db    │    │
+  CI / robomp   │  │  - holds refresh tokens  │    │  (canonical writer)│    │
                 │  │  - background refresher  │    └────────────────────┘    │
                 │  │  /v1/{snapshot,refresh,…}│                              │
                 │  └─────────┬────────────────┘                              │
                 │            │  bearer ($CONFIG_DIR/auth-broker.token)       │
                 │            ▼                                               │
                 │  ┌──────────────────────────┐                              │
-                │  │  Chudcode auth-gateway serve  │  RemoteAuthCredentialStore   │
+                │  │  omp auth-gateway serve  │  RemoteAuthCredentialStore   │
                 │  │  /v1/{chat,messages,…}   │  receives snapshot stream,   │
                 │  │  /v1/usage,/v1/models    │  refreshes credentials by id │
                 │  │  /v1/credentials/check   │  via the broker on expiry    │
@@ -33,35 +33,35 @@ Source: `packages/ai/src/auth-broker/`, `packages/ai/src/auth-gateway/`, `packag
                              │  bearer ($CONFIG_DIR/auth-gateway.token)
                              ▼
                   gateway clients
-                  (llm-git, macOS widget, robochud containers, IDE plugins, …)
+                  (llm-git, macOS widget, robomp containers, IDE plugins, …)
                                 │
                                 ▼ provider request with broker-resolved credential
                   api.anthropic.com / api.openai.com / …
 ```
 
-The broker is the only writer of OAuth refresh tokens. Clients (including the gateway itself) load a redacted snapshot in which every `refresh` field has been replaced with `REMOTE_REFRESH_SENTINEL`; when an access token expires the client calls `POST /v1/credential/:id/refresh` and the broker performs the refresh server-side. `RemoteAuthCredentialStore` rejects local replace/upsert/delete-by-provider mutations, with errors pointing at `chudcode auth-broker login` / `chudcode auth-broker logout`.
+The broker is the only writer of OAuth refresh tokens. Clients (including the gateway itself) load a redacted snapshot in which every `refresh` field has been replaced with `REMOTE_REFRESH_SENTINEL`; when an access token expires the client calls `POST /v1/credential/:id/refresh` and the broker performs the refresh server-side. Credential writes through `RemoteAuthCredentialStore` await broker persistence and update its local snapshot before returning; the broker remains the authoritative writer.
 
 ## auth-broker
 
 ### CLI
 
 ```
-chudcode auth-broker serve     [--bind=host:port]                    # boot the broker
-chudcode auth-broker token     [--regenerate] [--json]               # print or rotate the bearer token
-chudcode auth-broker login     [<provider>] [--via=user@host] [--dry-run]
-chudcode auth-broker logout    [<provider>]
-chudcode auth-broker list      [--json]
-chudcode auth-broker import    <file|dir> [--provider=<id>] [--include-disabled] [--dry-run] [--json]
-chudcode auth-broker migrate   --from-local [--include-oauth] [--include-env] [--dry-run] [--json]
-chudcode auth-broker status    [--json]
+omp auth-broker serve     [--bind=host:port]                    # boot the broker
+omp auth-broker token     [--regenerate] [--json]               # print or rotate the bearer token
+omp auth-broker login     [<provider>] [--via=user@host] [--dry-run]
+omp auth-broker logout    [<provider>]
+omp auth-broker list      [--json]
+omp auth-broker import    <file|dir> [--provider=<id>] [--include-disabled] [--dry-run] [--json]
+omp auth-broker migrate   --from-local [--include-oauth] [--include-env] [--dry-run] [--json]
+omp auth-broker status    [--json]
 ```
 
 - `serve` opens the local SQLite store at `getAgentDbPath()` and binds an HTTP listener (default `127.0.0.1:8765`). On startup a token is ensured at `<config-dir>/auth-broker.token` (mode `0600`, `0700` parent dir). The background refresher refreshes any OAuth credential whose `expires - Date.now() < refreshSkewMs` (default 5 min) every `refreshIntervalMs` (default 60 s).
 - `token` prints the cached bearer or generates a new one. `--regenerate` rotates it.
-- `login [<provider>]` runs the per-provider OAuth flow locally — when no provider is supplied, it falls back to an interactive numbered picker. With `--via=user@host` it shells out `ssh -L <callback-port>:127.0.0.1:<callback-port> user@host Chudcode auth-broker login <provider>` so the OAuth callback hits the local browser but the credential is written on the broker host (`--via` requires `<provider>`). Built-in callback ports: `anthropic:54545`, `openai-codex:1455`, `google-gemini-cli:8085`, `google-antigravity:51121`, `gitlab-duo:8080`, `devin:59653`, `gitlab-duo-agent:8080`, `zai-coding-plan:54548`. The OAuth dance is driven in-process via `AuthStorage.login()` — there is no longer a `chud-ai` bin to spawn.
+- `login [<provider>]` runs the per-provider OAuth flow locally — when no provider is supplied, it falls back to an interactive numbered picker. With `--via=user@host` it shells out `ssh -L <callback-port>:127.0.0.1:<callback-port> user@host omp auth-broker login <provider>` so the OAuth callback hits the local browser but the credential is written on the broker host (`--via` requires `<provider>`). Built-in callback ports: `anthropic:54545`, `openai-codex:1455`, `google-gemini-cli:8085`, `google-antigravity:51121`, `gitlab-duo:8080`, `devin:59653`, `gitlab-duo-agent:8080`, `zai-coding-plan:9999`. The OAuth dance is driven in-process via `AuthStorage.oauth.login()` — there is no longer a `pi-ai` bin to spawn.
 - `logout [<provider>]` deletes every credential row for `<provider>`. With no argument it shows an interactive numbered picker of currently-stored providers.
 - `list` enumerates every registered OAuth provider id/name (the union of built-ins + `registerOAuthProvider` custom providers). `--json` emits a machine-readable array.
-- `import <file|dir>` imports CLIProxyAPI-style JSON credentials into the local SQLite store. Maps `type` field → Chudcode provider (`claude → anthropic`, `codex → openai-codex`, `gemini → google-gemini-cli`, `antigravity → google-antigravity`, `gemini-cli → google-gemini-cli`).
+- `import <file|dir>` imports CLIProxyAPI-style JSON credentials into the local SQLite store. Maps `type` field → omp provider (`claude → anthropic`, `codex → openai-codex`, `gemini → google-gemini-cli`, `antigravity → google-antigravity`, `gemini-cli → google-gemini-cli`).
 - `migrate --from-local` uploads local SQLite credentials to the configured broker (`POST /v1/credential`). Local API keys are included by default; local OAuth rows are skipped unless `--include-oauth` is set; environment-derived API keys are skipped unless `--include-env` is set. Re-runs are idempotent against the broker snapshot.
 - `status` health-pings the configured remote broker.
 
@@ -105,23 +105,23 @@ response state machine is:
 
 Every `200`, `304`, and `499` snapshot response carries the current generation
 as a quoted `ETag`, plus `Cache-Control: no-store` and
-`Vary: Chudcode-Auth-Broker-Capabilities`.
+`Vary: OMP-Auth-Broker-Capabilities`.
 
 ### Codex block-scope compatibility
 
-Clients that understand per-meter Codex blocks send `Chudcode-Auth-Broker-Capabilities: codex-meter-block-scopes`. Snapshot responses then carry the canonical `chat` and `spark` scopes. Without that capability, the broker projects those rows to the legacy `shared` scope on the wire.
+Clients that understand per-meter Codex blocks send `OMP-Auth-Broker-Capabilities: codex-meter-block-scopes`. Snapshot responses then carry the canonical `chat` and `spark` scopes. Without that capability, the broker projects those rows to the legacy `shared` scope on the wire.
 
 Local SQLite schema 7 keeps `chat` and `spark` as the canonical scopes exposed by current store APIs. It also maintains a physical `shared` compatibility mirror for pre-meter binaries that read `agent.db` directly. SQLite triggers derive that mirror's deadline and update time independently from the meter rows, and copy a legacy process's `shared` writes back to both meters. Current store APIs omit the physical mirror, so broker snapshots and model selection do not double-count it.
 
 Clients released before this capability, including 17.1.4, receive the conservative `shared` projection until they are upgraded. Those clients are indistinguishable on the existing wire, so mixed-version deployments favor keeping a rate-limited credential blocked over allowing repeated provider requests and 429 responses.
 
-Capability-dependent responses include `Vary: Chudcode-Auth-Broker-Capabilities` so intermediaries do not reuse one representation for another client. The encrypted client snapshot cache also uses a new format version: older cache files are ignored and fetched again, preventing legacy and meter-scoped representations from being mixed across client versions.
+Capability-dependent responses include `Vary: OMP-Auth-Broker-Capabilities` so intermediaries do not reuse one representation for another client. The encrypted client snapshot cache also uses a new format version: older cache files are ignored and fetched again, preventing legacy and meter-scoped representations from being mixed across client versions.
 
 ### Background refresher
 
 `AuthBrokerRefresher` iterates active OAuth credentials at `refreshIntervalMs` cadence and refreshes any within `refreshSkewMs` of expiry. Refreshes are single-flighted per credential id so a slow refresh cannot be retriggered. The refresher distinguishes:
 
-- **definitive failures** (`invalid_grant`, `invalid_token`, `revoked`, unauthorized refresh-token, 401/403 not from a network blip) — credentials are passed to `AuthStorage.disableCredentialById(id, cause)` so the next snapshot pull surfaces a clean delete on the client;
+- **definitive failures** (`invalid_grant`, `invalid_token`, `revoked`, unauthorized refresh-token, 401/403 not from a network blip) — credentials are passed to `AuthStorage.credentials.disable(id, cause)` so the next snapshot pull surfaces a clean delete on the client;
 - **transient failures** (timeout / ECONNREFUSED / fetch failed) — left in place for the next sweep.
 
 ## auth-gateway
@@ -129,13 +129,13 @@ Capability-dependent responses include `Vary: Chudcode-Auth-Broker-Capabilities`
 ### CLI
 
 ```
-chudcode auth-gateway serve   [--bind=host:port] [--no-auth]
-chudcode auth-gateway token   [--regenerate] [--json]
-chudcode auth-gateway status  [--json]
-chudcode auth-gateway check   [--strict] [--json]
+omp auth-gateway serve   [--bind=host:port] [--no-auth]
+omp auth-gateway token   [--regenerate] [--json]
+omp auth-gateway status  [--json]
+omp auth-gateway check   [--strict] [--json]
 ```
 
-- `serve` requires `CHUDCODE_AUTH_BROKER_URL` (or `auth.broker.url` in `config.yml`) — the gateway is itself a broker client. It calls `AuthBrokerClient.fetchSnapshot()`, wraps it in `RemoteAuthCredentialStore`, and constructs an `AuthStorage` that resolves access tokens through the broker. Default bind is `127.0.0.1:4000`. The gateway token is stored at `<config-dir>/auth-gateway.token` (`0600`); `--no-auth` disables the bearer check entirely (loopback-only use).
+- `serve` requires `OMP_AUTH_BROKER_URL` (or `auth.broker.url` in `config.yml`) — the gateway is itself a broker client. It calls `AuthBrokerClient.fetchSnapshot()`, wraps it in `RemoteAuthCredentialStore`, and constructs an `AuthStorage` that resolves access tokens through the broker. Default bind is `127.0.0.1:4000`. The gateway token is stored at `<config-dir>/auth-gateway.token` (`0600`); `--no-auth` disables the bearer check entirely (loopback-only use).
 - `token` / `status` manage and inspect the gateway bearer token and upstream broker readiness.
 - `check` probes broker-backed credentials through the gateway store. Without `--strict` it uses provider usage probes; `--strict` also exercises each credential against its chat-completion endpoint and can consume a small amount of quota.
 
@@ -150,11 +150,29 @@ chudcode auth-gateway check   [--strict] [--json]
 | `POST` | `/v1/chat/completions`  | bearer | OpenAI Chat Completions wire format                          |
 | `POST` | `/v1/messages`          | bearer | Anthropic Messages wire format                               |
 | `POST` | `/v1/responses`         | bearer | OpenAI Responses wire format                                 |
-| `POST` | `/v1/pi/stream`         | bearer | Native `chud-ai` stream wire format                            |
+| `POST` | `/v1/pi/stream`         | bearer | Native `pi-ai` stream wire format                            |
+| `POST` | `/v1/systemone`         | bearer | TypeSafe System One judgments (`judge` models, e.g. `typesafe/jev-latest`); `/alpha/decisions` is the OpenRouter Decisions alias |
+| `POST` | `/v1/images/generations` | bearer | Image generation, OpenAI Images JSON wire; `/v1/images` is the OpenRouter alias (`image` models) |
+| `POST` | `/v1/images/edits`      | bearer | Image edits: OpenAI multipart or OpenRouter JSON input images |
+| `POST` | `/v1/audio/speech`      | bearer | Text-to-speech, OpenAI/OpenRouter JSON wire; answers raw audio bytes (`tts` models: `xai-tts`, `openai-speech`) |
+| `POST` | `/v1/audio/transcriptions` | bearer | Speech-to-text, OpenAI multipart `file` or OpenRouter JSON `input_audio` base64 (`stt` models on `openai-transcriptions`; 25 MiB cap) |
+| `POST` | `/v1/embeddings`        | bearer | Embeddings, OpenAI wire (`embedding` models on `openai-embeddings`; OpenAI + OpenRouter; 8 MiB cap) |
+| `POST` | `/v1/rerank`            | bearer | Rerank, OpenRouter wire (`rerank` models on `openrouter-rerank`) |
+| `POST` | `/v1/videos`            | bearer | Submit a video generation job, OpenRouter wire (`video` models on `openrouter-video`); answers `202` with gateway-rewritten polling/content URLs |
+| `GET`  | `/v1/videos/:id`        | bearer | Poll a video job. `:id` is gateway-issued and stateless: it encodes provider, model, and upstream job id |
+| `GET`  | `/v1/videos/:id/content` | bearer | Stream the finished video bytes with the upstream content type |
 
-The model id is read from the top-level `model` field for foreign wire formats and from the chud-native request body for `/v1/pi/stream`. The gateway picks the first bundled `Model<Api>` matching that id, parses the inbound wire format into a Chudcode `Context`, resolves the provider credential from broker-backed `AuthStorage`, dispatches through `streamSimple()`, and re-encodes the result to the inbound format (SSE for streamed responses).
+The model id is read from the top-level `model` field for foreign wire formats and from the pi-native request body for `/v1/pi/stream`. It may be provider-qualified (`typesafe/jev-latest`) or bare (`jev-latest`). The gateway resolves it against the served catalog — every registry model of a kind the gateway has a route for (`chat`, `judge`, `image`, `tts`, `stt`, `embedding`, `rerank`, `video`), scoped to providers the broker holds credentials for — parses the inbound wire format, resolves the provider credential from broker-backed `AuthStorage`, dispatches through the matching `pi-ai` client (`streamSimple()` for chat, `TypeSafeJudge` for judgments, `generateImage` / `synthesizeSpeech` / `transcribeAudio` / `embed` / `rerank` / `submitVideo` for the modality routes), and re-encodes the result to the inbound format (SSE for streamed chat responses).
 
-There is no raw provider passthrough path. All supported routes go through `chud-ai` provider logic so credential-specific request shaping, OAuth refresh-on-auth-error, and provider quirks stay centralized.
+Chat routes reject non-chat models with a `400` that names the route to use instead (`Model typesafe/jev-latest is a judge model; use POST /v1/systemone`). `GET /v1/models` marks such rows with `kind` (`judge` | `image` | `tts` | `stt` | `embedding` | `rerank` | `video`); absent means chat.
+
+Non-chat OpenRouter rosters are discovered live (`/embeddings/models`, `/videos/models`, rerank-flagged `/models` rows, TTS/STT via models.dev kinds) with small `bundle="always"` fallbacks in `providers/openrouter.kdl`; a provider maps each kind to its runner API through `kind-apis` in KDL. Per-search, per-second, and per-character billing have no catalog cost axis, so those rows carry zero token cost and the provider-reported `cost` in the response is authoritative.
+
+Cost attribution is uniform: every route records observed usage against the caller's `x-omp-*` identity and carries the computed cost in `x-litellm-response-cost`. Upstreams that report tokens only (TypeSafe) are priced from the catalog model; the response body's own `cost` field (OpenRouter shape) is only present when the upstream billed one.
+
+Pointing a TypeSafe SDK or omp's own `judge` role at the gateway means `TYPESAFE_BASE_URL=http://gateway:4000` with `TYPESAFE_API_KEY=<gateway token>`; OpenAI-SDK-style clients set their base URL to `http://gateway:4000/v1`.
+
+There is no raw provider passthrough path. All supported routes go through `pi-ai` provider logic so credential-specific request shaping, OAuth refresh-on-auth-error, and provider quirks stay centralized.
 
 `idleTimeout` on the underlying `Bun.serve` is set to `255 s` so long thinking-budget calls do not get killed by Bun’s default idle timeout.
 
@@ -174,21 +192,21 @@ When the gateway (or any other broker client) calls `fetchUsageReports()` / `get
 
 - `USAGE_CACHE_TTL_MS = 15_000` (`packages/ai/src/auth-broker/remote-store.ts`).
 - A single `#usageInflight` promise is shared across all callers; a per-caller `AbortSignal` is **raced** against the shared promise, not threaded into it, so one caller’s abort never cascades into a peer’s in-flight request.
-- On fetch failure the rejected promise is logged and the awaited value is `null` — callers (`AuthStorage.fetchUsageReports`, `#getUsageReport`) treat a `null` report as "no usage signal for this cycle" and proceed without it. **This is the 15 s TTL fallback**: the client absorbs transient broker outages by suppressing the error, returning `null` to ranking, and re-attempting after the 15 s window.
+- On fetch failure the rejected promise is logged and the awaited value is `null` — callers (`AuthStorage.usage.reports`, `#getUsageReport`) treat a `null` report as "no usage signal for this cycle" and proceed without it. **This is the 15 s TTL fallback**: the client absorbs transient broker outages by suppressing the error, returning `null` to ranking, and re-attempting after the 15 s window.
 
 The 15 s client window deliberately sits below the broker’s 5 min server cache, so almost every client poll is served from the broker’s already-cached value; the client cache exists to absorb the parallel fan-out generated by `AuthStorage.#rankOAuthSelections` into a single broker round-trip.
 
 ## Client snapshot cache
 
-`discoverAuthStorage()` persists the broker snapshot to `~/.chudcode/cache/auth-broker-snapshot.enc` after the initial `/v1/snapshot` fetch and after later broker-sourced full snapshots. The file is AES-256-GCM encrypted with `SHA-256(CHUDCODE_AUTH_BROKER_TOKEN)` and authenticated with the broker URL as additional data, so changing either the token or URL makes the cache unreadable. The file is written atomically with mode `0600`.
+`discoverAuthStorage()` persists the broker snapshot to `~/.omp/cache/auth-broker-snapshot.enc` after the initial `/v1/snapshot` fetch and after later broker-sourced full snapshots. The file is AES-256-GCM encrypted with `SHA-256(OMP_AUTH_BROKER_TOKEN)` and authenticated with the broker URL as additional data, so changing either the token or URL makes the cache unreadable. The file is written atomically with mode `0600`.
 
-Freshness is anchored to the broker-stamped `snapshot.generatedAt`, not local write time. Default TTL is 1 h (`CHUDCODE_AUTH_BROKER_SNAPSHOT_TTL_MS`); `0` disables cache reads and writes. A fresh cache is revalidated against a reachable broker with a 500 ms startup budget, so an imported, revoked, or rotated credential is visible to one-shot commands immediately. If revalidation fails because the broker is unavailable or slow, `chudcode` starts from the cache and `RemoteAuthCredentialStore` continues normal SSE / long-poll synchronization in the background. Expired OAuth access tokens still refresh through `POST /v1/credential/:id/refresh`.
+Freshness is anchored to the broker-stamped `snapshot.generatedAt`, not local write time. Default TTL is 1 h (`OMP_AUTH_BROKER_SNAPSHOT_TTL_MS`); `0` disables cache reads and writes. A fresh cache is revalidated against a reachable broker with a 500 ms startup budget, so an imported, revoked, or rotated credential is visible to one-shot commands immediately. If revalidation fails because the broker is unavailable or slow, `omp` starts from the cache and `RemoteAuthCredentialStore` continues normal SSE / long-poll synchronization in the background. Expired OAuth access tokens still refresh through `POST /v1/credential/:id/refresh`.
 
 If the broker is down at boot and a fresh cache exists, startup succeeds from the cached snapshot. Authentication failures (401/403) are not masked by the cache; transient server errors fall back to it. If the cache is missing, expired, corrupt, written for a different URL, or encrypted with a different token, startup falls back to the live fetch and fails if the broker is unreachable.
 
 ## Client account pools (routing, not authorization)
 
-Broker clients can restrict their visible OAuth accounts by setting `CHUDCODE_AUTH_BROKER_ACCOUNT_POOL_FILE` to a JSON file. The file maps provider IDs to exact `identityKey` values from the broker snapshot protocol:
+Broker clients can restrict their visible OAuth accounts by setting `OMP_AUTH_BROKER_ACCOUNT_POOL_FILE` to a JSON file. The file maps provider IDs to exact `identityKey` values from the broker snapshot protocol:
 
 ```json
 {
@@ -212,50 +230,50 @@ This is a **trusted-client routing policy, not an authorization boundary**. The 
 
 ## Operator opt-in
 
-The broker is **off** unless `CHUDCODE_AUTH_BROKER_URL` (or `auth.broker.url` in `config.yml`) is set. When set, `discoverAuthStorage` in `packages/coding-agent/src/sdk.ts` swaps the local SQLite credential store for `RemoteAuthCredentialStore` and every API call resolves credentials through the broker.
+The broker is **off** unless `OMP_AUTH_BROKER_URL` (or `auth.broker.url` in `config.yml`) is set. When set, `discoverAuthStorage` in `packages/coding-agent/src/sdk.ts` swaps the local SQLite credential store for `RemoteAuthCredentialStore` and every API call resolves credentials through the broker.
 
 ### Environment variables
 
 | Variable                            | Purpose                                                                                                                                                                | Required when                                                                                                             |
 | ----------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
-| `CHUDCODE_AUTH_BROKER_URL`               | Base URL of the remote auth-broker (e.g. `https://broker.tailnet:8765`). Selecting this puts the client in broker mode — local SQLite is bypassed.                     | Any time the Chudcode client should resolve credentials through a broker (and required by `chudcode auth-gateway serve`).           |
-| `CHUDCODE_AUTH_BROKER_TOKEN`             | Bearer token used for every broker endpoint except `/v1/healthz`.                                                                                                      | When `CHUDCODE_AUTH_BROKER_URL` is set and no token is available from `auth.broker.token` or `<config-dir>/auth-broker.token`. |
-| `CHUDCODE_AUTH_BROKER_SNAPSHOT_TTL_MS`   | Freshness window for the encrypted local snapshot cache. Default `3600000` (1 h); `0` disables cache reads and writes.                                                 | Optional in broker mode.                                                                                                  |
-| `CHUDCODE_AUTH_BROKER_SNAPSHOT_CACHE`    | Path override for the encrypted local snapshot cache. Default `~/.chudcode/cache/auth-broker-snapshot.enc` (or XDG cache equivalent).                                       | Optional in broker mode.                                                                                                  |
-| `CHUDCODE_AUTH_BROKER_ACCOUNT_POOL_FILE` | JSON file mapping provider IDs to OAuth `identityKey` values visible to this trusted client. Parsed once; invalid files abort initialization. API keys are unaffected. | Optional in broker mode.                                                                                                  |
+| `OMP_AUTH_BROKER_URL`               | Base URL of the remote auth-broker (e.g. `https://broker.tailnet:8765`). Selecting this puts the client in broker mode — local SQLite is bypassed.                     | Any time the omp client should resolve credentials through a broker (and required by `omp auth-gateway serve`).           |
+| `OMP_AUTH_BROKER_TOKEN`             | Bearer token used for every broker endpoint except `/v1/healthz`.                                                                                                      | When `OMP_AUTH_BROKER_URL` is set and no token is available from `auth.broker.token` or `<config-dir>/auth-broker.token`. |
+| `OMP_AUTH_BROKER_SNAPSHOT_TTL_MS`   | Freshness window for the encrypted local snapshot cache. Default `3600000` (1 h); `0` disables cache reads and writes.                                                 | Optional in broker mode.                                                                                                  |
+| `OMP_AUTH_BROKER_SNAPSHOT_CACHE`    | Path override for the encrypted local snapshot cache. Default `~/.omp/cache/auth-broker-snapshot.enc` (or XDG cache equivalent).                                       | Optional in broker mode.                                                                                                  |
+| `OMP_AUTH_BROKER_ACCOUNT_POOL_FILE` | JSON file mapping provider IDs to OAuth `identityKey` values visible to this trusted client. Parsed once; invalid files abort initialization. API keys are unaffected. | Optional in broker mode.                                                                                                  |
 
 Resolution order in `resolveAuthBrokerConfig()`:
 
-1. `CHUDCODE_AUTH_BROKER_URL` env (else `auth.broker.url` from `config.yml`, resolved through `resolveConfigValue`);
-2. `CHUDCODE_AUTH_BROKER_TOKEN` env (else `auth.broker.token` from `config.yml`, else `<config-dir>/auth-broker.token`);
+1. `OMP_AUTH_BROKER_URL` env (else `auth.broker.url` from `config.yml`, resolved through `resolveConfigValue`);
+2. `OMP_AUTH_BROKER_TOKEN` env (else `auth.broker.token` from `config.yml`, else `<config-dir>/auth-broker.token`);
 3. URL set but no token resolvable → hard error pointing at the token file path.
 
-The gateway has no dedicated env vars — it inherits `CHUDCODE_AUTH_BROKER_*` because it is itself a broker client.
+The gateway has no dedicated env vars — it inherits `OMP_AUTH_BROKER_*` because it is itself a broker client.
 
 ### `config.yml` keys
 
 | Key                 | Default | Purpose                                                                                                                                                                            |
 | ------------------- | ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `auth.broker.url`   | unset   | Same as `CHUDCODE_AUTH_BROKER_URL`; env wins. Hidden from the settings UI. Values are resolved as a literal, an environment variable name, or `!<shell command>` to use trimmed stdout. |
-| `auth.broker.token` | unset   | Same as `CHUDCODE_AUTH_BROKER_TOKEN`; env wins. Values are resolved the same way.                                                                                                       |
+| `auth.broker.url`   | unset   | Same as `OMP_AUTH_BROKER_URL`; env wins. Hidden from the settings UI. Values are resolved as a literal, an environment variable name, or `!<shell command>` to use trimmed stdout. |
+| `auth.broker.token` | unset   | Same as `OMP_AUTH_BROKER_TOKEN`; env wins. Values are resolved the same way.                                                                                                       |
 
 ### Token files
 
 | Path                              | Owner                                                | Mode                          |
 | --------------------------------- | ---------------------------------------------------- | ----------------------------- |
-| `<config-dir>/auth-broker.token`  | `chudcode auth-broker serve` (created at first start)     | `0600` in a `0700` parent dir |
-| `<config-dir>/auth-gateway.token` | `chudcode auth-gateway serve` (skipped under `--no-auth`) | `0600` in a `0700` parent dir |
+| `<config-dir>/auth-broker.token`  | `omp auth-broker serve` (created at first start)     | `0600` in a `0700` parent dir |
+| `<config-dir>/auth-gateway.token` | `omp auth-gateway serve` (skipped under `--no-auth`) | `0600` in a `0700` parent dir |
 
-`<config-dir>` resolves to `~/.chudcode/` (respecting `CHUDCODE_CONFIG_DIR`).
+`<config-dir>` resolves to `~/.omp/` (respecting `PI_CONFIG_DIR`).
 
 ## Interaction with the local API-key resolution order
 
 The broker only owns OAuth credentials and provider-API-key credentials that were uploaded to it. The standard credential ladder in `models.md` (`Auth and API key resolution order`) is preserved, with one addition committed alongside the gateway:
 
-- `AuthStorage.setConfigApiKey / removeConfigApiKey / clearConfigApiKeys` let a `models.yml` `apiKey` beat a stored OAuth token **without** overriding an explicit `--api-key`. This is what allows a broker-resolved OAuth credential to be reliably shadowed by a per-environment `models.yml` config key when both are present.
+- `AuthStorage.keys.setConfig / removeConfigApiKey / clearConfigApiKeys` let a `models.yml` `apiKey` beat a stored OAuth token **without** overriding an explicit `--api-key`. This is what allows a broker-resolved OAuth credential to be reliably shadowed by a per-environment `models.yml` config key when both are present.
 
 ## See also
 
-- [`secrets.md`](./secrets.md) — secret obfuscation around tokens that _do_ leak through (e.g. `CHUDCODE_AUTH_BROKER_TOKEN` in shell output).
+- [`secrets.md`](./secrets.md) — secret obfuscation around tokens that _do_ leak through (e.g. `OMP_AUTH_BROKER_TOKEN` in shell output).
 - [`models.md`](./models.md) — provider auth resolution order; the broker supplies the stored-credential layers.
-- [`environment-variables.md`](./environment-variables.md) — full env reference including `CHUDCODE_AUTH_BROKER_URL` / `CHUDCODE_AUTH_BROKER_TOKEN`.
+- [`environment-variables.md`](./environment-variables.md) — full env reference including `OMP_AUTH_BROKER_URL` / `OMP_AUTH_BROKER_TOKEN`.

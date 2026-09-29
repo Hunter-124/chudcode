@@ -1,81 +1,73 @@
 import { Database } from "bun:sqlite";
 import { afterEach, describe, expect, test, vi } from "bun:test";
-import { AuthStorage, SqliteAuthCredentialStore } from "@chudware/ai/auth-storage";
-import { getOAuthProviders } from "@chudware/ai/registry/oauth";
-import { getEnvApiKey } from "@chudware/ai/stream";
-import type { FetchImpl } from "@chudware/ai/types";
+import { AuthStorage, SqliteAuthCredentialStore } from "@oh-my-pi/pi-ai/auth-storage";
+import { getEnvApiKey } from "@oh-my-pi/pi-ai/stream";
+import type { FetchImpl } from "@oh-my-pi/pi-ai/types";
 
-const originalXaiApiKey = process.env.XAI_API_KEY;
+const originalXaiApiKey = Bun.env.XAI_API_KEY;
 
 afterEach(() => {
 	if (originalXaiApiKey === undefined) {
-		delete process.env.XAI_API_KEY;
+		delete Bun.env.XAI_API_KEY;
 	} else {
-		process.env.XAI_API_KEY = originalXaiApiKey;
+		Bun.env.XAI_API_KEY = originalXaiApiKey;
 	}
 	vi.restoreAllMocks();
 });
 
 describe("xAI API login wiring", () => {
-	test("registers xAI API in the OAuth provider selector", () => {
-		const provider = getOAuthProviders().find(item => item.id === "xai");
-		expect(provider).toBeDefined();
-		expect(provider?.name).toBe("xAI API");
-		expect(provider?.available).toBe(true);
-	});
-
 	test("resolves XAI_API_KEY from environment", () => {
-		process.env.XAI_API_KEY = "xai-env-key";
+		Bun.env.XAI_API_KEY = "xai-env-key";
 		expect(getEnvApiKey("xai")).toBe("xai-env-key");
 	});
 
 	test("XAI_API_KEY alone does not mark SuperGrok as available", async () => {
-		const originalOauthToken = process.env.XAI_OAUTH_TOKEN;
-		process.env.XAI_API_KEY = "xai-env-key";
-		delete process.env.XAI_OAUTH_TOKEN;
+		const originalOauthToken = Bun.env.XAI_OAUTH_TOKEN;
+		Bun.env.XAI_API_KEY = "xai-env-key";
+		delete Bun.env.XAI_OAUTH_TOKEN;
 		const store = new SqliteAuthCredentialStore(new Database(":memory:"));
 		const storage = new AuthStorage(store);
-		await storage.reload();
+		await storage.credentials.reload();
 		try {
-			expect(storage.hasAuth("xai")).toBe(true);
-			expect(storage.hasAuth("xai-oauth")).toBe(false);
-			expect(storage.hasResolvableAuth("xai")).toBe(true);
-			expect(storage.hasResolvableAuth("xai-oauth")).toBe(true);
+			expect(storage.keys.source("xai") !== undefined).toBe(true);
+			expect(storage.keys.source("xai-oauth") !== undefined).toBe(false);
+			expect(storage.keys.source("xai", { env: "aliases" }) !== undefined).toBe(true);
+			expect(storage.keys.source("xai-oauth", { env: "aliases" }) !== undefined).toBe(true);
 			expect(getEnvApiKey("xai-oauth")).toBe("xai-env-key");
-			expect(storage.getCredentialOrigin("xai")).toEqual({ kind: "env", envVar: "XAI_API_KEY" });
-			expect(storage.getCredentialOrigin("xai-oauth")).toBeUndefined();
+			expect(storage.keys.source("xai")).toEqual({ kind: "env", envVar: "XAI_API_KEY", concrete: true });
+			expect(storage.keys.source("xai-oauth")).toBeUndefined();
 		} finally {
 			if (originalOauthToken === undefined) {
-				delete process.env.XAI_OAUTH_TOKEN;
+				delete Bun.env.XAI_OAUTH_TOKEN;
 			} else {
-				process.env.XAI_OAUTH_TOKEN = originalOauthToken;
+				Bun.env.XAI_OAUTH_TOKEN = originalOauthToken;
 			}
 			store.close();
 		}
 	});
 
 	test("XAI_OAUTH_TOKEN marks SuperGrok available without a paid API key", async () => {
-		const originalOauthToken = process.env.XAI_OAUTH_TOKEN;
-		delete process.env.XAI_API_KEY;
-		process.env.XAI_OAUTH_TOKEN = "xai-oauth-env";
+		const originalOauthToken = Bun.env.XAI_OAUTH_TOKEN;
+		delete Bun.env.XAI_API_KEY;
+		Bun.env.XAI_OAUTH_TOKEN = "xai-oauth-env";
 		const store = new SqliteAuthCredentialStore(new Database(":memory:"));
 		const storage = new AuthStorage(store);
-		await storage.reload();
+		await storage.credentials.reload();
 		try {
-			expect(storage.hasAuth("xai")).toBe(false);
-			expect(storage.hasAuth("xai-oauth")).toBe(true);
-			expect(storage.getCredentialOrigin("xai-oauth")).toEqual({ kind: "env" });
+			expect(storage.keys.source("xai") !== undefined).toBe(false);
+			expect(storage.keys.source("xai-oauth") !== undefined).toBe(true);
+			expect(storage.keys.source("xai-oauth")).toEqual({ kind: "env", concrete: true });
 		} finally {
 			if (originalOauthToken === undefined) {
-				delete process.env.XAI_OAUTH_TOKEN;
+				delete Bun.env.XAI_OAUTH_TOKEN;
 			} else {
-				process.env.XAI_OAUTH_TOKEN = originalOauthToken;
+				Bun.env.XAI_OAUTH_TOKEN = originalOauthToken;
 			}
 			store.close();
 		}
 	});
 
-	test("AuthStorage.login('xai') validates against /models and stores the pasted key", async () => {
+	test("AuthStorage.oauth.login('xai') validates against /models and stores the pasted key", async () => {
 		const fetchCalls: Array<{ url: string; init: RequestInit | undefined }> = [];
 		const fetchMock: FetchImpl = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
 			let url: string;
@@ -98,15 +90,15 @@ describe("xAI API login wiring", () => {
 
 		const store = new SqliteAuthCredentialStore(new Database(":memory:"));
 		const storage = new AuthStorage(store);
-		await storage.reload();
+		await storage.credentials.reload();
 
-		await storage.login("xai", {
+		await storage.oauth.login("xai", {
 			onAuth: () => {},
 			onPrompt: async () => "xai-validated",
 			fetch: fetchMock,
 		});
 
-		const credential = await storage.get("xai");
+		const credential = await storage.credentials.get("xai");
 		expect(credential).toEqual({ type: "api_key", key: "xai-validated", source: "login" });
 
 		const modelsCall = fetchCalls.find(call => call.url.endsWith("/v1/models"));
@@ -117,7 +109,7 @@ describe("xAI API login wiring", () => {
 		store.close();
 	});
 
-	test("AuthStorage.login('xai') rejects keys that fail /models validation", async () => {
+	test("AuthStorage.oauth.login('xai') rejects keys that fail /models validation", async () => {
 		const fetchMock: FetchImpl = vi.fn(
 			async () =>
 				new Response("Unauthorized", {
@@ -128,17 +120,17 @@ describe("xAI API login wiring", () => {
 
 		const store = new SqliteAuthCredentialStore(new Database(":memory:"));
 		const storage = new AuthStorage(store);
-		await storage.reload();
+		await storage.credentials.reload();
 
 		await expect(
-			storage.login("xai", {
+			storage.oauth.login("xai", {
 				onAuth: () => {},
 				onPrompt: async () => "xai-bogus",
 				fetch: fetchMock,
 			}),
 		).rejects.toThrow(/xAI API key validation failed \(401\)/);
 
-		expect(await storage.get("xai")).toBeUndefined();
+		expect(await storage.credentials.get("xai")).toBeUndefined();
 		store.close();
 	});
 });

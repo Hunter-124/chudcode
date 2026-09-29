@@ -1,3 +1,4 @@
+import { USER_AGENT, getInstallId } from "@oh-my-pi/pi-utils";
 import { ProviderHttpError } from "../error";
 import type {
 	CredentialRankingStrategy,
@@ -108,6 +109,13 @@ async function fetchOpenCodeGoUsage(params: UsageFetchParams, ctx: UsageFetchCon
 			headers: {
 				accept: "application/json",
 				authorization: `Bearer ${credential.apiKey}`,
+				// Background poll outside any conversation: attribute with the
+				// stable install id so OpenCode can optimize/service the
+				// request (x-opencode-session required from 09/06). Peers
+				// (codex/zai) send USER_AGENT here; without it Bun's default
+				// UA is what upstream flags as "Bun fetch".
+				"User-Agent": USER_AGENT,
+				"x-opencode-session": getInstallId(),
 			},
 			signal: params.signal,
 		});
@@ -171,6 +179,10 @@ async function fetchOpenCodeGoUsage(params: UsageFetchParams, ctx: UsageFetchCon
 
 export const opencodeGoUsageProvider: UsageProvider = {
 	id: OPENCODE_GO_PROVIDER,
+	// v2: retires cached reports from the OMP-observed spend estimator (dollar
+	// units) now that limits come from the upstream percent-based `/usage`
+	// endpoint; the 24h last-good retention would otherwise keep serving them.
+	cacheVersion: 2,
 	fetchUsage: fetchOpenCodeGoUsage,
 	supports: params => params.provider === OPENCODE_GO_PROVIDER && params.credential.type === "api_key",
 	validatesCredentials: true,
@@ -184,7 +196,7 @@ export const opencodeGoUsageProvider: UsageProvider = {
  * enabled, and the usage endpoint does not report that flag — blocking on it
  * would bench a working key until the subscription anniversary. Hard monthly
  * failures still rotate credentials via the `401 Insufficient balance`
- * usage-limit classification ([#3169](https://github.com/Hunter-124/chudcode/issues/3169)).
+ * usage-limit classification ([#3169](https://github.com/can1357/oh-my-pi/issues/3169)).
  */
 export const opencodeGoRankingStrategy: CredentialRankingStrategy = {
 	findWindowLimits: report => ({

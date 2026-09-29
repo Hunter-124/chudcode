@@ -3,14 +3,14 @@ import {
 	disposeAllKernelSessions,
 	disposeKernelSessionsByOwner,
 	executePython,
-} from "@chudware/coding-agent/eval/py/executor";
+} from "@oh-my-pi/pi-coding-agent/eval/py/executor";
 import type {
 	KernelExecuteResult,
 	KernelShutdownResult,
 	PythonKernel as PythonKernelInstance,
-} from "@chudware/coding-agent/eval/py/kernel";
-import * as pythonKernel from "@chudware/coding-agent/eval/py/kernel";
-import { PythonKernel } from "@chudware/coding-agent/eval/py/kernel";
+} from "@oh-my-pi/pi-coding-agent/eval/py/kernel";
+import * as pythonKernel from "@oh-my-pi/pi-coding-agent/eval/py/kernel";
+import { PythonKernel } from "@oh-my-pi/pi-coding-agent/eval/py/kernel";
 
 const OK_RESULT: KernelExecuteResult = {
 	status: "ok",
@@ -23,9 +23,9 @@ type FakeKernelShutdownOptions = { timeoutMs?: number };
 
 class FakeKernel {
 	execute = vi.fn(async () => OK_RESULT);
-	shutdown = vi.fn(
-		async (_options?: FakeKernelShutdownOptions): Promise<KernelShutdownResult> => ({ confirmed: true }),
-	);
+	shutdown = vi.fn(async (_options?: FakeKernelShutdownOptions): Promise<KernelShutdownResult> => ({
+		confirmed: true,
+	}));
 	ping = vi.fn(async () => true);
 	alive = true;
 

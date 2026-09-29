@@ -1,4 +1,8 @@
+// Deep import: the pi-utils barrel loads the host native addon, which is
+// absent on cross-compiling release runners.
+import { USER_AGENT } from "@oh-my-pi/pi-utils/dirs";
 import { buildDocsIndexPayload } from "./generate-docs-index";
+import { createJsonParsePlugin } from "./json-parse-plugin";
 import { createLegacyPiVirtualModulePlugin } from "./legacy-pi-virtual-module";
 
 /** Native runtime dependencies always resolved from the on-demand install instead of embedded into compiled binaries. */
@@ -25,13 +29,13 @@ export interface CodingAgentCompileOptions {
 }
 
 /**
- * Compile the coding-agent executable with its legacy Chud compatibility module
+ * Compile the coding-agent executable with its legacy Pi compatibility module
  * graph supplied by an in-memory build plugin rather than generated files.
  */
 export async function compileCodingAgent(options: CodingAgentCompileOptions): Promise<void> {
-	const previousCodesignSetting = process.env.BUN_NO_CODESIGN_MACHO_BINARY;
+	const previousCodesignSetting = Bun.env.BUN_NO_CODESIGN_MACHO_BINARY;
 	if (options.skipBuiltinCodesign) {
-		process.env.BUN_NO_CODESIGN_MACHO_BINARY = "1";
+		Bun.env.BUN_NO_CODESIGN_MACHO_BINARY = "1";
 	}
 	try {
 		const output = await Bun.build({
@@ -39,16 +43,24 @@ export async function compileCodingAgent(options: CodingAgentCompileOptions): Pr
 			root: options.repoRoot,
 			external: [...COMPILED_EXTERNAL_DEPENDENCIES],
 			define: {
-				"process.env.CHUDCODE_COMPILED": JSON.stringify("true"),
-				"process.env.CHUDCODE_TINY_TRANSFORMERS_VERSION": JSON.stringify(options.transformersVersion),
-				"process.env.CHUDCODE_DOCS_EMBED": JSON.stringify((await buildDocsIndexPayload()).payload),
+				"process.env.PI_COMPILED": JSON.stringify("true"),
+				"process.env.PI_TINY_TRANSFORMERS_VERSION": JSON.stringify(options.transformersVersion),
+				"process.env.PI_DOCS_EMBED": JSON.stringify((await buildDocsIndexPayload()).payload),
 			},
+			// Precompiled bytecode skips parsing the ~20 MB bundle at boot:
+			// `omp --version` 256 ms -> 30 ms on M4 Max (+52 MB binary).
+			// Keep import.meta.resolve in bundled dependencies valid under bytecode.
+			format: "esm",
+			bytecode: true,
 			minify: {
 				identifiers: options.minifyIdentifiers ?? false,
 				keepNames: true,
 			},
-			plugins: [await createLegacyPiVirtualModulePlugin()],
+			plugins: [createJsonParsePlugin(), await createLegacyPiVirtualModulePlugin()],
 			compile: {
+				// Bun's process-wide fetch User-Agent default. Any explicit
+				// provider fingerprint (Anthropic/Codex OAuth) still wins.
+				execArgv: [`--user-agent=${USER_AGENT}`],
 				...(options.executablePath
 					? { executablePath: options.executablePath }
 					: options.target
@@ -67,9 +79,9 @@ export async function compileCodingAgent(options: CodingAgentCompileOptions): Pr
 		}
 	} finally {
 		if (previousCodesignSetting === undefined) {
-			delete process.env.BUN_NO_CODESIGN_MACHO_BINARY;
+			delete Bun.env.BUN_NO_CODESIGN_MACHO_BINARY;
 		} else {
-			process.env.BUN_NO_CODESIGN_MACHO_BINARY = previousCodesignSetting;
+			Bun.env.BUN_NO_CODESIGN_MACHO_BINARY = previousCodesignSetting;
 		}
 	}
 }

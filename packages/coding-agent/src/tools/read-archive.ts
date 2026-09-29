@@ -1,23 +1,22 @@
-import type { AgentToolResult } from "@chudware/agent-core";
-import type { TextContent } from "@chudware/ai";
+import type { AgentToolResult } from "@oh-my-pi/pi-agent-core";
+import type { TextContent } from "@oh-my-pi/pi-ai";
 import {
 	type ArchiveReader,
 	formatArchiveEntryLines,
 	openArchive,
 	parseArchivePathCandidates,
-} from "@chudware/utils/ar";
-import * as fsx from "@chudware/utils/fsx";
+} from "@oh-my-pi/pi-utils/ar";
 import type { ToolSession } from "../sdk";
-import { truncateHead } from "../session/streaming-output";
-import { applyListLimit } from "./list-limit";
+import { truncateHead } from "@oh-my-pi/pi-tui/tools/streaming-output";
+import { applyListLimit } from "@oh-my-pi/pi-tui/tools/list-limit";
 import { resolveReadPath } from "./path-utils";
-import type { ReadToolDetails } from "./read";
+import type { ReadToolDetails } from "@oh-my-pi/pi-tui/tools/read";
 import {
-	buildInMemoryMultiRangeResult,
-	buildInMemoryTextResult,
+	buildInMemorySelectorResult,
 	decodeUtf8Text,
 	markMarkdownContentType,
 	prependSuffixResolutionNotice,
+	toReadTruncationStats,
 } from "./read-format";
 import {
 	findSuffixMatchCached,
@@ -25,9 +24,10 @@ import {
 	isRemoteMountPath,
 	type SuffixMatchCache,
 } from "./read-path-resolution";
-import { isMultiRange, isRawSelector, type ParsedSelector, parseSel, selToOffsetLimit } from "./read-selector";
-import { formatBytes } from "./render-utils";
-import { ToolError, throwIfAborted } from "./tool-errors";
+import { isMultiRange, type ParsedSelector, parseSel, resolveTailSelector, selToOffsetLimit } from "./read-selector";
+import { formatBytes } from "@oh-my-pi/pi-tui/render/render-utils";
+import { throwIfAborted } from "./tool-errors";
+import { ToolError } from "@oh-my-pi/pi-tui/tools/tool-errors";
 import { toolResult } from "./tool-result";
 
 interface ResolvedArchiveReadPath {
@@ -47,7 +47,7 @@ export async function resolveArchiveReadPath(
 		let suffixResolution: { from: string; to: string } | undefined;
 
 		try {
-			const stat = await fsx.stat(absolutePath);
+			const stat = await Bun.file(absolutePath).stat();
 			if (stat.isDirectory()) continue;
 			return {
 				absolutePath,
@@ -61,7 +61,7 @@ export async function resolveArchiveReadPath(
 			if (!suffixMatch) continue;
 
 			try {
-				const retryStat = await fsx.stat(suffixMatch.absolutePath);
+				const retryStat = await Bun.file(suffixMatch.absolutePath).stat();
 				if (retryStat.isDirectory()) continue;
 
 				absolutePath = suffixMatch.absolutePath;
@@ -85,16 +85,16 @@ async function readArchiveDirectory(
 	archive: ArchiveReader,
 	archivePath: string,
 	subPath: string,
-	offset: number | undefined,
-	limit: number | undefined,
+	sel: ParsedSelector,
 	details: ReadToolDetails,
 	signal?: AbortSignal,
 ): Promise<AgentToolResult<ReadToolDetails>> {
 	const DEFAULT_LIMIT = 500;
-	const effectiveLimit = limit ?? DEFAULT_LIMIT;
 	const allEntries = archive.listDirectory(subPath);
-	// `offset` is 1-indexed (line-selector semantics): `a.zip:dir:50` starts
-	// the listing at the 50th entry instead of being silently ignored.
+	// Selectors address entries with line semantics: `a.zip:dir:50` starts the
+	// listing at the 50th entry, `a.zip:dir:-20` lists the last 20.
+	const { offset, limit } = selToOffsetLimit(resolveTailSelector(sel, allEntries.length));
+	const effectiveLimit = limit ?? DEFAULT_LIMIT;
 	const entries = offset !== undefined && offset > 1 ? allEntries.slice(offset - 1) : allEntries;
 
 	const listLimit = applyListLimit(entries, { limit: effectiveLimit });
@@ -113,7 +113,7 @@ async function readArchiveDirectory(
 	const resultBuilder = toolResult<ReadToolDetails>(directoryDetails).text(truncation.content);
 	resultBuilder.sourcePath(archivePath).limits({ resultLimit: limitMeta.resultLimit?.reached });
 	if (truncation.truncated) {
-		directoryDetails.truncation = truncation;
+		directoryDetails.truncation = toReadTruncationStats(truncation);
 		resultBuilder.truncation(truncation, { direction: "head" });
 	}
 	return resultBuilder.done();
@@ -161,16 +161,7 @@ export async function readArchive(
 		if (isMultiRange(sel)) {
 			throw new ToolError("Multi-range line selectors are not supported for archive directory listings.");
 		}
-		const { offset, limit } = selToOffsetLimit(sel);
-		return readArchiveDirectory(
-			archive,
-			resolvedArchivePath.absolutePath,
-			archiveSubPath,
-			offset,
-			limit,
-			details,
-			signal,
-		);
+		return readArchiveDirectory(archive, resolvedArchivePath.absolutePath, archiveSubPath, sel, details, signal);
 	}
 
 	const entry = await archive.readFile(archiveSubPath);
@@ -190,23 +181,12 @@ export async function readArchive(
 	// Archive members are immutable: there is no edit path for bytes inside
 	// an archive, and a hashline tag keyed to the archive file would invite
 	// (and fail) edits while clobbering sibling members' snapshots.
-	const raw = isRawSelector(sel);
-	const result =
-		isMultiRange(sel) && sel.kind === "lines"
-			? buildInMemoryMultiRangeResult(session, text, sel.ranges, {
-					details,
-					sourcePath: resolvedArchivePath.absolutePath,
-					entityLabel: "archive entry",
-					raw,
-					immutable: true,
-				})
-			: buildInMemoryTextResult(session, text, selToOffsetLimit(sel).offset, selToOffsetLimit(sel).limit, {
-					details,
-					sourcePath: resolvedArchivePath.absolutePath,
-					entityLabel: "archive entry",
-					raw,
-					immutable: true,
-				});
+	const result = buildInMemorySelectorResult(session, text, sel, {
+		details,
+		sourcePath: resolvedArchivePath.absolutePath,
+		entityLabel: "archive entry",
+		immutable: true,
+	});
 	const firstText = result.content.find((content): content is TextContent => content.type === "text");
 	if (firstText) {
 		firstText.text = prependSuffixResolutionNotice(firstText.text, resolvedArchivePath.suffixResolution);

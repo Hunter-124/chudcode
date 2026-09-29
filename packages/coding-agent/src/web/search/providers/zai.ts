@@ -4,9 +4,9 @@
  * Calls Z.AI's remote MCP server (`webSearchPrime`) and adapts results into
  * the unified SearchResponse shape used by the web search tool.
  */
-import { type ApiKey, type AuthStorage, type FetchImpl, getEnvApiKey, withAuth } from "@chudware/ai";
-import { isRecord } from "@chudware/utils";
-import type { SearchResponse, SearchSource } from "../../../web/search/types";
+import { type ApiKey, type AuthStorage, type FetchImpl, getEnvApiKey, withAuth } from "@oh-my-pi/pi-ai";
+import { isRecord } from "@oh-my-pi/pi-utils";
+import type { SearchResponse, SearchSource } from "../types";
 import { SearchProviderError } from "../../../web/search/types";
 import { formatQuery, parseSearchQuery, type QuerySyntax } from "../query";
 import { dateToAgeSeconds } from "../utils";
@@ -79,7 +79,7 @@ interface ZaiMcpPostResult {
 
 const ZAI_MCP_PROTOCOL_VERSION = "2025-03-26";
 const ZAI_MCP_CLIENT_INFO = {
-	name: "chudcode-coding-agent",
+	name: "omp-coding-agent",
 	version: "1.0.0",
 };
 
@@ -205,7 +205,7 @@ export async function findApiKey(
 	sessionId?: string,
 	signal?: AbortSignal,
 ): Promise<string | null> {
-	return (await authStorage.getApiKey("zai", sessionId, { signal })) ?? null;
+	return (await authStorage.keys.get("zai", sessionId, { signal })) ?? null;
 }
 
 async function callZaiTool(
@@ -411,13 +411,13 @@ function toSources(results: ZaiSearchResult[]): SearchSource[] {
 
 /** Execute Z.AI web search via remote MCP endpoint. */
 export async function searchZai(params: ZaiSearchParams): Promise<SearchResponse> {
-	const keyOrResolver: ApiKey = params.authStorage.resolver("zai", {
+	const keyOrResolver: ApiKey = params.authStorage.keys.resolver("zai", {
 		sessionId: params.sessionId,
 	});
 
 	const rawResult = await withAuth(keyOrResolver, key => callZaiSearch(key, params), {
 		signal: params.signal,
-		missingKeyMessage: "Z.AI credentials not found. Set ZAI_API_KEY or login with 'chudcode /login zai'.",
+		missingKeyMessage: "Z.AI credentials not found. Set ZAI_API_KEY or login with 'omp /login zai'.",
 	});
 	const payload = parseSearchPayload(rawResult);
 	let sources = toSources(payload.results);
@@ -442,7 +442,7 @@ export class ZaiProvider extends SearchProvider {
 	readonly label = "Z.AI";
 
 	isAvailable(authStorage: AuthStorage): Promise<boolean> | boolean {
-		return authStorage.hasAuth("zai") || !!getEnvApiKey("zai");
+		return authStorage.keys.source("zai") !== undefined || !!getEnvApiKey("zai");
 	}
 
 	search(params: SearchParams): Promise<SearchResponse> {

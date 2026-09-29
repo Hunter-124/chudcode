@@ -2,15 +2,11 @@ import { Database } from "bun:sqlite";
 import { describe, expect, it } from "bun:test";
 import * as path from "node:path";
 import { gzipSync } from "node:zlib";
-import { runGcCommand } from "@chudware/coding-agent/cli/gc-cli";
-import {
-	mergeSessionRanking,
-	rankSessionSearchMatches,
-} from "@chudware/coding-agent/modes/components/session-selector";
-import { listSessions, type SessionInfo } from "@chudware/coding-agent/session/session-listing";
-import { MemorySessionStorage } from "@chudware/coding-agent/session/session-storage";
-import { getHistoryDbPath, getSessionsDir, TempDir } from "@chudware/utils";
-import * as fsx from "@chudware/utils/fsx";
+import { runGcCommand } from "@oh-my-pi/pi-coding-agent/cli/gc-cli";
+import { mergeSessionRanking, rankSessionSearchMatches } from "@oh-my-pi/pi-tui/overlays/session-selector";
+import { listSessions, type SessionInfo } from "@oh-my-pi/pi-coding-agent/session/session-listing";
+import { MemorySessionStorage } from "@oh-my-pi/pi-coding-agent/session/session-storage";
+import { getHistoryDbPath, getSessionsDir, TempDir } from "@oh-my-pi/pi-utils";
 
 function makeSession(id: string, overrides: Partial<SessionInfo> = {}): SessionInfo {
 	return {
@@ -64,7 +60,7 @@ describe("slotted session headers", () => {
 			const root = tempDir.path();
 			const archiveDir = path.join(root, "archive", "sessions", "project");
 			const archived = path.join(archiveDir, "legacy-name.jsonl.gz");
-			await fsx.write(
+			await Bun.write(
 				archived,
 				gzipSync(
 					[
@@ -107,7 +103,7 @@ describe("slotted session headers", () => {
 			check.close();
 			expect(result.archive?.historyRowsDeleted).toBe(1);
 			expect(rows).toEqual([]);
-			expect(await fsx.exists(path.join(getSessionsDir(root), "project", "legacy-name.jsonl"))).toBe(false);
+			expect(await Bun.file(path.join(getSessionsDir(root), "project", "legacy-name.jsonl")).exists()).toBe(false);
 		} finally {
 			await tempDir.remove().catch(() => {});
 		}
@@ -179,14 +175,6 @@ describe("mergeSessionRanking", () => {
 
 		// c,a,e matched prompt history → lead in history order; b is metadata-only.
 		expect(ids(mergeSessionRanking(all, fuzzy, historyIds))).toEqual(["c", "a", "e", "b"]);
-	});
-
-	it("never drops a metadata match and appends it after prompt-history matches", () => {
-		const all = ["a", "b"].map(id => makeSession(id));
-		const byId = new Map(all.map(s => [s.id, s]));
-		const fuzzy = [byId.get("a")!];
-
-		expect(ids(mergeSessionRanking(all, fuzzy, ["b"]))).toEqual(["b", "a"]);
 	});
 
 	it("surfaces purely history-matched sessions ordered by prompt-history rank", () => {

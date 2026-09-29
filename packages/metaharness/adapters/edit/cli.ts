@@ -12,14 +12,13 @@
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { parseArgs } from "node:util";
-import { type ResolvedThinkingLevel, ThinkingLevel } from "@chudware/agent-core";
-import { THINKING_EFFORTS } from "@chudware/ai";
-import { postmortem, TempDir } from "@chudware/utils";
-import { loadTasksFromDir, validateFixturesFromDir } from "@chudware/typescript-edit-benchmark/tasks";
+import { type ResolvedThinkingLevel, ThinkingLevel } from "@oh-my-pi/pi-agent-core";
+import { THINKING_EFFORTS } from "@oh-my-pi/pi-ai";
+import { postmortem, TempDir } from "@oh-my-pi/pi-utils";
+import { loadTasksFromDir, validateFixturesFromDir } from "@oh-my-pi/typescript-edit-benchmark/tasks";
 import { LiveProgress } from "./live-progress";
 import { generateJsonReport, generateReport } from "./report";
 import { type BenchmarkConfig, type BenchmarkResult, buildBenchmarkResult, runBenchmark } from "./runner";
-import * as fsx from "@chudware/utils/fsx";
 
 const EDIT_PACKAGE = path.resolve(import.meta.dir, "..", "..", "..", "typescript-edit-benchmark");
 const RUNS_DIR = path.resolve(import.meta.dir, "..", "..", "..", "..", "runs");
@@ -109,7 +108,7 @@ async function resolveFixtures(fixturesArg: string | undefined): Promise<Resolve
 	const temp = await TempDir.create("@metaharness-edit-fixtures-");
 	const archive = new Bun.Archive(await Bun.file(source).arrayBuffer());
 	for (const [filePath, file] of await archive.files()) {
-		await fsx.write(path.join(temp.path(), filePath), file);
+		await Bun.write(path.join(temp.path(), filePath), file);
 	}
 	const entries = await fs.readdir(temp.path(), { withFileTypes: true });
 	const directories = entries.filter(entry => entry.isDirectory());
@@ -305,7 +304,7 @@ export async function main(argv = process.argv.slice(2)): Promise<void> {
 		let writes = Promise.resolve();
 		const queueReportWrite = (result: BenchmarkResult) => {
 			writes = writes.then(async () => {
-				await fsx.write(outputPath, renderReport(result));
+				await Bun.write(outputPath, renderReport(result));
 			});
 		};
 		// A killed/interrupted run still leaves a usable partial report behind.
@@ -313,7 +312,7 @@ export async function main(argv = process.argv.slice(2)): Promise<void> {
 			if (reason === postmortem.Reason.EXIT) return;
 			progress?.finish();
 			log("Benchmark interrupted; writing partial report...");
-			await fsx.write(outputPath, renderReport(latestResult));
+			await Bun.write(outputPath, renderReport(latestResult));
 			await fixtures.cleanup?.();
 		});
 

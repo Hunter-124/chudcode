@@ -1,6 +1,6 @@
 import { describe, expect, it } from "bun:test";
 import * as path from "node:path";
-import { $which } from "@chudware/utils";
+import { $which } from "@oh-my-pi/pi-utils";
 
 interface RunnerFrame {
 	type?: string;
@@ -9,7 +9,7 @@ interface RunnerFrame {
 	status?: string;
 }
 
-const pythonPath = process.env.PYTHON ?? ($which("python3") ? "python3" : "python");
+const pythonPath = Bun.env.PYTHON ?? ($which("python3") ? "python3" : "python");
 const runnerPath = path.resolve(import.meta.dir, "../../../src/eval/py/runner.py");
 const repoRoot = path.resolve(import.meta.dir, "../../../../..");
 const encoder = new TextEncoder();

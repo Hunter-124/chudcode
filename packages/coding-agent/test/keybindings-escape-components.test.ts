@@ -1,13 +1,14 @@
+import { createModelBrowserSource } from "../src/modes/model-browser-source";
 import { afterEach, beforeAll, describe, expect, it, vi } from "bun:test";
-import { getBundledModel } from "@chudware/catalog/models";
-import { KeybindingsManager } from "@chudware/coding-agent/config/keybindings";
-import type { ModelRegistry } from "@chudware/coding-agent/config/model-registry";
-import { Settings } from "@chudware/coding-agent/config/settings";
-import { ModelHubComponent } from "@chudware/coding-agent/modes/components/model-hub";
-import { SessionSelectorComponent } from "@chudware/coding-agent/modes/components/session-selector";
-import { initTheme } from "@chudware/coding-agent/modes/theme/theme";
-import type { SessionInfo } from "@chudware/coding-agent/session/session-listing";
-import { setKeybindings, type TUI } from "@chudware/tui";
+import { getBundledModel } from "@oh-my-pi/pi-catalog/models";
+import { KeybindingsManager } from "@oh-my-pi/pi-tui/app-keybindings";
+import type { ModelRegistry } from "@oh-my-pi/pi-coding-agent/config/model-registry";
+import { Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
+import { ModelHubComponent } from "@oh-my-pi/pi-tui/overlays/model-hub";
+import { SessionSelectorComponent } from "@oh-my-pi/pi-tui/overlays/session-selector";
+import { initTheme } from "@oh-my-pi/pi-tui/theme";
+import type { SessionInfo } from "@oh-my-pi/pi-coding-agent/session/session-listing";
+import { setKeybindings, type TUI } from "@oh-my-pi/pi-tui";
 
 beforeAll(() => {
 	initTheme();
@@ -83,7 +84,7 @@ describe("component escape bindings", () => {
 			getProviderDiscoveryState: () => undefined,
 			refresh: async () => {},
 			refreshProvider: async () => {},
-			authStorage: { hasAuth: () => false },
+			authStorage: { keys: { source: () => undefined } },
 		} as unknown as ModelRegistry;
 		const ui = {
 			requestRender: vi.fn(),
@@ -91,11 +92,17 @@ describe("component escape bindings", () => {
 		} as unknown as TUI;
 		const onCancel = vi.fn();
 
-		const hub = new ModelHubComponent(ui, settings, modelRegistry, [{ model, thinkingLevel: "off" }], {
-			onAssign: () => {},
-			onUnassign: () => {},
-			onCancel,
-		});
+		const hub = new ModelHubComponent(
+			ui,
+			createModelBrowserSource(settings),
+			modelRegistry,
+			[{ model, thinkingLevel: "off" }],
+			{
+				onAssign: () => {},
+				onUnassign: () => {},
+				onCancel,
+			},
+		);
 
 		hub.handleInput("\x1b");
 		expect(onCancel).not.toHaveBeenCalled();

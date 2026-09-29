@@ -5,7 +5,7 @@ This document explains how MCP server definitions become callable `mcp__*` tools
 ## Architecture at a glance
 
 ```text
-Config sources (.chudcode/.claude/.cursor/.vscode/mcp.json, mcp.json, etc.)
+Config sources (.omp/.claude/.cursor/.vscode/mcp.json, mcp.json, etc.)
   -> discovery providers normalize to canonical MCPServer
   -> capability loader dedupes by server name (higher provider priority wins)
   -> loadAllMCPConfigs applies user enablement overrides and suppresses disabled servers
@@ -22,7 +22,7 @@ Config sources (.chudcode/.claude/.cursor/.vscode/mcp.json, mcp.json, etc.)
 - `stdio` (default when `type` missing): requires `command`, optional `args`, `env`, `cwd`
 - `http`: requires `url`, optional `headers`
 - `sse`: requires `url`, optional `headers` (kept for compatibility)
-- shared fields: `enabled`, `timeout`, `requestIdFormat` (`"number"` or `"string"`), `auth`, `oauth`
+- shared fields: `enabled`, `timeout`, `requestIdFormat` (`"number"` or `"string"`), `instructions` (`boolean`, default `true`), `auth`, `oauth`
 
 `validateServerConfig()` (`src/mcp/config.ts`) enforces transport basics:
 
@@ -62,9 +62,9 @@ Result: duplicate server names across sources are not merged. One definition win
 
 The dedicated fallback provider in `src/discovery/mcp-json.ts` reads project-root `mcp.json` and `.mcp.json` (low priority).
 
-In practice MCP servers also come from higher-priority providers (for example native `.chudcode/...` and tool-specific config dirs). Authoring guidance:
+In practice MCP servers also come from higher-priority providers (for example native `.omp/...` and tool-specific config dirs). Authoring guidance:
 
-- Prefer `.chudcode/mcp.json` (project) or `~/.chudcode/agent/mcp.json` (user) for explicit control.
+- Prefer `.omp/mcp.json` (project) or `~/.omp/agent/mcp.json` (user) for explicit control.
 - Use root `mcp.json` / `.mcp.json` when you need fallback compatibility.
 - Reusing the same server name in multiple sources causes precedence shadowing, not merge.
 
@@ -81,7 +81,7 @@ Key behavior:
 
 ### Environment expansion during discovery
 
-Chudcode-native MCP config (`.chudcode/mcp.json`, `~/.chudcode/agent/mcp.json`, plus their `.mcp.json` variants) expands `${VAR}` and `${VAR:-default}` placeholders recursively before converting to runtime config. It also accepts boolean/string forms for `enabled` (`true`, `false`, `1`, `0`) and numeric strings for `timeout`. `requestIdFormat` accepts only `"number"` or `"string"`; other values warn and fall back to numeric IDs.
+OMP-native MCP config (`.omp/mcp.json`, `~/.omp/agent/mcp.json`, plus their `.mcp.json` variants) expands `${VAR}` and `${VAR:-default}` placeholders recursively before converting to runtime config. It also accepts boolean/string forms for `enabled` (`true`, `false`, `1`, `0`) and numeric strings for `timeout`. `requestIdFormat` accepts only `"number"` or `"string"`; other values warn and fall back to numeric IDs.
 
 The standalone fallback provider in `src/discovery/mcp-json.ts` reads project-root `mcp.json` and `.mcp.json`, expands the same `${...}` placeholders, and type-checks `enabled`/`timeout` without coercing string values. It applies the same `requestIdFormat` validation.
 
@@ -94,12 +94,12 @@ Invalid `enabled`/`timeout` values are ignored with warnings rather than failing
 ### OAuth credential injection
 
 For `http`/`sse` servers, an `auth: { type: "oauth", credentialId: "..." }`
-block is optional. Chudcode honors an explicit arbitrary or legacy credential ID when
+block is optional. OMP honors an explicit arbitrary or legacy credential ID when
 it resolves. A managed, profile-scoped
 `mcp_oauth:profile:<profile>:<url>` ID is accepted only when its profile is
 active and its URL matches the server's expanded or literal URL; a mismatch is
 ignored. If the accepted explicit ID does not resolve—or if there is no `auth`
-block—Chudcode looks for a credential under deterministic IDs derived from the
+block—OMP looks for a credential under deterministic IDs derived from the
 expanded and literal server URL. These URL-keyed credentials are scoped to the
 active profile, so a shared, definition-only server entry can use each
 profile's independently stored OAuth credential.
@@ -114,8 +114,8 @@ When lookup succeeds:
 - `http`/`sse`: injects `Authorization: Bearer <access_token>` header
 - `stdio`: injects `OAUTH_ACCESS_TOKEN` env var
 
-If no credential resolves, Chudcode connects without injecting an OAuth value.
-Refresh or credential-resolution failures are logged; when possible, Chudcode
+If no credential resolves, OMP connects without injecting an OAuth value.
+Refresh or credential-resolution failures are logged; when possible, OMP
 continues with the existing access token.
 
 ### Header/env value resolution
@@ -143,7 +143,7 @@ mcp__<sanitized_server_name>_<sanitized_tool_name>
 Rules:
 
 - lowercases
-- non-`[a-z_]` chars become `_`
+- non-`[a-z0-9_]` chars become `_`
 - repeated underscores collapse
 - redundant `<server>_` prefix in tool name is stripped once
 - names longer than 64 characters keep a readable prefix and append `_` plus the first eight base-36
@@ -156,9 +156,30 @@ lexicographically comparing the original `<server-name>\0<tool-name>` origin
 key. The losing origin is logged and omitted, so reconnect or discovery order
 cannot change ownership.
 
+Before digits were kept, digit-bearing servers minted digit-stripped names
+(`context7` → `mcp__context_query_docs`). User `tools.approval` `deny`/`prompt`
+policies keyed on such a legacy name still apply to the renamed tool
+(fail-closed); legacy `allow` entries are not inherited and must be re-keyed.
+
 ### Schema mapping
 
 `tool-bridge.ts` passes each MCP `inputSchema` through `normalizeSchemaForMCP()` before registering it as a `CustomTool` schema.
+
+Before dispatch, shared tool-argument validation prefers an already matching
+`anyOf`/`oneOf` branch when normalizing null placeholders. Required nullable
+properties in that branch retain explicit `null` values; a nonmatching closed
+branch cannot remove them as unknown fields. Null cleanup/default substitution
+can combine with discriminator whitespace repair and schema-directed type
+coercion using the bounded repair pipeline inside a branch-local candidate.
+If no branch accepts that candidate, its repairs are discarded. The complete
+schema is still validated, including required fields, non-nullable properties,
+and `oneOf` exclusivity.
+Branch validation retains the complete schema's local-reference context,
+speculative-union restrictions on lossy repairs, and content-ancestor protection
+against identifier whitespace trimming.
+Bounded repair rounds reconsider null cleanup when a later normalization,
+such as identifier whitespace trimming, makes a branch viable; an invalid
+candidate is never carried forward solely because it changed.
 
 ### Outbound argument normalization
 

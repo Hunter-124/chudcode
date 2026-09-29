@@ -6,24 +6,20 @@ export const BUILTIN_TOOL_NAMES = [
 	"ast_edit",
 	"ask",
 	"debug",
+	"ida",
 	"eval",
 	"github",
 	"glob",
 	"grep",
+	"find",
 	"lsp",
-	"inspect_image",
-	"image_analyze",
-	"cpp_static",
-	"cpp_runtime",
-	"binary_inspect",
-	"firmware",
-	"browser",
-	"computer",
 	"checkpoint",
 	"rewind",
+	"context_notes",
+	"new_context",
 	"security_scan",
 	"task",
-	"hub",
+	"wait",
 	"todo",
 	"web_search",
 	"write",
@@ -41,10 +37,7 @@ export const HIDDEN_TOOL_NAMES = ["yield", "goal", "think"] as const;
 
 export type HiddenToolName = (typeof HIDDEN_TOOL_NAMES)[number];
 
-const LEGACY_BUILTIN_TOOL_NAME_ALIASES: ReadonlyMap<string, BuiltinToolName> = new Map([
-	["search", "grep"],
-	["find", "glob"],
-]);
+const LEGACY_BUILTIN_TOOL_NAME_ALIASES: ReadonlyMap<string, BuiltinToolName> = new Map([["search", "grep"]]);
 
 const CANONICAL_TOOL_NAMES: Record<string, true> = Object.fromEntries(
 	[...BUILTIN_TOOL_NAMES, ...HIDDEN_TOOL_NAMES].map(name => [name, true]),
@@ -67,22 +60,6 @@ export function normalizeToolNames(names: Iterable<string>): string[] {
 		out.push(normalized);
 	}
 	return out;
-}
-
-/**
- * Clamp a requested tool list to an inherited allowlist (the process `--tools`
- * restriction). Only built-in names are clamped: host, custom, and MCP names
- * the caller requested pass through. An undefined request means "the default
- * set", which the allowlist replaces. Without an allowlist the request is unchanged.
- */
-export function applyToolAllowlist(
-	requested: string[] | undefined,
-	allowlist: readonly string[] | undefined,
-): string[] | undefined {
-	if (!allowlist) return requested;
-	if (!requested) return normalizeToolNames(allowlist);
-	const allowed = new Set(normalizeToolNames(allowlist));
-	return normalizeToolNames(requested).filter(name => allowed.has(name) || !Object.hasOwn(CANONICAL_TOOL_NAMES, name));
 }
 
 /** MCP tool names carry the `mcp__<server>_<tool>` prefix minted by `createMCPToolName`. */

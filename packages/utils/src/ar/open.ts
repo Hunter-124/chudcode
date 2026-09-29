@@ -1,7 +1,6 @@
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { formatBytes } from "../format";
-import * as fsx from "../fsx";
 import { UTF8_DECODER } from "./bytes";
 import { ArchiveError } from "./error";
 import { type ArchiveLimits, assertInMemorySize, DEFAULT_ARCHIVE_LIMITS } from "./limits";
@@ -197,7 +196,7 @@ export async function extractArchive(
 	for (const file of files) {
 		const extracted = await archive.readFile(file.path);
 		const outputPath = path.resolve(extractRoot, file.path);
-		await fsx.write(outputPath, extracted.bytes);
+		await Bun.write(outputPath, extracted.bytes);
 		const permissions = (file.mode ?? 0) & 0o777;
 		if (permissions) await fs.chmod(outputPath, permissions);
 		count++;

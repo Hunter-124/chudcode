@@ -10,7 +10,7 @@
  * the newest-role selection so a re-reversed branch fails loudly.
  */
 import { describe, expect, it } from "bun:test";
-import { SessionManager } from "@chudware/coding-agent/session/session-manager";
+import { SessionManager } from "@oh-my-pi/pi-coding-agent/session/session-manager";
 
 describe("SessionManager branch ordering", () => {
 	it("getBranch() returns entries root→leaf with the newest entry last", () => {
@@ -37,6 +37,42 @@ describe("SessionManager branch ordering", () => {
 		// (each parentId would point at the FOLLOWING element) and fails here.
 		for (let i = 1; i < branch.length; i++) {
 			expect(branch[i].parentId).toBe(branch[i - 1].id);
+		}
+	});
+
+	it("miss-path results do not alias the branch cache", () => {
+		const manager = SessionManager.inMemory();
+		manager.appendModelChange("m/a", "default");
+		manager.appendModelChange("m/b", "slow");
+		// First call populates the cache AND returns the array: mutating it
+		// must not corrupt subsequent hits.
+		const first = manager.getBranch();
+		const ids = first.map(entry => entry.id);
+		first.reverse();
+		first.splice(0, 1);
+		const second = manager.getBranch();
+		expect(second.map(entry => entry.id)).toEqual(ids);
+	});
+
+	it("stops a corrupt cyclic parent chain at the first repeated id", () => {
+		const manager = SessionManager.inMemory();
+		manager.appendModelChange("m/a", "default");
+		const leaf = manager.appendModelChange("m/b", "slow");
+		manager.appendModelChange("m/c", "smol");
+		// Corrupt the leaf into a self-cycle through the shared entry ref.
+		const branch = manager.getBranch();
+		const leafEntry = branch.find(entry => entry.id === leaf)!;
+		const savedParent = leafEntry.parentId;
+		leafEntry.parentId = leafEntry.id;
+		try {
+			const cyclic = manager.getBranch(leaf);
+			const ids = cyclic.map(entry => entry.id);
+			// Each id exactly once — no [entry, entry] duplication that
+			// would replay/account for an entry twice downstream.
+			expect(new Set(ids).size).toBe(ids.length);
+			expect(ids.filter(id => id === leaf)).toHaveLength(1);
+		} finally {
+			leafEntry.parentId = savedParent;
 		}
 	});
 

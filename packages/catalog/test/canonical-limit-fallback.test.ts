@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import type { Api, ModelSpec, Provider } from "@chudware/catalog/types";
+import type { Api, ModelSpec, Provider } from "@oh-my-pi/pi-catalog/types";
 import { applyCanonicalLimitFallback } from "../scripts/generated-policies";
 
 function spec(overrides: {
@@ -104,5 +104,39 @@ describe("applyCanonicalLimitFallback", () => {
 		const model = find(models, "custom", "some-bespoke-model-xyz");
 		expect(model.contextWindow).toBeNull();
 		expect(model.maxTokens).toBeNull();
+	});
+
+	it("keeps a Command Code null limit when a canonical peer reports one", () => {
+		// The Provider API omits the limit, so it stays unknown: a same-id
+		// peer on another host must not refill it. Verified corrections
+		// arrive through KDL, never this fallback.
+		const models: ModelSpec<Api>[] = [
+			spec({ id: "mystery-model", provider: "commandcode", contextWindow: null, maxTokens: null }),
+			spec({ id: "mystery-model", provider: "openai", contextWindow: 400000, maxTokens: 128000 }),
+		];
+
+		applyCanonicalLimitFallback(models);
+
+		const model = find(models, "commandcode", "mystery-model");
+		expect(model.contextWindow).toBeNull();
+		expect(model.maxTokens).toBeNull();
+		const peer = find(models, "openai", "mystery-model");
+		expect(peer.contextWindow).toBe(400000);
+		expect(peer.maxTokens).toBe(128000);
+	});
+
+	it("clamps maxTokens to contextWindow when canonical reference exceeds smaller provider context", () => {
+		const models: ModelSpec<Api>[] = [
+			// Reference: 1M context, 384k maxTokens
+			spec({ id: "deepseek-flash", provider: "deepseek", contextWindow: 1000000, maxTokens: 384000 }),
+			// Provider-specific context ceiling (128k) with null maxTokens
+			spec({ id: "deepseek-flash-v4", provider: "yolo-auto", contextWindow: 131072, maxTokens: null }),
+		];
+
+		applyCanonicalLimitFallback(models);
+
+		const yolo = find(models, "yolo-auto", "deepseek-flash-v4");
+		expect(yolo.contextWindow).toBe(131072);
+		expect(yolo.maxTokens).toBe(131072);
 	});
 });

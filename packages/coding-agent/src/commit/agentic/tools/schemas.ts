@@ -1,4 +1,4 @@
-import { type } from "@chudware/chudtype";
+import { type } from "@oh-my-pi/omptype";
 
 export const commitTypeSchema = type(
 	"'feat' | 'fix' | 'refactor' | 'perf' | 'docs' | 'test' | 'build' | 'ci' | 'chore' | 'style' | 'revert'",

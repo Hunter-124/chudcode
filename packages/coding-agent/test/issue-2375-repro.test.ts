@@ -2,7 +2,7 @@
  * Repro for #2375: remote (SSH) image attachment surfaces only the local path.
  *
  * When a user attaches an image in their LOCAL terminal (e.g. drag/drop into
- * iTerm2 on macOS) while the chudcode process actually runs on a remote host (Chud
+ * iTerm2 on macOS) while the omp process actually runs on a remote host (Pi
  * over SSH), the terminal forwards a bracketed-paste containing the local
  * macOS path. The remote `handleImagePathPaste` tries to read that path on
  * the remote filesystem, fails (ENOENT), then falls through to pasting the
@@ -17,11 +17,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "bun:test";
 import * as os from "node:os";
 import * as path from "node:path";
-import type { ImageContent } from "@chudware/ai";
-import { resetSettingsForTest, Settings } from "@chudware/coding-agent/config/settings";
-import { InputController } from "@chudware/coding-agent/modes/controllers/input-controller";
-import type { InteractiveModeContext } from "@chudware/coding-agent/modes/types";
-import * as fsx from "@chudware/utils/fsx";
+import type { ImageContent } from "@oh-my-pi/pi-ai";
+import { resetSettingsForTest, Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
+import { InputController } from "@oh-my-pi/pi-coding-agent/modes/controllers/input-controller";
+import { chipLabel } from "@oh-my-pi/pi-tui/prompt/composer-attachments";
+import type { InteractiveModeContext } from "@oh-my-pi/pi-coding-agent/modes/types";
+import { $which } from "@oh-my-pi/pi-utils";
 
 // A clipboard with no image on it — the deterministic default for the
 // not-found assertions so a real screenshot on the dev's clipboard cannot
@@ -36,6 +37,7 @@ const ONE_PX_PNG = Buffer.from(
 	"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+M8AAAMBAQDJ/pLvAAAAAElFTkSuQmCC",
 	"base64",
 );
+const hasFfmpeg = Boolean($which("ffmpeg") && $which("ffprobe"));
 
 function createContext() {
 	const pasteText = vi.fn();
@@ -105,7 +107,7 @@ describe("InputController.handleImagePathPaste (issue #2375)", () => {
 	it("locally: still avoids the misleading path-as-text fallback when the file is unreachable", async () => {
 		const { ctx, spies } = createContext();
 		const controller = new InputController(ctx, EMPTY_CLIPBOARD);
-		const missing = "/tmp/definitely-does-not-exist-chudcode-2375.png";
+		const missing = "/tmp/definitely-does-not-exist-omp-2375.png";
 
 		await controller.handleImagePathPaste(missing);
 
@@ -143,7 +145,7 @@ describe("InputController.handleImagePathPaste (issue #2375)", () => {
 	it("locally: attaches the clipboard image when the pasted path is a stale transient file (Win+Shift+S)", async () => {
 		// Windows 11 Win+Shift+S leaves the bitmap on the clipboard, but the
 		// terminal pastes the snip's packaged-app TempState path, which is
-		// already gone by the time chudcode reads it. The bytes are still on the
+		// already gone by the time omp reads it. The bytes are still on the
 		// clipboard, so the paste must succeed from there instead of dead-ending
 		// on "Image not found".
 		const { ctx, spies } = createContext();
@@ -174,7 +176,7 @@ describe("InputController.handleImagePathPaste (issue #2375)", () => {
 		});
 		// This test file itself: resolvable, readable, but not an image.
 		const nonImage = path.join(os.tmpdir(), `issue-2375-not-png-${Math.random().toString(36).slice(2)}.png`);
-		await fsx.write(nonImage, "not really a png");
+		await Bun.write(nonImage, "not really a png");
 		try {
 			await controller.handleImagePathPaste(nonImage);
 		} finally {
@@ -184,5 +186,42 @@ describe("InputController.handleImagePathPaste (issue #2375)", () => {
 		expect(spies.pasteText).not.toHaveBeenCalled();
 		expect(ctx.editor.pendingImages.length).toBe(1);
 		expect(ctx.editor.pendingImages[0]?.mimeType).toBe("image/png");
+	});
+
+	it.skipIf(!hasFfmpeg)("locally: attaches a pasted video as a preview image", async () => {
+		const { ctx, spies } = createContext();
+		const controller = new InputController(ctx, EMPTY_CLIPBOARD);
+		const video = path.join(os.tmpdir(), `issue-2375-video-${Math.random().toString(36).slice(2)}.mp4`);
+		const process = Bun.spawn([
+			"ffmpeg",
+			"-hide_banner",
+			"-loglevel",
+			"error",
+			"-y",
+			"-f",
+			"lavfi",
+			"-i",
+			"testsrc=duration=1:size=320x240:rate=30",
+			"-pix_fmt",
+			"yuv420p",
+			"-c:v",
+			"libx264",
+			video,
+		]);
+		try {
+			expect(await process.exited).toBe(0);
+
+			await controller.handleImagePathPaste(video);
+		} finally {
+			await Bun.file(video)
+				.delete()
+				.catch(() => {});
+		}
+
+		expect(spies.pasteText).not.toHaveBeenCalled();
+		expect(spies.showStatus).not.toHaveBeenCalled();
+		expect(ctx.editor.pendingImages).toHaveLength(1);
+		expect(ctx.editor.pendingImages[0]?.mimeType).toBe("image/png");
+		expect(spies.insertAtom).toHaveBeenCalledWith(chipLabel("video", 1), "[Video #1, 960x480]");
 	});
 });

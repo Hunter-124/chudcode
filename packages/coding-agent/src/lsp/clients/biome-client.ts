@@ -3,8 +3,7 @@
  * Uses Biome's CLI with JSON output instead of LSP (which has stale diagnostics issues).
  */
 import * as path from "node:path";
-import { logger } from "@chudware/utils";
-import * as fsx from "@chudware/utils/fsx";
+import { logger } from "@oh-my-pi/pi-utils";
 import type { Diagnostic, DiagnosticSeverity, LinterClient, ServerConfig } from "../../lsp/types";
 
 // =============================================================================
@@ -118,12 +117,12 @@ export class BiomeClient implements LinterClient {
 	async format(filePath: string, content: string): Promise<string> {
 		// Keep the standalone LinterClient contract: callers supply the content to
 		// format, regardless of what is currently on disk.
-		await fsx.write(filePath, content);
+		await Bun.write(filePath, content);
 
 		const result = await runBiome(["format", "--write", filePath], this.cwd, this.config.resolvedCommand);
 
 		if (result.success) {
-			return await fsx.readText(filePath);
+			return await Bun.file(filePath).text();
 		}
 
 		// Format failed, return original

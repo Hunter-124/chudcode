@@ -23,12 +23,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import type { ImageContent } from "@chudware/ai";
-import { resetSettingsForTest, Settings } from "@chudware/coding-agent/config/settings";
-import { CustomEditor } from "@chudware/coding-agent/modes/components/custom-editor";
-import { InputController } from "@chudware/coding-agent/modes/controllers/input-controller";
-import { getEditorTheme } from "@chudware/coding-agent/modes/theme/theme";
-import type { InteractiveModeContext } from "@chudware/coding-agent/modes/types";
+import type { ImageContent } from "@oh-my-pi/pi-ai";
+import { resetSettingsForTest, Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
+import { CustomEditor } from "@oh-my-pi/pi-tui/prompt/custom-editor";
+import { InputController } from "@oh-my-pi/pi-coding-agent/modes/controllers/input-controller";
+import { getEditorTheme } from "@oh-my-pi/pi-tui/theme";
+import type { InteractiveModeContext } from "@oh-my-pi/pi-coding-agent/modes/types";
 
 const BRACKETED_PASTE_START = "\x1b[200~";
 const BRACKETED_PASTE_END = "\x1b[201~";
@@ -103,14 +103,14 @@ describe("CustomEditor empty bracketed paste (issue #3601)", () => {
 	it("does not hijack a bracketed paste that resolves to an explicit image-file path (existing #3506 path)", () => {
 		const { editor } = createCtx();
 		const onPasteImage = vi.fn(async () => true);
-		const onPastePath = vi.fn();
+		const onPasteImagePath = vi.fn();
 		editor.onPasteImage = onPasteImage;
-		editor.onPastePath = onPastePath;
+		editor.onPasteImagePath = onPasteImagePath;
 
 		editor.handleInput(`${BRACKETED_PASTE_START}/tmp/screenshot.png${BRACKETED_PASTE_END}`);
 
-		// The path-attachment branch fires; the empty-paste branch must stay out of the way.
-		expect(onPastePath).toHaveBeenCalledWith("/tmp/screenshot.png");
+		// The image-path branch fires; the empty-paste branch must stay out of the way.
+		expect(onPasteImagePath).toHaveBeenCalledWith("/tmp/screenshot.png");
 		expect(onPasteImage).not.toHaveBeenCalled();
 	});
 
@@ -146,18 +146,18 @@ describe("CustomEditor empty bracketed paste (issue #3601)", () => {
 		expect(editor.getText()).toBe("");
 	});
 
-	it("routes an image-file path that arrives split across stdin chunks to onPastePath", () => {
+	it("routes an image-file path that arrives split across stdin chunks to onPasteImagePath", () => {
 		// Same chunking hazard as the empty-paste case, but for an explicit
 		// image-file path (#3506). The assembled router re-runs the path
 		// detection over the joined payload so the image still attaches.
 		const { editor } = createCtx();
-		const onPastePath = vi.fn();
-		editor.onPastePath = onPastePath;
+		const onPasteImagePath = vi.fn();
+		editor.onPasteImagePath = onPasteImagePath;
 
 		editor.handleInput(`${BRACKETED_PASTE_START}/tmp/sc`);
 		editor.handleInput(`reenshot.png${BRACKETED_PASTE_END}`);
 
-		expect(onPastePath).toHaveBeenCalledWith("/tmp/screenshot.png");
+		expect(onPasteImagePath).toHaveBeenCalledWith("/tmp/screenshot.png");
 	});
 
 	it("forwards a split text paste to the underlying editor exactly once (no double-insertion)", () => {

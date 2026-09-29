@@ -1,8 +1,8 @@
-import type { AgentMessage } from "@chudware/agent-core";
-import { completeSimple, Effort, type Model, retryTransientCompletion } from "@chudware/ai";
-import { clampThinkingLevelForModel } from "@chudware/catalog/model-thinking";
-import { type } from "@chudware/chudtype";
-import { logger, prompt } from "@chudware/utils";
+import { type } from "@oh-my-pi/omptype";
+import type { AgentMessage } from "@oh-my-pi/pi-agent-core";
+import { completeSimple, Effort, type Model, retryTransientCompletion } from "@oh-my-pi/pi-ai";
+import { clampThinkingLevelForModel } from "@oh-my-pi/pi-catalog/model-thinking";
+import { logger, prompt } from "@oh-my-pi/pi-utils";
 import type { ModelRegistry } from "../config/model-registry";
 import { getModelMatchPreferences, resolveModelRoleValue, resolveRoleSelection } from "../config/model-resolver";
 import type { Settings } from "../config/settings";
@@ -12,6 +12,8 @@ import type { AgentSession } from "../session/agent-session";
 import { customMessageContentText } from "../session/checkpoint-entries";
 import { appendSharpshooterDelta } from "./queue";
 import type { SharpshooterDelta, SharpshooterDeltaKind, SharpshooterDeltaSource, SharpshooterFriction } from "./types";
+
+import { cfgSharpshooterModel } from "./settings";
 
 const SHARPSHOOTER_DELTA_KINDS = {
 	architecture_decision: true,
@@ -148,18 +150,12 @@ export function buildSharpshooterEnvelope(
 	};
 }
 
-/**
- * Resolve the extraction/consolidation model: `sharpshooter.model`, then the
- * `smol` role, then the session's own model. Protocol hosts (RPC) usually
- * configure no model roles and pick the model per session, so without the last
- * step sharpshooter would never run there.
- */
+/** Resolve the configured extraction model, then fall back to the `smol` role. */
 export async function resolveSharpshooterModel(
 	settings: Settings,
 	modelRegistry: ModelRegistry,
-	sessionModel?: Model,
 ): Promise<Model | undefined> {
-	const selector = settings.get("sharpshooter.model");
+	const selector = cfgSharpshooterModel.get(settings);
 	if (selector) {
 		const resolved = resolveModelRoleValue(selector, modelRegistry.getAll(), {
 			settings,
@@ -169,7 +165,7 @@ export async function resolveSharpshooterModel(
 		logger.debug("Sharpshooter extraction model selector did not resolve", { selector });
 	}
 
-	const fallback = resolveRoleSelection(["smol"], settings, modelRegistry.getAvailable())?.model ?? sessionModel;
+	const fallback = resolveRoleSelection(["smol"], settings, modelRegistry.getAvailable())?.model;
 	if (!fallback) logger.debug("Sharpshooter extraction skipped: no model available");
 	return fallback;
 }
@@ -214,26 +210,28 @@ async function runSharpshooterExtraction(
 	envelope: SharpshooterEnvelope,
 ): Promise<void> {
 	const { session, settings, modelRegistry, agentDir } = options;
-	const model = await resolveSharpshooterModel(settings, modelRegistry, session.model);
+	const model = await resolveSharpshooterModel(settings, modelRegistry);
 	if (!model || session.isDisposed) return;
 
 	const input = prompt.render(extractInputTemplate, { ...envelope });
-	const response = await retryTransientCompletion(() =>
-		completeSimple(
-			model,
-			{
-				systemPrompt: [prompt.render(extractSystemTemplate)],
-				messages: [{ role: "user", content: [{ type: "text", text: input }], timestamp: Date.now() }],
-				tools: [recordDeltasTool],
-			},
-			{
-				apiKey: modelRegistry.resolver(model, session.sessionId),
-				sessionId: session.sessionId,
-				maxTokens: 2048,
-				reasoning: clampThinkingLevelForModel(model, Effort.Low),
-				toolChoice: "required",
-			},
-		),
+	const response = await retryTransientCompletion(
+		() =>
+			completeSimple(
+				model,
+				{
+					systemPrompt: [prompt.render(extractSystemTemplate)],
+					messages: [{ role: "user", content: [{ type: "text", text: input }], timestamp: Date.now() }],
+					tools: [recordDeltasTool],
+				},
+				{
+					apiKey: modelRegistry.resolver(model, session.sessionId),
+					sessionId: session.sessionId,
+					maxTokens: 2048,
+					reasoning: clampThinkingLevelForModel(model, Effort.Low),
+					toolChoice: "required",
+				},
+			),
+		{ provider: model.provider },
 	);
 	if (response.stopReason === "error") {
 		throw new Error(response.errorMessage || "Sharpshooter extraction model error");

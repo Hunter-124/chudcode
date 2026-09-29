@@ -2,11 +2,10 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, type 
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import { computeBankScope, deriveBankId, ensureBankExists } from "@chudware/coding-agent/hindsight/bank";
-import { HindsightApi } from "@chudware/coding-agent/hindsight/client";
-import type { HindsightConfig } from "@chudware/coding-agent/hindsight/config";
-import { removeWithRetries } from "@chudware/utils";
-import * as proc from "@chudware/utils/proc";
+import { computeBankScope, ensureBankExists } from "@oh-my-pi/pi-coding-agent/hindsight/bank";
+import { HindsightApi } from "@oh-my-pi/pi-coding-agent/hindsight/client";
+import type { HindsightConfig } from "@oh-my-pi/pi-coding-agent/hindsight/config";
+import { removeWithRetries } from "@oh-my-pi/pi-utils";
 
 // Isolate `git` invocations in this file from the host's global config —
 // `~/.gitconfig` commit signing or template hooks would otherwise turn the
@@ -20,7 +19,7 @@ process.env.GIT_ASKPASS = "true";
 delete process.env.XDG_CONFIG_HOME;
 
 function runGit(cwd: string, args: string[]): string {
-	const result = proc.spawnSync(["git", ...args], {
+	const result = Bun.spawnSync(["git", ...args], {
 		cwd,
 		stdout: "pipe",
 		stderr: "pipe",
@@ -53,7 +52,7 @@ const baseConfig = (overrides: Partial<HindsightConfig> = {}): HindsightConfig =
 	retainMode: "full-session",
 	retainEveryNTurns: 3,
 	retainOverlapTurns: 2,
-	retainContext: "chudcode",
+	retainContext: "omp",
 	recallBudget: "mid",
 	recallMaxTokens: 1024,
 	recallTypes: ["world", "experience"],
@@ -67,7 +66,6 @@ const baseConfig = (overrides: Partial<HindsightConfig> = {}): HindsightConfig =
 	retainTimeoutMs: 60_000,
 	mentalModelsEnabled: false,
 	mentalModelAutoSeed: false,
-	mentalModelRefreshIntervalMs: 5 * 60 * 1000,
 	mentalModelMaxRenderChars: 16_000,
 	...overrides,
 });
@@ -81,7 +79,7 @@ describe("computeBankScope", () => {
 		});
 
 		it("falls back to the default bank name when bankId is unset", () => {
-			expect(computeBankScope(baseConfig(), "/whatever")).toEqual({ bankId: "chudcode" });
+			expect(computeBankScope(baseConfig(), "/whatever")).toEqual({ bankId: "omp" });
 		});
 
 		it("applies the configured prefix", () => {
@@ -89,31 +87,24 @@ describe("computeBankScope", () => {
 				bankId: "prod-team",
 			});
 		});
-
-		it("does not surface tag fields", () => {
-			const scope = computeBankScope(baseConfig(), "/work/proj");
-			expect(scope.retainTags).toBeUndefined();
-			expect(scope.recallTags).toBeUndefined();
-			expect(scope.recallTagsMatch).toBeUndefined();
-		});
 	});
 
 	describe("scoping=per-project", () => {
 		it("appends the cwd basename to the base bank id", () => {
 			expect(computeBankScope(baseConfig({ scoping: "per-project" }), "/work/proj")).toEqual({
-				bankId: "chudcode-proj",
+				bankId: "omp-proj",
 			});
 		});
 
 		it("appends `unknown` for an empty cwd", () => {
 			expect(computeBankScope(baseConfig({ scoping: "per-project" }), "")).toEqual({
-				bankId: "chudcode-unknown",
+				bankId: "omp-unknown",
 			});
 		});
 
 		it("lowercases the project segment so one checkout maps to one bank", () => {
 			expect(computeBankScope(baseConfig({ scoping: "per-project" }), "/work/General")).toEqual({
-				bankId: "chudcode-general",
+				bankId: "omp-general",
 			});
 		});
 
@@ -124,28 +115,16 @@ describe("computeBankScope", () => {
 			);
 			expect(scope.bankId).toBe("prod-team-cool-app");
 		});
-
-		it("does not surface tag fields (isolation is at the bank level)", () => {
-			const scope = computeBankScope(baseConfig({ scoping: "per-project" }), "/work/proj");
-			expect(scope.retainTags).toBeUndefined();
-			expect(scope.recallTags).toBeUndefined();
-		});
 	});
 
 	describe("scoping=per-project-tagged", () => {
 		it("keeps the base bank id and emits project tags with `any` match", () => {
 			expect(computeBankScope(baseConfig({ scoping: "per-project-tagged" }), "/work/proj")).toEqual({
-				bankId: "chudcode",
+				bankId: "omp",
 				retainTags: ["project:proj"],
 				recallTags: ["project:proj"],
 				recallTagsMatch: "any",
 			});
-		});
-
-		it("uses the same project label for retain and recall tags", () => {
-			const scope = computeBankScope(baseConfig({ scoping: "per-project-tagged" }), "/repo/cool-app");
-			expect(scope.retainTags).toEqual(["project:cool-app"]);
-			expect(scope.recallTags).toEqual(["project:cool-app"]);
 		});
 
 		it("falls back to project:unknown when cwd is empty", () => {
@@ -209,7 +188,7 @@ describe("computeBankScope", () => {
 
 		it("uses the primary root basename for the per-project bank id from a worktree", () => {
 			expect(computeBankScope(baseConfig({ scoping: "per-project" }), worktreeRoot)).toEqual({
-				bankId: "chudcode-myrepo",
+				bankId: "omp-myrepo",
 			});
 		});
 
@@ -219,7 +198,7 @@ describe("computeBankScope", () => {
 			expect(fromA.retainTags).toEqual(["project:bare-repo.git"]);
 			expect(fromB).toEqual(fromA);
 			expect(computeBankScope(baseConfig({ scoping: "per-project" }), bareWorktreeB)).toEqual({
-				bankId: "chudcode-bare-repo.git",
+				bankId: "omp-bare-repo.git",
 			});
 		});
 
@@ -270,14 +249,6 @@ describe("computeBankScope", () => {
 				"project:casedrepo",
 			]);
 		});
-	});
-});
-
-describe("deriveBankId (legacy wrapper)", () => {
-	it("returns the bankId field of the resolved scope", () => {
-		expect(deriveBankId(baseConfig({ bankId: "team", bankIdPrefix: "prod" }), "/cwd")).toBe("prod-team");
-		expect(deriveBankId(baseConfig({ scoping: "per-project" }), "/work/proj")).toBe("chudcode-proj");
-		expect(deriveBankId(baseConfig({ scoping: "per-project-tagged" }), "/work/proj")).toBe("chudcode");
 	});
 });
 

@@ -1,17 +1,12 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 import * as url from "node:url";
-import { $which, logger } from "@chudware/utils";
-import * as proc from "@chudware/utils/proc";
+import { $which, isWsl, logger } from "@oh-my-pi/pi-utils";
 
 const URL_SCHEME_PATTERN = /^[a-zA-Z][a-zA-Z\d+.-]*:/;
 
 function getExistingWslLocalPath(urlOrPath: string): string | undefined {
-	if (
-		process.platform !== "linux" ||
-		!(process.env.WSL_DISTRO_NAME || process.env.WSL_INTEROP) ||
-		!$which("wslview")
-	) {
+	if (!isWsl() || !$which("wslview")) {
 		return undefined;
 	}
 
@@ -23,7 +18,7 @@ function getExistingWslLocalPath(urlOrPath: string): string | undefined {
 				: path.resolve(urlOrPath);
 		if (!localPath || !fs.existsSync(localPath)) return undefined;
 
-		const result = proc.spawnSync(["wslpath", "-w", localPath], { stdout: "pipe", stderr: "ignore" });
+		const result = Bun.spawnSync(["wslpath", "-w", localPath], { stdout: "pipe", stderr: "ignore" });
 		if (result.exitCode !== 0) return undefined;
 
 		return result.stdout.toString().trim() || undefined;
@@ -112,7 +107,7 @@ export function openPath(urlOrPath: string): void {
 	// Detect delayed failures (exec succeeded but the opener exited non-zero)
 	// without blocking the caller. Recording them makes silent misconfigurations
 	// (e.g. `xdg-open` present but no MIME handler for `https`) diagnosable from
-	// `~/.chudcode/logs/chudcode.*.log`.
+	// `~/.omp/logs/omp.*.log`.
 	child.exited.then(
 		exitCode => {
 			if (typeof exitCode === "number" && exitCode !== 0) {

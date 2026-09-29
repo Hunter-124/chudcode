@@ -1,31 +1,30 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
-import { Agent, AgentBusyError, ThinkingLevel } from "@chudware/agent-core";
-import type { AssistantMessage, Usage } from "@chudware/ai";
-import * as AIError from "@chudware/ai/error";
-import { KeybindingsManager } from "@chudware/coding-agent/config/keybindings";
-import { ModelRegistry } from "@chudware/coding-agent/config/model-registry";
-import { resetSettingsForTest, Settings } from "@chudware/coding-agent/config/settings";
-import { resolveLocalUrlToPath } from "@chudware/coding-agent/internal-urls";
-import { AssistantMessageComponent } from "@chudware/coding-agent/modes/components/assistant-message";
-import type { HookSelectorSlider } from "@chudware/coding-agent/modes/components/hook-selector";
-import {
-	type PlanReviewAnnotationState,
-	PlanReviewOverlay,
-} from "@chudware/coding-agent/modes/components/plan-review-overlay";
-import { InteractiveMode, planSaveFileName } from "@chudware/coding-agent/modes/interactive-mode";
-import { initTheme } from "@chudware/coding-agent/modes/theme/theme";
-import type { SubmittedUserInput } from "@chudware/coding-agent/modes/types";
-import { AgentSession } from "@chudware/coding-agent/session/agent-session";
-import { AuthStorage } from "@chudware/coding-agent/session/auth-storage";
-import { SILENT_ABORT_MARKER, USER_INTERRUPT_LABEL } from "@chudware/coding-agent/session/messages";
-import { SessionManager } from "@chudware/coding-agent/session/session-manager";
-import { AUTO_THINKING } from "@chudware/coding-agent/thinking";
-import * as clipboard from "@chudware/coding-agent/utils/clipboard";
-import { type OverlayHandle, type OverlayOptions, setKeybindings } from "@chudware/tui";
-import { formatNumber, TempDir } from "@chudware/utils";
-import * as fsx from "@chudware/utils/fsx";
+import { Agent, AgentBusyError, ThinkingLevel } from "@oh-my-pi/pi-agent-core";
+import type { AssistantMessage, Usage } from "@oh-my-pi/pi-ai";
+import * as AIError from "@oh-my-pi/pi-ai/error";
+import { KeybindingsManager } from "@oh-my-pi/pi-tui/app-keybindings";
+import { ModelRegistry } from "@oh-my-pi/pi-coding-agent/config/model-registry";
+import { resetSettingsForTest, Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
+import { resolveLocalUrlToPath } from "@oh-my-pi/pi-coding-agent/internal-urls";
+import { AssistantMessageComponent } from "@oh-my-pi/pi-tui/chat/assistant-message";
+import type { HookSelectorSlider } from "@oh-my-pi/pi-tui/overlays/hook-selector";
+import { type PlanReviewAnnotationState, PlanReviewOverlay } from "@oh-my-pi/pi-tui/overlays/plan-review-overlay";
+import { InteractiveMode } from "@oh-my-pi/pi-coding-agent/modes/interactive-mode";
+import { planSaveFileName } from "@oh-my-pi/pi-coding-agent/plan-mode/plan-autosave";
+import { initTheme } from "@oh-my-pi/pi-tui/theme";
+import type { SubmittedUserInput } from "@oh-my-pi/pi-coding-agent/modes/types";
+import { AgentSession } from "@oh-my-pi/pi-coding-agent/session/agent-session";
+import { AuthStorage } from "@oh-my-pi/pi-coding-agent/session/auth-storage";
+import { SILENT_ABORT_MARKER, USER_INTERRUPT_LABEL } from "@oh-my-pi/pi-coding-agent/session/messages";
+import { SessionManager } from "@oh-my-pi/pi-coding-agent/session/session-manager";
+import { AUTO_THINKING } from "@oh-my-pi/pi-tui/thinking";
+import * as clipboard from "@oh-my-pi/pi-coding-agent/utils/clipboard";
+import { setKeybindings } from "@oh-my-pi/pi-tui";
+import { formatNumber, TempDir } from "@oh-my-pi/pi-utils";
+
+import { cfgPlanAutosave, cfgPlanAutosaveDir } from "@oh-my-pi/pi-coding-agent/plan-mode/settings";
 
 /**
  * Matches the plan-approved synthetic-prompt dispatch. `#approvePlan` calls
@@ -87,7 +86,7 @@ describe("InteractiveMode plan review rendering", () => {
 		sharedTempDir = TempDir.createSync("@pi-plan-review-shared-");
 		await Settings.init({ inMemory: true, cwd: sharedTempDir.path() });
 		authStorage = await AuthStorage.create(path.join(sharedTempDir.path(), "testauth.db"));
-		authStorage.setRuntimeApiKey("anthropic", "test-key");
+		authStorage.keys.setRuntime("anthropic", "test-key");
 		modelRegistry = new ModelRegistry(authStorage);
 	});
 
@@ -139,7 +138,7 @@ describe("InteractiveMode plan review rendering", () => {
 			getArtifactsDir: () => session.sessionManager.getArtifactsDir(),
 			getSessionId: () => session.sessionManager.getSessionId(),
 		});
-		await fsx.write(resolvedPlanPath, "\n\t\n");
+		await Bun.write(resolvedPlanPath, "\n\t\n");
 
 		mode.planModeEnabled = true;
 		mode.planModePlanFilePath = planFilePath;
@@ -158,7 +157,7 @@ describe("InteractiveMode plan review rendering", () => {
 			getArtifactsDir: () => session.sessionManager.getArtifactsDir(),
 			getSessionId: () => session.sessionManager.getSessionId(),
 		});
-		await fsx.write(resolvedPlanPath, "# Plan\n\nDo the thing.\n");
+		await Bun.write(resolvedPlanPath, "# Plan\n\nDo the thing.\n");
 
 		mode.planModeEnabled = true;
 		mode.planModePlanFilePath = planFilePath;
@@ -181,8 +180,8 @@ describe("InteractiveMode plan review rendering", () => {
 			getArtifactsDir: () => session.sessionManager.getArtifactsDir(),
 			getSessionId: () => session.sessionManager.getSessionId(),
 		});
-		await fsx.write(defaultPlanPath, "\n");
-		await fsx.write(slugPlanPath, "# Auth token refresh plan\n\nDo the thing.\n");
+		await Bun.write(defaultPlanPath, "\n");
+		await Bun.write(slugPlanPath, "# Auth token refresh plan\n\nDo the thing.\n");
 
 		mode.planModeEnabled = true;
 		mode.planModePlanFilePath = defaultPlanFilePath;
@@ -200,7 +199,7 @@ describe("InteractiveMode plan review rendering", () => {
 			getArtifactsDir: () => session.sessionManager.getArtifactsDir(),
 			getSessionId: () => session.sessionManager.getSessionId(),
 		});
-		await fsx.write(resolvedPlanPath, "# First plan\n\nalpha");
+		await Bun.write(resolvedPlanPath, "# First plan\n\nalpha");
 
 		mode.planModeEnabled = true;
 		mode.planModePlanFilePath = planFilePath;
@@ -214,7 +213,7 @@ describe("InteractiveMode plan review rendering", () => {
 
 		expect(review.mock.calls[0]?.[0]).toContain("First plan");
 
-		await fsx.write(resolvedPlanPath, "# Second plan\n\nbeta");
+		await Bun.write(resolvedPlanPath, "# Second plan\n\nbeta");
 
 		await mode.handlePlanApproval({
 			planFilePath,
@@ -234,8 +233,8 @@ describe("InteractiveMode plan review rendering", () => {
 			getArtifactsDir: () => session.sessionManager.getArtifactsDir(),
 			getSessionId: () => session.sessionManager.getSessionId(),
 		};
-		await fsx.write(resolveLocalUrlToPath(firstPlanFilePath, localOptions), "# First plan\n\nbody");
-		await fsx.write(resolveLocalUrlToPath(secondPlanFilePath, localOptions), "# Second plan\n\nbody");
+		await Bun.write(resolveLocalUrlToPath(firstPlanFilePath, localOptions), "# First plan\n\nbody");
+		await Bun.write(resolveLocalUrlToPath(secondPlanFilePath, localOptions), "# Second plan\n\nbody");
 
 		mode.planModeEnabled = true;
 		mode.planModePlanFilePath = firstPlanFilePath;
@@ -268,7 +267,7 @@ describe("InteractiveMode plan review rendering", () => {
 			getArtifactsDir: () => session.sessionManager.getArtifactsDir(),
 			getSessionId: () => session.sessionManager.getSessionId(),
 		});
-		await fsx.write(resolvedPlanPath, "# Plan\n\nbody");
+		await Bun.write(resolvedPlanPath, "# Plan\n\nbody");
 
 		mode.planModeEnabled = true;
 		mode.planModePlanFilePath = planFilePath;
@@ -307,7 +306,7 @@ describe("InteractiveMode plan review rendering", () => {
 			getArtifactsDir: () => session.sessionManager.getArtifactsDir(),
 			getSessionId: () => session.sessionManager.getSessionId(),
 		});
-		await fsx.write(resolvedPlanPath, "# Plan\n\nbody");
+		await Bun.write(resolvedPlanPath, "# Plan\n\nbody");
 		mode.planModeEnabled = true;
 		mode.planModePlanFilePath = planFilePath;
 		const annotationState: PlanReviewAnnotationState = {
@@ -354,7 +353,7 @@ describe("InteractiveMode plan review rendering", () => {
 			getArtifactsDir: () => session.sessionManager.getArtifactsDir(),
 			getSessionId: () => session.sessionManager.getSessionId(),
 		});
-		await fsx.write(resolvedPlanPath, "# Plan\n\nbody");
+		await Bun.write(resolvedPlanPath, "# Plan\n\nbody");
 
 		mode.planModeEnabled = true;
 		mode.planModePlanFilePath = planFilePath;
@@ -389,8 +388,8 @@ describe("InteractiveMode plan review rendering", () => {
 			});
 		const oldPlanPath = "local://old-plan.md";
 		const newPlanPath = "local://new-draft-plan.md";
-		await fsx.write(resolve(oldPlanPath), "# Old\n\nold body");
-		await fsx.write(resolve(newPlanPath), "# New\n\nnew body");
+		await Bun.write(resolve(oldPlanPath), "# Old\n\nold body");
+		await Bun.write(resolve(newPlanPath), "# New\n\nnew body");
 
 		mode.planModeEnabled = true;
 		mode.planModePlanFilePath = oldPlanPath;
@@ -411,13 +410,13 @@ describe("InteractiveMode plan review rendering", () => {
 
 	it("opens the annotation external editor from the real plan review overlay", async () => {
 		const editorPath = path.join(tempDir.path(), "annotation-editor.sh");
-		await fsx.write(
+		await Bun.write(
 			editorPath,
 			"#!/bin/sh\nprintf '%s\\n%s\\n' '- add rollback command' '- include smoke test' > \"$1\"\n",
 		);
 		await fs.chmod(editorPath, 0o755);
-		const previousEditor = process.env.EDITOR;
-		const previousVisual = process.env.VISUAL;
+		const previousEditor = Bun.env.EDITOR;
+		const previousVisual = Bun.env.VISUAL;
 		const keybindings = KeybindingsManager.inMemory({
 			"app.editor.external": "ctrl+e",
 			"tui.select.cancel": "ctrl+g",
@@ -430,13 +429,13 @@ describe("InteractiveMode plan review rendering", () => {
 			return { hide: vi.fn() } as never;
 		});
 		let feedback = "";
-		// Resolve the instant the real $EDITOR subprocess commits its output back
-		// through onFeedbackChange — a deterministic signal, not a polled timer.
+		// The terminal restarts after external output returns to the draft.
 		const { promise: editorApplied, resolve: markEditorApplied } = Promise.withResolvers<void>();
+		vi.spyOn(mode.ui, "start").mockImplementation(() => markEditorApplied());
 
 		try {
-			process.env.EDITOR = editorPath;
-			delete process.env.VISUAL;
+			Bun.env.EDITOR = editorPath;
+			delete Bun.env.VISUAL;
 			const choice = mode.showPlanReview(
 				"# Plan\n\nIntro\n\n## Rollout\n\nSteps\n\n## Verify\n\nChecks\n",
 				"Plan mode - next step",
@@ -444,7 +443,6 @@ describe("InteractiveMode plan review rendering", () => {
 				{
 					onFeedbackChange: value => {
 						feedback = value;
-						if (value.includes("- include smoke test")) markEditorApplied();
 					},
 				},
 			);
@@ -456,8 +454,9 @@ describe("InteractiveMode plan review rendering", () => {
 			overlay.handleInput("a");
 			for (const ch of "draft") overlay.handleInput(ch);
 			overlay.handleInput("\x05"); // ctrl+e
-			// The subprocess is real; block on its commit signal instead of polling.
 			await editorApplied;
+			expect(feedback).toBe("");
+			overlay.handleInput("\r"); // Explicitly save the returned draft.
 			expect(feedback).toContain("## Rollout\n```md\n- add rollback command\n- include smoke test\n```");
 
 			overlay.handleInput("\x1b[B"); // Rollout -> Verify
@@ -466,33 +465,11 @@ describe("InteractiveMode plan review rendering", () => {
 			overlay.handleInput("\r");
 			expect(await choice).toBe("Refine plan");
 		} finally {
-			if (previousEditor === undefined) delete process.env.EDITOR;
-			else process.env.EDITOR = previousEditor;
-			if (previousVisual === undefined) delete process.env.VISUAL;
-			else process.env.VISUAL = previousVisual;
+			if (previousEditor === undefined) delete Bun.env.EDITOR;
+			else Bun.env.EDITOR = previousEditor;
+			if (previousVisual === undefined) delete Bun.env.VISUAL;
+			else Bun.env.VISUAL = previousVisual;
 		}
-	});
-
-	it("leaves terminal mouse tracking disabled while Plan Review is open", async () => {
-		let capturedOverlay: PlanReviewOverlay | undefined;
-		let capturedOptions: OverlayOptions | undefined;
-		const overlayHandle: OverlayHandle = {
-			hide: vi.fn(),
-			setHidden: vi.fn(),
-			isHidden: vi.fn(() => false),
-		};
-		vi.spyOn(mode.ui, "showOverlay").mockImplementation((component, options) => {
-			if (!(component instanceof PlanReviewOverlay)) throw new Error("Expected Plan Review overlay");
-			capturedOverlay = component;
-			capturedOptions = options;
-			return overlayHandle;
-		});
-
-		const choice = mode.showPlanReview("# Plan\n\nSelectable body", "Plan mode - next step", ["Approve"]);
-
-		expect(capturedOptions).toMatchObject({ fullscreen: true, mouseTracking: false });
-		capturedOverlay?.handleInput("\x1b");
-		await expect(choice).resolves.toBeUndefined();
 	});
 
 	it("dismisses Plan Review and restores input when a provider error is pinned", async () => {
@@ -550,7 +527,7 @@ describe("InteractiveMode plan review rendering", () => {
 			getArtifactsDir: () => session.sessionManager.getArtifactsDir(),
 			getSessionId: () => session.sessionManager.getSessionId(),
 		});
-		await fsx.write(resolvedPlanPath, "# Plan\n\nbody");
+		await Bun.write(resolvedPlanPath, "# Plan\n\nbody");
 
 		mode.planModeEnabled = true;
 		mode.planModePlanFilePath = planFilePath;
@@ -592,7 +569,7 @@ describe("InteractiveMode plan review rendering", () => {
 			getArtifactsDir: () => session.sessionManager.getArtifactsDir(),
 			getSessionId: () => session.sessionManager.getSessionId(),
 		});
-		await fsx.write(resolvedPlanPath, "# Plan\n\noriginal body\n");
+		await Bun.write(resolvedPlanPath, "# Plan\n\noriginal body\n");
 
 		mode.planModeEnabled = true;
 		mode.planModePlanFilePath = planFilePath;
@@ -604,7 +581,7 @@ describe("InteractiveMode plan review rendering", () => {
 		vi.spyOn(mode, "handleClearCommand").mockResolvedValue();
 		const promptSpy = vi.spyOn(session, "prompt").mockImplementation(async promptText => {
 			if (typeof promptText === "string" && promptText.startsWith("Plan approved.")) {
-				const persisted = await fsx.readText(resolvedPlanPath);
+				const persisted = await Bun.file(resolvedPlanPath).text();
 				expect(persisted).toContain("edited body");
 				expect(persisted).not.toContain("original body");
 			}
@@ -617,14 +594,13 @@ describe("InteractiveMode plan review rendering", () => {
 			title: "PLAN",
 		});
 
-		// The plan-approved prompt stays reference-only; approval must instead
-		// await the durable file mirror before dispatch so read sees the edit.
+		// The executor must receive the final approved text, including in-overlay edits.
 		const call = promptSpy.mock.calls.find(isPlanApprovedCall);
 		expect(call).toBeDefined();
-		expect(call?.[0] as string).not.toContain("edited body");
+		expect(call?.[0] as string).toContain("edited body");
 		expect(call?.[0] as string).not.toContain("original body");
 		// onPlanEdited mirrored the edit to the plan file.
-		expect(await fsx.readText(resolvedPlanPath)).toContain("edited body");
+		expect(await Bun.file(resolvedPlanPath).text()).toContain("edited body");
 	});
 
 	it("saves the final plan to the chosen path and starts a new session", async () => {
@@ -633,7 +609,7 @@ describe("InteractiveMode plan review rendering", () => {
 			getArtifactsDir: () => session.sessionManager.getArtifactsDir(),
 			getSessionId: () => session.sessionManager.getSessionId(),
 		});
-		await fsx.write(resolvedPlanPath, "# Draft plan\n\noriginal body\n");
+		await Bun.write(resolvedPlanPath, "# Draft plan\n\noriginal body\n");
 
 		mode.planModeEnabled = true;
 		mode.planModePlanFilePath = planFilePath;
@@ -657,7 +633,7 @@ describe("InteractiveMode plan review rendering", () => {
 			"# Auto QA\nSave the final plan.\n## Verify\n- run focused tests",
 			expect.any(String),
 		);
-		expect(await fsx.readText(destination)).toBe(edited);
+		expect(await Bun.file(destination).text()).toBe(edited);
 		expect(clear).toHaveBeenCalledTimes(1);
 		expect(mode.planModeEnabled).toBe(false);
 	});
@@ -672,8 +648,8 @@ describe("InteractiveMode plan review rendering", () => {
 		const oldPlanPath = resolveLocalUrlToPath(planFilePath, localOptions);
 		const oldArtifactPath = resolveLocalUrlToPath("local://handoff/nested/context.txt", localOptions);
 		await fs.mkdir(path.dirname(oldArtifactPath), { recursive: true });
-		await fsx.write(oldArtifactPath, "pre-approval handoff");
-		await fsx.write(oldPlanPath, "# Plan\n\noriginal body\n");
+		await Bun.write(oldArtifactPath, "pre-approval handoff");
+		await Bun.write(oldPlanPath, "# Plan\n\noriginal body\n");
 
 		mode.planModeEnabled = true;
 		mode.planModePlanFilePath = planFilePath;
@@ -690,14 +666,14 @@ describe("InteractiveMode plan review rendering", () => {
 		const prompt = vi.spyOn(session, "prompt").mockImplementation(async () => {
 			const promptArtifactPath = resolveLocalUrlToPath("local://handoff/nested/context.txt", localOptions);
 			const promptPlanPath = resolveLocalUrlToPath(planFilePath, localOptions);
-			artifactAtPrompt = (await fsx.exists(promptArtifactPath))
-				? await fsx.readText(promptArtifactPath)
+			artifactAtPrompt = (await Bun.file(promptArtifactPath).exists())
+				? await Bun.file(promptArtifactPath).text()
 				: "<missing>";
-			planAtPrompt = (await fsx.exists(promptPlanPath)) ? await fsx.readText(promptPlanPath) : "<missing>";
+			planAtPrompt = (await Bun.file(promptPlanPath).exists()) ? await Bun.file(promptPlanPath).text() : "<missing>";
 			return undefined as never;
 		});
 
-		expect(await fsx.readText(oldArtifactPath)).toBe("pre-approval handoff");
+		expect(await Bun.file(oldArtifactPath).text()).toBe("pre-approval handoff");
 
 		await mode.handlePlanApproval({
 			planFilePath,
@@ -709,11 +685,11 @@ describe("InteractiveMode plan review rendering", () => {
 		const newArtifactPath = resolveLocalUrlToPath("local://handoff/nested/context.txt", localOptions);
 		const newPlanPath = resolveLocalUrlToPath(planFilePath, localOptions);
 		expect(newLocalRoot).not.toBe(oldLocalRoot);
-		expect(await fsx.readText(newArtifactPath)).toBe("pre-approval handoff");
-		expect(await fsx.readText(newPlanPath)).toBe(planContent);
+		expect(await Bun.file(newArtifactPath).text()).toBe("pre-approval handoff");
+		expect(await Bun.file(newPlanPath).text()).toBe(planContent);
 		expect(artifactAtPrompt).toBe("pre-approval handoff");
 		expect(planAtPrompt).toBe(planContent);
-		expect(await fsx.readText(oldArtifactPath)).toBe("pre-approval handoff");
+		expect(await Bun.file(oldArtifactPath).text()).toBe("pre-approval handoff");
 		expect(prompt).toHaveBeenCalledWith(expect.any(String), { synthetic: true });
 	});
 
@@ -723,7 +699,7 @@ describe("InteractiveMode plan review rendering", () => {
 			getArtifactsDir: () => session.sessionManager.getArtifactsDir(),
 			getSessionId: () => session.sessionManager.getSessionId(),
 		});
-		await fsx.write(resolvedPlanPath, "# Plan\n\nDo the thing.");
+		await Bun.write(resolvedPlanPath, "# Plan\n\nDo the thing.");
 
 		mode.planModeEnabled = true;
 		mode.planModePlanFilePath = planFilePath;
@@ -794,7 +770,7 @@ describe("InteractiveMode plan review rendering", () => {
 			getArtifactsDir: () => session.sessionManager.getArtifactsDir(),
 			getSessionId: () => session.sessionManager.getSessionId(),
 		});
-		await fsx.write(resolvedPlanPath, "# Plan\n\nUse execution context.");
+		await Bun.write(resolvedPlanPath, "# Plan\n\nUse execution context.");
 
 		const tokens = 180000;
 		const contextSpy = vi.spyOn(session, "getContextUsage").mockImplementation(options => {
@@ -829,7 +805,7 @@ describe("InteractiveMode plan review rendering", () => {
 			getArtifactsDir: () => session.sessionManager.getArtifactsDir(),
 			getSessionId: () => session.sessionManager.getSessionId(),
 		});
-		await fsx.write(resolvedPlanPath, "# Plan\n\nToo much context.");
+		await Bun.write(resolvedPlanPath, "# Plan\n\nToo much context.");
 
 		mode.planModeEnabled = true;
 		mode.planModePlanFilePath = planFilePath;
@@ -855,7 +831,7 @@ describe("InteractiveMode plan review rendering", () => {
 			getArtifactsDir: () => session.sessionManager.getArtifactsDir(),
 			getSessionId: () => session.sessionManager.getSessionId(),
 		});
-		await fsx.write(resolvedPlanPath, "# Plan\n\nAt the threshold.");
+		await Bun.write(resolvedPlanPath, "# Plan\n\nAt the threshold.");
 
 		mode.planModeEnabled = true;
 		mode.planModePlanFilePath = planFilePath;
@@ -881,7 +857,7 @@ describe("InteractiveMode plan review rendering", () => {
 			getArtifactsDir: () => session.sessionManager.getArtifactsDir(),
 			getSessionId: () => session.sessionManager.getSessionId(),
 		});
-		await fsx.write(resolvedPlanPath, "# Plan\n\nDo the thing.");
+		await Bun.write(resolvedPlanPath, "# Plan\n\nDo the thing.");
 
 		mode.planModeEnabled = true;
 		mode.planModePlanFilePath = planFilePath;
@@ -920,7 +896,7 @@ describe("InteractiveMode plan review rendering", () => {
 			getArtifactsDir: () => session.sessionManager.getArtifactsDir(),
 			getSessionId: () => session.sessionManager.getSessionId(),
 		});
-		await fsx.write(resolvedPlanPath, "# Plan\n\nKeep context.");
+		await Bun.write(resolvedPlanPath, "# Plan\n\nKeep context.");
 
 		mode.planModeEnabled = true;
 		mode.planModePlanFilePath = planFilePath;
@@ -936,7 +912,7 @@ describe("InteractiveMode plan review rendering", () => {
 		});
 
 		expect(clear).not.toHaveBeenCalled();
-		expect(await fsx.readText(resolvedFinalPlanPath)).toBe("# Plan\n\nKeep context.");
+		expect(await Bun.file(resolvedFinalPlanPath).text()).toBe("# Plan\n\nKeep context.");
 		expect(prompt).toHaveBeenCalledWith(expect.any(String), {
 			synthetic: true,
 		});
@@ -954,7 +930,7 @@ describe("InteractiveMode plan review rendering", () => {
 			getArtifactsDir: () => session.sessionManager.getArtifactsDir(),
 			getSessionId: () => session.sessionManager.getSessionId(),
 		});
-		await fsx.write(resolvedPlanPath, "# Plan\n\nKeep context.");
+		await Bun.write(resolvedPlanPath, "# Plan\n\nKeep context.");
 
 		mode.planModeEnabled = true;
 		mode.planModePlanFilePath = planFilePath;
@@ -1008,7 +984,7 @@ describe("InteractiveMode plan review rendering", () => {
 			getArtifactsDir: () => session.sessionManager.getArtifactsDir(),
 			getSessionId: () => session.sessionManager.getSessionId(),
 		});
-		await fsx.write(resolvedPlanPath, "# Plan\n\nbody");
+		await Bun.write(resolvedPlanPath, "# Plan\n\nbody");
 		mode.planModeEnabled = true;
 		mode.planModePlanFilePath = planFilePath;
 
@@ -1056,7 +1032,7 @@ describe("InteractiveMode plan review rendering", () => {
 			getArtifactsDir: () => session.sessionManager.getArtifactsDir(),
 			getSessionId: () => session.sessionManager.getSessionId(),
 		});
-		await fsx.write(resolvedPlanPath, "# Plan\n\nbody");
+		await Bun.write(resolvedPlanPath, "# Plan\n\nbody");
 		mode.planModeEnabled = true;
 		mode.planModePlanFilePath = planFilePath;
 
@@ -1097,7 +1073,7 @@ describe("InteractiveMode plan review rendering", () => {
 			getArtifactsDir: () => session.sessionManager.getArtifactsDir(),
 			getSessionId: () => session.sessionManager.getSessionId(),
 		});
-		await fsx.write(resolvedPlanPath, "# Plan\n\nbody");
+		await Bun.write(resolvedPlanPath, "# Plan\n\nbody");
 		mode.planModeEnabled = true;
 		mode.planModePlanFilePath = planFilePath;
 
@@ -1159,7 +1135,7 @@ describe("InteractiveMode plan review rendering", () => {
 			getArtifactsDir: () => session.sessionManager.getArtifactsDir(),
 			getSessionId: () => session.sessionManager.getSessionId(),
 		});
-		await fsx.write(resolvedPlanPath, "# Plan\n\nClear context.");
+		await Bun.write(resolvedPlanPath, "# Plan\n\nClear context.");
 
 		mode.planModeEnabled = true;
 		mode.planModePlanFilePath = planFilePath;
@@ -1185,7 +1161,7 @@ describe("InteractiveMode plan review rendering", () => {
 		// was active before plan mode (#planModePreviousModelState), which silently
 		// reverted the operator's pick — sliding to "slow" still executed on the
 		// default model. The fix defers application until after the plan-mode exit.
-		authStorage.setRuntimeApiKey("anthropic", "test-key");
+		authStorage.keys.setRuntime("anthropic", "test-key");
 		const slow = session.modelRegistry.find("anthropic", "claude-opus-4-5");
 		const def = session.modelRegistry.find("anthropic", "claude-sonnet-4-5");
 		if (!slow || !def) throw new Error("Expected sonnet + opus to exist in registry");
@@ -1202,7 +1178,7 @@ describe("InteractiveMode plan review rendering", () => {
 			getArtifactsDir: () => session.sessionManager.getArtifactsDir(),
 			getSessionId: () => session.sessionManager.getSessionId(),
 		});
-		await fsx.write(resolvedPlanPath, "# Plan\n\nRun this on the slow tier.");
+		await Bun.write(resolvedPlanPath, "# Plan\n\nRun this on the slow tier.");
 
 		await mode.handlePlanModeCommand();
 		expect(session.getPlanModeState()?.enabled).toBe(true);
@@ -1253,7 +1229,7 @@ describe("InteractiveMode plan review rendering", () => {
 			getArtifactsDir: () => session.sessionManager.getArtifactsDir(),
 			getSessionId: () => session.sessionManager.getSessionId(),
 		});
-		await fsx.write(resolvedPlanPath, "# Plan\n\nKeep executing on the planning tier.");
+		await Bun.write(resolvedPlanPath, "# Plan\n\nKeep executing on the planning tier.");
 
 		await mode.handlePlanModeCommand();
 		expect(session.model?.id).toBe(planModel.id);
@@ -1302,7 +1278,7 @@ describe("InteractiveMode plan review rendering", () => {
 			getArtifactsDir: () => session.sessionManager.getArtifactsDir(),
 			getSessionId: () => session.sessionManager.getSessionId(),
 		});
-		await fsx.write(resolvedPlanPath, "# Plan\n\nDifferent thinking on the same model.");
+		await Bun.write(resolvedPlanPath, "# Plan\n\nDifferent thinking on the same model.");
 
 		await mode.handlePlanModeCommand();
 		expect(session.model?.id).toBe(opus.id);
@@ -1346,7 +1322,7 @@ describe("InteractiveMode plan review rendering", () => {
 			getArtifactsDir: () => session.sessionManager.getArtifactsDir(),
 			getSessionId: () => session.sessionManager.getSessionId(),
 		});
-		await fsx.write(resolvedPlanPath, "# Plan\n\nPreserve the configured auto selector.");
+		await Bun.write(resolvedPlanPath, "# Plan\n\nPreserve the configured auto selector.");
 
 		await mode.handlePlanModeCommand();
 		expect(session.model?.id).toBe(opus.id);
@@ -1389,7 +1365,7 @@ describe("InteractiveMode plan review rendering", () => {
 			getArtifactsDir: () => session.sessionManager.getArtifactsDir(),
 			getSessionId: () => session.sessionManager.getSessionId(),
 		});
-		await fsx.write(resolvedPlanPath, "# Plan\n\nNo slider, restore default.");
+		await Bun.write(resolvedPlanPath, "# Plan\n\nNo slider, restore default.");
 
 		await mode.handlePlanModeCommand();
 		expect(session.model?.id).toBe(opus.id);
@@ -1424,7 +1400,7 @@ describe("InteractiveMode plan review rendering", () => {
 			getArtifactsDir: () => session.sessionManager.getArtifactsDir(),
 			getSessionId: () => session.sessionManager.getSessionId(),
 		});
-		await fsx.write(resolvedPlanPath, "# Plan\n\nCompact on the plan model.");
+		await Bun.write(resolvedPlanPath, "# Plan\n\nCompact on the plan model.");
 
 		await mode.handlePlanModeCommand();
 		expect(session.model?.id).toBe(planModel.id);
@@ -1461,7 +1437,7 @@ describe("InteractiveMode plan review rendering", () => {
 			getArtifactsDir: () => session.sessionManager.getArtifactsDir(),
 			getSessionId: () => session.sessionManager.getSessionId(),
 		});
-		await fsx.write(resolvedPlanPath, "# Plan\n\nCompact failure still dispatches.");
+		await Bun.write(resolvedPlanPath, "# Plan\n\nCompact failure still dispatches.");
 
 		await mode.handlePlanModeCommand();
 		expect(session.model?.id).toBe(planModel.id);
@@ -1504,7 +1480,7 @@ describe("InteractiveMode plan review rendering", () => {
 			getArtifactsDir: () => session.sessionManager.getArtifactsDir(),
 			getSessionId: () => session.sessionManager.getSessionId(),
 		});
-		await fsx.write(resolvedPlanPath, "# Plan\n\nCompact on plan model, execute on default.");
+		await Bun.write(resolvedPlanPath, "# Plan\n\nCompact on plan model, execute on default.");
 
 		await mode.handlePlanModeCommand();
 		expect(session.model?.id).toBe(planModel.id);
@@ -1559,7 +1535,7 @@ describe("InteractiveMode plan review rendering", () => {
 			getArtifactsDir: () => session.sessionManager.getArtifactsDir(),
 			getSessionId: () => session.sessionManager.getSessionId(),
 		});
-		await fsx.write(resolvedPlanPath, "# Plan\n\nCancel compaction, restore pre-plan model.");
+		await Bun.write(resolvedPlanPath, "# Plan\n\nCancel compaction, restore pre-plan model.");
 
 		await mode.handlePlanModeCommand();
 		expect(session.model?.id).toBe(planModel.id);
@@ -1606,7 +1582,7 @@ describe("InteractiveMode plan review rendering", () => {
 			getArtifactsDir: () => session.sessionManager.getArtifactsDir(),
 			getSessionId: () => session.sessionManager.getSessionId(),
 		});
-		await fsx.write(resolvedPlanPath, "# Plan\n\nTransition before the queue flushes.");
+		await Bun.write(resolvedPlanPath, "# Plan\n\nTransition before the queue flushes.");
 
 		await mode.handlePlanModeCommand();
 		expect(session.model?.id).toBe(planModel.id);
@@ -1644,7 +1620,7 @@ describe("InteractiveMode plan review rendering", () => {
 			getArtifactsDir: () => session.sessionManager.getArtifactsDir(),
 			getSessionId: () => session.sessionManager.getSessionId(),
 		});
-		await fsx.write(resolvedPlanPath, "# Plan\n\nExecute then edit.");
+		await Bun.write(resolvedPlanPath, "# Plan\n\nExecute then edit.");
 
 		await mode.handlePlanModeCommand();
 
@@ -1668,6 +1644,61 @@ describe("InteractiveMode plan review rendering", () => {
 			reentry: true,
 		});
 	});
+	it("autosaves the approved plan when plan.autosave is enabled", async () => {
+		const planFilePath = "local://PLAN.md";
+		const resolvedPlanPath = resolveLocalUrlToPath(planFilePath, {
+			getArtifactsDir: () => session.sessionManager.getArtifactsDir(),
+			getSessionId: () => session.sessionManager.getSessionId(),
+		});
+		await Bun.write(resolvedPlanPath, "# Plan\n\nAutosave me.");
+
+		await mode.handlePlanModeCommand();
+		cfgPlanAutosave.set(session.settings, true);
+
+		vi.spyOn(mode, "showPlanReview").mockResolvedValue("Approve and execute");
+		vi.spyOn(mode, "handleClearCommand").mockResolvedValue();
+		vi.spyOn(session, "prompt").mockResolvedValue(undefined as never);
+		const status = vi.spyOn(mode, "showStatus");
+
+		await mode.handlePlanApproval({
+			planFilePath,
+			planExists: true,
+			title: "AUTOSAVE",
+		});
+
+		const saved = path.join(tempDir.path(), ".omp", "plans", "AUTOSAVE_PLAN.md");
+		expect(await Bun.file(saved).text()).toBe("# Plan\n\nAutosave me.");
+		expect(status).toHaveBeenCalledWith(expect.stringContaining("Saved plan to"));
+	});
+
+	it("continues approval with a warning when autosave fails", async () => {
+		const planFilePath = "local://PLAN.md";
+		const resolvedPlanPath = resolveLocalUrlToPath(planFilePath, {
+			getArtifactsDir: () => session.sessionManager.getArtifactsDir(),
+			getSessionId: () => session.sessionManager.getSessionId(),
+		});
+		await Bun.write(resolvedPlanPath, "# Plan\n\nAutosave me.");
+
+		await mode.handlePlanModeCommand();
+		cfgPlanAutosave.set(session.settings, true);
+		const blocker = path.join(tempDir.path(), "blocker");
+		await Bun.write(blocker, "x");
+		cfgPlanAutosaveDir.set(session.settings, path.join(blocker, "sub"));
+
+		vi.spyOn(mode, "showPlanReview").mockResolvedValue("Approve and execute");
+		vi.spyOn(mode, "handleClearCommand").mockResolvedValue();
+		const promptSpy = vi.spyOn(session, "prompt").mockResolvedValue(undefined as never);
+		const warning = vi.spyOn(mode, "showWarning");
+
+		await mode.handlePlanApproval({
+			planFilePath,
+			planExists: true,
+			title: "AUTOSAVE",
+		});
+
+		expect(promptSpy.mock.calls.some(isPlanApprovedCall)).toBe(true);
+		expect(warning).toHaveBeenCalledWith(expect.stringContaining("Failed to autosave plan"));
+	});
 
 	it("Approve and compact context: ok outcome dispatches plan-approved after compaction", async () => {
 		const planFilePath = "local://PLAN.md";
@@ -1675,7 +1706,7 @@ describe("InteractiveMode plan review rendering", () => {
 			getArtifactsDir: () => session.sessionManager.getArtifactsDir(),
 			getSessionId: () => session.sessionManager.getSessionId(),
 		});
-		await fsx.write(resolvedPlanPath, "# Plan\n\nCompact and execute.");
+		await Bun.write(resolvedPlanPath, "# Plan\n\nCompact and execute.");
 
 		mode.planModeEnabled = true;
 		mode.planModePlanFilePath = planFilePath;
@@ -1722,7 +1753,7 @@ describe("InteractiveMode plan review rendering", () => {
 			getArtifactsDir: () => session.sessionManager.getArtifactsDir(),
 			getSessionId: () => session.sessionManager.getSessionId(),
 		});
-		await fsx.write(resolvedPlanPath, "# Plan\n\nCancel mid-compact.");
+		await Bun.write(resolvedPlanPath, "# Plan\n\nCancel mid-compact.");
 
 		mode.planModeEnabled = true;
 		mode.planModePlanFilePath = planFilePath;
@@ -1761,7 +1792,7 @@ describe("InteractiveMode plan review rendering", () => {
 			getArtifactsDir: () => session.sessionManager.getArtifactsDir(),
 			getSessionId: () => session.sessionManager.getSessionId(),
 		});
-		await fsx.write(resolvedPlanPath, "# Plan\n\nCancel mid-compact.");
+		await Bun.write(resolvedPlanPath, "# Plan\n\nCancel mid-compact.");
 		mode.planModeEnabled = true;
 		mode.planModePlanFilePath = planFilePath;
 		const annotationState: PlanReviewAnnotationState = {
@@ -1804,7 +1835,7 @@ describe("InteractiveMode plan review rendering", () => {
 			getArtifactsDir: () => session.sessionManager.getArtifactsDir(),
 			getSessionId: () => session.sessionManager.getSessionId(),
 		});
-		await fsx.write(resolvedPlanPath, "# Plan\n\nFail mid-compact.");
+		await Bun.write(resolvedPlanPath, "# Plan\n\nFail mid-compact.");
 
 		mode.planModeEnabled = true;
 		mode.planModePlanFilePath = planFilePath;
@@ -1835,7 +1866,7 @@ describe("InteractiveMode plan review rendering", () => {
 			getArtifactsDir: () => session.sessionManager.getArtifactsDir(),
 			getSessionId: () => session.sessionManager.getSessionId(),
 		});
-		await fsx.write(resolvedPlanPath, "# Plan\n\nQueue race.");
+		await Bun.write(resolvedPlanPath, "# Plan\n\nQueue race.");
 
 		mode.planModeEnabled = true;
 		mode.planModePlanFilePath = planFilePath;
@@ -1885,7 +1916,7 @@ describe("InteractiveMode plan review rendering", () => {
 			getArtifactsDir: () => session.sessionManager.getArtifactsDir(),
 			getSessionId: () => session.sessionManager.getSessionId(),
 		});
-		await fsx.write(resolvedPlanPath, "# Plan\n\nBody.");
+		await Bun.write(resolvedPlanPath, "# Plan\n\nBody.");
 
 		mode.planModeEnabled = true;
 		mode.planModePlanFilePath = planFilePath;
@@ -1936,7 +1967,7 @@ describe("InteractiveMode plan review rendering", () => {
 			getArtifactsDir: () => session.sessionManager.getArtifactsDir(),
 			getSessionId: () => session.sessionManager.getSessionId(),
 		});
-		await fsx.write(resolvedPlanPath, "# Plan\n\nBody.");
+		await Bun.write(resolvedPlanPath, "# Plan\n\nBody.");
 		mode.planModeEnabled = true;
 		mode.planModePlanFilePath = planFilePath;
 		vi.spyOn(mode, "showPlanReview").mockResolvedValue("Approve and execute");
@@ -1959,7 +1990,7 @@ describe("InteractiveMode plan review rendering", () => {
 			getArtifactsDir: () => session.sessionManager.getArtifactsDir(),
 			getSessionId: () => session.sessionManager.getSessionId(),
 		});
-		await fsx.write(resolvedPlanPath, "# Plan\n\nKeep editing this artifact.");
+		await Bun.write(resolvedPlanPath, "# Plan\n\nKeep editing this artifact.");
 
 		await mode.handlePlanModeCommand();
 		expect(session.getPlanModeState()?.planFilePath).toBe(planFilePath);
@@ -2003,8 +2034,8 @@ describe("InteractiveMode plan review rendering", () => {
 			});
 
 		it("forwards the newest local plan file and its heading title to the approval flow", async () => {
-			await fsx.write(localPath("local://old-plan.md"), "# Old plan\n\nstale body");
-			await fsx.write(localPath("local://auth-refactor-plan.md"), "# Auth refactor\n\nfresh body");
+			await Bun.write(localPath("local://old-plan.md"), "# Old plan\n\nstale body");
+			await Bun.write(localPath("local://auth-refactor-plan.md"), "# Auth refactor\n\nfresh body");
 			// #listLocalPlanFiles sorts by mtime, newest first — pin mtimes so the
 			// "latest plan" selection is deterministic regardless of write timing.
 			await fs.utimes(localPath("local://old-plan.md"), new Date(1_000), new Date(1_000));
@@ -2027,7 +2058,7 @@ describe("InteractiveMode plan review rendering", () => {
 		});
 
 		it("warns and does not start approval when plan mode is inactive", async () => {
-			await fsx.write(localPath("local://auth-plan.md"), "# Auth\n\nbody");
+			await Bun.write(localPath("local://auth-plan.md"), "# Auth\n\nbody");
 			mode.planModeEnabled = false;
 			const approval = vi.spyOn(mode, "handlePlanApproval").mockResolvedValue();
 			const warn = vi.spyOn(mode, "showWarning");

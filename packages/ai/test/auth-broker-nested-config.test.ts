@@ -2,21 +2,20 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import { resolveAuthBrokerConfig } from "@chudware/ai/auth-broker";
-import * as fsx from "@chudware/utils/fsx";
+import { resolveAuthBrokerConfig } from "@oh-my-pi/pi-ai/auth-broker";
 import { removeWithRetries } from "../../utils/src/temp";
 import { withEnv } from "./helpers";
 
 const CLEAR_BROKER_ENV = {
-	CHUDCODE_AUTH_BROKER_URL: undefined,
-	CHUDCODE_AUTH_BROKER_TOKEN: undefined,
+	OMP_AUTH_BROKER_URL: undefined,
+	OMP_AUTH_BROKER_TOKEN: undefined,
 } as const;
 
 describe("auth-broker config.yml key resolution", () => {
 	let agentDir = "";
 
 	beforeEach(async () => {
-		agentDir = await fs.mkdtemp(path.join(os.tmpdir(), "chud-ai-auth-broker-config-"));
+		agentDir = await fs.mkdtemp(path.join(os.tmpdir(), "pi-ai-auth-broker-config-"));
 	});
 
 	afterEach(async () => {
@@ -25,7 +24,7 @@ describe("auth-broker config.yml key resolution", () => {
 	});
 
 	async function writeConfig(yaml: string): Promise<void> {
-		await fsx.write(path.join(agentDir, "config.yml"), yaml);
+		await Bun.write(path.join(agentDir, "config.yml"), yaml);
 	}
 
 	test("nested YAML keys resolve broker url and token", async () => {
@@ -35,14 +34,6 @@ describe("auth-broker config.yml key resolution", () => {
 		await withEnv(CLEAR_BROKER_ENV, async () => {
 			const config = await resolveAuthBrokerConfig({ agentDir });
 			expect(config).toEqual({ url: "https://broker.example", token: "nested-token" });
-		});
-	});
-
-	test("legacy flat dotted keys still resolve", async () => {
-		await writeConfig(['"auth.broker.url": https://flat.example', '"auth.broker.token": flat-token', ""].join("\n"));
-		await withEnv(CLEAR_BROKER_ENV, async () => {
-			const config = await resolveAuthBrokerConfig({ agentDir });
-			expect(config).toEqual({ url: "https://flat.example", token: "flat-token" });
 		});
 	});
 
@@ -61,16 +52,6 @@ describe("auth-broker config.yml key resolution", () => {
 		await withEnv(CLEAR_BROKER_ENV, async () => {
 			const config = await resolveAuthBrokerConfig({ agentDir });
 			expect(config).toEqual({ url: "https://nested.example", token: "nested-token" });
-		});
-	});
-	test("config.yaml nested keys resolve broker url and token", async () => {
-		await fsx.write(
-			path.join(agentDir, "config.yaml"),
-			["auth:", "  broker:", "    url: https://broker.example", "    token: yaml-token", ""].join("\n"),
-		);
-		await withEnv(CLEAR_BROKER_ENV, async () => {
-			const config = await resolveAuthBrokerConfig({ agentDir });
-			expect(config).toEqual({ url: "https://broker.example", token: "yaml-token" });
 		});
 	});
 });

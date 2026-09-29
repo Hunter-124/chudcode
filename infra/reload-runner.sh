@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Build + roll the preloaded chudcode-kata runner image onto the self-hosted CI host,
+# Build + roll the preloaded omp-kata runner image onto the self-hosted CI host,
 # driven over SSH from this repo. The Dockerfile next to this script is the
 # source of truth: it is copied to the host, built there, and the ARC runner
 # scale set is pointed at the new tag and rolled.
@@ -16,15 +16,15 @@
 # your ssh target; the remaining knobs default to the reference deployment.
 #
 # Usage:
-#   CI_HOST=my-ci-host ./infra/reload-runner.sh                # tag: chudcode-kata-runner:YYYY-MM-DD-HHMMSS
-#   CI_HOST=my-ci-host ./infra/reload-runner.sh 2026-06-20     # tag: chudcode-kata-runner:2026-06-20
+#   CI_HOST=my-ci-host ./infra/reload-runner.sh                # tag: omp-kata-runner:YYYY-MM-DD-HHMMSS
+#   CI_HOST=my-ci-host ./infra/reload-runner.sh 2026-06-20     # tag: omp-kata-runner:2026-06-20
 #   CI_HOST=my-ci-host ./infra/reload-runner.sh my/repo:tag    # explicit repo:tag
 #
 # Env knobs (defaults match the reference deployment):
 #   CI_HOST                  ssh target of the CI host                     (required)
-#   REMOTE_CTX               remote build dir for the Dockerfile           [/root/chudcode-kata-runner-image]
-#   ARC_VALUES               remote ARC scale-set helm values file         [/root/arc-chudcode-values.yaml]
-#   ARC_RELEASE              helm release name of the runner scale set     [chudcode-kata]
+#   REMOTE_CTX               remote build dir for the Dockerfile           [/root/omp-kata-runner-image]
+#   ARC_VALUES               remote ARC scale-set helm values file         [/root/arc-omp-values.yaml]
+#   ARC_RELEASE              helm release name of the runner scale set     [omp-kata]
 #   ARC_NAMESPACE            namespace the runner scale set lives in       [arc-runners]
 #   ARC_CHART_VERSION        gha-runner-scale-set chart version            [0.14.2]
 #   KUBECONFIG_REMOTE        kubeconfig path on the host                   [/etc/rancher/k3s/k3s.yaml]
@@ -49,9 +49,9 @@
 set -euo pipefail
 
 : "${CI_HOST:?set CI_HOST to the ssh target of your CI host, e.g. CI_HOST=my-ci-host}"
-REMOTE_CTX="${REMOTE_CTX:-/root/chudcode-kata-runner-image}"
-ARC_VALUES="${ARC_VALUES:-/root/arc-chudcode-values.yaml}"
-ARC_RELEASE="${ARC_RELEASE:-chudcode-kata}"
+REMOTE_CTX="${REMOTE_CTX:-/root/omp-kata-runner-image}"
+ARC_VALUES="${ARC_VALUES:-/root/arc-omp-values.yaml}"
+ARC_RELEASE="${ARC_RELEASE:-omp-kata}"
 ARC_NAMESPACE="${ARC_NAMESPACE:-arc-runners}"
 ARC_CHART_VERSION="${ARC_CHART_VERSION:-0.14.2}"
 KUBECONFIG_REMOTE="${KUBECONFIG_REMOTE:-/etc/rancher/k3s/k3s.yaml}"
@@ -66,7 +66,7 @@ RUNNER_MEMORY_REQUEST="${RUNNER_MEMORY_REQUEST:-10Gi}"
 RUNNER_MEMORY_LIMIT="${RUNNER_MEMORY_LIMIT:-14Gi}"
 
 arg="${1:-$(date +%Y-%m-%d-%H%M%S)}"
-case "$arg" in *:*) IMAGE="$arg";; *) IMAGE="chudcode-kata-runner:$arg";; esac
+case "$arg" in *:*) IMAGE="$arg";; *) IMAGE="omp-kata-runner:$arg";; esac
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 [ -f "$here/runner.Dockerfile" ] || { echo "no runner.Dockerfile next to $0" >&2; exit 1; }
@@ -166,8 +166,12 @@ start_buildkitd() {
 }
 
 verify_baked_tools() {
-  local runner="$1"
-  "$runner" --namespace k8s.io run --rm --entrypoint bash "$IMAGE" -lc '
+  # nerdctl defaults to /run/containerd/containerd.sock; k3s runs its own
+  # containerd, so the address must be explicit or the image "does not exist"
+  # and nerdctl tries to pull it from Docker Hub. --net host skips the CNI
+  # plugin lookup a bridged container would need.
+  "$NERDCTL_BIN" --address "$CONTAINERD_SOCKET" --namespace k8s.io \
+    run --rm --net host --entrypoint bash "$IMAGE" -lc '
     set -e
     for b in gh fd rg magick bun cargo rustc pkg-config clang lld sccache zstd zig cmake ninja cargo-nextest cargo-zigbuild cargo-xwin bazelisk bazel; do
       command -v "$b" >/dev/null || { echo "MISSING: $b"; exit 1; }
@@ -176,27 +180,39 @@ verify_baked_tools() {
   '
 }
 
+# containerd stores image names verbatim, while kubelet and nerdctl resolve a
+# bare `name:tag` as `docker.io/library/name:tag`. buildctl must be handed the
+# qualified form or the image lands under a name nothing else looks up.
+qualify_ref() {
+  case "$1" in
+    */*) echo "$1" ;;
+    *)   echo "docker.io/library/$1" ;;
+  esac
+}
+
 build_with_containerd() {
   bootstrap_containerd_tools
   start_buildkitd
 
-  echo "==> [2/5] building $IMAGE directly into k3s containerd (k8s.io namespace)"
+  local ref
+  ref="$(qualify_ref "$IMAGE")"
+  echo "==> [2/5] building $ref directly into k3s containerd (k8s.io namespace)"
   "$BUILDKITCTL_BIN" --addr "$BUILDKIT_ADDR" build \
     --progress=plain \
     --frontend dockerfile.v0 \
     --local context=. \
     --local dockerfile=. \
     --opt filename=Dockerfile \
-    --output "type=image,name=$IMAGE,store=true"
-  k3s ctr -n k8s.io images tag "$IMAGE" chudcode-kata-runner:preloaded >/dev/null 2>&1 || true
+    --output "type=image,name=$ref,store=true"
+  k3s ctr -n k8s.io images tag --force "$ref" "$(qualify_ref omp-kata-runner:preloaded)" >/dev/null 2>&1 || true
 
   echo "==> [3/5] verifying baked tools from k3s containerd"
-  verify_baked_tools "$NERDCTL_BIN"
+  verify_baked_tools
 }
 
 build_with_docker() {
   echo "==> [1/5] building $IMAGE with docker"
-  DOCKER_BUILDKIT=1 docker build -t "$IMAGE" -t chudcode-kata-runner:preloaded .
+  DOCKER_BUILDKIT=1 docker build -t "$IMAGE" -t omp-kata-runner:preloaded .
 
   echo "==> [2/5] verifying baked tools"
   docker run --rm --entrypoint bash "$IMAGE" -lc '
@@ -246,7 +262,7 @@ case "$selected_backend" in
 esac
 
 echo "==> [4/5] pointing ARC runner scale set at $IMAGE"
-sed -i "s#image: chudcode-kata-runner:.*#image: $IMAGE#" "$ARC_VALUES"
+sed -i "s#image: omp-kata-runner:.*#image: $IMAGE#" "$ARC_VALUES"
 sed -i -E "s/^maxRunners:.*/maxRunners: $RUNNER_MAX_RUNNERS/" "$ARC_VALUES"
 # Ensure the bazel-remote cache credentials reach every runner pod (idempotent;
 # the secret is created by infra/bazel-remote/setup.sh).

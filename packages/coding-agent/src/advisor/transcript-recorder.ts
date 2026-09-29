@@ -1,8 +1,8 @@
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
-import type { AgentMessage } from "@chudware/agent-core";
-import type { Message, UserMessage } from "@chudware/ai";
-import { logger } from "@chudware/utils";
+import type { AgentMessage } from "@oh-my-pi/pi-agent-core";
+import type { Message, UserMessage } from "@oh-my-pi/pi-ai";
+import { logger } from "@oh-my-pi/pi-utils";
 import { visitEntriesFromFileStream } from "../session/session-loader";
 import { SessionManager } from "../session/session-manager";
 import { fingerprintMessage } from "./message-fingerprint";
@@ -46,6 +46,13 @@ export interface LoadAdvisorTranscriptCostsOptions {
 	onSnapshot?: () => void;
 	/** Stop metadata discovery and transcript parsing when the owning session is gone. */
 	shouldContinue?: () => boolean;
+	/**
+	 * When provided, receives the distinct providers that billed each advisor
+	 * slug (populated only for slugs with nonzero cost), so callers can
+	 * re-derive subscription attribution from persisted spend without a second
+	 * scan (#10129).
+	 */
+	providersBySlug?: Map<string, Set<string>>;
 }
 
 interface AdvisorTranscriptCostFileSnapshot {
@@ -97,6 +104,7 @@ export async function loadAdvisorTranscriptCosts(
 	const costs = new Map<string, number>();
 	for (const snapshot of snapshots) {
 		let total = 0;
+		const providers = new Set<string>();
 		let validHeader: boolean | undefined;
 		try {
 			await visitEntriesFromFileStream(
@@ -116,7 +124,12 @@ export async function loadAdvisorTranscriptCosts(
 					// One malformed usage block must cost that entry only, not the
 					// whole transcript's total.
 					const total_ = message.usage?.cost?.total;
-					if (typeof total_ === "number" && Number.isFinite(total_)) total += total_;
+					if (typeof total_ === "number" && Number.isFinite(total_)) {
+						total += total_;
+						if (total_ > 0 && typeof message.provider === "string" && message.provider) {
+							providers.add(message.provider);
+						}
+					}
 				},
 				{ maxBytes: snapshot.maxBytes, shouldContinue: options.shouldContinue },
 			);
@@ -124,7 +137,10 @@ export async function loadAdvisorTranscriptCosts(
 			logger.debug("advisor transcript cost read failed", { file: path.basename(snapshot.file), err: String(err) });
 			continue;
 		}
-		if (total > 0) costs.set(snapshot.slug, total);
+		if (total > 0) {
+			costs.set(snapshot.slug, total);
+			if (options.providersBySlug && providers.size > 0) options.providersBySlug.set(snapshot.slug, providers);
+		}
 	}
 	return costs;
 }
@@ -136,7 +152,7 @@ export async function loadAdvisorTranscriptCosts(
  * subagent — its turns are written to a JSONL inside the owning session's
  * artifacts dir (`<session>/__advisor.jsonl`, `<session>/<SubId>/__advisor.jsonl`
  * for subagent advisors). That single file gives the advisor model proper usage
- * attribution in `chudcode stats` (the stats parser scans the session dir
+ * attribution in `omp stats` (the stats parser scans the session dir
  * recursively) and a read-only transcript in the Agent Hub, without making the
  * advisor a registered, messageable peer.
  *

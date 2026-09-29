@@ -2,19 +2,18 @@ import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
-import { Agent, isSoftToolRequirement } from "@chudware/agent-core";
-import { createMockModel, type MockModel } from "@chudware/ai/providers/mock";
-import { getBundledModel } from "@chudware/catalog/models";
-import { ModelRegistry } from "@chudware/coding-agent/config/model-registry";
-import { Settings } from "@chudware/coding-agent/config/settings";
-import { AgentSession } from "@chudware/coding-agent/session/agent-session";
-import { AuthStorage } from "@chudware/coding-agent/session/auth-storage";
-import { SessionManager } from "@chudware/coding-agent/session/session-manager";
-import type { ToolSession } from "@chudware/coding-agent/tools";
-import { dispatchResolutionDevice, queueResolveHandler } from "@chudware/coding-agent/tools/resolve";
-import { buildNamedToolChoice } from "@chudware/coding-agent/utils/tool-choice";
-import { removeSyncWithRetries, Snowflake } from "@chudware/utils";
-import * as fsx from "@chudware/utils/fsx";
+import { Agent, isSoftToolRequirement } from "@oh-my-pi/pi-agent-core";
+import { createMockModel, type MockModel } from "@oh-my-pi/pi-ai/providers/mock";
+import { getBundledModel } from "@oh-my-pi/pi-catalog/models";
+import { ModelRegistry } from "@oh-my-pi/pi-coding-agent/config/model-registry";
+import { Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
+import { AgentSession } from "@oh-my-pi/pi-coding-agent/session/agent-session";
+import { AuthStorage } from "@oh-my-pi/pi-coding-agent/session/auth-storage";
+import { SessionManager } from "@oh-my-pi/pi-coding-agent/session/session-manager";
+import type { ToolSession } from "@oh-my-pi/pi-coding-agent/tools";
+import { dispatchResolutionDevice, queueResolveHandler } from "@oh-my-pi/pi-coding-agent/tools/resolve";
+import { buildNamedToolChoice } from "@oh-my-pi/pi-coding-agent/utils/tool-choice";
+import { removeSyncWithRetries, Snowflake } from "@oh-my-pi/pi-utils";
 
 describe("AgentSession resolve reminder", () => {
 	let session: AgentSession;
@@ -25,7 +24,7 @@ describe("AgentSession resolve reminder", () => {
 
 	const transitions: Array<"new" | "switch" | "branch"> = ["new", "switch", "branch"];
 	beforeEach(async () => {
-		tempDir = path.join(os.tmpdir(), `chud-resolve-reminder-test-${Snowflake.next()}`);
+		tempDir = path.join(os.tmpdir(), `pi-resolve-reminder-test-${Snowflake.next()}`);
 		fs.mkdirSync(tempDir, { recursive: true });
 
 		const model = getBundledModel("anthropic", "claude-sonnet-4-5");
@@ -34,7 +33,7 @@ describe("AgentSession resolve reminder", () => {
 		}
 
 		authStorage = await AuthStorage.create(path.join(tempDir, "testauth.db"));
-		authStorage.setRuntimeApiKey("anthropic", "test-key");
+		authStorage.keys.setRuntime("anthropic", "test-key");
 		const modelRegistry = new ModelRegistry(authStorage, path.join(tempDir, "models.yml"));
 
 		mock = createMockModel({ handler: () => ({ content: ["Done"] }) });
@@ -86,7 +85,7 @@ describe("AgentSession resolve reminder", () => {
 		}
 		const targetId = `target-${Snowflake.next()}`;
 		const targetPath = path.join(tempDir, `${targetId}.jsonl`);
-		await fsx.write(
+		await Bun.write(
 			targetPath,
 			`${JSON.stringify({
 				type: "session",

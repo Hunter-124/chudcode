@@ -2,7 +2,6 @@ import { afterAll, describe, expect, it } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import * as fsx from "@chudware/utils/fsx";
 import { normalizeReadPath, parseSince, scanFile } from "./audit";
 
 describe("parseSince", () => {
@@ -137,7 +136,7 @@ it("scanFile recovers usage, turns, spawns, residency, and pruned result sizes",
 		toolResult("c3", "y".repeat(200), 5500),
 	];
 	const file = path.join(tmpDir, "synthetic.jsonl");
-	await fsx.write(file, `${lines.join("\n")}\n`);
+	await Bun.write(file, `${lines.join("\n")}\n`);
 
 	const scan = await scanFile(file);
 	if (!scan) throw new Error("scanFile returned undefined");

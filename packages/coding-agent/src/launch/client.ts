@@ -2,8 +2,7 @@ import * as fs from "node:fs/promises";
 import * as net from "node:net";
 import * as os from "node:os";
 import * as path from "node:path";
-import { getGlobalDaemonRuntimeDir, isEexist, isEnoent, logger, postmortem } from "@chudware/utils";
-import { sleep } from "@chudware/utils/async";
+import { getGlobalDaemonRuntimeDir, isEexist, isEnoent, logger, postmortem } from "@oh-my-pi/pi-utils";
 import { hostHasInheritableConsole } from "../eval/py/spawn-options";
 import { resolveWorkerSpawnCmd, workerEnvFromParent } from "../subprocess/worker-client";
 import { canonicalProjectDir, daemonBrokerEndpoint, daemonRuntimeDir } from "./paths";
@@ -68,10 +67,13 @@ export class DaemonBrokerRejectedError extends Error {}
 async function readOrCreateToken(runtimeDir: string): Promise<string> {
 	await fs.mkdir(runtimeDir, { recursive: true, mode: 0o700 });
 	const tokenPath = path.join(runtimeDir, TOKEN_FILE);
-	const tokenFile = Bun.file(tokenPath);
 	for (let attempt = 0; attempt < 100; attempt++) {
 		try {
-			const token = (await tokenFile.text()).trim();
+			// node:fs, not Bun.file().text(): on Windows (Bun 1.4.2) a Bun.file
+			// read that rejects with ENOENT holds no event-loop ref, so the loop
+			// drains mid-await — `omp --smoke-test` exited 1 via the unsettled-entry
+			// guard, and a bare script silently stops at that await.
+			const token = (await fs.readFile(tokenPath, "utf8")).trim();
 			if (token.length > 0) return token;
 		} catch (error) {
 			if (!isEnoent(error)) throw error;
@@ -89,7 +91,7 @@ async function readOrCreateToken(runtimeDir: string): Promise<string> {
 		} catch (error) {
 			if (!isEexist(error)) throw error;
 		}
-		await sleep(10);
+		await Bun.sleep(10);
 	}
 	throw new Error(`Timed out initializing daemon broker token in ${runtimeDir}`);
 }
@@ -288,8 +290,9 @@ class SocketDaemonClient implements DaemonBrokerClient {
 			this.#bindSocket(await openSocket(this.#endpoint, 250));
 			return;
 		} catch {
-			// No live broker. Multiple clients may race to spawn; the broker's PID
-			// lease selects one winner before any candidate touches the socket.
+			// No live broker. Multiple clients may race to spawn; the broker's
+			// process-owned lease selects one winner before any candidate touches
+			// the socket.
 		}
 		this.#spawnBroker();
 		const deadline = Date.now() + CONNECT_TIMEOUT_MS;
@@ -300,10 +303,14 @@ class SocketDaemonClient implements DaemonBrokerClient {
 				return;
 			} catch (error) {
 				lastError = error instanceof Error ? error : new Error(String(error));
-				await sleep(CONNECT_RETRY_MS);
+				await Bun.sleep(CONNECT_RETRY_MS);
 			}
 		}
-		throw new Error(`Failed to start daemon broker: ${lastError?.message ?? "socket unavailable"}`);
+		throw new Error(
+			`Failed to start daemon broker at ${this.#endpoint} after ${CONNECT_TIMEOUT_MS / 1000}s: ` +
+				`${lastError?.message ?? "socket unavailable"}. Scope: ${this.#runtimeDir}. ` +
+				"Run `omp --smoke-test` to verify broker startup, or `omp ps` to inspect supervised processes.",
+		);
 	}
 
 	#spawnBroker(): void {
@@ -496,7 +503,7 @@ export async function daemonClientForGlobal(service: string): Promise<DaemonBrok
 	);
 }
 
-/** Close every project and machine-global broker connection held by this chudcode process. */
+/** Close every project and machine-global broker connection held by this omp process. */
 export async function closeDaemonClients(): Promise<void> {
 	const pending = [...sharedClients.values()];
 	sharedClients.clear();
@@ -511,7 +518,7 @@ export async function smokeTestDaemonBroker(): Promise<void> {
 	// the broker's dead-scope sweep (pruneDeadDaemonRuntimeDirs, fired on startup)
 	// can only ever reclaim siblings inside it — never unrelated neighbours in
 	// os.tmpdir() such as tmux/ssh sockets or build trees (issue #8721).
-	const smokeRoot = await fs.mkdtemp(path.join(os.tmpdir(), "chudcode-daemon-smoke-"));
+	const smokeRoot = await fs.mkdtemp(path.join(os.tmpdir(), "omp-daemon-smoke-"));
 	const projectDir = path.join(smokeRoot, "project");
 	const runtimeDir = path.join(smokeRoot, "run");
 	await fs.mkdir(projectDir, { recursive: true });

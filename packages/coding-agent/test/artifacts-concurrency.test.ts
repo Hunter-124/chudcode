@@ -1,15 +1,14 @@
 import { afterEach, describe, expect, it } from "bun:test";
 import * as os from "node:os";
 import * as path from "node:path";
-import { ArtifactManager } from "@chudware/coding-agent/session/artifacts";
-import { removeSyncWithRetries } from "@chudware/utils";
-import * as fsx from "@chudware/utils/fsx";
+import { ArtifactManager } from "@oh-my-pi/pi-coding-agent/session/artifacts";
+import { removeSyncWithRetries } from "@oh-my-pi/pi-utils";
 
 describe("ArtifactManager concurrent first-use", () => {
 	const dirs: string[] = [];
 
 	function freshDir(): string {
-		const dir = path.join(os.tmpdir(), `chudcode-artifacts-${crypto.randomUUID()}`, "session");
+		const dir = path.join(os.tmpdir(), `omp-artifacts-${crypto.randomUUID()}`, "session");
 		dirs.push(path.dirname(dir));
 		return dir;
 	}
@@ -35,8 +34,8 @@ describe("ArtifactManager concurrent first-use", () => {
 		const pathB = await mgr.getPath(idB);
 		expect(pathA).not.toBeNull();
 		expect(pathB).not.toBeNull();
-		expect(await fsx.readText(pathA as string)).toBe("CONTENT-A");
-		expect(await fsx.readText(pathB as string)).toBe("CONTENT-B");
+		expect(await Bun.file(pathA as string).text()).toBe("CONTENT-A");
+		expect(await Bun.file(pathB as string).text()).toBe("CONTENT-B");
 	});
 
 	// Different toolTypes turn a duplicate id into two coexisting files
@@ -51,8 +50,8 @@ describe("ArtifactManager concurrent first-use", () => {
 
 		const pathA = await mgr.getPath(idA);
 		const pathB = await mgr.getPath(idB);
-		expect(await fsx.readText(pathA as string)).toBe("BASH-BYTES");
-		expect(await fsx.readText(pathB as string)).toBe("ASYNC-BYTES");
+		expect(await Bun.file(pathA as string).text()).toBe("BASH-BYTES");
+		expect(await Bun.file(pathB as string).text()).toBe("ASYNC-BYTES");
 	});
 
 	// The race also re-opens on a fresh manager over a directory that already
@@ -67,7 +66,7 @@ describe("ArtifactManager concurrent first-use", () => {
 		const [idA, idB] = await Promise.all([mgr.save("NEW-A", "bash"), mgr.save("NEW-B", "bash")]);
 
 		expect(idA).not.toBe(idB);
-		expect(await fsx.readText((await mgr.getPath(idA)) as string)).toBe("NEW-A");
-		expect(await fsx.readText((await mgr.getPath(idB)) as string)).toBe("NEW-B");
+		expect(await Bun.file((await mgr.getPath(idA)) as string).text()).toBe("NEW-A");
+		expect(await Bun.file((await mgr.getPath(idB)) as string).text()).toBe("NEW-B");
 	});
 });

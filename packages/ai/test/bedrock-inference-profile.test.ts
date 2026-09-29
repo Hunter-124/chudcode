@@ -2,11 +2,10 @@ import { describe, expect, test } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import { streamBedrock } from "@chudware/ai/providers/amazon-bedrock";
-import type { Context, FetchImpl, Model } from "@chudware/ai/types";
-import { buildModel } from "@chudware/catalog/build";
-import { Effort } from "@chudware/catalog/effort";
-import * as fsx from "@chudware/utils/fsx";
+import { streamBedrock } from "@oh-my-pi/pi-ai/providers/amazon-bedrock";
+import type { Context, FetchImpl, Model } from "@oh-my-pi/pi-ai/types";
+import { buildModel } from "@oh-my-pi/pi-catalog/build";
+import { Effort } from "@oh-my-pi/pi-catalog/effort";
 import { removeWithRetries } from "../../utils/src/temp";
 import { withEnv } from "./helpers";
 
@@ -126,13 +125,16 @@ describe("Bedrock inference profile ARNs", () => {
 	});
 });
 
-function bedrockModel(id: string): Model<"bedrock-converse-stream"> {
+function bedrockModel(
+	id: string,
+	baseUrl = "https://bedrock-runtime.us-east-1.amazonaws.com",
+): Model<"bedrock-converse-stream"> {
 	return buildModel({
 		id,
 		name: id,
 		api: "bedrock-converse-stream",
 		provider: "amazon-bedrock",
-		baseUrl: "https://bedrock-runtime.us-east-1.amazonaws.com",
+		baseUrl,
 		reasoning: true,
 		input: ["text", "image"],
 		cost: { input: 5, output: 25, cacheRead: 0.5, cacheWrite: 6.25 },
@@ -142,6 +144,13 @@ function bedrockModel(id: string): Model<"bedrock-converse-stream"> {
 }
 
 async function capturedRequestHost(
+	model: Model<"bedrock-converse-stream">,
+	options: { region?: string; profile?: string; guardrailIdentifier?: string } = {},
+): Promise<string> {
+	return new URL(await capturedRequestUrl(model, options)).host;
+}
+
+async function capturedRequestUrl(
 	model: Model<"bedrock-converse-stream">,
 	options: { region?: string; profile?: string; guardrailIdentifier?: string } = {},
 ): Promise<string> {
@@ -161,7 +170,7 @@ async function capturedRequestHost(
 	}).result();
 	expect(result.stopReason).toBe("error");
 	expect(calls).toHaveLength(1);
-	return new URL(calls[0]).host;
+	return calls[0];
 }
 
 describe("Bedrock cross-region inference-profile geo routing", () => {
@@ -222,7 +231,7 @@ describe("Bedrock cross-region inference-profile geo routing", () => {
 		const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "bedrock-profile-region-"));
 		try {
 			const configPath = path.join(tmp, "config");
-			await fsx.write(configPath, "[profile regional]\nregion = eu-west-2\n");
+			await Bun.write(configPath, "[profile regional]\nregion = eu-west-2\n");
 			await withEnv(
 				{
 					AWS_REGION: undefined,
@@ -304,6 +313,59 @@ describe("Bedrock cross-region inference-profile geo routing", () => {
 				).toBe("bedrock-runtime.us-west-2.amazonaws.com");
 			},
 		);
+	});
+});
+
+describe("Bedrock custom baseUrl", () => {
+	const NO_AMBIENT = { AWS_REGION: undefined, AWS_DEFAULT_REGION: undefined } as const;
+
+	test("re-points AWS's own regional host at the resolved region", async () => {
+		await withEnv({ AWS_REGION: "eu-central-1", AWS_DEFAULT_REGION: undefined }, async () => {
+			expect(await capturedRequestUrl(bedrockModel("global.anthropic.claude-opus-4-8"))).toBe(
+				"https://bedrock-runtime.eu-central-1.amazonaws.com/model/global.anthropic.claude-opus-4-8/converse-stream",
+			);
+		});
+	});
+
+	// Closest near-miss to the regional host: one `-fips` segment apart.
+	test("keeps a FIPS host instead of re-deriving it", async () => {
+		await withEnv({ AWS_REGION: "us-west-2", AWS_DEFAULT_REGION: undefined }, async () => {
+			const fips = "https://bedrock-runtime-fips.us-west-2.amazonaws.com";
+			expect(await capturedRequestUrl(bedrockModel("anthropic.claude-opus-4-8", fips))).toBe(
+				`${fips}/model/anthropic.claude-opus-4-8/converse-stream`,
+			);
+		});
+	});
+
+	test("sends to a configured host verbatim instead of the regional one", async () => {
+		await withEnv(NO_AMBIENT, async () => {
+			const vpce = "https://vpce-0123456789abcdef0.bedrock-runtime.us-east-1.vpce.amazonaws.com";
+			expect(await capturedRequestUrl(bedrockModel("anthropic.claude-opus-4-8", vpce))).toBe(
+				`${vpce}/model/anthropic.claude-opus-4-8/converse-stream`,
+			);
+		});
+	});
+
+	// Gateway under a path: prefix survives, no doubled slash from the trailing one.
+	test("preserves a baseUrl path prefix and strips its trailing slash", async () => {
+		await withEnv(NO_AMBIENT, async () => {
+			expect(
+				await capturedRequestUrl(
+					bedrockModel("anthropic.claude-opus-4-8", "https://gateway.example.com/bedrock/team/"),
+				),
+			).toBe("https://gateway.example.com/bedrock/team/model/anthropic.claude-opus-4-8/converse-stream");
+		});
+	});
+
+	// A gateway authenticated via a query parameter: dropping the query would
+	// silently send an unauthenticated (or misrouted) request.
+	test("preserves a baseUrl query string used for gateway authentication", async () => {
+		await withEnv(NO_AMBIENT, async () => {
+			const gateway = "https://gateway.example.com/bedrock?code=secret-token";
+			expect(await capturedRequestUrl(bedrockModel("anthropic.claude-opus-4-8", gateway))).toBe(
+				"https://gateway.example.com/bedrock/model/anthropic.claude-opus-4-8/converse-stream?code=secret-token",
+			);
+		});
 	});
 });
 

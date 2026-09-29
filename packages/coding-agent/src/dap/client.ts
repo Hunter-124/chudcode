@@ -1,8 +1,7 @@
 import * as fs from "node:fs/promises";
-import { isEnoent, logger, ptree } from "@chudware/utils";
-import { sleep } from "@chudware/utils/async";
+import { isEnoent, logger, ptree } from "@oh-my-pi/pi-utils";
 import { NON_INTERACTIVE_ENV } from "../exec/non-interactive-env";
-import { MessageFramer } from "../jsonrpc/message-framing";
+import { MessageFramer, MessageFramingError } from "../jsonrpc/message-framing";
 import { ToolAbortError } from "../tools/tool-errors";
 import type {
 	DapCapabilities,
@@ -117,7 +116,7 @@ export class DapClient {
 		// debuggee children can reach /dev/tty and trigger SIGTTIN, suspending
 		// the parent harness under shell job control.
 		const env = {
-			...process.env,
+			...Bun.env,
 			...NON_INTERACTIVE_ENV,
 		};
 		const proc = ptree.spawn([adapter.resolvedCommand, ...adapter.args], {
@@ -186,7 +185,7 @@ export class DapClient {
 			cwd,
 			stdin: "pipe",
 			env: {
-				...process.env,
+				...Bun.env,
 				...NON_INTERACTIVE_ENV,
 			},
 			detached: true,
@@ -225,7 +224,7 @@ export class DapClient {
 	 */
 	static async #spawnSocket({ adapter, cwd, socketReadyTimeoutMs }: DapSpawnOptions): Promise<DapClient> {
 		const env = {
-			...process.env,
+			...Bun.env,
 			...NON_INTERACTIVE_ENV,
 		};
 		const timeoutMs = socketReadyTimeoutMs ?? SOCKET_READY_TIMEOUT_MS;
@@ -396,7 +395,6 @@ export class DapClient {
 			throw signal.reason instanceof Error ? signal.reason : new ToolAbortError();
 		}
 		const { promise, resolve, reject } = Promise.withResolvers<TBody>();
-		let timeout: NodeJS.Timeout | undefined;
 		const cleanup = () => {
 			unsubscribe();
 			this.#eventWaiterRejectors.delete(closeHandler);
@@ -425,7 +423,7 @@ export class DapClient {
 		if (signal) {
 			signal.addEventListener("abort", abortHandler, { once: true });
 		}
-		timeout = setTimeout(() => {
+		const timeout = setTimeout(() => {
 			cleanup();
 			reject(new Error(`DAP event ${event} timed out after ${timeoutMs}ms`));
 		}, timeoutMs);
@@ -458,7 +456,6 @@ export class DapClient {
 		// receives the rejection normally; this handler is a passive guard.
 		promise.catch(() => {});
 
-		let timeout: NodeJS.Timeout | undefined;
 		const cleanup = () => {
 			if (timeout) clearTimeout(timeout);
 			if (signal) {
@@ -470,7 +467,7 @@ export class DapClient {
 			cleanup();
 			reject(signal?.reason instanceof Error ? signal.reason : new ToolAbortError());
 		};
-		timeout = setTimeout(() => {
+		const timeout = setTimeout(() => {
 			if (!this.#pendingRequests.has(requestSeq)) return;
 			this.#pendingRequests.delete(requestSeq);
 			cleanup();
@@ -597,6 +594,7 @@ export class DapClient {
 		const framer = new MessageFramer(this.#messageBuffer);
 
 		let closeError: Error | undefined;
+		let framingFailed = false;
 		try {
 			while (true) {
 				const { done, value } = await reader.read();
@@ -636,6 +634,7 @@ export class DapClient {
 				}
 			}
 		} catch (error) {
+			framingFailed = error instanceof MessageFramingError;
 			closeError = new Error(`DAP connection closed: ${toErrorMessage(error)}`);
 		} finally {
 			// Persist any unparsed remainder so a restarted reader resumes mid-message.
@@ -649,6 +648,14 @@ export class DapClient {
 		// in-flight request and event waiter so callers see an immediate error
 		// instead of waiting out their own timeout.
 		this.#failConnection(closeError ?? new Error(`DAP connection closed: ${this.adapter.name} transport ended`));
+		if (framingFailed) {
+			await this.dispose().catch(error => {
+				logger.warn("Failed to dispose DAP adapter after invalid framing", {
+					adapter: this.adapter.name,
+					error: toErrorMessage(error),
+				});
+			});
+		}
 	}
 
 	#handleResponse(message: DapResponseMessage): void {
@@ -779,7 +786,7 @@ async function waitForCondition(
 		if (proc.exitCode !== null) {
 			throw new Error("Adapter process exited before socket was ready");
 		}
-		await sleep(50);
+		await Bun.sleep(50);
 	}
 	throw new Error(`Socket not ready after ${timeoutMs}ms`);
 }
@@ -855,7 +862,7 @@ async function waitForTcpTransport(
 		try {
 			return await connectTcpSocket(host, port);
 		} catch {
-			await sleep(50);
+			await Bun.sleep(50);
 		}
 	}
 	throw new Error(`TCP port ${host}:${port} was not ready after ${timeoutMs}ms`);
@@ -903,7 +910,7 @@ export async function waitForTcpServerListening(
 		}
 		ready.resolve();
 	})();
-	await Promise.race([ready.promise, sleep(timeoutMs)]);
+	await Promise.race([ready.promise, Bun.sleep(timeoutMs)]);
 }
 
 interface SocketTransport {

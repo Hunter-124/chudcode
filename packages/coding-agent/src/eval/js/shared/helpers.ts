@@ -1,6 +1,6 @@
 import * as path from "node:path";
-import * as fsx from "@chudware/utils/fsx";
-import { ToolError } from "../../../tools/tool-errors";
+
+import { ToolError } from "@oh-my-pi/pi-tui/tools/tool-errors";
 import type { JsStatusEvent } from "./types";
 
 export interface HelperOptions {
@@ -17,9 +17,9 @@ export interface HelperContext {
 	cwd(): string;
 	env: Map<string, string>;
 	/**
-	 * On-disk roots for internal-URL schemes the helpers accept (e.g.
-	 * `{ local: "/…/artifacts/local" }`). A path like `local://x.md` is rewritten
-	 * to `<root>/x.md` before any filesystem op; unknown schemes are rejected.
+	 * On-disk roots for internal-URL schemes the helpers accept, keyed by scheme
+	 * (see `buildEvalUrlRoots`). A path like `<scheme>://x.md` is rewritten to
+	 * `<root>/x.md` before any filesystem op; unknown schemes are rejected.
 	 */
 	localRoots(): Record<string, string>;
 	emitStatus(event: JsStatusEvent): void;
@@ -34,6 +34,8 @@ export interface HelperBundle {
 	read(rawPath: string, options?: HelperOptions): Promise<string>;
 	writeFile(rawPath: string, data: unknown): Promise<string>;
 	env(key?: string, value?: string): string | Record<string, string> | undefined;
+	/** Whether `rawPath` is an internal URL whose scheme has an injected root (served by these helpers, not delegated to the read tool). */
+	hasRoot(rawPath: string): boolean;
 }
 
 const utf8Encoder = new TextEncoder();
@@ -60,9 +62,9 @@ export function createHelpers(ctx: HelperContext): HelperBundle {
 			}
 			const filePath = resolveHelperPath(ctx, rawPath, "write");
 			if (typeof data === "string" || data instanceof Blob || data instanceof ArrayBuffer) {
-				await fsx.write(filePath, data);
+				await Bun.write(filePath, data);
 			} else {
-				await fsx.write(filePath, new Uint8Array(data.buffer, data.byteOffset, data.byteLength));
+				await Bun.write(filePath, new Uint8Array(data.buffer, data.byteOffset, data.byteLength));
 			}
 			ctx.emitStatus({ op: "write", path: filePath, bytes: getDataSize(data) });
 			return filePath;
@@ -78,16 +80,20 @@ export function createHelpers(ctx: HelperContext): HelperBundle {
 				ctx.emitStatus({ op: "env", key, value, action: "set" });
 				return value;
 			}
-			const result = ctx.env.get(key) ?? process.env[key];
+			const result = ctx.env.get(key) ?? Bun.env[key];
 			ctx.emitStatus({ op: "env", key, value: result, action: "get" });
 			return result;
+		},
+		hasRoot: rawPath => {
+			const match = INTERNAL_URL_RE.exec(rawPath);
+			return match !== null && Object.hasOwn(ctx.localRoots(), match[1].toLowerCase());
 		},
 	};
 }
 
 function getMergedEnv(ctx: HelperContext): Record<string, string> {
 	const merged: Record<string, string> = {};
-	for (const [key, value] of Object.entries(process.env)) {
+	for (const [key, value] of Object.entries(Bun.env)) {
 		if (typeof value === "string") merged[key] = value;
 	}
 	for (const [key, value] of ctx.env) merged[key] = value;
@@ -103,8 +109,8 @@ function resolvePath(ctx: HelperContext, value: string): string {
 
 /**
  * Map a raw helper path to an absolute filesystem path. Plain paths resolve
- * against the cwd; an internal-URL whose scheme has an injected root (e.g.
- * `local://`) is rewritten under that root; any other `scheme://` is rejected
+ * against the cwd; an internal-URL whose scheme has an injected root is
+ * rewritten under that root; any other `scheme://` is rejected
  * so we never silently create a literal `scheme:/` directory.
  */
 function resolveHelperPath(ctx: HelperContext, rawPath: string, op: "read" | "write"): string {
@@ -119,7 +125,7 @@ function resolveHelperPath(ctx: HelperContext, rawPath: string, op: "read" | "wr
 }
 
 /** Resolve an internal-URL relative path under its root, mirroring the host
- *  local-protocol handler: decode, reject absolute/traversal, confine to root. */
+ *  protocol handler: decode, reject absolute/traversal, confine to root. */
 function resolveUnderRoot(scheme: string, root: string, rawRelative: string, rawPath: string): string {
 	let relative: string;
 	try {

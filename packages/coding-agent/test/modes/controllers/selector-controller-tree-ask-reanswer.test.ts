@@ -8,11 +8,11 @@
  * ask toolResults).
  */
 import { afterEach, beforeAll, beforeEach, describe, expect, it, type Mock, vi } from "bun:test";
-import { resetSettingsForTest, Settings } from "@chudware/coding-agent/config/settings";
-import { SelectorController } from "@chudware/coding-agent/modes/controllers/selector-controller";
-import { initTheme } from "@chudware/coding-agent/modes/theme/theme";
-import type { InteractiveModeContext } from "@chudware/coding-agent/modes/types";
-import type { SessionEntry, SessionTreeNode } from "@chudware/coding-agent/session/session-entries";
+import { resetSettingsForTest, Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
+import { SelectorController } from "@oh-my-pi/pi-coding-agent/modes/controllers/selector-controller";
+import { initTheme } from "@oh-my-pi/pi-tui/theme";
+import type { InteractiveModeContext } from "@oh-my-pi/pi-coding-agent/modes/types";
+import type { SessionEntry, SessionTreeNode } from "@oh-my-pi/pi-coding-agent/session/session-entries";
 
 beforeAll(async () => {
 	await initTheme();
@@ -105,10 +105,12 @@ function createCtx(leafEntry: SessionEntry, navigateTreeResult: unknown = { canc
 			getTree: () => tree,
 			getLeafId: () => leafEntry.id,
 			getEntry: (id: string) => (id === leafEntry.id ? leafEntry : undefined),
+			getSessionName: () => undefined,
 		},
 		session: { navigateTree, resumeAfterAskReanswer },
 		ui: {
 			setFocus: vi.fn(),
+			getFocused: () => undefined,
 			requestRender: vi.fn(),
 			terminal: { rows: 24 },
 		},

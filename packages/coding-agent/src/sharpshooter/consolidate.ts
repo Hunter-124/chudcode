@@ -1,14 +1,14 @@
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
-import { completeSimple, Effort, type Model, retryTransientCompletion } from "@chudware/ai";
-import { clampThinkingLevelForModel } from "@chudware/catalog/model-thinking";
-import { type } from "@chudware/chudtype";
-import { prompt, withFileLock } from "@chudware/utils";
+import { type } from "@oh-my-pi/omptype";
+import { completeSimple, Effort, retryTransientCompletion } from "@oh-my-pi/pi-ai";
+import { clampThinkingLevelForModel } from "@oh-my-pi/pi-catalog/model-thinking";
+import { prompt, withFileLock } from "@oh-my-pi/pi-utils";
 
 import type { ModelRegistry } from "../config/model-registry";
 import type { Settings } from "../config/settings";
 import { redactMemorySecrets as redactSecrets } from "../memory-backend/redact";
-import { truncateApproxTokens } from "../mnemo/config";
+import { truncateApproxTokens } from "../mnemopi/config";
 import consolidateInputTemplate from "../prompts/memories/sharpshooter-consolidate-input.md" with { type: "text" };
 import consolidateSystemTemplate from "../prompts/memories/sharpshooter-consolidate-system.md" with { type: "text" };
 import { resolveSharpshooterModel } from "./extract";
@@ -26,6 +26,8 @@ import {
 	type SharpshooterMemoryFile,
 	type SharpshooterState,
 } from "./types";
+
+import { cfgSharpshooterIntervalMinutes } from "./settings";
 
 const PROJECT_DOC_TOKEN_LIMIT = 6000;
 
@@ -78,20 +80,14 @@ export function renderSharpshooterSessions(groups: readonly SharpshooterSessionD
 		.join("\n\n");
 }
 
-export interface SharpshooterConsolidationOptions {
+export async function runSharpshooterConsolidation(options: {
 	agentDir: string;
 	cwd: string;
 	settings: Settings;
 	modelRegistry: ModelRegistry;
 	sessionId: string;
 	force?: boolean;
-	/** Last-resort model when neither `sharpshooter.model` nor the smol role resolves. */
-	getSessionModel?: () => Model | undefined;
-}
-
-export async function runSharpshooterConsolidation(
-	options: SharpshooterConsolidationOptions,
-): Promise<SharpshooterConsolidationResult> {
+}): Promise<SharpshooterConsolidationResult> {
 	const bankDir = sharpshooterBankDir(options.agentDir, options.cwd);
 	try {
 		await fs.mkdir(bankDir, { recursive: true });
@@ -116,12 +112,19 @@ export async function runSharpshooterConsolidation(
 }
 
 async function consolidateLocked(
-	options: SharpshooterConsolidationOptions,
+	options: {
+		agentDir: string;
+		cwd: string;
+		settings: Settings;
+		modelRegistry: ModelRegistry;
+		sessionId: string;
+		force?: boolean;
+	},
 	bankDir: string,
 ): Promise<SharpshooterConsolidationResult> {
 	const state = await readSharpshooterState(options.agentDir, options.cwd);
 	try {
-		const intervalMinutes = options.settings.get("sharpshooter.intervalMinutes");
+		const intervalMinutes = cfgSharpshooterIntervalMinutes.get(options.settings);
 		if (!options.force && Date.now() - state.lastConsolidatedAt < intervalMinutes * 60_000) {
 			return { ran: false, reason: "not_due" };
 		}
@@ -135,11 +138,7 @@ async function consolidateLocked(
 			return { ran: false, reason: "empty" };
 		}
 
-		const model = await resolveSharpshooterModel(
-			options.settings,
-			options.modelRegistry,
-			options.getSessionModel?.(),
-		);
+		const model = await resolveSharpshooterModel(options.settings, options.modelRegistry);
 		if (!model) return { ran: false, reason: "no_model" };
 
 		const currentFiles = await readCurrentMemoryFiles(options.agentDir, options.cwd);
@@ -156,22 +155,24 @@ async function consolidateLocked(
 			maxFileLines: SHARPSHOOTER_MAX_FILE_LINES,
 		});
 
-		const response = await retryTransientCompletion(() =>
-			completeSimple(
-				model,
-				{
-					systemPrompt: [system],
-					messages: [{ role: "user", content: [{ type: "text", text: input }], timestamp: Date.now() }],
-					tools: [replaceMemoryFilesTool],
-				},
-				{
-					apiKey: options.modelRegistry.resolver(model, options.sessionId),
-					sessionId: options.sessionId,
-					maxTokens: 8192,
-					reasoning: clampThinkingLevelForModel(model, Effort.Medium),
-					toolChoice: "required",
-				},
-			),
+		const response = await retryTransientCompletion(
+			() =>
+				completeSimple(
+					model,
+					{
+						systemPrompt: [system],
+						messages: [{ role: "user", content: [{ type: "text", text: input }], timestamp: Date.now() }],
+						tools: [replaceMemoryFilesTool],
+					},
+					{
+						apiKey: options.modelRegistry.resolver(model, options.sessionId),
+						sessionId: options.sessionId,
+						maxTokens: 8192,
+						reasoning: clampThinkingLevelForModel(model, Effort.Medium),
+						toolChoice: "required",
+					},
+				),
+			{ provider: model.provider },
 		);
 		if (response.stopReason === "error") {
 			throw new Error(response.errorMessage || "sharpshooter consolidation model error");

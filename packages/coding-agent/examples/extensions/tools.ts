@@ -5,38 +5,38 @@
  * Tool selection persists across session reloads and respects branch navigation.
  *
  * Usage:
- * 1. Copy this file to ~/.chudcode/agent/extensions/ (legacy: ~/.pi/agent/extensions/) or your project's .chudcode/extensions/
+ * 1. Copy this file to ~/.omp/agent/extensions/ (legacy: ~/.pi/agent/extensions/) or your project's .omp/extensions/
  * 2. Use /tools to open the tool selector
  */
-import type { ExtensionAPI, ExtensionContext } from "@chudware/coding-agent";
-import { getSettingsListTheme } from "@chudware/coding-agent";
-import { Container, type SettingItem, SettingsList } from "@chudware/tui";
+import type { ExtensionAPI, ExtensionContext } from "@oh-my-pi/pi-coding-agent";
+import { getSettingsListTheme } from "@oh-my-pi/pi-coding-agent";
+import { Container, type SettingItem, SettingsList } from "@oh-my-pi/pi-tui";
 
 // State persisted to session
 interface ToolsState {
 	enabledTools: string[];
 }
 
-export default function toolsExtension(chud: ExtensionAPI) {
+export default function toolsExtension(pi: ExtensionAPI) {
 	// Track enabled tools
 	let enabledTools: Set<string> = new Set();
 	let allTools: string[] = [];
 
 	// Persist current state
 	function persistState() {
-		chud.appendEntry<ToolsState>("tools-config", {
+		pi.appendEntry<ToolsState>("tools-config", {
 			enabledTools: Array.from(enabledTools),
 		});
 	}
 
 	// Apply current tool selection
 	async function applyTools() {
-		await chud.setActiveTools(Array.from(enabledTools));
+		await pi.setActiveTools(Array.from(enabledTools));
 	}
 
 	// Find the last tools-config entry in the current branch
 	async function restoreFromBranch(ctx: ExtensionContext) {
-		allTools = chud.getAllTools().map(t => t.name);
+		allTools = pi.getAllTools().map(t => t.name);
 
 		// Get entries in current branch only
 		const branchEntries = ctx.sessionManager.getBranch();
@@ -57,16 +57,16 @@ export default function toolsExtension(chud: ExtensionAPI) {
 			await applyTools();
 		} else {
 			// No saved state - sync with currently active tools
-			enabledTools = new Set(chud.getActiveTools());
+			enabledTools = new Set(pi.getActiveTools());
 		}
 	}
 
 	// Register /tools command
-	chud.registerCommand("tools", {
+	pi.registerCommand("tools", {
 		description: "Enable/disable tools",
 		handler: async (_args, ctx) => {
 			// Refresh tool list
-			allTools = chud.getAllTools().map(t => t.name);
+			allTools = pi.getAllTools().map(t => t.name);
 
 			await ctx.ui.custom((tui, theme, _keybindings, done) => {
 				// Build settings items for each tool
@@ -129,17 +129,17 @@ export default function toolsExtension(chud: ExtensionAPI) {
 	});
 
 	// Restore state on session start
-	chud.on("session_start", async (_event, ctx) => {
+	pi.on("session_start", async (_event, ctx) => {
 		await restoreFromBranch(ctx);
 	});
 
 	// Restore state when navigating the session tree
-	chud.on("session_tree", async (_event, ctx) => {
+	pi.on("session_tree", async (_event, ctx) => {
 		await restoreFromBranch(ctx);
 	});
 
 	// Restore state after branching
-	chud.on("session_branch", async (_event, ctx) => {
+	pi.on("session_branch", async (_event, ctx) => {
 		await restoreFromBranch(ctx);
 	});
 }

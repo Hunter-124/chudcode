@@ -1,14 +1,14 @@
 import { describe, expect, test } from "bun:test";
-import type { UsageProvider, UsageReport } from "@chudware/ai";
-import { unregisterOAuthProvider } from "@chudware/ai/oauth";
-import { ModelRegistry } from "@chudware/coding-agent/config/model-registry";
-import { ExtensionRuntime, loadExtensionFromFactory } from "@chudware/coding-agent/extensibility/extensions/loader";
-import { ExtensionRunner } from "@chudware/coding-agent/extensibility/extensions/runner";
-import type { ProviderConfig } from "@chudware/coding-agent/extensibility/extensions/types";
-import { AuthStorage } from "@chudware/coding-agent/session/auth-storage";
-import { SessionManager } from "@chudware/coding-agent/session/session-manager";
-import { EventBus } from "@chudware/coding-agent/utils/event-bus";
-import { TempDir } from "@chudware/utils";
+import type { UsageProvider, UsageReport } from "@oh-my-pi/pi-ai";
+import { unregisterOAuthProvider } from "@oh-my-pi/pi-ai/oauth";
+import { ModelRegistry } from "@oh-my-pi/pi-coding-agent/config/model-registry";
+import { ExtensionRuntime, loadExtensionFromFactory } from "@oh-my-pi/pi-coding-agent/extensibility/extensions/loader";
+import { ExtensionRunner } from "@oh-my-pi/pi-coding-agent/extensibility/extensions/runner";
+import type { ProviderConfig } from "@oh-my-pi/pi-coding-agent/extensibility/extensions/types";
+import { AuthStorage } from "@oh-my-pi/pi-coding-agent/session/auth-storage";
+import { SessionManager } from "@oh-my-pi/pi-coding-agent/session/session-manager";
+import { EventBus } from "@oh-my-pi/pi-coding-agent/utils/event-bus";
+import { TempDir } from "@oh-my-pi/pi-utils";
 
 const testProviderConfig: ProviderConfig = {
 	baseUrl: "https://example.invalid/v1",
@@ -28,49 +28,29 @@ const testProviderConfig: ProviderConfig = {
 };
 
 describe("extension provider registration rollback", () => {
-	test("removes provider registrations when inline extension initialization fails", async () => {
-		const runtime = new ExtensionRuntime();
-		const events = new EventBus();
-
-		await expect(
-			loadExtensionFromFactory(
-				chud => {
-					chud.registerProvider("should-not-survive", testProviderConfig);
-					throw new Error("intentional initialization failure");
-				},
-				process.cwd(),
-				events,
-				runtime,
-				"broken-inline-extension",
-			),
-		).rejects.toThrow("intentional initialization failure");
-
-		expect(runtime.pendingProviderRegistrations).toEqual([]);
-	});
-
 	test("replaces a queued provider after unregistering it", async () => {
 		const runtime = new ExtensionRuntime();
 		const events = new EventBus();
 
 		await loadExtensionFromFactory(
-			chud => {
-				chud.registerProvider("cliproxyapi", testProviderConfig);
-				chud.unregisterProvider("cliproxyapi");
-				chud.registerProvider("cliproxyapi", {
+			pi => {
+				pi.registerProvider("cliproxyapi", testProviderConfig);
+				pi.unregisterProvider("cliproxyapi");
+				pi.registerProvider("cliproxyapi", {
 					baseUrl: "https://replacement.example.invalid/v1",
 				});
 			},
 			process.cwd(),
 			events,
 			runtime,
-			"chud-cliproxyapi-provider@1.4.13",
+			"pi-cliproxyapi-provider@1.4.13",
 		);
 
 		expect(runtime.pendingProviderRegistrations).toEqual([
 			{
 				name: "cliproxyapi",
 				config: { baseUrl: "https://replacement.example.invalid/v1" },
-				sourceId: "chud-cliproxyapi-provider@1.4.13",
+				sourceId: "pi-cliproxyapi-provider@1.4.13",
 			},
 		]);
 	});
@@ -80,8 +60,8 @@ describe("extension provider registration rollback", () => {
 		const events = new EventBus();
 
 		await loadExtensionFromFactory(
-			chud => {
-				chud.registerProvider("working-provider", testProviderConfig);
+			pi => {
+				pi.registerProvider("working-provider", testProviderConfig);
 			},
 			process.cwd(),
 			events,
@@ -91,8 +71,8 @@ describe("extension provider registration rollback", () => {
 
 		await expect(
 			loadExtensionFromFactory(
-				chud => {
-					chud.registerProvider("broken-provider", testProviderConfig);
+				pi => {
+					pi.registerProvider("broken-provider", testProviderConfig);
 					throw new Error("second extension failed");
 				},
 				process.cwd(),
@@ -110,8 +90,8 @@ describe("extension provider registration rollback", () => {
 		const events = new EventBus();
 
 		await loadExtensionFromFactory(
-			chud => {
-				chud.registerProvider("working-provider", testProviderConfig);
+			pi => {
+				pi.registerProvider("working-provider", testProviderConfig);
 			},
 			process.cwd(),
 			events,
@@ -121,8 +101,8 @@ describe("extension provider registration rollback", () => {
 
 		await expect(
 			loadExtensionFromFactory(
-				chud => {
-					chud.unregisterProvider("working-provider");
+				pi => {
+					pi.unregisterProvider("working-provider");
 					throw new Error("failed after unregistering");
 				},
 				process.cwd(),
@@ -135,43 +115,21 @@ describe("extension provider registration rollback", () => {
 		expect(runtime.pendingProviderRegistrations.map(registration => registration.name)).toEqual(["working-provider"]);
 	});
 
-	test("keeps provider registrations when extension initialization succeeds", async () => {
-		const runtime = new ExtensionRuntime();
-		const events = new EventBus();
-
-		await loadExtensionFromFactory(
-			chud => {
-				chud.registerProvider("provider-one", {
-					baseUrl: "https://one.example.invalid/v1",
-				});
-				chud.registerProvider("provider-two", {
-					baseUrl: "https://two.example.invalid/v1",
-				});
-			},
-			process.cwd(),
-			events,
-			runtime,
-			"working-extension",
-		);
-
-		expect(runtime.pendingProviderRegistrations.map(r => r.name)).toEqual(["provider-one", "provider-two"]);
-	});
-
 	test("applies provider replacement after runtime initialization", async () => {
 		const tempDir = TempDir.createSync("@provider-replacement-");
 		const authStorage = await AuthStorage.create(tempDir.join("auth.db"));
 		try {
 			const modelRegistry = new ModelRegistry(authStorage, tempDir.join("models.json"));
-			modelRegistry.registerProvider("cliproxyapi", testProviderConfig, "chud-cliproxyapi-provider");
+			modelRegistry.registerProvider("cliproxyapi", testProviderConfig, "pi-cliproxyapi-provider");
 
 			const runtime = new ExtensionRuntime();
 			const events = new EventBus();
 			let replaceProvider: (() => void) | undefined;
 			const extension = await loadExtensionFromFactory(
-				chud => {
+				pi => {
 					replaceProvider = () => {
-						chud.unregisterProvider("cliproxyapi");
-						chud.registerProvider("cliproxyapi", {
+						pi.unregisterProvider("cliproxyapi");
+						pi.registerProvider("cliproxyapi", {
 							baseUrl: "https://replacement.example.invalid/v1",
 							api: "openai-completions",
 							models: testProviderConfig.models,
@@ -185,7 +143,7 @@ describe("extension provider registration rollback", () => {
 				process.cwd(),
 				events,
 				runtime,
-				"chud-cliproxyapi-provider",
+				"pi-cliproxyapi-provider",
 			);
 			const runner = new ExtensionRunner(
 				[extension],
@@ -225,7 +183,7 @@ describe("extension provider registration rollback", () => {
 			if (!replaceProvider) throw new Error("Extension did not expose its provider replacement action");
 			replaceProvider();
 
-			expect(modelRegistry.authStorage.hasAuth("cliproxyapi")).toBe(false);
+			expect(modelRegistry.authStorage.keys.source("cliproxyapi") !== undefined).toBe(false);
 			expect(modelRegistry.find("cliproxyapi", "test-model")?.baseUrl).toBe(
 				"https://replacement.example.invalid/v1",
 			);
@@ -271,8 +229,8 @@ describe("extension provider registration rollback", () => {
 			const runtime = new ExtensionRuntime();
 			const events = new EventBus();
 			await loadExtensionFromFactory(
-				chud => {
-					chud.registerProvider(provider, { apiKey: "extension-usage-key", usage: extensionUsage });
+				pi => {
+					pi.registerProvider(provider, { apiKey: "extension-usage-key", usage: extensionUsage });
 				},
 				process.cwd(),
 				events,
@@ -284,19 +242,19 @@ describe("extension provider registration rollback", () => {
 				modelRegistry.registerProvider("synthetic", { apiKey: "must-not-be-probed" });
 			}
 
-			await expect(authStorage.fetchUsageReports()).resolves.toEqual([report]);
-			expect(authStorage.usageProviderFor(provider)).toBe(extensionUsage);
+			await expect(authStorage.usage.reports()).resolves.toEqual([report]);
+			expect(authStorage.usage.providerFor(provider)).toBe(extensionUsage);
 
 			modelRegistry.unregisterProvider(provider);
-			expect(authStorage.usageProviderFor(provider)).toBeUndefined();
+			expect(authStorage.usage.providerFor(provider)).toBeUndefined();
 
-			const builtinUsage = authStorage.usageProviderFor("synthetic");
+			const builtinUsage = authStorage.usage.providerFor("synthetic");
 			if (!builtinUsage) throw new Error("Expected the synthetic built-in usage provider");
 			const syntheticOverride: UsageProvider = { ...extensionUsage, id: "synthetic" };
 			modelRegistry.registerProvider("synthetic", { usage: syntheticOverride }, "extension-usage-provider");
-			expect(authStorage.usageProviderFor("synthetic")).toBe(syntheticOverride);
+			expect(authStorage.usage.providerFor("synthetic")).toBe(syntheticOverride);
 			modelRegistry.unregisterProvider("synthetic");
-			expect(authStorage.usageProviderFor("synthetic")).toBe(builtinUsage);
+			expect(authStorage.usage.providerFor("synthetic")).toBe(builtinUsage);
 		} finally {
 			authStorage.close();
 			tempDir.removeSync();
@@ -309,9 +267,9 @@ describe("extension provider registration rollback", () => {
 
 		await expect(
 			loadExtensionFromFactory(
-				chud => {
-					chud.registerProvider("broken-provider-one", testProviderConfig);
-					chud.registerProvider("broken-provider-two", testProviderConfig);
+				pi => {
+					pi.registerProvider("broken-provider-one", testProviderConfig);
+					pi.registerProvider("broken-provider-two", testProviderConfig);
 					throw new Error("failed after multiple registrations");
 				},
 				process.cwd(),

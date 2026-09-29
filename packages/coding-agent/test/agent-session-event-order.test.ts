@@ -15,18 +15,18 @@
 
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "bun:test";
 import * as path from "node:path";
-import { Agent } from "@chudware/agent-core";
-import type { ToolCall } from "@chudware/ai";
-import { createMockModel } from "@chudware/ai/providers/mock";
-import { getBundledModel } from "@chudware/catalog/models";
-import { ModelRegistry } from "@chudware/coding-agent/config/model-registry";
-import { Settings } from "@chudware/coding-agent/config/settings";
-import type { ExtensionRunner } from "@chudware/coding-agent/extensibility/extensions/runner";
-import { AgentSession } from "@chudware/coding-agent/session/agent-session";
-import { AuthStorage } from "@chudware/coding-agent/session/auth-storage";
-import { SessionManager } from "@chudware/coding-agent/session/session-manager";
-import { TodoTool } from "@chudware/coding-agent/tools";
-import { TempDir } from "@chudware/utils";
+import { Agent } from "@oh-my-pi/pi-agent-core";
+import type { ToolCall } from "@oh-my-pi/pi-ai";
+import { createMockModel } from "@oh-my-pi/pi-ai/providers/mock";
+import { getBundledModel } from "@oh-my-pi/pi-catalog/models";
+import { ModelRegistry } from "@oh-my-pi/pi-coding-agent/config/model-registry";
+import { Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
+import type { ExtensionRunner } from "@oh-my-pi/pi-coding-agent/extensibility/extensions/runner";
+import { AgentSession } from "@oh-my-pi/pi-coding-agent/session/agent-session";
+import { AuthStorage } from "@oh-my-pi/pi-coding-agent/session/auth-storage";
+import { SessionManager } from "@oh-my-pi/pi-coding-agent/session/session-manager";
+import { TodoTool } from "@oh-my-pi/pi-coding-agent/tools";
+import { TempDir } from "@oh-my-pi/pi-utils";
 
 describe("AgentSession subscriber event order", () => {
 	let tempDir: TempDir;
@@ -37,7 +37,7 @@ describe("AgentSession subscriber event order", () => {
 	beforeAll(async () => {
 		tempDir = TempDir.createSync("@pi-event-order-");
 		authStorage = await AuthStorage.create(path.join(tempDir.path(), "testauth.db"));
-		authStorage.setRuntimeApiKey("anthropic", "anthropic-test-key");
+		authStorage.keys.setRuntime("anthropic", "anthropic-test-key");
 		modelRegistry = new ModelRegistry(authStorage, path.join(tempDir.path(), "models.yml"));
 	});
 

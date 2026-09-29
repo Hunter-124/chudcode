@@ -1,11 +1,11 @@
 # Provider streaming internals
 
-This document explains how token/tool streaming is normalized in `@chudware/ai`, then propagated through `@chudware/agent-core` and `coding-agent` session events.
+This document explains how token/tool streaming is normalized in `@oh-my-pi/pi-ai`, then propagated through `@oh-my-pi/pi-agent-core` and `coding-agent` session events.
 
 ## End-to-end flow
 
 1. `streamSimple()` (`packages/ai/src/stream.ts`) maps generic options and dispatches to a provider stream function. Heavy built-ins are reached through the lazy wrappers in `packages/ai/src/providers/register-builtins.ts`; thin routing wrappers remain eager.
-2. Provider stream functions translate provider-native stream events into the unified `AssistantMessageEvent` sequence. Current built-ins include Anthropic, OpenAI Responses/Completions/Codex/Azure Responses, Google Gemini/Gemini CLI/Vertex, Bedrock Converse, Ollama, Cursor, Devin, chud-native gateway transport, plus GitLab Duo/Kimi/Synthetic wrappers and extension-registered custom APIs.
+2. Provider stream functions translate provider-native stream events into the unified `AssistantMessageEvent` sequence. Current built-ins include Anthropic, OpenAI Responses/Completions/Codex/Azure Responses, Google Gemini/Gemini CLI/Vertex, Bedrock Converse, Ollama, Cursor, Devin, pi-native gateway transport, plus GitLab Duo, GitLab Duo Workflow, Kimi, and Synthetic wrappers, and extension-registered custom APIs. (xAI Grok has no dedicated wrapper: both `xai-oauth` and API-key `xai` models are catalog specs with `api: "openai-responses"` at `https://api.x.ai/v1`, riding the shared OpenAI Responses path with catalog-level compat.)
 3. Each provider pushes events into `AssistantMessageEventStream` (`packages/ai/src/utils/event-stream.ts`), which exposes:
    - async iteration for incremental updates
    - `result()` for the final `AssistantMessage`
@@ -13,7 +13,7 @@ This document explains how token/tool streaming is normalized in `@chudware/ai`,
 5. `agentLoop` (`packages/agent/src/agent-loop.ts`) consumes those events, mutates in-flight assistant state, and emits `message_update` events carrying the raw `assistantMessageEvent`.
 6. `AgentSession` (`packages/coding-agent/src/session/agent-session.ts`) subscribes to agent events, persists messages, drives extension hooks, and applies session behaviors (retry, compaction, TTSR, streaming-edit abort checks).
 
-## Unified stream contract in `@chudware/ai`
+## Unified stream contract in `@oh-my-pi/pi-ai`
 
 All providers emit the same shape (`AssistantMessageEvent` in `packages/ai/src/types.ts`):
 
@@ -73,7 +73,7 @@ Normalization points:
 
 - `response.output_item.added` starts reasoning/text/function-call/custom-tool blocks
 - reasoning summary events (`response.reasoning_summary_text.delta`) and raw reasoning events (`response.reasoning_text.delta`) become `thinking_delta`
-- output deltas and refusal explanations both remain visible as `text_delta`; refusal parts additionally set `stopDetails: { type: "refusal", explanation }` and an `error` stop
+- output/refusal deltas become `text_delta`
 - `response.function_call_arguments.delta` and `response.custom_tool_call_input.delta` become `toolcall_delta`
 - `response.output_item.done` emits `thinking_end` / `text_end` / `toolcall_end`
 - `response.completed` maps status to stop reason and usage; `response.failed` / SDK `error` events throw into the wrapper's terminal `error` path
@@ -136,34 +136,6 @@ If provider stream throws or signals failure, each provider wrapper catches and 
 - `stopReason = "aborted"` when abort signal is set
 - otherwise `stopReason = "error"`
 - `errorMessage = finalizeErrorMessage(error, rawRequestDump)` (`packages/ai/src/utils/http-inspector.ts`), which wraps `formatErrorMessageWithRetryAfter()` and appends any captured HTTP-error body / raw-request dump (the `cursor` wrapper calls `formatErrorMessageWithRetryAfter()` directly)
-
-### Public content-refusal contract
-
-Consumers should use the exported `isContentRefusal(value)` predicate instead of matching provider prose:
-
-```ts
-import { isContentRefusal } from "@chudware/ai";
-
-const message = await stream.result();
-if (isContentRefusal(message)) {
-	// The provider declined the request; this is not an outage.
-}
-
-try {
-	await providerOperation();
-} catch (error) {
-	if (isContentRefusal(error)) {
-		// The same contract covers thrown provider errors.
-	}
-}
-```
-
-The predicate accepts both public failure forms:
-
-- returned `AssistantMessage` values with refusal/sensitive `stopDetails`
-- returned messages or thrown errors carrying `ContentBlocked` / `AccountPolicy` classification flags, including typed provider safety errors and structured account-policy error codes
-
-It does not inspect assistant content blocks, so ordinary text that discusses policies, safety, or refusals is not classified. OpenAI Responses refusal parts retain their explanation in the normal text block for display and copy the refusal-only explanation into `stopDetails.explanation`; the final message uses `stopReason: "error"`. Anthropic's `stop_details` explanation/category remain intact. This contract only normalizes classification and presentation: it does not change provider retry, credential fallback, or model fallback policy.
 
 ## Malformed chunk / SSE parse failure behavior
 
@@ -238,14 +210,13 @@ Provider-specific (not fully abstracted):
 ## Implementation files
 
 - [`../../ai/src/stream.ts`](../packages/ai/src/stream.ts) — provider dispatch, option mapping, API key/session plumbing, custom API dispatch, and provider-specific credential handling.
-- [`../../ai/src/types.ts`](../packages/ai/src/types.ts) and [`../../ai/src/error/flags.ts`](../packages/ai/src/error/flags.ts) — public assistant-message shapes and the shared `isContentRefusal()` message/error predicate.
 - [`../../ai/src/utils/event-stream.ts`](../packages/ai/src/utils/event-stream.ts) — generic stream queue + final-result resolution.
 - [`../../utils/src/json-parse.ts`](../packages/utils/src/json-parse.ts) — partial JSON parsing for streamed tool arguments.
 - [`../../ai/src/providers/anthropic.ts`](../packages/ai/src/providers/anthropic.ts) — Anthropic event translation and tool JSON delta accumulation.
 - [`../../ai/src/providers/openai-responses.ts`](../packages/ai/src/providers/openai-responses.ts), [`openai-shared.ts`](../packages/ai/src/providers/openai-shared.ts), [`openai-codex-responses.ts`](../packages/ai/src/providers/openai-codex-responses.ts), [`azure-openai-responses.ts`](../packages/ai/src/providers/azure-openai-responses.ts) — Responses-family event translation and status mapping.
 - [`../../ai/src/providers/google.ts`](../packages/ai/src/providers/google.ts), [`google-gemini-cli.ts`](../packages/ai/src/providers/google-gemini-cli.ts), [`google-vertex.ts`](../packages/ai/src/providers/google-vertex.ts) — Gemini stream chunk-to-block translation variants.
 - [`../../ai/src/providers/google-shared.ts`](../packages/ai/src/providers/google-shared.ts) — Gemini finish-reason mapping and shared conversion rules.
-- [`../../ai/src/providers/amazon-bedrock.ts`](../packages/ai/src/providers/amazon-bedrock.ts), [`openai-completions.ts`](../packages/ai/src/providers/openai-completions.ts), [`ollama.ts`](../packages/ai/src/providers/ollama.ts), [`cursor.ts`](../packages/ai/src/providers/cursor.ts), [`chud-native-client.ts`](../packages/ai/src/providers/chud-native-client.ts) — additional built-in stream adapters using the same event contract.
+- [`../../ai/src/providers/amazon-bedrock.ts`](../packages/ai/src/providers/amazon-bedrock.ts), [`openai-completions.ts`](../packages/ai/src/providers/openai-completions.ts), [`ollama.ts`](../packages/ai/src/providers/ollama.ts), [`cursor.ts`](../packages/ai/src/providers/cursor.ts), [`pi-native-client.ts`](../packages/ai/src/providers/pi-native-client.ts) — additional built-in stream adapters using the same event contract.
 - [`../../ai/src/providers/register-builtins.ts`](../packages/ai/src/providers/register-builtins.ts) and [`../../ai/src/utils/idle-iterator.ts`](../packages/ai/src/utils/idle-iterator.ts) — lazy provider forwarding, first-progress/idle watchdogs, and local-work-aware stall handling.
 - [`../../agent/src/agent-loop.ts`](../packages/agent/src/agent-loop.ts) — provider stream consumption and `message_update` bridging.
 - [`../src/session/agent-session.ts`](../packages/coding-agent/src/session/agent-session.ts) — session-level handling of streaming updates, abort, retry, and persistence.

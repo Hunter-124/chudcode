@@ -7,12 +7,12 @@ import {
 } from "../src/cli/profile-alias";
 
 describe("profile alias installer", () => {
-	it("writes a bash-compatible function that forwards subcommands through chudcode", async () => {
+	it("writes a bash-compatible function that forwards subcommands through omp", async () => {
 		const files = new Map<string, string>();
 
 		const result = await installProfileAlias({
 			profile: "work",
-			aliasName: "chudcode-work",
+			aliasName: "omp-work",
 			shellPath: "/bin/bash",
 			platform: "linux",
 			homeDir: "/home/me",
@@ -23,9 +23,9 @@ describe("profile alias installer", () => {
 		});
 
 		expect(result.configPath).toBe("/home/me/.bashrc");
-		expect(result.command).toBe("chudcode --profile=work");
-		expect(files.get("/home/me/.bashrc")).toContain("chudcode-work() {");
-		expect(files.get("/home/me/.bashrc")).toContain('command chudcode --profile=work "$@"');
+		expect(result.command).toBe("omp --profile=work");
+		expect(files.get("/home/me/.bashrc")).toContain("omp-work() {");
+		expect(files.get("/home/me/.bashrc")).toContain('command omp --profile=work "$@"');
 	});
 
 	it("resolves source invocations without forcing the source checkout as cwd", () => {
@@ -52,10 +52,10 @@ describe("profile alias installer", () => {
 		});
 
 		expect(command).toEqual({
-			display: "chudcode",
-			posix: "chudcode",
-			fish: "chudcode",
-			powerShell: "chudcode",
+			display: "omp",
+			posix: "omp",
+			fish: "omp",
+			powerShell: "omp",
 		});
 	});
 
@@ -78,12 +78,12 @@ describe("profile alias installer", () => {
 		expect(command.powerShell).toBe(`'${runtime}' '${expectedScriptPath}'`);
 	});
 
-	it("can target the current source invocation instead of the installed chudcode binary", async () => {
+	it("can target the current source invocation instead of the installed omp binary", async () => {
 		const files = new Map<string, string>();
 
 		const result = await installProfileAlias({
 			profile: "work",
-			aliasName: "chudcode-work",
+			aliasName: "omp-work",
 			shellPath: "/bin/zsh",
 			platform: "darwin",
 			homeDir: "/Users/me",
@@ -100,7 +100,7 @@ describe("profile alias installer", () => {
 		});
 
 		expect(result.command).toBe("bun /repo/packages/coding-agent/src/cli.ts --profile=work");
-		expect(files.get("/Users/me/.zshrc")).toContain("chudcode-work() {");
+		expect(files.get("/Users/me/.zshrc")).toContain("omp-work() {");
 		expect(files.get("/Users/me/.zshrc")).toContain(
 			`command bun '/repo/packages/coding-agent/src/cli.ts' --profile=work "$@"`,
 		);
@@ -111,7 +111,7 @@ describe("profile alias installer", () => {
 
 		const result = await installProfileAlias({
 			profile: "work",
-			aliasName: "chudcode-work",
+			aliasName: "omp-work",
 			shellPath: "/bin/zsh",
 			platform: "darwin",
 			homeDir: "/Users/me",
@@ -123,7 +123,7 @@ describe("profile alias installer", () => {
 		});
 
 		expect(result.configPath).toBe("/Users/me/.config/zsh/.zshrc");
-		expect(files.get(result.configPath)).toContain("chudcode-work() {");
+		expect(files.get(result.configPath)).toContain("omp-work() {");
 	});
 
 	it("writes a fish function that forwards argv", async () => {
@@ -131,7 +131,7 @@ describe("profile alias installer", () => {
 
 		await installProfileAlias({
 			profile: "work",
-			aliasName: "chudcode-work",
+			aliasName: "omp-work",
 			shellPath: "/opt/homebrew/bin/fish",
 			platform: "darwin",
 			homeDir: "/Users/me",
@@ -142,9 +142,9 @@ describe("profile alias installer", () => {
 			},
 		});
 
-		const content = files.get("/Users/me/.config/fish/conf.d/chudcode-profiles.fish") ?? "";
-		expect(content).toContain("function chudcode-work --wraps chudcode");
-		expect(content).toContain("command chudcode --profile=work $argv");
+		const content = files.get("/Users/me/.config/fish/conf.d/omp-profiles.fish") ?? "";
+		expect(content).toContain("function omp-work --wraps omp");
+		expect(content).toContain("command omp --profile=work $argv");
 	});
 
 	it("installs the fish alias under XDG_CONFIG_HOME when set", async () => {
@@ -152,7 +152,7 @@ describe("profile alias installer", () => {
 
 		const result = await installProfileAlias({
 			profile: "work",
-			aliasName: "chudcode-work",
+			aliasName: "omp-work",
 			shellPath: "/usr/bin/fish",
 			platform: "linux",
 			homeDir: "/home/me",
@@ -163,8 +163,8 @@ describe("profile alias installer", () => {
 			},
 		});
 
-		expect(result.configPath).toBe("/home/me/.dotfiles/config/fish/conf.d/chudcode-profiles.fish");
-		expect(files.get(result.configPath)).toContain("function chudcode-work --wraps chudcode");
+		expect(result.configPath).toBe("/home/me/.dotfiles/config/fish/conf.d/omp-profiles.fish");
+		expect(files.get(result.configPath)).toContain("function omp-work --wraps omp");
 	});
 
 	it("writes a PowerShell function because aliases cannot carry arguments", async () => {
@@ -172,7 +172,7 @@ describe("profile alias installer", () => {
 
 		await installProfileAlias({
 			profile: "work",
-			aliasName: "chudcode-work",
+			aliasName: "omp-work",
 			shellPath: "pwsh.exe",
 			platform: "win32",
 			homeDir: "C:\\Users\\me",
@@ -184,8 +184,8 @@ describe("profile alias installer", () => {
 
 		const psConfigPath = path.join("C:\\Users\\me", "Documents", "PowerShell", "Microsoft.PowerShell_profile.ps1");
 		const content = files.get(psConfigPath) ?? "";
-		expect(content).toContain("function chudcode-work");
-		expect(content).toContain("& chudcode --profile=work @args");
+		expect(content).toContain("function omp-work");
+		expect(content).toContain("& omp --profile=work @args");
 	});
 
 	it("detects pwsh from PSModulePath when SHELL is unset on Windows", async () => {
@@ -193,7 +193,7 @@ describe("profile alias installer", () => {
 
 		const result = await installProfileAlias({
 			profile: "work",
-			aliasName: "chudcode-work",
+			aliasName: "omp-work",
 			platform: "win32",
 			homeDir: "C:\\Users\\me",
 			env: {
@@ -209,7 +209,7 @@ describe("profile alias installer", () => {
 		expect(result.shell).toBe("pwsh");
 		const psConfigPath = path.join("C:\\Users\\me", "Documents", "PowerShell", "Microsoft.PowerShell_profile.ps1");
 		expect(result.configPath).toBe(psConfigPath);
-		expect(files.get(result.configPath)).toContain("& chudcode --profile=work @args");
+		expect(files.get(result.configPath)).toContain("& omp --profile=work @args");
 	});
 
 	it("selects Windows PowerShell when only WindowsPowerShell modules are present", async () => {
@@ -217,7 +217,7 @@ describe("profile alias installer", () => {
 
 		const result = await installProfileAlias({
 			profile: "work",
-			aliasName: "chudcode-work",
+			aliasName: "omp-work",
 			platform: "win32",
 			homeDir: "C:\\Users\\me",
 			env: {
@@ -245,7 +245,7 @@ describe("profile alias installer", () => {
 
 		const result = await installProfileAlias({
 			profile: "work",
-			aliasName: "chudcode-work",
+			aliasName: "omp-work",
 			platform: "win32",
 			homeDir: "C:\\Users\\me",
 			env: { POWERSHELL_DISTRIBUTION_CHANNEL: "MSI:Windows 10 Pro" },
@@ -266,9 +266,9 @@ describe("profile alias installer", () => {
 				"/home/me/.zshrc",
 				[
 					"before",
-					"# >>> chudcode profile alias: chudcode-work >>>",
-					"alias chudcode-work='command chudcode --profile=old'",
-					"# <<< chudcode profile alias: chudcode-work <<<",
+					"# >>> omp profile alias: omp-work >>>",
+					"alias omp-work='command omp --profile=old'",
+					"# <<< omp profile alias: omp-work <<<",
 					"after",
 				].join("\n"),
 			],
@@ -276,7 +276,7 @@ describe("profile alias installer", () => {
 
 		await installProfileAlias({
 			profile: "work",
-			aliasName: "chudcode-work",
+			aliasName: "omp-work",
 			shellPath: "/bin/zsh",
 			platform: "darwin",
 			homeDir: "/home/me",
@@ -289,7 +289,7 @@ describe("profile alias installer", () => {
 		const content = files.get("/home/me/.zshrc") ?? "";
 		expect(content).toContain("before");
 		expect(content).toContain("after");
-		expect(content).toContain('command chudcode --profile=work "$@"');
+		expect(content).toContain('command omp --profile=work "$@"');
 		expect(content).not.toContain("--profile=old");
 	});
 
@@ -298,18 +298,14 @@ describe("profile alias installer", () => {
 		// was interrupted or hand-edited. Appending a fresh block would let the
 		// *next* install splice from the stale start through the new end, deleting
 		// the user config in between. Refuse and preserve the file untouched.
-		const original = [
-			"# >>> chudcode profile alias: chudcode-work >>>",
-			"chudcode-work() {",
-			"export SECRET=keepme",
-		].join("\n");
+		const original = ["# >>> omp profile alias: omp-work >>>", "omp-work() {", "export SECRET=keepme"].join("\n");
 		const files = new Map<string, string>([["/home/me/.zshrc", original]]);
 		let wrote = false;
 
 		await expect(
 			installProfileAlias({
 				profile: "work",
-				aliasName: "chudcode-work",
+				aliasName: "omp-work",
 				shellPath: "/bin/zsh",
 				platform: "darwin",
 				homeDir: "/home/me",
@@ -325,8 +321,8 @@ describe("profile alias installer", () => {
 		expect(files.get("/home/me/.zshrc")).toBe(original);
 	});
 
-	it("refuses to shadow the base chudcode command case-insensitively", async () => {
-		for (const aliasName of ["chudcode", "Chudcode"]) {
+	it("refuses to shadow the base omp command case-insensitively", async () => {
+		for (const aliasName of ["omp", "OMP"]) {
 			await expect(
 				installProfileAlias({
 					profile: "work",
@@ -360,7 +356,7 @@ describe("profile alias installer", () => {
 		await expect(
 			installProfileAlias({
 				profile: "work",
-				aliasName: "chudcode-work",
+				aliasName: "omp-work",
 				shellPath: "/bin/sh",
 				platform: "linux",
 				homeDir: "/home/me",
@@ -388,7 +384,7 @@ describe("profile alias installer", () => {
 		await expect(
 			installProfileAlias({
 				profile: "work'; touch /tmp/pwn; #",
-				aliasName: "chudcode-work",
+				aliasName: "omp-work",
 				shellPath: "/bin/bash",
 				platform: "linux",
 				homeDir: "/home/me",
@@ -397,7 +393,7 @@ describe("profile alias installer", () => {
 					files.set(filePath, content);
 				},
 			}),
-		).rejects.toThrow("Invalid Chudcode profile");
+		).rejects.toThrow("Invalid OMP profile");
 		expect(files.size).toBe(0);
 	});
 
@@ -406,7 +402,7 @@ describe("profile alias installer", () => {
 
 		const result = await installProfileAlias({
 			profile: "work",
-			aliasName: "chudcode-work",
+			aliasName: "omp-work",
 			shellPath: "/bin/bash",
 			platform: "win32",
 			homeDir: "C:\\Users\\me",
@@ -427,7 +423,7 @@ describe("profile alias installer", () => {
 
 		const result = await installProfileAlias({
 			profile: "work",
-			aliasName: "chudcode-work",
+			aliasName: "omp-work",
 			shellPath: "/bin/zsh",
 			platform: "win32",
 			homeDir: "C:\\Users\\me",
@@ -447,7 +443,7 @@ describe("profile alias installer", () => {
 
 		const result = await installProfileAlias({
 			profile: "work",
-			aliasName: "chudcode-work",
+			aliasName: "omp-work",
 			shellPath: "/bin/fish",
 			platform: "win32",
 			homeDir: "C:\\Users\\me",
@@ -458,8 +454,8 @@ describe("profile alias installer", () => {
 			},
 		});
 
-		expect(result.configPath).toBe("D:/xdg/fish/conf.d/chudcode-profiles.fish");
-		expect(result.reloadedWith).toBe("source 'D:/xdg/fish/conf.d/chudcode-profiles.fish'");
+		expect(result.configPath).toBe("D:/xdg/fish/conf.d/omp-profiles.fish");
+		expect(result.reloadedWith).toBe("source 'D:/xdg/fish/conf.d/omp-profiles.fish'");
 	});
 
 	it("preserves UNC path roots when normalizing POSIX shell config paths", async () => {
@@ -467,7 +463,7 @@ describe("profile alias installer", () => {
 
 		const result = await installProfileAlias({
 			profile: "work",
-			aliasName: "chudcode-work",
+			aliasName: "omp-work",
 			shellPath: "/bin/bash",
 			platform: "win32",
 			homeDir: "\\\\server\\share\\me",

@@ -1,16 +1,16 @@
 /**
  * Shell CLI command handlers.
  *
- * Handles `chudcode shell` subcommand for testing the native brush-core shell.
+ * Handles `omp shell` subcommand for testing the native brush-core shell.
  */
 import * as path from "node:path";
 import { createInterface } from "node:readline/promises";
-import { Shell } from "@chudware/natives";
-import { getProjectDir } from "@chudware/utils";
-import chalk from "@chudware/utils/chalk";
-import { PRODUCT_CLI_NAME } from "../brand";
+import { Shell } from "@oh-my-pi/pi-natives";
+import { APP_NAME, getProjectDir } from "@oh-my-pi/pi-utils";
+import chalk from "@oh-my-pi/pi-utils/chalk";
 import { Settings } from "../config/settings";
 import { buildMinimizerOptions } from "../exec/bash-executor";
+import { cfgShellMinimizer } from "../exec/settings";
 import { getOrCreateSnapshot } from "../utils/shell-snapshot";
 
 export interface ShellCommandArgs {
@@ -53,14 +53,14 @@ export async function runShellCommand(cmd: ShellCommandArgs): Promise<void> {
 	const settings = await Settings.init({ cwd });
 	const { shell, env: shellEnv } = settings.getShellConfig();
 	const snapshotPath = cmd.noSnapshot || !shell.includes("bash") ? null : await getOrCreateSnapshot(shell, shellEnv);
-	const minimizer = buildMinimizerOptions(settings.getGroup("shellMinimizer"));
+	const minimizer = buildMinimizerOptions(cfgShellMinimizer.get(settings));
 	const shellSession = new Shell({ sessionEnv: shellEnv, snapshotPath: snapshotPath ?? undefined, minimizer });
 
 	let active = false;
 	let lastChar: string | null = null;
 
 	const rl = createInterface({ input: process.stdin, output: process.stdout, terminal: true });
-	const prompt = chalk.cyan(`${PRODUCT_CLI_NAME} shell> `);
+	const prompt = chalk.cyan(`${APP_NAME} shell> `);
 
 	const printHelp = () => {
 		process.stdout.write(
@@ -158,10 +158,10 @@ export async function runShellCommand(cmd: ShellCommandArgs): Promise<void> {
 }
 
 export function printShellHelp(): void {
-	process.stdout.write(`${chalk.bold(`${PRODUCT_CLI_NAME} shell`)} - Interactive shell console for testing
+	process.stdout.write(`${chalk.bold(`${APP_NAME} shell`)} - Interactive shell console for testing
 
 ${chalk.bold("Usage:")}
-  ${PRODUCT_CLI_NAME} shell [options]
+  ${APP_NAME} shell [options]
 
 ${chalk.bold("Options:")}
   --cwd, -C <path>     Set working directory for commands
@@ -170,8 +170,8 @@ ${chalk.bold("Options:")}
   -h, --help           Show this help
 
 ${chalk.bold("Examples:")}
-  ${PRODUCT_CLI_NAME} shell
-  ${PRODUCT_CLI_NAME} shell --cwd ./tmp
-  ${PRODUCT_CLI_NAME} shell --timeout 2000
+  ${APP_NAME} shell
+  ${APP_NAME} shell --cwd ./tmp
+  ${APP_NAME} shell --timeout 2000
 `);
 }

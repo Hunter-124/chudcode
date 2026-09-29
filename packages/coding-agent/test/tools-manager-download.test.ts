@@ -1,7 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "bun:test";
-import { downloadFile } from "@chudware/coding-agent/utils/tools-manager";
-import { TempDir } from "@chudware/utils";
-import * as fsx from "@chudware/utils/fsx";
+import { downloadFile } from "@oh-my-pi/pi-coding-agent/utils/tools-manager";
+import { TempDir } from "@oh-my-pi/pi-utils";
 
 function mockDownloadResponse(response: Response): void {
 	const fetchMock: typeof globalThis.fetch = Object.assign(async () => response, {
@@ -16,17 +15,17 @@ describe("tool asset downloads", () => {
 	});
 
 	it("writes a completed response body to disk", async () => {
-		using tempDir = TempDir.createSync("@chudcode-tool-download-");
+		using tempDir = TempDir.createSync("@omp-tool-download-");
 		const dest = tempDir.join("tool.bin");
 		mockDownloadResponse(new Response("tool-bytes"));
 
 		await downloadFile("https://example.test/tool.bin", dest);
 
-		expect(await fsx.readText(dest)).toBe("tool-bytes");
+		expect(await Bun.file(dest).text()).toBe("tool-bytes");
 	});
 
 	it("aborts a stalled response body and removes the partial file", async () => {
-		using tempDir = TempDir.createSync("@chudcode-tool-download-stall-");
+		using tempDir = TempDir.createSync("@omp-tool-download-stall-");
 		const dest = tempDir.join("tool.bin");
 		const stalled = Promise.withResolvers<void>();
 		const body = new ReadableStream<Uint8Array>({
@@ -40,11 +39,11 @@ describe("tool asset downloads", () => {
 		mockDownloadResponse(new Response(body));
 		const controller = new AbortController();
 
-		const download = downloadFile("https://example.test/tool.bin", dest, controller.signal);
+		const download = downloadFile("https://example.test/tool.bin", dest, { signal: controller.signal });
 		await stalled.promise;
 		controller.abort(new DOMException("The operation timed out.", "TimeoutError"));
 
 		await expect(download).rejects.toThrow("Download timed out: https://example.test/tool.bin");
-		expect(await fsx.exists(dest)).toBe(false);
+		expect(await Bun.file(dest).exists()).toBe(false);
 	});
 });

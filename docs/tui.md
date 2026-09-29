@@ -17,9 +17,9 @@ The runtime has two layers:
 | Background/headless | Not interactive                   | UI context is no-op (`hasUI === false`).                                                                                       |
 | RPC mode            | Not mounted                       | `custom()` is implemented as unsupported UI and returns `undefined as never`; do not depend on interactive UI in RPC handlers. |
 
-If your extension/tool can run in non-interactive mode, guard with `ctx.hasUI` / `chud.hasUI`.
+If your extension/tool can run in non-interactive mode, guard with `ctx.hasUI` / `pi.hasUI`.
 
-## Core component contract (`@chudware/tui`)
+## Core component contract (`@oh-my-pi/pi-tui`)
 
 `packages/tui/src/tui.ts` defines:
 
@@ -59,7 +59,7 @@ Your `render(width)` output must be terminal-safe:
 Minimal pattern:
 
 ```ts
-import { replaceTabs, truncateToWidth } from "@chudware/tui";
+import { replaceTabs, truncateToWidth } from "@oh-my-pi/pi-tui";
 
 render(width: number): readonly string[] {
   return this.lines.map(line => truncateToWidth(replaceTabs(line), width));
@@ -130,41 +130,25 @@ Behavior in interactive mode (`extension-ui-controller.ts`):
 - On `done(result)`: calls `component.dispose?.()`, hides the overlay if present, restores editor + text for non-overlay flows, focuses editor, resolves promise.
   So `done(...)` is mandatory for completion.
 
-## 2) Hook/custom-tool UI context (runtime/type mismatch)
+## 2) Hook/custom-tool UI context (`HookUIContext`)
 
-`HookUIContext.custom` is still typed as `(tui, theme, done)`, but the
-interactive controller invokes the factory as
-`(tui, theme, keybindings, done)`. The third runtime argument is therefore a
-`KeybindingsManager`, **not** the completion callback. A three-argument factory
-that calls its third parameter will fail at runtime and leave the custom UI
-unresolved.
-
-Until the hook/custom-tool type is aligned with the controller, do not copy the
-legacy three-argument examples from the type declaration. Runtime-safe
-interactive code must obtain the completion callback from the fourth positional
-argument, for example with a rest-argument adapter, and should guard the flow
-with `chud.hasUI`:
+Current signature (`extensibility/hooks/types.ts`) matches the interactive
+controller and `ExtensionUIContext.custom`:
 
 ```ts
-const picked = await chud.ui.custom<string | undefined>(
-  (...runtimeArgs: unknown[]) => {
-    const done = runtimeArgs[3];
-    if (typeof done !== "function") {
-      throw new Error(
-        "Interactive custom UI completion callback is unavailable",
-      );
-    }
-    return new MyPickerComponent(
-      done as (value: string | undefined) => void,
-      signal,
-    );
-  },
-);
+custom<T>(
+  factory: (
+    tui: TUI,
+    theme: Theme,
+    keybindings: KeybindingsManager,
+    done: (result: T) => void,
+  ) => (Component & { dispose?(): void }) | Promise<Component & { dispose?(): void }>,
+): Promise<T>
 ```
 
-This is a compatibility workaround for the current implementation, not a
-stable four-argument hook type. `ExtensionUIContext.custom`, described above,
-has the supported four-argument contract.
+Use the fourth argument as `done`. The third argument is a `KeybindingsManager`
+(interactive mode uses an in-memory instance with the default bindings). Guard
+terminal-only UI with `pi.hasUI` when the hook may also run headless.
 
 ## 3) Custom tool call/result renderers
 
@@ -178,6 +162,10 @@ Custom tools and extension tools can return components from:
 - `expanded: boolean`
 - `isPartial: boolean`
 - `spinnerFrame?: number`
+
+For `renderCall`, the `options` argument also answers the `Theme` API (`fg`,
+`bold`, `symbol`, …), so renderers ported from upstream pi — declared
+`renderCall(args, theme, context)` — keep working unchanged.
 
 These renderers are mounted by `ToolExecutionComponent`.
 
@@ -204,17 +192,17 @@ return loader;
 ## Realistic custom component example (extension command)
 
 ```ts
-import type { Component } from "@chudware/tui";
+import type { Component } from "@oh-my-pi/pi-tui";
 import {
   SelectList,
   matchesKey,
   replaceTabs,
   truncateToWidth,
-} from "@chudware/tui";
+} from "@oh-my-pi/pi-tui";
 import {
   getSelectListTheme,
   type ExtensionAPI,
-} from "@chudware/coding-agent";
+} from "@oh-my-pi/pi-coding-agent";
 
 class Picker implements Component {
   list: SelectList;
@@ -252,8 +240,8 @@ class Picker implements Component {
   }
 }
 
-export default function extension(chud: ExtensionAPI): void {
-  chud.registerCommand("pick-model", {
+export default function extension(pi: ExtensionAPI): void {
+  pi.registerCommand("pick-model", {
     description: "Pick a model profile",
     handler: async (_args, ctx) => {
       if (!ctx.hasUI) return;
@@ -284,5 +272,5 @@ export default function extension(chud: ExtensionAPI): void {
 - `packages/coding-agent/src/extensibility/extensions/types.ts` — extension UI and renderer contracts.
 - `packages/coding-agent/src/extensibility/hooks/types.ts` — hook UI contract (legacy custom signature).
 - `packages/coding-agent/src/extensibility/custom-tools/types.ts` — custom tool execute/render contracts.
-- `packages/coding-agent/src/modes/components/tool-execution.ts` — mounting `renderCall`/`renderResult` components and partial-state options.
+- `packages/tui/src/chat/tool-execution.ts` — mounting `renderCall`/`renderResult` components and partial-state options.
 - `packages/coding-agent/src/tools/context.ts` — tool UI context propagation (`hasUI`, `ui`).

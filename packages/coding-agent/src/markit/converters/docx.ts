@@ -1,7 +1,6 @@
 // Adapted from markit-ai (MIT). See ../NOTICE.
 import * as path from "node:path";
-import mammoth from "@chudware/utils/docx";
-import * as fsx from "@chudware/utils/fsx";
+import mammoth from "@oh-my-pi/pi-utils/docx";
 import { createTurndown, normalizeTablesHtml } from "../../utils/turndown";
 import type { ConversionResult, Converter, StreamInfo } from "../types";
 
@@ -31,7 +30,7 @@ export class DocxConverter implements Converter {
 					const filename = `image_${imageCount}.${ext}`;
 					const filepath = path.join(imageDir, filename);
 					return image.read("base64").then(async base64 => {
-						await fsx.write(filepath, Buffer.from(base64, "base64"));
+						await Bun.write(filepath, Buffer.from(base64, "base64"));
 						return { src: filepath, alt: `image_${imageCount}` };
 					});
 				})

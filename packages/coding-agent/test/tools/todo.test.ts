@@ -1,25 +1,26 @@
 import { beforeAll, describe, expect, it } from "bun:test";
 import * as path from "node:path";
-import { toolWireSchema } from "@chudware/ai";
-import { type } from "@chudware/chudtype";
-import { Settings } from "@chudware/coding-agent/config/settings";
-import { initTheme, theme } from "@chudware/coding-agent/modes/theme/theme";
-import type { ToolSession } from "@chudware/coding-agent/tools";
+import { type } from "@oh-my-pi/omptype";
+import { Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
+import { initTheme, theme } from "@oh-my-pi/pi-tui/theme";
+import type { ToolSession } from "@oh-my-pi/pi-coding-agent/tools";
 import {
 	markdownToPhases,
 	nextActionableTask,
 	phasesToMarkdown,
 	resolveTodoMarkdownPath,
+	TodoTool,
+} from "@oh-my-pi/pi-coding-agent/tools";
+import {
 	selectCollapsedTodos,
 	TODO_STRIKE_HOLD_FRAMES,
 	TODO_STRIKE_TOTAL_FRAMES,
 	type TodoItem,
 	type TodoPhase,
-	TodoTool,
 	todoMatchesAnyDescription,
 	todoToolRenderer,
-} from "@chudware/coding-agent/tools";
-import type { Component } from "@chudware/tui";
+} from "@oh-my-pi/pi-tui/tools/todo";
+import type { Component } from "@oh-my-pi/pi-tui";
 
 function createSession(initialPhases: TodoPhase[] = []): ToolSession {
 	let phases = initialPhases;
@@ -99,61 +100,6 @@ describe("TodoTool auto-start behavior", () => {
 			throw new Error("Expected text summary from todo");
 		}
 		expect(completedSummary.text).toContain("Remaining items: none.");
-	});
-});
-
-describe("TodoTool project context curation", () => {
-	it("refreshes the Mnemo digest after a successful state change", async () => {
-		const session = createSession();
-		const refreshes: TodoPhase[][] = [];
-		session.getMnemopiSessionState = () =>
-			({
-				refreshProjectDigest: async (phases: TodoPhase[]) => {
-					refreshes.push(phases);
-					return {
-						status: "created",
-						fingerprint: "digest-sha",
-						memoryId: "digest-id",
-						activeCount: 1,
-						completedCount: 0,
-						abandonedCount: 0,
-					};
-				},
-			}) as never;
-		const tool = new TodoTool(session);
-
-		const result = await tool.execute("call-project-context", {
-			op: "init",
-			list: [{ phase: "Context", items: ["curate project"] }],
-		});
-
-		expect(refreshes).toHaveLength(1);
-		expect(refreshes[0]?.[0]?.tasks[0]).toEqual({ content: "curate project", status: "in_progress" });
-		expect(result.details?.projectContext).toEqual({
-			status: "created",
-			fingerprint: "digest-sha",
-			memoryId: "digest-id",
-			activeCount: 1,
-			completedCount: 0,
-			abandonedCount: 0,
-		});
-	});
-
-	it("does not refresh the digest for read-only views", async () => {
-		const session = createSession([{ name: "Context", tasks: [{ content: "curate project", status: "pending" }] }]);
-		let refreshes = 0;
-		session.getMnemopiSessionState = () =>
-			({
-				refreshProjectDigest: async () => {
-					refreshes++;
-					return { status: "updated" };
-				},
-			}) as never;
-
-		const result = await new TodoTool(session).execute("call-project-context-view", { op: "view" });
-
-		expect(refreshes).toBe(0);
-		expect(result.details?.projectContext).toBeUndefined();
 	});
 });
 
@@ -497,18 +443,6 @@ describe("TodoTool operations", () => {
 	});
 });
 
-describe("TodoTool provider schema", () => {
-	it("advertises items for single-phase init and append", () => {
-		expect(toolWireSchema(new TodoTool(createSession()))).toMatchObject({
-			properties: {
-				items: {
-					description: "tasks for single-phase init or append",
-				},
-			},
-		});
-	});
-});
-
 describe("TodoTool lenient init shapes", () => {
 	it("accepts a flattened init with bare items and no phase", async () => {
 		const tool = new TodoTool(createSession());
@@ -630,10 +564,6 @@ describe("TodoTool empty items tolerance", () => {
 });
 
 describe("todoMatchesAnyDescription", () => {
-	it("matches identical strings", () => {
-		expect(todoMatchesAnyDescription("Sonnet #1: AGENTS audit", ["Sonnet #1: AGENTS audit"])).toBe(true);
-	});
-
 	it("matches case- and whitespace-insensitively", () => {
 		expect(todoMatchesAnyDescription("  Sonnet  #1: AGENTS Audit  ", ["sonnet #1: agents audit"])).toBe(true);
 	});
@@ -701,7 +631,12 @@ describe("todoToolRenderer.renderResult phase collapsing", () => {
 	}
 	function innerLines(component: Component): string[] {
 		const lines = Bun.stripANSI(component.render(100).join("\n")).split("\n");
-		return lines.slice(1, -1).map(line => line.replace(/^│/, "").replace(/│\s*$/, "").trim());
+		return lines.slice(1, -1).map(line =>
+			line
+				.replace(/^│/, "")
+				.replace(/│\s*$/, "")
+				.trim(),
+		);
 	}
 	it("collapses untouched phases to a one-line summary while expanding the active phase", async () => {
 		const result = await buildThreePhaseAfterDone();
@@ -914,7 +849,7 @@ describe("todoToolRenderer.renderCall malformed-args regression (#2005)", () => 
 	it("renders op summary metadata for a well-formed flat call", () => {
 		const args = { op: "init", items: ["a", "b", "c"] };
 		const component = todoToolRenderer.renderCall(args, renderOptions, theme);
-		// `Text(text, 0, 0)` from `@chudware/tui` exposes the content via .render().
+		// `Text(text, 0, 0)` from `@oh-my-pi/pi-tui` exposes the content via .render().
 		const rendered = Bun.stripANSI(component.render(120).join("\n"));
 		expect(rendered).toContain("init");
 		expect(rendered).toContain("3 items");

@@ -1,11 +1,10 @@
 import { describe, expect, it, vi } from "bun:test";
-import { PRODUCT_CLI_NAME } from "@chudware/coding-agent/brand";
-import { parseArgs } from "@chudware/coding-agent/cli/args";
-import { Settings } from "@chudware/coding-agent/config/settings";
-import { runRootCommand } from "@chudware/coding-agent/main";
-import type { CreateAgentSessionOptions } from "@chudware/coding-agent/sdk";
-import { AuthStorage } from "@chudware/coding-agent/session/auth-storage";
-import { TempDir } from "@chudware/utils";
+import { parseArgs } from "@oh-my-pi/pi-coding-agent/cli/args";
+import { Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
+import { runRootCommand } from "@oh-my-pi/pi-coding-agent/main";
+import type { CreateAgentSessionOptions } from "@oh-my-pi/pi-coding-agent/sdk";
+import { AuthStorage } from "@oh-my-pi/pi-coding-agent/session/auth-storage";
+import { TempDir } from "@oh-my-pi/pi-utils";
 import { runCli } from "../src/cli";
 
 describe("parseArgs — --max-time flag", () => {
@@ -72,13 +71,13 @@ describe("parseArgs — --max-time flag", () => {
 		const stderr = captured.join("");
 		expect(observedExitCode).toBe(2);
 		expect(stderr).toContain("Error: Invalid --max-time value");
-		expect(stderr).toContain(`Run \`${PRODUCT_CLI_NAME} --help\` for available flags.`);
+		expect(stderr).toContain("Run `omp --help` for available flags.");
 		expect(stderr).not.toContain("parseMaxTimeSeconds");
 		expect(stderr).not.toContain("CliUsageError");
 	});
 
 	it("converts maxTime to an absolute session deadline", async () => {
-		using tempDir = TempDir.createSync("@chudcode-max-time-");
+		using tempDir = TempDir.createSync("@omp-max-time-");
 		const authStorage = await AuthStorage.create(":memory:");
 		const settings = Settings.isolated({ "marketplace.autoUpdate": "off" });
 		let observedOptions: CreateAgentSessionOptions | undefined;

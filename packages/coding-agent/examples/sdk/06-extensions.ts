@@ -5,21 +5,21 @@
  * They provide a unified system for extensions, custom tools, commands, and more.
  *
  * Extension files are discovered from:
- * - ~/.chudcode/agent/extensions/ (legacy: ~/.pi/agent/extensions/)
- * - <cwd>/.chudcode/extensions/ (legacy: <cwd>/.pi/extensions/)
+ * - ~/.omp/agent/extensions/ (legacy: ~/.pi/agent/extensions/)
+ * - <cwd>/.omp/extensions/ (legacy: <cwd>/.pi/extensions/)
  * - Paths specified in settings.json "extensions" array
  * - Paths passed via --extension CLI flag
  *
  * An extension is a TypeScript file that exports a default function:
- *   export default function (chud: ExtensionAPI) { ... }
+ *   export default function (pi: ExtensionAPI) { ... }
  */
-import { createAgentSession, SessionManager } from "@chudware/coding-agent";
+import { createAgentSession, SessionManager } from "@oh-my-pi/pi-coding-agent";
 
 // Extensions are loaded from disk, not passed inline to createAgentSession.
 // Use the discovery mechanism:
-//   1. Place extension files in ~/.chudcode/agent/extensions/ or .chudcode/extensions/
+//   1. Place extension files in ~/.omp/agent/extensions/ or .omp/extensions/
 //   2. Add paths to settings.json: { "extensions": ["./my-extension.ts"] }
-//   3. Use --extension flag: chud --extension ./my-extension.ts
+//   3. Use --extension flag: pi --extension ./my-extension.ts
 
 // To add additional extension paths beyond discovery:
 const { session } = await createAgentSession({
@@ -38,27 +38,27 @@ console.log();
 
 // Example extension file (./my-logging-extension.ts):
 /*
-import type { ExtensionAPI } from "@chudware/coding-agent";
+import type { ExtensionAPI } from "@oh-my-pi/pi-coding-agent";
 
-export default function (chud: ExtensionAPI) {
-	const z = chud.zod;
+export default function (pi: ExtensionAPI) {
+	const z = pi.zod;
 
-	chud.on("agent_start", async () => {
+	pi.on("agent_start", async () => {
 		console.log("[Extension] Agent starting");
 	});
 
-	chud.on("tool_call", async (event) => {
+	pi.on("tool_call", async (event) => {
 		console.log(\`[Extension] Tool: \${event.toolName}\`);
 		// Return { block: true, reason: "..." } to block execution
 		return undefined;
 	});
 
-	chud.on("agent_end", async (event) => {
+	pi.on("agent_end", async (event) => {
 		console.log(\`[Extension] Done, \${event.messages.length} messages\`);
 	});
 
 	// Register a custom tool
-	chud.registerTool({
+	pi.registerTool({
 		name: "my_tool",
 		label: "My Tool",
 		description: "Does something useful",
@@ -72,7 +72,7 @@ export default function (chud: ExtensionAPI) {
 	});
 
 	// Register a command
-	chud.registerCommand("mycommand", {
+	pi.registerCommand("mycommand", {
 		description: "Do something",
 		handler: async (args, ctx) => {
 			ctx.ui.notify(\`Command executed with: \${args}\`);

@@ -1,12 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
-import { ensureGraphCommonJsRequireRegistered } from "@chudware/coding-agent/extensibility/plugins/legacy-pi-compat";
+import { ensureGraphCommonJsRequireRegistered } from "@oh-my-pi/pi-coding-agent/extensibility/plugins/legacy-pi-compat";
 
 // The global key the host bundle and every re-instantiated shim copy share to
 // hand graph-owned CommonJS modules to whichever instance owns the populated
 // graph state.
 const COMMONJS_REQUIRE_GLOBAL = "__ompLegacyPiRequireGraphModule";
 
-describe("issue #6449: legacy chud CommonJS graph registration is first-wins", () => {
+describe("issue #6449: legacy pi CommonJS graph registration is first-wins", () => {
 	let original: unknown;
 
 	beforeEach(() => {
@@ -17,7 +17,7 @@ describe("issue #6449: legacy chud CommonJS graph registration is first-wins", (
 		Reflect.set(globalThis, COMMONJS_REQUIRE_GLOBAL, original);
 	});
 
-	// On source-link installs the chudcode-agent root shim is served from src/,
+	// On source-link installs the pi-coding-agent root shim is served from src/,
 	// so an extension import evaluates a SECOND instance of legacy-pi-compat with
 	// empty graph state. Its module-level registration must not clobber the host
 	// bundle's populated bridge — a regression to an unconditional `Reflect.set`

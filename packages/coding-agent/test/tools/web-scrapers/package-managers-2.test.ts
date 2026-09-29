@@ -1,12 +1,12 @@
 import { describe, expect, it } from "bun:test";
-import { handleChocolatey } from "@chudware/coding-agent/web/scrapers/chocolatey";
-import { handleDockerHub } from "@chudware/coding-agent/web/scrapers/dockerhub";
-import { handleHackage } from "@chudware/coding-agent/web/scrapers/hackage";
-import { handleMetaCPAN } from "@chudware/coding-agent/web/scrapers/metacpan";
-import { handleRepology } from "@chudware/coding-agent/web/scrapers/repology";
-import { handleTerraform } from "@chudware/coding-agent/web/scrapers/terraform";
+import { handleChocolatey } from "@oh-my-pi/pi-coding-agent/web/scrapers/chocolatey";
+import { handleDockerHub } from "@oh-my-pi/pi-coding-agent/web/scrapers/dockerhub";
+import { handleHackage } from "@oh-my-pi/pi-coding-agent/web/scrapers/hackage";
+import { handleMetaCPAN } from "@oh-my-pi/pi-coding-agent/web/scrapers/metacpan";
+import { handleRepology } from "@oh-my-pi/pi-coding-agent/web/scrapers/repology";
+import { handleTerraform } from "@oh-my-pi/pi-coding-agent/web/scrapers/terraform";
 
-const SKIP = !process.env.WEB_FETCH_INTEGRATION;
+const SKIP = !Bun.env.WEB_FETCH_INTEGRATION;
 
 describe.skipIf(SKIP)("handleMetaCPAN", () => {
 	it("returns null for non-MetaCPAN URLs", async () => {
@@ -53,13 +53,6 @@ describe.skipIf(SKIP)("handleHackage", () => {
 		expect(result?.content).toContain("aeson");
 		expect(result?.content).toContain("JSON");
 		expect(result?.contentType).toBe("text/markdown");
-	}, 20000);
-
-	it("fetches text package", async () => {
-		const result = await handleHackage("https://hackage.haskell.org/package/text", 20);
-		expect(result).not.toBeNull();
-		expect(result?.method).toBe("hackage");
-		expect(result?.content).toContain("text");
 	}, 20000);
 });
 
@@ -109,13 +102,6 @@ describe.skipIf(SKIP)("handleChocolatey", () => {
 		expect(result?.method).toBe("chocolatey");
 		expect(result?.content).toContain("choco install");
 		expect(result?.contentType).toBe("text/markdown");
-	});
-
-	it("fetches nodejs package", async () => {
-		const result = await handleChocolatey("https://community.chocolatey.org/packages/nodejs", 20);
-		expect(result).not.toBeNull();
-		expect(result?.method).toBe("chocolatey");
-		expect(result?.content).toMatch(/node/i);
 	});
 });
 
@@ -175,12 +161,5 @@ describe.skipIf(SKIP)("handleTerraform", () => {
 		expect(result?.content).toContain("vpc");
 		expect(result?.content).toContain("terraform-aws-modules");
 		expect(result?.content).toContain("module");
-	});
-
-	it("fetches hashicorp/random provider", async () => {
-		const result = await handleTerraform("https://registry.terraform.io/providers/hashicorp/random", 20);
-		expect(result).not.toBeNull();
-		expect(result?.method).toBe("terraform");
-		expect(result?.content).toContain("random");
 	});
 });

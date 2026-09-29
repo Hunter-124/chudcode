@@ -1,7 +1,7 @@
 import { describe, expect, it } from "bun:test";
-import type { Context, ImageContent, TextContent } from "@chudware/ai";
-import { buildModel } from "@chudware/catalog/build";
-import { clampProviderContextImages } from "@chudware/coding-agent/session/provider-image-budget";
+import type { Context, ImageContent, TextContent } from "@oh-my-pi/pi-ai";
+import { buildModel } from "@oh-my-pi/pi-catalog/build";
+import { clampProviderContextImages } from "@oh-my-pi/pi-coding-agent/session/provider-image-budget";
 
 const UMANS_MODEL = buildModel({
 	id: "umans-glm-5.2",
@@ -76,7 +76,7 @@ describe("provider context image budgets", () => {
 			messages: Array.from({ length: 11 }, (_, index) => ({
 				role: "toolResult",
 				toolCallId: `call-${index}`,
-				toolName: "inspect_image",
+				toolName: "read",
 				content: [image(`image-${index}`)],
 				isError: false,
 				timestamp: index,

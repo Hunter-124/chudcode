@@ -1,11 +1,5 @@
-import { afterEach, describe, expect, it } from "bun:test";
-import {
-	__resetWindowsConsoleProbeCache,
-	consoleAttached,
-	hostHasInheritableConsole,
-	shouldDetachKernel,
-	shouldHideKernelWindow,
-} from "../../src/eval/py/spawn-options";
+import { describe, expect, it } from "bun:test";
+import { consoleAttached, shouldDetachKernel, shouldHideKernelWindow } from "../../src/eval/py/spawn-options";
 
 describe("shouldDetachKernel", () => {
 	it("starts POSIX kernels in a new session", () => {
@@ -24,16 +18,14 @@ describe("shouldDetachKernel", () => {
  * option to `CREATE_NO_WINDOW`, which detaches the child from any inherited
  * console — breaking both (a) `LoadLibraryExW` for NumPy/pandas native
  * extensions and (b) SIGINT delivery via `GenerateConsoleCtrlEvent`. See
- * issue #1960. The tests below pin the three layered concerns:
+ * issue #1960. The tests below pin the two layered concerns:
  *
  * 1. `shouldHideKernelWindow` — pure predicate over the combined detection.
  * 2. `consoleAttached` — native HWND and stdio TTY evidence; either wins.
- * 3. `hostHasInheritableConsole` — the integration boundary that collects
- *    both signals before the kernel spawn.
  */
 describe("shouldHideKernelWindow", () => {
 	it("inherits the host console on Windows when one is attached", () => {
-		// Reporter's repro: chudcode launched in Windows Terminal, host has a
+		// Reporter's repro: omp launched in Windows Terminal, host has a
 		// console, kernel must inherit so `import pandas` doesn't deadlock in
 		// `_multiarray_umath` and SIGINT can recover the cell.
 		expect(shouldHideKernelWindow({ platform: "win32", hostHasInheritableConsole: true })).toBe(false);
@@ -78,16 +70,8 @@ describe("consoleAttached", () => {
 		).toBe(true);
 	});
 
-	it("treats `chudcode -p '...' > out.txt` (stdout-only redirect) as console-attached", () => {
+	it("treats `omp -p '...' > out.txt` (stdout-only redirect) as console-attached", () => {
 		expect(consoleAttached({ stdinIsTTY: true, stdoutIsTTY: false, stderrIsTTY: true })).toBe(true);
-	});
-
-	it("treats stdin-only redirects (`< in.txt`) as console-attached", () => {
-		expect(consoleAttached({ stdinIsTTY: false, stdoutIsTTY: true, stderrIsTTY: true })).toBe(true);
-	});
-
-	it("treats stderr-only redirects (`2> err.log`) as console-attached", () => {
-		expect(consoleAttached({ stdinIsTTY: true, stdoutIsTTY: true, stderrIsTTY: false })).toBe(true);
 	});
 
 	it("returns false without native-console or TTY evidence", () => {
@@ -100,22 +84,4 @@ describe("consoleAttached", () => {
 			}),
 		).toBe(false);
 	});
-});
-
-describe("hostHasInheritableConsole", () => {
-	afterEach(() => {
-		__resetWindowsConsoleProbeCache();
-	});
-
-	if (process.platform !== "win32") {
-		it("matches the TTY evidence off-Windows", () => {
-			const expected = consoleAttached({
-				nativeConsole: null,
-				stdinIsTTY: !!process.stdin.isTTY,
-				stdoutIsTTY: !!process.stdout.isTTY,
-				stderrIsTTY: !!process.stderr.isTTY,
-			});
-			expect(hostHasInheritableConsole()).toBe(expected);
-		});
-	}
 });

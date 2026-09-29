@@ -1,17 +1,17 @@
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import * as path from "node:path";
-import { Agent, type AgentTool } from "@chudware/agent-core";
-import type { AssistantMessage, Context } from "@chudware/ai";
-import { createMockModel } from "@chudware/ai/providers/mock";
-import { AssistantMessageEventStream } from "@chudware/ai/utils/event-stream";
-import { type } from "@chudware/chudtype";
-import { ModelRegistry } from "@chudware/coding-agent/config/model-registry";
-import { Settings } from "@chudware/coding-agent/config/settings";
-import { AgentSession } from "@chudware/coding-agent/session/agent-session";
-import { AuthStorage } from "@chudware/coding-agent/session/auth-storage";
-import { type CustomMessage, convertToLlm } from "@chudware/coding-agent/session/messages";
-import { SessionManager } from "@chudware/coding-agent/session/session-manager";
-import { TempDir } from "@chudware/utils";
+import { type } from "@oh-my-pi/omptype";
+import { Agent, type AgentTool } from "@oh-my-pi/pi-agent-core";
+import type { AssistantMessage, Context } from "@oh-my-pi/pi-ai";
+import { createMockModel } from "@oh-my-pi/pi-ai/providers/mock";
+import { AssistantMessageEventStream } from "@oh-my-pi/pi-ai/utils/event-stream";
+import { ModelRegistry } from "@oh-my-pi/pi-coding-agent/config/model-registry";
+import { Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
+import { AgentSession } from "@oh-my-pi/pi-coding-agent/session/agent-session";
+import { AuthStorage } from "@oh-my-pi/pi-coding-agent/session/auth-storage";
+import { type CustomMessage, convertToLlm } from "@oh-my-pi/pi-coding-agent/session/messages";
+import { SessionManager } from "@oh-my-pi/pi-coding-agent/session/session-manager";
+import { TempDir } from "@oh-my-pi/pi-utils";
 
 const zeroUsage = {
 	input: 0,
@@ -30,7 +30,7 @@ describe("AgentSession tool-call loop guard", () => {
 	beforeEach(async () => {
 		tempDir = TempDir.createSync("@pi-tool-call-loop-guard-");
 		authStorage = await AuthStorage.create(path.join(tempDir.path(), "auth.db"));
-		authStorage.setRuntimeApiKey("openai", "openai-test-key");
+		authStorage.keys.setRuntime("openai", "openai-test-key");
 	});
 
 	afterEach(async () => {
@@ -94,7 +94,7 @@ describe("AgentSession tool-call loop guard", () => {
 			"todo.enabled": false,
 			"model.toolCallLoopGuard.enabled": true,
 			"model.toolCallLoopGuard.threshold": 2,
-			"model.toolCallLoopGuard.exemptTools": ["hub"],
+			"model.toolCallLoopGuard.exemptTools": ["wait"],
 		});
 		settings.setModelRole("default", `${model.provider}/${model.id}`);
 		session = new AgentSession({

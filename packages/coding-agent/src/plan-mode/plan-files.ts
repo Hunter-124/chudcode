@@ -1,20 +1,35 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
-import { isEnoent } from "@chudware/utils";
-import * as fsx from "@chudware/utils/fsx";
-import { type LocalProtocolOptions, resolveLocalUrlToPath } from "../internal-urls";
-import { normalizeLocalScheme, resolveToCwd } from "../tools/path-utils";
+import { isEnoent } from "@oh-my-pi/pi-utils";
+import { InternalUrlRouter, type LocalProtocolOptions, resolveLocalRoot } from "../internal-urls";
+import { resolveToCwd } from "../tools/path-utils";
 
-/** Reads a plan from a local URL or cwd-relative filesystem path. */
+/**
+ * Resolves a plan path to its on-disk file: internal URLs through the scheme's
+ * sync locate, anything else against `cwd`. Throws for internal URLs no local file backs.
+ */
+export function resolvePlanFilePath(
+	planFilePath: string,
+	options: { localProtocolOptions: LocalProtocolOptions; cwd: string },
+): string {
+	const router = InternalUrlRouter.instance();
+	if (!router.canHandle(planFilePath)) return resolveToCwd(planFilePath, options.cwd);
+	const located = router.locateSync(planFilePath, {
+		cwd: options.cwd,
+		localProtocolOptions: options.localProtocolOptions,
+	});
+	if (located === undefined) throw new Error(`No local file backs plan path ${planFilePath}`);
+	return located;
+}
+
+/** Reads a plan from an internal URL or cwd-relative filesystem path. */
 export async function readPlanFile(
 	planFilePath: string,
 	options: { localProtocolOptions: LocalProtocolOptions; cwd: string },
 ): Promise<string | null> {
-	const resolvedPath = planFilePath.startsWith("local:")
-		? resolveLocalUrlToPath(normalizeLocalScheme(planFilePath), options.localProtocolOptions)
-		: resolveToCwd(planFilePath, options.cwd);
+	const resolvedPath = resolvePlanFilePath(planFilePath, options);
 	try {
-		return await fsx.readText(resolvedPath);
+		return await Bun.file(resolvedPath).text();
 	} catch (error) {
 		if (isEnoent(error)) return null;
 		throw error;
@@ -23,7 +38,7 @@ export async function readPlanFile(
 
 /** Lists session-local plan files from newest to oldest. */
 export async function listPlanFiles(options: { localProtocolOptions: LocalProtocolOptions }): Promise<string[]> {
-	const localRoot = resolveLocalUrlToPath("local://", options.localProtocolOptions);
+	const localRoot = path.resolve(resolveLocalRoot(options.localProtocolOptions));
 	try {
 		const entries = await fs.promises.readdir(localRoot, { withFileTypes: true });
 		const plans = await Promise.all(

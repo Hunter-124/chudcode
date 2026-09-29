@@ -15,11 +15,11 @@
  *     the current request also opts in AND the target is official Anthropic.
  */
 import { afterEach, describe, expect, it, vi } from "bun:test";
-import { convertAnthropicMessages, streamAnthropic } from "@chudware/ai/providers/anthropic";
-import { AnthropicMessages } from "@chudware/ai/providers/anthropic-client";
-import type { MessageParam } from "@chudware/ai/providers/anthropic-wire";
-import type { AssistantMessage, Context, Model, ToolResultMessage } from "@chudware/ai/types";
-import { buildModel } from "@chudware/catalog/build";
+import { convertAnthropicMessages, streamAnthropic } from "@oh-my-pi/pi-ai/providers/anthropic";
+import { AnthropicMessages } from "@oh-my-pi/pi-ai/providers/anthropic-client";
+import type { MessageParam } from "@oh-my-pi/pi-ai/providers/anthropic-wire";
+import type { AssistantMessage, Context, Model, ToolResultMessage } from "@oh-my-pi/pi-ai/types";
+import { buildModel } from "@oh-my-pi/pi-catalog/build";
 
 const fableModel: Model<"anthropic-messages"> = buildModel({
 	id: "claude-fable-5",
@@ -490,7 +490,7 @@ describe("anthropic assistant replay block ordering (tool_use partition)", () =>
 		]);
 	});
 
-	it("interleaved signed thinking: signature-chain order preserved, tool_use deferred to the tail", () => {
+	it("interleaved signed thinking stays beside the tool calls that produced it", () => {
 		const params = convertAnthropicMessages(
 			[
 				assistant([
@@ -509,8 +509,8 @@ describe("anthropic assistant replay block ordering (tool_use partition)", () =>
 		);
 		expect(assistantParam(params).content).toEqual([
 			{ type: "thinking", thinking: "first", signature: "sig-1" },
-			{ type: "thinking", thinking: "second", signature: "sig-2" },
 			{ type: "tool_use", id: "call_a", name: "read", input: {} },
+			{ type: "thinking", thinking: "second", signature: "sig-2" },
 			{ type: "tool_use", id: "call_b", name: "grep", input: {} },
 		]);
 	});

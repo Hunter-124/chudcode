@@ -1,7 +1,7 @@
 /**
  * Install-from-git tests for `PluginManager.install`.
  *
- * Strategy: spy on the six `@chudware/utils` plugin-path getters so the
+ * Strategy: spy on the six `@oh-my-pi/pi-utils` plugin-path getters so the
  * manager points at a temp directory tree, then spy on `Bun.spawn` so we can
  * simulate `bun install <git-spec>`'s side effects (writing the dep into
  * `plugins/package.json` under its real name, and dropping a matching
@@ -10,7 +10,7 @@
  *
  * `vi.spyOn` + `vi.restoreAllMocks()` is the same pattern used by
  * `test/tools/report-tool-issue.test.ts` (which spies on
- * `piUtils.getInstallId`), so we know namespace spying on `chud-utils` exports
+ * `piUtils.getInstallId`), so we know namespace spying on `pi-utils` exports
  * propagates through to consumers of the barrel re-exports. The
  * `vi.spyOn(Bun, "spawn")` mock follows `test/git-process-config.test.ts`.
  */
@@ -18,10 +18,9 @@ import { afterEach, beforeEach, describe, expect, test, vi } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import { PluginManager } from "@chudware/coding-agent/extensibility/plugins/manager";
-import * as piUtils from "@chudware/utils";
-import { removeWithRetries } from "@chudware/utils";
-import * as fsx from "@chudware/utils/fsx";
+import { PluginManager } from "@oh-my-pi/pi-coding-agent/extensibility/plugins/manager";
+import * as piUtils from "@oh-my-pi/pi-utils";
+import { removeWithRetries } from "@oh-my-pi/pi-utils";
 import type { Subprocess } from "bun";
 
 function textStream(text: string): ReadableStream<Uint8Array> {
@@ -65,7 +64,7 @@ describe("PluginManager.install with git sources", () => {
 	let pluginsPkgJson: string;
 
 	beforeEach(async () => {
-		tmpRoot = await fs.mkdtemp(path.join(os.tmpdir(), "chudcode-plugin-git-"));
+		tmpRoot = await fs.mkdtemp(path.join(os.tmpdir(), "omp-plugin-git-"));
 		pluginsDir = path.join(tmpRoot, "plugins");
 		pluginsNodeModules = path.join(pluginsDir, "node_modules");
 		pluginsPkgJson = path.join(pluginsDir, "package.json");
@@ -74,7 +73,7 @@ describe("PluginManager.install with git sources", () => {
 		vi.spyOn(piUtils, "getPluginsDir").mockReturnValue(pluginsDir);
 		vi.spyOn(piUtils, "getPluginsNodeModules").mockReturnValue(pluginsNodeModules);
 		vi.spyOn(piUtils, "getPluginsPackageJson").mockReturnValue(pluginsPkgJson);
-		vi.spyOn(piUtils, "getPluginsLockfile").mockReturnValue(path.join(tmpRoot, "chudcode-plugins.lock.json"));
+		vi.spyOn(piUtils, "getPluginsLockfile").mockReturnValue(path.join(tmpRoot, "omp-plugins.lock.json"));
 		vi.spyOn(piUtils, "getProjectDir").mockReturnValue(tmpRoot);
 		vi.spyOn(piUtils, "getProjectPluginOverridesPath").mockReturnValue(path.join(tmpRoot, "plugin-overrides.json"));
 	});
@@ -87,9 +86,9 @@ describe("PluginManager.install with git sources", () => {
 	test("installs from github: shorthand and resolves real package name from deps diff", async () => {
 		// Seed the plugins manifest so install()'s `depsBefore` snapshot is empty
 		// rather than triggering #ensurePackageJson's bootstrap path.
-		await fsx.write(
+		await Bun.write(
 			pluginsPkgJson,
-			JSON.stringify({ name: "chudcode-plugins", private: true, dependencies: {} }, null, 2),
+			JSON.stringify({ name: "omp-plugins", private: true, dependencies: {} }, null, 2),
 		);
 
 		vi.spyOn(Bun, "spawn").mockImplementation(((cmd: string[]) => {
@@ -102,11 +101,11 @@ describe("PluginManager.install with git sources", () => {
 			// source: a new dep keyed by the package's own `name` field, plus
 			// the corresponding entry under node_modules.
 			const prepare = (async () => {
-				await fsx.write(
+				await Bun.write(
 					pluginsPkgJson,
 					JSON.stringify(
 						{
-							name: "chudcode-plugins",
+							name: "omp-plugins",
 							private: true,
 							dependencies: { "real-name": "github:foo/bar" },
 						},
@@ -116,7 +115,7 @@ describe("PluginManager.install with git sources", () => {
 				);
 				const installedDir = path.join(pluginsNodeModules, "real-name");
 				await fs.mkdir(installedDir, { recursive: true });
-				await fsx.write(
+				await Bun.write(
 					path.join(installedDir, "package.json"),
 					JSON.stringify({ name: "real-name", version: "0.1.0" }, null, 2),
 				);
@@ -140,9 +139,9 @@ describe("PluginManager.install with git sources", () => {
 	});
 
 	test("normalizes non-GitHub shorthand before invoking bun install", async () => {
-		await fsx.write(
+		await Bun.write(
 			pluginsPkgJson,
-			JSON.stringify({ name: "chudcode-plugins", private: true, dependencies: {} }, null, 2),
+			JSON.stringify({ name: "omp-plugins", private: true, dependencies: {} }, null, 2),
 		);
 
 		vi.spyOn(Bun, "spawn").mockImplementation(((cmd: string[]) => {
@@ -151,11 +150,11 @@ describe("PluginManager.install with git sources", () => {
 			expect(cmd[2]).toBe("https://gitlab.com/group/sub/project#v1.0.0");
 
 			const prepare = (async () => {
-				await fsx.write(
+				await Bun.write(
 					pluginsPkgJson,
 					JSON.stringify(
 						{
-							name: "chudcode-plugins",
+							name: "omp-plugins",
 							private: true,
 							dependencies: {
 								"gitlab-plugin": "git+https://gitlab.com/group/sub/project.git#v1.0.0",
@@ -167,7 +166,7 @@ describe("PluginManager.install with git sources", () => {
 				);
 				const installedDir = path.join(pluginsNodeModules, "gitlab-plugin");
 				await fs.mkdir(installedDir, { recursive: true });
-				await fsx.write(
+				await Bun.write(
 					path.join(installedDir, "package.json"),
 					JSON.stringify({ name: "gitlab-plugin", version: "1.0.0" }, null, 2),
 				);
@@ -193,11 +192,11 @@ describe("PluginManager.install with git sources", () => {
 		// github plugin. `findGitPackageName` matches the new install spec to
 		// this existing dep (by repository identity), which is the signal the
 		// manager uses to trigger the lockfile-refresh follow-up.
-		await fsx.write(
+		await Bun.write(
 			pluginsPkgJson,
 			JSON.stringify(
 				{
-					name: "chudcode-plugins",
+					name: "omp-plugins",
 					private: true,
 					dependencies: { "stale-plugin": "github:foo/bar" },
 				},
@@ -207,7 +206,7 @@ describe("PluginManager.install with git sources", () => {
 		);
 		const seedDir = path.join(pluginsNodeModules, "stale-plugin");
 		await fs.mkdir(seedDir, { recursive: true });
-		await fsx.write(
+		await Bun.write(
 			path.join(seedDir, "package.json"),
 			JSON.stringify({ name: "stale-plugin", version: "0.1.0" }, null, 2),
 		);
@@ -244,7 +243,7 @@ describe("PluginManager.install with git sources", () => {
 			// read the new version from package.json after this step returns.
 			expect(cmd).toEqual(["bun", "update", "stale-plugin"]);
 			const prepare = (async () => {
-				await fsx.write(
+				await Bun.write(
 					path.join(seedDir, "package.json"),
 					JSON.stringify({ name: "stale-plugin", version: "0.1.6" }, null, 2),
 				);
@@ -269,11 +268,11 @@ describe("PluginManager.install with git sources", () => {
 	});
 
 	test("removes an existing pinned git dependency before installing the unpinned source (#4960)", async () => {
-		await fsx.write(
+		await Bun.write(
 			pluginsPkgJson,
 			JSON.stringify(
 				{
-					name: "chudcode-plugins",
+					name: "omp-plugins",
 					private: true,
 					dependencies: { "replaced-plugin": "github:foo/bar#v1.0.0" },
 				},
@@ -283,7 +282,7 @@ describe("PluginManager.install with git sources", () => {
 		);
 		const seedDir = path.join(pluginsNodeModules, "replaced-plugin");
 		await fs.mkdir(seedDir, { recursive: true });
-		await fsx.write(
+		await Bun.write(
 			path.join(seedDir, "package.json"),
 			JSON.stringify({ name: "replaced-plugin", version: "1.0.0" }, null, 2),
 		);
@@ -294,14 +293,14 @@ describe("PluginManager.install with git sources", () => {
 			if (cmd[1] === "install") {
 				expect(cmd).toEqual(["bun", "install", "github:foo/bar"]);
 				const prepare = (async () => {
-					const packageJson = await fsx.readJson(pluginsPkgJson);
+					const packageJson = await Bun.file(pluginsPkgJson).json();
 					expect(packageJson.dependencies?.["replaced-plugin"]).toBeUndefined();
 
-					await fsx.write(
+					await Bun.write(
 						pluginsPkgJson,
 						JSON.stringify(
 							{
-								name: "chudcode-plugins",
+								name: "omp-plugins",
 								private: true,
 								dependencies: { "replaced-plugin": "github:foo/bar" },
 							},
@@ -309,7 +308,7 @@ describe("PluginManager.install with git sources", () => {
 							2,
 						),
 					);
-					await fsx.write(
+					await Bun.write(
 						path.join(seedDir, "package.json"),
 						JSON.stringify({ name: "replaced-plugin", version: "1.1.0" }, null, 2),
 					);
@@ -347,14 +346,14 @@ describe("PluginManager.install with git sources", () => {
 		expect(result.name).toBe("replaced-plugin");
 		expect(result.version).toBe("1.1.0");
 		expect(spawnedCommands[0]).toEqual(["bun", "install", "github:foo/bar"]);
-		const packageJson = await fsx.readJson(pluginsPkgJson);
+		const packageJson = await Bun.file(pluginsPkgJson).json();
 		expect(packageJson.dependencies).toEqual({ "replaced-plugin": "github:foo/bar" });
 	});
 
 	test("first-time github install does NOT run `bun update` (no existing pin to refresh)", async () => {
-		await fsx.write(
+		await Bun.write(
 			pluginsPkgJson,
-			JSON.stringify({ name: "chudcode-plugins", private: true, dependencies: {} }, null, 2),
+			JSON.stringify({ name: "omp-plugins", private: true, dependencies: {} }, null, 2),
 		);
 
 		const spawnedCommands: string[][] = [];
@@ -362,11 +361,11 @@ describe("PluginManager.install with git sources", () => {
 			spawnedCommands.push([...cmd]);
 			expect(cmd[1]).toBe("install");
 			const prepare = (async () => {
-				await fsx.write(
+				await Bun.write(
 					pluginsPkgJson,
 					JSON.stringify(
 						{
-							name: "chudcode-plugins",
+							name: "omp-plugins",
 							private: true,
 							dependencies: { "fresh-plugin": "github:foo/bar" },
 						},
@@ -376,7 +375,7 @@ describe("PluginManager.install with git sources", () => {
 				);
 				const installedDir = path.join(pluginsNodeModules, "fresh-plugin");
 				await fs.mkdir(installedDir, { recursive: true });
-				await fsx.write(
+				await Bun.write(
 					path.join(installedDir, "package.json"),
 					JSON.stringify({ name: "fresh-plugin", version: "0.1.6" }, null, 2),
 				);
@@ -399,9 +398,9 @@ describe("PluginManager.install with git sources", () => {
 		// Model the OS-pipe semantics that caused the deadlock: `exited` cannot
 		// resolve until both pipes have been read. Awaiting install directly is
 		// sufficient: the test runner's timeout catches a regression.
-		await fsx.write(
+		await Bun.write(
 			pluginsPkgJson,
-			JSON.stringify({ name: "chudcode-plugins", private: true, dependencies: {} }, null, 2),
+			JSON.stringify({ name: "omp-plugins", private: true, dependencies: {} }, null, 2),
 		);
 
 		const makeGatedStream = (payload: string): { stream: ReadableStream<Uint8Array>; drained: Promise<void> } => {
@@ -421,11 +420,11 @@ describe("PluginManager.install with git sources", () => {
 			const { stream: stdout, drained: stdoutDrained } = makeGatedStream("progress\n");
 			const { stream: stderr, drained: stderrDrained } = makeGatedStream("");
 			const exited = Promise.all([stdoutDrained, stderrDrained]).then(async () => {
-				await fsx.write(
+				await Bun.write(
 					pluginsPkgJson,
 					JSON.stringify(
 						{
-							name: "chudcode-plugins",
+							name: "omp-plugins",
 							private: true,
 							dependencies: { "real-name": "github:foo/bar" },
 						},
@@ -435,7 +434,7 @@ describe("PluginManager.install with git sources", () => {
 				);
 				const installedDir = path.join(pluginsNodeModules, "real-name");
 				await fs.mkdir(installedDir, { recursive: true });
-				await fsx.write(
+				await Bun.write(
 					path.join(installedDir, "package.json"),
 					JSON.stringify({ name: "real-name", version: "0.1.0" }, null, 2),
 				);
@@ -457,7 +456,7 @@ describe("PluginManager.install with git sources", () => {
 		await fs.mkdir(sourceDir, { recursive: true });
 		await fs.mkdir(path.dirname(remoteDir), { recursive: true });
 		await runCommand(["git", "init", "-b", "main"], sourceDir);
-		await fsx.write(
+		await Bun.write(
 			path.join(sourceDir, "package.json"),
 			JSON.stringify({ name: "@test/pi-package", version: "1.0.0" }, null, 2),
 		);
@@ -499,16 +498,16 @@ describe("PluginManager.install with git sources", () => {
 		});
 
 		try {
-			await fsx.write(
+			await Bun.write(
 				pluginsPkgJson,
-				JSON.stringify({ name: "chudcode-plugins", private: true, dependencies: {} }, null, 2),
+				JSON.stringify({ name: "omp-plugins", private: true, dependencies: {} }, null, 2),
 			);
-			await fsx.write(path.join(pluginsDir, "bunfig.toml"), `[install.cache]\ndir = ${JSON.stringify(cacheDir)}\n`);
+			await Bun.write(path.join(pluginsDir, "bunfig.toml"), `[install.cache]\ndir = ${JSON.stringify(cacheDir)}\n`);
 			const spec = `git+http://127.0.0.1:${server.port}/testuser/remote.git#main`;
 			const mgr = new PluginManager(tmpRoot);
 			expect((await mgr.install(spec)).version).toBe("1.0.0");
 
-			await fsx.write(
+			await Bun.write(
 				path.join(sourceDir, "package.json"),
 				JSON.stringify({ name: "@test/pi-package", version: "2.0.0" }, null, 2),
 			);

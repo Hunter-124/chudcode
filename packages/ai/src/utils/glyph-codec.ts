@@ -22,7 +22,7 @@ export interface GlyphCodec {
 	context: Context;
 	/** Decodes glyph tokens in the stream's terminal assistant message. */
 	wrap(inner: AssistantMessageEventStream): AssistantMessageEventStream;
-	/** Decodes Cursor Chud calls and encodes their provider-bound results. */
+	/** Decodes Cursor Pi calls and encodes their provider-bound results. */
 	wrapCursorExecHandlers(handlers: CursorExecHandlers): CursorExecHandlers;
 	/** Whether this request has encoded at least one glyph or literal token prefix. */
 	active: boolean;

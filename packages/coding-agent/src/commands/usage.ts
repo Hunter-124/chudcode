@@ -2,7 +2,7 @@
  * Show provider usage limits for every authenticated account.
  */
 
-import { Args, Command, Flags } from "@chudware/utils/cli";
+import { Args, Command, Flags } from "@oh-my-pi/pi-utils/cli";
 import { usageHelp as commandHelp } from "../cli/command-help";
 import { runUsageCommand } from "../cli/usage-cli";
 
@@ -29,17 +29,25 @@ export default class Usage extends Command {
 			default: false,
 		}),
 		days: Flags.integer({ char: "d", description: "History window in days (with --history or clients)", default: 7 }),
+		extension: Flags.string({
+			char: "e",
+			description: "Load an extension file before fetching usage (repeatable)",
+			multiple: true,
+		}),
+		"no-extensions": Flags.boolean({
+			description: "Disable extension discovery (explicit -e paths still work)",
+		}),
 	};
 
 	static examples = [
-		"# Detailed per-account usage breakdown across all providers\n  chudcode usage",
-		"# Only Anthropic accounts\n  chudcode usage --provider anthropic",
-		"# Redact account identifiers for screenshots\n  chudcode usage --redact",
-		"# Machine-readable output\n  chudcode usage --json",
-		"# Usage-limit trend over the last 30 days\n  chudcode usage --history --days 30",
-		"# Per-client token burn (which machine/app spent what) over the last 30 days\n  chudcode usage clients --days 30",
-		"# Invalidate cached usage reports for all providers\n  chudcode usage invalidate",
-		"# Invalidate cached usage reports for a specific provider\n  chudcode usage invalidate --provider anthropic",
+		"# Detailed per-account usage breakdown across all providers\n  omp usage",
+		"# Only Anthropic accounts\n  omp usage --provider anthropic",
+		"# Redact account identifiers for screenshots\n  omp usage --redact",
+		"# Machine-readable output\n  omp usage --json",
+		"# Usage-limit trend over the last 30 days\n  omp usage --history --days 30",
+		"# Per-client token burn (which machine/app spent what) over the last 30 days\n  omp usage clients --days 30",
+		"# Invalidate cached usage reports for all providers\n  omp usage invalidate",
+		"# Invalidate cached usage reports for a specific provider\n  omp usage invalidate --provider anthropic",
 	];
 
 	async run(): Promise<void> {
@@ -51,6 +59,8 @@ export default class Usage extends Command {
 			redact: flags.redact,
 			history: flags.history,
 			days: flags.days,
+			extensions: flags.extension,
+			noExtensions: flags["no-extensions"],
 		});
 	}
 }

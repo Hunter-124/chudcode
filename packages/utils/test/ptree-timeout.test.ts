@@ -1,7 +1,9 @@
-import { describe, expect, it } from "bun:test";
-import { Process, ProcessStatus } from "@chudware/natives";
-import { createLinuxSubreaperScript, exec, NonZeroExitError, spawn, TimeoutError } from "@chudware/utils/ptree";
-import { sleep } from "../src/async";
+import { describe, expect, it, spyOn } from "bun:test";
+import * as fs from "node:fs/promises";
+import * as os from "node:os";
+import * as path from "node:path";
+import { Process, ProcessStatus } from "@oh-my-pi/pi-natives";
+import { createLinuxSubreaperScript, exec, NonZeroExitError, spawn, TimeoutError } from "@oh-my-pi/pi-utils/ptree";
 
 async function supportsLinuxMountNamespaces(): Promise<boolean> {
 	if (process.platform !== "linux") return false;
@@ -58,13 +60,109 @@ describe("ptree timeout", () => {
 		}
 	});
 
+	it.skipIf(process.platform !== "linux")(
+		"kills descendants adopted while an AbortSignal races the timeout sweep",
+		async () => {
+			const testRoot = await fs.mkdtemp(path.join(os.tmpdir(), "pi-utils-subreaper-race-"));
+			const pidFile = path.join(testRoot, "worker.pid");
+			const launcher = path.join(testRoot, "launcher.sh");
+			await Bun.write(
+				launcher,
+				`#!/bin/sh
+setsid sleep 30 </dev/null >/dev/null 2>&1 &
+printf '%s\n' "$!" > ${JSON.stringify(pidFile)}
+sleep 30
+`,
+			);
+			await fs.chmod(launcher, 0o755);
+
+			const controller = new AbortController();
+			using child = spawn([launcher], {
+				signal: controller.signal,
+				subreaper: true,
+			});
+			const cleanupProcesses: Process[] = [];
+
+			try {
+				// A BunFile handle caches a negative `exists()`; stat fresh each poll.
+				const pidFileExists = () =>
+					fs.stat(pidFile).then(
+						() => true,
+						() => false,
+					);
+				const setupDeadline = Date.now() + 2_000;
+				while (!(await pidFileExists()) && Date.now() < setupDeadline) await Bun.sleep(10);
+				expect(await pidFileExists(), "the launcher must create its worker").toBe(true);
+
+				const workerPid = Number.parseInt((await Bun.file(pidFile).text()).trim(), 10);
+				const subreaper = Process.fromPid(child.pid);
+				const command = subreaper?.children()[0];
+				const worker = Process.fromPid(workerPid);
+				if (!subreaper || !command || !worker) throw new Error("failed to capture the subreaper process tree");
+				cleanupProcesses.push(worker, command, subreaper);
+				expect(worker.ppid, "the worker must initially belong to the supervised command").toBe(command.pid);
+
+				const killOnly = (pid: number): number => {
+					try {
+						process.kill(pid, "SIGKILL");
+						return 1;
+					} catch {
+						return 0;
+					}
+				};
+				const commandSnapshot = {
+					killTree: () => killOnly(command.pid),
+				} as unknown as Process;
+				const pendingAdoption = {
+					killTree: () => 0,
+				} as unknown as Process;
+				let snapshots = 0;
+				let observedAdoption = false;
+				const controlledSubreaper = {
+					children: (): Process[] => {
+						snapshots++;
+						if (snapshots === 1) return [commandSnapshot];
+						if (subreaper.status() !== ProcessStatus.Running || worker.status() !== ProcessStatus.Running)
+							return [];
+						if (worker.ppid !== subreaper.pid) return [pendingAdoption];
+						observedAdoption = true;
+						return [worker];
+					},
+					killTree: () => killOnly(subreaper.pid),
+					terminate: () => Promise.resolve(killOnly(subreaper.pid) > 0),
+				} as unknown as Process;
+				const nativeFromPid = Process.fromPid.bind(Process);
+				const fromPid = spyOn(Process, "fromPid").mockImplementation(pid =>
+					pid === child.pid ? controlledSubreaper : nativeFromPid(pid),
+				);
+
+				try {
+					child.kill(new TimeoutError(1, ""), -1);
+					controller.abort("concurrent abort");
+
+					const result = await child.wait({ allowAbort: true });
+					expect(result.exitError).toBeInstanceOf(TimeoutError);
+					expect(observedAdoption, "the worker must reparent to the live subreaper during cleanup").toBe(true);
+					expect(worker.status(), `adopted descendant ${worker.pid} survived cleanup`).not.toBe(
+						ProcessStatus.Running,
+					);
+				} finally {
+					fromPid.mockRestore();
+				}
+			} finally {
+				for (const processHandle of cleanupProcesses) processHandle.killTree(9);
+				await fs.rm(testRoot, { recursive: true, force: true });
+			}
+		},
+	);
+
 	it.skipIf(process.platform !== "linux")("falls back after the first libc soname is unavailable", async () => {
-		const script = createLinuxSubreaperScript(["libc.so.chudcode-missing", "libc.so.6", "libc.so"]);
+		const script = createLinuxSubreaperScript(["libc.so.omp-missing", "libc.so.6", "libc.so"]);
 		const child = Bun.spawn([process.execPath, "-e", script], {
 			env: {
-				...process.env,
+				...Bun.env,
 				BUN_BE_BUN: "1",
-				CHUDCODE_PTREE_SUBREAPER_COMMAND: JSON.stringify([
+				OMP_PTREE_SUBREAPER_COMMAND: JSON.stringify([
 					process.execPath,
 					"-e",
 					'process.stdout.write("libc-fallback-ok")',
@@ -95,7 +193,7 @@ describe("ptree timeout", () => {
 	it.skipIf(process.platform !== "linux")("preserves caller-supplied BUN_BE_BUN for the command", async () => {
 		const result = await exec(["/bin/sh", "-c", `printf %s "\${BUN_BE_BUN-unset}"`], {
 			subreaper: true,
-			env: { ...process.env, BUN_BE_BUN: "1" },
+			env: { ...Bun.env, BUN_BE_BUN: "1" },
 		});
 
 		expect(result.stdout).toBe("1");
@@ -125,9 +223,9 @@ ${createLinuxSubreaperScript()}
 			{
 				cwd: "/tmp",
 				env: {
-					...process.env,
+					...Bun.env,
 					BUN_BE_BUN: "1",
-					CHUDCODE_PTREE_SUBREAPER_COMMAND: JSON.stringify(["/bin/sh", "-c", "printf procfs-free-ok"]),
+					OMP_PTREE_SUBREAPER_COMMAND: JSON.stringify(["/bin/sh", "-c", "printf procfs-free-ok"]),
 				},
 				stdin: "ignore",
 				stdout: "pipe",
@@ -244,7 +342,7 @@ ${createLinuxSubreaperScript()}
 				const deadline = Date.now() + 500;
 				let status = Process.fromPid(orphanPid)?.status();
 				while (status === ProcessStatus.Running && Date.now() < deadline) {
-					await sleep(10);
+					await Bun.sleep(10);
 					status = Process.fromPid(orphanPid)?.status();
 				}
 				expect(status).not.toBe(ProcessStatus.Running);
@@ -274,7 +372,7 @@ ${createLinuxSubreaperScript()}
 				const deadline = Date.now() + 500;
 				let status = Process.fromPid(descendantPid)?.status();
 				while (status === ProcessStatus.Running && Date.now() < deadline) {
-					await sleep(10);
+					await Bun.sleep(10);
 					status = Process.fromPid(descendantPid)?.status();
 				}
 				expect(status).not.toBe(ProcessStatus.Running);

@@ -1,6 +1,4 @@
-import type { AuthStorage } from "@chudware/ai";
-import { sleep } from "@chudware/utils/async";
-import { formatSearchProviderFailures, getSearchProvider, isSearchProviderExcluded } from "../provider";
+import type { AuthStorage } from "@oh-my-pi/pi-ai";
 import type { SearchProviderId, SearchResponse, SearchSource } from "../types";
 import { SearchProviderError } from "../types";
 import { clampNumResults } from "../utils";
@@ -122,10 +120,10 @@ export async function searchPublicWeb(
 	const softMs = deadlines.softMs ?? SOFT_DEADLINE_MS;
 	const hardMs = deadlines.hardMs ?? HARD_DEADLINE_MS;
 	const numResults = clampNumResults(params.numSearchResults ?? params.limit, DEFAULT_NUM_RESULTS, MAX_NUM_RESULTS);
-	const engineIds = PUBLIC_ENGINE_IDS.filter(id => !isSearchProviderExcluded(id));
-	if (engineIds.length === 0) {
-		throw new SearchProviderError("public", "Every credential-free engine is excluded by settings.", 400);
-	}
+	const engineIds = PUBLIC_ENGINE_IDS;
+	// `provider` constructs this class in its static registry; defer the reverse
+	// edge until search time to avoid observing its registry in the import TDZ.
+	const { formatSearchProviderFailures, getSearchProvider } = await import("../provider");
 
 	// Each engine composes its own per-request ceiling on top of the shared
 	// hard deadline; the straggler controller lets the aggregate cancel
@@ -133,6 +131,7 @@ export async function searchPublicWeb(
 	const straggler = new AbortController();
 	const signal = AbortSignal.any([withHardTimeout(params.signal, params.timeoutMs), straggler.signal]);
 
+	// oxlint-disable-next-line unicorn/no-new-array -- length preallocation
 	const responses: (SearchResponse | undefined)[] = new Array(engineIds.length);
 	const failures: { provider: { id: SearchProviderId; label: string }; error: unknown }[] = [];
 	const firstSuccess = Promise.withResolvers<void>();
@@ -148,9 +147,9 @@ export async function searchPublicWeb(
 		}),
 	);
 
-	await Promise.race([all, sleep(softMs)]);
+	await Promise.race([all, Bun.sleep(softMs)]);
 	if (!responses.some(response => response !== undefined) && failures.length < engineIds.length) {
-		await Promise.race([all, firstSuccess.promise, sleep(Math.max(0, hardMs - softMs))]);
+		await Promise.race([all, firstSuccess.promise, Bun.sleep(Math.max(0, hardMs - softMs))]);
 	}
 	straggler.abort();
 
@@ -179,8 +178,8 @@ export async function searchPublicWeb(
 
 /**
  * Aggregate meta-provider over every credential-free engine. Explicit-only:
- * the auto chain already walks the individual engines sequentially, so
- * fanning out to all of them is a deliberate user choice, not a fallback.
+ * role chains can select individual engines directly, so fanning out to all
+ * five scrapers remains a deliberate choice rather than an implicit fallback.
  */
 export class PublicWebProvider extends SearchProvider {
 	readonly id = "public";

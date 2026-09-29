@@ -1,8 +1,8 @@
 import { describe, expect, it } from "bun:test";
-import type { Tool } from "@chudware/ai/types";
-import { isValidJsonSchema, toolWireSchema } from "@chudware/ai/utils/schema";
-import { validateToolArguments } from "@chudware/ai/utils/validation";
-import { type TSchema, Type } from "@chudware/coding-agent/extensibility/legacy-typebox";
+import type { Tool } from "@oh-my-pi/pi-ai/types";
+import { isValidJsonSchema, toolWireSchema } from "@oh-my-pi/pi-ai/utils/schema";
+import { validateToolArguments } from "@oh-my-pi/pi-ai/utils/validation";
+import { type TSchema, Type } from "@oh-my-pi/pi-coding-agent/extensibility/legacy-typebox";
 
 /**
  * Exercise the legacy `__validator` failure-marker contract independently of
@@ -16,7 +16,7 @@ function safeParse(schema: TSchema, value: unknown): { success: boolean; data?: 
 	return { success: true, data: result };
 }
 
-describe("chud.typebox compatibility shim", () => {
+describe("pi.typebox compatibility shim", () => {
 	it("rejects extra properties when additionalProperties is false", () => {
 		const schema = Type.Object({ path: Type.String() }, { additionalProperties: false });
 
@@ -193,7 +193,7 @@ describe("chud.typebox compatibility shim", () => {
 			expect((parsed.data as { extra?: unknown }).extra).toBe(1);
 		}
 	});
-	// Callable chudtype schemas intentionally have no enumerable JSON Schema
+	// Callable omptype schemas intentionally have no enumerable JSON Schema
 	// keywords. Wire serialization consumes their explicit JSON Schema emitter.
 	describe("toJsonSchema produces valid wire JSON Schema", () => {
 		it("emits clean JSON Schema for a complex object", () => {
@@ -226,11 +226,11 @@ describe("chud.typebox compatibility shim", () => {
 		});
 	});
 
-	// Issue #8420: legacy extensions build raw documents that embed chudtype
+	// Issue #8420: legacy extensions build raw documents that embed omptype
 	// schema builders. Those builders are callable values, so a document that
 	// nests or spreads them is neither structured-cloneable nor a plain TypeBox
 	// object; `Type.Unsafe` must lower them to wire JSON before use.
-	describe("lowers embedded chudtype schemas inside Type.Unsafe documents", () => {
+	describe("lowers embedded omptype schemas inside Type.Unsafe documents", () => {
 		it("embeds sibling schema builders in an anyOf branch", () => {
 			const item = Type.Object({ agent: Type.String() });
 			const template = Type.Object({ agent: Type.String() }, { additionalProperties: false });
@@ -312,7 +312,7 @@ describe("chud.typebox compatibility shim", () => {
 					{ type: "boolean", enum: [false] },
 				],
 			});
-			// `{ ...base, description }` copies chudtype's internal fields, not JSON
+			// `{ ...base, description }` copies omptype's internal fields, not JSON
 			// keywords; the shim must recover `anyOf` from the copied self-reference
 			// and overlay the caller's added `description`.
 			const schema = Type.Unsafe({ ...base, description: "mission object or false" });

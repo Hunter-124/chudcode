@@ -1,5 +1,4 @@
 import * as path from "node:path";
-import * as fsx from "@chudware/utils/fsx";
 import { generateProtoTs, ProtoContext, parseProto } from "./proto-parser";
 
 const PACKAGES_DIR = path.resolve(import.meta.dir, "../..");
@@ -15,8 +14,10 @@ const CURSOR_CONSUMER_DIRS = [
 	path.join(PACKAGES_DIR, "coding-agent/test"),
 ];
 
-const CURSOR_ENUMS = ["ForceBackgroundShellStatus", "ForceBackgroundSubagentStatus"];
+const CURSOR_ENUMS = ["CursorRuleSource", "ForceBackgroundShellStatus", "ForceBackgroundSubagentStatus"];
 const DEVIN_MESSAGES = [
+	"exa.api_server_pb.AssignModelRequest",
+	"exa.api_server_pb.AssignModelResponse",
 	"exa.chat_pb.ChatMessagePrompt",
 	"exa.codeium_common_pb.ChatToolCall",
 	"exa.chat_pb.ChatToolChoice",
@@ -29,6 +30,8 @@ const DEVIN_MESSAGES = [
 	"exa.api_server_pb.GetCliModelConfigsResponse",
 	"exa.auth_pb.GetUserJwtRequest",
 	"exa.auth_pb.GetUserJwtResponse",
+	"exa.seat_management_pb.GetUserStatusRequest",
+	"exa.seat_management_pb.GetUserStatusResponse",
 	"exa.codeium_common_pb.ImageData",
 	"exa.codeium_common_pb.Metadata",
 	"exa.codeium_common_pb.ModelUsageStats",
@@ -37,11 +40,13 @@ const DEVIN_MESSAGES = [
 	"exa.codeium_common_pb.ModelFeatures",
 ];
 const DEVIN_ENUMS = [
+	"BillingStrategy",
 	"CacheControlType",
 	"ChatMessageRequestType",
 	"ChatMessageSource",
 	"ConversationalPlannerMode",
 	"StopReason",
+	"TeamsTier",
 ];
 
 async function collectCursorMessages(): Promise<string[]> {
@@ -50,7 +55,7 @@ async function collectCursorMessages(): Promise<string[]> {
 	const sourceFiles = await collectTypeScriptFiles(CURSOR_CONSUMER_DIRS);
 
 	for (const sourceFile of sourceFiles) {
-		const source = await fsx.readText(sourceFile);
+		const source = await Bun.file(sourceFile).text();
 		for (const match of source.matchAll(importPattern)) {
 			const modulePath = match[2];
 			if (!modulePath.endsWith("cursor-proto")) continue;
@@ -88,14 +93,14 @@ async function parseProtoDirectory(directory: string): Promise<ProtoContext> {
 	for await (const relativePath of glob.scan({ cwd: directory, onlyFiles: true })) paths.push(relativePath);
 
 	for (const relativePath of paths.sort()) {
-		const source = await fsx.readText(path.join(directory, relativePath));
+		const source = await Bun.file(path.join(directory, relativePath)).text();
 		context.addFile(parseProto(source, relativePath));
 	}
 	return context;
 }
 
 async function generateProtocols(): Promise<void> {
-	const cursorSource = await fsx.readText(CURSOR_PROTO);
+	const cursorSource = await Bun.file(CURSOR_PROTO).text();
 	const cursorContext = new ProtoContext();
 	cursorContext.addFile(parseProto(cursorSource, "agent.proto"));
 
@@ -114,8 +119,8 @@ async function generateProtocols(): Promise<void> {
 		protobufImportPath: "./protobuf",
 	});
 
-	await fsx.write(path.join(DISCOVERY_DIR, "cursor-proto.ts"), `${cursor}\n`);
-	await fsx.write(path.join(DISCOVERY_DIR, "devin-proto.ts"), `${devin}\n`);
+	await Bun.write(path.join(DISCOVERY_DIR, "cursor-proto.ts"), `${cursor}\n`);
+	await Bun.write(path.join(DISCOVERY_DIR, "devin-proto.ts"), `${devin}\n`);
 }
 
 await generateProtocols();

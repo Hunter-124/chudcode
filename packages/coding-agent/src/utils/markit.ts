@@ -1,6 +1,5 @@
 import * as path from "node:path";
-import { untilAborted } from "@chudware/utils";
-import * as fsx from "@chudware/utils/fsx";
+import { untilAborted } from "@oh-my-pi/pi-utils";
 import type { ConversionResult, Markit, StreamInfo } from "../markit";
 import { ToolAbortError } from "../tools/tool-errors";
 import {
@@ -157,7 +156,7 @@ export async function convertFileWithMarkit(
 	throwIfAborted(signal);
 	let bytes: Uint8Array;
 	try {
-		bytes = await untilAborted(signal, () => fsx.readBytes(filePath));
+		bytes = await untilAborted(signal, () => Bun.file(filePath).bytes());
 	} catch (error) {
 		if (error instanceof ToolAbortError) throw error;
 		if (error instanceof Error && error.name === "AbortError") throw new ToolAbortError();

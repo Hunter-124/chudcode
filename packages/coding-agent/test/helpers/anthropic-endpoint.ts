@@ -14,14 +14,14 @@ import { afterEach, beforeEach } from "bun:test";
 export function withOfficialAnthropicEndpoint(): void {
 	let previous: string | undefined;
 	beforeEach(() => {
-		previous = process.env.ANTHROPIC_BASE_URL;
-		delete process.env.ANTHROPIC_BASE_URL;
+		previous = Bun.env.ANTHROPIC_BASE_URL;
+		delete Bun.env.ANTHROPIC_BASE_URL;
 	});
 	afterEach(() => {
 		if (previous === undefined) {
-			delete process.env.ANTHROPIC_BASE_URL;
+			delete Bun.env.ANTHROPIC_BASE_URL;
 		} else {
-			process.env.ANTHROPIC_BASE_URL = previous;
+			Bun.env.ANTHROPIC_BASE_URL = previous;
 		}
 	});
 }

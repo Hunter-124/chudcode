@@ -1,7 +1,7 @@
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
-import { $env } from "@chudware/utils";
+import { $env } from "@oh-my-pi/pi-utils";
 
 /** INI sections with `profile ` / `sso-session ` prefixes normalized. */
 export type AwsIniFile = Record<string, Record<string, string>>;
@@ -97,7 +97,7 @@ function profileHasCredentialSource(
 ): boolean {
 	if (seen.has(profile)) return false;
 	seen.add(profile);
-	const merged = { ...(configIni?.[profile] ?? {}), ...(credentialsIni?.[profile] ?? {}) };
+	const merged = { ...configIni?.[profile], ...credentialsIni?.[profile] };
 	if (merged.role_arn) {
 		if (merged.web_identity_token_file) return true;
 		if (merged.mfa_serial) return false;

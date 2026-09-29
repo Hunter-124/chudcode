@@ -2,9 +2,8 @@ import { afterEach, expect, mock, spyOn, test } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import { __rewriteLegacyExtensionSourceForTests } from "@chudware/coding-agent/extensibility/plugins/legacy-pi-compat";
-import { removeWithRetries } from "@chudware/utils";
-import * as fsx from "@chudware/utils/fsx";
+import { __rewriteLegacyExtensionSourceForTests } from "@oh-my-pi/pi-coding-agent/extensibility/plugins/legacy-pi-compat";
+import { removeWithRetries } from "@oh-my-pi/pi-utils";
 
 const tempRoots: string[] = [];
 
@@ -16,7 +15,7 @@ afterEach(async () => {
 });
 
 async function writeJson(filePath: string, value: unknown): Promise<void> {
-	await fsx.write(filePath, `${JSON.stringify(value)}\n`);
+	await Bun.write(filePath, `${JSON.stringify(value)}\n`);
 }
 
 /**
@@ -26,14 +25,14 @@ async function writeJson(filePath: string, value: unknown): Promise<void> {
  * `workspaces` globs, honoring the member's exports conditions.
  */
 test("bare workspace-member imports resolve through the workspace root manifest", async () => {
-	const root = await fs.mkdtemp(path.join(os.tmpdir(), "chudcode-workspace-resolve-"));
+	const root = await fs.mkdtemp(path.join(os.tmpdir(), "omp-workspace-resolve-"));
 	tempRoots.push(root);
 	const repoRoot = path.join(root, "plugins", "node_modules", "monorepo-plugin");
 	const importer = path.join(repoRoot, "packages", "extension", "extensions", "entry.ts");
 	const memberRoot = path.join(repoRoot, "packages", "contracts");
 	await fs.mkdir(path.dirname(importer), { recursive: true });
 	await fs.mkdir(path.join(memberRoot, "src"), { recursive: true });
-	await fsx.write(importer, "export {};\n");
+	await Bun.write(importer, "export {};\n");
 	await writeJson(path.join(repoRoot, "package.json"), {
 		name: "monorepo-plugin",
 		version: "1.0.0",
@@ -45,7 +44,7 @@ test("bare workspace-member imports resolve through the workspace root manifest"
 		main: "dist/index.js",
 		exports: { ".": { bun: "./src/index.ts", default: "./dist/index.js" } },
 	});
-	await fsx.write(path.join(memberRoot, "src", "index.ts"), "export const marker = 1;\n");
+	await Bun.write(path.join(memberRoot, "src", "index.ts"), "export const marker = 1;\n");
 
 	spyOn(Bun, "resolveSync").mockImplementation(() => {
 		throw new Error("compiled fallback");
@@ -60,7 +59,7 @@ test("bare workspace-member imports resolve through the workspace root manifest"
 });
 
 test("installed node_modules copies shadow workspace members at the same level", async () => {
-	const root = await fs.mkdtemp(path.join(os.tmpdir(), "chudcode-workspace-shadow-"));
+	const root = await fs.mkdtemp(path.join(os.tmpdir(), "omp-workspace-shadow-"));
 	tempRoots.push(root);
 	const repoRoot = path.join(root, "monorepo-plugin");
 	const importer = path.join(repoRoot, "packages", "extension", "entry.ts");
@@ -69,7 +68,7 @@ test("installed node_modules copies shadow workspace members at the same level",
 	await fs.mkdir(path.dirname(importer), { recursive: true });
 	await fs.mkdir(memberRoot, { recursive: true });
 	await fs.mkdir(installedRoot, { recursive: true });
-	await fsx.write(importer, "export {};\n");
+	await Bun.write(importer, "export {};\n");
 	await writeJson(path.join(repoRoot, "package.json"), {
 		name: "monorepo-plugin",
 		version: "1.0.0",
@@ -80,13 +79,13 @@ test("installed node_modules copies shadow workspace members at the same level",
 		version: "1.0.0",
 		main: "member.js",
 	});
-	await fsx.write(path.join(memberRoot, "member.js"), "export default 1;\n");
+	await Bun.write(path.join(memberRoot, "member.js"), "export default 1;\n");
 	await writeJson(path.join(installedRoot, "package.json"), {
 		name: "@monorepo/dep",
 		version: "2.0.0",
 		main: "installed.js",
 	});
-	await fsx.write(path.join(installedRoot, "installed.js"), "export default 2;\n");
+	await Bun.write(path.join(installedRoot, "installed.js"), "export default 2;\n");
 
 	spyOn(Bun, "resolveSync").mockImplementation(() => {
 		throw new Error("compiled fallback");

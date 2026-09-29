@@ -3,7 +3,7 @@ import * as path from "node:path";
 import {
 	discoverGitLabDuoWorkflowRuntimeNamespace,
 	type GitLabDuoWorkflowNamespaceSelection,
-} from "@chudware/catalog/discovery/gitlab-duo-workflow";
+} from "@oh-my-pi/pi-catalog/discovery/gitlab-duo-workflow";
 import * as AIError from "../error";
 import type {
 	Api,
@@ -41,7 +41,7 @@ const DEFAULT_GITLAB_DUO_WORKFLOW_TRACE_FILE = path.resolve(
 const GITLAB_DUO_WORKFLOW_CLIENT_TYPE = "node-websocket";
 /**
  * Idle deadline for the workflow WebSocket. The socket has no server-side
- * keepalive contract Chudcode can rely on, so a connection silently going half-open
+ * keepalive contract OMP can rely on, so a connection silently going half-open
  * (proxy/LB drops the TCP link without delivering FIN/RST) would otherwise leave
  * `runGitLabDuoWorkflowSocket` waiting forever. If no frame arrives within this
  * window — before open or between checkpoints — the socket is aborted and the
@@ -64,7 +64,7 @@ const GITLAB_DUO_WORKFLOW_IDLE_TIMEOUT_MS = 90_000;
 const GITLAB_DUO_WORKFLOW_REST_TIMEOUT_MS = 30_000;
 /**
  * How many times a single stream may restart on a FRESH workflow after the server
- * reports its per-workflow step (graph-recursion) limit. Long Chudcode tool-call loops
+ * reports its per-workflow step (graph-recursion) limit. Long OMP tool-call loops
  * legitimately overrun the cap; each restart resets the budget. Bounded so a task
  * that perpetually overruns degrades to a graceful stop instead of looping on quota.
  */
@@ -133,7 +133,7 @@ function buildGitLabDuoWorkflowGoalOverflowMessage(goalBytes: number): string {
 	return `prompt is too long: ${goalBytes} bytes exceeds the GitLab Duo Agent goal byte budget (soft ${GITLAB_DUO_WORKFLOW_GOAL_SOFT_OVERFLOW_BYTES}, hard ${GITLAB_DUO_WORKFLOW_GOAL_HARD_OVERFLOW_BYTES})`;
 }
 const GITLAB_DUO_WORKFLOW_LANGUAGE_SERVER_VERSION = "8.104.0";
-const GITLAB_DUO_WORKFLOW_AVAILABLE_MODELS_QUERY = `query chudcode_gitlabDuoWorkflowAvailableModels($rootNamespaceId: GroupID!) {
+const GITLAB_DUO_WORKFLOW_AVAILABLE_MODELS_QUERY = `query omp_gitlabDuoWorkflowAvailableModels($rootNamespaceId: GroupID!) {
   aiChatAvailableModels(rootNamespaceId: $rootNamespaceId) {
     defaultModel { name ref }
     selectableModels { name ref }
@@ -149,8 +149,8 @@ export const GITLAB_DUO_WORKFLOW_CLIENT_CAPABILITIES = [
 	"tool_call_approval",
 ] as const;
 
-const GITLAB_DUO_WORKFLOW_INLINE_AGENT_NAME = "chudcode_agent";
-const GITLAB_DUO_WORKFLOW_INLINE_PROMPT_ID = "chudcode_inline_prompt";
+const GITLAB_DUO_WORKFLOW_INLINE_AGENT_NAME = "omp_agent";
+const GITLAB_DUO_WORKFLOW_INLINE_PROMPT_ID = "omp_inline_prompt";
 // `on_agent_reasoning` is what makes the server tag an agent's pre-tool-call
 // commentary as `message_sub_type: "reasoning"` — the chain-of-thought the
 // official Duo CLI surfaces. An inline flow must opt in explicitly.
@@ -556,7 +556,7 @@ export function buildGitLabDuoWorkflowStartRequest(
 
 // Build the inline ambient flow sent over the wire (Path B / `flowConfig`). The
 // server constructs the whole flow from this struct: a single agent component
-// whose system slot carries Chudcode's own authoritative system prompt (no GitLab jinja
+// whose system slot carries OMP's own authoritative system prompt (no GitLab jinja
 // wrapper / project metadata) and `on_agent_reasoning` so pre-tool-call commentary
 // streams back as reasoning. `toolset: []` because MCP tools auto-attach from
 // `startRequest.mcpTools` when the workflow's `mcp_enabled` is true. The user slot
@@ -810,7 +810,7 @@ function createGitLabDuoWorkflowProviderSessionState(): GitLabDuoWorkflowProvide
 		close: () => {
 			// Stop the server-side workflow before tearing down the socket. The session
 			// is being reset/disposed, so no resume will return the result; without this
-			// PATCH a workflow the server is still running on Chudcode would be stranded.
+			// PATCH a workflow the server is still running on OMP would be stranded.
 			try {
 				state.active?.stop?.();
 			} catch {
@@ -915,12 +915,12 @@ function markGitLabDuoWorkflowSettingsEnsured(apiKey: string, baseUrl: string, c
 function hasGitLabDuoWorkflowExplicitNamespace(options: GitLabDuoWorkflowOptions): boolean {
 	return Boolean(
 		nonEmptyString(options.rootNamespaceId) ??
-			nonEmptyString(options.namespaceId) ??
-			nonEmptyString(process.env.GITLAB_DUO_NAMESPACE_ID) ??
-			nonEmptyString(options.projectId) ??
-			nonEmptyString(options.projectPath) ??
-			nonEmptyString(process.env.GITLAB_DUO_PROJECT_ID) ??
-			nonEmptyString(process.env.GITLAB_DUO_PROJECT_PATH),
+		nonEmptyString(options.namespaceId) ??
+		nonEmptyString(Bun.env.GITLAB_DUO_NAMESPACE_ID) ??
+		nonEmptyString(options.projectId) ??
+		nonEmptyString(options.projectPath) ??
+		nonEmptyString(Bun.env.GITLAB_DUO_PROJECT_ID) ??
+		nonEmptyString(Bun.env.GITLAB_DUO_PROJECT_PATH),
 	);
 }
 
@@ -1068,9 +1068,8 @@ async function runGitLabDuoWorkflow(
 	}
 	const workflowDefinition = resolveGitLabDuoWorkflowDefinition(options.workflowDefinition);
 	const explicitNamespace = hasGitLabDuoWorkflowExplicitNamespace(options);
-	const configuredProjectPath =
-		nonEmptyString(options.projectPath) ?? nonEmptyString(process.env.GITLAB_DUO_PROJECT_PATH);
-	const configuredProjectId = nonEmptyString(options.projectId) ?? nonEmptyString(process.env.GITLAB_DUO_PROJECT_ID);
+	const configuredProjectPath = nonEmptyString(options.projectPath) ?? nonEmptyString(Bun.env.GITLAB_DUO_PROJECT_PATH);
+	const configuredProjectId = nonEmptyString(options.projectId) ?? nonEmptyString(Bun.env.GITLAB_DUO_PROJECT_ID);
 	const goal = extractLatestUserPrompt(context.messages);
 
 	// Resolve the namespace and everything scoped to it (settings enable, project
@@ -1107,7 +1106,7 @@ async function runGitLabDuoWorkflow(
 				markGitLabDuoWorkflowSettingsEnsured(apiKey, baseUrl, options.cwd);
 			}
 		}
-		// The inline `ambient` flow fails server-side without a project, and Chudcode has
+		// The inline `ambient` flow fails server-side without a project, and OMP has
 		// no project of its own, so auto-discover one when nothing is configured. Prefer
 		// the project the namespace was resolved from (the workspace git remote or an
 		// explicit project), so a group with multiple projects scopes to the actual
@@ -1362,7 +1361,7 @@ async function runGitLabDuoWorkflow(
 				continue;
 			}
 			// The server caps each workflow at a fixed step (graph-recursion) limit.
-			// A long but healthy Chudcode tool-call loop legitimately overruns it; that is
+			// A long but healthy OMP tool-call loop legitimately overruns it; that is
 			// not a real failure. Stop the exhausted run and create a FRESH workflow
 			// (a new id resets the step budget — unlike the timeout case, resending on
 			// the same id would not), then reopen the socket. The conversation so far
@@ -1584,7 +1583,7 @@ interface GitLabDuoWorkflowDiscoveredProject {
 	path: string;
 }
 
-// Chudcode has no GitLab project of its own, but the inline `ambient` flow fails
+// OMP has no GitLab project of its own, but the inline `ambient` flow fails
 // server-side without a project context. When the caller did not configure a
 // project, discover one the credential can access: prefer a project inside the
 // resolved namespace group, then fall back to any membership project. Returns
@@ -1847,12 +1846,10 @@ function defaultGitLabDuoWorkflowWebSocketFactory(
 	url: string,
 	options: GitLabDuoWorkflowWebSocketFactoryOptions,
 ): GitLabDuoWorkflowWebSocketLike {
-	return new (
-		WebSocket as unknown as new (
-			url: string,
-			options: Bun.WebSocketOptions,
-		) => GitLabDuoWorkflowWebSocketLike
-	)(url, { headers: options.headers });
+	return new (WebSocket as unknown as new (
+		url: string,
+		options: Bun.WebSocketOptions,
+	) => GitLabDuoWorkflowWebSocketLike)(url, { headers: options.headers });
 }
 
 export function runGitLabDuoWorkflowSocket(
@@ -1993,7 +1990,7 @@ export function runGitLabDuoWorkflowSocket(
 				}
 				if (!handleSocketResult(result, data, pending)) {
 					// An `action` result stops the replay loop to hand the tool call back
-					// to Chudcode. Clear the pause flag first: the live `onmessage` handler must
+					// to OMP. Clear the pause flag first: the live `onmessage` handler must
 					// process the resume continuation directly instead of buffering it
 					// (a buffered continuation would idle the turn until timeout).
 					if (active) active.paused = false;
@@ -2116,7 +2113,7 @@ async function handleGitLabDuoWorkflowSocketMessage(
 			getRecordString(event, "error") ?? getRecordString(event, "message") ?? status,
 		);
 		// The server caps each workflow at a fixed graph-recursion limit (DWS
-		// RECURSION_LIMIT). A long but healthy Chudcode tool-call loop legitimately hits
+		// RECURSION_LIMIT). A long but healthy OMP tool-call loop legitimately hits
 		// it and surfaces as FAILED with this message. That is not a real failure —
 		// resume by starting a fresh workflow that continues the same conversation
 		// (the accumulated context/tool results replay via the goal envelope).
@@ -2225,14 +2222,14 @@ function buildGitLabMcpToolDefinition(tool: Tool): GitLabMcpToolDefinition {
 	// Register the tool under its BARE name (no `mcp__omp__` prefix). The server does
 	// not strip prefixes — it registers `_executable_tools` and binds the model schema
 	// under exactly the wire `name` (sanitize_llm_name only replaces illegal chars), so
-	// the name the model sees, the toolset key it is matched against, and Chudcode's own
+	// the name the model sees, the toolset key it is matched against, and OMP's own
 	// tool docs must all be the same bare name. A prefixed wire name only forced the
-	// model to learn `mcp__omp__read` while Chudcode docs say `read`, with no upside.
+	// model to learn `mcp__omp__read` while OMP docs say `read`, with no upside.
 	// `originalToolName`/`serverName` stay as MCP metadata; they are not the match key.
 	return {
 		name: tool.name,
 		originalToolName: tool.name,
-		serverName: "chudcode",
+		serverName: "omp",
 		description: tool.description || "",
 		inputSchema: JSON.stringify(
 			schema && typeof schema === "object" ? schema : { type: "object", properties: {}, required: [] },
@@ -2553,9 +2550,9 @@ interface GitLabDuoWorkflowReplayMessage {
 // markers are a historical record, not a syntax to emit.
 const GITLAB_DUO_WORKFLOW_CHATML_HISTORY_NOTE = chatmlHistoryNote.trim();
 
-// The Chudcode system prompt that rides the inline flow's `prompt_template.system` slot.
+// The OMP system prompt that rides the inline flow's `prompt_template.system` slot.
 // DWS wraps it in its own gateway boilerplate, but the slot content is delivered to
-// the model verbatim, so Chudcode's authoritative rules go here directly — no redirect
+// the model verbatim, so OMP's authoritative rules go here directly — no redirect
 // preamble and no embedding inside the goal. When the goal is a multi-turn ChatML
 // transcript (not a lone bare-text prompt), append the history-note so the model does
 // not mimic the transcript's `<|im_start|>`/`<ran …>` markers as its own tool-call
@@ -2641,7 +2638,7 @@ function renderGitLabDuoWorkflowChatMlToolCall(toolCall: GitLabDuoWorkflowReplay
 	// context, so `<`/`>` need no escaping. Render as a past-tense `<ran NAME>` record:
 	// the tag names the tool, the body is just the arguments JSON (the `{name,arguments}`
 	// wrapper is dropped — it was the exact shape the model copied as a would-be live
-	// call). The call id is Chudcode-internal wiring the model never reads (call→result pair
+	// call). The call id is OMP-internal wiring the model never reads (call→result pair
 	// by adjacency), so it is omitted to save bytes. `arguments` carries the `i` (intent)
 	// key only at live dispatch; on replay it is stripped (see gitLabDuoWorkflowAssistantToolCalls).
 	const args = JSON.stringify(toolCall.arguments) ?? "null";
@@ -2699,7 +2696,7 @@ function gitLabDuoWorkflowAssistantToolCalls(message: AssistantMessage): GitLabD
 	return toolCalls;
 }
 
-// The `i` key is Chudcode's per-call intent narration (e.g. "Reading kernel smoke body").
+// The `i` key is OMP's per-call intent narration (e.g. "Reading kernel smoke body").
 // It is UI-time metadata describing the call as it is made; on replay the tool name
 // plus arguments already say what the call did, so the intent is dead transcript
 // weight. Drop it from the rendered history. (Live dispatch never reads the replayed
@@ -2770,8 +2767,8 @@ function socketEventErrorText(error: unknown): string | undefined {
 }
 
 export function traceGitLabDuoWorkflow(event: string, data: Record<string, unknown> = {}): void {
-	if (process.env[GITLAB_DUO_WORKFLOW_TRACE_ENV] !== "1") return;
-	const traceFile = process.env[GITLAB_DUO_WORKFLOW_TRACE_FILE_ENV]?.trim() || DEFAULT_GITLAB_DUO_WORKFLOW_TRACE_FILE;
+	if (Bun.env[GITLAB_DUO_WORKFLOW_TRACE_ENV] !== "1") return;
+	const traceFile = Bun.env[GITLAB_DUO_WORKFLOW_TRACE_FILE_ENV]?.trim() || DEFAULT_GITLAB_DUO_WORKFLOW_TRACE_FILE;
 	const line = `${JSON.stringify({
 		time: new Date().toISOString(),
 		event,
@@ -2853,14 +2850,14 @@ export async function resolveGitLabDuoWorkflowNamespaceSelection(
 	const configured =
 		nonEmptyString(options.rootNamespaceId) ??
 		nonEmptyString(options.namespaceId) ??
-		nonEmptyString(process.env.GITLAB_DUO_NAMESPACE_ID);
+		nonEmptyString(Bun.env.GITLAB_DUO_NAMESPACE_ID);
 
 	try {
 		const projectId =
 			nonEmptyString(options.projectId) ??
 			nonEmptyString(options.projectPath) ??
-			nonEmptyString(process.env.GITLAB_DUO_PROJECT_ID) ??
-			nonEmptyString(process.env.GITLAB_DUO_PROJECT_PATH);
+			nonEmptyString(Bun.env.GITLAB_DUO_PROJECT_ID) ??
+			nonEmptyString(Bun.env.GITLAB_DUO_PROJECT_PATH);
 		return await discoverGitLabDuoWorkflowRuntimeNamespace({
 			apiKey,
 			baseUrl,
@@ -2897,12 +2894,12 @@ function resolveGitLabDuoWorkflowDefinition(
 ): GitLabDuoWorkflowDefinition {
 	const configured =
 		nonEmptyString(workflowDefinition) ??
-		nonEmptyString(process.env.GITLAB_DUO_WORKFLOW_DEFINITION) ??
+		nonEmptyString(Bun.env.GITLAB_DUO_WORKFLOW_DEFINITION) ??
 		GITLAB_DUO_WORKFLOW_DEFINITION;
 	return configured;
 }
 
-// Every workflow definition Chudcode ships is the inline ambient flow (Path B /
+// Every workflow definition OMP ships is the inline ambient flow (Path B /
 // `flowConfig`); the predicate is kept as a seam for future server-side flows.
 function isGitLabDuoWorkflowInlineFlow(workflowDefinition: GitLabDuoWorkflowDefinition): boolean {
 	void workflowDefinition;

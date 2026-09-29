@@ -2,13 +2,13 @@ import { afterAll, beforeAll, describe, expect, it } from "bun:test";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
-import type { AgentToolContext } from "@chudware/agent-core";
-import { getBundledModel } from "@chudware/catalog/models";
-import { Settings } from "@chudware/coding-agent/config/settings";
-import { createAgentSession } from "@chudware/coding-agent/sdk";
-import type { AgentSession } from "@chudware/coding-agent/session/agent-session";
-import { SessionManager } from "@chudware/coding-agent/session/session-manager";
-import { Snowflake } from "@chudware/utils";
+import type { AgentToolContext } from "@oh-my-pi/pi-agent-core";
+import { getBundledModel } from "@oh-my-pi/pi-catalog/models";
+import { Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
+import { createAgentSession } from "@oh-my-pi/pi-coding-agent/sdk";
+import type { AgentSession } from "@oh-my-pi/pi-coding-agent/session/agent-session";
+import { SessionManager } from "@oh-my-pi/pi-coding-agent/session/session-manager";
+import { Snowflake } from "@oh-my-pi/pi-utils";
 
 // Exercises the real per-tool approval gate (ExtensionToolWrapper) for read/grep/write,
 // proving an `ssh://` target is exec-tier (prompts / is denied without a UI) while the
@@ -27,7 +27,7 @@ describe("ssh:// tools are exec-gated through the production approval wrapper", 
 	let session: AgentSession;
 
 	beforeAll(async () => {
-		tempDir = fs.mkdtempSync(path.join(os.tmpdir(), `chud-ssh-approval-${Snowflake.next()}-`));
+		tempDir = fs.mkdtempSync(path.join(os.tmpdir(), `pi-ssh-approval-${Snowflake.next()}-`));
 		const cwd = path.join(tempDir, "cwd");
 		fs.mkdirSync(cwd, { recursive: true });
 		fs.writeFileSync(path.join(cwd, "local.txt"), "hello-local\n");

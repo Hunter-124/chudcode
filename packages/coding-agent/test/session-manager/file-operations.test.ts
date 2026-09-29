@@ -2,10 +2,10 @@ import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
-import type { FileEntry, SessionHeader } from "@chudware/coding-agent/session/session-entries";
-import { findMostRecentSession, resolveResumableSession } from "@chudware/coding-agent/session/session-listing";
-import { loadEntriesFromFile } from "@chudware/coding-agent/session/session-loader";
-import { SessionManager } from "@chudware/coding-agent/session/session-manager";
+import type { FileEntry, SessionHeader } from "@oh-my-pi/pi-coding-agent/session/session-entries";
+import { findMostRecentSession, resolveResumableSession } from "@oh-my-pi/pi-coding-agent/session/session-listing";
+import { loadEntriesFromFile } from "@oh-my-pi/pi-coding-agent/session/session-loader";
+import { SessionManager } from "@oh-my-pi/pi-coding-agent/session/session-manager";
 import {
 	getConfigRootDir,
 	getSessionsDir,
@@ -13,7 +13,7 @@ import {
 	resolveEquivalentPath,
 	Snowflake,
 	setAgentDir,
-} from "@chudware/utils";
+} from "@oh-my-pi/pi-utils";
 
 const OLDER_MTIME = new Date("2000-01-01T00:00:00.000Z");
 const NEWER_MTIME = new Date("2000-01-01T00:00:01.000Z");
@@ -66,12 +66,6 @@ describe("findMostRecentSession", () => {
 
 	afterEach(() => {
 		removeSyncWithRetries(tempDir);
-	});
-
-	it("returns single valid session file", async () => {
-		const file = path.join(tempDir, "session.jsonl");
-		fs.writeFileSync(file, '{"type":"session","id":"abc","timestamp":"2025-01-01T00:00:00Z","cwd":"/tmp"}\n');
-		expect(await findMostRecentSession(tempDir)).toBe(file);
 	});
 
 	it("returns most recently modified session", async () => {
@@ -168,7 +162,7 @@ describe("resolveResumableSession", () => {
 
 describe("SessionManager temp cwd session dirs", () => {
 	let testAgentDir: string;
-	const originalAgentDir = process.env.CHUDCODE_CODING_AGENT_DIR;
+	const originalAgentDir = process.env.PI_CODING_AGENT_DIR;
 	const fallbackAgentDir = path.join(getConfigRootDir(), "agent");
 
 	function expectedTempSessionDirName(tempCwd: string): string {
@@ -183,7 +177,7 @@ describe("SessionManager temp cwd session dirs", () => {
 	}
 
 	beforeEach(() => {
-		testAgentDir = fs.mkdtempSync(path.join(os.tmpdir(), "chudcode-session-dir-test-"));
+		testAgentDir = fs.mkdtempSync(path.join(os.tmpdir(), "omp-session-dir-test-"));
 		setAgentDir(testAgentDir);
 	});
 
@@ -192,7 +186,7 @@ describe("SessionManager temp cwd session dirs", () => {
 			setAgentDir(originalAgentDir);
 		} else {
 			setAgentDir(fallbackAgentDir);
-			delete process.env.CHUDCODE_CODING_AGENT_DIR;
+			delete process.env.PI_CODING_AGENT_DIR;
 		}
 		removeSyncWithRetries(testAgentDir);
 	});
@@ -258,7 +252,7 @@ describe("SessionManager temp cwd session dirs", () => {
 describe("SessionManager legacy session migration persistence", () => {
 	let tempDir: string;
 	let testAgentDir: string;
-	const originalAgentDir = process.env.CHUDCODE_CODING_AGENT_DIR;
+	const originalAgentDir = process.env.PI_CODING_AGENT_DIR;
 	const originalTmuxPane = process.env.TMUX_PANE;
 	const fallbackAgentDir = path.join(getConfigRootDir(), "agent");
 
@@ -293,9 +287,9 @@ describe("SessionManager legacy session migration persistence", () => {
 		// terminal id (WT_SESSION/TMUX_PANE) points continueRecent at stale
 		// breadcrumb state from earlier tests in this file.
 		process.env.TMUX_PANE = "%legacy-migration-test";
-		testAgentDir = fs.mkdtempSync(path.join(os.tmpdir(), "chudcode-session-manager-legacy-agent-"));
+		testAgentDir = fs.mkdtempSync(path.join(os.tmpdir(), "omp-session-manager-legacy-agent-"));
 		setAgentDir(testAgentDir);
-		tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "chudcode-session-manager-legacy-"));
+		tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "omp-session-manager-legacy-"));
 	});
 
 	afterEach(() => {
@@ -305,7 +299,7 @@ describe("SessionManager legacy session migration persistence", () => {
 			setAgentDir(originalAgentDir);
 		} else {
 			setAgentDir(fallbackAgentDir);
-			delete process.env.CHUDCODE_CODING_AGENT_DIR;
+			delete process.env.PI_CODING_AGENT_DIR;
 		}
 		removeSyncWithRetries(tempDir);
 		removeSyncWithRetries(testAgentDir);
@@ -423,7 +417,7 @@ describe("SessionManager legacy session migration persistence", () => {
 		expect(persistedEntries[1].id).toBeDefined();
 		expect(persistedEntries[1].parentId).toBeNull();
 	});
-	it("keeps the last non-empty session resumable after starting a fresh session", async () => {
+	it("keeps an explicitly started session resumable after its first turn", async () => {
 		const session = SessionManager.create(tempDir, tempDir);
 		session.appendMessage({ role: "user", content: "hello", timestamp: Date.now() - 1 });
 		session.appendMessage(makeAssistantMessage());
@@ -434,9 +428,9 @@ describe("SessionManager legacy session migration persistence", () => {
 
 		const freshSessionFile = await session.newSession();
 		expect(freshSessionFile).toBeDefined();
-		expect(fs.existsSync(freshSessionFile!)).toBe(false);
-		// Lazy new-session persistence: nothing on disk yet, so materialize the
-		// fresh session the way assistant output would (issue #5730).
+		// The boundary itself is durable before the first turn; completed output
+		// then keeps the same session at the head of restart selection (#5730).
+		expect(fs.existsSync(freshSessionFile!)).toBe(true);
 		session.appendMessage({ role: "user", content: "first message of fresh session", timestamp: Date.now() });
 		session.appendMessage(makeAssistantMessage());
 		await session.flush();

@@ -1,9 +1,9 @@
-import * as crypto from "node:crypto";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
-import * as git from "../utils/git";
+import * as vcs from "@oh-my-pi/pi-natives/vcs";
 import type {
 	SecurityAccountRef,
+	SecurityAuthRef,
 	SecurityKnowledgeBaseRef,
 	SecurityModelRef,
 	SecurityOutputPlan,
@@ -25,7 +25,7 @@ export interface SecurityPlanRequest {
 	outputRoot: string;
 	archiveExisting?: boolean;
 	model: SecurityModelRef;
-	account: SecurityAccountRef;
+	account: SecurityAuthRef;
 	config: unknown;
 	workflowFingerprint: string;
 	signal?: AbortSignal;
@@ -49,13 +49,17 @@ export interface SecurityGitAdapter {
 }
 
 export const DEFAULT_SECURITY_GIT_ADAPTER: SecurityGitAdapter = {
-	root: (cwd, signal) => git.repo.root(cwd, signal),
-	headSha: (cwd, signal) => git.head.sha(cwd, signal),
-	resolveRef: (cwd, refName, signal) => git.ref.resolve(cwd, refName, signal),
-	diffTree: (cwd, base, head, signal) => git.diff.tree(cwd, base, head, { signal }),
-	status: (cwd, signal) => git.status(cwd, { porcelainV1: true, untrackedFiles: "all", signal }),
-	files: (cwd, signal) => git.ls.files(cwd, { signal }),
-	untracked: (cwd, signal) => git.ls.untracked(cwd, signal),
+	root: async (cwd, signal) => {
+		signal?.throwIfAborted();
+		return vcs.git(cwd)?.info().repoRoot ?? null;
+	},
+	headSha: async (cwd, signal) => (await vcs.git(cwd)?.headSha(signal)) ?? null,
+	resolveRef: async (cwd, refName, signal) => (await vcs.git(cwd)?.resolveRef(refName, signal)) ?? null,
+	diffTree: (cwd, base, head, signal) => vcs.requireGit(cwd).diffTree(base, head, false, signal),
+	status: (cwd, signal) =>
+		vcs.requireGit(cwd).statusPorcelain({ untracked: "all", pathspecs: undefined, nulTerminated: false }, signal),
+	files: (cwd, signal) => vcs.requireGit(cwd).lsFiles(false, false, signal),
+	untracked: (cwd, signal) => vcs.requireGit(cwd).lsFiles(true, true, signal),
 };
 
 export class StaleSecurityScanPlanError extends Error {
@@ -68,7 +72,8 @@ export class StaleSecurityScanPlanError extends Error {
 	}
 }
 
-function pathIsWithin(candidate: string, root: string): boolean {
+/** Lexical containment check: `candidate` equals `root` or lies beneath it (no normalization). */
+export function pathIsWithin(candidate: string, root: string): boolean {
 	return candidate === root || candidate.startsWith(`${root}${path.sep}`);
 }
 
@@ -146,7 +151,7 @@ async function digestWorkingTree(
 		.map(normalizeRelativePath)
 		.filter(candidate => pathMatchesSecurityScope(candidate, includePaths, excludePaths))
 		.sort();
-	const hasher = crypto.createHash("sha256");
+	const hasher = new Bun.CryptoHasher("sha256");
 	for (const relativePath of files) {
 		if (signal?.aborted) throw signal.reason;
 		const absolutePath = path.resolve(repositoryRoot, relativePath);
@@ -171,7 +176,7 @@ async function digestWorkingTree(
 	}
 	const head = (await adapter.headSha(repositoryRoot, signal)) ?? "unborn";
 	hasher.update(head);
-	return `chudcode-security-tree/v1:sha256:${hasher.digest("hex")}`;
+	return `omp-security-tree/v1:sha256:${hasher.digest("hex")}`;
 }
 
 async function normalizeTarget(
@@ -202,7 +207,7 @@ async function normalizeTarget(
 			headRevision,
 			includePaths,
 			excludePaths,
-			treeDigest: `chudcode-security-diff/v1:sha256:${Bun.SHA256.hash(
+			treeDigest: `omp-security-diff/v1:sha256:${Bun.SHA256.hash(
 				canonicalSecurityJson({ baseRevision, headRevision, includePaths, excludePaths, rawDiff }),
 				"hex",
 			)}`,
@@ -304,7 +309,7 @@ interface SecurityPlanMaterial {
 	knowledgeBases: SecurityKnowledgeBaseRef[];
 	output: SecurityOutputPlan;
 	model: SecurityModelRef;
-	account: SecurityAccountRef;
+	account: SecurityAuthRef;
 	configFingerprint: string;
 	workflowFingerprint: string;
 }
@@ -324,14 +329,21 @@ async function buildPlanMaterial(
 		modelId: request.model.modelId,
 	};
 	if (request.model.thinkingLevel !== undefined) model.thinkingLevel = request.model.thinkingLevel;
-	const account: SecurityAccountRef = {
-		provider: request.account.provider,
-		credentialId: request.account.credentialId,
-	};
-	if (request.account.accountId !== undefined) account.accountId = request.account.accountId;
-	if (request.account.email !== undefined) account.email = request.account.email;
-	if (request.account.organizationId !== undefined) account.organizationId = request.account.organizationId;
-	if (request.account.organizationName !== undefined) account.organizationName = request.account.organizationName;
+	let account: SecurityAuthRef;
+	if ("credentialId" in request.account) {
+		const oauthAccount: SecurityAccountRef = {
+			provider: request.account.provider,
+			credentialId: request.account.credentialId,
+		};
+		if (request.account.accountId !== undefined) oauthAccount.accountId = request.account.accountId;
+		if (request.account.email !== undefined) oauthAccount.email = request.account.email;
+		if (request.account.organizationId !== undefined) oauthAccount.organizationId = request.account.organizationId;
+		if (request.account.organizationName !== undefined)
+			oauthAccount.organizationName = request.account.organizationName;
+		account = oauthAccount;
+	} else {
+		account = { provider: request.account.provider, api: request.account.api };
+	}
 	return {
 		repositoryRoot: canonicalRoot,
 		target,
@@ -339,7 +351,7 @@ async function buildPlanMaterial(
 		output,
 		model,
 		account,
-		configFingerprint: `chudcode-security-config/v1:sha256:${Bun.SHA256.hash(canonicalSecurityJson(request.config), "hex")}`,
+		configFingerprint: `omp-security-config/v1:sha256:${Bun.SHA256.hash(canonicalSecurityJson(request.config), "hex")}`,
 		workflowFingerprint: request.workflowFingerprint,
 	};
 }
@@ -349,9 +361,9 @@ export async function createSecurityScanPlan(
 	adapter: SecurityGitAdapter = DEFAULT_SECURITY_GIT_ADAPTER,
 ): Promise<SecurityScanPlan> {
 	const material = await buildPlanMaterial(request, adapter);
-	const fingerprint = `chudcode-security-plan/v1:sha256:${Bun.SHA256.hash(canonicalSecurityJson(material), "hex")}`;
+	const fingerprint = `omp-security-plan/v1:sha256:${Bun.SHA256.hash(canonicalSecurityJson(material), "hex")}`;
 	return parseSecurityScanPlan({
-		documentType: "chudcode-security.scan-plan",
+		documentType: "omp-security.scan-plan",
 		schemaVersion: "1.0",
 		id: createSecurityPlanId(fingerprint),
 		createdAt: request.createdAt ?? new Date().toISOString(),

@@ -17,15 +17,17 @@ import {
 	type AgentTelemetryConfig,
 	instrumentedCompleteSimple,
 	resolveTelemetry,
-} from "@chudware/agent-core";
-import type { Api, completeSimple, ImageContent, Model, TextContent } from "@chudware/ai";
-import { logger, prompt, toError } from "@chudware/utils";
-import * as fsx from "@chudware/utils/fsx";
+} from "@oh-my-pi/pi-agent-core";
+import { sendsImageInputOnWire } from "@oh-my-pi/pi-ai/providers/vision-guard";
+import type { Api, completeSimple, ImageContent, Model, TextContent } from "@oh-my-pi/pi-ai";
+import { logger, prompt, toError } from "@oh-my-pi/pi-utils";
 import { extractTextContent } from "../commit/utils";
 import type { ModelRegistry } from "../config/model-registry";
 import { expandRoleAlias, getModelMatchPreferences, resolveModelFromString } from "../config/model-resolver";
 import type { Settings } from "../config/settings";
 import { type LocalProtocolOptions, resolveLocalRoot } from "../internal-urls";
+import { cfgImagesBlockImages } from "../modes/settings";
+import { cfgImagesDescribeForTextModels } from "../session/settings";
 import describeUserPrompt from "../prompts/tools/image-attachment-describe.md" with { type: "text" };
 import describeSystemPrompt from "../prompts/tools/image-attachment-describe-system.md" with { type: "text" };
 
@@ -34,13 +36,26 @@ const ONESHOT_KIND = "image_attachment_describe";
 
 const NO_VISION_MODEL_NOTE =
 	"[No vision-capable model is configured, so this image could not be described automatically. " +
-	"The image was saved; configure a vision model role (modelRoles.vision) and use the inspect_image tool to analyze it.]";
+	"The image was saved; configure a vision model role (modelRoles.vision) and read the saved image with ?q=<question> to analyze it.]";
 
 const DESCRIPTION_UNAVAILABLE_NOTE =
 	"[Image description unavailable: the vision model returned no usable text. The image was saved for further analysis.]";
 
 /** Registry surface needed to resolve a vision model and authorize requests. */
 export type VisionFallbackRegistry = Pick<ModelRegistry, "getAvailable" | "getApiKey" | "resolver">;
+
+/** Whether user images sent to `model` should be replaced by a vision-model description. */
+export function shouldDescribeImagesForTextModel(
+	model: Model<Api> | undefined,
+	settings: Settings,
+): model is Model<Api> {
+	return (
+		!!model &&
+		!sendsImageInputOnWire(model) &&
+		!cfgImagesBlockImages.get(settings) &&
+		cfgImagesDescribeForTextModels.get(settings)
+	);
+}
 
 export interface DescribeAttachedImagesDeps {
 	/** Active (text-only) model the prompt is destined for. */
@@ -88,7 +103,7 @@ async function saveImage(image: ImageContent, localRoot: string): Promise<string
 	const fileName = imageFileName(image);
 	const filePath = path.join(localRoot, fileName);
 	// Content-addressed: identical bytes overwrite themselves harmlessly. Bun.write creates parent dirs.
-	await fsx.write(filePath, Buffer.from(image.data, "base64"));
+	await Bun.write(filePath, Buffer.from(image.data, "base64"));
 	return `local://${fileName}`;
 }
 
@@ -97,7 +112,7 @@ function formatImageBlock(localUrl: string, description: string): string {
 }
 
 /**
- * Resolve a vision-capable model, mirroring the inspect_image priority
+ * Resolve a vision-capable model, mirroring image-question priority
  * (`@vision` → `@default` → active → first image-capable available), but
  * never returning a text-only model.
  */
@@ -109,13 +124,13 @@ function resolveVisionModel(deps: DescribeAttachedImagesDeps): Model<Api> | unde
 		if (!pattern) return undefined;
 		const expanded = expandRoleAlias(pattern, deps.settings);
 		const model = resolveModelFromString(expanded, available, preferences);
-		return model?.input.includes("image") ? model : undefined;
+		return model && sendsImageInputOnWire(model) ? model : undefined;
 	};
 	return (
 		resolvePattern("@vision") ??
 		resolvePattern("@default") ??
 		resolvePattern(deps.activeModelString) ??
-		available.find(model => model.input.includes("image"))
+		available.find(model => sendsImageInputOnWire(model))
 	);
 }
 

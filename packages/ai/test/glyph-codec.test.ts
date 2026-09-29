@@ -1,14 +1,14 @@
 import { afterEach, describe, expect, it } from "bun:test";
-import { clearCustomApis } from "@chudware/ai/api-registry";
-import { createMockModel, registerMockApi } from "@chudware/ai/providers/mock";
-import { streamSimple } from "@chudware/ai/stream";
-import type { AssistantMessage, Context, CursorExecHandlers, ToolCall, ToolResultMessage } from "@chudware/ai/types";
-import { getStreamingPartialJson, setStreamingPartialJson } from "@chudware/ai/utils/block-symbols";
-import { AssistantMessageEventStream } from "@chudware/ai/utils/event-stream";
-import { applyGlyphCodec, decodeGlyphText, encodeGlyphText } from "@chudware/ai/utils/glyph-codec";
-import { buildModel } from "@chudware/catalog/build";
-import { ChudEditExecArgsSchema, ChudEditReplacementSchema } from "@chudware/catalog/discovery/cursor-proto";
-import { create } from "@chudware/catalog/discovery/protobuf";
+import { clearCustomApis } from "@oh-my-pi/pi-ai/api-registry";
+import { createMockModel, registerMockApi } from "@oh-my-pi/pi-ai/providers/mock";
+import { streamSimple } from "@oh-my-pi/pi-ai/stream";
+import type { AssistantMessage, Context, CursorExecHandlers, ToolCall, ToolResultMessage } from "@oh-my-pi/pi-ai/types";
+import { getStreamingPartialJson, setStreamingPartialJson } from "@oh-my-pi/pi-ai/utils/block-symbols";
+import { AssistantMessageEventStream } from "@oh-my-pi/pi-ai/utils/event-stream";
+import { applyGlyphCodec, decodeGlyphText, encodeGlyphText } from "@oh-my-pi/pi-ai/utils/glyph-codec";
+import { buildModel } from "@oh-my-pi/pi-catalog/build";
+import { PiEditExecArgsSchema, PiEditReplacementSchema } from "@oh-my-pi/pi-catalog/discovery/cursor-proto";
+import { create } from "@oh-my-pi/pi-catalog/discovery/protobuf";
 
 const ZERO_USAGE: AssistantMessage["usage"] = {
 	input: 0,
@@ -191,7 +191,7 @@ describe("glyph stream decode", () => {
 		expect(getStreamingPartialJson(decodedCall)).toBe(`{"content":"${glyph}","bad":"\uefff"}`);
 	});
 
-	it("decodes Cursor Chud args and encodes new glyphs in returned results", async () => {
+	it("decodes Cursor Pi args and encodes new glyphs in returned results", async () => {
 		const glyph = "\ue0a0";
 		const newGlyph = String.fromCodePoint(0xf0000);
 		const codec = applyGlyphCodec({ messages: [{ role: "user", content: glyph, timestamp: 1 }] });
@@ -215,9 +215,9 @@ describe("glyph stream decode", () => {
 		if (wrapped.piEdit === undefined) throw new Error("expected wrapped piEdit handler");
 		const result = await wrapped.piEdit({
 			toolCallId: "tool-1",
-			args: create(ChudEditExecArgsSchema, {
+			args: create(PiEditExecArgsSchema, {
 				path: "file.ts",
-				edits: [create(ChudEditReplacementSchema, { oldText: "before", newText: "⟦Ue0a0⟧" })],
+				edits: [create(PiEditReplacementSchema, { oldText: "before", newText: "⟦Ue0a0⟧" })],
 			}),
 		});
 

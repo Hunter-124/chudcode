@@ -1,17 +1,16 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "bun:test";
 import * as os from "node:os";
-import * as capability from "@chudware/coding-agent/capability";
-import type { SSHHost } from "@chudware/coding-agent/capability/ssh";
-import type { CapabilityResult } from "@chudware/coding-agent/capability/types";
-import { Settings } from "@chudware/coding-agent/config/settings";
-import { parseInternalUrl } from "@chudware/coding-agent/internal-urls/parse";
-import { InternalUrlRouter } from "@chudware/coding-agent/internal-urls/router";
-import { SshProtocolHandler } from "@chudware/coding-agent/internal-urls/ssh-protocol";
-import type { ToolSession } from "@chudware/coding-agent/tools";
-import { GrepTool } from "@chudware/coding-agent/tools/grep";
-import { ReadTool } from "@chudware/coding-agent/tools/read";
-import { WriteTool } from "@chudware/coding-agent/tools/write";
-import * as proc from "@chudware/utils/proc";
+import * as capability from "@oh-my-pi/pi-coding-agent/capability";
+import type { SSHHost } from "@oh-my-pi/pi-coding-agent/capability/ssh";
+import type { CapabilityResult } from "@oh-my-pi/pi-coding-agent/capability/types";
+import { Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
+import { parseInternalUrl } from "@oh-my-pi/pi-coding-agent/internal-urls/parse";
+import { InternalUrlRouter } from "@oh-my-pi/pi-coding-agent/internal-urls/router";
+import { SshProtocolHandler } from "@oh-my-pi/pi-coding-agent/internal-urls/ssh-protocol";
+import type { ToolSession } from "@oh-my-pi/pi-coding-agent/tools";
+import { GrepTool } from "@oh-my-pi/pi-coding-agent/tools/grep";
+import { ReadTool } from "@oh-my-pi/pi-coding-agent/tools/read";
+import { WriteTool } from "@oh-my-pi/pi-coding-agent/tools/write";
 
 // Live integration against `ssh localhost`. Skips automatically where key-based
 // localhost SSH is unavailable (CI without sshd). Capability lookup is mocked
@@ -19,7 +18,7 @@ import * as proc from "@chudware/utils/proc";
 // exercising the real connection-manager + file-transfer over a real ssh process.
 const SSH_OK = (() => {
 	try {
-		const r = proc.spawnSync(["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=4", "localhost", "true"]);
+		const r = Bun.spawnSync(["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=4", "localhost", "true"]);
 		return r.exitCode === 0;
 	} catch {
 		return false;
@@ -41,7 +40,7 @@ const sh = async (script: string) => {
 
 describe.skipIf(!SSH_OK)("ssh:// handler against a real localhost ssh", () => {
 	const handler = new SshProtocolHandler();
-	const TMP = `/tmp/chudcode-ssh-e2e-${process.pid}`;
+	const TMP = `/tmp/omp-ssh-e2e-${process.pid}`;
 
 	beforeAll(async () => {
 		await sh(`mkdir -p ${TMP}`);
@@ -88,7 +87,7 @@ describe.skipIf(!SSH_OK)("ssh:// handler against a real localhost ssh", () => {
 		const back = await handler.resolve(parseInternalUrl(`ssh://localhost${dest}`));
 		expect(back.content).toBe("hi\n\t!\n");
 		// The uniquely-named temp must have been renamed away (no leftovers).
-		const leftovers = await Bun.$`ssh -o BatchMode=yes localhost ls ${TMP} | grep -c chudcode-tmp || true`.text();
+		const leftovers = await Bun.$`ssh -o BatchMode=yes localhost ls ${TMP} | grep -c omp-tmp || true`.text();
 		expect(leftovers.trim()).toBe("0");
 	});
 
@@ -143,7 +142,7 @@ describe.skipIf(!SSH_OK)("ssh:// handler against a real localhost ssh", () => {
 		expect(kind.trim()).toBe("dir"); // directory intact, not clobbered into a file
 		// The dir-error path must remove the temp it created beside the destination.
 		const leftovers =
-			await Bun.$`ssh -o BatchMode=yes localhost ls -A ${TMP} | grep -c "wdir.chudcode-tmp" || true`.text();
+			await Bun.$`ssh -o BatchMode=yes localhost ls -A ${TMP} | grep -c "wdir.omp-tmp" || true`.text();
 		expect(leftovers.trim()).toBe("0");
 	});
 
@@ -170,7 +169,7 @@ describe.skipIf(!SSH_OK)("ssh:// handler against a real localhost ssh", () => {
 });
 
 describe.skipIf(!SSH_OK)("ssh:// through the real read/grep/write tools (localhost)", () => {
-	const TMP = `/tmp/chudcode-ssh-tools-e2e-${process.pid}`;
+	const TMP = `/tmp/omp-ssh-tools-e2e-${process.pid}`;
 
 	function createSession(): ToolSession {
 		return {
@@ -229,8 +228,8 @@ describe.skipIf(!SSH_OK)("ssh:// through the real read/grep/write tools (localho
 		expect(result.details?.files).toContain(`ssh://localhost${TMP}/read.txt`);
 		// The pure-virtual RE2 probe's scratch dir must never leak into text or metadata.
 		const detailsJson = JSON.stringify(result.details ?? {});
-		expect(out).not.toContain("chudcode-search-probe");
-		expect(detailsJson).not.toContain("chudcode-search-probe");
+		expect(out).not.toContain("omp-search-probe");
+		expect(detailsJson).not.toContain("omp-search-probe");
 	});
 
 	it("WriteTool round-trips a remote file byte-exact", async () => {

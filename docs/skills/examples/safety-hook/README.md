@@ -1,25 +1,25 @@
 # safety-hook
 
-An `Chudcode` extension that demonstrates `tool_call` blocking. It intercepts `bash` tool calls and returns `{ block: true, reason: "..." }` when the command contains `rm -rf /` with normal whitespace, preventing the tool from executing.
+An `omp` extension that demonstrates `tool_call` blocking. It intercepts `bash` tool calls and returns `{ block: true, reason: "..." }` when the command contains `rm -rf /` with normal whitespace, preventing the tool from executing.
 
 ## What it demonstrates
 
-- `chud.on("tool_call", ...)` — pre-execution interception
+- `pi.on("tool_call", ...)` — pre-execution interception
 - `return { block: true, reason: "..." }` — blocking contract
 - Regex guard on bash input (`/\brm\s+-rf\s+\//`)
 
 ## Install
 
 ```
-cp -r . ~/.chudcode/agent/extensions/safety-hook
+cp -r . ~/.omp/agent/extensions/safety-hook
 ```
 
-Restart `chudcode`. The hook is active for all sessions.
+Restart `omp`. The hook is active for all sessions.
 
 Or load once:
 
 ```
-chudcode --extension ./safety-hook
+omp --extension ./safety-hook
 ```
 
 ## How it works

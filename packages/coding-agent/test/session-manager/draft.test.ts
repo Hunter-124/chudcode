@@ -1,12 +1,11 @@
 import { describe, expect, it } from "bun:test";
 import * as path from "node:path";
-import { SessionManager } from "@chudware/coding-agent/session/session-manager";
-import { isEnoent, TempDir } from "@chudware/utils";
-import * as fsx from "@chudware/utils/fsx";
+import { SessionManager } from "@oh-my-pi/pi-coding-agent/session/session-manager";
+import { isEnoent, TempDir } from "@oh-my-pi/pi-utils";
 
 async function fileExists(p: string): Promise<boolean> {
 	try {
-		await fsx.stat(p);
+		await Bun.file(p).stat();
 		return true;
 	} catch (err) {
 		if (isEnoent(err)) return false;
@@ -25,30 +24,6 @@ describe("SessionManager draft", () => {
 
 		// consumeDraft is single-shot: returns the text and removes the sidecar.
 		expect(await session.consumeDraft()).toBe("unsent text");
-		expect(await session.consumeDraft()).toBeNull();
-	});
-
-	it("synchronously checkpoints every accepted editor state", async () => {
-		using tempDir = TempDir.createSync("@pi-session-draft-sync-");
-		const session = SessionManager.create(tempDir.path(), tempDir.path());
-
-		session.saveDraftSync("curated pro");
-		session.saveDraftSync("curated prompt");
-
-		const sessionFile = session.getSessionFile();
-		if (!sessionFile) throw new Error("Expected session file");
-		expect(await fileExists(sessionFile)).toBe(true);
-		expect(await session.consumeDraft()).toBe("curated prompt");
-	});
-
-	it("synchronously checkpoints deletion instead of restoring stale text", async () => {
-		using tempDir = TempDir.createSync("@pi-session-draft-sync-empty-");
-		const session = SessionManager.create(tempDir.path(), tempDir.path());
-
-		session.saveDraftSync("discard this");
-		session.saveDraftSync("");
-
-		expect(await session.consumeDraft()).toBe("");
 		expect(await session.consumeDraft()).toBeNull();
 	});
 

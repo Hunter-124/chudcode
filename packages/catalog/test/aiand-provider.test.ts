@@ -1,24 +1,24 @@
 import { afterEach, describe, expect, test, vi } from "bun:test";
-import { getOAuthProviders } from "@chudware/ai/registry/oauth";
-import { getEnvApiKey } from "@chudware/ai/stream";
-import { Effort } from "@chudware/catalog/effort";
-import { getBundledModels } from "@chudware/catalog/models";
-import { DEFAULT_MODEL_PER_PROVIDER, PROVIDER_DESCRIPTORS } from "@chudware/catalog/provider-models/descriptors";
-import { aiandModelManagerOptions } from "@chudware/catalog/provider-models/openai-compat";
-import type { FetchImpl } from "@chudware/catalog/types";
+import { getOAuthProviders } from "@oh-my-pi/pi-ai/registry/oauth";
+import { getEnvApiKey } from "@oh-my-pi/pi-ai/stream";
+import { Effort } from "@oh-my-pi/pi-catalog/effort";
+import { getBundledModels } from "@oh-my-pi/pi-catalog/models";
+import { DEFAULT_MODEL_PER_PROVIDER, PROVIDER_DESCRIPTORS } from "@oh-my-pi/pi-catalog/provider-models/descriptors";
+import { aiandModelManagerOptions } from "@oh-my-pi/pi-catalog/provider-models/openai-compat";
+import type { FetchImpl } from "@oh-my-pi/pi-catalog/types";
 
 const ORIGINAL_ENV = {
-	AIAND_API_KEY: process.env.AIAND_API_KEY,
-	AIAND_BASE_URL: process.env.AIAND_BASE_URL,
+	AIAND_API_KEY: Bun.env.AIAND_API_KEY,
+	AIAND_BASE_URL: Bun.env.AIAND_BASE_URL,
 } as const;
 
 function restoreEnvVar(name: keyof typeof ORIGINAL_ENV): void {
 	const value = ORIGINAL_ENV[name];
 	if (value === undefined) {
-		delete process.env[name];
+		delete Bun.env[name];
 		return;
 	}
-	process.env[name] = value;
+	Bun.env[name] = value;
 }
 
 afterEach(() => {
@@ -37,7 +37,7 @@ function aiandModelsResponse(entries: Record<string, unknown>[]): Response {
 
 describe("ai& provider support", () => {
 	test("resolves the AIAND_API_KEY environment fallback", () => {
-		process.env.AIAND_API_KEY = "aiand-test-key";
+		Bun.env.AIAND_API_KEY = "aiand-test-key";
 		expect(getEnvApiKey("aiand")).toBe("aiand-test-key");
 	});
 
@@ -61,7 +61,7 @@ describe("ai& provider support", () => {
 	});
 
 	test("maps ai& /v1/models metadata: context, capabilities, efforts, and USD pricing", async () => {
-		delete process.env.AIAND_BASE_URL;
+		delete Bun.env.AIAND_BASE_URL;
 		const fetchMock: FetchImpl = vi.fn(async () =>
 			aiandModelsResponse([
 				{
@@ -136,7 +136,7 @@ describe("ai& provider support", () => {
 	});
 
 	test("prefers explicit base URL over AIAND_BASE_URL and appends /v1", async () => {
-		process.env.AIAND_BASE_URL = "https://env.aiand.test";
+		Bun.env.AIAND_BASE_URL = "https://env.aiand.test";
 		const fetchMock: FetchImpl = vi.fn(async () =>
 			aiandModelsResponse([{ id: "openai/gpt-oss-120b" }]),
 		) as unknown as FetchImpl;

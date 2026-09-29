@@ -6,7 +6,7 @@
  * "No models available". Those providers ship no bundled models, so the
  * static+cached catalog the SDK resolves against at startup is empty on a
  * cache-cold boot; the online discovery pass in `main.ts` runs only AFTER
- * `createAgentSession` returns. `chudcode models` (which awaits discovery) listed the
+ * `createAgentSession` returns. `omp models` (which awaits discovery) listed the
  * models, but the interactive session degraded. The SDK now awaits one
  * cache-aware discovery pass and retries resolution when the initial fallback
  * fails and discoverable providers exist.
@@ -15,13 +15,13 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
-import type { FetchImpl } from "@chudware/ai";
-import { ModelRegistry } from "@chudware/coding-agent/config/model-registry";
-import { Settings } from "@chudware/coding-agent/config/settings";
-import { createAgentSession } from "@chudware/coding-agent/sdk";
-import { AuthStorage } from "@chudware/coding-agent/session/auth-storage";
-import { SessionManager } from "@chudware/coding-agent/session/session-manager";
-import { Snowflake } from "@chudware/utils";
+import type { FetchImpl } from "@oh-my-pi/pi-ai";
+import { ModelRegistry } from "@oh-my-pi/pi-coding-agent/config/model-registry";
+import { Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
+import { createAgentSession } from "@oh-my-pi/pi-coding-agent/sdk";
+import { AuthStorage } from "@oh-my-pi/pi-coding-agent/session/auth-storage";
+import { SessionManager } from "@oh-my-pi/pi-coding-agent/session/session-manager";
+import { Snowflake } from "@oh-my-pi/pi-utils";
 
 describe("issue #6114 fresh launch default role from discovery-only local provider", () => {
 	let tempDir: string;
@@ -29,10 +29,10 @@ describe("issue #6114 fresh launch default role from discovery-only local provid
 	const authStoragesToClose: AuthStorage[] = [];
 
 	beforeEach(() => {
-		tempDir = path.join(os.tmpdir(), `chud-sdk-default-role-local-${Snowflake.next()}`);
+		tempDir = path.join(os.tmpdir(), `pi-sdk-default-role-local-${Snowflake.next()}`);
 		fs.mkdirSync(tempDir, { recursive: true });
-		originalLmStudioBaseUrl = process.env.LM_STUDIO_BASE_URL;
-		delete process.env.LM_STUDIO_BASE_URL;
+		originalLmStudioBaseUrl = Bun.env.LM_STUDIO_BASE_URL;
+		delete Bun.env.LM_STUDIO_BASE_URL;
 	});
 
 	afterEach(() => {
@@ -41,9 +41,9 @@ describe("issue #6114 fresh launch default role from discovery-only local provid
 		}
 		authStoragesToClose.length = 0;
 		if (originalLmStudioBaseUrl === undefined) {
-			delete process.env.LM_STUDIO_BASE_URL;
+			delete Bun.env.LM_STUDIO_BASE_URL;
 		} else {
-			process.env.LM_STUDIO_BASE_URL = originalLmStudioBaseUrl;
+			Bun.env.LM_STUDIO_BASE_URL = originalLmStudioBaseUrl;
 		}
 		if (tempDir && fs.existsSync(tempDir)) {
 			fs.rmSync(tempDir, { recursive: true, force: true });
@@ -68,7 +68,7 @@ describe("issue #6114 fresh launch default role from discovery-only local provid
 		// `pickDefaultAvailableModel` fill `model` with that provider's default,
 		// masking the still-unresolved configured local default. Without the retry
 		// the session silently starts on the bundled fallback and never switches.
-		authStorage.setRuntimeApiKey("openai", "test-openai-key");
+		authStorage.keys.setRuntime("openai", "test-openai-key");
 		const modelRegistry = new ModelRegistry(authStorage, path.join(tempDir, "models.yml"), {
 			fetch: mockLmStudio(["qwen3-coder-30b"]),
 		});

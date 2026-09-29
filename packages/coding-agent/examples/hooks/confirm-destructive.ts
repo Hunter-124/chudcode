@@ -4,10 +4,11 @@
  * Prompts for confirmation before destructive session actions (clear, switch, branch).
  * Demonstrates how to cancel session events using the before_* events.
  */
-import type { HookAPI, SessionBeforeSwitchEvent, SessionMessageEntry } from "@chudware/coding-agent";
+import type { SessionBeforeSwitchEvent, SessionMessageEntry } from "@oh-my-pi/pi-coding-agent";
+import type { HookAPI } from "@oh-my-pi/pi-coding-agent/extensibility/hooks";
 
-export default function (chud: HookAPI) {
-	chud.on("session_before_switch", async (event: SessionBeforeSwitchEvent, ctx) => {
+export default function (pi: HookAPI) {
+	pi.on("session_before_switch", async (event: SessionBeforeSwitchEvent, ctx) => {
 		if (!ctx.hasUI) return;
 
 		if (event.reason === "new") {
@@ -42,7 +43,7 @@ export default function (chud: HookAPI) {
 		}
 	});
 
-	chud.on("session_before_branch", async (event, ctx) => {
+	pi.on("session_before_branch", async (event, ctx) => {
 		if (!ctx.hasUI) return;
 
 		const choice = await ctx.ui.select(`Branch from entry ${event.entryId.slice(0, 8)}?`, [

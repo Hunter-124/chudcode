@@ -1,5 +1,5 @@
 /**
- * The two-tool protocol behind `chudcode compress`.
+ * The two-tool protocol behind `omp compress`.
  *
  * The agent sees exactly two tools. `rewrite` submits a complete draft plus every
  * loss the agent chose to accept; `approve` accepts the newest draft and ends the
@@ -13,9 +13,8 @@
  * const tools = [protocol.rewriteTool(), protocol.approveTool()];
  * // …drive a session, then read protocol.latest / protocol.approved
  */
-
-import { Tokenizer } from "@chudware/agent-core";
-import { type } from "@chudware/chudtype";
+import { type } from "@oh-my-pi/omptype";
+import { Tokenizer } from "@oh-my-pi/pi-agent-core";
 import type { ToolDefinition } from "../extensibility/extensions";
 import approveDescription from "../prompts/tools/approve.md" with { type: "text" };
 import rewriteDescription from "../prompts/tools/rewrite.md" with { type: "text" };

@@ -9,12 +9,13 @@
  */
 
 import { describe, expect, it } from "bun:test";
-import type { Usage } from "@chudware/ai";
+import type { Usage } from "@oh-my-pi/pi-ai";
 import {
 	RedisSessionStorage,
 	type RedisSessionStorageClient,
-} from "@chudware/coding-agent/session/redis-session-storage";
-import { SessionManager } from "@chudware/coding-agent/session/session-manager";
+} from "@oh-my-pi/pi-coding-agent/session/redis-session-storage";
+import { SessionManager } from "@oh-my-pi/pi-coding-agent/session/session-manager";
+import { SessionWriteConflictError } from "@oh-my-pi/pi-coding-agent/session/session-storage";
 
 interface FakeRedis extends RedisSessionStorageClient {
 	strings: Map<string, string>;
@@ -43,16 +44,19 @@ function createFakeRedis(): FakeRedis {
 			const keyCount = Number(args[1] ?? "0");
 			const keys = args.slice(2, 2 + keyCount);
 			const argv = args.slice(2 + keyCount);
-			if (script.includes("CHUDCODE_WRITE_FULL")) {
+			if (script.includes("OMP_WRITE_FULL")) {
 				const [fileKey, metaKey, titleKey] = keys;
-				const [content, filePath, mtimeMs, hasTitle, title] = argv;
+				const [content, filePath, mtimeMs, hasTitle, title, expectedSize] = argv;
+				const current = strings.get(fileKey);
+				const actualSize = current === undefined ? -1 : Buffer.byteLength(current, "utf8");
+				if (expectedSize !== "" && actualSize !== Number(expectedSize)) return [0, actualSize];
 				strings.set(fileKey, content);
 				getHash(metaKey).set(filePath, mtimeMs);
 				if (hasTitle === "1") getHash(titleKey).set(filePath, title);
 				else getHash(titleKey).delete(filePath);
-				return 1;
+				return [1, Buffer.byteLength(content, "utf8")];
 			}
-			if (script.includes("CHUDCODE_APPEND")) {
+			if (script.includes("OMP_APPEND")) {
 				const [fileKey, metaKey] = keys;
 				const [line, filePath, mtimeMs] = argv;
 				const next = (strings.get(fileKey) ?? "") + line;
@@ -60,7 +64,7 @@ function createFakeRedis(): FakeRedis {
 				getHash(metaKey).set(filePath, mtimeMs);
 				return Buffer.byteLength(next, "utf-8");
 			}
-			if (script.includes("CHUDCODE_UPDATE_TITLE")) {
+			if (script.includes("OMP_UPDATE_TITLE")) {
 				const [metaKey, titleKey] = keys;
 				const [filePath, mtimeMs, title] = argv;
 				getHash(metaKey).set(filePath, mtimeMs);
@@ -182,7 +186,7 @@ describe("SessionManager + RedisSessionStorage", () => {
 		await manager.close();
 
 		// Redis now contains the JSONL — title slot + header + one message entry.
-		const stored = redis.strings.get(`chudcode:sessions:file:${sessionFilePath}`);
+		const stored = redis.strings.get(`omp:sessions:file:${sessionFilePath}`);
 		expect(stored).toBeDefined();
 		const lines = (stored as string).trim().split("\n");
 		expect(lines.length).toBeGreaterThanOrEqual(3);
@@ -247,5 +251,22 @@ describe("SessionManager + RedisSessionStorage", () => {
 		const sessionFiles = sessions.map(s => s.path).sort();
 		expect(sessionFiles).toContain(aFile as string);
 		expect(sessionFiles).toContain(bFile as string);
+	});
+
+	it("rejects a stale rewrite after another Redis storage appends", async () => {
+		const redis = createFakeRedis();
+		const firstStorage = await RedisSessionStorage.create({ client: redis });
+		const first = SessionManager.create("/cwd", "/sessions/shared", firstStorage);
+		await first.ensureOnDisk();
+		const sessionFile = first.getSessionFile();
+		if (!sessionFile) throw new Error("Expected session file");
+
+		const secondStorage = await RedisSessionStorage.create({ client: redis });
+		const second = await SessionManager.open(sessionFile, "/sessions/shared", secondStorage);
+		second.appendMessage({ role: "user", content: "durable Redis peer turn", timestamp: Date.now() });
+		await second.close();
+
+		await expect(first.rewriteEntries()).rejects.toBeInstanceOf(SessionWriteConflictError);
+		expect(redis.strings.get(`omp:sessions:file:${sessionFile}`)).toContain("durable Redis peer turn");
 	});
 });

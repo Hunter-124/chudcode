@@ -1,6 +1,6 @@
-# Build context for the chud-root `Dockerfile` (chudware/chudcode:dev). Shadows
-# .dockerignore for this file only. Robochud uses Dockerfile.robochud +
-# Dockerfile.robochud.dockerignore alongside.
+# Build context for the pi-root `Dockerfile` (oh-my-pi/pi:dev). Shadows
+# .dockerignore for this file only. Robomp uses Dockerfile.robomp +
+# Dockerfile.robomp.dockerignore alongside.
 
 # Heavy build outputs — must never reach the build context. Patterns are
 # depth-agnostic (`**/`) to match .gitignore semantics: dockerignore anchors
@@ -18,13 +18,13 @@ packages/natives/npm/
 **/.cache/
 packages/snapcompact/research/results/
 
-# Per-host scratch the chud codebase uses for parallel agents / worktrees.
+# Per-host scratch the pi codebase uses for parallel agents / worktrees.
 .fallow/
 .worktrees/
 .wt/
 .opencode/
 .pi_config/
-.chudcode/plugins/
+.omp/plugins/
 
 # VCS, editors, IDEs — irrelevant to the build, churn on every IDE keystroke.
 .git/
@@ -59,15 +59,15 @@ changes/
 packages/coding-agent/src/internal-urls/docs-index.generated.ts
 packages/natives/native/.build/
 # Every host-built addon: natives-builder compiles its own, and a stale host
-# `chud_natives.linux-*.node` riding in would be copied to /out alongside it.
+# `pi_natives.linux-*.node` riding in would be copied to /out alongside it.
 # (Also drops the ~760 MB of dev addons a working checkout accumulates.)
 **/*.node
 packages/ai/test/.temp-images/
-python/chudcode-rpc/src/chudcode_rpc.egg-info/
-python/robochud/data/
-python/robochud/.cache/
-python/robochud/src/robochud/static/
-python/robochud/web/dist/
+python/omp-rpc/src/omp_rpc.egg-info/
+python/robomp/data/
+python/robomp/.cache/
+python/robomp/src/robomp/static/
+python/robomp/web/dist/
 
 # Scratch files the repo creates ad-hoc.
 syntax.jsonl
@@ -79,5 +79,5 @@ pi-*.html
 **/.venv/
 
 # Secrets. Should never be in the image regardless. Depth-agnostic: a bare
-# `.env` misses `python/robochud/.env`, which `COPY . /pi/` would bake in.
+# `.env` misses `python/robomp/.env`, which `COPY . /pi/` would bake in.
 **/.env

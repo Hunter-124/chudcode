@@ -1,11 +1,10 @@
 import { afterEach, beforeEach } from "bun:test";
 import * as os from "node:os";
 import * as path from "node:path";
-import type { Model } from "@chudware/ai/types";
-import { buildModel } from "@chudware/catalog/build";
-import type { ModelSpec } from "@chudware/catalog/types";
-import { isEnoent } from "@chudware/utils";
-import * as fsx from "@chudware/utils/fsx";
+import type { Model } from "@oh-my-pi/pi-ai/types";
+import { buildModel } from "@oh-my-pi/pi-catalog/build";
+import type { ModelSpec } from "@oh-my-pi/pi-catalog/types";
+import { isEnoent } from "@oh-my-pi/pi-utils";
 
 export async function withEnv(
 	overrides: Record<string, string | undefined>,
@@ -13,23 +12,23 @@ export async function withEnv(
 ): Promise<void> {
 	const previous = new Map<string, string | undefined>();
 	for (const key of Object.keys(overrides)) {
-		previous.set(key, process.env[key]);
+		previous.set(key, Bun.env[key]);
 	}
 	try {
 		for (const [key, value] of Object.entries(overrides)) {
 			if (value === undefined) {
-				delete process.env[key];
+				delete Bun.env[key];
 			} else {
-				process.env[key] = value;
+				Bun.env[key] = value;
 			}
 		}
 		await fn();
 	} finally {
 		for (const [key, value] of previous.entries()) {
 			if (value === undefined) {
-				delete process.env[key];
+				delete Bun.env[key];
 			} else {
-				process.env[key] = value;
+				Bun.env[key] = value;
 			}
 		}
 	}
@@ -82,9 +81,9 @@ export interface AuthGatewayE2EStatus {
 	reason?: string;
 }
 
-export const AUTH_GATEWAY_E2E_URL = process.env.CHUDCODE_E2E_GATEWAY_URL ?? "http://127.0.0.1:4000";
+export const AUTH_GATEWAY_E2E_URL = Bun.env.OMP_E2E_GATEWAY_URL ?? "http://127.0.0.1:4000";
 
-const AUTH_GATEWAY_TOKEN_PATH = path.join(os.homedir(), ".chudcode", "auth-gateway.token");
+const AUTH_GATEWAY_TOKEN_PATH = path.join(os.homedir(), ".omp", "auth-gateway.token");
 const AUTH_GATEWAY_HEALTH_TIMEOUT_MS = 500;
 
 let authGatewayE2EStatus: Promise<AuthGatewayE2EStatus> | undefined;
@@ -95,10 +94,10 @@ export function checkAuthGatewayE2EAvailable(): Promise<AuthGatewayE2EStatus> {
 }
 
 async function readAuthGatewayE2EStatus(): Promise<AuthGatewayE2EStatus> {
-	if (!process.env.E2E) return { ok: false, reason: "E2E env not set" };
+	if (!Bun.env.E2E) return { ok: false, reason: "E2E env not set" };
 	let token: string;
 	try {
-		token = (await fsx.readText(AUTH_GATEWAY_TOKEN_PATH)).trim();
+		token = (await Bun.file(AUTH_GATEWAY_TOKEN_PATH).text()).trim();
 	} catch (err) {
 		if (isEnoent(err)) return { ok: false, reason: `no token at ${AUTH_GATEWAY_TOKEN_PATH}` };
 		throw err;
@@ -131,14 +130,14 @@ async function readAuthGatewayE2EStatus(): Promise<AuthGatewayE2EStatus> {
 export function withOfficialAnthropicEndpoint(): void {
 	let previous: string | undefined;
 	beforeEach(() => {
-		previous = process.env.ANTHROPIC_BASE_URL;
-		delete process.env.ANTHROPIC_BASE_URL;
+		previous = Bun.env.ANTHROPIC_BASE_URL;
+		delete Bun.env.ANTHROPIC_BASE_URL;
 	});
 	afterEach(() => {
 		if (previous === undefined) {
-			delete process.env.ANTHROPIC_BASE_URL;
+			delete Bun.env.ANTHROPIC_BASE_URL;
 		} else {
-			process.env.ANTHROPIC_BASE_URL = previous;
+			Bun.env.ANTHROPIC_BASE_URL = previous;
 		}
 	});
 }

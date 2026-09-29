@@ -1,15 +1,15 @@
 {
   "type": "module",
   "private": true,
-  "name": "@chudware/typescript-edit-benchmark",
+  "name": "@oh-my-pi/typescript-edit-benchmark",
   "version": "0.0.1",
   "description": "Edit benchmark suite using TypeScript source code mutations",
-  "homepage": "https://chudware.sh",
-  "author": "Chudware",
+  "homepage": "https://omp.sh",
+  "author": { "name": "Stencil Labs, Inc.", "url": "https://stencil.so" },
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/Hunter-124/chudcode.git",
+    "url": "git+https://github.com/can1357/oh-my-pi.git",
     "directory": "packages/typescript-edit-benchmark"
   },
   "exports": {
@@ -20,13 +20,13 @@
     "./*.js": "./src/*.ts"
   },
   "scripts": {
-    "check": "biome check . && bun run check:types",
+    "check": "oxlint . && oxfmt --check --no-error-on-unmatched-pattern 'src/**/*.{ts,tsx}' '{test,bench,examples,scripts}/**/*.ts' '*.ts' && bun run check:types",
     "check:types": "tsgo -p tsconfig.json --noEmit",
-    "lint": "biome lint .",
+    "lint": "oxlint .",
     "test": "bun test --parallel",
-    "fix": "biome check --write --unsafe .",
-    "fmt": "biome format --write .",
-    "generate": "bun run src/generate.ts --typescript-dir /tmp/chudcode-mono-source",
+    "fix": "oxlint --fix --fix-suggestions . && bun run fmt",
+    "fmt": "oxfmt --no-error-on-unmatched-pattern 'src/**/*.{ts,tsx}' '{test,bench,examples,scripts}/**/*.ts' '*.ts'",
+    "generate": "bun run src/generate.ts --typescript-dir /tmp/pi-mono-source",
     "edit-shapes": "bun run src/edit-shape-stats.ts"
   },
   "dependencies": {
@@ -34,16 +34,15 @@
     "@babel/parser": "catalog:",
     "@babel/traverse": "catalog:",
     "@babel/types": "catalog:",
-    "@chudware/hashline": "catalog:",
-    "@chudware/agent-core": "catalog:",
-    "@chudware/coding-agent": "catalog:",
-    "@chudware/utils": "catalog:",
+    "@oh-my-pi/pi-agent-core": "catalog:",
+    "@oh-my-pi/pi-coding-agent": "catalog:",
+    "@oh-my-pi/pi-utils": "catalog:",
     "diff": "catalog:",
-    "@chudware/natives": "catalog:",
+    "@oh-my-pi/pi-natives": "catalog:",
     "prettier": "catalog:",
     "regexp-tree": "catalog:",
-    "@chudware/ai": "catalog:",
-    "@chudware/tui": "catalog:"
+    "@oh-my-pi/pi-ai": "catalog:",
+    "@oh-my-pi/pi-tui": "catalog:"
   },
   "devDependencies": {
     "@types/babel__generator": "catalog:",

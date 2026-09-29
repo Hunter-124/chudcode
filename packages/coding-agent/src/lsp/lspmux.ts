@@ -1,6 +1,6 @@
 import * as os from "node:os";
 import * as path from "node:path";
-import { $flag, $which, logger } from "@chudware/utils";
+import { $flag, $which, logger } from "@oh-my-pi/pi-utils";
 import { TOML } from "bun";
 
 /**
@@ -66,11 +66,11 @@ function getConfigPath(): string {
 	const home = os.homedir();
 	switch (os.platform()) {
 		case "win32":
-			return path.join(process.env.APPDATA ?? path.join(home, "AppData", "Roaming"), "lspmux", "config.toml");
+			return path.join(Bun.env.APPDATA ?? path.join(home, "AppData", "Roaming"), "lspmux", "config.toml");
 		case "darwin":
 			return path.join(home, "Library", "Application Support", "lspmux", "config.toml");
 		default:
-			return path.join(process.env.XDG_CONFIG_HOME ?? path.join(home, ".config"), "lspmux", "config.toml");
+			return path.join(Bun.env.XDG_CONFIG_HOME ?? path.join(home, ".config"), "lspmux", "config.toml");
 	}
 }
 
@@ -127,7 +127,7 @@ async function checkServerRunning(binaryPath: string): Promise<boolean> {
  * Detect lspmux availability and state.
  * Results are cached for STATE_CACHE_TTL_MS.
  *
- * Set CHUDCODE_DISABLE_LSPMUX=1 to disable.
+ * Set PI_DISABLE_LSPMUX=1 to disable.
  */
 export async function detectLspmux(): Promise<LspmuxState> {
 	const now = Date.now();
@@ -135,7 +135,7 @@ export async function detectLspmux(): Promise<LspmuxState> {
 		return cachedState;
 	}
 
-	if ($flag("CHUDCODE_DISABLE_LSPMUX")) {
+	if ($flag("PI_DISABLE_LSPMUX")) {
 		cachedState = { available: false, running: false, binaryPath: null, config: null };
 		cacheTimestamp = now;
 		return cachedState;

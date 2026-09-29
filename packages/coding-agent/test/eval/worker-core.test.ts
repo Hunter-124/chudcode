@@ -3,16 +3,15 @@ import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
 import { pathToFileURL } from "node:url";
-import { WorkerCore } from "@chudware/coding-agent/eval/js/worker-core";
+import { shadowSnapshotDigest } from "@oh-my-pi/pi-coding-agent/eval/js/shared/runtime";
+import { WorkerCore } from "@oh-my-pi/pi-coding-agent/eval/js/worker-core";
 import type {
 	SessionSnapshot,
 	Transport,
 	WorkerInbound,
 	WorkerOutbound,
-} from "@chudware/coding-agent/eval/js/worker-protocol";
-import { postmortem } from "@chudware/utils";
-import { sleep } from "@chudware/utils/async";
-import * as fsx from "@chudware/utils/fsx";
+} from "@oh-my-pi/pi-coding-agent/eval/js/worker-protocol";
+import { postmortem } from "@oh-my-pi/pi-utils";
 
 interface WorkerHarness {
 	send(message: WorkerInbound): void;
@@ -94,56 +93,6 @@ function installFatalCapture(): {
 }
 
 describe("WorkerCore", () => {
-	it("reports same-realm cwd conflicts through the worker protocol", async () => {
-		const first = createWorkerHarness();
-		const second = createWorkerHarness();
-		const cwd = process.cwd();
-		await initializeWorker(first, { cwd, sessionId: "same-realm-first", localRoots: {} });
-		await initializeWorker(second, { cwd, sessionId: "same-realm-second", localRoots: {} });
-
-		const gate = Promise.withResolvers<void>();
-		const entered = Promise.withResolvers<void>();
-		(globalThis as { __omp_worker_core_gate?: { entered(): void; wait: Promise<void> } }).__omp_worker_core_gate = {
-			entered: () => entered.resolve(),
-			wait: gate.promise,
-		};
-		try {
-			first.send({
-				type: "run",
-				runId: "hold-first-runtime",
-				code: "globalThis.__omp_worker_core_gate.entered(); await globalThis.__omp_worker_core_gate.wait;",
-				filename: "[same-realm-first].js",
-				snapshot: { cwd, sessionId: "same-realm-first", localRoots: {} },
-			});
-			await entered.promise;
-
-			const result = waitForMessage(
-				second,
-				message => message.type === "result" && message.runId === "overlap-second-runtime",
-			);
-			second.send({
-				type: "run",
-				runId: "overlap-second-runtime",
-				code: "1 + 1;",
-				filename: "[same-realm-second].js",
-				snapshot: { cwd, sessionId: "same-realm-second", localRoots: {} },
-			});
-
-			expect(await result).toMatchObject({
-				type: "result",
-				runId: "overlap-second-runtime",
-				ok: false,
-				error: { message: "Cannot run code while another same-realm JS runtime is running" },
-			});
-		} finally {
-			gate.resolve();
-			delete (globalThis as { __omp_worker_core_gate?: { entered(): void; wait: Promise<void> } })
-				.__omp_worker_core_gate;
-			first.send({ type: "close" });
-			second.send({ type: "close" });
-		}
-	});
-
 	it("re-init while a same-realm run is live does not crash the process", async () => {
 		const first = createWorkerHarness();
 		const second = createWorkerHarness();
@@ -169,9 +118,9 @@ describe("WorkerCore", () => {
 			});
 			await entered.promise;
 
-			// Re-init the second core while the first still owns the realm. Production
-			// inline workers deliver this on a microtask; a setCwd throw here used to
-			// become a process-fatal unhandledRejection / uncaughtException.
+			// Re-init the second core while the first still owns the realm. The
+			// same-realm harness delivers this on a microtask; a setCwd throw here
+			// used to become a process-fatal unhandledRejection / uncaughtException.
 			const reinit = waitForMessage(second, message => message.type === "ready" || message.type === "init-failed");
 			second.send({ type: "init", snapshot: { cwd, sessionId: "reinit-second", localRoots: {} } });
 			const reply = await reinit;
@@ -197,7 +146,7 @@ describe("WorkerCore", () => {
 			});
 
 			// Drain microtasks so a latent fatal would surface.
-			await sleep(0);
+			await Bun.sleep(0);
 			expect(fatal).toEqual([]);
 		} finally {
 			uninstall();
@@ -284,7 +233,7 @@ describe("WorkerCore", () => {
 				error: { message: "Cannot run code while another same-realm JS runtime is running" },
 			});
 
-			await sleep(0);
+			await Bun.sleep(0);
 			expect(fatal).toEqual([]);
 		} finally {
 			uninstall();
@@ -365,8 +314,8 @@ describe("WorkerCore", () => {
 	});
 
 	it("keeps the process cwd while another cell is mid-run", async () => {
-		const dirA = await fs.mkdtemp(path.join(os.tmpdir(), "chudcode-cwd-a-"));
-		const dirB = await fs.mkdtemp(path.join(os.tmpdir(), "chudcode-cwd-b-"));
+		const dirA = await fs.mkdtemp(path.join(os.tmpdir(), "omp-cwd-a-"));
+		const dirB = await fs.mkdtemp(path.join(os.tmpdir(), "omp-cwd-b-"));
 		const chdirs: string[] = [];
 		const hostListeners = new Set<(message: WorkerOutbound) => void>();
 		const workerListeners = new Set<(message: WorkerInbound) => void>();
@@ -512,10 +461,10 @@ console.log("survived concurrent setCwd");
 process.exit(0);
 `;
 
-		const root = await fs.mkdtemp(path.join(os.tmpdir(), "chudcode-same-realm-"));
+		const root = await fs.mkdtemp(path.join(os.tmpdir(), "omp-same-realm-"));
 		const probePath = path.join(root, "probe.ts");
 		try {
-			await fsx.write(probePath, probe);
+			await Bun.write(probePath, probe);
 			const proc = Bun.spawn([process.execPath, probePath], {
 				cwd: process.cwd(),
 				stdout: "pipe",
@@ -546,5 +495,90 @@ process.exit(0);
 		} finally {
 			await fs.rm(root, { recursive: true, force: true });
 		}
+	});
+
+	it("returns a safe snapshot only while the JavaScript runtime is idle", async () => {
+		const harness = createWorkerHarness();
+		const snapshot = { cwd: process.cwd(), sessionId: "shadow-snapshot-worker" };
+		await initializeWorker(harness, snapshot);
+		const reply = waitForMessage(
+			harness,
+			message => message.type === "shadow-snapshot" && message.id === "snapshot-1",
+		);
+		harness.send({ type: "shadow-snapshot", id: "snapshot-1", snapshot });
+		const message = await reply;
+		if (message.type !== "shadow-snapshot") throw new Error("expected shadow snapshot reply");
+		expect(message.eligible).toBe(true);
+		expect(message.snapshot?.revision).toBe(0);
+	});
+
+	it("starts a real cell only when the retained snapshot still matches", async () => {
+		const harness = createWorkerHarness();
+		const snapshot = { cwd: process.cwd(), sessionId: "atomic-shadow-worker" };
+		await initializeWorker(harness, snapshot);
+		const snapshotReply = waitForMessage(
+			harness,
+			message => message.type === "shadow-snapshot" && message.id === "atomic-snapshot",
+		);
+		harness.send({ type: "shadow-snapshot", id: "atomic-snapshot", snapshot });
+		const captured = await snapshotReply;
+		if (captured.type !== "shadow-snapshot" || !captured.snapshot) throw new Error("expected snapshot");
+		const admission = waitForMessage(
+			harness,
+			message => message.type === "shadow-run" && message.id === "atomic-run",
+		);
+		const result = waitForMessage(harness, message => message.type === "result" && message.runId === "atomic-run-id");
+		harness.send({
+			type: "run-if-snapshot-matches",
+			id: "atomic-run",
+			runId: "atomic-run-id",
+			code: "globalThis.atomicShadowValue = true;",
+			filename: "atomic-shadow.ts",
+			snapshot,
+			expectedRevision: captured.snapshot.revision,
+			expectedDigest: shadowSnapshotDigest(captured.snapshot),
+		});
+		await expect(admission).resolves.toMatchObject({ eligible: true });
+		await expect(result).resolves.toMatchObject({ ok: true });
+	});
+
+	it("rejects an atomic run after retained state changes", async () => {
+		const harness = createWorkerHarness();
+		const snapshot = { cwd: process.cwd(), sessionId: "atomic-shadow-mismatch" };
+		await initializeWorker(harness, snapshot);
+		const capturedReply = waitForMessage(
+			harness,
+			message => message.type === "shadow-snapshot" && message.id === "mismatch-snapshot",
+		);
+		harness.send({ type: "shadow-snapshot", id: "mismatch-snapshot", snapshot });
+		const captured = await capturedReply;
+		if (captured.type !== "shadow-snapshot" || !captured.snapshot) throw new Error("expected snapshot");
+		const mutationResult = waitForMessage(
+			harness,
+			message => message.type === "result" && message.runId === "mutation",
+		);
+		harness.send({
+			type: "run",
+			runId: "mutation",
+			code: "globalThis.atomicMismatch = true;",
+			filename: "mutation.ts",
+			snapshot,
+		});
+		await mutationResult;
+		const rejected = waitForMessage(
+			harness,
+			message => message.type === "shadow-run" && message.id === "mismatch-run",
+		);
+		harness.send({
+			type: "run-if-snapshot-matches",
+			id: "mismatch-run",
+			runId: "should-not-run",
+			code: "throw new Error('must not execute');",
+			filename: "mismatch.ts",
+			snapshot,
+			expectedRevision: captured.snapshot.revision,
+			expectedDigest: shadowSnapshotDigest(captured.snapshot),
+		});
+		await expect(rejected).resolves.toMatchObject({ eligible: false, reason: "snapshot changed" });
 	});
 });

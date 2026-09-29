@@ -1,15 +1,15 @@
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import * as fs from "node:fs";
 import * as path from "node:path";
-import { loadCustomCommands } from "@chudware/coding-agent/extensibility/custom-commands/loader";
-import { loadCustomTools } from "@chudware/coding-agent/extensibility/custom-tools/loader";
-import { loadExtensions } from "@chudware/coding-agent/extensibility/extensions/loader";
-import { loadHooks } from "@chudware/coding-agent/extensibility/hooks/loader";
-import { TempDir } from "@chudware/utils";
-import * as ChudCodingAgent from "../src/index";
+import * as PiCodingAgent from "@oh-my-pi/pi-coding-agent";
+import { loadCustomCommands } from "@oh-my-pi/pi-coding-agent/extensibility/custom-commands/loader";
+import { loadCustomTools } from "@oh-my-pi/pi-coding-agent/extensibility/custom-tools/loader";
+import { loadExtensions } from "@oh-my-pi/pi-coding-agent/extensibility/extensions/loader";
+import { loadHooks } from "@oh-my-pi/pi-coding-agent/extensibility/hooks/loader";
+import { TempDir } from "@oh-my-pi/pi-utils";
 
 declare global {
-	var __ompHostPiForLoaderIdentityTest: typeof ChudCodingAgent | undefined;
+	var __ompHostPiForLoaderIdentityTest: typeof PiCodingAgent | undefined;
 }
 
 describe("extension loader host runtime binding", () => {
@@ -17,7 +17,7 @@ describe("extension loader host runtime binding", () => {
 
 	beforeEach(() => {
 		projectDir = TempDir.createSync("@loader-host-runtime-");
-		globalThis.__ompHostPiForLoaderIdentityTest = ChudCodingAgent;
+		globalThis.__ompHostPiForLoaderIdentityTest = PiCodingAgent;
 	});
 
 	afterEach(() => {
@@ -36,11 +36,11 @@ describe("extension loader host runtime binding", () => {
 
 	const identityGuard = `
 		const expectedPi = globalThis.__ompHostPiForLoaderIdentityTest;
-		if (!expectedPi) throw new Error("missing host chud module");
-		if (api.chud !== expectedPi) throw new Error("injected chud module did not match host module");
+		if (!expectedPi) throw new Error("missing host pi module");
+		if (api.pi !== expectedPi) throw new Error("injected pi module did not match host module");
 	`;
 
-	it("passes the in-process host chud module through every loader API", async () => {
+	it("passes the in-process host pi module through every loader API", async () => {
 		expect(projectDir).toBeDefined();
 		const cwd = projectDir!.path();
 
@@ -64,7 +64,7 @@ describe("extension loader host runtime binding", () => {
 					return {
 						name: "identity_tool",
 						label: "Identity Tool",
-						description: "Asserts injected chud identity",
+						description: "Asserts injected pi identity",
 						parameters: api.zod.object({}),
 						execute: async () => ({ content: [{ type: "text", text: "ok" }] }),
 					};
@@ -79,7 +79,7 @@ describe("extension loader host runtime binding", () => {
 					${identityGuard}
 					return {
 						name: "identity_command",
-						description: "Asserts injected chud identity",
+						description: "Asserts injected pi identity",
 						execute: () => "ok",
 					};
 				}

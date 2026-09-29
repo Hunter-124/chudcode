@@ -21,10 +21,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import type { ImageContent } from "@chudware/ai";
-import { resetSettingsForTest, Settings } from "@chudware/coding-agent/config/settings";
-import { InputController } from "@chudware/coding-agent/modes/controllers/input-controller";
-import type { InteractiveModeContext } from "@chudware/coding-agent/modes/types";
+import type { ImageContent } from "@oh-my-pi/pi-ai";
+import { resetSettingsForTest, Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
+import { InputController } from "@oh-my-pi/pi-coding-agent/modes/controllers/input-controller";
+import type { InteractiveModeContext } from "@oh-my-pi/pi-coding-agent/modes/types";
 
 const ONE_PX_PNG = Buffer.from(
 	"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+M8AAAMBAQDJ/pLvAAAAAElFTkSuQmCC",
@@ -207,7 +207,7 @@ describe("InputController.handleImagePaste (issue #3506)", () => {
 		expect(spies.pasteText).not.toHaveBeenCalled();
 	});
 
-	it("reports missing document file URLs instead of pasting them as plaintext", async () => {
+	it("ignores non-image macOS file URLs and falls through to the text fallback", async () => {
 		const { ctx, spies } = createCtx();
 		const readMacFileUrls = vi.fn(async () => ["/Users/me/Documents/report.pdf"]);
 		const controller = new InputController(ctx, {
@@ -221,8 +221,7 @@ describe("InputController.handleImagePaste (issue #3506)", () => {
 		expect(result).toBe(true);
 		expect(readMacFileUrls).toHaveBeenCalled();
 		expect(spies.pendingImages.length).toBe(0);
-		expect(spies.pasteText).not.toHaveBeenCalled();
-		expect(spies.showStatus).toHaveBeenCalled();
+		expect(spies.pasteText).toHaveBeenCalledWith("fallback text");
 	});
 
 	it("preserves #1628 smart-paste behavior for non-image text", async () => {
@@ -239,7 +238,7 @@ describe("InputController.handleImagePaste (issue #3506)", () => {
 		expect(spies.pendingImages.length).toBe(0);
 	});
 
-	it("reports a missing path-shaped unsupported file instead of pasting the path", async () => {
+	it("still pastes text for a path-shaped but non-image extension (e.g. /tmp/report.csv)", async () => {
 		const { ctx, spies } = createCtx();
 		const csvPath = "/tmp/report.csv";
 		const controller = new InputController(ctx, {
@@ -250,8 +249,7 @@ describe("InputController.handleImagePaste (issue #3506)", () => {
 		const result = await controller.handleImagePaste();
 
 		expect(result).toBe(true);
-		expect(spies.pasteText).not.toHaveBeenCalled();
+		expect(spies.pasteText).toHaveBeenCalledWith(csvPath);
 		expect(spies.pendingImages.length).toBe(0);
-		expect(spies.showStatus).toHaveBeenCalled();
 	});
 });

@@ -1,8 +1,10 @@
 import { afterEach, describe, expect, it, vi } from "bun:test";
-import { Settings } from "@chudware/coding-agent/config/settings";
-import { refreshAgentDiscovery, TaskTool } from "@chudware/coding-agent/task";
-import * as discoveryModule from "@chudware/coding-agent/task/discovery";
-import type { ToolSession } from "@chudware/coding-agent/tools";
+import { Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
+import { refreshAgentDiscovery, TaskTool } from "@oh-my-pi/pi-coding-agent/task";
+import * as discoveryModule from "@oh-my-pi/pi-coding-agent/task/discovery";
+import type { ToolSession } from "@oh-my-pi/pi-coding-agent/tools";
+
+import { cfgExtensions } from "@oh-my-pi/pi-coding-agent/extensibility/settings";
 
 const TEST_AGENTS = [
 	{
@@ -61,7 +63,7 @@ describe("TaskTool.create discovery memo", () => {
 			.mockResolvedValue({ agents: TEST_AGENTS, projectAgentsDir: null });
 
 		await TaskTool.create(createSession("/tmp"));
-		await TaskTool.create(createSession("/tmp/chudcode-memo-other"));
+		await TaskTool.create(createSession("/tmp/omp-memo-other"));
 
 		expect(spy).toHaveBeenCalledTimes(2);
 	});
@@ -72,8 +74,8 @@ describe("TaskTool.create discovery memo", () => {
 			.mockResolvedValueOnce({ agents: TEST_AGENTS, projectAgentsDir: null })
 			.mockResolvedValueOnce({ agents: REFRESHED_AGENTS, projectAgentsDir: null });
 
-		const first = await TaskTool.create(createSession("/tmp/chudcode-memo-shared", ["/extensions/first"]));
-		const second = await TaskTool.create(createSession("/tmp/chudcode-memo-shared", ["/extensions/second"]));
+		const first = await TaskTool.create(createSession("/tmp/omp-memo-shared", ["/extensions/first"]));
+		const second = await TaskTool.create(createSession("/tmp/omp-memo-shared", ["/extensions/second"]));
 
 		expect(spy).toHaveBeenCalledTimes(2);
 		expect(first.description).toContain("General-purpose task agent");
@@ -100,14 +102,14 @@ describe("TaskTool.create discovery memo", () => {
 			.mockResolvedValueOnce({ agents: REFRESHED_AGENTS, projectAgentsDir: null });
 		const settings = Settings.isolated({ extensions: [] });
 		const session = {
-			cwd: "/tmp/chudcode-memo-live",
+			cwd: "/tmp/omp-memo-live",
 			hasUI: false,
 			settings,
 			// Provider reads settings live — a stored snapshot would freeze the key.
 			effectiveExtensionRoots: () => ({
 				explicit: [],
 				mode: "merge" as const,
-				configured: settings.get("extensions") ?? [],
+				configured: cfgExtensions.get(settings) ?? [],
 				configuredLevel: "user" as const,
 			}),
 			getSessionFile: () => null,
@@ -117,7 +119,7 @@ describe("TaskTool.create discovery memo", () => {
 		const before = await TaskTool.create(session);
 		expect(before.description).toContain("General-purpose task agent");
 
-		settings.override("extensions", ["/extensions/live"]);
+		cfgExtensions.override(settings, ["/extensions/live"]);
 		const after = await TaskTool.create(session);
 		expect(after.description).toContain("Refreshed task agent");
 		expect(spy).toHaveBeenCalledTimes(2);
@@ -128,7 +130,7 @@ describe("TaskTool.create discovery memo", () => {
 			.spyOn(discoveryModule, "discoverAgents")
 			.mockResolvedValueOnce({ agents: TEST_AGENTS, projectAgentsDir: null })
 			.mockResolvedValueOnce({ agents: REFRESHED_AGENTS, projectAgentsDir: null });
-		const session = createSession("/tmp/chudcode-memo-refresh");
+		const session = createSession("/tmp/omp-memo-refresh");
 		const existing = await TaskTool.create(session);
 
 		expect(existing.description).toContain("General-purpose task agent");

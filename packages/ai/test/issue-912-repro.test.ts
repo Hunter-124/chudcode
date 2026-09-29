@@ -1,8 +1,8 @@
 import { describe, expect, it } from "bun:test";
-import { stream } from "@chudware/ai/stream";
-import type { Context, Model } from "@chudware/ai/types";
-import { buildModel } from "@chudware/catalog/build";
-import { sleep } from "@chudware/utils/async";
+import { stream } from "@oh-my-pi/pi-ai/stream";
+import type { Context, Model } from "@oh-my-pi/pi-ai/types";
+import { buildModel } from "@oh-my-pi/pi-catalog/build";
+import { COPILOT_API_HEADERS } from "@oh-my-pi/pi-catalog/wire/github-copilot";
 
 function makeCopilotResponsesModel(baseUrl: string): Model<"openai-responses"> {
 	return buildModel({
@@ -16,7 +16,7 @@ function makeCopilotResponsesModel(baseUrl: string): Model<"openai-responses"> {
 		cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
 		contextWindow: 128000,
 		maxTokens: 64000,
-		headers: { "User-Agent": "opencode/1.3.15" },
+		headers: { ...COPILOT_API_HEADERS },
 	});
 }
 
@@ -88,7 +88,7 @@ describe("issue #912 — github-copilot abort propagation", () => {
 		});
 
 		await fetchInvoked.promise;
-		await sleep(50);
+		await Bun.sleep(50);
 		controller.abort();
 
 		// Bound: 3 seconds. The first-event watchdog default is 100s, so any
@@ -96,7 +96,7 @@ describe("issue #912 — github-copilot abort propagation", () => {
 		// directly rather than waiting for the watchdog.
 		const result = await Promise.race([
 			providerStream.result(),
-			sleep(3_000).then(() => {
+			Bun.sleep(3_000).then(() => {
 				throw new Error("providerStream.result() did not settle within 3s after abort");
 			}),
 		]);

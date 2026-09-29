@@ -1,18 +1,18 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { resolveOpenAIRequestSetup } from "@chudware/ai/providers/openai-shared";
+import { resolveOpenAIRequestSetup } from "@oh-my-pi/pi-ai/providers/openai-shared";
 
 const ORIGINAL_ENV = {
-	SAKANA_BASE_URL: process.env.SAKANA_BASE_URL,
-	FUGU_BASE_URL: process.env.FUGU_BASE_URL,
+	SAKANA_BASE_URL: Bun.env.SAKANA_BASE_URL,
+	FUGU_BASE_URL: Bun.env.FUGU_BASE_URL,
 } as const;
 
 function restoreEnvVar(name: keyof typeof ORIGINAL_ENV): void {
 	const value = ORIGINAL_ENV[name];
 	if (value === undefined) {
-		delete process.env[name];
+		delete Bun.env[name];
 		return;
 	}
-	process.env[name] = value;
+	Bun.env[name] = value;
 }
 
 afterEach(() => {
@@ -28,8 +28,8 @@ describe("Sakana AI request base URL override", () => {
 	};
 
 	test("uses SAKANA_BASE_URL and appends /v1 for bundled Sakana models", () => {
-		process.env.SAKANA_BASE_URL = "https://gateway.sakana.test/";
-		delete process.env.FUGU_BASE_URL;
+		Bun.env.SAKANA_BASE_URL = "https://gateway.sakana.test/";
+		delete Bun.env.FUGU_BASE_URL;
 
 		const setup = resolveOpenAIRequestSetup(sakanaModel, {
 			apiKey: "sakana-key",
@@ -40,8 +40,8 @@ describe("Sakana AI request base URL override", () => {
 	});
 
 	test("falls back to FUGU_BASE_URL when SAKANA_BASE_URL is unset", () => {
-		delete process.env.SAKANA_BASE_URL;
-		process.env.FUGU_BASE_URL = "https://fugu.sakana.test/v1";
+		delete Bun.env.SAKANA_BASE_URL;
+		Bun.env.FUGU_BASE_URL = "https://fugu.sakana.test/v1";
 
 		const setup = resolveOpenAIRequestSetup(sakanaModel, {
 			apiKey: "sakana-key",
@@ -52,7 +52,7 @@ describe("Sakana AI request base URL override", () => {
 	});
 
 	test("does not redirect other OpenAI-compatible providers", () => {
-		process.env.SAKANA_BASE_URL = "https://gateway.sakana.test";
+		Bun.env.SAKANA_BASE_URL = "https://gateway.sakana.test";
 
 		const setup = resolveOpenAIRequestSetup(
 			{ provider: "openai", id: "gpt-5.5", baseUrl: "https://api.openai.com/v1" },

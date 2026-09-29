@@ -2,12 +2,11 @@ import { afterEach, describe, expect, it } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import type { FetchImpl } from "@chudware/ai/types";
-import { resetSettingsForTest, Settings } from "@chudware/coding-agent/config/settings";
-import { searchSearXNG } from "@chudware/coding-agent/web/search/providers/searxng";
-import { SearchProviderError } from "@chudware/coding-agent/web/search/types";
-import { removeWithRetries } from "@chudware/utils";
-import * as fsx from "@chudware/utils/fsx";
+import type { FetchImpl } from "@oh-my-pi/pi-ai/types";
+import { resetSettingsForTest, Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
+import { searchSearXNG } from "@oh-my-pi/pi-coding-agent/web/search/providers/searxng";
+import { SearchProviderError } from "@oh-my-pi/pi-coding-agent/web/search/types";
+import { removeWithRetries } from "@oh-my-pi/pi-utils";
 
 describe("SearXNG web search provider", () => {
 	afterEach(() => {
@@ -75,11 +74,11 @@ describe("SearXNG web search provider", () => {
 		};
 
 		await searchSearXNG({
-			query: "site:github.com/Hunter-124/chudcode inurl:releases site:github.com 17.1.1 release",
+			query: "site:github.com/can1357/oh-my-pi inurl:releases site:github.com 17.1.1 release",
 			fetch: fetchMock,
 		});
 
-		expect(captured.q).toBe("17.1.1 release github.com/Hunter-124/chudcode releases site:github.com");
+		expect(captured.q).toBe("17.1.1 release github.com/can1357/oh-my-pi releases site:github.com");
 	});
 
 	it("maps lang: to the language param and re-emits remaining directives in q", async () => {
@@ -125,7 +124,7 @@ describe("SearXNG web search provider", () => {
 	it("sends configured category and safe-search filters and preserves instant answers", async () => {
 		const agentDir = await fs.mkdtemp(path.join(os.tmpdir(), "searxng-filters-"));
 		try {
-			await fsx.write(
+			await Bun.write(
 				path.join(agentDir, "config.yml"),
 				["searxng:", "  endpoint: https://searx.example.org", "  categories: news", "  safesearch: 2", ""].join(
 					"\n",
@@ -168,7 +167,7 @@ describe("SearXNG web search provider", () => {
 	it("reads Basic auth credentials from nested config.yml settings", async () => {
 		const agentDir = await fs.mkdtemp(path.join(os.tmpdir(), "searxng-settings-"));
 		try {
-			await fsx.write(
+			await Bun.write(
 				path.join(agentDir, "config.yml"),
 				[
 					"searxng:",
@@ -337,10 +336,39 @@ describe("SearXNG web search provider", () => {
 		expect(captured.headers?.get("Authorization")).toBe("Bearer bearer-token");
 	});
 
+	it("falls back to SEARXNG_ENDPOINT/SEARXNG_TOKEN when config.yml leaves them blank or null", async () => {
+		const agentDir = await fs.mkdtemp(path.join(os.tmpdir(), "searxng-blank-"));
+		try {
+			await Bun.write(path.join(agentDir, "config.yml"), ["searxng:", '  endpoint: ""', "  token:", ""].join("\n"));
+			await Settings.init({ agentDir });
+			process.env.SEARXNG_ENDPOINT = "https://searx-env.example.org";
+			process.env.SEARXNG_TOKEN = "env-token";
+
+			const captured: { url?: URL; headers?: Headers } = {};
+			const fetchMock: FetchImpl = (input, init) => {
+				captured.url = new URL(input.toString());
+				captured.headers = new Headers(init?.headers);
+				return Promise.resolve(
+					new Response(JSON.stringify({ results: [] }), {
+						status: 200,
+						headers: { "Content-Type": "application/json" },
+					}),
+				);
+			};
+
+			await searchSearXNG({ query: "blank config", fetch: fetchMock });
+
+			expect(captured.url?.origin).toBe("https://searx-env.example.org");
+			expect(captured.headers?.get("Authorization")).toBe("Bearer env-token");
+		} finally {
+			await removeWithRetries(agentDir);
+		}
+	});
+
 	it("resolves engine shortcuts via /config into canonical names for the engines parameter", async () => {
 		const agentDir = await fs.mkdtemp(path.join(os.tmpdir(), "searxng-engines-"));
 		try {
-			await fsx.write(
+			await Bun.write(
 				path.join(agentDir, "config.yml"),
 				[
 					"searxng:",
@@ -388,7 +416,7 @@ describe("SearXNG web search provider", () => {
 	it("passes configured engines verbatim when /config is unavailable", async () => {
 		const agentDir = await fs.mkdtemp(path.join(os.tmpdir(), "searxng-engines-fallback-"));
 		try {
-			await fsx.write(
+			await Bun.write(
 				path.join(agentDir, "config.yml"),
 				["searxng:", "  endpoint: https://searx-noconfig.example.org", '  engines: "ddg,brave"', ""].join("\n"),
 			);

@@ -2,14 +2,14 @@
  * Hook loader - loads TypeScript hook modules using native Bun import.
  */
 import * as path from "node:path";
-import { type } from "@chudware/chudtype";
-import * as zod from "@chudware/chudtype/zod";
-import { logger } from "@chudware/utils";
+import { type } from "@oh-my-pi/omptype";
+import * as zod from "@oh-my-pi/omptype/zod";
+import { logger } from "@oh-my-pi/pi-utils";
 import { hookCapability } from "../../capability/hook";
 import type { Hook } from "../../discovery";
 import { loadCapability } from "../../discovery";
 // Runtime self-reference: dereference this namespace only inside loader functions to keep the index.ts cycle safe.
-import * as ChudCodingAgent from "../../index";
+import * as PiCodingAgent from "../../index";
 import type { CustomMessagePayload } from "../../session/messages";
 import * as typebox from "../legacy-typebox";
 import { resolvePath, withHostGuard } from "../utils";
@@ -22,7 +22,7 @@ import type { ExecOptions, HookAPI, HookFactory, HookMessageRenderer, Registered
 type HandlerFn = (...args: unknown[]) => Promise<unknown>;
 
 /**
- * Send message handler type for chud.sendMessage().
+ * Send message handler type for pi.sendMessage().
  */
 export type SendMessageHandler = <T = unknown>(
 	message: CustomMessagePayload<T>,
@@ -30,7 +30,7 @@ export type SendMessageHandler = <T = unknown>(
 ) => void;
 
 /**
- * Append entry handler type for chud.appendEntry().
+ * Append entry handler type for pi.appendEntry().
  */
 export type AppendEntryHandler = <T = unknown>(customType: string, data?: T) => void;
 
@@ -52,9 +52,9 @@ export interface LoadedHook {
 	messageRenderers: Map<string, HookMessageRenderer>;
 	/** Map of command name to registered command */
 	commands: Map<string, RegisteredCommand>;
-	/** Set the send message handler for this hook's chud.sendMessage() */
+	/** Set the send message handler for this hook's pi.sendMessage() */
 	setSendMessageHandler: (handler: SendMessageHandler) => void;
-	/** Set the append entry handler for this hook's chud.appendEntry() */
+	/** Set the append entry handler for this hook's pi.appendEntry() */
 	setAppendEntryHandler: (handler: AppendEntryHandler) => void;
 }
 
@@ -124,7 +124,7 @@ async function createHookAPI(
 		typebox,
 		arktype: type,
 		zod,
-		chud: ChudCodingAgent,
+		pi: PiCodingAgent,
 	} as HookAPI;
 
 	return {
@@ -211,7 +211,7 @@ export async function loadHooks(paths: string[], cwd: string): Promise<LoadHooks
 /**
  * Discover and load hooks from all registered providers.
  * Uses the capability API to discover hook paths from:
- * 1. Chudcode native configs (.chudcode/.pi hooks/)
+ * 1. OMP native configs (.omp/.pi hooks/)
  * 2. Installed plugins
  * 3. Other editor/IDE configurations
  *

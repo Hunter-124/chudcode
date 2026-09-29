@@ -2,7 +2,7 @@ import { describe, expect, it } from "bun:test";
 import * as path from "node:path";
 
 describe("Cursor proxy resolution", () => {
-	it("tunnels the run through HTTPS_PROXY when no CHUDCODE_PROXY is set", async () => {
+	it("tunnels the run through HTTPS_PROXY when no PI_PROXY is set", async () => {
 		const child = Bun.spawn([process.execPath, path.join(import.meta.dir, "fixtures/cursor-proxy-env.ts")], {
 			cwd: path.resolve(import.meta.dir, "../../.."),
 			stdout: "pipe",

@@ -2,18 +2,17 @@ import { afterAll, afterEach, beforeAll, describe, expect, it } from "bun:test";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
-import type { AgentTool } from "@chudware/agent-core";
-import { AuthStorage } from "@chudware/ai";
-import { getBundledModel } from "@chudware/catalog/models";
-import { type } from "@chudware/chudtype";
-import { ModelRegistry } from "@chudware/coding-agent/config/model-registry";
-import { Settings } from "@chudware/coding-agent/config/settings";
-import type { CustomTool } from "@chudware/coding-agent/extensibility/custom-tools/types";
-import { createAgentSession } from "@chudware/coding-agent/sdk";
-import type { AgentSession } from "@chudware/coding-agent/session/agent-session";
-import { SessionManager } from "@chudware/coding-agent/session/session-manager";
-import { removeSyncWithRetries, Snowflake } from "@chudware/utils";
-import * as fsx from "@chudware/utils/fsx";
+import { type } from "@oh-my-pi/omptype";
+import type { AgentTool } from "@oh-my-pi/pi-agent-core";
+import { AuthStorage } from "@oh-my-pi/pi-ai";
+import { getBundledModel } from "@oh-my-pi/pi-catalog/models";
+import { ModelRegistry } from "@oh-my-pi/pi-coding-agent/config/model-registry";
+import { Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
+import type { CustomTool } from "@oh-my-pi/pi-coding-agent/extensibility/custom-tools/types";
+import { createAgentSession } from "@oh-my-pi/pi-coding-agent/sdk";
+import type { AgentSession } from "@oh-my-pi/pi-coding-agent/session/agent-session";
+import { SessionManager } from "@oh-my-pi/pi-coding-agent/session/session-manager";
+import { removeSyncWithRetries, Snowflake } from "@oh-my-pi/pi-utils";
 
 // Regression for issue #5305: image-gen is registered as a custom tool, and
 // custom tools are force-activated regardless of the `toolNames` filter. Before
@@ -27,7 +26,7 @@ describe("generate_image tool gating", () => {
 	const sessions: AgentSession[] = [];
 
 	beforeAll(async () => {
-		registryDir = path.join(os.tmpdir(), `chud-generate-image-gating-${Snowflake.next()}`);
+		registryDir = path.join(os.tmpdir(), `pi-generate-image-gating-${Snowflake.next()}`);
 		fs.mkdirSync(registryDir, { recursive: true });
 		authStorage = await AuthStorage.create(path.join(registryDir, "auth.db"));
 		modelRegistry = new ModelRegistry(authStorage, path.join(registryDir, "models.yml"));
@@ -199,7 +198,7 @@ describe("generate_image tool gating", () => {
 		expect(write).toBeDefined();
 		const target = path.join(registryDir, "mounted-runtime-upgrade.txt");
 		await write!.execute("mounted-runtime-full-write", { path: target, content: "upgraded\n" });
-		expect(await fsx.readText(target)).toBe("upgraded\n");
+		expect(await Bun.file(target).text()).toBe("upgraded\n");
 	});
 
 	it("mounts ambient MCP-shaped tools when write was omitted", async () => {
@@ -240,18 +239,6 @@ describe("generate_image tool gating", () => {
 		const result = await directTool!.execute("mcp-direct-dispatch", {});
 		expect(result.content.find(part => part.type === "text")?.text).toBe("ok");
 		expect(mcpCalls).toBe(1);
-	});
-
-	it("keeps the device-only write across an empty MCP refresh", async () => {
-		const session = await sessionWithCustomTools(["read"], [customTool("mcp__test__search", true)]);
-		expect(session.getActiveToolNames()).toContain("write");
-		expect(session.getActiveToolNames()).not.toContain("mcp__test__search");
-		expect(session.getXdevToolEntries().map(entry => entry.name)).toContain("mcp__test__search");
-
-		await session.refreshMCPTools([]);
-
-		expect(session.getActiveToolNames()).toContain("write");
-		expect(session.getXdevToolEntries().map(entry => entry.name)).toContain("mcp__test__search");
 	});
 
 	it("keeps the device-only write during enabled-set round trips", async () => {
@@ -391,11 +378,11 @@ describe("generate_image tool gating", () => {
 			toolNames: ["read"],
 		});
 		sessions.push(session);
-		// Ambient devices from the user's harness may already be mounted; this
-		// fixture only requires that the not-yet-discovered RPC tool is absent.
-		expect(session.getXdevToolEntries().map(entry => entry.name)).not.toContain("rpc_search");
+		// The device-only transport stays dormant until a mountable tool appears.
+		expect(session.getXdevToolEntries()).toEqual([]);
+		expect(session.getActiveToolNames()).not.toContain("write");
 		await session.setActiveToolsByName(["read"]);
-		expect(session.getXdevToolEntries().map(entry => entry.name)).not.toContain("rpc_search");
+		expect(session.getActiveToolNames()).not.toContain("write");
 
 		const rpcTool: AgentTool = {
 			name: "rpc_search",

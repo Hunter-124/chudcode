@@ -37,7 +37,7 @@ function fixtureFinding(): SecurityFinding {
 		validation: { status: "unvalidated", evidenceIds: [] },
 		disposition: { status: "open" },
 		provenance: {
-			producer: { kind: "chudcode-native", name: "chudcode-security", version: "test" },
+			producer: { kind: "omp-native", name: "omp-security", version: "test" },
 			createdAt: "2026-07-29T00:00:00.000Z",
 		},
 	};
@@ -88,7 +88,7 @@ describe("security contracts", () => {
 		}
 	});
 
-	test("scan IDs remain Chudcode-owned", () => {
+	test("scan IDs remain OMP-owned", () => {
 		expect(createSecurityScanId(() => "018f0000-0000-7000-8000-000000000001")).toBe(
 			"secscan_018f0000000070008000000000000001",
 		);
@@ -107,7 +107,7 @@ describe("security contracts", () => {
 		const finding = fixtureFinding();
 		const bundle: SecurityScanBundle = {
 			scan: {
-				documentType: "chudcode-security.scan",
+				documentType: "omp-security.scan",
 				schemaVersion: "1.0",
 				id: finding.scanId,
 				projectKey: "fixture-project",

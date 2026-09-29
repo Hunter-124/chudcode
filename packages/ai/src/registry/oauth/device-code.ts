@@ -1,4 +1,3 @@
-import { sleep } from "@chudware/utils/async";
 import * as AIError from "../../error";
 
 const DEVICE_FLOW_CANCEL_MESSAGE = "Login cancelled";
@@ -30,7 +29,7 @@ export interface OAuthDeviceCodeFlowOptions<T> {
 
 async function abortableDeviceFlowSleep(ms: number, signal: AbortSignal | undefined): Promise<void> {
 	if (!signal) {
-		await sleep(ms);
+		await Bun.sleep(ms);
 		return;
 	}
 	if (signal.aborted) {
@@ -38,12 +37,11 @@ async function abortableDeviceFlowSleep(ms: number, signal: AbortSignal | undefi
 	}
 
 	const { promise, resolve, reject } = Promise.withResolvers<void>();
-	let timer: Timer | undefined;
 	const onAbort = () => {
 		clearTimeout(timer);
 		reject(new AIError.LoginCancelledError(DEVICE_FLOW_CANCEL_MESSAGE));
 	};
-	timer = setTimeout(() => {
+	const timer = setTimeout(() => {
 		signal.removeEventListener("abort", onAbort);
 		resolve();
 	}, ms);

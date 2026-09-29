@@ -1,12 +1,11 @@
 import type { Database } from "bun:sqlite";
-import type { AgentToolResult } from "@chudware/agent-core";
-import * as fsx from "@chudware/utils/fsx";
+import type { AgentToolResult } from "@oh-my-pi/pi-agent-core";
 import type { ToolSession } from "../sdk";
-import { DEFAULT_MAX_LINES, truncateHead } from "../session/streaming-output";
-import { applyListLimit } from "./list-limit";
+import { DEFAULT_MAX_LINES, truncateHead } from "@oh-my-pi/pi-tui/tools/streaming-output";
+import { applyListLimit } from "@oh-my-pi/pi-tui/tools/list-limit";
 import { resolveReadPath } from "./path-utils";
-import type { ReadToolDetails } from "./read";
-import { prependSuffixResolutionNotice } from "./read-format";
+import type { ReadToolDetails } from "@oh-my-pi/pi-tui/tools/read";
+import { prependSuffixResolutionNotice, toReadTruncationStats } from "./read-format";
 import {
 	findSuffixMatchCached,
 	isNotFoundError,
@@ -31,7 +30,8 @@ import {
 	renderTableList,
 	resolveTableRowLookup,
 } from "./sqlite-reader";
-import { ToolError, throwIfAborted } from "./tool-errors";
+import { throwIfAborted } from "./tool-errors";
+import { ToolError } from "@oh-my-pi/pi-tui/tools/tool-errors";
 import { toolResult } from "./tool-result";
 
 interface ResolvedSqliteReadPath {
@@ -52,7 +52,7 @@ export async function resolveSqliteReadPath(
 		let suffixResolution: { from: string; to: string } | undefined;
 
 		try {
-			const stat = await fsx.stat(absolutePath);
+			const stat = await Bun.file(absolutePath).stat();
 			if (stat.isDirectory()) continue;
 			if (!(await isSqliteFile(absolutePath))) continue;
 
@@ -69,7 +69,7 @@ export async function resolveSqliteReadPath(
 			if (!suffixMatch) continue;
 
 			try {
-				const retryStat = await fsx.stat(suffixMatch.absolutePath);
+				const retryStat = await Bun.file(suffixMatch.absolutePath).stat();
 				if (retryStat.isDirectory()) continue;
 				if (!(await isSqliteFile(suffixMatch.absolutePath))) continue;
 
@@ -120,7 +120,7 @@ export async function readSqlite(
 					resolvedSqlitePath.suffixResolution,
 				);
 				const truncation = truncateHead(output, { maxLines: Number.MAX_SAFE_INTEGER });
-				details.truncation = truncation.truncated ? truncation : undefined;
+				details.truncation = truncation.truncated ? toReadTruncationStats(truncation) : undefined;
 				const resultBuilder = toolResult<ReadToolDetails>(details)
 					.text(truncation.content)
 					.sourcePath(resolvedSqlitePath.absolutePath)

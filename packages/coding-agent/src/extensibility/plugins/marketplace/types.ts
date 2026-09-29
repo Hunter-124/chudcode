@@ -11,13 +11,18 @@
 
 // ── Plugin ID helpers ────────────────────────────────────────────────
 
-const NAME_RE = /^[a-z0-9]([a-z0-9.-]*[a-z0-9])?$/;
+const NAME_RE = /^[a-zA-Z0-9]([a-zA-Z0-9.-]*[a-zA-Z0-9])?$/;
 const MAX_NAME_LENGTH = 64;
 const MAX_ID_LENGTH = 128;
 
 /** Validate a plugin or marketplace name segment. */
 export function isValidNameSegment(s: string): boolean {
 	return s.length > 0 && s.length <= MAX_NAME_LENGTH && NAME_RE.test(s);
+}
+
+/** Return the case-insensitive key used to detect cache-path name collisions. */
+export function nameSegmentCollisionKey(s: string): string {
+	return s.toLowerCase();
 }
 
 /** Build canonical plugin ID: `"name@marketplace"`. Both segments are validated. */
@@ -172,7 +177,7 @@ export interface InstalledPluginEntry {
 	lastUpdated: string;
 	/** For git-sourced plugins. */
 	gitCommitSha?: string;
-	/** Chudcode extension — not in Claude Code's type. CLI/UI concern only in v1. */
+	/** OMP extension — not in Claude Code's type. CLI/UI concern only in v1. */
 	enabled?: boolean;
 }
 

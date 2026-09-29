@@ -1,8 +1,8 @@
 import { describe, expect, it } from "bun:test";
-import { handleBluesky } from "@chudware/coding-agent/web/scrapers/bluesky";
-import { handleMastodon } from "@chudware/coding-agent/web/scrapers/mastodon";
+import { handleBluesky } from "@oh-my-pi/pi-coding-agent/web/scrapers/bluesky";
+import { handleMastodon } from "@oh-my-pi/pi-coding-agent/web/scrapers/mastodon";
 
-const SKIP = !process.env.WEB_FETCH_INTEGRATION;
+const SKIP = !Bun.env.WEB_FETCH_INTEGRATION;
 
 describe.skipIf(SKIP)("handleMastodon", () => {
 	it("returns null for non-Mastodon URLs", async () => {
@@ -66,20 +66,6 @@ describe.skipIf(SKIP)("handleBluesky", () => {
 			expect(result?.content).toContain("**Posts:**");
 			expect(result?.content).toContain("**DID:**");
 			expect(result?.notes).toContain("Fetched via AT Protocol API");
-		},
-		{ timeout: 30000 },
-	);
-
-	it(
-		"fetches Jay Graber's profile",
-		async () => {
-			// Jay Graber - CEO of Bluesky, very stable
-			const result = await handleBluesky("https://bsky.app/profile/jay.bsky.team", 20);
-			expect(result).not.toBeNull();
-			expect(result?.method).toBe("bluesky-api");
-			expect(result?.contentType).toBe("text/markdown");
-			expect(result?.content).toContain("@jay.bsky.team");
-			expect(result?.content).toContain("**Followers:**");
 		},
 		{ timeout: 30000 },
 	);

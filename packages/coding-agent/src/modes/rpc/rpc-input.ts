@@ -1,4 +1,4 @@
-import { readLines } from "@chudware/utils";
+import { readLines } from "@oh-my-pi/pi-utils";
 
 /**
  * Claims Bun's singleton stdin reader immediately and exposes a separately readable stream.

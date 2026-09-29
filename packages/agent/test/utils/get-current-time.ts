@@ -1,5 +1,5 @@
-import type { AgentTool, AgentToolResult } from "@chudware/agent-core/types";
-import { type } from "@chudware/chudtype";
+import { type } from "@oh-my-pi/omptype";
+import type { AgentTool, AgentToolResult } from "@oh-my-pi/pi-agent-core/types";
 
 export interface GetCurrentTimeResult extends AgentToolResult<{ utcTimestamp: number }> {}
 

@@ -1,20 +1,18 @@
 import { beforeAll, describe, expect, test } from "bun:test";
-import * as crypto from "node:crypto";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import { DiffSide, DiffStream } from "@chudware/natives";
-import { sanitizeText } from "@chudware/utils";
-import * as fsx from "@chudware/utils/fsx";
+import { DiffSide, DiffStream } from "@oh-my-pi/pi-natives";
+import { sanitizeText } from "@oh-my-pi/pi-utils";
 import { $ } from "bun";
 import {
 	buildDiffDocument,
 	buildLineSelectionPatch,
 	type DiffBuildOptions,
 	DiffPane,
-} from "../src/cli/git-tui/diff-pane";
+} from "@oh-my-pi/pi-tui/apps/git/diff-pane";
 import { GitModel } from "../src/cli/git-tui/state";
-import { initTheme } from "../src/modes/theme/theme";
+import { initTheme } from "@oh-my-pi/pi-tui/theme";
 
 const RED_PNG = Buffer.from(
 	"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGP4z8AAAAMBAQDJ/pLvAAAAAElFTkSuQmCC",
@@ -26,12 +24,12 @@ beforeAll(async () => {
 });
 
 async function withReviewRepo(run: (repo: string) => Promise<void>): Promise<void> {
-	const repo = await fs.mkdtemp(path.join(os.tmpdir(), "chudcode-git-tui-stream-"));
+	const repo = await fs.mkdtemp(path.join(os.tmpdir(), "omp-git-tui-stream-"));
 	try {
 		await $`git init --initial-branch=main`.cwd(repo).quiet();
 		await $`git config user.name "Test User"`.cwd(repo).quiet();
 		await $`git config user.email "test@example.com"`.cwd(repo).quiet();
-		await fsx.write(path.join(repo, "seed.txt"), "seed\n");
+		await Bun.write(path.join(repo, "seed.txt"), "seed\n");
 		await $`git add seed.txt`.cwd(repo).quiet();
 		await $`git commit -m base`.cwd(repo).quiet();
 		await run(repo);
@@ -66,7 +64,7 @@ async function streamedDocument(oldText: string, newText: string, options: DiffB
 describe("git TUI streamed document", () => {
 	test("uses an empty base side for a staged added file", async () => {
 		await withReviewRepo(async repo => {
-			await fsx.write(path.join(repo, "added.ts"), "export const added = true;\n");
+			await Bun.write(path.join(repo, "added.ts"), "export const added = true;\n");
 			await $`git add added.ts`.cwd(repo).quiet();
 
 			const model = new GitModel(repo);
@@ -120,7 +118,7 @@ describe("git TUI streamed document", () => {
 describe("git TUI asset previews", () => {
 	test("renders raster Git objects as media instead of binary placeholders", async () => {
 		await withReviewRepo(async repo => {
-			await fsx.write(path.join(repo, "image.png"), RED_PNG);
+			await Bun.write(path.join(repo, "image.png"), RED_PNG);
 			await $`git add image.png`.cwd(repo).quiet();
 
 			const { contents, file } = await loadStagedContents(repo, "image.png");
@@ -143,7 +141,7 @@ describe("git TUI asset previews", () => {
 		await withReviewRepo(async repo => {
 			const svg =
 				'<svg xmlns="http://www.w3.org/2000/svg" width="20" height="10"><rect width="20" height="10" fill="red"/></svg>';
-			await fsx.write(path.join(repo, "diagram.svg"), svg);
+			await Bun.write(path.join(repo, "diagram.svg"), svg);
 			await $`git add diagram.svg`.cwd(repo).quiet();
 
 			const { contents, file } = await loadStagedContents(repo, "diagram.svg");
@@ -161,11 +159,11 @@ describe("git TUI asset previews", () => {
 
 	test("resolves staged Git LFS pointers from local object storage", async () => {
 		await withReviewRepo(async repo => {
-			const oid = crypto.createHash("sha256").update(RED_PNG).digest("hex");
+			const oid = new Bun.CryptoHasher("sha256").update(RED_PNG).digest("hex");
 			const objectPath = path.join(repo, ".git", "lfs", "objects", oid.slice(0, 2), oid.slice(2, 4), oid);
 			await fs.mkdir(path.dirname(objectPath), { recursive: true });
-			await fsx.write(objectPath, RED_PNG);
-			await fsx.write(
+			await Bun.write(objectPath, RED_PNG);
+			await Bun.write(
 				path.join(repo, "lfs-image.png"),
 				`${LFS_POINTER_VERSION}\noid sha256:${oid}\nsize ${RED_PNG.byteLength}\n`,
 			);
@@ -187,7 +185,7 @@ describe("git TUI asset previews", () => {
 	test("shows unavailable Git LFS objects explicitly", async () => {
 		await withReviewRepo(async repo => {
 			const oid = "0".repeat(64);
-			await fsx.write(
+			await Bun.write(
 				path.join(repo, "missing.png"),
 				`${LFS_POINTER_VERSION}\noid sha256:${oid}\nsize ${RED_PNG.byteLength}\n`,
 			);
@@ -207,7 +205,7 @@ describe("git TUI asset previews", () => {
 
 	test("keeps invalid UTF-8 Git objects out of the text renderer", async () => {
 		await withReviewRepo(async repo => {
-			await fsx.write(path.join(repo, "object.bin"), new Uint8Array([0xff, 0xfe, 0xfd, 0xfc]));
+			await Bun.write(path.join(repo, "object.bin"), new Uint8Array([0xff, 0xfe, 0xfd, 0xfc]));
 			await $`git add object.bin`.cwd(repo).quiet();
 
 			const { contents, file } = await loadStagedContents(repo, "object.bin");

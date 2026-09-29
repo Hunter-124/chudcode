@@ -1,17 +1,23 @@
-import type { ImageContent, Message, Model, TextContent } from "@chudware/ai";
-import type { type as ArkType } from "@chudware/chudtype";
-import type * as TypeBox from "@chudware/chudtype/typebox";
-import type * as zod from "@chudware/chudtype/zod";
-import type { Component, TUI } from "@chudware/tui";
-import type { logger as ChudLogger } from "@chudware/utils";
+import { type HookMessageRenderer } from "@oh-my-pi/pi-tui/chat/extension-types";
+export { type HookMessageRenderOptions, type HookMessageRenderer } from "@oh-my-pi/pi-tui/chat/extension-types";
+import type { type as ArkType } from "@oh-my-pi/omptype";
+import type * as TypeBox from "@oh-my-pi/omptype/typebox";
+import type * as zod from "@oh-my-pi/omptype/zod";
+import type { ImageContent, Message, Model, TextContent } from "@oh-my-pi/pi-ai";
+import type { Component, TUI } from "@oh-my-pi/pi-tui";
+import type { logger as PiLogger } from "@oh-my-pi/pi-utils";
+import type { KeybindingsManager } from "@oh-my-pi/pi-tui/app-keybindings";
 import type { ModelRegistry } from "../../config/model-registry";
-import type { EditToolDetails } from "../../edit";
+import type { EditToolDetails } from "@oh-my-pi/pi-tui/tools/edit";
 import type { ExecOptions, ExecResult } from "../../exec/exec";
-import type * as ChudCodingAgent from "../../index";
-import type { Theme } from "../../modes/theme/theme";
-import type { CustomMessagePayload, HookMessage } from "../../session/messages";
+import type * as PiCodingAgent from "../../index";
+import type { Theme } from "@oh-my-pi/pi-tui/theme";
+import type { CustomMessagePayload } from "../../session/messages";
 import type { ReadonlySessionManager, SessionManager } from "../../session/session-manager";
-import type { BashToolDetails, GlobToolDetails, GrepToolDetails, ReadToolDetails } from "../../tools";
+import type { BashToolDetails } from "@oh-my-pi/pi-tui/tools/bash";
+import type { GlobToolDetails } from "@oh-my-pi/pi-tui/tools/glob";
+import type { GrepToolDetails } from "@oh-my-pi/pi-tui/tools/grep";
+import type { ReadToolDetails } from "@oh-my-pi/pi-tui/tools/read";
 import type {
 	AgentEndEvent,
 	AgentStartEvent,
@@ -96,7 +102,8 @@ export interface HookUIContext {
 
 	/**
 	 * Show a custom component with keyboard focus.
-	 * The factory receives TUI, theme, and a done() callback to close the component.
+	 * The factory receives TUI, theme, keybindings, and a done() callback to close the component.
+	 * Matches the interactive controller call shape (same arity as ExtensionUIContext.custom).
 	 * Can be async for fire-and-forget work (don't await the work, just start it).
 	 *
 	 * @param factory - Function that creates the component. Call done() when finished.
@@ -104,14 +111,14 @@ export interface HookUIContext {
 	 *
 	 * @example
 	 * // Sync factory
-	 * const result = await ctx.ui.custom((tui, theme, done) => {
+	 * const result = await ctx.ui.custom((tui, theme, keybindings, done) => {
 	 *   const component = new MyComponent(tui, theme);
 	 *   component.onFinish = (value) => done(value);
 	 *   return component;
 	 * });
 	 *
 	 * // Async factory with fire-and-forget work
-	 * const result = await ctx.ui.custom(async (tui, theme, done) => {
+	 * const result = await ctx.ui.custom(async (tui, theme, keybindings, done) => {
 	 *   const loader = new CancellableLoader(tui, theme.fg("accent"), theme.fg("muted"), "Working...");
 	 *   loader.onAbort = () => done(null);
 	 *   doWork(loader.signal).then(done);  // Don't await - fire and forget
@@ -122,6 +129,7 @@ export interface HookUIContext {
 		factory: (
 			tui: TUI,
 			theme: Theme,
+			keybindings: KeybindingsManager,
 			done: (result: T) => void,
 		) => (Component & { dispose?(): void }) | Promise<Component & { dispose?(): void }>,
 	): Promise<T>;
@@ -177,7 +185,7 @@ export interface HookContext {
 	hasUI: boolean;
 	/** Current working directory */
 	cwd: string;
-	/** Session manager (read-only) - use chud.sendMessage()/pi.appendEntry() for writes */
+	/** Session manager (read-only) - use pi.sendMessage()/pi.appendEntry() for writes */
 	sessionManager: ReadonlySessionManager;
 	/** Model registry - use for API key resolution and model retrieval */
 	modelRegistry: ModelRegistry;
@@ -441,21 +449,6 @@ export type {
  */
 export type HookHandler<E, R = undefined> = (event: E, ctx: HookContext) => Promise<R | void> | R | void;
 
-export interface HookMessageRenderOptions {
-	/** Whether the view is expanded */
-	expanded: boolean;
-}
-
-/**
- * Renderer for hook messages.
- * Hooks register these to provide custom TUI rendering for their message types.
- */
-export type HookMessageRenderer<T = unknown> = (
-	message: HookMessage<T>,
-	options: HookMessageRenderOptions,
-	theme: Theme,
-) => Component | undefined;
-
 /**
  * Command registration options.
  */
@@ -471,7 +464,7 @@ export interface RegisteredCommand {
 
 /**
  * HookAPI passed to hook factory functions.
- * Hooks use chud.on() to subscribe to events and chud.sendMessage() to inject messages.
+ * Hooks use pi.on() to subscribe to events and pi.sendMessage() to inject messages.
  */
 export interface HookAPI {
 	// Session events
@@ -543,10 +536,10 @@ export interface HookAPI {
 	 *
 	 * @example
 	 * // Store permission state
-	 * chud.appendEntry("permissions", { level: "full", grantedAt: Date.now() });
+	 * pi.appendEntry("permissions", { level: "full", grantedAt: Date.now() });
 	 *
 	 * // On reload, reconstruct state from entries
-	 * chud.on("session", async (event, ctx) => {
+	 * pi.on("session", async (event, ctx) => {
 	 *   if (event.reason === "start") {
 	 *     const entries = event.sessionManager.getEntries();
 	 *     const myEntries = entries.filter(e => e.type === "custom" && e.customType === "permissions");
@@ -576,22 +569,22 @@ export interface HookAPI {
 	exec(command: string, args: string[], options?: ExecOptions): Promise<ExecResult>;
 
 	/** File logger for error/warning/debug messages */
-	logger: typeof ChudLogger;
+	logger: typeof PiLogger;
 	/** Injected TypeBox shim (legacy/compat — prefer `arktype`). */
 	typebox: typeof TypeBox;
-	/** Injected chudtype schema builder for hooks. */
+	/** Injected omptype schema builder for hooks. */
 	arktype: typeof ArkType;
-	/** Injected Zod-compatible chudtype builder for hooks. */
+	/** Injected Zod-compatible omptype builder for hooks. */
 	zod: typeof zod;
-	/** Injected chudcode-agent exports */
-	chud: typeof ChudCodingAgent;
+	/** Injected pi-coding-agent exports */
+	pi: typeof PiCodingAgent;
 }
 
 /**
  * Hook factory function type.
  * Hooks export a default function that receives the HookAPI.
  */
-export type HookFactory = (chud: HookAPI) => void;
+export type HookFactory = (pi: HookAPI) => void;
 
 // ============================================================================
 // Errors

@@ -7,8 +7,8 @@ import {
 	resolveDesktopNotifier,
 	sendDesktopNotification,
 	shouldDeliverDesktopNotification,
-} from "@chudware/tui/desktop-notify";
-import * as utils from "@chudware/utils";
+} from "@oh-my-pi/pi-tui/desktop-notify";
+import * as utils from "@oh-my-pi/pi-utils";
 
 const LINUX_ENV: NodeJS.ProcessEnv = { DBUS_SESSION_BUS_ADDRESS: "unix:path=/run/user/1000/bus" };
 
@@ -44,17 +44,11 @@ describe("shouldDeliverDesktopNotification", () => {
 		expect(shouldDeliverDesktopNotification("iterm2", false, "linux", LINUX_ENV)).toBe(false);
 	});
 
-	it("lets Bell-only terminals use D-Bus while true in-band notify protocols skip it", () => {
-		expect(shouldDeliverDesktopNotification("vscode", true, "linux", LINUX_ENV)).toBe(true);
-		expect(shouldDeliverDesktopNotification("ghostty", false, "linux", LINUX_ENV)).toBe(false);
-		expect(shouldDeliverDesktopNotification("kitty", false, "linux", LINUX_ENV)).toBe(false);
-	});
-
-	it("respects the CHUDCODE_NO_DESKTOP_NOTIFY=1 opt-out", () => {
+	it("respects the PI_NO_DESKTOP_NOTIFY=1 opt-out", () => {
 		expect(
 			shouldDeliverDesktopNotification("trueColor", true, "linux", {
 				...LINUX_ENV,
-				CHUDCODE_NO_DESKTOP_NOTIFY: "1",
+				PI_NO_DESKTOP_NOTIFY: "1",
 			}),
 		).toBe(false);
 	});
@@ -111,10 +105,10 @@ describe("buildDesktopNotifyCommand", () => {
 		expect(buildDesktopNotifyCommand(notifySend, "ping")).toEqual([
 			"/usr/bin/notify-send",
 			"--app-name",
-			"Chudcode",
+			"omp",
 			"--urgency=normal",
 			"--expire-time=5000",
-			"Chudcode",
+			"omp",
 			"ping",
 		]);
 	});
@@ -129,7 +123,7 @@ describe("buildDesktopNotifyCommand", () => {
 		).toEqual([
 			"/usr/bin/notify-send",
 			"--app-name",
-			"Chudcode",
+			"omp",
 			"--urgency=critical",
 			"--expire-time=5000",
 			"Session 12",
@@ -141,16 +135,16 @@ describe("buildDesktopNotifyCommand", () => {
 		expect(buildDesktopNotifyCommand(notifySend, { title: "   ", body: "Waiting for input" })).toEqual([
 			"/usr/bin/notify-send",
 			"--app-name",
-			"Chudcode",
+			"omp",
 			"--urgency=normal",
 			"--expire-time=5000",
-			"Chudcode",
+			"omp",
 			"Waiting for input",
 		]);
 	});
 
 	it("produces a freedesktop Notify call for gdbus including the urgency hint byte", () => {
-		expect(buildDesktopNotifyCommand(gdbus, { title: "Chudcode", body: "ping", urgency: "low" })).toEqual([
+		expect(buildDesktopNotifyCommand(gdbus, { title: "omp", body: "ping", urgency: "low" })).toEqual([
 			"/usr/bin/gdbus",
 			"call",
 			"--session",
@@ -160,10 +154,10 @@ describe("buildDesktopNotifyCommand", () => {
 			"/org/freedesktop/Notifications",
 			"--method",
 			"org.freedesktop.Notifications.Notify",
-			"Chudcode",
+			"omp",
 			"0",
 			"",
-			"Chudcode",
+			"omp",
 			"ping",
 			"[]",
 			'{"urgency": <byte 0>}',
@@ -199,7 +193,7 @@ describe("sendDesktopNotification", () => {
 		expect(opts.cmd).toEqual([
 			"/usr/bin/notify-send",
 			"--app-name",
-			"Chudcode",
+			"omp",
 			"--urgency=normal",
 			"--expire-time=5000",
 			"Session",

@@ -1,12 +1,12 @@
-import { type } from "@chudware/chudtype";
-import { once } from "@chudware/utils";
+import { type } from "@oh-my-pi/omptype";
+import { once } from "@oh-my-pi/pi-utils";
 
 export const getSecurityContractSchemas = once(() => {
 	const stringRecordSchema = type({ "[string]": "string" });
 	const unknownRecordSchema = type({ "[string]": "unknown" });
 
 	const securityProducerSchema = type({
-		kind: "'chudcode-native' | 'codex-security-bundle' | 'codex-security-cloud' | 'sarif-import'",
+		kind: "'omp-native' | 'codex-security-bundle' | 'codex-security-cloud' | 'sarif-import'",
 		name: "string > 0",
 		"version?": "string",
 		"vendor?": "string",
@@ -133,8 +133,20 @@ export const getSecurityContractSchemas = once(() => {
 		treeDigest: "string > 0",
 	});
 
+	const securityAccountSchema = type({
+		provider: "string > 0",
+		credentialId: "number.integer >= 1",
+		"accountId?": "string",
+		"email?": "string",
+		"organizationId?": "string",
+		"organizationName?": "string",
+	}).or({
+		provider: "string > 0",
+		api: "string > 0",
+	});
+
 	const securityScanPlanSchema = type({
-		documentType: "'chudcode-security.scan-plan'",
+		documentType: "'omp-security.scan-plan'",
 		schemaVersion: "'1.0'",
 		id: "string > 0",
 		createdAt: "string > 0",
@@ -147,14 +159,7 @@ export const getSecurityContractSchemas = once(() => {
 			existingState: "'absent' | 'empty' | 'archivable'",
 		},
 		model: { provider: "string > 0", modelId: "string > 0", "thinkingLevel?": "string" },
-		account: {
-			provider: "string > 0",
-			credentialId: "number.integer >= 1",
-			"accountId?": "string",
-			"email?": "string",
-			"organizationId?": "string",
-			"organizationName?": "string",
-		},
+		account: securityAccountSchema,
 		configFingerprint: "string > 0",
 		workflowFingerprint: "string > 0",
 		fingerprint: "string > 0",
@@ -175,7 +180,7 @@ export const getSecurityContractSchemas = once(() => {
 	});
 
 	const securityScanSchema = type({
-		documentType: "'chudcode-security.scan'",
+		documentType: "'omp-security.scan'",
 		schemaVersion: "'1.0'",
 		id: "string > 0",
 		projectKey: "string > 0",

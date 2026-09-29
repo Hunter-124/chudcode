@@ -14,7 +14,7 @@ import {
 	flushTelemetryExport,
 	initTelemetryExport,
 	isTelemetryExportEnabled,
-} from "@chudware/coding-agent/telemetry-export";
+} from "@oh-my-pi/pi-coding-agent/telemetry-export";
 import { trace } from "@opentelemetry/api";
 
 let body: Buffer | undefined;
@@ -37,14 +37,14 @@ process.env.OTEL_EXPORTER_OTLP_TRACES_ENDPOINT = `http://localhost:${server.port
 process.env.OTEL_SERVICE_NAME = "svc-probe";
 process.env.OTEL_RESOURCE_ATTRIBUTES = "deployment.environment=staging,tenant.id=acme,service.name=should-lose";
 
-await initTelemetryExport();
+await initTelemetryExport(true);
 if (!isTelemetryExportEnabled()) {
 	console.error("PROBE: provider did not register");
 	await server.stop(true);
 	process.exit(2);
 }
 
-const span = trace.getTracer("@chudware/agent-core").startSpan("agent.llm_call");
+const span = trace.getTracer("@oh-my-pi/pi-agent-core").startSpan("agent.llm_call");
 span.setAttribute("gen_ai.request.model", "claude-haiku-4-5");
 span.end();
 

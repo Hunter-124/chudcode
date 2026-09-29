@@ -2,14 +2,14 @@ import { afterAll, afterEach, beforeAll, describe, expect, test, vi } from "bun:
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
-import { getBundledModel } from "@chudware/catalog/models";
-import { parseArgs } from "@chudware/coding-agent/cli/args";
-import { ModelRegistry } from "@chudware/coding-agent/config/model-registry";
-import { Settings } from "@chudware/coding-agent/config/settings";
-import { buildSessionOptions } from "@chudware/coding-agent/main";
-import { AuthStorage } from "@chudware/coding-agent/session/auth-storage";
-import { SessionManager } from "@chudware/coding-agent/session/session-manager";
-import { removeSyncWithRetries, Snowflake } from "@chudware/utils";
+import { getBundledModel } from "@oh-my-pi/pi-catalog/models";
+import { parseArgs } from "@oh-my-pi/pi-coding-agent/cli/args";
+import { ModelRegistry } from "@oh-my-pi/pi-coding-agent/config/model-registry";
+import { Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
+import { buildSessionOptions } from "@oh-my-pi/pi-coding-agent/main";
+import { AuthStorage } from "@oh-my-pi/pi-coding-agent/session/auth-storage";
+import { SessionManager } from "@oh-my-pi/pi-coding-agent/session/session-manager";
+import { removeSyncWithRetries, Snowflake } from "@oh-my-pi/pi-utils";
 
 // Regression: `--model` used to record the `default` role without its effort,
 // so cycling back into that role with ctrl+p ran at the previous role's effort.
@@ -19,7 +19,7 @@ describe("--model role override thinking suffix", () => {
 	let modelRegistry: ModelRegistry;
 
 	beforeAll(async () => {
-		tempDir = path.join(os.tmpdir(), `chud-cli-role-thinking-${Snowflake.next()}`);
+		tempDir = path.join(os.tmpdir(), `pi-cli-role-thinking-${Snowflake.next()}`);
 		fs.mkdirSync(tempDir, { recursive: true });
 		authStorage = await AuthStorage.create(path.join(tempDir, "auth.db"));
 		modelRegistry = new ModelRegistry(authStorage, path.join(tempDir, "models.yml"));
@@ -37,7 +37,7 @@ describe("--model role override thinking suffix", () => {
 	async function overriddenDefaultRole(cliArgs: string[]): Promise<string | undefined> {
 		const model = getBundledModel("anthropic", "claude-opus-4-5");
 		if (!model) throw new Error("expected claude-opus-4-5 to be bundled");
-		authStorage.setRuntimeApiKey(model.provider, "test-key");
+		authStorage.keys.setRuntime(model.provider, "test-key");
 		const settings = Settings.isolated();
 		settings.setModelRole("default", `${model.provider}/${model.id}:high`);
 		// Guards the test run: a resolution failure would exit the process.
@@ -71,5 +71,49 @@ describe("--model role override thinking suffix", () => {
 		expect(await overriddenDefaultRole(["--model", "anthropic/claude-opus-4-5", "--thinking", "high"])).toBe(
 			"anthropic/claude-opus-4-5:high",
 		);
+	});
+
+	test("prewalk @default resolves the configured default before --model overrides the session role", async () => {
+		const startupModel = getBundledModel("anthropic", "claude-opus-4-5");
+		const configuredDefault = getBundledModel("anthropic", "claude-sonnet-4-6");
+		if (!startupModel || !configuredDefault) throw new Error("expected bundled models");
+
+		authStorage.keys.setRuntime("anthropic", "test-key");
+
+		const settings = Settings.isolated({ defaultThinkingLevel: "auto" });
+		settings.setModelRole("default", `${configuredDefault.provider}/${configuredDefault.id}`);
+
+		const options = await buildSessionOptions(
+			parseArgs(["--model", `${startupModel.provider}/${startupModel.id}`, "--prewalk-into", "@default"]),
+			[],
+			SessionManager.inMemory(),
+			modelRegistry,
+			settings,
+		);
+
+		expect(options.model?.id).toBe(startupModel.id);
+		expect(options.prewalk?.target.id).toBe(configuredDefault.id);
+	});
+
+	test("prewalk bare default resolves the configured default before --model overrides the session role", async () => {
+		const startupModel = getBundledModel("anthropic", "claude-opus-4-5");
+		const configuredDefault = getBundledModel("anthropic", "claude-sonnet-4-6");
+		if (!startupModel || !configuredDefault) throw new Error("expected bundled models");
+
+		authStorage.keys.setRuntime("anthropic", "test-key");
+
+		const settings = Settings.isolated({ defaultThinkingLevel: "auto" });
+		settings.setModelRole("default", `${configuredDefault.provider}/${configuredDefault.id}`);
+
+		const options = await buildSessionOptions(
+			parseArgs(["--model", `${startupModel.provider}/${startupModel.id}`, "--prewalk-into", "default"]),
+			[],
+			SessionManager.inMemory(),
+			modelRegistry,
+			settings,
+		);
+
+		expect(options.model?.id).toBe(startupModel.id);
+		expect(options.prewalk?.target.id).toBe(configuredDefault.id);
 	});
 });

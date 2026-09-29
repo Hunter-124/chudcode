@@ -11,6 +11,7 @@
  *      user), and either decision tool resets the counter.
  */
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "bun:test";
+import { type } from "@oh-my-pi/omptype";
 import {
 	Agent,
 	type AgentMessage,
@@ -18,22 +19,19 @@ import {
 	type StreamFn,
 	type ToolApproval,
 	type ToolLoadMode,
-} from "@chudware/agent-core";
-import { createMockModel, type MockModel, type MockResponse } from "@chudware/ai/providers/mock";
-import { getBundledModel } from "@chudware/catalog/models";
-import { type } from "@chudware/chudtype";
-import { ModelRegistry } from "@chudware/coding-agent/config/model-registry";
-import { Settings } from "@chudware/coding-agent/config/settings";
-import type { CustomTool } from "@chudware/coding-agent/extensibility/custom-tools/types";
-import { resolveLocalUrlToPath } from "@chudware/coding-agent/internal-urls";
-import { IrcBus, type IrcMessage } from "@chudware/coding-agent/irc/bus";
-import { AgentRegistry } from "@chudware/coding-agent/registry/agent-registry";
-import { AgentSession } from "@chudware/coding-agent/session/agent-session";
-import { AuthStorage } from "@chudware/coding-agent/session/auth-storage";
-import { SessionManager } from "@chudware/coding-agent/session/session-manager";
-import type { XdevState } from "@chudware/coding-agent/tools/xdev";
-import { TempDir } from "@chudware/utils";
-import * as fsx from "@chudware/utils/fsx";
+} from "@oh-my-pi/pi-agent-core";
+import { createMockModel, type MockModel, type MockResponse } from "@oh-my-pi/pi-ai/providers/mock";
+import { getBundledModel } from "@oh-my-pi/pi-catalog/models";
+import { ModelRegistry } from "@oh-my-pi/pi-coding-agent/config/model-registry";
+import { Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
+import type { CustomTool } from "@oh-my-pi/pi-coding-agent/extensibility/custom-tools/types";
+import { resolveLocalUrlToPath } from "@oh-my-pi/pi-coding-agent/internal-urls";
+import { type IrcMessage } from "@oh-my-pi/pi-tui/tools/irc";
+import { AgentSession } from "@oh-my-pi/pi-coding-agent/session/agent-session";
+import { AuthStorage } from "@oh-my-pi/pi-coding-agent/session/auth-storage";
+import { SessionManager } from "@oh-my-pi/pi-coding-agent/session/session-manager";
+import type { XdevState } from "@oh-my-pi/pi-coding-agent/tools/xdev";
+import { TempDir } from "@oh-my-pi/pi-utils";
 import planModeReminderPrompt from "../src/prompts/system/plan-mode-tool-decision-reminder.md" with { type: "text" };
 
 /** A stable, literal (non-templated) line of the reminder prompt, so the test
@@ -112,7 +110,7 @@ describe("AgentSession plan-mode convergence", () => {
 	beforeAll(async () => {
 		authDir = TempDir.createSync("@pi-plan-converge-auth-");
 		authStorage = await AuthStorage.create(authDir.join("auth.db"));
-		authStorage.setRuntimeApiKey("anthropic", "test-key");
+		authStorage.keys.setRuntime("anthropic", "test-key");
 		modelRegistry = new ModelRegistry(authStorage, authDir.join("models.yml"));
 	});
 
@@ -164,7 +162,6 @@ describe("AgentSession plan-mode convergence", () => {
 			: [askTool, writeTool, readTool];
 		let deviceOnlyWrite = options?.deviceOnlyWrite === true;
 		let pendingFullWriteDescription = false;
-		let currentAgent: Agent | undefined;
 		const xdev: XdevState | undefined = options?.xdev
 			? {
 					tools: toolRegistry,
@@ -185,7 +182,7 @@ describe("AgentSession plan-mode convergence", () => {
 			},
 			streamFn: mock.stream,
 		});
-		currentAgent = agent;
+		const currentAgent = agent;
 
 		let advisorMock: MockModel | undefined;
 		let advisorStreamFn: StreamFn | undefined;
@@ -280,31 +277,6 @@ describe("AgentSession plan-mode convergence", () => {
 		);
 		expect(sawIrc).toBe(true);
 		expect(harness.mock.calls.length).toBe(0);
-	});
-
-	it("T2b: an awaited idle IRC message gets a side-channel auto-reply without waking a turn", async () => {
-		const harness = await createPlanSession([], {
-			sideResponses: [{ content: ["still planning — full reply once the plan settles"] }],
-		});
-		const registry = AgentRegistry.global();
-		registry.register({ id: "peer", displayName: "peer", kind: "sub", session: null, status: "running" });
-		try {
-			const bus = IrcBus.global();
-			const replyPromise = bus.wait("peer", { from: "me" }, 0);
-			const msg: IrcMessage = { id: "m2", from: "peer", to: "me", body: "blocked on you — status?", ts: Date.now() };
-
-			const outcome = await harness.session.deliverIrcMessage(msg, { expectsReply: true });
-			expect(outcome).toBe("injected");
-
-			const reply = await replyPromise;
-			expect(reply?.replyTo).toBe("m2");
-			expect(reply?.body).toContain("still planning");
-			expect(harness.sideMock?.calls.length).toBe(1);
-			expect(harness.mock.calls.length).toBe(0);
-			expect(harness.session.agent.state.messages.some(m => m.role === "assistant")).toBe(false);
-		} finally {
-			registry.unregister("peer");
-		}
 	});
 
 	it("T3a: convergence reminders are bounded by the cap, then yield to the user", async () => {
@@ -440,7 +412,7 @@ describe("AgentSession plan-mode convergence", () => {
 			getArtifactsDir: () => harness.session.sessionManager.getArtifactsDir(),
 			getSessionId: () => harness.session.sessionManager.getSessionId(),
 		});
-		await fsx.write(planPath, "# Demo plan\n\nImplement it.\n");
+		await Bun.write(planPath, "# Demo plan\n\nImplement it.\n");
 		const handler = harness.session.peekPlanProposalHandler();
 		expect(handler).toBeDefined();
 		await handler!("demo");
@@ -471,7 +443,7 @@ describe("AgentSession plan-mode convergence", () => {
 			getArtifactsDir: () => harness.session.sessionManager.getArtifactsDir(),
 			getSessionId: () => harness.session.sessionManager.getSessionId(),
 		});
-		await fsx.write(planPath, "# MCP devices plan\n\nKeep the connected devices.\n");
+		await Bun.write(planPath, "# MCP devices plan\n\nKeep the connected devices.\n");
 		const handler = harness.session.peekPlanProposalHandler();
 		if (!handler) throw new Error("Expected PlanYolo proposal handler");
 		await handler("mcp-devices");
@@ -507,7 +479,7 @@ describe("AgentSession plan-mode convergence", () => {
 			getArtifactsDir: () => harness.session.sessionManager.getArtifactsDir(),
 			getSessionId: () => harness.session.sessionManager.getSessionId(),
 		});
-		await fsx.write(planPath, "# Queued MCP plan\n\nKeep the connected device.\n");
+		await Bun.write(planPath, "# Queued MCP plan\n\nKeep the connected device.\n");
 		const handler = harness.session.peekPlanProposalHandler();
 		if (!handler) throw new Error("Expected PlanYolo proposal handler");
 		const approval = handler("queued-mcp");
@@ -538,7 +510,7 @@ describe("AgentSession plan-mode convergence", () => {
 			getArtifactsDir: () => harness.session.sessionManager.getArtifactsDir(),
 			getSessionId: () => harness.session.sessionManager.getSessionId(),
 		});
-		await fsx.write(planPath, "# Read-only MCP plan\n\nKeep the selected device.\n");
+		await Bun.write(planPath, "# Read-only MCP plan\n\nKeep the selected device.\n");
 		const handler = harness.session.peekPlanProposalHandler();
 		if (!handler) throw new Error("Expected PlanYolo proposal handler");
 		await handler("read-only-mcp");
@@ -560,7 +532,7 @@ describe("AgentSession plan-mode convergence", () => {
 			getArtifactsDir: () => harness.session.sessionManager.getArtifactsDir(),
 			getSessionId: () => harness.session.sessionManager.getSessionId(),
 		});
-		await fsx.write(planPath, "# Retry plan\n\nImplement it.\n");
+		await Bun.write(planPath, "# Retry plan\n\nImplement it.\n");
 		const handler = harness.session.peekPlanProposalHandler();
 		expect(handler).toBeDefined();
 		const activeBefore = harness.session.getActiveToolNames();

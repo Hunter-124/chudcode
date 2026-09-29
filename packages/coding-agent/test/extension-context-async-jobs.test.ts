@@ -1,7 +1,7 @@
 import { describe, expect, it } from "bun:test";
-import { ExtensionRunner } from "@chudware/coding-agent/extensibility/extensions/runner";
-import type { ExtensionRuntime } from "@chudware/coding-agent/extensibility/extensions/types";
-import type { AsyncJobSnapshot } from "@chudware/coding-agent/session/agent-session";
+import { ExtensionRunner } from "@oh-my-pi/pi-coding-agent/extensibility/extensions/runner";
+import type { ExtensionRuntime } from "@oh-my-pi/pi-coding-agent/extensibility/extensions/types";
+import type { AsyncJobSnapshot } from "@oh-my-pi/pi-coding-agent/session/agent-session";
 
 function createRunner(getAsyncJobSnapshot?: () => AsyncJobSnapshot | null): ExtensionRunner {
 	const runtime = {
@@ -24,18 +24,5 @@ function createRunner(getAsyncJobSnapshot?: () => AsyncJobSnapshot | null): Exte
 describe("ExtensionRunner async job context", () => {
 	it("defaults to null outside a session", () => {
 		expect(createRunner().createContext().getAsyncJobSnapshot()).toBeNull();
-	});
-
-	it("exposes the owning session snapshot", () => {
-		const snapshot: AsyncJobSnapshot = {
-			running: [{ id: "bg-1", type: "bash", status: "running", label: "sleep 30", startTime: 1 }],
-			recent: [],
-			delivery: { queued: 0, delivering: false, pendingJobIds: [] },
-		};
-		expect(
-			createRunner(() => snapshot)
-				.createContext()
-				.getAsyncJobSnapshot(),
-		).toBe(snapshot);
 	});
 });

@@ -21,7 +21,7 @@ Related references:
 Compat flags are resolved in two phases:
 
 1. **Catalog build time** (`packages/catalog/src/compat/openai.ts`): `buildOpenAICompat(spec)` / `buildOpenAIResponsesCompat(spec)` run once per model inside `buildModel`. Defaults are auto-detected from `provider`, `baseUrl`, model id/name, and `spec.reasoning`; explicit `spec.compat` overrides are merged via `applyCompatOverrides` (`packages/catalog/src/compat/apply.ts`). If a `whenThinking` variant applies (explicit override, direct DeepSeek reasoning, OpenCode reasoning gateways), a **complete alternate resolved compat object** is pre-built and attached as `compat.whenThinking`.
-   OpenRouter is a pseudo-API: `buildOpenRouterCompat` merges the full chat-completions view with the Responses-only fields into `ResolvedOpenRouterCompat`, so the same model object satisfies both runtime handlers (`CHUDCODE_OPENROUTER_RESPONSES` picks the dispatch).
+   OpenRouter is a pseudo-API: `buildOpenRouterCompat` merges the full chat-completions view with the Responses-only fields into `ResolvedOpenRouterCompat`, so the same model object satisfies both runtime handlers (`PI_OPENROUTER_RESPONSES` picks the dispatch).
 2. **Request time** (`packages/ai/src/providers/openai-shared.ts`): `resolveOpenAICompatPolicy(model, options)` combines the resolved compat with per-request options (`reasoning`, `disableReasoning`, `toolChoice`, …) into an `OpenAICompatPolicy` with `reasoning`, `tools`, `messages`, and `stream` sub-policies. When thinking is active and `whenThinking` exists, the policy **pointer-swaps** to the pre-built variant — no per-request spreading or allocation:
 
    ```ts
@@ -128,6 +128,8 @@ Types: `OpenAICompat` / `ResolvedOpenAISharedCompat` in `packages/catalog/src/ty
 | `supportsLongPromptCacheRetention` | Official OpenAI | Sends `prompt_cache_retention: "24h"` when requested |
 | `strictResponsesPairing` | Azure OpenAI, Copilot Responses | Enforces strict 1:1 tool-call/tool-result pairing when building Responses input items |
 | `supportsImageDetailOriginal` | `false` for Copilot, xai-oauth | `detail: "original"` vs `detail: "auto"` on input images (hosts that 400 on `original` get `auto`) |
+| `supportsConfigurationUpdate` | `true` for `gpt-6-astra` (class rule, any host); `false` otherwise | Pins request-level `reasoning.effort` to the session baseline and carries later changes as `configuration_update` input items; set `false` in `models.yml` for custom proxies that 400 on the item type — the changed effort is then sent at the request level and no item is emitted |
+| `supportsSteering` | `true` for GPT-6+ (class rule, any host); `false` otherwise | Codex WebSocket turns send queued user steering as `response.steer` into the streaming response; the next request reads the server's automatic continuation or sends only the pending tool output |
 | `supportsObfuscationOptOut` | Official OpenAI | Allows `stream_options: { include_obfuscation: false }` |
 
 ## 2. Reasoning levels

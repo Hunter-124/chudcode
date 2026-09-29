@@ -2,7 +2,7 @@
  * Sharpshooter storage layout.
  *
  * Everything lives home-scoped under `<agentDir>/memories/sharpshooter/<bank>/`
- * (mnemo-style project bank id, never the project working tree):
+ * (mnemopi-style project bank id, never the project working tree):
  *
  * - `architecture.md` / `product.md` / `style.md` — the memory files
  * - `queue/<sessionId>/<ts36>-<nonce>.json`        — one queued delta per file
@@ -11,8 +11,8 @@
  */
 
 import * as path from "node:path";
-import { getMemoriesDir } from "@chudware/utils";
-import { projectBankSegment } from "../mnemo/config";
+import { getMemoriesDir } from "@oh-my-pi/pi-utils";
+import { projectBankSegment } from "../mnemopi/config";
 import type { SharpshooterState } from "./types";
 
 /** Root for every sharpshooter bank. */

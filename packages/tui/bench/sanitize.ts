@@ -1,4 +1,4 @@
-import { sanitizeText as currentSanitizeText } from "@chudware/utils/sanitize-text";
+import { sanitizeText as currentSanitizeText } from "@oh-my-pi/pi-utils/sanitize-text";
 import { makeBench } from "./_harness";
 
 const STRIP_RE = new RegExp(
@@ -247,7 +247,7 @@ function sanitizeBinaryOutput(str: string): string {
 	let out: string[] | undefined;
 	let last = 0;
 
-	for (let i = 0; i < str.length; ) {
+	for (let i = 0; i < str.length;) {
 		const code = str.codePointAt(i)!;
 		const width = code > 0xffff ? 2 : 1;
 		const next = i + width;

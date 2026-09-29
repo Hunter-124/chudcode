@@ -10,10 +10,10 @@ import {
 	discoverModels,
 	ModelRegistry,
 	SessionManager,
-} from "@chudware/coding-agent";
+} from "@oh-my-pi/pi-coding-agent";
 
-// Default: discoverAuthStorage() uses ~/.chudcode/agent/agent.db
-// discoverModels() loads built-in + custom models from ~/.chudcode/agent/models.json
+// Default: discoverAuthStorage() uses ~/.omp/agent/agent.db
+// discoverModels() loads built-in + custom models from ~/.omp/agent/models.json
 const authStorage = await discoverAuthStorage();
 const modelRegistry = await discoverModels(authStorage);
 
@@ -36,7 +36,7 @@ await createAgentSession({
 console.log("Session with custom auth storage location");
 
 // Runtime API key override (not persisted to disk)
-authStorage.setRuntimeApiKey("anthropic", "sk-my-temp-key");
+authStorage.keys.setRuntime("anthropic", "sk-my-temp-key");
 await createAgentSession({
 	sessionManager: SessionManager.inMemory(),
 	authStorage,

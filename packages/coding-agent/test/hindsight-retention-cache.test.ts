@@ -4,12 +4,12 @@ import type {
 	CreateBankOptions,
 	RetainOptions,
 	RetainResponse,
-} from "@chudware/coding-agent/hindsight/client";
-import { HindsightApi } from "@chudware/coding-agent/hindsight/client";
-import type { HindsightConfig } from "@chudware/coding-agent/hindsight/config";
-import type { HindsightMessage } from "@chudware/coding-agent/hindsight/content";
-import { HindsightSessionState } from "@chudware/coding-agent/hindsight/state";
-import type { AgentSession } from "@chudware/coding-agent/session/agent-session";
+} from "@oh-my-pi/pi-coding-agent/hindsight/client";
+import { HindsightApi } from "@oh-my-pi/pi-coding-agent/hindsight/client";
+import type { HindsightConfig } from "@oh-my-pi/pi-coding-agent/hindsight/config";
+import type { HindsightMessage } from "@oh-my-pi/pi-coding-agent/hindsight/content";
+import { HindsightSessionState } from "@oh-my-pi/pi-coding-agent/hindsight/state";
+import type { AgentSession } from "@oh-my-pi/pi-coding-agent/session/agent-session";
 
 const makeConfig = (overrides: Partial<HindsightConfig> = {}): HindsightConfig => ({
 	hindsightApiUrl: "http://localhost:8888",
@@ -24,7 +24,7 @@ const makeConfig = (overrides: Partial<HindsightConfig> = {}): HindsightConfig =
 	retainMode: "full-session",
 	retainEveryNTurns: 3,
 	retainOverlapTurns: 2,
-	retainContext: "chudcode",
+	retainContext: "omp",
 	recallBudget: "mid",
 	recallMaxTokens: 1024,
 	recallTypes: ["world", "experience"],
@@ -38,7 +38,6 @@ const makeConfig = (overrides: Partial<HindsightConfig> = {}): HindsightConfig =
 	retainTimeoutMs: 30_000,
 	mentalModelsEnabled: false,
 	mentalModelAutoSeed: false,
-	mentalModelRefreshIntervalMs: 5 * 60 * 1000,
 	mentalModelMaxRenderChars: 16_000,
 	...overrides,
 });

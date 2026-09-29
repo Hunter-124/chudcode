@@ -1,23 +1,23 @@
 import { afterEach, describe, expect, test, vi } from "bun:test";
-import { getBundledModels } from "@chudware/catalog/models";
-import { DEFAULT_MODEL_PER_PROVIDER, PROVIDER_DESCRIPTORS } from "@chudware/catalog/provider-models/descriptors";
+import { buildModel } from "@oh-my-pi/pi-catalog/build";
+import { Effort } from "@oh-my-pi/pi-catalog/effort";
 import {
 	coreWeaveModelManagerOptions,
 	MODELS_DEV_PROVIDER_DESCRIPTORS,
 	mapModelsDevToModels,
-} from "@chudware/catalog/provider-models/openai-compat";
-import type { FetchImpl } from "@chudware/catalog/types";
+} from "@oh-my-pi/pi-catalog/provider-models/openai-compat";
+import type { FetchImpl } from "@oh-my-pi/pi-catalog/types";
 
 const COREWEAVE_ENV_KEYS = ["COREWEAVE_PROJECT", "WANDB_INFERENCE_PROJECT", "WANDB_ENTITY", "WANDB_PROJECT"] as const;
-const ORIGINAL_ENV = new Map(COREWEAVE_ENV_KEYS.map(key => [key, process.env[key]]));
+const ORIGINAL_ENV = new Map(COREWEAVE_ENV_KEYS.map(key => [key, Bun.env[key]]));
 
 function restoreCoreWeaveEnv(): void {
 	for (const key of COREWEAVE_ENV_KEYS) {
 		const value = ORIGINAL_ENV.get(key);
 		if (value === undefined) {
-			delete process.env[key];
+			delete Bun.env[key];
 		} else {
-			process.env[key] = value;
+			Bun.env[key] = value;
 		}
 	}
 }
@@ -28,27 +28,11 @@ afterEach(() => {
 });
 
 describe("CoreWeave Serverless Inference provider support", () => {
-	test("registers descriptor, default model, environment key, and bundled models", () => {
-		const descriptor = PROVIDER_DESCRIPTORS.find(item => item.providerId === "coreweave");
-		expect(descriptor).toBeDefined();
-		expect(descriptor?.defaultModel).toBe("openai/gpt-oss-120b");
-		expect(descriptor?.catalogDiscovery?.label).toBe("CoreWeave Serverless Inference");
-		expect(descriptor?.catalogDiscovery?.envVars).toEqual(["COREWEAVE_API_KEY", "WANDB_API_KEY"]);
-		expect(DEFAULT_MODEL_PER_PROVIDER.coreweave).toBe("openai/gpt-oss-120b");
-
-		const bundled = getBundledModels("coreweave");
-		expect(bundled.find(model => model.id === "openai/gpt-oss-120b")).toMatchObject({
-			api: "openai-completions",
-			provider: "coreweave",
-			baseUrl: "https://api.inference.wandb.ai/v1",
-		});
-	});
-
 	test("discovers dynamic models with the CoreWeave project header", async () => {
-		process.env.COREWEAVE_PROJECT = "team/project";
-		delete process.env.WANDB_INFERENCE_PROJECT;
-		delete process.env.WANDB_ENTITY;
-		delete process.env.WANDB_PROJECT;
+		Bun.env.COREWEAVE_PROJECT = "team/project";
+		delete Bun.env.WANDB_INFERENCE_PROJECT;
+		delete Bun.env.WANDB_ENTITY;
+		delete Bun.env.WANDB_PROJECT;
 
 		const calls: Array<{ url: string; authorization: string | null; project: string | null }> = [];
 		const fetchMock: FetchImpl = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
@@ -109,17 +93,21 @@ describe("CoreWeave Serverless Inference provider support", () => {
 			MODELS_DEV_PROVIDER_DESCRIPTORS,
 		);
 
-		expect(mapped.find(model => model.provider === "coreweave")).toMatchObject({
+		const spec = mapped.find(model => model.provider === "coreweave");
+		expect(spec).toMatchObject({
 			id: "openai/gpt-oss-120b",
 			name: "GPT OSS 120B",
 			api: "openai-completions",
 			provider: "coreweave",
 			baseUrl: "https://api.inference.wandb.ai/v1",
 			reasoning: true,
-			thinking: { mode: "effort", efforts: ["low", "medium", "high"] },
 			contextWindow: 131072,
 			maxTokens: 32768,
 			cost: { input: 0.15, output: 0.6, cacheRead: 0, cacheWrite: 0 },
 		});
+		// The effort ladder is rule-owned (classes/gpt-oss.kdl), not authored by
+		// the discovery mapper; buildModel derives it from the flagged spec.
+		if (!spec) throw new Error("coreweave row missing");
+		expect(buildModel(spec).thinking).toEqual({ mode: "effort", efforts: [Effort.Low, Effort.Medium, Effort.High] });
 	});
 });

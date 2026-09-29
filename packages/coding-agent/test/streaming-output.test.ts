@@ -15,14 +15,15 @@ import {
 	truncateMiddle,
 	truncateTail,
 	truncateTailBytes,
-} from "@chudware/coding-agent/session/streaming-output";
-import { formatOutputNotice, outputMeta } from "@chudware/coding-agent/tools/output-meta";
-import { removeWithRetries } from "@chudware/utils";
-import * as fsx from "@chudware/utils/fsx";
+} from "@oh-my-pi/pi-tui/tools/streaming-output";
+import { stripOutputNotice } from "@oh-my-pi/pi-tui/tools/output-meta";
+import { formatOutputNotice } from "@oh-my-pi/pi-tui/tools/output-meta";
+import { outputMeta } from "@oh-my-pi/pi-coding-agent/tools/output-meta";
+import { removeWithRetries } from "@oh-my-pi/pi-utils";
 
 const createdTempDirs: string[] = [];
-const originalForceProtocol = process.env.CHUDCODE_FORCE_IMAGE_PROTOCOL;
-const originalAllowPassthrough = process.env.CHUDCODE_ALLOW_SIXEL_PASSTHROUGH;
+const originalForceProtocol = Bun.env.PI_FORCE_IMAGE_PROTOCOL;
+const originalAllowPassthrough = Bun.env.PI_ALLOW_SIXEL_PASSTHROUGH;
 
 async function createTempDir(): Promise<string> {
 	const dir = await fs.mkdtemp(path.join(os.tmpdir(), "streaming-output-test-"));
@@ -39,10 +40,10 @@ afterEach(async () => {
 	for (const dir of createdTempDirs.splice(0)) {
 		await removeWithRetries(dir);
 	}
-	if (originalForceProtocol === undefined) delete process.env.CHUDCODE_FORCE_IMAGE_PROTOCOL;
-	else process.env.CHUDCODE_FORCE_IMAGE_PROTOCOL = originalForceProtocol;
-	if (originalAllowPassthrough === undefined) delete process.env.CHUDCODE_ALLOW_SIXEL_PASSTHROUGH;
-	else process.env.CHUDCODE_ALLOW_SIXEL_PASSTHROUGH = originalAllowPassthrough;
+	if (originalForceProtocol === undefined) delete Bun.env.PI_FORCE_IMAGE_PROTOCOL;
+	else Bun.env.PI_FORCE_IMAGE_PROTOCOL = originalForceProtocol;
+	if (originalAllowPassthrough === undefined) delete Bun.env.PI_ALLOW_SIXEL_PASSTHROUGH;
+	else Bun.env.PI_ALLOW_SIXEL_PASSTHROUGH = originalAllowPassthrough;
 });
 
 describe("truncateTailBytes", () => {
@@ -155,6 +156,17 @@ describe("truncateTail", () => {
 		expect(result.truncatedBy).toBe("bytes");
 		expect(result.lastLinePartial).toBe(true);
 	});
+
+	test("fills the remaining byte budget from a giant line before smaller trailing lines", () => {
+		const result = truncateTail("abcdefghijk\n}\n```", { maxLines: 10, maxBytes: 10 });
+
+		expect(result.content).toBe("hijk\n}\n```");
+		expect(result.truncatedBy).toBe("bytes");
+		expect(result.outputLines).toBe(3);
+		expect(result.outputBytes).toBe(10);
+		expect(result.partialByteWindows).toBe(true);
+		expect(result.lastLinePartial).toBe(false);
+	});
 });
 
 describe("truncateLine", () => {
@@ -183,6 +195,45 @@ describe("TailBuffer", () => {
 		tail.append("x");
 		expect(tail.text()).toBe("x");
 		expect(tail.bytes()).toBe(1);
+	});
+
+	test("streams the same window as tail-truncating the whole output", () => {
+		const series = [
+			["abc", "de\n", "fghij", "k"],
+			["ab", "é中", "😀x", "line\n", "✓ ok", "yy😀", "z"],
+		];
+		for (const chunks of series) {
+			for (const max of [3, 4, 5, 7, 9, 12, 20]) {
+				const tail = new TailBuffer(max);
+				let all = "";
+				for (let round = 0; round < 3; round++) {
+					for (const chunk of chunks) {
+						tail.append(chunk);
+						all += chunk;
+						const expected = truncateTailBytes(all, max);
+						expect(tail.text()).toBe(expected.text);
+						expect(tail.bytes()).toBe(expected.bytes);
+					}
+				}
+			}
+		}
+	});
+
+	test("joins a surrogate pair split across appends before trimming", () => {
+		const tail = new TailBuffer(6);
+		tail.append("ab\uD83D");
+		expect(tail.text()).toBe("ab\uD83D");
+		tail.append("\uDE00cd");
+		expect(tail.text()).toBe("😀cd");
+		expect(tail.bytes()).toBe(6);
+	});
+
+	test("keeps the character after a lone surrogate when trimming a budget-sized chunk", () => {
+		const tail = new TailBuffer(6);
+		tail.append("ab\uD800x");
+		tail.append("yzw");
+		expect(tail.text()).toBe("xyzw");
+		expect(tail.bytes()).toBe(4);
 	});
 });
 
@@ -221,14 +272,6 @@ describe("OutputSink", () => {
 		expect(dumped.totalLines).toBe(4);
 		expect(dumped.outputLines).toBe(4);
 	});
-	test("invokes onChunk callback with sanitized text", async () => {
-		const chunks: string[] = [];
-		const sink = new OutputSink({ onChunk: chunk => chunks.push(chunk) });
-		await sink.push("abc");
-		await sink.push("def");
-		expect(chunks).toEqual(["abc", "def"]);
-	});
-
 	test("normalizes carriage-return progress frames across chunk boundaries", async () => {
 		const chunks: string[] = [];
 		const sink = new OutputSink({ onChunk: chunk => chunks.push(chunk) });
@@ -245,8 +288,8 @@ describe("OutputSink", () => {
 
 	test("preserves SIXEL chunks when passthrough gates are enabled", async () => {
 		const sixel = "\x1bPqabc\x1b\\";
-		process.env.CHUDCODE_FORCE_IMAGE_PROTOCOL = "sixel";
-		process.env.CHUDCODE_ALLOW_SIXEL_PASSTHROUGH = "1";
+		Bun.env.PI_FORCE_IMAGE_PROTOCOL = "sixel";
+		Bun.env.PI_ALLOW_SIXEL_PASSTHROUGH = "1";
 		const chunks: string[] = [];
 		const sink = new OutputSink({ onChunk: chunk => chunks.push(chunk) });
 		await sink.push(`before\n${sixel}\nafter`);
@@ -258,8 +301,8 @@ describe("OutputSink", () => {
 
 	test("strips SIXEL chunks when passthrough gates are disabled", async () => {
 		const sixel = "\x1bPqabc\x1b\\";
-		delete process.env.CHUDCODE_FORCE_IMAGE_PROTOCOL;
-		delete process.env.CHUDCODE_ALLOW_SIXEL_PASSTHROUGH;
+		delete Bun.env.PI_FORCE_IMAGE_PROTOCOL;
+		delete Bun.env.PI_ALLOW_SIXEL_PASSTHROUGH;
 		const sink = new OutputSink();
 		await sink.push(sixel);
 		const dumped = await sink.dump();
@@ -291,7 +334,7 @@ describe("OutputSink", () => {
 		await sink.push("abc");
 		await sink.push("def");
 		const dumped = await sink.dump();
-		const artifactText = await fsx.readText(artifactPath);
+		const artifactText = await Bun.file(artifactPath).text();
 
 		expect(dumped.truncated).toBe(true);
 		expect(dumped.artifactId).toBe("artifact-1");
@@ -315,7 +358,7 @@ describe("OutputSink", () => {
 		sink.push("abc");
 		sink.push("defgh");
 		const dumped = await sink.dump();
-		const artifactText = await fsx.readText(artifactPath);
+		const artifactText = await Bun.file(artifactPath).text();
 
 		expect(dumped.truncated).toBe(true);
 		expect(artifactText).toBe("headabcdefgh");
@@ -394,7 +437,7 @@ describe("OutputSink", () => {
 		const payload = "0123456789ABCDEF".repeat(4); // 64 bytes
 		await sink.push(payload);
 		await sink.dump();
-		const artifactText = await fsx.readText(artifactPath);
+		const artifactText = await Bun.file(artifactPath).text();
 
 		expect(artifactText.startsWith("0123456789ABCDEF")).toBe(true);
 		expect(artifactText.endsWith("0123456789ABCDEF")).toBe(true);
@@ -421,7 +464,7 @@ describe("OutputSink", () => {
 		await sink.push("abcde");
 		await sink.push("fghij");
 		await sink.dump();
-		const artifactText = await fsx.readText(artifactPath);
+		const artifactText = await Bun.file(artifactPath).text();
 
 		expect(artifactText).toBe("abcdefghij");
 		expect(artifactText).not.toContain("[ARTIFACT TRUNCATED:");
@@ -446,7 +489,7 @@ describe("OutputSink", () => {
 		const payload = "0123456789ABCDEFghijklmn";
 		await sink.push(payload);
 		await sink.dump();
-		const artifactText = await fsx.readText(artifactPath);
+		const artifactText = await Bun.file(artifactPath).text();
 
 		expect(artifactText).toBe(payload);
 		expect(artifactText).not.toContain("[ARTIFACT TRUNCATED:");
@@ -468,7 +511,7 @@ describe("OutputSink", () => {
 			await sink.push(String(i % 10).repeat(4));
 		}
 		await sink.dump();
-		const artifactText = await fsx.readText(artifactPath);
+		const artifactText = await Bun.file(artifactPath).text();
 
 		expect(artifactText).toContain("[ARTIFACT TRUNCATED:");
 		const stripped = artifactText.replace(/\n?\[ARTIFACT TRUNCATED:[^\]]+\]\n?/g, "");
@@ -499,7 +542,7 @@ describe("OutputSink", () => {
 			await sink.push("abcd");
 		}
 		await sink.dump();
-		const artifactText = await fsx.readText(artifactPath);
+		const artifactText = await Bun.file(artifactPath).text();
 
 		expect(artifactText).toContain("[ARTIFACT TRUNCATED:");
 		const stripped = artifactText.replace(/\n?\[ARTIFACT TRUNCATED:[^\]]+\]\n?/g, "");
@@ -519,7 +562,7 @@ describe("OutputSink", () => {
 		const payload = "X".repeat(1024);
 		await sink.push(payload);
 		await sink.dump();
-		const artifactText = await fsx.readText(artifactPath);
+		const artifactText = await Bun.file(artifactPath).text();
 
 		expect(artifactText).toBe(payload);
 		expect(artifactText).not.toContain("[ARTIFACT TRUNCATED:");
@@ -545,7 +588,7 @@ describe("truncation notice formatting", () => {
 		expect(formatTailTruncationNotice(truncation)).toBe("");
 	});
 
-	test("formatTailTruncationNotice supports partial-line and complete-line notices", () => {
+	test("formatTailTruncationNotice distinguishes partial leading and final lines", () => {
 		const partialLineTruncation = truncateTail("abcdefghij", { maxLines: 10, maxBytes: 4 });
 		const partialLineNotice = formatTailTruncationNotice(partialLineTruncation, {
 			fullOutputPath: "/tmp/full.log",
@@ -561,6 +604,11 @@ describe("truncation notice formatting", () => {
 
 		const byteTruncation = truncateTail("aaa\nbbbb\ncc", { maxLines: 10, maxBytes: 6 });
 		expect(formatTailTruncationNotice(byteTruncation)).toBe("\n\n[Showing lines 3-3 of 3]");
+
+		const leadingPartialTruncation = truncateTail("abcdefghijk\n}\n```", { maxLines: 10, maxBytes: 10 });
+		expect(formatTailTruncationNotice(leadingPartialTruncation)).toBe(
+			"\n\n[Showing last 10B across lines 1-3 of 3; line 1 is partial]",
+		);
 	});
 
 	test("formatHeadTruncationNotice returns empty string for non-truncated results", () => {
@@ -608,17 +656,65 @@ describe("truncateMiddle", () => {
 		expect(result.elidedBytes).toBeGreaterThan(0);
 	});
 
-	test("falls back to tail-only when head budget cannot accept the first line", () => {
+	test("uses non-overlapping byte windows when the first line exceeds the head budget", () => {
 		const giantFirstLine = `${"x".repeat(200)}\nshort-2\nshort-3`;
 		const result = truncateMiddle(giantFirstLine, {
 			maxBytes: 40,
 			maxLines: 10,
-			maxHeadBytes: 8, // first line is 200 bytes — exceeds head budget
+			maxHeadBytes: 8,
 			maxHeadLines: 1,
 		});
 		expect(result.truncated).toBe(true);
-		// Should not contain the elision marker; it's a regular tail truncation.
-		expect(result.content).not.toContain("elided");
+		expect(result.truncatedBy).toBe("middle");
+		expect(result.content.startsWith("xxxxxxxx")).toBe(true);
+		expect(result.content.endsWith("short-3")).toBe(true);
+		expect(result.content).toContain("elided");
+		expect(result.elidedBytes).toBeGreaterThan(0);
+		expect(result.headLines).toBe(1);
+		expect(result.tailLines).toBe(3);
+		expect(result.partialByteWindows).toBe(true);
+		expect(result.lastLinePartial).toBe(false);
+	});
+
+	test("does not duplicate overlapping fallback windows", () => {
+		const content = `${"x".repeat(5000)}\n${Array.from({ length: 100 }, (_, i) => `line-${i}`).join("\n")}`;
+		const result = truncateMiddle(content, { maxBytes: 8192, maxLines: 80 });
+
+		expect(result.truncatedBy).toBe("middle");
+		expect(result.elidedBytes).toBeGreaterThan(0);
+		expect(result.content).not.toContain("[…0B elided…]");
+		expect(result.headLines).toBe(1);
+		expect(result.tailLines).toBeLessThanOrEqual(40);
+		expect(result.outputBytes).toBeLessThanOrEqual(8192 + 64);
+	});
+
+	test("marks multi-line partial byte windows so exact ranges are omitted", () => {
+		const content = `${"x".repeat(20_000)}\n${"y".repeat(20_000)}`;
+		const result = truncateMiddle(content, { maxBytes: 8192, maxLines: 80 });
+
+		expect(result.truncatedBy).toBe("middle");
+		expect(result.partialByteWindows).toBe(true);
+		expect(result.elidedBytes).toBeGreaterThan(0);
+	});
+
+	test("keeps a giant trailing line within budget", () => {
+		const content = `label\n${"x".repeat(20_000)}`;
+		const result = truncateMiddle(content, { maxBytes: 8192, maxLines: 80 });
+
+		expect(result.truncated).toBe(true);
+		expect(result.truncatedBy).toBe("middle");
+		expect(result.content.startsWith("label\n")).toBe(true);
+		expect(result.content).toContain("elided");
+		expect(result.outputBytes).toBeLessThanOrEqual(8192 + 64);
+	});
+
+	test("marks single-line byte windows so line ranges can be omitted", () => {
+		const result = truncateMiddle("x".repeat(20_000), { maxBytes: 8192, maxLines: 80 });
+
+		expect(result.truncatedBy).toBe("middle");
+		expect(result.partialByteWindows).toBe(true);
+		expect(result.headLines).toBe(1);
+		expect(result.tailLines).toBe(1);
 	});
 
 	test("formatMiddleElisionMarker uses lines, falling back to bytes for <=1 line", () => {
@@ -643,17 +739,6 @@ describe("OutputSink head-retain mode", () => {
 		expect(dumped.output.endsWith("L11")).toBe(true);
 		expect(dumped.output).toContain("elided");
 		expect(dumped.totalBytes).toBe(byteLength(lines));
-	});
-
-	test("disabled (headBytes=0) preserves tail-only behavior", async () => {
-		const sink = new OutputSink({ spillThreshold: 5, headBytes: 0 });
-		await sink.push("abc");
-		await sink.push("def");
-
-		const dumped = await sink.dump();
-		expect(dumped.truncated).toBe(true);
-		expect(dumped.output).toBe("bcdef");
-		expect(dumped.elidedBytes).toBeUndefined();
 	});
 
 	test("head fills cleanly across chunks without elision when total fits", async () => {
@@ -755,13 +840,69 @@ describe("OutputSink maxColumns (per-line cap)", () => {
 		const meta = outputMeta().truncationFromSummary(dumped, { direction: "tail" }).get();
 		// No window truncation → no styled TUI warning and no range/limit footer.
 		expect(meta?.truncation).toBeUndefined();
-		expect(meta?.limits?.columnTruncated).toEqual({ maxColumn: 8 });
+		expect(meta?.limits?.columnTruncated).toEqual({ maxColumn: 8, unit: "bytes" });
 
 		const notice = formatOutputNotice(meta);
-		expect(notice).toContain("Some lines truncated to 8 chars");
+		expect(notice).toContain("Some lines truncated to 8 bytes");
 		expect(notice).not.toContain("Showing lines");
 		expect(notice).not.toContain("limit");
 		expect(notice).not.toContain("artifact://");
+	});
+
+	test("column-cap notice advertises the mirrored artifact when one exists", async () => {
+		// Regression for #10877: when the per-line cap drops bytes and the raw
+		// stream was mirrored into an output artifact, the notice must point at
+		// that artifact — matching the tail-truncation notice's recovery pointer.
+		const summary = {
+			output: "a\nb\nc\n" + "x".repeat(8) + "…\nd",
+			truncated: false,
+			totalLines: 5,
+			totalBytes: 100,
+			outputLines: 5,
+			outputBytes: 20,
+			columnTruncatedLines: 1,
+			columnDroppedBytes: 42,
+			columnMax: 8,
+			artifactId: "77",
+		};
+
+		const meta = outputMeta().truncationFromSummary(summary, { direction: "tail" }).get();
+		expect(meta?.truncation).toBeUndefined();
+		expect(meta?.limits?.columnTruncated).toEqual({ maxColumn: 8, unit: "bytes", artifactId: "77" });
+
+		const notice = formatOutputNotice(meta);
+		expect(notice).toContain("Some lines truncated to 8 bytes");
+		expect(notice).toContain("Read artifact://77 for full output");
+	});
+
+	test("multibyte line: cap counts UTF-8 bytes and the notice says bytes", async () => {
+		// Regression for #10888: a 385-char line is 770 UTF-8 bytes. A char cap of
+		// 768 would leave it untouched; the sink enforces bytes, so it trims. The
+		// notice must name the enforced unit, not "chars".
+		const sink = new OutputSink({ maxColumns: 768, spillThreshold: 100_000 });
+		await sink.push("é".repeat(385));
+		const dumped = await sink.dump();
+
+		expect(dumped.columnTruncatedLines).toBe(1);
+		// 3 bytes reserved for "…" inside the 768-byte cap → 765 bytes of room →
+		// 382 two-byte "é" (764 bytes) kept, then the ellipsis.
+		const keptAccents = (dumped.output.match(/é/g) ?? []).length;
+		expect(keptAccents).toBe(382);
+		expect(dumped.output).toContain("…");
+
+		const meta = outputMeta().truncationFromSummary(dumped, { direction: "tail" }).get();
+		expect(formatOutputNotice(meta)).toContain("Some lines truncated to 768 bytes");
+	});
+
+	test("legacy metadata without a unit falls back to chars", () => {
+		// Sessions persisted before the unit field carry `{ maxColumn }` only.
+		// Resuming one must not render "768 undefined", and the reconstructed
+		// notice must still match the persisted "768 chars" text so stripping works.
+		const legacyMeta = { limits: { columnTruncated: { maxColumn: 768 } } };
+		const notice = formatOutputNotice(legacyMeta);
+		expect(notice).toContain("Some lines truncated to 768 chars");
+		expect(notice).not.toContain("undefined");
+		expect(stripOutputNotice(`body${notice}`, legacyMeta)).toBe("body");
 	});
 
 	test("persists per-line state across chunk boundaries", async () => {

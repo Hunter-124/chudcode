@@ -1,19 +1,19 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "bun:test";
 import * as fs from "node:fs";
 import * as path from "node:path";
-import { Agent, RESCUE_SHAKE_CONFIG } from "@chudware/agent-core";
-import * as compactionModule from "@chudware/agent-core/compaction";
-import { getBundledModel } from "@chudware/catalog/models";
-import { ModelRegistry } from "@chudware/coding-agent/config/model-registry";
-import { Settings } from "@chudware/coding-agent/config/settings";
-import { loadExtensions } from "@chudware/coding-agent/extensibility/extensions/loader";
-import { ExtensionRunner } from "@chudware/coding-agent/extensibility/extensions/runner";
-import { AgentSession } from "@chudware/coding-agent/session/agent-session";
-import { AuthStorage } from "@chudware/coding-agent/session/auth-storage";
-import type { CompactionEntry } from "@chudware/coding-agent/session/session-entries";
-import { SessionManager } from "@chudware/coding-agent/session/session-manager";
-import * as snapcompact from "@chudware/snapcompact";
-import { getProjectAgentDir, TempDir } from "@chudware/utils";
+import { Agent, RESCUE_SHAKE_CONFIG } from "@oh-my-pi/pi-agent-core";
+import * as compactionModule from "@oh-my-pi/pi-agent-core/compaction";
+import { getBundledModel } from "@oh-my-pi/pi-catalog/models";
+import { ModelRegistry } from "@oh-my-pi/pi-coding-agent/config/model-registry";
+import { Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
+import { loadExtensions } from "@oh-my-pi/pi-coding-agent/extensibility/extensions/loader";
+import { ExtensionRunner } from "@oh-my-pi/pi-coding-agent/extensibility/extensions/runner";
+import { AgentSession } from "@oh-my-pi/pi-coding-agent/session/agent-session";
+import { AuthStorage } from "@oh-my-pi/pi-coding-agent/session/auth-storage";
+import type { CompactionEntry } from "@oh-my-pi/pi-coding-agent/session/session-entries";
+import { SessionManager } from "@oh-my-pi/pi-coding-agent/session/session-manager";
+import { getProjectAgentDir, TempDir } from "@oh-my-pi/pi-utils";
+import * as snapcompact from "@oh-my-pi/snapcompact";
 
 /**
  * Regression test for the snapcompact frame dead-end.
@@ -40,7 +40,7 @@ describe("AgentSession snapcompact frame dead-end rescue", () => {
 
 	beforeAll(async () => {
 		authStorage = await AuthStorage.create(":memory:");
-		authStorage.setRuntimeApiKey("anthropic", "test-key");
+		authStorage.keys.setRuntime("anthropic", "test-key");
 		modelRegistry = new ModelRegistry(authStorage);
 	});
 
@@ -95,8 +95,8 @@ describe("AgentSession snapcompact frame dead-end rescue", () => {
 			fs.writeFileSync(
 				extensionPath,
 				[
-					"export default function(chud) {",
-					'\tchud.on("session_before_compact", async (event) => {',
+					"export default function(pi) {",
+					'\tpi.on("session_before_compact", async (event) => {',
 					"\t\treturn {",
 					"\t\t\tcompaction: {",
 					'\t\t\t\tsummary: "compacted",',
@@ -237,13 +237,15 @@ describe("AgentSession snapcompact frame dead-end rescue", () => {
 		};
 	}
 
-	async function triggerMaintenance(): Promise<void> {
+	async function triggerMaintenance(options: { appendAssistant?: boolean } = {}): Promise<void> {
 		const { promise: compactionDone, resolve: onCompactionDone } = Promise.withResolvers<void>();
 		session.subscribe(event => {
 			if (event.type === "auto_compaction_end") onCompactionDone();
 		});
 		const assistantMsg = highUsageAssistant();
-		session.agent.emitExternalEvent({ type: "message_end", message: assistantMsg });
+		// Resume maintenance without extending the archived branch. Appending an
+		// assistant would make the retained user turn legitimately compactable.
+		if (options.appendAssistant) session.agent.emitExternalEvent({ type: "message_end", message: assistantMsg });
 		session.agent.emitExternalEvent({ type: "agent_end", messages: [assistantMsg] });
 		await compactionDone;
 		await session.waitForIdle();
@@ -349,7 +351,7 @@ describe("AgentSession snapcompact frame dead-end rescue", () => {
 
 		const notices = collectNotices();
 		const emitSpy = vi.spyOn(ExtensionRunner.prototype, "emit");
-		await triggerMaintenance();
+		await triggerMaintenance({ appendAssistant: true });
 
 		expect(compactSpy).toHaveBeenCalledTimes(1);
 		const compactions = sessionManager

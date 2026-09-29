@@ -1,5 +1,5 @@
-import { postmortem } from "@chudware/utils";
-import { Args, Command, Flags } from "@chudware/utils/cli";
+import { postmortem } from "@oh-my-pi/pi-utils";
+import { Args, Command, Flags } from "@oh-my-pi/pi-utils/cli";
 import { runCleanseCommand } from "../cleanse";
 import { cleanseHelp as commandHelp } from "../cli/command-help";
 import { CliUsageError } from "../cli/usage-error";
@@ -36,13 +36,13 @@ export default class Cleanse extends Command {
 	};
 
 	static examples = [
-		"chudcode cleanse",
-		"chudcode cleanse --all",
-		'chudcode cleanse "ts errors"',
-		"chudcode cleanse -n 8",
-		"chudcode cleanse -m opus",
-		"chudcode cleanse -t",
-		"chudcode cleanse --agents 12 --model anthropic/claude-opus-4-6",
+		"omp cleanse",
+		"omp cleanse --all",
+		'omp cleanse "ts errors"',
+		"omp cleanse -n 8",
+		"omp cleanse -m opus",
+		"omp cleanse -t",
+		"omp cleanse --agents 12 --model anthropic/claude-opus-4-6",
 	];
 
 	async run(): Promise<void> {

@@ -2,7 +2,7 @@
  * Inspect and control daemon-broker supervised processes from outside the harness.
  */
 
-import { Args, Command, Flags } from "@chudware/utils/cli";
+import { Args, Command, Flags } from "@oh-my-pi/pi-utils/cli";
 import { psHelp as commandHelp } from "../cli/command-help";
 import { type PsAction, type PsCommandArgs, runPsCommand } from "../cli/ps-cli";
 
@@ -24,7 +24,7 @@ export default class Ps extends Command {
 	};
 
 	static flags = {
-		all: Flags.boolean({ char: "a", description: "List every project and global service scope (list)" }),
+		all: Flags.boolean({ char: "a", description: "Also list other projects and exited global services (list)" }),
 		json: Flags.boolean({ char: "j", description: "Emit machine-readable JSON" }),
 		plain: Flags.boolean({ description: "Static listing instead of the interactive monitor (list)" }),
 		dir: Flags.string({ description: "Target another project directory instead of the current one" }),
@@ -37,12 +37,12 @@ export default class Ps extends Command {
 	};
 
 	static examples = [
-		"chudcode ps",
-		"chudcode ps --all",
-		"chudcode ps logs web --follow",
-		"chudcode ps stop web",
-		"chudcode ps kill web",
-		"chudcode ps info relay --global browser-relay",
+		"omp ps",
+		"omp ps --all",
+		"omp ps logs web --follow",
+		"omp ps stop web",
+		"omp ps kill web",
+		"omp ps info relay --global browser-relay",
 	];
 
 	async run(): Promise<void> {

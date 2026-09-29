@@ -1,4 +1,5 @@
 import { afterAll, describe, expect, it } from "bun:test";
+import assert from "node:assert/strict";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
@@ -7,10 +8,10 @@ import {
 	__collectLegacyPiExtensionSourcesForTests,
 	__rewriteLegacyExtensionSourceForTests,
 	loadLegacyPiModule,
-} from "@chudware/coding-agent/extensibility/plugins/legacy-pi-compat";
-import { removeWithRetries } from "@chudware/utils";
+} from "@oh-my-pi/pi-coding-agent/extensibility/plugins/legacy-pi-compat";
+import { isRecord, removeWithRetries } from "@oh-my-pi/pi-utils";
 
-// Issue #1674: legacy Chud extensions load browser-UI assets (HTML/CSS) at module
+// Issue #1674: legacy Pi extensions load browser-UI assets (HTML/CSS) at module
 // init via `readFileSync(join(__dirname, "ui.html"))`. The compat layer must run
 // the extension from its real on-disk location so `import.meta.url` (and thus
 // `__dirname`) points at the extension's own directory — no temp-directory
@@ -26,7 +27,7 @@ afterAll(async () => {
 });
 
 async function writePackage(files: Record<string, string>): Promise<string> {
-	const dir = await fs.mkdtemp(path.join(os.tmpdir(), "chudcode-legacy-inplace-"));
+	const dir = await fs.mkdtemp(path.join(os.tmpdir(), "omp-legacy-inplace-"));
 	tempRoots.push(dir);
 	for (const rel in files) {
 		const abs = path.join(dir, rel);
@@ -37,6 +38,61 @@ async function writePackage(files: Record<string, string>): Promise<string> {
 }
 
 describe("legacy-pi in-place module loading (issue #1674)", () => {
+	it("resolves package patterns by prefix specificity before suffix length", async () => {
+		const dir = await writePackage({
+			"package.json": JSON.stringify({
+				name: "pattern-extension",
+				type: "module",
+				imports: {
+					"#a*long": "./wrong.js",
+					"#abc*": "./prefix.js",
+					"#abc*x": "./suffix.js",
+					"#abcexact": "./exact.js",
+				},
+			}),
+			"wrong.js": 'export default "wrong";',
+			"prefix.js": 'export default "prefix";',
+			"suffix.js": 'export default "suffix";',
+			"exact.js": 'export default "exact";',
+			"node_modules/pattern-dep/package.json": JSON.stringify({
+				name: "pattern-dep",
+				type: "module",
+				exports: { "./a*long": "./wrong.js", "./abc*": "./right.js" },
+			}),
+			"node_modules/pattern-dep/wrong.js": 'export default "wrong";',
+			"node_modules/pattern-dep/right.js": 'export default "dependency";',
+			"index.ts": [
+				'export { default as prefix } from "#abclong";',
+				'export { default as suffix } from "#abctailx";',
+				'export { default as exact } from "#abcexact";',
+				'export { default as dependency } from "pattern-dep/abclong";',
+			].join("\n"),
+		});
+
+		const loaded = await loadLegacyPiModule(path.join(dir, "index.ts"));
+		assert(isRecord(loaded));
+		expect([loaded.prefix, loaded.suffix, loaded.exact, loaded.dependency]).toEqual([
+			"prefix",
+			"suffix",
+			"exact",
+			"dependency",
+		]);
+	});
+
+	it("does not fall back to a broader package pattern when the specific target is excluded", async () => {
+		const dir = await writePackage({
+			"package.json": JSON.stringify({
+				name: "excluded-pattern-extension",
+				type: "module",
+				imports: { "#*": "./fallback.js", "#private/*": null },
+			}),
+			"fallback.js": 'export default "must not load";',
+			"index.ts": 'export { default as value } from "#private/secret";',
+		});
+
+		await expect(loadLegacyPiModule(path.join(dir, "index.ts"))).rejects.toThrow(/excluded/);
+	});
+
 	it("loads in place with ESM-to-CommonJS default, named, and require interop", async () => {
 		const dir = await writePackage({
 			"package.json": JSON.stringify({ name: "asset-ext", version: "1.0.0" }),
@@ -61,7 +117,7 @@ describe("legacy-pi in-place module loading (issue #1674)", () => {
 				'export const html = readFileSync(path.join(here, "ui.html"), "utf8");',
 				"export const defaultValue = helper.value;",
 				"export { namedValue, requiredValue };",
-				"export default function (chud) { void chud; }",
+				"export default function (pi) { void pi; }",
 			].join("\n"),
 		});
 
@@ -81,7 +137,7 @@ describe("legacy-pi in-place module loading (issue #1674)", () => {
 		expect(mod.namedValue).toBe("named-cjs-ok");
 	});
 
-	it("remaps legacy Chud requires in graph-owned CommonJS packages to the host shim", async () => {
+	it("remaps legacy Pi requires in graph-owned CommonJS packages to the host shim", async () => {
 		const dir = await writePackage({
 			"package.json": JSON.stringify({ name: "cjs-legacy-pi-require-ext", version: "1.0.0", type: "module" }),
 			"node_modules/direct/package.json": JSON.stringify({
@@ -89,12 +145,12 @@ describe("legacy-pi in-place module loading (issue #1674)", () => {
 				version: "1.0.0",
 				main: "index.js",
 			}),
-			"node_modules/direct/index.js": 'module.exports = require("@mariozechner/chud-ai").Type;\n',
+			"node_modules/direct/index.js": 'module.exports = require("@mariozechner/pi-ai").Type;\n',
 			"index.ts": [
-				'import { Type } from "@earendil-works/pi-ai";',
+				'import { Type } from "@oh-my-pi/pi-ai";',
 				'import requiredType from "direct";',
 				"export const sharesHostType = requiredType === Type;",
-				"export default function (chud) { void chud; }",
+				"export default function (pi) { void pi; }",
 			].join("\n"),
 		});
 
@@ -138,7 +194,7 @@ describe("legacy-pi in-place module loading (issue #1674)", () => {
 			"package.json": JSON.stringify({ name: "lazy-cjs-ext", version: "1.0.0", type: "module" }),
 			"index.js": [
 				'export const loadValue = () => import("./helper.cjs").then(mod => mod.default.value);',
-				"export default function (chud) { void chud; }",
+				"export default function (pi) { void pi; }",
 			].join("\n"),
 			"helper.cjs": 'module.exports = { value: "v1" };\n',
 		});
@@ -156,7 +212,7 @@ describe("legacy-pi in-place module loading (issue #1674)", () => {
 			"index.js": [
 				'import helper from "./helper.cjs";',
 				"export const helperValue = helper.value;",
-				"export default function (chud) { void chud; }",
+				"export default function (pi) { void pi; }",
 			].join("\n"),
 			"helper.cjs": 'module.exports = { value: "v1" };\n',
 		});
@@ -185,7 +241,7 @@ describe("legacy-pi in-place module loading (issue #1674)", () => {
 				"const here = path.dirname(entryPath);",
 				`export const version = ${JSON.stringify(version)};`,
 				'export const asset = readFileSync(path.join(here, "marker.txt"), "utf8");',
-				"export default function (chud) { void chud; }",
+				"export default function (pi) { void pi; }",
 			].join("\n");
 		const dir = await writePackage({
 			"package.json": JSON.stringify({ name: "mtime-reload-ext", version: "1.0.0" }),
@@ -220,7 +276,7 @@ describe("legacy-pi in-place module loading (issue #1674)", () => {
 				"export { H };",
 				"export const entryPath = fileURLToPath(import.meta.url);",
 				`export const entryVersion = ${JSON.stringify(version)};`,
-				"export default function (chud) { void chud; }",
+				"export default function (pi) { void pi; }",
 			].join("\n");
 		const dir = await writePackage({
 			"package.json": JSON.stringify({ name: "helper-mtime-reload-ext", version: "1.0.0" }),
@@ -258,7 +314,7 @@ describe("legacy-pi in-place module loading (issue #1674)", () => {
 				'import { depValue } from "localdep";',
 				"export { depValue };",
 				`export const entryVersion = ${JSON.stringify(version)};`,
-				"export default function (chud) { void chud; }",
+				"export default function (pi) { void pi; }",
 			].join("\n");
 		const dir = await writePackage({
 			"package.json": JSON.stringify({ name: "bare-dep-child-reload-ext", version: "1.0.0" }),
@@ -299,7 +355,7 @@ describe("legacy-pi in-place module loading (issue #1674)", () => {
 				'import { depValue } from "localdep";',
 				"export { depValue };",
 				`export const entryVersion = ${JSON.stringify(version)};`,
-				"export default function (chud) { void chud; }",
+				"export default function (pi) { void pi; }",
 			].join("\n");
 		const dir = await writePackage({
 			"plugins/node_modules/installed-plugin/package.json": JSON.stringify({
@@ -356,7 +412,7 @@ describe("legacy-pi in-place module loading (issue #1674)", () => {
 				exports: "./index.js",
 			}),
 			"node_modules/nesteddep/index.js": "export const nestedUrl = import.meta.url;\n",
-			"index.ts": 'export { nestedUrl } from "directdep";\nexport default function (chud) { void chud; }\n',
+			"index.ts": 'export { nestedUrl } from "directdep";\nexport default function (pi) { void pi; }\n',
 		});
 
 		const mod = (await loadLegacyPiModule(path.join(dir, "index.ts"))) as { nestedUrl: string };
@@ -384,7 +440,7 @@ describe("legacy-pi in-place module loading (issue #1674)", () => {
 			"index.ts": [
 				'import { stringify } from "dual-package";',
 				'export const result = stringify("value");',
-				"export default function (chud) { void chud; }",
+				"export default function (pi) { void pi; }",
 			].join("\n"),
 		});
 
@@ -411,7 +467,7 @@ describe("legacy-pi in-place module loading (issue #1674)", () => {
 			"index.ts": [
 				'import "conditional";',
 				"export const loaded = true;",
-				"export default function (chud) { void chud; }",
+				"export default function (pi) { void pi; }",
 			].join("\n"),
 		});
 
@@ -426,7 +482,7 @@ describe("legacy-pi in-place module loading (issue #1674)", () => {
 				'import dependency from "directdep";',
 				"export const dependencyValue = dependency.value;",
 				`export const entryVersion = ${JSON.stringify(version)};`,
-				"export default function (chud) { void chud; }",
+				"export default function (pi) { void pi; }",
 			].join("\n");
 		const dir = await writePackage({
 			"package.json": JSON.stringify({ name: "relative-transitive-cjs-ext", version: "1.0.0", type: "module" }),
@@ -497,13 +553,76 @@ describe("legacy-pi in-place module loading (issue #1674)", () => {
 			"index.ts": [
 				'import { value } from "direct";',
 				"export { value };",
-				"export default function (chud) { void chud; }",
+				"export default function (pi) { void pi; }",
 			].join("\n"),
 		});
 
 		const mod = (await loadLegacyPiModule(path.join(dir, "index.ts"))) as { value: string };
 
 		expect(mod.value).toBe("named-reexport-ok");
+	});
+
+	it("loads runtime-computed named exports from a CommonJS entry", async () => {
+		const dir = await writePackage({
+			"index.cjs": ['const key = "answer";', "Object.assign(exports, { [key]: 42 });"].join("\n"),
+		});
+
+		const mod = await loadLegacyPiModule(path.join(dir, "index.cjs"));
+
+		expect(mod).toMatchObject({ answer: 42 });
+	});
+
+	it("discovers dynamic CommonJS exports while preserving import/require identity across reloads", async () => {
+		const directSourceV1 = [
+			'const key = "answer";',
+			'Object.assign(exports, { [key]: 42, token: { version: "v1" } });',
+		].join("\n");
+		const directSourceV2 = [
+			'const key = "answer";',
+			'Object.assign(exports, { [key]: 84, token: { version: "v2" } });',
+		].join("\n");
+		const dir = await writePackage({
+			"package.json": JSON.stringify({ name: "dynamic-cjs-export-ext", version: "1.0.0", type: "module" }),
+			"node_modules/direct/package.json": JSON.stringify({
+				name: "direct",
+				version: "1.0.0",
+				main: "index.cjs",
+			}),
+			"node_modules/direct/index.cjs": directSourceV1,
+			"required.cjs": 'module.exports = require("direct");\n',
+			"index.ts": [
+				'import imported, { answer, token } from "direct";',
+				'import required from "./required.cjs";',
+				"export { answer };",
+				"export const sameObject = imported === required;",
+				"export const sameToken = token === required.token;",
+				"export const importedObject = imported;",
+				"export const version = token.version;",
+				"export default function (pi) { void pi; }",
+			].join("\n"),
+		});
+		const entry = path.join(dir, "index.ts");
+		const direct = path.join(dir, "node_modules", "direct", "index.cjs");
+
+		const first = await loadLegacyPiModule(entry);
+		assert(isRecord(first));
+		expect(first.answer).toBe(42);
+		expect(first.sameObject).toBe(true);
+		expect(first.sameToken).toBe(true);
+		expect(first.version).toBe("v1");
+
+		const firstDirectStat = await fs.stat(direct);
+		await fs.writeFile(direct, directSourceV2, "utf8");
+		const bumpedDirectMtime = new Date(Math.ceil(firstDirectStat.mtimeMs) + 2_000);
+		await fs.utimes(direct, bumpedDirectMtime, bumpedDirectMtime);
+
+		const second = await loadLegacyPiModule(entry);
+		assert(isRecord(second));
+		expect(second.answer).toBe(84);
+		expect(second.sameObject).toBe(true);
+		expect(second.sameToken).toBe(true);
+		expect(second.version).toBe("v2");
+		expect(second.importedObject).not.toBe(first.importedObject);
 	});
 
 	it("preserves named imports from CommonJS defineProperty and exportStar patterns", async () => {
@@ -515,7 +634,7 @@ describe("legacy-pi in-place module loading (issue #1674)", () => {
 				main: "index.js",
 			}),
 			"node_modules/direct/index.js": [
-				'Object.defineProperty(exports, "local", { enumerable: true, get: () => "local-ok" });',
+				'Object.defineProperty(exports, "local", { enumerable: false, get: () => "local-ok" });',
 				"const __exportStar = (mod, target) => {",
 				"  for (const key in mod) {",
 				'    if (key !== "default" && !Object.prototype.hasOwnProperty.call(target, key)) {',
@@ -534,7 +653,7 @@ describe("legacy-pi in-place module loading (issue #1674)", () => {
 			"index.ts": [
 				'import { local, value } from "direct";',
 				"export { local, value };",
-				"export default function (chud) { void chud; }",
+				"export default function (pi) { void pi; }",
 			].join("\n"),
 		});
 
@@ -561,7 +680,7 @@ describe("legacy-pi in-place module loading (issue #1674)", () => {
 			"index.ts": [
 				'import direct from "direct";',
 				"export const result = await direct.load();",
-				"export default function (chud) { void chud; }",
+				"export default function (pi) { void pi; }",
 			].join("\n"),
 		});
 
@@ -582,7 +701,7 @@ describe("legacy-pi in-place module loading (issue #1674)", () => {
 			"index.ts": [
 				'import direct from "direct";',
 				"export const result = direct.value;",
-				"export default function (chud) { void chud; }",
+				"export default function (pi) { void pi; }",
 			].join("\n"),
 		});
 
@@ -596,7 +715,7 @@ describe("legacy-pi in-place module loading (issue #1674)", () => {
 			[
 				'export const loadValue = () => import("direct").then(mod => mod.default.value);',
 				`export const entryVersion = ${JSON.stringify(version)};`,
-				"export default function (chud) { void chud; }",
+				"export default function (pi) { void pi; }",
 			].join("\n");
 		const dir = await writePackage({
 			"package.json": JSON.stringify({ name: "lazy-cjs-reexport-ext", version: "1.0.0", type: "module" }),
@@ -648,7 +767,7 @@ describe("legacy-pi in-place module loading (issue #1674)", () => {
 				includeHelper ? 'export { leafValue } from "./helper.ts";' : "",
 				"export const entryPath = fileURLToPath(import.meta.url);",
 				`export const entryVersion = ${JSON.stringify(version)};`,
-				"export default function (chud) { void chud; }",
+				"export default function (pi) { void pi; }",
 			]
 				.filter(Boolean)
 				.join("\n");
@@ -715,9 +834,7 @@ describe("legacy-pi in-place module loading (issue #1674)", () => {
 				"const here = path.dirname(fileURLToPath(import.meta.url));",
 				'export const css = readFileSync(path.join(here, "widget.css"), "utf8");',
 			].join("\n"),
-			"index.ts": ['export { css } from "./sub/widget.ts";', "export default function (chud) { void chud; }"].join(
-				"\n",
-			),
+			"index.ts": ['export { css } from "./sub/widget.ts";', "export default function (pi) { void pi; }"].join("\n"),
 		});
 
 		const mod = (await loadLegacyPiModule(path.join(dir, "index.ts"))) as { css: string };
@@ -734,7 +851,7 @@ describe("legacy-pi in-place module loading (issue #1674)", () => {
 			"index.ts": [
 				'import prices from "./prices.json" with { type: "json" };',
 				"export const inputPrice = prices.input;",
-				"export default function (chud) { void chud; }",
+				"export default function (pi) { void pi; }",
 			].join("\n"),
 		});
 
@@ -743,7 +860,7 @@ describe("legacy-pi in-place module loading (issue #1674)", () => {
 		expect(mod.inputPrice).toBe(0.15);
 	});
 
-	it("loads the extension's own node_modules deps natively while remapping legacy chud imports", async () => {
+	it("loads the extension's own node_modules deps natively while remapping legacy pi imports", async () => {
 		const dir = await writePackage({
 			"package.json": JSON.stringify({ name: "dep-ext", version: "1.0.0" }),
 			"node_modules/cjsdep/package.json": JSON.stringify({ name: "cjsdep", version: "1.0.0", main: "index.js" }),
@@ -756,19 +873,19 @@ describe("legacy-pi in-place module loading (issue #1674)", () => {
 				'import { Effort } from "@earendil-works/pi-ai";',
 				"export const depValue = cjs.value;",
 				'export const hasAi = typeof Effort === "object";',
-				"export default function (chud) { void chud; }",
+				"export default function (pi) { void pi; }",
 			].join("\n"),
 		});
 
 		const mod = (await loadLegacyPiModule(path.join(dir, "index.ts"))) as { depValue: string; hasAi: boolean };
 
 		// CJS dep under node_modules keeps Bun's native resolution (it is excluded
-		// from the rewrite onLoad), and the legacy chud import is remapped.
+		// from the rewrite onLoad), and the legacy pi import is remapped.
 		expect(mod.depValue).toBe("cjs-native");
 		expect(mod.hasAi).toBe(true);
 	});
 
-	it("exposes legacy root tool factories used by chud-lean-ctx", async () => {
+	it("exposes legacy root tool factories used by pi-lean-ctx", async () => {
 		const dir = await writePackage({
 			"package.json": JSON.stringify({ name: "legacy-tool-factory-ext", version: "1.0.0" }),
 			"index.ts": [
@@ -783,7 +900,7 @@ describe("legacy-pi in-place module loading (issue #1674)", () => {
 				"  getLanguageFromPath,",
 				"  highlightCode,",
 				"  truncateHead,",
-				'} from "@earendil-works/chudcode-agent";',
+				'} from "@earendil-works/pi-coding-agent";',
 				"const cwd = process.cwd();",
 				"const definitions = [",
 				"  createBashToolDefinition(cwd),",
@@ -804,7 +921,7 @@ describe("legacy-pi in-place module loading (issue #1674)", () => {
 				"  highlighted: highlightCode('const x = 1;', 'ts').length,",
 				"  truncated: truncateHead('a\\nb', { maxLines: 1 }).truncated,",
 				"};",
-				"export default function (chud) { for (const definition of definitions) chud.registerTool(definition); }",
+				"export default function (pi) { for (const definition of definitions) pi.registerTool(definition); }",
 			].join("\n"),
 		});
 
@@ -826,7 +943,7 @@ describe("legacy-pi in-place module loading (issue #1674)", () => {
 		const dir = await writePackage({
 			"package.json": JSON.stringify({ name: "legacy-extension-runtime-ext", version: "1.0.0" }),
 			"index.ts": [
-				'import { createExtensionRuntime } from "@earendil-works/chudcode-agent";',
+				'import { createExtensionRuntime } from "@earendil-works/pi-coding-agent";',
 				"const first = createExtensionRuntime();",
 				"const second = createExtensionRuntime();",
 				"first.flagValues.set('sprite', true);",
@@ -841,7 +958,7 @@ describe("legacy-pi in-place module loading (issue #1674)", () => {
 				"  secondHasFlag: second.flagValues.has('sprite'),",
 				"  initializationError,",
 				"};",
-				"export default function (chud) { void chud; }",
+				"export default function (pi) { void pi; }",
 			].join("\n"),
 		});
 
@@ -865,7 +982,7 @@ describe("legacy-pi in-place module loading (issue #1674)", () => {
 		const dir = await writePackage({
 			"package.json": JSON.stringify({ name: "legacy-bash-ops-ext", version: "1.0.0" }),
 			"index.ts": [
-				'import { createBashToolDefinition } from "@earendil-works/chudcode-agent";',
+				'import { createBashToolDefinition } from "@earendil-works/pi-coding-agent";',
 				"const updates = [];",
 				"let captured;",
 				"const tool = createBashToolDefinition(process.cwd(), {",
@@ -889,7 +1006,7 @@ describe("legacy-pi in-place module loading (issue #1674)", () => {
 				"  text: result.content.find(block => block.type === 'text')?.text,",
 				"  updates,",
 				"};",
-				"export default function (chud) { chud.registerTool(tool); }",
+				"export default function (pi) { pi.registerTool(tool); }",
 			].join("\n"),
 		});
 
@@ -911,11 +1028,43 @@ describe("legacy-pi in-place module loading (issue #1674)", () => {
 		expect(mod.observed.updates).toEqual(["remote output"]);
 	});
 
+	it("runs a legacy bash spawn hook against the real tool, not only the operations override", async () => {
+		// Regression: the shim forwarded the hook's env as bash tool input, which
+		// the tool accepts only for a named service, so every agent bash call from
+		// an extension registering bash this way failed with
+		// "ready and env require a service name." The operations branch above never
+		// caught it because it bypasses the registry tool.
+		const dir = await writePackage({
+			"package.json": JSON.stringify({ name: "legacy-bash-spawn-ext", version: "1.0.0" }),
+			"index.ts": [
+				'import { createBashToolDefinition } from "@earendil-works/pi-coding-agent";',
+				"const tool = createBashToolDefinition(process.cwd(), {",
+				"  spawnHook(context) {",
+				"    return { ...context, command: 'echo hooked', env: { ...context.env, SENTINEL: 'yes' } };",
+				"  },",
+				"});",
+				"const result = await tool.execute('call-1', { command: 'echo original' });",
+				"export const observed = {",
+				"  text: result.content.find(block => block.type === 'text')?.text ?? '',",
+				"  isError: result.isError === true,",
+				"};",
+				"export default function (pi) { pi.registerTool(tool); }",
+			].join("\n"),
+		});
+
+		const mod = (await loadLegacyPiModule(path.join(dir, "index.ts"))) as {
+			observed: { text: string; isError: boolean };
+		};
+
+		expect(mod.observed.isError).toBe(false);
+		expect(mod.observed.text).toContain("hooked");
+	});
+
 	it("preserves relative paths from legacy find operations", async () => {
 		const dir = await writePackage({
 			"package.json": JSON.stringify({ name: "legacy-find-ops-ext", version: "1.0.0" }),
 			"index.ts": [
-				'import { createFindToolDefinition } from "@earendil-works/chudcode-agent";',
+				'import { createFindToolDefinition } from "@earendil-works/pi-coding-agent";',
 				"const tool = createFindToolDefinition('/remote/project', {",
 				"  operations: {",
 				"    exists: () => true,",
@@ -925,7 +1074,7 @@ describe("legacy-pi in-place module loading (issue #1674)", () => {
 				"const result = await tool.execute('call-1', { pattern: '**/*.ts', path: '.' });",
 				"const text = result.content.find(block => block.type === 'text')?.text ?? '';",
 				"export const lines = text.split('\\n');",
-				"export default function (chud) { chud.registerTool(tool); }",
+				"export default function (pi) { pi.registerTool(tool); }",
 			].join("\n"),
 		});
 
@@ -1040,7 +1189,7 @@ describe("legacy-pi in-place module loading (issue #1674)", () => {
 			"index.js": [
 				'import parent from "cjs-parent";',
 				"export const loadValue = parent.load;",
-				"export default function (chud) { void chud; }",
+				"export default function (pi) { void pi; }",
 			].join("\n"),
 		});
 
@@ -1081,7 +1230,7 @@ describe("legacy-pi in-place module loading (issue #1674)", () => {
 				'import type { Marker } from "shared";',
 				"export const loadValue = parent.load;",
 				"export type SharedMarker = Marker;",
-				"export default function (chud) { void chud; }",
+				"export default function (pi) { void pi; }",
 			].join("\n"),
 		});
 
@@ -1122,7 +1271,7 @@ describe("legacy-pi in-place module loading (issue #1674)", () => {
 			"index.js": [
 				'import shared from "shared";',
 				"export const loadValue = () => shared;",
-				"export default function (chud) { void chud; }",
+				"export default function (pi) { void pi; }",
 			].join("\n"),
 		});
 		const entry = path.join(dir, "index.js");
@@ -1142,7 +1291,7 @@ describe("legacy-pi in-place module loading (issue #1674)", () => {
 			[
 				'import parent from "cjs-parent";',
 				"export const loadValue = parent.load;",
-				"export default function (chud) { void chud; }",
+				"export default function (pi) { void pi; }",
 			].join("\n"),
 			"utf8",
 		);
@@ -1170,7 +1319,7 @@ describe("legacy-pi in-place module loading (issue #1674)", () => {
 			"index.js": [
 				'import parent from "cjs-parent";',
 				"export const loadValue = parent.load;",
-				"export default function (chud) { void chud; }",
+				"export default function (pi) { void pi; }",
 			].join("\n"),
 		});
 		const entry = path.join(dir, "index.js");
@@ -1191,7 +1340,7 @@ describe("legacy-pi in-place module loading (issue #1674)", () => {
 			[
 				'import { value } from "./lib.js";',
 				"export const loadValue = () => value;",
-				"export default function (chud) { void chud; }",
+				"export default function (pi) { void pi; }",
 			].join("\n"),
 			"utf8",
 		);
@@ -1424,7 +1573,7 @@ describe("legacy-pi in-place module loading (issue #1674)", () => {
 			"index.js": [
 				'import loader from "native-loader";',
 				"export const loadSource = loader.load.toString();",
-				"export default function (chud) { void chud; }",
+				"export default function (pi) { void pi; }",
 			].join("\n"),
 			"node_modules/native-loader/package.json": JSON.stringify({
 				name: "native-loader",
@@ -1450,25 +1599,25 @@ describe("legacy-pi in-place module loading (issue #1674)", () => {
 		expect(loadSource).toContain(addon.replaceAll("\\", "/"));
 	});
 
-	it("remaps legacy chud-ai utils/oauth subpaths to registry OAuth exports", async () => {
+	it("remaps legacy pi-ai utils/oauth subpaths to registry OAuth exports", async () => {
 		const dir = await writePackage({
 			"package.json": JSON.stringify({ name: "legacy-oauth-ext", version: "1.0.0" }),
 			"index.ts": [
-				'import { registerOAuthProvider } from "@mariozechner/chud-ai/utils/oauth";',
-				'import { refreshAnthropicToken } from "@mariozechner/chud-ai/utils/oauth/anthropic";',
+				'import { registerOAuthProvider } from "@mariozechner/pi-ai/utils/oauth";',
+				'import { fetchAnthropicBootstrapIdentity } from "@mariozechner/pi-ai/utils/oauth/anthropic";',
 				'export const hasRegisterOAuthProvider = typeof registerOAuthProvider === "function";',
-				'export const hasRefreshAnthropicToken = typeof refreshAnthropicToken === "function";',
-				"export default function (chud) { void chud; }",
+				'export const hasFetchAnthropicBootstrapIdentity = typeof fetchAnthropicBootstrapIdentity === "function";',
+				"export default function (pi) { void pi; }",
 			].join("\n"),
 		});
 
 		const mod = (await loadLegacyPiModule(path.join(dir, "index.ts"))) as {
 			hasRegisterOAuthProvider: boolean;
-			hasRefreshAnthropicToken: boolean;
+			hasFetchAnthropicBootstrapIdentity: boolean;
 		};
 
 		expect(mod.hasRegisterOAuthProvider).toBe(true);
-		expect(mod.hasRefreshAnthropicToken).toBe(true);
+		expect(mod.hasFetchAnthropicBootstrapIdentity).toBe(true);
 	});
 
 	it("rewrites legacy imports in ../src modules reached through relative imports", async () => {
@@ -1480,7 +1629,7 @@ describe("legacy-pi in-place module loading (issue #1674)", () => {
 			].join("\n"),
 			"dist/extension.ts": [
 				'export { ok } from "../src/helper.ts";',
-				"export default function (chud) { void chud; }",
+				"export default function (pi) { void pi; }",
 			].join("\n"),
 		});
 
@@ -1494,9 +1643,7 @@ describe("legacy-pi in-place module loading (issue #1674)", () => {
 	it("does not rewrite sibling files outside the loaded extension's import graph", async () => {
 		const dir = await writePackage({
 			"package.json": JSON.stringify({ name: "scoped-ext", version: "1.0.0" }),
-			"index.ts": ['export { local } from "./local.ts";', "export default function (chud) { void chud; }"].join(
-				"\n",
-			),
+			"index.ts": ['export { local } from "./local.ts";', "export default function (pi) { void pi; }"].join("\n"),
 			"local.ts": 'export const local = "local-ok";',
 			// Not imported by index.ts, so it must stay outside the rewrite scope.
 			// `@earendil-works/*` only resolves via the rewrite, so an un-rewritten

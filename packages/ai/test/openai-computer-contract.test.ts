@@ -1,26 +1,26 @@
 import { describe, expect, test } from "bun:test";
+import { type } from "@oh-my-pi/omptype";
 import {
 	buildTransformedCodexRequestBody,
 	convertCodexResponsesMessages,
 	convertOpenAICodexResponsesTools,
 	normalizeCodexToolChoice,
-} from "@chudware/ai/providers/openai-codex-responses";
+} from "@oh-my-pi/pi-ai/providers/openai-codex-responses";
 import {
 	buildParams,
 	convertTools,
 	mapOpenAIResponsesToolChoiceForTools,
-} from "@chudware/ai/providers/openai-responses";
-import type { ResponseStreamEvent } from "@chudware/ai/providers/openai-responses-wire";
+} from "@oh-my-pi/pi-ai/providers/openai-responses";
+import type { ResponseStreamEvent } from "@oh-my-pi/pi-ai/providers/openai-responses-wire";
 import {
 	appendResponsesToolResultMessages,
 	buildResponsesInput,
 	convertResponsesAssistantMessage,
 	processResponsesStream,
-} from "@chudware/ai/providers/openai-shared";
-import type { AssistantMessage, Context, Model, ModelSpec, Tool, ToolResultMessage } from "@chudware/ai/types";
-import { sanitizeOpenAIResponsesHistoryItemsForReplay } from "@chudware/ai/utils";
-import { buildModel } from "@chudware/catalog/build";
-import { type } from "@chudware/chudtype";
+} from "@oh-my-pi/pi-ai/providers/openai-shared";
+import type { AssistantMessage, Context, Model, ModelSpec, Tool, ToolResultMessage } from "@oh-my-pi/pi-ai/types";
+import { sanitizeOpenAIResponsesHistoryItemsForReplay } from "@oh-my-pi/pi-ai/utils";
+import { buildModel } from "@oh-my-pi/pi-catalog/build";
 
 function model<TApi extends "openai-responses" | "openai-codex-responses">(
 	api: TApi,

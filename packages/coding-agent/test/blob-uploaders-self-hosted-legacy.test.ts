@@ -2,7 +2,6 @@ import { describe, expect, it } from "bun:test";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
-import * as fsx from "@chudware/utils/fsx";
 import type { BlobDestinationId } from "../src/blob-broker/destinations";
 import type { BlobUploader, BlobUploadRequest } from "../src/blob-broker/publication";
 import {
@@ -77,7 +76,7 @@ describe("self-hosted uploader wire contracts", () => {
 	});
 
 	it("does not corrupt FTP command stdin or mis-map the remote path to its public URL", async () => {
-		const temp = fs.mkdtempSync(path.join(os.tmpdir(), "chudcode-ftp-uploader-"));
+		const temp = fs.mkdtempSync(path.join(os.tmpdir(), "omp-ftp-uploader-"));
 		try {
 			const executable = path.join(temp, "fake-curl");
 			const argsFile = path.join(temp, "args");
@@ -125,7 +124,7 @@ describe("self-hosted uploader wire contracts", () => {
 	});
 
 	it("does not mis-map an encoded shared-folder path or write outside its configured subtree", async () => {
-		const root = fs.mkdtempSync(path.join(os.tmpdir(), "chudcode-shared-uploader-"));
+		const root = fs.mkdtempSync(path.join(os.tmpdir(), "omp-shared-uploader-"));
 		try {
 			const uploader = requiredUploader(
 				createSelfHostedUploader(
@@ -134,7 +133,7 @@ describe("self-hosted uploader wire contracts", () => {
 				),
 			);
 			const publication = await uploader.upload(request);
-			expect(await fsx.readText(path.join(root, "captures", "today", "a b.png"))).toBe("image-payload");
+			expect(await Bun.file(path.join(root, "captures", "today", "a b.png")).text()).toBe("image-payload");
 			expect(publication).toEqual({
 				url: "https://static.test/pub/captures/today/a%20b.png",
 				destination: "shared-folder",
@@ -340,7 +339,7 @@ describe("legacy uploader wire contracts", () => {
 			expect(init?.method).toBe("POST");
 			const form = formOf(init);
 			expect(form.get("k")).toBe("puush-key");
-			expect(form.get("z")).toBe("chudware");
+			expect(form.get("z")).toBe("omp");
 			await expectFile(form, "f");
 			return new Response("0,https://cdn.test/puush.png,p-42");
 		};

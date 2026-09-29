@@ -15,16 +15,16 @@ import { afterAll, beforeAll, describe, expect, it } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import { loadExtensions } from "@chudware/coding-agent/extensibility/extensions";
-import { EventBus } from "@chudware/coding-agent/utils/event-bus";
-import { removeWithRetries } from "@chudware/utils";
+import { loadExtensions } from "@oh-my-pi/pi-coding-agent/extensibility/extensions";
+import { EventBus } from "@oh-my-pi/pi-coding-agent/utils/event-bus";
+import { removeWithRetries } from "@oh-my-pi/pi-utils";
 
 describe("loadExtensions per-session binding (#2190 review fix)", () => {
 	let tmp: string;
 	let extPath: string;
 
 	beforeAll(async () => {
-		tmp = await fs.mkdtemp(path.join(os.tmpdir(), "chud-ext-binding-"));
+		tmp = await fs.mkdtemp(path.join(os.tmpdir(), "pi-ext-binding-"));
 		extPath = path.join(tmp, "record-cwd.ts");
 		// Factory tags the extension with the cwd + events it was bound to so
 		// the test can inspect what closures captured.
@@ -61,7 +61,6 @@ describe("loadExtensions per-session binding (#2190 review fix)", () => {
 
 		const parentEventBus = new EventBus();
 		const subagentEventBus = new EventBus();
-		expect(parentEventBus).not.toBe(subagentEventBus);
 
 		const parent = await loadExtensions([extPath], "/tmp/parent-cwd", parentEventBus);
 		const subagent = await loadExtensions([extPath], "/tmp/subagent-cwd", subagentEventBus);

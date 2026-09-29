@@ -1,6 +1,5 @@
-import * as fsx from "@chudware/utils/fsx";
 /**
- * Lightweight protobuf (.proto) parser and TypeScript code generator for @chudware/catalog.
+ * Lightweight protobuf (.proto) parser and TypeScript code generator for @oh-my-pi/pi-catalog.
  *
  * Generates type-safe schema definitions and message types using the discovery/protobuf runtime codecs.
  */
@@ -1444,7 +1443,7 @@ export function generateProtoTs(
 		lines.push(options.headerComment);
 	} else {
 		lines.push("/**");
-		lines.push(` * ${pkgPrefix} protocol declarations used by Chudcode.`);
+		lines.push(` * ${pkgPrefix} protocol declarations used by omp.`);
 		lines.push(" *");
 		lines.push(" * Each declaration retains only fields consumed by the client or its protocol tests.");
 		lines.push(" */");
@@ -1701,11 +1700,11 @@ Options:
 	for (const inputPath of inputPaths) {
 		if (inputPath.includes("*")) {
 			for await (const file of new Bun.Glob(inputPath).scan({ cwd: process.cwd() })) {
-				const text = await fsx.readText(file);
+				const text = await Bun.file(file).text();
 				ctx.addFile(parseProto(text, file));
 			}
 		} else {
-			const text = await fsx.readText(inputPath);
+			const text = await Bun.file(inputPath).text();
 			ctx.addFile(parseProto(text, inputPath));
 		}
 	}
@@ -1719,7 +1718,7 @@ Options:
 	});
 
 	if (outPath) {
-		await fsx.write(outPath, code);
+		await Bun.write(outPath, code);
 		console.log(`Generated ${outPath} (${code.split("\n").length} lines)`);
 	} else {
 		process.stdout.write(code);

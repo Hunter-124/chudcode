@@ -1,14 +1,11 @@
 import { SendHorizontal, Square } from "lucide-react";
 import type { KeyboardEvent, ReactNode, RefObject } from "react";
 import { useCallback, useLayoutEffect, useRef, useState } from "react";
-import type { SessionClient, SessionSnapshot } from "../../lib/session-client";
+import type { GuestClient, GuestSnapshot } from "../../lib/client";
 
 export interface ComposerProps {
-	client: SessionClient;
-	snapshot: SessionSnapshot;
-	/** Externally owned draft for direct multi-session clients. Omit to use local relay state. */
-	draft?: string;
-	onDraftChange?(value: string): void;
+	client: GuestClient;
+	snapshot: GuestSnapshot;
 }
 
 /** Textarea metrics: line-height 20px + 8px vertical padding × 2 (kept in sync with shell.css). */
@@ -111,16 +108,8 @@ function AskEditor({ prefill, onSubmit }: AskEditorProps): ReactNode {
 	);
 }
 
-export function Composer({ client, snapshot, draft, onDraftChange }: ComposerProps): ReactNode {
-	const [localDraft, setLocalDraft] = useState("");
-	const text = draft !== undefined ? draft : localDraft;
-	const setText = useCallback(
-		(value: string): void => {
-			if (draft !== undefined) onDraftChange?.(value);
-			else setLocalDraft(value);
-		},
-		[draft, onDraftChange],
-	);
+export function Composer({ client, snapshot }: ComposerProps): ReactNode {
+	const [text, setText] = useState("");
 	const taRef = useRef<HTMLTextAreaElement | null>(null);
 	const { composingRef, onCompositionStart, onCompositionEnd } = useCompositionGuard();
 
@@ -219,10 +208,10 @@ export function Composer({ client, snapshot, draft, onDraftChange }: ComposerPro
 					onCompositionEnd={onCompositionEnd}
 					placeholder={
 						readOnly
-							? "read-only session — watching only"
+							? "Read-only session — watching only"
 							: live
-								? "prompt the host agent…"
-								: "waiting for session…"
+								? "Prompt the host agent…"
+								: "Waiting for the session…"
 					}
 					disabled={!canPrompt}
 					rows={1}

@@ -1,6 +1,6 @@
 # SDK Examples
 
-Programmatic usage of chudcode-coding-agent via `createAgentSession()`.
+Programmatic usage of omp-coding-agent via `createAgentSession()`.
 
 ## Examples
 
@@ -29,7 +29,7 @@ npx tsx examples/sdk/01-minimal.ts
 ## Quick Reference
 
 ```typescript
-import { getModel } from "@chudware/ai";
+import { getModel } from "@oh-my-pi/pi-ai";
 import {
 	AuthStorage,
 	createAgentSession,
@@ -47,7 +47,7 @@ import {
 	BUILTIN_TOOLS,
 	HIDDEN_TOOLS,
 	createTools,
-} from "@chudware/coding-agent";
+} from "@oh-my-pi/pi-coding-agent";
 
 // Auth and models setup
 const authStorage = discoverAuthStorage();
@@ -79,7 +79,7 @@ const { session } = await createAgentSession({
 
 // Full control
 const customAuth = await AuthStorage.create("/my/app/agent.db");
-customAuth.setRuntimeApiKey("anthropic", Bun.env.MY_KEY!);
+customAuth.keys.setRuntime("anthropic", Bun.env.MY_KEY!);
 const customRegistry = new ModelRegistry(customAuth);
 
 const { session } = await createAgentSession({
@@ -130,7 +130,7 @@ await writeTool.execute("call-1", {
 | `authStorage`               | `discoverAuthStorage()`       | Credential storage                |
 | `modelRegistry`             | `discoverModels(authStorage)` | Model registry                    |
 | `cwd`                       | `process.cwd()`               | Working directory                 |
-| `agentDir`                  | `~/.chudcode/agent`                | Config directory                  |
+| `agentDir`                  | `~/.omp/agent`                | Config directory                  |
 | `model`                     | From settings/first available | Model to use                      |
 | `thinkingLevel`             | From settings/"off"           | off, low, medium, high            |
 | `systemPrompt`              | Discovered                    | String or `(default) => modified` |

@@ -417,13 +417,13 @@ message ToolCall {
       TruncatedToolCall truncated_tool_call = 34;
       StartGrindExecutionToolCall start_grind_execution_tool_call = 35;
       StartGrindPlanningToolCall start_grind_planning_tool_call = 36;
-      ChudReadToolCall chud_read_tool_call = 61;
-      ChudBashToolCall chud_bash_tool_call = 62;
-      ChudEditToolCall chud_edit_tool_call = 63;
-      ChudWriteToolCall chud_write_tool_call = 64;
-      ChudGrepToolCall chud_grep_tool_call = 65;
-      ChudFindToolCall chud_find_tool_call = 66;
-      ChudLsToolCall chud_ls_tool_call = 67;
+      PiReadToolCall pi_read_tool_call = 61;
+      PiBashToolCall pi_bash_tool_call = 62;
+      PiEditToolCall pi_edit_tool_call = 63;
+      PiWriteToolCall pi_write_tool_call = 64;
+      PiGrepToolCall pi_grep_tool_call = 65;
+      PiFindToolCall pi_find_tool_call = 66;
+      PiLsToolCall pi_ls_tool_call = 67;
       ConnectScmToolCall connect_scm_tool_call = 68;
       SearchConversationsToolCall search_conversations_tool_call = 69;
       FetchToolCall web_fetch_tool_call = 37;
@@ -836,6 +836,11 @@ message ShellOutputDeltaUpdate {
 }
 
 message TurnEndedUpdate {
+   optional int64 input_tokens = 1;
+   optional int64 output_tokens = 2;
+   optional int64 cache_read_tokens = 3;
+   optional int64 cache_write_tokens = 4;
+   optional int64 reasoning_tokens = 5;
 }
 
 // Only: user message appended update
@@ -1762,13 +1767,13 @@ message ExecServerMessage {
    McpAllowlistPrecheckArgs mcp_allowlist_precheck_args = 42;
    WebFetchAllowlistPrecheckArgs web_fetch_allowlist_precheck_args = 43;
    GetDiffRequest git_diff_request = 44;
-   ChudReadExecArgs chud_read_args = 45;
-   ChudBashExecArgs chud_bash_args = 46;
-   ChudEditExecArgs chud_edit_args = 47;
-   ChudWriteExecArgs chud_write_args = 48;
-   ChudGrepExecArgs chud_grep_args = 49;
-   ChudFindExecArgs chud_find_args = 50;
-   ChudLsExecArgs chud_ls_args = 51;
+   PiReadExecArgs pi_read_args = 45;
+   PiBashExecArgs pi_bash_args = 46;
+   PiEditExecArgs pi_edit_args = 47;
+   PiWriteExecArgs pi_write_args = 48;
+   PiGrepExecArgs pi_grep_args = 49;
+   PiFindExecArgs pi_find_args = 50;
+   PiLsExecArgs pi_ls_args = 51;
    ShellArgs mini_swe_agent_bash_args = 52;
    ConversationSearchArgs conversation_search_args = 53;
    AgentStoreConflictArgs agent_store_conflict_args = 54;
@@ -1811,13 +1816,13 @@ message ExecClientMessage {
    McpAllowlistPrecheckResult mcp_allowlist_precheck_result = 42;
    WebFetchAllowlistPrecheckResult web_fetch_allowlist_precheck_result = 43;
    GetDiffResponse git_diff_response = 44;
-   ChudReadExecResult chud_read_result = 46;
-   ChudBashExecResult chud_bash_result = 47;
-   ChudEditExecResult chud_edit_result = 48;
-   ChudWriteExecResult chud_write_result = 49;
-   ChudGrepExecResult chud_grep_result = 50;
-   ChudFindExecResult chud_find_result = 51;
-   ChudLsExecResult chud_ls_result = 52;
+   PiReadExecResult pi_read_result = 46;
+   PiBashExecResult pi_bash_result = 47;
+   PiEditExecResult pi_edit_result = 48;
+   PiWriteExecResult pi_write_result = 49;
+   PiGrepExecResult pi_grep_result = 50;
+   PiFindExecResult pi_find_result = 51;
+   PiLsExecResult pi_ls_result = 52;
    ConversationSearchResult conversation_search_result = 53;
    AgentStoreConflictResult agent_store_conflict_result = 54;
    ShellResult mini_swe_agent_bash_result = 55;
@@ -3674,9 +3679,9 @@ service LifecycleService {
    rpc RenewInstance(Empty) returns (Empty);
 }
 
-// ===== Chud exec tools (modern Cursor CLI, ExecServerMessage 45-51) =====
+// ===== Pi exec tools (modern Cursor CLI, ExecServerMessage 45-51) =====
 
-message ChudTruncation {
+message PiTruncation {
    bool truncated = 1;
    string truncated_by = 2;
    uint32 total_lines = 3;
@@ -3688,111 +3693,111 @@ message ChudTruncation {
    bool last_line_partial = 9;
 }
 
-message ChudEditReplacement {
+message PiEditReplacement {
    string old_text = 1;
    string new_text = 2;
 }
 
-message ChudReadExecArgs {
+message PiReadExecArgs {
    string path = 1;
    optional int32 offset = 2;
    optional int32 limit = 3;
 }
 
-message ChudReadExecSuccess {
+message PiReadExecSuccess {
    string output = 1;
-   optional ChudTruncation truncation = 2;
+   optional PiTruncation truncation = 2;
 }
 
-message ChudReadExecError {
+message PiReadExecError {
    string error = 1;
 }
 
-message ChudReadExecResult {
+message PiReadExecResult {
    oneof result {
-      ChudReadExecSuccess success = 1;
-      ChudReadExecError error = 2;
+      PiReadExecSuccess success = 1;
+      PiReadExecError error = 2;
    }
 }
 
-message ChudBashExecArgs {
+message PiBashExecArgs {
    string command = 1;
    optional double timeout = 2;
 }
 
-message ChudBashExecSuccess {
+message PiBashExecSuccess {
    string output = 1;
-   optional ChudTruncation truncation = 2;
+   optional PiTruncation truncation = 2;
    optional string full_output_path = 3;
 }
 
-message ChudBashExecError {
+message PiBashExecError {
    string error = 1;
-   optional ChudTruncation truncation = 2;
+   optional PiTruncation truncation = 2;
    optional string full_output_path = 3;
 }
 
-message ChudBashExecResult {
+message PiBashExecResult {
    oneof result {
-      ChudBashExecSuccess success = 1;
-      ChudBashExecError error = 2;
+      PiBashExecSuccess success = 1;
+      PiBashExecError error = 2;
    }
 }
 
-message ChudEditExecArgs {
+message PiEditExecArgs {
    string path = 1;
-   repeated ChudEditReplacement edits = 2;
+   repeated PiEditReplacement edits = 2;
 }
 
-message ChudEditExecSuccess {
+message PiEditExecSuccess {
    string output = 1;
    string diff = 2;
    string patch = 3;
    optional uint32 first_changed_line = 4;
 }
 
-message ChudEditExecError {
+message PiEditExecError {
    string error = 1;
 }
 
-message ChudEditExecRejected {
+message PiEditExecRejected {
    string reason = 1;
 }
 
-message ChudEditExecResult {
+message PiEditExecResult {
    oneof result {
-      ChudEditExecSuccess success = 1;
-      ChudEditExecError error = 2;
-      ChudEditExecRejected rejected = 3;
+      PiEditExecSuccess success = 1;
+      PiEditExecError error = 2;
+      PiEditExecRejected rejected = 3;
    }
 }
 
-message ChudWriteExecArgs {
+message PiWriteExecArgs {
    string path = 1;
    string content = 2;
 }
 
-message ChudWriteExecSuccess {
+message PiWriteExecSuccess {
    string output = 1;
 }
 
-message ChudWriteExecError {
+message PiWriteExecError {
    string error = 1;
 }
 
-message ChudWriteExecRejected {
+message PiWriteExecRejected {
    string reason = 1;
 }
 
-message ChudWriteExecResult {
+message PiWriteExecResult {
    oneof result {
-      ChudWriteExecSuccess success = 1;
-      ChudWriteExecError error = 2;
-      ChudWriteExecRejected rejected = 3;
+      PiWriteExecSuccess success = 1;
+      PiWriteExecError error = 2;
+      PiWriteExecRejected rejected = 3;
    }
 }
 
-message ChudGrepExecArgs {
+message PiGrepExecArgs {
    string pattern = 1;
    optional string path = 2;
    optional string glob = 3;
@@ -3802,66 +3807,66 @@ message ChudGrepExecArgs {
    optional int32 limit = 7;
 }
 
-message ChudGrepExecSuccess {
+message PiGrepExecSuccess {
    string output = 1;
-   optional ChudTruncation truncation = 2;
+   optional PiTruncation truncation = 2;
    optional uint32 match_limit_reached = 3;
    bool lines_truncated = 4;
 }
 
-message ChudGrepExecError {
+message PiGrepExecError {
    string error = 1;
 }
 
-message ChudGrepExecResult {
+message PiGrepExecResult {
    oneof result {
-      ChudGrepExecSuccess success = 1;
-      ChudGrepExecError error = 2;
+      PiGrepExecSuccess success = 1;
+      PiGrepExecError error = 2;
    }
 }
 
-message ChudFindExecArgs {
+message PiFindExecArgs {
    string pattern = 1;
    optional string path = 2;
    optional int32 limit = 3;
 }
 
-message ChudFindExecSuccess {
+message PiFindExecSuccess {
    string output = 1;
-   optional ChudTruncation truncation = 2;
+   optional PiTruncation truncation = 2;
    optional uint32 result_limit_reached = 3;
 }
 
-message ChudFindExecError {
+message PiFindExecError {
    string error = 1;
 }
 
-message ChudFindExecResult {
+message PiFindExecResult {
    oneof result {
-      ChudFindExecSuccess success = 1;
-      ChudFindExecError error = 2;
+      PiFindExecSuccess success = 1;
+      PiFindExecError error = 2;
    }
 }
 
-message ChudLsExecArgs {
+message PiLsExecArgs {
    optional string path = 1;
    optional int32 limit = 2;
 }
 
-message ChudLsExecSuccess {
+message PiLsExecSuccess {
    string output = 1;
-   optional ChudTruncation truncation = 2;
+   optional PiTruncation truncation = 2;
    optional uint32 entry_limit_reached = 3;
 }
 
-message ChudLsExecError {
+message PiLsExecError {
    string error = 1;
 }
 
-message ChudLsExecResult {
+message PiLsExecResult {
    oneof result {
-      ChudLsExecSuccess success = 1;
-      ChudLsExecError error = 2;
+      PiLsExecSuccess success = 1;
+      PiLsExecError error = 2;
    }
 }
 
@@ -4463,47 +4468,47 @@ message GetDiffResponse {
    optional bool has_uncommitted_changes = 5;
 }
 
-// ===== Chud tool calls (ToolCall 61-67) =====
+// ===== Pi tool calls (ToolCall 61-67) =====
 //
-// The streamed `ToolCall` wrappers for the Chud exec frames. Their `args`/`result`
-// payloads are field-identical to the `Chud*Exec*` messages above (verified against
+// The streamed `ToolCall` wrappers for the Pi exec frames. Their `args`/`result`
+// payloads are field-identical to the `Pi*Exec*` messages above (verified against
 // the modern CLI's `pi_*_tool_pb.js`), and the exec channel is binary protobuf,
 // so field numbers — not type names — define wire compatibility. Reusing the
-// exec messages keeps one shape per Chud tool instead of two that must stay in sync.
+// exec messages keeps one shape per Pi tool instead of two that must stay in sync.
 
-message ChudReadToolCall {
-   ChudReadExecArgs args = 1;
-   ChudReadExecResult result = 2;
+message PiReadToolCall {
+   PiReadExecArgs args = 1;
+   PiReadExecResult result = 2;
 }
 
-message ChudBashToolCall {
-   ChudBashExecArgs args = 1;
-   ChudBashExecResult result = 2;
+message PiBashToolCall {
+   PiBashExecArgs args = 1;
+   PiBashExecResult result = 2;
 }
 
-message ChudEditToolCall {
-   ChudEditExecArgs args = 1;
-   ChudEditExecResult result = 2;
+message PiEditToolCall {
+   PiEditExecArgs args = 1;
+   PiEditExecResult result = 2;
 }
 
-message ChudWriteToolCall {
-   ChudWriteExecArgs args = 1;
-   ChudWriteExecResult result = 2;
+message PiWriteToolCall {
+   PiWriteExecArgs args = 1;
+   PiWriteExecResult result = 2;
 }
 
-message ChudGrepToolCall {
-   ChudGrepExecArgs args = 1;
-   ChudGrepExecResult result = 2;
+message PiGrepToolCall {
+   PiGrepExecArgs args = 1;
+   PiGrepExecResult result = 2;
 }
 
-message ChudFindToolCall {
-   ChudFindExecArgs args = 1;
-   ChudFindExecResult result = 2;
+message PiFindToolCall {
+   PiFindExecArgs args = 1;
+   PiFindExecResult result = 2;
 }
 
-message ChudLsToolCall {
-   ChudLsExecArgs args = 1;
-   ChudLsExecResult result = 2;
+message PiLsToolCall {
+   PiLsExecArgs args = 1;
+   PiLsExecResult result = 2;
 }
 
 // ===== Conversation search / SCM tool calls (ToolCall 68-69) =====

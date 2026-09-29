@@ -1,5 +1,5 @@
-import { resolveVertexEndpointHost } from "@chudware/catalog/hosts";
-import { $env } from "@chudware/utils";
+import { resolveVertexEndpointHost } from "@oh-my-pi/pi-catalog/hosts";
+import { $env } from "@oh-my-pi/pi-utils";
 import * as AIError from "../error";
 import type { Context, Model, StreamFunction } from "../types";
 import type { AssistantMessageEventStream } from "../utils/event-stream";
@@ -53,8 +53,8 @@ export const streamGoogleVertex: StreamFunction<"google-vertex"> = (
 				];
 			}
 			const baseHeaders: Record<string, string> = {
-				...(model.headers ?? {}),
-				...(options?.headers ?? {}),
+				...model.headers,
+				...options?.headers,
 			};
 			// Vertex AI ignores a `serviceTier` request-body field (unlike the direct
 			// Gemini API); priority must travel as a request header. Only `priority`

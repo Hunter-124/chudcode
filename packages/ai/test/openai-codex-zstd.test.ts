@@ -1,9 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "bun:test";
-import { streamOpenAICodexResponses } from "@chudware/ai/providers/openai-codex-responses";
-import type { Context, FetchImpl, Model } from "@chudware/ai/types";
-import { __resetProxyCache } from "@chudware/ai/utils/proxy";
-import { buildModel } from "@chudware/catalog/build";
-import * as piUtils from "@chudware/utils";
+import { streamOpenAICodexResponses } from "@oh-my-pi/pi-ai/providers/openai-codex-responses";
+import type { Context, FetchImpl, Model } from "@oh-my-pi/pi-ai/types";
+import { __resetProxyCache } from "@oh-my-pi/pi-ai/utils/proxy";
+import { buildModel } from "@oh-my-pi/pi-catalog/build";
+import * as piUtils from "@oh-my-pi/pi-utils";
 import { withEnv } from "./helpers";
 
 const TEST_INSTALLATION_ID = "00000000-0000-4000-8000-000000000001";
@@ -107,7 +107,7 @@ async function runAndCaptureRequest(): Promise<CapturedRequest> {
 
 describe("codex SSE request body zstd compression", () => {
 	it("compresses the request body with zstd and sets content-encoding by default", async () => {
-		await withEnv({ CHUDCODE_CODEX_ZSTD: undefined }, async () => {
+		await withEnv({ PI_CODEX_ZSTD: undefined }, async () => {
 			const { body, headers } = await runAndCaptureRequest();
 
 			expect(headers.get("content-encoding")).toBe("zstd");
@@ -124,8 +124,8 @@ describe("codex SSE request body zstd compression", () => {
 		});
 	});
 
-	it("sends the plain JSON string without content-encoding when CHUDCODE_CODEX_ZSTD=0", async () => {
-		await withEnv({ CHUDCODE_CODEX_ZSTD: "0" }, async () => {
+	it("sends the plain JSON string without content-encoding when PI_CODEX_ZSTD=0", async () => {
+		await withEnv({ PI_CODEX_ZSTD: "0" }, async () => {
 			const { body, headers } = await runAndCaptureRequest();
 
 			expect(headers.has("content-encoding")).toBe(false);
@@ -136,7 +136,7 @@ describe("codex SSE request body zstd compression", () => {
 	});
 
 	it("keeps custom Codex-compatible endpoints on plain JSON", async () => {
-		await withEnv({ CHUDCODE_CODEX_ZSTD: undefined }, async () => {
+		await withEnv({ PI_CODEX_ZSTD: undefined }, async () => {
 			const [captured] = await runAndCaptureRequests({ baseUrl: "https://relay.example/v1" });
 			if (captured === undefined) throw new Error("expected the SSE request to reach fetch");
 
@@ -146,7 +146,7 @@ describe("codex SSE request body zstd compression", () => {
 	});
 
 	it("retries once with plain JSON when an official endpoint rejects zstd", async () => {
-		await withEnv({ CHUDCODE_CODEX_ZSTD: undefined }, async () => {
+		await withEnv({ PI_CODEX_ZSTD: undefined }, async () => {
 			for (const rejectedStatus of [400, 415]) {
 				const captured = await runAndCaptureRequests({ statuses: [rejectedStatus, 200] });
 
@@ -160,7 +160,7 @@ describe("codex SSE request body zstd compression", () => {
 	});
 
 	it("falls back to plain JSON when local compression fails", async () => {
-		await withEnv({ CHUDCODE_CODEX_ZSTD: undefined }, async () => {
+		await withEnv({ PI_CODEX_ZSTD: undefined }, async () => {
 			vi.spyOn(Bun, "zstdCompressSync").mockImplementation(() => {
 				throw new Error("zstd unavailable");
 			});
@@ -172,7 +172,7 @@ describe("codex SSE request body zstd compression", () => {
 	});
 
 	it("replays the compressed bytes on transient HTTP retries", async () => {
-		await withEnv({ CHUDCODE_CODEX_ZSTD: undefined }, async () => {
+		await withEnv({ PI_CODEX_ZSTD: undefined }, async () => {
 			const captured = await runAndCaptureRequests({ statuses: [500, 200] });
 
 			expect(captured).toHaveLength(2);

@@ -1,5 +1,5 @@
 /**
- * `<chudcode-tool-view>` — web-component wrapper around ToolView for non-React
+ * `<omp-tool-view>` — web-component wrapper around ToolView for non-React
  * hosts (the exported-session HTML page).
  *
  * Payload sources, in priority order:
@@ -17,7 +17,7 @@ import { ToolView, type ToolViewProps } from "./ToolView";
 
 type PayloadStore = { get(key: string): ToolViewProps | undefined };
 
-export class ChudToolViewElement extends HTMLElement {
+export class OmpToolViewElement extends HTMLElement {
 	#root: Root | null = null;
 	#data: ToolViewProps | null = null;
 
@@ -66,6 +66,6 @@ export class ChudToolViewElement extends HTMLElement {
 	}
 }
 
-export function defineToolViewElement(tag = "chudcode-tool-view"): void {
-	if (!customElements.get(tag)) customElements.define(tag, ChudToolViewElement);
+export function defineToolViewElement(tag = "omp-tool-view"): void {
+	if (!customElements.get(tag)) customElements.define(tag, OmpToolViewElement);
 }

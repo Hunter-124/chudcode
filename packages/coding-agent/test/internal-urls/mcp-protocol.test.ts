@@ -1,11 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import * as os from "node:os";
-import { Settings } from "@chudware/coding-agent/config/settings";
-import { InternalUrlRouter } from "@chudware/coding-agent/internal-urls";
-import { MCPManager } from "@chudware/coding-agent/mcp/manager";
-import type { MCPResource, MCPResourceReadResult, MCPResourceTemplate } from "@chudware/coding-agent/mcp/types";
-import type { ToolSession } from "@chudware/coding-agent/tools";
-import { ReadTool } from "@chudware/coding-agent/tools/read";
+import { Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
+import { InternalUrlRouter } from "@oh-my-pi/pi-coding-agent/internal-urls";
+import { MCPManager } from "@oh-my-pi/pi-coding-agent/mcp/manager";
+import type { MCPResource, MCPResourceReadResult, MCPResourceTemplate } from "@oh-my-pi/pi-coding-agent/mcp/types";
+import type { ToolSession } from "@oh-my-pi/pi-coding-agent/tools";
+import { ReadTool } from "@oh-my-pi/pi-coding-agent/tools/read";
 
 function createMockManager(opts: {
 	servers?: string[];
@@ -16,6 +16,7 @@ function createMockManager(opts: {
 }) {
 	return {
 		getConnectedServers: () => opts.servers ?? [],
+		waitForPendingConnections: async () => {},
 		getServerResources: (name: string) => opts.resources?.get(name),
 		ensureServerResources: async (name: string) => opts.ensureResources?.(name),
 		readServerResource: async (_name: string, _uri: string) => {
@@ -484,25 +485,5 @@ describe("McpProtocolHandler", () => {
 		const router = InternalUrlRouter.instance();
 
 		await expect(router.resolve("mcp://test://anything")).rejects.toThrow("(none)");
-	});
-
-	it("uses unknown for binary content without mimeType", async () => {
-		const resources = new Map<string, { resources: MCPResource[]; templates: MCPResourceTemplate[] }>();
-		resources.set("bin-server", {
-			resources: [{ uri: "test://bin", name: "bin" }],
-			templates: [],
-		});
-		const manager = createMockManager({
-			servers: ["bin-server"],
-			resources,
-			readResult: {
-				contents: [{ uri: "test://bin", blob: "data" }],
-			},
-		});
-		MCPManager.setInstance(manager);
-		const router = InternalUrlRouter.instance();
-
-		const resource = await router.resolve("mcp://test://bin");
-		expect(resource.content).toContain("[Binary content: unknown,");
 	});
 });

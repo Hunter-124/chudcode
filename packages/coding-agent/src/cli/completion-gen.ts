@@ -14,7 +14,7 @@
  * — see `commands/complete.ts`. The flag→source mapping below is the only manual
  * knob and is keyed by flag name so it stays stable as flags are added.
  */
-import type { ArgDescriptor, CliConfig, CommandMetadata, FlagDescriptor } from "@chudware/utils/cli";
+import type { ArgDescriptor, CliConfig, CommandMetadata, FlagDescriptor } from "@oh-my-pi/pi-utils/cli";
 import { BUILTIN_TOOL_NAMES } from "../tools/builtin-names";
 
 export type Shell = "bash" | "zsh" | "fish";
@@ -374,7 +374,11 @@ function generateZsh(spec: CompletionSpec): string {
 
 	// Dynamic helpers (single source: `<bin> __complete <kind>` → value<TAB>desc).
 	parts.push(`_omp_call() {
-	local kind=$1
+	# zsh's _arguments invokes an action function with the compadd options it
+	# computed prepended ($subopts, then $expl — _arguments:465), so $1 is
+	# "-J" in a stock setup and the kind arrives last. Read it from the end:
+	# the prepended options can be either flags or option/value pairs.
+	local kind=\${argv[-1]}
 	local -a items
 	local line
 	for line in "\${(@f)$(command ${bin} __complete $kind -- "$PREFIX" 2>/dev/null)}"; do

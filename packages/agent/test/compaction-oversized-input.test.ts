@@ -1,14 +1,14 @@
 import { describe, expect, test, vi } from "bun:test";
-import type { AgentMessage } from "@chudware/agent-core";
+import type { AgentMessage } from "@oh-my-pi/pi-agent-core";
 import {
 	DEFAULT_COMPACTION_SETTINGS,
 	findReadableCompactionIndex,
 	generateSummary,
 	type SessionEntry,
-} from "@chudware/agent-core/compaction";
-import type { AssistantMessage, Model } from "@chudware/ai";
-import * as ai from "@chudware/ai";
-import { getBundledModel } from "@chudware/catalog/models";
+} from "@oh-my-pi/pi-agent-core/compaction";
+import type { AssistantMessage, Model } from "@oh-my-pi/pi-ai";
+import * as ai from "@oh-my-pi/pi-ai";
+import { getBundledModel } from "@oh-my-pi/pi-catalog/models";
 
 function createAssistantMessage(text: string): AssistantMessage {
 	return {

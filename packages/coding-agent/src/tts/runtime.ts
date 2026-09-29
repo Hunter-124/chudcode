@@ -1,6 +1,5 @@
 import * as path from "node:path";
-import { getTinyModelsCacheDir } from "@chudware/utils";
-import * as fsx from "@chudware/utils/fsx";
+import { getTinyModelsCacheDir } from "@oh-my-pi/pi-utils";
 
 export const KOKORO_PACKAGE = "kokoro-js";
 export const KOKORO_VERSION = "1.2.1";
@@ -14,7 +13,7 @@ export function getTtsRuntimeDir(): string {
 
 export async function isTtsRuntimeCached(): Promise<boolean> {
 	try {
-		const pkg = await fsx.readJson(path.join(getTtsRuntimeDir(), "node_modules", KOKORO_PACKAGE, "package.json"));
+		const pkg = await Bun.file(path.join(getTtsRuntimeDir(), "node_modules", KOKORO_PACKAGE, "package.json")).json();
 		return typeof pkg === "object" && pkg !== null && "version" in pkg && pkg.version === KOKORO_VERSION;
 	} catch {
 		return false;

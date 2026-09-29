@@ -1,15 +1,15 @@
 # Hooks Examples
 
-Example hooks for chudcode-coding-agent.
+Example hooks for omp-coding-agent. Hook modules load through the extension runner, so every `pi.on(...)` handler here behaves like an extension handler.
 
 ## Usage
 
 ```bash
 # Load a hook with --hook flag
-chudcode --hook examples/hooks/permission-gate.ts
+omp --hook examples/hooks/permission-gate.ts
 
-# Or copy to hooks directory for auto-discovery
-cp permission-gate.ts ~/.chudcode/agent/hooks/
+# Or copy to a hooks/pre (or hooks/post) directory for auto-discovery
+cp permission-gate.ts ~/.omp/agent/hooks/pre/
 ```
 
 ## Examples
@@ -25,20 +25,19 @@ cp permission-gate.ts ~/.chudcode/agent/hooks/
 | `auto-commit-on-exit.ts` | Auto-commits on exit using last assistant message for commit message           |
 | `custom-compaction.ts`   | Custom compaction that summarizes entire conversation                          |
 | `qna.ts`                 | Extracts questions from last response into editor via `ctx.ui.setEditorText()` |
-| `snake.ts`               | Snake game with custom UI, keyboard handling, and session persistence          |
 | `status-line.ts`         | Shows plain-text turn progress in the footer via `ctx.ui.setStatus()`          |
 | `handoff.ts`             | Transfer context to a new focused session via `/handoff <goal>`                |
 
 ## Writing Hooks
 
-See [docs/hooks.md](../../docs/hooks.md) for full documentation.
+See [docs/hooks.md](../../../../docs/hooks.md) for full documentation.
 
 ```typescript
-import type { HookAPI } from "@chudware/coding-agent/hooks";
+import type { HookAPI } from "@oh-my-pi/pi-coding-agent/extensibility/hooks";
 
-export default function (chud: HookAPI) {
+export default function (pi: HookAPI) {
 	// Subscribe to events
-	chud.on("tool_call", async (event, ctx) => {
+	pi.on("tool_call", async (event, ctx) => {
 		if (event.toolName === "bash" && event.input.command?.includes("rm -rf")) {
 			const ok = await ctx.ui.confirm("Dangerous!", "Allow rm -rf?");
 			if (!ok) return { block: true, reason: "Blocked by user" };
@@ -46,7 +45,7 @@ export default function (chud: HookAPI) {
 	});
 
 	// Register custom commands
-	chud.registerCommand("hello", {
+	pi.registerCommand("hello", {
 		description: "Say hello",
 		handler: async (args, ctx) => {
 			ctx.ui.notify("Hello!", "info");

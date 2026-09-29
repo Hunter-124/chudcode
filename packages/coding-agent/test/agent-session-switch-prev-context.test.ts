@@ -1,16 +1,15 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "bun:test";
-import { Agent } from "@chudware/agent-core";
-import type { Model } from "@chudware/ai";
-import { getBundledModel } from "@chudware/catalog/models";
-import { ModelRegistry } from "@chudware/coding-agent/config/model-registry";
-import { Settings } from "@chudware/coding-agent/config/settings";
-import type { ExtensionRunner } from "@chudware/coding-agent/extensibility/extensions";
-import { AgentSession } from "@chudware/coding-agent/session/agent-session";
-import { AuthStorage } from "@chudware/coding-agent/session/auth-storage";
-import type { BuildSessionContextOptions, SessionContext } from "@chudware/coding-agent/session/session-context";
-import { SessionManager } from "@chudware/coding-agent/session/session-manager";
-import { TempDir } from "@chudware/utils";
-import * as fsx from "@chudware/utils/fsx";
+import { Agent } from "@oh-my-pi/pi-agent-core";
+import type { Model } from "@oh-my-pi/pi-ai";
+import { getBundledModel } from "@oh-my-pi/pi-catalog/models";
+import { ModelRegistry } from "@oh-my-pi/pi-coding-agent/config/model-registry";
+import { Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
+import type { ExtensionRunner } from "@oh-my-pi/pi-coding-agent/extensibility/extensions";
+import { AgentSession } from "@oh-my-pi/pi-coding-agent/session/agent-session";
+import { AuthStorage } from "@oh-my-pi/pi-coding-agent/session/auth-storage";
+import type { BuildSessionContextOptions, SessionContext } from "@oh-my-pi/pi-coding-agent/session/session-context";
+import { SessionManager } from "@oh-my-pi/pi-coding-agent/session/session-manager";
+import { TempDir } from "@oh-my-pi/pi-utils";
 
 /**
  * Regression for issue #3846: in-TUI `/resume` rebuilt the *previous*
@@ -30,7 +29,7 @@ describe("AgentSession.switchSession previous-context build", () => {
 
 	beforeAll(async () => {
 		authStorage = await AuthStorage.create(":memory:");
-		authStorage.setRuntimeApiKey("anthropic", "test-key");
+		authStorage.keys.setRuntime("anthropic", "test-key");
 		modelRegistry = new ModelRegistry(authStorage);
 		const bundled = getBundledModel("anthropic", "claude-sonnet-4-5");
 		if (!bundled) throw new Error("Expected built-in anthropic model to exist");
@@ -241,7 +240,7 @@ describe("AgentSession.switchSession previous-context build", () => {
 		expect(sessionManager.getCwd()).toBe(sourceDir.path());
 		expect(sessionManager.getRecordedCwd()).toBe(targetDir.path());
 		await sessionManager.addWorkspaceDirectory(extraDir.path());
-		expect(await fsx.readText(targetSessionFile!)).not.toContain(extraDir.path());
+		expect(await Bun.file(targetSessionFile!).text()).not.toContain(extraDir.path());
 	});
 
 	it("fails closed when cwd rollback throws after changing it", async () => {

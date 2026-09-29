@@ -2,24 +2,23 @@ import { afterEach, beforeEach, describe, expect, spyOn, test } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import { AuthStorage } from "@chudware/ai";
+import { AuthStorage } from "@oh-my-pi/pi-ai";
 import type {
 	BlobBrokerDoctorResponse,
 	BlobBrokerProbeResponse,
 	BlobBrokerPurgeRequest,
 	BlobBrokerPurgeResponse,
 	BlobBrokerStatus,
-} from "@chudware/coding-agent/blob-broker/protocol";
-import { ProviderFileCache } from "@chudware/coding-agent/blob-broker/provider-file-types";
+} from "@oh-my-pi/pi-coding-agent/blob-broker/protocol";
+import { ProviderFileCache } from "@oh-my-pi/pi-coding-agent/blob-broker/provider-file-types";
 import {
 	type ImagesCliDependencies,
 	type ImagesCommandArgs,
 	type ImagesResolvedConfig,
 	runImagesCommand,
-} from "@chudware/coding-agent/cli/images-cli";
-import { Settings } from "@chudware/coding-agent/config/settings";
-import type { FetchImpl } from "@chudware/utils";
-import * as fsx from "@chudware/utils/fsx";
+} from "@oh-my-pi/pi-coding-agent/cli/images-cli";
+import { Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
+import type { FetchImpl } from "@oh-my-pi/pi-utils";
 
 interface CapturedRequest {
 	readonly method: string;
@@ -100,7 +99,7 @@ const status: BlobBrokerStatus = {
 };
 
 beforeEach(async () => {
-	root = await fs.mkdtemp(path.join(os.tmpdir(), "chudcode-images-cli-"));
+	root = await fs.mkdtemp(path.join(os.tmpdir(), "omp-images-cli-"));
 	socketPath = path.join(root, "images.sock");
 	requests = [];
 	routes = new Map();
@@ -201,7 +200,7 @@ function doctorResponse(check: BlobBrokerDoctorResponse["checks"][number]): Blob
 }
 
 async function writeSavings(): Promise<void> {
-	await fsx.write(
+	await Bun.write(
 		resolvedConfig().savingsJournalPath,
 		[
 			JSON.stringify({
@@ -258,8 +257,8 @@ describe("images status", () => {
 		expect(output()).toContain("2 duplicate GETs");
 		expect(output()).toContain("Recent fetch: openai; corroborated=yes; GET hit");
 		expect(output()).toContain("Recent fetch: unknown; corroborated=no; HEAD miss");
-		expect(output()).toContain("14.1 KiB");
-		expect(output()).toContain("14.6 KiB inline → 600 B references");
+		expect(output()).toContain("14.1KB");
+		expect(output()).toContain("14.6KB inline → 600B references");
 		expect(output()).not.toContain("never-render-this");
 
 		stdout.length = 0;
@@ -416,7 +415,7 @@ describe("images purge", () => {
 			dependencies({
 				openAuthStorage: async () => {
 					const storage = await AuthStorage.create(":memory:");
-					storage.setRuntimeApiKey("openai", credential);
+					storage.keys.setRuntime("openai", credential);
 					return storage;
 				},
 				fetch: providerFetch,

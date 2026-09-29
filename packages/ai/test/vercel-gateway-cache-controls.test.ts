@@ -1,8 +1,8 @@
 import { describe, expect, it } from "bun:test";
-import { streamOpenAICompletions } from "@chudware/ai/providers/openai-completions";
-import { streamOpenAIResponses } from "@chudware/ai/providers/openai-responses";
-import type { Context, Model, ModelSpec, VercelGatewayRouting } from "@chudware/ai/types";
-import { buildModel } from "@chudware/catalog/build";
+import { streamOpenAICompletions } from "@oh-my-pi/pi-ai/providers/openai-completions";
+import { streamOpenAIResponses } from "@oh-my-pi/pi-ai/providers/openai-responses";
+import type { Context, Model, ModelSpec, VercelGatewayRouting } from "@oh-my-pi/pi-ai/types";
+import { buildModel } from "@oh-my-pi/pi-catalog/build";
 import { withEnv } from "./helpers";
 
 const context: Context = {
@@ -124,7 +124,7 @@ describe("Vercel AI Gateway automatic cache controls", () => {
 			{ cacheRetention: "short" },
 		);
 		let environmentShortRetention!: Payload;
-		await withEnv({ CHUDCODE_CACHE_RETENTION: "short" }, async () => {
+		await withEnv({ PI_CACHE_RETENTION: "short" }, async () => {
 			environmentShortRetention = await captureResponsesPayload(
 				responsesModel("vercel-ai-gateway", "https://ai-gateway.vercel.sh/v1", routing),
 			);
@@ -168,7 +168,7 @@ describe("Vercel AI Gateway automatic cache controls", () => {
 		expect(responses.cache_ttl).toBeUndefined();
 	});
 
-	it("omits Chat and Responses automatic cache controls when CHUDCODE_CACHE_RETENTION is none", async () => {
+	it("omits Chat and Responses automatic cache controls when PI_CACHE_RETENTION is none", async () => {
 		const routing: VercelGatewayRouting = {
 			only: ["anthropic"],
 			order: ["anthropic", "bedrock"],
@@ -176,7 +176,7 @@ describe("Vercel AI Gateway automatic cache controls", () => {
 			cacheAnchorItems: 1,
 			cacheTtl: "1h",
 		};
-		await withEnv({ CHUDCODE_CACHE_RETENTION: "none" }, async () => {
+		await withEnv({ PI_CACHE_RETENTION: "none" }, async () => {
 			const [chat, responses] = await Promise.all([
 				captureChatPayload(vercelChatModel(routing)),
 				captureResponsesPayload(responsesModel("vercel-ai-gateway", "https://ai-gateway.vercel.sh/v1", routing)),

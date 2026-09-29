@@ -6,9 +6,9 @@
  * 2. Shows a spinner while extracting (hides editor)
  * 3. Loads the result into the editor for user to fill in answers
  */
-import { complete, type UserMessage } from "@chudware/ai";
-import type { HookAPI } from "@chudware/coding-agent";
-import { BorderedLoader } from "@chudware/coding-agent";
+import { complete, type UserMessage } from "@oh-my-pi/pi-ai";
+import { BorderedLoader } from "@oh-my-pi/pi-coding-agent";
+import type { HookAPI } from "@oh-my-pi/pi-coding-agent/extensibility/hooks";
 
 const SYSTEM_PROMPT = `You are a question extractor. Given text from a conversation, extract any questions that need answering and format them for the user to fill in.
 
@@ -26,8 +26,8 @@ A:
 
 Keep questions in the order they appeared. Be concise.`;
 
-export default function (chud: HookAPI) {
-	chud.registerCommand("qna", {
+export default function (pi: HookAPI) {
+	pi.registerCommand("qna", {
 		description: "Extract questions from last assistant message into editor",
 		handler: async (_args, ctx) => {
 			if (!ctx.hasUI) {
@@ -70,7 +70,7 @@ export default function (chud: HookAPI) {
 			}
 
 			// Run extraction with loader UI
-			const result = await ctx.ui.custom<string | null>((tui, theme, done) => {
+			const result = await ctx.ui.custom<string | null>((tui, theme, _keybindings, done) => {
 				const loader = new BorderedLoader(tui, theme, `Extracting questions using ${ctx.model!.id}…`);
 				loader.onAbort = () => done(null);
 

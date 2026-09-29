@@ -7,17 +7,18 @@ import {
 	resolveTelemetry,
 	type StreamFn,
 	type ThinkingLevel,
-} from "@chudware/agent-core";
-import { generateHandoffFromContext, renderHandoffPrompt } from "@chudware/agent-core/compaction";
-import type { Message, Model, ServiceTier, SimpleStreamOptions } from "@chudware/ai";
-import { logger, Snowflake } from "@chudware/utils";
-import * as fsx from "@chudware/utils/fsx";
+} from "@oh-my-pi/pi-agent-core";
+import { generateHandoffFromContext, renderHandoffPrompt } from "@oh-my-pi/pi-agent-core/compaction";
+import type { Message, Model, ServiceTier, SimpleStreamOptions } from "@oh-my-pi/pi-ai";
+import { logger, Snowflake } from "@oh-my-pi/pi-utils";
 import type { ModelRegistry } from "../config/model-registry";
 import type { Settings } from "../config/settings";
 import { obfuscateProviderContext } from "../secrets/message-transform";
 import type { SecretObfuscator } from "../secrets/obfuscator";
 import type { HandoffResult, SessionHandoffOptions } from "./agent-session-types";
 import type { SessionManager } from "./session-manager";
+
+import { cfgCompactionHandoffSaveToDisk } from "./context-settings";
 
 function createHandoffFileName(date = new Date()): string {
 	const fileTimestamp = date.toISOString().replace(/[:.]/g, "-");
@@ -42,7 +43,7 @@ export interface SessionHandoffHost {
 	settings: Settings;
 	modelRegistry: ModelRegistry;
 	sideStreamFn: StreamFn;
-	obfuscator: SecretObfuscator | undefined;
+	obfuscator(): SecretObfuscator | undefined;
 	model(): Model | undefined;
 	thinkingLevel(): ThinkingLevel | undefined;
 	sessionId(): string;
@@ -170,7 +171,7 @@ export class SessionHandoff {
 				model.provider,
 			);
 			const rawHandoffText = await generateHandoffFromContext(
-				obfuscateProviderContext(this.#host.obfuscator, handoffContext),
+				obfuscateProviderContext(this.#host.obfuscator(), handoffContext),
 				model,
 				{
 					streamOptions: handoffStreamOptions,
@@ -208,12 +209,12 @@ export class SessionHandoff {
 			}
 
 			let savedPath: string | undefined;
-			if (options?.autoTriggered && this.#host.settings.get("compaction.handoffSaveToDisk")) {
+			if (options?.autoTriggered && cfgCompactionHandoffSaveToDisk.get(this.#host.settings)) {
 				const artifactsDir = this.#host.sessionManager.getArtifactsDir();
 				if (artifactsDir) {
 					const handoffFilePath = path.join(artifactsDir, createHandoffFileName());
 					try {
-						await fsx.write(handoffFilePath, `${handoffText}\n`);
+						await Bun.write(handoffFilePath, `${handoffText}\n`);
 						savedPath = handoffFilePath;
 					} catch (error) {
 						logger.warn("Failed to save handoff document to disk", {

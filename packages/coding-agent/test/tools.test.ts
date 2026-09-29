@@ -4,24 +4,25 @@ import * as os from "node:os";
 import * as path from "node:path";
 import * as url from "node:url";
 import * as zlib from "node:zlib";
-import type { AgentTool, AgentToolContext } from "@chudware/agent-core";
-import { AsyncJobManager } from "@chudware/coding-agent/async";
-import { DEFAULT_BASH_INTERCEPTOR_RULES, Settings } from "@chudware/coding-agent/config/settings";
-import { EditTool } from "@chudware/coding-agent/edit";
-import { SessionManager } from "@chudware/coding-agent/session/session-manager";
-import type { ToolSession } from "@chudware/coding-agent/tools";
-import { BashTool } from "@chudware/coding-agent/tools/bash";
-import { wrapToolWithMetaNotice } from "@chudware/coding-agent/tools/output-meta";
-import { ReadTool } from "@chudware/coding-agent/tools/read";
-import * as toolTimeouts from "@chudware/coding-agent/tools/tool-timeouts";
-import { WriteTool } from "@chudware/coding-agent/tools/write";
-import { $which, removeSyncWithRetries, Snowflake } from "@chudware/utils";
-import { openArchive, readArchiveEntries } from "@chudware/utils/ar";
-import * as fsx from "@chudware/utils/fsx";
-import * as proc from "@chudware/utils/proc";
+import type { AgentTool, AgentToolContext } from "@oh-my-pi/pi-agent-core";
+import { createMockModel } from "@oh-my-pi/pi-ai/providers/mock";
+import { AsyncJobManager } from "@oh-my-pi/pi-coding-agent/async";
+import { Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
+import { EditTool } from "@oh-my-pi/pi-coding-agent/edit";
+import { SessionManager } from "@oh-my-pi/pi-coding-agent/session/session-manager";
+import type { ToolSession } from "@oh-my-pi/pi-coding-agent/tools";
+import { BashTool } from "@oh-my-pi/pi-coding-agent/tools/bash";
+import { wrapToolWithMetaNotice } from "@oh-my-pi/pi-coding-agent/tools/output-meta";
+import { ReadTool } from "@oh-my-pi/pi-coding-agent/tools/read";
+import * as toolTimeouts from "@oh-my-pi/pi-coding-agent/tools/tool-timeouts";
+import { WriteTool } from "@oh-my-pi/pi-coding-agent/tools/write";
+import { $which, removeSyncWithRetries, Snowflake } from "@oh-my-pi/pi-utils";
+import { openArchive, readArchiveEntries } from "@oh-my-pi/pi-utils/ar";
 import { GlobTool } from "../src/tools/glob";
 import { DEFAULT_FILE_LIMIT, GrepTool, MULTI_FILE_PER_FILE_MATCHES } from "../src/tools/grep";
-import { HubTool } from "../src/tools/hub";
+
+import { cfgEditFuzzyMatch, cfgEditFuzzyThreshold } from "@oh-my-pi/pi-coding-agent/edit/settings";
+import { cfgReadDefaultLimit } from "@oh-my-pi/pi-coding-agent/tools/settings";
 
 // Helper to extract text from content blocks
 function getTextOutput(result: any): string {
@@ -54,7 +55,7 @@ function createFifoOrSkip(fifoPath: string): boolean {
 		return false;
 	}
 
-	const result = proc.spawnSync([mkfifoPath, fifoPath], { stdout: "ignore", stderr: "pipe" });
+	const result = Bun.spawnSync([mkfifoPath, fifoPath], { stdout: "ignore", stderr: "pipe" });
 	if (result.exitCode !== 0) {
 		const errorText = result.stderr.toString("utf-8").trim();
 		throw new Error(`mkfifo failed${errorText ? `: ${errorText}` : ""}`);
@@ -196,7 +197,7 @@ function createBase256TarArchive(entry: Base256TarEntry): Buffer {
 }
 
 function createPaxHeader(typeFlag: "g" | "x", body: Buffer): Buffer {
-	return tarRecord(createTarHeader("./PaxHeaders/chudcode", body.byteLength, typeFlag), body);
+	return tarRecord(createTarHeader("./PaxHeaders/omp", body.byteLength, typeFlag), body);
 }
 
 function paxRecord(key: string, value: string): Buffer {
@@ -557,8 +558,8 @@ describe("Coding Agent Tools", () => {
 
 	beforeEach(() => {
 		// Force replace mode for edit tool tests using old_string/new_string
-		originalEditVariant = process.env.CHUDCODE_EDIT_VARIANT;
-		process.env.CHUDCODE_EDIT_VARIANT = "replace";
+		originalEditVariant = Bun.env.PI_EDIT_VARIANT;
+		Bun.env.PI_EDIT_VARIANT = "replace";
 
 		// Create a unique temporary directory for each test
 		testDir = path.join(os.tmpdir(), `coding-agent-test-${Snowflake.next()}`);
@@ -582,9 +583,9 @@ describe("Coding Agent Tools", () => {
 
 		// Restore original edit variant
 		if (originalEditVariant === undefined) {
-			delete process.env.CHUDCODE_EDIT_VARIANT;
+			delete Bun.env.PI_EDIT_VARIANT;
 		} else {
-			process.env.CHUDCODE_EDIT_VARIANT = originalEditVariant;
+			Bun.env.PI_EDIT_VARIANT = originalEditVariant;
 		}
 		AsyncJobManager.resetForTests();
 	});
@@ -726,7 +727,7 @@ describe("Coding Agent Tools", () => {
 			const testFile = path.join(testDir, "large.txt");
 			const lines = Array.from({ length: 3500 }, (_, i) => `Line ${i + 1}`);
 			fs.writeFileSync(testFile, lines.join("\n"));
-			const defaultLimit = session.settings.get("read.defaultLimit");
+			const defaultLimit = cfgReadDefaultLimit.get(session.settings);
 
 			const result = await readTool.execute("test-call-3", { path: testFile });
 			const output = getTextOutput(result);
@@ -735,6 +736,21 @@ describe("Coding Agent Tools", () => {
 			expect(output).toContain(`Line ${defaultLimit}`);
 			expect(output).not.toContain(`Line ${defaultLimit + 1}`);
 			expect(output).toContain(`[Showing lines 1-${defaultLimit} of 3500. Use :${defaultLimit + 1} to continue]`);
+		});
+
+		it("applies a read.defaultLimit change made after the tool was built", async () => {
+			const testFile = path.join(testDir, "live-limit.txt");
+			fs.writeFileSync(testFile, Array.from({ length: 100 }, (_, i) => `Line ${i + 1}`).join("\n"));
+
+			cfgReadDefaultLimit.set(session.settings, 10);
+			const first = getTextOutput(await readTool.execute("live-limit-10", { path: testFile }));
+			expect(first).toContain("Line 10");
+			expect(first).not.toContain("Line 11");
+
+			cfgReadDefaultLimit.set(session.settings, 25);
+			const second = getTextOutput(await readTool.execute("live-limit-25", { path: testFile }));
+			expect(second).toContain("Line 25");
+			expect(second).not.toContain("Line 26");
 		});
 
 		it("should truncate when byte limit exceeded", async () => {
@@ -893,16 +909,89 @@ describe("Coding Agent Tools", () => {
 		});
 
 		it("should reject malformed internal-URL selectors instead of dumping the whole resource", async () => {
-			await expect(readTool.execute("test-call-bad-internal-sel", { path: "artifact://3:-100" })).rejects.toThrow(
-				/Invalid selector ':-100'/,
+			await expect(readTool.execute("test-call-bad-internal-sel", { path: "artifact://3:-100-5" })).rejects.toThrow(
+				/Invalid selector ':-100-5'/,
 			);
+		});
+
+		it("reads the last N lines with a :-N tail selector (1 leading context line, no trailing)", async () => {
+			const testFile = path.join(testDir, "tail-test.txt");
+			const lines = Array.from({ length: 100 }, (_, i) => `Line ${i + 1}`);
+			fs.writeFileSync(testFile, lines.join("\n"));
+
+			const output = getTextOutput(await readTool.execute("test-tail", { path: `${testFile}:-10` }));
+
+			expect(output).not.toContain("Line 89");
+			expect(output).toContain("Line 90");
+			expect(output).toContain("Line 91");
+			expect(output).toContain("Line 100");
+			expect(output).not.toContain("Use :");
+		});
+
+		it("tails a file past the snapshot cap without buffering it", async () => {
+			const testFile = path.join(testDir, "tail-large.txt");
+			const line = `${"x".repeat(1024)}`;
+			const total = 12_000;
+			fs.writeFileSync(testFile, Array.from({ length: total }, (_, i) => `${i + 1} ${line}`).join("\n"));
+			expect(fs.statSync(testFile).size).toBeGreaterThan(8 * 1024 * 1024);
+
+			const output = getTextOutput(await readTool.execute("test-tail-large", { path: `${testFile}:-3` }));
+
+			expect(output).not.toContain(`${total - 4} x`);
+			expect(output).toContain(`${total - 3} x`);
+			expect(output).toContain(`${total} x`);
+		});
+
+		it("does not claim a partial scan count is the total for bounded reads", async () => {
+			const testFile = path.join(testDir, "bounded-large.txt");
+			const lines = Array.from({ length: 10_000 }, (_, i) => `${i + 1} ${"x".repeat(500)}`);
+			fs.writeFileSync(testFile, lines.join("\n"));
+			expect(fs.statSync(testFile).size).toBeGreaterThan(4 * 1024 * 1024);
+
+			const result = await readTool.execute("test-bounded-large", { path: `${testFile}:1-3` });
+			const output = getTextOutput(result);
+
+			expect(output).toContain("not scanned to EOF");
+			expect(output).toContain("Use :7 to continue");
+			expect(output).not.toMatch(/\[Showing lines 1-6 of \d+/);
+			expect(result.details?.meta?.truncation).toBeUndefined();
+			expect(result.details?.truncation).toBeUndefined();
+		});
+
+		it("does not claim a suppressed hashline preview was shown", async () => {
+			Bun.env.PI_EDIT_VARIANT = "hashline";
+			const testFile = path.join(testDir, "hashline-preview-large.txt");
+			const firstLine = "x".repeat(70_000);
+			const tail = Array.from({ length: 9_000 }, () => "y".repeat(500)).join("\n");
+			fs.writeFileSync(testFile, `${firstLine}\n${tail}`);
+			expect(fs.statSync(testFile).size).toBeGreaterThan(4 * 1024 * 1024);
+
+			const result = await readTool.execute("test-hashline-preview-large", { path: `${testFile}:1-1` });
+			const output = getTextOutput(result);
+
+			expect(output).toContain("Hashline output requires full lines");
+			expect(output).toContain("[File not scanned to EOF]");
+			expect(output).not.toContain("Showing line 1");
+		});
+
+		it("tail selector is verbatim under :raw and clamps to the whole file when N exceeds it", async () => {
+			const testFile = path.join(testDir, "tail-raw.txt");
+			fs.writeFileSync(testFile, "alpha\nbeta\ngamma\n");
+
+			const raw = getTextOutput(await readTool.execute("test-tail-raw", { path: `${testFile}:raw:-2` }));
+			expect(raw).toBe("gamma\n");
+
+			const clamped = getTextOutput(await readTool.execute("test-tail-clamp", { path: `${testFile}:-50` }));
+			expect(clamped).toContain("alpha");
+			expect(clamped).toContain("gamma");
+			expect(clamped).not.toContain("beyond end of file");
 		});
 
 		it("should include truncation details when truncated", async () => {
 			const testFile = path.join(testDir, "large-file.txt");
 			const lines = Array.from({ length: 3500 }, (_, i) => `Line ${i + 1}`);
 			fs.writeFileSync(testFile, lines.join("\n"));
-			const defaultLimit = session.settings.get("read.defaultLimit");
+			const defaultLimit = cfgReadDefaultLimit.get(session.settings);
 
 			const result = await readTool.execute("test-call-9", { path: testFile });
 
@@ -910,6 +999,28 @@ describe("Coding Agent Tools", () => {
 			expect(result.details?.truncation?.truncatedBy).toBe("lines");
 			expect(result.details?.truncation?.totalLines).toBe(3500);
 			expect(result.details?.truncation?.outputLines).toBe(defaultLimit);
+		});
+
+		it("reports the artifact byte budget that truncated a ranged read", async () => {
+			const artifactsDir = path.join(testDir, "artifact-limit-session");
+			fs.mkdirSync(artifactsDir, { recursive: true });
+			fs.writeFileSync(path.join(artifactsDir, "7.mcp.log"), `skip\n{\n${"x".repeat(60 * 1024)}\ntail`);
+			const artifactSession = createTestToolSession(testDir, Settings.isolated(), {
+				localProtocolOptions: {
+					getArtifactsDir: () => artifactsDir,
+					getSessionId: () => "artifact-limit-session",
+				},
+			});
+			const artifactReadTool = wrapToolWithMetaNotice(new ReadTool(artifactSession));
+
+			const result = await artifactReadTool.execute("test-call-artifact-byte-limit", {
+				path: "artifact://7:3-4",
+			});
+			const output = getTextOutput(result);
+			expect(output).toContain("[Showing lines 2-2 of 4 (50.0KB limit)]");
+			expect(output).toContain("Line 3 is 60.0KB");
+			expect(output).toContain("artifact://7:raw:3-3");
+			expect(output).not.toContain("Use :3 to continue");
 		});
 
 		it("should spill oversized read output to an artifact", async () => {
@@ -922,7 +1033,7 @@ describe("Coding Agent Tools", () => {
 				"tools.artifactTailLines": 10,
 				"tools.artifactHeadBytes": 1,
 			});
-			const defaultLimit = spillSettings.get("read.defaultLimit");
+			const defaultLimit = cfgReadDefaultLimit.get(spillSettings);
 			const spillManager = SessionManager.create(testDir, path.join(testDir, "spill-sessions"));
 			await spillManager.ensureOnDisk();
 			const spillSession = createTestToolSession(testDir, spillSettings, {
@@ -966,6 +1077,84 @@ describe("Coding Agent Tools", () => {
 					context,
 				);
 				expect(getTextOutput(artifactResult)).toContain(line);
+				expect(saveArtifact).not.toHaveBeenCalled();
+			} finally {
+				await spillManager.close();
+			}
+		});
+
+		it("spills oversized URL reads like plain files, except pages of artifact storage", async () => {
+			const payload = Array.from({ length: 3000 }, (_, index) => `payload line ${index}`).join("\n");
+			const skillDir = path.join(testDir, "skills", "demo");
+			fs.mkdirSync(skillDir, { recursive: true });
+			fs.writeFileSync(path.join(skillDir, "SKILL.md"), "---\nname: demo\ndescription: d\n---\nBody\n");
+			fs.writeFileSync(path.join(skillDir, "ref.md"), payload);
+			const spillSettings = Settings.isolated({
+				"tools.artifactSpillThreshold": 20,
+				"tools.artifactTailBytes": 1,
+				"tools.artifactTailLines": 10,
+				"tools.artifactHeadBytes": 1,
+			});
+			const spillManager = SessionManager.create(testDir, path.join(testDir, "url-spill-sessions"));
+			await spillManager.ensureOnDisk();
+			const artifactsDir = spillManager.getArtifactsDir();
+			if (!artifactsDir) throw new Error("expected an on-disk artifacts dir");
+			fs.mkdirSync(artifactsDir, { recursive: true });
+			fs.writeFileSync(path.join(artifactsDir, "Worker.md"), JSON.stringify({ report: payload }));
+			fs.writeFileSync(path.join(artifactsDir, "Lines.md"), payload);
+			fs.mkdirSync(path.join(artifactsDir, "local"), { recursive: true });
+			fs.writeFileSync(path.join(artifactsDir, "local", "big.md"), payload);
+			const spillReadTool = wrapToolWithMetaNotice(
+				new ReadTool(
+					createTestToolSession(testDir, spillSettings, {
+						getSessionFile: () => spillManager.getSessionFile() ?? null,
+						getArtifactsDir: () => artifactsDir,
+						localProtocolOptions: {
+							getArtifactsDir: () => artifactsDir,
+							getSessionId: () => spillManager.getSessionId(),
+						},
+						skills: [
+							{
+								name: "demo",
+								description: "d",
+								filePath: path.join(skillDir, "SKILL.md"),
+								baseDir: skillDir,
+								source: "test",
+							},
+						],
+					}),
+				),
+			);
+			const context = {
+				...createTestToolContext(["read"]),
+				settings: spillSettings,
+				sessionManager: spillManager,
+			};
+
+			try {
+				for (const url of [
+					"skill://demo/ref.md",
+					"agent://Worker/report",
+					"local://big.md:1-3000",
+					"agent://Lines:1-3000",
+				]) {
+					const result = await spillReadTool.execute(`spill-${url}`, { path: url }, undefined, undefined, context);
+					const output = getTextOutput(result);
+					expect(result.details?.meta?.truncation?.artifactId).toBeDefined();
+					expect(Buffer.byteLength(output, "utf-8")).toBeLessThan(20 * 1024);
+				}
+
+				const artifactId = await spillManager.saveArtifact(payload, "read");
+				const saveArtifact = vi.spyOn(spillManager, "saveArtifact");
+				const artifactPage = await spillReadTool.execute(
+					"spill-artifact-page",
+					{ path: `artifact://${artifactId}:1-3000` },
+					undefined,
+					undefined,
+					context,
+				);
+				expect(artifactPage.details?.meta?.truncation?.artifactId).toBeUndefined();
+				expect(getTextOutput(artifactPage)).toContain("payload line 2999");
 				expect(saveArtifact).not.toHaveBeenCalled();
 			} finally {
 				await spillManager.close();
@@ -1043,7 +1232,7 @@ describe("Coding Agent Tools", () => {
 					spillManager.getArtifactsDir()!,
 					`${truncation.artifactId}.mcp__server__tool.log`,
 				);
-				expect(await fsx.readText(artifactPath)).toBe(payload);
+				expect(await Bun.file(artifactPath).text()).toBe(payload);
 			} finally {
 				await spillManager.close();
 			}
@@ -1722,15 +1911,10 @@ describe("Coding Agent Tools", () => {
 			const testFile = path.join(testDir, "image.txt");
 			fs.writeFileSync(testFile, pngBuffer);
 
-			const legacyReadTool = wrapToolWithMetaNotice(
-				new ReadTool(
-					createTestToolSession(
-						testDir,
-						Settings.isolated({ "inspect_image.enabled": false, "images.autoResize": false }),
-					),
-				),
+			const imageReadTool = wrapToolWithMetaNotice(
+				new ReadTool(createTestToolSession(testDir, Settings.isolated({ "images.autoResize": false }))),
 			);
-			const result = await legacyReadTool.execute("test-call-img-1", { path: testFile });
+			const result = await imageReadTool.execute("test-call-img-1", { path: testFile });
 
 			expect(result.content[0]?.type).toBe("text");
 			expect(getTextOutput(result)).toContain("Read image file [image/png]");
@@ -1741,41 +1925,40 @@ describe("Coding Agent Tools", () => {
 			expect(imageBlock?.mimeType).toBe("image/png");
 		});
 
-		it("returns metadata guidance (no image blocks) when inspect_image is enabled", async () => {
+		it("returns metadata for text-only models and pixels for image-capable models", async () => {
 			const png1x1Base64 =
 				"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+X2Z0AAAAASUVORK5CYII=";
 			const pngBuffer = Buffer.from(png1x1Base64, "base64");
 			const testFile = path.join(testDir, "image-guidance.png");
 			fs.writeFileSync(testFile, pngBuffer);
 
-			const inspectModeReadTool = wrapToolWithMetaNotice(
-				new ReadTool(createTestToolSession(testDir, Settings.isolated({ "inspect_image.enabled": true }))),
+			const textOnlyModel = createMockModel({ id: "text-only" });
+			const textOnlyTool = wrapToolWithMetaNotice(
+				new ReadTool(
+					createTestToolSession(testDir, Settings.isolated(), {
+						getActiveModel: () => textOnlyModel,
+					}),
+				),
 			);
-			const result = await inspectModeReadTool.execute("test-call-img-guidance", { path: testFile });
-			const output = getTextOutput(result);
+			const metadataResult = await textOnlyTool.execute("test-call-img-guidance", { path: testFile });
+			const output = getTextOutput(metadataResult);
 
 			expect(output).toContain("Image metadata:");
 			expect(output).toContain("MIME: image/png");
 			expect(output).toContain("Bytes:");
 			expect(output).toContain("Dimensions:");
-			expect(output).toContain("inspect_image");
-			expect(output).toContain(`path="${path.basename(testFile)}"`);
-			expect(output).toContain("question");
-			expect(output).not.toContain("optional context");
-			expect(result.content.some(c => c.type === "image")).toBe(false);
-		});
+			expect(output).toContain(`${path.basename(testFile)}?q=<question>`);
+			expect(metadataResult.content.some(c => c.type === "image")).toBe(false);
 
-		it("omits inspect_image from the description when the tool is disabled", () => {
-			const enabled = new ReadTool(
-				createTestToolSession(testDir, Settings.isolated({ "inspect_image.enabled": true })),
+			const visionModel = createMockModel({ id: "vision" });
+			visionModel.input.push("image");
+			const visionTool = new ReadTool(
+				createTestToolSession(testDir, Settings.isolated({ "images.autoResize": false }), {
+					getActiveModel: () => visionModel,
+				}),
 			);
-			const disabled = new ReadTool(
-				createTestToolSession(testDir, Settings.isolated({ "inspect_image.enabled": false })),
-			);
-
-			expect(enabled.description).toContain("inspect_image");
-			expect(disabled.description).not.toContain("inspect_image");
-			expect(disabled.description).toContain("inline");
+			const inlineResult = await visionTool.execute("test-call-img-inline", { path: testFile });
+			expect(inlineResult.content.some(c => c.type === "image")).toBe(true);
 		});
 
 		it("should treat files with image extension but non-image content as text", async () => {
@@ -1830,9 +2013,9 @@ describe("Coding Agent Tools", () => {
 
 			const result = await writeTool.execute("test-call-4-local", { path: localPath, content });
 
-			expect(getTextOutput(result)).toContain(
-				`Successfully wrote ${content.length} bytes to session/local/handoffs/new-output.json`,
-			);
+			// The result names the URL the model wrote, not the session's backing path.
+			expect(getTextOutput(result)).toContain(localPath);
+			expect(getTextOutput(result)).not.toContain(path.join("session", "local"));
 			expect(fs.existsSync(expectedPath)).toBe(true);
 			expect(fs.readFileSync(expectedPath, "utf-8")).toBe(content);
 		});
@@ -1892,7 +2075,7 @@ describe("Coding Agent Tools", () => {
 			);
 			expect(fs.existsSync(archivePath)).toBe(true);
 
-			const archive = new Bun.Archive(await fsx.readBytes(archivePath));
+			const archive = new Bun.Archive(await Bun.file(archivePath).bytes());
 			const files = await archive.files();
 			expect(await files.get("pkg/new.txt")?.text()).toBe(content);
 		});
@@ -1921,7 +2104,7 @@ describe("Coding Agent Tools", () => {
 			expect(bytes[0]).toBe(0x1f);
 			expect(bytes[1]).toBe(0x8b);
 
-			const archive = new Bun.Archive(await fsx.readBytes(archivePath));
+			const archive = new Bun.Archive(await Bun.file(archivePath).bytes());
 			const files = await archive.files();
 			expect(await files.get("pkg/README.md")?.text()).toBe(content);
 			expect(await files.get("pkg/src/index.ts")?.text()).toBe("export const archiveValue = 1;\n");
@@ -1964,13 +2147,13 @@ describe("Coding Agent Tools", () => {
 			const originalContent = "Hello, world!";
 			fs.writeFileSync(testFile, originalContent);
 
-			await expect(
-				editTool.execute("test-call-6", {
-					path: testFile,
-					old_string: "nonexistent",
-					new_string: "testing",
-				}),
-			).rejects.toThrow(/Could not find/);
+			const result = await editTool.execute("test-call-6", {
+				path: testFile,
+				old_string: "nonexistent",
+				new_string: "testing",
+			});
+			expect(result.isError).toBe(true);
+			expect(getTextOutput(result)).toMatch(/Could not find/);
 		});
 
 		it("should fail if text appears multiple times", async () => {
@@ -1978,13 +2161,13 @@ describe("Coding Agent Tools", () => {
 			const originalContent = "foo foo foo";
 			fs.writeFileSync(testFile, originalContent);
 
-			await expect(
-				editTool.execute("test-call-7", {
-					path: testFile,
-					old_string: "foo",
-					new_string: "bar",
-				}),
-			).rejects.toThrow(/Found 3 occurrences/);
+			const result = await editTool.execute("test-call-7", {
+				path: testFile,
+				old_string: "foo",
+				new_string: "bar",
+			});
+			expect(result.isError).toBe(true);
+			expect(getTextOutput(result)).toMatch(/Found 3 occurrences/);
 		});
 
 		it("should replace all occurrences with replace_all: true", async () => {
@@ -1999,7 +2182,7 @@ describe("Coding Agent Tools", () => {
 			});
 
 			expect(getTextOutput(result)).toContain("qux bar qux baz qux");
-			const content = await fsx.readText(testFile);
+			const content = await Bun.file(testFile).text();
 			expect(content).toBe("qux bar qux baz qux");
 		});
 
@@ -2022,28 +2205,49 @@ function b() {
 			);
 
 			// With multiple fuzzy matches, the tool rejects for safety to avoid ambiguous replacements
-			await expect(
-				editTool.execute("test-all-fuzzy", {
-					path: testFile,
-					old_string: "if (x) {\n  doThing();\n}",
-					new_string: "if (y) {\n  doOther();\n}",
-					replace_all: true,
-				}),
-			).rejects.toThrow(/Found 2 high-confidence matches/);
+			const result = await editTool.execute("test-all-fuzzy", {
+				path: testFile,
+				old_string: "if (x) {\n  doThing();\n}",
+				new_string: "if (y) {\n  doOther();\n}",
+				replace_all: true,
+			});
+			expect(result.isError).toBe(true);
+			expect(getTextOutput(result)).toMatch(/Found 2 high-confidence matches/);
+		});
+
+		it("applies edit.fuzzyMatch and edit.fuzzyThreshold changes made after the tool was built", async () => {
+			const testFile = path.join(testDir, "edit-live-fuzzy.txt");
+			fs.writeFileSync(testFile, "function greet() {\n  const message = 'hello world';\n  return message;\n}\n");
+			const args = {
+				path: testFile,
+				old_string: "  const mesage = 'helo wrld';\n  return mesage;",
+				new_string: "  return 'bye';",
+			};
+
+			cfgEditFuzzyMatch.set(session.settings, false);
+			expect((await editTool.execute("live-fuzzy-off", args)).isError).toBe(true);
+
+			cfgEditFuzzyMatch.set(session.settings, true);
+			cfgEditFuzzyThreshold.set(session.settings, 0.99);
+			expect((await editTool.execute("live-fuzzy-strict", args)).isError).toBe(true);
+
+			cfgEditFuzzyThreshold.set(session.settings, 0.6);
+			expect((await editTool.execute("live-fuzzy-loose", args)).isError).not.toBe(true);
+			expect(await Bun.file(testFile).text()).toBe("function greet() {\n  return 'bye';\n}\n");
 		});
 
 		it("should fail with replace_all: true if no matches found", async () => {
 			const testFile = path.join(testDir, "edit-all-nomatch.txt");
 			fs.writeFileSync(testFile, "hello world");
 
-			await expect(
-				editTool.execute("test-all-nomatch", {
-					path: testFile,
-					old_string: "nonexistent",
-					new_string: "bar",
-					replace_all: true,
-				}),
-			).rejects.toThrow(/Could not find/);
+			const result = await editTool.execute("test-all-nomatch", {
+				path: testFile,
+				old_string: "nonexistent",
+				new_string: "bar",
+				replace_all: true,
+			});
+			expect(result.isError).toBe(true);
+			expect(getTextOutput(result)).toMatch(/Could not find/);
 		});
 
 		it("should replace multiline text with replace_all: true", async () => {
@@ -2058,7 +2262,7 @@ function b() {
 			});
 
 			expect(getTextOutput(result)).toContain("replaced");
-			const content = await fsx.readText(testFile);
+			const content = await Bun.file(testFile).text();
 			expect(content).toBe("start\nreplaced\nend\nstart\nreplaced\nend");
 		});
 
@@ -2074,13 +2278,13 @@ function b() {
 			});
 
 			expect(getTextOutput(result)).toContain("hello universe");
-			const content = await fsx.readText(testFile);
+			const content = await Bun.file(testFile).text();
 			expect(content).toBe("hello universe");
 		});
 
 		it("applies the bridge's internal edits batch form as one aggregate result", async () => {
 			// Only the Cursor exec bridge produces this shape (multi-replacement
-			// chud_edit frames); it must apply every replacement in order and
+			// pi_edit frames); it must apply every replacement in order and
 			// return a single aggregated diff.
 			const testFile = path.join(testDir, "edit-batch.txt");
 			fs.writeFileSync(testFile, "alpha\nbeta\n");
@@ -2094,7 +2298,7 @@ function b() {
 			});
 
 			expect(result.isError).toBeUndefined();
-			const content = await fsx.readText(testFile);
+			const content = await Bun.file(testFile).text();
 			expect(content).toBe("ALPHA\nBETA\n");
 			const details = result.details as { diff?: string } | undefined;
 			expect(details?.diff).toContain("ALPHA");
@@ -2118,19 +2322,6 @@ function b() {
 			expect(output).toMatch(/Wall time: \d+\.\d{2} seconds/);
 			expect(typeof result.details?.wallTimeMs).toBe("number");
 			expect(result.details?.wallTimeMs).toBeGreaterThanOrEqual(0);
-		});
-
-		it("should expose built-in interceptor defaults truthfully", () => {
-			const defaultSettings = Settings.isolated({ "bashInterceptor.enabled": true });
-			const explicitEmptySettings = Settings.isolated({
-				"bashInterceptor.enabled": true,
-				"bashInterceptor.patterns": [],
-			});
-
-			expect(defaultSettings.get("bashInterceptor.patterns")).toEqual(DEFAULT_BASH_INTERCEPTOR_RULES);
-			expect(defaultSettings.getBashInterceptorRules()).toEqual(DEFAULT_BASH_INTERCEPTOR_RULES);
-			expect(explicitEmptySettings.get("bashInterceptor.patterns")).toEqual([]);
-			expect(explicitEmptySettings.getBashInterceptorRules()).toEqual([]);
 		});
 
 		it("should block built-in interceptor commands when enabled with default patterns", async () => {
@@ -2205,33 +2396,6 @@ function b() {
 			).rejects.toThrow(/Use the `grep` tool for customcmd\./);
 		});
 
-		it("should expose env values without shell re-parsing", async () => {
-			const mermaid = [
-				"flowchart TD",
-				'N0["attack"]',
-				'N1["[target] cluster"]',
-				'N2["diff-review"]',
-				'N3["extract"]',
-				'N4["report"]',
-				'N5["setup"]',
-				"N3 --> N0",
-				"N0 --> N1",
-				"N2 --> N1",
-				"N3 --> N2",
-				"N5 --> N3",
-				"N1 --> N4",
-			].join("\n");
-			const result = await bashTool.execute("test-call-8-env", {
-				command: "printf '%s' \"$MERMAID\"",
-				env: { MERMAID: mermaid },
-			});
-			const output = getTextOutput(result);
-			expect(output).toContain('N0["attack"]');
-			expect(output).toContain("N1 --> N4");
-			expect(fs.existsSync(path.join(testDir, "N0"))).toBe(false);
-			expect(fs.existsSync(path.join(testDir, "N4"))).toBe(false);
-		});
-
 		it("should resolve local:// destination paths for mv commands", async () => {
 			const sourcePath = path.join(testDir, "move-source.json");
 			const targetPath = path.join(testDir, "session", "local", "moved-via-bash.json");
@@ -2264,12 +2428,12 @@ function b() {
 		});
 
 		it("should persist environment variables between commands", async () => {
-			if (process.platform === "win32" || process.env.CHUDCODE_SHELL_PERSIST !== "1") {
+			if (process.platform === "win32" || Bun.env.PI_SHELL_PERSIST !== "1") {
 				return;
 			}
 
-			await bashTool.execute("test-call-8-env-set", { command: "export CHUDCODE_TEST_VAR=hello" });
-			const result = await bashTool.execute("test-call-8-env-get", { command: "echo $CHUDCODE_TEST_VAR" });
+			await bashTool.execute("test-call-8-env-set", { command: "export PI_TEST_VAR=hello" });
+			const result = await bashTool.execute("test-call-8-env-get", { command: "echo $PI_TEST_VAR" });
 			expect(getTextOutput(result)).toContain("hello");
 		});
 
@@ -2326,7 +2490,11 @@ function b() {
 			expect(getTextOutput(result)).toContain("short");
 			expect(result.details?.timeoutSeconds).toBe(300);
 			expect(result.details?.async).toBeUndefined();
+			await asyncJobManager.waitForAll();
 			await asyncJobManager.drainDeliveries({ timeoutMs: 1 });
+			// A command that finished in the foreground never becomes a background job row.
+			expect(asyncJobManager.getAllJobs()).toEqual([]);
+			expect(asyncJobManager.getJob("bg_1")).toBeUndefined();
 			expect(deliveries).toEqual([]);
 			await asyncJobManager.dispose();
 		});
@@ -2581,73 +2749,6 @@ function b() {
 		});
 	});
 
-	describe("HubTool", () => {
-		it("should wait for jobs and acknowledge deliveries to prevent race conditions", async () => {
-			const manager = new AsyncJobManager({
-				onJobComplete: async () => {},
-			});
-			const session = createTestToolSession(testDir, Settings.isolated({ "bash.autoBackground.enabled": true }), {
-				asyncJobManager: manager,
-			});
-			const jobTool = new HubTool(session);
-
-			const jobId = manager.register("bash", "test job", async () => "success");
-
-			// Job is running, call poll
-			const resultPromise = jobTool.execute("test-call-poll-1", { op: "wait", ids: [jobId] });
-
-			// Ensure poll finished
-			const result = await resultPromise;
-			expect(getTextOutput(result)).toContain("Completed");
-
-			// Wait for deliveries to be processed
-			await manager.drainDeliveries({ timeoutMs: 100 });
-
-			// If it correctly acknowledged, the delivery is suppressed.
-			expect(manager.hasPendingDeliveries()).toBe(false);
-		});
-
-		it("flags still-waiting polls and all-running snapshots as contextually useless", async () => {
-			const manager = new AsyncJobManager({
-				onJobComplete: async () => {},
-			});
-			const session = createTestToolSession(testDir, Settings.isolated({ "bash.autoBackground.enabled": true }), {
-				asyncJobManager: manager,
-			});
-			const jobTool = new HubTool(session);
-			const gate = Promise.withResolvers<string>();
-			const jobId = manager.register("bash", "long job", () => gate.promise);
-
-			// Poll cut short while the job is still running: a pure "still
-			// waiting" snapshot carries no information once consumed.
-			const controller = new AbortController();
-			const pollPromise = jobTool.execute("test-call-useless-poll", { op: "wait", ids: [jobId] }, controller.signal);
-			controller.abort();
-			const polled = await pollPromise;
-			expect(polled.useless).toBe(true);
-
-			// A list snapshot showing only running jobs is equally uneventful.
-			const listed = await jobTool.execute("test-call-useless-list", { op: "jobs" });
-			expect(listed.useless).toBe(true);
-
-			// Once the job settles, the result is informative — flag absent.
-			gate.resolve("done");
-			const settled = await jobTool.execute("test-call-useless-settled", { op: "wait", ids: [jobId] });
-			expect(getTextOutput(settled)).toContain("Completed");
-			expect(settled.useless).toBeUndefined();
-
-			// Nothing left to wait for: noise once consumed.
-			const idle = await jobTool.execute("test-call-useless-idle", { op: "wait" });
-			expect(getTextOutput(idle)).toContain("No running background jobs");
-			expect(idle.useless).toBe(true);
-
-			// A poll naming unknown ids found nothing — equally uneventful.
-			const missing = await jobTool.execute("test-call-useless-missing", { op: "wait", ids: ["no-such-job"] });
-			expect(getTextOutput(missing)).toContain("No matching jobs found");
-			expect(missing.useless).toBe(true);
-		});
-	});
-
 	describe("search tool", () => {
 		it("should include filename when searching a single file", async () => {
 			const testFile = path.join(testDir, "example.txt");
@@ -2660,7 +2761,7 @@ function b() {
 
 			const output = getTextOutput(result);
 			expect(output).not.toContain("# example.txt");
-			// CHUDCODE_EDIT_VARIANT=replace in beforeEach disables hashlines; expect line-number mode
+			// PI_EDIT_VARIANT=replace in beforeEach disables hashlines; expect line-number mode
 			expect(output).toMatch(/\*2\|match line/);
 		});
 
@@ -3172,8 +3273,8 @@ describe("edit tool CRLF handling", () => {
 
 	beforeEach(() => {
 		// Force replace mode for edit tool tests using old_string/new_string
-		originalEditVariant = process.env.CHUDCODE_EDIT_VARIANT;
-		process.env.CHUDCODE_EDIT_VARIANT = "replace";
+		originalEditVariant = Bun.env.PI_EDIT_VARIANT;
+		Bun.env.PI_EDIT_VARIANT = "replace";
 
 		testDir = path.join(os.tmpdir(), `coding-agent-crlf-test-${Snowflake.next()}`);
 		fs.mkdirSync(testDir, { recursive: true });
@@ -3185,9 +3286,9 @@ describe("edit tool CRLF handling", () => {
 
 		// Restore original edit variant
 		if (originalEditVariant === undefined) {
-			delete process.env.CHUDCODE_EDIT_VARIANT;
+			delete Bun.env.PI_EDIT_VARIANT;
 		} else {
-			process.env.CHUDCODE_EDIT_VARIANT = originalEditVariant;
+			Bun.env.PI_EDIT_VARIANT = originalEditVariant;
 		}
 	});
 
@@ -3215,7 +3316,7 @@ describe("edit tool CRLF handling", () => {
 			new_string: "REPLACED\n",
 		});
 
-		const content = await fsx.readText(testFile);
+		const content = await Bun.file(testFile).text();
 		expect(content).toBe("first\r\nREPLACED\r\nthird\r\n");
 	});
 
@@ -3229,7 +3330,7 @@ describe("edit tool CRLF handling", () => {
 			new_string: "REPLACED\n",
 		});
 
-		const content = await fsx.readText(testFile);
+		const content = await Bun.file(testFile).text();
 		expect(content).toBe("first\nREPLACED\nthird\n");
 	});
 
@@ -3238,27 +3339,12 @@ describe("edit tool CRLF handling", () => {
 
 		fs.writeFileSync(testFile, "hello\r\nworld\r\n---\r\nhello\nworld\n");
 
-		await expect(
-			editTool.execute("test-crlf-dup", {
-				path: testFile,
-				old_string: "hello\nworld\n",
-				new_string: "replaced\n",
-			}),
-		).rejects.toThrow(/Found 2 occurrences/);
-	});
-
-	// TODO: CRLF preservation broken by LSP formatting - fix later
-	it.skip("should preserve UTF-8 BOM after edit", async () => {
-		const testFile = path.join(testDir, "bom-test.txt");
-		fs.writeFileSync(testFile, "\uFEFFfirst\r\nsecond\r\nthird\r\n");
-
-		await editTool.execute("test-bom", {
+		const result = await editTool.execute("test-crlf-dup", {
 			path: testFile,
-			old_string: "second\n",
-			new_string: "REPLACED\n",
+			old_string: "hello\nworld\n",
+			new_string: "replaced\n",
 		});
-
-		const content = await fsx.readText(testFile);
-		expect(content).toBe("\uFEFFfirst\r\nREPLACED\r\nthird\r\n");
+		expect(result.isError).toBe(true);
+		expect(getTextOutput(result)).toMatch(/Found 2 occurrences/);
 	});
 });

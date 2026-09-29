@@ -24,12 +24,14 @@ function json(value: unknown, status = 200): Response {
 
 function authStorage(accessToken = jwt()): AuthStorage {
 	return {
-		getOAuthAccessByCredentialId: async (_provider: string, credentialId: number) => ({
-			ok: true as const,
-			accessToken,
-			credentialId,
-			accountId: "workspace-a",
-		}),
+		oauth: {
+			accessById: async (_provider: string, credentialId: number) => ({
+				ok: true as const,
+				accessToken,
+				credentialId,
+				accountId: "workspace-a",
+			}),
+		},
 	} as unknown as AuthStorage;
 }
 
@@ -56,18 +58,16 @@ describe("Codex Security cloud client", () => {
 		const resolutions: boolean[] = [];
 		const requests: Array<{ authorization: string | null; accountId: string | null }> = [];
 		const storage = {
-			getOAuthAccessByCredentialId: async (
-				_provider: string,
-				credentialId: number,
-				options: { forceRefresh: boolean },
-			) => {
-				resolutions.push(options.forceRefresh);
-				return {
-					ok: true as const,
-					accessToken: options.forceRefresh ? "refreshed-token" : "initial-token",
-					credentialId,
-					accountId: "workspace-a",
-				};
+			oauth: {
+				accessById: async (_provider: string, credentialId: number, options: { forceRefresh: boolean }) => {
+					resolutions.push(options.forceRefresh);
+					return {
+						ok: true as const,
+						accessToken: options.forceRefresh ? "refreshed-token" : "initial-token",
+						credentialId,
+						accountId: "workspace-a",
+					};
+				},
 			},
 		} as unknown as AuthStorage;
 		let attempt = 0;
@@ -142,8 +142,8 @@ describe("Codex Security cloud client", () => {
 	});
 
 	test("imports cloud findings into the canonical store and SARIF", async () => {
-		const repositoryRoot = await fs.mkdtemp(path.join(os.tmpdir(), "chudcode-cloud-security-repo-"));
-		const stateRoot = await fs.mkdtemp(path.join(os.tmpdir(), "chudcode-cloud-security-state-"));
+		const repositoryRoot = await fs.mkdtemp(path.join(os.tmpdir(), "omp-cloud-security-repo-"));
+		const stateRoot = await fs.mkdtemp(path.join(os.tmpdir(), "omp-cloud-security-state-"));
 		await $`git init --initial-branch=main`.cwd(repositoryRoot).quiet();
 		await $`git remote add origin https://github.com/example/repository.git`.cwd(repositoryRoot).quiet();
 		const store = await SecurityStore.open(repositoryRoot, { stateRoot });
@@ -277,8 +277,8 @@ describe("Codex Security cloud client", () => {
 	});
 
 	test("refuses cloud imports when repository identity cannot be verified", async () => {
-		const repositoryRoot = await fs.mkdtemp(path.join(os.tmpdir(), "chudcode-cloud-security-no-origin-repo-"));
-		const stateRoot = await fs.mkdtemp(path.join(os.tmpdir(), "chudcode-cloud-security-no-origin-state-"));
+		const repositoryRoot = await fs.mkdtemp(path.join(os.tmpdir(), "omp-cloud-security-no-origin-repo-"));
+		const stateRoot = await fs.mkdtemp(path.join(os.tmpdir(), "omp-cloud-security-no-origin-state-"));
 		const store = await SecurityStore.open(repositoryRoot, { stateRoot });
 		const client = new CodexSecurityCloudClient({
 			authStorage: authStorage(),
@@ -307,8 +307,8 @@ describe("Codex Security cloud client", () => {
 	});
 
 	test("refuses to import a cloud configuration for another repository", async () => {
-		const repositoryRoot = await fs.mkdtemp(path.join(os.tmpdir(), "chudcode-cloud-security-mismatch-repo-"));
-		const stateRoot = await fs.mkdtemp(path.join(os.tmpdir(), "chudcode-cloud-security-mismatch-state-"));
+		const repositoryRoot = await fs.mkdtemp(path.join(os.tmpdir(), "omp-cloud-security-mismatch-repo-"));
+		const stateRoot = await fs.mkdtemp(path.join(os.tmpdir(), "omp-cloud-security-mismatch-state-"));
 		await $`git init --initial-branch=main`.cwd(repositoryRoot).quiet();
 		await $`git remote add origin https://github.com/example/different-repository.git`.cwd(repositoryRoot).quiet();
 		const store = await SecurityStore.open(repositoryRoot, { stateRoot });

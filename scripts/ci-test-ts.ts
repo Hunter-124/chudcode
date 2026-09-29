@@ -3,7 +3,6 @@
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import * as fsx from "@chudware/utils/fsx";
 
 type Mode =
 	| "all"
@@ -87,15 +86,13 @@ const codingAgentBucketPlans: Record<CodingAgentBucket, { label: string; paralle
 // their short TS suites can run together. CI still downloads the Linux x64 native
 // addon before this bucket: shared utility barrels may load native-backed modules.
 const fastWorkspacePackages = [
-	"packages/hashline",
-	"packages/wire",
-	"packages/chudtype",
+	"packages/omptype",
 	"packages/utils",
 	"packages/catalog",
 	"packages/ai",
 	"packages/snapcompact",
 	"packages/agent",
-	"packages/mnemo",
+	"packages/mnemopi",
 ];
 
 // These suites cover the native package, TUI/browser-ish behavior, local servers,
@@ -109,11 +106,11 @@ const nativeAndIntegrationPackages = [
 ];
 
 // Packages the CI buckets deliberately skip but a local full run should still
-// cover. robochud-web lives under python/robochud and is outside every CI TS bucket.
-const localOnlyWorkspacePackages = ["python/robochud/web"];
+// cover. robomp-web lives under python/robomp and is outside every CI TS bucket.
+const localOnlyWorkspacePackages = ["python/robomp/web"];
 
 const codingAgentNativePathPatterns = [
-	/(^|\/)[^/]*(bash|native|browser|cmux|mnemo|hindsight|memory)[^/]*\.test\.ts$/i,
+	/(^|\/)[^/]*(bash|native|browser|cmux|mnemopi|hindsight|memory)[^/]*\.test\.ts$/i,
 	/^test\/[^/]*(ask|gh|irc|task|eval|search|read|write|edit|ast|resolve|sqlite|web-search|fetch|image|ssh|tool)[^/]*\.test\.ts$/,
 	/^test\/core\/python-[^/]*\.test\.ts$/,
 	/^test\/core\/[^/]*executor[^/]*\.test\.ts$/,
@@ -147,8 +144,8 @@ const codingAgentRuntimePathPatterns = [
 ];
 
 const codingAgentNativeContentMarkers = [
-	"@chudware/natives",
-	"chud-natives",
+	"@oh-my-pi/pi-natives",
+	"pi-natives",
 	"native",
 	"readImageMetadata",
 	"Bun.spawn",
@@ -183,7 +180,7 @@ const codingAgentSingletonContentPatterns = [
 ];
 
 const codingAgentUiContentMarkers = [
-	"@chudware/tui",
+	"@oh-my-pi/pi-tui",
 	"InteractiveMode",
 	"InputController",
 	"StatusLine",
@@ -293,7 +290,7 @@ async function getCodingAgentTestPartition(): Promise<CodingAgentTestPartition> 
 		};
 
 		for (const testFile of testFiles) {
-			const content = await fsx.readText(path.join(codingAgentDir, testFile));
+			const content = await Bun.file(path.join(codingAgentDir, testFile)).text();
 			partition[classifyCodingAgentTest(testFile, content)].push(testFile);
 		}
 
@@ -354,7 +351,7 @@ async function commandsForMode(mode: Mode): Promise<TestCommand[]> {
 			];
 		// `local-ts` is the full local TypeScript run that root `bun run test:ts`
 		// drives: every package the old `--workspaces` fan-out covered (the CI
-		// `all` set plus robochud-web, which CI omits), routed through
+		// `all` set plus robomp-web, which CI omits), routed through
 		// this one quiet runner so the whole suite shares one progress stream and
 		// one failure report. Repo script tests remain available via `test:scripts`.
 		case "local-ts":
@@ -372,7 +369,7 @@ async function commandsForMode(mode: Mode): Promise<TestCommand[]> {
 	}
 }
 
-// The chudcode-kata runner pods may inject cloud credentials (`AWS_*`) pod-wide via
+// The omp-kata runner pods may inject cloud credentials (`AWS_*`) pod-wide via
 // `envFrom`, GitHub Actions injects `GITHUB_TOKEN`,
 // and a host may carry provider API keys. Any of these make env-sensitive code
 // non-deterministic in tests — e.g. leaked AWS creds make `amazon-bedrock` look
@@ -464,9 +461,9 @@ async function runTestCommand(testCommand: TestCommand): Promise<void> {
 // handled by retrying crashed chunks in a fresh process (MAX_CHUNK_ATTEMPTS).
 function buildChildEnv(): Record<string, string | undefined> {
 	const env: Record<string, string | undefined> = {
-		...process.env,
+		...Bun.env,
 		GITHUB_ACTIONS: "",
-		CHUDCODE_TEST_RUNTIME: "1",
+		PI_TEST_RUNTIME: "1",
 		BUN_JSC_useConcurrentGC: "0",
 		BUN_JSC_numberOfGCMarkers: "1",
 	};
@@ -483,9 +480,9 @@ function buildChildEnv(): Record<string, string | undefined> {
 // parallel path awaits the child's stdout/stderr pipes, which stay open as
 // long as the wedged process — or any grandchild that inherited them — lives.
 // After this many seconds the child is SIGKILLed and reported as a failure.
-// Override with CHUDCODE_TEST_CHUNK_TIMEOUT (seconds).
+// Override with OMP_TEST_CHUNK_TIMEOUT (seconds).
 function chunkTimeoutMs(): number {
-	const raw = Number(process.env.CHUDCODE_TEST_CHUNK_TIMEOUT?.trim());
+	const raw = Number(Bun.env.OMP_TEST_CHUNK_TIMEOUT?.trim());
 	if (Number.isFinite(raw) && raw >= 1) return raw * 1000;
 	return 600_000;
 }
@@ -516,10 +513,10 @@ const MAX_CHUNK_ATTEMPTS = 3;
 // two very different ways -- the per-chunk watchdog firing, or the kernel OOM
 // killer reaping a chunk that outgrew the runner -- and the bare exit code
 // cannot tell them apart. Which one it was is the difference between "raise
-// CHUDCODE_TEST_CHUNK_TIMEOUT" and "lower this bucket's chunkSize", so say it.
+// OMP_TEST_CHUNK_TIMEOUT" and "lower this bucket's chunkSize", so say it.
 export function describeChunkFailure(exitCode: number, timedOut: boolean): string {
 	if (timedOut) {
-		return `exceeded the ${Math.round(chunkTimeoutMs() / 1000)}s chunk watchdog and was killed (exit ${exitCode}; CHUDCODE_TEST_CHUNK_TIMEOUT to change)`;
+		return `exceeded the ${Math.round(chunkTimeoutMs() / 1000)}s chunk watchdog and was killed (exit ${exitCode}; OMP_TEST_CHUNK_TIMEOUT to change)`;
 	}
 	if (exitCode === 137) {
 		return "was SIGKILLed (exit 137) without reaching the chunk watchdog, which on a CI runner means the OOM killer; lower this bucket's chunkSize";
@@ -532,18 +529,18 @@ export function describeChunkFailure(exitCode: number, timedOut: boolean): strin
 // chunks run sequentially within a job and parallelism happens across jobs.
 // Locally we trade memory for wall-clock and fan the chunks out across cores.
 function isCI(): boolean {
-	const value = process.env.CI;
+	const value = Bun.env.CI;
 	if (!value) return false;
 	const normalized = value.trim().toLowerCase();
 	return normalized !== "" && normalized !== "0" && normalized !== "false";
 }
 
 // Fan-out width for the local parallel path, clamped to the command count.
-// Defaults to the machine's available parallelism; `CHUDCODE_TEST_CONCURRENCY`
+// Defaults to the machine's available parallelism; `OMP_TEST_CONCURRENCY`
 // overrides it — a positive integer to pick an exact width (dial down on a
 // memory-constrained laptop), or `all`/`max` to launch every chunk at once.
 function testConcurrency(total: number): number {
-	const raw = process.env.CHUDCODE_TEST_CONCURRENCY?.trim().toLowerCase();
+	const raw = Bun.env.OMP_TEST_CONCURRENCY?.trim().toLowerCase();
 	if (!raw) return Math.min(Math.max(1, os.availableParallelism()), total);
 	if (raw === "all" || raw === "max") {
 		return total;
@@ -552,9 +549,7 @@ function testConcurrency(total: number): number {
 	if (Number.isFinite(override) && override >= 1) {
 		return Math.min(Math.floor(override), total);
 	}
-	throw new Error(
-		`Invalid CHUDCODE_TEST_CONCURRENCY=${JSON.stringify(raw)}; expected a positive integer, all, or max`,
-	);
+	throw new Error(`Invalid OMP_TEST_CONCURRENCY=${JSON.stringify(raw)}; expected a positive integer, all, or max`);
 }
 
 // Test files interleave real IO — sqlite writes, temp dirs, spawned CLIs — with
@@ -568,7 +563,7 @@ const FILE_OVERSUBSCRIBE = 2;
 // flight. Left unbudgeted that oversubscribes the runner by design — the
 // workspace bucket asked for 4 x 8 = 32 files on a 4-core box — and because
 // bun's per-test timeout is wall-clock, CPU-starved suites blow it and fail at
-// random (mnemo's sqlite/CLI files did, a different set each run). Spend one
+// random (mnemopi's sqlite/CLI files did, a different set each run). Spend one
 // budget instead: each live chunk gets an equal share, never below 1 and never
 // above the width it asked for. A chunk that runs alone still gets everything,
 // so the sequential CI path is unchanged.
@@ -578,15 +573,15 @@ function budgetedParallel(requested: number, poolWidth: number): number {
 }
 
 // Bun's 5s default per-test timeout is a unit-test default, and this repo's
-// suites are not unit tests: mnemo builds real SQLite schemas per case, the
+// suites are not unit tests: mnemopi builds real SQLite schemas per case, the
 // coding-agent suites drive sessions and subprocesses. Those cases already run
 // 1-4s on a quiet CI runner, so any scheduling hiccup crosses 5s and reports a
 // timeout that says nothing about the code. Timing out is still worth catching,
 // so keep a ceiling — just one loose enough to only fire on a real hang. The
 // per-chunk watchdog (chunkTimeoutMs) remains the backstop for a wedged process.
-// Override with CHUDCODE_TEST_TIMEOUT (seconds); per-test `it(name, fn, ms)` still wins.
+// Override with OMP_TEST_TIMEOUT (seconds); per-test `it(name, fn, ms)` still wins.
 function testTimeoutMs(): number {
-	const raw = Number(process.env.CHUDCODE_TEST_TIMEOUT?.trim());
+	const raw = Number(Bun.env.OMP_TEST_TIMEOUT?.trim());
 	if (Number.isFinite(raw) && raw >= 1) return raw * 1000;
 	return 30_000;
 }
@@ -778,7 +773,7 @@ export async function runTestCommandsInParallel(commands: TestCommand[], concurr
 	const fileWidths = [...new Set(commands.map(c => c.parallel).filter(p => p !== undefined))].sort((a, b) => a - b);
 	console.log(
 		`Running ${commands.length} test command(s), up to ${concurrency} in parallel ` +
-			`(CHUDCODE_TEST_CONCURRENCY=<n>|all to change); ${os.availableParallelism()} cores, ` +
+			`(OMP_TEST_CONCURRENCY=<n>|all to change); ${os.availableParallelism()} cores, ` +
 			`--parallel=${fileWidths.join("/") || "n/a"} per chunk.`,
 	);
 
@@ -855,7 +850,7 @@ export async function runTestCommandsInParallel(commands: TestCommand[], concurr
 		return {
 			exitCode,
 			timedOut,
-			output: `${stdout.text}${stderr.text}${timedOut ? `\n[watchdog] chunk exceeded ${Math.round(chunkTimeoutMs() / 1000)}s; killed with SIGKILL (CHUDCODE_TEST_CHUNK_TIMEOUT to change)\n` : ""}`,
+			output: `${stdout.text}${stderr.text}${timedOut ? `\n[watchdog] chunk exceeded ${Math.round(chunkTimeoutMs() / 1000)}s; killed with SIGKILL (OMP_TEST_CHUNK_TIMEOUT to change)\n` : ""}`,
 		};
 	}
 
@@ -921,6 +916,27 @@ export async function runTestCommandsInParallel(commands: TestCommand[], concurr
 	}
 }
 
+// `OMP_TEST_SHARD=i/n` splits a mode's chunk commands across n CI jobs; job i
+// runs every chunk whose index ≡ i-1 (mod n). Round-robin rather than
+// contiguous ranges because the chunk list follows sorted file order, so slow
+// neighbouring suites spread evenly instead of piling into one shard. Every
+// chunk lands in exactly one shard; unset/empty runs everything.
+export function selectShard<T>(commands: T[], spec: string | undefined): T[] {
+	const trimmed = spec?.trim();
+	if (!trimmed) return commands;
+	const match = /^(\d+)\/(\d+)$/.exec(trimmed);
+	const index = match ? Number(match[1]) : 0;
+	const count = match ? Number(match[2]) : 0;
+	if (!match || count < 1 || index < 1 || index > count) {
+		throw new Error(`Invalid OMP_TEST_SHARD=${JSON.stringify(trimmed)}; expected i/n with 1 <= i <= n`);
+	}
+	const selected = commands.filter((_, i) => i % count === index - 1);
+	if (selected.length === 0) {
+		throw new Error(`OMP_TEST_SHARD=${trimmed} selects no chunks (${commands.length} available)`);
+	}
+	return selected;
+}
+
 // Skipped when imported (e.g. by the runner's own unit tests), where
 // `process.argv` carries test-file paths rather than a mode/flags.
 if (import.meta.main) {
@@ -930,8 +946,8 @@ if (import.meta.main) {
 		);
 	}
 
-	const requestedCommands = await commandsForMode(requestedMode as Mode);
-	const explicitConcurrency = Boolean(process.env.CHUDCODE_TEST_CONCURRENCY?.trim());
+	const requestedCommands = selectShard(await commandsForMode(requestedMode as Mode), Bun.env.OMP_TEST_SHARD);
+	const explicitConcurrency = Boolean(Bun.env.OMP_TEST_CONCURRENCY?.trim());
 	// CI defaults to one process at a time, but memory-sized workflow buckets
 	// explicitly opt into bounded process concurrency. Local runs fan out by
 	// default and may use the same override. Resolved before the dry-run check so

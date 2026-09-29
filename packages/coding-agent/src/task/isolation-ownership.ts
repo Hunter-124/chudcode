@@ -1,21 +1,23 @@
 /**
- * Ownership marker for task-isolation sandboxes under `~/.chudcode/wt/`.
+ * Ownership marker for task-isolation sandboxes under `~/.omp/wt/`.
  *
  * Each isolation base dir (`ensureIsolation` in {@link ./worktree}) holds a
- * compact `m` mount plus this marker file naming the chudcode process that created
- * it. `chudcode worktree clear` consults the marker so it can distinguish a live
+ * compact `m` mount plus this marker file naming the omp process that created
+ * it. `omp worktree clear` consults the marker so it can distinguish a live
  * subagent's sandbox from a crashed run's leftover instead of deleting both.
  */
 import * as path from "node:path";
-import * as fsx from "@chudware/utils/fsx";
+import * as natives from "@oh-my-pi/pi-natives";
 import { $ } from "bun";
 
+const { IsoBackendKind } = natives;
+
 /** Marker file written into a task-isolation base dir identifying its owner. */
-export const ISOLATION_OWNER_FILE = ".chudcode-isolation-owner.json";
+export const ISOLATION_OWNER_FILE = ".omp-isolation-owner.json";
 
 /** Recorded owner of a task-isolation sandbox. */
 export interface IsolationOwner {
-	/** PID of the chudcode process that created and owns the sandbox. */
+	/** PID of the omp process that created and owns the sandbox. */
 	pid: number;
 	/** Task id the sandbox was materialised for. */
 	id: string;
@@ -40,7 +42,7 @@ async function processStartToken(pid: number): Promise<string | null> {
 	if (process.platform === "linux") {
 		let stat: string;
 		try {
-			stat = await fsx.readText(`/proc/${pid}/stat`);
+			stat = await Bun.file(`/proc/${pid}/stat`).text();
 		} catch {
 			return null;
 		}
@@ -62,16 +64,16 @@ async function processStartToken(pid: number): Promise<string | null> {
  * Record the current process as owner of the sandbox rooted at `baseDir`.
  *
  * Written before the isolation backend materialises `m` so a concurrent
- * `chudcode worktree clear` never sees an owner-less sandbox mid-creation.
+ * `omp worktree clear` never sees an owner-less sandbox mid-creation.
  */
 export async function writeIsolationOwner(baseDir: string, id: string): Promise<void> {
 	const startToken = await processStartToken(process.pid);
 	const owner: IsolationOwner = { pid: process.pid, id, ...(startToken ? { startToken } : {}) };
-	await fsx.write(path.join(baseDir, ISOLATION_OWNER_FILE), JSON.stringify(owner));
+	await Bun.write(path.join(baseDir, ISOLATION_OWNER_FILE), JSON.stringify(owner));
 }
 
 /**
- * Whether a live chudcode process still owns the sandbox at `baseDir`.
+ * Whether a live omp process still owns the sandbox at `baseDir`.
  *
  * A missing or malformed marker means no verifiable owner — a crashed run or a
  * sandbox from before markers existed, both safe to reclaim. `process.kill(pid,
@@ -84,7 +86,7 @@ export async function writeIsolationOwner(baseDir: string, id: string): Promise<
 export async function hasLiveIsolationOwner(baseDir: string): Promise<boolean> {
 	let decoded: unknown;
 	try {
-		decoded = await fsx.readJson(path.join(baseDir, ISOLATION_OWNER_FILE));
+		decoded = await Bun.file(path.join(baseDir, ISOLATION_OWNER_FILE)).json();
 	} catch {
 		return false;
 	}
@@ -104,4 +106,62 @@ export async function hasLiveIsolationOwner(baseDir: string): Promise<boolean> {
 		if (current !== null && current !== decoded.startToken) return false;
 	}
 	return true;
+}
+
+/** Sidecar recording the native-teardown backend of a retained workspace. */
+export const RETAINED_BACKEND_FILE = ".omp-retained-backend.json";
+
+/**
+ * Backends whose workspaces `omp worktree clear` must not remove with plain
+ * recursive `rm`, but route through native `isoStop` teardown instead:
+ * mounts (overlayfs, projfs), where `rm` destroys the preserved layer and
+ * fails on the mountpoint, and Btrfs subvolumes, whose root is only removable
+ * via subvolume delete (its `stop` falls back to plain `rm` for ordinary
+ * dirs, so routing it is always safe). Plain-copy and reflink backends need
+ * no teardown — and their `stop` routines delete data themselves, so they
+ * must never be routed through it.
+ *
+ * Notably absent: ZFS clones also need dataset-aware teardown, but `isoStop`
+ * locates the dataset by its recorded mountpoint property, which no longer
+ * matches after the retain rename — that needs pi-iso mount-table support
+ * before a sidecar here could help.
+ */
+export function needsNativeTeardown(backend: unknown): backend is number {
+	return backend === IsoBackendKind.Overlayfs || backend === IsoBackendKind.Projfs || backend === IsoBackendKind.Btrfs;
+}
+
+/**
+ * Record which backend built a retained workspace, so cleanup can route it
+ * through native teardown before removal. Best-effort: retention stays valid
+ * without it (the workspace merely falls back to plain recursive removal).
+ */
+export async function writeRetainedBackend(baseDir: string, backend: number): Promise<void> {
+	await Bun.write(
+		path.join(baseDir, RETAINED_BACKEND_FILE),
+		JSON.stringify({ backend, retainedAt: new Date().toISOString() }),
+	);
+}
+
+/**
+ * Backend recorded for a retained workspace when it needs native teardown
+ * before remove. `undefined` only when no sidecar exists. Any other read
+ * problem (permissions, I/O, malformed JSON) throws instead of reading as
+ * absent: the workspace may be a live mount whose guard must not be silently
+ * bypassed — the caller then leaves it in place rather than removing through
+ * the mount. A well-formed record for a backend needing no teardown keeps
+ * today's removal behavior.
+ */
+export async function readRetainedMountBackend(dir: string): Promise<number | undefined> {
+	const sidecar = path.join(dir, RETAINED_BACKEND_FILE);
+	if (!(await Bun.file(sidecar).exists())) return undefined;
+	const decoded: unknown = await Bun.file(sidecar).json();
+	if (typeof decoded !== "object" || decoded === null || !("backend" in decoded)) {
+		throw new Error(`retained-mount metadata at ${sidecar} is malformed`);
+	}
+	const backend = decoded.backend;
+	if (typeof backend !== "number" || !Number.isInteger(backend)) {
+		throw new Error(`retained-mount metadata at ${sidecar} is malformed`);
+	}
+	if (!needsNativeTeardown(backend)) return undefined;
+	return backend;
 }

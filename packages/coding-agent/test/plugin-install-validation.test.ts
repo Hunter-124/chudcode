@@ -2,10 +2,9 @@ import { afterEach, beforeEach, describe, expect, test, vi } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import { PluginManager } from "@chudware/coding-agent/extensibility/plugins/manager";
-import * as piUtils from "@chudware/utils";
-import { removeWithRetries } from "@chudware/utils";
-import * as fsx from "@chudware/utils/fsx";
+import { PluginManager } from "@oh-my-pi/pi-coding-agent/extensibility/plugins/manager";
+import * as piUtils from "@oh-my-pi/pi-utils";
+import { removeWithRetries } from "@oh-my-pi/pi-utils";
 import type { Subprocess } from "bun";
 
 function emptyStream(): ReadableStream<Uint8Array> {
@@ -45,20 +44,20 @@ interface PluginFixture {
 async function writePluginPackage(pluginsNodeModules: string, name: string, fixture: PluginFixture): Promise<string> {
 	const installedDir = path.join(pluginsNodeModules, name);
 	await fs.mkdir(path.join(installedDir, "dist"), { recursive: true });
-	await fsx.write(
+	await Bun.write(
 		path.join(installedDir, "package.json"),
 		JSON.stringify(
 			{
 				name,
 				version: fixture.version,
 				...(fixture.peerDependencies ? { peerDependencies: fixture.peerDependencies } : {}),
-				chudcode: { extensions: ["./dist/extension.ts"] },
+				omp: { extensions: ["./dist/extension.ts"] },
 			},
 			null,
 			2,
 		),
 	);
-	await fsx.write(path.join(installedDir, "dist", "extension.ts"), fixture.source);
+	await Bun.write(path.join(installedDir, "dist", "extension.ts"), fixture.source);
 	return installedDir;
 }
 
@@ -69,7 +68,7 @@ describe("PluginManager.install load validation", () => {
 	let pluginsPkgJson: string;
 
 	beforeEach(async () => {
-		tmpRoot = await fs.mkdtemp(path.join(os.tmpdir(), "chudcode-plugin-validation-"));
+		tmpRoot = await fs.mkdtemp(path.join(os.tmpdir(), "omp-plugin-validation-"));
 		pluginsDir = path.join(tmpRoot, "plugins");
 		pluginsNodeModules = path.join(pluginsDir, "node_modules");
 		pluginsPkgJson = path.join(pluginsDir, "package.json");
@@ -78,7 +77,7 @@ describe("PluginManager.install load validation", () => {
 		vi.spyOn(piUtils, "getPluginsDir").mockReturnValue(pluginsDir);
 		vi.spyOn(piUtils, "getPluginsNodeModules").mockReturnValue(pluginsNodeModules);
 		vi.spyOn(piUtils, "getPluginsPackageJson").mockReturnValue(pluginsPkgJson);
-		vi.spyOn(piUtils, "getPluginsLockfile").mockReturnValue(path.join(tmpRoot, "chudcode-plugins.lock.json"));
+		vi.spyOn(piUtils, "getPluginsLockfile").mockReturnValue(path.join(tmpRoot, "omp-plugins.lock.json"));
 		vi.spyOn(piUtils, "getProjectDir").mockReturnValue(tmpRoot);
 		vi.spyOn(piUtils, "getProjectPluginOverridesPath").mockReturnValue(path.join(tmpRoot, "plugin-overrides.json"));
 	});
@@ -90,25 +89,25 @@ describe("PluginManager.install load validation", () => {
 
 	test("installs npm protocol specs with the resolved package name", async () => {
 		vi.spyOn(Bun, "spawn").mockImplementation(((cmd: string[]) => {
-			expect(cmd).toEqual(["bun", "install", "npm:chud-figma-remote-auth"]);
+			expect(cmd).toEqual(["bun", "install", "--no-cache", "npm:pi-figma-remote-auth"]);
 
 			const prepare = (async () => {
-				await fsx.write(
+				await Bun.write(
 					pluginsPkgJson,
 					JSON.stringify(
 						{
-							name: "chudcode-plugins",
+							name: "omp-plugins",
 							private: true,
-							dependencies: { "chud-figma-remote-auth": "npm:chud-figma-remote-auth" },
+							dependencies: { "pi-figma-remote-auth": "npm:pi-figma-remote-auth" },
 						},
 						null,
 						2,
 					),
 				);
-				await writePluginPackage(pluginsNodeModules, "chud-figma-remote-auth", {
+				await writePluginPackage(pluginsNodeModules, "pi-figma-remote-auth", {
 					version: "1.2.3",
 					source:
-						'export default function(chud) { chud.registerCommand("figma-auth", { handler: async () => {} }); }\n',
+						'export default function(pi) { pi.registerCommand("figma-auth", { handler: async () => {} }); }\n',
 				});
 			})();
 
@@ -120,23 +119,104 @@ describe("PluginManager.install load validation", () => {
 			} as Subprocess;
 		}) as typeof Bun.spawn);
 
-		const result = await new PluginManager(tmpRoot).install("npm:chud-figma-remote-auth");
+		const result = await new PluginManager(tmpRoot).install("npm:pi-figma-remote-auth");
 
-		expect(result.name).toBe("chud-figma-remote-auth");
+		expect(result.name).toBe("pi-figma-remote-auth");
 		expect(result.version).toBe("1.2.3");
-		expect(result.path).toBe(path.join(pluginsNodeModules, "chud-figma-remote-auth"));
+		expect(result.path).toBe(path.join(pluginsNodeModules, "pi-figma-remote-auth"));
+	});
+
+	// #11634: bun caches the registry packument per its Cache-Control TTL, so a
+	// plain `bun install <name>` kept re-resolving a stale version after a new one
+	// was published (and `install <name>@<newVersion>` failed to resolve). The npm
+	// branch must pass `--no-cache` so the manifest is re-fetched; the exact spec —
+	// including a version pin — must survive unchanged.
+	test("bypasses bun's manifest cache for npm installs so new versions resolve", async () => {
+		let recordedCmd: string[] | undefined;
+		vi.spyOn(Bun, "spawn").mockImplementation(((cmd: string[]) => {
+			recordedCmd = cmd;
+			const prepare = (async () => {
+				await Bun.write(
+					pluginsPkgJson,
+					JSON.stringify(
+						{ name: "omp-plugins", private: true, dependencies: { "welcome-plugin": "0.1.9" } },
+						null,
+						2,
+					),
+				);
+				await writePluginPackage(pluginsNodeModules, "welcome-plugin", {
+					version: "0.1.9",
+					source: "export default function() {}\n",
+				});
+			})();
+			return {
+				pid: 1,
+				stdout: emptyStream(),
+				stderr: emptyStream(),
+				exited: prepare.then(() => 0),
+			} as Subprocess;
+		}) as typeof Bun.spawn);
+
+		const result = await new PluginManager(tmpRoot).install("welcome-plugin@0.1.9");
+
+		expect(recordedCmd).toEqual(["bun", "install", "--no-cache", "welcome-plugin@0.1.9"]);
+		expect(result.version).toBe("0.1.9");
+	});
+
+	test("forces bun to replace an existing scoped npm plugin", async () => {
+		const name = "@scope/plugin";
+		await writePluginPackage(pluginsNodeModules, name, {
+			version: "1.0.3",
+			source: 'export default function(pi) { pi.registerCommand("scoped", { handler: async () => {} }); }\n',
+		});
+		const packageJson = JSON.stringify({
+			name: "omp-plugins",
+			private: true,
+			dependencies: { [name]: "^1.0.3" },
+		});
+		await Bun.write(pluginsPkgJson, packageJson);
+		let recordedCmd: string[] | undefined;
+		let recordedCwd: string | undefined;
+		vi.spyOn(Bun, "spawn").mockImplementation(((cmd: string[], options?: { cwd?: string }) => {
+			recordedCmd = cmd;
+			recordedCwd = options?.cwd;
+			// Faithful `bun install <pkg>` semantics: the manager prunes the stale
+			// edge first, and bun writes the resolved edge back on success.
+			const prepare = (async () => {
+				const current = (await Bun.file(pluginsPkgJson).json()) as {
+					dependencies?: Record<string, string>;
+				};
+				await Bun.write(
+					pluginsPkgJson,
+					JSON.stringify({ ...current, dependencies: { ...current.dependencies, [name]: "^1.0.3" } }, null, 2),
+				);
+			})();
+			return {
+				pid: 1,
+				stdout: emptyStream(),
+				stderr: emptyStream(),
+				exited: prepare.then(() => 0),
+			} as Subprocess;
+		}) as typeof Bun.spawn);
+
+		const result = await new PluginManager(tmpRoot).install(name, { force: true });
+		expect(recordedCmd).toEqual(["bun", "install", "--no-cache", "--force", name]);
+		expect(recordedCwd).toBe(pluginsDir);
+
+		expect(result.version).toBe("1.0.3");
+		expect((await Bun.file(pluginsPkgJson).json()).dependencies).toEqual({ [name]: "^1.0.3" });
 	});
 
 	test("rejects and rolls back an install when the extension factory throws", async () => {
 		vi.spyOn(Bun, "spawn").mockImplementation(((cmd: string[]) => {
-			expect(cmd).toEqual(["bun", "install", "factory-failure-plugin"]);
+			expect(cmd).toEqual(["bun", "install", "--no-cache", "factory-failure-plugin"]);
 
 			const prepare = (async () => {
-				await fsx.write(
+				await Bun.write(
 					pluginsPkgJson,
 					JSON.stringify(
 						{
-							name: "chudcode-plugins",
+							name: "omp-plugins",
 							private: true,
 							dependencies: { "factory-failure-plugin": "1.0.0" },
 						},
@@ -162,20 +242,22 @@ describe("PluginManager.install load validation", () => {
 			/factory-time failure/,
 		);
 
-		const pluginsPackage = await fsx.readJson(pluginsPkgJson);
+		const pluginsPackage = await Bun.file(pluginsPkgJson).json();
 		expect(pluginsPackage.dependencies ?? {}).toEqual({});
-		expect(await fsx.exists(path.join(pluginsNodeModules, "factory-failure-plugin", "package.json"))).toBe(false);
+		expect(await Bun.file(path.join(pluginsNodeModules, "factory-failure-plugin", "package.json")).exists()).toBe(
+			false,
+		);
 	});
 
 	test("rejects an install whose extension entry cannot resolve its dependencies", async () => {
 		vi.spyOn(Bun, "spawn").mockImplementation(((cmd: string[]) => {
-			expect(cmd).toEqual(["bun", "install", "broken-plugin"]);
+			expect(cmd).toEqual(["bun", "install", "--no-cache", "broken-plugin"]);
 
 			const prepare = (async () => {
-				await fsx.write(
+				await Bun.write(
 					pluginsPkgJson,
 					JSON.stringify(
-						{ name: "chudcode-plugins", private: true, dependencies: { "broken-plugin": "1.0.0" } },
+						{ name: "omp-plugins", private: true, dependencies: { "broken-plugin": "1.0.0" } },
 						null,
 						2,
 					),
@@ -184,7 +266,7 @@ describe("PluginManager.install load validation", () => {
 					version: "1.0.0",
 					peerDependencies: { "missing-peer": "^1.0.0" },
 					source:
-						'import { missing } from "missing-peer";\nexport default function(chud) { chud.registerCommand(String(missing), { handler: async () => {} }); }\n',
+						'import { missing } from "missing-peer";\nexport default function(pi) { pi.registerCommand(String(missing), { handler: async () => {} }); }\n',
 				});
 			})();
 
@@ -198,23 +280,19 @@ describe("PluginManager.install load validation", () => {
 
 		await expect(new PluginManager(tmpRoot).install("broken-plugin")).rejects.toThrow(/missing-peer/);
 
-		const pluginsPackage = await fsx.readJson(pluginsPkgJson);
+		const pluginsPackage = await Bun.file(pluginsPkgJson).json();
 		expect(pluginsPackage.dependencies ?? {}).toEqual({});
-		expect(await fsx.exists(path.join(pluginsNodeModules, "broken-plugin", "package.json"))).toBe(false);
-		expect(await fsx.exists(path.join(tmpRoot, "chudcode-plugins.lock.json"))).toBe(false);
+		expect(await Bun.file(path.join(pluginsNodeModules, "broken-plugin", "package.json")).exists()).toBe(false);
+		expect(await Bun.file(path.join(tmpRoot, "omp-plugins.lock.json")).exists()).toBe(false);
 	});
 
 	test("restores the previous package tree when reinstall validation fails", async () => {
-		await fsx.write(
+		await Bun.write(
 			pluginsPkgJson,
-			JSON.stringify(
-				{ name: "chudcode-plugins", private: true, dependencies: { "broken-plugin": "1.0.0" } },
-				null,
-				2,
-			),
+			JSON.stringify({ name: "omp-plugins", private: true, dependencies: { "broken-plugin": "1.0.0" } }, null, 2),
 		);
-		await fsx.write(
-			path.join(tmpRoot, "chudcode-plugins.lock.json"),
+		await Bun.write(
+			path.join(tmpRoot, "omp-plugins.lock.json"),
 			JSON.stringify(
 				{ plugins: { "broken-plugin": { version: "1.0.0", enabledFeatures: null, enabled: true } }, settings: {} },
 				null,
@@ -223,17 +301,17 @@ describe("PluginManager.install load validation", () => {
 		);
 		await writePluginPackage(pluginsNodeModules, "broken-plugin", {
 			version: "1.0.0",
-			source: 'export default function(chud) { chud.registerCommand("old-ok", { handler: async () => {} }); }\n',
+			source: 'export default function(pi) { pi.registerCommand("old-ok", { handler: async () => {} }); }\n',
 		});
 
 		vi.spyOn(Bun, "spawn").mockImplementation(((cmd: string[]) => {
-			expect(cmd).toEqual(["bun", "install", "broken-plugin"]);
+			expect(cmd).toEqual(["bun", "install", "--no-cache", "broken-plugin"]);
 
 			const prepare = (async () => {
-				await fsx.write(
+				await Bun.write(
 					pluginsPkgJson,
 					JSON.stringify(
-						{ name: "chudcode-plugins", private: true, dependencies: { "broken-plugin": "2.0.0" } },
+						{ name: "omp-plugins", private: true, dependencies: { "broken-plugin": "2.0.0" } },
 						null,
 						2,
 					),
@@ -242,7 +320,7 @@ describe("PluginManager.install load validation", () => {
 					version: "2.0.0",
 					peerDependencies: { "missing-peer": "^1.0.0" },
 					source:
-						'import { missing } from "missing-peer";\nexport default function(chud) { chud.registerCommand(String(missing), { handler: async () => {} }); }\n',
+						'import { missing } from "missing-peer";\nexport default function(pi) { pi.registerCommand(String(missing), { handler: async () => {} }); }\n',
 				});
 			})();
 
@@ -256,30 +334,30 @@ describe("PluginManager.install load validation", () => {
 
 		await expect(new PluginManager(tmpRoot).install("broken-plugin")).rejects.toThrow(/missing-peer/);
 
-		const pluginsPackage = await fsx.readJson(pluginsPkgJson);
+		const pluginsPackage = await Bun.file(pluginsPkgJson).json();
 		expect(pluginsPackage.dependencies).toEqual({ "broken-plugin": "1.0.0" });
-		const restoredPackage = await fsx.readJson(path.join(pluginsNodeModules, "broken-plugin", "package.json"));
+		const restoredPackage = await Bun.file(path.join(pluginsNodeModules, "broken-plugin", "package.json")).json();
 		expect(restoredPackage.version).toBe("1.0.0");
-		const restoredExtension = await fsx.readText(
+		const restoredExtension = await Bun.file(
 			path.join(pluginsNodeModules, "broken-plugin", "dist", "extension.ts"),
-		);
+		).text();
 		expect(restoredExtension).toContain("old-ok");
 		expect(restoredExtension).not.toContain("missing-peer");
-		const lock = await fsx.readJson(path.join(tmpRoot, "chudcode-plugins.lock.json"));
+		const lock = await Bun.file(path.join(tmpRoot, "omp-plugins.lock.json")).json();
 		expect(lock.plugins["broken-plugin"]).toEqual({ version: "1.0.0", enabledFeatures: null, enabled: true });
 	});
 
 	test("restores the previous git plugin tree when reinstalling a different ref fails validation", async () => {
-		await fsx.write(
+		await Bun.write(
 			pluginsPkgJson,
 			JSON.stringify(
-				{ name: "chudcode-plugins", private: true, dependencies: { "git-plugin": "github:org/plugin#v1" } },
+				{ name: "omp-plugins", private: true, dependencies: { "git-plugin": "github:org/plugin#v1" } },
 				null,
 				2,
 			),
 		);
-		await fsx.write(
-			path.join(tmpRoot, "chudcode-plugins.lock.json"),
+		await Bun.write(
+			path.join(tmpRoot, "omp-plugins.lock.json"),
 			JSON.stringify(
 				{ plugins: { "git-plugin": { version: "1.0.0", enabledFeatures: null, enabled: true } }, settings: {} },
 				null,
@@ -288,7 +366,7 @@ describe("PluginManager.install load validation", () => {
 		);
 		await writePluginPackage(pluginsNodeModules, "git-plugin", {
 			version: "1.0.0",
-			source: 'export default function(chud) { chud.registerCommand("git-old-ok", { handler: async () => {} }); }\n',
+			source: 'export default function(pi) { pi.registerCommand("git-old-ok", { handler: async () => {} }); }\n',
 		});
 
 		vi.spyOn(Bun, "spawn").mockImplementation(((cmd: string[]) => {
@@ -296,14 +374,10 @@ describe("PluginManager.install load validation", () => {
 				expect(cmd).toEqual(["bun", "install", "github:org/plugin#v2"]);
 
 				const prepare = (async () => {
-					await fsx.write(
+					await Bun.write(
 						pluginsPkgJson,
 						JSON.stringify(
-							{
-								name: "chudcode-plugins",
-								private: true,
-								dependencies: { "git-plugin": "github:org/plugin#v2" },
-							},
+							{ name: "omp-plugins", private: true, dependencies: { "git-plugin": "github:org/plugin#v2" } },
 							null,
 							2,
 						),
@@ -312,7 +386,7 @@ describe("PluginManager.install load validation", () => {
 						version: "2.0.0",
 						peerDependencies: { "missing-peer": "^1.0.0" },
 						source:
-							'import { missing } from "missing-peer";\nexport default function(chud) { chud.registerCommand(String(missing), { handler: async () => {} }); }\n',
+							'import { missing } from "missing-peer";\nexport default function(pi) { pi.registerCommand(String(missing), { handler: async () => {} }); }\n',
 					});
 				})();
 
@@ -338,47 +412,49 @@ describe("PluginManager.install load validation", () => {
 
 		await expect(new PluginManager(tmpRoot).install("github:org/plugin#v2")).rejects.toThrow(/missing-peer/);
 
-		const pluginsPackage = await fsx.readJson(pluginsPkgJson);
+		const pluginsPackage = await Bun.file(pluginsPkgJson).json();
 		expect(pluginsPackage.dependencies).toEqual({ "git-plugin": "github:org/plugin#v1" });
-		const restoredPackage = await fsx.readJson(path.join(pluginsNodeModules, "git-plugin", "package.json"));
+		const restoredPackage = await Bun.file(path.join(pluginsNodeModules, "git-plugin", "package.json")).json();
 		expect(restoredPackage.version).toBe("1.0.0");
-		const restoredExtension = await fsx.readText(path.join(pluginsNodeModules, "git-plugin", "dist", "extension.ts"));
+		const restoredExtension = await Bun.file(
+			path.join(pluginsNodeModules, "git-plugin", "dist", "extension.ts"),
+		).text();
 		expect(restoredExtension).toContain("git-old-ok");
 		expect(restoredExtension).not.toContain("missing-peer");
-		const lock = await fsx.readJson(path.join(tmpRoot, "chudcode-plugins.lock.json"));
+		const lock = await Bun.file(path.join(tmpRoot, "omp-plugins.lock.json")).json();
 		expect(lock.plugins["git-plugin"]).toEqual({ version: "1.0.0", enabledFeatures: null, enabled: true });
 	});
 
 	test("rejects an install whose manifest declares a missing extension entry", async () => {
 		vi.spyOn(Bun, "spawn").mockImplementation(((cmd: string[]) => {
-			expect(cmd).toEqual(["bun", "install", "partial-plugin"]);
+			expect(cmd).toEqual(["bun", "install", "--no-cache", "partial-plugin"]);
 
 			const prepare = (async () => {
-				await fsx.write(
+				await Bun.write(
 					pluginsPkgJson,
 					JSON.stringify(
-						{ name: "chudcode-plugins", private: true, dependencies: { "partial-plugin": "1.0.0" } },
+						{ name: "omp-plugins", private: true, dependencies: { "partial-plugin": "1.0.0" } },
 						null,
 						2,
 					),
 				);
 				const installedDir = path.join(pluginsNodeModules, "partial-plugin");
 				await fs.mkdir(path.join(installedDir, "dist"), { recursive: true });
-				await fsx.write(
+				await Bun.write(
 					path.join(installedDir, "package.json"),
 					JSON.stringify(
 						{
 							name: "partial-plugin",
 							version: "1.0.0",
-							chudcode: { extensions: ["./dist/valid.ts", "./dist/missing.ts"] },
+							omp: { extensions: ["./dist/valid.ts", "./dist/missing.ts"] },
 						},
 						null,
 						2,
 					),
 				);
-				await fsx.write(
+				await Bun.write(
 					path.join(installedDir, "dist", "valid.ts"),
-					'export default function(chud) { chud.registerCommand("valid-ext", { handler: async () => {} }); }\n',
+					'export default function(pi) { pi.registerCommand("valid-ext", { handler: async () => {} }); }\n',
 				);
 			})();
 
@@ -392,10 +468,10 @@ describe("PluginManager.install load validation", () => {
 
 		await expect(new PluginManager(tmpRoot).install("partial-plugin")).rejects.toThrow(/dist\/missing\.ts/);
 
-		const pluginsPackage = await fsx.readJson(pluginsPkgJson);
+		const pluginsPackage = await Bun.file(pluginsPkgJson).json();
 		expect(pluginsPackage.dependencies ?? {}).toEqual({});
-		expect(await fsx.exists(path.join(pluginsNodeModules, "partial-plugin", "package.json"))).toBe(false);
-		expect(await fsx.exists(path.join(tmpRoot, "chudcode-plugins.lock.json"))).toBe(false);
+		expect(await Bun.file(path.join(pluginsNodeModules, "partial-plugin", "package.json")).exists()).toBe(false);
+		expect(await Bun.file(path.join(tmpRoot, "omp-plugins.lock.json")).exists()).toBe(false);
 	});
 
 	test("restores bun.lock when a git reinstall fails validation (#3069 follow-up)", async () => {
@@ -405,19 +481,19 @@ describe("PluginManager.install load validation", () => {
 		// the reviewer flagged: bun update mutates bun.lock before validation).
 		// Extension validation then fails and the rollback must restore the
 		// ORIGINAL pin — not the install-time pin, not the update-time pin.
-		await fsx.write(
+		await Bun.write(
 			pluginsPkgJson,
 			JSON.stringify(
-				{ name: "chudcode-plugins", private: true, dependencies: { "git-plugin": "github:org/plugin#v1" } },
+				{ name: "omp-plugins", private: true, dependencies: { "git-plugin": "github:org/plugin#v1" } },
 				null,
 				2,
 			),
 		);
 		const bunLockPath = path.join(pluginsDir, "bun.lock");
 		const ORIGINAL_LOCK = '# bun.lock\n"git-plugin": "github:org/plugin#sha-v1"\n';
-		await fsx.write(bunLockPath, ORIGINAL_LOCK);
-		await fsx.write(
-			path.join(tmpRoot, "chudcode-plugins.lock.json"),
+		await Bun.write(bunLockPath, ORIGINAL_LOCK);
+		await Bun.write(
+			path.join(tmpRoot, "omp-plugins.lock.json"),
 			JSON.stringify(
 				{ plugins: { "git-plugin": { version: "1.0.0", enabledFeatures: null, enabled: true } }, settings: {} },
 				null,
@@ -426,7 +502,7 @@ describe("PluginManager.install load validation", () => {
 		);
 		await writePluginPackage(pluginsNodeModules, "git-plugin", {
 			version: "1.0.0",
-			source: 'export default function(chud) { chud.registerCommand("git-old-ok", { handler: async () => {} }); }\n',
+			source: 'export default function(pi) { pi.registerCommand("git-old-ok", { handler: async () => {} }); }\n',
 		});
 
 		vi.spyOn(Bun, "spawn").mockImplementation(((cmd: string[]) => {
@@ -434,11 +510,11 @@ describe("PluginManager.install load validation", () => {
 				const prepare = (async () => {
 					// bun install rewrites the lockfile to a stale-but-different pin
 					// and stages the broken v2 tree.
-					await fsx.write(bunLockPath, '# bun.lock\n"git-plugin": "github:org/plugin#sha-install"\n');
-					await fsx.write(
+					await Bun.write(bunLockPath, '# bun.lock\n"git-plugin": "github:org/plugin#sha-install"\n');
+					await Bun.write(
 						pluginsPkgJson,
 						JSON.stringify(
-							{ name: "chudcode-plugins", private: true, dependencies: { "git-plugin": "github:org/plugin" } },
+							{ name: "omp-plugins", private: true, dependencies: { "git-plugin": "github:org/plugin" } },
 							null,
 							2,
 						),
@@ -447,7 +523,7 @@ describe("PluginManager.install load validation", () => {
 						version: "2.0.0",
 						peerDependencies: { "missing-peer": "^1.0.0" },
 						source:
-							'import { missing } from "missing-peer";\nexport default function(chud) { chud.registerCommand(String(missing), { handler: async () => {} }); }\n',
+							'import { missing } from "missing-peer";\nexport default function(pi) { pi.registerCommand(String(missing), { handler: async () => {} }); }\n',
 					});
 				})();
 				return {
@@ -463,7 +539,7 @@ describe("PluginManager.install load validation", () => {
 				// bun update re-resolves the ref and rewrites the lockfile pin
 				// AGAIN. Without bun.lock snapshotting this pin would survive
 				// the validation failure below.
-				await fsx.write(bunLockPath, '# bun.lock\n"git-plugin": "github:org/plugin#sha-update"\n');
+				await Bun.write(bunLockPath, '# bun.lock\n"git-plugin": "github:org/plugin#sha-update"\n');
 			})();
 			return {
 				pid: 2,
@@ -475,10 +551,10 @@ describe("PluginManager.install load validation", () => {
 
 		await expect(new PluginManager(tmpRoot).install("github:org/plugin")).rejects.toThrow(/missing-peer/);
 
-		expect(await fsx.readText(bunLockPath)).toBe(ORIGINAL_LOCK);
-		const pluginsPackage = await fsx.readJson(pluginsPkgJson);
+		expect(await Bun.file(bunLockPath).text()).toBe(ORIGINAL_LOCK);
+		const pluginsPackage = await Bun.file(pluginsPkgJson).json();
 		expect(pluginsPackage.dependencies).toEqual({ "git-plugin": "github:org/plugin#v1" });
-		const restoredPackage = await fsx.readJson(path.join(pluginsNodeModules, "git-plugin", "package.json"));
+		const restoredPackage = await Bun.file(path.join(pluginsNodeModules, "git-plugin", "package.json")).json();
 		expect(restoredPackage.version).toBe("1.0.0");
 	});
 
@@ -487,16 +563,16 @@ describe("PluginManager.install load validation", () => {
 		// extension validation fails, rollback must remove the newly-created
 		// lockfile so the next install starts clean.
 		const bunLockPath = path.join(pluginsDir, "bun.lock");
-		expect(await fsx.exists(bunLockPath)).toBe(false);
+		expect(await Bun.file(bunLockPath).exists()).toBe(false);
 
 		vi.spyOn(Bun, "spawn").mockImplementation(((cmd: string[]) => {
-			expect(cmd).toEqual(["bun", "install", "broken-plugin"]);
+			expect(cmd).toEqual(["bun", "install", "--no-cache", "broken-plugin"]);
 			const prepare = (async () => {
-				await fsx.write(bunLockPath, '# bun.lock\n"broken-plugin": "1.0.0"\n');
-				await fsx.write(
+				await Bun.write(bunLockPath, '# bun.lock\n"broken-plugin": "1.0.0"\n');
+				await Bun.write(
 					pluginsPkgJson,
 					JSON.stringify(
-						{ name: "chudcode-plugins", private: true, dependencies: { "broken-plugin": "1.0.0" } },
+						{ name: "omp-plugins", private: true, dependencies: { "broken-plugin": "1.0.0" } },
 						null,
 						2,
 					),
@@ -505,7 +581,7 @@ describe("PluginManager.install load validation", () => {
 					version: "1.0.0",
 					peerDependencies: { "missing-peer": "^1.0.0" },
 					source:
-						'import { missing } from "missing-peer";\nexport default function(chud) { chud.registerCommand(String(missing), { handler: async () => {} }); }\n',
+						'import { missing } from "missing-peer";\nexport default function(pi) { pi.registerCommand(String(missing), { handler: async () => {} }); }\n',
 				});
 			})();
 			return {
@@ -518,7 +594,7 @@ describe("PluginManager.install load validation", () => {
 
 		await expect(new PluginManager(tmpRoot).install("broken-plugin")).rejects.toThrow(/missing-peer/);
 
-		expect(await fsx.exists(bunLockPath)).toBe(false);
+		expect(await Bun.file(bunLockPath).exists()).toBe(false);
 	});
 
 	test("rolls back when an unknown feature is requested after a git reinstall", async () => {
@@ -526,30 +602,30 @@ describe("PluginManager.install load validation", () => {
 		// validation. Pre-#3069-followup it threw outside the rollback block,
 		// so an unknown feature would leave the rejected commit + lockfile pin
 		// in place. Now it must roll back everything.
-		await fsx.write(
+		await Bun.write(
 			pluginsPkgJson,
 			JSON.stringify(
-				{ name: "chudcode-plugins", private: true, dependencies: { "git-plugin": "github:org/plugin" } },
+				{ name: "omp-plugins", private: true, dependencies: { "git-plugin": "github:org/plugin" } },
 				null,
 				2,
 			),
 		);
 		const bunLockPath = path.join(pluginsDir, "bun.lock");
 		const ORIGINAL_LOCK = '# bun.lock\n"git-plugin": "github:org/plugin#sha-v1"\n';
-		await fsx.write(bunLockPath, ORIGINAL_LOCK);
+		await Bun.write(bunLockPath, ORIGINAL_LOCK);
 		await writePluginPackage(pluginsNodeModules, "git-plugin", {
 			version: "1.0.0",
-			source: 'export default function(chud) { chud.registerCommand("git-old-ok", { handler: async () => {} }); }\n',
+			source: 'export default function(pi) { pi.registerCommand("git-old-ok", { handler: async () => {} }); }\n',
 		});
 		// The seeded manifest declares one feature `keep`; user will request
 		// the unknown feature `ghost` instead.
-		await fsx.write(
+		await Bun.write(
 			path.join(pluginsNodeModules, "git-plugin", "package.json"),
 			JSON.stringify(
 				{
 					name: "git-plugin",
 					version: "1.0.0",
-					chudcode: {
+					omp: {
 						extensions: ["./dist/extension.ts"],
 						features: { keep: { description: "keep me" } },
 					},
@@ -562,7 +638,7 @@ describe("PluginManager.install load validation", () => {
 		vi.spyOn(Bun, "spawn").mockImplementation(((cmd: string[]) => {
 			if (cmd[1] === "install") {
 				const prepare = (async () => {
-					await fsx.write(bunLockPath, '# bun.lock\n"git-plugin": "github:org/plugin#sha-install"\n');
+					await Bun.write(bunLockPath, '# bun.lock\n"git-plugin": "github:org/plugin#sha-install"\n');
 				})();
 				return {
 					pid: 1,
@@ -574,7 +650,7 @@ describe("PluginManager.install load validation", () => {
 			if (cmd[1] === "pm") return pmCacheSubprocess(tmpRoot, cmd);
 			expect(cmd).toEqual(["bun", "update", "git-plugin"]);
 			const prepare = (async () => {
-				await fsx.write(bunLockPath, '# bun.lock\n"git-plugin": "github:org/plugin#sha-update"\n');
+				await Bun.write(bunLockPath, '# bun.lock\n"git-plugin": "github:org/plugin#sha-update"\n');
 			})();
 			return {
 				pid: 2,
@@ -586,8 +662,8 @@ describe("PluginManager.install load validation", () => {
 
 		await expect(new PluginManager(tmpRoot).install("github:org/plugin[ghost]")).rejects.toThrow(/Unknown feature/);
 
-		expect(await fsx.readText(bunLockPath)).toBe(ORIGINAL_LOCK);
-		const pluginsPackage = await fsx.readJson(pluginsPkgJson);
+		expect(await Bun.file(bunLockPath).text()).toBe(ORIGINAL_LOCK);
+		const pluginsPackage = await Bun.file(pluginsPkgJson).json();
 		expect(pluginsPackage.dependencies).toEqual({ "git-plugin": "github:org/plugin" });
 	});
 });

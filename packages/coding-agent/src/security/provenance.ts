@@ -1,4 +1,4 @@
-import type { SecurityAccountRef, SecurityProducer, SecurityProvenance, SecurityScan } from "./contracts";
+import type { SecurityAuthRef, SecurityProducer, SecurityProvenance, SecurityScan } from "./contracts";
 import { canonicalSecurityJson } from "./contracts";
 
 export const CODEX_SECURITY_UPSTREAM = {
@@ -9,18 +9,18 @@ export const CODEX_SECURITY_UPSTREAM = {
 	archiveSha256: "13745c495b7c5cf5273cf2115df86b9c3ec3056f43151c869e004aa3f30bcffb",
 } as const;
 
-export const CHUDCODE_SECURITY_WORKFLOW_VERSION = "1.0.0";
+export const OMP_SECURITY_WORKFLOW_VERSION = "1.0.0";
 
 export function createNativeSecurityProducer(): SecurityProducer {
 	return {
-		kind: "chudcode-native",
-		name: "Chudcode Native Security",
-		version: CHUDCODE_SECURITY_WORKFLOW_VERSION,
+		kind: "omp-native",
+		name: "OMP Native Security",
+		version: OMP_SECURITY_WORKFLOW_VERSION,
 	};
 }
 
-export function createSecurityCredentialAffinity(account: SecurityAccountRef): string {
-	return `chudcode-security-credential/v1:sha256:${Bun.SHA256.hash(canonicalSecurityJson(account), "hex")}`;
+export function createSecurityCredentialAffinity(account: SecurityAuthRef): string {
+	return `omp-security-credential/v1:sha256:${Bun.SHA256.hash(canonicalSecurityJson(account), "hex")}`;
 }
 const PRIVATE_SECURITY_KEYS = new Set([
 	"account",
@@ -70,7 +70,7 @@ export function createPublicSecurityScan(scan: SecurityScan, options: { includeP
 
 export function createNativeSecurityProvenance(options: {
 	createdAt: string;
-	account: SecurityAccountRef;
+	account: SecurityAuthRef;
 	planFingerprint: string;
 	workflowFingerprint: string;
 	sessionId?: string;
@@ -83,7 +83,7 @@ export function createNativeSecurityProvenance(options: {
 		credentialAffinity: createSecurityCredentialAffinity(options.account),
 	};
 	if (options.sessionId !== undefined) {
-		metadata.sessionAffinity = `chudcode-security-session/v1:sha256:${Bun.SHA256.hash(options.sessionId, "hex")}`;
+		metadata.sessionAffinity = `omp-security-session/v1:sha256:${Bun.SHA256.hash(options.sessionId, "hex")}`;
 	}
 	if (options.operationId !== undefined) metadata.operationId = options.operationId;
 	return {
@@ -95,9 +95,9 @@ export function createNativeSecurityProvenance(options: {
 }
 
 export function createSecurityWorkflowFingerprint(inputs: readonly string[]): string {
-	return `chudcode-security-workflow/v1:sha256:${Bun.SHA256.hash(
+	return `omp-security-workflow/v1:sha256:${Bun.SHA256.hash(
 		canonicalSecurityJson({
-			workflowVersion: CHUDCODE_SECURITY_WORKFLOW_VERSION,
+			workflowVersion: OMP_SECURITY_WORKFLOW_VERSION,
 			upstream: CODEX_SECURITY_UPSTREAM,
 			inputs,
 		}),

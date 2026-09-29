@@ -4,20 +4,21 @@
  * `shake` drops heavy content out of the live context mechanically:
  * tool-result text and large fenced/XML blocks are replaced with short
  * placeholders while non-text tool-result content is preserved. This module
- * is the pure layer — region detection and in-place mutation only. Artifact
- * offload, persistence, and provider-session teardown are orchestrated by the
- * caller (`AgentSession.shake`).
+ * is the pure layer — region detection and in-place
+ * mutation only. Artifact offload, persistence, and provider-session teardown
+ * are orchestrated by the caller (`AgentSession.shake`).
  *
  * Layering mirrors `pruning.ts`: no I/O here.
  */
 
-import type { TextContent, ToolResultMessage } from "@chudware/ai";
+import type { TextContent, ToolResultMessage } from "@oh-my-pi/pi-ai";
 import type { Tokenizer } from "../tokenizer";
 import type { AgentMessage } from "../types";
 import type { CustomMessageEntry, SessionEntry, SessionMessageEntry } from "./entries";
 import { invalidateMessageCache } from "./message-cache";
 import {
 	collectToolCallsById,
+	getToolResultMessage,
 	isArtifactRecoveryToolResult,
 	isProtectedToolResult,
 	isSkillReadToolResult,
@@ -109,13 +110,6 @@ export type ShakeRegion = ToolResultShakeRegion | BlockShakeRegion;
 const OPENING_XML = /^<([a-z_-]+)(?:\s+[^>]*)?>$/;
 const CLOSING_XML = /^<\/([a-z_-]+)>$/;
 
-function getToolResultMessage(entry: SessionEntry): ToolResultMessage | undefined {
-	if (entry.type !== "message") return undefined;
-	const message = entry.message as AgentMessage;
-	if (message.role !== "toolResult") return undefined;
-	return message as ToolResultMessage;
-}
-
 function toolResultText(
 	message: ToolResultMessage,
 	tokenizer: Tokenizer,
@@ -152,7 +146,7 @@ function entryTokens(entry: SessionEntry, tokenizer: Tokenizer): number {
  *
  * Conservative: unterminated fences/tags yield no range, and XML detection is
  * suppressed inside fences. Mirrors the toggling logic in
- * `@chudware/utils` `format()` so behavior stays aligned with prompt rendering.
+ * `@oh-my-pi/pi-utils` `format()` so behavior stays aligned with prompt rendering.
  */
 function scanTextForBlockRanges(text: string): Array<{ start: number; end: number }> {
 	const ranges: Array<{ start: number; end: number }> = [];
@@ -306,7 +300,8 @@ function scanContentBlocks(
  * (honoring `protectedTools` and skipping already-pruned results) and large
  * fenced/XML blocks inside user/developer/assistant/custom messages.
  * Contextually useless tool results bypass the protect window — there is
- * nothing recent worth keeping in them. Returns regions in document order.
+ * nothing recent
+ * worth keeping in them. Returns regions in document order.
  *
  * `toolCall` blocks are never touched (tool-call/result pairing is preserved)
  * and regions never span a message boundary. When the combined estimated
@@ -317,6 +312,7 @@ export function collectShakeRegions(entries: SessionEntry[], tokenizer: Tokenize
 	if (n === 0) return [];
 
 	// Tokens of all entries strictly more recent than index i.
+	// oxlint-disable-next-line unicorn/no-new-array -- length preallocation
 	const accumulatedAfter = new Array<number>(n);
 	let acc = 0;
 	for (let i = n - 1; i >= 0; i--) {

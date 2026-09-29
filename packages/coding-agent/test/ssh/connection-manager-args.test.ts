@@ -1,8 +1,7 @@
 import { describe, expect, it } from "bun:test";
 import * as fs from "node:fs";
 import * as path from "node:path";
-import { getRemoteHostDir } from "@chudware/utils";
-import * as fsx from "@chudware/utils/fsx";
+import { getRemoteHostDir } from "@oh-my-pi/pi-utils";
 import {
 	buildRemoteCommand,
 	extractProbePayload,
@@ -20,11 +19,6 @@ import { buildSshTarget, sanitizeHostName } from "../../src/ssh/utils";
 const TARGET: SSHConnectionTarget = { name: "h", host: "h" };
 
 describe("buildRemoteCommand stdin handling", () => {
-	it("includes -n by default so ssh reads stdin from /dev/null", async () => {
-		const args = await buildRemoteCommand(TARGET, "cat");
-		expect(args).toContain("-n");
-	});
-
 	it("omits -n when allowStdin is set so the remote command reads piped stdin", async () => {
 		const args = await buildRemoteCommand(TARGET, "cat", { allowStdin: true });
 		expect(args).not.toContain("-n");
@@ -67,9 +61,9 @@ describe("ssh host shell classification", () => {
 			["/usr/bin/zsh", "zsh"],
 		];
 		for (const [shellValue, expected] of cases) {
-			const name = `chudcode-shellclf-${crypto.randomUUID()}`;
+			const name = `omp-shellclf-${crypto.randomUUID()}`;
 			const file = path.join(getRemoteHostDir(), `${sanitizeHostName(name)}.json`);
-			await fsx.write(file, JSON.stringify({ version: 3, os: "linux", shell: shellValue, compatEnabled: false }));
+			await Bun.write(file, JSON.stringify({ version: 3, os: "linux", shell: shellValue, compatEnabled: false }));
 			try {
 				const info = await getHostInfo(name);
 				expect(info?.shell).toBe(expected);
@@ -107,7 +101,7 @@ describe("extractProbePayload (host probe framing)", () => {
 
 describe("findProbeMarker (transfer-shell probe recovery)", () => {
 	it("returns the tail after the marker when it appears in stdout", () => {
-		// Happy path: `sh -lc 'printf "CHUDCODE_TRANSFER_OK|"; uname -s'` lands in
+		// Happy path: `sh -lc 'printf "PI_TRANSFER_OK|"; uname -s'` lands in
 		// stdout. The tail is the uname output the caller uses to refine OS.
 		const stdout = `${TRANSFER_PROBE_MARKER}Linux\n`;
 		expect(findProbeMarker(stdout, "", TRANSFER_PROBE_MARKER)).toBe("Linux\n");

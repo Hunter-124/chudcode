@@ -1,18 +1,20 @@
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "bun:test";
 import * as fs from "node:fs";
 import * as path from "node:path";
-import { Agent } from "@chudware/agent-core";
-import { ModelRegistry } from "@chudware/coding-agent/config/model-registry";
-import { resetSettingsForTest, Settings } from "@chudware/coding-agent/config/settings";
-import { LSP_STARTUP_EVENT_CHANNEL, type LspStartupEvent } from "@chudware/coding-agent/lsp/startup-events";
-import { InteractiveMode } from "@chudware/coding-agent/modes/interactive-mode";
-import { initTheme, theme } from "@chudware/coding-agent/modes/theme/theme";
-import { AgentSession } from "@chudware/coding-agent/session/agent-session";
-import { AuthStorage } from "@chudware/coding-agent/session/auth-storage";
-import { SessionManager } from "@chudware/coding-agent/session/session-manager";
-import type { LspStartupServerInfo } from "@chudware/coding-agent/tools";
-import { EventBus } from "@chudware/coding-agent/utils/event-bus";
-import { TempDir } from "@chudware/utils";
+import { Agent } from "@oh-my-pi/pi-agent-core";
+import { ModelRegistry } from "@oh-my-pi/pi-coding-agent/config/model-registry";
+import { resetSettingsForTest, Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
+import { LSP_STARTUP_EVENT_CHANNEL, type LspStartupEvent } from "@oh-my-pi/pi-coding-agent/lsp/startup-events";
+import { InteractiveMode } from "@oh-my-pi/pi-coding-agent/modes/interactive-mode";
+import { initTheme, theme } from "@oh-my-pi/pi-tui/theme";
+import { AgentSession } from "@oh-my-pi/pi-coding-agent/session/agent-session";
+import { AuthStorage } from "@oh-my-pi/pi-coding-agent/session/auth-storage";
+import { SessionManager } from "@oh-my-pi/pi-coding-agent/session/session-manager";
+import type { LspStartupServerInfo } from "@oh-my-pi/pi-coding-agent/tools";
+import { EventBus } from "@oh-my-pi/pi-coding-agent/utils/event-bus";
+import { TempDir } from "@oh-my-pi/pi-utils";
+
+import { cfgStartupQuiet } from "@oh-my-pi/pi-coding-agent/modes/settings";
 
 describe("InteractiveMode LSP startup welcome banner", () => {
 	let authStorage: AuthStorage;
@@ -120,7 +122,7 @@ describe("InteractiveMode LSP startup welcome banner", () => {
 		expect(findServerLine()).toContain(theme.status.enabled);
 		expect(findServerLine()).not.toContain(theme.status.pending);
 
-		session.settings.set("startup.quiet", true);
+		cfgStartupQuiet.set(session.settings, true);
 		const showWarningSpy = vi.spyOn(mode, "showWarning").mockImplementation(() => {});
 		eventBus.emit(LSP_STARTUP_EVENT_CHANNEL, {
 			type: "failed",

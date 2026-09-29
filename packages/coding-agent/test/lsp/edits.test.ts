@@ -2,9 +2,8 @@ import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import { applyEditsThenRename } from "@chudware/coding-agent/lsp/edits";
-import type { TextEdit } from "@chudware/coding-agent/lsp/types";
-import * as fsx from "@chudware/utils/fsx";
+import { applyEditsThenRename } from "@oh-my-pi/pi-coding-agent/lsp/edits";
+import type { TextEdit } from "@oh-my-pi/pi-coding-agent/lsp/types";
 
 // Rewrite `./moved` → `./renamed` on line 0 of the reference file below.
 const importEdit: TextEdit[] = [
@@ -21,8 +20,8 @@ describe("applyEditsThenRename", () => {
 		dir = await fs.mkdtemp(path.join(os.tmpdir(), "edits-rename-"));
 		source = path.join(dir, "moved.ts");
 		ref = path.join(dir, "ref.ts");
-		await fsx.write(source, "export const x = 1;\n");
-		await fsx.write(ref, refBefore);
+		await Bun.write(source, "export const x = 1;\n");
+		await Bun.write(ref, refBefore);
 	});
 
 	afterEach(async () => {
@@ -33,23 +32,23 @@ describe("applyEditsThenRename", () => {
 		const dest = path.join(dir, "nested", "renamed.ts");
 		await applyEditsThenRename([{ filePath: ref, edits: importEdit }], source, dest);
 
-		expect(await fsx.readText(dest)).toBe("export const x = 1;\n");
-		expect(await fsx.exists(source)).toBe(false);
-		expect(await fsx.readText(ref)).toBe('import { x } from "./renamed";\n');
+		expect(await Bun.file(dest).text()).toBe("export const x = 1;\n");
+		expect(await Bun.file(source).exists()).toBe(false);
+		expect(await Bun.file(ref).text()).toBe('import { x } from "./renamed";\n');
 	});
 
 	it("rolls back reference edits when the move fails", async () => {
 		// A regular file stands where a dest-parent directory must be, so the
 		// recursive mkdir throws ENOTDIR before the rename runs.
 		const blocker = path.join(dir, "blocker");
-		await fsx.write(blocker, "not a dir");
+		await Bun.write(blocker, "not a dir");
 		const dest = path.join(blocker, "sub", "renamed.ts");
 
 		await expect(applyEditsThenRename([{ filePath: ref, edits: importEdit }], source, dest)).rejects.toThrow();
 
 		// Failed move must leave source, destination, and reference files untouched.
-		expect(await fsx.readText(ref)).toBe(refBefore);
-		expect(await fsx.exists(source)).toBe(true);
-		expect(await fsx.exists(dest)).toBe(false);
+		expect(await Bun.file(ref).text()).toBe(refBefore);
+		expect(await Bun.file(source).exists()).toBe(true);
+		expect(await Bun.file(dest).exists()).toBe(false);
 	});
 });

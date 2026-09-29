@@ -2,16 +2,15 @@ import { afterEach, describe, expect, it } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import { loadSourceSherpaRuntime } from "@chudware/coding-agent/stt/sherpa-runtime";
-import { removeWithRetries } from "@chudware/utils";
-import * as fsx from "@chudware/utils/fsx";
+import { loadSourceSherpaRuntime } from "@oh-my-pi/pi-coding-agent/stt/sherpa-runtime";
+import { removeWithRetries } from "@oh-my-pi/pi-utils";
 
 const PLATFORM_PACKAGE = `sherpa-onnx-${os.platform() === "win32" ? "win" : os.platform()}-${os.arch()}`;
 
 async function writePackage(nodeModules: string, name: string, source: string): Promise<void> {
 	const dir = path.join(nodeModules, name);
-	await fsx.write(path.join(dir, "package.json"), JSON.stringify({ name, main: "index.js" }));
-	await fsx.write(path.join(dir, "index.js"), source);
+	await Bun.write(path.join(dir, "package.json"), JSON.stringify({ name, main: "index.js" }));
+	await Bun.write(path.join(dir, "index.js"), source);
 }
 
 describe("sherpa source runtime resolution", () => {
@@ -22,7 +21,7 @@ describe("sherpa source runtime resolution", () => {
 	});
 
 	it("loads the wrapper colocated with a workspace-hoisted platform addon", async () => {
-		tmp = await fs.mkdtemp(path.join(os.tmpdir(), "chudcode-sherpa-source-"));
+		tmp = await fs.mkdtemp(path.join(os.tmpdir(), "omp-sherpa-source-"));
 		const rootNodeModules = path.join(tmp, "node_modules");
 		const packageNodeModules = path.join(tmp, "packages", "coding-agent", "node_modules");
 		await writePackage(
@@ -44,7 +43,7 @@ describe("sherpa source runtime resolution", () => {
 	});
 
 	it("prefers the nearest wrapper when its nested platform addon is loadable", async () => {
-		tmp = await fs.mkdtemp(path.join(os.tmpdir(), "chudcode-sherpa-source-"));
+		tmp = await fs.mkdtemp(path.join(os.tmpdir(), "omp-sherpa-source-"));
 		const rootNodeModules = path.join(tmp, "node_modules");
 		const packageNodeModules = path.join(tmp, "packages", "coding-agent", "node_modules");
 		await writePackage(

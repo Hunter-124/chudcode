@@ -16,18 +16,18 @@ import {
 	generateBranchSummary,
 	generateHandoff,
 	generateSummary,
-} from "@chudware/agent-core/compaction";
+} from "@oh-my-pi/pi-agent-core/compaction";
 import {
 	type AgentTelemetryConfig,
-	ChudGenAIAttr,
 	GenAIAttr,
 	GenAIOperation,
+	OmpGenAIAttr,
 	resolveTelemetry,
-} from "@chudware/agent-core/telemetry";
-import type { AgentMessage } from "@chudware/agent-core/types";
-import type { AssistantMessage, Model, Usage } from "@chudware/ai";
-import * as ai from "@chudware/ai";
-import { buildModel } from "@chudware/catalog/build";
+} from "@oh-my-pi/pi-agent-core/telemetry";
+import type { AgentMessage } from "@oh-my-pi/pi-agent-core/types";
+import type { AssistantMessage, Model, Usage } from "@oh-my-pi/pi-ai";
+import * as ai from "@oh-my-pi/pi-ai";
+import { buildModel } from "@oh-my-pi/pi-catalog/build";
 import { SpanStatusCode } from "@opentelemetry/api";
 import {
 	BasicTracerProvider,
@@ -100,7 +100,7 @@ function chatSpans(spans: ReadableSpan[]): ReadableSpan[] {
 }
 
 function spansByOneshotKind(spans: ReadableSpan[], kind: string): ReadableSpan[] {
-	return spans.filter(s => s.attributes[ChudGenAIAttr.OneshotKind] === kind);
+	return spans.filter(s => s.attributes[OmpGenAIAttr.OneshotKind] === kind);
 }
 
 function makePreparation(overrides: Partial<CompactionPreparation> = {}): CompactionPreparation {
@@ -142,7 +142,7 @@ describe("compaction oneshot telemetry", () => {
 		expect(historySpan?.attributes[GenAIAttr.RequestModel]).toBe("mock-model");
 		expect(historySpan?.attributes[GenAIAttr.UsageInputTokens]).toBe(215); // input + cacheRead + cacheWrite
 		expect(historySpan?.attributes[GenAIAttr.UsageOutputTokens]).toBe(90);
-		expect(historySpan?.attributes[ChudGenAIAttr.AgentStepNumber]).toBe(-1);
+		expect(historySpan?.attributes[OmpGenAIAttr.AgentStepNumber]).toBe(-1);
 		expect(historySpan?.status.code).not.toBe(SpanStatusCode.ERROR);
 	});
 
@@ -199,7 +199,7 @@ describe("compaction oneshot telemetry", () => {
 		const chats = chatSpans(exporter.getFinishedSpans());
 		expect(chats).toHaveLength(1);
 		const span = chats[0];
-		expect(span?.attributes[ChudGenAIAttr.OneshotKind]).toBe("compaction_summary");
+		expect(span?.attributes[OmpGenAIAttr.OneshotKind]).toBe("compaction_summary");
 		expect(span?.status.code).toBe(SpanStatusCode.ERROR);
 		// finishChatSpan-only attributes must NOT be set on the failure path.
 		expect(span?.attributes[GenAIAttr.ResponseModel]).toBeUndefined();
@@ -208,7 +208,7 @@ describe("compaction oneshot telemetry", () => {
 });
 
 describe("handoff oneshot telemetry", () => {
-	it("tags generateHandoff with chud.gen_ai.oneshot.kind = handoff and toolChoice = none", async () => {
+	it("tags generateHandoff with omp.gen_ai.oneshot.kind = handoff and toolChoice = none", async () => {
 		const spy = vi.spyOn(ai, "completeSimple").mockResolvedValueOnce(makeAssistantMessage("## Goal\nContinue"));
 
 		const telemetry = resolveTelemetry(makeTelemetryConfig(), "session-handoff");
@@ -227,13 +227,13 @@ describe("handoff oneshot telemetry", () => {
 		const chats = chatSpans(exporter.getFinishedSpans());
 		expect(chats).toHaveLength(1);
 		const span = chats[0];
-		expect(span?.attributes[ChudGenAIAttr.OneshotKind]).toBe("handoff");
-		expect(span?.attributes[ChudGenAIAttr.RequestToolChoice]).toBe("none");
+		expect(span?.attributes[OmpGenAIAttr.OneshotKind]).toBe("handoff");
+		expect(span?.attributes[OmpGenAIAttr.RequestToolChoice]).toBe("none");
 	});
 });
 
 describe("branch summary oneshot telemetry", () => {
-	it("tags generateBranchSummary with chud.gen_ai.oneshot.kind = branch_summary", async () => {
+	it("tags generateBranchSummary with omp.gen_ai.oneshot.kind = branch_summary", async () => {
 		const spy = vi
 			.spyOn(ai, "completeSimple")
 			.mockResolvedValueOnce(makeAssistantMessage("branch summary text", makeUsage(50, 30)));
@@ -269,7 +269,7 @@ describe("branch summary oneshot telemetry", () => {
 		const chats = chatSpans(exporter.getFinishedSpans());
 		expect(chats).toHaveLength(1);
 		const span = chats[0];
-		expect(span?.attributes[ChudGenAIAttr.OneshotKind]).toBe("branch_summary");
+		expect(span?.attributes[OmpGenAIAttr.OneshotKind]).toBe("branch_summary");
 		expect(span?.attributes[GenAIAttr.UsageInputTokens]).toBe(50);
 		expect(span?.attributes[GenAIAttr.UsageOutputTokens]).toBe(30);
 	});

@@ -5,9 +5,9 @@
  * Eliminates ~2-3s CLI startup overhead per task by creating sessions
  * in-process and sharing auth/model infrastructure across tasks.
  */
-import type { AgentEvent, AgentMessage, ResolvedThinkingLevel, ThinkingLevel } from "@chudware/agent-core";
-import type { Model, ToolExample } from "@chudware/ai";
-import type { AgentSession, AgentSessionEvent, AuthStorage, SessionStats } from "@chudware/coding-agent";
+import type { AgentEvent, AgentMessage, ResolvedThinkingLevel, ThinkingLevel } from "@oh-my-pi/pi-agent-core";
+import type { Model, ToolExample } from "@oh-my-pi/pi-ai";
+import type { AgentSession, AgentSessionEvent, AuthStorage, SessionStats } from "@oh-my-pi/pi-coding-agent";
 import {
 	AgentRegistry,
 	type CreateAgentSessionResult,
@@ -16,7 +16,7 @@ import {
 	ModelRegistry,
 	SessionManager,
 	Settings,
-} from "@chudware/coding-agent";
+} from "@oh-my-pi/pi-coding-agent";
 
 export type InProcessEventListener = (event: AgentEvent) => void;
 
@@ -50,23 +50,21 @@ export interface DiscoverSharedInfraOptions {
 
 /** Discover shared infrastructure once for the entire benchmark run. */
 export async function discoverSharedInfra(options: DiscoverSharedInfraOptions = {}): Promise<SharedInfra> {
-	const authStorage = await discoverAuthStorage();
+	// Initialize global Settings singleton (required by code paths that use the global `settings` proxy)
+	const overrides: Record<string, unknown> = {};
+	if (options.editVariant && options.editVariant !== "auto") {
+		overrides["edit.mode"] = options.editVariant;
+	}
+	if (options.editFuzzy !== undefined && options.editFuzzy !== "auto") {
+		overrides["edit.fuzzyMatch"] = options.editFuzzy;
+	}
+	if (options.editFuzzyThreshold !== undefined && options.editFuzzyThreshold !== "auto") {
+		overrides["edit.fuzzyThreshold"] = options.editFuzzyThreshold;
+	}
+	const settings = await Settings.init({ cwd: options.cwd, overrides });
+	const authStorage = await discoverAuthStorage(undefined, { settings });
 	try {
 		const modelRegistry = new ModelRegistry(authStorage);
-
-		// Initialize global Settings singleton (required by code paths that use the global `settings` proxy)
-		const overrides: Record<string, unknown> = {};
-		if (options.editVariant && options.editVariant !== "auto") {
-			overrides["edit.mode"] = options.editVariant;
-		}
-		if (options.editFuzzy !== undefined && options.editFuzzy !== "auto") {
-			overrides["edit.fuzzyMatch"] = options.editFuzzy;
-		}
-		if (options.editFuzzyThreshold !== undefined && options.editFuzzyThreshold !== "auto") {
-			overrides["edit.fuzzyThreshold"] = options.editFuzzyThreshold;
-		}
-		await Settings.init({ cwd: options.cwd, overrides });
-
 		return { authStorage, modelRegistry };
 	} catch (error) {
 		authStorage.close();

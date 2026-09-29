@@ -1,7 +1,7 @@
 import { describe, expect, it } from "bun:test";
-import { handleStackOverflow } from "@chudware/coding-agent/web/scrapers/stackoverflow";
+import { handleStackOverflow } from "@oh-my-pi/pi-coding-agent/web/scrapers/stackoverflow";
 
-const SKIP = !process.env.WEB_FETCH_INTEGRATION;
+const SKIP = !Bun.env.WEB_FETCH_INTEGRATION;
 
 describe.skipIf(SKIP)("handleStackOverflow", () => {
 	it("returns null for non-SE URLs", async () => {
@@ -11,11 +11,6 @@ describe.skipIf(SKIP)("handleStackOverflow", () => {
 
 	it("returns null for SE site without question path", async () => {
 		const result = await handleStackOverflow("https://stackoverflow.com/tags", 20);
-		expect(result).toBeNull();
-	});
-
-	it("returns null for SE user profile URLs", async () => {
-		const result = await handleStackOverflow("https://stackoverflow.com/users/1", 20);
 		expect(result).toBeNull();
 	});
 
@@ -96,5 +91,6 @@ describe.skipIf(SKIP)("handleStackOverflow", () => {
 		expect(result?.content).toContain("# ");
 		expect(result?.content).toContain("Score:");
 		expect(result?.content).toContain("Tags:");
+		expect(result?.content).toContain("## Question");
 	});
 });

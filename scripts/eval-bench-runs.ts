@@ -10,7 +10,6 @@
  */
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
-import * as fsx from "@chudware/utils/fsx";
 
 interface ReportRow {
 	file: string;
@@ -130,7 +129,7 @@ function parseRatePair(value: string | null): { numerator: number; denominator: 
 }
 
 async function parseReport(file: string): Promise<ReportRow> {
-	const text = await fsx.readText(file);
+	const text = await Bun.file(file).text();
 
 	const base = path.basename(file, ".md");
 	const [sepSlug, ...modelParts] = base.split("__");
@@ -232,9 +231,7 @@ function sortRows(rows: ReportRow[], by: typeof sortBy): ReportRow[] {
 const entries = (
 	await Promise.all(
 		resolvedDirs.map(async d =>
-			(
-				await fs.readdir(d, { withFileTypes: true })
-			)
+			(await fs.readdir(d, { withFileTypes: true }))
 				.filter(e => e.isFile() && e.name.endsWith(".md"))
 				.map(e => path.join(d, e.name)),
 		),

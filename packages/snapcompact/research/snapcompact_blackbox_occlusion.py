@@ -51,8 +51,8 @@ def sample_answer_questions(
     step = len(eligible) / n
     picked: list[dict] = []
     for k in range(n):
-        chud = eligible[int(k * step)]
-        qa = rng.choice(paras[chud]["qas"])
+        pi = eligible[int(k * step)]
+        qa = rng.choice(paras[pi]["qas"])
         answers = qa.get("answers") or []
         if not answers:
             continue
@@ -62,12 +62,12 @@ def sample_answer_questions(
                 "q": " ".join(qa["question"].split()),
                 "golds": sorted({a["text"] for a in answers}),
                 "answer_text": answer["text"],
-                "answer_start": offsets[chud] - start + int(answer["answer_start"]),
-                "answer_end": offsets[chud]
+                "answer_start": offsets[pi] - start + int(answer["answer_start"]),
+                "answer_end": offsets[pi]
                 - start
                 + int(answer["answer_start"])
                 + len(answer["text"]),
-                "pos_rel": (offsets[chud] - start) / (end - start),
+                "pos_rel": (offsets[pi] - start) / (end - start),
             }
         )
     return picked

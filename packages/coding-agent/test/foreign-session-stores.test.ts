@@ -3,7 +3,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import * as fsx from "@chudware/utils/fsx";
 import { ClaudeSessionStore } from "../src/session/claude-session-store";
 import { CodexSessionStore } from "../src/session/codex-session-store";
 import { persistForeignSession } from "../src/session/foreign-session-import";
@@ -16,7 +15,7 @@ let tempRoot: string;
 let originalClaudeConfigDir: string | undefined;
 
 beforeEach(async () => {
-	tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "chudcode-foreign-sessions-"));
+	tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "omp-foreign-sessions-"));
 	originalClaudeConfigDir = process.env.CLAUDE_CONFIG_DIR;
 	delete process.env.CLAUDE_CONFIG_DIR;
 });
@@ -33,7 +32,7 @@ afterEach(async () => {
 
 async function writeJsonl(filePath: string, records: Record<string, unknown>[]): Promise<void> {
 	await fs.mkdir(path.dirname(filePath), { recursive: true });
-	await fsx.write(filePath, `${records.map(record => JSON.stringify(record)).join("\n")}\n`);
+	await Bun.write(filePath, `${records.map(record => JSON.stringify(record)).join("\n")}\n`);
 }
 
 async function createClaudeFixture(): Promise<{ info: ForeignSessionInfo; store: ClaudeSessionStore }> {
@@ -78,7 +77,11 @@ async function createClaudeFixture(): Promise<{ info: ForeignSessionInfo; store:
 			parentUuid: "claude-assistant",
 			timestamp: "2026-01-01T00:00:02.000Z",
 			message: {
-				content: [{ type: "tool_result", tool_use_id: "tool-claude", content: "file contents" }],
+				content: [
+					{ type: "text", text: "Preserve this before the result." },
+					{ type: "tool_result", tool_use_id: "tool-claude", content: "file contents" },
+					{ type: "text", text: "Preserve this after the result." },
+				],
 			},
 		},
 		{ type: "custom-title", customTitle: "Imported Claude", timestamp: "2026-01-01T00:00:03.000Z" },
@@ -90,6 +93,110 @@ async function createClaudeFixture(): Promise<{ info: ForeignSessionInfo; store:
 }
 
 describe("ClaudeSessionStore", () => {
+	it("lists an unindexed session at the cwd its transcript recorded", async () => {
+		const root = path.join(tempRoot, ".claude");
+		const cwd = path.join(tempRoot, "my-project.dir");
+		const id = "33333333-3333-4333-8333-333333333333";
+		// No history entry, and a directory name whose "-" separators are ambiguous.
+		await writeJsonl(path.join(root, "projects", cwd.replace(/[/\\._]/g, "-"), `${id}.jsonl`), [
+			{ type: "file-history-snapshot", timestamp: "2026-01-01T00:00:00.000Z" },
+			{
+				type: "user",
+				uuid: "u",
+				parentUuid: null,
+				timestamp: "2026-01-01T00:00:01.000Z",
+				cwd,
+				message: { content: "." },
+			},
+		]);
+
+		const info = (await new ClaudeSessionStore(root).list()).find(item => item.id === id);
+		expect(info?.cwd).toBe(cwd);
+	});
+
+	it("bounds cwd discovery to the transcript prefix before using the encoded fallback", async () => {
+		const root = path.join(tempRoot, ".claude");
+		const cwd = path.join(tempRoot, "late-project.dir");
+		const encoded = cwd.replace(/[/\\._]/g, "-");
+		const id = "55555555-5555-4555-8555-555555555555";
+		await writeJsonl(path.join(root, "projects", encoded, `${id}.jsonl`), [
+			{ type: "file-history-snapshot", snapshot: "x".repeat(128 * 1024) },
+			{ type: "user", cwd, message: { content: "." } },
+		]);
+
+		const info = (await new ClaudeSessionStore(root).list()).find(item => item.id === id);
+		expect(info?.cwd).toBe(encoded.replaceAll("-", path.sep));
+	});
+
+	it("prefers the history index cwd over the transcript's", async () => {
+		const root = path.join(tempRoot, ".claude");
+		const indexedCwd = path.join(tempRoot, "indexed-project");
+		const id = "44444444-4444-4444-8444-444444444444";
+		await writeJsonl(path.join(root, "history.jsonl"), [
+			{ sessionId: id, timestamp: 1_767_225_600_000, display: ".", project: indexedCwd },
+		]);
+		await writeJsonl(path.join(root, "projects", indexedCwd.replaceAll(path.sep, "-"), `${id}.jsonl`), [
+			{
+				type: "user",
+				uuid: "u",
+				parentUuid: null,
+				timestamp: "2026-01-01T00:00:00.000Z",
+				cwd: path.join(tempRoot, "somewhere-else"),
+				message: { content: "." },
+			},
+		]);
+
+		const info = (await new ClaudeSessionStore(root).list()).find(item => item.id === id);
+		expect(info?.cwd).toBe(indexedCwd);
+	});
+
+	it("imports an API error as a failed turn", async () => {
+		const root = path.join(tempRoot, ".claude");
+		const cwd = path.join(tempRoot, "overloaded");
+		const id = "22222222-2222-4222-8222-222222222222";
+		await writeJsonl(path.join(root, "history.jsonl"), [
+			{ sessionId: id, timestamp: 1_767_225_600_000, display: ".", project: cwd },
+		]);
+		await writeJsonl(path.join(root, "projects", cwd.replaceAll(path.sep, "-"), `${id}.jsonl`), [
+			{
+				type: "user",
+				uuid: "u",
+				parentUuid: null,
+				timestamp: "2026-01-01T00:00:00.000Z",
+				cwd,
+				message: { content: "." },
+			},
+			{
+				type: "assistant",
+				uuid: "a",
+				parentUuid: "u",
+				timestamp: "2026-01-01T00:00:01.000Z",
+				isApiErrorMessage: true,
+				apiErrorStatus: 529,
+				error: "server_error",
+				// Claude Code stamps a completed stop_reason on the record even
+				// though nothing was answered.
+				message: {
+					id: "msg_err",
+					model: "claude-sonnet-4-5",
+					stop_reason: "stop_sequence",
+					content: [{ type: "text", text: "API Error: 529 Overloaded." }],
+				},
+			},
+		]);
+		const store = new ClaudeSessionStore(root);
+		const info = (await store.list())[0];
+		if (!info) throw new Error("Overloaded fixture was not listed");
+		const manager = await store.load(info);
+
+		const assistant = manager.getEntries().find(e => e.type === "message" && e.message.role === "assistant");
+		if (assistant?.type !== "message" || assistant.message.role !== "assistant") {
+			throw new Error("Missing imported assistant");
+		}
+		expect(assistant.message.stopReason).toBe("error");
+		expect(assistant.message.errorStatus).toBe(529);
+	});
+
 	it("uses current history metadata and converts linked messages in memory", async () => {
 		const { info, store } = await createClaudeFixture();
 
@@ -101,14 +208,20 @@ describe("ClaudeSessionStore", () => {
 		expect(manager.getSessionName()).toBe("Imported Claude");
 		const entries = manager.getEntries();
 		const messages = entries.filter(entry => entry.type === "message");
-		expect(messages.map(entry => entry.message.role)).toEqual(["user", "assistant", "toolResult"]);
+		expect(messages.map(entry => entry.message.role)).toEqual(["user", "assistant", "user", "toolResult", "user"]);
 		const assistant = messages.find(entry => entry.message.role === "assistant");
 		if (assistant?.message.role !== "assistant") throw new Error("Missing imported Claude assistant");
 		const call = assistant.message.content.find(block => block.type === "toolCall");
 		expect(call).toMatchObject({ id: "tool-claude", name: "read", arguments: { path: "file.ts" } });
-		const result = messages.find(entry => entry.message.role === "toolResult");
+		const beforeResult = messages[2];
+		if (beforeResult?.message.role !== "user") throw new Error("Missing pre-result Claude follow-up");
+		expect(beforeResult.message.content).toEqual([{ type: "text", text: "Preserve this before the result." }]);
+		const result = messages[3];
 		if (result?.message.role !== "toolResult") throw new Error("Missing imported Claude tool result");
 		expect(result.message.toolCallId).toBe("tool-claude");
+		const afterResult = messages[4];
+		if (afterResult?.message.role !== "user") throw new Error("Missing post-result Claude follow-up");
+		expect(afterResult.message.content).toEqual([{ type: "text", text: "Preserve this after the result." }]);
 		expect(
 			entries.some(entry => entry.type === "model_change" && entry.model === "anthropic/claude-sonnet-4-5"),
 		).toBe(true);
@@ -147,7 +260,7 @@ describe("ClaudeSessionStore", () => {
 		const id = "22222222-2222-4222-8222-333333333333";
 		const encoded = cwd.replaceAll(path.sep, "-");
 		process.env.CLAUDE_CONFIG_DIR = root;
-		await fsx.write(path.join(root, ".claude.json"), JSON.stringify({ projects: { [cwd]: {} } }));
+		await Bun.write(path.join(root, ".claude.json"), JSON.stringify({ projects: { [cwd]: {} } }));
 		await writeJsonl(path.join(root, "projects", encoded, `${id}.jsonl`), [
 			{
 				type: "user",
@@ -336,9 +449,9 @@ describe("CodexSessionStore", () => {
 });
 
 describe("foreign session persistence", () => {
-	it("writes a fresh Chudcode identity with source provenance", async () => {
+	it("writes a fresh OMP identity with source provenance", async () => {
 		const { info, store } = await createClaudeFixture();
-		const sessionDir = path.join(tempRoot, "chudcode-sessions");
+		const sessionDir = path.join(tempRoot, "omp-sessions");
 
 		const persisted = await persistForeignSession(store, info, { sessionDir, suppressBreadcrumb: true });
 		const sessionFile = persisted.getSessionFile();

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import { extractReadableFromHtml, scrapeRenderedHtml } from "@chudware/coding-agent/tools/browser";
+import { extractReadableFromHtml } from "@oh-my-pi/pi-coding-agent/tools/browser";
 
 describe("browser readable extraction", () => {
 	it("extracts markdown content from article-style pages", async () => {
@@ -47,49 +47,37 @@ describe("browser readable extraction", () => {
 		expect(result?.text).toContain("Build once, run in many places");
 	});
 
-	it("returns a bounded rendered scrape with scoped links and metadata", async () => {
-		const html = `<!doctype html>
-			<html lang="en">
-				<head>
-					<title>Private docs</title>
-					<link rel="canonical" href="/docs/canonical">
-				</head>
-				<body>
-					<nav><a href="/outside">Outside</a></nav>
-					<main id="content">
-						<h1>Authenticated dashboard</h1>
-						<p>Rendered after sign-in.</p>
-						<a href="/account">Account</a>
-						<a href="https://example.com/account">Duplicate account</a>
-					</main>
-				</body>
-			</html>`;
-
-		const result = await scrapeRenderedHtml(html, "https://example.com/docs/live", {
-			selector: "#content",
-			maxChars: 24,
+	it("scopes extraction to a selector", async () => {
+		const html = `<main>
+			<section id="first"><h1>First</h1><p>Keep me.</p></section>
+			<section id="second"><h1>Second</h1><p>Drop me.</p></section>
+		</main>`;
+		const result = await extractReadableFromHtml(html, "https://example.com/", "markdown", {
+			selector: "#first",
 		});
-
-		expect(result).not.toBeNull();
-		expect(result?.canonicalUrl).toBe("https://example.com/docs/canonical");
-		expect(result?.language).toBe("en");
-		expect(result?.content).toHaveLength(24);
-		expect(result?.truncated).toBe(true);
-		expect(result?.contentLength).toBeGreaterThan(24);
-		expect(result?.links).toEqual([{ text: "Account", href: "https://example.com/account" }]);
-		expect(result?.content).not.toContain("Outside");
+		expect(result?.markdown).toContain("Keep me.");
+		expect(result?.markdown).not.toContain("Drop me.");
 	});
 
-	it("can omit links while preserving complete rendered content", async () => {
-		const html = `<!doctype html><html><body><main><p>Runtime content.</p><a href="/next">Next</a></main></body></html>`;
+	it("returns a compact heading outline", async () => {
+		const html = `<main><h1>Guide</h1><p>Intro.</p><h2>Install</h2><p>Steps.</p></main>`;
+		const result = await extractReadableFromHtml(html, "https://example.com/", "markdown", { outline: true });
+		expect(result?.markdown).toBe("# Guide\n## Install");
+	});
 
-		const result = await scrapeRenderedHtml(html, "https://example.com/app", {
-			format: "text",
-			includeLinks: false,
+	it("keeps only sections selected by heading text", async () => {
+		const html = `<main>
+			<h1>Guide</h1><p>Overview.</p>
+			<h2>Install Linux</h2><p>Use apt.</p>
+			<h2>Install macOS</h2><p>Use brew.</p>
+			<h2>Troubleshooting</h2><p>Read logs.</p>
+		</main>`;
+		const result = await extractReadableFromHtml(html, "https://example.com/", "markdown", {
+			filter: "macos",
 		});
-
-		expect(result?.content).toContain("Runtime content");
-		expect(result?.truncated).toBe(false);
-		expect(result?.links).toBeUndefined();
+		expect(result?.markdown).toContain("Install macOS");
+		expect(result?.markdown).toContain("Use brew.");
+		expect(result?.markdown).not.toContain("Use apt.");
+		expect(result?.markdown).not.toContain("Read logs.");
 	});
 });

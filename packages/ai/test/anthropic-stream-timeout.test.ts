@@ -1,9 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "bun:test";
-import * as AIError from "@chudware/ai/error";
-import { streamAnthropic } from "@chudware/ai/providers/anthropic";
-import { AnthropicMessagesClient, type AnthropicMessagesClientLike } from "@chudware/ai/providers/anthropic-client";
-import type { Context, FetchImpl, Model } from "@chudware/ai/types";
-import { buildModel } from "@chudware/catalog/build";
+import * as AIError from "@oh-my-pi/pi-ai/error";
+import { streamAnthropic } from "@oh-my-pi/pi-ai/providers/anthropic";
+import { AnthropicMessagesClient, type AnthropicMessagesClientLike } from "@oh-my-pi/pi-ai/providers/anthropic-client";
+import type { Context, FetchImpl, Model } from "@oh-my-pi/pi-ai/types";
+import { buildModel } from "@oh-my-pi/pi-catalog/build";
 import { waitForDelayOrAbort } from "./helpers";
 
 const model: Model<"anthropic-messages"> = buildModel({
@@ -205,23 +205,23 @@ async function resolveAfterMicrotasks<T>(promise: Promise<T>, errorMessage: stri
 }
 
 const STREAM_TIMEOUT_ENV_KEYS = [
-	"CHUDCODE_STREAM_IDLE_TIMEOUT_MS",
-	"CHUDCODE_OPENAI_STREAM_IDLE_TIMEOUT_MS",
-	"CHUDCODE_STREAM_FIRST_EVENT_TIMEOUT_MS",
+	"PI_STREAM_IDLE_TIMEOUT_MS",
+	"PI_OPENAI_STREAM_IDLE_TIMEOUT_MS",
+	"PI_STREAM_FIRST_EVENT_TIMEOUT_MS",
 ] as const;
 
 type StreamTimeoutEnvKey = (typeof STREAM_TIMEOUT_ENV_KEYS)[number];
 
 const originalStreamTimeoutEnv: Record<StreamTimeoutEnvKey, string | undefined> = {
-	CHUDCODE_STREAM_IDLE_TIMEOUT_MS: undefined,
-	CHUDCODE_OPENAI_STREAM_IDLE_TIMEOUT_MS: undefined,
-	CHUDCODE_STREAM_FIRST_EVENT_TIMEOUT_MS: undefined,
+	PI_STREAM_IDLE_TIMEOUT_MS: undefined,
+	PI_OPENAI_STREAM_IDLE_TIMEOUT_MS: undefined,
+	PI_STREAM_FIRST_EVENT_TIMEOUT_MS: undefined,
 };
 
 beforeEach(() => {
 	for (const key of STREAM_TIMEOUT_ENV_KEYS) {
-		originalStreamTimeoutEnv[key] = process.env[key];
-		delete process.env[key];
+		originalStreamTimeoutEnv[key] = Bun.env[key];
+		delete Bun.env[key];
 	}
 });
 
@@ -229,9 +229,9 @@ afterEach(() => {
 	for (const key of STREAM_TIMEOUT_ENV_KEYS) {
 		const previous = originalStreamTimeoutEnv[key];
 		if (previous === undefined) {
-			delete process.env[key];
+			delete Bun.env[key];
 		} else {
-			process.env[key] = previous;
+			Bun.env[key] = previous;
 		}
 	}
 
@@ -405,7 +405,9 @@ describe("anthropic first-event timeout retries", () => {
 
 		expect(attempt).toBe(11);
 		expect(providerRetryWait).toHaveBeenCalledTimes(10);
+		// oxlint-disable-next-line unicorn/no-new-array -- length preallocation
 		expect(requestTimeouts).toEqual(new Array(11).fill(1));
+		// oxlint-disable-next-line unicorn/no-new-array -- length preallocation
 		expect(requestMaxRetries).toEqual(new Array(11).fill(0));
 		expect(result.stopReason).toBe("error");
 		expect(result.errorMessage).toBe("Anthropic stream timed out while waiting for the first event");

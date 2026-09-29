@@ -6,21 +6,20 @@
  *
  * Stands up a loopback OTLP/proto receiver, points the standard env vars at it,
  * registers the providers, drives a log record through the bridged
- * `@chudware/utils` logger and metric instruments through the agent
+ * `@oh-my-pi/pi-utils` logger and metric instruments through the agent
  * telemetry hooks, flushes, and exits 0 only if the receiver got a non-empty
  * protobuf POST at both /v1/logs and /v1/metrics.
  */
 
-import type { AgentRunCoverage, AgentRunSummary, ChatUsageEvent } from "@chudware/agent-core";
-import { emptyAgentRunCoverage, emptyAgentRunSummary } from "@chudware/agent-core";
+import type { AgentRunCoverage, AgentRunSummary, ChatUsageEvent } from "@oh-my-pi/pi-agent-core";
+import { emptyAgentRunCoverage, emptyAgentRunSummary } from "@oh-my-pi/pi-agent-core";
 import {
 	createTelemetryExportConfig,
 	flushTelemetryExport,
 	initTelemetryExport,
 	isTelemetryExportEnabled,
-} from "@chudware/coding-agent/telemetry-export";
-import { logger } from "@chudware/utils";
-import { sleep } from "@chudware/utils/async";
+} from "@oh-my-pi/pi-coding-agent/telemetry-export";
+import { logger } from "@oh-my-pi/pi-utils";
 
 const seen = new Set<string>();
 const metricPayloads: Uint8Array[] = [];
@@ -44,7 +43,7 @@ function readVarint(bytes: Uint8Array, offset: number): [number, number] {
 
 function protobufFields(bytes: Uint8Array): ProtobufField[] {
 	const fields: ProtobufField[] = [];
-	for (let offset = 0; offset < bytes.length; ) {
+	for (let offset = 0; offset < bytes.length;) {
 		const [tag, nextOffset] = readVarint(bytes, offset);
 		offset = nextOffset;
 		const wireType = tag & 7;
@@ -123,11 +122,9 @@ const server = Bun.serve({
 const base = `http://localhost:${server.port}`;
 process.env.OTEL_EXPORTER_OTLP_LOGS_ENDPOINT = `${base}/v1/logs`;
 process.env.OTEL_EXPORTER_OTLP_METRICS_ENDPOINT = `${base}/v1/metrics`;
-process.env.OTEL_SERVICE_NAME = "chudware-signals-probe";
-// Force a short metric export interval so the periodic reader flushes fast.
-process.env.OTEL_METRIC_EXPORT_INTERVAL = "500";
+process.env.OTEL_SERVICE_NAME = "oh-my-pi-signals-probe";
 
-await initTelemetryExport();
+await initTelemetryExport(true);
 if (!isTelemetryExportEnabled()) {
 	console.error("PROBE: providers did not register");
 	await server.stop(true);
@@ -147,6 +144,7 @@ logger.error("probe error", { code: "probe" });
 // Metric instruments via the agent telemetry hooks.
 const usage: ChatUsageEvent = {
 	span: undefined as never,
+	operation: "chat",
 	agent: { id: "main", name: "Main" },
 	conversationId: "probe-session",
 	stepNumber: 0,
@@ -196,12 +194,9 @@ const coverage: AgentRunCoverage = {
 config.onRunEnd?.(summary, coverage);
 
 await flushTelemetryExport();
-// The metric reader exports on its own interval; wait one cycle then flush.
-await sleep(700);
-await flushTelemetryExport();
-assertSingleMetricPoint("chud.chudcode.agent.chat.calls");
-assertSingleMetricPoint("chud.chudcode.agent.tool.calls");
-assertSingleMetricPoint("chud.chudcode.agent.tool.duration");
+assertSingleMetricPoint("omp.agent.chat.calls");
+assertSingleMetricPoint("omp.agent.tool.calls");
+assertSingleMetricPoint("omp.agent.tool.duration");
 await server.stop(true);
 
 const ok = seen.has("logs") && seen.has("metrics");

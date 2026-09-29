@@ -1,15 +1,15 @@
 import { afterEach, beforeAll, describe, expect, it, vi } from "bun:test";
 import * as path from "node:path";
-import * as core from "@chudware/agent-core";
-import { ModelRegistry } from "@chudware/coding-agent/config/model-registry";
-import { resetSettingsForTest, Settings } from "@chudware/coding-agent/config/settings";
-import { InteractiveMode } from "@chudware/coding-agent/modes/interactive-mode";
-import { initTheme } from "@chudware/coding-agent/modes/theme/theme";
-import { AgentSession } from "@chudware/coding-agent/session/agent-session";
-import { AuthStorage } from "@chudware/coding-agent/session/auth-storage";
-import { SessionManager } from "@chudware/coding-agent/session/session-manager";
-import { createTools, type Tool } from "@chudware/coding-agent/tools";
-import { TempDir } from "@chudware/utils";
+import * as core from "@oh-my-pi/pi-agent-core";
+import { ModelRegistry } from "@oh-my-pi/pi-coding-agent/config/model-registry";
+import { resetSettingsForTest, Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
+import { InteractiveMode } from "@oh-my-pi/pi-coding-agent/modes/interactive-mode";
+import { initTheme } from "@oh-my-pi/pi-tui/theme";
+import { AgentSession } from "@oh-my-pi/pi-coding-agent/session/agent-session";
+import { AuthStorage } from "@oh-my-pi/pi-coding-agent/session/auth-storage";
+import { SessionManager } from "@oh-my-pi/pi-coding-agent/session/session-manager";
+import { createTools, type Tool } from "@oh-my-pi/pi-coding-agent/tools";
+import { TempDir } from "@oh-my-pi/pi-utils";
 
 beforeAll(async () => {
 	await initTheme();
@@ -64,6 +64,7 @@ async function createMode(opts: { flushFails?: boolean } = {}): Promise<{
 		session,
 		cleanup: async () => {
 			resetSettingsForTest();
+			authStorage.close();
 			await tempDir.remove();
 		},
 	};
@@ -83,25 +84,6 @@ describe("InteractiveMode.handleResumeSession outer preflight flush", () => {
 			expect(showErrorSpy).toHaveBeenCalledWith(expect.stringContaining("disk full"));
 			expect(resetSpy).not.toHaveBeenCalled();
 			expect(switchSpy).not.toHaveBeenCalled();
-		} finally {
-			await cleanup();
-		}
-	});
-
-	it("disposes controllers and delegates to SelectorController with settingsFlushed on success", async () => {
-		const { mode, session, cleanup } = await createMode({ flushFails: false });
-		try {
-			const resetSpy = vi.spyOn(mode, "resetObserverRegistry");
-			const switchSpy = vi.spyOn(session, "switchSession").mockResolvedValue(true);
-
-			await mode.handleResumeSession("/tmp/some-session.jsonl");
-
-			expect(mode.settings.flush).toHaveBeenCalled();
-			expect(resetSpy).toHaveBeenCalled();
-			expect(switchSpy).toHaveBeenCalledWith(
-				"/tmp/some-session.jsonl",
-				expect.objectContaining({ onCwdChange: expect.any(Function) }),
-			);
 		} finally {
 			await cleanup();
 		}

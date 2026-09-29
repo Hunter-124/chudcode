@@ -1,3 +1,4 @@
+import { bandComposerStyle } from "./band";
 import { borderlessComposerStyle } from "./borderless";
 import { boxComposerStyle } from "./box";
 import { claudeComposerStyle } from "./claude";
@@ -9,8 +10,9 @@ import type { ComposerStyle, EditorBorderStyle } from "./types";
 
 const BUILTIN_COMPOSER_STYLES: Readonly<Record<string, ComposerStyle>> = {
 	box: boxComposerStyle,
+	band: bandComposerStyle,
 	claude: claudeComposerStyle,
-	chud: piComposerStyle,
+	pi: piComposerStyle,
 	borderless: borderlessComposerStyle,
 	rule: ruleComposerStyle,
 	field: fieldComposerStyle,
@@ -18,9 +20,19 @@ const BUILTIN_COMPOSER_STYLES: Readonly<Record<string, ComposerStyle>> = {
 };
 const extensionComposerStyles = new Map<string, ComposerStyle>();
 
-/** Whether an id names a composer style shipped by chud-tui. */
+/** Whether an id names a composer style shipped by pi-tui. */
 export function isBuiltinComposerStyle(id: string): boolean {
 	return Object.hasOwn(BUILTIN_COMPOSER_STYLES, id);
+}
+
+/**
+ * Whether a style paints its own row foreground.
+ *
+ * Extensions registered before `filledSurface` existed received undecorated
+ * row text, so an omitted flag remains filled for extension-owned ids.
+ */
+export function isFilledComposerStyle(style: ComposerStyle): boolean {
+	return style.filledSurface ?? !isBuiltinComposerStyle(style.id);
 }
 
 /**
