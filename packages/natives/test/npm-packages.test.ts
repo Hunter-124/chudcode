@@ -32,24 +32,6 @@ describe("generated native npm leaf packages", () => {
 		expect("exports" in manifest).toBe(false);
 	});
 
-	it("uses the default addon as the main entry for non-x64 leaves", () => {
-		const addonFiles = ["chud_natives.darwin-arm64.node"];
-		const manifest = buildLeafManifest({
-			tag: "darwin-arm64",
-			os: "darwin",
-			cpu: "arm64",
-			files: addonFiles,
-			version: "15.5.15",
-		});
-
-		expect(manifest.name).toBe("@chudware/natives-darwin-arm64");
-		expect(manifest.os).toEqual(["darwin"]);
-		expect(manifest.cpu).toEqual(["arm64"]);
-		expect(manifest.main).toBe("./chud_natives.darwin-arm64.node");
-		expect(addonFiles).toContain(manifest.main.slice("./".length));
-		expect("exports" in manifest).toBe(false);
-	});
-
 	it("generates every leaf package by copying present addon files", async () => {
 		const packageDir = await fs.mkdtemp(path.join(os.tmpdir(), "chud-natives-npm-"));
 		try {
@@ -62,9 +44,7 @@ describe("generated native npm leaf packages", () => {
 			const addonFiles = [
 				"chud_natives.linux-x64-baseline.node",
 				"chud_natives.linux-x64-modern.node",
-				"chud_natives.linux-arm64.node",
 				"chud_natives.darwin-x64-baseline.node",
-				"chud_natives.darwin-arm64.node",
 				"chud_natives.win32-x64-baseline.node",
 			];
 			for (const file of addonFiles) {
@@ -72,13 +52,7 @@ describe("generated native npm leaf packages", () => {
 			}
 
 			const leaves = await generateNpmPackages({ packageDir });
-			expect(leaves.map(leaf => leaf.tag)).toEqual([
-				"linux-x64",
-				"linux-arm64",
-				"darwin-x64",
-				"darwin-arm64",
-				"win32-x64",
-			]);
+			expect(leaves.map(leaf => leaf.tag)).toEqual(["linux-x64", "darwin-x64", "win32-x64"]);
 			const linuxX64 = leaves.find(leaf => leaf.tag === "linux-x64");
 			expect(linuxX64?.files).toEqual([
 				"chud_natives.linux-x64-baseline.node",
@@ -107,13 +81,13 @@ describe("generated native npm leaf packages", () => {
 			await fs.mkdir(path.join(packageDir, "native"), { recursive: true });
 			await Promise.all([
 				fsx.write(path.join(packageDir, "package.json"), JSON.stringify({ version: "15.5.15" })),
-				fsx.write(path.join(packageDir, "native/chud_natives.darwin-arm64.node"), "darwin"),
+				fsx.write(path.join(packageDir, "native/chud_natives.darwin-x64-baseline.node"), "darwin"),
 				fsx.write(path.join(packageDir, "LICENSE"), "MIT payload\n"),
 				fsx.write(path.join(root, "THIRD-PARTY-NOTICES.txt"), "Repository notice\n"),
 			]);
 
-			await generateNpmPackages({ packageDir, tags: ["darwin-arm64"] });
-			expect(await fsx.readText(path.join(packageDir, "npm/darwin-arm64/THIRD-PARTY-NOTICES.txt"))).toBe(
+			await generateNpmPackages({ packageDir, tags: ["darwin-x64"] });
+			expect(await fsx.readText(path.join(packageDir, "npm/darwin-x64/THIRD-PARTY-NOTICES.txt"))).toBe(
 				"Repository notice\n",
 			);
 		} finally {
@@ -127,16 +101,11 @@ describe("generated native npm leaf packages", () => {
 		try {
 			await fs.mkdir(path.join(packageDir, "native"));
 			await fsx.write(path.join(packageDir, "package.json"), JSON.stringify({ version: "15.5.15" }));
-			await fsx.write(path.join(packageDir, "native/chud_natives.darwin-arm64.node"), "darwin");
+			await fsx.write(path.join(packageDir, "native/chud_natives.darwin-x64-baseline.node"), "darwin");
 
 			const leaves = await generateNpmPackages({ packageDir, dryRun: true });
-			expect(leaves.filter(leaf => leaf.missing).map(leaf => leaf.tag)).toEqual([
-				"linux-x64",
-				"linux-arm64",
-				"darwin-x64",
-				"win32-x64",
-			]);
-			expect(await fsx.exists(path.join(packageDir, "npm/darwin-arm64/package.json"))).toBe(false);
+			expect(leaves.filter(leaf => leaf.missing).map(leaf => leaf.tag)).toEqual(["linux-x64", "win32-x64"]);
+			expect(await fsx.exists(path.join(packageDir, "npm/darwin-x64/package.json"))).toBe(false);
 		} finally {
 			logSpy.mockRestore();
 			await fs.rm(packageDir, { recursive: true, force: true });

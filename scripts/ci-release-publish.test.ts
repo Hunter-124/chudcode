@@ -208,7 +208,7 @@ describe("desktop release publication gate", () => {
 			await expect(verifyDesktopPayload(root, "linux-x64", "0.2.0")).rejects.toThrow("forbidden source file");
 			await fs.rm(path.join(root, "web", "leaked-source.ts"));
 
-			await expect(verifyDesktopPayload(root, "linux-arm64", "0.2.0")).rejects.toThrow(
+			await expect(verifyDesktopPayload(root, "macos-x64", "0.2.0")).rejects.toThrow(
 				/architecture|machine|target|expected/i,
 			);
 		} finally {

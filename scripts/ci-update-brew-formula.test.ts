@@ -2,9 +2,7 @@ import { describe, expect, it } from "bun:test";
 import { renderFormula } from "./ci-update-brew-formula";
 
 const SUMS = {
-	"chudcode-darwin-arm64": "darwin_arm64_sha",
 	"chudcode-darwin-x64": "darwin_x64_sha",
-	"chudcode-linux-arm64": "linux_arm64_sha",
 	"chudcode-linux-x64": "linux_x64_sha",
 };
 
@@ -17,19 +15,18 @@ describe("renderFormula", () => {
 	// `bin.install nil => "chudcode"` raises (issue #2398).
 	it("attaches `using: :nounzip` to every per-platform url stanza", () => {
 		const matches = formula.match(/using: :nounzip/g) ?? [];
-		expect(matches).toHaveLength(4);
-		for (const arch of [
-			"chudcode-darwin-arm64",
-			"chudcode-darwin-x64",
-			"chudcode-linux-arm64",
-			"chudcode-linux-x64",
-		]) {
+		expect(matches).toHaveLength(2);
+		for (const arch of ["chudcode-darwin-x64", "chudcode-linux-x64"]) {
 			expect(formula).toMatch(
 				new RegExp(
 					`url "https://github\\.com/[^"]+/${arch}",\\s+using: :nounzip\\s+sha256 "${SUMS[arch as keyof typeof SUMS]}"`,
 				),
 			);
 		}
+	});
+
+	it("restricts the tap to architectures with published assets", () => {
+		expect(formula).toContain("depends_on arch: :x86_64");
 	});
 
 	// Regression: completions generation must run with HOME redirected so the

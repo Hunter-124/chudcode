@@ -662,7 +662,7 @@ if (import.meta.main) {
 				runExecutables,
 				argumentValue(argv, "--manifest") ?? undefined,
 			);
-			console.log("Verified canonical six-target desktop release");
+			console.log("Verified complete supported-platform desktop release");
 		}
 	} else if (nativeLeafTag) {
 		await publishNativeLeafPackage(nativeLeafTag);

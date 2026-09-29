@@ -36,24 +36,6 @@ async function writeExecutable(directory: string, name: string, content: string)
 }
 
 describe("musl release artifacts", () => {
-	test("builds the requested x64 and arm64 musl asset names with Bun's musl targets", async () => {
-		const result = await run([
-			"bun",
-			"scripts/ci-release-build-binaries.ts",
-			"--dry-run",
-			"--targets",
-			"linux-musl-x64,linux-musl-arm64",
-		]);
-
-		expect(result.exitCode, result.stderr).toBe(0);
-		expect(result.stdout).toContain(
-			"Bun.build target=bun-linux-x64-musl-baseline outfile=packages/coding-agent/binaries/chudcode-linux-musl-x64",
-		);
-		expect(result.stdout).toContain(
-			"Bun.build target=bun-linux-arm64-musl outfile=packages/coding-agent/binaries/chudcode-linux-musl-arm64",
-		);
-	});
-
 	test("selects the musl asset when the Linux host reports musl", async () => {
 		const dir = await fs.mkdtemp(path.join(os.tmpdir(), "chudcode-musl-install-"));
 		tempDirs.push(dir);

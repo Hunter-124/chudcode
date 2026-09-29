@@ -73,9 +73,8 @@ build:ci --reuse_sandbox_directories
 
 # --- Remote cache ------------------------------------------------------------
 # The bazel-remote endpoint is cluster-internal only; .github/actions/bazel-cache
-# composes endpoint + credentials into an rc fragment on chudcode-kata pods.
-# GitHub-hosted runners never use a remote cache (actions/cache-backed
-# --disk_cache instead). These configs carry only the policy bits.
+# composes it on credentialed cluster jobs and uses a persistent local disk
+# cache on Cloudcastle physical runners. These configs carry remote policy only.
 #
 # cache-rw: trusted in-cluster writers (chudcode-kata pods).
 build:cache-rw --remote_upload_local_results=true

@@ -426,7 +426,7 @@ Vuln lookups answer with vendor data, not blog summaries.
 Six crates, one platform-tagged N-API addon. Search, shell, AST, highlight, PTY, desktop control, image decode, BPE counting — all in-process on the libuv pool. No fork/exec on the hot path. Another ~80k lines ride along vendored: the brush bash fork, plus 58 command-line utilities — coreutils, findutils, sed, jq, ripgrep-backed grep, fd, diff, moreutils — ported into the builtins crate and compiled straight into the shell.
 
 - Crates: `chud-natives`, `chud-shell`, `chud-ast`, `chud-iso`, `chud-voice`, `chud-walker`
-- Platforms: `linux-x64`, `linux-arm64`, `darwin-x64`, `darwin-arm64`, `win32-x64` — x64 ships dual AVX2 and baseline binaries
+- Published platforms: `linux-x64`, `darwin-x64`, `win32-x64` — x64 Linux ships dual AVX2 and baseline binaries; other architectures remain locally buildable but are not part of the current release gate
 
 Per crate, code lines only:
 

@@ -14,7 +14,7 @@ export interface ChecksumEntry {
 export interface DesktopReleaseTarget {
 	target: string;
 	os: "linux" | "macos" | "windows";
-	arch: "x64" | "arm64";
+	arch: "x64";
 	file: string;
 }
 
@@ -28,11 +28,8 @@ export interface ReleaseManifest {
 
 export const DESKTOP_RELEASE_TARGETS: readonly DesktopReleaseTarget[] = [
 	{ target: "linux-x64", os: "linux", arch: "x64", file: "chudcode-desktop-linux-x64.tar.gz" },
-	{ target: "linux-arm64", os: "linux", arch: "arm64", file: "chudcode-desktop-linux-arm64.tar.gz" },
 	{ target: "macos-x64", os: "macos", arch: "x64", file: "chudcode-desktop-macos-x64.tar.gz" },
-	{ target: "macos-arm64", os: "macos", arch: "arm64", file: "chudcode-desktop-macos-arm64.tar.gz" },
 	{ target: "windows-x64", os: "windows", arch: "x64", file: "chudcode-desktop-windows-x64.zip" },
-	{ target: "windows-arm64", os: "windows", arch: "arm64", file: "chudcode-desktop-windows-arm64.zip" },
 ] as const;
 
 const desktopFiles: Readonly<Record<string, true>> = Object.fromEntries(
@@ -68,7 +65,7 @@ export function assertCompleteDesktopRelease(names: readonly string[]): void {
 	const duplicates = [...counts].filter(([file, count]) => desktopFiles[file] && count !== 1).map(([file]) => file);
 	if (missing.length || unknown.length || duplicates.length) {
 		throw new Error(
-			`Desktop release must contain exactly the canonical six targets` +
+			`Desktop release must contain exactly the supported targets` +
 				`${missing.length ? `; missing: ${missing.join(", ")}` : ""}` +
 				`${unknown.length ? `; unknown: ${unknown.join(", ")}` : ""}` +
 				`${duplicates.length ? `; duplicates: ${duplicates.join(", ")}` : ""}`,
@@ -80,7 +77,7 @@ export function buildReleaseManifest(entries: readonly ChecksumEntry[], productV
 	assertCompleteDesktopRelease(entries.map(entry => entry.name));
 	const byName = new Map(entries.map(entry => [entry.name, entry]));
 	if (!DESKTOP_RELEASE_TARGETS.every(target => byName.has(target.file))) {
-		throw new Error("Cannot build release-manifest.json without all six desktop archives");
+		throw new Error("Cannot build release-manifest.json without every supported desktop archive");
 	}
 	return {
 		schemaVersion: 1,
@@ -128,7 +125,7 @@ export async function verifyReleaseManifest(
 		manifest.artifacts.map(artifact => (typeof artifact?.file === "string" ? artifact.file : "<invalid>")),
 	);
 	if (manifest.artifacts.length !== DESKTOP_RELEASE_TARGETS.length) {
-		throw new Error("release-manifest.json does not contain exactly six artifacts");
+		throw new Error("release-manifest.json does not contain exactly the supported artifacts");
 	}
 	for (const target of DESKTOP_RELEASE_TARGETS) {
 		const artifact = manifest.artifacts.find(candidate => candidate.file === target.file);

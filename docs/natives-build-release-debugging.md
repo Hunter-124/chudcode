@@ -72,7 +72,7 @@ Per-target codegen that is not part of the transition lives in `crates/chud-nati
 | ---------------------- | -------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
 | linux gnu (x64/arm64)  | `@zig_sdk//libc_aware/toolchain:linux_*_gnu.2.17` (hermetic zig cc)        | glibc **2.17** portability floor — same floor the previous cross builds used                          |
 | linux musl (x64/arm64) | `@zig_sdk//libc_aware/toolchain:linux_*_musl`                              | dynamic CRT (`-Ctarget-feature=-crt-static` in the crate BUILD)                                       |
-| darwin (x64/arm64)     | host Xcode toolchain                                                       | Apple frameworks aren't redistributable; darwin addons build on mac hosts only                        |
+| darwin (x64/arm64)     | host Apple Command Line Tools SDK/clang                                   | Apple frameworks aren't redistributable; darwin addons build on mac hosts only                        |
 | win32-x64 msvc         | `//bazel/toolchains/msvc` (`@msvc_cc`): clang-cl + lld-link + xwin CRT/SDK | hermetic cross-link from linux-x64 CI pods and darwin dev hosts; **static CRT** (`+crt-static` + `static_link_msvcrt`) so the addon needs no VC++ Redistributable; see `bazel/toolchains/msvc/NOTES.md` |
 
 Rust toolchains are nightly (pinned in `MODULE.bazel`), with repo-local musl re-registrations in `//bazel/toolchains` carrying an explicit `@zig_sdk//libc:musl` constraint (rules_rust's generated gnu and musl toolchains otherwise share (os, cpu) constraints).
@@ -142,15 +142,15 @@ build --tls_certificate=infra/bazel-remote/ca.crt
 
 **Pull requests never build or validate Rust.** Native-affecting PRs are rare enough that they don't warrant a PR-side bazel build: `rust_validate` is skipped entirely (`if: github.event_name != 'pull_request'`), and `native_addons` fetches the latest release's Linux x64 addon pair from the `@chudware/natives-linux-x64` npm leaf, smoke-loads both, and uploads them as the `native-addons` workflow artifact. The loader skips its version sentinel for workspace loads, so release-versioned addons load fine under a newer checkout. A PR whose TypeScript tests depend on changed native behavior fails visibly (and CI emits a notice on any native-touching PR); the Rust side is validated post-merge on main and again at release.
 
-On non-PR events both jobs run on `chudcode-kata` pods against the cluster remote cache. `rust_validate` runs:
+On non-PR events these jobs run on the repository-scoped `cc-linux-hunter` physical runner. `rust_validate` runs:
 
 ```bash
 bazelisk --bazelrc="$rc" test //crates/...                 # full Rust suite
 # clippy scope mirrors `cargo clippy --workspace` (libraries only), split by
 # lint policy via a query kind filter:
-bazelisk query "kind('rust_library|rust_shared_library', //crates/chud-ast/... + //crates/chud-iso/... + //crates/chud-natives/... + //crates/chud-shell/... + //crates/chud-voice/... + //crates/chud-walker/...)" \
+bazelisk --bazelrc="$rc" query "kind('rust_library|rust_shared_library', //crates/chud-ast/... + //crates/chud-iso/... + //crates/chud-natives/... + //crates/chud-shell/... + //crates/chud-voice/... + //crates/chud-walker/...)" \
   | xargs bazelisk --bazelrc="$rc" build --config=clippy-strict --
-bazelisk query "kind('rust_library|rust_shared_library', //crates/... - (…strict set…) - //crates/vendor/brush-core/... - //crates/chud-builtins/...)" \
+bazelisk --bazelrc="$rc" query "kind('rust_library|rust_shared_library', //crates/... - (…strict set…) - //crates/vendor/brush-core/... - //crates/chud-builtins/...)" \
   | xargs bazelisk --bazelrc="$rc" build --config=clippy --
 bazelisk --bazelrc="$rc" build --config=rustfmt //crates/...
 ```
@@ -158,34 +158,25 @@ bazelisk --bazelrc="$rc" build --config=rustfmt //crates/...
 - `--config=clippy` = rules_rust clippy aspect + `-Dwarnings`; `--config=clippy-strict` layers the generated `bazel/clippy.bazelrc` for crates with `[lints] workspace = true`.
 - `--config=rustfmt` = rustfmt aspect against the workspace `rustfmt.toml`.
 
-`native_addons` on main builds the six Linux-hosted targets one at a time to avoid concurrent-link OOMs, then builds `//:natives-linux-all` as an aggregate consistency check. It uploads every `.node` output as the `native-addons` workflow artifact. Downstream jobs use `.github/actions/native-artifacts` to download that artifact and install the requested target set without invoking Bazel.
+`native_addon_build` on main builds four x64 targets in independent Linux matrix legs (Linux baseline/modern, musl baseline, and win32 cross); `native_addons` verifies and assembles them into the `native-addons` workflow artifact. The ARM64 Bazel targets remain available for local development but are intentionally outside this release. Downstream jobs install the requested addon set through `.github/actions/native-artifacts` without invoking Bazel.
 
-No toolchain setup steps are required for native jobs: bazelisk is on the GitHub images and baked into the kata runner image; Bazel fetches Rust/zig/LLVM/xwin hermetically.
+The Linux runner needs Bazelisk, Git, Cargo, an x64 container runtime (Podman or Docker) for musl smoke, ample free disk for the xwin LLVM cross-toolchain, passwordless package installation, and a persistent runner-user home directory. Fedora hosts install GUI and canvas dependencies with `dnf`; Ubuntu hosts use `apt`. macOS Intel needs Bazelisk, Bun, CMake/Ninja, Homebrew Python, and a working Command Line Tools SDK (`xcrun`); the GUI builder does not require full Xcode. When Apple signing secrets are configured, signing additionally requires `xcrun notarytool`.
 
-### Hosted cache warmer
+### Persistent Bazel cache
 
-`.github/workflows/bazel-cache-warm.yml` seeds the GitHub-hosted caches that have no other reliable producer: the `release-darwin-*` bazel disk caches (built on the same macOS images as the `release_binary_darwin` matrix, so a release's bazel build is the version-bump delta instead of a ~40-min cold graph) and the shared bun store entry PR jobs restore but never save. It triggers only on pushes that can change those archives (crate/bazel/lock inputs, `bun.lock`, `.github/**`).
+The `bazel-cache` composite emits a bazelrc fragment (its `rc` output), consumed via `bazelisk --bazelrc=...` or `CHUDCODE_BAZEL_RC`. On the Cloudcastle machines it sets `--output_user_root=$RUNNER_TEMP/bazel-root`, `--config=ci`, `--disk_cache=$HOME/.cache/chudcode-bazel-disk`, and `--repository_cache=$HOME/.cache/chudcode-bazel-repo`. Bazel outputs stay isolated per runner instance while the content-addressed caches survive checkouts and jobs. The physical runner owner must budget and maintain free space; no Bazel cache is transferred to GitHub Actions storage.
 
-### `bazel-cache` action (`.github/actions/bazel-cache`)
-
-Single source of truth for cache wiring, emitted as a bazelrc fragment (its `rc` output) that consumers pass via `bazelisk --bazelrc=...` or `CHUDCODE_BAZEL_RC`. Two modes are selected via `BAZEL_REMOTE_USER`/`BAZEL_REMOTE_PASSWORD`:
-
-| Runner        | Fragment contents                                                                                                                                                                                            |
-| ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| chudcode-kata pod  | A temporary output root, `--config=ci`, the PVC-backed repository/xwin caches, `--config=cache-rw`, the in-cluster TLS remote-cache endpoint and masked Basic-auth header, plus `--remote_download_toplevel` |
-| GitHub-hosted | `--config=ci`, `--disk_cache=$HOME/.cache/chudcode-bazel-disk`, and `--repository_cache=$HOME/.cache/chudcode-bazel-repo`                                                                                              |
-
-Hosted disk caches use `bazel-disk-v3-<scope>-<os>-<arch>-<config-hash>-<source-hash>`. The config hash covers Cargo/Bazel/toolchain settings; the source hash covers `crates/**` and root `BUILD.bazel`. Restores fall back from the exact key to the config-scoped prefix, then to a bare `<scope>-<os>-<arch>` prefix — the bare fallback is what keeps release version bumps (which rewrite `Cargo.toml`/`Cargo.lock` and thus the config hash) from rebuilding cold; bazel's content-addressed action keys make a stale archive a partial hit, never a wrong output. An inexact restore permits one refreshed exact-key save. Before a hosted build, disk-cache files untouched for 14 days are pruned; repository-cache contents are deliberately not age-pruned because extracted files retain upstream mtimes. The remote endpoint resolves only inside the cluster.
+The composite retains the cluster remote-cache backend if both `BAZEL_REMOTE_USER` and `BAZEL_REMOTE_PASSWORD` are present, with its masked auth header and repository/xwin PVC. The cluster endpoint is not reachable from the physical fleet; do not inject those variables on Cloudcastle runners.
 
 ### Native artifact actions
 
-`.github/actions/bazel-natives` is the direct builder: `bazel-cache` → `CHUDCODE_BAZEL_RC=<rc> bun scripts/bazel-natives.ts <targets> --dest <dest>`, followed by a disk-cache save after a hosted miss. `.github/actions/native-artifacts` is the no-build consumer: download `native-addons` → run the same driver with `--source`.
+`.github/actions/bazel-natives` builds requested targets through the shared cache configuration, never uploading the physical runner's disk/repository caches to Actions storage. `.github/actions/native-artifacts` downloads and installs built addons on Linux and Windows; its Windows branch uses PowerShell 5.1 instead of assuming Bash is available on the Windows builder.
 
 ### Release binary builds and publishing
 
-Binary builds are build-only and run in parallel with the test fan-out. `release_binary` (Linux + Windows matrices) needs only `native_addons`, whose workflow artifact supplies their addons. `release_binary_darwin` needs only `release_metadata` and starts the moment a release run is detected: darwin artifacts cannot be cross-built on Linux, so each macOS leg builds its own architecture through `bazel-natives` with scope `release-<target_id>` (seeded near HEAD by the warm workflow — normally just the version-bump delta), then `bun run ci:release:build-binaries` embeds and compiles the executable. Publishing is held behind `release_gate` (the aggregate of every validation job): `release_native_leaves` downloads all built addons and publishes the five `@chudware/natives-<tag>` leaves from one linux runner, and the GitHub release / verify / core npm chain runs beside it.
+Binary builds overlap the test fan-out. Linux x64 builds Linux glibc/musl and Windows x64 CLI targets; the Linux binary is smoked natively, musl in an x64 Alpine container, and the Windows cross-build is **smoked on the native `cc-win-laptop` runner** before publishing. macOS Intel builds its native addon and CLI, then smokes the CLI locally. Native leaf publishing ships Linux x64, Darwin x64, and Windows x64 packages with matching pinned core optional dependencies. OIDC permissions, the full validation gate, native leaf ordering, published macOS binary verification, and Homebrew tap ordering remain intact.
 
-Darwin release jobs upload their native addon artifact after the binary smoke test. A failed first upload is retried once with the same artifact name and path because hosted runners can briefly lose access to the artifact service; a second failure still fails the job and blocks publishing.
+The desktop matrix has three required legs: Linux x64 (`cc-linux-hunter`), macOS x64 (`cc-mac-intel`), and Windows x64 (`cc-win-laptop`). Each builds its actual native GUI, runs its native GUI tests and verifies its complete source-free bundle with executable checks. The release manifest and `SHA256SUMS.txt` require precisely those three archives and their hashes. Unsupported ARM64 targets are not labeled as artifacts, substituted with cross-built GUI binaries, or included in the npm leaf list; regain a platform only when its physical runner and full native gate are available.
 
 ## Debugging playbook
 
@@ -228,8 +219,8 @@ bazelisk build --nobuild //:natives-win32-x64-baseline
 
 ### Cache behavior
 
-- **chudcode-kata:** read-write gRPC to the in-cluster bazel-remote (`grpcs://bazel-remote.bazel-cache.svc.cluster.local:9092`, TLS via the committed `infra/bazel-remote/ca.crt`, htpasswd user `ci`). `--remote_local_fallback` plus retries make an outage degrade to local execution rather than fail the build.
-- **GitHub-hosted:** no cluster access; only the darwin release/warm jobs build with bazel here. The v3 `actions/cache` disk key separates config and source generations with prefix + bare fallbacks (see the `bazel-cache` action section above); `.github/workflows/bazel-cache-warm.yml` publishes the `release-darwin-*` archives from the same macOS images as the release consumers.
+- **Cloudcastle builders:** Bazel's disk and repository caches persist under each runner account's HOME; each runner instance has its own temporary output root. Bun's package store also persists locally. No warm workflow and no Actions cache archive are needed.
+- **Legacy cluster:** when both Bazel remote credentials are explicitly present, the composite can still address the in-cluster bazel-remote endpoint (`grpcs://bazel-remote.bazel-cache.svc.cluster.local:9092`) with masked auth, TLS and remote-local fallback. The physical fleet must not receive those credentials.
 - **msvc repos:** the ~2 GiB LLVM download is sha256-pinned and repository-cache backed; the ~1 GiB xwin CRT/SDK splat is fetched from the Microsoft CDN inside the repo rule and is **not** repo-cache backed — a cold output base re-downloads it. Microsoft advances the VS channel payload over time, so remote-cache hit rates for win32 actions degrade gracefully after an MS bump (same property the previous cross toolchain had). Win32 link actions also don't share cache entries across host OSes (linux vs mac clang binaries).
 - Server-side operations (deploy, TLS/auth, egress, poisoning boundary): `infra/docs/04-arc-and-caching.md` §5.
 

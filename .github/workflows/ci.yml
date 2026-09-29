@@ -93,8 +93,8 @@ jobs:
    # supported tag family (or from a tagged main HEAD) is also a release.
    release_metadata:
       name: Resolve release metadata
-      # Hosted runner: release metadata must not wait behind build jobs.
-      runs-on: ubuntu-22.04
+      # Metadata runs on the builder fleet, ahead of downstream jobs.
+      runs-on: [self-hosted, cloudcastle-ci, cc-linux-hunter]
       outputs:
          is-release: ${{ steps.detect.outputs.is-release }}
          release-tag: ${{ steps.detect.outputs.release-tag }}
@@ -142,15 +142,15 @@ jobs:
 
    check:
       name: Lint, type check & web build
-      runs-on: ubuntu-22.04
+      runs-on: [self-hosted, cloudcastle-ci, cc-linux-hunter]
       steps:
          - uses: actions/checkout@v4
          - uses: ./.github/actions/bun-install
          - name: Verify Rust license compliance (cargo-deny 0.20.2)
            run: |
               cargo install --locked --version 0.20.2 cargo-deny
-              # Fresh hosted runners have no workspace crates in the registry
-              # cache. Fetch before the offline license check.
+              # Fetch before the offline license check when the runner's
+              # persistent cargo registry has not yet seen these crates.
               cargo fetch --locked
               cargo deny --locked --offline check licenses sources
          - name: Type check workspace
@@ -159,19 +159,17 @@ jobs:
            run: bun run collab:web:build
 
    # Rust validation (tests, clippy, rustfmt) runs on non-PR events only.
-   # Main/release use hosted Linux runners and the actions/cache-backed Bazel
-   # disk cache. A skipped required check still satisfies branch protection.
+   # Main/release use the Linux fleet's persistent local Bazel cache.
+   # A skipped required check still satisfies branch protection.
    rust_validate:
       name: Validate Rust workspace (bazel)
       if: github.event_name != 'pull_request'
-      runs-on: ubuntu-22.04
+      runs-on: [self-hosted, cloudcastle-ci, cc-linux-hunter]
       steps:
          - uses: actions/checkout@v4
          - uses: ./.github/actions/bun-install
          - id: cache
            uses: ./.github/actions/bazel-cache
-           with:
-              scope: linux
          - name: Rust tests
            # The ulimit guard runs in the step that launches the bazel server
            # (limits are per-process and the server persists across steps).
@@ -187,59 +185,53 @@ jobs:
          # Cargo honors that via `[lints]`, Bazel via the clippy-ported config.
          - name: Clippy (workspace lint policy on opted-in crates)
            run: |
-              bazelisk query "kind('rust_library|rust_shared_library', //crates/chud-ast/... + //crates/chud-iso/... + //crates/chud-natives/... + //crates/chud-shell/... + //crates/chud-voice/... + //crates/chud-walker/...)" \
+              bazelisk --bazelrc="${{ steps.cache.outputs.rc }}" query "kind('rust_library|rust_shared_library', //crates/chud-ast/... + //crates/chud-iso/... + //crates/chud-natives/... + //crates/chud-shell/... + //crates/chud-voice/... + //crates/chud-walker/...)" \
                 | xargs bazelisk --bazelrc="${{ steps.cache.outputs.rc }}" build --config=clippy-strict --
          - name: Clippy (default lints elsewhere)
            run: |
-              bazelisk query "kind('rust_library|rust_shared_library', //crates/... - (//crates/chud-ast/... + //crates/chud-iso/... + //crates/chud-natives/... + //crates/chud-shell/... + //crates/chud-voice/... + //crates/chud-walker/...) - //crates/chud-builtins/... - //crates/vendor/brush-core/...)" \
+              bazelisk --bazelrc="${{ steps.cache.outputs.rc }}" query "kind('rust_library|rust_shared_library', //crates/... - (//crates/chud-ast/... + //crates/chud-iso/... + //crates/chud-natives/... + //crates/chud-shell/... + //crates/chud-voice/... + //crates/chud-walker/...) - //crates/chud-builtins/... - //crates/vendor/brush-core/...)" \
                 | xargs bazelisk --bazelrc="${{ steps.cache.outputs.rc }}" build --config=clippy --
          - name: Clippy (manifest allows on ported chud-builtins)
            run: |
-              bazelisk query "kind('rust_library|rust_shared_library', //crates/chud-builtins/...)" \
+              bazelisk --bazelrc="${{ steps.cache.outputs.rc }}" query "kind('rust_library|rust_shared_library', //crates/chud-builtins/...)" \
                 | xargs bazelisk --bazelrc="${{ steps.cache.outputs.rc }}" build --config=clippy-ported --
-         # Tests and three Clippy configurations fill a cold hosted runner's
-         # Bazel output base; keep the disk cache but free compiled outputs
-         # before Rustfmt downloads its separate nightly toolchain.
+         # Tests and three Clippy configurations fill the output base; retain
+         # the disk/repository caches while freeing compiled outputs before
+         # Rustfmt downloads its separate nightly toolchain.
          - name: Clear Bazel outputs before Rustfmt
            run: bazelisk --bazelrc="${{ steps.cache.outputs.rc }}" clean --expunge
          - name: Rustfmt
            run: bazelisk --bazelrc="${{ steps.cache.outputs.rc }}" build --config=rustfmt //crates/...
 
-   # Linux cross targets use distinct Bazel configurations. A cold hosted
-   # runner ran out of disk while compiling the second target after retaining
-   # the first target's outputs and disk cache (run 36530028506). Give each
-   # target its own runner, then assemble and verify the complete artifact.
+   # Linux cross targets use distinct Bazel configurations. Keep one target
+   # per matrix leg to bound disk and memory use on the physical builder.
    native_addon_build:
       name: "Build native addon (bazel): ${{ matrix.target }}"
       if: github.event_name != 'pull_request'
-      runs-on: ubuntu-22.04
+      runs-on: [self-hosted, cloudcastle-ci, cc-linux-hunter]
       strategy:
          fail-fast: false
          matrix:
             target:
-               - linux-arm64
-               - linux-musl-arm64
                - linux-musl-x64-baseline
                - linux-x64-baseline
                - linux-x64-modern
                - win32-x64-baseline
       steps:
          - uses: actions/checkout@v4
-         # The Windows cross toolchain extracts a ~10 GiB LLVM archive before
-         # pruning it; a cold ubuntu-22.04 runner ran out of disk during that
-         # extraction (run 36535658690). Neither preinstalled SDK is used by
-         # this Bazel target, so reclaim their space before any downloads.
-         - name: Free space for Windows cross toolchain
+         # Windows cross toolchain extraction needs ~10 GiB of free disk.
+         # Fail before downloads rather than deleting SDKs owned by the host.
+         - name: Check space for Windows cross toolchain
            if: matrix.target == 'win32-x64-baseline'
            shell: bash
            run: |
-              df -h .
-              sudo rm -rf /usr/local/lib/android/sdk /usr/share/dotnet
-              df -h .
+              available_kb=$(df -Pk "$HOME" | tail -1 | awk '{print $4}')
+              if [ "$available_kb" -lt 15728640 ]; then
+                echo "::error::Windows cross build requires 15 GiB free on the runner's home filesystem"
+                exit 1
+              fi
          - id: cache
            uses: ./.github/actions/bazel-cache
-           with:
-              scope: linux
          - name: Build native addon
            shell: bash
            run: |
@@ -259,15 +251,18 @@ jobs:
               if-no-files-found: error
               retention-days: 1
 
-   # PRs use the latest release's x64 addons. Main assembles all six built
+   # PRs use the latest release's x64 addons. Main assembles all four built
    # targets at the original artifact path for the TS and release consumers.
    native_addons:
       name: Build native addons (bazel)
       if: ${{ !cancelled() && (github.event_name == 'pull_request' || needs.native_addon_build.result == 'success') }}
       needs: [native_addon_build]
-      runs-on: ubuntu-22.04
+      runs-on: [self-hosted, cloudcastle-ci, cc-linux-hunter]
       steps:
          - uses: actions/checkout@v4
+         - id: cache
+           if: github.event_name != 'pull_request'
+           uses: ./.github/actions/bazel-cache
 
          # ---- PR path: latest release addons from npm ----
          - name: Fetch release native addons (npm)
@@ -332,17 +327,15 @@ jobs:
            run: |
               set -euo pipefail
               for artifact in \
-                natives-linux-arm64/chud_natives.linux-arm64.node \
-                natives-linux-musl-arm64/chud_natives.linux-arm64.node \
                 natives-linux-musl-x64-baseline/chud_natives.linux-x64-baseline.node \
                 natives-linux-x64-baseline/chud_natives.linux-x64-baseline.node \
                 natives-linux-x64-modern/chud_natives.linux-x64-modern.node \
                 natives-win32-x64-baseline/chud_natives.win32-x64-baseline.node; do
                 test -s "bazel-bin/$artifact" || { echo "::error::Missing or empty native addon: $artifact"; exit 1; }
               done
-              # Keep the original filegroup contract: if a new target is added
-              # to //:natives-linux-all, fail until the build matrix includes it.
-              targets="$(bazelisk query 'labels(srcs, //:natives-linux-all)' --output=label)"
+              # Keep the Linux aggregate's supported x64 targets in sync with
+              # the matrix; exclude the intentionally unshipped ARM64 targets.
+              targets="$(bazelisk --bazelrc="${{ steps.cache.outputs.rc }}" query 'labels(srcs, //:natives-linux-all) - set(//:natives-linux-arm64 //:natives-linux-musl-arm64)' --output=label)"
               for target in $targets; do
                 target="${target#//:}"
                 addons=(bazel-bin/"$target"/*.node)
@@ -362,7 +355,7 @@ jobs:
 
    test_workspace:
       name: Test TS workspace fast
-      runs-on: ubuntu-22.04
+      runs-on: [self-hosted, cloudcastle-ci, cc-linux-hunter]
       needs: [native_addons]
       if: ${{ !cancelled() && needs.native_addons.result == 'success' }}
       timeout-minutes: 20
@@ -385,7 +378,7 @@ jobs:
 
    test_coding_agent_singleton:
       name: Test coding-agent singleton/global-state (TS)
-      runs-on: ubuntu-22.04
+      runs-on: [self-hosted, cloudcastle-ci, cc-linux-hunter]
       needs: [native_addons]
       if: ${{ !cancelled() && needs.native_addons.result == 'success' }}
       timeout-minutes: 20
@@ -403,7 +396,7 @@ jobs:
 
    test_ts_native:
       name: Test TS native/integration packages
-      runs-on: ubuntu-22.04
+      runs-on: [self-hosted, cloudcastle-ci, cc-linux-hunter]
       needs: [native_addons]
       if: ${{ !cancelled() && needs.native_addons.result == 'success' }}
       timeout-minutes: 25
@@ -421,7 +414,7 @@ jobs:
 
    test_coding_agent_ui:
       name: Test coding-agent UI/TUI (TS)
-      runs-on: ubuntu-22.04
+      runs-on: [self-hosted, cloudcastle-ci, cc-linux-hunter]
       needs: [native_addons]
       if: ${{ !cancelled() && needs.native_addons.result == 'success' }}
       timeout-minutes: 25
@@ -439,7 +432,7 @@ jobs:
 
    test_coding_agent_runtime:
       name: Test coding-agent runtime/session (TS)
-      runs-on: ubuntu-22.04
+      runs-on: [self-hosted, cloudcastle-ci, cc-linux-hunter]
       needs: [native_addons]
       if: ${{ !cancelled() && needs.native_addons.result == 'success' }}
       timeout-minutes: 25
@@ -459,7 +452,7 @@ jobs:
 
    test_coding_agent_native:
       name: Test coding-agent native/unit (TS)
-      runs-on: ubuntu-22.04
+      runs-on: [self-hosted, cloudcastle-ci, cc-linux-hunter]
       needs: [native_addons]
       if: ${{ !cancelled() && needs.native_addons.result == 'success' }}
       timeout-minutes: 25
@@ -477,7 +470,7 @@ jobs:
 
    test_smoke:
       name: Test CLI smoke (TS)
-      runs-on: ubuntu-22.04
+      runs-on: [self-hosted, cloudcastle-ci, cc-linux-hunter]
       needs: [native_addons]
       if: ${{ !cancelled() && needs.native_addons.result == 'success' }}
       timeout-minutes: 15
@@ -493,7 +486,7 @@ jobs:
 
    install_methods:
       name: Install method smoke tests
-      runs-on: ubuntu-22.04
+      runs-on: [self-hosted, cloudcastle-ci, cc-linux-hunter]
       needs: [native_addons]
       if: ${{ !cancelled() && needs.native_addons.result == 'success' }}
       steps:
@@ -525,7 +518,7 @@ jobs:
          needs.test_smoke.result == 'success' && needs.check.result == 'success' &&
          needs.install_methods.result == 'success' }}
       needs: [release_metadata, check, rust_validate, native_addons, test_workspace, test_coding_agent_singleton, test_ts_native, test_coding_agent_ui, test_coding_agent_runtime, test_coding_agent_native, test_smoke, install_methods]
-      runs-on: ubuntu-22.04
+      runs-on: [self-hosted, cloudcastle-ci, cc-linux-hunter]
       steps:
          - uses: actions/checkout@v4
          - uses: ./.github/actions/bun-install
@@ -551,48 +544,25 @@ jobs:
          matrix:
             include:
                - {
-                    os: ubuntu-22.04,
                     platform: linux,
-                    arch: x64,
                     target_id: linux-x64,
                     binary_path: packages/coding-agent/binaries/chudcode-linux-x64,
                     native_targets: linux-x64-baseline linux-x64-modern,
                  }
                - {
-                    os: ubuntu-22.04,
                     platform: linux,
                     libc: musl,
-                    arch: x64,
                     target_id: linux-musl-x64,
                     binary_path: packages/coding-agent/binaries/chudcode-linux-musl-x64,
                     native_targets: linux-musl-x64-baseline,
                  }
                - {
-                    os: ubuntu-24.04-arm,
-                    platform: linux,
-                    arch: arm64,
-                    target_id: linux-arm64,
-                    binary_path: packages/coding-agent/binaries/chudcode-linux-arm64,
-                    native_targets: linux-arm64,
-                 }
-               - {
-                    os: ubuntu-24.04-arm,
-                    platform: linux,
-                    libc: musl,
-                    arch: arm64,
-                    target_id: linux-musl-arm64,
-                    binary_path: packages/coding-agent/binaries/chudcode-linux-musl-arm64,
-                    native_targets: linux-musl-arm64,
-                 }
-               - {
-                    os: ubuntu-22.04,
                     platform: win32,
-                    arch: x64,
                     target_id: win32-x64,
                     binary_path: packages/coding-agent/binaries/chudcode-windows-x64.exe,
                     native_targets: win32-x64-baseline,
                  }
-      runs-on: ${{ matrix.os }}
+      runs-on: [self-hosted, cloudcastle-ci, cc-linux-hunter]
       permissions:
          contents: read
       steps:
@@ -600,11 +570,6 @@ jobs:
          - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
            with:
               bun-version: "1.4"
-         - name: Cache bun dependencies
-           uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
-           with:
-              path: ~/.bun/install/cache
-              key: bun-${{ runner.os }}-${{ hashFiles('**/bun.lock') }}
          - run: bun install --frozen-lockfile
          - name: Install prebuilt native addon(s)
            uses: ./.github/actions/native-artifacts
@@ -614,11 +579,9 @@ jobs:
            env:
               RELEASE_TARGETS: ${{ matrix.target_id }}
            run: bun run ci:release:build-binaries
-         # Windows binary is cross-built on Linux, so we have no Windows runner
-         # to smoke it on. Cross-build correctness is verified via the bun
-         # `--compile --target=bun-windows-x64-*` cross-compile. Musl binaries
-         # need the musl loader, which glibc runners lack — they are smoked in
-         # the Alpine container step below instead.
+         # Windows binary is cross-built on Linux and verified by Bun's
+         # `--compile --target=bun-windows-x64-*` build. Musl binaries need
+         # the musl loader, so smoke them on Alpine instead.
          - name: Smoke release binary
            if: matrix.platform != 'win32' && matrix.libc != 'musl'
            run: |
@@ -629,9 +592,12 @@ jobs:
            if: matrix.libc == 'musl'
            run: |
               binary="$(realpath "${{ matrix.binary_path }}")"
-              # Bun's musl-target binaries link libstdc++/libgcc dynamically;
-              # Alpine users install them alongside the binary (same as bun itself).
-              docker run --rm -v "$binary:/usr/local/bin/chudcode:ro" alpine:3.22 sh -ec '
+              # Run on Linux x64 with Alpine's musl loader; Fedora builders
+              # commonly have rootless Podman rather than a Docker daemon.
+              if command -v podman >/dev/null 2>&1; then container=podman; else container=docker; fi
+              # These variables expand inside the Alpine guest, not on the host.
+              # shellcheck disable=SC2016
+              "$container" run --rm --platform linux/amd64 -v "$binary:/usr/local/bin/chudcode:ro" alpine:3.22 sh -ec '
                 apk add --no-cache libstdc++ libgcc >/dev/null
                 runtime_dir="$(mktemp -d)"
                 HOME="$runtime_dir/home" XDG_DATA_HOME="$runtime_dir/xdg" chudcode --version
@@ -642,6 +608,33 @@ jobs:
            with:
               name: chudcode-binary-${{ matrix.target_id }}
               path: ${{ matrix.binary_path }}
+
+   # Verify the Linux cross-built Windows CLI on native Windows x64 before
+   # any publisher can expose the release.
+   release_binary_windows_verify:
+      name: Verify Windows x64 release binary
+      if: ${{ needs.release_metadata.outputs.is-release == 'true' && !cancelled() &&
+         needs.release_binary.result == 'success' }}
+      needs: [release_metadata, release_binary]
+      runs-on: [self-hosted, cloudcastle-ci, cc-win-laptop]
+      permissions:
+         contents: read
+      steps:
+         - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+           with:
+              name: chudcode-binary-win32-x64
+              path: ${{ runner.temp }}/chudcode-win32
+         - name: Run Windows binary smoke
+           shell: powershell
+           run: |
+              $env:USERPROFILE = Join-Path $env:RUNNER_TEMP 'chudcode-win32-smoke'
+              $env:APPDATA = Join-Path $env:USERPROFILE 'AppData\Roaming'
+              New-Item -ItemType Directory -Force -Path $env:APPDATA | Out-Null
+              $binary = Join-Path $env:RUNNER_TEMP 'chudcode-win32\chudcode-windows-x64.exe'
+              & $binary --version
+              if ($LASTEXITCODE -ne 0) { throw 'Windows binary --version failed' }
+              & $binary --smoke-test
+              if ($LASTEXITCODE -ne 0) { throw 'Windows binary --smoke-test failed' }
 
    # Darwin release builds are the longest leg of a release (bazel-built
    # addons on macOS runners), build their own addons, and touch nothing from
@@ -656,18 +649,12 @@ jobs:
          matrix:
             include:
                - {
-                    os: macos-15-intel,
+                    os: cc-mac-intel,
                     target_id: darwin-x64,
                     binary_path: packages/coding-agent/binaries/chudcode-darwin-x64,
                     native_targets: darwin-x64-baseline,
                  }
-               - {
-                    os: macos-14,
-                    target_id: darwin-arm64,
-                    binary_path: packages/coding-agent/binaries/chudcode-darwin-arm64,
-                    native_targets: darwin-arm64,
-                 }
-      runs-on: ${{ matrix.os }}
+      runs-on: [self-hosted, cloudcastle-ci, "${{ matrix.os }}"]
       permissions:
          contents: read
       env:
@@ -677,20 +664,13 @@ jobs:
          - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
            with:
               bun-version: "1.4"
-         - name: Cache bun dependencies
-           uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
-           with:
-              path: ~/.bun/install/cache
-              key: bun-${{ runner.os }}-${{ hashFiles('**/bun.lock') }}
          - run: bun install --frozen-lockfile
-         # Darwin runners build their own architecture; cross-hosted artifacts
-         # do not exist for macOS. The warm workflow keeps these scopes seeded
-         # near HEAD, so this is normally the version-bump delta.
+         # Darwin runners build their own architecture and keep Bazel caches
+         # locally on each persistent host.
          - name: Build native addon (bazel)
            uses: ./.github/actions/bazel-natives
            with:
               targets: ${{ matrix.native_targets }}
-              cache-scope: release-${{ matrix.target_id }}
          - name: Build release binary
            env:
               RELEASE_TARGETS: ${{ matrix.target_id }}
@@ -753,36 +733,21 @@ jobs:
          matrix:
             include:
                - target: linux-x64
-                 os: ubuntu-22.04
+                 os: cc-linux-hunter
                  archive: chudcode-desktop-linux-x64.tar.gz
                  native_source: artifact
                  native_targets: linux-x64-baseline linux-x64-modern
-               - target: linux-arm64
-                 os: ubuntu-24.04-arm
-                 archive: chudcode-desktop-linux-arm64.tar.gz
-                 native_source: artifact
-                 native_targets: linux-arm64
                - target: macos-x64
-                 os: macos-15-intel
+                 os: cc-mac-intel
                  archive: chudcode-desktop-macos-x64.tar.gz
                  native_source: build
                  native_targets: darwin-x64-baseline
-               - target: macos-arm64
-                 os: macos-14
-                 archive: chudcode-desktop-macos-arm64.tar.gz
-                 native_source: build
-                 native_targets: darwin-arm64
                - target: windows-x64
-                 os: windows-2022
+                 os: cc-win-laptop
                  archive: chudcode-desktop-windows-x64.zip
                  native_source: artifact
                  native_targets: win32-x64-baseline
-               - target: windows-arm64
-                 os: windows-11-arm
-                 archive: chudcode-desktop-windows-arm64.zip
-                 native_source: none
-                 native_targets: ""
-      runs-on: ${{ matrix.os }}
+      runs-on: [self-hosted, cloudcastle-ci, "${{ matrix.os }}"]
       permissions:
          contents: read
       env:
@@ -794,22 +759,51 @@ jobs:
          GUI_BUILD_DIR: out/desktop/${{ matrix.target }}/gui
       steps:
          - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+         - name: Check Windows native GUI architecture
+           if: runner.os == 'Windows'
+           shell: powershell
+           run: |
+              $architecture = [System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture.ToString()
+              $expected = 'X64'
+              if ($architecture -ne $expected) {
+                throw "Desktop release $env:DESKTOP_TARGET requires a native $expected Windows runner; this runner is $architecture"
+              }
          - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
            with:
               bun-version: ${{ env.BUN_VERSION }}
          - name: Install pinned CMake and Ninja
            if: runner.os != 'Windows'
            shell: bash
-           run: python3 -m pip install --disable-pip-version-check "cmake==${CMAKE_VERSION}" "ninja==${NINJA_VERSION}"
-         - name: Install pinned CMake (Windows)
+           run: |
+              python3 -m venv "$RUNNER_TEMP/desktop-build-tools"
+              "$RUNNER_TEMP/desktop-build-tools/bin/pip" install --disable-pip-version-check "cmake==${CMAKE_VERSION}" "ninja==${NINJA_VERSION}"
+              echo "$RUNNER_TEMP/desktop-build-tools/bin" >> "$GITHUB_PATH"
+         - name: Check Windows build prerequisites
            if: runner.os == 'Windows'
-           shell: pwsh
-           run: python -m pip install --disable-pip-version-check "cmake==$env:CMAKE_VERSION"
+           shell: powershell
+           run: |
+              $tools = Join-Path $env:USERPROFILE 'chudware-ci-tools'
+              foreach ($dir in @((Join-Path $tools 'python'), (Join-Path $tools 'bin'))) {
+                if (Test-Path $dir) {
+                  $env:PATH += ";$dir"
+                  $dir | Out-File -Append -Encoding ascii $env:GITHUB_PATH
+                }
+              }
+              if (-not (Get-Command cmake -ErrorAction SilentlyContinue)) { throw 'Windows GUI release needs CMake and Visual Studio 2022 on the runner' }
+              if (-not (Get-Command python -ErrorAction SilentlyContinue)) { throw 'Windows GUI release needs Python on the runner' }
          # Dependency downloads are intentionally not cached. Only CMake/Ninja
          # outputs below are build intermediates; customer archives contain no
          # package manager cache, source tree, node_modules, or Bun interpreter.
          - name: Install workspace dependencies
+           if: runner.os != 'Windows'
+           shell: bash
            run: bun install --frozen-lockfile
+         - name: Install workspace dependencies (Windows)
+           if: runner.os == 'Windows'
+           shell: powershell
+           run: |
+              bun install --frozen-lockfile
+              if ($LASTEXITCODE -ne 0) { throw 'bun install failed' }
          - name: Install target native addon
            if: matrix.native_source == 'artifact'
            uses: ./.github/actions/native-artifacts
@@ -820,46 +814,50 @@ jobs:
            uses: ./.github/actions/bazel-natives
            with:
               targets: ${{ matrix.native_targets }}
-              cache-scope: desktop-${{ matrix.target }}
          - name: Install Linux GUI toolchain
-           if: runner.os == 'Linux'
+           if: runner.os == 'Linux' && matrix.target == 'linux-x64'
            shell: bash
            run: |
-              sudo apt-get update
-              sudo apt-get install -y --no-install-recommends \
-                gcc-12 g++-12 binutils xvfb xauth libgl1-mesa-dev xorg-dev
-         - name: Build and test Linux GUI
-           if: runner.os == 'Linux'
+              if command -v dnf >/dev/null 2>&1; then
+                sudo dnf install -y gcc gcc-c++ binutils xorg-x11-server-Xvfb xorg-x11-xauth \
+                  mesa-libGL-devel libX11-devel libXrandr-devel libXinerama-devel libXcursor-devel libXi-devel
+              elif command -v apt-get >/dev/null 2>&1; then
+                sudo apt-get update
+                sudo apt-get install -y --no-install-recommends \
+                  gcc-12 g++-12 binutils xvfb xauth libgl1-mesa-dev xorg-dev
+              else
+                echo "::error::Linux GUI release requires dnf or apt provisioning"
+                exit 1
+              fi
+         - name: Build and test Linux x64 GUI
+           if: runner.os == 'Linux' && matrix.target == 'linux-x64'
            shell: bash
-           env:
-              CC: gcc-12
-              CXX: g++-12
            run: |
-              case "$DESKTOP_TARGET:$(dpkg --print-architecture)" in
-                linux-x64:amd64) expected_machine='Advanced Micro Devices X86-64' ;;
-                linux-arm64:arm64) expected_machine='AArch64' ;;
-                *) echo "runner architecture does not match $DESKTOP_TARGET" >&2; exit 1 ;;
-              esac
+              test "$(uname -m)" = x86_64
               cmake -S gui -B "$GUI_BUILD_DIR" -G Ninja \
                 -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON
               cmake --build "$GUI_BUILD_DIR" --parallel "$(nproc)"
               ctest --test-dir "$GUI_BUILD_DIR" --output-on-failure
               test -x "$GUI_BUILD_DIR/chudcode-gui"
               readelf -h "$GUI_BUILD_DIR/chudcode-gui" |
-                grep -F 'Machine:' | grep -F "$expected_machine"
-         - name: Select pinned Xcode
+                grep -F 'Machine:' | grep -F 'Advanced Micro Devices X86-64'
+         - name: Check macOS Command Line Tools
            if: runner.os == 'macOS'
            shell: bash
            run: |
-              sudo xcode-select --switch /Applications/Xcode_16.2.app
-              test "$(xcodebuild -version | sed -n '1p')" = 'Xcode 16.2'
+              xcrun --find clang
+              xcrun --show-sdk-path
+              test -x "$(xcrun --find clang)"
+              if [ "$MACOS_SIGNING" = true ]; then
+                xcrun --find notarytool
+              fi
          - name: Build and test macOS GUI
            if: runner.os == 'macOS'
            shell: bash
            run: bash packaging/macos/build-desktop.sh "$DESKTOP_TARGET" "$GUI_BUILD_DIR"
          - name: Build and test Windows GUI
            if: runner.os == 'Windows'
-           shell: pwsh
+           shell: powershell
            run: packaging/windows/build-desktop.ps1 -Target $env:DESKTOP_TARGET -BuildDir $env:GUI_BUILD_DIR
          - name: Stage Linux or macOS bundle
            if: runner.os != 'Windows'
@@ -876,8 +874,7 @@ jobs:
                 --epoch "$epoch"
               bun scripts/ci-release-publish.ts \
                 --verify-desktop-archive "dist/desktop/$DESKTOP_ARCHIVE" \
-                --version "$version" \
-                --run-executables
+                --version "$version" --run-executables
               if command -v sha256sum >/dev/null 2>&1; then
                 sha256sum "dist/desktop/$DESKTOP_ARCHIVE" > "dist/desktop/$DESKTOP_ARCHIVE.sha256"
               else
@@ -886,7 +883,7 @@ jobs:
               fi
          - name: Stage Windows bundle
            if: runner.os == 'Windows'
-           shell: pwsh
+           shell: powershell
            run: |
               $version = (bun -e 'import { PRODUCT_CLI_VERSION } from "./packages/coding-agent/src/brand.ts"; process.stdout.write(PRODUCT_CLI_VERSION)').Trim()
               $epoch = git show -s --format=%ct $env:GITHUB_SHA
@@ -915,19 +912,18 @@ jobs:
               if-no-files-found: error
               retention-days: 3
 
-   # Publishes the five @chudware/natives-<tag> leaf packages once
-   # validation passes and every binary built. Runs on one linux runner: leaf
-   # publishing is platform-agnostic file packaging (gen-npm-packages reads
-   # packages/natives/native), so no per-platform runners are needed.
+   # Publishes three @chudware/natives-<tag> x64 leaf packages after validation.
+   # One Linux runner packages native addons built on their actual architectures.
    release_native_leaves:
       name: Publish native leaf packages
       if: ${{ needs.release_metadata.outputs.is-release == 'true' && !cancelled() &&
          needs.release_gate.result == 'success' &&
          needs.release_binary.result == 'success' &&
+         needs.release_binary_windows_verify.result == 'success' &&
          needs.release_binary_darwin.result == 'success' &&
          !inputs.skip_npm }}
-      needs: [release_metadata, release_gate, release_binary, release_binary_darwin]
-      runs-on: ubuntu-22.04
+      needs: [release_metadata, release_gate, release_binary, release_binary_windows_verify, release_binary_darwin]
+      runs-on: [self-hosted, cloudcastle-ci, cc-linux-hunter]
       # id-token lets npm mint the OIDC token for trusted publishing; the
       # NODE_AUTH_TOKEN below is the fallback for unconfigured packages.
       permissions:
@@ -946,18 +942,13 @@ jobs:
          # requires a newer emulated Node version than Bun 1.3 provides.
          - name: Ensure npm supports trusted publishing
            run: npm install -g npm@11.17.0
-         - name: Cache bun dependencies
-           uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
-           with:
-              path: ~/.bun/install/cache
-              key: bun-${{ runner.os }}-${{ hashFiles('**/bun.lock') }}
          - run: bun install --frozen-lockfile
-         # Linux + win32 addons from the native_addons artifact (gnu targets
-         # only — musl reuses the linux filenames and has no leaf package).
+         # Linux and win32 x64 addons from the native_addons artifact; musl
+         # reuses linux filenames and has no separate leaf package.
          - name: Install linux and win32 native addons
            uses: ./.github/actions/native-artifacts
            with:
-              targets: linux-x64-baseline linux-x64-modern linux-arm64 win32-x64-baseline
+              targets: linux-x64-baseline linux-x64-modern win32-x64-baseline
          # Darwin addons come flat (canonical filenames) from the
          # release_binary_darwin legs.
          - name: Install darwin native addons
@@ -974,7 +965,7 @@ jobs:
               NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
            run: |
               set -euo pipefail
-              for tag in linux-x64 linux-arm64 darwin-x64 darwin-arm64 win32-x64; do
+              for tag in linux-x64 darwin-x64 win32-x64; do
                 bun run ci:release:publish-native-leaf "$tag"
               done
 
@@ -983,10 +974,11 @@ jobs:
       if: ${{ needs.release_metadata.outputs.is-release == 'true' && !cancelled() &&
          needs.release_gate.result == 'success' &&
          needs.release_binary.result == 'success' &&
+         needs.release_binary_windows_verify.result == 'success' &&
          needs.release_binary_darwin.result == 'success' &&
          needs.desktop_release.result == 'success' }}
-      needs: [release_metadata, release_gate, release_binary, release_binary_darwin, desktop_release]
-      runs-on: ubuntu-22.04
+      needs: [release_metadata, release_gate, release_binary, release_binary_windows_verify, release_binary_darwin, desktop_release]
+      runs-on: [self-hosted, cloudcastle-ci, cc-linux-hunter]
       permissions:
          contents: write
       steps:
@@ -1034,17 +1026,11 @@ jobs:
                 packages/coding-agent/binaries/chudcode-* \
                 packages/browser-relay/dist/chudcode-browser-relay-extension.zip \
                 dist/desktop/chudcode-desktop-linux-x64.tar.gz \
-                dist/desktop/chudcode-desktop-linux-arm64.tar.gz \
                 dist/desktop/chudcode-desktop-macos-x64.tar.gz \
-                dist/desktop/chudcode-desktop-macos-arm64.tar.gz \
                 dist/desktop/chudcode-desktop-windows-x64.zip \
-                dist/desktop/chudcode-desktop-windows-arm64.zip \
                 dist/desktop/chudcode-desktop-linux-x64.tar.gz.sha256 \
-                dist/desktop/chudcode-desktop-linux-arm64.tar.gz.sha256 \
                 dist/desktop/chudcode-desktop-macos-x64.tar.gz.sha256 \
-                dist/desktop/chudcode-desktop-macos-arm64.tar.gz.sha256 \
                 dist/desktop/chudcode-desktop-windows-x64.zip.sha256 \
-                dist/desktop/chudcode-desktop-windows-arm64.zip.sha256 \
                 LICENSE \
                 THIRD-PARTY-NOTICES.txt \
                 --version "${{ steps.desktop-version.outputs.version }}"
@@ -1075,39 +1061,40 @@ jobs:
       if: ${{ needs.release_metadata.outputs.is-release == 'true' && !cancelled() &&
          needs.release_github.result == 'success' }}
       needs: [release_metadata, release_github]
-      runs-on: macos-14
+      runs-on: [self-hosted, cloudcastle-ci, cc-mac-intel]
       permissions:
          contents: read
       env:
          MACOS_SIGNING: ${{ secrets.APPLE_CERTIFICATE_P12 != '' && secrets.APPLE_CERTIFICATE_PASSWORD != '' && secrets.APPLE_API_KEY_ID != '' && secrets.APPLE_API_ISSUER_ID != '' && secrets.APPLE_API_KEY != '' }}
       steps:
-         - name: Download published macOS arm64 binary
+         - name: Download published macOS x64 binary
            run: |
-              curl -fsSL -o chudcode-darwin-arm64 "https://github.com/${{ github.repository }}/releases/download/${{ needs.release_metadata.outputs.release-tag }}/chudcode-darwin-arm64"
-              chmod +x chudcode-darwin-arm64
-         - name: Verify published macOS arm64 binary
+              curl -fsSL -o chudcode-darwin-x64 "https://github.com/${{ github.repository }}/releases/download/${{ needs.release_metadata.outputs.release-tag }}/chudcode-darwin-x64"
+              chmod +x chudcode-darwin-x64
+         - name: Verify published macOS x64 binary
            run: |
-              codesign -dvvv ./chudcode-darwin-arm64
-              codesign --verify --strict --verbose=4 ./chudcode-darwin-arm64
+              codesign -dvvv ./chudcode-darwin-x64
+              codesign --verify --strict --verbose=4 ./chudcode-darwin-x64
               runtime_dir="$(mktemp -d)"
-              HOME="$runtime_dir/home" XDG_DATA_HOME="$runtime_dir/xdg" ./chudcode-darwin-arm64 --version
-              HOME="$runtime_dir/home" XDG_DATA_HOME="$runtime_dir/xdg" ./chudcode-darwin-arm64 --smoke-test
+              HOME="$runtime_dir/home" XDG_DATA_HOME="$runtime_dir/xdg" ./chudcode-darwin-x64 --version
+              HOME="$runtime_dir/home" XDG_DATA_HOME="$runtime_dir/xdg" ./chudcode-darwin-x64 --smoke-test
          - name: Assert signed release is not ad-hoc
            if: env.MACOS_SIGNING == 'true'
            run: |
-              if codesign -dvvv ./chudcode-darwin-arm64 2>&1 | grep -qE "flags=.*adhoc|Signature=adhoc"; then
+              if codesign -dvvv ./chudcode-darwin-x64 2>&1 | grep -qE "flags=.*adhoc|Signature=adhoc"; then
                 echo "published binary is still ad-hoc signed (Developer ID signing did not run)" >&2
                 exit 1
               fi
               # Gatekeeper assessment: a notarized Developer ID binary is accepted.
               # Informational — a bare (unstapled) Mach-O relies on the online ticket
               # lookup, so surface the result without gating the release on it.
-              spctl -a -t exec -vv ./chudcode-darwin-arm64 || echo "spctl non-zero (expected for unstapled bare binary; ticket served online)"
+              spctl -a -t exec -vv ./chudcode-darwin-x64 || echo "spctl non-zero (expected for unstapled bare binary; ticket served online)"
 
    release_npm:
       name: Publish to npm
       if: ${{ needs.release_metadata.outputs.is-release == 'true' && !cancelled() &&
          needs.release_binary.result == 'success' &&
+         needs.release_binary_windows_verify.result == 'success' &&
          needs.release_binary_darwin.result == 'success' &&
          needs.release_github_verify.result == 'success' &&
          needs.release_native_leaves.result == 'success' &&
@@ -1115,8 +1102,8 @@ jobs:
       # release_native_leaves must finish first: the core package lists the
       # leaf packages as lockstep-versioned optionalDependencies, so installs
       # resolve them the moment the core version is live.
-      needs: [release_metadata, release_binary, release_binary_darwin, release_github_verify, release_native_leaves]
-      runs-on: ubuntu-22.04
+      needs: [release_metadata, release_binary, release_binary_windows_verify, release_binary_darwin, release_github_verify, release_native_leaves]
+      runs-on: [self-hosted, cloudcastle-ci, cc-linux-hunter]
       # `id-token: write` lets npm mint the GitHub OIDC token it exchanges for a
       # short-lived publish token (trusted publishing + provenance). When a
       # package has no matching trusted publisher configured, npm silently falls
@@ -1137,11 +1124,6 @@ jobs:
          # requires a newer emulated Node version than Bun 1.3 provides.
          - name: Ensure npm supports trusted publishing
            run: npm install -g npm@11.17.0
-         - name: Cache bun dependencies
-           uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
-           with:
-              path: ~/.bun/install/cache
-              key: bun-${{ runner.os }}-${{ hashFiles('**/bun.lock') }}
          - run: bun install --frozen-lockfile
          # The prepack executes workspace code which loads the Linux x64
          # addon, so install the native_addons job's artifact before publishing.
@@ -1168,7 +1150,7 @@ jobs:
          needs.release_metadata.outputs.channel != 'canary' &&
          needs.release_github_verify.result == 'success' }}
       needs: [release_metadata, release_github_verify]
-      runs-on: ubuntu-22.04
+      runs-on: [self-hosted, cloudcastle-ci, cc-linux-hunter]
       env:
          HAS_TAP_KEY: ${{ secrets.HOMEBREW_TAP_DEPLOY_KEY != '' }}
       steps:

@@ -67,7 +67,7 @@ describe("release checksums", () => {
 		).not.toThrow();
 	});
 
-	it("builds a deterministic six-target manifest with product and protocol versions", () => {
+	it("builds a deterministic supported-platform manifest with product and protocol versions", () => {
 		const entries = DESKTOP_RELEASE_TARGETS.map((target, index) => ({
 			name: target.file,
 			sha256: index.toString(16).padStart(64, "0"),
@@ -78,17 +78,10 @@ describe("release checksums", () => {
 		expect(first).toEqual(second);
 		expect(first.productVersion).toBe("0.2.0");
 		expect(first.protocolVersions).toEqual({ rpc: [1, 2], desktop: 1 });
-		expect(first.artifacts.map(artifact => artifact.target)).toEqual([
-			"linux-x64",
-			"linux-arm64",
-			"macos-x64",
-			"macos-arm64",
-			"windows-x64",
-			"windows-arm64",
-		]);
+		expect(first.artifacts.map(artifact => artifact.target)).toEqual(["linux-x64", "macos-x64", "windows-x64"]);
 	});
 
-	it("verifies manifest metadata against all six archive bytes and fails closed on tampering", async () => {
+	it("verifies manifest metadata against every supported archive and fails closed on tampering", async () => {
 		const dir = await mkdtemp(path.join(tmpdir(), "chudcode-manifest-"));
 		tempDirs.push(dir);
 		await Promise.all(

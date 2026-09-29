@@ -9,19 +9,12 @@ import { gzipSync } from "node:zlib";
 import { compileCodingAgent } from "../packages/coding-agent/scripts/compile-binary";
 import { PRODUCT_CLI_VERSION } from "../packages/coding-agent/src/brand";
 
-export const TARGETS = [
-	"linux-x64",
-	"linux-arm64",
-	"macos-x64",
-	"macos-arm64",
-	"windows-x64",
-	"windows-arm64",
-] as const;
+export const TARGETS = ["linux-x64", "macos-x64", "windows-x64"] as const;
 export type DesktopTarget = (typeof TARGETS)[number];
 
 interface TargetSpec {
 	platform: "linux" | "darwin" | "win32";
-	arch: "x64" | "arm64";
+	arch: "x64";
 	bunTarget: Bun.Build.CompileTarget;
 	archive: "tar.gz" | "zip";
 	exe: string;
@@ -29,20 +22,11 @@ interface TargetSpec {
 
 const TARGET_SPEC: Record<DesktopTarget, TargetSpec> = {
 	"linux-x64": { platform: "linux", arch: "x64", bunTarget: "bun-linux-x64-baseline", archive: "tar.gz", exe: "" },
-	"linux-arm64": { platform: "linux", arch: "arm64", bunTarget: "bun-linux-arm64", archive: "tar.gz", exe: "" },
 	"macos-x64": { platform: "darwin", arch: "x64", bunTarget: "bun-darwin-x64", archive: "tar.gz", exe: "" },
-	"macos-arm64": { platform: "darwin", arch: "arm64", bunTarget: "bun-darwin-arm64", archive: "tar.gz", exe: "" },
 	"windows-x64": {
 		platform: "win32",
 		arch: "x64",
 		bunTarget: "bun-windows-x64-baseline",
-		archive: "zip",
-		exe: ".exe",
-	},
-	"windows-arm64": {
-		platform: "win32",
-		arch: "arm64",
-		bunTarget: "bun-windows-arm64" as Bun.Build.CompileTarget,
 		archive: "zip",
 		exe: ".exe",
 	},
@@ -510,14 +494,11 @@ async function buildExecutables(
 	const web = path.join(outputDirectory, "web");
 	await fs.mkdir(outputDirectory, { recursive: true });
 	await buildWeb(repoRoot, web);
-	const embedsNative = target !== "windows-arm64";
-	if (embedsNative) {
-		await run(["bun", "run", "gen:native"], repoRoot, {
-			...process.env,
-			TARGET_PLATFORM: spec.platform,
-			TARGET_ARCH: spec.arch,
-		});
-	}
+	await run(["bun", "run", "gen:native"], repoRoot, {
+		...process.env,
+		TARGET_PLATFORM: spec.platform,
+		TARGET_ARCH: spec.arch,
+	});
 	try {
 		const desktop = path.join(outputDirectory, `chudcode-desktop${spec.exe}`);
 		await compileStandalone(repoRoot, path.join(repoRoot, "packages/chudcode-desktop/src/launch.ts"), desktop, spec);
@@ -528,7 +509,7 @@ async function buildExecutables(
 		}
 		return { chud, desktop, web };
 	} finally {
-		if (embedsNative) await run(["bun", "run", "gen:native:reset"], repoRoot);
+		await run(["bun", "run", "gen:native:reset"], repoRoot);
 	}
 }
 
@@ -571,7 +552,7 @@ async function assertExecutableTarget(filePath: string, target: DesktopTarget): 
 		const { bytesRead } = await handle.read(prefix, 0, prefix.length, 0);
 		const data = prefix.subarray(0, bytesRead);
 		let actualPlatform: TargetSpec["platform"] | undefined;
-		let actualArch: TargetSpec["arch"] | undefined;
+		let actualArch: TargetSpec["arch"] | "arm64" | undefined;
 		if (data.length >= 20 && data.subarray(0, 4).equals(Buffer.from([0x7f, 0x45, 0x4c, 0x46]))) {
 			actualPlatform = "linux";
 			const machine = data[5] === 2 ? data.readUInt16BE(18) : data.readUInt16LE(18);

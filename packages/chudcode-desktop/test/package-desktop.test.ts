@@ -95,14 +95,11 @@ async function createFixtureRepository(root: string): Promise<{ chud: string; de
 }
 
 describe("desktop release payload", () => {
-	it("uses the six canonical target names", () => {
+	it("uses canonical release archive names for supported desktop platforms", () => {
 		expect(TARGETS.map(canonicalArchiveName)).toEqual([
 			"chudcode-desktop-linux-x64.tar.gz",
-			"chudcode-desktop-linux-arm64.tar.gz",
 			"chudcode-desktop-macos-x64.tar.gz",
-			"chudcode-desktop-macos-arm64.tar.gz",
 			"chudcode-desktop-windows-x64.zip",
-			"chudcode-desktop-windows-arm64.zip",
 		]);
 	});
 

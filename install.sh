@@ -43,7 +43,6 @@ os_name=$(uname -s 2>/dev/null || true)
 arch_name=$(uname -m 2>/dev/null || true)
 case "$arch_name" in
 	x86_64|amd64) release_arch="x64" ;;
-	aarch64|arm64) release_arch="arm64" ;;
 	*) die "unsupported architecture: $arch_name" ;;
 esac
 case "$os_name" in
@@ -56,7 +55,7 @@ target="${release_os}-${release_arch}"
 artifact_name="chudcode-desktop-${target}.${archive_ext}"
 
 case "$target" in
-	linux-x64|linux-arm64|macos-x64|macos-arm64|windows-x64|windows-arm64) ;;
+	linux-x64|macos-x64|windows-x64) ;;
 	*) die "no canonical desktop artifact for $target" ;;
 esac
 
@@ -199,14 +198,11 @@ awk '
 ' "$manifest" || die "release manifest RPC protocol version mismatch"
 grep -q '"desktop": 1' "$manifest" || die "release manifest desktop protocol version mismatch"
 manifest_artifact_count=$(grep -c '^[[:space:]]*"file": "chudcode-desktop-' "$manifest" || true)
-[ "$manifest_artifact_count" = "6" ] || die "release manifest does not contain the canonical six-target set"
+[ "$manifest_artifact_count" = "3" ] || die "release manifest does not contain the supported three-target set"
 for canonical_asset in \
 	chudcode-desktop-linux-x64.tar.gz \
-	chudcode-desktop-linux-arm64.tar.gz \
 	chudcode-desktop-macos-x64.tar.gz \
-	chudcode-desktop-macos-arm64.tar.gz \
-	chudcode-desktop-windows-x64.zip \
-	chudcode-desktop-windows-arm64.zip; do
+	chudcode-desktop-windows-x64.zip; do
 	grep -q "\"file\": \"$canonical_asset\"" "$manifest" || die "release manifest is missing $canonical_asset"
 done
 [ "$(manifest_target_for "$artifact_name" "$manifest")" = "$target" ] || die "release manifest target mismatch"

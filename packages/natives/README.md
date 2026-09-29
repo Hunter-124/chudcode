@@ -78,8 +78,8 @@ npm/<platform>-<arch>/   # Generated at publish time, not committed
 ```
 
 The published core package contains only the JS loader, declarations, README,
-and `package.json`. Release publishing generates one leaf package per supported
-`os`/`cpu` pair and injects those leaves into the core manifest as pinned
-`optionalDependencies`, so package managers install only the host platform's
-native addon. x64 leaves include every built ISA variant, and the loader keeps
-choosing between `baseline` and `modern` at runtime.
+and `package.json`. Release publishing generates leaves for Linux x64, macOS
+x64, and Windows x64, and injects those leaves as pinned
+`optionalDependencies`. Other locally buildable architectures are not shipped
+by this release pipeline. x64 leaves include every built ISA variant; the
+loader chooses `baseline` or `modern` at runtime.

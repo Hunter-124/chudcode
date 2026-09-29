@@ -5,7 +5,7 @@ The compiled macOS `chudcode` binaries shipped on GitHub Releases can be signed 
 them Gatekeeper-acceptable and is the prerequisite for an official Homebrew
 submission (see [#776](https://github.com/Hunter-124/chudcode/issues/776)).
 
-Signing happens in CI in the `release_binary_darwin` matrix legs
+Signing happens in CI on the macOS x64 `cc-mac-intel` release leg
 (`.github/workflows/ci.yml`), via `scripts/ci-macos-sign.sh`. The workflow step
 **auto-skips** unless all five `APPLE_*` repository secrets below are configured,
 so releases remain ad-hoc signed when credentials are absent. The script itself
@@ -21,7 +21,7 @@ does not skip: invoking it without any required credential is an error.
      timestamp) and `--entitlements scripts/macos-entitlements.plist`;
    - runs `--version` and `--smoke-test` under the new signature to fail fast;
    - notarizes the binary via `notarytool submit --wait`.
-3. `release_github_verify` re-downloads the published arm64 asset, runs
+3. `release_github_verify` re-downloads the published x64 asset, runs
    `codesign --verify --strict` and both launch checks, and—when signing secrets
    are configured—also asserts that the signature is not ad-hoc.
 
@@ -122,8 +122,8 @@ You can exercise the full sign+notarize path locally (real cert + API key) by
 exporting the five env vars and running:
 
 ```sh
-RELEASE_TARGETS=darwin-arm64 bun run ci:release:build-binaries
+RELEASE_TARGETS=darwin-x64 bun run ci:release:build-binaries
 APPLE_CERTIFICATE_P12=… APPLE_CERTIFICATE_PASSWORD=… \
 APPLE_API_KEY_ID=… APPLE_API_ISSUER_ID=… APPLE_API_KEY=… \
-  bash scripts/ci-macos-sign.sh packages/coding-agent/binaries/chudcode-darwin-arm64
+  bash scripts/ci-macos-sign.sh packages/coding-agent/binaries/chudcode-darwin-x64
 ```

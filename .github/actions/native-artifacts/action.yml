@@ -22,6 +22,7 @@ runs:
            path: ${{ runner.temp }}/chudcode-native-artifacts
 
       - name: Install native addon targets
+        if: runner.os != 'Windows'
         shell: bash
         env:
            NATIVE_TARGETS: ${{ inputs.targets }}
@@ -36,3 +37,15 @@ runs:
            bun scripts/bazel-natives.ts "${targets[@]}" \
              --source "$RUNNER_TEMP/chudcode-native-artifacts" \
              --dest "$NATIVE_DEST"
+
+      - name: Install native addon targets (Windows)
+        if: runner.os == 'Windows'
+        shell: powershell
+        env:
+           NATIVE_TARGETS: ${{ inputs.targets }}
+           NATIVE_DEST: ${{ inputs.dest }}
+        run: |
+           $targets = @($env:NATIVE_TARGETS -split '\s+' | Where-Object { $_ })
+           if ($targets.Count -eq 0) { throw 'At least one native addon target is required' }
+           bun scripts/bazel-natives.ts @targets --source "$env:RUNNER_TEMP/chudcode-native-artifacts" --dest "$env:NATIVE_DEST"
+           if ($LASTEXITCODE -ne 0) { throw 'Installing native addon targets failed' }

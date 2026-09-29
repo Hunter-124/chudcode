@@ -72,31 +72,18 @@ export function renderFormula(version: string, sums: Record<string, string>): st
   homepage "${HOMEPAGE}"
   version "${version}"
   license "MIT"
+  depends_on arch: :x86_64
 
   on_macos do
-    on_arm do
-      url "https://github.com/${REPO}/releases/download/v#{version}/chudcode-darwin-arm64",
-          using: :nounzip
-      sha256 "${sums["chudcode-darwin-arm64"]}"
-    end
-    on_intel do
-      url "https://github.com/${REPO}/releases/download/v#{version}/chudcode-darwin-x64",
-          using: :nounzip
-      sha256 "${sums["chudcode-darwin-x64"]}"
-    end
+    url "https://github.com/${REPO}/releases/download/v#{version}/chudcode-darwin-x64",
+        using: :nounzip
+    sha256 "${sums["chudcode-darwin-x64"]}"
   end
 
   on_linux do
-    on_arm do
-      url "https://github.com/${REPO}/releases/download/v#{version}/chudcode-linux-arm64",
-          using: :nounzip
-      sha256 "${sums["chudcode-linux-arm64"]}"
-    end
-    on_intel do
-      url "https://github.com/${REPO}/releases/download/v#{version}/chudcode-linux-x64",
-          using: :nounzip
-      sha256 "${sums["chudcode-linux-x64"]}"
-    end
+    url "https://github.com/${REPO}/releases/download/v#{version}/chudcode-linux-x64",
+        using: :nounzip
+    sha256 "${sums["chudcode-linux-x64"]}"
   end
 
   def install
@@ -119,7 +106,7 @@ async function main(): Promise<void> {
 	const version = tag.replace(/^v/, "");
 	const assets = await fetchAssets(tag);
 
-	const targets = ["chudcode-darwin-arm64", "chudcode-darwin-x64", "chudcode-linux-arm64", "chudcode-linux-x64"];
+	const targets = ["chudcode-darwin-x64", "chudcode-linux-x64"];
 	const sums: Record<string, string> = {};
 	for (const name of targets) sums[name] = sha256For(assets, name);
 

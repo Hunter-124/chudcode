@@ -48,7 +48,7 @@ permissions:
 jobs:
   evaluate:
     name: Evaluate flake
-    runs-on: ubuntu-22.04
+    runs-on: [self-hosted, cloudcastle-ci, cc-linux-hunter]
     steps:
       - uses: actions/checkout@v4
       - uses: cachix/install-nix-action@v31

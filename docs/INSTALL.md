@@ -11,13 +11,10 @@ Each archive contains adjacent compiled `chud`, `chudcode-desktop`, and
 | Operating system | Architecture | Asset |
 | --- | --- | --- |
 | Linux | x86-64 | `chudcode-desktop-linux-x64.tar.gz` |
-| Linux | ARM64 | `chudcode-desktop-linux-arm64.tar.gz` |
 | macOS | Intel x86-64 | `chudcode-desktop-macos-x64.tar.gz` |
-| macOS | Apple silicon | `chudcode-desktop-macos-arm64.tar.gz` |
 | Windows (Git Bash/MSYS2) | x86-64 | `chudcode-desktop-windows-x64.zip` |
-| Windows (Git Bash/MSYS2) | ARM64 | `chudcode-desktop-windows-arm64.zip` |
 
-A release is incomplete unless all six assets are present. The release root also
+A release is incomplete unless all three supported assets are present. The release root also
 contains `SHA256SUMS.txt` and `release-manifest.json`. The manifest records the
 product version, RPC and desktop protocol versions, target/architecture, size,
 and SHA-256 hash for each canonical archive.
@@ -107,5 +104,5 @@ shasum -a 256 -c SHA256SUMS.txt  # macOS
 ```
 
 Then inspect `release-manifest.json` and the archive's `VERSION`, `NOTICE`, and
-`THIRD-PARTY-NOTICES.txt`. Do not install a release whose six-target set or
+`THIRD-PARTY-NOTICES.txt`. Do not install a release whose three-target set or
 metadata is incomplete.

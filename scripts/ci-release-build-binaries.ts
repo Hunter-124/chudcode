@@ -30,13 +30,6 @@ const transformersVersion = transformersManifest.version;
 const isDryRun = process.argv.includes("--dry-run");
 const targets: BinaryTarget[] = [
 	{
-		id: "darwin-arm64",
-		platform: "darwin",
-		arch: "arm64",
-		target: "bun-darwin-arm64",
-		outfile: "packages/coding-agent/binaries/chudcode-darwin-arm64",
-	},
-	{
 		id: "darwin-x64",
 		platform: "darwin",
 		arch: "x64",
@@ -51,13 +44,6 @@ const targets: BinaryTarget[] = [
 		outfile: "packages/coding-agent/binaries/chudcode-linux-x64",
 	},
 	{
-		id: "linux-arm64",
-		platform: "linux",
-		arch: "arm64",
-		target: "bun-linux-arm64",
-		outfile: "packages/coding-agent/binaries/chudcode-linux-arm64",
-	},
-	{
 		id: "linux-musl-x64",
 		platform: "linux",
 		arch: "x64",
@@ -65,25 +51,11 @@ const targets: BinaryTarget[] = [
 		outfile: "packages/coding-agent/binaries/chudcode-linux-musl-x64",
 	},
 	{
-		id: "linux-musl-arm64",
-		platform: "linux",
-		arch: "arm64",
-		target: "bun-linux-arm64-musl",
-		outfile: "packages/coding-agent/binaries/chudcode-linux-musl-arm64",
-	},
-	{
 		id: "win32-x64",
 		platform: "win32",
 		arch: "x64",
 		target: "bun-windows-x64-baseline",
 		outfile: "packages/coding-agent/binaries/chudcode-windows-x64.exe",
-	},
-	{
-		id: "win32-arm64",
-		platform: "win32",
-		arch: "arm64",
-		target: "bun-windows-arm64",
-		outfile: "packages/coding-agent/binaries/chudcode-windows-arm64.exe",
 	},
 ];
 
