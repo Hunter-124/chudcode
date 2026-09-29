@@ -1,5 +1,5 @@
-import { sleep } from "@oh-my-pi/pi-utils/async";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
+import { sleep } from "@chudware/utils/async";
+import * as fsx from "@chudware/utils/fsx";
 import { AgentSession } from "../../src/session/agent-session";
 
 const outputPath = process.env.CHUDCODE_TITLE_PROBE_PATH;

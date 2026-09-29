@@ -1,8 +1,8 @@
 import * as path from "node:path";
-import { ModelRegistry } from "@oh-my-pi/pi-coding-agent/config/model-registry";
-import { ModelsConfigFile } from "@oh-my-pi/pi-coding-agent/config/models-config";
-import { AuthStorage } from "@oh-my-pi/pi-coding-agent/session/auth-storage";
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
+import { ModelRegistry } from "@chudware/coding-agent/config/model-registry";
+import { ModelsConfigFile } from "@chudware/coding-agent/config/models-config";
+import { AuthStorage } from "@chudware/coding-agent/session/auth-storage";
+import * as fsx from "@chudware/utils/fsx";
 import { YAML } from "bun";
 
 interface HeapSnapshot {

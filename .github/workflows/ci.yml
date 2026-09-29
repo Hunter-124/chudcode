@@ -167,6 +167,7 @@ jobs:
       runs-on: [self-hosted, cloudcastle-ci, cc-linux-hunter]
       steps:
          - uses: actions/checkout@v4
+         - uses: ./.github/actions/setup-bazelisk
          - uses: ./.github/actions/bun-install
          - id: cache
            uses: ./.github/actions/bazel-cache
@@ -219,6 +220,7 @@ jobs:
                - win32-x64-baseline
       steps:
          - uses: actions/checkout@v4
+         - uses: ./.github/actions/setup-bazelisk
          # Windows cross toolchain extraction needs ~10 GiB of free disk.
          # Fail before downloads rather than deleting SDKs owned by the host.
          - name: Check space for Windows cross toolchain
@@ -260,6 +262,8 @@ jobs:
       runs-on: [self-hosted, cloudcastle-ci, cc-linux-hunter]
       steps:
          - uses: actions/checkout@v4
+         - uses: ./.github/actions/setup-bazelisk
+           if: github.event_name != 'pull_request'
          - id: cache
            if: github.event_name != 'pull_request'
            uses: ./.github/actions/bazel-cache

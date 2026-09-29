@@ -15,7 +15,7 @@
  * (including `notifications/initialized`) are dropped.
  */
 import * as readline from "node:readline";
-import { sleep } from "@oh-my-pi/pi-utils/async";
+import { sleep } from "@chudware/utils/async";
 
 export const TOOL_NAME = "late_tool";
 export const TOOL_RESULT = "MCP_LATE_CONNECT_OK_9d21";

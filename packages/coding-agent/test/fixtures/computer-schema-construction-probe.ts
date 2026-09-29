@@ -1,6 +1,6 @@
 import { type as arkType } from "@chudware/chudtype";
-import { Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
-import { BUILTIN_TOOLS, ComputerTool, createTools, type ToolSession } from "@oh-my-pi/pi-coding-agent/tools";
+import { Settings } from "@chudware/coding-agent/config/settings";
+import { BUILTIN_TOOLS, ComputerTool, createTools, type ToolSession } from "@chudware/coding-agent/tools";
 
 declare global {
 	var __computerSchemaConstructionCount: number;

@@ -16,6 +16,8 @@ inputs:
 runs:
    using: composite
    steps:
+      - uses: ./.github/actions/setup-bazelisk
+
       - id: cache
         uses: ./.github/actions/bazel-cache
 

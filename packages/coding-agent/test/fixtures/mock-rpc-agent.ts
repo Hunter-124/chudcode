@@ -1,5 +1,5 @@
 #!/usr/bin/env bun
-import * as fsx from "@oh-my-pi/pi-utils/fsx";
+import * as fsx from "@chudware/utils/fsx";
 
 /**
  * Test fixture: a stand-in for the coding-agent RPC mode.

@@ -17,7 +17,7 @@
  * test; the server only starts when run as the entry module (`import.meta.main`).
  */
 import * as readline from "node:readline";
-import { sleep } from "@oh-my-pi/pi-utils/async";
+import { sleep } from "@chudware/utils/async";
 
 /** Enough tools to push any small session past TOOL_DISCOVERY_AUTO_THRESHOLD (40). */
 export const MANY_TOOL_COUNT = 45;

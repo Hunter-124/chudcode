@@ -8,5 +8,5 @@ export const isEnoent = (error: unknown): boolean =>
 	typeof error === "object" && error !== null && "code" in error && error.code === "ENOENT";
 export const logger = { error: () => {}, warn: () => {} };
 
-/** Namespace-import shape of `@oh-my-pi/pi-utils/fsx` used by the changelog module. */
+/** Namespace-import shape of `@chudware/utils/fsx` used by the changelog module. */
 export const readText = (file: string | URL): Promise<string> => fs.readFile(file, "utf8");

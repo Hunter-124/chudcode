@@ -5,7 +5,7 @@
  */
 import * as fs from "node:fs";
 import * as readline from "node:readline";
-import { sleep } from "@oh-my-pi/pi-utils/async";
+import { sleep } from "@chudware/utils/async";
 
 export const TOOL_NAME = "catalog_ping";
 export const RESOURCE_URI = "test://delayed-catalog";

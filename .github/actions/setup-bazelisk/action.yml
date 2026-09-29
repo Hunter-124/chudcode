@@ -1,0 +1,38 @@
+name: Setup Bazelisk
+
+description: >-
+   Download and verify a pinned Bazelisk for the supported Linux and macOS x64
+   CI builders. Bazel itself remains pinned by the repository's .bazelversion.
+
+runs:
+   using: composite
+   steps:
+      - name: Install Bazelisk 1.29.0
+        shell: bash
+        run: |
+           set -euo pipefail
+           case "${RUNNER_OS}-${RUNNER_ARCH}" in
+             Linux-X64)
+               asset=bazelisk-linux-amd64
+               checksum=5a408715e932c0250d28bd84555f12edbf70117de42f9181691c736eacc4a992
+               ;;
+             macOS-X64)
+               asset=bazelisk-darwin-amd64
+               checksum=16c3d7aa15323a9fb69f56c7ec5733ed18bedb786680d0ba13bb12a3c8083007
+               ;;
+             *)
+               echo "::error::Unsupported Bazelisk builder: ${RUNNER_OS}-${RUNNER_ARCH}"
+               exit 1
+               ;;
+           esac
+
+           tools="$RUNNER_TEMP/chudcode-bazelisk/bin"
+           mkdir -p "$tools"
+           curl -fsSL --retry 3 "https://github.com/bazelbuild/bazelisk/releases/download/v1.29.0/$asset" -o "$tools/bazelisk"
+           if [ "$RUNNER_OS" = macOS ]; then
+             printf '%s  %s\n' "$checksum" "$tools/bazelisk" | shasum -a 256 -c -
+           else
+             printf '%s  %s\n' "$checksum" "$tools/bazelisk" | sha256sum -c -
+           fi
+           chmod +x "$tools/bazelisk"
+           echo "$tools" >> "$GITHUB_PATH"
