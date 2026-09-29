@@ -9,12 +9,12 @@
     "check": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.web.json"
   },
   "dependencies": {
-    "@chudware/collab-web": "workspace:*",
-    "@chudware/coding-agent": "catalog:",
-    "@chudware/ai": "catalog:",
-    "@chudware/natives": "catalog:",
-    "@chudware/wire": "catalog:",
-    "@chudware/utils": "catalog:",
+    "@oh-my-pi/collab-web": "workspace:*",
+    "@oh-my-pi/pi-coding-agent": "catalog:",
+    "@oh-my-pi/pi-ai": "catalog:",
+    "@oh-my-pi/pi-natives": "catalog:",
+    "@oh-my-pi/pi-wire": "catalog:",
+    "@oh-my-pi/pi-utils": "catalog:",
     "@xterm/addon-fit": "catalog:",
     "@xterm/xterm": "catalog:",
     "d3": "catalog:",

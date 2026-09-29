@@ -17,7 +17,7 @@
     "test": "bun test test"
   },
   "dependencies": {
-    "@chudware/coding-agent": "catalog:"
+    "@oh-my-pi/pi-coding-agent": "catalog:"
   },
   "devDependencies": {
     "@types/bun": "catalog:"
