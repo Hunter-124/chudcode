@@ -432,8 +432,14 @@ export async function verifyDesktopArchive(
 	const target = desktopTargetForArchive(archivePath);
 	const extractRoot = await fs.mkdtemp(path.join(os.tmpdir(), "chudcode-desktop-verify-"));
 	try {
-		if (archivePath.endsWith(".zip")) await runChecked(["unzip", "-q", archivePath, "-d", extractRoot]);
-		else await runChecked(["tar", "-xzf", archivePath, "-C", extractRoot]);
+		// Stock Windows has no unzip; its System32 tar.exe is bsdtar, which reads
+		// zip. Named explicitly because Git for Windows can put GNU tar (no zip
+		// support) first on PATH. Other hosts keep unzip.
+		if (!archivePath.endsWith(".zip")) await runChecked(["tar", "-xzf", archivePath, "-C", extractRoot]);
+		else if (process.platform === "win32") {
+			const bsdtar = path.join(process.env.SystemRoot ?? "C:\\Windows", "System32", "tar.exe");
+			await runChecked([bsdtar, "-xf", archivePath, "-C", extractRoot]);
+		} else await runChecked(["unzip", "-q", archivePath, "-d", extractRoot]);
 		await verifyDesktopPayload(extractRoot, target, productVersion, runExecutables);
 		return target;
 	} finally {

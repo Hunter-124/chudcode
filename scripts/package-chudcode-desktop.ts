@@ -214,6 +214,11 @@ async function collectEntries(root: string): Promise<PayloadEntry[]> {
 	return entries.sort((left, right) => comparePaths(left.relative, right.relative));
 }
 
+// NTFS has no POSIX permission bits: Node reports every file as 0o666/0o444,
+// so on a Windows host the archive modes come from the payload contract
+// instead (declared executables 0o755, everything else 0o644).
+const HOST_HAS_POSIX_MODES = process.platform !== "win32";
+
 function executableNames(target: DesktopTarget): string[] {
 	const suffix = TARGET_SPEC[target].exe;
 	return [`chud${suffix}`, `chudcode-desktop${suffix}`, `chudcode-gui${suffix}`];
@@ -234,7 +239,7 @@ export async function validatePayloadTree(root: string, target: DesktopTarget): 
 		const stat = await fs.lstat(path.join(root, executable));
 		if (!stat.isFile() || stat.isSymbolicLink())
 			throw new Error(`Payload executable is not a regular file: ${executable}`);
-		if ((stat.mode & 0o111) === 0) {
+		if (HOST_HAS_POSIX_MODES && (stat.mode & 0o111) === 0) {
 			throw new Error(`Payload executable does not have an executable mode: ${executable}`);
 		}
 		await assertExecutableTarget(path.join(root, executable), target);
@@ -256,7 +261,12 @@ export async function validatePayloadTree(root: string, target: DesktopTarget): 
 			throw new Error(`Payload metadata is not a file: ${required}`);
 	}
 
-	const entries = await collectEntries(root);
+	const executables = new Set(executableNames(target));
+	const entries = (await collectEntries(root)).map(entry =>
+		HOST_HAS_POSIX_MODES || entry.kind !== "file"
+			? entry
+			: { ...entry, mode: executables.has(entry.relative) ? 0o755 : 0o644 },
+	);
 	for (const entry of entries) {
 		const relative = entry.relative.replace(/\/$/, "");
 		const segments = relative.split("/");
