@@ -1884,7 +1884,7 @@ export class SessionManager {
 		}
 
 		const migrated = migrateToCurrentVersion(fileEntries);
-		await resolveBlobRefsInEntries(fileEntries, this.#blobs);
+		const repairedImages = await resolveBlobRefsInEntries(fileEntries, this.#blobs);
 		// loadEntriesFromFile guarantees entries[0] is a valid session header.
 		const header = fileEntries[0] as SessionHeader;
 
@@ -1917,7 +1917,7 @@ export class SessionManager {
 		this.#titleUpdatedAt = titleSlot?.updatedAt ?? header.timestamp;
 		this.#hasTitleSlot = titleSlot !== undefined;
 		this.#fileIsCurrent = true;
-		this.#rewriteRequired = migrated || loaded.malformedRecords > 0;
+		this.#rewriteRequired = migrated || repairedImages || loaded.malformedRecords > 0;
 		this.#forceFileCreation = true;
 		this.#artifactManager = null;
 		this.#artifactManagerSessionFile = null;
@@ -2661,6 +2661,28 @@ export class SessionManager {
 
 	async getArtifactPath(id: string): Promise<string | null> {
 		return (await this.#artifactManagerForSession()?.getPath(id)) ?? null;
+	}
+
+	/** Checkpoint an accepted editor state before returning to the terminal input loop.
+	 * Empty text is intentional: a crash must not restore a draft already deleted. */
+	saveDraftSync(text: string): void {
+		const draftPath = this.#draftPath();
+		if (!draftPath || !this.#persist) return;
+
+		const sessionFile = this.#sessionFile;
+		const draftWillMaterializeMetadataOnlyFile =
+			sessionFile !== undefined &&
+			!this.#storage.existsSync(sessionFile) &&
+			this.#entries.every(isDraftOnlyMetadataEntry);
+		// A sidecar without its owner file cannot be discovered by --resume.
+		this.#forceFileCreation = true;
+		this.flushSync();
+		if (draftWillMaterializeMetadataOnlyFile) {
+			const markerPath = this.#draftOnlySessionMarkerPath();
+			if (markerPath) this.#storage.writeTextSync(markerPath, "");
+			this.#draftOnlySessionCleanupArmed = true;
+		}
+		this.#storage.writeTextSync(draftPath, text);
 	}
 
 	async saveDraft(text: string): Promise<void> {

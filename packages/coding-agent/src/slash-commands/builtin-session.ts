@@ -2,6 +2,8 @@ import { clearSubmittedText } from "./helpers/draft";
 import { getOAuthProviders } from "@oh-my-pi/pi-ai/oauth";
 import { journalJudgmentUsage, resolveJudge, sharedJudgmentCache } from "../judgment";
 import type { AgentSession } from "../session/agent-session";
+import { doctorSessionFile } from "../session/session-doctor";
+import type { SessionManager } from "../session/session-manager";
 import type { SessionOAuthAccountList } from "../session/agent-session-types";
 import {
 	getChangelogPath,
@@ -181,6 +183,51 @@ async function handleSessionPinCommand(
 	await output(`Pinned ${account.label} to this session for ${providerName}.`);
 }
 
+async function handleSessionDoctorCommand(
+	arg: string,
+	session: AgentSession,
+	manager: SessionManager,
+	output: SlashCommandRuntime["output"],
+): Promise<void> {
+	const option = arg.trim().toLowerCase();
+	if (option !== "" && option !== "repair" && option !== "--repair") {
+		await output("Usage: /session doctor [--repair]");
+		return;
+	}
+	if (session.isStreaming) {
+		await output("Cannot inspect or repair the session while streaming.");
+		return;
+	}
+	const sessionFile = manager.getSessionFile();
+	if (!sessionFile) {
+		await output("No persisted session file to inspect (in-memory session).");
+		return;
+	}
+	try {
+		await manager.flush();
+		if (option !== "") {
+			// Close the active append descriptor before an atomic replacement.
+			try {
+				await manager.setSessionFile(sessionFile);
+			} catch {
+				// The writer is closed; the doctor reports whether the bytes are repairable.
+			}
+		}
+		const summary = await doctorSessionFile(sessionFile, { repair: option !== "" });
+		if (summary.changed) {
+			try {
+				await manager.setSessionFile(sessionFile);
+			} catch (error) {
+				await output(JSON.stringify({ ...summary, reloadError: errorMessage(error) }, null, 2));
+				return;
+			}
+		}
+		await output(JSON.stringify(summary, null, 2));
+	} catch (error) {
+		await output(`Session doctor failed: ${errorMessage(error)}`);
+	}
+}
+
 /**
  * Start (or reuse) the stats dashboard for this session. The Frustration page
  * judges through this session's settings and registry; its cost lands on this
@@ -246,7 +293,7 @@ export const BUILTIN_SESSION_SLASH_COMMANDS: ReadonlyArray<SlashCommandSpec> = [
 		icon: "session",
 		description: "Session management commands",
 		acpDescription: "Show or configure the current session",
-		acpInputHint: "[info|delete|pin [account]]",
+		acpInputHint: "[info|delete|pin [account]|doctor [--repair]]",
 		subcommands: [
 			{ name: "info", description: "Show session info and stats" },
 			{ name: "delete", description: "Delete current session and return to selector" },
@@ -254,6 +301,11 @@ export const BUILTIN_SESSION_SLASH_COMMANDS: ReadonlyArray<SlashCommandSpec> = [
 				name: "pin",
 				description: "Pin the current provider to a stored OAuth account",
 				usage: "[account]",
+			},
+			{
+				name: "doctor",
+				description: "Diagnose the persisted session; repair only with --repair",
+				usage: "[--repair]",
 			},
 		],
 		allowArgs: true,
@@ -292,7 +344,11 @@ export const BUILTIN_SESSION_SLASH_COMMANDS: ReadonlyArray<SlashCommandSpec> = [
 				await handleSessionPinCommand(rest, runtime.session, runtime.output);
 				return commandConsumed();
 			}
-			return usage("Usage: /session [info|delete|pin [account]]", runtime);
+			if (verb === "doctor") {
+				await handleSessionDoctorCommand(rest, runtime.session, runtime.sessionManager, runtime.output);
+				return commandConsumed();
+			}
+			return usage("Usage: /session [info|delete|pin [account]|doctor [--repair]]", runtime);
 		},
 		handleTui: async (command, runtime) => {
 			const { verb, rest } = parseSubcommand(command.args);
@@ -311,10 +367,17 @@ export const BUILTIN_SESSION_SLASH_COMMANDS: ReadonlyArray<SlashCommandSpec> = [
 				clearSubmittedText(runtime);
 				return;
 			}
+			if (verb === "doctor") {
+				await handleSessionDoctorCommand(rest, runtime.ctx.session, runtime.ctx.sessionManager, text =>
+					runtime.ctx.showStatus(text),
+				);
+				clearSubmittedText(runtime);
+				return;
+			}
 			if (!verb || (verb === "info" && !rest)) {
 				await runtime.ctx.handleSessionCommand();
 			} else {
-				runtime.ctx.showStatus("Usage: /session [info|delete|pin [account]]");
+				runtime.ctx.showStatus("Usage: /session [info|delete|pin [account]|doctor [--repair]]");
 			}
 			clearSubmittedText(runtime);
 		},

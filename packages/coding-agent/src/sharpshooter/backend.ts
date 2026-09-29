@@ -88,6 +88,7 @@ export const sharpshooterBackend: MemoryBackend = {
 				settings,
 				modelRegistry,
 				sessionId: session.sessionId,
+				getSessionModel: () => session.model,
 			});
 			try {
 				const unsubscribe = session.subscribe(event => {
@@ -148,6 +149,7 @@ export const sharpshooterBackend: MemoryBackend = {
 			settings: session.settings,
 			modelRegistry: session.modelRegistry,
 			sessionId: session.sessionId,
+			getSessionModel: () => session.model,
 			force: true,
 		});
 	},
@@ -203,7 +205,9 @@ export const sharpshooterBackend: MemoryBackend = {
 			: cfgSharpshooterIntervalMinutes.default;
 		const intervalMs = Math.max(0, intervalMinutes) * 60_000;
 		const dueInMs = Math.max(0, state.lastConsolidatedAt + intervalMs - Date.now());
-		const model = session ? await resolveSharpshooterModel(session.settings, session.modelRegistry) : undefined;
+		const model = session
+			? await resolveSharpshooterModel(session.settings, session.modelRegistry, session.model)
+			: undefined;
 		return [
 			"# Sharpshooter Diagnostics",
 			"",

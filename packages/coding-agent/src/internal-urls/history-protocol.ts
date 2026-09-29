@@ -15,14 +15,22 @@
  * URL forms:
  * - history:// - Index of all registry + on-disk agents (id, status, kind, last activity)
  * - history://<agentId> - Concise markdown transcript of that agent
+ * - history://<agentId>/images - List numbered transcript images and their on-disk paths.
+ * - history://<agentId>/images/<n> - Resolve one image to a local path for `read`.
  * - history://current/full - Full, caller-bound current branch history (experimental)
  */
+import * as fs from "node:fs/promises";
+import * as path from "node:path";
+import { getBlobsDir, isEnoent } from "@oh-my-pi/pi-utils";
+import { blobExtensionForImageMimeType } from "@oh-my-pi/pi-tui/prompt/image-format";
 import type { AgentMessage } from "@oh-my-pi/pi-agent-core";
 import type { AssistantMessage } from "@oh-my-pi/pi-ai";
 import type { AgentRef } from "../registry/agent-registry";
 import { AgentRegistry } from "../registry/agent-registry";
 import { ensurePersistedRoster } from "../registry/persisted-agents";
+import { BlobStore, isBlobRef, parseBlobRef } from "../session/blob-store";
 import { formatSessionHistoryMarkdown } from "../session/session-history-format";
+import { collectSessionImages, type SessionImageRef } from "../session/session-images";
 import {
 	bashExecutionToText,
 	pythonExecutionToText,
@@ -375,6 +383,56 @@ export class HistoryProtocolHandler implements ProtocolHandler {
 			};
 		}
 
+		if (url.pathname && url.pathname !== "/") {
+			const segments = url.pathname.split("/").filter(Boolean).map(decodeURIComponent);
+			if (segments[0] !== "images" || segments.length > 2) {
+				throw new Error(`Unknown history:// sub-path: ${url.pathname}`);
+			}
+			const { ref, preferredArtifactDir } = await this.#lookup(agentId, context);
+			const file =
+				ref?.sessionFile ??
+				(ref?.session ? undefined : (await this.#findOnDisk(ref?.id ?? agentId, preferredArtifactDir))?.file);
+			if (!ref?.session && !file) throw new Error(`Agent ${agentId} has no transcript`);
+			const messages = ref?.session
+				? ref.session.messages
+				: await loadSessionMessagesReadOnly(file!, { retainUnavailableImages: true });
+			const images = collectSessionImages(messages);
+			if (segments.length === 1) {
+				const rows = await Promise.all(
+					images.map(async image => {
+						const resolved = await this.#imagePath(image);
+						return `| ${image.index} | ${image.role} | ${image.mimeType} | ${resolved ? resolved.bytes : "—"} | ${resolved?.path ?? "(blob missing)"} |`;
+					}),
+				);
+				const content = images.length
+					? [
+							"| # | role | mime | bytes | path |",
+							"|---|---|---|---|---|",
+							...rows,
+							"",
+							"Read an image with `read <path>` — internal resources cannot carry binary content.",
+							"",
+						].join("\n")
+					: "No images in this transcript.\n";
+				return { url: url.href, content, contentType: "text/markdown", size: Buffer.byteLength(content) };
+			}
+			const index = /^\d+$/.test(segments[1]!) ? Number(segments[1]) : NaN;
+			if (!Number.isSafeInteger(index) || index < 1 || index > images.length) {
+				throw new Error(
+					`Invalid image index "${segments[1]}" for history://${agentId}/images/<n>; valid range: ${images.length ? `1-${images.length}` : "none"}`,
+				);
+			}
+			const resolved = await this.#imagePath(images[index - 1]!);
+			const content = resolved?.path ?? "(blob missing)";
+			return {
+				url: url.href,
+				content,
+				contentType: "text/plain",
+				size: Buffer.byteLength(content),
+				sourcePath: resolved?.path,
+			};
+		}
+
 		const { ref, visible, preferredArtifactDir } = await this.#lookup(agentId, context);
 		if (!ref) {
 			// Registry miss — the agent may have been unregistered or lost on resume.
@@ -412,6 +470,28 @@ export class HistoryProtocolHandler implements ProtocolHandler {
 			sourcePath: ref.sessionFile ?? undefined,
 			notes,
 		};
+	}
+
+	async #imagePath(image: SessionImageRef): Promise<{ path: string; bytes: number } | undefined> {
+		const dir = getBlobsDir();
+		const extension = blobExtensionForImageMimeType(image.mimeType);
+		if (isBlobRef(image.data)) {
+			const hash = parseBlobRef(image.data);
+			if (!hash) return undefined;
+			const canonical = path.join(dir, hash);
+			for (const candidate of extension ? [`${canonical}.${extension}`, canonical] : [canonical]) {
+				try {
+					const stat = await fs.stat(candidate);
+					return { path: candidate, bytes: stat.size };
+				} catch (error) {
+					if (!isEnoent(error)) throw error;
+				}
+			}
+			return undefined;
+		}
+		const bytes = Buffer.from(image.data, "base64");
+		const saved = await new BlobStore(dir).put(bytes, { extension });
+		return { path: saved.displayPath, bytes: bytes.length };
 	}
 
 	/**

@@ -1,7 +1,7 @@
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { type } from "@oh-my-pi/omptype";
-import { completeSimple, Effort, retryTransientCompletion } from "@oh-my-pi/pi-ai";
+import { completeSimple, Effort, type Model, retryTransientCompletion } from "@oh-my-pi/pi-ai";
 import { clampThinkingLevelForModel } from "@oh-my-pi/pi-catalog/model-thinking";
 import { prompt, withFileLock } from "@oh-my-pi/pi-utils";
 
@@ -87,6 +87,8 @@ export async function runSharpshooterConsolidation(options: {
 	modelRegistry: ModelRegistry;
 	sessionId: string;
 	force?: boolean;
+	/** Current model, read at each tick so RPC model changes are respected. */
+	getSessionModel?: () => Model | undefined;
 }): Promise<SharpshooterConsolidationResult> {
 	const bankDir = sharpshooterBankDir(options.agentDir, options.cwd);
 	try {
@@ -119,6 +121,7 @@ async function consolidateLocked(
 		modelRegistry: ModelRegistry;
 		sessionId: string;
 		force?: boolean;
+		getSessionModel?: () => Model | undefined;
 	},
 	bankDir: string,
 ): Promise<SharpshooterConsolidationResult> {
@@ -138,7 +141,11 @@ async function consolidateLocked(
 			return { ran: false, reason: "empty" };
 		}
 
-		const model = await resolveSharpshooterModel(options.settings, options.modelRegistry);
+		const model = await resolveSharpshooterModel(
+			options.settings,
+			options.modelRegistry,
+			options.getSessionModel?.(),
+		);
 		if (!model) return { ran: false, reason: "no_model" };
 
 		const currentFiles = await readCurrentMemoryFiles(options.agentDir, options.cwd);

@@ -2,7 +2,14 @@ import type { AgentMessage } from "@oh-my-pi/pi-agent-core";
 import { ConcatSink, getBlobsDir, isEnoent, isEnotdir, parseJsonlLenient } from "@oh-my-pi/pi-utils";
 import * as snapcompact from "@oh-my-pi/snapcompact";
 import { Semaphore } from "../task/parallel";
-import { BlobStore, isBlobRef, lazyImageDataSync, resolveImageData, resolveImageDataUrl } from "./blob-store";
+import {
+	BlobStore,
+	isBlobRef,
+	lazyImageDataSync,
+	parseBlobRef,
+	resolveImageData,
+	resolveImageDataUrl,
+} from "./blob-store";
 import { buildSessionContext } from "./session-context";
 import type { FileEntry, RawFileEntry, SessionEntry, SessionHeader } from "./session-entries";
 import { migrateToCurrentVersion } from "./session-migrations";
@@ -421,6 +428,56 @@ function hasImageUrl(value: unknown): value is { image_url: string } {
 	return typeof value === "object" && value !== null && "image_url" in value && typeof value.image_url === "string";
 }
 
+const UNAVAILABLE_IMAGE_TEXT = "[Image unavailable: persisted image data is missing]";
+const OMIT_UNAVAILABLE_IMAGE = Symbol("unavailable-image");
+
+/**
+ * Remove missing provider images and retain a readable placeholder for canonical
+ * message images. Never replay a blob reference as if it were base64 image data.
+ */
+function repairUnavailableImages(value: unknown, key: string | undefined, state: { changed: boolean }): unknown {
+	if (typeof value === "object" && value !== null && !Array.isArray(value)) {
+		// Snapcompact frames are deliberately lazy: valid refs were not hydrated
+		// above, and buildSessionContext drops missing ones through lazyImageDataSync.
+		if (key === "frames") return value;
+		if (isExternalizableImagePosition(value, key) && typeof value.data === "string" && isBlobRef(value.data)) {
+			state.changed = true;
+			return key === "content" && "type" in value && value.type === "image"
+				? { type: "text", text: UNAVAILABLE_IMAGE_TEXT }
+				: OMIT_UNAVAILABLE_IMAGE;
+		}
+		if (
+			"type" in value &&
+			value.type === "image_generation_call" &&
+			"result" in value &&
+			typeof value.result === "string" &&
+			isBlobRef(value.result)
+		) {
+			state.changed = true;
+			return OMIT_UNAVAILABLE_IMAGE;
+		}
+		if (hasImageUrl(value) && isBlobRef(value.image_url)) {
+			state.changed = true;
+			return OMIT_UNAVAILABLE_IMAGE;
+		}
+	}
+	if (Array.isArray(value)) {
+		let count = 0;
+		for (const item of value) {
+			const repaired = repairUnavailableImages(item, key, state);
+			if (repaired !== OMIT_UNAVAILABLE_IMAGE) value[count++] = repaired;
+		}
+		value.length = count;
+	} else if (typeof value === "object" && value !== null) {
+		for (const [childKey, child] of Object.entries(value)) {
+			const repaired = repairUnavailableImages(child, childKey, state);
+			if (repaired === OMIT_UNAVAILABLE_IMAGE) return OMIT_UNAVAILABLE_IMAGE;
+			(value as Record<string, unknown>)[childKey] = repaired;
+		}
+	}
+	return value;
+}
+
 type BlobReferenceResolver = (data: string, asDataUrl?: boolean) => Promise<string>;
 
 async function resolvePersistedBlobRefs(value: unknown, resolve: BlobReferenceResolver, key?: string): Promise<void> {
@@ -496,8 +553,37 @@ function repairTruncatedSnapcompactFrames(entry: FileEntry): void {
 	});
 }
 
-async function resolveBlobRefs(values: readonly unknown[], blobStore: BlobStore): Promise<void> {
+/** A preserved compaction frame remains lazy on load, but repair must not
+ * persist a frame whose content-addressed payload has disappeared. */
+async function repairMissingSnapcompactFrames(entry: FileEntry, blobs: BlobStore): Promise<boolean> {
+	if (entry.type !== "compaction") return false;
+	const archive = snapcompact.getPreservedArchive(entry.preserveData);
+	if (!archive?.frames.some(frame => isBlobRef(frame.data))) return false;
+	const slot = entry.preserveData?.[snapcompact.PRESERVE_KEY];
+	if (typeof slot !== "object" || slot === null) return false;
+	const available = await Promise.all(
+		archive.frames.map(async frame => {
+			if (!isBlobRef(frame.data)) return true;
+			const hash = parseBlobRef(frame.data);
+			return hash !== null && (await blobs.has(hash));
+		}),
+	);
+	if (available.every(Boolean)) return false;
+	if (archive.text) {
+		Object.assign(slot, { frames: [], textHead: archive.text, textTail: "" });
+	} else {
+		Object.assign(slot, { frames: archive.frames.filter((_, index) => available[index]) });
+	}
+	return true;
+}
+
+async function resolveBlobRefs(
+	values: readonly unknown[],
+	blobStore: BlobStore,
+	repairUnavailable = true,
+): Promise<boolean> {
 	const semaphore = new Semaphore(BLOB_READ_CONCURRENCY);
+	const repairState = { changed: false };
 	const resolve: BlobReferenceResolver = async (data, asDataUrl = false) => {
 		await semaphore.acquire();
 		try {
@@ -509,15 +595,23 @@ async function resolveBlobRefs(values: readonly unknown[], blobStore: BlobStore)
 	const pending: Promise<void>[] = [];
 	for (const value of values) {
 		if (!containsBlobRef(value)) continue;
-		pending.push(resolvePersistedBlobRefs(value, resolve));
+		pending.push(
+			resolvePersistedBlobRefs(value, resolve).then(() => {
+				if (repairUnavailable) repairUnavailableImages(value, undefined, repairState);
+			}),
+		);
 	}
 	await Promise.all(pending);
+	return repairState.changed;
 }
 
-export async function resolveBlobRefsInEntries(entries: FileEntry[], blobStore: BlobStore): Promise<void> {
+export async function resolveBlobRefsInEntries(entries: FileEntry[], blobStore: BlobStore): Promise<boolean> {
 	const sessionEntries = entries.filter(entry => entry.type !== "session");
 	for (const entry of sessionEntries) repairTruncatedSnapcompactFrames(entry);
-	await resolveBlobRefs(sessionEntries, blobStore);
+	const framesChanged = (
+		await Promise.all(sessionEntries.map(entry => repairMissingSnapcompactFrames(entry, blobStore)))
+	).some(Boolean);
+	return (await resolveBlobRefs(sessionEntries, blobStore)) || framesChanged;
 }
 
 /**
@@ -528,7 +622,10 @@ export async function resolveBlobRefsInEntries(entries: FileEntry[], blobStore: 
  * provider-context builder which drops them. Does NOT create a writer or take
  * the session lock — safe to call against a file another session is writing.
  */
-export async function loadSessionMessagesReadOnly(filePath: string): Promise<AgentMessage[]> {
+export async function loadSessionMessagesReadOnly(
+	filePath: string,
+	options: { retainUnavailableImages?: boolean } = {},
+): Promise<AgentMessage[]> {
 	const entries = await loadEntriesFromFile(filePath);
 	if (entries.length === 0) return [];
 	migrateToCurrentVersion(entries);
@@ -549,6 +646,6 @@ export async function loadSessionMessagesReadOnly(filePath: string): Promise<Age
 			? { ...message, providerPayload: undefined }
 			: message,
 	);
-	await resolveBlobRefs(displayMessages, blobs);
+	await resolveBlobRefs(displayMessages, blobs, !options.retainUnavailableImages);
 	return displayMessages;
 }

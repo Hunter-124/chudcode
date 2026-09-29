@@ -196,6 +196,97 @@ describe("history:// protocol", () => {
 		expect(resource.content).toContain("hello from live");
 		expect(resource.notes).toContain("Source: live session");
 	});
+	it("numbers transcript images and resolves their pixels to a readable path", async () => {
+		const bytes = Buffer.from(
+			"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jxykAAAAASUVORK5CYII=",
+			"base64",
+		);
+		AgentRegistry.global().register({
+			id: "ImageAgent",
+			displayName: "image task",
+			kind: "sub",
+			session: fakeLiveSession([
+				{
+					role: "user",
+					content: [
+						{ type: "text", text: "Inspect the screenshot" },
+						{ type: "image", mimeType: "image/png", data: bytes.toString("base64") },
+					],
+					timestamp: 1,
+				},
+			]),
+			status: "idle",
+		});
+		const router = InternalUrlRouter.instance();
+		expect((await router.resolve("history://ImageAgent")).content).toContain("[image #1]");
+		const listing = await router.resolve("history://ImageAgent/images");
+		expect(listing.content).toContain("| 1 | user | image/png |");
+		const image = await router.resolve("history://ImageAgent/images/1");
+		expect(image.sourcePath).toEndWith(".png");
+		expect(await fs.readFile(image.sourcePath!)).toEqual(bytes);
+		await expect(router.resolve("history://ImageAgent/images/2")).rejects.toThrow("valid range: 1-1");
+	});
+
+	it("reports a missing persisted image without hiding other transcript images", async () => {
+		AgentRegistry.global().register({
+			id: "LostImage",
+			displayName: "missing image",
+			kind: "sub",
+			session: fakeLiveSession([
+				{
+					role: "user",
+					content: [
+						{ type: "image", mimeType: "image/png", data: `blob:sha256:${"0".repeat(64)}` },
+						{ type: "image", mimeType: "image/png", data: Buffer.from("second").toString("base64") },
+					],
+					timestamp: 1,
+				},
+			]),
+			status: "idle",
+		});
+		const router = InternalUrlRouter.instance();
+		expect((await router.resolve("history://LostImage/images")).content).toContain(
+			"| 1 | user | image/png | — | (blob missing) |",
+		);
+		expect((await router.resolve("history://LostImage/images/1")).content).toBe("(blob missing)");
+		const second = await router.resolve("history://LostImage/images/2");
+		expect(await fs.readFile(second.sourcePath!, "utf8")).toBe("second");
+	});
+
+	it("keeps a missing image discoverable in a parked session's image listing", async () => {
+		await withTempDir(async dir => {
+			const file = path.join(dir, "session.jsonl");
+			const header = {
+				type: "session",
+				version: CURRENT_SESSION_VERSION,
+				id: "parked",
+				timestamp: new Date().toISOString(),
+				cwd: dir,
+			};
+			const entry = {
+				type: "message",
+				id: "m1",
+				parentId: null,
+				timestamp: header.timestamp,
+				message: {
+					role: "user",
+					content: [{ type: "image", mimeType: "image/png", data: `blob:sha256:${"0".repeat(64)}` }],
+					timestamp: 1,
+				},
+			};
+			await Bun.write(file, `${JSON.stringify(header)}\n${JSON.stringify(entry)}\n`);
+			AgentRegistry.global().register({
+				id: "ParkedImage",
+				displayName: "parked",
+				kind: "sub",
+				session: null,
+				sessionFile: file,
+				status: "idle",
+			});
+			const listing = await InternalUrlRouter.instance().resolve("history://ParkedImage/images");
+			expect(listing.content).toContain("| 1 | user | image/png | — | (blob missing) |");
+		});
+	});
 
 	it("preserves the existing bare history://current named-agent route", async () => {
 		AgentRegistry.global().register({

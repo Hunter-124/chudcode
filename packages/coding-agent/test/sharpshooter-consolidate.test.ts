@@ -127,6 +127,32 @@ describe("runSharpshooterConsolidation", () => {
 		expect(completeSpy).toHaveBeenCalledTimes(1);
 	});
 
+	it("consolidates queued RPC decisions using the session model when roles are unavailable", async () => {
+		using temp = TempDir.createSync("@pi-sharpshooter-rpc-");
+		const harness = createHarness(temp.path());
+		const model = harness.modelRegistry.find("anthropic", "claude-haiku-4-5");
+		if (!model) throw new Error("Expected bundled model");
+		const unavailableRoles = {
+			getAll: () => [],
+			getAvailable: () => [],
+			resolver: harness.modelRegistry.resolver.bind(harness.modelRegistry),
+		} as unknown as ModelRegistry;
+		await appendSharpshooterDelta(harness.agentDir, harness.cwd, delta("rpc", 1, "Keep one boundary."));
+		vi.spyOn(ai, "completeSimple").mockResolvedValue(completion(completeFiles));
+		const result = await runSharpshooterConsolidation({
+			...harness,
+			settings: Settings.isolated({ "sharpshooter.intervalMinutes": 5 }),
+			modelRegistry: unavailableRoles,
+			getSessionModel: () => model,
+			force: true,
+		});
+		expect(result).toMatchObject({ ran: true, sessions: 1, deltas: 1 });
+		expect(
+			await Bun.file(sharpshooterMemoryFilePath(harness.agentDir, harness.cwd, "architecture.md")).text(),
+		).toContain("Keep boundaries explicit.");
+		expect(await listSharpshooterDeltas(harness.agentDir, harness.cwd)).toEqual([]);
+	});
+
 	it("stamps an empty queue without calling the model", async () => {
 		using temp = TempDir.createSync("@pi-sharpshooter-empty-");
 		const harness = createHarness(temp.path());

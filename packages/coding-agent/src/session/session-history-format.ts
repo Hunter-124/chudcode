@@ -117,12 +117,12 @@ export function formatExecutionSourcePreview(source: string): string {
 }
 
 /** Join the text blocks of a string-or-blocks content field. Images become `[image]`. */
-function contentToText(content: string | readonly (TextContent | ImageContent)[]): string {
+function contentToText(content: string | readonly (TextContent | ImageContent)[], counter?: { next: number }): string {
 	if (typeof content === "string") return content;
 	const parts: string[] = [];
 	for (const block of content) {
 		if (block.type === "text") parts.push(block.text);
-		else parts.push("[image]");
+		else parts.push(counter ? `[image #${counter.next++}]` : "[image]");
 	}
 	return parts.join("\n");
 }
@@ -307,9 +307,10 @@ function toolCallLine(
 	expandEditDiffs?: boolean,
 	expandToolIO?: boolean,
 	transformExpandedToolIO?: (text: string) => string,
+	imageCounter?: { next: number },
 ): string {
 	const head = `→ ${name}(${formatToolCallPrimaryArg(name, args)})`;
-	const rawResultText = result ? contentToText(result.content) : undefined;
+	const rawResultText = result ? contentToText(result.content, imageCounter) : undefined;
 	const visibleResultText =
 		rawResultText === undefined ? undefined : (transformExpandedToolIO?.(rawResultText) ?? rawResultText);
 	let base: string;
@@ -447,6 +448,7 @@ export function formatSessionHistoryMarkdown(messages: unknown[], opts?: History
 		resultsByCallId = local;
 	}
 	const consumed = opts?.consumedToolCallIds ?? new Set<string>();
+	const imageCounter = { next: 1 };
 	// In watched mode, consecutive same-role messages collapse under one label
 	// (the watched agent emits one assistant message per tool call, so otherwise
 	// every call repeats `**agent**:`). Cleared whenever a
@@ -471,7 +473,7 @@ export function formatSessionHistoryMarkdown(messages: unknown[], opts?: History
 		switch (msg.role) {
 			case "user":
 			case "developer": {
-				const text = contentToText(msg.content);
+				const text = contentToText(msg.content, imageCounter);
 				if (!text.trim()) break;
 				if (opts?.watchedRoles) {
 					const label = `**${msg.role}**:`;
@@ -504,6 +506,7 @@ export function formatSessionHistoryMarkdown(messages: unknown[], opts?: History
 								opts?.expandEditDiffs,
 								opts?.expandToolIO,
 								opts?.transformExpandedToolIO,
+								imageCounter,
 							),
 						);
 					} else if (opts?.includeThinking && block.type === "thinking" && block.thinking.trim()) {
@@ -537,6 +540,7 @@ export function formatSessionHistoryMarkdown(messages: unknown[], opts?: History
 						opts?.expandEditDiffs,
 						opts?.expandToolIO,
 						opts?.transformExpandedToolIO,
+						imageCounter,
 					),
 					"",
 				);

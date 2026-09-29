@@ -12,6 +12,7 @@ import type { AgentSession } from "@oh-my-pi/pi-coding-agent/session/agent-sessi
 import {
 	buildSharpshooterEnvelope,
 	maybeStartSharpshooterExtraction,
+	resolveSharpshooterModel,
 } from "@oh-my-pi/pi-coding-agent/sharpshooter/extract";
 import { listSharpshooterDeltas } from "@oh-my-pi/pi-coding-agent/sharpshooter/queue";
 
@@ -108,6 +109,17 @@ describe("buildSharpshooterEnvelope", () => {
 	});
 });
 
+describe("RPC sharpshooter model fallback", () => {
+	it("uses the active session model when neither a configured model nor a role resolves", async () => {
+		const settings = Settings.isolated();
+		const model = getBundledModel("anthropic", "claude-haiku-4-5");
+		if (!model) throw new Error("Expected bundled Claude Haiku model");
+		const registry = { getAll: () => [], getAvailable: () => [] } as unknown as ModelRegistry;
+		expect(await resolveSharpshooterModel(settings, registry, model)).toBe(model);
+		expect(await resolveSharpshooterModel(settings, registry)).toBeUndefined();
+	});
+});
+
 describe("maybeStartSharpshooterExtraction", () => {
 	it("allows only one in-flight extraction for a session", async () => {
 		const cwd = path.join(os.tmpdir(), "sharpshooter-in-flight-project");
@@ -136,6 +148,58 @@ describe("maybeStartSharpshooterExtraction", () => {
 		await pending.promise;
 		await Promise.resolve();
 		await Promise.resolve();
+	});
+
+	it("extracts and queues an RPC session decision with no configured model roles", async () => {
+		const root = await fs.mkdtemp(path.join(os.tmpdir(), "sharpshooter-session-fallback-"));
+		try {
+			const cwd = path.join(root, "project");
+			const agentDir = path.join(root, "agent");
+			const model = getBundledModel("anthropic", "claude-haiku-4-5");
+			if (!model) throw new Error("Expected bundled Claude Haiku model");
+			const prompt = "Never change the steering angle from 35 degrees on this design.";
+			const session = {
+				isDisposed: false,
+				messages: [message("user", prompt)],
+				sessionId: "rpc-model",
+				model,
+				sessionManager: { getCwd: () => cwd },
+			} as unknown as AgentSession;
+			const modelRegistry = {
+				getAll: () => [],
+				getAvailable: () => [],
+				resolver: () => async () => "test-key",
+			} as unknown as ModelRegistry;
+			vi.spyOn(ai, "completeSimple").mockResolvedValue(
+				assistantResponse([
+					{
+						type: "toolCall",
+						id: "record",
+						name: "record_deltas",
+						arguments: {
+							deltas: [
+								{
+									kind: "architecture_decision",
+									statement: "The steering angle is 35 degrees.",
+									source: "explicit_user",
+									evidence: "steering angle from 35 degrees",
+									friction: { corrective: true, regression: false, subtle: false },
+								},
+							],
+						},
+					},
+				]),
+			);
+			maybeStartSharpshooterExtraction({ agentDir, modelRegistry, session, settings: Settings.isolated() });
+			await waitFor(
+				async () => (await listSharpshooterDeltas(agentDir, cwd)).length === 1,
+				"RPC session did not persist decision",
+			);
+			const queued = await listSharpshooterDeltas(agentDir, cwd);
+			expect(queued[0]?.deltas[0]?.delta.statement).toBe("The steering angle is 35 degrees.");
+		} finally {
+			await fs.rm(root, { recursive: true, force: true });
+		}
 	});
 
 	it("queues only deltas whose evidence is a verbatim prompt substring", async () => {

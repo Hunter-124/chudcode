@@ -88,6 +88,25 @@ describe("formatSessionHistoryMarkdown", () => {
 		expect(output).not.toContain("Available Tools");
 	});
 
+	it("numbers visible images across user turns and collapsed tool results", () => {
+		const output = formatSessionHistoryMarkdown([
+			{ role: "user", content: [{ type: "image", mimeType: "image/png", data: "Zmlyc3Q=" }], timestamp: 1 },
+			{ role: "assistant", content: [{ type: "toolCall", id: "call", name: "read", arguments: {} }], timestamp: 2 },
+			{
+				role: "toolResult",
+				toolCallId: "call",
+				toolName: "read",
+				content: [{ type: "image", mimeType: "image/png", data: "c2Vjb25k" }],
+				timestamp: 3,
+			},
+			{ role: "user", content: [{ type: "image", mimeType: "image/png", data: "dGhpcmQ=" }], timestamp: 4 },
+		]);
+		expect(output).toContain("[image #1]");
+		expect(output).toContain("[image #3]");
+		expect(output).not.toContain("[image #2]");
+		expect(output).toContain("→ read({}) ⇒ ok · 1 line");
+	});
+
 	it("prefixes an H1 title when requested", () => {
 		const output = formatSessionHistoryMarkdown(buildMessages(), { title: "Spawnling (idle)" });
 		expect(output.startsWith("# Spawnling (idle)\n")).toBe(true);

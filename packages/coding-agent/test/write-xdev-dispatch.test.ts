@@ -98,6 +98,12 @@ describe("read and write route xd:// device URLs", () => {
 			expect(listing.content.find(entry => entry.type === "text")?.text).toContain("xd://ast_edit");
 			const docs = await read!.execute("read-xd-docs", { path: "xd://ast_edit" });
 			expect(docs.content.find(entry => entry.type === "text")?.text).toContain("# ast_edit");
+			// Long device docs must page as one resource, not treat :1-4 as part of the device name.
+			const page = await read!.execute("read-xd-page", { path: "xd://ast_edit:1-4" });
+			const pageText = page.content.find(entry => entry.type === "text")?.text ?? "";
+			expect(pageText).toContain("ast_edit");
+			expect(pageText).not.toContain("No such tool");
+			expect(pageText).not.toContain("Invalid xd:// URL");
 
 			const content = JSON.stringify({
 				ops: [{ pat: "legacyWrap($A, $B)", out: "modernWrap($A, $B)" }],

@@ -1,1 +1,1 @@
-`history://<id>`: read-only transcript; bare lists registered agents, not persisted unregistered top-level sessions.
+`history://<id>`: read-only transcript; bare lists registered agents, not persisted unregistered top-level sessions. Transcript `[image #N]` markers correspond to `history://<id>/images`, which lists MIME type, size, and local path. `history://<id>/images/<n>` resolves a single image path; read that path to inspect its pixels. Missing blobs are marked unavailable.

@@ -150,10 +150,11 @@ export function buildSharpshooterEnvelope(
 	};
 }
 
-/** Resolve the configured extraction model, then fall back to the `smol` role. */
+/** Resolve configured extraction model, then `smol`, then the active session model. */
 export async function resolveSharpshooterModel(
 	settings: Settings,
 	modelRegistry: ModelRegistry,
+	sessionModel?: Model,
 ): Promise<Model | undefined> {
 	const selector = cfgSharpshooterModel.get(settings);
 	if (selector) {
@@ -165,7 +166,7 @@ export async function resolveSharpshooterModel(
 		logger.debug("Sharpshooter extraction model selector did not resolve", { selector });
 	}
 
-	const fallback = resolveRoleSelection(["smol"], settings, modelRegistry.getAvailable())?.model;
+	const fallback = resolveRoleSelection(["smol"], settings, modelRegistry.getAvailable())?.model ?? sessionModel;
 	if (!fallback) logger.debug("Sharpshooter extraction skipped: no model available");
 	return fallback;
 }
@@ -210,7 +211,7 @@ async function runSharpshooterExtraction(
 	envelope: SharpshooterEnvelope,
 ): Promise<void> {
 	const { session, settings, modelRegistry, agentDir } = options;
-	const model = await resolveSharpshooterModel(settings, modelRegistry);
+	const model = await resolveSharpshooterModel(settings, modelRegistry, session.model);
 	if (!model || session.isDisposed) return;
 
 	const input = prompt.render(extractInputTemplate, { ...envelope });

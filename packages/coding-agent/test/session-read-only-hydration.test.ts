@@ -28,7 +28,7 @@ function imageEntry(id: string, parentId: string | null, data: string): SessionM
 }
 
 describe("read-only session blob hydration", () => {
-	it("reads only retained branch images after a clear boundary and preserves URL and missing-blob fallbacks", async () => {
+	it("reads only retained branch images and replaces a missing blob before provider replay", async () => {
 		using dir = TempDir.createSync("@read-only-hydration-");
 		const store = new BlobStore(path.join(dir.path(), "blobs"));
 		const discarded = await store.put(Buffer.from("discarded"));
@@ -67,7 +67,9 @@ describe("read-only session blob hydration", () => {
 				content: [{ type: "image", data: Buffer.from("retained").toString("base64") }],
 				providerPayload: { items: [{ content: [{ image_url: dataUrl }] }] },
 			});
-			expect(messages[1]).toMatchObject({ content: [{ type: "image", data: missing }] });
+			expect(messages[1]).toMatchObject({
+				content: [{ type: "text", text: "[Image unavailable: persisted image data is missing]" }],
+			});
 		} finally {
 			readSpy.mockRestore();
 		}
