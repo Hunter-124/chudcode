@@ -423,7 +423,11 @@ export async function launchDesktop(options: LaunchDesktopOptions = {}): Promise
 	};
 }
 
-if (import.meta.main) {
+// Compiled Windows executables report `import.meta.main === false` (Bun keys
+// the entry with backslashes but registers main with forward slashes; see
+// packages/coding-agent/src/cli.ts). compile-binary.ts define-folds
+// CHUDCODE_COMPILED, and a compiled binary's entry is the process entry.
+if (import.meta.main || process.env.CHUDCODE_COMPILED === "true") {
 	const sourceMode = process.argv.includes("--source-mode");
 	if (process.argv.includes("--version")) {
 		process.stdout.write(`${await readDesktopVersion({ sourceMode })}\n`);
