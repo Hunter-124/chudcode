@@ -6,6 +6,8 @@ package(default_visibility = ["//visibility:public"])
 
 exports_files(["Cargo.toml"])
 
+# These static C archives link into the NAPI shared library. Musl x64 can
+# select non-PIC .lo objects here unless the compiler flag is explicit.
 cc_library(
     name = "chud_catalog",
     alwayslink = True,
@@ -13,7 +15,7 @@ cc_library(
     hdrs = ["native/catalog/chud_catalog.h"],
     copts = select({
         "@platforms//os:windows": ["/std:c11"],
-        "//conditions:default": ["-std=c11"],
+        "//conditions:default": ["-std=c11", "-fPIC"],
     }),
     linkstatic = True,
 )
@@ -25,7 +27,7 @@ cc_library(
     hdrs = ["native/tui/chud_tui.h"],
     copts = select({
         "@platforms//os:windows": ["/std:c11"],
-        "//conditions:default": ["-std=c11"],
+        "//conditions:default": ["-std=c11", "-fPIC"],
     }),
     linkstatic = True,
 )
@@ -37,7 +39,7 @@ cc_library(
     hdrs = ["native/hash/chud_hash.h"],
     copts = select({
         "@platforms//os:windows": ["/std:c11"],
-        "//conditions:default": ["-std=c11"],
+        "//conditions:default": ["-std=c11", "-fPIC"],
     }),
     linkstatic = True,
 )

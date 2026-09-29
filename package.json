@@ -123,7 +123,7 @@
     "fix:tools:all": "biome check --write --unsafe --no-errors-on-unmatched .",
     "fix:changelogs": "bun scripts/fix-changelogs.ts",
     "fix:rs": "bun scripts/run-rs-task.ts fix:rs",
-    "ci:check:full": "bun run check:ts",
+    "ci:check:full": "bun run check:tools && bun run --workspaces --sequential --if-present check",
     "ci:test:full": "bun run ci:test:ts && bun run test:rs",
     "ci:test:ts": "bun scripts/ci-test-ts.ts all",
     "ci:test:ts:workspace": "bun scripts/ci-test-ts.ts workspace",

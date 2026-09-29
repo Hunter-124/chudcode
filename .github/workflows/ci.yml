@@ -197,6 +197,11 @@ jobs:
            run: |
               bazelisk query "kind('rust_library|rust_shared_library', //crates/chud-builtins/...)" \
                 | xargs bazelisk --bazelrc="${{ steps.cache.outputs.rc }}" build --config=clippy-ported --
+         # Tests and three Clippy configurations fill a cold hosted runner's
+         # Bazel output base; keep the disk cache but free compiled outputs
+         # before Rustfmt downloads its separate nightly toolchain.
+         - name: Clear Bazel outputs before Rustfmt
+           run: bazelisk --bazelrc="${{ steps.cache.outputs.rc }}" clean --expunge
          - name: Rustfmt
            run: bazelisk --bazelrc="${{ steps.cache.outputs.rc }}" build --config=rustfmt //crates/...
 
@@ -220,6 +225,17 @@ jobs:
                - win32-x64-baseline
       steps:
          - uses: actions/checkout@v4
+         # The Windows cross toolchain extracts a ~10 GiB LLVM archive before
+         # pruning it; a cold ubuntu-22.04 runner ran out of disk during that
+         # extraction (run 36535658690). Neither preinstalled SDK is used by
+         # this Bazel target, so reclaim their space before any downloads.
+         - name: Free space for Windows cross toolchain
+           if: matrix.target == 'win32-x64-baseline'
+           shell: bash
+           run: |
+              df -h .
+              sudo rm -rf /usr/local/lib/android/sdk /usr/share/dotnet
+              df -h .
          - id: cache
            uses: ./.github/actions/bazel-cache
            with:
@@ -701,6 +717,17 @@ jobs:
          # release_native_leaves can publish every leaf package after the
          # validation gate. Non-darwin leaves reuse the native-addons artifact.
          - name: Upload darwin native addon artifact
+           id: darwin_native_upload
+           continue-on-error: true
+           uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+           with:
+              name: native-addons-${{ matrix.target_id }}
+              path: packages/natives/native/chud_natives.${{ matrix.target_id }}*.node
+              if-no-files-found: error
+              retention-days: 1
+         # Retry transient artifact-service failures; the second failure still fails the job.
+         - name: Retry darwin native addon artifact upload
+           if: steps.darwin_native_upload.outcome == 'failure'
            uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
            with:
               name: native-addons-${{ matrix.target_id }}

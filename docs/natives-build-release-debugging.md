@@ -185,6 +185,8 @@ Hosted disk caches use `bazel-disk-v3-<scope>-<os>-<arch>-<config-hash>-<source-
 
 Binary builds are build-only and run in parallel with the test fan-out. `release_binary` (Linux + Windows matrices) needs only `native_addons`, whose workflow artifact supplies their addons. `release_binary_darwin` needs only `release_metadata` and starts the moment a release run is detected: darwin artifacts cannot be cross-built on Linux, so each macOS leg builds its own architecture through `bazel-natives` with scope `release-<target_id>` (seeded near HEAD by the warm workflow — normally just the version-bump delta), then `bun run ci:release:build-binaries` embeds and compiles the executable. Publishing is held behind `release_gate` (the aggregate of every validation job): `release_native_leaves` downloads all built addons and publishes the five `@chudware/natives-<tag>` leaves from one linux runner, and the GitHub release / verify / core npm chain runs beside it.
 
+Darwin release jobs upload their native addon artifact after the binary smoke test. A failed first upload is retried once with the same artifact name and path because hosted runners can briefly lose access to the artifact service; a second failure still fails the job and blocks publishing.
+
 ## Debugging playbook
 
 ### Where things land / how to inspect
