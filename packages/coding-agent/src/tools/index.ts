@@ -26,6 +26,7 @@ import { LspTool } from "../lsp";
 import type { MCPManager } from "../mcp";
 import { MEMORY_BACKEND_TOOL_NAMES } from "../memory-backend/tool-names";
 import type { MnemopiSessionState } from "../mnemopi/state";
+import type { HostToolSource } from "../modes/rpc/host-tools";
 import type { PlanModeState } from "../plan-mode/state";
 import type { AgentLifecycleManager } from "../registry/agent-lifecycle";
 import type { AgentRegistry } from "../registry/agent-registry";
@@ -47,10 +48,14 @@ import { AskTool } from "./ask";
 import { AstEditTool } from "./ast-edit";
 import { AstGrepTool } from "./ast-grep";
 import { BashTool } from "./bash";
+import { BinaryInspectTool } from "./binary-inspect";
 import { type BuiltinToolName, type HiddenToolName, normalizeToolNames } from "./builtin-names";
 import { type CheckpointState, CheckpointTool, type CompletedRewindState, RewindTool } from "./checkpoint";
 import { ContextNotesTool, NewContextTool } from "./context-notes";
+import { CppRuntimeTool } from "./cpp-runtime";
+import { CppStaticTool } from "./cpp-static";
 import { DebugTool } from "./debug";
+import { FirmwareTool } from "./firmware";
 import { cfgIdaAvailable } from "../ida/install";
 import { EvalTool } from "./eval";
 import { resolveEvalBackends } from "./eval-backends";
@@ -58,6 +63,7 @@ import { GithubTool } from "./gh";
 import { GlobTool } from "./glob";
 import { GrepTool } from "./grep";
 import { IdaTool } from "./ida";
+import { ImageAnalyzeTool } from "./image-analyze";
 import { isIrcEnabled } from "../irc/messaging";
 import { FindTool, isFindEnabled } from "./jfind";
 import { LearnTool } from "./learn";
@@ -114,6 +120,7 @@ export * from "./ask";
 export * from "./ast-edit";
 export * from "./ast-grep";
 export * from "./bash";
+export * from "./binary-inspect";
 export type {
 	BashToolDetails,
 	BashRenderArgs,
@@ -123,9 +130,12 @@ export type {
 export * from "./browser";
 export * from "./checkpoint";
 export * from "./computer";
+export * from "./cpp-runtime";
+export * from "./cpp-static";
 export * from "./computer/supervisor";
 export * from "./context-notes";
 export * from "./debug";
+export * from "./firmware";
 export * from "./ida";
 export * from "./essential-tools";
 export * from "./eval";
@@ -137,6 +147,7 @@ export * from "./grep";
 export * from "./jfind";
 export type { AgentActivitySnapshot, CoordinationDetails, JobSnapshot } from "@oh-my-pi/pi-tui/tools/wait";
 export * from "./image-gen";
+export * from "./image-analyze";
 export * from "./learn";
 export * from "./manage-skill";
 export * from "./memory-edit";
@@ -295,6 +306,8 @@ export interface ToolSession {
 	 * prohibits inherited-manager and process-global MCP fallback.
 	 */
 	enableMCP?: boolean;
+	/** Root process built-in tool ceiling, inherited by subagents. */
+	toolAllowlist?: readonly string[];
 	/** Whether an edit-capable tool is available in this session (controls hashline output) */
 	hasEditTool?: boolean;
 	/** Event bus for tool/extension communication */
@@ -354,6 +367,7 @@ export interface ToolSession {
 	getMnemopiSessionState?: () => MnemopiSessionState | undefined;
 	/** Agent identity used for IRC routing. Returns the registry id (e.g. "Main", "AuthLoader"). */
 	getAgentId?: () => string | null;
+	getHostToolSource?: () => HostToolSource | undefined;
 	/** Look up a registered tool by name (used by the eval js backend's tool bridge). */
 	getToolByName?: (name: string) => AgentTool | undefined;
 	/** Look up an enabled tool through the eval bridge's normal permission pipeline. */
@@ -570,6 +584,11 @@ export const BUILTIN_TOOLS: Record<BuiltinToolName, ToolFactory> = {
 	ask: AskTool.createIf,
 	debug: DebugTool.createIf,
 	ida: IdaTool.createIf,
+	image_analyze: s => new ImageAnalyzeTool(s),
+	cpp_static: s => new CppStaticTool(s),
+	cpp_runtime: s => new CppRuntimeTool(s),
+	binary_inspect: s => new BinaryInspectTool(s),
+	firmware: s => new FirmwareTool(s),
 	eval: s => new EvalTool(s),
 	github: GithubTool.createIf,
 	glob: s => new GlobTool(s, { rootPathAlias: true }),

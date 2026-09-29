@@ -7,6 +7,11 @@ export const BUILTIN_TOOL_NAMES = [
 	"ask",
 	"debug",
 	"ida",
+	"image_analyze",
+	"cpp_static",
+	"cpp_runtime",
+	"binary_inspect",
+	"firmware",
 	"eval",
 	"github",
 	"glob",
@@ -60,6 +65,17 @@ export function normalizeToolNames(names: Iterable<string>): string[] {
 		out.push(normalized);
 	}
 	return out;
+}
+
+/** Clamp built-ins to the process tool ceiling without hiding host, custom or MCP names. */
+export function applyToolAllowlist(
+	requested: string[] | undefined,
+	allowlist: readonly string[] | undefined,
+): string[] | undefined {
+	if (!allowlist) return requested;
+	if (!requested) return normalizeToolNames(allowlist);
+	const allowed = new Set(normalizeToolNames(allowlist));
+	return normalizeToolNames(requested).filter(name => allowed.has(name) || !Object.hasOwn(CANONICAL_TOOL_NAMES, name));
 }
 
 /** MCP tool names carry the `mcp__<server>_<tool>` prefix minted by `createMCPToolName`. */

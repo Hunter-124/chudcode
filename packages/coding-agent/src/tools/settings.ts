@@ -7,6 +7,31 @@ import { cfgIdaAvailable } from "../ida/install";
 import { cfgLspEnabled } from "../lsp/settings";
 import { cfgTaskMaxRecursionDepth } from "../task/settings";
 
+/** Optional vision model cache, private to the Chudcode sidecar. */
+export const cfgVisionModelDir = register({
+	id: "vision.modelDir",
+	type: "string",
+	default: "~/.chudcode/models/vision",
+	ui: {
+		tab: "tools",
+		group: "Vision",
+		label: "Vision Model Directory",
+		description: "Location of downloaded ONNX vision models",
+	},
+});
+
+export const cfgVisionAutoDownload = register({
+	id: "vision.autoDownload",
+	type: "boolean",
+	default: true,
+	ui: {
+		tab: "tools",
+		group: "Vision",
+		label: "Download Vision Models",
+		description: "Allow verified HTTPS downloads of missing ONNX vision models",
+	},
+});
+
 const EMPTY_STRING_ARRAY: string[] = [];
 
 export const cfgToolsArtifactSpillThreshold = register({

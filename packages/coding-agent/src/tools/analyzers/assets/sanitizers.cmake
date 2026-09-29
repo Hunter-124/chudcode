@@ -1,0 +1,11 @@
+if(NOT DEFINED ENV{CHUD_SAN} OR "$ENV{CHUD_SAN}" STREQUAL "")
+  message(FATAL_ERROR "CHUD_SAN must name one or more sanitizers")
+endif()
+
+set(_CHUD_SAN_FLAGS "-fsanitize=$ENV{CHUD_SAN} -fno-omit-frame-pointer -g -O1")
+set(CMAKE_C_FLAGS_INIT "${_CHUD_SAN_FLAGS}" CACHE STRING "chudcode sanitizer C flags" FORCE)
+set(CMAKE_CXX_FLAGS_INIT "${_CHUD_SAN_FLAGS}" CACHE STRING "chudcode sanitizer C++ flags" FORCE)
+set(CMAKE_EXE_LINKER_FLAGS_INIT "-fsanitize=$ENV{CHUD_SAN}" CACHE STRING "chudcode sanitizer executable linker flags" FORCE)
+set(CMAKE_SHARED_LINKER_FLAGS_INIT "-fsanitize=$ENV{CHUD_SAN}" CACHE STRING "chudcode sanitizer shared linker flags" FORCE)
+set(CMAKE_MODULE_LINKER_FLAGS_INIT "-fsanitize=$ENV{CHUD_SAN}" CACHE STRING "chudcode sanitizer module linker flags" FORCE)
+set(CMAKE_TRY_COMPILE_TARGET_TYPE STATIC_LIBRARY CACHE STRING "avoid linking compiler feature probes" FORCE)
