@@ -164,7 +164,7 @@ The `setup-bazelisk` action downloads Bazelisk 1.29.0 to the job's temporary dir
 
 ### Persistent Bazel cache
 
-The `bazel-cache` composite emits a bazelrc fragment (its `rc` output), consumed via `bazelisk --bazelrc=...` or `CHUDCODE_BAZEL_RC`. On the Cloudcastle machines it sets `--output_user_root=$RUNNER_TEMP/bazel-root`, `--config=ci`, `--disk_cache=$HOME/.cache/chudcode-bazel-disk`, and `--repository_cache=$HOME/.cache/chudcode-bazel-repo`. Bazel outputs stay isolated per runner instance while the content-addressed caches survive checkouts and jobs. The physical runner owner must budget and maintain free space; no Bazel cache is transferred to GitHub Actions storage.
+The `bazel-cache` composite emits a bazelrc fragment (its `rc` output), consumed via `bazelisk --bazelrc=...` or `CHUDCODE_BAZEL_RC`. On the Cloudcastle machines it sets `--output_user_root=$RUNNER_TEMP/bazel-root`, `--config=ci` for build/test (not query), `--disk_cache=$HOME/.cache/chudcode-bazel-disk`, and `--repository_cache=$HOME/.cache/chudcode-bazel-repo`. It disables Fedora's ccache compiler wrapper inside sandboxed build actions, where `$HOME/.cache/ccache` is read-only; Bazel's own disk cache stays enabled. Bazel outputs stay isolated per runner instance while the content-addressed caches survive checkouts and jobs. The physical runner owner must budget and maintain free space; no Bazel cache is transferred to GitHub Actions storage.
 
 The composite retains the cluster remote-cache backend if both `BAZEL_REMOTE_USER` and `BAZEL_REMOTE_PASSWORD` are present, with its masked auth header and repository/xwin PVC. The cluster endpoint is not reachable from the physical fleet; do not inject those variables on Cloudcastle runners.
 
