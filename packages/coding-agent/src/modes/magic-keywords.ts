@@ -1,6 +1,9 @@
 import { prompt } from "@oh-my-pi/pi-utils";
+import autobotNotice from "../prompts/system/autobot-notice.md" with { type: "text" };
 import jevifyNotice from "../prompts/system/jevify-notice.md" with { type: "text" };
 import orchestrateNotice from "../prompts/system/orchestrate-notice.md" with { type: "text" };
+import tokenmaxxingNotice from "../prompts/system/tokenmaxxing-notice.md" with { type: "text" };
+import ultragoonNotice from "../prompts/system/ultragoon-notice.md" with { type: "text" };
 import ultrathinkNotice from "../prompts/system/ultrathink-notice.md" with { type: "text" };
 import workflowNotice from "../prompts/system/workflow-notice.md" with { type: "text" };
 
@@ -50,6 +53,25 @@ export const ULTRATHINK_NOTICE: string = ultrathinkNotice.trim();
 
 /** Hidden notice for "jevify": bulk classification through the eval kernel's `judge()`. */
 export const JEVIFY_NOTICE: string = jevifyNotice.trim();
+
+/** Hidden notice for "autobot": standing authority without permission checkpoints. */
+export const AUTOBOT_NOTICE: string = autobotNotice.trim();
+
+/** Hidden notice for "ultragoon": intent-first research and execution. */
+export function renderUltragoonNotice({
+	tools,
+	scoutAvailable,
+}: Pick<MagicKeywordContext, "tools" | "scoutAvailable">): string {
+	return prompt.render(ultragoonNotice, { tools, scoutAvailable }).trim();
+}
+
+/** Hidden notice for "tokenmaxxing": choose the strongest applicable harness. */
+export function renderTokenmaxxingNotice({
+	tools,
+	scoutAvailable,
+}: Pick<MagicKeywordContext, "tools" | "scoutAvailable">): string {
+	return prompt.render(tokenmaxxingNotice, { tools, scoutAvailable }).trim();
+}
 
 /** Hidden notice for "orchestrate", naming only the tools the session actually exposes. */
 export function renderOrchestrateNotice({ tools }: Pick<MagicKeywordContext, "tools">): string {
@@ -103,6 +125,33 @@ export const MAGIC_KEYWORDS = [
 		// The contract is entirely about the eval kernel's `judge()` helper.
 		requires: ["eval"],
 		notice: () => JEVIFY_NOTICE,
+	},
+	{
+		id: "ultragoon",
+		word: "ultragoon",
+		hue: [330, 270],
+		label: "Ultragoon Keyword",
+		description: "Let standalone ultragoon append its hidden intent-first research notice",
+		requires: [],
+		notice: renderUltragoonNotice,
+	},
+	{
+		id: "autobot",
+		word: "autobot",
+		hue: [190, 260],
+		label: "Autobot Keyword",
+		description: "Let standalone autobot append its hidden standing-authority notice",
+		requires: [],
+		notice: () => AUTOBOT_NOTICE,
+	},
+	{
+		id: "tokenmaxxing",
+		word: "tokenmaxxing",
+		hue: [410, 340],
+		label: "Tokenmaxxing Keyword",
+		description: "Let standalone tokenmaxxing append its hidden capability-routing notice",
+		requires: [],
+		notice: renderTokenmaxxingNotice,
 	},
 ] as const satisfies readonly MagicKeyword[];
 

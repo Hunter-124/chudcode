@@ -717,6 +717,24 @@ export const cfgInterruptMode = register({
 	},
 });
 
+/** Windows editing chords are opt-in: terminal Ctrl+C still protects the interrupt path by default. */
+export const cfgKeybindingsPreset = register({
+	id: "keybindings.preset",
+	type: "enum",
+	values: ["default", "windows"] as const,
+	default: "default",
+	ui: {
+		tab: "interaction",
+		group: "Input",
+		label: "Keybinding Preset",
+		description: "Use native terminal bindings or Windows-style copy, paste, selection and undo",
+		options: [
+			{ value: "default", label: "Default", description: "Terminal and Emacs-style shortcuts" },
+			{ value: "windows", label: "Windows", description: "Ctrl+C/V/X, Ctrl+Z/Y and Shift+Arrow selection" },
+		],
+	},
+});
+
 export const cfgTuiVimMode = register({
 	id: "tui.vimMode",
 	type: "boolean",

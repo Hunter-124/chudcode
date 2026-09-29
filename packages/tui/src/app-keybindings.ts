@@ -247,6 +247,34 @@ export const KEYBINDINGS = {
 	},
 } as const satisfies KeybindingDefinitions;
 
+export type KeybindingPreset = "default" | "windows";
+
+/** Explicit user bindings override these defaults; selecting "default" keeps terminal shortcuts unchanged. */
+export const WINDOWS_KEYBINDINGS = {
+	"tui.input.copy": "ctrl+c",
+	"app.clear": ["ctrl+shift+k", "alt+k"],
+	"tui.editor.undo": ["ctrl+z", "ctrl+-", "ctrl+_"],
+	"tui.editor.redo": ["ctrl+y", "ctrl+shift+z", "alt+-"],
+	"app.suspend": "ctrl+alt+z",
+	"tui.editor.yank": [],
+	"tui.editor.cursorLineStart": "home",
+	"tui.editor.selectAll": "ctrl+a",
+	"tui.editor.cut": "ctrl+x",
+	"tui.editor.paste": "ctrl+v",
+	"tui.editor.selectLeft": "shift+left",
+	"tui.editor.selectRight": "shift+right",
+	"tui.editor.selectUp": "shift+up",
+	"tui.editor.selectDown": "shift+down",
+	"tui.editor.selectWordLeft": "ctrl+shift+left",
+	"tui.editor.selectWordRight": "ctrl+shift+right",
+	"tui.editor.selectToLineStart": "shift+home",
+	"tui.editor.selectToLineEnd": "shift+end",
+	"app.exit": ["ctrl+d", "ctrl+q"],
+	"app.message.followUp": ["alt+q", "ctrl+enter"],
+	"app.message.dequeue": "alt+up",
+	"app.clipboard.pasteImage": "alt+v",
+} as const satisfies KeybindingsConfig;
+
 /**
  * Migration map from old keybinding names to new namespaced IDs.
  */
@@ -402,6 +430,8 @@ interface KeybindingsConfigPaths {
 export interface KeybindingsCreateOptions {
 	/** Default-profile agent directory whose keybindings are merged before profile-specific bindings. */
 	inheritedAgentDir?: string;
+	/** Opt-in keyboard preset; settings consumers pass the selected mode here. */
+	preset?: KeybindingPreset;
 }
 
 /**
@@ -580,12 +610,19 @@ export class KeybindingsManager extends TuiKeybindingsManager {
 	#configPath: string | undefined;
 	#inheritedConfigPath: string | undefined;
 	#userBindings: KeybindingsConfig;
+	#preset: KeybindingPreset;
 
-	constructor(userBindings: KeybindingsConfig = {}, configPath?: string, inheritedConfigPath?: string) {
-		super(KEYBINDINGS, userBindings);
+	constructor(
+		userBindings: KeybindingsConfig = {},
+		configPath?: string,
+		inheritedConfigPath?: string,
+		preset: KeybindingPreset = "default",
+	) {
+		super(KEYBINDINGS, { ...(preset === "windows" ? WINDOWS_KEYBINDINGS : {}), ...userBindings });
 		this.#configPath = configPath;
 		this.#inheritedConfigPath = inheritedConfigPath;
 		this.#userBindings = userBindings;
+		this.#preset = preset;
 	}
 
 	/**
@@ -594,7 +631,7 @@ export class KeybindingsManager extends TuiKeybindingsManager {
 	 */
 	static create(agentDir: string = getAgentDir(), options: KeybindingsCreateOptions = {}): KeybindingsManager {
 		const { config: userBindings, profilePath, inheritedPath } = loadMergedKeybindingsConfig(agentDir, options);
-		const manager = new KeybindingsManager(userBindings, profilePath, inheritedPath);
+		const manager = new KeybindingsManager(userBindings, profilePath, inheritedPath, options.preset);
 		// Set globally so getKeybindings() returns this manager
 		setKeybindings(manager);
 		return manager;
@@ -603,8 +640,8 @@ export class KeybindingsManager extends TuiKeybindingsManager {
 	/**
 	 * Create an in-memory keybindings manager without file persistence.
 	 */
-	static inMemory(userBindings: KeybindingsConfig = {}): KeybindingsManager {
-		return new KeybindingsManager(userBindings);
+	static inMemory(userBindings: KeybindingsConfig = {}, preset: KeybindingPreset = "default"): KeybindingsManager {
+		return new KeybindingsManager(userBindings, undefined, undefined, preset);
 	}
 
 	/**
@@ -621,7 +658,21 @@ export class KeybindingsManager extends TuiKeybindingsManager {
 
 	override setUserBindings(userBindings: KeybindingsConfig): void {
 		this.#userBindings = userBindings;
-		super.setUserBindings(userBindings);
+		super.setUserBindings({ ...(this.#preset === "windows" ? WINDOWS_KEYBINDINGS : {}), ...userBindings });
+	}
+
+	override getUserBindings(): KeybindingsConfig {
+		return { ...this.#userBindings };
+	}
+
+	getPreset(): KeybindingPreset {
+		return this.#preset;
+	}
+
+	setPreset(preset: KeybindingPreset): void {
+		if (this.#preset === preset) return;
+		this.#preset = preset;
+		this.setUserBindings(this.#userBindings);
 	}
 
 	override getKeys(keybinding: Keybinding): KeyId[] {

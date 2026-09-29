@@ -123,6 +123,7 @@ import { cfgBranchSummaryEnabled } from "../../session/context-settings";
 import { cfgCycleOrder, cfgDisabledProviders, cfgModelRoleStorage } from "../../config/model-settings";
 import { cfgDefaultThinkingLevel, cfgRetryFallbackChains } from "../../session/settings";
 import {
+	cfgKeybindingsPreset,
 	cfgStatusLineCompactThinkingLevel,
 	cfgStatusLineContextLine,
 	cfgStatusLineLeftSegments,
@@ -602,11 +603,14 @@ export class SelectorController {
 	/**
 	 * Apply the side effects of a setting change the user made in this process
 	 * (settings selector, approved `cfg://` writes); the value is already stored.
-	 * Only `defaultThinkingLevel` needs this: it also switches the live session,
-	 * which config reloads and parent-session writes must not do. Every other
-	 * setting applies through handle listeners owned by the session and InteractiveMode.
+	 * Thinking level changes the live session; the keyboard preset changes the live
+	 * editor's bindings. The value has already been stored by the settings host.
 	 */
 	handleSettingChange(id: string, value: unknown): void {
+		if (id === cfgKeybindingsPreset.id) {
+			this.ctx.refreshKeybindings();
+			return;
+		}
 		if (id !== cfgDefaultThinkingLevel.id || typeof value !== "string") return;
 		const level = parseConfiguredThinkingLevel(value);
 		if (level === undefined || level === this.ctx.session.configuredThinkingLevel()) return;

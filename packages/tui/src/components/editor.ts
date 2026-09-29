@@ -463,6 +463,11 @@ interface EditorState {
 	cursorCol: number;
 }
 
+export interface EditorSelection {
+	anchor: { line: number; col: number };
+	cursor: { line: number; col: number };
+}
+
 interface LayoutLine {
 	text: string;
 	/** Exact `visibleWidth(text)` carried from wrap/layout, never re-derived. */
@@ -589,6 +594,7 @@ export class Editor implements Component, Focusable {
 		cursorLine: 0,
 		cursorCol: 0,
 	};
+	#selectionAnchor: { line: number; col: number } | undefined;
 	/** Focusable interface - set by TUI when focus changes */
 	focused: boolean = false;
 
@@ -661,6 +667,9 @@ export class Editor implements Component, Focusable {
 	/** Called with the selected text when Visual mode yanks, so hosts can reach the system
 	 *  clipboard — `packages/tui` deliberately has no clipboard dependency of its own. */
 	onYank?: (text: string) => void;
+	/** Clipboard hooks are supplied by the host, keeping the TUI platform-independent. */
+	onCopy?: (text: string) => boolean | void;
+	onPaste?: () => void | Promise<void>;
 	/** Fired when the modal state changes, so hosts can restyle their chrome (border, status). */
 	onVimModeChange?: (mode: VimMode) => void;
 
@@ -719,6 +728,10 @@ export class Editor implements Component, Focusable {
 
 	// Undo stack for editor state changes
 	#undoStack: EditorState[] = [];
+	/** States undone off the stack, valid until the next actual edit. */
+	#redoStack: EditorState[] = [];
+	/** An edit is only committed when a buffer mutation becomes observable. */
+	#pendingUndoState: EditorState | undefined;
 	#suspendUndo = false;
 
 	// Debounce timer for autocomplete updates
@@ -775,7 +788,7 @@ export class Editor implements Component, Focusable {
 			cursorLine: this.#state.cursorLine,
 			cursorCol: this.#state.cursorCol,
 			lineCount: lines.length,
-			selection: null,
+			selection: this.getSelection() ?? null,
 			placeholderActive: this.#getPlaceholder() !== undefined,
 		};
 	}
@@ -881,6 +894,7 @@ export class Editor implements Component, Focusable {
 	 *  never left in a state where ordinary typing does nothing. */
 	setVimMode(enabled: boolean): void {
 		if (enabled === (this.#vim !== null)) return;
+		this.#selectionAnchor = undefined;
 		this.#vim = enabled ? new VimState() : null;
 		if (this.#vim) this.#vim.mode = "insert";
 		this.invalidate();
@@ -1058,7 +1072,10 @@ export class Editor implements Component, Focusable {
 	}
 	/** Internal setText that doesn't reset history state - used by navigateHistory */
 	#setTextInternal(text: string, cursorAnchor: HistoryCursorAnchor = "end"): void {
+		this.#selectionAnchor = undefined;
 		this.#undoStack.length = 0;
+		this.#redoStack.length = 0;
+		this.#pendingUndoState = undefined;
 		const lines = sanitizeLoadedText(text).split("\n");
 		this.#state.lines = lines.length === 0 ? [""] : lines;
 		// A single-row entry's top and bottom are the same row, so the directional
@@ -1388,9 +1405,9 @@ export class Editor implements Component, Focusable {
 			};
 		};
 
-		// Active Vim visual selection, if any. The cursor always sits inside it, so selected rows
-		// skip the normal cursor-glyph branches: the reverse-video span already marks the spot.
+		// Vim Visual and ordinary Shift-selection share the same layout-to-highlight mapping.
 		const vimSelection = this.#vimSelection();
+		const selection = vimSelection ?? this.#selectionRange();
 
 		for (let visibleIndex = 0; visibleIndex < visibleLayoutLines.length; visibleIndex++) {
 			const layoutLine = visibleLayoutLines[visibleIndex]!;
@@ -1457,11 +1474,11 @@ export class Editor implements Component, Focusable {
 			}
 
 			const selectionSpan =
-				vimSelection === null
+				selection === null
 					? null
 					: this.#selectionSpanFor(
 							layoutLine,
-							vimSelection,
+							selection,
 							layoutLines[this.#scrollOffset + visibleIndex + 1]?.logicalLine !== layoutLine.logicalLine,
 						);
 
@@ -1665,6 +1682,10 @@ export class Editor implements Component, Focusable {
 				anchor = anchorOffset + vim.anchor.col;
 			}
 		}
+		if (anchor === null && this.#selectionAnchor !== undefined) {
+			anchor = this.#selectionAnchor.col;
+			for (let i = 0; i < this.#selectionAnchor.line; i++) anchor += (lines[i]?.length ?? 0) + 1;
+		}
 		const prompt = this.#promptGutter === undefined ? "" : plainText(this.#promptGutter);
 		const props: TspEditorProps = {
 			text,
@@ -1794,6 +1815,63 @@ export class Editor implements Component, Focusable {
 			return;
 		}
 
+		if (this.#vim?.mode === "insert" || this.#vim === null) {
+			if (kb.matchesCanonical(canonical, "tui.editor.selectAll")) {
+				this.#selectionAnchor = { line: 0, col: 0 };
+				this.#state.cursorLine = this.#state.lines.length - 1;
+				this.#setCursorCol(this.#state.lines[this.#state.cursorLine]?.length ?? 0);
+				return;
+			}
+			if (kb.matchesCanonical(canonical, "tui.editor.selectLeft")) {
+				this.#extendSelection(() => this.#moveCursor(0, -1, true));
+				return;
+			}
+			if (kb.matchesCanonical(canonical, "tui.editor.selectRight")) {
+				this.#extendSelection(() => this.#moveCursor(0, 1, true));
+				return;
+			}
+			if (kb.matchesCanonical(canonical, "tui.editor.selectUp")) {
+				this.#extendSelection(() => this.#moveCursor(-1, 0, true));
+				return;
+			}
+			if (kb.matchesCanonical(canonical, "tui.editor.selectDown")) {
+				this.#extendSelection(() => this.#moveCursor(1, 0, true));
+				return;
+			}
+			if (kb.matchesCanonical(canonical, "tui.editor.selectWordLeft")) {
+				this.#extendSelection(() => this.#moveWordBackwards(true));
+				return;
+			}
+			if (kb.matchesCanonical(canonical, "tui.editor.selectWordRight")) {
+				this.#extendSelection(() => this.#moveWordForwards(true));
+				return;
+			}
+			if (kb.matchesCanonical(canonical, "tui.editor.selectToLineStart")) {
+				this.#extendSelection(() => this.#moveToLineStart(true));
+				return;
+			}
+			if (kb.matchesCanonical(canonical, "tui.editor.selectToLineEnd")) {
+				this.#extendSelection(() => this.#moveToLineEnd(true));
+				return;
+			}
+			if (kb.matchesCanonical(canonical, "tui.input.copy") && this.hasSelection()) {
+				this.onCopy?.(this.getSelectedText()!);
+				return;
+			}
+			if (kb.matchesCanonical(canonical, "tui.editor.cut")) {
+				const selected = this.getSelectedText();
+				if (selected === undefined || !this.onCopy || this.onCopy(selected) === false) return;
+				this.#recordUndoState();
+				this.#deleteSelection();
+				this.#notifyChange();
+				return;
+			}
+			if (kb.matchesCanonical(canonical, "tui.editor.paste")) {
+				this.onPaste?.();
+				return;
+			}
+		}
+
 		// Bulk printable fast path: a multi-scalar run of plain text (paste
 		// remainder, batched stdin) parses to no key, so no binding probe or
 		// special-key branch below can consume it — it always falls through to
@@ -1817,6 +1895,11 @@ export class Editor implements Component, Focusable {
 		// Undo
 		if (kb.matchesCanonical(canonical, "tui.editor.undo")) {
 			this.#applyUndo();
+			return;
+		}
+
+		if (kb.matchesCanonical(canonical, "tui.editor.redo")) {
+			this.#applyRedo();
 			return;
 		}
 
@@ -2035,7 +2118,8 @@ export class Editor implements Component, Focusable {
 			this.#yankPop();
 		}
 		// Ctrl+A - Move to start of line
-		else if (matchesKey(data, "ctrl+a")) {
+		// Ctrl+A is an Emacs motion only when the preset has not claimed it as select-all.
+		else if (matchesKey(data, "ctrl+a") && !kb.matchesCanonical(canonical, "tui.editor.selectAll")) {
 			this.#moveToLineStart();
 		}
 		// Ctrl+E - Move to end of line
@@ -2256,6 +2340,7 @@ export class Editor implements Component, Focusable {
 					this.#moveVimCursor(command.to);
 					break;
 				case "mode":
+					this.#selectionAnchor = undefined;
 					this.#resetKillSequence();
 					this.#preferredVisualCol = null;
 					break;
@@ -2622,6 +2707,79 @@ export class Editor implements Component, Focusable {
 		return this.#state.lines.join("\n");
 	}
 
+	getSelection(): EditorSelection | undefined {
+		const anchor = this.#selectionAnchor;
+		return anchor === undefined
+			? undefined
+			: { anchor: { ...anchor }, cursor: { line: this.#state.cursorLine, col: this.#state.cursorCol } };
+	}
+
+	hasSelection(): boolean {
+		const anchor = this.#selectionAnchor;
+		return anchor !== undefined && (anchor.line !== this.#state.cursorLine || anchor.col !== this.#state.cursorCol);
+	}
+
+	/** Half-open logical range; selection edges expand to encompass atomic image/paste labels. */
+	#selectionRange(): { from: EditorSelection["anchor"]; to: EditorSelection["cursor"]; linewise: false } | null {
+		const anchor = this.#selectionAnchor;
+		if (anchor === undefined) return null;
+		const cursor = { line: this.#state.cursorLine, col: this.#state.cursorCol };
+		const before = anchor.line < cursor.line || (anchor.line === cursor.line && anchor.col <= cursor.col);
+		const from = { ...(before ? anchor : cursor) };
+		const to = { ...(before ? cursor : anchor) };
+		if (from.line === to.line && from.col === to.col) return { from, to, linewise: false };
+		if (from.line === to.line) {
+			const range = this.#expandRangeOverAtomicTokens(this.#state.lines[from.line] ?? "", from.col, to.col);
+			from.col = range.start;
+			to.col = range.end;
+		} else {
+			const first = this.#state.lines[from.line] ?? "";
+			from.col = this.#expandRangeOverAtomicTokens(first, from.col, first.length).start;
+			to.col = this.#expandRangeOverAtomicTokens(this.#state.lines[to.line] ?? "", 0, to.col).end;
+		}
+		return { from, to, linewise: false };
+	}
+
+	getSelectedText(): string | undefined {
+		const range = this.#selectionRange();
+		if (range === null || (range.from.line === range.to.line && range.from.col === range.to.col)) return undefined;
+		return this.#sliceRange(range.from, range.to, false);
+	}
+
+	/** The caller owns undo recording and change notification. */
+	#deleteSelection(): boolean {
+		const range = this.#selectionRange();
+		this.#selectionAnchor = undefined;
+		if (range === null || (range.from.line === range.to.line && range.from.col === range.to.col)) return false;
+		const { from, to } = range;
+		const prefix = (this.#state.lines[from.line] ?? "").slice(0, from.col);
+		const suffix = (this.#state.lines[to.line] ?? "").slice(to.col);
+		this.#state.lines.splice(from.line, to.line - from.line + 1, prefix + suffix);
+		this.#state.cursorLine = from.line;
+		this.#setCursorCol(from.col);
+		return true;
+	}
+
+	#deleteSelectionForCommand(): boolean {
+		if (!this.#deleteSelection()) return false;
+		this.#notifyChange();
+		this.#retriggerAutocompleteAtCursor();
+		return true;
+	}
+
+	#extendSelection(move: () => void): void {
+		this.#selectionAnchor ??= { line: this.#state.cursorLine, col: this.#state.cursorCol };
+		move();
+		const token = this.#atomicTokenAt(this.#state.lines[this.#state.cursorLine] ?? "", this.#state.cursorCol);
+		if (token && this.#state.cursorCol > token.start) {
+			const anchor = this.#selectionAnchor;
+			const forward =
+				anchor.line < this.#state.cursorLine ||
+				(anchor.line === this.#state.cursorLine && anchor.col < this.#state.cursorCol);
+			this.#setCursorCol(forward ? token.end : token.start);
+		}
+	}
+
 	/** Host-registered atomic chip labels mapped to their submit-time expansions. */
 	get atoms(): ReadonlyMap<string, string> {
 		return this.#atoms;
@@ -2633,6 +2791,7 @@ export class Editor implements Component, Focusable {
 	}
 
 	#notifyChange(text?: string): void {
+		this.#commitRecordedUndoState();
 		this.#textRevision++;
 		this.onChange?.(text ?? this.getText());
 	}
@@ -2844,6 +3003,14 @@ export class Editor implements Component, Focusable {
 	 *  optimistically inserts before it recognizes the hold. Capped at the cursor column so it
 	 *  never crosses a line boundary or under-runs the line. */
 	deleteBeforeCursor(count: number): void {
+		if (this.hasSelection()) {
+			this.#exitHistoryForEditing();
+			this.#recordUndoState();
+			this.#deleteSelectionForCommand();
+			this.#lastAction = null;
+			return;
+		}
+		this.#selectionAnchor = undefined;
 		const removable = Math.min(count, this.#state.cursorCol);
 		if (removable <= 0) return;
 		this.#exitHistoryForEditing();
@@ -2960,6 +3127,7 @@ export class Editor implements Component, Focusable {
 		// Undo coalescing: consecutive word typing collapses into one undo unit
 		// (mirrors Input); any other action resets the run via #lastAction.
 		const isWordChunk = [...segmenter.segment(char)].every(seg => getWordNavKind(seg.segment) !== "whitespace");
+		const replacingSelection = this.hasSelection();
 		let line = this.#state.lines[this.#state.cursorLine] || "";
 		// The space a Tab word accept added is provisional until the next keystroke:
 		// a typed space is swallowed, closing punctuation or a hyphen replaces it,
@@ -2969,9 +3137,11 @@ export class Editor implements Component, Focusable {
 			this.#lastAction = null;
 			return;
 		}
-		if (!isWordChunk || this.#lastAction !== "type-word") {
+		if (replacingSelection || !isWordChunk || this.#lastAction !== "type-word") {
 			this.#recordUndoState();
 		}
+		this.#deleteSelection();
+		line = this.#state.lines[this.#state.cursorLine] || "";
 		this.#lastAction = isWordChunk ? "type-word" : null;
 		this.#reportTypedPastWordCompletion(char);
 		if (provisionalSpace && PROVISIONAL_SPACE_ABSORBERS.test(char)) {
@@ -3092,7 +3262,7 @@ export class Editor implements Component, Focusable {
 
 		// If pasting a file path (starts with /, ~, or .) and the character before
 		// the cursor is a word character, prepend a space for better readability.
-		if (/^[/~.]/.test(filteredText)) {
+		if (!this.hasSelection() && /^[/~.]/.test(filteredText)) {
 			const currentLine = this.#state.lines[this.#state.cursorLine] || "";
 			const charBeforeCursor = this.#state.cursorCol > 0 ? currentLine[this.#state.cursorCol - 1] : "";
 			if (charBeforeCursor && /\w/.test(charBeforeCursor)) {
@@ -3116,6 +3286,7 @@ export class Editor implements Component, Focusable {
 		this.#historyIndex = -1; // Exit history browsing mode
 		this.#resetKillSequence();
 		this.#recordUndoState();
+		this.#deleteSelection();
 
 		this.#withUndoSuspended(() => {
 			if (isMarkerSized) {
@@ -3204,6 +3375,7 @@ export class Editor implements Component, Focusable {
 		this.#historyIndex = -1; // Exit history browsing mode
 		this.#resetKillSequence();
 		this.#recordUndoState();
+		this.#deleteSelection();
 
 		const currentLine = this.#state.lines[this.#state.cursorLine] || "";
 		const splitCol = dropSpace ? this.#state.cursorCol - 1 : this.#state.cursorCol;
@@ -3240,6 +3412,7 @@ export class Editor implements Component, Focusable {
 	}
 
 	#submitValue(): void {
+		this.#selectionAnchor = undefined;
 		this.#resetKillSequence();
 
 		const result = this.#expandPasteMarkers(this.#state.lines.join("\n")).trim();
@@ -3249,6 +3422,8 @@ export class Editor implements Component, Focusable {
 		this.#historyIndex = -1;
 		this.#scrollOffset = 0;
 		this.#undoStack.length = 0;
+		this.#redoStack.length = 0;
+		this.#pendingUndoState = undefined;
 
 		this.#notifyChange("");
 		if (this.onSubmit) this.onSubmit(result);
@@ -3312,6 +3487,7 @@ export class Editor implements Component, Focusable {
 		this.#historyIndex = -1; // Exit history browsing mode
 		this.#resetKillSequence();
 		this.#recordUndoState();
+		if (this.#deleteSelectionForCommand()) return;
 
 		let removedSlashTrigger = false;
 
@@ -3476,24 +3652,28 @@ export class Editor implements Component, Focusable {
 		return result;
 	}
 
-	#moveToLineStart(): void {
+	#moveToLineStart(preserveSelection = false): void {
+		if (!preserveSelection) this.#selectionAnchor = undefined;
 		this.#resetKillSequence();
 		this.#setCursorCol(0);
 	}
 
-	#moveToLineEnd(): void {
+	#moveToLineEnd(preserveSelection = false): void {
+		if (!preserveSelection) this.#selectionAnchor = undefined;
 		this.#resetKillSequence();
 		const currentLine = this.#state.lines[this.#state.cursorLine] || "";
 		this.#setCursorCol(currentLine.length);
 	}
 
 	#moveToMessageStart(): void {
+		this.#selectionAnchor = undefined;
 		this.#resetKillSequence();
 		this.#state.cursorLine = 0;
 		this.#setCursorCol(0);
 	}
 
 	#moveToMessageEnd(): void {
+		this.#selectionAnchor = undefined;
 		this.#resetKillSequence();
 		this.#state.cursorLine = this.#state.lines.length - 1;
 		const currentLine = this.#state.lines[this.#state.cursorLine] || "";
@@ -3514,30 +3694,40 @@ export class Editor implements Component, Focusable {
 		}
 	}
 
+	#commitRecordedUndoState(): void {
+		const pending = this.#pendingUndoState;
+		if (!pending) return;
+		this.#pendingUndoState = undefined;
+		if (
+			pending.lines.length === this.#state.lines.length &&
+			pending.lines.every((line, index) => line === this.#state.lines[index])
+		) {
+			this.#undoStack.pop();
+			return;
+		}
+		this.#redoStack.length = 0;
+	}
+
 	#recordUndoState(): void {
 		if (this.#suspendUndo) return;
-		// EditorState holds only primitives plus an array of immutable strings:
-		// a shallow array copy is a complete snapshot. structuredClone pays for
-		// general-case dispatch per element on every edit keystroke.
-		this.#undoStack.push({
+		this.#commitRecordedUndoState();
+		// Lines are immutable strings, so only the array needs copying.
+		const snapshot: EditorState = {
 			lines: this.#state.lines.slice(),
 			cursorLine: this.#state.cursorLine,
 			cursorCol: this.#state.cursorCol,
-		});
-		if (this.#undoStack.length > MAX_UNDO_STACK) {
-			this.#undoStack.shift();
-		}
+		};
+		this.#undoStack.push(snapshot);
+		this.#pendingUndoState = snapshot;
+		if (this.#undoStack.length > MAX_UNDO_STACK) this.#undoStack.shift();
 	}
 
-	#applyUndo(): void {
-		const snapshot = this.#undoStack.pop();
-		if (!snapshot) return;
-
+	#restoreUndoState(snapshot: EditorState): void {
 		this.#historyIndex = -1;
 		this.#resetKillSequence();
 		this.#preferredVisualCol = null;
+		this.#selectionAnchor = undefined;
 		Object.assign(this.#state, snapshot);
-
 		this.#notifyChange();
 
 		if (this.#autocompleteState) {
@@ -3557,6 +3747,34 @@ export class Editor implements Component, Focusable {
 				this.#tryTriggerAutocomplete();
 			}
 		}
+	}
+
+	#applyUndo(): void {
+		this.clearVolatileText();
+		this.#commitRecordedUndoState();
+		const snapshot = this.#undoStack.pop();
+		if (!snapshot) return;
+		this.#redoStack.push({
+			lines: this.#state.lines.slice(),
+			cursorLine: this.#state.cursorLine,
+			cursorCol: this.#state.cursorCol,
+		});
+		if (this.#redoStack.length > MAX_UNDO_STACK) this.#redoStack.shift();
+		this.#restoreUndoState(snapshot);
+	}
+
+	#applyRedo(): void {
+		this.clearVolatileText();
+		this.#commitRecordedUndoState();
+		const snapshot = this.#redoStack.pop();
+		if (!snapshot) return;
+		this.#undoStack.push({
+			lines: this.#state.lines.slice(),
+			cursorLine: this.#state.cursorLine,
+			cursorCol: this.#state.cursorCol,
+		});
+		if (this.#undoStack.length > MAX_UNDO_STACK) this.#undoStack.shift();
+		this.#restoreUndoState(snapshot);
 	}
 
 	#matchesTransientUndoSnapshot(
@@ -3593,6 +3811,7 @@ export class Editor implements Component, Focusable {
 		this.#historyIndex = -1;
 		this.#resetKillSequence();
 		this.#recordUndoState();
+		this.#deleteSelection();
 
 		const normalized = text.replace(/\r\n?/g, "\n");
 		const lines = normalized.split("\n");
@@ -3710,6 +3929,7 @@ export class Editor implements Component, Focusable {
 	#deleteToStartOfLine(): void {
 		this.#historyIndex = -1; // Exit history browsing mode
 		this.#recordUndoState();
+		if (this.#deleteSelectionForCommand()) return;
 
 		const currentLine = this.#state.lines[this.#state.cursorLine] || "";
 		let deletedText = "";
@@ -3740,6 +3960,7 @@ export class Editor implements Component, Focusable {
 	#deleteToEndOfLine(): void {
 		this.#historyIndex = -1; // Exit history browsing mode
 		this.#recordUndoState();
+		if (this.#deleteSelectionForCommand()) return;
 
 		const currentLine = this.#state.lines[this.#state.cursorLine] || "";
 		let deletedText = "";
@@ -3770,6 +3991,7 @@ export class Editor implements Component, Focusable {
 	#deleteWordBackwards(): void {
 		this.#historyIndex = -1; // Exit history browsing mode
 		this.#recordUndoState();
+		if (this.#deleteSelectionForCommand()) return;
 
 		const currentLine = this.#state.lines[this.#state.cursorLine] || "";
 
@@ -3803,6 +4025,7 @@ export class Editor implements Component, Focusable {
 	#deleteWordForwards(): void {
 		this.#historyIndex = -1; // Exit history browsing mode
 		this.#recordUndoState();
+		if (this.#deleteSelectionForCommand()) return;
 
 		const currentLine = this.#state.lines[this.#state.cursorLine] || "";
 
@@ -3834,6 +4057,7 @@ export class Editor implements Component, Focusable {
 		this.#historyIndex = -1; // Exit history browsing mode
 		this.#resetKillSequence();
 		this.#recordUndoState();
+		if (this.#deleteSelectionForCommand()) return;
 
 		const currentLine = this.#state.lines[this.#state.cursorLine] || "";
 
@@ -3964,7 +4188,8 @@ export class Editor implements Component, Focusable {
 		return visualLines.length - 1;
 	}
 
-	#moveCursor(deltaLine: number, deltaCol: number): void {
+	#moveCursor(deltaLine: number, deltaCol: number, preserveSelection = false): void {
+		if (!preserveSelection) this.#selectionAnchor = undefined;
 		this.#resetKillSequence();
 		const visualLines = this.#buildVisualLineMap(this.#lastLayoutWidth);
 		const currentVisualLine = this.#findCurrentVisualLine(visualLines);
@@ -4017,6 +4242,7 @@ export class Editor implements Component, Focusable {
 	}
 
 	#pageScroll(direction: -1 | 1): void {
+		this.#selectionAnchor = undefined;
 		this.#resetKillSequence();
 		const visualLines = this.#buildVisualLineMap(this.#lastLayoutWidth);
 		const currentVisualLine = this.#findCurrentVisualLine(visualLines);
@@ -4026,7 +4252,8 @@ export class Editor implements Component, Focusable {
 		this.#moveToVisualLine(visualLines, currentVisualLine, targetVisualLine);
 	}
 
-	#moveWordBackwards(): void {
+	#moveWordBackwards(preserveSelection = false): void {
+		if (!preserveSelection) this.#selectionAnchor = undefined;
 		const currentLine = this.#state.lines[this.#state.cursorLine] || "";
 
 		// If at start of line, move to end of previous line
@@ -4048,6 +4275,7 @@ export class Editor implements Component, Focusable {
 	 */
 	#jumpToChar(char: string, direction: "forward" | "backward"): void {
 		this.#resetKillSequence();
+		this.#selectionAnchor = undefined;
 		const isForward = direction === "forward";
 		const lines = this.#state.lines;
 
@@ -4076,7 +4304,8 @@ export class Editor implements Component, Focusable {
 		// No match found - cursor stays in place
 	}
 
-	#moveWordForwards(): void {
+	#moveWordForwards(preserveSelection = false): void {
+		if (!preserveSelection) this.#selectionAnchor = undefined;
 		const currentLine = this.#state.lines[this.#state.cursorLine] || "";
 
 		// If at end of line, move to start of next line

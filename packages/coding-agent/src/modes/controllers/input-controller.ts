@@ -5,6 +5,7 @@ import {
 	type AutocompleteProvider,
 	type Component,
 	matchesKey,
+	Input,
 	parseSgrMouse,
 	type PasteOptions,
 	type SlashCommand,
@@ -268,6 +269,7 @@ export class InputController {
 
 	#enhancedPaste?: EnhancedPasteController;
 	#draftText: string | undefined;
+	#draftCheckpointFailed = false;
 	#focusedLeftTapListenerInstalled = false;
 	#focusedPasteListenerInstalled = false;
 	#btwBranchListenerInstalled = false;
@@ -315,6 +317,28 @@ export class InputController {
 	}
 
 	setupKeyHandlers(): void {
+		const reportClipboardError = (action: "copy" | "paste", error: unknown): void => {
+			logger.warn(`Selection clipboard ${action} failed`, { error: String(error) });
+			this.ctx.showWarning(
+				action === "copy" ? "Failed to copy selection to clipboard" : "Failed to paste text from clipboard",
+			);
+		};
+		const copySelectedText = (text: string): boolean => {
+			void copyToClipboard(text).catch(error => reportClipboardError("copy", error));
+			return true;
+		};
+		const clipboardEnabled =
+			this.ctx.keybindings.getKeys("tui.editor.cut").length > 0 ||
+			this.ctx.keybindings.getKeys("tui.editor.paste").length > 0;
+		Input.setClipboardHooks(
+			clipboardEnabled
+				? {
+						copy: copySelectedText,
+						readText: readTextFromClipboard,
+						onError: reportClipboardError,
+					}
+				: undefined,
+		);
 		this.#draftText ??= this.ctx.editor.getText();
 		this.ctx.editor.setActionKeys("app.interrupt", this.ctx.keybindings.getKeys("app.interrupt"));
 		if (!this.#focusedLeftTapListenerInstalled) {
@@ -599,6 +623,24 @@ export class InputController {
 
 		this.ctx.editor.setActionKeys("app.clear", this.ctx.keybindings.getKeys("app.clear"));
 		this.ctx.editor.onClear = () => this.handleCtrlC();
+		this.ctx.editor.onCtrlC = () => {
+			if (this.ctx.editor.hasSelection() && !this.ctx.isShuttingDown && !this.ctx.teardownFailed) return false;
+			this.handleCtrlC();
+			return true;
+		};
+		this.ctx.editor.onCopy = copySelectedText;
+		this.ctx.editor.onPaste = async () => {
+			try {
+				const text = await this.clipboard.readText();
+				if (text) {
+					this.ctx.editor.pasteText(text);
+					this.ctx.ui.requestRender();
+				}
+			} catch (error) {
+				logger.warn("Selection clipboard paste failed", { error: String(error) });
+				this.ctx.showWarning("Failed to paste text from clipboard");
+			}
+		};
 		this.ctx.editor.setActionKeys("app.exit", this.ctx.keybindings.getKeys("app.exit"));
 		this.ctx.editor.setActionKeys("app.display.reset", this.ctx.keybindings.getKeys("app.display.reset"));
 		this.ctx.editor.onDisplayReset = () => {
@@ -718,6 +760,19 @@ export class InputController {
 
 		this.ctx.editor.onChange = (text: string) => {
 			this.#draftText = text;
+			try {
+				this.ctx.sessionManager.saveDraftSync(text);
+				if (this.#draftCheckpointFailed) {
+					this.#draftCheckpointFailed = false;
+					this.ctx.showStatus("Draft checkpoint recovered");
+				}
+			} catch (error) {
+				logger.warn("Draft checkpoint failed", { error: String(error) });
+				if (!this.#draftCheckpointFailed) {
+					this.#draftCheckpointFailed = true;
+					this.ctx.showWarning("Draft could not be saved; it may be lost if the app closes");
+				}
+			}
 			const wasBashMode = this.ctx.isBashMode;
 			const wasPythonMode = this.ctx.isPythonMode;
 			const trimmed = text.trimStart();

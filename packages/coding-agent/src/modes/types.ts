@@ -276,6 +276,8 @@ export interface InteractiveModeContext {
 	/** Request graceful shutdown at the next fully settled boundary, including background turns. */
 	requestShutdown(): void;
 	checkShutdownRequested(): Promise<void>;
+	/** Refresh the active editor's shortcuts after a keybinding preset change. */
+	refreshKeybindings(): void;
 
 	// Extension UI integration
 	setToolUIContext(uiContext: ExtensionUIContext, hasUI: boolean): void;

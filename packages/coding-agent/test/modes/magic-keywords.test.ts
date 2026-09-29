@@ -10,6 +10,25 @@ describe("magic keyword registry", () => {
 		expect(new Set(MAGIC_KEYWORDS.map(keyword => keyword.id)).size).toBe(MAGIC_KEYWORDS.length);
 		expect(new Set(MAGIC_KEYWORDS.map(keyword => keyword.word)).size).toBe(MAGIC_KEYWORDS.length);
 	});
+
+	it("renders every keyword as a complete hidden notice at minimal and full capabilities", () => {
+		for (const context of [
+			{ tools: [], scoutAvailable: false, taskBatch: false, evalTools: false },
+			{
+				tools: ["read", "grep", "glob", "task", "ask", "todo", "eval"],
+				scoutAvailable: true,
+				taskBatch: true,
+				evalTools: true,
+			},
+		]) {
+			for (const keyword of MAGIC_KEYWORDS) {
+				const notice = keyword.notice(context);
+				expect(notice.startsWith("<system-notice>")).toBe(true);
+				expect(notice.endsWith("</system-notice>")).toBe(true);
+				expect(notice).not.toContain("{{");
+			}
+		}
+	});
 });
 
 describe("orchestrate notice", () => {

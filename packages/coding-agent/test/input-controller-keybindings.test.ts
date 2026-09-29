@@ -246,6 +246,8 @@ async function createContext() {
 		handleBtwFollowUpKey,
 		showError,
 		showStatus: vi.fn(),
+		sessionManager: { saveDraftSync: vi.fn() },
+		showWarning: vi.fn(),
 	} as unknown as InteractiveModeContext;
 
 	return {

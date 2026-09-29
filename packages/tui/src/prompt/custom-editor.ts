@@ -1184,6 +1184,8 @@ export class CustomEditor extends Editor {
 
 	onEscape?: () => void;
 	onClear?: () => void;
+	/** Ctrl+C preflight: hard abort wins over selection; return false to let selected text copy. */
+	onCtrlC?: () => boolean;
 	onExit?: () => void;
 	onDisplayReset?: () => void;
 	onCycleThinkingLevel?: () => void;
@@ -1384,6 +1386,13 @@ export class CustomEditor extends Editor {
 
 		const parsedKey = parseKey(data);
 		const canonical = parsedKey !== undefined ? canonicalKeyId(parsedKey) : undefined;
+		if (canonical === "ctrl+c") {
+			if (this.onCtrlC?.()) return;
+			if (this.hasSelection() && getKeybindings().matchesCanonical(canonical, "tui.input.copy")) {
+				this.#forwardInput(data, canonical);
+				return;
+			}
+		}
 
 		// Left-arrow on an empty editor: surface for the agent-hub double-tap
 		// gesture. Plain "left" only — modified arrows and any in-text cursor
@@ -1396,7 +1405,7 @@ export class CustomEditor extends Editor {
 		// Space-hold push-to-talk: a sustained space bar starts/stops STT instead of typing spaces.
 		switch (this.spaceHold.process(canonical === "space")) {
 			case "type":
-				this.#forwardInput(data);
+				this.#forwardInput(data, canonical);
 				return;
 			case "swallow":
 				return;
@@ -1555,7 +1564,7 @@ export class CustomEditor extends Editor {
 		}
 
 		// Pass to parent for normal handling
-		this.#forwardInput(data);
+		this.#forwardInput(data, canonical);
 		this.#normalizeQueuePrefix(hadBareQueuePrefix);
 	}
 
@@ -1588,16 +1597,27 @@ export class CustomEditor extends Editor {
 		// standalone editor with no callback clears its own text.
 		const parsed = parseKey(data);
 		const canonical = parsed !== undefined ? canonicalKeyId(parsed) : undefined;
+		if (canonical === "ctrl+c") {
+			if (this.onCtrlC?.()) return;
+			if (this.hasSelection() && getKeybindings().matchesCanonical(canonical, "tui.input.copy")) {
+				this.#forwardInput(data, canonical);
+				return;
+			}
+		}
 		if (canonical !== undefined && this.#matchesAction(canonical, "app.clear")) {
 			if (this.onClear) this.onClear();
 			else this.setText("");
 			return;
 		}
-		this.#forwardInput(data);
+		this.#forwardInput(data, canonical);
 	}
 
 	/** Base text-editing pipeline, then snap any skill or model token the keystroke just completed. */
-	#forwardInput(data: string): void {
+	#forwardInput(data: string, canonical: string | undefined): void {
+		if (this.onPaste && getKeybindings().matchesCanonical(canonical, "tui.editor.paste")) {
+			this.#trackAsyncPaste(Promise.resolve(this.onPaste()));
+			return;
+		}
 		super.handleInput(data);
 		this.#collapseSkillTokens();
 		this.#collapseModelMentions();

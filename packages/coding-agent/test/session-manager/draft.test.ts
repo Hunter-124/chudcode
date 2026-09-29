@@ -73,6 +73,26 @@ describe("SessionManager draft", () => {
 		expect(await fileExists(sessionFile)).toBe(true);
 	});
 
+	it("recovers the latest synchronous checkpoint after a process dies without teardown", async () => {
+		using tempDir = TempDir.createSync("@pi-session-live-draft-");
+		const firstRun = SessionManager.create(tempDir.path(), tempDir.path());
+		firstRun.saveDraftSync("first version");
+		firstRun.saveDraftSync("edited before crash");
+
+		const sessionFile = firstRun.getSessionFile();
+		if (!sessionFile) throw new Error("Expected a persistent session file");
+		expect(await fileExists(sessionFile)).toBe(true);
+		const resumed = SessionManager.create(tempDir.path(), tempDir.path());
+		await resumed.setSessionFile(sessionFile);
+		expect(await resumed.consumeDraft()).toBe("edited before crash");
+
+		resumed.saveDraftSync("new draft");
+		resumed.saveDraftSync("");
+		const afterDeletion = SessionManager.create(tempDir.path(), tempDir.path());
+		await afterDeletion.setSessionFile(sessionFile);
+		expect(await afterDeletion.consumeDraft()).toBe("");
+	});
+
 	it("is a no-op for in-memory sessions", async () => {
 		const session = SessionManager.inMemory();
 

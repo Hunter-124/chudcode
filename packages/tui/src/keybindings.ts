@@ -27,6 +27,18 @@ export interface Keybindings {
 	"tui.editor.yank": true;
 	"tui.editor.yankPop": true;
 	"tui.editor.undo": true;
+	"tui.editor.redo": true;
+	"tui.editor.selectAll": true;
+	"tui.editor.selectLeft": true;
+	"tui.editor.selectRight": true;
+	"tui.editor.selectUp": true;
+	"tui.editor.selectDown": true;
+	"tui.editor.selectWordLeft": true;
+	"tui.editor.selectWordRight": true;
+	"tui.editor.selectToLineStart": true;
+	"tui.editor.selectToLineEnd": true;
+	"tui.editor.cut": true;
+	"tui.editor.paste": true;
 	"tui.editor.spellingSuggestions": true;
 	// Generic input actions
 	"tui.input.newLine": true;
@@ -119,6 +131,18 @@ export const TUI_KEYBINDINGS = {
 	"tui.editor.yank": { defaultKeys: "ctrl+y", description: "Yank" },
 	"tui.editor.yankPop": { defaultKeys: "alt+y", description: "Yank pop" },
 	"tui.editor.undo": { defaultKeys: ["ctrl+-", "ctrl+_"], description: "Undo" },
+	"tui.editor.redo": { defaultKeys: ["alt+-", "alt+_"], description: "Redo" },
+	"tui.editor.selectAll": { defaultKeys: [], description: "Select all text" },
+	"tui.editor.selectLeft": { defaultKeys: [], description: "Extend selection left" },
+	"tui.editor.selectRight": { defaultKeys: [], description: "Extend selection right" },
+	"tui.editor.selectUp": { defaultKeys: [], description: "Extend selection up" },
+	"tui.editor.selectDown": { defaultKeys: [], description: "Extend selection down" },
+	"tui.editor.selectWordLeft": { defaultKeys: [], description: "Extend selection one word left" },
+	"tui.editor.selectWordRight": { defaultKeys: [], description: "Extend selection one word right" },
+	"tui.editor.selectToLineStart": { defaultKeys: [], description: "Extend selection to line start" },
+	"tui.editor.selectToLineEnd": { defaultKeys: [], description: "Extend selection to line end" },
+	"tui.editor.cut": { defaultKeys: [], description: "Cut selected text" },
+	"tui.editor.paste": { defaultKeys: [], description: "Paste clipboard text" },
 	"tui.editor.spellingSuggestions": {
 		defaultKeys: "ctrl+.",
 		description: "Show spelling replacements",

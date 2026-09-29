@@ -29,6 +29,7 @@ import {
 	getComposerStyle,
 	getPaddingX,
 	getWidthConfigEpoch,
+	Input,
 	Loader,
 	Markdown,
 	Spacer,
@@ -327,6 +328,7 @@ import {
 	cfgDisplayShowTokenUsage,
 	cfgDisplayShowTurnTime,
 	cfgGitEnabled,
+	cfgKeybindingsPreset,
 	cfgLoopConditionTimeoutMs,
 	cfgLoopMode,
 	cfgMagicKeywordsEnabled,
@@ -1875,7 +1877,9 @@ export class InteractiveMode implements InteractiveModeContext {
 	async init(options: InteractiveModeInitOptions = {}): Promise<void> {
 		if (this.isInitialized) return;
 
-		this.keybindings = logger.time("InteractiveMode.init:keybindings", () => KeybindingsManager.create());
+		this.keybindings = logger.time("InteractiveMode.init:keybindings", () =>
+			KeybindingsManager.create(undefined, { preset: cfgKeybindingsPreset.get(settings) }),
+		);
 		// Before first paint, so hints the user already learned never flash on.
 		await logger.time("InteractiveMode.init:hintUsage", () => hintUsage.load());
 
@@ -6443,6 +6447,7 @@ export class InteractiveMode implements InteractiveModeContext {
 	}
 
 	stop(): void {
+		Input.setClipboardHooks(undefined);
 		this.#appearanceRefreshRequest = undefined;
 		this.#streamPublisher?.dispose();
 		this.#streamPublisher = undefined;
@@ -7533,6 +7538,12 @@ export class InteractiveMode implements InteractiveModeContext {
 	}
 
 	// Selector handling
+	refreshKeybindings(): void {
+		this.keybindings.setPreset(cfgKeybindingsPreset.get(settings));
+		this.#inputController.setupKeyHandlers();
+		this.ui.requestRender();
+	}
+
 	showSettingsSelector(): void {
 		this.#selectorController.showSettingsSelector();
 	}
