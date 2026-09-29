@@ -149,6 +149,7 @@ import { resolveMCPToolAlias } from "./mcp/tool-bridge";
 import { createSessionMemoryRuntimeContext, resolveMemoryBackend } from "./memory-backend";
 import { MEMORY_BACKEND_TOOL_NAMES } from "./memory-backend/tool-names";
 import type { MnemopiSessionState } from "./mnemopi/state";
+import type { HostToolSource } from "./modes/rpc/host-tools";
 import mcpXdevGuidanceTemplate from "./prompts/system/mcp-xdev-guidance.md" with { type: "text" };
 import lateDiagnosticTemplate from "./prompts/tools/lsp-late-diagnostic.md" with { type: "text" };
 import { AgentLifecycleManager } from "./registry/agent-lifecycle";
@@ -265,7 +266,7 @@ import {
 } from "./tools";
 import { resolveYieldReportText } from "./tools/yield";
 import { createBrowserPrelude } from "./tools/browser";
-import { isMCPToolName, normalizeToolNames } from "./tools/builtin-names";
+import { applyToolAllowlist, isMCPToolName, normalizeToolNames } from "./tools/builtin-names";
 import { createComputerPrelude } from "./tools/computer";
 import { ToolContextStore } from "./tools/context";
 import { isIrcEnabled } from "./irc/messaging";
@@ -716,6 +717,8 @@ export interface CreateAgentSessionOptions {
 	skipPythonPreflight?: boolean;
 	/** Tool names explicitly requested (enables disabled-by-default tools) */
 	toolNames?: string[];
+	/** Inherited ceiling on built-in tool names; host, custom and MCP names are unaffected. */
+	toolAllowlist?: readonly string[];
 	/** Limit the session to explicitly supplied tool names, without discovered extras. */
 	restrictToolNames?: boolean;
 	/**
@@ -772,6 +775,8 @@ export interface CreateAgentSessionOptions {
 	 * top-level "Main" session, which has no parent.
 	 */
 	parentAgentId?: string;
+	/** Live RPC host tool source shared with nested agents. */
+	inheritedHostTools?: HostToolSource;
 
 	/** Session manager. Default: session stored under the configured agentDir sessions root */
 	sessionManager?: SessionManager;
@@ -2076,6 +2081,7 @@ async function createAgentSessionScoped(options: CreateAgentSessionOptions): Pro
 	let hasSession = false;
 	let hasRegistered = false;
 	const restrictToolNames = options.restrictToolNames === true;
+	const requestedToolNamesOption = applyToolAllowlist(options.toolNames, options.toolAllowlist);
 	const enableLsp = options.enableLsp ?? !restrictToolNames;
 	const lspReadOnly = options.lspReadOnly ?? restrictToolNames;
 	// Only the first top-level session in a process owns an AsyncJobManager.
@@ -2175,8 +2181,11 @@ async function createAgentSessionScoped(options: CreateAgentSessionOptions): Pro
 				);
 			},
 			restrictToolNames,
+			toolAllowlist: options.toolAllowlist,
 			get hasEditTool() {
-				const requestedToolNames = options.toolNames ? normalizeToolNames(options.toolNames) : undefined;
+				const requestedToolNames = requestedToolNamesOption
+					? normalizeToolNames(requestedToolNamesOption)
+					: undefined;
 				return restrictToolNames
 					? requestedToolNames?.includes("edit") === true
 					: !requestedToolNames || requestedToolNames.includes("edit");
@@ -2213,6 +2222,7 @@ async function createAgentSessionScoped(options: CreateAgentSessionOptions): Pro
 			getHindsightSessionState: () => session?.getHindsightSessionState(),
 			getMnemopiSessionState: () => session?.getMnemopiSessionState(),
 			getAgentId: () => resolvedAgentId,
+			getHostToolSource: () => session?.getHostToolSource(),
 			getToolByName: name => session?.getToolByName(name),
 			getToolForEvalBridge: name => session?.getToolForEvalBridge(name),
 			getEvalBridgeToolNames: () => session?.getEvalBridgeToolNames() ?? [],
@@ -2357,7 +2367,7 @@ async function createAgentSessionScoped(options: CreateAgentSessionOptions): Pro
 		);
 
 		// Create built-in tools (already wrapped with meta notice formatting)
-		await logger.time("createAllTools", createTools, toolSession, options.toolNames);
+		await logger.time("createAllTools", createTools, toolSession, requestedToolNamesOption);
 		const initialBrowserPreludeAvailable = shouldFilterBrowserMCPForPrelude({
 			restrictToolNames,
 			browserEnabled: cfgBrowserEnabled.get(settings),
@@ -3337,7 +3347,7 @@ async function createAgentSessionScoped(options: CreateAgentSessionOptions): Pro
 			return tool ? { tool, makeContext: () => toolContextStore.getContext() } : undefined;
 		});
 		if (deferMCPDiscoveryForUI && mcpManager) {
-			for (const name of collectPendingMCPToolNames(options.toolNames)) {
+			for (const name of collectPendingMCPToolNames(requestedToolNamesOption)) {
 				if (!toolRegistry.has(name)) {
 					toolRegistry.set(name, createPendingMCPTool(name));
 					initialMcpManagerToolNames.add(name);
@@ -3364,7 +3374,7 @@ async function createAgentSessionScoped(options: CreateAgentSessionOptions): Pro
 			// Image generation also honors an explicit tool whitelist: custom tools are
 			// force-activated, so `--no-tools` or a list without `generate_image` must
 			// keep it out (issue #5305).
-			const imageGenRequested = !options.toolNames || options.toolNames.includes("generate_image");
+			const imageGenRequested = !requestedToolNamesOption || requestedToolNamesOption.includes("generate_image");
 			if (cfgGenerateImageEnabled.get(settings) && imageGenRequested) {
 				wanted.push(imageGenTool as unknown as CustomTool);
 			}
@@ -3488,9 +3498,11 @@ async function createAgentSessionScoped(options: CreateAgentSessionOptions): Pro
 		const reconcileSettingsGatedTools = async (
 			isBuiltIn: (name: string) => boolean,
 		): Promise<SettingsGatedToolDelta> => {
-			const plan = await resolveBuiltinToolPlan(toolSession, options.toolNames);
+			const plan = await resolveBuiltinToolPlan(toolSession, requestedToolNamesOption);
 			const planned = new Set(plan.names);
-			const explicitToolNames = options.toolNames ? new Set(normalizeToolNames(options.toolNames)) : undefined;
+			const explicitToolNames = requestedToolNamesOption
+				? new Set(normalizeToolNames(requestedToolNamesOption))
+				: undefined;
 			const added: { name: string; builtIn: boolean; activate: boolean }[] = [];
 			const removed: string[] = [];
 			for (const name of SETTINGS_GATED_BUILTIN_TOOL_NAMES) {
@@ -3873,7 +3885,9 @@ async function createAgentSessionScoped(options: CreateAgentSessionOptions): Pro
 		};
 
 		const toolNamesFromRegistry = Array.from(toolRegistry.keys());
-		const explicitlyRequestedToolNames = options.toolNames ? normalizeToolNames(options.toolNames) : undefined;
+		const explicitlyRequestedToolNames = requestedToolNamesOption
+			? normalizeToolNames(requestedToolNamesOption)
+			: undefined;
 		// When `requireYieldTool` is set, the subagent's prompts and idle-reminders demand a
 		// `yield` call to terminate. The tool registry already includes `yield` (see
 		// `createTools`), but an explicit `toolNames` list would otherwise drop it from the
@@ -3929,7 +3943,7 @@ async function createAgentSessionScoped(options: CreateAgentSessionOptions): Pro
 			(explicitlyRequestedToolNameSet === undefined ||
 				explicitlyRequestedToolNameSet.has("write") ||
 				toolSession.deviceOnlyWrite === true);
-		const initialRequestedActiveToolNames = options.toolNames
+		const initialRequestedActiveToolNames = requestedToolNamesOption
 			? requestedActiveToolNames
 			: requestedActiveToolNames.filter(name => !defaultInactiveToolNames.has(name));
 		let initialToolNames = [...initialRequestedActiveToolNames];
@@ -4560,6 +4574,24 @@ async function createAgentSessionScoped(options: CreateAgentSessionOptions): Pro
 			titleSystemPrompt: options.titleSystemPrompt,
 		});
 		hasSession = true;
+		const inheritedHostTools = restrictToolNames ? undefined : options.inheritedHostTools;
+		if (inheritedHostTools) {
+			const scope = { agentId: resolvedAgentId, parentAgentId: options.parentAgentId };
+			const admitted = options.toolNames ? new Set(normalizeToolNames(options.toolNames)) : undefined;
+			const refresh = () =>
+				session.refreshRpcHostTools(
+					inheritedHostTools.createTools(scope).filter(tool => !admitted || admitted.has(tool.name)),
+				);
+			session.setHostToolSource(inheritedHostTools);
+			await refresh();
+			disposeCallbacks.add(
+				inheritedHostTools.subscribe(() => {
+					refresh().catch(error =>
+						logger.warn("Failed to refresh inherited RPC host tools", { agentId: resolvedAgentId, error }),
+					);
+				}),
+			);
+		}
 		credentialNoticeSession = session;
 		// A caller-supplied store belongs to the caller (the CLI keeps it in sync itself).
 		if (ownsAuthStorage) createAuthStorageSettingsSync(session, authStorage);

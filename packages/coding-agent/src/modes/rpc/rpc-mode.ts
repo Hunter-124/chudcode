@@ -12,10 +12,14 @@
  * - Extension UI: Extension UI requests are emitted, client responds with extension_ui_response
  */
 import * as path from "node:path";
+import { Buffer } from "node:buffer";
+import * as fs from "node:fs/promises";
 import { ThinkingLevel } from "@oh-my-pi/pi-agent-core";
+import { completeSimple } from "@oh-my-pi/pi-ai";
 import { getOAuthProviders } from "@oh-my-pi/pi-ai/oauth";
+import { getProviderDefinition, PROVIDER_REGISTRY } from "@oh-my-pi/pi-ai/registry";
 import { toolWireSchema } from "@oh-my-pi/pi-ai/utils/schema";
-import { $env, isRecord, logger, Snowflake } from "@oh-my-pi/pi-utils";
+import { $env, isRecord, logger, pathIsWithin, Snowflake } from "@oh-my-pi/pi-utils";
 import { clearPluginRootsAndCaches, resolveActiveProjectRegistryPath } from "../../discovery/helpers";
 import {
 	type ExtensionUIContext,
@@ -31,6 +35,7 @@ import {
 	type Skill,
 	type SkillPromptInput,
 } from "../../extensibility/skills";
+import { createSessionMemoryRuntimeContext, type MemoryBackendStatus } from "../../memory-backend";
 import { type Theme, theme } from "@oh-my-pi/pi-tui/theme";
 import type { AgentSession } from "../../session/agent-session";
 import { findMostRecentNonEmptySession } from "../../session/session-listing";
@@ -57,8 +62,11 @@ import {
 } from "./rpc-prompt-results";
 import { RpcSessionEventForwarder } from "./rpc-session-events";
 import { isRpcSessionSettled, RpcSessionSettleWatcher } from "./rpc-session-settle";
+import { RpcSttService } from "./rpc-stt";
 import { RpcSubagentRegistry, readRpcSubagentTranscript } from "./rpc-subagents";
 import type {
+	RpcAuthAccountState,
+	RpcAuthProviderState,
 	RpcCommand,
 	RpcExtensionUIRequest,
 	RpcExtensionUIResponse,
@@ -72,6 +80,8 @@ import type {
 	RpcHostUriRequest,
 	RpcHostUriResult,
 	RpcOpenSessionResult,
+	RpcMemoryHit,
+	RpcMemoryStats,
 	RpcResponse,
 	RpcSessionState,
 	RpcSubagentSubscriptionLevel,
@@ -230,6 +240,186 @@ export async function tryRunRpcSkillCommand(
 	return { agentInvoked: true };
 }
 
+export const RPC_AUTH_API_KEY_MAX_BYTES = 64 * 1024;
+export const RPC_MEMORY_ROOT_MAX_BYTES = 4 * 1024;
+export const RPC_MEMORY_CONTENT_MAX_BYTES = 64 * 1024;
+export const RPC_MEMORY_QUERY_MAX_BYTES = 8 * 1024;
+export const RPC_MEMORY_LIMIT_MAX = 100;
+export const RPC_MEMORY_TOKEN_BUDGET_DEFAULT = 4_096;
+export const RPC_MEMORY_TOKEN_BUDGET_MAX = 32_768;
+
+function requireBoundedString(value: unknown, field: string, maxBytes: number): string {
+	if (typeof value !== "string") throw new Error(`${field} must be a string`);
+	if (!value.trim()) throw new Error(`${field} cannot be empty`);
+	if (Buffer.byteLength(value) > maxBytes) throw new Error(`${field} exceeds the ${maxBytes}-byte limit`);
+	return value.trim();
+}
+
+function optionalBoundedString(value: unknown, field: string, maxBytes: number): string | undefined {
+	return value === undefined ? undefined : requireBoundedString(value, field, maxBytes);
+}
+
+function requireKnownRpcProvider(session: AgentSession, value: unknown): string {
+	const provider = requireBoundedString(value, "providerId", 128);
+	if (!/^[a-z0-9][a-z0-9._-]*$/i.test(provider)) throw new Error("providerId has an invalid format");
+	if (
+		!getProviderDefinition(provider) &&
+		!session.modelRegistry.hasProvider(provider) &&
+		!session.modelRegistry.authStorage.credentials.list(provider).length
+	)
+		throw new Error(`Unknown provider: ${provider}`);
+	return provider;
+}
+
+function sanitizeRpcAuthAccount(value: unknown): RpcAuthAccountState | undefined {
+	if (!isRecord(value) || value.type !== "oauth") return undefined;
+	const account: RpcAuthAccountState = {};
+	for (const field of ["accountId", "email", "projectId", "orgId", "orgName"] as const) {
+		const label = value[field];
+		if (typeof label === "string" && label.length > 0 && Buffer.byteLength(label) <= 1_024) account[field] = label;
+	}
+	return Object.keys(account).length ? account : undefined;
+}
+
+export function getRpcAuthProviderState(session: AgentSession, providerId: string): RpcAuthProviderState {
+	const storage = session.modelRegistry.authStorage;
+	const origin = storage.keys.source(providerId)?.kind;
+	const stored = storage.credentials.list(providerId);
+	const accounts: RpcAuthAccountState[] = [];
+	const seen = new Set<string>();
+	for (const row of stored) {
+		if (accounts.length >= 16) break;
+		if (row.disabledCause) continue;
+		const account = sanitizeRpcAuthAccount(row.credential);
+		if (!account) continue;
+		const key = JSON.stringify(account);
+		if (!seen.has(key)) {
+			seen.add(key);
+			accounts.push(account);
+		}
+	}
+	return {
+		providerId,
+		name: (getProviderDefinition(providerId)?.name ?? providerId).slice(0, 128),
+		authenticated: origin !== undefined,
+		hasApiKey:
+			stored.some(row => !row.disabledCause && row.credential.type === "api_key") ||
+			origin === "runtime" ||
+			origin === "config" ||
+			origin === "env",
+		hasOAuth: stored.some(row => !row.disabledCause && row.credential.type === "oauth"),
+		...(origin ? { origin } : {}),
+		accounts,
+	};
+}
+
+function listRpcAuthProviderStates(session: AgentSession, providerId?: string): RpcAuthProviderState[] {
+	if (providerId !== undefined)
+		return [getRpcAuthProviderState(session, requireKnownRpcProvider(session, providerId))];
+	const ids = new Set(PROVIDER_REGISTRY.map(provider => provider.id));
+	for (const model of session.getAvailableModels()) if (model.provider.length <= 128) ids.add(model.provider);
+	for (const credential of session.modelRegistry.authStorage.credentials.list())
+		if (credential.provider.length <= 128) ids.add(credential.provider);
+	return Array.from(ids)
+		.sort()
+		.slice(0, 128)
+		.map(id => getRpcAuthProviderState(session, id));
+}
+
+async function validateRpcApiKey(session: AgentSession, providerId: string, apiKey: string): Promise<boolean> {
+	await session.modelRegistry.awaitBackgroundRefresh();
+	const model = session.modelRegistry.getAll().find(candidate => candidate.provider === providerId);
+	if (!model) return false;
+	try {
+		const result = await completeSimple(
+			model,
+			{ messages: [{ role: "user", content: "ping", timestamp: Date.now() }] },
+			{ apiKey, maxTokens: 1, signal: AbortSignal.timeout(15_000) },
+		);
+		return result.stopReason !== "error" && result.stopReason !== "aborted";
+	} catch {
+		return false;
+	}
+}
+
+async function refreshRpcProviderBestEffort(session: AgentSession, providerId: string): Promise<void> {
+	try {
+		await session.modelRegistry.refreshProvider(providerId, "online");
+	} catch {
+		// Persistence succeeds independently of provider catalog availability.
+	}
+}
+
+export async function resolveRpcMemoryRoot(session: AgentSession, value: unknown): Promise<string> {
+	const requested = requireBoundedString(value, "root", RPC_MEMORY_ROOT_MAX_BYTES);
+	if (path.isAbsolute(requested)) {
+		const root = await fs.realpath(requested);
+		if (!(await fs.stat(root)).isDirectory()) throw new Error("Memory root must be a directory");
+		return root;
+	}
+	const cwd = await fs.realpath(session.sessionManager.getCwd());
+	const candidate = path.resolve(cwd, requested);
+	if (!pathIsWithin(cwd, candidate)) throw new Error("Memory root escapes the active project");
+	const root = await fs.realpath(candidate);
+	if (!pathIsWithin(cwd, root)) throw new Error("Memory root escapes the active project");
+	if (!(await fs.stat(root)).isDirectory()) throw new Error("Memory root must be a directory");
+	return root;
+}
+
+function memoryInteger(value: unknown, field: string, fallback: number, max: number): number {
+	if (value === undefined) return fallback;
+	if (typeof value !== "number" || !Number.isSafeInteger(value) || value < 1 || value > max)
+		throw new Error(`${field} must be an integer from 1 to ${max}`);
+	return value;
+}
+
+/** Limit recall both in hit count and approximate four-characters-per-token wire budget. */
+export function boundRpcMemoryHits(
+	items: ReadonlyArray<{ id?: string; content: string; source?: string; timestamp?: string; score?: number }>,
+	limit: number,
+	tokenBudget: number,
+): RpcMemoryHit[] {
+	let remaining = tokenBudget * 4;
+	const hits: RpcMemoryHit[] = [];
+	for (const item of items.slice(0, limit)) {
+		const id = typeof item.id === "string" ? item.id.slice(0, 512) : undefined;
+		const source = typeof item.source === "string" ? item.source.slice(0, 1_024) : undefined;
+		const timestamp = typeof item.timestamp === "string" ? item.timestamp.slice(0, 128) : undefined;
+		const metadata = {
+			...(id ? { id } : {}),
+			...(source ? { source } : {}),
+			...(timestamp ? { timestamp } : {}),
+			...(typeof item.score === "number" && Number.isFinite(item.score) ? { score: item.score } : {}),
+		};
+		const available = remaining - JSON.stringify(metadata).length - 16;
+		if (available <= 0) break;
+		const content = typeof item.content === "string" ? item.content.slice(0, available) : "";
+		if (!content) continue;
+		const hit = { ...metadata, content };
+		hits.push(hit);
+		remaining -= JSON.stringify(hit).length;
+	}
+	return hits;
+}
+
+function sanitizeRpcMemoryStats(status: MemoryBackendStatus): RpcMemoryStats {
+	const counts = (value: unknown): number | undefined =>
+		typeof value === "number" && Number.isSafeInteger(value) && value >= 0 ? value : undefined;
+	const workingCount = counts(status.workingCount);
+	const episodicCount = counts(status.episodicCount);
+	const tripleCount = counts(status.tripleCount);
+	return {
+		backend: status.backend,
+		active: status.active,
+		writable: status.writable,
+		searchable: status.searchable,
+		...(status.scope ? { scope: status.scope.slice(0, 1_024) } : {}),
+		...(workingCount !== undefined ? { workingCount } : {}),
+		...(episodicCount !== undefined ? { episodicCount } : {}),
+		...(tripleCount !== undefined ? { tripleCount } : {}),
+	};
+}
+
 /**
  * Dependencies for {@link dispatchRpcInputFrame}. Provided by the RPC mode
  * entrypoint; broken out so tests can drive the input loop with stubs.
@@ -282,21 +472,21 @@ export function dispatchRpcControlFrame(parsed: unknown, deps: RpcInputFrameDeps
 	return false;
 }
 
+/** Commands that must not hold the serial lane while cancellation is pending. */
+export function isRpcBackgroundCommand(command: RpcCommand): boolean {
+	return (
+		command.type === "bash" ||
+		command.type === "stt_status" ||
+		command.type === "stt_start" ||
+		command.type === "stt_stop" ||
+		command.type === "stt_cancel"
+	);
+}
 /**
- * Dispatch a single parsed frame from the RPC input stream.
- *
- * Bash commands are dispatched in the background so the caller can keep reading
- * subsequent frames while a shell command is still running. This lets a client
- * send `abort_bash` while a long-running `bash` is in flight. Response
- * correlation is preserved via each command's `id`; ordering across concurrent
- * commands is not guaranteed and clients MUST match on `id`.
- *
- * @returns `undefined` when the frame was routed to a side-channel handler
- *   (extension UI response, host tool/URI frames) or dispatched in the
- *   background (`bash`). Otherwise a promise that resolves once the response
- *   for the command has been emitted via `output`. Errors from `handleCommand`
- *   on non-`bash` commands propagate; the caller is expected to wrap them.
+ * Dispatch a parsed frame; background responses may arrive out of order, so
+ * clients correlate them by request id.
  */
+
 export function dispatchRpcInputFrame(parsed: unknown, deps: RpcInputFrameDeps): Promise<void> | undefined {
 	if (dispatchRpcControlFrame(parsed, deps)) return undefined;
 	// Regular RPC command. The transport contract states each remaining frame
@@ -305,17 +495,14 @@ export function dispatchRpcInputFrame(parsed: unknown, deps: RpcInputFrameDeps):
 	// the union here.
 	const command = parsed as RpcCommand;
 
-	// `bash` can run for a long time. Dispatch it in the background so a
-	// subsequent `abort_bash` frame can be read and handled without waiting
-	// for the shell command to finish on its own. The response is emitted
-	// when `handleCommand` resolves; clients correlate via `command.id`.
-	if (command.type === "bash") {
+	// Speech setup and transcription must never block a subsequent cancel/status.
+	if (isRpcBackgroundCommand(command)) {
 		const task = (async () => {
 			try {
 				deps.output(await deps.handleCommand(command));
 			} catch (err: unknown) {
 				const message = err instanceof Error ? err.message : String(err);
-				deps.output(deps.errorResponse(command.id, "bash", message));
+				deps.output(deps.errorResponse(command.id, command.type, message));
 			}
 		})();
 		deps.trackBackgroundTask?.(task);
@@ -345,7 +532,7 @@ export class RpcInputDispatcher {
 			if (dispatchRpcControlFrame(parsed, this.#deps)) return;
 
 			const command = parsed as RpcCommand;
-			if (command.type === "bash") {
+			if (isRpcBackgroundCommand(command)) {
 				dispatchRpcInputFrame(command, this.#deps);
 				return;
 			}
@@ -388,23 +575,25 @@ export class RpcInputDispatcher {
 /**
  * Coordinates deferred shutdown with in-flight background input tasks.
  *
- * `pi.shutdown()` from an extension only *requests* shutdown; the process must
- * not exit while a background-dispatched command (`bash`, see
- * {@link dispatchRpcInputFrame}) still owes the client a response frame. The
- * coordinator tracks those tasks, re-checks the shutdown request whenever one
- * settles (covering a shutdown requested mid-bash with no follow-up client
- * frame), and drains every tracked task before invoking `performShutdown`.
- * The shutdown sequence is latched so concurrent triggers (input loop and
- * settling tasks) run it exactly once.
+ * `pi.shutdown()` from an extension only *requests* shutdown; the process
+ * must not exit while background commands still owe response frames. Cancel
+ * active speech before draining those tasks, then dispose the session. The
+ * shutdown sequence is latched so concurrent triggers run it exactly once.
  */
 export class RpcShutdownCoordinator {
 	#tasks = new Set<Promise<void>>();
 	#shutdown: Promise<void> | undefined;
 	readonly #isShutdownRequested: () => boolean;
 	readonly #performShutdown: () => Promise<void>;
+	readonly #prepareShutdown: (() => Promise<void>) | undefined;
 
-	constructor(options: { isShutdownRequested: () => boolean; performShutdown: () => Promise<void> }) {
+	constructor(options: {
+		isShutdownRequested: () => boolean;
+		prepareShutdown?: () => Promise<void>;
+		performShutdown: () => Promise<void>;
+	}) {
 		this.#isShutdownRequested = options.isShutdownRequested;
+		this.#prepareShutdown = options.prepareShutdown;
 		this.#performShutdown = options.performShutdown;
 	}
 
@@ -438,7 +627,11 @@ export class RpcShutdownCoordinator {
 	checkShutdownRequested(): Promise<void> {
 		if (!this.#shutdown) {
 			if (!this.#isShutdownRequested()) return Promise.resolve();
-			this.#shutdown = this.drain().then(() => this.#performShutdown());
+			this.#shutdown = (async () => {
+				await this.#prepareShutdown?.();
+				await this.drain();
+				await this.#performShutdown();
+			})();
 		}
 		return this.#shutdown;
 	}
@@ -820,8 +1013,11 @@ export async function runRpcMode(session: AgentSession, options: RpcModeOptions 
 
 	const pendingExtensionRequests = new RpcPendingExtensionRequests();
 	const hostToolBridge = new RpcHostToolBridge(output);
+	// Nested agents share this live bridge and dispatch over the same host connection.
+	session.setHostToolSource(hostToolBridge);
 	const hostUriBridge = new RpcHostUriBridge(output);
 	const subagentRegistry = subagentEventBus ? new RpcSubagentRegistry(subagentEventBus, output) : undefined;
+	const sttService = new RpcSttService(output, session.settings, session.modelRegistry);
 
 	// Shutdown request flag (wrapped in object to allow mutation with const)
 	const shutdownState = { requested: false };
@@ -1356,6 +1552,15 @@ export async function runRpcMode(session: AgentSession, options: RpcModeOptions 
 				});
 			}
 
+			case "stt_status":
+				return success(id, "stt_status", sttService.status());
+			case "stt_start":
+				return success(id, "stt_start", await sttService.start());
+			case "stt_stop":
+				return success(id, "stt_stop", await sttService.stop());
+			case "stt_cancel":
+				return success(id, "stt_cancel", await sttService.cancel());
+
 			case "set_todos": {
 				session.setTodoPhases(command.phases);
 				return success(id, "set_todos", { todoPhases: session.getTodoPhases() });
@@ -1636,6 +1841,142 @@ export async function runRpcMode(session: AgentSession, options: RpcModeOptions 
 				}
 			}
 
+			// Authentication
+			case "get_auth_state":
+				return success(id, "get_auth_state", { providers: listRpcAuthProviderStates(session, command.providerId) });
+
+			case "validate_api_key": {
+				let apiKey = "";
+				try {
+					const providerId = requireKnownRpcProvider(session, command.providerId);
+					apiKey = requireBoundedString(command.apiKey, "apiKey", RPC_AUTH_API_KEY_MAX_BYTES);
+					return success(id, "validate_api_key", {
+						providerId,
+						valid: await validateRpcApiKey(session, providerId, apiKey),
+					});
+				} finally {
+					command.apiKey = "";
+					apiKey = "";
+				}
+			}
+
+			case "set_api_key": {
+				let apiKey = "";
+				try {
+					const providerId = requireKnownRpcProvider(session, command.providerId);
+					apiKey = requireBoundedString(command.apiKey, "apiKey", RPC_AUTH_API_KEY_MAX_BYTES);
+					try {
+						const storage = session.modelRegistry.authStorage.credentials;
+						const remaining = storage
+							.list(providerId)
+							.filter(row => !row.disabledCause && row.credential.type !== "api_key")
+							.map(row => row.credential);
+						await storage.set(providerId, [...remaining, { type: "api_key", key: apiKey, source: "login" }]);
+					} catch {
+						return error(id, "set_api_key", "Failed to persist API key");
+					}
+					await refreshRpcProviderBestEffort(session, providerId);
+					return success(id, "set_api_key", { provider: getRpcAuthProviderState(session, providerId) });
+				} finally {
+					command.apiKey = "";
+					apiKey = "";
+				}
+			}
+
+			case "remove_api_key": {
+				const providerId = requireKnownRpcProvider(session, command.providerId);
+				const accountId = optionalBoundedString(command.accountId, "accountId", 1_024);
+				const storage = session.modelRegistry.authStorage.credentials;
+				const stored = storage.list(providerId);
+				const keys =
+					accountId === undefined
+						? stored.filter(row => !row.disabledCause && row.credential.type === "api_key")
+						: [];
+				let removed = false;
+				for (const row of keys) removed = (await storage.removeById(providerId, row.id)) || removed;
+				if (removed) await refreshRpcProviderBestEffort(session, providerId);
+				return success(id, "remove_api_key", {
+					providerId,
+					removed,
+					provider: getRpcAuthProviderState(session, providerId),
+				});
+			}
+
+			case "logout_provider": {
+				const providerId = requireKnownRpcProvider(session, command.providerId);
+				const accountId = optionalBoundedString(command.accountId, "accountId", 1_024);
+				const storage = session.modelRegistry.authStorage.credentials;
+				const rows = storage
+					.list(providerId)
+					.filter(
+						row =>
+							!row.disabledCause &&
+							(accountId === undefined ||
+								(row.credential.type === "oauth" && row.credential.accountId === accountId)),
+					);
+				let loggedOut = false;
+				for (const row of rows) loggedOut = (await storage.removeById(providerId, row.id)) || loggedOut;
+				if (loggedOut) await refreshRpcProviderBestEffort(session, providerId);
+				return success(id, "logout_provider", {
+					providerId,
+					loggedOut,
+					provider: getRpcAuthProviderState(session, providerId),
+				});
+			}
+
+			// Project memory
+			case "memory_remember": {
+				const root = await resolveRpcMemoryRoot(session, command.root);
+				const content = requireBoundedString(command.content, "content", RPC_MEMORY_CONTENT_MAX_BYTES);
+				const kind = optionalBoundedString(command.kind, "kind", 128);
+				const source = optionalBoundedString(command.source, "source", 1_024);
+				if (
+					command.importance !== undefined &&
+					(typeof command.importance !== "number" ||
+						!Number.isFinite(command.importance) ||
+						command.importance < 0 ||
+						command.importance > 1)
+				)
+					throw new Error("importance must be a finite number from 0 to 1");
+				const memory = createSessionMemoryRuntimeContext(session, session.settings.getAgentDir(), root);
+				const stored = await memory.save({
+					content,
+					...(kind ? { context: `kind:${kind}` } : {}),
+					...(source ? { source } : {}),
+					...(command.importance !== undefined ? { importance: command.importance } : {}),
+				});
+				if (stored.stored < 1) throw new Error("Memory backend did not store the value");
+				const backendId = requireBoundedString(stored.backend, "memory backend id", 128);
+				const storedId = stored.ids?.[0];
+				const memoryId =
+					typeof storedId === "string" && storedId.length > 0 && storedId.length <= 512
+						? storedId
+						: `${backendId}:${Snowflake.next()}`;
+				return success(id, "memory_remember", { id: memoryId });
+			}
+
+			case "memory_recall": {
+				const root = await resolveRpcMemoryRoot(session, command.root);
+				const query = requireBoundedString(command.query, "query", RPC_MEMORY_QUERY_MAX_BYTES);
+				optionalBoundedString(command.kind, "kind", 128);
+				const limit = memoryInteger(command.limit, "limit", 10, RPC_MEMORY_LIMIT_MAX);
+				const budget = memoryInteger(
+					command.tokenBudget,
+					"tokenBudget",
+					RPC_MEMORY_TOKEN_BUDGET_DEFAULT,
+					RPC_MEMORY_TOKEN_BUDGET_MAX,
+				);
+				const memory = createSessionMemoryRuntimeContext(session, session.settings.getAgentDir(), root);
+				const result = await memory.search(query, { limit });
+				return success(id, "memory_recall", { hits: boundRpcMemoryHits(result.items, limit, budget) });
+			}
+
+			case "memory_stats": {
+				const root = await resolveRpcMemoryRoot(session, command.root);
+				const memory = createSessionMemoryRuntimeContext(session, session.settings.getAgentDir(), root);
+				return success(id, "memory_stats", { stats: sanitizeRpcMemoryStats(await memory.status()) });
+			}
+
 			// =================================================================
 			// Login
 			// =================================================================
@@ -1713,12 +2054,11 @@ export async function runRpcMode(session: AgentSession, options: RpcModeOptions 
 		}
 	};
 
-	// Deferred shutdown (pi.shutdown() from an extension) must not kill the
-	// process while a background-dispatched bash still owes the client its
-	// response frame. The coordinator drains tracked tasks before exiting and
-	// re-checks the request as each task settles.
+	// Cancel speech before draining background responses; otherwise a slow
+	// capture or transcription would keep the requested shutdown alive.
 	const shutdownCoordinator = new RpcShutdownCoordinator({
 		isShutdownRequested: () => shutdownState.requested,
+		prepareShutdown: () => sttService.dispose(),
 		performShutdown: async () => {
 			// Route through the idempotent session.dispose() so the browser
 			// reaper (releaseTabsForOwner) and other bounded teardown run before
@@ -1762,6 +2102,7 @@ export async function runRpcMode(session: AgentSession, options: RpcModeOptions 
 	pendingExtensionRequests.rejectAll("RPC client disconnected before extension UI response completed");
 	hostToolBridge.close("RPC client disconnected before host tool execution completed");
 	hostUriBridge.clear("RPC client disconnected before host URI request completed");
+	await sttService.dispose();
 	await inputDispatcher.drain();
 	await shutdownCoordinator.drain();
 	subagentRegistry?.dispose();

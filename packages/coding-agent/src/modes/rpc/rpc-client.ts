@@ -23,6 +23,8 @@ import {
 import type {
 	RpcAvailableCommandsUpdateFrame,
 	RpcAvailableSlashCommand,
+	RpcApiKeyValidationResult,
+	RpcAuthStateResult,
 	RpcCommand,
 	RpcExtensionUIRequest,
 	RpcExtensionUIResponse,
@@ -32,11 +34,23 @@ import type {
 	RpcHostToolDefinition,
 	RpcHostToolResult,
 	RpcHostToolUpdate,
+	RpcLogoutProviderResult,
+	RpcMemoryRecallInput,
+	RpcMemoryRecallResult,
+	RpcMemoryRememberInput,
+	RpcMemoryRememberResult,
+	RpcMemoryStatsResult,
 	RpcOpenSessionResult,
 	RpcPromptResultFrame,
+	RpcRemoveApiKeyResult,
 	RpcResponse,
 	RpcSessionSettledFrame,
+	RpcSetApiKeyResult,
 	RpcSessionState,
+	RpcSttCancelResult,
+	RpcSttStartResult,
+	RpcSttStatus,
+	RpcSttStopResult,
 	RpcSubagentEventFrame,
 	RpcSubagentLifecycleFrame,
 	RpcSubagentMessagesResult,
@@ -109,6 +123,9 @@ export type RpcSessionSettledListener = () => void;
 export interface RpcClientToolContext<TDetails = unknown> {
 	toolCallId: string;
 	signal: AbortSignal;
+	/** Nested agent identity (absent for top-level host calls). */
+	agentId?: string;
+	parentAgentId?: string;
 	sendUpdate(partialResult: RpcClientToolResult<TDetails>): void;
 }
 
@@ -758,6 +775,20 @@ export class RpcClient {
 		return this.#getData<RpcSubagentMessagesResult>(response);
 	}
 
+	/** Speech commands bypass the serial server lane so cancel/status remain responsive. */
+	async sttStatus(): Promise<RpcSttStatus> {
+		return this.#getData<RpcSttStatus>(await this.#send({ type: "stt_status" }));
+	}
+	async sttStart(): Promise<RpcSttStartResult> {
+		return this.#getData<RpcSttStartResult>(await this.#send({ type: "stt_start" }, 10 * 60_000));
+	}
+	async sttStop(): Promise<RpcSttStopResult> {
+		return this.#getData<RpcSttStopResult>(await this.#send({ type: "stt_stop" }, 10 * 60_000));
+	}
+	async sttCancel(): Promise<RpcSttCancelResult> {
+		return this.#getData<RpcSttCancelResult>(await this.#send({ type: "stt_cancel" }));
+	}
+
 	/**
 	 * Set model by provider and ID.
 	 */
@@ -993,6 +1024,41 @@ export class RpcClient {
 		return this.#getData<{ messages: AgentMessage[] }>(response).messages;
 	}
 
+	/** Update the server-owned session title. */
+	async setSessionName(name: string): Promise<void> {
+		await this.#send({ type: "set_session_name", name });
+	}
+
+	/** Credential bytes are write-only; these methods return bounded provider state. */
+	async getAuthState(providerId?: string): Promise<RpcAuthStateResult> {
+		return this.#getData<RpcAuthStateResult>(await this.#send({ type: "get_auth_state", providerId }));
+	}
+	async validateApiKey(providerId: string, apiKey: string): Promise<RpcApiKeyValidationResult> {
+		return this.#getData<RpcApiKeyValidationResult>(
+			await this.#send({ type: "validate_api_key", providerId, apiKey }),
+		);
+	}
+	async setApiKey(providerId: string, apiKey: string): Promise<RpcSetApiKeyResult> {
+		return this.#getData<RpcSetApiKeyResult>(await this.#send({ type: "set_api_key", providerId, apiKey }));
+	}
+	async removeApiKey(providerId: string, accountId?: string): Promise<RpcRemoveApiKeyResult> {
+		return this.#getData<RpcRemoveApiKeyResult>(await this.#send({ type: "remove_api_key", providerId, accountId }));
+	}
+	async logoutProvider(providerId: string, accountId?: string): Promise<RpcLogoutProviderResult> {
+		return this.#getData<RpcLogoutProviderResult>(
+			await this.#send({ type: "logout_provider", providerId, accountId }),
+		);
+	}
+	async memoryRemember(input: RpcMemoryRememberInput): Promise<RpcMemoryRememberResult> {
+		return this.#getData<RpcMemoryRememberResult>(await this.#send({ type: "memory_remember", ...input }));
+	}
+	async memoryRecall(input: RpcMemoryRecallInput): Promise<RpcMemoryRecallResult> {
+		return this.#getData<RpcMemoryRecallResult>(await this.#send({ type: "memory_recall", ...input }));
+	}
+	async memoryStats(root: string): Promise<RpcMemoryStatsResult> {
+		return this.#getData<RpcMemoryStatsResult>(await this.#send({ type: "memory_stats", root }));
+	}
+
 	/**
 	 * Get list of OAuth providers available for login, with their current authentication status.
 	 */
@@ -1001,6 +1067,12 @@ export class RpcClient {
 		return this.#getData<{
 			providers: Array<{ id: string; name: string; available: boolean; authenticated: boolean }>;
 		}>(response).providers;
+	}
+
+	/** Observe extension UI requests outside a single login operation. */
+	onExtensionUiRequest(listener: (request: RpcExtensionUIRequest) => void): () => void {
+		this.#extensionUiListeners.add(listener);
+		return () => this.#extensionUiListeners.delete(listener);
 	}
 
 	/**
@@ -1346,6 +1418,8 @@ export class RpcClient {
 			const result = await tool.execute(request.arguments, {
 				toolCallId: request.toolCallId,
 				signal: controller.signal,
+				agentId: request.agentId,
+				parentAgentId: request.parentAgentId,
 				sendUpdate,
 			});
 			if (controller.signal.aborted) return;

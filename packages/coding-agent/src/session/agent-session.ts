@@ -168,6 +168,7 @@ import { normalizeToolEventInput, resolveToolEventInput } from "../extensibility
 import { GoalRuntime } from "../goals/runtime";
 import type { GoalModeState } from "../goals/state";
 import type { HindsightSessionState } from "../hindsight/state";
+import type { HostToolSource } from "../modes/rpc/host-tools";
 import { InternalUrlRouter, type LocalProtocolOptions } from "../internal-urls";
 import { hasNativeJudge, journalJudgmentUsage, resolveJudge, sharedJudgmentCache } from "../judgment";
 import type { IrcMessage } from "@oh-my-pi/pi-tui/tools/irc";
@@ -6114,6 +6115,16 @@ export class AgentSession implements SettingsScope {
 	/** Replaces host-owned RPC tools before the next model call. */
 	refreshRpcHostTools(rpcTools: AgentTool[]): Promise<void> {
 		return this.#tools.refreshRpcHostTools(rpcTools);
+	}
+	#hostToolSource: HostToolSource | undefined;
+
+	/** Live RPC host tools inherited by this session's nested agents. */
+	getHostToolSource(): HostToolSource | undefined {
+		return this.#hostToolSource;
+	}
+
+	setHostToolSource(source: HostToolSource | undefined): void {
+		this.#hostToolSource = source;
 	}
 
 	/** Whether auto-compaction is currently running */

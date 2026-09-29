@@ -56,6 +56,7 @@ export class STTController {
 	#toggling = false;
 	#stopAfterStart = false;
 	#disposed = false;
+	#preflightAbort: AbortController | null = null;
 	readonly #createCapture: CaptureFactory;
 	readonly #settings: Settings;
 	readonly #registry: SttRegistry | undefined;
@@ -109,7 +110,7 @@ export class STTController {
 	/** Start dictating into `editor`, reporting to `options` until the capture ends. A no-op while a
 	 *  capture is starting, recording, or transcribing. */
 	async start(editor: SttTarget, options: SttCallbacks): Promise<void> {
-		if (this.#state === "transcribing") options.showStatus("Transcription in progress...");
+		if (this.#disposed) return;
 		if (this.#toggling || this.#state !== "idle") return;
 		await this.#transition(options, () => this.#start(editor, options));
 	}
@@ -161,6 +162,8 @@ export class STTController {
 		// Keyed on the resolved role model rather than a one-shot flag: changing
 		// modelRoles.dictation mid-session re-runs preflight for the new model.
 		if (this.#resolvedModelKey === modelKey) return modelKey;
+		const preflight = new AbortController();
+		this.#preflightAbort = preflight;
 		try {
 			// Loading the multi-hundred-MB speech model into the worker is what made
 			// the old "Checking STT dependencies…" step slow. Don't pay it before
@@ -170,17 +173,23 @@ export class STTController {
 			// Only a genuine first-use download blocks (its progress shows in the
 			// download HUD), so we never record silently against missing weights.
 			if (await isSttModelCached(modelKey)) {
+				if (this.#disposed) return null;
 				this.#warmModel(modelKey);
 			} else {
-				await downloadSttModel(modelKey);
+				if (this.#disposed) return null;
+				await downloadSttModel(modelKey, undefined, { signal: preflight.signal });
 			}
+			if (this.#disposed) return null;
 			this.#resolvedModelKey = modelKey;
 			return modelKey;
 		} catch (err) {
+			if (this.#disposed) return null;
 			const msg = err instanceof Error ? err.message : "Failed to setup STT dependencies";
 			options.showWarning(msg);
 			logger.error("STT dependency setup failed", { error: msg });
 			return null;
+		} finally {
+			if (this.#preflightAbort === preflight) this.#preflightAbort = null;
 		}
 	}
 
@@ -212,7 +221,7 @@ export class STTController {
 		}
 
 		let modelKey = await this.#ensureDeps(options, this.#resolveModelKey(model));
-		if (!modelKey) return;
+		if (!modelKey || this.#disposed) return;
 		model = this.#resolveModel();
 		if (model?.api === "openai-transcriptions") {
 			this.#startBuffered(editor, options, model);
@@ -225,7 +234,7 @@ export class STTController {
 		const startModelKey = this.#resolveModelKey(model);
 		if (startModelKey !== modelKey) {
 			modelKey = await this.#ensureDeps(options, startModelKey);
-			if (!modelKey) return;
+			if (!modelKey || this.#disposed) return;
 		}
 		await this.#startStreaming(editor, options, modelKey);
 	}
@@ -500,6 +509,8 @@ export class STTController {
 
 	dispose(): void {
 		this.#disposed = true;
+		this.#preflightAbort?.abort();
+		this.#preflightAbort = null;
 		if (this.#streamAbort) {
 			this.#streamAbort.abort();
 			this.#streamAbort = null;

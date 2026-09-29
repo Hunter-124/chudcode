@@ -14,6 +14,18 @@ import type {
 
 type RpcHostToolOutput = (frame: RpcHostToolCallRequest | RpcHostToolCancelRequest) => void;
 
+/** Identity of a nested agent executing tools over its parent's RPC connection. */
+export interface HostToolAgentScope {
+	agentId: string;
+	parentAgentId?: string;
+}
+
+/** Live source shared by a host session and its descendants. */
+export interface HostToolSource {
+	createTools(scope: HostToolAgentScope): AgentTool[];
+	subscribe(listener: () => void): () => void;
+}
+
 type PendingHostToolCall = {
 	resolve: (result: AgentToolResult<unknown>) => void;
 	reject: (error: Error) => void;
@@ -52,10 +64,12 @@ class RpcHostToolAdapter<TParams extends TSchema = TSchema, TTheme extends Theme
 	readonly loadMode: ToolLoadMode;
 	#bridge: RpcHostToolBridge;
 	#definition: RpcHostToolDefinition;
+	#scope: HostToolAgentScope | undefined;
 
-	constructor(definition: RpcHostToolDefinition, bridge: RpcHostToolBridge) {
+	constructor(definition: RpcHostToolDefinition, bridge: RpcHostToolBridge, scope?: HostToolAgentScope) {
 		this.#definition = definition;
 		this.#bridge = bridge;
+		this.#scope = scope;
 		applyToolProxy(definition, this);
 		this.loadMode = defaultLoadModeForToolName(definition.name, definition.loadMode);
 	}
@@ -72,14 +86,16 @@ class RpcHostToolAdapter<TParams extends TSchema = TSchema, TTheme extends Theme
 			params as Record<string, unknown>,
 			signal,
 			onUpdate,
+			this.#scope,
 		);
 	}
 }
 
-export class RpcHostToolBridge {
+export class RpcHostToolBridge implements HostToolSource {
 	#output: RpcHostToolOutput;
 	#definitions = new Map<string, RpcHostToolDefinition>();
 	#pendingCalls = new Map<string, PendingHostToolCall>();
+	#listeners = new Set<() => void>();
 	#closedError: Error | undefined;
 
 	constructor(output: RpcHostToolOutput) {
@@ -92,7 +108,18 @@ export class RpcHostToolBridge {
 
 	setTools(tools: RpcHostToolDefinition[]): AgentTool[] {
 		this.#definitions = new Map(tools.map(tool => [tool.name, tool]));
+		for (const listener of this.#listeners) listener();
 		return tools.map(tool => new RpcHostToolAdapter(tool, this));
+	}
+	createTools(scope: HostToolAgentScope): AgentTool[] {
+		return Array.from(this.#definitions.values(), tool => new RpcHostToolAdapter(tool, this, scope));
+	}
+
+	subscribe(listener: () => void): () => void {
+		this.#listeners.add(listener);
+		return () => {
+			this.#listeners.delete(listener);
+		};
 	}
 
 	handleResult(frame: RpcHostToolResult): boolean {
@@ -127,6 +154,7 @@ export class RpcHostToolBridge {
 		args: Record<string, unknown>,
 		signal?: AbortSignal,
 		onUpdate?: AgentToolUpdateCallback<unknown>,
+		scope?: HostToolAgentScope,
 	): Promise<AgentToolResult<unknown>> {
 		if (signal?.aborted) {
 			return Promise.reject(new Error(`Host tool "${definition.name}" was aborted`));
@@ -180,6 +208,9 @@ export class RpcHostToolBridge {
 			toolCallId,
 			toolName: definition.name,
 			arguments: args,
+			...(scope
+				? { agentId: scope.agentId, ...(scope.parentAgentId ? { parentAgentId: scope.parentAgentId } : {}) }
+				: {}),
 		});
 
 		return promise;

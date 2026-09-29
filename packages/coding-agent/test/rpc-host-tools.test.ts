@@ -114,6 +114,45 @@ describe("RpcHostToolBridge", () => {
 		await expect(execution).rejects.toThrow('Host tool "host_wait" was aborted');
 	});
 
+	it("attributes concurrent nested calls, refreshes live tool sets, and cancels aborted work", async () => {
+		const frames: Array<RpcHostToolCallRequest | RpcHostToolCancelRequest> = [];
+		const bridge = new RpcHostToolBridge(frame => frames.push(frame));
+		const definition = {
+			name: "make_box",
+			description: "Create CAD geometry",
+			parameters: { type: "object", properties: { size: { type: "number" } } },
+		};
+		let changes = 0;
+		const unsubscribe = bridge.subscribe(() => changes++);
+		bridge.setTools([definition]);
+		const [first] = bridge.createTools({ agentId: "Cube", parentAgentId: "Main" });
+		const [second] = bridge.createTools({ agentId: "Cylinder", parentAgentId: "Main" });
+		const cancelled = new AbortController();
+		const pendingFirst = first.execute("call_cube", { size: 10 });
+		const pendingSecond = second.execute("call_cylinder", { size: 5 }, cancelled.signal);
+		expect(frames).toMatchObject([
+			{ type: "host_tool_call", toolCallId: "call_cube", agentId: "Cube", parentAgentId: "Main" },
+			{ type: "host_tool_call", toolCallId: "call_cylinder", agentId: "Cylinder", parentAgentId: "Main" },
+		]);
+		bridge.handleResult({
+			type: "host_tool_result",
+			id: frames[0]!.id,
+			result: { content: [{ type: "text", text: "cube created" }] },
+		});
+		await expect(pendingFirst).resolves.toMatchObject({ content: [{ text: "cube created" }] });
+		cancelled.abort();
+		await expect(pendingSecond).rejects.toThrow("aborted");
+		expect(frames[2]).toMatchObject({ type: "host_tool_cancel", targetId: frames[1]!.id });
+		bridge.setTools([{ ...definition, name: "mate_parts" }]);
+		expect(changes).toBe(2);
+		expect(bridge.createTools({ agentId: "Grandchild", parentAgentId: "Cube" }).map(tool => tool.name)).toEqual([
+			"mate_parts",
+		]);
+		unsubscribe();
+		bridge.setTools([]);
+		expect(changes).toBe(2);
+	});
+
 	it("exposes skill URI readability declared by the host tool", async () => {
 		const bridge = new RpcHostToolBridge(() => {});
 		const [tool] = bridge.setTools([

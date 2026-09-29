@@ -1,9 +1,8 @@
 from __future__ import annotations
 
 import threading
-from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Generic, TypeAlias, TypedDict, TypeVar, cast
+from typing import Callable, Generic, TypeAlias, TypeVar, TypedDict, cast
 
 from .protocol import ImageContent, JsonObject, JsonValue, TextContent
 
@@ -30,8 +29,7 @@ class HostToolContext(Generic[TDetails]):
     tool_call_id: str
     _cancel_event: threading.Event
     _send_update: Callable[[JsonObject], None]
-    # Registry id of the nested (task sub-)agent making the call, and its
-    # spawner's id; both None for the top-level session's own calls.
+    # Nested task agent identity; absent for top-level calls.
     agent_id: str | None = None
     parent_agent_id: str | None = None
 

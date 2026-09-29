@@ -46,6 +46,7 @@ import type { LocalProtocolOptions } from "../internal-urls";
 import { IrcBus } from "../irc/bus";
 import type { MCPManager } from "../mcp/manager";
 import type { MnemopiSessionState } from "../mnemopi/state";
+import type { HostToolSource } from "../modes/rpc/host-tools";
 import { initializeExtensions } from "../modes/runtime-init";
 import subagentAsyncPendingTemplate from "../prompts/system/subagent-async-pending.md" with { type: "text" };
 import subagentSystemPromptTemplate from "../prompts/system/subagent-system-prompt.md" with { type: "text" };
@@ -74,6 +75,7 @@ import {
 	type TaskEffort,
 } from "@oh-my-pi/pi-tui/thinking";
 import type { ContextFileEntry, ToolSession } from "../tools";
+import { applyToolAllowlist } from "../tools/builtin-names";
 import { resolveEvalBackends } from "../tools/eval-backends";
 import { isIrcEnabled } from "../irc/messaging";
 import { LIST_STATUS_ORDER } from "@oh-my-pi/pi-tui/tools/irc";
@@ -500,6 +502,8 @@ export interface ExecutorOptions {
 	 * process-global MCP manager. Defaults to `true`.
 	 */
 	enableMCP?: boolean;
+	/** Process built-in tool ceiling propagated to every nested agent. */
+	toolAllowlist?: readonly string[];
 	/** Kernel-defined tools explicitly exposed by the parent eval session. */
 	customTools?: CustomTool[];
 	/** Workpool items accepted by the child yield tool during this turn. */
@@ -509,6 +513,8 @@ export interface ExecutorOptions {
 	 * tool, suppressing discovered and always-included capabilities.
 	 */
 	restrictToolNames?: boolean;
+	/** Live host tools shared with RPC-hosted nested agents. */
+	inheritedHostTools?: HostToolSource;
 	signal?: AbortSignal;
 	onProgress?: (progress: AgentProgress) => void;
 	/**
@@ -3607,7 +3613,8 @@ export async function runSubprocess(options: ExecutorOptions): Promise<SingleRes
 				: agent.spawns.join(",");
 
 	const lspEnabled = enableLsp ?? true;
-	const skipPythonPreflight = Array.isArray(toolNames) && !toolNames.includes("eval");
+	const grantedToolNames = applyToolAllowlist(toolNames, options.toolAllowlist);
+	const skipPythonPreflight = Array.isArray(grantedToolNames) && !grantedToolNames.includes("eval");
 
 	const monitor = createSubagentRunMonitor({
 		index,
@@ -3946,6 +3953,7 @@ export async function runSubprocess(options: ExecutorOptions): Promise<SingleRes
 				// the fresh spawn resolves the per-agent override.
 				resolveServiceTierByFamily: forRevive ? undefined : resolveServiceTierByFamily,
 				toolNames,
+				toolAllowlist: options.toolAllowlist,
 				outputSchema,
 				outputSchemaMode: options.outputSchemaMode,
 				restrictToolNames: options.restrictToolNames,
@@ -4013,6 +4021,7 @@ export async function runSubprocess(options: ExecutorOptions): Promise<SingleRes
 				enableMCP,
 				mcpManager,
 				customTools: sessionCustomTools.length > 0 ? sessionCustomTools : undefined,
+				inheritedHostTools: restrictToolNames ? undefined : options.inheritedHostTools,
 				localProtocolOptions: options.localProtocolOptions,
 				telemetry: subagentTelemetry,
 				onFirstChatDispatch: () => {

@@ -49,6 +49,12 @@ export type RpcCommand =
 	| { id?: string; type: "get_subagents" }
 	| { id?: string; type: "get_subagent_messages"; subagentId?: string; sessionFile?: string; fromByte?: number }
 
+	// Speech-to-text
+	| { id?: string; type: "stt_status" }
+	| { id?: string; type: "stt_start" }
+	| { id?: string; type: "stt_stop" }
+	| { id?: string; type: "stt_cancel" }
+
 	// Model
 	| { id?: string; type: "set_model"; provider: string; modelId: string }
 	| { id?: string; type: "cycle_model" }
@@ -90,9 +96,35 @@ export type RpcCommand =
 	| { id?: string; type: "get_messages" }
 	| { id?: string; type: "get_messages_page"; cursor?: string; limit?: number }
 
-	// Login
+	// Authentication
 	| { id?: string; type: "get_login_providers" }
-	| { id?: string; type: "login"; providerId: string };
+	| { id?: string; type: "login"; providerId: string }
+	| { id?: string; type: "get_auth_state"; providerId?: string }
+	| { id?: string; type: "validate_api_key"; providerId: string; apiKey: string }
+	| { id?: string; type: "set_api_key"; providerId: string; apiKey: string }
+	| { id?: string; type: "remove_api_key"; providerId: string; accountId?: string }
+	| { id?: string; type: "logout_provider"; providerId: string; accountId?: string }
+
+	// Project memory
+	| {
+			id?: string;
+			type: "memory_remember";
+			root: string;
+			content: string;
+			kind?: string;
+			source?: string;
+			importance?: number;
+	  }
+	| {
+			id?: string;
+			type: "memory_recall";
+			root: string;
+			query: string;
+			limit?: number;
+			tokenBudget?: number;
+			kind?: string;
+	  }
+	| { id?: string; type: "memory_stats"; root: string };
 
 // ============================================================================
 // RPC State
@@ -245,6 +277,112 @@ export interface RpcSubagentMessagesResult {
 	messages: AgentMessage[];
 }
 
+export type RpcAuthCredentialOrigin = "runtime" | "config" | "oauth" | "api_key" | "env";
+
+export interface RpcAuthAccountState {
+	accountId?: string;
+	email?: string;
+	projectId?: string;
+	orgId?: string;
+	orgName?: string;
+}
+
+/** Secret-free provider authentication state. */
+export interface RpcAuthProviderState {
+	providerId: string;
+	name: string;
+	authenticated: boolean;
+	hasApiKey: boolean;
+	hasOAuth: boolean;
+	origin?: RpcAuthCredentialOrigin;
+	accounts: RpcAuthAccountState[];
+}
+
+export interface RpcAuthStateResult {
+	providers: RpcAuthProviderState[];
+}
+export interface RpcApiKeyValidationResult {
+	providerId: string;
+	valid: boolean;
+}
+export interface RpcSetApiKeyResult {
+	provider: RpcAuthProviderState;
+}
+export interface RpcRemoveApiKeyResult {
+	providerId: string;
+	removed: boolean;
+	provider: RpcAuthProviderState;
+}
+export interface RpcLogoutProviderResult {
+	providerId: string;
+	loggedOut: boolean;
+	provider: RpcAuthProviderState;
+}
+
+export interface RpcMemoryHit {
+	id?: string;
+	content: string;
+	source?: string;
+	timestamp?: string;
+	score?: number;
+}
+export interface RpcMemoryStats {
+	backend: string;
+	active: boolean;
+	writable: boolean;
+	searchable: boolean;
+	scope?: string;
+	workingCount?: number;
+	episodicCount?: number;
+	tripleCount?: number;
+}
+export interface RpcMemoryRememberResult {
+	id: string;
+}
+export interface RpcMemoryRecallResult {
+	hits: RpcMemoryHit[];
+}
+export interface RpcMemoryStatsResult {
+	stats: RpcMemoryStats;
+}
+export interface RpcMemoryRememberInput {
+	root: string;
+	content: string;
+	kind?: string;
+	source?: string;
+	importance?: number;
+}
+export interface RpcMemoryRecallInput {
+	root: string;
+	query: string;
+	limit?: number;
+	tokenBudget?: number;
+	kind?: string;
+}
+
+export type RpcSttState = "idle" | "recording" | "transcribing";
+export interface RpcSttStatus {
+	ok: true;
+	available: boolean;
+	state: RpcSttState;
+	model: string;
+	error?: string;
+}
+export interface RpcSttStartResult {
+	ok: true;
+	state: "recording";
+	model: string;
+}
+export interface RpcSttStopResult {
+	ok: true;
+	text: string;
+	state: "idle";
+}
+export interface RpcSttCancelResult {
+	ok: true;
+	state: "idle";
+}
+
 // ============================================================================
 // RPC Responses (stdout)
 // ============================================================================
@@ -325,6 +463,12 @@ export type RpcResponse =
 			success: true;
 			data: RpcSubagentMessagesResult;
 	  }
+
+	// Speech-to-text
+	| { id?: string; type: "response"; command: "stt_status"; success: true; data: RpcSttStatus }
+	| { id?: string; type: "response"; command: "stt_start"; success: true; data: RpcSttStartResult }
+	| { id?: string; type: "response"; command: "stt_stop"; success: true; data: RpcSttStopResult }
+	| { id?: string; type: "response"; command: "stt_cancel"; success: true; data: RpcSttCancelResult }
 
 	// Model
 	| {
@@ -418,6 +562,18 @@ export type RpcResponse =
 			data: { providers: Array<{ id: string; name: string; available: boolean; authenticated: boolean }> };
 	  }
 	| { id?: string; type: "response"; command: "login"; success: true; data: { providerId: string } }
+
+	// Authentication
+	| { id?: string; type: "response"; command: "get_auth_state"; success: true; data: RpcAuthStateResult }
+	| { id?: string; type: "response"; command: "validate_api_key"; success: true; data: RpcApiKeyValidationResult }
+	| { id?: string; type: "response"; command: "set_api_key"; success: true; data: RpcSetApiKeyResult }
+	| { id?: string; type: "response"; command: "remove_api_key"; success: true; data: RpcRemoveApiKeyResult }
+	| { id?: string; type: "response"; command: "logout_provider"; success: true; data: RpcLogoutProviderResult }
+
+	// Project memory
+	| { id?: string; type: "response"; command: "memory_remember"; success: true; data: RpcMemoryRememberResult }
+	| { id?: string; type: "response"; command: "memory_recall"; success: true; data: RpcMemoryRecallResult }
+	| { id?: string; type: "response"; command: "memory_stats"; success: true; data: RpcMemoryStatsResult }
 
 	// Error response (any command can fail); `code` is an optional machine-readable reason.
 	| { id?: string; type: "response"; command: string; success: false; error: string; code?: string };
@@ -558,6 +714,10 @@ export interface RpcHostToolCallRequest {
 	toolCallId: string;
 	toolName: string;
 	arguments: Record<string, unknown>;
+	/** Registry identity of the nested caller; omitted for the top-level agent. */
+	agentId?: string;
+	/** Registry identity of the nested caller's spawner. */
+	parentAgentId?: string;
 }
 
 /** Emitted by the RPC server when a pending host tool call should be aborted. */

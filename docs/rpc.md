@@ -183,6 +183,22 @@ its own. The `bash` response is emitted when the command completes; hosts
 correlate it via `id`. Ordering across concurrent commands is not guaranteed
 — clients MUST match responses on `id`, not on emission order.
 
+### Speech-to-text
+
+- `{ id?, type: "stt_status" }`
+- `{ id?, type: "stt_start" }`
+- `{ id?, type: "stt_stop" }`
+- `{ id?, type: "stt_cancel" }`
+
+Speech commands run outside the serialized command lane: `stt_status` and `stt_cancel`
+can overtake model download or transcription, and responses may arrive out of order.
+`stt_start` returns `{ok:true,state:"recording",model}` only after capture starts;
+`stt_stop` returns `{ok:true,state:"idle",text}` (up to 64 KiB UTF-8). The service
+emits `extension_ui_request` updates for editor text and `stt` status; it never
+submits the transcript as a prompt. `stt_cancel` clears capture/transcript and
+returns idle; shutdown also cancels capture and terminates the STT worker.
+The bundled clients allow up to ten minutes for start/stop (first-use model download).
+
 ### Session
 
 - `{ id?, type: "get_session_stats" }`
@@ -203,10 +219,44 @@ correlate it via `id`. Ordering across concurrent commands is not guaranteed
 
 The bundled TypeScript `RpcClient.getMessages()` and Python `RpcClient.get_messages()` drain this paged endpoint automatically after negotiating v2. They retain the legacy monolithic command when connected to a v1 server, and on either `session_busy` or `stale_cursor` they discard partial pages and fall back to the legacy best-effort snapshot. Direct `getMessagesPage()` and `get_messages_page()` calls remain strict so incremental hosts never mix snapshots silently.
 
-### Login
+### Authentication
 
 - `{ id?, type: "get_login_providers" }`
 - `{ id?, type: "login", providerId: string }`
+- `{ id?, type: "get_auth_state", providerId?: string }`
+- `{ id?, type: "validate_api_key", providerId: string, apiKey: string }`
+- `{ id?, type: "set_api_key", providerId: string, apiKey: string }`
+- `{ id?, type: "remove_api_key", providerId: string, accountId?: string }`
+- `{ id?, type: "logout_provider", providerId: string, accountId?: string }`
+
+Auth state contains provider id/name, authenticated/hasApiKey/hasOAuth flags,
+active credential origin, and bounded OAuth account identity labels; credential
+bytes are never returned. `validate_api_key` makes a time-bounded live provider
+request and reports `{providerId,valid}` without persisting the key. `set_api_key`
+persists the key and refreshes model discovery best-effort. `remove_api_key` removes
+stored API keys (an `accountId` cannot select an API key); `logout_provider` removes
+all stored credentials or one matching OAuth `accountId`. External runtime/config/env
+credentials remain available after removal. API-key input is limited to 64 KiB,
+cleared from the parsed command after handling, and never included in errors.
+
+### Project memory
+
+- `{ id?, type: "memory_remember", root: string, content: string, kind?: string, source?: string, importance?: number }`
+- `{ id?, type: "memory_recall", root: string, query: string, limit?: number, tokenBudget?: number, kind?: string }`
+- `{ id?, type: "memory_stats", root: string }`
+
+`root` is a bounded (4 KiB) existing project directory: explicit absolute
+roots are canonicalized and accepted even outside the service process cwd
+(hosts may share one no-session service process across projects). Relative
+roots resolve under that cwd and cannot escape it, including through symlinks.
+Calls use the configured session memory backend.
+Remember returns `{id}` only when stored; recall returns bounded `{hits}` (1–100
+hits, default 10; token budget 1–32768, default 4096); stats returns a path-free
+backend/activity/count summary. Off or unavailable backends refuse writes rather
+than fabricate success. The optional `kind` on recall is validated but the generic
+memory search backend does not expose kind filtering.
+
+### Login
 
 Login forwards ordinary OAuth input prompts only after the provider emits an
 authorization URL. Prompts marked `secret: true` are always rejected with a
@@ -504,6 +554,15 @@ Definitions also accept `hidden?: boolean` and
 known essential built-in names remain `"essential"`; other host tools default
 to `"discoverable"`. `toolNames` in the response lists the registered names.
 
+Task sub-agents inherit these live host tools over the same RPC connection.
+Replacing the set updates existing child sessions; each child's explicit `tools`
+list narrows its inherited set. Restricted and read-only plan children receive
+none. Child tools remain available to their own descendants. `--tools` also
+forms a ceiling for built-in tools in every descendant; host/custom/MCP names
+are admitted by the child's own tool list. `--no-lsp` and `--no-mcp` propagate
+through the spawn tree.
+
+
 ### `set_host_uri_schemes` payload
 
 Replaces the current set of host-owned URL schemes the RPC server should
@@ -779,6 +838,11 @@ When the agent wants the host to execute one of those tools, RPC mode emits:
   "arguments": { "message": "hello" }
 }
 ```
+
+Calls originating in a sub-agent add `agentId` (the child's registry id) and
+`parentAgentId` (its spawner's registry id, `"Main"` for first-level children)
+to `host_tool_call`. Top-level calls omit both fields. Aborting a child with an
+in-flight host request emits `host_tool_cancel` for that request id.
 
 If the tool execution is later aborted, RPC mode emits:
 
