@@ -1,4 +1,5 @@
 import type { Settings } from "../config/settings";
+import { getRegisteredMemoryBackend } from "./registry";
 import { localBackend } from "./local-backend";
 import { offBackend } from "./off-backend";
 import type { MemoryBackend } from "./types";
@@ -21,9 +22,12 @@ import { cfgMemoryBackend } from "./settings";
  */
 export async function resolveMemoryBackend(settings: Settings): Promise<MemoryBackend> {
 	const id = cfgMemoryBackend.get(settings);
+	const registered = getRegisteredMemoryBackend(id);
+	if (registered) return registered;
 	if (id === "hindsight") return (await import("../hindsight/backend")).hindsightBackend;
 	if (id === "mnemopi") return (await import("../mnemopi/backend")).mnemopiBackend;
 	if (id === "sharpshooter") return (await import("../sharpshooter/backend")).sharpshooterBackend;
 	if (id === "local") return localBackend;
-	return offBackend;
+	if (id === "off") return offBackend;
+	throw new Error(`Unknown memory backend "${id}"`);
 }

@@ -2,25 +2,15 @@ import { Search, X } from "lucide-react";
 import type * as MonacoModule from "monaco-editor";
 import { type FormEvent, forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from "react";
 // @ts-expect-error Bun's file loader returns the emitted asset URL for JavaScript inputs.
-import cssWorkerUrl from "../../../../../node_modules/monaco-editor/min/vs/assets/css.worker-URu8fCFR.js" with {
-	type: "file",
-};
+import cssWorkerUrl from "../../../../../node_modules/monaco-editor/min/vs/assets/css.worker-URu8fCFR.js" with { type: "file" };
 // @ts-expect-error Bun's file loader returns the emitted asset URL for JavaScript inputs.
-import editorWorkerUrl from "../../../../../node_modules/monaco-editor/min/vs/assets/editor.worker-lj3bdIIn.js" with {
-	type: "file",
-};
+import editorWorkerUrl from "../../../../../node_modules/monaco-editor/min/vs/assets/editor.worker-lj3bdIIn.js" with { type: "file" };
 // @ts-expect-error Bun's file loader returns the emitted asset URL for JavaScript inputs.
-import htmlWorkerUrl from "../../../../../node_modules/monaco-editor/min/vs/assets/html.worker-D1SL3iM8.js" with {
-	type: "file",
-};
+import htmlWorkerUrl from "../../../../../node_modules/monaco-editor/min/vs/assets/html.worker-D1SL3iM8.js" with { type: "file" };
 // @ts-expect-error Bun's file loader returns the emitted asset URL for JavaScript inputs.
-import jsonWorkerUrl from "../../../../../node_modules/monaco-editor/min/vs/assets/json.worker-CoJx_OPf.js" with {
-	type: "file",
-};
+import jsonWorkerUrl from "../../../../../node_modules/monaco-editor/min/vs/assets/json.worker-CoJx_OPf.js" with { type: "file" };
 // @ts-expect-error Bun's file loader returns the emitted asset URL for JavaScript inputs.
-import typescriptWorkerUrl from "../../../../../node_modules/monaco-editor/min/vs/assets/ts.worker-BWKtMYOk.js" with {
-	type: "file",
-};
+import typescriptWorkerUrl from "../../../../../node_modules/monaco-editor/min/vs/assets/ts.worker-BWKtMYOk.js" with { type: "file" };
 import type {
 	DocumentSnapshot,
 	DocumentUri,

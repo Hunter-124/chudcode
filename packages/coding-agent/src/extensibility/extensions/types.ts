@@ -78,7 +78,7 @@ import type { BashResult } from "../../exec/bash-executor";
 import type { ExecOptions, ExecResult } from "../../exec/exec";
 import type * as PiCodingAgent from "../../index";
 import type { LocalProtocolOptions } from "../../internal-urls/local-protocol";
-import type { MemoryRuntimeContext } from "../../memory-backend";
+import type { MemoryBackend, MemoryRuntimeContext } from "../../memory-backend";
 import type { CustomEditor } from "@oh-my-pi/pi-tui/prompt/custom-editor";
 import type { Theme } from "@oh-my-pi/pi-tui/theme";
 import type { NativeToolView } from "@oh-my-pi/pi-tui/tools/renderer";
@@ -1663,6 +1663,11 @@ export interface ExtensionAPI {
 	 */
 	unregisterProvider(name: string): void;
 
+	/** Register a session-owned extension memory backend. */
+	registerMemoryBackend(backend: MemoryBackend): void;
+	/** Unregister this extension's backend by id. */
+	unregisterMemoryBackend(id: string): void;
+
 	/** Shared event bus for extension communication. */
 	events: EventBus;
 }
@@ -1825,6 +1830,11 @@ export interface ExtensionRuntimeState {
 	flagValues: Map<string, boolean | string>;
 	/** Provider registrations queued during extension loading, processed during session initialization */
 	pendingProviderRegistrations: Array<{ name: string; config: ProviderConfig; sourceId: string }>;
+	memoryBackendRegistrations: Array<{ backend: MemoryBackend; sourceId: string }>;
+	registerMemoryBackend(backend: MemoryBackend, sourceId: string): void;
+	unregisterMemoryBackend(id: string, sourceId: string): void;
+	restoreMemoryBackendRegistrations(registrations: readonly { backend: MemoryBackend; sourceId: string }[]): void;
+	disposeMemoryBackends(): void;
 	/** Queue a provider registration until initialization, then apply it immediately. */
 	registerProvider(name: string, config: ProviderConfig, sourceId: string): void;
 	/** Remove a queued or initialized provider registration. */

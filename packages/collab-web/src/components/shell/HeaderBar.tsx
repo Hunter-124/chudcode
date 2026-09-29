@@ -1,6 +1,7 @@
 import { LogOut, PanelRight } from "lucide-react";
 import type { ReactNode } from "react";
-import type { ConnectionPhase, GuestSnapshot } from "../../lib/client";
+import type { ConnectionPhase } from "../../lib/client";
+import type { SessionSnapshot } from "../../lib/session-client";
 import { fmtPercent, shortenPath } from "../../lib/format";
 import { OmpMark } from "./OmpMark";
 import { ThemeToggle } from "./ThemeToggle";
@@ -14,7 +15,7 @@ const PHASE_LABEL: Record<ConnectionPhase, string> = {
 };
 
 export interface HeaderBarProps {
-	snapshot: GuestSnapshot;
+	snapshot: SessionSnapshot;
 	subCount: number;
 	railOpen: boolean;
 	onToggleRail(): void;

@@ -1,4 +1,4 @@
-import { AgentRegistry } from "@chudware/coding-agent/registry/agent-registry";
+import { AgentRegistry } from "@oh-my-pi/pi-coding-agent/registry/agent-registry";
 import { type AgentLifecycleRecord, type GraphAgentRegistry, GraphService } from "./graph-service";
 import { type ProjectController, ProjectService } from "./project-service";
 import type {
@@ -491,37 +491,30 @@ export class ServiceRouter implements DesktopRuntimeHost {
 					return response(request, { snapshot });
 				}
 				case "git.pull": {
-					const snapshot = await (await this.#gitService(request.params.workspaceId)).pull(
-						request.params.remote,
-						request.params.branch,
-					);
+					const snapshot = await (
+						await this.#gitService(request.params.workspaceId)
+					).pull(request.params.remote, request.params.branch);
 					this.#publishGit(request.params.workspaceId, snapshot);
 					return response(request, { snapshot });
 				}
 				case "git.push": {
-					const snapshot = await (await this.#gitService(request.params.workspaceId)).push(
-						request.params.remote,
-						request.params.branch,
-						request.params.setUpstream,
-					);
+					const snapshot = await (
+						await this.#gitService(request.params.workspaceId)
+					).push(request.params.remote, request.params.branch, request.params.setUpstream);
 					this.#publishGit(request.params.workspaceId, snapshot);
 					return response(request, { snapshot });
 				}
 				case "git.branch.create": {
-					const snapshot = await (await this.#gitService(request.params.workspaceId)).createBranch(
-						request.params.name,
-						request.params.startPoint,
-						request.params.checkout,
-					);
+					const snapshot = await (
+						await this.#gitService(request.params.workspaceId)
+					).createBranch(request.params.name, request.params.startPoint, request.params.checkout);
 					this.#publishGit(request.params.workspaceId, snapshot);
 					return response(request, { snapshot });
 				}
 				case "git.hunk": {
-					const snapshot = await (await this.#gitService(request.params.workspaceId)).hunk(
-						request.params.path,
-						request.params.hunkId,
-						request.params.action,
-					);
+					const snapshot = await (
+						await this.#gitService(request.params.workspaceId)
+					).hunk(request.params.path, request.params.hunkId, request.params.action);
 					this.#publishGit(request.params.workspaceId, snapshot);
 					return response(request, { snapshot });
 				}
@@ -532,10 +525,9 @@ export class ServiceRouter implements DesktopRuntimeHost {
 				}
 				case "git.diff":
 					return response(request, {
-						unified: await (await this.#gitService(request.params.workspaceId)).diff(
-							request.params.path,
-							request.params.staged,
-						),
+						unified: await (
+							await this.#gitService(request.params.workspaceId)
+						).diff(request.params.path, request.params.staged),
 					});
 				case "git.stage": {
 					const snapshot = await (await this.#gitService(request.params.workspaceId)).stage(request.params.paths);
@@ -543,9 +535,9 @@ export class ServiceRouter implements DesktopRuntimeHost {
 					return response(request, { snapshot });
 				}
 				case "git.unstage": {
-					const snapshot = await (await this.#gitService(request.params.workspaceId)).unstage(
-						request.params.paths,
-					);
+					const snapshot = await (
+						await this.#gitService(request.params.workspaceId)
+					).unstage(request.params.paths);
 					this.#publishGit(request.params.workspaceId, snapshot);
 					return response(request, { snapshot });
 				}

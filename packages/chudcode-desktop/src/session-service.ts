@@ -1,23 +1,23 @@
 import * as path from "node:path";
-import type { AgentMessage } from "@chudware/agent-core";
-import type { ImageContent, Model } from "@chudware/ai";
-import type { AgentSessionEvent } from "@chudware/coding-agent/session/agent-session";
-import { USER_INTERRUPT_LABEL } from "@chudware/coding-agent/session/messages";
+import type { AgentMessage } from "@oh-my-pi/pi-agent-core";
+import type { ImageContent, Model } from "@oh-my-pi/pi-ai";
+import type { AgentSessionEvent } from "@oh-my-pi/pi-coding-agent/session/agent-session";
+import { USER_INTERRUPT_LABEL } from "@oh-my-pi/pi-coding-agent/session/messages";
 import type {
 	SessionEntry as StoredSessionEntry,
 	SessionHeader as StoredSessionHeader,
-} from "@chudware/coding-agent/session/session-entries";
-import type { SessionInfo, SessionStatus } from "@chudware/coding-agent/session/session-listing";
-import { SessionManager } from "@chudware/coding-agent/session/session-manager";
-import { loadPinnedSessionIds, toggleSessionPin } from "@chudware/coding-agent/session/session-pins";
-import { FileSessionStorage } from "@chudware/coding-agent/session/session-storage";
+} from "@oh-my-pi/pi-coding-agent/session/session-entries";
+import type { SessionInfo, SessionStatus } from "@oh-my-pi/pi-coding-agent/session/session-listing";
+import { SessionManager } from "@oh-my-pi/pi-coding-agent/session/session-manager";
+import { loadPinnedSessionIds, toggleSessionPin } from "@oh-my-pi/pi-coding-agent/session/session-pins";
+import { FileSessionStorage } from "@oh-my-pi/pi-coding-agent/session/session-storage";
 import type {
 	AssistantContent,
 	AgentEvent as WireAgentEvent,
 	WireMessage,
 	SessionEntry as WireSessionEntry,
 	SessionHeader as WireSessionHeader,
-} from "@chudware/wire";
+} from "@oh-my-pi/pi-wire";
 import type { DesktopSessionInfo } from "./protocol";
 
 export interface DesktopSessionManager {

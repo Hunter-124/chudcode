@@ -16,7 +16,7 @@ Load `src/extension.ts` through the normal extension loader, then select:
 }
 ```
 
-The extension factory calls only `registerMemoryBackend`. Registration ownership and unload cleanup are handled by the extension loader.
+The extension factory calls only `registerMemoryBackend`. Registration ownership and unload cleanup are handled by the extension loader. Incident context is staged before a turn and cached only when its prompt is committed; failed retrieval clears earlier cached context.
 
 ## Environment schema
 

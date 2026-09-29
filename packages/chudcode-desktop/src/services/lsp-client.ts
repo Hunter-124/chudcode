@@ -1,5 +1,5 @@
-import type { LspTransport } from "@chudware/coding-agent/lsp/types";
-import { isRecord, ptree } from "@chudware/utils";
+import type { LspTransport } from "@oh-my-pi/pi-coding-agent/lsp/types";
+import { isRecord, ptree } from "@oh-my-pi/pi-utils";
 import { MessageFramer } from "../../../coding-agent/src/jsonrpc/message-framing";
 import type {
 	CodeActionContext,

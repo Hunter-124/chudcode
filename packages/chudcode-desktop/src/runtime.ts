@@ -1,16 +1,16 @@
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
-import type { ExtensionUIContext } from "@chudware/coding-agent/extensibility/extensions";
-import { initializeExtensions } from "@chudware/coding-agent/modes/runtime-init";
-import { theme } from "@chudware/coding-agent/modes/theme/theme";
-import { AgentLifecycleManager } from "@chudware/coding-agent/registry/agent-lifecycle";
-import { AgentRegistry } from "@chudware/coding-agent/registry/agent-registry";
-import { createAgentSession } from "@chudware/coding-agent/sdk";
-import type { AgentSessionEvent } from "@chudware/coding-agent/session/agent-session";
-import { USER_INTERRUPT_LABEL } from "@chudware/coding-agent/session/messages";
-import type { SessionEntry as StoredSessionEntry } from "@chudware/coding-agent/session/session-entries";
-import { SessionManager } from "@chudware/coding-agent/session/session-manager";
-import type { EventBus } from "@chudware/coding-agent/utils/event-bus";
+import type { ExtensionUIContext } from "@oh-my-pi/pi-coding-agent/extensibility/extensions";
+import { initializeExtensions } from "@oh-my-pi/pi-coding-agent/modes/runtime-init";
+import { theme } from "@oh-my-pi/pi-tui/theme";
+import { AgentLifecycleManager } from "@oh-my-pi/pi-coding-agent/registry/agent-lifecycle";
+import { AgentRegistry } from "@oh-my-pi/pi-coding-agent/registry/agent-registry";
+import { createAgentSession } from "@oh-my-pi/pi-coding-agent/sdk";
+import type { AgentSessionEvent } from "@oh-my-pi/pi-coding-agent/session/agent-session";
+import { USER_INTERRUPT_LABEL } from "@oh-my-pi/pi-coding-agent/session/messages";
+import type { SessionEntry as StoredSessionEntry } from "@oh-my-pi/pi-coding-agent/session/session-entries";
+import { SessionManager } from "@oh-my-pi/pi-coding-agent/session/session-manager";
+import type { EventBus } from "@oh-my-pi/pi-coding-agent/utils/event-bus";
 import type {
 	AgentSnapshot,
 	BusChannel,
@@ -19,7 +19,7 @@ import type {
 	CollabUiResponseValue,
 	SessionState,
 	SessionEntry as WireSessionEntry,
-} from "@chudware/wire";
+} from "@oh-my-pi/pi-wire";
 import {
 	DESKTOP_PROTOCOL_VERSION,
 	type DesktopEvent,
@@ -1042,7 +1042,6 @@ export class DesktopRuntime {
 }
 
 export async function createDesktopRuntime(options: CreateDesktopRuntimeOptions): Promise<DesktopRuntime> {
-	let runtime: DesktopRuntime;
 	const createResources = async (request: DesktopSessionFactoryRequest): Promise<DesktopSessionResources> => {
 		const sessionManager = request.sessionPath
 			? await SessionManager.open(request.sessionPath)
@@ -1093,7 +1092,7 @@ export async function createDesktopRuntime(options: CreateDesktopRuntimeOptions)
 	const initial = await createResources({ cwd: path.resolve(options.cwd) });
 	await initial.session.sessionManager.ensureOnDisk();
 	await initial.session.sessionManager.flush();
-	runtime = new DesktopRuntime({ ...initial, sessionFactory: createResources });
+	const runtime = new DesktopRuntime({ ...initial, sessionFactory: createResources });
 	try {
 		await initial.initialize?.(runtime.createUiContext());
 	} catch (error) {

@@ -15,6 +15,17 @@
   "bugs": {
     "url": "https://github.com/can1357/oh-my-pi/issues"
   },
+  "exports": {
+    "./session-client": "./src/lib/session-client.ts",
+    "./composer": "./src/components/shell/Composer.tsx",
+    "./transcript": "./src/components/transcript/Transcript.tsx",
+    "./agents-panel": "./src/components/agents/AgentsPanel.tsx",
+    "./agent-drawer": "./src/components/agents/AgentDrawer.tsx",
+    "./header": "./src/components/shell/HeaderBar.tsx",
+    "./banners": "./src/components/shell/Banners.tsx",
+    "./toasts": "./src/components/shell/Toasts.tsx",
+    "./styles/base.css": "./src/styles/base.css"
+  },
   "keywords": [
     "collab",
     "relay",

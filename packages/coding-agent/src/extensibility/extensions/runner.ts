@@ -438,6 +438,7 @@ export async function emitSessionShutdownEvent(extensionRunner: ExtensionRunner 
 		return true;
 	} finally {
 		extensionRunner.disposeFileFallbacks();
+		extensionRunner.disposeMemoryBackends();
 		extensionRunner.clearManagedTimers();
 	}
 }
@@ -1436,6 +1437,9 @@ export class ExtensionRunner {
 	 */
 	clearManagedTimers(): void {
 		this.#managedTimers.clearAll();
+	}
+	disposeMemoryBackends(): void {
+		this.runtime.disposeMemoryBackends();
 	}
 
 	/**

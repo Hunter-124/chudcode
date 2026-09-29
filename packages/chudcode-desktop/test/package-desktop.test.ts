@@ -52,6 +52,7 @@ async function createPayload(root: string): Promise<void> {
 	}
 	await writeFile(path.join(root, "assets/appicon/16.png"), "icon");
 	await writeFile(path.join(root, "VERSION"), "0.2.0\n");
+	await writeFile(path.join(root, "LICENSE"), "license\n");
 	await writeFile(path.join(root, "NOTICE"), "notice\n");
 	await writeFile(path.join(root, "THIRD-PARTY-NOTICES.txt"), "third parties\n");
 	await writeFile(path.join(root, "web/index.html"), '<!doctype html><script src="app.js"></script>');
@@ -80,6 +81,7 @@ async function createFixtureRepository(root: string): Promise<{ chud: string; de
 	await writeFile(path.join(root, "packages/chudcode-desktop/dist/web/monaco-current.woff2"), "font");
 	await writeFile(path.join(root, "packages/chudcode-desktop/dist/web/index-stale.js"), "stale");
 	await writeFile(path.join(root, "packages/chudcode-desktop/dist/web/index-stale.css"), "stale");
+	await writeFile(path.join(root, "LICENSE"), "license\n");
 	await writeFile(path.join(root, "NOTICE"), "notice\n");
 	await writeFile(path.join(root, "THIRD-PARTY-NOTICES.txt"), "third parties\n");
 	await writeFile(path.join(root, "assets/appicon/16.png"), "icon");
@@ -108,6 +110,7 @@ describe("desktop release payload", () => {
 		await createPayload(root);
 		const entries = await validatePayloadTree(root, "linux-x64");
 		expect(entries.map(entry => entry.relative)).toEqual([
+			"LICENSE",
 			"NOTICE",
 			"THIRD-PARTY-NOTICES.txt",
 			"VERSION",

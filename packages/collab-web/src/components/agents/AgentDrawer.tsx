@@ -2,7 +2,7 @@ import type { AgentSnapshot, SessionEntry, SubagentProgressPayload } from "@oh-m
 import { OctagonX, RotateCcw, SendHorizontal, X } from "lucide-react";
 import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
-import type { GuestClient } from "../../lib/client";
+import type { SessionClient } from "../../lib/session-client";
 import { fmtCost, fmtDuration, fmtTokens } from "../../lib/format";
 import { decideTranscriptPoll } from "../../lib/transcript-poll";
 import type { TranscriptProps } from "../transcript/Transcript";
@@ -14,7 +14,7 @@ const POLL_MS = 1200;
 export function AgentDrawer(props: {
 	agent: AgentSnapshot;
 	progress?: SubagentProgressPayload;
-	client: GuestClient;
+	client: SessionClient;
 	/** View-link guests: hide kill/revive/chat (the host rejects them anyway). */
 	readOnly?: boolean;
 	/** Forwarded to tool renderers so nested task cards can drill further. */

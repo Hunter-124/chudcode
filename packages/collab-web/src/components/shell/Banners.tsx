@@ -4,12 +4,12 @@ import type { ConnectionPhase, GuestSnapshot } from "../../lib/client";
 export interface BannersProps {
 	phase: ConnectionPhase;
 	endedReason: string | null;
-	loading: GuestSnapshot["loading"];
+	loading?: GuestSnapshot["loading"];
 	onRejoin(): void;
 	onNewLink(): void;
 }
 
-export function Banners({ phase, endedReason, loading, onRejoin, onNewLink }: BannersProps): ReactNode {
+export function Banners({ phase, endedReason, loading = null, onRejoin, onNewLink }: BannersProps): ReactNode {
 	const progress = loading && loading.total > 0 ? ` ${Math.floor((loading.received / loading.total) * 100)}%` : "";
 	if (phase === "connecting" || phase === "waiting") {
 		return (

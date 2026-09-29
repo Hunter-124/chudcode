@@ -2,8 +2,7 @@ import { afterEach, describe, expect, it } from "bun:test";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { Process, ProcessStatus } from "@chudware/natives";
-import { sleep } from "@chudware/utils/async";
+import { Process, ProcessStatus } from "@oh-my-pi/pi-natives";
 import { encodeTerminalDataBase64, TerminalService } from "../src/services/terminal-service";
 import type { TerminalServiceEvent, TerminalServiceOptions } from "../src/services/terminal-types";
 
@@ -35,7 +34,7 @@ async function waitFor(predicate: () => boolean, message: string, timeoutMs = 5_
 	const deadline = Date.now() + timeoutMs;
 	while (!predicate()) {
 		if (Date.now() >= deadline) throw new Error(`Timed out waiting for ${message}`);
-		await sleep(10);
+		await Bun.sleep(10);
 	}
 }
 

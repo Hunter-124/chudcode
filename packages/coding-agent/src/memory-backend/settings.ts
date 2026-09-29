@@ -3,6 +3,7 @@
  * settings-panel order; `config/all-settings.ts` registers every domain.
  */
 import { register } from "../config/registry";
+import { getMemoryBackendIds } from "./registry";
 
 // Memory backend selector — picks between local memories pipeline,
 // Mnemopi local SQLite, Hindsight remote memory, Sharpshooter project
@@ -13,7 +14,7 @@ export const cfgMemoryBackend = register({
 	id: "memory.backend",
 	protocolDefault: ["rpc", "acp"],
 	type: "enum",
-	values: ["off", "local", "hindsight", "mnemopi", "sharpshooter"] as const,
+	values: getMemoryBackendIds(),
 	default: "off",
 	ui: {
 		tab: "memory",
@@ -34,6 +35,11 @@ export const cfgMemoryBackend = register({
 				label: "Sharpshooter",
 				description:
 					"Friction-gated project decision files (architecture/product/style), consolidated in the background",
+			},
+			{
+				value: "cloudcastle-incident",
+				label: "CloudCastle Incident",
+				description: "Incident context supplied by the CloudCastle extension",
 			},
 		],
 	},

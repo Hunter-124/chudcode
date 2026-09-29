@@ -1,11 +1,14 @@
 import { SendHorizontal, Square } from "lucide-react";
 import type { KeyboardEvent, ReactNode, RefObject } from "react";
 import { useCallback, useLayoutEffect, useRef, useState } from "react";
-import type { GuestClient, GuestSnapshot } from "../../lib/client";
+import type { SessionClient, SessionSnapshot } from "../../lib/session-client";
 
 export interface ComposerProps {
-	client: GuestClient;
-	snapshot: GuestSnapshot;
+	client: SessionClient;
+	snapshot: SessionSnapshot;
+	/** Externally owned draft for desktop clients with multiple sessions. */
+	draft?: string;
+	onDraftChange?(value: string): void;
 }
 
 /** Textarea metrics: line-height 20px + 8px vertical padding × 2 (kept in sync with shell.css). */
@@ -108,8 +111,16 @@ function AskEditor({ prefill, onSubmit }: AskEditorProps): ReactNode {
 	);
 }
 
-export function Composer({ client, snapshot }: ComposerProps): ReactNode {
-	const [text, setText] = useState("");
+export function Composer({ client, snapshot, draft, onDraftChange }: ComposerProps): ReactNode {
+	const [localDraft, setLocalDraft] = useState("");
+	const text = draft !== undefined ? draft : localDraft;
+	const setText = useCallback(
+		(value: string): void => {
+			if (draft !== undefined) onDraftChange?.(value);
+			else setLocalDraft(value);
+		},
+		[draft, onDraftChange],
+	);
 	const taRef = useRef<HTMLTextAreaElement | null>(null);
 	const { composingRef, onCompositionStart, onCompositionEnd } = useCompositionGuard();
 
@@ -130,7 +141,7 @@ export function Composer({ client, snapshot }: ComposerProps): ReactNode {
 		if (!trimmed || !live || readOnly) return;
 		client.sendPrompt(trimmed);
 		setText("");
-	}, [client, live, readOnly, text]);
+	}, [client, live, readOnly, text, setText]);
 
 	const onKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>): void => {
 		if (shouldSubmitOnEnter(e, composingRef.current)) {

@@ -1,5 +1,5 @@
 import { afterAll, beforeEach, describe, expect, it } from "bun:test";
-import { parseHTML } from "@chudware/utils/dom";
+import { parseHTML } from "@oh-my-pi/pi-utils/dom";
 import { act, type ReactNode } from "react";
 import type { ITerminalAddon } from "@xterm/xterm";
 import type { DesktopMethod, DesktopRequestMap, LspDiagnostic, TerminalId } from "../src/protocol";

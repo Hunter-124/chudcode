@@ -1,7 +1,7 @@
 import { afterAll, beforeEach, describe, expect, it } from "bun:test";
-import type { SessionSnapshot, TranscriptResult } from "@chudware/collab-web/session-client";
-import type { CollabUiResponseValue, ImageContent } from "@chudware/wire";
-import { parseHTML } from "@chudware/utils/dom";
+import type { SessionSnapshot, TranscriptResult } from "@oh-my-pi/collab-web/session-client";
+import type { CollabUiResponseValue, ImageContent } from "@oh-my-pi/pi-wire";
+import { parseHTML } from "@oh-my-pi/pi-utils/dom";
 import {
 	act,
 	forwardRef,

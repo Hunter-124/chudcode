@@ -10,8 +10,8 @@
  */
 
 import { createHash } from "node:crypto";
-import { peekFileTail } from "@chudware/utils/peek-file";
-import { parseJsonlLenient } from "@chudware/utils/stream";
+import { peekFileTail } from "@oh-my-pi/pi-utils/peek-file";
+import { parseJsonlLenient } from "@oh-my-pi/pi-utils/stream";
 import { MAX_MESSAGE_CHARS, type SessionSnapshot, type SessionStatus } from "./bridge-protocol";
 import { isUnknownRecord } from "./incident-guards";
 

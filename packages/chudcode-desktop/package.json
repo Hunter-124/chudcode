@@ -15,6 +15,7 @@
     "@oh-my-pi/pi-natives": "catalog:",
     "@oh-my-pi/pi-wire": "catalog:",
     "@oh-my-pi/pi-utils": "catalog:",
+    "@oh-my-pi/pi-tui": "catalog:",
     "@xterm/addon-fit": "catalog:",
     "@xterm/xterm": "catalog:",
     "d3": "catalog:",

@@ -1,4 +1,5 @@
-import type { AgentSession, MemoryBackend } from "@chudware/coding-agent";
+import type { AgentSession } from "@oh-my-pi/pi-coding-agent";
+import type { MemoryBackend } from "@oh-my-pi/pi-coding-agent/memory-backend";
 import { DEFAULT_CONTEXT_DEPENDENCIES, fetchIncidentContext } from "./client";
 import incidentContextTemplate from "./prompts/incident-context.md" with { type: "text" };
 import { rankAndMergeEvidence } from "./ranking";
@@ -123,8 +124,13 @@ export function createCloudCastleIncidentBackend(
 					return undefined;
 				}
 				const block = renderDeveloperBlock(context.incidentId, context.coverage, ranked.renderedEvidence);
-				contextBySession.set(session, block);
-				return block;
+				return {
+					context: block,
+					commit: () => {
+						contextBySession.set(session, block);
+						return true;
+					},
+				};
 			} catch {
 				await evictPromptContext(session);
 				return undefined;

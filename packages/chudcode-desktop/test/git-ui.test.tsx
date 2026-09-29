@@ -1,6 +1,6 @@
 import { afterAll, describe, expect, it } from "bun:test";
-import type { SessionSnapshot } from "@chudware/collab-web/session-client";
-import { parseHTML } from "@chudware/utils/dom";
+import type { SessionSnapshot } from "@oh-my-pi/collab-web/session-client";
+import { parseHTML } from "@oh-my-pi/pi-utils/dom";
 import { act, type ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { GitSnapshot } from "../src/protocol";

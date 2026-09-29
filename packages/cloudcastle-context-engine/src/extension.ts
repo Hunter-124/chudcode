@@ -1,4 +1,4 @@
-import type { ExtensionAPI } from "@chudware/coding-agent";
+import type { ExtensionAPI } from "@oh-my-pi/pi-coding-agent";
 import { createCloudCastleIncidentBackend } from "./backend";
 
 /** Chudcode extension entrypoint. Registration ownership is tracked by the host loader. */

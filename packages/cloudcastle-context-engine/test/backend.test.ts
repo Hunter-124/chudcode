@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import type { AgentSession } from "@chudware/coding-agent";
+import type { AgentSession, Settings } from "@oh-my-pi/pi-coding-agent";
 import { createCloudCastleIncidentBackend } from "../src/backend";
 import { fetchIncidentContext } from "../src/client";
 import { parseCloudCastleContextSettings } from "../src/settings";
@@ -130,13 +130,17 @@ describe("cloudcastle-incident MemoryBackend", () => {
 				promptRefreshes += 1;
 			},
 		} as unknown as AgentSession;
-		const block = await backend.beforeAgentStartPrompt?.(session, `Investigate ${INCIDENT_ID}`);
+		const prepared = await backend.beforeAgentStartPrompt?.(session, `Investigate ${INCIDENT_ID}`);
+		const block = prepared?.context;
 		expect(block?.match(/<cloudcastle-incident-context>/g)).toHaveLength(1);
 		expect(block).toContain('"state":"Unknown"');
 		expect(block).toContain("control-api:incident");
 		expect(block).toContain(`https://control.cloudcastle.example/v1/incidents/${INCIDENT_ID}`);
 		expect(block).not.toContain(TOKEN);
-
+		const unusedSettings = {} as Settings;
+		expect(await backend.buildDeveloperInstructions("", unusedSettings, session)).toBeUndefined();
+		expect(prepared?.commit()).toBe(true);
+		expect(await backend.buildDeveloperInstructions("", unusedSettings, session)).toBe(block);
 		rejectAuth = true;
 		const authFailureBlock = await backend.beforeAgentStartPrompt?.(session, `Investigate ${INCIDENT_ID}`);
 		expect(authFailureBlock).toBeUndefined();
