@@ -78,7 +78,7 @@ jobs:
           bazelisk --bazelrc="${{ steps.cache.outputs.rc }}" test //crates/...
       - name: Clippy (upstream workspace policy)
         run: |
-          bazelisk --bazelrc="${{ steps.cache.outputs.rc }}" query "kind('rust_library|rust_shared_library', //crates/pi-ast/... + //crates/pi-iso/... + //crates/pi-natives/... + //crates/pi-shell/... + //crates/pi-voice/... + //crates/pi-walker/...)" |
+          bazelisk --bazelrc="${{ steps.cache.outputs.rc }}" query "kind('rust_library|rust_shared_library', //crates/pi-ast/... + //crates/pi-diff/... + //crates/pi-edit/... + //crates/pi-iso/... + //crates/pi-natives/... + //crates/pi-shell/... + //crates/pi-vcs/... + //crates/pi-voice/... + //crates/pi-walker/...)" |
             xargs bazelisk --bazelrc="${{ steps.cache.outputs.rc }}" build --config=clippy-strict --
       - name: Clippy (ported builtins)
         run: |
@@ -86,7 +86,7 @@ jobs:
             xargs bazelisk --bazelrc="${{ steps.cache.outputs.rc }}" build --config=clippy-ported --
       - name: Clippy (other crates)
         run: |
-          bazelisk --bazelrc="${{ steps.cache.outputs.rc }}" query "kind('rust_library|rust_shared_library', //crates/... - (//crates/pi-ast/... + //crates/pi-iso/... + //crates/pi-natives/... + //crates/pi-shell/... + //crates/pi-voice/... + //crates/pi-walker/...) - //crates/pi-builtins/... - //crates/vendor/brush-core/...)" |
+          bazelisk --bazelrc="${{ steps.cache.outputs.rc }}" query "kind('rust_library|rust_shared_library', //crates/... - (//crates/pi-ast/... + //crates/pi-diff/... + //crates/pi-edit/... + //crates/pi-iso/... + //crates/pi-natives/... + //crates/pi-shell/... + //crates/pi-vcs/... + //crates/pi-voice/... + //crates/pi-walker/...) - //crates/pi-builtins/... - //crates/vendor/brush-core/...)" |
             xargs bazelisk --bazelrc="${{ steps.cache.outputs.rc }}" build --config=clippy --
       - name: Clear ephemeral outputs before pinned rustfmt toolchain
         run: bazelisk --bazelrc="${{ steps.cache.outputs.rc }}" clean --expunge
