@@ -270,7 +270,9 @@ describe("AuthStorage OAuth revocation and usage-report failures", () => {
 		expect(await storage.getApiKey(PROVIDER, "main")).toBe("acc-A");
 
 		// Another session sees A exhausted and legitimately routes around it until the reset.
-		now = startedAt + 6 * 60_000;
+		// 6.5 min clears the first report's cache (5 min TTL, up to +25% jitter) but stays
+		// before the 7 min reset.
+		now = startedAt + 6.5 * 60_000;
 		expect(await storage.getApiKey(PROVIDER, "other")).toBe("acc-B");
 
 		// Past the reset, every usage fetch for A fails with 429, so storage can only

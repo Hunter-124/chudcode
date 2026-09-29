@@ -85,6 +85,11 @@ int main(int argc, char** argv) {
         fs::create_directories(dataRoot);
         setEnvironment("XDG_DATA_HOME", dataRoot.string());
         setEnvironment("HOME", (temporary.path() / "home").string());
+        // GL drivers keep their own shader caches under HOME (Mesa under Xvfb in
+        // CI, NVIDIA on desktops). Those are driver state, not app output; turn
+        // them off so the scan below still catches any file the app writes.
+        setEnvironment("MESA_SHADER_CACHE_DISABLE", "true");
+        setEnvironment("__GL_SHADER_DISK_CACHE", "0");
         fs::current_path(cwd);
 
         const std::string command =

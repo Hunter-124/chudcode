@@ -805,7 +805,6 @@ jobs:
                 }
               }
               if (-not (Get-Command cmake -ErrorAction SilentlyContinue)) { throw 'Windows GUI release needs CMake and Visual Studio 2022 on the runner' }
-              if (-not (Get-Command python -ErrorAction SilentlyContinue)) { throw 'Windows GUI release needs Python on the runner' }
          # Dependency downloads are intentionally not cached. Only CMake/Ninja
          # outputs below are build intermediates; customer archives contain no
          # package manager cache, source tree, node_modules, or Bun interpreter.
