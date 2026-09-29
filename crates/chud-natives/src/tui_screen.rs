@@ -56,11 +56,11 @@ unsafe extern "C" {
 struct ErrorBuffer([c_char; ERROR_CAPACITY]);
 
 impl ErrorBuffer {
-	fn new() -> Self {
+	const fn new() -> Self {
 		Self([0; ERROR_CAPACITY])
 	}
 
-	fn as_mut_ptr(&mut self) -> *mut c_char {
+	const fn as_mut_ptr(&mut self) -> *mut c_char {
 		self.0.as_mut_ptr()
 	}
 

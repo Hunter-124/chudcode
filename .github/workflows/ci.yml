@@ -200,16 +200,55 @@ jobs:
          - name: Rustfmt
            run: bazelisk --bazelrc="${{ steps.cache.outputs.rc }}" build --config=rustfmt //crates/...
 
-   # Provides the native addons every downstream TS job installs. PRs never
-   # build: they fetch the latest release's Linux x64 pair from the
-   # @chudware/natives-linux-x64 npm leaf instead. The workspace loader
-   # skips its version sentinel for workspace loads, so release addons load
-   # fine under a newer checkout; a PR whose TS tests depend on changed
-   # native behavior fails visibly and the native side lands via main.
-   # Main builds the Linux-hosted targets with Bazel on hosted Linux runners.
-   # Job name says "bazel" for continuity with required checks.
+   # Linux cross targets use distinct Bazel configurations. A cold hosted
+   # runner ran out of disk while compiling the second target after retaining
+   # the first target's outputs and disk cache (run 36530028506). Give each
+   # target its own runner, then assemble and verify the complete artifact.
+   native_addon_build:
+      name: "Build native addon (bazel): ${{ matrix.target }}"
+      if: github.event_name != 'pull_request'
+      runs-on: ubuntu-22.04
+      strategy:
+         fail-fast: false
+         matrix:
+            target:
+               - linux-arm64
+               - linux-musl-arm64
+               - linux-musl-x64-baseline
+               - linux-x64-baseline
+               - linux-x64-modern
+               - win32-x64-baseline
+      steps:
+         - uses: actions/checkout@v4
+         - id: cache
+           uses: ./.github/actions/bazel-cache
+           with:
+              scope: linux
+         - name: Build native addon
+           shell: bash
+           run: |
+              set -eo pipefail
+              if [ "$(ulimit -Sn)" != unlimited ] && [ "$(ulimit -Sn)" -lt 65536 ]; then ulimit -Sn 65536 || true; fi
+              bazelisk --bazelrc="${{ steps.cache.outputs.rc }}" build "//:natives-${{ matrix.target }}" 2>&1 | tee "$RUNNER_TEMP/bazel-build.log"
+         - name: Report bazel cache stats
+           shell: bash
+           run: |
+              summary=$(sed -E 's/\x1b\[[0-9;]*m//g' "$RUNNER_TEMP/bazel-build.log" | grep -E '[0-9]+ processes:' | tail -1 || true)
+              echo "::notice title=Bazel build summary::${summary:-no process summary found}"
+         - name: Upload native addon target
+           uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+           with:
+              name: natives-${{ matrix.target }}
+              path: bazel-bin/natives-${{ matrix.target }}/*.node
+              if-no-files-found: error
+              retention-days: 1
+
+   # PRs use the latest release's x64 addons. Main assembles all six built
+   # targets at the original artifact path for the TS and release consumers.
    native_addons:
       name: Build native addons (bazel)
+      if: ${{ !cancelled() && (github.event_name == 'pull_request' || needs.native_addon_build.result == 'success') }}
+      needs: [native_addon_build]
       runs-on: ubuntu-22.04
       steps:
          - uses: actions/checkout@v4
@@ -264,49 +303,38 @@ jobs:
                 echo "::notice title=Native sources changed::PR CI tests against the latest release addons by design; native changes are validated post-merge on main and at release."
               fi
 
-         # ---- main path: bazel build of all Linux-hosted targets ----
-         - id: cache
+         # ---- main path: collect every independently built target ----
+         - name: Download built native addons
            if: github.event_name != 'pull_request'
-           uses: ./.github/actions/bazel-cache
+           uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
            with:
-              scope: linux
-         - name: Build native addons once
-           if: github.event_name != 'pull_request'
-           run: |
-              set -eo pipefail
-              if [ "$(ulimit -Sn)" != unlimited ] && [ "$(ulimit -Sn)" -lt 65536 ]; then ulimit -Sn 65536 || true; fi
-              # The addon cdylib links each peak at several GiB of rustc RSS;
-              # the aggregate //:natives-linux-all build runs all six
-              # concurrently, which OOMs the kata pod and takes the bazel
-              # server with it (exit 37 "Server terminated abruptly", runs
-              # 30556752623 / 30557524371). Build one addon per invocation —
-              # analysis and cached actions are shared through the persistent
-              # server, so only the heavy links serialize — then assemble the
-              # aggregate as a no-op (also catches targets added to the
-              # filegroup but missing from this list).
-              : > "$RUNNER_TEMP/bazel-build.log"
-              for target in \
-                natives-linux-arm64 \
-                natives-linux-musl-arm64 \
-                natives-linux-musl-x64-baseline \
-                natives-linux-x64-baseline \
-                natives-linux-x64-modern \
-                natives-win32-x64-baseline; do
-                bazelisk --bazelrc="${{ steps.cache.outputs.rc }}" build "//:$target" 2>&1 | tee -a "$RUNNER_TEMP/bazel-build.log"
-              done
-              bazelisk --bazelrc="${{ steps.cache.outputs.rc }}" build //:natives-linux-all 2>&1 | tee -a "$RUNNER_TEMP/bazel-build.log"
-         # Cache-hit visibility: a supposedly warm build that executes
-         # thousands of actions is the failure mode that made CI slow — make
-         # it visible in the run summary instead of discovering it weeks in.
-         - name: Report bazel cache stats
+              pattern: natives-*
+              path: bazel-bin
+         - name: Verify built native addons
            if: github.event_name != 'pull_request'
            shell: bash
            run: |
-              # Bazel runs with --color=yes (config=ci); strip ANSI before
-              # matching — escapes split "INFO:" from the process count in
-              # the raw log.
-              summary=$(sed -E 's/\x1b\[[0-9;]*m//g' "$RUNNER_TEMP/bazel-build.log" | grep -E '[0-9]+ processes:' | tail -1 || true)
-              echo "::notice title=Bazel build summary::${summary:-no process summary found}"
+              set -euo pipefail
+              for artifact in \
+                natives-linux-arm64/chud_natives.linux-arm64.node \
+                natives-linux-musl-arm64/chud_natives.linux-arm64.node \
+                natives-linux-musl-x64-baseline/chud_natives.linux-x64-baseline.node \
+                natives-linux-x64-baseline/chud_natives.linux-x64-baseline.node \
+                natives-linux-x64-modern/chud_natives.linux-x64-modern.node \
+                natives-win32-x64-baseline/chud_natives.win32-x64-baseline.node; do
+                test -s "bazel-bin/$artifact" || { echo "::error::Missing or empty native addon: $artifact"; exit 1; }
+              done
+              # Keep the original filegroup contract: if a new target is added
+              # to //:natives-linux-all, fail until the build matrix includes it.
+              targets="$(bazelisk query 'labels(srcs, //:natives-linux-all)' --output=label)"
+              for target in $targets; do
+                target="${target#//:}"
+                addons=(bazel-bin/"$target"/*.node)
+                if [ "${#addons[@]}" -ne 1 ] || [ ! -s "${addons[0]}" ]; then
+                  echo "::error::Missing native addon for //:$target"
+                  exit 1
+                fi
+              done
 
          - name: Upload native addon artifacts
            uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1

@@ -5,6 +5,7 @@
 ### Fixed
 
 - Release validation now runs on hosted Linux runners rather than the unavailable `chudcode-kata` self-hosted label, so binary publication can complete with the supported disk-cache path.
+- Hosted native-addon builds now isolate six Bazel targets per runner and reassemble the checked artifact, avoiding the disk exhaustion seen when their cross-target outputs accumulated on one runner; strict Clippy also accepts the TUI error buffer's constant helpers.
 - Linux release tests use corrected pinned-ctok Claude fixture counts and detect foreground child stops even when SIGCHLD arrives before the wait listener is registered.
 - `chud update` installs releases again. Renaming the command to `chud` also renamed the release asset the updater looked for, so every build after the rename failed with `GitHub release chudcode-v0.3.0 has 0 assets named chud-linux-x64`; the asset name is now pinned to the published `chudcode-<os>-<arch>` binaries independently of the command name.
 - Sessions with missing historical image blobs now resume normally, showing an unavailable-image marker instead of repeatedly sending malformed base64 to the provider.
