@@ -1,6 +1,6 @@
 # @chudware/utils
 
-Shared utilities for [chudware](https://github.com/Hunter-124/chudcode) packages. Zero ceremony, Bun-first.
+Shared Bun-first utilities for packages in this repository.
 
 ## Notable modules
 
@@ -23,15 +23,9 @@ Shared utilities for [chudware](https://github.com/Hunter-124/chudcode) packages
 
 Import from the root barrel or per-module subpaths (`@chudware/utils/<module>`).
 
-## Install
-
-```sh
-bun add @chudware/utils
-```
-
 Ships TypeScript source directly (no build step); requires Bun ≥ 1.3.14.
 
 ## References
 
-- [Monorepo README](https://github.com/Hunter-124/chudcode#readme)
+- [Repository README](../../README.md)
 - [CHANGELOG](./CHANGELOG.md)

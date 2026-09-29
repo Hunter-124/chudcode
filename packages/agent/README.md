@@ -2,12 +2,6 @@
 
 Stateful agent with tool execution and event streaming. Built on `@chudware/ai`.
 
-## Installation
-
-```bash
-npm install @chudware/pi-agent
-```
-
 ## Quick Start
 
 ```typescript

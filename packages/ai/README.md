@@ -1,13 +1,12 @@
 # @chudware/ai
 
-Unified LLM API with automatic model discovery, provider configuration, token and cost tracking, and simple context persistence and hand-off to other models mid-session.
+LLM client with model discovery, provider configuration, token and cost tracking, context persistence, and model hand-off mid-session.
 
 **Note**: This library only includes models that support tool calling (function calling), as this is essential for agentic workflows.
 
 ## Table of Contents
 
 - [Supported Providers](#supported-providers)
-- [Installation](#installation)
 - [Quick Start](#quick-start)
 - [Tools](#tools)
   - [Defining Tools](#defining-tools)
@@ -85,12 +84,6 @@ Unified LLM API with automatic model discovery, provider configuration, token an
 - **Google Gemini CLI** (requires OAuth, see below)
 - **Antigravity** (requires OAuth, see below)
 - **Any OpenAI-compatible API**: LM Studio, custom proxies, etc.
-
-## Installation
-
-```bash
-npm install @chudware/ai
-```
 
 ## Quick Start
 
@@ -1073,7 +1066,7 @@ Official docs: [Application Default Credentials](https://cloud.google.com/docs/a
 
 ### CLI Login
 
-Authenticate via the [`chudcode`](https://chudware.sh) coding-agent CLI, which drives this library's OAuth/API-key flows in-process and persists into `agent.db`:
+Authenticate via the agent runtime CLI, which drives this library's OAuth/API-key flows in-process and persists into `agent.db`:
 
 ```bash
 chudcode auth-broker login              # interactive provider selection

@@ -1,10 +1,8 @@
 # @chudware/coding-agent
 
-Core implementation package for the `chudcode` coding agent in the `chudware` monorepo.
-
-For installation, setup, provider configuration, model roles, slash commands, and full CLI reference, see:
-- [Monorepo README (local)](../../README.md)
-- [Monorepo README (GitHub)](https://github.com/Hunter-124/chudcode#readme)
+Implementation package for the internal agent runtime. For development commands
+and source layout, see [DEVELOPMENT](./DEVELOPMENT.md); for the RPC contract, see
+[`docs/rpc.md`](../../docs/rpc.md).
 
 Package-specific references:
 - [CHANGELOG](./CHANGELOG.md)

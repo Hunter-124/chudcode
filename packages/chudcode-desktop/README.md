@@ -1,8 +1,11 @@
-# Chudcode Desktop
+# Agent desktop shell
 
-Chudcode Desktop is the direct browser-based IDE shell for the Chudcode/Chudcode coding-agent runtime. A local Bun process owns the agent session and machine-facing services; a React application connects to it over an authenticated loopback WebSocket.
+Browser-based IDE shell for the internal agent runtime. A local Bun process owns
+the agent session and machine-facing services; a React application connects to
+it over an authenticated loopback WebSocket.
 
-This package contains **no CAD proprietary assets, CAD source, CAD runtime, CAD protocol, or CAD-derived presentation code**.
+This package contains no CAD proprietary assets, CAD source, CAD runtime, CAD
+protocol, or CAD-derived presentation code.
 
 ## Architecture
 
@@ -13,12 +16,12 @@ Chromium app window or default browser
     ├─ xterm.js terminal
     ├─ Git changes/diff/history
     ├─ D3 code/Git/agent graphs
-    └─ reused Chudcode collab transcript/composer/agent UI
+    └─ reused collaboration transcript/composer/agent UI
              │
              │ authenticated HTTP + ordered JSON WebSocket frames
              ▼
 Bun loopback server (127.0.0.1 only)
-  ├─ DesktopRuntime / SessionService → Chudcode coding-agent session
+  ├─ DesktopRuntime / SessionService → agent session
   └─ ServiceRouter
        ├─ WorkspaceService + FileWatcher + WorkspaceSearch
        ├─ TerminalService → chud-natives PTY/process
@@ -31,7 +34,7 @@ The layers are deliberately separated:
 
 - `src/protocol.ts` is the typed request/response/event contract shared by host and browser.
 - `src/server.ts` serves immutable web assets, authenticates HTTP/WebSocket requests, bounds frame queues, and owns the single-instance lease.
-- `src/runtime.ts` adapts Chudcode agent/session events to desktop frames.
+- `src/runtime.ts` adapts agent/session events to desktop frames.
 - `src/service-router.ts` routes machine-facing methods without exposing arbitrary commands over the wire.
 - `src/services/` owns workspace containment, file watching/search, Git, terminal, and trusted LSP processes.
 - `src/graph-service.ts` adapts Graphify, LSP, Git, and the live agent registry to one graph snapshot contract.
@@ -67,7 +70,7 @@ This creates:
 - `packages/chudcode-desktop/dist/web/` — minified browser HTML, JavaScript, CSS, Monaco workers, and assets.
 - `packages/chudcode-desktop/dist/chudcode-desktop[.exe]` — a compiled standalone server/launcher with its Bun runtime and JavaScript dependency graph embedded.
 
-Release archives are produced by `scripts/package-chudcode-desktop.ts`. They contain the compiled CLI, desktop launcher, native GUI, adjacent runtime assets, version metadata, and repository notices. Customer payloads contain no source tree, `node_modules`, or Bun interpreter dependency.
+The packaging script `scripts/package-chudcode-desktop.ts` assembles the compiled CLI, desktop launcher, native GUI, adjacent runtime assets, version metadata, and repository notices. The archive contains no source tree, `node_modules`, or Bun interpreter dependency.
 
 ## Run
 
@@ -79,13 +82,13 @@ Inside an unpacked release archive, the compiled launcher resolves `chud`, `chud
 
 Use `--browser` to attach a browser client instead. Packaged mode fails before starting the server if any adjacent component is absent.
 
-Source execution is intentionally explicit and accepted only in a Chudcode checkout with built web assets:
+Source execution is intentionally explicit and accepted only in this checkout with built web assets:
 
 ```sh
 bun packages/chudcode-desktop/src/launch.ts --source-mode
 ```
 
-The launcher uses the current project directory as the initial workspace context, creates a single-instance lease under the Chudcode agent runtime directory, and reuses the existing desktop process when one is already active.
+The launcher uses the current project directory as the initial workspace context, creates a single-instance lease under the agent runtime directory, and reuses the existing desktop process when one is already active.
 
 ## Development
 
@@ -188,4 +191,4 @@ Known accessibility limit: split-pane separators are currently pointer-resized. 
 
 ## Licensing
 
-Chudcode/Chudcode code is MIT-licensed under the repository `LICENSE`. Direct desktop dependency versions, source URLs, uses, notice locations, and source/binary obligations are recorded in [`THIRD_PARTY_NOTICES.md`](./THIRD_PARTY_NOTICES.md).
+This code is MIT-licensed under the repository `LICENSE`. Direct desktop dependency versions, source URLs, uses, notice locations, and source/binary obligations are recorded in [`THIRD_PARTY_NOTICES.md`](./THIRD_PARTY_NOTICES.md).

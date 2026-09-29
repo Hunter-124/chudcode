@@ -1,13 +1,7 @@
-# Contributing to chudware
+# Contributing to the internal agent runtime
 
-Pull requests are welcome. Keep them focused, understand the work you submit,
-and be prepared to explain and maintain it.
-
-> [!NOTE]
-> Pull requests are **temporarily open to everyone** as a trial. We previously
-> required a vouch before accepting PRs; that requirement is lifted for now
-> while we evaluate how open contributions go. Depending on the results, the
-> vouch system may return.
+Keep changes focused, understand the work you submit, and be prepared to explain
+and maintain it.
 
 ## Before you start
 
@@ -18,12 +12,9 @@ straight to a pull request.
 
 ### Major changes
 
-Discuss major features and broad architectural or behavioral changes in
-[Discord](https://discord.gg/4NMW9cdXZa) **before writing the implementation**.
-This includes new subsystems, large UI changes, new dependencies, and changes
-that span several packages. A GitHub issue is not a substitute for this
-discussion, and prior discussion does not guarantee that a pull request will be
-merged.
+Discuss major features and broad architectural or behavioral changes with
+maintainers before implementation. This includes new subsystems, large UI
+changes, new dependencies, and changes spanning several packages.
 
 ### Do not open an issue for work you are about to submit
 
@@ -81,7 +72,7 @@ agreed scope.
 
 ## Contribution licensing
 
-A contribution intentionally submitted for inclusion in Chudcode is licensed under
+A contribution intentionally submitted for inclusion in this repository is licensed under
 the MIT License.
 
 This policy does not relicense third-party or vendored code. You must have the
@@ -96,6 +87,6 @@ Maintainers review the submitted behavior and the contributor's understanding
 of it—not the volume of generated code. Respond to review feedback yourself,
 and only apply suggestions you have checked.
 
-Pull requests may be closed when they skip required prior discussion, lack the
+Changes may be rejected when they skip required prior discussion, lack the
 human-written explanation, contain unreviewed agent output, or mix unrelated
 changes.

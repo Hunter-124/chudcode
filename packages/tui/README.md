@@ -687,19 +687,16 @@ See `test/chat-simple.ts` for a complete chat interface example with:
 
 Run it:
 
-```bash
-npx tsx test/chat-simple.ts
+```sh
+bun packages/tui/test/chat-simple.ts
 ```
 
 ## Development
 
-```bash
-# Install dependencies (from monorepo root)
-npm install
+From the repository root:
 
-# Run type checking
-npm run check
-
-# Run the demo
-npx tsx test/chat-simple.ts
+```sh
+bun install --frozen-lockfile
+bun --cwd packages/tui run check
+bun packages/tui/test/chat-simple.ts
 ```

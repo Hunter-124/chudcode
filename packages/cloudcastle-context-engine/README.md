@@ -1,12 +1,12 @@
 # CloudCastle context engine
 
-`@cloudcastle/context-engine` is a read-only Chudcode memory-backend extension. It registers the backend id `cloudcastle-incident`, reads tenant-authorized incident evidence from CloudCastle control-api, and injects one bounded developer-instruction block at `beforeAgentStartPrompt`.
+`@cloudcastle/context-engine` is a read-only agent memory-backend extension. It registers the backend id `cloudcastle-incident`, reads tenant-authorized incident evidence from CloudCastle control-api, and injects one bounded developer-instruction block at `beforeAgentStartPrompt`.
 
-The package does not register tools, send write requests, or dispatch endpoint actions. CloudCastle names, routes, defaults, and parsing stay in this package; Chudcode core only sees the generic `MemoryBackend` registration.
+The package does not register tools, send write requests, or dispatch endpoint actions. CloudCastle names, routes, defaults, and parsing stay in this package; the agent runtime only sees the generic `MemoryBackend` registration.
 
 ## Loading
 
-Load `src/extension.ts` through the normal Chudcode extension loader, then select:
+Load `src/extension.ts` through the normal extension loader, then select:
 
 ```json
 {
@@ -16,7 +16,7 @@ Load `src/extension.ts` through the normal Chudcode extension loader, then selec
 }
 ```
 
-The extension factory calls only `registerMemoryBackend`. Registration ownership and unload cleanup are handled by the Chudcode extension loader.
+The extension factory calls only `registerMemoryBackend`. Registration ownership and unload cleanup are handled by the extension loader.
 
 ## Environment schema
 

@@ -1,6 +1,6 @@
 # @chudware/catalog
 
-Model catalog for [chudware](https://github.com/Hunter-124/chudcode): bundled model database, provider discovery, model identity, classification, and equivalence.
+Model catalog used by the internal agent runtime: bundled model database, provider discovery, model identity, classification, and equivalence.
 
 ## What's inside
 
@@ -29,15 +29,9 @@ bun run gen:models
 
 To change an entry, fix the source: resolver overrides in `provider-models/openai-compat.ts`, provider entries in `provider-models/descriptors.ts`, generator fixups in `scripts/generate-models.ts`, or thinking policies in `model-thinking.ts`.
 
-## Install
-
-```sh
-bun add @chudware/catalog
-```
-
 Ships TypeScript source directly (no build step); requires Bun ≥ 1.3.14.
 
 ## References
 
-- [Monorepo README](https://github.com/Hunter-124/chudcode#readme)
+- [Repository README](../../README.md)
 - [CHANGELOG](./CHANGELOG.md)

@@ -4,15 +4,7 @@ Fast, ArkType-compatible schema validation for JavaScript and TypeScript.
 Schemas start with a small interpreter and lazily compile after repeated use,
 keeping construction cheap without giving up hot-path validation speed.
 
-## Installation
-
-```sh
-npm install @chudware/chudtype
-# or
-bun add @chudware/chudtype
-```
-
-Runs on Node 20+ (published as compiled ESM with bundled type declarations)
+Runs on Node 20+ (compiled ESM with bundled type declarations)
 and Bun 1.3.14+ (which resolves the TypeScript source directly via the `bun`
 export condition). No runtime dependencies.
 

@@ -2,9 +2,7 @@
 
 Bitmap-frame context compression for vision-capable LLMs.
 
-Instead of asking an LLM to summarize discarded conversation history, snapcompact serializes it and renders the text into dense PNG frames of pixel-font glyphs that vision models read back directly. The whole pass is local and deterministic — no LLM call, no API key, no latency beyond rendering. Rasterization and PNG encoding happen in native code (`@chudware/natives`).
-
-Built for [chudware](https://github.com/Hunter-124/chudcode)'s compaction pipeline, but the rendering API works on arbitrary text.
+Snapcompact serializes discarded conversation history into PNG frames of pixel-font glyphs that vision models can read. Rasterization and PNG encoding use `@chudware/natives`. The agent runtime uses this package for context compaction.
 
 ## How it works
 
@@ -25,12 +23,6 @@ Frame shapes are provider-aware, chosen by SQuAD recall evals (see `research/`) 
 `resolveShape({ api, id })` matches the model id, not just the wire API — a Claude routed through Vertex or OpenRouter keeps its Claude shape, priced for the gateway actually carrying the request.
 
 Bitmap shapes keep their provider-tuned geometry and draw missing glyphs through the embedded Silver TrueType fallback one character at a time; East Asian (CJK/Kana/Hangul) glyphs render full-width across two cells so they stay legible in the narrow ASCII grid. Selecting `silver16-bw` uses Silver for the whole frame.
-
-## Install
-
-```sh
-bun add @chudware/snapcompact
-```
 
 Ships TypeScript source directly (no build step); requires Bun ≥ 1.3.14.
 
@@ -67,6 +59,6 @@ const result = await compact(preparation, { model });
 
 ## References
 
-- [Monorepo README](https://github.com/Hunter-124/chudcode#readme)
+- [Repository README](../../README.md)
 - [Compaction architecture](../../docs/compaction.md)
 - [CHANGELOG](./CHANGELOG.md)

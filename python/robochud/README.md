@@ -1,7 +1,7 @@
 # robochud
 
-Self-hosted GitHub triage bot. Drives [`chudcode --mode rpc`](https://github.com/Hunter-124/chudcode)
-as a subprocess against a per-issue git worktree, then writes back to GitHub
+Self-hosted GitHub triage bot. Drives the internal agent runtime through
+`chudcode --mode rpc` as a subprocess against a per-issue git worktree, then writes back to GitHub
 through a sidecar that holds the PAT.
 
 On `issues.opened` in an allowlisted repo it classifies the issue, labels it,
@@ -17,7 +17,7 @@ and branches:
 - `enhancement` / `proposal` → one comment, no PR.
 - `invalid` / `duplicate` → one brief comment.
 
-Follow-up issue comments and PR review comments resume the same chudcode session
+Follow-up issue comments and PR review comments resume the same agent session
 (`--continue` against the persisted JSONL transcript). On orchestrator
 restart, in-flight events are re-queued and resume the same way.
 
@@ -47,7 +47,7 @@ persistent `session_dir`, model randomly drawn from `ROBOCHUD_MODEL` (CSV).
 Release events serialize under `<owner>/<repo>#release`; each tag persists its
 own `releases` row and `.chudcode-session-<tag>` transcript.
 
-The agent uses chudcode's built-in tools (`read`/`edit`/`bash`/`lsp`, scoped to
+The agent uses built-in tools (`read`/`edit`/`bash`/`lsp`, scoped to
 the worktree) plus the host tools in `src/host_tools.py` — the
 exclusive surface for GitHub writes. Every host-tool invocation is audited
 into the `tool_calls` table with credential-redacted args and results.

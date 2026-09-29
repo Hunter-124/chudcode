@@ -1,7 +1,7 @@
 {
-	"name": "chudcode collab",
-	"short_name": "chudcode collab",
-	"description": "Live guest client for chudcode collab sessions: streaming transcript, tool cards, subagent panel, and a composer that prompts the host agent — end-to-end encrypted.",
+	"name": "Agent session",
+	"short_name": "Agent session",
+	"description": "Browser guest client for a live agent session.",
 	"start_url": "/",
 	"scope": "/",
 	"display": "standalone",

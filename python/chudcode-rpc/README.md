@@ -1,6 +1,6 @@
 # chudcode-rpc
 
-Typed Python bindings for the `chudcode --mode rpc` protocol used by the coding agent.
+Typed Python bindings for the internal agent runtime's `chudcode --mode rpc` protocol.
 
 This package wraps the newline-delimited JSON RPC transport exposed by the CLI and
 provides:

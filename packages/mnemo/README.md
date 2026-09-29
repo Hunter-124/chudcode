@@ -1,6 +1,6 @@
 # @chudware/mnemo
 
-Local SQLite memory engine for Chudcode agents.
+Local SQLite memory engine for agent sessions.
 
 This package is the Bun/TypeScript port of the Mnemosyne memory engine. It provides:
 
@@ -72,7 +72,7 @@ const dynamicLlm = new Mnemo({
 
 `Mnemo` itself exposes banks directly through constructor options such as `bank`; it does not hard-code coding-agent project scoping.
 
-The Chudcode coding-agent wrapper adds `mnemo.scoping` on top of those constructor options:
+The coding-agent wrapper adds `mnemo.scoping` on top of those constructor options:
 
 - `global`: one shared bank
 - `per-project`: isolated project memory
