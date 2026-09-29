@@ -1,9 +1,10 @@
 /**
- * List and clean up agent-managed git worktrees under `~/.omp/wt`.
+ * List and clean up agent-managed git worktrees under the configured worktree root.
  */
 
 import { getProjectDir } from "@oh-my-pi/pi-utils";
 import { Args, Command, Flags } from "@oh-my-pi/pi-utils/cli";
+import { APP_NAME } from "@oh-my-pi/pi-utils/dirs";
 import { worktreeHelp as commandHelp } from "../cli/command-help";
 import { addWorktree, clearWorktrees, listWorktrees } from "../cli/worktree-cli";
 import { Settings } from "../config/settings";
@@ -68,14 +69,14 @@ export default class Worktree extends Command {
 	};
 
 	static examples = [
-		"omp worktree",
-		"omp worktree list --json",
-		"omp worktree add ../feature",
-		"omp worktree add -b feature ../feature origin/main",
-		"omp worktree add --detach ../review HEAD~2",
-		"omp worktree clear",
-		"omp worktree clear --dry-run",
-		"omp worktree clear --all",
+		`${APP_NAME} worktree`,
+		`${APP_NAME} worktree list --json`,
+		`${APP_NAME} worktree add ../feature`,
+		`${APP_NAME} worktree add -b feature ../feature origin/main`,
+		`${APP_NAME} worktree add --detach ../review HEAD~2`,
+		`${APP_NAME} worktree clear`,
+		`${APP_NAME} worktree clear --dry-run`,
+		`${APP_NAME} worktree clear --all`,
 	];
 
 	async run(): Promise<void> {

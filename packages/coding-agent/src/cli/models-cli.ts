@@ -15,7 +15,7 @@ import type { Api, Effort, Model } from "@oh-my-pi/pi-ai";
 import { sendsImageInputOnWire } from "@oh-my-pi/pi-ai/providers/vision-guard";
 import { getSupportedEfforts } from "@oh-my-pi/pi-catalog/model-thinking";
 import { modelKind, type ModelKind } from "@oh-my-pi/pi-catalog/types";
-import { formatNumber, getProjectDir } from "@oh-my-pi/pi-utils";
+import { APP_NAME, formatNumber, getProjectDir } from "@oh-my-pi/pi-utils";
 import chalk from "@oh-my-pi/pi-utils/chalk";
 import type { ConfigError } from "../config/config-file";
 import { ModelRegistry } from "../config/model-registry";
@@ -380,7 +380,9 @@ export async function runModelsCommand(command: ModelsCommandArgs): Promise<void
 	const kind = command.flags.kind ?? "chat";
 
 	if (action === "find" && (!pattern || pattern.trim().length === 0)) {
-		process.stderr.write("`omp models find` requires a search substring, e.g. `omp models find minimax`\n");
+		process.stderr.write(
+			`\`${APP_NAME} models find\` requires a search substring, e.g. \`${APP_NAME} models find minimax\`\n`,
+		);
 		process.exitCode = 1;
 		return;
 	}

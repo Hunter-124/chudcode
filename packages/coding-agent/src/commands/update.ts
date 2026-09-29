@@ -3,6 +3,7 @@
  */
 
 import { Command, Flags } from "@oh-my-pi/pi-utils/cli";
+import { APP_NAME } from "@oh-my-pi/pi-utils/dirs";
 import { updateHelp as commandHelp } from "../cli/command-help";
 import * as pluginCli from "../cli/plugin-cli";
 import * as updateCli from "../cli/update-cli";
@@ -20,10 +21,10 @@ export default class Update extends Command {
 	};
 
 	static examples = [
-		"omp update",
-		"omp update --check",
-		"omp update --canary",
-		"# If GitHub rate-limits release metadata, set GITHUB_TOKEN or GH_TOKEN\n  GITHUB_TOKEN=... omp update",
+		`${APP_NAME} update`,
+		`${APP_NAME} update --check`,
+		`${APP_NAME} update --canary`,
+		`# Private releases require GitHub auth\n  GITHUB_TOKEN=... ${APP_NAME} update`,
 	];
 
 	async run(): Promise<void> {

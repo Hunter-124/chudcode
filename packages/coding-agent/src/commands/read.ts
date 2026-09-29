@@ -3,6 +3,7 @@
  */
 
 import { Args, Command } from "@oh-my-pi/pi-utils/cli";
+import { APP_NAME } from "@oh-my-pi/pi-utils/dirs";
 import { readHelp as commandHelp } from "../cli/command-help";
 import { type ReadCommandArgs, runReadCommand } from "../cli/read-cli";
 import { initTheme } from "@oh-my-pi/pi-tui/theme";
@@ -18,14 +19,14 @@ export default class Read extends Command {
 	};
 
 	static examples = [
-		"omp read src/foo.ts",
-		"omp read src/foo.ts:50-100",
-		"omp read src/foo.ts:raw",
-		"omp read https://example.com",
-		"omp read omp://",
-		"omp read issue://123",
-		"omp read path/to/archive.zip:dir/file.ts",
-		"omp read path/to/db.sqlite:users:42",
+		`${APP_NAME} read src/foo.ts`,
+		`${APP_NAME} read src/foo.ts:50-100`,
+		`${APP_NAME} read src/foo.ts:raw`,
+		`${APP_NAME} read https://example.com`,
+		`${APP_NAME} read omp://`,
+		`${APP_NAME} read issue://123`,
+		`${APP_NAME} read path/to/archive.zip:dir/file.ts`,
+		`${APP_NAME} read path/to/db.sqlite:users:42`,
 	];
 
 	async run(): Promise<void> {

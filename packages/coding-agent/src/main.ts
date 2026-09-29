@@ -23,6 +23,7 @@ import * as logger from "@oh-my-pi/pi-utils/logger";
 import * as postmortem from "@oh-my-pi/pi-utils/postmortem";
 import { fuzzyFilter } from "@oh-my-pi/pi-tui/fuzzy";
 import chalk from "@oh-my-pi/pi-utils/chalk";
+import { PRODUCT_SEMVER, PRODUCT_VERSION } from "./brand";
 import { reset as resetCapabilities } from "./capability";
 import { type Args, reportInvalidFlagValues, reportUnrecognizedFlags, validateToolNames } from "./cli/args";
 import { applyExtensionFlags, type ExtensionFlagSink } from "./cli/extension-flags";
@@ -1595,6 +1596,12 @@ export async function buildSessionOptions(
 	} else if (parsed.tools) {
 		options.toolNames = parsed.tools;
 	}
+	if (parsed.tools?.length) {
+		options.toolAllowlist = parsed.tools;
+	}
+	if (parsed.noMcp) {
+		options.enableMCP = false;
+	}
 
 	if (parsed.noLsp) {
 		options.enableLsp = false;
@@ -1691,7 +1698,7 @@ export async function runRootCommand(
 		const notifs: (InteractiveModeNotify | null)[] = [];
 
 		if (parsedArgs.version) {
-			writeStartupNotice(parsedArgs, `${VERSION}\n`);
+			writeStartupNotice(parsedArgs, `${PRODUCT_VERSION}\n`);
 			process.exit(0);
 		}
 
@@ -2380,6 +2387,8 @@ export async function runRootCommand(
 					modelRegistry,
 					settings: settingsInstance,
 					enableLsp: sessionOptions.enableLsp ?? true,
+					enableMCP: sessionOptions.enableMCP,
+					toolAllowlist: sessionOptions.toolAllowlist,
 					eventBus,
 					subagentEventBus,
 				}),
@@ -2474,7 +2483,7 @@ export async function runRootCommand(
 					input: rpcInput,
 				});
 			} else if (isInteractive) {
-				const versionCheckPromise = checkForNewVersion(VERSION).catch(() => undefined);
+				const versionCheckPromise = checkForNewVersion(PRODUCT_SEMVER).catch(() => undefined);
 				const startupChangelog = await startupChangelogPromise;
 
 				const modelScopeNotification = buildModelScopeNotification(
@@ -2505,7 +2514,7 @@ export async function runRootCommand(
 					logger.endTiming();
 					await runInteractiveMode(
 						session,
-						VERSION,
+						PRODUCT_VERSION,
 						startupChangelog,
 						notifs,
 						versionCheckPromise,

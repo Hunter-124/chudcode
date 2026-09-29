@@ -1,14 +1,8 @@
 /**
- * Centralized path helpers for omp config directories.
- *
- * Uses PI_CONFIG_DIR (default ".omp") for the config root and
- * PI_CODING_AGENT_DIR to override the agent directory.
- *
- * On Linux, if XDG_DATA_HOME / XDG_STATE_HOME / XDG_CACHE_HOME environment
- * variables are set, paths are redirected to XDG-compliant locations under
- * $XDG_*_HOME/omp/. This requires running `omp config migrate` first to
- * move data to the new locations. No filesystem existence checks are performed
- * — if the env var is set, omp trusts that the migration has been done.
+ * Centralized paths for Chudcode's config and XDG directories.
+ * PI_CONFIG_DIR overrides the default `.chudcode` root; PI_CODING_AGENT_DIR
+ * overrides the agent directory. Upstream environment variable names stay intact.
+ * Existing XDG app roots use `chudcode`, separate from the `chud` CLI name.
  */
 
 import * as fs from "node:fs";
@@ -18,14 +12,17 @@ import { expandWindowsLongPath } from "@oh-my-pi/pi-natives/path";
 import { engines, version } from "../package.json" with { type: "json" };
 import { isEnoent, isEnotdir } from "./fs-error";
 
-/** App name (e.g. "omp") */
-export const APP_NAME: string = "omp";
+/** User-facing command name (also used as the process name). */
+export const APP_NAME: string = "chud";
 
-/** Public homepage that inference gateways (OpenRouter, Vercel AI Gateway) credit omp traffic to. */
-export const APP_URL: string = "https://omp.sh/";
+/** App directory within XDG roots (distinct from the command name). */
+export const APP_DATA_NAME: string = "chudcode";
 
-/** Config directory name (e.g. ".omp") */
-export const CONFIG_DIR_NAME: string = ".omp";
+/** Homepage supplied to inference gateways for attribution. */
+export const APP_URL: string = "https://github.com/Hunter-124/chudcode";
+
+/** Config directory name under HOME and in projects. */
+export const CONFIG_DIR_NAME: string = ".chudcode";
 
 /** Ordered main settings filenames: canonical write target first, legacy-compatible YAML fallback second. */
 export const MAIN_CONFIG_FILENAMES = ["config.yml", "config.yaml"] as const;
@@ -33,8 +30,8 @@ export const MAIN_CONFIG_FILENAMES = ["config.yml", "config.yaml"] as const;
 /** Version (e.g. "1.0.0") */
 export const VERSION: string = version;
 
-/** Default User-Agent header string (e.g. "omp/17.2.12") */
-export const USER_AGENT = `omp/${VERSION}`;
+/** Default User-Agent header string. Runtime version remains upstream's. */
+export const USER_AGENT = `chudcode/${VERSION}`;
 
 /** Minimum Bun version */
 export const MIN_BUN_VERSION: string = engines.bun.replace(/[^0-9.]/g, "");
@@ -71,7 +68,7 @@ export function normalizeProfileName(profile: string | undefined): string | unde
 		WINDOWS_RESERVED_BASENAME_RE.test(normalized)
 	) {
 		throw new Error(
-			`Invalid OMP profile "${profile}". Profile names must match ${PROFILE_NAME_RE.source}, ` +
+			`Invalid ${APP_NAME} profile "${profile}". Profile names must match ${PROFILE_NAME_RE.source}, ` +
 				`cannot be "." or "..", cannot end with ".", and cannot be a Windows reserved device name ` +
 				`(CON, PRN, AUX, NUL, COM0-9, LPT0-9, or any of those with an extension).`,
 		);
@@ -111,7 +108,7 @@ function readProfileFromEnvSafe(): string | undefined {
 	}
 }
 
-/** Profile-independent config root (~/.omp), shared by every omp profile. */
+/** Profile-independent config root (~/.chudcode by default), shared by every profile. */
 export function getBaseConfigRoot(): string {
 	return path.join(os.homedir(), getConfigDirName());
 }
@@ -303,12 +300,12 @@ export function getSafeProjectCwd(): string {
 	return os.homedir();
 }
 
-/** Get the config directory name relative to home (e.g. ".omp" or PI_CONFIG_DIR override). */
+/** Get the config directory name relative to home (default ".chudcode", or PI_CONFIG_DIR override). */
 export function getConfigDirName(): string {
 	return process.env.PI_CONFIG_DIR || CONFIG_DIR_NAME;
 }
 
-/** Get the config agent directory name relative to home (e.g. ".omp/agent" or PI_CONFIG_DIR + "/agent"). */
+/** Get the config agent directory name relative to home (default ".chudcode/agent"). */
 export function getConfigAgentDirName(): string {
 	const profile = getActiveProfile();
 	return profile ? path.join(getConfigDirName(), "profiles", profile, "agent") : `${getConfigDirName()}/agent`;
@@ -321,10 +318,9 @@ export function getConfigAgentDirName(): string {
 type XdgCategory = "data" | "state" | "cache";
 
 /**
- * Resolves and caches all omp directory paths. On Linux, when XDG environment
- * variables are set, paths are redirected under $XDG_*_HOME/omp/. A new
- * instance is created whenever the agent directory changes, which naturally
- * invalidates all cached paths.
+ * Resolve and cache Chudcode paths. On Linux, existing XDG app roots are
+ * addressed under $XDG_*_HOME/chudcode/. A new instance is created whenever
+ * the agent directory changes, invalidating cached paths.
  */
 class DirResolver {
 	readonly configRoot: string;
@@ -367,7 +363,7 @@ class DirResolver {
 				const value = process.env[envVar];
 				if (!value) return undefined;
 				try {
-					const appRoot = path.join(value, APP_NAME);
+					const appRoot = path.join(value, APP_DATA_NAME);
 					if (profile) {
 						const profilePath = path.join(appRoot, "profiles", profile);
 						if (fs.existsSync(profilePath)) {
@@ -590,26 +586,26 @@ export function getActiveProfile(): string | undefined {
 export function getProfileRootDir(profile: string | undefined): string {
 	return getProfileConfigRoot(normalizeProfileName(profile));
 }
-/** Get the agent config directory (~/.omp/agent). */
+/** Get the agent config directory (~/.chudcode/agent by default). */
 export function getAgentDir(): string {
 	return dirs.agentDir;
 }
 
-/** Get the project-local config directory (.omp). */
+/** Get the project-local config directory (.chudcode). */
 export function getProjectAgentDir(cwd: string = getProjectDir()): string {
 	return path.join(cwd, CONFIG_DIR_NAME);
 }
 
 // =============================================================================
-// Config-root subdirectories (~/.omp/*)
+// Config-root subdirectories (~/.chudcode/* by default)
 // =============================================================================
 
-/** Get the reports directory (~/.omp/reports). */
+/** Get the reports directory (~/.chudcode/reports by default). */
 export function getReportsDir(): string {
 	return dirs.rootSubdir("reports", "state");
 }
 
-/** Get the logs directory (~/.omp/logs). */
+/** Get the logs directory (~/.chudcode/logs by default). */
 export function getLogsDir(): string {
 	return dirs.rootSubdir("logs", "state");
 }
@@ -626,7 +622,7 @@ export function localDay(date: Date): string {
 	return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
 }
 
-/** Get this process's dated log path (~/.omp/logs/omp.YYYY-MM-DD.PID.log, local-day named like the rotating sink). */
+/** Get this process's dated log path (local-day named like the rotating sink). */
 export function getLogPath(date = new Date(), pid = process.pid): string {
 	return path.join(getLogsDir(), `${APP_NAME}.${localDay(date)}.${pid}.log`);
 }
@@ -971,12 +967,12 @@ export function getCustomSessionFilesDir(agentDir?: string): string {
 	return dirs.agentSubdir(agentDir, "custom-session-files", "state");
 }
 
-/** Get the crash log path (~/.omp/agent/omp-crash.log). */
+/** Get the crash log path (~/.chudcode/agent/chud-crash.log by default). */
 export function getCrashLogPath(agentDir?: string): string {
-	return dirs.agentSubdir(agentDir, "omp-crash.log", "state");
+	return dirs.agentSubdir(agentDir, `${APP_NAME}-crash.log`, "state");
 }
 
-/** Get the debug log path (~/.omp/agent/omp-debug.log). */
+/** Get the debug log path (~/.chudcode/agent/chud-debug.log by default). */
 export function getDebugLogPath(agentDir?: string): string {
 	return dirs.agentSubdir(agentDir, `${APP_NAME}-debug.log`, "state");
 }
@@ -1096,13 +1092,12 @@ let cachedInstallId: string | null = null;
 const INSTALL_ID_FILE = "install-id";
 /**
  * Application label for usage attribution (`OMP_APP_NAME`), defaulting to
- * `omp`. Embedders that drive omp programmatically (robomp, CI bots, …) set
- * the env var so broker-side per-client burn tracking can answer "what did
- * app X use" instead of folding everything into one install-wide bucket.
+ * Chudcode. Embedders that drive the agent programmatically set the env var
+ * so broker-side per-client burn tracking names the actual embedding app.
  */
 export function getAppName(): string {
 	const value = process.env.OMP_APP_NAME?.trim();
-	return value ? value : "omp";
+	return value ? value : APP_DATA_NAME;
 }
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;

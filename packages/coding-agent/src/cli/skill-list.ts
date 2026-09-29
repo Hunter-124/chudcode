@@ -1,6 +1,6 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
-import { isEnoent, isEnotdir } from "@oh-my-pi/pi-utils";
+import { APP_NAME, isEnoent, isEnotdir } from "@oh-my-pi/pi-utils";
 import { CliUsageError } from "@oh-my-pi/pi-utils/cli";
 import { Settings } from "../config/settings";
 import type { EffectiveExtensionRoots } from "../capability/types";
@@ -98,7 +98,7 @@ function toTerminalSafe(value: string): string {
  * including discovery warnings.
  */
 export async function handleSkillList(args: string[], cwd: string, json: boolean): Promise<number> {
-	if (args.length > 1) throw new CliUsageError("usage: omp skill list [dir] [--json]");
+	if (args.length > 1) throw new CliUsageError(`usage: ${APP_NAME} skill list [dir] [--json]`);
 	const target = args[0] ? path.resolve(cwd, args[0]) : cwd;
 	let isDirectory = false;
 	try {

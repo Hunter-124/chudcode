@@ -5,6 +5,7 @@
 
 import { getProjectDir } from "@oh-my-pi/pi-utils";
 import { Args, Command, Flags } from "@oh-my-pi/pi-utils/cli";
+import { APP_NAME } from "@oh-my-pi/pi-utils/dirs";
 import { gitHelp as commandHelp } from "../cli/command-help";
 import { runGitTui } from "../cli/git-tui";
 import { Settings, settings } from "../config/settings";
@@ -26,12 +27,12 @@ export default class Git extends Command {
 		dir: Flags.string({ char: "C", description: "Run in another directory instead of the current one" }),
 	};
 
-	static examples = ["omp git", "omp git HEAD~2", "omp git -C ~/projects/app"];
+	static examples = [`${APP_NAME} git`, `${APP_NAME} git HEAD~2`, `${APP_NAME} git -C ~/projects/app`];
 
 	async run(): Promise<void> {
 		const { args, flags } = await this.parse(Git);
 		if (process.stdout.isTTY !== true || process.stdin.isTTY !== true) {
-			console.error("omp git is interactive and requires a TTY");
+			console.error(`${APP_NAME} git is interactive and requires a TTY`);
 			process.exit(1);
 		}
 		// Load settings first so the user's configured theme/symbol preset apply

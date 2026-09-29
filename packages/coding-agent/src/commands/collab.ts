@@ -2,6 +2,7 @@
  * Discover local Collab hosts and retrieve a link on explicit request.
  */
 import { Args, CliUsageError, Command, Flags } from "@oh-my-pi/pi-utils/cli";
+import { APP_NAME } from "@oh-my-pi/pi-utils/dirs";
 import { runCollabLinkCommand, runCollabListCommand } from "../cli/collab-cli";
 import { collabHelp as commandHelp } from "../cli/command-help";
 import { CollabLinkError } from "../collab/registry";
@@ -27,10 +28,10 @@ export default class Collab extends Command {
 	};
 
 	static examples = [
-		"omp collab list",
-		"omp collab list --json",
-		"omp collab link <instanceId|pid>",
-		"omp collab link <pid> --view",
+		`${APP_NAME} collab list`,
+		`${APP_NAME} collab list --json`,
+		`${APP_NAME} collab link <instanceId|pid>`,
+		`${APP_NAME} collab link <pid> --view`,
 	];
 
 	async run(): Promise<void> {

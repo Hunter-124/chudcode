@@ -3,6 +3,7 @@
  */
 
 import { Args, CliUsageError, Command, Flags } from "@oh-my-pi/pi-utils/cli";
+import { APP_NAME } from "@oh-my-pi/pi-utils/dirs";
 import { parseArgs } from "../cli/args";
 import { setupHelp as commandHelp } from "../cli/command-help";
 import { runSetupCommand, type SetupCommandArgs, type SetupComponent } from "../cli/setup-cli";
@@ -23,7 +24,7 @@ export async function runOnboardingSetup(deps: OnboardingSetupDependencies = {})
 	const stdinIsTTY = deps.stdinIsTTY ?? process.stdin.isTTY;
 	const stdoutIsTTY = deps.stdoutIsTTY ?? process.stdout.isTTY;
 	if (!stdinIsTTY || !stdoutIsTTY) {
-		(deps.writeStderr ?? (text => process.stderr.write(text)))("omp setup requires an interactive TTY.\n");
+		(deps.writeStderr ?? (text => process.stderr.write(text)))(`${APP_NAME} setup requires an interactive TTY.\n`);
 		(deps.exit ?? process.exit)(1);
 		return;
 	}

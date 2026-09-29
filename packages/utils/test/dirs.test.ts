@@ -5,6 +5,11 @@ import * as path from "node:path";
 import * as nativePath from "@oh-my-pi/pi-natives/path";
 import {
 	__resetProjectDirCacheForTests,
+	getBaseConfigRoot,
+	getAgentDir,
+	getAppName,
+	getConfigDirName,
+	getProjectAgentDir,
 	directoryIsMissing,
 	getLogPath,
 	getProjectDir,
@@ -86,6 +91,16 @@ describe("project directory state", () => {
 	});
 });
 
+describe("Chudcode directories", () => {
+	it("uses a separate config root, agent history, and project configuration", () => {
+		expect(getConfigDirName()).toBe(".chudcode");
+		expect(getBaseConfigRoot()).toBe(path.join(os.homedir(), ".chudcode"));
+		expect(getAgentDir()).toBe(path.join(getBaseConfigRoot(), "agent"));
+		expect(getProjectAgentDir(originalProjectDir)).toBe(path.join(originalProjectDir, ".chudcode"));
+		expect(getAppName()).toBe("chudcode");
+	});
+});
+
 describe("dated log path", () => {
 	it("names log files with the local day, matching the rotating sink", () => {
 		// Local 2026-05-31 02:30: in UTC+8 the UTC day is still 2026-05-30, so a
@@ -93,7 +108,7 @@ describe("dated log path", () => {
 		// sink (logger/rotating-file.ts) never creates.
 		const date = new Date(2026, 4, 31, 2, 30);
 		expect(localDay(date)).toBe("2026-05-31");
-		expect(path.basename(getLogPath(date, 123))).toBe("omp.2026-05-31.123.log");
+		expect(path.basename(getLogPath(date, 123))).toBe("chud.2026-05-31.123.log");
 	});
 
 	it("keeps the local-day key under a forced non-UTC timezone", () => {

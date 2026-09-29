@@ -32,7 +32,7 @@ import {
 import { DEFAULT_AUTH_GATEWAY_BIND, startAuthGateway } from "@oh-my-pi/pi-ai/auth-gateway";
 import { type GeneratedProvider, getBundledModels } from "@oh-my-pi/pi-catalog/models";
 import { type ModelKind, modelKind } from "@oh-my-pi/pi-catalog/types";
-import { getConfigRootDir, logger, VERSION } from "@oh-my-pi/pi-utils";
+import { APP_NAME, getConfigRootDir, logger, VERSION } from "@oh-my-pi/pi-utils";
 import chalk from "@oh-my-pi/pi-utils/chalk";
 import { ModelRegistry } from "../config/model-registry";
 import {
@@ -222,7 +222,7 @@ async function runServe(flags: AuthGatewayCommandArgs["flags"]): Promise<void> {
 	const brokerConfig = await resolveAuthBrokerConfig();
 	if (!brokerConfig) {
 		throw new Error(
-			"`omp auth-gateway serve` requires OMP_AUTH_BROKER_URL (or `auth.broker.url`/`auth.broker.token` in config.yml). The gateway is itself a broker client.",
+			`\`${APP_NAME} auth-gateway serve\` requires OMP_AUTH_BROKER_URL (or \`auth.broker.url\`/\`auth.broker.token\` in config.yml). The gateway is itself a broker client.`,
 		);
 	}
 	const bind = flags.bind ?? DEFAULT_AUTH_GATEWAY_BIND;
@@ -443,7 +443,7 @@ async function runStatus(flags: AuthGatewayCommandArgs["flags"]): Promise<void> 
 			);
 			if (!tokenPresent) {
 				process.stdout.write(
-					"Run `omp auth-gateway token` or `omp auth-gateway serve` to create a bearer token.\n",
+					`Run \`${APP_NAME} auth-gateway token\` or \`${APP_NAME} auth-gateway serve\` to create a bearer token.\n`,
 				);
 			}
 		}
@@ -680,7 +680,7 @@ async function runCheck(flags: AuthGatewayCommandArgs["flags"]): Promise<void> {
 	const brokerConfig = await resolveAuthBrokerConfig();
 	if (!brokerConfig) {
 		throw new Error(
-			"`omp auth-gateway check` requires OMP_AUTH_BROKER_URL (or `auth.broker.url`/`auth.broker.token` in config.yml). It probes the same credentials the gateway would serve.",
+			`\`${APP_NAME} auth-gateway check\` requires OMP_AUTH_BROKER_URL (or \`auth.broker.url\`/\`auth.broker.token\` in config.yml). It probes the same credentials the gateway would serve.`,
 		);
 	}
 
