@@ -6,6 +6,10 @@
 
 - Added `sleep(ms, { signal, ref })` and `sleepSync(ms)`, the host-agnostic timer helpers every package now uses in place of the Bun globals.
 
+### Fixed
+
+- Compiled binaries start again. `ptree` resolved `@chudware/natives` at module scope, which throws inside a single-file binary and killed the process at import with `Cannot find module '@chudware/natives' from '/$bunfs/root/packages/coding-agent/src/cli.js'`; resolution is now lazy and falls back to the bare specifier.
+
 ## [18.0.8] - 2026-08-27
 
 ### Added

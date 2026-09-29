@@ -22,6 +22,7 @@ import {
 	PRODUCT_RELEASE_REPO,
 	PRODUCT_RELEASE_TAG_PREFIX,
 	PRODUCT_SEMVER,
+	releaseBinaryName,
 } from "../brand";
 import { settings } from "../config/settings";
 import { theme } from "../modes/theme/theme";
@@ -1109,43 +1110,10 @@ export function isMuslLinuxForTest(options: Required<MuslDetectionOptions>): boo
 }
 
 /**
- * Get the appropriate binary name for this platform.
+ * Release asset name for the running host.
  */
 function getBinaryName(): string {
-	const platform = process.platform;
-	const arch = process.arch;
-
-	let os: string;
-	switch (platform) {
-		case "linux":
-			os = isMuslLinux() ? "linux-musl" : "linux";
-			break;
-		case "darwin":
-			os = "darwin";
-			break;
-		case "win32":
-			os = "windows";
-			break;
-		default:
-			throw new Error(`Unsupported platform: ${platform}`);
-	}
-
-	let archName: string;
-	switch (arch) {
-		case "x64":
-			archName = "x64";
-			break;
-		case "arm64":
-			archName = "arm64";
-			break;
-		default:
-			throw new Error(`Unsupported architecture: ${arch}`);
-	}
-
-	if (os === "windows") {
-		return `${PRODUCT_CLI_NAME}-${os}-${archName}.exe`;
-	}
-	return `${PRODUCT_CLI_NAME}-${os}-${archName}`;
+	return releaseBinaryName({ platform: process.platform, arch: process.arch, musl: isMuslLinux() });
 }
 
 /**

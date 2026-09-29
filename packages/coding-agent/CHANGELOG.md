@@ -4,6 +4,7 @@
 
 ### Fixed
 
+- `chud update` installs releases again. Renaming the command to `chud` also renamed the release asset the updater looked for, so every build after the rename failed with `GitHub release chudcode-v0.3.0 has 0 assets named chud-linux-x64`; the asset name is now pinned to the published `chudcode-<os>-<arch>` binaries independently of the command name.
 - Sessions with missing historical image blobs now resume normally, showing an unavailable-image marker instead of repeatedly sending malformed base64 to the provider.
 - Sleep prevention now works on Linux: `power.sleepPrevention` takes a systemd-logind inhibitor for the duration of each prompt, so a long run no longer lets the machine dim, blank, lock, or suspend. It was previously macOS-only and silently did nothing everywhere else.
 - The Chudcode desktop launcher opens the native GUI window instead of a browser tab.
