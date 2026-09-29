@@ -121,7 +121,7 @@ export const CATALOG_PROVIDERS = [
 	},
 	{
 		id: "anthropic",
-		defaultModel: "claude-opus-4-8",
+		defaultModel: "claude-opus-5-5",
 		envVars: ["ANTHROPIC_API_KEY"],
 		createModelManagerOptions: (config: ModelManagerConfig) => anthropicModelManagerOptions(config),
 		catalogDiscovery: { label: "Anthropic" },

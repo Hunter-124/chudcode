@@ -792,6 +792,15 @@ describe("model thinking derivation", () => {
 		expect(fable.compat.supportsSamplingParams).toBe(false);
 	});
 
+	it("keeps forced tool selection off Opus 5.5 without disabling later Opus generations", () => {
+		const opus55 = createModel({ id: "claude-opus-5-5", api: "anthropic-messages", provider: "anthropic" });
+		const opus60 = createModel({ id: "claude-opus-6", api: "anthropic-messages", provider: "anthropic" });
+		const sonnet55 = createModel({ id: "claude-sonnet-5-5", api: "anthropic-messages", provider: "anthropic" });
+		expect(opus55.compat.supportsForcedToolChoice).toBe(false);
+		expect(opus60.compat.supportsForcedToolChoice).toBe(true);
+		expect(sonnet55.compat.supportsForcedToolChoice).toBe(true);
+	});
+
 	it("bakes sampling-param rejection into OpenAI reasoning compat (#5606)", () => {
 		// GitHub Copilot Responses gpt-5.6 — the reported failing model.
 		const luna = createModel({

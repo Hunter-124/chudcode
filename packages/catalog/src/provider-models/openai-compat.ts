@@ -310,6 +310,30 @@ function buildAnthropicReferenceMap(
  */
 export const ANTHROPIC_CURATED_FALLBACK_MODELS: readonly ModelSpec<"anthropic-messages">[] = [
 	{
+		id: "claude-opus-5-5",
+		name: "Claude Opus 5.5",
+		api: "anthropic-messages",
+		provider: "anthropic",
+		baseUrl: "https://api.anthropic.com",
+		reasoning: true,
+		input: ["text", "image"],
+		cost: { input: 4, output: 20, cacheRead: 0.2, cacheWrite: 5 },
+		contextWindow: 1_000_000,
+		maxTokens: 128_000,
+	},
+	{
+		id: "claude-sonnet-5-5",
+		name: "Claude Sonnet 5.5",
+		api: "anthropic-messages",
+		provider: "anthropic",
+		baseUrl: "https://api.anthropic.com",
+		reasoning: true,
+		input: ["text", "image"],
+		cost: { input: 2, output: 10, cacheRead: 0.2, cacheWrite: 2.5 },
+		contextWindow: 1_000_000,
+		maxTokens: 128_000,
+	},
+	{
 		id: "claude-sonnet-5",
 		name: "Claude Sonnet 5",
 		api: "anthropic-messages",
@@ -6202,6 +6226,10 @@ export function anthropicModelManagerOptions(
 									...defaults,
 									name: discoveredName,
 									baseUrl,
+									// /v1/models publishes IDs and names, but not capabilities.
+									// A new Claude must not lose its family-derived effort ladder
+									// while waiting for the shared catalog to list it.
+									reasoning: anthropicModelSupportsThinking(defaults.id),
 								};
 							}
 							return {

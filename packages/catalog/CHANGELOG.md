@@ -6,6 +6,10 @@
 
 - The bundled model catalog now loads from a memory-mapped binary file and materializes each provider only when it is first requested, so startup no longer parses the whole catalog into the heap and concurrent instances share one read-only mapping of the model data.
 
+### Added
+
+- Bundled Claude Opus 5.5 and Sonnet 5.5 with their current Anthropic pricing, 1M-token context, 128K output, and five-level adaptive thinking; Opus 5.5 is now the Anthropic default. Newly discovered Claude models from `/v1/models` inherit reasoning and the family-specific thinking ladder even before the shared catalog lists them.
+
 ## [18.0.8] - 2026-08-27
 
 ### Fixed

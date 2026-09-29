@@ -5,6 +5,7 @@
  * classification, with explicit spec overrides assigned on top.
  */
 import { hostMatchesUrl, modelMatchesHost } from "../hosts";
+import { bareModelId, parseAnthropicModel, semverGte } from "../identity/classify";
 import {
 	hasOpus47ApiRestrictions,
 	isAnthropicFableOrMythosModel,
@@ -132,6 +133,11 @@ export function buildAnthropicCompat(spec: ModelSpec<"anthropic-messages">): Res
 	const requiresThinkingEnabled = modelMatchesHost(spec, "moonshotNative") && matchesKimiMandatoryThinkingModel(spec);
 	const isAzure = isAzureAnthropicRoute(baseUrl);
 	const signingEndpoint = official || isCopilot || isZenmux || isAnthropicSigningProxyUrl(baseUrl);
+	// Opus 5.5 rejects forced `tool_choice`; keep future 6.x generations
+	// independent until their API contract is known.
+	const opus = parseAnthropicModel(bareModelId(spec.id));
+	const rejectsForcedToolChoice =
+		opus?.kind === "opus" && semverGte(opus.version, "5.5") && !semverGte(opus.version, "6");
 	const compat: ResolvedAnthropicCompat = {
 		officialEndpoint: official,
 		signingEndpoint,
@@ -147,7 +153,10 @@ export function buildAnthropicCompat(spec: ModelSpec<"anthropic-messages">): Res
 		// detection requires the canonical api.anthropic.com host plus a
 		// supported model id.
 		supportsMidConversationSystem: official && supportsMidConversationSystemMessages(spec.id),
-		supportsForcedToolChoice: !requiresThinkingEnabled && !isAnthropicFableOrMythosModel(spec.id),
+		supportsForcedToolChoice:
+			!requiresThinkingEnabled &&
+			!isAnthropicFableOrMythosModel(spec.id) &&
+			!rejectsForcedToolChoice,
 		// Opus 4.7+ and Fable/Mythos reject temperature/top_p/top_k with a 400.
 		supportsSamplingParams: !hasOpus47ApiRestrictions(spec.id),
 		// Z.AI workaround (issue #814): its proxy deserializes tool_result blocks
