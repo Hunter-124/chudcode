@@ -11,7 +11,7 @@ import { createAcpSessionFactory } from "@oh-my-pi/pi-coding-agent/main";
 import { createAgentSession } from "@oh-my-pi/pi-coding-agent/sdk";
 import type { AgentSession } from "@oh-my-pi/pi-coding-agent/session/agent-session";
 import { AgentStorage } from "@oh-my-pi/pi-coding-agent/session/agent-storage";
-import { TempDir } from "@oh-my-pi/pi-utils";
+import { getProjectAgentDir, TempDir } from "@oh-my-pi/pi-utils";
 import { createAssistantMessage, createInMemoryAuthStorage } from "./helpers/agent-session-setup";
 
 const authStorage = createInMemoryAuthStorage();
@@ -44,7 +44,7 @@ describe("concurrent ACP sessions", () => {
 	it("redact each session's requests per its own project's secrets.enabled", async () => {
 		using launchDir = TempDir.createSync("@pi-acp-effects-launch-");
 		using projectDir = TempDir.createSync("@pi-acp-effects-project-");
-		await Bun.write(projectDir.join(".omp/config.yml"), "secrets:\n  enabled: true\n");
+		await Bun.write(`${getProjectAgentDir(projectDir.path())}/config.yml`, "secrets:\n  enabled: true\n");
 		// What the provider's credential-redaction pass does to a token in each request it builds.
 		const requests: Array<{ context: string; credential: string }> = [];
 		registerCustomApi(API, (_model, context) => {

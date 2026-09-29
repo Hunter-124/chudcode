@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- Project task agents under the configured directory are discovered for task descriptions and ACP plugin reloads, including when the app's config directory is not `.omp`.
+
 ## [18.4.4] - 2026-09-29
 
 ### Added

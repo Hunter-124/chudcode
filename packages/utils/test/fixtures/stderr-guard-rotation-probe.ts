@@ -8,7 +8,7 @@
  */
 import * as fs from "node:fs";
 import * as path from "node:path";
-import { getLogPath } from "../../src/dirs";
+import { APP_NAME, getLogPath } from "../../src/dirs";
 import { RotatingFileSink } from "../../src/logger/rotating-file";
 import { restoreTerminalStderr, setStderrRedirectTarget, suppressTerminalStderr } from "../../src/stderr-guard";
 
@@ -18,9 +18,9 @@ const thirdDay = process.argv[4];
 
 const sink = new RotatingFileSink({
 	directory,
-	filenamePrefix: "omp",
+	filenamePrefix: APP_NAME,
 	filenameSuffix: String(process.pid),
-	auditFile: path.join(directory, `.omp.${process.pid}-audit.json`),
+	auditFile: path.join(directory, `.${APP_NAME}.${process.pid}-audit.json`),
 	maxBytes: 10 * 1024 * 1024,
 	maxFiles: 5,
 	onRotate: setStderrRedirectTarget,

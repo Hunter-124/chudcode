@@ -163,8 +163,12 @@ describe("lazy snapcompact frame resolution", () => {
 		await fsp.rm(path.join(getBlobsDir(), match[1]), { force: true });
 
 		const resumed = await SessionManager.open(sessionFile, sessionDir, undefined, { suppressBreadcrumb: true });
-		expect(archiveFrames(resumed, compactionId)[0]?.data).toStartWith("blob:sha256:");
-		expect(imageDataIn(resumed.buildSessionContext().messages)).toEqual([]);
+		expect(archiveFrames(resumed, compactionId)).toEqual([]);
+		const messages = resumed.buildSessionContext().messages;
+		expect(imageDataIn(messages)).toEqual([]);
+		expect(JSON.stringify(messages)).toContain("head");
+		expect(JSON.stringify(messages)).toContain("tail");
+		expect(JSON.stringify(messages)).not.toContain(match[0]);
 		await resumed.close();
 	});
 });

@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import { Database } from "bun:sqlite";
 import { ThinkingLevel } from "@oh-my-pi/pi-agent-core";
+import { APP_DATA_NAME } from "@oh-my-pi/pi-utils/dirs";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
@@ -114,7 +115,7 @@ describe("composer startup cache", () => {
 		const project = path.join(root, "project");
 		await Promise.all([
 			fs.mkdir(home, { recursive: true }),
-			fs.mkdir(path.join(xdgCache, "omp"), { recursive: true }),
+			fs.mkdir(path.join(xdgCache, APP_DATA_NAME), { recursive: true }),
 		]);
 		await Bun.write(path.join(home, ".env"), `XDG_CACHE_HOME=${xdgCache}\n`);
 
@@ -125,7 +126,7 @@ describe("composer startup cache", () => {
 			"const cache = ComposerCache.open();",
 			`cache.writeWelcome(${JSON.stringify(project)}, { modelName: "model", providerName: "provider" });`,
 			"cache.close();",
-			`const expected = path.join(${JSON.stringify(xdgCache)}, "omp", "cache", "composer.db");`,
+			`const expected = path.join(${JSON.stringify(xdgCache)}, ${JSON.stringify(APP_DATA_NAME)}, "cache", "composer.db");`,
 			"process.stdout.write(String(await Bun.file(expected).exists()));",
 		].join("\n");
 		const proc = Bun.spawn([process.execPath, "--no-env-file", "--no-install", "--eval", script], {

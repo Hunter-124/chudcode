@@ -18,7 +18,7 @@ import { createAgentSession } from "@oh-my-pi/pi-coding-agent/sdk";
 import type { AgentSession } from "@oh-my-pi/pi-coding-agent/session/agent-session";
 import { AuthStorage } from "@oh-my-pi/pi-coding-agent/session/auth-storage";
 import { SessionManager } from "@oh-my-pi/pi-coding-agent/session/session-manager";
-import { getConfigRootDir, setAgentDir, TempDir } from "@oh-my-pi/pi-utils";
+import { getConfigRootDir, getProjectAgentDir, setAgentDir, TempDir } from "@oh-my-pi/pi-utils";
 
 function buildLocalModel(api: string): Model<Api> {
 	return buildModel({
@@ -86,7 +86,9 @@ async function expectStickyRuleReload(
 	// Project scope: nearest `.omp/RULES.md` walking up from cwd.
 	if (opts.scope === "user") setAgentDir(tempDir.path());
 	const rulesMd =
-		opts.scope === "user" ? path.join(tempDir.path(), "RULES.md") : path.join(tempDir.path(), ".omp", "RULES.md");
+		opts.scope === "user"
+			? path.join(tempDir.path(), "RULES.md")
+			: path.join(getProjectAgentDir(tempDir.path()), "RULES.md");
 	if (opts.seedInitial) {
 		await fs.mkdir(path.dirname(rulesMd), { recursive: true });
 		await fs.writeFile(rulesMd, original);
@@ -153,7 +155,7 @@ describe("AgentSession session-local rule snapshot reload on session reset", () 
 		const body = `RULEBOOK_BODY_${marker}`;
 		const ruleName = `reload-book-${marker}`;
 		// Empty `.omp/rules/` keeps the project config scope present without any rulebook rule yet.
-		const rulesDir = path.join(tempDir.path(), ".omp", "rules");
+		const rulesDir = path.join(getProjectAgentDir(tempDir.path()), "rules");
 		await fs.mkdir(rulesDir, { recursive: true });
 
 		const { session, authStorage } = await createReloadSession(tempDir);

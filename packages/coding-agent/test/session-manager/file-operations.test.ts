@@ -165,8 +165,17 @@ describe("SessionManager temp cwd session dirs", () => {
 	const originalAgentDir = process.env.PI_CODING_AGENT_DIR;
 	const fallbackAgentDir = path.join(getConfigRootDir(), "agent");
 
+	function sessionDirScope(tempCwd: string): "home" | "tmp" {
+		const relative = path.relative(resolveEquivalentPath(os.homedir()), resolveEquivalentPath(tempCwd));
+		return relative === "" || (!relative.startsWith("..") && !path.isAbsolute(relative)) ? "home" : "tmp";
+	}
+
 	function expectedTempSessionDirName(tempCwd: string): string {
-		return `-tmp-${path.relative(os.tmpdir(), path.resolve(tempCwd)).replace(/[/\\:]/g, "-")}`;
+		const scope = sessionDirScope(tempCwd);
+		const root = scope === "home" ? os.homedir() : os.tmpdir();
+		const relative = path.relative(resolveEquivalentPath(root), resolveEquivalentPath(tempCwd));
+		const prefix = scope === "home" ? "-" : "-tmp-";
+		return `${prefix}${relative.replace(/[/\\:]/g, "-")}`;
 	}
 
 	function toLegacyAbsoluteSessionDirName(cwd: string): string {
@@ -191,7 +200,7 @@ describe("SessionManager temp cwd session dirs", () => {
 		removeSyncWithRetries(testAgentDir);
 	});
 
-	it("stores temp-root cwd sessions under -tmp-prefixed directories", () => {
+	it("stores temp-root cwd sessions under the applicable home or -tmp prefix", () => {
 		const tempCwd = path.join(testAgentDir, `temp-cwd-${Snowflake.next()}`);
 		fs.mkdirSync(tempCwd, { recursive: true });
 
@@ -202,7 +211,7 @@ describe("SessionManager temp cwd session dirs", () => {
 		expect(path.dirname(sessionFile)).toBe(path.join(getSessionsDir(), expectedTempSessionDirName(tempCwd)));
 	});
 
-	it("migrates legacy temp-root absolute session dirs to -tmp prefixes", () => {
+	it("migrates legacy temp-root absolute session dirs to the applicable prefix", () => {
 		const tempCwd = path.join(testAgentDir, `legacy-cwd-${Snowflake.next()}`);
 		fs.mkdirSync(tempCwd, { recursive: true });
 
@@ -221,11 +230,12 @@ describe("SessionManager temp cwd session dirs", () => {
 		expect(fs.existsSync(path.join(expectedDir, "carried.jsonl"))).toBe(true);
 	});
 
-	it("migrates hashed-scheme session dirs back into legacy names", () => {
+	it("migrates hashed-scheme session dirs back into current names", () => {
 		const tempCwd = path.join(testAgentDir, `hashed-cwd-${Snowflake.next()}`);
 		fs.mkdirSync(tempCwd, { recursive: true });
 
 		// Reconstruct the 17.2.5-17.2.8 hashed dir name (reverted PR #7397).
+		// When TMPDIR is beneath HOME, home-scoped names take precedence.
 		const canonicalCwd = resolveEquivalentPath(path.resolve(tempCwd));
 		const normalized = canonicalCwd.replaceAll("\\", "/");
 		const readable = path
@@ -234,7 +244,7 @@ describe("SessionManager temp cwd session dirs", () => {
 			.replace(/^-+|-+$/g, "")
 			.slice(-80);
 		const digest = Bun.SHA256.hash(normalized, "hex");
-		const hashedDir = path.join(getSessionsDir(), `tmp-${readable || "project"}-${digest}`);
+		const hashedDir = path.join(getSessionsDir(), `${sessionDirScope(tempCwd)}-${readable || "project"}-${digest}`);
 		fs.mkdirSync(hashedDir, { recursive: true });
 		fs.writeFileSync(path.join(hashedDir, "stranded.jsonl"), "stranded\n");
 

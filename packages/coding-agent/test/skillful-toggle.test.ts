@@ -12,7 +12,7 @@ import { AuthStorage } from "@oh-my-pi/pi-coding-agent/session/auth-storage";
 import { BUILTIN_MODE_SLASH_COMMANDS } from "@oh-my-pi/pi-coding-agent/slash-commands/builtin-modes";
 import type { SlashCommandRuntime } from "@oh-my-pi/pi-coding-agent/slash-commands/types";
 import { SessionManager } from "@oh-my-pi/pi-coding-agent/session/session-manager";
-import { removeSyncWithRetries } from "@oh-my-pi/pi-utils";
+import { getProjectAgentDir, removeSyncWithRetries } from "@oh-my-pi/pi-utils";
 import { cleanupTempHome } from "./helpers/temp-home-cleanup";
 
 import { cfgSkillful } from "@oh-my-pi/pi-coding-agent/session/settings";
@@ -58,9 +58,10 @@ describe("skillful setting and /skillful session toggle", () => {
 		originalHome = process.env.HOME;
 		tempHomeDir = fs.mkdtempSync(path.join(os.tmpdir(), "pi-skillful-home-"));
 		process.env.HOME = tempHomeDir;
-		fs.mkdirSync(path.join(tempDir, ".omp", "skills", "test-skill"), { recursive: true });
+		const skillDir = path.join(getProjectAgentDir(tempDir), "skills", "test-skill");
+		fs.mkdirSync(skillDir, { recursive: true });
 		fs.writeFileSync(
-			path.join(tempDir, ".omp", "skills", "test-skill", "SKILL.md"),
+			path.join(skillDir, "SKILL.md"),
 			`---\nname: test-skill\ndescription: A test skill for the skillful toggle.\n---\n# Test Skill\n`,
 		);
 	});
@@ -136,7 +137,7 @@ describe("skillful setting and /skillful session toggle", () => {
 	});
 
 	it("announces URI syntax without catalog rows for hidden-only skills mid-session", async () => {
-		const skillDir = path.join(tempDir, ".omp", "skills", "test-skill");
+		const skillDir = path.join(getProjectAgentDir(tempDir), "skills", "test-skill");
 		const skillFile = path.join(skillDir, "SKILL.md");
 		await Bun.write(
 			skillFile,

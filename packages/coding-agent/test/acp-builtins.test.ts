@@ -1246,8 +1246,9 @@ describe("wave 4 commands", () => {
 		const { output, runtime } = createRuntime();
 		const result = await executeAcpBuiltinSlashCommand("/mcp resources", runtime);
 		expect(result).toEqual({ consumed: true });
-		// No servers configured in tmp project dir — should report that
-		expect(output[0]).toMatch(/No MCP servers configured|No resources/);
+		// The user's MCP configuration may provide servers even in a temporary project.
+		// In that case, the command lists qualified resource URIs instead of an empty-state message.
+		expect(output[0]).toMatch(/^(?:No MCP servers configured|No resources available|[^\s/]+\/[^\s:]+:\/\/\S+)/);
 	});
 
 	it("/mcp unknown-verb: returns usage pointing to help", async () => {

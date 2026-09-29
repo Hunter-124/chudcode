@@ -8,6 +8,7 @@ import {
 	loadSystemPromptFiles,
 	type SystemPromptToolMetadata,
 } from "@oh-my-pi/pi-coding-agent/system-prompt";
+import { getConfigAgentDirName, getProjectAgentDir } from "@oh-my-pi/pi-utils/dirs";
 import { cleanupTempHome } from "./helpers/temp-home-cleanup";
 
 function escapeRegExp(text: string): string {
@@ -200,10 +201,11 @@ describe("SYSTEM.md prompt assembly", () => {
 
 	it("prefers project SYSTEM.md over user SYSTEM.md", async () => {
 		const projectDir = path.join(tempDir, "project");
-		fs.mkdirSync(path.join(projectDir, ".omp"), { recursive: true });
-		fs.mkdirSync(path.join(tempHomeDir, ".omp", "agent"), { recursive: true });
-		fs.writeFileSync(path.join(tempHomeDir, ".omp", "agent", "SYSTEM.md"), "User SYSTEM prompt");
-		fs.writeFileSync(path.join(projectDir, ".omp", "SYSTEM.md"), "Project SYSTEM prompt");
+		fs.mkdirSync(getProjectAgentDir(projectDir), { recursive: true });
+		const userAgentDir = path.join(tempHomeDir, getConfigAgentDirName());
+		fs.mkdirSync(userAgentDir, { recursive: true });
+		fs.writeFileSync(path.join(userAgentDir, "SYSTEM.md"), "User SYSTEM prompt");
+		fs.writeFileSync(path.join(getProjectAgentDir(projectDir), "SYSTEM.md"), "Project SYSTEM prompt");
 
 		await expect(loadSystemPromptFiles({ cwd: projectDir })).resolves.toBe("Project SYSTEM prompt");
 	});

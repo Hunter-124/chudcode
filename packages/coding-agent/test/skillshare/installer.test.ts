@@ -22,7 +22,7 @@ import {
 } from "@oh-my-pi/pi-coding-agent/skillshare/manifest";
 import { writeTar } from "@oh-my-pi/pi-coding-agent/skillshare/tar";
 import { removeWithRetries } from "@oh-my-pi/pi-utils";
-import { getAgentDir, setAgentDir } from "@oh-my-pi/pi-utils/dirs";
+import { getAgentDir, getConfigAgentDirName, getProjectAgentDir, setAgentDir } from "@oh-my-pi/pi-utils/dirs";
 import type { SkillPackument, SkillVersionManifest, SkillVersionSummary } from "@oh-my-pi/pi-wire/skillshare";
 
 const SCOPE = "alice";
@@ -170,7 +170,7 @@ describe("installer", () => {
 		project = path.join(tempHome, "work", "proj");
 		await fs.mkdir(path.join(project, ".git"), { recursive: true });
 		vi.spyOn(os, "homedir").mockReturnValue(tempHome);
-		setAgentDir(path.join(tempHome, ".omp", "agent"));
+		setAgentDir(path.join(tempHome, getConfigAgentDirName()));
 		client = await SkillshareClient.create({ registryUrl: "https://skills.test" });
 		registry = { pk: packument([], {}), tarballs: {}, files: [] };
 		vi.spyOn(client, "packument").mockImplementation(async () => registry.pk);
@@ -217,10 +217,10 @@ describe("installer", () => {
 
 		expect(changes).toEqual([{ id: ID, from: undefined, to: "1.1.0", range: "^1.1.0", restored: false }]);
 		expect(confirmations).toEqual([`${ID}@1.1.0:scripts/run.sh`]);
-		expect(await readSkillsManifest(path.join(project, ".omp", "skills.json"))).toEqual({
+		expect(await readSkillsManifest(path.join(getProjectAgentDir(project), "skills.json"))).toEqual({
 			skills: { [ID]: "^1.1.0" },
 		});
-		const lock = await readSkillsLock(path.join(project, ".omp", "skills.lock.json"));
+		const lock = await readSkillsLock(path.join(getProjectAgentDir(project), "skills.lock.json"));
 		expect(lock.skills[ID]).toEqual({
 			version: "1.1.0",
 			integrity: computeIntegrity(tgz),
