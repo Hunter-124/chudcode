@@ -2771,21 +2771,25 @@ mod tests {
 		let dir = tempfile::tempdir().expect("jobspec directory");
 		let first_pidfile = dir.path().join("first.pid");
 		let second_pidfile = dir.path().join("second.pid");
+		let first_signaled = dir.path().join("first.signaled");
+		let second_signaled = dir.path().join("second.signaled");
 		let _cleanup = PidfileProcessCleanup(vec![first_pidfile.clone(), second_pidfile.clone()]);
 		let first_ready = dir.path().join("first.ready");
 		let second_ready = dir.path().join("second.ready");
-		let first_script = "trap 'exit 42' TERM; echo $$ > \"$1\"; : > \"$2\"; kill -STOP $$; while \
-		                    :; do sleep 0.05; done";
-		let second_script = "trap 'exit 43' TERM; echo $$ > \"$1\"; : > \"$2\"; kill -STOP $$; \
+		let first_script = "trap 'echo TERM > \"$3\"; exit 42' TERM; echo $$ > \"$1\"; : > \"$2\"; \
+		                    kill -STOP $$; while :; do sleep 0.05; done";
+		let second_script = "trap 'echo TERM > \"$3\"; exit 43' TERM; echo $$ > \"$1\"; : > \"$2\"; \
 		                     while :; do sleep 0.05; done";
 		let command = format!(
-			"sh -c {} sh {} {} | sh -c {} sh {} {}",
+			"sh -c {} sh {} {} {} | sh -c {} sh {} {} {}",
 			quote_arg(first_script),
 			quote_arg(first_pidfile.to_str().expect("utf8 first pidfile")),
 			quote_arg(first_ready.to_str().expect("utf8 first ready path")),
+			quote_arg(first_signaled.to_str().expect("utf8 first signal path")),
 			quote_arg(second_script),
 			quote_arg(second_pidfile.to_str().expect("utf8 second pidfile")),
 			quote_arg(second_ready.to_str().expect("utf8 second ready path")),
+			quote_arg(second_signaled.to_str().expect("utf8 second signal path")),
 		);
 		let (mut session, params) = kill_test_context().await;
 		let source_info = SourceInfo::from("chud-natives:test");
@@ -2834,6 +2838,8 @@ mod tests {
 			.run_string("wait %1", &source_info, &params)
 			.await
 			.expect("reap jobspec");
+		assert_eq!(fs::read_to_string(first_signaled).expect("first TERM trap"), "TERM\n",);
+		assert_eq!(fs::read_to_string(second_signaled).expect("second TERM trap"), "TERM\n",);
 		for pid in pids {
 			assert!(process::Process::from_pid(pid).is_none(), "pipeline process {pid} survived");
 		}

@@ -176,8 +176,11 @@ mod tests {
 	}
 
 	/// Ground truth recorded from Python ctok 1.0.0 (`token_count(text, v)`
-	/// for v in 3.0/4.7/5.0). Regenerate with a `uv run --with ctok` sweep if
-	/// the vendored vocabulary files are updated.
+	/// for v in 3.0/4.7/5.0). `testdata/check_fixtures.py` verifies every
+	/// checked-in text against that exact release (run with `uv run
+	/// --no-project --python 3.13 --with ctok==1.0.0 python
+	/// crates/chud-natives/src/utok/claude/testdata/check_fixtures.py`).
+	/// Pass `--write` to regenerate counts after changing fixture text.
 	fn fixtures() -> Vec<Fixture> {
 		serde_json::from_str(include_str!("testdata/fixtures.json")).expect("fixtures parse")
 	}

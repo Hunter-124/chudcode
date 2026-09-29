@@ -99,6 +99,13 @@ impl ChildProcess {
 		#[allow(unused_mut, reason = "only mutated on some platforms")]
 		let mut sigchld = sys::signal::chld_signal_listener()?;
 
+		// The child may have stopped before we subscribed to SIGCHLD. Register
+		// first, then inspect pending stop statuses: a stop between these steps
+		// will either be observed here or wake the listener below.
+		if sys::signal::poll_for_stopped_children()? {
+			return Ok(ProcessWaitResult::Stopped);
+		}
+
 		let cancelled = async {
 			match &cancel_token {
 				Some(token) => token.cancelled().await,

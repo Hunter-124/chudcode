@@ -96,7 +96,9 @@ it("derives a future Claude's adaptive ladder from /v1/models without a bundled 
 			return new Response(JSON.stringify({ anthropic: { models: {} } }));
 		}
 		if (url === `${PROVIDER_BASE_URL}/v1/models`) {
-			return new Response(JSON.stringify({ data: [{ type: "model", id: modelId, display_name: "Claude Sonnet 5.7" }] }));
+			return new Response(
+				JSON.stringify({ data: [{ type: "model", id: modelId, display_name: "Claude Sonnet 5.7" }] }),
+			);
 		}
 		throw new Error(`Unexpected discovery URL: ${url}`);
 	}) as typeof fetch;
