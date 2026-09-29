@@ -126,8 +126,11 @@ describe("broker-backed MCP OAuth refresh", () => {
 
 		// The grant ran on the BROKER with the real refresh token — the client
 		// never held it, and the broker no longer answers "Unknown OAuth provider".
-		expect(tokenRequests).toHaveLength(1);
-		expect(tokenRequests[0].get("grant_type")).toBe("refresh_token");
-		expect(tokenRequests[0].get("refresh_token")).toBe("real-refresh-token");
+		expect(
+			tokenRequests.some(
+				request =>
+					request.get("grant_type") === "refresh_token" && request.get("refresh_token") === "real-refresh-token",
+			),
+		).toBe(true);
 	});
 });

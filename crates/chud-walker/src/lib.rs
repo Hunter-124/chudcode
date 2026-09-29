@@ -1,10 +1,11 @@
 //! Reusable platform directory traversal primitives.
 //!
 //! # Overview
-//! `chud-walker` owns the native directory-read fast path that higher-level tools
-//! use for globbing, grep candidate discovery, AST scans, and shell builtins.
-//! The crate exposes plain Rust types, visitor interfaces, cache policy, and a
-//! caller-supplied heartbeat so consumers do not inherit N-API dependencies.
+//! `chud-walker` owns the native directory-read fast path that higher-level
+//! tools use for globbing, grep candidate discovery, AST scans, and shell
+//! builtins. The crate exposes plain Rust types, visitor interfaces, cache
+//! policy, and a caller-supplied heartbeat so consumers do not inherit N-API
+//! dependencies.
 
 mod cache;
 

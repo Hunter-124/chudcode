@@ -93,8 +93,8 @@ pub fn max_cache_entries() -> usize {
 
 /// Effective worker count for filesystem traversal and related parallel work.
 ///
-/// `CHUDCODE_WALK_WORKERS=0` means auto-detect; `CHUDCODE_WALK_WORKERS=1` forces serial
-/// work.
+/// `CHUDCODE_WALK_WORKERS=0` means auto-detect; `CHUDCODE_WALK_WORKERS=1`
+/// forces serial work.
 pub fn walk_workers() -> usize {
 	*WALK_WORKERS
 }
