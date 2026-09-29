@@ -307,10 +307,17 @@ std::optional<std::string> sessionStamp(const std::string& id) {
     utc.tm_mday = day;
     utc.tm_hour = hour;
     utc.tm_min = minute;
+#ifdef _WIN32
+    const std::time_t epoch = _mkgmtime(&utc);
+    std::tm local{};
+    if (epoch == static_cast<std::time_t>(-1) || localtime_s(&local, &epoch) != 0)
+        return std::nullopt;
+#else
     const std::time_t epoch = timegm(&utc);
     std::tm local{};
     if (epoch == static_cast<std::time_t>(-1) || localtime_r(&epoch, &local) == nullptr)
         return std::nullopt;
+#endif
     // Numeric fields only: month names would follow the process locale.
     char text[24];
     if (std::strftime(text, sizeof text, "%Y-%m-%d %H:%M", &local) == 0) return std::nullopt;
