@@ -899,7 +899,7 @@ jobs:
            if: runner.os == 'Windows'
            shell: powershell
            run: |
-              $version = (bun -e 'import { PRODUCT_CLI_VERSION } from "./packages/coding-agent/src/brand.ts"; process.stdout.write(PRODUCT_CLI_VERSION)').Trim()
+              $version = (bun -e "import { PRODUCT_CLI_VERSION } from './packages/coding-agent/src/brand.ts'; process.stdout.write(PRODUCT_CLI_VERSION)").Trim()
               $epoch = git show -s --format=%ct $env:GITHUB_SHA
               New-Item -ItemType Directory -Force -Path dist/desktop | Out-Null
               bun scripts/package-chudcode-desktop.ts `
