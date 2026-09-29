@@ -17,12 +17,12 @@
 //! binary and decoded once on first use. Counting consumes the JS string's
 //! UTF-16 code units directly (no UTF-8 transcode on the napi crossing).
 
+use chud_shell::rayon_global_pool_available;
 use napi::{
 	JsString,
 	bindgen_prelude::{Array, Either},
 };
 use napi_derive::napi;
-use chud_shell::rayon_global_pool_available;
 use rayon::prelude::*;
 
 use crate::{js, utok};

@@ -20,8 +20,8 @@ use brush_core::{
 	openfiles::{self, OpenFile, OpenFiles},
 };
 use bytes::Bytes;
-use flume::Sender;
 use chud_builtins::{BuiltinSet, default_builtins};
+use flume::Sender;
 #[cfg(not(unix))]
 use tokio::io::AsyncReadExt as _;
 use tokio::{sync::Mutex as TokioMutex, time};
@@ -665,9 +665,9 @@ async fn create_session_for_run(
 		suspend_builtin.disabled = true;
 	}
 	// Process inspection and control (see `chud_builtins::process_builtins`).
-	// `nohup` is withheld when CHUDCODE_DISABLE_NOHUP_BUILTIN asks for the system one;
-	// `kill` already comes from the default set, where our richer implementation
-	// replaced brush's.
+	// `nohup` is withheld when CHUDCODE_DISABLE_NOHUP_BUILTIN asks for the system
+	// one; `kill` already comes from the default set, where our richer
+	// implementation replaced brush's.
 	for (name, registration) in chud_builtins::process_builtins() {
 		if name == "nohup" && nohup_builtin_disabled(config) {
 			continue;
@@ -675,11 +675,12 @@ async fn create_session_for_run(
 		shell.register_builtin(name, registration);
 	}
 	// In-process command-line utility builtins (see
-	// `chud_builtins::utility_builtins`): consistent, cross-platform implementations
-	// that run without spawning a process and resolve paths against the shell
-	// working directory. The whole set can be disabled (falling back to system
-	// binaries) via CHUDCODE_DISABLE_UUTILS_BUILTINS; the destructive trio additionally
-	// honors CHUDCODE_DISABLE_UUTILS_DESTRUCTIVE, and `rm`/`mv` have their own switches.
+	// `chud_builtins::utility_builtins`): consistent, cross-platform
+	// implementations that run without spawning a process and resolve paths
+	// against the shell working directory. The whole set can be disabled (falling
+	// back to system binaries) via CHUDCODE_DISABLE_UUTILS_BUILTINS; the
+	// destructive trio additionally honors CHUDCODE_DISABLE_UUTILS_DESTRUCTIVE,
+	// and `rm`/`mv` have their own switches.
 	if !uutils_env_disabled(config, "CHUDCODE_DISABLE_UUTILS_BUILTINS") {
 		let destructive_disabled = uutils_env_disabled(config, "CHUDCODE_DISABLE_UUTILS_DESTRUCTIVE");
 		let rm_disabled =
@@ -1925,7 +1926,8 @@ fn pipe_to_files(label: &str) -> Result<(fs::File, fs::File)> {
 /// The builtin detaches its operand into a new session so a backgrounded server
 /// survives this embedded shell's kill-on-drop teardown, which a system `nohup`
 /// does not do. It therefore shadows the real one unless
-/// `CHUDCODE_DISABLE_NOHUP_BUILTIN` (session env or process env) asks otherwise.
+/// `CHUDCODE_DISABLE_NOHUP_BUILTIN` (session env or process env) asks
+/// otherwise.
 fn nohup_builtin_disabled(config: &ShellConfig) -> bool {
 	uutils_env_disabled(config, "CHUDCODE_DISABLE_NOHUP_BUILTIN")
 }
@@ -4163,8 +4165,8 @@ mod tests {
 		session
 			.shell
 			.run_string(
-				"export CHUDCODE_EXEC_ENV=zed; find . -name keep.log -exec sh -c 'echo \"$CHUDCODE_EXEC_ENV $1\"' \
-				 sh {} ';' > cap.txt",
+				"export CHUDCODE_EXEC_ENV=zed; find . -name keep.log -exec sh -c 'echo \
+				 \"$CHUDCODE_EXEC_ENV $1\"' sh {} ';' > cap.txt",
 				&si,
 				&params,
 			)
@@ -5186,9 +5188,10 @@ replace = [{ pattern = "^.+$", replacement = "PWD" }]
 	/// Regression for the `suspended (tty input)` bug: an **interactive child
 	/// inside a pipeline** (`zsh -i ... | awk`) used to stay in the host
 	/// session, open `/dev/tty`, `tcsetpgrp` itself to the foreground, and
-	/// leave the embedded host (Chudcode) stopped on its next tty read. The earlier
-	/// embedded-host fix carved pipelines out of `detach_session` because a
-	/// later stage that `setpgid`-joined a detached leader failed with EPERM.
+	/// leave the embedded host (Chudcode) stopped on its next tty read. The
+	/// earlier embedded-host fix carved pipelines out of `detach_session`
+	/// because a later stage that `setpgid`-joined a detached leader failed
+	/// with EPERM.
 	///
 	/// This test boots a real embedded `BrushShell` and runs a two-stage
 	/// pipeline whose first stage prints its PID then sleeps (forwarded to us

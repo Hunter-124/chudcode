@@ -7,12 +7,12 @@
 
 use std::sync::Arc;
 
+use chud_voice::live::{DEFAULT_OPEN_TIMEOUT_MS, LiveCallbacks, LivePeerCore};
 use napi::{
 	bindgen_prelude::{Float32Array, Result},
 	threadsafe_function::{ThreadsafeFunction, ThreadsafeFunctionCallMode, UnknownReturnValue},
 };
 use napi_derive::napi;
-use chud_voice::live::{DEFAULT_OPEN_TIMEOUT_MS, LiveCallbacks, LivePeerCore};
 
 type StringCallback = ThreadsafeFunction<String, UnknownReturnValue>;
 type LevelCallback = ThreadsafeFunction<f64, UnknownReturnValue>;

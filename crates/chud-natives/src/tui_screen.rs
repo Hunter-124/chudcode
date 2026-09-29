@@ -22,7 +22,11 @@ struct ChudTuiSlice {
 }
 
 unsafe extern "C" {
-	fn chudcode_tui_create(out: *mut *mut ChudTuiScreen, error: *mut c_char, error_capacity: usize) -> c_int;
+	fn chudcode_tui_create(
+		out: *mut *mut ChudTuiScreen,
+		error: *mut c_char,
+		error_capacity: usize,
+	) -> c_int;
 	fn chudcode_tui_destroy(screen: *mut ChudTuiScreen);
 	fn chudcode_tui_begin_frame(
 		screen: *mut ChudTuiScreen,
@@ -68,7 +72,11 @@ impl ErrorBuffer {
 		// SAFETY: The buffer is zero-initialized and the C API writes a bounded,
 		// NUL-terminated string.
 		let detail = unsafe { CStr::from_ptr(self.0.as_ptr()) }.to_string_lossy();
-		let detail = if detail.is_empty() { "unknown native error".into() } else { detail };
+		let detail = if detail.is_empty() {
+			"unknown native error".into()
+		} else {
+			detail
+		};
 		napi::Error::from_reason(format!("{context}: {detail}"))
 	}
 }
@@ -82,8 +90,8 @@ pub struct TuiScreen {
 	handle: NonNull<ChudTuiScreen>,
 }
 
-// SAFETY: The handle owns its own row buffers, every method takes `&mut self` or
-// reads immutable counters, and `Drop` is the sole destroyer.
+// SAFETY: The handle owns its own row buffers, every method takes `&mut self`
+// or reads immutable counters, and `Drop` is the sole destroyer.
 unsafe impl Send for TuiScreen {}
 
 #[napi]
@@ -93,7 +101,8 @@ impl TuiScreen {
 		let mut native_handle = null_mut();
 		let mut error = ErrorBuffer::new();
 		// SAFETY: Output and error buffers are valid for the lengths passed.
-		let status = unsafe { chudcode_tui_create(&raw mut native_handle, error.as_mut_ptr(), ERROR_CAPACITY) };
+		let status =
+			unsafe { chudcode_tui_create(&raw mut native_handle, error.as_mut_ptr(), ERROR_CAPACITY) };
 		if status != 0 {
 			return Err(error.into_error("Could not create the native TUI screen"));
 		}
@@ -107,8 +116,14 @@ impl TuiScreen {
 	pub fn begin_frame(&mut self, rows: u32) -> Result<()> {
 		let mut error = ErrorBuffer::new();
 		// SAFETY: The handle is live and the error buffer is valid for the call.
-		let status =
-			unsafe { chudcode_tui_begin_frame(self.handle.as_ptr(), rows as usize, error.as_mut_ptr(), ERROR_CAPACITY) };
+		let status = unsafe {
+			chudcode_tui_begin_frame(
+				self.handle.as_ptr(),
+				rows as usize,
+				error.as_mut_ptr(),
+				ERROR_CAPACITY,
+			)
+		};
 		if status != 0 {
 			return Err(error.into_error("Could not begin the native TUI frame"));
 		}
@@ -145,10 +160,14 @@ impl TuiScreen {
 
 	/// Emit the staged frame, or `undefined` when no row changed.
 	///
-	/// Cursor position after a flush is unspecified: callers that need a specific
-	/// position append the sequence to `epilogue`.
+	/// Cursor position after a flush is unspecified: callers that need a
+	/// specific position append the sequence to `epilogue`.
 	#[napi]
-	pub fn flush(&mut self, prologue: String, epilogue: String) -> Result<Either<String, Undefined>> {
+	pub fn flush(
+		&mut self,
+		prologue: String,
+		epilogue: String,
+	) -> Result<Either<String, Undefined>> {
 		let mut out = ChudTuiSlice::default();
 		let mut error = ErrorBuffer::new();
 		// SAFETY: Both strings outlive the call and the output slice borrows the
@@ -176,7 +195,9 @@ impl TuiScreen {
 		let bytes = unsafe { slice::from_raw_parts(out.data, out.length) };
 		str::from_utf8(bytes)
 			.map(|frame| Either::A(frame.to_owned()))
-			.map_err(|error| napi::Error::from_reason(format!("Native TUI frame is not valid UTF-8: {error}")))
+			.map_err(|error| {
+				napi::Error::from_reason(format!("Native TUI frame is not valid UTF-8: {error}"))
+			})
 	}
 
 	/// Row count of the current frame.
@@ -208,9 +229,14 @@ mod tests {
 	fn frame(screen: &mut TuiScreen, rows: &[&str]) -> Option<String> {
 		screen.begin_frame(rows.len() as u32).expect("begin frame");
 		for (index, row) in rows.iter().enumerate() {
-			screen.set_row(index as u32, (*row).to_string()).expect("stage row");
+			screen
+				.set_row(index as u32, (*row).to_string())
+				.expect("stage row");
 		}
-		match screen.flush(String::new(), String::new()).expect("flush frame") {
+		match screen
+			.flush(String::new(), String::new())
+			.expect("flush frame")
+		{
 			Either::A(frame) => Some(frame),
 			Either::B(()) => None,
 		}
@@ -239,7 +265,8 @@ mod tests {
 		let mut screen = TuiScreen::new().expect("create screen");
 		frame(&mut screen, &["one", "two"]).expect("first frame paints");
 
-		let resized = frame(&mut screen, &["one", "two", "three"]).expect("row-count change repaints");
+		let resized =
+			frame(&mut screen, &["one", "two", "three"]).expect("row-count change repaints");
 		assert_eq!(resized, "\u{1b}[1;1Hone\u{1b}[2;1Htwo\u{1b}[3;1Hthree");
 		assert_eq!(screen.changed_rows(), 3);
 
@@ -255,7 +282,10 @@ mod tests {
 		let mut screen = TuiScreen::new().expect("create screen");
 		screen.begin_frame(1).expect("begin frame");
 		screen.set_row(0, "row".to_string()).expect("stage row");
-		let painted = match screen.flush("<begin>".to_string(), "<end>".to_string()).expect("flush frame") {
+		let painted = match screen
+			.flush("<begin>".to_string(), "<end>".to_string())
+			.expect("flush frame")
+		{
 			Either::A(frame) => frame,
 			Either::B(()) => panic!("a changed frame must emit output"),
 		};
@@ -263,7 +293,9 @@ mod tests {
 
 		screen.begin_frame(1).expect("begin frame");
 		screen.set_row(0, "row".to_string()).expect("stage row");
-		let skipped = screen.flush("<begin>".to_string(), "<end>".to_string()).expect("flush frame");
+		let skipped = screen
+			.flush("<begin>".to_string(), "<end>".to_string())
+			.expect("flush frame");
 		assert!(matches!(skipped, Either::B(())), "an identical frame must emit nothing");
 	}
 
@@ -272,10 +304,14 @@ mod tests {
 		let mut screen = TuiScreen::new().expect("create screen");
 		screen.begin_frame(2).expect("begin frame");
 		screen.set_row(0, "only".to_string()).expect("stage row");
-		let unstaged = screen.flush(String::new(), String::new()).expect_err("unstaged row must fail");
+		let unstaged = screen
+			.flush(String::new(), String::new())
+			.expect_err("unstaged row must fail");
 		assert!(unstaged.reason.contains("row 1 was not staged"), "{}", unstaged.reason);
 
-		let out_of_range = screen.set_row(5, "nope".to_string()).expect_err("out-of-range row must fail");
+		let out_of_range = screen
+			.set_row(5, "nope".to_string())
+			.expect_err("out-of-range row must fail");
 		assert!(out_of_range.reason.contains("outside the 2-row frame"), "{}", out_of_range.reason);
 	}
 

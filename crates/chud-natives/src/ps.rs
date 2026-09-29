@@ -7,13 +7,13 @@
 
 use std::time::Duration;
 
+use chud_shell::process::{self as core_process, ProcessStatus as CoreProcessStatus};
+pub use chud_shell::process::{KILL_SIGNAL, TERM_SIGNAL, TerminationTargets, kill_process_group};
 use napi::{
 	Env, JsString, Result,
 	bindgen_prelude::{PromiseRaw, Unknown},
 };
 use napi_derive::napi;
-use chud_shell::process::{self as core_process, ProcessStatus as CoreProcessStatus};
-pub use chud_shell::process::{KILL_SIGNAL, TERM_SIGNAL, TerminationTargets, kill_process_group};
 
 use crate::{js::into_string, task};
 

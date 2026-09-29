@@ -32,8 +32,8 @@ use std::{
 	panic::{AssertUnwindSafe, catch_unwind},
 };
 
-use napi::{Env, Error, Result, Status, Task, bindgen_prelude::*};
 use chud_shell::cancel as core_cancel;
+use napi::{Env, Error, Result, Status, Task, bindgen_prelude::*};
 
 use crate::prof::profile_region;
 

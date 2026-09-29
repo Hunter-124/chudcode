@@ -5,8 +5,8 @@
 //! optimizations are this repository's; the measured vocabulary *data* is
 //! Sander Land's (MIT — see `data/LICENSE.ctok`), pinned at upstream revision
 //! `df3b59b` (v1.0.0), embedded in the front-coded binary form produced by
-//! chud-natives' `gen-ctok-vocab.ts` and zstd-compressed by `tools/pack-ctok.ts`
-//! into `data/ctok_*.bin.zst`. The research behind the
+//! chud-natives' `gen-ctok-vocab.ts` and zstd-compressed by
+//! `tools/pack-ctok.ts` into `data/ctok_*.bin.zst`. The research behind the
 //! model is described in "On the biology of Claude's tokenizer"
 //! (<https://tokencontributions.substack.com/p/on-the-biology-of-claudes-tokenizer>).
 //!

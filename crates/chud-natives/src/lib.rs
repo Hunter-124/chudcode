@@ -272,8 +272,8 @@ pub const fn chud_natives_version_sentinel() {}
 /// invoke a panicking or allocating native call. This runs during `.node`
 /// load, while the dynamic-loader lock is held, so it MUST NOT spawn threads —
 /// the Tokio runtime is installed afterwards on Windows by
-/// [`chudcode_install_tokio_runtime`], which the JS loader calls once `dlopen` has
-/// returned.
+/// [`chudcode_install_tokio_runtime`], which the JS loader calls once `dlopen`
+/// has returned.
 ///
 /// On Windows, the custom Tokio runtime is host-sized to prevent aborts under
 /// memory limits (see [`create_windows_napi_tokio_runtime`]). Non-Windows
@@ -285,8 +285,8 @@ fn install_native_crash_handler() {
 	crash_handler::install();
 }
 
-/// Guards [`chudcode_install_tokio_runtime`] so the runtime is built at most once
-/// per process even if the loader invokes it more than once.
+/// Guards [`chudcode_install_tokio_runtime`] so the runtime is built at most
+/// once per process even if the loader invokes it more than once.
 #[cfg(target_os = "windows")]
 static TOKIO_RUNTIME_INSTALLED: AtomicBool = AtomicBool::new(false);
 

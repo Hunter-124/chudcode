@@ -18,9 +18,9 @@
 //! prefix so TS callers can distinguish "this backend isn't installed"
 //! from a hard failure.
 
+use chud_iso::{BackendKind, ChangeKind, Diff, FileChange, IsoError, IsolationBackend};
 use napi::bindgen_prelude::*;
 use napi_derive::napi;
-use chud_iso::{BackendKind, ChangeKind, Diff, FileChange, IsoError, IsolationBackend};
 
 use crate::js;
 

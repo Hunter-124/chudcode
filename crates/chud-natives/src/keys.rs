@@ -217,18 +217,16 @@ static ASCII_PRINTABLE: [&str; 94] = [
 
 /// Pre-allocated Alt+printable ASCII combinations (33-126)
 static ALT_ASCII_PRINTABLE: [&str; 94] = [
-	"alt+!", "alt+\"", "alt+#", "alt+$", "alt+%", "alt+&", "alt+'", "alt+(",
-	"alt+)", "alt+*", "alt++", "alt+,", "alt+-", "alt+.", "alt+/", "alt+0",
-	"alt+1", "alt+2", "alt+3", "alt+4", "alt+5", "alt+6", "alt+7", "alt+8",
-	"alt+9", "alt+:", "alt+;", "alt+<", "alt+=", "alt+>", "alt+?", "alt+@",
-	"alt+A", "alt+B", "alt+C", "alt+D", "alt+E", "alt+F", "alt+G", "alt+H",
-	"alt+I", "alt+J", "alt+K", "alt+L", "alt+M", "alt+N", "alt+O", "alt+P",
-	"alt+Q", "alt+R", "alt+S", "alt+T", "alt+U", "alt+V", "alt+W", "alt+X",
-	"alt+Y", "alt+Z", "alt+[", "alt+\\", "alt+]", "alt+^", "alt+_", "alt+`",
-	"alt+a", "alt+b", "alt+c", "alt+d", "alt+e", "alt+f", "alt+g", "alt+h",
-	"alt+i", "alt+j", "alt+k", "alt+l", "alt+m", "alt+n", "alt+o", "alt+p",
-	"alt+q", "alt+r", "alt+s", "alt+t", "alt+u", "alt+v", "alt+w", "alt+x",
-	"alt+y", "alt+z", "alt+{", "alt+|", "alt+}", "alt+~",
+	"alt+!", "alt+\"", "alt+#", "alt+$", "alt+%", "alt+&", "alt+'", "alt+(", "alt+)", "alt+*",
+	"alt++", "alt+,", "alt+-", "alt+.", "alt+/", "alt+0", "alt+1", "alt+2", "alt+3", "alt+4",
+	"alt+5", "alt+6", "alt+7", "alt+8", "alt+9", "alt+:", "alt+;", "alt+<", "alt+=", "alt+>",
+	"alt+?", "alt+@", "alt+A", "alt+B", "alt+C", "alt+D", "alt+E", "alt+F", "alt+G", "alt+H",
+	"alt+I", "alt+J", "alt+K", "alt+L", "alt+M", "alt+N", "alt+O", "alt+P", "alt+Q", "alt+R",
+	"alt+S", "alt+T", "alt+U", "alt+V", "alt+W", "alt+X", "alt+Y", "alt+Z", "alt+[", "alt+\\",
+	"alt+]", "alt+^", "alt+_", "alt+`", "alt+a", "alt+b", "alt+c", "alt+d", "alt+e", "alt+f",
+	"alt+g", "alt+h", "alt+i", "alt+j", "alt+k", "alt+l", "alt+m", "alt+n", "alt+o", "alt+p",
+	"alt+q", "alt+r", "alt+s", "alt+t", "alt+u", "alt+v", "alt+w", "alt+x", "alt+y", "alt+z",
+	"alt+{", "alt+|", "alt+}", "alt+~",
 ];
 
 /// Pre-allocated modifier+letter combinations

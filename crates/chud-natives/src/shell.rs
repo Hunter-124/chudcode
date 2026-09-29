@@ -2,18 +2,18 @@
 
 use std::{collections::HashMap, sync::Arc};
 
-use napi::{
-	Env, Result,
-	bindgen_prelude::*,
-	threadsafe_function::{ThreadsafeFunction, UnknownReturnValue},
-};
-use napi_derive::napi;
 use chud_shell::{
 	MinimizerResult as CoreMinimizerResult, Shell as CoreShell,
 	ShellExecuteOptions as CoreShellExecuteOptions, ShellOptions as CoreShellOptions,
 	ShellRunOptions as CoreShellRunOptions, ShellRunResult as CoreShellRunResult,
 	execute_shell as core_execute_shell, minimizer,
 };
+use napi::{
+	Env, Result,
+	bindgen_prelude::*,
+	threadsafe_function::{ThreadsafeFunction, UnknownReturnValue},
+};
+use napi_derive::napi;
 
 use crate::task;
 
@@ -356,11 +356,11 @@ async fn pump_chunks(rx: flume::Receiver<String>, mut forward: impl AsyncFnMut(S
 mod tests {
 	use std::time::Duration;
 
-	use flume;
 	use chud_shell::{
 		ShellRunOptions as CoreShellRunOptions,
 		cancel::{AbortReason, CancelToken},
 	};
+	use flume;
 	use tokio::time;
 
 	use super::{BRIDGE_QUEUE_CHUNKS, CoreShell, pump_chunks};

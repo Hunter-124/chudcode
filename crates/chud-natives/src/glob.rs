@@ -2,9 +2,9 @@
 //! caching.
 //!
 //! # Overview
-//! Resolves a search root, scans entries via `chud-walker`, applies glob matching
-//! plus optional file-type filtering, and optionally streams each accepted
-//! match through a callback.
+//! Resolves a search root, scans entries via `chud-walker`, applies glob
+//! matching plus optional file-type filtering, and optionally streams each
+//! accepted match through a callback.
 //!
 //! The walker always skips `.git`, and skips `node_modules` unless explicitly
 //! requested.

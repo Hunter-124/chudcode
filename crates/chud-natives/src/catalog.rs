@@ -145,7 +145,12 @@ impl MappedModelCatalog {
 			// SAFETY: Output pointers are valid, and the checked index is below the
 			// count reported by the same immutable handle.
 			let status = unsafe {
-				chudcode_catalog_provider_at(self.handle.as_ptr(), index, &raw mut name, &raw mut ordinal)
+				chudcode_catalog_provider_at(
+					self.handle.as_ptr(),
+					index,
+					&raw mut name,
+					&raw mut ordinal,
+				)
 			};
 			if status != 0 || ordinal as usize != index {
 				return Err(napi::Error::from_reason(format!(
@@ -319,7 +324,9 @@ mod tests {
 		let mut ordinal = u32::MAX;
 		// SAFETY: Output pointers are valid and index zero exists.
 		assert_eq!(
-			unsafe { chudcode_catalog_provider_at(catalog.0.as_ptr(), 0, &raw mut name, &raw mut ordinal) },
+			unsafe {
+				chudcode_catalog_provider_at(catalog.0.as_ptr(), 0, &raw mut name, &raw mut ordinal)
+			},
 			0
 		);
 		assert_eq!(ordinal, 0);
@@ -327,7 +334,9 @@ mod tests {
 		assert_eq!(unsafe { slice::from_raw_parts(name.data, name.length) }, b"alpha");
 		// SAFETY: Index two is deliberately outside the two-provider catalog.
 		assert_eq!(
-			unsafe { chudcode_catalog_provider_at(catalog.0.as_ptr(), 2, &raw mut name, &raw mut ordinal) },
+			unsafe {
+				chudcode_catalog_provider_at(catalog.0.as_ptr(), 2, &raw mut name, &raw mut ordinal)
+			},
 			-1
 		);
 
@@ -366,8 +375,8 @@ mod tests {
 	fn file_catalog_owns_a_real_mapping() {
 		let bytes = fixture();
 		let sequence = NEXT_TEMP_FILE.fetch_add(1, Ordering::Relaxed);
-		let path =
-			std::env::temp_dir().join(format!("chudcode-catalog-{}-{sequence}.bin", std::process::id()));
+		let path = std::env::temp_dir()
+			.join(format!("chudcode-catalog-{}-{sequence}.bin", std::process::id()));
 		fs::write(&path, &bytes).expect("write catalog fixture");
 		let native_path =
 			CString::new(path.to_string_lossy().as_bytes()).expect("temporary path has no NUL");

@@ -38,13 +38,14 @@ use smallvec::SmallVec;
 use crate::{glob_util, iofs, task};
 
 const MAX_FILE_BYTES: u64 = 4 * 1024 * 1024;
-/// PCRE2 JIT toggle: `CHUDCODE_PCRE2_JIT=1` forces JIT on, `0`/`false` forces it
-/// off. Unset, JIT stays on everywhere except macOS, where PCRE2's SLJIT
+/// PCRE2 JIT toggle: `CHUDCODE_PCRE2_JIT=1` forces JIT on, `0`/`false` forces
+/// it off. Unset, JIT stays on everywhere except macOS, where PCRE2's SLJIT
 /// executable allocator can fault while compiling patterns (issue #7399).
-static PCRE2_JIT_ENABLED: LazyLock<bool> = LazyLock::new(|| match std::env::var("CHUDCODE_PCRE2_JIT") {
-	Ok(v) if !v.is_empty() => v != "0" && !v.eq_ignore_ascii_case("false"),
-	_ => !cfg!(target_os = "macos"),
-});
+static PCRE2_JIT_ENABLED: LazyLock<bool> =
+	LazyLock::new(|| match std::env::var("CHUDCODE_PCRE2_JIT") {
+		Ok(v) if !v.is_empty() => v != "0" && !v.eq_ignore_ascii_case("false"),
+		_ => !cfg!(target_os = "macos"),
+	});
 
 /// Output mode for [`search`] and [`grep`] (string values match JS callers).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -1680,7 +1681,9 @@ fn run_streaming_grep<M: Matcher + Sync>(
 			skip_node_modules,
 			ct,
 		),
-		Some(stop) if stop <= ORDERED_STREAMING_STOP_MAX_COUNT || chud_walker::walk_workers() <= 1 => {
+		Some(stop)
+			if stop <= ORDERED_STREAMING_STOP_MAX_COUNT || chud_walker::walk_workers() <= 1 =>
+		{
 			run_sequential_grep(
 				search_path,
 				matcher,

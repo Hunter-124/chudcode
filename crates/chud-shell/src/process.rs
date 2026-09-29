@@ -6,13 +6,13 @@ use std::{
 };
 
 use anyhow::Result;
-use parking_lot::Mutex;
 /// Current state of a process reference.
 ///
 /// Defined in `chud-builtins` alongside the process-table snapshots its process
 /// builtins read, and re-exported here so this module — and `chud-natives`
 /// through it — keeps one status type for both concerns.
 pub use chud_builtins::ProcessStatus;
+use parking_lot::Mutex;
 
 use crate::cancel::CancelToken;
 

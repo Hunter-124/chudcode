@@ -6,13 +6,13 @@
 
 use std::sync::Arc;
 
+use chud_voice::audio::{CaptureStream, PlaybackState, PlaybackStream};
 use napi::{
 	bindgen_prelude::{Float32Array, Result},
 	threadsafe_function::{ThreadsafeFunction, ThreadsafeFunctionCallMode, UnknownReturnValue},
 };
 use napi_derive::napi;
 use parking_lot::Mutex;
-use chud_voice::audio::{CaptureStream, PlaybackState, PlaybackStream};
 
 type CaptureCallback = ThreadsafeFunction<Float32Array, UnknownReturnValue>;
 

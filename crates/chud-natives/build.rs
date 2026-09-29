@@ -19,7 +19,11 @@ fn build_c_core(directory: &str, name: &str) {
 	let header = core_dir.join(format!("{name}.h"));
 	println!("cargo:rerun-if-changed={}", source.display());
 	println!("cargo:rerun-if-changed={}", header.display());
-	cc::Build::new().file(&source).include(&core_dir).std("c11").compile(name);
+	cc::Build::new()
+		.file(&source)
+		.include(&core_dir)
+		.std("c11")
+		.compile(name);
 }
 
 fn generate_minimizer_builtin_filters() {

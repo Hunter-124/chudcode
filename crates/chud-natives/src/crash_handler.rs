@@ -20,10 +20,10 @@
 //! - Backtraces are captured via [`Backtrace::force_capture`], so they work
 //!   regardless of `RUST_BACKTRACE`.
 //! - The crash log path mirrors the JS side (`packages/utils/src/dirs.ts`):
-//!   `$XDG_STATE_HOME/chudcode/logs/` on Linux / macOS when the user has migrated to
-//!   XDG (i.e. that directory already exists and `CHUDCODE_CODING_AGENT_DIR` isn't
-//!   pointed somewhere custom), otherwise `<home>/<CHUDCODE_CONFIG_DIR>/logs/`
-//!   (defaulting to `~/.chudcode/logs/`).
+//!   `$XDG_STATE_HOME/chudcode/logs/` on Linux / macOS when the user has
+//!   migrated to XDG (i.e. that directory already exists and
+//!   `CHUDCODE_CODING_AGENT_DIR` isn't pointed somewhere custom), otherwise
+//!   `<home>/<CHUDCODE_CONFIG_DIR>/logs/` (defaulting to `~/.chudcode/logs/`).
 //! - Hook installation is idempotent across repeated module loads.
 
 use std::{
@@ -276,8 +276,9 @@ fn resolve_logs_dir(
 	config_dir_override: Option<&OsStr>,
 	xdg_state_logs: Option<PathBuf>,
 ) -> PathBuf {
-	// XDG takes precedence so users who migrated to `$XDG_STATE_HOME/chudcode/logs/`
-	// see native crash reports in the same directory the JS logger rotates.
+	// XDG takes precedence so users who migrated to
+	// `$XDG_STATE_HOME/chudcode/logs/` see native crash reports in the same
+	// directory the JS logger rotates.
 	if let Some(p) = xdg_state_logs {
 		return p;
 	}
@@ -465,8 +466,9 @@ mod tests {
 	#[test]
 	fn resolve_logs_dir_reroots_absolute_pi_config_dir_under_home() {
 		// JS resolves the config root via `path.join(os.homedir(),
-		// getConfigDirName())`, which never honors an absolute CHUDCODE_CONFIG_DIR — it is
-		// always re-rooted under `$HOME` (and `..` components are normalized away).
+		// getConfigDirName())`, which never honors an absolute CHUDCODE_CONFIG_DIR — it
+		// is always re-rooted under `$HOME` (and `..` components are normalized
+		// away).
 		let dir = resolve_logs_dir(
 			Path::new("/tmp/chud-natives-test-home"),
 			Some(OsStr::new("/var/tmp/chud-natives-state")),
@@ -551,8 +553,8 @@ mod tests {
 	#[cfg(any(target_os = "linux", target_os = "macos"))]
 	#[test]
 	fn xdg_state_logs_skipped_when_agent_dir_overridden() {
-		// `CHUDCODE_CODING_AGENT_DIR` pointing elsewhere mirrors the JS `isDefault === false`
-		// branch in `packages/utils/src/dirs.ts` and must disable XDG.
+		// `CHUDCODE_CODING_AGENT_DIR` pointing elsewhere mirrors the JS `isDefault ===
+		// false` branch in `packages/utils/src/dirs.ts` and must disable XDG.
 		let dir = xdg_state_logs(
 			Some(OsStr::new("/xdg/state")),
 			Some(OsStr::new("/some/custom/agent")),
@@ -584,8 +586,10 @@ mod tests {
 	#[cfg(any(target_os = "linux", target_os = "macos"))]
 	#[test]
 	fn default_agent_dir_respects_pi_config_dir() {
-		let dir =
-			default_agent_dir(Path::new("/tmp/chud-natives-test-home"), Some(OsStr::new(".chudcode-dev")));
+		let dir = default_agent_dir(
+			Path::new("/tmp/chud-natives-test-home"),
+			Some(OsStr::new(".chudcode-dev")),
+		);
 		assert_eq!(dir, PathBuf::from("/tmp/chud-natives-test-home/.chudcode-dev/agent"));
 	}
 
@@ -595,7 +599,9 @@ mod tests {
 		let panic_log = build_crash_log_path(dir, CrashKind::Panic, 4242, 1_700_000_000_000);
 		assert_eq!(
 			panic_log,
-			PathBuf::from("/tmp/chud-natives-test-home/.chudcode/logs/native-panic-4242-1700000000000.log")
+			PathBuf::from(
+				"/tmp/chud-natives-test-home/.chudcode/logs/native-panic-4242-1700000000000.log"
+			)
 		);
 		let alloc_log = build_crash_log_path(dir, CrashKind::Alloc, 99, 1);
 		assert_eq!(
