@@ -4,6 +4,7 @@ import { createHash } from "node:crypto";
 import type { Stats } from "node:fs";
 import * as fs from "node:fs/promises";
 import { createRequire } from "node:module";
+import * as os from "node:os";
 import * as path from "node:path";
 import { gzipSync } from "node:zlib";
 import { compileCodingAgent } from "../packages/coding-agent/scripts/compile-binary";
@@ -598,7 +599,7 @@ export async function packageDesktop(options: PackageDesktopOptions): Promise<Pa
 	const epoch = options.epoch ?? parseEpoch(process.env.SOURCE_DATE_EPOCH);
 	if (!Number.isSafeInteger(epoch) || epoch < 0)
 		throw new Error("Desktop package epoch must be a non-negative safe integer");
-	const temporary = await fs.mkdtemp(path.join(process.env.TMPDIR ?? "/tmp", "chudcode-desktop-package-"));
+	const temporary = await fs.mkdtemp(path.join(os.tmpdir(), "chudcode-desktop-package-"));
 	try {
 		const buildDirectory = path.join(temporary, "build");
 		let chud = options.chud ? path.resolve(options.chud) : undefined;
