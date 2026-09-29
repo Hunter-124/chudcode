@@ -1,8 +1,10 @@
 #!/bin/sh
 set -eu
+repo_root=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)
+cd "$repo_root"
 
 PRODUCT_NAME="Chudcode"
-PRODUCT_VERSION="0.3.0"
+PRODUCT_VERSION=$(bun -e 'import {PRODUCT_SEMVER} from "./packages/coding-agent/src/brand.ts"; process.stdout.write(PRODUCT_SEMVER)')
 GUI_NAME="chudcode-gui"
 TARGET="${CHUDCODE_GUI_TARGET:-linux-x64}"
 CAD_ROOT="${CHUDCODE_CAD_ROOT:-/home/hunter/Repositories/CAD}"
@@ -11,8 +13,6 @@ DIST_DIR="${CHUDCODE_DIST_DIR:-dist/chudcode-v${PRODUCT_VERSION}}"
 CANONICAL_CAD_COMMIT="20c2bf81ec2479a82b4772e9c2afe1a6b4b23466"
 LOCK_SCHEMA="1"
 
-repo_root=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)
-cd "$repo_root"
 
 bundle_name="${GUI_NAME}-${TARGET}"
 archive_name="${bundle_name}.tar.gz"

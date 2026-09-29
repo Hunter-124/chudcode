@@ -51,9 +51,8 @@ jobs:
     runs-on: [self-hosted, cloudcastle-ci, cc-linux-hunter]
     steps:
       - uses: actions/checkout@v4
-      - uses: cachix/install-nix-action@v31
-        with:
-          extra_nix_config: |
-            accept-flake-config = true
-      - name: Evaluate every supported system
-        run: nix flake check --all-systems --no-build --show-trace
+      - name: Evaluate every supported system in SELinux-compatible container
+        shell: bash
+        run: |
+          podman run --rm --security-opt label=disable -v "$PWD":/src:ro -w /src docker.io/nixos/nix:2.32.4 sh -c \
+            "git config --global --add safe.directory '*' && nix --extra-experimental-features 'nix-command flakes' --option accept-flake-config true flake check --all-systems --no-build --show-trace"

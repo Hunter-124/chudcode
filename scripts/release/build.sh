@@ -1,9 +1,10 @@
 #!/bin/sh
 set -eu
+repo_root=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)
+cd "$repo_root"
 
-PRODUCT_NAME="Chudcode"
-CLI_NAME="chudcode"
-LEGACY_BINARY_NAME="chudcode"
+PRODUCT_NAME=$(bun -e 'import {PRODUCT_NAME} from "./packages/coding-agent/src/brand.ts"; process.stdout.write(PRODUCT_NAME)')
+CLI_NAME=$(bun -e 'import {PRODUCT_RELEASE_ASSET_PREFIX} from "./packages/coding-agent/src/brand.ts"; process.stdout.write(PRODUCT_RELEASE_ASSET_PREFIX)')
 VERIFIED_TARGETS="${CHUDCODE_VERIFIED_TARGETS:-linux-x64}"
 STAGE_GUI="${CHUDCODE_STAGE_GUI:-0}"
 STAGE_VISION="${CHUDCODE_STAGE_VISION:-0}"
@@ -12,55 +13,35 @@ ORT_LINUX_X64_SHA256="2529aef968d0ad0603365054bc46ebefa7f0fe3bc12f28c5f729c99ddf
 ORT_LINUX_X64_URL="https://github.com/microsoft/onnxruntime/releases/download/v${ORT_VERSION}/onnxruntime-linux-x64-${ORT_VERSION}.tgz"
 VISION_ARCHIVE_NAME="${CLI_NAME}-vision-linux-x64.tar.gz"
 
-repo_root=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)
-cd "$repo_root"
 
 die() {
 	printf '%s\n' "error: $*" >&2
 	exit 1
 }
 
-# The version has exactly one source of truth: the constants the binary itself
-# compiles in. A release staged from a hand-copied literal is how v0.1.0's
-# installer ended up pinning a version the binary no longer reported.
-brand_ts="packages/coding-agent/src/brand.ts"
-read_brand() {
-	value=$(sed -n "s/^export const $1 = \"\\(.*\\)\";\$/\\1/p" "$brand_ts")
-	[ -n "$value" ] || die "could not read $1 from $brand_ts"
-	printf '%s' "$value"
-}
-PRODUCT_VERSION=$(read_brand PRODUCT_SEMVER)
-UPSTREAM_VERSION=$(read_brand PRODUCT_UPSTREAM_BASE)
-RELEASE_REPOSITORY=$(read_brand PRODUCT_RELEASE_REPO)
-RELEASE_TAG_PREFIX=$(read_brand PRODUCT_RELEASE_TAG_PREFIX)
+# The product version and asset names come from the binary's brand contract.
+PRODUCT_VERSION=$(bun -e 'import {PRODUCT_SEMVER} from "./packages/coding-agent/src/brand.ts"; process.stdout.write(PRODUCT_SEMVER)')
+RELEASE_REPOSITORY=$(bun -e 'import {PRODUCT_RELEASE_REPO} from "./packages/coding-agent/src/brand.ts"; process.stdout.write(PRODUCT_RELEASE_REPO)')
+RELEASE_TAG_PREFIX=$(bun -e 'import {PRODUCT_RELEASE_TAG_PREFIX} from "./packages/coding-agent/src/brand.ts"; process.stdout.write(PRODUCT_RELEASE_TAG_PREFIX)')
 DIST_DIR="${CHUDCODE_DIST_DIR:-dist/chudcode-v${PRODUCT_VERSION}}"
-EXPECTED_VERSION_OUTPUT="${PRODUCT_NAME} v${PRODUCT_VERSION} (based on ${LEGACY_BINARY_NAME} ${UPSTREAM_VERSION})"
-NOTES_FILE="scripts/release/notes-v${PRODUCT_VERSION}.md"
+EXPECTED_VERSION_OUTPUT=$(bun -e 'import {PRODUCT_VERSION} from "./packages/coding-agent/src/brand.ts"; process.stdout.write(PRODUCT_VERSION)')
 
 # `install.sh` is fetched by users before any of this repo exists on their disk,
 # so its version and repository must be baked in — but they must still agree
 # with what the binary reports, or the installer verifies a version that never
 # ships and aborts every install.
 installer_version=$(sed -n 's/^PRODUCT_VERSION="\(.*\)"$/\1/p' install.sh)
-installer_upstream=$(sed -n 's/^UPSTREAM_VERSION="\(.*\)"$/\1/p' install.sh)
 installer_repo=$(sed -n 's/^RELEASE_REPOSITORY="\(.*\)"$/\1/p' install.sh)
 [ "$installer_version" = "$PRODUCT_VERSION" ] ||
-	die "install.sh pins PRODUCT_VERSION=$installer_version but $brand_ts says $PRODUCT_VERSION"
-[ "$installer_upstream" = "$UPSTREAM_VERSION" ] ||
-	die "install.sh pins UPSTREAM_VERSION=$installer_upstream but $brand_ts says $UPSTREAM_VERSION"
+	die "install.sh pins PRODUCT_VERSION=$installer_version but brand says $PRODUCT_VERSION"
 [ "$installer_repo" = "$RELEASE_REPOSITORY" ] ||
-	die "install.sh pins RELEASE_REPOSITORY=$installer_repo but $brand_ts says $RELEASE_REPOSITORY"
+	die "install.sh pins RELEASE_REPOSITORY=$installer_repo but brand says $RELEASE_REPOSITORY"
 installer_tag=$(sed -n 's/^RELEASE_TAG="\(.*\)"$/\1/p' install.sh)
 expected_installer_tag="${RELEASE_TAG_PREFIX}\${PRODUCT_VERSION}"
 [ "$installer_tag" = "$expected_installer_tag" ] ||
-	die "install.sh pins RELEASE_TAG=$installer_tag but $brand_ts implies $expected_installer_tag"
-[ -f "$NOTES_FILE" ] || die "missing release notes: $NOTES_FILE"
+	die "install.sh pins RELEASE_TAG=$installer_tag but brand implies $expected_installer_tag"
 RELEASE_TAG="${RELEASE_TAG_PREFIX}${PRODUCT_VERSION}"
 
-die() {
-	printf '%s\n' "error: $*" >&2
-	exit 1
-}
 
 download_file() {
 	url=$1
@@ -128,20 +109,13 @@ case " $VERIFIED_TARGETS " in
 esac
 
 case "$target" in
-	darwin-arm64) source_artifact="packages/coding-agent/binaries/${LEGACY_BINARY_NAME}-darwin-arm64" ;;
-	darwin-x64) source_artifact="packages/coding-agent/binaries/${LEGACY_BINARY_NAME}-darwin-x64" ;;
-	linux-x64) source_artifact="packages/coding-agent/binaries/${LEGACY_BINARY_NAME}-linux-x64" ;;
-	linux-arm64) source_artifact="packages/coding-agent/binaries/${LEGACY_BINARY_NAME}-linux-arm64" ;;
-	linux-musl-x64) source_artifact="packages/coding-agent/binaries/${LEGACY_BINARY_NAME}-linux-musl-x64" ;;
-	linux-musl-arm64) source_artifact="packages/coding-agent/binaries/${LEGACY_BINARY_NAME}-linux-musl-arm64" ;;
-	win32-x64) source_artifact="packages/coding-agent/binaries/${LEGACY_BINARY_NAME}-windows-x64.exe" ;;
+	darwin-x64) source_artifact="packages/coding-agent/binaries/$(bun -e 'import {releaseBinaryName} from "./packages/coding-agent/src/brand.ts"; process.stdout.write(releaseBinaryName({platform:"darwin",arch:"x64"}))')" ;;
+	linux-x64) source_artifact="packages/coding-agent/binaries/$(bun -e 'import {releaseBinaryName} from "./packages/coding-agent/src/brand.ts"; process.stdout.write(releaseBinaryName({platform:"linux",arch:"x64"}))')" ;;
+	win32-x64) source_artifact="packages/coding-agent/binaries/$(bun -e 'import {releaseBinaryName} from "./packages/coding-agent/src/brand.ts"; process.stdout.write(releaseBinaryName({platform:"win32",arch:"x64"}))')" ;;
 	*) die "unknown target: $target" ;;
 esac
 
-artifact_name="${CLI_NAME}-${target}"
-case "$target" in
-	win32-*) artifact_name="${artifact_name}.exe" ;;
-esac
+artifact_name=${source_artifact##*/}
 
 if [ "$dry_run" -eq 1 ]; then
 	exec bun scripts/ci-release-build-binaries.ts --dry-run --targets "$target"
@@ -176,7 +150,6 @@ else
 	bun scripts/ci-release-checksums.ts "$DIST_DIR/SHA256SUMS.txt" "$DIST_DIR/$artifact_name"
 fi
 cp install.sh "$DIST_DIR/"
-cp "$NOTES_FILE" "$DIST_DIR/notes.md"
 if [ "$target" = "linux-x64" ] && [ "$STAGE_GUI" = "1" ]; then
 	CHUDCODE_DIST_DIR="$DIST_DIR" scripts/release/stage-gui.sh "$target"
 fi

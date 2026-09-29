@@ -3,7 +3,7 @@ import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
 import { $ } from "bun";
-import { PRODUCT_CLI_VERSION } from "../packages/coding-agent/src/brand";
+import { PRODUCT_SEMVER, PRODUCT_VERSION } from "../packages/coding-agent/src/brand";
 import {
 	buildReleaseManifest,
 	DESKTOP_RELEASE_TARGETS,
@@ -18,7 +18,7 @@ afterEach(async () => {
 
 const noticeTokens = "GLFW ImGui IXWebSocket libvterm stb_image Rubik JetBrains Mono Monaco xterm.js Bun\n";
 
-async function makeOfflineRelease(root: string, version = PRODUCT_CLI_VERSION): Promise<string> {
+async function makeOfflineRelease(root: string, version = PRODUCT_SEMVER): Promise<string> {
 	const artifacts = path.join(root, "artifacts");
 	const payload = path.join(root, "payload");
 	await Promise.all([
@@ -28,7 +28,7 @@ async function makeOfflineRelease(root: string, version = PRODUCT_CLI_VERSION): 
 	]);
 	const executable = (output: string) => `#!/bin/sh\n[ "$1" = "--version" ] || exit 2\nprintf '%s\\n' '${output}'\n`;
 	await Promise.all([
-		fs.writeFile(path.join(payload, "chud"), executable(`Chudcode v${version} (based on omp 18.0.8)`), {
+		fs.writeFile(path.join(payload, "chud"), executable(PRODUCT_VERSION), {
 			mode: 0o755,
 		}),
 		fs.writeFile(path.join(payload, "chudcode-desktop"), executable(version), { mode: 0o755 }),

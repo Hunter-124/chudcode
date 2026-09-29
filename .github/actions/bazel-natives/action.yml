@@ -24,7 +24,7 @@ runs:
       - name: Build native addons
         shell: bash
         env:
-           CHUDCODE_BAZEL_RC: ${{ steps.cache.outputs.rc }}
+           OMP_BAZEL_RC: ${{ steps.cache.outputs.rc }}
            NATIVE_TARGETS: ${{ inputs.targets }}
            NATIVE_DEST: ${{ inputs.dest }}
         run: |

@@ -111,8 +111,8 @@
       apps = forAllSystems (system: {
         default = {
           type = "app";
-          program = "${self.packages.${system}.default}/bin/omp";
-          meta.description = "Run OMP";
+          program = "${self.packages.${system}.default}/bin/chud";
+          meta.description = "Run Chudcode";
         };
         omp = self.apps.${system}.default;
       });

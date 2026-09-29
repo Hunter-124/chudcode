@@ -53,7 +53,7 @@ runs:
                echo "build --config=ci"
                echo "build --action_env=CCACHE_DISABLE=1"
                echo "common --repository_cache=/opt/bazel-repo-cache"
-               echo "common --repo_env=CHUDCODE_XWIN_CACHE_DIR=/opt/bazel-repo-cache/xwin"
+               echo "common --repo_env=OMP_XWIN_CACHE_DIR=/opt/bazel-repo-cache/xwin"
                echo "build --config=cache-rw"
                echo "common --remote_cache=grpcs://bazel-remote.bazel-cache.svc.cluster.local:9092"
                echo "common --tls_certificate=infra/bazel-remote/ca.crt"
