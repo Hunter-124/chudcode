@@ -86,6 +86,9 @@ const server = Bun.serve({
 			// Accepted, not answered: the answer belongs to the GET stream.
 			return new Response(null, { status: 202 });
 		}
+		// Streamable HTTP clients may open an optional GET notification stream;
+		// a server without one answers 405 (MCP spec), which the client tolerates.
+		if (request.method !== "POST") return new Response(null, { status: 405 });
 		const body = (await request.json()) as { id: string | number };
 		await Bun.sleep(STALL_MS);
 		return Response.json({ jsonrpc: "2.0", id: body.id, result: { waited: true } });
