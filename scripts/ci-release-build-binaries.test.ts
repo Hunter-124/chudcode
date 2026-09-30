@@ -1,28 +1,20 @@
-import { describe, expect, it } from "bun:test";
-import * as path from "node:path";
+import { expect, it } from "bun:test";
+import { TempDir } from "@oh-my-pi/pi-utils/temp";
 import { $ } from "bun";
-import { releaseBinaryName } from "../packages/coding-agent/src/brand";
+import { compileCodingAgent } from "../packages/coding-agent/scripts/compile-binary";
 
-const repoRoot = path.join(import.meta.dir, "..");
-
-describe("release binary asset names", () => {
-	it("builds supported release asset names recognized by the updater", async () => {
-		const result = await $`bun scripts/ci-release-build-binaries.ts --dry-run`.cwd(repoRoot).quiet().nothrow();
-		expect(result.exitCode).toBe(0);
-		const built = [...result.text().matchAll(/outfile=(\S+)/g)].map(match => path.basename(match[1] ?? ""));
-
-		// A rename on either side (asset prefix, os/arch spelling, .exe suffix)
-		// strands every installed binary: it asks GitHub for a name no release
-		// publishes and self-update fails with "has 0 assets named <name>".
-		expect(built.toSorted()).toEqual(
-			[
-				{ platform: "darwin", arch: "x64" },
-				{ platform: "linux", arch: "x64" },
-				{ platform: "linux", arch: "x64", musl: true },
-				{ platform: "win32", arch: "x64" },
-			]
-				.map(releaseBinaryName)
-				.toSorted(),
-		);
+it("runs compiled bytecode containing dependency import.meta.resolve calls", async () => {
+	using temp = TempDir.createSync("@omp-bytecode-");
+	const entrypoint = temp.join("entry.ts");
+	const outfile = temp.join(process.platform === "win32" ? "probe.exe" : "probe");
+	await Bun.write(entrypoint, 'console.log(import.meta.resolve("node:fs"));\n');
+	await compileCodingAgent({
+		repoRoot: temp.path(),
+		entrypoint,
+		outfile,
+		transformersVersion: "unused",
 	});
-});
+	const result = await $`${outfile}`.quiet().nothrow();
+	expect(result.exitCode).toBe(0);
+	expect(result.text().trim()).toBe("node:fs");
+}, 30_000);

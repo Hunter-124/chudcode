@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from "bun:test";
-import { connectToServer, listTools } from "@chudware/coding-agent/mcp/client";
-import { isRetriableConnectionError } from "@chudware/coding-agent/mcp/tool-bridge";
-import type { JsonRpcMessage } from "@chudware/coding-agent/mcp/types";
+import { MCPConnectionTimeoutError, connectToServer, listTools } from "@oh-my-pi/pi-coding-agent/mcp/client";
+import { isRetriableConnectionError } from "@oh-my-pi/pi-coding-agent/mcp/tool-bridge";
+import type { JsonRpcMessage } from "@oh-my-pi/pi-coding-agent/mcp/types";
 
 const encoder = new TextEncoder();
 let server: Bun.Server<undefined> | null = null;
@@ -12,6 +12,25 @@ afterEach(() => {
 });
 
 describe("legacy MCP HTTP+SSE transport", () => {
+	it("classifies a missing endpoint event as a retryable startup timeout", async () => {
+		server = Bun.serve({
+			port: 0,
+			fetch() {
+				return new Response(new ReadableStream<Uint8Array>(), {
+					headers: { "Content-Type": "text/event-stream" },
+				});
+			},
+		});
+
+		const connection = connectToServer("legacy-sse", {
+			type: "sse",
+			url: `http://127.0.0.1:${server.port}/mcp/sse`,
+			timeout: 50,
+		});
+		await expect(connection).rejects.toBeInstanceOf(MCPConnectionTimeoutError);
+		await expect(connection).rejects.toThrow('Connection to MCP server "legacy-sse" timed out after 50ms');
+	});
+
 	it("reads the endpoint event as a POST URL and receives JSON-RPC responses from the stream", async () => {
 		let streamController: ReadableStreamDefaultController<Uint8Array> | null = null;
 		const postTargets: string[] = [];

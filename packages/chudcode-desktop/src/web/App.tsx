@@ -1,10 +1,10 @@
-import { AgentDrawer } from "@chudware/collab-web/agent-drawer";
-import { AgentsPanel } from "@chudware/collab-web/agents-panel";
-import { Banners } from "@chudware/collab-web/banners";
-import { Composer } from "@chudware/collab-web/composer";
-import { HeaderBar } from "@chudware/collab-web/header";
-import { Toasts } from "@chudware/collab-web/toasts";
-import { Transcript } from "@chudware/collab-web/transcript";
+import { AgentDrawer } from "@oh-my-pi/collab-web/agent-drawer";
+import { AgentsPanel } from "@oh-my-pi/collab-web/agents-panel";
+import { Banners } from "@oh-my-pi/collab-web/banners";
+import { Composer } from "@oh-my-pi/collab-web/composer";
+import { HeaderBar } from "@oh-my-pi/collab-web/header";
+import { Toasts } from "@oh-my-pi/collab-web/toasts";
+import { Transcript } from "@oh-my-pi/collab-web/transcript";
 import {
 	Files,
 	GitBranch,

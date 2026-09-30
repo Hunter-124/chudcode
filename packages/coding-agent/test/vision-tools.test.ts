@@ -2,11 +2,11 @@ import { afterEach, describe, expect, it } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import { Settings } from "@chudware/coding-agent/config/settings";
-import type { ToolSession } from "@chudware/coding-agent/tools";
-import { ImageAnalyzeTool } from "@chudware/coding-agent/tools/image-analyze";
-import { ensureVisionModels } from "@chudware/coding-agent/tools/vision/models";
-import { runVision } from "@chudware/coding-agent/tools/vision/sidecar";
+import { Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
+import type { ToolSession } from "@oh-my-pi/pi-coding-agent/tools";
+import { ImageAnalyzeTool } from "@oh-my-pi/pi-coding-agent/tools/image-analyze";
+import { ensureVisionModels } from "@oh-my-pi/pi-coding-agent/tools/vision/models";
+import { runVision } from "@oh-my-pi/pi-coding-agent/tools/vision/sidecar";
 
 const temporaryDirectories: string[] = [];
 

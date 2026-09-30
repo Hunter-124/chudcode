@@ -1,14 +1,13 @@
 #!/usr/bin/env bun
 import { spawnSync } from "node:child_process";
-import * as crypto from "node:crypto";
 import * as fs from "node:fs";
 import * as path from "node:path";
-import { sleep } from "@chudware/utils/async";
+import { type GeneratedProvider, getBundledModel } from "@oh-my-pi/pi-catalog/models";
 /**
- * Harbor benchmark runner for the local `chudcode` build.
+ * Harbor benchmark runner for the local `omp` build.
  *
  * Orchestrates Harbor (`harbor run`) against any Harbor dataset (default
- * terminal-bench-2) using a custom agent (`agent/chudcode_local.py`) that installs
+ * terminal-bench-2) using a custom agent (`agent/omp_local.py`) that installs
  * the working tree at /work/pi and routes all model auth through the host pm2
  * auth-gateway (no provider keys ever enter the task containers).
  *
@@ -29,22 +28,27 @@ const REPO_ROOT = path.resolve(import.meta.dir, "..", "..", "..");
 const PKG_DIR = path.resolve(import.meta.dir, "..");
 const AGENT_DIR = path.join(PKG_DIR, "agent");
 const CODING_AGENT_DIR = path.join(REPO_ROOT, "packages", "coding-agent");
-const AGENT_IMPORT_PATH = "chudcode_local:ChudLocal";
+const AGENT_IMPORT_PATH = "omp_local:OmpLocal";
+const PI_UPSTREAM_IMPORT_PATH = "pi_upstream:PiUpstream";
+/** Upstream `@earendil-works/pi-coding-agent` version pinned for `--agent pi`. */
+const PI_UPSTREAM_VERSION = "0.86.1";
+/** Agents this runner installs itself (config + secrets travel via `OMP_BENCH_*`). */
+const MANAGED_AGENTS: Record<string, true> = { omp: true, pi: true };
 
-/** Container-side mount points for `--install source` (must match chudcode_local.py defaults). */
-const SOURCE_SRC_MOUNT = "/opt/chudcode/src";
-const SOURCE_BIN_MOUNT = "/opt/chudcode/bin";
+/** Container-side mount points for `--install source` (must match omp_local.py defaults). */
+const SOURCE_SRC_MOUNT = "/opt/omp/src";
+const SOURCE_BIN_MOUNT = "/opt/omp/bin";
 
 /** Host address containers see on Apple Container's vmnet (bridge) network. */
 const VMNET_HOST_IP = "192.168.64.1";
 const DOCKER_GATEWAY_URL = "http://host.docker.internal:4000";
 const VMNET_GATEWAY_URL = `http://${VMNET_HOST_IP}:4000`;
 /**
- * Resolver injected into Apple Container runs (CHUDCODE_BENCH_CONTAINER_DNS overrides).
+ * Resolver injected into Apple Container runs (OMP_BENCH_CONTAINER_DNS overrides).
  * The vmnet gateway resolver (192.168.64.1:53) is unreachable when VPN/DNS
  * agents on the host intercept port 53, so containers get an explicit one.
  */
-const CONTAINER_DNS = process.env.CHUDCODE_BENCH_CONTAINER_DNS || "1.1.1.1";
+const CONTAINER_DNS = process.env.OMP_BENCH_CONTAINER_DNS || "1.1.1.1";
 
 export interface Config {
 	models: string[];
@@ -55,8 +59,12 @@ export interface Config {
 	include: string[];
 	exclude: string[];
 	thinking: string | null;
-	/** Extra args forwarded verbatim to the in-container chudcode CLI invocation (repeatable). */
+	/** Extra args forwarded verbatim to the in-container omp CLI invocation (repeatable). */
 	agentArgs: string[];
+	/** omp tool allowlist (`--tools`); `null` keeps omp's default tool set. */
+	tools: string[] | null;
+	/** Extra omp settings written into the container config (dotted key → JSON value). */
+	settings: Record<string, unknown>;
 
 	agent: string;
 	install: "source" | "local" | "published";
@@ -100,8 +108,10 @@ function defaultConfig(): Config {
 		exclude: [],
 		thinking: null,
 		agentArgs: [],
+		tools: null,
+		settings: {},
 
-		agent: "chudcode",
+		agent: "omp",
 		install: "source",
 		version: null,
 		tarball: null,
@@ -130,7 +140,7 @@ function defaultConfig(): Config {
 	};
 }
 
-const HELP = `metaharness runner (local chudcode)
+const HELP = `metaharness runner (local omp)
 
 Usage: metaharness harbor [options] [-- <extra harbor args>]
 
@@ -139,18 +149,20 @@ Commands:
 
 Model / agent:
   -m, --model <provider/model>   Model (repeatable). Default anthropic/claude-sonnet-4-6
-      --agent <name>             chudcode (default) | oracle | nop | any harbor agent
-      --install <source|local|published> chudcode install mode (default: source).
+      --agent <name>             omp (default) | oracle | nop | any harbor agent
+      --install <source|local|published> omp install mode (default: source).
                                  source = mount /work/pi read-only + prebuilt linux deps tree; TS changes
                                  apply per-trial with no rebuild. local = pack a tarball. published = npm.
-      --version <v>              chudcode version for published install (default: latest)
+      --version <v>              omp version for published install (default: latest)
       --thinking <level>         off|minimal|low|medium|high|xhigh|max
 
-      --tarball <path>           Reuse a prebuilt chudcode tarball (implies --install local, --no-build)
+      --tarball <path>           Reuse a prebuilt omp tarball (implies --install local, --no-build)
       --no-build                 Skip packing; reuse newest tarball in bench dir (--install local)
-      --agent-arg <arg>          Extra arg forwarded verbatim to the in-container chudcode CLI (repeatable)
-      --env <KEY[=VALUE]>        Forward env into chudcode container (repeatable).
-                                 KEY alone forwards host value; host CHUDCODE_* auto-forwarded.
+      --agent-arg <arg>          Extra arg forwarded verbatim to the in-container omp CLI (repeatable)
+      --tools <a,b,c>            omp tool allowlist; enables the find tool when listed
+      --setting <key=value>      omp setting for the container config, e.g. edit.mode=sloppy (repeatable; JSON values)
+      --env <KEY[=VALUE]>        Forward env into omp container (repeatable).
+                                 KEY alone forwards host value; host PI_* auto-forwarded.
 
 Dataset / scale:
   -l, --tasks <N>                Max tasks (default 20)
@@ -165,7 +177,7 @@ Gateway (auth, no keys in container):
       --gateway-token <tok>      Default "no-auth" (gateway runs --no-auth)
       --providers <csv>          Providers to route (default: model provider + anthropic,openai-codex)
       --no-gateway               Pass host provider API keys into containers instead
-      --web-search               Enable chudcode web_search (off by default; can't auth via gateway)
+      --web-search               Enable omp web_search (off by default; can't auth via gateway)
       --allow-host <host>        harbor --allow-agent-host (repeatable)
 
 Environment:
@@ -251,6 +263,27 @@ export function parseArgs(argv: string[]): Config {
 				break;
 			case "--agent-arg":
 				cfg.agentArgs.push(take(arg));
+				break;
+			case "--setting": {
+				const spec = take(arg);
+				const eq = spec.indexOf("=");
+				if (eq <= 0) throw new Error("--setting expects key=value");
+				const raw = spec.slice(eq + 1);
+				let value: unknown = raw;
+				try {
+					value = JSON.parse(raw);
+				} catch {
+					// bare strings stay strings
+				}
+				cfg.settings[spec.slice(0, eq)] = value;
+				break;
+			}
+			case "--tools":
+				cfg.tools = take(arg)
+					.split(",")
+					.map(tool => tool.trim())
+					.filter(tool => tool.length > 0);
+				if (cfg.tools.length === 0) throw new Error("--tools must name at least one tool");
 				break;
 			case "-l":
 			case "--tasks":
@@ -574,7 +607,7 @@ function probeLine(line: string, probe: CostProbe): void {
 
 /**
  * Realtime usage for a still-running trial, read incrementally from its
- * `agent/chudcode.txt` JSONL. Only bytes appended since the previous call are read
+ * `agent/omp.txt` JSONL. Only bytes appended since the previous call are read
  * and parsed — both this runner's render loop and the manager's 2s sync tick
  * call this for every live trial, and a full-file reread used to block the
  * event loop for seconds (and OOM outright on runaway multi-GB transcripts).
@@ -648,8 +681,8 @@ function parseTrial(dir: string, name: string): Trial | null {
 			/* ignore */
 		}
 
-		// Realtime cost from the live agent chudcode.txt log, parsed incrementally.
-		const probe = probeTrialCost(path.join(dir, "agent", "chudcode.txt"));
+		// Realtime cost from the live agent omp.txt log, parsed incrementally.
+		const probe = probeTrialCost(path.join(dir, "agent", "omp.txt"));
 		const costUsd = probe?.costUsd ?? 0;
 		const tokIn = probe?.tokIn ?? 0;
 		const tokOut = probe?.tokOut ?? 0;
@@ -668,7 +701,7 @@ function parseTrial(dir: string, name: string): Trial | null {
 		};
 	}
 	// Trial finished: usage now comes from result.json; drop the live-parse state.
-	costProbes.delete(path.join(dir, "agent", "chudcode.txt"));
+	costProbes.delete(path.join(dir, "agent", "omp.txt"));
 	const raw = readJson(resultPath);
 	if (!raw || typeof raw !== "object") return null;
 	const r = raw as Record<string, unknown>;
@@ -926,7 +959,7 @@ function writeReport(st: RenderState, benchDir: string, exitCode: number): strin
 	const tot = aggregate(trials, readJobResult(st.jobDir), st.expected);
 	const successPct = tot.done > 0 ? (tot.pass / tot.done) * 100 : 0;
 	const lines: string[] = [];
-	const isOmp = st.cfg.agent === "chudcode";
+	const isOmp = st.cfg.agent === "omp";
 	const argsLabel = agentArgsLabel(st.cfg);
 	const baseModelLine = st.cfg.models.join(", ");
 	const modelLine = argsLabel ? `${baseModelLine} (${argsLabel})` : baseModelLine;
@@ -987,7 +1020,7 @@ function readPkgVersion(): string {
 }
 
 function buildTarball(benchDir: string): string {
-	process.stdout.write(dim("packing local chudcode (bun pm pack)…\n"));
+	process.stdout.write(dim("packing local omp (bun pm pack)…\n"));
 	const r = spawnSync("bun", ["pm", "pack", "--destination", benchDir], {
 		cwd: CODING_AGENT_DIR,
 		encoding: "utf8",
@@ -1021,7 +1054,7 @@ function newestTarball(benchDir: string): string | null {
 
 // ─────────────────────────────────────────────────────── source mount (--install source)
 
-/** Linux deps tree + mount plan for running chudcode straight from the mounted repo. */
+/** Linux deps tree + mount plan for running omp straight from the mounted repo. */
 export interface SourceMount {
 	arch: "arm64" | "x64";
 	/** Host dir holding the linux `bin/bun` + skeleton `node_modules` trees. */
@@ -1076,7 +1109,7 @@ function sourceManifestFiles(pkgDirs: string[]): string[] {
 }
 
 function sourceDepsStamp(manifests: string[], bunVersion: string): string {
-	const h = crypto.createHash("sha256");
+	const h = new Bun.CryptoHasher("sha256");
 	h.update(`bun@${bunVersion}\0source-deps-v1\0`);
 	for (const rel of manifests) {
 		h.update(rel);
@@ -1194,7 +1227,7 @@ function writeComposeOverlay(benchDir: string, cfg: Config, source: SourceMount 
 		lines.push(`      - ${path.join(source.depsDir, "bin")}:${SOURCE_BIN_MOUNT}:ro`);
 	}
 	if (lines.length === 0) return null;
-	const file = path.join(benchDir, "chudcode-compose-overlay.yaml");
+	const file = path.join(benchDir, "omp-compose-overlay.yaml");
 	fs.writeFileSync(file, `${["services:", "  main:", ...lines].join("\n")}\n`);
 	return file;
 }
@@ -1219,6 +1252,33 @@ function buildMountsJson(source: SourceMount | null): string | null {
 	}
 	mounts.push({ type: "bind", source: path.join(source.depsDir, "bin"), target: SOURCE_BIN_MOUNT, read_only: true });
 	return JSON.stringify(mounts);
+}
+
+/** Neutralized upstream system prompt template uploaded into `pi` trials (see pi_upstream.py). */
+const PI_UPSTREAM_SYSTEM_PROMPT = path.join(AGENT_DIR, "pi-upstream-system.md");
+
+/**
+ * Catalog facts for each `provider/model` the upstream agent needs in its
+ * `models.json`: wire api, limits, modalities and cost, so its usage accounting
+ * matches omp's for the same model.
+ */
+function upstreamModelSpecs(cfg: Config): Array<Record<string, unknown>> {
+	return cfg.models.map(spec => {
+		const slash = spec.indexOf("/");
+		const provider = spec.slice(0, slash) as GeneratedProvider;
+		const id = spec.slice(slash + 1);
+		const model = getBundledModel(provider, id);
+		return {
+			provider,
+			id,
+			api: model.api,
+			reasoning: model.reasoning,
+			input: model.input,
+			contextWindow: model.contextWindow,
+			maxTokens: model.maxTokens,
+			cost: model.cost,
+		};
+	});
 }
 
 function deriveProviders(cfg: Config): string[] {
@@ -1247,7 +1307,7 @@ function writeModelsYaml(benchDir: string, cfg: Config): string {
 		lines.push(`  ${p}:`);
 		lines.push(`    baseUrl: ${cfg.gatewayUrl}`);
 		lines.push("    auth: oauth");
-		lines.push("    transport: chud-native");
+		lines.push("    transport: pi-native");
 		lines.push(`    apiKey: ${cfg.gatewayToken}`);
 	}
 	const file = path.join(benchDir, "models.yml");
@@ -1314,7 +1374,8 @@ function buildHarborArgs(
 	composeOverlayPath: string | null,
 	mountsJson: string | null,
 ): string[] {
-	const a: string[] = ["run", "-d", cfg.dataset, "-o", cfg.jobsDir, "--job-name", jobName];
+	const datasetFlag = fs.existsSync(cfg.dataset) ? "-p" : "-d";
+	const a: string[] = ["run", datasetFlag, cfg.dataset, "-o", cfg.jobsDir, "--job-name", jobName];
 	a.push("-n", String(cfg.concurrency), "-k", String(cfg.attempts), "-l", String(cfg.tasks));
 	for (const m of cfg.models) a.push("-m", m);
 	for (const inc of cfg.include) a.push("-i", inc);
@@ -1328,9 +1389,9 @@ function buildHarborArgs(
 	if (cfg.envType !== "docker") a.push("-e", cfg.envType);
 	if (mountsJson) a.push("--mounts", mountsJson);
 
-	if (cfg.agent === "chudcode") {
-		// Config + secrets travel via env (CHUDCODE_BENCH_*); the agent reads os.environ.
-		a.push("--agent-import-path", AGENT_IMPORT_PATH);
+	if (MANAGED_AGENTS[cfg.agent]) {
+		// Config + secrets travel via env (OMP_BENCH_*); the agent reads os.environ.
+		a.push("--agent-import-path", cfg.agent === "pi" ? PI_UPSTREAM_IMPORT_PATH : AGENT_IMPORT_PATH);
 		void modelsYaml;
 		void tarball;
 	} else {
@@ -1355,27 +1416,27 @@ export function buildResumeArgs(cfg: Config, jobDir: string): string[] {
 }
 
 const FORWARD_ENV_DENYLIST = new Set([
-	"CHUDCODE_CODING_AGENT_DIR",
-	"CHUDCODE_CONFIG_DIR",
-	"CHUDCODE_PROFILE",
-	"CHUDCODE_PACKAGE_DIR",
-	"CHUDCODE_SESSION_FILE",
-	"CHUDCODE_ARTIFACTS_DIR",
-	"CHUDCODE_TOOL_BRIDGE_URL",
-	"CHUDCODE_TOOL_BRIDGE_TOKEN",
-	"CHUDCODE_TOOL_BRIDGE_SESSION",
-	"CHUDCODE_EVAL_LOCAL_ROOTS",
+	"PI_CODING_AGENT_DIR",
+	"PI_CONFIG_DIR",
+	"PI_PROFILE",
+	"PI_PACKAGE_DIR",
+	"PI_SESSION_FILE",
+	"PI_ARTIFACTS_DIR",
+	"PI_TOOL_BRIDGE_URL",
+	"PI_TOOL_BRIDGE_TOKEN",
+	"PI_TOOL_BRIDGE_SESSION",
+	"PI_EVAL_LOCAL_ROOTS",
 ]);
 
 /**
- * Env vars injected into the in-container chudcode run: every host `CHUDCODE_*` knob (minus
+ * Env vars injected into the in-container omp run: every host `PI_*` knob (minus
  * container-hostile dir/profile/session keys) plus explicit `--env` entries,
  * which always win and bypass the denylist.
  */
 export function collectForwardEnv(cfg: Config): Record<string, string> {
 	const out: Record<string, string> = {};
 	for (const [k, v] of Object.entries(process.env)) {
-		if (v === undefined || !k.startsWith("CHUDCODE_") || FORWARD_ENV_DENYLIST.has(k)) continue;
+		if (v === undefined || !k.startsWith("PI_") || FORWARD_ENV_DENYLIST.has(k)) continue;
 		out[k] = v;
 	}
 	for (const [k, v] of Object.entries(cfg.env)) out[k] = v;
@@ -1390,37 +1451,44 @@ export function buildHarborEnv(
 	source: SourceMount | null = null,
 ): Record<string, string> {
 	const env: Record<string, string> = { ...(process.env as Record<string, string>) };
-	// Drop any stale CHUDCODE_BENCH_FORWARD_ENV inherited from the caller's shell before
+	// Drop any stale OMP_BENCH_FORWARD_ENV inherited from the caller's shell before
 	// the agent-type early return, so it never leaks (incl. into the dry-run dump).
-	delete env.CHUDCODE_BENCH_FORWARD_ENV;
-	if (cfg.agent !== "chudcode") return env;
+	delete env.OMP_BENCH_FORWARD_ENV;
+	if (!MANAGED_AGENTS[cfg.agent]) return env;
 	const prepend = (k: string, v: string): void => {
 		env[k] = env[k] ? `${v}:${env[k]}` : v;
 	};
 	prepend("PYTHONPATH", AGENT_DIR);
-	env.CHUDCODE_BENCH_INSTALL = cfg.install;
-	env.CHUDCODE_BENCH_VERSION = cfg.version ?? version;
-	if (tarball) env.CHUDCODE_BENCH_TARBALL = tarball;
+	if (cfg.agent === "pi") {
+		env.OMP_BENCH_PI_VERSION = cfg.version ?? PI_UPSTREAM_VERSION;
+		env.OMP_BENCH_PI_MODELS = JSON.stringify(upstreamModelSpecs(cfg));
+		env.OMP_BENCH_PI_SYSTEM_PROMPT = PI_UPSTREAM_SYSTEM_PROMPT;
+	}
+	env.OMP_BENCH_INSTALL = cfg.install;
+	env.OMP_BENCH_VERSION = cfg.version ?? version;
+	if (tarball) env.OMP_BENCH_TARBALL = tarball;
 	if (source) {
-		env.CHUDCODE_BENCH_SOURCE_DIR = SOURCE_SRC_MOUNT;
-		env.CHUDCODE_BENCH_SOURCE_BUN = `${SOURCE_BIN_MOUNT}/bun`;
-		env.CHUDCODE_BENCH_SOURCE_ARCH = source.arch;
+		env.OMP_BENCH_SOURCE_DIR = SOURCE_SRC_MOUNT;
+		env.OMP_BENCH_SOURCE_BUN = `${SOURCE_BIN_MOUNT}/bun`;
+		env.OMP_BENCH_SOURCE_ARCH = source.arch;
 	}
-	if (cfg.binaryArm64) env.CHUDCODE_BENCH_BINARY_ARM64 = cfg.binaryArm64;
-	if (cfg.binaryX64) env.CHUDCODE_BENCH_BINARY_X64 = cfg.binaryX64;
-	if (cfg.thinking) env.CHUDCODE_BENCH_THINKING = cfg.thinking;
-	if (cfg.agentArgs.length > 0) env.CHUDCODE_BENCH_AGENT_ARGS = JSON.stringify(cfg.agentArgs);
-	if (cfg.webSearch) env.CHUDCODE_BENCH_WEB_SEARCH = "1";
-	env.CHUDCODE_BENCH_GATEWAY = cfg.gateway ? "1" : "0";
+	if (cfg.binaryArm64) env.OMP_BENCH_BINARY_ARM64 = cfg.binaryArm64;
+	if (cfg.binaryX64) env.OMP_BENCH_BINARY_X64 = cfg.binaryX64;
+	if (cfg.thinking) env.OMP_BENCH_THINKING = cfg.thinking;
+	if (cfg.agentArgs.length > 0) env.OMP_BENCH_AGENT_ARGS = JSON.stringify(cfg.agentArgs);
+	if (cfg.tools) env.OMP_BENCH_TOOLS = cfg.tools.join(",");
+	if (Object.keys(cfg.settings).length > 0) env.OMP_BENCH_SETTINGS = JSON.stringify(cfg.settings);
+	if (cfg.webSearch) env.OMP_BENCH_WEB_SEARCH = "1";
+	env.OMP_BENCH_GATEWAY = cfg.gateway ? "1" : "0";
 	if (cfg.gateway) {
-		env.CHUDCODE_BENCH_MODELS_YAML = modelsYaml;
-		env.CHUDCODE_BENCH_GATEWAY_URL = cfg.gatewayUrl;
-		env.CHUDCODE_BENCH_GATEWAY_TOKEN = cfg.gatewayToken;
-		env.CHUDCODE_BENCH_GATEWAY_PROVIDERS = deriveProviders(cfg).join(",");
+		env.OMP_BENCH_MODELS_YAML = modelsYaml;
+		env.OMP_BENCH_GATEWAY_URL = cfg.gatewayUrl;
+		env.OMP_BENCH_GATEWAY_TOKEN = cfg.gatewayToken;
+		env.OMP_BENCH_GATEWAY_PROVIDERS = deriveProviders(cfg).join(",");
 	}
-	if (cfg.envType === "apple-container") env.CHUDCODE_BENCH_CONTAINER_DNS = CONTAINER_DNS;
+	if (cfg.envType === "apple-container") env.OMP_BENCH_CONTAINER_DNS = CONTAINER_DNS;
 	const forward = collectForwardEnv(cfg);
-	if (Object.keys(forward).length > 0) env.CHUDCODE_BENCH_FORWARD_ENV = JSON.stringify(forward);
+	if (Object.keys(forward).length > 0) env.OMP_BENCH_FORWARD_ENV = JSON.stringify(forward);
 	return env;
 }
 
@@ -1544,7 +1612,7 @@ async function runBenchmark(cfg: Config): Promise<BenchmarkRun> {
 	if (!which("harbor")) {
 		throw new Error("harbor not found on PATH. Install with: uv tool install harbor");
 	}
-	if (cfg.agent === "chudcode" && cfg.envType === "docker" && !which("docker")) {
+	if (cfg.agent === "omp" && cfg.envType === "docker" && !which("docker")) {
 		throw new Error("docker not found on PATH (required to run task containers).");
 	}
 	if (cfg.envType === "apple-container" && !which("container")) {
@@ -1569,7 +1637,7 @@ async function runBenchmark(cfg: Config): Promise<BenchmarkRun> {
 
 	// tarball (local install only)
 	let tarball: string | null = cfg.tarball;
-	if (cfg.agent === "chudcode" && cfg.install === "local" && !cfg.binaryArm64 && !cfg.binaryX64) {
+	if (cfg.agent === "omp" && cfg.install === "local" && !cfg.binaryArm64 && !cfg.binaryX64) {
 		if (tarball) {
 			process.stdout.write(dim(`using tarball ${tarball}\n`));
 		} else if (cfg.build) {
@@ -1582,18 +1650,18 @@ async function runBenchmark(cfg: Config): Promise<BenchmarkRun> {
 
 	// source mount (default): repo bind-mounted read-only + cached linux deps tree
 	let source: SourceMount | null = null;
-	if (cfg.agent === "chudcode" && cfg.install === "source" && !cfg.binaryArm64 && !cfg.binaryX64) {
+	if (cfg.agent === "omp" && cfg.install === "source" && !cfg.binaryArm64 && !cfg.binaryX64) {
 		source = prepareSourceDeps(cfg);
 	}
 
 	// models.yml (gateway)
 	let modelsYaml = "";
-	if (cfg.agent === "chudcode" && cfg.gateway) {
+	if (cfg.agent === "omp" && cfg.gateway) {
 		modelsYaml = writeModelsYaml(benchDir, cfg);
 		if (!gatewayHealthOk(cfg.gatewayUrl)) {
 			process.stderr.write(
 				yellow(
-					`warning: gateway ${cfg.gatewayUrl} health check failed (continuing). Is the pm2 'chudcode-auth-gateway' running?\n`,
+					`warning: gateway ${cfg.gatewayUrl} health check failed (continuing). Is the pm2 'omp-auth-gateway' running?\n`,
 				),
 			);
 		}
@@ -1613,18 +1681,17 @@ async function runBenchmark(cfg: Config): Promise<BenchmarkRun> {
 			process.stdout.write(bold("models.yml:\n"));
 			process.stdout.write(`${fs.readFileSync(modelsYaml, "utf8")}\n`);
 		}
-		process.stdout.write(bold("chudcode env:\n"));
+		process.stdout.write(bold("omp env:\n"));
 		for (const key in harborEnv) {
-			if (key === "CHUDCODE_BENCH_FORWARD_ENV") continue;
-			if (key.startsWith("CHUDCODE_BENCH_") || key === "PYTHONPATH")
-				process.stdout.write(`  ${key}=${harborEnv[key]}\n`);
+			if (key === "OMP_BENCH_FORWARD_ENV") continue;
+			if (key.startsWith("OMP_BENCH_") || key === "PYTHONPATH") process.stdout.write(`  ${key}=${harborEnv[key]}\n`);
 		}
-		if (harborEnv.CHUDCODE_BENCH_FORWARD_ENV) {
-			const parsedForwardEnv: unknown = JSON.parse(harborEnv.CHUDCODE_BENCH_FORWARD_ENV);
+		if (harborEnv.OMP_BENCH_FORWARD_ENV) {
+			const parsedForwardEnv: unknown = JSON.parse(harborEnv.OMP_BENCH_FORWARD_ENV);
 			if (parsedForwardEnv !== null && typeof parsedForwardEnv === "object" && !Array.isArray(parsedForwardEnv)) {
 				const keys: string[] = [];
 				for (const key in parsedForwardEnv) keys.push(key);
-				process.stdout.write(`  CHUDCODE_BENCH_FORWARD_ENV=${keys.join(",")} (values hidden)\n`);
+				process.stdout.write(`  OMP_BENCH_FORWARD_ENV=${keys.join(",")} (values hidden)\n`);
 			}
 		}
 		process.stdout.write(`\njob dir: ${jobDir}\nbench dir: ${benchDir}\n`);
@@ -1673,7 +1740,7 @@ async function runBenchmark(cfg: Config): Promise<BenchmarkRun> {
 		while (!finished) {
 			render(st);
 			st.tick++;
-			await sleep(isTTY ? 700 : 10000);
+			await Bun.sleep(isTTY ? 700 : 10000);
 		}
 		render(st); // final frame
 	} finally {

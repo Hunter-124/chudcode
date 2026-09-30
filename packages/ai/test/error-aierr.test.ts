@@ -1,10 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import { isContentRefusal } from "@chudware/ai";
-import * as AIError from "@chudware/ai/error";
-import type { ResponseStreamEvent } from "@chudware/ai/providers/openai-responses-wire";
-import { processResponsesStream, promoteResponsesToolUseStopReason } from "@chudware/ai/providers/openai-shared";
-import type { AssistantMessage, ModelSpec } from "@chudware/ai/types";
-import { buildModel } from "@chudware/catalog/build";
+import * as AIError from "@oh-my-pi/pi-ai/error";
 
 describe("AIError.classify — structural provider errors", () => {
 	it("classifies an Anthropic connection timeout as timeout + transient (no regex)", () => {
@@ -93,6 +88,24 @@ describe("AIError.classify — structural provider errors", () => {
 		expect(AIError.retriable(id)).toBe(true);
 	});
 
+	it("keeps a terminal 4xx that wraps a stream-truncation cause terminal", () => {
+		const err = new AIError.ProviderHttpError("Bad Request", 400, { cause: new Error("unexpected EOF") });
+		const id = AIError.classify(err);
+		expect(AIError.is(id, AIError.Flag.Transient)).toBe(false);
+		expect(AIError.retriable(id)).toBe(false);
+	});
+
+	it("keeps a retryable-status wrapper over a stream-truncation cause transient", () => {
+		for (const wrapped of [
+			new AIError.ProviderHttpError("Service Unavailable", 503, { cause: new Error("unexpected EOF") }),
+			new AIError.ProviderHttpError("Too Many Requests", 429, { cause: new Error("eof while parsing") }),
+		]) {
+			const id = AIError.classify(wrapped);
+			expect(AIError.is(id, AIError.Flag.Transient)).toBe(true);
+			expect(AIError.retriable(id)).toBe(true);
+		}
+	});
+
 	it("keeps empty response bodies on the generic transient fallback path", () => {
 		const err = new AIError.ProviderResponseError("Google API returned an empty response body", {
 			provider: "google",
@@ -124,165 +137,6 @@ describe("AIError.classify — structural provider errors", () => {
 	});
 });
 
-describe("isContentRefusal", () => {
-	it("normalizes OpenAI refusal parts into an error stop while preserving the explanation", async () => {
-		const explanation = "I can’t help with that request.";
-		const output: AssistantMessage = {
-			role: "assistant",
-			content: [],
-			api: "openai-responses",
-			provider: "openai",
-			model: "gpt-5",
-			usage: {
-				input: 0,
-				output: 0,
-				cacheRead: 0,
-				cacheWrite: 0,
-				totalTokens: 0,
-				cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
-			},
-			stopReason: "stop",
-			timestamp: 1,
-		};
-		const model = buildModel({
-			id: "gpt-5",
-			name: "GPT-5",
-			api: "openai-responses",
-			provider: "openai",
-			baseUrl: "https://api.openai.com/v1",
-			reasoning: true,
-			input: ["text"],
-			cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
-			contextWindow: 400000,
-			maxTokens: 128000,
-		} as ModelSpec<"openai-responses">);
-		const eventFixtures = [
-			{
-				type: "response.output_item.added",
-				output_index: 0,
-				sequence_number: 0,
-				item: { type: "message", id: "msg_refusal", role: "assistant", status: "in_progress", content: [] },
-			},
-			{
-				type: "response.content_part.added",
-				output_index: 0,
-				item_id: "msg_refusal",
-				content_index: 0,
-				sequence_number: 1,
-				part: { type: "refusal", refusal: "" },
-			},
-			{
-				type: "response.refusal.delta",
-				output_index: 0,
-				item_id: "msg_refusal",
-				content_index: 0,
-				sequence_number: 2,
-				delta: explanation,
-			},
-			{
-				type: "response.output_item.done",
-				output_index: 0,
-				sequence_number: 3,
-				item: {
-					type: "message",
-					id: "msg_refusal",
-					role: "assistant",
-					status: "completed",
-					content: [{ type: "refusal", refusal: explanation }],
-				},
-			},
-		] satisfies ResponseStreamEvent[];
-		const events = (async function* (): AsyncIterable<ResponseStreamEvent> {
-			yield* eventFixtures;
-		})();
-		const sink = {
-			push(_event: unknown): void {},
-			end(): void {},
-		} as never;
-
-		await processResponsesStream(events, output, sink, model);
-		// Terminal status mapping happens before shared stop promotion. Simulate
-		// that overwrite and prove the structured refusal wins it back.
-		const terminalMapped: AssistantMessage = { ...output, stopReason: "stop" };
-		promoteResponsesToolUseStopReason(terminalMapped, undefined);
-
-		expect(terminalMapped.stopReason).toBe("error");
-		expect(terminalMapped.stopDetails).toEqual({ type: "refusal", explanation });
-		expect(terminalMapped.errorMessage).toBe(`Refusal: ${explanation}`);
-		expect(terminalMapped.content).toEqual([{ type: "text", text: explanation, textSignature: expect.any(String) }]);
-		expect(isContentRefusal(terminalMapped)).toBe(true);
-	});
-
-	it("recognizes Anthropic stop details and persisted account-policy flags", () => {
-		const anthropicRefusal: AssistantMessage = {
-			role: "assistant",
-			content: [{ type: "text", text: "I can’t assist with that." }],
-			api: "anthropic-messages",
-			provider: "anthropic",
-			model: "claude",
-			usage: {
-				input: 1,
-				output: 1,
-				cacheRead: 0,
-				cacheWrite: 0,
-				totalTokens: 2,
-				cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
-			},
-			stopReason: "error",
-			stopDetails: { type: "refusal", category: "safety", explanation: "I can’t assist with that." },
-			timestamp: 1,
-		};
-		const accountPolicyMessage: AssistantMessage = {
-			...anthropicRefusal,
-			stopDetails: undefined,
-			errorId: AIError.create(AIError.Flag.AccountPolicy),
-		};
-		const anthropicSensitive = {
-			...anthropicRefusal,
-			stopDetails: { type: "sensitive" },
-		} satisfies AssistantMessage;
-
-		expect(isContentRefusal(anthropicRefusal)).toBe(true);
-		expect(isContentRefusal(anthropicSensitive)).toBe(true);
-		expect(isContentRefusal(accountPolicyMessage)).toBe(true);
-	});
-
-	it("recognizes thrown content and account-policy denials but not outages", () => {
-		const filtered = new AIError.ProviderResponseError("blocked by upstream", {
-			provider: "google",
-			kind: "content-blocked",
-		});
-		const accountPolicy = new AIError.ProviderHttpError("request denied", 403, { code: "cyber_policy" });
-		const outage = new AIError.ProviderHttpError("Service Unavailable", 503);
-
-		expect(isContentRefusal(filtered)).toBe(true);
-		expect(isContentRefusal(accountPolicy)).toBe(true);
-		expect(isContentRefusal(outage)).toBe(false);
-	});
-
-	it("does not classify ordinary policy discussion text as a refusal", () => {
-		const discussion: AssistantMessage = {
-			role: "assistant",
-			content: [{ type: "text", text: "We can discuss safety policies and how models should handle refusals." }],
-			api: "openai-responses",
-			provider: "openai",
-			model: "gpt-5",
-			usage: {
-				input: 1,
-				output: 12,
-				cacheRead: 0,
-				cacheWrite: 0,
-				totalTokens: 13,
-				cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
-			},
-			stopReason: "stop",
-			timestamp: 1,
-		};
-
-		expect(isContentRefusal(discussion)).toBe(false);
-	});
-});
-
 describe("AIError.finalize", () => {
 	it("bundles id, status, error stopReason, and message for a connection timeout", async () => {
 		const result = await AIError.finalize(new AIError.AnthropicConnectionTimeoutError(), {});
@@ -303,6 +157,16 @@ describe("AIError.finalize", () => {
 		const result = await AIError.finalize(new AIError.ProviderHttpError("Bad Gateway", 502), {});
 		expect(result.status).toBe(502);
 		expect(AIError.is(result.id, AIError.Flag.Transient)).toBe(true);
+	});
+
+	it("applies a captured terminal 4xx before classifying a truncation error", async () => {
+		const result = await AIError.finalize(new Error("unexpected EOF"), {
+			capturedErrorResponse: { status: 400 },
+		});
+
+		expect(result.status).toBe(400);
+		expect(AIError.is(result.id, AIError.Flag.Transient)).toBe(false);
+		expect(AIError.retriable(result.id)).toBe(false);
 	});
 
 	it("preserves nested token-overflow evidence through finalization", async () => {

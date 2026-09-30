@@ -1,37 +1,44 @@
-Update the handoff in <previous-summary> from the new messages above.
+Update existing handoff summary in <previous-summary> tags from new messages above for another LLM to resume.
 
-The previous summary is a working projection, not an immutable record. Reconcile it with newer evidence:
-- Delete resolved blockers, completed next steps, dropped ideas, stale repository state, and superseded instructions.
-- Replace corrected facts with the newest supported version; keep the transition only when it prevents a repeated mistake.
-- Keep completed work only as a durable current outcome (behavior, interface, migration, pushed commit, decision, invariant, or necessary failure evidence). Never grow an unbounded Done list.
-- Keep current goals, constraints, open work, blockers, and next actions detailed.
-- Preserve exact paths, symbols, versions, errors, commit SHAs, and evidence still needed to continue.
-- If the new messages end with an unanswered user question or request, preserve it exactly in Blocked or Critical Context.
+MUST:
+- preserve all previous-summary information; add new progress, decisions, context.
+- Progress: move completed "In Progress" items to "Done".
+- update "Next Steps" for completed work.
+- preserve exact file paths, function names, error messages.
+- MAY remove irrelevant content.
+- If new messages end with an unanswered user question/request: add it to Critical Context; replace any previous pending question if answered.
+- output only the structured summary; NEVER extra text.
+- keep sections concise.
+- preserve relevant tool outputs/command results.
+- include mentioned repository state changes (branch, uncommitted changes).
 
-Use this format; omit empty sections:
+Format (omit inapplicable sections):
 
 ## Goal
-[Current goals only.]
+[Preserve existing goals; add new ones if task expanded]
 
 ## Constraints & Preferences
-- [Current constraints and stable preferences.]
+- [Preserve existing; add new ones discovered]
 
-## Current State
-- [Durable outcomes and what is true now.]
+## Progress
 
-## In Progress
-- [Current work only.]
+### Done
+- [x] [Include previously done and newly completed items]
 
-## Blocked
-- [Unresolved blockers and missing prerequisites.]
+### In Progress
+- [ ] [Current work—update based on progress]
+
+### Blocked
+- [Current blockers—remove if resolved]
 
 ## Key Decisions
-- **[Current decision]**: [Brief rationale; mention supersession only when relevant.]
+- **[Decision]**: [Brief rationale] (preserve all previous, add new)
 
 ## Next Steps
-1. [Ordered executable actions.]
+1. [Update based on current state]
 
 ## Critical Context
-- [Minimal timeline, repository state, references, and evidence needed to resume.]
+- [Preserve important context; add new if needed]
 
-Output only the curated structured handoff. Remove expired context aggressively.
+## Additional Notes
+[Other important info not fitting above]

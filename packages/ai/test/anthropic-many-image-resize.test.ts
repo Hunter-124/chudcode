@@ -1,7 +1,7 @@
 import { describe, expect, it } from "bun:test";
-import { streamAnthropic } from "@chudware/ai/providers/anthropic";
-import type { AssistantMessage, Context, ImageContent, Model, TextContent, Usage } from "@chudware/ai/types";
-import { buildModel } from "@chudware/catalog/build";
+import { streamAnthropic } from "@oh-my-pi/pi-ai/providers/anthropic";
+import type { AssistantMessage, Context, ImageContent, Model, TextContent, Usage } from "@oh-my-pi/pi-ai/types";
+import { buildModel } from "@oh-my-pi/pi-catalog/build";
 
 const RED_1X1_PNG_BASE64 =
 	"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGP4z8AAAAMBAQDJ/pLvAAAAAElFTkSuQmCC";
@@ -105,9 +105,9 @@ function isAnthropicImageBlock(value: unknown): value is AnthropicImageBlock {
 	const source = block.source;
 	return Boolean(
 		source &&
-			typeof source === "object" &&
-			(source as Record<string, unknown>).type === "base64" &&
-			typeof (source as Record<string, unknown>).data === "string",
+		typeof source === "object" &&
+		(source as Record<string, unknown>).type === "base64" &&
+		typeof (source as Record<string, unknown>).data === "string",
 	);
 }
 

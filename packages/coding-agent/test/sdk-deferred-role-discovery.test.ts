@@ -2,14 +2,14 @@ import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
-import type { FetchImpl } from "@chudware/ai";
-import { ModelRegistry } from "@chudware/coding-agent/config/model-registry";
-import { Settings } from "@chudware/coding-agent/config/settings";
-import { createAgentSession } from "@chudware/coding-agent/sdk";
-import type { AgentSession } from "@chudware/coding-agent/session/agent-session";
-import { AuthStorage } from "@chudware/coding-agent/session/auth-storage";
-import { SessionManager } from "@chudware/coding-agent/session/session-manager";
-import { removeSyncWithRetries, Snowflake } from "@chudware/utils";
+import type { FetchImpl } from "@oh-my-pi/pi-ai";
+import { ModelRegistry } from "@oh-my-pi/pi-coding-agent/config/model-registry";
+import { Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
+import { createAgentSession } from "@oh-my-pi/pi-coding-agent/sdk";
+import type { AgentSession } from "@oh-my-pi/pi-coding-agent/session/agent-session";
+import { AuthStorage } from "@oh-my-pi/pi-coding-agent/session/auth-storage";
+import { SessionManager } from "@oh-my-pi/pi-coding-agent/session/session-manager";
+import { removeSyncWithRetries, Snowflake } from "@oh-my-pi/pi-utils";
 
 // Regression for #8863: a deferred `--model @<role>` whose role maps to a model
 // on a discovery-backed provider (ollama/oMLX/llama-swap) must trigger the
@@ -25,10 +25,10 @@ describe("createAgentSession deferred role alias on discoverable provider (#8863
 
 	beforeEach(async () => {
 		for (const key of ["OLLAMA_BASE_URL", "OLLAMA_HOST", "OLLAMA_CONTEXT_LENGTH"] as const) {
-			savedOllamaEnv[key] = process.env[key];
-			delete process.env[key];
+			savedOllamaEnv[key] = Bun.env[key];
+			delete Bun.env[key];
 		}
-		tempDir = path.join(os.tmpdir(), `chud-test-sdk-deferred-role-${Snowflake.next()}`);
+		tempDir = path.join(os.tmpdir(), `pi-test-sdk-deferred-role-${Snowflake.next()}`);
 		fs.mkdirSync(tempDir, { recursive: true });
 		modelsJsonPath = path.join(tempDir, "models.json");
 		authStorage = await AuthStorage.create(":memory:");
@@ -37,8 +37,8 @@ describe("createAgentSession deferred role alias on discoverable provider (#8863
 	afterEach(() => {
 		for (const key of ["OLLAMA_BASE_URL", "OLLAMA_HOST", "OLLAMA_CONTEXT_LENGTH"] as const) {
 			const original = savedOllamaEnv[key];
-			if (original === undefined) delete process.env[key];
-			else process.env[key] = original;
+			if (original === undefined) delete Bun.env[key];
+			else Bun.env[key] = original;
 		}
 		authStorage.close();
 		if (tempDir && fs.existsSync(tempDir)) removeSyncWithRetries(tempDir);

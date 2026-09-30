@@ -1,4 +1,3 @@
-import { sleep } from "@chudware/utils/async";
 import type { ToolSession } from "..";
 
 export type MiValue = string | MiTuple | MiValue[];
@@ -256,11 +255,11 @@ export class GdbMiSession {
 		} catch {
 			// Pipe already closed.
 		}
-		await Promise.race([this.exitCode, sleep(500)]);
+		await Promise.race([this.exitCode, Bun.sleep(500)]);
 		if (this.process.exitCode === null) this.process.kill("SIGTERM");
-		await Promise.race([this.exitCode, sleep(1000)]);
+		await Promise.race([this.exitCode, Bun.sleep(1000)]);
 		if (this.process.exitCode === null) this.process.kill("SIGKILL");
-		await Promise.race([this.exitCode, sleep(1000)]);
+		await Promise.race([this.exitCode, Bun.sleep(1000)]);
 	}
 
 	async #requestDirect(command: string, timeoutMs: number): Promise<MiRecord[]> {
@@ -404,7 +403,7 @@ export async function runGdbMI(options: RunGdbMiOptions): Promise<{
 		await session.close();
 	}
 	return {
-		exitCode: await Promise.race([session.exitCode, sleep(100).then(() => -1)]),
+		exitCode: await Promise.race([session.exitCode, Bun.sleep(100).then(() => -1)]),
 		records,
 		stdout: session.stdoutExcerpt(),
 		stderr: session.stderrExcerpt(),

@@ -1,17 +1,16 @@
 import { afterEach, beforeAll, beforeEach, describe, expect, it } from "bun:test";
 import * as path from "node:path";
-import { Agent } from "@chudware/agent-core";
-import type { AssistantMessage, Usage } from "@chudware/ai";
-import { ModelRegistry } from "@chudware/coding-agent/config/model-registry";
-import { resetSettingsForTest, Settings } from "@chudware/coding-agent/config/settings";
-import { Composer } from "@chudware/coding-agent/modes/composer";
-import { InteractiveMode } from "@chudware/coding-agent/modes/interactive-mode";
-import { initTheme } from "@chudware/coding-agent/modes/theme/theme";
-import { AgentSession } from "@chudware/coding-agent/session/agent-session";
-import { AuthStorage } from "@chudware/coding-agent/session/auth-storage";
-import { SessionManager } from "@chudware/coding-agent/session/session-manager";
-import { TempDir } from "@chudware/utils";
-import { sleep } from "@chudware/utils/async";
+import { Agent } from "@oh-my-pi/pi-agent-core";
+import type { AssistantMessage, ToolResultMessage, Usage } from "@oh-my-pi/pi-ai";
+import { ModelRegistry } from "@oh-my-pi/pi-coding-agent/config/model-registry";
+import { resetSettingsForTest, Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
+import { Composer } from "@oh-my-pi/pi-tui/prompt/composer";
+import { InteractiveMode } from "@oh-my-pi/pi-coding-agent/modes/interactive-mode";
+import { initTheme } from "@oh-my-pi/pi-tui/theme";
+import { AgentSession } from "@oh-my-pi/pi-coding-agent/session/agent-session";
+import { AuthStorage } from "@oh-my-pi/pi-coding-agent/session/auth-storage";
+import { SessionManager } from "@oh-my-pi/pi-coding-agent/session/session-manager";
+import { TempDir } from "@oh-my-pi/pi-utils";
 import { VirtualTerminal } from "../../tui/test/virtual-terminal";
 
 function plainRows(rows: readonly string[]): string[] {
@@ -66,17 +65,17 @@ describe("libkitty end-to-end", () => {
 		const pending = mode.getUserInput();
 		await term.waitForRender();
 
-		term.sendInput("hi there chudcode");
+		term.sendInput("hi there omp");
 		await term.waitForRender();
 		term.sendInput("\r");
 		const input = await pending;
-		expect(input.text).toBe("hi there chudcode");
+		expect(input.text).toBe("hi there omp");
 
 		// The optimistic user-message block must be on the physical screen now,
 		// before any assistant output exists.
-		await term.waitForRender(() => plainRows(term.getViewport()).some(row => row.includes("hi there chudcode")));
+		await term.waitForRender(() => plainRows(term.getViewport()).some(row => row.includes("hi there omp")));
 		const viewport = plainRows(term.getViewport());
-		const hits = viewport.filter(row => row.includes("hi there chudcode"));
+		const hits = viewport.filter(row => row.includes("hi there omp"));
 		if (hits.length !== 1) dump("viewport after submit", viewport);
 		expect(hits.length).toBe(1);
 	});
@@ -90,10 +89,10 @@ describe("libkitty end-to-end", () => {
 		await term.waitForRender(() => plainRows(term.getViewport()).some(row => row.includes("MARKER_DRAFT")));
 
 		term.resize(120, 40);
-		await sleep(300);
+		await Bun.sleep(300);
 		await term.waitForRender();
 		term.resize(110, 40);
-		await sleep(300);
+		await Bun.sleep(300);
 		await term.waitForRender();
 
 		// Content always fit the screen, so the terminal never pushed live rows
@@ -118,7 +117,7 @@ describe("libkitty end-to-end", () => {
 		// Those pushed rows are unreachable to an inline app; the contract is an
 		// exact screen and no duplicate of the bottom-anchored rows anywhere.
 		term.resize(88, 26);
-		await sleep(300);
+		await Bun.sleep(300);
 		await term.waitForRender();
 
 		const viewport = plainRows(term.getViewport());
@@ -139,18 +138,18 @@ describe("libkitty end-to-end", () => {
 
 		// Drag storm: several unsettled steps inside one settle window.
 		term.resize(112, 30);
-		await sleep(30);
+		await Bun.sleep(30);
 		term.resize(104, 28);
-		await sleep(30);
+		await Bun.sleep(30);
 		term.resize(96, 24);
-		await sleep(300);
+		await Bun.sleep(300);
 		await term.waitForRender();
 		// Height-only shrink, then a combined grow back out.
 		term.resize(96, 18);
-		await sleep(300);
+		await Bun.sleep(300);
 		await term.waitForRender();
 		term.resize(120, 32);
-		await sleep(300);
+		await Bun.sleep(300);
 		await term.waitForRender();
 
 		const buffer = plainRows(term.getScrollBuffer());
@@ -240,6 +239,88 @@ describe("libkitty end-to-end", () => {
 		// The retired history was cleared and replayed hidden — the marker is gone
 		// from scrollback and viewport alike — while the live editor stays mounted.
 		expect(plainRows(term.getScrollBuffer()).some(row => row.includes(THINK))).toBe(false);
+		expect(plainRows(term.getViewport()).some(row => row.includes("LIVE_EDITOR_DRAFT"))).toBe(true);
+	});
+	it("hides tool activity already retired to native scrollback when the real shortcut toggles", async () => {
+		const usage: Usage = {
+			input: 0,
+			output: 0,
+			cacheRead: 0,
+			cacheWrite: 0,
+			totalTokens: 0,
+			cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+		};
+		const TOOL_MARKER = "RETIRED_TOOL_ACTIVITY_MARKER";
+		const callId = "retired-tool-call";
+		const toolCall: AssistantMessage = {
+			role: "assistant",
+			content: [{ type: "toolCall", id: callId, name: "bash", arguments: { command: `printf ${TOOL_MARKER}` } }],
+			api: "anthropic-messages",
+			provider: "anthropic",
+			model: "claude-sonnet",
+			usage,
+			stopReason: "toolUse",
+			timestamp: 1,
+		};
+		const toolResult: ToolResultMessage = {
+			role: "toolResult",
+			toolCallId: callId,
+			toolName: "bash",
+			content: [{ type: "text", text: TOOL_MARKER }],
+			isError: false,
+			timestamp: 2,
+		};
+		const assistantText = (text: string): AssistantMessage => ({
+			role: "assistant",
+			content: [{ type: "text", text }],
+			api: "anthropic-messages",
+			provider: "anthropic",
+			model: "claude-sonnet",
+			usage,
+			stopReason: "stop",
+			timestamp: 3,
+		});
+
+		term = new VirtualTerminal(120, 10);
+		const composer = new Composer({ terminal: term });
+		mode = new InteractiveMode(session, "test", undefined, () => {}, undefined, undefined, undefined, composer);
+		await mode.init({ suppressWelcomeIntro: true });
+		void mode.getUserInput();
+		await term.waitForRender();
+
+		// Tool visibility is a global input-controller action; it reads the live keybindings.
+		mode.keybindings.setUserBindings({ "app.tools.toggleVisibility": "alt+o" });
+		mode.renderSessionContext({
+			messages: [
+				toolCall,
+				toolResult,
+				...Array.from({ length: 12 }, (_, i) =>
+					assistantText(`Filler answer number ${i} occupying a transcript row.`),
+				),
+			],
+			models: {},
+			injectedTtsrRules: [],
+			mode: "none",
+		});
+
+		const committedRows = () => {
+			const { baseY } = term.getBufferPosition();
+			return plainRows(term.getScrollBuffer()).slice(0, baseY);
+		};
+		for (let i = 0; i < 20 && !committedRows().some(row => row.includes(TOOL_MARKER)); i++) {
+			mode.ui.requestRender(true);
+			await term.waitForRender();
+		}
+		expect(committedRows().some(row => row.includes(TOOL_MARKER))).toBe(true);
+
+		term.sendInput("LIVE_EDITOR_DRAFT");
+		await term.waitForRender(() => plainRows(term.getViewport()).some(row => row.includes("LIVE_EDITOR_DRAFT")));
+
+		// Alt+O is the configured app.tools.toggleVisibility binding from this test's keybinding manager.
+		term.sendInput("\x1bo");
+		await term.waitForRender(() => !plainRows(term.getScrollBuffer()).some(row => row.includes(TOOL_MARKER)));
+		expect(mode.hideToolActivity).toBe(true);
+		expect(plainRows(term.getScrollBuffer()).some(row => row.includes(TOOL_MARKER))).toBe(false);
 		expect(plainRows(term.getViewport()).some(row => row.includes("LIVE_EDITOR_DRAFT"))).toBe(true);
 	});
 });

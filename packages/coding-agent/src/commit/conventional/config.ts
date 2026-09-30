@@ -1,4 +1,4 @@
-import type { CommitSettings } from "../../config/settings-schema";
+import type { CommitSettings } from "../settings";
 
 /** Runtime thresholds copied from llm-git's standard commit workflow. */
 export interface ConventionalGenerationConfig {
@@ -63,7 +63,7 @@ const LOW_PRIORITY_EXTENSIONS: readonly string[] = [
 	".bak",
 ];
 
-/** Default llm-git thresholds before chudcode's explicit commit settings are applied. */
+/** Default llm-git thresholds before omp's explicit commit settings are applied. */
 export const DEFAULT_CONVENTIONAL_GENERATION_CONFIG: ConventionalGenerationConfig = {
 	summaryGuideline: 72,
 	summarySoftLimit: 96,
@@ -84,7 +84,7 @@ export const DEFAULT_CONVENTIONAL_GENERATION_CONFIG: ConventionalGenerationConfi
 	cacheEnabled: true,
 	cacheTtlDays: 14,
 };
-/** Build generation configuration from exact defaults plus chudcode settings. */
+/** Build generation configuration from exact defaults plus omp settings. */
 export function conventionalGenerationConfig(settings: CommitSettings): ConventionalGenerationConfig {
 	return {
 		...DEFAULT_CONVENTIONAL_GENERATION_CONFIG,

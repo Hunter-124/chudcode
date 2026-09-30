@@ -3,7 +3,7 @@ import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
 import { pathToFileURL } from "node:url";
-import * as fsx from "../src/fsx";
+import { APP_NAME } from "@oh-my-pi/pi-utils/dirs";
 
 const loggerModuleUrl = pathToFileURL(path.join(import.meta.dir, "../src/logger.ts")).href;
 const roots: string[] = [];
@@ -13,16 +13,17 @@ afterEach(async () => {
 });
 
 async function makeProbe(logsDir: string): Promise<string> {
-	const root = await fs.mkdtemp(path.join(os.tmpdir(), "chudcode-logger-probe-"));
+	const root = await fs.mkdtemp(path.join(os.tmpdir(), "omp-logger-probe-"));
 	roots.push(root);
 	const releasePath = path.join(logsDir, ".release");
 	const probePath = path.join(root, "probe.ts");
-	await fsx.write(
+	await Bun.write(
 		probePath,
 		`import * as fs from "node:fs";\n` +
 			`import { info, setTransports } from ${JSON.stringify(loggerModuleUrl)};\n` +
 			`setTransports({ file: ${JSON.stringify(logsDir)} });\n` +
 			`info("multiprocess probe");\n` +
+			`await new Promise<void>(resolve => setImmediate(resolve));\n` +
 			`fs.writeSync(1, "ready\\n");\n` +
 			`await new Promise<void>(resolve => {\n` +
 			`\tconst watcher = fs.watch(${JSON.stringify(logsDir)}, (_event, name) => {\n` +
@@ -42,13 +43,13 @@ async function makeProbe(logsDir: string): Promise<string> {
 
 describe("multiprocess file logging", () => {
 	it("prunes completed PID namespaces across short-lived invocations", async () => {
-		const logsDir = await fs.mkdtemp(path.join(os.tmpdir(), "chudcode-logger-retention-"));
+		const logsDir = await fs.mkdtemp(path.join(os.tmpdir(), "omp-logger-retention-"));
 		roots.push(logsDir);
 		// macOS process identifiers are far below these values, so the fixtures
 		// are deterministically completed rather than briefly lingering as zombies.
 		const exitedPids = [9_000_001, 9_000_002];
 
-		await fsx.write(path.join(logsDir, ".release"), "");
+		await Bun.write(path.join(logsDir, ".release"), "");
 		const probePath = await makeProbe(logsDir);
 		const seed = Bun.spawn([process.execPath, probePath], {
 			stdin: "pipe",
@@ -58,7 +59,7 @@ describe("multiprocess file logging", () => {
 		seed.stdin.end();
 		expect(await seed.exited).toBe(0);
 		const seedLog = (await fs.readdir(logsDir)).find(name => name.endsWith(`.${seed.pid}.log`));
-		const seedDate = seedLog?.match(/^chudcode\.(\d{4}-\d{2}-\d{2})\./)?.[1];
+		const seedDate = seedLog?.match(new RegExp(`^${APP_NAME}\\.(\\d{4}-\\d{2}-\\d{2})\\.`))?.[1];
 		if (!seedDate) throw new Error("probe did not create a dated log");
 		const baseDate = new Date(`${seedDate}T12:00:00`);
 		const localDate = (daysAgo: number): string => {
@@ -73,16 +74,16 @@ describe("multiprocess file logging", () => {
 		const expiredNames: string[] = [];
 		for (const pid of exitedPids) {
 			for (let daysAgo = -1; daysAgo <= 5; daysAgo++) {
-				const name = `chudcode.${localDate(daysAgo)}.${pid}.log`;
-				await fsx.write(path.join(logsDir, name), name);
+				const name = `${APP_NAME}.${localDate(daysAgo)}.${pid}.log`;
+				await Bun.write(path.join(logsDir, name), name);
 				await fs.utimes(path.join(logsDir, name), 2, 2);
 				(daysAgo > 0 && daysAgo < 5 ? retainedNames : expiredNames).push(name);
 			}
-			const rolloverName = `chudcode.${localDate(0)}.${pid}.log.1`;
-			await fsx.write(path.join(logsDir, rolloverName), rolloverName);
+			const rolloverName = `${APP_NAME}.${localDate(0)}.${pid}.log.1`;
+			await Bun.write(path.join(logsDir, rolloverName), rolloverName);
 			await fs.utimes(path.join(logsDir, rolloverName), 2, 2);
 			retainedNames.push(rolloverName);
-			await fsx.write(path.join(logsDir, `.chudcode.${pid}-audit.json`), "{}");
+			await Bun.write(path.join(logsDir, `.${APP_NAME}.${pid}-audit.json`), "{}");
 		}
 
 		let currentPid = 0;
@@ -101,6 +102,6 @@ describe("multiprocess file logging", () => {
 		for (const expected of retainedNames) expect(entries).toContain(expected);
 		for (const expired of expiredNames) expect(entries).not.toContain(expired);
 		expect(entries.filter(name => name.endsWith(".log.1"))).toHaveLength(exitedPids.length);
-		expect(entries.filter(name => name.endsWith("-audit.json"))).toEqual([`.chudcode.${currentPid}-audit.json`]);
+		expect(entries.filter(name => name.endsWith("-audit.json"))).toEqual([`.${APP_NAME}.${currentPid}-audit.json`]);
 	});
 });

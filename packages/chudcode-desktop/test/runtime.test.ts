@@ -2,10 +2,10 @@ import { describe, expect, it } from "bun:test";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import * as path from "node:path";
-import type { ImageContent } from "@chudware/ai";
-import type { AgentSessionEvent } from "@chudware/coding-agent/session/agent-session";
-import type { SessionEntry, SessionHeader } from "@chudware/coding-agent/session/session-entries";
-import type { SessionInfo } from "@chudware/coding-agent/session/session-listing";
+import type { ImageContent } from "@oh-my-pi/pi-ai";
+import type { AgentSessionEvent } from "@oh-my-pi/pi-coding-agent/session/agent-session";
+import type { SessionEntry, SessionHeader } from "@oh-my-pi/pi-coding-agent/session/session-entries";
+import type { SessionInfo } from "@oh-my-pi/pi-coding-agent/session/session-listing";
 import type { DesktopFrame } from "../src/protocol";
 import {
 	type DesktopAgentControl,

@@ -1,21 +1,21 @@
 /**
  * API Demo Extension
  *
- * Demonstrates using ExtensionAPI's logger, injected schema builder, and chud
+ * Demonstrates using ExtensionAPI's logger, injected schema builder, and pi
  * module access.
  */
-import type { ExtensionAPI } from "@chudware/coding-agent";
+import type { ExtensionAPI } from "@oh-my-pi/pi-coding-agent";
 
-export default function (chud: ExtensionAPI) {
-	const z = chud.zod;
+export default function (pi: ExtensionAPI) {
+	const z = pi.zod;
 
 	// Access the logger for debugging
-	chud.logger.debug("API demo extension loaded");
+	pi.logger.debug("API demo extension loaded");
 
-	chud.registerTool({
+	pi.registerTool({
 		name: "api_demo",
 		label: "API Demo",
-		description: "Demonstrates ExtensionAPI capabilities: logger, schema validation, and chud module access",
+		description: "Demonstrates ExtensionAPI capabilities: logger, schema validation, and pi module access",
 		parameters: z.object({
 			message: z.string().describe("Test message"),
 			logLevel: z.enum(["error", "warn", "debug"]).default("debug").describe("Log level to use"),
@@ -25,11 +25,11 @@ export default function (chud: ExtensionAPI) {
 			const { message, logLevel } = params;
 
 			// Use logger at specified level
-			chud.logger[logLevel]("API demo tool executed", { message, logLevel });
+			pi.logger[logLevel]("API demo tool executed", { message, logLevel });
 
-			// Access chud module utilities
-			const { logger: piLogger } = chud.pi;
-			piLogger.debug("Accessed chud module from extension", { sessionFile: ctx.sessionManager.getSessionFile() });
+			// Access pi module utilities
+			const { logger: piLogger } = pi.pi;
+			piLogger.debug("Accessed pi module from extension", { sessionFile: ctx.sessionManager.getSessionFile() });
 
 			// Get session information
 			const sessionInfo = `Session: ${ctx.sessionManager.getSessionFile()}`;
@@ -46,9 +46,9 @@ export default function (chud: ExtensionAPI) {
 							`Log Level: ${logLevel}`,
 							``,
 							`Features demonstrated:`,
-							`1. ✓ Logger access via chud.logger`,
-							`2. ✓ Schema builder access via chud.arktype`,
-							`3. ✓ Chud module access via chud.pi`,
+							`1. ✓ Logger access via pi.logger`,
+							`2. ✓ Schema builder access via pi.arktype`,
+							`3. ✓ Pi module access via pi.pi`,
 							``,
 							`Context:`,
 							`- ${sessionInfo}`,
@@ -68,11 +68,11 @@ export default function (chud: ExtensionAPI) {
 	});
 
 	// Demonstrate event handling with logger
-	chud.on("session_start", async () => {
-		chud.logger.debug("Session started", { extension: "api-demo" });
+	pi.on("session_start", async () => {
+		pi.logger.debug("Session started", { extension: "api-demo" });
 	});
 
-	chud.on("agent_start", async () => {
-		chud.logger.debug("Agent started", { extension: "api-demo" });
+	pi.on("agent_start", async () => {
+		pi.logger.debug("Agent started", { extension: "api-demo" });
 	});
 }

@@ -2,26 +2,26 @@
  * Regression tests for top-level `RULES.md` sticky rules.
  *
  * `RULES.md` (singular, top-level) MUST be loaded as a sticky always-apply rule
- * from both `~/.chudcode/agent/RULES.md` (user) and the nearest `.chudcode/RULES.md`
- * (project, walked up from cwd to repoRoot).
+ * from both `~/${CONFIG_DIR_NAME}/agent/RULES.md` (user) and the nearest
+ * `${CONFIG_DIR_NAME}/RULES.md` (project, walked up from cwd to repoRoot).
  */
 import { afterEach, beforeEach, expect, test } from "bun:test";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
-import { getCapability } from "@chudware/coding-agent/capability";
-import { clearCache } from "@chudware/coding-agent/capability/fs";
-import { type Rule, ruleCapability } from "@chudware/coding-agent/capability/rule";
-import type { LoadContext } from "@chudware/coding-agent/capability/types";
+import { getCapability } from "@oh-my-pi/pi-coding-agent/capability";
+import { clearCache } from "@oh-my-pi/pi-coding-agent/capability/fs";
+import { type Rule, ruleCapability } from "@oh-my-pi/pi-coding-agent/capability/rule";
+import type { LoadContext } from "@oh-my-pi/pi-coding-agent/capability/types";
 // Importing discovery registers all providers as a side effect.
-import { loadCapability } from "@chudware/coding-agent/discovery";
-import { getConfigRootDir, removeSyncWithRetries, setAgentDir } from "@chudware/utils";
+import { loadCapability } from "@oh-my-pi/pi-coding-agent/discovery";
+import { CONFIG_DIR_NAME, getConfigRootDir, removeSyncWithRetries, setAgentDir } from "@oh-my-pi/pi-utils";
 
 let tempDir: string;
 let home: string;
 let project: string;
 
-const originalAgentDirEnv = process.env.CHUDCODE_CODING_AGENT_DIR;
+const originalAgentDirEnv = process.env.PI_CODING_AGENT_DIR;
 const fallbackAgentDir = path.join(getConfigRootDir(), "agent");
 
 function writeFile(filePath: string, content: string): void {
@@ -45,13 +45,13 @@ async function loadRulesCapability(cwd: string): Promise<Rule[]> {
 
 beforeEach(() => {
 	clearCache();
-	tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "chud-rules-md-"));
+	tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "pi-rules-md-"));
 	home = path.join(tempDir, "home");
 	project = path.join(tempDir, "project");
 	fs.mkdirSync(home, { recursive: true });
 	fs.mkdirSync(project, { recursive: true });
 	fs.mkdirSync(path.join(project, ".git"), { recursive: true });
-	setAgentDir(path.join(home, ".chudcode", "agent"));
+	setAgentDir(path.join(home, CONFIG_DIR_NAME, "agent"));
 });
 
 afterEach(() => {
@@ -60,52 +60,27 @@ afterEach(() => {
 		setAgentDir(originalAgentDirEnv);
 	} else {
 		setAgentDir(fallbackAgentDir);
-		delete process.env.CHUDCODE_CODING_AGENT_DIR;
+		delete process.env.PI_CODING_AGENT_DIR;
 	}
 	removeSyncWithRetries(tempDir);
-});
-
-test("user ~/.chudcode/agent/RULES.md becomes an alwaysApply rule", async () => {
-	writeFile(
-		path.join(home, ".chudcode", "agent", "RULES.md"),
-		"**CRITICAL**: You _MUST_ use beads task tracker for any project\n",
-	);
-
-	const rules = await loadNativeRules({ cwd: project, home, repoRoot: project });
-
-	const userRule = rules.find(r => r._source.level === "user" && r.name === "RULES");
-	expect(userRule).toBeDefined();
-	expect(userRule?.alwaysApply).toBe(true);
-	expect(userRule?.content).toContain("beads task tracker");
-});
-
-test("project .chudcode/RULES.md becomes an alwaysApply rule", async () => {
-	writeFile(path.join(project, ".chudcode", "RULES.md"), "# Project rule\nAlways say hi.\n");
-
-	const rules = await loadNativeRules({ cwd: project, home, repoRoot: project });
-
-	const projectRule = rules.find(r => r._source.level === "project" && r.name === "RULES@project");
-	expect(projectRule).toBeDefined();
-	expect(projectRule?.alwaysApply).toBe(true);
-	expect(projectRule?.content).toContain("Always say hi.");
 });
 
 test("project RULES.md is found walking up from a sub-package cwd", async () => {
 	const subPkg = path.join(project, "packages", "app");
 	fs.mkdirSync(subPkg, { recursive: true });
-	writeFile(path.join(project, ".chudcode", "RULES.md"), "# Repo-wide sticky rule\n");
+	writeFile(path.join(project, CONFIG_DIR_NAME, "RULES.md"), "# Repo-wide sticky rule\n");
 
 	const rules = await loadNativeRules({ cwd: subPkg, home, repoRoot: project });
 
 	const projectRule = rules.find(r => r._source.level === "project" && r.name === "RULES@project");
 	expect(projectRule).toBeDefined();
 	expect(projectRule?.alwaysApply).toBe(true);
-	expect(projectRule?.path).toBe(path.join(project, ".chudcode", "RULES.md"));
+	expect(projectRule?.path).toBe(path.join(project, CONFIG_DIR_NAME, "RULES.md"));
 });
 
 test("user and project sticky RULES.md both survive public capability dedup", async () => {
-	const userRulesPath = path.join(home, ".chudcode", "agent", "RULES.md");
-	const projectRulesPath = path.join(project, ".chudcode", "RULES.md");
+	const userRulesPath = path.join(home, CONFIG_DIR_NAME, "agent", "RULES.md");
+	const projectRulesPath = path.join(project, CONFIG_DIR_NAME, "RULES.md");
 	const userRuleText = "User sticky rule: keep the personal safety checklist active.\n";
 	const projectRuleText = "Project sticky rule: require repo-local release notes.\n";
 	writeFile(userRulesPath, userRuleText);
@@ -140,7 +115,10 @@ test("user and project sticky RULES.md both survive public capability dedup", as
 });
 
 test("alwaysApply is forced even when frontmatter says false", async () => {
-	writeFile(path.join(home, ".chudcode", "agent", "RULES.md"), "---\nalwaysApply: false\n---\nStick around anyway.\n");
+	writeFile(
+		path.join(home, CONFIG_DIR_NAME, "agent", "RULES.md"),
+		"---\nalwaysApply: false\n---\nStick around anyway.\n",
+	);
 
 	const rules = await loadNativeRules({ cwd: project, home, repoRoot: project });
 
@@ -149,9 +127,26 @@ test("alwaysApply is forced even when frontmatter says false", async () => {
 	expect(userRule?.content).toContain("Stick around anyway.");
 });
 
+test("enabled false omits a discovered rule", async () => {
+	const rulesDir = path.join(home, CONFIG_DIR_NAME, "agent", "rules");
+	writeFile(
+		path.join(rulesDir, "disabled-example.md"),
+		"---\nenabled: false\ncondition: DISABLED_EXAMPLE\nscope: [tool:edit]\n---\nDisabled rule.\n",
+	);
+	writeFile(
+		path.join(rulesDir, "active-example.md"),
+		"---\ncondition: ACTIVE_EXAMPLE\nscope: [tool:edit]\n---\nActive rule.\n",
+	);
+
+	const rules = await loadNativeRules({ cwd: project, home, repoRoot: project });
+
+	expect(rules.find(rule => rule.name === "disabled-example")).toBeUndefined();
+	expect(rules.find(rule => rule.name === "active-example")?.condition).toEqual(["ACTIVE_EXAMPLE"]);
+});
+
 test("absent RULES.md does not produce a rule", async () => {
-	// No RULES.md anywhere — only a sibling .chudcode/rules/ to make sure the directory exists.
-	writeFile(path.join(home, ".chudcode", "agent", "rules", "other.md"), "# Unrelated rule\n");
+	// No RULES.md anywhere — only a sibling native rules/ to make sure the directory exists.
+	writeFile(path.join(home, CONFIG_DIR_NAME, "agent", "rules", "other.md"), "# Unrelated rule\n");
 
 	const rules = await loadNativeRules({ cwd: project, home, repoRoot: project });
 

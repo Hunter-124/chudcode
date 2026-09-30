@@ -1,9 +1,11 @@
 import * as path from "node:path";
-import { getLastChangelogVersionPath, isEnoent, logger } from "@chudware/utils";
-import * as fsx from "@chudware/utils/fsx";
+import { getLastChangelogVersionPath, isEnoent, logger } from "@oh-my-pi/pi-utils";
+import { Lexer } from "@oh-my-pi/pi-utils/marked";
 import type { BunFile } from "bun";
 import bundledChangelogPath from "../../CHANGELOG.md" with { type: "file" };
-import type { SettingValue } from "../config/settings";
+import type { SettingValueOf } from "../config/registry";
+
+import type { cfgStartupChangelogMode } from "../modes/settings";
 
 export interface ChangelogEntry {
 	major: number;
@@ -18,6 +20,35 @@ export const RECENT_CHANGELOG_ENTRY_LIMIT = 3;
 export const STARTUP_CHANGELOG_MAX_BYTES = 64 * 1024;
 /** Hint appended when automatic startup release notes are truncated. */
 export const STARTUP_CHANGELOG_FULL_HINT = "Use `/changelog full` to view the complete changelog.";
+/** Releases shown by `/changelog last` when no count is given. */
+export const DEFAULT_LAST_CHANGELOG_COUNT = 1;
+/** Usage line printed when `/changelog` arguments are not `full` or `last [N]`. */
+export const CHANGELOG_COMMAND_USAGE = "Usage: /changelog [full|last [N]]";
+
+/**
+ * Parsed `/changelog` view. `recent` is the bare default; `last` is an explicit count.
+ */
+export type ChangelogView = { kind: "full" } | { kind: "recent"; count: number } | { kind: "last"; count: number };
+
+/**
+ * Parse `/changelog` arguments. `{ error }` is a usage string callers should print instead of entries.
+ */
+export function parseChangelogView(args: string): ChangelogView | { error: string } {
+	const trimmed = args.trim().toLowerCase();
+	if (!trimmed) return { kind: "recent", count: RECENT_CHANGELOG_ENTRY_LIMIT };
+	if (trimmed === "full") return { kind: "full" };
+	const match = trimmed.match(/^last(?:\s+(\d+))?$/);
+	if (!match) return { error: CHANGELOG_COMMAND_USAGE };
+	if (match[1] === undefined) return { kind: "last", count: DEFAULT_LAST_CHANGELOG_COUNT };
+	const count = Number.parseInt(match[1], 10);
+	if (count < 1) return { error: `${CHANGELOG_COMMAND_USAGE} (N must be a positive integer)` };
+	return { kind: "last", count };
+}
+
+/** Newest-first slice for a parsed view. `full` returns a copy of every entry. */
+export function selectChangelogEntries(entries: readonly ChangelogEntry[], view: ChangelogView): ChangelogEntry[] {
+	return view.kind === "full" ? [...entries] : entries.slice(0, view.count);
+}
 
 /** Markdown generated from selected changelog entries and whether it hit a size cap. */
 export interface RenderedChangelog {
@@ -60,6 +91,9 @@ function emptyStartupSelection(persistCurrentVersion: boolean): StartupChangelog
 	};
 }
 
+/** Bucket for release bullets written above any `###` category heading, so the breakdown never loses them. */
+const UNCATEGORIZED_CHANGELOG_CATEGORY = "Other";
+
 function summarizeChangelogEntries(entries: readonly ChangelogEntry[]): {
 	changeCount: number;
 	categoryCounts: Record<string, number>;
@@ -68,16 +102,22 @@ function summarizeChangelogEntries(entries: readonly ChangelogEntry[]): {
 	let changeCount = 0;
 
 	for (const entry of entries) {
-		let category: string | undefined;
-		for (const line of entry.content.split("\n")) {
-			const heading = line.match(/^###\s+(.+?)\s*$/);
-			if (heading) {
-				category = heading[1];
+		let category = UNCATEGORIZED_CHANGELOG_CATEGORY;
+		// Count what the renderer shows: top-level list items per `###` section, straight
+		// from the shared lexer. There is no parallel list grammar left here to drift.
+		for (const token of Lexer.lex(entry.content)) {
+			if (token.type === "heading" && token.depth === 3) {
+				const name = token.text.trim();
+				category = name === "" ? UNCATEGORIZED_CHANGELOG_CATEGORY : name;
 				continue;
 			}
-			if (!category || !/^-\s+\S/.test(line)) continue;
-			categoryCounts[category] = (categoryCounts[category] ?? 0) + 1;
-			changeCount++;
+			if (token.type !== "list") continue;
+			for (const item of token.items) {
+				// A bare marker renders an empty item; it announces no change.
+				if (!item.task && item.text.trim() === "") continue;
+				categoryCounts[category] = (categoryCounts[category] ?? 0) + 1;
+				changeCount++;
+			}
 		}
 	}
 
@@ -95,7 +135,7 @@ function categoryLabel(category: string, count: number): string {
 export function formatStartupChangelogSummary(selection: StartupChangelogSelection): string {
 	const latestVersion = selection.latestVersion;
 	if (!latestVersion || selection.selectedEntries === 0) {
-		return "Updated chudcode. Use /changelog for recent changes.";
+		return "Updated omp. Use /changelog for recent changes.";
 	}
 
 	const releaseCount = selection.selectedEntries;
@@ -129,7 +169,7 @@ export function formatStartupChangelogSummary(selection: StartupChangelogSelecti
 }
 
 /**
- * Parse changelog entries from chudcode's package asset when available, falling back
+ * Parse changelog entries from omp's package asset when available, falling back
  * to the copy embedded in compiled binaries.
  *
  * The embedded fallback keeps standalone binaries self-contained without
@@ -144,14 +184,14 @@ export async function parseChangelog(changelogPath: string | undefined): Promise
 	let content: string | undefined;
 	if (changelogPath) {
 		try {
-			content = await fsx.readText(changelogPath);
+			content = await Bun.file(changelogPath).text();
 		} catch (error) {
 			if (!isEnoent(error)) {
 				logger.error(`Warning: Could not parse changelog: ${error}`);
 			}
 		}
 	}
-	content ??= await fsx.readText(resolveBundledChangelogPath(bundledChangelogPath, import.meta.url));
+	content ??= await Bun.file(resolveBundledChangelogPath(bundledChangelogPath, import.meta.url)).text();
 
 	return parseChangelogContent(content);
 }
@@ -275,9 +315,9 @@ async function parseStartupChangelogFile(
 			newlineIndex = pending.indexOf("\n");
 		}
 	}
-	if (pending && !processLine(pending + decoder.decode())) {
-		finishCurrentEntry();
-	}
+	// A seen-version stop already finished the current entry, so this is a no-op then.
+	if (pending) processLine(pending + decoder.decode());
+	finishCurrentEntry();
 	return { entries, totalUnseenEntries };
 }
 
@@ -292,7 +332,7 @@ function compareChangelogEntries(v1: ChangelogEntry, v2: ChangelogEntry): number
 }
 
 /**
- * Parse an chudcode changelog marker version into comparable parts.
+ * Parse an omp changelog marker version into comparable parts.
  */
 export function parseChangelogVersion(version: string | undefined): ChangelogEntry | undefined {
 	const match = version?.match(/^(\d+)\.(\d+)\.(\d+)$/);
@@ -402,7 +442,7 @@ export function selectStartupChangelog(
  * erase knowledge of a newer version the user has already seen.
  */
 export async function resolveStartupChangelogForDisplay(options: {
-	mode: SettingValue<"startup.changelogMode">;
+	mode: SettingValueOf<typeof cfgStartupChangelogMode>;
 	currentVersion: string;
 	changelogPath?: string;
 	agentDir?: string;
@@ -436,13 +476,13 @@ export async function resolveStartupChangelogForDisplay(options: {
 export { getChangelogPath } from "../config";
 
 /**
- * Last chudcode version whose changelog the user has seen. Stored as a plain-text
- * marker file (`~/.chudcode/agent/last-changelog-version`) rather than in
+ * Last omp version whose changelog the user has seen. Stored as a plain-text
+ * marker file (`~/.omp/agent/last-changelog-version`) rather than in
  * `config.yml`, so version bumps never dirty user-tracked config files.
  */
 export async function readLastChangelogVersion(agentDir?: string): Promise<string | undefined> {
 	try {
-		const value = (await fsx.readText(getLastChangelogVersionPath(agentDir))).trim();
+		const value = (await Bun.file(getLastChangelogVersionPath(agentDir)).text()).trim();
 		return value || undefined;
 	} catch (error) {
 		if (!isEnoent(error)) {
@@ -455,7 +495,7 @@ export async function readLastChangelogVersion(agentDir?: string): Promise<strin
 /** Persist the last-seen changelog version marker. Best-effort: failures are logged, never thrown. */
 export async function writeLastChangelogVersion(version: string, agentDir?: string): Promise<void> {
 	try {
-		await fsx.write(getLastChangelogVersionPath(agentDir), version);
+		await Bun.write(getLastChangelogVersionPath(agentDir), version);
 	} catch (error) {
 		logger.warn("Failed to persist last-changelog-version marker", { error: String(error) });
 	}

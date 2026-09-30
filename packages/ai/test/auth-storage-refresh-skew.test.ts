@@ -2,8 +2,8 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import { type AuthCredentialStore, AuthStorage, SqliteAuthCredentialStore } from "@chudware/ai/auth-storage";
-import { registerOAuthProvider, unregisterOAuthProviders } from "@chudware/ai/registry/oauth";
+import { type AuthCredentialStore, AuthStorage, SqliteAuthCredentialStore } from "@oh-my-pi/pi-ai/auth-storage";
+import { registerOAuthProvider, unregisterOAuthProviders } from "@oh-my-pi/pi-ai/registry/oauth";
 import { removeWithRetries } from "../../utils/src/temp";
 
 describe("AuthStorage OAuth refresh skew", () => {
@@ -12,7 +12,7 @@ describe("AuthStorage OAuth refresh skew", () => {
 	let authStorage: AuthStorage | undefined;
 
 	beforeEach(async () => {
-		tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "chud-ai-auth-refresh-skew-"));
+		tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "pi-ai-auth-refresh-skew-"));
 		store = await SqliteAuthCredentialStore.open(path.join(tempDir, "agent.db"));
 		authStorage = new AuthStorage(store);
 	});
@@ -54,7 +54,7 @@ describe("AuthStorage OAuth refresh skew", () => {
 			},
 		});
 
-		await authStorage.set("unit-oauth-skew", [
+		await authStorage.credentials.set("unit-oauth-skew", [
 			{
 				type: "oauth",
 				access: "access-before-skew-refresh",
@@ -63,7 +63,7 @@ describe("AuthStorage OAuth refresh skew", () => {
 			},
 		]);
 
-		const apiKey = await authStorage.getApiKey("unit-oauth-skew", "skew-session");
+		const apiKey = await authStorage.keys.get("unit-oauth-skew", "skew-session");
 
 		expect(apiKey).toBe("access-after-skew-refresh");
 		expect(refreshCalls).toBe(1);
@@ -107,7 +107,7 @@ describe("AuthStorage OAuth refresh skew", () => {
 			},
 		});
 
-		await authStorage.set("unit-oauth-skew-mutex", [
+		await authStorage.credentials.set("unit-oauth-skew-mutex", [
 			{
 				type: "oauth",
 				access: "access-before-shared-skew-refresh",
@@ -116,8 +116,8 @@ describe("AuthStorage OAuth refresh skew", () => {
 			},
 		]);
 
-		const first = authStorage.getApiKey("unit-oauth-skew-mutex", "same-session");
-		const second = authStorage.getApiKey("unit-oauth-skew-mutex", "same-session");
+		const first = authStorage.keys.get("unit-oauth-skew-mutex", "same-session");
+		const second = authStorage.keys.get("unit-oauth-skew-mutex", "same-session");
 
 		await refreshStarted.promise;
 		allowRefresh.resolve();

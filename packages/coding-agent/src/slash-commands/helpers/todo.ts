@@ -1,5 +1,4 @@
-import * as fsx from "@chudware/utils/fsx";
-import type { TodoPhase } from "../../tools/todo";
+import type { TodoPhase } from "@oh-my-pi/pi-tui/tools/todo";
 import {
 	applyOpsToPhases,
 	getLatestTodoPhasesFromEntries,
@@ -133,7 +132,7 @@ async function handleTodoExportCommand(restArgs: string, runtime: SlashCommandRu
 	let target: string;
 	try {
 		target = resolveTodoMarkdownPath(restArgs, runtime.sessionManager.getCwd());
-		await fsx.write(target, phasesToMarkdown(phases));
+		await Bun.write(target, phasesToMarkdown(phases));
 	} catch (err) {
 		return usage(`Failed to write todos: ${errorMessage(err)}`, runtime);
 	}
@@ -146,7 +145,7 @@ async function handleTodoImportCommand(restArgs: string, runtime: SlashCommandRu
 	let content: string;
 	try {
 		target = resolveTodoMarkdownPath(restArgs, runtime.sessionManager.getCwd());
-		content = await fsx.readText(target);
+		content = await Bun.file(target).text();
 	} catch (err) {
 		return usage(`Failed to read todos: ${errorMessage(err)}`, runtime);
 	}

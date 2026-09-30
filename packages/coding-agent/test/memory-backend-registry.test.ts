@@ -1,166 +1,87 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { Settings } from "@chudware/coding-agent/config/settings";
-import { getEnumValues, getUi } from "@chudware/coding-agent/config/settings-schema";
-import { ExtensionRuntime, loadExtensionFromFactory } from "@chudware/coding-agent/extensibility/extensions/loader";
-import { ExtensionRunner, emitSessionShutdownEvent } from "@chudware/coding-agent/extensibility/extensions/runner";
-import {
-	getRegisteredMemoryBackend,
-	type MemoryBackend,
-	registerMemoryBackend,
-	resolveMemoryBackend,
-	unregisterMemoryBackendsForSource,
-} from "@chudware/coding-agent/memory-backend";
-import { SessionManager } from "@chudware/coding-agent/session/session-manager";
-import { EventBus } from "@chudware/coding-agent/utils/event-bus";
+import { Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
+import { ExtensionRuntime, loadExtensionFromFactory } from "@oh-my-pi/pi-coding-agent/extensibility/extensions/loader";
+import { ExtensionRunner, emitSessionShutdownEvent } from "@oh-my-pi/pi-coding-agent/extensibility/extensions/runner";
+import { getRegisteredMemoryBackend, registerMemoryBackend } from "@oh-my-pi/pi-coding-agent/memory-backend/registry";
+import { resolveMemoryBackend } from "@oh-my-pi/pi-coding-agent/memory-backend/resolve";
+import type { MemoryBackend } from "@oh-my-pi/pi-coding-agent/memory-backend";
+import { SessionManager } from "@oh-my-pi/pi-coding-agent/session/session-manager";
+import { EventBus } from "@oh-my-pi/pi-coding-agent/utils/event-bus";
 
-const TEST_SOURCES = ["registry-test-a", "registry-test-b", "registry-extension", "registry-broken"] as const;
+const disposers: Array<() => void> = [];
+afterEach(() => {
+	for (const dispose of disposers.splice(0)) dispose();
+});
 
-function createBackend(id: string, marker = id): MemoryBackend & { marker: string } {
+function backend(id: string): MemoryBackend {
 	return {
 		id,
-		marker,
-		start: () => {},
-		buildDeveloperInstructions: async () => undefined,
-		clear: async () => {},
-		enqueue: async () => {},
+		start() {},
+		async buildDeveloperInstructions() {
+			return undefined;
+		},
+		async clear() {},
+		async enqueue() {},
 	};
 }
 
-function initializeRunner(runner: ExtensionRunner): void {
-	runner.initialize(
-		{
-			sendMessage: () => {},
-			sendUserMessage: () => {},
-			appendEntry: () => {},
-			setLabel: () => {},
-			getActiveTools: () => [],
-			getAllTools: () => [],
-			setActiveTools: async () => {},
-			getCommands: () => [],
-			setModel: async () => false,
-			getThinkingLevel: () => undefined,
-			setThinkingLevel: () => {},
-			getSessionName: () => undefined,
-			setSessionName: async () => {},
-		},
-		{
-			getModel: () => undefined,
-			isIdle: () => true,
-			abort: () => {},
-			hasPendingMessages: () => false,
-			shutdown: () => {},
-			getContextUsage: () => undefined,
-			compact: async () => {},
-			getSystemPrompt: () => [],
-		},
-	);
-}
-
-afterEach(() => {
-	for (const source of TEST_SOURCES) unregisterMemoryBackendsForSource(source);
-});
-
-describe("memory backend registry", () => {
-	test("same-source registrations use the latest backend while other sources are rejected", async () => {
-		const first = createBackend("registry-duplicate", "first");
-		const second = createBackend("registry-duplicate", "second");
-		const disposeFirst = registerMemoryBackend(first, "registry-test-a");
-		const disposeSecond = registerMemoryBackend(second, "registry-test-a");
-
-		expect(await resolveMemoryBackend(Settings.isolated({ "memory.backend": first.id }))).toBe(second);
-		expect(() => registerMemoryBackend(createBackend(first.id), "registry-test-b")).toThrow(
-			/already registered by "registry-test-a"/,
-		);
-
-		disposeSecond();
-		expect(await resolveMemoryBackend(Settings.isolated({ "memory.backend": first.id }))).toBe(first);
-		disposeFirst();
+describe("extension memory backend selection", () => {
+	test("two sessions of one source do not unbind each other; an unrelated extension cannot steal the id", async () => {
+		const first = backend("registry-test-custom");
+		const second = backend(first.id);
+		const unbindFirst = registerMemoryBackend(first, "extension-a");
+		const unbindSecond = registerMemoryBackend(second, "extension-a");
+		disposers.push(unbindFirst, unbindSecond);
+		const settings = Settings.isolated({ "memory.backend": first.id });
+		expect(await resolveMemoryBackend(settings)).toBe(second);
+		expect(() => registerMemoryBackend(backend(first.id), "extension-b")).toThrow(/already registered/);
+		unbindSecond();
+		expect(await resolveMemoryBackend(settings)).toBe(first);
+		unbindFirst();
+		expect(getRegisteredMemoryBackend(first.id)).toBeUndefined();
+		await expect(resolveMemoryBackend(settings)).rejects.toThrow(`Unknown memory backend "${first.id}"`);
 	});
 
-	test("registered backends resolve before built-ins and built-ins remain unchanged after disposal", async () => {
-		const override = createBackend("local", "extension-local");
-		const dispose = registerMemoryBackend(override, "registry-test-a");
-		expect(await resolveMemoryBackend(Settings.isolated({ "memory.backend": "local" }))).toBe(override);
-		dispose();
-
-		for (const id of ["off", "local", "hindsight", "mnemo"] as const) {
-			expect((await resolveMemoryBackend(Settings.isolated({ "memory.backend": id }))).id).toBe(id);
-		}
-	});
-
-	test("unknown ids remain invalid", async () => {
-		expect(getEnumValues("memory.backend")).not.toContain("missing-backend");
-		await expect(resolveMemoryBackend(Settings.isolated({ "memory.backend": "missing-backend" }))).rejects.toThrow(
-			'Unknown memory backend "missing-backend"',
-		);
-	});
-
-	test("failed extension loading rolls back its registration", async () => {
-		const backend = createBackend("registry-broken-backend");
+	test("session shutdown releases only that extension's backend without disabling other sessions", async () => {
+		const surviving = backend("registry-test-survivor");
+		const disposeSurvivor = registerMemoryBackend(surviving, "another-session");
+		disposers.push(disposeSurvivor);
+		const installed = backend("registry-test-owned");
 		const runtime = new ExtensionRuntime();
-		await expect(
-			loadExtensionFromFactory(
-				chud => {
-					chud.registerMemoryBackend(backend);
-					throw new Error("intentional load failure");
-				},
-				process.cwd(),
-				new EventBus(),
-				runtime,
-				"registry-broken",
-			),
-		).rejects.toThrow("intentional load failure");
-		expect(getRegisteredMemoryBackend(backend.id)).toBeUndefined();
-	});
-
-	test("extension registration is selectable, explicitly removable, and cleaned up on unload", async () => {
-		const backend = createBackend("registry-extension-backend");
-		const survivor = createBackend("registry-survivor");
-		const disposeSurvivor = registerMemoryBackend(survivor, "registry-test-a");
-		const runtime = new ExtensionRuntime();
-		let registerAgain: (() => void) | undefined;
-		let unregister: (() => void) | undefined;
 		const extension = await loadExtensionFromFactory(
-			chud => {
-				chud.registerMemoryBackend(backend);
-				registerAgain = () => chud.registerMemoryBackend(backend);
-				unregister = () => chud.unregisterMemoryBackend(backend.id);
+			api => {
+				api.registerMemoryBackend(installed);
 			},
 			process.cwd(),
 			new EventBus(),
 			runtime,
-			"registry-extension",
+			"owned-extension",
 		);
 		const runner = new ExtensionRunner([extension], runtime, process.cwd(), SessionManager.inMemory(), {} as never);
-		initializeRunner(runner);
+		try {
+			expect(await resolveMemoryBackend(Settings.isolated({ "memory.backend": installed.id }))).toBe(installed);
+		} finally {
+			await emitSessionShutdownEvent(runner);
+		}
+		expect(getRegisteredMemoryBackend(installed.id)).toBeUndefined();
+		expect(await resolveMemoryBackend(Settings.isolated({ "memory.backend": surviving.id }))).toBe(surviving);
+	});
 
-		expect(getRegisteredMemoryBackend(backend.id)?.sourceId).toBe("registry-extension");
-		expect(getEnumValues("memory.backend")).toContain(backend.id);
-		expect(getUi("memory.backend")?.options).toContainEqual({
-			value: backend.id,
-			label: backend.id,
-			description: "Extension-provided memory backend",
-		});
-		expect(await resolveMemoryBackend(Settings.isolated({ "memory.backend": backend.id }))).toBe(backend);
-
-		expect(unregister).toBeDefined();
-		unregister?.();
-		expect(getRegisteredMemoryBackend(backend.id)).toBeUndefined();
-		await expect(resolveMemoryBackend(Settings.isolated({ "memory.backend": backend.id }))).rejects.toThrow(
-			`Unknown memory backend "${backend.id}"`,
-		);
-
-		expect(registerAgain).toBeDefined();
-		registerAgain?.();
-		expect(await resolveMemoryBackend(Settings.isolated({ "memory.backend": backend.id }))).toBe(backend);
-
-		await emitSessionShutdownEvent(runner);
-		expect(getRegisteredMemoryBackend(backend.id)).toBeUndefined();
-		expect(getRegisteredMemoryBackend(survivor.id)?.backend).toBe(survivor);
-		disposeSurvivor();
-		expect(getEnumValues("memory.backend")).not.toContain(backend.id);
-		await expect(resolveMemoryBackend(Settings.isolated({ "memory.backend": backend.id }))).rejects.toThrow(
-			`Unknown memory backend "${backend.id}"`,
-		);
+	test("failed extension initialization rolls back backend selection", async () => {
+		const registered = backend("registry-test-broken");
+		const runtime = new ExtensionRuntime();
+		await expect(
+			loadExtensionFromFactory(
+				api => {
+					api.registerMemoryBackend(registered);
+					throw new Error("extension failed to initialize");
+				},
+				process.cwd(),
+				new EventBus(),
+				runtime,
+				"broken-extension",
+			),
+		).rejects.toThrow("extension failed to initialize");
+		expect(getRegisteredMemoryBackend(registered.id)).toBeUndefined();
 	});
 });

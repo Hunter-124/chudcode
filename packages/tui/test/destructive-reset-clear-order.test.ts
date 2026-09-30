@@ -1,6 +1,5 @@
 import { describe, expect, it, vi } from "bun:test";
-import { type Component, TUI } from "@chudware/tui";
-import { sleep } from "@chudware/utils/async";
+import { type Component, TUI } from "@oh-my-pi/pi-tui";
 import { withoutTerminalMultiplexer } from "./helpers/terminal-multiplexer";
 import { VirtualTerminal } from "./virtual-terminal";
 
@@ -21,7 +20,7 @@ async function settle(term: VirtualTerminal): Promise<void> {
 	const nextTick = Promise.withResolvers<void>();
 	process.nextTick(nextTick.resolve);
 	await nextTick.promise;
-	await sleep(40);
+	await Bun.sleep(40);
 	await term.flush();
 }
 

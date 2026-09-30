@@ -1,6 +1,6 @@
 import { describe, expect, it } from "bun:test";
-import type { RejectInfo, ResolveInfo } from "@chudware/coding-agent/session/tool-choice-queue";
-import { ToolChoiceQueue } from "@chudware/coding-agent/session/tool-choice-queue";
+import type { RejectInfo, ResolveInfo } from "@oh-my-pi/pi-coding-agent/session/tool-choice-queue";
+import { ToolChoiceQueue } from "@oh-my-pi/pi-coding-agent/session/tool-choice-queue";
 
 const forced = { type: "tool", name: "write" } as const;
 const forcedRead = { type: "tool", name: "read" } as const;
@@ -185,18 +185,6 @@ describe("ToolChoiceQueue", () => {
 });
 
 describe("onInvoked / peekInFlightInvoker", () => {
-	it("exposes the in-flight directive's onInvoked handler via peekInFlightInvoker", async () => {
-		const q = new ToolChoiceQueue();
-		q.pushOnce(forced, {
-			label: "pending",
-			onInvoked: async input => ({ echoed: input }),
-		});
-		q.nextToolChoice();
-		const invoker = q.peekInFlightInvoker();
-		expect(invoker).toBeDefined();
-		const result = await invoker!({ action: "apply", reason: "ok" });
-		expect(result).toEqual({ echoed: { action: "apply", reason: "ok" } });
-	});
 	it("does not resolve an onInvoked directive until the requested tool runs", () => {
 		const q = new ToolChoiceQueue();
 		const rejected: RejectInfo[] = [];
@@ -228,7 +216,7 @@ describe("onInvoked / peekInFlightInvoker", () => {
 		q.nextToolChoice();
 		const invoker = q.peekInFlightInvoker();
 		expect(invoker).toBeDefined();
-		await invoker!({ action: "apply", reason: "ok" });
+		expect(await invoker!({ action: "apply", reason: "ok" })).toEqual({ echoed: { action: "apply", reason: "ok" } });
 		q.resolve();
 		expect(resolved).toEqual([{ choice: forced }]);
 		expect(q.hasInFlight).toBe(false);

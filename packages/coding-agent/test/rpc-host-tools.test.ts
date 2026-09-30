@@ -1,16 +1,16 @@
 import { afterEach, describe, expect, it } from "bun:test";
 import * as os from "node:os";
 import * as path from "node:path";
-import type { AgentEvent } from "@chudware/agent-core";
-import { defineRpcClientTool, RpcClient } from "@chudware/coding-agent/modes";
-import { RpcHostToolBridge } from "@chudware/coding-agent/modes/rpc/host-tools";
+import type { AgentEvent } from "@oh-my-pi/pi-agent-core";
+import { defineRpcClientTool, RpcClient } from "@oh-my-pi/pi-coding-agent/modes";
+import { RpcHostToolBridge } from "@oh-my-pi/pi-coding-agent/modes/rpc/host-tools";
 import type {
 	RpcHostToolCallRequest,
 	RpcHostToolCancelRequest,
 	RpcHostToolUpdate,
-} from "@chudware/coding-agent/modes/rpc/rpc-types";
-import { removeWithRetries } from "@chudware/utils";
-import * as fsx from "@chudware/utils/fsx";
+} from "@oh-my-pi/pi-coding-agent/modes/rpc/rpc-types";
+import { toolReadsSkillUris } from "@oh-my-pi/pi-coding-agent/system-prompt";
+import { removeWithRetries } from "@oh-my-pi/pi-utils";
 
 const tempPaths: string[] = [];
 
@@ -113,17 +113,72 @@ describe("RpcHostToolBridge", () => {
 		});
 		await expect(execution).rejects.toThrow('Host tool "host_wait" was aborted');
 	});
+
+	it("attributes concurrent nested calls, refreshes live tool sets, and cancels aborted work", async () => {
+		const frames: Array<RpcHostToolCallRequest | RpcHostToolCancelRequest> = [];
+		const bridge = new RpcHostToolBridge(frame => frames.push(frame));
+		const definition = {
+			name: "make_box",
+			description: "Create CAD geometry",
+			parameters: { type: "object", properties: { size: { type: "number" } } },
+		};
+		let changes = 0;
+		const unsubscribe = bridge.subscribe(() => changes++);
+		bridge.setTools([definition]);
+		const [first] = bridge.createTools({ agentId: "Cube", parentAgentId: "Main" });
+		const [second] = bridge.createTools({ agentId: "Cylinder", parentAgentId: "Main" });
+		const cancelled = new AbortController();
+		const pendingFirst = first.execute("call_cube", { size: 10 });
+		const pendingSecond = second.execute("call_cylinder", { size: 5 }, cancelled.signal);
+		expect(frames).toMatchObject([
+			{ type: "host_tool_call", toolCallId: "call_cube", agentId: "Cube", parentAgentId: "Main" },
+			{ type: "host_tool_call", toolCallId: "call_cylinder", agentId: "Cylinder", parentAgentId: "Main" },
+		]);
+		bridge.handleResult({
+			type: "host_tool_result",
+			id: frames[0]!.id,
+			result: { content: [{ type: "text", text: "cube created" }] },
+		});
+		await expect(pendingFirst).resolves.toMatchObject({ content: [{ text: "cube created" }] });
+		cancelled.abort();
+		await expect(pendingSecond).rejects.toThrow("aborted");
+		expect(frames[2]).toMatchObject({ type: "host_tool_cancel", targetId: frames[1]!.id });
+		bridge.setTools([{ ...definition, name: "mate_parts" }]);
+		expect(changes).toBe(2);
+		expect(bridge.createTools({ agentId: "Grandchild", parentAgentId: "Cube" }).map(tool => tool.name)).toEqual([
+			"mate_parts",
+		]);
+		unsubscribe();
+		bridge.setTools([]);
+		expect(changes).toBe(2);
+	});
+
+	it("exposes skill URI readability declared by the host tool", async () => {
+		const bridge = new RpcHostToolBridge(() => {});
+		const [tool] = bridge.setTools([
+			{
+				name: "host_read",
+				label: "Host Read",
+				description: "Reads files in the host process",
+				parameters: { type: "object", properties: {}, additionalProperties: false },
+				readsSkillUris: true,
+			},
+		]);
+
+		expect(toolReadsSkillUris(tool)).toBe(true);
+	});
 });
 
 describe("RpcClient custom tools", () => {
 	it("registers host custom tools and serves tool calls over the RPC transport", async () => {
-		const scriptPath = path.join(os.tmpdir(), `chudcode-rpc-host-tools-${Date.now()}.js`);
+		const scriptPath = path.join(os.tmpdir(), `omp-rpc-host-tools-${Date.now()}.js`);
 		tempPaths.push(scriptPath);
-		await fsx.write(
+		await Bun.write(
 			scriptPath,
 			`
 const encoder = new TextEncoder();
 let buffer = "";
+let promptId;
 
 function write(frame) {
 	process.stdout.write(JSON.stringify(frame) + "\\n");
@@ -154,6 +209,7 @@ function handle(frame) {
 		return;
 	}
 	if (frame.type === "prompt") {
+		promptId = frame.id;
 		write({ id: frame.id, type: "response", command: "prompt", success: true });
 		write({ type: "agent_start" });
 		write({
@@ -184,6 +240,7 @@ function handle(frame) {
 			isError: frame.isError === true,
 		});
 		write({ type: "agent_end", messages: [] });
+		write({ type: "prompt_result", id: promptId, agentInvoked: true, status: "completed" });
 	}
 }
 `,
@@ -230,6 +287,57 @@ function handle(frame) {
 			expect(toolUpdate?.partialResult).toEqual({
 				content: [{ type: "text", text: "working:hello" }],
 			});
+		} finally {
+			await client.stop();
+		}
+	});
+	it("preserves skill URI readability across the host tool wire frame", async () => {
+		const scriptPath = path.join(os.tmpdir(), `omp-rpc-host-skill-${Date.now()}.js`);
+		const capturePath = `${scriptPath}.tools.json`;
+		tempPaths.push(scriptPath, capturePath);
+		await Bun.write(
+			scriptPath,
+			`
+			process.stdout.write(JSON.stringify({ type: "ready" }) + "\\n");
+			let buffer = "";
+			process.stdin.on("data", chunk => {
+				buffer += chunk.toString("utf8");
+				let index = buffer.indexOf("\\n");
+				while (index !== -1) {
+					const line = buffer.slice(0, index).trim();
+					buffer = buffer.slice(index + 1);
+					if (line) handle(JSON.parse(line));
+					index = buffer.indexOf("\\n");
+				}
+			});
+			function handle(frame) {
+				if (frame.type === "set_host_tools") {
+					require("fs").writeFileSync(${JSON.stringify(capturePath)}, JSON.stringify(frame.tools));
+					process.stdout.write(JSON.stringify({ id: frame.id, type: "response", command: "set_host_tools", success: true, data: { toolNames: frame.tools.map(tool => tool.name) } }) + "\\n");
+				}
+			}
+			`,
+		);
+
+		const client = new RpcClient({
+			cliPath: scriptPath,
+			customTools: [
+				defineRpcClientTool({
+					name: "host_read",
+					description: "Reads files in the host process",
+					parameters: { type: "object", properties: {}, additionalProperties: false },
+					readsSkillUris: true,
+					async execute() {
+						return "ok";
+					},
+				}),
+			],
+		});
+
+		try {
+			await client.start();
+			const tools = await Bun.file(capturePath).json();
+			expect(tools).toMatchObject([{ name: "host_read", readsSkillUris: true }]);
 		} finally {
 			await client.stop();
 		}

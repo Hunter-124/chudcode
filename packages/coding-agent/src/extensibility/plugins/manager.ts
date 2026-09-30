@@ -10,8 +10,7 @@ import {
 	getProjectPluginOverridesPath,
 	isEnoent,
 	logger,
-} from "@chudware/utils";
-import * as fsx from "@chudware/utils/fsx";
+} from "@oh-my-pi/pi-utils";
 import { resolveActiveProjectRegistryPath } from "../../discovery/helpers";
 import { loadExtensions } from "../extensions/loader";
 import { refreshBunGitCache } from "./bun-git-cache";
@@ -106,8 +105,8 @@ interface PluginPackageSnapshot {
 interface RuntimePackageJson {
 	name?: unknown;
 	version: string;
-	chudcode?: PluginManifest;
-	chud?: PluginManifest;
+	omp?: PluginManifest;
+	pi?: PluginManifest;
 }
 // =============================================================================
 // Plugin Manager
@@ -127,7 +126,7 @@ export class PluginManager {
 
 	async #readRuntimeConfigAt(lockPath: string): Promise<PluginRuntimeConfig> {
 		try {
-			return normalizePluginRuntimeConfig(await fsx.readJson(lockPath));
+			return normalizePluginRuntimeConfig(await Bun.file(lockPath).json());
 		} catch (err) {
 			if (isEnoent(err)) return normalizePluginRuntimeConfig({});
 			logger.warn("Failed to load plugin runtime config", { path: lockPath, error: String(err) });
@@ -148,13 +147,13 @@ export class PluginManager {
 
 	async #saveRuntimeConfig(): Promise<void> {
 		await this.#ensureConfigLoaded();
-		await fsx.write(getPluginsLockfile(), JSON.stringify(this.#runtimeConfig, null, 2));
+		await Bun.write(getPluginsLockfile(), JSON.stringify(this.#runtimeConfig, null, 2));
 	}
 
 	async #loadProjectOverrides(): Promise<ProjectPluginOverrides> {
 		const overridesPath = getProjectPluginOverridesPath(this.#cwd);
 		try {
-			return await fsx.readJson(overridesPath);
+			return await Bun.file(overridesPath).json();
 		} catch (err) {
 			if (isEnoent(err)) return {};
 			logger.warn("Failed to load project plugin overrides", { path: overridesPath, error: String(err) });
@@ -174,14 +173,14 @@ export class PluginManager {
 	async #ensurePackageJson(): Promise<void> {
 		const pkgJsonPath = getPluginsPackageJson();
 		try {
-			await fsx.readJson(pkgJsonPath);
+			await Bun.file(pkgJsonPath).json();
 		} catch (err) {
 			if (isEnoent(err)) {
-				await fsx.write(
+				await Bun.write(
 					pkgJsonPath,
 					JSON.stringify(
 						{
-							name: "chudcode-plugins",
+							name: "omp-plugins",
 							private: true,
 							dependencies: {},
 						},
@@ -203,22 +202,30 @@ export class PluginManager {
 	 */
 	async #readDeps(pkgJsonPath: string): Promise<Record<string, string>> {
 		try {
-			const json = await fsx.readJson<{ dependencies?: Record<string, string> }>(pkgJsonPath);
-			return json.dependencies ?? {};
+			const json = await Bun.file(pkgJsonPath).json();
+			return (json.dependencies as Record<string, string>) ?? {};
 		} catch (err) {
 			if (isEnoent(err)) return {};
 			throw err;
 		}
 	}
 
-	async #removeDependencyEntry(pkgJsonPath: string, name: string): Promise<void> {
+	async #removeDependencyEntries(pkgJsonPath: string, names: readonly string[]): Promise<void> {
 		const pkgJson: { dependencies?: Record<string, string>; [key: string]: unknown } =
-			await fsx.readJson(pkgJsonPath);
-		if (!pkgJson.dependencies || !(name in pkgJson.dependencies)) {
+			await Bun.file(pkgJsonPath).json();
+		if (!pkgJson.dependencies) {
 			return;
 		}
-		delete pkgJson.dependencies[name];
-		await fsx.write(pkgJsonPath, JSON.stringify(pkgJson, null, 2));
+		let changed = false;
+		for (const name of names) {
+			if (name in pkgJson.dependencies) {
+				delete pkgJson.dependencies[name];
+				changed = true;
+			}
+		}
+		if (changed) {
+			await Bun.write(pkgJsonPath, JSON.stringify(pkgJson, null, 2));
+		}
 	}
 
 	#collectInstalledNames(deps: Record<string, string>, config: PluginRuntimeConfig): Set<string> {
@@ -239,14 +246,14 @@ export class PluginManager {
 	): Promise<InstalledPlugin | undefined> {
 		let pluginPkg: RuntimePackageJson;
 		try {
-			pluginPkg = await fsx.readJson(path.join(pluginPath, "package.json"));
+			pluginPkg = await Bun.file(path.join(pluginPath, "package.json")).json();
 		} catch (err) {
 			if (isEnoent(err)) return undefined;
 			throw err;
 		}
 
 		const name = typeof pluginPkg.name === "string" && pluginPkg.name.length > 0 ? pluginPkg.name : fallbackName;
-		const manifest: PluginManifest = pluginPkg.chudcode ?? pluginPkg.chud ?? { version: pluginPkg.version };
+		const manifest: PluginManifest = pluginPkg.omp || pluginPkg.pi || { version: pluginPkg.version };
 		manifest.version = pluginPkg.version;
 		const runtimeState = config.plugins[name] || {
 			version: pluginPkg.version,
@@ -277,7 +284,7 @@ export class PluginManager {
 					const parsedId = parsePluginId(pluginId);
 					let packageName = parsedId?.name ?? pluginId;
 					try {
-						const pkg: RuntimePackageJson = await fsx.readJson(packageJsonPath);
+						const pkg: RuntimePackageJson = await Bun.file(packageJsonPath).json();
 						if (typeof pkg.name === "string" && pkg.name.length > 0) {
 							packageName = pkg.name;
 						}
@@ -337,7 +344,7 @@ export class PluginManager {
 			throw err;
 		}
 
-		const backupRoot = await fs.promises.mkdtemp(path.join(os.tmpdir(), "chudcode-plugin-backup-"));
+		const backupRoot = await fs.promises.mkdtemp(path.join(os.tmpdir(), "omp-plugin-backup-"));
 		const backupPath = path.join(backupRoot, "package");
 		await fs.promises.cp(packagePath, backupPath, { recursive: true, verbatimSymlinks: true });
 		return { actualName, packagePath, backupRoot, backupPath };
@@ -360,7 +367,7 @@ export class PluginManager {
 		bunLockBefore: string | null,
 		snapshot: PluginPackageSnapshot | null,
 	): Promise<void> {
-		await fsx.write(getPluginsPackageJson(), packageJsonBefore);
+		await Bun.write(getPluginsPackageJson(), packageJsonBefore);
 
 		// Restore (or remove) bun's lockfile. Without this, a `bun install` +
 		// `bun update` pair that successfully rewrote `bun.lock` would leave the
@@ -369,7 +376,7 @@ export class PluginManager {
 		if (bunLockBefore === null) {
 			await fs.promises.rm(bunLockPath, { force: true });
 		} else {
-			await fsx.write(bunLockPath, bunLockBefore);
+			await Bun.write(bunLockPath, bunLockBefore);
 		}
 
 		// `actualName` may be undefined when the install failed before the dep
@@ -459,7 +466,7 @@ export class PluginManager {
 			};
 		}
 		const pkgJsonPath = getPluginsPackageJson();
-		const packageJsonBefore = await fsx.readText(pkgJsonPath);
+		const packageJsonBefore = await Bun.file(pkgJsonPath).text();
 		// Snapshot bun's lockfile so the rollback path can restore the pin. Every
 		// step below — `bun install`, `bun update`, feature/extension validation,
 		// runtime-config save — must either complete entirely or leave the
@@ -468,7 +475,7 @@ export class PluginManager {
 		const bunLockPath = path.join(getPluginsDir(), "bun.lock");
 		let bunLockBefore: string | null;
 		try {
-			bunLockBefore = await fsx.readText(bunLockPath);
+			bunLockBefore = await Bun.file(bunLockPath).text();
 		} catch (err) {
 			if (!isEnoent(err)) throw err;
 			bunLockBefore = null;
@@ -492,12 +499,43 @@ export class PluginManager {
 			if (gitSource && existingActualName) {
 				const installedSource = parseGitUrl(depsBefore[existingActualName] ?? "");
 				if (installedSource && installedSource.ref !== gitSource.ref) {
-					await this.#removeDependencyEntry(pkgJsonPath, existingActualName);
+					await this.#removeDependencyEntries(pkgJsonPath, [existingActualName]);
+				}
+			}
+			// `bun install` appends a manifest edge rather than replacing it, so
+			// reinstalling over a stale, malformed, or duplicated entry leaves bad
+			// keys and the next install dies with DependencyLoop. Prune the edges
+			// first; rollback restores the original package.json on failure, and
+			// the parse/rewrite also collapses any pre-existing duplicates (#12296).
+			if (!gitSource) {
+				const npmName = extractPackageName(spec.packageName);
+				const staleNames: string[] = [];
+				for (const name in depsBefore) {
+					if (extractPackageName(name) === npmName) {
+						staleNames.push(name);
+					}
+				}
+				if (staleNames.length > 0) {
+					await this.#removeDependencyEntries(pkgJsonPath, staleNames);
 				}
 			}
 
 			// Step 1: write the spec into plugins/package.json + node_modules.
-			const installProc = Bun.spawn(["bun", "install", packageInstallSpec], {
+			// npm specs resolve through bun's manifest (packument) cache, which honors
+			// the registry's Cache-Control TTL and so keeps serving a stale version
+			// after a new one is published — an uninstall/reinstall or an explicit
+			// `pkg@newVersion` then resolves the old version or fails outright (#11634).
+			// `--no-cache` re-fetches the manifest while leaving the tarball cache
+			// intact. Git specs don't use the manifest cache; their cache staleness is
+			// handled by refreshBunGitCache + `bun update` below.
+			const installArgs = [
+				"bun",
+				"install",
+				...(gitSource ? [] : ["--no-cache"]),
+				...(options.force ? ["--force"] : []),
+				packageInstallSpec,
+			];
+			const installProc = Bun.spawn(installArgs, {
 				cwd: getPluginsDir(),
 				stdin: "ignore",
 				stdout: "pipe",
@@ -572,16 +610,16 @@ export class PluginManager {
 			}
 
 			const pkgPath = path.join(getPluginsNodeModules(), actualName, "package.json");
-			let pkg: { name: string; version: string; chudcode?: PluginManifest; chud?: PluginManifest };
+			let pkg: { name: string; version: string; omp?: PluginManifest; pi?: PluginManifest };
 			try {
-				pkg = await fsx.readJson(pkgPath);
+				pkg = await Bun.file(pkgPath).json();
 			} catch (err) {
 				if (isEnoent(err)) {
 					throw new Error(`Package installed but package.json not found at ${pkgPath}`);
 				}
 				throw err;
 			}
-			const manifest: PluginManifest = pkg.chudcode ?? pkg.chud ?? { version: pkg.version };
+			const manifest: PluginManifest = pkg.omp || pkg.pi || { version: pkg.version };
 			manifest.version = pkg.version;
 
 			// Resolve enabled features
@@ -675,6 +713,10 @@ export class PluginManager {
 			throw new Error(`npm uninstall failed for ${name}`);
 		}
 
+		// Linked plugins have no package.json dependency, so Bun has no entry to
+		// remove. Clean the runtime path explicitly after Bun updates its lockfile.
+		await fs.promises.rm(path.join(getPluginsNodeModules(), name), { recursive: true, force: true });
+
 		// Remove from runtime config
 		const config = await this.#ensureConfigLoaded();
 		delete config.plugins[name];
@@ -710,10 +752,10 @@ export class PluginManager {
 
 	/**
 	 * Resolve a plugin from the active project plugin root
-	 * (`<anchor>/.chudcode/plugins`). Project npm/link/marketplace installs all record
+	 * (`<anchor>/.omp/plugins`). Project npm/link/marketplace installs all record
 	 * their runtime state and `node_modules` symlink there — invisible to the
 	 * user-root lookup — so this reads the project's own `package.json`
-	 * dependencies plus `chudcode-plugins.lock.json`, and resolves the package from
+	 * dependencies plus `omp-plugins.lock.json`, and resolves the package from
 	 * the project `node_modules`. Returns undefined when there is no active
 	 * project, when it coincides with the user root, or when the package is not
 	 * installed there.
@@ -728,7 +770,7 @@ export class PluginManager {
 		if (path.resolve(projectRoot) === path.resolve(getPluginsDir())) return undefined;
 		const [projectDeps, projectConfig] = await Promise.all([
 			this.#readDeps(path.join(projectRoot, "package.json")),
-			this.#readRuntimeConfigAt(path.join(projectRoot, "chudcode-plugins.lock.json")),
+			this.#readRuntimeConfigAt(path.join(projectRoot, "omp-plugins.lock.json")),
 		]);
 		if (!this.#collectInstalledNames(projectDeps, projectConfig).has(name)) return undefined;
 		return this.#resolvePlugin(name, path.join(projectRoot, "node_modules", name), projectConfig, projectOverrides);
@@ -741,7 +783,7 @@ export class PluginManager {
 		const pkgJsonPath = getPluginsPackageJson();
 		let deps: Record<string, string> = {};
 		try {
-			const pkg: { dependencies?: Record<string, string> } = await fsx.readJson(pkgJsonPath);
+			const pkg: { dependencies?: Record<string, string> } = await Bun.file(pkgJsonPath).json();
 			deps = pkg.dependencies ?? {};
 		} catch (err) {
 			if (!isEnoent(err)) throw err;
@@ -773,9 +815,9 @@ export class PluginManager {
 		const absolutePath = path.resolve(this.#cwd, localPath);
 
 		const pkgFilePath = path.join(absolutePath, "package.json");
-		let pkg: { name?: string; version: string; chudcode?: PluginManifest; chud?: PluginManifest };
+		let pkg: { name?: string; version: string; omp?: PluginManifest; pi?: PluginManifest };
 		try {
-			pkg = await fsx.readJson(pkgFilePath);
+			pkg = await Bun.file(pkgFilePath).json();
 		} catch (err) {
 			if (isEnoent(err)) throw new Error(`package.json not found at ${absolutePath}`);
 			throw err;
@@ -783,6 +825,7 @@ export class PluginManager {
 		if (!pkg.name) {
 			throw new Error("package.json must have a name field");
 		}
+		validatePackageName(pkg.name);
 
 		await this.#ensurePluginsDir();
 
@@ -794,19 +837,15 @@ export class PluginManager {
 			await fs.promises.mkdir(scopeDir, { recursive: true });
 		}
 
-		// Remove existing
-		try {
-			const stats = await fs.promises.lstat(linkPath);
-			if (stats.isSymbolicLink() || stats.isDirectory()) {
-				await fs.promises.unlink(linkPath);
-			}
-		} catch (err) {
-			if (!isEnoent(err)) throw err;
-		}
+		// Whatever is there — a stale link, or a real directory from a git install.
+		await fs.promises.rm(linkPath, { recursive: true, force: true });
 
-		await fs.promises.symlink(absolutePath, linkPath);
+		// A junction needs no privilege on Windows; a plain directory symlink
+		// would EPERM outside developer mode (same treatment as the marketplace
+		// link in marketplace/manager.ts).
+		await fs.promises.symlink(absolutePath, linkPath, process.platform === "win32" ? "junction" : "dir");
 
-		const manifest: PluginManifest = pkg.chudcode ?? pkg.chud ?? { version: pkg.version };
+		const manifest: PluginManifest = pkg.omp || pkg.pi || { version: pkg.version };
 		manifest.version = pkg.version;
 
 		// Add to runtime config
@@ -867,8 +906,7 @@ export class PluginManager {
 
 		// Validate features if setting specific ones
 		if (features && features.length > 0) {
-			const plugins = await this.list();
-			const plugin = plugins.find(p => p.name === name);
+			const plugin = await this.getPlugin(name, { path: path.join(getPluginsNodeModules(), name) });
 			if (plugin?.manifest.features) {
 				for (const feat of features) {
 					if (!(feat in plugin.manifest.features)) {
@@ -948,7 +986,7 @@ export class PluginManager {
 		let pkg: { dependencies?: Record<string, string> };
 		let hasPkgJson = true;
 		try {
-			pkg = await fsx.readJson(pkgJsonPath);
+			pkg = await Bun.file(pkgJsonPath).json();
 		} catch (err) {
 			if (isEnoent(err)) {
 				hasPkgJson = false;
@@ -985,14 +1023,14 @@ export class PluginManager {
 			const pluginPkgPath = path.join(pluginPath, "package.json");
 			const fromDependencies = name in deps;
 
-			let pluginPkg: { version: string; description?: string; chudcode?: PluginManifest; chud?: PluginManifest };
+			let pluginPkg: { version: string; description?: string; omp?: PluginManifest; pi?: PluginManifest };
 			try {
-				pluginPkg = await fsx.readJson(pluginPkgPath);
+				pluginPkg = await Bun.file(pluginPkgPath).json();
 			} catch (err) {
 				if (isEnoent(err)) {
 					if (!fs.existsSync(pluginPath)) {
 						if (fromDependencies) {
-							const fixed = options.fix ? await this.#fixMissingPlugin() : false;
+							const fixed = options.fix ? await this.#installPluginDependencies() : false;
 							checks.push({
 								name: `plugin:${name}`,
 								status: "error",
@@ -1019,15 +1057,41 @@ export class PluginManager {
 				}
 				throw err;
 			}
-			const manifest = pluginPkg.chudcode ?? pluginPkg.chud;
-			const hasManifest = !!manifest;
+			// Config-only entries are live local links whose source version may
+			// change without relinking; drift only applies to managed dependencies.
+			// Repair BEFORE the manifest validation below so those checks see the
+			// freshly installed package. The repair re-extracts only this package
+			// (see #reconcileVersionDrift), so sibling plugins already validated in
+			// this loop stay valid.
+			const recordedVersion = config.plugins[name]?.version;
+			if (fromDependencies && recordedVersion && pluginPkg.version && recordedVersion !== pluginPkg.version) {
+				const fixed = options.fix ? await this.#reconcileVersionDrift(name, recordedVersion) : false;
+				checks.push({
+					name: `plugin:${name}:version`,
+					status: fixed ? "ok" : "error",
+					message: fixed
+						? `Reconciled version drift: node_modules now matches lock v${recordedVersion}`
+						: `Version drift: lock records v${recordedVersion} but node_modules has v${pluginPkg.version} (run \`omp plugin install ${name} --force\`)`,
+					fixed,
+				});
+				if (fixed) {
+					try {
+						pluginPkg = await Bun.file(pluginPkgPath).json();
+					} catch {
+						// Keep the pre-repair metadata if the refreshed manifest is unreadable.
+					}
+				}
+			}
+
+			const hasManifest = !!(pluginPkg.omp || pluginPkg.pi);
+			const manifest: PluginManifest | undefined = pluginPkg.omp || pluginPkg.pi;
 
 			checks.push({
 				name: `plugin:${name}`,
 				status: hasManifest ? "ok" : "warning",
 				message: hasManifest
 					? `v${pluginPkg.version}${pluginPkg.description ? ` - ${pluginPkg.description}` : ""}`
-					: `v${pluginPkg.version} - No chudcode/pi manifest (not an chudcode plugin)`,
+					: `v${pluginPkg.version} - No omp/pi manifest (not an omp plugin)`,
 			});
 
 			// Check tools path exists if specified
@@ -1088,7 +1152,7 @@ export class PluginManager {
 		return checks;
 	}
 
-	async #fixMissingPlugin(): Promise<boolean> {
+	async #installPluginDependencies(): Promise<boolean> {
 		try {
 			const proc = Bun.spawn(["bun", "install"], {
 				cwd: getPluginsDir(),
@@ -1107,6 +1171,48 @@ export class PluginManager {
 			return exit === 0;
 		} catch {
 			return false;
+		}
+	}
+
+	/**
+	 * Reconcile lock-vs-disk drift by re-extracting only the drifted package,
+	 * then confirming node_modules matches the lock-recorded version. Removing
+	 * the package first guarantees a real reinstall — a stale or already-satisfied
+	 * range cannot no-op — while leaving sibling plugins untouched, unlike a
+	 * global `bun install --force`, which re-extracts every dependency.
+	 */
+	async #reconcileVersionDrift(name: string, expected: string): Promise<boolean> {
+		const packageJsonBefore = await Bun.file(getPluginsPackageJson()).text();
+		const bunLockPath = path.join(getPluginsDir(), "bun.lock");
+		let bunLockBefore: string | null;
+		try {
+			bunLockBefore = await Bun.file(bunLockPath).text();
+		} catch (err) {
+			if (!isEnoent(err)) throw err;
+			bunLockBefore = null;
+		}
+		const snapshot = await this.#snapshotInstalledPackage(name);
+		let fixed = false;
+		try {
+			await fs.promises.rm(path.join(getPluginsNodeModules(), name), { recursive: true, force: true });
+			if (!(await this.#installPluginDependencies())) return false;
+			try {
+				const pkg: { version?: string } = await Bun.file(
+					path.join(getPluginsNodeModules(), name, "package.json"),
+				).json();
+				fixed = pkg.version === expected;
+				return fixed;
+			} catch {
+				return false;
+			}
+		} finally {
+			try {
+				if (!fixed) {
+					await this.#rollbackFailedInstall(name, packageJsonBefore, bunLockBefore, snapshot);
+				}
+			} finally {
+				await this.#cleanupSnapshot(snapshot);
+			}
 		}
 	}
 

@@ -1,13 +1,12 @@
 import { afterEach, describe, expect, it } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
-import type { AgentMessage } from "@chudware/agent-core";
-import { formatSessionDumpText, SessionManager } from "@chudware/coding-agent";
-import { TempDir } from "@chudware/utils";
+import type { AgentMessage } from "@oh-my-pi/pi-agent-core";
+import { formatSessionDumpText, SessionManager } from "@oh-my-pi/pi-coding-agent";
+import { TempDir } from "@oh-my-pi/pi-utils";
 import { generateReport } from "./report";
 import { buildBenchmarkResult, type TaskRunResult, writeConversationDump } from "./runner";
-import type { EditTask } from "@chudware/typescript-edit-benchmark/tasks";
-import * as fsx from "@chudware/utils/fsx";
+import type { EditTask } from "@oh-my-pi/typescript-edit-benchmark/tasks";
 
 const tempDirs: TempDir[] = [];
 
@@ -402,11 +401,11 @@ describe("writeConversationDump", () => {
 
 		expect(dumpPath).toBe(path.join(dumpRoot.absolute(), "task_weird", "run-1.md"));
 
-		const dumpText = await fsx.readText(dumpPath);
+		const dumpText = await Bun.file(dumpPath).text();
 		const expectedBody = formatSessionDumpText({ messages: [userMessage] });
 		expect(dumpText.trim()).toBe(expectedBody.trim());
 
 		const copiedArtifactPath = path.join(dumpPath.slice(0, -3), path.basename(sourceArtifactPath));
-		expect(await fsx.readText(copiedArtifactPath)).toBe("artifact contents");
+		expect(await Bun.file(copiedArtifactPath).text()).toBe("artifact contents");
 	});
 });

@@ -1,6 +1,6 @@
 # SDK
 
-The SDK is the in-process integration surface for `@chudware/coding-agent`.
+The SDK is the in-process integration surface for `@oh-my-pi/pi-coding-agent`.
 Use it when you want direct access to agent state, event streaming, tool wiring, and session control from a Bun process.
 
 If you need cross-language/process isolation, use RPC mode instead.
@@ -8,7 +8,7 @@ If you need cross-language/process isolation, use RPC mode instead.
 ## Installation
 
 ```bash
-bun add @chudware/coding-agent
+bun add @oh-my-pi/pi-coding-agent
 ```
 
 Requires Bun 1.3.14 or newer. Before the first model-backed prompt, configure
@@ -18,7 +18,7 @@ available model, but prompting cannot.
 
 ## Entry points
 
-The package root, `@chudware/coding-agent`, is the complete embedding surface. It includes `createAgentSession` and the focused `/sdk` exports, plus lower-level session, auth, model, mode, extension, and tool APIs.
+The package root, `@oh-my-pi/pi-coding-agent`, is the complete embedding surface. It includes `createAgentSession` and the focused `/sdk` exports, plus lower-level session, auth, model, mode, extension, and tool APIs.
 
 Import these core embedding APIs from the package root:
 
@@ -32,12 +32,12 @@ Import these core embedding APIs from the package root:
 - Discovery helpers (`discoverExtensions`, `discoverSkills`, `discoverContextFiles`, `discoverPromptTemplates`, `discoverSlashCommands`, `discoverCustomTSCommands`, `discoverMCPServers`)
 - Tool factory surface (`createTools`, `BUILTIN_TOOLS`, tool classes)
 
-The narrower `@chudware/coding-agent/sdk` subpath exports `createAgentSession`, its option/result types, `Settings`, `AgentRegistry`, discovery and system-prompt helpers, workspace-tree helpers, selected extension/MCP/tool types, and selected tool classes/factories. It does **not** export `SessionManager`, `AuthStorage`, or `ModelRegistry`; import those three from the package root as the examples below do.
+The narrower `@oh-my-pi/pi-coding-agent/sdk` subpath exports `createAgentSession`, its option/result types, `Settings`, `AgentRegistry`, discovery and system-prompt helpers, workspace-tree helpers, selected extension/MCP/tool types, and selected tool classes/factories. It does **not** export `SessionManager`, `AuthStorage`, or `ModelRegistry`; import those three from the package root as the examples below do.
 
 ## Quick start (auto-discovery defaults)
 
 ```ts
-import { createAgentSession } from "@chudware/coding-agent";
+import { createAgentSession } from "@oh-my-pi/pi-coding-agent";
 
 const { session, modelFallbackMessage } = await createAgentSession();
 
@@ -66,14 +66,14 @@ await session.dispose();
 If omitted, it resolves:
 
 - `cwd`: `getProjectDir()`
-- `agentDir`: `~/.chudcode/agent` (via `getAgentDir()`)
+- `agentDir`: `~/.omp/agent` (via `getAgentDir()`)
 - `authStorage`: `discoverAuthStorage(agentDir)`
 - `modelRegistry`: `new ModelRegistry(authStorage)` + background `refreshInBackground()` when the registry is not provided
 - `settings`: `await Settings.init({ cwd, agentDir })`
 - `sessionManager`: `SessionManager.create(cwd, SessionManager.getDefaultSessionDir(cwd, agentDir))` (file-backed)
 - skills/rules/context files/prompt templates/slash commands/extensions/custom TS commands
 - built-in tools via `createTools(...)`
-- MCP tools (enabled by default; Exa MCP servers are folded into native Exa integration, and browser automation MCP servers are filtered when the built-in browser tool is enabled)
+- MCP tools (enabled by default; Exa MCP servers are folded into native Exa integration, and browser automation MCP servers are filtered when the built-in Eval browser prelude is enabled)
 - LSP integration (enabled by default)
 - `eventBus`: new `EventBus()` unless supplied
 
@@ -105,7 +105,7 @@ only one `"Main"` identity per generation.
 ### File-backed (default)
 
 ```ts
-import { createAgentSession, SessionManager } from "@chudware/coding-agent";
+import { createAgentSession, SessionManager } from "@oh-my-pi/pi-coding-agent";
 
 const { session } = await createAgentSession({
   sessionManager: SessionManager.create(process.cwd()),
@@ -121,7 +121,7 @@ console.log(session.sessionFile); // absolute .jsonl path
 ### In-memory
 
 ```ts
-import { createAgentSession, SessionManager } from "@chudware/coding-agent";
+import { createAgentSession, SessionManager } from "@oh-my-pi/pi-coding-agent";
 
 const { session } = await createAgentSession({
   sessionManager: SessionManager.inMemory(),
@@ -137,7 +137,7 @@ console.log(session.sessionFile); // undefined
 ### Resume/open/list helpers
 
 ```ts
-import { SessionManager } from "@chudware/coding-agent";
+import { SessionManager } from "@oh-my-pi/pi-coding-agent";
 
 const recent = await SessionManager.continueRecent(process.cwd());
 const listed = await SessionManager.list(process.cwd());
@@ -160,7 +160,7 @@ import {
   discoverAuthStorage,
   ModelRegistry,
   SessionManager,
-} from "@chudware/coding-agent";
+} from "@oh-my-pi/pi-coding-agent";
 
 const authStorage = await discoverAuthStorage();
 const modelRegistry = new ModelRegistry(authStorage);
@@ -191,15 +191,16 @@ If restore fails, `modelFallbackMessage` explains fallback.
 
 ### Auth priority
 
-`AuthStorage.getApiKey(...)` resolves in this order:
+`AuthStorage.keys.get(...)` resolves in this order:
 
-1. runtime override (`setRuntimeApiKey`, used by CLI `--api-key`)
+1. runtime override (`keys.setRuntime`, used by CLI `--api-key`)
 2. config-sourced API key override (`models.yml` provider `apiKey`)
 3. stored OAuth credential, including refresh when needed
 4. API key persisted by a successful `/login`
 5. provider environment variables
 6. other stored API-key credential in `agent.db` / broker-backed storage
-7. custom-provider resolver fallback
+
+Configured values are resolved asynchronously through the registry-installed resolver; catalog construction does not execute credential commands. `ModelRegistry.getProviderHeaders(provider)` and `resolveModelHeaders(model, signal?)` return promises. For direct provider requests, await the latter instead of reading config-backed values from `model.headers`. The AI client's `stream()` and `streamSimple()` materialize `model.resolveHeaders` automatically for each request attempt, including authentication retries.
 
 ## Event subscription model
 
@@ -258,11 +259,13 @@ Behavior:
 
 Related APIs:
 
-- `sendUserMessage(content, { deliverAs? })`
-- `steer(text, images?)`
-- `followUp(text, images?)`
+- `sendUserMessage(content, { deliverAs?, attribution? })`
+- `steer(text, images?, { attribution? })`
+- `followUp(text, images?, { synthetic?, attribution? })`
 - `sendCustomMessage({ customType, content, ... }, { deliverAs?, triggerTurn? })`
 - `abort()`
+
+`deliverAs: "aside"` (both APIs) delivers at the next agent step boundary without interrupting the current tool batch, instead of steering (which skips remaining tools) or waiting for the run to finish. When the session is idle both start a turn instead (in plan mode the custom message is folded into context without a turn).
 
 ## `AgentSession` lifecycle and disposal
 
@@ -271,7 +274,7 @@ Call `await session.dispose()` when the embedder is completely done with a sessi
 `beginDispose()` is the synchronous admission barrier for wrappers that must await their own teardown before calling `dispose()`. Call it before the wrapper's first `await`; otherwise deferred work can enter the gap. It immediately marks the session disposed, cancels memory startup, title generation, and auto-learn capture, clears queued yield/asides, stops advisor runtime, detaches aside delivery, and rejects new eval executions. Deferred session work checks the disposed state and is dropped or skipped. `beginDispose()` is also idempotent, and the later `dispose()` call remains required to finish asynchronous cleanup.
 
 ```ts
-import type { AgentSession } from "@chudware/coding-agent";
+import type { AgentSession } from "@oh-my-pi/pi-coding-agent";
 
 async function closeEmbeddedSession(
   session: AgentSession,
@@ -297,6 +300,9 @@ Only after work capable of appending session entries has settled does disposal c
 - Set `restrictToolNames: true` to limit the session to the names in
   `toolNames`. Restricted sessions disable ambient MCP, extensions, custom
   commands, and LSP by default.
+- Restricted children retain hooks/providers from the parent's
+  `preloadedPreparedExtensions`, rebound to their own session. Contributed tools
+  cannot extend or replace the restricted tool set, even when registered later.
 - In a restricted session, SDK-supplied `customTools` are excluded unless
   `allowRestrictedCustomTools: true` and their names also appear in
   `toolNames`.
@@ -318,8 +324,13 @@ const { session } = await createAgentSession({
   inline factories still load
 - `preloadedExtensions`: reuse an extension set loaded early by the same
   session-owning process. Never pass loaded extension instances from a parent
-  to another session; use `preloadedExtensionPaths` so each session gets its
+  to another session; use `preloadedPreparedExtensions` so each session gets its
   own `ExtensionAPI` binding.
+- `preloadedPreparedExtensions`: already-imported factories to rebind, including
+  in restricted children; does not reevaluate the module graph.
+- `extensionRoots`: a live owner-root provider for child discovery and revival.
+  Its explicit roots, discovery mode, and configured roots take precedence over
+  the child's local extension-loading inputs.
 
 ### Runtime tool set changes
 
@@ -355,8 +366,11 @@ For SDK consumers building orchestrators (similar to task executor flow):
 - `requireYieldTool`: forces `yield` tool inclusion
 - `taskDepth`: recursion-depth context for nested task sessions
 - `parentTaskPrefix`: artifact naming prefix for nested task outputs
+- `bindProcessState`: `false` for helper sessions spawned on a host session's behalf (see below)
 
 These are optional for normal single-agent embedding.
+
+Process-wide state that follows one settings instance — setting effects (theme, request limits, the fallback credential-redaction switch) and discovery provider toggles — is held by every top-level session on its own `settings` until it is disposed. With several live sessions the newest holder drives it, and disposing a session hands it back to the previous holder. Sessions with `parentTaskPrefix`/`taskDepth` or `bindProcessState: false` never take it. Independently of the holder, each session's own provider requests redact credential-shaped tokens per that session's `secrets.enabled`.
 
 ## `createAgentSession()` return value
 
@@ -389,7 +403,7 @@ Use `setToolUIContext(...)` only if your embedder provides UI capabilities that 
   - `options.hasUI === true` (interactive TUI), **and**
   - the `lsp.lazy` setting is disabled (it defaults to `true`).
 
-  With `lsp.lazy` enabled — the default — no language servers are launched at startup at all; each server cold-starts on first use, i.e. when the agent invokes the `lsp` tool or an edit/write touches a file whose extension matches the server's `fileTypes`. Print / script / RPC / ACP invocations (`hasUI=false`) skip the warmup regardless of the setting: they don't render the warmup status indicator and typically finish before the language servers would stabilize, so warming them just spends CPU parsing big `initialize` responses concurrently with the LLM stream consumer and jitters perceived latency. Tools that actually need an LSP server still spin one up on demand through `getOrCreateClient()` — only the _startup_ warmup is skipped. The returned `lspServers` field in `CreateAgentSessionResult` is still populated for UI sessions in lazy mode — recognized servers are discovered (no processes spawned) and reported with status `"available"` so the welcome screen and `/status` can list them; it is `undefined` only when `enableLsp === false` or `hasUI === false`.
+  With `lsp.lazy` enabled — the default — no language servers are launched at startup at all; each server cold-starts on first use, i.e. when the agent invokes the `lsp` tool or an edit/write touches a file whose extension matches the server's `fileTypes`. Print / script / RPC / ACP invocations (`hasUI=false`) skip the warmup regardless of the setting: they don't render the warmup status indicator and typically finish before the language servers would stabilize, so warming them just spends CPU parsing big `initialize` responses concurrently with the LLM stream consumer and jitters perceived latency. Tools that actually need an LSP server still spin one up on demand through `getOrCreateClient()` — only the _startup_ warmup is skipped. The returned `lspServers` field in `CreateAgentSessionResult` is still populated for UI sessions in lazy mode — recognized servers are discovered (no processes spawned) and reported with status `"available"` so the welcome screen and `/status` can list them; it is `undefined` only when `enableLsp === false` or `hasUI === false`. Turning `lsp.lazy` off mid-session (via `/settings` or any `settings.set()`/reload) runs the same warmup once for those servers, updating their status in place and emitting the usual `lsp:startup` event.
 
 ## Minimal controlled embed example
 
@@ -400,7 +414,7 @@ import {
   ModelRegistry,
   SessionManager,
   Settings,
-} from "@chudware/coding-agent";
+} from "@oh-my-pi/pi-coding-agent";
 
 const authStorage = await discoverAuthStorage();
 const modelRegistry = new ModelRegistry(authStorage);

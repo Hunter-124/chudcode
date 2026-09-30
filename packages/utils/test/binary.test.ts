@@ -2,7 +2,7 @@ import { describe, expect, it } from "bun:test";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
-import { isProbablyBinary, isProbablyBinaryHeader, isProbablyBinarySync } from "@chudware/utils/binary";
+import { isProbablyBinary, isProbablyBinaryHeader, isProbablyBinarySync } from "@oh-my-pi/pi-utils/binary";
 
 describe("isProbablyBinaryHeader", () => {
 	it("treats empty input as text", () => {
@@ -39,7 +39,7 @@ describe("isProbablyBinaryHeader", () => {
 });
 
 describe("isProbablyBinary / isProbablyBinarySync", () => {
-	const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "chud-binary-"));
+	const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "pi-binary-"));
 
 	function writeFile(name: string, bytes: Uint8Array | string): string {
 		const filePath = path.join(tempDir, name);

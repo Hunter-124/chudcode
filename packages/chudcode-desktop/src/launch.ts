@@ -1,9 +1,8 @@
 import type { Stats } from "node:fs";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
-import { getAgentDir, getProjectDir } from "@chudware/utils";
-import { sleep } from "@chudware/utils/async";
-import { PRODUCT_CLI_VERSION } from "../../coding-agent/src/brand";
+import { getAgentDir, getProjectDir } from "@oh-my-pi/pi-utils";
+import { PRODUCT_SEMVER } from "../../coding-agent/src/brand";
 import type { DesktopFrame, DesktopRequest } from "./protocol";
 import { createDesktopRuntime, type DesktopFrameSink } from "./runtime";
 import {
@@ -239,7 +238,7 @@ async function readPresence(filePath: string): Promise<Presence | undefined> {
 		} catch (error) {
 			if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
 		}
-		await sleep(PRESENCE_RETRY_MS);
+		await Bun.sleep(PRESENCE_RETRY_MS);
 	}
 	return undefined;
 }
@@ -341,7 +340,7 @@ export async function readDesktopVersion(
 	options: { sourceMode?: boolean; executablePath?: string } = {},
 ): Promise<string> {
 	const versionPath = path.join(path.dirname(path.resolve(options.executablePath ?? process.execPath)), "VERSION");
-	let version: unknown = PRODUCT_CLI_VERSION;
+	let version: unknown = PRODUCT_SEMVER;
 	if (!options.sourceMode) version = (await fs.readFile(versionPath, "utf8")).trim();
 	if (typeof version !== "string" || !/^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$/.test(version)) {
 		throw new Error(`Invalid desktop version metadata at ${versionPath}`);
@@ -425,9 +424,9 @@ export async function launchDesktop(options: LaunchDesktopOptions = {}): Promise
 
 // Compiled Windows executables report `import.meta.main === false` (Bun keys
 // the entry with backslashes but registers main with forward slashes; see
-// packages/coding-agent/src/cli.ts). compile-binary.ts define-folds
-// CHUDCODE_COMPILED, and a compiled binary's entry is the process entry.
-if (import.meta.main || process.env.CHUDCODE_COMPILED === "true") {
+// packages/coding-agent/src/cli.ts). The upstream compile-binary build already
+// define-folds PI_COMPILED, and a compiled binary's entry is the process entry.
+if (import.meta.main || process.env.PI_COMPILED === "true") {
 	const sourceMode = process.argv.includes("--source-mode");
 	if (process.argv.includes("--version")) {
 		process.stdout.write(`${await readDesktopVersion({ sourceMode })}\n`);

@@ -1,9 +1,9 @@
 import { describe, expect, it } from "bun:test";
-import { handleHuggingFace } from "@chudware/coding-agent/web/scrapers/huggingface";
-import { handleSpotify } from "@chudware/coding-agent/web/scrapers/spotify";
-import { handleVimeo } from "@chudware/coding-agent/web/scrapers/vimeo";
+import { handleHuggingFace } from "@oh-my-pi/pi-coding-agent/web/scrapers/huggingface";
+import { handleSpotify } from "@oh-my-pi/pi-coding-agent/web/scrapers/spotify";
+import { handleVimeo } from "@oh-my-pi/pi-coding-agent/web/scrapers/vimeo";
 
-const SKIP = !process.env.WEB_FETCH_INTEGRATION;
+const SKIP = !Bun.env.WEB_FETCH_INTEGRATION;
 
 describe.skipIf(SKIP)("handleVimeo", () => {
 	it("returns null for non-Vimeo URLs", async () => {
@@ -119,14 +119,6 @@ describe.skipIf(SKIP)("handleHuggingFace", () => {
 		expect(result).not.toBeNull();
 		expect(result?.method).toBe("huggingface");
 		expect(result?.content).toContain("gradio/hello_world");
-	});
-
-	it("fetches model without org prefix", async () => {
-		// Some models like bert-base-uncased don't have an org prefix
-		const result = await handleHuggingFace("https://huggingface.co/bert-base-uncased", 20);
-		expect(result).not.toBeNull();
-		expect(result?.method).toBe("huggingface");
-		expect(result?.content).toContain("bert-base-uncased");
 	});
 
 	it("handles org/model format", async () => {

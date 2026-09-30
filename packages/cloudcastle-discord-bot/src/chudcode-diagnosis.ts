@@ -1,4 +1,4 @@
-import { createAgentSession, SessionManager } from "@chudware/coding-agent";
+import { createAgentSession, SessionManager } from "@oh-my-pi/pi-coding-agent";
 import {
 	type CloudCastleContextEnv,
 	fetchIncidentContext,

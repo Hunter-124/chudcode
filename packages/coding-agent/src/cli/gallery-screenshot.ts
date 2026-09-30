@@ -1,5 +1,5 @@
 /**
- * Render `chudcode gallery` output to PNG screenshots via VHS.
+ * Render `omp gallery` output to PNG screenshots via VHS.
  *
  * ANSI escapes are invisible to anything that can only read raw bytes (e.g.
  * agents), so `--screenshot` drives the rendered gallery through a real virtual
@@ -14,9 +14,8 @@
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
-import { $which } from "@chudware/utils";
-import * as fsx from "@chudware/utils/fsx";
-import { theme } from "../modes/theme/theme";
+import { $which } from "@oh-my-pi/pi-utils";
+import { theme } from "@oh-my-pi/pi-tui/theme";
 import type { GallerySection } from "./gallery-cli";
 
 /** Nerd Font family so the gallery's icon glyphs (PUA) render instead of tofu. */
@@ -63,7 +62,7 @@ export async function captureGalleryScreenshots(
 	const vhs = $which("vhs");
 	if (!vhs) {
 		throw new Error(
-			"`chudcode gallery --screenshot` requires VHS, which is not installed. " +
+			"`omp gallery --screenshot` requires VHS, which is not installed. " +
 				"Install it (e.g. `brew install vhs`, or see https://github.com/charmbracelet/vhs) and retry.",
 		);
 	}
@@ -78,7 +77,7 @@ export async function captureGalleryScreenshots(
 
 	const baseDir = options.out
 		? path.dirname(path.resolve(options.out))
-		: fs.mkdtempSync(path.join(os.tmpdir(), "chudcode-gallery-"));
+		: fs.mkdtempSync(path.join(os.tmpdir(), "omp-gallery-"));
 	await fs.promises.mkdir(baseDir, { recursive: true });
 
 	const outPaths: string[] = [];
@@ -119,8 +118,8 @@ async function renderChunk(args: RenderChunkArgs): Promise<void> {
 
 	// CRLF so each gallery line is its own terminal row regardless of how the
 	// captured shell handles bare LF.
-	await fsx.write(ansiPath, `${args.lines.join("\r\n")}\r\n`);
-	await fsx.write(
+	await Bun.write(ansiPath, `${args.lines.join("\r\n")}\r\n`);
+	await Bun.write(
 		tapePath,
 		buildTape({
 			gifPath,
@@ -136,7 +135,7 @@ async function renderChunk(args: RenderChunkArgs): Promise<void> {
 
 	try {
 		const result = await Bun.$`${args.vhs} ${tapePath}`.quiet().nothrow();
-		if (result.exitCode !== 0 || !(await fsx.exists(args.outPng))) {
+		if (result.exitCode !== 0 || !(await Bun.file(args.outPng).exists())) {
 			const detail = result.stderr.toString().trim() || result.stdout.toString().trim();
 			throw new Error(`VHS failed to render the gallery screenshot${detail ? `: ${detail.slice(-600)}` : ""}`);
 		}
@@ -195,7 +194,7 @@ function buildVhsTheme(): string {
 	const foreground = theme.isLight ? "#1a1a1a" : "#d4d4d4";
 	const selection = theme.isLight ? "#c8d6ff" : "#404862";
 	return JSON.stringify({
-		name: "chudcode-gallery",
+		name: "omp-gallery",
 		background,
 		foreground,
 		cursor: foreground,

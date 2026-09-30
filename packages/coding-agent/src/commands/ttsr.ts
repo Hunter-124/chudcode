@@ -1,13 +1,14 @@
 import { existsSync } from "node:fs";
 import * as path from "node:path";
 /**
- * `chudcode ttsr` — inspect and test Time-Traveling Stream Rules.
+ * `omp ttsr` — inspect and test Time-Traveling Stream Rules.
  *
- * `chudcode ttsr test` feeds a snippet (inline, --file, or stdin) through the real
- * TTSR matching pipeline and reports which rules would trigger. `chudcode ttsr list`
+ * `omp ttsr test` feeds a snippet (inline, --file, or stdin) through the real
+ * TTSR matching pipeline and reports which rules would trigger. `omp ttsr list`
  * shows every TTSR-registered rule the current project/user config would load.
  */
-import { Args, Command, Flags } from "@chudware/utils/cli";
+import { Args, Command, Flags } from "@oh-my-pi/pi-utils/cli";
+import { APP_NAME, CONFIG_DIR_NAME } from "@oh-my-pi/pi-utils/dirs";
 import { ttsrHelp as commandHelp } from "../cli/command-help";
 import {
 	runTtsrCommand,
@@ -50,6 +51,9 @@ export default class Ttsr extends Command {
 			char: "p",
 			description: "Candidate file path for scope/glob matching and AST language inference",
 		}),
+		agent: Flags.string({
+			description: "Agent name to evaluate rule `agents` scoping as (ttsr test); defaults to main",
+		}),
 		verbose: Flags.boolean({ char: "v", description: "Show every evaluated rule, not just triggered ones" }),
 		json: Flags.boolean({ description: "Output JSON" }),
 		"no-gitignore": Flags.boolean({ description: "Include files excluded by .gitignore (ttsr scan)" }),
@@ -59,17 +63,18 @@ export default class Ttsr extends Command {
 	};
 
 	static examples = [
-		"chudcode ttsr list",
-		"chudcode ttsr test 'const x: any = 1'",
-		"chudcode ttsr test src/foo.ts",
-		"chudcode ttsr test --file src/foo.ts",
-		"chudcode ttsr test --file src/foo.ts --source text",
-		"chudcode ttsr test --rule .chudcode/rules/no-any.md --source tool --path src/foo.ts 'const x: any = 1'",
-		"echo 'Box::leak(&mut v)' | chudcode ttsr test --file - --path src/lib.rs",
-		"chudcode ttsr test --source tool --tool edit --path src/foo.ts 'const x: any = 1'",
-		"chudcode ttsr scan",
-		"chudcode ttsr scan src/",
-		"chudcode ttsr scan -r .chudcode/rules/no-any.md src/",
+		`${APP_NAME} ttsr list`,
+		`${APP_NAME} ttsr test 'const x: any = 1'`,
+		`${APP_NAME} ttsr test src/foo.ts`,
+		`${APP_NAME} ttsr test --file src/foo.ts`,
+		`${APP_NAME} ttsr test --file src/foo.ts --source text`,
+		`${APP_NAME} ttsr test --rule ${CONFIG_DIR_NAME}/rules/no-any.md --source tool --path src/foo.ts 'const x: any = 1'`,
+		`${APP_NAME} ttsr test --agent scout 'const x: any = 1'`,
+		`echo 'Box::leak(&mut v)' | ${APP_NAME} ttsr test --file - --path src/lib.rs`,
+		`${APP_NAME} ttsr test --source tool --tool edit --path src/foo.ts 'const x: any = 1'`,
+		`${APP_NAME} ttsr scan`,
+		`${APP_NAME} ttsr scan src/`,
+		`${APP_NAME} ttsr scan -r ${CONFIG_DIR_NAME}/rules/no-any.md src/`,
 	];
 
 	async run(): Promise<void> {
@@ -77,7 +82,7 @@ export default class Ttsr extends Command {
 		const action = (args.action ?? "list") as (typeof TTSR_ACTIONS)[number];
 
 		// A positional that resolves to an existing file is a snippet file, not
-		// inline text — so `chudcode ttsr test src/foo.ts` works without --file.
+		// inline text — so `omp ttsr test src/foo.ts` works without --file.
 		// --file always wins over the positional.
 		let file = flags.file;
 		let snippet = args.snippet;
@@ -99,6 +104,7 @@ export default class Ttsr extends Command {
 						tool: flags.tool,
 						filePath: flags.path,
 						verbose: flags.verbose,
+						agent: flags.agent,
 					}
 				: undefined;
 

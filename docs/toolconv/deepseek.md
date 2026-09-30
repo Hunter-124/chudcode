@@ -368,14 +368,14 @@ reuse the same fullwidth pipe (`｜`, U+FF5C), but the body is an Anthropic-styl
   structured `tool_calls`; a parser must heal it back into tool calls and strip the markers from
   user-visible text.
 
-## Chudcode / chud converter behavior
+## omp / pi converter behavior
 
 The repository's `deepseek` dialect is an **owned in-band converter**, not a
-vLLM parser wrapper. Select it with `CHUDCODE_DIALECT=deepseek` (or the equivalent
+vLLM parser wrapper. Select it with `PI_DIALECT=deepseek` (or the equivalent
 agent configuration). When tools are present, the agent appends the dialect
 guide and compact tool catalog to the system prompt, removes native provider
 tools from the request, re-encodes prior calls/results with this syntax, and
-scans streamed assistant text back into canonical chud tool-call events.
+scans streamed assistant text back into canonical pi tool-call events.
 
 The current scanner accepts all three forms described above:
 
@@ -383,7 +383,7 @@ The current scanner accepts all three forms described above:
 - legacy `function<｜tool▁sep｜>name` plus a fenced JSON body; and
 - fullwidth or ASCII DSML `invoke` / `parameter` blocks.
 
-For V3.1 and legacy calls, Chudcode emits `toolStart` after the header is complete
+For V3.1 and legacy calls, omp emits `toolStart` after the header is complete
 but buffers arguments until `<｜tool▁call▁end｜>`; it then uses the shared
 repairing JSON parser. A missing/invalid completed argument object becomes
 `{}`. Flush emits no `toolEnd` for an unfinished call and only clears the

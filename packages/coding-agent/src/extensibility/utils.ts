@@ -1,7 +1,9 @@
 import * as path from "node:path";
-import { postmortem } from "@chudware/utils";
-import { theme } from "../modes/theme/theme";
-import { expandPath, normalizeLocalScheme } from "../tools/path-utils";
+import { postmortem } from "@oh-my-pi/pi-utils";
+import { theme } from "@oh-my-pi/pi-tui/theme";
+import { extractUriScheme } from "../internal-urls/parse";
+import { InternalUrlRouter } from "../internal-urls/router";
+import { expandPath } from "../tools/path-utils";
 import type { HookUIContext } from "./hooks/types";
 
 /**
@@ -12,10 +14,9 @@ import type { HookUIContext } from "./hooks/types";
  */
 export function resolvePath(filePath: string, cwd: string): string {
 	const expanded = expandPath(filePath);
-	const expandedAndNormalized = normalizeLocalScheme(expanded);
-	if (expandedAndNormalized.startsWith("local://")) {
+	if (InternalUrlRouter.instance().canHandle(expanded)) {
 		throw new Error(
-			`Path "${filePath}" uses internal scheme "local://" and must be resolved through the proper protocol handler, not as a filesystem path.`,
+			`Path "${filePath}" uses internal scheme "${extractUriScheme(expanded)}://" and must be resolved through the proper protocol handler, not as a filesystem path.`,
 		);
 	}
 	if (path.isAbsolute(expanded)) {
@@ -58,7 +59,7 @@ export class ExtensionExitError extends Error {
 	) {
 		super(
 			`Module called ${alias}(${code === undefined ? "" : String(code)}) during guarded extension/hook loading; ` +
-				`Chudcode extension/hook modules must not terminate the host process.`,
+				`OMP extension/hook modules must not terminate the host process.`,
 		);
 		this.name = "ExtensionExitError";
 		this.code = code;
@@ -90,12 +91,12 @@ let hostGuardStdinWasRaw = false;
  * Run `fn` with host-owned process state fenced off from third-party module
  * evaluation, restored in `finally`. Guards the dynamic-import and
  * factory-invocation sites that load extension / hook / tool / plugin modules
- * from user directories (including Claude Code's `~/.claude/tools`, which Chudcode
+ * from user directories (including Claude Code's `~/.claude/tools`, which OMP
  * slurps wholesale). Two hazards are neutralized:
  *
  * - **Hard exit.** `process.exit(0)` / `process.reallyExit(0)` in a stranger's
  *   script (e.g. a CLI-shaped module with `main()` at the bottom) would kill
- *   Chudcode during startup with no error surface, since `try/catch` cannot
+ *   OMP during startup with no error surface, since `try/catch` cannot
  *   intercept a synchronous exit. Both are patched to throw
  *   {@link ExtensionExitError} instead.
  * - **stdin hijack.** A module that attaches a stdin consumer at evaluation

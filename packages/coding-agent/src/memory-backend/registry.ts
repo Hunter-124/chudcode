@@ -1,95 +1,44 @@
 import type { MemoryBackend } from "./types";
 
-export const BUILTIN_MEMORY_BACKEND_IDS = ["off", "local", "hindsight", "mnemo", "sharpshooter"] as const;
+export const BUILTIN_MEMORY_BACKEND_IDS = ["off", "local", "hindsight", "mnemopi", "sharpshooter"] as const;
+/** The setting's live enum vocabulary; CloudCastle is accepted before its extension finishes loading. */
+const memoryBackendIds: string[] = [...BUILTIN_MEMORY_BACKEND_IDS, "cloudcastle-incident"];
 
-export type BuiltinMemoryBackendId = (typeof BUILTIN_MEMORY_BACKEND_IDS)[number];
-
-interface MemoryBackendRegistration {
+interface Registration {
 	backend: MemoryBackend;
 	sourceId: string;
 	token: symbol;
 }
 
-export interface RegisteredMemoryBackend {
-	backend: MemoryBackend;
-	sourceId: string;
-}
+const registrations = new Map<string, Registration[]>();
 
-const registrationsById = new Map<string, MemoryBackendRegistration[]>();
-
-function assertRegistrationInput(backend: MemoryBackend, sourceId: string): void {
-	if (backend.id.length === 0 || backend.id !== backend.id.trim()) {
-		throw new TypeError("Memory backend id must be a non-empty trimmed string");
-	}
-	if (sourceId.length === 0 || sourceId !== sourceId.trim()) {
-		throw new TypeError("Memory backend source id must be a non-empty trimmed string");
-	}
-}
-
-function removeRegistration(id: string, token: symbol): void {
-	const registrations = registrationsById.get(id);
-	if (!registrations) return;
-	const remaining = registrations.filter(registration => registration.token !== token);
-	if (remaining.length === 0) registrationsById.delete(id);
-	else registrationsById.set(id, remaining);
-}
-
-/**
- * Register a backend owned by one extension source.
- *
- * Rebinding the same id from the same source is supported so separately bound
- * sessions can coexist. A different source attempting to claim that id is
- * rejected explicitly rather than depending on extension discovery order.
- */
+/** Multiple sessions of the same extension may bind independently; unrelated sources cannot steal an id. */
 export function registerMemoryBackend(backend: MemoryBackend, sourceId: string): () => void {
-	assertRegistrationInput(backend, sourceId);
-	const registrations = registrationsById.get(backend.id) ?? [];
-	const conflicting = registrations.find(registration => registration.sourceId !== sourceId);
-	if (conflicting) {
-		throw new Error(
-			`Memory backend "${backend.id}" is already registered by "${conflicting.sourceId}"; ` +
-				`"${sourceId}" cannot replace it`,
-		);
+	if (!backend.id || backend.id !== backend.id.trim() || !sourceId || sourceId !== sourceId.trim()) {
+		throw new TypeError("Memory backend id and source id must be non-empty trimmed strings");
 	}
-
+	const current = registrations.get(backend.id) ?? [];
+	const conflict = current.find(entry => entry.sourceId !== sourceId);
+	if (conflict) throw new Error(`Memory backend "${backend.id}" is already registered by "${conflict.sourceId}"`);
 	const token = Symbol(backend.id);
-	registrations.push({ backend, sourceId, token });
-	registrationsById.set(backend.id, registrations);
-	return () => removeRegistration(backend.id, token);
+	current.push({ backend, sourceId, token });
+	registrations.set(backend.id, current);
+	if (!memoryBackendIds.includes(backend.id)) memoryBackendIds.push(backend.id);
+	return () => {
+		const remaining = registrations.get(backend.id)?.filter(entry => entry.token !== token);
+		if (!remaining?.length) {
+			registrations.delete(backend.id);
+			if (!BUILTIN_MEMORY_BACKEND_IDS.some(id => id === backend.id) && backend.id !== "cloudcastle-incident") {
+				memoryBackendIds.splice(memoryBackendIds.indexOf(backend.id), 1);
+			}
+		} else registrations.set(backend.id, remaining);
+	};
 }
 
-/** Remove all registrations for an id owned by one source. */
-export function unregisterMemoryBackend(id: string, sourceId: string): boolean {
-	const registrations = registrationsById.get(id);
-	if (!registrations) return false;
-	const remaining = registrations.filter(registration => registration.sourceId !== sourceId);
-	if (remaining.length === registrations.length) return false;
-	if (remaining.length === 0) registrationsById.delete(id);
-	else registrationsById.set(id, remaining);
-	return true;
+export function getRegisteredMemoryBackend(id: string): MemoryBackend | undefined {
+	return registrations.get(id)?.at(-1)?.backend;
 }
 
-/** Remove every registration owned by one source without affecting other extensions. */
-export function unregisterMemoryBackendsForSource(sourceId: string): void {
-	for (const [id, registrations] of registrationsById) {
-		const remaining = registrations.filter(registration => registration.sourceId !== sourceId);
-		if (remaining.length === 0) registrationsById.delete(id);
-		else if (remaining.length !== registrations.length) registrationsById.set(id, remaining);
-	}
-}
-
-/** Return the active extension registration for an id, if present. */
-export function getRegisteredMemoryBackend(id: string): RegisteredMemoryBackend | undefined {
-	const registrations = registrationsById.get(id);
-	const active = registrations?.at(-1);
-	return active ? { backend: active.backend, sourceId: active.sourceId } : undefined;
-}
-
-/** Built-in and currently registered ids accepted by settings validation and selectors. */
 export function getMemoryBackendIds(): readonly string[] {
-	const ids: string[] = [...BUILTIN_MEMORY_BACKEND_IDS];
-	for (const id of registrationsById.keys()) {
-		if (!ids.includes(id)) ids.push(id);
-	}
-	return ids;
+	return memoryBackendIds;
 }

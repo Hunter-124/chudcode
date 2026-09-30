@@ -1,19 +1,26 @@
+import { randomUUID } from "node:crypto";
+import * as fs from "node:fs/promises";
 import * as path from "node:path";
-import { getAgentDir, isEnoent, logger } from "@chudware/utils";
-import * as fsx from "@chudware/utils/fsx";
+import { getAgentDir, isEnoent, logger } from "@oh-my-pi/pi-utils";
+import { withFileLock } from "@oh-my-pi/pi-utils/file-lock";
+import { replaceFileAtomically } from "../utils/atomic-file";
 import type { SessionInfo } from "./session-listing";
 
 const PINS_FILENAME = "session-pins.json";
 
+function pinsPath(agentDir: string): string {
+	return path.join(agentDir, PINS_FILENAME);
+}
+
 /**
- * Read the global set of pinned session ids (`~/.chudcode/session-pins.json`). Pins
+ * Read the global set of pinned session ids (`~/.omp/session-pins.json`). Pins
  * are keyed by session id, not file path, so they survive `/move` renames.
  * A missing file yields an empty set; a corrupt one degrades to empty with a
  * warning rather than breaking the resume picker.
  */
 export async function loadPinnedSessionIds(agentDir: string = getAgentDir()): Promise<Set<string>> {
 	try {
-		const pins: unknown = await fsx.readJson(path.join(agentDir, PINS_FILENAME));
+		const pins: unknown = JSON.parse(await fs.readFile(pinsPath(agentDir), "utf-8"));
 		if (!Array.isArray(pins)) return new Set();
 		return new Set(pins.filter((id): id is string => typeof id === "string"));
 	} catch (err) {
@@ -23,12 +30,33 @@ export async function loadPinnedSessionIds(agentDir: string = getAgentDir()): Pr
 	}
 }
 
-/** Toggle one session's pin and persist the set; returns the new pinned state. */
+/**
+ * Toggle one session's pin and persist the set; returns the new pinned state.
+ *
+ * The read-modify-write runs under the shared cross-process file lock and
+ * commits via write-temp-then-atomic-replace, mirroring the MCP config
+ * writer: two omp instances toggling pins concurrently can no longer lose
+ * each other's update (load-load-write-write), and a crash mid-write leaves
+ * the previous pins file intact instead of a truncated one that degrades to
+ * an empty set. The replace preserves the destination across Windows
+ * EPERM/EEXIST rename failures (`replaceFileAtomically`).
+ */
 export async function toggleSessionPin(sessionId: string, agentDir: string = getAgentDir()): Promise<boolean> {
-	const pinned = await loadPinnedSessionIds(agentDir);
-	if (!pinned.delete(sessionId)) pinned.add(sessionId);
-	await fsx.write(path.join(agentDir, PINS_FILENAME), JSON.stringify([...pinned], null, "\t"));
-	return pinned.has(sessionId);
+	const filePath = pinsPath(agentDir);
+	await fs.mkdir(agentDir, { recursive: true });
+	return withFileLock(filePath, async () => {
+		const pinned = await loadPinnedSessionIds(agentDir);
+		if (!pinned.delete(sessionId)) pinned.add(sessionId);
+		const tmpPath = `${filePath}.${process.pid}.${randomUUID()}.tmp`;
+		try {
+			await fs.writeFile(tmpPath, JSON.stringify([...pinned], null, "\t"), { encoding: "utf-8", mode: 0o600 });
+			await replaceFileAtomically(tmpPath, filePath);
+		} catch (error) {
+			await fs.rm(tmpPath, { force: true }).catch(() => {});
+			throw error;
+		}
+		return pinned.has(sessionId);
+	});
 }
 
 /**

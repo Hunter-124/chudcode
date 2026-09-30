@@ -14,30 +14,38 @@ import { Buffer } from "node:buffer";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import { removeWithRetries, VERSION } from "@chudware/utils";
-import * as fsx from "@chudware/utils/fsx";
-import { SETTINGS_SCHEMA, Settings } from "../../src/config/settings";
+import { removeWithRetries, VERSION } from "@oh-my-pi/pi-utils";
+import { lookup } from "../../src/config/registry";
+import { Settings } from "../../src/config/settings";
 import {
+	CHANGELOG_COMMAND_USAGE,
 	type ChangelogEntry,
+	DEFAULT_LAST_CHANGELOG_COUNT,
 	formatStartupChangelogSummary,
 	getNewEntries,
 	parseChangelog,
+	parseChangelogView,
 	RECENT_CHANGELOG_ENTRY_LIMIT,
 	readLastChangelogVersion,
 	renderChangelogEntries,
 	resolveStartupChangelogForDisplay,
+	selectChangelogEntries,
 	STARTUP_CHANGELOG_FULL_HINT,
 	STARTUP_CHANGELOG_MAX_BYTES,
 	selectStartupChangelog,
 	writeLastChangelogVersion,
 } from "../../src/utils/changelog";
 
+import { cfgStartupChangelogMode } from "@oh-my-pi/pi-coding-agent/modes/settings";
+
 const CURRENT_VERSION = "2.0.0";
 const repoRoot = path.resolve(import.meta.dir, "..", "..", "..", "..");
 const cliEntry = path.join(repoRoot, "packages", "coding-agent", "src", "cli.ts");
 const packageDir = path.join(repoRoot, "packages", "coding-agent");
 const hasPtyHarness =
-	process.platform === "linux" && (await fsx.exists("/usr/bin/script")) && (await fsx.exists("/usr/bin/timeout"));
+	process.platform === "linux" &&
+	(await Bun.file("/usr/bin/script").exists()) &&
+	(await Bun.file("/usr/bin/timeout").exists());
 const PTY_STARTUP_OUTPUT_CEILING = 512 * 1024;
 
 function release(major: number, minor: number, patch: number, body: string): ChangelogEntry {
@@ -47,12 +55,8 @@ function release(major: number, minor: number, patch: number, body: string): Cha
 }
 
 describe("startup changelog mode settings", () => {
-	test("defaults to a summary", () => {
-		expect(Settings.isolated().get("startup.changelogMode")).toBe("summary");
-	});
-
 	test("keeps the legacy key out of the public schema while migrating raw config", async () => {
-		expect(Object.hasOwn(SETTINGS_SCHEMA, "collapseChangelog")).toBe(false);
+		expect(lookup("collapseChangelog")).toBeUndefined();
 
 		await withTempAgentDir(async agentDir => {
 			const configPath = path.join(agentDir, "config.yml");
@@ -60,27 +64,53 @@ describe("startup changelog mode settings", () => {
 				[true, "summary"],
 				[false, "expanded"],
 			] as const) {
-				await fsx.write(configPath, `collapseChangelog: ${legacyValue}\n`);
+				await Bun.write(configPath, `collapseChangelog: ${legacyValue}\n`);
 				const settings = await Settings.loadReadOnly({ cwd: agentDir, agentDir });
-				expect(settings.get("startup.changelogMode")).toBe(expectedMode);
+				expect(cfgStartupChangelogMode.get(settings)).toBe(expectedMode);
 			}
 		});
 	});
 
 	test("lets an explicit new mode win over the legacy raw config key", async () => {
 		await withTempAgentDir(async agentDir => {
-			await fsx.write(
+			await Bun.write(
 				path.join(agentDir, "config.yml"),
 				"collapseChangelog: false\nstartup:\n  changelogMode: hidden\n",
 			);
 			const settings = await Settings.loadReadOnly({ cwd: agentDir, agentDir });
-			expect(settings.get("startup.changelogMode")).toBe("hidden");
+			expect(cfgStartupChangelogMode.get(settings)).toBe("hidden");
 		});
+	});
+});
+describe("parseChangelogView", () => {
+	const entries = [release(1, 0, 3, "c"), release(1, 0, 2, "b"), release(1, 0, 1, "a")];
+
+	test("maps bare, full, and last counts", () => {
+		expect(parseChangelogView("")).toEqual({ kind: "recent", count: RECENT_CHANGELOG_ENTRY_LIMIT });
+		expect(parseChangelogView("full")).toEqual({ kind: "full" });
+		expect(parseChangelogView("last")).toEqual({ kind: "last", count: DEFAULT_LAST_CHANGELOG_COUNT });
+		expect(parseChangelogView("LAST 2")).toEqual({ kind: "last", count: 2 });
+	});
+
+	test("rejects unknown args and a zero count with one usage string", () => {
+		expect(parseChangelogView("yesterday")).toEqual({ error: CHANGELOG_COMMAND_USAGE });
+		expect(parseChangelogView("last 0")).toEqual({
+			error: `${CHANGELOG_COMMAND_USAGE} (N must be a positive integer)`,
+		});
+	});
+
+	test("slices last N and leaves an oversized count to the caller title", () => {
+		const last = parseChangelogView("last 2");
+		if ("error" in last) throw new Error(last.error);
+		expect(selectChangelogEntries(entries, last).map(entry => entry.patch)).toEqual([3, 2]);
+		const oversized = parseChangelogView("last 999999");
+		if ("error" in oversized) throw new Error(oversized.error);
+		expect(selectChangelogEntries(entries, oversized)).toHaveLength(entries.length);
 	});
 });
 
 async function withTempAgentDir<T>(callback: (agentDir: string) => Promise<T>): Promise<T> {
-	const agentDir = await fs.mkdtemp(path.join(os.tmpdir(), "chudcode-changelog-marker-"));
+	const agentDir = await fs.mkdtemp(path.join(os.tmpdir(), "omp-changelog-marker-"));
 	try {
 		const result = await callback(agentDir);
 		return result;
@@ -233,8 +263,13 @@ describe("parseChangelog", () => {
 		const latest = entries[0];
 		const previous = entries[1];
 
-		expect(`${latest?.major}.${latest?.minor}.${latest?.patch}`).toBe(VERSION);
-		expect(latest?.content).toContain(`## [${VERSION}]`);
+		// A release with no user-facing coding-agent changes gets no changelog
+		// section (scripts/release.ts skips empty [Unreleased]), so the newest
+		// section may lag VERSION — but it must never be ahead of it.
+		expect(latest).toBeDefined();
+		const latestVersion = `${latest?.major}.${latest?.minor}.${latest?.patch}`;
+		expect(latest?.content).toContain(`## [${latestVersion}]`);
+		expect(getNewEntries(entries, VERSION)).toEqual([]);
 		expect(previous).toBeDefined();
 
 		const previousVersion = `${previous?.major}.${previous?.minor}.${previous?.patch}`;
@@ -269,7 +304,7 @@ describe("last changelog marker", () => {
 			await writeLastChangelogVersion(CURRENT_VERSION, agentDir);
 
 			expect(await readLastChangelogVersion(agentDir)).toBe(CURRENT_VERSION);
-			expect(await fsx.readText(path.join(agentDir, "last-changelog-version"))).toBe(CURRENT_VERSION);
+			expect(await Bun.file(path.join(agentDir, "last-changelog-version")).text()).toBe(CURRENT_VERSION);
 		});
 	});
 
@@ -297,17 +332,37 @@ describe("last changelog marker", () => {
 			expect(await readLastChangelogVersion(agentDir)).toBe("3.0.0");
 		});
 	});
+
+	test("summary mode keeps the last unseen release of a changelog that ends in a newline", async () => {
+		await withTempAgentDir(async agentDir => {
+			await writeLastChangelogVersion("1.0.0", agentDir);
+			const changelogPath = path.join(agentDir, "CHANGELOG.md");
+			const history = [release(2, 0, 0, "### Added\n\n- Newest."), release(1, 5, 0, "### Fixed\n\n- Last section.")];
+			await Bun.write(changelogPath, `# Changelog\n\n${history.map(entry => entry.content).join("\n\n")}\n`);
+
+			const selection = await resolveStartupChangelogForDisplay({
+				mode: "summary",
+				currentVersion: CURRENT_VERSION,
+				changelogPath,
+				agentDir,
+			});
+
+			expect(selection?.totalUnseenEntries).toBe(2);
+			expect(selection?.markdown).toContain("## [1.5.0]");
+			expect(selection?.markdown).toContain("- Last section.");
+		});
+	});
 });
 
 describe.skipIf(!hasPtyHarness)("interactive startup changelog PTY smoke", () => {
 	test("does not dump packaged changelog history on first install with uncollapsed notes", async () => {
 		await withTempAgentDir(async agentDir => {
-			const root = await fs.mkdtemp(path.join(os.tmpdir(), "chudcode-changelog-pty-"));
+			const root = await fs.mkdtemp(path.join(os.tmpdir(), "omp-changelog-pty-"));
 			try {
 				await fs.mkdir(path.join(root, "xdg-config"), { recursive: true });
 				await fs.mkdir(path.join(root, "xdg-state"), { recursive: true });
 				await fs.mkdir(path.join(root, "xdg-data"), { recursive: true });
-				await fsx.write(path.join(agentDir, "config.yml"), "setupVersion: 1\ncollapseChangelog: false\n");
+				await Bun.write(path.join(agentDir, "config.yml"), "setupVersion: 1\ncollapseChangelog: false\n");
 
 				const proc = Bun.spawn(
 					["timeout", "6s", "script", "-q", "-c", `bun ${JSON.stringify(cliEntry)}`, "/dev/null"],
@@ -321,9 +376,9 @@ describe.skipIf(!hasPtyHarness)("interactive startup changelog PTY smoke", () =>
 							XDG_CONFIG_HOME: path.join(root, "xdg-config"),
 							XDG_STATE_HOME: path.join(root, "xdg-state"),
 							XDG_DATA_HOME: path.join(root, "xdg-data"),
-							CHUDCODE_CODING_AGENT_DIR: agentDir,
-							CHUDCODE_PACKAGE_DIR: packageDir,
-							CHUDCODE_NO_TITLE: "1",
+							PI_CODING_AGENT_DIR: agentDir,
+							PI_PACKAGE_DIR: packageDir,
+							PI_NO_TITLE: "1",
 							NO_COLOR: "1",
 							TERM: "xterm-256color",
 						},

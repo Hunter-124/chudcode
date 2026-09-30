@@ -1,4 +1,4 @@
-// Regression for https://github.com/Hunter-124/chudcode/issues/1880.
+// Regression for https://github.com/can1357/oh-my-pi/issues/1880.
 //
 // llama.cpp (and any OpenAI-Responses-compatible host that interleaves
 // multiple function_call items) emits `output_item.added` for every parallel
@@ -13,10 +13,10 @@
 // `output_item.done` event must be routed by `output_index`/`item_id`, not by
 // arrival order.
 import { describe, expect, test } from "bun:test";
-import type { ResponseStreamEvent } from "@chudware/ai/providers/openai-responses-wire";
-import { processResponsesStream } from "@chudware/ai/providers/openai-shared";
-import type { AssistantMessage, Model } from "@chudware/ai/types";
-import { buildModel } from "@chudware/catalog/build";
+import type { ResponseStreamEvent } from "@oh-my-pi/pi-ai/providers/openai-responses-wire";
+import { processResponsesStream } from "@oh-my-pi/pi-ai/providers/openai-shared";
+import type { AssistantMessage, Model } from "@oh-my-pi/pi-ai/types";
+import { buildModel } from "@oh-my-pi/pi-catalog/build";
 
 function makeModel(): Model<"openai-responses"> {
 	return buildModel({

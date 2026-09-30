@@ -2,26 +2,19 @@
 
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
-import { isEnoent } from "@chudware/utils";
-import * as fsx from "@chudware/utils/fsx";
+import { isEnoent } from "@oh-my-pi/pi-utils";
 import { buildDocsIndexPayload } from "./generate-docs-index";
+import { createJsonParsePlugin } from "./json-parse-plugin";
+import { createLegacyPiVirtualModulePlugin } from "./legacy-pi-virtual-module";
 
 const packageDir = path.join(import.meta.dir, "..");
-const outDir = path.join(packageDir, "dist");
-const cliPath = path.join(outDir, "cli.js");
+const defaultOutDir = path.join(packageDir, "dist");
 const shebang = "#!/usr/bin/env bun\n";
-const legacyHtmlExportAssetPattern = /^(?:template-[^.]+\.(?:css|html|js)|tool-views\.generated-[^.]+\.js)$/;
+const htmlExportAssetPattern =
+	/^(?:template-[^.]+\.(?:css|html|js)|tool-views\.generated-[^.]+\.js|(?:marked|highlight)\.min-[^.]+\.js)$/;
 
 // Native / optional / platform-specific deps are loaded from installed files.
-// `chudcode-legacy-pi-modules` exists only in compiled binaries via the build plugin;
-// the npm bundle never executes that `isCompiledBinary()` branch.
-const ALWAYS_EXTERNAL = [
-	"@chudware/natives",
-	"@huggingface/transformers",
-	"fastembed",
-	"onnxruntime-node",
-	"chudcode-legacy-pi-modules",
-];
+const ALWAYS_EXTERNAL = ["@oh-my-pi/pi-natives", "@huggingface/transformers", "fastembed", "onnxruntime-node"];
 
 // Heavy, lazily-used third-party leaf deps. Each is a declared `dependency`, so the
 // published package resolves it from node_modules at runtime; bundling only embeds a
@@ -42,11 +35,11 @@ async function runCommand(command: string[]): Promise<void> {
 	if (exitCode !== 0) throw new Error(`Command failed with exit code ${exitCode}: ${command.join(" ")}`);
 }
 
-async function ensureShebang(): Promise<void> {
-	const text = await fsx.readText(cliPath);
+async function ensureShebang(cliPath: string): Promise<void> {
+	const text = await Bun.file(cliPath).text();
 	if (text.startsWith(shebang)) return;
 	const withoutExisting = text.startsWith("#!") ? text.slice(text.indexOf("\n") + 1) : text;
-	await fsx.write(cliPath, shebang + withoutExisting);
+	await Bun.write(cliPath, shebang + withoutExisting);
 }
 
 function formatBytes(bytes: number): string {
@@ -54,8 +47,8 @@ function formatBytes(bytes: number): string {
 	return `${(bytes / (1024 * 1024)).toFixed(2)}MB`;
 }
 
-async function cleanBundleOutputs(): Promise<void> {
-	// dist/ is shared with the dev binary (dist/chudcode); only remove assets
+async function cleanBundleOutputs(outDir: string): Promise<void> {
+	// dist/ is shared with the dev binary (dist/omp); only remove assets
 	// emitted by this script.
 	let entries: string[];
 	try {
@@ -73,24 +66,25 @@ async function cleanBundleOutputs(): Promise<void> {
 					entry.endsWith(".node") ||
 					entry.endsWith(".js.map") ||
 					(entry.startsWith("CHANGELOG-") && entry.endsWith(".md")) ||
-					(entry.startsWith("models-") && entry.endsWith(".bin")) ||
-					legacyHtmlExportAssetPattern.test(entry),
+					htmlExportAssetPattern.test(entry),
 			)
 			.map(entry => fs.rm(path.join(outDir, entry), { force: true })),
 	);
 }
 
-async function main(): Promise<void> {
+/** Builds the npm CLI bundle into `outDir`; release scripts use the package `dist` directory by default. */
+export async function bundleDist(outDir: string = defaultOutDir): Promise<void> {
+	const cliPath = path.join(outDir, "cli.js");
 	const start = Bun.nanoseconds();
-	await cleanBundleOutputs();
+	await cleanBundleOutputs(outDir);
 	// The npm bundle ships no stats dashboard sources, so embed the dashboard
 	// archive the same way compiled binaries do (scripts/build-binary.ts). Reset
 	// afterwards to keep the checked-in placeholder empty.
 	await runCommand(["bun", "--cwd=../stats", "run", "gen:stats"]);
 	// One payload for both consumers: inlined into dist/cli.js via `--define` for
 	// the bundled CLI entrypoint, and written to dist/docs-index.generated.txt so
-	// SDK consumers importing `@chudware/coding-agent/*` (TypeScript source, no
-	// build-time embed) can still resolve chudcode:// docs (see src/internal-urls/docs-index.ts).
+	// SDK consumers importing `@oh-my-pi/pi-coding-agent/*` (TypeScript source, no
+	// build-time embed) can still resolve omp:// docs (see src/internal-urls/docs-index.ts).
 	try {
 		const docsPayload = await buildDocsIndexPayload();
 		// Build in-process: the docs embed payload is far larger than Linux's
@@ -100,10 +94,11 @@ async function main(): Promise<void> {
 			entrypoints: [path.join(packageDir, "src/cli.ts")],
 			outdir: outDir,
 			target: "bun",
+			plugins: [createJsonParsePlugin(), await createLegacyPiVirtualModulePlugin()],
 			external: [...ALWAYS_EXTERNAL, ...RUNTIME_EXTERNAL],
 			define: {
-				"process.env.CHUDCODE_BUNDLED": JSON.stringify("true"),
-				"process.env.CHUDCODE_DOCS_EMBED": JSON.stringify(docsPayload.payload),
+				"process.env.PI_BUNDLED": JSON.stringify("true"),
+				"process.env.PI_DOCS_EMBED": JSON.stringify(docsPayload.payload),
 			},
 			minify: {
 				whitespace: true,
@@ -116,16 +111,16 @@ async function main(): Promise<void> {
 		if (!output.success) {
 			throw new Error(`CLI bundle failed:\n${output.logs.map(log => log.message).join("\n")}`);
 		}
-		await ensureShebang();
-		await fsx.write(path.join(outDir, "docs-index.generated.txt"), docsPayload.payload);
+		await ensureShebang(cliPath);
+		await Bun.write(path.join(outDir, "docs-index.generated.txt"), docsPayload.payload);
 	} finally {
 		await runCommand(["bun", "--cwd=../stats", "run", "gen:stats:reset"]);
 	}
 	const stat = await fs.stat(cliPath);
 	const elapsedMs = (Bun.nanoseconds() - start) / 1_000_000;
 	process.stdout.write(
-		`Bundled coding-agent CLI to dist/cli.js (${formatBytes(stat.size)}) in ${elapsedMs.toFixed(0)}ms\n`,
+		`Bundled coding-agent CLI to ${cliPath} (${formatBytes(stat.size)}) in ${elapsedMs.toFixed(0)}ms\n`,
 	);
 }
 
-await main();
+if (import.meta.main) await bundleDist();

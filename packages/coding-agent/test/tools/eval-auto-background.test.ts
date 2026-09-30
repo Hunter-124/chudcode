@@ -1,11 +1,11 @@
 import { afterEach, describe, expect, it, vi } from "bun:test";
-import type { AgentToolContext } from "@chudware/agent-core";
-import { AsyncJobManager } from "@chudware/coding-agent/async";
-import { Settings } from "@chudware/coding-agent/config/settings";
-import * as evalIndex from "@chudware/coding-agent/eval";
-import { SessionManager } from "@chudware/coding-agent/session/session-manager";
-import type { ToolSession } from "@chudware/coding-agent/tools";
-import { EvalTool } from "@chudware/coding-agent/tools/eval";
+import type { AgentToolContext } from "@oh-my-pi/pi-agent-core";
+import { AsyncJobManager } from "@oh-my-pi/pi-coding-agent/async";
+import { Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
+import * as evalIndex from "@oh-my-pi/pi-coding-agent/eval";
+import { SessionManager } from "@oh-my-pi/pi-coding-agent/session/session-manager";
+import type { ToolSession } from "@oh-my-pi/pi-coding-agent/tools";
+import { EvalTool } from "@oh-my-pi/pi-coding-agent/tools/eval";
 
 function makeSession(settings: Settings, asyncJobManager: AsyncJobManager): ToolSession {
 	return {
@@ -87,7 +87,7 @@ describe("EvalTool auto-background", () => {
 		vi.restoreAllMocks();
 	});
 
-	it("keeps fast cells inline and suppresses their job delivery", async () => {
+	it("keeps fast cells inline without a job row or delivery", async () => {
 		const deliveries: string[] = [];
 		const asyncJobManager = new AsyncJobManager({
 			onJobComplete: async (_jobId, text) => {
@@ -112,7 +112,10 @@ describe("EvalTool auto-background", () => {
 		expect(text).toContain("quick");
 		expect(result.details?.async).toBeUndefined();
 		expect(result.details?.cells?.[0]?.status).toBe("complete");
+		await asyncJobManager.waitForAll();
 		await asyncJobManager.drainDeliveries({ timeoutMs: 1 });
+		expect(asyncJobManager.getAllJobs()).toEqual([]);
+		expect(asyncJobManager.getJob("bg_1")).toBeUndefined();
 		expect(deliveries).toEqual([]);
 		await asyncJobManager.dispose();
 	});

@@ -12,12 +12,11 @@
  */
 import { describe, expect, it, vi } from "bun:test";
 import * as path from "node:path";
-import { parseArgs } from "@chudware/coding-agent/cli/args";
-import { Settings } from "@chudware/coding-agent/config/settings";
-import { runRootCommand } from "@chudware/coding-agent/main";
-import { AuthStorage } from "@chudware/coding-agent/session/auth-storage";
-import { TempDir } from "@chudware/utils";
-import * as fsx from "@chudware/utils/fsx";
+import { parseArgs } from "@oh-my-pi/pi-coding-agent/cli/args";
+import { Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
+import { runRootCommand } from "@oh-my-pi/pi-coding-agent/main";
+import { AuthStorage } from "@oh-my-pi/pi-coding-agent/session/auth-storage";
+import { TempDir } from "@oh-my-pi/pi-utils";
 
 class ProcessExitSignal extends Error {
 	constructor(readonly code: number) {
@@ -28,13 +27,27 @@ class ProcessExitSignal extends Error {
 
 describe("runRootCommand — startup --resume picker cancellation", () => {
 	it("exits cleanly (process.exit 0) when the picker is cancelled instead of returning and hanging", async () => {
-		using tempDir = TempDir.createSync("@chudcode-resume-cancel-");
+		using tempDir = TempDir.createSync("@omp-resume-cancel-");
 		const sessionDir = tempDir.path();
-		// One valid session so folderSessions is non-empty and the picker (not the
+		// One answered session so folderSessions is non-empty and the picker (not the
 		// "No sessions found" probe) is the path under test.
-		await fsx.write(
+		await Bun.write(
 			path.join(sessionDir, "existing.jsonl"),
-			`${JSON.stringify({ type: "session", id: "existing-session", cwd: sessionDir, timestamp: new Date().toISOString() })}\n`,
+			[
+				JSON.stringify({
+					type: "session",
+					id: "existing-session",
+					cwd: sessionDir,
+					timestamp: new Date().toISOString(),
+				}),
+				JSON.stringify({
+					type: "message",
+					id: "e1",
+					parentId: null,
+					timestamp: new Date().toISOString(),
+					message: { role: "assistant", content: "prior work" },
+				}),
+			].join("\n"),
 		);
 
 		const authStorage = await AuthStorage.create(path.join(sessionDir, "auth.db"));

@@ -1,5 +1,6 @@
-import { postmortem } from "@chudware/utils";
-import { Args, Command, Flags } from "@chudware/utils/cli";
+import { postmortem } from "@oh-my-pi/pi-utils";
+import { Args, Command, Flags } from "@oh-my-pi/pi-utils/cli";
+import { APP_NAME } from "@oh-my-pi/pi-utils/dirs";
 import { compressHelp as commandHelp } from "../cli/command-help";
 import { CliUsageError } from "../cli/usage-error";
 import { runCompressCommand } from "../compress";
@@ -18,11 +19,11 @@ export default class Compress extends Command {
 	};
 
 	static examples = [
-		"chudcode compress prompts/tools/read.md",
-		"chudcode compress notes.md -o notes.compressed.md",
-		"chudcode compress 'src/prompts/**/*.md' -i",
-		"chudcode compress a.md b.md c.md -i -n 8",
-		"chudcode compress spec.md -r 5 -m opus",
+		`${APP_NAME} compress prompts/tools/read.md`,
+		`${APP_NAME} compress notes.md -o notes.compressed.md`,
+		`${APP_NAME} compress 'src/prompts/**/*.md' -i`,
+		`${APP_NAME} compress a.md b.md c.md -i -n 8`,
+		`${APP_NAME} compress spec.md -r 5 -m opus`,
 	];
 
 	async run(): Promise<void> {

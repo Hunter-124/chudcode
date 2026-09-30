@@ -1,12 +1,12 @@
 # chudcode-rpc
 
-Typed Python bindings for the internal agent runtime's `chudcode --mode rpc` protocol.
+Typed Python bindings for the internal agent runtime's `chud --mode rpc` protocol.
 
 This package wraps the newline-delimited JSON RPC transport exposed by the CLI and
 provides:
 
 - typed command methods for the stable RPC surface
-- typed startup options for common `chudcode --mode rpc` flags such as thinking level,
+- typed startup options for common `chud --mode rpc` flags such as thinking level,
   tool selection, prompt appends, provider session IDs, and headless session toggles
 - typed protocol models for state, bash results, compaction, and session stats
 - automatic protocol v2 negotiation, lossless chunk reassembly, and stable message pagination
@@ -28,6 +28,22 @@ with RpcClient(provider="anthropic", model="claude-sonnet-4-5") as client:
 
     turn = client.prompt_and_wait("Reply with just the word hello")
     print(turn.require_assistant_text())
+```
+
+An accepted prompt yields a `prompt_result` notification with the request id,
+`agentInvoked`, `status` (`completed`, `aborted`, or `error`), and
+`sessionSettled`. `prompt_and_wait()` correlates to that result; its
+`PromptTurn.result` is `None` when a local command did not invoke the agent.
+`wait_for_idle()` waits for outstanding submitted prompts to yield.
+Background jobs can resume the session after a yield: use
+`wait_for_settled()` to wait for the later `session_settled` notification.
+`get_state()` exposes `is_settled`, `has_pending_async_work`, and the queued
+steering/follow-up messages. `on_queue_update()` receives queue snapshots.
+
+For an isolated installed-client smoke invocation without a provider call:
+
+```bash
+python -c 'from chudcode_rpc import RpcClient; c = RpcClient(command=["chud", "--mode", "rpc"], no_session=True); c.start(); print(c.get_state().session_id); c.stop()'
 ```
 
 The wrapper also exposes the common RPC startup flags directly, so scripts do not
@@ -81,7 +97,7 @@ phases, and `get_state().todo_phases` returns the typed current todo state.
 By default the client runs:
 
 ```bash
-chudcode --mode rpc
+chud --mode rpc
 ```
 
 You can also point it at a custom command, which is useful inside this repo while
@@ -241,6 +257,11 @@ with RpcClient(
 If you want runtime conversion into a richer Python type, pass `decode=` to
 `host_tool(...)`. That lets you keep the JSON Schema contract on the wire while
 parsing the incoming argument object into a dataclass or model in the handler.
+
+For inherited host tools called by task sub-agents, `context.agent_id` is the
+sub-agent registry id and `context.parent_agent_id` is its spawner's id;
+both are `None` for top-level calls. The client also normalizes host-tool
+names inside forwarded `subagent_event.payload.event` tool updates and ends.
 
 ## Host-Owned URI Schemes
 

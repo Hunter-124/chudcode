@@ -2,13 +2,13 @@
  * Check for and install updates.
  */
 
-import { Command, Flags } from "@chudware/utils/cli";
-import { PRODUCT_CLI_NAME } from "../brand";
+import { Command, Flags } from "@oh-my-pi/pi-utils/cli";
+import { APP_NAME } from "@oh-my-pi/pi-utils/dirs";
 import { updateHelp as commandHelp } from "../cli/command-help";
 import * as pluginCli from "../cli/plugin-cli";
 import * as updateCli from "../cli/update-cli";
 import { CliUsageError } from "../cli/usage-error";
-import { initTheme } from "../modes/theme/theme";
+import { initTheme } from "@oh-my-pi/pi-tui/theme";
 
 export default class Update extends Command {
 	static description = commandHelp.description;
@@ -21,10 +21,10 @@ export default class Update extends Command {
 	};
 
 	static examples = [
-		`${PRODUCT_CLI_NAME} update`,
-		`${PRODUCT_CLI_NAME} update --check`,
-		`${PRODUCT_CLI_NAME} update --canary`,
-		`# If GitHub rate-limits release metadata, set GITHUB_TOKEN or GH_TOKEN\n  GITHUB_TOKEN=... ${PRODUCT_CLI_NAME} update`,
+		`${APP_NAME} update`,
+		`${APP_NAME} update --check`,
+		`${APP_NAME} update --canary`,
+		`# Private releases require GitHub auth\n  GITHUB_TOKEN=... ${APP_NAME} update`,
 	];
 
 	async run(): Promise<void> {

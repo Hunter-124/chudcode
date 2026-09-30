@@ -1,8 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import * as path from "node:path";
-import { RpcClient } from "@chudware/coding-agent/modes/rpc/rpc-client";
-import { TempDir } from "@chudware/utils";
-import * as fsx from "@chudware/utils/fsx";
+import { RpcClient } from "@oh-my-pi/pi-coding-agent/modes/rpc/rpc-client";
+import { TempDir } from "@oh-my-pi/pi-utils";
 
 const MOCK_AGENT = path.join(import.meta.dir, "fixtures", "mock-rpc-agent.ts");
 
@@ -94,7 +93,7 @@ describe("RpcClient lifecycle (issue #4079 B)", () => {
 	}, 20000);
 
 	test("start() waits for a signal-ignoring worker to be reaped after stop()", async () => {
-		using tempDir = TempDir.createSync("@chudcode-rpc-stop-restart-");
+		using tempDir = TempDir.createSync("@omp-rpc-stop-restart-");
 		const pidFile = tempDir.join("pid");
 		using client = new RpcClient({
 			cliPath: MOCK_AGENT,
@@ -106,13 +105,13 @@ describe("RpcClient lifecycle (issue #4079 B)", () => {
 		});
 
 		await client.start();
-		const firstPid = Number(await fsx.readText(pidFile));
+		const firstPid = Number(await Bun.file(pidFile).text());
 
 		const stopped = client.stop();
 		const restarted = client.start();
 		await Promise.all([stopped, restarted]);
 
-		const secondPid = Number(await fsx.readText(pidFile));
+		const secondPid = Number(await Bun.file(pidFile).text());
 		expect(secondPid).not.toBe(firstPid);
 		expect(isProcessAlive(firstPid)).toBe(false);
 		await client.stop();
@@ -155,7 +154,7 @@ describe("RpcClient lifecycle (issue #4079 B)", () => {
 	test("rejects pending requests and reaps the worker when stdout parsing fails", async () => {
 		// This awaits the real child-process grace-to-hard-kill path; fake timers
 		// cannot drive OS signal delivery or process reaping.
-		using tempDir = TempDir.createSync("@chudcode-rpc-reader-failure-");
+		using tempDir = TempDir.createSync("@omp-rpc-reader-failure-");
 		const pidFile = tempDir.join("pid");
 		using client = new RpcClient({
 			cliPath: MOCK_AGENT,
@@ -170,7 +169,7 @@ describe("RpcClient lifecycle (issue #4079 B)", () => {
 		let pid = 0;
 		try {
 			await client.start();
-			pid = Number(await fsx.readText(pidFile));
+			pid = Number(await Bun.file(pidFile).text());
 
 			await expect(client.getState()).rejects.toThrow(/Agent output reader failed/);
 			await expect(client.getState()).rejects.toThrow("Client not started");

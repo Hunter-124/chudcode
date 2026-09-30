@@ -2,9 +2,9 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import { type MCPServer, mcpCapability } from "@chudware/coding-agent/capability/mcp";
-import { loadCapability } from "@chudware/coding-agent/discovery";
-import { removeWithRetries } from "@chudware/utils";
+import { type MCPServer, mcpCapability } from "@oh-my-pi/pi-coding-agent/capability/mcp";
+import { loadCapability } from "@oh-my-pi/pi-coding-agent/discovery";
+import { removeWithRetries } from "@oh-my-pi/pi-utils";
 
 async function loadStandaloneMcpConfig(cwd: string): Promise<MCPServer[]> {
 	const result = await loadCapability<MCPServer>(mcpCapability.id, {
@@ -21,26 +21,26 @@ function envPlaceholder(name: string): string {
 describe("standalone mcp.json oauth env expansion", () => {
 	let tempDir = "";
 	const originalEnv = {
-		CHUDCODE_OAUTH_TOKEN_URL: process.env.CHUDCODE_OAUTH_TOKEN_URL,
-		CHUDCODE_OAUTH_CLIENT_ID: process.env.CHUDCODE_OAUTH_CLIENT_ID,
-		CHUDCODE_OAUTH_CLIENT_SECRET: process.env.CHUDCODE_OAUTH_CLIENT_SECRET,
-		CHUDCODE_OAUTH_REDIRECT_URI: process.env.CHUDCODE_OAUTH_REDIRECT_URI,
-		CHUDCODE_OAUTH_CALLBACK_PATH: process.env.CHUDCODE_OAUTH_CALLBACK_PATH,
-		CHUDCODE_MCP_HEADER: process.env.CHUDCODE_MCP_HEADER,
-		CHUDCODE_MCP_URL: process.env.CHUDCODE_MCP_URL,
-		CHUDCODE_MCP_ENV: process.env.CHUDCODE_MCP_ENV,
+		PI_OAUTH_TOKEN_URL: process.env.PI_OAUTH_TOKEN_URL,
+		PI_OAUTH_CLIENT_ID: process.env.PI_OAUTH_CLIENT_ID,
+		PI_OAUTH_CLIENT_SECRET: process.env.PI_OAUTH_CLIENT_SECRET,
+		PI_OAUTH_REDIRECT_URI: process.env.PI_OAUTH_REDIRECT_URI,
+		PI_OAUTH_CALLBACK_PATH: process.env.PI_OAUTH_CALLBACK_PATH,
+		PI_MCP_HEADER: process.env.PI_MCP_HEADER,
+		PI_MCP_URL: process.env.PI_MCP_URL,
+		PI_MCP_ENV: process.env.PI_MCP_ENV,
 	};
 
 	beforeEach(async () => {
-		tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "chudcode-mcp-json-"));
-		process.env.CHUDCODE_OAUTH_TOKEN_URL = "https://provider.example/token";
-		process.env.CHUDCODE_OAUTH_CLIENT_ID = "oauth-client-id";
-		process.env.CHUDCODE_OAUTH_CLIENT_SECRET = "oauth-client-secret";
-		process.env.CHUDCODE_OAUTH_REDIRECT_URI = "https://public.example/oauth/callback";
-		process.env.CHUDCODE_OAUTH_CALLBACK_PATH = "/oauth/callback";
-		process.env.CHUDCODE_MCP_HEADER = "Bearer test-token";
-		process.env.CHUDCODE_MCP_URL = "https://mcp.example.com";
-		process.env.CHUDCODE_MCP_ENV = "env-value";
+		tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "omp-mcp-json-"));
+		process.env.PI_OAUTH_TOKEN_URL = "https://provider.example/token";
+		process.env.PI_OAUTH_CLIENT_ID = "oauth-client-id";
+		process.env.PI_OAUTH_CLIENT_SECRET = "oauth-client-secret";
+		process.env.PI_OAUTH_REDIRECT_URI = "https://public.example/oauth/callback";
+		process.env.PI_OAUTH_CALLBACK_PATH = "/oauth/callback";
+		process.env.PI_MCP_HEADER = "Bearer test-token";
+		process.env.PI_MCP_URL = "https://mcp.example.com";
+		process.env.PI_MCP_ENV = "env-value";
 	});
 
 	afterEach(async () => {
@@ -60,21 +60,21 @@ describe("standalone mcp.json oauth env expansion", () => {
 			JSON.stringify({
 				mcpServers: {
 					figma: {
-						url: `${envPlaceholder("CHUDCODE_MCP_URL")}/mcp`,
-						headers: { Authorization: envPlaceholder("CHUDCODE_MCP_HEADER") },
-						env: { MCP_VALUE: envPlaceholder("CHUDCODE_MCP_ENV") },
+						url: `${envPlaceholder("PI_MCP_URL")}/mcp`,
+						headers: { Authorization: envPlaceholder("PI_MCP_HEADER") },
+						env: { MCP_VALUE: envPlaceholder("PI_MCP_ENV") },
 						auth: {
 							type: "oauth",
-							tokenUrl: envPlaceholder("CHUDCODE_OAUTH_TOKEN_URL"),
-							clientId: envPlaceholder("CHUDCODE_OAUTH_CLIENT_ID"),
-							clientSecret: envPlaceholder("CHUDCODE_OAUTH_CLIENT_SECRET"),
+							tokenUrl: envPlaceholder("PI_OAUTH_TOKEN_URL"),
+							clientId: envPlaceholder("PI_OAUTH_CLIENT_ID"),
+							clientSecret: envPlaceholder("PI_OAUTH_CLIENT_SECRET"),
 						},
 						oauth: {
-							clientId: envPlaceholder("CHUDCODE_OAUTH_CLIENT_ID"),
-							clientSecret: envPlaceholder("CHUDCODE_OAUTH_CLIENT_SECRET"),
-							redirectUri: envPlaceholder("CHUDCODE_OAUTH_REDIRECT_URI"),
+							clientId: envPlaceholder("PI_OAUTH_CLIENT_ID"),
+							clientSecret: envPlaceholder("PI_OAUTH_CLIENT_SECRET"),
+							redirectUri: envPlaceholder("PI_OAUTH_REDIRECT_URI"),
 							callbackPort: 4317,
-							callbackPath: envPlaceholder("CHUDCODE_OAUTH_CALLBACK_PATH"),
+							callbackPath: envPlaceholder("PI_OAUTH_CALLBACK_PATH"),
 						},
 					},
 				},
@@ -109,8 +109,8 @@ describe("standalone mcp.json oauth env expansion", () => {
 					slack: {
 						url: "https://slack.example.com/mcp",
 						oauth: {
-							redirectUri: envPlaceholder("CHUDCODE_OAUTH_REDIRECT_URI"),
-							callbackPath: envPlaceholder("CHUDCODE_OAUTH_CALLBACK_PATH"),
+							redirectUri: envPlaceholder("PI_OAUTH_REDIRECT_URI"),
+							callbackPath: envPlaceholder("PI_OAUTH_CALLBACK_PATH"),
 						},
 					},
 				},

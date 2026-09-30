@@ -9,7 +9,7 @@ import type {
 	Range,
 	TextEdit,
 	WorkspaceEdit,
-} from "@chudware/coding-agent/lsp/types";
+} from "@oh-my-pi/pi-coding-agent/lsp/types";
 import type { LspDiagnostic as DesktopLspDiagnostic, DesktopRequestMap } from "../protocol";
 
 export type {

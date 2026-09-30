@@ -2,7 +2,6 @@ import { describe, expect, it } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import * as fsx from "@chudware/utils/fsx";
 import { $ } from "bun";
 import {
 	collapseChangelogTail,
@@ -261,7 +260,7 @@ describe("fixChangelogContent", () => {
 });
 
 const ARCHIVE_LINK =
-	"Older entries are archived in [packages/foo/CHANGELOG.md@abc123def456](https://github.com/Hunter-124/chudcode/blob/abc123def456abc123def456abc123def456abc1/packages/foo/CHANGELOG.md).";
+	"Older entries are archived in [packages/foo/CHANGELOG.md@abc123def456](https://github.com/can1357/oh-my-pi/blob/abc123def456abc123def456abc123def456abc1/packages/foo/CHANGELOG.md).";
 
 const FOUR_SECTIONS = [
 	"# Changelog",
@@ -384,14 +383,14 @@ describe("runChangelogFixer baseline pin", () => {
 		try {
 			const changelogPath = path.join(repoRoot, "packages/foo/CHANGELOG.md");
 			await git("init", "-b", "main");
-			await fsx.write(changelogPath, RELEASED_ONLY);
+			await Bun.write(changelogPath, RELEASED_ONLY);
 			await git("add", "-A");
 			await git("commit", "-m", "release 1.0.0");
 			await git("tag", "v1.0.0");
 
 			// Simulate a `--recover` restoring a historically released bullet that the
 			// v1.0.0 snapshot no longer carries.
-			await fsx.write(changelogPath, RELEASED_PLUS_RECOVERED);
+			await Bun.write(changelogPath, RELEASED_PLUS_RECOVERED);
 			await git("add", "-A");
 			await git("commit", "-m", "recover dropped bullet");
 
@@ -435,12 +434,12 @@ describe("runChangelogFixer size limit", () => {
 			await git("init", "-b", "main");
 			// The oldest section must outweigh the footer for a collapse to shrink the file.
 			const content = FOUR_SECTIONS.replace("- Fix one.", `- Fix one. ${"x".repeat(400)}`);
-			await fsx.write(changelogPath, content);
+			await Bun.write(changelogPath, content);
 			await git("add", "-A");
 			await git("commit", "-m", "release 1.2.0");
 			await git("tag", "v1.2.0");
 			const head = (await git("rev-parse", "HEAD")).text().trim();
-			const repo = process.env.CHUDCODE_REPO ?? process.env.GITHUB_REPOSITORY ?? "Hunter-124/chudcode";
+			const repo = process.env.OMP_REPO ?? process.env.GITHUB_REPOSITORY ?? "can1357/oh-my-pi";
 			const expectedLink = `Older entries are archived in [packages/foo/CHANGELOG.md@${head.slice(0, 12)}](https://github.com/${repo}/blob/${head}/packages/foo/CHANGELOG.md).`;
 
 			// Budget only fits Unreleased + the two newest releases; 1.0.0 collapses.
@@ -457,7 +456,7 @@ describe("runChangelogFixer size limit", () => {
 				},
 			]);
 
-			const collapsed = await fsx.readText(changelogPath);
+			const collapsed = await Bun.file(changelogPath).text();
 			expect(collapsed).not.toContain("## [1.0.0]");
 			expect(collapsed).toContain("## [1.1.0]");
 			expect(collapsed).toEndWith(`\n${expectedLink}\n`);
@@ -466,7 +465,7 @@ describe("runChangelogFixer size limit", () => {
 			// The footer survives a second run verbatim and nothing is re-collapsed.
 			const second = await runChangelogFixer({ repoRoot, maxBytes });
 			expect(second.changedFiles).toHaveLength(0);
-			expect(await fsx.readText(changelogPath)).toBe(collapsed);
+			expect(await Bun.file(changelogPath).text()).toBe(collapsed);
 		} finally {
 			await fs.rm(repoRoot, { recursive: true, force: true });
 		}

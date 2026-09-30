@@ -6,8 +6,6 @@ import { describe, expect, test } from "bun:test";
 import { rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { sleep } from "@chudware/utils/async";
-import * as fsx from "@chudware/utils/fsx";
 import { probeCandidates, runBoundedProbe } from "../../src/eval/probe";
 
 // A cross-platform "hangs forever" command: re-invoke the running Bun to sleep.
@@ -36,7 +34,7 @@ describe("runBoundedProbe", () => {
 	});
 
 	test("kills descendants spawned by an interpreter shim", async () => {
-		const pidFile = join(tmpdir(), `chudcode-probe-grandchild-${process.pid}-${Date.now()}.pid`);
+		const pidFile = join(tmpdir(), `omp-probe-grandchild-${process.pid}-${Date.now()}.pid`);
 		let grandchildPid: number | undefined;
 		const wrapper = [
 			bun,
@@ -50,12 +48,12 @@ describe("runBoundedProbe", () => {
 				timeoutMs: 1_000,
 			});
 			expect(result).toEqual({ exitCode: null, timedOut: true, aborted: false });
-			grandchildPid = Number(await fsx.readText(pidFile));
+			grandchildPid = Number(await Bun.file(pidFile).text());
 			const deadline = Date.now() + 2_000;
 			while (Date.now() < deadline) {
 				try {
 					process.kill(grandchildPid, 0);
-					await sleep(25);
+					await Bun.sleep(25);
 				} catch {
 					break;
 				}

@@ -1,6 +1,6 @@
-import { decodeJwt } from "@chudware/ai/registry/oauth/openai-codex";
+import { decodeJwt } from "@oh-my-pi/pi-ai/registry/oauth/openai-codex";
+import * as vcs from "@oh-my-pi/pi-natives/vcs";
 import type { AuthStorage } from "../session/auth-storage";
-import * as git from "../utils/git";
 import { resolveExactSecurityOAuthAccess } from "./auth";
 import {
 	createSecurityEvidenceId,
@@ -25,7 +25,7 @@ import type { SecurityStore } from "./store";
 /**
  * ChatGPT's Codex Security cloud control plane. This authenticated web-app
  * contract is not a public OpenAI API: keep it isolated here, fail closed on
- * shape changes, and never use it as a fallback for Chudcode-native inference.
+ * shape changes, and never use it as a fallback for OMP-native inference.
  */
 const DEFAULT_CLOUD_BASE_URL = "https://chatgpt.com/backend-api/aardvark";
 const ALL_FINDING_STATUSES = ["new", "triaged", "in_progress", "fixed", "wontfix", "duplicate", "false_positive"];
@@ -581,7 +581,8 @@ async function assertCloudRepositoryMatchesStore(
 	store: SecurityStore,
 	signal?: AbortSignal,
 ): Promise<void> {
-	const origin = await git.remote.url(store.repositoryRoot, "origin", signal);
+	const repo = vcs.git(store.repositoryRoot);
+	const origin = repo ? await repo.remoteUrl("origin", signal).catch(() => null) : null;
 	if (!origin) {
 		throw new Error(
 			"Codex Security cloud import requires a verifiable repository identity; this project has no 'origin' remote",
@@ -629,7 +630,7 @@ export async function pullCodexSecurityCloudResults(
 	const revision = stats.lastScannedCommit;
 	const bundle: SecurityScanBundle = {
 		scan: {
-			documentType: "chudcode-security.scan",
+			documentType: "omp-security.scan",
 			schemaVersion: "1.0",
 			id: scanId,
 			projectKey: input.store.projectKey,

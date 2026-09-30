@@ -1,8 +1,9 @@
 /**
- * `chudcode auth-gateway` — run a forward proxy that injects auth from the broker.
+ * `omp auth-gateway` — run a forward proxy that injects auth from the broker.
  */
 
-import { Args, Command, Flags, renderCommandHelp } from "@chudware/utils/cli";
+import { Args, Command, Flags, renderCommandHelp } from "@oh-my-pi/pi-utils/cli";
+import { APP_NAME } from "@oh-my-pi/pi-utils/dirs";
 import {
 	AUTH_GATEWAY_ACTIONS,
 	type AuthGatewayAction,
@@ -10,7 +11,7 @@ import {
 	runAuthGatewayCommand,
 } from "../cli/auth-gateway-cli";
 import { authGatewayHelp as commandHelp } from "../cli/command-help";
-import { initTheme } from "../modes/theme/theme";
+import { initTheme } from "@oh-my-pi/pi-tui/theme";
 
 export default class AuthGateway extends Command {
 	static description = commandHelp.description;
@@ -37,21 +38,21 @@ export default class AuthGateway extends Command {
 	};
 
 	static examples = [
-		"# Boot the gateway against the configured broker\n  chudcode auth-gateway serve",
-		"# Boot on a non-default port\n  chudcode auth-gateway serve --bind=127.0.0.1:4000",
-		"# Print the gateway bearer token (creates one on first run)\n  chudcode auth-gateway token",
-		"# Rotate the gateway bearer token\n  chudcode auth-gateway token --regenerate",
-		"# Run on loopback without any bearer (anyone on this host can call)\n  chudcode auth-gateway serve --no-auth",
-		"# Show local gateway + broker config status\n  chudcode auth-gateway status",
-		"# Probe each broker credential to see which one is producing 401s\n  chudcode auth-gateway check",
-		"# Same, machine-readable for scripts\n  chudcode auth-gateway check --json",
-		"# Strict check — also exercises each credential with a real chat-completion ping\n  chudcode auth-gateway check --strict",
+		`# Boot the gateway against the configured broker\n  ${APP_NAME} auth-gateway serve`,
+		`# Boot on a non-default port\n  ${APP_NAME} auth-gateway serve --bind=127.0.0.1:4000`,
+		`# Print the gateway bearer token (creates one on first run)\n  ${APP_NAME} auth-gateway token`,
+		`# Rotate the gateway bearer token\n  ${APP_NAME} auth-gateway token --regenerate`,
+		`# Run on loopback without any bearer (anyone on this host can call)\n  ${APP_NAME} auth-gateway serve --no-auth`,
+		`# Show local gateway + broker config status\n  ${APP_NAME} auth-gateway status`,
+		`# Probe each broker credential to see which one is producing 401s\n  ${APP_NAME} auth-gateway check`,
+		`# Same, machine-readable for scripts\n  ${APP_NAME} auth-gateway check --json`,
+		`# Strict check — also exercises each credential with a real chat-completion ping\n  ${APP_NAME} auth-gateway check --strict`,
 	];
 
 	async run(): Promise<void> {
 		const { args, flags } = await this.parse(AuthGateway);
 		if (!args.action) {
-			renderCommandHelp("chudcode", "auth-gateway", AuthGateway);
+			renderCommandHelp(APP_NAME, "auth-gateway", AuthGateway);
 			return;
 		}
 		const cmd: AuthGatewayCommandArgs = {

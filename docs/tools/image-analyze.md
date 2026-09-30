@@ -4,7 +4,7 @@
 
 ## Source
 - Entry: `packages/coding-agent/src/tools/image-analyze.ts`
-- Native client: `packages/coding-agent/src/image-analyze.ts`
+- Native client: `packages/coding-agent/src/tools/vision/sidecar.ts` and `crates/chud-vision`
 
 ## Inputs
 `action` selects `describe`, `classify`, `detect`, `ocr`, `redact`, `crop`, `locate`, or `diff`. `path` is required; `diff` also needs `path_b`. `locate` accepts OCR `query` or a template path. `bbox` is `[x,y,width,height]`. Redaction flags select faces, emails, phones, cards, keys, or all text. `attach` controls processed-image attachment and `max_results` bounds returned families.

@@ -1,11 +1,11 @@
 import { afterAll, beforeAll, describe, expect, it } from "bun:test";
-import { resetSettingsForTest, Settings } from "@chudware/coding-agent/config/settings";
+import { resetSettingsForTest, Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
 import {
 	createHandoffSummaryMessageComponent,
 	HandoffSummaryMessageComponent,
-} from "@chudware/coding-agent/modes/components/compaction-summary-message";
-import { initTheme } from "@chudware/coding-agent/modes/theme/theme";
-import type { CustomMessage } from "@chudware/coding-agent/session/messages";
+} from "@oh-my-pi/pi-tui/chat/compaction-summary-message";
+import { initTheme } from "@oh-my-pi/pi-tui/theme";
+import type { CustomMessage } from "@oh-my-pi/pi-coding-agent/session/messages";
 
 beforeAll(async () => {
 	resetSettingsForTest();
@@ -40,7 +40,6 @@ describe("handoff summary divider", () => {
 		expect(component).toBeInstanceOf(HandoffSummaryMessageComponent);
 		const collapsed = Bun.stripANSI(component!.render(80).join("\n"));
 		expect(collapsed).toContain("handed-off");
-		expect(collapsed).toContain("ctrl+o");
 		expect(collapsed).not.toContain("[handoff]");
 		expect(collapsed).not.toContain("Continue the resize fix");
 	});

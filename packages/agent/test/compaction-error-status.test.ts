@@ -1,15 +1,15 @@
 import { afterEach, describe, expect, test, vi } from "bun:test";
-import type { AgentMessage } from "@chudware/agent-core";
+import type { AgentMessage } from "@oh-my-pi/pi-agent-core";
 import {
 	type CompactionPreparation,
 	compact,
 	createFileOps,
 	DEFAULT_COMPACTION_SETTINGS,
 	generateHandoff,
-} from "@chudware/agent-core/compaction";
-import type { AssistantMessage, Model } from "@chudware/ai";
-import * as ai from "@chudware/ai";
-import { getBundledModel } from "@chudware/catalog/models";
+} from "@oh-my-pi/pi-agent-core/compaction";
+import type { AssistantMessage, Model } from "@oh-my-pi/pi-ai";
+import * as ai from "@oh-my-pi/pi-ai";
+import { getBundledModel } from "@oh-my-pi/pi-catalog/models";
 
 // Pins the fix for the "raw 401 surfaced as Compaction failed:" bug.
 //
@@ -153,7 +153,7 @@ describe("compaction error-status propagation", () => {
 
 		expect(error).toBeInstanceOf(Error);
 		const e = error as Error & { status?: number };
-		// Synthetic chud-native gateway errors don't carry HTTP status; the
+		// Synthetic pi-native gateway errors don't carry HTTP status; the
 		// upstream regex on `auth_unavailable` is the load-bearing detector.
 		expect(e.status).toBeUndefined();
 		expect(e.message).toContain("auth_unavailable");

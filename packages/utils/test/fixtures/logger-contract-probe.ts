@@ -1,6 +1,5 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
-import { sleep } from "../../src/async";
 import * as logger from "../../src/logger";
 
 const scenario = process.argv[2];
@@ -169,7 +168,7 @@ switch (scenario) {
 		});
 		logger.info("after-failed-reconfigure", sinkContext);
 		dispose();
-		await sleep(20);
+		await Bun.sleep(20);
 		writeResult({ reconfigureThrew, sinkCount, sinkSameContext });
 		break;
 	}
@@ -204,12 +203,12 @@ switch (scenario) {
 			"2026-01-06T03:04:05.006Z",
 			"2026-01-07T03:04:05.006Z",
 		];
-		process.env.CHUDCODE_LOGGER_TEST_NOW = dates[0];
+		process.env.OMP_LOGGER_TEST_NOW = dates[0];
 		logger.setTransports({ console: false, file: primaryDir });
 		for (const [index, date] of dates.entries()) {
-			process.env.CHUDCODE_LOGGER_TEST_NOW = date;
+			process.env.OMP_LOGGER_TEST_NOW = date;
 			logger.info(`date-${index + 1}`);
-			await sleep(10);
+			await Bun.sleep(10);
 		}
 		disableTransports();
 		break;

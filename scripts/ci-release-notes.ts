@@ -19,8 +19,8 @@
  *   bun scripts/ci-release-notes.ts 15.4.3 notes.md     # custom output path
  *
  * The lower bound is resolved by `gh release list`. Set
- * `CHUDCODE_RELEASE_NOTES_FLOOR=v15.12.4` to override (empty string forces
- * single-version mode, matching the pre-#2596 behavior). `CHUDCODE_REPO` /
+ * `OMP_RELEASE_NOTES_FLOOR=v15.12.4` to override (empty string forces
+ * single-version mode, matching the pre-#2596 behavior). `OMP_REPO` /
  * `GITHUB_REPOSITORY` control the queried repo.
  *
  * Intended for the `release_github` CI job: the output is passed to
@@ -29,12 +29,11 @@
  * underneath; this only adds curated context.
  */
 
-import * as fsx from "@chudware/utils/fsx";
 import { $, Glob } from "bun";
 import { compareVersions } from "../packages/utils/src/version";
 
 const changelogGlob = new Glob("packages/*/CHANGELOG.md");
-const REPO = process.env.CHUDCODE_REPO ?? process.env.GITHUB_REPOSITORY ?? "Hunter-124/chudcode";
+const REPO = process.env.OMP_REPO ?? process.env.GITHUB_REPOSITORY ?? "can1357/oh-my-pi";
 
 // Canonical ordering used by `fix-changelogs`; unknown categories sort
 // alphabetically after these.
@@ -168,7 +167,7 @@ export function mergePackageSection(content: string, floorExclusive: string | nu
 
 async function loadPackageName(pkgDir: string): Promise<string> {
 	try {
-		const pkg = (await fsx.readJson(`${pkgDir}/package.json`)) as { name?: unknown };
+		const pkg = (await Bun.file(`${pkgDir}/package.json`).json()) as { name?: unknown };
 		return typeof pkg.name === "string" ? pkg.name : pkgDir;
 	} catch {
 		return pkgDir;
@@ -180,18 +179,18 @@ async function loadPackageName(pkgDir: string): Promise<string> {
  * below `targetVersion` via `gh release list`.
  *
  * Failure semantics:
- *   - `CHUDCODE_RELEASE_NOTES_FLOOR` set → honored verbatim (`""` forces null).
+ *   - `OMP_RELEASE_NOTES_FLOOR` set → honored verbatim (`""` forces null).
  *   - `gh` succeeded, no candidate < target → `null` (legitimate first-ever
  *     publish; legacy single-version output is correct).
  *   - `gh` itself failed (missing binary, missing `GH_TOKEN` in Actions,
  *     network/auth error) → throws. Letting this degrade to single-version
  *     output silently re-strands silent-tag entries (#2596 review); the CI
  *     step must die loudly so the release is rebuilt with the token wired.
- *     Local runs without `gh` should set `CHUDCODE_RELEASE_NOTES_FLOOR=` to opt
+ *     Local runs without `gh` should set `OMP_RELEASE_NOTES_FLOOR=` to opt
  *     into legacy mode explicitly.
  */
 async function resolvePublishedFloorTag(targetVersion: string): Promise<string | null> {
-	const override = process.env.CHUDCODE_RELEASE_NOTES_FLOOR;
+	const override = process.env.OMP_RELEASE_NOTES_FLOOR;
 	if (override !== undefined) {
 		const stripped = override.replace(/^v/, "").trim();
 		return stripped.length === 0 ? null : stripped;
@@ -205,7 +204,7 @@ async function resolvePublishedFloorTag(targetVersion: string): Promise<string |
 		throw new Error(
 			`gh release list exited ${res.exitCode}.\nstderr: ${stderr || "(empty)"}\n` +
 				`Hint: in GitHub Actions, pass GH_TOKEN: \${{ secrets.GITHUB_TOKEN }} to this step. ` +
-				`Locally without gh, set CHUDCODE_RELEASE_NOTES_FLOOR= to fall back to single-version notes.`,
+				`Locally without gh, set OMP_RELEASE_NOTES_FLOOR= to fall back to single-version notes.`,
 		);
 	}
 	let raw: unknown;
@@ -237,9 +236,9 @@ async function main(): Promise<void> {
 	const outputPath = process.argv[3] ?? "release-notes.md";
 	if (/^\d+\.\d+\.\d+-canary\.\d+$/.test(version)) {
 		const upcomingVersion = version.replace(/-canary\.\d+$/, "");
-		await fsx.write(
+		await Bun.write(
 			outputPath,
-			`This is a canary prerelease of ${upcomingVersion}. Install it with \`chudcode update --canary\`.\n`,
+			`This is a canary prerelease of ${upcomingVersion}. Install it with \`omp update --canary\`.\n`,
 		);
 		console.log(`Wrote canary release notes to ${outputPath}.`);
 		return;
@@ -255,7 +254,7 @@ async function main(): Promise<void> {
 	const changelogPaths = await Array.fromAsync(changelogGlob.scan("."));
 	changelogPaths.sort();
 	for (const changelogPath of changelogPaths) {
-		const content = await fsx.readText(changelogPath);
+		const content = await Bun.file(changelogPath).text();
 		const merged = mergePackageSection(content, floor, version);
 		if (merged === "") continue;
 		const pkgDir = changelogPath.replace(/\/CHANGELOG\.md$/, "");
@@ -265,12 +264,12 @@ async function main(): Promise<void> {
 
 	if (sections.length === 0) {
 		console.warn(`No CHANGELOG entries found for version ${version}; writing empty release notes to ${outputPath}.`);
-		await fsx.write(outputPath, "");
+		await Bun.write(outputPath, "");
 		process.exit(0);
 	}
 
 	const body = `${sections.join("\n\n")}\n`;
-	await fsx.write(outputPath, body);
+	await Bun.write(outputPath, body);
 	console.log(
 		`Wrote ${sections.length} package section(s) to ${outputPath} (version ${version}${floor ? `, floor ${floor}` : ""}).`,
 	);

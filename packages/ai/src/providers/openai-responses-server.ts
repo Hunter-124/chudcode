@@ -1,16 +1,16 @@
 /**
- * OpenAI Responses HTTP wire-format ↔ chudcode Context bridge for the auth-gateway.
+ * OpenAI Responses HTTP wire-format ↔ omp Context bridge for the auth-gateway.
  *
  * Inbound: parses `POST /v1/responses` request bodies into a {@link ParsedRequest}.
- * Outbound: encodes chudcode's {@link AssistantMessage} (and event stream) back into
+ * Outbound: encodes omp's {@link AssistantMessage} (and event stream) back into
  * the documented `response.*` SSE taxonomy or the non-streaming JSON shape.
  *
  * Spec: https://platform.openai.com/docs/api-reference/responses
  * Inverse direction (source-of-truth for item shapes): ../../providers/openai-responses.ts
  */
 
-import { type } from "@chudware/chudtype";
-import { logger, structuredCloneJSON } from "@chudware/utils";
+import { type } from "@oh-my-pi/omptype";
+import { logger, structuredCloneJSON } from "@oh-my-pi/pi-utils";
 import { resolvePromptCacheKey } from "../auth-gateway/http";
 import type { AuthGatewayStreamControl, AuthGatewayParsedRequest as ParsedRequest } from "../auth-gateway/types";
 import * as AIError from "../error";
@@ -43,7 +43,7 @@ import {
 	type OpenAIResponsesTool,
 	openaiResponsesRequestSchema,
 } from "./openai-responses-server-schema";
-import { encodeTextSignatureV1, parseTextSignature } from "./openai-shared";
+import { coerceNullMessageContentInPlace, encodeTextSignatureV1, parseTextSignature } from "./openai-shared";
 
 export type { ParsedRequest };
 
@@ -238,7 +238,7 @@ function mapToolChoice(value: ParsedToolChoice | undefined): ParsedRequest["opti
 	if ("type" in value) {
 		if (value.type === "function" || value.type === "custom") return { name: value.name };
 		if (value.type === "computer") return { type: "computer" };
-		// Other hosted tools + allowed_tools are not surfaced to chud-ai.
+		// Other hosted tools + allowed_tools are not surfaced to pi-ai.
 		return "auto";
 	}
 	return undefined;
@@ -365,6 +365,7 @@ export function parseRequest(body: unknown, headers?: Headers): ParsedRequest {
 	// `resolvePromptCacheKey` call further down.
 
 	rejectUnsupportedExplicitPromptCacheFields(body);
+	coerceNullMessageContentInPlace(isObj(body) ? body.input : undefined);
 	const data = openaiResponsesRequestSchema(body);
 	if (data instanceof type.errors) {
 		throw new AIError.ValidationError(`openai-responses: ${data.summary}`);
@@ -490,7 +491,7 @@ export function parseRequest(body: unknown, headers?: Headers): ParsedRequest {
 			if (effectiveType === "custom_tool_call") {
 				const call = item as { id?: string; call_id: string; name: string; input: string };
 				// Custom tools carry a raw input string. We stash it in `arguments.input`
-				// matching chud-ai's openai-shared convention, and tag the call
+				// matching pi-ai's openai-shared convention, and tag the call
 				// with `customWireName` so encoders re-emit it as `custom_tool_call`.
 				const toolCall: ToolCall = {
 					type: "toolCall",
@@ -588,7 +589,7 @@ export function parseRequest(body: unknown, headers?: Headers): ParsedRequest {
 		options.reasoning = data.reasoning.effort;
 	}
 	// OpenAI summary: `none` → suppress; `auto`/`concise`/`detailed` → request
-	// visible summary. chud-ai has no per-level plumbing — log once and let the
+	// visible summary. pi-ai has no per-level plumbing — log once and let the
 	// provider default kick in.
 	if (data.reasoning?.summary === "none") {
 		options.hideThinkingSummary = true;
@@ -616,7 +617,7 @@ export function parseRequest(body: unknown, headers?: Headers): ParsedRequest {
 	if (data.previous_response_id !== undefined) options.previousResponseId = data.previous_response_id;
 	if (data.user !== undefined) options.user = data.user;
 	if (isObj(data.metadata)) options.metadata = data.metadata;
-	// `store` is a stateful-storage hint that chudcode's gateway doesn't honour;
+	// `store` is a stateful-storage hint that omp's gateway doesn't honour;
 	// silently accepted by the schema. No typed slot — drop.
 
 	return {
@@ -754,7 +755,7 @@ function reasoningItemId(part: ThinkingContent): string {
 }
 
 /**
- * chud-ai responses providers mint composite `"{call_id}|{item_id}"` tool-call
+ * pi-ai responses providers mint composite `"{call_id}|{item_id}"` tool-call
  * ids ({@link encodeResponsesToolCallId}). Only the call_id half belongs on
  * the wire: third-party clients validate the `call_id` charset
  * (`^[a-zA-Z0-9_-]+$`) or echo it to other backends, and `|` fails both.
@@ -1267,7 +1268,7 @@ export function encodeStream(
 								delta: ev.delta,
 								logprobs: [],
 							});
-							// TODO: when chud-ai surfaces output_text annotations
+							// TODO: when pi-ai surfaces output_text annotations
 							// (web_search citations, …), emit
 							// `response.output_text.annotation.added` here.
 							break;
@@ -1390,7 +1391,7 @@ export function encodeStream(
 									name: cur.name,
 								});
 							} else {
-								// Standard JSON tool: arguments object on the chudcode side, the
+								// Standard JSON tool: arguments object on the omp side, the
 								// wire wants the JSON string the model emitted (= streamed deltas).
 								const argsJson = cur.argsText || JSON.stringify(tc.arguments ?? {});
 								cur.argsText = argsJson;

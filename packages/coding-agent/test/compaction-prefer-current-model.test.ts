@@ -1,16 +1,16 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "bun:test";
 import * as path from "node:path";
-import { Agent } from "@chudware/agent-core";
-import * as compactionModule from "@chudware/agent-core/compaction";
-import * as AIError from "@chudware/ai/error";
-import { buildModel } from "@chudware/catalog/build";
-import { getBundledModel } from "@chudware/catalog/models";
-import { ModelRegistry } from "@chudware/coding-agent/config/model-registry";
-import { Settings } from "@chudware/coding-agent/config/settings";
-import { AgentSession } from "@chudware/coding-agent/session/agent-session";
-import { AuthStorage } from "@chudware/coding-agent/session/auth-storage";
-import { SessionManager } from "@chudware/coding-agent/session/session-manager";
-import { TempDir } from "@chudware/utils";
+import { Agent } from "@oh-my-pi/pi-agent-core";
+import * as compactionModule from "@oh-my-pi/pi-agent-core/compaction";
+import * as AIError from "@oh-my-pi/pi-ai/error";
+import { buildModel } from "@oh-my-pi/pi-catalog/build";
+import { getBundledModel } from "@oh-my-pi/pi-catalog/models";
+import { ModelRegistry } from "@oh-my-pi/pi-coding-agent/config/model-registry";
+import { Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
+import { AgentSession } from "@oh-my-pi/pi-coding-agent/session/agent-session";
+import { AuthStorage } from "@oh-my-pi/pi-coding-agent/session/auth-storage";
+import { SessionManager } from "@oh-my-pi/pi-coding-agent/session/session-manager";
+import { TempDir } from "@oh-my-pi/pi-utils";
 import { assistantMsg, userMsg } from "./utilities";
 
 /**
@@ -63,8 +63,8 @@ describe("compaction prefers the current session model over modelRoles.default",
 		authStorage = await AuthStorage.create(path.join(tempDir.path(), "testauth.db"));
 		// Both providers have credentials so an "auth failure" wouldn't be the
 		// reason a candidate is skipped — order alone must drive the choice.
-		authStorage.setRuntimeApiKey(currentModel.provider, "anthropic-token");
-		authStorage.setRuntimeApiKey(defaultRoleModel.provider, "openai-token");
+		authStorage.keys.setRuntime(currentModel.provider, "anthropic-token");
+		authStorage.keys.setRuntime(defaultRoleModel.provider, "openai-token");
 		modelRegistry = new ModelRegistry(authStorage, path.join(tempDir.path(), "models.yml"));
 
 		session = new AgentSession({
@@ -123,8 +123,8 @@ describe("compaction prefers the current session model over modelRoles.default",
 		});
 
 		authStorage = await AuthStorage.create(path.join(tempDir.path(), "testauth.db"));
-		authStorage.setRuntimeApiKey(currentModel.provider, "bedrock-credentials");
-		authStorage.setRuntimeApiKey(fallbackModel.provider, "anthropic-token");
+		authStorage.keys.setRuntime(currentModel.provider, "bedrock-credentials");
+		authStorage.keys.setRuntime(fallbackModel.provider, "anthropic-token");
 		modelRegistry = new ModelRegistry(authStorage, path.join(tempDir.path(), "models.yml"));
 
 		session = new AgentSession({
@@ -195,8 +195,8 @@ describe("compaction prefers the current session model over modelRoles.default",
 		});
 
 		authStorage = await AuthStorage.create(path.join(tempDir.path(), "testauth.db"));
-		authStorage.setRuntimeApiKey(currentModel.provider, "anthropic-token");
-		authStorage.setRuntimeApiKey(compactionModel.provider, "openai-token");
+		authStorage.keys.setRuntime(currentModel.provider, "anthropic-token");
+		authStorage.keys.setRuntime(compactionModel.provider, "openai-token");
 		modelRegistry = new ModelRegistry(authStorage, path.join(tempDir.path(), "models.yml"));
 
 		session = new AgentSession({
@@ -266,8 +266,8 @@ describe("compaction prefers the current session model over modelRoles.default",
 		});
 
 		authStorage = await AuthStorage.create(path.join(tempDir.path(), "testauth.db"));
-		authStorage.setRuntimeApiKey(currentModel.provider, "openai-token");
-		authStorage.setRuntimeApiKey(nonRemoteCompactionModel.provider, "anthropic-token");
+		authStorage.keys.setRuntime(currentModel.provider, "openai-token");
+		authStorage.keys.setRuntime(nonRemoteCompactionModel.provider, "anthropic-token");
 		modelRegistry = new ModelRegistry(authStorage, path.join(tempDir.path(), "models.yml"));
 
 		session = new AgentSession({

@@ -35,18 +35,17 @@ async function runProbe(command: string[], cwd?: string): Promise<BundleProbeRes
 }
 
 /**
- * Swap `@chudware/utils` (barrel and subpaths) and the changelog module's
- * `../config` import for a dependency-free stub. Both pull the native addon
- * loader into the bundle graph, and that loader resolves
- * `chud_natives.<platform>.node` relative to the emitted artifact, so any probe
- * written outside the repo fails to start. The subject under test is
+ * Swap `@oh-my-pi/pi-utils` and the changelog module's `../config` import for a
+ * dependency-free stub. Both pull the native addon loader into the bundle graph, and
+ * that loader resolves `pi_natives.<platform>.node` relative to the emitted artifact,
+ * so any probe written outside the repo fails to start. The subject under test is
  * emitted-asset resolution, not native loading.
  */
 function changelogUtilsStubPlugin(): BunPlugin {
 	return {
 		name: "changelog-utils-stub",
 		setup(build) {
-			build.onResolve({ filter: /^@chudware\/utils(\/.*)?$/ }, () => ({ path: utilsStubPath }));
+			build.onResolve({ filter: /^@oh-my-pi\/pi-utils$/ }, () => ({ path: utilsStubPath }));
 			build.onResolve({ filter: /^\.\.\/config$/ }, args =>
 				args.importer.endsWith("/utils/changelog.ts") ? { path: utilsStubPath } : undefined,
 			);
@@ -55,12 +54,12 @@ function changelogUtilsStubPlugin(): BunPlugin {
 }
 
 describe("bundled changelog asset path resolution", () => {
-	const moduleUrl = new URL("file:///opt/chudcode/dist/cli.js");
+	const moduleUrl = new URL("file:///opt/omp/dist/cli.js");
 
 	test.each([
-		["Windows drive-letter", String.raw`C:\chudcode\dist\CHANGELOG.md`],
-		["Windows UNC", String.raw`\\server\share\chudcode\CHANGELOG.md`],
-		["POSIX", "/opt/chudcode/dist/CHANGELOG.md"],
+		["Windows drive-letter", String.raw`C:\omp\dist\CHANGELOG.md`],
+		["Windows UNC", String.raw`\\server\share\omp\CHANGELOG.md`],
+		["POSIX", "/opt/omp/dist/CHANGELOG.md"],
 	])("preserves an absolute %s path", (_kind, nativePath) => {
 		expect(resolveBundledChangelogPath(nativePath, moduleUrl)).toBe(nativePath);
 	});
@@ -89,7 +88,7 @@ describe("changelog static import resources", () => {
 	}, 30_000);
 
 	test("reads the emitted changelog asset when run outside the bundle directory", async () => {
-		const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "chudcode-changelog-bundle-"));
+		const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "omp-changelog-bundle-"));
 		try {
 			const bundleDir = path.join(tempDir, "bundle");
 			const unrelatedCwd = path.join(tempDir, "cwd");
@@ -101,7 +100,7 @@ describe("changelog static import resources", () => {
 				entrypoints: [bundleProbePath],
 				outdir: bundleDir,
 				target: "bun",
-				external: ["chudcode-legacy-pi-modules"],
+				external: ["omp-legacy-pi-modules"],
 				plugins: [changelogUtilsStubPlugin()],
 			});
 			expect(buildOutput.success, buildOutput.logs.map(log => log.message).join("\n")).toBe(true);
@@ -123,7 +122,7 @@ describe("changelog static import resources", () => {
 	}, 30_000);
 
 	test("reads the emitted changelog asset from a compiled binary", async () => {
-		const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "chudcode-changelog-compiled-"));
+		const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "omp-changelog-compiled-"));
 		try {
 			const binaryPath = path.join(tempDir, "changelog-probe");
 			const unrelatedCwd = path.join(tempDir, "cwd");
@@ -134,7 +133,7 @@ describe("changelog static import resources", () => {
 			const buildOutput = await Bun.build({
 				entrypoints: [bundleProbePath],
 				root: repoRoot,
-				external: ["chudcode-legacy-pi-modules"],
+				external: ["omp-legacy-pi-modules"],
 				plugins: [changelogUtilsStubPlugin()],
 				compile: {
 					outfile: binaryPath,

@@ -10,9 +10,7 @@
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
-import { $which, getSafeProjectCwd, logger } from "@chudware/utils";
-import { sleep } from "@chudware/utils/async";
-import * as fsx from "@chudware/utils/fsx";
+import { $which, getSafeProjectCwd, logger } from "@oh-my-pi/pi-utils";
 import { credentialString, type DestinationRuntimeConfig, optionString } from "./uploader-runtime";
 
 /** User-selectable exposure strategy. */
@@ -60,7 +58,7 @@ export interface ActiveExposure {
 }
 
 const READY_TIMEOUT_MS = 30_000;
-const HEALTH_PATH = "/.well-known/chudcode-blob-health";
+const HEALTH_PATH = "/.well-known/omp-blob-health";
 const DEFAULT_HEALTH_ATTEMPTS = 5;
 const MAX_HEALTH_ATTEMPTS = 10;
 const DEFAULT_HEALTH_BACKOFF_MS = 250;
@@ -188,10 +186,13 @@ export async function probeExposureHealth(
 	for (let attempt = 0; attempt < attempts; attempt++) {
 		healthUrl.searchParams.set("nonce", `${Date.now().toString(36)}-${attempt.toString(36)}`);
 		try {
-			const response = await fetchFn(healthUrl, {
+			// `cache` is absent from older undici RequestInit types; the
+			// intersection keeps this compiling against both old and new sets.
+			const init: RequestInit & { cache?: "no-store" } = {
 				cache: "no-store",
 				signal: AbortSignal.timeout(timeoutMs),
-			});
+			};
+			const response = await fetchFn(healthUrl, init);
 			if (response.status === 204) return;
 			finalStatus = `HTTP ${response.status}`;
 			try {
@@ -202,7 +203,7 @@ export async function probeExposureHealth(
 		} catch (error) {
 			finalStatus = error instanceof DOMException && error.name === "TimeoutError" ? "timeout" : "request failed";
 		}
-		if (attempt + 1 < attempts && backoffMs > 0) await sleep(backoffMs);
+		if (attempt + 1 < attempts && backoffMs > 0) await Bun.sleep(backoffMs);
 	}
 
 	throw new Error(`Exposure health probe for ${destination} failed with status ${finalStatus}`);
@@ -237,7 +238,7 @@ async function spawnUrlTunnel(
 	extract: (line: string) => string | null,
 	readyPattern?: RegExp,
 ): Promise<{ proc: Bun.Subprocess; baseUrl: string }> {
-	const logPath = path.join(os.tmpdir(), `chudcode-blob-tunnel-${Date.now().toString(36)}-${process.pid}.log`);
+	const logPath = path.join(os.tmpdir(), `omp-blob-tunnel-${Date.now().toString(36)}-${process.pid}.log`);
 	const fd = fs.openSync(logPath, "w");
 	let proc: Bun.Subprocess;
 	try {
@@ -256,7 +257,7 @@ async function spawnUrlTunnel(
 		const exitCode = proc.exitCode;
 		let text = "";
 		try {
-			text = await fsx.readText(logPath);
+			text = await Bun.file(logPath).text();
 		} catch {
 			// Log file not flushed yet; keep polling.
 		}
@@ -280,7 +281,7 @@ async function spawnUrlTunnel(
 		if (exitCode !== null) {
 			throw new Error(`${argv[0]} exited with code ${exitCode} before reporting a tunnel URL`);
 		}
-		await sleep(150);
+		await Bun.sleep(150);
 	}
 	killTunnelProcess(proc);
 	throw new Error(`${argv[0]} did not report a tunnel URL within ${READY_TIMEOUT_MS / 1000}s`);
@@ -505,7 +506,10 @@ export async function startExposure(config: ExposureConfig, port: number): Promi
 				],
 				{ env: process.env, stdin: "ignore", stdout: "ignore", stderr: "ignore", cwd: os.homedir() },
 			);
-			const early = await Promise.race([proc.exited.then(code => code), sleep(SSH_READY_GRACE_MS).then(() => null)]);
+			const early = await Promise.race([
+				proc.exited.then(code => code),
+				Bun.sleep(SSH_READY_GRACE_MS).then(() => null),
+			]);
 			if (early !== null) {
 				throw new Error(`ssh reverse forward to ${config.sshTarget} exited with code ${early}`);
 			}

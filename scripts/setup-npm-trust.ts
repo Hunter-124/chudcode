@@ -34,8 +34,6 @@
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import { sleep } from "@chudware/utils/async";
-import * as fsx from "@chudware/utils/fsx";
 import { $ } from "bun";
 import { LEAF_TARGETS } from "../packages/natives/scripts/gen-npm-packages.ts";
 import { compareVersions } from "../packages/utils/src/version.ts";
@@ -44,7 +42,7 @@ import { packages } from "./ci-release-publish.ts";
 const repoRoot = path.join(import.meta.dir, "..");
 const MIN_NPM = "11.16.0";
 const DEFAULT_WORKFLOW = "ci.yml";
-const FALLBACK_REPO = "Hunter-124/chudcode";
+const FALLBACK_REPO = "can1357/oh-my-pi";
 const PLACEHOLDER_VERSION = "0.0.0";
 
 interface NativeLeafTarget {
@@ -160,7 +158,7 @@ async function collectTargets(): Promise<{ names: string[]; repoFromManifest: st
 	const names: string[] = [];
 	let repoFromManifest: string | null = null;
 	for (const pkg of packages) {
-		const manifest = (await fsx.readJson(path.join(repoRoot, pkg.dir, "package.json"))) as ManifestShape;
+		const manifest = (await Bun.file(path.join(repoRoot, pkg.dir, "package.json")).json()) as ManifestShape;
 		if (manifest.private) continue;
 		repoFromManifest ??= parseRepo(manifest.repository);
 		if (typeof manifest.name === "string" && !seen.has(manifest.name)) {
@@ -171,7 +169,7 @@ async function collectTargets(): Promise<{ names: string[]; repoFromManifest: st
 		// own published package and needs its own trusted-publisher link.
 		if (pkg.kind === "native") {
 			for (const target of LEAF_TARGETS) {
-				const leaf = `@chudware/natives-${target.tag}`;
+				const leaf = `@oh-my-pi/pi-natives-${target.tag}`;
 				if (!seen.has(leaf)) {
 					seen.add(leaf);
 					names.push(leaf);
@@ -232,13 +230,13 @@ async function packageExists(name: string): Promise<boolean> {
 async function waitForPackageExists(name: string): Promise<boolean> {
 	for (let attempt = 0; attempt < 6; attempt++) {
 		if (await packageExists(name)) return true;
-		await sleep(1000 * (attempt + 1));
+		await Bun.sleep(1000 * (attempt + 1));
 	}
 	return false;
 }
 
 function nativeLeafName(tag: string): string {
-	return `@chudware/natives-${tag}`;
+	return `@oh-my-pi/pi-natives-${tag}`;
 }
 
 function nativeLeafTargetForPackage(name: string): NativeLeafTarget | null {
@@ -256,7 +254,7 @@ function placeholderManifest(name: string, target: NativeLeafTarget, repo: strin
 	return {
 		name,
 		version: PLACEHOLDER_VERSION,
-		description: `Placeholder for the ${target.tag} native addon of @chudware/natives. The real binary is published during release.`,
+		description: `Placeholder for the ${target.tag} native addon of @oh-my-pi/pi-natives. The real binary is published during release.`,
 		license: "MIT",
 		os: [target.os],
 		cpu: [target.cpu],
@@ -278,7 +276,7 @@ function placeholderReadme(name: string, target: NativeLeafTarget): string {
 	return [
 		`# ${name}`,
 		"",
-		`Placeholder package reserving the npm name for the \`${target.tag}\` native addon of \`@chudware/natives\`.`,
+		`Placeholder package reserving the npm name for the \`${target.tag}\` native addon of \`@oh-my-pi/pi-natives\`.`,
 		"",
 		`This \`${PLACEHOLDER_VERSION}\` release ships no binary. The real, versioned platform addon is generated during release and installed as an optional dependency of the core package.`,
 		"",
@@ -286,13 +284,13 @@ function placeholderReadme(name: string, target: NativeLeafTarget): string {
 }
 
 async function publishNativeLeafPlaceholder(name: string, target: NativeLeafTarget, repo: string): Promise<boolean> {
-	const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "chudcode-native-placeholder-"));
+	const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "omp-native-placeholder-"));
 	try {
-		await fsx.write(
+		await Bun.write(
 			path.join(tmpDir, "package.json"),
 			`${JSON.stringify(placeholderManifest(name, target, repo), null, "\t")}\n`,
 		);
-		await fsx.write(path.join(tmpDir, "README.md"), placeholderReadme(name, target));
+		await Bun.write(path.join(tmpDir, "README.md"), placeholderReadme(name, target));
 		return (await npmInteractive(["publish", tmpDir, "--access", "public"])) === 0;
 	} finally {
 		await fs.rm(tmpDir, { recursive: true, force: true });
@@ -335,7 +333,7 @@ async function main(): Promise<void> {
 	const repo = opts.repo ?? repoFromManifest ?? FALLBACK_REPO;
 	const workflow = opts.workflow;
 
-	if (!(await fsx.exists(path.join(repoRoot, ".github", "workflows", workflow)))) {
+	if (!(await Bun.file(path.join(repoRoot, ".github", "workflows", workflow)).exists())) {
 		console.warn(
 			`Warning: .github/workflows/${workflow} not found; npm will still accept it, but OIDC won't match a non-existent workflow.`,
 		);
@@ -386,7 +384,7 @@ async function main(): Promise<void> {
 				console.log(`- ${name}: not published yet — create it first, then re-run.`);
 				continue;
 			}
-			if (shouldThrottle(first)) await sleep(2000);
+			if (shouldThrottle(first)) await Bun.sleep(2000);
 			first = false;
 			console.log(`- ${name}: not published yet — publishing inert ${PLACEHOLDER_VERSION} placeholder.`);
 			if (!(await publishNativeLeafPlaceholder(name, target, repo))) {
@@ -404,7 +402,7 @@ async function main(): Promise<void> {
 
 		// Throttle between mutating calls per npm's bulk-config guidance, but not
 		// before the very first one (it carries the interactive 2FA prompt).
-		if (shouldThrottle(first)) await sleep(2000);
+		if (shouldThrottle(first)) await Bun.sleep(2000);
 		first = false;
 
 		const existing = await trustListJson(name);

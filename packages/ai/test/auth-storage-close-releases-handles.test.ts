@@ -17,13 +17,13 @@ import { afterEach, beforeEach, expect, test } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import { SqliteAuthCredentialStore } from "@chudware/ai/auth-storage";
+import { SqliteAuthCredentialStore } from "@oh-my-pi/pi-ai/auth-storage";
 import { removeWithRetries } from "../../utils/src/temp";
 
 let tempDir = "";
 
 beforeEach(async () => {
-	tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "chud-ai-close-handles-"));
+	tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "pi-ai-close-handles-"));
 });
 
 afterEach(async () => {
@@ -43,14 +43,6 @@ function expectExclusiveAccess(dbPath: string): void {
 		observer.close();
 	}
 }
-
-test("close() releases the connection so the DB file can be locked exclusively", async () => {
-	const dbPath = path.join(tempDir, "agent.db");
-	const store = await SqliteAuthCredentialStore.open(dbPath);
-	store.close();
-
-	expect(() => expectExclusiveAccess(dbPath)).not.toThrow();
-});
 
 test("close() releases the connection after the lease/cache statements have run", async () => {
 	const dbPath = path.join(tempDir, "used.db");

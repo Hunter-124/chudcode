@@ -2,8 +2,8 @@ import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import { detectIndentFromContent, resolveFormatOptions } from "@chudware/coding-agent/lsp/format-options";
-import { getProjectDir, removeWithRetries, Snowflake, setProjectDir } from "@chudware/utils";
+import { detectIndentFromContent, resolveFormatOptions } from "@oh-my-pi/pi-coding-agent/lsp/format-options";
+import { getProjectDir, removeWithRetries, Snowflake, setProjectDir } from "@oh-my-pi/pi-utils";
 
 /**
  * Regression coverage for issue #2329 — the LSP format-on-write path used to
@@ -61,7 +61,7 @@ describe("resolveFormatOptions", () => {
 
 	beforeEach(async () => {
 		previousProjectDir = getProjectDir();
-		tempDir = path.join(os.tmpdir(), "chudcode-agent-format-options", Snowflake.next());
+		tempDir = path.join(os.tmpdir(), "pi-coding-agent-format-options", Snowflake.next());
 		await fs.mkdir(tempDir, { recursive: true });
 		setProjectDir(tempDir);
 	});
@@ -142,12 +142,5 @@ describe("resolveFormatOptions", () => {
 		const opts = resolveFormatOptions(filePath, "");
 		expect(opts.tabSize).toBe(2);
 		expect(opts.insertSpaces).toBe(true);
-	});
-
-	it("always sets the static trim/newline flags", () => {
-		const opts = resolveFormatOptions(path.join(tempDir, "x.txt"), "x\n");
-		expect(opts.trimTrailingWhitespace).toBe(true);
-		expect(opts.insertFinalNewline).toBe(true);
-		expect(opts.trimFinalNewlines).toBe(true);
 	});
 });

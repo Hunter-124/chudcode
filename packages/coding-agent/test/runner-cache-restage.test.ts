@@ -2,7 +2,6 @@ import { afterEach, describe, expect, it } from "bun:test";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
-import * as fsx from "@chudware/utils/fsx";
 import { stageRunnerScript } from "../src/eval/runner-cache";
 
 // stageRunnerScript memoizes the staged path per cache directory, but the warm
@@ -13,7 +12,7 @@ describe("stageRunnerScript re-validation", () => {
 	const dirs: string[] = [];
 
 	function uniqueDir() {
-		const name = `chudcode-runner-cache-test-${process.pid}-${dirs.length}-${Date.now()}`;
+		const name = `omp-runner-cache-test-${process.pid}-${dirs.length}-${Date.now()}`;
 		dirs.push(name);
 		return name;
 	}
@@ -41,7 +40,7 @@ describe("stageRunnerScript re-validation", () => {
 		const second = await stageRunnerScript(dirName, "py", script);
 		expect(second).toBe(first);
 		expect(fs.existsSync(second)).toBe(true);
-		expect(await fsx.readText(second)).toBe(script);
+		expect(await Bun.file(second).text()).toBe(script);
 	});
 
 	it("reuses the memoized path while the file still exists", async () => {

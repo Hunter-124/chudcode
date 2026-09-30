@@ -1,28 +1,11 @@
 import { afterEach, describe, expect, it, vi } from "bun:test";
 import * as path from "node:path";
-import { disposeAllKernelSessions, executePythonWithKernel } from "@chudware/coding-agent/eval/py/executor";
-import { DEFAULT_MAX_BYTES } from "@chudware/coding-agent/session/streaming-output";
-import { TempDir } from "@chudware/utils";
-import * as fsx from "@chudware/utils/fsx";
+import { disposeAllKernelSessions, executePythonWithKernel } from "@oh-my-pi/pi-coding-agent/eval/py/executor";
+import { DEFAULT_MAX_BYTES } from "@oh-my-pi/pi-tui/tools/streaming-output";
+import { TempDir } from "@oh-my-pi/pi-utils";
 import { FakeKernel } from "./helpers";
 
 describe("executePythonWithKernel", () => {
-	it("captures text and display outputs", async () => {
-		const kernel = new FakeKernel(
-			{ status: "ok", cancelled: false, timedOut: false, stdinRequested: false },
-			options => {
-				options?.onChunk?.("hello\n");
-				options?.onDisplay?.({ type: "json", data: { foo: "bar" } });
-			},
-		);
-
-		const result = await executePythonWithKernel(kernel, "print('hello')");
-
-		expect(result.exitCode).toBe(0);
-		expect(result.output).toContain("hello");
-		expect(result.displayOutputs).toHaveLength(1);
-	});
-
 	it("marks stdin request as error", async () => {
 		const kernel = new FakeKernel(
 			{ status: "ok", cancelled: false, timedOut: false, stdinRequested: true },
@@ -121,7 +104,7 @@ describe("executePythonWithKernel", () => {
 		expect(result.artifactId).toBe("0");
 		expect(result.output).toContain("TAIL");
 
-		const fullText = await fsx.readText(artifactPath);
+		const fullText = await Bun.file(artifactPath).text();
 		expect(fullText).toBe(largeOutput);
 	});
 });

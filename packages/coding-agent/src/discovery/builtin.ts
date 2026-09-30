@@ -1,13 +1,12 @@
 /**
- * Builtin Provider (.chudcode)
+ * Builtin Provider (.omp)
  *
- * Primary provider for Chudcode native configs. Supports all capabilities.
+ * Primary provider for OMP native configs. Supports all capabilities.
  */
 import * as path from "node:path";
-import { getAgentDir, logger, parseFrontmatter, tryParseJson } from "@chudware/utils";
+import { getAgentDir, logger, parseFrontmatter, tryParseJson } from "@oh-my-pi/pi-utils";
 import { YAML } from "bun";
 import { getManagedSkillsDir, MANAGED_SKILLS_PROVIDER_ID } from "../autolearn/managed-skills";
-import { PRODUCT_NAME } from "../brand";
 import { registerProvider } from "../capability";
 import { type ContextFile, contextFileCapability } from "../capability/context-file";
 import { type Extension, type ExtensionManifest, extensionCapability } from "../capability/extension";
@@ -26,7 +25,7 @@ import { type CustomTool, toolCapability } from "../capability/tool";
 import type { LoadContext, LoadResult } from "../capability/types";
 import { expandTilde } from "../tools/path-utils";
 import {
-	buildRuleFromMarkdown,
+	discoverRuleFromMarkdown,
 	createSourceMeta,
 	discoverExtensionModulePaths,
 	expandEnvVarsDeep,
@@ -38,8 +37,8 @@ import {
 } from "./helpers";
 
 const PROVIDER_ID = "native";
-const DISPLAY_NAME = PRODUCT_NAME;
-const DESCRIPTION = "Native Chudcode configuration from ~/.chudcode and .chudcode/";
+const DISPLAY_NAME = "OMP";
+const DESCRIPTION = "Native OMP configuration from ~/.omp and .omp/";
 const PRIORITY = 100;
 
 const PATHS = SOURCE_PATHS.native;
@@ -64,8 +63,9 @@ async function getConfigDirs(ctx: LoadContext): Promise<Array<{ dir: string; lev
 		result.push({ dir: projectDir, level: "project" });
 	}
 	// Native user config is profile-scoped: getAgentDir() points at the active
-	// profile's agent dir (~/.chudcode/profiles/<name>/agent), like sessions and MCP.
-	const userDir = await ifNonEmptyDir(getAgentDir());
+	// profile's agent dir (~/.omp/profiles/<name>/agent), like sessions and MCP.
+	// A load that carries its own agentDir (an SDK session created with one) reads that dir.
+	const userDir = await ifNonEmptyDir(ctx.agentDir ?? getAgentDir());
 	if (userDir) {
 		result.push({ dir: userDir, level: "user" });
 	}
@@ -73,7 +73,7 @@ async function getConfigDirs(ctx: LoadContext): Promise<Array<{ dir: string; lev
 	return result;
 }
 
-function getAncestorDirs(cwd: string, stopAt?: string | null): Array<{ dir: string; depth: number }> {
+export function getAncestorDirs(cwd: string, stopAt?: string | null): Array<{ dir: string; depth: number }> {
 	const ancestors: Array<{ dir: string; depth: number }> = [];
 	let current = cwd;
 	let depth = 0;
@@ -164,11 +164,19 @@ async function loadMCPServers(ctx: LoadContext): Promise<LoadResult<MCPServer>> 
 				);
 			}
 
+			const instructions = typeof serverConfig.instructions === "boolean" ? serverConfig.instructions : undefined;
+			if (instructions === undefined && serverConfig.instructions != null) {
+				logger.warn(
+					`MCP server "${serverName}": invalid instructions ${JSON.stringify(serverConfig.instructions)}, ignoring`,
+				);
+			}
+
 			result.push({
 				name: serverName,
 				enabled,
 				timeout,
 				requestIdFormat,
+				instructions,
 				command: serverConfig.command as string | undefined,
 				args: serverConfig.args as string[] | undefined,
 				env: serverConfig.env as Record<string, string> | undefined,
@@ -239,49 +247,45 @@ registerProvider<MCPServer>(mcpCapability.id, {
 	load: loadMCPServers,
 });
 
-// System Prompt (SYSTEM.md)
+// System Prompt (SYSTEM.md, SYSTEM_TEMPLATE.md)
 async function loadSystemPrompt(ctx: LoadContext): Promise<LoadResult<SystemPrompt>> {
 	const items: SystemPrompt[] = [];
+	const warnings: string[] = [];
 
-	const userPath = path.join(getAgentDir(), "SYSTEM.md");
-	const userContent = await readFile(userPath);
-	if (userContent) {
-		items.push({
-			path: userPath,
-			content: userContent,
-			level: "user",
-			_source: createSourceMeta(PROVIDER_ID, userPath, "user"),
-		});
-	}
+	const load = async (filePath: string, level: "user" | "project", kind: "text" | "template"): Promise<void> => {
+		const content = await readFile(filePath);
+		if (!content) return;
+		if (kind === "template" && !content.trim()) {
+			warnings.push(`Ignoring empty system prompt template at ${filePath}`);
+			return;
+		}
+		items.push({ path: filePath, content, kind, level, _source: createSourceMeta(PROVIDER_ID, filePath, level) });
+	};
 
+	// Project entries first: dedupe is first-wins, so a project literal or
+	// template claims its key before a same-scope user file can survive.
 	const nearestProjectConfigDir = await findNearestProjectConfigDir(ctx.cwd, ctx.repoRoot);
 	if (nearestProjectConfigDir) {
-		const projectPath = path.join(nearestProjectConfigDir.dir, "SYSTEM.md");
-		const projectContent = await readFile(projectPath);
-		if (projectContent) {
-			items.push({
-				path: projectPath,
-				content: projectContent,
-				level: "project",
-				_source: createSourceMeta(PROVIDER_ID, projectPath, "project"),
-			});
-		}
+		await load(path.join(nearestProjectConfigDir.dir, "SYSTEM.md"), "project", "text");
+		await load(path.join(nearestProjectConfigDir.dir, "SYSTEM_TEMPLATE.md"), "project", "template");
 	}
+	await load(path.join(getAgentDir(), "SYSTEM.md"), "user", "text");
+	await load(path.join(getAgentDir(), "SYSTEM_TEMPLATE.md"), "user", "template");
 
-	return { items, warnings: [] };
+	return { items, warnings };
 }
 
 registerProvider<SystemPrompt>(systemPromptCapability.id, {
 	id: PROVIDER_ID,
 	displayName: DISPLAY_NAME,
-	description: "Custom system prompt from SYSTEM.md",
+	description: "Custom system prompt from SYSTEM.md and SYSTEM_TEMPLATE.md",
 	priority: PRIORITY,
 	load: loadSystemPrompt,
 });
 
 // Skills
 async function loadSkills(ctx: LoadContext): Promise<LoadResult<Skill>> {
-	// Walk up from cwd finding .chudcode/skills/ in ancestors (closest first)
+	// Walk up from cwd finding .omp/skills/ in ancestors (closest first)
 	const ancestors = getAncestorDirs(ctx.cwd, ctx.repoRoot ?? ctx.home);
 	const projectScans = ancestors.map(({ dir }) =>
 		scanSkillsFromDir(ctx, {
@@ -292,7 +296,7 @@ async function loadSkills(ctx: LoadContext): Promise<LoadResult<Skill>> {
 		}),
 	);
 
-	// User-level scan from ~/.chudcode/agent/skills/
+	// User-level scan from ~/.omp/agent/skills/
 	const userScan = scanSkillsFromDir(ctx, {
 		dir: path.join(getAgentDir(), "skills"),
 		providerId: PROVIDER_ID,
@@ -332,7 +336,7 @@ registerProvider<Skill>(skillCapability.id, {
 registerProvider<Skill>(skillCapability.id, {
 	id: MANAGED_SKILLS_PROVIDER_ID,
 	displayName: "Managed Skills (auto-learn)",
-	description: "Auto-generated managed skills from ~/.chudcode/agent/managed-skills",
+	description: "Auto-generated managed skills from ~/.omp/agent/managed-skills",
 	priority: MANAGED_SKILLS_PRIORITY,
 	load: loadManagedSkills,
 });
@@ -379,18 +383,19 @@ async function loadRules(ctx: LoadContext): Promise<LoadResult<Rule>> {
 		const result = await loadFilesFromDir<Rule>(ctx, rulesDir, PROVIDER_ID, level, {
 			extensions: ["md", "mdc"],
 			transform: (name, content, path, source) =>
-				buildRuleFromMarkdown(name, content, path, source, { stripNamePattern: /\.(md|mdc)$/ }),
+				discoverRuleFromMarkdown(name, content, path, source, { stripNamePattern: /\.(md|mdc)$/ }),
 		});
 		items.push(...result.items);
 		if (result.warnings) warnings.push(...result.warnings);
 	}
 
 	// Top-level RULES.md is a sticky always-apply rule. Documented in
-	// https://chudware.sh/docs/context-files as the file that gets "re-injected near
-	// the current turn so they keep hold across long conversations".
-	// User scope:    ~/.chudcode/agent/RULES.md
-	// Project scope: nearest .chudcode/RULES.md walking up from cwd to repoRoot
-	const userRulesFile = path.join(getAgentDir(), "RULES.md");
+	// https://omp.sh/docs/context-files: its full body is carried on every
+	// request (system-prompt text, or image frames under snapcompact
+	// system-prompt imaging) so it keeps its hold across long sessions.
+	// User scope:    <agentDir>/RULES.md (~/.omp/agent/RULES.md by default)
+	// Project scope: nearest .omp/RULES.md walking up from cwd to repoRoot
+	const userRulesFile = path.join(ctx.agentDir ?? getAgentDir(), "RULES.md");
 	const userRule = await loadStickyRulesFile(userRulesFile, "user");
 	if (userRule) items.push(userRule);
 
@@ -413,9 +418,11 @@ async function loadStickyRulesFile(filePath: string, level: "user" | "project"):
 	if (!content) return null;
 	const source = createSourceMeta(PROVIDER_ID, filePath, level);
 	const ruleName = level === "project" ? "RULES@project" : "RULES";
-	const rule = buildRuleFromMarkdown("RULES.md", content, filePath, source, { ruleName });
+	const rule = discoverRuleFromMarkdown("RULES.md", content, filePath, source, { ruleName });
+	if (!rule) return null;
 	// Force alwaysApply regardless of frontmatter — the whole point of RULES.md
-	// is to be reattached every turn.
+	// is that its body is carried on every request instead of degrading to an
+	// on-demand rulebook entry.
 	return { ...rule, alwaysApply: true };
 }
 
@@ -940,7 +947,7 @@ async function loadContextFiles(ctx: LoadContext): Promise<LoadResult<ContextFil
 registerProvider<ContextFile>(contextFileCapability.id, {
 	id: PROVIDER_ID,
 	displayName: DISPLAY_NAME,
-	description: "Load AGENTS.md from .chudcode/ directories",
+	description: "Load AGENTS.md from .omp/ directories",
 	priority: PRIORITY,
 	load: loadContextFiles,
 });

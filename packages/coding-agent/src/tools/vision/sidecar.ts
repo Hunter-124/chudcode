@@ -52,12 +52,12 @@ function nativeAddonDirectories(): string[] {
 	const dirs: string[] = [];
 	const require_ = createRequire(import.meta.url);
 	try {
-		dirs.push(path.dirname(require_.resolve("@chudware/natives")));
+		dirs.push(path.dirname(require_.resolve("@oh-my-pi/pi-natives")));
 	} catch {
 		// The optional native package is not required for the sidecar.
 	}
 	try {
-		const platformPackage = `@chudware/natives-${process.platform}-${process.arch}`;
+		const platformPackage = `@oh-my-pi/pi-natives-${process.platform}-${process.arch}`;
 		dirs.push(path.dirname(require_.resolve(`${platformPackage}/package.json`)));
 	} catch {
 		// Workspace and compiled installs do not necessarily have a leaf package.

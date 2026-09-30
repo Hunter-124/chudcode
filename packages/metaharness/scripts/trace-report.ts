@@ -23,16 +23,14 @@
  *   ... --tiny openrouter/inclusionai/ling-2.6-flash
  *   ... --synth openrouter/openai/gpt-oss-120b
  *
- * Auth: provider API keys resolve through chudcode's auth storage
- * (~/.chudcode/agent/agent.db: stored key, OAuth, or env var fallback).
+ * Auth: provider API keys resolve through omp's auth storage
+ * (~/.omp/agent/agent.db: stored key, OAuth, or env var fallback).
  */
 
 import { parseArgs } from "node:util";
-import { type Api, AuthStorage, completeSimple, type Model, SqliteAuthCredentialStore } from "@chudware/ai";
-import { type GeneratedProvider, getBundledModel } from "@chudware/catalog/models";
-import { getAgentDbPath } from "@chudware/utils";
-import { sleep } from "@chudware/utils/async";
-import * as fsx from "@chudware/utils/fsx";
+import { type Api, AuthStorage, completeSimple, type Model, SqliteAuthCredentialStore } from "@oh-my-pi/pi-ai";
+import { type GeneratedProvider, getBundledModel } from "@oh-my-pi/pi-catalog/models";
+import { getAgentDbPath } from "@oh-my-pi/pi-utils";
 
 const DEFAULT_TINY = "openrouter/inclusionai/ling-2.6-flash";
 const DEFAULT_SYNTH = "openrouter/openai/gpt-oss-120b";
@@ -125,9 +123,9 @@ async function openModel(modelSpec: string, storage: AuthStorage): Promise<Opene
 	const modelId = modelSpec.slice(slash + 1);
 	const model = getBundledModel(provider as GeneratedProvider, modelId);
 	if (!model) throw new Error(`unknown model "${modelSpec}" (not in bundled catalog)`);
-	const apiKey = await storage.getApiKey(provider);
+	const apiKey = await storage.keys.get(provider);
 	if (!apiKey) {
-		throw new Error(`no credentials for provider "${provider}" (run \`chudcode login\` or set the provider env var)`);
+		throw new Error(`no credentials for provider "${provider}" (run \`omp login\` or set the provider env var)`);
 	}
 	return { model, apiKey, spec: modelSpec, usage: { input: 0, output: 0, calls: 0 } };
 }
@@ -149,7 +147,7 @@ async function ask(opened: OpenedModel, system: string, user: string, maxTokens:
 		opened.usage.output += response.usage.output;
 		if (response.stopReason === "error" || response.stopReason === "aborted") {
 			lastError = response.errorMessage ?? response.stopReason;
-			await sleep(1000 * (attempt + 1));
+			await Bun.sleep(1000 * (attempt + 1));
 			continue;
 		}
 		const text = response.content
@@ -204,6 +202,7 @@ function turnPrompt(turn: Extract<LogItem, { kind: "turn" }>): string {
 
 /** Map `items` through `worker` with at most `limit` in flight, order preserved. */
 async function mapPool<T, R>(items: T[], limit: number, worker: (item: T, index: number) => Promise<R>): Promise<R[]> {
+	// oxlint-disable-next-line unicorn/no-new-array -- length preallocation
 	const results = new Array<R>(items.length);
 	let next = 0;
 	const lanes = Array.from({ length: Math.min(limit, items.length) }, async () => {
@@ -349,7 +348,7 @@ async function main(): Promise<void> {
 
 	const store = await SqliteAuthCredentialStore.open(getAgentDbPath());
 	const storage = new AuthStorage(store);
-	await storage.reload();
+	await storage.credentials.reload();
 	const tiny = await openModel(values.tiny, storage);
 	const synth = values.synth === values.tiny ? tiny : await openModel(values.synth, storage);
 
@@ -389,7 +388,7 @@ async function main(): Promise<void> {
 		.join("\n\n");
 
 	if (values.out) {
-		await fsx.write(values.out, `${report}\n`);
+		await Bun.write(values.out, `${report}\n`);
 		console.error(`[trace-report] wrote ${values.out}`);
 	} else {
 		console.log(report);

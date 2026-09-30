@@ -2,11 +2,10 @@ import { expect, test } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import * as fsx from "@chudware/utils/fsx";
 import { FileLock } from "../native/index.js";
 
 test("FileLock binds release to one native owner", async () => {
-	const root = await fs.mkdtemp(path.join(os.tmpdir(), "chud-native-lock-"));
+	const root = await fs.mkdtemp(path.join(os.tmpdir(), "pi-native-lock-"));
 	const lockPath = path.join(root, "resource.lock");
 	try {
 		const first = FileLock.tryAcquire(lockPath);
@@ -27,7 +26,7 @@ test("FileLock binds release to one native owner", async () => {
 		expect(successor.acquired).toBe(true);
 
 		const usesInMemoryName = process.platform === "linux" || process.platform === "win32";
-		expect(await fsx.exists(lockPath)).toBe(!usesInMemoryName);
+		expect(await Bun.file(lockPath).exists()).toBe(!usesInMemoryName);
 
 		successor.release();
 		const finalOwner = FileLock.tryAcquire(lockPath);

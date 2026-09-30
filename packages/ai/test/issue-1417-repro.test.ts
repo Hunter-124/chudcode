@@ -2,9 +2,9 @@ import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import type { ModelSpec } from "@chudware/ai/types";
-import { readModelCache } from "@chudware/catalog/model-cache";
-import { resolveProviderModels } from "@chudware/catalog/model-manager";
+import type { ModelSpec } from "@oh-my-pi/pi-ai/types";
+import { readModelCache } from "@oh-my-pi/pi-catalog/model-cache";
+import { resolveProviderModels } from "@oh-my-pi/pi-catalog/model-manager";
 import { removeWithRetries } from "../../utils/src/temp";
 
 const TTL_MS = 24 * 60 * 60 * 1000;
@@ -29,7 +29,7 @@ describe("issue #1417 synthetic model deprecation", () => {
 	let dbPath = "";
 
 	beforeEach(async () => {
-		tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "chud-ai-issue-1417-"));
+		tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "pi-ai-issue-1417-"));
 		dbPath = path.join(tempDir, "models.db");
 	});
 

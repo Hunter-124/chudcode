@@ -2,18 +2,18 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "bun:test";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
-import { Agent } from "@chudware/agent-core";
-import type { AssistantMessage } from "@chudware/ai";
-import { createMockModel, type MockHandler } from "@chudware/ai/providers/mock";
-import { getBundledModel } from "@chudware/catalog/models";
-import { loadAdvisorTranscriptCosts } from "@chudware/coding-agent/advisor/transcript-recorder";
-import { ModelRegistry } from "@chudware/coding-agent/config/model-registry";
-import { Settings } from "@chudware/coding-agent/config/settings";
-import type { ExtensionRunner } from "@chudware/coding-agent/extensibility/extensions";
-import { AgentSession } from "@chudware/coding-agent/session/agent-session";
-import { AuthStorage } from "@chudware/coding-agent/session/auth-storage";
-import { SessionManager } from "@chudware/coding-agent/session/session-manager";
-import { Snowflake } from "@chudware/utils";
+import { Agent } from "@oh-my-pi/pi-agent-core";
+import type { AssistantMessage } from "@oh-my-pi/pi-ai";
+import { createMockModel, type MockHandler } from "@oh-my-pi/pi-ai/providers/mock";
+import { getBundledModel } from "@oh-my-pi/pi-catalog/models";
+import { loadAdvisorTranscriptCosts } from "@oh-my-pi/pi-coding-agent/advisor/transcript-recorder";
+import { ModelRegistry } from "@oh-my-pi/pi-coding-agent/config/model-registry";
+import { Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
+import type { ExtensionRunner } from "@oh-my-pi/pi-coding-agent/extensibility/extensions";
+import { AgentSession } from "@oh-my-pi/pi-coding-agent/session/agent-session";
+import { AuthStorage } from "@oh-my-pi/pi-coding-agent/session/auth-storage";
+import { SessionManager } from "@oh-my-pi/pi-coding-agent/session/session-manager";
+import { Snowflake } from "@oh-my-pi/pi-utils";
 
 function createBtwAssistant(): AssistantMessage {
 	return {
@@ -60,7 +60,7 @@ describe("AgentSession.branchFromBtw", () => {
 	let authStorage: AuthStorage | undefined;
 
 	beforeEach(() => {
-		tempDir = path.join(os.tmpdir(), `chud-btw-branch-test-${Snowflake.next()}`);
+		tempDir = path.join(os.tmpdir(), `pi-btw-branch-test-${Snowflake.next()}`);
 		fs.mkdirSync(tempDir, { recursive: true });
 	});
 
@@ -90,7 +90,7 @@ describe("AgentSession.branchFromBtw", () => {
 		const settings = Settings.isolated({ "compaction.enabled": false });
 		authStorage = await AuthStorage.create(":memory:");
 		const modelRegistry = new ModelRegistry(authStorage, path.join(tempDir, "models.yml"));
-		authStorage.setRuntimeApiKey("anthropic", "test-key");
+		authStorage.keys.setRuntime("anthropic", "test-key");
 		session = new AgentSession({
 			agent,
 			sessionManager,
@@ -141,7 +141,12 @@ describe("AgentSession.branchFromBtw", () => {
 		expect(result.sessionFile).not.toBe(originalFile);
 		expect(fs.readFileSync(originalFile!, "utf8")).toBe(originalRaw);
 		const messages = activeSession.messages;
-		expect(messages.at(-2)).toMatchObject({ role: "user", content: [{ type: "text", text: "why did this fail?" }] });
+		// The promoted question is the user's own words, so it must carry the user's attribution.
+		expect(messages.at(-2)).toMatchObject({
+			role: "user",
+			content: [{ type: "text", text: "why did this fail?" }],
+			attribution: "user",
+		});
 		const promoted = messages.at(-1);
 		expect(promoted?.role).toBe("assistant");
 		if (promoted?.role !== "assistant") throw new Error("Expected promoted assistant message");

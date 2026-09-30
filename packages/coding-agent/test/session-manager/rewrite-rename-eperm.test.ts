@@ -2,11 +2,9 @@ import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import * as fsp from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import { recoverOrphanedBackups } from "@chudware/coding-agent/session/session-listing";
-import { SessionManager } from "@chudware/coding-agent/session/session-manager";
-import { FileSessionStorage, MemorySessionStorage } from "@chudware/coding-agent/session/session-storage";
-import { sleep } from "@chudware/utils/async";
-import * as fsx from "@chudware/utils/fsx";
+import { recoverOrphanedBackups } from "@oh-my-pi/pi-coding-agent/session/session-listing";
+import { SessionManager } from "@oh-my-pi/pi-coding-agent/session/session-manager";
+import { FileSessionStorage, MemorySessionStorage } from "@oh-my-pi/pi-coding-agent/session/session-storage";
 
 class FsCodeError extends Error {
 	code: string;
@@ -47,7 +45,7 @@ describe("SessionManager rewrite EPERM replacement fallback", () => {
 	let sessionDir: string;
 
 	beforeEach(async () => {
-		sessionDir = await fsp.mkdtemp(path.join(os.tmpdir(), "chudcode-eperm-"));
+		sessionDir = await fsp.mkdtemp(path.join(os.tmpdir(), "omp-eperm-"));
 	});
 
 	afterEach(async () => {
@@ -83,7 +81,7 @@ describe("SessionManager rewrite EPERM rollback failure", () => {
 	let sessionDir: string;
 
 	beforeEach(async () => {
-		sessionDir = await fsp.mkdtemp(path.join(os.tmpdir(), "chudcode-eperm-"));
+		sessionDir = await fsp.mkdtemp(path.join(os.tmpdir(), "omp-eperm-"));
 	});
 
 	afterEach(async () => {
@@ -142,7 +140,7 @@ describe("FileSessionStorage.writeTextAtomic commitGuard cleanup", () => {
 	let sessionDir: string;
 
 	beforeEach(async () => {
-		sessionDir = await fsp.mkdtemp(path.join(os.tmpdir(), "chudcode-guard-cleanup-"));
+		sessionDir = await fsp.mkdtemp(path.join(os.tmpdir(), "omp-guard-cleanup-"));
 	});
 
 	afterEach(async () => {
@@ -159,7 +157,7 @@ describe("FileSessionStorage.writeTextAtomic commitGuard cleanup", () => {
 		const target = path.join(sessionDir, "session.jsonl");
 		await storage.writeTextAtomic(target, "existing\n", { commitGuard: () => false });
 		expect(await listTempFiles()).toEqual([]);
-		expect(await fsx.exists(target)).toBe(false);
+		expect(await Bun.file(target).exists()).toBe(false);
 	});
 
 	it("discards the staged temp when the EPERM move-aside fallback's commitGuard rejects", async () => {
@@ -191,7 +189,7 @@ describe("FileSessionStorage.writeTextAtomic commitGuard cleanup", () => {
 		expect(guardCalls).toBe(2);
 		expect(await listTempFiles()).toEqual([]);
 		// Backup was restored, so target still holds the seed content.
-		expect(await fsx.readText(target)).toBe("seed\n");
+		expect(await Bun.file(target).text()).toBe("seed\n");
 		const backups = (await fsp.readdir(sessionDir)).filter(name => name.endsWith(".bak"));
 		expect(backups).toEqual([]);
 	});
@@ -221,7 +219,7 @@ describe("FileSessionStorage.writeTextAtomic commitGuard cleanup", () => {
 		expect(epermAttempted).toBe(true);
 		expect(guardCalls).toBe(2);
 		expect(await listTempFiles()).toEqual([]);
-		expect(await fsx.exists(target)).toBe(false);
+		expect(await Bun.file(target).exists()).toBe(false);
 	});
 });
 
@@ -262,7 +260,7 @@ describe("recoverOrphanedBackups", () => {
 		const newer = `${primary}.200.bak`;
 		storage.writeTextSync(older, "older");
 		// Force the newer backup to have a strictly higher mtime so recovery is deterministic.
-		await sleep(5);
+		await Bun.sleep(5);
 		storage.writeTextSync(newer, "newer");
 
 		await recoverOrphanedBackups(dir, storage);

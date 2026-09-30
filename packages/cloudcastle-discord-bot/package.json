@@ -31,8 +31,8 @@
   },
   "dependencies": {
     "@cloudcastle/context-engine": "workspace:*",
-    "@chudware/coding-agent": "catalog:",
-    "@chudware/utils": "catalog:",
+    "@oh-my-pi/pi-coding-agent": "catalog:",
+    "@oh-my-pi/pi-utils": "catalog:",
     "discord.js": "14.27.0"
   },
   "devDependencies": {

@@ -1,19 +1,22 @@
-"""Rules for producing release-grade, canonically named chud_natives addons.
+"""Rules for producing release-grade, canonically named pi_natives addons.
 
-`native_addon` transitions //crates/chud-natives:chud_natives onto a shipping
+`native_addon` transitions //crates/pi-natives:pi_natives onto a shipping
 platform with the release codegen profile (opt, thin LTO, cgu=16, stripped —
 mirrors the cargo `ci` profile) and renames the produced shared library to the
-loader's canonical `chud_natives.<platform>-<arch>[-<variant>].node` filename.
+loader's canonical `pi_natives.<platform>-<arch>[-<variant>].node` filename.
 
 Encoding the profile in the transition means `bazel build //:natives-<t>` is
 always release-grade regardless of -c, and every addon shares one cache entry
 per (platform, source) pair.
 """
 
-_ADDON_RUSTC_FLAGS = [
-    "-Ccodegen-units=16",
-    "-Cstrip=symbols",
-]
+_ADDON_RUSTC_FLAGS = ["-Ccodegen-units=16"]
+
+# Darwin strips at link time (-x: non-global symbols, -S: debug info) because
+# rustc's rust-objcopy strip corrupts minos >= 12.0 dylibs; see .bazelrc.
+# -Cstrip=none also overrides the opt-mode toolchain `strip=debuginfo`.
+_DARWIN_STRIP_FLAGS = ["-Cstrip=none", "-Clink-arg=-Wl,-x,-S"]
+_STRIP_FLAGS = ["-Cstrip=symbols"]
 
 def _addon_transition_impl(settings, attr):
     # Statically link the MSVC CRT for the shipped win32 addon: rustc gets
@@ -32,7 +35,9 @@ def _addon_transition_impl(settings, attr):
         "//command_line_option:compilation_mode": "opt",
         "//command_line_option:features": features,
         "@rules_rust//rust/settings:lto": "thin",
-        "@rules_rust//rust/settings:extra_rustc_flags": _ADDON_RUSTC_FLAGS,
+        "@rules_rust//rust/settings:extra_rustc_flags": _ADDON_RUSTC_FLAGS + (
+            _DARWIN_STRIP_FLAGS if "darwin" in str(attr.platform) else _STRIP_FLAGS
+        ),
     }
 
 _addon_transition = transition(
@@ -68,13 +73,13 @@ def _native_addon_impl(ctx):
 
 native_addon = rule(
     implementation = _native_addon_impl,
-    doc = "Release build of the chud_natives cdylib for one shipping platform, " +
+    doc = "Release build of the pi_natives cdylib for one shipping platform, " +
           "renamed to the loader's canonical .node filename.",
     attrs = {
         "lib": attr.label(
             cfg = _addon_transition,
             mandatory = True,
-            doc = "The rust_shared_library target (//crates/chud-natives:chud_natives).",
+            doc = "The rust_shared_library target (//crates/pi-natives:pi_natives).",
         ),
         "platform": attr.label(
             mandatory = True,
@@ -82,7 +87,7 @@ native_addon = rule(
         ),
         "out": attr.string(
             mandatory = True,
-            doc = "Canonical addon filename, e.g. chud_natives.linux-x64-baseline.node.",
+            doc = "Canonical addon filename, e.g. pi_natives.linux-x64-baseline.node.",
         ),
         "_allowlist_function_transition": attr.label(
             default = "@bazel_tools//tools/allowlists/function_transition_allowlist",

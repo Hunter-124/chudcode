@@ -1,8 +1,8 @@
-/** React binding for any structural {@link SessionClient}. */
+/** React binding for {@link GuestClient} via `useSyncExternalStore`. */
 import { useSyncExternalStore } from "react";
-import type { SessionClient, SessionSnapshot } from "./session-client";
+import type { GuestClient, GuestSnapshot } from "./client";
 
-export function useGuestSnapshot(client: SessionClient): SessionSnapshot {
+export function useGuestSnapshot(client: GuestClient): GuestSnapshot {
 	return useSyncExternalStore(
 		listener => client.subscribe(listener),
 		() => client.getSnapshot(),

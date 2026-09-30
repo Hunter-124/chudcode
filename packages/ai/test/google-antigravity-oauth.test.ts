@@ -1,7 +1,8 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "bun:test";
-import * as piUtils from "@chudware/utils/async";
-import { ANTIGRAVITY_LOAD_CODE_ASSIST_METADATA, loginAntigravity } from "../src/registry/oauth/google-antigravity";
-import * as googleOAuth from "../src/registry/oauth/google-oauth-shared";
+import { afterEach, describe, expect, it, vi } from "bun:test";
+import {
+	ANTIGRAVITY_LOAD_CODE_ASSIST_METADATA,
+	googleAntigravityProjectHook,
+} from "../src/registry/oauth/google-antigravity";
 
 const CLOUD_CODE_ASSIST_ENDPOINT = "https://daily-cloudcode-pa.googleapis.com";
 const LOAD_CODE_ASSIST_URL = `${CLOUD_CODE_ASSIST_ENDPOINT}/v1internal:loadCodeAssist`;
@@ -15,19 +16,19 @@ function jsonResponse(body: unknown, status = 200): Response {
 	});
 }
 
-describe("Antigravity OAuth project discovery", () => {
-	beforeEach(() => {
-		vi.spyOn(googleOAuth, "runGoogleOAuthLogin").mockImplementation(async (_ctrl, config) => {
-			const projectId = await config.discoverProject("access-token");
-			return {
-				access: "access-token",
-				refresh: "refresh-token",
-				expires: 0,
-				projectId,
-			};
-		});
-	});
+async function discoverAntigravityProject() {
+	return googleAntigravityProjectHook(
+		{ access: "access-token", refresh: "refresh-token", expires: 0 },
+		{
+			provider: "google-antigravity",
+			phase: "login",
+			raw: { refresh_token: "refresh-token" },
+			fetch,
+		},
+	);
+}
 
+describe("Antigravity OAuth project discovery", () => {
 	afterEach(() => {
 		vi.restoreAllMocks();
 	});
@@ -43,7 +44,7 @@ describe("Antigravity OAuth project discovery", () => {
 			.spyOn(globalThis, "fetch")
 			.mockImplementation(Object.assign(async () => jsonResponse(payload), { preconnect: fetch.preconnect }));
 
-		const credentials = await loginAntigravity({});
+		const credentials = await discoverAntigravityProject();
 
 		expect(credentials.projectId).toBe("project-123");
 		expect(fetchSpy).toHaveBeenCalledTimes(2);
@@ -88,7 +89,7 @@ describe("Antigravity OAuth project discovery", () => {
 			),
 		);
 
-		const credentials = await loginAntigravity({});
+		const credentials = await discoverAntigravityProject();
 
 		expect(credentials.projectId).toBe("project-123");
 		expect(fetchSpy).toHaveBeenCalledTimes(3);
@@ -132,7 +133,7 @@ describe("Antigravity OAuth project discovery", () => {
 			),
 		);
 
-		const credentials = await loginAntigravity({});
+		const credentials = await discoverAntigravityProject();
 
 		expect(credentials.projectId).toBe("project-123");
 		expect(fetchSpy).toHaveBeenCalledTimes(3);
@@ -146,7 +147,7 @@ describe("Antigravity OAuth project discovery", () => {
 	});
 
 	it("polls a pending onboarding operation with GET after one second", async () => {
-		const sleepSpy = vi.spyOn(piUtils, "sleep").mockResolvedValue(undefined);
+		const sleepSpy = vi.spyOn(Bun, "sleep").mockResolvedValue(undefined);
 		const responses = [
 			{ allowedTiers: [{ id: "free-tier" }] },
 			{ name: "operations/onboard-123" },
@@ -175,7 +176,7 @@ describe("Antigravity OAuth project discovery", () => {
 			),
 		);
 
-		const credentials = await loginAntigravity({});
+		const credentials = await discoverAntigravityProject();
 
 		expect(credentials.projectId).toBe("project-123");
 		expect(sleepSpy).toHaveBeenCalledTimes(1);
@@ -205,7 +206,7 @@ describe("Antigravity OAuth project discovery", () => {
 			}),
 		);
 
-		await expect(loginAntigravity({})).rejects.toThrow("This account is not eligible for the free tier.");
+		await expect(discoverAntigravityProject()).rejects.toThrow("This account is not eligible for the free tier.");
 		expect(fetchSpy).toHaveBeenCalledTimes(1);
 		expect(fetchSpy.mock.calls[0]?.[0]).toBe(LOAD_CODE_ASSIST_URL);
 	});
@@ -215,7 +216,7 @@ describe("Antigravity OAuth project discovery", () => {
 			.spyOn(globalThis, "fetch")
 			.mockResolvedValue(new Response("created", { status: 201, statusText: "Created" }));
 
-		await expect(loginAntigravity({})).rejects.toThrow("loadCodeAssist failed: 201 Created: created");
+		await expect(discoverAntigravityProject()).rejects.toThrow("loadCodeAssist failed: 201 Created: created");
 		expect(fetchSpy).toHaveBeenCalledTimes(1);
 	});
 });

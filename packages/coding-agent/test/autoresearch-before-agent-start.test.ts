@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "bun:test";
-import { createAutoresearchExtension } from "@chudware/coding-agent/autoresearch";
-import { closeAllAutoresearchStorages } from "@chudware/coding-agent/autoresearch/storage";
+import { createAutoresearchExtension } from "@oh-my-pi/pi-coding-agent/autoresearch";
+import { closeAllAutoresearchStorages } from "@oh-my-pi/pi-coding-agent/autoresearch/storage";
 import type {
 	BeforeAgentStartEvent,
 	BeforeAgentStartEventResult,
@@ -8,9 +8,10 @@ import type {
 	ExtensionContext,
 	ExtensionHandler,
 	SessionStartEvent,
-} from "@chudware/coding-agent/extensibility/extensions";
-import * as git from "@chudware/coding-agent/utils/git";
-import { TempDir } from "@chudware/utils";
+} from "@oh-my-pi/pi-coding-agent/extensibility/extensions";
+import type { VcsGitRepo } from "@oh-my-pi/pi-natives";
+import * as vcs from "@oh-my-pi/pi-natives/vcs";
+import { TempDir } from "@oh-my-pi/pi-utils";
 
 // Reproduces issue #3665: when the upstream system prompt resolution leaves
 // `event.systemPrompt` unset, the autoresearch handler must still render its
@@ -71,14 +72,23 @@ describe("autoresearch before_agent_start handler", () => {
 
 	beforeEach(() => {
 		dbDir = TempDir.createSync("@pi-autoresearch-bas-test-");
-		process.env.CHUDCODE_AUTORESEARCH_DB_DIR = dbDir.path();
+		process.env.OMP_AUTORESEARCH_DB_DIR = dbDir.path();
 		cwdDir = TempDir.createSync("@pi-autoresearch-bas-cwd-");
-		vi.spyOn(git.branch, "current").mockResolvedValue("autoresearch/test");
-		vi.spyOn(git.repo, "root").mockResolvedValue(cwdDir.path());
+		vi.spyOn(vcs, "git").mockReturnValue({
+			currentBranch: async () => "autoresearch/test",
+		} as unknown as VcsGitRepo);
+		vi.spyOn(vcs, "gitInfo").mockReturnValue({
+			commonDir: `${cwdDir.path()}/.git`,
+			gitDir: `${cwdDir.path()}/.git`,
+			gitEntryPath: `${cwdDir.path()}/.git`,
+			headPath: `${cwdDir.path()}/.git/HEAD`,
+			isReftable: false,
+			repoRoot: cwdDir.path(),
+		});
 	});
 
 	afterEach(() => {
-		delete process.env.CHUDCODE_AUTORESEARCH_DB_DIR;
+		delete process.env.OMP_AUTORESEARCH_DB_DIR;
 		closeAllAutoresearchStorages();
 		cwdDir.removeSync();
 		dbDir.removeSync();

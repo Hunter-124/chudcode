@@ -1,9 +1,9 @@
 import { describe, expect, it } from "bun:test";
-import { Effort, type FetchImpl } from "@chudware/ai";
-import { streamSimple } from "@chudware/ai/stream";
-import type { Context, Model } from "@chudware/ai/types";
-import { buildModel } from "@chudware/catalog/build";
-import type { ModelSpec } from "@chudware/catalog/types";
+import { Effort, type FetchImpl } from "@oh-my-pi/pi-ai";
+import { streamSimple } from "@oh-my-pi/pi-ai/stream";
+import type { Context, Model } from "@oh-my-pi/pi-ai/types";
+import { buildModel } from "@oh-my-pi/pi-catalog/build";
+import type { ModelSpec } from "@oh-my-pi/pi-catalog/types";
 
 // GLM-5.3 replaces GLM-5.2's host-specific reasoning_effort dialects with a
 // single uniform wire-exact low/high/max ladder on every host, and thinking can

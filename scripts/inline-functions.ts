@@ -61,7 +61,7 @@
  *       --name <regex>       only inline functions whose name matches
  *       --max-statements <n> max tail statements (default: 3)
  *       --list               report candidates, make no edits
- *       --no-format          skip the biome format pass after --write
+ *       --no-format          skip the oxfmt format pass after --write
  *       --strict-effects     hoist every used argument (exact call semantics)
  *   -v, --verbose            print per-function skip reasons
  */
@@ -70,7 +70,6 @@ import { rm } from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
 import { parseArgs } from "node:util";
-import * as fsx from "@chudware/utils/fsx";
 import { $ } from "bun";
 import type {
 	CallExpression,
@@ -643,12 +642,12 @@ function analyze(fn: FunctionDeclaration, opts: Options): Candidate | null {
 	// Parameter references, scoped to the body; reject parameter writes.
 	const bodyStart = body.getStart();
 	const bodyEnd = body.getEnd();
-	for (const chud of params) {
-		for (const ref of chud.param.findReferencesAsNodes()) {
-			if (Node.isIdentifier(ref) && ref.getStart() >= bodyStart && ref.getEnd() <= bodyEnd) chud.refs.push(ref);
+	for (const pi of params) {
+		for (const ref of pi.param.findReferencesAsNodes()) {
+			if (Node.isIdentifier(ref) && ref.getStart() >= bodyStart && ref.getEnd() <= bodyEnd) pi.refs.push(ref);
 		}
-		for (const ref of chud.refs) {
-			if (isWriteTarget(ref)) return skip(opts, name, `writes parameter \`${chud.name}\``);
+		for (const ref of pi.refs) {
+			if (isWriteTarget(ref)) return skip(opts, name, `writes parameter \`${pi.name}\``);
 		}
 	}
 
@@ -847,8 +846,8 @@ function buildReplacement(
 	const reservedNames = reservedFor(call, reserved);
 
 	for (let i = 0; i < candidate.params.length; i++) {
-		const chud = candidate.params[i];
-		const uses = chud.refs.length;
+		const pi = candidate.params[i];
+		const uses = pi.refs.length;
 		const argNode: Node | undefined = i < args.length ? args[i] : undefined;
 
 		if (uses === 0) {
@@ -864,7 +863,7 @@ function buildReplacement(
 			continue;
 		}
 		if (argNode === undefined) {
-			substByParam.set(chud.name, "undefined");
+			substByParam.set(pi.name, "undefined");
 			continue;
 		}
 		// In strict mode every used argument is snapshotted (hoisted) left-to-right,
@@ -872,20 +871,20 @@ function buildReplacement(
 		// argument mutates. Otherwise hoist only when correctness/readability needs it.
 		const hoist = strict || !isPureExpr(argNode, strict) || (uses >= 2 && !isDuplicable(argNode, strict));
 		if (hoist) {
-			const temp = freshName(`__inl_${chud.name}`, reservedNames);
+			const temp = freshName(`__inl_${pi.name}`, reservedNames);
 			reservedNames.add(temp);
 			prefix.push(`const ${temp} = ${argNode.getText()};`);
-			substByParam.set(chud.name, temp);
+			substByParam.set(pi.name, temp);
 		} else {
-			substByParam.set(chud.name, argNeedsParens(argNode) ? `(${argNode.getText()})` : argNode.getText());
+			substByParam.set(pi.name, argNeedsParens(argNode) ? `(${argNode.getText()})` : argNode.getText());
 		}
 	}
 
 	const paramEdits: Edit[] = [];
-	for (const chud of candidate.params) {
-		const t = substByParam.get(chud.name);
+	for (const pi of candidate.params) {
+		const t = substByParam.get(pi.name);
 		if (t === undefined) continue;
-		for (const r of chud.refs) paramEdits.push({ start: r.getStart(), end: r.getEnd(), text: editTextFor(r, t) });
+		for (const r of pi.refs) paramEdits.push({ start: r.getStart(), end: r.getEnd(), text: editTextFor(r, t) });
 	}
 
 	if (candidate.guards.length > 0) {
@@ -966,19 +965,19 @@ export function inlineFile(sourceFile: SourceFile, opts: Options): string[] {
 const REPO_ROOT = path.resolve(import.meta.dir, "..");
 
 async function formatFile(file: string): Promise<void> {
-	const biome = path.join(REPO_ROOT, "node_modules/.bin/biome");
-	const res = await $`${biome} format --write ${file}`.quiet().nothrow();
+	const oxfmt = path.join(REPO_ROOT, "node_modules/.bin/oxfmt");
+	const res = await $`bun ${oxfmt} ${file}`.quiet().nothrow();
 	if (res.exitCode !== 0) {
-		// Biome ignores paths outside its config globs; the inliner already
+		// oxfmt ignores paths outside its config globs; the inliner already
 		// self-indents, so this is a notice, not a failure.
 		const first = res.stderr.toString().trim().split("\n")[0] ?? "";
-		console.warn(`  note: biome did not format ${file} (output is self-indented). ${first}`);
+		console.warn(`  note: oxfmt did not format ${file} (output is self-indented). ${first}`);
 	}
 }
 
 async function showDiff(file: string, updated: string): Promise<void> {
 	const tmp = path.join(os.tmpdir(), `inline-${process.pid}-${path.basename(file)}`);
-	await fsx.write(tmp, updated);
+	await Bun.write(tmp, updated);
 	await $`git --no-pager diff --no-index -- ${file} ${tmp}`.nothrow();
 	await rm(tmp, { force: true });
 }

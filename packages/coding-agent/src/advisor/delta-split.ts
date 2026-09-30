@@ -17,8 +17,8 @@
 //
 // The heading stays on the FIRST chunk; the WIP marker stays on the LAST chunk
 // (candidate 3) so a wip/final flip never changes the stable prefix.
-import type { AgentMessage } from "@chudware/agent-core";
-import type { TextContent, ToolResultMessage } from "@chudware/ai";
+import type { AgentMessage } from "@oh-my-pi/pi-agent-core";
+import type { TextContent, ToolResultMessage } from "@oh-my-pi/pi-ai";
 import { formatSessionHistoryMarkdown } from "../session/session-history-format";
 
 /**
@@ -37,6 +37,7 @@ export const ADVISOR_RENDER_OPTIONS = {
 	watchedRoles: true,
 	expandPrimaryContext: true,
 	expandEditDiffs: true,
+	expandToolIO: true,
 } as const;
 
 export interface RenderAdvisorDeltaChunksOptions {
@@ -66,6 +67,9 @@ export function renderAdvisorDeltaChunks(
 			toolResultIndex: resultsByCallId,
 			consumedToolCallIds: consumed,
 			watchedRoleState,
+			transformExpandedToolIO: opts.obfuscator
+				? text => opts.obfuscator!.obfuscate(text, opts.advisorRegexSecretValues)
+				: undefined,
 		});
 
 	const heading = "### Session update";

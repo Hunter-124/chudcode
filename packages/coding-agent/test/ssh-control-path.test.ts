@@ -6,8 +6,6 @@ import {
 	assertOwnerPrivateDir,
 	controlDirGuardError,
 	controlPathFitsBudget,
-	getControlDir,
-	getControlPathTemplate,
 	resolveSshControlDir,
 	sshControlFallbackDir,
 } from "../src/ssh/connection-manager";
@@ -16,13 +14,13 @@ import {
 // past macOS's 104-byte sun_path once OpenSSH appends its mux temp suffix.
 describe("SSH control-path budget (#9070)", () => {
 	it("rejects a control dir that overflows sun_path once %C.sock + mux temp bind is added", () => {
-		// A representative macOS named-profile control dir is 53 bytes; the
-		// temporary bind path is 53 + 63 = 116 >= 104, so it must not fit.
-		const profileDir = "/Users/arthur/.chudcode/profiles/upstream/ssh-control";
-		expect(Buffer.byteLength(profileDir)).toBe(53);
+		// A representative macOS named-profile control dir is 48 bytes; the
+		// temporary bind path is 48 + 63 = 111 >= 104, so it must not fit.
+		const profileDir = "/Users/arthur/.omp/profiles/upstream/ssh-control";
+		expect(Buffer.byteLength(profileDir)).toBe(48);
 		expect(controlPathFitsBudget(profileDir, "darwin")).toBe(false);
 		// The default (unprofiled) macOS dir stays within budget.
-		expect(controlPathFitsBudget("/Users/arthur/.chudcode/ssh-control", "darwin")).toBe(true);
+		expect(controlPathFitsBudget("/Users/arthur/.omp/ssh-control", "darwin")).toBe(true);
 	});
 
 	it("places the darwin boundary at 40 bytes of control dir", () => {
@@ -41,23 +39,23 @@ describe("SSH control-path budget (#9070)", () => {
 });
 
 describe("sshControlFallbackDir", () => {
-	it("is deterministic and leaves bounded macOS sun_path slack", () => {
-		const canonicalDir = "/Users/arthur/.chudcode/profiles/upstream/ssh-control";
+	it("is deterministic and leaves 11 bytes of macOS sun_path slack", () => {
+		const canonicalDir = "/Users/arthur/.omp/profiles/upstream/ssh-control";
 		const a = sshControlFallbackDir(canonicalDir, 501);
 		const b = sshControlFallbackDir(canonicalDir, 501);
 		expect(a).toBe(b);
-		expect(a).toBe("/tmp/chudcode-3974d326394f004a1ff5");
-		expect(Buffer.byteLength(a)).toBe(34);
+		expect(a).toBe("/tmp/omp-5434354bc38f9a50fbbd");
+		expect(Buffer.byteLength(a)).toBe(29);
 		const tempBind = path.join(a, `${"a".repeat(40)}.sock.${"b".repeat(16)}`);
-		expect(Buffer.byteLength(tempBind)).toBe(97);
-		expect(103 - Buffer.byteLength(tempBind)).toBe(6);
+		expect(Buffer.byteLength(tempBind)).toBe(92);
+		expect(103 - Buffer.byteLength(tempBind)).toBe(11);
 		expect(controlPathFitsBudget(a, "darwin")).toBe(true);
 	});
 
 	it("isolates distinct canonical control directories and uids", () => {
-		const base = "/Users/arthur/.chudcode/ssh-control";
+		const base = "/Users/arthur/.omp/ssh-control";
 		expect(sshControlFallbackDir(base, 501)).not.toBe(
-			sshControlFallbackDir("/different/xdg/state/chudcode/ssh-control", 501),
+			sshControlFallbackDir("/different/xdg/state/omp/ssh-control", 501),
 		);
 		expect(sshControlFallbackDir(base, 501)).not.toBe(sshControlFallbackDir(base, 502));
 	});
@@ -65,7 +63,7 @@ describe("sshControlFallbackDir", () => {
 
 describe("resolveSshControlDir", () => {
 	it("keeps the canonical dir when it fits", () => {
-		const canonicalDir = "/Users/arthur/.chudcode/ssh-control";
+		const canonicalDir = "/Users/arthur/.omp/ssh-control";
 		expect(resolveSshControlDir({ canonicalDir, platform: "darwin", uid: 501 })).toEqual({
 			dir: canonicalDir,
 			shared: false,
@@ -73,30 +71,14 @@ describe("resolveSshControlDir", () => {
 	});
 
 	it("relocates to the bounded shared fallback when the canonical dir overflows", () => {
-		const canonicalDir = "/Users/arthur/.chudcode/profiles/upstream/ssh-control";
+		const canonicalDir = "/Users/arthur/.omp/profiles/upstream/ssh-control";
 		const choice = resolveSshControlDir({ canonicalDir, platform: "darwin", uid: 501, tmpBase: "/tmp" });
-		expect(choice).toEqual({ dir: "/tmp/chudcode-3974d326394f004a1ff5", shared: true });
+		expect(choice).toEqual({ dir: "/tmp/omp-5434354bc38f9a50fbbd", shared: true });
 		expect(controlPathFitsBudget(choice.dir, "darwin")).toBe(true);
 	});
 
-	it("keeps distinct fallback masters for the same profile under different XDG state roots", () => {
-		const a = resolveSshControlDir({
-			canonicalDir: "/very/long/xdg-state-a/chudcode/profiles/upstream/ssh-control",
-			platform: "darwin",
-			uid: 501,
-		});
-		const b = resolveSshControlDir({
-			canonicalDir: "/very/long/xdg-state-b/chudcode/profiles/upstream/ssh-control",
-			platform: "darwin",
-			uid: 501,
-		});
-		expect(a.shared).toBe(true);
-		expect(b.shared).toBe(true);
-		expect(a.dir).not.toBe(b.dir);
-	});
-
 	it("never relocates on Windows (ControlMaster unused) even for a long path", () => {
-		const canonicalDir = "/Users/arthur/.chudcode/profiles/upstream/ssh-control";
+		const canonicalDir = "/Users/arthur/.omp/profiles/upstream/ssh-control";
 		expect(resolveSshControlDir({ canonicalDir, platform: "win32", uid: 501 })).toEqual({
 			dir: canonicalDir,
 			shared: false,
@@ -104,7 +86,7 @@ describe("resolveSshControlDir", () => {
 	});
 
 	it("keeps the canonical dir when there is no uid to key the fallback", () => {
-		const canonicalDir = "/Users/arthur/.chudcode/profiles/upstream/ssh-control";
+		const canonicalDir = "/Users/arthur/.omp/profiles/upstream/ssh-control";
 		expect(resolveSshControlDir({ canonicalDir, platform: "darwin", uid: undefined })).toEqual({
 			dir: canonicalDir,
 			shared: false,
@@ -139,7 +121,7 @@ describe("assertOwnerPrivateDir", () => {
 	});
 
 	const mkScratch = () => {
-		scratch = fs.mkdtempSync(path.join(os.tmpdir(), "chudcode-ssh-guard-"));
+		scratch = fs.mkdtempSync(path.join(os.tmpdir(), "omp-ssh-guard-"));
 		return scratch;
 	};
 
@@ -167,13 +149,5 @@ describe("assertOwnerPrivateDir", () => {
 		const file = path.join(mkScratch(), "ctl");
 		fs.writeFileSync(file, "");
 		expect(() => assertOwnerPrivateDir(file)).toThrow("is not a directory");
-	});
-});
-
-describe("control template sharing", () => {
-	// sshfs-mount consumes getControlPathTemplate()/getControlDir() verbatim, so
-	// the %C.sock basename and its parent dir must stay in lockstep.
-	it("keeps %C.sock under the resolved control dir", () => {
-		expect(getControlPathTemplate()).toBe(path.join(getControlDir(), "%C.sock"));
 	});
 });

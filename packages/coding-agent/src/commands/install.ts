@@ -1,10 +1,10 @@
 /**
- * `chudcode install <target>` — top-level convenience over `chudcode plugin install` /
- * `chudcode plugin link`.
+ * `omp install <target>` — top-level convenience over `omp plugin install` /
+ * `omp plugin link`.
  *
- * The docs (chudware.sh/docs/extension-authoring) advertise
+ * The docs (omp.sh/docs/extension-authoring) advertise
  *
- *   chudcode install ./my-extension
+ *   omp install ./my-extension
  *
  * as a third loading mechanism that "symlinks the directory into the plugin
  * set and watches it for changes". Before this command existed, `install` was
@@ -20,13 +20,14 @@
 
 import { existsSync } from "node:fs";
 import * as path from "node:path";
-import { Args, Command, Flags } from "@chudware/utils/cli";
+import { Args, Command, Flags } from "@oh-my-pi/pi-utils/cli";
+import { APP_NAME } from "@oh-my-pi/pi-utils/dirs";
 import { installHelp as commandHelp } from "../cli/command-help";
 import { type PluginAction, type PluginCommandArgs, runPluginCommand } from "../cli/plugin-cli";
-import { initTheme } from "../modes/theme/theme";
+import { initTheme } from "@oh-my-pi/pi-tui/theme";
 
 /**
- * Heuristic used to decide whether `chudcode install <target>` should `link` a
+ * Heuristic used to decide whether `omp install <target>` should `link` a
  * local directory or `install` a remote spec. Exported for tests.
  */
 export function looksLikeLocalPath(target: string, cwd?: string): boolean {
@@ -66,7 +67,7 @@ export default class Install extends Command {
 		const targets = Array.isArray(args.targets) ? args.targets : args.targets ? [args.targets] : [];
 
 		if (targets.length === 0) {
-			process.stderr.write("Usage: chudcode install <path | npm-spec | name@marketplace> [...]\n");
+			process.stderr.write(`Usage: ${APP_NAME} install <path | npm-spec | name@marketplace> [...]\n`);
 			process.exit(1);
 		}
 

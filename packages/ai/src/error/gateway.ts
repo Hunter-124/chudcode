@@ -23,7 +23,7 @@ export interface GatewayErrorClassification {
 export function classifyGatewayError(err: unknown): GatewayErrorClassification {
 	const message = err instanceof Error ? err.message : String(err);
 
-	// 1. Custom chud-ai errors may attach a numeric `status` property.
+	// 1. Custom pi-ai errors may attach a numeric `status` property.
 	const statusProp =
 		typeof err === "object" && err !== null && typeof (err as { status?: unknown }).status === "number"
 			? (err as { status: number }).status | 0

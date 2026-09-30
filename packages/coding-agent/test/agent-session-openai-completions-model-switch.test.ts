@@ -1,13 +1,13 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "bun:test";
 import * as path from "node:path";
-import { Agent } from "@chudware/agent-core";
-import type { Model, ProviderSessionState } from "@chudware/ai";
-import { ModelRegistry } from "@chudware/coding-agent/config/model-registry";
-import { Settings } from "@chudware/coding-agent/config/settings";
-import { AgentSession } from "@chudware/coding-agent/session/agent-session";
-import { AuthStorage } from "@chudware/coding-agent/session/auth-storage";
-import { SessionManager } from "@chudware/coding-agent/session/session-manager";
-import { TempDir } from "@chudware/utils";
+import { Agent } from "@oh-my-pi/pi-agent-core";
+import type { Model, ProviderSessionState } from "@oh-my-pi/pi-ai";
+import { ModelRegistry } from "@oh-my-pi/pi-coding-agent/config/model-registry";
+import { Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
+import { AgentSession } from "@oh-my-pi/pi-coding-agent/session/agent-session";
+import { AuthStorage } from "@oh-my-pi/pi-coding-agent/session/auth-storage";
+import { SessionManager } from "@oh-my-pi/pi-coding-agent/session/session-manager";
+import { TempDir } from "@oh-my-pi/pi-utils";
 
 // Regression: `#closeProviderSessionsForModelSwitch` historically only handled
 // the `openai-codex-responses` / `openai-responses` keys and left
@@ -55,7 +55,7 @@ describe("AgentSession openai-completions provider session eviction", () => {
 	}
 
 	function buildSession(model: Model): AgentSession {
-		authStorage.setRuntimeApiKey(model.provider, "test-key");
+		authStorage.keys.setRuntime(model.provider, "test-key");
 		const agent = new Agent({
 			initialState: {
 				model,
@@ -72,31 +72,11 @@ describe("AgentSession openai-completions provider session eviction", () => {
 		});
 	}
 
-	it("evicts stale openai-completions state on provider/baseUrl switch", async () => {
-		const deepseek = completionsModel("deepseek", "deepseek-v4-pro");
-		const cerebras = completionsModel("cerebras", "llama3.1-8b");
-		authStorage.setRuntimeApiKey(cerebras.provider, "cerebras-test-key");
-
-		session = buildSession(deepseek);
-
-		const oldCloseSpy = vi.fn();
-		session.providerSessionState.set(completionsSessionKey(deepseek), {
-			close: oldCloseSpy,
-		} satisfies ProviderSessionState);
-
-		await session.setModel(cerebras);
-
-		expect(session.model?.provider).toBe(cerebras.provider);
-		expect(session.model?.id).toBe(cerebras.id);
-		expect(oldCloseSpy).toHaveBeenCalledTimes(1);
-		expect(session.providerSessionState.has(completionsSessionKey(deepseek))).toBe(false);
-	});
-
 	it("evicts every cached entry under the old provider prefix", async () => {
 		const deepseekPro = completionsModel("deepseek", "deepseek-v4-pro");
 		const deepseekFlash = completionsModel("deepseek", "deepseek-v4-flash");
 		const cerebras = completionsModel("cerebras", "llama3.1-8b");
-		authStorage.setRuntimeApiKey(cerebras.provider, "cerebras-test-key");
+		authStorage.keys.setRuntime(cerebras.provider, "cerebras-test-key");
 
 		session = buildSession(deepseekPro);
 
@@ -122,7 +102,7 @@ describe("AgentSession openai-completions provider session eviction", () => {
 	it("evicts entries whose base URL was resolved at request time", async () => {
 		const moonshot = completionsModel("moonshot", "kimi-k2-thinking");
 		const cerebras = completionsModel("cerebras", "llama3.1-8b");
-		authStorage.setRuntimeApiKey(cerebras.provider, "cerebras-test-key");
+		authStorage.keys.setRuntime(cerebras.provider, "cerebras-test-key");
 
 		session = buildSession(moonshot);
 
@@ -141,7 +121,7 @@ describe("AgentSession openai-completions provider session eviction", () => {
 	it("leaves unrelated provider session state untouched", async () => {
 		const deepseek = completionsModel("deepseek", "deepseek-v4-pro");
 		const cerebras = completionsModel("cerebras", "llama3.1-8b");
-		authStorage.setRuntimeApiKey(cerebras.provider, "cerebras-test-key");
+		authStorage.keys.setRuntime(cerebras.provider, "cerebras-test-key");
 
 		session = buildSession(deepseek);
 

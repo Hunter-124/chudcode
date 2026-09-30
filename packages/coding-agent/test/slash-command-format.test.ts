@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "bun:test";
-import * as settingsModule from "@chudware/coding-agent/config/settings";
-import type { Theme } from "@chudware/coding-agent/modes/theme/theme";
-import { renderAsciiBar } from "@chudware/coding-agent/slash-commands/helpers/format";
+import * as settingsModule from "@oh-my-pi/pi-coding-agent/config/settings";
+import type { Theme } from "@oh-my-pi/pi-tui/theme";
+import { renderAsciiBar } from "@oh-my-pi/pi-tui/chrome/format";
 
 const testTheme = {
 	fg(color: Parameters<Theme["fg"]>[0], text: string): string {
@@ -25,8 +25,8 @@ const testTheme = {
 	},
 };
 
-// 12 cells/s with classic padding 10 positions the crest on the first cell.
-const CLASSIC_CREST_VISIBLE_MS = 833;
+// 30 cells/s with classic padding 10 positions the crest on the first cell.
+const CLASSIC_CREST_VISIBLE_MS = 333;
 
 describe("renderAsciiBar", () => {
 	beforeEach(() => {

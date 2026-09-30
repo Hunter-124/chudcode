@@ -14,7 +14,7 @@
  * {@link defaultLoadModeForToolName} pins these names to `"essential"` when the
  * definition omits `loadMode`, so re-registering a built-in never demotes it.
  */
-import type { ToolLoadMode } from "@chudware/agent-core";
+import type { ToolLoadMode } from "@oh-my-pi/pi-agent-core";
 
 /**
  * Built-in tool names whose classes declare `loadMode = "essential"`. Kept in
@@ -26,12 +26,14 @@ export const ESSENTIAL_BUILTIN_TOOL_NAMES: Record<string, true> = {
 	bash: true,
 	edit: true,
 	glob: true,
-	computer: true,
+	find: true,
 	eval: true,
 	task: true,
-	hub: true,
+	wait: true,
 	learn: true,
 	manage_skill: true,
+	context_notes: true,
+	new_context: true,
 };
 
 /**

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "bun:test";
-import "@chudware/coding-agent/tools/yield";
-import { subprocessToolRegistry } from "@chudware/coding-agent/task/subprocess-tool-registry";
+import "@oh-my-pi/pi-coding-agent/tools/yield";
+import { subprocessToolRegistry } from "@oh-my-pi/pi-coding-agent/task/subprocess-tool-registry";
 
 describe("yield subprocess extraction", () => {
 	const handler = subprocessToolRegistry.getHandler("yield");
@@ -78,6 +78,17 @@ describe("yield subprocess extraction", () => {
 				isError: false,
 			}),
 		).toBe(false);
+		expect(
+			handler?.shouldTerminate?.({
+				toolName: "yield",
+				toolCallId: "call-workpool-complete",
+				result: {
+					content: [{ type: "text", text: "All workpool items are complete." }],
+					details: { status: "success", data: { ok: true }, type: ["review#2"], complete: true },
+				},
+				isError: false,
+			}),
+		).toBe(true);
 		expect(
 			handler?.shouldTerminate?.({
 				toolName: "yield",

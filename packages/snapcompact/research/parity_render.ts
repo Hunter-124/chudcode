@@ -8,14 +8,13 @@
  * path the agent ships) and writes the PNG bytes to `out-png`.
  */
 import * as snapcompact from "../src/snapcompact";
-import * as fsx from "@chudware/utils/fsx";
 
 const [textFile, shapeJson, outPng] = Bun.argv.slice(2);
 if (!textFile || !shapeJson || !outPng) {
 	throw new Error("usage: bun parity_render.ts <text-file> <shape-json> <out-png>");
 }
 
-const text = await fsx.readText(textFile);
+const text = await Bun.file(textFile).text();
 const shape = JSON.parse(shapeJson) as snapcompact.Shape;
 if (!snapcompact.isShape(shape)) {
 	throw new Error(`shape json is not a complete Shape: ${shapeJson}`);
@@ -25,4 +24,4 @@ const frames = await snapcompact.renderMany(text, { shape, maxFrames: 1 });
 if (frames.length === 0) {
 	throw new Error("renderMany produced no frames");
 }
-await fsx.write(outPng, Buffer.from(frames[0].data, "base64"));
+await Bun.write(outPng, Buffer.from(frames[0].data, "base64"));

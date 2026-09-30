@@ -1,4 +1,4 @@
-import { deviceCheckGenerateToken } from "@chudware/natives";
+import { deviceCheckGenerateToken } from "@oh-my-pi/pi-natives";
 
 const CHATGPT_BUNDLE_ID = "com.openai.codex";
 const APP_SESSION_ID = crypto.randomUUID();

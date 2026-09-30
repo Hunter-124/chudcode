@@ -2,23 +2,24 @@ import { describe, expect, test } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import { removeWithRetries } from "@chudware/utils";
-import * as fsx from "@chudware/utils/fsx";
+import { removeWithRetries } from "@oh-my-pi/pi-utils";
 
 const repoRoot = path.resolve(import.meta.dir, "..", "..", "..");
 const cliEntry = path.join(repoRoot, "packages", "coding-agent", "src", "cli.ts");
 const probeEntry = path.join(import.meta.dir, "fixtures", "cli-initial-title-probe.ts");
 const hasPtyHarness =
-	process.platform === "linux" && (await fsx.exists("/usr/bin/script")) && (await fsx.exists("/usr/bin/timeout"));
+	process.platform === "linux" &&
+	(await Bun.file("/usr/bin/script").exists()) &&
+	(await Bun.file("/usr/bin/timeout").exists());
 
 describe.skipIf(!hasPtyHarness)("CLI initial-message title generation", () => {
 	test("generates a title for the positional initial message", async () => {
-		const root = await fs.mkdtemp(path.join(os.tmpdir(), "chudcode-cli-title-"));
+		const root = await fs.mkdtemp(path.join(os.tmpdir(), "omp-cli-title-"));
 		const agentDir = path.join(root, "agent");
 		const outputPath = path.join(root, "probe.json");
 		try {
 			await fs.mkdir(agentDir, { recursive: true });
-			await fsx.write(
+			await Bun.write(
 				path.join(agentDir, "config.yml"),
 				"setupVersion: 1\nstartup:\n  setupWizard: false\n  showSplash: false\n  checkUpdate: false\nproviders:\n  tinyModel: online\n",
 			);
@@ -32,7 +33,9 @@ describe.skipIf(!hasPtyHarness)("CLI initial-message title generation", () => {
 				"anthropic/claude-sonnet-4-5",
 				JSON.stringify("implement X"),
 			].join(" ");
-			const proc = Bun.spawn(["timeout", "10s", "script", "-q", "-c", command, "/dev/null"], {
+			// The child cold-starts and transpiles the CLI graph; loaded CI runners need far more than an idle
+			// boot. `timeout` stays below the test budget so a hung interactive session is killed and cleaned up.
+			const proc = Bun.spawn(["timeout", "25s", "script", "-q", "-c", command, "/dev/null"], {
 				cwd: repoRoot,
 				stdout: "pipe",
 				stderr: "pipe",
@@ -40,9 +43,9 @@ describe.skipIf(!hasPtyHarness)("CLI initial-message title generation", () => {
 					...process.env,
 					HOME: root,
 					NO_COLOR: "1",
-					CHUDCODE_TITLE_PROBE_PATH: outputPath,
-					CHUDCODE_CODING_AGENT_DIR: agentDir,
-					CHUDCODE_NO_TITLE: "",
+					OMP_TITLE_PROBE_PATH: outputPath,
+					PI_CODING_AGENT_DIR: agentDir,
+					PI_NO_TITLE: "",
 					TERM: "xterm-256color",
 				},
 			});
@@ -54,11 +57,11 @@ describe.skipIf(!hasPtyHarness)("CLI initial-message title generation", () => {
 			]);
 
 			expect({ exitCode, stderr, stdoutBytes: stdout.byteLength }).toMatchObject({ exitCode: 0, stderr: "" });
-			expect(await fsx.readText(outputPath)).toBe(
+			expect(await Bun.file(outputPath).text()).toBe(
 				JSON.stringify({ generatedFrom: "implement X", sessionName: "CLI Initial Title" }),
 			);
 		} finally {
 			await removeWithRetries(root);
 		}
-	}, 15_000);
+	}, 30_000);
 });

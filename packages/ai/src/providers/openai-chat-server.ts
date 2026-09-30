@@ -1,8 +1,8 @@
 import { randomUUID } from "node:crypto";
-import { type } from "@chudware/chudtype";
+import { type } from "@oh-my-pi/omptype";
 import { resolvePromptCacheKey } from "../auth-gateway/http";
 /**
- * Parsed inbound OpenAI chat-completions request, ready to feed into chud-ai
+ * Parsed inbound OpenAI chat-completions request, ready to feed into pi-ai
  * `stream(model, context, options)`.
  */
 import type { AuthGatewayStreamControl, AuthGatewayParsedRequest as ParsedRequest } from "../auth-gateway/types";
@@ -30,6 +30,7 @@ import {
 	openaiChatRequestSchema,
 } from "./openai-chat-server-schema";
 import { decodeDataUri } from "./openai-data-uri";
+import { coerceNullMessageContentInPlace } from "./openai-shared";
 
 export type { ParsedRequest };
 
@@ -90,6 +91,9 @@ export function parseRequest(body: unknown, headers?: Headers): ParsedRequest {
 	// for `resolvePromptCacheKey` to pull a cache identity out of inbound
 	// vendor-neutral headers when the body doesn't carry one.
 	rejectUnsupportedExplicitPromptCacheFields(body);
+	const request =
+		typeof body === "object" && body !== null && !Array.isArray(body) ? (body as Record<string, unknown>) : undefined;
+	coerceNullMessageContentInPlace(request?.messages, message => message.role !== "function");
 	const parsed = openaiChatRequestSchema(body);
 	if (parsed instanceof type.errors) {
 		throw new AIError.ValidationError(`openai-chat: ${parsed.summary}`);
@@ -196,7 +200,9 @@ export function parseRequest(body: unknown, headers?: Headers): ParsedRequest {
 	if (data.user !== undefined) options.user = data.user;
 	if (data.response_format !== undefined) options.responseFormat = data.response_format;
 	if (data.parallel_tool_calls !== undefined) options.parallelToolCalls = data.parallel_tool_calls;
-	if (data.reasoning_effort !== undefined && isReasoningEffort(data.reasoning_effort)) {
+	if (data.reasoning_effort === "none") {
+		options.forceReasoningOff = true;
+	} else if (data.reasoning_effort !== undefined && isReasoningEffort(data.reasoning_effort)) {
 		options.reasoning = data.reasoning_effort;
 	}
 	if (data.service_tier !== undefined && isServiceTier(data.service_tier)) {
@@ -238,7 +244,7 @@ function parseUserLikeContent(
 		}
 		if (part.type !== "image_url") continue;
 		// input_audio / file / refusal / unknown-type parts are accepted by the
-		// schema for forward-compat but dropped here — chud-ai's canonical user
+		// schema for forward-compat but dropped here — pi-ai's canonical user
 		// content only models text and image today.
 		const url = typeof part.image_url === "string" ? part.image_url : part.image_url.url;
 		const decoded = decodeDataUri(url);
@@ -311,7 +317,7 @@ function buildAssistantMessage(
 
 /**
  * Walk a wire `tool` (or legacy `function`) message into canonical messages.
- * Tool-result content may carry images alongside text; chud-ai's
+ * Tool-result content may carry images alongside text; pi-ai's
  * `ToolResultMessage` accepts both, but most downstream providers ignore
  * images on tool results. To mirror Rust's `encode_messages` behavior we
  * keep text inside the tool-result message and hoist any image parts into a
@@ -413,7 +419,7 @@ export function encodeResponse(message: AssistantMessage, requestedModelId: stri
 	const responseMessage: Record<string, unknown> = {
 		role: "assistant",
 		content: text.length > 0 ? text : null,
-		// chud-ai does not surface real refusals yet; emit `null` so SDKs that
+		// pi-ai does not surface real refusals yet; emit `null` so SDKs that
 		// probe `.refusal` see the documented field shape rather than missing.
 		refusal: null,
 	};
@@ -512,7 +518,7 @@ function stringifyArgs(args: Record<string, unknown>): string {
 function mapFinishReason(reason: StopReason, hasToolCalls: boolean): string {
 	if (reason === "toolUse" || (hasToolCalls && reason === "stop")) return "tool_calls";
 	if (reason === "length") return "length";
-	// chud-ai's StopReason does not currently carry a content-filter signal;
+	// pi-ai's StopReason does not currently carry a content-filter signal;
 	// when it does, map it to "content_filter" here.
 	return "stop";
 }
@@ -569,7 +575,7 @@ export function encodeStream(
 
 	return new ReadableStream<Uint8Array>({
 		async start(controller) {
-			// contentIndex (from chud-ai events) -> tool_calls index on the wire.
+			// contentIndex (from pi-ai events) -> tool_calls index on the wire.
 			const toolIndexByContentIndex = new Map<number, number>();
 			// wire index -> metadata emitted so far, to detect values that need a
 			// concatenation-safe corrective chunk before the finish.

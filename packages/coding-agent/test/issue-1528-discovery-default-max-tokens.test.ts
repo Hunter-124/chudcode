@@ -2,10 +2,10 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
-import type { FetchImpl } from "@chudware/ai/types";
-import { ModelRegistry } from "@chudware/coding-agent/config/model-registry";
-import { AuthStorage } from "@chudware/coding-agent/session/auth-storage";
-import { removeSyncWithRetries, Snowflake } from "@chudware/utils";
+import type { FetchImpl } from "@oh-my-pi/pi-ai/types";
+import { ModelRegistry } from "@oh-my-pi/pi-coding-agent/config/model-registry";
+import { AuthStorage } from "@oh-my-pi/pi-coding-agent/session/auth-storage";
+import { removeSyncWithRetries, Snowflake } from "@oh-my-pi/pi-utils";
 
 /**
  * Issue #1528: auto-discovered OpenAI-compatible models defaulted to
@@ -22,7 +22,7 @@ describe("issue #1528 discovery maxTokens default", () => {
 	let authStorage: AuthStorage;
 
 	beforeEach(async () => {
-		tempDir = path.join(os.tmpdir(), `chud-test-issue-1528-${Snowflake.next()}`);
+		tempDir = path.join(os.tmpdir(), `pi-test-issue-1528-${Snowflake.next()}`);
 		fs.mkdirSync(tempDir, { recursive: true });
 		modelsPath = path.join(tempDir, "models.yml");
 		authStorage = await AuthStorage.create(path.join(tempDir, "auth.db"));

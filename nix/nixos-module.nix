@@ -6,17 +6,17 @@
   ...
 }:
 let
-  cfg = config.programs.chudcode;
+  cfg = config.programs.omp;
 in
 {
-  options.programs.chudcode = {
-    enable = lib.mkEnableOption "Chudcode coding agent";
+  options.programs.omp = {
+    enable = lib.mkEnableOption "OMP coding agent";
 
     package = lib.mkOption {
       type = lib.types.package;
       default = self.packages.${pkgs.stdenv.hostPlatform.system}.default;
-      defaultText = lib.literalExpression "inputs.chudcode.packages.${pkgs.stdenv.hostPlatform.system}.default";
-      description = "Chudcode package to install system-wide.";
+      defaultText = lib.literalExpression "inputs.omp.packages.${pkgs.stdenv.hostPlatform.system}.default";
+      description = "OMP package to install system-wide.";
     };
   };
 

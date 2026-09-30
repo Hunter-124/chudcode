@@ -10,7 +10,6 @@
 import { Database } from "bun:sqlite";
 import * as fs from "node:fs";
 import * as path from "node:path";
-import { sleepSync } from "@chudware/utils/async";
 import { readBenchmarkSnapshot } from "./benchmarks";
 import { readJobResult } from "./runner";
 
@@ -98,7 +97,7 @@ CREATE TABLE IF NOT EXISTS runs (
 	job_name TEXT PRIMARY KEY,
 	benchmark TEXT NOT NULL DEFAULT 'harbor',
 	dataset TEXT NOT NULL DEFAULT '',
-	agent TEXT NOT NULL DEFAULT 'chudcode',
+	agent TEXT NOT NULL DEFAULT 'omp',
 	models TEXT NOT NULL DEFAULT '',
 	prewalk TEXT,
 	role TEXT NOT NULL DEFAULT '',
@@ -173,13 +172,20 @@ function enableWal(db: Database): void {
 			return;
 		} catch (err) {
 			if (attempt < attempts && isBusyLock(err)) {
-				sleepSync(100);
+				Bun.sleepSync(100);
 				continue;
 			}
 			throw err;
 		}
 	}
 }
+
+// Live-trial persist quanta: cost/duration move every 2s tick, but the
+// dashboard only needs coarse liveness — rewrite when the movement exceeds
+// these, or on heartbeat below, instead of every tick.
+const LIVE_COST_QUANTUM_USD = 0.001;
+const LIVE_DURATION_QUANTUM_MS = 30_000;
+const LIVE_HEARTBEAT_MS = 10_000;
 
 export class RunStore {
 	#db: Database;
@@ -369,16 +375,55 @@ export class RunStore {
 				trace_path = excluded.trace_path, updated_at = excluded.updated_at`,
 		);
 		const tx = this.#db.transaction(() => {
-			// Prune rows whose trial dirs vanished from disk (a resume deletes
-			// interrupted trial dirs and re-runs the task under a fresh suffix) —
-			// otherwise phantom `running` rows haunt the dashboard forever.
-			if (snapshot.traces.length > 0) {
-				const names = snapshot.traces.map(t => t.name);
-				this.#db
-					.query(`DELETE FROM trials WHERE job_name = ? AND name NOT IN (${names.map(() => "?").join(",")})`)
-					.run(jobName, ...names);
-			}
+			// Diff before writing: the 2s manager tick re-syncs every running
+			// run, but trials rarely change between ticks. Read current rows
+			// once, upsert only changed ones, and prune only names that
+			// actually disappeared — avoiding N writes + a dynamically-shaped
+			// DELETE (fresh statement per trial count) per tick. Live
+			// running-trial cost/duration persist coarsely (quanta +
+			// heartbeat) so the dashboard stays live without per-tick writes.
+			const current = new Map(
+				(
+					this.#db
+						.query(
+							"SELECT name, status, reward, cost_usd, duration_ms, detail, trace_path, updated_at FROM trials WHERE job_name = ?",
+						)
+						.all(jobName) as Array<{
+						name: string;
+						status: string;
+						reward: number | null;
+						cost_usd: number | null;
+						duration_ms: number | null;
+						detail: string | null;
+						trace_path: string | null;
+						updated_at: number | null;
+					}>
+				).map(row => [row.name, row]),
+			);
+			const seen = new Set<string>();
 			for (const trace of snapshot.traces) {
+				seen.add(trace.name);
+				const prev = current.get(trace.name);
+				// Live running-trial cost/duration DO persist (the run-detail
+				// dashboard reads those columns), but coarsely: a change below
+				// the quanta refreshes on heartbeat instead of every 2s tick.
+				const costMoved =
+					(prev?.cost_usd ?? null) !== (trace.costUsd ?? null) &&
+					Math.abs((prev?.cost_usd ?? 0) - (trace.costUsd ?? 0)) >= LIVE_COST_QUANTUM_USD;
+				const durationMoved =
+					(prev?.duration_ms ?? null) !== (trace.durationMs ?? null) &&
+					Math.abs((prev?.duration_ms ?? 0) - (trace.durationMs ?? 0)) >= LIVE_DURATION_QUANTUM_MS;
+				const heartbeatDue = prev !== undefined && now - (prev.updated_at ?? 0) >= LIVE_HEARTBEAT_MS;
+				const same =
+					prev !== undefined &&
+					prev.status === trace.status &&
+					(prev.reward ?? null) === (trace.reward ?? null) &&
+					(prev.detail ?? null) === (trace.detail ?? null) &&
+					(prev.trace_path ?? null) === (trace.tracePath ?? null) &&
+					!costMoved &&
+					!durationMoved &&
+					!heartbeatDue;
+				if (same) continue;
 				upsert.run(
 					jobName,
 					trace.name,
@@ -391,6 +436,20 @@ export class RunStore {
 					trace.tracePath,
 					now,
 				);
+			}
+			// Prune only names that disappeared (known from the diff above),
+			// with a fixed-shape statement per count handled by Bun's cache.
+			// Never prune from an empty snapshot: readTrials returns [] on
+			// any readdir failure and other adapters return empty snapshots
+			// while their primary artifact is absent, so an empty scan is
+			// ambiguous between "no trials" and "transient read failure" —
+			// wiping persisted history on it would destroy dashboard state
+			// that no later tick can reconstruct.
+			const vanished = snapshot.traces.length > 0 ? [...current.keys()].filter(name => !seen.has(name)) : [];
+			if (vanished.length > 0) {
+				this.#db
+					.query(`DELETE FROM trials WHERE job_name = ? AND name IN (${vanished.map(() => "?").join(",")})`)
+					.run(jobName, ...vanished);
 			}
 			this.#db
 				.query(
@@ -544,11 +603,11 @@ function readHarborConfig(jobDir: string): { dataset: string; agent: string; mod
 				? raw.dataset
 				: (((raw.datasets as Array<Record<string, unknown>> | undefined)?.[0]?.name as string | undefined) ?? "");
 		const agents = raw.agents as Array<Record<string, unknown>> | undefined;
-		const agent = (agents?.[0]?.name as string | undefined) ?? "chudcode";
+		const agent = (agents?.[0]?.name as string | undefined) ?? "omp";
 		const models = (agents?.[0]?.model_name as string | undefined) ?? "";
 		return { dataset: String(dataset), agent, models };
 	} catch {
-		return { dataset: "", agent: "chudcode", models: "" };
+		return { dataset: "", agent: "omp", models: "" };
 	}
 }
 

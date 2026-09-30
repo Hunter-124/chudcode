@@ -9,7 +9,7 @@ import type {
 	SessionHeader,
 	SessionState,
 	WireModel,
-} from "@chudware/wire";
+} from "@oh-my-pi/pi-wire";
 
 export const DESKTOP_PROTOCOL_VERSION = 1 as const;
 

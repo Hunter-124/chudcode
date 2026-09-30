@@ -1,6 +1,5 @@
-import type { FetchImpl } from "@chudware/ai";
-import { getProjectDir, untilAborted } from "@chudware/utils";
-import { sleep } from "@chudware/utils/async";
+import type { FetchImpl } from "@oh-my-pi/pi-ai";
+import { getProjectDir, untilAborted } from "@oh-my-pi/pi-utils";
 import type { Page } from "puppeteer-core";
 import { applyStealthPatches, applyViewport } from "../../../tools/browser/launch";
 import { acquireBrowser, holdBrowser, releaseBrowser } from "../../../tools/browser/registry";
@@ -96,7 +95,7 @@ async function browseHtmlPage(
 			);
 		}
 		for (let attempt = 0; attempt < attempts; attempt++) {
-			if (attempt > 0 && options.retryDelayMs) await sleep(options.retryDelayMs);
+			if (attempt > 0 && options.retryDelayMs) await Bun.sleep(options.retryDelayMs);
 
 			const response = await untilAborted(signal, () =>
 				activePage.goto(url, { waitUntil: "domcontentloaded", timeout: timeoutMs }),

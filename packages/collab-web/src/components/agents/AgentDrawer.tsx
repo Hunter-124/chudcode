@@ -1,9 +1,9 @@
-import type { AgentSnapshot, SessionEntry, SubagentProgressPayload } from "@chudware/wire";
+import type { AgentSnapshot, SessionEntry, SubagentProgressPayload } from "@oh-my-pi/pi-wire";
 import { OctagonX, RotateCcw, SendHorizontal, X } from "lucide-react";
 import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
-import { fmtCost, fmtDuration, fmtTokens } from "../../lib/format";
 import type { SessionClient } from "../../lib/session-client";
+import { fmtCost, fmtDuration, fmtTokens } from "../../lib/format";
 import { decideTranscriptPoll } from "../../lib/transcript-poll";
 import type { TranscriptProps } from "../transcript/Transcript";
 import { Transcript } from "../transcript/Transcript";

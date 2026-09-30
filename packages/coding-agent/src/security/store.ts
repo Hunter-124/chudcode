@@ -1,9 +1,8 @@
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
-import { getSecurityProjectDir, isEnoent } from "@chudware/utils";
-import { withFileLock } from "@chudware/utils/file-lock";
-import * as fsx from "@chudware/utils/fsx";
-import * as git from "../utils/git";
+import * as vcs from "@oh-my-pi/pi-natives/vcs";
+import { getSecurityProjectDir, isEnoent } from "@oh-my-pi/pi-utils";
+import { withFileLock } from "@oh-my-pi/pi-utils/file-lock";
 import { compareSecurityLineage } from "./comparison";
 import type {
 	SecurityComparisonReport,
@@ -133,12 +132,12 @@ export async function writeSecurityBundleToDirectory(directory: string, input: S
 }
 
 async function readJsonFile(filePath: string): Promise<unknown> {
-	return JSON.parse(await fsx.readText(filePath)) as unknown;
+	return JSON.parse(await Bun.file(filePath).text()) as unknown;
 }
 
 async function readOptionalText(filePath: string): Promise<string | undefined> {
 	try {
-		return await fsx.readText(filePath);
+		return await Bun.file(filePath).text();
 	} catch (error) {
 		if (isEnoent(error)) return undefined;
 		throw error;
@@ -170,7 +169,8 @@ export class SecurityStore {
 
 	static async openForCwd(cwd: string, options: SecurityStoreOptions = {}): Promise<SecurityStore> {
 		const resolvedCwd = path.resolve(cwd);
-		const repositoryRoot = (await git.repo.root(resolvedCwd, options.signal)) ?? resolvedCwd;
+		options.signal?.throwIfAborted();
+		const repositoryRoot = vcs.repo(resolvedCwd)?.root() ?? resolvedCwd;
 		return SecurityStore.open(repositoryRoot, options);
 	}
 

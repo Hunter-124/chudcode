@@ -1,5 +1,5 @@
 /**
- * Routing tests for `chudcode plugin install <local-path>` (#1945).
+ * Routing tests for `omp plugin install <local-path>` (#1945).
  *
  * Two layers of coverage:
  *  1. Spy-based: `runPluginCommand` with a local path calls
@@ -16,13 +16,12 @@ import { afterEach, beforeEach, describe, expect, mock, spyOn, test } from "bun:
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import { runPluginCommand } from "@chudware/coding-agent/cli/plugin-cli";
-import { PluginManager } from "@chudware/coding-agent/extensibility/plugins/manager";
-import { MarketplaceManager } from "@chudware/coding-agent/extensibility/plugins/marketplace";
-import type { InstalledPlugin } from "@chudware/coding-agent/extensibility/plugins/types";
-import * as piUtils from "@chudware/utils";
-import { removeWithRetries } from "@chudware/utils";
-import * as fsx from "@chudware/utils/fsx";
+import { runPluginCommand } from "@oh-my-pi/pi-coding-agent/cli/plugin-cli";
+import { PluginManager } from "@oh-my-pi/pi-coding-agent/extensibility/plugins/manager";
+import { MarketplaceManager } from "@oh-my-pi/pi-coding-agent/extensibility/plugins/marketplace";
+import type { InstalledPlugin } from "@oh-my-pi/pi-coding-agent/extensibility/plugins/types";
+import * as piUtils from "@oh-my-pi/pi-utils";
+import { removeWithRetries } from "@oh-my-pi/pi-utils";
 
 const FAKE_INSTALLED: InstalledPlugin = {
 	name: "kimi-datasource",
@@ -33,15 +32,15 @@ const FAKE_INSTALLED: InstalledPlugin = {
 	enabled: true,
 };
 
-async function createLocalPlugin(root: string): Promise<string> {
-	const localPlugin = path.join(root, "kimi-datasource");
+async function createLocalPlugin(root: string, name = "kimi-datasource"): Promise<string> {
+	const localPlugin = path.join(root, name);
 	await fs.mkdir(localPlugin, { recursive: true });
-	await fsx.write(
+	await Bun.write(
 		path.join(localPlugin, "package.json"),
 		JSON.stringify({
-			name: "kimi-datasource",
+			name,
 			version: "1.0.0",
-			chudcode: { extensions: ["./src/extension.ts"] },
+			omp: { extensions: ["./src/extension.ts"] },
 		}),
 	);
 	return localPlugin;
@@ -51,14 +50,14 @@ describe("runPluginCommand({ action: 'install', args: [<local>] })", () => {
 	let tmpRoot: string;
 
 	beforeEach(async () => {
-		tmpRoot = await fs.mkdtemp(path.join(os.tmpdir(), "chudcode-plugin-install-local-"));
+		tmpRoot = await fs.mkdtemp(path.join(os.tmpdir(), "omp-plugin-install-local-"));
 		const pluginsDir = path.join(tmpRoot, "plugins");
 		await fs.mkdir(path.join(pluginsDir, "node_modules"), { recursive: true });
 
 		spyOn(piUtils, "getPluginsDir").mockReturnValue(pluginsDir);
 		spyOn(piUtils, "getPluginsNodeModules").mockReturnValue(path.join(pluginsDir, "node_modules"));
 		spyOn(piUtils, "getPluginsPackageJson").mockReturnValue(path.join(pluginsDir, "package.json"));
-		spyOn(piUtils, "getPluginsLockfile").mockReturnValue(path.join(tmpRoot, "chudcode-plugins.lock.json"));
+		spyOn(piUtils, "getPluginsLockfile").mockReturnValue(path.join(tmpRoot, "omp-plugins.lock.json"));
 		spyOn(piUtils, "getProjectDir").mockReturnValue(tmpRoot);
 		spyOn(piUtils, "getProjectPluginOverridesPath").mockReturnValue(path.join(tmpRoot, "plugin-overrides.json"));
 		// runPluginCommand always builds a MarketplaceManager to enumerate
@@ -122,11 +121,22 @@ describe("runPluginCommand({ action: 'install', args: [<local>] })", () => {
 		}
 	});
 
+	test("link dry-run leaves filesystem state untouched", async () => {
+		const localPlugin = await createLocalPlugin(tmpRoot);
+		const linkTarget = path.join(tmpRoot, "plugins", "node_modules", "kimi-datasource");
+		const lockfile = path.join(tmpRoot, "omp-plugins.lock.json");
+
+		await runPluginCommand({ action: "link", args: [localPlugin], flags: { dryRun: true, json: true } });
+
+		await expect(fs.lstat(linkTarget)).rejects.toHaveProperty("code", "ENOENT");
+		expect(await Bun.file(lockfile).exists()).toBe(false);
+	});
+
 	test("real local plugin directory: install symlinks it like link would", async () => {
 		// End-to-end: stage a real plugin folder, route through plugin-cli
 		// (no spies on PluginManager.link), and verify the resulting symlink
 		// + lockfile entry. Pins the contract that local-path installs
-		// symlink rather than copy-install, matching `chudcode plugin link`.
+		// symlink rather than copy-install, matching `omp plugin link`.
 		const localPlugin = await createLocalPlugin(tmpRoot);
 
 		await runPluginCommand({ action: "install", args: [localPlugin], flags: { json: true } });
@@ -136,13 +146,55 @@ describe("runPluginCommand({ action: 'install', args: [<local>] })", () => {
 		expect(stat.isSymbolicLink()).toBe(true);
 		expect(await fs.readlink(linkTarget)).toBe(localPlugin);
 
-		const lock = await fsx.readJson(path.join(tmpRoot, "chudcode-plugins.lock.json"));
+		const lock = await Bun.file(path.join(tmpRoot, "omp-plugins.lock.json")).json();
 		expect(lock.plugins["kimi-datasource"]).toEqual({
 			version: "1.0.0",
 			enabledFeatures: null,
 			enabled: true,
 		});
 	});
+
+	test("links over a real directory left by a git install", async () => {
+		// A git-sourced install leaves a directory, not a symlink, under the
+		// plugin's name. Relinking must replace it rather than fail on unlink.
+		const localPlugin = await createLocalPlugin(tmpRoot);
+		const linkTarget = path.join(tmpRoot, "plugins", "node_modules", "kimi-datasource");
+		await fs.mkdir(linkTarget, { recursive: true });
+		await Bun.write(path.join(linkTarget, "package.json"), JSON.stringify({ name: "kimi-datasource" }));
+
+		await new PluginManager(tmpRoot).link(localPlugin);
+
+		expect((await fs.lstat(linkTarget)).isSymbolicLink()).toBe(true);
+		expect(await fs.readlink(linkTarget)).toBe(localPlugin);
+	});
+
+	test("rejects a package name that could escape the plugin directory", async () => {
+		const localPlugin = path.join(tmpRoot, "malicious");
+		await fs.mkdir(localPlugin);
+		await Bun.write(
+			path.join(localPlugin, "package.json"),
+			JSON.stringify({ name: "../../victim", version: "1.0.0" }),
+		);
+		const victim = path.join(tmpRoot, "victim");
+		await fs.mkdir(victim);
+		await Bun.write(path.join(victim, "sentinel.txt"), "keep");
+
+		await expect(new PluginManager(tmpRoot).link(localPlugin)).rejects.toThrow("Invalid package name");
+		expect(await Bun.file(path.join(victim, "sentinel.txt")).text()).toBe("keep");
+	});
+
+	test("uninstall removes a linked scoped plugin from node_modules", async () => {
+		const pluginName = "@getpipher/omp-statusline";
+		const localPlugin = await createLocalPlugin(tmpRoot, pluginName);
+		const manager = new PluginManager(tmpRoot);
+		const linkPath = path.join(tmpRoot, "plugins", "node_modules", pluginName);
+
+		await manager.link(localPlugin);
+		await manager.uninstall(pluginName);
+
+		await expect(fs.lstat(linkPath)).rejects.toHaveProperty("code", "ENOENT");
+	});
+
 	test("list --json includes linked local plugin without package dependencies", async () => {
 		const localPlugin = await createLocalPlugin(tmpRoot);
 		const output: string[] = [];
@@ -160,9 +212,9 @@ describe("runPluginCommand({ action: 'install', args: [<local>] })", () => {
 	});
 
 	test("doctor --fix preserves linked local plugin state without package dependencies", async () => {
-		await fsx.write(
+		await Bun.write(
 			path.join(tmpRoot, "plugins", "package.json"),
-			JSON.stringify({ name: "chudcode-plugins", private: true, dependencies: {} }),
+			JSON.stringify({ name: "omp-plugins", private: true, dependencies: {} }),
 		);
 		const localPlugin = await createLocalPlugin(tmpRoot);
 		const manager = new PluginManager(tmpRoot);
@@ -171,7 +223,7 @@ describe("runPluginCommand({ action: 'install', args: [<local>] })", () => {
 		const checks = await manager.doctor({ fix: true });
 
 		expect(checks.find(check => check.name === "orphan:kimi-datasource")).toBeUndefined();
-		const lock = await fsx.readJson(path.join(tmpRoot, "chudcode-plugins.lock.json"));
+		const lock = await Bun.file(path.join(tmpRoot, "omp-plugins.lock.json")).json();
 		expect(lock.plugins["kimi-datasource"]).toEqual({
 			version: "1.0.0",
 			enabledFeatures: null,

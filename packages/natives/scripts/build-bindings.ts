@@ -5,7 +5,7 @@
  * scripts/bazel-natives.ts); release addons build through Bazel with explicit
  * //:natives-* targets. Host target only — no cross-compilation.
  *
- * `CHUDCODE_NATIVE_CARGO_PROFILE` selects the cargo profile (default `local`:
+ * `OMP_NATIVE_CARGO_PROFILE` selects the cargo profile (default `local`:
  * incremental, unstripped). Image builds set `ci` for a stripped addon.
  */
 
@@ -13,9 +13,9 @@ import * as fsSync from "node:fs";
 import * as fs from "node:fs/promises";
 import { createRequire } from "node:module";
 import * as path from "node:path";
-import * as proc from "@chudware/utils/proc";
 import { $ } from "bun";
 import { detectHostAvx2Support, resolveLocalHostAddon } from "../../../scripts/host-detect";
+import { stampNativeVersion } from "../../../scripts/stamp-native-version";
 import { generateEnumExports } from "./gen-enums";
 
 // pcre2-sys prefers a system libpcre2 when pkg-config finds one. Keep the
@@ -23,29 +23,24 @@ import { generateEnumExports } from "./gen-enums";
 process.env.PCRE2_SYS_STATIC ??= "1";
 
 // Windows: cc-rs and rustc auto-locate cl.exe/link.exe through the VS
-// registry, but the cmake crate (audiopus_sys' bundled opus) needs cmake —
+// registry, but the cmake crate (opusic-sys' bundled Opus) needs cmake —
 // and its Ninja generator needs ninja — on PATH. VS Build Tools ships both
 // without exposing them, so outside a vcvars prompt the build dies on
 // "cmake not found". Resolve the VS install via vswhere and append its
 // CMake/Ninja dirs, keeping any user-provided tools ahead.
 if (process.platform === "win32" && (!Bun.which("cmake") || !Bun.which("ninja"))) {
+	const vcToolsComponent =
+		process.arch === "arm64"
+			? "Microsoft.VisualStudio.Component.VC.Tools.ARM64"
+			: "Microsoft.VisualStudio.Component.VC.Tools.x86.x64";
 	const vswhere = path.join(
 		process.env["ProgramFiles(x86)"] ?? "C:\\Program Files (x86)",
 		"Microsoft Visual Studio",
 		"Installer",
 		"vswhere.exe",
 	);
-	const probe = proc.spawnSync(
-		[
-			vswhere,
-			"-latest",
-			"-products",
-			"*",
-			"-requires",
-			"Microsoft.VisualStudio.Component.VC.Tools.x86.x64",
-			"-property",
-			"installationPath",
-		],
+	const probe = Bun.spawnSync(
+		[vswhere, "-latest", "-products", "*", "-requires", vcToolsComponent, "-property", "installationPath"],
 		{ stdout: "pipe", stderr: "pipe" },
 	);
 	const vsRoot = probe.exitCode === 0 ? probe.stdout.toString("utf-8").trim() : "";
@@ -61,7 +56,7 @@ if (process.platform === "win32" && (!Bun.which("cmake") || !Bun.which("ninja"))
 }
 
 const repoRoot = path.join(import.meta.dir, "../../..");
-const rustDir = path.join(repoRoot, "crates/chud-natives");
+const rustDir = path.join(repoRoot, "crates/pi-natives");
 const nativeDir = path.join(import.meta.dir, "../native");
 const packageJsonPath = path.join(import.meta.dir, "../package.json");
 
@@ -77,12 +72,20 @@ const variantSuffix = effectiveVariant ? `-${effectiveVariant}` : "";
 // instead of inheriting the host CPU when RUSTFLAGS is unset. Non-x64 builds keep
 // the target's default CPU features: `-C target-cpu=native` would bake the build
 // host's CPU features into the addon and trips ring 0.17's aarch64-apple
-// const assertion (CAPS_STATIC == MIN_STATIC_FEATURES).
-if (!process.env.RUSTFLAGS) {
+// const assertion (CAPS_STATIC == MIN_STATIC_FEATURES). Shipping Windows addons
+// also link the MSVC CRT statically so clean systems need no VC++ Redistributable.
+if (!Bun.env.RUSTFLAGS) {
+	const rustFlags: string[] = [];
+	if (process.platform === "win32") {
+		rustFlags.push("-C", "target-feature=+crt-static");
+	}
 	if (effectiveVariant === "modern") {
-		process.env.RUSTFLAGS = "-C target-cpu=x86-64-v3";
+		rustFlags.push("-C", "target-cpu=x86-64-v3");
 	} else if (effectiveVariant === "baseline") {
-		process.env.RUSTFLAGS = "-C target-cpu=x86-64-v2";
+		rustFlags.push("-C", "target-cpu=x86-64-v2");
+	}
+	if (rustFlags.length > 0) {
+		Bun.env.RUSTFLAGS = rustFlags.join(" ");
 	}
 }
 
@@ -142,7 +145,7 @@ async function resolveBuiltAddonPath(outputDir: string, canonicalFilename: strin
 	}
 
 	const generatedCandidates = entries.filter(
-		entry => entry.startsWith(`chud_natives.${process.platform}-${process.arch}`) && entry.endsWith(".node"),
+		entry => entry.startsWith(`pi_natives.${process.platform}-${process.arch}`) && entry.endsWith(".node"),
 	);
 
 	if (generatedCandidates.length === 1) {
@@ -175,7 +178,7 @@ async function installGeneratedBindings(outputDir: string): Promise<void> {
 const canonicalAddonFilename = localAddon.filename;
 const canonicalAddonPath = path.join(nativeDir, canonicalAddonFilename);
 
-console.log(`Building chud-natives bindings for ${process.platform}-${process.arch}${variantSuffix} (local)…`);
+console.log(`Building pi-natives bindings for ${process.platform}-${process.arch}${variantSuffix} (local)…`);
 
 await fs.mkdir(nativeDir, { recursive: true });
 await cleanupStaleTemps(nativeDir);
@@ -209,7 +212,7 @@ const napiBin = path.join(path.dirname(napiManifestPath), napiBinEntry);
 
 // Profiles live in the root Cargo.toml; `local` trades size for iteration
 // speed, `ci` strips and drops incremental state.
-const cargoProfile = process.env.CHUDCODE_NATIVE_CARGO_PROFILE?.trim() || "local";
+const cargoProfile = Bun.env.OMP_NATIVE_CARGO_PROFILE?.trim() || "local";
 
 const napiArgs = [
 	"build",
@@ -254,6 +257,10 @@ try {
 	}
 
 	const builtAddonPath = await resolveBuiltAddonPath(buildOutputDir, canonicalAddonFilename);
+	// Stamp the release version post-link, before the addon becomes visible
+	// under its canonical name, so a version bump never recompiles the crate.
+	const { version } = (await Bun.file(packageJsonPath).json()) as { version: string };
+	await stampNativeVersion(builtAddonPath, version);
 	if (builtAddonPath !== canonicalAddonPath) {
 		console.log(`Normalizing native addon filename: ${path.basename(builtAddonPath)} → ${canonicalAddonFilename}`);
 		await installBinary(builtAddonPath, canonicalAddonPath);

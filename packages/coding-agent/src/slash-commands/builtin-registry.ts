@@ -1,4 +1,5 @@
-import type { AutocompleteItem } from "@chudware/tui";
+import { clearSubmittedText } from "./helpers/draft";
+import type { AutocompleteItem } from "@oh-my-pi/pi-tui";
 import { COLLAB_GUEST_ALLOWED_COMMANDS } from "../collab/guest";
 import { BUILTIN_CACHE_SLASH_COMMANDS } from "./builtin-cache";
 import { BUILTIN_COLLABORATION_SLASH_COMMANDS } from "./builtin-collaboration";
@@ -6,6 +7,7 @@ import {
 	buildArgumentCompletions,
 	buildDirectoryArgumentCompletions,
 	buildMcpArgumentCompletions,
+	buildModelSelectorCompletions,
 	buildStaticInlineHint,
 	buildSubcommandInlineHint,
 } from "./builtin-completions";
@@ -14,6 +16,7 @@ import { BUILTIN_LIFECYCLE_SLASH_COMMANDS } from "./builtin-lifecycle";
 import { BUILTIN_MARKETPLACE_SLASH_COMMANDS, reloadTuiPluginState } from "./builtin-marketplace";
 import { BUILTIN_MODE_SLASH_COMMANDS } from "./builtin-modes";
 import { BUILTIN_SESSION_SLASH_COMMANDS } from "./builtin-session";
+import { BUILTIN_SKILLS_SLASH_COMMANDS } from "./builtin-skills";
 import { parseSlashCommand } from "./helpers/parse";
 import type {
 	BuiltinSlashCommand,
@@ -42,6 +45,7 @@ const BUILTIN_SLASH_COMMAND_REGISTRY: ReadonlyArray<SlashCommandSpec> = [
 	...BUILTIN_SESSION_SLASH_COMMANDS,
 	...BUILTIN_LIFECYCLE_SLASH_COMMANDS,
 	...BUILTIN_MARKETPLACE_SLASH_COMMANDS,
+	...BUILTIN_SKILLS_SLASH_COMMANDS,
 	...BUILTIN_CONTROL_SLASH_COMMANDS,
 ];
 
@@ -61,7 +65,10 @@ export const BUILTIN_SLASH_COMMAND_DEFS: ReadonlyArray<BuiltinSlashCommand> = BU
 		name: command.name,
 		aliases: command.aliases,
 		allowArgs: command.allowArgs === true,
-		description: command.description,
+		// Getter: some descriptions name keys, formatted at read time (theme/preset may change).
+		get description() {
+			return command.description;
+		},
 		icon: command.icon,
 		subcommands: command.subcommands,
 		inlineHint: command.inlineHint,
@@ -82,6 +89,9 @@ function materializeTuiBuiltinSlashCommand(
 		materialized.getInlineHint = buildSubcommandInlineHint(cmd.subcommands);
 	} else if (cmd.name === "move") {
 		materialized.getArgumentCompletions = buildDirectoryArgumentCompletions();
+		if (cmd.inlineHint) materialized.getInlineHint = buildStaticInlineHint(cmd.inlineHint);
+	} else if (cmd.name === "switch" && runtime) {
+		materialized.getArgumentCompletions = buildModelSelectorCompletions(runtime);
 		if (cmd.inlineHint) materialized.getInlineHint = buildStaticInlineHint(cmd.inlineHint);
 	} else if (cmd.inlineHint) {
 		materialized.getInlineHint = buildStaticInlineHint(cmd.inlineHint);
@@ -134,7 +144,7 @@ export async function executeBuiltinSlashCommand(
 	// host-only; the allowlist covers purely local/read-only commands.
 	if (runtime.ctx.collabGuest && !COLLAB_GUEST_ALLOWED_COMMANDS[command.name]) {
 		runtime.ctx.showStatus(`/${command.name} is host-only during a collab session`);
-		runtime.ctx.editor.setText("");
+		clearSubmittedText(runtime);
 		return true;
 	}
 	if (command.handleTui) {
@@ -162,7 +172,7 @@ export async function executeBuiltinSlashCommand(
 			reloadPlugins: () => reloadTuiPluginState(ctx),
 		};
 		const result = await command.handle(parsed, adapted);
-		ctx.editor.setText("");
+		clearSubmittedText(runtime);
 		if (result && typeof result === "object" && "prompt" in result) return result.prompt;
 		return true;
 	}

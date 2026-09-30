@@ -4,19 +4,17 @@ import * as os from "node:os";
 import * as path from "node:path";
 import {
 	runTtsrCommand,
-	TTSR_SOURCES,
 	type TtsrCommandArgs,
 	type TtsrScanArgs,
 	type TtsrTestArgs,
-} from "@chudware/coding-agent/cli/ttsr-cli";
-import { resetSettingsForTest } from "@chudware/coding-agent/config/settings";
-import { getProjectAgentDir, getProjectDir, removeSyncWithRetries, setProjectDir } from "@chudware/utils";
-import * as fsx from "@chudware/utils/fsx";
+} from "@oh-my-pi/pi-coding-agent/cli/ttsr-cli";
+import { resetSettingsForTest } from "@oh-my-pi/pi-coding-agent/config/settings";
+import { getProjectAgentDir, getProjectDir, removeSyncWithRetries, setProjectDir } from "@oh-my-pi/pi-utils";
 
 let testTmpDir: string;
 
 beforeAll(() => {
-	testTmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "chudcode-ttsr-tests-"));
+	testTmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "omp-ttsr-tests-"));
 });
 
 afterAll(() => {
@@ -68,7 +66,11 @@ async function run(args: TtsrCommandArgs): Promise<void> {
 	}
 }
 
-async function writeTempRule(condition: string, scope: string[], astCondition?: string): Promise<string> {
+async function writeTempRule(
+	condition: string,
+	scope: string[],
+	options: { astCondition?: string; agents?: string[] } = {},
+): Promise<string> {
 	// Stable basename "test-rule.md" so buildRuleFromMarkdown derives name
 	// "test-rule" — assertions rely on it. Each call uses a unique parent dir
 	// to avoid collisions across tests.
@@ -76,9 +78,10 @@ async function writeTempRule(condition: string, scope: string[], astCondition?: 
 	fs.mkdirSync(dir, { recursive: true });
 	const tmp = path.join(dir, "test-rule.md");
 	const fm: string[] = [`description: test rule`, `condition: "${condition.replace(/"/g, '\\"')}"`];
-	if (astCondition) fm.push(`astCondition: "${astCondition.replace(/"/g, '\\"')}"`);
+	if (options.astCondition) fm.push(`astCondition: "${options.astCondition.replace(/"/g, '\\"')}"`);
 	fm.push(`scope: [${scope.map(s => `"${s}"`).join(", ")}]`);
-	await fsx.write(tmp, `---\n${fm.join("\n")}\n---\nbody\n`);
+	if (options.agents) fm.push(`agents: [${options.agents.map(a => `"${a}"`).join(", ")}]`);
+	await Bun.write(tmp, `---\n${fm.join("\n")}\n---\nbody\n`);
 	return tmp;
 }
 
@@ -86,7 +89,7 @@ async function writeTempSnippet(content: string, ext: string): Promise<string> {
 	const dir = path.join(testTmpDir, `snippet-${Math.random().toString(36).slice(2)}`);
 	fs.mkdirSync(dir, { recursive: true });
 	const tmp = path.join(dir, `snippet.${ext}`);
-	await fsx.write(tmp, content);
+	await Bun.write(tmp, content);
 	return tmp;
 }
 
@@ -97,7 +100,7 @@ function cleanupTmp(): void {
 	}
 }
 
-describe("chudcode ttsr", () => {
+describe("omp ttsr", () => {
 	afterEach(() => {
 		restoreStreams();
 		cleanupTmp();
@@ -107,7 +110,7 @@ describe("chudcode ttsr", () => {
 		it("infers tool/edit context when a positional resolves to a .ts file and --source is omitted", async () => {
 			captureStreams();
 			const rulePath = await writeTempRule(": any", ["tool:edit(*.ts)"]);
-			// Simulate `chudcode ttsr test --rule <rule> src/foo.ts`: the command layer
+			// Simulate `omp ttsr test --rule <rule> src/foo.ts`: the command layer
 			// resolves a file positional into `file`, but the CLI handler's own
 			// inference (source from file extension) is exercised when source is
 			// unset. Pass file + filePath so the handler infers tool context.
@@ -137,18 +140,6 @@ describe("chudcode ttsr", () => {
 			expect(stdout).toContain("No rules triggered");
 		});
 
-		it("does not trigger a tool-scoped rule when --source text is explicit", async () => {
-			captureStreams();
-			const rulePath = await writeTempRule(": any", ["tool:edit(*.ts)"]);
-			const test: TtsrTestArgs = {
-				rule: rulePath,
-				source: "text",
-				snippet: "const x: any = 1",
-			};
-			await run({ action: "test", test });
-			expect(stdout).toContain("No rules triggered");
-		});
-
 		it("reports JSON with matched/defined condition arrays", async () => {
 			captureStreams();
 			const rulePath = await writeTempRule(": any", ["tool:edit(*.ts)"]);
@@ -169,11 +160,9 @@ describe("chudcode ttsr", () => {
 
 		it("astCondition matches via checkAstSnapshot with a tool + .ts path", async () => {
 			captureStreams();
-			const rulePath = await writeTempRule(
-				"never-matches-regex-zzz",
-				["tool:edit(*.ts)"],
-				"($X as { $$$BODY }).$PROP",
-			);
+			const rulePath = await writeTempRule("never-matches-regex-zzz", ["tool:edit(*.ts)"], {
+				astCondition: "($X as { $$$BODY }).$PROP",
+			});
 			const test: TtsrTestArgs = {
 				rule: rulePath,
 				source: "tool",
@@ -228,6 +217,26 @@ describe("chudcode ttsr", () => {
 			const report = JSON.parse(stdout);
 			expect(report.inferenceNote).toBeUndefined();
 		});
+
+		it("triggers for a matching --agent and rejects for a non-matching one", async () => {
+			captureStreams();
+			const rulePath = await writeTempRule(": any", ["tool:edit(*.ts)"], { agents: ["scout"] });
+			const test: TtsrTestArgs = {
+				rule: rulePath,
+				source: "tool",
+				filePath: "src/foo.ts",
+				snippet: "const x: any = 1",
+				agent: "scout",
+			};
+			await run({ action: "test", test });
+			expect(stdout).toContain("Triggered");
+			expect(stdout).toContain("agents: scout");
+
+			captureStreams();
+			await run({ action: "test", test: { ...test, agent: "main" }, json: true });
+			const report = JSON.parse(stdout);
+			expect(report.error).toMatch(/scoped to agents/);
+		});
 	});
 
 	describe("list", () => {
@@ -273,7 +282,7 @@ describe("chudcode ttsr", () => {
 
 			// 3. Create a test file in projectDir/src/foo.ts
 			const testFile = path.join(projectDir, "src/foo.ts");
-			await fsx.write(testFile, "const x: any = 1;");
+			await Bun.write(testFile, "const x: any = 1;");
 
 			// 4. Create isolated rule with glob/scope
 			const rulePath = await writeTempRule(": any", ["tool:edit(src/**/*.ts)"]);
@@ -300,7 +309,7 @@ describe("chudcode ttsr", () => {
 			fs.mkdirSync(path.join(projectDir, "src"), { recursive: true });
 			setProjectDir(projectDir);
 
-			await fsx.write(path.join(projectDir, "src/foo.ts"), "const x: any = 1;");
+			await Bun.write(path.join(projectDir, "src/foo.ts"), "const x: any = 1;");
 
 			const rulePath = await writeTempRule(": any", ["tool:edit(src/**/*.ts)"]);
 			const scan: TtsrScanArgs = {
@@ -324,7 +333,7 @@ describe("chudcode ttsr", () => {
 			setProjectDir(projectDir);
 
 			const testFile = path.join(projectDir, "src/foo.ts");
-			await fsx.write(testFile, "const x: any = 1;");
+			await Bun.write(testFile, "const x: any = 1;");
 
 			const rulePath = await writeTempRule(": any", ["tool:edit(src/**/*.ts)"]);
 
@@ -352,7 +361,7 @@ describe("chudcode ttsr", () => {
 			setProjectDir(projectDir);
 
 			const testFile = path.join(projectDir, "src/foo.ts");
-			await fsx.write(testFile, "const x: unknown = 1;");
+			await Bun.write(testFile, "const x: unknown = 1;");
 
 			const rulePath = await writeTempRule(": any", ["tool:edit(src/**/*.ts)"]);
 
@@ -376,9 +385,9 @@ describe("chudcode ttsr", () => {
 			fs.mkdirSync(path.join(projectDir, "packages/src"), { recursive: true });
 			setProjectDir(projectDir);
 
-			await fsx.write(path.join(projectDir, ".gitignore"), "packages/generated/\n");
-			await fsx.write(path.join(projectDir, "packages/generated/ignored.ts"), "const x: any = 1;");
-			await fsx.write(path.join(projectDir, "packages/src/kept.ts"), "const x: unknown = 1;");
+			await Bun.write(path.join(projectDir, ".gitignore"), "packages/generated/\n");
+			await Bun.write(path.join(projectDir, "packages/generated/ignored.ts"), "const x: any = 1;");
+			await Bun.write(path.join(projectDir, "packages/src/kept.ts"), "const x: unknown = 1;");
 
 			const rulePath = await writeTempRule(": any", ["tool:edit(packages/**/*.ts)"]);
 			const scan: TtsrScanArgs = {
@@ -404,11 +413,11 @@ describe("chudcode ttsr", () => {
 			fs.mkdirSync(getProjectAgentDir(projectDir), { recursive: true });
 			setProjectDir(projectDir);
 
-			await fsx.write(
+			await Bun.write(
 				path.join(getProjectAgentDir(projectDir), "settings.json"),
 				JSON.stringify({ ttsr: { enabled: false } }),
 			);
-			await fsx.write(path.join(projectDir, "src/foo.ts"), "const x: any = 1;");
+			await Bun.write(path.join(projectDir, "src/foo.ts"), "const x: any = 1;");
 
 			await run({ action: "scan", scan: { directory: "src" }, json: true });
 
@@ -424,8 +433,8 @@ describe("chudcode ttsr", () => {
 			fs.mkdirSync(path.join(projectDir, "packages/generated"), { recursive: true });
 			setProjectDir(projectDir);
 
-			await fsx.write(path.join(projectDir, ".gitignore"), "packages/generated/\n");
-			await fsx.write(path.join(projectDir, "packages/generated/ignored.ts"), "const x: any = 1;");
+			await Bun.write(path.join(projectDir, ".gitignore"), "packages/generated/\n");
+			await Bun.write(path.join(projectDir, "packages/generated/ignored.ts"), "const x: any = 1;");
 
 			const rulePath = await writeTempRule(": any", ["tool:edit(packages/**/*.ts)"]);
 			const scan: TtsrScanArgs = {
@@ -449,7 +458,7 @@ describe("chudcode ttsr", () => {
 			fs.mkdirSync(path.join(projectDir, ".github/workflows"), { recursive: true });
 			setProjectDir(projectDir);
 
-			await fsx.write(path.join(projectDir, ".github/workflows/ci.yml"), "needs-ttsr: true\n");
+			await Bun.write(path.join(projectDir, ".github/workflows/ci.yml"), "needs-ttsr: true\n");
 
 			const rulePath = await writeTempRule("needs-ttsr", ["tool:edit(.github/**/*.yml)"]);
 			const scan: TtsrScanArgs = {
@@ -472,12 +481,10 @@ describe("chudcode ttsr", () => {
 			fs.mkdirSync(path.join(projectDir, "src"), { recursive: true });
 			setProjectDir(projectDir);
 
-			await fsx.write(path.join(projectDir, "src/foo.ts"), "const y = (x as\n{ z }).z;");
-			const rulePath = await writeTempRule(
-				"never-matches-regex-zzz",
-				["tool:edit(src/**/*.ts)"],
-				"($X as { $$$BODY }).$PROP",
-			);
+			await Bun.write(path.join(projectDir, "src/foo.ts"), "const y = (x as\n{ z }).z;");
+			const rulePath = await writeTempRule("never-matches-regex-zzz", ["tool:edit(src/**/*.ts)"], {
+				astCondition: "($X as { $$$BODY }).$PROP",
+			});
 			const scan: TtsrScanArgs = {
 				directory: "src",
 				rule: rulePath,
@@ -497,7 +504,7 @@ describe("chudcode ttsr", () => {
 			fs.mkdirSync(path.join(projectDir, "src"), { recursive: true });
 			setProjectDir(projectDir);
 
-			await fsx.write(path.join(projectDir, "src/large.ts"), "const x: any = 1;");
+			await Bun.write(path.join(projectDir, "src/large.ts"), "const x: any = 1;");
 
 			const rulePath = await writeTempRule(": any", ["tool:edit(src/**/*.ts)"]);
 			const scan: TtsrScanArgs = {
@@ -524,7 +531,7 @@ describe("chudcode ttsr", () => {
 			fs.mkdirSync(path.join(projectDir, "src"), { recursive: true });
 			setProjectDir(projectDir);
 
-			await fsx.write(path.join(projectDir, "src/blob.ts"), new Uint8Array([0x63, 0x6f, 0x6e, 0x73, 0x74, 0x00]));
+			await Bun.write(path.join(projectDir, "src/blob.ts"), new Uint8Array([0x63, 0x6f, 0x6e, 0x73, 0x74, 0x00]));
 
 			const rulePath = await writeTempRule("const", ["tool:edit(src/**/*.ts)"]);
 			const scan: TtsrScanArgs = {
@@ -540,12 +547,6 @@ describe("chudcode ttsr", () => {
 			expect(result.summary.scannedFiles).toBe(0);
 			expect(result.summary.skipped.binary).toBe(1);
 			expect(result.summary.totalMatches).toBe(0);
-		});
-	});
-
-	describe("exports", () => {
-		it("TTSR_SOURCES lists all three match sources", () => {
-			expect(TTSR_SOURCES).toEqual(["text", "thinking", "tool"]);
 		});
 	});
 });

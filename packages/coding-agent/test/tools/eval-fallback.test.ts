@@ -1,26 +1,24 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "bun:test";
-import { Settings } from "@chudware/coding-agent/config/settings";
-import * as evalIndex from "@chudware/coding-agent/eval";
-import * as pyKernel from "@chudware/coding-agent/eval/py/kernel";
-import type { ToolSession } from "@chudware/coding-agent/tools";
-import { EvalTool } from "@chudware/coding-agent/tools/eval";
-import { resolveEvalBackends } from "@chudware/coding-agent/tools/eval-backends";
-import { ToolAbortError } from "@chudware/coding-agent/tools/tool-errors";
+import { Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
+import * as evalIndex from "@oh-my-pi/pi-coding-agent/eval";
+import * as pyKernel from "@oh-my-pi/pi-coding-agent/eval/py/kernel";
+import type { ToolSession } from "@oh-my-pi/pi-coding-agent/tools";
+import { EvalTool } from "@oh-my-pi/pi-coding-agent/tools/eval";
+import { resolveEvalBackends } from "@oh-my-pi/pi-coding-agent/tools/eval-backends";
+import { ToolAbortError } from "@oh-my-pi/pi-coding-agent/tools/tool-errors";
+
+import { cfgEvalJs, cfgEvalPy } from "@oh-my-pi/pi-coding-agent/eval/settings";
+import { cfgToolsMaxTimeout } from "@oh-my-pi/pi-coding-agent/tools/settings";
 
 let originalPiPy: string | undefined;
 let originalPiJs: string | undefined;
-let originalPiRb: string | undefined;
-let originalPiJl: string | undefined;
 
-function restoreEnv(
-	name: "CHUDCODE_PY" | "CHUDCODE_JS" | "CHUDCODE_RB" | "CHUDCODE_JL",
-	value: string | undefined,
-): void {
+function restoreEnv(name: "PI_PY" | "PI_JS", value: string | undefined): void {
 	if (value === undefined) {
-		delete process.env[name];
+		delete Bun.env[name];
 		return;
 	}
-	process.env[name] = value;
+	Bun.env[name] = value;
 }
 function makeSession(settings = Settings.isolated()): ToolSession {
 	return {
@@ -47,22 +45,16 @@ const mockResult = {
 
 describe("EvalTool language dispatch", () => {
 	beforeEach(() => {
-		originalPiPy = process.env.CHUDCODE_PY;
-		originalPiJs = process.env.CHUDCODE_JS;
-		originalPiRb = process.env.CHUDCODE_RB;
-		originalPiJl = process.env.CHUDCODE_JL;
-		delete process.env.CHUDCODE_PY;
-		delete process.env.CHUDCODE_JS;
-		delete process.env.CHUDCODE_RB;
-		delete process.env.CHUDCODE_JL;
+		originalPiPy = Bun.env.PI_PY;
+		originalPiJs = Bun.env.PI_JS;
+		delete Bun.env.PI_PY;
+		delete Bun.env.PI_JS;
 	});
 
 	afterEach(() => {
 		vi.restoreAllMocks();
-		restoreEnv("CHUDCODE_PY", originalPiPy);
-		restoreEnv("CHUDCODE_JS", originalPiJs);
-		restoreEnv("CHUDCODE_RB", originalPiRb);
-		restoreEnv("CHUDCODE_JL", originalPiJl);
+		restoreEnv("PI_PY", originalPiPy);
+		restoreEnv("PI_JS", originalPiJs);
 	});
 
 	it('dispatches to the JS backend when cell.language === "js"', async () => {
@@ -97,7 +89,7 @@ describe("EvalTool language dispatch", () => {
 
 	it("bounds backend probing by the effective global eval timeout", async () => {
 		const settings = Settings.isolated();
-		settings.set("tools.maxTimeout", 1);
+		cfgToolsMaxTimeout.set(settings, 1);
 		const probeSpy = vi.spyOn(evalIndex.pythonBackend, "isAvailable").mockResolvedValue(false);
 
 		const tool = new EvalTool(makeSession(settings));
@@ -108,31 +100,19 @@ describe("EvalTool language dispatch", () => {
 		expect(probeSpy.mock.calls[0]?.[1]).toMatchObject({ timeoutMs: 1_000 });
 	});
 
-	for (const testCase of [
-		{ language: "py", backend: evalIndex.pythonBackend },
-		{ language: "rb", backend: evalIndex.rubyBackend },
-		{ language: "jl", backend: evalIndex.juliaBackend },
-	] as const) {
-		it(`preserves caller cancellation during ${testCase.language} availability probing`, async () => {
-			const settings = Settings.isolated();
-			if (testCase.language === "rb") settings.set("eval.rb", true);
-			if (testCase.language === "jl") settings.set("eval.jl", true);
-			const controller = new AbortController();
-			vi.spyOn(testCase.backend, "isAvailable").mockImplementation(async () => {
-				controller.abort();
-				return false;
-			});
-
-			const tool = new EvalTool(makeSession(settings));
-			await expect(
-				tool.execute(
-					`call-${testCase.language}-abort`,
-					{ language: testCase.language, code: "never runs" },
-					controller.signal,
-				),
-			).rejects.toBeInstanceOf(ToolAbortError);
+	it("preserves caller cancellation during py availability probing", async () => {
+		const settings = Settings.isolated();
+		const controller = new AbortController();
+		vi.spyOn(evalIndex.pythonBackend, "isAvailable").mockImplementation(async () => {
+			controller.abort();
+			return false;
 		});
-	}
+
+		const tool = new EvalTool(makeSession(settings));
+		await expect(
+			tool.execute("call-py-abort", { language: "py", code: "never runs" }, controller.signal),
+		).rejects.toBeInstanceOf(ToolAbortError);
+	});
 
 	it("dispatches each call to the backend named by its language", async () => {
 		vi.spyOn(pyKernel, "checkPythonKernelAvailability").mockResolvedValue({ ok: true });
@@ -150,7 +130,7 @@ describe("EvalTool language dispatch", () => {
 
 	it("rejects py cells when eval.py is disabled", async () => {
 		const settings = Settings.isolated();
-		settings.set("eval.py", false);
+		cfgEvalPy.set(settings, false);
 		const tool = new EvalTool(makeSession(settings));
 		await expect(
 			tool.execute("call-py-disabled", {
@@ -162,7 +142,7 @@ describe("EvalTool language dispatch", () => {
 
 	it("rejects js cells when eval.js is disabled", async () => {
 		const settings = Settings.isolated();
-		settings.set("eval.js", false);
+		cfgEvalJs.set(settings, false);
 		const tool = new EvalTool(makeSession(settings));
 		await expect(
 			tool.execute("call-js-disabled", {
@@ -173,23 +153,21 @@ describe("EvalTool language dispatch", () => {
 	});
 
 	it("uses settings for eval backends whose env flag is unset", () => {
-		process.env.CHUDCODE_PY = "1";
+		Bun.env.PI_PY = "1";
 		const settings = Settings.isolated();
-		settings.set("eval.py", false);
-		settings.set("eval.js", false);
+		cfgEvalPy.set(settings, false);
+		cfgEvalJs.set(settings, false);
 
 		expect(resolveEvalBackends(makeSession(settings))).toEqual({
 			python: true,
 			js: false,
-			ruby: false,
-			julia: false,
 		});
 	});
 
-	it("lets CHUDCODE_JS disable js execution even when eval.js is enabled", async () => {
-		process.env.CHUDCODE_JS = "0";
+	it("lets PI_JS disable js execution even when eval.js is enabled", async () => {
+		Bun.env.PI_JS = "0";
 		const settings = Settings.isolated();
-		settings.set("eval.js", true);
+		cfgEvalJs.set(settings, true);
 		const tool = new EvalTool(makeSession(settings));
 
 		await expect(
@@ -197,6 +175,6 @@ describe("EvalTool language dispatch", () => {
 				language: "js",
 				code: "const x = 1;",
 			}),
-		).rejects.toThrow(/CHUDCODE_JS=0/);
+		).rejects.toThrow(/PI_JS=0/);
 	});
 });

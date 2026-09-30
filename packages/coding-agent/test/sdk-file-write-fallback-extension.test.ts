@@ -20,20 +20,20 @@ import { afterAll, afterEach, beforeAll, describe, expect, it, spyOn } from "bun
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
-import type { AgentTool } from "@chudware/agent-core";
-import { getBundledModel } from "@chudware/catalog/models";
-import { ModelRegistry } from "@chudware/coding-agent/config/model-registry";
-import { Settings } from "@chudware/coding-agent/config/settings";
+import type { AgentTool } from "@oh-my-pi/pi-agent-core";
+import { getBundledModel } from "@oh-my-pi/pi-catalog/models";
+import { ModelRegistry } from "@oh-my-pi/pi-coding-agent/config/model-registry";
+import { Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
 import type {
 	ExtensionActions,
 	ExtensionContextActions,
 	ExtensionFactory,
 	ExtensionRunner,
-} from "@chudware/coding-agent/extensibility/extensions";
-import { type CreateAgentSessionOptions, createAgentSession, discoverAuthStorage } from "@chudware/coding-agent/sdk";
-import { SessionManager } from "@chudware/coding-agent/session/session-manager";
-import type { FileWriteFallbackRequest } from "@chudware/coding-agent/tools/file-write-fallback";
-import { removeSyncWithRetries, Snowflake } from "@chudware/utils";
+} from "@oh-my-pi/pi-coding-agent/extensibility/extensions";
+import { type CreateAgentSessionOptions, createAgentSession, discoverAuthStorage } from "@oh-my-pi/pi-coding-agent/sdk";
+import { SessionManager } from "@oh-my-pi/pi-coding-agent/session/session-manager";
+import type { FileWriteFallbackRequest } from "@oh-my-pi/pi-coding-agent/tools/file-write-fallback";
+import { removeSyncWithRetries, Snowflake } from "@oh-my-pi/pi-utils";
 
 /**
  * Drives `ExtensionRunner.initialize` with no-op stubs, mirroring what a mode
@@ -88,7 +88,7 @@ describe("registerFileWriteFallback end-to-end (real extension, real session)", 
 	let registryAuthDir: string;
 
 	const makeTempDir = (): string => {
-		const created = path.join(os.tmpdir(), `chud-file-write-fallback-e2e-${Snowflake.next()}`);
+		const created = path.join(os.tmpdir(), `pi-file-write-fallback-e2e-${Snowflake.next()}`);
 		fs.mkdirSync(created, { recursive: true });
 		// The seam brokers a symlink-RESOLVED path, and `os.tmpdir()` sits under `/var`
 		// — itself a link — on macOS. Canonicalizing the fixture up front keeps a
@@ -131,7 +131,7 @@ describe("registerFileWriteFallback end-to-end (real extension, real session)", 
 	});
 
 	beforeAll(async () => {
-		registryAuthDir = path.join(os.tmpdir(), `chud-file-write-fallback-e2e-auth-${Snowflake.next()}`);
+		registryAuthDir = path.join(os.tmpdir(), `pi-file-write-fallback-e2e-auth-${Snowflake.next()}`);
 		fs.mkdirSync(registryAuthDir, { recursive: true });
 		modelRegistry = new ModelRegistry(await discoverAuthStorage(registryAuthDir));
 	});
@@ -168,8 +168,8 @@ describe("registerFileWriteFallback end-to-end (real extension, real session)", 
 
 			const received: FileWriteFallbackRequest[] = [];
 			const ownSessionIds: string[] = [];
-			const factory: ExtensionFactory = chud => {
-				chud.registerFileWriteFallback(async (req, ctx) => {
+			const factory: ExtensionFactory = pi => {
+				pi.registerFileWriteFallback(async (req, ctx) => {
 					received.push(req);
 					ownSessionIds.push(ctx.sessionManager.getSessionId());
 					// Stand-in for an out-of-process privileged broker: this test's own
@@ -243,8 +243,8 @@ describe("registerFileWriteFallback end-to-end (real extension, real session)", 
 			lock(targetPath, 0o400); // no write bit on the file itself
 
 			const received: FileWriteFallbackRequest[] = [];
-			const factory: ExtensionFactory = chud => {
-				chud.registerFileWriteFallback(async req => {
+			const factory: ExtensionFactory = pi => {
+				pi.registerFileWriteFallback(async req => {
 					received.push(req);
 					fs.chmodSync(targetPath, 0o600);
 					try {
@@ -299,8 +299,8 @@ describe("registerFileWriteFallback end-to-end (real extension, real session)", 
 		const destPath = path.join(lockedDir, "moved.txt");
 
 		const received: FileWriteFallbackRequest[] = [];
-		const factory: ExtensionFactory = chud => {
-			chud.registerFileWriteFallback(async req => {
+		const factory: ExtensionFactory = pi => {
+			pi.registerFileWriteFallback(async req => {
 				received.push(req);
 				fs.chmodSync(lockedDir, 0o700);
 				try {
@@ -384,12 +384,12 @@ describe("registerFileWriteFallback end-to-end (real extension, real session)", 
 
 		const deleted: string[] = [];
 		const writeCalls: string[] = [];
-		const factory: ExtensionFactory = chud => {
-			chud.registerFileWriteFallback(async req => {
+		const factory: ExtensionFactory = pi => {
+			pi.registerFileWriteFallback(async req => {
 				writeCalls.push(req.dst);
 				return false;
 			});
-			chud.registerFileDeleteFallback(async req => {
+			pi.registerFileDeleteFallback(async req => {
 				deleted.push(req.dst);
 				fs.chmodSync(lockedDir, 0o700);
 				try {
@@ -437,16 +437,16 @@ describe("registerFileWriteFallback end-to-end (real extension, real session)", 
 		lock(lockedDir, 0o500);
 
 		const order: string[] = [];
-		const factory: ExtensionFactory = chud => {
-			chud.registerFileWriteFallback(async () => {
+		const factory: ExtensionFactory = pi => {
+			pi.registerFileWriteFallback(async () => {
 				order.push("throws");
 				throw new Error("first handler blew up");
 			});
-			chud.registerFileWriteFallback(async () => {
+			pi.registerFileWriteFallback(async () => {
 				order.push("declines");
 				return false;
 			});
-			chud.registerFileWriteFallback(async req => {
+			pi.registerFileWriteFallback(async req => {
 				order.push("brokers");
 				fs.chmodSync(lockedDir, 0o700);
 				try {
@@ -489,8 +489,8 @@ describe("registerFileWriteFallback end-to-end (real extension, real session)", 
 		lock(lockedDir, 0o500);
 
 		const seenCwds: string[] = [];
-		const factory: ExtensionFactory = chud => {
-			chud.registerFileWriteFallback(async (req, ctx) => {
+		const factory: ExtensionFactory = pi => {
+			pi.registerFileWriteFallback(async (req, ctx) => {
 				seenCwds.push(ctx.cwd);
 				fs.chmodSync(lockedDir, 0o700);
 				try {
@@ -546,8 +546,8 @@ describe("registerFileWriteFallback end-to-end (real extension, real session)", 
 			lock(lockedDir, 0o500);
 
 			const deleted: string[] = [];
-			const factory: ExtensionFactory = chud => {
-				chud.registerFileDeleteFallback(async req => {
+			const factory: ExtensionFactory = pi => {
+				pi.registerFileDeleteFallback(async req => {
 					deleted.push(req.dst);
 					fs.chmodSync(lockedDir, 0o700);
 					try {

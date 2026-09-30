@@ -1,17 +1,17 @@
-import { upgradeJsonSchemaTo202012, validateJsonSchemaValue } from "@chudware/ai/utils/schema";
-import { type } from "@chudware/chudtype";
-import { IR_BRAND } from "@chudware/chudtype/ir";
+import { type } from "@oh-my-pi/omptype";
+import { IR_BRAND } from "@oh-my-pi/omptype/ir";
 import {
 	type AnySchema,
-	Type as ChudType,
-	type TypeBuilder as ChudTypeBuilder,
 	type ObjectOpts,
+	Type as OmpType,
+	type TypeBuilder as OmpTypeBuilder,
 	type TUnsafe,
-} from "@chudware/chudtype/typebox";
+} from "@oh-my-pi/omptype/typebox";
+import { upgradeJsonSchemaTo202012, validateJsonSchemaValue } from "@oh-my-pi/pi-ai/utils/schema";
 
-export * from "@chudware/chudtype/typebox";
+export * from "@oh-my-pi/omptype/typebox";
 
-const VALIDATION_FAILURE = Symbol("chud.typebox.validationFailure");
+const VALIDATION_FAILURE = Symbol("omp.typebox.validationFailure");
 
 interface ValidationFailure {
 	message: string;
@@ -43,20 +43,20 @@ function isRuntimeSchema(value: unknown): value is AnySchema {
 
 /**
  * Deep-copy a legacy `Type.Unsafe` document into a plain, structured-cloneable
- * JSON Schema, lowering any embedded chudtype schema to its wire JSON. Legacy
- * Chud extensions were written against real TypeBox, whose `Type.*` builders
- * return plain JSON-Schema objects; chudtype's builders return callable schema
+ * JSON Schema, lowering any embedded omptype schema to its wire JSON. Legacy
+ * Pi extensions were written against real TypeBox, whose `Type.*` builders
+ * return plain JSON-Schema objects; omptype's builders return callable schema
  * values instead, which breaks two idioms extensions use inside raw documents:
  *
  *  - Direct embedding — `Type.Unsafe({ anyOf: [Type.Array(...), Other] })`.
  *    The nested schema is a function; `structuredClone` throws
- *    `DataCloneError: The object can not be cloned.` (issue #8420) and chudtype
+ *    `DataCloneError: The object can not be cloned.` (issue #8420) and omptype
  *    would drop its `toJsonSchema()` override during composition anyway.
  *  - Spreading — `Type.Unsafe({ ...Schema, description })`. Spreading a
- *    callable copies chudtype's internal fields (`ir`, `run`, `$`, …) instead
+ *    callable copies omptype's internal fields (`ir`, `run`, `$`, …) instead
  *    of JSON keywords. The copied `run` is a self-reference to the original
  *    schema, so its `toJsonSchema()` recovers the real wire document; the
- *    caller's own additions (everything not an chudtype internal) are overlaid.
+ *    caller's own additions (everything not an omptype internal) are overlaid.
  */
 function lowerEmbeddedSchemas(value: unknown): unknown {
 	if (isRuntimeSchema(value)) return value.toJsonSchema();
@@ -90,7 +90,7 @@ function defineHidden(target: object, key: PropertyKey, value: unknown): void {
 function unsafe<T = unknown>(jsonSchema: Record<string, unknown> = {}): LegacyUnsafeSchema<T> {
 	// `document` is the verbatim wire schema; keep it isolated from the validator.
 	// `lowerEmbeddedSchemas` returns a fresh plain-JSON copy (lowering any nested
-	// chudtype builder to its wire form), so it doubles as the detaching clone.
+	// omptype builder to its wire form), so it doubles as the detaching clone.
 	// `upgradeJsonSchemaTo202012` returns its input untouched when no upgrade is
 	// needed, and `validateJsonSchemaValue` then annotates that object with JIT
 	// epoch metadata and normalized keywords — which would leak into emission if
@@ -150,7 +150,7 @@ const object = ((properties: Record<string, unknown>, opts?: ObjectOpts) => {
 		}
 	}
 	if (!hasRawProperty) {
-		return ChudType.Object(properties as Record<string, AnySchema>, normalizedOpts);
+		return OmpType.Object(properties as Record<string, AnySchema>, normalizedOpts);
 	}
 
 	const normalizedProperties: Record<string, AnySchema> = {};
@@ -159,21 +159,21 @@ const object = ((properties: Record<string, unknown>, opts?: ObjectOpts) => {
 		normalizedProperties[key] = isRuntimeSchema(property) ? property : unsafe(property as Record<string, unknown>);
 	}
 	if (additionalProperties !== undefined && typeof additionalProperties !== "boolean") {
-		// chudtype index signatures validate every string key, including declared
+		// omptype index signatures validate every string key, including declared
 		// properties. JSON Schema `additionalProperties` validates only undeclared
 		// keys, so preserve the whole document on this legacy raw-property path.
 		const { additionalProperties: _, ...objectOpts } = opts ?? {};
-		const document = ChudType.Object(normalizedProperties, objectOpts).toJsonSchema();
+		const document = OmpType.Object(normalizedProperties, objectOpts).toJsonSchema();
 		document.additionalProperties = isRuntimeSchema(additionalProperties)
 			? additionalProperties.toJsonSchema()
 			: lowerEmbeddedSchemas(additionalProperties);
 		return unsafe(document);
 	}
-	return ChudType.Object(normalizedProperties, normalizedOpts);
-}) as typeof ChudType.Object;
+	return OmpType.Object(normalizedProperties, normalizedOpts);
+}) as typeof OmpType.Object;
 
-export const Type = { ...ChudType, Object: object, Unsafe: unsafe } as unknown as ChudTypeBuilder;
-export type TypeBuilder = ChudTypeBuilder;
+export const Type = { ...OmpType, Object: object, Unsafe: unsafe } as unknown as OmpTypeBuilder;
+export type TypeBuilder = OmpTypeBuilder;
 
-const legacyTypeBox: { Type: ChudTypeBuilder } = { Type };
+const legacyTypeBox: { Type: OmpTypeBuilder } = { Type };
 export default legacyTypeBox;

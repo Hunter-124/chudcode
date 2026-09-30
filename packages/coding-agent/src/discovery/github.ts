@@ -16,8 +16,8 @@
  * - skills: <name>/SKILL.md in .github/skills/ (GitHub Agent Skills layout)
  */
 import * as path from "node:path";
-import { parseFrontmatter } from "@chudware/utils";
-import { registerProvider } from "../capability";
+import { parseFrontmatter } from "@oh-my-pi/pi-utils";
+import { isUserSourceEnabled, registerProvider } from "../capability";
 import { type ContextFile, contextFileCapability } from "../capability/context-file";
 import { readFile } from "../capability/fs";
 import { type Instruction, instructionCapability } from "../capability/instruction";
@@ -27,7 +27,7 @@ import { type Skill, skillCapability } from "../capability/skill";
 import type { LoadContext, LoadResult, SourceMeta } from "../capability/types";
 
 import {
-	buildRuleFromMarkdown,
+	discoverRuleFromMarkdown,
 	calculateDepth,
 	createSourceMeta,
 	getProjectPath,
@@ -67,15 +67,17 @@ async function loadContextFiles(ctx: LoadContext): Promise<LoadResult<ContextFil
 	}
 
 	// User-global instructions (~/.copilot/copilot-instructions.md), applied across all repos.
-	const userInstructionsPath = path.join(resolveCopilotHome(ctx.home), "copilot-instructions.md");
-	const userContent = await readFile(userInstructionsPath);
-	if (userContent) {
-		items.push({
-			path: userInstructionsPath,
-			content: userContent,
-			level: "user",
-			_source: createSourceMeta(PROVIDER_ID, userInstructionsPath, "user"),
-		});
+	if (isUserSourceEnabled("github", ctx)) {
+		const userInstructionsPath = path.join(resolveCopilotHome(ctx.home), "copilot-instructions.md");
+		const userContent = await readFile(userInstructionsPath);
+		if (userContent) {
+			items.push({
+				path: userInstructionsPath,
+				content: userContent,
+				level: "user",
+				_source: createSourceMeta(PROVIDER_ID, userInstructionsPath, "user"),
+			});
+		}
 	}
 
 	// Each COPILOT_CUSTOM_INSTRUCTIONS_DIRS entry contributes an AGENTS.md (Copilot CLI
@@ -204,9 +206,10 @@ function transformInstructionRule(
 		warnings.push(`Missing applyTo in ${filePath}; loaded without GitHub glob scoping.`);
 	}
 
-	const rule = buildRuleFromMarkdown(name, content, filePath, source, {
+	const rule = discoverRuleFromMarkdown(name, content, filePath, source, {
 		stripNamePattern: /\.instructions\.md$/,
 	});
+	if (!rule) return null;
 	if (applyToGlobs?.some(isAlwaysApplyGlob)) {
 		return { ...rule, alwaysApply: true, globs: undefined };
 	}
@@ -276,7 +279,7 @@ function copilotCustomInstructionDirs(): string[] {
  * GitHub documents this layout for Copilot Agent Skills and matches the
  * non-recursive shape `scanSkillsFromDir` already expects. `requireDescription`
  * is on to match the Agent Skills spec (name + description are mandatory) and
- * the sibling `native`/`chudcode-plugins` providers.
+ * the sibling `native`/`omp-plugins` providers.
  *
  * @see https://docs.github.com/en/copilot/how-tos/copilot-on-github/customize-copilot/customize-cloud-agent/add-skills
  */

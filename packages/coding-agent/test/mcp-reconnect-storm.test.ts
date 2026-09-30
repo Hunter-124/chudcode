@@ -16,10 +16,9 @@ import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
-import { MCPManager } from "@chudware/coding-agent/mcp/manager";
-import type { MCPStdioServerConfig } from "@chudware/coding-agent/mcp/types";
-import { removeSyncWithRetries } from "@chudware/utils";
-import { sleep } from "@chudware/utils/async";
+import { MCPManager } from "@oh-my-pi/pi-coding-agent/mcp/manager";
+import type { MCPStdioServerConfig } from "@oh-my-pi/pi-coding-agent/mcp/types";
+import { removeSyncWithRetries } from "@oh-my-pi/pi-utils";
 
 const FIXTURE_PATH = path.join(import.meta.dir, "fixtures", "crash-after-init-mcp.ts");
 const BUN_EXEC = process.execPath;
@@ -29,7 +28,7 @@ describe("MCP reconnect storm (issue #1592)", () => {
 	let spawnLog: string;
 
 	beforeEach(() => {
-		workDir = fs.mkdtempSync(path.join(os.tmpdir(), "chudcode-mcp-storm-"));
+		workDir = fs.mkdtempSync(path.join(os.tmpdir(), "omp-mcp-storm-"));
 		spawnLog = path.join(workDir, "spawns.log");
 		fs.writeFileSync(spawnLog, "");
 	});
@@ -49,7 +48,7 @@ describe("MCP reconnect storm (issue #1592)", () => {
 			type: "stdio",
 			command: BUN_EXEC,
 			args: [FIXTURE_PATH],
-			env: { CHUDCODE_TEST_SPAWN_LOG: spawnLog },
+			env: { OMP_TEST_SPAWN_LOG: spawnLog },
 		};
 
 		try {
@@ -65,7 +64,7 @@ describe("MCP reconnect storm (issue #1592)", () => {
 			// fixed 3s. Generous deadline stays well under the 15s test timeout.
 			const deadline = Date.now() + 10_000;
 			while (manager.getConnectionStatus("crashy") !== "disconnected" && Date.now() < deadline) {
-				await sleep(5);
+				await Bun.sleep(5);
 			}
 
 			const spawns = countSpawns();

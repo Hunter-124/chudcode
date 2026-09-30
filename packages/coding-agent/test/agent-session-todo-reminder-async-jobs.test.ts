@@ -1,14 +1,14 @@
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from "bun:test";
-import { Agent } from "@chudware/agent-core";
-import type { AssistantMessage } from "@chudware/ai";
-import { getBundledModel } from "@chudware/catalog/models";
-import { AsyncJobManager } from "@chudware/coding-agent/async";
-import { ModelRegistry } from "@chudware/coding-agent/config/model-registry";
-import { Settings } from "@chudware/coding-agent/config/settings";
-import type { ExtensionRunner } from "@chudware/coding-agent/extensibility/extensions";
-import { AgentSession, type AgentSessionEvent } from "@chudware/coding-agent/session/agent-session";
-import { SessionManager } from "@chudware/coding-agent/session/session-manager";
-import { TempDir } from "@chudware/utils";
+import { Agent } from "@oh-my-pi/pi-agent-core";
+import type { AssistantMessage } from "@oh-my-pi/pi-ai";
+import { getBundledModel } from "@oh-my-pi/pi-catalog/models";
+import { AsyncJobManager } from "@oh-my-pi/pi-coding-agent/async";
+import { ModelRegistry } from "@oh-my-pi/pi-coding-agent/config/model-registry";
+import { Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
+import type { ExtensionRunner } from "@oh-my-pi/pi-coding-agent/extensibility/extensions";
+import { AgentSession, type AgentSessionEvent } from "@oh-my-pi/pi-coding-agent/session/agent-session";
+import { SessionManager } from "@oh-my-pi/pi-coding-agent/session/session-manager";
+import { TempDir } from "@oh-my-pi/pi-utils";
 import { createInMemoryAuthStorage } from "./helpers/agent-session-setup";
 
 /**
@@ -47,7 +47,7 @@ import { createInMemoryAuthStorage } from "./helpers/agent-session-setup";
  * decided whether to fire the stop-time passes. No wall-clock sleeps needed.
  */
 const sharedAuthStorage = createInMemoryAuthStorage();
-sharedAuthStorage.setRuntimeApiKey("anthropic", "test-key");
+sharedAuthStorage.keys.setRuntime("anthropic", "test-key");
 const sharedModelRegistry = new ModelRegistry(sharedAuthStorage);
 
 afterAll(() => {
@@ -63,6 +63,7 @@ describe("AgentSession todo reminder async-job deferral", () => {
 	let gates: Array<PromiseWithResolvers<string>>;
 	let reminderAttempts: number[];
 	let agentEndTerminalStates: Array<boolean | undefined>;
+	let agentEndAwaitingAsyncWork: Array<boolean | undefined>;
 
 	function textOnlyAssistantMessage(): AssistantMessage {
 		return {
@@ -155,12 +156,12 @@ describe("AgentSession todo reminder async-job deferral", () => {
 
 		reminderAttempts = [];
 		agentEndTerminalStates = [];
+		agentEndAwaitingAsyncWork = [];
 		session.subscribe((event: AgentSessionEvent) => {
 			if (event.type === "todo_reminder") reminderAttempts.push(event.attempt);
 			if (event.type === "agent_end") {
-				agentEndTerminalStates.push(
-					(event as Extract<AgentSessionEvent, { type: "agent_end" }> & { isTerminal?: boolean }).isTerminal,
-				);
+				agentEndTerminalStates.push(event.isTerminal);
+				agentEndAwaitingAsyncWork.push(event.awaitingAsyncWork);
 			}
 		});
 	});
@@ -188,6 +189,8 @@ describe("AgentSession todo reminder async-job deferral", () => {
 		expect(reminderAttempts).toEqual([]);
 		expect(continueSpy).not.toHaveBeenCalled();
 		expect(agentEndTerminalStates).toEqual([false]);
+		// Only a background result can resume this pause, so the event says so.
+		expect(agentEndAwaitingAsyncWork).toEqual([true]);
 	});
 
 	it("does not defer for a running job owned by a different agent", async () => {
@@ -199,6 +202,8 @@ describe("AgentSession todo reminder async-job deferral", () => {
 		await session.waitForIdle();
 
 		expect(reminderAttempts).toEqual([1]);
+		// The reminder is the agent's own continuation, not an async wait.
+		expect(agentEndAwaitingAsyncWork).toEqual([undefined]);
 	});
 
 	it("fires the reminder on the next stop once the owned job completes and its delivery drains", async () => {

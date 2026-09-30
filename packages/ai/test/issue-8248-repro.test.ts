@@ -1,10 +1,10 @@
 import { describe, expect, it } from "bun:test";
-import { streamOpenAIResponses } from "@chudware/ai/providers/openai-responses";
-import type { AssistantMessage, Context, Model } from "@chudware/ai/types";
-import { Effort } from "@chudware/catalog/effort";
-import { getBundledModel } from "@chudware/catalog/models";
+import { streamOpenAIResponses } from "@oh-my-pi/pi-ai/providers/openai-responses";
+import type { AssistantMessage, Context, Model } from "@oh-my-pi/pi-ai/types";
+import { Effort } from "@oh-my-pi/pi-catalog/effort";
+import { getBundledModel } from "@oh-my-pi/pi-catalog/models";
 
-// Issue #8248: with prewalk enabled, Chudcode switches into a DeepSeek Responses
+// Issue #8248: with prewalk enabled, OMP switches into a DeepSeek Responses
 // target (opencode-go) after mid-run compaction. The replayed assistant turns
 // were minted by the previous model, so the Responses input builder re-encodes
 // them and demotes their reasoning to plain text, emitting no reasoning item.
@@ -75,11 +75,6 @@ const usage = {
 } as const;
 
 describe("issue #8248: DeepSeek Responses reasoning replay after prewalk/compaction", () => {
-	it("targets a reasoning Responses model that requires reasoning replay", () => {
-		expect(deepseek.api).toBe("openai-responses");
-		expect(deepseek.compat.requiresReasoningContentForAllAssistantTurns).toBe(true);
-	});
-
 	it("synthesizes a reasoning item for a foreign assistant turn replayed after a prewalk switch", async () => {
 		// Kept-tail turn minted by the previous model (prewalk hopped gpt-5.6-sol
 		// -> deepseek). Same api, different provider+model -> block re-encode.

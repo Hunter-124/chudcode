@@ -17,9 +17,9 @@
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
-import { getSessionsDir } from "@chudware/utils/dirs";
-import { peekFileEnds } from "@chudware/utils/peek-file";
-import { parseJsonlLenient } from "@chudware/utils/stream";
+import { getSessionsDir } from "@oh-my-pi/pi-utils/dirs";
+import { peekFileEnds } from "@oh-my-pi/pi-utils/peek-file";
+import { parseJsonlLenient } from "@oh-my-pi/pi-utils/stream";
 import type { SessionSnapshot, SessionStatus } from "./bridge-protocol";
 import { isUnknownRecord } from "./incident-guards";
 

@@ -2,10 +2,11 @@
  * Manage bundled task agents.
  */
 
-import { Args, Command, Flags, renderCommandHelp } from "@chudware/utils/cli";
+import { Args, Command, Flags, renderCommandHelp } from "@oh-my-pi/pi-utils/cli";
+import { APP_NAME, CONFIG_DIR_NAME } from "@oh-my-pi/pi-utils/dirs";
 import { type AgentsAction, type AgentsCommandArgs, runAgentsCommand } from "../cli/agents-cli";
 import { agentsHelp as commandHelp } from "../cli/command-help";
-import { initTheme } from "../modes/theme/theme";
+import { initTheme } from "@oh-my-pi/pi-tui/theme";
 
 const ACTIONS: AgentsAction[] = ["unpack"];
 
@@ -23,21 +24,21 @@ export default class Agents extends Command {
 		force: Flags.boolean({ char: "f", description: "Overwrite existing agent files" }),
 		json: Flags.boolean({ description: "Output JSON" }),
 		dir: Flags.string({ description: "Output directory (overrides --user/--project)" }),
-		user: Flags.boolean({ description: "Write to ~/.chudcode/agent/agents (default)" }),
-		project: Flags.boolean({ description: "Write to ./.chudcode/agents" }),
+		user: Flags.boolean({ description: `Write to ~/${CONFIG_DIR_NAME}/agent/agents (default)` }),
+		project: Flags.boolean({ description: `Write to ./${CONFIG_DIR_NAME}/agents` }),
 	};
 
 	static examples = [
-		"# Export bundled agents into user config (default)\n  chudcode agents unpack",
-		"# Export bundled agents into project config\n  chudcode agents unpack --project",
-		"# Overwrite existing local agent files\n  chudcode agents unpack --project --force",
-		"# Export into a custom directory\n  chudcode agents unpack --dir ./tmp/agents --json",
+		`# Export bundled agents into user config (default)\n  ${APP_NAME} agents unpack`,
+		`# Export bundled agents into project config\n  ${APP_NAME} agents unpack --project`,
+		`# Overwrite existing local agent files\n  ${APP_NAME} agents unpack --project --force`,
+		`# Export into a custom directory\n  ${APP_NAME} agents unpack --dir ./tmp/agents --json`,
 	];
 
 	async run(): Promise<void> {
 		const { args, flags } = await this.parse(Agents);
 		if (!args.action) {
-			renderCommandHelp("chudcode", "agents", Agents);
+			renderCommandHelp(APP_NAME, "agents", Agents);
 			return;
 		}
 

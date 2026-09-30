@@ -1,15 +1,14 @@
 /**
  * Agents CLI command handlers.
  *
- * Handles `chudcode agents unpack` for writing bundled agent definitions to disk.
+ * Handles `omp agents unpack` for writing bundled agent definitions to disk.
  */
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
-import { getAgentDir, getProjectDir, isEnoent } from "@chudware/utils";
-import chalk from "@chudware/utils/chalk";
-import * as fsx from "@chudware/utils/fsx";
+import { getAgentDir, getProjectDir, isEnoent } from "@oh-my-pi/pi-utils";
+import chalk from "@oh-my-pi/pi-utils/chalk";
 import { YAML } from "bun";
-import { theme } from "../modes/theme/theme";
+import { theme } from "@oh-my-pi/pi-tui/theme";
 import { loadBundledAgents } from "../task/agents";
 import type { AgentDefinition } from "../task/types";
 
@@ -47,7 +46,7 @@ function resolveTargetDir(flags: AgentsCommandArgs["flags"]): string {
 	}
 
 	if (flags.project) {
-		return path.resolve(getProjectDir(), ".chudcode", "agents");
+		return path.resolve(getProjectDir(), ".omp", "agents");
 	}
 
 	return path.join(getAgentDir(), "agents");
@@ -95,7 +94,7 @@ async function unpackBundledAgents(flags: AgentsCommandArgs["flags"]): Promise<U
 			}
 		}
 
-		await fsx.write(filePath, serializeAgent(agent));
+		await Bun.write(filePath, serializeAgent(agent));
 		written.push(filePath);
 	}
 

@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+## [18.3.1] - 2026-09-25
+
+### Fixed
+
+- Fixed browser relay support when multiple browser instances, such as Chrome and Edge, are connected simultaneously, ensuring tabs and relay requests remain associated with the correct browser while preserving single-browser compatibility for extensions without an instance identifier.
+
 ## [18.0.7] - 2026-08-26
 
 ### Changed
@@ -12,5 +18,5 @@
 
 ### Added
 
-- Initial release of the Chrome MV3 extension, enabling the chudcode browser tool to attach to and drive existing browser tabs via chrome.debugger.
-- Added automatic, robust tab management that groups active agent-driven tabs into a dedicated per-window "chudcode" tab group and ensures clean dissolution upon disconnect.
+- Initial release of the Chrome MV3 extension, enabling the omp browser tool to attach to and drive existing browser tabs via chrome.debugger.
+- Added automatic, robust tab management that groups active agent-driven tabs into a dedicated per-window "omp" tab group and ensures clean dissolution upon disconnect.

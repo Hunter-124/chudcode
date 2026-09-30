@@ -6,8 +6,8 @@ import type {
 	AgentToolResult,
 	AgentToolUpdateCallback,
 	ToolApprovalDecision,
-} from "@chudware/agent-core";
-import { type } from "@chudware/chudtype";
+} from "@oh-my-pi/pi-agent-core";
+import { type } from "@oh-my-pi/omptype";
 import type { ToolSession } from ".";
 import { parseDhatJson } from "./analyzers/dhat-json";
 import { missingTool, probeTools } from "./analyzers/doctor";
@@ -16,7 +16,7 @@ import { GdbMiSession } from "./analyzers/gdb-mi";
 import { commandFailure, runCommand } from "./analyzers/process";
 import { parseSanitizerOutput, type SanitizerReport } from "./analyzers/sanitizer-parse";
 import { parseValgrindXml } from "./analyzers/valgrind-xml";
-import type { OutputMeta } from "./output-meta";
+import type { OutputMeta } from "@oh-my-pi/pi-tui/tools/output-meta";
 import { toolResult } from "./tool-result";
 
 const buildSchema = type({

@@ -2,21 +2,19 @@ import { afterEach, describe, expect, it, spyOn, vi } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import { Settings } from "@chudware/coding-agent/config/settings";
-import * as dapModule from "@chudware/coding-agent/dap";
-import { connectSocket, DapClient, waitForTcpServerListening } from "@chudware/coding-agent/dap/client";
-import { DapSessionManager } from "@chudware/coding-agent/dap/session";
+import { Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
+import * as dapModule from "@oh-my-pi/pi-coding-agent/dap";
+import { connectSocket, DapClient, waitForTcpServerListening } from "@oh-my-pi/pi-coding-agent/dap/client";
+import { DapSessionManager } from "@oh-my-pi/pi-coding-agent/dap/session";
 import type {
 	DapCapabilities,
 	DapClientState,
 	DapEventMessage,
 	DapResolvedAdapter,
-} from "@chudware/coding-agent/dap/types";
-import type { ToolSession } from "@chudware/coding-agent/tools";
-import { DebugTool } from "@chudware/coding-agent/tools/debug";
-import { removeWithRetries } from "@chudware/utils";
-import { sleep } from "@chudware/utils/async";
-import * as fsx from "@chudware/utils/fsx";
+} from "@oh-my-pi/pi-coding-agent/dap/types";
+import type { ToolSession } from "@oh-my-pi/pi-coding-agent/tools";
+import { DebugTool } from "@oh-my-pi/pi-coding-agent/tools/debug";
+import { removeWithRetries, withTimeout } from "@oh-my-pi/pi-utils";
 
 const TEST_ADAPTER: DapResolvedAdapter = {
 	name: "lldb-dap",
@@ -31,6 +29,42 @@ const TEST_ADAPTER: DapResolvedAdapter = {
 	connectMode: "stdio",
 	acceptsDirectoryProgram: false,
 };
+
+it("rejects pending DAP work and terminates an adapter with invalid framing", async () => {
+	const client = await DapClient.spawn({
+		adapter: {
+			...TEST_ADAPTER,
+			command: process.execPath,
+			resolvedCommand: process.execPath,
+			args: ["run", path.join(import.meta.dir, "../fixtures/malformed-jsonrpc-peer.ts")],
+		},
+		cwd: process.cwd(),
+	});
+	try {
+		const request = client.sendRequest("initialize", {}, undefined, 60_000);
+		const event = client.waitForEvent("stopped", undefined, undefined, 60_000);
+		const results = await withTimeout(
+			Promise.allSettled([request, event]),
+			5_000,
+			"Invalid framing did not reject pending DAP work",
+		);
+		for (const result of results) {
+			expect(result.status).toBe("rejected");
+			if (result.status === "rejected") {
+				expect(result.reason).toBeInstanceOf(Error);
+				expect((result.reason as Error).message).toMatch(/Content-Length.*limit/);
+			}
+		}
+		await expect(client.sendRequest("threads", {})).rejects.toThrow(/not running/);
+		await withTimeout(
+			client.proc.exited.catch(() => {}),
+			5_000,
+			"Malformed adapter remained alive",
+		);
+	} finally {
+		await client.dispose();
+	}
+}, 10_000);
 
 const DELAYED_UNIX_SOCKET_ADAPTER = `
 const listenPrefix = "--listen=unix:";
@@ -111,11 +145,11 @@ class FakeDapClient {
 	async sendRequest(command: string, args?: unknown): Promise<unknown> {
 		this.requests.push({ command, args });
 		if (command === "launch" && this.options.launchError) {
-			if (this.options.launchErrorDelayMs) await sleep(this.options.launchErrorDelayMs);
+			if (this.options.launchErrorDelayMs) await Bun.sleep(this.options.launchErrorDelayMs);
 			throw new Error(this.options.launchError);
 		}
 		if (command === "attach" && this.options.attachError) {
-			if (this.options.attachErrorDelayMs) await sleep(this.options.attachErrorDelayMs);
+			if (this.options.attachErrorDelayMs) await Bun.sleep(this.options.attachErrorDelayMs);
 			throw new Error(this.options.attachError);
 		}
 		if (command === "configurationDone" && this.options.configurationDoneError) {
@@ -190,26 +224,6 @@ describe("DAP launch failure handling", () => {
 		expect(launch?.args).toMatchObject({ args: ["--configured"], program: "/bin/echo" });
 	});
 
-	it("surfaces the launch failure when configurationDone also fails", async () => {
-		const manager = new DapSessionManager();
-		const fake = new FakeDapClient(TEST_ADAPTER, process.cwd(), {
-			launchError: "launch: 'C:\\repo\\python' is not a valid executable",
-			configurationDoneError: "configurationDone: Expected process to be stopped.",
-		});
-		spyOn(DapClient, "spawn").mockResolvedValue(fake as unknown as DapClient);
-
-		let message = "";
-		try {
-			await manager.launch({ adapter: TEST_ADAPTER, program: "C:\\repo\\python", cwd: process.cwd() });
-		} catch (error) {
-			expect(error).toBeInstanceOf(Error);
-			message = (error as Error).message;
-		}
-
-		expect(message).toContain("launch: 'C:\\repo\\python' is not a valid executable");
-		expect(message).toContain("configurationDone: Expected process to be stopped.");
-	});
-
 	it("surfaces the attach failure when configurationDone also fails", async () => {
 		const manager = new DapSessionManager();
 		const fake = new FakeDapClient(TEST_ADAPTER, process.cwd(), {
@@ -266,7 +280,7 @@ describe("DAP launch failure handling", () => {
 			await expect(
 				manager.launch({ adapter: TEST_ADAPTER, program: "/bin/echo", cwd: process.cwd() }),
 			).rejects.toThrow("launch: failed before stop outcome");
-			await sleep(10);
+			await Bun.sleep(10);
 			expect(unhandled).toEqual([]);
 		} finally {
 			process.off("unhandledRejection", onUnhandled);
@@ -375,7 +389,7 @@ describe("DAP launch failure handling", () => {
 
 	it("waits for delayed Unix socket adapters before connecting on Linux", async () => {
 		if (process.platform !== "linux") return;
-		const cwd = await fs.mkdtemp(path.join(os.tmpdir(), "chudcode-debug-dlv-socket-"));
+		const cwd = await fs.mkdtemp(path.join(os.tmpdir(), "omp-debug-dlv-socket-"));
 		const adapterPath = path.join(cwd, "delayed-unix-socket-adapter.mjs");
 		await fs.writeFile(adapterPath, DELAYED_UNIX_SOCKET_ADAPTER);
 		const adapter: DapResolvedAdapter = {
@@ -429,19 +443,19 @@ describe("DAP launch failure handling", () => {
 			// Must respect the caller's timeoutMs, not the internal 30 s write cap.
 			expect(Date.now() - start).toBeLessThan(500);
 			// Let any queued unhandled-rejection microtask fire.
-			await sleep(50);
+			await Bun.sleep(50);
 			expect(unhandled).toEqual([]);
 		} finally {
 			process.off("unhandledRejection", onUnhandled);
 			// Let writeMessage's exit-guard resolve so no promise leaks past the test.
 			await client.dispose();
-			await sleep(20);
+			await Bun.sleep(20);
 		}
 	});
 
 	it("kills the detached adapter process when the Unix socket never appears (Linux)", async () => {
 		if (process.platform !== "linux") return;
-		const cwd = await fs.mkdtemp(path.join(os.tmpdir(), "chudcode-debug-unix-leak-"));
+		const cwd = await fs.mkdtemp(path.join(os.tmpdir(), "omp-debug-unix-leak-"));
 		try {
 			const adapterPath = path.join(cwd, "wedged-unix-adapter.mjs");
 			const pidFilePath = path.join(cwd, "adapter.pid");
@@ -461,8 +475,8 @@ describe("DAP launch failure handling", () => {
 			};
 			await expect(DapClient.spawn({ adapter, cwd, socketReadyTimeoutMs: 300 })).rejects.toThrow(/Socket not ready/);
 			// Wait for the kill signal to propagate to the detached adapter.
-			await sleep(500);
-			const adapterPid = Number(await fsx.readText(pidFilePath));
+			await Bun.sleep(500);
+			const adapterPid = Number(await Bun.file(pidFilePath).text());
 			expect(Number.isFinite(adapterPid)).toBe(true);
 			let alive = true;
 			try {
@@ -480,7 +494,7 @@ describe("DAP launch failure handling", () => {
 		const originalPlatform = process.platform;
 		Object.defineProperty(process, "platform", { value: "darwin", configurable: true });
 		try {
-			const cwd = await fs.mkdtemp(path.join(os.tmpdir(), "chudcode-debug-tcp-leak-"));
+			const cwd = await fs.mkdtemp(path.join(os.tmpdir(), "omp-debug-tcp-leak-"));
 			try {
 				const adapterPath = path.join(cwd, "wedged-tcp-adapter.mjs");
 				const pidFilePath = path.join(cwd, "adapter.pid");
@@ -499,8 +513,8 @@ describe("DAP launch failure handling", () => {
 				await expect(DapClient.spawn({ adapter, cwd, socketReadyTimeoutMs: 300 })).rejects.toThrow(
 					/did not connect within/,
 				);
-				await sleep(500);
-				const adapterPid = Number(await fsx.readText(pidFilePath));
+				await Bun.sleep(500);
+				const adapterPid = Number(await Bun.file(pidFilePath).text());
 				expect(Number.isFinite(adapterPid)).toBe(true);
 				let alive = true;
 				try {
@@ -526,7 +540,7 @@ describe("connectSocket unix transport", () => {
 		// so `await connectSocket(...)` hung the launch forever.
 		const deadSocket = path.join(
 			os.tmpdir(),
-			`chudcode-dap-dead-${Date.now()}-${Math.random().toString(36).slice(2)}.sock`,
+			`omp-dap-dead-${Date.now()}-${Math.random().toString(36).slice(2)}.sock`,
 		);
 		const start = Date.now();
 		await expect(connectSocket({ unix: deadSocket }, 5_000)).rejects.toThrow();
@@ -560,12 +574,12 @@ await Bun.sleep(60_000);
 		source: string,
 		run: (adapter: DapResolvedAdapter, cwd: string) => Promise<void>,
 	): Promise<void> {
-		const cwd = await fs.mkdtemp(path.join(os.tmpdir(), "chudcode-debug-tcp-"));
+		const cwd = await fs.mkdtemp(path.join(os.tmpdir(), "omp-debug-tcp-"));
 		const adapterPath = path.join(cwd, "tcp-adapter.mjs");
 		await fs.writeFile(adapterPath, source);
 		const adapter: DapResolvedAdapter = {
 			...TCP_ADAPTER_BASE,
-			// biome-ignore lint/suspicious/noTemplateCurlyInString: literal DAP `${port}` placeholder substituted by the adapter launcher
+			// oxlint-disable-next-line no-template-curly-in-string -- literal DAP `${port}` placeholder substituted by the adapter launcher
 			args: [adapterPath, "${port}", "127.0.0.1"],
 		};
 		try {
@@ -635,7 +649,7 @@ await Bun.sleep(60_000);
 			push("Debug server listening at 127.0.0.1:43");
 			// Single event-loop turn so the gate's reader consumes the queued
 			// chunks — a scheduling flush, not a tuned wall-clock delay.
-			await sleep(0);
+			await Bun.sleep(0);
 			expect(open).toBe(false);
 			push("210\n");
 			await gate;
@@ -659,7 +673,7 @@ describe("DebugTool launch validation", () => {
 			adapter: TEST_ADAPTER,
 		});
 		try {
-			const cwd = await fs.mkdtemp(path.join(os.tmpdir(), "chudcode-debug-program-"));
+			const cwd = await fs.mkdtemp(path.join(os.tmpdir(), "omp-debug-program-"));
 			try {
 				await fs.mkdir(path.join(cwd, "python"));
 				const session: ToolSession = {
@@ -699,7 +713,7 @@ describe("DebugTool launch validation", () => {
 			throw Object.assign(new Error("captured launch"), { capturedOptions: opts });
 		});
 		try {
-			const cwd = await fs.mkdtemp(path.join(os.tmpdir(), "chudcode-debug-dlv-dir-"));
+			const cwd = await fs.mkdtemp(path.join(os.tmpdir(), "omp-debug-dlv-dir-"));
 			try {
 				await fs.mkdir(path.join(cwd, "cmd"));
 				const session: ToolSession = {
@@ -734,7 +748,7 @@ describe("DebugTool launch validation", () => {
 			throw Object.assign(new Error("captured launch"), { capturedOptions: opts });
 		});
 		try {
-			const cwd = await fs.mkdtemp(path.join(os.tmpdir(), "chudcode-debug-dlv-mixed-roots-"));
+			const cwd = await fs.mkdtemp(path.join(os.tmpdir(), "omp-debug-dlv-mixed-roots-"));
 			try {
 				await fs.writeFile(path.join(cwd, "go.mod"), "module hello\n\ngo 1.22\n");
 				await fs.writeFile(path.join(cwd, "Makefile"), "all:\n\tgo build ./...\n");
@@ -782,7 +796,7 @@ describe("DebugTool launch validation", () => {
 			throw Object.assign(new Error("captured launch"), { capturedOptions: opts });
 		});
 		try {
-			const cwd = await fs.mkdtemp(path.join(os.tmpdir(), "chudcode-debug-dlv-exec-"));
+			const cwd = await fs.mkdtemp(path.join(os.tmpdir(), "omp-debug-dlv-exec-"));
 			try {
 				await fs.writeFile(path.join(cwd, "hello"), "#!/usr/bin/env sh\necho hi\n");
 				const session: ToolSession = {
@@ -815,7 +829,7 @@ describe("DebugTool launch validation", () => {
 			command: "python",
 		});
 		try {
-			const cwd = await fs.mkdtemp(path.join(os.tmpdir(), "chudcode-debug-debugpy-"));
+			const cwd = await fs.mkdtemp(path.join(os.tmpdir(), "omp-debug-debugpy-"));
 			try {
 				await fs.writeFile(path.join(cwd, "main.py"), "print('hi')");
 				const session: ToolSession = {
@@ -892,7 +906,7 @@ describe("DebugTool launch validation", () => {
 	it("throws targeted 'python not found in PATH' when adapter:'debugpy' is unresolvable for attach", async () => {
 		const attachSpy = spyOn(dapModule, "selectAttachAdapter").mockReturnValue(null);
 		try {
-			const cwd = await fs.mkdtemp(path.join(os.tmpdir(), "chudcode-debug-debugpy-attach-"));
+			const cwd = await fs.mkdtemp(path.join(os.tmpdir(), "omp-debug-debugpy-attach-"));
 			try {
 				const session: ToolSession = {
 					cwd,
@@ -921,7 +935,7 @@ describe("DebugTool launch validation", () => {
 			command: "dlv",
 		});
 		try {
-			const cwd = await fs.mkdtemp(path.join(os.tmpdir(), "chudcode-debug-dlv-hint-"));
+			const cwd = await fs.mkdtemp(path.join(os.tmpdir(), "omp-debug-dlv-hint-"));
 			try {
 				await fs.writeFile(path.join(cwd, "main.go"), "package main\n\nfunc main() {}\n");
 				const session: ToolSession = {
@@ -944,36 +958,6 @@ describe("DebugTool launch validation", () => {
 		}
 	});
 
-	it("shows supported install options when the JavaScript debug adapter is unavailable", async () => {
-		const launchSpy = spyOn(dapModule, "selectLaunchAdapter").mockReturnValue({
-			kind: "unavailable",
-			adapterName: "js-debug-adapter",
-			command: "js-debug-adapter",
-		});
-		try {
-			const cwd = await fs.mkdtemp(path.join(os.tmpdir(), "chudcode-debug-js-debug-hint-"));
-			try {
-				await fs.writeFile(path.join(cwd, "main.js"), "console.log('hi');\n");
-				const session: ToolSession = {
-					cwd,
-					hasUI: false,
-					getSessionFile: () => null,
-					getSessionSpawns: () => "*",
-					settings: Settings.isolated({ "debug.enabled": true }),
-				};
-				const tool = new DebugTool(session);
-
-				await expect(tool.execute("call", { action: "launch", program: "main.js" })).rejects.toThrow(
-					/download.*github\.com\/microsoft\/vscode-js-debug/,
-				);
-			} finally {
-				await removeWithRetries(cwd);
-			}
-		} finally {
-			launchSpy.mockRestore();
-		}
-	});
-
 	it("points to DAP configuration when a custom adapter command is unavailable", async () => {
 		const launchSpy = spyOn(dapModule, "selectLaunchAdapter").mockReturnValue({
 			kind: "unavailable",
@@ -981,7 +965,7 @@ describe("DebugTool launch validation", () => {
 			command: "./bin/missing-dlv",
 		});
 		try {
-			const cwd = await fs.mkdtemp(path.join(os.tmpdir(), "chudcode-debug-dlv-config-"));
+			const cwd = await fs.mkdtemp(path.join(os.tmpdir(), "omp-debug-dlv-config-"));
 			try {
 				await fs.writeFile(path.join(cwd, "main.go"), "package main\n\nfunc main() {}\n");
 				const session: ToolSession = {
@@ -1004,35 +988,10 @@ describe("DebugTool launch validation", () => {
 		}
 	});
 
-	it("shows the rdbg install command for explicit Ruby attach", async () => {
-		const attachSpy = spyOn(dapModule, "selectAttachAdapter").mockReturnValue(null);
-		try {
-			const cwd = await fs.mkdtemp(path.join(os.tmpdir(), "chudcode-debug-rdbg-attach-"));
-			try {
-				const session: ToolSession = {
-					cwd,
-					hasUI: false,
-					getSessionFile: () => null,
-					getSessionSpawns: () => "*",
-					settings: Settings.isolated({ "debug.enabled": true }),
-				};
-				const tool = new DebugTool(session);
-
-				await expect(tool.execute("call", { action: "attach", pid: 1234, adapter: "rdbg" })).rejects.toThrow(
-					/gem install debug/,
-				);
-			} finally {
-				await removeWithRetries(cwd);
-			}
-		} finally {
-			attachSpy.mockRestore();
-		}
-	});
-
 	it("falls back to the generic 'No debugger adapter' error when adapter is unspecified", async () => {
 		const launchSpy = spyOn(dapModule, "selectLaunchAdapter").mockReturnValue({ kind: "none" });
 		try {
-			const cwd = await fs.mkdtemp(path.join(os.tmpdir(), "chudcode-debug-noadapter-"));
+			const cwd = await fs.mkdtemp(path.join(os.tmpdir(), "omp-debug-noadapter-"));
 			try {
 				await fs.writeFile(path.join(cwd, "main.py"), "print('hi')");
 				const session: ToolSession = {

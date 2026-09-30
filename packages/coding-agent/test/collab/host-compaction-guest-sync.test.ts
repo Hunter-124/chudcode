@@ -12,26 +12,25 @@
  */
 import { afterAll, afterEach, beforeAll, describe, expect, it, type Mock, spyOn } from "bun:test";
 import * as os from "node:os";
-import { Agent } from "@chudware/agent-core";
-import type { Model } from "@chudware/ai";
-import { getBundledModel } from "@chudware/catalog/models";
-import { CollabGuestLink } from "@chudware/coding-agent/collab/guest";
-import { CollabHost } from "@chudware/coding-agent/collab/host";
-import { ModelRegistry } from "@chudware/coding-agent/config/model-registry";
-import { Settings } from "@chudware/coding-agent/config/settings";
-import type { InteractiveModeContext } from "@chudware/coding-agent/modes/types";
-import { AgentSession } from "@chudware/coding-agent/session/agent-session";
-import type { AuthStorage } from "@chudware/coding-agent/session/auth-storage";
-import { SessionManager } from "@chudware/coding-agent/session/session-manager";
-import { refreshDirsFromEnv, TempDir } from "@chudware/utils";
-import { sleep } from "@chudware/utils/async";
+import { Agent } from "@oh-my-pi/pi-agent-core";
+import type { Model } from "@oh-my-pi/pi-ai";
+import { getBundledModel } from "@oh-my-pi/pi-catalog/models";
+import { CollabGuestLink } from "@oh-my-pi/pi-coding-agent/collab/guest";
+import { CollabHost } from "@oh-my-pi/pi-coding-agent/collab/host";
+import { ModelRegistry } from "@oh-my-pi/pi-coding-agent/config/model-registry";
+import { Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
+import type { InteractiveModeContext } from "@oh-my-pi/pi-coding-agent/modes/types";
+import { AgentSession } from "@oh-my-pi/pi-coding-agent/session/agent-session";
+import type { AuthStorage } from "@oh-my-pi/pi-coding-agent/session/auth-storage";
+import { SessionManager } from "@oh-my-pi/pi-coding-agent/session/session-manager";
+import { refreshDirsFromEnv, TempDir } from "@oh-my-pi/pi-utils";
 import { createAssistantMessage, createInMemoryAuthStorage } from "../helpers/agent-session-setup";
 import { installInMemoryRelay, uninstallInMemoryRelay } from "./helpers/in-memory-relay";
 
 /** Minimal host `InteractiveModeContext`: only the members `CollabHost` reads. */
 function makeHostContext(manager: SessionManager): InteractiveModeContext {
 	return {
-		settings: { get: () => "" },
+		settings: Settings.isolated(),
 		sessionManager: manager,
 		session: {
 			isStreaming: false,
@@ -78,7 +77,7 @@ function makeGuestHarness(model: Model, modelRegistry: ModelRegistry): GuestHarn
 	const session = new AgentSession({ agent, sessionManager: manager, settings: Settings.isolated(), modelRegistry });
 
 	const ctx = {
-		settings: { get: () => "" },
+		settings: Settings.isolated(),
 		sessionManager: manager,
 		session,
 		statusContainer: { clear: () => {}, disposeChildren: () => {} },
@@ -107,7 +106,7 @@ function makeGuestHarness(model: Model, modelRegistry: ModelRegistry): GuestHarn
 		reloadTodos: () => Promise.resolve(),
 		showStatus: () => {},
 		showError: () => {},
-		eventController: { handleEvent: () => Promise.resolve() },
+		eventController: { handleEvent: () => Promise.resolve(), takeDisplaceableComponents: () => [] },
 		eventBus: undefined,
 		collabGuest: undefined,
 		handleResumeSession: () => Promise.resolve(),
@@ -135,13 +134,13 @@ async function settleFrames(predicate: () => boolean, timeoutMs = 10_000): Promi
 	const deadline = Date.now() + timeoutMs;
 	while (Date.now() < deadline) {
 		if (predicate()) return;
-		await sleep(1);
+		await Bun.sleep(1);
 	}
 	if (!predicate()) throw new Error("condition not met while settling collab frames");
 }
 
 // The guest writes its replica under getConfigRootDir(); redirect the config
-// root to a temp HOME so the test never touches the real ~/.chudcode.
+// root to a temp HOME so the test never touches the real ~/.omp.
 let homedirSpy: Mock<typeof os.homedir> | undefined;
 let homeDir: TempDir | undefined;
 let authStorage: AuthStorage;
@@ -154,7 +153,7 @@ beforeAll(() => {
 	refreshDirsFromEnv();
 	installInMemoryRelay();
 	authStorage = createInMemoryAuthStorage();
-	authStorage.setRuntimeApiKey("anthropic", "test-key");
+	authStorage.keys.setRuntime("anthropic", "test-key");
 	modelRegistry = new ModelRegistry(authStorage);
 	const bundled = getBundledModel("anthropic", "claude-sonnet-4-5");
 	if (!bundled) throw new Error("expected bundled anthropic model");

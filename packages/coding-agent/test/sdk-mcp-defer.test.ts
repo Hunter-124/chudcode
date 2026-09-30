@@ -2,14 +2,14 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
-import type { AuthStorage } from "@chudware/ai";
-import { getBundledModel } from "@chudware/catalog/models";
-import { type } from "@chudware/chudtype";
-import { ModelRegistry } from "@chudware/coding-agent/config/model-registry";
-import { Settings } from "@chudware/coding-agent/config/settings";
-import { type CustomTool, createAgentSession } from "@chudware/coding-agent/sdk";
-import { SessionManager } from "@chudware/coding-agent/session/session-manager";
-import { removeSyncWithRetries, Snowflake } from "@chudware/utils";
+import { type } from "@oh-my-pi/omptype";
+import type { AuthStorage } from "@oh-my-pi/pi-ai";
+import { getBundledModel } from "@oh-my-pi/pi-catalog/models";
+import { ModelRegistry } from "@oh-my-pi/pi-coding-agent/config/model-registry";
+import { Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
+import { type CustomTool, createAgentSession } from "@oh-my-pi/pi-coding-agent/sdk";
+import { SessionManager } from "@oh-my-pi/pi-coding-agent/session/session-manager";
+import { removeSyncWithRetries, Snowflake } from "@oh-my-pi/pi-utils";
 import { createInMemoryAuthStorage } from "./helpers/agent-session-setup";
 
 // Contract for B1 (interactive MCP deferral): when `hasUI` is true, MCP
@@ -52,7 +52,7 @@ describe("createAgentSession MCP deferral (B1)", () => {
 		authStorage = createInMemoryAuthStorage();
 		modelRegistry = new ModelRegistry(
 			authStorage,
-			path.join(os.tmpdir(), `chud-sdk-mcp-defer-models-${Snowflake.next()}.yml`),
+			path.join(os.tmpdir(), `pi-sdk-mcp-defer-models-${Snowflake.next()}.yml`),
 		);
 	});
 
@@ -61,7 +61,7 @@ describe("createAgentSession MCP deferral (B1)", () => {
 	});
 
 	beforeEach(() => {
-		tempDir = path.join(os.tmpdir(), `chud-sdk-mcp-defer-${Snowflake.next()}`);
+		tempDir = path.join(os.tmpdir(), `pi-sdk-mcp-defer-${Snowflake.next()}`);
 		fs.mkdirSync(tempDir, { recursive: true });
 	});
 

@@ -13,7 +13,7 @@ function renderLines(md: string, width = 100): string[] {
 
 describe("Markdown math rendering", () => {
 	it("converts inline $…$ math inside prose", () => {
-		const [line] = renderLines("the area is $A = \\chud r^2$ exactly");
+		const [line] = renderLines("the area is $A = \\pi r^2$ exactly");
 		expect(line).toBe("the area is A = π r² exactly");
 	});
 

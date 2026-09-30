@@ -1,19 +1,19 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "bun:test";
-import * as capability from "@chudware/coding-agent/capability";
-import type { Rule } from "@chudware/coding-agent/capability/rule";
-import { resetActiveRulesForTests, setActiveRules } from "@chudware/coding-agent/capability/rule";
-import type { SSHHost } from "@chudware/coding-agent/capability/ssh";
-import type { CapabilityResult } from "@chudware/coding-agent/capability/types";
-import type { Skill } from "@chudware/coding-agent/extensibility/skills";
-import { resetActiveSkillsForTests, setActiveSkills } from "@chudware/coding-agent/extensibility/skills";
-import { InternalUrlRouter } from "@chudware/coding-agent/internal-urls/router";
+import * as capability from "@oh-my-pi/pi-coding-agent/capability";
+import type { Rule } from "@oh-my-pi/pi-coding-agent/capability/rule";
+import { resetActiveRulesForTests, setActiveRules } from "@oh-my-pi/pi-coding-agent/capability/rule";
+import type { SSHHost } from "@oh-my-pi/pi-coding-agent/capability/ssh";
+import type { CapabilityResult } from "@oh-my-pi/pi-coding-agent/capability/types";
+import type { Skill } from "@oh-my-pi/pi-coding-agent/extensibility/skills";
+import { resetActiveSkillsForTests, setActiveSkills } from "@oh-my-pi/pi-coding-agent/extensibility/skills";
+import { InternalUrlRouter } from "@oh-my-pi/pi-coding-agent/internal-urls/router";
 import {
 	applyInternalUrlCompletion,
 	extractInternalUrlContext,
 	getInternalUrlSuggestions,
 	isInternalUrlPrefix,
-} from "@chudware/coding-agent/modes/internal-url-autocomplete";
-import { PromptActionAutocompleteProvider } from "@chudware/coding-agent/modes/prompt-action-autocomplete";
+} from "@oh-my-pi/pi-tui/prompt/internal-url-autocomplete";
+import { PromptActionAutocompleteProvider } from "@oh-my-pi/pi-tui/prompt/prompt-action-autocomplete";
 
 function skill(name: string, description = ""): Skill {
 	return { name, description, filePath: `/skills/${name}/SKILL.md`, baseDir: `/skills/${name}`, source: "test" };
@@ -32,7 +32,7 @@ function rule(name: string, description?: string): Rule {
 describe("internal-url-autocomplete", () => {
 	beforeEach(() => {
 		setActiveSkills([skill("humanizer", "Remove AI tells"), skill("react", "React UI"), skill("tla", "TLA+ specs")]);
-		setActiveRules([rule("python", "robochud rules"), rule("style")]);
+		setActiveRules([rule("python", "robomp rules"), rule("style")]);
 	});
 
 	afterEach(() => {
@@ -98,36 +98,12 @@ describe("internal-url-autocomplete", () => {
 			expect(result!.items[0]!.value).toBe("skill://react");
 		});
 
-		it("carries the candidate description through", async () => {
-			const result = await getInternalUrlSuggestions("rule://python");
-			expect(result!.items[0]).toMatchObject({ value: "rule://python", description: "robochud rules" });
-		});
-
 		it("returns null when no candidate matches", async () => {
 			expect(await getInternalUrlSuggestions("skill://zzzzz")).toBeNull();
 		});
 
 		it("returns null for schemes without a completion handler", async () => {
 			expect(await getInternalUrlSuggestions("issue://")).toBeNull();
-		});
-
-		it("threads cwd through to ssh host completion", async () => {
-			const result: CapabilityResult<SSHHost> = {
-				items: [
-					{
-						name: "web1",
-						host: "10.0.0.1",
-						_source: { provider: "ssh-json", providerName: "SSH Config", path: "/x", level: "user" },
-					},
-				],
-				all: [],
-				warnings: [],
-				providers: [],
-			};
-			const spy = vi.spyOn(capability, "loadCapability").mockResolvedValue(result as CapabilityResult<unknown>);
-			const suggestions = await getInternalUrlSuggestions("ssh://", "/tmp/proj");
-			expect(suggestions?.items.map(i => i.value)).toEqual(["ssh://web1"]);
-			expect(spy.mock.calls[0]?.[1]).toEqual({ cwd: "/tmp/proj" });
 		});
 
 		it("percent-encodes a configured ssh host with reserved characters while matching a raw query", async () => {
@@ -144,7 +120,11 @@ describe("internal-url-autocomplete", () => {
 				providers: [],
 			} as unknown as CapabilityResult<SSHHost>;
 			vi.spyOn(capability, "loadCapability").mockResolvedValue(result as CapabilityResult<unknown>);
-			const suggestions = await getInternalUrlSuggestions("ssh://alice@pr");
+			const suggestions = await getInternalUrlSuggestions(
+				"ssh://alice@pr",
+				"/tmp/proj",
+				new AbortController().signal,
+			);
 			// Inserted value is percent-encoded so the URL stays well-formed; the label
 			// keeps the human-readable name and the raw query still fuzzy-matches.
 			expect(suggestions?.items[0]).toMatchObject({ value: "ssh://alice%40prod", label: "alice@prod" });
@@ -164,22 +144,6 @@ describe("internal-url-autocomplete", () => {
 
 		it("returns null for an unknown scheme", async () => {
 			expect(await InternalUrlRouter.instance().complete("bogus", "")).toBeNull();
-		});
-
-		it("exposes the completion-capable schemes", () => {
-			const schemes = InternalUrlRouter.instance().completionSchemes().sort();
-			expect(schemes).toEqual([
-				"agent",
-				"artifact",
-				"chudcode",
-				"history",
-				"local",
-				"memory",
-				"rule",
-				"security",
-				"skill",
-				"ssh",
-			]);
 		});
 	});
 

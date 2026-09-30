@@ -1,6 +1,6 @@
 # Natives Addon Loader Runtime
 
-This page documents `packages/natives/native/loader-state.js`, the runtime between an ESM entrypoint and a validated `chud_natives.*.node` addon.
+This page documents `packages/natives/native/loader-state.js`, the runtime between an ESM entrypoint and a validated `pi_natives.*.node` addon.
 
 ## Entrypoints and eager/lazy loading
 
@@ -15,14 +15,14 @@ A successful call is not memoized by JS. Repeated calls rely on the runtime's `r
 `initLoaderContext()` derives:
 
 - `platformTag`: `${platform}-${process.arch}`;
-- package version and sentinel name `__piNativesV<version_with_underscores>`;
+- package version (the release every install/compiled addon must report via its post-link stamp);
 - package-local `nativeDir` and the directory of `process.execPath`;
-- `nativesDir`, normally `~/.chudcode/natives`; it uses `$XDG_DATA_HOME/chudcode/natives` only when `$XDG_DATA_HOME/chudcode` exists;
+- `nativesDir`, normally `~/.omp/natives`; it uses `$XDG_DATA_HOME/omp/natives` only when `$XDG_DATA_HOME/omp` exists;
 - `versionedDir`: `<nativesDir>/<packageVersion>`;
-- legacy compiled-binary directory: `%LOCALAPPDATA%/chudcode` (or `~/AppData/Local/chudcode`) on Windows, `~/.local/bin` elsewhere;
+- legacy compiled-binary directory: `%LOCALAPPDATA%/omp` (or `~/AppData/Local/omp`) on Windows, `~/.local/bin` elsewhere;
 - workspace/install/compiled mode, optional leaf directory, Windows staging policy, CPU variant, filenames, and ordered candidates.
 
-Compiled mode is true when a populated embedded manifest exists, `CHUDCODE_COMPILED` is set, or `import.meta.url` contains a Bun embedded marker (`$bunfs`, `~BUN`, or `%7EBUN`). A non-compiled `nativeDir` outside a `node_modules` path is a workspace load. Windows path classification is case-insensitive; other platforms use case-sensitive path matching.
+Compiled mode is true when a populated embedded manifest exists, `PI_COMPILED` is set, or `import.meta.url` contains a Bun embedded marker (`$bunfs`, `~BUN`, or `%7EBUN`). A non-compiled `nativeDir` outside a `node_modules` path is a workspace load. Windows path classification is case-insensitive; other platforms use case-sensitive path matching.
 
 ## Platforms and variants
 
@@ -33,10 +33,11 @@ Supported publish tags are:
 - `darwin-x64`
 - `darwin-arm64`
 - `win32-x64`
+- `win32-arm64`
 
 An unsupported tag is reported only after probing candidates.
 
-For x64, `CHUDCODE_NATIVE_VARIANT=modern|baseline` wins. Invalid values are ignored. Otherwise the private inherited `__PI_NATIVE_VARIANT_CACHE` result is used when valid; only then does the loader detect AVX2:
+For x64, `PI_NATIVE_VARIANT=modern|baseline` wins. Invalid values are ignored. Otherwise the private inherited `__PI_NATIVE_VARIANT_CACHE` result is used when valid; only then does the loader detect AVX2:
 
 - Linux reads `/proc/cpuinfo`.
 - macOS tries `/usr/sbin/sysctl` and then `sysctl`, querying `machdep.cpu.leaf7_features` and `machdep.cpu.features`.
@@ -48,9 +49,9 @@ Detection uses `Bun.spawnSync` when available, then falls back to `node:child_pr
 
 | Runtime selection    | Ordered filenames                                                                         |
 | -------------------- | ----------------------------------------------------------------------------------------- |
-| modern x64           | `chud_natives.<tag>-modern.node`, `chud_natives.<tag>-baseline.node`, `chud_natives.<tag>.node` |
-| baseline x64         | `chud_natives.<tag>-baseline.node`, `chud_natives.<tag>.node`                                 |
-| non-x64 / no variant | `chud_natives.<tag>.node`                                                                   |
+| modern x64           | `pi_natives.<tag>-modern.node`, `pi_natives.<tag>-baseline.node`, `pi_natives.<tag>.node` |
+| baseline x64         | `pi_natives.<tag>-baseline.node`, `pi_natives.<tag>.node`                                 |
+| non-x64 / no variant | `pi_natives.<tag>.node`                                                                   |
 
 ## Candidate ordering
 
@@ -58,7 +59,7 @@ Detection uses `Bun.spawnSync` when available, then falls back to `node:child_pr
 
 ### Installed, non-compiled package
 
-1. Every selected filename in `@chudware/natives-<tag>`.
+1. Every selected filename in `@oh-my-pi/pi-natives-<tag>`.
 2. For each filename, package-local `nativeDir`, then the executable directory.
 
 The platform leaf wins over a stale core artifact. Workspace loads deliberately skip leaf resolution.
@@ -104,14 +105,16 @@ For each candidate:
 
 1. Emit a startup marker when enabled.
 2. `require(candidate)`.
-3. Unless this is workspace development, require the expected package-version sentinel function.
+3. Unless this is workspace development, require `__piNativesBuildVersion()` to return the package version. The build pipeline writes that version into a fixed 64-byte slot (`PI_NATIVES_VERSION_STAMP:<version>` + NUL padding) after linking (`scripts/stamp-native-version.ts`, called from every `scripts/bazel-natives.ts` install, the local cargo build, and the Nix package build), so a release bump edits no Rust input. Addons published before the stamp expose a per-release `__piNativesV<version_with_underscores>` export instead; those are still read as their release for diagnosis.
 4. Call `__ompInstallTokioRuntime()` if the addon provides it.
 5. Best-effort remove valid semantic-version cache directories older than the current version.
 6. Return the bindings.
 
-The sentinel error distinguishes a previous addon still resident in the current process from a stale file on disk. If the loaded exports carry an older sentinel but the candidate bytes contain the expected current sentinel, the diagnostic says to restart. Otherwise it says to reinstall. The loader does not validate all public exports.
+The version error distinguishes a previous addon still resident in the current process from a stale file on disk. If the loaded exports report an older release but the candidate bytes contain the current stamp (`PI_NATIVES_VERSION_STAMP:<packageVersion>\0`), the diagnostic says to restart. Otherwise it says to reinstall. The loader does not validate all public exports.
 
-Rust module initialization installs crash diagnostics but does not spawn runtime threads under the dynamic-loader lock. The optional post-load hook installs bounded Windows Tokio and Rayon pools. It is best-effort; older addons or hook failures fall back to napi-rs behavior. Set `CHUDCODE_DEBUG_STARTUP` to emit synchronous `[startup]` markers to stderr, including hook success/failure.
+Workspace development is the one case that skips the version check, so a checkout that pulled a newer release boots before its rebuild. That tolerance is not silent: `native/index.js` exports `missingNativeExport(symbol)` in every function slot the addon omits, which is `undefined` on a current addon and a throwing stub on a stale one naming the symbol, the addon path, the loaded and expected releases, and `bun run build:native`. `nativeAddonStatus()` reports the same identity (`path`, `version`, `packageVersion`, `stale`) for callers that surface it themselves.
+
+Rust module initialization installs crash diagnostics but does not spawn runtime threads under the dynamic-loader lock. The optional post-load hook installs bounded Windows Tokio and Rayon pools. It is best-effort; older addons or hook failures fall back to napi-rs behavior. Set `PI_DEBUG_STARTUP` to emit synchronous `[startup]` markers to stderr, including hook success/failure.
 
 Cache cleanup ignores read/delete failures and removes only directories whose parsed semantic version is older than the current package. It preserves current/future versions, prerelease/non-semver names, and ordinary files.
 
@@ -120,7 +123,7 @@ Cache cleanup ignores read/delete failures and removes only directories whose pa
 If no candidate succeeds:
 
 - an unsupported tag throws `Unsupported platform: <tag>`, the supported list, and issue guidance;
-- a supported tag throws `Failed to load chud_natives native addon for <tag>` (including the x64 variant), followed by every candidate/preparation error and mode-specific help.
+- a supported tag throws `Failed to load pi_natives native addon for <tag>` (including the x64 variant), followed by every candidate/preparation error and mode-specific help.
 
 Compiled help lists expected cache paths, suggests deleting the versioned directory, and prints release-download `curl` commands. Installed-package help suggests reinstalling, the local host build (`bun --cwd=packages/natives run build`), and explicit `scripts/bazel-natives.ts <target> --dest packages/natives/native` builds.
 
@@ -132,8 +135,8 @@ entrypoint evaluates or lazy wrapper is invoked
   -> extract matching embedded archive, if any
   -> otherwise stage Windows node_modules addon, if applicable
   -> require candidates in deterministic order
-       -> validate sentinel outside workspace development
-       -> install optional post-load runtime
+       -> validate release stamp outside workspace development
+       -> install optional post-load runtime; record addon identity
        -> best-effort clean older version caches
        -> return bindings
   -> no success: throw unsupported-platform or aggregated load error

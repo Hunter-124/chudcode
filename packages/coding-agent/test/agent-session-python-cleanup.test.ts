@@ -1,17 +1,17 @@
-import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from "bun:test";
+import { afterAll, afterEach, beforeEach, describe, expect, it, type Mock, vi } from "bun:test";
 import * as fs from "node:fs";
-import { getBundledModel } from "@chudware/catalog/models";
-import { Settings } from "@chudware/coding-agent/config/settings";
-import * as pythonExecutor from "@chudware/coding-agent/eval/py/executor";
-import type { PythonKernel as PythonKernelInstance } from "@chudware/coding-agent/eval/py/kernel";
-import * as pythonKernel from "@chudware/coding-agent/eval/py/kernel";
-import { AgentRegistry } from "@chudware/coding-agent/registry/agent-registry";
-import { createAgentSession, type ExtensionFactory, type WorkspaceTree } from "@chudware/coding-agent/sdk";
-import { AgentStorage } from "@chudware/coding-agent/session/agent-storage";
-import { SessionManager } from "@chudware/coding-agent/session/session-manager";
-import { Snowflake, TempDir } from "@chudware/utils";
-import * as piUtils from "@chudware/utils/async";
-import { sleep } from "@chudware/utils/async";
+import { getBundledModel } from "@oh-my-pi/pi-catalog/models";
+import { ModelRegistry } from "@oh-my-pi/pi-coding-agent/config/model-registry";
+import { Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
+import * as pythonExecutor from "@oh-my-pi/pi-coding-agent/eval/py/executor";
+import type { PythonKernel as PythonKernelInstance } from "@oh-my-pi/pi-coding-agent/eval/py/kernel";
+import * as pythonKernel from "@oh-my-pi/pi-coding-agent/eval/py/kernel";
+import { AgentRegistry } from "@oh-my-pi/pi-coding-agent/registry/agent-registry";
+import { createAgentSession, type ExtensionFactory, type WorkspaceTree } from "@oh-my-pi/pi-coding-agent/sdk";
+import { AgentStorage } from "@oh-my-pi/pi-coding-agent/session/agent-storage";
+import { SessionManager } from "@oh-my-pi/pi-coding-agent/session/session-manager";
+import { Snowflake, TempDir } from "@oh-my-pi/pi-utils";
+import { createInMemoryAuthStorage } from "./helpers/agent-session-setup";
 
 const OK_EXECUTION = { status: "ok", cancelled: false, timedOut: false, stdinRequested: false } as const;
 
@@ -76,9 +76,14 @@ const createTempProject = () => {
 	return { tempDir, cwd };
 };
 
-// createAgentSession opens an AuthStorage at <agentDir>/auth.db that is not
-// closed when construction fails. Point agentDir at a separate dir so the
-// auth.db handle doesn't keep the per-test project temp dir locked on Windows.
+// Inject in-memory auth and a shared model registry: letting createAgentSession
+// discover them per call opens <agentDir>/auth.db and rebuilds the model cache
+// in every fresh agentDir, which costs ~1s per session locally and pushed the
+// two-session tests past their timeout on loaded CI runners. A separate agentDir
+// per session still keeps other per-agent SQLite handles from locking the
+// per-test project temp dir on Windows.
+const authStorage = createInMemoryAuthStorage();
+const modelRegistry = new ModelRegistry(authStorage);
 const agentDirPool: TempDir[] = [];
 const createAgentDir = (): string => {
 	const dir = TempDir.createSync("@pi-python-cleanup-agentdir-");
@@ -94,14 +99,16 @@ const emptyWorkspaceTree = (cwd: string): WorkspaceTree => ({
 });
 
 const mockPositiveSleepsImmediate = () => {
-	const realSleep = piUtils.sleep;
-	return vi.spyOn(piUtils, "sleep").mockImplementation((duration: number) => {
-		if (duration > 0) return Promise.resolve();
-		return realSleep(duration);
+	const realSleep = Bun.sleep.bind(Bun);
+	return vi.spyOn(Bun, "sleep").mockImplementation((duration?: number | Date) => {
+		if (typeof duration === "number" && duration > 0) {
+			return Promise.resolve();
+		}
+		return realSleep(duration ?? 0);
 	});
 };
 
-const expectSleepNear = (sleepSpy: Mock<typeof piUtils.sleep>, targetMs: number) => {
+const expectSleepNear = (sleepSpy: Mock<typeof Bun.sleep>, targetMs: number) => {
 	const minMs = targetMs - 100;
 	expect(
 		sleepSpy.mock.calls.some(
@@ -118,6 +125,8 @@ const createSession = async (
 		await createAgentSession({
 			cwd,
 			agentDir: createAgentDir(),
+			authStorage,
+			modelRegistry,
 			sessionManager: options.sessionManager ?? SessionManager.inMemory(cwd),
 			settings: Settings.isolated({ "python.kernelMode": "session" }),
 			model: getModel(),
@@ -155,28 +164,32 @@ describe("AgentSession python cleanup", () => {
 	let originalNullPrompt: string | undefined;
 
 	beforeEach(() => {
-		originalNullPrompt = process.env.NULL_PROMPT;
-		process.env.NULL_PROMPT = "true";
+		originalNullPrompt = Bun.env.NULL_PROMPT;
+		Bun.env.NULL_PROMPT = "true";
 	});
 
 	afterEach(async () => {
 		if (originalNullPrompt === undefined) {
-			delete process.env.NULL_PROMPT;
+			delete Bun.env.NULL_PROMPT;
 		} else {
-			process.env.NULL_PROMPT = originalNullPrompt;
+			Bun.env.NULL_PROMPT = originalNullPrompt;
 		}
 		originalNullPrompt = undefined;
 		vi.restoreAllMocks();
-		AgentStorage.resetInstance();
+		AgentStorage.close();
 		await pythonExecutor.disposeAllKernelSessions();
-		await sleep(0);
-		// Best-effort cleanup: createAgentSession opens AuthStorage/AgentStorage
+		await Bun.sleep(0);
+		// Best-effort cleanup: createAgentSession opens AgentStorage
 		// inside agentDir that may outlive the test (dispose() doesn't close them).
 		// On Windows the leaked SQLite handles keep the dir locked; swallow EBUSY
 		// rather than failing the test — the OS temp dir reaper will clean up.
 		for (const tempDir of [...tempDirs.splice(0), ...agentDirPool.splice(0)]) {
 			await tempDir.remove().catch(() => {});
 		}
+	});
+
+	afterAll(() => {
+		authStorage.close();
 	});
 
 	it("does not dispose unrelated Python owners when createAgentSession fails before session construction", async () => {
@@ -203,6 +216,8 @@ describe("AgentSession python cleanup", () => {
 			createAgentSession({
 				cwd,
 				agentDir: createAgentDir(),
+				authStorage,
+				modelRegistry,
 				sessionManager: SessionManager.inMemory(cwd),
 				settings: Settings.isolated({ "python.kernelMode": "session" }),
 				model: getModel(),
@@ -232,7 +247,6 @@ describe("AgentSession python cleanup", () => {
 			kernelOwnerId: "fresh-owner-before",
 		});
 		expect(startSpy).toHaveBeenCalledTimes(2);
-		expect(replacementKernel.execute).toHaveBeenCalledTimes(1);
 		expect(replacementKernel.execute).toHaveBeenCalledTimes(1);
 
 		await pythonExecutor.executePython("print('still alive before')", {
@@ -271,6 +285,8 @@ describe("AgentSession python cleanup", () => {
 			createAgentSession({
 				cwd,
 				agentDir: createAgentDir(),
+				authStorage,
+				modelRegistry,
 				sessionManager: SessionManager.inMemory(cwd),
 				settings: Settings.isolated({ "python.kernelMode": "session", "memory.backend": "local" }),
 				model: getModel(),
@@ -300,7 +316,6 @@ describe("AgentSession python cleanup", () => {
 			kernelOwnerId: "fresh-owner-after",
 		});
 		expect(startSpy).toHaveBeenCalledTimes(2);
-		expect(replacementKernel.execute).toHaveBeenCalledTimes(1);
 		expect(replacementKernel.execute).toHaveBeenCalledTimes(1);
 
 		await pythonExecutor.executePython("print('still alive after')", {
@@ -355,13 +370,13 @@ describe("AgentSession python cleanup", () => {
 				expect(firstExecutionSettled).toBe(true);
 				firstDisposed = true;
 			});
-			await sleep(0);
+			await Bun.sleep(0);
 			expect(firstDisposed).toBe(false);
 			expect(blockedExecutionSettled).toBe(false);
 			expect(firstExecutionSettled).toBe(false);
 
 			const secondExecution = secondSession.executePython("print('second')");
-			await sleep(0);
+			await Bun.sleep(0);
 
 			expect(firstDisposed).toBe(false);
 			expect(blockedExecutionSettled).toBe(false);
@@ -463,7 +478,7 @@ describe("AgentSession python cleanup", () => {
 		kernel.abortBlockedExecution = false;
 
 		vi.spyOn(pythonKernel, "checkPythonKernelAvailability").mockResolvedValue({ ok: true });
-		const sleepSpy = vi.spyOn(piUtils, "sleep").mockResolvedValue(undefined);
+		const sleepSpy = vi.spyOn(Bun, "sleep").mockResolvedValue(undefined);
 
 		const startSpy = vi
 			.spyOn(pythonKernel.PythonKernel, "start")
@@ -570,7 +585,7 @@ describe("AgentSession python cleanup", () => {
 		const disposeSession = session.dispose().then(() => {
 			disposed = true;
 		});
-		await sleep(0);
+		await Bun.sleep(0);
 		expect(disposed).toBe(false);
 		releaseHook.resolve();
 		await expect(execution).rejects.toThrow("Python execution is unavailable while session disposal is in progress");
@@ -624,7 +639,7 @@ describe("AgentSession python cleanup", () => {
 		const disposeSession = session.dispose().then(() => {
 			disposed = true;
 		});
-		await sleep(0);
+		await Bun.sleep(0);
 		expect(disposed).toBe(false);
 		releaseHook.resolve();
 		await expect(execution).rejects.toThrow("Python execution is unavailable while session disposal is in progress");

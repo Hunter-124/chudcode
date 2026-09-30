@@ -1,6 +1,6 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "bun:test";
 import * as path from "node:path";
-import { Agent } from "@chudware/agent-core";
+import { Agent } from "@oh-my-pi/pi-agent-core";
 import type {
 	Api,
 	AssistantMessage,
@@ -9,18 +9,17 @@ import type {
 	Model,
 	SimpleStreamOptions,
 	ThinkingContent,
-} from "@chudware/ai";
-import { createMockModel } from "@chudware/ai/providers/mock";
-import { AssistantMessageEventStream } from "@chudware/ai/utils/event-stream";
-import { GEMINI_HEADER_RUNAWAY_THRESHOLD } from "@chudware/ai/utils/thinking-loop";
-import { ModelRegistry } from "@chudware/coding-agent/config/model-registry";
-import { Settings } from "@chudware/coding-agent/config/settings";
-import { AgentSession, type AgentSessionEvent } from "@chudware/coding-agent/session/agent-session";
-import { AuthStorage } from "@chudware/coding-agent/session/auth-storage";
-import { convertToLlm } from "@chudware/coding-agent/session/messages";
-import { SessionManager } from "@chudware/coding-agent/session/session-manager";
-import { TempDir } from "@chudware/utils";
-import { sleep } from "@chudware/utils/async";
+} from "@oh-my-pi/pi-ai";
+import { createMockModel } from "@oh-my-pi/pi-ai/providers/mock";
+import { AssistantMessageEventStream } from "@oh-my-pi/pi-ai/utils/event-stream";
+import { GEMINI_HEADER_RUNAWAY_THRESHOLD } from "@oh-my-pi/pi-ai/utils/thinking-loop";
+import { ModelRegistry } from "@oh-my-pi/pi-coding-agent/config/model-registry";
+import { Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
+import { AgentSession, type AgentSessionEvent } from "@oh-my-pi/pi-coding-agent/session/agent-session";
+import { AuthStorage } from "@oh-my-pi/pi-coding-agent/session/auth-storage";
+import { convertToLlm } from "@oh-my-pi/pi-coding-agent/session/messages";
+import { SessionManager } from "@oh-my-pi/pi-coding-agent/session/session-manager";
+import { TempDir } from "@oh-my-pi/pi-utils";
 
 function emptyUsage(): AssistantMessage["usage"] {
 	return {
@@ -96,7 +95,7 @@ function headerRunawayStream(
 			const delta = `**Refining Stage ${i}**\n\nReworking module_${i} so handler_${i} routes Stage${i}Result through render_${i}.\n\n`;
 			thinking.thinking += delta;
 			stream.push({ type: "thinking_delta", contentIndex: 0, delta, partial });
-			await sleep(0);
+			await Bun.sleep(0);
 		}
 		if (aborted) return;
 		stream.push({ type: "thinking_end", contentIndex: 0, content: thinking.thinking, partial });
@@ -147,7 +146,7 @@ describe("AgentSession Gemini header-runaway interrupt", () => {
 	beforeAll(async () => {
 		sharedDir = TempDir.createSync("@pi-gemini-header-interrupt-shared-");
 		authStorage = await AuthStorage.create(path.join(sharedDir.path(), "auth.db"));
-		authStorage.setRuntimeApiKey("openrouter", "openrouter-test-key");
+		authStorage.keys.setRuntime("openrouter", "openrouter-test-key");
 		modelRegistry = new ModelRegistry(authStorage);
 	});
 

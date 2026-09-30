@@ -1,8 +1,8 @@
 import { afterEach, describe, expect, it } from "bun:test";
-import { InternalUrlRouter } from "@chudware/coding-agent/internal-urls";
-import { parseInternalUrl } from "@chudware/coding-agent/internal-urls/parse";
-import { RpcHostUriBridge } from "@chudware/coding-agent/modes/rpc/host-uris";
-import type { RpcHostUriCancelRequest, RpcHostUriRequest } from "@chudware/coding-agent/modes/rpc/rpc-types";
+import { InternalUrlRouter } from "@oh-my-pi/pi-coding-agent/internal-urls";
+import { parseInternalUrl } from "@oh-my-pi/pi-coding-agent/internal-urls/parse";
+import { RpcHostUriBridge } from "@oh-my-pi/pi-coding-agent/modes/rpc/host-uris";
+import type { RpcHostUriCancelRequest, RpcHostUriRequest } from "@oh-my-pi/pi-coding-agent/modes/rpc/rpc-types";
 
 const router = InternalUrlRouter.instance();
 
@@ -121,11 +121,18 @@ describe("RpcHostUriBridge", () => {
 		bridge.clear("test cleanup");
 	});
 
-	it("rejects Chudcode-reserved schemes", () => {
+	it("rejects every built-in scheme so hosts can neither shadow nor clear() them", () => {
 		const bridge = new RpcHostUriBridge(() => {});
-		expect(() => bridge.setSchemes([{ scheme: "security" }])).toThrow(
-			"Host URI scheme is reserved by Chudcode: security://",
-		);
+		for (const scheme of ["security", "local", "Agent", "mcp"]) {
+			expect(() => bridge.setSchemes([{ scheme, writable: true }])).toThrow(
+				`Host URI scheme is reserved by OMP: ${scheme.toLowerCase()}://`,
+			);
+		}
+		bridge.clear("test cleanup");
+		// Built-ins keep their own semantics for later sessions.
+		expect(router.normalize("local:/x")).toBe("local://x");
+		expect(router.fileWritable("local://x")).toBe(true);
+		expect(router.canHandle("agent://x")).toBe(true);
 	});
 
 	it("normalizes scheme casing and rejects invalid characters", () => {

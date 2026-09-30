@@ -1,5 +1,5 @@
 /**
- * Re-exports from @chudware/ai.
+ * Re-exports from @oh-my-pi/pi-ai.
  * All credential storage types and the AuthStorage class now live in the ai package.
  */
 
@@ -18,8 +18,7 @@ export type {
 	ResetCreditAccountStatus,
 	ResetCreditRedeemOutcome,
 	ResetCreditTarget,
-	SerializedAuthStorage,
 	StoredAuthCredential,
-} from "@chudware/ai";
-export { AuthStorage, REMOTE_REFRESH_SENTINEL, SqliteAuthCredentialStore } from "@chudware/ai";
-export type { SnapshotResponse } from "@chudware/ai/auth-broker/types";
+} from "@oh-my-pi/pi-ai";
+export { AuthStorage, REMOTE_REFRESH_SENTINEL, SqliteAuthCredentialStore } from "@oh-my-pi/pi-ai";
+export type { SnapshotResponse } from "@oh-my-pi/pi-ai/auth-broker/types";

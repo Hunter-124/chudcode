@@ -1,5 +1,4 @@
 import path from "node:path";
-import * as fsx from "../../src/fsx";
 
 /**
  * Every `ar/` test fixture bundled as a single `tar.gz`, loaded once per test run.
@@ -15,7 +14,7 @@ let filesPromise: Promise<Map<string, File>> | null = null;
 
 function loadFiles(): Promise<Map<string, File>> {
 	filesPromise ??= (async () => {
-		const archive = new Bun.Archive(await fsx.readBytes(path.join(import.meta.dir, "../fixtures/ar.tar.gz")));
+		const archive = new Bun.Archive(await Bun.file(path.join(import.meta.dir, "../fixtures/ar.tar.gz")).bytes());
 		return archive.files();
 	})();
 	return filesPromise;

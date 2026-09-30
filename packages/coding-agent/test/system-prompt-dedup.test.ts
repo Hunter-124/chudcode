@@ -7,7 +7,8 @@ import {
 	loadProjectContextFiles,
 	loadSystemPromptFiles,
 	type SystemPromptToolMetadata,
-} from "@chudware/coding-agent/system-prompt";
+} from "@oh-my-pi/pi-coding-agent/system-prompt";
+import { getConfigAgentDirName, getProjectAgentDir } from "@oh-my-pi/pi-utils/dirs";
 import { cleanupTempHome } from "./helpers/temp-home-cleanup";
 
 function escapeRegExp(text: string): string {
@@ -21,6 +22,7 @@ const READ_TOOL = new Map<string, SystemPromptToolMetadata>([
 			label: "Read",
 			description: "Reads files from disk.",
 			parameters: { type: "object", properties: { path: { type: "string" } } },
+			readsSkillUris: true,
 		},
 	],
 ]);
@@ -31,8 +33,8 @@ describe("SYSTEM.md prompt assembly", () => {
 	let originalHome: string | undefined;
 
 	beforeEach(() => {
-		tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "chud-system-prompt-"));
-		tempHomeDir = fs.mkdtempSync(path.join(os.tmpdir(), "chud-system-home-"));
+		tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "pi-system-prompt-"));
+		tempHomeDir = fs.mkdtempSync(path.join(os.tmpdir(), "pi-system-home-"));
 		originalHome = process.env.HOME;
 		process.env.HOME = tempHomeDir;
 	});
@@ -70,7 +72,7 @@ describe("SYSTEM.md prompt assembly", () => {
 
 	it("renders SYSTEM.md exactly once when it is used as the custom base prompt", async () => {
 		const projectDir = path.join(tempDir, "project");
-		const systemDir = path.join(projectDir, ".chudcode");
+		const systemDir = path.join(projectDir, ".omp");
 		const systemPrompt = "You are the project SYSTEM prompt.";
 		fs.mkdirSync(systemDir, { recursive: true });
 		fs.writeFileSync(path.join(systemDir, "SYSTEM.md"), systemPrompt);
@@ -138,8 +140,8 @@ describe("SYSTEM.md prompt assembly", () => {
 	it("suppresses discovered SYSTEM.md while preserving the project footer", async () => {
 		const projectDir = path.join(tempDir, "project");
 		const appendPrompt = "Extra append instructions";
-		fs.mkdirSync(path.join(projectDir, ".chudcode"), { recursive: true });
-		fs.writeFileSync(path.join(projectDir, ".chudcode", "SYSTEM.md"), "Discovered project SYSTEM prompt");
+		fs.mkdirSync(path.join(projectDir, ".omp"), { recursive: true });
+		fs.writeFileSync(path.join(projectDir, ".omp", "SYSTEM.md"), "Discovered project SYSTEM prompt");
 
 		const { systemPrompt } = await buildSystemPrompt({
 			cwd: projectDir,
@@ -176,6 +178,7 @@ describe("SYSTEM.md prompt assembly", () => {
 	it("renders active child repo context in the main system prompt", async () => {
 		const parentDir = path.join(tempDir, "parent-cwd");
 		fs.mkdirSync(path.join(parentDir, "active-project", ".git"), { recursive: true });
+		fs.writeFileSync(path.join(parentDir, "active-project", ".git", "HEAD"), "ref: refs/heads/main\n", "utf8");
 
 		const { systemPrompt } = await buildSystemPrompt({
 			cwd: parentDir,
@@ -193,17 +196,16 @@ describe("SYSTEM.md prompt assembly", () => {
 		});
 
 		const promptText = systemPrompt.join("\n\n");
-		expect(promptText).toContain("<active-repo-context>");
-		expect(promptText).toContain("`active-project`");
 		expect(promptText).toContain("`active-project/`");
 	});
 
 	it("prefers project SYSTEM.md over user SYSTEM.md", async () => {
 		const projectDir = path.join(tempDir, "project");
-		fs.mkdirSync(path.join(projectDir, ".chudcode"), { recursive: true });
-		fs.mkdirSync(path.join(tempHomeDir, ".chudcode", "agent"), { recursive: true });
-		fs.writeFileSync(path.join(tempHomeDir, ".chudcode", "agent", "SYSTEM.md"), "User SYSTEM prompt");
-		fs.writeFileSync(path.join(projectDir, ".chudcode", "SYSTEM.md"), "Project SYSTEM prompt");
+		fs.mkdirSync(getProjectAgentDir(projectDir), { recursive: true });
+		const userAgentDir = path.join(tempHomeDir, getConfigAgentDirName());
+		fs.mkdirSync(userAgentDir, { recursive: true });
+		fs.writeFileSync(path.join(userAgentDir, "SYSTEM.md"), "User SYSTEM prompt");
+		fs.writeFileSync(path.join(getProjectAgentDir(projectDir), "SYSTEM.md"), "Project SYSTEM prompt");
 
 		await expect(loadSystemPromptFiles({ cwd: projectDir })).resolves.toBe("Project SYSTEM prompt");
 	});

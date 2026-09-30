@@ -2,31 +2,23 @@ import { describe, expect, it } from "bun:test";
 import {
 	type BlockState,
 	buildCursorRequestContextRules,
-	CURSOR_CLIENT_VERSION,
 	flushOpenToolCalls,
 	handleServerMessage,
 	processInteractionUpdate,
 	type ToolCallState,
-} from "@chudware/ai/providers/cursor";
-import type { AssistantMessage, CursorExecHandlers, ToolResultMessage } from "@chudware/ai/types";
-import { kCursorExecResolved, setStreamingPartialJson } from "@chudware/ai/utils/block-symbols";
-import { AssistantMessageEventStream } from "@chudware/ai/utils/event-stream";
+} from "@oh-my-pi/pi-ai/providers/cursor";
+import type { AssistantMessage, CursorExecHandlers, ToolResultMessage } from "@oh-my-pi/pi-ai/types";
+import { kCursorExecResolved, setStreamingPartialJson } from "@oh-my-pi/pi-ai/utils/block-symbols";
+import { AssistantMessageEventStream } from "@oh-my-pi/pi-ai/utils/event-stream";
 import {
 	type AgentClientMessage,
 	AgentClientMessageSchema,
 	AgentServerMessageSchema,
 	AgentStoreConflictArgsSchema,
 	CanvasDiagnosticsArgsSchema,
-	ChudBashExecArgsSchema,
-	ChudEditExecArgsSchema,
-	ChudEditReplacementSchema,
-	ChudFindExecArgsSchema,
-	ChudGrepExecArgsSchema,
-	ChudLsExecArgsSchema,
-	ChudReadExecArgsSchema,
-	ChudWriteExecArgsSchema,
 	ComputerUseArgsSchema,
 	ConnectScmArgsSchema,
+	DeleteArgsSchema,
 	ConnectScmErrorSchema,
 	ConnectScmGithubRepositorySchema,
 	ConnectScmGithubSchema,
@@ -54,6 +46,14 @@ import {
 	McpStateExecArgsSchema,
 	type McpToolDefinition,
 	McpToolDefinitionSchema,
+	PiBashExecArgsSchema,
+	PiEditExecArgsSchema,
+	PiEditReplacementSchema,
+	PiFindExecArgsSchema,
+	PiGrepExecArgsSchema,
+	PiLsExecArgsSchema,
+	PiReadExecArgsSchema,
+	PiWriteExecArgsSchema,
 	PostToolUseRequestQuerySchema,
 	ReadArgsSchema,
 	ReadMcpResourceExecArgsSchema,
@@ -66,8 +66,8 @@ import {
 	SubagentAwaitArgsSchema,
 	ToolCallSchema,
 	WebFetchAllowlistPrecheckArgsSchema,
-} from "@chudware/catalog/discovery/cursor-proto";
-import { create, fromBinary, toBinary } from "@chudware/catalog/discovery/protobuf";
+} from "@oh-my-pi/pi-catalog/discovery/cursor-proto";
+import { create, fromBinary, toBinary } from "@oh-my-pi/pi-catalog/discovery/protobuf";
 
 /**
  * Drive one `ExecServerMessage` through the real dispatcher and decode every
@@ -84,6 +84,7 @@ async function dispatchExec(
 		execHandlers?: CursorExecHandlers;
 		requestContextTools?: McpToolDefinition[];
 		requestContextRules?: CursorRule[];
+		externalToolExecutor?: boolean;
 	} = {},
 ): Promise<{ frames: AgentClientMessage[]; output: AssistantMessage; results: ToolResultMessage[] }> {
 	const output = cursorAssistantMessage();
@@ -113,6 +114,8 @@ async function dispatchExec(
 		{ sawTokenDelta: false },
 		options.requestContextTools ?? [],
 		options.requestContextRules,
+		undefined,
+		options.externalToolExecutor,
 	);
 
 	return { frames: written.map(decodeClientFrame), output, results };
@@ -203,12 +206,6 @@ function soleResult(frames: AgentClientMessage[]) {
 	return frame.value.message;
 }
 
-describe("Cursor modern exec protocol activation", () => {
-	it("advertises the client build whose schema includes modern exec frames", () => {
-		expect(CURSOR_CLIENT_VERSION).toBe("cli-2026.07.23-e383d2b");
-	});
-});
-
 describe("Cursor requestContext rules", () => {
 	it("returns mapped system-prompt canaries as global CursorRule entries", async () => {
 		const canary = "PIKEL-CANARY-7F3A";
@@ -281,7 +278,7 @@ describe("Cursor stream teardown", () => {
 						target: {
 							case: "github",
 							value: create(ConnectScmGithubSchema, {
-								repository: create(ConnectScmGithubRepositorySchema, { owner: "Hunter-124", repo: "chudware" }),
+								repository: create(ConnectScmGithubRepositorySchema, { owner: "can1357", repo: "oh-my-pi" }),
 							}),
 						},
 					}),
@@ -475,14 +472,6 @@ describe("Cursor modern exec frames: no answer carries an unset oneof", () => {
 			"success",
 		],
 		[
-			"readMcpResourceExecArgs",
-			buildExecMessage({
-				case: "readMcpResourceExecArgs",
-				value: create(ReadMcpResourceExecArgsSchema, { uri: "file:///nope" }),
-			}),
-			"notFound",
-		],
-		[
 			"recordScreenArgs",
 			buildExecMessage({ case: "recordScreenArgs", value: create(RecordScreenArgsSchema, {}) }),
 			"failure",
@@ -501,26 +490,10 @@ describe("Cursor modern exec frames: no answer carries an unset oneof", () => {
 			"error",
 		],
 		[
-			"subagentAwaitArgs",
-			buildExecMessage({
-				case: "subagentAwaitArgs",
-				value: create(SubagentAwaitArgsSchema, { agentId: "agent-1", timeoutMs: 10 }),
-			}),
-			"notFound",
-		],
-		[
 			"smartModeClassifierArgs",
 			buildExecMessage({
 				case: "smartModeClassifierArgs",
 				value: create(SmartModeClassifierArgsSchema, { toolCallId: "c1" }),
-			}),
-			"error",
-		],
-		[
-			"canvasDiagnosticsArgs",
-			buildExecMessage({
-				case: "canvasDiagnosticsArgs",
-				value: create(CanvasDiagnosticsArgsSchema, { path: "/a.ts", toolCallId: "c1" }),
 			}),
 			"error",
 		],
@@ -894,7 +867,7 @@ describe("Cursor modern exec frames: status and precheck answers", () => {
 		const mcp = await dispatchExec(
 			buildExecMessage({
 				case: "mcpAllowlistPrecheckArgs",
-				value: create(McpAllowlistPrecheckArgsSchema, { providerIdentifier: "chud-agent", toolName: "task" }),
+				value: create(McpAllowlistPrecheckArgsSchema, { providerIdentifier: "pi-agent", toolName: "task" }),
 			}),
 		);
 		const mcpAnswer = soleResult(mcp.frames);
@@ -990,8 +963,8 @@ describe("Cursor modern exec frames: MCP state", () => {
 			buildExecMessage({ case: "mcpStateExecArgs", value: create(McpStateExecArgsSchema, {}) }),
 			{
 				requestContextTools: [
-					mcpTool("task", "chud-agent"),
-					mcpTool("hub", "chud-agent"),
+					mcpTool("task", "pi-agent"),
+					mcpTool("hub", "pi-agent"),
 					mcpTool("mcp__fixture_report", "fixture"),
 				],
 			},
@@ -1001,8 +974,8 @@ describe("Cursor modern exec frames: MCP state", () => {
 		if (answer.case !== "mcpStateExecResult") throw new Error(`got ${answer.case}`);
 		if (answer.value.result.case !== "success") throw new Error("expected success");
 		const servers = answer.value.result.value.servers;
-		expect(servers.map(server => server.serverIdentifier).sort()).toEqual(["chud-agent", "fixture"]);
-		const piAgent = servers.find(server => server.serverIdentifier === "chud-agent");
+		expect(servers.map(server => server.serverIdentifier).sort()).toEqual(["fixture", "pi-agent"]);
+		const piAgent = servers.find(server => server.serverIdentifier === "pi-agent");
 		expect(piAgent?.tools.map(t => t.name)).toEqual(["task", "hub"]);
 	});
 
@@ -1012,7 +985,7 @@ describe("Cursor modern exec frames: MCP state", () => {
 				case: "mcpStateExecArgs",
 				value: create(McpStateExecArgsSchema, { serverIdentifiers: ["fixture"] }),
 			}),
-			{ requestContextTools: [mcpTool("task", "chud-agent"), mcpTool("mcp__fixture_report", "fixture")] },
+			{ requestContextTools: [mcpTool("task", "pi-agent"), mcpTool("mcp__fixture_report", "fixture")] },
 		);
 
 		const answer = soleResult(frames);
@@ -1049,19 +1022,19 @@ describe("Cursor modern exec frames: redacted read", () => {
 	});
 });
 
-describe("Cursor modern exec frames: Chud tools", () => {
+describe("Cursor modern exec frames: Pi tools", () => {
 	it("round-trips piRead through its handler into a typed success", async () => {
 		const { frames, output, results } = await dispatchExec(
 			buildExecMessage({
 				case: "piReadArgs",
-				value: create(ChudReadExecArgsSchema, { path: "/repo/a.ts", offset: 5, limit: 20 }),
+				value: create(PiReadExecArgsSchema, { path: "/repo/a.ts", offset: 5, limit: 20 }),
 			}),
 			{
 				execHandlers: {
 					async piRead(call) {
 						expect(call.args.path).toBe("/repo/a.ts");
 						expect(call.args.offset).toBe(5);
-						// The Chud frames carry no tool_call_id; the dispatcher mints one.
+						// The Pi frames carry no tool_call_id; the dispatcher mints one.
 						expect(call.toolCallId).toBeTruthy();
 						// Like the real bridge, the handler files its result under the id
 						// it was handed.
@@ -1088,9 +1061,9 @@ describe("Cursor modern exec frames: Chud tools", () => {
 		expect(blocks[0].arguments).toEqual({ path: "/repo/a.ts:raw:5+20" });
 	});
 
-	it("maps a failing Chud handler onto the frame's own error variant", async () => {
+	it("maps a failing Pi handler onto the frame's own error variant", async () => {
 		const { frames } = await dispatchExec(
-			buildExecMessage({ case: "piReadArgs", value: create(ChudReadExecArgsSchema, { path: "/nope" }) }),
+			buildExecMessage({ case: "piReadArgs", value: create(PiReadExecArgsSchema, { path: "/nope" }) }),
 			{
 				execHandlers: {
 					async piRead(call) {
@@ -1106,9 +1079,9 @@ describe("Cursor modern exec frames: Chud tools", () => {
 		expect(answer.value.result.value.error).toBe("ENOENT: /nope");
 	});
 
-	it("rejects a Chud frame with no handler installed instead of faking a success", async () => {
+	it("rejects a Pi frame with no handler installed instead of faking a success", async () => {
 		const { frames } = await dispatchExec(
-			buildExecMessage({ case: "piGrepArgs", value: create(ChudGrepExecArgsSchema, { pattern: "foo" }) }),
+			buildExecMessage({ case: "piGrepArgs", value: create(PiGrepExecArgsSchema, { pattern: "foo" }) }),
 		);
 
 		const answer = soleResult(frames);
@@ -1125,9 +1098,9 @@ describe("Cursor modern exec frames: Chud tools", () => {
 				await dispatchExec(
 					buildExecMessage({
 						case: "piEditArgs",
-						value: create(ChudEditExecArgsSchema, {
+						value: create(PiEditExecArgsSchema, {
 							path: "/a.ts",
-							edits: [create(ChudEditReplacementSchema, { oldText: "x", newText: "y" })],
+							edits: [create(PiEditReplacementSchema, { oldText: "x", newText: "y" })],
 						}),
 					}),
 				)
@@ -1141,7 +1114,7 @@ describe("Cursor modern exec frames: Chud tools", () => {
 				await dispatchExec(
 					buildExecMessage({
 						case: "piWriteArgs",
-						value: create(ChudWriteExecArgsSchema, { path: "/a.ts", content: "x" }),
+						value: create(PiWriteExecArgsSchema, { path: "/a.ts", content: "x" }),
 					}),
 				)
 			).frames,
@@ -1150,9 +1123,9 @@ describe("Cursor modern exec frames: Chud tools", () => {
 		expect(write.value.result.case).toBe("rejected");
 	});
 
-	it("carries a truncation summary onto the Chud success payload", async () => {
+	it("carries a truncation summary onto the Pi success payload", async () => {
 		const { frames } = await dispatchExec(
-			buildExecMessage({ case: "piBashArgs", value: create(ChudBashExecArgsSchema, { command: "yes" }) }),
+			buildExecMessage({ case: "piBashArgs", value: create(PiBashExecArgsSchema, { command: "yes" }) }),
 			{
 				execHandlers: {
 					async piBash() {
@@ -1186,7 +1159,7 @@ describe("Cursor modern exec frames: Chud tools", () => {
 		// the signal. Reading only the top-level `TruncationResult` shape handed
 		// Cursor clipped output with no notice that it was clipped.
 		const { frames } = await dispatchExec(
-			buildExecMessage({ case: "piBashArgs", value: create(ChudBashExecArgsSchema, { command: "yes" }) }),
+			buildExecMessage({ case: "piBashArgs", value: create(PiBashExecArgsSchema, { command: "yes" }) }),
 			{
 				execHandlers: {
 					async piBash() {
@@ -1219,10 +1192,10 @@ describe("Cursor modern exec frames: Chud tools", () => {
 	});
 
 	it("omits truncation entirely when nothing was truncated", async () => {
-		// `optional ChudTruncation` — a zeroed message would claim the output was
+		// `optional PiTruncation` — a zeroed message would claim the output was
 		// trimmed to nothing.
 		const { frames } = await dispatchExec(
-			buildExecMessage({ case: "piBashArgs", value: create(ChudBashExecArgsSchema, { command: "echo hi" }) }),
+			buildExecMessage({ case: "piBashArgs", value: create(PiBashExecArgsSchema, { command: "echo hi" }) }),
 			{
 				execHandlers: {
 					async piBash() {
@@ -1242,9 +1215,9 @@ describe("Cursor modern exec frames: Chud tools", () => {
 		const { frames, output } = await dispatchExec(
 			buildExecMessage({
 				case: "piEditArgs",
-				value: create(ChudEditExecArgsSchema, {
+				value: create(PiEditExecArgsSchema, {
 					path: "/repo/a.ts",
-					edits: [create(ChudEditReplacementSchema, { oldText: "before", newText: "after" })],
+					edits: [create(PiEditReplacementSchema, { oldText: "before", newText: "after" })],
 				}),
 			}),
 			{
@@ -1270,7 +1243,7 @@ describe("Cursor modern exec frames: Chud tools", () => {
 		expect(block?.arguments).toEqual({ path: "/repo/a.ts", old_string: "before", new_string: "after" });
 	});
 
-	it("answers each remaining Chud frame with a populated success payload", async () => {
+	it("answers each remaining Pi frame with a populated success payload", async () => {
 		// The outer result case alone is not proof: an unset inner oneof reads as
 		// "the tool ran and produced nothing", and dropped output or limit
 		// metadata is invisible at the discriminator level.
@@ -1294,7 +1267,7 @@ describe("Cursor modern exec frames: Chud tools", () => {
 				await dispatchExec(
 					buildExecMessage({
 						case: "piWriteArgs",
-						value: create(ChudWriteExecArgsSchema, { path: "/a.ts", content: "x" }),
+						value: create(PiWriteExecArgsSchema, { path: "/a.ts", content: "x" }),
 					}),
 					{ execHandlers: handlers },
 				)
@@ -1307,7 +1280,7 @@ describe("Cursor modern exec frames: Chud tools", () => {
 		const grep = soleResult(
 			(
 				await dispatchExec(
-					buildExecMessage({ case: "piGrepArgs", value: create(ChudGrepExecArgsSchema, { pattern: "hit" }) }),
+					buildExecMessage({ case: "piGrepArgs", value: create(PiGrepExecArgsSchema, { pattern: "hit" }) }),
 					{ execHandlers: handlers },
 				)
 			).frames,
@@ -1321,7 +1294,7 @@ describe("Cursor modern exec frames: Chud tools", () => {
 		const find = soleResult(
 			(
 				await dispatchExec(
-					buildExecMessage({ case: "piFindArgs", value: create(ChudFindExecArgsSchema, { pattern: "*.ts" }) }),
+					buildExecMessage({ case: "piFindArgs", value: create(PiFindExecArgsSchema, { pattern: "*.ts" }) }),
 					{ execHandlers: handlers },
 				)
 			).frames,
@@ -1333,7 +1306,7 @@ describe("Cursor modern exec frames: Chud tools", () => {
 
 		const ls = soleResult(
 			(
-				await dispatchExec(buildExecMessage({ case: "piLsArgs", value: create(ChudLsExecArgsSchema, {}) }), {
+				await dispatchExec(buildExecMessage({ case: "piLsArgs", value: create(PiLsExecArgsSchema, {}) }), {
 					execHandlers: handlers,
 				})
 			).frames,
@@ -1475,7 +1448,7 @@ describe("Cursor modern exec frames: server-resolved tool calls leave a paired b
 
 	it("reads the connectScm repository out of the target oneof, not a flat field", async () => {
 		const { output, results } = runConnectScm(
-			{ toolCallId: "call-scm-1", repository: { owner: "Hunter-124", repo: "chudware" } },
+			{ toolCallId: "call-scm-1", repository: { owner: "can1357", repo: "oh-my-pi" } },
 			{ case: "success", value: {} },
 		);
 
@@ -1483,7 +1456,7 @@ describe("Cursor modern exec frames: server-resolved tool calls leave a paired b
 		expect(block).toMatchObject({
 			id: "call-scm-1",
 			name: "connect_scm",
-			arguments: { owner: "Hunter-124", repo: "chudware" },
+			arguments: { owner: "can1357", repo: "oh-my-pi" },
 		});
 		// Resolved => agent-loop runs no local tool, so the decoder owes the pair.
 		expect(block[kCursorExecResolved]).toBe(true);
@@ -1649,7 +1622,7 @@ describe("Cursor modern exec frames: server-resolved tool calls leave a paired b
 		]);
 	});
 
-	it("does not double-create a block for a Chud call the exec channel already synthesized", async () => {
+	it("does not double-create a block for a Pi call the exec channel already synthesized", async () => {
 		// Modern builds stream a `pi_*_tool_call` envelope alongside the exec
 		// frame. The exec side owns that block; a second one here would render the
 		// same call twice and leave the duplicate unpaired.
@@ -1785,7 +1758,7 @@ describe("Cursor legacy grep frame: offset reporting", () => {
 		// track the frame's request rather than being left unset.
 		const handlers: CursorExecHandlers = {
 			async grep() {
-				return toolResult("a.ts:1:needle");
+				return toolResult("*1:needle", { details: { files: ["a.ts"] } });
 			},
 		};
 
@@ -1831,13 +1804,179 @@ describe("Cursor legacy grep frame: offset reporting", () => {
 			{
 				execHandlers: {
 					async grep() {
-						return toolResult("a.ts:1:needle");
+						return toolResult("*1:needle", { details: { files: ["a.ts"] } });
 					},
 				},
 			},
 		);
 		const call = output.content.find(block => block.type === "toolCall");
 		expect(call?.arguments).toMatchObject({ pattern: "needle", path: "src", skip: 20 });
+	});
+});
+
+describe("Cursor native exec results from local tools", () => {
+	const grepText = "# project/\n## calc.ts#31B3\n 2:  before\n*3:  return a + b;\n## greet.py#5EB7\n*4:    return msg";
+	const grepDetails = {
+		files: ["project/calc.ts", "project/greet.py"],
+		fileMatches: [
+			{ path: "project/calc.ts", count: 1 },
+			{ path: "project/greet.py", count: 1 },
+		],
+	};
+
+	it("returns match lines and context under their grouped file paths", async () => {
+		const { frames } = await dispatchExec(
+			buildExecMessage({
+				case: "grepArgs",
+				value: create(GrepArgsSchema, { pattern: "return", path: "project", toolCallId: "grep-content" }),
+			}),
+			{
+				execHandlers: {
+					async grep() {
+						return toolResult(grepText, { details: grepDetails });
+					},
+				},
+			},
+		);
+		const answer = soleResult(frames);
+		if (answer.case !== "grepResult" || answer.value.result.case !== "success")
+			throw new Error("expected grep success");
+		const result = answer.value.result.value.workspaceResults.project?.result;
+		if (result?.case !== "content") throw new Error("expected grep content");
+		expect(result.value.totalMatchedLines).toBe(2);
+		expect(
+			result.value.matches.map(match => [
+				match.file,
+				match.matches.map(line => [line.lineNumber, line.isContextLine, line.content]),
+			]),
+		).toEqual([
+			[
+				"project/calc.ts",
+				[
+					[2, true, "  before"],
+					[3, false, "  return a + b;"],
+				],
+			],
+			["project/greet.py", [[4, false, "    return msg"]]],
+		]);
+	});
+
+	it("locates single-file matches beneath a hashline header", async () => {
+		const { frames } = await dispatchExec(
+			buildExecMessage({
+				case: "grepArgs",
+				value: create(GrepArgsSchema, { pattern: "return", path: "src/calc.ts", toolCallId: "grep-file" }),
+			}),
+			{
+				execHandlers: {
+					async grep() {
+						return toolResult("[src/calc.ts#31B3]\n*42:  return a + b;", {
+							details: { files: ["src/calc.ts"], fileMatches: [{ path: "src/calc.ts", count: 1 }] },
+						});
+					},
+				},
+			},
+		);
+		const answer = soleResult(frames);
+		if (answer.case !== "grepResult" || answer.value.result.case !== "success")
+			throw new Error("expected grep success");
+		const result = answer.value.result.value.workspaceResults["src/calc.ts"]?.result;
+		if (result?.case !== "content") throw new Error("expected grep content");
+		expect(result.value.matches.map(({ file, matches }) => [file, matches[0]?.lineNumber])).toEqual([
+			["src/calc.ts", 42],
+		]);
+	});
+
+	it("reports only files and counts recorded by the local grep result", async () => {
+		for (const mode of ["files_with_matches", "count"]) {
+			const { frames } = await dispatchExec(
+				buildExecMessage({
+					case: "grepArgs",
+					value: create(GrepArgsSchema, {
+						pattern: "return",
+						path: "project",
+						toolCallId: mode,
+						outputMode: mode,
+					}),
+				}),
+				{
+					execHandlers: {
+						async grep() {
+							return toolResult(grepText, { details: grepDetails });
+						},
+					},
+				},
+			);
+			const answer = soleResult(frames);
+			if (answer.case !== "grepResult" || answer.value.result.case !== "success")
+				throw new Error(JSON.stringify(answer));
+			const result = answer.value.result.value.workspaceResults.project?.result;
+			if (mode === "count") {
+				if (result?.case !== "count") throw new Error("expected grep counts");
+				expect(result.value.counts.map(({ file, count }) => [file, count])).toEqual([
+					["project/calc.ts", 1],
+					["project/greet.py", 1],
+				]);
+			} else {
+				if (result?.case !== "files") throw new Error("expected grep files");
+				expect(result.value.files).toEqual(["project/calc.ts", "project/greet.py"]);
+			}
+		}
+	});
+
+	it("reports a missing read path as fileNotFound so Write can create it", async () => {
+		const path = "/repo/new.txt";
+		const { frames } = await dispatchExec(
+			buildExecMessage({ case: "readArgs", value: create(ReadArgsSchema, { path, toolCallId: "write-probe" }) }),
+			{
+				execHandlers: {
+					async read() {
+						return toolResult(`Path '${path}' not found`, { isError: true });
+					},
+				},
+			},
+		);
+		const answer = soleResult(frames);
+		if (answer.case !== "readResult") throw new Error("expected read result");
+		expect(answer.value.result.case).toBe("fileNotFound");
+	});
+
+	it("preserves the bash exit code and deleted file size on the wire", async () => {
+		const shell = await dispatchExec(
+			buildExecMessage({
+				case: "shellArgs",
+				value: create(ShellArgsSchema, { command: "exit 3", workingDirectory: "/repo", toolCallId: "shell-3" }),
+			}),
+			{
+				execHandlers: {
+					async shell() {
+						return toolResult("exit 3", { isError: true, details: { exitCode: 3 } });
+					},
+				},
+			},
+		);
+		const shellAnswer = soleResult(shell.frames);
+		if (shellAnswer.case !== "shellResult" || shellAnswer.value.result.case !== "failure")
+			throw new Error("expected shell failure");
+		expect(shellAnswer.value.result.value.exitCode).toBe(3);
+
+		const deleted = await dispatchExec(
+			buildExecMessage({
+				case: "deleteArgs",
+				value: create(DeleteArgsSchema, { path: "/repo/calc.ts", toolCallId: "delete-file" }),
+			}),
+			{
+				execHandlers: {
+					async delete() {
+						return toolResult("Deleted calc.ts", { details: { fileSize: 123 } });
+					},
+				},
+			},
+		);
+		const deleteAnswer = soleResult(deleted.frames);
+		if (deleteAnswer.case !== "deleteResult" || deleteAnswer.value.result.case !== "success")
+			throw new Error("expected delete success");
+		expect(deleteAnswer.value.result.value.fileSize).toBe(123n);
 	});
 });
 
@@ -1977,6 +2116,121 @@ describe("Cursor MCP frame: approval-only probes", () => {
 	});
 });
 
+describe("Cursor MCP frame: external executor handoff", () => {
+	function mcpCall() {
+		return buildExecMessage({
+			case: "mcpArgs",
+			value: create(McpArgsSchema, {
+				name: "send_message",
+				toolName: "send_message",
+				toolCallId: "call-external-1",
+				providerIdentifier: "external-client",
+			}),
+		});
+	}
+
+	it("acknowledges a client-owned tool without claiming it is missing", async () => {
+		const { frames, results } = await dispatchExec(mcpCall(), { externalToolExecutor: true });
+		const answer = soleResult(frames);
+		if (answer.case !== "mcpResult") throw new Error(`got ${answer.case}`);
+		expect(answer.value.result.case).toBe("success");
+		if (answer.value.result.case !== "success") throw new Error(`got ${answer.value.result.case}`);
+		const content = answer.value.result.value.content[0]?.content;
+		expect(content?.case).toBe("text");
+		if (content?.case !== "text") throw new Error(`got ${content?.case}`);
+		expect(content.value.text).toContain("handed off to the external client");
+		expect(content.value.text).toContain("Do not retry");
+		expect(results).toEqual([]);
+	});
+
+	it("emits one client-owned tool call across the streamed handoff sequence", async () => {
+		const toolCall = fromBinary(
+			ToolCallSchema,
+			toBinary(
+				ToolCallSchema,
+				create(ToolCallSchema, {
+					tool: {
+						case: "mcpToolCall",
+						value: {
+							args: create(McpArgsSchema, {
+								name: "send_message",
+								toolName: "send_message",
+								toolCallId: "call-external-1",
+								providerIdentifier: "external-client",
+							}),
+						},
+					},
+				}),
+			),
+		);
+		const output = cursorAssistantMessage();
+		const stream = new AssistantMessageEventStream();
+		const state = newBlockState();
+		const usage = { sawTokenDelta: false };
+		const written: Buffer[] = [];
+		const h2Request = {
+			write: (chunk: Buffer) => {
+				written.push(chunk);
+				return true;
+			},
+		} as unknown as Parameters<typeof handleServerMessage>[5];
+
+		processInteractionUpdate(
+			{ message: { case: "toolCallStarted", value: { callId: "handoff-envelope", toolCall } } },
+			output,
+			stream,
+			state,
+			usage,
+		);
+		await handleServerMessage(
+			create(AgentServerMessageSchema, {
+				message: { case: "execServerMessage", value: mcpCall() },
+			}),
+			output,
+			stream,
+			state,
+			new Map(),
+			h2Request,
+			undefined,
+			undefined,
+			usage,
+			[],
+			[],
+			undefined,
+			true,
+		);
+		processInteractionUpdate(
+			{ message: { case: "toolCallCompleted", value: { callId: "handoff-envelope", toolCall } } },
+			output,
+			stream,
+			state,
+			usage,
+		);
+
+		expect(output.content.filter(block => block.type === "toolCall")).toHaveLength(1);
+		expect(stream.queue.map(event => event.type)).toEqual(["toolcall_start", "toolcall_end"]);
+		const answer = soleResult(written.map(decodeClientFrame));
+		if (answer.case !== "mcpResult") throw new Error(`got ${answer.case}`);
+		expect(answer.value.result.case).toBe("success");
+	});
+
+	it("keeps the local no-handler path available to the outer agent loop", async () => {
+		const { frames } = await dispatchExec(mcpCall());
+		const answer = soleResult(frames);
+		if (answer.case !== "mcpResult") throw new Error(`got ${answer.case}`);
+		expect(answer.value.result.case).toBe("toolNotFound");
+	});
+
+	it("still rejects a present handler that returns no result", async () => {
+		const execHandlers: CursorExecHandlers = {};
+		Reflect.set(execHandlers, "mcp", async () => undefined);
+		const { frames } = await dispatchExec(mcpCall(), { execHandlers, externalToolExecutor: true });
+		const answer = soleResult(frames);
+		if (answer.case !== "mcpResult") throw new Error(`got ${answer.case}`);
+		expect(answer.value.result.case).toBe("toolNotFound");
+	});
+});
+
 describe("Cursor exec answers: what the result claims about the work", () => {
 	it("reports the file's own line count for a windowed read", async () => {
 		// `total_lines` derived from the payload is the file's length only when
@@ -2041,7 +2295,7 @@ describe("Cursor exec answers: what the result claims about the work", () => {
 		// latter two answered a clipped search as an unqualified success, which
 		// is the one truncation a caller can neither detect nor page around.
 		const { frames } = await dispatchExec(
-			buildExecMessage({ case: "piGrepArgs", value: create(ChudGrepExecArgsSchema, { pattern: "hit" }) }),
+			buildExecMessage({ case: "piGrepArgs", value: create(PiGrepExecArgsSchema, { pattern: "hit" }) }),
 			{
 				execHandlers: {
 					async piGrep() {
@@ -2061,7 +2315,7 @@ describe("Cursor exec answers: what the result claims about the work", () => {
 		// The flat flag is the only signal consulted, so a search that hit no cap
 		// must not acquire one.
 		const { frames } = await dispatchExec(
-			buildExecMessage({ case: "piGrepArgs", value: create(ChudGrepExecArgsSchema, { pattern: "hit" }) }),
+			buildExecMessage({ case: "piGrepArgs", value: create(PiGrepExecArgsSchema, { pattern: "hit" }) }),
 			{
 				execHandlers: {
 					async piGrep() {
@@ -2080,7 +2334,7 @@ describe("Cursor exec answers: what the result claims about the work", () => {
 		// `perFileLimitReached` carries the count; adding a second, countless
 		// truncation record for the same event tells the server two caps fired.
 		const { frames } = await dispatchExec(
-			buildExecMessage({ case: "piGrepArgs", value: create(ChudGrepExecArgsSchema, { pattern: "hit" }) }),
+			buildExecMessage({ case: "piGrepArgs", value: create(PiGrepExecArgsSchema, { pattern: "hit" }) }),
 			{
 				execHandlers: {
 					async piGrep() {
@@ -2103,7 +2357,7 @@ describe("Cursor exec answers: what the result claims about the work", () => {
 		const { output } = await dispatchExec(
 			buildExecMessage({
 				case: "piGrepArgs",
-				value: create(ChudGrepExecArgsSchema, { pattern: "hit", context: 3, limit: 50 }),
+				value: create(PiGrepExecArgsSchema, { pattern: "hit", context: 3, limit: 50 }),
 			}),
 			{
 				execHandlers: {

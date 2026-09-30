@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "bun:test";
-import type { SessionClient } from "@chudware/collab-web/session-client";
-import type { AgentSnapshot, ImageContent, SessionEntry, SessionHeader, SessionState } from "@chudware/wire";
+import type { SessionClient } from "@oh-my-pi/collab-web/session-client";
+import type { AgentSnapshot, ImageContent, SessionEntry, SessionHeader, SessionState } from "@oh-my-pi/pi-wire";
 import type {
 	DesktopFrame,
 	DesktopRequest,
@@ -326,8 +326,8 @@ describe("DesktopClient bootstrap and replica", () => {
 		const terminal = store.getSnapshot().terminals.get("terminal-bounded")!;
 		expect(terminal.byteLength).toBe(MAX_TERMINAL_OUTPUT_BYTES);
 		expect(terminal.chunks).toHaveLength(1);
-		expect([...terminal.chunks[0]!.data.slice(0, 4)]).toEqual([...bytes.slice(7, 11)]);
-		expect([...terminal.chunks[0]!.data.slice(-4)]).toEqual([...bytes.slice(-4)]);
+		expect(terminal.chunks[0]!.data.slice(0, 4)).toEqual(bytes.slice(7, 11));
+		expect(terminal.chunks[0]!.data.slice(-4)).toEqual(bytes.slice(-4));
 
 		const chunkBoundStore = new DesktopStore();
 		for (let sequence = 0; sequence <= MAX_TERMINAL_OUTPUT_CHUNKS; sequence += 1) {

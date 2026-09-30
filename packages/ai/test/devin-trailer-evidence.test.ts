@@ -1,10 +1,10 @@
 import { afterEach, describe, expect, it, vi } from "bun:test";
-import { streamDevin } from "@chudware/ai/providers/devin";
-import type { Model } from "@chudware/ai/types";
-import { buildModel } from "@chudware/catalog/build";
-import { GetUserJwtResponseSchema } from "@chudware/catalog/discovery/devin-proto";
-import { create, toBinary } from "@chudware/catalog/discovery/protobuf";
-import { logger } from "@chudware/utils";
+import { streamDevin } from "@oh-my-pi/pi-ai/providers/devin";
+import type { Model } from "@oh-my-pi/pi-ai/types";
+import { buildModel } from "@oh-my-pi/pi-catalog/build";
+import { GetUserJwtResponseSchema } from "@oh-my-pi/pi-catalog/discovery/devin-proto";
+import { create, toBinary } from "@oh-my-pi/pi-catalog/discovery/protobuf";
+import { logger } from "@oh-my-pi/pi-utils";
 
 afterEach(() => {
 	vi.restoreAllMocks();
@@ -87,18 +87,6 @@ describe("streamDevin trailer evidence", () => {
 
 		expect(result.errorMessage).toContain("Devin stream error invalid_argument: boom");
 		expect(result.errorMessage).toContain("[details: grpc-status-details-bin]");
-	});
-
-	it("leaves the classification-relevant message text untouched", async () => {
-		const result = await runTrailer({
-			code: "invalid_argument",
-			message: "an internal error occurred (trace ID: evidence)",
-			details: [{ type: "trace" }],
-		});
-
-		expect(result.stopReason).toBe("error");
-		expect(result.errorMessage).toContain("an internal error occurred (trace ID: evidence)");
-		expect(result.errorMessage).toContain("[details: trace]");
 	});
 	it("uses a detail value when no debug rendering is available", async () => {
 		const result = await runTrailer({

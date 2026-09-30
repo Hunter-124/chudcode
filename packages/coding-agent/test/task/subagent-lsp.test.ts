@@ -2,24 +2,25 @@ import { afterEach, describe, expect, it, vi } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import type { AssistantMessage } from "@chudware/ai";
-import type { ModelRegistry } from "@chudware/coding-agent/config/model-registry";
-import { Settings } from "@chudware/coding-agent/config/settings";
-import type { LoadExtensionsResult } from "@chudware/coding-agent/extensibility/extensions/types";
-import type { PlanModeState } from "@chudware/coding-agent/plan-mode/state";
-import type { CreateAgentSessionOptions, CreateAgentSessionResult } from "@chudware/coding-agent/sdk";
-import * as sdkModule from "@chudware/coding-agent/sdk";
-import type { AgentSession, AgentSessionEvent, PromptOptions } from "@chudware/coding-agent/session/agent-session";
-import { TaskTool } from "@chudware/coding-agent/task";
-import * as discoveryModule from "@chudware/coding-agent/task/discovery";
-import type { AgentDefinition, TaskParams } from "@chudware/coding-agent/task/types";
-import type { IsolationHandle, WorktreeBaseline } from "@chudware/coding-agent/task/worktree";
-import * as worktreeModule from "@chudware/coding-agent/task/worktree";
-import type { ToolSession } from "@chudware/coding-agent/tools";
-import { applyToolAllowlist } from "@chudware/coding-agent/tools/builtin-names";
-import { removeWithRetries } from "@chudware/utils";
-import "@chudware/coding-agent/tools/yield";
-import { EventBus } from "@chudware/coding-agent/utils/event-bus";
+import type { AssistantMessage } from "@oh-my-pi/pi-ai";
+import type { ModelRegistry } from "@oh-my-pi/pi-coding-agent/config/model-registry";
+import { Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
+import type { LoadExtensionsResult } from "@oh-my-pi/pi-coding-agent/extensibility/extensions/types";
+import type { PlanModeState } from "@oh-my-pi/pi-coding-agent/plan-mode/state";
+import type { CreateAgentSessionOptions, CreateAgentSessionResult } from "@oh-my-pi/pi-coding-agent/sdk";
+import * as sdkModule from "@oh-my-pi/pi-coding-agent/sdk";
+import type { AgentSession, AgentSessionEvent, PromptOptions } from "@oh-my-pi/pi-coding-agent/session/agent-session";
+import { TaskTool } from "@oh-my-pi/pi-coding-agent/task";
+import * as discoveryModule from "@oh-my-pi/pi-coding-agent/task/discovery";
+import type { AgentDefinition } from "@oh-my-pi/pi-coding-agent/task/types";
+import type { TaskParams } from "@oh-my-pi/pi-tui/tools/task";
+import type { IsolationHandle, WorktreeBaseline } from "@oh-my-pi/pi-coding-agent/task/worktree";
+import * as worktreeModule from "@oh-my-pi/pi-coding-agent/task/worktree";
+import type { ToolSession } from "@oh-my-pi/pi-coding-agent/tools";
+import { removeWithRetries } from "@oh-my-pi/pi-utils";
+import "@oh-my-pi/pi-coding-agent/tools/yield";
+import { EventBus } from "@oh-my-pi/pi-coding-agent/utils/event-bus";
+import { createSessionDefaults } from "../helpers/session-defaults";
 
 const TEST_TASK: TaskParams = { agent: "task", name: "CheckLsp", task: "Inspect LSP tools." };
 
@@ -52,6 +53,7 @@ function createYieldingSession(): AgentSession {
 	};
 
 	return {
+		...createSessionDefaults(),
 		state,
 		agent: { state: { systemPrompt: ["test"] } },
 		model: undefined,
@@ -61,7 +63,6 @@ function createYieldingSession(): AgentSession {
 		},
 		getActiveToolNames: () => ["yield"],
 		getEnabledToolNames: () => ["yield"],
-		setActiveToolsByName: async () => {},
 		subscribe: (listener: (event: AgentSessionEvent) => void) => {
 			listeners.push(listener);
 			return () => {
@@ -81,22 +82,16 @@ function createYieldingSession(): AgentSession {
 				},
 				isError: false,
 			});
+			return true;
 		},
-		waitForIdle: async () => {},
 		getLastAssistantMessage: () => state.messages[state.messages.length - 1],
-		abort: async () => {},
-		dispose: async () => {},
-		setIrcWakeTurnObserver: () => {},
-		subscribeRunState: () => () => {},
 	} as unknown as AgentSession;
 }
 
 function createSession(
 	options: {
-		isolationMode?: "none" | "auto";
+		isolationEnabled?: boolean;
 		parentEnableLsp?: boolean;
-		parentEnableMCP?: boolean;
-		parentToolAllowlist?: readonly string[];
 		planMode?: PlanModeState;
 		sessionFile?: string | null;
 		taskEnableLsp?: boolean;
@@ -113,11 +108,9 @@ function createSession(
 		cwd: "/tmp",
 		hasUI: false,
 		enableLsp: options.parentEnableLsp,
-		enableMCP: options.parentEnableMCP,
-		toolAllowlist: options.parentToolAllowlist,
 		settings: Settings.isolated({
 			"async.enabled": false,
-			"task.isolation.mode": options.isolationMode ?? "none",
+			"task.isolation.enabled": options.isolationEnabled ?? false,
 			...(options.taskEnableLsp !== undefined ? { "task.enableLsp": options.taskEnableLsp } : {}),
 		}),
 		getSessionFile: () => options.sessionFile ?? null,
@@ -162,7 +155,7 @@ function mockIsolation(): void {
 	};
 	const isolationHandle: IsolationHandle = {
 		mergedDir: "/tmp/isolated-subagent",
-		backend: worktreeModule.parseIsolationMode("rcopy")!,
+		backend: worktreeModule.parseIsolationBackend("rcopy")!,
 		fellBack: false,
 		fallbackReason: null,
 	};
@@ -239,7 +232,7 @@ describe("subagent LSP availability", () => {
 		mockIsolation();
 		const { getOptions } = mockCreateAgentSession();
 
-		const tool = await TaskTool.create(createSession({ isolationMode: "auto" }));
+		const tool = await TaskTool.create(createSession({ isolationEnabled: true }));
 		await tool.execute("tool-call", { ...TEST_TASK, isolated: true });
 
 		expect(getOptions()?.cwd).toBe("/tmp/isolated-subagent");
@@ -256,10 +249,10 @@ describe("subagent LSP availability", () => {
 		});
 		mockIsolation();
 		const { getOptions } = mockCreateAgentSession();
-		const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "chudcode-isolated-session-cwd-"));
+		const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "omp-isolated-session-cwd-"));
 		try {
 			const parentSessionFile = path.join(tempDir, "parent.jsonl");
-			const tool = await TaskTool.create(createSession({ isolationMode: "auto", sessionFile: parentSessionFile }));
+			const tool = await TaskTool.create(createSession({ isolationEnabled: true, sessionFile: parentSessionFile }));
 			await tool.execute("tool-call", { ...TEST_TASK, isolated: true });
 
 			const sessionManager = getOptions()?.sessionManager as { getCwd?: () => string } | undefined;
@@ -290,51 +283,9 @@ describe("subagent LSP availability", () => {
 		expect(options?.restrictToolNames).toBe(true);
 		expect(options?.toolNames).toEqual(["read", "grep", "glob", "web_search", "ast_grep"]);
 		expect(options?.toolNames).not.toContain("lsp");
-		expect(options?.toolNames).not.toContain("hub");
 		expect(options?.toolNames).not.toContain("bash");
 		expect(options?.toolNames).not.toContain("memory_edit");
 		expect(options?.toolNames).not.toContain("retain");
 		expect(options?.toolNames).not.toContain("todo");
-	});
-});
-
-describe("subagents inherit the parent process restrictions", () => {
-	afterEach(() => {
-		vi.restoreAllMocks();
-	});
-
-	it("spawns children under the parent's --tools ceiling with MCP and LSP off", async () => {
-		mockAgents({ name: "task", description: "Task agent", systemPrompt: "Work.", source: "bundled" });
-		const { getOptions } = mockCreateAgentSession();
-		const parentToolAllowlist = ["read", "bash", "hub", "task"];
-
-		const tool = await TaskTool.create(
-			createSession({ parentToolAllowlist, parentEnableMCP: false, parentEnableLsp: false, taskEnableLsp: true }),
-		);
-		await tool.execute("tool-call", TEST_TASK);
-
-		const options = getOptions();
-		expect(options?.toolAllowlist).toEqual(parentToolAllowlist);
-		expect(applyToolAllowlist(options?.toolNames, options?.toolAllowlist)).toEqual(parentToolAllowlist);
-		expect(options?.enableMCP).toBe(false);
-		expect(options?.mcpManager).toBeUndefined();
-		expect(options?.enableLsp).toBe(false);
-	});
-
-	it("narrows an agent's own tool allowlist to the parent ceiling", async () => {
-		mockAgents({
-			name: "task",
-			description: "Task agent",
-			systemPrompt: "Work.",
-			source: "bundled",
-			tools: ["read", "edit", "debug"],
-		});
-		const { getOptions } = mockCreateAgentSession();
-
-		const tool = await TaskTool.create(createSession({ parentToolAllowlist: ["read", "bash", "hub"] }));
-		await tool.execute("tool-call", TEST_TASK);
-
-		const options = getOptions();
-		expect(applyToolAllowlist(options?.toolNames, options?.toolAllowlist)).toEqual(["read", "hub"]);
 	});
 });

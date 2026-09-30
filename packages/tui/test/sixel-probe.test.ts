@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "bun:test";
-import { ImageProtocol, setTerminalImageProtocol, TERMINAL, TUI } from "@chudware/tui";
+import { ImageProtocol, setTerminalImageProtocol, TERMINAL, TUI } from "@oh-my-pi/pi-tui";
 import { VirtualTerminal } from "./virtual-terminal";
 
 type MutableTerminalInfo = {
@@ -12,10 +12,10 @@ const SIXEL_SUPPORTED_REPLY = "\x1b[?2;0;1692;432S";
 
 const terminalInfo = TERMINAL as unknown as MutableTerminalInfo;
 const originalProtocol = TERMINAL.imageProtocol;
-const originalWtSession = process.env.WT_SESSION;
-const originalWslDistro = process.env.WSL_DISTRO_NAME;
-const originalWslInterop = process.env.WSL_INTEROP;
-const originalForcedProtocol = process.env.CHUDCODE_FORCE_IMAGE_PROTOCOL;
+const originalWtSession = Bun.env.WT_SESSION;
+const originalWslDistro = Bun.env.WSL_DISTRO_NAME;
+const originalWslInterop = Bun.env.WSL_INTEROP;
+const originalForcedProtocol = Bun.env.PI_FORCE_IMAGE_PROTOCOL;
 const stdinIsTtyDescriptor = Object.getOwnPropertyDescriptor(process.stdin, "isTTY");
 const stdoutIsTtyDescriptor = Object.getOwnPropertyDescriptor(process.stdout, "isTTY");
 
@@ -31,8 +31,8 @@ function restoreIsTty(
 }
 
 function restoreEnv(name: string, value: string | undefined): void {
-	if (value === undefined) delete process.env[name];
-	else process.env[name] = value;
+	if (value === undefined) delete Bun.env[name];
+	else Bun.env[name] = value;
 }
 
 function startProbe(terminal: VirtualTerminal): TUI {
@@ -52,7 +52,7 @@ describe("TUI SIXEL capability probe", () => {
 		restoreEnv("WT_SESSION", originalWtSession);
 		restoreEnv("WSL_DISTRO_NAME", originalWslDistro);
 		restoreEnv("WSL_INTEROP", originalWslInterop);
-		restoreEnv("CHUDCODE_FORCE_IMAGE_PROTOCOL", originalForcedProtocol);
+		restoreEnv("PI_FORCE_IMAGE_PROTOCOL", originalForcedProtocol);
 		restoreIsTty(process.stdin, stdinIsTtyDescriptor);
 		restoreIsTty(process.stdout, stdoutIsTtyDescriptor);
 	});
@@ -74,9 +74,9 @@ describe("TUI SIXEL capability probe", () => {
 		// TERM=foot and COLORTERM=truecolor only) resolved the `trueColor`
 		// capability row, kept imageProtocol null, and rendered every image as the
 		// `[Image: …]` text card.
-		delete process.env.WT_SESSION;
-		delete process.env.WSL_DISTRO_NAME;
-		delete process.env.WSL_INTEROP;
+		delete Bun.env.WT_SESSION;
+		delete Bun.env.WSL_DISTRO_NAME;
+		delete Bun.env.WSL_INTEROP;
 		const terminal = new VirtualTerminal(80, 24);
 		const tui = startProbe(terminal);
 
@@ -136,8 +136,8 @@ describe("TUI SIXEL capability probe", () => {
 		// process.platform === "win32" never negotiated SIXEL there. The probe no
 		// longer gates on the host at all; WSL is one covered environment of many.
 		if (process.platform !== "linux") return;
-		process.env.WT_SESSION = "test-wt-session";
-		process.env.WSL_DISTRO_NAME = "Ubuntu";
+		Bun.env.WT_SESSION = "test-wt-session";
+		Bun.env.WSL_DISTRO_NAME = "Ubuntu";
 		const terminal = new VirtualTerminal(80, 24);
 		const tui = startProbe(terminal);
 
@@ -147,10 +147,10 @@ describe("TUI SIXEL capability probe", () => {
 		tui.stop();
 	});
 
-	it("respects the CHUDCODE_FORCE_IMAGE_PROTOCOL kill switch", () => {
+	it("respects the PI_FORCE_IMAGE_PROTOCOL kill switch", () => {
 		// `off` resolves imageProtocol to null on purpose; the probe must not
 		// re-enable images behind the user's back.
-		process.env.CHUDCODE_FORCE_IMAGE_PROTOCOL = "off";
+		Bun.env.PI_FORCE_IMAGE_PROTOCOL = "off";
 		const terminal = new VirtualTerminal(80, 24);
 		const tui = startProbe(terminal);
 

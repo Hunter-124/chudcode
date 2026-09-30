@@ -1,7 +1,6 @@
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import * as fsx from "@chudware/utils/fsx";
 import type {
 	SecurityCoverage,
 	SecurityFinding,
@@ -20,6 +19,7 @@ import {
 	encodeSecurityProjectKey,
 	parseSecurityScanBundle,
 } from "../contracts";
+import { pathIsWithin } from "../preflight";
 
 interface SarifRegion {
 	startLine?: number;
@@ -91,10 +91,6 @@ function severityFromSarif(result: SarifResult): SecuritySeverityLevel {
 		default:
 			return "informational";
 	}
-}
-
-function pathIsWithin(candidate: string, root: string): boolean {
-	return candidate === root || candidate.startsWith(`${root}${path.sep}`);
 }
 
 async function resolveSarifArtifactPath(
@@ -319,7 +315,7 @@ export async function importSarif(input: unknown, options: SarifImportOptions): 
 	if (options.sourcePath) scanProvenance.metadata = { sourcePath: options.sourcePath };
 	return parseSecurityScanBundle({
 		scan: {
-			documentType: "chudcode-security.scan",
+			documentType: "omp-security.scan",
 			schemaVersion: "1.0",
 			id: scanId,
 			projectKey: encodeSecurityProjectKey(canonicalRoot),
@@ -351,7 +347,7 @@ export async function importSarifFile(
 	filePath: string,
 	options: Omit<SarifImportOptions, "sourcePath">,
 ): Promise<SecurityScanBundle> {
-	return importSarif(JSON.parse(await fsx.readText(filePath)) as unknown, {
+	return importSarif(JSON.parse(await Bun.file(filePath).text()) as unknown, {
 		...options,
 		sourcePath: path.resolve(filePath),
 	});

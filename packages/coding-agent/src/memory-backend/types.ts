@@ -6,14 +6,13 @@
  * state they create in `start()` and tear it down on `clear()`.
  */
 
-import type { AgentMessage } from "@chudware/agent-core";
+import type { AgentMessage } from "@oh-my-pi/pi-agent-core";
 import type { ModelRegistry } from "../config/model-registry";
 import type { Settings } from "../config/settings";
 import type { HindsightSessionState } from "../hindsight/state";
-import type { MnemopiSessionState } from "../mnemo/state";
+import type { MnemopiSessionState } from "../mnemopi/state";
 import type { AgentSession } from "../session/agent-session";
 
-/** Built-ins use stable literal ids; extensions may register additional ids at runtime. */
 export type MemoryBackendId = string;
 
 export interface MemoryBackendStatus {
@@ -93,6 +92,13 @@ export interface MemoryBackendStartOptions {
 	parentMnemopiSessionState?: MnemopiSessionState;
 }
 
+/** A successful recall, including an empty result, staged until user-turn delivery. */
+export interface MemoryPromptPreparation {
+	context?: string;
+	/** Commit synchronously after delivery validation; false rejects lost ownership without state writes. */
+	commit(): boolean;
+}
+
 export interface MemoryBackend {
 	readonly id: MemoryBackendId;
 
@@ -139,16 +145,22 @@ export interface MemoryBackend {
 
 	/** Render backend-specific memory diagnostics as markdown (`/memory diagnose`). */
 	diagnose?(agentDir: string, cwd: string, session?: AgentSession): Promise<string | undefined>;
+	/** Render pending deltas awaiting consolidation (`/memory queue`). */
+	queuePreview?(context: MemoryBackendOperationContext): Promise<string | undefined>;
 	/**
 	 * Optional hook to inject a backend-specific block into the current turn's
 	 * system prompt before the agent starts generating.
 	 *
 	 * This is the only place a backend can affect the very first answer of a
-	 * fresh session. The returned text is appended to the already-built base
-	 * system prompt for this turn only; callers may separately cache it and
-	 * surface it through `buildDeveloperInstructions()` on later rebuilds.
+	 * fresh session. Context is appended to the winning base prompt at delivery;
+	 * commit publishes the cached snippet and first-turn consumption together.
+	 * Return undefined for an ineligible or failed recall, not an empty success.
 	 */
-	beforeAgentStartPrompt?(session: AgentSession, promptText: string): Promise<string | undefined>;
+	beforeAgentStartPrompt?(
+		session: AgentSession,
+		promptText: string,
+		signal?: AbortSignal,
+	): Promise<MemoryPromptPreparation | undefined>;
 
 	/**
 	 * Optional hook to splice extra context into a compaction summarization.
@@ -164,4 +176,12 @@ export interface MemoryBackend {
 		settings: Settings,
 		session?: AgentSession,
 	): Promise<string | undefined>;
+
+	/**
+	 * Optional hook to apply live edits to this backend's own `<id>.*` settings
+	 * (`changed` lists them) in a running top-level session. When omitted, the
+	 * session re-applies the whole backend (`applyMemoryBackend`), which rebuilds
+	 * its runtime state, memory tools, and prompt from the current settings.
+	 */
+	applySettings?(session: AgentSession, changed: readonly string[]): Promise<void>;
 }

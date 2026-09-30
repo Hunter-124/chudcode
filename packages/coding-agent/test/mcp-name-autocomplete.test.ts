@@ -2,12 +2,12 @@ import { afterEach, beforeEach, describe, expect, test, vi } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import type { SourceMeta } from "@chudware/coding-agent/capability/types";
-import type { MCPServerConfig } from "@chudware/coding-agent/mcp/types";
-import { collectMcpServerNames } from "@chudware/coding-agent/modes/controllers/mcp-command-controller";
-import type { InteractiveModeContext } from "@chudware/coding-agent/modes/types";
-import { buildTuiBuiltinSlashCommands } from "@chudware/coding-agent/slash-commands/builtin-registry";
-import type { TuiSlashCommandRuntime } from "@chudware/coding-agent/slash-commands/types";
+import type { SourceMeta } from "@oh-my-pi/pi-coding-agent/capability/types";
+import type { MCPServerConfig } from "@oh-my-pi/pi-coding-agent/mcp/types";
+import { collectMcpServerNames } from "@oh-my-pi/pi-coding-agent/modes/controllers/mcp-command-controller";
+import type { InteractiveModeContext } from "@oh-my-pi/pi-coding-agent/modes/types";
+import { buildTuiBuiltinSlashCommands } from "@oh-my-pi/pi-coding-agent/slash-commands/builtin-registry";
+import type { TuiSlashCommandRuntime } from "@oh-my-pi/pi-coding-agent/slash-commands/types";
 import {
 	getConfigRootDir,
 	getMCPConfigPath,
@@ -15,23 +15,22 @@ import {
 	removeWithRetries,
 	setAgentDir,
 	setProjectDir,
-} from "@chudware/utils";
-import * as fsx from "@chudware/utils/fsx";
+} from "@oh-my-pi/pi-utils";
 
 const originalProjectDir = getProjectDir();
-const originalAgentDir = process.env.CHUDCODE_CODING_AGENT_DIR;
+const originalAgentDir = process.env.PI_CODING_AGENT_DIR;
 const fallbackAgentDir = path.join(getConfigRootDir(), "agent");
 
 function restoreAgentDir(): void {
 	if (originalAgentDir) {
 		setAgentDir(originalAgentDir);
-		process.env.CHUDCODE_CODING_AGENT_DIR = originalAgentDir;
-		process.env.CHUDCODE_CODING_AGENT_DIR = originalAgentDir;
+		process.env.PI_CODING_AGENT_DIR = originalAgentDir;
+		Bun.env.PI_CODING_AGENT_DIR = originalAgentDir;
 		return;
 	}
 	setAgentDir(fallbackAgentDir);
-	delete process.env.CHUDCODE_CODING_AGENT_DIR;
-	delete process.env.CHUDCODE_CODING_AGENT_DIR;
+	delete process.env.PI_CODING_AGENT_DIR;
+	delete Bun.env.PI_CODING_AGENT_DIR;
 }
 
 async function writeConfig(
@@ -39,7 +38,7 @@ async function writeConfig(
 	cwd: string,
 	servers: Record<string, MCPServerConfig>,
 ): Promise<void> {
-	await fsx.write(getMCPConfigPath(scope, cwd), `${JSON.stringify({ mcpServers: servers }, null, 2)}\n`);
+	await Bun.write(getMCPConfigPath(scope, cwd), `${JSON.stringify({ mcpServers: servers }, null, 2)}\n`);
 }
 
 /** Fake ctx carrying only the mcpManager surface `collectMcpServerNames` reads. */
@@ -58,8 +57,8 @@ describe("MCP server-name autocomplete", () => {
 	let agentDir = "";
 
 	beforeEach(async () => {
-		projectDir = await fs.mkdtemp(path.join(os.tmpdir(), "chudcode-mcp-autocomplete-project-"));
-		agentDir = await fs.mkdtemp(path.join(os.tmpdir(), "chudcode-mcp-autocomplete-agent-"));
+		projectDir = await fs.mkdtemp(path.join(os.tmpdir(), "omp-mcp-autocomplete-project-"));
+		agentDir = await fs.mkdtemp(path.join(os.tmpdir(), "omp-mcp-autocomplete-agent-"));
 		setProjectDir(projectDir);
 		setAgentDir(agentDir);
 	});
@@ -86,22 +85,6 @@ describe("MCP server-name autocomplete", () => {
 		const names = await collectMcpServerNames(ctx);
 
 		expect(names).toEqual(["project-server", "runtime-discovered", "user-disabled", "user-enabled"]);
-	});
-
-	test("collectMcpServerNames includes a discovered server disabled via disabledServers, even once dropped from mcpManager", async () => {
-		// A third-party-discovered server that was `/mcp disable`d: recorded in the user
-		// config's top-level `disabledServers` list, absent from `mcpServers`, and no
-		// longer reported by the manager (loadAllMCPConfigs filters disabled sources out).
-		await fsx.write(
-			getMCPConfigPath("user", projectDir),
-			`${JSON.stringify({ mcpServers: {}, disabledServers: ["discovered-disabled"] }, null, 2)}\n`,
-		);
-		await writeConfig("project", projectDir, {});
-		const { ctx } = createFakeCtx([]);
-
-		const names = await collectMcpServerNames(ctx);
-
-		expect(names).toEqual(["discovered-disabled"]);
 	});
 
 	test("collectMcpServerNames accepts preloaded configs and skips re-reading them from disk", async () => {
@@ -143,7 +126,7 @@ describe("MCP server-name autocomplete", () => {
 		// no longer reported by the manager (loadAllMCPConfigs drops disabled
 		// sources). #resolveServerForAuth/reconnectServer can't resolve it, so
 		// test/reconnect/reauth/unauth must not suggest it.
-		await fsx.write(
+		await Bun.write(
 			getMCPConfigPath("user", projectDir),
 			`${JSON.stringify({ mcpServers: {}, disabledServers: ["discovered-disabled"] }, null, 2)}\n`,
 		);
@@ -201,7 +184,7 @@ describe("MCP server-name autocomplete", () => {
 	test("/mcp getArgumentCompletions returns null instead of throwing when a config file is malformed", async () => {
 		// Malformed JSON makes readMCPConfigFile's JSON.parse throw (ENOENT is the only
 		// error it swallows), which must not escape the autocomplete provider.
-		await fsx.write(getMCPConfigPath("user", projectDir), "{ not valid json");
+		await Bun.write(getMCPConfigPath("user", projectDir), "{ not valid json");
 		const { ctx } = createFakeCtx([]);
 		const runtime: TuiSlashCommandRuntime = { ctx };
 		const mcp = buildTuiBuiltinSlashCommands(runtime).find(c => c.name === "mcp");

@@ -1,6 +1,6 @@
 # Custom Tools Examples
 
-Example custom tools for chudcode-coding-agent.
+Example custom tools for omp-coding-agent.
 
 ## Examples
 
@@ -23,13 +23,13 @@ Full-featured example demonstrating:
 
 ```bash
 # Test directly (can point to any .ts file)
-chudcode --tool examples/custom-tools/todo/index.ts
+omp --tool examples/custom-tools/todo/index.ts
 
 # Or copy entire folder to tools directory for persistent use
-cp -r todo ~/.chudcode/agent/tools/
+cp -r todo ~/.omp/agent/tools/
 ```
 
-Then in chudcode:
+Then in omp:
 
 ```
 > add a todo "test custom tools"
@@ -47,15 +47,15 @@ See [docs/custom-tools.md](../../docs/custom-tools.md) for full documentation.
 **Factory pattern:**
 
 ```typescript
-import { Text } from "@chudware/tui";
-import type { CustomToolFactory } from "@chudware/coding-agent";
+import { Text } from "@oh-my-pi/pi-tui";
+import type { CustomToolFactory } from "@oh-my-pi/pi-coding-agent";
 
-const factory: CustomToolFactory = (chud) => ({
+const factory: CustomToolFactory = pi => ({
 	name: "my_tool",
 	label: "My Tool",
 	description: "Tool description for LLM",
-	parameters: chud.zod.object({
-		action: chud.zod.enum(["list", "add"]),
+	parameters: pi.zod.object({
+		action: pi.zod.enum(["list", "add"]),
 	}),
 
 	// Called on session start/switch/branch/clear
@@ -66,19 +66,18 @@ const factory: CustomToolFactory = (chud) => ({
 	async execute(toolCallId, params) {
 		return {
 			content: [{ type: "text", text: "Result" }],
-			details: {
-				/* for rendering and state reconstruction */
-			},
+			details: {/* for rendering and state reconstruction */},
 		};
 	},
 });
 
 export default factory;
 ```
+
 **Custom rendering:**
 
 ```typescript
-renderCall(args, theme) {
+renderCall(args, options, theme) {
   return new Text(
     theme.fg("toolTitle", theme.bold("my_tool ")) + args.action,
     0, 0  // No padding - Box handles it
@@ -96,7 +95,7 @@ renderResult(result, { expanded, isPartial }, theme) {
 **Use `z.enum` for discriminated string tool args:**
 
 ```typescript
-const z = chud.zod;
+const z = pi.zod;
 
 parameters: z.object({
 	action: z.enum(["list", "add"]),

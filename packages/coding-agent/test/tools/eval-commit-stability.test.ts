@@ -1,9 +1,9 @@
 import { beforeAll, describe, expect, it } from "bun:test";
-import { resetSettingsForTest, Settings } from "@chudware/coding-agent/config/settings";
-import type { EvalStatusEvent, EvalToolDetails } from "@chudware/coding-agent/eval/types";
-import { ToolExecutionComponent } from "@chudware/coding-agent/modes/components/tool-execution";
-import { initTheme } from "@chudware/coding-agent/modes/theme/theme";
-import type { TUI } from "@chudware/tui";
+import { resetSettingsForTest, Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
+import type { EvalStatusEvent, EvalToolDetails } from "@oh-my-pi/pi-tui/tools/eval";
+import { ToolExecutionComponent } from "@oh-my-pi/pi-tui/chat/tool-execution";
+import { initTheme } from "@oh-my-pi/pi-tui/theme";
+import type { TUI } from "@oh-my-pi/pi-tui";
 
 const uiStub = { requestRender() {}, requestComponentRender() {} } as unknown as TUI;
 
@@ -44,14 +44,6 @@ describe("eval tool transcript finalization", () => {
 		resetSettingsForTest();
 		await Settings.init({ inMemory: true });
 		await initTheme();
-	});
-
-	it("keeps partial eval results in the native-scrollback live region", () => {
-		const component = makeEvalComponent();
-
-		component.updateResult(evalAgentResult([{ op: "agent", id: "a1", status: "running" }]), true);
-
-		expectLive(component);
 	});
 
 	it("moves the block out of the live region as soon as the eval result settles", () => {

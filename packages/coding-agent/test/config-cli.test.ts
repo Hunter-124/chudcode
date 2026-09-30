@@ -1,13 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "bun:test";
 import * as path from "node:path";
-import { runConfigCommand } from "@chudware/coding-agent/cli/config-cli";
-import { resetSettingsForTest } from "@chudware/coding-agent/config/settings";
-import { AgentStorage } from "@chudware/coding-agent/session/agent-storage";
-import { getConfigRootDir, setAgentDir, TempDir } from "@chudware/utils";
-import * as fsx from "@chudware/utils/fsx";
+import { runConfigCommand } from "@oh-my-pi/pi-coding-agent/cli/config-cli";
+import { resetSettingsForTest } from "@oh-my-pi/pi-coding-agent/config/settings";
+import { AgentStorage } from "@oh-my-pi/pi-coding-agent/session/agent-storage";
+import { getConfigRootDir, setAgentDir, TempDir } from "@oh-my-pi/pi-utils";
 
 let testAgentDir: TempDir | undefined;
-const originalAgentDir = process.env.CHUDCODE_CODING_AGENT_DIR;
+const originalAgentDir = process.env.PI_CODING_AGENT_DIR;
 const fallbackAgentDir = path.join(getConfigRootDir(), "agent");
 const cliEntry = path.join(import.meta.dir, "..", "src", "cli.ts");
 
@@ -31,19 +30,19 @@ async function runCliProcess(args: string[], env: NodeJS.ProcessEnv): Promise<Cl
 
 beforeEach(() => {
 	resetSettingsForTest();
-	testAgentDir = TempDir.createSync("@chudcode-config-cli-");
+	testAgentDir = TempDir.createSync("@omp-config-cli-");
 	setAgentDir(testAgentDir.path());
 });
 
 afterEach(async () => {
 	vi.restoreAllMocks();
-	AgentStorage.resetInstance();
+	AgentStorage.close();
 	resetSettingsForTest();
 	if (originalAgentDir) {
 		setAgentDir(originalAgentDir);
 	} else {
 		setAgentDir(fallbackAgentDir);
-		delete process.env.CHUDCODE_CODING_AGENT_DIR;
+		delete process.env.PI_CODING_AGENT_DIR;
 	}
 	if (testAgentDir) {
 		try {
@@ -140,6 +139,27 @@ describe("config CLI schema coverage", () => {
 		expect(parsed.type).toBe("array");
 		expect(parsed.value).toEqual(["claude-opus-4-6", "gpt-5.3-codex"]);
 	});
+
+	it("rejects unknown status line segment ids", async () => {
+		vi.spyOn(console, "log").mockImplementation(() => {});
+		vi.spyOn(console, "error").mockImplementation(() => {});
+		const exitSpy = vi.spyOn(process, "exit").mockImplementation((() => {
+			throw new Error("process.exit");
+		}) as typeof process.exit);
+
+		await expect(
+			runConfigCommand({
+				action: "set",
+				key: "statusLine.leftSegments",
+				value: '["modle","git"]',
+				flags: { json: true },
+			}),
+		).rejects.toThrow("process.exit");
+		expect(exitSpy).toHaveBeenCalledWith(1);
+		expect(console.error).toHaveBeenCalledWith(
+			expect.stringContaining('Unknown status line segment: "modle". Valid status line segments: pi, status, model'),
+		);
+	});
 	it("sets numeric idle compaction settings from CLI values", async () => {
 		const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
 		await runConfigCommand({
@@ -189,7 +209,7 @@ describe("config CLI schema coverage", () => {
 	it("fully flushes JSON larger than a pipe buffer", async () => {
 		if (!testAgentDir) throw new Error("Test agent directory was not initialized");
 		const { exitCode, output, error } = await runCliProcess(["config", "list", "--json"], {
-			CHUDCODE_CODING_AGENT_DIR: testAgentDir.path(),
+			PI_CODING_AGENT_DIR: testAgentDir.path(),
 		});
 
 		expect(exitCode).toBe(0);
@@ -198,17 +218,36 @@ describe("config CLI schema coverage", () => {
 		const parsed: unknown = JSON.parse(output);
 		expect(parsed).toMatchObject({ modelRoles: { type: "record" } });
 	});
-	it("loads CHUDCODE_CONFIG_FILES overlays in path-list order", async () => {
+	it("reports the value written to config.yml and the layer that still overrides it", async () => {
+		if (!testAgentDir) throw new Error("Test agent directory was not initialized");
+		const overlayPath = path.join(testAgentDir.path(), "overlay.yml");
+		await Bun.write(overlayPath, "compaction:\n  enabled: false\n");
+		const previousConfigFiles = process.env.PI_CONFIG_FILES;
+		process.env.PI_CONFIG_FILES = overlayPath;
+		try {
+			const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+			await runConfigCommand({ action: "set", key: "compaction.enabled", value: "true", flags: { json: true } });
+			expect(JSON.parse(String(logSpy.mock.calls.at(-1)?.[0]))).toEqual({
+				key: "compaction.enabled",
+				value: true,
+				overriddenBy: "overlay",
+			});
+		} finally {
+			if (previousConfigFiles === undefined) delete process.env.PI_CONFIG_FILES;
+			else process.env.PI_CONFIG_FILES = previousConfigFiles;
+		}
+	});
+	it("loads PI_CONFIG_FILES overlays in path-list order", async () => {
 		if (!testAgentDir) throw new Error("Test agent directory was not initialized");
 		const baseOverlayPath = path.join(testAgentDir.path(), "base-overlay.yml");
 		const finalOverlayPath = path.join(testAgentDir.path(), "final-overlay.yml");
 		await Promise.all([
-			fsx.write(baseOverlayPath, "defaultThinkingLevel: high\n"),
-			fsx.write(finalOverlayPath, "defaultThinkingLevel: max\n"),
+			Bun.write(baseOverlayPath, "defaultThinkingLevel: high\n"),
+			Bun.write(finalOverlayPath, "defaultThinkingLevel: max\n"),
 		]);
 		const { exitCode, output, error } = await runCliProcess(["config", "get", "defaultThinkingLevel", "--json"], {
-			CHUDCODE_CODING_AGENT_DIR: testAgentDir.path(),
-			CHUDCODE_CONFIG_FILES: [baseOverlayPath, finalOverlayPath].join(path.delimiter),
+			PI_CODING_AGENT_DIR: testAgentDir.path(),
+			PI_CONFIG_FILES: [baseOverlayPath, finalOverlayPath].join(path.delimiter),
 		});
 
 		expect(exitCode).toBe(0);

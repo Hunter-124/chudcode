@@ -21,11 +21,11 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "bun:test";
 import * as fs from "node:fs";
 import * as path from "node:path";
-import { Agent, type AgentMessage } from "@chudware/agent-core";
-import type { TextContent } from "@chudware/ai";
-import { AssistantMessageEventStream } from "@chudware/ai/utils/event-stream";
-import { getBundledModel } from "@chudware/catalog/models";
-import { TempDir } from "@chudware/utils";
+import { Agent, type AgentMessage } from "@oh-my-pi/pi-agent-core";
+import type { TextContent } from "@oh-my-pi/pi-ai";
+import { AssistantMessageEventStream } from "@oh-my-pi/pi-ai/utils/event-stream";
+import { getBundledModel } from "@oh-my-pi/pi-catalog/models";
+import { TempDir } from "@oh-my-pi/pi-utils";
 import { ModelRegistry } from "../src/config/model-registry";
 import { Settings } from "../src/config/settings";
 import { resolveLocalUrlToPath } from "../src/internal-urls";
@@ -89,7 +89,7 @@ describe("AgentSession plan-reference delivery tracking (issue #4094)", () => {
 	beforeAll(async () => {
 		fixtureDir = TempDir.createSync("@pi-agent-session-plan-ref-setup-bail-fixture-");
 		authStorage = await AuthStorage.create(path.join(fixtureDir.path(), "testauth.db"));
-		authStorage.setRuntimeApiKey("anthropic", "test-key");
+		authStorage.keys.setRuntime("anthropic", "test-key");
 		modelRegistry = new ModelRegistry(authStorage, path.join(fixtureDir.path(), "models.yml"));
 	});
 
@@ -119,14 +119,13 @@ describe("AgentSession plan-reference delivery tracking (issue #4094)", () => {
 
 		const settings = Settings.isolated({
 			"compaction.enabled": false,
-			"task.eager": "off",
+			"task.eager": "default",
 			"todo.enabled": false,
-			"todo.eager": "off",
+			"todo.eager": "default",
 			"todo.reminders": false,
 		});
 		const sessionManager = SessionManager.inMemory(tempDir.path());
 
-		let session: AgentSession;
 		const agent = new Agent({
 			getApiKey: () => "test-key",
 			initialState: { model, systemPrompt: ["Test"], tools: [], messages: [] },
@@ -144,7 +143,7 @@ describe("AgentSession plan-reference delivery tracking (issue #4094)", () => {
 			},
 		});
 
-		session = new AgentSession({ agent, sessionManager, settings, modelRegistry });
+		const session = new AgentSession({ agent, sessionManager, settings, modelRegistry });
 
 		cleanups.push(() => session.dispose());
 		return { session, sessionManager, observedCalls };

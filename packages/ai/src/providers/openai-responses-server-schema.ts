@@ -8,7 +8,7 @@
  * is a worse outcome than dropping them on the floor.
  */
 
-import { type } from "@chudware/chudtype";
+import { type } from "@oh-my-pi/omptype";
 import type {
 	EasyInputMessage,
 	ResponseCreateParams,
@@ -351,7 +351,7 @@ export const toolChoiceSchema = type("'auto' | 'none' | 'required'")
 export const reasoningConfigSchema = type({
 	"effort?": "string",
 	// `none` maps to hideThinkingSummary; auto/concise/detailed mean "show
-	// summary". chud-ai has no per-level plumbing for the latter — walker logs
+	// summary". pi-ai has no per-level plumbing for the latter — walker logs
 	// once and treats them as default.
 	"summary?": "'auto' | 'concise' | 'detailed' | 'none'",
 });

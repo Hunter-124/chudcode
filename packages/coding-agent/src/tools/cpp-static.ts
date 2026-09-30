@@ -1,7 +1,7 @@
 import * as os from "node:os";
 import * as path from "node:path";
-import type { AgentTool, AgentToolContext, AgentToolResult, AgentToolUpdateCallback } from "@chudware/agent-core";
-import { type } from "@chudware/chudtype";
+import type { AgentTool, AgentToolContext, AgentToolResult, AgentToolUpdateCallback } from "@oh-my-pi/pi-agent-core";
+import { type } from "@oh-my-pi/omptype";
 import type { ToolSession } from ".";
 import { parseClangTidy } from "./analyzers/clang-tidy-parse";
 import { missingTool, probeTools } from "./analyzers/doctor";
@@ -17,7 +17,7 @@ import {
 import { type AnalyzerFinding, capFindings, normalizeSeverity } from "./analyzers/findings";
 import { commandFailure, runCommand } from "./analyzers/process";
 import { parseSarif } from "./analyzers/sarif";
-import type { OutputMeta } from "./output-meta";
+import type { OutputMeta } from "@oh-my-pi/pi-tui/tools/output-meta";
 import { toolResult } from "./tool-result";
 
 const cppStaticSchema = type({

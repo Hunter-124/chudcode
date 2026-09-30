@@ -1,10 +1,11 @@
 /**
  * HTTP + WebSocket server for the browser relay.
  *
- * Impersonates Chrome's CDP discovery endpoint so the chudcode browser tool (and
+ * Impersonates Chrome's CDP discovery endpoint so the omp browser tool (and
  * any puppeteer client) can connect with a plain `browserURL`:
  * - `GET /json/version` → 200 with `webSocketDebuggerUrl` once the extension
- *   is connected, 503 before that (clients like `waitForCdp` keep polling).
+ *   is connected, 503 with a {@link RelayUnavailableInfo} body before that
+ *   (`waitForRelayExtension` decides from it whether polling is worthwhile).
  * - `GET /json` / `/json/list` → attachable page targets (debugging aid).
  * - `WS /cdp` → downstream CDP clients (puppeteer).
  * - `WS /ext` → the Chrome extension (token-gated when configured).
@@ -24,6 +25,15 @@ export interface RelayServerOptions {
 	log?: (message: string, data?: Record<string, unknown>) => void;
 }
 
+/** Body of the 503 `/json/version` answer while no extension is connected. */
+export interface RelayUnavailableInfo {
+	error: string;
+	/** An extension completed the hello handshake at least once in this server's lifetime. */
+	extensionSeen: boolean;
+	/** Milliseconds this server has been listening. */
+	uptimeMs: number;
+}
+
 /** A running relay server. */
 export interface RelayServer {
 	bridge: RelayBridge;
@@ -41,8 +51,8 @@ type RelayWebSocket = Bun.ServerWebSocket<SocketData>;
 const WS_KEEPALIVE_MS = 30_000;
 /** Screenshots travel base64-encoded through both websocket legs. */
 const MAX_PAYLOAD_BYTES = 256 * 1024 * 1024;
-/** Default appearance of the chudcode tab group. */
-const DEFAULT_GROUP = { title: "chudcode", color: "cyan" } as const;
+/** Default appearance of the omp tab group. */
+const DEFAULT_GROUP = { title: "omp", color: "cyan" } as const;
 /** True when `raw` can serve as the authority of a `ws://` URL: no whitespace,
  *  slashes, userinfo, fragments, or control characters, and URL-parseable. */
 function isWsAuthority(raw: string): boolean {
@@ -61,6 +71,7 @@ export function startRelayServer(opts: RelayServerOptions): RelayServer {
 		opts.group === false ? null : opts.group === true || opts.group === undefined ? DEFAULT_GROUP : opts.group;
 	const bridge = new RelayBridge({ log, group });
 	const sockets = new Set<RelayWebSocket>();
+	const startedAt = Date.now();
 
 	const server = Bun.serve({
 		hostname: "127.0.0.1",
@@ -98,7 +109,12 @@ export function startRelayServer(opts: RelayServerOptions): RelayServer {
 			if (req.method !== "GET") return new Response("Method not allowed", { status: 405 });
 			if (path === "/json/version") {
 				if (!bridge.ready) {
-					return Response.json({ error: "relay extension is not connected" }, { status: 503 });
+					const info: RelayUnavailableInfo = {
+						error: "relay extension is not connected",
+						extensionSeen: bridge.extensionSeen,
+						uptimeMs: Date.now() - startedAt,
+					};
+					return Response.json(info, { status: 503 });
 				}
 				return Response.json(bridge.versionInfo(`ws://${host}/cdp`));
 			}

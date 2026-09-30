@@ -3,15 +3,15 @@ import {
 	disposeAllKernelSessions,
 	disposeKernelSessionsByOwner,
 	executePython,
-} from "@chudware/coding-agent/eval/py/executor";
+} from "@oh-my-pi/pi-coding-agent/eval/py/executor";
 import {
 	type KernelExecuteOptions,
 	type KernelExecuteResult,
 	type KernelShutdownResult,
 	PythonKernel,
-} from "@chudware/coding-agent/eval/py/kernel";
+} from "@oh-my-pi/pi-coding-agent/eval/py/kernel";
 
-process.env.CHUDCODE_PYTHON_SKIP_CHECK = "1";
+Bun.env.PI_PYTHON_SKIP_CHECK = "1";
 
 class FakeKernel {
 	#result: KernelExecuteResult;
@@ -378,33 +378,5 @@ describe("executePython session lifecycle", () => {
 		expect(first.output).toContain("first");
 		expect(startCount).toBe(1);
 		expect(kernel.executeCalls).toEqual(["print('one')"]);
-	});
-
-	it("uses per-call kernels when configured", async () => {
-		const kernelA = new FakeKernel(okResult);
-		const kernelB = new FakeKernel(okResult);
-		const kernels = [kernelA, kernelB];
-		let startCount = 0;
-		let shutdownCount = 0;
-
-		PythonKernel.start = async () => {
-			startCount += 1;
-			return kernels.shift() as unknown as PythonKernel;
-		};
-
-		kernelA.shutdown = async (): Promise<KernelShutdownResult> => {
-			shutdownCount += 1;
-			return { confirmed: true };
-		};
-		kernelB.shutdown = async (): Promise<KernelShutdownResult> => {
-			shutdownCount += 1;
-			return { confirmed: true };
-		};
-
-		await executePython("print('one')", { kernelMode: "per-call" });
-		await executePython("print('two')", { kernelMode: "per-call" });
-
-		expect(startCount).toBe(2);
-		expect(shutdownCount).toBe(2);
 	});
 });

@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { promises as fs } from "node:fs";
 import { homedir } from "node:os";
 import path from "node:path";
-import { buildSecretObfuscator } from "@chudware/coding-agent/secrets";
+import { buildSecretObfuscator } from "@oh-my-pi/pi-coding-agent/secrets";
 import { REST } from "discord.js";
 
 export type ArchiveMode = "before-mutate" | "final-delta";

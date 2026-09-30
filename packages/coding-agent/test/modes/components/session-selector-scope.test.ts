@@ -1,8 +1,7 @@
 import { beforeAll, describe, expect, it } from "bun:test";
-import { SessionSelectorComponent } from "@chudware/coding-agent/modes/components/session-selector";
-import { initTheme } from "@chudware/coding-agent/modes/theme/theme";
-import type { SessionInfo } from "@chudware/coding-agent/session/session-listing";
-import { sleep } from "@chudware/utils/async";
+import { SessionSelectorComponent } from "@oh-my-pi/pi-tui/overlays/session-selector";
+import { initTheme } from "@oh-my-pi/pi-tui/theme";
+import type { SessionInfo } from "@oh-my-pi/pi-coding-agent/session/session-listing";
 
 beforeAll(async () => {
 	await initTheme();
@@ -52,7 +51,7 @@ describe("SessionSelectorComponent scope toggle", () => {
 		expect(selector.render(120).join("\n")).not.toContain("other-project");
 
 		selector.handleInput(TAB);
-		await sleep(0);
+		await Bun.sleep(0);
 
 		const rendered = selector.render(120).join("\n");
 		expect(rendered).toContain("(all projects)");
@@ -61,13 +60,13 @@ describe("SessionSelectorComponent scope toggle", () => {
 
 		// Toggling back returns to folder scope without reloading.
 		selector.handleInput(TAB);
-		await sleep(0);
+		await Bun.sleep(0);
 		expect(selector.render(120).join("\n")).toContain("(current folder)");
 		expect(loads).toBe(1);
 
 		// Re-entering all scope reuses the cached global list.
 		selector.handleInput(TAB);
-		await sleep(0);
+		await Bun.sleep(0);
 		expect(loads).toBe(1);
 	});
 
@@ -84,7 +83,7 @@ describe("SessionSelectorComponent scope toggle", () => {
 		);
 
 		selector.handleInput(TAB);
-		await sleep(0);
+		await Bun.sleep(0);
 		selector.handleInput("\n");
 
 		expect(selected).toHaveLength(1);
@@ -114,9 +113,7 @@ describe("SessionSelectorComponent scope toggle", () => {
 		expect(rendered).toContain("(current folder)");
 		expect(rendered).not.toContain("(all projects)");
 		expect(rendered).not.toContain("other-project");
-		// The empty-state hint must be visible so the user knows Tab is the way out.
 		expect(rendered).toContain("No sessions in current folder");
-		expect(rendered).toContain("Press Tab to view all");
 	});
 
 	it("marks forked child sessions in the rendered list", () => {

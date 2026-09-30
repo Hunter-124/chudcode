@@ -1,5 +1,4 @@
 import { afterAll, describe, expect, test } from "bun:test";
-import * as crypto from "node:crypto";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
@@ -8,7 +7,6 @@ import { ArchiveError } from "../../src/ar/error";
 import { DEFAULT_ARCHIVE_LIMITS } from "../../src/ar/limits";
 import { memoryByteSource } from "../../src/ar/source";
 import type { ArchiveIndexEntry } from "../../src/ar/types";
-import * as fsx from "../../src/fsx";
 import { arFixture } from "./fixtures";
 
 const TEMP_ROOTS: string[] = [];
@@ -81,13 +79,13 @@ describe("ASAR fixtures", () => {
 	});
 
 	test("unpacked sibling reads verify the declared size", async () => {
-		const root = await fs.mkdtemp(path.join(os.tmpdir(), "chud-asar-test-"));
+		const root = await fs.mkdtemp(path.join(os.tmpdir(), "pi-asar-test-"));
 		TEMP_ROOTS.push(root);
 		const archivePath = path.join(root, "bundle.asar");
 		const bytes = await arFixture("asar-unpacked.asar");
-		await fsx.write(archivePath, bytes);
+		await Bun.write(archivePath, bytes);
 		await fs.mkdir(`${archivePath}.unpacked`, { recursive: true });
-		await fsx.write(path.join(`${archivePath}.unpacked`, "external.txt"), "short");
+		await Bun.write(path.join(`${archivePath}.unpacked`, "external.txt"), "short");
 		const entries = await readAsar(memoryByteSource(bytes), {
 			archivePath,
 			limits: DEFAULT_ARCHIVE_LIMITS,
@@ -113,7 +111,7 @@ test("encodeAsar round-trips nested and zero-length members", async () => {
 
 test("maps links and executable flags and verifies integrity", async () => {
 	const payload = encoder.encode("payload");
-	const hash = crypto.createHash("sha256").update(payload).digest("hex");
+	const hash = Bun.SHA256.hash(payload, "hex");
 	const bytes = headerFixture(
 		{
 			bin: {

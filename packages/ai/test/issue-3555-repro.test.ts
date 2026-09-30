@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import { type AuthCredentialStore, AuthStorage } from "@chudware/ai/auth-storage";
+import { type AuthCredentialStore, AuthStorage } from "@oh-my-pi/pi-ai/auth-storage";
 
 describe("issue 3555 Ollama usage registration", () => {
 	it("registers Ollama and Ollama Cloud in the default usage resolver", async () => {
@@ -9,17 +9,19 @@ describe("issue 3555 Ollama usage registration", () => {
 				return [];
 			},
 			updateAuthCredential() {},
-			deleteAuthCredential() {},
+			async deleteAuthCredential() {
+				return false;
+			},
 			tryDisableAuthCredentialIfMatches() {
 				return false;
 			},
-			replaceAuthCredentialsForProvider() {
+			async replaceAuthCredentials() {
 				return [];
 			},
-			upsertAuthCredentialForProvider() {
+			async upsertAuthCredential() {
 				return [];
 			},
-			deleteAuthCredentialsForProvider() {},
+			async deleteAuthCredentials() {},
 			getCache() {
 				return null;
 			},
@@ -27,11 +29,11 @@ describe("issue 3555 Ollama usage registration", () => {
 			cleanExpiredCache() {},
 		};
 		const storage = new AuthStorage(store);
-		await storage.reload();
+		await storage.credentials.reload();
 
 		try {
-			expect(storage.usageProviderFor("ollama")).toBeDefined();
-			const cloudProvider = storage.usageProviderFor("ollama-cloud");
+			expect(storage.usage.providerFor("ollama")).toBeDefined();
+			const cloudProvider = storage.usage.providerFor("ollama-cloud");
 			expect(cloudProvider).toBeDefined();
 			if (!cloudProvider) throw new Error("expected Ollama Cloud usage provider");
 

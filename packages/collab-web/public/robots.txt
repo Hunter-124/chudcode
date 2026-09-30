@@ -1,2 +1,5 @@
 User-agent: *
-Disallow: /
+Allow: /
+Disallow: /r/
+
+Sitemap: https://my.omp.sh/sitemap.xml

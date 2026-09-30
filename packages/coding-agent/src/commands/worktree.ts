@@ -1,11 +1,12 @@
 /**
- * List and clean up agent-managed git worktrees under `~/.chudcode/wt`.
+ * List and clean up agent-managed git worktrees under the configured worktree root.
  */
 
-import { getProjectDir } from "@chudware/utils";
-import { Args, Command, Flags } from "@chudware/utils/cli";
+import { getProjectDir } from "@oh-my-pi/pi-utils";
+import { Args, Command, Flags } from "@oh-my-pi/pi-utils/cli";
+import { APP_NAME } from "@oh-my-pi/pi-utils/dirs";
 import { worktreeHelp as commandHelp } from "../cli/command-help";
-import { clearWorktrees, listWorktrees } from "../cli/worktree-cli";
+import { addWorktree, clearWorktrees, listWorktrees } from "../cli/worktree-cli";
 import { Settings } from "../config/settings";
 
 export default class Worktree extends Command {
@@ -13,17 +14,48 @@ export default class Worktree extends Command {
 	static aliases = ["wt"];
 
 	static args = {
-		// `list` (default) inspects the worktree dir; `clear` removes entries.
-		// A positional action keeps `chudcode worktree` (the no-arg form) useful.
+		// A positional action keeps `omp worktree` (the no-arg form) useful.
 		action: Args.string({
-			description: "list (default) or clear",
+			description: "list (default), clear, or add",
 			required: false,
-			options: ["list", "clear"],
+			options: ["list", "clear", "add"],
 			default: "list",
+		}),
+		path: Args.string({
+			description: "Worktree path (add)",
+			required: false,
+		}),
+		commit: Args.string({
+			description: "Commit-ish to check out (add)",
+			required: false,
 		}),
 	};
 
 	static flags = {
+		cwd: Flags.string({
+			char: "C",
+			description: "Repository/base directory (add)",
+		}),
+		branch: Flags.string({
+			char: "b",
+			description: "Create a new branch (add)",
+			exclusive: ["force-branch"],
+		}),
+		"force-branch": Flags.string({
+			char: "B",
+			description: "Create or reset a branch (add)",
+			exclusive: ["branch"],
+		}),
+		detach: Flags.boolean({
+			char: "d",
+			description: "Detach HEAD (add)",
+			default: false,
+		}),
+		quiet: Flags.boolean({
+			char: "q",
+			description: "Suppress add output",
+			default: false,
+		}),
 		all: Flags.boolean({
 			description: "Clear every entry, including live PR-checkout worktrees (clear)",
 			default: false,
@@ -37,25 +69,52 @@ export default class Worktree extends Command {
 	};
 
 	static examples = [
-		"chudcode worktree",
-		"chudcode worktree list --json",
-		"chudcode worktree clear",
-		"chudcode worktree clear --dry-run",
-		"chudcode worktree clear --all",
+		`${APP_NAME} worktree`,
+		`${APP_NAME} worktree list --json`,
+		`${APP_NAME} worktree add ../feature`,
+		`${APP_NAME} worktree add -b feature ../feature origin/main`,
+		`${APP_NAME} worktree add --detach ../review HEAD~2`,
+		`${APP_NAME} worktree clear`,
+		`${APP_NAME} worktree clear --dry-run`,
+		`${APP_NAME} worktree clear --all`,
 	];
 
 	async run(): Promise<void> {
 		const { args, flags } = await this.parse(Worktree);
 		// Load settings so the `worktree.base` override is applied before we scan
-		// — otherwise this command would inspect ~/.chudcode/wt while the agent created
+		// — otherwise this command would inspect ~/.omp/wt while the agent created
 		// its worktrees under the configured base.
+		if (args.action === "add") {
+			if (!args.path) {
+				console.error("Error: Missing required argument: path");
+				process.exitCode = 1;
+				return;
+			}
+			try {
+				await addWorktree({
+					cwd: flags.cwd,
+					path: args.path,
+					commit: args.commit,
+					branch: flags.branch,
+					forceBranch: flags["force-branch"],
+					detach: flags.detach ?? false,
+					quiet: flags.quiet ?? false,
+				});
+			} catch (error) {
+				console.error(error instanceof Error ? error.message : String(error));
+				process.exitCode = 1;
+			}
+			return;
+		}
+
 		await Settings.init({ cwd: getProjectDir() });
 		if (args.action === "clear") {
-			await clearWorktrees({
+			const { failed } = await clearWorktrees({
 				all: flags.all ?? false,
 				dryRun: flags["dry-run"] ?? false,
 				json: flags.json ?? false,
 			});
+			if (failed > 0) process.exitCode = 1;
 			return;
 		}
 		await listWorktrees({ json: flags.json ?? false });

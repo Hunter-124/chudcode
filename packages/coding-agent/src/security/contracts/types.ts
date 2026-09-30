@@ -5,11 +5,7 @@ export type SecurityCoverageCompleteness = "complete" | "partial" | "unknown";
 export type SecurityValidationStatus = "unvalidated" | "validated" | "rejected" | "partial" | "error";
 export type SecurityDispositionStatus = "open" | "false_positive" | "accepted_risk" | "fixed" | "wont_fix";
 export type SecurityTargetKind = "repository" | "scoped_path" | "ref_diff" | "working_tree" | "imported";
-export type SecurityProducerKind =
-	| "chudcode-native"
-	| "codex-security-bundle"
-	| "codex-security-cloud"
-	| "sarif-import";
+export type SecurityProducerKind = "omp-native" | "codex-security-bundle" | "codex-security-cloud" | "sarif-import";
 
 export interface SecurityProducer {
 	kind: SecurityProducerKind;
@@ -161,6 +157,7 @@ export interface SecurityModelRef {
 	thinkingLevel?: string;
 }
 
+/** Exact durable OAuth row pinned to a security scan. */
 export interface SecurityAccountRef {
 	provider: string;
 	credentialId: number;
@@ -169,6 +166,15 @@ export interface SecurityAccountRef {
 	organizationId?: string;
 	organizationName?: string;
 }
+
+/** Provider-owned authentication route pinned without serializing credential material. */
+export interface SecurityProviderAuthRef {
+	provider: string;
+	api: string;
+}
+
+/** Immutable authentication reference used by a native security scan. */
+export type SecurityAuthRef = SecurityAccountRef | SecurityProviderAuthRef;
 
 export interface SecurityKnowledgeBaseRef {
 	path: string;
@@ -183,7 +189,7 @@ export interface SecurityOutputPlan {
 }
 
 export interface SecurityScanPlan {
-	documentType: "chudcode-security.scan-plan";
+	documentType: "omp-security.scan-plan";
 	schemaVersion: "1.0";
 	id: string;
 	createdAt: string;
@@ -192,7 +198,7 @@ export interface SecurityScanPlan {
 	knowledgeBases: SecurityKnowledgeBaseRef[];
 	output: SecurityOutputPlan;
 	model: SecurityModelRef;
-	account: SecurityAccountRef;
+	account: SecurityAuthRef;
 	configFingerprint: string;
 	workflowFingerprint: string;
 	fingerprint: string;
@@ -213,7 +219,7 @@ export interface SecurityScanMetrics {
 }
 
 export interface SecurityScan {
-	documentType: "chudcode-security.scan";
+	documentType: "omp-security.scan";
 	schemaVersion: "1.0";
 	id: string;
 	projectKey: string;

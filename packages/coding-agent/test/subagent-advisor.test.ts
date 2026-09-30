@@ -6,11 +6,14 @@ import { afterEach, describe, expect, it } from "bun:test";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
-import { Settings } from "@chudware/coding-agent/config/settings";
-import { AgentRegistry, MAIN_AGENT_ID } from "@chudware/coding-agent/registry/agent-registry";
-import { registerPersistedSubagents } from "@chudware/coding-agent/registry/persisted-agents";
-import { CURRENT_SESSION_VERSION } from "@chudware/coding-agent/session/session-entries";
-import { createSubagentSettings } from "@chudware/coding-agent/task/executor";
+import { Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
+import { AgentRegistry, MAIN_AGENT_ID } from "@oh-my-pi/pi-coding-agent/registry/agent-registry";
+import { registerPersistedSubagents } from "@oh-my-pi/pi-coding-agent/registry/persisted-agents";
+import { CURRENT_SESSION_VERSION } from "@oh-my-pi/pi-coding-agent/session/session-entries";
+import { createSubagentSettings } from "@oh-my-pi/pi-coding-agent/task/executor";
+
+import { cfgAdvisorEnabled } from "@oh-my-pi/pi-coding-agent/advisor/settings";
+import { cfgTaskAgentAdvisor, cfgTaskAgentPrewalk } from "@oh-my-pi/pi-coding-agent/task/settings";
 
 describe("per-agent settings migrations", () => {
 	let agentDir = "";
@@ -19,46 +22,46 @@ describe("per-agent settings migrations", () => {
 	});
 
 	const load = async (configYml: string): Promise<Settings> => {
-		agentDir = fs.mkdtempSync(path.join(os.tmpdir(), "chudcode-advisor-migration-"));
+		agentDir = fs.mkdtempSync(path.join(os.tmpdir(), "omp-advisor-migration-"));
 		fs.writeFileSync(path.join(agentDir, "config.yml"), configYml);
 		return await Settings.loadReadOnly({ agentDir, cwd: agentDir });
 	};
 
 	it("migrates nested advisor.subagents=true to task.agentAdvisor task=on", async () => {
 		const settings = await load("advisor:\n  subagents: true\n");
-		expect(settings.get("task.agentAdvisor")).toEqual({ task: "on" });
+		expect(cfgTaskAgentAdvisor.get(settings)).toEqual({ task: "on" });
 	});
 
 	it("migrates flat advisor.subagents=true", async () => {
 		const settings = await load('"advisor.subagents": true\n');
-		expect(settings.get("task.agentAdvisor")).toEqual({ task: "on" });
+		expect(cfgTaskAgentAdvisor.get(settings)).toEqual({ task: "on" });
 	});
 
 	it("migrates advisor.subagents=false to task=off so a lower layer keeps overriding", async () => {
 		// Migration runs per config file: a project-level `false` must survive as
 		// an explicit "off" or a migrated global `true` would win the merge.
 		const settings = await load("advisor:\n  subagents: false\n");
-		expect(settings.get("task.agentAdvisor")).toEqual({ task: "off" });
+		expect(cfgTaskAgentAdvisor.get(settings)).toEqual({ task: "off" });
 	});
 
 	it("keeps an explicit task.agentAdvisor entry over the legacy toggle", async () => {
 		const settings = await load('advisor:\n  subagents: true\ntask:\n  agentAdvisor:\n    task: "off"\n');
-		expect(settings.get("task.agentAdvisor")).toEqual({ task: "off" });
+		expect(cfgTaskAgentAdvisor.get(settings)).toEqual({ task: "off" });
 	});
 
 	it("normalizes boolean per-agent prewalk and advisor overrides", async () => {
 		const settings = await load(
-			"task:\n  agentPrewalk:\n    librarian: true\n    task: false\n  agentAdvisor:\n    librarian: false\n    task: true\n",
+			"task:\n  agentPrewalk:\n    reviewer: true\n    task: false\n  agentAdvisor:\n    reviewer: false\n    task: true\n",
 		);
-		expect(settings.get("task.agentPrewalk")).toEqual({ librarian: "on", task: "off" });
-		expect(settings.get("task.agentAdvisor")).toEqual({ librarian: "off", task: "on" });
+		expect(cfgTaskAgentPrewalk.get(settings)).toEqual({ reviewer: "on", task: "off" });
+		expect(cfgTaskAgentAdvisor.get(settings)).toEqual({ reviewer: "off", task: "on" });
 	});
 });
 
 describe("createSubagentSettings advisor default", () => {
 	it("forces the advisor off for subagents even when the parent has it enabled", () => {
 		const parent = Settings.isolated({ "advisor.enabled": true });
-		expect(createSubagentSettings(parent).get("advisor.enabled")).toBe(false);
+		expect(cfgAdvisorEnabled.get(createSubagentSettings(parent))).toBe(false);
 	});
 
 	it("lets a per-agent opt-in re-enable the advisor with its own advisor model role", () => {
@@ -67,7 +70,7 @@ describe("createSubagentSettings advisor default", () => {
 			"advisor.enabled": true,
 			modelRoles: { ...parent.getModelRoles(), advisor: "moonshot/k3" },
 		});
-		expect(child.get("advisor.enabled")).toBe(true);
+		expect(cfgAdvisorEnabled.get(child)).toBe(true);
 		expect(child.getModelRole("advisor")).toBe("moonshot/k3");
 		// Other roles from the parent snapshot survive the advisor override.
 		expect(child.getModelRole("smol")).toBe("openai/gpt-5-mini");
@@ -106,7 +109,7 @@ function sessionFixtureJsonl(id: string): string {
 
 describe("subagent advisor transcript discovery", () => {
 	it("registers nested per-subagent __advisor.jsonl transcripts under their owning subagent", async () => {
-		const dir = fs.mkdtempSync(path.join(os.tmpdir(), "chudcode-subagent-advisor-"));
+		const dir = fs.mkdtempSync(path.join(os.tmpdir(), "omp-subagent-advisor-"));
 		try {
 			// Main session advisor: <session>/__advisor.jsonl. Subagent advisor:
 			// one level deeper, <session>/<SubId>/__advisor.jsonl — the recorder

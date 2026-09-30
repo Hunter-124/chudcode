@@ -1,8 +1,7 @@
 import { afterEach, describe, expect, it, spyOn } from "bun:test";
 import * as fs from "node:fs";
 import * as path from "node:path";
-import { TempDir } from "@chudware/utils";
-import * as fsx from "@chudware/utils/fsx";
+import { TempDir } from "@oh-my-pi/pi-utils";
 import { getEditorCommand, openInEditor, resolveEditorSpawnCommand } from "../src/utils/external-editor";
 
 interface MutableProcess {
@@ -15,52 +14,52 @@ function setPlatform(value: NodeJS.Platform): void {
 
 describe("getEditorCommand", () => {
 	const originalPlatform = process.platform;
-	const originalVisual = process.env.VISUAL;
-	const originalEditor = process.env.EDITOR;
+	const originalVisual = Bun.env.VISUAL;
+	const originalEditor = Bun.env.EDITOR;
 
 	afterEach(() => {
 		setPlatform(originalPlatform);
-		if (originalVisual === undefined) delete process.env.VISUAL;
-		else process.env.VISUAL = originalVisual;
-		if (originalEditor === undefined) delete process.env.EDITOR;
-		else process.env.EDITOR = originalEditor;
+		if (originalVisual === undefined) delete Bun.env.VISUAL;
+		else Bun.env.VISUAL = originalVisual;
+		if (originalEditor === undefined) delete Bun.env.EDITOR;
+		else Bun.env.EDITOR = originalEditor;
 	});
 
 	it("prefers $VISUAL over $EDITOR and the platform default", () => {
-		process.env.VISUAL = "nvim";
-		process.env.EDITOR = "nano";
+		Bun.env.VISUAL = "nvim";
+		Bun.env.EDITOR = "nano";
 		setPlatform("win32");
 		expect(getEditorCommand()).toBe("nvim");
 	});
 
 	it("falls back to $EDITOR when $VISUAL is unset", () => {
-		delete process.env.VISUAL;
-		process.env.EDITOR = "nano";
+		delete Bun.env.VISUAL;
+		Bun.env.EDITOR = "nano";
 		expect(getEditorCommand()).toBe("nano");
 	});
 
 	it("trims whitespace so an accidentally padded value still works", () => {
-		process.env.VISUAL = "  code --wait  ";
-		delete process.env.EDITOR;
+		Bun.env.VISUAL = "  code --wait  ";
+		delete Bun.env.EDITOR;
 		expect(getEditorCommand()).toBe("code --wait");
 	});
 
 	it("treats a whitespace-only $VISUAL as unset and consults $EDITOR", () => {
-		process.env.VISUAL = "   ";
-		process.env.EDITOR = "vim";
+		Bun.env.VISUAL = "   ";
+		Bun.env.EDITOR = "vim";
 		expect(getEditorCommand()).toBe("vim");
 	});
 
 	it("defaults to notepad on Windows when neither variable is set", () => {
-		delete process.env.VISUAL;
-		delete process.env.EDITOR;
+		delete Bun.env.VISUAL;
+		delete Bun.env.EDITOR;
 		setPlatform("win32");
 		expect(getEditorCommand()).toBe("notepad");
 	});
 
 	it("returns undefined on POSIX when neither variable is set", () => {
-		delete process.env.VISUAL;
-		delete process.env.EDITOR;
+		delete Bun.env.VISUAL;
+		delete Bun.env.EDITOR;
 		setPlatform("linux");
 		expect(getEditorCommand()).toBeUndefined();
 	});
@@ -89,7 +88,7 @@ describe("openInEditor", () => {
 	});
 
 	it("passes the cmd.exe command line verbatim on Windows", () => {
-		const tmpFile = String.raw`C:\Users\Example User\AppData\Local\Temp\chudcode-editor-123.chudcode.md`;
+		const tmpFile = String.raw`C:\Users\Example User\AppData\Local\Temp\omp-editor-123.omp.md`;
 
 		expect(resolveEditorSpawnCommand('"C:\\Program Files\\Code.exe" --wait', tmpFile, "win32")).toEqual({
 			cmd: [
@@ -97,7 +96,7 @@ describe("openInEditor", () => {
 				"/d",
 				"/s",
 				"/c",
-				String.raw`""C:\Program Files\Code.exe" --wait "C:\Users\Example User\AppData\Local\Temp\chudcode-editor-123.chudcode.md""`,
+				String.raw`""C:\Program Files\Code.exe" --wait "C:\Users\Example User\AppData\Local\Temp\omp-editor-123.omp.md""`,
 			],
 			windowsVerbatimArguments: true,
 		});
@@ -108,7 +107,7 @@ describe("openInEditor", () => {
 		try {
 			const editorPath = path.join(tempDir.path(), "My Editor", "edit");
 			fs.mkdirSync(path.dirname(editorPath), { recursive: true });
-			await fsx.write(editorPath, '#!/bin/sh\nprintf "edited" > "$1"\n');
+			await Bun.write(editorPath, '#!/bin/sh\nprintf "edited" > "$1"\n');
 			fs.chmodSync(editorPath, 0o755);
 
 			const result = await openInEditor(`"${editorPath}"`, "original");

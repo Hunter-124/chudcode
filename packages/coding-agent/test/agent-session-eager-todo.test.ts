@@ -1,20 +1,20 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "bun:test";
 import * as path from "node:path";
-import { Agent, type AgentMessage, type AgentTool } from "@chudware/agent-core";
-import type { AssistantMessage, TextContent, ToolCall } from "@chudware/ai";
-import * as ai from "@chudware/ai";
-import { AssistantMessageEventStream } from "@chudware/ai/utils/event-stream";
-import { getBundledModel } from "@chudware/catalog/models";
-import { type } from "@chudware/chudtype";
-import { ModelRegistry } from "@chudware/coding-agent/config/model-registry";
-import { Settings } from "@chudware/coding-agent/config/settings";
-import { AgentSession, type AgentSessionConfig } from "@chudware/coding-agent/session/agent-session";
-import { AuthStorage } from "@chudware/coding-agent/session/auth-storage";
-import { convertToLlm } from "@chudware/coding-agent/session/messages";
-import { SessionManager } from "@chudware/coding-agent/session/session-manager";
-import type { ToolSession } from "@chudware/coding-agent/tools";
-import { TodoTool } from "@chudware/coding-agent/tools";
-import { setInteractiveHost, TempDir } from "@chudware/utils";
+import { type } from "@oh-my-pi/omptype";
+import { Agent, type AgentMessage, type AgentTool } from "@oh-my-pi/pi-agent-core";
+import type { AssistantMessage, TextContent, ToolCall } from "@oh-my-pi/pi-ai";
+import * as ai from "@oh-my-pi/pi-ai";
+import { AssistantMessageEventStream } from "@oh-my-pi/pi-ai/utils/event-stream";
+import { getBundledModel } from "@oh-my-pi/pi-catalog/models";
+import { ModelRegistry } from "@oh-my-pi/pi-coding-agent/config/model-registry";
+import { Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
+import { AgentSession, type AgentSessionConfig } from "@oh-my-pi/pi-coding-agent/session/agent-session";
+import { AuthStorage } from "@oh-my-pi/pi-coding-agent/session/auth-storage";
+import { convertToLlm } from "@oh-my-pi/pi-coding-agent/session/messages";
+import { SessionManager } from "@oh-my-pi/pi-coding-agent/session/session-manager";
+import type { ToolSession } from "@oh-my-pi/pi-coding-agent/tools";
+import { TodoTool } from "@oh-my-pi/pi-coding-agent/tools";
+import { setInteractiveHost, TempDir } from "@oh-my-pi/pi-utils";
 import { createAssistantMessage } from "./helpers/agent-session-setup";
 
 type ObservedPromptCall = {
@@ -102,6 +102,7 @@ describe("AgentSession eager todo enforcement", () => {
 	let sharedDir: TempDir;
 	let sharedAuthStorage: AuthStorage;
 	let sharedModelRegistry: ModelRegistry;
+	let previousNoTitle: string | undefined;
 	const observedCalls: ObservedPromptCall[] = [];
 
 	async function createSession(
@@ -216,7 +217,7 @@ describe("AgentSession eager todo enforcement", () => {
 	beforeAll(async () => {
 		sharedDir = TempDir.createSync("@pi-agent-session-eager-todo-shared-");
 		sharedAuthStorage = await AuthStorage.create(path.join(sharedDir.path(), "auth.db"));
-		sharedAuthStorage.setRuntimeApiKey("anthropic", "test-key");
+		sharedAuthStorage.keys.setRuntime("anthropic", "test-key");
 		sharedModelRegistry = new ModelRegistry(sharedAuthStorage, path.join(sharedDir.path(), "models.yml"));
 	});
 
@@ -226,6 +227,8 @@ describe("AgentSession eager todo enforcement", () => {
 	});
 
 	beforeEach(async () => {
+		previousNoTitle = Bun.env.PI_NO_TITLE;
+		delete Bun.env.PI_NO_TITLE;
 		tempDir = TempDir.createSync("@pi-agent-session-eager-todo-");
 		streamCallCount = 0;
 		scriptedResponses = [];
@@ -238,6 +241,8 @@ describe("AgentSession eager todo enforcement", () => {
 			await session.dispose();
 		}
 		vi.restoreAllMocks();
+		if (previousNoTitle === undefined) delete Bun.env.PI_NO_TITLE;
+		else Bun.env.PI_NO_TITLE = previousNoTitle;
 		tempDir.removeSync();
 	});
 
@@ -326,6 +331,15 @@ describe("AgentSession eager todo enforcement", () => {
 		expect(titleInput).toContain("I found the parser recovery path.");
 		expect(titleInput).toContain("The recovery heuristic should drive the replan title.");
 		expect(titleInput).toContain("replan parser diagnostics");
+		const metadata = completeSimpleMock.mock.calls[0]?.[2]?.metadata;
+		if (!metadata || typeof metadata.user_id !== "string") {
+			throw new Error("Expected title request metadata.user_id");
+		}
+		const userId: unknown = JSON.parse(metadata.user_id);
+		if (!userId || typeof userId !== "object" || !("session_id" in userId) || typeof userId.session_id !== "string") {
+			throw new Error("Expected title request metadata.user_id.session_id");
+		}
+		expect(userId.session_id).not.toBe(session.sessionId);
 	});
 
 	it("forwards the configured title system prompt to the replan refresh path", async () => {
@@ -452,6 +466,25 @@ describe("AgentSession eager todo enforcement", () => {
 	it("does not refresh todo-init titles when title refresh on replan is disabled", async () => {
 		const completeSimpleMock = vi.spyOn(ai, "completeSimple");
 		await session.setSessionName("Old auto title", "auto");
+		scriptedResponses = [
+			createToolCallAssistantMessage("todo", {
+				op: "init",
+				list: [{ phase: "Parser", items: ["Replan parser diagnostics"] }],
+			}),
+			createAssistantMessage("todo initialized"),
+		];
+
+		await session.prompt("replan parser diagnostics");
+
+		expect(completeSimpleMock).not.toHaveBeenCalled();
+		expect(session.sessionManager.getSessionName()).toBe("Old auto title");
+	});
+
+	it("does not refresh todo-init titles when automatic titles are disabled", async () => {
+		Bun.env.PI_NO_TITLE = "1";
+		await recreateSession({ "title.refreshOnReplan": true });
+		await session.setSessionName("Old auto title", "auto");
+		const completeSimpleMock = vi.spyOn(ai, "completeSimple");
 		scriptedResponses = [
 			createToolCallAssistantMessage("todo", {
 				op: "init",

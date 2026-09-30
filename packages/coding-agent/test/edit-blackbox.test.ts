@@ -2,13 +2,12 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import { resetSettingsForTest, Settings } from "@chudware/coding-agent/config/settings";
-import { canonicalSnapshotKey, EditTool, getFileSnapshotStore, type PatchParams } from "@chudware/coding-agent/edit";
-import type { ToolSession } from "@chudware/coding-agent/tools";
-import type { EditMode } from "@chudware/coding-agent/utils/edit-mode";
-import { formatHashlineHeader } from "@chudware/hashline";
-import { removeWithRetries } from "@chudware/utils";
-import * as fsx from "@chudware/utils/fsx";
+import { resetSettingsForTest, Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
+import { EditTool, getEditStore, type PatchParams } from "@oh-my-pi/pi-coding-agent/edit";
+import { formatHashlineHeader } from "@oh-my-pi/pi-tui/tools/hashline-format";
+import type { ToolSession } from "@oh-my-pi/pi-coding-agent/tools";
+import type { EditMode } from "@oh-my-pi/pi-tui/tools/edit";
+import { removeWithRetries } from "@oh-my-pi/pi-utils";
 
 const MODEL = "openai/gpt-5.6";
 const SOURCE = "export function value(): number {\n\treturn 1;\n}\n";
@@ -36,7 +35,7 @@ let session: ToolSession;
 
 beforeEach(async () => {
 	resetSettingsForTest();
-	tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "chudcode-edit-blackbox-"));
+	tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "omp-edit-blackbox-"));
 	agentDir = path.join(tempDir, "agent");
 	logPath = path.join(agentDir, "edit-blackbox.jsonl");
 	await fs.mkdir(agentDir, { recursive: true });
@@ -56,7 +55,7 @@ afterEach(async () => {
 
 async function writeFixture(name: string): Promise<string> {
 	const absolutePath = path.join(tempDir, name);
-	await fsx.write(absolutePath, SOURCE);
+	await Bun.write(absolutePath, SOURCE);
 	return absolutePath;
 }
 
@@ -77,8 +76,8 @@ describe("edit parse-regression blackbox", () => {
 			new_string: "return (;",
 		});
 
-		expect(await fsx.readText(filePath)).toContain("return (;");
-		expect(await fsx.exists(logPath)).toBe(false);
+		expect(await Bun.file(filePath).text()).toContain("return (;");
+		expect(await Bun.file(logPath).exists()).toBe(false);
 		// The parse-regression warning is independent of blackbox recording.
 		const text = result.content.map(part => (part.type === "text" ? part.text : "")).join("\n");
 		expect(text).toMatch(/no longer parses after this edit/);
@@ -111,7 +110,7 @@ describe("edit parse-regression blackbox", () => {
 		await new EditTool(session, "replace").execute("replace", replaceArg);
 		expected.push({
 			prev: SOURCE,
-			new: await fsx.readText(replacePath),
+			new: await Bun.file(replacePath).text(),
 			model: MODEL,
 			variant: "replace",
 			arg: replaceArg,
@@ -125,7 +124,7 @@ describe("edit parse-regression blackbox", () => {
 		await new EditTool(session, "patch").execute("patch", patchArg);
 		expected.push({
 			prev: SOURCE,
-			new: await fsx.readText(patchPath),
+			new: await Bun.file(patchPath).text(),
 			model: MODEL,
 			variant: "patch",
 			arg: patchArg,
@@ -146,38 +145,40 @@ describe("edit parse-regression blackbox", () => {
 		await new EditTool(session, "apply_patch").execute("apply-patch", applyPatchArg);
 		expected.push({
 			prev: SOURCE,
-			new: await fsx.readText(applyPatchPath),
+			new: await Bun.file(applyPatchPath).text(),
 			model: MODEL,
 			variant: "apply_patch",
 			arg: applyPatchArg,
 		});
 
 		const hashlinePath = await writeFixture("hashline.ts");
-		const tag = getFileSnapshotStore(session).record(canonicalSnapshotKey(hashlinePath), SOURCE);
+		const tag = getEditStore(session).recordSnapshot(hashlinePath, SOURCE, undefined);
 		const hashlineArg = {
 			input: `${formatHashlineHeader("hashline.ts", tag)}\nPUT 2-2:\n+\treturn (;`,
 		};
 		await new EditTool(session, "hashline").execute("hashline", hashlineArg);
 		expected.push({
 			prev: SOURCE,
-			new: await fsx.readText(hashlinePath),
+			new: await Bun.file(hashlinePath).text(),
 			model: MODEL,
 			variant: "hashline",
 			arg: hashlineArg,
 		});
 
 		const sloppyPath = await writeFixture("sloppy.ts");
-		const sloppyArg = { input: "§sloppy.ts\n\treturn ⟪1│(⟫;" };
+		const sloppyArg = {
+			input: "*** Edit File: sloppy.ts\n*** Find\n\treturn 1;\n*** Replace\n\treturn (;",
+		};
 		await new EditTool(session, "sloppy").execute("sloppy", sloppyArg);
 		expected.push({
 			prev: SOURCE,
-			new: await fsx.readText(sloppyPath),
+			new: await Bun.file(sloppyPath).text(),
 			model: MODEL,
 			variant: "sloppy",
 			arg: sloppyArg,
 		});
 
-		const lines = (await fsx.readText(logPath)).trimEnd().split("\n");
+		const lines = (await Bun.file(logPath).text()).trimEnd().split("\n");
 		expect(JSON.parse(lines[0])).toEqual({ seed: true });
 		expect(lines.slice(1).map(line => JSON.parse(line))).toEqual(expected);
 	});
@@ -190,14 +191,14 @@ describe("edit parse-regression blackbox", () => {
 			new_string: "return 2;",
 		});
 
-		await fsx.write(path.join(tempDir, "invalid.ts"), "export const value = (;\n");
+		await Bun.write(path.join(tempDir, "invalid.ts"), "export const value = (;\n");
 		await new EditTool(session, "replace").execute("already-invalid", {
 			path: "invalid.ts",
 			old_string: "value",
 			new_string: "next",
 		});
 
-		expect(await fsx.exists(logPath)).toBe(false);
+		expect(await Bun.file(logPath).exists()).toBe(false);
 	});
 
 	test("treats an empty supported source as parseable", async () => {
@@ -208,7 +209,7 @@ describe("edit parse-regression blackbox", () => {
 			new_string: "",
 		});
 
-		expect(await fsx.readText(path.join(tempDir, "empty.ts"))).toBe("");
-		expect(await fsx.exists(logPath)).toBe(false);
+		expect(await Bun.file(path.join(tempDir, "empty.ts")).text()).toBe("");
+		expect(await Bun.file(logPath).exists()).toBe(false);
 	});
 });

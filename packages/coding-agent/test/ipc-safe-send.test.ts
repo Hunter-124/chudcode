@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import { safeSend } from "@chudware/coding-agent/utils/ipc";
+import { safeSend } from "@oh-my-pi/pi-coding-agent/utils/ipc";
 
 /**
  * Contract for issue #2997: `safeSend` wraps `Subprocess.send()` so neither a
@@ -44,13 +44,5 @@ describe("safeSend", () => {
 		} finally {
 			process.removeListener("unhandledRejection", onUnhandled);
 		}
-	});
-
-	it("neutralizes a resolved thenable without affecting the happy path", async () => {
-		const proc = { send: () => Promise.resolve(undefined) };
-		expect(() => safeSend(proc, {}, "test")).not.toThrow();
-		// Drain the microtask queue so a stray rejection would surface.
-		await Promise.resolve();
-		await Promise.resolve();
 	});
 });

@@ -2,29 +2,30 @@ import { afterEach, describe, expect, test, vi } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import { getOAuthProviders } from "@chudware/ai/registry/oauth";
-import { getEnvApiKey } from "@chudware/ai/stream";
-import { Effort } from "@chudware/catalog/effort";
-import { resolveProviderModels } from "@chudware/catalog/model-manager";
-import { getBundledModels } from "@chudware/catalog/models";
-import { DEFAULT_MODEL_PER_PROVIDER, PROVIDER_DESCRIPTORS } from "@chudware/catalog/provider-models/descriptors";
-import { sakanaModelManagerOptions } from "@chudware/catalog/provider-models/openai-compat";
-import type { FetchImpl, ModelSpec, ResolvedOpenAIResponsesCompat } from "@chudware/catalog/types";
+import { getOAuthProviders } from "@oh-my-pi/pi-ai/registry/oauth";
+import { getEnvApiKey } from "@oh-my-pi/pi-ai/stream";
+import { Effort } from "@oh-my-pi/pi-catalog/effort";
+import { resolveProviderModels } from "@oh-my-pi/pi-catalog/model-manager";
+import { getBundledModels } from "@oh-my-pi/pi-catalog/models";
+import { seedModels } from "@oh-my-pi/pi-catalog/compat/providers";
+import { DEFAULT_MODEL_PER_PROVIDER, PROVIDER_DESCRIPTORS } from "@oh-my-pi/pi-catalog/provider-models/descriptors";
+import { sakanaModelManagerOptions } from "@oh-my-pi/pi-catalog/provider-models/openai-compat";
+import type { FetchImpl, ModelSpec, ResolvedOpenAIResponsesCompat } from "@oh-my-pi/pi-catalog/types";
 
 const ORIGINAL_ENV = {
-	SAKANA_API_KEY: process.env.SAKANA_API_KEY,
-	FUGU_API_KEY: process.env.FUGU_API_KEY,
-	SAKANA_BASE_URL: process.env.SAKANA_BASE_URL,
-	FUGU_BASE_URL: process.env.FUGU_BASE_URL,
+	SAKANA_API_KEY: Bun.env.SAKANA_API_KEY,
+	FUGU_API_KEY: Bun.env.FUGU_API_KEY,
+	SAKANA_BASE_URL: Bun.env.SAKANA_BASE_URL,
+	FUGU_BASE_URL: Bun.env.FUGU_BASE_URL,
 } as const;
 
 function restoreEnvVar(name: keyof typeof ORIGINAL_ENV): void {
 	const value = ORIGINAL_ENV[name];
 	if (value === undefined) {
-		delete process.env[name];
+		delete Bun.env[name];
 		return;
 	}
-	process.env[name] = value;
+	Bun.env[name] = value;
 }
 
 afterEach(() => {
@@ -37,11 +38,11 @@ afterEach(() => {
 
 describe("Sakana AI provider support", () => {
 	test("resolves Sakana and Fugu API key environment fallbacks", () => {
-		delete process.env.SAKANA_API_KEY;
-		process.env.FUGU_API_KEY = "fugu-test-key";
+		delete Bun.env.SAKANA_API_KEY;
+		Bun.env.FUGU_API_KEY = "fugu-test-key";
 		expect(getEnvApiKey("sakana")).toBe("fugu-test-key");
 
-		process.env.SAKANA_API_KEY = "sakana-test-key";
+		Bun.env.SAKANA_API_KEY = "sakana-test-key";
 		expect(getEnvApiKey("sakana")).toBe("sakana-test-key");
 	});
 
@@ -52,6 +53,9 @@ describe("Sakana AI provider support", () => {
 		expect(descriptor?.catalogDiscovery?.envVars).toEqual(["SAKANA_API_KEY", "FUGU_API_KEY"]);
 		expect(descriptor?.dynamicModelsAuthoritative).toBe(true);
 		expect(DEFAULT_MODEL_PER_PROVIDER.sakana).toBe("fugu");
+
+		const seeded = seedModels("sakana");
+		expect(seeded.map(model => model.id)).toEqual(["fugu", "fugu-ultra", "fugu-ultra-20260615"]);
 
 		const bundled = getBundledModels("sakana");
 		expect(bundled.map(model => model.id).sort()).toEqual(["fugu", "fugu-ultra", "fugu-ultra-20260615"]);
@@ -71,8 +75,8 @@ describe("Sakana AI provider support", () => {
 	});
 
 	test("discovers models from Sakana Models API with normalized base URL and curated Fugu metadata", async () => {
-		delete process.env.SAKANA_BASE_URL;
-		process.env.FUGU_BASE_URL = "https://gateway.sakana.test";
+		delete Bun.env.SAKANA_BASE_URL;
+		Bun.env.FUGU_BASE_URL = "https://gateway.sakana.test";
 		const fetchMock: FetchImpl = vi.fn(
 			async () =>
 				new Response(JSON.stringify({ data: [{ id: "fugu" }, { id: "fugu-ultra" }, { id: "fugu-next" }] }), {
@@ -101,7 +105,7 @@ describe("Sakana AI provider support", () => {
 	});
 
 	test("drops stale cached Fugu rows when bundled context metadata changes", async () => {
-		const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "chud-catalog-sakana-stale-cache-"));
+		const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "pi-catalog-sakana-stale-cache-"));
 		const dbPath = path.join(tempDir, "models.db");
 		const staleFugu: ModelSpec<"openai-responses"> = {
 			id: "fugu",
@@ -147,7 +151,7 @@ describe("Sakana AI provider support", () => {
 		}
 	});
 	test("prefers explicit Sakana model-manager base URL over environment aliases", async () => {
-		process.env.SAKANA_BASE_URL = "https://env.sakana.test";
+		Bun.env.SAKANA_BASE_URL = "https://env.sakana.test";
 		const fetchMock: FetchImpl = vi.fn(
 			async () =>
 				new Response(JSON.stringify({ data: [{ id: "fugu" }] }), {

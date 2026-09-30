@@ -1,4 +1,4 @@
-import { parseJsonWithRepair } from "@chudware/utils";
+import { parseJsonWithRepair } from "@oh-my-pi/pi-utils";
 import type { Message, ToolCall } from "../types";
 import { asRecord, normalizeKimiFunctionName, partialSuffixOverlapAny } from "./coercion";
 import dialectPrompt from "./kimi.md" with { type: "text" };
@@ -291,7 +291,7 @@ function renderThinking(text: string): string {
 
 function renderTranscript(messages: readonly Message[], _options?: DialectRenderOptions): string {
 	let out = "";
-	for (let i = 0; i < messages.length; ) {
+	for (let i = 0; i < messages.length;) {
 		const message = messages[i]!;
 		if (message.role === "assistant") {
 			const parts = assistantTranscriptParts(message);

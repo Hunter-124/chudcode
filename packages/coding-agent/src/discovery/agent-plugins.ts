@@ -14,12 +14,10 @@
  * `--plugin-dir`) and from configured extension packages. Legacy providers
  * skip roots governed by this standard via `legacyProviderAllowed`.
  */
-
-import * as crypto from "node:crypto";
 import type { Dirent, Stats } from "node:fs";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
-import { getPluginsDir, isEnoent, normalizeFrontmatterKeys, parseFrontmatter } from "@chudware/utils";
+import { getPluginsDir, isEnoent, normalizeFrontmatterKeys, parseFrontmatter } from "@oh-my-pi/pi-utils";
 import { registerProvider } from "../capability";
 import { readFile } from "../capability/fs";
 import { type MCPServer, mcpCapability } from "../capability/mcp";
@@ -31,9 +29,9 @@ import {
 	parseAgentPluginMcp,
 	validateAgentSkillFrontmatter,
 } from "./agent-plugin-format";
-import { listOmpExtensionRoots } from "./chudcode-extension-roots";
 import { resolveContainedPath } from "./contained-path";
 import { compareSkillOrder, createSourceMeta, listClaudePluginRoots } from "./helpers";
+import { listOmpExtensionRoots } from "./omp-extension-roots";
 
 const PROVIDER_ID = "agent-plugins";
 const DISPLAY_NAME = "Agent Plugins";
@@ -90,7 +88,7 @@ async function listCandidateRoots(ctx: LoadContext): Promise<CandidateRoot[]> {
  * scopes, or local directories) from aliasing each other's state.
  */
 function pluginDataDir(home: string, manifestName: string, instanceKey: string): string {
-	const digest = crypto.createHash("sha256").update(instanceKey).digest("hex").slice(0, 16);
+	const digest = new Bun.CryptoHasher("sha256").update(instanceKey).digest("hex").slice(0, 16);
 	return path.join(getPluginsDir(home), "data", `${manifestName}-${digest}`);
 }
 
@@ -104,7 +102,11 @@ function pluginDataDir(home: string, manifestName: string, instanceKey: string):
  * deeper descendants are never searched. Invalid skills are skipped with a
  * warning while the rest keep loading.
  */
-async function scanStandardSkills(realRoot: string, level: "user" | "project"): Promise<LoadResult<Skill>> {
+async function scanStandardSkills(
+	realRoot: string,
+	level: "user" | "project",
+	pluginName: string,
+): Promise<LoadResult<Skill>> {
 	const items: Skill[] = [];
 	const warnings: string[] = [];
 
@@ -188,7 +190,10 @@ async function scanStandardSkills(realRoot: string, level: "user" | "project"): 
 				content: body,
 				frontmatter,
 				level,
-				_source: createSourceMeta(PROVIDER_ID, skillPath, level),
+				// The manifest name, never a path segment: registry installs live
+				// under `<marketplace>/<plugin>/<version>/`, so path-derived
+				// collision namespaces would change on every version bump.
+				_source: createSourceMeta(PROVIDER_ID, skillPath, level, undefined, pluginName),
 			});
 		}),
 	);
@@ -208,7 +213,7 @@ async function loadSkills(ctx: LoadContext): Promise<LoadResult<Skill>> {
 				// reported once here rather than from every capability loader.
 				return { items: [], warnings: [`[agent-plugins] Rejected plugin at ${candidate.path}: ${status.reason}`] };
 			}
-			const scan = await scanStandardSkills(status.realRoot, candidate.level);
+			const scan = await scanStandardSkills(status.realRoot, candidate.level, status.manifest.name);
 			return {
 				items: scan.items,
 				warnings: [...status.warnings, ...(scan.warnings ?? [])].map(

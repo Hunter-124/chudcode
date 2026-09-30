@@ -1,5 +1,5 @@
-import { encodeSixel } from "@chudware/natives";
-import { $env, isBunTestRuntime, isTerminalHeadless } from "@chudware/utils";
+import { encodeSixel } from "@oh-my-pi/pi-natives";
+import { $env, isBunTestRuntime, isTerminalHeadless, isWsl } from "@oh-my-pi/pi-utils/env";
 import { sendDesktopNotification, shouldDeliverDesktopNotification } from "./desktop-notify";
 import {
 	detectKittyUnicodePlaceholdersSupport,
@@ -9,9 +9,11 @@ import {
 	renderKittyPlaceholderLines,
 	setKittyGraphics,
 } from "./kitty-graphics";
-import { isInsideTmux, wrapTmuxPassthrough, wrapTmuxPassthroughIfNeeded } from "./tmux";
+import { isInsideHerdr, isInsideTerminalMultiplexer } from "./terminal-multiplexer";
+import { isInsideTmux, resolveTmuxClientTerminalName, wrapTmuxPassthrough, wrapTmuxPassthroughIfNeeded } from "./tmux";
 import type { HangulCompatibilityJamoWidth } from "./utils";
 
+export * from "./terminal-multiplexer";
 export { isInsideTmux, wrapTmuxPassthrough } from "./tmux";
 
 export enum ImageProtocol {
@@ -35,11 +37,20 @@ export type TerminalId =
 	| "alacritty"
 	| "warp"
 	| "orca"
+	| "otty"
+	| "rio"
+	| "tern"
 	| "base"
 	| "trueColor";
 
-const CMUX_NOTIFICATION_TITLE = "Chudcode";
+const CMUX_NOTIFICATION_TITLE = "omp";
 const CMUX_SURFACE_ID_PATTERN = /^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/iu;
+
+/** Title and body for an out-of-band multiplexer notification (cmux, Herdr). */
+function notificationTitleAndBody(message: string | TerminalNotification): { title: string; body: string } {
+	if (typeof message === "string") return { title: CMUX_NOTIFICATION_TITLE, body: message };
+	return { title: message.title?.trim() || CMUX_NOTIFICATION_TITLE, body: message.body ?? "" };
+}
 
 /**
  * Route a notification through cmux when the process belongs to a concrete
@@ -48,13 +59,11 @@ const CMUX_SURFACE_ID_PATTERN = /^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i
  * Returns whether cmux owns delivery so the caller can preserve every existing
  * terminal fallback unchanged when no valid surface is present.
  */
-function sendCmuxNotification(message: string | TerminalNotification, env: NodeJS.ProcessEnv = process.env): boolean {
+function sendCmuxNotification(message: string | TerminalNotification, env: NodeJS.ProcessEnv = Bun.env): boolean {
 	const surfaceId = env.CMUX_SURFACE_ID?.trim();
 	if (!surfaceId || !CMUX_SURFACE_ID_PATTERN.test(surfaceId)) return false;
 
-	const title =
-		typeof message === "string" ? CMUX_NOTIFICATION_TITLE : message.title?.trim() || CMUX_NOTIFICATION_TITLE;
-	const body = typeof message === "string" ? message : (message.body ?? "");
+	const { title, body } = notificationTitleAndBody(message);
 	try {
 		const child = Bun.spawn({
 			cmd: ["cmux", "notify", "--surface", surfaceId, "--title", title, "--body", body],
@@ -70,30 +79,60 @@ function sendCmuxNotification(message: string | TerminalNotification, env: NodeJ
 	return true;
 }
 
-function hasNeedleBefore(line: string, needle: string, limit: number): boolean {
-	const index = line.indexOf(needle);
-	return index !== -1 && index + needle.length <= limit;
+const HERDR_PANE_ID_PATTERN = /^[0-9A-Za-z:_-]{1,64}$/u;
+/**
+ * `herdr notification show` takes the title as its first positional and reads
+ * exactly these three values there as a help request; it has no `--`
+ * terminator. Any other text, including one starting with `-`, is a title.
+ */
+const HERDR_USAGE_TOKENS = new Set(["help", "--help", "-h"]);
+
+/**
+ * Route a notification through Herdr when the process runs inside one of its
+ * panes. Herdr multiplexes panes like tmux but swallows bare OSC 9 / OSC 99 and
+ * has no DCS passthrough envelope, and its bell relay does not flag a
+ * backgrounded tab — so without this branch a backgrounded pane gets no signal
+ * at all that the agent finished or is waiting for input.
+ *
+ * `sound` maps the notification kind onto what Herdr offers: a question waiting
+ * on the user and a turn that stopped with an error both need the human and
+ * ring `request`, a settled turn rings `done`, anything else stays
+ * silent. Returns whether Herdr owns delivery, so every existing terminal
+ * fallback is preserved when the pane id is absent or the binary is missing.
+ */
+function sendHerdrNotification(message: string | TerminalNotification, env: NodeJS.ProcessEnv = Bun.env): boolean {
+	// Pane-only detection, like `isInsideHerdr`: an env-sanitizing launcher can
+	// drop HERDR_ENV and keep the pane identity, and that pane can still be
+	// backgrounded. The pane id itself is what the CLI needs, so it stays required.
+	if (!isInsideHerdr(env)) return false;
+	const paneId = env.HERDR_PANE_ID?.trim();
+	if (!paneId || !HERDR_PANE_ID_PATTERN.test(paneId)) return false;
+
+	const parsed = notificationTitleAndBody(message);
+	const title = HERDR_USAGE_TOKENS.has(parsed.title) ? CMUX_NOTIFICATION_TITLE : parsed.title;
+	const body = parsed.body;
+	const kinds = typeof message === "string" ? [] : [message.type ?? []].flat();
+	const sound =
+		kinds.includes("ask") || kinds.includes("error") ? "request" : kinds.includes("completion") ? "done" : "none";
+	try {
+		const child = Bun.spawn({
+			cmd: ["herdr", "notification", "show", title, "--body", body, "--sound", sound],
+			stdin: "ignore",
+			stdout: "ignore",
+			stderr: "ignore",
+		});
+		child.unref();
+	} catch {
+		// A missing herdr binary leaves delivery to the existing terminal fallback.
+		return false;
+	}
+	return true;
 }
 
-function hasSixelDcsStart(line: string): boolean {
-	const limit = Math.min(line.length, 128);
-	let from = 0;
-	for (;;) {
-		const start = line.indexOf("\x1bP", from);
-		if (start === -1 || start + 3 > limit) return false;
-		let i = start + 2;
-		while (i < limit) {
-			const code = line.charCodeAt(i);
-			if ((code >= 0x30 && code <= 0x39) || code === 0x3b) {
-				i++;
-				continue;
-			}
-			break;
-		}
-		if (i < limit && line.charCodeAt(i) === 0x71) return true;
-		from = start + 2;
-	}
-}
+const IMAGE_MARKER_SCAN_LIMIT = 512;
+const SIXEL_MARKER_SCAN_LIMIT = 128;
+const KITTY_PLACEHOLDER_HIGH_SURROGATE = KITTY_PLACEHOLDER.charCodeAt(0);
+const KITTY_PLACEHOLDER_LOW_SURROGATE = KITTY_PLACEHOLDER.charCodeAt(1);
 
 /** Terminal capability details used for rendering and protocol selection. */
 export class TerminalInfo {
@@ -125,18 +164,56 @@ export class TerminalInfo {
 		return Object.assign(Object.create(TerminalInfo.prototype), this) as RuntimeTerminal;
 	}
 
+	/**
+	 * Whether an image marker begins at `start`. Kept as the shared primitive
+	 * for both standalone image checks and the renderer's combined ANSI/width
+	 * scan, so their protocol windows and sixel grammar cannot drift.
+	 */
+	hasImageMarkerAt(line: string, start: number): boolean {
+		const protocol = this.imageProtocol;
+		if (!protocol) return false;
+		if (protocol === ImageProtocol.Sixel) {
+			const limit = Math.min(line.length, SIXEL_MARKER_SCAN_LIMIT);
+			if (start + 3 > limit || line.charCodeAt(start) !== 0x1b || line.charCodeAt(start + 1) !== 0x50) {
+				return false;
+			}
+			let i = start + 2;
+			while (i < limit) {
+				const code = line.charCodeAt(i);
+				if ((code >= 0x30 && code <= 0x39) || code === 0x3b) {
+					i++;
+					continue;
+				}
+				break;
+			}
+			return i < limit && line.charCodeAt(i) === 0x71;
+		}
+
+		const limit = Math.min(line.length, IMAGE_MARKER_SCAN_LIMIT);
+		let protocolMatches = start + protocol.length <= limit;
+		for (let offset = 0; protocolMatches && offset < protocol.length; offset++) {
+			protocolMatches = line.charCodeAt(start + offset) === protocol.charCodeAt(offset);
+		}
+		return (
+			protocolMatches ||
+			(start + 2 <= limit &&
+				line.charCodeAt(start) === KITTY_PLACEHOLDER_HIGH_SURROGATE &&
+				line.charCodeAt(start + 1) === KITTY_PLACEHOLDER_LOW_SURROGATE)
+		);
+	}
+
 	isImageLine(line: string): boolean {
 		if (!this.imageProtocol) return false;
-		if (this.imageProtocol === ImageProtocol.Sixel) {
-			return hasSixelDcsStart(line);
+		const limit = Math.min(
+			line.length,
+			this.imageProtocol === ImageProtocol.Sixel ? SIXEL_MARKER_SCAN_LIMIT : IMAGE_MARKER_SCAN_LIMIT,
+		);
+		for (let i = 0; i < limit; i++) {
+			const code = line.charCodeAt(i);
+			if (code !== 0x1b && code !== KITTY_PLACEHOLDER_HIGH_SURROGATE) continue;
+			if (this.hasImageMarkerAt(line, i)) return true;
 		}
-		// 512-unit window: placeholder cells can sit deep in a composed row —
-		// the composer attachment band prefixes each thumbnail row with border
-		// SGRs and stacks cards side by side, so the first placeholder of a
-		// later card starts hundreds of units in. Rows past the window would
-		// silently lose the verbatim image-line path (no truncation, no SGR
-		// coalescing) that placeholder grids and placement APCs rely on.
-		return hasNeedleBefore(line, this.imageProtocol, 512) || hasNeedleBefore(line, KITTY_PLACEHOLDER, 512);
+		return false;
 	}
 
 	formatNotification(message: string | TerminalNotification): string {
@@ -157,6 +234,11 @@ export class TerminalInfo {
 
 	sendNotification(message: string | TerminalNotification): void {
 		if (isNotificationSuppressed() || isTerminalHeadless()) return;
+		// Innermost surface first. A Herdr pane launched inside a cmux surface
+		// inherits both `HERDR_PANE_ID` and the outer `CMUX_SURFACE_ID`; routing to
+		// cmux there would flag the containing surface and leave the backgrounded
+		// Herdr pane — the one actually waiting — without a sound or a marker.
+		if (sendHerdrNotification(message)) return;
 		if (sendCmuxNotification(message)) return;
 		const formatted = this.formatNotification(message);
 		// Under tmux, terminals whose notify protocol is OSC 9 / OSC 99 would
@@ -192,36 +274,23 @@ export class TerminalInfo {
 	}
 }
 
-/** Detect terminal multiplexers where scrollback clearing and height-change redraws are hostile. */
-export function isInsideTerminalMultiplexer(env: NodeJS.ProcessEnv = process.env): boolean {
-	// TMUX/STY/ZELLIJ, Herdr, and CMUX workspace/surface/remote-transport
-	// markers are authoritative session signals. TERM can also survive when those are
-	// stripped (`sudo` without -E, `su`, env-sanitizing launchers/ssh). Do not
-	// use CMUX_SOCKET_PATH here: it is a CLI socket override and can be set
-	// outside a CMUX terminal.
-	if (env.TMUX || env.STY || env.ZELLIJ || env.HERDR_ENV === "1") return true;
-	if (env.CMUX_WORKSPACE_ID || env.CMUX_SURFACE_ID || env.CMUX_REMOTE_TRANSPORT) return true;
-	const term = env.TERM?.toLowerCase() ?? "";
-	return term.startsWith("tmux") || term.startsWith("screen");
-}
-
 /**
  * Whether the agent process is running inside a Zellij session. Read fresh on
  * each call (like {@link isInsideTmux}) so a session attached/detached mid-run
- * is observed and tests can toggle `process.env.ZELLIJ` per case.
+ * is observed and tests can toggle `Bun.env.ZELLIJ` per case.
  */
-export function isInsideZellij(env: NodeJS.ProcessEnv = process.env): boolean {
+export function isInsideZellij(env: NodeJS.ProcessEnv = Bun.env): boolean {
 	return Boolean(env.ZELLIJ);
 }
 
 export function isNotificationSuppressed(): boolean {
-	const value = $env.CHUDCODE_NOTIFICATIONS;
+	const value = $env.PI_NOTIFICATIONS;
 	if (!value) return false;
 	return value === "off" || value === "0" || value === "false";
 }
 
 function getForcedImageProtocol(): ImageProtocol | null | undefined {
-	const raw = $env.CHUDCODE_FORCE_IMAGE_PROTOCOL?.trim().toLowerCase();
+	const raw = $env.PI_FORCE_IMAGE_PROTOCOL?.trim().toLowerCase();
 	if (!raw) return undefined;
 	if (raw === "kitty") return ImageProtocol.Kitty;
 	if (raw === "iterm2" || raw === "iterm") return ImageProtocol.Iterm2;
@@ -231,7 +300,7 @@ function getForcedImageProtocol(): ImageProtocol | null | undefined {
 }
 
 /**
- * Whether `CHUDCODE_FORCE_IMAGE_PROTOCOL` pins the image protocol, including its
+ * Whether `PI_FORCE_IMAGE_PROTOCOL` pins the image protocol, including its
  * `off`/`none` kill switch. A runtime capability probe must not override an
  * explicit user choice: a forced protocol is already applied to {@link TERMINAL},
  * and a forced "off" leaves `imageProtocol` null on purpose.
@@ -256,12 +325,14 @@ function parseMajorMinorVersion(versionRaw?: string): { major: number; minor: nu
  * Windows Terminal introduced SIXEL support in preview 1.22.
  */
 export function isWindowsTerminalPreviewSixelSupported(
-	env: NodeJS.ProcessEnv = process.env,
+	env: NodeJS.ProcessEnv = Bun.env,
 	platform: NodeJS.Platform = process.platform,
 ): boolean {
-	if (platform !== "win32") return false;
-	if (!env.WT_SESSION) return false;
-	if (env.TERM_PROGRAM && env.TERM_PROGRAM.toLowerCase() !== "windows_terminal") {
+	if (
+		platform !== "win32" ||
+		!env.WT_SESSION ||
+		(env.TERM_PROGRAM && env.TERM_PROGRAM.toLowerCase() !== "windows_terminal")
+	) {
 		return false;
 	}
 	const version = parseMajorMinorVersion(env.TERM_PROGRAM_VERSION);
@@ -275,9 +346,9 @@ export function isWindowsTerminalPreviewSixelSupported(
  * expressed no preference. Shared by the static default and the runtime DECRQM
  * probe so both honor the same precedence — an opt-out beats a force-on.
  */
-export function synchronizedOutputUserOverride(env: NodeJS.ProcessEnv = process.env): boolean | null {
-	if (env.CHUDCODE_NO_SYNC_OUTPUT || env.CHUDCODE_TUI_SYNC_OUTPUT === "0") return false;
-	if (env.CHUDCODE_FORCE_SYNC_OUTPUT === "1" || env.CHUDCODE_TUI_SYNC_OUTPUT === "1") return true;
+export function synchronizedOutputUserOverride(env: NodeJS.ProcessEnv = Bun.env): boolean | null {
+	if (env.PI_NO_SYNC_OUTPUT || env.PI_TUI_SYNC_OUTPUT === "0") return false;
+	if (env.PI_FORCE_SYNC_OUTPUT === "1" || env.PI_TUI_SYNC_OUTPUT === "1") return true;
 	return null;
 }
 
@@ -295,26 +366,33 @@ function advertisesSynchronizedOutput(termFeatures: string | undefined): boolean
  * Whether DEC 2026 synchronized-output wrappers should be enabled by default.
  *
  * Policy (highest precedence first):
- *   1. Explicit user override (`CHUDCODE_NO_SYNC_OUTPUT`/`CHUDCODE_TUI_SYNC_OUTPUT=0` off,
- *      `CHUDCODE_FORCE_SYNC_OUTPUT=1`/`CHUDCODE_TUI_SYNC_OUTPUT=1` on).
+ *   1. Explicit user override (`PI_NO_SYNC_OUTPUT`/`PI_TUI_SYNC_OUTPUT=0` off,
+ *      `PI_FORCE_SYNC_OUTPUT=1`/`PI_TUI_SYNC_OUTPUT=1` on).
  *   2. Positive `TERM_FEATURES` advertisement (`Sy`) — survives SSH/mux wrapping.
  *   3. Windows Terminal (1.24+) via `WT_SESSION`, on native win32 and the
  *      WSL/SSH-fronted host alike.
- *   4. Known direct terminals with confirmed support. SSH does *not* disable —
+ *   4. Herdr panes. Herdr is otherwise treated as a multiplexer so leaked
+ *      kitty/ghostty identities cannot enable placeholder graphics, but its
+ *      pane VTE is libghostty and already suppresses compositing while DEC 2026
+ *      is set. Leaving sync off lets CUP-diff paints and split write(2) chunks
+ *      composite as dirty-row patches — the live viewport tears, with the top
+ *      frozen while only the bottom refreshes.
+ *   5. Known direct terminals with confirmed support. SSH does *not* disable —
  *      DEC 2026 passes through SSH when the outer terminal honors it.
- *   5. Everything else starts off, including risky multiplexers; the runtime
+ *   6. Everything else starts off, including risky multiplexers; the runtime
  *      DECRQM probe upgrades any of them when the terminal actually reports
  *      `?2026` supported (current zellij, tmux master, foot, contour, mintty…).
  */
 export function shouldEnableSynchronizedOutputByDefault(
-	env: NodeJS.ProcessEnv = process.env,
+	env: NodeJS.ProcessEnv = Bun.env,
 	terminalId: TerminalId = TERMINAL_ID,
 ): boolean {
 	const override = synchronizedOutputUserOverride(env);
 	if (override !== null) return override;
 
 	if (advertisesSynchronizedOutput(env.TERM_FEATURES)) return true;
-	if (env.WT_SESSION) return true;
+	if (env.WT_SESSION && (!env.TERM_PROGRAM || env.TERM_PROGRAM.toLowerCase() === "windows_terminal")) return true;
+	if (isInsideHerdr(env)) return true;
 
 	// Risky multiplexers start off even when an inner terminal id leaks through:
 	// older tmux/screen synchronized-output handling is flaky and a mux may not
@@ -358,11 +436,11 @@ export function shouldEnableSynchronizedOutputByDefault(
  *
  * Disabled under tmux/screen/zellij multiplexers — screen-coordinate rectangle
  * protocols are not safe to assume through a multiplexer — and via the
- * `CHUDCODE_NO_DECCARA` kill switch. Pure helper for tests and `TERMINAL` construction.
+ * `PI_NO_DECCARA` kill switch. Pure helper for tests and `TERMINAL` construction.
  */
-export function detectRectangularSgrSupport(terminalId: TerminalId, env: NodeJS.ProcessEnv = process.env): boolean {
+export function detectRectangularSgrSupport(terminalId: TerminalId, env: NodeJS.ProcessEnv = Bun.env): boolean {
 	if (terminalId !== "kitty") return false;
-	const kill = env.CHUDCODE_NO_DECCARA;
+	const kill = env.PI_NO_DECCARA;
 	if (kill && kill !== "0" && kill.toLowerCase() !== "false") return false;
 	if (isInsideTerminalMultiplexer(env)) {
 		return false;
@@ -370,14 +448,53 @@ export function detectRectangularSgrSupport(terminalId: TerminalId, env: NodeJS.
 	return true;
 }
 /**
+ * Whether the terminal implements colon-subparameter SGR styled underlines —
+ * `CSI 4 : 3 m` (curly) plus `CSI 58` / `CSI 59` underline color — as opposed to
+ * only the legacy `CSI 4 m` / `CSI 24 m` on/off underline.
+ *
+ * This is an underline-style capability, not a color depth, so it is keyed on
+ * the detected terminal, never on `TERM`/`COLORTERM`. kitty, Ghostty, WezTerm,
+ * and iTerm2 (>= 3.5) implement the full pair. Apple Terminal does NOT: it
+ * renders `CSI 4 : 0 m` (the reset half) as a solid black background that
+ * persists to end of line, and ignores SGR 58/59 — so it, along with every
+ * other unproven terminal, gets the flat underline instead. Disabled under any
+ * multiplexer: GNU screen and older tmux drop colon-form SGR, and the outer
+ * terminal's id leaks into the session env, so a proven id is not proof the
+ * bytes survive — the same reason DECCARA and synchronized output gate on it.
+ */
+export function detectStyledUnderlineSupport(terminalId: TerminalId, env: NodeJS.ProcessEnv = Bun.env): boolean {
+	// A multiplexer in the path (GNU screen, older tmux) does not forward the
+	// colon-form underline, yet the outer terminal's id leaks through the session
+	// env, so the switch below would otherwise trust an unreachable capability.
+	if (isInsideTerminalMultiplexer(env)) return false;
+	switch (terminalId) {
+		case "kitty":
+		case "ghostty":
+		case "wezterm":
+			return true;
+		case "iterm2": {
+			// The full curly-and-colored pair did not ship together until iTerm2 3.5
+			// (curly first targeted 3.3.12; SGR 58/59 underline color was beta,
+			// expected for 3.5), so 3.0–3.4 would receive the colon reset they cannot
+			// render. Enable only on a confirmed major.minor >= 3.5; an absent or
+			// unparseable version keeps the flat fallback so only proven terminals
+			// get the colon form.
+			const version = parseMajorMinorVersion(env.TERM_PROGRAM_VERSION);
+			return version !== null && (version.major > 3 || (version.major === 3 && version.minor >= 5));
+		}
+		default:
+			return false;
+	}
+}
+/**
  * Resolve an explicit user override for OSC 8 hyperlinks. Returns `false` for
  * an opt-out, `true` for a force-on, or `null` when the user has expressed no
  * preference. Opt-out beats force-on so a kill switch is unambiguous, mirroring
  * {@link synchronizedOutputUserOverride}.
  */
-export function hyperlinksUserOverride(env: NodeJS.ProcessEnv = process.env): boolean | null {
-	if (env.CHUDCODE_NO_HYPERLINKS === "1") return false;
-	if (env.CHUDCODE_FORCE_HYPERLINKS === "1") return true;
+export function hyperlinksUserOverride(env: NodeJS.ProcessEnv = Bun.env): boolean | null {
+	if (env.PI_NO_HYPERLINKS === "1") return false;
+	if (env.PI_FORCE_HYPERLINKS === "1") return true;
 	return null;
 }
 
@@ -396,13 +513,17 @@ function parseTmuxVersionFromEnv(env: NodeJS.ProcessEnv): { major: number; minor
  * Whether OSC 8 hyperlinks should be enabled by default.
  *
  * Policy (highest precedence first):
- *   1. Explicit user override (`CHUDCODE_NO_HYPERLINKS=1` off, `CHUDCODE_FORCE_HYPERLINKS=1`
+ *   1. Explicit user override (`PI_NO_HYPERLINKS=1` off, `PI_FORCE_HYPERLINKS=1`
  *      on). Opt-out wins ties.
- *   2. Static terminal capability — terminals whose {@link TerminalInfo} marks
+ *   2. Herdr pane with no nested screen/tmux: on. Herdr hides the outer
+ *      terminal (`TERM=xterm-256color`, no `TERM_PROGRAM`), but it renders
+ *      OSC 8 in its own grid and opens links itself on Ctrl+click, so the
+ *      outer terminal's support does not matter.
+ *   3. Static terminal capability — terminals whose {@link TerminalInfo} marks
  *      `hyperlinks: false` (e.g. `base`) stay off unless the user forced on.
- *   3. GNU screen's explicit session marker (`STY`) always off, even if tmux is
+ *   4. GNU screen's explicit session marker (`STY`) always off, even if tmux is
  *      also present: a screen layer anywhere in the path cannot forward OSC 8.
- *   4. tmux session (`TMUX` set): enabled when tmux self-reports >= 3.4 via
+ *   5. tmux session (`TMUX` set): enabled when tmux self-reports >= 3.4 via
  *      `TERM_PROGRAM_VERSION` (tmux 3.4 stores OSC 8 as a cell attribute and
  *      forwards it to outer terminals whose `terminal-features` include
  *      `hyperlinks`). Older or unknown versions stay off; on outer terminals
@@ -410,18 +531,20 @@ function parseTmuxVersionFromEnv(env: NodeJS.ProcessEnv): { major: number; minor
  *      identical to today. Checked before the screen-family TERM heuristic
  *      because tmux's historical `default-terminal` is `screen-256color`, so
  *      `TERM=screen*` inside a tmux session must NOT short-circuit to off.
- *   5. screen-family TERM without `TMUX` always off: screen never gained OSC 8
+ *   6. screen-family TERM without `TMUX` always off: screen never gained OSC 8
  *      support.
- *   6. tmux-family TERM without `TMUX` env — unusual (e.g. inspection scripts);
+ *   7. tmux-family TERM without `TMUX` env — unusual (e.g. inspection scripts);
  *      no version available, so off.
- *   7. Otherwise honor the static terminal capability.
+ *   8. Otherwise honor the static terminal capability.
  */
 export function shouldEnableHyperlinksByDefault(
-	env: NodeJS.ProcessEnv = process.env,
+	env: NodeJS.ProcessEnv = Bun.env,
 	terminalId: TerminalId = TERMINAL_ID,
 ): boolean {
 	const override = hyperlinksUserOverride(env);
 	if (override !== null) return override;
+
+	if (isInsideHerdr(env) && !env.STY && !env.TMUX) return true;
 
 	if (!getTerminalInfo(terminalId).hyperlinks) return false;
 
@@ -448,7 +571,7 @@ export function shouldEnableHyperlinksByDefault(
 
 function getFallbackImageProtocol(
 	terminalId: TerminalId,
-	env: NodeJS.ProcessEnv = process.env,
+	env: NodeJS.ProcessEnv = Bun.env,
 	isTTY: boolean = process.stdout.isTTY === true,
 ): ImageProtocol | null {
 	if (!isTTY) return null;
@@ -467,10 +590,9 @@ function getFallbackImageProtocol(
  */
 export function resolveWarpImageProtocol(
 	platform: NodeJS.Platform = process.platform,
-	env: NodeJS.ProcessEnv = process.env,
+	env: NodeJS.ProcessEnv = Bun.env,
 ): ImageProtocol | null {
-	const windowsHost =
-		platform === "win32" || (platform === "linux" && Boolean(env.WSL_DISTRO_NAME || env.WSL_INTEROP));
+	const windowsHost = platform === "win32" || isWsl(platform, env);
 	return windowsHost ? null : ImageProtocol.Kitty;
 }
 
@@ -482,20 +604,20 @@ export function resolveWarpImageProtocol(
  * injects `PASEO_TERMINAL_ID` into every terminal it hosts, which makes a
  * reliable embedder signal.
  */
-export function isPaseoEmbedder(env: NodeJS.ProcessEnv = process.env): boolean {
+export function isPaseoEmbedder(env: NodeJS.ProcessEnv = Bun.env): boolean {
 	return Boolean(env.PASEO_TERMINAL_ID);
 }
 
 /**
  * Resolve the image protocol for a non-forced runtime: static per-terminal
  * support (with Warp's platform carve-out), then the multiplexer fallback,
- * then the Paseo embedder carve-out. `isTTY` is injectable because the
- * fallback only fires on a real TTY — a piped subprocess cannot exercise
- * that path, so regression tests call this directly.
+ * then host carve-outs. `isTTY` is injectable because the fallback only fires
+ * on a real TTY — a piped subprocess cannot exercise that path, so regression
+ * tests call this directly.
  */
 export function resolveImageProtocol(
 	terminalId: TerminalId,
-	env: NodeJS.ProcessEnv = process.env,
+	env: NodeJS.ProcessEnv = Bun.env,
 	isTTY: boolean = process.stdout.isTTY === true,
 ): ImageProtocol | null {
 	let imageProtocol: ImageProtocol | null;
@@ -516,10 +638,16 @@ export function resolveImageProtocol(
 	if (imageProtocol !== null && isPaseoEmbedder(env)) {
 		return null;
 	}
+	// Herdr owns the pane grid but does not expose whether the attached client
+	// enabled its experimental Kitty renderer. Outer-terminal identity variables
+	// can leak into the pane, so only the explicit protocol override is safe.
+	if (imageProtocol !== null && isInsideHerdr(env)) {
+		return null;
+	}
 	return imageProtocol;
 }
 
-function getWarpTerminalInfo(platform: NodeJS.Platform, env: NodeJS.ProcessEnv = process.env): TerminalInfo {
+function getWarpTerminalInfo(platform: NodeJS.Platform, env: NodeJS.ProcessEnv = Bun.env): TerminalInfo {
 	return new TerminalInfo(
 		"warp",
 		resolveWarpImageProtocol(platform, env),
@@ -550,12 +678,54 @@ const KNOWN_TERMINALS = Object.freeze({
 	// honor OSC 8 yet (the escape renders as visible text), so hyperlinks stay off,
 	// but it does support OSC 9 notifications.
 	warp: new TerminalInfo("warp", ImageProtocol.Kitty, true, false, NotifyProtocol.Osc9, false, false, false, 1),
+	// Otty (appmakes, macOS) identifies via TERM_PROGRAM=otty. Its documented
+	// Kitty implementation covers direct and virtual (U+10EEEE placeholder)
+	// placement, and it honors OSC 8 hyperlinks and OSC 99 notifications
+	// (docs.otty.sh terminal comparison). Sixel is not implemented, DECCARA and
+	// OSC 66 text sizing are unverified, so those stay on conservative defaults;
+	// synchronized output is left to the runtime DECRQM probe.
+	otty: new TerminalInfo("otty", ImageProtocol.Kitty, true, true, NotifyProtocol.Osc99),
+	// rio publishes its supported escape sequences at
+	// rioterm.com/docs/escape-sequence-support: OSC 8 hyperlinks are opened via
+	// the hints system (Alt+click on Windows/Linux) — live-verified on
+	// rio 0.5.28/Win11 26100 where an OSC 8 span Alt+click opened the target
+	// URL in the browser, and an OSC 52 clipboard query round-tripped. Kitty
+	// graphics direct placement plus U=1 Unicode placeholders verified by the
+	// reporter (#12205). Notifications stay on BEL: rio parses OSC 9/777 into
+	// its own notifier, but its Windows path raises an unpackaged WinRT toast
+	// with AppId "Rio" that Windows silently drops without a registered AUMID
+	// shortcut — observed as a no-op live — so flipping it would only remove
+	// the D-Bus fallback for Linux rio users. DECCARA, screen-to-scrollback,
+	// OSC 99, and OSC 66 text sizing are outside rio's supported set and keep
+	// the conservative defaults.
+	rio: new TerminalInfo("rio", ImageProtocol.Kitty, true, true),
+	// Tern (Stencil's terminal, `stencil-term`) sets TERM_PROGRAM=tern and
+	// implements Kitty graphics, OSC 8 and OSC 9/99 notifications. Whether omp
+	// renders natively (Tern Surface Protocol) is decided by the `hello`
+	// handshake alone, never by this identity.
+	tern: new TerminalInfo("tern", ImageProtocol.Kitty, true, true, NotifyProtocol.Osc99),
 });
 
 /** Resolve terminal identity from environment markers used by common emulators. */
-export function detectTerminalId(env: NodeJS.ProcessEnv = process.env): TerminalId {
+export function detectTerminalId(env: NodeJS.ProcessEnv = Bun.env): TerminalId {
 	function caseEq(a: string, b: string): boolean {
 		return a.toLowerCase() === b.toLowerCase(); // For compiler to pattern match
+	}
+
+	function fromProgram(program: string | undefined): TerminalId | null {
+		if (!program) return null;
+		if (caseEq(program, "kitty")) return "kitty";
+		if (caseEq(program, "ghostty")) return "ghostty";
+		if (caseEq(program, "wezterm")) return "wezterm";
+		if (caseEq(program, "iterm.app") || caseEq(program, "iterm2")) return "iterm2";
+		if (caseEq(program, "vscode")) return "vscode";
+		if (caseEq(program, "alacritty")) return "alacritty";
+		if (caseEq(program, "warpterminal")) return "warp";
+		if (caseEq(program, "orca")) return "orca";
+		if (caseEq(program, "otty")) return "otty";
+		if (caseEq(program, "rio")) return "rio";
+		if (caseEq(program, "tern")) return "tern";
+		return null;
 	}
 
 	const {
@@ -577,16 +747,13 @@ export function detectTerminalId(env: NodeJS.ProcessEnv = process.env): Terminal
 	if (VSCODE_PID) return "vscode";
 	if (ALACRITTY_WINDOW_ID) return "alacritty";
 
-	if (TERM_PROGRAM) {
-		if (caseEq(TERM_PROGRAM, "kitty")) return "kitty";
-		if (caseEq(TERM_PROGRAM, "ghostty")) return "ghostty";
-		if (caseEq(TERM_PROGRAM, "wezterm")) return "wezterm";
-		if (caseEq(TERM_PROGRAM, "iterm.app")) return "iterm2";
-		if (caseEq(TERM_PROGRAM, "vscode")) return "vscode";
-		if (caseEq(TERM_PROGRAM, "alacritty")) return "alacritty";
-		if (caseEq(TERM_PROGRAM, "warpterminal")) return "warp";
-		if (caseEq(TERM_PROGRAM, "orca")) return "orca";
-	}
+	const programId = fromProgram(TERM_PROGRAM);
+	if (programId) return programId;
+
+	// tmux >= 3.2 replaces the pane's identity with `TERM_PROGRAM=tmux`.
+	// Its server still holds the attached client's terminal-type reply.
+	const clientProgramId = fromProgram(resolveTmuxClientTerminalName(env) ?? undefined);
+	if (clientProgramId) return clientProgramId;
 
 	if (TERM?.toLowerCase().includes("ghostty")) return "ghostty";
 
@@ -596,7 +763,7 @@ export function detectTerminalId(env: NodeJS.ProcessEnv = process.env): Terminal
 	return "base";
 }
 
-export const TERMINAL_ID: TerminalId = detectTerminalId(process.env);
+export const TERMINAL_ID: TerminalId = detectTerminalId(Bun.env);
 
 /**
  * The process-wide {@link TERMINAL} singleton: a {@link TerminalInfo} whose
@@ -611,6 +778,14 @@ export interface RuntimeTerminal extends TerminalInfo {
 	supportsScreenToScrollback: boolean;
 	/** Whether OSC 66 text sizing is currently enabled. */
 	textSizing: boolean;
+	/** Whether the terminal implements colon-subparameter styled underlines (curly + colored). */
+	styledUnderlines: boolean;
+	/**
+	 * Whether the terminal answered the Glyph Protocol support query with a
+	 * `glyf`-capable reply and the bundled icons have been registered. Probe-
+	 * driven: false until {@link ProcessTerminal} resolves it.
+	 */
+	glyphProtocol: boolean;
 }
 
 export const TERMINAL: RuntimeTerminal = (() => {
@@ -622,29 +797,35 @@ export const TERMINAL: RuntimeTerminal = (() => {
 	if (forcedImageProtocol !== undefined) {
 		resolved.imageProtocol = forcedImageProtocol;
 	} else {
-		resolved.imageProtocol = resolveImageProtocol(resolved.id, process.env, process.stdout.isTTY === true);
+		resolved.imageProtocol = resolveImageProtocol(resolved.id, Bun.env, process.stdout.isTTY === true);
 	}
 	// Hyperlink (OSC 8) capability. The static per-terminal flag lives on
 	// KNOWN_TERMINALS; shouldEnableHyperlinksByDefault folds in runtime context —
-	// CHUDCODE_FORCE_HYPERLINKS / CHUDCODE_NO_HYPERLINKS overrides plus a tmux>=3.4 gate so
+	// PI_FORCE_HYPERLINKS / PI_NO_HYPERLINKS overrides plus a tmux>=3.4 gate so
 	// modern tmux forwards OSC 8 to outer terminals that opt in via
 	// `terminal-features "*:hyperlinks"`.
-	resolved.hyperlinks = shouldEnableHyperlinksByDefault(process.env, resolved.id);
+	resolved.hyperlinks = shouldEnableHyperlinksByDefault(Bun.env, resolved.id);
 	// DECCARA rectangular-SGR background fills. The static per-terminal capability
 	// lives on KNOWN_TERMINALS; here we fold in runtime context — multiplexer and
-	// the CHUDCODE_NO_DECCARA kill switch via detectRectangularSgrSupport — and force it
+	// the PI_NO_DECCARA kill switch via detectRectangularSgrSupport — and force it
 	// off inside the test runtime so the xterm.js-backed virtual terminal (which
 	// ignores DECCARA) exercises the padded-string fallback. Integration tests opt
 	// in explicitly through setTerminalDeccara.
-	resolved.deccara = detectRectangularSgrSupport(resolved.id, process.env) && !isBunTestRuntime();
+	resolved.deccara = detectRectangularSgrSupport(resolved.id, Bun.env) && !isBunTestRuntime();
+	// Styled-underline capability: colon-form curly underline + SGR 58/59 color.
+	// Keyed on the detected terminal (an underline-style capability, not a color
+	// depth), so Apple Terminal and other unproven hosts fall back to the flat
+	// CSI 4 m / CSI 24 m underline the typo renderer needs to avoid black bars.
+	resolved.styledUnderlines = detectStyledUnderlineSupport(resolved.id, Bun.env);
+	resolved.glyphProtocol = false;
 	return resolved;
 })();
 
 // Seed Kitty Unicode placeholder support from the resolved terminal id. Only
-// kitty/ghostty are known to honor `U=1` placement; other Kitty-protocol paths
+// kitty/ghostty/otty are known to honor `U=1` placement; other Kitty-protocol paths
 // (wezterm, tmux/screen fallback) treat the placeholder cells as literal PUA
 // glyphs, which is the "ASCII artifact + laggy scrolling" reported in #1877.
-setKittyGraphics({ unicodePlaceholders: detectKittyUnicodePlaceholdersSupport(TERMINAL.id, process.env) });
+setKittyGraphics({ unicodePlaceholders: detectKittyUnicodePlaceholdersSupport(TERMINAL.id, Bun.env) });
 
 /**
  * Override terminal image protocol at runtime after capability probes complete.
@@ -662,6 +843,11 @@ export function setTerminalDeccara(enabled: boolean): void {
 	TERMINAL.deccara = enabled;
 }
 
+/** Record the Glyph Protocol probe result (called by ProcessTerminal). */
+export function setTerminalGlyphProtocol(supported: boolean): void {
+	TERMINAL.glyphProtocol = supported;
+}
+
 /** Override screen-to-scrollback clear support for targeted renderer tests. */
 export function setTerminalScreenToScrollback(enabled: boolean): void {
 	TERMINAL.supportsScreenToScrollback = enabled;
@@ -676,10 +862,22 @@ export function setTerminalTextSizing(enabled: boolean): void {
 	TERMINAL.textSizing = enabled;
 }
 
+/**
+ * Override OSC 8 hyperlink capability at runtime. The coding-agent calls this
+ * from the `tui.hyperlinks` setting so its resolved policy (`off`/`auto`/`always`)
+ * drives every renderer that gates on {@link TERMINAL}`.hyperlinks` — notably the
+ * Markdown component's `[text](url)`/bare-URL links — consistently with the
+ * path/resource links that already consult the setting directly. Tests flip it
+ * to exercise the OSC 8 and plain-text paths deterministically.
+ */
+export function setTerminalHyperlinks(enabled: boolean): void {
+	TERMINAL.hyperlinks = enabled;
+}
+
 export function getTerminalInfo(
 	terminalId: TerminalId,
 	platform: NodeJS.Platform = process.platform,
-	env: NodeJS.ProcessEnv = process.env,
+	env: NodeJS.ProcessEnv = Bun.env,
 ): TerminalInfo {
 	return terminalId === "warp" ? getWarpTerminalInfo(platform, env) : KNOWN_TERMINALS[terminalId];
 }
@@ -1248,7 +1446,7 @@ function notificationToLine(n: TerminalNotification): string {
 // C0/C1 control characters that are unsafe inside an OSC payload (must base64).
 const OSC99_UNSAFE = /[\x00-\x1f\x7f\x80-\x9f]/u;
 const OSC99_MAX_PAYLOAD_BYTES = 2048;
-const OSC99_APP_NAME = "Chudcode";
+const OSC99_APP_NAME = "omp";
 let nextOsc99NotificationId = 1;
 
 function base64Utf8(value: string): string {
@@ -1262,7 +1460,7 @@ function sanitizeOsc99Id(id: string | undefined): string {
 }
 
 function osc99Id(id: string | undefined): string {
-	return sanitizeOsc99Id(id) || `chudcode-${nextOsc99NotificationId++}`;
+	return sanitizeOsc99Id(id) || `omp-${nextOsc99NotificationId++}`;
 }
 
 function utf8CodePointBytes(char: string): number {

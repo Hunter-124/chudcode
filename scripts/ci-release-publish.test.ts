@@ -2,16 +2,16 @@ import { describe, expect, it } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import * as fsx from "@chudware/utils/fsx";
 import {
-	isCanonicalCliVersionOutput,
+	createKeyedMutex,
 	legalPayloadFiles,
 	npmDistTag,
+	type PublishJob,
 	packages,
 	prepareNativeCorePackage,
 	rewriteManifest,
+	runPublishJobs,
 	stageLegalPayloads,
-	verifyDesktopPayload,
 } from "./ci-release-publish";
 
 describe("npm dist-tags", () => {
@@ -22,14 +22,119 @@ describe("npm dist-tags", () => {
 	});
 });
 
-describe("desktop executable versions", () => {
-	it("accepts only the canonical CLI product version and documented OMP provenance", () => {
-		expect(isCanonicalCliVersionOutput("Chudcode v0.2.0", "0.2.0")).toBe(true);
-		expect(isCanonicalCliVersionOutput("Chudcode v0.2.0 (based on omp 18.0.8)", "chudcode-v0.2.0")).toBe(true);
-		expect(isCanonicalCliVersionOutput("Chudcode v0.2.1 (based on omp 18.0.8)", "0.2.0")).toBe(false);
-		expect(isCanonicalCliVersionOutput("Chudcode v0.2.0 (based on omp 18.0.8) modified", "0.2.0")).toBe(false);
-		expect(isCanonicalCliVersionOutput("Other v0.2.0 (based on omp 18.0.8)", "0.2.0")).toBe(false);
-		expect(isCanonicalCliVersionOutput("Chudcode v0.2.0 (based on omp nope)", "0.2.0")).toBe(false);
+describe("concurrent publish runner", () => {
+	it("runs every job past a failing sibling, keeps output grouped, and reports failures", async () => {
+		const names = ["a", "b", "c", "d", "e"];
+		const failing = ["b", "d"];
+		const started: Record<string, PromiseWithResolvers<void>> = {};
+		const gates: Record<string, PromiseWithResolvers<void>> = {};
+		for (const name of names) {
+			started[name] = Promise.withResolvers<void>();
+			gates[name] = Promise.withResolvers<void>();
+		}
+		let inFlight = 0;
+		let peak = 0;
+		const jobs: PublishJob[] = names.map(name => ({
+			name,
+			async publish(log) {
+				inFlight++;
+				peak = Math.max(peak, inFlight);
+				log(`${name} start`);
+				started[name].resolve();
+				await gates[name].promise;
+				log(`${name} end`);
+				inFlight--;
+				if (failing.includes(name)) throw new Error(`${name} exploded`);
+			},
+		}));
+		const blocks: string[] = [];
+		const run = runPublishJobs(jobs, 2, block => blocks.push(block));
+
+		// Finish out of start order so a's lines straddle b's whole lifetime.
+		await Promise.all([started.a.promise, started.b.promise]);
+		gates.b.resolve();
+		await started.c.promise;
+		gates.a.resolve();
+		await started.d.promise;
+		gates.d.resolve();
+		await started.e.promise;
+		gates.c.resolve();
+		gates.e.resolve();
+
+		expect(await run).toEqual(["b", "d"]);
+		expect(peak).toBe(2);
+		expect(blocks).toEqual([
+			"── b ──\nb start\nb end\nFAILED b: b exploded\n",
+			"── a ──\na start\na end\n",
+			"── d ──\nd start\nd end\nFAILED d: d exploded\n",
+			"── c ──\nc start\nc end\n",
+			"── e ──\ne start\ne end\n",
+		]);
+	});
+
+	it("never publishes a dependent after its prerequisite failed, while unrelated jobs still publish", async () => {
+		const published: string[] = [];
+		const discarded: string[] = [];
+		const job = (name: string, dependsOn: string[] = [], fail = false): PublishJob => ({
+			name,
+			dependsOn,
+			async pack() {},
+			async publish() {
+				if (fail) throw new Error(`${name} rejected by the registry`);
+				published.push(name);
+			},
+			async discard() {
+				discarded.push(name);
+			},
+		});
+		// Declared out of dependency order on purpose: coding-agent first, as the
+		// real runner schedules prepack packages; waiting must not deadlock.
+		const jobs = [job("coding-agent", ["utils", "ai"]), job("ai", ["utils"]), job("utils", [], true), job("wire")];
+
+		const failed = await runPublishJobs(jobs, 1, () => {});
+
+		expect(failed).toEqual(["coding-agent", "ai", "utils"]);
+		expect(published).toEqual(["wire"]);
+		expect(discarded.toSorted()).toEqual(["ai", "coding-agent"]);
+	});
+
+	it("rejects a dependency cycle instead of waiting forever", async () => {
+		const job = (name: string, dependsOn: string[]): PublishJob => ({ name, dependsOn, async publish() {} });
+		await expect(runPublishJobs([job("a", ["b"]), job("b", ["a"])], 2, () => {})).rejects.toThrow(
+			"publish dependency cycle",
+		);
+	});
+
+	it("serializes sections sharing a pack lock while unlocked sections run immediately", async () => {
+		const lock = createKeyedMutex();
+		const events: string[] = [];
+		const statsGate = Promise.withResolvers<void>();
+		const stats = lock("stats-client", async () => {
+			events.push("stats+");
+			await statsGate.promise;
+			events.push("stats-");
+		});
+		const codingAgent = lock("stats-client", async () => {
+			events.push("coding-agent");
+		});
+		await lock(undefined, async () => {
+			events.push("utils");
+		});
+		await Promise.resolve();
+
+		expect(events).toContain("stats+");
+		expect(events).toContain("utils");
+		expect(events).not.toContain("coding-agent");
+
+		statsGate.resolve();
+		await Promise.all([stats, codingAgent]);
+		expect(events.slice(-2)).toEqual(["stats-", "coding-agent"]);
+	});
+
+	it("releases a pack lock after a failing section", async () => {
+		const lock = createKeyedMutex();
+		await expect(lock("stats-client", () => Promise.reject(new Error("pack failed")))).rejects.toThrow("pack failed");
+		expect(await lock("stats-client", async () => "packed")).toBe("packed");
 	});
 });
 
@@ -41,32 +146,32 @@ describe("published legal payloads", () => {
 	});
 
 	it("stages missing legal files without replacing package-local text", async () => {
-		const root = await fs.mkdtemp(path.join(os.tmpdir(), "chudcode-publish-legal-"));
+		const root = await fs.mkdtemp(path.join(os.tmpdir(), "omp-publish-legal-"));
 		const pkgDir = path.join(root, "package");
 		await fs.mkdir(pkgDir);
 		try {
 			await Promise.all([
-				fsx.write(path.join(root, "LICENSE"), "root MIT\n"),
-				fsx.write(path.join(root, "THIRD-PARTY-NOTICES.txt"), "notices\n"),
-				fsx.write(path.join(pkgDir, "LICENSE"), "package MIT\n"),
+				Bun.write(path.join(root, "LICENSE"), "root MIT\n"),
+				Bun.write(path.join(root, "THIRD-PARTY-NOTICES.txt"), "notices\n"),
+				Bun.write(path.join(pkgDir, "LICENSE"), "package MIT\n"),
 			]);
 
 			const files = await stageLegalPayloads(pkgDir, "MIT", true, root);
 			expect(files).toEqual(["LICENSE", "THIRD-PARTY-NOTICES.txt"]);
-			expect(await fsx.readText(path.join(pkgDir, "LICENSE"))).toBe("package MIT\n");
-			expect(await fsx.readText(path.join(pkgDir, "THIRD-PARTY-NOTICES.txt"))).toBe("notices\n");
+			expect(await Bun.file(path.join(pkgDir, "LICENSE")).text()).toBe("package MIT\n");
+			expect(await Bun.file(path.join(pkgDir, "THIRD-PARTY-NOTICES.txt")).text()).toBe("notices\n");
 		} finally {
 			await fs.rm(root, { recursive: true, force: true });
 		}
 	});
 
 	it("lists every legal file explicitly in the native core package", async () => {
-		const pkgDir = await fs.mkdtemp(path.join(os.tmpdir(), "chudcode-native-core-"));
+		const pkgDir = await fs.mkdtemp(path.join(os.tmpdir(), "omp-native-core-"));
 		try {
-			await fsx.write(
+			await Bun.write(
 				path.join(pkgDir, "package.json"),
 				JSON.stringify({
-					name: "@chudware/natives",
+					name: "@oh-my-pi/pi-natives",
 					version: "15.5.15",
 					license: "MIT",
 				}),
@@ -81,8 +186,14 @@ describe("published legal payloads", () => {
 				"native/desktop.d.ts",
 				"native/desktop-adapter.js",
 				"native/desktop-adapter.d.ts",
+				"native/version-sentinel.js",
+				"native/version-sentinel.d.ts",
 				"native/loader-state.js",
 				"native/loader-state.d.ts",
+				"native/path.js",
+				"native/path.d.ts",
+				"native/vcs.js",
+				"native/vcs.d.ts",
 				"native/embedded-addon.js",
 				"README.md",
 				"LICENSE",
@@ -95,9 +206,9 @@ describe("published legal payloads", () => {
 });
 
 describe("published manifest topology", () => {
-	it("repoints chudtype runtime entries to dist/js with a bun source condition", async () => {
-		const pkg = packages.find(entry => entry.dir === "packages/chudtype");
-		if (!pkg) throw new Error("chudtype missing from publish set");
+	it("repoints omptype runtime entries to dist/js with a bun source condition", async () => {
+		const pkg = packages.find(entry => entry.dir === "packages/omptype");
+		if (!pkg) throw new Error("omptype missing from publish set");
 		expect(pkg.publishJs).toBe(true);
 
 		const manifest = await rewriteManifest(pkg, false);
@@ -148,71 +259,5 @@ describe("published manifest topology", () => {
 				import: "./src/ar/index.ts",
 			},
 		});
-	});
-});
-
-const desktopNoticeTokens = [
-	"GLFW",
-	"ImGui",
-	"IXWebSocket",
-	"libvterm",
-	"stb_image",
-	"Rubik",
-	"JetBrains Mono",
-	"Monaco",
-	"xterm.js",
-	"Bun",
-];
-
-async function createLinuxDesktopPayload(): Promise<string> {
-	const root = await fs.mkdtemp(path.join(os.tmpdir(), "chudcode-desktop-payload-"));
-	await Promise.all([
-		fs.mkdir(path.join(root, "web"), { recursive: true }),
-		fs.mkdir(path.join(root, "assets", "fonts"), { recursive: true }),
-		fs.mkdir(path.join(root, "assets", "icons"), { recursive: true }),
-		fs.mkdir(path.join(root, "assets", "appicon"), { recursive: true }),
-		fs.mkdir(path.join(root, "packaging", "linux"), { recursive: true }),
-	]);
-	await Promise.all([
-		fs.copyFile("/bin/true", path.join(root, "chud")),
-		fs.copyFile("/bin/true", path.join(root, "chudcode-desktop")),
-		fs.copyFile("/bin/true", path.join(root, "chudcode-gui")),
-		fs.writeFile(path.join(root, "VERSION"), "0.2.0\n"),
-		fs.writeFile(path.join(root, "NOTICE"), "Chudcode notice\n"),
-		fs.writeFile(path.join(root, "THIRD-PARTY-NOTICES.txt"), desktopNoticeTokens.join("\n")),
-		fs.writeFile(path.join(root, "web", "index.html"), "<!doctype html>"),
-		fs.writeFile(path.join(root, "assets", "fonts", "font.ttf"), "font"),
-		fs.writeFile(path.join(root, "assets", "icons", "icon.png"), "icon"),
-		fs.writeFile(path.join(root, "assets", "appicon", "icon.png"), "appicon"),
-		fs.writeFile(path.join(root, "packaging", "linux", "chudcode.desktop"), "[Desktop Entry]\n"),
-	]);
-	await Promise.all(["chud", "chudcode-desktop", "chudcode-gui"].map(name => fs.chmod(path.join(root, name), 0o755)));
-	return root;
-}
-
-describe("desktop release publication gate", () => {
-	it("accepts a complete source-free payload and rejects version, notice, source, and architecture tampering", async () => {
-		const root = await createLinuxDesktopPayload();
-		try {
-			await verifyDesktopPayload(root, "linux-x64", "chudcode-v0.2.0");
-
-			await fs.writeFile(path.join(root, "VERSION"), "0.2.1\n");
-			await expect(verifyDesktopPayload(root, "linux-x64", "0.2.0")).rejects.toThrow("VERSION mismatch");
-			await fs.writeFile(path.join(root, "VERSION"), "0.2.0\n");
-
-			await fs.writeFile(path.join(root, "THIRD-PARTY-NOTICES.txt"), "GLFW\n");
-			await expect(verifyDesktopPayload(root, "linux-x64", "0.2.0")).rejects.toThrow("notices omit");
-			await fs.writeFile(path.join(root, "THIRD-PARTY-NOTICES.txt"), desktopNoticeTokens.join("\n"));
-
-			await fs.writeFile(path.join(root, "web", "leaked-source.ts"), "export {};\n");
-			await expect(verifyDesktopPayload(root, "linux-x64", "0.2.0")).rejects.toThrow("forbidden source file");
-			await fs.rm(path.join(root, "web", "leaked-source.ts"));
-
-			await expect(verifyDesktopPayload(root, "macos-x64", "0.2.0")).rejects.toThrow(
-				/architecture|machine|target|expected/i,
-			);
-		} finally {
-			await fs.rm(root, { recursive: true, force: true });
-		}
 	});
 });

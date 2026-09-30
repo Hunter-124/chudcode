@@ -5,7 +5,7 @@
  *
  * Persistence keeps two promises at once:
  * - **Resume-stable links.** The key→token index survives restarts in
- *   `~/.chudcode/agent/blobs/urls-index-<project>.json`, and eager bytes live in
+ *   `~/.omp/agent/blobs/urls-index-<project>.json`, and eager bytes live in
  *   the same content-addressed session blob store conversation images are
  *   already externalized to — so re-decorating a resumed conversation yields
  *   byte-identical URLs without copying anything.
@@ -21,8 +21,8 @@
 
 import * as fs from "node:fs";
 import * as path from "node:path";
-import { identifyImageFetcher } from "@chudware/catalog/wire/image-fetchers";
-import { isEnoent, logger } from "@chudware/utils";
+import { identifyImageFetcher } from "@oh-my-pi/pi-catalog/wire/image-fetchers";
+import { isEnoent, logger } from "@oh-my-pi/pi-utils";
 import { BlobStore as SessionBlobStore } from "../session/blob-store";
 import {
 	BLOB_FETCH_EVENT_LIMIT,
@@ -476,7 +476,7 @@ export class BlobRegistry {
 		const expiredOnly = request.expiredOnly === true || (!request.all && request.before === undefined);
 		let purgedBlobs = 0;
 		let reclaimedBytes = 0;
-		for (const entry of [...this.#entries.values()]) {
+		for (const entry of Array.from(this.#entries.values())) {
 			if (expiredOnly && !this.#expired(entry)) continue;
 			if (request.before !== undefined && entry.touchedAt >= request.before) continue;
 			if (entry.publication) publications.push(entry.publication);

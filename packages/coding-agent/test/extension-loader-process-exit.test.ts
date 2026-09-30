@@ -1,24 +1,24 @@
 /**
  * Regression test for #3680: third-party extension / hook modules that call
- * `process.exit()` at the top level must not terminate the host Chudcode process.
+ * `process.exit()` at the top level must not terminate the host OMP process.
  *
  * The harness intercepts the load via `withHostGuard`; this test pins that the
- * intercepted error surfaces as a per-module load failure (so Chudcode keeps going)
+ * intercepted error surfaces as a per-module load failure (so OMP keeps going)
  * instead of crashing the test runner.
  */
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import * as fs from "node:fs";
 import * as path from "node:path";
-import { loadExtensions } from "@chudware/coding-agent/extensibility/extensions/loader";
-import { loadHooks } from "@chudware/coding-agent/extensibility/hooks/loader";
-import { ExtensionExitError, withHostGuard } from "@chudware/coding-agent/extensibility/utils";
-import { TempDir } from "@chudware/utils";
+import { loadExtensions } from "@oh-my-pi/pi-coding-agent/extensibility/extensions/loader";
+import { loadHooks } from "@oh-my-pi/pi-coding-agent/extensibility/hooks/loader";
+import { ExtensionExitError, withHostGuard } from "@oh-my-pi/pi-coding-agent/extensibility/utils";
+import { TempDir } from "@oh-my-pi/pi-utils";
 
 describe("extension/hook loader process.exit guard (#3680)", () => {
 	let project: TempDir | undefined;
 
 	beforeEach(() => {
-		project = TempDir.createSync("@chudcode-exit-guard-");
+		project = TempDir.createSync("@omp-exit-guard-");
 	});
 
 	afterEach(() => {
@@ -43,11 +43,12 @@ describe("extension/hook loader process.exit guard (#3680)", () => {
 			stderr: "pipe",
 		});
 		// Real process signals cannot use fake timers; this only bounds a wedged child.
+		// 2 s SIGKILLed healthy children (exit 137) on loaded CI runners.
 		const watchdog = setTimeout(() => {
 			try {
 				proc.kill("SIGKILL");
 			} catch {}
-		}, 2000);
+		}, 20_000);
 		try {
 			const [exitCode, stdout, stderr] = await Promise.all([
 				proc.exited,
@@ -66,8 +67,8 @@ describe("extension/hook loader process.exit guard (#3680)", () => {
 				? 'process.kill(process.pid, "SIGINT");'
 				: 'void Promise.reject(new Error("probe fatal"));';
 		return runProbe(`
-import { postmortem } from "@chudware/utils";
-import { withHostGuard } from "@chudware/coding-agent/extensibility/utils";
+import { postmortem } from "@oh-my-pi/pi-utils";
+import { withHostGuard } from "@oh-my-pi/pi-coding-agent/extensibility/utils";
 
 postmortem.register("probe-cleanup", reason => {
 	process.stdout.write(\`cleanup:\${reason}\\n\`);
@@ -85,18 +86,18 @@ void withHostGuard(async () => {
 		const topLevelExtension = writeModule("top-level-exit-extension.ts", "process.exit(0)\n");
 		const factoryExtension = writeModule(
 			"factory-exit-extension.ts",
-			"export default function(chud) { process.exit(31); }\n",
+			"export default function(pi) { process.exit(31); }\n",
 		);
 		const reallyExitExtension = writeModule(
 			"factory-really-exit-extension.ts",
-			"export default function(chud) { process.reallyExit(33); }\n",
+			"export default function(pi) { process.reallyExit(33); }\n",
 		);
 		const goodExtension = writeModule(
 			"good-extension.ts",
-			"export default function(chud) { chud.registerCommand('ok', { handler: async () => {} }); }\n",
+			"export default function(pi) { pi.registerCommand('ok', { handler: async () => {} }); }\n",
 		);
 		const topLevelHook = writeModule("top-level-exit-hook.ts", "process.exit(42)\n");
-		const factoryHook = writeModule("factory-exit-hook.ts", "export default function(chud) { process.exit(32); }\n");
+		const factoryHook = writeModule("factory-exit-hook.ts", "export default function(pi) { process.exit(32); }\n");
 		const cwd = project!.path();
 		const originalExit = process.exit;
 		const originalReallyExit = process.reallyExit;
@@ -151,8 +152,8 @@ void withHostGuard(async () => {
 
 	it("keeps postmortem.quit behind the extension exit guard", async () => {
 		const { exitCode, stdout, stderr } = await runProbe(`
-import { postmortem } from "@chudware/utils";
-import { withHostGuard } from "@chudware/coding-agent/extensibility/utils";
+import { postmortem } from "@oh-my-pi/pi-utils";
+import { withHostGuard } from "@oh-my-pi/pi-coding-agent/extensibility/utils";
 
 try {
 	await withHostGuard(() => postmortem.quit(37));
@@ -200,7 +201,7 @@ try {
 		);
 		const { exitCode, stdout, stderr } = await runProbe(
 			`
-import { postmortem } from "@chudware/utils";
+import { postmortem } from "@oh-my-pi/pi-utils";
 postmortem.register("probe", reason => process.stdout.write(\`cleanup:\${reason}\\n\`));
 process.reallyExit = globalThis.__ompNativeReallyExit;
 process.stdout.write("armed\\n");

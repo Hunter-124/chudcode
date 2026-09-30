@@ -3,15 +3,59 @@ import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 import { getAgentDir, MAIN_CONFIG_FILENAMES } from "../src/dirs";
-import { getShellArgs, getShellConfig, resolveWindowsShell } from "../src/procmgr";
+import { getShellArgs, getShellConfig, isPosixShell, resolveWindowsShell } from "../src/procmgr";
 
 describe("getShellConfig", () => {
 	it("directs invalid custom shell paths to the canonical config file", () => {
-		const missingShell = path.join(os.tmpdir(), `chudcode-missing-shell-${process.pid}`, "bash");
+		const missingShell = path.join(os.tmpdir(), `omp-missing-shell-${process.pid}`, "bash");
 		const configPath = path.join(getAgentDir(), MAIN_CONFIG_FILENAMES[0]);
 		expect(() => getShellConfig(missingShell)).toThrow(
 			`Custom shell path not found: ${missingShell}\nPlease update shellPath in ${configPath}`,
 		);
+	});
+
+	it("falls back to the default shell once a custom shell path is cleared", () => {
+		const defaultShell = getShellConfig().shell;
+		const dir = fs.mkdtempSync(path.join(os.tmpdir(), "omp-custom-shell-"));
+		try {
+			const customShell = path.join(dir, "bash");
+			fs.writeFileSync(customShell, "");
+			expect(getShellConfig(customShell).shell).toBe(customShell);
+			const cleared = getShellConfig();
+			expect(cleared.shell).toBe(defaultShell);
+			expect(cleared.env.SHELL).toBe(defaultShell);
+		} finally {
+			fs.rmSync(dir, { recursive: true, force: true });
+		}
+	});
+});
+
+describe("isPosixShell", () => {
+	it("recognizes only known POSIX-quoting shell executable basenames", () => {
+		for (const shell of [
+			"sh",
+			"/bin/BaSh",
+			String.raw`C:\Program Files\Git\bin\DASH.EXE`,
+			"/bin/ash",
+			"ksh.exe",
+			"/usr/bin/zsh",
+		]) {
+			expect(isPosixShell(shell)).toBe(true);
+		}
+
+		for (const shell of [
+			"",
+			"fish",
+			"/usr/bin/csh",
+			"/usr/bin/tcsh",
+			"nu",
+			"cmd.exe",
+			String.raw`C:\Windows\System32\PowerShell.EXE`,
+			"busybox",
+			"/usr/local/bin/bash-wrapper",
+		]) {
+			expect(isPosixShell(shell)).toBe(false);
+		}
 	});
 });
 
@@ -29,13 +73,13 @@ describe("getShellArgs", () => {
 	});
 
 	it("maps the no-login env gate to -NoProfile for PowerShell", () => {
-		expect(getShellArgs("pwsh.exe", { CHUDCODE_BASH_NO_LOGIN: "1" })).toEqual(["-NoLogo", "-NoProfile", "-Command"]);
+		expect(getShellArgs("pwsh.exe", { PI_BASH_NO_LOGIN: "1" })).toEqual(["-NoLogo", "-NoProfile", "-Command"]);
 	});
 
 	it("keeps cmd.exe and POSIX shell args unchanged", () => {
 		expect(getShellArgs("C:\\Windows\\System32\\cmd.exe", {})).toEqual(["/c"]);
 		expect(getShellArgs("/bin/bash", {})).toEqual(["-l", "-c"]);
-		expect(getShellArgs("/bin/bash", { CHUDCODE_BASH_NO_LOGIN: "1" })).toEqual(["-c"]);
+		expect(getShellArgs("/bin/bash", { PI_BASH_NO_LOGIN: "1" })).toEqual(["-c"]);
 	});
 });
 
@@ -49,7 +93,7 @@ describe("resolveWindowsShell", () => {
 	});
 
 	function makeGitRoot(): string {
-		const root = fs.mkdtempSync(path.join(os.tmpdir(), "chudcode-git-root-"));
+		const root = fs.mkdtempSync(path.join(os.tmpdir(), "omp-git-root-"));
 		tempDirs.push(root);
 		fs.mkdirSync(path.join(root, "bin"), { recursive: true });
 		fs.writeFileSync(path.join(root, "bin", "bash.exe"), "");
@@ -64,7 +108,7 @@ describe("resolveWindowsShell", () => {
 	});
 
 	it("finds Git Bash in the default scoop app dir via USERPROFILE", () => {
-		const profile = fs.mkdtempSync(path.join(os.tmpdir(), "chudcode-profile-"));
+		const profile = fs.mkdtempSync(path.join(os.tmpdir(), "omp-profile-"));
 		tempDirs.push(profile);
 		const root = path.join(profile, "scoop", "apps", "git", "current");
 		fs.mkdirSync(path.join(root, "bin"), { recursive: true });
@@ -73,7 +117,7 @@ describe("resolveWindowsShell", () => {
 	});
 
 	it("prefers a Git for Windows install root over the cmd.exe fallback", () => {
-		const programFiles = fs.mkdtempSync(path.join(os.tmpdir(), "chudcode-programfiles-"));
+		const programFiles = fs.mkdtempSync(path.join(os.tmpdir(), "omp-programfiles-"));
 		tempDirs.push(programFiles);
 		const bash = path.join(programFiles, "Git", "bin", "bash.exe");
 		fs.mkdirSync(path.dirname(bash), { recursive: true });

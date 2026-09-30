@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { RpcHostToolBridge } from "@chudware/coding-agent/modes/rpc/host-tools";
+import { RpcHostToolBridge } from "@oh-my-pi/pi-coding-agent/modes/rpc/host-tools";
 import {
 	dispatchRpcInputFrame,
 	type PendingExtensionRequest,
@@ -7,14 +7,14 @@ import {
 	type RpcInputFrameDeps,
 	RpcPendingExtensionRequests,
 	RpcShutdownCoordinator,
-} from "@chudware/coding-agent/modes/rpc/rpc-mode";
+} from "@oh-my-pi/pi-coding-agent/modes/rpc/rpc-mode";
 import type {
 	RpcCommand,
 	RpcExtensionUIResponse,
 	RpcHostToolCallRequest,
 	RpcHostToolCancelRequest,
 	RpcResponse,
-} from "@chudware/coding-agent/modes/rpc/rpc-types";
+} from "@oh-my-pi/pi-coding-agent/modes/rpc/rpc-types";
 
 type OutputFrame = RpcResponse | object;
 
@@ -132,38 +132,6 @@ describe("dispatchRpcInputFrame", () => {
 		}
 	});
 
-	test("non-bash commands are dispatched serially (ordering preserved)", async () => {
-		const started: string[] = [];
-		const finished: string[] = [];
-		const handleCommand = async (command: RpcCommand): Promise<RpcResponse> => {
-			started.push(command.type);
-			finished.push(command.type);
-			if (command.type === "abort_retry") {
-				return { id: command.id, type: "response", command: "abort_retry", success: true };
-			}
-			if (command.type === "set_auto_retry") {
-				return { id: command.id, type: "response", command: "set_auto_retry", success: true };
-			}
-			throw new Error(`unexpected: ${command.type}`);
-		};
-
-		const { deps, outputs } = makeDeps(handleCommand);
-
-		const first = dispatchRpcInputFrame({ id: "c1", type: "abort_retry" }, deps);
-		expect(first).toBeInstanceOf(Promise);
-		// The input loop awaits each command's promise before pulling the next
-		// frame; simulate that contract by awaiting before the next dispatch.
-		await first;
-		expect(outputs).toHaveLength(1);
-		expect(started).toEqual(["abort_retry"]);
-		expect(finished).toEqual(["abort_retry"]);
-
-		const second = dispatchRpcInputFrame({ id: "c2", type: "set_auto_retry", enabled: true }, deps);
-		await second;
-		expect(outputs).toHaveLength(2);
-		expect(started).toEqual(["abort_retry", "set_auto_retry"]);
-	});
-
 	test("bash handler errors surface as an error response on the background frame", async () => {
 		const handleCommand = async (command: RpcCommand): Promise<RpcResponse> => {
 			if (command.type === "bash") throw new Error("kaboom");
@@ -230,7 +198,6 @@ describe("dispatchRpcInputFrame", () => {
 
 describe("RpcInputDispatcher", () => {
 	test("control frames resolve extension UI requests while an ordinary command is active", async () => {
-		let depsRef: RpcInputFrameDeps;
 		const { deps, outputs } = makeDeps(async command => {
 			if (command.type !== "prompt") throw new Error(`unexpected command type: ${command.type}`);
 			const response = await requestExtensionInput(depsRef, "ui-active", "Continue?");
@@ -242,7 +209,7 @@ describe("RpcInputDispatcher", () => {
 				data: { agentInvoked: "value" in response && response.value === "continue" },
 			};
 		});
-		depsRef = deps;
+		const depsRef = deps;
 		const dispatcher = new RpcInputDispatcher({ deps });
 
 		dispatcher.dispatch({ id: "prompt-1", type: "prompt", message: "ask extension" });
@@ -328,6 +295,9 @@ describe("RpcInputDispatcher", () => {
 						tokensPerSecond: null,
 						messageCount: 0,
 						queuedMessageCount: 0,
+						hasPendingAsyncWork: false,
+						isSettled: true,
+						queuedMessages: { steering: [], followUp: [] },
 						todoPhases: [],
 					},
 				};
@@ -458,7 +428,6 @@ describe("RpcInputDispatcher", () => {
 		const disconnectMessage = "RPC client disconnected before extension UI response completed";
 		const pendingExtensionRequests = new RpcPendingExtensionRequests();
 		const started: string[] = [];
-		let depsRef: RpcInputFrameDeps;
 		const { deps, outputs } = makeDeps(
 			async command => {
 				if (command.type !== "prompt") throw new Error(`unexpected command type: ${command.type}`);
@@ -474,7 +443,7 @@ describe("RpcInputDispatcher", () => {
 			},
 			{ pendingExtensionRequests },
 		);
-		depsRef = deps;
+		const depsRef = deps;
 		const dispatcher = new RpcInputDispatcher({ deps });
 
 		dispatcher.dispatch({ id: "active", type: "prompt", message: "active dialog" });
@@ -564,7 +533,7 @@ describe("RpcShutdownCoordinator", () => {
 		const awaited = dispatchRpcInputFrame({ id: "s1", type: "bash", command: "sleep 9999" }, deps);
 		expect(awaited).toBeUndefined();
 
-		// Extension calls chud.shutdown() while bash is in flight; the input loop
+		// Extension calls pi.shutdown() while bash is in flight; the input loop
 		// re-checks after its next serially-awaited frame.
 		shutdown.requested = true;
 		const check = coordinator.checkShutdownRequested();

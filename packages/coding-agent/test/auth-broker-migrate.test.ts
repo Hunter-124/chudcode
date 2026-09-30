@@ -2,10 +2,10 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import { AuthStorage, SqliteAuthCredentialStore } from "@chudware/ai";
-import { type AuthBrokerServerHandle, startAuthBroker } from "@chudware/ai/auth-broker";
-import { runAuthBrokerCommand } from "@chudware/coding-agent/cli/auth-broker-cli";
-import { getAgentDbPath, removeWithRetries, setAgentDir } from "@chudware/utils";
+import { AuthStorage, SqliteAuthCredentialStore } from "@oh-my-pi/pi-ai";
+import { type AuthBrokerServerHandle, startAuthBroker } from "@oh-my-pi/pi-ai/auth-broker";
+import { runAuthBrokerCommand } from "@oh-my-pi/pi-coding-agent/cli/auth-broker-cli";
+import { getAgentDbPath, removeWithRetries, setAgentDir } from "@oh-my-pi/pi-utils";
 
 const TEAM_ORG = "org-team-1111";
 
@@ -37,23 +37,23 @@ describe("auth-broker migrate (org-only dedupe)", () => {
 	const savedEnv: Record<string, string | undefined> = {};
 
 	beforeEach(async () => {
-		savedEnv.CHUDCODE_AUTH_BROKER_URL = process.env.CHUDCODE_AUTH_BROKER_URL;
-		savedEnv.CHUDCODE_AUTH_BROKER_TOKEN = process.env.CHUDCODE_AUTH_BROKER_TOKEN;
-		agentDir = await fs.mkdtemp(path.join(os.tmpdir(), "chudcode-migrate-client-"));
-		brokerAgentDir = await fs.mkdtemp(path.join(os.tmpdir(), "chudcode-migrate-broker-"));
+		savedEnv.OMP_AUTH_BROKER_URL = process.env.OMP_AUTH_BROKER_URL;
+		savedEnv.OMP_AUTH_BROKER_TOKEN = process.env.OMP_AUTH_BROKER_TOKEN;
+		agentDir = await fs.mkdtemp(path.join(os.tmpdir(), "omp-migrate-client-"));
+		brokerAgentDir = await fs.mkdtemp(path.join(os.tmpdir(), "omp-migrate-broker-"));
 		setAgentDir(agentDir);
 
 		brokerStore = await SqliteAuthCredentialStore.open(path.join(brokerAgentDir, "agent.db"));
 		brokerStorage = new AuthStorage(brokerStore);
-		await brokerStorage.reload();
+		await brokerStorage.credentials.reload();
 		handle = startAuthBroker({
 			storage: brokerStorage,
 			bind: "127.0.0.1:0",
 			bearerTokens: [token],
 			disableRefresher: true,
 		});
-		process.env.CHUDCODE_AUTH_BROKER_URL = handle.url;
-		process.env.CHUDCODE_AUTH_BROKER_TOKEN = token;
+		process.env.OMP_AUTH_BROKER_URL = handle.url;
+		process.env.OMP_AUTH_BROKER_TOKEN = token;
 	});
 
 	afterEach(async () => {
@@ -62,7 +62,7 @@ describe("auth-broker migrate (org-only dedupe)", () => {
 		brokerStore?.close();
 		await removeWithRetries(agentDir);
 		await removeWithRetries(brokerAgentDir);
-		for (const key of ["CHUDCODE_AUTH_BROKER_URL", "CHUDCODE_AUTH_BROKER_TOKEN"] as const) {
+		for (const key of ["OMP_AUTH_BROKER_URL", "OMP_AUTH_BROKER_TOKEN"] as const) {
 			if (savedEnv[key] === undefined) delete process.env[key];
 			else process.env[key] = savedEnv[key];
 		}
@@ -73,7 +73,7 @@ describe("auth-broker migrate (org-only dedupe)", () => {
 		// is the only identity the broker snapshot can echo back.
 		const localStore = await SqliteAuthCredentialStore.open(getAgentDbPath());
 		try {
-			localStore.upsertAuthCredentialForProvider("anthropic", {
+			await localStore.upsertAuthCredential("anthropic", {
 				type: "oauth",
 				access: "access-local",
 				refresh: "refresh-local-stale",
@@ -93,7 +93,7 @@ describe("auth-broker migrate (org-only dedupe)", () => {
 
 		// The broker rotates the token after migration — its copy is now newer
 		// than the local one.
-		brokerStore!.upsertAuthCredentialForProvider("anthropic", {
+		await brokerStore!.upsertAuthCredential("anthropic", {
 			type: "oauth",
 			access: "access-rotated",
 			refresh: "refresh-rotated",
@@ -101,7 +101,7 @@ describe("auth-broker migrate (org-only dedupe)", () => {
 			orgId: TEAM_ORG,
 			orgName: "Team",
 		});
-		await brokerStorage!.reload();
+		await brokerStorage!.credentials.reload();
 
 		// Rerun: the org-only row must be recognized as already migrated, not
 		// re-uploaded (which would clobber the broker's newer refresh token).

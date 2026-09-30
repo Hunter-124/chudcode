@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import type { FetchImpl } from "@chudware/ai/types";
+import type { FetchImpl } from "@oh-my-pi/pi-ai/types";
 import { umansUsageProvider } from "../src/usage/umans";
 
 const DEFAULT_BASE_URL = "https://api.code.umans.ai";
@@ -127,7 +127,7 @@ describe("umans usage provider", () => {
 	});
 
 	it("does not report exhausted when raw requests exceed the soft cap but weighted headroom remains (#7858)", async () => {
-		// Real payload from https://github.com/Hunter-124/chudcode/issues/7858:
+		// Real payload from https://github.com/can1357/oh-my-pi/issues/7858:
 		// raw 838 exceeds the 500 soft cap (previously clamped to 1.0 → false
 		// exhausted), while weighted "effective requests" are 207/500 with 293
 		// remaining — the account continues normally. Raw traffic only reaches

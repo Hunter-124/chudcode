@@ -7,9 +7,8 @@ import type {
 	AgentToolResult,
 	AgentToolUpdateCallback,
 	ToolApprovalDecision,
-} from "@chudware/agent-core";
-import { type } from "@chudware/chudtype";
-import { sleep } from "@chudware/utils/async";
+} from "@oh-my-pi/pi-agent-core";
+import { type } from "@oh-my-pi/omptype";
 import type { ToolSession } from ".";
 import { probeTools } from "./analyzers/doctor";
 import { GdbMiSession } from "./analyzers/gdb-mi";
@@ -133,7 +132,7 @@ async function stopProcess(proc: Bun.Subprocess): Promise<void> {
 	try {
 		proc.kill("SIGTERM");
 	} catch {}
-	await Promise.race([proc.exited.then(() => undefined), sleep(400)]);
+	await Promise.race([proc.exited.then(() => undefined), Bun.sleep(400)]);
 	if (proc.exitCode === null) {
 		try {
 			proc.kill("SIGKILL");
@@ -321,7 +320,7 @@ async function waitForPort(
 	while (Date.now() < deadline && proc.exitCode === null) {
 		signal?.throwIfAborted();
 		if (await portIsOpen(port)) return true;
-		await sleep(100);
+		await Bun.sleep(100);
 	}
 	return false;
 }

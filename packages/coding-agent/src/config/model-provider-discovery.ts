@@ -1,10 +1,10 @@
-import type { Api, Model } from "@chudware/ai/types";
-import type { ModelResolutionSource } from "@chudware/catalog/model-manager";
+import type { Api, Model } from "@oh-my-pi/pi-ai/types";
+import type { ModelResolutionSource } from "@oh-my-pi/pi-catalog/model-manager";
 import {
 	MODELS_DEV_CATALOG_PROVIDER_IDS,
 	type OpenAICodexAccount,
 	PROVIDER_DESCRIPTORS,
-} from "@chudware/catalog/provider-models";
+} from "@oh-my-pi/pi-catalog/provider-models";
 import type { AuthStorage, OAuthCredential } from "../session/auth-storage";
 
 /**
@@ -29,8 +29,8 @@ for (const providerId of [
 export const STARTUP_MODEL_CACHE_PROVIDER_IDS: readonly string[] = Object.keys(STARTUP_MODEL_CACHE_PROVIDER_IDS_RECORD);
 
 // Sentinels for local-only OAuth tokens — declared inline to avoid loading
-// provider modules at startup. Must match packages/ai/src/registry/llama-cpp.ts,
-// packages/ai/src/registry/lm-studio.ts, and packages/ai/src/registry/vllm.ts.
+// provider modules at startup. Must match the llama-cpp, lm-studio, and vllm
+// auth rules in packages/catalog/src/compat/rules/auth/.
 const LOCAL_PROVIDER_PLACEHOLDERS = new Set<string>(["llama-cpp-local", "lm-studio-local", "vllm-local"]);
 
 /**
@@ -76,6 +76,8 @@ export async function withModelDiscoveryTimeout<T>(timeoutMs: number, run: () =>
 export interface BuiltInDiscoveryResult {
 	models: Model<Api>[];
 	authoritativeProviders: Set<string>;
+	/** Providers whose successful endpoint refresh replaces their prior dynamic discovery slice. */
+	replaceRuntimeProviders: Set<string>;
 }
 
 export type ProviderDiscoveryStatus = "idle" | "ok" | "empty" | "cached" | "unavailable" | "unauthenticated";
@@ -129,7 +131,7 @@ export function extractGoogleOAuthProjectId(value: string | undefined): string |
 }
 
 export function getOAuthCredentialsForProvider(authStorage: AuthStorage, provider: string): OAuthCredential[] {
-	const providerEntry = authStorage.getAll()[provider];
+	const providerEntry = authStorage.credentials.all()[provider];
 	if (!providerEntry) {
 		return [];
 	}
@@ -153,7 +155,7 @@ export async function resolveCodexDiscoveryAccounts(
 	authStorage: AuthStorage,
 	resolvedAccessToken: string,
 ): Promise<OpenAICodexAccount[] | null> {
-	const accesses = await authStorage.getOAuthAccesses("openai-codex");
+	const accesses = await authStorage.oauth.accessAll("openai-codex");
 	const accounts: OpenAICodexAccount[] = [];
 	for (const access of accesses) {
 		if (!access.ok) return null;

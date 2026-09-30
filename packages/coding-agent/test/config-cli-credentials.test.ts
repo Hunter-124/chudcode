@@ -1,13 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "bun:test";
 import * as path from "node:path";
-import { runConfigCommand } from "@chudware/coding-agent/cli/config-cli";
-import { resetSettingsForTest } from "@chudware/coding-agent/config/settings";
-import { AgentStorage } from "@chudware/coding-agent/session/agent-storage";
-import { getConfigRootDir, setAgentDir, TempDir } from "@chudware/utils";
-import { isCredential, SETTINGS_SCHEMA, type SettingPath } from "../src/config/settings-schema";
-import { getSettingDef } from "../src/modes/components/settings-defs";
-
-const paths = Object.keys(SETTINGS_SCHEMA) as SettingPath[];
+import { runConfigCommand } from "@oh-my-pi/pi-coding-agent/cli/config-cli";
+import { resetSettingsForTest } from "@oh-my-pi/pi-coding-agent/config/settings";
+import { AgentStorage } from "@oh-my-pi/pi-coding-agent/session/agent-storage";
+import { getConfigRootDir, setAgentDir, TempDir } from "@oh-my-pi/pi-utils";
+import { all, lookup } from "@oh-my-pi/pi-coding-agent/config/registry";
+import { getSettingDef } from "@oh-my-pi/pi-tui/overlays/settings-defs";
+import { createSettingsHost } from "../src/config/settings-ui";
 
 describe("credential settings", () => {
 	it("marks every known credential, including those with no settings panel entry", () => {
@@ -18,29 +17,29 @@ describe("credential settings", () => {
 			"dev.autoqaPush.token",
 			"hindsight.apiToken",
 		] as const) {
-			expect(isCredential(path)).toBe(true);
+			expect(lookup(path)?.isCredential).toBe(true);
 		}
 	});
 
 	it("classifies UI-visible credentials through the same marker", () => {
 		// One field, not two: there is no separate UI-only masking flag that could
 		// drift away from this classification.
-		for (const path of ["mnemo.embeddingApiKey", "mnemo.llmApiKey"] as const) {
-			expect(isCredential(path)).toBe(true);
+		for (const path of ["mnemopi.embeddingApiKey", "mnemopi.llmApiKey"] as const) {
+			expect(lookup(path)?.isCredential).toBe(true);
 		}
 	});
 
 	it("does not sweep ordinary settings into the credential set", () => {
 		// Token-budget settings read like credentials by name but are plain numbers.
 		for (const path of ["compaction.thresholdTokens", "display.showTokenUsage", "autoResume"] as const) {
-			expect(isCredential(path)).toBe(false);
+			expect(lookup(path)?.isCredential).toBe(false);
 		}
 	});
 
 	it("only marks string or record settings as credentials", () => {
-		for (const path of paths) {
-			if (!isCredential(path)) continue;
-			expect(["string", "record"]).toContain(SETTINGS_SCHEMA[path].type);
+		for (const setting of all()) {
+			if (!setting.isCredential) continue;
+			expect(["string", "record"]).toContain(setting.type);
 		}
 	});
 });
@@ -50,8 +49,8 @@ describe("credential masking reaches every surface", () => {
 		// The panel derives masking from the same classification the CLI uses, so
 		// a credential cannot render as plain text on one surface and dots on the
 		// other.
-		for (const path of ["hindsight.apiToken", "mnemo.embeddingApiKey", "mnemo.llmApiKey"] as const) {
-			const def = getSettingDef(path);
+		for (const path of ["hindsight.apiToken", "mnemopi.embeddingApiKey", "mnemopi.llmApiKey"] as const) {
+			const def = getSettingDef(createSettingsHost().entries, path);
 			expect(def?.type).toBe("text");
 			expect(def && "secret" in def ? def.secret : undefined).toBe(true);
 		}
@@ -59,12 +58,12 @@ describe("credential masking reaches every surface", () => {
 
 	it("keeps credentials with no panel entry out of the panel entirely", () => {
 		for (const path of ["auth.broker.token", "searxng.token", "dev.autoqaPush.token"] as const) {
-			expect(getSettingDef(path)).toBeUndefined();
+			expect(getSettingDef(createSettingsHost().entries, path)).toBeUndefined();
 		}
 	});
 
 	it("leaves ordinary text settings unmasked", () => {
-		const def = getSettingDef("shellPath");
+		const def = getSettingDef(createSettingsHost().entries, "shellPath");
 		if (def?.type === "text") expect(def.secret).toBe(false);
 	});
 });
@@ -77,23 +76,23 @@ describe("credential masking reaches every surface", () => {
 describe("config list output", () => {
 	const SECRET = "credential-value-not-for-output";
 	let agentDir: TempDir | undefined;
-	const originalAgentDir = process.env.CHUDCODE_CODING_AGENT_DIR;
+	const originalAgentDir = process.env.PI_CODING_AGENT_DIR;
 	const fallbackAgentDir = path.join(getConfigRootDir(), "agent");
 
 	beforeEach(() => {
 		resetSettingsForTest();
-		agentDir = TempDir.createSync("@chudcode-config-credentials-");
+		agentDir = TempDir.createSync("@omp-config-credentials-");
 		setAgentDir(agentDir.path());
 	});
 
 	afterEach(async () => {
 		vi.restoreAllMocks();
-		AgentStorage.resetInstance();
+		AgentStorage.close();
 		resetSettingsForTest();
 		if (originalAgentDir) setAgentDir(originalAgentDir);
 		else {
 			setAgentDir(fallbackAgentDir);
-			delete process.env.CHUDCODE_CODING_AGENT_DIR;
+			delete process.env.PI_CODING_AGENT_DIR;
 		}
 		if (agentDir) {
 			try {
@@ -169,7 +168,7 @@ describe("config list output", () => {
 		const url = "https://hindsight.example.test";
 		await runConfigCommand({ action: "set", key: "hindsight.apiUrl", value: url, flags: { json: true } });
 		await runConfigCommand({ action: "set", key: "hindsight.apiToken", value: SECRET, flags: { json: true } });
-		expect(isCredential("hindsight.apiUrl")).toBe(false);
+		expect(lookup("hindsight.apiUrl")?.isCredential).toBe(false);
 
 		const output = await humanList();
 		expect(output).toContain(`hindsight.apiUrl = ${url}`);

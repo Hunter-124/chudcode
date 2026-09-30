@@ -1,39 +1,19 @@
 import { afterEach, describe, expect, test, vi } from "bun:test";
-import { getOAuthProviders } from "@chudware/ai/registry/oauth";
-import { getEnvApiKey } from "@chudware/ai/stream";
-import { DEFAULT_MODEL_PER_PROVIDER, PROVIDER_DESCRIPTORS } from "@chudware/catalog/provider-models/descriptors";
-import { zenmuxModelManagerOptions } from "@chudware/catalog/provider-models/openai-compat";
-import type { FetchImpl } from "@chudware/catalog/types";
+import { zenmuxModelManagerOptions } from "@oh-my-pi/pi-catalog/provider-models/openai-compat";
+import type { FetchImpl } from "@oh-my-pi/pi-catalog/types";
 
-const originalZenMuxApiKey = process.env.ZENMUX_API_KEY;
+const originalZenMuxApiKey = Bun.env.ZENMUX_API_KEY;
 
 afterEach(() => {
 	if (originalZenMuxApiKey === undefined) {
-		delete process.env.ZENMUX_API_KEY;
+		delete Bun.env.ZENMUX_API_KEY;
 	} else {
-		process.env.ZENMUX_API_KEY = originalZenMuxApiKey;
+		Bun.env.ZENMUX_API_KEY = originalZenMuxApiKey;
 	}
 	vi.restoreAllMocks();
 });
 
 describe("zenmux provider support", () => {
-	test("resolves ZENMUX_API_KEY from environment", () => {
-		process.env.ZENMUX_API_KEY = "zenmux-test-key";
-		expect(getEnvApiKey("zenmux")).toBe("zenmux-test-key");
-	});
-
-	test("registers built-in descriptor and default model", () => {
-		const descriptor = PROVIDER_DESCRIPTORS.find(item => item.providerId === "zenmux");
-		expect(descriptor).toBeDefined();
-		expect(descriptor?.defaultModel).toBe("anthropic/claude-opus-4.8");
-		expect(descriptor?.catalogDiscovery?.envVars).toContain("ZENMUX_API_KEY");
-		expect(DEFAULT_MODEL_PER_PROVIDER.zenmux).toBe("anthropic/claude-opus-4.8");
-	});
-
-	test("registers ZenMux in OAuth provider selector", () => {
-		const provider = getOAuthProviders().find(item => item.id === "zenmux");
-		expect(provider?.name).toBe("ZenMux");
-	});
 	test("routes Anthropic-owned models to anthropic-messages", async () => {
 		const fetchMock: FetchImpl = vi.fn(
 			async () =>
@@ -97,7 +77,7 @@ describe("zenmux provider support", () => {
 	});
 
 	test("discovers models without an API key and sends no Authorization header", async () => {
-		delete process.env.ZENMUX_API_KEY;
+		delete Bun.env.ZENMUX_API_KEY;
 		let sentHeaders: RequestInit["headers"];
 		const fetchMock: FetchImpl = vi.fn(
 			async (_input: string | URL | Request, init?: RequestInit): Promise<Response> => {

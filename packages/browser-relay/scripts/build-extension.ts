@@ -1,9 +1,9 @@
 /**
  * Builds the browser relay extension and its distribution artifacts:
  * - `dist/extension/` — unpacked extension (load via chrome://extensions)
- * - `dist/chudcode-browser-relay-extension.zip` — packaged extension for GH releases
+ * - `dist/omp-browser-relay-extension.zip` — packaged extension for GH releases
  * - `../coding-agent/src/tools/browser/relay/extension-assets/*.txt` —
- *   generated text assets embedded into the chudcode CLI so `chudcode browser-relay
+ *   generated text assets embedded into the omp CLI so `omp browser-relay
  *   install` works from the compiled binary (same committed-generated-output
  *   pattern as tool-views.generated.js). Re-run this script after touching
  *   anything under `extension/` and commit the regenerated assets.
@@ -12,7 +12,6 @@
  */
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
-import * as fsx from "@chudware/utils/fsx";
 import { $ } from "bun";
 
 const root = path.resolve(import.meta.dir, "..");
@@ -36,13 +35,13 @@ if (!bundle.success) {
 }
 
 for (const file of ["manifest.json", "options.html", "options.js"]) {
-	await fsx.copy(path.join(root, "extension", file), path.join(distExtension, file));
+	await Bun.write(path.join(distExtension, file), Bun.file(path.join(root, "extension", file)));
 }
 for (const file of ["LICENSE", "THIRD-PARTY-NOTICES.txt"]) {
-	await fsx.copy(path.join(repoRoot, file), path.join(distExtension, file));
+	await Bun.write(path.join(distExtension, file), Bun.file(path.join(repoRoot, file)));
 }
 
-const zip = await $`zip -qr ../chudcode-browser-relay-extension.zip .`.cwd(distExtension).nothrow();
+const zip = await $`zip -qr ../omp-browser-relay-extension.zip .`.cwd(distExtension).nothrow();
 if (zip.exitCode !== 0) {
 	console.error("zip failed:", zip.stderr.toString());
 	process.exit(1);
@@ -58,10 +57,10 @@ const embeddedAssets = [
 	["THIRD-PARTY-NOTICES.txt", "THIRD-PARTY-NOTICES.txt"],
 ] as const;
 for (const [source, destination] of embeddedAssets) {
-	await fsx.copy(path.join(distExtension, source), path.join(assetsDir, destination));
+	await Bun.write(path.join(assetsDir, destination), Bun.file(path.join(distExtension, source)));
 }
 
 console.log("built:");
 console.log(`  ${distExtension}`);
-console.log(`  ${path.join(dist, "chudcode-browser-relay-extension.zip")}`);
+console.log(`  ${path.join(dist, "omp-browser-relay-extension.zip")}`);
 console.log(`  ${assetsDir} (embedded CLI assets — commit these)`);

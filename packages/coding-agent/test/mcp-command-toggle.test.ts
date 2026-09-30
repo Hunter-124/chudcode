@@ -2,10 +2,10 @@ import { afterEach, beforeAll, beforeEach, describe, expect, test, vi } from "bu
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import type { SourceMeta } from "@chudware/coding-agent/capability/types";
-import type { MCPServerConfig } from "@chudware/coding-agent/mcp/types";
-import { MCPCommandController } from "@chudware/coding-agent/modes/controllers/mcp-command-controller";
-import { initTheme } from "@chudware/coding-agent/modes/theme/theme";
+import type { SourceMeta } from "@oh-my-pi/pi-coding-agent/capability/types";
+import type { MCPServerConfig } from "@oh-my-pi/pi-coding-agent/mcp/types";
+import { MCPCommandController } from "@oh-my-pi/pi-coding-agent/modes/controllers/mcp-command-controller";
+import { initTheme } from "@oh-my-pi/pi-tui/theme";
 import {
 	getConfigRootDir,
 	getMCPConfigPath,
@@ -13,69 +13,47 @@ import {
 	removeWithRetries,
 	setAgentDir,
 	setProjectDir,
-} from "@chudware/utils";
-import * as fsx from "@chudware/utils/fsx";
+} from "@oh-my-pi/pi-utils";
+import { createInteractiveModeContext, createMcpManagerStub } from "./helpers/interactive-mode-context";
 
 const originalProjectDir = getProjectDir();
-const originalAgentDir = process.env.CHUDCODE_CODING_AGENT_DIR;
+const originalAgentDir = process.env.PI_CODING_AGENT_DIR;
 const fallbackAgentDir = path.join(getConfigRootDir(), "agent");
 
 function restoreAgentDir(): void {
 	if (originalAgentDir) {
 		setAgentDir(originalAgentDir);
-		process.env.CHUDCODE_CODING_AGENT_DIR = originalAgentDir;
-		process.env.CHUDCODE_CODING_AGENT_DIR = originalAgentDir;
+		process.env.PI_CODING_AGENT_DIR = originalAgentDir;
+		Bun.env.PI_CODING_AGENT_DIR = originalAgentDir;
 		return;
 	}
 	setAgentDir(fallbackAgentDir);
-	delete process.env.CHUDCODE_CODING_AGENT_DIR;
-	delete process.env.CHUDCODE_CODING_AGENT_DIR;
+	delete process.env.PI_CODING_AGENT_DIR;
+	delete Bun.env.PI_CODING_AGENT_DIR;
 }
 
 function createController() {
 	const refreshMCPTools = vi.fn(async () => {});
-	const mcpManager = {
-		disconnectAll: vi.fn(async () => {}),
-		discoverAndConnect: vi.fn(async () => ({ errors: new Map<string, string>() })),
-		disconnectServer: vi.fn(async () => {}),
-		connectServers: vi.fn(
-			async (_configs: Record<string, MCPServerConfig>, _sources: Record<string, SourceMeta>) => ({
-				errors: new Map<string, string>(),
-				connectedServers: [],
-				tools: [],
-				exaApiKeys: [],
-			}),
-		),
-		getTools: vi.fn(() => []),
-		waitForConnection: vi.fn(async () => ({})),
-		getConnectionStatus: vi.fn(() => "connected"),
-		getSource: vi.fn(() => undefined),
-	};
-	const controller = new MCPCommandController({
-		chatContainer: { addChild: vi.fn() },
-		present: vi.fn(),
-		presentCommandOutput: vi.fn(),
-		ui: { requestRender: vi.fn() },
-		editor: {},
-		showError: vi.fn(),
-		showStatus: vi.fn(),
-		oauthManualInput: {
-			hasPending: vi.fn(() => false),
-			pendingProviderId: undefined,
-			tryClaimInput: vi.fn(),
-		},
-		session: {
-			refreshMCPTools,
-			modelRegistry: { authStorage: undefined },
-		},
+	const connectServers = vi.fn(
+		async (_configs: Record<string, MCPServerConfig>, _sources: Record<string, SourceMeta>) => ({
+			errors: new Map<string, string>(),
+			connectedServers: [],
+			tools: [],
+			exaApiKeys: [],
+		}),
+	);
+	const mcpManager = createMcpManagerStub({ connectServers });
+	const ctx = createInteractiveModeContext({
+		session: { refreshMCPTools },
 		mcpManager,
-	} as never);
+	});
+	const controller = new MCPCommandController(ctx);
 
-	return { controller, mcpManager, refreshMCPTools };
+	return { controller, mcpManager, refreshMCPTools, connectServers };
 }
 
 async function writeProjectConfig(projectDir: string, servers: Record<string, MCPServerConfig>): Promise<void> {
-	await fsx.write(
+	await Bun.write(
 		getMCPConfigPath("project", projectDir),
 		`${JSON.stringify(
 			{
@@ -96,8 +74,8 @@ describe("/mcp enable and disable", () => {
 	});
 
 	beforeEach(async () => {
-		projectDir = await fs.mkdtemp(path.join(os.tmpdir(), "chudcode-mcp-toggle-project-"));
-		agentDir = await fs.mkdtemp(path.join(os.tmpdir(), "chudcode-mcp-toggle-agent-"));
+		projectDir = await fs.mkdtemp(path.join(os.tmpdir(), "omp-mcp-toggle-project-"));
+		agentDir = await fs.mkdtemp(path.join(os.tmpdir(), "omp-mcp-toggle-agent-"));
 		setProjectDir(projectDir);
 		setAgentDir(agentDir);
 	});
@@ -131,14 +109,14 @@ describe("/mcp enable and disable", () => {
 			mcp1: { type: "stdio", command: "mcp-one", enabled: false },
 			mcp2: { type: "stdio", command: "mcp-two" },
 		});
-		const { controller, mcpManager } = createController();
+		const { controller, mcpManager, connectServers } = createController();
 
 		await controller.handle("/mcp enable mcp1");
 
 		expect(mcpManager.disconnectAll).not.toHaveBeenCalled();
 		expect(mcpManager.discoverAndConnect).not.toHaveBeenCalled();
-		expect(mcpManager.connectServers).toHaveBeenCalledTimes(1);
-		const [configs] = mcpManager.connectServers.mock.calls[0]!;
+		expect(connectServers).toHaveBeenCalledTimes(1);
+		const [configs] = connectServers.mock.calls[0]!;
 		expect(Object.keys(configs)).toEqual(["mcp1"]);
 		expect(configs.mcp1).toEqual({ type: "stdio", command: "mcp-one", enabled: true });
 	});

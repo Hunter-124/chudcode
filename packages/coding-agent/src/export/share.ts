@@ -19,17 +19,16 @@
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import type { AgentMessage, AgentState } from "@chudware/agent-core";
-import type { AssistantMessage, ImageContent, TextContent } from "@chudware/ai";
-import { $which, logger } from "@chudware/utils";
-import * as fsx from "@chudware/utils/fsx";
-import { DEFAULT_SHARE_URL } from "@chudware/wire";
+import type { AgentMessage, AgentState } from "@oh-my-pi/pi-agent-core";
+import type { AssistantMessage, ImageContent, TextContent } from "@oh-my-pi/pi-ai";
+import { $which, logger } from "@oh-my-pi/pi-utils";
+import { DEFAULT_SHARE_URL } from "@oh-my-pi/pi-wire";
 import { $ } from "bun";
 import { obfuscateToolArguments } from "../secrets/message-transform";
 import type { SecretObfuscator } from "../secrets/obfuscator";
 import { type SessionEntry, type SessionHeader, TITLE_CHANGE_ENTRY_TYPE } from "../session/session-entries";
 import type { SessionManager } from "../session/session-manager";
-import type { OutputMeta } from "../tools/output-meta";
+import type { OutputMeta } from "@oh-my-pi/pi-tui/tools/output-meta";
 import { buildSessionData, type SessionData, type SubSession } from "./html";
 
 export { DEFAULT_SHARE_URL };
@@ -619,10 +618,10 @@ async function tryCreateGist(sealed: Uint8Array): Promise<{ id: string; url: str
 		return null;
 	}
 
-	const dir = await fs.mkdtemp(path.join(os.tmpdir(), "chudcode-share-"));
+	const dir = await fs.mkdtemp(path.join(os.tmpdir(), "omp-share-"));
 	try {
 		const file = path.join(dir, GIST_FILENAME);
-		await fsx.write(file, Buffer.from(sealed).toString("base64"));
+		await Bun.write(file, Buffer.from(sealed).toString("base64"));
 		const result = await $`gh gist create --public=false ${file}`.quiet().nothrow();
 		if (result.exitCode !== 0) {
 			logger.warn("share: gist creation failed; falling back to share server", {

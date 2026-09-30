@@ -48,7 +48,7 @@ The browser is a view/controller, not a privileged filesystem process. Workspace
 - Bun **1.4.0**, matching the repository `packageManager` pin.
 - A supported desktop browser. The launcher prefers Chromium, Chrome, Brave, or Edge in app-window mode and falls back to the OS default browser.
 - `git` on `PATH` for source-control features.
-- Platform-compatible `@chudware/natives` artifacts for PTY and native workspace search.
+- Platform-compatible `@oh-my-pi/pi-natives` artifacts for PTY and native workspace search.
 - Language-server executables only when the embedding host supplies trusted LSP specifications; none are launched from browser-provided command lines.
 
 Install the monorepo dependencies from the repository root:

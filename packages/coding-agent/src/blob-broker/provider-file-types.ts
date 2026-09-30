@@ -1,9 +1,8 @@
-import { createHash } from "node:crypto";
 import * as fs from "node:fs";
 import * as path from "node:path";
-import type { ProviderFileReference } from "@chudware/ai";
-import { ChudErrors, type } from "@chudware/chudtype";
-import { isEnoent } from "@chudware/utils";
+import { OmpErrors, type } from "@oh-my-pi/omptype";
+import type { ProviderFileReference } from "@oh-my-pi/pi-ai";
+import { isEnoent } from "@oh-my-pi/pi-utils";
 import type { RemoteDeleteAction } from "./publication";
 
 /** Model providers whose official APIs support reusable uploaded-file references. */
@@ -136,12 +135,12 @@ const PersistedIndexSchema = type({
 
 /** Return a lowercase SHA-256 digest without retaining the supplied credential. */
 export function hashProviderFileCredential(credential: string): string {
-	return createHash("sha256").update(credential, "utf8").digest("hex");
+	return Bun.SHA256.hash(credential, "hex");
 }
 
 /** Return the content digest used to deduplicate provider-native uploads. */
 export function hashProviderFileContent(bytes: Uint8Array): string {
-	return createHash("sha256").update(bytes).digest("hex");
+	return Bun.SHA256.hash(bytes, "hex");
 }
 
 /** Convert a durable cache handle to the provider reference carried by AI image content. */
@@ -187,7 +186,7 @@ function sanitizeDeleteAction(action: RemoteDeleteAction, credential: string): R
 	if (containsCredential(url.origin + url.pathname + url.hash, credential)) {
 		throw new Error("Provider delete URL must not embed an account credential");
 	}
-	for (const name of [...url.searchParams.keys()]) {
+	for (const name of Array.from(url.searchParams.keys())) {
 		const values = url.searchParams.getAll(name);
 		if (
 			SENSITIVE_QUERY_PARAMETERS[name.toLowerCase()] ||
@@ -386,7 +385,7 @@ export class ProviderFileCache {
 			return 0;
 		}
 		const checked = PersistedIndexSchema(parsed);
-		if (checked instanceof ChudErrors) {
+		if (checked instanceof OmpErrors) {
 			this.#lastError = "Unsupported or malformed provider file cache index";
 			return 0;
 		}

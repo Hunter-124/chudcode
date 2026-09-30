@@ -1,5 +1,5 @@
-import { deriveClaudeDeviceId } from "@chudware/ai";
-import { getInstallId } from "@chudware/utils";
+import { deriveClaudeDeviceId } from "@oh-my-pi/pi-ai";
+import { getInstallId } from "@oh-my-pi/pi-utils";
 import type { AuthStorage } from "./auth-storage";
 
 /**
@@ -21,10 +21,6 @@ import type { AuthStorage } from "./auth-storage";
  * `provider` is the target provider string (e.g. `"anthropic"`) and gates the
  * `account_uuid` and `device_id` lookups — only `"anthropic"` requests carry them.
  *
- * `sessionId` is forwarded to the auth-storage session-sticky lookup so that
- * multi-credential setups attribute to the same OAuth account used for the
- * actual API request rather than always picking the first credential.
- *
  * `authStorage` is treated as optional so test fixtures that stub `modelRegistry`
  * without a real storage layer still work; the resolver simply skips the lookup
  * and emits `{ session_id }` alone, matching the no-OAuth-credential path.
@@ -40,11 +36,11 @@ export function buildSessionMetadata(
 	// Anthropic-format-compatible proxies like cloudflare-ai-gateway or gitlab-duo)
 	// would leak the user's Anthropic identity to unrelated third-party APIs.
 	if (provider === "anthropic") {
-		const accountUuid = authStorage?.getOAuthAccountId("anthropic", sessionId);
+		const accountUuid = authStorage?.oauth.identity("anthropic", sessionId)?.accountId;
 		if (typeof accountUuid === "string" && accountUuid.length > 0) {
 			userId.account_uuid = accountUuid;
 			// Claude Code's `device_id` is a stable 64-hex account-scoped install
-			// identifier. Include both chudcode's persistent install id and the Claude
+			// identifier. Include both omp's persistent install id and the Claude
 			// account UUID so two accounts on the same install do not share a device.
 			userId.device_id = deriveClaudeDeviceId(getInstallId(), accountUuid);
 		}

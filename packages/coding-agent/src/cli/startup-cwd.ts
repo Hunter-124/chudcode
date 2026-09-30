@@ -1,6 +1,6 @@
 import * as os from "node:os";
 import * as path from "node:path";
-import { directoryExists, getProjectDir, normalizePathForComparison, setProjectDir } from "@chudware/utils";
+import { directoryExists, getProjectDir, normalizePathForComparison, setProjectDir } from "@oh-my-pi/pi-utils";
 import type { Args } from "./args";
 
 async function maybeAutoChdir(parsed: Args): Promise<void> {
@@ -21,7 +21,8 @@ async function maybeAutoChdir(parsed: Args): Promise<void> {
 		return;
 	}
 
-	const candidates = [path.join(home, "tmp"), "/tmp", "/var/tmp"];
+	const candidates =
+		process.platform === "win32" ? [path.join(home, "tmp")] : [path.join(home, "tmp"), "/tmp", "/var/tmp"];
 	for (const candidate of candidates) {
 		try {
 			if (!(await directoryExists(candidate))) {
@@ -55,7 +56,7 @@ export async function applyStartupCwd(parsed: Args): Promise<void> {
 			const code = (error as NodeJS.ErrnoException | null)?.code;
 			const hint =
 				code === "EACCES" || code === "EPERM"
-					? " On macOS, grant chudcode Files & Folders or Full Disk Access permission for the target directory."
+					? " On macOS, grant omp Files & Folders or Full Disk Access permission for the target directory."
 					: "";
 			throw new Error(`Cannot change working directory to ${parsed.cwd}: ${reason}.${hint}`);
 		}

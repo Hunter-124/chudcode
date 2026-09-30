@@ -17,6 +17,7 @@ target/
 
 # Environment
 .env
+.venv
 
 # Editors
 .vscode/
@@ -44,8 +45,8 @@ coverage/
 packages/ai/test/.temp-images/
 
 # Project specific
-!.chudcode/
-.chudcode/plugins/
+!.omp/
+.omp/plugins/
 .pi_config/
 .opencode/
 .worktrees/
@@ -65,21 +66,21 @@ pi-*.html
 packages/coding-agent/src/export/html/tool-views.generated.js
 packages/natives/npm/
 /runs/
-python/chudcode-rpc/src/chudcode_rpc.egg-info/
-python/chudcode-rpc/build/
+python/omp-rpc/src/omp_rpc.egg-info/
+python/omp-rpc/build/
 # parallel-agent worktrees
 .wt/
 CPU*.md
 packages/coding-agent/binaries/
 
-# robochud runtime state
-python/robochud/data/
-python/robochud/.cache/
-python/robochud/src/robochud/static/
-python/robochud/web/dist/
-python/robochud/web/verify-out/
+# robomp runtime state
+python/robomp/data/
+python/robomp/.cache/
+python/robomp/src/robomp/static/
+python/robomp/web/dist/
+python/robomp/web/verify-out/
 /verify-out/
-python/robochud/.env
+python/robomp/.env
 
 # Local, machine-specific boot perf baseline (see packages/coding-agent/scripts/bench-guard.ts)
 packages/coding-agent/bench/boot-baseline.json
@@ -89,11 +90,7 @@ packages/coding-agent/bench/boot-baseline.json
 /bazel-out
 /bazel-testlogs
 /bazel-pi
-/bazel-chudware
+/bazel-oh-my-pi
 /.bazelrc.user
-# fork: local scratch
-docs/fork/sandbox-prototype/node_modules/
-/bazel-chudcode
 
-# chudcode GUI: CMake build tree (vendored deps + 52MB binary)
-gui/build/
+.parity/

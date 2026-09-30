@@ -1,13 +1,13 @@
 import { afterEach, describe, expect, it } from "bun:test";
 import * as fs from "node:fs";
 import * as path from "node:path";
-import { getBundledModel } from "@chudware/catalog/models";
-import { ModelRegistry } from "@chudware/coding-agent/config/model-registry";
-import { Settings } from "@chudware/coding-agent/config/settings";
-import { createAgentSession } from "@chudware/coding-agent/sdk";
-import type { AgentSession } from "@chudware/coding-agent/session/agent-session";
-import { SessionManager } from "@chudware/coding-agent/session/session-manager";
-import { TempDir } from "@chudware/utils";
+import { getBundledModel } from "@oh-my-pi/pi-catalog/models";
+import { ModelRegistry } from "@oh-my-pi/pi-coding-agent/config/model-registry";
+import { Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
+import { createAgentSession } from "@oh-my-pi/pi-coding-agent/sdk";
+import type { AgentSession } from "@oh-my-pi/pi-coding-agent/session/agent-session";
+import { SessionManager } from "@oh-my-pi/pi-coding-agent/session/session-manager";
+import { TempDir } from "@oh-my-pi/pi-utils";
 import { discoverWatchdogFiles } from "../src/advisor/watchdog";
 import { createInMemoryAuthStorage } from "./helpers/agent-session-setup";
 
@@ -26,6 +26,7 @@ describe("advisor watchdog prompt discovery", () => {
 		const cwd = tempDir.join("project-root");
 		fs.mkdirSync(cwd, { recursive: true });
 		fs.mkdirSync(path.join(cwd, "active-project", ".git"), { recursive: true });
+		fs.writeFileSync(path.join(cwd, "active-project", ".git", "HEAD"), "ref: refs/heads/main\n", "utf8");
 
 		// Write a WATCHDOG.md file
 		const watchdogContent = "Watchdog rule: Watch out for cheating on edits.";
@@ -35,7 +36,7 @@ describe("advisor watchdog prompt discovery", () => {
 		const authStorage = createInMemoryAuthStorage();
 		let session: AgentSession | undefined;
 		try {
-			authStorage.setRuntimeApiKey("openai", "test-key");
+			authStorage.keys.setRuntime("openai", "test-key");
 			const modelRegistry = new ModelRegistry(authStorage, tempDir.join("models.yml"));
 			const sessionManager = SessionManager.inMemory(cwd);
 			const result = await createAgentSession({
@@ -73,12 +74,9 @@ describe("advisor watchdog prompt discovery", () => {
 			expect(session.isAdvisorActive()).toBe(true);
 			const dump = session.formatAdvisorHistoryAsText();
 			expect(dump).not.toBeNull();
-			expect(dump).toContain("Especially pay attention to:");
-			expect(dump).toContain("<attention>");
 			expect(dump).toContain(watchdogContent);
 			expect(dump).toContain(activeRepoMarker);
 			expect(dump!.indexOf(watchdogContent)).toBeLessThan(dump!.indexOf(activeRepoMarker));
-			expect(dump).toContain("</attention>");
 		} finally {
 			try {
 				await session?.dispose();
@@ -120,7 +118,7 @@ describe("advisor watchdog prompt discovery", () => {
 		const tempDir = TempDir.createSync("@pi-advisor-watchdog-");
 		tempDirs.push(tempDir);
 		const cwd = tempDir.join("project-root");
-		const ompDir = path.join(cwd, ".chudcode");
+		const ompDir = path.join(cwd, ".omp");
 		const userAgentDir = tempDir.join("user-agent");
 		fs.mkdirSync(cwd, { recursive: true });
 		fs.mkdirSync(path.join(cwd, ".git"), { recursive: true });

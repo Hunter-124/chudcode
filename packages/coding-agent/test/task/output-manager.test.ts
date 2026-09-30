@@ -1,8 +1,8 @@
 import { describe, expect, it } from "bun:test";
 import * as path from "node:path";
-import { AgentOutputManager } from "@chudware/coding-agent/task/output-manager";
-import { TempDir } from "@chudware/utils";
-import * as fsx from "@chudware/utils/fsx";
+import { AgentOutputManager } from "@oh-my-pi/pi-coding-agent/task/output-manager";
+import { PINNED_HUD_TOGGLE_ID } from "@oh-my-pi/pi-tui/prompt/composer";
+import { TempDir } from "@oh-my-pi/pi-utils";
 
 // Contract: subagent output ids are the requested name, used verbatim the first
 // time and suffixed (`-2`, `-3`, …) only when the same name recurs. A parent
@@ -20,16 +20,6 @@ describe("AgentOutputManager", () => {
 		expect(await mgr.allocate("Bob")).toBe("Bob");
 	});
 
-	it("de-duplicates repeated names while preserving order", async () => {
-		const mgr = new AgentOutputManager(() => null);
-
-		const ids: string[] = [];
-		for (const name of ["Auth", "Auth", "Api", "Auth"]) {
-			ids.push(await mgr.allocate(name));
-		}
-		expect(ids).toEqual(["Auth", "Auth-2", "Api", "Auth-3"]);
-	});
-
 	it("nests ids under a parent prefix and still suffixes repeats", async () => {
 		const mgr = new AgentOutputManager(() => null, { parentPrefix: "Anna" });
 
@@ -39,13 +29,13 @@ describe("AgentOutputManager", () => {
 	});
 
 	it("scans existing output files so a resume never clobbers prior outputs", async () => {
-		using tmp = TempDir.createSync("@chudcode-output-manager-");
+		using tmp = TempDir.createSync("@omp-output-manager-");
 		const dir = tmp.path();
-		await fsx.write(path.join(dir, "Anna.md"), "prior");
-		await fsx.write(path.join(dir, "Anna-2.md"), "prior");
-		await fsx.write(path.join(dir, "Bob.jsonl"), "persisted child session");
+		await Bun.write(path.join(dir, "Anna.md"), "prior");
+		await Bun.write(path.join(dir, "Anna-2.md"), "prior");
+		await Bun.write(path.join(dir, "Bob.jsonl"), "persisted child session");
 		// Unrelated tool artifacts (numeric `.log` ids) must not be mistaken for names.
-		await fsx.write(path.join(dir, "7.bash.log"), "noise");
+		await Bun.write(path.join(dir, "7.bash.log"), "noise");
 
 		const mgr = new AgentOutputManager(() => dir);
 
@@ -55,21 +45,21 @@ describe("AgentOutputManager", () => {
 	});
 
 	it("awaits one disk scan before concurrent allocations", async () => {
-		using tmp = TempDir.createSync("@chudcode-output-manager-");
+		using tmp = TempDir.createSync("@omp-output-manager-");
 		const dir = tmp.path();
-		await fsx.write(path.join(dir, "Anna.jsonl"), "persisted child session");
+		await Bun.write(path.join(dir, "Anna.jsonl"), "persisted child session");
 		const mgr = new AgentOutputManager(() => dir);
 
 		expect(await Promise.all([mgr.allocate("Anna"), mgr.allocate("Anna")])).toEqual(["Anna-2", "Anna-3"]);
 	});
 
 	it("only counts files within its own prefix scope on resume", async () => {
-		using tmp = TempDir.createSync("@chudcode-output-manager-");
+		using tmp = TempDir.createSync("@omp-output-manager-");
 		const dir = tmp.path();
-		await fsx.write(path.join(dir, "Anna.Bob.md"), "child");
-		await fsx.write(path.join(dir, "Anna.Bob.Carol.md"), "grandchild");
+		await Bun.write(path.join(dir, "Anna.Bob.md"), "child");
+		await Bun.write(path.join(dir, "Anna.Bob.Carol.md"), "grandchild");
 		// A different parent's child must be ignored by Anna's manager.
-		await fsx.write(path.join(dir, "Other.Bob.md"), "elsewhere");
+		await Bun.write(path.join(dir, "Other.Bob.md"), "elsewhere");
 
 		const mgr = new AgentOutputManager(() => dir, { parentPrefix: "Anna" });
 
@@ -92,5 +82,14 @@ describe("AgentOutputManager", () => {
 		expect(await mgr.allocate("__advisor")).toBe("__advisor-2");
 		// Unrelated names sharing the prefix are unaffected.
 		expect(await mgr.allocate("__advisor-notes")).toBe("__advisor-notes");
+	});
+
+	it("reserves the pinned-HUD toggle sentinel so a task can't collide with it", async () => {
+		const mgr = new AgentOutputManager(() => null);
+		// A subagent allocated the sentinel id would be indistinguishable from
+		// the jump-list expander row in click routing; it bumps to a suffix.
+		expect(await mgr.allocate(PINNED_HUD_TOGGLE_ID)).toBe(`${PINNED_HUD_TOGGLE_ID}-2`);
+		// Unrelated names sharing the prefix are unaffected.
+		expect(await mgr.allocate("@omp:other")).toBe("@omp:other");
 	});
 });

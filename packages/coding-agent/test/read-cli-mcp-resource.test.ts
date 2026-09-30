@@ -3,24 +3,23 @@ import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
 import * as url from "node:url";
-import { removeWithRetries } from "@chudware/utils";
-import * as fsx from "@chudware/utils/fsx";
+import { removeWithRetries } from "@oh-my-pi/pi-utils";
 
 const CLI_ENTRY = path.join(import.meta.dir, "..", "src", "cli.ts");
 const FIXTURE_PATH = path.join(import.meta.dir, "fixtures", "resources-no-templates-mcp.ts");
 
-describe("chudcode read MCP resources", () => {
+describe("omp read MCP resources", () => {
 	let root: string;
 	let projectDir: string;
 	let agentDir: string;
 	let probePath: string;
 
 	beforeEach(async () => {
-		root = await fs.mkdtemp(path.join(os.tmpdir(), "chudcode-read-mcp-"));
+		root = await fs.mkdtemp(path.join(os.tmpdir(), "omp-read-mcp-"));
 		projectDir = path.join(root, "project");
 		agentDir = path.join(root, "agent");
 		await Promise.all([fs.mkdir(projectDir), fs.mkdir(agentDir)]);
-		await fsx.write(
+		await Bun.write(
 			path.join(projectDir, ".mcp.json"),
 			JSON.stringify({
 				mcpServers: {
@@ -33,7 +32,7 @@ describe("chudcode read MCP resources", () => {
 			}),
 		);
 		probePath = path.join(root, "probe.ts");
-		await fsx.write(
+		await Bun.write(
 			probePath,
 			[
 				`import { runCli } from ${JSON.stringify(url.pathToFileURL(CLI_ENTRY).href)};`,
@@ -58,7 +57,7 @@ describe("chudcode read MCP resources", () => {
 				...process.env,
 				HOME: root,
 				NO_COLOR: "1",
-				CHUDCODE_CODING_AGENT_DIR: agentDir,
+				PI_CODING_AGENT_DIR: agentDir,
 			},
 		});
 		const stdout = new Response(proc.stdout).text();

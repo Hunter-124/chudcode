@@ -1,7 +1,7 @@
 import { describe, expect, it } from "bun:test";
-import { buildAnthropicClientOptions, streamAnthropic } from "@chudware/ai/providers/anthropic";
-import type { Model, ModelSpec } from "@chudware/ai/types";
-import { buildModel } from "@chudware/catalog/build";
+import { buildAnthropicClientOptions, streamAnthropic } from "@oh-my-pi/pi-ai/providers/anthropic";
+import type { Model, ModelSpec } from "@oh-my-pi/pi-ai/types";
+import { buildModel } from "@oh-my-pi/pi-catalog/build";
 
 /**
  * Repro for #6510 — every Claude (`anthropic-messages`) model on the
@@ -16,7 +16,7 @@ import { buildModel } from "@chudware/catalog/build";
  * same api-key login flow already send `X-Api-Key`.
  *
  * Secondary: once auth works, thinking requests through Zen 400 on several
- * model families because chudcode unconditionally attaches `context_management`
+ * model families because omp unconditionally attaches `context_management`
  * (`clear_thinking_20251015`), which the Zen Anthropic proxy rejects as an
  * unrecognized field — the same failure mode already handled for Copilot.
  */

@@ -9,7 +9,7 @@ const DAY = 24 * HOUR;
  */
 export function formatDuration(ms: number): string {
 	if (!Number.isFinite(ms) || ms <= 0) return "0ms";
-	if (ms < SEC) return `${ms}ms`;
+	if (ms < SEC) return `${Math.floor(ms)}ms`;
 	if (ms < MIN) return `${(ms / SEC).toFixed(1)}s`;
 	if (ms < HOUR) {
 		const mins = Math.floor(ms / MIN);
@@ -59,8 +59,24 @@ export function formatBytes(bytes: number): string {
 }
 
 /**
+ * Count `\n` code units via native `indexOf` — no split array, roughly an
+ * order of magnitude cheaper than a per-code-unit loop on multi-MiB text.
+ * Line-count semantics are the caller's (empty text is 0 or 1 lines
+ * depending on the contract).
+ */
+export function countNewlines(text: string): number {
+	let count = 0;
+	let pos = text.indexOf("\n");
+	while (pos !== -1) {
+		count++;
+		pos = text.indexOf("\n", pos + 1);
+	}
+	return count;
+}
+
+/**
  * Truncate a string to maxLen characters, appending an ellipsis if truncated.
- * For display-width-aware truncation (terminals), use truncateToWidth from @chudware/tui.
+ * For display-width-aware truncation (terminals), use truncateToWidth from @oh-my-pi/pi-tui.
  */
 export function truncate(str: string, maxLen: number, ellipsis = "…"): string {
 	if (str.length <= maxLen) return str;
@@ -110,4 +126,9 @@ export function pluralize(label: string, count: number): string {
  */
 export function formatPercent(ratio: number): string {
 	return `${(ratio * 100).toFixed(1)}%`;
+}
+
+/** Round premium-request counters without losing legitimate fractional requests. */
+export function normalizePremiumRequests(value: number): number {
+	return Math.round((value + Number.EPSILON) * 100) / 100;
 }

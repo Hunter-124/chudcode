@@ -6,7 +6,7 @@
  * `puppeteer:error` debug channel is disabled (the default). A transient CDP
  * failure during world re-acquire then threw `TypeError: debugError is not a
  * function` from `#doAcquireWorlds`, escaped as an `unhandledRejection`, and the
- * postmortem handler killed the whole Chudcode process (parent session + every
+ * postmortem handler killed the whole OMP process (parent session + every
  * subagent).
  *
  * The test drives the real patched `FrameManager` with a `send()` that always
@@ -23,13 +23,11 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
-import { sleep } from "@chudware/utils/async";
 import { CdpFrame } from "puppeteer-core/lib/puppeteer/cdp/Frame.js";
 import { FrameManager } from "puppeteer-core/lib/puppeteer/cdp/FrameManager.js";
 import { MAIN_WORLD, PUPPETEER_WORLD } from "puppeteer-core/lib/puppeteer/cdp/IsolatedWorlds.js";
 import { EventEmitter } from "puppeteer-core/lib/puppeteer/common/EventEmitter.js";
 import { TimeoutSettings } from "puppeteer-core/lib/puppeteer/common/TimeoutSettings.js";
-import { debugError } from "puppeteer-core/lib/puppeteer/common/util.js";
 
 const ACQUIRE_TIMEOUT_MS = 40;
 
@@ -74,12 +72,6 @@ describe("stealth FrameManager world acquire — issue #5296", () => {
 		process.off("unhandledRejection", onUnhandled);
 	});
 
-	it("keeps disabled debugError undefined so bare calls would crash", () => {
-		// The precondition that makes the bug fatal: with the puppeteer:error
-		// channel off, the logger the patch used is not callable.
-		expect(debugError).toBeUndefined();
-	});
-
 	it("does not emit an unhandled TypeError when acquire fails mid-flight", async () => {
 		const session = new RejectingSession("S1");
 		const frameManager = makeFrameManager(session);
@@ -92,7 +84,7 @@ describe("stealth FrameManager world acquire — issue #5296", () => {
 			frame: { id: "F1", parentId: undefined, url: "about:blank" },
 			type: "Navigation",
 		});
-		await sleep(20);
+		await Bun.sleep(20);
 
 		// Concurrent pulls on both worlds force the coalescing acquirer to
 		// re-run (`void this.#acquireWorlds` in its `finally`), which is the exact
@@ -103,7 +95,7 @@ describe("stealth FrameManager world acquire — issue #5296", () => {
 		const results = await Promise.allSettled([main.evaluate(() => 1), util.evaluate(() => 1)]);
 
 		// Let the re-triggered acquire settle and any stray rejection surface.
-		await sleep(ACQUIRE_TIMEOUT_MS + 40);
+		await Bun.sleep(ACQUIRE_TIMEOUT_MS + 40);
 
 		const typeErrors = rejections.filter(
 			(reason): reason is TypeError => reason instanceof Error && reason.name === "TypeError",

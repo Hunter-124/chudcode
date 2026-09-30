@@ -1,5 +1,5 @@
 import * as path from "node:path";
-import { getRemoteDir } from "@chudware/utils";
+import { getRemoteDir } from "@oh-my-pi/pi-utils";
 import type { ToolSession } from "../sdk";
 import { findUniqueWorkspaceSuffix } from "./path-utils";
 

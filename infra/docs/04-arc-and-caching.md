@@ -21,7 +21,7 @@ ARC's `gha-runner-scale-set` flavour has three moving parts:
   custom resources and reconciles them.
 - **Listener** (one pod per scale set, ns `arc-systems`) - long-polls the GitHub
   Actions service for jobs targeting the scale set's `runs-on` label.
-- **Scale set** (`chudcode-kata` release, ns `arc-runners`) - the `AutoscalingRunnerSet`
+- **Scale set** (`omp-kata` release, ns `arc-runners`) - the `AutoscalingRunnerSet`
   plus the pod template; the controller turns assigned jobs into ephemeral runner
   pods here.
 
@@ -96,12 +96,12 @@ helm install arc \
   oci://ghcr.io/actions/actions-runner-controller-charts/gha-runner-scale-set-controller
 ```
 
-**Scale set** (`chudcode-kata`), using the runner cache PVC and values file from step 3:
+**Scale set** (`omp-kata`), using the runner cache PVC and values file from step 3:
 ```bash
-helm install chudcode-kata \
+helm install omp-kata \
   --namespace arc-runners --create-namespace \
   --version 0.14.2 \
-  -f arc-chudcode-values.yaml \
+  -f arc-omp-values.yaml \
   oci://ghcr.io/actions/actions-runner-controller-charts/gha-runner-scale-set
 ```
 
@@ -110,7 +110,7 @@ Confirm both releases and the running controller image:
 ```bash
 helm list -A
 # arc       arc-systems   deployed  gha-runner-scale-set-controller-0.14.2  0.14.2
-# chudcode-kata  arc-runners   deployed  gha-runner-scale-set-0.14.2             0.14.2
+# omp-kata  arc-runners   deployed  gha-runner-scale-set-0.14.2             0.14.2
 
 kubectl -n arc-systems get deploy arc-gha-rs-controller \
   -o jsonpath='{.spec.template.spec.containers[0].image}{"\n"}'
@@ -122,12 +122,12 @@ Within a few seconds the controller spawns the listener in `arc-systems`:
 ```bash
 kubectl -n arc-systems get pods
 # arc-gha-rs-controller-xxxxxxxxxx-xxxxx   1/1   Running
-# chudcode-kata-<hash>-listener                 1/1   Running
+# omp-kata-<hash>-listener                 1/1   Running
 ```
 
 ---
 
-## 3. Scale-set values (`arc-chudcode-values.yaml`)
+## 3. Scale-set values (`arc-omp-values.yaml`)
 
 Create the namespace-local PVC before installing or upgrading the scale set. This
 is the shared mutable filesystem cache for data whose tools already validate
@@ -153,13 +153,13 @@ Apply it once:
 kubectl apply -f runner-cache-pvc.yaml
 ```
 
-This is the live `arc-chudcode-values.yaml` verbatim, with only the repo owner/name in
+This is the live `arc-omp-values.yaml` verbatim, with only the repo owner/name in
 `githubConfigUrl` redacted:
 
 ```yaml
 githubConfigUrl: "https://github.com/<OWNER>/<REPO>"
 githubConfigSecret: arc-github
-runnerScaleSetName: chudcode-kata
+runnerScaleSetName: omp-kata
 minRunners: 0
 maxRunners: 8
 # none: each job runs inside the runner container, which itself lives in a Kata microVM
@@ -173,7 +173,7 @@ template:
       fsGroupChangePolicy: OnRootMismatch
     containers:
       - name: runner
-        image: chudcode-kata-runner:2026-07-27-072222
+        image: omp-kata-runner:2026-07-27-072222
         imagePullPolicy: IfNotPresent
         command: ["/home/runner/run.sh"]
         envFrom:
@@ -219,9 +219,9 @@ template:
 Field by field:
 
 - **`githubConfigUrl`** - the repo (or org) the scale set serves. Jobs reach it
-  with `runs-on: chudcode-kata`.
+  with `runs-on: omp-kata`.
 - **`githubConfigSecret: arc-github`** - the auth secret from [step 1](#1-github-app-and-the-arc-github-secret).
-- **`runnerScaleSetName: chudcode-kata`** - the runner label. This is the string that
+- **`runnerScaleSetName: omp-kata`** - the runner label. This is the string that
   goes in a workflow's `runs-on:`.
 - **`minRunners: 0` / `maxRunners: 8`** - **scale-to-zero**. With no queued jobs
   there are zero runner microVMs. Runner pods are **burstable**: a small
@@ -255,9 +255,12 @@ Field by field:
   to create the PVC subdirectories as root before the runner starts. This avoids
   relying on kubelet's subPath auto-create permissions and does not pull another
   image.
-- **`volumeMounts`** - mounts the shared PVC only at `~/.bun/install/cache` and
-  `~/.cargo/registry`. `node_modules`, Cargo `target/`, and Cargo git checkouts
-  stay inside the throwaway VM filesystem.
+- **`volumeMounts`** - mounts the shared PVC only at `~/.bun/install/cache`,
+  `~/.cargo/registry`, and `/opt/bazel-repo-cache` (Bazel's repository cache,
+  plus the `xwin/` sysroot cache and CI's `ci-natives/` linux-x64 addon stash,
+  which `native_addons` writes content-addressed and prunes after two days).
+  `node_modules`, Cargo `target/`, and Cargo git checkouts stay inside the
+  throwaway VM filesystem.
 - **`volumes[].persistentVolumeClaim.claimName: runner-cache`** - binds those
   mounts to the `arc-runners/runner-cache` PVC. `ReadWriteOnce` is enough on this
   single-node k3s host; use a RWX-capable storage class before spreading runners
@@ -281,7 +284,7 @@ Field by field:
 One job runs in one fresh microVM that is destroyed afterward:
 
 1. The **listener** (ns `arc-systems`) long-polls the GitHub Actions service for
-   jobs whose `runs-on` matches `chudcode-kata`.
+   jobs whose `runs-on` matches `omp-kata`.
 2. When jobs are assigned, the controller reconciles the `AutoscalingRunnerSet`
    and creates an **`EphemeralRunnerSet`** sized to the demand (bounded by
    `minRunners`/`maxRunners`).
@@ -296,7 +299,7 @@ One job runs in one fresh microVM that is destroyed afterward:
 Observe the chain live:
 
 ```bash
-kubectl -n arc-runners get autoscalingrunnerset chudcode-kata
+kubectl -n arc-runners get autoscalingrunnerset omp-kata
 kubectl -n arc-runners get ephemeralrunnerset
 kubectl -n arc-runners get pods -o wide      # one pod per in-flight job; empty when idle
 ```
@@ -307,7 +310,7 @@ a ServiceAccount with no RBAC bindings:
 ```bash
 kubectl -n arc-runners get sa
 # default
-# chudcode-kata-gha-rs-no-permission
+# omp-kata-gha-rs-no-permission
 ```
 
 Job code therefore has no Kubernetes API rights - it cannot read secrets, list
@@ -384,7 +387,7 @@ One endpoint, one auth model — **reads are unauthenticated, writes require the
 
 | Client | Endpoint | Writes |
 | --- | --- | --- |
-| chudcode-kata runner pods (trusted `push`/main + release) | `grpcs://bazel-remote.bazel-cache.svc.cluster.local:9092` | yes - `ci` credentials injected via the `bazel-remote-ci` secret |
+| omp-kata runner pods (trusted `push`/main + release) | `grpcs://bazel-remote.bazel-cache.svc.cluster.local:9092` | yes - `ci` credentials injected via the `bazel-remote-ci` secret |
 | GitHub-hosted runners (PRs, macOS, release) | — never touch this infrastructure; they persist a local `--disk_cache`/`--repository_cache` via `actions/cache` (`.github/actions/bazel-cache`) | n/a |
 
 - **TLS.** The server certificate is signed by a self-signed CA committed at
@@ -398,8 +401,8 @@ One endpoint, one auth model — **reads are unauthenticated, writes require the
     `ci`, mounted at `/auth` (`--allow_unauthenticated_reads` keeps reads open);
   - `arc-runners/bazel-remote-ci` - `BAZEL_REMOTE_USER` / `BAZEL_REMOTE_PASSWORD`,
     injected into every runner pod via `envFrom`
-    ([step 3](#3-scale-set-values-arc-chudcode-valuesyaml); `infra/reload-runner.sh`
-    inserts the `envFrom` entry into `arc-chudcode-values.yaml` idempotently on the
+    ([step 3](#3-scale-set-values-arc-omp-valuesyaml); `infra/reload-runner.sh`
+    inserts the `envFrom` entry into `arc-omp-values.yaml` idempotently on the
     next image reload).
 - **No GitHub secrets.** Nothing outside the cluster holds cache credentials;
   the public repo carries only the CA *certificate*.
@@ -419,7 +422,7 @@ bazel build \
   //:natives-linux-all
 ```
 
-On chudcode-kata the credentials come from the injected pod env
+On omp-kata the credentials come from the injected pod env
 (`bazel-remote-ci` secret) and `.github/actions/bazel-cache` composes the rc
 fragment. GitHub-hosted jobs get the disk-cache branch of the same action —
 no remote endpoint, no credentials, no infrastructure knowledge. The bridge
@@ -429,7 +432,7 @@ GitHub Actions cache (once per lockfile change, `linux` scope). GitHub only
 shares caches from the default branch across pull requests, so this export
 is what keeps PR builds warm; kata jobs otherwise skip artifact downloads
 entirely (`--remote_download_toplevel`), and the xwin MSVC splat persists on
-the runner-cache PVC (`CHUDCODE_XWIN_CACHE_DIR`).
+the runner-cache PVC (`OMP_XWIN_CACHE_DIR`).
 
 **(b) Cargo registry cache** - the scale-set pod template mounts only the
 immutable download cache and sparse index at
@@ -439,7 +442,7 @@ job-local; virtio-fs does not propagate Cargo's file locks safely across VMs.
 
 **(c) Bun package store** -
 [`.github/actions/bun-install`](../../.github/actions/bun-install/action.yml)
-wraps `bun install --frozen-lockfile`. On chudcode-kata, the pod template mounts
+wraps `bun install --frozen-lockfile`. On omp-kata, the pod template mounts
 `runner-cache:/bun-store` at Bun's default store path
 (`/home/runner/.bun/install/cache`), so the action only ensures the directory
 exists before running Bun. Off-infra it still uses stock `actions/cache@v4` for
@@ -457,7 +460,7 @@ credentials**, so the poisoning surface is exactly the set of jobs holding those
 credentials. The primary defense is to keep untrusted code away from them:
 
 - `ci.yml` routes every pull-request job to GitHub-hosted runners
-  (`runs-on` resolves to `chudcode-kata` only for `push`/main, manual dispatch, and
+  (`runs-on` resolves to `omp-kata` only for `push`/main, manual dispatch, and
   release). That expression lives in the base workflow, which GitHub uses
   verbatim for `pull_request` events, so a fork cannot override it. PR jobs
   never talk to the cluster at all — they build against a local
@@ -476,7 +479,7 @@ Pressure is mostly self-managing:
 - `bazel-cache/bazel-remote-data` - bazel-remote evicts LRU at `--max_size 90`
   GiB on its own; watch `CurrSize` on `/status` and grow the PVC/flag together
   if hit rates drop.
-- `arc-runners/runner-cache` - coarse manual cleanup: scale `chudcode-kata` to zero,
+- `arc-runners/runner-cache` - coarse manual cleanup: scale `omp-kata` to zero,
   delete `bun-store/` or `cargo-registry/` from the bound local-path volume,
   let the next jobs repopulate it.
 
@@ -492,7 +495,7 @@ kubectl -n arc-runners delete secret sccache-s3
 kubectl delete namespace sccache        # removes RustFS and the rustfs-data PVC
 # then: drop the sccache tcp/9000 rule from runner-egress-lockdown, and remove
 # the sccache-s3 envFrom entry, the native-artifacts subPath mount, and
-# CHUDCODE_NATIVE_CACHE_DIR from arc-chudcode-values.yaml (+ helm upgrade).
+# OMP_NATIVE_CACHE_DIR from arc-omp-values.yaml (+ helm upgrade).
 ```
 
 ---
@@ -608,7 +611,7 @@ Egress that survives rule 2 leaves the node via the host's firewalld masquerade
 - **Kernel isolation.** Each job runs in a Kata microVM with its own guest kernel
   (6.x), separate from the host kernel (7.0.x) - a kernel exploit hits a throwaway
   VM, not the host. See [02-kata-runtime.md](02-kata-runtime.md).
-- **No cluster rights.** Jobs run under `chudcode-kata-gha-rs-no-permission` with no
+- **No cluster rights.** Jobs run under `omp-kata-gha-rs-no-permission` with no
   RBAC ([step 4](#4-job-lifecycle-and-the-no-permission-serviceaccount)).
 - **Constrained network.** The policy above blocks the host, LAN, tailnet, and
   arbitrary cluster pods; only DNS, the public internet, and the shared caches
@@ -631,7 +634,7 @@ export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
 **Status / scale**
 
 ```bash
-kubectl -n arc-runners get autoscalingrunnerset chudcode-kata   # min/max/current runners
+kubectl -n arc-runners get autoscalingrunnerset omp-kata   # min/max/current runners
 kubectl -n arc-runners get ephemeralrunnerset              # desired vs current replicas
 kubectl -n arc-runners get pods -o wide                    # live runner VMs (empty when idle)
 ```
@@ -647,21 +650,21 @@ kubectl -n arc-systems logs deploy/arc-gha-rs-controller -f
 kubectl -n arc-runners logs <runner-pod>
 ```
 
-**Verify the caches are being used.** A warm Bazel build on chudcode-kata logs
+**Verify the caches are being used.** A warm Bazel build on omp-kata logs
 `remote cache hit` counts in its build summary; `curl -sk https://<pod-ip>:8080/status`
 shows `CurrSize`/`NumFiles` growing ([5a](#5a-deploy-bazel-remote)). A warm job
 also logs `bun cache backend: mounted PVC (...)`. To inspect the mounted
 runner cache, scale to zero and check the `runner-cache` local-path volume on
 the host.
 
-**Resize a job's VM** - edit the `resources` block in `arc-chudcode-values.yaml`
-([step 3](#3-scale-set-values-arc-chudcode-valuesyaml); requests = guaranteed VM size,
+**Resize a job's VM** - edit the `resources` block in `arc-omp-values.yaml`
+([step 3](#3-scale-set-values-arc-omp-valuesyaml); requests = guaranteed VM size,
 limits = hotplug ceiling) and roll out:
 
 ```bash
-helm upgrade chudcode-kata \
+helm upgrade omp-kata \
   --namespace arc-runners --version 0.14.2 \
-  -f arc-chudcode-values.yaml \
+  -f arc-omp-values.yaml \
   oci://ghcr.io/actions/actions-runner-controller-charts/gha-runner-scale-set
 ```
 
@@ -673,7 +676,7 @@ budget: each runner can hotplug up to its `limits`.)
 tag, then `helm upgrade` as above; confirm with:
 
 ```bash
-kubectl -n arc-runners get autoscalingrunnerset chudcode-kata \
+kubectl -n arc-runners get autoscalingrunnerset omp-kata \
   -o jsonpath='{.spec.template.spec.containers[0].image}{"\n"}'
 ```
 
@@ -690,18 +693,18 @@ helm install <release> \
   --set githubConfigUrl=https://github.com/<OWNER>/<OTHER_REPO> \
   --set githubConfigSecret=arc-github \
   --set runnerScaleSetName=<other-repo>-kata \
-  -f arc-chudcode-values.yaml \
+  -f arc-omp-values.yaml \
   oci://ghcr.io/actions/actions-runner-controller-charts/gha-runner-scale-set
 ```
 
 Jobs in the other repo then target `runs-on: <other-repo>-kata`. (On this host a
-convenience wrapper, `chudcode-add-repo-runner <OWNER>/<REPO> [label]`, performs exactly
+convenience wrapper, `omp-add-repo-runner <OWNER>/<REPO> [label]`, performs exactly
 this install.)
 
 **Uninstall** (leaves k3s/Kata in place):
 
 ```bash
-helm uninstall chudcode-kata -n arc-runners
+helm uninstall omp-kata -n arc-runners
 helm uninstall arc -n arc-systems
 ```
 

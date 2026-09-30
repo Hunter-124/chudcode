@@ -2,10 +2,10 @@ import { afterEach, describe, expect, it } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import { Settings } from "@chudware/coding-agent/config/settings";
-import type { ToolSession } from "@chudware/coding-agent/tools";
-import { BinaryInspectTool } from "@chudware/coding-agent/tools/binary-inspect";
-import { CppRuntimeTool } from "@chudware/coding-agent/tools/cpp-runtime";
+import { Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
+import type { ToolSession } from "@oh-my-pi/pi-coding-agent/tools";
+import { BinaryInspectTool } from "@oh-my-pi/pi-coding-agent/tools/binary-inspect";
+import { CppRuntimeTool } from "@oh-my-pi/pi-coding-agent/tools/cpp-runtime";
 
 const temporaryDirectories: string[] = [];
 const hasSanitizerToolchain = Boolean(Bun.which("clang") && Bun.which("cmake") && Bun.which("addr2line"));

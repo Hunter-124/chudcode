@@ -1,5 +1,5 @@
-// @ts-nocheck — example file; install @chudware/coding-agent before running
-import type { ExtensionAPI } from "@chudware/coding-agent";
+// @ts-nocheck — example file; install @oh-my-pi/pi-coding-agent before running
+import type { ExtensionAPI } from "@oh-my-pi/pi-coding-agent";
 
 /**
  * Safety hook: blocks any bash tool call that contains "rm -rf /".
@@ -10,8 +10,8 @@ import type { ExtensionAPI } from "@chudware/coding-agent";
  * The `reason` string is returned to the LLM as the tool error text so the
  * agent understands why execution was prevented.
  */
-export default function safetyHook(chud: ExtensionAPI) {
-  chud.on("tool_call", async (event) => {
+export default function safetyHook(pi: ExtensionAPI) {
+  pi.on("tool_call", async (event) => {
     if (event.toolName !== "bash") return;
 
     const command = String((event.input as { command?: unknown }).command ?? "");

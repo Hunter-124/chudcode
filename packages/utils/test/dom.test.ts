@@ -2,14 +2,13 @@ import { afterEach, describe, expect, test } from "bun:test";
 import { act, createElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { type DOMWindow, parseHTML } from "../src/dom";
-import * as fsx from "../src/fsx";
 
 const fixtureDirectory = new URL("./fixtures/dom/", import.meta.url);
 const originalGlobals = new Map<string, PropertyDescriptor | undefined>();
 let reactRoot: Root | null = null;
 
 async function fixture(name: string): Promise<string> {
-	return fsx.readText(new URL(name, fixtureDirectory));
+	return Bun.file(new URL(name, fixtureDirectory)).text();
 }
 
 function text(element: { textContent: string | null } | null): string | null {
@@ -49,9 +48,7 @@ afterEach(async () => {
 
 describe("DOM scraper compatibility", () => {
 	test("matches linkedom golden extraction across real scraper pipelines", async () => {
-		// The golden fixture is compared structurally against the freshly scraped
-		// shape, so it is loaded untyped on purpose.
-		const golden = await fsx.readJson<never>(new URL("golden.json", fixtureDirectory));
+		const golden = await Bun.file(new URL("golden.json", fixtureDirectory)).json();
 		const searchDoc = parseHTML(await fixture("search-results.html")).document;
 		const search = {
 			ecosia: searchDoc.querySelectorAll('article[data-test-id="organic-result"]').map(article => ({

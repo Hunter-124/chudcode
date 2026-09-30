@@ -3,7 +3,6 @@ import { Buffer } from "node:buffer";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import * as fsx from "@chudware/utils/fsx";
 import { __resetVertexTokenCache, getVertexAccessToken } from "../../src/providers/google-auth";
 import type { FetchImpl } from "../../src/types";
 
@@ -38,20 +37,20 @@ describe("getVertexAccessToken impersonated_service_account ADC", () => {
 
 	beforeEach(async () => {
 		__resetVertexTokenCache();
-		originalGac = process.env.GOOGLE_APPLICATION_CREDENTIALS;
-		tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "chudcode-vertex-adc-"));
+		originalGac = Bun.env.GOOGLE_APPLICATION_CREDENTIALS;
+		tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "omp-vertex-adc-"));
 	});
 
 	afterEach(async () => {
 		__resetVertexTokenCache();
-		if (originalGac === undefined) delete process.env.GOOGLE_APPLICATION_CREDENTIALS;
-		else process.env.GOOGLE_APPLICATION_CREDENTIALS = originalGac;
+		if (originalGac === undefined) delete Bun.env.GOOGLE_APPLICATION_CREDENTIALS;
+		else Bun.env.GOOGLE_APPLICATION_CREDENTIALS = originalGac;
 		await fs.rm(tmpDir, { recursive: true, force: true });
 	});
 
 	it("rejects a malformed service_account_impersonation_url before any network call", async () => {
 		const adcPath = path.join(tmpDir, "impersonated-bad-url.json");
-		await fsx.write(
+		await Bun.write(
 			adcPath,
 			JSON.stringify({
 				type: "impersonated_service_account",
@@ -66,7 +65,7 @@ describe("getVertexAccessToken impersonated_service_account ADC", () => {
 				},
 			}),
 		);
-		process.env.GOOGLE_APPLICATION_CREDENTIALS = adcPath;
+		Bun.env.GOOGLE_APPLICATION_CREDENTIALS = adcPath;
 
 		const calls: string[] = [];
 		const fetchImpl: FetchImpl = async input => {
@@ -83,7 +82,7 @@ describe("getVertexAccessToken impersonated_service_account ADC", () => {
 	it("signs an RS256 JWT for a service_account source and reconstructs the IAM URL", async () => {
 		const pem = await generateServiceAccountPem();
 		const adcPath = path.join(tmpDir, "impersonated-sa.json");
-		await fsx.write(
+		await Bun.write(
 			adcPath,
 			JSON.stringify({
 				type: "impersonated_service_account",
@@ -99,7 +98,7 @@ describe("getVertexAccessToken impersonated_service_account ADC", () => {
 				// delegates intentionally omitted — the IAM body must default to [].
 			}),
 		);
-		process.env.GOOGLE_APPLICATION_CREDENTIALS = adcPath;
+		Bun.env.GOOGLE_APPLICATION_CREDENTIALS = adcPath;
 
 		const calls: { url: string; init?: RequestInit }[] = [];
 		const fetchImpl: FetchImpl = async (input, init) => {

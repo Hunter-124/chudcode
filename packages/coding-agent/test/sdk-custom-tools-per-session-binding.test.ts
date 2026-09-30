@@ -16,15 +16,15 @@ import { afterAll, beforeAll, describe, expect, it } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import { type CustomToolAPI, loadCustomTools } from "@chudware/coding-agent/extensibility/custom-tools";
-import { removeWithRetries } from "@chudware/utils";
+import { type CustomToolAPI, loadCustomTools } from "@oh-my-pi/pi-coding-agent/extensibility/custom-tools";
+import { removeWithRetries } from "@oh-my-pi/pi-utils";
 
 describe("loadCustomTools per-session binding (#2190 review fix)", () => {
 	let tmp: string;
 	let toolPath: string;
 
 	beforeAll(async () => {
-		tmp = await fs.mkdtemp(path.join(os.tmpdir(), "chud-custom-tool-binding-"));
+		tmp = await fs.mkdtemp(path.join(os.tmpdir(), "pi-custom-tool-binding-"));
 		toolPath = path.join(tmp, "echo-cwd.ts");
 		// Factory exposes the API it was bound to so the test can inspect it.
 		await fs.writeFile(

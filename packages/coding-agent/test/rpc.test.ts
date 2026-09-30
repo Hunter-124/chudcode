@@ -2,18 +2,17 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
-import type { AgentEvent, AgentMessage } from "@chudware/agent-core";
-import { type AssistantMessage, Effort, type TextContent } from "@chudware/ai";
+import type { AgentEvent, AgentMessage } from "@oh-my-pi/pi-agent-core";
+import { type AssistantMessage, Effort, type TextContent } from "@oh-my-pi/pi-ai";
 import {
 	type CompactionEntry,
 	type FileEntry,
 	parseSessionEntries,
 	type SessionMessageEntry,
-} from "@chudware/coding-agent";
-import { RpcClient } from "@chudware/coding-agent/modes/rpc/rpc-client";
-import type { BashExecutionMessage } from "@chudware/coding-agent/session/messages";
-import { removeSyncWithRetries, Snowflake } from "@chudware/utils";
-import * as fsx from "@chudware/utils/fsx";
+} from "@oh-my-pi/pi-coding-agent";
+import { RpcClient } from "@oh-my-pi/pi-coding-agent/modes/rpc/rpc-client";
+import type { BashExecutionMessage } from "@oh-my-pi/pi-coding-agent/session/messages";
+import { removeSyncWithRetries, Snowflake } from "@oh-my-pi/pi-utils";
 import { e2eApiKey } from "./utilities";
 
 type MessageEndEvent = Extract<AgentEvent, { type: "message_end" }>;
@@ -34,11 +33,11 @@ describe.skipIf(!e2eApiKey("ANTHROPIC_API_KEY"))("RPC mode", () => {
 	let sessionDir: string;
 
 	beforeEach(() => {
-		sessionDir = path.join(os.tmpdir(), `chudcode-rpc-test-${Snowflake.next()}`);
+		sessionDir = path.join(os.tmpdir(), `omp-rpc-test-${Snowflake.next()}`);
 		client = new RpcClient({
 			cliPath: path.join(import.meta.dir, "..", "dist", "cli.js"),
 			cwd: path.join(import.meta.dir, ".."),
-			env: { CHUDCODE_CODING_AGENT_DIR: sessionDir },
+			env: { PI_CODING_AGENT_DIR: sessionDir },
 			provider: "anthropic",
 			model: "claude-sonnet-4-5",
 		});
@@ -104,7 +103,7 @@ describe.skipIf(!e2eApiKey("ANTHROPIC_API_KEY"))("RPC mode", () => {
 		const sessionFiles = fs.readdirSync(cwdSessionDir).filter(f => f.endsWith(".jsonl"));
 		expect(sessionFiles.length).toBe(1);
 
-		const sessionContent = await fsx.readText(path.join(cwdSessionDir, sessionFiles[0]));
+		const sessionContent = await Bun.file(path.join(cwdSessionDir, sessionFiles[0])).text();
 		const entries = parseSessionEntries(sessionContent);
 
 		// First entry should be session header
@@ -137,7 +136,7 @@ describe.skipIf(!e2eApiKey("ANTHROPIC_API_KEY"))("RPC mode", () => {
 		const sessionDirs = fs.readdirSync(sessionsPath);
 		const cwdSessionDir = path.join(sessionsPath, sessionDirs[0]);
 		const sessionFiles = fs.readdirSync(cwdSessionDir).filter(f => f.endsWith(".jsonl"));
-		const sessionContent = await fsx.readText(path.join(cwdSessionDir, sessionFiles[0]));
+		const sessionContent = await Bun.file(path.join(cwdSessionDir, sessionFiles[0])).text();
 		const entries = parseSessionEntries(sessionContent);
 
 		const compactionEntries = entries.filter(isCompactionEntry);
@@ -171,7 +170,7 @@ describe.skipIf(!e2eApiKey("ANTHROPIC_API_KEY"))("RPC mode", () => {
 		const sessionDirs = fs.readdirSync(sessionsPath);
 		const cwdSessionDir = path.join(sessionsPath, sessionDirs[0]);
 		const sessionFiles = fs.readdirSync(cwdSessionDir).filter(f => f.endsWith(".jsonl"));
-		const sessionContent = await fsx.readText(path.join(cwdSessionDir, sessionFiles[0]));
+		const sessionContent = await Bun.file(path.join(cwdSessionDir, sessionFiles[0])).text();
 		const entries = parseSessionEntries(sessionContent);
 
 		const bashMessages = entries.filter(
@@ -319,13 +318,13 @@ describe("RPC fast mode with unsupported Fireworks model and priority tier", () 
 	let sessionDir: string;
 
 	beforeEach(async () => {
-		sessionDir = path.join(os.tmpdir(), `chudcode-rpc-fast-mode-test-${Snowflake.next()}`);
-		await fsx.write(path.join(sessionDir, "config.yml"), ["providers:", "  fireworksTier: priority", ""].join("\n"));
+		sessionDir = path.join(os.tmpdir(), `omp-rpc-fast-mode-test-${Snowflake.next()}`);
+		await Bun.write(path.join(sessionDir, "config.yml"), ["providers:", "  fireworksTier: priority", ""].join("\n"));
 		client = new RpcClient({
 			cliPath: path.join(import.meta.dir, "..", "src", "cli.ts"),
 			cwd: path.join(import.meta.dir, ".."),
 			env: {
-				CHUDCODE_CODING_AGENT_DIR: sessionDir,
+				PI_CODING_AGENT_DIR: sessionDir,
 				FIREWORKS_API_KEY: "test-fireworks-key",
 			},
 			provider: "fireworks",

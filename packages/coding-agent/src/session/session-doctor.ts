@@ -1,16 +1,16 @@
 import { constants as fsConstants, readFileSync } from "node:fs";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
-import type { AgentMessage } from "@chudware/agent-core";
-import * as snapcompact from "@chudware/snapcompact";
-import { getBlobsDir, isRecord, stringifyJson } from "@chudware/utils";
+import type { AgentMessage } from "@oh-my-pi/pi-agent-core";
+import * as snapcompact from "@oh-my-pi/snapcompact";
+import { getBlobsDir, isRecord, stringifyJson } from "@oh-my-pi/pi-utils";
 import { BlobStore, isBlobRef, parseBlobRef } from "./blob-store";
 import { CURRENT_SESSION_VERSION, type FileEntry, type SessionEntry, type SessionHeader } from "./session-entries";
 import { parseSessionContent, resolveBlobRefsInEntries } from "./session-loader";
 import { migrateToCurrentVersion } from "./session-migrations";
 import { isPersistenceTruncatedString, prepareEntryForPersistence } from "./session-persistence";
 import { FileSessionStorage, type SessionStorage } from "./session-storage";
-import { type SessionTitleUpdate, serializeTitleSlot } from "./session-title-slot";
+import { serializeTitleSlot } from "./session-title-slot";
 
 export type SessionDoctorFindingCode =
 	| "malformed_jsonl"
@@ -26,7 +26,6 @@ export type SessionDoctorFindingCode =
 	| "missing_blob"
 	| "invalid_compaction"
 	| "truncated_compaction_image";
-
 export interface SessionDoctorFinding {
 	code: SessionDoctorFindingCode;
 	message: string;
@@ -34,22 +33,6 @@ export interface SessionDoctorFinding {
 	entryId?: string;
 	path?: string;
 }
-
-export interface SessionDoctorCounts {
-	malformedRecords: number;
-	malformedEntries: number;
-	duplicateEntryIds: number;
-	orphanedEntries: number;
-	malformedToolCalls: number;
-	orphanedToolCalls: number;
-	orphanedToolResults: number;
-	malformedImages: number;
-	malformedBlobRefs: number;
-	missingBlobs: number;
-	invalidCompactions: number;
-	truncatedCompactionImages: number;
-}
-
 export interface SessionDoctorSummary {
 	version: 1;
 	mode: "dry-run" | "repair";
@@ -61,424 +44,135 @@ export interface SessionDoctorSummary {
 	findingCount: number;
 	repairableFindingCount: number;
 	remainingFindingCount: number;
-	counts: SessionDoctorCounts;
+	counts: Record<
+		| "malformedRecords"
+		| "malformedEntries"
+		| "duplicateEntryIds"
+		| "orphanedEntries"
+		| "malformedToolCalls"
+		| "orphanedToolCalls"
+		| "orphanedToolResults"
+		| "malformedImages"
+		| "malformedBlobRefs"
+		| "missingBlobs"
+		| "invalidCompactions"
+		| "truncatedCompactionImages",
+		number
+	>;
 	findings: SessionDoctorFinding[];
 }
-
 export interface SessionDoctorOptions {
 	repair?: boolean;
 	storage?: SessionStorage;
 	blobStore?: BlobStore;
 }
-
-type ToolCallLocation = { entry: SessionEntry; blockIndex: number; id: string; malformed: boolean };
-type ToolResultLocation = { entry: SessionEntry; toolCallId: string };
-
-function isSessionHeader(value: unknown): value is SessionHeader {
-	return isRecord(value) && value.type === "session" && typeof value.id === "string" && value.id.length > 0;
+const codes: Record<SessionDoctorFindingCode, keyof SessionDoctorSummary["counts"] | null> = {
+	malformed_jsonl: "malformedRecords",
+	invalid_header: null,
+	malformed_entry: "malformedEntries",
+	duplicate_entry_id: "duplicateEntryIds",
+	orphaned_entry: "orphanedEntries",
+	malformed_tool_call: "malformedToolCalls",
+	orphaned_tool_call: "orphanedToolCalls",
+	orphaned_tool_result: "orphanedToolResults",
+	malformed_image: "malformedImages",
+	malformed_blob_ref: "malformedBlobRefs",
+	missing_blob: "missingBlobs",
+	invalid_compaction: "invalidCompactions",
+	truncated_compaction_image: "truncatedCompactionImages",
+};
+function isHeader(entry: unknown): entry is SessionHeader {
+	return isRecord(entry) && entry.type === "session" && typeof entry.id === "string" && entry.id.length > 0;
 }
-
-function isSessionEntry(value: unknown): value is SessionEntry {
+function validEntry(entry: unknown, legacy: boolean): entry is SessionEntry {
 	return (
-		isRecord(value) &&
-		typeof value.type === "string" &&
-		value.type !== "session" &&
-		typeof value.id === "string" &&
-		value.id.length > 0 &&
-		(value.parentId === null || typeof value.parentId === "string") &&
-		typeof value.timestamp === "string"
+		isRecord(entry) &&
+		typeof entry.type === "string" &&
+		entry.type !== "session" &&
+		typeof entry.timestamp === "string" &&
+		(legacy ||
+			(typeof entry.id === "string" &&
+				entry.id.length > 0 &&
+				(entry.parentId === null || typeof entry.parentId === "string")))
 	);
 }
-
-function isLegacySessionEntry(value: unknown): boolean {
-	return (
-		isRecord(value) &&
-		typeof value.type === "string" &&
-		value.type !== "session" &&
-		typeof value.timestamp === "string"
-	);
-}
-
-function finding(
-	findings: SessionDoctorFinding[],
-	code: SessionDoctorFindingCode,
-	message: string,
-	repairable: boolean,
-	entryId?: string,
-	findingPath?: string,
-): void {
-	findings.push({
-		code,
-		message,
-		repairable,
-		...(entryId ? { entryId } : {}),
-		...(findingPath ? { path: findingPath } : {}),
-	});
-}
-
-function messageOf(entry: SessionEntry): AgentMessage | undefined {
-	if (entry.type !== "message" || !isRecord(entry.message) || typeof entry.message.role !== "string") return undefined;
-	return entry.message as AgentMessage;
-}
-
-function toolCallsOf(entry: SessionEntry): ToolCallLocation[] {
-	const message = messageOf(entry);
-	if (message?.role !== "assistant" || !Array.isArray(message.content)) return [];
-	const calls: ToolCallLocation[] = [];
-	for (let blockIndex = 0; blockIndex < message.content.length; blockIndex++) {
-		const block = message.content[blockIndex];
-		if (!isRecord(block) || block.type !== "toolCall") continue;
-		const id = typeof block.id === "string" ? block.id : "";
-		const name = typeof block.name === "string" ? block.name : "";
-		calls.push({ entry, blockIndex, id, malformed: id.trim().length === 0 || name.trim().length === 0 });
-	}
-	return calls;
-}
-
-function toolResultOf(entry: SessionEntry): ToolResultLocation | undefined {
-	const message = messageOf(entry);
-	if (message?.role !== "toolResult") return undefined;
-	return {
-		entry,
-		toolCallId: typeof message.toolCallId === "string" ? message.toolCallId : "",
-	};
-}
-
-function ancestorsOf(entry: SessionEntry, byId: ReadonlyMap<string, SessionEntry>): SessionEntry[] {
-	const ancestors: SessionEntry[] = [];
-	const seen = new Set<string>();
-	let parentId = entry.parentId;
-	while (parentId && !seen.has(parentId)) {
-		seen.add(parentId);
-		const parent = byId.get(parentId);
+function ancestors(entry: SessionEntry, byId: ReadonlyMap<string, SessionEntry>): SessionEntry[] {
+	const chain: SessionEntry[] = [];
+	const visited = new Set<string>();
+	let id = entry.parentId;
+	while (id && !visited.has(id)) {
+		visited.add(id);
+		const parent = byId.get(id);
 		if (!parent) break;
-		ancestors.push(parent);
-		parentId = parent.parentId;
+		chain.push(parent);
+		id = parent.parentId;
 	}
-	return ancestors;
+	return chain;
 }
-
-function inspectToolPairing(
-	entries: readonly SessionEntry[],
-	byId: ReadonlyMap<string, SessionEntry>,
-	findings: SessionDoctorFinding[],
-): { dangling: Set<string>; malformed: Set<string>; malformedResultEntries: Set<string> } {
-	const calls = entries.flatMap(toolCallsOf);
-	const callKey = (call: ToolCallLocation): string => `${call.entry.id}:${call.blockIndex}`;
-	const pairedCalls = new Set<string>();
-	const pairedResultsByCall = new Map<string, SessionEntry[]>();
-	const malformed = new Set<string>();
-	const malformedResultEntries = new Set<string>();
-
-	for (const call of calls) {
-		if (!call.malformed) continue;
-		malformed.add(callKey(call));
-		finding(
-			findings,
-			"malformed_tool_call",
-			"Tool call has an empty or whitespace-only id or name.",
-			true,
-			call.entry.id,
-			`message.content[${call.blockIndex}]`,
-		);
-	}
-
-	for (const entry of entries) {
-		const result = toolResultOf(entry);
-		if (!result) continue;
-		let matched: ToolCallLocation | undefined;
-		const resultAncestors = ancestorsOf(entry, byId);
-		const resultAncestorIds = new Set(resultAncestors.map(ancestor => ancestor.id));
-		for (const ancestor of resultAncestors) {
-			const candidates = toolCallsOf(ancestor).filter(call => call.id === result.toolCallId);
-			for (const candidate of candidates) {
-				const priorResults = pairedResultsByCall.get(callKey(candidate)) ?? [];
-				const alreadyPairedOnBranch = priorResults.some(prior => {
-					if (resultAncestorIds.has(prior.id)) return true;
-					return ancestorsOf(prior, byId).some(priorAncestor => priorAncestor.id === entry.id);
-				});
-				if (!alreadyPairedOnBranch) {
-					matched = candidate;
-					break;
-				}
-			}
-			if (matched || candidates.length > 0) break;
-		}
-		if (!matched) {
-			finding(
-				findings,
-				"orphaned_tool_result",
-				"Tool result has no matching tool call on its persisted branch.",
-				false,
-				entry.id,
-				"message.toolCallId",
-			);
-			continue;
-		}
-		const matchedKey = callKey(matched);
-		pairedCalls.add(matchedKey);
-		const pairedResults = pairedResultsByCall.get(matchedKey);
-		if (pairedResults) pairedResults.push(entry);
-		else pairedResultsByCall.set(matchedKey, [entry]);
-		if (matched.malformed) {
-			malformedResultEntries.add(entry.id);
-			finding(
-				findings,
-				"orphaned_tool_result",
-				"Tool result is paired only with a malformed tool call and cannot remain on the provider wire.",
-				true,
-				entry.id,
-				"message.toolCallId",
-			);
-		}
-	}
-
-	const dangling = new Set<string>();
-	for (const call of calls) {
-		const key = callKey(call);
-		if (call.malformed || pairedCalls.has(key)) continue;
-		dangling.add(key);
-		finding(
-			findings,
-			"orphaned_tool_call",
-			"Tool call has no matching tool result on any persisted branch.",
-			true,
-			call.entry.id,
-			`message.content[${call.blockIndex}]`,
-		);
-	}
-	return { dangling, malformed, malformedResultEntries };
+function message(entry: SessionEntry): AgentMessage | undefined {
+	return entry.type === "message" && isRecord(entry.message) && typeof entry.message.role === "string"
+		? (entry.message as AgentMessage)
+		: undefined;
 }
-
-interface ImageInspectionState {
-	blobRefs: Array<{ ref: string; entryId: string; path: string }>;
+function calls(entry: SessionEntry): Array<{ index: number; id: string; malformed: boolean }> {
+	const value = message(entry);
+	if (value?.role !== "assistant" || !Array.isArray(value.content)) return [];
+	return value.content.flatMap((block, index) =>
+		isRecord(block) && block.type === "toolCall"
+			? [
+					{
+						index,
+						id: typeof block.id === "string" ? block.id : "",
+						malformed: !String(block.id ?? "").trim() || !String(block.name ?? "").trim(),
+					},
+				]
+			: [],
+	);
 }
-
-function inspectImages(
-	value: unknown,
-	entryId: string,
-	valuePath: string,
-	findings: SessionDoctorFinding[],
-	state: ImageInspectionState,
-): void {
-	if (Array.isArray(value)) {
-		for (let index = 0; index < value.length; index++) {
-			inspectImages(value[index], entryId, `${valuePath}[${index}]`, findings, state);
-		}
-		return;
-	}
-	if (!isRecord(value)) return;
-
-	if (value.type === "image") {
-		if (typeof value.data !== "string" || value.data.length === 0) {
-			finding(findings, "malformed_image", "Image block has no non-empty string data.", false, entryId, valuePath);
-		} else if (isPersistenceTruncatedString(value.data)) {
-			finding(
-				findings,
-				"malformed_image",
-				"Image data was truncated by an older persistence writer.",
-				true,
-				entryId,
-				`${valuePath}.data`,
-			);
-		}
-	}
-
-	const blobCandidates: Array<readonly [string, unknown]> = [];
-	if ("data" in value && (value.type === "image" || /\.frames\[\d+\]$/.test(valuePath))) {
-		blobCandidates.push([`${valuePath}.data`, value.data]);
-	}
-	if ("image_url" in value) blobCandidates.push([`${valuePath}.image_url`, value.image_url]);
-	if (value.type === "image_generation_call" && "result" in value) {
-		blobCandidates.push([`${valuePath}.result`, value.result]);
-	}
-	for (const [candidatePath, candidate] of blobCandidates) {
-		if (typeof candidate !== "string" || !isBlobRef(candidate)) continue;
-		if (!parseBlobRef(candidate)) {
-			finding(
-				findings,
-				"malformed_blob_ref",
-				"Blob reference is not a canonical SHA-256 reference.",
-				true,
-				entryId,
-				candidatePath,
-			);
-			continue;
-		}
-		state.blobRefs.push({ ref: candidate, entryId, path: candidatePath });
-	}
-
-	for (const [key, child] of Object.entries(value)) {
-		inspectImages(child, entryId, valuePath ? `${valuePath}.${key}` : key, findings, state);
-	}
-}
-
-function inspectCompactions(
-	entries: readonly SessionEntry[],
-	byId: ReadonlyMap<string, SessionEntry>,
-	findings: SessionDoctorFinding[],
-): void {
-	for (const entry of entries) {
-		if (entry.type !== "compaction") continue;
-		if (typeof entry.summary !== "string" || typeof entry.firstKeptEntryId !== "string") {
-			finding(
-				findings,
-				"invalid_compaction",
-				"Compaction record is missing its summary or first-kept entry id.",
-				false,
-				entry.id,
-			);
-			continue;
-		}
-		const ancestorIds = new Set(ancestorsOf(entry, byId).map(ancestor => ancestor.id));
-		if (!byId.has(entry.firstKeptEntryId) || !ancestorIds.has(entry.firstKeptEntryId)) {
-			finding(
-				findings,
-				"invalid_compaction",
-				"Compaction first-kept entry is missing or is not an ancestor.",
-				false,
-				entry.id,
-				"firstKeptEntryId",
-			);
-		}
-		if (
-			entry.providerReplayThroughEntryId !== undefined &&
-			(!byId.has(entry.providerReplayThroughEntryId) || !ancestorIds.has(entry.providerReplayThroughEntryId))
-		) {
-			finding(
-				findings,
-				"invalid_compaction",
-				"Compaction provider replay boundary is missing or is not an ancestor.",
-				false,
-				entry.id,
-				"providerReplayThroughEntryId",
-			);
-		}
-		const archive = snapcompact.getPreservedArchive(entry.preserveData);
-		if (!archive) continue;
-		for (let index = 0; index < archive.frames.length; index++) {
-			if (!isPersistenceTruncatedString(archive.frames[index]?.data)) continue;
-			finding(
-				findings,
-				"truncated_compaction_image",
-				"Compaction frame contains persistence-truncated image data.",
-				true,
-				entry.id,
-				`preserveData.${snapcompact.PRESERVE_KEY}.frames[${index}].data`,
-			);
-		}
-	}
-}
-
-function countFindings(findings: readonly SessionDoctorFinding[]): SessionDoctorCounts {
-	const count = (code: SessionDoctorFindingCode): number => findings.filter(item => item.code === code).length;
-	return {
-		malformedRecords: count("malformed_jsonl"),
-		malformedEntries: count("malformed_entry"),
-		duplicateEntryIds: count("duplicate_entry_id"),
-		orphanedEntries: count("orphaned_entry"),
-		malformedToolCalls: count("malformed_tool_call"),
-		orphanedToolCalls: count("orphaned_tool_call"),
-		orphanedToolResults: count("orphaned_tool_result"),
-		malformedImages: count("malformed_image"),
-		malformedBlobRefs: count("malformed_blob_ref"),
-		missingBlobs: count("missing_blob"),
-		invalidCompactions: count("invalid_compaction"),
-		truncatedCompactionImages: count("truncated_compaction_image"),
-	};
-}
-
-function stripUnsafeToolCalls(
+function stripUnsafeCalls(
 	entries: SessionEntry[],
-	unsafeKeys: ReadonlySet<string>,
-	malformedResultEntries: ReadonlySet<string>,
+	unsafe: ReadonlySet<string>,
+	invalidResults: ReadonlySet<string>,
 ): boolean {
 	let changed = false;
+	const removed = new Map<string, string | null>();
 	const retained: SessionEntry[] = [];
-	const removedIds = new Set<string>();
 	for (const entry of entries) {
-		if (malformedResultEntries.has(entry.id)) {
-			removedIds.add(entry.id);
+		if (invalidResults.has(entry.id)) {
+			removed.set(entry.id, entry.parentId);
 			changed = true;
 			continue;
 		}
-		const message = messageOf(entry);
-		if (entry.type !== "message" || message?.role !== "assistant" || !Array.isArray(message.content)) {
-			retained.push(entry);
-			continue;
+		const value = message(entry);
+		if (entry.type === "message" && value?.role === "assistant" && Array.isArray(value.content)) {
+			const content = value.content.filter((block, index) => !unsafe.has(`${entry.id}:${index}`));
+			if (content.length !== value.content.length) {
+				changed = true;
+				if (!content.length) {
+					removed.set(entry.id, entry.parentId);
+					continue;
+				}
+				entry.message = {
+					...value,
+					content: content
+						.filter(block => block.type !== "redactedThinking")
+						.map(block => (block.type === "thinking" ? { ...block, thinkingSignature: undefined } : block)),
+				} as AgentMessage;
+			}
 		}
-		let removed = false;
-		const content = message.content
-			.filter((block, blockIndex) => {
-				if (!isRecord(block) || block.type !== "toolCall") return true;
-				const drop = unsafeKeys.has(`${entry.id}:${blockIndex}`);
-				if (drop) removed = true;
-				return !drop;
-			})
-			.filter(block => !removed || !isRecord(block) || block.type !== "redactedThinking")
-			.map(block => {
-				if (!removed || !isRecord(block) || block.type !== "thinking" || !("thinkingSignature" in block))
-					return block;
-				return { ...block, thinkingSignature: undefined };
-			});
-		if (!removed) {
-			retained.push(entry);
-			continue;
-		}
-		changed = true;
-		if (content.length === 0) {
-			removedIds.add(entry.id);
-			continue;
-		}
-		entry.message = { ...message, content } as AgentMessage;
 		retained.push(entry);
 	}
-	if (!changed) return false;
-
-	const parentByRemovedId = new Map<string, string | null>();
-	for (const entry of entries) {
-		if (removedIds.has(entry.id)) parentByRemovedId.set(entry.id, entry.parentId);
-	}
-	const retainedAncestor = (parentId: string | null): string | null => {
-		const seen = new Set<string>();
-		while (parentId && removedIds.has(parentId) && !seen.has(parentId)) {
-			seen.add(parentId);
-			parentId = parentByRemovedId.get(parentId) ?? null;
+	if (changed) {
+		for (const entry of retained) {
+			const seen = new Set<string>();
+			while (entry.parentId && removed.has(entry.parentId) && !seen.has(entry.parentId)) {
+				seen.add(entry.parentId);
+				entry.parentId = removed.get(entry.parentId) ?? null;
+			}
 		}
-		return parentId;
-	};
-	for (const entry of retained) entry.parentId = retainedAncestor(entry.parentId);
-	entries.splice(0, entries.length, ...retained);
-	return true;
-}
-
-function serializeEntries(
-	entries: FileEntry[],
-	blobStore: BlobStore,
-	titleSlot: SessionTitleUpdate | undefined,
-): string {
-	const header = entries[0] as SessionHeader;
-	const slot =
-		titleSlot ??
-		({
-			title: header.title,
-			source: header.titleSource,
-			updatedAt: header.timestamp,
-		} as const);
-	let body = serializeTitleSlot(slot);
-	for (const entry of entries) body += `${stringifyJson(prepareEntryForPersistence(entry, blobStore)) ?? "null"}\n`;
-	return body;
-}
-
-async function reserveBackupPath(sessionFile: string, expectedContent: string): Promise<string> {
-	const suffix = `${Date.now()}-${crypto.randomUUID()}`;
-	const backupPath = path.join(path.dirname(sessionFile), `${path.basename(sessionFile)}.doctor-${suffix}.bak`);
-	await fs.copyFile(sessionFile, backupPath, fsConstants.COPYFILE_EXCL);
-	if ((await fs.readFile(backupPath, "utf8")) !== expectedContent) {
-		await fs.unlink(backupPath);
-		throw new Error("Session changed while the doctor was inspecting it; no repair was applied.");
+		entries.splice(0, entries.length, ...retained);
 	}
-	return backupPath;
+	return changed;
 }
 
 export async function doctorSessionFile(
@@ -487,149 +181,244 @@ export async function doctorSessionFile(
 ): Promise<SessionDoctorSummary> {
 	const repair = options.repair === true;
 	const storage = options.storage ?? new FileSessionStorage();
-	const blobStore = options.blobStore ?? new BlobStore(getBlobsDir());
-	const resolvedSessionFile = path.resolve(sessionFile);
-	const original = await storage.readText(resolvedSessionFile);
+	const blobs = options.blobStore ?? new BlobStore(getBlobsDir());
+	const file = path.resolve(sessionFile);
+	const original = await storage.readText(file);
 	const loaded = parseSessionContent(original);
 	const findings: SessionDoctorFinding[] = [];
-	for (let index = 0; index < loaded.malformedRecords; index++) {
-		finding(findings, "malformed_jsonl", "Malformed or interrupted JSONL record was skipped.", true);
-	}
-	const headerIndex = loaded.entries.findIndex(entry => isSessionHeader(entry));
+	const add = (
+		code: SessionDoctorFindingCode,
+		text: string,
+		repairable: boolean,
+		entryId?: string,
+		where?: string,
+	): void => {
+		findings.push({
+			code,
+			message: text,
+			repairable,
+			...(entryId ? { entryId } : {}),
+			...(where ? { path: where } : {}),
+		});
+	};
+	for (let n = 0; n < loaded.malformedRecords; n++) add("malformed_jsonl", "Malformed JSONL record skipped.", true);
+	const headerIndex = loaded.entries.findIndex(isHeader);
 	const header = headerIndex >= 0 ? (loaded.entries[headerIndex] as SessionHeader) : undefined;
-	if (loaded.invalidHeader || headerIndex !== 0) {
-		const recoverable = headerIndex > 0;
-		finding(
-			findings,
+	if (loaded.invalidHeader || headerIndex !== 0)
+		add(
 			"invalid_header",
-			recoverable
-				? "Valid session header appears after leading records; repair can restore it as the first record."
-				: "Session header is missing or malformed; it cannot be reconstructed without inventing session metadata.",
-			recoverable,
+			headerIndex > 0 ? "Header is behind leading records." : "Session header is missing or malformed.",
+			headerIndex > 0,
 		);
-	}
-	const persistedVersion = header?.version ?? 1;
-	const legacyV1 = persistedVersion < 2;
-	const migrationNeeded = persistedVersion < CURRENT_SESSION_VERSION;
-	const inspectionEntries: FileEntry[] = header ? [structuredClone(header)] : [];
-	const malformedEntryIndexes = new Set<number>();
+	const legacy = (header?.version ?? 1) < 2;
+	const migrate = (header?.version ?? CURRENT_SESSION_VERSION) < CURRENT_SESSION_VERSION;
+	const entries: FileEntry[] = header ? [structuredClone(header)] : [];
 	for (let index = Math.max(1, headerIndex + 1); index < loaded.entries.length; index++) {
-		const candidate = loaded.entries[index] as unknown;
-		const valid = legacyV1 ? isLegacySessionEntry(candidate) : isSessionEntry(candidate);
-		if (!valid) {
-			malformedEntryIndexes.add(index);
-			finding(
-				findings,
-				"malformed_entry",
-				"JSONL record is not a valid session entry.",
+		const candidate: unknown = loaded.entries[index];
+		if (!validEntry(candidate, legacy)) {
+			add("malformed_entry", "Invalid session entry.", true, undefined, `entries[${index}]`);
+			continue;
+		}
+		entries.push(structuredClone(candidate));
+	}
+	if (header) migrateToCurrentVersion(entries);
+	const valid: SessionEntry[] = [];
+	const byId = new Map<string, SessionEntry>();
+	let duplicate = false;
+	for (const entry of entries.slice(1) as SessionEntry[]) {
+		if (byId.has(entry.id)) {
+			duplicate = true;
+			add("duplicate_entry_id", "Duplicate entry id prevents safe repair.", false, entry.id);
+			continue;
+		}
+		byId.set(entry.id, entry);
+		valid.push(entry);
+	}
+	for (const entry of valid)
+		if (entry.parentId && !byId.has(entry.parentId))
+			add("orphaned_entry", "Parent entry is missing.", false, entry.id, "parentId");
+	const allCalls = valid.flatMap(entry => calls(entry).map(call => ({ ...call, entry })));
+	const paired = new Set<string>();
+	const resultsByCall = new Map<string, SessionEntry[]>();
+	const unsafe = new Set<string>();
+	const invalidResults = new Set<string>();
+	for (const call of allCalls)
+		if (call.malformed) {
+			unsafe.add(`${call.entry.id}:${call.index}`);
+			add(
+				"malformed_tool_call",
+				"Tool call has an empty id or name.",
 				true,
-				undefined,
-				`entries[${index}]`,
+				call.entry.id,
+				`message.content[${call.index}]`,
 			);
+		}
+	for (const entry of valid) {
+		const result = message(entry);
+		if (result?.role !== "toolResult") continue;
+		const chain = ancestors(entry, byId);
+		const ancestorIds = new Set(chain.map(parent => parent.id));
+		let call: (typeof allCalls)[number] | undefined;
+		for (const ancestor of chain) {
+			const candidates = allCalls.filter(
+				candidate => candidate.entry.id === ancestor.id && candidate.id === result.toolCallId,
+			);
+			for (const candidate of candidates) {
+				const prior = resultsByCall.get(`${candidate.entry.id}:${candidate.index}`) ?? [];
+				if (
+					prior.some(
+						previous =>
+							ancestorIds.has(previous.id) ||
+							ancestors(previous, byId).some(previousAncestor => previousAncestor.id === entry.id),
+					)
+				)
+					continue;
+				call = candidate;
+				break;
+			}
+			if (call || candidates.length > 0) break;
+		}
+		if (!call) {
+			add("orphaned_tool_result", "Tool result has no matching call on this branch.", false, entry.id);
 			continue;
 		}
-		inspectionEntries.push(structuredClone(candidate) as SessionEntry);
-	}
-	if (header) migrateToCurrentVersion(inspectionEntries);
-
-	const validEntries: SessionEntry[] = [];
-	const seenIds = new Set<string>();
-	const duplicateIds = new Set<string>();
-	for (const candidate of inspectionEntries.slice(1) as SessionEntry[]) {
-		if (seenIds.has(candidate.id)) {
-			duplicateIds.add(candidate.id);
-			finding(
-				findings,
-				"duplicate_entry_id",
-				"More than one session entry uses this id; automatic repair would make branch ownership ambiguous.",
-				false,
-				candidate.id,
-			);
-			continue;
-		}
-		seenIds.add(candidate.id);
-		validEntries.push(candidate);
-	}
-	const byId = new Map(validEntries.map(entry => [entry.id, entry] as const));
-	for (const entry of validEntries) {
-		if (entry.parentId !== null && !byId.has(entry.parentId)) {
-			finding(
-				findings,
-				"orphaned_entry",
-				"Entry parent is missing; automatic repair would require inventing branch ancestry.",
-				false,
-				entry.id,
-				"parentId",
-			);
+		const key = `${call.entry.id}:${call.index}`;
+		paired.add(key);
+		const previous = resultsByCall.get(key);
+		if (previous) previous.push(entry);
+		else resultsByCall.set(key, [entry]);
+		if (call.malformed) {
+			invalidResults.add(entry.id);
+			add("orphaned_tool_result", "Result belongs to a malformed call.", true, entry.id);
 		}
 	}
-
-	const toolInspection = inspectToolPairing(validEntries, byId, findings);
-	inspectCompactions(validEntries, byId, findings);
-	const imageState: ImageInspectionState = { blobRefs: [] };
-	for (const entry of validEntries) inspectImages(entry, entry.id, "", findings, imageState);
-	const blobAvailability = await Promise.all(
-		imageState.blobRefs.map(async item => {
-			const hash = parseBlobRef(item.ref);
-			return hash && !(await blobStore.has(hash)) ? item : undefined;
+	for (const call of allCalls)
+		if (!call.malformed && !paired.has(`${call.entry.id}:${call.index}`)) {
+			unsafe.add(`${call.entry.id}:${call.index}`);
+			add(
+				"orphaned_tool_call",
+				"Tool call has no result on any branch.",
+				true,
+				call.entry.id,
+				`message.content[${call.index}]`,
+			);
+		}
+	const refs: Array<{ hash: string; entryId: string; where: string }> = [];
+	const inspect = (value: unknown, id: string, where: string): void => {
+		if (Array.isArray(value)) {
+			value.forEach((child, n) => inspect(child, id, `${where}[${n}]`));
+			return;
+		}
+		if (!isRecord(value)) return;
+		if (value.type === "image" && (typeof value.data !== "string" || !value.data))
+			add("malformed_image", "Image has no data.", false, id, where);
+		if (value.type === "image" && isPersistenceTruncatedString(value.data))
+			add("malformed_image", "Image data was truncated.", true, id, `${where}.data`);
+		for (const [key, data] of Object.entries(value)) {
+			if (
+				typeof data === "string" &&
+				isBlobRef(data) &&
+				((key === "data" &&
+					(value.type === "image" || /\.frames\[\d+\]$/.test(where) || /\.images\[\d+\]$/.test(where))) ||
+					key === "image_url" ||
+					(key === "result" && value.type === "image_generation_call"))
+			) {
+				const hash = parseBlobRef(data);
+				if (hash) refs.push({ hash, entryId: id, where: `${where}.${key}` });
+				else add("malformed_blob_ref", "Invalid blob reference.", true, id, `${where}.${key}`);
+			}
+			inspect(data, id, where ? `${where}.${key}` : key);
+		}
+	};
+	for (const entry of valid) {
+		if (entry.type === "compaction") {
+			const chain = new Set(ancestors(entry, byId).map(parent => parent.id));
+			if (
+				typeof entry.summary !== "string" ||
+				!chain.has(entry.firstKeptEntryId) ||
+				(entry.providerReplayThroughEntryId !== undefined && !chain.has(entry.providerReplayThroughEntryId))
+			)
+				add("invalid_compaction", "Compaction boundary is invalid.", false, entry.id);
+			const archive = snapcompact.getPreservedArchive(entry.preserveData);
+			archive?.frames.forEach((frame, n) => {
+				if (isPersistenceTruncatedString(frame.data))
+					add("truncated_compaction_image", "Compaction image is truncated.", true, entry.id, `frames[${n}].data`);
+			});
+		}
+		inspect(entry, entry.id, "");
+	}
+	await Promise.all(
+		refs.map(async ref => {
+			if (!(await blobs.has(ref.hash)))
+				add("missing_blob", "Referenced image data is missing.", true, ref.entryId, ref.where);
 		}),
 	);
-	for (const item of blobAvailability) {
-		if (!item) continue;
-		finding(findings, "missing_blob", "Referenced image/blob payload is missing.", true, item.entryId, item.path);
-	}
-
 	let changed = false;
 	let backupPath: string | null = null;
-	if (repair && header && duplicateIds.size === 0) {
-		const repairedEntries = structuredClone(inspectionEntries);
-		const sessionEntries = repairedEntries.slice(1) as SessionEntry[];
-		const unsafeToolCalls = new Set([...toolInspection.malformed, ...toolInspection.dangling]);
-		const toolCallsChanged = stripUnsafeToolCalls(
-			sessionEntries,
-			unsafeToolCalls,
-			toolInspection.malformedResultEntries,
-		);
-		repairedEntries.splice(1, repairedEntries.length - 1, ...sessionEntries);
-		const repairedImages = await resolveBlobRefsInEntries(repairedEntries, blobStore);
-		const repairableRecordDamage = loaded.malformedRecords > 0 || malformedEntryIndexes.size > 0 || headerIndex > 0;
-		const truncatedCompaction = findings.some(item => item.code === "truncated_compaction_image");
-		changed = repairableRecordDamage || toolCallsChanged || migrationNeeded || repairedImages || truncatedCompaction;
+	if (repair && header && !duplicate) {
+		const repaired = structuredClone(entries);
+		const repairedEntries = repaired.slice(1) as SessionEntry[];
+		const callsChanged = stripUnsafeCalls(repairedEntries, unsafe, invalidResults);
+		repaired.splice(1, repaired.length - 1, ...repairedEntries);
+		const imagesChanged = await resolveBlobRefsInEntries(repaired, blobs);
+		changed =
+			loaded.malformedRecords > 0 ||
+			headerIndex > 0 ||
+			findings.some(f => f.code === "malformed_entry" || f.code === "truncated_compaction_image") ||
+			callsChanged ||
+			imagesChanged ||
+			migrate;
 		if (changed) {
-			const repairedBody = serializeEntries(repairedEntries, blobStore, loaded.titleSlot);
-			backupPath = await reserveBackupPath(resolvedSessionFile, original);
-			let commitAllowed = false;
-			await storage.writeTextAtomic(resolvedSessionFile, repairedBody, {
+			const slot = loaded.titleSlot ?? {
+				title: header.title,
+				source: header.titleSource,
+				updatedAt: header.timestamp,
+			};
+			const body =
+				serializeTitleSlot(slot) +
+				repaired.map(entry => `${stringifyJson(prepareEntryForPersistence(entry, blobs)) ?? "null"}\n`).join("");
+			backupPath = path.join(
+				path.dirname(file),
+				`${path.basename(file)}.doctor-${Date.now()}-${crypto.randomUUID()}.bak`,
+			);
+			await fs.copyFile(file, backupPath, fsConstants.COPYFILE_EXCL);
+			if ((await fs.readFile(backupPath, "utf8")) !== original) {
+				await fs.unlink(backupPath);
+				throw new Error("Session changed before doctor backup; no repair applied.");
+			}
+			let committed = false;
+			await storage.writeTextAtomic(file, body, {
 				commitGuard: () => {
-					commitAllowed = readFileSync(resolvedSessionFile, "utf8") === original;
-					return commitAllowed;
+					committed = readFileSync(file, "utf8") === original;
+					return committed;
 				},
 			});
-			if (!commitAllowed) {
-				throw new Error(
-					`Session changed before repair commit; it was not replaced. Untouched backup: ${backupPath}`,
-				);
-			}
+			if (!committed) throw new Error(`Session changed before repair commit; untouched backup: ${backupPath}`);
 		}
 	}
-
-	const counts = countFindings(findings);
-	const repairableFindingCount = findings.filter(item => item.repairable).length;
+	const counts = Object.fromEntries(
+		Object.values(codes)
+			.filter((code): code is keyof SessionDoctorSummary["counts"] => code !== null)
+			.map(code => [code, 0]),
+	) as SessionDoctorSummary["counts"];
+	for (const finding of findings) {
+		const key = codes[finding.code];
+		if (key) counts[key]++;
+	}
+	const repairableFindingCount = findings.filter(finding => finding.repairable).length;
 	const remainingFindingCount = changed ? findings.length - repairableFindingCount : findings.length;
-	const status =
-		changed && remainingFindingCount > 0
-			? "repaired_with_issues"
-			: changed
-				? "repaired"
-				: findings.length === 0
-					? "healthy"
-					: "issues";
 	return {
 		version: 1,
 		mode: repair ? "repair" : "dry-run",
-		status,
-		sessionFile: resolvedSessionFile,
-		outputPath: resolvedSessionFile,
+		status: changed
+			? remainingFindingCount
+				? "repaired_with_issues"
+				: "repaired"
+			: findings.length
+				? "issues"
+				: "healthy",
+		sessionFile: file,
+		outputPath: file,
 		backupPath,
 		changed,
 		findingCount: findings.length,

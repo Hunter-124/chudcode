@@ -2,7 +2,6 @@
 
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
-import * as fsx from "@chudware/utils/fsx";
 import { $ } from "bun";
 
 const GENERATED_FILE = path.join("src", "embedded-client.generated.txt");
@@ -55,7 +54,7 @@ function writeTarOctal(bytes: Uint8Array, offset: number, length: number, value:
 }
 
 function normalizeTarMetadata(bytes: Uint8Array): void {
-	for (let offset = 0; offset + TAR_BLOCK_SIZE <= bytes.length; ) {
+	for (let offset = 0; offset + TAR_BLOCK_SIZE <= bytes.length;) {
 		const header = bytes.subarray(offset, offset + TAR_BLOCK_SIZE);
 		if (header.every(byte => byte === 0)) return;
 
@@ -76,13 +75,13 @@ function normalizeTarMetadata(bytes: Uint8Array): void {
 	}
 }
 
-/** Build a byte-stable gzip archive of a directory for embedding in the Chudcode binary. */
+/** Build a byte-stable gzip archive of a directory for embedding in the OMP binary. */
 export async function buildArchiveBase64(dir: string): Promise<string> {
 	const files = await collectFiles(dir);
 	const entries: Record<string, Uint8Array> = {};
 	for (const filePath of files) {
 		const relativePath = path.relative(dir, filePath).split(path.sep).join("/");
-		entries[relativePath] = await fsx.readBytes(filePath);
+		entries[relativePath] = await Bun.file(filePath).bytes();
 	}
 
 	const archiveBytes = await new Bun.Archive(entries).bytes();
@@ -92,7 +91,7 @@ export async function buildArchiveBase64(dir: string): Promise<string> {
 
 async function main(): Promise<void> {
 	if (process.argv.includes(RESET_FLAG)) {
-		await fsx.write(GENERATED_FILE, "");
+		await Bun.write(GENERATED_FILE, "");
 		console.log(`Reset ${GENERATED_FILE}`);
 		return;
 	}
@@ -104,7 +103,7 @@ async function main(): Promise<void> {
 
 	await $`bun run build`;
 	const archiveBase64 = await buildArchiveBase64(DIST_CLIENT_DIR);
-	await fsx.write(GENERATED_FILE, archiveBase64);
+	await Bun.write(GENERATED_FILE, archiveBase64);
 	console.log(`Generated ${GENERATED_FILE}`);
 }
 

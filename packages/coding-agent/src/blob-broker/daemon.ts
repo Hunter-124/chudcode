@@ -3,15 +3,14 @@
  *
  * `connectDaemonBlobBackend` ensures the blob daemon is running under the
  * daemon broker (same lifecycle as the shared Chromium and LSP mux: started on
- * first use, stopped when the last chudcode process in the project exits), then
+ * first use, stopped when the last omp process in the project exits), then
  * speaks the HTTP-over-Unix-socket control plane from `protocol.ts`. Every
  * failure returns `null` so callers fall back to an in-process backend.
  */
 
 import * as os from "node:os";
 import * as path from "node:path";
-import { logger, ptree } from "@chudware/utils";
-import { sleep } from "@chudware/utils/async";
+import { logger, ptree } from "@oh-my-pi/pi-utils";
 import { daemonClientForProject } from "../launch/client";
 import { describeQuietly, stopQuietly, waitReady } from "../launch/ensure";
 import { daemonRuntimeDir } from "../launch/paths";
@@ -291,7 +290,7 @@ export async function connectDaemonBlobBackend(
 
 /** Exercise worker-host blob daemon startup and the /info probe for distribution smoke tests. */
 export async function smokeTestBlobBroker(): Promise<void> {
-	const socket = path.join(os.tmpdir(), `chudcode-blob-smoke-${process.pid.toString(36)}.sock`);
+	const socket = path.join(os.tmpdir(), `omp-blob-smoke-${process.pid.toString(36)}.sock`);
 	const config: BlobBrokerWorkerConfig = {
 		kind: "direct",
 		options: {},
@@ -313,7 +312,7 @@ export async function smokeTestBlobBroker(): Promise<void> {
 			if (proc.exitCode !== null) break;
 			info = await probeDaemon(socket);
 			if (info) break;
-			await sleep(200);
+			await Bun.sleep(200);
 		}
 		if (!info) {
 			throw new Error(

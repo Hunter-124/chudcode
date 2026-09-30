@@ -14,31 +14,27 @@
  *    runtime for internal callers.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "bun:test";
-import { toolWireSchema } from "@chudware/ai/utils/schema";
-import { AsyncJobManager } from "@chudware/coding-agent/async/job-manager";
-import { Settings } from "@chudware/coding-agent/config/settings";
-import { AgentLifecycleManager } from "@chudware/coding-agent/registry/agent-lifecycle";
-import { AgentRegistry } from "@chudware/coding-agent/registry/agent-registry";
-import { TaskTool } from "@chudware/coding-agent/task";
-import * as discoveryModule from "@chudware/coding-agent/task/discovery";
-import * as executorModule from "@chudware/coding-agent/task/executor";
-import type { AgentDefinition, SingleResult, TaskParams } from "@chudware/coding-agent/task/types";
-import type { ToolSession } from "@chudware/coding-agent/tools";
-import { isRecord } from "@chudware/utils";
-import { sleep } from "@chudware/utils/async";
+import { Agent, type AgentTool } from "@oh-my-pi/pi-agent-core";
+import { createMockModel } from "@oh-my-pi/pi-ai/providers/mock";
+import { toolWireSchema } from "@oh-my-pi/pi-ai/utils/schema";
+import { AsyncJobManager } from "@oh-my-pi/pi-coding-agent/async/job-manager";
+import { Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
+import { AgentLifecycleManager } from "@oh-my-pi/pi-coding-agent/registry/agent-lifecycle";
+import { AgentRegistry } from "@oh-my-pi/pi-coding-agent/registry/agent-registry";
+import { TaskTool } from "@oh-my-pi/pi-coding-agent/task";
+import * as discoveryModule from "@oh-my-pi/pi-coding-agent/task/discovery";
+import * as executorModule from "@oh-my-pi/pi-coding-agent/task/executor";
+import type { AgentDefinition } from "@oh-my-pi/pi-coding-agent/task/types";
+import type { SingleResult, TaskParams } from "@oh-my-pi/pi-tui/tools/task";
+import type { ToolSession } from "@oh-my-pi/pi-coding-agent/tools";
+import { isRecord } from "@oh-my-pi/pi-utils";
+
+import { cfgTaskEnableEffort } from "@oh-my-pi/pi-coding-agent/task/settings";
 
 const taskAgent: AgentDefinition = {
 	name: "task",
 	description: "General-purpose task agent",
 	systemPrompt: "You are a task agent.",
-	source: "bundled",
-};
-
-const scoutAgent: AgentDefinition = {
-	name: "scout",
-	description: "Read-only research agent",
-	systemPrompt: "You are a scout agent.",
-	tools: ["read"],
 	source: "bundled",
 };
 
@@ -54,11 +50,7 @@ function createSession(
 	return {
 		cwd: "/tmp",
 		hasUI: false,
-		settings: Settings.isolated({
-			"task.minFreeMemMB": 0,
-			"task.sessionMemoryMB": 0,
-			...(options.settings ?? {}),
-		}),
+		settings: Settings.isolated(options.settings ?? {}),
 		getSessionFile: () => null,
 		getSessionSpawns: () => options.spawns ?? "*",
 		getAgentId: () => options.agentId ?? null,
@@ -146,27 +138,6 @@ describe("task.batch schema gating", () => {
 		expect(itemProperties.schemaMode).toBeDefined();
 	});
 
-	it("requires coordination instead of promising same-file auto-resolution", async () => {
-		mockDiscovery();
-		const tool = await TaskTool.create(createSession({ settings: { "task.batch": true } }));
-
-		expect(tool.description).toContain("Same-file edits are not guaranteed to merge");
-		expect(tool.description).toContain("coordinate through `hub` before editing shared files");
-		expect(tool.description).toContain("Name one integration owner");
-		expect(tool.description).not.toContain("Concurrent edits to the same files auto-resolve");
-	});
-
-	it("describes a restricted specialist as the spawn-policy default", async () => {
-		mockDiscovery(scoutAgent);
-		const tool = await TaskTool.create(createSession({ spawns: "scout" }));
-
-		expect(tool.description).toContain("spawn-policy default (`scout`)");
-		expect(tool.description).not.toContain("general-purpose worker");
-		expect(tool.description).not.toContain("default worker");
-		expect(tool.description).toContain("Omit `agent` when the spawn-policy default is the best fit");
-		expect(tool.description).toContain("### scout (READ-ONLY)");
-	});
-
 	it("hides effort by default and exposes it when task.enableEffort is enabled", async () => {
 		mockDiscovery();
 
@@ -175,7 +146,7 @@ describe("task.batch schema gating", () => {
 		expect(getSchemaProperties(flat).effort).toBeUndefined();
 		expect(flat.description).not.toContain("`effort`");
 
-		flatSession.settings.override("task.enableEffort", true);
+		cfgTaskEnableEffort.override(flatSession.settings, true);
 		expect(getSchemaProperties(flat).effort).toBeDefined();
 		expect(flat.description).toContain("`effort`");
 
@@ -184,7 +155,7 @@ describe("task.batch schema gating", () => {
 		expect(getBatchItemProperties(batch).effort).toBeUndefined();
 		expect(batch.description).not.toContain("`effort`");
 
-		batchSession.settings.override("task.enableEffort", true);
+		cfgTaskEnableEffort.override(batchSession.settings, true);
 		expect(getBatchItemProperties(batch).effort).toBeDefined();
 		expect(batch.description).toContain("`effort`");
 	});
@@ -193,7 +164,7 @@ describe("task.batch schema gating", () => {
 		mockDiscovery();
 
 		const tool = await TaskTool.create(
-			createSession({ settings: { "task.batch": true, "task.isolation.mode": "auto" } }),
+			createSession({ settings: { "task.batch": true, "task.isolation.enabled": true } }),
 		);
 		const properties = getSchemaProperties(tool);
 		expect(properties.isolated).toBeUndefined();
@@ -211,7 +182,7 @@ describe("task.batch schema gating", () => {
 		const tool = await TaskTool.create(
 			createSession({
 				planMode: true,
-				settings: { "task.batch": true, "task.isolation.mode": "auto" },
+				settings: { "task.batch": true, "task.isolation.enabled": true },
 			}),
 		);
 		const itemProperties = getBatchItemProperties(tool);
@@ -311,6 +282,48 @@ describe("task.batch validation", () => {
 		);
 		expect(text).toContain("task.batch is disabled");
 		expect(text).not.toContain("was missing");
+	});
+
+	it("advertises solutionSpace as required but still spawns a model call that omits it", async () => {
+		mockDiscovery();
+		const spawned: Array<string | undefined> = [];
+		vi.spyOn(executorModule, "runSubprocess").mockImplementation(async options => {
+			spawned.push(options.assignment);
+			return makeResult(options.id ?? "?");
+		});
+		const tool = await TaskTool.create(createSession({ settings: { "async.enabled": false, "task.batch": true } }));
+		const items = getSchemaProperties(tool).tasks;
+		expect(isRecord(items) && isRecord(items.items) ? items.items.required : undefined).toContain("solutionSpace");
+
+		const mock = createMockModel({
+			responses: [
+				{
+					content: [
+						{
+							type: "toolCall",
+							id: "tc-no-solution-space",
+							name: "task",
+							arguments: { context: "# Goal\nX", tasks: [{ name: "Alpha", task: "Do A." }] },
+						},
+					],
+				},
+				{ content: ["done"] },
+			],
+		});
+		const agent = new Agent({
+			initialState: {
+				model: mock.model,
+				systemPrompt: ["Test"],
+				tools: [tool as unknown as AgentTool],
+				messages: [],
+			},
+			streamFn: mock.stream,
+		});
+		await agent.prompt("go");
+
+		expect(spawned).toEqual(["Do A."]);
+		const toolResult = agent.state.messages.find(message => message.role === "toolResult");
+		expect(toolResult?.role === "toolResult" && toolResult.isError).toBe(false);
 	});
 });
 
@@ -640,68 +653,6 @@ describe("task.batch spawning", () => {
 		expect(text).toContain(":END");
 	});
 
-	it("releases a running task's memory reservation on cancellation so queued work starts", async () => {
-		mockDiscovery();
-		const firstStarted = Promise.withResolvers<void>();
-		const secondStarted = Promise.withResolvers<void>();
-		const started: string[] = [];
-		vi.spyOn(executorModule, "runSubprocess").mockImplementation(async options => {
-			const id = options.id ?? "?";
-			started.push(id);
-			if (id === "First") {
-				const runSignal = options.signal;
-				if (!runSignal) throw new Error("Background task did not receive its cancellation signal");
-				firstStarted.resolve();
-				await new Promise<void>(resolve => {
-					if (runSignal.aborted) {
-						resolve();
-						return;
-					}
-					runSignal.addEventListener("abort", () => resolve(), { once: true });
-				});
-				return makeResult(id, { aborted: true, exitCode: 130 });
-			}
-			secondStarted.resolve();
-			return makeResult(id);
-		});
-
-		const manager = createManager();
-		const tool = await TaskTool.create(
-			createSession({
-				manager,
-				settings: {
-					"async.enabled": true,
-					"task.batch": true,
-					"task.maxConcurrency": 4,
-					"task.minFreeMemMB": 1024,
-					"task.sessionMemoryMB": 1024,
-				},
-			}),
-			{ memoryPressureSampler: () => 1024 },
-		);
-		await tool.execute("tc-memory-cancel", {
-			context: "ctx",
-			tasks: [
-				{ name: "First", task: "Do A." },
-				{ name: "Second", task: "Do B." },
-			],
-		} as TaskParams);
-
-		await firstStarted.promise;
-		expect(started).toEqual(["First"]);
-		const firstJob = manager.getJob("First")!;
-		const secondJob = manager.getJob("Second")!;
-		expect(secondJob.queued).toBe(true);
-
-		expect(manager.cancel(firstJob.id)).toBe(true);
-		await firstJob.promise;
-		await secondStarted.promise;
-		await secondJob.promise;
-
-		expect(started).toEqual(["First", "Second"]);
-		expect(secondJob.status).toBe("completed");
-	});
-
 	it("settles the batch async aggregate when a queued spawn is cancelled mid-flight", async () => {
 		mockDiscovery();
 		const started: string[] = [];
@@ -751,7 +702,7 @@ describe("task.batch spawning", () => {
 		const deadline = Date.now() + 1_000;
 		while (started.length === 0) {
 			if (Date.now() > deadline) throw new Error("First spawn never reached the executor");
-			await sleep(5);
+			await Bun.sleep(5);
 		}
 		expect(started).toEqual(["First"]);
 		expect(secondJob.queued).toBe(true);

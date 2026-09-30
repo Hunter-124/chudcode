@@ -1,6 +1,5 @@
 #!/usr/bin/env bun
-import { prompt } from "@chudware/utils";
-import * as fsx from "@chudware/utils/fsx";
+import { prompt } from "@oh-my-pi/pi-utils";
 /**
  * Format prompt files (mixed XML + Markdown + Handlebars).
  *
@@ -42,14 +41,14 @@ async function main() {
 	}
 
 	for (const fullPath of files) {
-		const original = await fsx.readText(fullPath);
+		const original = await Bun.file(fullPath).text();
 		const formatted = prompt.format(original, PROMPT_FORMAT_OPTIONS);
 
 		if (original !== `${formatted}\n`) {
 			if (check) {
 				console.log(`Would format: ${fullPath}`);
 			} else {
-				await fsx.write(fullPath, `${formatted}\n`);
+				await Bun.write(fullPath, `${formatted}\n`);
 				console.log(`Formatted: ${fullPath}`);
 			}
 			changed++;

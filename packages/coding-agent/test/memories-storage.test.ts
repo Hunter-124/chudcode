@@ -1,10 +1,10 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
-import type { AssistantMessage, Model } from "@chudware/ai";
-import * as ai from "@chudware/ai";
-import { Settings } from "@chudware/coding-agent/config/settings";
-import { startMemoryStartupTask } from "@chudware/coding-agent/memories";
+import type { AssistantMessage, Model } from "@oh-my-pi/pi-ai";
+import * as ai from "@oh-my-pi/pi-ai";
+import { Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
+import { startMemoryStartupTask } from "@oh-my-pi/pi-coding-agent/memories";
 import {
 	claimStage1Jobs,
 	clearMemoryData,
@@ -15,10 +15,8 @@ import {
 	openMemoryDb,
 	tryClaimGlobalPhase2Job,
 	upsertThreads,
-} from "@chudware/coding-agent/memories/storage";
-import { getAgentDbPath, TempDir } from "@chudware/utils";
-import { sleep } from "@chudware/utils/async";
-import * as fsx from "@chudware/utils/fsx";
+} from "@oh-my-pi/pi-coding-agent/memories/storage";
+import { getAgentDbPath, TempDir } from "@oh-my-pi/pi-utils";
 
 const GLOBAL_KIND = "memory_consolidate_global";
 const PROJECT_CWD = "/repo";
@@ -71,7 +69,7 @@ describe("memories/storage", () => {
 	});
 
 	afterEach(async () => {
-		await sleep(0);
+		await Bun.sleep(0);
 		vi.restoreAllMocks();
 		await tempDir.remove().catch(() => {});
 	});
@@ -190,7 +188,7 @@ describe("memories/storage", () => {
 		await fs.mkdir(sessionDir, { recursive: true });
 		const currentSessionFile = path.join(sessionDir, "current-file.jsonl");
 		const rolloutFile = path.join(sessionDir, "rollout-file.jsonl");
-		await fsx.write(
+		await Bun.write(
 			currentSessionFile,
 			[
 				JSON.stringify({ type: "title", v: 1, title: "Current", updatedAt: "2026-06-27T00:00:00.000Z" }),
@@ -198,7 +196,7 @@ describe("memories/storage", () => {
 				"",
 			].join("\n"),
 		);
-		await fsx.write(
+		await Bun.write(
 			rolloutFile,
 			[
 				JSON.stringify({ type: "title", v: 1, title: "Rollout", updatedAt: "2026-06-27T00:00:00.000Z" }),

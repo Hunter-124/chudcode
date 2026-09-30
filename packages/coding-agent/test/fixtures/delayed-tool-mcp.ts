@@ -1,13 +1,14 @@
 #!/usr/bin/env bun
 /**
  * Test fixture: a well-behaved stdio MCP server that answers `initialize`
- * only after a deliberate delay exceeding `MCPManager`'s `STARTUP_TIMEOUT_MS`
- * (250 ms), then responds normally to `tools/list`.
+ * only after a deliberate delay exceeding `MCPManager`'s
+ * `STARTUP_TIMEOUT_MS` (250 ms), then responds normally to `tools/list`.
  *
- * Models a server that eventually connects successfully but not within the
- * manager's startup race window (`Promise.race([Promise.allSettled(...),
- * delay(STARTUP_TIMEOUT_MS)])`), so its tools only land via the background
- * `#onToolsChanged` path instead of the initial `connectServers` result.
+ * Without arguments every launch delays, exercising late background binding.
+ * With a marker-file argument the first launch never answers `initialize`, so
+ * it times out under any client timeout; it writes the marker first so a
+ * reconnect responds immediately. This models a transient startup timeout
+ * followed by recovery without racing the client timeout against the delay.
  *
  * Speaks newline-delimited JSON-RPC 2.0 (the wire format of `StdioTransport`):
  * one JSON object per line on stdin, one JSON response per line on stdout.
@@ -15,7 +16,6 @@
  * (including `notifications/initialized`) are dropped.
  */
 import * as readline from "node:readline";
-import { sleep } from "@chudware/utils/async";
 
 export const TOOL_NAME = "late_tool";
 export const TOOL_RESULT = "MCP_LATE_CONNECT_OK_9d21";
@@ -53,7 +53,11 @@ function buildResult(method: string): Record<string, unknown> {
 	}
 }
 
-function startServer(): void {
+async function startServer(): Promise<void> {
+	const markerPath = process.argv[2];
+	const delayInitialize = !markerPath || !(await Bun.file(markerPath).exists());
+	if (markerPath && delayInitialize) await Bun.write(markerPath, "");
+
 	const rl = readline.createInterface({ input: process.stdin });
 	rl.on("line", line => {
 		void (async () => {
@@ -66,8 +70,9 @@ function startServer(): void {
 				return;
 			}
 			if (msg.id === undefined || msg.id === null) return;
-			if (msg.method === "initialize") {
-				await sleep(INITIALIZE_DELAY_MS);
+			if (msg.method === "initialize" && delayInitialize) {
+				if (markerPath) return;
+				await Bun.sleep(INITIALIZE_DELAY_MS);
 			}
 			const response = { jsonrpc: "2.0" as const, id: msg.id, result: buildResult(msg.method) };
 			process.stdout.write(`${JSON.stringify(response)}\n`);
@@ -77,5 +82,5 @@ function startServer(): void {
 }
 
 if (import.meta.main) {
-	startServer();
+	void startServer();
 }

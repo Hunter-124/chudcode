@@ -1,4 +1,4 @@
-import type { SessionClient, SessionSnapshot } from "@chudware/collab-web/session-client";
+import type { SessionClient, SessionSnapshot } from "@oh-my-pi/collab-web/session-client";
 import { Check, Circle, CircleDot, Copy, ListTodo, Pin, PinOff, Plus, Settings, Trash2 } from "lucide-react";
 import type { ReactNode } from "react";
 import { useMemo, useState } from "react";

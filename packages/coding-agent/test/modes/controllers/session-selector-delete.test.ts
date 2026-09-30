@@ -1,8 +1,7 @@
 import { afterEach, beforeAll, describe, expect, it, vi } from "bun:test";
-import { SessionSelectorComponent } from "@chudware/coding-agent/modes/components/session-selector";
-import { initTheme } from "@chudware/coding-agent/modes/theme/theme";
-import type { SessionInfo } from "@chudware/coding-agent/session/session-listing";
-import { sleep } from "@chudware/utils/async";
+import { SessionSelectorComponent } from "@oh-my-pi/pi-tui/overlays/session-selector";
+import { initTheme } from "@oh-my-pi/pi-tui/theme";
+import type { SessionInfo } from "@oh-my-pi/pi-coding-agent/session/session-listing";
 
 beforeAll(() => {
 	initTheme();
@@ -27,7 +26,7 @@ function createSession(id: string, title: string): SessionInfo {
 	};
 }
 
-function createSelector(onDelete: (session: SessionInfo) => Promise<boolean>): SessionSelectorComponent {
+function createSelector(onDelete: (session: SessionInfo) => Promise<boolean>): SessionSelectorComponent<SessionInfo> {
 	return new SessionSelectorComponent(
 		[createSession("session-a", "Alpha"), createSession("session-b", "Beta")],
 		() => {},
@@ -37,7 +36,7 @@ function createSelector(onDelete: (session: SessionInfo) => Promise<boolean>): S
 	);
 }
 
-function renderText(selector: SessionSelectorComponent): string {
+function renderText(selector: SessionSelectorComponent<SessionInfo>): string {
 	return selector.render(120).join("\n");
 }
 
@@ -53,7 +52,7 @@ describe("SessionSelectorComponent delete confirmation", () => {
 		expect(renderText(selector)).toContain("Alpha");
 
 		selector.handleInput("\n");
-		await sleep(0);
+		await Bun.sleep(0);
 
 		const rendered = renderText(selector);
 		expect(onDelete).toHaveBeenCalledTimes(1);
@@ -69,7 +68,7 @@ describe("SessionSelectorComponent delete confirmation", () => {
 
 		selector.handleInput("\x1b[3~");
 		selector.handleInput("\n");
-		await sleep(0);
+		await Bun.sleep(0);
 
 		const rendered = renderText(selector);
 		expect(onDelete).toHaveBeenCalledTimes(1);
@@ -84,7 +83,7 @@ describe("SessionSelectorComponent delete confirmation", () => {
 
 		selector.handleInput("\x1b[3~");
 		selector.handleInput("\n");
-		await sleep(0);
+		await Bun.sleep(0);
 
 		const rendered = renderText(selector);
 		expect(onDelete).toHaveBeenCalledTimes(1);
@@ -104,7 +103,7 @@ describe("SessionSelectorComponent delete confirmation", () => {
 
 		// Confirm.
 		selector.handleInput("\n");
-		await sleep(0);
+		await Bun.sleep(0);
 
 		expect(onDelete).toHaveBeenCalledTimes(1);
 		expect(renderText(selector)).not.toContain("Alpha");
@@ -121,7 +120,7 @@ describe("SessionSelectorComponent delete confirmation", () => {
 		expect(beforeBackspace).toContain("alpha");
 
 		selector.handleInput("\x7f");
-		await sleep(0);
+		await Bun.sleep(0);
 
 		const afterBackspace = renderText(selector);
 		// Deletion did not fire.

@@ -1,20 +1,22 @@
 import { beforeAll, describe, expect, it, spyOn } from "bun:test";
 import * as os from "node:os";
 import { stripVTControlCharacters } from "node:util";
-import { PluginManager } from "@chudware/coding-agent/extensibility/plugins";
+import { PluginManager } from "@oh-my-pi/pi-coding-agent/extensibility/plugins";
 import {
 	type InstalledPluginSummary,
 	MarketplaceManager,
-} from "@chudware/coding-agent/extensibility/plugins/marketplace";
-import type { InstalledPlugin } from "@chudware/coding-agent/extensibility/plugins/types";
+	parsePluginId,
+} from "@oh-my-pi/pi-coding-agent/extensibility/plugins/marketplace";
+import { createPluginSettingsHost } from "@oh-my-pi/pi-coding-agent/extensibility/plugins/settings-host";
+import type { InstalledPlugin } from "@oh-my-pi/pi-coding-agent/extensibility/plugins/types";
 import {
+	type InstalledPluginSummary as MarketplaceSettingsPlugin,
 	MarketplacePluginDetailComponent,
 	PluginListComponent,
 	type PluginListEntry,
 	PluginSettingsComponent,
-} from "@chudware/coding-agent/modes/components/plugin-settings";
-import { initTheme } from "@chudware/coding-agent/modes/theme/theme";
-import { sleep } from "@chudware/utils/async";
+} from "@oh-my-pi/pi-tui/overlays/plugin-settings";
+import { initTheme } from "@oh-my-pi/pi-tui/theme";
 
 beforeAll(async () => {
 	await initTheme();
@@ -110,22 +112,9 @@ describe("PluginListComponent", () => {
 		expect(text).toContain("shadowed");
 	});
 
-	it("empty-state mentions both npm and marketplace install commands", () => {
-		const component = new PluginListComponent([], {
-			onNpmSelect: () => {},
-			onMarketplaceSelect: () => {},
-			onCancel: () => {},
-		});
-
-		const text = stripVTControlCharacters(component.render(120).join("\n"));
-		expect(text).toContain("No plugins installed");
-		expect(text).toContain("chud plugin install <package>");
-		expect(text).toContain("chud plugin install <name>@<marketplace>");
-	});
-
 	it("routes enter on a marketplace entry to onMarketplaceSelect", () => {
 		const target = marketplace("pick@mkt");
-		let selected: InstalledPluginSummary | null = null;
+		let selected: MarketplaceSettingsPlugin | null = null;
 		const component = new PluginListComponent(
 			[
 				{ kind: "npm", plugin: npm("filler") },
@@ -165,7 +154,7 @@ describe("PluginSettingsComponent", () => {
 		);
 
 		try {
-			const component = new PluginSettingsComponent(process.cwd(), {
+			const component = new PluginSettingsComponent(createPluginSettingsHost(process.cwd()), {
 				onClose: () => {},
 				onPluginChanged: async () => {
 					order.push("reload");
@@ -175,7 +164,7 @@ describe("PluginSettingsComponent", () => {
 
 			for (let i = 0; i < 20; i++) {
 				if (stripVTControlCharacters(component.render(120).join("\n")).includes("toggle@mkt")) break;
-				await sleep(1);
+				await Bun.sleep(1);
 			}
 			expect(stripVTControlCharacters(component.render(120).join("\n"))).toContain("toggle@mkt");
 			component.handleInput("\n");
@@ -200,7 +189,7 @@ describe("PluginSettingsComponent", () => {
 		try {
 			const mounted = Promise.withResolvers<void>();
 			let renders = 0;
-			const component = new PluginSettingsComponent(process.cwd(), {
+			const component = new PluginSettingsComponent(createPluginSettingsHost(process.cwd()), {
 				onClose: () => {},
 				onPluginChanged: () => {},
 				requestRender: () => {
@@ -228,7 +217,7 @@ describe("PluginSettingsComponent", () => {
 
 		try {
 			let closed = 0;
-			const component = new PluginSettingsComponent(process.cwd(), {
+			const component = new PluginSettingsComponent(createPluginSettingsHost(process.cwd()), {
 				onClose: () => {
 					closed++;
 				},
@@ -257,7 +246,7 @@ describe("PluginSettingsComponent", () => {
 
 		try {
 			let closed = 0;
-			const component = new PluginSettingsComponent(process.cwd(), {
+			const component = new PluginSettingsComponent(createPluginSettingsHost(process.cwd()), {
 				onClose: () => {
 					closed++;
 				},
@@ -266,7 +255,7 @@ describe("PluginSettingsComponent", () => {
 
 			for (let i = 0; i < 20; i++) {
 				if (stripVTControlCharacters(component.render(120).join("\n")).includes("survivor@mkt")) break;
-				await sleep(1);
+				await Bun.sleep(1);
 			}
 			expect(stripVTControlCharacters(component.render(120).join("\n"))).toContain("survivor@mkt");
 
@@ -298,6 +287,7 @@ describe("MarketplacePluginDetailComponent", () => {
 		spyOn(manager, "getPlugin").mockResolvedValue(undefined);
 
 		const component = new MarketplacePluginDetailComponent(plugin, manager, {
+			parsePluginId,
 			onEnabledChange: () => {},
 			onConfigChange: () => {},
 			onBack: () => {},
@@ -316,6 +306,7 @@ describe("MarketplacePluginDetailComponent", () => {
 		const manager = new PluginManager(process.cwd());
 		spyOn(manager, "getPlugin").mockResolvedValue(undefined);
 		const component = new MarketplacePluginDetailComponent(marketplace("toggle@mkt"), manager, {
+			parsePluginId,
 			onEnabledChange: enabled => calls.push(enabled),
 			onConfigChange: () => {},
 			onBack: () => {},
@@ -329,7 +320,7 @@ describe("MarketplacePluginDetailComponent", () => {
 
 	it("renders and updates settings from the marketplace runtime package", async () => {
 		const manager = new PluginManager(process.cwd());
-		const runtimePlugin = npm("chudcode-commit", {
+		const runtimePlugin = npm("omp-commit", {
 			manifest: {
 				version: "1.0.0",
 				settings: {
@@ -344,7 +335,8 @@ describe("MarketplacePluginDetailComponent", () => {
 		spyOn(manager, "getPluginSettings").mockResolvedValue({});
 		const changes: Array<[string, string, unknown]> = [];
 		let renderRequests = 0;
-		const component = new MarketplacePluginDetailComponent(marketplace("chudcode-commit@market"), manager, {
+		const component = new MarketplacePluginDetailComponent(marketplace("omp-commit@market"), manager, {
+			parsePluginId,
 			onEnabledChange: () => {},
 			onConfigChange: (pluginName, key, value) => changes.push([pluginName, key, value]),
 			requestRender: () => renderRequests++,
@@ -357,23 +349,24 @@ describe("MarketplacePluginDetailComponent", () => {
 		component.handleInput("\x1b[B");
 		component.handleInput(" ");
 
-		expect(changes).toEqual([["chudcode-commit", "mainBranchProtection", false]]);
+		expect(changes).toEqual([["omp-commit", "mainBranchProtection", false]]);
 	});
 
 	it("shortens home-relative install paths to ~ before rendering", async () => {
 		const home = os.homedir();
-		const installPath = `${home}/.chudcode/cache/plugins/sample@mkt`;
+		const installPath = `${home}/.omp/cache/plugins/sample@mkt`;
 		const plugin = marketplace("sample@mkt", { entry: { installPath } });
 		const manager = new PluginManager(process.cwd());
 		spyOn(manager, "getPlugin").mockResolvedValue(undefined);
 
 		const component = new MarketplacePluginDetailComponent(plugin, manager, {
+			parsePluginId,
 			onEnabledChange: () => {},
 			onConfigChange: () => {},
 			onBack: () => {},
 		});
 
-		const text = await renderMarketplaceDetail(component, "~/.chudcode/cache/plugins/sample@mkt");
+		const text = await renderMarketplaceDetail(component, "~/.omp/cache/plugins/sample@mkt");
 		expect(text).not.toContain(home);
 	});
 });

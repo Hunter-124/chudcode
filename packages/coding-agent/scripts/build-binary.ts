@@ -32,6 +32,9 @@ export function resolveCrossBuild(value: string | undefined): CrossBuild | null 
 		case "win32-x64":
 		case "windows-x64":
 			return { id: value, platform: "win32", arch: "x64", target: "bun-windows-x64-baseline" };
+		case "win32-arm64":
+		case "windows-arm64":
+			return { id: value, platform: "win32", arch: "arm64", target: "bun-windows-arm64" };
 		default:
 			throw new Error(`Unsupported CROSS_TARGET: ${value}`);
 	}
@@ -55,7 +58,7 @@ const transformersVersion = transformersManifest.version;
 
 async function runCommand(
 	command: string[],
-	env: NodeJS.ProcessEnv = process.env,
+	env: NodeJS.ProcessEnv = Bun.env,
 	cwd: string = packageDir,
 ): Promise<void> {
 	const proc = Bun.spawn(command, {
@@ -71,25 +74,25 @@ async function runCommand(
 }
 
 async function main(): Promise<void> {
-	const crossBuild = resolveCrossBuild(process.env.CROSS_TARGET);
+	const crossBuild = resolveCrossBuild(Bun.env.CROSS_TARGET);
 	const shouldAdhocSign =
-		process.platform === "darwin" && !crossBuild && process.env.BUN_NO_CODESIGN_MACHO_BINARY !== "1";
-	const outName = crossBuild ? `chudcode-${crossBuild.id}` : "chudcode";
+		process.platform === "darwin" &&
+		(!crossBuild || crossBuild.platform === "darwin") &&
+		Bun.env.BUN_NO_CODESIGN_MACHO_BINARY !== "1";
+	const outName = crossBuild ? `omp-${crossBuild.id}` : "omp";
 	const outputPath = path.join(packageDir, "dist", outName);
 	// Generate inside the try so the finally always restores the empty checked-in
 	// placeholders (stats client archive, docs index) even on failure.
 	try {
 		await runCommand(["bun", "--cwd=../stats", "run", "gen:stats"]);
-		// The in-memory legacy Chud virtual module reaches the coding-agent
+		// The in-memory legacy Pi virtual module reaches the coding-agent
 		// `export/html` subpath, whose source imports `tool-views.generated.js`.
 		// Rebuild it before compilation so clean checkouts that skipped install
 		// hooks still contain that generated bundle.
 		await runCommand(["bun", "--cwd=../collab-web", "run", "gen:tool-views"]);
 		await runCommand(
 			["bun", "--cwd=../natives", "run", "gen:native"],
-			crossBuild
-				? { ...process.env, TARGET_PLATFORM: crossBuild.platform, TARGET_ARCH: crossBuild.arch }
-				: process.env,
+			crossBuild ? { ...Bun.env, TARGET_PLATFORM: crossBuild.platform, TARGET_ARCH: crossBuild.arch } : Bun.env,
 		);
 		try {
 			await compileCodingAgent({
@@ -98,12 +101,20 @@ async function main(): Promise<void> {
 				outfile: outputPath,
 				transformersVersion,
 				target: crossBuild?.target,
-				executablePath: process.env.BUN_COMPILE_EXECUTABLE_PATH || undefined,
+				executablePath: Bun.env.BUN_COMPILE_EXECUTABLE_PATH || undefined,
 				skipBuiltinCodesign: shouldAdhocSign,
 			});
 
 			if (shouldAdhocSign) {
-				await runCommand(["codesign", "--force", "--sign", "-", outputPath]);
+				await runCommand([
+					"codesign",
+					"--force",
+					"--sign",
+					"-",
+					"--entitlements",
+					path.join(repoRoot, "scripts", "macos-entitlements.plist"),
+					outputPath,
+				]);
 			}
 		} finally {
 			await runCommand(["bun", "--cwd=../natives", "run", "gen:native:reset"]);

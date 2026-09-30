@@ -1,6 +1,7 @@
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
-import { type } from "@chudware/chudtype";
+import { type } from "@oh-my-pi/omptype";
+import { seedModels } from "../compat/providers";
 import type { FetchImpl, ModelSpec } from "../types";
 import { discoveryFetch, isRecord } from "../utils";
 
@@ -8,15 +9,13 @@ const GITLAB_DEFAULT_BASE_URL = "https://gitlab.com";
 const GRAPHQL_PATH = "/api/graphql";
 const PROJECTS_PATH = "/api/v4/projects";
 const GROUPS_PATH = "/api/v4/groups";
-const FALLBACK_MODEL_ID = "claude_sonnet_4_6_vertex";
-const FALLBACK_MODEL_NAME = "Claude Sonnet 4.6 - Vertex";
 // Bound the top-level group pagination so a misbehaving server cannot loop forever.
 // 50 pages × 100/page covers 5000 top-level groups, far beyond any realistic account.
 const GITLAB_DUO_WORKFLOW_MAX_GROUP_PAGES = 50;
 
 // GitLab Duo Workflow does not expose a context window via the model catalog GraphQL.
 // The Duo Workflow Service streams the real per-agent window in each checkpoint's
-// `agent_context_usage` (claude_opus_4_8 observed at 1_000_000), but Chudcode's context
+// `agent_context_usage` (claude_opus_4_8 observed at 1_000_000), but OMP's context
 // panel / auto-compaction read `model.contextWindow` from the catalog ModelSpec, which
 // the provider cannot backfill at runtime. Match the model ref to a static window the
 // same way other providers ship static values; DWS' own global fallback is 200_000
@@ -45,7 +44,7 @@ const AI_CHAT_AVAILABLE_MODELS_QUERY = `query lsp_aiChatAvailableModels($rootNam
   }
 }`;
 
-const ProjectRootNamespaceQuery = `query chudcode_gitlabDuoWorkflowProjectRootNamespace($fullPath: ID!) {
+const ProjectRootNamespaceQuery = `query omp_gitlabDuoWorkflowProjectRootNamespace($fullPath: ID!) {
   project(fullPath: $fullPath) {
     namespace {
       id
@@ -54,15 +53,19 @@ const ProjectRootNamespaceQuery = `query chudcode_gitlabDuoWorkflowProjectRootNa
   }
 }`;
 
+// Hoisted: per-element schema construction on a discovery hot path.
+const stringSchema = type("string");
+const unknownArraySchema = type("unknown[]");
+
 const resilientString = type("unknown").pipe(value => {
 	if (value === undefined) return undefined;
-	const parsed = type("string")(value);
+	const parsed = stringSchema(value);
 	return parsed instanceof type.errors ? undefined : parsed;
 });
 
 const resilientUnknownArray = type("unknown").pipe(value => {
 	if (value === undefined || value === null) return value;
-	const parsed = type("unknown[]")(value);
+	const parsed = unknownArraySchema(value);
 	return parsed instanceof type.errors ? [] : parsed;
 });
 
@@ -183,7 +186,7 @@ export function buildGitLabDuoWorkflowModelSpec(
 		baseUrl: normalizedBaseUrl,
 		// The Duo Agent Platform path exposes no client-controllable thinking knob
 		// (Anthropic model params are server-fixed; see provider notes), so reasoning
-		// is off — this also hides Chudcode's thinking-effort selector for these models.
+		// is off — this also hides OMP's thinking-effort selector for these models.
 		reasoning: false,
 		input: ["text"],
 		cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
@@ -194,12 +197,11 @@ export function buildGitLabDuoWorkflowModelSpec(
 	};
 }
 
-export function buildGitLabDuoWorkflowFallbackModel(
-	id = FALLBACK_MODEL_ID,
-	name = FALLBACK_MODEL_NAME,
-	baseUrl = GITLAB_DEFAULT_BASE_URL,
-): ModelSpec<"gitlab-duo-agent"> {
-	return buildGitLabDuoWorkflowModelSpec({ name, ref: id }, baseUrl);
+export function buildGitLabDuoWorkflowFallbackModel(baseUrl = GITLAB_DEFAULT_BASE_URL): ModelSpec<"gitlab-duo-agent"> {
+	return {
+		...seedModels<"gitlab-duo-agent">("gitlab-duo-agent")[0]!,
+		baseUrl: normalizeGitLabBaseUrl(baseUrl),
+	};
 }
 
 async function selectGitLabDuoWorkflowNamespace(
@@ -227,8 +229,7 @@ async function selectGitLabDuoWorkflowCandidate<TSelection>(
 	resolveCandidate: GitLabDuoWorkflowCandidateResolver<TSelection>,
 	enrichNamespaceOverride = false,
 ): Promise<TSelection | null> {
-	const namespaceId =
-		normalizeIdentifier(config.namespaceId) ?? normalizeIdentifier(process.env.GITLAB_DUO_NAMESPACE_ID);
+	const namespaceId = normalizeIdentifier(config.namespaceId) ?? normalizeIdentifier(Bun.env.GITLAB_DUO_NAMESPACE_ID);
 	if (namespaceId) {
 		const candidate = enrichNamespaceOverride
 			? ((await fetchNamespaceOverrideCandidate(config, baseUrl, namespaceId)) ?? {
@@ -245,8 +246,8 @@ async function selectGitLabDuoWorkflowCandidate<TSelection>(
 	const projectId =
 		normalizeIdentifier(config.projectId) ??
 		normalizeIdentifier(config.projectPath) ??
-		normalizeIdentifier(process.env.GITLAB_DUO_PROJECT_ID) ??
-		normalizeIdentifier(process.env.GITLAB_DUO_PROJECT_PATH);
+		normalizeIdentifier(Bun.env.GITLAB_DUO_PROJECT_ID) ??
+		normalizeIdentifier(Bun.env.GITLAB_DUO_PROJECT_PATH);
 	if (projectId) {
 		const projectNamespace = await fetchProjectRootNamespace(config, baseUrl, projectId);
 		if (projectNamespace) {

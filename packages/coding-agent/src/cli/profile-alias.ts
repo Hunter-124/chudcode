@@ -1,8 +1,6 @@
 import * as os from "node:os";
 import * as path from "node:path";
-import { normalizeProfileName } from "@chudware/utils/dirs";
-import * as fsx from "@chudware/utils/fsx";
-import { PRODUCT_NAME } from "../brand";
+import { APP_NAME, normalizeProfileName } from "@oh-my-pi/pi-utils/dirs";
 
 export type ProfileAliasShell = "bash" | "zsh" | "fish" | "powershell" | "pwsh";
 
@@ -29,10 +27,10 @@ export interface ProfileAliasProcessOptions {
 }
 
 const DEFAULT_ALIAS_COMMAND: ProfileAliasCommand = {
-	display: "chudcode",
-	posix: "chudcode",
-	fish: "chudcode",
-	powerShell: "chudcode",
+	display: APP_NAME,
+	posix: APP_NAME,
+	fish: APP_NAME,
+	powerShell: APP_NAME,
 };
 
 export interface ProfileAliasInstallOptions {
@@ -132,7 +130,7 @@ const POWERSHELL_RESERVED_ALIAS_NAMES: ReadonlySet<string> = new Set([
 	"workflow",
 ]);
 
-// Keep local: importing the chud-utils root here would eagerly load env before
+// Keep local: importing the pi-utils root here would eagerly load env before
 // cli.ts has applied --profile, regressing profile-specific .env loading.
 function isEnoentError(error: unknown): boolean {
 	return typeof error === "object" && error !== null && (error as { code?: unknown }).code === "ENOENT";
@@ -156,8 +154,8 @@ function validateAliasName(aliasName: string, shell: ProfileAliasShell): string 
 	if (!ALIAS_NAME_RE.test(normalized)) {
 		throw new Error(`Invalid alias "${aliasName}". Alias names must match ${ALIAS_NAME_RE.source}.`);
 	}
-	if (normalized.toLowerCase() === "chudcode") {
-		throw new Error('Invalid alias "chudcode". Refusing to shadow the base chudcode command.');
+	if (normalized.toLowerCase() === APP_NAME.toLowerCase()) {
+		throw new Error(`Invalid alias "${aliasName}". Refusing to shadow the base ${APP_NAME} command.`);
 	}
 	if (getReservedAliasNames(shell).has(normalized.toLowerCase())) {
 		throw new Error(`Invalid alias "${aliasName}". Refusing to create a ${shell} reserved word.`);
@@ -202,7 +200,7 @@ function normalizeShellName(
 export function resolveProfileAliasCommandFromProcess({
 	argv = process.argv,
 	cwd = process.cwd(),
-	compiled = process.env.CHUDCODE_COMPILED === "true",
+	compiled = process.env.PI_COMPILED === "true",
 }: ProfileAliasProcessOptions = {}): ProfileAliasCommand {
 	if (compiled) return DEFAULT_ALIAS_COMMAND;
 
@@ -267,7 +265,7 @@ function resolveShellConfigPath(
 			// a hard-coded ~/.config would be silently ignored when the user relocates
 			// their XDG config root, leaving the alias unsourced after a restart.
 			const configHome = env.XDG_CONFIG_HOME ? toPosix(env.XDG_CONFIG_HOME) : posixJoinUnc(posixHome, ".config");
-			return posixJoinUnc(configHome, "fish", "conf.d", "chudcode-profiles.fish");
+			return posixJoinUnc(configHome, "fish", "conf.d", "omp-profiles.fish");
 		}
 		case "pwsh":
 			return platform === "win32"
@@ -285,13 +283,13 @@ function renderAliasBlock(
 	command: ProfileAliasCommand,
 ): { block: string; command: string } {
 	const profiledCommand = `${command.display} --profile=${profile}`;
-	const start = `# >>> chudcode profile alias: ${aliasName} >>>`;
-	const end = `# <<< chudcode profile alias: ${aliasName} <<<`;
+	const start = `# >>> omp profile alias: ${aliasName} >>>`;
+	const end = `# <<< omp profile alias: ${aliasName} <<<`;
 	let body: string;
 	switch (shell) {
 		case "fish":
 			body = [
-				`function ${aliasName} --wraps chudcode --description '${PRODUCT_NAME} profile ${profile}'`,
+				`function ${aliasName} --wraps ${APP_NAME} --description '${APP_NAME} profile ${profile}'`,
 				`    command ${command.fish} --profile=${profile} $argv`,
 				"end",
 			].join("\n");
@@ -308,8 +306,8 @@ function renderAliasBlock(
 }
 
 function upsertBlock(content: string, aliasName: string, block: string): string {
-	const start = `# >>> chudcode profile alias: ${aliasName} >>>`;
-	const end = `# <<< chudcode profile alias: ${aliasName} <<<`;
+	const start = `# >>> omp profile alias: ${aliasName} >>>`;
+	const end = `# <<< omp profile alias: ${aliasName} <<<`;
 	const startIndex = content.indexOf(start);
 	if (startIndex !== -1) {
 		const endIndex = content.indexOf(end, startIndex + start.length);
@@ -329,7 +327,7 @@ function upsertBlock(content: string, aliasName: string, block: string): string 
 }
 
 function readAliasConfigText(filePath: string): Promise<string> {
-	return fsx.readText(filePath);
+	return Bun.file(filePath).text();
 }
 
 export async function readProfileAliasConfigFile(
@@ -360,7 +358,7 @@ export async function installProfileAlias(options: ProfileAliasInstallOptions): 
 	const writeFile =
 		options.writeFile ??
 		(async (filePath, content) => {
-			await fsx.write(filePath, content);
+			await Bun.write(filePath, content);
 		});
 
 	const current = await readFile(configPath);

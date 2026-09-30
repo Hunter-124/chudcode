@@ -1,19 +1,19 @@
 {
   "type": "module",
-  "name": "@chudware/collab-web",
+  "name": "@oh-my-pi/collab-web",
   "version": "16.3.6",
   "private": true,
-  "description": "Browser guest client and local relay tools for chudcode collab live sessions",
-  "homepage": "https://chudware.sh",
-  "author": "Chudware",
+  "description": "Browser guest client and local relay tools for omp collab live sessions",
+  "homepage": "https://omp.sh",
+  "author": { "name": "Stencil Labs, Inc.", "url": "https://stencil.so" },
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/Hunter-124/chudcode.git",
+    "url": "git+https://github.com/can1357/oh-my-pi.git",
     "directory": "packages/collab-web"
   },
   "bugs": {
-    "url": "https://github.com/Hunter-124/chudcode/issues"
+    "url": "https://github.com/can1357/oh-my-pi/issues"
   },
   "exports": {
     "./session-client": "./src/lib/session-client.ts",
@@ -24,7 +24,6 @@
     "./header": "./src/components/shell/HeaderBar.tsx",
     "./banners": "./src/components/shell/Banners.tsx",
     "./toasts": "./src/components/shell/Toasts.tsx",
-    "./styles/tokens.css": "./src/styles/tokens.css",
     "./styles/base.css": "./src/styles/base.css"
   },
   "keywords": [
@@ -38,19 +37,19 @@
     "dev": "bun ./index.html",
     "mock-host": "bun scripts/mock-host.ts",
     "relay": "bun scripts/local-relay.ts",
-    "build": "rm -rf dist && bun build ./index.html --outdir=dist --minify --entry-naming=[hash].[ext] --chunk-naming=[hash].[ext] --asset-naming=[hash].[ext] && mv dist/*.html dist/index.html && cp -R public/. dist/",
+    "build": "rm -rf dist && bun build ./index.html --outdir=dist --minify --define process.env.NODE_ENV='\"production\"' --entry-naming=[hash].[ext] --chunk-naming=[hash].[ext] --asset-naming=[hash].[ext] && mv dist/*.html dist/index.html && cp -R public/. dist/",
     "gen:tool-views": "bun scripts/build-tool-views.ts",
     "prepack": "bun run build",
     "test": "bun test --parallel",
-    "check": "biome check . && bun run check:types",
+    "check": "oxlint . && oxfmt --check --no-error-on-unmatched-pattern 'src/**/*.{ts,tsx}' '{test,bench,examples,scripts}/**/*.ts' '*.ts' && bun run check:types",
     "check:types": "tsgo -p tsconfig.json --noEmit",
-    "lint": "biome lint .",
-    "fix": "biome check --write --unsafe .",
-    "fmt": "biome format --write ."
+    "lint": "oxlint .",
+    "fix": "oxlint --fix --fix-suggestions . && bun run fmt",
+    "fmt": "oxfmt --no-error-on-unmatched-pattern 'src/**/*.{ts,tsx}' '{test,bench,examples,scripts}/**/*.ts' '*.ts'"
   },
   "dependencies": {
-    "@chudware/utils": "catalog:",
-    "@chudware/wire": "catalog:",
+    "@oh-my-pi/pi-utils": "catalog:",
+    "@oh-my-pi/pi-wire": "catalog:",
     "lucide-react": "catalog:",
     "katex": "catalog:",
     "react": "catalog:",

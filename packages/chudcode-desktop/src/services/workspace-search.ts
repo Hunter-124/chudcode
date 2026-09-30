@@ -1,5 +1,5 @@
 import path from "node:path";
-import { FileType, glob } from "@chudware/natives";
+import { FileType, glob } from "@oh-my-pi/pi-natives";
 import type { SearchQuery, SearchResult } from "../protocol";
 import type { WorkspaceService } from "./workspace-service";
 import { WorkspaceServiceError } from "./workspace-service";
@@ -79,8 +79,15 @@ async function gitIgnoredPaths(rootPath: string, relativePaths: readonly string[
 	} catch {
 		return undefined;
 	}
-	child.stdin.write(`${relativePaths.join("\0")}\0`);
-	child.stdin.end();
+	try {
+		child.stdin.write(`${relativePaths.join("\0")}\0`);
+		child.stdin.end();
+	} catch (error) {
+		// A non-repository or missing git executable can exit before stdin is sent.
+		if ((error as NodeJS.ErrnoException).code !== "EPIPE") throw error;
+		await child.exited;
+		return undefined;
+	}
 	const output = await collectProcessOutput(child, MAX_PROCESS_OUTPUT_BYTES);
 	if (output.exitCode !== 0 && output.exitCode !== 1) return undefined;
 	return new Set(

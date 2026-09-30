@@ -126,14 +126,14 @@ def sample_questions(
     step = len(eligible) / n
     picked = []
     for k in range(n):
-        chud = eligible[int(k * step)]
-        qa = rng.choice(paras[chud]["qas"])
+        pi = eligible[int(k * step)]
+        qa = rng.choice(paras[pi]["qas"])
         picked.append(
             {
                 "q": " ".join(qa["question"].split()),
                 "golds": sorted({a["text"] for a in qa["answers"]}),
-                "pos_rel": (offsets[chud] - start) / (end - start),
-                "chud": chud,
+                "pos_rel": (offsets[pi] - start) / (end - start),
+                "pi": pi,
             }
         )
     return picked
@@ -289,7 +289,7 @@ def run_cell(
 
     records = []
     for q, a, pa in zip(questions, answers, prov_answers):
-        gold_role = chunk["roles"][q["chud"]]
+        gold_role = chunk["roles"][q["pi"]]
         scored = cond in QA_PROMPT
         records.append(
             {

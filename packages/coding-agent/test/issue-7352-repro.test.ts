@@ -1,8 +1,8 @@
 /**
- * Regression for https://github.com/Hunter-124/chudcode/issues/7352
+ * Regression for https://github.com/can1357/oh-my-pi/issues/7352
  *
- * A headless `chudcode --mode json --no-session -p @<file>` run with
- * `memory.backend: mnemo` hung after its turn completed and left an
+ * A headless `omp --mode json --no-session -p @<file>` run with
+ * `memory.backend: mnemopi` hung after its turn completed and left an
  * unreaped `__omp_worker_mnemopi_embed` child. The embed-worker IPC request
  * (`embed`) had no timeout, so a wedged native runtime (fastembed /
  * onnxruntime hanging, cf. #4792) blocked whatever awaited the embed — the
@@ -17,11 +17,11 @@
  * exercised without fastembed/onnxruntime.
  */
 import { describe, expect, it, vi } from "bun:test";
-import { MnemopiEmbedClient, type MnemopiEmbedWorkerHandle } from "@chudware/coding-agent/mnemo/embed-client";
+import { MnemopiEmbedClient, type MnemopiEmbedWorkerHandle } from "@oh-my-pi/pi-coding-agent/mnemopi/embed-client";
 import type {
 	MnemopiEmbedWorkerInbound,
 	MnemopiEmbedWorkerOutbound,
-} from "@chudware/coding-agent/mnemo/embed-protocol";
+} from "@oh-my-pi/pi-coding-agent/mnemopi/embed-protocol";
 
 /** A fake worker that answers `init` but never answers `embed`. */
 function silentEmbedWorker(state: { spawns: number; terminated: number }): () => MnemopiEmbedWorkerHandle {
@@ -46,6 +46,8 @@ function silentEmbedWorker(state: { spawns: number; terminated: number }): () =>
 			onError() {
 				return () => {};
 			},
+			ref() {},
+			unref() {},
 			async terminate() {
 				state.terminated += 1;
 				handler = undefined;
@@ -54,7 +56,7 @@ function silentEmbedWorker(state: { spawns: number; terminated: number }): () =>
 	};
 }
 
-describe("issue #7352 — mnemo embed requests are bounded and reap a wedged worker", () => {
+describe("issue #7352 — mnemopi embed requests are bounded and reap a wedged worker", () => {
 	it("fails a wedged embed within the budget instead of hanging forever", async () => {
 		const state = { spawns: 0, terminated: 0 };
 		const client = new MnemopiEmbedClient(silentEmbedWorker(state), 50);
@@ -136,6 +138,8 @@ describe("issue #7352 — mnemo embed requests are bounded and reap a wedged wor
 				onError() {
 					return () => {};
 				},
+				ref() {},
+				unref() {},
 				async terminate() {
 					state.terminated += 1;
 					handler = undefined;

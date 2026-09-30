@@ -1,5 +1,5 @@
-import type { SessionClient, SessionSnapshot, TranscriptResult } from "@chudware/collab-web/session-client";
-import type { CollabUiResponseValue, ImageContent } from "@chudware/wire";
+import type { SessionClient, SessionSnapshot, TranscriptResult } from "@oh-my-pi/collab-web/session-client";
+import type { CollabUiResponseValue, ImageContent } from "@oh-my-pi/pi-wire";
 import {
 	DESKTOP_PROTOCOL_VERSION,
 	type DesktopFrame,

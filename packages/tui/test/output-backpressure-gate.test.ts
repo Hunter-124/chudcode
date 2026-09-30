@@ -3,7 +3,7 @@
  *
  * `process.stdout.write` on a TTY blocks the event loop until the terminal
  * drains, so multi-MB repaints froze the whole TUI when the emulator was slow
- * or occluded. The fix pairs an off-thread writer (chud-natives `TtyWriter`)
+ * or occluded. The fix pairs an off-thread writer (pi-natives `TtyWriter`)
  * with a render gate: while `Terminal.pendingOutputBytes` exceeds the frame
  * budget, composing another frame would only queue a stale paint behind the
  * backlog.
@@ -16,7 +16,7 @@
  * 3. Terminals that do not report `pendingOutputBytes` are never gated.
  */
 import { describe, expect, it } from "bun:test";
-import { type RenderTimer, Text, TUI } from "@chudware/tui";
+import { type RenderTimer, Text, TUI } from "@oh-my-pi/pi-tui";
 import { VirtualTerminal } from "./virtual-terminal";
 
 class BackloggedTerminal extends VirtualTerminal {

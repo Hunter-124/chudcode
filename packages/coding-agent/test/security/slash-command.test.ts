@@ -2,14 +2,15 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import { refreshDirsFromEnv } from "@chudware/utils";
-import * as fsx from "@chudware/utils/fsx";
+import { refreshDirsFromEnv } from "@oh-my-pi/pi-utils";
 import { Settings } from "../../src/config/settings";
 import { SecurityStore } from "../../src/security";
 import { handleSecurityCommand } from "../../src/slash-commands/helpers/security";
 import type { SlashCommandRuntime } from "../../src/slash-commands/types";
 import type { ToolSession } from "../../src/tools";
 import { SecurityScanTool } from "../../src/tools/security-scan";
+
+import { cfgSecurityEnabled } from "@oh-my-pi/pi-coding-agent/tools/settings";
 
 const SARIF_FIXTURE = path.join(import.meta.dir, "..", "fixtures", "security", "generic-results.sarif");
 let temporaryRoot = "";
@@ -19,7 +20,7 @@ let settings: Settings;
 let output: string[] = [];
 
 beforeEach(async () => {
-	temporaryRoot = await fs.mkdtemp(path.join(os.tmpdir(), "chudcode-security-slash-"));
+	temporaryRoot = await fs.mkdtemp(path.join(os.tmpdir(), "omp-security-slash-"));
 	repositoryRoot = path.join(temporaryRoot, "repo");
 	await fs.mkdir(repositoryRoot);
 	previousStateHome = process.env.XDG_STATE_HOME;
@@ -131,10 +132,10 @@ describe("/security", () => {
 		if (!scan) throw new Error("expected imported scan");
 		await command(`export ${scan.id} --output exported.sarif --format sarif`);
 		expect((await fs.stat(repositoryRoot)).mode & 0o777).toBe(0o755);
-		expect(JSON.parse(await fsx.readText(path.join(repositoryRoot, "exported.sarif")))).toHaveProperty("version");
+		expect(JSON.parse(await Bun.file(path.join(repositoryRoot, "exported.sarif")).text())).toHaveProperty("version");
 	});
 
-	test("validate returns a static Chudcode-native residual prompt", async () => {
+	test("validate returns a static OMP-native residual prompt", async () => {
 		const result = await command("validate secscan_fixture secf_fixture");
 		expect(result).toEqual({
 			prompt: expect.stringContaining("security://scans/secscan_fixture/findings/secf_fixture"),
@@ -142,7 +143,7 @@ describe("/security", () => {
 	});
 
 	test("disabled command is consumed without touching session state", async () => {
-		settings.override("security.enabled", false);
+		cfgSecurityEnabled.override(settings, false);
 		const result = await command("scans");
 		expect(result).toEqual({ consumed: true });
 		expect(output.at(-1)).toContain("disabled");

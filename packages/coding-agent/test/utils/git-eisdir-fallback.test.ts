@@ -2,16 +2,16 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import { removeWithRetries } from "@chudware/utils";
+import * as vcs from "@oh-my-pi/pi-natives/vcs";
+import { removeWithRetries } from "@oh-my-pi/pi-utils";
 import { $ } from "bun";
-import * as git from "../../src/utils/git";
 
 describe("git reference directory fallback", () => {
 	let repoDir: string;
 	let commitSha: string;
 
 	beforeAll(async () => {
-		repoDir = await fs.mkdtemp(path.join(os.tmpdir(), "chudcode-ref-fallback-"));
+		repoDir = await fs.mkdtemp(path.join(os.tmpdir(), "omp-ref-fallback-"));
 		const initResult = await $`git init --initial-branch=main`.cwd(repoDir).quiet();
 		if (initResult.exitCode !== 0) throw new Error("git init failed");
 		await $`git config user.name "Test User"`.cwd(repoDir).quiet();
@@ -23,9 +23,9 @@ describe("git reference directory fallback", () => {
 		commitSha = (await $`git rev-parse HEAD`.cwd(repoDir).quiet().text()).trim();
 
 		// We will simulate a situation where:
-		// There is a branch called "chud-flash" which is packed (in packed-refs).
+		// There is a branch called "pi-flash" which is packed (in packed-refs).
 		// But there is also a subdirectory created inside refs/heads under the same name:
-		// refs/heads/pi-flash/... because a branch called "chud-flash/something" exists as a loose ref.
+		// refs/heads/pi-flash/... because a branch called "pi-flash/something" exists as a loose ref.
 		// Thus:
 		// 1. refs/heads/pi-flash is a directory on disk.
 		// 2. packed-refs contains: <commitSha> refs/heads/pi-flash
@@ -42,12 +42,12 @@ describe("git reference directory fallback", () => {
 		expect(packedRefs).toContain("refs/heads/pi-flash");
 
 		// Delete the loose ref file for refs/heads/pi-flash if git pack-refs didn't already delete it (it usually does).
-		await removeWithRetries(path.join(repoDir, ".git", "refs", "heads", "chud-flash"));
+		await removeWithRetries(path.join(repoDir, ".git", "refs", "heads", "pi-flash"));
 
-		// Now, create refs/heads/pi-flash as a directory to simulate another branch like "chud-flash/feature" existing.
+		// Now, create refs/heads/pi-flash as a directory to simulate another branch like "pi-flash/feature" existing.
 		// We can just create the directory and a file inside it, or just the directory.
-		await fs.mkdir(path.join(repoDir, ".git", "refs", "heads", "chud-flash"), { recursive: true });
-		await fs.writeFile(path.join(repoDir, ".git", "refs", "heads", "chud-flash", "feature"), commitSha);
+		await fs.mkdir(path.join(repoDir, ".git", "refs", "heads", "pi-flash"), { recursive: true });
+		await fs.writeFile(path.join(repoDir, ".git", "refs", "heads", "pi-flash", "feature"), commitSha);
 	});
 
 	afterAll(async () => {
@@ -55,17 +55,17 @@ describe("git reference directory fallback", () => {
 	});
 
 	test("resolves branch that has directory conflict via resolveSync on head", () => {
-		const headStateSync = git.head.resolveSync(repoDir);
+		const headStateSync = vcs.requireGit(repoDir).headSync();
 		expect(headStateSync).not.toBeNull();
 		if (!headStateSync) return;
 		expect(headStateSync.commit).toBe(commitSha);
 	});
 
 	test("resolves branch that has directory conflict via resolve on ref", async () => {
-		const repository = await git.repo.resolve(repoDir);
+		const repository = vcs.git(repoDir);
 		expect(repository).not.toBeNull();
 		if (!repository) return;
-		const resolved = await git.ref.resolve(repoDir, "refs/heads/pi-flash");
+		const resolved = await repository.resolveRef("refs/heads/pi-flash");
 		expect(resolved).toBe(commitSha);
 	});
 });

@@ -1,20 +1,20 @@
 import { afterEach, beforeEach, describe, expect, it, spyOn } from "bun:test";
-import { generateRoomKey, importRoomKey } from "@chudware/coding-agent/collab/crypto";
-import { CollabGuestLink } from "@chudware/coding-agent/collab/guest";
+import { generateRoomKey, importRoomKey } from "@oh-my-pi/pi-coding-agent/collab/crypto";
+import { CollabGuestLink } from "@oh-my-pi/pi-coding-agent/collab/guest";
 import {
 	type AgentSnapshot,
 	COLLAB_PROTO,
 	type CollabFrame,
 	formatCollabLink,
-} from "@chudware/coding-agent/collab/protocol";
-import { CollabSocket } from "@chudware/coding-agent/collab/relay-client";
+} from "@oh-my-pi/pi-coding-agent/collab/protocol";
+import { CollabSocket } from "@oh-my-pi/pi-coding-agent/collab/relay-client";
+import { Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
 import {
 	getRunningSubagentBadgeAgentIds,
 	getRunningSubagentBadgeRegistry,
-} from "@chudware/coding-agent/modes/running-subagent-badge";
-import type { InteractiveModeContext } from "@chudware/coding-agent/modes/types";
-import { AgentRegistry } from "@chudware/coding-agent/registry/agent-registry";
-import * as fsx from "@chudware/utils/fsx";
+} from "@oh-my-pi/pi-tui/overlays/running-subagent-badge";
+import type { InteractiveModeContext } from "@oh-my-pi/pi-coding-agent/modes/types";
+import { AgentRegistry } from "@oh-my-pi/pi-coding-agent/registry/agent-registry";
 import { installInMemoryRelay, uninstallInMemoryRelay } from "./helpers/in-memory-relay";
 
 // In-memory transport: shared FakeWebSocket + InMemoryRelay harness (see
@@ -43,11 +43,11 @@ function makeAgents(ids: string[]): AgentSnapshot[] {
 	}));
 }
 
-function makeGuestContext(counts: number[]): InteractiveModeContext {
+function makeGuestContext(): InteractiveModeContext {
 	let statusLineCount = 0;
 	const ctx = {
 		collabGuest: undefined as CollabGuestLink | undefined,
-		settings: { get: () => "" },
+		settings: Settings.isolated(),
 		sessionManager: {
 			getSessionFile: () => null,
 			getSessionName: () => "local session",
@@ -94,12 +94,11 @@ function makeGuestContext(counts: number[]): InteractiveModeContext {
 		showError: () => {},
 		updateEditorTopBorder: () => {},
 		updateEditorBorderColor: () => {},
-		eventController: { handleEvent: () => Promise.resolve() },
+		eventController: { handleEvent: () => Promise.resolve(), takeDisplaceableComponents: () => [] },
 		syncRunningSubagentBadge: () => {
-			const registry = getRunningSubagentBadgeRegistry(ctx.collabGuest);
+			const registry = getRunningSubagentBadgeRegistry(ctx.collabGuest, AgentRegistry.global());
 			const agentIds = getRunningSubagentBadgeAgentIds(registry);
 			ctx.statusLine.setRunningSubagents(agentIds);
-			counts.push(agentIds.length);
 		},
 	} as unknown as InteractiveModeContext;
 	return ctx;
@@ -117,7 +116,7 @@ afterEach(() => {
 
 describe("collab guest running-subagents badge", () => {
 	it("uses the guest mirror registry and refreshes on join, resnapshot, and leave", async () => {
-		const writeSpy = spyOn(fsx, "write").mockResolvedValue(0);
+		const writeSpy = spyOn(Bun, "write").mockResolvedValue(0);
 		const roomId = "badge-room-1";
 		const roomKey = generateRoomKey();
 		const cryptoKey = await importRoomKey(roomKey);
@@ -142,14 +141,12 @@ describe("collab guest running-subagents badge", () => {
 		hostSocket.connect();
 		await hostOpen.promise;
 
-		const counts: number[] = [];
-		const ctx = makeGuestContext(counts);
+		const ctx = makeGuestContext();
 		const guest = new CollabGuestLink(ctx);
 
 		try {
 			await guest.join(link);
 			expect(ctx.collabGuest).toBe(guest);
-			expect(counts).toEqual([0, 1]);
 			expect(ctx.statusLine.subagentCount).toBe(1);
 
 			nextWelcomeAgents = makeAgents(["remote-one", "remote-two"]);
@@ -166,7 +163,6 @@ describe("collab guest running-subagents badge", () => {
 			await guest.leave("test cleanup");
 			expect(ctx.collabGuest).toBeUndefined();
 			expect(ctx.statusLine.subagentCount).toBe(0);
-			expect(counts.at(-1)).toBe(0);
 		} finally {
 			hostSocket.close();
 			writeSpy.mockRestore();

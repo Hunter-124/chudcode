@@ -1,13 +1,21 @@
-import type { Dialect as CatalogDialect } from "@chudware/catalog/identity";
+import type { Dialect as CatalogDialect } from "@oh-my-pi/pi-catalog/identity";
 import type { Context, Message, ToolCall } from "../types";
 
-export type { Dialect } from "@chudware/catalog/identity";
+export type { Dialect } from "@oh-my-pi/pi-catalog/identity";
 
 export type InbandScanEvent =
 	| { type: "text"; text: string }
 	| { type: "thinkingStart" }
 	| { type: "thinkingDelta"; delta: string }
 	| { type: "thinkingEnd"; thinking: string }
+	/**
+	 * A reasoning close tag with no open in this stream. Chat templates that
+	 * prefill the opener into the prompt (DeepSeek-R1, Qwen3-Thinking) make the
+	 * model stream only the close, so everything emitted as `text` before this
+	 * event was reasoning. Only {@link ThinkingInbandScanner} with `impliedOpen`
+	 * emits it.
+	 */
+	| { type: "impliedThinkingEnd" }
 	| { type: "toolStart"; id: string; name: string }
 	| { type: "toolArgDelta"; id: string; name: string; key: string; delta: string }
 	| { type: "toolEnd"; id: string; name: string; arguments: Record<string, unknown>; rawBlock?: string };
@@ -45,7 +53,7 @@ export interface DialectDefinition {
 export interface InbandScannerOptions {
 	/** string-typed arg names for a tool → read verbatim. Ignored by JSON-carrying dialects. */
 	stringArgs?: (toolName: string) => ReadonlySet<string>;
-	/** Full tool schemas for schema-driven dialects such as GLM XML and chud-native. */
+	/** Full tool schemas for schema-driven dialects such as GLM XML and pi-native. */
 	tools?: readonly InbandTool[];
 	/** XML only: parse pipe-wrapped DeepSeek DSML tags vs plain Anthropic invoke/parameter tags. */
 	xmlTagset?: "anthropic" | "dsml";

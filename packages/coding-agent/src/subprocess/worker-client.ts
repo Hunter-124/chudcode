@@ -3,18 +3,24 @@ import * as os from "node:os";
 import * as path from "node:path";
 import {
 	$env,
+	$which,
 	isBunTestRuntime,
 	isCompiledBinary,
+	isExecutable,
+	isFullyQualifiedPath,
 	logger,
+	openCloexecSync,
 	postmortem,
 	stripWindowsExtendedLengthPathPrefix,
+	WhichCachePolicy,
 	workerHostEntry,
-} from "@chudware/utils";
+} from "@oh-my-pi/pi-utils";
+import { stripGitRepoLocationEnv } from "@oh-my-pi/pi-utils/env";
 import type { Subprocess } from "bun";
 
 /**
  * Shared lifecycle scaffolding for the ONNX inference subprocess clients
- * (mnemo embeddings, speech-to-text, tiny-model titles/completions, TTS).
+ * (mnemopi embeddings, speech-to-text, tiny-model titles/completions, TTS).
  * Each runs `onnxruntime-node` inside a dedicated Bun child process so the NAPI
  * constructor/finalizer never executes in the main agent address space — those
  * destructors segfault Bun on shutdown (issues #1606 / #1607 / #3031).
@@ -107,6 +113,49 @@ export interface WorkerSpawnCommand {
 export const SMOKE_TEST_TIMEOUT_MS = 30_000;
 
 /**
+ * Resolve the current executable path, falling back to finding the binary on
+ * PATH if the original physical path was unlinked on disk (e.g. Homebrew or a
+ * package manager pruned the prior version directory during an in-flight
+ * upgrade, leaving `process.execPath` pointing at a missing path).
+ */
+export function resolveExecutablePath(): string {
+	const executable = stripWindowsExtendedLengthPathPrefix(process.execPath);
+	if (isCompiledBinary() && !isExecutable(executable)) {
+		const argv0 = stripWindowsExtendedLengthPathPrefix(process.argv0);
+		const isPath = argv0.includes("/") || argv0.includes("\\") || argv0.includes(":");
+		const candidates = [
+			// Prefer the original launcher when invoked with an absolute path
+			isFullyQualifiedPath(argv0) ? argv0 : null,
+			!isPath ? $which(argv0, { requireAbsolutePaths: true, cache: WhichCachePolicy.Bypass }) : null,
+			// Generic fallback to finding "omp" on PATH
+			$which("omp", { requireAbsolutePaths: true, cache: WhichCachePolicy.Bypass }),
+		];
+		for (const candidate of candidates) {
+			if (candidate && isExecutable(candidate)) {
+				return candidate;
+			}
+		}
+	}
+	return executable;
+}
+
+/**
+ * Resolve the command that re-enters this CLI's entrypoint: the compiled
+ * binary itself, or the runtime plus the declared worker-host entry. Used by
+ * the TUI `/restart` relaunch; workers go through {@link resolveWorkerSpawnCmd},
+ * whose no-host fallback deliberately differs (cwd-relative entry pinned to the
+ * package root for `bun test` IPC). Outside a CLI host this falls back to the
+ * absolute path of `src/cli.ts` so the relaunch keeps the caller's cwd.
+ */
+export function resolveCliEntryCmd(): string[] {
+	const executable = resolveExecutablePath();
+	if (isCompiledBinary()) return [executable];
+	const hostEntry = workerHostEntry();
+	if (hostEntry) return [executable, hostEntry];
+	return [executable, path.resolve(import.meta.dir, "..", "cli.ts")];
+}
+
+/**
  * Resolve the command used to relaunch the agent CLI into worker mode. In a
  * compiled binary the entry point is the binary itself; otherwise re-enter the
  * declared worker-host entry by absolute path. Workers deliberately spawn
@@ -118,7 +167,7 @@ export const SMOKE_TEST_TIMEOUT_MS = 30_000;
  * IPC handles more reliably under `bun test`.
  */
 export function resolveWorkerSpawnCmd(workerArg: string): WorkerSpawnCommand {
-	const executable = stripWindowsExtendedLengthPathPrefix(process.execPath);
+	const executable = resolveExecutablePath();
 	if (isCompiledBinary()) return { cmd: [executable, workerArg] };
 	const hostEntry = workerHostEntry();
 	if (hostEntry) {
@@ -140,6 +189,9 @@ export function workerEnvFromParent(overlay?: Record<string, string>): Record<st
 		const value = base[key];
 		if (typeof value === "string") merged[key] = value;
 	}
+	// Inherited repo-location overrides must not reach a worker or the PTY
+	// daemons it hosts (issue #11082); an explicit overlay still wins below.
+	stripGitRepoLocationEnv(merged);
 	if (overlay) {
 		for (const key in overlay) merged[key] = overlay[key];
 	}
@@ -148,12 +200,12 @@ export function workerEnvFromParent(overlay?: Record<string, string>): Record<st
 
 /**
  * `LD_LIBRARY_PATH` overlay that lets a dlopen'd native addon find its C++
- * runtime. The ONNX addons installed on demand under `~/.chudcode/agent/cache/**`
+ * runtime. The ONNX addons installed on demand under `~/.omp/agent/cache/**`
  * are `process.dlopen`'d and need `libstdc++.so.6` / `libgcc_s.so.1`; because
  * each addon carries its own `DT_RUNPATH`, an RPATH on our executable cannot
  * satisfy them, so the path has to come from the environment. On distros where
  * those libraries are outside the loader's default search path (NixOS) the
- * packaged build exports `CHUDCODE_NATIVE_LIBRARY_PATH` (see `nix/package.nix`).
+ * packaged build exports `OMP_NATIVE_LIBRARY_PATH` (see `nix/package.nix`).
  * Appended last so an inherited `LD_LIBRARY_PATH` keeps precedence.
  * Pure for testability; see {@link inferenceWorkerEnv} for the spawn-time glue.
  */
@@ -162,7 +214,7 @@ export function nativeLibraryPathOverlay(
 	platform: NodeJS.Platform,
 ): Record<string, string> {
 	if (platform !== "linux") return {};
-	const native = env.CHUDCODE_NATIVE_LIBRARY_PATH;
+	const native = env.OMP_NATIVE_LIBRARY_PATH;
 	if (typeof native !== "string" || native.length === 0) return {};
 	const inherited = env.LD_LIBRARY_PATH;
 	return { LD_LIBRARY_PATH: inherited ? `${inherited}:${native}` : native };
@@ -186,7 +238,7 @@ export function inferenceWorkerEnv(overlay?: Record<string, string>): Record<str
  * `ReadableStream` pipes: even an unref'd child with a piped stderr stream can
  * keep the parent event loop alive. After the worker exits, the last
  * {@link STDERR_TAIL_LIMIT_BYTES} are appended to the `onExit` error so
- * `tts/mnemo/…: worker error` lines carry the actual stack instead of a bare
+ * `tts/mnemopi/…: worker error` lines carry the actual stack instead of a bare
  * exit code (issue #4324). The child is `unref`'d outside `bun test` so an idle
  * worker never blocks process exit. `exitLabel` prefixes the worker-error
  * message surfaced for an unexpected (non-intentional) exit.
@@ -329,8 +381,11 @@ interface StderrCapture {
 /** Create a file-backed stderr target that does not pin Bun's event loop. */
 function createStderrCapture(exitLabel: string): StderrCapture {
 	try {
-		const dir = fs.mkdtempSync(path.join(os.tmpdir(), "chudcode-worker-stderr-"));
-		const fd = fs.openSync(path.join(dir, "stderr.log"), "w+");
+		const dir = fs.mkdtempSync(path.join(os.tmpdir(), "omp-worker-stderr-"));
+		const fd = openCloexecSync(
+			path.join(dir, "stderr.log"),
+			fs.constants.O_RDWR | fs.constants.O_CREAT | fs.constants.O_TRUNC,
+		);
 		const cleanupOnExit = (): void => cleanupStderrCapture({ target: fd, fd, dir, cleanupOnExit: null });
 		process.once("exit", cleanupOnExit);
 		return { target: fd, fd, dir, cleanupOnExit };
@@ -490,7 +545,7 @@ export function logWorkerMessage(message: WorkerLogMessage): void {
 }
 
 /**
- * Drive the ping/pong readiness probe wired into `chudcode --smoke-test`: send one
+ * Drive the ping/pong readiness probe wired into `omp --smoke-test`: send one
  * `ping`, resolve on the first `pong` (ignoring `log` chatter), and reject on
  * any other message, a worker error, or the timeout. Always tears the handle
  * down on the way out. `label` prefixes the failure messages.

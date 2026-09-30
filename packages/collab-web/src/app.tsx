@@ -13,7 +13,7 @@ import { useGuestSnapshot } from "./lib/use-guest";
 import type { ToolRenderHost } from "./tool-render";
 import "./components/shell/shell.css";
 
-const NAME_KEY = "chudcode.collab.name";
+const NAME_KEY = "omp.collab.name";
 
 interface Creds {
 	link: string;
@@ -104,7 +104,7 @@ export function App(): ReactNode {
 	}, [connect]);
 
 	useEffect(() => {
-		if (!client) document.title = "chudcode collab";
+		if (!client) document.title = "omp collab";
 	}, [client]);
 
 	if (!client) {
@@ -149,13 +149,14 @@ function Session({ client, onLeave, onRejoin }: SessionProps): ReactNode {
 
 	const title = snap.header?.title ?? snap.state?.sessionName ?? "session";
 	useEffect(() => {
-		document.title = `${title} · chudcode collab`;
+		document.title = `${title} · omp collab`;
 	}, [title]);
 
 	const drawerAgent = selectedId != null ? snap.agents.find(a => a.id === selectedId) : undefined;
 
 	return (
 		<div className="sh-app">
+			<div className="sh-ambient" />
 			<HeaderBar
 				snapshot={snap}
 				subCount={subCount}
@@ -164,7 +165,7 @@ function Session({ client, onLeave, onRejoin }: SessionProps): ReactNode {
 				onLeave={onLeave}
 			/>
 			<main className="sh-main">
-				<section className="sh-content" data-rail={railOpen ? "true" : "false"}>
+				<section className="sh-panel" data-rail={railOpen ? "true" : "false"}>
 					<div className="sh-transcript">
 						<Transcript
 							entries={snap.entries}
@@ -173,8 +174,10 @@ function Session({ client, onLeave, onRejoin }: SessionProps): ReactNode {
 							activeTools={snap.activeTools}
 							working={snap.working}
 							host={toolHost}
+							phase={snap.phase}
 						/>
 					</div>
+					<Composer client={client} snapshot={snap} />
 				</section>
 				{railOpen && (
 					<>
@@ -191,7 +194,6 @@ function Session({ client, onLeave, onRejoin }: SessionProps): ReactNode {
 					</>
 				)}
 			</main>
-			<Composer client={client} snapshot={snap} />
 			{drawerAgent && (
 				<>
 					<div className="ag-drawer-backdrop" onClick={() => setSelectedId(null)} />
@@ -205,7 +207,13 @@ function Session({ client, onLeave, onRejoin }: SessionProps): ReactNode {
 					/>
 				</>
 			)}
-			<Banners phase={snap.phase} endedReason={snap.endedReason} onRejoin={onRejoin} onNewLink={onLeave} />
+			<Banners
+				phase={snap.phase}
+				endedReason={snap.endedReason}
+				loading={snap.loading}
+				onRejoin={onRejoin}
+				onNewLink={onLeave}
+			/>
 			<Toasts notices={snap.notices} />
 		</div>
 	);

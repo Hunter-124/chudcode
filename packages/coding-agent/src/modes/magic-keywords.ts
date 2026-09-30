@@ -1,57 +1,162 @@
-import { containsAutobot, highlightAutobot } from "./autobot";
-import { containsOrchestrate, highlightOrchestrate } from "./orchestrate";
-import { containsTokenmaxxing, highlightTokenmaxxing } from "./tokenmaxxing";
-import { containsUltragoon, highlightUltragoon } from "./ultragoon";
-import { containsUltrathink, highlightUltrathink } from "./ultrathink";
-import { containsWorkflow, highlightWorkflow } from "./workflow";
-
-/** Every magic keyword, paired with its substring probe and prose detector. */
-const KEYWORDS = [
-	{ word: "ultrathink", contains: containsUltrathink },
-	{ word: "orchestrate", contains: containsOrchestrate },
-	{ word: "workflowz", contains: containsWorkflow },
-	{ word: "ultragoon", contains: containsUltragoon },
-	{ word: "tokenmaxxing", contains: containsTokenmaxxing },
-	{ word: "autobot", contains: containsAutobot },
-] as const;
+import { prompt } from "@oh-my-pi/pi-utils";
+import autobotNotice from "../prompts/system/autobot-notice.md" with { type: "text" };
+import jevifyNotice from "../prompts/system/jevify-notice.md" with { type: "text" };
+import orchestrateNotice from "../prompts/system/orchestrate-notice.md" with { type: "text" };
+import tokenmaxxingNotice from "../prompts/system/tokenmaxxing-notice.md" with { type: "text" };
+import ultragoonNotice from "../prompts/system/ultragoon-notice.md" with { type: "text" };
+import ultrathinkNotice from "../prompts/system/ultrathink-notice.md" with { type: "text" };
+import workflowNotice from "../prompts/system/workflow-notice.md" with { type: "text" };
 
 /**
- * Gradient-highlight every magic keyword ("ultrathink", "orchestrate",
- * "workflowz", "ultragoon", "tokenmaxxing", "autobot") that appears as
- * standalone prose, skipping any occurrence inside a code block, inline code
- * span, or XML/HTML section. Each highlighter paints its
- * own keyword with its own gradient, so chaining is order-independent — the
- * earlier passes only inject zero-width SGR escapes (no backticks or angle
- * brackets), which never confuse the later passes' markdown masking.
+ * Magic keywords: standalone lowercase prose words in a user prompt that
+ * append a hidden, user-attributed notice for that turn and glow in the TUI.
  *
- * `resetTo` is the SGR foreground sequence restored after each painted keyword;
- * pass the surrounding text color when decorating already-colored content (e.g.
- * a themed message bubble) so the gradient does not bleed into the rest of the
- * line. Defaults to a plain foreground reset for default-colored editor text.
- *
- * `phase` ∈ [0, 1) cyclically rotates each gradient — the editor passes a
- * `Date.now()`-derived value to animate a Claude-Code-style shimmer while a
- * keyword is on screen and the prompt is focused; sent message bubbles omit it
- * to keep the static gradient.
+ * This table is the single source of truth. Every downstream surface derives
+ * from it: the `magicKeywords.<id>` settings (`modes/settings.ts`), the notice
+ * injection and `<id>-notice` message types (agent-session, queued-messages),
+ * and the editor/bubble gradients (`setMagicKeywords` in pi-tui). Adding a
+ * keyword means one row here plus its notice template under `prompts/system/`.
  */
-export function highlightMagicKeywords(text: string, resetTo?: string, phase?: number): string {
-	let out = highlightUltrathink(text, resetTo, phase);
-	out = highlightOrchestrate(out, resetTo, phase);
-	out = highlightWorkflow(out, resetTo, phase);
-	out = highlightUltragoon(out, resetTo, phase);
-	out = highlightTokenmaxxing(out, resetTo, phase);
-	return highlightAutobot(out, resetTo, phase);
+
+/** Session facts a keyword notice may render against. */
+export interface MagicKeywordContext {
+	/** Enabled tool names for the turn. */
+	tools: readonly string[];
+	/** `task.batch`: whether `task` accepts a `tasks[]` array. */
+	taskBatch: boolean;
+	/** Whether the `scout` agent can be dispatched. */
+	scoutAvailable: boolean;
+	/** `eval.tools.enabled`: whether `@tool`-defined kernel tools exist. */
+	evalTools: boolean;
 }
 
-/**
- * Cheap test for "does this text contain any magic keyword as standalone prose?".
- * Short-circuits on substring probes before paying for the markdown-aware
- * prose check, so the common "no keyword in buffer" path is just a handful of
- * `String#indexOf`s.
- */
-export function hasMagicKeyword(text: string): boolean {
-	for (const keyword of KEYWORDS) {
-		if (text.includes(keyword.word) && keyword.contains(text)) return true;
-	}
-	return false;
+/** One magic keyword: trigger word, gradient, settings copy, and the notice it injects. */
+export interface MagicKeyword {
+	/** Settings key suffix (`magicKeywords.<id>`) and notice message type prefix (`<id>-notice`). */
+	id: string;
+	/** Exact lowercase trigger, matched only as standalone prose. */
+	word: string;
+	/** Editor/bubble gradient as an HSL hue sweep `[from, to]` in degrees; `to` may exceed 360 to wrap. */
+	hue: readonly [number, number];
+	/** Settings panel label. */
+	label: string;
+	/** Settings panel description. */
+	description: string;
+	/** Tools that must all be enabled for the notice to apply; the notice is skipped otherwise. */
+	requires: readonly string[];
+	/** Render the hidden notice queued ahead of the user message. */
+	notice: (context: MagicKeywordContext) => string;
 }
+
+/** Hidden notice for "ultrathink": careful multi-step reasoning. */
+export const ULTRATHINK_NOTICE: string = ultrathinkNotice.trim();
+
+/** Hidden notice for "jevify": bulk classification through the eval kernel's `judge()`. */
+export const JEVIFY_NOTICE: string = jevifyNotice.trim();
+
+/** Hidden notice for "autobot": standing authority without permission checkpoints. */
+export const AUTOBOT_NOTICE: string = autobotNotice.trim();
+
+/** Hidden notice for "ultragoon": intent-first research and execution. */
+export function renderUltragoonNotice({
+	tools,
+	scoutAvailable,
+}: Pick<MagicKeywordContext, "tools" | "scoutAvailable">): string {
+	return prompt.render(ultragoonNotice, { tools, scoutAvailable }).trim();
+}
+
+/** Hidden notice for "tokenmaxxing": choose the strongest applicable harness. */
+export function renderTokenmaxxingNotice({
+	tools,
+	scoutAvailable,
+}: Pick<MagicKeywordContext, "tools" | "scoutAvailable">): string {
+	return prompt.render(tokenmaxxingNotice, { tools, scoutAvailable }).trim();
+}
+
+/** Hidden notice for "orchestrate", naming only the tools the session actually exposes. */
+export function renderOrchestrateNotice({ tools }: Pick<MagicKeywordContext, "tools">): string {
+	return prompt.render(orchestrateNotice, { tools }).trim();
+}
+
+/** Hidden notice for "workflowz", shaped by the active task/eval capabilities. */
+export function renderWorkflowNotice({
+	taskBatch,
+	scoutAvailable,
+	evalTools,
+}: Pick<MagicKeywordContext, "taskBatch" | "scoutAvailable" | "evalTools">): string {
+	return prompt.render(workflowNotice, { taskBatch, scoutAvailable, evalTools }).trim();
+}
+
+export const MAGIC_KEYWORDS = [
+	{
+		id: "ultrathink",
+		word: "ultrathink",
+		hue: [0, 330],
+		label: "Ultrathink Keyword",
+		description: "Let standalone ultrathink request maximum automatic thinking and append its hidden notice",
+		requires: [],
+		notice: () => ULTRATHINK_NOTICE,
+	},
+	{
+		id: "orchestrate",
+		word: "orchestrate",
+		hue: [150, 280],
+		label: "Orchestrate Keyword",
+		description: "Let standalone orchestrate append its hidden multi-agent orchestration notice",
+		// The contract is entirely about `task` subagent dispatch.
+		requires: ["task"],
+		notice: renderOrchestrateNotice,
+	},
+	{
+		id: "workflow",
+		word: "workflowz",
+		hue: [30, 150],
+		label: "Workflow Keyword",
+		description: "Let standalone workflowz append its hidden eval workflow notice",
+		requires: ["task", "eval"],
+		notice: renderWorkflowNotice,
+	},
+	{
+		id: "jevify",
+		word: "jevify",
+		hue: [300, 420],
+		label: "Jevify Keyword",
+		description: "Let standalone jevify append its hidden bulk-judge classification notice",
+		// The contract is entirely about the eval kernel's `judge()` helper.
+		requires: ["eval"],
+		notice: () => JEVIFY_NOTICE,
+	},
+	{
+		id: "ultragoon",
+		word: "ultragoon",
+		hue: [330, 270],
+		label: "Ultragoon Keyword",
+		description: "Let standalone ultragoon append its hidden intent-first research notice",
+		requires: [],
+		notice: renderUltragoonNotice,
+	},
+	{
+		id: "autobot",
+		word: "autobot",
+		hue: [190, 260],
+		label: "Autobot Keyword",
+		description: "Let standalone autobot append its hidden standing-authority notice",
+		requires: [],
+		notice: () => AUTOBOT_NOTICE,
+	},
+	{
+		id: "tokenmaxxing",
+		word: "tokenmaxxing",
+		hue: [410, 340],
+		label: "Tokenmaxxing Keyword",
+		description: "Let standalone tokenmaxxing append its hidden capability-routing notice",
+		requires: [],
+		notice: renderTokenmaxxingNotice,
+	},
+] as const satisfies readonly MagicKeyword[];
+
+/** Settings key suffix of a registered keyword. */
+export type MagicKeywordId = (typeof MAGIC_KEYWORDS)[number]["id"];
+
+/** Hidden custom-message type carrying a keyword's notice. */
+export type MagicKeywordNoticeType = `${MagicKeywordId}-notice`;

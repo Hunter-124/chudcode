@@ -6,23 +6,23 @@ import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
-import { Agent } from "@chudware/agent-core";
-import { getBundledModel } from "@chudware/catalog/models";
-import { ModelRegistry } from "@chudware/coding-agent/config/model-registry";
-import { Settings } from "@chudware/coding-agent/config/settings";
+import { Agent } from "@oh-my-pi/pi-agent-core";
+import { getBundledModel } from "@oh-my-pi/pi-catalog/models";
+import { ModelRegistry } from "@oh-my-pi/pi-coding-agent/config/model-registry";
+import { Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
 import {
 	HookRunner,
 	type LoadedHook,
 	type SessionBeforeCompactEvent,
 	type SessionCompactEvent,
 	type SessionEvent,
-} from "@chudware/coding-agent/extensibility/hooks";
-import { theme } from "@chudware/coding-agent/modes/theme/theme";
-import { AgentSession } from "@chudware/coding-agent/session/agent-session";
-import { AuthStorage } from "@chudware/coding-agent/session/auth-storage";
-import { SessionManager } from "@chudware/coding-agent/session/session-manager";
-import { createTools, type ToolSession } from "@chudware/coding-agent/tools";
-import { removeSyncWithRetries, Snowflake } from "@chudware/utils";
+} from "@oh-my-pi/pi-coding-agent/extensibility/hooks";
+import { theme } from "@oh-my-pi/pi-tui/theme";
+import { AgentSession } from "@oh-my-pi/pi-coding-agent/session/agent-session";
+import { AuthStorage } from "@oh-my-pi/pi-coding-agent/session/auth-storage";
+import { SessionManager } from "@oh-my-pi/pi-coding-agent/session/session-manager";
+import { createTools, type ToolSession } from "@oh-my-pi/pi-coding-agent/tools";
+import { removeSyncWithRetries, Snowflake } from "@oh-my-pi/pi-utils";
 import { e2eApiKey } from "./utilities";
 
 describe.skipIf(!e2eApiKey("ANTHROPIC_API_KEY"))("Compaction hooks", () => {
@@ -32,7 +32,7 @@ describe.skipIf(!e2eApiKey("ANTHROPIC_API_KEY"))("Compaction hooks", () => {
 	let capturedEvents: SessionEvent[];
 
 	beforeEach(() => {
-		tempDir = path.join(os.tmpdir(), `chudcode-compaction-hooks-test-${Snowflake.next()}`);
+		tempDir = path.join(os.tmpdir(), `omp-compaction-hooks-test-${Snowflake.next()}`);
 		fs.mkdirSync(tempDir, { recursive: true });
 		capturedEvents = [];
 	});
@@ -223,27 +223,6 @@ describe.skipIf(!e2eApiKey("ANTHROPIC_API_KEY"))("Compaction hooks", () => {
 		}
 	}, 120000);
 
-	it("should include entries in compact event after compaction is saved", async () => {
-		const hook = createHook();
-		await createSession([hook]);
-
-		await session.prompt("What is 2+2? Reply with just the number.");
-		await session.agent.waitForIdle();
-
-		await session.compact();
-
-		const compactEvents = capturedEvents.filter(e => e.type === "session_compact");
-		expect(compactEvents.length).toBe(1);
-
-		const afterEvent = compactEvents[0];
-		if (afterEvent.type === "session_compact") {
-			// sessionManager is now on ctx, use session.sessionManager directly
-			const entries = session.sessionManager.getEntries();
-			const hasCompactionEntry = entries.some((e: { type: string }) => e.type === "compaction");
-			expect(hasCompactionEntry).toBe(true);
-		}
-	}, 120000);
-
 	it("should continue with default compaction if hook throws error", async () => {
 		const throwingHook: LoadedHook = {
 			path: "throwing-hook",
@@ -357,41 +336,6 @@ describe.skipIf(!e2eApiKey("ANTHROPIC_API_KEY"))("Compaction hooks", () => {
 		await session.compact();
 
 		expect(callOrder).toEqual(["hook1-before", "hook2-before", "hook1-after", "hook2-after"]);
-	}, 120000);
-
-	it("should pass correct data in before_compact event", async () => {
-		let capturedBeforeEvent: SessionBeforeCompactEvent | null = null;
-
-		const hook = createHook(event => {
-			capturedBeforeEvent = event;
-			return undefined;
-		});
-		await createSession([hook]);
-
-		await session.prompt("What is 2+2? Reply with just the number.");
-		await session.agent.waitForIdle();
-
-		await session.prompt("What is 3+3? Reply with just the number.");
-		await session.agent.waitForIdle();
-
-		await session.compact();
-
-		expect(capturedBeforeEvent).not.toBeNull();
-		const event = capturedBeforeEvent!;
-		expect(typeof event.preparation.isSplitTurn).toBe("boolean");
-		expect(event.preparation.firstKeptEntryId).toBeDefined();
-
-		expect(Array.isArray(event.preparation.messagesToSummarize)).toBe(true);
-		expect(Array.isArray(event.preparation.turnPrefixMessages)).toBe(true);
-
-		expect(typeof event.preparation.tokensBefore).toBe("number");
-
-		expect(Array.isArray(event.branchEntries)).toBe(true);
-
-		// sessionManager, modelRegistry, and model are now on ctx, not event
-		// Verify they're accessible via session
-		expect(typeof session.sessionManager.getEntries).toBe("function");
-		expect(typeof session.modelRegistry.getApiKey).toBe("function");
 	}, 120000);
 
 	it("should use hook compaction even with different values", async () => {

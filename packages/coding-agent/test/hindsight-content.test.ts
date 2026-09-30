@@ -12,7 +12,7 @@ import {
 	stripMemoryTags,
 	stripRetentionProtocolMarkers,
 	truncateRecallQuery,
-} from "@chudware/coding-agent/hindsight/content";
+} from "@oh-my-pi/pi-coding-agent/hindsight/content";
 
 describe("stripMemoryTags", () => {
 	it("removes both <memories> and legacy memory blocks", () => {
@@ -272,7 +272,7 @@ describe("prepareRetentionTranscript", () => {
 		expect(transcript).toContain("user-real-question-here");
 	});
 
-	it("keeps timestamp framing opt-in so shared Mnemo formatting stays marker-only", () => {
+	it("keeps timestamp framing opt-in so shared Mnemopi formatting stays marker-only", () => {
 		const messages: HindsightMessage[] = [
 			{
 				role: "user",

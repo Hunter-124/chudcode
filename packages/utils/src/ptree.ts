@@ -7,7 +7,7 @@
  * - Convenience helpers: captureText / execText, AbortSignal, timeouts.
  */
 
-import { Process } from "@chudware/natives";
+import { Process } from "@oh-my-pi/pi-natives";
 import type { Spawn, Subprocess } from "bun";
 
 type InMask = "pipe" | "ignore" | Buffer | Uint8Array | null;
@@ -15,26 +15,10 @@ type InMask = "pipe" | "ignore" | Buffer | Uint8Array | null;
 /** A Bun subprocess with stdout/stderr always piped (stdin may vary). */
 type PipedSubprocess<In extends InMask = InMask> = Subprocess<In, "pipe", "pipe">;
 
-const LINUX_SUBREAPER_COMMAND_ENV = "CHUDCODE_PTREE_SUBREAPER_COMMAND";
-const LINUX_SUBREAPER_BUN_BE_BUN_ENV = "CHUDCODE_PTREE_SUBREAPER_BUN_BE_BUN";
-const LINUX_SUBREAPER_READY_MESSAGE = "chudcode:ptree:ready";
-
-/**
- * Resolve the natives module for the generated supervisor.
- *
- * The supervisor can run from an unrelated cwd, so the parent's resolved URL is
- * embedded when one exists. `import.meta.resolve` throws inside a compiled
- * single-file binary (the specifier has no on-disk module), and evaluating it
- * at module scope took the whole process down at import time — so resolve
- * lazily and fall back to the bare specifier the child can still resolve.
- */
-function nativesModuleSpecifier(): string {
-	try {
-		return import.meta.resolve("@chudware/natives");
-	} catch {
-		return "@chudware/natives";
-	}
-}
+const LINUX_SUBREAPER_COMMAND_ENV = "OMP_PTREE_SUBREAPER_COMMAND";
+const LINUX_SUBREAPER_BUN_BE_BUN_ENV = "OMP_PTREE_SUBREAPER_BUN_BE_BUN";
+const SUBREAPER_KILL_WINDOW_MS = 100;
+const SUBREAPER_KILL_POLL_MS = 5;
 
 /**
  * Build the Linux child-subreaper entrypoint.
@@ -45,9 +29,6 @@ function nativesModuleSpecifier(): string {
 export function createLinuxSubreaperScript(libcCandidates: readonly string[] = ["libc.so.6", "libc.so"]): string {
 	return `
 import { dlopen, FFIType } from "bun:ffi";
-// The generated supervisor can run from an unrelated cwd; embed the parent's
-// resolved module URL instead of relying on package resolution in the child.
-const { Process } = await import(${JSON.stringify(nativesModuleSpecifier())});
 
 let libc;
 for (const soname of ${JSON.stringify(libcCandidates)}) {
@@ -71,39 +52,21 @@ if (libc.symbols.prctl(36, 1, 0, 0, 0) !== 0) {
 	throw new Error("failed to become a Linux child subreaper");
 }
 
-const commandJson = process.env.${LINUX_SUBREAPER_COMMAND_ENV};
+const commandJson = Bun.env.${LINUX_SUBREAPER_COMMAND_ENV};
 if (!commandJson) throw new Error("missing supervised command");
-const callerBunBeBun = process.env.${LINUX_SUBREAPER_BUN_BE_BUN_ENV};
-delete process.env.${LINUX_SUBREAPER_COMMAND_ENV};
-delete process.env.${LINUX_SUBREAPER_BUN_BE_BUN_ENV};
-if (callerBunBeBun === undefined) delete process.env.BUN_BE_BUN;
-else process.env.BUN_BE_BUN = callerBunBeBun;
+const callerBunBeBun = Bun.env.${LINUX_SUBREAPER_BUN_BE_BUN_ENV};
+delete Bun.env.${LINUX_SUBREAPER_COMMAND_ENV};
+delete Bun.env.${LINUX_SUBREAPER_BUN_BE_BUN_ENV};
+if (callerBunBeBun === undefined) delete Bun.env.BUN_BE_BUN;
+else Bun.env.BUN_BE_BUN = callerBunBeBun;
 const command = JSON.parse(commandJson);
 const child = Bun.spawn(command, {
 	stdin: "inherit",
 	stdout: "pipe",
 	stderr: "pipe",
-	detached: true,
 	windowsHide: true,
-	env: process.env,
+	env: Bun.env,
 });
-
-let terminating = false;
-async function terminateChildren() {
-	if (terminating) return;
-	terminating = true;
-	try {
-		process.kill(-child.pid, "SIGKILL");
-	} catch {}
-	const supervisor = Process.fromPid(process.pid);
-	while (hasLiveChildren()) {
-		for (const process of supervisor?.children() ?? []) process.killTree(9);
-		await Bun.sleep(1);
-	}
-	process.exit(1);
-}
-process.on("SIGUSR2", () => void terminateChildren());
-process.send?.(${JSON.stringify(LINUX_SUBREAPER_READY_MESSAGE)});
 
 async function relay(stream, destination) {
 	const writer = destination.writer();
@@ -228,6 +191,8 @@ export class ChildProcess<In extends InMask = InMask> {
 	#stderrStream?: ReadableStream<Uint8Array>;
 	// Termination in flight after kill(); aborted exits await it before reporting.
 	#terminating?: Promise<boolean | void>;
+	// A hard subreaper sweep must remain authoritative across overlapping kill requests.
+	#hardKillSweep?: Promise<void>;
 	#terminateGroup: boolean;
 	#hardKillTree: boolean;
 	// Windows has no process groups. Retaining the root's native handle pins
@@ -379,25 +344,22 @@ export class ChildProcess<In extends InMask = InMask> {
 			// group leader; wait() still needs to report the later deadline.
 			if (this.proc.exitCode !== null) this.#exitReason = reason;
 		}
+		// An AbortSignal can race a timeout after its hard subreaper sweep has
+		// started. Do not replace that sweep with a normal root termination: the
+		// root must stay alive until adopted descendants have been collected.
+		if (this.#hardKillSweep) return;
 		if (gracefulMs !== undefined && gracefulMs < 0 && this.#hardKillTree && this.proc.exitCode === null) {
-			// Keep the Linux subreaper alive while it hard-kills and waitpid()s
-			// every supervised descendant. Killing the supervisor in the same
-			// tree snapshot would reparent zombies before we could prove cleanup
-			// complete to wait().
+			// Keep the subreaper alive while descendants are killed. A single
+			// killTree() snapshot can miss a worker whose parent exits during the
+			// walk and reparents it to the subreaper after that root was enumerated.
 			const root = Process.fromPid(this.proc.pid);
 			if (root) {
-				this.#terminating = (async () => {
-					try {
-						process.kill(this.proc.pid, "SIGUSR2");
-					} catch {
-						root.killTree(9);
-						await root.waitForExit({ timeoutMs: 1_000 });
-						return;
-					}
-					if (await root.waitForExit({ timeoutMs: 1_000 })) return;
-					root.killTree(9);
-					await root.waitForExit({ timeoutMs: 1_000 });
-				})();
+				const sweep = this.#hardKillSubreaperTree(root).catch(e => void e);
+				this.#hardKillSweep = sweep;
+				this.#terminating = sweep;
+				void sweep.finally(() => {
+					if (this.#hardKillSweep === sweep) this.#hardKillSweep = undefined;
+				});
 				return;
 			}
 		}
@@ -433,6 +395,25 @@ export class ChildProcess<In extends InMask = InMask> {
 			this.#terminating = (this.#windowsRootProcess ?? Process.fromPid(this.proc.pid))
 				?.terminate(options)
 				?.catch(e => void e);
+		}
+	}
+
+	async #hardKillSubreaperTree(root: Process): Promise<void> {
+		try {
+			const deadline = Date.now() + SUBREAPER_KILL_WINDOW_MS;
+			let emptySweeps = 0;
+			while (emptySweeps < 2 && Date.now() < deadline) {
+				const children = root.children();
+				if (children.length === 0) {
+					emptySweeps++;
+				} else {
+					emptySweeps = 0;
+					for (const child of children) child.killTree(9);
+				}
+				if (emptySweeps < 2) await Bun.sleep(SUBREAPER_KILL_POLL_MS);
+			}
+		} finally {
+			root.killTree(9);
 		}
 	}
 
@@ -481,7 +462,7 @@ export class ChildProcess<In extends InMask = InMask> {
 		return out + dec.decode();
 	}
 
-	async #readBytes(): Promise<Uint8Array> {
+	async #readBytes(): Promise<Uint8Array<ArrayBuffer>> {
 		const reader = this.proc.stdout.getReader();
 		this.#openPipeReaders++;
 		const chunks: Uint8Array[] = [];
@@ -516,7 +497,7 @@ export class ChildProcess<In extends InMask = InMask> {
 		return bytes;
 	}
 
-	async #readOutputBytes(waitForCleanExit = false): Promise<Uint8Array> {
+	async #readOutputBytes(waitForCleanExit = false): Promise<Uint8Array<ArrayBuffer>> {
 		const p = this.#readBytes();
 		if (this.#nothrow) return p;
 		const bytes = waitForCleanExit ? (await Promise.all([p, this.exitedCleanly]))[0] : await p;
@@ -533,7 +514,7 @@ export class ChildProcess<In extends InMask = InMask> {
 	}
 
 	async arrayBuffer(): Promise<ArrayBuffer> {
-		return (await this.#readOutputBytes()).buffer as ArrayBuffer;
+		return (await this.#readOutputBytes()).buffer;
 	}
 
 	async bytes(): Promise<Uint8Array> {
@@ -655,14 +636,7 @@ function spawnInternal<In extends InMask = InMask>(
 ): ChildProcess<In> {
 	const { timeout = -1, signal, stderr, detached, subreaper = false, ...rest } = opts ?? {};
 	const useSubreaper = subreaper && process.platform === "linux";
-	const commandEnv = rest.env ?? process.env;
-	let managed: ChildProcess<In> | undefined;
-	let readyBeforeManaged = false;
-	const startTimeout = (): void => {
-		if (timeout <= 0) return;
-		if (managed) managed.attachTimeout(timeout);
-		else readyBeforeManaged = true;
-	};
+	const commandEnv = rest.env ?? Bun.env;
 	const child = Bun.spawn(useSubreaper ? [process.execPath, "-e", LINUX_SUBREAPER_SCRIPT] : cmd, {
 		stdin: "ignore",
 		stdout: "pipe",
@@ -678,18 +652,10 @@ function spawnInternal<In extends InMask = InMask>(
 					[LINUX_SUBREAPER_BUN_BE_BUN_ENV]: commandEnv.BUN_BE_BUN,
 				}
 			: rest.env,
-		...(useSubreaper
-			? {
-					ipc(message: unknown) {
-						if (message === LINUX_SUBREAPER_READY_MESSAGE) startTimeout();
-					},
-				}
-			: {}),
 	});
 	const cp = new ChildProcess(child, stderr === "full", retainFullStderr, detached === true, useSubreaper);
-	managed = cp;
 	if (signal) cp.attachSignal(signal);
-	if (timeout > 0 && (!useSubreaper || readyBeforeManaged)) cp.attachTimeout(timeout);
+	if (timeout > 0) cp.attachTimeout(timeout);
 	return cp;
 }
 

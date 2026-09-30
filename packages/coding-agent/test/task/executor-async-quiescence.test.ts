@@ -7,15 +7,16 @@
  * the run rather than surface the stale payload as a clean success.
  */
 import { afterEach, describe, expect, it, vi } from "bun:test";
-import type { AssistantMessage } from "@chudware/ai";
-import { AsyncJobManager } from "@chudware/coding-agent/async/job-manager";
-import type { LoadExtensionsResult } from "@chudware/coding-agent/extensibility/extensions/types";
-import type { CreateAgentSessionResult } from "@chudware/coding-agent/sdk";
-import * as sdkModule from "@chudware/coding-agent/sdk";
-import type { AgentSession, AgentSessionEvent } from "@chudware/coding-agent/session/agent-session";
-import { runSubprocess } from "@chudware/coding-agent/task/executor";
-import type { AgentDefinition } from "@chudware/coding-agent/task/types";
-import { EventBus } from "@chudware/coding-agent/utils/event-bus";
+import type { AssistantMessage } from "@oh-my-pi/pi-ai";
+import { AsyncJobManager } from "@oh-my-pi/pi-coding-agent/async/job-manager";
+import type { LoadExtensionsResult } from "@oh-my-pi/pi-coding-agent/extensibility/extensions/types";
+import type { CreateAgentSessionResult } from "@oh-my-pi/pi-coding-agent/sdk";
+import * as sdkModule from "@oh-my-pi/pi-coding-agent/sdk";
+import type { AgentSession, AgentSessionEvent } from "@oh-my-pi/pi-coding-agent/session/agent-session";
+import { runSubprocess } from "@oh-my-pi/pi-coding-agent/task/executor";
+import type { AgentDefinition } from "@oh-my-pi/pi-coding-agent/task/types";
+import { EventBus } from "@oh-my-pi/pi-coding-agent/utils/event-bus";
+import { createSessionDefaults } from "../helpers/session-defaults";
 
 const baseAgent: AgentDefinition = { name: "task", description: "test", systemPrompt: "test", source: "bundled" };
 
@@ -75,6 +76,7 @@ function createAsyncSession(
 	let toolCallSeq = 0;
 
 	const emit = (event: AgentSessionEvent) => {
+		// oxlint-disable-next-line unicorn/no-useless-spread -- listeners may change during dispatch
 		for (const listener of [...listeners]) listener(event);
 	};
 
@@ -128,6 +130,7 @@ function createAsyncSession(
 	};
 
 	const session = {
+		...createSessionDefaults(),
 		state,
 		agent: { state: { systemPrompt: ["test"] } },
 		model: undefined,
@@ -135,7 +138,6 @@ function createAsyncSession(
 		sessionManager: { appendSessionInit: () => {} },
 		getActiveToolNames: () => ["read", "yield"],
 		getEnabledToolNames: () => ["read", "yield"],
-		setActiveToolsByName: async (_toolNames: string[]) => {},
 		subscribe: (listener: (event: AgentSessionEvent) => void) => {
 			listeners.push(listener);
 			return () => {
@@ -146,10 +148,8 @@ function createAsyncSession(
 		prompt: async (text: string) => {
 			prompts.push(text);
 			onPrompt({ text, promptIndex: prompts.length, harness });
+			return true;
 		},
-		waitForIdle: async () => {},
-		prepareForHeadlessAdvisorDrain: () => {},
-		waitForAdvisorCatchup: async () => true,
 		getLastAssistantMessage: () => state.messages[state.messages.length - 1],
 		hasPendingAsyncWork: () => pendingAsync,
 		getAsyncJobSnapshot: () => ({ running: runningJobs, recent: [] }),
@@ -162,8 +162,6 @@ function createAsyncSession(
 			await options.abort?.();
 		},
 		dispose: options.dispose ?? (async () => {}),
-		setIrcWakeTurnObserver: () => {},
-		subscribeRunState: () => () => {},
 	};
 	harness.session = session as unknown as AgentSession;
 	return harness;
@@ -220,6 +218,30 @@ describe("runSubprocess async quiescence fresh-yield contract", () => {
 		expect(result.exitCode).toBe(0);
 		expect(result.output).toContain("FRESH: build failed");
 		expect(result.output).not.toContain("STALE");
+	});
+
+	it("waits for a pending owner job before spending a yield reminder", async () => {
+		const harness = createAsyncSession(({ harness: h }) => {
+			if (h.settleCalls() === 0) {
+				h.emitAssistant("Waiting for job-1.");
+				return;
+			}
+			h.emitTerminalYield({ report: "Build failed; job-1 delivered its result." });
+		});
+		mockCreateAgentSession(harness.session);
+
+		const result = await runSubprocess({
+			cwd: "/tmp",
+			agent: baseAgent,
+			task: "verify the build",
+			index: 0,
+			id: "quiescence-wait-before-yield",
+		});
+
+		expect(harness.settleCalls()).toBe(1);
+		expect(harness.prompts).toHaveLength(2);
+		expect(result.exitCode).toBe(0);
+		expect(result.output).toContain("Build failed; job-1 delivered its result.");
 	});
 
 	it("fails the run when the model never refreshes the superseded yield", async () => {

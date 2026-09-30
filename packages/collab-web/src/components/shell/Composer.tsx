@@ -6,7 +6,7 @@ import type { SessionClient, SessionSnapshot } from "../../lib/session-client";
 export interface ComposerProps {
 	client: SessionClient;
 	snapshot: SessionSnapshot;
-	/** Externally owned draft for direct multi-session clients. Omit to use local relay state. */
+	/** Externally owned draft for desktop clients with multiple sessions. */
 	draft?: string;
 	onDraftChange?(value: string): void;
 }
@@ -141,7 +141,7 @@ export function Composer({ client, snapshot, draft, onDraftChange }: ComposerPro
 		if (!trimmed || !live || readOnly) return;
 		client.sendPrompt(trimmed);
 		setText("");
-	}, [client, live, readOnly, text]);
+	}, [client, live, readOnly, text, setText]);
 
 	const onKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>): void => {
 		if (shouldSubmitOnEnter(e, composingRef.current)) {
@@ -219,10 +219,10 @@ export function Composer({ client, snapshot, draft, onDraftChange }: ComposerPro
 					onCompositionEnd={onCompositionEnd}
 					placeholder={
 						readOnly
-							? "read-only session — watching only"
+							? "Read-only session — watching only"
 							: live
-								? "prompt the host agent…"
-								: "waiting for session…"
+								? "Prompt the host agent…"
+								: "Waiting for the session…"
 					}
 					disabled={!canPrompt}
 					rows={1}

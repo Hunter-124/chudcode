@@ -2,13 +2,12 @@ import { describe, expect, test } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import { clearAwsCredentialCache } from "@chudware/ai/providers/aws-credentials";
-import type { BedrockMantleOptions } from "@chudware/ai/providers/bedrock-mantle";
-import { getProviderDefinition } from "@chudware/ai/registry";
-import { stream, streamSimple } from "@chudware/ai/stream";
-import type { Context, FetchImpl, Model, SimpleStreamOptions } from "@chudware/ai/types";
-import { buildModel } from "@chudware/catalog/build";
-import * as fsx from "@chudware/utils/fsx";
+import { clearAwsCredentialCache } from "@oh-my-pi/pi-ai/providers/aws-credentials";
+import type { BedrockMantleOptions } from "@oh-my-pi/pi-ai/providers/bedrock-mantle";
+import { getProviderDefinition } from "@oh-my-pi/pi-ai/registry";
+import { stream, streamSimple } from "@oh-my-pi/pi-ai/stream";
+import type { Context, FetchImpl, Model, SimpleStreamOptions } from "@oh-my-pi/pi-ai/types";
+import { buildModel } from "@oh-my-pi/pi-catalog/build";
 import { removeWithRetries } from "../../utils/src/temp";
 import { withEnv } from "./helpers";
 
@@ -88,7 +87,7 @@ describe("Bedrock Mantle authentication", () => {
 		const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "bedrock-mantle-region-"));
 		try {
 			const configPath = path.join(tmp, "config");
-			await fsx.write(configPath, "[profile regional]\nregion = eu-west-2\n");
+			await Bun.write(configPath, "[profile regional]\nregion = eu-west-2\n");
 			const capture = await runDirect({
 				AWS_BEARER_TOKEN_BEDROCK: "test-token",
 				AWS_PROFILE: "regional",
@@ -170,8 +169,8 @@ describe("Bedrock Mantle authentication", () => {
 			async () => {
 				clearAwsCredentialCache();
 				await stream(mantleModel, context, { fetch: rejectingFetch, maxTokens: 16 }).result();
-				process.env.AWS_ACCESS_KEY_ID = "AKIASECOND";
-				process.env.AWS_SECRET_ACCESS_KEY = "second-secret";
+				Bun.env.AWS_ACCESS_KEY_ID = "AKIASECOND";
+				Bun.env.AWS_SECRET_ACCESS_KEY = "second-secret";
 				await stream(mantleModel, context, { fetch: rejectingFetch, maxTokens: 16 }).result();
 			},
 		);
@@ -228,12 +227,12 @@ describe("Bedrock Mantle authentication", () => {
 		expect(capture.authorization).toContain("/us-east-2/bedrock-mantle/aws4_request");
 	});
 
-	test("chud-native transport wins over local Mantle authentication", async () => {
+	test("pi-native transport wins over local Mantle authentication", async () => {
 		const capture: Capture = {};
 		const gatewayModel = {
 			...mantleModel,
 			baseUrl: "http://gateway.internal",
-			transport: "chud-native" as const,
+			transport: "pi-native" as const,
 		};
 		await expect(
 			streamSimple(gatewayModel, context, {

@@ -1,15 +1,15 @@
 import { describe, expect, it } from "bun:test";
 import * as path from "node:path";
-import { Agent, type AgentTool } from "@chudware/agent-core";
-import { createMockModel } from "@chudware/ai/providers/mock";
-import { buildModel } from "@chudware/catalog/build";
-import { type } from "@chudware/chudtype";
-import { ModelRegistry } from "@chudware/coding-agent/config/model-registry";
-import { Settings } from "@chudware/coding-agent/config/settings";
-import { AgentSession } from "@chudware/coding-agent/session/agent-session";
-import { AuthStorage } from "@chudware/coding-agent/session/auth-storage";
-import { SessionManager } from "@chudware/coding-agent/session/session-manager";
-import { TempDir } from "@chudware/utils";
+import { type } from "@oh-my-pi/omptype";
+import { Agent, type AgentTool } from "@oh-my-pi/pi-agent-core";
+import { createMockModel } from "@oh-my-pi/pi-ai/providers/mock";
+import { buildModel } from "@oh-my-pi/pi-catalog/build";
+import { ModelRegistry } from "@oh-my-pi/pi-coding-agent/config/model-registry";
+import { Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
+import { AgentSession } from "@oh-my-pi/pi-coding-agent/session/agent-session";
+import { AuthStorage } from "@oh-my-pi/pi-coding-agent/session/auth-storage";
+import { SessionManager } from "@oh-my-pi/pi-coding-agent/session/session-manager";
+import { TempDir } from "@oh-my-pi/pi-utils";
 
 function createTool(name: string): AgentTool {
 	return {
@@ -27,7 +27,7 @@ describe("AgentSession.getAllToolInfos", () => {
 	it("returns ToolInfo objects with sourceInfo so upstream-pi extensions read sourceInfo.source", async () => {
 		const tempDir = TempDir.createSync("@getalltools-toolinfo-");
 		const authStorage = await AuthStorage.create(path.join(tempDir.path(), "auth.db"));
-		authStorage.setRuntimeApiKey("anthropic", "test-key");
+		authStorage.keys.setRuntime("anthropic", "test-key");
 		const settings = Settings.isolated({ "compaction.enabled": false });
 		const model = buildModel({
 			id: "mock",
@@ -86,10 +86,10 @@ describe("AgentSession.getAllToolInfos", () => {
 		}
 	});
 
-	it("reports the originating custom-tool file path instead of a synthetic stub", async () => {
+	it("uses stored registered provenance instead of re-deriving a relative extension path", async () => {
 		const tempDir = TempDir.createSync("@getalltools-sourcepath-");
 		const authStorage = await AuthStorage.create(path.join(tempDir.path(), "auth.db"));
-		authStorage.setRuntimeApiKey("anthropic", "test-key");
+		authStorage.keys.setRuntime("anthropic", "test-key");
 		const settings = Settings.isolated({ "compaction.enabled": false });
 		const model = buildModel({
 			id: "mock",
@@ -122,8 +122,14 @@ describe("AgentSession.getAllToolInfos", () => {
 				getRegisteredTool: (name: string) =>
 					name === "git"
 						? {
-								extensionPath: "<inline-0>",
-								definition: { sourcePath },
+								extensionPath: "./extension.ts",
+								definition: { sourcePath: "./tools/git.ts" },
+								sourceInfo: {
+									path: sourcePath,
+									source: "extension",
+									scope: "temporary",
+									origin: "top-level",
+								},
 							}
 						: undefined,
 			} as never,

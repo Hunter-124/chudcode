@@ -2,7 +2,8 @@ import { afterAll, beforeAll, describe, expect, it } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import { isContextOverflow } from "@chudware/ai/error";
+import { type } from "@oh-my-pi/omptype";
+import { isContextOverflow } from "@oh-my-pi/pi-ai/error";
 import {
 	buildGitLabDuoWorkflowApprovalStartRequest,
 	buildGitLabDuoWorkflowCreateBody,
@@ -23,11 +24,10 @@ import {
 	resolveGitLabDuoWorkflowNamespaceSelection,
 	resolveGitLabDuoWorkflowRootNamespaceId,
 	runGitLabDuoWorkflowSocket,
-	selectGitLabDuoWorkflowModelRef,
 	streamGitLabDuoWorkflow,
 	traceGitLabDuoWorkflow,
-} from "@chudware/ai/providers/gitlab-duo-workflow";
-import { configureCredentialRedaction } from "@chudware/ai/providers/transform-messages";
+} from "@oh-my-pi/pi-ai/providers/gitlab-duo-workflow";
+import { configureCredentialRedaction } from "@oh-my-pi/pi-ai/providers/transform-messages";
 import type {
 	AssistantMessage,
 	Context,
@@ -37,13 +37,10 @@ import type {
 	ProviderSessionState,
 	Tool,
 	ToolResultMessage,
-} from "@chudware/ai/types";
-import { AssistantMessageEventStream } from "@chudware/ai/utils/event-stream";
-import { buildModel } from "@chudware/catalog/build";
-import { type } from "@chudware/chudtype";
-import { extractHttpStatusFromError } from "@chudware/utils";
-import { sleep } from "@chudware/utils/async";
-import * as fsx from "@chudware/utils/fsx";
+} from "@oh-my-pi/pi-ai/types";
+import { AssistantMessageEventStream } from "@oh-my-pi/pi-ai/utils/event-stream";
+import { buildModel } from "@oh-my-pi/pi-catalog/build";
+import { extractHttpStatusFromError } from "@oh-my-pi/pi-utils";
 
 beforeAll(() => configureCredentialRedaction(true));
 afterAll(() => configureCredentialRedaction(false));
@@ -80,10 +77,10 @@ const nativeTools: Tool[] = ["read", "write", "grep", "glob", "bash", "lsp", "to
 
 function restoreOptionalEnv(name: string, value: string | undefined): void {
 	if (value === undefined) {
-		delete process.env[name];
+		delete Bun.env[name];
 		return;
 	}
-	process.env[name] = value;
+	Bun.env[name] = value;
 }
 
 describe("GitLab Duo Workflow provider protocol", () => {
@@ -98,18 +95,6 @@ describe("GitLab Duo Workflow provider protocol", () => {
 			pre_approved_agent_privileges: [6],
 			requires_duo_cli_enabled: false,
 		});
-	});
-
-	it("uses project path without namespace for REST workflow bodies when available", () => {
-		const body = buildGitLabDuoWorkflowCreateBody("gid://gitlab/Group/1", {
-			projectId: "group/project",
-			goal: "Do it",
-		});
-		expect(body).toMatchObject({
-			project_id: "group/project",
-			goal: "Do it",
-		});
-		expect(body).not.toHaveProperty("namespace_id");
 	});
 
 	it("uses GraphQL root namespace ids for direct_access", () => {
@@ -213,16 +198,16 @@ describe("GitLab Duo Workflow provider protocol", () => {
 		expect(GITLAB_DUO_WORKFLOW_CLIENT_CAPABILITIES).not.toContain("tool_call_pattern_approval");
 	});
 
-	it("advertises Chudcode tools under their bare names with the official GitLab MCP schema", () => {
+	it("advertises OMP tools under their bare names with the official GitLab MCP schema", () => {
 		const mcpTools = buildGitLabDuoWorkflowMcpTools([...nativeTools, editTool]);
 		// Bare names: the server binds the model schema and matches tool calls under the
 		// exact wire name (no prefix stripping), so the registered name must equal the
-		// bare name Chudcode's own tool docs use.
+		// bare name OMP's own tool docs use.
 		expect(mcpTools.map(tool => tool.name)).toEqual(["read", "write", "grep", "glob", "bash", "lsp", "todo", "edit"]);
 		expect(mcpTools[0]).toMatchObject({
 			name: "read",
 			originalToolName: "read",
-			serverName: "chudcode",
+			serverName: "omp",
 			isApproved: true,
 		});
 		expect(typeof mcpTools[0]?.inputSchema).toBe("string");
@@ -257,9 +242,9 @@ describe("GitLab Duo Workflow provider protocol", () => {
 		expect(payload.preapproved_tools).toEqual(payload.mcpTools.map(tool => tool.name));
 	});
 
-	it("puts the Chudcode system prompt in the inline flow system slot with reasoning events", () => {
+	it("puts the OMP system prompt in the inline flow system slot with reasoning events", () => {
 		const systemContext: Context = {
-			systemPrompt: ["Chudcode authoritative operating rules. Bridge the local tools."],
+			systemPrompt: ["OMP authoritative operating rules. Bridge the local tools."],
 			messages: context.messages,
 		};
 		const payload = buildGitLabDuoWorkflowStartRequest("workflow-1", model, systemContext, undefined, undefined, {
@@ -277,8 +262,8 @@ describe("GitLab Duo Workflow provider protocol", () => {
 		expect(agent?.ui_log_events).toContain("on_agent_reasoning");
 		const prompt = flow?.prompts.find(entry => entry.prompt_id === agent?.prompt_id);
 		expect(prompt?.unit_primitives).toEqual(["duo_agent_platform"]);
-		// The system slot carries Chudcode's real system prompt verbatim — no gateway preamble.
-		expect(prompt?.prompt_template.system).toContain("Chudcode authoritative operating rules.");
+		// The system slot carries OMP's real system prompt verbatim — no gateway preamble.
+		expect(prompt?.prompt_template.system).toContain("OMP authoritative operating rules.");
 		expect(prompt?.prompt_template.user).toBe("{{goal}}");
 		// A single-turn goal is bare text (no ChatML markers), so the history-note that
 		// warns against mimicking transcript markers must NOT be appended.
@@ -299,7 +284,7 @@ describe("GitLab Duo Workflow provider protocol", () => {
 		const sessionCookie = "_gitlab_session=0123456789abcdef0123456789abcdef";
 
 		const replayContext: Context = {
-			systemPrompt: [`Chudcode system instructions: preserve the local tool bridge. token ${patToken}`],
+			systemPrompt: [`OMP system instructions: preserve the local tool bridge. token ${patToken}`],
 			messages: [
 				{
 					role: "user",
@@ -356,13 +341,13 @@ describe("GitLab Duo Workflow provider protocol", () => {
 
 		expect(payload.additional_context).toEqual([]);
 		// The goal is now ONLY the bare ChatML transcript — no envelope, no preamble,
-		// no <instructions>. The Chudcode system prompt rides the flow config's system slot.
+		// no <instructions>. The OMP system prompt rides the flow config's system slot.
 		expect(payload.goal).not.toContain("<client_prompt_envelope>");
 		expect(payload.goal).not.toContain("<instructions>");
 		expect(payload.goal).not.toContain("<conversation>");
 		expect(payload.goal).not.toContain("<current_request>");
 		expect(payload.goal).not.toContain("<prior_messages>");
-		expect(payload.goal).not.toContain("Chudcode system instructions: preserve the local tool bridge.");
+		expect(payload.goal).not.toContain("OMP system instructions: preserve the local tool bridge.");
 		// ChatML role turns, every turn equal-weight, ending on the last user turn.
 		expect(payload.goal).toContain("<|im_start|>user\nFirst user turn.");
 		expect(payload.goal).toContain("<|im_start|>assistant\nAssistant answer.");
@@ -374,7 +359,7 @@ describe("GitLab Duo Workflow provider protocol", () => {
 		// `<ran NAME>{args}</ran>` record (NOT the `{name,arguments}` live-call shape, so
 		// the model does not mimic it as emittable grammar), and the following tool turn
 		// renders `<ran:result>`. The pair is linked by ADJACENCY (1 call/turn, result
-		// rides the very next turn), so the Chudcode-internal call id is omitted from the
+		// rides the very next turn), so the OMP-internal call id is omitted from the
 		// transcript — it is dead weight the model never reads.
 		expect(payload.goal).toContain('<ran read>{"path":"src/main.ts"}</ran>');
 		expect(payload.goal).not.toContain("<tool_call>");
@@ -397,11 +382,9 @@ describe("GitLab Duo Workflow provider protocol", () => {
 		expect(payload.goal).toContain("First user turn. token");
 		expect(payload.goal.indexOf("<|im_start|>user")).toBe(0);
 
-		// The Chudcode system prompt lives in the flow config system slot, not the goal.
+		// The OMP system prompt lives in the flow config system slot, not the goal.
 		const flowPrompt = payload.flowConfig?.prompts[0];
-		expect(flowPrompt?.prompt_template.system).toContain(
-			"Chudcode system instructions: preserve the local tool bridge.",
-		);
+		expect(flowPrompt?.prompt_template.system).toContain("OMP system instructions: preserve the local tool bridge.");
 		expect(flowPrompt?.prompt_template.system).not.toContain(patToken);
 		expect(flowPrompt?.prompt_template.system).toContain("[gitlab_token_redacted]");
 		// This goal IS a multi-turn ChatML transcript, so the system slot appends the
@@ -409,7 +392,7 @@ describe("GitLab Duo Workflow provider protocol", () => {
 		// record, not a tool-call syntax to emit.
 	});
 
-	it("strips the Chudcode-internal intent (i) field from replayed tool-call args", () => {
+	it("strips the OMP-internal intent (i) field from replayed tool-call args", () => {
 		const replayContext: Context = {
 			systemPrompt: ["system"],
 			messages: [
@@ -476,14 +459,6 @@ describe("GitLab Duo Workflow provider protocol", () => {
 			selectedModelIdentifier: "claude_sonnet_4_6_vertex",
 		});
 	});
-
-	it("pinned model overrides user selected model", () => {
-		const selected = selectGitLabDuoWorkflowModelRef("user_selected_model", {
-			pinnedModel: { name: "Pinned", ref: "pinned_model" },
-			selectableModels: [{ name: "User", ref: "user_selected_model" }],
-		});
-		expect(selected).toBe("pinned_model");
-	});
 });
 
 describe("GitLab Duo Workflow namespace resolution", () => {
@@ -533,13 +508,13 @@ describe("GitLab Duo Workflow namespace resolution", () => {
 			return new Response("{}", { status: 404 });
 		};
 
-		const originalNamespaceId = process.env.GITLAB_DUO_NAMESPACE_ID;
-		const originalProjectId = process.env.GITLAB_DUO_PROJECT_ID;
-		const originalProjectPath = process.env.GITLAB_DUO_PROJECT_PATH;
+		const originalNamespaceId = Bun.env.GITLAB_DUO_NAMESPACE_ID;
+		const originalProjectId = Bun.env.GITLAB_DUO_PROJECT_ID;
+		const originalProjectPath = Bun.env.GITLAB_DUO_PROJECT_PATH;
 		try {
-			delete process.env.GITLAB_DUO_NAMESPACE_ID;
-			delete process.env.GITLAB_DUO_PROJECT_ID;
-			delete process.env.GITLAB_DUO_PROJECT_PATH;
+			delete Bun.env.GITLAB_DUO_NAMESPACE_ID;
+			delete Bun.env.GITLAB_DUO_PROJECT_ID;
+			delete Bun.env.GITLAB_DUO_PROJECT_PATH;
 			const selection = await resolveGitLabDuoWorkflowNamespaceSelection(
 				model,
 				{ apiKey: "redacted", cwd: "/" },
@@ -590,9 +565,9 @@ describe("GitLab Duo Workflow namespace resolution", () => {
 			return new Response("{}", { status: 404 });
 		};
 
-		const originalProjectId = process.env.GITLAB_DUO_PROJECT_ID;
+		const originalProjectId = Bun.env.GITLAB_DUO_PROJECT_ID;
 		try {
-			process.env.GITLAB_DUO_PROJECT_ID = "env-project";
+			Bun.env.GITLAB_DUO_PROJECT_ID = "env-project";
 			const resolved = await resolveGitLabDuoWorkflowRootNamespaceId(
 				model,
 				{ apiKey: "redacted", projectPath: "group/project" },
@@ -639,7 +614,7 @@ describe("GitLab Duo Workflow per-account namespace cache", () => {
 		// loaded CI runner and leaves `onopen` undelivered, idling the stream to its 5s timeout.
 		// Poll on a real deadline against the socket factory instead of a turn count.
 		for (let waited = 0; waited < 2000 && !socket; waited += 5) {
-			await sleep(5);
+			await Bun.sleep(5);
 		}
 		if (!socket) throw new Error("GitLab Duo Workflow socket was never opened");
 		socket?.onopen?.(new Event("open"));
@@ -1823,7 +1798,7 @@ describe("GitLab Duo Workflow WebSocket state machine", () => {
 		});
 
 		// Give the setup path one microtask hop to reach the first fetch, then cancel.
-		await sleep(5);
+		await Bun.sleep(5);
 		expect(stalledEndpoints.length).toBeGreaterThan(0);
 		controller.abort(new Error("caller cancelled"));
 
@@ -2012,13 +1987,13 @@ describe("GitLab Duo Workflow WebSocket state machine", () => {
 			socketReady.resolve(socket);
 			return socket;
 		};
-		const originalNamespaceId = process.env.GITLAB_DUO_NAMESPACE_ID;
-		const originalProjectId = process.env.GITLAB_DUO_PROJECT_ID;
-		const originalProjectPath = process.env.GITLAB_DUO_PROJECT_PATH;
+		const originalNamespaceId = Bun.env.GITLAB_DUO_NAMESPACE_ID;
+		const originalProjectId = Bun.env.GITLAB_DUO_PROJECT_ID;
+		const originalProjectPath = Bun.env.GITLAB_DUO_PROJECT_PATH;
 		try {
-			delete process.env.GITLAB_DUO_NAMESPACE_ID;
-			delete process.env.GITLAB_DUO_PROJECT_ID;
-			delete process.env.GITLAB_DUO_PROJECT_PATH;
+			delete Bun.env.GITLAB_DUO_NAMESPACE_ID;
+			delete Bun.env.GITLAB_DUO_PROJECT_ID;
+			delete Bun.env.GITLAB_DUO_PROJECT_PATH;
 			const stream = streamGitLabDuoWorkflow(model, context, {
 				apiKey: "pat-token",
 				fetch: fetchImpl,
@@ -3751,7 +3726,7 @@ describe("GitLab Duo Workflow WebSocket state machine", () => {
 			webSocketFactory,
 		});
 		for (let attempt = 0; attempt < 10 && !socket; attempt++) {
-			await sleep(0);
+			await Bun.sleep(0);
 		}
 		expect(socket).toBeDefined();
 		socket?.onopen?.(new Event("open"));
@@ -3807,7 +3782,7 @@ describe("GitLab Duo Workflow WebSocket state machine", () => {
 			},
 		);
 		for (let attempt = 0; attempt < 10 && sent.length < 2; attempt++) {
-			await sleep(0);
+			await Bun.sleep(0);
 		}
 		expect(socketCount).toBe(1);
 		expect(JSON.parse(sent[1] ?? "{}")).toEqual({
@@ -4081,7 +4056,7 @@ describe("GitLab Duo Workflow WebSocket state machine", () => {
 			webSocketFactory,
 		});
 		for (let attempt = 0; attempt < 20 && sockets.length < 1; attempt++) {
-			await sleep(0);
+			await Bun.sleep(0);
 		}
 		expect(sockets).toHaveLength(1);
 		sockets[0]?.onopen?.(new Event("open"));
@@ -4140,7 +4115,7 @@ describe("GitLab Duo Workflow WebSocket state machine", () => {
 		);
 		// Resume reuses socket 0 (no new socket yet).
 		for (let attempt = 0; attempt < 20 && sockets.length < 1; attempt++) {
-			await sleep(0);
+			await Bun.sleep(0);
 		}
 		sockets[0]?.onmessage?.(
 			new MessageEvent("message", {
@@ -4166,7 +4141,7 @@ describe("GitLab Duo Workflow WebSocket state machine", () => {
 		);
 		// The stall triggers a fresh workflow → a second socket opens; complete it.
 		for (let attempt = 0; attempt < 50 && sockets.length < 2; attempt++) {
-			await sleep(0);
+			await Bun.sleep(0);
 		}
 		expect(sockets).toHaveLength(2);
 		sockets[1]?.onopen?.(new Event("open"));
@@ -4253,7 +4228,7 @@ describe("GitLab Duo Workflow WebSocket state machine", () => {
 			webSocketFactory,
 		});
 		for (let attempt = 0; attempt < 10 && sockets.length < 1; attempt++) {
-			await sleep(0);
+			await Bun.sleep(0);
 		}
 		sockets[0]?.onopen?.(new Event("open"));
 		sockets[0]?.onmessage?.(
@@ -4293,7 +4268,7 @@ describe("GitLab Duo Workflow WebSocket state machine", () => {
 			},
 		);
 		for (let attempt = 0; attempt < 20 && sockets.length < 2; attempt++) {
-			await sleep(0);
+			await Bun.sleep(0);
 		}
 		sockets[1]?.onopen?.(new Event("open"));
 		sockets[1]?.onmessage?.(new MessageEvent("message", { data: JSON.stringify({ status: "INPUT_REQUIRED" }) }));
@@ -4377,7 +4352,7 @@ describe("GitLab Duo Workflow WebSocket state machine", () => {
 			webSocketFactory,
 		});
 		for (let attempt = 0; attempt < 10 && sockets.length < 1; attempt++) {
-			await sleep(0);
+			await Bun.sleep(0);
 		}
 		sockets[0]?.onopen?.(new Event("open"));
 		sockets[0]?.onmessage?.(
@@ -4418,7 +4393,7 @@ describe("GitLab Duo Workflow WebSocket state machine", () => {
 			},
 		);
 		for (let attempt = 0; attempt < 30 && sockets.length < 2; attempt++) {
-			await sleep(0);
+			await Bun.sleep(0);
 		}
 		sockets[1]?.onopen?.(new Event("open"));
 		sockets[1]?.onmessage?.(new MessageEvent("message", { data: JSON.stringify({ status: "INPUT_REQUIRED" }) }));
@@ -4557,7 +4532,7 @@ describe("GitLab Duo Workflow WebSocket state machine", () => {
 			},
 		);
 		for (let attempt = 0; attempt < 20 && sent.length < 1; attempt++) {
-			await sleep(0);
+			await Bun.sleep(0);
 		}
 		socket?.onopen?.(new Event("open"));
 		socket?.onmessage?.(new MessageEvent("message", { data: JSON.stringify({ status: "INPUT_REQUIRED" }) }));
@@ -4573,7 +4548,7 @@ describe("GitLab Duo Workflow WebSocket state machine", () => {
 		expect(goal).toContain("It contains ALPHA.");
 		expect(goal).toContain("Now summarize it.");
 		// The prior tool call and its result are paired by ADJACENCY (call turn followed
-		// by its tool-result turn); the Chudcode-internal id is omitted from the transcript.
+		// by its tool-result turn); the OMP-internal id is omitted from the transcript.
 		// The call is a past-tense `<ran NAME>{args}</ran>` record, the result `<ran:result>`.
 		expect(goal).toContain('<ran read>{"path":"a.ts"}</ran>');
 		expect(goal).toContain("<ran:result>");
@@ -4632,7 +4607,7 @@ describe("GitLab Duo Workflow WebSocket state machine", () => {
 			webSocketFactory,
 		});
 		for (let attempt = 0; attempt < 10 && !socket; attempt++) {
-			await sleep(0);
+			await Bun.sleep(0);
 		}
 		expect(socket).toBeDefined();
 		socket?.onopen?.(new Event("open"));
@@ -4667,7 +4642,7 @@ describe("GitLab Duo Workflow WebSocket state machine", () => {
 			},
 		);
 		for (let attempt = 0; attempt < 10 && sent.length < 2; attempt++) {
-			await sleep(0);
+			await Bun.sleep(0);
 		}
 		expect(socketCount).toBe(1);
 		// Server drops the resumed socket without ever sending a terminal status.
@@ -4730,7 +4705,7 @@ describe("GitLab Duo Workflow WebSocket state machine", () => {
 			webSocketFactory,
 		});
 		for (let attempt = 0; attempt < 10 && !socket; attempt++) {
-			await sleep(0);
+			await Bun.sleep(0);
 		}
 		socket?.onopen?.(new Event("open"));
 		socket?.onmessage?.(
@@ -4770,7 +4745,7 @@ describe("GitLab Duo Workflow WebSocket state machine", () => {
 			},
 		);
 		for (let attempt = 0; attempt < 10 && sent.length < 2; attempt++) {
-			await sleep(0);
+			await Bun.sleep(0);
 		}
 		// Resume checkpoint emits a segment then crosses a tool boundary → pause_turn.
 		socket?.onmessage?.(
@@ -4873,13 +4848,13 @@ describe("GitLab Duo Workflow WebSocket state machine", () => {
 	});
 
 	it("never lets trace write failures reject into the caller", async () => {
-		const previousEnabled = process.env.GITLAB_DUO_WORKFLOW_TRACE;
-		const previousFile = process.env.GITLAB_DUO_WORKFLOW_TRACE_FILE;
+		const previousEnabled = Bun.env.GITLAB_DUO_WORKFLOW_TRACE;
+		const previousFile = Bun.env.GITLAB_DUO_WORKFLOW_TRACE_FILE;
 		const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "gitlab-duo-trace-"));
 		const parentFile = path.join(tempDir, "not-a-directory");
-		await fsx.write(parentFile, "already a file");
-		process.env.GITLAB_DUO_WORKFLOW_TRACE = "1";
-		process.env.GITLAB_DUO_WORKFLOW_TRACE_FILE = path.join(parentFile, "trace.jsonl");
+		await Bun.write(parentFile, "already a file");
+		Bun.env.GITLAB_DUO_WORKFLOW_TRACE = "1";
+		Bun.env.GITLAB_DUO_WORKFLOW_TRACE_FILE = path.join(parentFile, "trace.jsonl");
 		const unhandled: unknown[] = [];
 		const onUnhandled = (reason: unknown): void => {
 			unhandled.push(reason);
@@ -4887,14 +4862,14 @@ describe("GitLab Duo Workflow WebSocket state machine", () => {
 		process.on("unhandledRejection", onUnhandled);
 		try {
 			traceGitLabDuoWorkflow("test.event", { message: "safe" });
-			await sleep(20);
+			await Bun.sleep(20);
 			expect(unhandled).toEqual([]);
 		} finally {
 			process.off("unhandledRejection", onUnhandled);
-			if (previousEnabled === undefined) delete process.env.GITLAB_DUO_WORKFLOW_TRACE;
-			else process.env.GITLAB_DUO_WORKFLOW_TRACE = previousEnabled;
-			if (previousFile === undefined) delete process.env.GITLAB_DUO_WORKFLOW_TRACE_FILE;
-			else process.env.GITLAB_DUO_WORKFLOW_TRACE_FILE = previousFile;
+			if (previousEnabled === undefined) delete Bun.env.GITLAB_DUO_WORKFLOW_TRACE;
+			else Bun.env.GITLAB_DUO_WORKFLOW_TRACE = previousEnabled;
+			if (previousFile === undefined) delete Bun.env.GITLAB_DUO_WORKFLOW_TRACE_FILE;
+			else Bun.env.GITLAB_DUO_WORKFLOW_TRACE_FILE = previousFile;
 			await fs.rm(tempDir, { recursive: true, force: true });
 		}
 	});

@@ -13,8 +13,9 @@
  * fires (so `process.exit` can't discard it), and the full record is delivered.
  */
 import { afterEach, describe, expect, it, vi } from "bun:test";
-import { runPrintMode } from "@chudware/coding-agent/modes/print-mode";
-import type { AgentSession, AgentSessionEvent } from "@chudware/coding-agent/session/agent-session";
+import { Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
+import { runPrintMode } from "@oh-my-pi/pi-coding-agent/modes/print-mode";
+import type { AgentSession, AgentSessionEvent } from "@oh-my-pi/pi-coding-agent/session/agent-session";
 
 interface FlushHarness {
 	session: AgentSession;
@@ -36,8 +37,10 @@ function createFlushHarness(): FlushHarness {
 			getHeader: () => undefined,
 			buildSessionContext: () => ({ messages: [] }),
 			getEntries: () => [],
+			onPersistenceError: () => () => {},
 		},
-		settings: { get: () => false },
+		settings: Settings.isolated(),
+		getLastAssistantMessage: () => undefined,
 		extensionRunner: undefined,
 		subscribe: (listener: (event: AgentSessionEvent) => void) => {
 			subscriber = listener;
@@ -135,7 +138,7 @@ describe("print-mode JSON flush (#7635)", () => {
 		expect(harness.disposed()).toBe(false);
 
 		releaseAgentEnd?.();
-		await run;
+		expect(await run).toBe(0);
 
 		expect(settled).toBe(true);
 		expect(harness.disposed()).toBe(true);

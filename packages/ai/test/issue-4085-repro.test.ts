@@ -1,8 +1,7 @@
 import { describe, expect, it, spyOn } from "bun:test";
-import * as AIError from "@chudware/ai/error";
-import { POLL_MAX_ATTEMPTS, pollOperation } from "@chudware/ai/registry/oauth/google-gemini-cli";
-import { oauthFetch } from "@chudware/ai/registry/oauth/google-oauth-shared";
-import * as piUtils from "@chudware/utils/async";
+import * as AIError from "@oh-my-pi/pi-ai/error";
+import { POLL_MAX_ATTEMPTS, pollOperation } from "@oh-my-pi/pi-ai/registry/oauth/google-gemini-cli";
+import { oauthFetch } from "@oh-my-pi/pi-ai/registry/oauth/google-oauth-shared";
 
 /**
  * A loopback server whose handler never resolves — models a stalled Cloud Code
@@ -60,7 +59,7 @@ describe("issue #4085 — Google OAuth provisioning honors cancel/timeout", () =
 	});
 
 	it("pollOperation is bounded: a never-done operation fails after POLL_MAX_ATTEMPTS", async () => {
-		const sleepSpy = spyOn(piUtils, "sleep").mockImplementation(() => Promise.resolve());
+		const sleepSpy = spyOn(Bun, "sleep").mockImplementation((() => Promise.resolve()) as typeof Bun.sleep);
 		const fetchSpy = spyOn(globalThis, "fetch").mockImplementation(
 			(async () =>
 				new Response(JSON.stringify({ done: false }), { status: 200 })) as unknown as typeof globalThis.fetch,

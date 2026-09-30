@@ -1,6 +1,13 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
-import { getProjectDir, getProjectPromptsDir, getPromptsDir, logger, parseFrontmatter, prompt } from "@chudware/utils";
+import {
+	getProjectDir,
+	getProjectPromptsDir,
+	getPromptsDir,
+	logger,
+	parseFrontmatter,
+	prompt,
+} from "@oh-my-pi/pi-utils";
 import { jtdToTypeScript } from "../tools/jtd-to-typescript";
 import { parseCommandArgs, substituteArgs } from "../utils/command-args";
 
@@ -23,11 +30,11 @@ prompt.registerHelper("jtdToTypeScript", (schema: unknown): string => {
 });
 
 /**
- * Render a subagent output schema wrapped in the `yield` tool's
- * `result: { data: … }` envelope so the model sees the shape it must
- * actually submit, not just the user-facing payload. Without this the LLM
- * pattern-matches on the bare interface and puts strings/objects directly
- * in `result.data`, tripping schema validation repeatedly.
+ * Render a subagent output schema inside the `yield` tool's `{ data: … }`
+ * argument shape so the model sees the exact call it must make, not just the
+ * user-facing payload. Without this the LLM pattern-matches on the bare
+ * interface and puts schema fields at the top level of the call, tripping
+ * schema validation repeatedly.
  */
 prompt.registerHelper("renderYieldSchema", (schema: unknown): string => {
 	let ts: string;
@@ -39,7 +46,7 @@ prompt.registerHelper("renderYieldSchema", (schema: unknown): string => {
 	const lines = ts.split("\n");
 	const [first, ...rest] = lines;
 	const body = rest.length === 0 ? first : `${first}\n${rest.map(l => `  ${l}`).join("\n")}`;
-	return `result: {\n  data: ${body};\n}`;
+	return `{\n  data: ${body};\n}`;
 });
 
 const INLINE_ARG_SHELL_PATTERN = /\$(?:ARGUMENTS|@(?:\[\d+(?::\d*)?\])?|\d+)/;
@@ -153,7 +160,7 @@ export interface LoadPromptTemplatesOptions {
 /**
  * Load all prompt templates from:
  * 1. Global: agentDir/prompts/
- * 2. Project: cwd/.chudcode/prompts/
+ * 2. Project: cwd/.omp/prompts/
  */
 export async function loadPromptTemplates(options: LoadPromptTemplatesOptions = {}): Promise<PromptTemplate[]> {
 	const resolvedCwd = options.cwd ?? getProjectDir();
@@ -166,7 +173,7 @@ export async function loadPromptTemplates(options: LoadPromptTemplatesOptions = 
 	const globalPromptsDir = options.agentDir ? path.join(options.agentDir, "prompts") : resolvedAgentDir;
 	templates.push(...(await loadTemplatesFromDir(globalPromptsDir, "user")));
 
-	// 2. Load project templates from cwd/.chudcode/prompts/
+	// 2. Load project templates from cwd/.omp/prompts/
 	const projectPromptsDir = getProjectPromptsDir(resolvedCwd);
 	templates.push(...(await loadTemplatesFromDir(projectPromptsDir, "project")));
 

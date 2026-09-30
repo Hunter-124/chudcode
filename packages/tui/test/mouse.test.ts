@@ -5,7 +5,7 @@ import {
 	routeSgrMouseInput,
 	type SelectListMouseTarget,
 	type SgrMouseEvent,
-} from "@chudware/tui/mouse";
+} from "@oh-my-pi/pi-tui/mouse";
 
 describe("parseSgrMouse", () => {
 	it("returns null for non-mouse input", () => {
@@ -37,6 +37,19 @@ describe("parseSgrMouse", () => {
 		expect(parseSgrMouse("\x1b[<64;1;1M")?.wheel).toBe(-1);
 		expect(parseSgrMouse("\x1b[<65;1;1M")?.wheel).toBe(1);
 		expect(parseSgrMouse("\x1b[<65;1;1M")?.leftClick).toBe(false);
+	});
+
+	it("does not read a horizontal wheel report as a vertical direction", () => {
+		// A two-finger trackpad scroll drifts sideways; buttons 66/67 must not
+		// move a list up and back down.
+		for (const report of ["\x1b[<66;1;1M", "\x1b[<67;1;1M", "\x1b[<70;1;1M"]) {
+			const event = parseSgrMouse(report);
+			expect(event?.wheel).toBeNull();
+			expect(event?.leftClick).toBe(false);
+			expect(event?.motion).toBe(false);
+		}
+		// Modifier bits on a vertical wheel still decode as a direction.
+		expect(parseSgrMouse("\x1b[<69;1;1M")?.wheel).toBe(1);
 	});
 
 	it("decodes motion reports without treating them as clicks", () => {

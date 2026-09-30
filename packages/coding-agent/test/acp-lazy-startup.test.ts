@@ -1,13 +1,14 @@
 import { afterAll, beforeAll, describe, expect, it } from "bun:test";
 import * as path from "node:path";
-import type { Model } from "@chudware/ai";
-import { buildModel } from "@chudware/catalog/build";
-import { Settings } from "@chudware/coding-agent/config/settings";
-import { createAcpConnection } from "@chudware/coding-agent/modes/acp/acp-mode";
-import type { AgentSession } from "@chudware/coding-agent/session/agent-session";
-import type { AuthStorage } from "@chudware/coding-agent/session/auth-storage";
-import { SessionManager } from "@chudware/coding-agent/session/session-manager";
-import { TempDir } from "@chudware/utils";
+import type { Model } from "@oh-my-pi/pi-ai";
+import { buildModel } from "@oh-my-pi/pi-catalog/build";
+import { lookup } from "@oh-my-pi/pi-coding-agent/config/registry";
+import { Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
+import { createAcpConnection } from "@oh-my-pi/pi-coding-agent/modes/acp/acp-mode";
+import type { AgentSession } from "@oh-my-pi/pi-coding-agent/session/agent-session";
+import type { AuthStorage } from "@oh-my-pi/pi-coding-agent/session/auth-storage";
+import { SessionManager } from "@oh-my-pi/pi-coding-agent/session/session-manager";
+import { TempDir } from "@oh-my-pi/pi-utils";
 import {
 	type Client,
 	ClientSideConnection,
@@ -17,9 +18,14 @@ import {
 	type RequestPermissionRequest,
 	type RequestPermissionResponse,
 	type SessionNotification,
-} from "@chudware/utils/acp";
-import * as fsx from "@chudware/utils/fsx";
+} from "@oh-my-pi/pi-utils/acp";
 import { createInMemoryAuthStorage } from "./helpers/agent-session-setup";
+
+import { cfgAsyncEnabled, cfgAsyncMaxJobs } from "@oh-my-pi/pi-coding-agent/tools/settings";
+import {
+	cfgBashAutoBackgroundEnabled,
+	cfgBashAutoBackgroundThresholdMs,
+} from "@oh-my-pi/pi-coding-agent/exec/settings";
 
 const TEST_MODEL: Model = buildModel({
 	id: "claude-sonnet-4-20250514",
@@ -38,7 +44,7 @@ let startupDir: TempDir;
 let startupAuthStorage: AuthStorage;
 
 beforeAll(() => {
-	startupDir = TempDir.createSync("@chudcode-acp-startup-shared-");
+	startupDir = TempDir.createSync("@omp-acp-startup-shared-");
 	startupAuthStorage = createInMemoryAuthStorage();
 });
 
@@ -79,7 +85,7 @@ class LazyFakeSession {
 	queuedMessageCount = 0;
 	systemPrompt = "system";
 	disposed = false;
-	settings = { get: (_path: string) => false };
+	settings = Settings.isolated({ "plan.enabled": false });
 
 	constructor(cwd: string) {
 		this.sessionManager = SessionManager.inMemory(cwd);
@@ -171,7 +177,7 @@ async function closeTransport(writable: WritableStream<unknown>): Promise<void> 
 
 describe("ACP lazy startup", () => {
 	it("applies schema defaults for ACP background jobs", async () => {
-		const { runRootCommand } = await import("@chudware/coding-agent/main");
+		const { runRootCommand } = await import("@oh-my-pi/pi-coding-agent/main");
 
 		type ObservedBackgroundSettings = {
 			asyncEnabled: boolean;
@@ -192,6 +198,7 @@ describe("ACP lazy startup", () => {
 						fileArgs: [],
 						unknownFlags: new Map(),
 						unrecognizedFlags: [],
+						invalidFlagValues: [],
 						noSkills: true,
 						noRules: true,
 						noTools: true,
@@ -204,10 +211,10 @@ describe("ACP lazy startup", () => {
 						settings,
 						runAcpMode: async () => {
 							observed = {
-								asyncEnabled: settings.get("async.enabled"),
-								asyncMaxJobs: settings.get("async.maxJobs"),
-								bashAutoBackground: settings.get("bash.autoBackground.enabled"),
-								bashAutoBackgroundThresholdMs: settings.get("bash.autoBackground.thresholdMs"),
+								asyncEnabled: cfgAsyncEnabled.get(settings),
+								asyncMaxJobs: cfgAsyncMaxJobs.get(settings),
+								bashAutoBackground: cfgBashAutoBackgroundEnabled.get(settings),
+								bashAutoBackgroundThresholdMs: cfgBashAutoBackgroundThresholdMs.get(settings),
 							};
 							throw new Error(stopMessage);
 						},
@@ -240,10 +247,11 @@ describe("ACP lazy startup", () => {
 		// configured value (caller, project, --config overlay, or global) with the
 		// schema default. The fix (re-)added an `isConfigured` guard so explicit
 		// configuration survives, and the schema default only fills holes.
-		const { runRootCommand } = await import("@chudware/coding-agent/main");
+		const { runRootCommand } = await import("@oh-my-pi/pi-coding-agent/main");
 
 		const explicit = {
-			"task.isolation.mode": "rcopy",
+			"task.isolation.enabled": true,
+			"isolation.backend": "rcopy",
 			"task.isolation.apply": false,
 			"task.isolation.merge": "branch",
 			"task.isolation.commits": "ai",
@@ -283,7 +291,9 @@ describe("ACP lazy startup", () => {
 			const observe = () => {
 				observed = {};
 				for (const key of allPaths) {
-					observed[key] = settings.get(key);
+					const setting = lookup(key);
+					if (!setting) throw new Error(`Unknown setting: ${key}`);
+					observed[key] = setting.get(settings);
 				}
 				throw new Error(stopMessage);
 			};
@@ -296,6 +306,7 @@ describe("ACP lazy startup", () => {
 						fileArgs: [],
 						unknownFlags: new Map(),
 						unrecognizedFlags: [],
+						invalidFlagValues: [],
 						noSkills: true,
 						noRules: true,
 						noTools: true,
@@ -363,7 +374,6 @@ describe("ACP lazy startup", () => {
 			expect(initializeResponse).toEqual(
 				expect.objectContaining({
 					protocolVersion: 1,
-					agentInfo: expect.objectContaining({ name: "chudware" }),
 				}),
 			);
 			expect(createCalls).toBe(0);
@@ -386,13 +396,13 @@ describe("ACP lazy startup", () => {
 	});
 
 	it("applies CLI runtime API keys after ACP lazy session creation resolves extension models", async () => {
-		using tempDir = TempDir.createSync("@chudcode-acp-lazy-api-key-");
+		using tempDir = TempDir.createSync("@omp-acp-lazy-api-key-");
 		const cwd = tempDir.path();
 
-		await fsx.write(
+		await Bun.write(
 			path.join(cwd, "runtime-provider.ts"),
-			`export default function(chud) {
-	chud.registerProvider("runtime-provider", {
+			`export default function(pi) {
+	pi.registerProvider("runtime-provider", {
 		baseUrl: "https://runtime.example.com/v1",
 		apiKey: "extension-key",
 		api: "openai-completions",
@@ -413,8 +423,8 @@ describe("ACP lazy startup", () => {
 		const authStorage = createInMemoryAuthStorage();
 		try {
 			const settings = Settings.isolated({ "marketplace.autoUpdate": "off" });
-			const { runRootCommand } = await import("@chudware/coding-agent/main");
-			const { createAgentSession } = await import("@chudware/coding-agent/sdk");
+			const { runRootCommand } = await import("@oh-my-pi/pi-coding-agent/main");
+			const { createAgentSession } = await import("@oh-my-pi/pi-coding-agent/sdk");
 			let session: AgentSession | undefined;
 			let sessionHasUI: boolean | undefined;
 			let deferredUsageReserveConfirmation: boolean | undefined;
@@ -427,6 +437,7 @@ describe("ACP lazy startup", () => {
 					fileArgs: [],
 					unknownFlags: new Map(),
 					unrecognizedFlags: [],
+					invalidFlagValues: [],
 					noSkills: true,
 					noRules: true,
 					noTools: true,

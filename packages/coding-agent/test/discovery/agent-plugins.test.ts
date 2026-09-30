@@ -2,25 +2,27 @@ import { afterEach, beforeEach, describe, expect, test, vi } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import { loadCapability } from "@chudware/coding-agent/capability";
-import { clearCache as clearFsCache } from "@chudware/coding-agent/capability/fs";
+import { loadCapability } from "@oh-my-pi/pi-coding-agent/capability";
+import { clearCache as clearFsCache } from "@oh-my-pi/pi-coding-agent/capability/fs";
 import {
 	AGENT_PLUGIN_MANIFEST_SCHEMA,
 	AGENT_PLUGIN_MCP_SCHEMA,
 	clearAgentPluginRootCache,
 	parseAgentPluginManifest,
 	parseAgentPluginMcp,
-} from "@chudware/coding-agent/discovery/agent-plugin-format";
+} from "@oh-my-pi/pi-coding-agent/discovery/agent-plugin-format";
 import {
 	clearClaudePluginRootsCache,
 	injectPluginDirRoots,
 	listClaudePluginRoots,
-} from "@chudware/coding-agent/discovery/helpers";
-import { getPluginsDir, removeWithRetries } from "@chudware/utils";
-import "@chudware/coding-agent/discovery/agent-plugins";
-import "@chudware/coding-agent/discovery/claude-plugins";
-import type { MCPServer } from "@chudware/coding-agent/capability/mcp";
-import type { Skill } from "@chudware/coding-agent/capability/skill";
+} from "@oh-my-pi/pi-coding-agent/discovery/helpers";
+import { loadSkills } from "@oh-my-pi/pi-coding-agent/extensibility/skills";
+import { getPluginsDir, removeWithRetries } from "@oh-my-pi/pi-utils";
+import { restoreEnvValue } from "../helpers/settings-test-state";
+import "@oh-my-pi/pi-coding-agent/discovery/agent-plugins";
+import "@oh-my-pi/pi-coding-agent/discovery/claude-plugins";
+import type { MCPServer } from "@oh-my-pi/pi-coding-agent/capability/mcp";
+import type { Skill } from "@oh-my-pi/pi-coding-agent/capability/skill";
 
 // Concatenation avoids the noTemplateCurlyInString lint on literal placeholder names.
 const PLUGIN_ROOT_VAR = "$" + "{PLUGIN_ROOT}";
@@ -54,14 +56,6 @@ describe("parseAgentPluginManifest", () => {
 		if (result.status === "valid") {
 			expect(result.manifest.version).toBe("1.2.0");
 			expect(result.manifest.extensions?.["com.example.client"]).toEqual({ setting: true });
-		}
-	});
-
-	test("reports and ignores unknown top-level fields", () => {
-		const result = parseAgentPluginManifest(manifest({ name: "a", mcpServers: {} }));
-		expect(result.status).toBe("valid");
-		if (result.status === "valid") {
-			expect(result.warnings).toEqual([`Ignoring unknown plugin.json field "mcpServers"`]);
 		}
 	});
 
@@ -255,6 +249,7 @@ describe("parseAgentPluginMcp", () => {
 describe("agent-plugins discovery", () => {
 	let tempDir: string;
 	let pluginPath: string;
+	let originalClaudeConfigDir: string | undefined;
 
 	const writeRegistry = async (installPath: string, id = "std-plugin@market") => {
 		const pluginsDir = path.join(tempDir, ".claude", "plugins");
@@ -295,6 +290,9 @@ describe("agent-plugins discovery", () => {
 		clearClaudePluginRootsCache();
 		clearAgentPluginRootCache();
 		clearFsCache();
+		originalClaudeConfigDir = process.env.CLAUDE_CONFIG_DIR;
+		delete process.env.CLAUDE_CONFIG_DIR;
+		delete Bun.env.CLAUDE_CONFIG_DIR;
 		tempDir = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), "agent-plugins-test-")));
 		pluginPath = path.join(tempDir, "plugins", "std-plugin");
 		await fs.mkdir(pluginPath, { recursive: true });
@@ -306,6 +304,7 @@ describe("agent-plugins discovery", () => {
 		clearAgentPluginRootCache();
 		clearFsCache();
 		vi.restoreAllMocks();
+		restoreEnvValue("CLAUDE_CONFIG_DIR", originalClaudeConfigDir);
 		await removeWithRetries(tempDir);
 	});
 
@@ -660,5 +659,67 @@ describe("agent-plugins discovery", () => {
 		clearFsCache();
 		expect(await dataDirOf("a")).toBe(first as string);
 		expect(await dataDirOf("b")).toBe(second as string);
+	});
+
+	test("namespaces colliding plugin skills by manifest name, stable across version bumps (#12151)", async () => {
+		const cacheRoot = path.join(tempDir, ".claude", "plugins", "cache", "market");
+		const install = async (plugin: string, version: string) => {
+			const root = path.join(cacheRoot, plugin, version);
+			await fs.mkdir(path.join(root, "skills", "tdd"), { recursive: true });
+			await fs.writeFile(
+				path.join(root, "plugin.json"),
+				JSON.stringify({ $schema: AGENT_PLUGIN_MANIFEST_SCHEMA, name: plugin }),
+			);
+			await fs.writeFile(
+				path.join(root, "skills", "tdd", "SKILL.md"),
+				`---\nname: tdd\ndescription: ${plugin} TDD\n---\n${plugin} body\n`,
+			);
+			return root;
+		};
+		const writeInstalls = async (entries: Record<string, [string, string]>) => {
+			const pluginsDir = path.join(tempDir, ".claude", "plugins");
+			await fs.mkdir(pluginsDir, { recursive: true });
+			const plugins: Record<string, unknown[]> = {};
+			for (const [id, [installPath, version]] of Object.entries(entries)) {
+				plugins[id] = [
+					{
+						scope: "user",
+						installPath,
+						version,
+						installedAt: "2026-01-01T00:00:00Z",
+						lastUpdated: "2026-01-01T00:00:00Z",
+					},
+				];
+			}
+			await fs.writeFile(path.join(pluginsDir, "installed_plugins.json"), JSON.stringify({ version: 2, plugins }));
+		};
+		const tddNames = async () => {
+			clearClaudePluginRootsCache();
+			clearAgentPluginRootCache();
+			clearFsCache();
+			const { skills } = await loadSkills({ cwd: tempDir });
+			return skills
+				.filter(skill => skill._source?.provider === "agent-plugins")
+				.map(skill => skill.name)
+				.sort();
+		};
+
+		await writeInstalls({
+			"superpowers@market": [await install("superpowers", "1.2.0"), "1.2.0"],
+			"agent-skills@market": [await install("agent-skills", "4.0.3"), "4.0.3"],
+		});
+		const before = await tddNames();
+		expect(before).toHaveLength(2);
+		expect(before).toContain("tdd");
+		const namespaced = before.find(name => name !== "tdd");
+		// Namespaced by plugin name, never by the version directory owning skills/.
+		expect(["superpowers/tdd", "agent-skills/tdd"]).toContain(namespaced as string);
+
+		// Both plugins update: the version directories change, the addresses do not.
+		await writeInstalls({
+			"superpowers@market": [await install("superpowers", "1.3.0"), "1.3.0"],
+			"agent-skills@market": [await install("agent-skills", "4.1.0"), "4.1.0"],
+		});
+		expect(await tddNames()).toEqual(before);
 	});
 });

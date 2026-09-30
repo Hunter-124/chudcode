@@ -420,7 +420,7 @@ export class ManagerServer {
 			benchmark,
 			jobName,
 			dataset,
-			agent: request.agent ?? "chudcode",
+			agent: request.agent ?? "omp",
 			models: [request.model],
 			prewalk: request.prewalk,
 			config: { ...request },

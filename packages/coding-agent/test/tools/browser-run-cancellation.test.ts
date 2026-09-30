@@ -1,8 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "bun:test";
 import * as fs from "node:fs/promises";
-import { postmortem } from "@chudware/utils";
-import { sleep } from "@chudware/utils/async";
-import * as fsx from "@chudware/utils/fsx";
+import { postmortem, TempDir } from "@oh-my-pi/pi-utils";
 import { JsRuntime, type RuntimeHooks } from "../../src/eval/js/shared/runtime";
 import {
 	bindRunFacade,
@@ -231,6 +229,7 @@ describe("browser run cancellation", () => {
 				owner,
 				reason => floatingRejections.push(reason),
 				async () => {
+					// oxlint-disable unicorn/no-single-promise-in-promise-methods -- the combinators themselves are under test
 					const combined =
 						name === "all"
 							? Promise.all([facade.fail()])
@@ -245,7 +244,8 @@ describe("browser run cancellation", () => {
 					void combined.catch(reason => {
 						throw reason;
 					});
-					await sleep(20);
+					// oxlint-enable unicorn/no-single-promise-in-promise-methods
+					await Bun.sleep(20);
 				},
 			);
 
@@ -282,11 +282,12 @@ describe("browser run cancellation", () => {
 			reason => floatingRejections.push(reason),
 			async () => {
 				try {
+					// oxlint-disable-next-line unicorn/no-single-promise-in-promise-methods -- the tracked combinator is under test
 					await Promise.all([facade.fail()]);
 				} catch (error) {
 					caught = error;
 				}
-				await sleep(10);
+				await Bun.sleep(10);
 			},
 		);
 
@@ -296,8 +297,9 @@ describe("browser run cancellation", () => {
 
 	it("keeps a real worker alive after floating browser and continuation rejections", async () => {
 		vi.useRealTimers();
-		const workerPath = `/tmp/chudcode-browser-rejections-${process.pid}.ts`;
-		await fsx.write(
+		using workerDir = TempDir.createSync("@omp-browser-rejections-");
+		const workerPath = workerDir.join("worker.ts");
+		await Bun.write(
 			workerPath,
 			`
 				import {
@@ -421,7 +423,7 @@ describe("browser run cancellation", () => {
 		void facade.ok().finally(() => {
 			throw new Error("finally failed");
 		});
-		await sleep(20);
+		await Bun.sleep(20);
 
 		const messages = floatingRejections
 			.map(reason => (reason instanceof Error ? reason.message : String(reason)))
@@ -446,7 +448,7 @@ describe("browser run cancellation", () => {
 		void facade.fail().catch(reason => {
 			throw reason;
 		});
-		await sleep(20);
+		await Bun.sleep(20);
 
 		expect(isBrowserRunRejection(browserFailure, owner)).toBe(true);
 		expect(floatingRejections).toEqual([browserFailure]);

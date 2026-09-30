@@ -27,7 +27,6 @@ export interface Keybindings {
 	"tui.editor.yank": true;
 	"tui.editor.yankPop": true;
 	"tui.editor.undo": true;
-	"tui.editor.spellingSuggestions": true;
 	"tui.editor.redo": true;
 	"tui.editor.selectAll": true;
 	"tui.editor.selectLeft": true;
@@ -40,6 +39,7 @@ export interface Keybindings {
 	"tui.editor.selectToLineEnd": true;
 	"tui.editor.cut": true;
 	"tui.editor.paste": true;
+	"tui.editor.spellingSuggestions": true;
 	// Generic input actions
 	"tui.input.newLine": true;
 	"tui.input.submit": true;
@@ -270,19 +270,13 @@ function normalizeKeys(keys: KeyId | KeyId[] | undefined): KeyId[] {
 
 export class KeybindingsManager {
 	#definitions: KeybindingDefinitions;
-	#presetBindings: KeybindingsConfig;
 	#userBindings: KeybindingsConfig;
 	#keysById = new Map<Keybinding, KeyId[]>();
 	#matchKeysById = new Map<Keybinding, Set<string>>();
 	#conflicts: KeybindingConflict[] = [];
 
-	constructor(
-		definitions: KeybindingDefinitions,
-		userBindings: KeybindingsConfig = {},
-		presetBindings: KeybindingsConfig = {},
-	) {
+	constructor(definitions: KeybindingDefinitions, userBindings: KeybindingsConfig = {}) {
 		this.#definitions = definitions;
-		this.#presetBindings = presetBindings;
 		this.#userBindings = userBindings;
 		this.#rebuild();
 	}
@@ -292,17 +286,17 @@ export class KeybindingsManager {
 		this.#matchKeysById.clear();
 		this.#conflicts = [];
 
-		const configuredClaims = new Map<KeyId, Set<Keybinding>>();
-		for (const id of Object.keys(this.#definitions)) {
-			const configuredKeys = this.#userBindings[id] ?? this.#presetBindings[id];
-			for (const key of normalizeKeys(configuredKeys)) {
-				const claimants = configuredClaims.get(key) ?? new Set<Keybinding>();
-				claimants.add(id as Keybinding);
-				configuredClaims.set(key, claimants);
+		const userClaims = new Map<KeyId, Set<Keybinding>>();
+		for (const [keybinding, keys] of Object.entries(this.#userBindings)) {
+			if (!(keybinding in this.#definitions)) continue;
+			for (const key of normalizeKeys(keys)) {
+				const claimants = userClaims.get(key) ?? new Set<Keybinding>();
+				claimants.add(keybinding as Keybinding);
+				userClaims.set(key, claimants);
 			}
 		}
 
-		for (const [key, keybindings] of configuredClaims) {
+		for (const [key, keybindings] of userClaims) {
 			if (keybindings.size > 1) {
 				this.#conflicts.push({ key, keybindings: [...keybindings] });
 			}
@@ -310,13 +304,7 @@ export class KeybindingsManager {
 
 		for (const [id, definition] of Object.entries(this.#definitions)) {
 			const userKeys = this.#userBindings[id];
-			const presetKeys = this.#presetBindings[id];
-			const keys =
-				userKeys === undefined
-					? presetKeys === undefined
-						? normalizeKeys(definition.defaultKeys)
-						: normalizeKeys(presetKeys)
-					: normalizeKeys(userKeys);
+			const keys = userKeys === undefined ? normalizeKeys(definition.defaultKeys) : normalizeKeys(userKeys);
 			this.#keysById.set(id as Keybinding, keys);
 			const matchKeys = new Set<string>();
 			for (const key of keys) {
@@ -357,14 +345,6 @@ export class KeybindingsManager {
 	setUserBindings(userBindings: KeybindingsConfig): void {
 		this.#userBindings = userBindings;
 		this.#rebuild();
-	}
-	setPresetBindings(presetBindings: KeybindingsConfig): void {
-		this.#presetBindings = presetBindings;
-		this.#rebuild();
-	}
-
-	getPresetBindings(): KeybindingsConfig {
-		return { ...this.#presetBindings };
 	}
 
 	getUserBindings(): KeybindingsConfig {

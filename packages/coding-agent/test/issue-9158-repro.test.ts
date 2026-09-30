@@ -1,5 +1,5 @@
 /**
- * Regression for https://github.com/Hunter-124/chudcode/issues/9158
+ * Regression for https://github.com/can1357/oh-my-pi/issues/9158
  *
  * `createWorkerSubprocess` spawns every worker with `serialization: "advanced"`.
  * When a child sends a malformed or truncated advanced-IPC frame, Bun raises the
@@ -32,7 +32,7 @@ describe("issue #9158 — malformed worker IPC frame must not terminate the pare
 		// postmortem module, which installs the global uncaughtException handler
 		// under test.
 		const wrapperScript = `
-			import { createWorkerSubprocess } from "@chudware/coding-agent/subprocess/worker-client";
+			import { createWorkerSubprocess } from "@oh-my-pi/pi-coding-agent/subprocess/worker-client";
 			const worker = createWorkerSubprocess({
 				spawnCommand: { cmd: [process.execPath, "-e", ${JSON.stringify(childScript)}] },
 				env: {},
@@ -50,7 +50,7 @@ describe("issue #9158 — malformed worker IPC frame must not terminate the pare
 			cwd: repoRoot,
 			stdout: "pipe",
 			stderr: "pipe",
-			env: { ...process.env, CHUDCODE_TEST_RUNTIME: "0" },
+			env: { ...process.env, PI_TEST_RUNTIME: "0" },
 		});
 		const [stdout, exitCode] = await Promise.all([new Response(proc.stdout).text(), proc.exited]);
 		// Before the fix the postmortem handler exited the parent with code 1 and
@@ -66,7 +66,7 @@ describe("issue #9158 — malformed worker IPC frame must not terminate the pare
 		// so a genuine bug is never silently swallowed as a worker IPC frame.
 		const repoRoot = path.resolve(import.meta.dir, "..");
 		const wrapperScript = `
-			import "@chudware/coding-agent/subprocess/worker-client";
+			import "@oh-my-pi/pi-coding-agent/subprocess/worker-client";
 			process.stdout.write("BEFORE_THROW");
 			queueMicrotask(() => { throw new TypeError("Unable to deserialize data."); });
 		`;
@@ -74,7 +74,7 @@ describe("issue #9158 — malformed worker IPC frame must not terminate the pare
 			cwd: repoRoot,
 			stdout: "pipe",
 			stderr: "pipe",
-			env: { ...process.env, CHUDCODE_TEST_RUNTIME: "0" },
+			env: { ...process.env, PI_TEST_RUNTIME: "0" },
 		});
 		const [stdout, exitCode] = await Promise.all([new Response(proc.stdout).text(), proc.exited]);
 		expect(exitCode).toBe(1);

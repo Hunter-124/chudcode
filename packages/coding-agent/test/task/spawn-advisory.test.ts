@@ -1,12 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "bun:test";
-import { Settings } from "@chudware/coding-agent/config/settings";
-import { AgentLifecycleManager } from "@chudware/coding-agent/registry/agent-lifecycle";
-import { AgentRegistry } from "@chudware/coding-agent/registry/agent-registry";
-import { buildSpecializationAdvisory, TaskTool } from "@chudware/coding-agent/task";
-import * as discoveryModule from "@chudware/coding-agent/task/discovery";
-import * as executorModule from "@chudware/coding-agent/task/executor";
-import type { AgentDefinition, SingleResult } from "@chudware/coding-agent/task/types";
-import type { ToolSession } from "@chudware/coding-agent/tools";
+import { Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
+import { AgentLifecycleManager } from "@oh-my-pi/pi-coding-agent/registry/agent-lifecycle";
+import { AgentRegistry } from "@oh-my-pi/pi-coding-agent/registry/agent-registry";
+import { buildSpecializationAdvisory, TaskTool } from "@oh-my-pi/pi-coding-agent/task";
+import * as discoveryModule from "@oh-my-pi/pi-coding-agent/task/discovery";
+import * as executorModule from "@oh-my-pi/pi-coding-agent/task/executor";
+import type { AgentDefinition } from "@oh-my-pi/pi-coding-agent/task/types";
+import type { SingleResult } from "@oh-my-pi/pi-tui/tools/task";
+import type { ToolSession } from "@oh-my-pi/pi-coding-agent/tools";
 
 // Contract: the task tool appends an advisory (never a rejection) steering the
 // spawner toward more specific agent types when one call resolves ≥2 items to
@@ -72,7 +73,7 @@ describe("task tool advisory gating via suppressSpawnAdvisory", () => {
 			cwd: "/tmp",
 			hasUI: false,
 			suppressSpawnAdvisory: suppress,
-			settings: Settings.isolated({ "task.isolation.mode": "none", "task.batch": true }),
+			settings: Settings.isolated({ "task.isolation.enabled": false, "task.batch": true }),
 			getSessionFile: () => null,
 			getSessionSpawns: () => "*",
 		} as unknown as ToolSession;
@@ -85,7 +86,7 @@ describe("task tool advisory gating via suppressSpawnAdvisory", () => {
 			// `task.disabledAgents` is what the task tool reads to drop scout from
 			// the rendered description and the appended specialization advisory.
 			settings: Settings.isolated({
-				"task.isolation.mode": "none",
+				"task.isolation.enabled": false,
 				"task.batch": true,
 				"task.disabledAgents": ["scout"],
 			}),
@@ -96,23 +97,21 @@ describe("task tool advisory gating via suppressSpawnAdvisory", () => {
 
 	async function spawnTextFor(s: ToolSession): Promise<string> {
 		vi.spyOn(discoveryModule, "discoverAgents").mockResolvedValue({ agents: [agent], projectAgentsDir: null });
-		vi.spyOn(executorModule, "runSubprocess").mockImplementation(
-			async (options): Promise<SingleResult> => ({
-				index: options.index ?? 0,
-				id: options.id ?? "X",
-				agent: "task",
-				agentSource: "bundled",
-				task: "t",
-				assignment: "do the thing",
-				exitCode: 0,
-				output: "done",
-				stderr: "",
-				truncated: false,
-				durationMs: 1,
-				tokens: 0,
-				requests: 1,
-			}),
-		);
+		vi.spyOn(executorModule, "runSubprocess").mockImplementation(async (options): Promise<SingleResult> => ({
+			index: options.index ?? 0,
+			id: options.id ?? "X",
+			agent: "task",
+			agentSource: "bundled",
+			task: "t",
+			assignment: "do the thing",
+			exitCode: 0,
+			output: "done",
+			stderr: "",
+			truncated: false,
+			durationMs: 1,
+			tokens: 0,
+			requests: 1,
+		}));
 		const tool = await TaskTool.create(s);
 		const result = await tool.execute("tc", {
 			context: "shared fan-out background",

@@ -2,14 +2,13 @@ import { describe, expect, it, spyOn } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import { sleep } from "@chudware/utils/async";
-import * as proc from "@chudware/utils/proc";
+
 import { resolveStdioSpawnCommand, StdioTransport, terminateStdioProcess } from "../../../src/mcp/transports/stdio";
 
 describe("resolveStdioSpawnCommand", () => {
 	it("hides Windows executable MCP servers when the host has no console", async () => {
 		// Hidden so a console-app child does not allocate a visible window when
-		// Chudcode is launched without a terminal console (#3536).
+		// OMP is launched without a terminal console (#3536).
 		await expect(
 			resolveStdioSpawnCommand(
 				{ command: "server.exe", args: ["--stdio"] },
@@ -70,7 +69,7 @@ describe("StdioTransport.connect", () => {
 			args: argv.slice(1),
 			cwd,
 			env: {
-				CHUDCODE_STDIO_SPAWN_SHAPE: envValue,
+				OMP_STDIO_SPAWN_SHAPE: envValue,
 			},
 		});
 		const spawnSpy = spyOn(Bun, "spawn");
@@ -89,7 +88,7 @@ describe("StdioTransport.connect", () => {
 					cwd,
 					detached: !(process.platform === "darwin" || process.platform === "win32"),
 					env: expect.objectContaining({
-						CHUDCODE_STDIO_SPAWN_SHAPE: envValue,
+						OMP_STDIO_SPAWN_SHAPE: envValue,
 					}),
 					stderr: "pipe",
 					stdin: "pipe",
@@ -166,7 +165,7 @@ function processExists(pid: number): boolean {
 	} catch {
 		return false;
 	}
-	const result = proc.spawnSync(["ps", "-o", "stat=", "-p", String(pid)]);
+	const result = Bun.spawnSync(["ps", "-o", "stat=", "-p", String(pid)]);
 	const state = result.stdout.toString().trim();
 	return result.exitCode === 0 && state.length > 0 && !state.startsWith("Z");
 }
@@ -184,7 +183,7 @@ function processExists(pid: number): boolean {
 describe.skipIf(process.platform === "win32")("terminateStdioProcess", () => {
 	const TEST_TERM_GRACE_MS = 50;
 	it("escalates a detached child that traps SIGTERM to SIGKILL", async () => {
-		const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "chudcode-stdio-kill-solo-"));
+		const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "omp-stdio-kill-solo-"));
 		const scriptPath = path.join(tempDir, "child.mjs");
 		const readyPath = path.join(tempDir, "ready");
 		await fs.writeFile(
@@ -211,7 +210,7 @@ describe.skipIf(process.platform === "win32")("terminateStdioProcess", () => {
 					await fs.access(readyPath);
 					break;
 				} catch {
-					await sleep(20);
+					await Bun.sleep(20);
 				}
 			}
 
@@ -235,7 +234,7 @@ describe.skipIf(process.platform === "win32")("terminateStdioProcess", () => {
 	}, 5000);
 
 	it("reaches a SIGTERM-trapping grandchild through the group SIGKILL, not just the direct child", async () => {
-		const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "chudcode-stdio-group-kill-"));
+		const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "omp-stdio-group-kill-"));
 		const grandchildScriptPath = path.join(tempDir, "grandchild.mjs");
 		const parentScriptPath = path.join(tempDir, "parent.mjs");
 		const grandchildPidPath = path.join(tempDir, "grandchild.pid");
@@ -277,7 +276,7 @@ describe.skipIf(process.platform === "win32")("terminateStdioProcess", () => {
 				try {
 					grandchildPid = Number.parseInt(await fs.readFile(grandchildPidPath, "utf8"), 10);
 				} catch {
-					await sleep(20);
+					await Bun.sleep(20);
 				}
 			}
 			if (grandchildPid === undefined) throw new Error("grandchild never reported its pid");
@@ -291,7 +290,7 @@ describe.skipIf(process.platform === "win32")("terminateStdioProcess", () => {
 			// give the kernel a brief window to finish reaping before asserting.
 			let grandchildAlive = processExists(grandchildPid);
 			for (let i = 0; i < 25 && grandchildAlive; i++) {
-				await sleep(20);
+				await Bun.sleep(20);
 				grandchildAlive = processExists(grandchildPid);
 			}
 			expect(grandchildAlive).toBe(false);
@@ -312,7 +311,7 @@ describe.skipIf(process.platform === "win32")("terminateStdioProcess", () => {
 		// the orphaned grandchild this change is meant to reap. Unlike the
 		// group-SIGKILL test above, the leader here does NOT trap SIGTERM, so
 		// it exits promptly on its own; only the grandchild ignores signals.
-		const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "chudcode-stdio-leader-exit-group-kill-"));
+		const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "omp-stdio-leader-exit-group-kill-"));
 		const grandchildScriptPath = path.join(tempDir, "grandchild.mjs");
 		const parentScriptPath = path.join(tempDir, "parent.mjs");
 		const grandchildPidPath = path.join(tempDir, "grandchild.pid");
@@ -349,7 +348,7 @@ describe.skipIf(process.platform === "win32")("terminateStdioProcess", () => {
 				try {
 					grandchildPid = Number.parseInt(await fs.readFile(grandchildPidPath, "utf8"), 10);
 				} catch {
-					await sleep(20);
+					await Bun.sleep(20);
 				}
 			}
 			if (grandchildPid === undefined) throw new Error("grandchild never reported its pid");
@@ -366,7 +365,7 @@ describe.skipIf(process.platform === "win32")("terminateStdioProcess", () => {
 
 			let grandchildAlive = processExists(grandchildPid);
 			for (let i = 0; i < 25 && grandchildAlive; i++) {
-				await sleep(20);
+				await Bun.sleep(20);
 				grandchildAlive = processExists(grandchildPid);
 			}
 			expect(grandchildAlive).toBe(false);

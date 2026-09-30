@@ -7,7 +7,7 @@ This document describes the **current hook subsystem code** in `packages/coding-
 The default CLI runtime initializes the **extension runner** path. In current startup flow:
 
 - `--hook` is treated as an alias for `--extension` (CLI paths are merged into `additionalExtensionPaths`)
-- JS/TS hook factories discovered through `hookCapability` (for example `.chudcode/hooks/pre/*.ts`) are loaded as extension modules so their `chud.on(...)` handlers bind to the runtime event bus
+- JS/TS hook factories discovered through `hookCapability` (for example `.omp/hooks/pre/*.ts`) are loaded as extension modules so their `pi.on(...)` handlers bind to the runtime event bus
 - tools are wrapped by `ExtensionToolWrapper`, not `HookToolWrapper`
 - context transforms and lifecycle emissions go through `ExtensionRunner`
 
@@ -26,10 +26,10 @@ So this file documents the legacy hook subsystem implementation itself (types/lo
 A hook module must default-export a factory:
 
 ```ts
-import type { HookAPI } from "@chudware/coding-agent/extensibility/hooks";
+import type { HookAPI } from "@oh-my-pi/pi-coding-agent/extensibility/hooks";
 
-export default function hook(chud: HookAPI): void {
-  chud.on("tool_call", async (event, ctx) => {
+export default function hook(pi: HookAPI): void {
+  pi.on("tool_call", async (event, ctx) => {
     if (
       event.toolName === "bash" &&
       String(event.input.command ?? "").includes("rm -rf")
@@ -42,13 +42,13 @@ export default function hook(chud: HookAPI): void {
 
 The factory can:
 
-- register event handlers with `chud.on(...)`
-- send persistent custom messages with `chud.sendMessage(...)`
-- persist non-LLM state with `chud.appendEntry(...)`
-- register slash commands via `chud.registerCommand(...)`
-- register custom message renderers via `chud.registerMessageRenderer(...)`
-- run shell commands via `chud.exec(...)` and log through `chud.logger`
-- use the injected Zod-compatible builder `chud.zod`, native chudtype builder `chud.arktype`, legacy `chud.typebox`, and package exports via `chud.pi`
+- register event handlers with `pi.on(...)`
+- send persistent custom messages with `pi.sendMessage(...)`
+- persist non-LLM state with `pi.appendEntry(...)`
+- register slash commands via `pi.registerCommand(...)`
+- register custom message renderers via `pi.registerMessageRenderer(...)`
+- run shell commands via `pi.exec(...)` and log through `pi.logger`
+- use the injected Zod-compatible builder `pi.zod`, native omptype builder `pi.arktype`, legacy `pi.typebox`, and package exports via `pi.pi`
 
 ## Discovery and loading
 
@@ -58,6 +58,15 @@ Default sessions load JS/TS hook factories discovered by `hookCapability` throug
 2. Load importable `.ts`/`.js` hook factories from the hook capability registry
 3. Append plugin extension entry points
 4. Append explicitly configured paths
+
+### Native discovery location
+
+The native provider scans only two subdirectories per config root — a factory placed **directly** in `hooks/` is not discovered:
+
+- Project: `<cwd>/.omp/hooks/pre/*.{ts,js}` and `<cwd>/.omp/hooks/post/*.{ts,js}`
+- User: `<agentDir>/hooks/pre/*.{ts,js}` and `<agentDir>/hooks/post/*.{ts,js}` (default `~/.omp/agent/hooks/...`; profile- and `PI_CODING_AGENT_DIR`-aware)
+
+So `<cwd>/.omp/hooks/psy-guards.ts` (no `pre/`/`post/` subdirectory) loads nothing and reports no error — move it into `pre/` or `post/`, e.g. `<cwd>/.omp/hooks/pre/psy-guards.ts`. This mirrors `.claude/hooks/pre|post/`. Only `.ts`/`.js` factories are appended to the extension pipeline and bound through the extension runner. See [Extension Loading](./extension-loading.md) for the shared module pipeline these factories flow through (native `.omp/extensions/` roots, plugin entries, configured paths, load order, and disable controls).
 
 The legacy `discoverAndLoadHooks(configuredPaths, cwd)` helper still exists and does:
 
@@ -110,10 +119,10 @@ Hook events are strongly typed in `types.ts`.
 
 ### Tool events (pre/post model)
 
-- `tool_call` (pre-execution) → can return `{ block?: boolean; reason?: string; input?: Record<string, unknown> }`. A non-blocking handler that returns `input` replaces the arguments the tool executes with (the raw execution input, not the normalized `event.input` view); ignored when `block` is true, and not applied to `computer` tool calls.
-- `tool_result` (post-execution) → can return `{ content?; details?; isError? }`
+- `tool_call` (pre-execution) → can return `{ block?: boolean; reason?: string; input?: Record<string, unknown>; additionalContext?: string }`. A non-blocking handler that returns `input` replaces the arguments the tool executes with (the raw execution input, not the normalized `event.input` view); ignored when `block` is true. Distinct non-empty `additionalContext` values from all non-blocking handlers carry trusted handler-authored instructions delivered after the tool results and before the next provider request, with developer/system priority where the transport supports it; raw tool output and other untrusted data must stay in the tool result.
+- `tool_result` (post-execution) → can return `{ content?; details?; isError?; additionalContext?: string }`. Context is delivered outside tool output on both success and failure; check `event.isError` when guidance applies to only one outcome. Overrides merge per field across handlers, so a later return that omits a field (including a context-only return) never erases an earlier handler's value for it.
 
-This is the hook subsystem’s core pre/post interception model.
+This is the hook subsystem’s core pre/post interception model. Eval prelude invocations such as `browser.open(...)`, direct `BrowserTab` helpers, `tab.run(...)`, direct `computer` helpers, and `computer.run(fnOrCode, options)` are host bridge calls, not AgentTool calls, so they do not emit `tool_call` or `tool_result`.
 
 ```text
 Hook tool interception flow
@@ -128,8 +137,10 @@ tool_call handlers
    execute underlying tool
       │
       ├─ success ──> tool_result handlers can override { content, details }
+      │                    and attach passive additionalContext
       │
-      └─ error   ──> emit tool_result(isError=true) then rethrow original error
+      └─ error   ──> emit tool_result(isError=true), deliver returned
+                     additionalContext, then rethrow original error
 ```
 
 ## Execution model and mutation semantics
@@ -138,8 +149,9 @@ tool_call handlers
 
 `HookToolWrapper.execute()` emits `tool_call` before tool execution.
 
-- if any handler returns `{ block: true }`, execution stops
-- if handler throws, wrapper fails closed and blocks execution
+- if any handler returns `{ block: true }`, execution stops and context already collected for that call is discarded
+- if handler throws, wrapper fails closed, blocks execution, and discards collected context
+- collected context is forwarded only after the tool returns a non-error result; a throwing or `isError` result discards it
 - returned `reason` becomes the thrown error text
 
 ### 2) Tool execution
@@ -155,24 +167,25 @@ After success, wrapper emits `tool_result` with:
 - `details`
 - `isError: false`
 
-If handler returns overrides:
+If a handler returns overrides:
 
 - `content` can replace result content
 - `details` can replace result details
+- `additionalContext` carries trusted guidance outside the tool result; distinct non-blank values from every handler are joined in registration order (repeats, compared ignoring surrounding whitespace, are dropped) and delivered before the call's `tool_call` context. A call whose joined context is identical to an earlier call's in the same batch is delivered once
 
-On tool failure, wrapper emits `tool_result` with `isError: true` and error text content, then rethrows original error.
+On tool failure, the wrapper emits `tool_result` with `isError: true` and error text content, delivers any returned `additionalContext`, then rethrows the original error. A handler that should run only after failure must test `event.isError`; a `PostToolUse`-equivalent handler must reject it.
 
 ### What hooks can mutate
 
 - LLM context for a single call via `context` (`messages` replacement chain)
-- raw tool execution arguments by returning `input` from `tool_call` (except `computer` calls)
+- passive context for the next provider request via `additionalContext` from `tool_call` or `tool_result`
+- raw tool execution arguments by returning `input` from `tool_call`
 - tool output content/details on successful tool calls (`tool_result` path)
 - pre-agent injected message via `before_agent_start`
 - cancellation/custom compaction/tree behavior via `session_before_*` and `session.compacting`
 
 ### What hooks cannot mutate in this implementation
 
-- a `computer` tool call's raw parameters
 - execution continuation after thrown tool errors (error path rethrows)
 - final success/error status in wrapper behavior (returned `isError` is typed but not applied by `HookToolWrapper`)
 
@@ -198,8 +211,8 @@ Inside `HookRunner`, order is deterministic by registration sequence:
 
 Conflict behavior by event type:
 
-- `tool_call`: last returned result wins unless a handler blocks; first block short-circuits. A returned `input` (execution-argument override) follows the same last-wins rule; handlers do not observe each other's revisions
-- `tool_result`: last returned override wins (no short-circuit)
+- `tool_call`: every distinct non-empty `additionalContext` is preserved in handler order (a value identical to an earlier handler's on the same call is dropped, as is a call's joined context identical to an earlier call's in the same batch); `input` remains last-wins; first block short-circuits and discards context collected for that call. Handlers do not observe each other's input revisions
+- `tool_result`: `content`/`details`/`isError` overrides merge per field across handlers (no short-circuit): a later handler's defined field wins and a field it leaves unset keeps the earlier handler's value, so a details-only, isError-only, or context-only return never erases an earlier redaction. Every distinct non-empty `additionalContext` is preserved in handler order, with the same repeat-dropping as `tool_call`
 - `context`: chained; each handler receives prior handler’s message output
 - `before_agent_start`: first returned message is kept; later messages ignored
 - `session_before_*`: latest returned result is tracked; `cancel: true` short-circuits immediately
@@ -258,10 +271,10 @@ Hook status text set via `ctx.ui.setStatus(key, text)` is:
 ### Block unsafe bash commands
 
 ```ts
-import type { HookAPI } from "@chudware/coding-agent/extensibility/hooks";
+import type { HookAPI } from "@oh-my-pi/pi-coding-agent/extensibility/hooks";
 
-export default function (chud: HookAPI): void {
-  chud.on("tool_call", async (event, ctx) => {
+export default function (pi: HookAPI): void {
+  pi.on("tool_call", async (event, ctx) => {
     if (event.toolName !== "bash") return;
     const cmd = String(event.input.command ?? "");
     if (!cmd.includes("rm -rf")) return;
@@ -276,10 +289,10 @@ export default function (chud: HookAPI): void {
 ### Redact tool output on post-execution
 
 ```ts
-import type { HookAPI } from "@chudware/coding-agent/extensibility/hooks";
+import type { HookAPI } from "@oh-my-pi/pi-coding-agent/extensibility/hooks";
 
-export default function (chud: HookAPI): void {
-  chud.on("tool_result", async (event) => {
+export default function (pi: HookAPI): void {
+  pi.on("tool_result", async (event) => {
     if (event.toolName !== "read" || event.isError) return;
 
     const redacted = event.content.map((chunk) => {
@@ -298,10 +311,10 @@ export default function (chud: HookAPI): void {
 ### Modify model context per LLM call
 
 ```ts
-import type { HookAPI } from "@chudware/coding-agent/extensibility/hooks";
+import type { HookAPI } from "@oh-my-pi/pi-coding-agent/extensibility/hooks";
 
-export default function (chud: HookAPI): void {
-  chud.on("context", async (event) => {
+export default function (pi: HookAPI): void {
+  pi.on("context", async (event) => {
     const filtered = event.messages.filter(
       (msg) => !(msg.role === "custom" && msg.customType === "debug-only"),
     );
@@ -313,10 +326,10 @@ export default function (chud: HookAPI): void {
 ### Register slash command with command-safe context methods
 
 ```ts
-import type { HookAPI } from "@chudware/coding-agent/extensibility/hooks";
+import type { HookAPI } from "@oh-my-pi/pi-coding-agent/extensibility/hooks";
 
-export default function (chud: HookAPI): void {
-  chud.registerCommand("handoff", {
+export default function (pi: HookAPI): void {
+  pi.registerCommand("handoff", {
     description: "Create a new session with setup message",
     handler: async (_args, ctx) => {
       await ctx.waitForIdle();
@@ -339,11 +352,11 @@ export default function (chud: HookAPI): void {
 
 ## Export surface
 
-`packages/coding-agent/src/extensibility/hooks/index.ts` and the package subpath `@chudware/coding-agent/extensibility/hooks` export:
+`packages/coding-agent/src/extensibility/hooks/index.ts` and the package subpath `@oh-my-pi/pi-coding-agent/extensibility/hooks` export:
 
 - loading APIs (`discoverAndLoadHooks`, `loadHooks`)
 - runner and wrapper (`HookRunner`, `HookToolWrapper`)
 - all hook types
 - `execCommand` re-export
 
-The package root (`@chudware/coding-agent`) does not re-export `HookAPI`; import legacy hook types from the hooks subpath.
+The package root (`@oh-my-pi/pi-coding-agent`) does not re-export `HookAPI`; import legacy hook types from the hooks subpath.

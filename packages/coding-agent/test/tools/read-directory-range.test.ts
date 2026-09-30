@@ -2,10 +2,10 @@ import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
-import { Settings } from "@chudware/coding-agent/config/settings";
-import type { ToolSession } from "@chudware/coding-agent/tools";
-import { ReadTool } from "@chudware/coding-agent/tools/read";
-import { removeSyncWithRetries, Snowflake } from "@chudware/utils";
+import { Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
+import type { ToolSession } from "@oh-my-pi/pi-coding-agent/tools";
+import { ReadTool } from "@oh-my-pi/pi-coding-agent/tools/read";
+import { removeSyncWithRetries, Snowflake } from "@oh-my-pi/pi-utils";
 
 function getTextOutput(result: { content: Array<{ type: string; text?: string }> }): string {
 	return result.content
@@ -76,6 +76,35 @@ describe("read tool directory listings honor line selectors (regression: was sil
 		expect(lines.length).toBeGreaterThan(10);
 		// No "continue" footer when we reach EOF.
 		expect(output).not.toContain("Use :");
+	});
+
+	it("returns the last N listing lines for `:-N`", async () => {
+		const full = getTextOutput(await tool.execute("call-full", { path: testDir })).split("\n");
+		const output = getTextOutput(await tool.execute("call-tail", { path: `${testDir}:-5` }));
+
+		expect(output.split("\n")).toEqual(full.slice(-5));
+		expect(output).not.toContain("Use :");
+	});
+
+	it("marks capped child directories inline instead of appending a `limit=` notice (regression)", async () => {
+		// Child dirs cap at 12 entries. The cap used to surface as
+		// "[1 results limit reached. Use limit=2 for more]" — read has no
+		// `limit` parameter, so the hint was unactionable. The inline marker
+		// plus reading the sub-path is the whole contract.
+		const child = path.join(testDir, "child");
+		fs.mkdirSync(child);
+		for (let i = 1; i <= 40; i++) fs.writeFileSync(path.join(child, `c-${i}.txt`), "");
+
+		const result = await tool.execute("call-capped", { path: testDir });
+		const output = getTextOutput(result);
+
+		expect(output).toContain("… 28 more");
+		expect(output).not.toContain("limit reached");
+		expect(result.details?.meta?.limits).toBeUndefined();
+
+		const expanded = getTextOutput(await tool.execute("call-child", { path: child }));
+		expect(expanded).toContain("c-40.txt");
+		expect(expanded).not.toContain("more");
 	});
 
 	it("emits a clear `beyond end` notice instead of returning an empty body", async () => {

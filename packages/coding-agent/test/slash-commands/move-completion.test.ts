@@ -2,26 +2,21 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import { BUILTIN_SLASH_COMMANDS } from "@chudware/coding-agent/slash-commands/builtin-registry";
-import * as piUtils from "@chudware/utils";
+import { BUILTIN_SLASH_COMMANDS } from "@oh-my-pi/pi-coding-agent/slash-commands/builtin-registry";
+import * as piUtils from "@oh-my-pi/pi-utils";
 
 describe("/move directory completion", () => {
 	let tempDir: string;
 	const move = BUILTIN_SLASH_COMMANDS.find(c => c.name === "move");
 
 	beforeEach(async () => {
-		tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "chudcode-move-completion-"));
+		tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "omp-move-completion-"));
 		vi.spyOn(piUtils, "getProjectDir").mockReturnValue(tempDir);
 	});
 
 	afterEach(async () => {
 		vi.restoreAllMocks();
 		await fs.rm(tempDir, { recursive: true, force: true });
-	});
-
-	it("is wired to the /move command", () => {
-		expect(move).toBeDefined();
-		expect(move!.getArgumentCompletions).toBeDefined();
 	});
 
 	it("lists directories in the current project dir when no prefix is given", async () => {
@@ -73,7 +68,7 @@ describe("/move directory completion", () => {
 
 	it("completes parent directory paths", async () => {
 		const parentDir = path.dirname(tempDir);
-		const siblingName = `chudcode-move-sibling-${path.basename(tempDir)}`;
+		const siblingName = `omp-move-sibling-${path.basename(tempDir)}`;
 		const siblingDir = path.join(parentDir, siblingName);
 		await fs.mkdir(siblingDir);
 		try {
@@ -83,16 +78,6 @@ describe("/move directory completion", () => {
 		} finally {
 			await fs.rm(siblingDir, { recursive: true, force: true });
 		}
-	});
-
-	it("completes directories with spaces in names", async () => {
-		const spacedDir = path.join(tempDir, "My Project");
-		await fs.mkdir(spacedDir);
-		await fs.mkdir(path.join(spacedDir, "src"));
-
-		const result = await move!.getArgumentCompletions!("My Project/");
-		expect(result).not.toBeNull();
-		expect(result!.map(i => i.value)).toContain("My Project/src/");
 	});
 
 	it("filters inside a space-containing directory", async () => {

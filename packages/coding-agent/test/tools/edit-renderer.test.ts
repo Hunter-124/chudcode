@@ -2,19 +2,16 @@ import { beforeAll, describe, expect, it } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import type { AgentTool } from "@chudware/agent-core";
-import { resetSettingsForTest, Settings } from "@chudware/coding-agent/config/settings";
-import { editToolRenderer } from "@chudware/coding-agent/edit/renderer";
-import { SLOPPY_MARKERS } from "@chudware/coding-agent/edit/sloppy";
-import { renderDiff } from "@chudware/coding-agent/modes/components/diff";
-import { ToolExecutionComponent } from "@chudware/coding-agent/modes/components/tool-execution";
-import * as themeModule from "@chudware/coding-agent/modes/theme/theme";
-import { InMemorySnapshotStore } from "@chudware/hashline";
-import { Text, type TUI, visibleWidth } from "@chudware/tui";
-import { removeWithRetries } from "@chudware/utils";
-import { sleep } from "@chudware/utils/async";
-import chalk from "@chudware/utils/chalk";
-import * as fsx from "@chudware/utils/fsx";
+import type { AgentTool } from "@oh-my-pi/pi-agent-core";
+import { editDiffString } from "@oh-my-pi/pi-natives";
+import { resetSettingsForTest, Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
+import { editToolRenderer, renderStreamingFallback } from "@oh-my-pi/pi-tui/tools/edit";
+import { renderDiff } from "@oh-my-pi/pi-tui/chrome/diff";
+import { ToolExecutionComponent } from "@oh-my-pi/pi-tui/chat/tool-execution";
+import * as themeModule from "@oh-my-pi/pi-tui/theme";
+import { type TUI, visibleWidth } from "@oh-my-pi/pi-tui";
+import { removeWithRetries } from "@oh-my-pi/pi-utils";
+import chalk from "@oh-my-pi/pi-utils/chalk";
 
 beforeAll(async () => {
 	resetSettingsForTest();
@@ -43,7 +40,7 @@ async function waitForRenderedText(
 	while (Date.now() < deadline) {
 		rendered = Bun.stripANSI(component.render(width).join("\n"));
 		if (rendered.includes(expectedText)) return rendered;
-		await sleep(10);
+		await Bun.sleep(10);
 	}
 	return rendered;
 }
@@ -174,21 +171,9 @@ describe("editToolRenderer", () => {
 		expect(rendered).not.toContain("The first line of the patch must be");
 	});
 
-	it("uses sloppy input section headers for the streaming call path", async () => {
-		const uiTheme = await getUiTheme();
-		const component = editToolRenderer.renderCall(
-			{ input: `[src/engine/disk.rs]\n${SLOPPY_MARKERS.open}\nfn parse_disk_ref(` },
-			{ expanded: false, isPartial: true, spinnerFrame: 0, renderContext: { editMode: "sloppy" } },
-			uiTheme,
-		);
-
-		const rendered = Bun.stripANSI(component.render(160).join("\n"));
-		expect(rendered).toContain("src/engine/disk.rs");
-	});
-
 	it("counts extra sloppy sections in the streaming call header", async () => {
 		const uiTheme = await getUiTheme();
-		const input = `[a.ts]\n${SLOPPY_MARKERS.open}\nfoo\n[b.ts]\n${SLOPPY_MARKERS.open}\nbar`;
+		const input = "*** Edit File: a.ts\n*** Find\nfoo\n*** Edit File: b.ts\n*** Find\nbar";
 		const component = editToolRenderer.renderCall(
 			{ input },
 			{ expanded: false, isPartial: true, spinnerFrame: 0, renderContext: { editMode: "sloppy" } },
@@ -200,6 +185,27 @@ describe("editToolRenderer", () => {
 		expect(rendered).toContain("(+1 more)");
 	});
 
+	it("never serves lagged streamed header facts to final args or to another call", () => {
+		const context = { expanded: false, isPartial: true, renderContext: { editMode: "hashline" } };
+		const first = "[a.ts]\nPUT >$:\n+one\n";
+		const grown = `${first}[b.ts]\nPUT >$:\n+two\n`;
+		// The reveal hands over a fresh args object per frame; header facts may
+		// lag a few hundred bytes behind the stream while it grows.
+		expect(editToolRenderer.activitySummary({ input: first, __partialJson: first }, context).detail).toContain(
+			"a.ts",
+		);
+		editToolRenderer.activitySummary({ input: grown, __partialJson: grown }, context);
+		// Final args (no raw stream prefix) always derive exact facts.
+		expect(editToolRenderer.activitySummary({ input: grown }, context).detail).toContain("(+1 more)");
+
+		const other = "[c.ts]\nPUT >$:\n+three\n";
+		editToolRenderer.activitySummary({ input: first, __partialJson: first }, context);
+		// A payload that does not extend the cached one is another call: exact facts.
+		const summary = editToolRenderer.activitySummary({ input: other, __partialJson: other }, context);
+		expect(summary.detail).toContain("c.ts");
+		expect(summary.detail).not.toContain("a.ts");
+	});
+
 	it("shows hashline envelope target path while preview diff is not computable yet", async () => {
 		await getUiTheme();
 		const uiStub = { requestRender() {}, requestComponentRender() {} } as unknown as TUI;
@@ -209,7 +215,7 @@ describe("editToolRenderer", () => {
 			{
 				input: [
 					"*** Begin Patch",
-					"[crates/chud-natives/src/shell.rs]",
+					"[crates/pi-natives/src/shell.rs]",
 					"PUT >$:",
 					"+pub fn streaming_preview() {",
 				].join("\n"),
@@ -220,7 +226,7 @@ describe("editToolRenderer", () => {
 		);
 
 		const rendered = Bun.stripANSI(component.render(160).join("\n"));
-		expect(rendered).toContain("crates/chud-natives/src/shell.rs");
+		expect(rendered).toContain("crates/pi-natives/src/shell.rs");
 		expect(rendered).not.toContain("PUT >$:");
 		expect(rendered).not.toContain("+pub fn streaming_preview() {");
 		expect(rendered).not.toContain("*** Begin Patch");
@@ -298,7 +304,6 @@ describe("editToolRenderer", () => {
 
 		const rendered = Bun.stripANSI(component.render(160).join("\n"));
 		expect(rendered).toContain("packages/coding-agent/src/edit/renderer.ts");
-		expect(rendered).not.toContain(" …");
 	});
 
 	it("omits changed-line suffixes from completed edit headers and middle-elides long paths", async () => {
@@ -386,21 +391,17 @@ describe("editToolRenderer", () => {
 		try {
 			const content = "export const a = 1;\nexport const b = 2;\nexport const c = 3;\n";
 			const filePath = path.join(tmpDir, "memory.ts");
-			await fsx.write(filePath, content);
+			await Bun.write(filePath, content);
 
-			const snapshots = new InMemorySnapshotStore();
-			const tag = snapshots.record(filePath, content);
-
-			// The trailing payload line carries no newline — the common shape for a
-			// single-line edit. The streaming pass trims that in-flight line, so the
-			// preview only becomes computable once args are marked complete.
-			const input = `[memory.ts#${tag}]\nPUT 2-2:\n+export const b = 22;`;
-			const component = new ToolExecutionComponent("edit", { input }, { snapshots }, hashlineTool, uiStub, tmpDir);
-
-			component.setArgsComplete();
-
-			// The preview diff computes asynchronously after args complete; poll
-			// instead of a fixed sleep so the slower CI VM has time to finish it.
+			const input = `[memory.ts#ABCD]\nPUT 2-2:\n+export const b = 22;`;
+			const component = new ToolExecutionComponent("edit", { input }, {}, hashlineTool, uiStub, tmpDir);
+			const updated = content.replace("export const b = 2;", "export const b = 22;");
+			const preview = editDiffString(content, updated, filePath);
+			component.updateStreamPreview({
+				generation: 1,
+				streaming: false,
+				files: [{ path: filePath, diff: preview.diff, firstChangedLine: preview.firstChangedLine }],
+			});
 			const rendered = await waitForRenderedText(component, 160, "export const b = 22;");
 			expect(rendered).toContain("export const b = 22;");
 			expect(rendered).not.toContain("No changes would be made");
@@ -417,72 +418,76 @@ describe("editToolRenderer", () => {
 		try {
 			const content = "export const a = 1;\nexport const b = 2;\n";
 			const filePath = path.join(tmpDir, "memory.ts");
-			await fsx.write(filePath, content);
+			await Bun.write(filePath, content);
 
-			const snapshots = new InMemorySnapshotStore();
-			const tag = snapshots.record(filePath, content);
-			const input = `[memory.ts#${tag}]\nPUT 2-2:\n+export const b = 22;\n`;
+			const input = `[memory.ts#ABCD]\nPUT 2-2:\n+export const b = 22;\n`;
 			const component = new ToolExecutionComponent(
 				"edit",
 				{ __partialJson: input },
-				{ snapshots },
+				{},
 				hashlineTool,
 				uiStub,
 				tmpDir,
 			);
+			const updated = content.replace("export const b = 2;", "export const b = 22;");
+			const preview = editDiffString(content, updated, filePath);
+			component.updateStreamPreview({
+				generation: 1,
+				streaming: true,
+				files: [{ path: filePath, diff: preview.diff, firstChangedLine: preview.firstChangedLine }],
+			});
 
 			const rendered = await waitForRenderedText(component, 160, "export const b = 22;");
-			expect(rendered).toContain("memory.ts");
 			expect(rendered).toContain("export const b = 22;");
-			expect(rendered).not.toContain(" …");
 		} finally {
 			await removeWithRetries(tmpDir);
 		}
 	});
 
-	it("renders raw custom apply_patch input carried only in partialJson", async () => {
+	it("renders native apply_patch preview batches", async () => {
 		await getUiTheme();
 		const uiStub = { requestRender() {}, requestComponentRender() {} } as unknown as TUI;
-		const input = [
-			"*** Begin Patch",
-			"*** Update File: src/demo.ts",
-			"@@",
-			"-const value = 1;",
-			"+const value = 2;",
-			"*** End Patch",
-		].join("\n");
+		const tool = { name: "edit", label: "Edit", mode: "apply_patch" } as unknown as AgentTool;
+		const component = new ToolExecutionComponent("edit", { input: "*** Begin Patch" }, {}, tool, uiStub);
+		const preview = editDiffString("const value = 1;\n", "const value = 2;\n", "src/demo.ts");
+		component.updateStreamPreview({
+			generation: 1,
+			streaming: true,
+			files: [{ path: "src/demo.ts", diff: preview.diff, firstChangedLine: preview.firstChangedLine }],
+		});
 
-		const component = new ToolExecutionComponent("apply_patch", { __partialJson: input }, {}, undefined, uiStub);
 		const rendered = await waitForRenderedText(component, 160, "const value = 2;");
-
-		expect(rendered).toContain("src/demo.ts");
 		expect(rendered).toContain("const value = 2;");
-		expect(rendered).not.toContain(" …");
 	});
 
-	it("normalizes raw streamed text input for any renderer", async () => {
-		await getUiTheme();
-		const uiStub = { requestRender() {}, requestComponentRender() {} } as unknown as TUI;
-		const customTextTool = {
-			name: "custom_text",
-			label: "Custom Text",
-			renderCall(args: unknown) {
-				const input =
-					typeof (args as { input?: unknown }).input === "string" ? (args as { input: string }).input : "";
-				return new Text(input, 0, 0);
-			},
-		} as unknown as AgentTool;
-
-		const component = new ToolExecutionComponent(
-			"custom_text",
-			{ __partialJson: "plain streamed text" },
-			{},
-			customTextTool,
-			uiStub,
+	it("uses raw replacement text only as the replace-mode streaming fallback", async () => {
+		const uiTheme = await getUiTheme();
+		const replacement = Bun.stripANSI(
+			renderStreamingFallback("replace", { new_string: "plain streamed text" }, uiTheme),
 		);
+		expect(replacement).toContain("plain streamed text");
+		expect(renderStreamingFallback("patch", { new_string: "plain streamed text" }, uiTheme)).toBe("");
+		expect(renderStreamingFallback("hashline", { input: "plain streamed text" }, uiTheme)).toBe("");
+	});
 
-		const rendered = Bun.stripANSI(component.render(160).join("\n"));
-		expect(rendered).toContain("plain streamed text");
+	it("sanitizes the replace-mode preview head and counts every hidden line", async () => {
+		const uiTheme = await getUiTheme();
+		const preview = (text: string) =>
+			Bun.stripANSI(renderStreamingFallback("replace", { new_string: text }, uiTheme))
+				.trim()
+				.split("\n");
+		// CRLF endings and control bytes are stripped; lines past the 6-line head are counted.
+		expect(preview("l1\r\nl2\x07\nl3\nl4\nl5\nl6\nl7\r\nl8\n")).toEqual([
+			"l1",
+			"l2",
+			"l3",
+			"l4",
+			"l5",
+			"l6",
+			"… 3 more lines",
+		]);
+		// Exactly six lines: nothing hidden.
+		expect(preview("1\n2\n3\n4\n5\n6")).toEqual(["1", "2", "3", "4", "5", "6"]);
 	});
 
 	it("uses the supplied theme when the injected diff renderer is unavailable", async () => {

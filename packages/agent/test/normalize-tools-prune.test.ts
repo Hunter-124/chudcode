@@ -1,8 +1,8 @@
 import { describe, expect, it } from "bun:test";
-import { normalizeTools } from "@chudware/agent-core/agent-loop";
-import type { AgentTool } from "@chudware/agent-core/types";
-import { type } from "@chudware/chudtype";
-import { INTENT_FIELD } from "@chudware/wire";
+import { type } from "@oh-my-pi/omptype";
+import { normalizeTools } from "@oh-my-pi/pi-agent-core/agent-loop";
+import type { AgentTool } from "@oh-my-pi/pi-agent-core/types";
+import { INTENT_FIELD } from "@oh-my-pi/pi-wire";
 
 const toolSchema = type({
 	path: type("string").describe("where to read"),
@@ -60,6 +60,19 @@ describe("normalizeTools — pruneDescriptions", () => {
 		// Structure is preserved.
 		expect(hasField(tool?.parameters, "path")).toBe(true);
 		expect(hasField(tool?.parameters, "nested")).toBe(true);
+	});
+
+	it("reuses injected parameters by identity across calls so downstream schema memos hit", () => {
+		const tool = makeTool();
+		for (const pruneDescriptions of [false, true]) {
+			const first = normalizeTools([tool], { injectIntent: true, pruneDescriptions })?.[0]?.parameters;
+			const second = normalizeTools([tool], { injectIntent: true, pruneDescriptions })?.[0]?.parameters;
+			expect(first).toBeDefined();
+			expect(second).toBe(first);
+		}
+		const bare = normalizeTools([tool], { injectIntent: true, pruneDescriptions: true })?.[0]?.parameters;
+		const described = normalizeTools([tool], { injectIntent: true })?.[0]?.parameters;
+		expect(described).not.toBe(bare);
 	});
 
 	it("injects the intent field WITHOUT a description when pruning", () => {

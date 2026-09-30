@@ -1,19 +1,18 @@
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "bun:test";
 import * as path from "node:path";
-import { Agent } from "@chudware/agent-core";
-import { ModelRegistry } from "@chudware/coding-agent/config/model-registry";
-import { resetSettingsForTest, Settings } from "@chudware/coding-agent/config/settings";
-import type { Skill } from "@chudware/coding-agent/extensibility/skills";
-import { InteractiveMode } from "@chudware/coding-agent/modes/interactive-mode";
-import { initTheme } from "@chudware/coding-agent/modes/theme/theme";
-import { AgentSession } from "@chudware/coding-agent/session/agent-session";
-import { AuthStorage } from "@chudware/coding-agent/session/auth-storage";
-import { HistoryStorage } from "@chudware/coding-agent/session/history-storage";
-import { SKILL_PROMPT_MESSAGE_TYPE } from "@chudware/coding-agent/session/messages";
-import { SessionManager } from "@chudware/coding-agent/session/session-manager";
-import { BUILTIN_MODE_SLASH_COMMANDS } from "@chudware/coding-agent/slash-commands/builtin-modes";
-import { TempDir } from "@chudware/utils";
-import * as fsx from "@chudware/utils/fsx";
+import { Agent } from "@oh-my-pi/pi-agent-core";
+import { ModelRegistry } from "@oh-my-pi/pi-coding-agent/config/model-registry";
+import { resetSettingsForTest, Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
+import type { Skill } from "@oh-my-pi/pi-coding-agent/extensibility/skills";
+import { InteractiveMode } from "@oh-my-pi/pi-coding-agent/modes/interactive-mode";
+import { initTheme } from "@oh-my-pi/pi-tui/theme";
+import { AgentSession } from "@oh-my-pi/pi-coding-agent/session/agent-session";
+import { AuthStorage } from "@oh-my-pi/pi-coding-agent/session/auth-storage";
+import { HistoryStorage } from "@oh-my-pi/pi-coding-agent/session/history-storage";
+import { SKILL_PROMPT_MESSAGE_TYPE } from "@oh-my-pi/pi-coding-agent/session/messages";
+import { SessionManager } from "@oh-my-pi/pi-coding-agent/session/session-manager";
+import { BUILTIN_MODE_SLASH_COMMANDS } from "@oh-my-pi/pi-coding-agent/slash-commands/builtin-modes";
+import { TempDir } from "@oh-my-pi/pi-utils";
 
 /**
  * Issue #8137 — a `/skill:<name>` token embedded in a `/plan [prompt]` (or
@@ -60,7 +59,7 @@ describe("issue #8137 — inline /skill in mode-command prompts", () => {
 		mode = new InteractiveMode(session, "test");
 
 		const skillPath = path.join(tempDir.path(), "grilling.md");
-		await fsx.write(skillPath, "---\nname: grilling\n---\nGrill the steak thoroughly.\n");
+		await Bun.write(skillPath, "---\nname: grilling\n---\nGrill the steak thoroughly.\n");
 		const skill: Skill = {
 			name: "grilling",
 			description: "Grilling skill",
@@ -74,7 +73,7 @@ describe("issue #8137 — inline /skill in mode-command prompts", () => {
 	afterEach(async () => {
 		vi.restoreAllMocks();
 		mode?.stop();
-		HistoryStorage.resetInstance();
+		HistoryStorage.close();
 		await session?.dispose();
 		authStorage?.close();
 		tempDir?.removeSync();
@@ -82,7 +81,7 @@ describe("issue #8137 — inline /skill in mode-command prompts", () => {
 	});
 
 	it("dispatches an inline /skill invocation from a /plan prompt as a skill message", async () => {
-		const promptCustomMessage = vi.spyOn(session, "promptCustomMessage").mockResolvedValue(undefined);
+		const promptCustomMessage = vi.spyOn(session, "promptCustomMessage").mockResolvedValue(true);
 		let submitted: { text: string } | undefined;
 		mode.onInputCallback = input => {
 			submitted = input;
@@ -101,7 +100,7 @@ describe("issue #8137 — inline /skill in mode-command prompts", () => {
 
 	it("dispatches an inline /skill invocation from a /vibe prompt as a skill message", async () => {
 		vi.spyOn(session, "activateVibeTools").mockResolvedValue(undefined);
-		const promptCustomMessage = vi.spyOn(session, "promptCustomMessage").mockResolvedValue(undefined);
+		const promptCustomMessage = vi.spyOn(session, "promptCustomMessage").mockResolvedValue(true);
 		let submitted: { text: string } | undefined;
 		mode.onInputCallback = input => {
 			submitted = input;
@@ -147,7 +146,7 @@ describe("issue #8137 — inline /skill in mode-command prompts", () => {
 	});
 
 	it("forwards draft images into the dispatched skill message", async () => {
-		const promptCustomMessage = vi.spyOn(session, "promptCustomMessage").mockResolvedValue(undefined);
+		const promptCustomMessage = vi.spyOn(session, "promptCustomMessage").mockResolvedValue(true);
 		const image = { type: "image" as const, data: "aGk=", mimeType: "image/png" };
 
 		await mode.handlePlanModeCommand("do X /skill:grilling", { images: [image] });
@@ -167,7 +166,7 @@ describe("issue #8137 — inline /skill in mode-command prompts", () => {
 	});
 
 	it("still submits a non-skill /plan prompt as a normal prompt", async () => {
-		const promptCustomMessage = vi.spyOn(session, "promptCustomMessage").mockResolvedValue(undefined);
+		const promptCustomMessage = vi.spyOn(session, "promptCustomMessage").mockResolvedValue(true);
 		let submitted: { text: string } | undefined;
 		mode.onInputCallback = input => {
 			submitted = input;

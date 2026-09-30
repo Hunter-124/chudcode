@@ -6,7 +6,7 @@
  * through the shared {@link AuthStorage} broker (Bearer token), and responses
  * are categorized result buckets rather than the legacy flat object array.
  */
-import { type AuthStorage, type FetchImpl, withAuth } from "@chudware/ai";
+import { type AuthStorage, type FetchImpl, withAuth } from "@oh-my-pi/pi-ai";
 import { withHardTimeout } from "./search/providers/utils";
 
 const KAGI_SEARCH_URL = "https://kagi.com/api/v1/search";
@@ -292,7 +292,7 @@ export async function searchWithKagi(
 	const body = JSON.stringify(buildRequestBody(query, options));
 
 	const response = await withAuth(
-		authStorage.resolver("kagi", { sessionId: options.sessionId }),
+		authStorage.keys.resolver("kagi", { sessionId: options.sessionId }),
 		async apiKey => {
 			const res = await fetchImpl(KAGI_SEARCH_URL, {
 				method: "POST",
@@ -313,7 +313,7 @@ export async function searchWithKagi(
 		},
 		{
 			signal: options.signal,
-			missingKeyMessage: "Kagi credentials not found. Set KAGI_API_KEY or login with 'chudcode /login kagi'.",
+			missingKeyMessage: "Kagi credentials not found. Set KAGI_API_KEY or login with 'omp /login kagi'.",
 		},
 	);
 

@@ -2,17 +2,17 @@ import { describe, expect, it } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import { clearCustomApis } from "@chudware/ai/api-registry";
-import { startAuthGateway } from "@chudware/ai/auth-gateway";
-import { AuthStorage } from "@chudware/ai/auth-storage";
-import { createMockModel, registerMockApi } from "@chudware/ai/providers/mock";
+import { clearCustomApis } from "@oh-my-pi/pi-ai/api-registry";
+import { startAuthGateway } from "@oh-my-pi/pi-ai/auth-gateway";
+import { AuthStorage } from "@oh-my-pi/pi-ai/auth-storage";
+import { createMockModel, registerMockApi } from "@oh-my-pi/pi-ai/providers/mock";
 
 describe("auth-gateway explicit OpenAI prompt cache controls", () => {
-	it("rejects raw controls clearly and forwards the chud-native policy", async () => {
+	it("rejects raw controls clearly and forwards the pi-native policy", async () => {
 		registerMockApi();
 		const dir = await fs.mkdtemp(path.join(os.tmpdir(), "gw-openai-prompt-cache-"));
 		const storage = await AuthStorage.create(path.join(dir, "auth.db"));
-		storage.setRuntimeApiKey("mock", "test-key");
+		storage.keys.setRuntime("mock", "test-key");
 		const mock = createMockModel({
 			provider: "mock",
 			id: "gateway-prompt-cache",

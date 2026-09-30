@@ -2,10 +2,9 @@ import { afterEach, describe, expect, it } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import { bindPreparedExtensions, loadExtensions } from "@chudware/coding-agent/extensibility/extensions/loader";
-import type { ExtensionAPI } from "@chudware/coding-agent/extensibility/extensions/types";
-import { EventBus } from "@chudware/coding-agent/utils/event-bus";
-import * as fsx from "@chudware/utils/fsx";
+import { bindPreparedExtensions, loadExtensions } from "@oh-my-pi/pi-coding-agent/extensibility/extensions/loader";
+import type { ExtensionAPI } from "@oh-my-pi/pi-coding-agent/extensibility/extensions/types";
+import { EventBus } from "@oh-my-pi/pi-coding-agent/utils/event-bus";
 
 const temporaryDirectories: string[] = [];
 
@@ -17,7 +16,7 @@ afterEach(async () => {
 
 describe("prepared extension rebinding", () => {
 	it("binds a fresh session extension without evaluating the module again", async () => {
-		const directory = await fs.mkdtemp(path.join(os.tmpdir(), "chudcode-prepared-extension-"));
+		const directory = await fs.mkdtemp(path.join(os.tmpdir(), "omp-prepared-extension-"));
 		temporaryDirectories.push(directory);
 		const parentDirectory = path.join(directory, "parent");
 		const childDirectory = path.join(directory, "child");
@@ -25,7 +24,7 @@ describe("prepared extension rebinding", () => {
 		const extensionPath = path.join(directory, "counter.ts");
 		const counterKey = `__omp_prepared_extension_${crypto.randomUUID().replaceAll("-", "")}`;
 		const bindingsKey = `${counterKey}_bindings`;
-		await fsx.write(
+		await Bun.write(
 			extensionPath,
 			`Reflect.set(globalThis, ${JSON.stringify(counterKey)}, Number(Reflect.get(globalThis, ${JSON.stringify(counterKey)}) ?? 0) + 1);\nexport default function counterExtension(api) {\n  const bindings = Reflect.get(globalThis, ${JSON.stringify(bindingsKey)}) ?? [];\n  bindings.push(api);\n  Reflect.set(globalThis, ${JSON.stringify(bindingsKey)}, bindings);\n}\n`,
 		);

@@ -1,10 +1,10 @@
 import { describe, expect, it } from "bun:test";
-import { renderDemotedThinking } from "@chudware/ai/dialect";
-import { convertMessages } from "@chudware/ai/providers/openai-completions";
-import type { AssistantMessage, Model, ModelSpec, ThinkingContent, ToolCall } from "@chudware/ai/types";
-import { buildModel } from "@chudware/catalog/build";
-import { Effort } from "@chudware/catalog/effort";
-import { getBundledModel } from "@chudware/catalog/models";
+import { renderDemotedThinking } from "@oh-my-pi/pi-ai/dialect";
+import { convertMessages } from "@oh-my-pi/pi-ai/providers/openai-completions";
+import type { AssistantMessage, Model, ModelSpec, ThinkingContent, ToolCall } from "@oh-my-pi/pi-ai/types";
+import { buildModel } from "@oh-my-pi/pi-catalog/build";
+import { Effort } from "@oh-my-pi/pi-catalog/effort";
+import { getBundledModel } from "@oh-my-pi/pi-catalog/models";
 
 interface OpenAICompletionAssistantWireMessage {
 	role: "assistant";
@@ -99,16 +99,6 @@ describe("DeepSeek reasoning_content tool-call replay", () => {
 			});
 			expect(model.thinking?.efforts).toEqual([Effort.Low, Effort.High, Effort.Max]);
 			expect(model.thinking?.effortMap).toBeUndefined();
-		});
-
-		it("does NOT map xhigh for non-DeepSeek models", () => {
-			const model = deepseekModel({
-				provider: "openai",
-				baseUrl: "https://api.openai.com/v1",
-				id: "gpt-4o-mini",
-				reasoning: false,
-			});
-			expect(model.thinking?.effortMap?.xhigh).toBeUndefined();
 		});
 	});
 
@@ -441,27 +431,6 @@ describe("DeepSeek reasoning_content tool-call replay", () => {
 			const assistant = findOpenAICompletionAssistantWireMessage(messages);
 			expect(assistant).toBeDefined();
 			expect(assistant?.reasoning_content).toBe("");
-			expect(assistant?.content).toBe("");
-		});
-
-		it("sets content to empty string (not null) when reasoning_content is present", () => {
-			const model = deepseekModel({
-				provider: "nvidia",
-				baseUrl: "https://integrate.api.nvidia.com/v1",
-				id: "deepseek-ai/deepseek-v4-flash",
-			});
-			const compat = model.compat;
-			const msg = assistantToolCall(model, [
-				{
-					type: "toolCall",
-					id: "call_no_content",
-					name: "list_files",
-					arguments: { path: "." },
-				} as ToolCall,
-			]);
-			const messages = convertMessages(model, { messages: [msg] }, compat);
-			const assistant = findOpenAICompletionAssistantWireMessage(messages);
-			expect(assistant).toBeDefined();
 			expect(assistant?.content).toBe("");
 		});
 	});

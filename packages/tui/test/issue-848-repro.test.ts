@@ -1,7 +1,7 @@
 import { describe, expect, it } from "bun:test";
-import { Ellipsis, truncateToWidth } from "@chudware/tui/utils";
+import { Ellipsis, truncateToWidth } from "@oh-my-pi/pi-tui/utils";
 
-// Regression test for https://github.com/Hunter-124/chudcode/issues/848
+// Regression test for https://github.com/can1357/oh-my-pi/issues/848
 //
 // On Windows, rendering a saved write tool record crashed with:
 //   Error: Failed to convert napi value Null into rust type `u8`

@@ -1,8 +1,8 @@
 # Default build context filter, used by every build whose Dockerfile has no
 # `<dockerfile>.dockerignore` shadow next to it — today the install smokes in
 # scripts/install-tests (`podman build -f scripts/install-tests/*.dockerfile .`).
-# The chud and robochud images shadow this file with Dockerfile.dockerignore and
-# Dockerfile.robochud.dockerignore; keep the three roughly in sync.
+# The pi and robomp images shadow this file with Dockerfile.dockerignore and
+# Dockerfile.robomp.dockerignore; keep the three roughly in sync.
 #
 # Patterns are depth-agnostic (`**/`) to match .gitignore semantics: dockerignore
 # anchors a bare `target/` at the context root only, so nested build dirs
@@ -23,13 +23,13 @@ packages/snapcompact/research/results/
 # Host-built addons: every image that needs one compiles it from source.
 **/*.node
 
-# Per-host scratch the chud codebase uses for parallel agents / worktrees.
+# Per-host scratch the pi codebase uses for parallel agents / worktrees.
 .fallow/
 .worktrees/
 .wt/
 .opencode/
 .pi_config/
-.chudcode/plugins/
+.omp/plugins/
 
 # VCS, editors, IDEs.
 .git/
@@ -62,11 +62,11 @@ changes/
 
 # Generated, regenerated in-image.
 packages/ai/test/.temp-images/
-python/chudcode-rpc/src/chudcode_rpc.egg-info/
-python/robochud/data/
-python/robochud/.cache/
-python/robochud/src/robochud/static/
-python/robochud/web/dist/
+python/omp-rpc/src/omp_rpc.egg-info/
+python/robomp/data/
+python/robomp/.cache/
+python/robomp/src/robomp/static/
+python/robomp/web/dist/
 
 # Scratch files the repo creates ad-hoc.
 syntax.jsonl
@@ -78,5 +78,5 @@ pi-*.html
 **/.venv/
 
 # Secrets. Should never be in an image regardless. Depth-agnostic: a bare
-# `.env` misses nested ones such as `python/robochud/.env`.
+# `.env` misses nested ones such as `python/robomp/.env`.
 **/.env

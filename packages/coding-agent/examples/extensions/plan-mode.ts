@@ -14,12 +14,12 @@
  * - Uses ID-based tracking: agent outputs [DONE:id] to mark steps complete
  *
  * Usage:
- * 1. Copy this file to ~/.chudcode/agent/extensions/ (legacy: ~/.pi/agent/extensions/) or your project's .chudcode/extensions/
+ * 1. Copy this file to ~/.omp/agent/extensions/ (legacy: ~/.pi/agent/extensions/) or your project's .omp/extensions/
  * 2. Use /plan to toggle plan mode on/off
  * 3. Or start in plan mode with --plan flag
  */
-import type { ExtensionAPI, ExtensionContext } from "@chudware/coding-agent";
-import { Key } from "@chudware/tui";
+import type { ExtensionAPI, ExtensionContext } from "@oh-my-pi/pi-coding-agent";
+import { Key } from "@oh-my-pi/pi-tui";
 
 // Read-only tools for plan mode
 const PLAN_MODE_TOOLS = ["read", "bash", "search", "find"];
@@ -206,14 +206,14 @@ function extractTodoItems(message: string): TodoItem[] {
 	return items;
 }
 
-export default function planModeExtension(chud: ExtensionAPI) {
+export default function planModeExtension(pi: ExtensionAPI) {
 	let planModeEnabled = false;
 	let toolsCalledThisTurn = false;
 	let executionMode = false;
 	let todoItems: TodoItem[] = [];
 
 	// Register --plan CLI flag
-	chud.registerFlag("plan", {
+	pi.registerFlag("plan", {
 		description: "Start in plan mode (read-only exploration)",
 		type: "boolean",
 		default: false,
@@ -252,17 +252,17 @@ export default function planModeExtension(chud: ExtensionAPI) {
 		todoItems = [];
 
 		if (planModeEnabled) {
-			await chud.setActiveTools(PLAN_MODE_TOOLS);
+			await pi.setActiveTools(PLAN_MODE_TOOLS);
 			ctx.ui.notify(`Plan mode enabled. Tools: ${PLAN_MODE_TOOLS.join(", ")}`);
 		} else {
-			await chud.setActiveTools(NORMAL_MODE_TOOLS);
+			await pi.setActiveTools(NORMAL_MODE_TOOLS);
 			ctx.ui.notify("Plan mode disabled. Full access restored.");
 		}
 		updateStatus(ctx);
 	}
 
 	// Register /plan command
-	chud.registerCommand("plan", {
+	pi.registerCommand("plan", {
 		description: "Toggle plan mode (read-only exploration)",
 		handler: async (_args, ctx) => {
 			await togglePlanMode(ctx);
@@ -270,7 +270,7 @@ export default function planModeExtension(chud: ExtensionAPI) {
 	});
 
 	// Register /todos command
-	chud.registerCommand("todos", {
+	pi.registerCommand("todos", {
 		description: "Show current plan todo list",
 		handler: async (_args, ctx) => {
 			if (todoItems.length === 0) {
@@ -290,7 +290,7 @@ export default function planModeExtension(chud: ExtensionAPI) {
 	});
 
 	// Register Shift+P shortcut
-	chud.registerShortcut(Key.shift("p"), {
+	pi.registerShortcut(Key.shift("p"), {
 		description: "Toggle plan mode",
 		handler: async ctx => {
 			await togglePlanMode(ctx);
@@ -298,7 +298,7 @@ export default function planModeExtension(chud: ExtensionAPI) {
 	});
 
 	// Block destructive bash in plan mode
-	chud.on("tool_call", async event => {
+	pi.on("tool_call", async event => {
 		if (!planModeEnabled) return;
 		if (event.toolName !== "bash") return;
 
@@ -312,7 +312,7 @@ export default function planModeExtension(chud: ExtensionAPI) {
 	});
 
 	// Track step completion based on tool results
-	chud.on("tool_result", async (_event, ctx) => {
+	pi.on("tool_result", async (_event, ctx) => {
 		toolsCalledThisTurn = true;
 
 		if (!executionMode || todoItems.length === 0) return;
@@ -327,7 +327,7 @@ export default function planModeExtension(chud: ExtensionAPI) {
 
 	// Filter out stale plan mode context messages from LLM context
 	// This ensures the agent only sees the CURRENT state (plan mode on/off)
-	chud.on("context", async event => {
+	pi.on("context", async event => {
 		// Only filter when NOT in plan mode (i.e., when executing)
 		if (planModeEnabled) {
 			return;
@@ -349,7 +349,7 @@ export default function planModeExtension(chud: ExtensionAPI) {
 	});
 
 	// Inject plan mode context
-	chud.on("before_agent_start", async () => {
+	pi.on("before_agent_start", async () => {
 		if (!planModeEnabled && !executionMode) {
 			return;
 		}
@@ -397,14 +397,14 @@ Execute each step in order.`,
 	});
 
 	// After agent finishes
-	chud.on("agent_end", async (event, ctx) => {
+	pi.on("agent_end", async (event, ctx) => {
 		// In execution mode, check if all steps complete
 		if (executionMode && todoItems.length > 0) {
 			const allComplete = todoItems.every(t => t.completed);
 			if (allComplete) {
 				// Show final completed list in chat
 				const completedList = todoItems.map(t => `~~${t.text}~~`).join("\n");
-				chud.sendMessage(
+				pi.sendMessage(
 					{
 						customType: "plan-complete",
 						content: `**Plan Complete!** ✓\n\n${completedList}`,
@@ -415,7 +415,7 @@ Execute each step in order.`,
 
 				executionMode = false;
 				todoItems = [];
-				await chud.setActiveTools(NORMAL_MODE_TOOLS);
+				await pi.setActiveTools(NORMAL_MODE_TOOLS);
 				updateStatus(ctx);
 			}
 			return;
@@ -449,7 +449,7 @@ Execute each step in order.`,
 		// Show todo list in chat (no IDs shown to user, just numbered)
 		if (hasTodos) {
 			const todoListText = todoItems.map((t, i) => `${i + 1}. ☐ ${t.text}`).join("\n");
-			chud.sendMessage(
+			pi.sendMessage(
 				{
 					customType: "plan-todo-list",
 					content: `**Plan Steps (${todoItems.length}):**\n\n${todoListText}`,
@@ -468,7 +468,7 @@ Execute each step in order.`,
 		if (choice?.startsWith("Execute")) {
 			planModeEnabled = false;
 			executionMode = hasTodos;
-			await chud.setActiveTools(NORMAL_MODE_TOOLS);
+			await pi.setActiveTools(NORMAL_MODE_TOOLS);
 			updateStatus(ctx);
 
 			// Simple execution message - context event filters old plan mode messages
@@ -477,7 +477,7 @@ Execute each step in order.`,
 				? `Execute the plan. Start with: ${todoItems[0].text}`
 				: "Execute the plan you just created.";
 
-			chud.sendMessage(
+			pi.sendMessage(
 				{
 					customType: "plan-mode-execute",
 					content: execMessage,
@@ -494,8 +494,8 @@ Execute each step in order.`,
 	});
 
 	// Initialize state on session start
-	chud.on("session_start", async (_event, ctx) => {
-		if (chud.getFlag("plan") === true) {
+	pi.on("session_start", async (_event, ctx) => {
+		if (pi.getFlag("plan") === true) {
 			planModeEnabled = true;
 		}
 
@@ -517,15 +517,15 @@ Execute each step in order.`,
 		}
 
 		if (planModeEnabled) {
-			await chud.setActiveTools(PLAN_MODE_TOOLS);
+			await pi.setActiveTools(PLAN_MODE_TOOLS);
 		}
 		updateStatus(ctx);
 	});
 
 	// Reset tool tracking at start of each turn and persist state
-	chud.on("turn_start", async () => {
+	pi.on("turn_start", async () => {
 		toolsCalledThisTurn = false;
-		chud.appendEntry("plan-mode", {
+		pi.appendEntry("plan-mode", {
 			enabled: planModeEnabled,
 			todos: todoItems,
 			executing: executionMode,
@@ -533,7 +533,7 @@ Execute each step in order.`,
 	});
 
 	// Handle non-tool turns (e.g., analysis, explanation steps)
-	chud.on("turn_end", async (_event, ctx) => {
+	pi.on("turn_end", async (_event, ctx) => {
 		if (!executionMode || todoItems.length === 0) return;
 
 		// If no tools were called this turn, the agent was doing analysis/explanation

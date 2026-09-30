@@ -6,10 +6,10 @@
  */
 import * as fs from "node:fs";
 import * as path from "node:path";
-import { getPluginsDir, getPluginsLockfile, isEnoent } from "@chudware/utils";
-import * as fsx from "@chudware/utils/fsx";
+import { getPluginsDir, getPluginsLockfile, hasFsCode, isEacces, isEnoent, logger } from "@oh-my-pi/pi-utils";
 import { getConfigDirPaths } from "../../config";
 import { registerPluginCacheInvalidator, resolveActiveProjectRegistryPath } from "../../discovery/helpers";
+import { findExtensionDirectoryIndex, resolveExtensionDirectory } from "../extensions/directory-resolution";
 import { installLegacyPiSpecifierShim } from "./legacy-pi-compat";
 import { normalizePluginRuntimeConfig } from "./runtime-config";
 import type { InstalledPlugin, PluginManifest, PluginRuntimeConfig, ProjectPluginOverrides } from "./types";
@@ -40,7 +40,7 @@ registerPluginCacheInvalidator(clearEnabledPluginsCache);
 /**
  * Load plugin runtime config from lock file.
  *
- * `home` controls which `<plugins>/chudcode-plugins.lock.json` is read — pass it
+ * `home` controls which `<plugins>/omp-plugins.lock.json` is read — pass it
  * through whenever the caller is loading plugins for a tempdir-rooted
  * scenario (tests, discovery sub-surfaces that need to mirror an alternate
  * `LoadContext.home`).
@@ -48,7 +48,7 @@ registerPluginCacheInvalidator(clearEnabledPluginsCache);
 async function loadRuntimeConfig(home?: string): Promise<PluginRuntimeConfig> {
 	const lockPath = getPluginsLockfile(home);
 	try {
-		return normalizePluginRuntimeConfig(await fsx.readJson(lockPath));
+		return normalizePluginRuntimeConfig(await Bun.file(lockPath).json());
 	} catch (err) {
 		if (isEnoent(err)) return normalizePluginRuntimeConfig({});
 		throw err;
@@ -56,12 +56,12 @@ async function loadRuntimeConfig(home?: string): Promise<PluginRuntimeConfig> {
 }
 
 /**
- * Load project-local plugin overrides (checks .chudcode and .pi directories).
+ * Load project-local plugin overrides (checks .omp and .pi directories).
  */
 async function loadProjectOverrides(cwd: string): Promise<ProjectPluginOverrides> {
 	for (const overridesPath of getConfigDirPaths("plugin-overrides.json", { user: false, cwd })) {
 		try {
-			return await fsx.readJson(overridesPath);
+			return await Bun.file(overridesPath).json();
 		} catch (err) {
 			if (isEnoent(err)) continue;
 			// JSON parse error - continue to next path
@@ -70,8 +70,20 @@ async function loadProjectOverrides(cwd: string): Promise<ProjectPluginOverrides
 	return {};
 }
 /**
+ * A plugin root the process is not allowed to read is an environment
+ * condition — a sandbox, restrictive permissions, or a manifest symlinked into
+ * a denied path — not a broken configuration. Skip the root with a warning:
+ * rethrowing aborts plugin tool-path collection, which fails agent and
+ * subagent startup outright, and no plugin is worth that. A malformed manifest
+ * still throws, because that one is the user's to fix.
+ */
+function isUnreadableRoot(err: unknown): boolean {
+	return isEacces(err) || hasFsCode(err, "EPERM");
+}
+
+/**
  * Per-root enumeration of plugins from `<root>/node_modules`,
- * `<root>/package.json#dependencies`, and `<root>/chudcode-plugins.lock.json#plugins`.
+ * `<root>/package.json#dependencies`, and `<root>/omp-plugins.lock.json#plugins`.
  * Honors `projectOverrides.disabled` and `projectOverrides.features`. Returns an
  * empty array when the root has no `node_modules` yet.
  */
@@ -84,21 +96,31 @@ async function collectPluginsAtRoot(
 	if (!fs.existsSync(nodeModulesPath)) return [];
 
 	let depsKeys: string[] = [];
+	let hasPackageManifest = false;
 	const pkgJsonPath = path.join(root, "package.json");
 	try {
-		const pkg: { dependencies?: Record<string, string> } = await fsx.readJson(pkgJsonPath);
+		const pkg: { dependencies?: Record<string, string> } = await Bun.file(pkgJsonPath).json();
 		depsKeys = Object.keys(pkg.dependencies ?? {});
+		hasPackageManifest = true;
 	} catch (err) {
 		// Linked-only setups may have no `<root>/package.json` yet — that's
 		// fine, the lockfile still records the link.
+		if (isUnreadableRoot(err)) {
+			logger.warn("plugins: skipping unreadable plugin root", { root, path: pkgJsonPath });
+			return [];
+		}
 		if (!isEnoent(err)) throw err;
 	}
 
-	const lockPath = path.join(root, "chudcode-plugins.lock.json");
+	const lockPath = path.join(root, "omp-plugins.lock.json");
 	let runtimeConfig: PluginRuntimeConfig;
 	try {
-		runtimeConfig = normalizePluginRuntimeConfig(await fsx.readJson(lockPath));
+		runtimeConfig = normalizePluginRuntimeConfig(await Bun.file(lockPath).json());
 	} catch (err) {
+		if (isUnreadableRoot(err)) {
+			logger.warn("plugins: skipping unreadable plugin root", { root, path: lockPath });
+			return [];
+		}
 		if (!isEnoent(err)) throw err;
 		runtimeConfig = normalizePluginRuntimeConfig({});
 	}
@@ -111,22 +133,52 @@ async function collectPluginsAtRoot(
 		names.add(name);
 	}
 
+	const isSymlink = async (target: string): Promise<boolean> => {
+		try {
+			return (await fs.promises.lstat(target)).isSymbolicLink();
+		} catch (err) {
+			if (isEnoent(err)) return false;
+			// Unreadable means unclassifiable, and the caller only asks in order
+			// to keep a lockfile-only entry: treat it as not linked and let that
+			// entry be skipped with its own warning.
+			if (isUnreadableRoot(err)) return false;
+			throw err;
+		}
+	};
 	const plugins: ScopedInstalledPlugin[] = [];
 	for (const name of names) {
+		// When a package manifest exists, a lockfile-only entry is legitimate
+		// only for linked plugins (`omp plugin link`, marketplace runtime
+		// registration), which are symlinks into node_modules. Without a
+		// manifest, retain the established lockfile-only directory layout.
+		if (hasPackageManifest && !depsKeys.includes(name) && !(await isSymlink(path.join(nodeModulesPath, name)))) {
+			logger.warn("plugins: skipping stale lockfile entry not declared in package.json", {
+				name,
+				root,
+			});
+			continue;
+		}
 		const pluginPkgPath = path.join(nodeModulesPath, name, "package.json");
-		let pluginPkg: { version: string; chudcode?: PluginManifest; chud?: PluginManifest };
+		let pluginPkg: { version: string; omp?: PluginManifest; pi?: PluginManifest };
 		try {
-			pluginPkg = await fsx.readJson(pluginPkgPath);
+			pluginPkg = await Bun.file(pluginPkgPath).json();
 		} catch (err) {
 			// Lockfile entry without a corresponding node_modules tree means the
 			// link was deleted out from under us; skip silently.
 			if (isEnoent(err)) continue;
+			// One unreadable plugin does not invalidate its siblings, so skip
+			// just this one — loudly, because unlike a deleted link it is a
+			// plugin the user still expects to load.
+			if (isUnreadableRoot(err)) {
+				logger.warn("plugins: skipping unreadable plugin", { name, root, path: pluginPkgPath });
+				continue;
+			}
 			throw err;
 		}
 
-		const manifest: PluginManifest | undefined = pluginPkg.chudcode ?? pluginPkg.chud;
+		const manifest: PluginManifest | undefined = pluginPkg.omp || pluginPkg.pi;
 		if (!manifest) {
-			// Not an chudcode plugin, skip
+			// Not an omp plugin, skip
 			continue;
 		}
 		manifest.version = pluginPkg.version;
@@ -163,10 +215,10 @@ async function collectPluginsAtRoot(
  * Get list of enabled plugins with their resolved configurations.
  *
  * Enumerates two plugin roots in order: the user root
- * (`getPluginsDir(home)`) and, when a project anchor (`.chudcode/` or `.git/`)
+ * (`getPluginsDir(home)`) and, when a project anchor (`.omp/` or `.git/`)
  * exists at or above `cwd`, the project root
- * (`<projectAnchor>/.chudcode/plugins`). Each root contributes the union of its
- * `package.json#dependencies` and `chudcode-plugins.lock.json#plugins`. Project
+ * (`<projectAnchor>/.omp/plugins`). Each root contributes the union of its
+ * `package.json#dependencies` and `omp-plugins.lock.json#plugins`. Project
  * entries shadow user entries with the same package name, matching the
  * shadow semantics of `MarketplaceManager.listInstalledPlugins`.
  *
@@ -232,129 +284,23 @@ function isModuleFile(name: string): boolean {
 	return MANIFEST_ENTRY_MODULE_EXTENSIONS.includes(path.extname(name)) && !DECLARATION_FILE_RE.test(name);
 }
 
-/** First `index.{ts,js,mjs,cjs}` inside `dir`, or null when none exists. */
-function findDirectoryIndex(dir: string): string | null {
-	for (const name of MANIFEST_ENTRY_INDEX_NAMES) {
-		const candidate = path.join(dir, name);
-		if (fs.existsSync(candidate)) return candidate;
-	}
-	return null;
-}
-
-interface DeclaredManifestEntries {
-	/** True when the directory's package.json declares a non-empty `chudcode`/`chud` `extensions` array. */
-	declared: boolean;
-	/** Resolved, existing module files for the declared entries (may be empty when declared files are missing). */
-	files: string[];
-}
-
-/**
- * Read the extension entries declared by `dir`'s own package.json `chudcode`/`chud`
- * manifest. `declared` distinguishes "a manifest explicitly lists extensions"
- * (authoritative — callers must not fall back to index/scan, so a missing
- * declared file surfaces as a missing entry instead of silently loading a stale
- * index) from "no manifest / no extensions field" (callers fall back to
- * convention). Mirrors the manifest branch of the configured-directory (`-e`)
- * scanner: a declared entry that is a file resolves to itself; one that is a
- * directory resolves to its direct index.{ts,js,mjs,cjs}.
- */
-function readDeclaredManifestEntries(dir: string): DeclaredManifestEntries {
-	let raw: string;
-	try {
-		raw = fs.readFileSync(path.join(dir, "package.json"), "utf8");
-	} catch {
-		return { declared: false, files: [] };
-	}
-	let pkg: { chudcode?: { extensions?: unknown }; chud?: { extensions?: unknown } };
-	try {
-		pkg = JSON.parse(raw) as { chudcode?: { extensions?: unknown }; chud?: { extensions?: unknown } };
-	} catch {
-		return { declared: false, files: [] };
-	}
-	const declared = (pkg.chudcode ?? pkg.chud)?.extensions;
-	if (!Array.isArray(declared) || declared.length === 0) {
-		return { declared: false, files: [] };
-	}
-	const files: string[] = [];
-	for (const entry of declared) {
-		if (typeof entry !== "string") continue;
-		const candidate = path.resolve(dir, entry);
-		let candidateStats: fs.Stats;
-		try {
-			candidateStats = fs.statSync(candidate);
-		} catch {
-			continue;
-		}
-		if (candidateStats.isDirectory()) {
-			const index = findDirectoryIndex(candidate);
-			if (index) files.push(index);
-		} else {
-			files.push(candidate);
-		}
-	}
-	return { declared: true, files };
-}
-
-/**
- * Resolve a directory to its loadable extension module files, mirroring the
- * configured-directory (`-e`) scanner in extensions/loader.ts:
- *   1. the directory's own package.json `chudcode`/`chud` `extensions` entries —
- *      authoritative: a manifest that lists extensions suppresses the index/scan
- *      fallback, so a missing declared file is reported rather than silently
- *      replaced by a decoy index
- *   2. a direct index.{ts,js,mjs,cjs}
- *   3. one level of children: each direct *.{ts,js,mjs,cjs} file plus each
- *      sub-directory resolved by the same precedence (manifest, then index)
- */
-function resolveDirectoryEntries(dir: string): string[] {
-	const manifest = readDeclaredManifestEntries(dir);
-	if (manifest.declared) return manifest.files;
-
-	const directIndex = findDirectoryIndex(dir);
-	if (directIndex) return [directIndex];
-
-	let children: string[];
-	try {
-		children = fs.readdirSync(dir);
-	} catch {
-		return [];
-	}
-	const resolved: string[] = [];
-	for (const child of children.sort()) {
-		const childPath = path.join(dir, child);
-		let childStats: fs.Stats;
-		try {
-			// statSync follows symlinks, matching the configured-dir loader.
-			childStats = fs.statSync(childPath);
-		} catch {
-			continue;
-		}
-		if (childStats.isDirectory()) {
-			const childManifest = readDeclaredManifestEntries(childPath);
-			if (childManifest.declared) {
-				resolved.push(...childManifest.files);
-			} else {
-				const index = findDirectoryIndex(childPath);
-				if (index) resolved.push(index);
-			}
-		} else if (isModuleFile(child)) {
-			resolved.push(childPath);
-		}
-	}
-	return resolved;
-}
+const PLUGIN_EXTENSION_DIRECTORY_OPTIONS = {
+	indexNames: MANIFEST_ENTRY_INDEX_NAMES,
+	isScanFile: isModuleFile,
+	sortChildren: true,
+};
 
 /**
  * Resolve a plugin manifest entry to the loadable module files it names:
  * - a file entry → that file
  * - a directory:
  *   - when `expandDirectory` (the `extensions` key), resolved by
- *     {@link resolveDirectoryEntries} — its own package.json `chudcode`/`chud`
+ *     {@link resolveExtensionDirectory} — its own package.json `omp`/`pi`
  *     `extensions`, then a direct index, then a one-level scan of
- *     sub-extensions — matching the chud `extensions/<name>/index.ts` convention
- *     and Chudcode's configured-directory (`-e`) extension loader
+ *     sub-extensions — matching the pi `extensions/<name>/index.ts` convention
+ *     and OMP's configured-directory (`-e`) extension loader
  *   - otherwise (tools/hooks/commands) only a direct index.{ts,js,mjs,cjs}.
- *     The sub-extension scan and the `chudcode`/`chud` `extensions` manifest are
+ *     The sub-extension scan and the `omp`/`pi` `extensions` manifest are
  *     extensions-specific and must not hijack a non-extension directory entry
  *     (e.g. a `tools: "."` entry must still resolve `./index.ts`).
  *
@@ -372,9 +318,9 @@ function resolveManifestEntryFiles(joined: string, expandDirectory: boolean): st
 		return [joined];
 	}
 	if (expandDirectory) {
-		return resolveDirectoryEntries(joined);
+		return resolveExtensionDirectory(joined, PLUGIN_EXTENSION_DIRECTORY_OPTIONS).files;
 	}
-	const index = findDirectoryIndex(joined);
+	const index = findExtensionDirectoryIndex(joined, MANIFEST_ENTRY_INDEX_NAMES);
 	return index ? [index] : [];
 }
 

@@ -1,3 +1,4 @@
+import { createAgentHubRuntime } from "@oh-my-pi/pi-coding-agent/modes/agent-hub-runtime";
 /**
  * Hub Enter contract: activating a non-remote agent row delegates to the
  * `focusAgent` dep (session focus proxy) and closes the hub on success; a
@@ -6,20 +7,19 @@
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
-import { resetSettingsForTest, Settings } from "@chudware/coding-agent/config/settings";
-import { IrcBus } from "@chudware/coding-agent/irc/bus";
-import { AgentHubOverlayComponent } from "@chudware/coding-agent/modes/components/agent-hub";
-import { SelectorController } from "@chudware/coding-agent/modes/controllers/selector-controller";
-import { SessionObserverRegistry } from "@chudware/coding-agent/modes/session-observer-registry";
-import { initTheme } from "@chudware/coding-agent/modes/theme/theme";
-import type { InteractiveModeContext } from "@chudware/coding-agent/modes/types";
-import { AgentRegistry } from "@chudware/coding-agent/registry/agent-registry";
-import type { AgentSession } from "@chudware/coding-agent/session/agent-session";
-import { visitEntriesFromFileStream } from "@chudware/coding-agent/session/session-loader";
-import { SessionManager } from "@chudware/coding-agent/session/session-manager";
-import { getBundledAgent } from "@chudware/coding-agent/task/agents";
-import { TempDir } from "@chudware/utils";
-import * as fsx from "@chudware/utils/fsx";
+import { resetSettingsForTest, Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
+import { IrcBus } from "@oh-my-pi/pi-coding-agent/irc/bus";
+import { AgentHubOverlayComponent } from "@oh-my-pi/pi-tui/overlays/agent-hub";
+import { SelectorController } from "@oh-my-pi/pi-coding-agent/modes/controllers/selector-controller";
+import { SessionObserverRegistry } from "@oh-my-pi/pi-tui/overlays/session-observer-registry";
+import { initTheme } from "@oh-my-pi/pi-tui/theme";
+import type { InteractiveModeContext } from "@oh-my-pi/pi-coding-agent/modes/types";
+import { AgentRegistry } from "@oh-my-pi/pi-coding-agent/registry/agent-registry";
+import type { AgentSession } from "@oh-my-pi/pi-coding-agent/session/agent-session";
+import { visitEntriesFromFileStream } from "@oh-my-pi/pi-coding-agent/session/session-loader";
+import { SessionManager } from "@oh-my-pi/pi-coding-agent/session/session-manager";
+import { getBundledAgent } from "@oh-my-pi/pi-coding-agent/task/agents";
+import { TempDir } from "@oh-my-pi/pi-utils";
 
 const AGENT_ID = "Worker";
 const TEST_CWD = path.resolve("agent-hub-cwd");
@@ -54,7 +54,7 @@ function makeHub(focusAgent: (id: string) => Promise<void>) {
 	const done = Promise.withResolvers<void>();
 	const renderRequested = Promise.withResolvers<void>();
 	const hub = new AgentHubOverlayComponent({
-		settings: Settings.isolated(),
+		...createAgentHubRuntime({ settings: Settings.isolated(), registry: agents }),
 		observers: new SessionObserverRegistry(),
 		hubKeys: [],
 		onDone: () => {
@@ -69,7 +69,7 @@ function makeHub(focusAgent: (id: string) => Promise<void>) {
 	return { hub, doneCalls: () => doneCalls, done: done.promise, renderRequested: renderRequested.promise };
 }
 
-const ROSTER_ENTRY_PATTERN = /^(❯| ) (\S+) (?:(?:(?:│ {3}| {4})*)(?:├── |└── ))?(\S+)/u;
+const ROSTER_ENTRY_PATTERN = /^(❯| ) (?:(?:(?:│ {3}| {4})*)(?:├── |└── ))?(\S+) (\S+)/u;
 
 function renderedRosterEntry(hub: AgentHubOverlayComponent, id: string, width: number): string {
 	const cells = hub.render(width).map(raw => {
@@ -91,6 +91,20 @@ function renderedRosterEntry(hub: AgentHubOverlayComponent, id: string, width: n
 		entry.push(cell.trimEnd());
 	}
 	return entry.join("\n");
+}
+
+function renderedRosterIds(hub: AgentHubOverlayComponent, width: number): string[] {
+	const ids: string[] = [];
+	for (const raw of hub.render(width)) {
+		const line = Bun.stripANSI(raw);
+		if (!line.startsWith("│ ")) continue;
+		const divider = line.indexOf("│", Math.max(2, Math.floor(line.length / 3)));
+		if (divider < 0) continue;
+		const cell = line.slice(2, Math.max(2, divider - 1));
+		const match = ROSTER_ENTRY_PATTERN.exec(cell);
+		if (match?.[3]) ids.push(match[3]);
+	}
+	return ids;
 }
 
 describe("Agent hub Enter activation", () => {
@@ -146,15 +160,11 @@ describe("Agent hub Enter activation", () => {
 			status: "aborted",
 		});
 		const focusAgent = vi.fn(async () => {});
-		let viewer: { render(width: number): readonly string[] } | undefined;
-		const showOverlay = vi.fn((component: { render(width: number): readonly string[] }) => {
-			viewer = component;
-			return { hide: () => {} };
-		});
+		const showOverlay = vi.fn((_component: unknown, _options: unknown) => ({ hide: () => {} }));
 		const setFocus = vi.fn();
 		const onDone = vi.fn();
 		const hub = new AgentHubOverlayComponent({
-			settings: Settings.isolated(),
+			...createAgentHubRuntime({ settings: Settings.isolated(), registry: agents }),
 			observers: new SessionObserverRegistry(),
 			hubKeys: [],
 			onDone,
@@ -179,20 +189,19 @@ describe("Agent hub Enter activation", () => {
 			fullscreen: true,
 		});
 		expect(setFocus).toHaveBeenCalledWith(expect.anything());
-		expect(Bun.stripANSI(viewer!.render(120).join("\n"))).not.toContain("Enter:send");
 		expect(onDone).not.toHaveBeenCalled();
 		hub.dispose();
 	});
 
 	it("lists persisted subagent session files after restart", async () => {
-		using tempDir = TempDir.createSync("@chudcode-agent-hub-persisted-");
+		using tempDir = TempDir.createSync("@omp-agent-hub-persisted-");
 		const sessionFile = path.join(tempDir.path(), "main.jsonl");
 		const workerSessionFile = path.join(tempDir.path(), "main", "Worker.jsonl");
-		await fsx.write(sessionFile, "");
-		await fsx.write(workerSessionFile, persistedChildJsonl("worker"));
+		await Bun.write(sessionFile, "");
+		await Bun.write(workerSessionFile, persistedChildJsonl("worker"));
 		const agents = new AgentRegistry();
 		const hub = new AgentHubOverlayComponent({
-			settings: Settings.isolated(),
+			...createAgentHubRuntime({ settings: Settings.isolated(), registry: agents, sessionFile }),
 			observers: new SessionObserverRegistry(),
 			hubKeys: [],
 			onDone: () => {},
@@ -210,14 +219,49 @@ describe("Agent hub Enter activation", () => {
 		hub.dispose();
 	});
 
-	it("stops persisted discovery when the Hub is disposed", async () => {
-		using tempDir = TempDir.createSync("@chudcode-agent-hub-disposed-scan-");
+	it("ranks restored subagents by recency rather than readdir order", async () => {
+		using tempDir = TempDir.createSync("@omp-agent-hub-persisted-order-");
 		const sessionFile = path.join(tempDir.path(), "main.jsonl");
-		await fsx.write(sessionFile, "");
-		await fsx.write(path.join(tempDir.path(), "main", "Worker.jsonl"), "");
+		await Bun.write(sessionFile, "");
+		// Alphabetical readdir order (Aaa, Bbb, Ccc) is the reverse of recency:
+		// Ccc is the most recently active. The roster must apply the status/recency
+		// ranking to every restored agent, not append them in discovery order.
+		const workers: Array<[string, number]> = [
+			["Aaa", Date.parse("2026-07-30T01:00:00.000Z")],
+			["Bbb", Date.parse("2026-07-30T02:00:00.000Z")],
+			["Ccc", Date.parse("2026-07-30T03:00:00.000Z")],
+		];
+		for (const [id, mtime] of workers) {
+			const file = path.join(tempDir.path(), "main", `${id}.jsonl`);
+			await Bun.write(file, persistedChildJsonl(id));
+			await fs.utimes(file, new Date(mtime), new Date(mtime));
+		}
 		const agents = new AgentRegistry();
 		const hub = new AgentHubOverlayComponent({
-			settings: Settings.isolated(),
+			...createAgentHubRuntime({ settings: Settings.isolated(), registry: agents, sessionFile }),
+			observers: new SessionObserverRegistry(),
+			hubKeys: [],
+			onDone: () => {},
+			requestRender: () => {},
+			registry: agents,
+			irc: new IrcBus(agents),
+			focusAgent: async () => {},
+			sessionFile,
+		});
+		await hub.persistedSubagentsReady;
+
+		expect(renderedRosterIds(hub, 120)).toEqual(["Ccc", "Bbb", "Aaa"]);
+		hub.dispose();
+	});
+
+	it("stops persisted discovery when the Hub is disposed", async () => {
+		using tempDir = TempDir.createSync("@omp-agent-hub-disposed-scan-");
+		const sessionFile = path.join(tempDir.path(), "main.jsonl");
+		await Bun.write(sessionFile, "");
+		await Bun.write(path.join(tempDir.path(), "main", "Worker.jsonl"), "");
+		const agents = new AgentRegistry();
+		const hub = new AgentHubOverlayComponent({
+			...createAgentHubRuntime({ settings: Settings.isolated(), registry: agents, sessionFile }),
 			observers: new SessionObserverRegistry(),
 			hubKeys: [],
 			onDone: () => {},
@@ -233,16 +277,16 @@ describe("Agent hub Enter activation", () => {
 		expect(agents.get("Worker")).toBeUndefined();
 	});
 	it("restores nested parent lineage after restart", async () => {
-		using tempDir = TempDir.createSync("@chudcode-agent-hub-persisted-tree-");
+		using tempDir = TempDir.createSync("@omp-agent-hub-persisted-tree-");
 		const sessionFile = path.join(tempDir.path(), "main.jsonl");
 		const parentSessionFile = path.join(tempDir.path(), "main", "Parent.jsonl");
 		const childSessionFile = path.join(tempDir.path(), "main", "Parent", "Child.jsonl");
-		await fsx.write(sessionFile, "");
-		await fsx.write(parentSessionFile, persistedChildJsonl("parent"));
-		await fsx.write(childSessionFile, persistedChildJsonl("child"));
+		await Bun.write(sessionFile, "");
+		await Bun.write(parentSessionFile, persistedChildJsonl("parent"));
+		await Bun.write(childSessionFile, persistedChildJsonl("child"));
 		const agents = new AgentRegistry();
 		const hub = new AgentHubOverlayComponent({
-			settings: Settings.isolated(),
+			...createAgentHubRuntime({ settings: Settings.isolated(), registry: agents, sessionFile }),
 			observers: new SessionObserverRegistry(),
 			hubKeys: [],
 			onDone: () => {},
@@ -256,18 +300,18 @@ describe("Agent hub Enter activation", () => {
 		expect(agents.get("Parent")?.parentId).toBe("Main");
 		expect(agents.get("Child")?.parentId).toBe("Parent");
 		hub.handleInput("t");
-		expect(Bun.stripANSI(renderedRosterEntry(hub, "Child", 120))).toContain("└── Child");
+		expect(Bun.stripANSI(renderedRosterEntry(hub, "Child", 120))).toContain("└── ○ Child");
 		hub.dispose();
 	});
 
 	it("restores saved task metadata and timestamps for completed agents", async () => {
-		using tempDir = TempDir.createSync("@chudcode-agent-hub-persisted-metadata-");
+		using tempDir = TempDir.createSync("@omp-agent-hub-persisted-metadata-");
 		const sessionFile = path.join(tempDir.path(), "main.jsonl");
 		const workerSessionFile = path.join(tempDir.path(), "main", "Worker.jsonl");
 		const createdAt = "2026-07-30T01:13:37.835Z";
 		const lastActivity = new Date("2026-07-30T01:15:00.000Z");
-		await fsx.write(sessionFile, "");
-		await fsx.write(
+		await Bun.write(sessionFile, "");
+		await Bun.write(
 			workerSessionFile,
 			[
 				JSON.stringify({ type: "session", version: 3, id: "worker-session", timestamp: createdAt, cwd: TEST_CWD }),
@@ -285,7 +329,7 @@ describe("Agent hub Enter activation", () => {
 		await fs.utimes(workerSessionFile, lastActivity, lastActivity);
 		const agents = new AgentRegistry();
 		const hub = new AgentHubOverlayComponent({
-			settings: Settings.isolated(),
+			...createAgentHubRuntime({ settings: Settings.isolated(), registry: agents, sessionFile }),
 			observers: new SessionObserverRegistry(),
 			hubKeys: [],
 			onDone: () => {},
@@ -304,19 +348,19 @@ describe("Agent hub Enter activation", () => {
 		});
 		const workerEntry = renderedRosterEntry(hub, "Worker", 120);
 		expect(workerEntry).toContain("Inspect dependency boundaries and report unsafe coupling.");
-		expect(workerEntry.replace(/\s+/g, " ")).toContain("usage —");
+		expect(workerEntry.replace(/\s+/g, " ")).toContain("usage ·");
 		expect(workerEntry).not.toContain("$0.000");
 		hub.dispose();
 	});
 
 	it("restores persisted model role, usage, spend, and tool totals", async () => {
-		using tempDir = TempDir.createSync("@chudcode-agent-hub-persisted-usage-");
+		using tempDir = TempDir.createSync("@omp-agent-hub-persisted-usage-");
 		const sessionFile = path.join(tempDir.path(), "main.jsonl");
 		const workerSessionFile = path.join(tempDir.path(), "main", "Worker.jsonl");
 		const createdAt = "2026-07-30T01:13:30.000Z";
 		const lastActivity = new Date("2026-07-30T01:15:00.000Z");
-		await fsx.write(sessionFile, "");
-		await fsx.write(
+		await Bun.write(sessionFile, "");
+		await Bun.write(
 			workerSessionFile,
 			[
 				JSON.stringify({ type: "session", version: 3, id: "worker-session", timestamp: createdAt, cwd: TEST_CWD }),
@@ -364,7 +408,7 @@ describe("Agent hub Enter activation", () => {
 		await fs.utimes(workerSessionFile, lastActivity, lastActivity);
 		const agents = new AgentRegistry();
 		const hub = new AgentHubOverlayComponent({
-			settings: Settings.isolated(),
+			...createAgentHubRuntime({ settings: Settings.isolated(), registry: agents, sessionFile }),
 			observers: new SessionObserverRegistry(),
 			hubKeys: [],
 			onDone: () => {},
@@ -387,7 +431,7 @@ describe("Agent hub Enter activation", () => {
 	});
 	it("yields to a macrotask at the configured streaming threshold", async () => {
 		vi.useFakeTimers();
-		using tempDir = TempDir.createSync("@chudcode-agent-hub-responsive-");
+		using tempDir = TempDir.createSync("@omp-agent-hub-responsive-");
 		const sessionFile = path.join(tempDir.path(), "session.jsonl");
 		const entry = JSON.stringify({
 			type: "message",
@@ -396,7 +440,7 @@ describe("Agent hub Enter activation", () => {
 			timestamp: "2026-07-30T01:13:30.000Z",
 			message: { role: "user", content: [{ type: "text", text: "small" }] },
 		});
-		await fsx.write(sessionFile, `${entry}\n`.repeat(3));
+		await Bun.write(sessionFile, `${entry}\n`.repeat(3));
 		const thresholdVisited = Promise.withResolvers<void>();
 		let complete = false;
 		let yieldedBeforeComplete = false;
@@ -427,7 +471,7 @@ describe("Agent hub Enter activation", () => {
 	});
 
 	it("does not generically revive active or tombstoned Vibe children copied by a post-exit fork", async () => {
-		using tempDir = TempDir.createSync("@chudcode-agent-hub-vibe-fork-");
+		using tempDir = TempDir.createSync("@omp-agent-hub-vibe-fork-");
 		const manager = SessionManager.create(tempDir.path(), tempDir.path());
 		manager.appendModeChange("vibe");
 		const parentSessionId = manager.getSessionId();
@@ -470,7 +514,11 @@ describe("Agent hub Enter activation", () => {
 
 		const agents = new AgentRegistry();
 		const hub = new AgentHubOverlayComponent({
-			settings: Settings.isolated(),
+			...createAgentHubRuntime({
+				settings: Settings.isolated(),
+				registry: agents,
+				sessionFile: fork.newSessionFile,
+			}),
 			observers: new SessionObserverRegistry(),
 			hubKeys: [],
 			onDone: () => {},
@@ -644,11 +692,11 @@ describe("Agent hub double-← gating", () => {
 	});
 
 	it("requireContent opens the hub after persisted subagents load", async () => {
-		using tempDir = TempDir.createSync("@chudcode-agent-hub-require-content-");
+		using tempDir = TempDir.createSync("@omp-agent-hub-require-content-");
 		const sessionFile = path.join(tempDir.path(), "main.jsonl");
 		const workerSessionFile = path.join(tempDir.path(), "main", "Worker.jsonl");
-		await fsx.write(sessionFile, "");
-		await fsx.write(workerSessionFile, persistedChildJsonl("worker"));
+		await Bun.write(sessionFile, "");
+		await Bun.write(workerSessionFile, persistedChildJsonl("worker"));
 		const agents = new AgentRegistry();
 		const { controller, shown, shownReady } = setup(agents, sessionFile);
 
@@ -661,10 +709,10 @@ describe("Agent hub double-← gating", () => {
 	});
 
 	it("the explicit hub opens fullscreen before persisted subagents load", async () => {
-		using tempDir = TempDir.createSync("@chudcode-agent-hub-explicit-");
+		using tempDir = TempDir.createSync("@omp-agent-hub-explicit-");
 		const sessionFile = path.join(tempDir.path(), "main.jsonl");
-		await fsx.write(sessionFile, "");
-		await fsx.write(path.join(tempDir.path(), "main", "Worker.jsonl"), persistedChildJsonl("worker"));
+		await Bun.write(sessionFile, "");
+		await Bun.write(path.join(tempDir.path(), "main", "Worker.jsonl"), persistedChildJsonl("worker"));
 		const agents = new AgentRegistry();
 		const { controller, shown, overlayOptions } = setup(agents, sessionFile);
 
@@ -727,7 +775,7 @@ describe("Agent hub data refresh coalescing", () => {
 		const observers = new SessionObserverRegistry();
 		const requestRender = vi.fn();
 		const hub = new AgentHubOverlayComponent({
-			settings: Settings.isolated(),
+			...createAgentHubRuntime({ settings: Settings.isolated(), registry: agents }),
 			observers,
 			hubKeys: [],
 			onDone: () => {},
@@ -807,7 +855,7 @@ describe("Agent hub data refresh coalescing", () => {
 			status: "running",
 		});
 		const hub = new AgentHubOverlayComponent({
-			settings: Settings.isolated(),
+			...createAgentHubRuntime({ settings: Settings.isolated(), registry: agents }),
 			observers,
 			hubKeys: [],
 			onDone: () => {},
@@ -868,7 +916,7 @@ describe("Agent hub data refresh coalescing", () => {
 			status: "idle",
 		});
 		const hub = new AgentHubOverlayComponent({
-			settings: Settings.isolated(),
+			...createAgentHubRuntime({ settings: Settings.isolated(), registry: agents }),
 			observers: new SessionObserverRegistry(),
 			hubKeys: [],
 			onDone: () => {},

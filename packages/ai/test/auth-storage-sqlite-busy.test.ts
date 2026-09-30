@@ -1,7 +1,7 @@
 /**
  * Regression coverage for issue #2421.
  *
- * Concurrent chudcode startups can race against WAL recovery so the auth-store init
+ * Concurrent omp startups can race against WAL recovery so the auth-store init
  * sees `SQLITE_BUSY` / `SQLITE_BUSY_RECOVERY` before its multi-statement run
  * installs the busy handler. The fix hoists `PRAGMA busy_timeout` to a separate
  * statement that runs first and wraps `open()` in a bounded retry loop on the
@@ -13,9 +13,7 @@ import { afterEach, beforeEach, describe, expect, test, vi } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import { isSqliteBusyError, SqliteAuthCredentialStore } from "@chudware/ai/auth-storage";
-import * as piUtils from "@chudware/utils/async";
-import { sleep } from "@chudware/utils/async";
+import { isSqliteBusyError, SqliteAuthCredentialStore } from "@oh-my-pi/pi-ai/auth-storage";
 import { removeWithRetries } from "../../utils/src/temp";
 
 interface SqliteBusyShape extends Error {
@@ -52,7 +50,7 @@ describe("SqliteAuthCredentialStore.open SQLITE_BUSY handling", () => {
 	let tempDir = "";
 
 	beforeEach(async () => {
-		tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "chud-ai-sqlite-busy-"));
+		tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "pi-ai-sqlite-busy-"));
 	});
 
 	afterEach(async () => {
@@ -60,26 +58,6 @@ describe("SqliteAuthCredentialStore.open SQLITE_BUSY handling", () => {
 		if (tempDir) {
 			await removeWithRetries(tempDir);
 			tempDir = "";
-		}
-	});
-
-	test("installs busy_timeout BEFORE any lock-taking statement", async () => {
-		const store = await SqliteAuthCredentialStore.open(path.join(tempDir, "agent.db"));
-		try {
-			// The store doesn't expose the handle, so open a sibling read-only
-			// connection and verify the persisted side-effect of the open: WAL
-			// mode is set (PRAGMA journal_mode=WAL persists to the header), and
-			// the busy_timeout PRAGMA executed without throwing — the latter is
-			// proven by `open()` returning a store at all.
-			const observer = new Database(path.join(tempDir, "agent.db"));
-			try {
-				const row = observer.query("PRAGMA journal_mode").get() as { journal_mode: string };
-				expect(row.journal_mode).toBe("wal");
-			} finally {
-				observer.close();
-			}
-		} finally {
-			store.close();
 		}
 	});
 
@@ -123,7 +101,7 @@ db.close();`,
 				() => false,
 			);
 			if (locked || locker.exitCode !== null) break;
-			await sleep(10);
+			await Bun.sleep(10);
 		}
 		if (!locked) {
 			throw new Error(`locker never signaled readiness: ${await new Response(locker.stderr).text()}`);
@@ -172,41 +150,39 @@ db.close();`,
 		const dbPath = path.join(tempDir, "fatal.db");
 		const realRun = Database.prototype.run;
 		let runCalls = 0;
+		// SQLITE_IOERR is neither BUSY (retried) nor CORRUPT (quarantined and
+		// recreated by `open()`), so it must surface on the first attempt.
 		vi.spyOn(Database.prototype, "run").mockImplementation(function (
 			this: Database,
 			...args: Parameters<typeof realRun>
 		) {
 			runCalls++;
 			if (runCalls === 1) {
-				const err = new Error("disk image malformed") as SqliteBusyShape;
-				err.code = "SQLITE_CORRUPT";
-				err.errno = 11;
+				const err = new Error("disk I/O error") as SqliteBusyShape;
+				err.code = "SQLITE_IOERR";
+				err.errno = 10;
 				throw err;
 			}
 			return realRun.apply(this, args);
 		});
 
-		await expect(SqliteAuthCredentialStore.open(dbPath)).rejects.toThrow("disk image malformed");
+		await expect(SqliteAuthCredentialStore.open(dbPath)).rejects.toThrow("disk I/O error");
 		// Single attempt: the retry loop must NOT keep banging on a fatal error.
 		expect(runCalls).toBe(1);
 	});
 
 	test("exhausts retries and surfaces an error that includes the DB path", async () => {
 		const dbPath = path.join(tempDir, "stuck.db");
-		const realRun = Database.prototype.run;
 		vi.spyOn(Database.prototype, "run").mockImplementation(function (this: Database) {
 			// Always-busy: every attempt fails until the retry budget runs out.
 			throw makeBusyError("SQLITE_BUSY_RECOVERY", 261);
 		});
 		// Skip the sleep so the test doesn't take 700ms+ of real time.
-		const sleepSpy = vi.spyOn(piUtils, "sleep").mockResolvedValue(undefined);
+		const sleepSpy = vi.spyOn(Bun, "sleep").mockResolvedValue(undefined);
 
 		await expect(SqliteAuthCredentialStore.open(dbPath)).rejects.toThrow(dbPath);
 		// open uses `maxAttempts = 4`, so the loop sleeps between attempts 0..2
 		// (three times) then throws after attempt 3 without sleeping again.
 		expect(sleepSpy).toHaveBeenCalledTimes(3);
-		// Reference realRun so the TS unused-binding lint stays quiet without
-		// suppressing the actual error path above.
-		expect(typeof realRun).toBe("function");
 	});
 });

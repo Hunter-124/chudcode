@@ -1,7 +1,7 @@
 import { expect, test, vi } from "bun:test";
-import { streamSimple } from "@chudware/ai/stream";
-import { ollamaCloudModelManagerOptions } from "@chudware/catalog/provider-models/ollama";
-import type { FetchImpl, Model } from "@chudware/catalog/types";
+import { streamSimple } from "@oh-my-pi/pi-ai/stream";
+import { ollamaCloudModelManagerOptions } from "@oh-my-pi/pi-catalog/provider-models/ollama";
+import type { FetchImpl, Model } from "@oh-my-pi/pi-catalog/types";
 
 const cloudModel: Model<"ollama-chat"> = {
 	id: "deepseek-v4-flash",
@@ -9,6 +9,7 @@ const cloudModel: Model<"ollama-chat"> = {
 	api: "ollama-chat",
 	provider: "ollama-cloud",
 	baseUrl: "https://ollama.com",
+	identity: { class: "deepseek" },
 	reasoning: true,
 	input: ["text"],
 	cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
@@ -168,6 +169,7 @@ test("ollama-chat clamps num_predict at the Ollama Cloud 65536 output-token cap 
 		api: "ollama-chat",
 		provider: "ollama-cloud",
 		baseUrl: "https://ollama.com",
+		identity: { class: "deepseek" },
 		reasoning: true,
 		input: ["text"],
 		cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
@@ -205,6 +207,7 @@ test("ollama-chat does not clamp num_predict for self-hosted ollama (#3392)", as
 		api: "ollama-chat",
 		provider: "ollama",
 		baseUrl: "http://127.0.0.1:11434",
+		identity: { class: "deepseek" },
 		reasoning: false,
 		input: ["text"],
 		cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },

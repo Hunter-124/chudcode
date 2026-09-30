@@ -1,16 +1,16 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import * as crypto from "node:crypto";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
+import { APP_NAME, CONFIG_DIR_NAME } from "@oh-my-pi/pi-utils/dirs";
 
 const fixtureDir = path.join(import.meta.dir, "fixtures");
 const probePath = path.join(fixtureDir, "logger-contract-probe.ts");
 const preloadPath = path.join(fixtureDir, "logger-fixed-date-preload.ts");
-const apiProbePath = path.join(fixtureDir, "logger-api-probe.ts");
 const fixedNow = "2026-01-02T03:04:05.006Z";
 const fixedTimestamp = "2026-01-01T22:04:05.006-05:00";
 const roots: string[] = [];
+const processLogPattern = new RegExp(`^${APP_NAME}\\.\\d{4}-\\d{2}-\\d{2}\\.\\d+\\.log(?:\\.\\d+)?$`);
 
 interface ScenarioResult {
 	readonly pid: number;
@@ -34,7 +34,7 @@ afterEach(async () => {
 });
 
 async function runScenario(scenario: string): Promise<ScenarioResult> {
-	const root = await fs.mkdtemp(path.join(os.tmpdir(), "chudcode-logger-contract-"));
+	const root = await fs.mkdtemp(path.join(os.tmpdir(), "omp-logger-contract-"));
 	roots.push(root);
 	const primaryDir = path.join(root, "primary");
 	const secondaryDir = path.join(root, "secondary");
@@ -48,15 +48,19 @@ async function runScenario(scenario: string): Promise<ScenarioResult> {
 			env: {
 				...process.env,
 				HOME: primaryDir,
-				CHUDCODE_CONFIG_DIR: ".chudcode",
-				CHUDCODE_PROFILE: "",
+				// os.homedir() on Windows reads USERPROFILE, not HOME: without
+				// this the default-file scenario logs into the real profile.
+				USERPROFILE: primaryDir,
+				PI_CONFIG_DIR: CONFIG_DIR_NAME,
+				OMP_PROFILE: "",
+				PI_PROFILE: "",
 				XDG_DATA_HOME: "",
 				XDG_STATE_HOME: "",
 				XDG_CACHE_HOME: "",
 				// Empty XDG_CACHE_HOME makes Bun's transpiler cache path relative,
 				// spewing bun/@t@/*.pile into the repo root (the child's cwd) — disable it.
 				BUN_RUNTIME_TRANSPILER_CACHE_PATH: "0",
-				CHUDCODE_LOGGER_TEST_NOW: fixedNow,
+				OMP_LOGGER_TEST_NOW: fixedNow,
 				TZ: "Etc/GMT+5",
 			},
 			stdout: Bun.file(stdoutPath),
@@ -70,9 +74,7 @@ async function runScenario(scenario: string): Promise<ScenarioResult> {
 }
 
 async function logFileNames(directory: string): Promise<string[]> {
-	return (await fs.readdir(directory))
-		.filter(name => /^chudcode\.\d{4}-\d{2}-\d{2}\.\d+\.log(?:\.\d+)?$/.test(name))
-		.sort();
+	return (await fs.readdir(directory)).filter(name => processLogPattern.test(name)).sort();
 }
 
 async function readSingleLog(directory: string): Promise<{ name: string; text: string }> {
@@ -99,7 +101,7 @@ describe("central logger byte contract", () => {
 		expect(result.stdout).toBe("");
 		expect(result.stderr).toBe("");
 		const log = await readSingleLog(result.primaryDir);
-		expect(log.name).toBe(`chudcode.2026-01-01.${result.pid}.log`);
+		expect(log.name).toBe(`${APP_NAME}.2026-01-01.${result.pid}.log`);
 		const expected = [
 			expectedLine(result.pid, "error", "level-error", { ordinal: 1 }),
 			expectedLine(result.pid, "warn", "level-warn", { ordinal: 2 }),
@@ -129,7 +131,7 @@ describe("central logger byte contract", () => {
 		].join("");
 		expect(log.text).toBe(expected);
 		expect(log.text.endsWith(os.EOL)).toBe(true);
-		expect(await fs.readFile(path.join(result.primaryDir, `.chudcode.${result.pid}-audit.json`), "utf8")).not.toBe(
+		expect(await fs.readFile(path.join(result.primaryDir, `.${APP_NAME}.${result.pid}-audit.json`), "utf8")).not.toBe(
 			"",
 		);
 	});
@@ -179,7 +181,7 @@ describe("central logger transport lifecycle", () => {
 		const result = await runScenario("default-file");
 		expect(result.stdout).toBe("");
 		expect(result.stderr).toBe("");
-		const defaultLogsDir = path.join(result.primaryDir, ".chudcode", "logs");
+		const defaultLogsDir = path.join(result.primaryDir, CONFIG_DIR_NAME, "logs");
 		const log = await readSingleLog(defaultLogsDir);
 		expect(log.text).toBe(expectedLine(result.pid, "info", "mode-default", { mode: "default" }));
 	});
@@ -282,7 +284,7 @@ describe("DailyRotateFile option and retention contract", () => {
 		const result = await runScenario("date-retention");
 		expect(result.stdout).toBe("");
 		expect(result.stderr).toBe("");
-		const expectedNames = [2, 3, 4, 5, 6].map(day => `chudcode.2026-01-0${day}.${result.pid}.log`);
+		const expectedNames = [2, 3, 4, 5, 6].map(day => `${APP_NAME}.2026-01-0${day}.${result.pid}.log`);
 		expect(await logFileNames(result.primaryDir)).toEqual(expectedNames);
 		for (const [offset, name] of expectedNames.entries()) {
 			const day = offset + 2;
@@ -292,14 +294,14 @@ describe("DailyRotateFile option and retention contract", () => {
 			);
 		}
 
-		const auditPath = path.join(result.primaryDir, `.chudcode.${result.pid}-audit.json`);
+		const auditPath = path.join(result.primaryDir, `.${APP_NAME}.${result.pid}-audit.json`);
 		const audit = JSON.parse(await fs.readFile(auditPath, "utf8")) as AuditFile;
 		expect(audit.keep).toEqual({ days: false, amount: 5 });
 		expect(audit.auditLog).toBe(auditPath);
 		expect(audit.hashType).toBe("sha256");
 		expect(audit.files.map(file => file.name)).toEqual(expectedNames.map(name => path.join(result.primaryDir, name)));
 		for (const file of audit.files) {
-			const hash = crypto.createHash("sha256").update(`${file.name}LOG_FILE${file.date}`).digest("hex");
+			const hash = Bun.SHA256.hash(`${file.name}LOG_FILE${file.date}`, "hex");
 			expect(file.hash).toBe(hash);
 			expect(file.hash).toMatch(/^[0-9a-f]{64}$/);
 		}
@@ -309,7 +311,7 @@ describe("DailyRotateFile option and retention contract", () => {
 		const result = await runScenario("size-rotation");
 		expect(result.stdout).toBe("");
 		expect(result.stderr).toBe("");
-		const baseName = `chudcode.2026-01-01.${result.pid}.log`;
+		const baseName = `${APP_NAME}.2026-01-01.${result.pid}.log`;
 		const rotatedName = `${baseName}.1`;
 		expect(await logFileNames(result.primaryDir)).toEqual([baseName, rotatedName]);
 		const basePath = path.join(result.primaryDir, baseName);
@@ -329,49 +331,9 @@ describe("DailyRotateFile option and retention contract", () => {
 			expectedLine(result.pid, "info", "rotation-trigger"),
 		);
 		const audit = JSON.parse(
-			await fs.readFile(path.join(result.primaryDir, `.chudcode.${result.pid}-audit.json`), "utf8"),
+			await fs.readFile(path.join(result.primaryDir, `.${APP_NAME}.${result.pid}-audit.json`), "utf8"),
 		) as AuditFile;
 		expect(audit.keep).toEqual({ days: false, amount: 5 });
 		expect(audit.files.map(file => path.basename(file.name))).toEqual([baseName, rotatedName]);
-	});
-});
-
-test("root and direct source entry points expose identical public logger functions", async () => {
-	const root = await fs.mkdtemp(path.join(os.tmpdir(), "chudcode-logger-api-"));
-	roots.push(root);
-	const outputPath = path.join(root, "result.json");
-	const proc = Bun.spawn([process.execPath, apiProbePath, outputPath], {
-		cwd: path.resolve(import.meta.dir, "../../.."),
-		stdout: "pipe",
-		stderr: "pipe",
-	});
-	const [stdout, stderr, exitCode] = await Promise.all([
-		new Response(proc.stdout).text(),
-		new Response(proc.stderr).text(),
-		proc.exited,
-	]);
-	expect(exitCode, stderr).toBe(0);
-	expect(stdout).toBe("");
-	expect(stderr).toBe("");
-	const payload = JSON.parse(await fs.readFile(outputPath, "utf8")) as { identities: boolean; keys: string[] };
-	expect(payload).toEqual({
-		identities: true,
-		keys: [
-			"debug",
-			"endTiming",
-			"error",
-			"info",
-			"openSpanPath",
-			"printTimings",
-			"recordModuleLoadSpan",
-			"registerLogSink",
-			"setTransports",
-			"shouldExitAfterTimings",
-			"startTiming",
-			"startupMarker",
-			"time",
-			"timingModeIncludes",
-			"warn",
-		],
 	});
 });

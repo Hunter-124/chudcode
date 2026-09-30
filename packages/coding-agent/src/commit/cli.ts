@@ -1,4 +1,4 @@
-import chalk from "@chudware/utils/chalk";
+import chalk from "@oh-my-pi/pi-utils/chalk";
 import type { CommitCommandArgs } from "./types";
 
 const FLAG_ALIASES = new Map<string, string>([
@@ -70,7 +70,7 @@ export function parseCommitArgs(args: string[]): CommitCommandArgs | undefined {
 export function printCommitHelp(): void {
 	const lines = [
 		"Usage:",
-		"  chudcode commit [options]",
+		"  omp commit [options]",
 		"",
 		"Options:",
 		"  --push           Push after committing",

@@ -1,5 +1,4 @@
 import { describe, expect, test } from "bun:test";
-import * as crypto from "node:crypto";
 import { readUInt32LE } from "../../src/ar/bytes";
 import { readCab, sniffCab } from "../../src/ar/cab";
 import { ArchiveError } from "../../src/ar/error";
@@ -33,7 +32,7 @@ function indexOfAscii(bytes: Uint8Array, value: string): number {
 }
 
 function sha256(bytes: Uint8Array): string {
-	return crypto.createHash("sha256").update(bytes).digest("hex");
+	return new Bun.CryptoHasher("sha256").update(bytes).digest("hex");
 }
 
 const expectedNestedPayload = `nested cabinet payload\n${"history-window-line\n".repeat(3000)}`;

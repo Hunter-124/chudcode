@@ -23,8 +23,8 @@ RUN cd packages/coding-agent && bun run build
 
 # Install binary to PATH
 RUN mkdir -p /root/.local/bin && \
-    cp packages/coding-agent/dist/chudcode /root/.local/bin/
+    cp packages/coding-agent/dist/omp /root/.local/bin/
 ENV PATH="/root/.local/bin:$PATH"
 
 # Verify
-RUN HOME=/tmp/chudcode-home XDG_DATA_HOME=/tmp/chudcode-xdg chudcode --version
+RUN HOME=/tmp/omp-home XDG_DATA_HOME=/tmp/omp-xdg omp --version

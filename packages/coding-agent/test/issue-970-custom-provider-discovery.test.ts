@@ -1,19 +1,19 @@
+import { createModelBrowserSource } from "../src/modes/model-browser-source";
 import { afterEach, beforeAll, beforeEach, describe, expect, test, vi } from "bun:test";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 import { stripVTControlCharacters } from "node:util";
-import { buildModel } from "@chudware/catalog/build";
-import { writeModelCache } from "@chudware/catalog/model-cache";
-import type { ModelRegistry, ProviderDiscoveryState } from "@chudware/coding-agent/config/model-registry";
-import { ModelRegistry as ModelRegistryImpl } from "@chudware/coding-agent/config/model-registry";
-import { Settings } from "@chudware/coding-agent/config/settings";
-import { ModelHubComponent } from "@chudware/coding-agent/modes/components/model-hub";
-import { getThemeByName, setThemeInstance } from "@chudware/coding-agent/modes/theme/theme";
-import { AuthStorage } from "@chudware/coding-agent/session/auth-storage";
-import type { TUI } from "@chudware/tui";
-import { removeSyncWithRetries, Snowflake } from "@chudware/utils";
-import { sleep } from "@chudware/utils/async";
+import { buildModel } from "@oh-my-pi/pi-catalog/build";
+import { writeModelCache } from "@oh-my-pi/pi-catalog/model-cache";
+import type { ModelRegistry, ProviderDiscoveryState } from "@oh-my-pi/pi-coding-agent/config/model-registry";
+import { ModelRegistry as ModelRegistryImpl } from "@oh-my-pi/pi-coding-agent/config/model-registry";
+import { Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
+import { ModelHubComponent } from "@oh-my-pi/pi-tui/overlays/model-hub";
+import { getThemeByName, setThemeInstance } from "@oh-my-pi/pi-tui/theme";
+import { AuthStorage } from "@oh-my-pi/pi-coding-agent/session/auth-storage";
+import type { TUI } from "@oh-my-pi/pi-tui";
+import { removeSyncWithRetries, Snowflake } from "@oh-my-pi/pi-utils";
 
 function normalizeRenderedText(text: string): string {
 	return stripVTControlCharacters(text).replace(/\s+/g, " ").trim();
@@ -37,20 +37,20 @@ async function createHub(state: ProviderDiscoveryState): Promise<ModelHubCompone
 		getAll: () => [],
 		getDiscoverableProviders: () => [state.provider],
 		getProviderDiscoveryState: () => state,
-		authStorage: { hasAuth: () => false },
+		authStorage: { keys: { source: () => undefined } },
 	} as unknown as ModelRegistry;
 	const ui = { requestRender: vi.fn(), terminal: { rows: 40 } } as unknown as TUI;
-	const hub = new ModelHubComponent(ui, Settings.isolated({}), modelRegistry, [], {
+	const hub = new ModelHubComponent(ui, createModelBrowserSource(Settings.isolated({})), modelRegistry, [], {
 		onAssign: () => {},
 		onUnassign: () => {},
 		onCancel: () => {},
 	});
-	await sleep(0);
+	await Bun.sleep(0);
 	installTestTheme();
 	// Scope-hop is the default arrow mode: one Down moves All models → the
 	// sole provider entry (separators are skipped).
 	hub.handleInput("\x1b[B");
-	await sleep(0);
+	await Bun.sleep(0);
 	return hub;
 }
 
@@ -67,7 +67,7 @@ describe("issue #970 custom provider discovery", () => {
 	});
 
 	beforeEach(async () => {
-		tempDir = path.join(os.tmpdir(), `chud-test-issue-970-${Snowflake.next()}`);
+		tempDir = path.join(os.tmpdir(), `pi-test-issue-970-${Snowflake.next()}`);
 		fs.mkdirSync(tempDir, { recursive: true });
 		modelsPath = path.join(tempDir, "models.yml");
 		authStorage = await AuthStorage.create(path.join(tempDir, "auth.db"));
@@ -291,7 +291,7 @@ describe("issue #970 custom provider discovery", () => {
 			["providers:", "  vllm:", "    baseUrl: http://192.168.5.3:8085/v1", "    auth: none"].join("\n"),
 		);
 
-		await authStorage.set("vllm", { type: "api_key", key: "vllm-local" });
+		await authStorage.credentials.set("vllm", { type: "api_key", key: "vllm-local" });
 
 		const fetchMock: (input: string | URL | Request, init?: RequestInit) => Promise<Response> = async (
 			input,

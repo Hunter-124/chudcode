@@ -2,15 +2,15 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "bun:test";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
-import { resetSettingsForTest, Settings } from "@chudware/coding-agent/config/settings";
-import { getProjectAgentDir, removeSyncWithRetries, Snowflake } from "@chudware/utils";
-import * as fsx from "@chudware/utils/fsx";
+import { resetSettingsForTest, Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
+import { AgentStorage } from "@oh-my-pi/pi-coding-agent/session/agent-storage";
+import { CONFIG_DIR_NAME, getProjectAgentDir, removeSyncWithRetries, Snowflake } from "@oh-my-pi/pi-utils";
 import { YAML } from "bun";
 import { beginSettingsTest, restoreSettingsTestState, type SettingsTestState } from "./helpers/settings-test-state";
 
-it("defaults model role storage to global", () => {
-	expect(Settings.isolated({}).get("modelRoleStorage")).toBe("global");
-});
+import { cfgCompactionEnabled } from "@oh-my-pi/pi-coding-agent/session/context-settings";
+import { cfgEnabledModels, cfgModelRoleStorage } from "@oh-my-pi/pi-coding-agent/config/model-settings";
+
 it("applies project role mutations over active runtime overrides", () => {
 	const settings = Settings.isolated({});
 	settings.overrideModelRoles({ smol: "anthropic/runtime" });
@@ -121,14 +121,14 @@ describe("Settings.reloadForCwd", () => {
 
 		await settings.reloadForCwd(projectA);
 		expect(settings.getCwd()).toBe(path.normalize(projectA));
-		expect(settings.get("enabledModels")).toEqual(["model-a"]);
-		expect(settings.get("compaction.enabled")).toBe(false);
+		expect(cfgEnabledModels.get(settings)).toEqual(["model-a"]);
+		expect(cfgCompactionEnabled.get(settings)).toBe(false);
 
 		await settings.reloadForCwd(projectB);
 		expect(settings.getCwd()).toBe(path.normalize(projectB));
-		expect(settings.get("enabledModels")).toEqual(["model-b"]);
+		expect(cfgEnabledModels.get(settings)).toEqual(["model-b"]);
 		// Non-scoped override is preserved across the switch.
-		expect(settings.get("compaction.enabled")).toBe(false);
+		expect(cfgCompactionEnabled.get(settings)).toBe(false);
 	});
 
 	it("is a no-op when the target directory is already the active scope", async () => {
@@ -138,10 +138,10 @@ describe("Settings.reloadForCwd", () => {
 		});
 
 		await settings.reloadForCwd(projectA);
-		expect(settings.get("enabledModels")).toEqual(["model-a"]);
+		expect(cfgEnabledModels.get(settings)).toEqual(["model-a"]);
 		await settings.reloadForCwd(projectA);
 		expect(settings.getCwd()).toBe(path.normalize(projectA));
-		expect(settings.get("enabledModels")).toEqual(["model-a"]);
+		expect(cfgEnabledModels.get(settings)).toEqual(["model-a"]);
 	});
 
 	it("loads extra config overlays after project settings", async () => {
@@ -159,10 +159,10 @@ describe("Settings.reloadForCwd", () => {
 			fs.writeFileSync(overlayPath, "compaction:\n  enabled: false\n");
 
 			const settings = await Settings.init({ cwd: projectDir, inMemory: true, configFiles: [overlayPath] });
-			expect(settings.get("compaction.enabled")).toBe(false);
+			expect(cfgCompactionEnabled.get(settings)).toBe(false);
 
-			settings.override("compaction.enabled", true);
-			expect(settings.get("compaction.enabled")).toBe(true);
+			cfgCompactionEnabled.override(settings, true);
+			expect(cfgCompactionEnabled.get(settings)).toBe(true);
 		} finally {
 			resetSettingsForTest();
 			if (fs.existsSync(testDir)) removeSyncWithRetries(testDir);
@@ -229,6 +229,8 @@ describe("Settings.reloadForCwd", () => {
 
 		afterEach(() => {
 			resetSettingsForTest();
+			// Persisted instances open agent.db under testDir; close it before the directory goes away.
+			AgentStorage.close();
 			if (fs.existsSync(testDir)) {
 				removeSyncWithRetries(testDir);
 			}
@@ -237,16 +239,16 @@ describe("Settings.reloadForCwd", () => {
 		it("loads and drops project settings as the working directory changes", async () => {
 			const settings = await Settings.init({ cwd: startDir, agentDir });
 			// No project file under startDir → schema default.
-			expect(settings.get("compaction.enabled")).toBe(true);
+			expect(cfgCompactionEnabled.get(settings)).toBe(true);
 
 			await settings.reloadForCwd(scopedProject);
 			expect(settings.getCwd()).toBe(path.normalize(scopedProject));
-			expect(settings.get("compaction.enabled")).toBe(false);
+			expect(cfgCompactionEnabled.get(settings)).toBe(false);
 
 			// Moving to a project without settings drops the previous project's config.
 			await settings.reloadForCwd(bareProject);
 			expect(settings.getCwd()).toBe(path.normalize(bareProject));
-			expect(settings.get("compaction.enabled")).toBe(true);
+			expect(cfgCompactionEnabled.get(settings)).toBe(true);
 		});
 		it("keeps failed project writes bound to their original cwd", async () => {
 			const settings = await Settings.init({ cwd: startDir, agentDir });
@@ -256,35 +258,35 @@ describe("Settings.reloadForCwd", () => {
 			try {
 				await expect(settings.reloadForCwd(bareProject)).rejects.toThrow("simulated save failure");
 				expect(settings.getCwd()).toBe(path.normalize(startDir));
-				expect(await fsx.exists(path.join(bareProject, ".chudcode", "config.yml"))).toBe(false);
+				expect(await Bun.file(path.join(bareProject, CONFIG_DIR_NAME, "config.yml")).exists()).toBe(false);
 			} finally {
 				mkdirSpy.mockRestore();
 			}
 
 			await settings.flush();
-			expect(YAML.parse(await fsx.readText(path.join(startDir, ".chudcode", "config.yml")))).toEqual({
+			expect(YAML.parse(await Bun.file(path.join(startDir, CONFIG_DIR_NAME, "config.yml")).text())).toEqual({
 				modelRoles: { default: "anthropic/project" },
 			});
 		});
 
 		it("writes project model roles only to the project YAML", async () => {
 			const settings = await Settings.init({ cwd: startDir, agentDir });
-			const projectConfigPath = path.join(startDir, ".chudcode", "config.yml");
+			const projectConfigPath = path.join(startDir, CONFIG_DIR_NAME, "config.yml");
 			const globalConfigPath = path.join(agentDir, "config.yml");
 
 			settings.setProjectModelRole("default", "anthropic/claude-sonnet-4-5");
 			await settings.flush();
 
-			expect(YAML.parse(await fsx.readText(projectConfigPath))).toEqual({
+			expect(YAML.parse(await Bun.file(projectConfigPath).text())).toEqual({
 				modelRoles: { default: "anthropic/claude-sonnet-4-5" },
 			});
-			expect(await fsx.exists(globalConfigPath)).toBe(false);
+			expect(await Bun.file(globalConfigPath).exists()).toBe(false);
 			const reloaded = await Settings.loadIsolated({ cwd: startDir, agentDir });
 			expect(reloaded.getProjectModelRole("default")).toBe("anthropic/claude-sonnet-4-5");
 		});
 		it("does not copy unedited roles from other project settings providers", async () => {
-			await fsx.write(
-				path.join(scopedProject, ".chudcode", "settings.json"),
+			await Bun.write(
+				path.join(scopedProject, CONFIG_DIR_NAME, "settings.json"),
 				JSON.stringify({ modelRoles: { default: "anthropic/external" } }),
 			);
 			const settings = await Settings.init({ cwd: scopedProject, agentDir });
@@ -292,22 +294,22 @@ describe("Settings.reloadForCwd", () => {
 			settings.setProjectModelRole("smol", "anthropic/project-smol");
 			await settings.flush();
 
-			expect(YAML.parse(await fsx.readText(path.join(scopedProject, ".chudcode", "config.yml")))).toEqual({
+			expect(YAML.parse(await Bun.file(path.join(scopedProject, CONFIG_DIR_NAME, "config.yml")).text())).toEqual({
 				modelRoles: { smol: "anthropic/project-smol" },
 			});
 			expect(settings.getProjectModelRole("default")).toBe("anthropic/external");
 		});
 
 		it("reapplies only native model roles over normal project-provider precedence", async () => {
-			await fsx.write(
+			await Bun.write(
 				path.join(scopedProject, ".claude", "settings.json"),
 				JSON.stringify({
 					compaction: { enabled: true },
 					modelRoles: { default: "anthropic/claude" },
 				}),
 			);
-			await fsx.write(
-				path.join(scopedProject, ".chudcode", "config.yml"),
+			await Bun.write(
+				path.join(scopedProject, CONFIG_DIR_NAME, "config.yml"),
 				"compaction:\n  enabled: false\nmodelRoles:\n  default: anthropic/native\n",
 			);
 
@@ -315,7 +317,7 @@ describe("Settings.reloadForCwd", () => {
 
 			expect(settings.getModelRole("default")).toBe("anthropic/native");
 			expect(settings.getProjectModelRole("default")).toBe("anthropic/native");
-			expect(settings.get("compaction.enabled")).toBe(true);
+			expect(cfgCompactionEnabled.get(settings)).toBe(true);
 		});
 
 		it("merges concurrent role writes under the project file lock", async () => {
@@ -326,7 +328,7 @@ describe("Settings.reloadForCwd", () => {
 
 			await Promise.all([first.flush(), second.flush()]);
 
-			expect(YAML.parse(await fsx.readText(path.join(startDir, ".chudcode", "config.yml")))).toEqual({
+			expect(YAML.parse(await Bun.file(path.join(startDir, CONFIG_DIR_NAME, "config.yml")).text())).toEqual({
 				modelRoles: {
 					default: "anthropic/default",
 					smol: "anthropic/smol",
@@ -335,9 +337,9 @@ describe("Settings.reloadForCwd", () => {
 		});
 
 		it("reports project roles over global role fallbacks", async () => {
-			await fsx.write(path.join(agentDir, "config.yml"), "modelRoles:\n  default: anthropic/global\n");
-			await fsx.write(
-				path.join(scopedProject, ".chudcode", "config.yml"),
+			await Bun.write(path.join(agentDir, "config.yml"), "modelRoles:\n  default: anthropic/global\n");
+			await Bun.write(
+				path.join(scopedProject, CONFIG_DIR_NAME, "config.yml"),
 				"modelRoles:\n  default: anthropic/project\n",
 			);
 
@@ -350,9 +352,9 @@ describe("Settings.reloadForCwd", () => {
 		});
 
 		it("falls back to the global role after reloading a project without config", async () => {
-			await fsx.write(path.join(agentDir, "config.yml"), "modelRoles:\n  default: anthropic/global\n");
-			await fsx.write(
-				path.join(scopedProject, ".chudcode", "config.yml"),
+			await Bun.write(path.join(agentDir, "config.yml"), "modelRoles:\n  default: anthropic/global\n");
+			await Bun.write(
+				path.join(scopedProject, CONFIG_DIR_NAME, "config.yml"),
 				"modelRoles:\n  default: anthropic/project\n",
 			);
 			const settings = await Settings.init({ cwd: scopedProject, agentDir });
@@ -365,9 +367,9 @@ describe("Settings.reloadForCwd", () => {
 			expect(settings.getModelRoleSource("default")).toBe("global");
 		});
 		it("keeps JSON-backed project roles cleared across later assignments and reload", async () => {
-			await fsx.write(path.join(agentDir, "config.yml"), "modelRoles:\n  default: anthropic/global\n");
-			await fsx.write(
-				path.join(scopedProject, ".chudcode", "settings.json"),
+			await Bun.write(path.join(agentDir, "config.yml"), "modelRoles:\n  default: anthropic/global\n");
+			await Bun.write(
+				path.join(scopedProject, CONFIG_DIR_NAME, "settings.json"),
 				JSON.stringify({ modelRoles: { default: "anthropic/project" } }),
 			);
 			const settings = await Settings.init({ cwd: scopedProject, agentDir });
@@ -378,7 +380,7 @@ describe("Settings.reloadForCwd", () => {
 			await settings.flush();
 
 			expect(settings.getModelRole("default")).toBe("anthropic/global");
-			expect(YAML.parse(await fsx.readText(path.join(scopedProject, ".chudcode", "config.yml")))).toEqual({
+			expect(YAML.parse(await Bun.file(path.join(scopedProject, CONFIG_DIR_NAME, "config.yml")).text())).toEqual({
 				modelRoles: { default: null, smol: "anthropic/project-smol" },
 			});
 			const reloaded = await Settings.loadIsolated({ cwd: scopedProject, agentDir });
@@ -447,7 +449,7 @@ describe("Settings.reloadForCwd", () => {
 		});
 		it("keeps project override effective when editing the shadowed global fallback in project mode", async () => {
 			const settings = await Settings.init({ cwd: startDir, agentDir });
-			settings.override("modelRoleStorage", "project");
+			cfgModelRoleStorage.override(settings, "project");
 			settings.overrideModelRoles({ smol: "anthropic/runtime" });
 			expect(settings.getModelRole("smol")).toBe("anthropic/runtime");
 
@@ -485,7 +487,7 @@ describe("Settings.reloadForCwd", () => {
 		});
 		it("cloneForCwd restores original runtime override after project edit and global fallback edit", async () => {
 			const settings = await Settings.loadIsolated({ cwd: startDir, agentDir });
-			settings.override("modelRoleStorage", "project");
+			cfgModelRoleStorage.override(settings, "project");
 			settings.overrideModelRoles({ smol: "anthropic/runtime" });
 			settings.setProjectModelRole("smol", "anthropic/project");
 			settings.setModelRole("smol", "anthropic/global");
@@ -497,7 +499,7 @@ describe("Settings.reloadForCwd", () => {
 		});
 		it("updates runtime override after project clear and late runtime override on global edit", async () => {
 			const settings = await Settings.init({ cwd: startDir, agentDir });
-			settings.override("modelRoleStorage", "project");
+			cfgModelRoleStorage.override(settings, "project");
 			settings.overrideModelRoles({ smol: "anthropic/runtime" });
 			settings.setProjectModelRole("smol", "anthropic/project");
 			expect(settings.getModelRole("smol")).toBe("anthropic/project");
@@ -530,7 +532,7 @@ describe("Settings.reloadForCwd", () => {
 
 			// Switch to project storage — no project edit has captured anything,
 			// so a global edit must still update the runtime override.
-			settings.override("modelRoleStorage", "project");
+			cfgModelRoleStorage.override(settings, "project");
 			settings.setModelRole("smol", "anthropic/global-2");
 			expect(settings.getModelRole("smol")).toBe("anthropic/global-2");
 			expect(settings.getGlobalModelRole("smol")).toBe("anthropic/global-2");
@@ -635,7 +637,7 @@ describe("Settings.reloadForCwd", () => {
 		});
 		it("preserves global supersession of a cleared project role on reloadForCwd", async () => {
 			const settings = await Settings.init({ cwd: startDir, agentDir });
-			settings.override("modelRoleStorage", "project");
+			cfgModelRoleStorage.override(settings, "project");
 			settings.overrideModelRoles({ smol: "anthropic/runtime" });
 			settings.setProjectModelRole("smol", "anthropic/project");
 			settings.clearProjectModelRole("smol");
@@ -650,7 +652,7 @@ describe("Settings.reloadForCwd", () => {
 		});
 		it("preserves global supersession of a cleared project role on cloneForCwd", async () => {
 			const settings = await Settings.loadIsolated({ cwd: startDir, agentDir });
-			settings.override("modelRoleStorage", "project");
+			cfgModelRoleStorage.override(settings, "project");
 			settings.overrideModelRoles({ smol: "anthropic/runtime" });
 			settings.setProjectModelRole("smol", "anthropic/project");
 			settings.clearProjectModelRole("smol");

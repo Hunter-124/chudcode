@@ -46,10 +46,7 @@ describe("DesktopSession", () => {
 			expect(typeof capabilities.input).toBe("boolean");
 			expect(typeof capabilities.ax).toBe("boolean");
 			expect(typeof capabilities.backgroundWindowInput).toBe("boolean");
-			expect(Array.isArray(capabilities.deliveryModes)).toBe(true);
-			for (const mode of capabilities.deliveryModes) {
-				expect(typeof mode).toBe("string");
-			}
+			expect(typeof capabilities.takeover).toBe("boolean");
 			expect(PERMISSION_STATES).toContain(capabilities.capturePermission);
 			expect(PERMISSION_STATES).toContain(capabilities.inputPermission);
 			expect(PERMISSION_STATES).toContain(capabilities.axPermission);
@@ -78,25 +75,6 @@ describe("DesktopSession", () => {
 				() => session.click("desktop", 1, 1),
 				["InvalidCoordinateFrame", "PermissionDenied"],
 			);
-		} finally {
-			await session.close();
-		}
-	});
-
-	it("rejects input amplification before dispatching backend work", async () => {
-		const session = new DesktopSession({ display: "all" });
-		try {
-			await expectRejectionCode(() => session.click("desktop", 1, 1, { count: 17 }), ["InputFailed"]);
-			await expectRejectionCode(() => session.scroll("desktop", 1, 1, Number.POSITIVE_INFINITY, 0), ["InputFailed"]);
-			await expectRejectionCode(
-				() =>
-					session.drag(
-						"desktop",
-						Array.from({ length: 1_025 }, () => ({ x: 1, y: 1 })),
-					),
-				["InputFailed"],
-			);
-			await expectRejectionCode(() => session.typeText("desktop", "x".repeat(16_385)), ["InputFailed"]);
 		} finally {
 			await session.close();
 		}

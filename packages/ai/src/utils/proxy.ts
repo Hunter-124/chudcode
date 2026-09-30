@@ -1,6 +1,6 @@
 import * as net from "node:net";
 import * as tls from "node:tls";
-import * as logger from "@chudware/utils/logger";
+import * as logger from "@oh-my-pi/pi-utils/logger";
 import { AbortError } from "../error/abort";
 import { StreamTimeoutError, ValidationError } from "../error/validation";
 import type { FetchImpl } from "../types";
@@ -65,7 +65,7 @@ export function shouldBypassProxy(urlObj: URL): boolean {
 		return true;
 	}
 
-	const noProxyVal = process.env.NO_PROXY || process.env.no_proxy;
+	const noProxyVal = Bun.env.NO_PROXY || Bun.env.no_proxy;
 	if (!noProxyVal) {
 		return false;
 	}
@@ -127,8 +127,8 @@ export function __resetProxyCache(): void {
 }
 
 /**
- * Normalizes provider id (e.g. github-copilot -> CHUDCODE_PROXY_GITHUB_COPILOT) and looks it up.
- * If not found, falls back to CHUDCODE_PROXY. Results are memoized because env values are static
+ * Normalizes provider id (e.g. github-copilot -> PI_PROXY_GITHUB_COPILOT) and looks it up.
+ * If not found, falls back to PI_PROXY. Results are memoized because env values are static
  * for the lifetime of the process and this function is called for every outgoing request.
  */
 export function getProxyForProvider(provider: string): string | undefined {
@@ -137,15 +137,15 @@ export function getProxyForProvider(provider: string): string | undefined {
 	}
 
 	const normalized = provider.toUpperCase().replace(/[^A-Z0-9]/g, "_");
-	const envKey = `CHUDCODE_PROXY_${normalized}`;
-	const value = process.env[envKey] || process.env.CHUDCODE_PROXY;
+	const envKey = `PI_PROXY_${normalized}`;
+	const value = Bun.env[envKey] || Bun.env.PI_PROXY;
 	proxyCache.set(provider, value);
 	// Once per provider per process: a silently unproxied provider request is
 	// otherwise indistinguishable from a proxied one until the region block
 	// answers 403.
 	logger.debug("provider proxy resolved", {
 		provider,
-		source: process.env[envKey] ? envKey : value ? "CHUDCODE_PROXY" : "none",
+		source: Bun.env[envKey] ? envKey : value ? "PI_PROXY" : "none",
 		proxy: value ? proxyLogTarget(value) : undefined,
 	});
 	return value;
@@ -156,49 +156,55 @@ export function getProxyForUrl(provider: string, url: URL): string | undefined {
 	if (shouldBypassProxy(url)) return undefined;
 	const protocolProxy =
 		url.protocol === "https:" || url.protocol === "wss:"
-			? process.env.HTTPS_PROXY || process.env.https_proxy
-			: process.env.HTTP_PROXY || process.env.http_proxy;
-	return getProxyForProvider(provider) || protocolProxy || process.env.ALL_PROXY || process.env.all_proxy || undefined;
+			? Bun.env.HTTPS_PROXY || Bun.env.https_proxy
+			: Bun.env.HTTP_PROXY || Bun.env.http_proxy;
+	return getProxyForProvider(provider) || protocolProxy || Bun.env.ALL_PROXY || Bun.env.all_proxy || undefined;
 }
 
 /**
- * Wraps `fetchImpl` so non-local requests tunnel through `proxyUrl`.
- * A caller-supplied `init.proxy` always wins, so stacked wrappers keep the
- * innermost (most specific) proxy decision.
+ * Return `init` with `proxy: proxyUrl` set when the request should tunnel.
+ * A caller-supplied `init.proxy` always wins (the innermost, most specific
+ * decision); Unix sockets, local/metadata hosts, NO_PROXY matches, and
+ * unparseable URLs pass through unchanged.
  */
+export function withProxyInit(
+	input: string | URL | Request,
+	init: RequestInit | undefined,
+	proxyUrl: string,
+): RequestInit | undefined {
+	if (init && (("unix" in init && init.unix) || ("proxy" in init && init.proxy))) return init;
+	const urlStr = input instanceof Request ? input.url : input.toString();
+	let urlObj: URL;
+	try {
+		urlObj = new URL(urlStr);
+	} catch {
+		return init;
+	}
+
+	if (shouldBypassProxy(urlObj)) {
+		// A NO_PROXY rule silencing a configured proxy is otherwise invisible
+		// until the unproxied egress is refused; local hosts are routine.
+		if (!isLocalOrMetadataHost(urlObj.hostname)) {
+			logger.debug("proxy bypassed by NO_PROXY", {
+				host: urlObj.host,
+				noProxy: Bun.env.NO_PROXY || Bun.env.no_proxy,
+			});
+		}
+		return init;
+	}
+
+	const proxied: RequestInit & { proxy: string } = { ...init, proxy: proxyUrl };
+	return proxied;
+}
+
+/** Wraps `fetchImpl` so non-local requests tunnel through `proxyUrl`; see {@link withProxyInit}. */
 function wrapFetchWithProxyUrl(fetchImpl: FetchImpl, proxyUrl: string | undefined): FetchImpl {
 	if (!proxyUrl) {
 		return fetchImpl;
 	}
 
-	const wrapped = async (input: string | URL | Request, init?: RequestInit): Promise<Response> => {
-		if ((init as { proxy?: unknown } | undefined)?.proxy) {
-			return fetchImpl(input, init);
-		}
-		const urlStr = input instanceof Request ? input.url : input.toString();
-		let urlObj: URL;
-		try {
-			urlObj = new URL(urlStr);
-		} catch {
-			// Fallback to calling fetch unmodified if URL is unparseable
-			return fetchImpl(input, init);
-		}
-
-		if (shouldBypassProxy(urlObj)) {
-			// A NO_PROXY rule silencing a configured proxy is otherwise invisible
-			// until the unproxied egress is refused; local hosts are routine.
-			if (!isLocalOrMetadataHost(urlObj.hostname)) {
-				logger.debug("proxy bypassed by NO_PROXY", {
-					host: urlObj.host,
-					noProxy: process.env.NO_PROXY || process.env.no_proxy,
-				});
-			}
-			return fetchImpl(input, init);
-		}
-
-		const mergedInit = { ...(init ?? {}), proxy: proxyUrl };
-		return fetchImpl(input, mergedInit);
-	};
+	const wrapped = (input: string | URL | Request, init?: RequestInit): Promise<Response> =>
+		fetchImpl(input, withProxyInit(input, init, proxyUrl));
 
 	if (fetchImpl.preconnect) {
 		wrapped.preconnect = fetchImpl.preconnect;
@@ -221,39 +227,37 @@ export function __resetGlobalProxyFetch(): void {
 }
 
 /**
- * Routes the process-wide `globalThis.fetch` through `CHUDCODE_PROXY`.
+ * Routes the process-wide `globalThis.fetch` through `PI_PROXY`.
  *
  * Bun's native fetch resolves `HTTPS_PROXY` / `HTTP_PROXY` / `ALL_PROXY` by
- * itself but knows nothing about `CHUDCODE_PROXY`. Provider *streams* get their proxy
+ * itself but knows nothing about `PI_PROXY`. Provider *streams* get their proxy
  * from {@link wrapFetchForProxy}; every other provider-bound request — OAuth
  * token refresh and login, usage probes, model discovery — goes out through the
- * bare global `fetch` and would silently ignore `CHUDCODE_PROXY`. That asymmetry is
+ * bare global `fetch` and would silently ignore `PI_PROXY`. That asymmetry is
  * fatal wherever a provider geo-blocks its token endpoint: the stream is
  * proxied, the refresh is not, and the credential dies with a 403.
  *
- * A per-request `proxy` (including `CHUDCODE_PROXY_<PROVIDER>` injected by
+ * A per-request `proxy` (including `PI_PROXY_<PROVIDER>` injected by
  * {@link wrapFetchForProxy}) still wins, and loopback / private-range /
  * `NO_PROXY` targets bypass, so local model servers and MCP hosts are
- * untouched. Idempotent; a no-op when `CHUDCODE_PROXY` is unset.
+ * untouched. Idempotent; a no-op when `PI_PROXY` is unset.
  */
 export function installGlobalProxyFetch(): void {
 	if (globalProxyFetchInstalled) return;
-	const proxyUrl = process.env.CHUDCODE_PROXY?.trim();
+	const proxyUrl = Bun.env.PI_PROXY?.trim();
 	// One line naming every proxy-relevant variable this process can see: a
-	// missing CHUDCODE_PROXY and a NO_PROXY rule that silences it are otherwise
+	// missing PI_PROXY and a NO_PROXY rule that silences it are otherwise
 	// indistinguishable from a working proxy that the peer rejected.
 	const env = {
-		CHUDCODE_PROXY: proxyUrl ? proxyLogTarget(proxyUrl) : undefined,
-		CHUDCODE_PROXY_ANTHROPIC: process.env.CHUDCODE_PROXY_ANTHROPIC
-			? proxyLogTarget(process.env.CHUDCODE_PROXY_ANTHROPIC)
-			: undefined,
-		HTTPS_PROXY: process.env.HTTPS_PROXY || process.env.https_proxy ? "set" : undefined,
-		ALL_PROXY: process.env.ALL_PROXY || process.env.all_proxy ? "set" : undefined,
-		NO_PROXY: process.env.NO_PROXY || process.env.no_proxy,
+		PI_PROXY: proxyUrl ? proxyLogTarget(proxyUrl) : undefined,
+		PI_PROXY_ANTHROPIC: Bun.env.PI_PROXY_ANTHROPIC ? proxyLogTarget(Bun.env.PI_PROXY_ANTHROPIC) : undefined,
+		HTTPS_PROXY: Bun.env.HTTPS_PROXY || Bun.env.https_proxy ? "set" : undefined,
+		ALL_PROXY: Bun.env.ALL_PROXY || Bun.env.all_proxy ? "set" : undefined,
+		NO_PROXY: Bun.env.NO_PROXY || Bun.env.no_proxy,
 	};
 	if (!proxyUrl) {
 		logger.debug("global proxy fetch not installed", {
-			reason: "CHUDCODE_PROXY unset",
+			reason: "PI_PROXY unset",
 			env,
 		});
 		return;
@@ -301,7 +305,6 @@ export async function connectProxiedSocket(
 	const { promise, resolve, reject } = Promise.withResolvers<tls.TLSSocket>();
 
 	const readyEvent = useProxySsl ? "secureConnect" : "connect";
-	let rawSocket: net.Socket | undefined;
 	let tunnelSocket: tls.TLSSocket | undefined;
 	let timeout: NodeJS.Timeout | undefined;
 	let responseData = "";
@@ -377,14 +380,15 @@ export async function connectProxiedSocket(
 		}
 
 		const tlsOptions = options?.tls;
-		tunnelSocket = tls.connect({
+		const newTunnelSocket: tls.TLSSocket = tls.connect({
 			...tlsOptions,
 			socket: rawSocket,
 			servername: tlsOptions?.servername ?? targetHost,
 			ALPNProtocols: tlsOptions?.ALPNProtocols ?? ["h2"],
 		});
-		tunnelSocket.once("secureConnect", onTunnelReady);
-		tunnelSocket.once("error", onTunnelError);
+		tunnelSocket = newTunnelSocket;
+		newTunnelSocket.once("secureConnect", onTunnelReady);
+		newTunnelSocket.once("error", onTunnelError);
 	};
 	const onProxyReady = (): void => {
 		if (!rawSocket) return;
@@ -416,7 +420,7 @@ export async function connectProxiedSocket(
 		timeout.unref?.();
 	}
 
-	rawSocket = useProxySsl
+	const rawSocket = useProxySsl
 		? tls.connect({
 				host: proxyHost,
 				port: proxyPort,

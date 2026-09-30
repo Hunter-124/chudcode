@@ -2,8 +2,8 @@ import { afterAll, describe, expect, it } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import { loadLegacyPiModule } from "@chudware/coding-agent/extensibility/plugins/legacy-pi-compat";
-import { removeWithRetries } from "@chudware/utils";
+import { loadLegacyPiModule } from "@oh-my-pi/pi-coding-agent/extensibility/plugins/legacy-pi-compat";
+import { removeWithRetries } from "@oh-my-pi/pi-utils";
 
 const tempRoots: string[] = [];
 
@@ -14,7 +14,7 @@ afterAll(async () => {
 });
 
 async function writePackage(files: Record<string, string>): Promise<string> {
-	const dir = await fs.mkdtemp(path.join(os.tmpdir(), "chudcode-cjs-classification-"));
+	const dir = await fs.mkdtemp(path.join(os.tmpdir(), "omp-cjs-classification-"));
 	tempRoots.push(dir);
 	for (const rel in files) {
 		const abs = path.join(dir, rel);
@@ -124,23 +124,5 @@ describe("isCommonJsModulePath CJS classification (inheritedKind override fix)",
 		const mod = (await loadLegacyPiModule(path.join(dir, "consumer.mjs"))) as { result: string };
 		expect(mod.result).toBe("module.exports");
 		Reflect.deleteProperty(globalThis, "__ompLegacyPiAmbiguousValue");
-	});
-
-	it("detects CJS patterns outside comments", async () => {
-		// A file with CJS patterns in actual code should be classified as CJS
-		const dir = await writePackage({
-			"package.json": JSON.stringify({ name: "cjs-real-code", version: "1.0.0" }),
-			"dep.js": [
-				"// This is just a comment",
-				"const value = require('./value.js');",
-				"module.exports = { value };",
-			].join("\n"),
-			"value.js": ["module.exports = 99;"].join("\n"),
-			"index.mjs": ["import dep from './dep.js';", "export const result = dep.value;"].join("\n"),
-		});
-
-		const entry = path.join(dir, "index.mjs");
-		const mod = (await loadLegacyPiModule(entry)) as { result: number };
-		expect(mod.result).toBe(99);
 	});
 });

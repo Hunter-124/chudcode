@@ -5,7 +5,7 @@ import {
 	type TerminalFrameProvider,
 	TUI,
 	type ViewportSize,
-} from "@chudware/tui";
+} from "@oh-my-pi/pi-tui";
 import { VirtualTerminal } from "./virtual-terminal";
 
 // Regression coverage for tmux pane zoom corrupting scrollback (duplication and
@@ -90,10 +90,17 @@ const MUX_SIGNALS = [
 	"STY",
 	"ZELLIJ",
 	"HERDR_ENV",
+	"HERDR_PANE_ID",
+	"HERDR_TAB_ID",
+	"HERDR_WORKSPACE_ID",
 	"CMUX_WORKSPACE_ID",
 	"CMUX_SURFACE_ID",
 	"CMUX_REMOTE_TRANSPORT",
+	"WMUX",
+	"WMUX_SURFACE_ID",
 	"TERM",
+	"TERM_PROGRAM",
+	"PI_TUI_RESIZE_IN_PLACE",
 ] as const;
 
 function useDirectTerminalEnv() {
@@ -101,15 +108,15 @@ function useDirectTerminalEnv() {
 	beforeEach(() => {
 		saved = {};
 		for (const key of MUX_SIGNALS) {
-			saved[key] = process.env[key];
-			delete process.env[key];
+			saved[key] = Bun.env[key];
+			delete Bun.env[key];
 		}
-		process.env.TERM = "xterm-256color";
+		Bun.env.TERM = "xterm-256color";
 	});
 	afterEach(() => {
 		for (const key of MUX_SIGNALS) {
-			if (saved[key] === undefined) delete process.env[key];
-			else process.env[key] = saved[key];
+			if (saved[key] === undefined) delete Bun.env[key];
+			else Bun.env[key] = saved[key];
 		}
 	});
 }
@@ -118,12 +125,12 @@ describe("resize anchoring inside a terminal multiplexer", () => {
 	let previousTmux: string | undefined;
 
 	beforeEach(() => {
-		previousTmux = process.env.TMUX;
-		process.env.TMUX = "/tmp/tmux-1000/default,1,0";
+		previousTmux = Bun.env.TMUX;
+		Bun.env.TMUX = "/tmp/tmux-1000/default,1,0";
 	});
 	afterEach(() => {
-		if (previousTmux === undefined) delete process.env.TMUX;
-		else process.env.TMUX = previousTmux;
+		if (previousTmux === undefined) delete Bun.env.TMUX;
+		else Bun.env.TMUX = previousTmux;
 	});
 
 	it("skips the SIGWINCH-side erase so a racing re-layout cannot blank popped scrollback", () => {

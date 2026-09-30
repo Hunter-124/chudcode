@@ -1,24 +1,24 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "bun:test";
 import * as path from "node:path";
-import { Agent } from "@chudware/agent-core";
-import type { Api, AssistantMessage, Model, ThinkingContent } from "@chudware/ai";
-import { type GeneratedProvider, getBundledModel } from "@chudware/catalog/models";
-import { ModelRegistry } from "@chudware/coding-agent/config/model-registry";
-import { Settings } from "@chudware/coding-agent/config/settings";
-import { ExtensionRuntime, loadExtensionFromFactory } from "@chudware/coding-agent/extensibility/extensions/loader";
-import { ExtensionRunner } from "@chudware/coding-agent/extensibility/extensions/runner";
-import { AgentSession } from "@chudware/coding-agent/session/agent-session";
-import type { AuthStorage } from "@chudware/coding-agent/session/auth-storage";
+import { Agent } from "@oh-my-pi/pi-agent-core";
+import type { Api, AssistantMessage, Model, ThinkingContent } from "@oh-my-pi/pi-ai";
+import { type GeneratedProvider, getBundledModel } from "@oh-my-pi/pi-catalog/models";
+import { ModelRegistry } from "@oh-my-pi/pi-coding-agent/config/model-registry";
+import { Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
+import { ExtensionRuntime, loadExtensionFromFactory } from "@oh-my-pi/pi-coding-agent/extensibility/extensions/loader";
+import { ExtensionRunner } from "@oh-my-pi/pi-coding-agent/extensibility/extensions/runner";
+import { AgentSession } from "@oh-my-pi/pi-coding-agent/session/agent-session";
+import type { AuthStorage } from "@oh-my-pi/pi-coding-agent/session/auth-storage";
 import {
 	type CustomMessage,
 	convertToLlm,
 	INTERRUPTED_THINKING_MESSAGE_TYPE,
 	USER_INTERRUPT_LABEL,
-} from "@chudware/coding-agent/session/messages";
-import type { SessionEntry } from "@chudware/coding-agent/session/session-entries";
-import { SessionManager } from "@chudware/coding-agent/session/session-manager";
-import { EventBus } from "@chudware/coding-agent/utils/event-bus";
-import { TempDir } from "@chudware/utils";
+} from "@oh-my-pi/pi-coding-agent/session/messages";
+import type { SessionEntry } from "@oh-my-pi/pi-coding-agent/session/session-entries";
+import { SessionManager } from "@oh-my-pi/pi-coding-agent/session/session-manager";
+import { EventBus } from "@oh-my-pi/pi-coding-agent/utils/event-bus";
+import { TempDir } from "@oh-my-pi/pi-utils";
 import { createInMemoryAuthStorage } from "./helpers/agent-session-setup";
 
 const REASONING_TEXT = "I have partly reasoned through the implementation and should preserve this.";
@@ -56,6 +56,34 @@ function thinkingAssistant(model: Model<Api>, errorMessage: string, reasoning = 
 function textAssistant(model: Model<Api>): AssistantMessage {
 	return { ...baseAssistant(model, [{ type: "text", text: VISIBLE_TEXT }]), errorMessage: USER_INTERRUPT_LABEL };
 }
+
+describe("convertToLlm empty user-interrupted assistant", () => {
+	const interrupted: AssistantMessage = {
+		role: "assistant",
+		content: [],
+		api: "anthropic-messages",
+		provider: "anthropic",
+		model: "claude-fable-5-1",
+		usage: emptyUsage(),
+		stopReason: "aborted",
+		errorMessage: USER_INTERRUPT_LABEL,
+		timestamp: 1,
+	};
+	const requestControls: AssistantMessage["requestControls"] = {
+		messageIndex: 0,
+		tools: { declared: ["read", "grep"], deferred: [], active: ["read"] },
+	};
+
+	it("keeps it with its request controls so the tool control that request sent is replayed", () => {
+		const llm = convertToLlm([{ ...interrupted, requestControls }]);
+		expect(llm).toHaveLength(1);
+		expect(llm[0]?.role === "assistant" && llm[0].requestControls).toEqual(requestControls);
+	});
+
+	it("still drops it when its request declared no controls", () => {
+		expect(convertToLlm([interrupted])).toEqual([]);
+	});
+});
 
 function isAssistantMessage(message: unknown): message is AssistantMessage {
 	return typeof message === "object" && message !== null && "role" in message && message.role === "assistant";
@@ -101,7 +129,7 @@ describe("AgentSession interrupted thinking persistence", () => {
 	beforeEach(() => {
 		tempDir = TempDir.createSync("@pi-interrupted-thinking-");
 		authStorage = createInMemoryAuthStorage();
-		authStorage.setRuntimeApiKey("anthropic", "anthropic-test-key");
+		authStorage.keys.setRuntime("anthropic", "anthropic-test-key");
 	});
 
 	afterEach(async () => {
@@ -221,7 +249,7 @@ describe("AgentSession interrupted thinking persistence", () => {
 
 		const messages = harness.session.agent.state.messages;
 		// Thinking stays on the assistant for display/reload; the provider transform
-		// drops the unsigned run from replay (chud-ai anthropic-prior-turn-thinking suite).
+		// drops the unsigned run from replay (pi-ai anthropic-prior-turn-thinking suite).
 		expect(messages.find(isAssistantMessage)?.content.some(block => block.type === "thinking")).toBe(true);
 		expect(messages.some(isInterruptedThinkingMessage)).toBe(false);
 		expect(
@@ -275,8 +303,8 @@ describe("AgentSession interrupted thinking persistence", () => {
 		const extensionEntered = Promise.withResolvers<void>();
 		const extensionRuntime = new ExtensionRuntime();
 		const extension = await loadExtensionFromFactory(
-			chud => {
-				chud.on("message_end", async () => {
+			pi => {
+				pi.on("message_end", async () => {
 					extensionEntered.resolve();
 					await releaseExtension.promise;
 				});

@@ -1,21 +1,20 @@
 /**
- * Centralized logger for chudcode.
+ * Centralized logger for the agent.
  *
- * Default: rotating `~/.chudcode/logs/chudcode.<DATE>.<PID>.log`, no console output (writing
- * to stdout/stderr would corrupt the TUI). Long-running headless services
- * (the auth broker, etc.) call {@link setTransports} to swap in a console
- * transport so a process supervisor (pm2, journald, k8s) captures the logs.
+ * Default: rotating logs under the configured logs directory, no console output
+ * (writing to stdout/stderr would corrupt the TUI). Long-running headless
+ * services call {@link setTransports} to swap in a console transport.
  *
- * Each entry includes `process.pid` so concurrent chudcode instances stay
- * traceable.
+ * Each entry includes `process.pid` so concurrent instances stay traceable.
  */
 import { AsyncLocalStorage } from "node:async_hooks";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 import { isPromise } from "node:util/types";
-import { getLogsDir } from "./dirs";
+import { APP_NAME, getLogsDir, localDay } from "./dirs";
 import { RotatingFileSink } from "./logger/rotating-file";
+import { setStderrRedirectTarget } from "./stderr-guard";
 import { drainModuleLoadEvents } from "./timing-buffer";
 /** Severity names accepted by the centralized logger. */
 export type LogLevel = "error" | "warn" | "info" | "debug";
@@ -53,8 +52,8 @@ function emitToSinks(level: LogLevel, message: string, context: Record<string, u
 	}
 }
 
-const PROCESS_LOG_PATTERN = /^chudcode\.(\d{4}-\d{2}-\d{2})\.(\d+)\.log(?:\.(\d+))?$/;
-const PROCESS_AUDIT_PATTERN = /^\.chudcode\.(\d+)-audit\.json$/;
+const PROCESS_LOG_PATTERN = new RegExp(`^${APP_NAME}\\.(\\d{4}-\\d{2}-\\d{2})\\.(\\d+)\\.log(?:\\.(\\d+))?$`);
+const PROCESS_AUDIT_PATTERN = new RegExp(`^\\.${APP_NAME}\\.(\\d+)-audit\\.json$`);
 const RETAINED_STALE_LOGS_PER_PROCESS_DAY = 1;
 const RETAINED_STALE_AUDIT_FILES = 0;
 const RETAINED_STALE_LOG_DAYS = 5;
@@ -82,14 +81,10 @@ function pruneStaleProcessLogs(dir: string): void {
 		return;
 	}
 	const current = new Date();
-	const currentDate =
-		`${current.getFullYear()}-${String(current.getMonth() + 1).padStart(2, "0")}-` +
-		String(current.getDate()).padStart(2, "0");
+	const currentDate = localDay(current);
 	const cutoff = new Date(current);
 	cutoff.setDate(cutoff.getDate() - (RETAINED_STALE_LOG_DAYS - 1));
-	const cutoffDate =
-		`${cutoff.getFullYear()}-${String(cutoff.getMonth() + 1).padStart(2, "0")}-` +
-		String(cutoff.getDate()).padStart(2, "0");
+	const cutoffDate = localDay(cutoff);
 
 	const staleLogsByProcessDay = new Map<string, Array<{ path: string; rollover: number }>>();
 	for (const entry of entries) {
@@ -150,6 +145,19 @@ function pruneStaleProcessLogs(dir: string): void {
 			}
 		}
 	}
+}
+
+const scheduledPruneDirs = new Set<string>();
+
+/** Run shared retention only after logger construction has returned to the event loop. */
+function schedulePruneStaleProcessLogs(dir: string): void {
+	if (scheduledPruneDirs.has(dir)) return;
+	scheduledPruneDirs.add(dir);
+	const immediate = setImmediate(() => {
+		scheduledPruneDirs.delete(dir);
+		pruneStaleProcessLogs(dir);
+	});
+	immediate.unref();
 }
 
 /** Ensure a logs directory exists; return the resolved path. */
@@ -237,14 +245,16 @@ function formatLogInfo(info: NormalizedLogInfo): string {
 /** Build a rotating file sink with process-local rotation and shared retention. */
 function makeFileTransport(dir?: string): RotatingFileSink {
 	const logsDir = ensureDir(dir ?? getLogsDir());
-	pruneStaleProcessLogs(logsDir);
+	schedulePruneStaleProcessLogs(logsDir);
 	return new RotatingFileSink({
 		directory: logsDir,
-		filenamePrefix: "chudcode",
+		filenamePrefix: APP_NAME,
 		filenameSuffix: String(process.pid),
 		maxBytes: 10 * 1024 * 1024,
 		maxFiles: 5,
-		auditFile: path.join(logsDir, `.chudcode.${process.pid}-audit.json`),
+		auditFile: path.join(logsDir, `.${APP_NAME}.${process.pid}-audit.json`),
+		// Keep the stderr guard's fd 2 on the file this sink is writing.
+		onRotate: setStderrRedirectTarget,
 	});
 }
 
@@ -276,12 +286,11 @@ function getLocalTransports(): LocalTransports {
 
 function emitLocally(level: LogLevel, message: string, context: Record<string, unknown> | undefined): void {
 	const transports = getLocalTransports();
-	const info = normalizeLogInfo(level, message, context);
 	if (!transports.file && !transports.console) return;
-
+	const info = normalizeLogInfo(level, message, context);
 	const line = formatLogInfo(info);
 	if (transports.file) transports.file.write(line);
-	if (transports.console) fs.writeSync(1, `${formatLogInfo(info)}${os.EOL}`);
+	if (transports.console) fs.writeSync(1, `${line}${os.EOL}`);
 }
 
 /**
@@ -355,15 +364,15 @@ export function debug(message: string, context?: Record<string, unknown>): void 
 }
 
 /**
- * Streaming startup markers, enabled by `CHUDCODE_DEBUG_STARTUP`. Unlike the
- * CHUDCODE_TIMING tree (printed only after startup completes), these write one
+ * Streaming startup markers, enabled by `PI_DEBUG_STARTUP`. Unlike the
+ * PI_TIMING tree (printed only after startup completes), these write one
  * synchronous stderr line as each phase begins/ends, so a hard hang still
  * shows the last phase that started. `fs.writeSync(2)` is used deliberately:
  * it cannot be reordered or buffered past a synchronous block of the event
  * loop (dlopen, sync fs on a dead mount, spawnSync).
  */
 export function startupMarker(text: string): void {
-	if (!process.env.CHUDCODE_DEBUG_STARTUP) return;
+	if (!process.env.PI_DEBUG_STARTUP) return;
 	try {
 		fs.writeSync(2, `[startup] ${text}\n`);
 	} catch {
@@ -393,7 +402,7 @@ let gRootSpan: Span | undefined;
 let gRecordTimings = false;
 
 export function timingModeIncludes(option: "full" | "x"): boolean {
-	const value = process.env.CHUDCODE_TIMING;
+	const value = process.env.PI_TIMING;
 	if (!value) return false;
 	if (value === option) return true;
 	let start = 0;
@@ -632,7 +641,9 @@ function printSpan(span: Span, depth: number, lines: string[]): void {
 	const tag = parallel ? " [parallel]" : "";
 	const self = selfTimeOf(span);
 	const selfStr = span.children.length > 0 && self > LOGGED_TIMING_THRESHOLD_MS ? ` (self ${fmtMs(self)})` : "";
-	lines.push(`${indent}${span.op}: ${fmtMs(dur)}${selfStr}${tag}`);
+	// Start offset from process origin: gaps between consecutive siblings are
+	// the parent's own (unspanned) work, which duration alone cannot locate.
+	lines.push(`${indent}${span.op}: ${fmtMs(dur)}${selfStr}${tag} @${span.start.toFixed(0)}ms`);
 
 	// Split children into work spans and module-load spans for summarization.
 	const work: Span[] = [];
@@ -674,9 +685,7 @@ function printModuleLoadSummary(loads: Span[], depth: number, lines: string[]): 
 		lines.push(`${grandIndent}  ${node.span.op}: body ${fmtMs(node.body)} (total ${fmtMs(durationOf(node.span))})`);
 	}
 	if (!showAll && byBody.length > MODULE_LOAD_VERBOSE_TOP) {
-		lines.push(
-			`${grandIndent}  … ${byBody.length - MODULE_LOAD_VERBOSE_TOP} more (CHUDCODE_TIMING=full to show all)`,
-		);
+		lines.push(`${grandIndent}  … ${byBody.length - MODULE_LOAD_VERBOSE_TOP} more (PI_TIMING=full to show all)`);
 	}
 
 	const roots = nodes.filter(node => node.parents === 0);
@@ -689,7 +698,7 @@ function printModuleLoadSummary(loads: Span[], depth: number, lines: string[]): 
 	}
 	if (!showAll && treeRoots.length > MODULE_TREE_ROOT_TOP) {
 		lines.push(
-			`${grandIndent}  … ${treeRoots.length - MODULE_TREE_ROOT_TOP} more roots (CHUDCODE_TIMING=full to show all)`,
+			`${grandIndent}  … ${treeRoots.length - MODULE_TREE_ROOT_TOP} more roots (PI_TIMING=full to show all)`,
 		);
 	}
 }
@@ -748,7 +757,7 @@ function renderModuleTimingNode(
 	ancestors.add(path);
 	if (!showAll && ancestors.size >= MODULE_TREE_MAX_DEPTH) {
 		if (node.children.length > 0) {
-			lines.push(`${indent}  … ${node.children.length} imports deeper (CHUDCODE_TIMING=full to show all)`);
+			lines.push(`${indent}  … ${node.children.length} imports deeper (PI_TIMING=full to show all)`);
 		}
 		ancestors.delete(path);
 		return;
@@ -759,7 +768,7 @@ function renderModuleTimingNode(
 	}
 	if (!showAll && node.children.length > MODULE_TREE_CHILD_TOP) {
 		lines.push(
-			`${indent}  … ${node.children.length - MODULE_TREE_CHILD_TOP} more imports (CHUDCODE_TIMING=full to show all)`,
+			`${indent}  … ${node.children.length - MODULE_TREE_CHILD_TOP} more imports (PI_TIMING=full to show all)`,
 		);
 	}
 	ancestors.delete(path);
@@ -800,7 +809,7 @@ export function time<T, A extends unknown[]>(op: string, fn?: (...args: A) => T,
 		return undefined as T;
 	}
 
-	if (!recording && !process.env.CHUDCODE_DEBUG_STARTUP) {
+	if (!recording && !process.env.PI_DEBUG_STARTUP) {
 		return fn(...args);
 	}
 

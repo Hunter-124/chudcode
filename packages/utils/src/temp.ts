@@ -2,7 +2,6 @@ import * as fs from "node:fs";
 import * as fsPromises from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import { sleep, sleepSync } from "./async";
 
 export class TempDir {
 	#path: string;
@@ -71,7 +70,7 @@ const kTempDir = os.tmpdir();
 
 function normalizePrefix(prefix?: string): string {
 	if (!prefix) {
-		return `${kTempDir}${path.sep}chud-temp-`;
+		return `${kTempDir}${path.sep}pi-temp-`;
 	} else if (prefix.startsWith("@")) {
 		return path.join(kTempDir, prefix.slice(1));
 	}
@@ -85,6 +84,7 @@ const kRemoveRetries = 40;
 // was too short for some test cleanup scenarios.
 const kRemoveRetryDelayMs = 50;
 const kRetryableRemoveErrorCodes = new Set(["EBUSY", "EPERM", "ENOTEMPTY"]);
+const kSleepBuffer = new Int32Array(new SharedArrayBuffer(4));
 
 /** Removes a path recursively, retrying transient Windows deletion failures. */
 export async function removeWithRetries(target: string): Promise<void> {
@@ -94,7 +94,7 @@ export async function removeWithRetries(target: string): Promise<void> {
 			return;
 		} catch (err) {
 			if (!shouldRetryRemove(err, attempt)) throw err;
-			await sleep(kRemoveRetryDelayMs);
+			await Bun.sleep(kRemoveRetryDelayMs);
 		}
 	}
 }
@@ -123,4 +123,12 @@ function isRetryableRemoveError(err: unknown): boolean {
 		typeof err.code === "string" &&
 		kRetryableRemoveErrorCodes.has(err.code)
 	);
+}
+
+function sleepSync(ms: number): void {
+	if ("sleepSync" in Bun && typeof Bun.sleepSync === "function") {
+		Bun.sleepSync(ms);
+		return;
+	}
+	Atomics.wait(kSleepBuffer, 0, 0, ms);
 }

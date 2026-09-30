@@ -3,7 +3,6 @@ import { mkdir, mkdtemp, rename, rm, symlink, unlink, writeFile } from "node:fs/
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
-import * as fsx from "@chudware/utils/fsx";
 import type { FileChange } from "../src/protocol";
 import { FileWatcher } from "../src/services/file-watcher";
 import { checkIgnoredPaths, WorkspaceSearch } from "../src/services/workspace-search";
@@ -59,7 +58,7 @@ describe("WorkspaceService", () => {
 		}
 		expect(conflict).toBeInstanceOf(WorkspaceServiceError);
 		expect(conflict).toMatchObject({ code: "CONFLICT" });
-		expect(await fsx.readText(path.join(root, "document.txt"))).toBe("external edit");
+		expect(await Bun.file(path.join(root, "document.txt")).text()).toBe("external edit");
 		expect((await Array.fromAsync(new Bun.Glob(".*.chudcode-*.tmp").scan({ cwd: root }))).length).toBe(0);
 	});
 

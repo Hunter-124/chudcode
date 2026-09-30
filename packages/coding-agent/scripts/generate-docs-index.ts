@@ -1,6 +1,5 @@
 import * as path from "node:path";
 import { gunzipSync, gzipSync } from "node:zlib";
-import * as fsx from "@chudware/utils/fsx";
 import { Glob } from "bun";
 
 const packageDir = path.resolve(import.meta.dir, "..");
@@ -21,7 +20,7 @@ function isStringArray(value: unknown): value is string[] {
 	return Array.isArray(value) && value.every(item => typeof item === "string");
 }
 
-/** Build the exact two-line `chudcode://` docs embed from the source `docs` Markdown corpus. */
+/** Build the exact two-line `omp://` docs embed from the source `docs` Markdown corpus. */
 export async function buildDocsIndexPayload(): Promise<DocsIndexPayload> {
 	const glob = new Glob("**/*.md");
 	const files: string[] = [];
@@ -30,7 +29,7 @@ export async function buildDocsIndexPayload(): Promise<DocsIndexPayload> {
 	}
 	files.sort();
 
-	const bodies = await Promise.all(files.map(file => fsx.readText(path.join(docsDir, file))));
+	const bodies = await Promise.all(files.map(file => Bun.file(path.join(docsDir, file)).text()));
 	const bodiesB64 = Buffer.from(gzipSync(Buffer.from(JSON.stringify(bodies)), { level: 9 })).toString("base64");
 	return {
 		files,

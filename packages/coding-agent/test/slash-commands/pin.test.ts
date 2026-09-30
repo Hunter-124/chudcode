@@ -2,21 +2,20 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import type { InteractiveModeContext } from "@chudware/coding-agent/modes/types";
-import { computeDefaultSessionDir } from "@chudware/coding-agent/session/session-paths";
-import { loadPinnedSessionIds } from "@chudware/coding-agent/session/session-pins";
-import { FileSessionStorage } from "@chudware/coding-agent/session/session-storage";
-import { executeBuiltinSlashCommand } from "@chudware/coding-agent/slash-commands/builtin-registry";
-import { getConfigRootDir, setAgentDir } from "@chudware/utils";
-import * as fsx from "@chudware/utils/fsx";
+import type { InteractiveModeContext } from "@oh-my-pi/pi-coding-agent/modes/types";
+import { computeDefaultSessionDir } from "@oh-my-pi/pi-coding-agent/session/session-paths";
+import { loadPinnedSessionIds } from "@oh-my-pi/pi-coding-agent/session/session-pins";
+import { FileSessionStorage } from "@oh-my-pi/pi-coding-agent/session/session-storage";
+import { executeBuiltinSlashCommand } from "@oh-my-pi/pi-coding-agent/slash-commands/builtin-registry";
+import { getConfigRootDir, setAgentDir } from "@oh-my-pi/pi-utils";
 
 let tempDir: string;
-const originalAgentDir = process.env.CHUDCODE_CODING_AGENT_DIR;
+const originalAgentDir = process.env.PI_CODING_AGENT_DIR;
 const fallbackAgentDir = path.join(getConfigRootDir(), "agent");
 const storage = new FileSessionStorage();
 
 beforeEach(async () => {
-	tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "chudcode-pin-command-"));
+	tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "omp-pin-command-"));
 	setAgentDir(path.join(tempDir, "agent"));
 });
 
@@ -35,7 +34,7 @@ async function writeSession(
 	sessionDir = computeDefaultSessionDir(cwd, storage),
 ): Promise<string> {
 	const sessionPath = path.join(sessionDir, `2026-01-01T00-00-00-000Z_${id}.jsonl`);
-	await fsx.write(
+	await Bun.write(
 		sessionPath,
 		`${JSON.stringify({ type: "session", id, timestamp: "2026-01-01T00:00:00.000Z", cwd })}\n`,
 	);

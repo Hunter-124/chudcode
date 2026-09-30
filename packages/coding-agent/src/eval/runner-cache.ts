@@ -9,7 +9,6 @@
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
-import * as fsx from "@chudware/utils/fsx";
 
 // Memoized staged path per cache directory. The value is re-validated on every
 // call: a tmpdir sweep (e.g. macOS `periodic daily clean_tmps`) or any external
@@ -24,7 +23,7 @@ const stagedPaths = new Map<string, string>();
  * instead of handing back a path to a missing file (issue #8140).
  *
  * @param dirName Cache subdirectory under the OS temp dir (unique per language).
- * @param ext Runner file extension without the dot (e.g. `py`, `jl`, `rb`).
+ * @param ext Runner file extension without the dot (e.g. `py`).
  * @param script Runner source, hashed to key the cached file per version.
  */
 export async function stageRunnerScript(dirName: string, ext: string, script: string): Promise<string> {
@@ -35,7 +34,7 @@ export async function stageRunnerScript(dirName: string, ext: string, script: st
 	const hash = Bun.hash(script).toString(36);
 	const target = path.join(dir, `runner-${hash}.${ext}`);
 	if (!fs.existsSync(target)) {
-		await fsx.write(target, script);
+		await Bun.write(target, script);
 	}
 	stagedPaths.set(dirName, target);
 	return target;

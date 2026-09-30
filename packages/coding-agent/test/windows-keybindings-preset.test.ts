@@ -1,139 +1,93 @@
 import { afterEach, describe, expect, it } from "bun:test";
-import * as crypto from "node:crypto";
-import { KeybindingsManager, WINDOWS_KEYBINDINGS } from "@chudware/coding-agent/config/keybindings";
-import { resetSettingsForTest, Settings } from "@chudware/coding-agent/config/settings";
-import { canonicalKeyId, parseKey } from "@chudware/tui";
+import { Editor, Input, setKeybindings } from "@oh-my-pi/pi-tui";
+import { KeybindingsManager } from "@oh-my-pi/pi-tui/app-keybindings";
+import { defaultEditorTheme } from "../../tui/test/test-themes";
 
-/**
- * Actions introduced by the keybinding-preset work that are deliberately UNBOUND under the
- * `default` preset, so adopting `windows` is the only thing that binds them. Unix behavior
- * is unchanged by their mere existence.
- */
-const NEW_UNBOUND_ACTION_IDS: Record<string, true> = {
-	"tui.editor.selectAll": true,
-	"tui.editor.selectLeft": true,
-	"tui.editor.selectRight": true,
-	"tui.editor.selectUp": true,
-	"tui.editor.selectDown": true,
-	"tui.editor.selectWordLeft": true,
-	"tui.editor.selectWordRight": true,
-	"tui.editor.selectToLineStart": true,
-	"tui.editor.selectToLineEnd": true,
-	"tui.editor.cut": true,
-	"tui.editor.paste": true,
-	"app.draft.restore": true,
-	"app.copy.picker": true,
-};
+const selectAll = "\x01";
+const selectLeft = "\x1b[1;2D";
+const ctrlC = "\x03";
+const ctrlX = "\x18";
+const ctrlV = "\x16";
 
-/**
- * Every action id that postdates the pre-preset baseline, and is therefore excluded from the
- * digest below. `tui.editor.redo` belongs here but NOT in {@link NEW_UNBOUND_ACTION_IDS}: the
- * editor-redo feature ships its own default chords (`alt+-` / `alt+_`), so it is bound under
- * `default` by design and must not be asserted unbound.
- */
-const NEW_ACTION_IDS: Record<string, true> = { ...NEW_UNBOUND_ACTION_IDS, "tui.editor.redo": true };
+function activate(preset: "default" | "windows", overrides = {}): KeybindingsManager {
+	const bindings = KeybindingsManager.inMemory(overrides, preset);
+	setKeybindings(bindings);
+	return bindings;
+}
 
-// SHA-256 of JSON.stringify(getResolvedBindings()) for every action that existed
-// before presets were introduced. New, unbound action ids are filtered out and
-// the already-platform-dependent image-paste value is normalized.
-const PRESET_FREE_DEFAULT_BINDINGS_SHA256 = "632b9e642e3696eb63b1453706f287d2150ebab5ef8fc6d000eb29d88092a52d";
+afterEach(() => setKeybindings(KeybindingsManager.inMemory()));
 
-afterEach(() => {
-	resetSettingsForTest();
-});
-
-describe("Windows keybinding preset", () => {
-	it("defaults the settings-selected preset to Windows editing", async () => {
-		await Settings.init({ inMemory: true });
-		const missingAgentDir = `${process.cwd()}/.missing-default-keybindings-test`;
-		const keybindings = KeybindingsManager.create(missingAgentDir, { inheritedAgentDir: missingAgentDir });
-
-		expect(keybindings.getPreset()).toBe("windows");
-		expect(keybindings.getKeys("tui.editor.undo")).toContain("ctrl+z");
-		expect(keybindings.getKeys("app.suspend")).not.toContain("ctrl+z");
+describe("Windows editing preset", () => {
+	it("is opt-in: Ctrl+A remains a line motion and Shift+Left does not select by default", () => {
+		activate("default");
+		const editor = new Editor(defaultEditorTheme);
+		editor.setText("abc");
+		editor.handleInput(selectLeft);
+		expect(editor.getSelectedText()).toBeUndefined();
+		editor.handleInput(selectAll);
+		expect(editor.getCursor()).toEqual({ line: 0, col: 0 });
+		expect(editor.getSelectedText()).toBeUndefined();
 	});
 
-	it("loads keybindings.preset from the settings configuration", async () => {
-		await Settings.init({
-			inMemory: true,
-			overrides: { "keybindings.preset": "windows" },
-		});
-		const missingAgentDir = `${process.cwd()}/.missing-windows-keybindings-test`;
-		const keybindings = KeybindingsManager.create(missingAgentDir, { inheritedAgentDir: missingAgentDir });
-
-		expect(keybindings.getPreset()).toBe("windows");
-		expect(keybindings.getKeys("tui.editor.selectAll")).toEqual(["ctrl+a"]);
+	it("selects, cuts, undoes and pastes through Windows chords without stealing suspend or image paste", () => {
+		const bindings = activate("windows");
+		const editor = new Editor(defaultEditorTheme);
+		let clipboard = "";
+		editor.onCopy = text => {
+			clipboard = text;
+		};
+		editor.onPaste = () => editor.pasteText(clipboard);
+		editor.setText("abc");
+		editor.handleInput(selectAll);
+		editor.handleInput(ctrlX);
+		expect(clipboard).toBe("abc");
+		expect(editor.getText()).toBe("");
+		editor.handleInput("\x1a");
+		expect(editor.getText()).toBe("abc");
+		editor.handleInput(selectAll);
+		editor.handleInput(ctrlV);
+		expect(editor.getText()).toBe("abc");
+		expect(bindings.matches("\x1a", "app.suspend")).toBe(false);
+		expect(bindings.matches(ctrlV, "app.clipboard.pasteImage")).toBe(false);
 	});
 
-	it("resolves explicit user overrides before the active preset, then built-in defaults", () => {
-		const keybindings = KeybindingsManager.inMemory({ "app.clear": "f12" }, "windows");
-
-		expect(keybindings.getKeys("app.clear")).toEqual(["f12"]);
-		expect(keybindings.getKeys("tui.editor.selectAll")).toEqual(["ctrl+a"]);
-		expect(keybindings.getKeys("app.retry")).toEqual(["alt+r"]);
-		expect(keybindings.getPreset()).toBe("windows");
+	it("honors a user override through preset flips while single-line Input adopts the selected mode", () => {
+		const bindings = activate("windows", { "tui.editor.selectAll": "f9" });
+		const input = new Input();
+		input.setValue("abc");
+		input.handleInput(selectAll);
+		expect(input.getSelectedText()).toBeUndefined();
+		input.handleInput("\x1b[20~");
+		expect(input.getSelectedText()).toBe("abc");
+		bindings.setPreset("default");
+		input.setValue("abc");
+		input.handleInput(selectLeft);
+		expect(input.getSelectedText()).toBeUndefined();
+		bindings.setPreset("windows");
+		input.handleInput(selectLeft);
+		expect(input.getSelectedText()).toBe("c");
+		input.handleInput("\x1b[20~");
+		expect(input.getSelectedText()).toBe("abc");
 	});
 
-	it("implements the complete Windows editing map without conflicting preset claims", () => {
-		const keybindings = KeybindingsManager.inMemory({}, "windows");
-
-		for (const [action, configuredKeys] of Object.entries(WINDOWS_KEYBINDINGS)) {
-			const expectedKeys = Array.isArray(configuredKeys) ? configuredKeys : [configuredKeys];
-			expect(keybindings.getKeys(action as keyof typeof WINDOWS_KEYBINDINGS)).toEqual(expectedKeys);
-		}
-		expect(keybindings.getConflicts()).toEqual([]);
-
-		expect(keybindings.getKeys("app.suspend")).not.toContain("ctrl+z");
-		expect(keybindings.getKeys("tui.editor.yank")).toEqual([]);
-		expect(keybindings.getKeys("tui.editor.cursorLineStart")).toEqual(["home"]);
-	});
-
-	it("provides parseable legacy-terminal fallbacks for Ctrl+Shift+letter-only actions", () => {
-		const keybindings = KeybindingsManager.inMemory({}, "windows");
-
-		expect(parseKey("\x1bk")).toBe("alt+k");
-		expect(keybindings.matches("\x1bk", "app.clear")).toBe(true);
-		expect(keybindings.getKeys("app.clear")).toContain("alt+k");
-
-		expect(parseKey("\x1bc")).toBe("alt+c");
-		expect(keybindings.matches("\x1bc", "app.copy.picker")).toBe(true);
-		expect(keybindings.getKeys("app.copy.picker")).toContain("alt+c");
-	});
-
-	it("parses the preset's modified navigation chords without CSI-u", () => {
-		const legacySequences = [
-			["shift+left", "\x1b[1;2D"],
-			["shift+right", "\x1b[1;2C"],
-			["shift+up", "\x1b[1;2A"],
-			["shift+down", "\x1b[1;2B"],
-			["ctrl+shift+left", "\x1b[1;6D"],
-			["ctrl+shift+right", "\x1b[1;6C"],
-			["shift+home", "\x1b[1;2H"],
-			["shift+end", "\x1b[1;2F"],
-			["ctrl+alt+z", "\x1b\x1a"],
-		] as const;
-
-		for (const [chord, sequence] of legacySequences) {
-			const parsed = parseKey(sequence);
-			if (parsed === undefined) throw new Error(`Expected ${chord} legacy sequence to parse`);
-			expect(canonicalKeyId(parsed)).toBe(canonicalKeyId(chord));
-		}
-	});
-
-	it("keeps the pre-preset default bindings byte-identical and leaves new actions unbound", () => {
-		const resolved = KeybindingsManager.inMemory().getResolvedBindings();
-		// Typed as unknown-valued: the image-paste entry is normalized to a sentinel string
-		// below so the digest stays stable across platforms, which the binding value type
-		// (KeyId[] | KeyId | undefined) would otherwise reject.
-		const prePresetBindings: Record<string, unknown> = Object.fromEntries(
-			Object.entries(resolved).filter(([action]) => !(action in NEW_ACTION_IDS)),
-		);
-		prePresetBindings["app.clipboard.pasteImage"] = "<platform-default>";
-		const digest = crypto.createHash("sha256").update(JSON.stringify(prePresetBindings)).digest("hex");
-
-		expect(digest).toBe(PRESET_FREE_DEFAULT_BINDINGS_SHA256);
-		for (const action of Object.keys(NEW_UNBOUND_ACTION_IDS)) {
-			expect(resolved[action]).toEqual([]);
-		}
+	it("routes Ctrl+C to copying only when a selection exists", () => {
+		activate("windows");
+		const input = new Input();
+		let cancelled = false;
+		let copied = "";
+		input.onEscape = () => {
+			cancelled = true;
+		};
+		input.onCopy = text => {
+			copied = text;
+		};
+		input.setValue("abc");
+		input.handleInput(ctrlC);
+		expect(cancelled).toBe(true);
+		cancelled = false;
+		input.handleInput(selectLeft);
+		input.handleInput(ctrlC);
+		expect(copied).toBe("c");
+		expect(cancelled).toBe(false);
 	});
 });

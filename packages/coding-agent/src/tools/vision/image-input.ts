@@ -1,16 +1,14 @@
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import type { ImageContent } from "@chudware/ai";
-import { resolveLocalUrlToFile } from "../../internal-urls";
-import { resolveArtifactFile } from "../../internal-urls/artifact-protocol";
-import { parseInternalUrl } from "../../internal-urls/parse";
+import type { ImageContent } from "@oh-my-pi/pi-ai";
+import { MAX_IMAGE_INPUT_BYTES } from "@oh-my-pi/pi-tui/chat/image-loading";
+import { InternalUrlRouter } from "../../internal-urls/router";
 import {
 	type LoadedImageInput,
 	loadImageAttachmentInput,
 	loadImageInput,
 	loadSvgImageInput,
-	MAX_IMAGE_INPUT_BYTES,
 } from "../../utils/image-loading";
 import type { ToolSession } from "../index";
 import { splitPathAndSelPreferringLiteral } from "../path-utils";
@@ -37,7 +35,7 @@ function internalResolutionContext(session: ToolSession, signal?: AbortSignal) {
 		cwd: session.cwd,
 		settings: session.settings,
 		signal,
-		sessionFile: session.getSessionFile() ?? undefined,
+		sessionFile: session.getSessionFile?.() ?? undefined,
 		localProtocolOptions: session.localProtocolOptions,
 		skills: session.skills,
 	};
@@ -65,36 +63,30 @@ export async function loadVisionImage(options: LoadVisionImageOptions): Promise<
 				maxBytes: MAX_IMAGE_INPUT_BYTES,
 				excludeWebP: options.excludeWebP,
 			});
-		} else if (options.path.startsWith("artifact://")) {
-			const file = await resolveArtifactFile(
-				parseInternalUrl(options.path),
+		} else if (options.path.startsWith("artifact://") || options.path.startsWith("local://")) {
+			const target = await InternalUrlRouter.instance().target(
+				options.path,
 				internalResolutionContext(options.session),
 			);
-			image = await loadImageInput({
-				path: file.path,
-				resolvedPath: file.path,
-				cwd: options.session.cwd,
-				autoResize: options.autoResize ?? false,
-				maxBytes: MAX_IMAGE_INPUT_BYTES,
-				excludeWebP: options.excludeWebP,
-			});
-		} else if (options.path.startsWith("local://")) {
-			const file = await resolveLocalUrlToFile(options.path, internalResolutionContext(options.session));
-			if (!file) {
+			if (target?.kind !== "file") {
 				return {
 					ok: false,
 					reason: "image_not_found",
 					hint: `${options.path} does not resolve to a regular file.`,
 				};
 			}
-			image = await loadImageInput({
-				path: file.path,
-				resolvedPath: file.path,
+			const imageOptions = {
+				path: target.path,
+				resolvedPath: target.path,
 				cwd: options.session.cwd,
 				autoResize: options.autoResize ?? false,
 				maxBytes: MAX_IMAGE_INPUT_BYTES,
 				excludeWebP: options.excludeWebP,
-			});
+			};
+			image =
+				target.sel?.toLowerCase() === "img"
+					? await loadSvgImageInput(imageOptions)
+					: await loadImageInput(imageOptions);
 		} else {
 			const target = await splitPathAndSelPreferringLiteral(options.path, options.session.cwd);
 			const svg = target.sel?.toLowerCase() === "img";

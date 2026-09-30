@@ -1,8 +1,8 @@
-import type { AgentTool, AgentToolResult, AgentToolUpdateCallback, ToolLoadMode } from "@chudware/agent-core";
-import type { Static, TSchema } from "@chudware/ai";
-import { Snowflake } from "@chudware/utils";
+import type { AgentTool, AgentToolResult, AgentToolUpdateCallback, ToolLoadMode } from "@oh-my-pi/pi-agent-core";
+import type { Static, TSchema } from "@oh-my-pi/pi-ai";
+import { Snowflake } from "@oh-my-pi/pi-utils";
 import { applyToolProxy } from "../../extensibility/tool-proxy";
-import type { Theme } from "../../modes/theme/theme";
+import type { Theme } from "@oh-my-pi/pi-tui/theme";
 import { defaultLoadModeForToolName } from "../../tools/essential-tools";
 import type {
 	RpcHostToolCallRequest,
@@ -14,24 +14,15 @@ import type {
 
 type RpcHostToolOutput = (frame: RpcHostToolCallRequest | RpcHostToolCancelRequest) => void;
 
-/**
- * Identity of a nested agent executing host tools on behalf of the RPC
- * session. Stamped onto its `host_tool_call` frames so the host can attribute
- * and guard each call; the top-level session's calls carry no scope.
- */
+/** Identity of a nested agent executing tools over its parent's RPC connection. */
 export interface HostToolAgentScope {
 	agentId: string;
 	parentAgentId?: string;
 }
 
-/**
- * Live source of the RPC session's host-owned tools, inherited by nested
- * agents (task sub-agents) so they call the same host over the same client.
- */
+/** Live source shared by a host session and its descendants. */
 export interface HostToolSource {
-	/** Build fresh adapters for the current host tool set, bound to `scope`. */
 	createTools(scope: HostToolAgentScope): AgentTool[];
-	/** Observe host tool set replacements; returns the unsubscribe callback. */
 	subscribe(listener: () => void): () => void;
 }
 
@@ -59,9 +50,11 @@ export function isRpcHostToolUpdate(value: unknown): value is RpcHostToolUpdate 
 	return frame.type === "host_tool_update" && typeof frame.id === "string" && isAgentToolResult(frame.partialResult);
 }
 
-class RpcHostToolAdapter<TParams extends TSchema = TSchema, TTheme extends Theme = Theme>
-	implements AgentTool<TParams, unknown, TTheme>
-{
+class RpcHostToolAdapter<TParams extends TSchema = TSchema, TTheme extends Theme = Theme> implements AgentTool<
+	TParams,
+	unknown,
+	TTheme
+> {
 	declare name: string;
 	declare label: string;
 	declare description: string;
@@ -118,7 +111,6 @@ export class RpcHostToolBridge implements HostToolSource {
 		for (const listener of this.#listeners) listener();
 		return tools.map(tool => new RpcHostToolAdapter(tool, this));
 	}
-
 	createTools(scope: HostToolAgentScope): AgentTool[] {
 		return Array.from(this.#definitions.values(), tool => new RpcHostToolAdapter(tool, this, scope));
 	}

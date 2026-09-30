@@ -1,3 +1,6 @@
+import * as fs from "node:fs/promises";
+import * as os from "node:os";
+import * as path from "node:path";
 import { describe, expect, it } from "bun:test";
 import {
 	type BlockState,
@@ -5,16 +8,17 @@ import {
 	handleServerMessage,
 	processInteractionUpdate,
 	type ToolCallState,
-} from "@chudware/ai/providers/cursor";
+} from "@oh-my-pi/pi-ai/providers/cursor";
 import type {
 	AssistantMessage,
 	CursorExecHandlers,
 	CursorToolResultHandler,
 	ToolResultMessage,
-} from "@chudware/ai/types";
-import { kCursorExecResolved, kStreamingBlockKind } from "@chudware/ai/utils/block-symbols";
-import { AssistantMessageEventStream } from "@chudware/ai/utils/event-stream";
+} from "@oh-my-pi/pi-ai/types";
+import { kCursorExecResolved, kStreamingBlockKind } from "@oh-my-pi/pi-ai/utils/block-symbols";
+import { AssistantMessageEventStream } from "@oh-my-pi/pi-ai/utils/event-stream";
 import {
+	AgentClientMessageSchema,
 	AgentServerMessageSchema,
 	EditErrorSchema,
 	EditResultSchema,
@@ -23,12 +27,12 @@ import {
 	ReadArgsSchema,
 	ToolCallSchema,
 	WriteArgsSchema,
-} from "@chudware/catalog/discovery/cursor-proto";
-import { create } from "@chudware/catalog/discovery/protobuf";
+} from "@oh-my-pi/pi-catalog/discovery/cursor-proto";
+import { create, fromBinary } from "@oh-my-pi/pi-catalog/discovery/protobuf";
 
 const EDIT_ID = "tool_7aef3020-f275-4579-887c-34106e146f7";
 const ENVELOPE_ID = "call-edit-1";
-const TARGET = "/tmp/chudcode-cursor-edit-probe/note.txt";
+const TARGET = "/tmp/omp-cursor-edit-probe/note.txt";
 
 function cursorAssistantMessage(): AssistantMessage {
 	return {
@@ -163,7 +167,7 @@ describe("cursor native editToolCall (StrReplace)", () => {
 					role: "toolResult",
 					toolCallId: args.toolCallId,
 					toolName: "read",
-					content: [{ type: "text", text: "Hello from Chudcode probe.\nThe fruit is apple.\nGoodbye.\n" }],
+					content: [{ type: "text", text: "Hello from OMP probe.\nThe fruit is apple.\nGoodbye.\n" }],
 					isError: false,
 					timestamp: 1,
 				} satisfies ToolResultMessage;
@@ -201,7 +205,7 @@ describe("cursor native editToolCall (StrReplace)", () => {
 			execWrite({
 				path: TARGET,
 				toolCallId: EDIT_ID,
-				fileText: "Hello from Chudcode probe.\nThe fruit is orange.\nGoodbye.\n",
+				fileText: "Hello from OMP probe.\nThe fruit is orange.\nGoodbye.\n",
 			}),
 			output,
 			stream,
@@ -278,7 +282,73 @@ describe("cursor native editToolCall (StrReplace)", () => {
 		const calls = output.content.filter(block => block.type === "toolCall");
 		expect(calls).toHaveLength(1);
 		expect(calls[0]?.name).toBe("read");
-		expect(readPaths).toEqual([TARGET]);
+		expect(readPaths).toEqual([`${TARGET}:raw`]);
+	});
+
+	/** Materialize `fullText` through a capped local read and return Cursor's decoded read result. */
+	async function materializeCappedRead(fullText: string) {
+		const dir = await fs.mkdtemp(path.join(os.tmpdir(), "cursor-edit-full-"));
+		try {
+			const target = path.join(dir, "big.txt");
+			await Bun.write(target, fullText);
+			const output = cursorAssistantMessage();
+			const stream = new AssistantMessageEventStream();
+			const state = newBlockState();
+			const { h2Request, written } = mockH2();
+			startEdit(output, stream, state);
+			await handleServerMessage(
+				execRead({ path: target, toolCallId: EDIT_ID }),
+				output,
+				stream,
+				state,
+				new Map(),
+				h2Request,
+				{
+					async read() {
+						return {
+							role: "toolResult",
+							toolCallId: EDIT_ID,
+							toolName: "read",
+							content: [{ type: "text", text: fullText.split("\n").slice(0, 300).join("\n") }],
+							details: {
+								fileSize: Buffer.byteLength(fullText),
+								truncation: { truncated: true },
+								meta: { source: { type: "path", value: target } },
+							},
+							isError: false,
+							timestamp: 1,
+						};
+					},
+				},
+				undefined,
+				{ sawTokenDelta: false },
+				[],
+			);
+			const frame = written[0];
+			if (!Buffer.isBuffer(frame)) throw new Error("expected Cursor response bytes");
+			const answer = fromBinary(AgentClientMessageSchema, frame.subarray(5, 5 + frame.readUInt32BE(1)));
+			if (answer.message.case !== "execClientMessage" || answer.message.value.message.case !== "readResult") {
+				throw new Error("expected read result");
+			}
+			return answer.message.value.message.value.result;
+		} finally {
+			await fs.rm(dir, { recursive: true, force: true });
+		}
+	}
+
+	it("provides the full file to StrReplace when the local raw read is capped", async () => {
+		const fullText = Array.from({ length: 1000 }, (_, index) => `line ${index + 1}`).join("\n") + "\n";
+		const result = await materializeCappedRead(fullText);
+		if (result.case !== "success" || result.value.output.case !== "content") throw new Error("expected text content");
+		expect(result.value.truncated).toBe(false);
+		expect(result.value.output.value).toBe(fullText);
+	});
+
+	it("fails StrReplace materialization instead of loading a file past the size cap", async () => {
+		const line = `${"x".repeat(1023)}\n`;
+		const result = await materializeCappedRead(line.repeat(4 * 1024 + 1));
+		if (result.case !== "error") throw new Error(`expected read error, got ${result.case}`);
+		expect(result.value.error).toContain("line-range read");
 	});
 
 	it("appends streamContentDelta onto the open edit block", () => {

@@ -5,6 +5,9 @@
  * They can provide custom rendering for tool calls and results in the TUI.
  */
 
+import type { type as ArkType } from "@oh-my-pi/omptype";
+import type * as TypeBox from "@oh-my-pi/omptype/typebox";
+import type * as zod from "@oh-my-pi/omptype/zod";
 import type {
 	AgentToolResult,
 	AgentToolUpdateCallback,
@@ -12,24 +15,22 @@ import type {
 	ToolApprovalDecision,
 	ToolLoadMode,
 	ToolTier,
-} from "@chudware/agent-core";
-import type { CompactionResult } from "@chudware/agent-core/compaction";
-import type { FetchImpl, Model, Static, TSchema } from "@chudware/ai";
-import type { type as ArkType } from "@chudware/chudtype";
-import type * as TypeBox from "@chudware/chudtype/typebox";
-import type * as zod from "@chudware/chudtype/zod";
-import type { Component } from "@chudware/tui";
-import type { logger as ChudLogger } from "@chudware/utils";
+} from "@oh-my-pi/pi-agent-core";
+import type { CompactionResult } from "@oh-my-pi/pi-agent-core/compaction";
+import type { FetchImpl, Model, Static, TSchema } from "@oh-my-pi/pi-ai";
+import type { Component } from "@oh-my-pi/pi-tui";
+import type { NativeToolView, RenderResultOptions } from "@oh-my-pi/pi-tui/tools/renderer";
+import type { logger as PiLogger } from "@oh-my-pi/pi-utils";
 import type { Rule } from "../../capability/rule";
 import type { ModelRegistry } from "../../config/model-registry";
 import type { Settings } from "../../config/settings";
 import type { ExecOptions, ExecResult } from "../../exec/exec";
 import type { HookUIContext } from "../../extensibility/hooks/types";
-import type * as ChudCodingAgent from "../../index";
+import type * as PiCodingAgent from "../../index";
 import type { LocalProtocolOptions } from "../../internal-urls/local-protocol";
-import type { Theme } from "../../modes/theme/theme";
+import type { Theme } from "@oh-my-pi/pi-tui/theme";
 import type { ReadonlySessionManager } from "../../session/session-manager";
-import type { TodoItem } from "../../tools/todo";
+import type { TodoItem } from "@oh-my-pi/pi-tui/tools/todo";
 import type { RetryErrorUpdate } from "../shared-events";
 
 /** Alias for clarity */
@@ -39,6 +40,8 @@ export type CustomToolUIContext = HookUIContext;
 export type { ExecOptions, ExecResult } from "../../exec/exec";
 /** Re-export for custom tools to use in execute signature */
 export type { AgentToolResult, AgentToolUpdateCallback, ToolApproval, ToolApprovalDecision, ToolTier };
+/** Display state handed to `renderCall`/`renderResult`; owned by pi-tui. */
+export type { RenderResultOptions };
 
 /** Pending action entry consumed by the hidden resolve tool */
 export interface CustomToolPendingAction {
@@ -65,15 +68,15 @@ export interface CustomToolAPI {
 	/** Whether UI is available (false in print/RPC mode) */
 	hasUI: boolean;
 	/** File logger for error/warning/debug messages */
-	logger: typeof ChudLogger;
+	logger: typeof PiLogger;
 	/** Injected typebox shim (legacy/compat — arktype-authored tools are preferred). */
 	typebox: typeof TypeBox;
 	/** Injected arktype module for arktype-authored custom tools. */
 	arktype: typeof ArkType;
-	/** Injected Zod-compatible chudtype builder for custom tools. */
+	/** Injected Zod-compatible omptype builder for custom tools. */
 	zod: typeof zod;
-	/** Injected chudcode-agent exports */
-	chud: typeof ChudCodingAgent;
+	/** Injected pi-coding-agent exports */
+	pi: typeof PiCodingAgent;
 	/** Push a preview action that can later be resolved with the hidden resolve tool */
 	pushPendingAction(action: CustomToolPendingAction): void;
 }
@@ -99,7 +102,7 @@ export interface CustomToolContext {
 	settings?: Settings;
 	/** Fetch implementation for outbound HTTP; defaults to global fetch when omitted. */
 	fetch?: FetchImpl;
-	/** Calling session's `local://` root mapping for tools that bridge out of the Chudcode process. */
+	/** Calling session's `local://` root mapping for tools that bridge out of the OMP process. */
 	localProtocolOptions?: LocalProtocolOptions;
 	/** Whether to auto-approve all destructive tool operations (--auto-approve CLI flag) */
 	autoApprove?: boolean;
@@ -152,26 +155,6 @@ export type CustomToolSessionEvent =
 			maxAttempts: number;
 	  };
 
-/** Rendering options passed to renderResult */
-export interface RenderResultOptions {
-	/** Whether the result view is expanded */
-	expanded: boolean;
-	/** Whether this is a partial/streaming result */
-	isPartial: boolean;
-	/** Current spinner frame index for animated elements (0-9, only provided during partial results) */
-	spinnerFrame?: number;
-	/**
-	 * True once arguments are final (`message_end` / `setArgsComplete`).
-	 * Exclusive tools can sit here while an earlier call still runs.
-	 */
-	argsComplete?: boolean;
-	/**
-	 * True once this specific call has begun executing (`tool_execution_start`).
-	 * Streamed `xd://` previews stay queued until this is set.
-	 */
-	executionStarted?: boolean;
-}
-
 export type CustomToolResult<TDetails = any> = AgentToolResult<TDetails>;
 
 /**
@@ -185,7 +168,7 @@ export type CustomToolResult<TDetails = any> = AgentToolResult<TDetails>;
  *
  * @example
  * ```typescript
- * const factory: CustomToolFactory = (chud) => ({
+ * const factory: CustomToolFactory = (pi) => ({
  *   name: "my_tool",
  *   label: "My Tool",
  *   description: "Does something useful",
@@ -224,10 +207,15 @@ export interface CustomTool<TParams extends TSchema = TSchema, TDetails = any> {
 	loadMode?: ToolLoadMode;
 	/** If true, tool may stage deferred changes that require explicit resolve/discard. */
 	deferrable?: boolean;
+	/** Whether this tool can read `skill://` instruction content. Survives the custom-tool → definition bridge. */
+	readsSkillUris?: boolean;
 	/** MCP server name for discovery/search metadata when this tool fronts an MCP server. */
 	mcpServerName?: string;
 	/** Original MCP tool name for discovery/search metadata. */
 	mcpToolName?: string;
+	/** Previous public name when a rename changed minting (e.g. digits kept in
+	 *  MCP names). Approval resolution honors `deny`/`prompt` keyed on it. */
+	legacyName?: string;
 
 	/** Capability tier declaration used by approval gates. Omitted means "exec". */
 	approval?: ToolApproval;
@@ -262,11 +250,21 @@ export interface CustomTool<TParams extends TSchema = TSchema, TDetails = any> {
 		theme: Theme,
 		args?: Static<TParams>,
 	) => Component;
+
+	/** Semantic call view for TSP terminals (the native counterpart of {@link renderCall}). */
+	describeCall?: (args: Static<TParams>, options: RenderResultOptions) => NativeToolView | undefined;
+
+	/** Semantic result view for TSP terminals (the native counterpart of {@link renderResult}). */
+	describeResult?: (
+		result: CustomToolResult<TDetails>,
+		options: RenderResultOptions,
+		args?: Static<TParams>,
+	) => NativeToolView | undefined;
 }
 
 /** Factory function that creates a custom tool or array of tools */
 export type CustomToolFactory = (
-	chud: CustomToolAPI,
+	pi: CustomToolAPI,
 ) => CustomTool<any, any> | CustomTool<any, any>[] | Promise<CustomTool<any, any> | CustomTool<any, any>[]>;
 
 /** Loaded custom tool with metadata and wrapped AgentTool */

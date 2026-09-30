@@ -1,20 +1,19 @@
 import { describe, expect, it, vi } from "bun:test";
 import * as path from "node:path";
-import { Agent } from "@chudware/agent-core";
-import type { ImageContent } from "@chudware/ai";
-import { getBundledModel } from "@chudware/catalog/models";
-import { ModelRegistry } from "@chudware/coding-agent/config/model-registry";
-import { Settings } from "@chudware/coding-agent/config/settings";
-import { ExtensionRuntime, loadExtensionFromFactory } from "@chudware/coding-agent/extensibility/extensions/loader";
-import { ExtensionRunner } from "@chudware/coding-agent/extensibility/extensions/runner";
-import { InputController } from "@chudware/coding-agent/modes/controllers/input-controller";
-import type { InteractiveModeContext } from "@chudware/coding-agent/modes/types";
-import { AgentSession } from "@chudware/coding-agent/session/agent-session";
-import { AuthStorage } from "@chudware/coding-agent/session/auth-storage";
-import { SessionManager } from "@chudware/coding-agent/session/session-manager";
-import { EventBus } from "@chudware/coding-agent/utils/event-bus";
-import { TempDir } from "@chudware/utils";
-import { sleep } from "@chudware/utils/async";
+import { Agent } from "@oh-my-pi/pi-agent-core";
+import type { ImageContent } from "@oh-my-pi/pi-ai";
+import { getBundledModel } from "@oh-my-pi/pi-catalog/models";
+import { ModelRegistry } from "@oh-my-pi/pi-coding-agent/config/model-registry";
+import { Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
+import { ExtensionRuntime, loadExtensionFromFactory } from "@oh-my-pi/pi-coding-agent/extensibility/extensions/loader";
+import { ExtensionRunner } from "@oh-my-pi/pi-coding-agent/extensibility/extensions/runner";
+import { InputController } from "@oh-my-pi/pi-coding-agent/modes/controllers/input-controller";
+import type { InteractiveModeContext } from "@oh-my-pi/pi-coding-agent/modes/types";
+import { AgentSession } from "@oh-my-pi/pi-coding-agent/session/agent-session";
+import { AuthStorage } from "@oh-my-pi/pi-coding-agent/session/auth-storage";
+import { SessionManager } from "@oh-my-pi/pi-coding-agent/session/session-manager";
+import { EventBus } from "@oh-my-pi/pi-coding-agent/utils/event-bus";
+import { TempDir } from "@oh-my-pi/pi-utils";
 
 /**
  * Regression: a submission arriving while the main loop has no input waiter
@@ -176,7 +175,7 @@ describe("InputController orphaned submit", () => {
 			const model = getBundledModel("anthropic", "claude-sonnet-4-5");
 			if (!model) throw new Error("Expected built-in anthropic model to exist");
 			authStorage = await AuthStorage.create(path.join(tempDir.path(), "testauth.db"));
-			authStorage.setRuntimeApiKey("anthropic", "test-key");
+			authStorage.keys.setRuntime("anthropic", "test-key");
 			const agent = new Agent({
 				initialState: {
 					model,
@@ -264,8 +263,8 @@ describe("InputController orphaned submit", () => {
 		expect(ctx.editor.pendingImageLinks).toEqual([undefined]);
 	});
 	it("skips automatic titles only for locally consumed extension commands", async () => {
-		const previousNoTitle = process.env.CHUDCODE_NO_TITLE;
-		delete process.env.CHUDCODE_NO_TITLE;
+		const previousNoTitle = Bun.env.PI_NO_TITLE;
+		delete Bun.env.PI_NO_TITLE;
 		const tempDir = TempDir.createSync("@pi-extension-title-");
 		let session: AgentSession | undefined;
 		let authStorage: AuthStorage | undefined;
@@ -277,13 +276,13 @@ describe("InputController orphaned submit", () => {
 			const sessionManager = SessionManager.inMemory(tempDir.path());
 			const settings = Settings.isolated({
 				"compaction.enabled": false,
-				"providers.tinyModel": "online",
+				modelRoles: { tiny: `${model.provider}/${model.id}` },
 			});
 			const localHandler = vi.fn(async () => {});
 			const runtime = new ExtensionRuntime();
 			const extension = await loadExtensionFromFactory(
-				chud => {
-					chud.registerCommand("widget-status", {
+				pi => {
+					pi.registerCommand("widget-status", {
 						description: "Display local widget status",
 						handler: localHandler,
 					});
@@ -352,7 +351,7 @@ describe("InputController orphaned submit", () => {
 				// The chain exposes no settlement promise; sleep(0) is a macrotask
 				// boundary that deterministically drains all pending microtasks —
 				// not a wall-clock wait, so fake timers would not help here.
-				await sleep(0);
+				await Bun.sleep(0);
 			}
 		} finally {
 			vi.restoreAllMocks();
@@ -360,9 +359,9 @@ describe("InputController orphaned submit", () => {
 			authStorage?.close();
 			tempDir.removeSync();
 			if (previousNoTitle === undefined) {
-				delete process.env.CHUDCODE_NO_TITLE;
+				delete Bun.env.PI_NO_TITLE;
 			} else {
-				process.env.CHUDCODE_NO_TITLE = previousNoTitle;
+				Bun.env.PI_NO_TITLE = previousNoTitle;
 			}
 		}
 	});

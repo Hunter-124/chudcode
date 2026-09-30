@@ -1,6 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
-import { type Component, CURSOR_MARKER, type Focusable, type OverlayFocusOwner, TUI } from "@chudware/tui";
-import { sleep } from "@chudware/utils/async";
+import { type Component, CURSOR_MARKER, type Focusable, type OverlayFocusOwner, TUI } from "@oh-my-pi/pi-tui";
 import { withoutTerminalMultiplexer } from "./helpers/terminal-multiplexer";
 import { VirtualTerminal } from "./virtual-terminal";
 
@@ -133,13 +132,13 @@ function longestBlankRun(lines: string[]): number {
 
 async function flushRender(term: VirtualTerminal): Promise<void> {
 	await new Promise<void>(resolve => process.nextTick(resolve));
-	await sleep(40);
+	await Bun.sleep(40);
 	await term.flush();
 }
 
 // Resize frames use the alternate buffer until the 120 ms quiet window settles.
 async function settleResize(term: VirtualTerminal): Promise<void> {
-	await sleep(160);
+	await Bun.sleep(160);
 	await flushRender(term);
 }
 
@@ -151,16 +150,23 @@ describe("TUI overlays", () => {
 		// A resize on Warp takes the in-place path (no ED3), so neutralize the
 		// ambient terminal identity to keep the direct-terminal resize/scrollback
 		// assertions below deterministic on any dev machine.
-		for (const key of ["TERM_PROGRAM", "CHUDCODE_TUI_RESIZE_IN_PLACE", "HERDR_ENV"]) {
-			savedTerminalEnv[key] = process.env[key];
-			delete process.env[key];
+		for (const key of [
+			"TERM_PROGRAM",
+			"PI_TUI_RESIZE_IN_PLACE",
+			"HERDR_ENV",
+			"HERDR_PANE_ID",
+			"HERDR_TAB_ID",
+			"HERDR_WORKSPACE_ID",
+		]) {
+			savedTerminalEnv[key] = Bun.env[key];
+			delete Bun.env[key];
 		}
 	});
 	afterEach(() => {
 		for (const key in savedTerminalEnv) {
 			const value = savedTerminalEnv[key];
-			if (value === undefined) delete process.env[key];
-			else process.env[key] = value;
+			if (value === undefined) delete Bun.env[key];
+			else Bun.env[key] = value;
 		}
 		savedTerminalEnv = {};
 	});

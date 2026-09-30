@@ -2,8 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import { __resetExtraCaCache } from "@chudware/utils";
-import * as fsx from "@chudware/utils/fsx";
+import { __resetExtraCaCache } from "@oh-my-pi/pi-utils";
 import { fetchOpenAICompatibleModels } from "../src/discovery/openai-compatible";
 
 describe("discovery null limits", () => {
@@ -47,23 +46,23 @@ describe("discovery extra-CA fallback fetch", () => {
 
 	beforeEach(async () => {
 		__resetExtraCaCache();
-		originalEnv = process.env.NODE_EXTRA_CA_CERTS;
+		originalEnv = Bun.env.NODE_EXTRA_CA_CERTS;
 		originalFetch = globalThis.fetch;
-		tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "chudcode-discovery-ca-"));
+		tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "omp-discovery-ca-"));
 	});
 
 	afterEach(async () => {
 		__resetExtraCaCache();
 		globalThis.fetch = originalFetch;
-		if (originalEnv === undefined) delete process.env.NODE_EXTRA_CA_CERTS;
-		else process.env.NODE_EXTRA_CA_CERTS = originalEnv;
+		if (originalEnv === undefined) delete Bun.env.NODE_EXTRA_CA_CERTS;
+		else Bun.env.NODE_EXTRA_CA_CERTS = originalEnv;
 		await fs.rm(tmpDir, { recursive: true, force: true });
 	});
 
 	it("carries the NODE_EXTRA_CA_CERTS bundle on the fallback fetch", async () => {
 		const caPath = path.join(tmpDir, "corp.pem");
-		await fsx.write(caPath, SAMPLE_PEM);
-		process.env.NODE_EXTRA_CA_CERTS = caPath;
+		await Bun.write(caPath, SAMPLE_PEM);
+		Bun.env.NODE_EXTRA_CA_CERTS = caPath;
 
 		const inits: (RequestInit & { tls?: { ca?: string | string[] } })[] = [];
 		globalThis.fetch = (async (_input: string | URL | Request, init?: RequestInit) => {
@@ -86,8 +85,8 @@ describe("discovery extra-CA fallback fetch", () => {
 
 	it("leaves a caller-injected fetch untouched", async () => {
 		const caPath = path.join(tmpDir, "corp.pem");
-		await fsx.write(caPath, SAMPLE_PEM);
-		process.env.NODE_EXTRA_CA_CERTS = caPath;
+		await Bun.write(caPath, SAMPLE_PEM);
+		Bun.env.NODE_EXTRA_CA_CERTS = caPath;
 
 		const inits: (RequestInit & { tls?: { ca?: string | string[] } })[] = [];
 		const injectedFetch = async (_input: string | URL | Request, init?: RequestInit) => {

@@ -1,9 +1,7 @@
-import * as crypto from "node:crypto";
 import type { Stats } from "node:fs";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
-import { getDocumentConversionCacheDir, isEnoent, logger } from "@chudware/utils";
-import * as fsx from "@chudware/utils/fsx";
+import { getDocumentConversionCacheDir, isEnoent, logger } from "@oh-my-pi/pi-utils";
 import packageJson from "../../package.json" with { type: "json" };
 
 /**
@@ -33,7 +31,7 @@ export function markitConversionCacheKey(bytes: Uint8Array, extension: string): 
 	const normalizedExtension = extension.trim().toLowerCase().replace(/^\.+/, "") || "bin";
 	const safeExtension = normalizedExtension.replace(/[^a-z0-9]+/g, "_") || "bin";
 	const safeVersion = packageJson.version.replace(/[^a-z0-9]+/gi, "_");
-	const digest = crypto.createHash("sha256").update(bytes).digest("hex");
+	const digest = new Bun.CryptoHasher("sha256").update(bytes).digest("hex");
 	return `v${MARKIT_CONVERSION_CACHE_VERSION}-${safeVersion}-${safeExtension}-${digest}`;
 }
 
@@ -57,7 +55,7 @@ export async function readMarkitConversionCache(key: string): Promise<MarkitConv
 	const target = cacheEntryPath(key);
 	let raw: string;
 	try {
-		raw = await fsx.readText(target);
+		raw = await Bun.file(target).text();
 	} catch (error) {
 		if (!isEnoent(error)) {
 			logger.debug("document conversion cache read failed", { error: errorMessage(error) });
@@ -151,7 +149,7 @@ export async function writeMarkitConversionCache(key: string, content: string): 
 	const payload = JSON.stringify({ version: MARKIT_CONVERSION_CACHE_VERSION, content });
 	try {
 		await fs.mkdir(cacheDir, { recursive: true });
-		await fsx.write(tempPath, payload);
+		await Bun.write(tempPath, payload);
 		await fs.rename(tempPath, target);
 	} catch (error) {
 		await fs.rm(tempPath, { force: true }).catch(() => undefined);

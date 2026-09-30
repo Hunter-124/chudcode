@@ -22,15 +22,15 @@
  *
  * Run: `bun run packages/coding-agent/bench/llm-assembly.bench.ts`
  * Env: `LLM_ASSEMBLY_N` overrides the history length (default 5000);
- *      `CHUDCODE_TOKENIZER_ACCURATE=1` uses the native cl100k tokenizer.
+ *      `PI_TOKENIZER_ACCURATE=1` uses the native cl100k tokenizer.
  */
-import { type AgentMessage, Tokenizer } from "@chudware/agent-core";
-import type { AssistantMessage, ToolResultMessage, Usage } from "@chudware/ai";
+import { type AgentMessage, Tokenizer } from "@oh-my-pi/pi-agent-core";
+import type { AssistantMessage, ToolResultMessage, Usage } from "@oh-my-pi/pi-ai";
 import { convertToLlm } from "../src/session/messages";
 
 const tokenizer = new Tokenizer();
 
-const N = Number(process.env.LLM_ASSEMBLY_N ?? 5000);
+const N = Number(Bun.env.LLM_ASSEMBLY_N ?? 5000);
 const WARMUP = 5;
 const SAMPLES = 25;
 

@@ -1,9 +1,9 @@
 import { describe, expect, it } from "bun:test";
-import { ThinkingLevel } from "@chudware/agent-core";
-import type { Model } from "@chudware/ai";
+import { ThinkingLevel } from "@oh-my-pi/pi-agent-core";
+import type { Model } from "@oh-my-pi/pi-ai";
 import type { ResolvedModelRoleValue } from "../../src/config/model-resolver";
 import { resolvePlanModelTransition } from "../../src/plan-mode/model-transition";
-import { AUTO_THINKING } from "../../src/thinking";
+import { AUTO_THINKING } from "@oh-my-pi/pi-tui/thinking";
 
 /**
  * Plan-mode model transition policy (issue #5657). The active model in plan

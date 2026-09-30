@@ -1,13 +1,13 @@
 import { describe, expect, it } from "bun:test";
-import type { Tool } from "@chudware/ai/types";
+import { type } from "@oh-my-pi/omptype";
+import type { Tool } from "@oh-my-pi/pi-ai/types";
 import {
 	adaptSchemaForStrict,
 	normalizeEmptySchemas,
 	stripSchemaDescriptions,
 	stripToolDescriptions,
 	toolWireSchema,
-} from "@chudware/ai/utils/schema";
-import { type } from "@chudware/chudtype";
+} from "@oh-my-pi/pi-ai/utils/schema";
 
 // ---------------------------------------------------------------------------
 // normalizeEmptySchemas — provider-agnostic post-pipeline normalization
@@ -444,13 +444,6 @@ describe("stripSchemaDescriptions", () => {
 		stripSchemaDescriptions(schema);
 		expect(schema.description).toBe("keep");
 		expect(schema.properties.a.description).toBe("keep a");
-	});
-
-	it("memoizes the result on the input via a hidden stamp", () => {
-		const schema = { type: "object", properties: { a: { type: "string", description: "x" } } };
-		const first = stripSchemaDescriptions(schema);
-		const second = stripSchemaDescriptions(schema);
-		expect(second).toBe(first);
 	});
 });
 

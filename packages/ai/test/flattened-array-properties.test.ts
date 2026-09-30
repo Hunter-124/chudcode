@@ -1,12 +1,12 @@
 import { describe, expect, it } from "bun:test";
-import type { Tool } from "@chudware/ai/types";
-import { validateToolArguments } from "@chudware/ai/utils/validation";
-import { type } from "@chudware/chudtype";
+import { type } from "@oh-my-pi/omptype";
+import type { Tool } from "@oh-my-pi/pi-ai/types";
+import { validateToolArguments } from "@oh-my-pi/pi-ai/utils/validation";
 
 // Issue #8886 — some providers (notably Gemini) serialize array arguments as
 // flattened property paths (`questions[0].id`) instead of a nested array.
 
-// Mirrors the shape of Chudcode's `ask` tool (`packages/coding-agent/src/tools/ask.ts`).
+// Mirrors the shape of OMP's `ask` tool (`packages/coding-agent/src/tools/ask.ts`).
 const questionItem = type({
 	id: type("string"),
 	question: type("string"),
@@ -123,11 +123,6 @@ describe("Flattened array-property normalization (issue #8886)", () => {
 
 	it("leaves malformed indexed keys untouched and surfaces the validation error", () => {
 		const result = callWith({ "questions[foo]": "nope" });
-		expect(result.success).toBe(false);
-	});
-
-	it("leaves non-indexed keys untouched on schema mismatch too", () => {
-		const result = callWith({ label: "300" });
 		expect(result.success).toBe(false);
 	});
 

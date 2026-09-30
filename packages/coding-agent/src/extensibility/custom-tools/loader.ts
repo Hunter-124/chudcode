@@ -5,10 +5,10 @@
  * directories do not depend on workspace module resolution.
  */
 import * as path from "node:path";
-import type { AgentToolResult } from "@chudware/agent-core";
-import { type } from "@chudware/chudtype";
-import * as zod from "@chudware/chudtype/zod";
-import { logger } from "@chudware/utils";
+import { type } from "@oh-my-pi/omptype";
+import * as zod from "@oh-my-pi/omptype/zod";
+import type { AgentToolResult } from "@oh-my-pi/pi-agent-core";
+import { logger } from "@oh-my-pi/pi-utils";
 import { toolCapability } from "../../capability/tool";
 import { type CustomTool, loadCapability } from "../../discovery";
 import type { ExecOptions } from "../../exec/exec";
@@ -16,7 +16,7 @@ import { execCommand } from "../../exec/exec";
 import type { HookUIContext } from "../../extensibility/hooks/types";
 import { getAllPluginToolPaths } from "../../extensibility/plugins/loader";
 // Runtime self-reference: dereference this namespace only inside loader functions to keep the index.ts cycle safe.
-import * as ChudCodingAgent from "../../index";
+import * as PiCodingAgent from "../../index";
 import * as typebox from "../legacy-typebox";
 import { createNoOpUIContext, resolvePath, withHostGuard } from "../utils";
 import type { CustomToolAPI, CustomToolFactory, LoadedCustomTool, ToolLoadError } from "./types";
@@ -130,7 +130,7 @@ export class CustomToolLoader {
 	#seenNames: Set<string>;
 
 	constructor(
-		chud: typeof ChudCodingAgent,
+		pi: typeof PiCodingAgent,
 		cwd: string,
 		builtInToolNames: string[],
 		pushPendingAction?: (action: {
@@ -150,7 +150,7 @@ export class CustomToolLoader {
 			typebox,
 			arktype: type,
 			zod,
-			chud,
+			pi,
 			pushPendingAction: action => {
 				if (!pushPendingAction) {
 					throw new Error("Pending action store unavailable for custom tools in this runtime.");
@@ -211,7 +211,7 @@ export async function loadCustomTools(
 		reject?(reason: string): Promise<AgentToolResult<unknown> | undefined>;
 	}) => void,
 ) {
-	const loader = new CustomToolLoader(ChudCodingAgent, cwd, builtInToolNames, pushPendingAction);
+	const loader = new CustomToolLoader(PiCodingAgent, cwd, builtInToolNames, pushPendingAction);
 	await loader.load(pathsWithSources);
 	return {
 		tools: loader.tools,
@@ -225,7 +225,7 @@ export async function loadCustomTools(
 /**
  * Collect the absolute tool-source paths to load, without importing or
  * binding factories. Hot path on session startup — the scan walks
- * `.chudcode/tools/`, `.claude/tools/`, the plugin tree, and any configured paths.
+ * `.omp/tools/`, `.claude/tools/`, the plugin tree, and any configured paths.
  *
  * Subagents reuse the parent's collected paths via the SDK's
  * `preloadedCustomToolPaths` option, then call `loadCustomTools` themselves
@@ -234,8 +234,13 @@ export async function loadCustomTools(
  *
  * @param configuredPaths - Explicit paths from settings.json and CLI --tool flags
  * @param cwd - Current working directory
+ * @param agentDir - Native user config dir. Default: getAgentDir()
  */
-export async function discoverCustomToolPaths(configuredPaths: string[], cwd: string): Promise<ToolPathWithSource[]> {
+export async function discoverCustomToolPaths(
+	configuredPaths: string[],
+	cwd: string,
+	agentDir?: string,
+): Promise<ToolPathWithSource[]> {
 	const allPathsWithSources: ToolPathWithSource[] = [];
 	const seen = new Set<string>();
 
@@ -248,8 +253,13 @@ export async function discoverCustomToolPaths(configuredPaths: string[], cwd: st
 		}
 	};
 
-	// 1. Discover tools via capability system (user + project from all providers)
-	const discoveredTools = await loadCapability<CustomTool>(toolCapability.id, { cwd });
+	// Capability providers also expose metadata and scripts. Filter before deduplication
+	// so those entries cannot shadow executable modules with the same name.
+	const discoveredTools = await loadCapability<CustomTool>(toolCapability.id, {
+		cwd,
+		agentDir,
+		filter: tool => /\.(ts|js|mjs|cjs)$/.test(tool.path) && !tool.path.endsWith(".d.ts"),
+	});
 	for (const tool of discoveredTools.items) {
 		addPath(tool.path, {
 			provider: tool._source.provider,
@@ -258,7 +268,7 @@ export async function discoverCustomToolPaths(configuredPaths: string[], cwd: st
 		});
 	}
 
-	// 2. Plugin tools: ~/.chudcode/plugins/node_modules/*/
+	// 2. Plugin tools: ~/.omp/plugins/node_modules/*/
 	for (const pluginPath of await getAllPluginToolPaths(cwd)) {
 		addPath(pluginPath, { provider: "plugin", providerName: "Plugin", level: "user" });
 	}
@@ -274,7 +284,7 @@ export async function discoverCustomToolPaths(configuredPaths: string[], cwd: st
 /**
  * Discover and load tools from standard locations via capability system:
  * 1. User and project tools discovered by capability providers
- * 2. Installed plugins (~/.chudcode/plugins/node_modules/*)
+ * 2. Installed plugins (~/.omp/plugins/node_modules/*)
  * 3. Explicitly configured paths from settings or CLI
  *
  * Composed of {@link discoverCustomToolPaths} (FS scan) + {@link loadCustomTools}
@@ -284,6 +294,7 @@ export async function discoverCustomToolPaths(configuredPaths: string[], cwd: st
  * @param configuredPaths - Explicit paths from settings.json and CLI --tool flags
  * @param cwd - Current working directory
  * @param builtInToolNames - Names of built-in tools to check for conflicts
+ * @param agentDir - Native user config dir. Default: getAgentDir()
  */
 export async function discoverAndLoadCustomTools(
 	configuredPaths: string[],
@@ -295,7 +306,8 @@ export async function discoverAndLoadCustomTools(
 		apply(reason: string): Promise<AgentToolResult<unknown>>;
 		reject?(reason: string): Promise<AgentToolResult<unknown> | undefined>;
 	}) => void,
+	agentDir?: string,
 ) {
-	const pathsWithSources = await discoverCustomToolPaths(configuredPaths, cwd);
+	const pathsWithSources = await discoverCustomToolPaths(configuredPaths, cwd, agentDir);
 	return loadCustomTools(pathsWithSources, cwd, builtInToolNames, pushPendingAction);
 }

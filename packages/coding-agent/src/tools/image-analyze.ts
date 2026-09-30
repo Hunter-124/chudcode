@@ -1,14 +1,15 @@
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import type { AgentTool, AgentToolContext, AgentToolResult, AgentToolUpdateCallback } from "@chudware/agent-core";
-import type { ImageContent } from "@chudware/ai";
-import { type } from "@chudware/chudtype";
+import type { AgentTool, AgentToolContext, AgentToolResult, AgentToolUpdateCallback } from "@oh-my-pi/pi-agent-core";
+import type { ImageContent } from "@oh-my-pi/pi-ai";
+import { type } from "@oh-my-pi/omptype";
 import { resizeImage } from "../utils/image-resize";
 import type { ToolSession } from "./index";
 import { asImageContent, loadProcessedImage, loadVisionImage, materializeLoadedImage } from "./vision/image-input";
 import { ensureVisionModels } from "./vision/models";
 import { resolveVisionSidecar, runVision, type VisionResponse } from "./vision/sidecar";
+import { cfgVisionAutoDownload, cfgVisionModelDir } from "./settings";
 
 const imageAnalyzeSchema = type({
 	action: type.enumerated("describe", "classify", "detect", "ocr", "redact", "crop", "locate", "diff"),
@@ -170,8 +171,8 @@ export class ImageAnalyzeTool implements AgentTool<typeof imageAnalyzeSchema, Im
 				templatePath = await materializeLoadedImage(template.image, "template");
 				temporaryInputs.push(templatePath);
 			}
-			const modelDirSetting = this.session.settings.get("vision.modelDir");
-			const autoDownloadSetting = this.session.settings.get("vision.autoDownload");
+			const modelDirSetting = cfgVisionModelDir.get(this.session);
+			const autoDownloadSetting = cfgVisionAutoDownload.get(this.session);
 			const models = await ensureVisionModels(modelIdsFor(params), {
 				binaryPath: resolution.path,
 				nativeDirs: resolution.nativeDirs,

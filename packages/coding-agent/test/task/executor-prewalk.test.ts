@@ -6,23 +6,27 @@
  * target identical to the starting model).
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "bun:test";
-import type { Model } from "@chudware/ai";
-import { getBundledModel } from "@chudware/catalog/models";
-import type { ModelRegistry } from "@chudware/coding-agent/config/model-registry";
-import { Settings } from "@chudware/coding-agent/config/settings";
-import type { LoadExtensionsResult } from "@chudware/coding-agent/extensibility/extensions/types";
-import { AgentLifecycleManager } from "@chudware/coding-agent/registry/agent-lifecycle";
-import { AgentRegistry } from "@chudware/coding-agent/registry/agent-registry";
-import type { CreateAgentSessionResult } from "@chudware/coding-agent/sdk";
-import * as sdkModule from "@chudware/coding-agent/sdk";
-import type { AgentSession, AgentSessionEvent, PromptOptions } from "@chudware/coding-agent/session/agent-session";
-import { TaskTool } from "@chudware/coding-agent/task";
-import * as discoveryModule from "@chudware/coding-agent/task/discovery";
-import * as executorModule from "@chudware/coding-agent/task/executor";
-import { runSubprocess } from "@chudware/coding-agent/task/executor";
-import type { AgentDefinition, SingleResult } from "@chudware/coding-agent/task/types";
-import type { ToolSession } from "@chudware/coding-agent/tools";
-import { EventBus } from "@chudware/coding-agent/utils/event-bus";
+import type { Model } from "@oh-my-pi/pi-ai";
+import { getBundledModel } from "@oh-my-pi/pi-catalog/models";
+import type { ModelRegistry } from "@oh-my-pi/pi-coding-agent/config/model-registry";
+import { Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
+import type { LoadExtensionsResult } from "@oh-my-pi/pi-coding-agent/extensibility/extensions/types";
+import { AgentLifecycleManager } from "@oh-my-pi/pi-coding-agent/registry/agent-lifecycle";
+import { AgentRegistry } from "@oh-my-pi/pi-coding-agent/registry/agent-registry";
+import type { CreateAgentSessionResult } from "@oh-my-pi/pi-coding-agent/sdk";
+import * as sdkModule from "@oh-my-pi/pi-coding-agent/sdk";
+import type { AgentSession, AgentSessionEvent, PromptOptions } from "@oh-my-pi/pi-coding-agent/session/agent-session";
+import { TaskTool } from "@oh-my-pi/pi-coding-agent/task";
+import * as discoveryModule from "@oh-my-pi/pi-coding-agent/task/discovery";
+import * as executorModule from "@oh-my-pi/pi-coding-agent/task/executor";
+import { runSubprocess } from "@oh-my-pi/pi-coding-agent/task/executor";
+import type { AgentDefinition } from "@oh-my-pi/pi-coding-agent/task/types";
+import type { SingleResult } from "@oh-my-pi/pi-tui/tools/task";
+import type { ToolSession } from "@oh-my-pi/pi-coding-agent/tools";
+import { EventBus } from "@oh-my-pi/pi-coding-agent/utils/event-bus";
+import { createSessionDefaults } from "../helpers/session-defaults";
+
+import { cfgTaskAgentPrewalk, cfgTaskPrewalk } from "@oh-my-pi/pi-coding-agent/task/settings";
 
 function yieldEmittingSession(
 	initialTools: string[] = ["read", "yield"],
@@ -35,6 +39,7 @@ function yieldEmittingSession(
 	const serving = (model: Model | undefined): { selector: string; isFallback: boolean } | undefined =>
 		model ? { selector: `${model.provider}/${model.id}`, isFallback: false } : undefined;
 	const session = {
+		...createSessionDefaults(),
 		state: { messages: [] },
 		agent: { state: { systemPrompt: ["test"] } },
 		model: modelSwitch?.from,
@@ -74,15 +79,8 @@ function yieldEmittingSession(
 					isError: false,
 				});
 			}
+			return true;
 		},
-		waitForIdle: async () => {},
-		prepareForHeadlessAdvisorDrain: () => {},
-		waitForAdvisorCatchup: async () => true,
-		getLastAssistantMessage: () => undefined,
-		abort: async () => {},
-		dispose: async () => {},
-		setIrcWakeTurnObserver: () => {},
-		subscribeRunState: () => () => {},
 	};
 	return session as unknown as AgentSession;
 }
@@ -229,7 +227,7 @@ describe("runSubprocess per-agent prewalk", () => {
 
 	it("task.agentPrewalk 'off' disables a frontmatter-enabled prewalk", async () => {
 		const settings = Settings.isolated();
-		settings.set("task.agentPrewalk", { task: "off" });
+		cfgTaskAgentPrewalk.set(settings, { task: "off" });
 		const spy = vi
 			.spyOn(sdkModule, "createAgentSession")
 			.mockResolvedValue(createSessionResult(yieldEmittingSession()));
@@ -250,7 +248,7 @@ describe("runSubprocess per-agent prewalk", () => {
 	it("task.agentPrewalk 'on' enables prewalk for an agent without frontmatter", async () => {
 		const settings = Settings.isolated();
 		settings.setModelRole("smol", `${target.provider}/${target.id}`);
-		settings.set("task.agentPrewalk", { task: "on" });
+		cfgTaskAgentPrewalk.set(settings, { task: "on" });
 		const spy = vi
 			.spyOn(sdkModule, "createAgentSession")
 			.mockResolvedValue(createSessionResult(yieldEmittingSession()));
@@ -267,7 +265,7 @@ describe("runSubprocess per-agent prewalk", () => {
 	it("task.prewalk arms the bundled generic task agent without frontmatter", async () => {
 		const settings = Settings.isolated();
 		settings.setModelRole("smol", `${target.provider}/${target.id}`);
-		settings.set("task.prewalk", true);
+		cfgTaskPrewalk.set(settings, true);
 		const spy = vi
 			.spyOn(sdkModule, "createAgentSession")
 			.mockResolvedValue(createSessionResult(yieldEmittingSession()));
@@ -295,7 +293,7 @@ describe("runSubprocess per-agent prewalk", () => {
 		expect(offByDefault.exitCode).toBe(0);
 		expect(spy.mock.calls[0]?.[0]?.prewalk).toBeUndefined();
 
-		settings.set("task.prewalk", true);
+		cfgTaskPrewalk.set(settings, true);
 		const otherAgent = await runSubprocess({
 			...baseOptions("subagent-prewalk-setting-other-agent", settings),
 			agent: { ...baseAgent, name: "sonic", model: [`${primary.provider}/${primary.id}`] },
@@ -379,7 +377,7 @@ describe("task tool plan-mode prewalk guard", () => {
 		return {
 			cwd: "/tmp",
 			hasUI: false,
-			settings: Settings.isolated({ "task.isolation.mode": "none" }),
+			settings: Settings.isolated({ "task.isolation.enabled": false }),
 			getSessionFile: () => null,
 			getSessionSpawns: () => "*",
 			getPlanModeState: () => (planMode ? { enabled: true, planFilePath: "local://PLAN.md" } : undefined),

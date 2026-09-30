@@ -1,6 +1,7 @@
 /** Inspect and maintain image publication backends. */
 
-import { Args, Command, Flags } from "@chudware/utils/cli";
+import { Args, Command, Flags } from "@oh-my-pi/pi-utils/cli";
+import { APP_NAME } from "@oh-my-pi/pi-utils/dirs";
 import { imagesHelp as commandHelp } from "../cli/command-help";
 import { IMAGES_ACTIONS, type ImagesAction, type ImagesCommandArgs, runImagesCommand } from "../cli/images-cli";
 
@@ -22,12 +23,12 @@ export default class Images extends Command {
 		timeout: Flags.integer({ description: "External health probe timeout in seconds" }),
 	};
 	static examples = [
-		"chudcode images",
-		"chudcode images status --json",
-		"chudcode images doctor",
-		"chudcode images probe --timeout 15",
-		"chudcode images purge",
-		"chudcode images purge --all --apply",
+		`${APP_NAME} images`,
+		`${APP_NAME} images status --json`,
+		`${APP_NAME} images doctor`,
+		`${APP_NAME} images probe --timeout 15`,
+		`${APP_NAME} images purge`,
+		`${APP_NAME} images purge --all --apply`,
 	];
 
 	async run(): Promise<void> {

@@ -1,8 +1,8 @@
 /**
- * Harness documentation index for the `chudcode://` protocol.
+ * Harness documentation index for the `omp://` protocol.
  *
  * Compiled binaries and the prepacked npm bundle inline a compressed index of the
- * docs (injected via `process.env.CHUDCODE_DOCS_EMBED` at build time). The format is two lines:
+ * docs (injected via `process.env.PI_DOCS_EMBED` at build time). The format is two lines:
  *   1. a plain JSON array of the sorted doc file names, and
  *   2. a base64 gzip blob of the index-aligned doc bodies (`string[]`).
  * Listing/completion (`getDocFilenames`) parses only the small first line and
@@ -10,7 +10,7 @@
  * async `node:zlib` threadpool) lazily, once, on the first actual read. When the
  * placeholder is empty (running from TypeScript source), the index falls back to
  * the embed file shipped in the npm package (`dist/docs-index.generated.txt`,
- * written by `gen:bundle`) — so `@chudware/coding-agent/*` SDK consumers
+ * written by `gen:bundle`) — so `@oh-my-pi/pi-coding-agent/*` SDK consumers
  * resolve docs and never probe the consumer's `node_modules/docs` — and then to
  * the repo `docs/` directory on disk for a monorepo checkout.
  */
@@ -18,10 +18,10 @@ import { readFileSync } from "node:fs";
 import * as path from "node:path";
 import { promisify } from "node:util";
 import { gunzip } from "node:zlib";
-import { isEnoent, logger } from "@chudware/utils";
+import { isEnoent, logger } from "@oh-my-pi/pi-utils";
 import { Glob } from "bun";
 
-const docsEmbed = process.env.CHUDCODE_DOCS_EMBED ?? "";
+const docsEmbed = process.env.PI_DOCS_EMBED ?? "";
 
 const gunzipAsync = promisify(gunzip);
 
@@ -87,8 +87,8 @@ function readDocsFromDisk(): DocsIndex | null {
 
 /**
  * Prepacked npm package: the docs embed is written to `dist/docs-index.generated.txt`
- * during `gen:bundle` (compiled binaries inline it via `CHUDCODE_DOCS_EMBED` instead).
- * SDK consumers importing `@chudware/coding-agent/*` load TypeScript source, where
+ * during `gen:bundle` (compiled binaries inline it via `PI_DOCS_EMBED` instead).
+ * SDK consumers importing `@oh-my-pi/pi-coding-agent/*` load TypeScript source, where
  * the build-time placeholder is empty, so this shipped file is their only reachable
  * corpus. Returns `null` when the file is absent (dev tree before a bundle build).
  */
@@ -110,10 +110,10 @@ function readShippedEmbed(): DocsIndex | null {
 	return decoded;
 }
 
-/** Empty index for when no docs corpus is reachable — degrades `chudcode://` instead of throwing ENOENT at callers. */
+/** Empty index for when no docs corpus is reachable — degrades `omp://` instead of throwing ENOENT at callers. */
 function emptyIndex(): DocsIndex {
 	logger.warn(
-		"chudcode:// docs corpus unavailable: no build-time embed, on-disk docs/ directory, or shipped dist embed found",
+		"omp:// docs corpus unavailable: no build-time embed, on-disk docs/ directory, or shipped dist embed found",
 	);
 	return { filenames: [], getBody: () => Promise.resolve(undefined) };
 }

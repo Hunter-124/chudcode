@@ -1,4 +1,4 @@
-import { $which } from "@chudware/utils";
+import { $which } from "@oh-my-pi/pi-utils";
 
 /** Portable command that rejects credential prompts without assuming an FHS layout. */
 export const REJECT_PROMPT_COMMAND = $which("false") ?? "false";
@@ -101,7 +101,7 @@ function hasEnvGroupValue(
 	return false;
 }
 
-/** Copy of the base env with `CI` removed, for the `CHUDCODE_BASH_NO_CI` opt-out. */
+/** Copy of the base env with `CI` removed, for the `PI_BASH_NO_CI` opt-out. */
 function withoutCI(env: Readonly<Record<string, string>>): Record<string, string> {
 	const { CI: _ci, ...rest } = env;
 	return rest;
@@ -110,14 +110,14 @@ function withoutCI(env: Readonly<Record<string, string>>): Record<string, string
 /** Builds the per-command environment for non-interactive child processes. */
 export function buildNonInteractiveEnv(
 	overrides?: Record<string, string>,
-	baseEnv: Record<string, string | undefined> = process.env,
+	baseEnv: Record<string, string | undefined> = Bun.env,
 	platform: NodeJS.Platform = process.platform,
 ): Record<string, string> {
-	// `CHUDCODE_BASH_NO_CI` (and its legacy alias) opts out of the automatic `CI=true`
+	// `PI_BASH_NO_CI` (and its legacy alias) opts out of the automatic `CI=true`
 	// injection. Mirrors the session-env gate in `procmgr.ts` so the opt-out
 	// reaches the per-command env, which otherwise overrides the session value.
 	const base =
-		baseEnv.CHUDCODE_BASH_NO_CI || baseEnv.CLAUDE_BASH_NO_CI ? withoutCI(NON_INTERACTIVE_ENV) : NON_INTERACTIVE_ENV;
+		baseEnv.PI_BASH_NO_CI || baseEnv.CLAUDE_BASH_NO_CI ? withoutCI(NON_INTERACTIVE_ENV) : NON_INTERACTIVE_ENV;
 	if (platform !== "win32") {
 		return overrides ? { ...base, ...overrides } : base;
 	}

@@ -5,7 +5,7 @@
  *
  * Why explicit ESM exports matter (issue #892):
  *
- * Consumers import named symbols from `@chudware/natives`. The native addon
+ * Consumers import named symbols from `@oh-my-pi/pi-natives`. The native addon
  * loader returns most values dynamically, while napi-rs `#[napi(string_enum)]`
  * emits `const enum` in the .d.ts — a TypeScript-only construct with no JS
  * runtime value. This script renders the ESM loader template and emits one
@@ -15,7 +15,6 @@
  * Run after `napi build`: `bun packages/natives/scripts/gen-enums.ts`
  */
 import * as path from "node:path";
-import * as fsx from "@chudware/utils/fsx";
 
 const nativeDir = path.resolve(import.meta.dir, "../native");
 const dtsPath = path.join(nativeDir, "index.d.ts");
@@ -34,6 +33,14 @@ const CLASS_RE = /^export declare class (\w+)/gm;
 
 // Match `export declare function name(...)`. Same shape rationale.
 const FUNCTION_RE = /^export declare function (\w+)/gm;
+
+/**
+ * The release identity export (`__piNativesBuildVersion`, and the legacy
+ * per-release `__piNativesV*` names) answers "which build is this addon?", so
+ * it must stay a raw passthrough: a stub there would report presence for an
+ * addon that has it not, defeating the loader's own staleness diagnosis.
+ */
+const RELEASE_IDENTITY_NAME_RE = /^__piNatives(?:BuildVersion$|V)/;
 
 interface EnumExport {
 	name: string;
@@ -97,7 +104,12 @@ function buildGeneratedBlock(dts: string): string {
 		if (lines.length > 0) lines.push("");
 		lines.push("// functions");
 		for (const name of functions) {
-			lines.push(`export const ${name} = nativeBindings.${name};`);
+			// `missingNativeExport` returns `undefined` on a current addon and a
+			// throwing stub on a stale one, so capability probes
+			// (`typeof native.x === "function"`) keep their meaning and only the
+			// stale case gains an actionable failure. See `loader-state.js`.
+			const fallback = RELEASE_IDENTITY_NAME_RE.test(name) ? "" : ` ?? missingNativeExport("${name}")`;
+			lines.push(`export const ${name} = nativeBindings.${name}${fallback};`);
 		}
 	}
 	if (enums.length > 0) {
@@ -112,8 +124,8 @@ function buildGeneratedBlock(dts: string): string {
 }
 
 export async function generateEnumExports(): Promise<void> {
-	const dts = await fsx.readText(dtsPath);
-	const existing = await fsx.readText(jsPath);
+	const dts = await Bun.file(dtsPath).text();
+	const existing = await Bun.file(jsPath).text();
 	const generatedBlock = buildGeneratedBlock(dts);
 
 	// Patch the generated block in place. `native/index.js` is the hand-edited
@@ -130,7 +142,7 @@ export async function generateEnumExports(): Promise<void> {
 	}
 	const js = existing.slice(0, blockStart) + generatedBlock + existing.slice(blockEnd + MARKER_END.length);
 
-	await fsx.write(jsPath, js);
+	await Bun.write(jsPath, js);
 
 	// Also fix the .d.ts: replace `const enum` with `enum` so TS allows
 	// assigning string literals to enum types without casts.
@@ -138,7 +150,7 @@ export async function generateEnumExports(): Promise<void> {
 	const dtsContent = dts
 		.replaceAll("export const enum", "export declare enum")
 		.replaceAll("export declare const enum", "export declare enum");
-	await fsx.write(dtsPath, dtsContent);
+	await Bun.write(dtsPath, dtsContent);
 
 	const symbolCount = (generatedBlock.match(/^export const /gm) ?? []).length;
 	console.log(

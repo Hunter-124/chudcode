@@ -15,6 +15,7 @@ Extension loading builds a list of module entry files, imports each module with 
 ## Primary implementation files
 
 - `src/extensibility/extensions/loader.ts` — path discovery + import/execution
+- `src/extensibility/extensions/directory-resolution.ts` — shared configured/plugin manifest and directory precedence
 - `src/extensibility/extensions/index.ts` — public exports
 - `src/extensibility/extensions/runner.ts` — runtime/event execution after load
 - `src/discovery/builtin.ts` — native auto-discovery provider for extension modules
@@ -31,20 +32,20 @@ Extension loading builds a list of module entry files, imports each module with 
 
 Native `extension-module` discovery comes from:
 
-- Project directory: `<cwd>/.chudcode/extensions`
-- User directory: the active agent directory's `extensions/` (default `~/.chudcode/agent/extensions`)
-- Native legacy/settings JSON entries: `<cwd>/.chudcode/settings.json#extensions` and the active agent directory's `settings.json#extensions`
+- Project directory: `<cwd>/.omp/extensions`
+- User directory: the active agent directory's `extensions/` (default `~/.omp/agent/extensions`)
+- Native legacy/settings JSON entries: `<cwd>/.omp/settings.json#extensions` and the active agent directory's `settings.json#extensions`
 
-The project root is the native provider's `.chudcode` directory (`SOURCE_PATHS.native.projectDir`), cwd-only; it does not walk ancestors. The user root is the active profile's agent directory via `getAgentDir()`, so under `chudcode --profile <name>` it becomes `~/.chudcode/profiles/<name>/agent/extensions` (and it honors `CHUDCODE_CODING_AGENT_DIR`). See [Profiles](./config-usage.md#profiles).
+The project root is the native provider's `.omp` directory (`SOURCE_PATHS.native.projectDir`), cwd-only; it does not walk ancestors. The user root is the active profile's agent directory via `getAgentDir()`, so under `omp --profile <name>` it becomes `~/.omp/profiles/<name>/agent/extensions` (and it honors `PI_CODING_AGENT_DIR`). See [Profiles](./config-usage.md#profiles).
 
 Notes:
 
-- Native auto-discovery is currently `.chudcode` based.
-- Legacy `.pi` is still accepted in package manifests (`chud.extensions`) and project override lookup, but `.pi/extensions` is not a native root here.
+- Native auto-discovery is currently `.omp` based.
+- Legacy `.pi` is still accepted in package manifests (`pi.extensions`) and project override lookup, but `.pi/extensions` is not a native root here.
 
 ### 2) Discovered JS/TS hook factories
 
-After native auto-discovery, `discoverAndLoadExtensions()` also appends JS/TS hook factories from the `hook` capability — any hook whose entry path is a `.ts`/`.js` file — so they load through the same module pipeline.
+After native auto-discovery, `discoverAndLoadExtensions()` also appends JS/TS hook factories from the `hook` capability — any hook whose entry path is a `.ts`/`.js` file — so they load through the same module pipeline. The native provider discovers these under `<cwd>/.omp/hooks/pre|post/` and `<agentDir>/hooks/pre|post/` only; see [Hooks: native discovery location](./hooks.md#native-discovery-location) for the required `pre/`/`post/` layout.
 
 Hook-capability loading already applies its own hook-specific disabled ids, so these paths are not additionally filtered by `disabledExtensions` extension-module names.
 
@@ -52,7 +53,7 @@ Hook-capability loading already applies its own hook-specific disabled ids, so t
 
 After hook discovery, `discoverAndLoadExtensions()` appends extension entry points from enabled installed plugins via `getAllPluginExtensionPaths(cwd)`.
 
-Plugin extension entries come from package `chudcode.extensions` / `chud.extensions` manifests, including enabled feature entries.
+Plugin extension entries come from package `omp.extensions` / `pi.extensions` manifests, including enabled feature entries.
 
 Installed-plugin manifest resolution accepts explicit `.ts`, `.js`, `.mjs`, and `.cjs` files. For a manifest entry that names a directory, it recognizes `index.ts`, `index.js`, `index.mjs`, or `index.cjs`; extension-directory expansion uses the same four suffixes. This is broader than native and configured-directory auto-scanning, which remains limited to `.ts` and `.js`.
 
@@ -67,18 +68,18 @@ Configured path sources in the main session startup path (`sdk.ts`):
 
 Settings files:
 
-- User: the active agent directory's `config.yml` (default `~/.chudcode/agent/config.yml`; with `--profile <name>`, `~/.chudcode/profiles/<name>/agent/config.yml`; `CHUDCODE_CODING_AGENT_DIR` can override the agent directory)
-- Project/native settings capability: `<cwd>/.chudcode/config.yml` and `<cwd>/.chudcode/settings.json`
+- User: the active agent directory's `config.yml` (default `~/.omp/agent/config.yml`; with `--profile <name>`, `~/.omp/profiles/<name>/agent/config.yml`; `PI_CODING_AGENT_DIR` can override the agent directory)
+- Project/native settings capability: `<cwd>/.omp/config.yml` and `<cwd>/.omp/settings.json`
 
 Native extension-module discovery also reads legacy JSON extension lists from:
 
-- The active agent directory's `settings.json` (default `~/.chudcode/agent/settings.json`)
-- `<cwd>/.chudcode/settings.json`
+- The active agent directory's `settings.json` (default `~/.omp/agent/settings.json`)
+- `<cwd>/.omp/settings.json`
 
 Examples:
 
 ```yaml
-# ~/.chudcode/agent/config.yml
+# ~/.omp/agent/config.yml
 extensions:
   - ~/my-exts/safety.ts
   - ./local/ext-pack
@@ -86,7 +87,7 @@ extensions:
 
 ```json
 {
-  "extensions": ["./.chudcode/extensions/my-extra"]
+  "extensions": ["./.omp/extensions/my-extra"]
 }
 ```
 
@@ -103,14 +104,14 @@ Behavior split:
 
 - SDK: when `disableExtensionDiscovery=true`, ambient extension factories are
   excluded, while `additionalExtensionPaths` are still resolved normally
-  (including package directories with `package.json#chudcode.extensions`).
+  (including package directories with `package.json#omp.extensions`).
 - CLI: `--no-extensions` follows the same explicit-only contract. Explicit
   `-e/--extension` and `--hook` paths still load, and only sibling capability
   roots from explicitly named extension packages remain eligible. Project/user
-  `extensions:` settings and installed Chudcode extension packages are excluded from
+  `extensions:` settings and installed OMP extension packages are excluded from
   that sibling surface.
 
-This flag governs extension factories and Chudcode extension-package sibling roots;
+This flag governs extension factories and OMP extension-package sibling roots;
 it is not a whole-process capability-isolation switch. Skills, MCP servers,
 tools, prompts, and rules owned by other discovery subsystems retain their own
 enable/disable controls.
@@ -172,19 +173,20 @@ It is used directly as a module entry candidate. Explicit `.ts`, `.js`, `.mjs`, 
 
 Resolution order:
 
-1. `package.json` in that directory with `chudcode.extensions` (or legacy `chud.extensions`) -> use declared entries
+1. `package.json` in that directory with a non-empty `omp.extensions` (or legacy `pi.extensions`) array -> use declared entries
 2. `index.ts`
 3. `index.js`
 4. Otherwise scan one level for extension entries:
    - direct `*.ts` / `*.js`
    - subdir `index.ts` / `index.js`
-   - subdir `package.json` with `chudcode.extensions` / `chud.extensions`
+   - subdir `package.json` with `omp.extensions` / `pi.extensions`
 
 Rules and constraints:
 
 - no recursive discovery beyond one subdirectory level
 - declared `extensions` manifest entries are resolved relative to that package directory
-- declared entries are included only if file exists/access is allowed
+- a non-empty declared array is authoritative: convention-based index/scan fallback stays suppressed even when every declared entry is missing
+- missing or inaccessible declared entries are skipped individually, so existing entries in a partially missing manifest still load
 - in `*/index.{ts,js}` pairs, TypeScript is preferred over JavaScript
 - symlinks are treated as eligible files/directories
 
@@ -225,8 +227,11 @@ Implication: if the same module path is both auto-discovered and explicitly conf
 
 Each candidate path is loaded via `loadLegacyPiModule()` (`src/extensibility/plugins/legacy-pi-compat.ts`):
 
-- the entry's realpath is resolved, then dynamically imported with an `?mtime` cache-buster so edited source reloads
-- a scoped Bun `onLoad` hook rewrites legacy chud-package specifiers (`@mariozechner/*`, `@earendil-works/*`) and bare `@sinclair/typebox` onto the host-bundled copies before evaluation
+- the entry's realpath is resolved, then dynamically imported with an `?mtime` cache-buster so edited source reloads. Since 16.3.7 the same mtime tag propagates to every module in the extension-owned dependency graph — relative `./`/`../` imports, package `imports` aliases (`#alias/*`), and extension-local bare dependencies — via the graph-wide `onLoad` rewrite, so same-process re-imports pick up edits across the whole graph, not just the entry file. Host-resolved rewrites (legacy pi-package specifiers, the TypeBox shim) stay untagged `file://` URLs because they point at in-process host code that never changes between reloads
+- a scoped Bun `onLoad` hook rewrites legacy pi-package specifiers (`@mariozechner/*`, `@earendil-works/*`) and bare `@sinclair/typebox` onto the host-bundled copies before evaluation. Legacy Pi package-root imports resolve through compat shims: catalog symbols that moved to `@oh-my-pi/pi-catalog/models` (`calculateCost`, `modelsAreEqual`, `getBundledProviders`, plus `getModel`/`getModels` aliases) are re-exported by the legacy pi-ai shim (`src/extensibility/legacy-pi-ai-shim.ts`), and legacy `@oh-my-pi/pi-coding-agent` imports — including `DefaultResourceLoader` — resolve to the compat loader in `src/extensibility/legacy-pi-coding-agent-shim.ts`
+- graph-owned CommonJS modules use synchronous Bun `onLoad` object modules exposing runtime own-string export keys, including computed and non-enumerable names; `default` remains the complete `module.exports` value. The shared evaluator preserves cycles and `require`/import identity, while required host ESM shims are prepared before synchronous evaluation. No generated facade files or AST named-export reconstruction are needed
+- bundled host modules use Bun's native object loader. Modules exporting `theme` add a thin ESM binding bridge so the existing `theme` import follows host assignments synchronously without replacing the UI's change listener
+- package `imports` and `exports` patterns prefer the longest prefix before `*`, then the longest complete pattern; exact matches take precedence and excluded targets never fall back to broader patterns
 - factory is selected by `getExtensionFactory(module)`: the module itself if it is a function, otherwise `module.default`
 - factory must be a function (`ExtensionFactory`) and may return `void` or a promise; loading awaits it before continuing to the next path
 
@@ -246,6 +251,23 @@ Common cases:
 - invalid factory export (non-function)
 - exception thrown while executing factory
 
+### Restricted children and revival
+
+Restricted task/eval children rebind the parent's already-imported extension
+factories to their own session. Hooks and providers remain available without
+ambient extension discovery. Extension tools cannot widen the restricted tool
+set or replace built-ins, including through late registration. New extension
+paths, loaded parent-bound instances, and additional inline factories remain
+excluded.
+
+Revived children inherit the current owning session's extension roots and
+prepared factories, not extension authority from a saved transcript. Cold
+discovery without prepared factories respects the owner's explicit-only or
+merged roots.
+
+Extension factories still execute host code when rebound; tool restrictions are
+not an extension sandbox. Existing per-module load-failure handling is unchanged.
+
 ### Runtime isolation model
 
 - Extensions are **not sandboxed** (same process/runtime).
@@ -263,7 +285,7 @@ When events run through `ExtensionRunner`, handler exceptions are caught and emi
 ### User-level
 
 ```text
-~/.chudcode/agent/
+~/.omp/agent/
   config.yml
   extensions/
     guardrails.ts
@@ -275,7 +297,7 @@ When events run through `ExtensionRunner`, handler exceptions are caught and emi
 
 ```text
 <repo>/
-  .chudcode/
+  .omp/
     settings.json
     extensions/
       checks/
@@ -287,7 +309,7 @@ When events run through `ExtensionRunner`, handler exceptions are caught and emi
 
 ```json
 {
-  "Chudcode": {
+  "omp": {
     "extensions": ["./src/check-a.ts", "./src/check-b.js"]
   }
 }
@@ -297,7 +319,7 @@ Legacy manifest key still accepted:
 
 ```json
 {
-  "chud": {
+  "pi": {
     "extensions": ["./index.ts"]
   }
 }

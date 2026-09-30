@@ -42,21 +42,22 @@ CustomTool.execute(toolCallId, params, onUpdate, ctx, signal)
 
 ## Discovery locations (loader API)
 
-`discoverAndLoadCustomTools(configuredPaths, cwd, builtInToolNames)` merges:
+`discoverAndLoadCustomTools(configuredPaths, cwd, builtInToolNames, pushPendingAction?, agentDir?)` merges:
 
 1. Capability providers (`toolCapability`), including:
-   - Native Chudcode config (`~/.chudcode/agent/tools`, `.chudcode/tools`)
+   - Native OMP config (`<agentDir>/tools`, default `~/.omp/agent/tools`; `.omp/tools`)
    - Claude config (`~/.claude/tools`, `.claude/tools`)
    - Codex config (`~/.codex/tools`, `.codex/tools`)
    - Claude marketplace plugin cache provider
-2. Installed plugin manifests (`~/.chudcode/plugins/node_modules/*` via plugin loader)
+2. Installed plugin manifests (`~/.omp/plugins/node_modules/*` via plugin loader)
 3. Explicit configured paths passed to the loader
 
 ### Important behavior
 
 - Duplicate resolved paths are deduplicated.
 - Tool name conflicts are rejected against built-ins and already-loaded custom tools.
-- `.md` and `.json` files are discovered as tool metadata by some providers, but the executable module loader rejects them as runnable tools.
+- Automatic tool-directory scans discover `.ts` and `.js` modules; native OMP discovery also checks immediate subdirectories for `index.ts`. Executable discovery excludes `.d.ts` and filters out metadata and scripts before tool-name deduplication. Declarative metadata such as `.md` and `.json` remains available to capability consumers but is not loaded as executable tools.
+- `.mjs` and `.cjs` modules can be loaded through explicitly configured paths or declared plugin tool entries, but the tool-directory scans above do not discover them automatically. Explicitly configured `.md` or `.json` paths still produce a load error.
 - Relative configured paths are resolved from `cwd`; `~` is expanded.
 
 ## Module contract
@@ -64,14 +65,14 @@ CustomTool.execute(toolCallId, params, onUpdate, ctx, signal)
 A custom tool module must export a function (default export preferred):
 
 ```ts
-import type { CustomToolFactory } from "@chudware/coding-agent";
+import type { CustomToolFactory } from "@oh-my-pi/pi-coding-agent";
 
-const factory: CustomToolFactory = (chud) => ({
+const factory: CustomToolFactory = (pi) => ({
   name: "repo_stats",
   label: "Repo Stats",
   description: "Counts tracked TypeScript files",
-  parameters: chud.zod.object({
-    glob: chud.zod.string().optional(),
+  parameters: pi.zod.object({
+    glob: pi.zod.string().optional(),
   }),
 
   async execute(toolCallId, params, onUpdate, ctx, signal) {
@@ -80,10 +81,10 @@ const factory: CustomToolFactory = (chud) => ({
       details: { phase: "scan" },
     });
 
-    const result = await chud.exec(
+    const result = await pi.exec(
       "git",
       ["ls-files", params.glob ?? "**/*.ts"],
-      { signal, cwd: chud.cwd },
+      { signal, cwd: pi.cwd },
     );
     if (result.killed) {
       throw new Error("Scan was cancelled");
@@ -109,7 +110,7 @@ const factory: CustomToolFactory = (chud) => ({
 export default factory;
 ```
 
-Parameter schemas may use the Zod-compatible chudtype builder (`chud.zod`), native chudtype builder (`chud.arktype`), or legacy-compatible TypeBox shim (`chud.typebox`) and flow through the shared validation/wire pipeline.
+Parameter schemas may use the Zod-compatible omptype builder (`pi.zod`), native omptype builder (`pi.arktype`), or legacy-compatible TypeBox shim (`pi.typebox`) and flow through the shared validation/wire pipeline.
 
 Factory return type:
 
@@ -126,9 +127,9 @@ From `types.ts` and `loader.ts`:
 - `ui`: UI context (can be no-op in headless modes)
 - `hasUI`: `false` in non-interactive flows
 - `logger`: shared file logger
-- `arktype`: injected chudtype `type(...)` builder
+- `arktype`: injected omptype `type(...)` builder
 - `typebox`: compatibility shim for legacy TypeBox-style schemas
-- `chud`: injected `@chudware/coding-agent` exports
+- `pi`: injected `@oh-my-pi/pi-coding-agent` exports
 - `pushPendingAction(action)`: stage a preview action that is finalized by writing a plain-text reason to `xd://resolve` or `xd://reject`
 
 The loader starts with a no-op UI context and requires host code to call `setUIContext(...)` when real UI is ready. If the runtime did not provide a pending-action store, calling `pushPendingAction` throws `Pending action store unavailable for custom tools in this runtime.`
@@ -141,7 +142,7 @@ The loader starts with a no-op UI context and requires host code to call `setUIC
 execute(toolCallId, params, onUpdate, ctx, signal);
 ```
 
-- `params` is statically typed from its chudtype or TypeBox schema via `Static<TParams>`.
+- `params` is statically typed from its omptype or TypeBox schema via `Static<TParams>`.
 - Runtime argument validation happens before execution in the agent loop.
 - `onUpdate` emits partial results for UI streaming.
 - `ctx` includes `sessionManager`, `modelRegistry`, current `model`, `isIdle()`, `hasQueuedMessages()`, `abort()`, and optional `settings`, `fetch`, `localProtocolOptions`, and `autoApprove`.
@@ -149,7 +150,7 @@ execute(toolCallId, params, onUpdate, ctx, signal);
 
 The session bootstrap bridge converts custom tools to extension `ToolDefinition`s and forwards calls in the correct argument order. `CustomToolAdapter` remains available to library consumers that directly adapt a custom tool to the agent tool interface.
 
-Tool definitions may also declare `strict`, `hidden`, `loadMode`, `deferrable`, `mcpServerName`, `mcpToolName`, and `approval`. When `loadMode` is omitted, custom tool names default to `"discoverable"` except for the canonical essential built-in names (`read`, `write`, `bash`, `edit`, `glob`, `computer`, `eval`, `task`, `hub`, `learn`, and `manage_skill`), which default to `"essential"` so wrappers or re-registrations do not demote them. An explicit `loadMode` always wins; use `"essential"` to keep any other tool top-level. Although the public `CustomTool` type also declares `formatApprovalDetails`, the SDK/discovery bridge does not propagate that callback into the registered tool definition, so it cannot customize approval details on the normal integration paths.
+Tool definitions may also declare `strict`, `hidden`, `loadMode`, `deferrable`, `mcpServerName`, `mcpToolName`, and `approval`. When `loadMode` is omitted, custom tool names default to `"discoverable"` except for the canonical essential built-in names (`read`, `write`, `bash`, `edit`, `glob`, `computer`, `eval`, `task`, `wait`, `learn`, and `manage_skill`), which default to `"essential"` so wrappers or re-registrations do not demote them. An explicit `loadMode` always wins; use `"essential"` to keep any other tool top-level. Although the public `CustomTool` type also declares `formatApprovalDetails`, the SDK/discovery bridge does not propagate that callback into the registered tool definition, so it cannot customize approval details on the normal integration paths.
 
 ## How tools are exposed to the model
 
@@ -166,6 +167,8 @@ Optional rendering hooks:
 - `renderResult(result, options, theme)`
 
 The normal SDK and filesystem-discovery paths wrap custom tools as extensions. On those paths, `renderResult` receives only the three arguments above; the bridge does not forward the original tool arguments. The public `CustomTool` type retains an optional fourth `args` parameter for direct `CustomToolAdapter` consumers.
+
+`renderCall`'s `options` argument additionally answers the `Theme` API, so a renderer written against upstream pi's `renderCall(args, theme, context)` order styles correctly under omp.
 
 Runtime behavior in TUI:
 
@@ -195,7 +198,7 @@ Use `ctx.sessionManager` to reconstruct state from history when branch/session c
 ### Cancellation
 
 - Agent abort propagates through `AbortSignal` to `execute`.
-- Forward `signal` to subprocess work (`chud.exec(..., { signal })`) for cooperative cancellation.
+- Forward `signal` to subprocess work (`pi.exec(..., { signal })`) for cooperative cancellation.
 - `ctx.abort()` lets a tool request abort of the current agent operation.
 
 ### onSession errors
@@ -206,5 +209,5 @@ Use `ctx.sessionManager` to reconstruct state from history when branch/session c
 
 - Tool names must be globally unique in the active registry.
 - Prefer deterministic, schema-shaped outputs in `details` for renderer/state reconstruction.
-- Guard UI usage with `chud.hasUI`.
+- Guard UI usage with `pi.hasUI`.
 - Treat `.md`/`.json` in tool directories as metadata, not executable modules.

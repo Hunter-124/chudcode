@@ -16,17 +16,17 @@
  *   `CompactOptions.internalGuidance` instead.
  * - The `session_before_compact` hook event MUST see
  *   `customInstructions: undefined` for internal-guidance compactions.
- * - The native summarizer (invoked via `@chudware/agent-core/compaction`)
+ * - The native summarizer (invoked via `@oh-my-pi/pi-agent-core/compaction`)
  *   MUST still receive the plan guidance so the summary is directed.
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "bun:test";
 import * as path from "node:path";
-import { Agent } from "@chudware/agent-core";
-import * as compactionModule from "@chudware/agent-core/compaction";
-import { AssistantMessageEventStream } from "@chudware/ai/utils/event-stream";
-import { getBundledModel } from "@chudware/catalog/models";
-import { TempDir } from "@chudware/utils";
+import { Agent } from "@oh-my-pi/pi-agent-core";
+import * as compactionModule from "@oh-my-pi/pi-agent-core/compaction";
+import { AssistantMessageEventStream } from "@oh-my-pi/pi-ai/utils/event-stream";
+import { getBundledModel } from "@oh-my-pi/pi-catalog/models";
+import { TempDir } from "@oh-my-pi/pi-utils";
 import { ModelRegistry } from "../src/config/model-registry";
 import { Settings } from "../src/config/settings";
 import type { SessionBeforeCompactEvent } from "../src/extensibility/shared-events";
@@ -83,7 +83,7 @@ describe("AgentSession plan-mode compaction hook contract (issue #4359)", () => 
 		if (!model) throw new Error("Expected claude-sonnet-4-5 model to exist");
 
 		const authStorage = await AuthStorage.create(path.join(tempDir.path(), `testauth-${cleanups.length}.db`));
-		authStorage.setRuntimeApiKey("anthropic", "test-key");
+		authStorage.keys.setRuntime("anthropic", "test-key");
 		const modelRegistry = new ModelRegistry(authStorage, path.join(tempDir.path(), `models-${cleanups.length}.yml`));
 		const settings = Settings.isolated({
 			"compaction.enabled": true,
@@ -97,7 +97,6 @@ describe("AgentSession plan-mode compaction hook contract (issue #4359)", () => 
 		});
 		const sessionManager = SessionManager.inMemory(tempDir.path());
 
-		let session: AgentSession;
 		const agent = new Agent({
 			getApiKey: () => "test-key",
 			initialState: { model, systemPrompt: ["Test"], tools: [], messages: [] },
@@ -145,7 +144,7 @@ describe("AgentSession plan-mode compaction hook contract (issue #4359)", () => 
 			// when an extensionRunner is present; the shim mirrors the no-op path.
 			emitBeforeAgentStart: async () => undefined,
 		};
-		session = new AgentSession({
+		const session = new AgentSession({
 			agent,
 			sessionManager,
 			settings,

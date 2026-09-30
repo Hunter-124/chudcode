@@ -1,20 +1,20 @@
 import { afterAll, beforeAll, describe, expect, it } from "bun:test";
-import type { ThinkingLevel } from "@chudware/agent-core";
-import type { Api, AuthStorage, Model } from "@chudware/ai";
-import { buildModel } from "@chudware/catalog/build";
-import { parseArgs } from "@chudware/coding-agent/cli/args";
-import { ModelRegistry } from "@chudware/coding-agent/config/model-registry";
-import { resolveModelScope } from "@chudware/coding-agent/config/model-resolver";
-import { Settings } from "@chudware/coding-agent/config/settings";
+import type { ThinkingLevel } from "@oh-my-pi/pi-agent-core";
+import type { Api, AuthStorage, Model } from "@oh-my-pi/pi-ai";
+import { buildModel } from "@oh-my-pi/pi-catalog/build";
+import { parseArgs } from "@oh-my-pi/pi-coding-agent/cli/args";
+import { ModelRegistry } from "@oh-my-pi/pi-coding-agent/config/model-registry";
+import { resolveModelScope } from "@oh-my-pi/pi-coding-agent/config/model-resolver";
+import { Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
 import {
 	buildSessionOptions,
 	rebuildScopedModelsAfterDiscovery,
 	resolveScopedModels,
 	type ScopedModelSink,
 	toSessionScopedModels,
-} from "@chudware/coding-agent/main";
-import { SessionManager } from "@chudware/coding-agent/session/session-manager";
-import { TempDir } from "@chudware/utils";
+} from "@oh-my-pi/pi-coding-agent/main";
+import { SessionManager } from "@oh-my-pi/pi-coding-agent/session/session-manager";
+import { TempDir } from "@oh-my-pi/pi-utils";
 import { createInMemoryAuthStorage } from "./helpers/agent-session-setup";
 
 function model(id: string): Model<Api> {
@@ -206,6 +206,7 @@ describe("buildSessionOptions --models scope selection", () => {
 
 		expect(options.modelPattern).toBeUndefined();
 		expect(options.model?.id).toBe("a");
+		expect(options.rebindModelAfterDiscovery).toBe(true);
 		expect(options.scopedModels?.map(entry => entry.model.id)).toEqual(["a"]);
 	});
 });

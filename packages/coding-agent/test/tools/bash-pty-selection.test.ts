@@ -1,8 +1,8 @@
 import { afterEach, describe, expect, it } from "bun:test";
-import { canUseInteractiveBashPty } from "@chudware/coding-agent/tools/bash-pty-selection";
+import { canUseInteractiveBashPty } from "@oh-my-pi/pi-coding-agent/tools/bash-pty-selection";
 
 const originalPlatform = process.platform;
-const originalNoPty = process.env.CHUDCODE_NO_PTY;
+const originalNoPty = Bun.env.PI_NO_PTY;
 
 function setPlatform(platform: NodeJS.Platform): void {
 	Object.defineProperty(process, "platform", {
@@ -22,10 +22,10 @@ function restorePlatform(): void {
 
 function setNoPty(value: string | undefined): void {
 	if (value === undefined) {
-		delete process.env.CHUDCODE_NO_PTY;
+		delete Bun.env.PI_NO_PTY;
 		return;
 	}
-	process.env.CHUDCODE_NO_PTY = value;
+	Bun.env.PI_NO_PTY = value;
 }
 
 function interactiveContext() {
@@ -55,10 +55,5 @@ describe("bash PTY selection", () => {
 
 		setNoPty("1");
 		expect(canUseInteractiveBashPty(true, interactiveContext())).toBe(false);
-	});
-
-	it("disables interactive PTY when pty is false", () => {
-		setPlatform("win32");
-		expect(canUseInteractiveBashPty(false, interactiveContext())).toBe(false);
 	});
 });

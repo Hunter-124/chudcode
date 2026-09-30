@@ -18,16 +18,16 @@
  *    and reports the failed spawn.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "bun:test";
-import { AsyncJobManager } from "@chudware/coding-agent/async/job-manager";
-import { Settings } from "@chudware/coding-agent/config/settings";
-import { AgentLifecycleManager } from "@chudware/coding-agent/registry/agent-lifecycle";
-import { AgentRegistry } from "@chudware/coding-agent/registry/agent-registry";
-import { TaskTool } from "@chudware/coding-agent/task";
-import * as discoveryModule from "@chudware/coding-agent/task/discovery";
-import * as executorModule from "@chudware/coding-agent/task/executor";
-import type { AgentDefinition, SingleResult, TaskParams, TaskToolDetails } from "@chudware/coding-agent/task/types";
-import type { ToolSession } from "@chudware/coding-agent/tools";
-import { sleep } from "@chudware/utils/async";
+import { AsyncJobManager } from "@oh-my-pi/pi-coding-agent/async/job-manager";
+import { Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
+import { AgentLifecycleManager } from "@oh-my-pi/pi-coding-agent/registry/agent-lifecycle";
+import { AgentRegistry } from "@oh-my-pi/pi-coding-agent/registry/agent-registry";
+import { TaskTool } from "@oh-my-pi/pi-coding-agent/task";
+import * as discoveryModule from "@oh-my-pi/pi-coding-agent/task/discovery";
+import * as executorModule from "@oh-my-pi/pi-coding-agent/task/executor";
+import type { AgentDefinition } from "@oh-my-pi/pi-coding-agent/task/types";
+import type { SingleResult, TaskParams, TaskToolDetails } from "@oh-my-pi/pi-tui/tools/task";
+import type { ToolSession } from "@oh-my-pi/pi-coding-agent/tools";
 
 const taskAgent: AgentDefinition = {
 	name: "task",
@@ -139,7 +139,7 @@ describe("task per-item blocking split", () => {
 		const deadline = Date.now() + 2_000;
 		while (started.length < 2) {
 			if (Date.now() > deadline) throw new Error(`spawns never started: ${JSON.stringify(started)}`);
-			await sleep(5);
+			await Bun.sleep(5);
 		}
 		const workerJob = manager.getJob("WorkerOne");
 		expect(workerJob).toBeDefined();
@@ -203,7 +203,7 @@ describe("task per-item blocking split", () => {
 		const deadline = Date.now() + 2_000;
 		while (started.length < 2) {
 			if (Date.now() > deadline) throw new Error(`spawns never started: ${JSON.stringify(started)}`);
-			await sleep(5);
+			await Bun.sleep(5);
 		}
 
 		// The async job settles BEFORE the blocking subset: the returned result

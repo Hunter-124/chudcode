@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import * as path from "node:path";
-import { isRecord, readJsonl } from "@chudware/utils";
+import { isRecord, readJsonl } from "@oh-my-pi/pi-utils";
 
 async function expectRpcOwnsStdin(): Promise<void> {
 	const cliPath = path.join(import.meta.dir, "..", "src", "cli.ts");
@@ -20,7 +20,7 @@ async function expectRpcOwnsStdin(): Promise<void> {
 		],
 		{
 			cwd: path.join(import.meta.dir, ".."),
-			env: { ...process.env, CHUDCODE_NO_TITLE: "1" },
+			env: { ...Bun.env, PI_NO_TITLE: "1" },
 			stdin: "pipe",
 			stdout: "pipe",
 			stderr: "pipe",

@@ -3,7 +3,7 @@
  */
 
 import * as os from "node:os";
-import { formatBytes, getProjectDir, VERSION } from "@chudware/utils";
+import { formatBytes, getProjectDir, VERSION } from "@oh-my-pi/pi-utils";
 
 export interface SystemInfo {
 	os: string;
@@ -48,8 +48,8 @@ export async function collectSystemInfo(): Promise<SystemInfo> {
 	}
 
 	// Try to get shell from environment
-	const shell = process.env.SHELL ?? process.env.ComSpec ?? "unknown";
-	const terminal = process.env.TERM_PROGRAM ?? process.env.TERM ?? undefined;
+	const shell = Bun.env.SHELL ?? Bun.env.ComSpec ?? "unknown";
+	const terminal = Bun.env.TERM_PROGRAM ?? Bun.env.TERM ?? undefined;
 
 	let osStr = `${os.type()} ${os.release()} (${os.platform()})`;
 	if (os.platform() === "darwin") {
@@ -86,7 +86,7 @@ export function formatSystemInfo(info: SystemInfo): string {
 		`CPU:     ${info.cpu}`,
 		`Memory:  ${formatBytes(info.memory.total)} (${formatBytes(info.memory.free)} free)`,
 		`Bun:     ${info.versions.bun}`,
-		`App:     chudcode ${info.versions.app}`,
+		`App:     omp ${info.versions.app}`,
 		`Node:    ${info.versions.node} (compat)`,
 		`CWD:     ${info.cwd}`,
 		`Shell:   ${info.shell}`,

@@ -1,8 +1,8 @@
 import { beforeAll, describe, expect, it } from "bun:test";
-import type { AgentMessage } from "@chudware/agent-core";
-import { TreeSelectorComponent } from "@chudware/coding-agent/modes/components/tree-selector";
-import * as themeModule from "@chudware/coding-agent/modes/theme/theme";
-import type { SessionEntry, SessionTreeNode } from "@chudware/coding-agent/session/session-entries";
+import type { AgentMessage } from "@oh-my-pi/pi-agent-core";
+import { TreeSelectorComponent } from "@oh-my-pi/pi-tui/overlays/tree-selector";
+import * as themeModule from "@oh-my-pi/pi-tui/theme";
+import type { SessionEntry, SessionTreeNode } from "@oh-my-pi/pi-coding-agent/session/session-entries";
 
 let counter = 0;
 function makeUserNode(text: string, parentId: string | null = null): SessionTreeNode {
@@ -63,15 +63,5 @@ describe("TreeSelectorComponent deep branching overflow", () => {
 		expect(selectedRow).toBeDefined();
 		expect(selectedRow!).toContain("user:");
 		expect(selectedRow!).toMatch(/branch-\d+-b/);
-	});
-
-	it("preserves prefix budget so the selected entry text remains legible at narrow width", () => {
-		const { root, leaf } = buildBranchyTree(40);
-		const width = 80;
-		const rendered = renderSelector(root, leaf.entry.id, width);
-
-		const selectedRow = rendered.find(line => line.trimStart().startsWith("›"));
-		expect(selectedRow).toBeDefined();
-		expect(selectedRow!).toContain("user:");
 	});
 });

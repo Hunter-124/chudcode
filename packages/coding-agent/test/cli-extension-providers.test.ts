@@ -1,27 +1,27 @@
 /**
  * Regression test for `loadCliExtensionProviders`.
  *
- * One-shot CLIs (`chudcode bench`, dry-balance) build a bare `ModelRegistry` that
+ * One-shot CLIs (`omp bench`, dry-balance) build a bare `ModelRegistry` that
  * only knows built-in catalog providers. Before the helper existed they never
  * loaded extensions, so a provider contributed by an extension
- * (`chud.registerProvider(...)`, e.g. a custom OpenAI-compatible gateway under
- * `~/.chudcode/agent/extensions/`) was invisible to model resolution and
- * `chudcode bench <provider>/<model>` failed with "Model not found".
+ * (`pi.registerProvider(...)`, e.g. a custom OpenAI-compatible gateway under
+ * `~/.omp/agent/extensions/`) was invisible to model resolution and
+ * `omp bench <provider>/<model>` failed with "Model not found".
  *
  * Contract under test: after `loadCliExtensionProviders` drains the extension's
  * provider registrations into the registry, a `provider/id` selector for that
  * extension provider resolves. Discovery is disabled and the extension path is
- * passed explicitly so the test never touches the developer's real `~/.chudcode`.
+ * passed explicitly so the test never touches the developer's real `~/.omp`.
  */
 
 import { afterAll, beforeAll, expect, test } from "bun:test";
 import * as fs from "node:fs/promises";
-import { AuthStorage } from "@chudware/ai";
-import { ModelRegistry } from "@chudware/coding-agent/config/model-registry";
-import { getModelMatchPreferences, resolveCliModel } from "@chudware/coding-agent/config/model-resolver";
-import { resetSettingsForTest, Settings } from "@chudware/coding-agent/config/settings";
-import { loadCliExtensionProviders } from "@chudware/coding-agent/sdk";
-import { TempDir } from "@chudware/utils";
+import { AuthStorage } from "@oh-my-pi/pi-ai";
+import { ModelRegistry } from "@oh-my-pi/pi-coding-agent/config/model-registry";
+import { getModelMatchPreferences, resolveCliModel } from "@oh-my-pi/pi-coding-agent/config/model-resolver";
+import { resetSettingsForTest, Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
+import { loadCliExtensionProviders } from "@oh-my-pi/pi-coding-agent/sdk";
+import { TempDir } from "@oh-my-pi/pi-utils";
 
 let tmp: TempDir;
 let extPath: string;
@@ -33,8 +33,8 @@ beforeAll(async () => {
 	dbPath = tmp.join("auth.db");
 	await fs.writeFile(
 		extPath,
-		`export default function (chud) {
-	chud.registerProvider("bench-gw", {
+		`export default function (pi) {
+	pi.registerProvider("bench-gw", {
 		baseUrl: "https://example.com/v1",
 		apiKey: "literal-test-key",
 		api: "openai-completions",

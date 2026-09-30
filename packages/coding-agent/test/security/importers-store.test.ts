@@ -2,7 +2,6 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import * as fsx from "@chudware/utils/fsx";
 import { $ } from "bun";
 import { importCodexSecurityBundle, importSarif, importSarifFile, SecurityStore } from "../../src/security";
 
@@ -11,7 +10,7 @@ let temporaryRoot = "";
 let repositoryRoot = "";
 
 beforeEach(async () => {
-	temporaryRoot = await fs.mkdtemp(path.join(os.tmpdir(), "chudcode-security-store-"));
+	temporaryRoot = await fs.mkdtemp(path.join(os.tmpdir(), "omp-security-store-"));
 	repositoryRoot = path.join(temporaryRoot, "repo");
 	await fs.mkdir(repositoryRoot);
 });
@@ -47,7 +46,7 @@ describe("security importers and store", () => {
 		const bundleRoot = path.join(temporaryRoot, "codex-outside");
 		await fs.mkdir(bundleRoot);
 		await Promise.all([
-			fsx.write(
+			Bun.write(
 				path.join(bundleRoot, "scan-manifest.json"),
 				JSON.stringify({
 					documentType: "codex-security.scan-manifest",
@@ -55,7 +54,7 @@ describe("security importers and store", () => {
 					scan: { id: "scan-outside", producer: { name: "fixture" }, status: "completed" },
 				}),
 			),
-			fsx.write(
+			Bun.write(
 				path.join(bundleRoot, "findings.json"),
 				JSON.stringify({
 					documentType: "codex-security.findings",
@@ -70,7 +69,7 @@ describe("security importers and store", () => {
 					],
 				}),
 			),
-			fsx.write(
+			Bun.write(
 				path.join(bundleRoot, "coverage.json"),
 				JSON.stringify({
 					documentType: "codex-security.coverage",

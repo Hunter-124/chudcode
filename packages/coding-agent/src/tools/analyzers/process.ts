@@ -1,7 +1,7 @@
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import { sleep } from "@chudware/utils/async";
+import { cfgToolsArtifactSpillThreshold } from "../settings";
 import type { ToolSession } from "..";
 
 const DEFAULT_CAPTURE_BYTES = 2 * 1024 * 1024;
@@ -121,7 +121,7 @@ async function spill(
 
 export async function runCommand(command: string[], options: RunCommandOptions = {}): Promise<CommandResult> {
 	if (command.length === 0) throw new Error("runCommand requires a command");
-	const spillThresholdKb = options.session?.settings.get("tools.artifactSpillThreshold");
+	const spillThresholdKb = options.session ? cfgToolsArtifactSpillThreshold.get(options.session) : undefined;
 	const defaultCaptureBytes =
 		typeof spillThresholdKb === "number" && Number.isFinite(spillThresholdKb)
 			? spillThresholdKb * 1024
@@ -192,7 +192,7 @@ export async function runCommand(command: string[], options: RunCommandOptions =
 	} finally {
 		if (proc.exitCode === null) {
 			terminate();
-			await Promise.race([proc.exited, sleep(1200)]);
+			await Promise.race([proc.exited, Bun.sleep(1200)]);
 		}
 		clearTimeout(timer);
 		clearTimeout(killTimer);

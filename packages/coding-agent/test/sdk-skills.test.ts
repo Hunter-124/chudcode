@@ -2,17 +2,20 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
-import { ModelRegistry } from "@chudware/coding-agent/config/model-registry";
-import { Settings } from "@chudware/coding-agent/config/settings";
-import { getActiveSkills } from "@chudware/coding-agent/extensibility/skills";
-import type { Skill } from "@chudware/coding-agent/sdk";
-import { createAgentSession } from "@chudware/coding-agent/sdk";
-import type { AgentSession } from "@chudware/coding-agent/session/agent-session";
-import { AuthStorage } from "@chudware/coding-agent/session/auth-storage";
-import { SessionManager } from "@chudware/coding-agent/session/session-manager";
-import { removeSyncWithRetries } from "@chudware/utils";
-import { getAgentDir, setAgentDir } from "@chudware/utils/dirs";
+import { ModelRegistry } from "@oh-my-pi/pi-coding-agent/config/model-registry";
+import { Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
+import { getActiveSkills } from "@oh-my-pi/pi-coding-agent/extensibility/skills";
+import type { Skill } from "@oh-my-pi/pi-coding-agent/sdk";
+import { createAgentSession } from "@oh-my-pi/pi-coding-agent/sdk";
+import type { AgentSession } from "@oh-my-pi/pi-coding-agent/session/agent-session";
+import { AuthStorage } from "@oh-my-pi/pi-coding-agent/session/auth-storage";
+import { SessionManager } from "@oh-my-pi/pi-coding-agent/session/session-manager";
+import { removeSyncWithRetries } from "@oh-my-pi/pi-utils";
+import { CONFIG_DIR_NAME, getAgentDir, setAgentDir } from "@oh-my-pi/pi-utils/dirs";
 import { cleanupTempHome } from "./helpers/temp-home-cleanup";
+
+import { cfgAutolearnEnabled } from "@oh-my-pi/pi-coding-agent/autolearn/settings";
+import { cfgSkillsCustomDirectories } from "@oh-my-pi/pi-coding-agent/extensibility/settings";
 
 function createIsolatedSkillsSettings(extensions: string[] = []): Settings {
 	return Settings.isolated({
@@ -30,7 +33,7 @@ function createExtensionSkill(packageDir: string, skillName: string): void {
 	fs.mkdirSync(path.join(packageDir, "skills", skillName), { recursive: true });
 	fs.writeFileSync(
 		path.join(packageDir, "package.json"),
-		JSON.stringify({ name: path.basename(packageDir), chudcode: { extensions: ["./extension.ts"] } }),
+		JSON.stringify({ name: path.basename(packageDir), omp: { extensions: ["./extension.ts"] } }),
 	);
 	fs.writeFileSync(path.join(packageDir, "extension.ts"), "export default function extension() {}\n");
 	fs.writeFileSync(
@@ -54,7 +57,7 @@ describe("createAgentSession skills option", () => {
 	let sharedModelRegistry: ModelRegistry;
 
 	beforeAll(async () => {
-		sharedDir = fs.mkdtempSync(path.join(os.tmpdir(), "chud-sdk-skills-shared-"));
+		sharedDir = fs.mkdtempSync(path.join(os.tmpdir(), "pi-sdk-skills-shared-"));
 		sharedAuthStorage = await AuthStorage.create(path.join(sharedDir, "auth.db"));
 		sharedModelRegistry = new ModelRegistry(sharedAuthStorage, path.join(sharedDir, "models.yml"));
 	});
@@ -65,17 +68,17 @@ describe("createAgentSession skills option", () => {
 	});
 
 	beforeEach(() => {
-		tempDir = path.join(os.tmpdir(), `chud-sdk-test-${Date.now()}-${Math.random().toString(36).slice(2)}`);
-		// Create skill in .chudcode/skills/ for native project-level discovery
-		skillsDir = path.join(tempDir, ".chudcode", "skills", "test-skill");
+		tempDir = path.join(os.tmpdir(), `pi-sdk-test-${Date.now()}-${Math.random().toString(36).slice(2)}`);
+		// Create skill in the native project-level discovery directory.
+		skillsDir = path.join(tempDir, CONFIG_DIR_NAME, "skills", "test-skill");
 		fs.mkdirSync(skillsDir, { recursive: true });
 		originalHome = process.env.HOME;
-		tempHomeDir = fs.mkdtempSync(path.join(os.tmpdir(), "chud-sdk-home-"));
+		tempHomeDir = fs.mkdtempSync(path.join(os.tmpdir(), "pi-sdk-home-"));
 		process.env.HOME = tempHomeDir;
-		const nativeUserSkillsDir = path.join(tempHomeDir, ".chudcode", "agent", "skills");
+		const nativeUserSkillsDir = path.join(tempHomeDir, CONFIG_DIR_NAME, "agent", "skills");
 		fs.mkdirSync(nativeUserSkillsDir, { recursive: true });
 
-		// Create a test skill in the chud skills directory
+		// Create a test skill in the pi skills directory
 		fs.writeFileSync(
 			path.join(skillsDir, "SKILL.md"),
 			`---
@@ -127,7 +130,7 @@ Loaded via symbolic link.
 		const settingsPackage = path.join(tempDir, "sdk-settings-extension");
 		const installedPackage = path.join(
 			tempHomeDir,
-			".chudcode",
+			CONFIG_DIR_NAME,
 			"plugins",
 			"node_modules",
 			"sdk-installed-extension",
@@ -135,17 +138,17 @@ Loaded via symbolic link.
 		createExtensionSkill(explicitPackage, "sdk-explicit-skill");
 		createExtensionSkill(settingsPackage, "sdk-settings-skill");
 		createExtensionSkill(installedPackage, "sdk-installed-skill");
-		fs.mkdirSync(path.join(tempHomeDir, ".chudcode", "plugins"), { recursive: true });
+		fs.mkdirSync(path.join(tempHomeDir, CONFIG_DIR_NAME, "plugins"), { recursive: true });
 		fs.writeFileSync(
-			path.join(tempHomeDir, ".chudcode", "plugins", "package.json"),
-			JSON.stringify({ name: "chudcode-plugins", dependencies: { "sdk-installed-extension": "1.0.0" } }),
+			path.join(tempHomeDir, CONFIG_DIR_NAME, "plugins", "package.json"),
+			JSON.stringify({ name: "omp-plugins", dependencies: { "sdk-installed-extension": "1.0.0" } }),
 		);
 
 		const previousAgentDir = getAgentDir();
-		setAgentDir(path.join(tempHomeDir, ".chudcode", "agent"));
+		setAgentDir(path.join(tempHomeDir, CONFIG_DIR_NAME, "agent"));
 		const baseSessionOptions = {
 			cwd: tempDir,
-			agentDir: path.join(tempHomeDir, ".chudcode", "agent"),
+			agentDir: path.join(tempHomeDir, CONFIG_DIR_NAME, "agent"),
 			modelRegistry: sharedModelRegistry,
 			additionalExtensionPaths: [explicitPackage],
 			enableMCP: false,
@@ -197,7 +200,7 @@ Loaded via symbolic link.
 	});
 
 	it("should still discover project skills when user skills directory is missing", async () => {
-		const userAgentDir = path.join(tempHomeDir, ".chudcode", "agent");
+		const userAgentDir = path.join(tempHomeDir, CONFIG_DIR_NAME, "agent");
 		removeSyncWithRetries(path.join(userAgentDir, "skills"));
 		fs.writeFileSync(path.join(userAgentDir, "placeholder.txt"), "placeholder");
 
@@ -223,7 +226,7 @@ Loaded via symbolic link.
 
 		expect(session.skills.some((s: Skill) => s.name === "runtime-added-skill")).toBe(false);
 
-		const runtimeSkillDir = path.join(tempDir, ".chudcode", "skills", "runtime-added-skill");
+		const runtimeSkillDir = path.join(tempDir, CONFIG_DIR_NAME, "skills", "runtime-added-skill");
 		fs.mkdirSync(runtimeSkillDir, { recursive: true });
 		fs.writeFileSync(
 			path.join(runtimeSkillDir, "SKILL.md"),
@@ -249,12 +252,41 @@ This skill is added after session creation.
 		expect(session.skills.some((s: Skill) => s.name === "runtime-added-skill")).toBe(false);
 	});
 
+	it("a live skills.customDirectories edit exposes the directory's skills without restart", async () => {
+		const settings = createIsolatedSkillsSettings();
+		const { session } = await createAgentSession({
+			cwd: tempDir,
+			agentDir: tempDir,
+			sessionManager: SessionManager.inMemory(tempDir),
+			modelRegistry: sharedModelRegistry,
+			settings,
+		});
+		const customDir = path.join(tempDir, "live-custom-skills");
+		fs.mkdirSync(path.join(customDir, "live-custom-skill"), { recursive: true });
+		fs.writeFileSync(
+			path.join(customDir, "live-custom-skill", "SKILL.md"),
+			"---\nname: live-custom-skill\ndescription: Added through a live settings edit.\n---\nbody\n",
+		);
+		expect(session.skills.some((s: Skill) => s.name === "live-custom-skill")).toBe(false);
+
+		// Command pickers (TUI autocomplete, RPC/ACP) rebuild on this notification.
+		const skillAnnounced = Promise.withResolvers<void>();
+		const unsubscribe = session.subscribeCommandMetadataChanged(() => {
+			if (session.skills.some((s: Skill) => s.name === "live-custom-skill")) skillAnnounced.resolve();
+		});
+		cfgSkillsCustomDirectories.set(settings, [customDir]);
+		await skillAnnounced.promise;
+		unsubscribe();
+
+		expect(session.systemPrompt.join("\n")).toContain("live-custom-skill");
+	});
+
 	it("manage_skill hot-registers managed skills in the active session", async () => {
 		const originalAgentDir = getAgentDir();
-		const managedAgentDir = path.join(tempHomeDir, ".chudcode", "agent");
+		const managedAgentDir = path.join(tempHomeDir, CONFIG_DIR_NAME, "agent");
 		setAgentDir(managedAgentDir);
 		const settings = createIsolatedSkillsSettings();
-		settings.set("autolearn.enabled", true);
+		cfgAutolearnEnabled.set(settings, true);
 		const { session } = await createAgentSession({
 			cwd: tempDir,
 			agentDir: managedAgentDir,

@@ -12,20 +12,24 @@ import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import { Settings } from "@chudware/coding-agent/config/settings";
-import { InternalUrlRouter } from "@chudware/coding-agent/internal-urls";
-import { HistoryProtocolHandler } from "@chudware/coding-agent/internal-urls/history-protocol";
+import { Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
+import { InternalUrlRouter } from "@oh-my-pi/pi-coding-agent/internal-urls";
+import {
+	formatCurrentBranchFullHistory,
+	HistoryProtocolHandler,
+} from "@oh-my-pi/pi-coding-agent/internal-urls/history-protocol";
 import {
 	registerArtifactsDir,
 	resetRegisteredArtifactDirsForTests,
-} from "@chudware/coding-agent/internal-urls/registry-helpers";
-import { AgentRegistry } from "@chudware/coding-agent/registry/agent-registry";
-import type { AgentSession } from "@chudware/coding-agent/session/agent-session";
-import { CURRENT_SESSION_VERSION } from "@chudware/coding-agent/session/session-entries";
-import type { ToolSession } from "@chudware/coding-agent/tools";
-import { ReadTool } from "@chudware/coding-agent/tools/read";
-import { removeWithRetries } from "@chudware/utils";
-import * as fsx from "@chudware/utils/fsx";
+} from "@oh-my-pi/pi-coding-agent/internal-urls/registry-helpers";
+import { AgentRegistry } from "@oh-my-pi/pi-coding-agent/registry/agent-registry";
+import type { AgentSession } from "@oh-my-pi/pi-coding-agent/session/agent-session";
+import { CURRENT_SESSION_VERSION, type SessionEntry } from "@oh-my-pi/pi-coding-agent/session/session-entries";
+import type { ToolSession } from "@oh-my-pi/pi-coding-agent/tools";
+import { ReadTool } from "@oh-my-pi/pi-coding-agent/tools/read";
+import { removeWithRetries } from "@oh-my-pi/pi-utils";
+
+import { cfgCompactionExperimentalContextManagement } from "@oh-my-pi/pi-coding-agent/session/context-settings";
 
 async function withTempDir<T>(fn: (dir: string) => Promise<T>): Promise<T> {
 	const dir = await fs.mkdtemp(path.join(os.tmpdir(), "history-protocol-"));
@@ -40,7 +44,11 @@ function fakeLiveSession(messages: unknown[]): AgentSession {
 	return { messages } as unknown as AgentSession;
 }
 
-function makeToolSession(cwd: string, sessionFile: string = path.join(cwd, "session.jsonl")): ToolSession {
+function makeToolSession(
+	cwd: string,
+	sessionFile: string = path.join(cwd, "session.jsonl"),
+	overrides: Partial<ToolSession> = {},
+): ToolSession {
 	return {
 		cwd,
 		hasUI: false,
@@ -52,6 +60,7 @@ function makeToolSession(cwd: string, sessionFile: string = path.join(cwd, "sess
 			path: path.join(cwd, "artifacts", `history-read.${toolType}.log`),
 		}),
 		settings: Settings.isolated(),
+		...overrides,
 	};
 }
 
@@ -89,6 +98,57 @@ function sessionFixtureJsonl(): string {
 		},
 	};
 	return `${JSON.stringify(header)}\n${JSON.stringify(userEntry)}\n${JSON.stringify(assistantEntry)}\n`;
+}
+
+function currentBranchFixture(): SessionEntry[] {
+	const timestamp = new Date().toISOString();
+	return [
+		{
+			type: "message",
+			id: "before-first-compaction",
+			parentId: null,
+			timestamp,
+			message: { role: "user", content: "oldest raw request survives", timestamp: 1 },
+		},
+		{
+			type: "compaction",
+			id: "first-compaction",
+			parentId: "before-first-compaction",
+			timestamp,
+			summary: "first compacted window",
+			firstKeptEntryId: "between-compactions",
+			tokensBefore: 100,
+		},
+		{
+			type: "message",
+			id: "between-compactions",
+			parentId: "first-compaction",
+			timestamp,
+			message: { role: "user", content: "middle raw request survives", timestamp: 2 },
+		},
+		{
+			type: "compaction",
+			id: "second-compaction",
+			parentId: "between-compactions",
+			timestamp,
+			summary: "second compacted window",
+			firstKeptEntryId: "latest-entry",
+			tokensBefore: 200,
+		},
+		{
+			type: "reset_boundary",
+			id: "window-reset",
+			parentId: "second-compaction",
+			timestamp,
+		},
+		{
+			type: "message",
+			id: "latest-entry",
+			parentId: "window-reset",
+			timestamp,
+			message: { role: "user", content: "latest raw request survives", timestamp: 3 },
+		},
+	] as unknown as SessionEntry[];
 }
 
 describe("history:// protocol", () => {
@@ -136,6 +196,293 @@ describe("history:// protocol", () => {
 		expect(resource.content).toContain("hello from live");
 		expect(resource.notes).toContain("Source: live session");
 	});
+	it("numbers transcript images and resolves their pixels to a readable path", async () => {
+		const bytes = Buffer.from(
+			"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jxykAAAAASUVORK5CYII=",
+			"base64",
+		);
+		AgentRegistry.global().register({
+			id: "ImageAgent",
+			displayName: "image task",
+			kind: "sub",
+			session: fakeLiveSession([
+				{
+					role: "user",
+					content: [
+						{ type: "text", text: "Inspect the screenshot" },
+						{ type: "image", mimeType: "image/png", data: bytes.toString("base64") },
+					],
+					timestamp: 1,
+				},
+			]),
+			status: "idle",
+		});
+		const router = InternalUrlRouter.instance();
+		expect((await router.resolve("history://ImageAgent")).content).toContain("[image #1]");
+		const listing = await router.resolve("history://ImageAgent/images");
+		expect(listing.content).toContain("| 1 | user | image/png |");
+		const image = await router.resolve("history://ImageAgent/images/1");
+		expect(image.sourcePath).toEndWith(".png");
+		expect(await fs.readFile(image.sourcePath!)).toEqual(bytes);
+		await expect(router.resolve("history://ImageAgent/images/2")).rejects.toThrow("valid range: 1-1");
+	});
+
+	it("reports a missing persisted image without hiding other transcript images", async () => {
+		AgentRegistry.global().register({
+			id: "LostImage",
+			displayName: "missing image",
+			kind: "sub",
+			session: fakeLiveSession([
+				{
+					role: "user",
+					content: [
+						{ type: "image", mimeType: "image/png", data: `blob:sha256:${"0".repeat(64)}` },
+						{ type: "image", mimeType: "image/png", data: Buffer.from("second").toString("base64") },
+					],
+					timestamp: 1,
+				},
+			]),
+			status: "idle",
+		});
+		const router = InternalUrlRouter.instance();
+		expect((await router.resolve("history://LostImage/images")).content).toContain(
+			"| 1 | user | image/png | — | (blob missing) |",
+		);
+		expect((await router.resolve("history://LostImage/images/1")).content).toBe("(blob missing)");
+		const second = await router.resolve("history://LostImage/images/2");
+		expect(await fs.readFile(second.sourcePath!, "utf8")).toBe("second");
+	});
+
+	it("keeps a missing image discoverable in a parked session's image listing", async () => {
+		await withTempDir(async dir => {
+			const file = path.join(dir, "session.jsonl");
+			const header = {
+				type: "session",
+				version: CURRENT_SESSION_VERSION,
+				id: "parked",
+				timestamp: new Date().toISOString(),
+				cwd: dir,
+			};
+			const entry = {
+				type: "message",
+				id: "m1",
+				parentId: null,
+				timestamp: header.timestamp,
+				message: {
+					role: "user",
+					content: [{ type: "image", mimeType: "image/png", data: `blob:sha256:${"0".repeat(64)}` }],
+					timestamp: 1,
+				},
+			};
+			await Bun.write(file, `${JSON.stringify(header)}\n${JSON.stringify(entry)}\n`);
+			AgentRegistry.global().register({
+				id: "ParkedImage",
+				displayName: "parked",
+				kind: "sub",
+				session: null,
+				sessionFile: file,
+				status: "idle",
+			});
+			const listing = await InternalUrlRouter.instance().resolve("history://ParkedImage/images");
+			expect(listing.content).toContain("| 1 | user | image/png | — | (blob missing) |");
+		});
+	});
+
+	it("preserves the existing bare history://current named-agent route", async () => {
+		AgentRegistry.global().register({
+			id: "current",
+			displayName: "named current",
+			kind: "sub",
+			session: fakeLiveSession([{ role: "user", content: "named current transcript", timestamp: 1 }]),
+			status: "idle",
+		});
+
+		const resource = await InternalUrlRouter.instance().resolve("history://current");
+
+		expect(resource.content).toContain("named current transcript");
+	});
+
+	it("renders full execution output and metadata in current-branch history", () => {
+		const content = formatCurrentBranchFullHistory([
+			{
+				type: "message",
+				id: "bash-entry",
+				parentId: null,
+				timestamp: new Date().toISOString(),
+				message: {
+					role: "bashExecution",
+					command: "git status",
+					output: "working tree clean",
+					exitCode: 0,
+					cancelled: false,
+					truncated: false,
+					timestamp: 1,
+				},
+			},
+			{
+				type: "message",
+				id: "python-entry",
+				parentId: "bash-entry",
+				timestamp: new Date().toISOString(),
+				message: {
+					role: "pythonExecution",
+					code: "print('ok')",
+					output: "ok",
+					exitCode: 0,
+					cancelled: false,
+					truncated: false,
+					timestamp: 2,
+				},
+			},
+		] as unknown as SessionEntry[]);
+
+		expect(content).toContain("working tree clean");
+		expect(content).toContain('"truncated": false');
+		expect(content).toContain("print('ok')");
+		expect(content).toContain("Output:");
+	});
+
+	it("retains every assistant block variant in current-branch full history", () => {
+		const longPayload = `research finding ${"x".repeat(5200)}`;
+		const content = formatCurrentBranchFullHistory([
+			{
+				type: "message",
+				id: "assistant-entry",
+				parentId: null,
+				timestamp: new Date().toISOString(),
+				message: {
+					role: "assistant",
+					content: [
+						{ type: "text", text: "answer text" },
+						{ type: "thinking", thinking: "visible reasoning" },
+						{ type: "redactedThinking", data: "ENCRYPTED-BLOB" },
+						{
+							type: "anthropicServerTool",
+							block: {
+								type: "server_tool_use",
+								id: "srvtoolu_1",
+								name: "web_search",
+								input: { query: "release migration guide" },
+								caller: "assistant",
+							},
+						},
+						{
+							type: "anthropicServerTool",
+							block: {
+								type: "web_search_tool_result",
+								tool_use_id: "srvtoolu_1",
+								content: [
+									{
+										type: "web_search_result",
+										url: "https://example.com",
+										title: "result",
+										encrypted_index: 0,
+									},
+								],
+								result: longPayload,
+							},
+						},
+						{ type: "image", data: "aGVsbG8=", mimeType: "image/png" },
+						{ type: "fallback", from: { model: "claude-primary" }, to: { model: "claude-backup" } },
+					],
+					api: "anthropic-messages",
+					provider: "anthropic",
+					model: "test-model",
+					usage: {},
+					stopReason: "stop",
+					timestamp: 3,
+				},
+			},
+		] as unknown as SessionEntry[]);
+
+		expect(content).toContain("answer text");
+		expect(content).toContain("visible reasoning");
+		// Redacted reasoning stays opaque: the marker is present, the blob is not.
+		expect(content).toContain("[redacted thinking:");
+		expect(content).not.toContain("ENCRYPTED-BLOB");
+		// The complete retained server block survives, including non-core
+		// metadata like `caller`, with no truncation of long payloads.
+		expect(content).toContain("#### server tool: server_tool_use");
+		expect(content).toContain('"caller": "assistant"');
+		expect(content).toContain("release migration guide");
+		expect(content).toContain("#### server tool: web_search_tool_result");
+		expect(content).toContain(longPayload);
+		// Image blocks render as metadata without base64 bytes.
+		expect(content).toContain("[image: image/png,");
+		expect(content).not.toContain("aGVsbG8=");
+		expect(content).toContain("[provider fallback: claude-primary to claude-backup]");
+	});
+
+	it("renders the caller-bound branch's full pre-compaction transcript without a disk source", async () => {
+		const branch = currentBranchFixture();
+		const siblingOnly = "sibling branch text must not leak";
+		const resource = await InternalUrlRouter.instance().resolve("history://current/full", {
+			experimentalContextManagement: true,
+			getSessionBranch: () => branch,
+		});
+
+		expect(resource.content).toContain("oldest raw request survives");
+		expect(resource.content).toContain("middle raw request survives");
+		expect(resource.content).toContain("latest raw request survives");
+		expect(resource.content).toContain("Entry first-compaction · compaction");
+		expect(resource.content).toContain("Entry window-reset · reset_boundary");
+		expect(resource.content).not.toContain(siblingOnly);
+		expect(resource.sourcePath).toBeUndefined();
+	});
+
+	it("rejects current/full when disabled or without a caller-bound branch", async () => {
+		await expect(
+			InternalUrlRouter.instance().resolve("history://current/full", {
+				experimentalContextManagement: false,
+				getSessionBranch: currentBranchFixture,
+			}),
+		).rejects.toThrow("experimentalContextManagement");
+		await expect(
+			InternalUrlRouter.instance().resolve("history://current/full", {
+				experimentalContextManagement: true,
+			}),
+		).rejects.toThrow("bound live session branch");
+	});
+
+	it("rejects malformed current history routes without consulting agent history", async () => {
+		await expect(
+			InternalUrlRouter.instance().resolve("history://current/full?unexpected=true", {
+				experimentalContextManagement: true,
+				getSessionBranch: currentBranchFixture,
+			}),
+		).rejects.toThrow("Invalid history://current route");
+		await expect(
+			InternalUrlRouter.instance().resolve("history://current/extra", {
+				experimentalContextManagement: true,
+				getSessionBranch: currentBranchFixture,
+			}),
+		).rejects.toThrow("Invalid history://current route");
+	});
+
+	it("read applies selectors to caller-bound full history", async () => {
+		const settings = Settings.isolated();
+		cfgCompactionExperimentalContextManagement.set(settings, true);
+		const branch = currentBranchFixture();
+		const manager = {
+			getBranch: () => branch,
+			getSessionId: () => "current-session",
+		} as unknown as NonNullable<ToolSession["sessionManager"]>;
+		const tool = new ReadTool(
+			makeToolSession(os.tmpdir(), undefined, {
+				settings,
+				getSessionId: () => "current-session",
+				sessionManager: manager,
+			}),
+		);
+
+		const result = await tool.execute("current-history-range", { path: "history://current/full:1-1" });
+		const output = result.content.find(content => content.type === "text");
+
+		expect(output?.type).toBe("text");
+		if (output?.type !== "text") throw new Error("Expected text output");
+		expect(output.text).toContain("# Current branch — full history");
+		expect(output.text).not.toContain("oldest raw request survives");
+	});
 
 	it("read applies line selectors to history transcripts", async () => {
 		AgentRegistry.global().register({
@@ -172,7 +519,7 @@ describe("history:// protocol", () => {
 	it("history://<id> renders a parked ref read-only from its session file", async () => {
 		await withTempDir(async dir => {
 			const sessionFile = path.join(dir, "parked.jsonl");
-			await fsx.write(sessionFile, sessionFixtureJsonl());
+			await Bun.write(sessionFile, sessionFixtureJsonl());
 			AgentRegistry.global().register({
 				id: "Sleeper",
 				displayName: "task",
@@ -301,7 +648,7 @@ describe("history:// protocol", () => {
 			const sessionFile = path.join(dir, "session.jsonl");
 			const artifactsDir = sessionFile.slice(0, -6);
 			await fs.mkdir(artifactsDir, { recursive: true });
-			await fsx.write(path.join(artifactsDir, "Sub1.jsonl"), sessionFixtureJsonl());
+			await Bun.write(path.join(artifactsDir, "Sub1.jsonl"), sessionFixtureJsonl());
 			// Only Main is registered; Sub1 exists solely on disk.
 			AgentRegistry.global().register({
 				id: "Main",
@@ -328,7 +675,7 @@ describe("history:// protocol", () => {
 			const sessionFile = path.join(dir, "session.jsonl");
 			const artifactsDir = sessionFile.slice(0, -6);
 			await fs.mkdir(artifactsDir, { recursive: true });
-			await fsx.write(path.join(artifactsDir, "AuthLoader.jsonl"), sessionFixtureJsonl());
+			await Bun.write(path.join(artifactsDir, "AuthLoader.jsonl"), sessionFixtureJsonl());
 			AgentRegistry.global().register({
 				id: "Main",
 				displayName: "main",
@@ -351,8 +698,8 @@ describe("history:// protocol", () => {
 			const sessionFile = path.join(dir, "session.jsonl");
 			const artifactsDir = sessionFile.slice(0, -6);
 			await fs.mkdir(artifactsDir, { recursive: true });
-			await fsx.write(path.join(artifactsDir, "Sub1.jsonl"), sessionFixtureJsonl());
-			await fsx.write(path.join(artifactsDir, "__advisor.jsonl"), sessionFixtureJsonl());
+			await Bun.write(path.join(artifactsDir, "Sub1.jsonl"), sessionFixtureJsonl());
+			await Bun.write(path.join(artifactsDir, "__advisor.jsonl"), sessionFixtureJsonl());
 			AgentRegistry.global().register({
 				id: "Main",
 				displayName: "main",
@@ -382,7 +729,7 @@ describe("history:// protocol", () => {
 			const artifactsDir = sessionFile.slice(0, -6);
 			const childDir = path.join(artifactsDir, "Parent");
 			await fs.mkdir(childDir, { recursive: true });
-			await fsx.write(path.join(childDir, "Parent.Child.jsonl"), sessionFixtureJsonl());
+			await Bun.write(path.join(childDir, "Parent.Child.jsonl"), sessionFixtureJsonl());
 			AgentRegistry.global().register({
 				id: "Main",
 				displayName: "main",
@@ -403,7 +750,7 @@ describe("history:// protocol", () => {
 	it("skips a registered artifact candidate that is a file", async () => {
 		await withTempDir(async dir => {
 			const candidate = path.join(dir, "not-a-directory");
-			await fsx.write(candidate, "not a directory");
+			await Bun.write(candidate, "not a directory");
 			registerArtifactsDir(candidate);
 
 			await expect(new HistoryProtocolHandler().complete()).resolves.toEqual([]);
@@ -432,10 +779,10 @@ describe("history:// protocol", () => {
 					timestamp: new Date().toISOString(),
 					message: { role: "user", content: `hello from root ${secret}`, timestamp: 1 },
 				})}\n`;
-			await fsx.write(rootA, `${header("a")}\n`);
-			await fsx.write(rootB, `${header("b")}\n`);
-			await fsx.write(childA, transcript("A"));
-			await fsx.write(childB, transcript("B"));
+			await Bun.write(rootA, `${header("a")}\n`);
+			await Bun.write(rootB, `${header("b")}\n`);
+			await Bun.write(childA, transcript("A"));
+			await Bun.write(childB, transcript("B"));
 			AgentRegistry.global().register({
 				id: "Main",
 				displayName: "main",

@@ -2,7 +2,6 @@ import { afterEach, describe, expect, test } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import * as fsx from "@chudware/utils/fsx";
 
 const repoRoot = path.join(import.meta.dir, "..");
 const tempDirs: string[] = [];
@@ -31,13 +30,31 @@ async function run(
 
 async function writeExecutable(directory: string, name: string, content: string): Promise<void> {
 	const file = path.join(directory, name);
-	await fsx.write(file, content);
+	await Bun.write(file, content);
 	await fs.chmod(file, 0o755);
 }
 
 describe("musl release artifacts", () => {
+	test("builds the requested x64 and arm64 musl asset names with Bun's musl targets", async () => {
+		const result = await run([
+			"bun",
+			"scripts/ci-release-build-binaries.ts",
+			"--dry-run",
+			"--targets",
+			"linux-musl-x64,linux-musl-arm64",
+		]);
+
+		expect(result.exitCode, result.stderr).toBe(0);
+		expect(result.stdout).toContain(
+			"Bun.build target=bun-linux-x64-musl-baseline outfile=packages/coding-agent/binaries/omp-linux-musl-x64",
+		);
+		expect(result.stdout).toContain(
+			"Bun.build target=bun-linux-arm64-musl outfile=packages/coding-agent/binaries/omp-linux-musl-arm64",
+		);
+	});
+
 	test("selects the musl asset when the Linux host reports musl", async () => {
-		const dir = await fs.mkdtemp(path.join(os.tmpdir(), "chudcode-musl-install-"));
+		const dir = await fs.mkdtemp(path.join(os.tmpdir(), "omp-musl-install-"));
 		tempDirs.push(dir);
 		const binDir = path.join(dir, "bin");
 		const installDir = path.join(dir, "install");
@@ -51,7 +68,7 @@ describe("musl release artifacts", () => {
 case "$*" in
   *api.github.com*) echo '{"tag_name":"v1.0.0","mentions_count":0}' ;;
   *) while [ "$#" -gt 0 ]; do
-       [ "$1" = "-o" ] && { printf '%s\n' '#!/bin/sh' 'echo "chudcode v1.0.0"' > "$2"; exit 0; }
+       [ "$1" = "-o" ] && { printf '%s\n' '#!/bin/sh' 'echo "omp v1.0.0"' > "$2"; exit 0; }
        shift
      done ;;
 esac
@@ -62,12 +79,12 @@ esac
 			...process.env,
 			PATH: `${binDir}:${process.env.PATH ?? ""}`,
 			HOME: dir,
-			CHUDCODE_INSTALL_DIR: installDir,
+			PI_INSTALL_DIR: installDir,
 		});
 
 		expect(result.exitCode, result.stderr).toBe(0);
 		expect(result.stdout).toContain("Using version: v1.0.0");
-		expect(result.stdout).toContain("Downloading chudcode-linux-musl-x64...");
-		expect(await fsx.readText(path.join(installDir, "chudcode"))).toBe('#!/bin/sh\necho "chudcode v1.0.0"\n');
+		expect(result.stdout).toContain("Downloading omp-linux-musl-x64...");
+		expect(await Bun.file(path.join(installDir, "omp")).text()).toBe('#!/bin/sh\necho "omp v1.0.0"\n');
 	});
 });

@@ -1,25 +1,26 @@
 # Natives Shell, PTY, Process, and Key Internals
 
-This document covers execution/process/terminal primitives in `@chudware/natives`: `shell`, `pty`, `ps`, and `keys`, using the architecture terms from `docs/natives-architecture.md`.
+This document covers execution/process/terminal primitives in `@oh-my-pi/pi-natives`: `shell`, `pty`, `ps`, and `keys`, using the architecture terms from `docs/natives-architecture.md`.
 
 ## Implementation files
 
-- `crates/chud-natives/src/shell.rs`
-- `crates/chud-shell/src/shell.rs`
-- `crates/chud-shell/src/cancel.rs`
-- `crates/chud-shell/src/windows.rs` (Windows-only PATH enrichment)
-- `crates/chud-shell/src/process.rs`
-- `crates/chud-natives/src/pty.rs`
-- `crates/chud-natives/src/ps.rs`
-- `crates/chud-natives/src/keys.rs`
-- `crates/chud-natives/src/task.rs`
+- `crates/pi-natives/src/shell.rs`
+- `crates/pi-shell/src/shell.rs`
+- `crates/pi-shell/src/cancel.rs`
+- `crates/pi-builtins` (embedded-shell builtins: bash builtins plus in-process utility/process commands)
+- `crates/pi-shell/src/windows.rs` (Windows-only PATH enrichment)
+- `crates/pi-shell/src/process.rs`
+- `crates/pi-natives/src/pty.rs`
+- `crates/pi-natives/src/ps.rs`
+- `crates/pi-natives/src/keys.rs`
+- `crates/pi-natives/src/task.rs`
 - `packages/natives/native/index.d.ts`
 
 ## Layer ownership
 
 - **Package entrypoint** (`packages/natives/native/index.js`): loads the `.node` addon and exports generated N-API bindings.
-- **Rust N-API module layer** (`crates/chud-natives/src/*`): JS-facing shell/PTY/process/key exports and callback bridging.
-- **Runtime core** (`crates/chud-shell/src/*`): brush shell execution, cancellation cleanup, minimizer integration, command fixups, and cross-platform process references.
+- **Rust N-API module layer** (`crates/pi-natives/src/*`): JS-facing shell/PTY/process/key exports and callback bridging.
+- **Runtime core** (`crates/pi-shell/src/*`): brush shell execution, cancellation cleanup, minimizer integration, command fixups, and cross-platform process references.
 - **Consumers** (`packages/coding-agent`, `packages/tui`): higher-level session policy, output artifact/minimizer handling, render policy, and UI key handling.
 
 ## Shell subsystem (`shell`)
@@ -44,7 +45,9 @@ Rust creates `brush_core::Shell` with:
 - inherited environment disabled (`do_not_inherit_env: true`), followed by explicit environment reconstruction from host env,
 - profile and rc loading skipped,
 - bash-mode builtins, with `exec` and `suspend` disabled,
-- native `sleep`, `timeout`, and `nohup` builtins registered,
+- process builtins registered unconditionally from `pi_builtins::process_builtins()` — `nohup`, `pgrep`, `pkill`, `pidwait`, `ps`, `sleep`, `timeout`, and `top` (`nohup` is withheld when `PI_DISABLE_NOHUP_BUILTIN` is set; `kill` comes from the default bash-mode set, where `pi-builtins`' richer implementation replaces brush's original),
+- in-process utility builtins registered from `pi_builtins::utility_builtins()` (see the next section),
+- a `git` builtin (`crates/pi-shell/src/git.rs`, registered only when `PI_SMART_GIT` is truthy) that serves `git [-C <dir>]… worktree add` through `pi_vcs::git::GitRepo::worktree_add` — a copy-on-write clone of the source checkout, worktree registration, then reconciliation to the target commit — printing git's report and running `post-checkout` in the new worktree. Arguments follow git's parse-options rules (bundled short flags, unique long-option abbreviations, `--no-` negations, `--opt=value`, operands mixed with options, `--`/`--end-of-options`); `-f`, `-b`, `-B` (including resetting an existing branch), `-d`, `--checkout`, `--lock`, `--reason`, `-q`, `--no-track`, `--[no-]guess-remote`, and `--no-relative-paths` are served in-process. Every other invocation — other subcommands and global options, `--orphan`, `--no-checkout`, `--track`, `--relative-paths`, start points that set up an upstream (remote-tracking branches, `@{…}`, `branch.autoSetupMerge=always|inherit`), `-`, targets already in use, bare/reftable/submodule repositories, `GIT_DIR`-style or `GIT_CONFIG*` env, virtual filesystems, and anything git would reject — runs the git binary from `PATH` with the original arguments,
 - skip-list for shell-sensitive vars (`PS1`, `PWD`, `SHLVL`, bash function exports, etc.),
 - a non-exported `env="$env"` fallback so PowerShell-style `$env:NAME` survives brush parameter expansion unless the user shadows `env`.
 
@@ -53,8 +56,24 @@ Session env behavior:
 - `ShellOptions.sessionEnv` / one-shot `sessionEnv` is applied at session creation.
 - `ShellRunOptions.env` / one-shot `env` is command-scoped (`EnvironmentScope::Command`) and popped after the command.
 - `PATH` is merged specially on Windows with case-insensitive dedupe.
-- Windows-only path enrichment (`chud-shell/src/windows.rs`) appends discovered Git-for-Windows paths when present and not already included.
+- Windows-only path enrichment (`pi-shell/src/windows.rs`) appends discovered Git-for-Windows paths when present and not already included.
 - `snapshotPath`, when present, is sourced during session creation with stdout/stderr/stdin wired to null files.
+
+### In-process utility builtins (uutils-derived)
+
+Beyond the bash builtins, session creation registers the in-process command-line utility builtins implemented in the `pi-builtins` crate (`crates/pi-builtins`) — in-house ports of uutils coreutils/findutils/sed and jaq built on `uucore` 0.8.0. The set includes `cat`, `head`, `tail`, `wc`, `sort`, `uniq`, `ls`, `find`, `grep`, `mkdir`, `rm`, `mv`, `cp`, `ln`, `sed`, `jq`, `fd`, `diff`, the checksum/`tr`/`cut`/`date` families, and more; `pi_builtins::utility_builtins()` is the authoritative list.
+
+Three search-related builtins are worth calling out:
+
+- `grep` is implemented on the ripgrep libraries (`grep-regex`/`grep-searcher`), with recursive directory walks served by `pi-walker`.
+- `rg` is a sibling builtin with ripgrep defaults (recursive search, ignore/hidden filtering, binary suppression) — a separate module and argument model, not an alias of `grep`.
+- `fd` is backed by `pi-walker`, `globset`, and `regex`.
+
+Each builtin runs inside the shell process (no `fork`/`exec`) against the `pi-builtins` `Host` view of the shell (`src/host.rs`): stdio routes through the command's (possibly piped/redirected) file descriptors, path operands resolve against the shell working directory, the shell's exported environment is visible, and abort/timeout cancellation is honored. Because these builtins shadow system binaries, registration is gated in `crates/pi-shell/src/shell.rs`:
+
+- `PI_DISABLE_UUTILS_BUILTINS` disables the whole utility set (bare names resolve to system binaries again),
+- `PI_DISABLE_UUTILS_DESTRUCTIVE` disables the destructive shadows (`rm`, `mv`, `cp`, which overwrites existing files, and `ln`, which can clobber via `-f`) together,
+- `PI_DISABLE_RM_BUILTIN` / `PI_DISABLE_MV_BUILTIN` disable `rm`/`mv` individually.
 
 ### Runtime lifecycle and state transitions
 
@@ -64,7 +83,7 @@ Persistent shell (`Shell.run`) uses this state machine:
 - **Running**: first `run()` lazily creates a session, stores an abort token, executes command.
 - **Completed + keepalive**: if execution control flow is normal, abort state is cleared and session is reused.
 - **Completed + teardown**: if control flow is loop/script/shell-exit related, session is dropped.
-- **Cancelled/Timed out**: Tokio cancellation token is triggered, descendants started after the baseline snapshot receive termination waves, a 2-second graceful wait is allowed, the task may be aborted, and the persistent session is dropped if the lock can be acquired.
+- **Cancelled/Timed out**: Tokio cancellation token is triggered, descendants started after the baseline snapshot receive termination waves, a 2-second graceful wait is allowed (5 seconds on Windows), the task may be aborted, and the persistent session is dropped if the lock can be acquired.
 - **Error**: session is dropped.
 
 One-shot shell (`executeShell`) always creates and drops a fresh session per call.
@@ -81,8 +100,8 @@ One-shot shell (`executeShell`) always creates and drops a fresh session per cal
 
 ### Cancellation, timeout, and abort
 
-- `CancelToken` is constructed from `timeoutMs` and optional `AbortSignal`, then converted into the shared `chud_shell::cancel::CancelToken`.
-- On cancellation/timeout, shell cancellation token is triggered, descendant cleanup runs, then the task gets a 2-second graceful window before forced abort.
+- `CancelToken` is constructed from `timeoutMs` and optional `AbortSignal`, then converted into the shared `pi_shell::cancel::CancelToken`.
+- On cancellation/timeout, shell cancellation token is triggered, descendant cleanup runs, then the task gets a 2-second graceful window (5 seconds on Windows) before forced abort.
 - Structured result flags are used:
   - timeout -> `exitCode` omitted, `timedOut: true`.
   - abort signal / `Shell.abort()` -> `exitCode` omitted, `cancelled: true`.
@@ -116,7 +135,7 @@ Common surfaced errors include:
 - `resize(cols, rows)`
 - `kill()`
 
-Both start methods invoke `onStart(error, pid)` after spawning (the implementation supplies `0` only if a platform child PID is unavailable). `PtyStartOptions` supports `command`, optional `cwd`, `env`, `timeoutMs`, `signal`, `cols`, `rows`, and `shell`; its default shell is `sh`. `PtyArgvStartOptions` instead requires `application` and `args` and has no `shell`.
+Both start methods invoke `onStart(error, pid)` after spawning (the implementation supplies `0` only if a platform child PID is unavailable). `PtyStartOptions` supports `command`, optional `cwd`, optional `env`, `timeoutMs`, `signal`, `cols`, `rows`, and `shell`; its default shell is `sh`. `PtyArgvStartOptions` instead requires `application` and `args` and has no `shell`.
 
 ### Runtime lifecycle and state transitions
 
@@ -201,7 +220,7 @@ Current JS surface is the `Process` class:
 - `terminate(options?)` is async. By default it uses a 1000ms graceful phase and a 5000ms post-hard-kill wait. Passing `gracefulMs < 0` skips the graceful phase. `group: true` also targets the process group where supported; aborting its signal rejects the promise.
 - `waitForExit(options?)` resolves `true` when the process exits and `false` on timeout; aborting its signal rejects the promise.
 
-The platform-specific implementation lives in `chud_shell::process`; `crates/chud-natives/src/ps.rs` is a N-API shim plus re-exports used by PTY termination.
+The platform-specific implementation lives in `pi_shell::process`; `crates/pi-natives/src/ps.rs` is a N-API shim plus re-exports used by PTY termination.
 
 ## Key parsing subsystem (`keys`)
 

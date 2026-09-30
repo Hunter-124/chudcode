@@ -1,4 +1,4 @@
-# @chudware/tui
+# @oh-my-pi/pi-tui
 
 Minimal terminal UI framework with differential rendering and synchronized output for flicker-free interactive CLI applications.
 
@@ -16,7 +16,7 @@ Minimal terminal UI framework with differential rendering and synchronized outpu
 ## Quick Start
 
 ```typescript
-import { TUI, Text, Editor, ProcessTerminal } from "@chudware/tui";
+import { TUI, Text, Editor, ProcessTerminal } from "@oh-my-pi/pi-tui";
 
 // Create terminal
 const terminal = new ProcessTerminal();
@@ -76,6 +76,49 @@ interface Component {
 | `invalidate?()`      | Called to clear any cached render state. Components should re-render from scratch on the next `render()` call.                                                     |
 
 ## Built-in Components
+
+### Composition
+
+Build screens from persistent components and update their data, selection, expansion, or size through setters. Layouts own child bounds and mouse-coordinate translation; controllers retain domain workflows and asynchronous operations. Propagate `invalidate()` after theme changes and `dispose()` when removing an owned component tree.
+
+| Family | Components | Import |
+| --- | --- | --- |
+| Layout | `Stack`, `Row`, `SplitPane` | package root |
+| Panels | `OverlayPanel`, `PanelRows`, `PanelDivider` | `/chrome` |
+| Menus | `SelectList`, `MenuSelection` | package root |
+| Forms | `Form`, `FormField`, `TextFormField`, `SelectFormField`, `SettingsFormField` | package root |
+| Wizard steps | `WizardStep` | package root |
+| Viewports | `ScrollView`, including child rendering, follow-tail, and keyed range anchoring | package root |
+| Trees | `TreeView` | package root |
+| Disclosure | `Disclosure`, with lazy summary/detail children | package root |
+| Messages | `FramedMessageComponent`, `MessageNoticeComponent`, `MessageDividerComponent` | `/chrome` |
+| Tool output | `ToolCard`, `framedToolCard`, `plainToolCard`, `OutputPane` | `/render` |
+| Transcripts | `TranscriptBrowser` | package root |
+| Data | `MetricRow`, `ProgressBar`, `Table`, `KeyValueList`, `Section` | package root |
+
+```typescript
+import { Disclosure, SplitPane, Text } from "@oh-my-pi/pi-tui";
+
+const diagnostics = new Disclosure({
+	summary: new Text("2 build diagnostics", 0, 0),
+	body: () => new Text("src/index.ts:12 — unused import\nsrc/config.ts:8 — missing property", 0, 0),
+});
+
+const view = new SplitPane({
+	left: new Text("Build diagnostics", 0, 0),
+	right: diagnostics,
+	leftSize: { fixed: 24 },
+	rightMinWidth: 30,
+	splitAt: 60,
+	narrowPane: "right",
+	height: 12,
+});
+
+diagnostics.setExpanded(true);
+view.setHeight(16);
+```
+
+`ScrollView.revealRange()` preserves manual scrolling while a selection is unchanged; `mode: "once"` supports asynchronously arriving initial selections. `OutputPane.append()` accepts incremental terminal output, including carriage-return updates; call `finish()` when the stream ends.
 
 ### Container
 
@@ -443,8 +486,8 @@ Supported formats: PNG, JPEG, GIF, WebP. Dimensions are parsed from the image he
 Supports both slash commands and file paths.
 
 ```typescript
-import { CombinedAutocompleteProvider } from "@chudware/tui";
-import { getProjectDir } from "@chudware/utils";
+import { CombinedAutocompleteProvider } from "@oh-my-pi/pi-tui";
+import { getProjectDir } from "@oh-my-pi/pi-utils";
 
 const provider = new CombinedAutocompleteProvider(
 	[
@@ -499,7 +542,7 @@ import {
 	isHome,
 	isEnd,
 	// ... and more
-} from "@chudware/tui";
+} from "@oh-my-pi/pi-tui";
 
 if (isCtrlC(data)) {
 	process.exit(0);
@@ -514,7 +557,7 @@ The TUI uses three rendering strategies:
 2. **Width Changed or Change Above Viewport**: Clear screen and full re-render
 3. **Normal Update**: Move cursor to first changed line, clear to end, render changed lines
 
-All updates are wrapped in **synchronized output** (`\x1b[?2026h` ... `\x1b[?2026l`) for atomic, flicker-free rendering unless `CHUDCODE_NO_SYNC_OUTPUT=1` is set. The opt-out removes only the DEC 2026 wrapper; paint writes still guard terminal autowrap to avoid pending-wrap cursor artifacts.
+All updates are wrapped in **synchronized output** (`\x1b[?2026h` ... `\x1b[?2026l`) for atomic, flicker-free rendering unless `PI_NO_SYNC_OUTPUT=1` is set. The opt-out removes only the DEC 2026 wrapper; paint writes still guard terminal autowrap to avoid pending-wrap cursor artifacts.
 
 ## Terminal Interface
 
@@ -544,7 +587,7 @@ interface Terminal {
 ## Utilities
 
 ```typescript
-import { Ellipsis, visibleWidth, truncateToWidth, wrapTextWithAnsi } from "@chudware/tui";
+import { Ellipsis, visibleWidth, truncateToWidth, wrapTextWithAnsi } from "@oh-my-pi/pi-tui";
 
 // Get visible width of string (ignoring ANSI codes, uses Bun.stringWidth)
 const width = visibleWidth("\x1b[31mHello\x1b[0m"); // 5
@@ -569,8 +612,8 @@ When creating custom components, **each line returned by `render()` must not exc
 Use the key detection utilities to handle keyboard input:
 
 ```typescript
-import { isEnter, isEscape, isArrowUp, isArrowDown, isCtrlC, isTab, isBackspace } from "@chudware/tui";
-import type { Component } from "@chudware/tui";
+import { isEnter, isEscape, isArrowUp, isArrowDown, isCtrlC, isTab, isBackspace } from "@oh-my-pi/pi-tui";
+import type { Component } from "@oh-my-pi/pi-tui";
 
 class MyInteractiveComponent implements Component {
 	private selectedIndex = 0;
@@ -605,8 +648,8 @@ class MyInteractiveComponent implements Component {
 Use the provided utilities to ensure lines fit:
 
 ```typescript
-import { visibleWidth, truncateToWidth } from "@chudware/tui";
-import type { Component } from "@chudware/tui";
+import { visibleWidth, truncateToWidth } from "@oh-my-pi/pi-tui";
+import type { Component } from "@oh-my-pi/pi-tui";
 
 class MyComponent implements Component {
 	private text: string;
@@ -640,7 +683,7 @@ class MyComponent implements Component {
 - `wrapTextWithAnsi()` preserves ANSI codes while word-wrapping and trimming line ends
 
 ```typescript
-import chalk from "@chudware/utils/chalk";
+import chalk from "@oh-my-pi/pi-utils/chalk";
 
 const styled = chalk.red("Hello") + " " + chalk.blue("World");
 const width = visibleWidth(styled); // 11 (not counting ANSI codes)
@@ -687,16 +730,19 @@ See `test/chat-simple.ts` for a complete chat interface example with:
 
 Run it:
 
-```sh
-bun packages/tui/test/chat-simple.ts
+```bash
+npx tsx test/chat-simple.ts
 ```
 
 ## Development
 
-From the repository root:
+```bash
+# Install dependencies (from monorepo root)
+npm install
 
-```sh
-bun install --frozen-lockfile
-bun --cwd packages/tui run check
-bun packages/tui/test/chat-simple.ts
+# Run type checking
+npm run check
+
+# Run the demo
+npx tsx test/chat-simple.ts
 ```

@@ -1,80 +1,103 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
-import { type EditMode, type EditModeSessionLike, resolveEditMode } from "@chudware/coding-agent/utils/edit-mode";
+import { Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
+import { cfgEditFuzzyMatch } from "@oh-my-pi/pi-coding-agent/edit/settings";
+import { type EditMode } from "@oh-my-pi/pi-tui/tools/edit";
+import { type EditModeSessionLike, resolveEditMode } from "@oh-my-pi/pi-coding-agent/utils/edit-mode";
 
-const originalEditVariant = process.env.CHUDCODE_EDIT_VARIANT;
-const originalStrictEditMode = process.env.CHUDCODE_STRICT_EDIT_MODE;
+const originalEditVariant = Bun.env.PI_EDIT_VARIANT;
+const originalStrictEditMode = Bun.env.PI_STRICT_EDIT_MODE;
 
 function restoreEnv(): void {
 	if (originalEditVariant === undefined) {
-		delete process.env.CHUDCODE_EDIT_VARIANT;
+		delete Bun.env.PI_EDIT_VARIANT;
 	} else {
-		process.env.CHUDCODE_EDIT_VARIANT = originalEditVariant;
+		Bun.env.PI_EDIT_VARIANT = originalEditVariant;
 	}
 	if (originalStrictEditMode === undefined) {
-		delete process.env.CHUDCODE_STRICT_EDIT_MODE;
+		delete Bun.env.PI_STRICT_EDIT_MODE;
 	} else {
-		process.env.CHUDCODE_STRICT_EDIT_MODE = originalStrictEditMode;
+		Bun.env.PI_STRICT_EDIT_MODE = originalStrictEditMode;
 	}
 }
 
 function createSession(args: {
 	activeModel?: string;
-	modelVariant?: EditMode | null;
+	/** Configured `edit.modelVariants` entry keyed by the whole active model selector. */
+	modelVariant?: EditMode;
 	settingsMode?: EditMode;
 }): EditModeSessionLike {
-	return {
-		getActiveModelString: () => args.activeModel,
-		settings: {
-			get: () => args.settingsMode ?? "hashline",
-			getEditVariantForModel: () => args.modelVariant ?? null,
-		},
-	};
+	const settings = Settings.isolated({
+		"edit.mode": args.settingsMode ?? "hashline",
+		...(args.modelVariant && args.activeModel
+			? { "edit.modelVariants": { [args.activeModel]: args.modelVariant } }
+			: {}),
+	});
+	return { getActiveModelString: () => args.activeModel, settings };
 }
 
 describe("resolveEditMode", () => {
 	beforeEach(() => {
-		delete process.env.CHUDCODE_EDIT_VARIANT;
-		delete process.env.CHUDCODE_STRICT_EDIT_MODE;
+		delete Bun.env.PI_EDIT_VARIANT;
+		delete Bun.env.PI_STRICT_EDIT_MODE;
 	});
 
 	afterEach(() => {
 		restoreEnv();
 	});
 
-	test("falls back from hashline to sloppy for Kimi models", () => {
-		delete process.env.CHUDCODE_EDIT_VARIANT;
+	test("falls back from hashline to replace for Kimi models", () => {
+		delete Bun.env.PI_EDIT_VARIANT;
 
-		expect(resolveEditMode(createSession({ activeModel: "openrouter/moonshotai/Kimi-K2-Instruct" }))).toBe("sloppy");
+		expect(resolveEditMode(createSession({ activeModel: "openrouter/moonshotai/Kimi-K2-Instruct" }))).toBe("replace");
 	});
 
-	test("falls back from hashline to sloppy for MiMo models", () => {
-		delete process.env.CHUDCODE_EDIT_VARIANT;
+	test("falls back from hashline to replace for MiMo models", () => {
+		delete Bun.env.PI_EDIT_VARIANT;
 
-		expect(resolveEditMode(createSession({ activeModel: "xiaomi/MiMo-V2.5-Pro" }))).toBe("sloppy");
+		expect(resolveEditMode(createSession({ activeModel: "xiaomi/MiMo-V2.5-Pro" }))).toBe("replace");
 	});
 
-	test("falls back from hashline to sloppy for DeepSeek V4 Flash models", () => {
-		delete process.env.CHUDCODE_EDIT_VARIANT;
+	test("falls back from hashline to replace for DeepSeek models", () => {
+		delete Bun.env.PI_EDIT_VARIANT;
 
 		expect(resolveEditMode(createSession({ activeModel: "tensormesh/deepseek-ai/DeepSeek-V4-Flash" }))).toBe(
-			"sloppy",
+			"replace",
 		);
+		expect(resolveEditMode(createSession({ activeModel: "deepseek/deepseek-chat" }))).toBe("replace");
+		expect(resolveEditMode(createSession({ activeModel: "deepseek/deepseek-reasoner" }))).toBe("replace");
 	});
 
-	test("falls back from hashline to sloppy for Step 3.7 Flash models", () => {
-		delete process.env.CHUDCODE_EDIT_VARIANT;
+	test("falls back from hashline to replace for Step 3.7 Flash models", () => {
+		delete Bun.env.PI_EDIT_VARIANT;
 
-		expect(resolveEditMode(createSession({ activeModel: "kilo/stepfun/step-3.7-flash:free" }))).toBe("sloppy");
+		expect(resolveEditMode(createSession({ activeModel: "kilo/stepfun/step-3.7-flash:free" }))).toBe("replace");
+	});
+
+	test("uses replace for Codex Spark without excluding other Codex models", () => {
+		expect(resolveEditMode(createSession({ activeModel: "openai-codex/gpt-5.3-codex-spark" }))).toBe("replace");
+		expect(resolveEditMode(createSession({ activeModel: "openai-codex/gpt-5.3-codex" }))).toBe("hashline");
+	});
+
+	test("uses replace across MiniMax model families", () => {
+		expect(resolveEditMode(createSession({ activeModel: "openrouter/minimax/minimax-m1" }))).toBe("replace");
+		expect(resolveEditMode(createSession({ activeModel: "minimax/MiniMax-M2.5" }))).toBe("replace");
+		expect(resolveEditMode(createSession({ activeModel: "minimax/MiniMax-M3" }))).toBe("replace");
+	});
+
+	test("excludes GLM 5.3 Flash without excluding other GLM revisions or families", () => {
+		expect(resolveEditMode(createSession({ activeModel: "zai/glm-5.3-flash" }))).toBe("replace");
+		expect(resolveEditMode(createSession({ activeModel: "zai/glm-5.3" }))).toBe("hashline");
+		expect(resolveEditMode(createSession({ activeModel: "zai/glm-4.7-flash" }))).toBe("hashline");
 	});
 
 	test("does not exclude non-Kimi Moonshot models", () => {
-		delete process.env.CHUDCODE_EDIT_VARIANT;
+		delete Bun.env.PI_EDIT_VARIANT;
 
 		expect(resolveEditMode(createSession({ activeModel: "moonshot/moonshot-v1-128k" }))).toBe("hashline");
 	});
 
 	test("keeps explicit model variants ahead of the Kimi fallback", () => {
-		delete process.env.CHUDCODE_EDIT_VARIANT;
+		delete Bun.env.PI_EDIT_VARIANT;
 
 		expect(
 			resolveEditMode(
@@ -83,8 +106,8 @@ describe("resolveEditMode", () => {
 		).toBe("hashline");
 	});
 
-	test("keeps CHUDCODE_EDIT_VARIANT ahead of the Kimi fallback", () => {
-		process.env.CHUDCODE_EDIT_VARIANT = "hashline";
+	test("keeps PI_EDIT_VARIANT ahead of the Kimi fallback", () => {
+		Bun.env.PI_EDIT_VARIANT = "hashline";
 
 		expect(resolveEditMode(createSession({ activeModel: "openrouter/moonshotai/Kimi-K2-Instruct" }))).toBe(
 			"hashline",
@@ -92,7 +115,7 @@ describe("resolveEditMode", () => {
 	});
 
 	test("only falls back when the resolved mode is hashline", () => {
-		delete process.env.CHUDCODE_EDIT_VARIANT;
+		delete Bun.env.PI_EDIT_VARIANT;
 
 		expect(
 			resolveEditMode(
@@ -102,11 +125,34 @@ describe("resolveEditMode", () => {
 	});
 
 	test("keeps strict edit mode ahead of the Kimi fallback", () => {
-		delete process.env.CHUDCODE_EDIT_VARIANT;
-		process.env.CHUDCODE_STRICT_EDIT_MODE = "1";
+		delete Bun.env.PI_EDIT_VARIANT;
+		Bun.env.PI_STRICT_EDIT_MODE = "1";
 
 		expect(resolveEditMode(createSession({ activeModel: "openrouter/moonshotai/Kimi-K2-Instruct" }))).toBe(
 			"hashline",
 		);
+	});
+});
+
+describe("PI_EDIT_FUZZY", () => {
+	const originalEditFuzzy = Bun.env.PI_EDIT_FUZZY;
+
+	afterEach(() => {
+		if (originalEditFuzzy === undefined) delete Bun.env.PI_EDIT_FUZZY;
+		else Bun.env.PI_EDIT_FUZZY = originalEditFuzzy;
+	});
+
+	test("forces fuzzy matching with 1/true and 0/false, deferring to edit.fuzzyMatch for auto or other text", () => {
+		const fuzzyWith = (raw: string, configured: boolean) => {
+			Bun.env.PI_EDIT_FUZZY = raw;
+			return cfgEditFuzzyMatch.get(Settings.isolated({ "edit.fuzzyMatch": configured }));
+		};
+		expect(fuzzyWith("1", false)).toBe(true);
+		expect(fuzzyWith("true", false)).toBe(true);
+		expect(fuzzyWith("0", true)).toBe(false);
+		expect(fuzzyWith("false", true)).toBe(false);
+		expect(fuzzyWith("auto", true)).toBe(true);
+		expect(fuzzyWith("auto", false)).toBe(false);
+		expect(fuzzyWith("bogus", true)).toBe(true);
 	});
 });

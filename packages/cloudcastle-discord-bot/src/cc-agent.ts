@@ -40,7 +40,7 @@ import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
 import { fileURLToPath } from "node:url";
-import { RpcClient } from "@chudware/coding-agent/modes/rpc/rpc-client";
+import { RpcClient } from "@oh-my-pi/pi-coding-agent/modes/rpc/rpc-client";
 import {
 	type AgentHeartbeat,
 	ARCHIVED_SESSION_CHANNEL_PREFIX,
@@ -190,7 +190,7 @@ export type RpcSessionFactory = (options: RpcSessionOptions) => Promise<RpcSessi
  * a cwd containing a built `dist/`. Neither is true for cc-agent.
  */
 export const defaultRpcSessionFactory: RpcSessionFactory = async options => {
-	const rpcClientModule = fileURLToPath(import.meta.resolve("@chudware/coding-agent/modes/rpc/rpc-client"));
+	const rpcClientModule = fileURLToPath(import.meta.resolve("@oh-my-pi/pi-coding-agent/modes/rpc/rpc-client"));
 	const cliPath =
 		options.cliPath ?? process.env.CC_AGENT_CLI_PATH ?? path.resolve(path.dirname(rpcClientModule), "../../cli.ts");
 	const client = new RpcClient({
@@ -198,7 +198,7 @@ export const defaultRpcSessionFactory: RpcSessionFactory = async options => {
 		model: options.model,
 		cliPath,
 		command: [process.execPath, cliPath],
-		env: { ...options.env, CHUDCODE_RPC_EMIT_TITLE: "1" },
+		env: { ...options.env, PI_RPC_EMIT_TITLE: "1" },
 	});
 	return {
 		start: () => client.start(),
@@ -210,7 +210,9 @@ export const defaultRpcSessionFactory: RpcSessionFactory = async options => {
 		// of it. Inference cannot unify the two, and there is nothing to validate:
 		// the value came from our own child process.
 		onEvent: listener => client.onEvent(event => listener(event as unknown as RpcAgentEvent)),
-		prompt: message => client.prompt(message),
+		prompt: async message => {
+			await client.prompt(message);
+		},
 		followUp: message => client.followUp(message),
 		steer: message => client.steer(message),
 		setSessionName: title => client.setSessionName(title),
@@ -579,19 +581,6 @@ export class CcAgent {
 		// window where SIGTERM hits the default disposition and the process dies
 		// having skipped shutdown entirely.
 		for (const signal of ["SIGINT", "SIGTERM"] as const) {
-			// Clear inherited listeners BEFORE registering ours, not inside the
-			// handler. Importing `@chudware/coding-agent` for RpcClient registers a
-			// process-wide SIGTERM listener at module load that terminates the
-			// process. Being registered first, it ran first: ours started an async
-			// shutdown and the process died microseconds later having done none of
-			// the cleanup, exiting 143. Removing it from inside our own handler was
-			// too late -- theirs had already fired.
-			//
-			// Proven in isolation: importing that module alone takes
-			// `process.listenerCount("SIGTERM")` from 0 to 1, and a plain async
-			// handler after it never reaches its own timeout. A library that claims
-			// a process-wide signal at import time hijacks its host's shutdown.
-			process.removeAllListeners(signal);
 			const handler = () => {
 				// A second signal now hits the default disposition, which is the right
 				// escape hatch for "stop now".
@@ -665,7 +654,7 @@ export class CcAgent {
 				});
 			}
 			this.#sessions.clear();
-			await Promise.allSettled([...this.#inFlight]);
+			await Promise.allSettled(this.#inFlight);
 			await this.#bus.publish(this.buildHeartbeat([]));
 		})();
 		return this.#stopping;
@@ -1293,7 +1282,7 @@ export function chunkLines(lines: readonly string[], limit: number): string[] {
 	const chunks: string[] = [];
 	let current = "";
 	for (const line of lines) {
-		for (let rest = line; rest.length > 0; ) {
+		for (let rest = line; rest.length > 0;) {
 			const piece = rest.slice(0, limit);
 			rest = rest.slice(limit);
 			if (current.length > 0 && current.length + 1 + piece.length > limit) {
@@ -1408,7 +1397,7 @@ async function installedChudcodeVersion(): Promise<string> {
 	// a single heartbeat.
 	let dir: string;
 	try {
-		dir = path.dirname(fileURLToPath(import.meta.resolve("@chudware/coding-agent/modes/rpc/rpc-client")));
+		dir = path.dirname(fileURLToPath(import.meta.resolve("@oh-my-pi/pi-coding-agent/modes/rpc/rpc-client")));
 	} catch {
 		// A version string is telemetry, not a precondition. Never let it stop the
 		// agent from starting.

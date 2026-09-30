@@ -1,4 +1,4 @@
-import type { FetchImpl } from "@chudware/utils";
+import type { FetchImpl } from "@oh-my-pi/pi-utils";
 
 /**
  * Build a User-Agent string that identifies as Gemini CLI to unlock higher rate limits.
@@ -6,7 +6,7 @@ import type { FetchImpl } from "@chudware/utils";
  * GeminiCLI/VERSION/MODEL (PLATFORM; ARCH; SURFACE)
  */
 export function getGeminiCliUserAgent(modelId = "gemini-3.1-pro-preview"): string {
-	const version = process.env.CHUDCODE_AI_GEMINI_CLI_VERSION || "0.46.0";
+	const version = process.env.PI_AI_GEMINI_CLI_VERSION || "0.46.0";
 	const platform = process.platform === "win32" ? "win32" : process.platform;
 	const arch = process.arch === "x64" ? "x64" : process.arch;
 	return `GeminiCLI/${version}/${modelId} (${platform}; ${arch}; terminal)`;
@@ -30,7 +30,7 @@ export const getGeminiCliHeaders = (modelId?: string) => ({
  * (see {@link ensureAntigravityVersion}) with `DEFAULT_ANTIGRAVITY_VERSION` as
  * the offline fallback. os_type/arch are pinned to the darwin/arm64 reference
  * client the version and manifest are captured from, independent of the host
- * platform. Overrides: CHUDCODE_AI_ANTIGRAVITY_VERSION / _CL / _OS / _ARCH.
+ * platform. Overrides: PI_AI_ANTIGRAVITY_VERSION / _CL / _OS / _ARCH.
  */
 export const DEFAULT_ANTIGRAVITY_VERSION = "2.8.0";
 
@@ -43,7 +43,7 @@ let antigravityVersionFetch: Promise<void> | null = null;
 
 /** Current Antigravity client version: env override → manifest-discovered → pinned fallback. */
 export function getAntigravityVersion(): string {
-	return process.env.CHUDCODE_AI_ANTIGRAVITY_VERSION || discoveredAntigravityVersion || DEFAULT_ANTIGRAVITY_VERSION;
+	return process.env.PI_AI_ANTIGRAVITY_VERSION || discoveredAntigravityVersion || DEFAULT_ANTIGRAVITY_VERSION;
 }
 
 /**
@@ -64,10 +64,10 @@ export function parseAntigravityManifestVersion(yamlText: string): string | null
  * Resolves the latest Antigravity release from the official update manifest.
  * Success is cached for the process lifetime; failures are silent (the pinned
  * fallback stays valid) and clear the in-flight cache so a later call retries.
- * Skipped entirely when CHUDCODE_AI_ANTIGRAVITY_VERSION is set.
+ * Skipped entirely when PI_AI_ANTIGRAVITY_VERSION is set.
  */
 export function ensureAntigravityVersion(fetcher: FetchImpl = fetch, signal?: AbortSignal): Promise<void> {
-	if (process.env.CHUDCODE_AI_ANTIGRAVITY_VERSION || discoveredAntigravityVersion) return Promise.resolve();
+	if (process.env.PI_AI_ANTIGRAVITY_VERSION || discoveredAntigravityVersion) return Promise.resolve();
 	if (antigravityVersionFetch) return antigravityVersionFetch;
 
 	antigravityVersionFetch = (async () => {
@@ -95,9 +95,9 @@ export function getAntigravityUserAgent(): string {
 	// The backend does not validate `cl` (verified live: stale, zero, and absent
 	// cl all pass model gating on daily-cloudcode-pa; only the version gates).
 	// The update manifest carries no changelist, so the captured value stays.
-	const cl = process.env.CHUDCODE_AI_ANTIGRAVITY_CL || "963137146";
-	const os = process.env.CHUDCODE_AI_ANTIGRAVITY_OS || "darwin";
-	const arch = process.env.CHUDCODE_AI_ANTIGRAVITY_ARCH || "arm64";
+	const cl = process.env.PI_AI_ANTIGRAVITY_CL || "963137146";
+	const os = process.env.PI_AI_ANTIGRAVITY_OS || "darwin";
+	const arch = process.env.PI_AI_ANTIGRAVITY_ARCH || "arm64";
 	return `antigravity/hub/${version} (aidev_client; os_type=${os}; arch=${arch}; cl=${cl})`;
 }
 

@@ -1,12 +1,11 @@
 import { describe, expect, it } from "bun:test";
-import type { AgentMessage } from "@chudware/agent-core";
-import type { AssistantMessage, Model, Usage } from "@chudware/ai";
-import { buildModel } from "@chudware/catalog/build";
-import { mapModelsDevToModels } from "@chudware/catalog/provider-models/openai-compat";
-import { lookupBuiltinSlashCommand } from "@chudware/coding-agent/slash-commands/builtin-registry";
-import { buildCacheReportText } from "@chudware/coding-agent/slash-commands/helpers/cache-report";
+import type { AgentMessage } from "@oh-my-pi/pi-agent-core";
+import type { AssistantMessage, Model, Usage } from "@oh-my-pi/pi-ai";
+import { buildModel } from "@oh-my-pi/pi-catalog/build";
+import { buildCacheReportText } from "@oh-my-pi/pi-coding-agent/slash-commands/helpers/cache-report";
+import { calculateCacheMetrics } from "@oh-my-pi/pi-coding-agent/slash-commands/helpers/cache-metrics";
 
-function pricedModel(id: string): Model {
+function model(id: string, inputRate = 10): Model {
 	return buildModel({
 		id,
 		name: id,
@@ -15,104 +14,82 @@ function pricedModel(id: string): Model {
 		baseUrl: "https://api.anthropic.com",
 		reasoning: false,
 		input: ["text"],
-		cost: { input: 10, output: 20, cacheRead: 1, cacheWrite: 12.5 },
-		pricingKnown: true,
+		cost: { input: inputRate, output: 20, cacheRead: 1, cacheWrite: 12.5 },
+		promptCache: { short: 300, long: 3_600 },
 		contextWindow: 200_000,
 		maxTokens: 8_000,
 	});
 }
 
-function assistant(model: string, usage: Usage, timestamp = 1_000): AssistantMessage {
+function usage(input: number, cacheRead: number, cacheWrite: number, cttl?: Usage["cttl"]): Usage {
+	return {
+		input,
+		output: 100,
+		cacheRead,
+		cacheWrite,
+		cttl,
+		totalTokens: input + cacheRead + cacheWrite + 100,
+		cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+	};
+}
+
+function assistant(id: string, tokens: Usage, timestamp = 1_000): AssistantMessage {
 	return {
 		role: "assistant",
 		content: [{ type: "text", text: "done" }],
 		api: "anthropic-messages",
 		provider: "anthropic",
-		model,
-		usage,
+		model: id,
+		usage: tokens,
 		stopReason: "stop",
 		timestamp,
 	};
 }
 
-function usage(parts: { input: number; output: number; cacheRead: number; cacheWrite: number }): Usage {
-	const inputCost = (parts.input * 10) / 1_000_000;
-	const outputCost = (parts.output * 20) / 1_000_000;
-	const cacheReadCost = (parts.cacheRead * 1) / 1_000_000;
-	const cacheWriteCost = (parts.cacheWrite * 12.5) / 1_000_000;
-	return {
-		...parts,
-		totalTokens: parts.input + parts.output + parts.cacheRead + parts.cacheWrite,
-		cost: {
-			input: inputCost,
-			output: outputCost,
-			cacheRead: cacheReadCost,
-			cacheWrite: cacheWriteCost,
-			total: inputCost + outputCost + cacheReadCost + cacheWriteCost,
-		},
-	};
-}
-
-function render(messages: readonly AgentMessage[], models: Record<string, Model>, retention: "short" | "long") {
+function report(
+	messages: readonly AgentMessage[],
+	models: Record<string, Model>,
+	retention: "short" | "long" = "short",
+) {
 	return buildCacheReportText({
 		messages,
-		findModel: (_provider, modelId) => models[modelId],
+		findModel: (_provider, id) => models[id],
+		activeModel: models.priced,
 		retention,
+		warming: "idle",
 		cacheMissMarker: true,
 		now: 61_000,
 	});
 }
 
 describe("cache report", () => {
-	it("registers /cache as a built-in report command", () => {
-		const command = lookupBuiltinSlashCommand("cache");
-		expect(command?.description).toContain("savings");
-		expect(command?.handle).toBeFunction();
+	it("reports net savings and hit rate from observed prompt buckets", () => {
+		const priced = model("priced");
+		const tokens = usage(1_000, 9_000, 0);
+		const text = report([assistant("priced", tokens)], { priced });
+		expect(text).toContain("Hit rate: 90.0% (9K of 10K prompt tokens)");
+		expect(text).toContain("Estimated cache savings: $0.0810 net of cache-write premiums");
+		expect(text).toContain("1 of 1 model priced");
+		expect(text).toContain("Idle: 1m since the last recorded response");
+		expect(text).toContain("Retention: short · TTL depends on model (Anthropic: 5m)");
+		expect(text).toContain("Active model cache TTL: short 5m · long 1h");
+		expect(tokens.cost.total).toBe(0);
 	});
 
-	it("renders plausible net savings and the correct hit rate for cached prompt tokens", () => {
-		const output = render(
-			[assistant("priced", usage({ input: 1_000, output: 100, cacheRead: 9_000, cacheWrite: 0 }))],
-			{ priced: pricedModel("priced") },
-			"short",
-		);
-
-		expect(output).toContain("Hit rate: 90.0% (9K of 10K prompt tokens)");
-		expect(output).toContain("Estimated cache savings: $0.081 net of cache-write premiums");
-		expect(output).toContain("1 of 1 model priced");
+	it("reports negative net savings when cache-write premiums outweigh reuse", () => {
+		const priced = model("priced");
+		const text = report([assistant("priced", usage(0, 0, 1_000, { ephemeral1h: 1_000 }))], { priced }, "long");
+		expect(text).toContain("Estimated cache savings: -$0.0100 net of cache-write premiums");
+		expect(text).toContain("Retention: long · TTL depends on model");
 	});
 
-	it("renders savings as explicitly unknown when any used model lacks pricing", () => {
-		const unpricedSpec = mapModelsDevToModels({ fixture: { models: { unpriced: { tool_call: true } } } }, [
-			{
-				modelsDevKey: "fixture",
-				providerId: "anthropic",
-				api: "anthropic-messages",
-				baseUrl: "https://api.anthropic.com",
-			},
-		])[0]!;
-		expect(unpricedSpec.pricingKnown).toBe(false);
-		const output = render(
-			[
-				assistant("priced", usage({ input: 1_000, output: 100, cacheRead: 9_000, cacheWrite: 0 })),
-				assistant("unpriced", usage({ input: 0, output: 50, cacheRead: 10_000, cacheWrite: 0 }), 2_000),
-			],
-			{ priced: pricedModel("priced"), unpriced: buildModel(unpricedSpec) },
-			"short",
-		);
-		expect(output).toContain("Estimated cache savings: unknown — 1 of 2 models priced");
-		expect(output).not.toContain("Estimated cache savings: $0.0000");
-	});
-
-	it("reports configured retention TTL and bounded refresh behavior", () => {
-		const messages = [assistant("priced", usage({ input: 100, output: 10, cacheRead: 900, cacheWrite: 0 }))];
-		const models = { priced: pricedModel("priced") };
-
-		expect(render(messages, models, "short")).toContain(
-			"Retention: short · TTL 5m · Anthropic may attempt up to 3 idle keep-alive refreshes",
-		);
-		expect(render(messages, models, "long")).toContain(
-			"Retention: long · TTL 1h where supported · no keep-alive refreshes",
-		);
+	it("does not claim dollar savings when any model lacks reliable input pricing", () => {
+		const priced = model("priced");
+		const unpriced = model("unpriced", 0);
+		const messages = [assistant("priced", usage(100, 900, 0)), assistant("unpriced", usage(0, 1_000, 0), 2_000)];
+		const text = report(messages, { priced, unpriced });
+		expect(text).toContain("Estimated cache savings: unknown — 1 of 2 models priced");
+		expect(text).toContain("Hit rate: 95.0% (1.9K of 2K prompt tokens)");
+		expect(calculateCacheMetrics([], () => undefined).hitRate).toBeUndefined();
 	});
 });

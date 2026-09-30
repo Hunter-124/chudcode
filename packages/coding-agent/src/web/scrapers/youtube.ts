@@ -1,8 +1,7 @@
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import { ptree, Snowflake } from "@chudware/utils";
-import * as fsx from "@chudware/utils/fsx";
+import { ptree, Snowflake } from "@oh-my-pi/pi-utils";
 import { settings } from "../../config/settings";
 import type { AgentStorage } from "../../session/agent-storage";
 import { throwIfAborted } from "../../tools/tool-errors";
@@ -10,6 +9,8 @@ import { ensureTool } from "../../utils/tools-manager";
 import { extractWithParallel, findParallelApiKey, getParallelExtractContent } from "../parallel";
 import type { RenderResult, SpecialHandler } from "./types";
 import { buildResult, formatMediaDuration, formatNumber } from "./types";
+
+import { cfgProvidersFetch } from "../../session/settings";
 
 interface YouTubeUrl {
 	videoId: string;
@@ -115,7 +116,7 @@ export const handleYouTube: SpecialHandler = async (
 	const videoUrl = `https://www.youtube.com/watch?v=${yt.videoId}`;
 
 	// Prefer Parallel extract when it sits in the reader chain and creds exist
-	const fetchPreference = settings.get("providers.fetch");
+	const fetchPreference = cfgProvidersFetch.get(settings);
 	if ((fetchPreference === "auto" || fetchPreference === "parallel") && findParallelApiKey(storage)) {
 		try {
 			const parallelResult = await extractWithParallel(
@@ -250,7 +251,7 @@ export const handleYouTube: SpecialHandler = async (
 				// Find the downloaded subtitle file using glob
 				const subFiles = await Array.fromAsync(new Bun.Glob(`${tmpBase}*.vtt`).scan({ absolute: true }));
 				if (subFiles.length > 0) {
-					const vttContent = await fsx.readText(subFiles[0]);
+					const vttContent = await Bun.file(subFiles[0]).text();
 					transcript = cleanVttToText(vttContent);
 					transcriptSource = "manual";
 					notes.push("Using manual subtitles");
@@ -281,7 +282,7 @@ export const handleYouTube: SpecialHandler = async (
 			if (autoResult.ok) {
 				const subFiles = await Array.fromAsync(new Bun.Glob(`${tmpBase}*.vtt`).scan({ absolute: true }));
 				if (subFiles.length > 0) {
-					const vttContent = await fsx.readText(subFiles[0]);
+					const vttContent = await Bun.file(subFiles[0]).text();
 					transcript = cleanVttToText(vttContent);
 					transcriptSource = "auto-generated";
 					notes.push("Using auto-generated captions");

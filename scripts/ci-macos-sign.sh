@@ -1,13 +1,14 @@
 #!/usr/bin/env bash
 #
-# Sign and notarize a compiled macOS `chudcode` binary with a Developer ID identity.
+# Sign and notarize a compiled macOS `omp` binary with a Developer ID identity.
 #
 # The release build (`ci:release:build-binaries`) ad-hoc signs the binary so it
 # runs locally. This script *replaces* that signature with a real Developer ID
 # Application signature plus the hardened runtime, a secure timestamp, and the
-# JIT / library-validation entitlements the Bun + JavaScriptCore runtime and the
-# runtime-extracted native addon require (see scripts/macos-entitlements.plist),
-# then notarizes the result with App Store Connect API credentials.
+# JIT, Apple Events, and library-validation entitlements that the Bun runtime,
+# Xcode MCP bridge, and runtime-extracted native addon require (see
+# scripts/macos-entitlements.plist), then notarizes the result with App Store
+# Connect API credentials.
 #
 # A bare Mach-O executable cannot be stapled (stapler only supports .app/.pkg/
 # .dmg), so the notarization ticket is served online: Gatekeeper fetches it by
@@ -58,7 +59,7 @@ if [[ ! -f "$ENTITLEMENTS" ]]; then
 fi
 
 WORKDIR="$(mktemp -d)"
-KEYCHAIN="$WORKDIR/chudcode-signing.keychain-db"
+KEYCHAIN="$WORKDIR/omp-signing.keychain-db"
 KEYCHAIN_PASSWORD="$(openssl rand -hex 24)"
 CERT_PATH="$WORKDIR/cert.p12"
 API_KEY_PATH="$WORKDIR/api-key.p8"

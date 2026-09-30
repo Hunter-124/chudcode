@@ -2,18 +2,18 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it } from "bun:test
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import type { RenderResultOptions } from "@chudware/coding-agent/extensibility/custom-tools/types";
-import { getThemeByName, initTheme, type Theme } from "@chudware/coding-agent/modes/theme/theme";
+import type { RenderResultOptions } from "@oh-my-pi/pi-coding-agent/extensibility/custom-tools/types";
+import { InternalUrlFilesystem } from "@oh-my-pi/pi-coding-agent/internal-urls/url-filesystem";
+import { getThemeByName, initTheme, type Theme } from "@oh-my-pi/pi-tui/theme";
 import {
 	expandDelimitedPathEntries,
 	parseFindPattern,
 	resolveToolSearchScope,
 	splitDelimitedPathEntry,
-} from "@chudware/coding-agent/tools/path-utils";
-import type { Component } from "@chudware/tui";
-import { removeWithRetries } from "@chudware/utils";
-import * as fsx from "@chudware/utils/fsx";
-import { globToolRenderer } from "../../src/tools/glob";
+} from "@oh-my-pi/pi-coding-agent/tools/path-utils";
+import type { Component } from "@oh-my-pi/pi-tui";
+import { removeWithRetries } from "@oh-my-pi/pi-utils";
+import { globToolRenderer } from "@oh-my-pi/pi-tui/tools/glob";
 
 let uiTheme: Theme;
 
@@ -41,9 +41,9 @@ describe("delimited path expansion", () => {
 		await fs.mkdir(path.join(tempDir, "packages"), { recursive: true });
 		await fs.mkdir(path.join(tempDir, "src"), { recursive: true });
 		await fs.mkdir(path.join(tempDir, "folder with spaces"), { recursive: true });
-		await fsx.write(path.join(tempDir, "apps", "a.txt"), "apps\n");
-		await fsx.write(path.join(tempDir, "packages", "b.txt"), "packages\n");
-		await fsx.write(path.join(tempDir, "folder with spaces", "file.txt"), "spaces\n");
+		await Bun.write(path.join(tempDir, "apps", "a.txt"), "apps\n");
+		await Bun.write(path.join(tempDir, "packages", "b.txt"), "packages\n");
+		await Bun.write(path.join(tempDir, "folder with spaces", "file.txt"), "spaces\n");
 	});
 
 	afterEach(async () => {
@@ -116,7 +116,7 @@ describe("delimited path expansion", () => {
 		const names: string[] = [];
 		for (let i = 0; i < 20; i++) {
 			const name = `enametoolong-probe-${String(i).padStart(2, "0")}.txt`;
-			await fsx.write(path.join(tempDir, name), "needle\n");
+			await Bun.write(path.join(tempDir, name), "needle\n");
 			names.push(name);
 		}
 		const joined = names.join("; ");
@@ -146,6 +146,7 @@ describe("delimited path expansion", () => {
 			rawPaths: ["apps\\**\\*.txt"],
 			cwd: tempDir,
 			internalUrlAction: "search",
+			filesystem: new InternalUrlFilesystem({ context: {}, tier: "read" }),
 		});
 
 		expect(scope.searchPath).toBe(path.join(tempDir, "apps"));

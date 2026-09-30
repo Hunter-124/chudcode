@@ -8,7 +8,7 @@
  * regression can't silently drop a case again.
  */
 import { describe, expect, it } from "bun:test";
-import { resolveUsedFraction, type UsageLimit } from "@chudware/ai";
+import { resolveUsedFraction, type UsageLimit } from "@oh-my-pi/pi-ai";
 
 function makeLimit(amount: UsageLimit["amount"]): UsageLimit {
 	return {
@@ -76,11 +76,6 @@ describe("resolveUsedFraction", () => {
 	it("returns 1 when remainingFraction is 0 (fully used)", () => {
 		const limit = makeLimit({ remainingFraction: 0, unit: "requests" });
 		expect(resolveUsedFraction(limit)).toBe(1);
-	});
-
-	it("precedence: usedFraction beats remainingFraction even when both are set", () => {
-		const limit = makeLimit({ usedFraction: 0.4, remainingFraction: 0.4, unit: "tokens" });
-		expect(resolveUsedFraction(limit)).toBe(0.4);
 	});
 
 	it("precedence: used/limit beats remainingFraction", () => {

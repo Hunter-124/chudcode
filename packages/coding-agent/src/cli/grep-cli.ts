@@ -1,12 +1,12 @@
 /**
  * Grep CLI command handlers.
  *
- * Handles `chudcode grep` subcommand for testing grep tool on Windows.
+ * Handles `omp grep` subcommand for testing grep tool on Windows.
  */
 import * as path from "node:path";
-import { GrepOutputMode, grep } from "@chudware/natives";
-import chalk from "@chudware/utils/chalk";
-import { PRODUCT_CLI_NAME } from "../brand";
+import { GrepOutputMode, grep } from "@oh-my-pi/pi-natives";
+import { APP_NAME } from "@oh-my-pi/pi-utils";
+import chalk from "@oh-my-pi/pi-utils/chalk";
 import { expandPath } from "../tools/path-utils";
 
 export interface GrepCommandArgs {
@@ -132,10 +132,10 @@ export async function runGrepCommand(cmd: GrepCommandArgs): Promise<void> {
 }
 
 export function printGrepHelp(): void {
-	console.log(`${chalk.bold(`${PRODUCT_CLI_NAME} grep`)} - Test grep tool
+	console.log(`${chalk.bold(`${APP_NAME} grep`)} - Test grep tool
 
 ${chalk.bold("Usage:")}
-  ${PRODUCT_CLI_NAME} grep <pattern> [path] [options]
+  ${APP_NAME} grep <pattern> [path] [options]
 
 ${chalk.bold("Arguments:")}
   pattern   Regex pattern to search for
@@ -151,11 +151,11 @@ ${chalk.bold("Options:")}
   --no-gitignore        Include files excluded by .gitignore
 
 ${chalk.bold("Environment:")}
-  CHUDCODE_WALK_WORKERS=N    Set filesystem walker workers (default 4, 0 = auto)
+  PI_WALK_WORKERS=N    Set filesystem walker workers (default 4, 0 = auto)
 
 ${chalk.bold("Examples:")}
-  ${PRODUCT_CLI_NAME} grep "import" src/
-  ${PRODUCT_CLI_NAME} grep "TODO" . --glob "*.ts"
-  ${PRODUCT_CLI_NAME} grep "function" --files
+  ${APP_NAME} grep "import" src/
+  ${APP_NAME} grep "TODO" . --glob "*.ts"
+  ${APP_NAME} grep "function" --files
 `);
 }

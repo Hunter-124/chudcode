@@ -2,7 +2,6 @@
 
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
-import * as fsx from "@chudware/utils/fsx";
 
 export interface LeafTarget {
 	tag: string;
@@ -51,8 +50,11 @@ export interface GenerateNpmPackagesInput {
 
 export const LEAF_TARGETS: readonly LeafTarget[] = [
 	{ tag: "linux-x64", os: "linux", cpu: "x64" },
+	{ tag: "linux-arm64", os: "linux", cpu: "arm64" },
 	{ tag: "darwin-x64", os: "darwin", cpu: "x64" },
+	{ tag: "darwin-arm64", os: "darwin", cpu: "arm64" },
 	{ tag: "win32-x64", os: "win32", cpu: "x64" },
+	{ tag: "win32-arm64", os: "win32", cpu: "arm64" },
 ];
 
 const packageDirDefault = path.join(import.meta.dir, "..");
@@ -60,22 +62,22 @@ const NATIVE_LEAF_LEGAL_FILES = ["LICENSE", "THIRD-PARTY-NOTICES.txt"] as const;
 
 function expectedAddonFilenames(tag: string): string[] {
 	return tag.endsWith("-x64")
-		? [`chud_natives.${tag}-baseline.node`, `chud_natives.${tag}-modern.node`, `chud_natives.${tag}.node`]
-		: [`chud_natives.${tag}.node`];
+		? [`pi_natives.${tag}-baseline.node`, `pi_natives.${tag}-modern.node`, `pi_natives.${tag}.node`]
+		: [`pi_natives.${tag}.node`];
 }
 
 function discoverAddonFiles(nativeDir: string, tag: string): Promise<string[]> {
 	return Promise.all(
 		expectedAddonFilenames(tag).map(async filename =>
-			(await fsx.exists(path.join(nativeDir, filename))) ? filename : null,
+			(await Bun.file(path.join(nativeDir, filename)).exists()) ? filename : null,
 		),
 	).then(files => files.filter(file => file !== null));
 }
 
 function selectPrimaryAddonFile(tag: string, files: readonly string[]): string {
-	const baseline = `chud_natives.${tag}-baseline.node`;
+	const baseline = `pi_natives.${tag}-baseline.node`;
 	if (files.includes(baseline)) return baseline;
-	const defaultFile = `chud_natives.${tag}.node`;
+	const defaultFile = `pi_natives.${tag}.node`;
 	if (files.includes(defaultFile)) return defaultFile;
 	return files[0];
 }
@@ -88,9 +90,9 @@ export function buildLeafManifest({ tag, os, cpu, files, version }: BuildLeafMan
 	}
 	const main = selectPrimaryAddonFile(tag, addonFiles);
 	return {
-		name: `@chudware/natives-${tag}`,
+		name: `@oh-my-pi/pi-natives-${tag}`,
 		version,
-		author: "Chudware",
+		author: "Stencil Labs, Inc.",
 		os: [os],
 		cpu: [cpu],
 		main: `./${main}`,
@@ -98,7 +100,7 @@ export function buildLeafManifest({ tag, os, cpu, files, version }: BuildLeafMan
 		license: "MIT",
 		repository: {
 			type: "git",
-			url: "git+https://github.com/Hunter-124/chudcode.git",
+			url: "git+https://github.com/can1357/oh-my-pi.git",
 			directory: "packages/natives",
 		},
 		engines: {
@@ -108,7 +110,7 @@ export function buildLeafManifest({ tag, os, cpu, files, version }: BuildLeafMan
 }
 
 function buildReadme(tag: string, manifest: LeafManifest): string {
-	return `# ${manifest.name}\n\nPlatform native addon package for \`@chudware/natives\` on ${tag}.\n\nThis package is generated during release and installed as an optional dependency of the core package.\n`;
+	return `# ${manifest.name}\n\nPlatform native addon package for \`@oh-my-pi/pi-natives\` on ${tag}.\n\nThis package is generated during release and installed as an optional dependency of the core package.\n`;
 }
 
 function selectTargets(tags: readonly string[] | undefined): readonly LeafTarget[] {
@@ -125,9 +127,9 @@ function selectTargets(tags: readonly string[] | undefined): readonly LeafTarget
 
 async function resolveLegalPayload(packageDir: string, file: string): Promise<string | undefined> {
 	const local = path.join(packageDir, file);
-	if (await fsx.exists(local)) return local;
+	if (await Bun.file(local).exists()) return local;
 	const repository = path.resolve(packageDir, "../..", file);
-	return (await fsx.exists(repository)) ? repository : undefined;
+	return (await Bun.file(repository).exists()) ? repository : undefined;
 }
 
 export async function generateNpmPackages({
@@ -137,7 +139,7 @@ export async function generateNpmPackages({
 	tags,
 }: GenerateNpmPackagesInput = {}): Promise<GeneratedLeafPackage[]> {
 	const manifestVersion =
-		version ?? ((await fsx.readJson(path.join(packageDir, "package.json"))) as { version: string }).version;
+		version ?? ((await Bun.file(path.join(packageDir, "package.json")).json()) as { version: string }).version;
 	const nativeDir = path.join(packageDir, "native");
 	const npmDir = path.join(packageDir, "npm");
 	const leaves: GeneratedLeafPackage[] = [];
@@ -168,8 +170,8 @@ export async function generateNpmPackages({
 			if (!source) throw new Error(`Missing legal payload ${file} for generated native leaf ${target.tag}`);
 			await fs.copyFile(source, path.join(leafDir, file));
 		}
-		await fsx.write(path.join(leafDir, "package.json"), `${JSON.stringify(manifest, null, "\t")}\n`);
-		await fsx.write(path.join(leafDir, "README.md"), buildReadme(target.tag, manifest));
+		await Bun.write(path.join(leafDir, "package.json"), `${JSON.stringify(manifest, null, "\t")}\n`);
+		await Bun.write(path.join(leafDir, "README.md"), buildReadme(target.tag, manifest));
 	}
 
 	return leaves;

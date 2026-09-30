@@ -1,10 +1,12 @@
 import { describe, expect, test } from "bun:test";
-import { streamOpenAIResponses } from "@chudware/ai/providers/openai-responses";
-import { loginMeta } from "@chudware/ai/registry/meta";
-import type { Context, Model } from "@chudware/ai/types";
-import { buildModel } from "@chudware/catalog/build";
-import { Effort } from "@chudware/catalog/effort";
-import { META_MUSE_STATIC_MODELS } from "@chudware/catalog/provider-models/openai-compat";
+import { streamOpenAIResponses } from "@oh-my-pi/pi-ai/providers/openai-responses";
+import { getProviderDefinition } from "@oh-my-pi/pi-ai/registry/registry";
+import type { Context } from "@oh-my-pi/pi-ai/types";
+import { buildModel } from "@oh-my-pi/pi-catalog/build";
+import { Effort } from "@oh-my-pi/pi-catalog/effort";
+import { seedModels } from "@oh-my-pi/pi-catalog/compat/providers";
+
+const loginMeta = getProviderDefinition("meta")!.login!;
 
 const context: Context = {
 	messages: [{ role: "user", content: "hello", timestamp: Date.now() }],
@@ -17,7 +19,7 @@ function createAbortedSignal(): AbortSignal {
 }
 
 function capturePayload(reasoning: Effort): Promise<Record<string, unknown>> {
-	const model = buildModel(META_MUSE_STATIC_MODELS[0]!) as Model<"openai-responses">;
+	const model = buildModel(seedModels<"openai-responses">("meta")[0]!);
 	const { promise, resolve } = Promise.withResolvers<Record<string, unknown>>();
 	streamOpenAIResponses(model, context, {
 		apiKey: "meta-test-key",

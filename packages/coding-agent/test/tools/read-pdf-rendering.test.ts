@@ -2,13 +2,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import type { AgentToolResult } from "@chudware/agent-core";
-import { Settings } from "@chudware/coding-agent/config/settings";
-import type { ToolSession } from "@chudware/coding-agent/tools";
-import { ReadTool, type ReadToolDetails } from "@chudware/coding-agent/tools/read";
-import * as pdfRead from "@chudware/coding-agent/tools/read-pdf";
-import * as markit from "@chudware/coding-agent/utils/markit";
-import { removeWithRetries } from "@chudware/utils";
+import type { AgentToolResult } from "@oh-my-pi/pi-agent-core";
+import { Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
+import type { ToolSession } from "@oh-my-pi/pi-coding-agent/tools";
+import { ReadTool } from "@oh-my-pi/pi-coding-agent/tools/read";
+import { type ReadToolDetails } from "@oh-my-pi/pi-tui/tools/read";
+import * as pdfRead from "@oh-my-pi/pi-coding-agent/tools/read-pdf";
+import { removeWithRetries } from "@oh-my-pi/pi-utils";
 
 const ONE_PX_PNG = Buffer.from(
 	"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGP4z8AAAAMBAQDJ/pLvAAAAAElFTkSuQmCC",
@@ -21,7 +21,7 @@ function makeSession(cwd: string): ToolSession {
 		hasUI: false,
 		getSessionFile: () => null,
 		getSessionSpawns: () => "*",
-		settings: Settings.isolated({ "images.autoResize": false, "inspect_image.mode": "off" }),
+		settings: Settings.isolated({ "images.autoResize": false }),
 	} as ToolSession;
 }
 
@@ -80,16 +80,5 @@ describe("read PDF page screenshots", () => {
 
 		const result = await new ReadTool(makeSession(testDir)).execute("read-literal", { path: literalPath });
 		expect(textOf(result)).toContain("literal colon path wins");
-	});
-
-	it("routes PDF line selectors through normal document conversion", async () => {
-		const convert = vi.spyOn(markit, "convertFileWithMarkit").mockResolvedValue({
-			ok: true,
-			content: "first line\nselected line\nthird line\n",
-		});
-
-		const result = await new ReadTool(makeSession(testDir)).execute("read-pdf-lines", { path: `${pdfPath}:2-2` });
-		expect(convert).toHaveBeenCalledTimes(1);
-		expect(textOf(result)).toContain("selected line");
 	});
 });

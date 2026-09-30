@@ -1,12 +1,12 @@
 import * as path from "node:path";
-import type { AgentToolResult } from "@chudware/agent-core";
-import { untilAborted } from "@chudware/utils";
-import * as fsx from "@chudware/utils/fsx";
-import * as git from "../utils/git";
+import type { AgentToolResult } from "@oh-my-pi/pi-agent-core";
+import * as vcs from "@oh-my-pi/pi-natives/vcs";
+import { untilAborted } from "@oh-my-pi/pi-utils";
+import { github } from "../utils/github";
 import type { ToolSession } from ".";
-import type { GhToolDetails } from "./gh";
+import type { GhToolDetails } from "@oh-my-pi/pi-tui/tools/github";
 import type { GhLabel, GhUser } from "./gh-types";
-import { ToolError } from "./tool-errors";
+import { ToolError } from "@oh-my-pi/pi-tui/tools/tool-errors";
 import { toolResult } from "./tool-result";
 
 export function normalizeText(value: string | null | undefined): string {
@@ -109,7 +109,8 @@ export const PR_URL_PATTERN = /^https:\/\/([^/]+)\/([^/]+\/[^/]+)\/pull\/(\d+)(?
 export const ISSUE_URL_PATTERN = /^https:\/\/([^/]+)\/([^/]+\/[^/]+)\/issues\/(\d+)(?:\/.*)?$/;
 
 export async function requireCurrentGitBranch(cwd: string, signal?: AbortSignal): Promise<string> {
-	const branch = await git.branch.current(cwd, signal);
+	const repo = vcs.git(cwd);
+	const branch = repo ? await repo.currentBranch(signal).catch(() => null) : null;
 	if (!branch) {
 		throw new ToolError("Current git branch is unavailable. Pass `branch` or `run` explicitly.");
 	}
@@ -118,7 +119,8 @@ export async function requireCurrentGitBranch(cwd: string, signal?: AbortSignal)
 }
 
 export async function requireCurrentGitHead(cwd: string, signal?: AbortSignal): Promise<string> {
-	const headSha = await git.head.sha(cwd, signal);
+	const repo = vcs.git(cwd);
+	const headSha = repo ? await repo.headSha(signal).catch(() => null) : null;
 	if (!headSha) {
 		throw new ToolError("Current git HEAD is unavailable. Pass `run` explicitly.");
 	}
@@ -137,11 +139,6 @@ export function formatLabels(labels: GhLabel[] | undefined): string | undefined 
 	const names = labels?.map(label => label.name).filter((value): value is string => Boolean(value)) ?? [];
 	if (names.length === 0) return undefined;
 	return names.join(", ");
-}
-
-export function pushLine(lines: string[], label: string, value: string | number | boolean | undefined): void {
-	if (value === undefined || value === "") return;
-	lines.push(`${label}: ${value}`);
 }
 
 export function parsePullRequestUrl(value: string | undefined): { repo?: string; prNumber?: number } {
@@ -218,10 +215,7 @@ export function githubRepoSlugEquals(left: string | undefined, right: string): b
  * the host `gh` itself resolved from the remote.
  */
 async function resolveRepoFromCwd(cwd: string, signal?: AbortSignal): Promise<string> {
-	const url = requireNonEmpty(
-		await git.github.text(cwd, ["repo", "view", "--json", "url", "-q", ".url"], signal),
-		"repo",
-	);
+	const url = requireNonEmpty(await github.text(cwd, ["repo", "view", "--json", "url", "-q", ".url"], signal), "repo");
 	const repo = repoFromUrl(url);
 	if (!repo) {
 		throw new ToolError(`GitHub CLI returned an unrecognized repository URL: ${url}`);
@@ -328,7 +322,7 @@ export async function saveArtifactText(
 		return undefined;
 	}
 
-	await fsx.write(artifactPath, text);
+	await Bun.write(artifactPath, text);
 	return artifactId;
 }
 

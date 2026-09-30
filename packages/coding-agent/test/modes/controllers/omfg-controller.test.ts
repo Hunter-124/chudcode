@@ -2,17 +2,18 @@ import { afterEach, beforeAll, describe, expect, it, type Mock, vi } from "bun:t
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import type { AgentMessage } from "@chudware/agent-core";
-import type { AssistantMessage, Usage } from "@chudware/ai";
-import type { Rule } from "@chudware/coding-agent/capability/rule";
-import { OmfgController } from "@chudware/coding-agent/modes/controllers/omfg-controller";
-import { initTheme } from "@chudware/coding-agent/modes/theme/theme";
-import type { InteractiveModeContext } from "@chudware/coding-agent/modes/types";
-import { Container, type TUI } from "@chudware/tui";
-import { removeWithRetries } from "@chudware/utils";
-import * as fsx from "@chudware/utils/fsx";
+import type { AgentMessage } from "@oh-my-pi/pi-agent-core";
+import type { AssistantMessage, Usage } from "@oh-my-pi/pi-ai";
+import type { Rule } from "@oh-my-pi/pi-coding-agent/capability/rule";
+import { OmfgController } from "@oh-my-pi/pi-coding-agent/modes/controllers/omfg-controller";
+import { initTheme } from "@oh-my-pi/pi-tui/theme";
+import type { InteractiveModeContext } from "@oh-my-pi/pi-coding-agent/modes/types";
+import { Container, type TUI } from "@oh-my-pi/pi-tui";
+import { removeWithRetries } from "@oh-my-pi/pi-utils";
+import { clearCache, readDirEntries } from "@oh-my-pi/pi-coding-agent/capability/fs";
+import { CONFIG_DIR_NAME } from "@oh-my-pi/pi-utils/dirs";
 
-const PROJECT_OPTION = "This project (.chudcode/rules)";
+const PROJECT_OPTION = `This project (${CONFIG_DIR_NAME}/rules)`;
 
 const usage: Usage = {
 	input: 0,
@@ -107,6 +108,8 @@ async function createHarness(options: HarnessOptions): Promise<Harness> {
 		model: options.hasModel === false ? undefined : { provider: "anthropic", id: "claude-sonnet-4-5" },
 		runEphemeralTurn: options.runEphemeralTurn,
 		messages: options.messages ?? [],
+		agent: { state: { tools: [] } },
+		ruleJudge: () => undefined,
 		ttsrManager: { addRule: ttsrAddRule },
 	} as unknown as InteractiveModeContext["session"];
 	const container = new Container();
@@ -131,6 +134,7 @@ beforeAll(async () => {
 
 afterEach(async () => {
 	vi.restoreAllMocks();
+	clearCache();
 	while (tempRoots.length > 0) {
 		const root = tempRoots.pop();
 		if (root) {
@@ -172,6 +176,50 @@ describe("OmfgController", () => {
 		expect(harness.container.children).toHaveLength(0);
 		expect(signal?.aborted).toBe(true);
 		expect(controller.hasActiveRequest()).toBe(false);
-		expect(await fsx.exists(path.join(harness.projectDir, ".chudcode", "rules", "ts-no-any.md"))).toBe(false);
+		expect(await Bun.file(path.join(harness.projectDir, CONFIG_DIR_NAME, "rules", "ts-no-any.md")).exists()).toBe(
+			false,
+		);
+	});
+
+	it("invalidates the discovery cache after saving so rediscovery observes the new rule", async () => {
+		clearCache();
+		const runEphemeralTurn = vi.fn<RunEphemeralTurn>(async () => ({
+			replyText: JSON.stringify({
+				name: "ts-no-any",
+				description: "No any in TS edits",
+				condition: ": any",
+				scope: ["tool:edit(*.ts)", "tool:write(*.ts)"],
+				body: "Use `unknown` instead.",
+			}),
+			assistantMessage: createAssistantMessage([{ type: "text", text: "done" }]),
+		}));
+		const harness = await createHarness({
+			runEphemeralTurn,
+			messages: createMatchingMessages(),
+			selectorChoice: PROJECT_OPTION,
+		});
+		const rulesDir = path.join(harness.projectDir, CONFIG_DIR_NAME, "rules");
+
+		// Warm the discovery cache with the pre-save (absent) directory snapshot, the
+		// state the mid-session rule rediscovery would read on the next prompt rebuild.
+		expect(await readDirEntries(rulesDir)).toHaveLength(0);
+
+		// #registerLive() calls ttsrManager.addRule right after the write + cache
+		// invalidation, so resolving on it awaits the real save signal (no timers).
+		const registered = Promise.withResolvers<void>();
+		harness.ttsrAddRule.mockImplementation(() => {
+			registered.resolve();
+			return true;
+		});
+
+		await new OmfgController(harness.ctx).start("stop using any");
+		await registered.promise;
+
+		const savedRuleFile = path.join(rulesDir, "ts-no-any.md");
+		expect(await Bun.file(savedRuleFile).exists()).toBe(true);
+		expect(harness.ttsrAddRule).toHaveBeenCalled();
+		// Without the post-write invalidation the cache would still serve the empty
+		// snapshot, and `replaceTtsrRules` would evict the freshly registered rule.
+		expect((await readDirEntries(rulesDir)).map(entry => entry.name)).toContain("ts-no-any.md");
 	});
 });

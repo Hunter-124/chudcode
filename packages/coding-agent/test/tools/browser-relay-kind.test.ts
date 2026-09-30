@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import { DEFAULT_RELAY_URL, resolveRelayKind } from "@chudware/coding-agent/tools/browser";
+import { DEFAULT_RELAY_URL, resolveRelayKind } from "@oh-my-pi/pi-coding-agent/tools/browser";
 
 describe("resolveRelayKind", () => {
 	it("is disabled by default", () => {
@@ -25,12 +25,12 @@ describe("resolveRelayKind", () => {
 		});
 	});
 
-	it("CHUDCODE_BROWSER_RELAY=0 disables the relay even when the setting enables it", () => {
-		expect(resolveRelayKind({ settingEnabled: true }, { CHUDCODE_BROWSER_RELAY: "0" })).toBeNull();
+	it("PI_BROWSER_RELAY=0 disables the relay even when the setting enables it", () => {
+		expect(resolveRelayKind({ settingEnabled: true }, { PI_BROWSER_RELAY: "0" })).toBeNull();
 	});
 
-	it("CHUDCODE_BROWSER_RELAY=1 enables the relay when the setting is off", () => {
-		expect(resolveRelayKind({ settingEnabled: false }, { CHUDCODE_BROWSER_RELAY: "1" })).toEqual({
+	it("PI_BROWSER_RELAY=1 enables the relay when the setting is off", () => {
+		expect(resolveRelayKind({ settingEnabled: false }, { PI_BROWSER_RELAY: "1" })).toEqual({
 			kind: "relay",
 			cdpUrl: DEFAULT_RELAY_URL,
 		});

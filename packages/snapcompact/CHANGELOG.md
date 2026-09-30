@@ -2,6 +2,35 @@
 
 ## [Unreleased]
 
+## [18.2.9] - 2026-09-22
+
+### Fixed
+
+- Fixed summaries incorrectly advertising a `¶think:` scope when thinking content is excluded from the archive.
+
+## [18.2.1] - 2026-09-15
+
+### Changed
+
+- `historyBlocks()` now resolves persisted frame payloads lazily, keeps the newest frames within a byte budget, and drops unresolved blob references instead of sending them to providers ([#10227](https://github.com/can1357/oh-my-pi/pull/10227) by [@lemonleks](https://github.com/lemonleks)).
+
+## [18.1.18] - 2026-09-11
+
+### Fixed
+
+- A snapcompact pass now also strips a superseded Anthropic server-compaction payload (`preserveData.anthropicCompaction`) alongside the OpenAI replacement history, so a stale native summary can never replay ahead of the archived frames.
+
+## [18.1.0] - 2026-09-01
+
+### Added
+
+- Added a declarative compatibility rules system for consistent model identification, capabilities, policies, and provider-specific behavior across model classes, families, and revisions.
+- Added the compat-compiler CLI for managing model identity and capability rules through KDL configuration files.
+
+### Changed
+
+- Standardized model revision handling and compatibility resolution across model discovery and runtime behavior.
+
 ## [17.4.1] - 2026-08-21
 
 ### Added
@@ -16,7 +45,7 @@
 
 ### Fixed
 
-- Fixed image-based compaction confusing digit `0` with letter `O` and corrupting compacted identifiers (e.g. Slack IDs): the default frame fonts (X.org `8x13`, `6x12`, `5x8`) drew zero as a bare oval indistinguishable from `O`. Zero now carries a disambiguating interior slash (`8x13`) or bar (`6x12`/`5x8`); unscii-8 already shipped a slashed zero ([#8713](https://github.com/Hunter-124/chudcode/issues/8713)).
+- Fixed image-based compaction confusing digit `0` with letter `O` and corrupting compacted identifiers (e.g. Slack IDs): the default frame fonts (X.org `8x13`, `6x12`, `5x8`) drew zero as a bare oval indistinguishable from `O`. Zero now carries a disambiguating interior slash (`8x13`) or bar (`6x12`/`5x8`); unscii-8 already shipped a slashed zero ([#8713](https://github.com/can1357/oh-my-pi/issues/8713)).
 
 ## [17.2.15] - 2026-08-12
 
@@ -28,7 +57,7 @@
 
 ### Fixed
 
-- Fixed snapcompact resume guides reporting only the HQ grid width for mixed-width foveated archives ([#6712](https://github.com/Hunter-124/chudcode/issues/6712)).
+- Fixed snapcompact resume guides reporting only the HQ grid width for mixed-width foveated archives ([#6712](https://github.com/can1357/oh-my-pi/issues/6712)).
 
 ## [17.1.0] - 2026-07-24
 
@@ -52,7 +81,7 @@
 
 ### Fixed
 
-- Fixed large snapcompact archives being reconstructed into unbounded per-request image payloads by adding a frame base64 byte budget and omitting over-budget archive frames from prompt blocks. ([#3792](https://github.com/Hunter-124/chudcode/issues/3792))
+- Fixed large snapcompact archives being reconstructed into unbounded per-request image payloads by adding a frame base64 byte budget and omitting over-budget archive frames from prompt blocks. ([#3792](https://github.com/can1357/oh-my-pi/issues/3792))
 
 ## [16.2.7] - 2026-06-30
 
@@ -71,7 +100,7 @@
 
 ### Added
 
-- Added `archiveSourceText(archive)` to extract a persisted frame archive's source text as plain text for LLM summarization. ([#3561](https://github.com/Hunter-124/chudcode/pull/3561) by [@serverinspector](https://github.com/serverinspector))
+- Added `archiveSourceText(archive)` to extract a persisted frame archive's source text as plain text for LLM summarization. ([#3561](https://github.com/can1357/oh-my-pi/pull/3561) by [@serverinspector](https://github.com/serverinspector))
 - Added `stripPreservedArchive(preserveData)` to drop the persisted frame-archive slot (`PRESERVE_KEY`) and collapse to `undefined` when no other state remains — shared by the agent and coding-agent compaction paths instead of duplicating the strip rule.
 
 ## [16.1.13] - 2026-06-22
@@ -165,7 +194,7 @@
 - `resolveShape(api, variant?)` now accepts an explicit variant name (or `"auto"`); forced variants keep their geometry but are re-priced for the target provider's image billing (token estimate and OpenAI `original` detail hint)
 - Added the six research-eval winning frame variants to `SHAPE_VARIANTS`: `6x12-dim` (Claude fable), `8x13-bw` (Opus), `8on16-bw` (GPT grid runner-up), `doc-8on16-bw` (GPT), `doc-8on16-sent` (GLM), and `doc-8on16-sent-dim` (Gemini/Kimi), backed by new `Shape` fields `stretch` (disable Lanczos stretch: natural glyphs on a larger cell pitch), `columns` (two word-wrapped newspaper columns), `stopwordDim`, and the X.org `6x12`/`8x13` fonts
 - Added `dimStopwords()`, which prints high-frequency function words in dim ink via zero-width markers (skipping spans that are already dim), and `wrap()`, the greedy word-wrap used to typeset doc-layout pages; `geometry`/`render`/`renderMany`/`frames`/`compact` understand doc shapes (wrap once, paginate into `2 * rows`-line pages), and compaction frames persist `columns`/`stopwordDim` for mixed-shape detection
-- `resolveShape` now takes a `ShapeTarget` (`{ api, id }` — a chud-ai `Model` works as-is) and detects the ideal shape from the **model id**, not just the wire API: a Claude routed through Vertex or an OpenAI-compatible gateway keeps its Claude shape, with billing still priced by the API family actually carrying the request. `idealShapeVariant(modelId)` exposes the model-line table; unmeasured models fall back to the API family's winner
+- `resolveShape` now takes a `ShapeTarget` (`{ api, id }` — a pi-ai `Model` works as-is) and detects the ideal shape from the **model id**, not just the wire API: a Claude routed through Vertex or an OpenAI-compatible gateway keeps its Claude shape, with billing still priced by the API family actually carrying the request. `idealShapeVariant(modelId)` exposes the model-line table; unmeasured models fall back to the API family's winner
 - `resolveShape` now also resolves an ideal **frame size** per model line, and billing estimates come from verified per-family formulas instead of flat 1568px constants: Anthropic bills 28px patches capped at 4,784 visual tokens (+5% margin), Gemini 3.x bills a fixed 1,120-token `media_resolution` budget per image at any pixel size, and OpenAI bills 32px patches × 1.2 under the 10,000-patch `detail: "original"` budget. High-res Claude lines (Opus 4.7+, Fable, Mythos — native 2576px-edge ingestion) get 1932px frames (same recall and cost, a third fewer frames); Gemini gets 2048px frames (+70% chars per frame at the same bill); GPT and Kimi stay at 1568px (area-proportional billing and a model-side 1792px processor cap, respectively). `idealShapeVariant` now returns an `IdealShape` (`{ variant, frameSize? }`)
 - Added per-provider image-count budgets: `PROVIDER_IMAGE_BUDGETS`, `DEFAULT_PROVIDER_IMAGE_BUDGET`, `providerImageBudget()`, and `providerFrameBudget()` (the image budget clamped to `MAX_FRAMES`). OpenRouter is capped at its measured hard limit of 8 images per request (excess images are silently dropped with no error); unknown providers get a safe floor of 5
 - Added `Archive.textTail`: archive content past the frame budget is no longer dropped — `compact()` stops rendering at the budget and keeps the newest unframed slice as verbatim text on the summary (capped at two frame capacities with middle elision, counted into `truncatedChars` when elided). The tail persists in `preserveData` and is folded back into frames by the next compaction
@@ -183,7 +212,7 @@
 
 ### Breaking Changes
 
-- Renamed every export to drop the `snapcompact`/`Snapcompact`/`SNAPCOMPACT_` qualifier — the package is meant to be consumed via `import * as snapcompact from "@chudware/snapcompact"`. Functions: `snapcompactCompact` → `compact`, `renderSnapcompactFrame` → `render`, `snapcompactGeometry` → `geometry`, `normalizeForSnapcompact` → `normalize`, `serializeSnapcompactConversation` → `serializeConversation`, `snapcompactImages` → `images`, `getPreservedSnapcompactArchive` → `getPreservedArchive`, `isSnapcompactShape` → `isShape`, `resolveSnapcompactShape` → `resolveShape`, `createSnapcompactFileOps` → `createFileOps`, `computeSnapcompactFileLists` → `computeFileLists`, `upsertSnapcompactFileOperations` → `upsertFileOperations`. Types: `SnapcompactShape` → `Shape`, `SnapcompactFrame` → `Frame`, `SnapcompactArchive` → `Archive`, `SnapcompactGeometry` → `Geometry`, `SnapcompactOptions` → `Options`, `SnapcompactSerializeOptions` → `SerializeOptions`, `SnapcompactFileOperations` → `FileOperations`, `SnapcompactCompactionDetails`/`Preparation`/`Result` → `CompactionDetails`/`CompactionPreparation`/`CompactionResult`, `SnapcompactConvertToLlm` → `ConvertToLlm`. Constants: `SNAPCOMPACT_X` → `X` (`SHAPES`, `FRAME_SIZE`, `MAX_FRAMES`, `FRAME_TOKEN_ESTIMATE`, `PRESERVE_KEY`, `TOOL_RESULT_MAX_CHARS`, `TOOL_ARG_MAX_CHARS`, `TOOL_CALL_MAX_CHARS`, `TRUNCATE_HEAD_RATIO`, `DIM_ON`, `DIM_OFF`).
+- Renamed every export to drop the `snapcompact`/`Snapcompact`/`SNAPCOMPACT_` qualifier — the package is meant to be consumed via `import * as snapcompact from "@oh-my-pi/snapcompact"`. Functions: `snapcompactCompact` → `compact`, `renderSnapcompactFrame` → `render`, `snapcompactGeometry` → `geometry`, `normalizeForSnapcompact` → `normalize`, `serializeSnapcompactConversation` → `serializeConversation`, `snapcompactImages` → `images`, `getPreservedSnapcompactArchive` → `getPreservedArchive`, `isSnapcompactShape` → `isShape`, `resolveSnapcompactShape` → `resolveShape`, `createSnapcompactFileOps` → `createFileOps`, `computeSnapcompactFileLists` → `computeFileLists`, `upsertSnapcompactFileOperations` → `upsertFileOperations`. Types: `SnapcompactShape` → `Shape`, `SnapcompactFrame` → `Frame`, `SnapcompactArchive` → `Archive`, `SnapcompactGeometry` → `Geometry`, `SnapcompactOptions` → `Options`, `SnapcompactSerializeOptions` → `SerializeOptions`, `SnapcompactFileOperations` → `FileOperations`, `SnapcompactCompactionDetails`/`Preparation`/`Result` → `CompactionDetails`/`CompactionPreparation`/`CompactionResult`, `SnapcompactConvertToLlm` → `ConvertToLlm`. Constants: `SNAPCOMPACT_X` → `X` (`SHAPES`, `FRAME_SIZE`, `MAX_FRAMES`, `FRAME_TOKEN_ESTIMATE`, `PRESERVE_KEY`, `TOOL_RESULT_MAX_CHARS`, `TOOL_ARG_MAX_CHARS`, `TOOL_CALL_MAX_CHARS`, `TRUNCATE_HEAD_RATIO`, `DIM_ON`, `DIM_OFF`).
 
 ### Added
 
@@ -202,8 +231,8 @@
 - Added provider-specific snapcompact frame-shape presets and shape helpers (`SNAPCOMPACT_SHAPES`, `resolveSnapcompactShape`, `isSnapcompactShape`) so callers can consistently select validated image-frame geometry for archive renders
 - Added `file-operations.md` and `snapcompact-summary.md` prompts to preserve file-read/write context and frame metadata in the compaction prompt flow
 - Added a full `packages/snapcompact/research` experiment and visualization suite for running snapcompact SQuAD studies, provider probes, and activation-style analyses
-- Added package-level TypeScript exports and publication config so consumers can import `@chudware/snapcompact` with typed access to snapcompact APIs
-- Published `@chudware/snapcompact` as the reusable snapcompact compaction package, including bitmap-frame rendering helpers, archive helpers, and the local `snapcompactCompact()` strategy.
+- Added package-level TypeScript exports and publication config so consumers can import `@oh-my-pi/snapcompact` with typed access to snapcompact APIs
+- Published `@oh-my-pi/snapcompact` as the reusable snapcompact compaction package, including bitmap-frame rendering helpers, archive helpers, and the local `snapcompactCompact()` strategy.
 
 ### Changed
 

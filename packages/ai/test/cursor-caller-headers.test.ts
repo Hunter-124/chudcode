@@ -1,15 +1,15 @@
 import { afterEach, describe, expect, it } from "bun:test";
 import * as http2 from "node:http2";
-import { streamCursor } from "@chudware/ai/providers/cursor";
-import type { Context, Model } from "@chudware/ai/types";
-import { buildModel } from "@chudware/catalog/build";
+import { streamCursor } from "@oh-my-pi/pi-ai/providers/cursor";
+import type { Context, Model } from "@oh-my-pi/pi-ai/types";
+import { buildModel } from "@oh-my-pi/pi-catalog/build";
 import {
 	AgentServerMessageSchema,
 	InteractionUpdateSchema,
 	TextDeltaUpdateSchema,
 	TurnEndedUpdateSchema,
-} from "@chudware/catalog/discovery/cursor-proto";
-import { create, toBinary } from "@chudware/catalog/discovery/protobuf";
+} from "@oh-my-pi/pi-catalog/discovery/cursor-proto";
+import { create, toBinary } from "@oh-my-pi/pi-catalog/discovery/protobuf";
 
 // Cursor forwards caller headers (including `before_provider_headers` extension
 // edits), and it speaks HTTP/2. These assert the TRANSPORT contract against a

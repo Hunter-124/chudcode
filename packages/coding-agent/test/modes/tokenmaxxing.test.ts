@@ -1,85 +1,65 @@
 import { beforeAll, describe, expect, it } from "bun:test";
-import { initTheme } from "@chudware/coding-agent/modes/theme/theme";
-import {
-	containsTokenmaxxing,
-	highlightTokenmaxxing,
-	renderTokenmaxxingNotice,
-} from "@chudware/coding-agent/modes/tokenmaxxing";
+import { MAGIC_KEYWORDS, renderTokenmaxxingNotice } from "@oh-my-pi/pi-coding-agent/modes/magic-keywords";
+import { containsMagicKeyword, highlightMagicKeywords, setMagicKeywords } from "@oh-my-pi/pi-tui/prompt/magic-keywords";
+import { initThemeSync } from "@oh-my-pi/pi-tui/theme";
 
 beforeAll(() => {
-	// highlightTokenmaxxing reads the global theme's color mode.
-	initTheme();
+	initThemeSync();
+	setMagicKeywords(MAGIC_KEYWORDS);
 });
 
-describe("tokenmaxxing keyword detection", () => {
-	it("matches the lowercase trigger word delimited by whitespace or a string edge", () => {
-		expect(containsTokenmaxxing("tokenmaxxing")).toBe(true);
-		expect(containsTokenmaxxing("please tokenmaxxing this audit")).toBe(true);
-		expect(containsTokenmaxxing("worth tokenmaxxing")).toBe(true);
-	});
+const word = "tokenmaxxing";
 
-	it("matches the lowercase trigger word beside prose punctuation and quotes", () => {
-		for (const text of ["do it. tokenmaxxing.", "tokenmaxxing, then report", 'say "tokenmaxxing" now']) {
-			expect(containsTokenmaxxing(text)).toBe(true);
+describe("tokenmaxxing prose trigger", () => {
+	it("matches lowercase standalone words in prose but not inflections or code", () => {
+		for (const text of [word, "please tokenmaxxing this", "do it. tokenmaxxing.", 'say "tokenmaxxing" now']) {
+			expect(containsMagicKeyword(text, word)).toBe(true);
+		}
+		for (const text of [
+			"Tokenmaxxing",
+			"TOKENMAXXING",
+			"tokenmaxxed",
+			"tokenmaxxings",
+			"tokenmaxxing()",
+			"foo::tokenmaxxing",
+			"src/modes/tokenmaxxing.ts",
+			"`tokenmaxxing`",
+			"```\ntokenmaxxing\n```",
+			"<x>tokenmaxxing</x>",
+		]) {
+			expect(containsMagicKeyword(text, word)).toBe(false);
 		}
 	});
 
-	it("ignores casing, inflections, code symbols, and path-embedded forms", () => {
-		expect(containsTokenmaxxing("Tokenmaxxing")).toBe(false);
-		expect(containsTokenmaxxing("TOKENMAXXING")).toBe(false);
-		expect(containsTokenmaxxing("tokenmaxxed the turn")).toBe(false);
-		expect(containsTokenmaxxing("tokenmaxxings")).toBe(false);
-		expect(containsTokenmaxxing("tokenmaxxing()")).toBe(false);
-		expect(containsTokenmaxxing("foo::tokenmaxxing")).toBe(false);
-		expect(containsTokenmaxxing("src/modes/tokenmaxxing.ts")).toBe(false);
-	});
-
-	it("ignores the keyword inside code spans, fences, and xml sections", () => {
-		expect(containsTokenmaxxing("`tokenmaxxing`")).toBe(false);
-		expect(containsTokenmaxxing("```\ntokenmaxxing\n```")).toBe(false);
-		expect(containsTokenmaxxing("<x>tokenmaxxing</x>")).toBe(false);
-	});
-});
-
-describe("tokenmaxxing keyword highlighting", () => {
-	it("decorates the keyword in bold with zero-width escapes, preserving visible text", () => {
+	it("paints prose across the gold-to-pink sweep without losing any visible letters", () => {
 		const input = "please tokenmaxxing this";
-		const decorated = highlightTokenmaxxing(input);
-		expect(decorated).not.toBe(input);
-		expect(decorated).toContain("\x1b[1m");
-		expect(decorated).toContain("\x1b[22m");
-		expect(Bun.stripANSI(decorated)).toBe(input);
-	});
-
-	it("leaves text without the standalone keyword untouched", () => {
-		expect(highlightTokenmaxxing("tokenmaxxinged builds")).toBe("tokenmaxxinged builds");
-		expect(highlightTokenmaxxing("Tokenmaxxing this")).toBe("Tokenmaxxing this");
-		const filePath = "src/modes/tokenmaxxing.ts";
-		expect(highlightTokenmaxxing(filePath)).toBe(filePath);
-	});
-
-	it("keeps its palette inside the HSL hue range while wrapping gold through red to pink", () => {
-		// The hue map wraps below 0; a wrapped stop that fell out of range would
-		// compile to an empty escape and leave part of the word unpainted.
-		const decorated = highlightTokenmaxxing("tokenmaxxing");
-		const stops = new Set(decorated.match(/\x1b\[38[;0-9:]*m/g) ?? []);
-		expect(stops.size).toBeGreaterThan(4);
+		const highlighted = highlightMagicKeywords(input);
+		expect(Bun.stripANSI(highlighted)).toBe(input);
+		// 256-color terminals quantize the sweep to fewer distinct stops than truecolor.
+		expect(new Set(highlighted.match(/\x1b\[38[;0-9:]*m/g) ?? []).size).toBeGreaterThan(2);
+		expect(highlightMagicKeywords("src/modes/tokenmaxxing.ts")).toBe("src/modes/tokenmaxxing.ts");
 	});
 });
 
-describe("renderTokenmaxxingNotice", () => {
-	it("delegates the dispatch branch to the orchestration contract only when task is active", () => {
+describe("tokenmaxxing notice", () => {
+	it("routes independent work through task only when available", () => {
 		const withTask = renderTokenmaxxingNotice({ tools: ["task", "eval"], scoutAvailable: true });
 		const withoutTask = renderTokenmaxxingNotice({ tools: ["read"], scoutAvailable: true });
-		expect(withTask).toContain("parallel `task` calls in one message under the orchestration contract");
-		expect(withoutTask).not.toContain("orchestration contract");
+		expect(withTask).toContain("parallel `task` calls");
+		expect(withTask).toContain("`scout`");
 		expect(withoutTask).toContain("sequence them yourself");
+		expect(withoutTask).not.toContain("`scout`");
+		expect(withoutTask).not.toContain("`task`");
 	});
 
-	it("offers the programmatic fan-out branch only when eval is active", () => {
-		expect(renderTokenmaxxingNotice({ tools: ["eval"], scoutAvailable: true })).toContain("program it in `eval`");
-		expect(renderTokenmaxxingNotice({ tools: ["task"], scoutAvailable: true })).toContain(
-			"bounded sequential rounds",
-		);
+	it("uses eval fan-out and ask only when active, without changing reasoning level", () => {
+		const withEval = renderTokenmaxxingNotice({ tools: ["eval", "ask"], scoutAvailable: false });
+		const withoutEval = renderTokenmaxxingNotice({ tools: [], scoutAvailable: false });
+		expect(withEval).toContain("program it in `eval`");
+		expect(withEval).toContain("batched `ask`");
+		expect(withoutEval).not.toContain("program it in `eval`");
+		expect(withoutEval).not.toContain("batched `ask`");
+		expect(withoutEval).toContain("Reasoning level is unchanged");
+		expect(withoutEval).not.toContain("{{");
 	});
 });

@@ -8,16 +8,16 @@ import {
 	discoverGitLabDuoWorkflowNamespace,
 	discoverGitLabDuoWorkflowRuntimeNamespace,
 	fetchGitLabDuoWorkflowModels,
-} from "@chudware/catalog/discovery/gitlab-duo-workflow";
-import { getSupportedEfforts } from "@chudware/catalog/model-thinking";
-import { isCatalogDescriptor } from "@chudware/catalog/provider-models/descriptor-types";
-import { PROVIDER_DESCRIPTORS } from "@chudware/catalog/provider-models/descriptors";
-import type { FetchImpl } from "@chudware/catalog/types";
+} from "@oh-my-pi/pi-catalog/discovery/gitlab-duo-workflow";
+import { getSupportedEfforts } from "@oh-my-pi/pi-catalog/model-thinking";
+import { isCatalogDescriptor } from "@oh-my-pi/pi-catalog/provider-models/descriptor-types";
+import { PROVIDER_DESCRIPTORS } from "@oh-my-pi/pi-catalog/provider-models/descriptors";
+import type { FetchImpl } from "@oh-my-pi/pi-catalog/types";
 
 const TEST_TOKEN = "redacted-test-token";
-const originalNamespaceId = process.env.GITLAB_DUO_NAMESPACE_ID;
-const originalProjectId = process.env.GITLAB_DUO_PROJECT_ID;
-const originalProjectPath = process.env.GITLAB_DUO_PROJECT_PATH;
+const originalNamespaceId = Bun.env.GITLAB_DUO_NAMESPACE_ID;
+const originalProjectId = Bun.env.GITLAB_DUO_PROJECT_ID;
+const originalProjectPath = Bun.env.GITLAB_DUO_PROJECT_PATH;
 
 type MockCall = {
 	url: string;
@@ -90,19 +90,19 @@ function availableModels(ref: string): AvailableModelsPayload {
 
 afterEach(() => {
 	if (originalNamespaceId === undefined) {
-		delete process.env.GITLAB_DUO_NAMESPACE_ID;
+		delete Bun.env.GITLAB_DUO_NAMESPACE_ID;
 	} else {
-		process.env.GITLAB_DUO_NAMESPACE_ID = originalNamespaceId;
+		Bun.env.GITLAB_DUO_NAMESPACE_ID = originalNamespaceId;
 	}
 	if (originalProjectId === undefined) {
-		delete process.env.GITLAB_DUO_PROJECT_ID;
+		delete Bun.env.GITLAB_DUO_PROJECT_ID;
 	} else {
-		process.env.GITLAB_DUO_PROJECT_ID = originalProjectId;
+		Bun.env.GITLAB_DUO_PROJECT_ID = originalProjectId;
 	}
 	if (originalProjectPath === undefined) {
-		delete process.env.GITLAB_DUO_PROJECT_PATH;
+		delete Bun.env.GITLAB_DUO_PROJECT_PATH;
 	} else {
-		process.env.GITLAB_DUO_PROJECT_PATH = originalProjectPath;
+		Bun.env.GITLAB_DUO_PROJECT_PATH = originalProjectPath;
 	}
 });
 
@@ -141,7 +141,7 @@ describe("GitLab Duo Workflow discovery", () => {
 	});
 
 	it("uses GITLAB_DUO_NAMESPACE_ID when no explicit namespace is passed", async () => {
-		process.env.GITLAB_DUO_NAMESPACE_ID = "env-root";
+		Bun.env.GITLAB_DUO_NAMESPACE_ID = "env-root";
 		const { fetch, calls } = createMockFetch({ models: { "env-root": availableModels("claude") } });
 
 		const selection = await discoverGitLabDuoWorkflowNamespace({ apiKey: TEST_TOKEN, fetch });
@@ -151,7 +151,7 @@ describe("GitLab Duo Workflow discovery", () => {
 	});
 
 	it("resolves a runtime namespace override without aiChatAvailableModels", async () => {
-		const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "chudcode-gitlab-duo-workflow-runtime-"));
+		const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "omp-gitlab-duo-workflow-runtime-"));
 		try {
 			const unavailablePayloads: AvailableModelsPayload[] = [
 				null,
@@ -256,7 +256,7 @@ describe("GitLab Duo Workflow discovery", () => {
 	});
 
 	it("resolves a runtime group namespace without aiChatAvailableModels", async () => {
-		const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "chudcode-gitlab-duo-workflow-runtime-"));
+		const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "omp-gitlab-duo-workflow-runtime-"));
 		try {
 			const { fetch, calls } = createMockFetch({
 				groups: [{ id: "runtime-group-root", full_path: "runtime-group", duo_features_enabled: true }],
@@ -400,7 +400,7 @@ describe("GitLab Duo Workflow discovery", () => {
 	});
 
 	it("uses GITLAB_DUO_PROJECT_ID when no explicit project is passed", async () => {
-		process.env.GITLAB_DUO_PROJECT_ID = "env-project";
+		Bun.env.GITLAB_DUO_PROJECT_ID = "env-project";
 		const { fetch, calls } = createMockFetch({
 			projects: {
 				"env-project": { id: 84, namespace: { rootAncestor: { id: "env-project-root" } } },
@@ -415,7 +415,7 @@ describe("GitLab Duo Workflow discovery", () => {
 	});
 
 	it("honors GITLAB_DUO_PROJECT_PATH and the projectPath config field for namespace discovery", async () => {
-		process.env.GITLAB_DUO_PROJECT_PATH = "group/path-project";
+		Bun.env.GITLAB_DUO_PROJECT_PATH = "group/path-project";
 		const { fetch } = createMockFetch({
 			projects: {
 				"group/path-project": { id: 91, namespace: { rootAncestor: { id: "path-project-root" } } },
@@ -577,7 +577,7 @@ describe("GitLab Duo Workflow discovery", () => {
 	});
 
 	it("uses the current workspace GitLab remote before group candidates", async () => {
-		const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "chudcode-gitlab-duo-workflow-"));
+		const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "omp-gitlab-duo-workflow-"));
 		try {
 			await fs.mkdir(path.join(tmpDir, ".git"));
 			await fs.writeFile(
@@ -608,7 +608,7 @@ describe("GitLab Duo Workflow discovery", () => {
 	});
 
 	it("follows the worktree commondir to read remotes from the common Git config", async () => {
-		const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "chudcode-gitlab-duo-workflow-"));
+		const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "omp-gitlab-duo-workflow-"));
 		try {
 			// Simulate a linked worktree: `<work>/.git` is a file pointing at the worktree
 			// gitdir, whose own config has no remotes; the remote lives in the common dir
@@ -649,7 +649,7 @@ describe("GitLab Duo Workflow discovery", () => {
 	});
 
 	it("strips a relative GitLab install base path from the remote project path", async () => {
-		const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "chudcode-gitlab-duo-workflow-"));
+		const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "omp-gitlab-duo-workflow-"));
 		try {
 			await fs.mkdir(path.join(tmpDir, ".git"));
 			await fs.writeFile(
@@ -690,7 +690,7 @@ describe("GitLab Duo Workflow discovery", () => {
 	});
 
 	it("does not treat a same-host different-port remote as the workspace project", async () => {
-		const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "chudcode-gitlab-duo-workflow-"));
+		const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "omp-gitlab-duo-workflow-"));
 		try {
 			await fs.mkdir(path.join(tmpDir, ".git"));
 			// The configured GitLab is on :8443; the remote points at the same hostname
@@ -728,7 +728,7 @@ describe("GitLab Duo Workflow discovery", () => {
 	});
 
 	it("accepts an SSH remote whose port differs from the web base URL", async () => {
-		const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "chudcode-gitlab-duo-workflow-"));
+		const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "omp-gitlab-duo-workflow-"));
 		try {
 			await fs.mkdir(path.join(tmpDir, ".git"));
 			// Self-managed GitLab: web UI on https://host (443), SSH on a dedicated port.

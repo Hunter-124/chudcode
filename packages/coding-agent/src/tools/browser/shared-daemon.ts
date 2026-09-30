@@ -1,20 +1,20 @@
 /**
  * Shared automation Chromium owned by the per-project daemon broker.
  *
- * Instead of every chudcode process launching (and sometimes orphaning) a private
+ * Instead of every omp process launching (and sometimes orphaning) a private
  * Chromium, the headless browser kind attaches to one broker-supervised Chrome
  * per project directory — sessions and subagents each open their own tabs in
- * it. The broker stops the daemon when the last chudcode client in the project
- * exits, so Chrome can never outlive chudcode, and concurrent acquisitions across
+ * it. The broker stops the daemon when the last omp client in the project
+ * exits, so Chrome can never outlive omp, and concurrent acquisitions across
  * processes converge on a single launch instead of a launch storm.
  */
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
-import { logger } from "@chudware/utils";
+import { logger } from "@oh-my-pi/pi-utils";
 import { daemonClientForProject } from "../../launch/client";
 import { describeQuietly, stopQuietly, waitReady } from "../../launch/ensure";
 import { daemonRuntimeDir } from "../../launch/paths";
-import type { DaemonSnapshot } from "../../launch/protocol";
+import type { DaemonSnapshot } from "@oh-my-pi/pi-tui/tools/daemon";
 import { throwIfAborted } from "../tool-errors";
 import { probeCdpStatus } from "./attach";
 import { resolveSharedBrowserLaunchSpec } from "./launch";
@@ -26,7 +26,7 @@ const PROBE_TIMEOUT_MS = 1_500;
 /** describe→start rounds before giving up; bounds cross-process start races and wedged-Chrome replacement. */
 const ENSURE_ATTEMPTS = 3;
 
-/** Broker-owned browser endpoint one chudcode process can attach to. */
+/** Broker-owned browser endpoint one omp process can attach to. */
 export interface SharedBrowserEndpoint {
 	wsEndpoint: string;
 	daemonName: string;
@@ -36,7 +36,7 @@ export interface SharedBrowserEndpoint {
 
 /** Stable broker daemon name for the shared automation browser. */
 export function sharedBrowserDaemonName(headless: boolean): string {
-	return headless ? "chudcode.browser.headless" : "chudcode.browser.headed";
+	return headless ? "omp.browser.headless" : "omp.browser.headed";
 }
 
 function wsEndpointOf(snapshot: DaemonSnapshot | undefined): string | undefined {
@@ -62,6 +62,10 @@ async function probeEndpoint(wsEndpoint: string): Promise<boolean> {
  * describe round. Returns null when the shared path is unavailable (no
  * resolvable Chromium, broker failure, or a daemon that never becomes
  * reachable); callers fall back to a process-local launch.
+ *
+ * Per-open process flags are intentionally absent: a running shared Chromium
+ * cannot be relaunched for one tab. `allow_file_access` is rejected before this
+ * boundary; invalid-certificate handling remains page-scoped through CDP.
  */
 export async function ensureSharedBrowser(opts: {
 	projectDir: string;

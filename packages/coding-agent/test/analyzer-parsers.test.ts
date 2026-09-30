@@ -1,10 +1,10 @@
 import { describe, expect, it } from "bun:test";
-import { parseClangTidy } from "@chudware/coding-agent/tools/analyzers/clang-tidy-parse";
-import { parseDhatJson } from "@chudware/coding-agent/tools/analyzers/dhat-json";
-import { parseMiRecord } from "@chudware/coding-agent/tools/analyzers/gdb-mi";
-import { parseSanitizerOutput } from "@chudware/coding-agent/tools/analyzers/sanitizer-parse";
-import { parseSarif } from "@chudware/coding-agent/tools/analyzers/sarif";
-import { parseValgrindXml } from "@chudware/coding-agent/tools/analyzers/valgrind-xml";
+import { parseClangTidy } from "@oh-my-pi/pi-coding-agent/tools/analyzers/clang-tidy-parse";
+import { parseDhatJson } from "@oh-my-pi/pi-coding-agent/tools/analyzers/dhat-json";
+import { parseMiRecord } from "@oh-my-pi/pi-coding-agent/tools/analyzers/gdb-mi";
+import { parseSanitizerOutput } from "@oh-my-pi/pi-coding-agent/tools/analyzers/sanitizer-parse";
+import { parseSarif } from "@oh-my-pi/pi-coding-agent/tools/analyzers/sarif";
+import { parseValgrindXml } from "@oh-my-pi/pi-coding-agent/tools/analyzers/valgrind-xml";
 
 describe("native analyzer result parsers", () => {
 	it("normalizes SARIF and clang-tidy findings", () => {

@@ -1,5 +1,3 @@
-import { createHash } from "node:crypto";
-
 /**
  * A UUID-shaped string: five hex groups in the canonical 8-4-4-4-12 layout.
  *
@@ -17,6 +15,6 @@ export type DeterministicUuid = `${string}-${string}-${string}-${string}-${strin
  * keying prompt caches) without persisting a seed→id mapping.
  */
 export function deterministicUuid(seed: string): DeterministicUuid {
-	const hex = createHash("sha256").update(seed).digest("hex");
+	const hex = new Bun.CryptoHasher("sha256").update(seed).digest("hex");
 	return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20, 32)}`;
 }

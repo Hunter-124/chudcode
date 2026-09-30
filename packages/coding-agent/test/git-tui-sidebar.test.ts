@@ -2,12 +2,11 @@ import { beforeAll, describe, expect, test } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import * as fsx from "@chudware/utils/fsx";
 import { $ } from "bun";
 import { AvatarLoader } from "../src/cli/git-tui/avatar";
-import { Sidebar, type SidebarAction } from "../src/cli/git-tui/sidebar";
+import { Sidebar, type SidebarAction } from "@oh-my-pi/pi-tui/apps/git/sidebar";
 import { GitModel } from "../src/cli/git-tui/state";
-import { initTheme } from "../src/modes/theme/theme";
+import { initTheme } from "@oh-my-pi/pi-tui/theme";
 
 beforeAll(async () => {
 	await initTheme(false);
@@ -15,17 +14,17 @@ beforeAll(async () => {
 
 /** Repo with three untracked files under two directories: a/one.txt, a/two.txt, b/three.txt. */
 async function withDirtyRepo(run: (harness: SidebarHarness) => Promise<void>): Promise<void> {
-	const repo = await fs.mkdtemp(path.join(os.tmpdir(), "chudcode-git-tui-sidebar-"));
+	const repo = await fs.mkdtemp(path.join(os.tmpdir(), "omp-git-tui-sidebar-"));
 	try {
 		await $`git init --initial-branch=main`.cwd(repo).quiet();
 		await $`git config user.name "Test User"`.cwd(repo).quiet();
 		await $`git config user.email "test@example.com"`.cwd(repo).quiet();
-		await fsx.write(path.join(repo, "seed.txt"), "seed\n");
+		await Bun.write(path.join(repo, "seed.txt"), "seed\n");
 		await $`git add seed.txt`.cwd(repo).quiet();
 		await $`git commit -m base`.cwd(repo).quiet();
-		await fsx.write(path.join(repo, "a/one.txt"), "one\n");
-		await fsx.write(path.join(repo, "a/two.txt"), "two\n");
-		await fsx.write(path.join(repo, "b/three.txt"), "three\n");
+		await Bun.write(path.join(repo, "a/one.txt"), "one\n");
+		await Bun.write(path.join(repo, "a/two.txt"), "two\n");
+		await Bun.write(path.join(repo, "b/three.txt"), "three\n");
 		await run(await SidebarHarness.create(repo));
 	} finally {
 		await fs.rm(repo, { recursive: true, force: true });
@@ -34,16 +33,16 @@ async function withDirtyRepo(run: (harness: SidebarHarness) => Promise<void>): P
 
 /** Repo where a/ holds both a modified tracked file and an untracked one: a/tracked.txt (M), a/new.txt (?). */
 async function withMixedRepo(run: (harness: SidebarHarness) => Promise<void>): Promise<void> {
-	const repo = await fs.mkdtemp(path.join(os.tmpdir(), "chudcode-git-tui-sidebar-mixed-"));
+	const repo = await fs.mkdtemp(path.join(os.tmpdir(), "omp-git-tui-sidebar-mixed-"));
 	try {
 		await $`git init --initial-branch=main`.cwd(repo).quiet();
 		await $`git config user.name "Test User"`.cwd(repo).quiet();
 		await $`git config user.email "test@example.com"`.cwd(repo).quiet();
-		await fsx.write(path.join(repo, "a/tracked.txt"), "before\n");
+		await Bun.write(path.join(repo, "a/tracked.txt"), "before\n");
 		await $`git add a/tracked.txt`.cwd(repo).quiet();
 		await $`git commit -m base`.cwd(repo).quiet();
-		await fsx.write(path.join(repo, "a/tracked.txt"), "after\n");
-		await fsx.write(path.join(repo, "a/new.txt"), "new\n");
+		await Bun.write(path.join(repo, "a/tracked.txt"), "after\n");
+		await Bun.write(path.join(repo, "a/new.txt"), "new\n");
 		await run(await SidebarHarness.create(repo));
 	} finally {
 		await fs.rm(repo, { recursive: true, force: true });
@@ -79,7 +78,7 @@ class SidebarHarness {
 	/** Apply the last raised stage/unstage action the way GitTuiComponent#runAction does. */
 	async applyLastAction(): Promise<void> {
 		const action = this.actions.at(-1);
-		if (!action || action.type === "commit" || action.type === "generate")
+		if (!action || (action.type !== "stage" && action.type !== "unstage"))
 			throw new Error("no stage/unstage action was raised");
 		if (action.type === "stage") await this.model.stage(action.selection?.files);
 		else await this.model.unstage(action.selection?.files);
@@ -169,29 +168,34 @@ describe("git tui sidebar staging", () => {
 			expect(model.unstaged.map(file => file.path).sort()).toEqual(["a/one.txt", "a/two.txt", "b/three.txt"]);
 		});
 	});
-	test("pure additions form their own list; staging their dir skips modified siblings", async () => {
+	test("staging a directory with mixed tracked and untracked files stages both", async () => {
 		await withMixedRepo(async harness => {
 			const { sidebar, model, actions } = harness;
-			// Targets: [Stage All] → dir a/ (changes) → a/tracked.txt → dir a/ (additions) → a/new.txt.
+			// Targets: [Stage All] → dir a/ → a/tracked.txt → a/new.txt.
 			sidebar.handleInput("j");
 			expect(sidebar.selected?.kind).toBe("dir");
 			sidebar.handleInput("j");
 			expect(sidebar.selectedFile?.path).toBe("a/tracked.txt");
 			sidebar.handleInput("j");
-			expect(sidebar.selected?.kind).toBe("dir");
-			sidebar.handleInput("j");
 			expect(sidebar.selectedFile?.path).toBe("a/new.txt");
 
-			// Space on the additions-list a/ dir stages only the new file, not the modified sibling.
+			// Space on the a/ dir stages the modified and the untracked file alike.
+			sidebar.handleInput("k");
 			sidebar.handleInput("k");
 			sidebar.handleInput(" ");
 			expect(actions.at(-1)).toEqual({
 				type: "stage",
-				selection: { files: [expect.objectContaining({ path: "a/new.txt" })], label: "a/" },
+				selection: {
+					files: [
+						expect.objectContaining({ path: "a/tracked.txt" }),
+						expect.objectContaining({ path: "a/new.txt" }),
+					],
+					label: "a/",
+				},
 			});
 			await harness.applyLastAction();
-			expect(model.staged.map(file => file.path)).toEqual(["a/new.txt"]);
-			expect(model.unstaged.map(file => file.path)).toEqual(["a/tracked.txt"]);
+			expect(model.staged.map(file => file.path).sort()).toEqual(["a/new.txt", "a/tracked.txt"]);
+			expect(model.unstaged).toEqual([]);
 		});
 	});
 	test("clicking the section header label folds it instead of staging everything", async () => {
@@ -237,6 +241,29 @@ describe("git tui sidebar staging", () => {
 		});
 	});
 
+	test("wheel scroll away from the selection survives idle re-renders", async () => {
+		await withDirtyRepo(async ({ sidebar }) => {
+			const strip = (line: string): string => line.replace(/\x1b\[[0-9;]*m/g, "");
+			// Select the last file so the follow-selection clamp scrolls the list down.
+			for (let i = 0; i < 5; i++) sidebar.handleInput("j");
+			expect(sidebar.selectedFile?.path).toBe("b/three.txt");
+			const scrolled = sidebar.render(40, 12);
+			expect(strip(scrolled[0] ?? "")).not.toContain("file change");
+
+			// Wheel back to the top; an idle re-render (2s refresh tick) must not
+			// snap the viewport back down to keep the selection visible.
+			sidebar.handleWheel(-4);
+			sidebar.render(40, 12);
+			const idle = sidebar.render(40, 12);
+			expect(strip(idle[0] ?? "")).toContain("file change");
+
+			// An explicit selection change still pulls the row into view.
+			sidebar.handleInput("j");
+			const followed = sidebar.render(40, 12);
+			expect(followed.some(line => strip(line).includes("Staged Files"))).toBe(true);
+		});
+	});
+
 	test("empty commit action generates before a populated action commits", async () => {
 		await withDirtyRepo(async ({ sidebar, actions }) => {
 			sidebar.handleInput("G");
@@ -250,7 +277,6 @@ describe("git tui sidebar staging", () => {
 				scope: "git-tui",
 				summary: "corrected generated commit flow",
 				body: ["Preserved staged-tree analysis."],
-				footers: [],
 			});
 			expect(sidebar.summary.getValue()).toBe("fix(git-tui): corrected generated commit flow");
 			expect(sidebar.description.getText()).toBe("- Preserved staged-tree analysis.");
@@ -262,6 +288,49 @@ describe("git tui sidebar staging", () => {
 				amend: false,
 				stageAll: true,
 			});
+		});
+	});
+	test("wand pill opens the AI textbox; enter raises stage-ai with the typed prompt", async () => {
+		await withDirtyRepo(async ({ sidebar, actions }) => {
+			sidebar.setFocused(true);
+			const strip = (line: string): string => line.replace(/\x1b\[[0-9;]*m/g, "");
+			const lines = sidebar.render(44, 30);
+			const headerRow = lines.findIndex(line => strip(line).includes("Unstaged Files"));
+			const header = strip(lines[headerRow] ?? "");
+			// Non-nerd preset renders the wand pill as ✦ next to Stage All.
+			const wandCol = header.indexOf("✦");
+			expect(wandCol).toBeGreaterThan(header.indexOf("Stage All"));
+
+			// Clicking the wand opens the textbox row under the header without staging anything.
+			sidebar.handleClick(headerRow, wandCol);
+			expect(actions).toEqual([]);
+			expect(sidebar.editing).toBe(true);
+
+			for (const ch of "all comment changes") sidebar.handleInput(ch);
+			sidebar.handleInput("\r");
+			expect(actions).toEqual([{ type: "stage-ai", prompt: "all comment changes" }]);
+			// Submission closes the box and clears the typed prompt.
+			expect(sidebar.aiInput.getValue()).toBe("");
+			expect(sidebar.render(44, 30).some(line => strip(line).includes("What should we stage?"))).toBe(false);
+		});
+	});
+
+	test("escape closes the AI textbox without raising an action and clears the draft", async () => {
+		await withDirtyRepo(async ({ sidebar, actions }) => {
+			sidebar.setFocused(true);
+			const strip = (line: string): string => line.replace(/\x1b\[[0-9;]*m/g, "");
+			const lines = sidebar.render(44, 30);
+			const headerRow = lines.findIndex(line => strip(line).includes("Unstaged Files"));
+			sidebar.handleClick(headerRow, strip(lines[headerRow] ?? "").indexOf("✦"));
+			for (const ch of "abc") sidebar.handleInput(ch);
+
+			expect(sidebar.handleEscape()).toBe(true);
+			expect(actions).toEqual([]);
+			expect(sidebar.aiInput.getValue()).toBe("");
+			// Empty prompt + enter must not raise an action either.
+			sidebar.handleClick(headerRow, strip(lines[headerRow] ?? "").indexOf("✦"));
+			sidebar.handleInput("\r");
+			expect(actions).toEqual([]);
 		});
 	});
 });

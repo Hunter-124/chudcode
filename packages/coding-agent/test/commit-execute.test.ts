@@ -2,9 +2,9 @@ import { afterEach, describe, expect, it, vi } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import { removeWithRetries } from "@chudware/utils";
+import * as vcs from "@oh-my-pi/pi-natives/vcs";
+import { removeWithRetries } from "@oh-my-pi/pi-utils";
 import { abortOnGitFailure, CommitAbortedError, pushOrAbort } from "../src/commit/execute";
-import * as git from "../src/utils/git";
 
 const tempDirs: string[] = [];
 
@@ -48,29 +48,31 @@ afterEach(async () => {
 
 describe("abortOnGitFailure (issue #7834)", () => {
 	it("surfaces a refusing hook's message and aborts with a sentinel instead of the raw error", async () => {
-		const dir = await mkTempDir("chudcode-commit-hook-");
+		const dir = await mkTempDir("omp-commit-hook-");
 		await initRepoWithCommit(dir);
+		// Native discovery reads user config too; explicitly enable this fixture's hooks.
+		await runGit(dir, ["config", "core.hooksPath", ".git/hooks"]);
 		const hook = path.join(dir, ".git", "hooks", "pre-commit");
 		await fs.writeFile(hook, '#!/bin/sh\necho "policy: this change is not allowed" >&2\nexit 1\n');
 		await fs.chmod(hook, 0o755);
 		await fs.appendFile(path.join(dir, "a.txt"), "two\n");
 		await runGit(dir, ["add", "-A"]);
 
-		// A refused commit yields a GitCommandError from the central git wrapper;
+		// A refused commit yields a VcsError from the native adapter;
 		// this is the input both commit routes hand to abortOnGitFailure.
 		let commitError: unknown;
 		try {
-			await git.commit(dir, "feat: x");
+			await vcs.requireGit(dir).commitCreate("feat: x", {});
 		} catch (error) {
 			commitError = error;
 		}
-		expect(commitError).toBeInstanceOf(git.GitCommandError);
+		expect(vcs.isVcsError(commitError)).toBe(true);
 
 		const stderrSpy = vi.spyOn(process.stderr, "write").mockReturnValue(true);
 		expect(() =>
 			abortOnGitFailure(
 				"Commit 1 of 2 failed",
-				commitError as git.GitCommandError,
+				commitError as vcs.VcsError,
 				"0 of 2 commits created; 1 file(s) remain staged. No changes were lost.",
 			),
 		).toThrow(CommitAbortedError);
@@ -86,7 +88,7 @@ describe("abortOnGitFailure (issue #7834)", () => {
 
 describe("pushOrAbort (issue #7834)", () => {
 	it("pushes existing commits when the working tree is clean", async () => {
-		const root = await mkTempDir("chudcode-push-clean-");
+		const root = await mkTempDir("omp-push-clean-");
 		const bare = path.join(root, "remote.git");
 		await runGit(root, ["init", "-q", "--bare", bare]);
 		const work = path.join(root, "work");
@@ -110,7 +112,7 @@ describe("pushOrAbort (issue #7834)", () => {
 	});
 
 	it("aborts with a sentinel when the branch has no upstream", async () => {
-		const dir = await mkTempDir("chudcode-push-noupstream-");
+		const dir = await mkTempDir("omp-push-noupstream-");
 		await initRepoWithCommit(dir);
 
 		vi.spyOn(process.stderr, "write").mockReturnValue(true);

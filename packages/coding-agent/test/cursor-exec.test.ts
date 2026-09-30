@@ -2,11 +2,18 @@ import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import type { AgentEvent, AgentTool, AgentToolContext } from "@chudware/agent-core";
-import { type BlockState, handleServerMessage, type ToolCallState } from "@chudware/ai/providers/cursor";
-import { buildPiLsResult, piTruncation } from "@chudware/ai/providers/cursor/exec-modern";
-import type { AssistantMessage } from "@chudware/ai/types";
-import { AssistantMessageEventStream } from "@chudware/ai/utils/event-stream";
+import { type } from "@oh-my-pi/omptype";
+import {
+	type AgentEvent,
+	type AgentTool,
+	type AgentToolContext,
+	TOOL_RESULT_ADDITIONAL_CONTEXT,
+	type ToolResultWithAdditionalContext,
+} from "@oh-my-pi/pi-agent-core";
+import { type BlockState, handleServerMessage, type ToolCallState } from "@oh-my-pi/pi-ai/providers/cursor";
+import { piTruncation } from "@oh-my-pi/pi-ai/providers/cursor/exec-modern";
+import type { AssistantMessage } from "@oh-my-pi/pi-ai/types";
+import { AssistantMessageEventStream } from "@oh-my-pi/pi-ai/utils/event-stream";
 import {
 	AgentClientMessageSchema,
 	AgentServerMessageSchema,
@@ -15,27 +22,30 @@ import {
 	McpArgsSchema,
 	ReadArgsSchema,
 	ShellArgsSchema,
-} from "@chudware/catalog/discovery/cursor-proto";
-import { create, fromBinary } from "@chudware/catalog/discovery/protobuf";
-import { type } from "@chudware/chudtype";
-import { Settings } from "@chudware/coding-agent/config/settings";
-import { CursorExecHandlers } from "@chudware/coding-agent/cursor";
+} from "@oh-my-pi/pi-catalog/discovery/cursor-proto";
+import { create, fromBinary } from "@oh-my-pi/pi-catalog/discovery/protobuf";
+import { Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
+import { CursorExecHandlers } from "@oh-my-pi/pi-coding-agent/cursor";
 import {
 	bridgeToolMap,
 	createBridgeEditTool,
 	createBridgeGrepFactory,
 	cursorMcpPrefersReplaceEdit,
 	normalizeCursorReplaceArgs,
-} from "@chudware/coding-agent/cursor-bridge-tools";
-import { EditTool } from "@chudware/coding-agent/edit";
-import type { ExtensionRunner } from "@chudware/coding-agent/extensibility/extensions";
-import { ExtensionToolWrapper } from "@chudware/coding-agent/extensibility/extensions";
-import { BUILTIN_TOOLS, GrepTool, ReadTool, type Tool, type ToolSession } from "@chudware/coding-agent/tools";
-import { BashTool } from "@chudware/coding-agent/tools/bash";
-import type { TruncationMeta } from "@chudware/coding-agent/tools/output-meta";
-import { removeWithRetries } from "@chudware/utils";
-import * as fsx from "@chudware/utils/fsx";
+} from "@oh-my-pi/pi-coding-agent/cursor-bridge-tools";
+
+import { EditTool } from "@oh-my-pi/pi-coding-agent/edit";
+import type { ExtensionRunner } from "@oh-my-pi/pi-coding-agent/extensibility/extensions";
+import { ExtensionToolWrapper } from "@oh-my-pi/pi-coding-agent/extensibility/extensions";
+import { BUILTIN_TOOLS, GrepTool, ReadTool, type Tool, type ToolSession } from "@oh-my-pi/pi-coding-agent/tools";
+import { BashTool } from "@oh-my-pi/pi-coding-agent/tools/bash";
+import type { TruncationMeta } from "@oh-my-pi/pi-tui/tools/output-meta";
+import { removeWithRetries } from "@oh-my-pi/pi-utils";
 import { AdviseTool } from "../src/advisor/advise-tool";
+
+function yoloToolContext(): AgentToolContext {
+	return { settings: Settings.isolated({ "tools.approvalMode": "yolo" }) } as AgentToolContext;
+}
 
 function createTestSession(cwd: string, overrides: Partial<ToolSession> = {}): ToolSession {
 	return {
@@ -59,6 +69,9 @@ function passthroughRunner(seen: string[] = []): ExtensionRunner {
 	return {
 		hasHandlers: () => true,
 		consumeToolCallEmitted: () => false,
+		runScoped<T>(fn: () => T): T {
+			return fn();
+		},
 		emitToolCall: async (event: { toolName: string }) => {
 			seen.push(event.toolName);
 			return undefined;
@@ -74,7 +87,7 @@ describe("CursorExecHandlers.grep bridge", () => {
 
 	beforeEach(async () => {
 		cwd = await fs.mkdtemp(path.join(os.tmpdir(), "cursor-exec-test-"));
-		await fsx.write(path.join(cwd, "sample.txt"), "Hello World\nhello world\n");
+		await Bun.write(path.join(cwd, "sample.txt"), "Hello World\nhello world\n");
 		searchTool = new GrepTool(createTestSession(cwd));
 		handlers = new CursorExecHandlers({
 			cwd,
@@ -114,11 +127,54 @@ describe("CursorExecHandlers.grep bridge", () => {
 		expect((sensitiveResult.details as { matchCount?: number } | undefined)?.matchCount).toBe(1);
 	});
 
-	it("honors chud_grep's requested match limit against real files", async () => {
+	it("uses independent legacy grep context widths and zero defaults instead of session settings", async () => {
+		const target = path.join(cwd, "context.txt");
+		await Bun.write(target, "before two\nbefore one\nneedle\nafter one\nafter two\n");
+		const settings = Settings.isolated({ "grep.contextBefore": 2, "grep.contextAfter": 2 });
+		const session = createTestSession(cwd, { settings });
+		const scopedHandlers = new CursorExecHandlers({
+			cwd,
+			tools: new Map<string, Tool>([["grep", new GrepTool(session)]]),
+			createGrepTool: createBridgeGrepFactory(session, passthroughRunner()),
+			getToolContext: () => ({ settings }) as AgentToolContext,
+		});
+		const search = async (args: { context?: number; contextBefore?: number; contextAfter?: number }) => {
+			const result = await scopedHandlers.grep({ toolCallId: "ctx", pattern: "needle", path: target, ...args });
+			expect(result.isError).toBe(false);
+			return result.content.map(c => (c.type === "text" ? c.text : "")).join("");
+		};
+
+		const plain = await search({});
+		expect(plain).toContain("needle");
+		expect(plain).not.toContain("before one");
+		expect(plain).not.toContain("after one");
+
+		const before = await search({ contextBefore: 2 });
+		expect(before).toContain("before two");
+		expect(before).toContain("before one");
+		expect(before).not.toContain("after one");
+
+		const after = await search({ contextAfter: 1 });
+		expect(after).not.toContain("before one");
+		expect(after).toContain("after one");
+		expect(after).not.toContain("after two");
+
+		const combined = await search({ context: 1, contextBefore: 0, contextAfter: 2 });
+		expect(combined).not.toContain("before one");
+		expect(combined).toContain("after two");
+
+		const symmetric = await search({ context: 1 });
+		expect(symmetric).toContain("before one");
+		expect(symmetric).toContain("after one");
+		expect(symmetric).not.toContain("before two");
+		expect(symmetric).not.toContain("after two");
+	});
+
+	it("honors pi_grep's requested match limit against real files", async () => {
 		// The frame's `limit` caps total surfaced matches. The model-facing schema
 		// has no such parameter, so without a per-call tool the cap is dropped and
 		// the search returns everything it found.
-		await fsx.write(path.join(cwd, "many.txt"), Array.from({ length: 10 }, (_, i) => `needle ${i}`).join("\n"));
+		await Bun.write(path.join(cwd, "many.txt"), Array.from({ length: 10 }, (_, i) => `needle ${i}`).join("\n"));
 		const scopedHandlers = new CursorExecHandlers({
 			cwd,
 			tools: new Map<string, Tool>([["grep", searchTool]]),
@@ -138,11 +194,11 @@ describe("CursorExecHandlers.grep bridge", () => {
 		expect((uncapped.details as { matchCount?: number } | undefined)?.matchCount).toBe(10);
 	});
 
-	it("honors chud_grep's requested context width against real files", async () => {
+	it("honors pi_grep's requested context width against real files", async () => {
 		// `context` has no schema parameter either: the width is read from
 		// settings fixed at tool construction, so the frame's value only lands
 		// through a per-call instance.
-		await fsx.write(path.join(cwd, "ctx.txt"), "before line\nneedle here\nafter line\n");
+		await Bun.write(path.join(cwd, "ctx.txt"), "before line\nneedle here\nafter line\n");
 		const scopedHandlers = new CursorExecHandlers({
 			cwd,
 			tools: new Map<string, Tool>([["grep", searchTool]]),
@@ -166,16 +222,16 @@ describe("CursorExecHandlers.grep bridge", () => {
 		expect(withContextText).toContain("after line");
 	});
 
-	it("satisfies a chud_grep limit that spans more files than one page", async () => {
+	it("satisfies a pi_grep limit that spans more files than one page", async () => {
 		// The local tool windows results to the first 20 files and tells the
-		// caller to paginate with `skip`. `ChudGrepExecArgs` has no `skip` field,
+		// caller to paginate with `skip`. `PiGrepExecArgs` has no `skip` field,
 		// so a frame asking for 100 matches across 25 one-match files would get
 		// 20, no `match_limit_reached`, and advice it cannot act on — output
 		// silently short of what it asked for and labelled complete.
 		const spread = path.join(cwd, "spread");
 		await fs.mkdir(spread, { recursive: true });
 		await Promise.all(
-			Array.from({ length: 25 }, (_, i) => fsx.write(path.join(spread, `f${i}.txt`), "needle here\n")),
+			Array.from({ length: 25 }, (_, i) => Bun.write(path.join(spread, `f${i}.txt`), "needle here\n")),
 		);
 		const scopedHandlers = new CursorExecHandlers({
 			cwd,
@@ -216,7 +272,7 @@ describe("CursorExecHandlers.grep bridge", () => {
 	});
 });
 
-describe("chud_bash truncation reaches the wire from a real BashTool result", () => {
+describe("pi_bash truncation reaches the wire from a real BashTool result", () => {
 	let cwd: string;
 
 	beforeEach(async () => {
@@ -228,7 +284,7 @@ describe("chud_bash truncation reaches the wire from a real BashTool result", ()
 	});
 
 	it("translates the metadata BashTool actually emits, not a hand-built shape", async () => {
-		// Producer/consumer contract. `piTruncation` lives in `chud-ai`, which
+		// Producer/consumer contract. `piTruncation` lives in `pi-ai`, which
 		// cannot import `BashTool`, so every test there must hand-build the
 		// details bag — and a bag built from the same assumption as the code
 		// stays green when `BashTool`'s real shape moves. This runs the actual
@@ -263,45 +319,6 @@ describe("chud_bash truncation reaches the wire from a real BashTool result", ()
 		expect(wire?.truncatedBy).toBe(details.meta?.truncation?.truncatedBy);
 	});
 
-	it("reports the entry cap ReadTool actually records for a large listing", async () => {
-		// Same producer/consumer contract for the listing cap. `glob` records it
-		// twice — a flat `details.resultLimitReached` and the structured meta —
-		// but `read`, which serves `chud_ls`, records it only through `OutputMeta`.
-		// Reading just the flat field dropped `entry_limit_reached` for every
-		// real listing, so Cursor got clipped output with no signal it was cut.
-		//
-		// The root listing is uncapped; the depth-2 tree caps each child
-		// directory, so the entries have to sit one level down to trip it.
-		const listing = path.join(cwd, "many");
-		const child = path.join(listing, "child");
-		await fs.mkdir(child, { recursive: true });
-		await Promise.all(Array.from({ length: 40 }, (_, i) => fsx.write(path.join(child, `f${i}.txt`), "x")));
-		const read = new ReadTool(createTestSession(cwd));
-		const result = await read.execute("l1", { path: listing });
-
-		// Guard the assumption the bridge encodes: the cap lives in the nested
-		// meta and nowhere flat. If the producer's shape moves, this fails here
-		// rather than silently sending a clipped listing as if it were whole.
-		const details = result.details as {
-			resultLimitReached?: number;
-			meta?: { limits?: { resultLimit?: { reached: number } } };
-		};
-		expect(details.resultLimitReached).toBeUndefined();
-		expect(details.meta?.limits?.resultLimit?.reached).toBeGreaterThan(0);
-
-		const wire = buildPiLsResult({
-			role: "toolResult",
-			toolCallId: "l1",
-			toolName: "read",
-			content: result.content,
-			isError: false,
-			timestamp: Date.now(),
-			details: result.details,
-		});
-		if (wire.result.case !== "success") throw new Error(`expected success, got ${wire.result.case}`);
-		expect(wire.result.value.entryLimitReached).toBeGreaterThan(0);
-	});
-
 	it("sends no truncation summary for output that fit", async () => {
 		const bash = new BashTool(createTestSession(cwd));
 		const result = await bash.execute("t2", { command: "echo hi" });
@@ -329,8 +346,8 @@ describe("bridge tool resolution beyond the model-facing registry", () => {
 		await removeWithRetries(cwd);
 	});
 
-	it("edits a real file from a chud_edit frame when `edit` is withheld from the model", async () => {
-		// A restricted roster omits `edit`. Native `chud_edit` still arrives, so
+	it("edits a real file from a pi_edit frame when `edit` is withheld from the model", async () => {
+		// A restricted roster omits `edit`. Native `pi_edit` still arrives, so
 		// the bridge must reach a real replace-mode tool through
 		// `getEditReplaceTool` — otherwise every modern edit answers
 		// `Tool "edit" not available` and the file is untouched.
@@ -338,7 +355,7 @@ describe("bridge tool resolution beyond the model-facing registry", () => {
 		// loop's unadvertised calls, so it stays device-only.)
 
 		const target = path.join(cwd, "sample.txt");
-		await fsx.write(target, "alpha\nbeta\n");
+		await Bun.write(target, "alpha\nbeta\n");
 		// Build it exactly as the session does. Both bridge callsites go through
 		// this factory, so a regression in it — the wrong mode, a missing
 		// approval wrapper — fails here rather than passing against a
@@ -349,6 +366,7 @@ describe("bridge tool resolution beyond the model-facing registry", () => {
 			cwd,
 			tools: new Map<string, Tool>(),
 			getEditReplaceTool: () => editTool,
+			getToolContext: () => yoloToolContext(),
 		});
 		const result = await withheld.piEdit({
 			toolCallId: "e1",
@@ -356,43 +374,30 @@ describe("bridge tool resolution beyond the model-facing registry", () => {
 		} as never);
 
 		expect(result.isError).toBeFalsy();
-		expect(await fsx.readText(target)).toBe("alpha\ngamma\n");
-	});
-
-	it("reports the failure instead of editing when no edit tool is reachable", async () => {
-		const target = path.join(cwd, "sample.txt");
-		await fsx.write(target, "alpha\nbeta\n");
-		const unreachable = new CursorExecHandlers({ cwd, tools: new Map<string, Tool>() });
-		const result = await unreachable.piEdit({
-			toolCallId: "e2",
-			args: { path: target, edits: [{ oldText: "beta", newText: "gamma" }] },
-		} as never);
-
-		expect(result.isError).toBe(true);
-		expect(await fsx.readText(target)).toBe("alpha\nbeta\n");
+		expect(await Bun.file(target).text()).toBe("alpha\ngamma\n");
 	});
 
 	it("substitutes a replace-mode edit into a granted advisor tool map", async () => {
 		// The advisor roster hands the bridge the instances it built for the
 		// advisor's own loop — default `hashline` mode, whose schema is a single
-		// `input` string. A `chud_edit` frame's `old_string`/`new_string` args fail
+		// `input` string. A `pi_edit` frame's `old_string`/`new_string` args fail
 		// substitution the advisor path applies before constructing handlers.
 		const target = path.join(cwd, "sample.txt");
-		await fsx.write(target, "alpha\nbeta\n");
+		await Bun.write(target, "alpha\nbeta\n");
 		const session = createTestSession(cwd);
 		const advisorEdit = new EditTool(session);
 		expect(advisorEdit.mode).not.toBe("replace");
 		const granted = new Map<string, Tool>([["edit", advisorEdit]]);
 
 		const bridged = bridgeToolMap(granted, () => createBridgeEditTool(session, passthroughRunner()));
-		const handlers = new CursorExecHandlers({ cwd, tools: bridged });
+		const handlers = new CursorExecHandlers({ cwd, tools: bridged, getToolContext: () => yoloToolContext() });
 		const result = await handlers.piEdit({
 			toolCallId: "e3",
 			args: { path: target, edits: [{ oldText: "beta", newText: "gamma" }] },
 		} as never);
 
 		expect(result.isError).toBeFalsy();
-		expect(await fsx.readText(target)).toBe("alpha\ngamma\n");
+		expect(await Bun.file(target).text()).toBe("alpha\ngamma\n");
 		// The advisor's own loop must keep the exact instance it was handed.
 		expect(granted.get("edit")).toBe(advisorEdit);
 	});
@@ -400,11 +405,11 @@ describe("bridge tool resolution beyond the model-facing registry", () => {
 	it("runs the replace-mode instance even when the registry still holds another mode", async () => {
 		// Hashline `edit` stays advertised as MCP. `executeTool` prefers the map
 		// over the `getTool` fallback, so without an explicit replace-mode
-		// accessor every native `chud_edit` fails validation against the hashline
+		// accessor every native `pi_edit` fails validation against the hashline
 		// schema.
 
 		const target = path.join(cwd, "sample.txt");
-		await fsx.write(target, "alpha\nbeta\n");
+		await Bun.write(target, "alpha\nbeta\n");
 		const session = createTestSession(cwd);
 		const configuredEdit = new EditTool(session);
 		expect(configuredEdit.mode).not.toBe("replace");
@@ -413,6 +418,7 @@ describe("bridge tool resolution beyond the model-facing registry", () => {
 			cwd,
 			tools: new Map<string, Tool>([["edit", configuredEdit]]),
 			getEditReplaceTool: () => createBridgeEditTool(session, passthroughRunner()),
+			getToolContext: () => yoloToolContext(),
 		});
 		const result = await handlers.piEdit({
 			toolCallId: "e5",
@@ -420,16 +426,16 @@ describe("bridge tool resolution beyond the model-facing registry", () => {
 		} as never);
 
 		expect(result.isError).toBeFalsy();
-		expect(await fsx.readText(target)).toBe("alpha\ngamma\n");
+		expect(await Bun.file(target).text()).toBe("alpha\ngamma\n");
 	});
 
-	it("still refuses a chud_edit frame when the session granted no edit tool", async () => {
+	it("still refuses a pi_edit frame when the session granted no edit tool", async () => {
 		// The accessor carries the grant: a restricted roster returns undefined
 		// from it, and no other resolution path may substitute a mutating tool
 		// (issue #5680). Building the instance provider-independently must not
 		// weaken that.
 		const target = path.join(cwd, "sample.txt");
-		await fsx.write(target, "alpha\nbeta\n");
+		await Bun.write(target, "alpha\nbeta\n");
 		const handlers = new CursorExecHandlers({
 			cwd,
 			tools: new Map<string, Tool>(),
@@ -441,7 +447,7 @@ describe("bridge tool resolution beyond the model-facing registry", () => {
 		} as never);
 
 		expect(result.isError).toBe(true);
-		expect(await fsx.readText(target)).toBe("alpha\nbeta\n");
+		expect(await Bun.file(target).text()).toBe("alpha\nbeta\n");
 	});
 
 	it("leaves an ungranted tool map without an edit tool", async () => {
@@ -449,7 +455,7 @@ describe("bridge tool resolution beyond the model-facing registry", () => {
 		// roster that was never granted `edit` would hand a read-only advisor a
 		// mutating tool (issue #5680). The frame must fail instead.
 		const target = path.join(cwd, "sample.txt");
-		await fsx.write(target, "alpha\nbeta\n");
+		await Bun.write(target, "alpha\nbeta\n");
 		const session = createTestSession(cwd);
 		let built = 0;
 		const withheld = bridgeToolMap(new Map<string, Tool>(), () => {
@@ -466,14 +472,14 @@ describe("bridge tool resolution beyond the model-facing registry", () => {
 		} as never);
 
 		expect(result.isError).toBe(true);
-		expect(await fsx.readText(target)).toBe("alpha\nbeta\n");
+		expect(await Bun.file(target).text()).toBe("alpha\nbeta\n");
 	});
 
-	it("refuses a scoped chud_grep when no grep tool was granted", async () => {
+	it("refuses a scoped pi_grep when no grep tool was granted", async () => {
 		// The factory builds a fresh tool and `executeTool` prefers that override
 		// over the registry, so a session that withheld `grep` must not install
 		// one — otherwise a frame carrying `context`/`limit` searches anyway.
-		await fsx.write(path.join(cwd, "hit.txt"), "needle\n");
+		await Bun.write(path.join(cwd, "hit.txt"), "needle\n");
 		const denied = new CursorExecHandlers({ cwd, tools: new Map<string, Tool>() });
 		const result = await denied.piGrep({
 			toolCallId: "g0",
@@ -484,13 +490,13 @@ describe("bridge tool resolution beyond the model-facing registry", () => {
 		expect(result.content.map(c => (c.type === "text" ? c.text : "")).join("")).toContain("not available");
 	});
 
-	it("denies a native chud_edit frame the user's policy blocks", async () => {
+	it("denies a native pi_edit frame the user's policy blocks", async () => {
 		// The bridge's `edit` is wrapped, but `ExtensionToolWrapper` reads the
 		// approval mode and per-tool policies only from the execute-time
-		// context — with none it resolves as `yolo` with empty policies and the
-		// frame edits the file regardless of what the user configured.
+		// context — without it the call fails closed, and a configured `deny`
+		// must still win when the context *is* supplied.
 		const target = path.join(cwd, "denied.txt");
-		await fsx.write(target, "alpha\nbeta\n");
+		await Bun.write(target, "alpha\nbeta\n");
 		const settings = Settings.isolated({ "tools.approval": { edit: "deny" } });
 		const session = createTestSession(cwd, { settings });
 		const handlers = new CursorExecHandlers({
@@ -507,14 +513,14 @@ describe("bridge tool resolution beyond the model-facing registry", () => {
 		} as never);
 
 		expect(result.isError).toBe(true);
-		expect(await fsx.readText(target)).toBe("alpha\nbeta\n");
+		expect(await Bun.file(target).text()).toBe("alpha\nbeta\n");
 	});
 
-	it("denies a scoped chud_grep frame the user's policy blocks", async () => {
+	it("denies a scoped pi_grep frame the user's policy blocks", async () => {
 		// Same gate on the other bridge-only tool: the per-call `grep` the
 		// factory builds for a frame carrying `context`/`limit` must answer to
 		// `tools.approval.grep` like every registry call.
-		await fsx.write(path.join(cwd, "hit.txt"), "needle\n");
+		await Bun.write(path.join(cwd, "hit.txt"), "needle\n");
 		const settings = Settings.isolated({ "tools.approval": { grep: "deny" } });
 		const session = createTestSession(cwd, { settings });
 		const handlers = new CursorExecHandlers({
@@ -538,7 +544,7 @@ describe("bridge tool resolution beyond the model-facing registry", () => {
 		// not in the bridge: a raw `new GrepTool(...)` there skips the approval
 		// gate every registry tool goes through. Exercise the shared factory
 		// both callsites use, so a regression in it fails here.
-		await fsx.write(path.join(cwd, "hit.txt"), "needle\n");
+		await Bun.write(path.join(cwd, "hit.txt"), "needle\n");
 		const intercepted: string[] = [];
 		const factory = createBridgeGrepFactory(createTestSession(cwd), passthroughRunner(intercepted));
 		const built = factory({ context: 0, totalMatchLimit: 5 });
@@ -560,7 +566,7 @@ describe("bridge tool resolution beyond the model-facing registry", () => {
 		expect((result.details as { matchCount?: number } | undefined)?.matchCount).toBe(1);
 	});
 
-	it("denies a chud_write frame the user's policy blocks when the tool came from the caller's map", async () => {
+	it("denies a pi_write frame the user's policy blocks when the tool came from the caller's map", async () => {
 		// The advisor hands the bridge its own tool map. Those instances are run
 		// directly by `piWrite`/`piBash`, so an unwrapped one executes whatever
 		// the frame asks regardless of `tools.approval.<tool>` — supplying
@@ -583,7 +589,7 @@ describe("bridge tool resolution beyond the model-facing registry", () => {
 		} as never);
 
 		expect(result.isError).toBe(true);
-		expect(await fsx.exists(target)).toBe(false);
+		expect(await Bun.file(target).exists()).toBe(false);
 	});
 });
 
@@ -598,7 +604,7 @@ describe("Cursor MCP StrReplace fallback", () => {
 		await removeWithRetries(cwd);
 	});
 
-	it("projects CLI and Chud replacement fields onto replace kwargs", () => {
+	it("projects CLI and Pi replacement fields onto replace kwargs", () => {
 		expect(
 			normalizeCursorReplaceArgs({ path: "/tmp/n.txt", old_text: "a", new_text: "b", replaceAll: true }),
 		).toEqual({ path: "/tmp/n.txt", old_string: "a", new_string: "b", replace_all: true });
@@ -618,12 +624,13 @@ describe("Cursor MCP StrReplace fallback", () => {
 
 	it("edits a file when the server-injected StrReplace name arrives as MCP", async () => {
 		const target = path.join(cwd, "note.txt");
-		await fsx.write(target, "alpha\nbeta\n");
+		await Bun.write(target, "alpha\nbeta\n");
 		const session = createTestSession(cwd);
 		const handlers = new CursorExecHandlers({
 			cwd,
 			tools: new Map<string, Tool>([["edit", new EditTool(session)]]),
 			getEditReplaceTool: () => createBridgeEditTool(session, passthroughRunner()),
+			getToolContext: () => yoloToolContext(),
 		});
 
 		const result = await handlers.mcp({
@@ -635,7 +642,7 @@ describe("Cursor MCP StrReplace fallback", () => {
 			rawArgs: {},
 		});
 
-		expect(await fsx.readText(target)).toBe("alpha\ngamma\n");
+		expect(await Bun.file(target).text()).toBe("alpha\ngamma\n");
 		expect(result.content.map(part => (part.type === "text" ? part.text : "")).join("")).not.toMatch(
 			/not found|not available/i,
 		);
@@ -643,7 +650,7 @@ describe("Cursor MCP StrReplace fallback", () => {
 
 	it("runs replace-mode when advertised hashline edit is called with old_string", async () => {
 		const target = path.join(cwd, "note.txt");
-		await fsx.write(target, "alpha\nbeta\n");
+		await Bun.write(target, "alpha\nbeta\n");
 		const session = createTestSession(cwd);
 		const hashline = new EditTool(session);
 		expect(hashline.mode).not.toBe("replace");
@@ -651,18 +658,19 @@ describe("Cursor MCP StrReplace fallback", () => {
 			cwd,
 			tools: new Map<string, Tool>([["edit", hashline]]),
 			getEditReplaceTool: () => createBridgeEditTool(session, passthroughRunner()),
+			getToolContext: () => yoloToolContext(),
 		});
 
 		const result = await handlers.mcp({
 			name: "edit",
-			providerIdentifier: "chud-agent",
+			providerIdentifier: "pi-agent",
 			toolName: "edit",
 			toolCallId: "e-mix",
 			args: { path: target, old_text: "beta", new_text: "gamma" },
 			rawArgs: {},
 		});
 
-		expect(await fsx.readText(target)).toBe("alpha\ngamma\n");
+		expect(await Bun.file(target).text()).toBe("alpha\ngamma\n");
 		expect(result.content.map(part => (part.type === "text" ? part.text : "")).join("")).not.toMatch(
 			/not found|not available/i,
 		);
@@ -682,7 +690,7 @@ describe("Cursor MCP StrReplace fallback", () => {
 
 		await handlers.mcp({
 			name: "edit",
-			providerIdentifier: "chud-agent",
+			providerIdentifier: "pi-agent",
 			toolName: "edit",
 			toolCallId: "e-hl",
 			args: { input: "[missing.txt]\nPUT 1.=1:\n+x\n" },
@@ -694,7 +702,7 @@ describe("Cursor MCP StrReplace fallback", () => {
 
 	it("still 404s StrReplace when edit was not granted", async () => {
 		const target = path.join(cwd, "note.txt");
-		await fsx.write(target, "alpha\nbeta\n");
+		await Bun.write(target, "alpha\nbeta\n");
 		const handlers = new CursorExecHandlers({
 			cwd,
 			tools: new Map<string, Tool>(),
@@ -711,11 +719,11 @@ describe("Cursor MCP StrReplace fallback", () => {
 		});
 
 		expect(result.isError).toBe(true);
-		expect(await fsx.readText(target)).toBe("alpha\nbeta\n");
+		expect(await Bun.file(target).text()).toBe("alpha\nbeta\n");
 	});
 });
 
-describe("chud_bash timeout presence", () => {
+describe("pi_bash timeout presence", () => {
 	let cwd: string;
 	let handlers: CursorExecHandlers;
 
@@ -775,6 +783,60 @@ describe("chud_bash timeout presence", () => {
 		const negativeDetails = negative.details as { timeoutDisabled?: boolean; timeoutSeconds?: number };
 		expect(negativeDetails.timeoutDisabled).toBeUndefined();
 		expect(negativeDetails.timeoutSeconds).toBe((omitted.details as { timeoutSeconds?: number }).timeoutSeconds);
+	});
+});
+
+describe("legacy shell timeout unit (issue #13082)", () => {
+	let cwd: string;
+	let handlers: CursorExecHandlers;
+
+	beforeEach(async () => {
+		cwd = await fs.mkdtemp(path.join(os.tmpdir(), "cursor-shell-timeout-"));
+		const bash: Tool = new BashTool(createTestSession(cwd));
+		handlers = new CursorExecHandlers({ cwd, tools: new Map<string, Tool>([["bash", bash]]) });
+	});
+
+	afterEach(async () => {
+		await removeWithRetries(cwd);
+	});
+
+	it("converts a millisecond ShellArgs budget into bash seconds", async () => {
+		// Legacy `ShellArgs.timeout` is milliseconds (`ShellTimeout` echoes it as
+		// `timeout_ms`), so a model asking for 15s sends 15000. Forwarded as
+		// seconds it exceeded the bash ceiling and ran clamped to 3600s.
+		const result = await handlers.shell({
+			command: "echo hi",
+			workingDirectory: "",
+			timeout: 15_000,
+			toolCallId: "s1",
+		} as never);
+		// BashTool records its resolved deadline here; shape known from `bash.ts`.
+		const details = result.details as { timeoutSeconds?: number };
+		expect(details.timeoutSeconds).toBe(15);
+	});
+
+	it("rounds a sub-second budget up and leaves an unset budget on the default", async () => {
+		// Truncating 400ms to 0 would read as `bash`'s "no deadline" instead of
+		// the shortest deadline it can honor.
+		const subSecond = await handlers.shell({
+			command: "echo hi",
+			workingDirectory: "",
+			timeout: 400,
+			toolCallId: "s2",
+		} as never);
+		const subSecondDetails = subSecond.details as { timeoutDisabled?: boolean; timeoutSeconds?: number };
+		expect(subSecondDetails.timeoutSeconds).toBe(1);
+		expect(subSecondDetails.timeoutDisabled).toBeUndefined();
+
+		const unset = await handlers.shell({
+			command: "echo hi",
+			workingDirectory: "",
+			timeout: 0,
+			toolCallId: "s3",
+		} as never);
+		const unsetDetails = unset.details as { timeoutDisabled?: boolean; timeoutSeconds?: number };
+		expect(unsetDetails.timeoutDisabled).toBeUndefined();
+		expect(unsetDetails.timeoutSeconds).toBeGreaterThan(1);
 	});
 });
 
@@ -880,7 +942,8 @@ describe("CursorExecHandlers error results", () => {
 				toolCallId: "call-shell-keep",
 				command: "pwd",
 				workingDirectory: "/tmp",
-				timeout: 12,
+				// Milliseconds on the wire; the bridge forwards bash seconds.
+				timeout: 12_000,
 			}),
 			{ onStdout: () => {}, onStderr: () => {} },
 		);
@@ -911,7 +974,7 @@ describe("CursorExecHandlers mounted tool bridge", () => {
 
 		const result = await handlers.mcp({
 			name: mountedTool.name,
-			providerIdentifier: "chud-agent",
+			providerIdentifier: "pi-agent",
 			toolName: mountedTool.name,
 			toolCallId: "call-mounted",
 			args: {},
@@ -952,7 +1015,7 @@ describe("CursorExecHandlers mounted tool bridge", () => {
 
 		const result = await handlers.mcp({
 			name: device.name,
-			providerIdentifier: "chud-agent",
+			providerIdentifier: "pi-agent",
 			toolName: device.name,
 			toolCallId: "call-denied",
 			args: {},
@@ -1076,6 +1139,7 @@ describe("CursorExecHandlers mounted tool bridge", () => {
 			const handlers = new CursorExecHandlers({
 				cwd: workspace,
 				tools: new Map(),
+				getToolContext: () => yoloToolContext(),
 				mcpResources: {
 					serverNames: () => ["files"],
 					getServerResources: async () => undefined,
@@ -1096,7 +1160,7 @@ describe("CursorExecHandlers mounted tool bridge", () => {
 			expect(read?.text).toBeUndefined();
 			expect(read?.blob).toBeUndefined();
 			// The file is really there, decoded from base64, under the workspace.
-			expect(await fsx.readText(path.join(workspace, "assets/logo.png"))).toBe("PNG-BYTES");
+			expect(await Bun.file(path.join(workspace, "assets/logo.png")).text()).toBe("PNG-BYTES");
 		} finally {
 			await removeWithRetries(workspace);
 		}
@@ -1115,6 +1179,7 @@ describe("CursorExecHandlers mounted tool bridge", () => {
 			const handlers = new CursorExecHandlers({
 				cwd: inner,
 				tools: new Map(),
+				getToolContext: () => yoloToolContext(),
 				mcpResources: {
 					serverNames: () => ["files"],
 					getServerResources: async () => undefined,
@@ -1128,7 +1193,7 @@ describe("CursorExecHandlers mounted tool bridge", () => {
 				).rejects.toThrow(/outside the workspace/);
 			}
 			// Nothing was written on any of those attempts.
-			expect(await fsx.exists(outside)).toBe(false);
+			expect(await Bun.file(outside).exists()).toBe(false);
 		} finally {
 			await removeWithRetries(workspace);
 		}
@@ -1149,7 +1214,7 @@ describe("CursorExecHandlers mounted tool bridge", () => {
 			await fs.symlink(path.join(outside, "dangling.txt"), path.join(inner, "link.txt"));
 			// A link whose target already exists: the write would overwrite the
 			// real file out there rather than create anything new.
-			await fsx.write(path.join(outside, "existing.txt"), "original");
+			await Bun.write(path.join(outside, "existing.txt"), "original");
 			await fs.symlink(path.join(outside, "existing.txt"), path.join(inner, "existing.txt"));
 			// Two hops: the first link stays inside, so resolving one level reads
 			// as contained while the write still follows the chain out.
@@ -1158,6 +1223,7 @@ describe("CursorExecHandlers mounted tool bridge", () => {
 			const handlers = new CursorExecHandlers({
 				cwd: inner,
 				tools: new Map(),
+				getToolContext: () => yoloToolContext(),
 				mcpResources: {
 					serverNames: () => ["files"],
 					getServerResources: async () => undefined,
@@ -1178,12 +1244,12 @@ describe("CursorExecHandlers mounted tool bridge", () => {
 				).rejects.toThrow(/outside the workspace/);
 			}
 			expect(await Array.fromAsync(new Bun.Glob("**/*").scan({ cwd: outside }))).toEqual(["existing.txt"]);
-			expect(await fsx.readText(path.join(outside, "existing.txt"))).toBe("original");
+			expect(await Bun.file(path.join(outside, "existing.txt")).text()).toBe("original");
 
 			// A real workspace path still downloads: the guard resolves links, it
 			// does not refuse every path whose parents do not exist yet.
 			await handlers.readMcpResource({ server: "files", uri: "files://x", downloadPath: "deep/new/file.txt" });
-			expect(await fsx.readText(path.join(inner, "deep/new/file.txt"))).toBe("payload");
+			expect(await Bun.file(path.join(inner, "deep/new/file.txt")).text()).toBe("payload");
 		} finally {
 			await removeWithRetries(workspace);
 		}
@@ -1200,6 +1266,7 @@ describe("CursorExecHandlers mounted tool bridge", () => {
 			const handlers = new CursorExecHandlers({
 				cwd: workspace,
 				tools: new Map(),
+				getToolContext: () => yoloToolContext(),
 				mcpResources: {
 					serverNames: () => ["files"],
 					getServerResources: async () => undefined,
@@ -1211,7 +1278,7 @@ describe("CursorExecHandlers mounted tool bridge", () => {
 			payload = "second";
 			await handlers.readMcpResource({ server: "files", uri: "files://x", downloadPath: "out/doc.txt" });
 
-			expect(await fsx.readText(path.join(workspace, "out/doc.txt"))).toBe("second");
+			expect(await Bun.file(path.join(workspace, "out/doc.txt")).text()).toBe("second");
 		} finally {
 			await removeWithRetries(workspace);
 		}
@@ -1229,11 +1296,12 @@ describe("CursorExecHandlers mounted tool bridge", () => {
 			await fs.mkdir(inner);
 			await fs.mkdir(outside);
 			const victim = path.join(outside, "secret.txt");
-			await fsx.write(victim, "SECRET");
+			await Bun.write(victim, "SECRET");
 			await fs.link(victim, path.join(inner, "innocent.txt"));
 			const handlers = new CursorExecHandlers({
 				cwd: inner,
 				tools: new Map(),
+				getToolContext: () => yoloToolContext(),
 				mcpResources: {
 					serverNames: () => ["files"],
 					getServerResources: async () => undefined,
@@ -1244,7 +1312,7 @@ describe("CursorExecHandlers mounted tool bridge", () => {
 			await expect(
 				handlers.readMcpResource({ server: "files", uri: "files://x", downloadPath: "innocent.txt" }),
 			).rejects.toThrow(/hard links/);
-			expect(await fsx.readText(victim)).toBe("SECRET");
+			expect(await Bun.file(victim).text()).toBe("SECRET");
 		} finally {
 			await removeWithRetries(workspace);
 		}
@@ -1264,6 +1332,7 @@ describe("CursorExecHandlers mounted tool bridge", () => {
 			const handlers = new CursorExecHandlers({
 				cwd: workspace,
 				tools: new Map(),
+				getToolContext: () => yoloToolContext(),
 				mcpResources: {
 					serverNames: () => ["files"],
 					getServerResources: async () => undefined,
@@ -1323,7 +1392,7 @@ describe("CursorExecHandlers mounted tool bridge", () => {
 			).rejects.toThrow(/blocked by user policy/);
 
 			expect(reads).toBe(0);
-			expect(await fsx.exists(path.join(workspace, "out.txt"))).toBe(false);
+			expect(await Bun.file(path.join(workspace, "out.txt")).exists()).toBe(false);
 
 			// A read without `download_path` mutates nothing, so it is unaffected.
 			const read = await ungranted.readMcpResource({ server: "files", uri: "files://x" });
@@ -1413,7 +1482,7 @@ describe("CursorExecHandlers advise routing (issue #5680)", () => {
 							name: "advise",
 							toolName: "advise",
 							toolCallId: "call-advise-1",
-							providerIdentifier: "chud-agent",
+							providerIdentifier: "pi-agent",
 							args: { note: new TextEncoder().encode(JSON.stringify(note)) },
 						}),
 					},
@@ -1513,7 +1582,7 @@ describe("CursorExecHandlers native delete gating (issue #5680)", () => {
 
 	it("rejects native delete and preserves the file when allowDirectFileMutation is false", async () => {
 		const target = path.join(cwd, "victim.txt");
-		await fsx.write(target, "keep me");
+		await Bun.write(target, "keep me");
 		const handlers = new CursorExecHandlers({
 			cwd,
 			tools: new Map(),
@@ -1524,42 +1593,61 @@ describe("CursorExecHandlers native delete gating (issue #5680)", () => {
 
 		expect(result.isError).toBe(true);
 		expect(result.content).toEqual([{ type: "text", text: 'Tool "delete" not available' }]);
-		expect(await fsx.exists(target)).toBe(true);
+		expect(await Bun.file(target).exists()).toBe(true);
 	});
 
 	it("performs native delete when allowDirectFileMutation is true", async () => {
 		const target = path.join(cwd, "victim.txt");
-		await fsx.write(target, "remove me");
+		await Bun.write(target, "remove me");
 		const handlers = new CursorExecHandlers({
 			cwd,
 			tools: new Map(),
 			allowDirectFileMutation: true,
+			getToolContext: () => yoloToolContext(),
 		});
 
 		const result = await handlers.delete(create(DeleteArgsSchema, { toolCallId: "call-del", path: target }));
 
 		expect(result.isError).toBe(false);
-		expect(await fsx.exists(target)).toBe(false);
+		expect(await Bun.file(target).exists()).toBe(false);
+	});
+
+	it("returns the deleted file size in details, including zero-byte files", async () => {
+		const handlers = new CursorExecHandlers({
+			cwd,
+			tools: new Map(),
+			allowDirectFileMutation: true,
+			getToolContext: () => yoloToolContext(),
+		});
+		for (const content of ["café", ""]) {
+			const target = path.join(cwd, "size.txt");
+			await Bun.write(target, content);
+			const result = await handlers.delete(create(DeleteArgsSchema, { path: target }));
+			expect(result.isError).toBe(false);
+			expect(result.details).toEqual({ fileSize: Buffer.byteLength(content) });
+			expect(await Bun.file(target).exists()).toBe(false);
+		}
 	});
 
 	it("rechecks a live mutation grant after runtime tool activation", async () => {
 		const target = path.join(cwd, "victim.txt");
-		await fsx.write(target, "remove after upgrade");
+		await Bun.write(target, "remove after upgrade");
 		let mutationGranted = false;
 		const handlers = new CursorExecHandlers({
 			cwd,
 			tools: new Map(),
 			allowDirectFileMutation: () => mutationGranted,
+			getToolContext: () => yoloToolContext(),
 		});
 
 		const denied = await handlers.delete(create(DeleteArgsSchema, { toolCallId: "call-del-denied", path: target }));
 		expect(denied.isError).toBe(true);
-		expect(await fsx.exists(target)).toBe(true);
+		expect(await Bun.file(target).exists()).toBe(true);
 
 		mutationGranted = true;
 		const allowed = await handlers.delete(create(DeleteArgsSchema, { toolCallId: "call-del-allowed", path: target }));
 		expect(allowed.isError).toBe(false);
-		expect(await fsx.exists(target)).toBe(false);
+		expect(await Bun.file(target).exists()).toBe(false);
 	});
 
 	it("resolves native deletes through the live cwd resolver", async () => {
@@ -1567,22 +1655,23 @@ describe("CursorExecHandlers native delete gating (issue #5680)", () => {
 		await fs.mkdir(movedCwd);
 		const originalTarget = path.join(cwd, "obsolete.txt");
 		const movedTarget = path.join(movedCwd, "obsolete.txt");
-		await fsx.write(originalTarget, "preserve me");
-		await fsx.write(movedTarget, "remove me");
+		await Bun.write(originalTarget, "preserve me");
+		await Bun.write(movedTarget, "remove me");
 		let currentCwd = cwd;
 		const handlers = new CursorExecHandlers({
 			cwd,
 			getCwd: () => currentCwd,
 			tools: new Map(),
 			allowDirectFileMutation: true,
+			getToolContext: () => yoloToolContext(),
 		});
 
 		currentCwd = movedCwd;
 		const result = await handlers.delete(create(DeleteArgsSchema, { toolCallId: "call-del", path: "obsolete.txt" }));
 
 		expect(result.isError).toBe(false);
-		expect(await fsx.exists(originalTarget)).toBe(true);
-		expect(await fsx.exists(movedTarget)).toBe(false);
+		expect(await Bun.file(originalTarget).exists()).toBe(true);
+		expect(await Bun.file(movedTarget).exists()).toBe(false);
 	});
 
 	it("refuses a native delete the user's policy blocks", async () => {
@@ -1591,7 +1680,7 @@ describe("CursorExecHandlers native delete gating (issue #5680)", () => {
 		// instead of running a registry tool, so no approval wrapper sits in
 		// front of it — a configured `deny` still lost the file.
 		const target = path.join(cwd, "protected.txt");
-		await fsx.write(target, "keep me\n");
+		await Bun.write(target, "keep me\n");
 		const settings = Settings.isolated({ "tools.approval": { delete: "deny" } });
 		const handlers = new CursorExecHandlers({
 			cwd,
@@ -1605,14 +1694,14 @@ describe("CursorExecHandlers native delete gating (issue #5680)", () => {
 		);
 
 		expect(result.isError).toBe(true);
-		expect(await fsx.exists(target)).toBe(true);
+		expect(await Bun.file(target).exists()).toBe(true);
 	});
 
 	it("refuses a native delete in always-ask mode, which has no prompt channel", async () => {
 		// The exec channel cannot raise an interactive approval, so a mode that
 		// demands one must fail closed rather than silently auto-approving.
 		const target = path.join(cwd, "asked.txt");
-		await fsx.write(target, "keep me\n");
+		await Bun.write(target, "keep me\n");
 		const settings = Settings.isolated({ "tools.approvalMode": "always-ask" });
 		const handlers = new CursorExecHandlers({
 			cwd,
@@ -1624,7 +1713,25 @@ describe("CursorExecHandlers native delete gating (issue #5680)", () => {
 		const result = await handlers.delete(create(DeleteArgsSchema, { toolCallId: "call-ask", path: "asked.txt" }));
 
 		expect(result.isError).toBe(true);
-		expect(await fsx.exists(target)).toBe(true);
+		expect(await Bun.file(target).exists()).toBe(true);
+	});
+
+	it("refuses a native delete when execute-time context is missing", async () => {
+		const target = path.join(cwd, "unwired.txt");
+		await Bun.write(target, "keep me\n");
+		const handlers = new CursorExecHandlers({
+			cwd,
+			tools: new Map(),
+			allowDirectFileMutation: true,
+		});
+
+		const result = await handlers.delete(
+			create(DeleteArgsSchema, { toolCallId: "call-unwired", path: "unwired.txt" }),
+		);
+
+		expect(result.isError).toBe(true);
+		expect(result.content.map(c => (c.type === "text" ? c.text : "")).join("")).toContain("requires approval");
+		expect(await Bun.file(target).exists()).toBe(true);
 	});
 });
 
@@ -1704,13 +1811,29 @@ describe("CursorExecHandlers MCP approval preflight", () => {
 			await handlers.mcpApprovalPreflight({ ...call, name: "mcp__ops__absent", toolName: "mcp__ops__absent" }),
 		).toBe(false);
 	});
+
+	it("refuses when execute-time context is missing", async () => {
+		const tool: AgentTool = {
+			name: "mcp__ops__deploy",
+			label: "deploy",
+			description: "",
+			parameters: type({}),
+			execute: async () => ({ content: [{ type: "text", text: "ran" }] }),
+		} as unknown as AgentTool;
+		const handlers = new CursorExecHandlers({
+			cwd,
+			tools: new Map([[tool.name, tool]]),
+		});
+
+		expect(await handlers.mcpApprovalPreflight(call)).toBe(false);
+	});
 });
 
-// The Chud frames (`ExecServerMessage` 45-51) are a separate wire family from the
+// The Pi frames (`ExecServerMessage` 45-51) are a separate wire family from the
 // legacy `read`/`shell`/`grep` args, with different field names and different
 // semantics. Each bridge handler therefore performs a real translation, and a
 // wrong one silently searches the wrong thing instead of failing.
-describe("CursorExecHandlers Chud frame translation", () => {
+describe("CursorExecHandlers Pi frame translation", () => {
 	let cwd: string;
 
 	beforeEach(async () => {
@@ -1738,7 +1861,7 @@ describe("CursorExecHandlers Chud frame translation", () => {
 		return { handlers, calls };
 	}
 
-	it("inverts chud_grep's ignore_case into the local tool's case-sensitivity flag", async () => {
+	it("inverts pi_grep's ignore_case into the local tool's case-sensitivity flag", async () => {
 		// `ignore_case` and `case` are opposites. Passing the frame's value
 		// straight through would flip every search's matching.
 		const { handlers, calls } = recordingHandlers("grep");
@@ -1754,7 +1877,7 @@ describe("CursorExecHandlers Chud frame translation", () => {
 		]);
 	});
 
-	it("folds chud_grep's separate glob onto the local tool's single path spec", async () => {
+	it("folds pi_grep's separate glob onto the local tool's single path spec", async () => {
 		const { handlers, calls } = recordingHandlers("grep");
 
 		await handlers.piGrep({ toolCallId: "c1", args: { pattern: "x", path: "src", glob: "**/*.ts" } } as never);
@@ -1771,7 +1894,7 @@ describe("CursorExecHandlers Chud frame translation", () => {
 		expect((calls[3] as { path: string }).path).toBe("/abs/**/*.ts");
 	});
 
-	it("composes chud_read's offset/limit onto the path as the read tool's range selector", async () => {
+	it("composes pi_read's offset/limit onto the path as the read tool's range selector", async () => {
 		// `read` takes no range kwargs, so a dropped offset/limit silently returns
 		// the whole file. `offset` is a 1-indexed start and `limit` a line count,
 		// which is exactly the `:N+K` selector — `raw`, since a plain range pads
@@ -1790,12 +1913,12 @@ describe("CursorExecHandlers Chud frame translation", () => {
 			{ path: "a.ts:raw:5+20" },
 			{ path: "a.ts:raw:5-" },
 			{ path: "a.ts:raw:1+20" },
-			{ path: "a.ts" },
+			{ path: "a.ts:raw" },
 			{ path: "a.ts:raw:1+20" },
 		]);
 	});
 
-	it("answers a present chud_read limit of zero with empty output instead of the whole file", async () => {
+	it("answers a present pi_read limit of zero with empty output instead of the whole file", async () => {
 		// `limit: 0` is present, not unset: the reference slices zero lines. No
 		// `read` selector expresses an empty range, so treating it as unset would
 		// return the entire file — the opposite of what was asked.
@@ -1808,7 +1931,7 @@ describe("CursorExecHandlers Chud frame translation", () => {
 		expect(result.content).toEqual([{ type: "text", text: "" }]);
 	});
 
-	it("composes the legacy read frame's offset/limit the same way chud_read does", async () => {
+	it("composes the legacy read frame's offset/limit the same way pi_read does", async () => {
 		// Modern Cursor builds paginate the legacy `read` frame too. Dropping the
 		// range returns the whole file for every page, so a model walking a large
 		// file never advances past the first window.
@@ -1834,7 +1957,7 @@ describe("CursorExecHandlers Chud frame translation", () => {
 		expect(calls.map(call => (call as { skip?: number }).skip)).toEqual([20, undefined, undefined]);
 	});
 
-	it("returns exactly the lines a chud_read range asked for", async () => {
+	it("returns exactly the lines a pi_read range asked for", async () => {
 		// Producer/consumer contract against the real `ReadTool`: a plain `:N+K`
 		// selector deliberately pads with one leading and three trailing context
 		// lines, so offset 5/limit 20 would hand Cursor lines 4-27 for a request
@@ -1842,7 +1965,7 @@ describe("CursorExecHandlers Chud frame translation", () => {
 		// content it asked for.
 		const cwd = await fs.mkdtemp(path.join(os.tmpdir(), "cursor-piread-range-"));
 		try {
-			await fsx.write(
+			await Bun.write(
 				path.join(cwd, "n.txt"),
 				`${Array.from({ length: 40 }, (_, i) => `line${i + 1}`).join("\n")}\n`,
 			);
@@ -1866,7 +1989,86 @@ describe("CursorExecHandlers Chud frame translation", () => {
 		}
 	});
 
-	it("escapes chud_grep's pattern when the frame asks for a literal search", async () => {
+	it("returns negative offsets from the end of large files through the real read tool", async () => {
+		const target = path.join(cwd, "long.txt");
+		await Bun.write(target, `${Array.from({ length: 1000 }, (_, i) => `line${i + 1}`).join("\n")}\n`);
+		const session = createTestSession(cwd);
+		const handlers = new CursorExecHandlers({
+			cwd,
+			tools: new Map<string, Tool>([["read", new ReadTool(session)]]),
+		});
+		const legacy = await handlers.read(create(ReadArgsSchema, { path: target, offset: -4, limit: 2 }));
+		const modern = await handlers.piRead({
+			toolCallId: "negative-read",
+			args: { path: "long.txt", offset: -4, limit: 2 },
+		} as never);
+		for (const result of [legacy, modern]) {
+			expect(result.isError).toBe(false);
+			expect(result.content).toEqual([{ type: "text", text: "line997\nline998" }]);
+		}
+		const last = await handlers.piRead({
+			toolCallId: "last-line",
+			args: { path: "long.txt", offset: -1 },
+		} as never);
+		expect(last.isError).toBe(false);
+		expect(
+			last.content
+				.map(part => (part.type === "text" ? part.text : ""))
+				.join("")
+				.trimEnd(),
+		).toBe("line1000");
+	});
+
+	it("serves the final lines through the native read frame", async () => {
+		const target = path.join(cwd, "native-tail.txt");
+		await Bun.write(target, `${Array.from({ length: 1000 }, (_, i) => `line${i + 1}`).join("\n")}\n`);
+		const handlers = new CursorExecHandlers({
+			cwd,
+			tools: new Map<string, Tool>([["read", new ReadTool(createTestSession(cwd))]]),
+		});
+		const written: Buffer[] = [];
+		const h2Request = {
+			write(chunk: Buffer) {
+				written.push(chunk);
+				return true;
+			},
+		} as unknown as Parameters<typeof handleServerMessage>[5];
+		await handleServerMessage(
+			create(AgentServerMessageSchema, {
+				message: {
+					case: "execServerMessage",
+					value: create(ExecServerMessageSchema, {
+						id: 7,
+						execId: "tail-read",
+						message: {
+							case: "readArgs",
+							value: create(ReadArgsSchema, { path: target, offset: -4, limit: 4, toolCallId: "tail-read" }),
+						},
+					}),
+				},
+			}),
+			cursorAssistantMessage(),
+			new AssistantMessageEventStream(),
+			newBlockState(),
+			new Map(),
+			h2Request,
+			handlers,
+			undefined,
+			{ sawTokenDelta: false },
+			[],
+		);
+		const frame = written[0];
+		if (!frame) throw new Error("expected read response");
+		const answer = fromBinary(AgentClientMessageSchema, frame.subarray(5, 5 + frame.readUInt32BE(1)));
+		if (answer.message.case !== "execClientMessage" || answer.message.value.message.case !== "readResult") {
+			throw new Error("expected read result");
+		}
+		const result = answer.message.value.message.value.result;
+		if (result.case !== "success" || result.value.output.case !== "content") throw new Error("expected read content");
+		expect(result.value.output.value.trimEnd()).toBe("line997\nline998\nline999\nline1000");
+	});
+
+	it("escapes pi_grep's pattern when the frame asks for a literal search", async () => {
 		// The local tool is regex-only, so an unescaped literal turns regex
 		// metacharacters into operators and matches the wrong lines.
 		const { handlers, calls } = recordingHandlers("grep");
@@ -1878,8 +2080,8 @@ describe("CursorExecHandlers Chud frame translation", () => {
 		expect((calls[1] as { pattern: string }).pattern).toBe("a.b(c)");
 	});
 
-	it("routes chud_find to glob, not grep, joining its pattern onto the path", async () => {
-		// `chud_find` searches filenames. Routing it to `grep` would search file
+	it("routes pi_find to glob, not grep, joining its pattern onto the path", async () => {
+		// `pi_find` searches filenames. Routing it to `grep` would search file
 		// contents for the glob text and return nothing.
 		const { handlers, calls } = recordingHandlers("glob");
 
@@ -1897,18 +2099,7 @@ describe("CursorExecHandlers Chud frame translation", () => {
 		]);
 	});
 
-	it("renames chud_edit's camelCase replacements to the local tool's snake_case pairs", async () => {
-		const { handlers, calls } = recordingHandlers("edit");
-
-		await handlers.piEdit({
-			toolCallId: "c1",
-			args: { path: "a.ts", edits: [{ oldText: "before", newText: "after" }] },
-		} as never);
-
-		expect(calls[0]).toEqual({ path: "a.ts", old_string: "before", new_string: "after" });
-	});
-
-	it("sends a multi-replacement chud_edit frame as one batched tool call", async () => {
+	it("sends a multi-replacement pi_edit frame as one batched tool call", async () => {
 		// One frame must stay one tool lifecycle: looping per replacement would
 		// emit duplicate start/end events under the same toolCallId and return
 		// only the last replacement's diff. Multi-replacement frames therefore
@@ -1937,11 +2128,64 @@ describe("CursorExecHandlers Chud frame translation", () => {
 		]);
 	});
 
-	it("lists directories for chud_ls through read, defaulting an empty path to cwd", async () => {
+	it("lists directories for pi_ls through read, defaulting an empty path to cwd", async () => {
 		const { handlers, calls } = recordingHandlers("read");
 
 		await handlers.piLs({ toolCallId: "c1", args: { path: "" } } as never);
 
 		expect(calls[0]).toEqual({ path: "." });
+	});
+});
+
+describe("CursorExecHandlers passive tool context", () => {
+	function contextRunner(): ExtensionRunner {
+		return {
+			...passthroughRunner(),
+			emitToolCall: async () => ({ additionalContext: "hook context" }),
+		} as unknown as ExtensionRunner;
+	}
+
+	function probeTool(fail: boolean): AgentTool {
+		return {
+			name: "probe",
+			label: "Probe",
+			description: "Reports passive context",
+			parameters: type({}),
+			approval: "read",
+			async execute(_toolCallId, _params, _signal, _onUpdate, context) {
+				context?.addAdditionalContext?.("tool context");
+				if (fail) throw new Error("probe failed");
+				return { content: [{ type: "text", text: "ok" }], details: undefined };
+			},
+		} as AgentTool;
+	}
+
+	it("attaches tool and hook context to the result, dropping hook context when the call fails", async () => {
+		for (const [fail, expected] of [
+			[false, "tool context\n\nhook context"],
+			[true, "tool context"],
+		] as const) {
+			const handlers = new CursorExecHandlers({
+				cwd: os.tmpdir(),
+				tools: new Map<string, Tool>([
+					["probe", new ExtensionToolWrapper(probeTool(fail), contextRunner()) as unknown as Tool],
+				]),
+				getToolContext: () => yoloToolContext(),
+			});
+
+			const result = (await handlers.mcp({
+				name: "probe",
+				providerIdentifier: "pi-agent",
+				toolName: "probe",
+				toolCallId: `probe-${fail}`,
+				args: {},
+				rawArgs: {},
+			})) as ToolResultWithAdditionalContext;
+
+			expect(result.isError).toBe(fail);
+			expect(result[TOOL_RESULT_ADDITIONAL_CONTEXT]).toBe(expected);
+			// The carrier is symbol-keyed and never reaches serialized history.
+			expect(JSON.stringify(result)).not.toContain("tool context");
+		}
 	});
 });

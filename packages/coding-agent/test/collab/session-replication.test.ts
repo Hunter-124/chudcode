@@ -1,10 +1,9 @@
 import { afterEach, describe, expect, it } from "bun:test";
 import * as path from "node:path";
-import { isBlobRef } from "@chudware/coding-agent/session/blob-store";
-import type { SessionEntry } from "@chudware/coding-agent/session/session-entries";
-import { SessionManager } from "@chudware/coding-agent/session/session-manager";
-import { TempDir } from "@chudware/utils";
-import * as fsx from "@chudware/utils/fsx";
+import { isBlobRef } from "@oh-my-pi/pi-coding-agent/session/blob-store";
+import type { SessionEntry } from "@oh-my-pi/pi-coding-agent/session/session-entries";
+import { SessionManager } from "@oh-my-pi/pi-coding-agent/session/session-manager";
+import { TempDir } from "@oh-my-pi/pi-utils";
 
 const tempDirs: TempDir[] = [];
 
@@ -49,7 +48,7 @@ describe("SessionManager collab replication", () => {
 
 		const file = manager.getSessionFile();
 		if (!file) throw new Error("expected a persisted session file");
-		const lines = (await fsx.readText(file)).split("\n").filter(Boolean);
+		const lines = (await Bun.file(file).text()).split("\n").filter(Boolean);
 		const persisted = lines.map(line => JSON.parse(line)).find(e => e.type === "message");
 		const persistedImage = persisted.message.content.find((c: { type: string; data?: string }) => c.type === "image");
 		expect(isBlobRef(persistedImage.data)).toBe(true);

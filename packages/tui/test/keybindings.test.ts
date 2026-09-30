@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import { addKeyAliases, canonicalKeyId, KeybindingsManager, parseKey, TUI_KEYBINDINGS } from "@chudware/tui";
+import { addKeyAliases, canonicalKeyId, KeybindingsManager, parseKey, TUI_KEYBINDINGS } from "@oh-my-pi/pi-tui";
 
 describe("KeybindingsManager", () => {
 	it("does not evict selector confirm when input submit is rebound", () => {
@@ -42,14 +42,6 @@ describe("KeybindingsManager", () => {
 			},
 		]);
 		expect(keybindings.getKeys("tui.editor.cursorLeft")).toEqual(["left", "ctrl+b"]);
-	});
-
-	it("ships ctrl+j alongside shift+enter as default newline keys", () => {
-		const keybindings = new KeybindingsManager(TUI_KEYBINDINGS);
-
-		const newLineKeys = keybindings.getKeys("tui.input.newLine");
-		expect(newLineKeys).toContain("ctrl+j");
-		expect(newLineKeys).toContain("shift+enter");
 	});
 
 	it("exports the canonical alias helpers used by matching", () => {

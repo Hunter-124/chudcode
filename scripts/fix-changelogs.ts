@@ -1,7 +1,6 @@
 #!/usr/bin/env bun
 
 import * as path from "node:path";
-import * as fsx from "@chudware/utils/fsx";
 import { $, Glob } from "bun";
 
 const CHANGELOG_GLOB = "packages/*/CHANGELOG.md";
@@ -10,7 +9,7 @@ const CHANGELOG_BASELINE_REF = "refs/clog";
 const CHANGELOG_BASELINE_NAME = "clog";
 /** Per-file size ceiling; larger changelogs get their oldest releases collapsed into an archive link. */
 export const MAX_CHANGELOG_BYTES = 256 * 1024;
-const ARCHIVE_REPO = process.env.CHUDCODE_REPO ?? process.env.GITHUB_REPOSITORY ?? "Hunter-124/chudcode";
+const ARCHIVE_REPO = process.env.OMP_REPO ?? process.env.GITHUB_REPOSITORY ?? "can1357/oh-my-pi";
 const ARCHIVE_LINK_PATTERN = /^Older entries are archived in \[[^\]]+@[0-9a-f]{7,40}\]\(https:\/\/[^)]+\)\.$/;
 
 export interface NumberedLine {
@@ -586,6 +585,7 @@ export function collapseChangelogTail(
 	if (headingLines.length <= 2) return { content, collapsedReleases: 0 };
 
 	// cumulativeBytes[i] = byte length of lines[0..i) with a trailing newline per line.
+	// oxlint-disable-next-line unicorn/no-new-array -- length preallocation
 	const cumulativeBytes = new Array<number>(lines.length + 1);
 	cumulativeBytes[0] = 0;
 	for (let index = 0; index < lines.length; index++) {
@@ -930,7 +930,7 @@ export async function runChangelogFixer(options: RunChangelogFixerOptions = {}):
 
 	for (const changelogPath of paths) {
 		const absolutePath = path.join(repoRoot, changelogPath);
-		const rawContent = await fsx.readText(absolutePath);
+		const rawContent = await Bun.file(absolutePath).text();
 		const { body: currentContent, archiveLink: existingArchiveLink } = splitArchiveFooter(rawContent);
 		const historicalRecovery = historicalRecoveryByPath.get(changelogPath);
 		const recoveredContent =
@@ -977,7 +977,7 @@ export async function runChangelogFixer(options: RunChangelogFixerOptions = {}):
 		});
 
 		if (options.write !== false) {
-			await fsx.write(absolutePath, finalContent);
+			await Bun.write(absolutePath, finalContent);
 		}
 	}
 

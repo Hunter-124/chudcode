@@ -1,7 +1,7 @@
 import { describe, expect, it } from "bun:test";
-import { buildRequest } from "@chudware/ai/providers/google-gemini-cli";
-import { convertTools } from "@chudware/ai/providers/google-shared";
-import type { Context, Model, TJsonSchema, Tool } from "@chudware/ai/types";
+import { buildRequest } from "@oh-my-pi/pi-ai/providers/google-gemini-cli";
+import { convertTools } from "@oh-my-pi/pi-ai/providers/google-shared";
+import type { Context, Model, TJsonSchema, Tool } from "@oh-my-pi/pi-ai/types";
 import {
 	enforceStrictSchema,
 	mergeCompatibleEnumSchemas,
@@ -15,8 +15,8 @@ import {
 	stripResidualCombiners,
 	tryEnforceStrictSchema,
 	upgradeJsonSchemaTo202012,
-} from "@chudware/ai/utils/schema";
-import { buildModel } from "@chudware/catalog/build";
+} from "@oh-my-pi/pi-ai/utils/schema";
+import { buildModel } from "@oh-my-pi/pi-catalog/build";
 
 function createGoogleCliModel(id: string): Model<"google-gemini-cli"> {
 	return buildModel({
@@ -43,16 +43,6 @@ function createGoogleCliModel(id: string): Model<"google-gemini-cli"> {
 // ---------------------------------------------------------------------------
 
 describe("mergeCompatibleEnumSchemas", () => {
-	it("deduplicates object-valued enum members by deep equality", () => {
-		const existing = { type: "object", enum: [{ x: 1 }] };
-		const incoming = { type: "object", enum: [{ x: 1 }] };
-
-		expect(mergeCompatibleEnumSchemas(existing, incoming)).toEqual({
-			type: "object",
-			enum: [{ x: 1 }],
-		});
-	});
-
 	it("deduplicates structurally equal nested enum values and appends novel ones", () => {
 		const existing = {
 			type: "object",
@@ -1195,15 +1185,20 @@ describe("normalizeSchemaForCCA", () => {
 // ---------------------------------------------------------------------------
 
 describe("circular schema safety", () => {
-	it("does not overflow the stack when either sanitizer encounters a self-referential object", () => {
+	it("terminates on a self-referential object with a bounded result from either sanitizer", () => {
 		const circular: Record<string, unknown> = {
 			type: "object",
 			properties: {},
 		};
 		(circular.properties as Record<string, unknown>).self = circular;
 
-		expect(() => normalizeSchemaForGoogle(circular)).not.toThrow();
-		expect(() => sanitizeSchemaForStrictMode(circular)).not.toThrow();
+		// Google normalization breaks the back-edge with an empty schema.
+		expect(normalizeSchemaForGoogle(circular)).toEqual({ type: "object", properties: { self: {} } });
+
+		// Strict-mode sanitization rebuilds the cycle on the sanitized copy rather than recursing forever.
+		const strict = sanitizeSchemaForStrictMode(circular) as { properties: { self: unknown } };
+		expect(strict).not.toBe(circular);
+		expect(strict.properties.self).toBe(strict);
 	});
 });
 

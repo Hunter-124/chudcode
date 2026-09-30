@@ -40,40 +40,31 @@ on `PATH`, and
 the pinned Rust toolchain is already the default so target/component installs in
 CI become no-ops.
 
-### Stay in sync with `setup-system-deps`
+### The apt set is not a CI requirement
 
-The apt set baked into the image **must** match the repo's
-`.github/actions/setup-system-deps` composite action. That action is the
-self-healing counterpart: it probes for the baked tools and skips the apt
-round-trip when they are present (preloaded image), but installs the exact same
-set on a stock runner so CI still works anywhere. Its detection probes are:
-
-```bash
-command -v fd && command -v rg && command -v magick \
-  && pkg-config --exists cairo pango
-```
-
-If you add a dependency that the action probes for, add it in **both** the
-Dockerfile apt line and `setup-system-deps`. If they drift, either the action
-re-installs deps the image already has (slow) or CI breaks on a tool the image
-forgot to bake.
+CI used to run a `setup-system-deps` composite action that mirrored this apt
+set on stock runners. It was removed after every CI test bucket, the CLI
+smoke, and the install-method smoke were verified to pass without those
+packages (the only `magick` user is an API-key-gated e2e test CI never runs).
+The packages stay baked into the image for agent/interactive use; there is no
+longer a workflow-side copy to keep in sync.
 
 ---
 
 ## 2. The Dockerfile
 
-Build context lives at `/root/chudcode-kata-runner-image/`. The Dockerfile below is
+Build context lives at `/root/omp-kata-runner-image/`. The Dockerfile below is
 reproduced verbatim (it contains no secrets or redactable host identifiers; the
 `ARG` pins, the full apt set, and the toolchain steps are real).
 
 > The canonical copy of this Dockerfile is version-controlled at
 > [`infra/runner.Dockerfile`](../runner.Dockerfile);
-> the `/root/chudcode-kata-runner-image/` copy is overwritten from it by the
+> the `/root/omp-kata-runner-image/` copy is overwritten from it by the
 > repo-driven reload script (see section 3 below).
 
 ```dockerfile
 # syntax=docker/dockerfile:1
-# Preloaded chudcode-kata runner image.
+# Preloaded omp-kata runner image.
 #
 # Stock GitHub Actions runner (Ubuntu 24.04) with the dependencies CI installs
 # on every job baked in, so each ephemeral Kata microVM boots with them already
@@ -84,15 +75,17 @@ reproduced verbatim (it contains no secrets or redactable host identifiers; the
 #   - C/build toolchain the native + canvas builds need
 #   - bun (system-wide, on PATH)
 #   - sccache + Zig + cargo-nextest/cargo-zigbuild/cargo-xwin for native builds
-#   - rust nightly (pinned) + clippy/rustfmt/rust-analyzer + linux-arm64/windows-msvc targets
+#   - rust nightly (pinned) + clippy/rustfmt/rust-analyzer + the rust-toolchain.toml
+#     targets (linux-x64, windows-msvc x64/arm64) and linux-arm64 for zigbuild
 #
-# Rebuild + reimport (see /root/chudcode-kata-runner.md) after bumping the ARGs below
-# or the apt set. Keep the apt set in sync with .github/actions/setup-system-deps.
+# Rebuild + reimport (see /root/omp-kata-runner.md) after bumping the ARGs below
+# or the apt set. No CI job requires the apt tools any more; they stay baked
+# for interactive/agent use on the runner.
 FROM ghcr.io/actions/actions-runner:latest
 
-ARG RUST_NIGHTLY=nightly-2026-04-29
-ARG BUN_VERSION=1.4.0
-ARG SCCACHE_VERSION=0.15.0
+ARG RUST_NIGHTLY=nightly-2026-09-14
+ARG BUN_VERSION=1.4.2
+ARG SCCACHE_VERSION=0.18.0
 ARG ZIG_VERSION=0.16.0
 
 USER root
@@ -139,7 +132,7 @@ ENV RUSTUP_HOME=/home/runner/.rustup \
 RUN curl --proto '=https' --tlsv1.2 -fsSL https://sh.rustup.rs \
       | sh -s -- -y --default-toolchain "${RUST_NIGHTLY}" --profile minimal \
  && rustup component add clippy rustfmt rust-analyzer \
- && rustup target add aarch64-unknown-linux-gnu x86_64-pc-windows-msvc \
+ && rustup target add x86_64-unknown-linux-gnu aarch64-unknown-linux-gnu x86_64-pc-windows-msvc aarch64-pc-windows-msvc \
  && cargo install --locked cargo-nextest cargo-zigbuild cargo-xwin \
  && cargo --version \
  && rustc --version \
@@ -161,16 +154,16 @@ runner agent itself is never modified.
 **`ARG RUST_NIGHTLY` / `ARG BUN_VERSION`.** The two version knobs you bump. They
 are build args so you can also override them ad hoc with
 `docker build --build-arg RUST_NIGHTLY=... --build-arg BUN_VERSION=...` without
-editing the file. `RUST_NIGHTLY` must match what the repo's
-`dtolnay/rust-toolchain@nightly` step expects so the toolchain install in CI is a
-no-op (see step 4 below).
+editing the file. `RUST_NIGHTLY` must match the `channel` in the repo's
+`rust-toolchain.toml` - CI has no explicit toolchain step; rustup reads that
+file on the first `cargo` call and installs whatever is missing - so the
+toolchain install in CI is a no-op (see step 4 below). Bump both together.
 
 **`USER root` + `ENV DEBIAN_FRONTEND=noninteractive`.** Switch to root for the
 apt and bun system installs; `noninteractive` suppresses debconf/tzdata prompts
 during `apt-get install`.
 
-**The apt `RUN` block.** This is the set that must mirror `setup-system-deps`.
-In order:
+**The apt `RUN` block.** In order:
 - The first three lines add the **GitHub CLI apt repository** (keyring + signed
   source list) *before* `apt-get update`, so `gh` resolves and installs in the
   same apt transaction as everything else. `gh` is present on GitHub-hosted
@@ -191,8 +184,7 @@ In order:
   Debian ships `fd` as `fdfind`, so `ln -sf "$(command -v fdfind)"
   /usr/local/bin/fd` exposes it as `fd`; ImageMagick installs `convert`, so
   `ln -sf /usr/bin/convert /usr/local/bin/magick` exposes the v7-style `magick`
-  name. These two shims are exactly what `setup-system-deps` recreates on a stock
-  runner.
+  name.
 - `rm -rf /var/lib/apt/lists/*` drops the apt index to keep the layer smaller.
 
 **bun (`ENV BUN_INSTALL=/usr/local` + install `RUN`).** Setting
@@ -214,9 +206,11 @@ the **`runner` user** - the UID jobs execute as - so cargo/rustc are owned by an
 visible to the job without sudo. `RUSTUP_HOME`/`CARGO_HOME` are pinned under
 `/home/runner`, and `~/.cargo/bin` is prepended to `PATH`. rustup installs the
 pinned nightly as the **default toolchain** (`--profile minimal`), then adds the
-`clippy`, `rustfmt`, and `rust-analyzer` components plus the
-`aarch64-unknown-linux-gnu` (Linux arm64) and `x86_64-pc-windows-msvc` (Windows
-cross) targets. The same layer also `cargo install`s the Rust-native helper CLIs
+`clippy`, `rustfmt`, and `rust-analyzer` components plus the targets listed in
+`rust-toolchain.toml` (`x86_64-unknown-linux-gnu`, `x86_64-pc-windows-msvc`,
+`aarch64-pc-windows-msvc`) and `aarch64-unknown-linux-gnu` for the zigbuild
+Linux arm64 cross path. The target set must stay a superset of the toml's, or
+rustup fetches the difference per job. The same layer also `cargo install`s the Rust-native helper CLIs
 `cargo-nextest`, `cargo-zigbuild`, and `cargo-xwin`, so the self-hosted native
 build path no longer fetches those tools job-by-job. Because the default toolchain
 already *is* the pinned nightly with these components/targets, the corresponding
@@ -226,30 +220,30 @@ Rust setup steps in CI become no-ops - the warm-start payoff.
 
 ## 3. Build, import, and roll out (`reload.sh`)
 
-`/root/chudcode-kata-runner-image/reload.sh` does the whole cycle: build, in-image
+`/root/omp-kata-runner-image/reload.sh` does the whole cycle: build, in-image
 smoke test, import into k3s containerd, point ARC at the new tag, and verify the
 rollout. It is idempotent and cache-fast on an unchanged rebuild. Reproduced
 verbatim (no secrets; the `/root` and kubeconfig paths are the real host paths):
 
 ```bash
 #!/usr/bin/env bash
-# Rebuild the preloaded chudcode-kata runner image, import it into k3s containerd,
+# Rebuild the preloaded omp-kata runner image, import it into k3s containerd,
 # point the ARC runner scale set at it, and roll it out. Idempotent: safe to
 # re-run after editing ./Dockerfile. Docker layer cache makes an unchanged
 # rebuild near-instant.
 #
-#   ./reload.sh              # build tag chudcode-kata-runner:YYYY-MM-DD-HHMMSS
-#   ./reload.sh 2026-06-20   # build tag chudcode-kata-runner:2026-06-20
+#   ./reload.sh              # build tag omp-kata-runner:YYYY-MM-DD-HHMMSS
+#   ./reload.sh 2026-06-20   # build tag omp-kata-runner:2026-06-20
 #   ./reload.sh foo:bar      # build an explicit repo:tag
 set -euo pipefail
 export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
 cd "$(dirname "$0")"
 
 arg="${1:-$(date +%Y-%m-%d-%H%M%S)}"
-case "$arg" in *:*) IMAGE="$arg";; *) IMAGE="chudcode-kata-runner:$arg";; esac
+case "$arg" in *:*) IMAGE="$arg";; *) IMAGE="omp-kata-runner:$arg";; esac
 
 echo "==> [1/5] building $IMAGE"
-DOCKER_BUILDKIT=1 docker build -t "$IMAGE" -t chudcode-kata-runner:preloaded .
+DOCKER_BUILDKIT=1 docker build -t "$IMAGE" -t omp-kata-runner:preloaded .
 
 echo "==> [2/5] verifying baked tools"
 docker run --rm --entrypoint bash "$IMAGE" -lc '
@@ -264,13 +258,13 @@ echo "==> [3/5] importing into k3s containerd (k8s.io namespace)"
 docker save "$IMAGE" | k3s ctr -n k8s.io images import --platform linux/amd64 -
 
 echo "==> [4/5] pointing ARC runner scale set at $IMAGE"
-sed -i "s#image: chudcode-kata-runner:.*#image: $IMAGE#" /root/arc-chudcode-values.yaml
-helm upgrade chudcode-kata --namespace arc-runners --version 0.14.2 \
-  -f /root/arc-chudcode-values.yaml \
+sed -i "s#image: omp-kata-runner:.*#image: $IMAGE#" /root/arc-omp-values.yaml
+helm upgrade omp-kata --namespace arc-runners --version 0.14.2 \
+  -f /root/arc-omp-values.yaml \
   oci://ghcr.io/actions/actions-runner-controller-charts/gha-runner-scale-set >/dev/null
 
 echo "==> [5/5] verifying rollout"
-live="$(kubectl get autoscalingrunnerset chudcode-kata -n arc-runners -o jsonpath='{.spec.template.spec.containers[0].image}')"
+live="$(kubectl get autoscalingrunnerset omp-kata -n arc-runners -o jsonpath='{.spec.template.spec.containers[0].image}')"
 echo "ARC runner image is now: $live"
 [ "$live" = "$IMAGE" ] && echo "OK: reloaded $IMAGE" || { echo "MISMATCH: expected $IMAGE"; exit 1; }
 ```
@@ -278,7 +272,7 @@ echo "ARC runner image is now: $live"
 Run it with no argument for an auto-dated tag:
 
 ```bash
-cd /root/chudcode-kata-runner-image
+cd /root/omp-kata-runner-image
 ./reload.sh
 ```
 
@@ -286,12 +280,12 @@ cd /root/chudcode-kata-runner-image
 
 **Preamble.** `set -euo pipefail` aborts on the first error; `KUBECONFIG` points
 at the k3s admin config; `cd` into the build context. The tag is resolved from
-`$1`: no arg gives a timestamped `chudcode-kata-runner:YYYY-MM-DD-HHMMSS`; an argument
+`$1`: no arg gives a timestamped `omp-kata-runner:YYYY-MM-DD-HHMMSS`; an argument
 containing a colon (`foo:bar`) is used as an explicit `repo:tag`; anything else
-is treated as a tag suffix on `chudcode-kata-runner:`.
+is treated as a tag suffix on `omp-kata-runner:`.
 
 **[1/5] build.** `DOCKER_BUILDKIT=1 docker build` tags the result twice: the
-immutable `$IMAGE` (dated) and the moving `chudcode-kata-runner:preloaded` alias.
+immutable `$IMAGE` (dated) and the moving `omp-kata-runner:preloaded` alias.
 BuildKit + the docker layer cache make an unchanged rebuild near-instant.
 
 **[2/5] verify baked tools.** Runs the freshly built image with a bash entrypoint
@@ -311,7 +305,7 @@ given only the dated `$IMAGE`, so **only the dated tag is imported**; the
 referenced by ARC.
 
 **[4/5] point ARC at the new tag.** `sed -i` rewrites the single
-`image: chudcode-kata-runner:...` line in `/root/arc-chudcode-values.yaml` to the new tag,
+`image: omp-kata-runner:...` line in `/root/arc-omp-values.yaml` to the new tag,
 then `helm upgrade` re-renders the runner scale set with the chart pinned to
 `0.14.2`. (That values file is the runner pod template, documented in
 [04-arc-and-caching.md](./04-arc-and-caching.md).)
@@ -352,7 +346,7 @@ secure, and authenticate against, for zero benefit. Instead:
 
 - `docker save | k3s ctr -n k8s.io images import` places the image directly into
   the containerd instance k3s schedules from. containerd normalizes the short
-  reference `chudcode-kata-runner:<tag>` to `docker.io/library/chudcode-kata-runner:<tag>`
+  reference `omp-kata-runner:<tag>` to `docker.io/library/omp-kata-runner:<tag>`
   in its store (verified: the imported tags appear under that prefix).
 - The ARC pod template sets `imagePullPolicy: IfNotPresent`. Because the image is
   already present locally, the kubelet **uses the local copy and never attempts a
@@ -370,8 +364,8 @@ next job's microVM starts cold but with warm dependencies from the local store.
 
 | Tag | Mutability | Imported into containerd? | Referenced by ARC? | Purpose |
 | --- | --- | --- | --- | --- |
-| `chudcode-kata-runner:YYYY-MM-DD-HHMMSS` | immutable | yes | yes | the build of record; what runners actually boot |
-| `chudcode-kata-runner:preloaded` | moving | no | no | docker-local alias to the most recent build |
+| `omp-kata-runner:YYYY-MM-DD-HHMMSS` | immutable | yes | yes | the build of record; what runners actually boot |
+| `omp-kata-runner:preloaded` | moving | no | no | docker-local alias to the most recent build |
 
 - The default `reload.sh` tag is timestamped (`date +%Y-%m-%d-%H%M%S`). You can
   also pass a date-only tag (`./reload.sh 2026-06-20`) or an explicit `repo:tag`.
@@ -379,8 +373,8 @@ next job's microVM starts cold but with warm dependencies from the local store.
   rollout reproducible and makes rollback trivial: `sed` the image line back to
   the prior dated tag (it is still in the local store) and `helm upgrade`.
 - Live example at time of writing: the scale set references
-  `chudcode-kata-runner:2026-06-15-002621`, held in containerd as
-  `docker.io/library/chudcode-kata-runner:2026-06-15-002621`.
+  `omp-kata-runner:2026-06-15-002621`, held in containerd as
+  `docker.io/library/omp-kata-runner:2026-06-15-002621`.
 
 ---
 
@@ -388,17 +382,15 @@ next job's microVM starts cold but with warm dependencies from the local store.
 
 1. **bun:** edit `ARG BUN_VERSION=` in the Dockerfile (or pass
    `--build-arg BUN_VERSION=...`).
-2. **Rust:** edit `ARG RUST_NIGHTLY=` to the new pinned nightly. Keep it equal to
-   what the repo's `dtolnay/rust-toolchain@nightly` step resolves, so the CI
-   toolchain install stays a no-op.
-3. **apt set:** edit the `apt-get install` line. You **must** mirror the change in
-   `.github/actions/setup-system-deps` (and, if you add a tool the action probes
-   for, in its detection block - currently `fd`, `rg`, `magick`,
-   `pkg-config --exists cairo pango`).
+2. **Rust:** edit `ARG RUST_NIGHTLY=` to the `channel` in `rust-toolchain.toml`,
+   and keep the `rustup target add` list a superset of the toml's `targets`, so
+   rustup's per-job install stays a no-op.
+3. **apt set:** edit the `apt-get install` line. No workflow mirrors it any
+   more, so nothing else needs changing.
 4. Re-roll:
 
    ```bash
-   cd /root/chudcode-kata-runner-image
+   cd /root/omp-kata-runner-image
    ./reload.sh
    ```
 
@@ -416,7 +408,7 @@ next job's microVM starts cold but with warm dependencies from the local store.
 standalone:
 
 ```bash
-docker run --rm --entrypoint bash chudcode-kata-runner:preloaded -lc '
+docker run --rm --entrypoint bash omp-kata-runner:preloaded -lc '
   set -e
   for b in gh fd rg magick bun cargo rustc pkg-config clang lld sccache zig cargo-nextest cargo-zigbuild cargo-xwin; do
     command -v "$b" >/dev/null || { echo "MISSING: $b"; exit 1; }
@@ -430,9 +422,9 @@ Confirm the live ARC reference and that the tag exists in the k3s image store
 
 ```bash
 export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
-kubectl get autoscalingrunnerset chudcode-kata -n arc-runners \
+kubectl get autoscalingrunnerset omp-kata -n arc-runners \
   -o jsonpath='{.spec.template.spec.containers[0].image}{"\n"}'
-k3s ctr -n k8s.io images ls | grep chudcode-kata-runner
+k3s ctr -n k8s.io images ls | grep omp-kata-runner
 ```
 
 ### Kata microVM boot check
@@ -446,7 +438,7 @@ throwaway pod with `runtimeClassName: kata-qemu` (the RuntimeClass set up in
 ```bash
 export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
 kubectl run preload-verify -n arc-runners --restart=Never \
-  --image=chudcode-kata-runner:2026-06-15-002621 \
+  --image=omp-kata-runner:2026-06-15-002621 \
   --overrides='{"spec":{"runtimeClassName":"kata-qemu"}}' \
   --command -- bash -lc 'uname -r; bun --version; rustc --version; magick -version | head -1'
 

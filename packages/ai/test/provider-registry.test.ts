@@ -1,16 +1,15 @@
 import { Database } from "bun:sqlite";
 import { afterEach, describe, expect, test, vi } from "bun:test";
-import { AuthStorage, SqliteAuthCredentialStore } from "@chudware/ai/auth-storage";
-import { PASTE_CODE_LOGIN_PROVIDERS } from "@chudware/ai/registry";
+import { AuthStorage, SqliteAuthCredentialStore } from "@oh-my-pi/pi-ai/auth-storage";
+import { PASTE_CODE_LOGIN_PROVIDERS } from "@oh-my-pi/pi-ai/registry";
 import {
 	getOAuthProviders,
 	refreshOAuthToken,
 	registerOAuthProvider,
 	unregisterOAuthProviders,
-} from "@chudware/ai/registry/oauth";
-import * as anthropicOauth from "@chudware/ai/registry/oauth/anthropic";
-import type { OAuthCredentials, OAuthProvider } from "@chudware/ai/registry/oauth/types";
-import { getEnvApiKey } from "@chudware/ai/stream";
+} from "@oh-my-pi/pi-ai/registry/oauth";
+import type { OAuthCredentials, OAuthProvider } from "@oh-my-pi/pi-ai/registry/oauth/types";
+import { getEnvApiKey } from "@oh-my-pi/pi-ai/stream";
 
 const FIXTURE_SOURCE = "provider-registry-test";
 const ENV_KEYS = [
@@ -22,16 +21,16 @@ const ENV_KEYS = [
 	"LLAMA_CPP_API_KEY",
 	"WANDB_API_KEY",
 ] as const;
-const originalEnv = new Map(ENV_KEYS.map(key => [key, process.env[key]]));
+const originalEnv = new Map(ENV_KEYS.map(key => [key, Bun.env[key]]));
 
 afterEach(() => {
 	unregisterOAuthProviders(FIXTURE_SOURCE);
 	for (const key of ENV_KEYS) {
 		const original = originalEnv.get(key);
 		if (original === undefined) {
-			delete process.env[key];
+			delete Bun.env[key];
 		} else {
-			process.env[key] = original;
+			Bun.env[key] = original;
 		}
 	}
 	vi.restoreAllMocks();
@@ -39,25 +38,25 @@ afterEach(() => {
 
 describe("provider registry auth surface", () => {
 	test("env-key map merges catalog names, registry defs, and legacy keys", () => {
-		process.env.ZENMUX_API_KEY = "zenmux-env";
-		process.env.EXA_API_KEY = "exa-env";
+		Bun.env.ZENMUX_API_KEY = "zenmux-env";
+		Bun.env.EXA_API_KEY = "exa-env";
 		// Plain name derived from the catalog table's `envVars`.
 		expect(getEnvApiKey("zenmux")).toBe("zenmux-env");
-		process.env.UMANS_AI_CODING_PLAN_API_KEY = "umans-env";
+		Bun.env.UMANS_AI_CODING_PLAN_API_KEY = "umans-env";
 		expect(getEnvApiKey("umans")).toBe("umans-env");
-		process.env.LLAMA_CPP_API_KEY = "llama-env";
+		Bun.env.LLAMA_CPP_API_KEY = "llama-env";
 		expect(getEnvApiKey("llama.cpp")).toBe("llama-env");
 		// Exa is derived from the provider registry's `envKeys` definition.
 		expect(getEnvApiKey("exa")).toBe("exa-env");
 	});
 
 	test("multi-var catalog env fallback picks names in order", () => {
-		process.env.XAI_OAUTH_TOKEN = "xai-oauth-env";
+		Bun.env.XAI_OAUTH_TOKEN = "xai-oauth-env";
 		expect(getEnvApiKey("xai-oauth")).toBe("xai-oauth-env");
 
-		process.env.WANDB_API_KEY = "wandb-env";
+		Bun.env.WANDB_API_KEY = "wandb-env";
 		expect(getEnvApiKey("coreweave")).toBe("wandb-env");
-		process.env.COREWEAVE_API_KEY = "coreweave-env";
+		Bun.env.COREWEAVE_API_KEY = "coreweave-env";
 		expect(getEnvApiKey("coreweave")).toBe("coreweave-env");
 	});
 
@@ -83,6 +82,7 @@ describe("provider registry auth surface", () => {
 				"google-gemini-cli",
 				"openai-codex",
 				"openrouter",
+				"stencil",
 				"zai-coding-plan",
 			].sort(),
 		);
@@ -94,10 +94,21 @@ describe("provider registry auth surface", () => {
 		// zenmux has no refresher → returned as-is.
 		expect(await refreshOAuthToken("zenmux", creds)).toBe(creds);
 
-		const refreshed: OAuthCredentials = { refresh: "r2", access: "a2", expires: Date.now() + 120_000 };
-		const spy = vi.spyOn(anthropicOauth, "refreshAnthropicToken").mockResolvedValue(refreshed);
-		expect(await refreshOAuthToken("anthropic", creds)).toBe(refreshed);
-		expect(spy).toHaveBeenCalledWith("r");
+		const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+			new Response(
+				JSON.stringify({
+					access_token: "a2",
+					refresh_token: "r2",
+					expires_in: 120,
+					account: { uuid: "account", email_address: "user@example.com" },
+				}),
+				{ status: 200, headers: { "Content-Type": "application/json" } },
+			),
+		);
+		const refreshed = await refreshOAuthToken("anthropic", creds);
+		expect(refreshed.access).toBe("a2");
+		expect(refreshed.refresh).toBe("r2");
+		expect(fetchSpy).toHaveBeenCalledTimes(1);
 
 		await expect(refreshOAuthToken("nonexistent-provider" as OAuthProvider, creds)).rejects.toThrow(
 			"Unknown OAuth provider",
@@ -107,7 +118,7 @@ describe("provider registry auth surface", () => {
 	test("login dispatcher handles runtime-registered extension providers", async () => {
 		const store = new SqliteAuthCredentialStore(new Database(":memory:"));
 		const storage = new AuthStorage(store);
-		await storage.reload();
+		await storage.credentials.reload();
 		registerOAuthProvider({
 			id: "fixture-x",
 			name: "Fixture X",
@@ -115,7 +126,7 @@ describe("provider registry auth surface", () => {
 			login: async () => "fixture-key",
 		});
 
-		await storage.login("fixture-x", { onAuth: () => {}, onPrompt: async () => "" });
+		await storage.oauth.login("fixture-x", { onAuth: () => {}, onPrompt: async () => "" });
 
 		expect(store.getApiKey("fixture-x")).toBe("fixture-key");
 	});
@@ -123,9 +134,9 @@ describe("provider registry auth surface", () => {
 	test("llama.cpp login stores a local no-auth token when no key is entered", async () => {
 		const store = new SqliteAuthCredentialStore(new Database(":memory:"));
 		const storage = new AuthStorage(store);
-		await storage.reload();
+		await storage.credentials.reload();
 
-		await storage.login("llama.cpp", { onAuth: () => {}, onPrompt: async () => "" });
+		await storage.oauth.login("llama.cpp", { onAuth: () => {}, onPrompt: async () => "" });
 
 		expect(store.getApiKey("llama.cpp")).toBe("llama-cpp-local");
 	});

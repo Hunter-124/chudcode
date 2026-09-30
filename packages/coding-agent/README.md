@@ -1,8 +1,10 @@
-# @chudware/coding-agent
+# @oh-my-pi/pi-coding-agent
 
-Implementation package for the internal agent runtime. For development commands
-and source layout, see [DEVELOPMENT](./DEVELOPMENT.md); for the RPC contract, see
-[`docs/rpc.md`](../../docs/rpc.md).
+Core implementation package for the `omp` coding agent in the `omp` monorepo.
+
+For installation, setup, provider configuration, model roles, slash commands, and full CLI reference, see:
+- [Monorepo README (local)](../../README.md)
+- [Monorepo README (GitHub)](https://github.com/can1357/oh-my-pi#readme)
 
 Package-specific references:
 - [CHANGELOG](./CHANGELOG.md)
@@ -13,7 +15,7 @@ Package-specific references:
 
 ## Memory backends
 
-The agent supports three mutually-exclusive memory backends, selected via the `memory.backend` setting (Settings → Memory tab, or `~/.chudcode/config.yml`):
+The agent supports three mutually-exclusive memory backends, selected via the `memory.backend` setting (Settings → Memory tab, or `~/.omp/config.yml`):
 
 - `off` (default) — no memory subsystem runs.
 - `local` — existing rollout-summarisation pipeline; writes `memory_summary.md` and consolidated artifacts under the agent dir.

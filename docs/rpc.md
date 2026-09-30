@@ -16,17 +16,18 @@ Primary implementation:
 ## Startup
 
 ```bash
-chudcode --mode rpc [regular CLI options]
+omp --mode rpc [regular CLI options]
 ```
 
 Behavior notes:
 
 - `@file` CLI arguments are rejected in RPC mode.
+- `--no-ui` (only with `--mode rpc`) runs extensions headless: `ctx.hasUI` is `false`, dialogs resolve to their defaults, and no `extension_ui_request` frames are emitted except for a host-issued `login`. Use it when the host has no interactive surface and must not be left owing dialog answers.
 - RPC mode disables automatic session title generation by default to avoid an extra model call.
 - RPC/ACP host defaults cover task isolation/execution, memory, advisor, tier, async-job, and bash auto-background settings. They are applied only when a path is not explicitly configured; project/global config, `--config`, and isolated settings remain authoritative. Todo settings are not host-defaulted.
 - The process claims stdin before extension discovery, then parses it one non-empty JSONL line at a time. Malformed JSON emits a recoverable `command: "parse"` failure and does not terminate the loop.
 - At startup it writes a `ready` frame before processing commands. The frame advertises supported protocol versions and transport limits.
-- When stdin closes, pending extension UI, host-tool, and host-URI requests are rejected; accepted commands are drained, the session is disposed, and the process exits with code `0`.
+- When stdin closes, pending extension UI, host-tool, and host-URI requests are rejected; accepted commands are drained, the session is disposed, pending stdout is delivered, and the process exits with code `0`.
 - Responses/events are written as one JSON object per line.
 
 ## Transport and Framing
@@ -64,9 +65,13 @@ After the success response, oversized stdout objects are emitted losslessly as a
 }
 ```
 
-Clients MUST validate `chunkId`, `index`, `count`, and `byteLength`, reject interleaved or interrupted sequences, enforce the advertised reassembly limit, concatenate decoded bytes in index order, decode them as strict UTF-8, and parse the result as one JSON object. The TypeScript `RpcFrameDecoder`, exported from `@chudware/coding-agent/modes/rpc/rpc-frame`, implements this validation. The bundled TypeScript and Python `RpcClient` implementations negotiate v2 automatically when the ready frame advertises it.
+Clients MUST validate `chunkId`, `index`, `count`, and `byteLength`, reject interleaved or interrupted sequences, enforce the advertised reassembly limit, concatenate decoded bytes in index order, decode them as strict UTF-8, and parse the result as one JSON object. The TypeScript `RpcFrameDecoder`, exported from `@oh-my-pi/pi-coding-agent/modes/rpc/rpc-frame`, implements this validation. The bundled TypeScript and Python `RpcClient` implementations negotiate v2 automatically when the ready frame advertises it.
 
 Legacy clients may ignore the added ready fields and remain on v1. V1 retains its bounded fallback behavior for oversized output. Frames above the v2 reassembly ceiling still fail explicitly; large history APIs should use pagination rather than depending on arbitrarily large logical frames.
+
+Output goes directly to stdout while the reader keeps up. Under backpressure, the server spills pending bytes to a private temporary file and drains it in 64 KiB blocks, preserving frame order. This limits queued output memory at the cost of disk I/O and temporary disk usage, which can grow until the reader catches up. The file is removed when the backlog drains or the process shuts down. Output or spool failures are logged, dispose the session, and exit with code `1`.
+
+Clients MUST continue reading stdout after closing stdin. Normal EOF and extension-requested shutdown wait for pending output delivery; a client that keeps its stdout pipe open without reading can delay exit indefinitely.
 
 ### Outbound frame categories (stdout)
 
@@ -78,9 +83,10 @@ Legacy clients may ignore the added ready fields and remain on v1. V1 retains it
 6. Host URI requests/cancellations (`host_uri_request`, `host_uri_cancel`)
 7. Extension errors (`{ type: "extension_error", extensionPath, event, error }`)
 8. Available-commands updates (`{ type: "available_commands_update", commands }`), emitted at startup and whenever command metadata changes
-9. Prompt lifecycle hints (`{ type: "prompt_result", id?, agentInvoked }`) for scheduled prompts that later resolve without invoking the agent
-10. Subagent frames (`subagent_lifecycle`, `subagent_progress`, `subagent_event`), gated by `set_subagent_subscription`
-11. Builtin slash-command side channels (`command_output`, `session_info_update`, `config_update`)
+9. Prompt completion (`{ type: "prompt_result", id?, agentInvoked, status, error?, sessionSettled }`), one per accepted prompt; see [`prompt` payload](#prompt-payload)
+10. Session quiescence (`{ type: "session_settled" }`); see [Yield vs settled](#yield-vs-settled)
+11. Subagent frames (`subagent_lifecycle`, `subagent_progress`, `subagent_event`), gated by `set_subagent_subscription`
+12. Builtin slash-command side channels (`command_output`, `session_info_update`, `config_update`)
 
 ### Inbound frame categories (stdin)
 
@@ -98,11 +104,10 @@ All commands accept optional `id?: string`.
 
 Important edge behavior from runtime:
 
-- Unknown command responses are emitted with `id: undefined` (even if the request had an `id`).
+- Unknown command responses echo the request `id` when one was provided.
 - Malformed JSON and synchronous dispatch failures emit `command: "parse"` with `id: undefined`. Exceptions while handling a recognized command emit a failure with that command's `type` and `id`.
 - `prompt` and `abort_and_prompt` return immediate success, then may emit a later error response with the **same** id if async prompt scheduling fails.
-- `prompt` success responses may include `data.agentInvoked`. `false` means the prompt completed locally without an agent turn; `true` means the prompt produced agent lifecycle events; omitted means the host must rely on session events for completion.
-- `abort_and_prompt` does not currently emit `data.agentInvoked` or `prompt_result`; hosts should treat it as the legacy abort-then-schedule path and rely on session events or same-id scheduling errors.
+- An accepted `prompt` or `abort_and_prompt` completes exactly once: either its success response carries `data.agentInvoked: false` (finished locally), or a later `prompt_result` frame with the same `id` reports how its work ended. `prompt_result` is always written after the response for that `id`.
 
 ## Command Schema (canonical)
 
@@ -113,9 +118,11 @@ Important edge behavior from runtime:
 - `{ id?, type: "prompt", message: string, images?: ImageContent[], streamingBehavior?: "steer" | "followUp" }`
 - `{ id?, type: "steer", message: string, images?: ImageContent[] }`
 - `{ id?, type: "follow_up", message: string, images?: ImageContent[] }`
+- `{ id?, type: "remove_queued_message", message: string, queue: "steering" | "followUp" }`
 - `{ id?, type: "abort" }`
 - `{ id?, type: "abort_and_prompt", message: string, images?: ImageContent[] }`
 - `{ id?, type: "new_session", parentSession?: string }`
+- `{ id?, type: "open_session", sessionDir: string }`
 
 ### Protocol
 
@@ -126,45 +133,15 @@ Important edge behavior from runtime:
 - `{ id?, type: "get_state" }`
 - `{ id?, type: "set_fast_mode", enabled: boolean }`
 - `{ id?, type: "get_available_commands" }`
+- `{ id?, type: "get_entries", since?: string }`
+- `{ id?, type: "get_tree" }`
 - `{ id?, type: "set_todos", phases: TodoPhase[] }`
 - `{ id?, type: "set_host_tools", tools: RpcHostToolDefinition[] }`
 - `{ id?, type: "set_host_uri_schemes", schemes: RpcHostUriSchemeDefinition[] }`
 - `{ id?, type: "set_subagent_subscription", level: "off" | "progress" | "events" }`
+- `{ id?, type: "set_event_filter", events: string[] | null }`
 - `{ id?, type: "get_subagents" }`
 - `{ id?, type: "get_subagent_messages", subagentId?: string, sessionFile?: string, fromByte?: number }`
-
-### Speech-to-text
-
-- `{ id?, type: "stt_status" }`
-- `{ id?, type: "stt_start" }`
-- `{ id?, type: "stt_stop" }`
-- `{ id?, type: "stt_cancel" }`
-
-`stt_status` returns
-`{ ok, available, state, model, progress?, error? }`, where `state` is
-`"idle" | "recording" | "transcribing"` and `progress` is an integer percentage
-for model preparation. `available` reflects the process's `stt.enabled`
-configuration. `stt_start` warms or downloads the configured local model and
-then begins one microphone capture for the RPC process. A second start while
-setup, recording, or transcription is active fails instead of opening another
-capture.
-
-`stt_stop` stops the microphone, flushes the shared streaming ASR worker, and
-returns `{ ok: true, text, state: "idle" }`. The transcript is bounded to 64 KiB.
-`stt_cancel` is idempotent in every state: it aborts model setup, capture, or
-transcription, discards committed and volatile text, and returns
-`{ ok: true, state: "idle" }`. Cancellation keeps the model worker warm for the
-next capture. RPC EOF and extension-triggered shutdown additionally stop the
-capture and terminate the worker so neither can outlive the RPC process.
-
-All four speech commands dispatch concurrently with the serialized command
-queue so status and cancellation can overtake a model download or final
-transcription. Their responses can therefore arrive out of order and MUST be
-matched by `id`.
-
-The bundled clients expose typed `sttStatus()` / `stt_status()`,
-`sttStart()` / `stt_start()`, `sttStop()` / `stt_stop()`, and
-`sttCancel()` / `stt_cancel()` wrappers.
 
 ### Model
 
@@ -176,6 +153,7 @@ The bundled clients expose typed `sttStatus()` / `stt_status()`,
 
 - `{ id?, type: "set_thinking_level", level: ThinkingLevel }`
 - `{ id?, type: "cycle_thinking_level" }`
+- `{ id?, type: "get_available_thinking_levels" }`
 
 ### Queue modes
 
@@ -205,6 +183,22 @@ its own. The `bash` response is emitted when the command completes; hosts
 correlate it via `id`. Ordering across concurrent commands is not guaranteed
 — clients MUST match responses on `id`, not on emission order.
 
+### Speech-to-text
+
+- `{ id?, type: "stt_status" }`
+- `{ id?, type: "stt_start" }`
+- `{ id?, type: "stt_stop" }`
+- `{ id?, type: "stt_cancel" }`
+
+Speech commands run outside the serialized command lane: `stt_status` and `stt_cancel`
+can overtake model download or transcription, and responses may arrive out of order.
+`stt_start` returns `{ok:true,state:"recording",model}` only after capture starts;
+`stt_stop` returns `{ok:true,state:"idle",text}` (up to 64 KiB UTF-8). The service
+emits `extension_ui_request` updates for editor text and `stt` status; it never
+submits the transcript as a prompt. `stt_cancel` clears capture/transcript and
+returns idle; shutdown also cancels capture and terminates the STT worker.
+The bundled clients allow up to ten minutes for start/stop (first-use model download).
+
 ### Session
 
 - `{ id?, type: "get_session_stats" }`
@@ -225,25 +219,25 @@ correlate it via `id`. Ordering across concurrent commands is not guaranteed
 
 The bundled TypeScript `RpcClient.getMessages()` and Python `RpcClient.get_messages()` drain this paged endpoint automatically after negotiating v2. They retain the legacy monolithic command when connected to a v1 server, and on either `session_busy` or `stale_cursor` they discard partial pages and fall back to the legacy best-effort snapshot. Direct `getMessagesPage()` and `get_messages_page()` calls remain strict so incremental hosts never mix snapshots silently.
 
-### Login
+### Authentication
 
 - `{ id?, type: "get_login_providers" }`
 - `{ id?, type: "login", providerId: string }`
-
-### Authentication
-
 - `{ id?, type: "get_auth_state", providerId?: string }`
 - `{ id?, type: "validate_api_key", providerId: string, apiKey: string }`
 - `{ id?, type: "set_api_key", providerId: string, apiKey: string }`
 - `{ id?, type: "remove_api_key", providerId: string, accountId?: string }`
 - `{ id?, type: "logout_provider", providerId: string, accountId?: string }`
 
-`login` remains the interactive OAuth command. The additive API-key commands
-use the same provider registry and `AuthStorage` as model execution. Provider
-IDs must resolve through the built-in, runtime, or stored provider registry.
-Authentication responses never contain API keys, access/refresh tokens,
-authorization headers, or raw credential records. Request API-key strings are
-discarded after each command settles, including failures.
+Auth state contains provider id/name, authenticated/hasApiKey/hasOAuth flags,
+active credential origin, and bounded OAuth account identity labels; credential
+bytes are never returned. `validate_api_key` makes a time-bounded live provider
+request and reports `{providerId,valid}` without persisting the key. `set_api_key`
+persists the key and refreshes model discovery best-effort. `remove_api_key` removes
+stored API keys (an `accountId` cannot select an API key); `logout_provider` removes
+all stored credentials or one matching OAuth `accountId`. External runtime/config/env
+credentials remain available after removal. API-key input is limited to 64 KiB,
+cleared from the parsed command after handling, and never included in errors.
 
 ### Project memory
 
@@ -251,16 +245,23 @@ discarded after each command settles, including failures.
 - `{ id?, type: "memory_recall", root: string, query: string, limit?: number, tokenBudget?: number, kind?: string }`
 - `{ id?, type: "memory_stats", root: string }`
 
-These commands resolve the configured memory backend for the active session;
-they do not create a second memory database. `root` is canonicalized beneath
-the active project directory. Absolute or relative paths that escape that
-scope, including symlink escapes, fail as ordinary recoverable RPC errors.
+`root` is a bounded (4 KiB) existing project directory: explicit absolute
+roots are canonicalized and accepted even outside the service process cwd
+(hosts may share one no-session service process across projects). Relative
+roots resolve under that cwd and cannot escape it, including through symlinks.
+Calls use the configured session memory backend.
+Remember returns `{id}` only when stored; recall returns bounded `{hits}` (1–100
+hits, default 10; token budget 1–32768, default 4096); stats returns a path-free
+backend/activity/count summary. Off or unavailable backends refuse writes rather
+than fabricate success. The optional `kind` on recall is validated but the generic
+memory search backend does not expose kind filtering.
 
-Bounds are enforced before backend work: roots are at most 4 KiB, remember
-content 64 KiB, queries 8 KiB, recall `limit` is 1–100, and `tokenBudget` is
-1–32,768 (default 4,096). Recall output is truncated to the requested
-approximate token budget. `importance`, when supplied, is finite and between
-0 and 1.
+### Login
+
+Login forwards ordinary OAuth input prompts only after the provider emits an
+authorization URL. Prompts marked `secret: true` are always rejected with a
+failed `login` response directing the user to the terminal UI; no ordinary
+`input` request is emitted. RPC does not negotiate secret-input support.
 
 ## Response Schema
 
@@ -285,15 +286,62 @@ Data payloads are command-specific and defined in `rpc-types.ts`.
 }
 ```
 
-`data.agentInvoked: false` is a completion signal for local-only prompts, including slash commands that produce output without starting an agent turn. `data.agentInvoked: true` means the prompt produced agent lifecycle events; those events can be emitted before or after the prompt response depending on the command path. Older runtimes may omit `data`; hosts should then rely on `agent_end`, custom message completion, or `prompt_result`.
-
-`prompt_result` is emitted when a prompt was accepted immediately but later resolves as local-only:
+`data.agentInvoked: false` is the completion signal for slash commands that finish synchronously without starting an agent turn; no `prompt_result` follows. Every other accepted `prompt` (and every `abort_and_prompt`) is completed by one `prompt_result` frame carrying the command `id`, emitted once all work the prompt caused has settled:
 
 ```json
-{ "type": "prompt_result", "id": "req_1", "agentInvoked": false }
+{ "type": "prompt_result", "id": "req_1", "agentInvoked": true, "status": "completed", "sessionSettled": true }
 ```
 
-Local-only slash commands may emit `command_output` frames before completing via `data.agentInvoked: false` or a later `prompt_result`. They do not emit `agent_end`.
+- `agentInvoked: false`: the prompt finished locally (an extension or custom command that started no turn) or failed before reaching the agent.
+- `agentInvoked: true`: the prompt reached the agent and the agent **yielded** — see [Yield vs settled](#yield-vs-settled). A prompt dispatched as a fresh turn reports the first run that started after it was accepted, so a late `agent_end` from an earlier run never completes it. A prompt queued into a live run (`streamingBehavior`) reports at the first yield after its message left the queue. An `agent_end` with `yielded: false` (the agent is retrying, compacting, or answering a stop-time reminder) never completes a prompt.
+- `status`: `"completed"`, `"aborted"` (interrupted by `abort`, `abort_and_prompt`, or a session transition, or dropped by an abort before dispatch), or `"error"`.
+- `error` (only with `status: "error"`): `{ message, provider?, model?, httpStatus?, retryable }`. `message` is the provider's error text with OMP-local diagnostics (such as saved request-dump paths) removed. `retryable` marks a transient failure; OMP's own automatic retries have already been exhausted. A prompt that fails before reaching the agent also gets the legacy error response with the same `id` before its `prompt_result`.
+- `sessionSettled`: whether the session is already done when the result is written — see [Yield vs settled](#yield-vs-settled). `false` means background work can still wake the agent; a `session_settled` frame follows once it has.
+
+A failed provider turn is not a failed command: the prompt response is still `success: true`, and the turn ends with a normal terminal `agent_end` whose last assistant message has `stopReason: "error"`. Use `prompt_result.status` rather than parsing that message.
+
+Local-only slash commands may emit `command_output` frames before completing. They do not emit `agent_end`.
+
+### Yield vs settled
+
+A prompt's `prompt_result` means the **agent yielded**: it finished its turn (`agent_end` with `yielded: true`). The **session is done** only when, in addition, nothing can wake it again — no run is live or admitted, no steer/follow-up is queued, and no background job (auto-backgrounded `bash`, async `task`, `eval`) or pending delivery will inject its result and start a follow-up turn.
+
+- `session_settled` is written once per stretch of agent activity, when the session becomes done. If background work was pending at the yield, OMP waits it out; any follow-up runs it triggers stream normally (`agent_start` … `agent_end`) before `session_settled`. It always follows the `prompt_result` frames of the final yield, and is not emitted for prompts that never reached the agent.
+- `prompt_result.sessionSettled` answers the same question at the yield, so a host can tear down immediately when it is `true`.
+- `get_state` reports `isSettled` (same predicate) and `hasPendingAsyncWork`, for hosts that attach mid-stream.
+
+Wait on `prompt_result` to present a turn's answer; wait on `session_settled` (or `isSettled`) before treating the conversation as finished, e.g. before pausing or recycling a sandbox.
+
+### `open_session` payload
+
+`open_session` binds the process to a host-keyed conversation directory — the runtime equivalent of `--session-dir <dir> --continue`, so a pre-spawned process can adopt a thread after startup. It continues the newest non-empty session in `sessionDir`, or starts a fresh session there when none exists. Reopening the session that is already active (including a still-empty fresh session in the same directory) is a no-op that does not interrupt a running turn; otherwise the current run is aborted as with `switch_session`, and open prompts complete with `status: "aborted"`.
+
+```json
+{ "cancelled": false, "resumed": true, "sessionId": "01a0...", "sessionFile": "/srv/threads/t1/2026-...jsonl" }
+```
+
+`resumed` is `false` when a fresh session was started. The command fails when the process runs without persistence (`--no-session`).
+
+### `remove_queued_message` payload
+
+Remove the first matching user-authored message from the selected pending queue:
+
+```json
+{"id":"req_2","type":"remove_queued_message","message":"Use the existing parser","queue":"steering"}
+{"id":"req_2","type":"response","command":"remove_queued_message","success":true,"data":{"removed":true}}
+```
+
+`message` matches the queue-chip text or its prompt-template expansion. Queued RPC skill commands retain their original `/skill:<name>` invocation as the chip text. Removal also drops that message's attachments and contiguous preceding hidden user companions (keyword notices, image descriptions, and video source paths), preserving other messages and the other queue.
+
+Companions and their prompt are enqueued and dequeued as a complete group, including in `one-at-a-time` mode. Once that group leaves the pending queue for delivery, a removal request cannot report success after only part of its context has been emitted.
+
+Agent-authored entries never match, including internal handoffs with `role: "user"` and `attribution: "agent"`. With duplicate text, each request removes only the first matching occurrence; repeating a successful request can remove another occurrence.
+
+The check and removal are synchronous: `data.removed: false` means no matching user message is pending in that queue at dispatch time. Already-dequeued messages and inputs still being preprocessed cannot be cancelled by this command. It does not resend input, abort a turn, or change interruption behavior. Non-string `message` values and missing or invalid `queue` values produce an error response.
+
+Clients must hide the chip or restore its draft only after `removed: true`. Older runtimes reject this command; clients must not fall back to aborting or resending queued messages. The TypeScript client exposes `removeQueuedMessage(message, queue): Promise<{ removed: boolean }>`.
+
+The official Python client exposes `remove_queued_message(message, queue) -> RemoveQueuedMessageResult`; inspect its `.removed` boolean rather than the result object's truthiness.
 
 ### `get_state` payload
 
@@ -328,6 +376,7 @@ is re-armed.
   "autoCompactionEnabled": true,
   "messageCount": 0,
   "queuedMessageCount": 0,
+  "queuedMessages": { "steering": [], "followUp": [] },
   "todoPhases": [
     {
       "id": "phase-1",
@@ -356,6 +405,13 @@ is re-armed.
   }
 }
 ```
+
+`queuedMessages` holds the same displayable queue-chip text as the `queue_update`
+event below — every entry is a `message` value that `remove_queued_message`
+will match against that queue. Clients should render the pending-message queue
+from these snapshots instead of tracking chips independently, and treat
+`remove_queued_message` responses as confirmation of the change rather than a
+second source of truth.
 
 ### `set_fast_mode` payload
 
@@ -498,6 +554,15 @@ Definitions also accept `hidden?: boolean` and
 known essential built-in names remain `"essential"`; other host tools default
 to `"discoverable"`. `toolNames` in the response lists the registered names.
 
+Task sub-agents inherit these live host tools over the same RPC connection.
+Replacing the set updates existing child sessions; each child's explicit `tools`
+list narrows its inherited set. Restricted and read-only plan children receive
+none. Child tools remain available to their own descendants. `--tools` also
+forms a ceiling for built-in tools in every descendant; host/custom/MCP names
+are admitted by the child's own tool list. `--no-lsp` and `--no-mcp` propagate
+through the spawn tree.
+
+
 ### `set_host_uri_schemes` payload
 
 Replaces the current set of host-owned URL schemes the RPC server should
@@ -530,54 +595,10 @@ Schemes are case-insensitive on the wire and normalized to lowercase before
 the response is sent. Re-sending `set_host_uri_schemes` replaces the entire
 previous set — schemes missing from the new list are unregistered.
 
-`security://` is reserved for Chudcode's producer-neutral software-security resource
-store. RPC hosts cannot register or shadow that scheme.
+Every built-in scheme (`local://`, `skill://`, `artifact://`, `security://`,
+`mcp://`, …) is reserved: RPC hosts cannot register or shadow one, and the
+request fails with `Host URI scheme is reserved by OMP: <scheme>://`.
 
-
-### Authentication payloads
-
-`get_auth_state` returns `{ providers }`. Every provider is secret-free:
-
-```ts
-interface RpcAuthProviderState {
-  providerId: string;
-  name: string;
-  authenticated: boolean;
-  hasApiKey: boolean;
-  hasOAuth: boolean;
-  origin?: "runtime" | "config" | "oauth" | "api_key" | "env" | "fallback";
-  accounts: Array<{
-    accountId?: string;
-    email?: string;
-    projectId?: string;
-    orgId?: string;
-    orgName?: string;
-  }>;
-}
-```
-
-`validate_api_key` returns `{ providerId, valid }` and does not persist the
-key. It makes a bounded provider-native validation request (or uses the
-provider's registered API-key login validator when it has no model transport).
-Provider authentication failures are collapsed to `valid: false`; neither
-provider response bodies nor the submitted key are reflected into RPC output.
-`set_api_key` persists through `AuthStorage` and returns `{ provider }`.
-`remove_api_key` returns `{ providerId, removed, provider }`.
-`logout_provider` returns `{ providerId, loggedOut, provider }`. The returned
-`provider` is the post-operation sanitized state, so environment/config
-credentials that remain visible are reported honestly.
-
-### Project-memory payloads
-
-- `memory_remember`: `{ id: string }`
-- `memory_recall`: `{ hits: RpcMemoryHit[] }`, where each hit contains bounded
-  `content` and optional `id`, `source`, `timestamp`, and finite `score`
-- `memory_stats`: `{ stats }`, containing only `backend`, `active`, `writable`,
-  `searchable`, optional `scope`, and optional non-negative
-  `workingCount`/`episodicCount`/`tripleCount`
-
-Paths, database names, backend diagnostics, and unbounded backend messages are
-not included in memory responses.
 ## Event Stream Schema
 
 RPC mode forwards `AgentSessionEvent` objects from `AgentSession.subscribe(...)`.
@@ -595,6 +616,25 @@ Common event types:
 - `ttsr_triggered`
 - `todo_reminder`, `todo_auto_clear`
 - `irc_message`, `notice`, `goal_updated`
+- `queue_update`
+
+### `queue_update` event
+
+```json
+{ "type": "queue_update", "steering": ["Use the existing parser"], "followUp": [] }
+```
+
+Emitted whenever the displayable steering/follow-up queue changes: a `steer`,
+`follow_up`, or queued `prompt` adds to it; delivery at the start of the next
+turn, `remove_queued_message`, an abort that drops in-flight queued messages,
+or a session switch removes from or clears it. The server coalesces this
+against the last value sent — a mutation that leaves the snapshot unchanged
+(for example, an agent-authored aside that never renders as a chip) never
+re-emits. `steering`/`followUp` mirror `get_state`'s `queuedMessages` field and
+carry the exact `message` text `remove_queued_message` expects back. Render
+the queue from this event rather than tracking chips independently, and treat
+`remove_queued_message`/promotion replies as confirmation of a change this
+event will also report.
 
 Extension runner errors are emitted separately as:
 
@@ -609,6 +649,10 @@ Extension runner errors are emitted separately as:
 
 `message_update` includes streaming deltas in `assistantMessageEvent` (text/thinking/toolcall deltas).
 
+`message_start`, `message_update`, and `message_end` carry a `messageId` string assigned by RPC mode. One message keeps the same id from its start through every update to its end; ids are unique within the process. Records injected mid-stream (advisor cards, IRC messages) get their own id and do not disturb the id of the reply streaming around them.
+
+`set_event_filter` restricts which session event frames are written: pass the event `type` strings to forward, or `null` to forward everything (the default). The response echoes the active selection as `{ events }`. The filter applies only to the session events listed above; every other outbound category (responses, `prompt_result`, `session_settled`, extension UI and host tool/URI requests, `extension_error`, `available_commands_update`, subagent frames, builtin slash-command side channels, and session-persistence `notice` frames) is always written. Hosts that fail closed on unknown event kinds can pin the set they understand here instead of breaking when OMP adds an event.
+
 `agent_end` has this session-level shape (in addition to optional telemetry fields):
 
 ```ts
@@ -616,8 +660,11 @@ Extension runner errors are emitted separately as:
   type: "agent_end";
   messages: AgentMessage[];
   isTerminal?: boolean;
+  yielded?: boolean;
 }
 ```
+
+`yielded` is `true` when the agent finished its turn: the end is terminal, or the session resumes only for queued input or background-job results. It is `false` while the agent continues its own work (retry, compaction continuation, stop-time reminders). Frames from older runtimes omit it; treat those as yielded only when terminal.
 
 `isTerminal: false` means maintenance or async delivery has scheduled more work,
 so the session will resume before its true final settle. Treat an `agent_end` as
@@ -630,6 +677,42 @@ from older runtimes, where it is absent, remain terminal-compatible.
 in `available_commands_update` frames at startup and after command metadata
 changes. Each command has `name`, `source`, and optional `aliases`,
 `description`, `input.hint`, and `subcommands`.
+
+Command discovery is intentionally an OMP dialect: Pi's `get_commands` (a
+`RpcSlashCommand[]` projection over extensions → prompt templates → skills) is
+not served because OMP's richer catalog (builtins/custom/MCP/file commands,
+broader `source` enum, no Pi `sourceInfo`) is not wire-compatible with it.
+
+### Pi-compatible history/tree commands with OMP-native entry payloads
+
+The commands and reconciliation semantics below are Pi-compatible, but the
+returned `SessionEntry` payload union is OMP-native, not wire-identical to
+Pi. Concretely: Pi `model_change` carries `provider` + `modelId` while OMP
+carries a combined `model` plus role/fallback metadata; Pi uses a `usage`
+entry where OMP uses `model_usage`; and OMP has additional entry types (for
+example service-tier, title, mode, credential, and reset records). A
+permissive client that consumes the common structural subset
+(`id`/`parentId` plus message entries) can share one durable-history
+algorithm across both, while a strict Pi `SessionEntry` decoder cannot assume
+identical payloads.
+
+`get_entries` reads the canonical append-history (not the active branch only)
+and returns `{ entries, leafId }`. Without `since` it returns all entries in
+append order; with `since` it returns entries strictly after the matching
+durable entry id. An unknown `since` fails explicitly with
+`code: "unknown_since"`. `get_tree` returns the raw session tree as
+`{ tree, leafId }` straight from `SessionManager`, not a UI projection.
+
+`get_available_thinking_levels` returns `{ levels }`: the selectable levels
+for the live model with `"off"` first (it is accepted by
+`set_thinking_level` but excluded from the effort-only model helper). OMP-only
+`auto`/`inherit` selectors are intentionally omitted from discovery.
+
+Lifecycle stays OMP: terminal settle is `agent_end` with
+`isTerminal !== false`, not Pi's `agent_settled`; `prompt_result`/
+`agentInvoked`, `open_session`, `set_event_filter`, `messageId`, `ready`,
+negotiation, chunking, host tools, and subagents are OMP extensions a
+Pi-family adapter must dialect around.
 
 ### Subagent subscriptions
 
@@ -661,8 +744,9 @@ This is the most important operational behavior.
 That means:
 
 - command acceptance != run completion
-- agent turns complete only on `agent_end` frames where `isTerminal !== false`
-- local-only prompts complete via `data.agentInvoked: false` on the response or via a later `prompt_result`
+- a prompt completes via `data.agentInvoked: false` on its response or via its own `prompt_result`
+- a run completes on an `agent_end` frame where `isTerminal !== false`; that frame carries no prompt identity, so correlate prompts through `prompt_result`
+- the session is done only at `session_settled`: background jobs can wake the agent after it yields
 
 ### While streaming
 
@@ -692,7 +776,7 @@ From `packages/agent/src/agent.ts` defaults:
 
 ## Extension UI Sub-Protocol
 
-Extensions in RPC mode use request/response UI frames.
+Extensions in RPC mode use request/response UI frames. A host that cannot answer them starts with `--no-ui`: extensions then see `ctx.hasUI === false`, dialogs resolve to their defaults without emitting frames, and presentation updates (`notify`, `setStatus`, `setWidget`, `set_editor_text`) are dropped. `--mode rpc-ui` additionally routes tool UI (e.g. the `ask` tool) through this sub-protocol.
 
 ### Outbound request
 
@@ -706,18 +790,11 @@ Extensions in RPC mode use request/response UI frames.
 - `notify`, `setStatus`, `setWidget`, `setTitle`, `set_editor_text`
 - `open_url` (emitted by RPC login flows)
 
-Speech capture uses passive extension requests only: `setStatus` with
-`statusKey: "stt"` carries download/listening/transcription state,
-`set_editor_text` carries the bounded committed-plus-volatile transcript, and
-`notify` with `notifyType: "error"` carries secret-sanitized capture/model
-failures. Hosts MUST NOT send `extension_ui_response` frames for these passive
-updates.
-
 Runtime note:
 
 - Automatic session title generation is disabled in RPC mode, and `setTitle` UI
   requests are also suppressed by default because most hosts do not have a
-  meaningful terminal-title surface. Set `CHUDCODE_RPC_EMIT_TITLE=1` to opt back in to
+  meaningful terminal-title surface. Set `PI_RPC_EMIT_TITLE=1` to opt back in to
   the UI event only.
 
 Example:
@@ -761,6 +838,11 @@ When the agent wants the host to execute one of those tools, RPC mode emits:
   "arguments": { "message": "hello" }
 }
 ```
+
+Calls originating in a sub-agent add `agentId` (the child's registry id) and
+`parentAgentId` (its spawner's registry id, `"Main"` for first-level children)
+to `host_tool_call`. Top-level calls omit both fields. Aborting a child with an
+in-flight host request emits `host_tool_cancel` for that request id.
 
 If the tool execution is later aborted, RPC mode emits:
 
@@ -919,8 +1001,10 @@ stdout sequence (typical):
 ```json
 { "id": "req_1", "type": "response", "command": "prompt", "success": true }
 { "type": "agent_start" }
-{ "type": "message_update", "assistantMessageEvent": { "type": "text_delta", "delta": "..." }, "message": { "role": "assistant", "content": [] } }
+{ "type": "message_update", "messageId": "msg-2", "assistantMessageEvent": { "type": "text_delta", "delta": "..." }, "message": { "role": "assistant", "content": [] } }
 { "type": "agent_end", "messages": [], "isTerminal": true }
+{ "type": "prompt_result", "id": "req_1", "agentInvoked": true, "status": "completed", "sessionSettled": true }
+{ "type": "session_settled" }
 ```
 
 ### 2) Prompt during streaming with explicit queue policy
@@ -966,44 +1050,6 @@ stdin:
 { "type": "extension_ui_response", "id": "ui_7", "value": "feature/rpc-host" }
 ```
 
-### 5) Host authentication and project memory
-
-Raw hosts can correlate setup calls independently, then prompt on the same
-single session:
-
-```jsonl
-{ "id": "auth-1", "type": "set_api_key", "providerId": "anthropic", "apiKey": "<host-provided-secret>" }
-{ "id": "mem-1", "type": "memory_remember", "root": ".", "content": "Assembly units are millimeters.", "kind": "project", "source": "host-settings" }
-{ "id": "mem-2", "type": "memory_recall", "root": ".", "query": "assembly units", "limit": 5, "tokenBudget": 512 }
-{ "id": "turn-1", "type": "prompt", "message": "Use the project units and inspect the assembly." }
-```
-
-Responses may arrive amid session events; match `auth-1`, `mem-1`, `mem-2`,
-and `turn-1` by `id`. Never write the first request or its response-adjacent
-buffers to host logs.
-
-The TypeScript client exposes the same flow without bypassing framing or
-correlation:
-
-```ts
-const client = new RpcClient({ cwd: projectRoot });
-await client.start();
-await client.setApiKey("anthropic", process.env.ANTHROPIC_API_KEY!);
-await client.memoryRemember({
-  root: projectRoot,
-  content: "Assembly units are millimeters.",
-  kind: "project",
-  source: "host-settings",
-});
-const recalled = await client.memoryRecall({
-  root: projectRoot,
-  query: "assembly units",
-  limit: 5,
-  tokenBudget: 512,
-});
-await client.prompt(`Use this project memory: ${recalled.hits.map(hit => hit.content).join("\n")}`);
-```
-
 ## Client libraries
 
 ### TypeScript helper
@@ -1016,16 +1062,14 @@ Current helper characteristics:
 - Correlates responses by generated `req_<n>` ids
 - Dispatches recognized core `AgentEvent` types to listeners
 - Supports host-owned custom tools via `setCustomTools()` and automatic handling of `host_tool_call` / `host_tool_cancel`
-- Wraps auth/OAuth and project-memory commands, including `getAuthState()`,
-  `validateApiKey()`, `setApiKey()`, `removeApiKey()`, `logoutProvider()`,
-  `memoryRemember()`, `memoryRecall()`, and `memoryStats()`
+- Wraps common protocol commands including OAuth `getLoginProviders()` / `login(...)`; use raw protocol frames for any surface not wrapped by the helper.
 
 ### Python package
 
-The bundled [`chudcode-rpc`](../python/chudcode-rpc/pyproject.toml) distribution provides the process-backed Python client. Its import package is `chudcode_rpc`; the package API, typed commands and events, host-tool/host-URI helpers, and orchestration examples are maintained in the [`chudcode-rpc` README](../python/chudcode-rpc/README.md).
+The bundled [`omp-rpc`](../python/omp-rpc/pyproject.toml) distribution provides the process-backed Python client. Its import package is `omp_rpc`; the package API, typed commands and events, host-tool/host-URI helpers, and orchestration examples are maintained in the [`omp-rpc` README](../python/omp-rpc/README.md).
 
 ```python
-from chudcode_rpc import RpcClient
+from omp_rpc import RpcClient
 
 with RpcClient(provider="anthropic", model="claude-sonnet-4-5") as client:
     state = client.get_state()
@@ -1033,4 +1077,4 @@ with RpcClient(provider="anthropic", model="claude-sonnet-4-5") as client:
     print(turn.require_assistant_text())
 ```
 
-By default, `RpcClient` starts `chudcode --mode rpc`; pass `command=[...]` to own the exact child command. It handles request correlation, typed notifications, v2 negotiation and chunk reassembly, message pagination, extension UI, and host-owned tools and URI schemes. The Python package owns that client API and process lifecycle; this document and `rpc-types.ts` remain the canonical wire contract. Use raw protocol frames when a client library does not wrap the surface you need.
+By default, `RpcClient` starts `omp --mode rpc`; pass `command=[...]` to own the exact child command. It handles request correlation, typed notifications, v2 negotiation and chunk reassembly, message pagination, extension UI, and host-owned tools and URI schemes. The Python package owns that client API and process lifecycle; this document and `rpc-types.ts` remain the canonical wire contract. Use raw protocol frames when a client library does not wrap the surface you need.

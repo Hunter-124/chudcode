@@ -6,10 +6,9 @@
  * from the same cursor forever.
  */
 import { describe, expect, it, vi } from "bun:test";
-import type { HostFrame, SessionEntry } from "@chudware/wire";
+import type { HostFrame, SessionEntry } from "@oh-my-pi/pi-wire";
 import { GuestClient } from "../src/lib/client";
 import { encodeBase64Url } from "../src/lib/link";
-import type { TranscriptResult } from "../src/lib/session-client";
 import { decideTranscriptPoll } from "../src/lib/transcript-poll";
 
 const LINK = `roomroomroom1234#${encodeBase64Url(new Uint8Array(32))}`;
@@ -33,7 +32,7 @@ describe("GuestClient.fetchTranscript", () => {
 		const client = new GuestClient(LINK, "tester");
 		const promise = client.fetchTranscript("agent-1", 128);
 		client.applyFrameForTest(transcriptFrame(1, "", 128, "transcript entry exceeds transcript fetch cap"));
-		const result: TranscriptResult | null = await promise;
+		const result = await promise;
 		expect(result).toEqual({ kind: "error", message: "transcript entry exceeds transcript fetch cap" });
 	});
 
@@ -41,7 +40,7 @@ describe("GuestClient.fetchTranscript", () => {
 		const client = new GuestClient(LINK, "tester");
 		const promise = client.fetchTranscript("agent-1", 0);
 		client.applyFrameForTest(transcriptFrame(1, '{"type":"message"}\n', 19));
-		const result: TranscriptResult | null = await promise;
+		const result = await promise;
 		expect(result).toEqual({ kind: "rows", text: '{"type":"message"}\n', newSize: 19 });
 	});
 
@@ -124,22 +123,6 @@ describe("decideTranscriptPoll", () => {
 			newSize: 100,
 			carry: "",
 			fresh: [entry],
-		});
-	});
-
-	it("surfaces the error after rows were already read (rows then error sequence)", () => {
-		// First poll returns rows; second returns the host's terminal error with
-		// an unchanged cursor. The error decision must be stop — never retry —
-		// while the prior advance already delivered its entries.
-		const first = decideTranscriptPoll({ kind: "rows", text: '{"type":"message","id":"m1"}\n', newSize: 29 }, "");
-		expect(first.action).toBe("advance");
-		const second = decideTranscriptPoll(
-			{ kind: "error", message: "transcript entry exceeds transcript fetch cap (4194304 bytes)" },
-			first.action === "advance" ? first.carry : "",
-		);
-		expect(second).toEqual({
-			action: "stop",
-			message: "transcript entry exceeds transcript fetch cap (4194304 bytes)",
 		});
 	});
 });

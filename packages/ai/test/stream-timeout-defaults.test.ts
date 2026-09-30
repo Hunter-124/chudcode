@@ -6,8 +6,7 @@ import {
 	getStreamIdleTimeoutMs,
 	iterateWithIdleTimeout,
 	iterateWithTerminalGrace,
-} from "@chudware/ai/utils/idle-iterator";
-import { sleep } from "@chudware/utils/async";
+} from "@oh-my-pi/pi-ai/utils/idle-iterator";
 
 /**
  * Per-provider fallback overrides on the stream-watchdog helpers.
@@ -19,18 +18,18 @@ import { sleep } from "@chudware/utils/async";
  */
 
 const ENV_KEYS = [
-	"CHUDCODE_STREAM_IDLE_TIMEOUT_MS",
-	"CHUDCODE_OPENAI_STREAM_IDLE_TIMEOUT_MS",
-	"CHUDCODE_STREAM_FIRST_EVENT_TIMEOUT_MS",
-	"CHUDCODE_OPENAI_STREAM_FIRST_EVENT_TIMEOUT_MS",
+	"PI_STREAM_IDLE_TIMEOUT_MS",
+	"PI_OPENAI_STREAM_IDLE_TIMEOUT_MS",
+	"PI_STREAM_FIRST_EVENT_TIMEOUT_MS",
+	"PI_OPENAI_STREAM_FIRST_EVENT_TIMEOUT_MS",
 ] as const;
 
 const originalEnv: Partial<Record<(typeof ENV_KEYS)[number], string | undefined>> = {};
 
 beforeEach(() => {
 	for (const key of ENV_KEYS) {
-		originalEnv[key] = process.env[key];
-		delete process.env[key];
+		originalEnv[key] = Bun.env[key];
+		delete Bun.env[key];
 	}
 });
 
@@ -38,9 +37,9 @@ afterEach(() => {
 	for (const key of ENV_KEYS) {
 		const prior = originalEnv[key];
 		if (prior === undefined) {
-			delete process.env[key];
+			delete Bun.env[key];
 		} else {
-			process.env[key] = prior;
+			Bun.env[key] = prior;
 		}
 	}
 	vi.useRealTimers();
@@ -51,13 +50,13 @@ describe("getStreamIdleTimeoutMs(fallbackMs)", () => {
 		expect(getStreamIdleTimeoutMs(300_000)).toBe(300_000);
 	});
 
-	it("lets CHUDCODE_STREAM_IDLE_TIMEOUT_MS override the per-provider fallback", () => {
-		process.env.CHUDCODE_STREAM_IDLE_TIMEOUT_MS = "42";
+	it("lets PI_STREAM_IDLE_TIMEOUT_MS override the per-provider fallback", () => {
+		Bun.env.PI_STREAM_IDLE_TIMEOUT_MS = "42";
 		expect(getStreamIdleTimeoutMs(300_000)).toBe(42);
 	});
 
-	it("treats CHUDCODE_STREAM_IDLE_TIMEOUT_MS=0 as a watchdog disable", () => {
-		process.env.CHUDCODE_STREAM_IDLE_TIMEOUT_MS = "0";
+	it("treats PI_STREAM_IDLE_TIMEOUT_MS=0 as a watchdog disable", () => {
+		Bun.env.PI_STREAM_IDLE_TIMEOUT_MS = "0";
 		expect(getStreamIdleTimeoutMs(300_000)).toBeUndefined();
 	});
 });
@@ -67,14 +66,14 @@ describe("getOpenAIStreamIdleTimeoutMs(fallbackMs)", () => {
 		expect(getOpenAIStreamIdleTimeoutMs(600_000)).toBe(600_000);
 	});
 
-	it("lets CHUDCODE_OPENAI_STREAM_IDLE_TIMEOUT_MS override the fallback before the generic env var", () => {
-		process.env.CHUDCODE_STREAM_IDLE_TIMEOUT_MS = "42";
-		process.env.CHUDCODE_OPENAI_STREAM_IDLE_TIMEOUT_MS = "84";
+	it("lets PI_OPENAI_STREAM_IDLE_TIMEOUT_MS override the fallback before the generic env var", () => {
+		Bun.env.PI_STREAM_IDLE_TIMEOUT_MS = "42";
+		Bun.env.PI_OPENAI_STREAM_IDLE_TIMEOUT_MS = "84";
 		expect(getOpenAIStreamIdleTimeoutMs(600_000)).toBe(84);
 	});
 
-	it("treats CHUDCODE_OPENAI_STREAM_IDLE_TIMEOUT_MS=0 as a watchdog disable", () => {
-		process.env.CHUDCODE_OPENAI_STREAM_IDLE_TIMEOUT_MS = "0";
+	it("treats PI_OPENAI_STREAM_IDLE_TIMEOUT_MS=0 as a watchdog disable", () => {
+		Bun.env.PI_OPENAI_STREAM_IDLE_TIMEOUT_MS = "0";
 		expect(getOpenAIStreamIdleTimeoutMs(600_000)).toBeUndefined();
 	});
 });
@@ -92,13 +91,13 @@ describe("getStreamFirstEventTimeoutMs(idleTimeoutMs, fallbackMs)", () => {
 		expect(getStreamFirstEventTimeoutMs(500_000, 300_000)).toBe(500_000);
 	});
 
-	it("lets CHUDCODE_STREAM_FIRST_EVENT_TIMEOUT_MS override the per-provider fallback", () => {
-		process.env.CHUDCODE_STREAM_FIRST_EVENT_TIMEOUT_MS = "42";
+	it("lets PI_STREAM_FIRST_EVENT_TIMEOUT_MS override the per-provider fallback", () => {
+		Bun.env.PI_STREAM_FIRST_EVENT_TIMEOUT_MS = "42";
 		expect(getStreamFirstEventTimeoutMs(undefined, 300_000)).toBe(42);
 	});
 
-	it("treats CHUDCODE_STREAM_FIRST_EVENT_TIMEOUT_MS=0 as a watchdog disable", () => {
-		process.env.CHUDCODE_STREAM_FIRST_EVENT_TIMEOUT_MS = "0";
+	it("treats PI_STREAM_FIRST_EVENT_TIMEOUT_MS=0 as a watchdog disable", () => {
+		Bun.env.PI_STREAM_FIRST_EVENT_TIMEOUT_MS = "0";
 		expect(getStreamFirstEventTimeoutMs(undefined, 300_000)).toBeUndefined();
 	});
 
@@ -109,18 +108,18 @@ describe("getStreamFirstEventTimeoutMs(idleTimeoutMs, fallbackMs)", () => {
 
 describe("getOpenAIStreamFirstEventTimeoutMs(idleTimeoutMs, fallbackMs)", () => {
 	it("floors the first-event budget at the caller-resolved idle when the generic env is lower", () => {
-		process.env.CHUDCODE_STREAM_FIRST_EVENT_TIMEOUT_MS = "20";
+		Bun.env.PI_STREAM_FIRST_EVENT_TIMEOUT_MS = "20";
 		expect(getOpenAIStreamFirstEventTimeoutMs(1500, 100_000)).toBe(1500);
 	});
 
-	it("honors CHUDCODE_OPENAI_STREAM_FIRST_EVENT_TIMEOUT_MS even when caller pins per-call idle", () => {
-		process.env.CHUDCODE_OPENAI_STREAM_FIRST_EVENT_TIMEOUT_MS = "42";
-		process.env.CHUDCODE_STREAM_FIRST_EVENT_TIMEOUT_MS = "20";
+	it("honors PI_OPENAI_STREAM_FIRST_EVENT_TIMEOUT_MS even when caller pins per-call idle", () => {
+		Bun.env.PI_OPENAI_STREAM_FIRST_EVENT_TIMEOUT_MS = "42";
+		Bun.env.PI_STREAM_FIRST_EVENT_TIMEOUT_MS = "20";
 		expect(getOpenAIStreamFirstEventTimeoutMs(5_000, 100_000)).toBe(42);
 	});
 
-	it("treats CHUDCODE_OPENAI_STREAM_FIRST_EVENT_TIMEOUT_MS=0 as an explicit watchdog disable", () => {
-		process.env.CHUDCODE_OPENAI_STREAM_FIRST_EVENT_TIMEOUT_MS = "0";
+	it("treats PI_OPENAI_STREAM_FIRST_EVENT_TIMEOUT_MS=0 as an explicit watchdog disable", () => {
+		Bun.env.PI_OPENAI_STREAM_FIRST_EVENT_TIMEOUT_MS = "0";
 		expect(getOpenAIStreamFirstEventTimeoutMs(1500, 100_000)).toBe(0);
 	});
 
@@ -129,12 +128,12 @@ describe("getOpenAIStreamFirstEventTimeoutMs(idleTimeoutMs, fallbackMs)", () => 
 	});
 
 	it("falls back to the generic first-event env when OpenAI env vars are unset", () => {
-		process.env.CHUDCODE_STREAM_FIRST_EVENT_TIMEOUT_MS = "42";
+		Bun.env.PI_STREAM_FIRST_EVENT_TIMEOUT_MS = "42";
 		expect(getOpenAIStreamFirstEventTimeoutMs(undefined, 300_000)).toBe(42);
 	});
 
-	it("respects CHUDCODE_STREAM_FIRST_EVENT_TIMEOUT_MS=0 disable when no OpenAI override is set", () => {
-		process.env.CHUDCODE_STREAM_FIRST_EVENT_TIMEOUT_MS = "0";
+	it("respects PI_STREAM_FIRST_EVENT_TIMEOUT_MS=0 disable when no OpenAI override is set", () => {
+		Bun.env.PI_STREAM_FIRST_EVENT_TIMEOUT_MS = "0";
 		expect(getOpenAIStreamFirstEventTimeoutMs(1500, 100_000)).toBe(0);
 	});
 });
@@ -166,7 +165,7 @@ describe("iterateWithIdleTimeout", () => {
 
 		async function* noProgressItems(): AsyncGenerator<{ type: "keepalive" }> {
 			while (true) {
-				await sleep(2);
+				await Bun.sleep(2);
 				yield { type: "keepalive" };
 			}
 		}
@@ -231,7 +230,7 @@ describe("iterateWithIdleTimeout", () => {
 
 		async function* noProgressItems(): AsyncGenerator<{ type: "keepalive" }> {
 			while (true) {
-				await sleep(2);
+				await Bun.sleep(2);
 				yield { type: "keepalive" };
 			}
 		}
@@ -249,7 +248,7 @@ describe("iterateWithIdleTimeout", () => {
 			break;
 		}
 
-		await sleep(20);
+		await Bun.sleep(20);
 		expect(firstItemTimedOut).toBe(false);
 	});
 
@@ -259,7 +258,7 @@ describe("iterateWithIdleTimeout", () => {
 			try {
 				let n = 0;
 				while (true) {
-					await sleep(1);
+					await Bun.sleep(1);
 					yield `item-${n++}`;
 				}
 			} finally {
@@ -278,7 +277,7 @@ describe("iterateWithIdleTimeout", () => {
 		// The wrapper must propagate the consumer's early termination to the source
 		// so the underlying SSE body / SDK stream (and its socket) is released
 		// instead of being left suspended.
-		await sleep(5);
+		await Bun.sleep(5);
 		expect(upstreamClosed).toBe(true);
 	});
 });
@@ -304,7 +303,7 @@ describe("iterateWithTerminalGrace", () => {
 		let finishedAt: number | undefined;
 		async function* source(): AsyncGenerator<string> {
 			yield "finish";
-			await sleep(5);
+			await Bun.sleep(5);
 			yield "usage";
 			await new Promise<never>(() => {}); // server holds the connection open
 		}
@@ -350,7 +349,7 @@ describe("iterateWithTerminalGrace", () => {
 		// caller can abort the transport and release the parked source read.
 		expect(seen).toEqual(["finish"]);
 		expect(graceEnded).toBe(true);
-		await sleep(5);
+		await Bun.sleep(5);
 		expect(upstreamClosed).toBe(false); // parked mid-await; only the abort can release it
 	});
 });

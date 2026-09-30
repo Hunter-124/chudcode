@@ -2,13 +2,13 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import { AuthStorage, type OAuthCredential, REMOTE_REFRESH_SENTINEL, SqliteAuthCredentialStore } from "@chudware/ai";
+import { AuthStorage, type OAuthCredential, REMOTE_REFRESH_SENTINEL, SqliteAuthCredentialStore } from "@oh-my-pi/pi-ai";
 import {
 	AuthBrokerClient,
 	type AuthBrokerServerHandle,
 	RemoteAuthCredentialStore,
 	startAuthBroker,
-} from "@chudware/ai/auth-broker";
+} from "@oh-my-pi/pi-ai/auth-broker";
 import { removeWithRetries } from "../../utils/src/temp";
 
 // MCP OAuth credentials extend the base OAuthCredential with refresh material
@@ -48,7 +48,7 @@ describe("auth-broker preserves extra OAuth credential fields", () => {
 		tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "auth-broker-extra-fields-"));
 		serverStore = await SqliteAuthCredentialStore.open(path.join(tempDir, "broker.db"));
 		serverStorage = new AuthStorage(serverStore);
-		await serverStorage.reload();
+		await serverStorage.credentials.reload();
 		handle = startAuthBroker({
 			storage: serverStorage,
 			bind: "127.0.0.1:0",
@@ -61,7 +61,7 @@ describe("auth-broker preserves extra OAuth credential fields", () => {
 			streamSnapshots: false,
 		});
 		clientStorage = new AuthStorage(remote);
-		await clientStorage.reload();
+		await clientStorage.credentials.reload();
 	});
 
 	afterEach(async () => {
@@ -73,7 +73,7 @@ describe("auth-broker preserves extra OAuth credential fields", () => {
 	});
 
 	test("broker set -> get round-trips tokenUrl/clientId/clientSecret/resource", async () => {
-		await clientStorage!.set(MCP_PROVIDER, mintMcpOAuthCredential());
+		await clientStorage!.credentials.set(MCP_PROVIDER, mintMcpOAuthCredential());
 
 		// Upload path (writableAuthCredentialSchema): the broker persisted the full
 		// credential — the real refresh token plus every MCP extension field.

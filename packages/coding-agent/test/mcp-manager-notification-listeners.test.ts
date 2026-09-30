@@ -2,10 +2,9 @@ import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
-import { MCPManager } from "@chudware/coding-agent/mcp/manager";
-import type { MCPServerConfig } from "@chudware/coding-agent/mcp/types";
-import { removeSyncWithRetries } from "@chudware/utils";
-import { sleep } from "@chudware/utils/async";
+import { MCPManager } from "@oh-my-pi/pi-coding-agent/mcp/manager";
+import type { MCPServerConfig } from "@oh-my-pi/pi-coding-agent/mcp/types";
+import { removeSyncWithRetries } from "@oh-my-pi/pi-utils";
 import { CUSTOM_NOTIFICATION_METHOD, CUSTOM_NOTIFICATION_PAYLOAD } from "./fixtures/notifications-mcp";
 
 const FIXTURE_PATH = path.join(import.meta.dir, "fixtures", "notifications-mcp.ts");
@@ -58,7 +57,7 @@ describe("MCPManager notification listeners", () => {
 	let workDir: string;
 
 	beforeEach(() => {
-		workDir = fs.mkdtempSync(path.join(os.tmpdir(), "chudcode-mcp-notif-"));
+		workDir = fs.mkdtempSync(path.join(os.tmpdir(), "omp-mcp-notif-"));
 	});
 
 	afterEach(() => {
@@ -205,9 +204,9 @@ describe("MCPManager notification listeners", () => {
 			// connectServers may kick the callback for the initial tool load via
 			// its background continuation; drain that first so we can assert
 			// specifically on the refresh path.
-			await sleep(30);
+			await Bun.sleep(30);
 			release();
-			await sleep(30);
+			await Bun.sleep(30);
 			const priorLen = events.length;
 
 			// Trigger a fresh refresh and hold the callback again — this is the
@@ -221,14 +220,14 @@ describe("MCPManager notification listeners", () => {
 			});
 			const refreshDone = manager.refreshServerTools("alpha");
 			// Give the callback time to enter the await.
-			await sleep(20);
+			await Bun.sleep(20);
 			expect(cbState).toBe("started");
 			// refreshServerTools has NOT resolved yet — proves it's awaiting.
 			let refreshResolved = false;
 			void refreshDone.then(() => {
 				refreshResolved = true;
 			});
-			await sleep(10);
+			await Bun.sleep(10);
 			expect(refreshResolved).toBe(false);
 			// Release the callback; refresh should now resolve promptly.
 			release2();
@@ -286,7 +285,7 @@ describe("MCPManager notification listeners", () => {
 			// callback (call #1, ungated). Once it's recorded, we know the
 			// callback is idle and the next invocation will be call #2.
 			for (let i = 0; i < 20 && !events.includes("initial-cb:done"); i++) {
-				await sleep(10);
+				await Bun.sleep(10);
 			}
 			expect(events).toContain("initial-cb:done");
 
@@ -302,7 +301,7 @@ describe("MCPManager notification listeners", () => {
 
 			// Give the async chain time to enter the callback's await.
 			for (let i = 0; i < 20 && !events.includes("cb:start"); i++) {
-				await sleep(10);
+				await Bun.sleep(10);
 			}
 			expect(events).toContain("cb:start");
 
@@ -319,7 +318,7 @@ describe("MCPManager notification listeners", () => {
 
 			// Wait for the listener to fire (or bail on timeout).
 			for (let i = 0; i < 50 && !events.includes("listener:fire"); i++) {
-				await sleep(10);
+				await Bun.sleep(10);
 			}
 
 			const idxCbEnd = events.indexOf("cb:end");

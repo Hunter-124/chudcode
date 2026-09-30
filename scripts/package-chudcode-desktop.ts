@@ -8,7 +8,7 @@ import * as os from "node:os";
 import * as path from "node:path";
 import { gzipSync } from "node:zlib";
 import { compileCodingAgent } from "../packages/coding-agent/scripts/compile-binary";
-import { PRODUCT_CLI_VERSION } from "../packages/coding-agent/src/brand";
+import { PRODUCT_SEMVER } from "../packages/coding-agent/src/brand";
 
 export const TARGETS = ["linux-x64", "macos-x64", "windows-x64"] as const;
 export type DesktopTarget = (typeof TARGETS)[number];
@@ -65,7 +65,15 @@ const NOISE_SEGMENTS: Record<string, true> = {
 	test: true,
 	tests: true,
 };
-const TOP_LEVEL_COMMON = ["VERSION", "NOTICE", "THIRD-PARTY-NOTICES.txt", "assets", "web", "packaging"] as const;
+const TOP_LEVEL_COMMON = [
+	"VERSION",
+	"LICENSE",
+	"NOTICE",
+	"THIRD-PARTY-NOTICES.txt",
+	"assets",
+	"web",
+	"packaging",
+] as const;
 
 export interface PayloadEntry {
 	absolute: string;
@@ -602,7 +610,7 @@ async function assertExecutableTarget(filePath: string, target: DesktopTarget): 
 export async function packageDesktop(options: PackageDesktopOptions): Promise<PackageDesktopResult> {
 	assertTarget(options.target);
 	const repoRoot = path.resolve(options.repoRoot ?? path.join(import.meta.dir, ".."));
-	const version = options.version ?? PRODUCT_CLI_VERSION;
+	const version = options.version ?? PRODUCT_SEMVER;
 	if (!version || !/^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$/.test(version)) {
 		throw new Error(`Invalid desktop release version: ${JSON.stringify(version)}`);
 	}
@@ -641,6 +649,7 @@ export async function packageDesktop(options: PackageDesktopOptions): Promise<Pa
 			path.join(payload, "assets"),
 		);
 		await copyTree(path.join(repoRoot, "assets/appicon"), path.join(payload, "assets/appicon"));
+		await copyFile(path.join(repoRoot, "LICENSE"), path.join(payload, "LICENSE"), 0o644);
 		await copyFile(path.join(repoRoot, "NOTICE"), path.join(payload, "NOTICE"), 0o644);
 		await copyFile(
 			path.join(repoRoot, "THIRD-PARTY-NOTICES.txt"),

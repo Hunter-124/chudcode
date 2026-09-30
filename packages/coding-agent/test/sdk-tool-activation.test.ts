@@ -2,36 +2,41 @@ import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "bun:te
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
-import type { AgentTool, StreamFn } from "@chudware/agent-core";
-import type { Model, ToolResultMessage } from "@chudware/ai";
-import { createMockModel } from "@chudware/ai/providers/mock";
-import { getBundledModel } from "@chudware/catalog/models";
-import { type } from "@chudware/chudtype";
-import { ModelRegistry } from "@chudware/coding-agent/config/model-registry";
-import { Settings } from "@chudware/coding-agent/config/settings";
-import type { CursorExecHandlers } from "@chudware/coding-agent/cursor";
+import { type } from "@oh-my-pi/omptype";
+import type { AgentTool, StreamFn } from "@oh-my-pi/pi-agent-core";
+import type { Model, ToolResultMessage } from "@oh-my-pi/pi-ai";
+import { createMockModel } from "@oh-my-pi/pi-ai/providers/mock";
+import { getBundledModel } from "@oh-my-pi/pi-catalog/models";
+import { ModelRegistry } from "@oh-my-pi/pi-coding-agent/config/model-registry";
+import { Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
+import type { CursorExecHandlers } from "@oh-my-pi/pi-coding-agent/cursor";
 import {
 	EXTENSION_HANDLER_TIMEOUT_MS,
 	testSetExtensionHandlerTimeoutMs,
-} from "@chudware/coding-agent/extensibility/extensions/runner";
-import type { MCPManager } from "@chudware/coding-agent/mcp/manager";
-import * as memoryBackendModule from "@chudware/coding-agent/memory-backend";
-import { initializeExtensions } from "@chudware/coding-agent/modes/runtime-init";
+} from "@oh-my-pi/pi-coding-agent/extensibility/extensions/runner";
+import { ExtensionToolWrapper } from "@oh-my-pi/pi-coding-agent/extensibility/extensions/wrapper";
+import type { MCPManager } from "@oh-my-pi/pi-coding-agent/mcp/manager";
+import * as memoryBackendModule from "@oh-my-pi/pi-coding-agent/memory-backend";
+import { initializeExtensions } from "@oh-my-pi/pi-coding-agent/modes/runtime-init";
 import {
 	type CreateAgentSessionOptions,
 	type CustomTool,
 	createAgentSession,
 	discoverAuthStorage,
 	type ExtensionFactory,
-} from "@chudware/coding-agent/sdk";
-import type { AgentSession } from "@chudware/coding-agent/session/agent-session";
-import { SessionManager } from "@chudware/coding-agent/session/session-manager";
-import { VIBE_TOOL_NAMES } from "@chudware/coding-agent/tools/vibe";
-import { logger, removeSyncWithRetries, Snowflake, untilAborted } from "@chudware/utils";
-import * as fsx from "@chudware/utils/fsx";
+} from "@oh-my-pi/pi-coding-agent/sdk";
+import type { AgentSession } from "@oh-my-pi/pi-coding-agent/session/agent-session";
+import { SessionManager } from "@oh-my-pi/pi-coding-agent/session/session-manager";
+import { VIBE_TOOL_NAMES } from "@oh-my-pi/pi-coding-agent/tools/vibe";
+import { resetYieldTurnState } from "@oh-my-pi/pi-coding-agent/tools/yield";
+import { logger, removeSyncWithRetries, Snowflake, untilAborted } from "@oh-my-pi/pi-utils";
 
-const toolActivationExtension: ExtensionFactory = chud => {
-	chud.registerTool({
+import { cfgExternalThinking } from "@oh-my-pi/pi-coding-agent/session/settings";
+import { cfgPlanEnabled } from "@oh-my-pi/pi-coding-agent/plan-mode/settings";
+import { cfgToolsXdev } from "@oh-my-pi/pi-coding-agent/tools/settings";
+
+const toolActivationExtension: ExtensionFactory = pi => {
+	pi.registerTool({
 		name: "default_inactive_tool",
 		label: "Default Inactive Tool",
 		description: "Tool hidden from the initial active set unless explicitly requested.",
@@ -41,7 +46,7 @@ const toolActivationExtension: ExtensionFactory = chud => {
 			return { content: [{ type: "text", text: "inactive" }] };
 		},
 	});
-	chud.registerTool({
+	pi.registerTool({
 		name: "default_active_tool",
 		label: "Default Active Tool",
 		description: "Tool included in the initial active set.",
@@ -75,14 +80,14 @@ describe("createAgentSession defaultInactive tool activation", () => {
 	let registryAuthDir: string;
 
 	const makeTempDir = (): string => {
-		const tempDir = path.join(os.tmpdir(), `chud-sdk-tool-activation-${Snowflake.next()}`);
+		const tempDir = path.join(os.tmpdir(), `pi-sdk-tool-activation-${Snowflake.next()}`);
 		tempDirs.push(tempDir);
 		fs.mkdirSync(tempDir, { recursive: true });
 		return tempDir;
 	};
 
 	beforeAll(async () => {
-		registryAuthDir = path.join(os.tmpdir(), `chud-sdk-tool-activation-auth-${Snowflake.next()}`);
+		registryAuthDir = path.join(os.tmpdir(), `pi-sdk-tool-activation-auth-${Snowflake.next()}`);
 		fs.mkdirSync(registryAuthDir, { recursive: true });
 		modelRegistry = new ModelRegistry(await discoverAuthStorage(registryAuthDir));
 	});
@@ -145,11 +150,18 @@ describe("createAgentSession defaultInactive tool activation", () => {
 			// Discoverable extension tools mount as xd:// devices, not top-level active tools.
 			const deviceNames = session.getXdevToolEntries().map(entry => entry.name);
 			expect(deviceNames).toContain("default_active_tool");
+			expect(session.getToolByName("xd://default_active_tool")?.name).toBe("default_active_tool");
 			expect(session.getActiveToolNames()).not.toContain("default_active_tool");
 			expect(deviceNames).not.toContain("default_inactive_tool");
 			expect(session.getActiveToolNames()).not.toContain("default_inactive_tool");
 			expect(session.systemPrompt.join("\n")).toContain("default_active_tool");
 			expect(session.systemPrompt.join("\n")).not.toContain("default_inactive_tool");
+
+			// Presentation lookup must survive Code Mode clearing the live mount set
+			// so historical prefixed calls retain their canonical renderer.
+			await session.setActiveToolPresentation(session.getActiveToolNames(), []);
+			expect(session.getMountedXdevToolNames()).not.toContain("default_active_tool");
+			expect(session.getToolByName("xd://default_active_tool")?.name).toBe("default_active_tool");
 		} finally {
 			await session.dispose();
 		}
@@ -194,7 +206,7 @@ describe("createAgentSession defaultInactive tool activation", () => {
 
 		try {
 			expect(session.getActiveToolNames()).toEqual(expect.arrayContaining(["read", "ast_edit", "write"]));
-			expect(session.getMountedXdevToolNames()).not.toContain("ast_edit");
+			expect(session.getMountedXdevToolNames()).toEqual([]);
 			const write = session.getToolByName("write");
 			expect(write).toBeDefined();
 			await expect(
@@ -230,15 +242,19 @@ describe("createAgentSession defaultInactive tool activation", () => {
 			expect(session.getToolByName("think")).toBeUndefined();
 			expect(session.getActiveToolNames()).not.toContain("think");
 
-			settings.set("externalThinking", true);
-			await session.setThinkToolEnabled(true);
+			// The setting watch fires on the next microtask and queues the tool-registry
+			// mutation; a prompt refresh serializes behind it.
+			cfgExternalThinking.set(settings, true);
+			await Promise.resolve();
+			await session.refreshBaseSystemPrompt();
 
 			expect(session.getToolByName("think")).toBeDefined();
 			expect(session.getActiveToolNames()).toContain("think");
 			expect(session.getXdevToolEntries().map(entry => entry.name)).not.toContain("think");
 
-			settings.set("externalThinking", false);
-			await session.setThinkToolEnabled(false);
+			cfgExternalThinking.set(settings, false);
+			await Promise.resolve();
+			await session.refreshBaseSystemPrompt();
 			expect(session.getActiveToolNames()).not.toContain("think");
 		} finally {
 			await session.dispose();
@@ -259,10 +275,10 @@ describe("createAgentSession defaultInactive tool activation", () => {
 			model: unsupported,
 		});
 		const authStorage = session.modelRegistry.authStorage;
-		authStorage.setRuntimeApiKey("anthropic", "test-key");
-		authStorage.setRuntimeApiKey("openai", "test-key");
-		authStorage.setRuntimeApiKey("google", "test-key");
-		authStorage.setRuntimeApiKey("xai", "test-key");
+		authStorage.keys.setRuntime("anthropic", "test-key");
+		authStorage.keys.setRuntime("openai", "test-key");
+		authStorage.keys.setRuntime("google", "test-key");
+		authStorage.keys.setRuntime("xai", "test-key");
 
 		try {
 			expect(session.getActiveToolNames()).not.toContain("think");
@@ -366,7 +382,7 @@ describe("createAgentSession defaultInactive tool activation", () => {
 		const model = requireBundledModel("openai", "gpt-5");
 		// The prompt preflight validates the key through the registry (not the
 		// per-request `getApiKey` override), so seed it for keyless CI runners.
-		modelRegistry.authStorage.setRuntimeApiKey("openai", "test-key");
+		modelRegistry.authStorage.keys.setRuntime("openai", "test-key");
 		const { session } = await createAgentSession({
 			...baseOptions(tempDir),
 			settings,
@@ -396,12 +412,12 @@ describe("createAgentSession defaultInactive tool activation", () => {
 	it("publishes tools from lazy session startup before the input lifecycle completes", async () => {
 		const tempDir = makeTempDir();
 		const startupGate = Promise.withResolvers<void>();
-		const lateRegistrationExtension: ExtensionFactory = chud => {
+		const lateRegistrationExtension: ExtensionFactory = pi => {
 			let startupPromise: Promise<void> | undefined;
-			chud.on("session_start", () => {
+			pi.on("session_start", () => {
 				startupPromise = (async () => {
 					await startupGate.promise;
-					chud.registerTool({
+					pi.registerTool({
 						name: "late_active_tool",
 						label: "Late Active Tool",
 						description: "Registered after asynchronous session initialization.",
@@ -410,7 +426,7 @@ describe("createAgentSession defaultInactive tool activation", () => {
 							return { content: [{ type: "text", text: "late active" }] };
 						},
 					});
-					chud.registerTool({
+					pi.registerTool({
 						name: "late_inactive_tool",
 						label: "Late Inactive Tool",
 						description: "Registered late but left disabled by default.",
@@ -422,9 +438,9 @@ describe("createAgentSession defaultInactive tool activation", () => {
 					});
 				})();
 			});
-			chud.on("input", async () => {
+			pi.on("input", async () => {
 				await startupPromise;
-				await chud.setActiveTools([...chud.getActiveTools(), "late_active_tool"]);
+				await pi.setActiveTools([...pi.getActiveTools(), "late_active_tool"]);
 			});
 		};
 
@@ -465,10 +481,10 @@ describe("createAgentSession defaultInactive tool activation", () => {
 
 	it("mounts late extension tools through a dormant read-only transport", async () => {
 		const tempDir = makeTempDir();
-		const lateDeviceExtension: ExtensionFactory = chud => {
-			chud.on("session_start", async () => {
+		const lateDeviceExtension: ExtensionFactory = pi => {
+			pi.on("session_start", async () => {
 				await Promise.resolve();
-				chud.registerTool({
+				pi.registerTool({
 					name: "late_device_tool",
 					label: "Late Device Tool",
 					description: "Registered after dormant transport startup.",
@@ -487,7 +503,7 @@ describe("createAgentSession defaultInactive tool activation", () => {
 		});
 
 		try {
-			expect(session.getActiveToolNames()).not.toContain("late_device_tool");
+			expect(session.getActiveToolNames()).not.toContain("write");
 			const runner = session.extensionRunner;
 			if (!runner) throw new Error("expected extension runner");
 			await runner.emit({ type: "session_start" });
@@ -507,10 +523,10 @@ describe("createAgentSession defaultInactive tool activation", () => {
 
 	it("activates explicitly requested defaultInactive tools registered during session startup", async () => {
 		const tempDir = makeTempDir();
-		const lateRequestedExtension: ExtensionFactory = chud => {
-			chud.on("session_start", async () => {
+		const lateRequestedExtension: ExtensionFactory = pi => {
+			pi.on("session_start", async () => {
 				await Promise.resolve();
-				chud.registerTool({
+				pi.registerTool({
 					name: "late_requested_tool",
 					label: "Late Requested Tool",
 					description: "Registered asynchronously after being explicitly requested.",
@@ -546,10 +562,10 @@ describe("createAgentSession defaultInactive tool activation", () => {
 
 	it("deactivates an enabled tool when a late replacement is default-inactive", async () => {
 		const tempDir = makeTempDir();
-		const lateInactiveReplacement: ExtensionFactory = chud => {
-			chud.on("session_start", async () => {
+		const lateInactiveReplacement: ExtensionFactory = pi => {
+			pi.on("session_start", async () => {
 				await Promise.resolve();
-				chud.registerTool({
+				pi.registerTool({
 					name: "bash",
 					label: "Late Inactive Bash",
 					description: "A late replacement that must remain disabled by default.",
@@ -587,10 +603,10 @@ describe("createAgentSession defaultInactive tool activation", () => {
 		const tempDir = makeTempDir();
 		const activationEntered = Promise.withResolvers<void>();
 		const releaseActivation = Promise.withResolvers<void>();
-		const failingRegistrationExtension: ExtensionFactory = chud => {
-			chud.on("session_start", async () => {
+		const failingRegistrationExtension: ExtensionFactory = pi => {
+			pi.on("session_start", async () => {
 				await Promise.resolve();
-				chud.registerTool({
+				pi.registerTool({
 					name: "late_tool_before_failure",
 					label: "Late Tool Before Failure",
 					description: "Registered before its lifecycle handler fails.",
@@ -644,14 +660,14 @@ describe("createAgentSession defaultInactive tool activation", () => {
 	it("keeps the stable MCP tool-name collision winner during late registration", async () => {
 		const tempDir = makeTempDir();
 		const warn = vi.spyOn(logger, "warn").mockImplementation(() => {});
-		const lateMcpCollisionExtension: ExtensionFactory = chud => {
-			chud.on("session_start", async () => {
+		const lateMcpCollisionExtension: ExtensionFactory = pi => {
+			pi.on("session_start", async () => {
 				await Promise.resolve();
 				for (const [serverName, label] of [
 					["foo.bar", "foo.bar/lookup"],
 					["foo_bar", "foo_bar/lookup"],
 				] as const) {
-					chud.registerTool({
+					pi.registerTool({
 						name: "mcp__foo_bar_lookup",
 						label,
 						description: `Lookup from ${serverName}`,
@@ -706,8 +722,8 @@ describe("createAgentSession defaultInactive tool activation", () => {
 
 	it("keeps an inactive extension MCP winner disabled when a manager collision loses", async () => {
 		const tempDir = makeTempDir();
-		const inactiveMcpExtension: ExtensionFactory = chud => {
-			chud.registerTool({
+		const inactiveMcpExtension: ExtensionFactory = pi => {
+			pi.registerTool({
 				name: "mcp__foo_bar_inactive",
 				label: "Inactive extension winner",
 				description: "Stable extension winner that starts disabled.",
@@ -749,8 +765,8 @@ describe("createAgentSession defaultInactive tool activation", () => {
 
 	it("refreshes an earlier extension's stable MCP winner instead of the later colliding registrant", async () => {
 		const tempDir = makeTempDir();
-		const stableWinnerExtension: ExtensionFactory = chud => {
-			chud.registerTool({
+		const stableWinnerExtension: ExtensionFactory = pi => {
+			pi.registerTool({
 				name: "mcp__foo_bar_refresh",
 				label: "foo.bar/refresh connected",
 				description: "Initial stable MCP winner.",
@@ -761,9 +777,9 @@ describe("createAgentSession defaultInactive tool activation", () => {
 					return { content: [{ type: "text", text: "connected" }] };
 				},
 			});
-			chud.on("session_start", async () => {
+			pi.on("session_start", async () => {
 				await Promise.resolve();
-				chud.registerTool({
+				pi.registerTool({
 					name: "mcp__foo_bar_refresh",
 					label: "foo.bar/refresh reconnected",
 					description: "Reconnected stable MCP winner.",
@@ -776,8 +792,8 @@ describe("createAgentSession defaultInactive tool activation", () => {
 				});
 			});
 		};
-		const collidingLoserExtension: ExtensionFactory = chud => {
-			chud.registerTool({
+		const collidingLoserExtension: ExtensionFactory = pi => {
+			pi.registerTool({
 				name: "mcp__foo_bar_refresh",
 				label: "foo_bar/refresh",
 				description: "Later extension with the losing MCP origin.",
@@ -808,8 +824,8 @@ describe("createAgentSession defaultInactive tool activation", () => {
 
 	it("retains later-extension precedence when an earlier non-MCP registrant updates", async () => {
 		const tempDir = makeTempDir();
-		const earlierExtension: ExtensionFactory = chud => {
-			chud.registerTool({
+		const earlierExtension: ExtensionFactory = pi => {
+			pi.registerTool({
 				name: "shared_lifecycle_tool",
 				label: "Earlier Tool",
 				description: "Earlier extension tool.",
@@ -818,9 +834,9 @@ describe("createAgentSession defaultInactive tool activation", () => {
 					return { content: [{ type: "text", text: "earlier" }] };
 				},
 			});
-			chud.on("session_start", async () => {
+			pi.on("session_start", async () => {
 				await Promise.resolve();
-				chud.registerTool({
+				pi.registerTool({
 					name: "shared_lifecycle_tool",
 					label: "Updated Earlier Tool",
 					description: "Updated earlier extension tool.",
@@ -831,8 +847,8 @@ describe("createAgentSession defaultInactive tool activation", () => {
 				});
 			});
 		};
-		const laterExtension: ExtensionFactory = chud => {
-			chud.registerTool({
+		const laterExtension: ExtensionFactory = pi => {
+			pi.registerTool({
 				name: "shared_lifecycle_tool",
 				label: "Later Tool",
 				description: "Later extension winner.",
@@ -861,10 +877,10 @@ describe("createAgentSession defaultInactive tool activation", () => {
 
 	it("preserves SDK custom-tool precedence when an extension registers the same name later", async () => {
 		const tempDir = makeTempDir();
-		const lateCollisionExtension: ExtensionFactory = chud => {
-			chud.on("session_start", async () => {
+		const lateCollisionExtension: ExtensionFactory = pi => {
+			pi.on("session_start", async () => {
 				await Promise.resolve();
-				chud.registerTool({
+				pi.registerTool({
 					name: sdkCustomTool.name,
 					label: "Late Extension Collision",
 					description: "Extension tool that must not replace the SDK custom tool.",
@@ -904,10 +920,10 @@ describe("createAgentSession defaultInactive tool activation", () => {
 				return { content: [{ type: "text", text: "rpc host" }] };
 			},
 		} satisfies AgentTool;
-		const lateCollisionExtension: ExtensionFactory = chud => {
-			chud.on("session_start", async () => {
+		const lateCollisionExtension: ExtensionFactory = pi => {
+			pi.on("session_start", async () => {
 				await Promise.resolve();
-				chud.registerTool({
+				pi.registerTool({
 					name: rpcHostTool.name,
 					label: "Late Extension Collision",
 					description: "Extension tool that must not replace the RPC host tool.",
@@ -939,10 +955,10 @@ describe("createAgentSession defaultInactive tool activation", () => {
 		const tempDir = makeTempDir();
 		const activationEntered = Promise.withResolvers<void>();
 		const releaseActivation = Promise.withResolvers<void>();
-		const lateRegistrationExtension: ExtensionFactory = chud => {
-			chud.on("session_start", async () => {
+		const lateRegistrationExtension: ExtensionFactory = pi => {
+			pi.on("session_start", async () => {
 				await Promise.resolve();
-				chud.registerTool({
+				pi.registerTool({
 					name: "serialized_lifecycle_tool",
 					label: "Serialized Lifecycle Tool",
 					description: "Lifecycle tool activated before an MCP refresh.",
@@ -1000,10 +1016,10 @@ describe("createAgentSession defaultInactive tool activation", () => {
 		const tempDir = makeTempDir();
 		const activationEntered = Promise.withResolvers<void>();
 		const releaseActivation = Promise.withResolvers<void>();
-		const lateRegistrationExtension: ExtensionFactory = chud => {
-			chud.on("session_start", async () => {
+		const lateRegistrationExtension: ExtensionFactory = pi => {
+			pi.on("session_start", async () => {
 				await Promise.resolve();
-				chud.registerTool({
+				pi.registerTool({
 					name: "memory_race_lifecycle_tool",
 					label: "Memory Race Lifecycle Tool",
 					description: "Lifecycle tool activated before a memory-tool replacement.",
@@ -1044,8 +1060,8 @@ describe("createAgentSession defaultInactive tool activation", () => {
 
 	it("keeps an explicitly disabled tool disabled when its extension re-registers it", async () => {
 		const tempDir = makeTempDir();
-		const disabledReplacementExtension: ExtensionFactory = chud => {
-			chud.registerTool({
+		const disabledReplacementExtension: ExtensionFactory = pi => {
+			pi.registerTool({
 				name: "disabled_replacement_tool",
 				label: "Initial Enabled Tool",
 				description: "Initially enabled extension tool.",
@@ -1055,9 +1071,9 @@ describe("createAgentSession defaultInactive tool activation", () => {
 					return { content: [{ type: "text", text: "initial" }] };
 				},
 			});
-			chud.on("session_start", async () => {
-				await chud.setActiveTools(["read"]);
-				chud.registerTool({
+			pi.on("session_start", async () => {
+				await pi.setActiveTools(["read"]);
+				pi.registerTool({
 					name: "disabled_replacement_tool",
 					label: "Disabled Replacement Tool",
 					description: "Replacement that must retain the disabled state.",
@@ -1099,9 +1115,9 @@ describe("createAgentSession defaultInactive tool activation", () => {
 
 	it("reclassifies late replacements when their load modes change", async () => {
 		const tempDir = makeTempDir();
-		const loadModeReplacementExtension: ExtensionFactory = chud => {
+		const loadModeReplacementExtension: ExtensionFactory = pi => {
 			const registerTransitionTool = (name: string, label: string, loadMode: "essential" | "discoverable"): void => {
-				chud.registerTool({
+				pi.registerTool({
 					name,
 					label,
 					description: `${label} extension tool.`,
@@ -1114,7 +1130,7 @@ describe("createAgentSession defaultInactive tool activation", () => {
 			};
 			registerTransitionTool("late_becomes_discoverable", "Initially Essential", "essential");
 			registerTransitionTool("late_becomes_essential", "Initially Discoverable", "discoverable");
-			chud.on("session_start", async () => {
+			pi.on("session_start", async () => {
 				await Promise.resolve();
 				registerTransitionTool("late_becomes_discoverable", "Now Discoverable", "discoverable");
 				registerTransitionTool("late_becomes_essential", "Now Essential", "essential");
@@ -1144,9 +1160,9 @@ describe("createAgentSession defaultInactive tool activation", () => {
 
 	it("refreshes prompt-visible metadata when a lifecycle registration replaces an enabled tool", async () => {
 		const tempDir = makeTempDir();
-		const replacementExtension: ExtensionFactory = chud => {
+		const replacementExtension: ExtensionFactory = pi => {
 			const register = (label: string, description: string): void => {
-				chud.registerTool({
+				pi.registerTool({
 					name: "prompt_refresh_tool",
 					label,
 					description,
@@ -1157,7 +1173,7 @@ describe("createAgentSession defaultInactive tool activation", () => {
 				});
 			};
 			register("Original Prompt Tool", "Original prompt-visible lifecycle description.");
-			chud.on("session_start", async () => {
+			pi.on("session_start", async () => {
 				await Promise.resolve();
 				register("Replacement Prompt Tool", "Replacement prompt-visible lifecycle description.");
 			});
@@ -1188,10 +1204,10 @@ describe("createAgentSession defaultInactive tool activation", () => {
 		const releaseHandler = Promise.withResolvers<void>();
 		const replacementRefreshAttempted = Promise.withResolvers<void>();
 		const tempDir = makeTempDir();
-		const replacementExtension: ExtensionFactory = chud => {
-			chud.on("session_start", async () => {
+		const replacementExtension: ExtensionFactory = pi => {
+			pi.on("session_start", async () => {
 				await Promise.resolve();
-				chud.registerTool({
+				pi.registerTool({
 					name: "bash",
 					label: "Rejected Rollback Bash",
 					description: "Rejected rollback lifecycle description.",
@@ -1254,11 +1270,11 @@ describe("createAgentSession defaultInactive tool activation", () => {
 		const tempDir = makeTempDir();
 		const releaseLaterActivation = Promise.withResolvers<void>();
 		const laterActivationEntered = Promise.withResolvers<void>();
-		const registrationExtension: ExtensionFactory = chud => {
-			chud.on("session_start", async () => {
+		const registrationExtension: ExtensionFactory = pi => {
+			pi.on("session_start", async () => {
 				await Promise.resolve();
 				for (const name of ["failed_registration_tool", "drained_registration_tool"]) {
-					chud.registerTool({
+					pi.registerTool({
 						name,
 						label: name,
 						description: `${name} lifecycle description.`,
@@ -1319,11 +1335,11 @@ describe("createAgentSession defaultInactive tool activation", () => {
 
 	it("releases a timed-out activation so later lifecycle registrations can proceed", async () => {
 		const tempDir = makeTempDir();
-		const registrationExtension: ExtensionFactory = chud => {
+		const registrationExtension: ExtensionFactory = pi => {
 			for (const name of ["stalled_registration_tool", "recovered_registration_tool"]) {
-				chud.on("session_start", async () => {
+				pi.on("session_start", async () => {
 					await Promise.resolve();
-					chud.registerTool({
+					pi.registerTool({
 						name,
 						label: name,
 						description: `${name} lifecycle tool.`,
@@ -1375,9 +1391,9 @@ describe("createAgentSession defaultInactive tool activation", () => {
 
 	it("applies explicit tool selection after preceding lifecycle registrations", async () => {
 		const tempDir = makeTempDir();
-		const registrationExtension: ExtensionFactory = chud => {
-			chud.on("session_start", async () => {
-				chud.registerTool({
+		const registrationExtension: ExtensionFactory = pi => {
+			pi.on("session_start", async () => {
+				pi.registerTool({
 					name: "register_then_select_tool",
 					label: "Register Then Select Tool",
 					description: "Must not overwrite the explicit selection that follows registration.",
@@ -1386,7 +1402,7 @@ describe("createAgentSession defaultInactive tool activation", () => {
 						return { content: [{ type: "text", text: "registered" }] };
 					},
 				});
-				await chud.setActiveTools(["read"]);
+				await pi.setActiveTools(["read"]);
 			});
 		};
 
@@ -1415,10 +1431,10 @@ describe("createAgentSession defaultInactive tool activation", () => {
 		const releaseDetachedRegistration = Promise.withResolvers<void>();
 		const registrationFailure = Promise.withResolvers<{ event: string; error: string }>();
 		let rejectDetachedPrompt = false;
-		const detachedRegistrationExtension: ExtensionFactory = chud => {
-			chud.on("session_start", () => {
+		const detachedRegistrationExtension: ExtensionFactory = pi => {
+			pi.on("session_start", () => {
 				void releaseDetachedRegistration.promise.then(() => {
-					chud.registerTool({
+					pi.registerTool({
 						name: "detached_registration_tool",
 						label: "Detached Registration Tool",
 						description: "Detached tool whose activation intentionally fails.",
@@ -1505,10 +1521,10 @@ describe("createAgentSession defaultInactive tool activation", () => {
 		const tempDir = makeTempDir();
 		const releaseStalledRegistration = Promise.withResolvers<void>();
 		const releaseRecoveredRegistration = Promise.withResolvers<void>();
-		const detachedRegistrationExtension: ExtensionFactory = chud => {
-			chud.on("session_start", () => {
+		const detachedRegistrationExtension: ExtensionFactory = pi => {
+			pi.on("session_start", () => {
 				void releaseStalledRegistration.promise.then(() => {
-					chud.registerTool({
+					pi.registerTool({
 						name: "stalled_detached_tool",
 						label: "Stalled Detached Tool",
 						description: "Detached registration whose activation stalls.",
@@ -1520,7 +1536,7 @@ describe("createAgentSession defaultInactive tool activation", () => {
 					});
 				});
 				void releaseRecoveredRegistration.promise.then(() => {
-					chud.registerTool({
+					pi.registerTool({
 						name: "recovered_detached_tool",
 						label: "Recovered Detached Tool",
 						description: "Detached registration that follows the timeout.",
@@ -1653,8 +1669,8 @@ describe("createAgentSession defaultInactive tool activation", () => {
 		const { session } = await createAgentSession({
 			...baseOptions(tempDir),
 			extensions: [
-				chud => {
-					chud.registerTool({
+				pi => {
+					pi.registerTool({
 						name: hiddenTool.name,
 						label: "Visible Extension Loser",
 						description: "Visible definition that loses registry precedence.",
@@ -1742,12 +1758,36 @@ describe("createAgentSession defaultInactive tool activation", () => {
 		}
 	});
 
+	it("resets reused yield state through the SDK extension wrapper", async () => {
+		const tempDir = makeTempDir();
+		const { session } = await createAgentSession({
+			...baseOptions(tempDir),
+			requireYieldTool: true,
+			toolNames: ["yield"],
+		});
+
+		try {
+			const yieldTool = session.getToolByName("yield");
+			if (!yieldTool) throw new Error("expected wrapped yield tool");
+			expect(yieldTool).toBeInstanceOf(ExtensionToolWrapper);
+
+			await yieldTool.execute("run1-section", { type: ["findings"], data: "one finding" });
+			const keptWithinRun = await yieldTool.execute("run1-finalize", { type: "result" });
+			expect(keptWithinRun.content).toEqual([{ type: "text", text: "Result submitted." }]);
+
+			resetYieldTurnState(yieldTool);
+			await expect(yieldTool.execute("run2-empty", { type: "result" })).rejects.toThrow(/no text \(thinking only\)/);
+		} finally {
+			await session.dispose();
+		}
+	});
+
 	it("normalizes legacy builtin toolNames before selecting the active SDK tools", async () => {
 		const tempDir = makeTempDir();
 
 		const { session } = await createAgentSession({
 			...baseOptions(tempDir),
-			toolNames: ["read", "search", "find"],
+			toolNames: ["read", "search", "glob"],
 		});
 
 		try {
@@ -1757,7 +1797,6 @@ describe("createAgentSession defaultInactive tool activation", () => {
 			expect(activeToolNames).toContain("grep");
 			expect(activeToolNames).toContain("glob");
 			expect(activeToolNames).not.toContain("search");
-			expect(activeToolNames).not.toContain("find");
 		} finally {
 			await session.dispose();
 		}
@@ -1789,7 +1828,7 @@ describe("createAgentSession defaultInactive tool activation", () => {
 		const tempDir = makeTempDir();
 
 		const settings = Settings.isolated();
-		settings.set("plan.enabled", false);
+		cfgPlanEnabled.set(settings, false);
 
 		const { session } = await createAgentSession({
 			...baseOptions(tempDir),
@@ -1798,12 +1837,9 @@ describe("createAgentSession defaultInactive tool activation", () => {
 		});
 
 		try {
-			// External harness devices may legitimately activate the device-only
-			// transport. In a clean registry it stays dormant; either way it must
-			// never expose filesystem writes.
-			const mountedDevices = session.getMountedXdevToolNames();
-			if (mountedDevices.length === 0) expect(session.getActiveToolNames()).not.toContain("write");
-			else expect(session.getActiveToolNames()).toContain("write");
+			// The dormant transport remains registered for later xd:// discovery,
+			// but does not add an inert schema to a pure read-only surface.
+			expect(session.getActiveToolNames()).not.toContain("write");
 			const write = session.getToolByName("write");
 			expect(write).toBeDefined();
 			await expect(
@@ -1844,7 +1880,7 @@ describe("createAgentSession defaultInactive tool activation", () => {
 			expect(write).toBeDefined();
 			const filePath = path.join(tempDir, "runtime-write.txt");
 			await write!.execute("runtime-full-write", { path: filePath, content: "runtime\n" });
-			expect(await fsx.readText(filePath)).toBe("runtime\n");
+			expect(await Bun.file(filePath).text()).toBe("runtime\n");
 		} finally {
 			await session.dispose();
 		}
@@ -2012,7 +2048,7 @@ describe("createAgentSession defaultInactive tool activation", () => {
 		const normalDir = makeTempDir();
 		const configuredSettings = () =>
 			Settings.isolated({
-				"providers.imageOrder": ["openai"],
+				modelRoles: { image: "openai/gpt-image-1" },
 				"generate_image.enabled": true,
 				"speechgen.enabled": true,
 				"memory.backend": "hindsight",
@@ -2023,10 +2059,10 @@ describe("createAgentSession defaultInactive tool activation", () => {
 			getServerInstructions: () => new Map([["private-server", "must not reach restricted child"]]),
 		} as unknown as MCPManager;
 
-		const restrictedLateExtension: ExtensionFactory = chud => {
-			chud.on("session_start", async () => {
+		const restrictedLateExtension: ExtensionFactory = pi => {
+			pi.on("session_start", async () => {
 				await Promise.resolve();
-				chud.registerTool({
+				pi.registerTool({
 					name: "restricted_late_extension_tool",
 					label: "Restricted Late Extension Tool",
 					description: "Must not enter a caller-restricted session.",
@@ -2043,7 +2079,7 @@ describe("createAgentSession defaultInactive tool activation", () => {
 			settings: configuredSettings(),
 			extensions: [toolActivationExtension, restrictedLateExtension],
 			customTools: [sdkCustomTool],
-			toolNames: ["read", "lsp", "hub"],
+			toolNames: ["read", "lsp"],
 			requireYieldTool: true,
 			restrictToolNames: true,
 			enableMCP: true,
@@ -2071,7 +2107,6 @@ describe("createAgentSession defaultInactive tool activation", () => {
 				"default_inactive_tool",
 				"sdk_custom_tool",
 				"restricted_late_extension_tool",
-				"hub",
 			]) {
 				expect(restricted.getToolByName(name)).toBeUndefined();
 			}
@@ -2184,10 +2219,10 @@ describe("createAgentSession defaultInactive tool activation", () => {
 
 	// Hashline `edit` stays in the registry on Cursor so the model can still
 	// call it as MCP. Native StrReplace arrives as `editToolCall` and is
-	// materialized via exec read/write; `chud_edit` still uses the replace-mode
+	// materialized via exec read/write; `pi_edit` still uses the replace-mode
 	// instance from `getEditReplaceTool`. The roster is built once at creation.
 	// These two cover both directions of that wiring: the granted session must
-	// still reach a replace-mode instance for `chud_edit` (whose `old_string` /
+	// still reach a replace-mode instance for `pi_edit` (whose `old_string` /
 	// `new_string` args do not validate against the default `hashline` schema),
 	// and the restricted one must still be refused.
 	//
@@ -2218,15 +2253,15 @@ describe("createAgentSession defaultInactive tool activation", () => {
 	// env var — an env mutation would outlive this file — and removed after,
 	// since the storage is shared by every test here.
 	const withProviderAuth = async (providers: string[], run: () => Promise<void>): Promise<void> => {
-		for (const provider of providers) modelRegistry.authStorage.setRuntimeApiKey(provider, "test-key");
+		for (const provider of providers) modelRegistry.authStorage.keys.setRuntime(provider, "test-key");
 		try {
 			await run();
 		} finally {
-			for (const provider of providers) modelRegistry.authStorage.removeRuntimeApiKey(provider);
+			for (const provider of providers) modelRegistry.authStorage.keys.removeRuntime(provider);
 		}
 	};
 
-	it("answers a native chud_edit after a session switches onto Cursor", async () => {
+	it("answers a native pi_edit after a session switches onto Cursor", async () => {
 		const tempDir = makeTempDir();
 		const cursorModel = getBundledModel("cursor", "composer-1.5");
 		if (!cursorModel) throw new Error("expected bundled Cursor model");
@@ -2268,7 +2303,7 @@ describe("createAgentSession defaultInactive tool activation", () => {
 		});
 	});
 
-	it("refuses a native chud_edit after a read-only session switches onto Cursor", async () => {
+	it("refuses a native pi_edit after a read-only session switches onto Cursor", async () => {
 		// The bridge instance is constructed, not looked up, so building it for
 		// a roster that was never granted `edit` would hand a read-only session
 		// a mutating tool the native frames reach regardless of the advertised
@@ -2434,7 +2469,7 @@ describe("createAgentSession defaultInactive tool activation", () => {
 		// not contain. It must stay device-only: routing `edit` through it would
 		// execute a replace-mode edit for a call the model was never offered —
 		// a hallucinated one, or a tool the session deselected after startup.
-		// `chud_edit` gets its instance from `getEditReplaceTool` instead.
+		// `pi_edit` gets its instance from `getEditReplaceTool` instead.
 		const tempDir = makeTempDir();
 		const target = path.join(tempDir, "sample.txt");
 		fs.writeFileSync(target, "alpha\nbeta\n");
@@ -2481,6 +2516,71 @@ describe("createAgentSession defaultInactive tool activation", () => {
 				expect(result?.isError).toBe(true);
 				expect(JSON.stringify(result?.content)).toContain("Tool edit not found");
 				expect(fs.readFileSync(target, "utf8")).toBe("alpha\nbeta\n");
+			} finally {
+				await session.dispose();
+			}
+		});
+	});
+
+	it("routes a Claude Code MCP spelling when no xdev state exists", async () => {
+		// `createTools` allocates `session.xdev` only when `tools.xdev` is on and
+		// the session is unrestricted, so alias recovery cannot live in the device
+		// resolver alone: with the setting off, an advertised MCP tool called
+		// under the doubled separator this harness primes would still dead-end.
+		// Driven through the real SDK session rather than a fabricated XdevState,
+		// because the absence of that state is precisely what is under test.
+		const tempDir = makeTempDir();
+		const settings = Settings.isolated();
+		cfgToolsXdev.set(settings, false);
+
+		await withProviderAuth(["openai"], async () => {
+			const { session } = await createAgentSession({ ...baseOptions(tempDir), settings });
+			try {
+				let executed = 0;
+				await session.refreshMCPTools([
+					{
+						// Exactly what `createMCPToolName("seedpatch-client", "bank")` mints.
+						name: "mcp__seedpatch_client_bank",
+						label: "seedpatch-client/bank",
+						description: "Read the bank",
+						parameters: type({}),
+						mcpServerName: "seedpatch-client",
+						mcpToolName: "bank",
+						async execute() {
+							executed += 1;
+							return { content: [{ type: "text", text: "bank contents" }] };
+						},
+					} satisfies CustomTool,
+				]);
+
+				// The configuration under test: advertised top-level, nothing mounted.
+				expect(session.getActiveToolNames()).toContain("mcp__seedpatch_client_bank");
+				expect(session.getMountedXdevToolNames()).toHaveLength(0);
+
+				const toolCallId = "claude-code-spelling-1";
+				const mock = createMockModel({
+					responses: [
+						{
+							content: [
+								// Raw server name plus the doubled separator: the Claude
+								// Code convention the identity prompt primes.
+								{ type: "toolCall", id: toolCallId, name: "mcp__seedpatch-client__bank", arguments: {} },
+							],
+						},
+						{ content: [{ type: "text", text: "done" }] },
+					],
+				});
+				vi.spyOn(session.agent, "streamFn").mockImplementation(mock.stream);
+
+				await session.prompt("hi");
+
+				const result = session.messages.find(
+					(message): message is ToolResultMessage =>
+						message.role === "toolResult" && message.toolCallId === toolCallId,
+				);
+				expect(result?.isError).toBeFalsy();
+				expect(JSON.stringify(result?.content)).toContain("bank contents");
+				expect(executed).toBe(1);
 			} finally {
 				await session.dispose();
 			}

@@ -1,17 +1,14 @@
 import { Database } from "bun:sqlite";
 import { afterEach, beforeEach, describe, expect, it, vi } from "bun:test";
-import { HistoryStorage } from "@chudware/coding-agent/session/history-storage";
-import { TempDir } from "@chudware/utils";
-import { sleep } from "@chudware/utils/async";
+import { HistoryStorage } from "@oh-my-pi/pi-coding-agent/session/history-storage";
+import { TempDir } from "@oh-my-pi/pi-utils";
 
 let tempDir: TempDir | null = null;
 
-async function freshStorage(
-	prefix = "chudcode-history-session-",
-): Promise<{ storage: HistoryStorage; dbPath: string }> {
+async function freshStorage(prefix = "omp-history-session-"): Promise<{ storage: HistoryStorage; dbPath: string }> {
 	tempDir = TempDir.createSync(`@${prefix}`);
 	const dbPath = tempDir.join("history.db");
-	HistoryStorage.resetInstance();
+	HistoryStorage.close();
 	return { storage: HistoryStorage.open(dbPath), dbPath };
 }
 
@@ -22,15 +19,15 @@ async function flush(...writes: Promise<void>[]): Promise<void> {
 }
 
 beforeEach(() => {
-	HistoryStorage.resetInstance();
+	HistoryStorage.close();
 	vi.useFakeTimers();
 });
 
 afterEach(async () => {
-	HistoryStorage.resetInstance();
+	HistoryStorage.close();
 	vi.useRealTimers();
 	if (tempDir) {
-		await sleep(0);
+		await Bun.sleep(0);
 		await tempDir.remove().catch(() => {});
 		tempDir = null;
 	}
@@ -86,7 +83,7 @@ describe("HistoryStorage session linkage", () => {
 	});
 
 	it("adds session_id to a pre-existing schema and leaves legacy rows unstamped", async () => {
-		tempDir = TempDir.createSync("@chudcode-history-session-migrate-");
+		tempDir = TempDir.createSync("@omp-history-session-migrate-");
 		const dbPath = tempDir.join("history.db");
 		const legacyDb = new Database(dbPath);
 		legacyDb.exec(`
@@ -100,7 +97,7 @@ describe("HistoryStorage session linkage", () => {
 		legacyDb.prepare("INSERT INTO history (prompt, cwd) VALUES (?, ?)").run("legacy prompt", "/legacy");
 		legacyDb.close();
 
-		HistoryStorage.resetInstance();
+		HistoryStorage.close();
 		const storage = HistoryStorage.open(dbPath);
 		await flush(storage.add("new prompt", "/new", "session-xyz"));
 

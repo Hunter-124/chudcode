@@ -1,7 +1,7 @@
 import { vi } from "bun:test";
-import { resetSettingsForTest } from "@chudware/coding-agent/config/settings";
-import { isTuiTight, setTuiTight } from "@chudware/tui";
-import { getAgentDir, getProjectDir, setAgentDir, setProjectDir } from "@chudware/utils";
+import { resetSettingsForTest } from "@oh-my-pi/pi-coding-agent/config/settings";
+import { isTuiTight, setTuiTight } from "@oh-my-pi/pi-tui";
+import { getAgentDir, getProjectDir, setAgentDir, setProjectDir } from "@oh-my-pi/pi-utils";
 
 export interface SettingsTestState {
 	agentDir: string;
@@ -15,8 +15,8 @@ export function beginSettingsTest(): SettingsTestState {
 	for (const key in process.env) {
 		env[key] = process.env[key];
 	}
-	for (const key in process.env) {
-		env[key] = process.env[key];
+	for (const key in Bun.env) {
+		env[key] = Bun.env[key];
 	}
 	const state: SettingsTestState = {
 		agentDir: getAgentDir(),
@@ -37,7 +37,7 @@ export function restoreSettingsTestState(state: SettingsTestState | undefined): 
 	setProjectDir(state.projectDir);
 	setAgentDir(state.agentDir);
 	setTuiTight(state.tuiTight);
-	restoreEnvValue("CHUDCODE_CODING_AGENT_DIR", state.env.CHUDCODE_CODING_AGENT_DIR);
+	restoreEnvValue("PI_CODING_AGENT_DIR", state.env.PI_CODING_AGENT_DIR);
 }
 
 function restoreEnv(snapshot: Record<string, string | undefined>): void {
@@ -46,7 +46,7 @@ function restoreEnv(snapshot: Record<string, string | undefined>): void {
 			restoreEnvValue(key, undefined);
 		}
 	}
-	for (const key in process.env) {
+	for (const key in Bun.env) {
 		if (!(key in snapshot)) {
 			restoreEnvValue(key, undefined);
 		}
@@ -60,9 +60,9 @@ function restoreEnv(snapshot: Record<string, string | undefined>): void {
 export function restoreEnvValue(key: string, value: string | undefined): void {
 	if (value === undefined) {
 		delete process.env[key];
-		delete process.env[key];
+		delete Bun.env[key];
 		return;
 	}
 	process.env[key] = value;
-	process.env[key] = value;
+	Bun.env[key] = value;
 }

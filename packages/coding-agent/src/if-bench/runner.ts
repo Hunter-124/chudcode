@@ -1,5 +1,5 @@
 /**
- * Turn engine for `chudcode if-bench`.
+ * Turn engine for `omp if-bench`.
  *
  * One model = one growing conversation: the system prompt and every earlier
  * turn stay byte-identical, so the whole prefix is cacheable and turn N only
@@ -16,15 +16,16 @@ import type {
 	Message,
 	Model,
 	ProviderSessionState,
-} from "@chudware/ai";
-import { logger } from "@chudware/utils";
-import { sleep } from "@chudware/utils/async";
+} from "@oh-my-pi/pi-ai";
+import { logger } from "@oh-my-pi/pi-utils";
 import type { BenchRuntime, BenchTarget, StreamSimpleFn } from "../cli/bench-runtime";
-import { formatModelSelectorValue, formatModelString } from "../config/model-resolver";
-import { shouldDisableReasoning, toReasoningEffort } from "../thinking";
+import { formatModelSelectorValue } from "@oh-my-pi/pi-tui/overlays/model-selector";
+import { formatModelString } from "../config/model-resolver";
+import { shouldDisableReasoning, toReasoningEffort } from "@oh-my-pi/pi-tui/thinking";
 import type { Action } from "./actions";
 import { applyActions, initialArray, makeActions } from "./actions";
-import type { CatPlacement, IfBenchFailure } from "./protocol";
+import type { IfBenchFailure, IfBenchObserver } from "@oh-my-pi/pi-tui/apps/if-bench-board";
+import type { CatPlacement } from "./protocol";
 import { assessResponse, buildSystemPrompt, buildTurnPrompt } from "./protocol";
 
 /** Outcome of one turn: what was asked, what came back, and how it scored. */
@@ -72,14 +73,6 @@ export interface IfBenchSummary {
 	failures: number;
 }
 
-/** Live-progress sink; every hook is optional so JSON mode can pass nothing. */
-export interface IfBenchObserver {
-	modelStarted?(label: string): void;
-	turnStarted?(label: string, turn: number, actions: number): void;
-	turnFinished?(label: string, record: IfBenchTurnRecord): void;
-	modelFinished?(report: IfBenchModelReport): void;
-}
-
 export interface IfBenchRunOptions {
 	targets: readonly BenchTarget[];
 	runtime: BenchRuntime;
@@ -92,7 +85,7 @@ export interface IfBenchRunOptions {
 	stream: StreamSimpleFn;
 	now: () => number;
 	randomSessionId: () => string;
-	observer?: IfBenchObserver;
+	observer?: IfBenchObserver<IfBenchTurnRecord, IfBenchModelReport>;
 	/** Sleep between refusal-retry attempts; tests inject a no-op. Defaults to `Bun.sleep`. */
 	sleep?: (ms: number) => Promise<void>;
 }
@@ -120,7 +113,7 @@ const REFUSAL_MAX_ATTEMPTS = 8;
 const REFUSAL_BACKOFF_MS = [0, 5_000, 15_000, 30_000, 60_000, 90_000, 120_000, 180_000];
 
 function isCyberRefusal(error: string | undefined): boolean {
-	return error !== undefined && /^Refusal \(/.test(error);
+	return error !== undefined && error.startsWith("Refusal (");
 }
 
 function assistantText(message: AssistantMessage): string {
@@ -139,6 +132,7 @@ function errorText(error: unknown): string {
 export async function runIfBench(options: IfBenchRunOptions): Promise<IfBenchSummary> {
 	const reports: IfBenchModelReport[] = [];
 	const queue = options.targets.map((target, index) => ({ target, index }));
+	// oxlint-disable-next-line unicorn/no-new-array -- length preallocation
 	const ordered: IfBenchModelReport[] = new Array(options.targets.length);
 
 	const worker = async (): Promise<void> => {
@@ -186,7 +180,7 @@ async function runTarget(target: BenchTarget, options: IfBenchRunOptions): Promi
 		report.failure = {
 			turn: 0,
 			kind: "provider",
-			detail: `No credentials for provider "${model.provider}". Run \`chudcode\` and use /login, or set the provider API key.`,
+			detail: `No credentials for provider "${model.provider}". Run \`omp\` and use /login, or set the provider API key.`,
 		};
 		options.observer?.modelFinished?.(report);
 		return report;
@@ -284,7 +278,7 @@ async function requestTurnWithRefusalRetry(
 ): Promise<TurnOutcome> {
 	let outcome: TurnOutcome = { text: "", error: "request failed", durationMs: 0 };
 	for (let attempt = 1; attempt <= REFUSAL_MAX_ATTEMPTS; attempt += 1) {
-		if (attempt > 1) await (options.sleep ?? sleep)(REFUSAL_BACKOFF_MS[attempt - 1] ?? 180_000);
+		if (attempt > 1) await (options.sleep ?? Bun.sleep)(REFUSAL_BACKOFF_MS[attempt - 1] ?? 180_000);
 		const sessionId = options.randomSessionId();
 		const apiKey = options.runtime.modelRegistry.resolver(model, sessionId);
 		outcome = await requestTurn(model, context, sessionId, apiKey, providerSessionState, target, options);

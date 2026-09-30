@@ -2,11 +2,18 @@ import { afterEach, describe, expect, it } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import { createReportBundle } from "@chudware/coding-agent/debug/report-bundle";
-import { getConfigRootDir, getLogsDir, removeWithRetries, setAgentDir } from "@chudware/utils";
-import * as fsx from "@chudware/utils/fsx";
+import { createReportBundle } from "@oh-my-pi/pi-coding-agent/debug/report-bundle";
+import {
+	APP_DATA_NAME,
+	APP_NAME,
+	getConfigRootDir,
+	getLogsDir,
+	localDay,
+	removeWithRetries,
+	setAgentDir,
+} from "@oh-my-pi/pi-utils";
 
-const originalAgentDir = process.env.CHUDCODE_CODING_AGENT_DIR;
+const originalAgentDir = process.env.PI_CODING_AGENT_DIR;
 const originalXdgStateHome = process.env.XDG_STATE_HOME;
 const fallbackAgentDir = path.join(getConfigRootDir(), "agent");
 let cleanupRoot: string | undefined;
@@ -21,7 +28,7 @@ afterEach(async () => {
 		setAgentDir(originalAgentDir);
 	} else {
 		setAgentDir(fallbackAgentDir);
-		delete process.env.CHUDCODE_CODING_AGENT_DIR;
+		delete process.env.PI_CODING_AGENT_DIR;
 	}
 	if (cleanupRoot) {
 		await removeWithRetries(cleanupRoot);
@@ -31,29 +38,40 @@ afterEach(async () => {
 
 describe("report bundle logs", () => {
 	it("collects every same-day PID log, not only the current process", async () => {
-		cleanupRoot = await fs.mkdtemp(path.join(os.tmpdir(), "chudcode-report-logs-"));
+		cleanupRoot = await fs.mkdtemp(path.join(os.tmpdir(), "omp-report-logs-"));
 		const xdgStateHome = path.join(cleanupRoot, "state");
-		await fs.mkdir(path.join(xdgStateHome, "chudcode"), { recursive: true });
+		await fs.mkdir(path.join(xdgStateHome, APP_DATA_NAME), { recursive: true });
 		process.env.XDG_STATE_HOME = xdgStateHome;
 		setAgentDir(fallbackAgentDir);
 
 		const logsDir = getLogsDir();
 		await fs.mkdir(logsDir, { recursive: true });
-		const today = new Date().toISOString().slice(0, 10);
-		const crashedName = `chudcode.${today}.4242.log`;
+		// Log files are named with the local day (RotatingFileSink naming); same-day
+		// collection must match them with the local day too, not the UTC key.
+		const today = localDay(new Date());
+		const crashedName = `${APP_NAME}.${today}.4242.log`;
 		const rotatedName = `${crashedName}.1`;
-		const currentName = `chudcode.${today}.${process.pid}.log`;
-		await fsx.write(path.join(logsDir, crashedName), '{"pid":4242,"message":"fatal in crashed pid"}\n');
+		const currentName = `${APP_NAME}.${today}.${process.pid}.log`;
+		await Bun.write(path.join(logsDir, crashedName), '{"pid":4242,"message":"fatal in crashed pid"}\n');
 		await fs.utimes(path.join(logsDir, crashedName), 1, 1);
-		await fsx.write(path.join(logsDir, rotatedName), '{"pid":4242,"message":"earlier rotated crash output"}\n');
+		await Bun.write(path.join(logsDir, rotatedName), '{"pid":4242,"message":"earlier rotated crash output"}\n');
 		await fs.utimes(path.join(logsDir, rotatedName), 0, 0);
-		await fsx.write(path.join(logsDir, currentName), '{"pid":0,"message":"later invocation"}\n');
+		await Bun.write(path.join(logsDir, currentName), '{"pid":0,"message":"later invocation"}\n');
 		await fs.utimes(path.join(logsDir, currentName), 2, 2);
+		// When the local and UTC days differ (00:00–08:00 in UTC+8), a log named
+		// with the stale UTC key must not be collected anymore.
+		const utcToday = new Date().toISOString().slice(0, 10);
+		let staleUtcName: string | undefined;
+		if (utcToday !== today) {
+			staleUtcName = `${APP_NAME}.${utcToday}.4243.log`;
+			await Bun.write(path.join(logsDir, staleUtcName), '{"pid":4243,"message":"stale utc-keyed"}\n');
+			await fs.utimes(path.join(logsDir, staleUtcName), 3, 3);
+		}
 
 		const result = await createReportBundle({ sessionFile: undefined });
 
 		expect(result.files).toContain("logs.txt");
-		const archive = new Bun.Archive(await fsx.readBytes(result.path));
+		const archive = new Bun.Archive(await Bun.file(result.path).bytes());
 		const files = await archive.files();
 		const logsText = (await files.get("logs.txt")?.text()) ?? "";
 		expect(logsText).toContain(crashedName);
@@ -63,5 +81,6 @@ describe("report bundle logs", () => {
 		expect(logsText).toContain(currentName);
 		expect(logsText).toContain("later invocation");
 		expect(logsText.indexOf(crashedName)).toBeLessThan(logsText.indexOf(currentName));
+		if (staleUtcName) expect(logsText).not.toContain(staleUtcName);
 	});
 });

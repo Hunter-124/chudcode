@@ -7,7 +7,7 @@
  * Priority: 5 (low, as this is a fallback after tool-specific providers)
  */
 import * as path from "node:path";
-import { logger, tryParseJson } from "@chudware/utils";
+import { logger, tryParseJson } from "@oh-my-pi/pi-utils";
 import { registerProvider } from "../capability";
 import { readFile } from "../capability/fs";
 import { type MCPServer, mcpCapability } from "../capability/mcp";
@@ -27,6 +27,7 @@ interface MCPConfigFile {
 			enabled?: boolean;
 			timeout?: number;
 			requestIdFormat?: "string" | "number";
+			instructions?: boolean;
 			command?: string;
 			args?: string[];
 			env?: Record<string, string>;
@@ -92,11 +93,20 @@ function transformMCPConfig(config: MCPConfigFile, source: SourceMeta): MCPServe
 				});
 			}
 
+			const instructions = typeof serverConfig.instructions === "boolean" ? serverConfig.instructions : undefined;
+			if (instructions === undefined && serverConfig.instructions !== undefined) {
+				logger.warn("MCP server has invalid 'instructions' value, ignoring", {
+					name,
+					value: serverConfig.instructions,
+				});
+			}
+
 			const server: MCPServer = {
 				name,
 				enabled,
 				timeout,
 				requestIdFormat,
+				instructions,
 				command: serverConfig.command,
 				args: serverConfig.args,
 				env: serverConfig.env,

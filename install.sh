@@ -2,7 +2,7 @@
 set -eu
 
 PRODUCT_NAME="Chudcode"
-PRODUCT_VERSION="0.3.0"
+PRODUCT_VERSION="0.4.0"
 RELEASE_TAG="chudcode-v${PRODUCT_VERSION}"
 RELEASE_REPOSITORY="Hunter-124/chudcode"
 INSTALL_DIR="${CHUDCODE_INSTALL_DIR:-${HOME}/.local/bin}"
@@ -159,11 +159,8 @@ verify_version_output() {
 	output=$("$executable" --version 2>&1) || die "$executable failed its --version check"
 	case "$executable" in
 		*/chud|*/chud.exe)
-			printf '%s\n' "$output" | awk -v version="$PRODUCT_VERSION" '
-				NR == 1 && $0 ~ ("^Chudcode v" version "( \\(based on omp [0-9]+\\.[0-9]+\\.[0-9]+(-[0-9A-Za-z.-]+)?\\))?$") { valid = 1 }
-				NR > 1 { extra = 1 }
-				END { exit(valid && !extra ? 0 : 1) }
-			' || die "$executable returned unexpected --version output: $output"
+			[ "$output" = "Chudcode v${PRODUCT_VERSION}" ] ||
+				die "$executable returned unexpected --version output: $output"
 			;;
 		*/chudcode-desktop|*/chudcode-desktop.exe)
 			[ "$output" = "$PRODUCT_VERSION" ] || die "$executable returned unexpected --version output: $output"
@@ -278,7 +275,6 @@ assert_install_link_replaceable() {
 	fi
 }
 assert_install_link_replaceable "chud${exe_suffix}"
-assert_install_link_replaceable "chudcode${exe_suffix}"
 if [ "$INSTALL_DESKTOP" = "1" ]; then
 	assert_install_link_replaceable "chudcode-desktop${exe_suffix}"
 	assert_install_link_replaceable "chudcode-gui${exe_suffix}"
@@ -324,7 +320,6 @@ install_link() {
 }
 
 install_link "chud${exe_suffix}" "$INSTALL_ROOT/current/chud${exe_suffix}"
-install_link "chudcode${exe_suffix}" "$INSTALL_ROOT/current/chud${exe_suffix}"
 if [ "$INSTALL_DESKTOP" = "1" ]; then
 	install_link "chudcode-desktop${exe_suffix}" "$INSTALL_ROOT/current/chudcode-desktop${exe_suffix}"
 	install_link "chudcode-gui${exe_suffix}" "$INSTALL_ROOT/current/chudcode-gui${exe_suffix}"

@@ -19,13 +19,13 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
-import type { FetchImpl } from "@chudware/ai";
-import { ModelRegistry } from "@chudware/coding-agent/config/model-registry";
-import { Settings } from "@chudware/coding-agent/config/settings";
-import { createAgentSession } from "@chudware/coding-agent/sdk";
-import type { AuthStorage } from "@chudware/coding-agent/session/auth-storage";
-import { SessionManager } from "@chudware/coding-agent/session/session-manager";
-import { Snowflake } from "@chudware/utils";
+import type { FetchImpl } from "@oh-my-pi/pi-ai";
+import { ModelRegistry } from "@oh-my-pi/pi-coding-agent/config/model-registry";
+import { Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
+import { createAgentSession } from "@oh-my-pi/pi-coding-agent/sdk";
+import type { AuthStorage } from "@oh-my-pi/pi-coding-agent/session/auth-storage";
+import { SessionManager } from "@oh-my-pi/pi-coding-agent/session/session-manager";
+import { Snowflake } from "@oh-my-pi/pi-utils";
 import { createInMemoryAuthStorage } from "./helpers/agent-session-setup";
 
 describe("issue #6162 fresh launch default role from models.yml discovery provider", () => {
@@ -33,7 +33,7 @@ describe("issue #6162 fresh launch default role from models.yml discovery provid
 	const authStoragesToClose: AuthStorage[] = [];
 
 	beforeEach(() => {
-		tempDir = path.join(os.tmpdir(), `chud-sdk-default-role-config-${Snowflake.next()}`);
+		tempDir = path.join(os.tmpdir(), `pi-sdk-default-role-config-${Snowflake.next()}`);
 		fs.mkdirSync(tempDir, { recursive: true });
 	});
 
@@ -81,8 +81,8 @@ describe("issue #6162 fresh launch default role from models.yml discovery provid
 		// The configured provider's key resolves the role model; a competing
 		// bundled provider key would otherwise win the startup fallback via
 		// `pickDefaultAvailableModel`.
-		authStorage.setRuntimeApiKey("my-provider", "test-provider-key");
-		authStorage.setRuntimeApiKey("openai", "test-openai-key");
+		authStorage.keys.setRuntime("my-provider", "test-provider-key");
+		authStorage.keys.setRuntime("openai", "test-openai-key");
 
 		// Fresh registry: no cached my-provider catalog on disk, so the static
 		// catalog the SDK resolves against at startup is empty for the provider.

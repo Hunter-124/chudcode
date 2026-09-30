@@ -63,13 +63,13 @@ def sample_chunk_questions(
     step = len(eligible) / n
     picked = []
     for k in range(n):
-        chud = eligible[int(k * step)]
-        qa = rng.choice(paras[chud]["qas"])
+        pi = eligible[int(k * step)]
+        qa = rng.choice(paras[pi]["qas"])
         picked.append(
             {
                 "q": " ".join(qa["question"].split()),
                 "golds": sorted({a["text"] for a in qa["answers"]}),
-                "pos_rel": (offsets[chud] - start) / (end - start),
+                "pos_rel": (offsets[pi] - start) / (end - start),
             }
         )
     return picked

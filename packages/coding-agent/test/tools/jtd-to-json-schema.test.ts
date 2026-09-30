@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import { isJTDSchema, jtdToJsonSchema } from "@chudware/coding-agent/tools/jtd-to-json-schema";
+import { isJTDSchema, jtdToJsonSchema } from "@oh-my-pi/pi-coding-agent/tools/jtd-to-json-schema";
 
 describe("jtdToJsonSchema", () => {
 	it("converts JTD elements and int32 primitives into JSON Schema", () => {
@@ -135,6 +135,35 @@ describe("jtdToJsonSchema", () => {
 		expect(converted).toBe(input);
 		expect(converted).toEqual(expected);
 		expect(input).toEqual(expected);
+	});
+
+	it("preserves a native JSON Schema root that omits type (#12893)", () => {
+		// A root `properties` map with no `type` is legal JSON Schema and parses as JTD too.
+		// `items`/`required` are JSON-Schema-only keywords, so the document cannot be JTD —
+		// routing it through the JTD converter dropped `items` and OpenAI strict mode then
+		// rejected the yield tool with `array schema missing items`.
+		const input = {
+			properties: {
+				summary: { type: "string" },
+				findings: {
+					type: "array",
+					items: {
+						type: "object",
+						properties: { kind: { type: "string", enum: ["defect", "scope"] } },
+						required: ["kind"],
+					},
+				},
+				attacks_failed: { type: "array", items: { type: "string" } },
+			},
+			required: ["summary", "findings", "attacks_failed"],
+		};
+		const expected = structuredClone(input);
+
+		const converted = jtdToJsonSchema(input);
+
+		expect(isJTDSchema(input)).toBe(false);
+		expect(converted).toBe(input);
+		expect(converted).toEqual(expected);
 	});
 
 	it("converts unambiguous nested JTD at single-schema positions", () => {

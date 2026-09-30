@@ -1,11 +1,11 @@
 import * as path from "node:path";
-import type { AgentTool, AgentToolContext, AgentToolResult, AgentToolUpdateCallback } from "@chudware/agent-core";
-import { type } from "@chudware/chudtype";
+import type { AgentTool, AgentToolContext, AgentToolResult, AgentToolUpdateCallback } from "@oh-my-pi/pi-agent-core";
+import { type } from "@oh-my-pi/omptype";
 import type { ToolSession } from ".";
 import { missingTool, probeTools } from "./analyzers/doctor";
 import { exists } from "./analyzers/files";
 import { commandFailure, runCommand } from "./analyzers/process";
-import type { OutputMeta } from "./output-meta";
+import type { OutputMeta } from "@oh-my-pi/pi-tui/tools/output-meta";
 import { toolResult } from "./tool-result";
 
 const binaryInspectSchema = type({

@@ -2,23 +2,19 @@ import { afterEach, beforeEach, describe, expect, it, spyOn } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import { type } from "@chudware/chudtype";
-import { getManagedSkillsDir } from "@chudware/coding-agent/autolearn/managed-skills";
-import { type SettingPath, Settings } from "@chudware/coding-agent/config/settings";
-import { resetActiveSkillsForTests, type Skill, setActiveSkills } from "@chudware/coding-agent/extensibility/skills";
-import type { HindsightSessionState } from "@chudware/coding-agent/hindsight/state";
-import type { MnemopiSessionState } from "@chudware/coding-agent/mnemo/state";
-import { createTools, type ToolSession } from "@chudware/coding-agent/tools";
-import { LearnTool } from "@chudware/coding-agent/tools/learn";
-import { ManageSkillTool } from "@chudware/coding-agent/tools/manage-skill";
-import { removeWithRetries } from "@chudware/utils";
-import { getAgentDir, setAgentDir } from "@chudware/utils/dirs";
-import * as fsx from "@chudware/utils/fsx";
+import { type } from "@oh-my-pi/omptype";
+import { getManagedSkillsDir } from "@oh-my-pi/pi-coding-agent/autolearn/managed-skills";
+import { Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
+import { resetActiveSkillsForTests, type Skill, setActiveSkills } from "@oh-my-pi/pi-coding-agent/extensibility/skills";
+import type { HindsightSessionState } from "@oh-my-pi/pi-coding-agent/hindsight/state";
+import type { MnemopiSessionState } from "@oh-my-pi/pi-coding-agent/mnemopi/state";
+import { createTools, type ToolSession } from "@oh-my-pi/pi-coding-agent/tools";
+import { LearnTool } from "@oh-my-pi/pi-coding-agent/tools/learn";
+import { ManageSkillTool } from "@oh-my-pi/pi-coding-agent/tools/manage-skill";
+import { removeWithRetries } from "@oh-my-pi/pi-utils";
+import { getAgentDir, setAgentDir } from "@oh-my-pi/pi-utils/dirs";
 
-function makeSession(
-	settingsOverrides: Partial<Record<SettingPath, unknown>> = {},
-	extra: Partial<ToolSession> = {},
-): ToolSession {
+function makeSession(settingsOverrides: Record<string, unknown> = {}, extra: Partial<ToolSession> = {}): ToolSession {
 	return {
 		cwd: "/tmp/test",
 		hasUI: false,
@@ -46,7 +42,7 @@ describe("autolearn tool gating", () => {
 	});
 
 	it("offers both tools, marked essential, when enabled with a live backend", async () => {
-		const tools = await createTools(makeSession({ "autolearn.enabled": true, "memory.backend": "mnemo" }));
+		const tools = await createTools(makeSession({ "autolearn.enabled": true, "memory.backend": "mnemopi" }));
 		const learn = tools.find(t => t.name === "learn");
 		const manage = tools.find(t => t.name === "manage_skill");
 		expect(learn).toBeDefined();
@@ -60,7 +56,7 @@ describe("autolearn tool gating", () => {
 		// A session created with autolearn on but a narrow tool list still gets the
 		// controller/guidance, so the tools the nudge points at must be present.
 		const withBackend = (
-			await createTools(makeSession({ "autolearn.enabled": true, "memory.backend": "mnemo" }), ["read"])
+			await createTools(makeSession({ "autolearn.enabled": true, "memory.backend": "mnemopi" }), ["read"])
 		).map(t => t.name);
 		expect(withBackend).toContain("manage_skill");
 		expect(withBackend).toContain("learn");
@@ -76,7 +72,7 @@ describe("autolearn tool gating", () => {
 		// taskDepth > 0: the controller never runs here, so a subagent's explicit
 		// whitelist must not be silently widened with write-capable tools.
 		const sub = (
-			await createTools(makeSession({ "autolearn.enabled": true, "memory.backend": "mnemo" }, { taskDepth: 1 }), [
+			await createTools(makeSession({ "autolearn.enabled": true, "memory.backend": "mnemopi" }, { taskDepth: 1 }), [
 				"read",
 			])
 		).map(t => t.name);
@@ -85,7 +81,7 @@ describe("autolearn tool gating", () => {
 
 		// Nor via discovery (no explicit list) at depth.
 		const subDiscovered = (
-			await createTools(makeSession({ "autolearn.enabled": true, "memory.backend": "mnemo" }, { taskDepth: 1 }))
+			await createTools(makeSession({ "autolearn.enabled": true, "memory.backend": "mnemopi" }, { taskDepth: 1 }))
 		).map(t => t.name);
 		expect(subDiscovered).not.toContain("manage_skill");
 		expect(subDiscovered).not.toContain("learn");
@@ -94,7 +90,7 @@ describe("autolearn tool gating", () => {
 	it("allows the tools in a subagent when explicitly requested in toolNames", async () => {
 		// Frontmatter tools: list overrides the taskDepth gate.
 		const sub = (
-			await createTools(makeSession({ "autolearn.enabled": true, "memory.backend": "mnemo" }, { taskDepth: 1 }), [
+			await createTools(makeSession({ "autolearn.enabled": true, "memory.backend": "mnemopi" }, { taskDepth: 1 }), [
 				"manage_skill",
 				"learn",
 			])
@@ -124,9 +120,9 @@ describe("manage_skill execute", () => {
 
 	beforeEach(async () => {
 		originalAgentDir = getAgentDir();
-		tempHome = await fs.mkdtemp(path.join(os.tmpdir(), "chudcode-manage-skill-"));
+		tempHome = await fs.mkdtemp(path.join(os.tmpdir(), "omp-manage-skill-"));
 		spyOn(os, "homedir").mockReturnValue(tempHome);
-		setAgentDir(path.join(tempHome, ".chudcode", "agent"));
+		setAgentDir(path.join(tempHome, ".omp", "agent"));
 	});
 
 	afterEach(async () => {
@@ -141,10 +137,10 @@ describe("manage_skill execute", () => {
 	it("create writes the managed SKILL.md; delete removes it", async () => {
 		const file = path.join(getManagedSkillsDir(), "demo", "SKILL.md");
 		await tool().execute("1", { action: "create", name: "demo", description: "When to demo.", body: "# Demo" });
-		expect(await fsx.exists(file)).toBe(true);
+		expect(await Bun.file(file).exists()).toBe(true);
 
 		await tool().execute("2", { action: "delete", name: "demo" });
-		expect(await fsx.exists(file)).toBe(false);
+		expect(await Bun.file(file).exists()).toBe(false);
 	});
 
 	it("rejects create without a body and delete of a missing skill", async () => {
@@ -171,7 +167,7 @@ describe("manage_skill execute", () => {
 			source: "native:user",
 			_source: {
 				provider: "native",
-				providerName: "Chud",
+				providerName: "Pi",
 				path: path.join(tempHome, "authored", "demo", "SKILL.md"),
 				level: "user",
 			},
@@ -191,7 +187,7 @@ describe("manage_skill execute", () => {
 		expect(text).toMatch(/authored skill/i);
 		expect(text).not.toContain("Created");
 		// Nothing was written, so the managed skill can never surface.
-		expect(await fsx.exists(path.join(getManagedSkillsDir(), "demo", "SKILL.md"))).toBe(false);
+		expect(await Bun.file(path.join(getManagedSkillsDir(), "demo", "SKILL.md")).exists()).toBe(false);
 	});
 });
 
@@ -210,16 +206,16 @@ describe("learn execute", () => {
 			},
 		};
 		return makeSession(
-			{ "autolearn.enabled": true, "memory.backend": "mnemo" },
+			{ "autolearn.enabled": true, "memory.backend": "mnemopi" },
 			{ getMnemopiSessionState: () => fakeState as unknown as MnemopiSessionState },
 		);
 	}
 
 	beforeEach(async () => {
 		originalAgentDir = getAgentDir();
-		tempHome = await fs.mkdtemp(path.join(os.tmpdir(), "chudcode-learn-"));
+		tempHome = await fs.mkdtemp(path.join(os.tmpdir(), "omp-learn-"));
 		spyOn(os, "homedir").mockReturnValue(tempHome);
-		setAgentDir(path.join(tempHome, ".chudcode", "agent"));
+		setAgentDir(path.join(tempHome, ".omp", "agent"));
 		remembered = [];
 	});
 
@@ -242,7 +238,7 @@ describe("learn execute", () => {
 			skill: { action: "create", name: "worker-host", description: "Spawn workers.", body: "# Worker host" },
 		});
 		expect(remembered).toHaveLength(1);
-		expect(await fsx.exists(path.join(getManagedSkillsDir(), "worker-host", "SKILL.md"))).toBe(true);
+		expect(await Bun.file(path.join(getManagedSkillsDir(), "worker-host", "SKILL.md")).exists()).toBe(true);
 	});
 
 	it("surfaces a partial-outcome error when the skill name is invalid", async () => {
@@ -279,6 +275,31 @@ describe("learn execute", () => {
 		expect(result.content[0]).toEqual({ type: "text", text: "Lesson queued for retention." });
 	});
 
+	it("rejects a global Hindsight lesson before queueing or minting a skill", async () => {
+		const queued: string[] = [];
+		const session = makeSession(
+			{ "autolearn.enabled": true, "memory.backend": "hindsight" },
+			{
+				getHindsightSessionState: () =>
+					({
+						enqueueRetain: (memory: string) => {
+							queued.push(memory);
+						},
+					}) as unknown as HindsightSessionState,
+			},
+		);
+
+		await expect(
+			new LearnTool(session).execute("hindsight-global", {
+				memory: "A cross-project lesson must not become project-local.",
+				scope: "global",
+				skill: { action: "create", name: "global-lesson", description: "Shared lesson.", body: "# Shared lesson" },
+			}),
+		).rejects.toThrow(/only available with the Mnemopi backend/i);
+		expect(queued).toEqual([]);
+		expect(await Bun.file(path.join(getManagedSkillsDir(), "global-lesson", "SKILL.md")).exists()).toBe(false);
+	});
+
 	it("reports Hindsight skill failures as queued partial outcomes", async () => {
 		const queued: string[] = [];
 		const session = makeSession(
@@ -302,14 +323,16 @@ describe("learn execute", () => {
 		expect(queued).toEqual(["queued lesson"]);
 	});
 
-	it("fails the lesson and skips the skill when mnemo returns no id", async () => {
+	it("fails the lesson with the write error and skips the skill when the mnemopi write fails", async () => {
 		const failingState = {
 			sessionId: "sess-2",
 			session: { sessionManager: { getCwd: () => "/tmp/work" } },
-			rememberScoped: () => undefined,
+			rememberScoped: () => {
+				throw new Error("database or disk is full");
+			},
 		};
 		const session = makeSession(
-			{ "autolearn.enabled": true, "memory.backend": "mnemo" },
+			{ "autolearn.enabled": true, "memory.backend": "mnemopi" },
 			{ getMnemopiSessionState: () => failingState as unknown as MnemopiSessionState },
 		);
 		await expect(
@@ -317,8 +340,8 @@ describe("learn execute", () => {
 				memory: "lesson",
 				skill: { action: "create", name: "should-not-exist", description: "d", body: "b" },
 			}),
-		).rejects.toThrow(/did not store/i);
+		).rejects.toThrow("Mnemopi did not store the lesson: database or disk is full");
 		// A failed lesson must not leave a minted skill behind.
-		expect(await fsx.exists(path.join(getManagedSkillsDir(), "should-not-exist", "SKILL.md"))).toBe(false);
+		expect(await Bun.file(path.join(getManagedSkillsDir(), "should-not-exist", "SKILL.md")).exists()).toBe(false);
 	});
 });

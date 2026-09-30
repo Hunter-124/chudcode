@@ -1,5 +1,5 @@
 /**
- * Regression test for `chudcode plugin config validate` (#9106).
+ * Regression test for `omp plugin config validate` (#9106).
  *
  * `handleConfigValidate` used to enumerate only `PluginManager.list()`, which
  * intentionally omits marketplace runtime packages — so an invalid constrained
@@ -10,11 +10,11 @@
  * `flags.json` is set so the renderer takes the JSON branch and avoids the theme.
  */
 import { afterEach, beforeEach, describe, expect, mock, spyOn, test } from "bun:test";
-import { runPluginCommand } from "@chudware/coding-agent/cli/plugin-cli";
-import { PluginManager } from "@chudware/coding-agent/extensibility/plugins/manager";
-import type { InstalledPluginSummary } from "@chudware/coding-agent/extensibility/plugins/marketplace";
-import { MarketplaceManager } from "@chudware/coding-agent/extensibility/plugins/marketplace";
-import type { InstalledPlugin } from "@chudware/coding-agent/extensibility/plugins/types";
+import { runPluginCommand } from "@oh-my-pi/pi-coding-agent/cli/plugin-cli";
+import { PluginManager } from "@oh-my-pi/pi-coding-agent/extensibility/plugins/manager";
+import type { InstalledPluginSummary } from "@oh-my-pi/pi-coding-agent/extensibility/plugins/marketplace";
+import { MarketplaceManager } from "@oh-my-pi/pi-coding-agent/extensibility/plugins/marketplace";
+import type { InstalledPlugin } from "@oh-my-pi/pi-coding-agent/extensibility/plugins/types";
 
 describe("runPluginCommand({ action: 'config', args: ['validate'] })", () => {
 	const output: string[] = [];
@@ -32,12 +32,12 @@ describe("runPluginCommand({ action: 'config', args: ['validate'] })", () => {
 
 	test("reports an invalid stored value on a marketplace plugin that list() omits", async () => {
 		const summary: InstalledPluginSummary = {
-			id: "chudcode-commit@market",
+			id: "omp-commit@market",
 			scope: "user",
 			entries: [
 				{
 					scope: "user",
-					installPath: "/cache/chudcode-commit",
+					installPath: "/cache/omp-commit",
 					version: "2.0.0",
 					installedAt: "2026-08-20T00:00:00.000Z",
 					lastUpdated: "2026-08-20T00:00:00.000Z",
@@ -45,9 +45,9 @@ describe("runPluginCommand({ action: 'config', args: ['validate'] })", () => {
 			],
 		};
 		const resolved: InstalledPlugin = {
-			name: "chudcode-commit",
+			name: "omp-commit",
 			version: "2.0.0",
-			path: "/cache/chudcode-commit",
+			path: "/cache/omp-commit",
 			manifest: {
 				version: "2.0.0",
 				settings: { splitMode: { type: "enum", values: ["auto", "manual"], default: "auto" } },
@@ -65,21 +65,21 @@ describe("runPluginCommand({ action: 'config', args: ['validate'] })", () => {
 		await runPluginCommand({ action: "config", args: ["validate"], flags: { json: true } });
 
 		// Resolved through the trusted marketplace install path.
-		expect(getPlugin).toHaveBeenCalledWith("chudcode-commit", { path: "/cache/chudcode-commit" });
+		expect(getPlugin).toHaveBeenCalledWith("omp-commit", { path: "/cache/omp-commit" });
 
 		const report = JSON.parse(output.join("\n")) as {
 			valid: boolean;
 			errors: Array<{ plugin: string; key: string }>;
 		};
 		expect(report.valid).toBe(false);
-		expect(report.errors).toContainEqual(expect.objectContaining({ plugin: "chudcode-commit", key: "splitMode" }));
+		expect(report.errors).toContainEqual(expect.objectContaining({ plugin: "omp-commit", key: "splitMode" }));
 	});
 
 	test("validates against the active project schema over a same-named user plugin", async () => {
 		const userPlugin: InstalledPlugin = {
-			name: "chudcode-commit",
+			name: "omp-commit",
 			version: "1.0.0",
-			path: "/user/chudcode-commit",
+			path: "/user/omp-commit",
 			manifest: {
 				version: "1.0.0",
 				settings: { splitMode: { type: "enum", values: ["legacy"], default: "legacy" } },
@@ -90,14 +90,14 @@ describe("runPluginCommand({ action: 'config', args: ['validate'] })", () => {
 		const projectPlugin: InstalledPlugin = {
 			...userPlugin,
 			version: "2.0.0",
-			path: "/project/chudcode-commit",
+			path: "/project/omp-commit",
 			manifest: {
 				version: "2.0.0",
 				settings: { splitMode: { type: "enum", values: ["auto", "manual"], default: "auto" } },
 			},
 		};
 		const summary: InstalledPluginSummary = {
-			id: "chudcode-commit@market",
+			id: "omp-commit@market",
 			scope: "project",
 			entries: [
 				{
@@ -117,12 +117,12 @@ describe("runPluginCommand({ action: 'config', args: ['validate'] })", () => {
 
 		await runPluginCommand({ action: "config", args: ["validate"], flags: { json: true } });
 
-		expect(getPlugin).toHaveBeenCalledWith("chudcode-commit");
+		expect(getPlugin).toHaveBeenCalledWith("omp-commit");
 		const report = JSON.parse(output.join("\n")) as {
 			valid: boolean;
 			errors: Array<{ plugin: string; key: string }>;
 		};
 		expect(report.valid).toBe(false);
-		expect(report.errors).toContainEqual(expect.objectContaining({ plugin: "chudcode-commit", key: "splitMode" }));
+		expect(report.errors).toContainEqual(expect.objectContaining({ plugin: "omp-commit", key: "splitMode" }));
 	});
 });

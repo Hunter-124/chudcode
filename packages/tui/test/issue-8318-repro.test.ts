@@ -1,6 +1,5 @@
 import { describe, expect, it, vi } from "bun:test";
-import { type Component, TUI } from "@chudware/tui";
-import { sleep } from "@chudware/utils/async";
+import { type Component, TUI } from "@oh-my-pi/pi-tui";
 import { withoutTerminalMultiplexer } from "./helpers/terminal-multiplexer";
 import { VirtualTerminal } from "./virtual-terminal";
 
@@ -38,14 +37,14 @@ async function settle(term: VirtualTerminal): Promise<void> {
 	const nextTick = Promise.withResolvers<void>();
 	process.nextTick(nextTick.resolve);
 	await nextTick.promise;
-	await sleep(40);
+	await Bun.sleep(40);
 	await term.flush();
 }
 
 // A non-multiplexer resize paints the viewport immediately and defers the
 // authoritative full paint until the drag settles (120 ms window).
 async function settleResize(term: VirtualTerminal): Promise<void> {
-	await sleep(160);
+	await Bun.sleep(160);
 	await settle(term);
 }
 
@@ -62,17 +61,13 @@ function captureWrites(term: VirtualTerminal): string[] {
 /**
  * Split the paint write that carries the sized heading into terminal rows and
  * return the heading row plus the `spacerCount` rows written directly beneath
- * it. The normal-screen path chains rows with `\r\n`; the alt-buffer path
- * positions each row absolutely (`ESC [ row ; 1 H`) because it repaints only the
- * rows whose bytes changed. Neither separator can appear inside an OSC 66 span,
- * so the split keeps each row intact.
+ * it. Rows are `\r\n`-separated in the emitted buffer; the OSC 66 ST (`ESC \\`)
+ * never contains a newline, so the split keeps each span intact.
  */
-const ROW_SEPARATOR = /\r\n|\x1b\[\d+;1H/;
-
 function headingAndSpacers(writes: string[], spacerCount: number): { heading: string; spacers: string[] } {
 	const paint = writes.find(write => write.includes(OSC66));
 	expect(paint).toBeDefined();
-	const rows = paint!.split(ROW_SEPARATOR);
+	const rows = paint!.split("\r\n");
 	const idx = rows.findIndex(row => row.includes(OSC66));
 	expect(idx).toBeGreaterThanOrEqual(0);
 	return { heading: rows[idx]!, spacers: rows.slice(idx + 1, idx + 1 + spacerCount) };

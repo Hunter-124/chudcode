@@ -2,15 +2,16 @@ import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import { Settings } from "@chudware/coding-agent/config/settings";
-import type { ToolSession } from "@chudware/coding-agent/tools";
-import { resolveExplicitSearchPaths } from "@chudware/coding-agent/tools/path-utils";
-import { removeWithRetries } from "@chudware/utils";
-import * as fsx from "@chudware/utils/fsx";
+import { Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
+import { InternalUrlFilesystem } from "@oh-my-pi/pi-coding-agent/internal-urls/url-filesystem";
+import type { ToolSession } from "@oh-my-pi/pi-coding-agent/tools";
+import { resolveExplicitSearchPaths } from "@oh-my-pi/pi-coding-agent/tools/path-utils";
+import { removeWithRetries } from "@oh-my-pi/pi-utils";
 import { GrepTool } from "../../src/tools/grep";
 
 const testSettings = Settings.isolated();
 const isWindows = process.platform === "win32";
+const filesystem = new InternalUrlFilesystem({ context: {}, tier: "read" });
 
 function createTestSession(cwd: string, overrides: Partial<ToolSession> = {}): ToolSession {
 	return {
@@ -37,7 +38,7 @@ describe.skipIf(isWindows)("resolveExplicitSearchPaths cross-tree degeneracy", (
 		// filesystem; the resolver must surface explicit `targets` so callers can
 		// fan out instead.
 		const cwd = os.tmpdir();
-		const resolved = await resolveExplicitSearchPaths(["/tmp", "/usr"], cwd);
+		const resolved = await resolveExplicitSearchPaths(["/tmp", "/usr"], cwd, filesystem);
 
 		expect(resolved).toBeDefined();
 		if (!resolved) throw new Error("expected resolveExplicitSearchPaths to resolve");
@@ -52,8 +53,8 @@ describe.skipIf(isWindows)("search with omitted paths", () => {
 	let cwd: string;
 
 	beforeEach(async () => {
-		cwd = await fs.mkdtemp(path.join(os.tmpdir(), "chud-search-default-cwd-"));
-		await fsx.write(path.join(cwd, "rooted.txt"), "default-needle here\n");
+		cwd = await fs.mkdtemp(path.join(os.tmpdir(), "pi-search-default-cwd-"));
+		await Bun.write(path.join(cwd, "rooted.txt"), "default-needle here\n");
 	});
 
 	afterEach(async () => {
@@ -95,11 +96,11 @@ describe.skipIf(isWindows)("search across unrelated filesystem trees", () => {
 		// Place fixtures in two unrelated top-level subtrees so their only shared
 		// ancestor is the filesystem root. Without the multi-target fanout, the
 		// search tool would scan from `/` and walk the entire filesystem.
-		dirA = await fs.mkdtemp(path.join("/tmp", "chud-search-multi-A-"));
-		dirB = await fs.mkdtemp(path.join("/var/tmp", "chud-search-multi-B-"));
-		cwd = await fs.mkdtemp(path.join(os.tmpdir(), "chud-search-multi-cwd-"));
-		await fsx.write(path.join(dirA, "alpha.txt"), "shared-needle alpha\n");
-		await fsx.write(path.join(dirB, "beta.txt"), "shared-needle beta\n");
+		dirA = await fs.mkdtemp(path.join("/tmp", "pi-search-multi-A-"));
+		dirB = await fs.mkdtemp(path.join("/var/tmp", "pi-search-multi-B-"));
+		cwd = await fs.mkdtemp(path.join(os.tmpdir(), "pi-search-multi-cwd-"));
+		await Bun.write(path.join(dirA, "alpha.txt"), "shared-needle alpha\n");
+		await Bun.write(path.join(dirB, "beta.txt"), "shared-needle beta\n");
 	});
 
 	afterEach(async () => {
@@ -136,12 +137,12 @@ describe.skipIf(isWindows)("resolveExplicitSearchPaths shared non-root ancestor"
 	let cousinFile: string;
 
 	beforeEach(async () => {
-		parent = await fs.mkdtemp(path.join(os.tmpdir(), "chud-search-ancestor-"));
+		parent = await fs.mkdtemp(path.join(os.tmpdir(), "pi-search-ancestor-"));
 		repo = path.join(parent, "repo");
 		await fs.mkdir(path.join(repo, "src"), { recursive: true });
-		await fsx.write(path.join(repo, "src", "a.ts"), "alpha\n");
+		await Bun.write(path.join(repo, "src", "a.ts"), "alpha\n");
 		cousinFile = path.join(parent, "homeish", ".gitconfig");
-		await fsx.write(cousinFile, "[push]\n\tfollowTags = true\n");
+		await Bun.write(cousinFile, "[push]\n\tfollowTags = true\n");
 	});
 
 	afterEach(async () => {
@@ -154,7 +155,7 @@ describe.skipIf(isWindows)("resolveExplicitSearchPaths shared non-root ancestor"
 		// scans every unrelated sibling (the real-world case: `.` + `~/.gitconfig`
 		// walks all of `$HOME` until the grep timeout). The resolver must surface
 		// per-path targets so each scan stays bounded to a requested path.
-		const resolved = await resolveExplicitSearchPaths([".", cousinFile], repo);
+		const resolved = await resolveExplicitSearchPaths([".", cousinFile], repo, filesystem);
 		expect(resolved).toBeDefined();
 		if (!resolved) throw new Error("expected resolveExplicitSearchPaths to resolve");
 		const targetBases = (resolved.targets ?? []).map(target => target.basePath).sort();
@@ -165,15 +166,33 @@ describe.skipIf(isWindows)("resolveExplicitSearchPaths shared non-root ancestor"
 		// `ast_edit` consumes the same targets and applies rewrites once per
 		// target; a dir + nested-file input must stay a single walk by default or
 		// overlapping targets would double-apply rewrites to the nested file.
-		const resolved = await resolveExplicitSearchPaths([".", "src/a.ts"], repo);
+		const resolved = await resolveExplicitSearchPaths([".", "src/a.ts"], repo, filesystem);
 		expect(resolved).toBeDefined();
 		if (!resolved) throw new Error("expected resolveExplicitSearchPaths to resolve");
 		expect(resolved.targets).toBeUndefined();
 		expect(resolved.basePath).toBe(repo);
 	});
 
+	it("collapses the walk when the requested ancestor is a non-canonical absolute path", async () => {
+		// Regression for #11584: resolveToCwd returned absolute inputs verbatim
+		// while findCommonBasePath canonicalizes via path.resolve, so the
+		// commonIsRequestedScope identity check never held for an absolute
+		// ancestor — on Windows for every absolute spelling (`/` vs `\`), on
+		// POSIX for a non-canonical one (trailing separator or embedded `..`).
+		// The false fan-out made ast_edit double-apply the rewrite to the nested
+		// file. A trailing separator and an embedded `..` are distinct shapes a
+		// partial fix could normalize inconsistently, so both must collapse.
+		for (const ancestor of [`${repo}${path.sep}`, `${repo}${path.sep}src${path.sep}..`]) {
+			const resolved = await resolveExplicitSearchPaths([ancestor, "src/a.ts"], repo, filesystem);
+			expect(resolved).toBeDefined();
+			if (!resolved) throw new Error("expected resolveExplicitSearchPaths to resolve");
+			expect(resolved.targets).toBeUndefined();
+			expect(resolved.basePath).toBe(repo);
+		}
+	});
+
 	it("fans out nested plain files when the caller opts in via fanOutFileItems", async () => {
-		const resolved = await resolveExplicitSearchPaths([".", "src/a.ts"], repo, undefined, true);
+		const resolved = await resolveExplicitSearchPaths([".", "src/a.ts"], repo, filesystem, undefined, true);
 		expect(resolved).toBeDefined();
 		if (!resolved) throw new Error("expected resolveExplicitSearchPaths to resolve");
 		const targetBases = (resolved.targets ?? []).map(target => target.basePath).sort();
@@ -181,14 +200,36 @@ describe.skipIf(isWindows)("resolveExplicitSearchPaths shared non-root ancestor"
 	});
 });
 
+describe.skipIf(!isWindows)("resolveExplicitSearchPaths Windows casing", () => {
+	it("collapses overlapping scopes whose drive letters differ in case", async () => {
+		const repo = await fs.mkdtemp(path.join(os.tmpdir(), "pi-search-case-"));
+		try {
+			await fs.mkdir(path.join(repo, "src"), { recursive: true });
+			await Bun.write(path.join(repo, "src", "a.ts"), "alpha\n");
+			const driveLetter = repo[0]!;
+			const differentlyCasedDrive =
+				driveLetter === driveLetter.toLowerCase() ? driveLetter.toUpperCase() : driveLetter.toLowerCase();
+			const absoluteAncestor = `${differentlyCasedDrive}${repo.slice(1)}`;
+
+			const resolved = await resolveExplicitSearchPaths([absoluteAncestor, "src/a.ts"], repo, filesystem);
+			expect(resolved).toBeDefined();
+			if (!resolved) throw new Error("expected resolveExplicitSearchPaths to resolve");
+			expect(resolved.targets).toBeUndefined();
+			expect(resolved.basePath.toLowerCase()).toBe(repo.toLowerCase());
+		} finally {
+			await removeWithRetries(repo);
+		}
+	});
+});
+
 describe.skipIf(isWindows)("search with explicit walker-pruned file targets", () => {
 	let repo: string;
 
 	beforeEach(async () => {
-		repo = await fs.mkdtemp(path.join(os.tmpdir(), "chud-search-pruned-"));
+		repo = await fs.mkdtemp(path.join(os.tmpdir(), "pi-search-pruned-"));
 		await fs.mkdir(path.join(repo, ".git"), { recursive: true });
-		await fsx.write(path.join(repo, ".git", "config"), "[push]\n\tfollowTags = true\n");
-		await fsx.write(path.join(repo, "readme.txt"), "no needle here\n");
+		await Bun.write(path.join(repo, ".git", "config"), "[push]\n\tfollowTags = true\n");
+		await Bun.write(path.join(repo, "readme.txt"), "no needle here\n");
 	});
 
 	afterEach(async () => {
@@ -213,7 +254,7 @@ describe.skipIf(isWindows)("search with explicit walker-pruned file targets", ()
 
 	it("dedupes matches when a file target overlaps a directory target", async () => {
 		await fs.mkdir(path.join(repo, "src"), { recursive: true });
-		await fsx.write(path.join(repo, "src", "a.ts"), "needle-dup\n");
+		await Bun.write(path.join(repo, "src", "a.ts"), "needle-dup\n");
 		const tool = new GrepTool(createTestSession(repo));
 
 		const result = await tool.execute("search-overlap", {

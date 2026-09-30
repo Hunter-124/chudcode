@@ -2,8 +2,7 @@ import { afterEach, describe, expect, it } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import { type } from "@chudware/chudtype";
-import * as fsx from "@chudware/utils/fsx";
+import { type } from "@oh-my-pi/omptype";
 import { loadCustomCommands } from "../../../src/extensibility/custom-commands/loader";
 
 let tempRoot: string | undefined;
@@ -17,11 +16,11 @@ afterEach(async () => {
 
 describe("custom command loader", () => {
 	it("supports legacy and callable ArkType injection", async () => {
-		tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "chudcode-custom-command-loader-"));
+		tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "omp-custom-command-loader-"));
 		const commandDir = path.join(tempRoot, "commands", "arktype-compat");
 		await fs.mkdir(commandDir, { recursive: true });
 		const commandPath = path.join(commandDir, "index.js");
-		await fsx.write(
+		await Bun.write(
 			commandPath,
 			[
 				"export default api => {",

@@ -1,8 +1,8 @@
 import { describe, expect, it } from "bun:test";
-import { streamOpenAICompletions } from "@chudware/ai/providers/openai-completions";
-import type { Context, Model, ModelSpec, Tool, ToolChoice } from "@chudware/ai/types";
-import { buildModel } from "@chudware/catalog/build";
-import { type } from "@chudware/chudtype";
+import { type } from "@oh-my-pi/omptype";
+import { streamOpenAICompletions } from "@oh-my-pi/pi-ai/providers/openai-completions";
+import type { Context, Model, ModelSpec, Tool, ToolChoice } from "@oh-my-pi/pi-ai/types";
+import { buildModel } from "@oh-my-pi/pi-catalog/build";
 
 interface ChatCompletionsPayload {
 	tool_choice?: unknown;

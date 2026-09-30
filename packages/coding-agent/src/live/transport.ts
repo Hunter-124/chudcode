@@ -1,8 +1,12 @@
-import { type AuthStorage, isAuthRetryableError, type OAuthAccess, withOAuthAccess } from "@chudware/ai";
-import { getProxyForUrl, wrapFetchForProxy } from "@chudware/ai/utils/proxy";
-import { CODEX_BASE_URL, CODEX_CLIENT_VERSION, getCodexAccountId, OPENAI_HEADERS } from "@chudware/catalog/wire/codex";
-import { LiveWebRtcPeer } from "@chudware/natives";
-import { sleep } from "@chudware/utils/async";
+import { type AuthStorage, isAuthRetryableError, type OAuthAccess, withOAuthAccess } from "@oh-my-pi/pi-ai";
+import { getProxyForUrl, wrapFetchForProxy } from "@oh-my-pi/pi-ai/utils/proxy";
+import {
+	CODEX_BASE_URL,
+	CODEX_CLIENT_VERSION,
+	getCodexAccountId,
+	OPENAI_HEADERS,
+} from "@oh-my-pi/pi-catalog/wire/codex";
+import { LiveWebRtcPeer } from "@oh-my-pi/pi-natives";
 import { generateCodexAttestation } from "./attestation";
 import {
 	buildLiveSessionPayload,
@@ -238,7 +242,7 @@ export class CodexLiveTransport {
 			} catch (cause) {
 				failure = cause instanceof Error ? cause : new Error(String(cause));
 				if (this.#options.signal?.aborted) throw abortReason(this.#options.signal);
-				if (attempt + 1 < SIDEBAND_CONNECT_ATTEMPTS) await sleep(200 * 2 ** attempt);
+				if (attempt + 1 < SIDEBAND_CONNECT_ATTEMPTS) await Bun.sleep(200 * 2 ** attempt);
 			}
 		}
 		throw failure;

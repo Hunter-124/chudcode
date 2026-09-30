@@ -1,18 +1,18 @@
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "bun:test";
 import * as path from "node:path";
-import { Agent } from "@chudware/agent-core";
-import type { UsageReport } from "@chudware/ai";
-import { ModelRegistry } from "@chudware/coding-agent/config/model-registry";
-import { resetSettingsForTest, Settings } from "@chudware/coding-agent/config/settings";
-import { InteractiveMode } from "@chudware/coding-agent/modes/interactive-mode";
-import { initTheme } from "@chudware/coding-agent/modes/theme/theme";
-import type { AgentSessionEvent } from "@chudware/coding-agent/session/agent-session";
-import { AgentSession } from "@chudware/coding-agent/session/agent-session";
-import { AuthStorage } from "@chudware/coding-agent/session/auth-storage";
-import { HistoryStorage } from "@chudware/coding-agent/session/history-storage";
-import { SessionManager } from "@chudware/coding-agent/session/session-manager";
-import { Text } from "@chudware/tui";
-import { TempDir } from "@chudware/utils";
+import { Agent } from "@oh-my-pi/pi-agent-core";
+import type { UsageReport } from "@oh-my-pi/pi-ai";
+import { ModelRegistry } from "@oh-my-pi/pi-coding-agent/config/model-registry";
+import { resetSettingsForTest, Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
+import { InteractiveMode } from "@oh-my-pi/pi-coding-agent/modes/interactive-mode";
+import { initTheme } from "@oh-my-pi/pi-tui/theme";
+import type { AgentSessionEvent } from "@oh-my-pi/pi-coding-agent/session/agent-session";
+import { AgentSession } from "@oh-my-pi/pi-coding-agent/session/agent-session";
+import { AuthStorage } from "@oh-my-pi/pi-coding-agent/session/auth-storage";
+import { HistoryStorage } from "@oh-my-pi/pi-coding-agent/session/history-storage";
+import { SessionManager } from "@oh-my-pi/pi-coding-agent/session/session-manager";
+import { Text } from "@oh-my-pi/pi-tui";
+import { TempDir } from "@oh-my-pi/pi-utils";
 
 const usageReports: UsageReport[] = [
 	{
@@ -74,7 +74,7 @@ describe("issue #6767 /usage output during streaming", () => {
 
 	afterEach(async () => {
 		mode?.stop();
-		HistoryStorage.resetInstance();
+		HistoryStorage.close();
 		vi.restoreAllMocks();
 		await session?.dispose();
 		authStorage?.close();
@@ -82,22 +82,25 @@ describe("issue #6767 /usage output during streaming", () => {
 		resetSettingsForTest();
 	});
 
-	it("defers the usage panel until the active turn ends, mounting it once", async () => {
+	it("opens the usage dashboard overlay without touching the transcript, even mid-stream", async () => {
 		const streamedReply = new Text("agent is streaming", 0, 0);
 		mode.chatContainer.addChild(streamedReply);
+		const showDashboard = vi.fn();
+		mode.showUsageDashboard = showDashboard;
 
 		await mode.handleUsageCommand(usageReports);
 
-		// Mid-stream: the finalized panel must NOT mount above the growing live
-		// block (that is what duplicates in native scrollback — issue #6767).
+		// /usage renders as an overlay (the /settings idiom): nothing may mount
+		// into the transcript, mid-stream or otherwise — mounting above the
+		// growing live block is what duplicated in native scrollback (#6767).
+		expect(showDashboard).toHaveBeenCalledTimes(1);
+		expect(showDashboard).toHaveBeenCalledWith(usageReports);
 		expect(mode.chatContainer.children).toEqual([streamedReply]);
 
 		streaming = false;
 		await mode.eventController.handleEvent({ type: "agent_end", messages: [] } as AgentSessionEvent);
 
-		// streamedReply + the deferred usage panel (Spacer + Text).
-		expect(mode.chatContainer.children).toHaveLength(3);
-		const transcript = mode.chatContainer.render(80).join("\n");
-		expect(transcript.match(/Usage \(/g)).toHaveLength(1);
+		// Turn end must not flush any deferred usage panel either.
+		expect(mode.chatContainer.children).toEqual([streamedReply]);
 	});
 });
