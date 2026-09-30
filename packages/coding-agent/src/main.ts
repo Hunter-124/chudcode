@@ -2431,7 +2431,9 @@ export async function runRootCommand(
 				notifs.push({ kind: "error", message: modelRegistryError.message });
 			}
 
-			if (!isInteractive && !session.model) {
+			// RPC hosts supply credentials after startup (set_api_key, login, scoped
+			// env); a prompt without a model fails per request instead.
+			if (!isInteractive && mode !== "rpc" && mode !== "rpc-ui" && !session.model) {
 				if (modelRegistryError) {
 					process.stderr.write(`${chalk.red(modelRegistryError.message)}\n\n`);
 				}
