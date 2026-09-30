@@ -35,7 +35,8 @@ describe("tokenmaxxing prose trigger", () => {
 		const input = "please tokenmaxxing this";
 		const highlighted = highlightMagicKeywords(input);
 		expect(Bun.stripANSI(highlighted)).toBe(input);
-		expect(new Set(highlighted.match(/\x1b\[38[;0-9:]*m/g) ?? []).size).toBeGreaterThan(4);
+		// 256-color terminals quantize the sweep to fewer distinct stops than truecolor.
+		expect(new Set(highlighted.match(/\x1b\[38[;0-9:]*m/g) ?? []).size).toBeGreaterThan(2);
 		expect(highlightMagicKeywords("src/modes/tokenmaxxing.ts")).toBe("src/modes/tokenmaxxing.ts");
 	});
 });
