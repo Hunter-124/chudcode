@@ -12,6 +12,7 @@ import * as executorModule from "@oh-my-pi/pi-coding-agent/task/executor";
 import type { AgentDefinition } from "@oh-my-pi/pi-coding-agent/task/types";
 import type { SingleResult, TaskParams } from "@oh-my-pi/pi-tui/tools/task";
 import type { ToolSession } from "@oh-my-pi/pi-coding-agent/tools";
+import { CONFIG_DIR_NAME, getProjectAgentDir } from "@oh-my-pi/pi-utils";
 
 const taskAgent: AgentDefinition = {
 	name: "task",
@@ -170,7 +171,7 @@ describe("task async preflight", () => {
 		const home = await fs.mkdtemp(path.join(os.tmpdir(), "omp-unknown-agent-"));
 		try {
 			const projectDir = path.join(home, "project");
-			await fs.mkdir(path.join(projectDir, ".omp", "agents"), { recursive: true });
+			await fs.mkdir(path.join(getProjectAgentDir(projectDir), "agents"), { recursive: true });
 			vi.spyOn(os, "homedir").mockReturnValue(home);
 			const tool = await TaskTool.create(createSession({ manager: manager(), cwd: projectDir }));
 
@@ -181,7 +182,7 @@ describe("task async preflight", () => {
 			} as TaskParams);
 
 			const text = textOf(result);
-			expect(text).toContain(`Searched: ${path.join("~", "project", ".omp", "agents")}`);
+			expect(text).toContain(`Searched: ${path.join("~", "project", CONFIG_DIR_NAME, "agents")}`);
 			expect(text).not.toContain(home);
 		} finally {
 			await fs.rm(home, { recursive: true, force: true });

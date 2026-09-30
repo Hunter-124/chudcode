@@ -14,7 +14,7 @@ import {
 	writeMarketplacesRegistry,
 } from "@oh-my-pi/pi-coding-agent/extensibility/plugins/marketplace";
 import * as piUtils from "@oh-my-pi/pi-utils";
-import { removeSyncWithRetries } from "@oh-my-pi/pi-utils";
+import { getConfigDirName, getPluginsDir, removeSyncWithRetries } from "@oh-my-pi/pi-utils";
 
 // Minimal marketplace fixture, built once into a temp dir (see beforeAll). It carries only
 // what these tests assert — one plugin entry plus a plugin.json for the version-fallback path —
@@ -95,7 +95,7 @@ function createTestContext(): TestContext {
 	const dirs = {
 		mktRegistry: path.join(tmpDir, "marketplaces.json"),
 		instRegistry: path.join(tmpDir, "installed_plugins.json"),
-		// Distinct runtime root from user scope, mirroring production (~/.omp/plugins vs <project>/.omp/plugins).
+		// Distinct runtime root from user scope, mirroring production (user vs project plugin roots).
 		projectInstRegistry: path.join(tmpDir, "project", "installed_plugins.json"),
 		mktCache: path.join(tmpDir, "cache", "marketplaces"),
 		plugCache: path.join(tmpDir, "cache", "plugins"),
@@ -226,7 +226,7 @@ describe("MarketplaceManager", () => {
 
 		try {
 			const added = await ctx.manager.addMarketplace(FIXTURE_DIR);
-			const catalogPath = "~/.omp/plugins/cache/marketplaces/test-marketplace/marketplace.json";
+			const catalogPath = `~/${getConfigDirName()}/plugins/cache/marketplaces/test-marketplace/marketplace.json`;
 			const registry = await readMarketplacesRegistry(registryPath);
 			await writeMarketplacesRegistry(registryPath, {
 				...registry,
@@ -638,9 +638,9 @@ describe("MarketplaceManager", () => {
 	it("installPlugin exposes marketplace package to the runtime loader", async () => {
 		const tmpHome = fs.mkdtempSync(path.join(os.tmpdir(), "omp-mgr-home-"));
 		try {
-			const pluginsDir = path.join(tmpHome, ".omp", "plugins");
+			const pluginsDir = getPluginsDir(tmpHome);
 			const manager = new MarketplaceManager({
-				marketplacesRegistryPath: path.join(tmpHome, ".omp", "marketplaces.json"),
+				marketplacesRegistryPath: path.join(tmpHome, getConfigDirName(), "marketplaces.json"),
 				installedRegistryPath: path.join(pluginsDir, "installed_plugins.json"),
 				marketplacesCacheDir: path.join(pluginsDir, "cache", "marketplaces"),
 				pluginsCacheDir: path.join(pluginsDir, "cache", "plugins"),
@@ -724,9 +724,9 @@ describe("MarketplaceManager", () => {
 	it("installPlugin keeps marketplace packages out of OMP extension roots", async () => {
 		const tmpHome = fs.mkdtempSync(path.join(os.tmpdir(), "omp-mgr-home-"));
 		try {
-			const pluginsDir = path.join(tmpHome, ".omp", "plugins");
+			const pluginsDir = getPluginsDir(tmpHome);
 			const manager = new MarketplaceManager({
-				marketplacesRegistryPath: path.join(tmpHome, ".omp", "marketplaces.json"),
+				marketplacesRegistryPath: path.join(tmpHome, getConfigDirName(), "marketplaces.json"),
 				installedRegistryPath: path.join(pluginsDir, "installed_plugins.json"),
 				marketplacesCacheDir: path.join(pluginsDir, "cache", "marketplaces"),
 				pluginsCacheDir: path.join(pluginsDir, "cache", "plugins"),
@@ -746,11 +746,11 @@ describe("MarketplaceManager", () => {
 		const tmpHome = fs.mkdtempSync(path.join(os.tmpdir(), "omp-mgr-home-"));
 		const projectAnchor = fs.mkdtempSync(path.join(os.tmpdir(), "omp-mgr-project-"));
 		try {
-			const userPluginsDir = path.join(tmpHome, ".omp", "plugins");
-			const projectPluginsDir = path.join(projectAnchor, ".omp", "plugins");
+			const userPluginsDir = getPluginsDir(tmpHome);
+			const projectPluginsDir = path.join(projectAnchor, getConfigDirName(), "plugins");
 			fs.mkdirSync(projectPluginsDir, { recursive: true });
 			const manager = new MarketplaceManager({
-				marketplacesRegistryPath: path.join(tmpHome, ".omp", "marketplaces.json"),
+				marketplacesRegistryPath: path.join(tmpHome, getConfigDirName(), "marketplaces.json"),
 				installedRegistryPath: path.join(userPluginsDir, "installed_plugins.json"),
 				projectInstalledRegistryPath: path.join(projectPluginsDir, "installed_plugins.json"),
 				marketplacesCacheDir: path.join(userPluginsDir, "cache", "marketplaces"),

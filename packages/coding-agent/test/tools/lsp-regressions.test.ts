@@ -7,6 +7,7 @@ import type { AgentToolResult, RenderResultOptions } from "@oh-my-pi/pi-agent-co
 import { arkToWireSchema } from "@oh-my-pi/pi-ai/utils/schema";
 import { Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
 import { preloadPluginRoots } from "@oh-my-pi/pi-coding-agent/discovery/helpers";
+import { CONFIG_DIR_NAME } from "@oh-my-pi/pi-utils/dirs";
 import { restoreEnvValue } from "../helpers/settings-test-state";
 import { createLspWritethrough, LspTool } from "@oh-my-pi/pi-coding-agent/lsp";
 import * as lspClient from "@oh-my-pi/pi-coding-agent/lsp/client";
@@ -445,14 +446,14 @@ describe("lsp regressions", () => {
 		const syncedFilePath = path.join(tempDir.path(), "unsaved.gd");
 		try {
 			await Bun.write(
-				path.join(tempDir.path(), ".omp", "lsp.json"),
+				path.join(tempDir.path(), CONFIG_DIR_NAME, "lsp.json"),
 				JSON.stringify({
 					servers: {
 						"fake-gd": {
 							command: process.execPath,
 							fileTypes: [".gd"],
 							languageId: "gdscript",
-							rootMarkers: [".omp"],
+							rootMarkers: [CONFIG_DIR_NAME],
 						},
 					},
 				}),

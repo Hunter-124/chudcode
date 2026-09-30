@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
-import { TempDir } from "@oh-my-pi/pi-utils";
+import { CONFIG_DIR_NAME, TempDir } from "@oh-my-pi/pi-utils";
 import { checkPythonSetup } from "../src/cli/setup-cli";
 import { Settings } from "../src/config/settings";
 import { restoreEnvValue } from "./helpers/settings-test-state";
@@ -96,7 +96,7 @@ describe("omp setup python", () => {
 			const interpreter = path.join(cwd, "configured-python");
 			await Bun.write(interpreter, "#!/bin/sh\nexit 0\n");
 			await fs.chmod(interpreter, 0o755);
-			await Bun.write(path.join(cwd, ".omp", "config.yml"), `python:\n  interpreter: ${interpreter}\n`);
+			await Bun.write(path.join(cwd, CONFIG_DIR_NAME, "config.yml"), `python:\n  interpreter: ${interpreter}\n`);
 
 			const result = await runSetupPython(cwd);
 

@@ -4,7 +4,7 @@ import * as os from "node:os";
 import * as path from "node:path";
 import { clearClaudePluginRootsCache } from "@oh-my-pi/pi-coding-agent/discovery/helpers";
 import { getEnabledPlugins } from "@oh-my-pi/pi-coding-agent/extensibility/plugins/loader";
-import { removeWithRetries } from "@oh-my-pi/pi-utils";
+import { CONFIG_DIR_NAME, removeWithRetries } from "@oh-my-pi/pi-utils";
 
 const tempRoots: string[] = [];
 const restore: string[] = [];
@@ -30,7 +30,7 @@ async function plantRoot(prefix: string): Promise<{ home: string; cwd: string; m
 	tempRoots.push(root);
 	const home = path.join(root, "home");
 	const cwd = path.join(root, "project");
-	const pluginsDir = path.join(home, ".omp", "plugins");
+	const pluginsDir = path.join(home, CONFIG_DIR_NAME, "plugins");
 	await fs.mkdir(cwd, { recursive: true });
 
 	const declaredDir = path.join(pluginsDir, "node_modules", "declared-plugin");

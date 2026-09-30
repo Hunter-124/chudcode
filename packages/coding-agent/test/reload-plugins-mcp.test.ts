@@ -14,7 +14,7 @@ import { executeBuiltinSlashCommand } from "@oh-my-pi/pi-coding-agent/slash-comm
 import type { TuiSlashCommandRuntime } from "@oh-my-pi/pi-coding-agent/slash-commands/types";
 import { TaskTool } from "@oh-my-pi/pi-coding-agent/task";
 import type { ToolSession } from "@oh-my-pi/pi-coding-agent/tools";
-import { getProjectDir, removeWithRetries, setProjectDir } from "@oh-my-pi/pi-utils";
+import { getProjectAgentDir, getProjectDir, removeWithRetries, setProjectDir } from "@oh-my-pi/pi-utils";
 
 const originalProjectDir = getProjectDir();
 const TEST_EXTENSION_ROOTS: EffectiveExtensionRoots = {
@@ -106,7 +106,7 @@ describe("/reload-plugins runtime refresh", () => {
 	});
 
 	test("republishes edited agents to an existing task tool", async () => {
-		const agentDir = path.join(projectDir, ".omp", "agents");
+		const agentDir = path.join(getProjectAgentDir(projectDir), "agents");
 		const agentFile = path.join(agentDir, "reload-agent.md");
 		await fs.mkdir(agentDir, { recursive: true });
 		await Bun.write(agentFile, agentDefinition("VERSION_ONE"));

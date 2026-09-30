@@ -11,7 +11,7 @@ import {
 } from "@oh-my-pi/pi-coding-agent/discovery/omp-extension-roots";
 import { clearClaudePluginRootsCache, injectPluginDirRoots } from "@oh-my-pi/pi-coding-agent/discovery/helpers";
 import { discoverAgents } from "@oh-my-pi/pi-coding-agent/task/discovery";
-import { removeWithRetries } from "@oh-my-pi/pi-utils";
+import { getConfigDirName, getProjectAgentDir, removeWithRetries } from "@oh-my-pi/pi-utils";
 
 const OMP_AGENT_MD = [
 	"---",
@@ -41,7 +41,7 @@ const CLAUDE_AGENT_MD = [
 ].join("\n");
 
 async function writeOmpPluginAgent(home: string): Promise<void> {
-	const userPluginsRoot = path.join(home, ".omp", "plugins");
+	const userPluginsRoot = path.join(home, getConfigDirName(), "plugins");
 	const pluginRoot = path.join(userPluginsRoot, "node_modules", "loom");
 	await fs.mkdir(path.join(pluginRoot, "agents"), { recursive: true });
 	await fs.writeFile(
@@ -64,7 +64,7 @@ function agentMd(name: string, model: string): string {
 }
 
 // Register an omp-installed marketplace plugin via the OMP plugin registry
-// (`~/.omp/plugins/installed_plugins.json`), the path listClaudePluginRoots
+// under the user config directory, the path listClaudePluginRoots
 // reads as origin "omp" — distinct from the node_modules path above. `manifest`
 // controls the declared plugin dialect: `.omp-plugin/plugin.json` (OMP-native),
 // `.claude-plugin/plugin.json` (Claude Code), `both` (OMP wins by precedence),
@@ -101,7 +101,7 @@ async function writeOmpMarketplacePlugin(
 		);
 	}
 
-	const registryDir = path.join(home, ".omp", "plugins");
+	const registryDir = path.join(home, getConfigDirName(), "plugins");
 	await fs.mkdir(registryDir, { recursive: true });
 	await fs.writeFile(
 		path.join(registryDir, "installed_plugins.json"),
@@ -137,8 +137,8 @@ describe("discoverAgents", () => {
 	});
 
 	test("loads OMP agents but skips Claude Code custom agents", async () => {
-		await fs.mkdir(path.join(projectDir, ".omp", "agents"), { recursive: true });
-		await fs.writeFile(path.join(projectDir, ".omp", "agents", "omp-test-agent.md"), OMP_AGENT_MD);
+		await fs.mkdir(path.join(getProjectAgentDir(projectDir), "agents"), { recursive: true });
+		await fs.writeFile(path.join(getProjectAgentDir(projectDir), "agents", "omp-test-agent.md"), OMP_AGENT_MD);
 
 		await fs.mkdir(path.join(tempHome, ".claude", "agents"), { recursive: true });
 		await fs.writeFile(path.join(tempHome, ".claude", "agents", "user-cc-test-agent.md"), CLAUDE_AGENT_MD);
@@ -150,10 +150,10 @@ describe("discoverAgents", () => {
 
 		expect(names).toContain("omp-test-agent");
 		expect(names).not.toContain("cc-test-agent");
-		expect(projectAgentsDir).toBe(path.join(projectDir, ".omp", "agents"));
+		expect(projectAgentsDir).toBe(path.join(getProjectAgentDir(projectDir), "agents"));
 	});
 
-	test("loads agents from OMP npm plugins under <home>/.omp/plugins/node_modules", async () => {
+	test("loads agents from native npm plugins under the user config plugins directory", async () => {
 		await writeOmpPluginAgent(tempHome);
 
 		const { agents } = await discoverAgents(projectDir, tempHome);
@@ -170,6 +170,24 @@ describe("discoverAgents", () => {
 		const names = agents.map(agent => agent.name);
 
 		expect(names).not.toContain("loom-verify-spec");
+	});
+
+	test("discovers package agents configured by project config.yml", async () => {
+		const packageRoot = path.join(tempHome, "project-package");
+		const agentPath = path.join(packageRoot, "agents", "configured.md");
+		await fs.mkdir(path.dirname(agentPath), { recursive: true });
+		await fs.writeFile(
+			agentPath,
+			["---", "name: configured", "description: configured package agent", "---", "body"].join("\n"),
+		);
+		await fs.mkdir(getProjectAgentDir(projectDir), { recursive: true });
+		await fs.writeFile(
+			path.join(getProjectAgentDir(projectDir), "config.yml"),
+			`extensions:\n  - ${JSON.stringify(packageRoot)}\n`,
+		);
+
+		const { agents } = await discoverAgents(projectDir, tempHome);
+		expect(agents.find(agent => agent.name === "configured")?.filePath).toBe(agentPath);
 	});
 
 	test("CLI extension agents win over project `extensions:` settings on dedup", async () => {
@@ -189,9 +207,16 @@ describe("discoverAgents", () => {
 			path.join(projectExt, "agents", "collide.md"),
 			["---", "name: collide", "description: from-project-settings", "---", "project body"].join("\n"),
 		);
+		await fs.writeFile(
+			path.join(projectExt, "agents", "project-only.md"),
+			["---", "name: project-only", "description: from-project-settings", "---", "project body"].join("\n"),
+		);
 
-		await fs.mkdir(path.join(projectDir, ".omp"), { recursive: true });
-		await fs.writeFile(path.join(projectDir, ".omp", "settings.json"), JSON.stringify({ extensions: [projectExt] }));
+		await fs.mkdir(getProjectAgentDir(projectDir), { recursive: true });
+		await fs.writeFile(
+			path.join(getProjectAgentDir(projectDir), "settings.json"),
+			JSON.stringify({ extensions: [projectExt] }),
+		);
 		injectOmpExtensionCliRoots([cliExt], tempHome, projectDir);
 
 		const { agents } = await discoverAgents(projectDir, tempHome);
@@ -200,6 +225,9 @@ describe("discoverAgents", () => {
 		expect(collide).toBeDefined();
 		expect(collide?.description).toBe("from-cli");
 		expect(collide?.filePath).toBe(path.join(cliExt, "agents", "collide.md"));
+		expect(agents.find(agent => agent.name === "project-only")?.filePath).toBe(
+			path.join(projectExt, "agents", "project-only.md"),
+		);
 	});
 
 	test("explicit-only CLI roots expose only explicitly named package agents", async () => {
@@ -217,8 +245,11 @@ describe("discoverAgents", () => {
 				["---", `name: ${name}`, `description: ${name}`, "---", `${name} body`].join("\n"),
 			);
 		}
-		await fs.mkdir(path.join(projectDir, ".omp"), { recursive: true });
-		await fs.writeFile(path.join(projectDir, ".omp", "settings.json"), JSON.stringify({ extensions: [settingsExt] }));
+		await fs.mkdir(getProjectAgentDir(projectDir), { recursive: true });
+		await fs.writeFile(
+			path.join(getProjectAgentDir(projectDir), "settings.json"),
+			JSON.stringify({ extensions: [settingsExt] }),
+		);
 		await writeOmpPluginAgent(tempHome);
 
 		injectOmpExtensionCliRoots([staleExt], tempHome, projectDir);

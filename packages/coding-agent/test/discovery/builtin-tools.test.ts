@@ -8,7 +8,7 @@ import { resetSettingsForTest, Settings } from "@oh-my-pi/pi-coding-agent/config
 import { initializeWithSettings, loadCapability } from "@oh-my-pi/pi-coding-agent/discovery";
 import { clearClaudePluginRootsCache } from "@oh-my-pi/pi-coding-agent/discovery/helpers";
 import { discoverCustomToolPaths, loadCustomTools } from "@oh-my-pi/pi-coding-agent/extensibility/custom-tools/loader";
-import { __resetDirsFromEnvForTests, removeWithRetries, setAgentDir } from "@oh-my-pi/pi-utils";
+import { CONFIG_DIR_NAME, __resetDirsFromEnvForTests, removeWithRetries, setAgentDir } from "@oh-my-pi/pi-utils";
 import { restoreEnvValue } from "../helpers/settings-test-state";
 
 function toolSource(name: string): string {
@@ -41,8 +41,8 @@ describe("native executable custom tool discovery", () => {
 		root = await fs.mkdtemp(path.join(os.tmpdir(), "omp-builtin-tools-"));
 		const home = path.join(root, "home");
 		project = path.join(root, "project");
-		projectTools = path.join(project, ".omp", "tools");
-		userTools = path.join(home, ".omp", "agent", "tools");
+		projectTools = path.join(project, CONFIG_DIR_NAME, "tools");
+		userTools = path.join(home, CONFIG_DIR_NAME, "agent", "tools");
 		process.env.HOME = home;
 		vi.spyOn(os, "homedir").mockReturnValue(home);
 		setAgentDir(path.dirname(userTools));

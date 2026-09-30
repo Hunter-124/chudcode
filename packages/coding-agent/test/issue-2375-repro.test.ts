@@ -205,7 +205,7 @@ describe("InputController.handleImagePathPaste (issue #2375)", () => {
 			"-pix_fmt",
 			"yuv420p",
 			"-c:v",
-			"libx264",
+			"mpeg4",
 			video,
 		]);
 		try {

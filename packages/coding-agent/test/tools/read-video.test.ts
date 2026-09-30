@@ -57,7 +57,7 @@ describe.skipIf(!hasFfmpeg)("read video", () => {
 			"-pix_fmt",
 			"yuv420p",
 			"-c:v",
-			"libx264",
+			"mpeg4",
 			clipPath,
 		]);
 		const exit = await proc.exited;
@@ -76,7 +76,7 @@ describe.skipIf(!hasFfmpeg)("read video", () => {
 		const text = textOf(result);
 		expect(text).toContain("Video preview grid");
 		expect(text).toContain("320x240");
-		expect(text).toContain("h264");
+		expect(text).toContain("mpeg4");
 		expect(text).toContain("FPS");
 		const image = result.content.find(c => c.type === "image");
 		expect(image).toBeDefined();

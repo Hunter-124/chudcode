@@ -23,6 +23,7 @@ import { AUTO_THINKING } from "@oh-my-pi/pi-tui/thinking";
 import * as clipboard from "@oh-my-pi/pi-coding-agent/utils/clipboard";
 import { setKeybindings } from "@oh-my-pi/pi-tui";
 import { formatNumber, TempDir } from "@oh-my-pi/pi-utils";
+import { CONFIG_DIR_NAME } from "@oh-my-pi/pi-utils/dirs";
 
 import { cfgPlanAutosave, cfgPlanAutosaveDir } from "@oh-my-pi/pi-coding-agent/plan-mode/settings";
 
@@ -1666,7 +1667,7 @@ describe("InteractiveMode plan review rendering", () => {
 			title: "AUTOSAVE",
 		});
 
-		const saved = path.join(tempDir.path(), ".omp", "plans", "AUTOSAVE_PLAN.md");
+		const saved = path.join(tempDir.path(), CONFIG_DIR_NAME, "plans", "AUTOSAVE_PLAN.md");
 		expect(await Bun.file(saved).text()).toBe("# Plan\n\nAutosave me.");
 		expect(status).toHaveBeenCalledWith(expect.stringContaining("Saved plan to"));
 	});

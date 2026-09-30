@@ -15,7 +15,7 @@ import { MarketplaceManager } from "@oh-my-pi/pi-coding-agent/extensibility/plug
 import type { AgentSession } from "@oh-my-pi/pi-coding-agent/session/agent-session";
 import type { SessionManager } from "@oh-my-pi/pi-coding-agent/session/session-manager";
 import { executeAcpBuiltinSlashCommand } from "@oh-my-pi/pi-coding-agent/slash-commands/acp-builtins";
-import { getProjectDir, removeWithRetries, setProjectDir } from "@oh-my-pi/pi-utils";
+import { getAgentDir, getProjectDir, removeWithRetries, setAgentDir, setProjectDir } from "@oh-my-pi/pi-utils";
 
 import { cfgBrowserEnabled, cfgBrowserHeadless } from "@oh-my-pi/pi-coding-agent/tools/browser/settings";
 import { cfgExtendedContext } from "@oh-my-pi/pi-coding-agent/session/context-settings";
@@ -1242,13 +1242,20 @@ describe("wave 4 commands", () => {
 		expect(output[0]).toContain("reload");
 	});
 
-	it("/mcp resources: outputs server list or no-server message", async () => {
-		const { output, runtime } = createRuntime();
-		const result = await executeAcpBuiltinSlashCommand("/mcp resources", runtime);
-		expect(result).toEqual({ consumed: true });
-		// The user's MCP configuration may provide servers even in a temporary project.
-		// In that case, the command lists qualified resource URIs instead of an empty-state message.
-		expect(output[0]).toMatch(/^(?:No MCP servers configured|No resources available|[^\s/]+\/[^\s:]+:\/\/\S+)/);
+	it("/mcp resources: reports no servers when both configuration scopes are empty", async () => {
+		const root = await fs.mkdtemp(path.join(os.tmpdir(), "acp-mcp-resources-"));
+		const originalAgentDir = getAgentDir();
+		try {
+			setAgentDir(path.join(root, "agent"));
+			const { output, runtime } = createRuntime();
+			runtime.cwd = path.join(root, "project");
+			const result = await executeAcpBuiltinSlashCommand("/mcp resources", runtime);
+			expect(result).toEqual({ consumed: true });
+			expect(output).toEqual(["No MCP servers configured."]);
+		} finally {
+			setAgentDir(originalAgentDir);
+			await removeWithRetries(root);
+		}
 	});
 
 	it("/mcp unknown-verb: returns usage pointing to help", async () => {

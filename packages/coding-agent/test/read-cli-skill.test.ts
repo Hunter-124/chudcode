@@ -4,6 +4,7 @@ import * as os from "node:os";
 import * as path from "node:path";
 import * as url from "node:url";
 import { removeWithRetries } from "@oh-my-pi/pi-utils";
+import { CONFIG_DIR_NAME } from "@oh-my-pi/pi-utils/dirs";
 
 const CLI_ENTRY = path.join(import.meta.dir, "..", "src", "cli.ts");
 
@@ -16,7 +17,7 @@ describe("omp read skill resources", () => {
 		root = await fs.mkdtemp(path.join(os.tmpdir(), "omp-read-skill-"));
 		projectDir = path.join(root, "project");
 		agentDir = path.join(root, "agent");
-		const skillDir = path.join(projectDir, ".omp", "skills", "standalone-skill");
+		const skillDir = path.join(projectDir, CONFIG_DIR_NAME, "skills", "standalone-skill");
 		await Promise.all([fs.mkdir(skillDir, { recursive: true }), fs.mkdir(agentDir)]);
 		await Bun.write(
 			path.join(skillDir, "SKILL.md"),

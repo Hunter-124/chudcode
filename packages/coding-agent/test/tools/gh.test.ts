@@ -21,6 +21,7 @@ import { withRepoLock } from "@oh-my-pi/pi-coding-agent/utils/repo-lock";
 import type { VcsGitRepo } from "@oh-my-pi/pi-natives";
 import * as vcs from "@oh-my-pi/pi-natives/vcs";
 import { getAgentDir, hashPath, normalizePathForComparison, removeWithRetries, setAgentDir } from "@oh-my-pi/pi-utils";
+import { CONFIG_DIR_NAME } from "@oh-my-pi/pi-utils/dirs";
 
 const TINY_PNG_BASE64 =
 	"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8DwHwAFBQIAX8jx0gAAAABJRU5ErkJggg==";
@@ -186,7 +187,7 @@ async function createPrFixture(): Promise<PrFixture> {
 /**
  * Stub `os.homedir()` AND rebuild the cached `dirs` resolver in pi-utils so
  * `getWorktreesDir()` resolves under an isolated temp home instead of the
- * user's real `~/.omp/wt`. Returns the temp home and a cleanup hook.
+ * user's real home worktree directory. Returns the temp home and a cleanup hook.
  */
 interface TempHome {
 	home: string;
@@ -197,7 +198,7 @@ async function setupTempHome(): Promise<{ home: string; cleanup: () => Promise<v
 	const home = await fs.mkdtemp(path.join(os.tmpdir(), "gh-pr-tool-home-"));
 	vi.spyOn(os, "homedir").mockReturnValue(home);
 	// Clear XDG_*_HOME so the rebuilt resolver routes `dirs.rootSubdir("wt", "data")`
-	// through the spied homedir instead of `$XDG_DATA_HOME/omp/wt` (CI sets these).
+	// through the spied homedir instead of `$XDG_DATA_HOME/<app>/wt` (CI sets these).
 	const xdgKeys = ["XDG_DATA_HOME", "XDG_STATE_HOME", "XDG_CACHE_HOME"] as const;
 	const xdgPrevious: Partial<Record<(typeof xdgKeys)[number], string | undefined>> = {};
 	for (const key of xdgKeys) {
@@ -208,7 +209,7 @@ async function setupTempHome(): Promise<{ home: string; cleanup: () => Promise<v
 	// we must rebuild the resolver after the spy + env scrub are in place.
 	// `setAgentDir` recreates it; we point it at the temp home's default agent dir.
 	const originalAgentDir = getAgentDir();
-	setAgentDir(path.join(home, ".omp", "agent"));
+	setAgentDir(path.join(home, CONFIG_DIR_NAME, "agent"));
 	return {
 		home,
 		cleanup: async () => {
@@ -232,7 +233,7 @@ async function setupTempHome(): Promise<{ home: string; cleanup: () => Promise<v
 async function expectedWorktreePath(home: string, primaryRoot: string, localBranch: string): Promise<string> {
 	const prNumber = localBranch.replace(/^pr-/, "");
 	const segment = `${prNumber}-${hashPath(primaryRoot)}`;
-	return fs.realpath(path.join(home, ".omp", "wt", segment));
+	return fs.realpath(path.join(home, CONFIG_DIR_NAME, "wt", segment));
 }
 
 describe("parsePrUnifiedDiff", () => {

@@ -8,8 +8,8 @@
  * transports read. A field missing from either step silently degrades to the
  * snowflake-string default, which is the hang the option exists to avoid.
  *
- * Both OMP-native loaders are covered: `.omp/mcp.json` (native provider) and a
- * standalone project-root `.mcp.json` (mcp-json provider).
+ * Both native loaders are covered: the project config directory's `mcp.json`
+ * (native provider) and a standalone project-root `.mcp.json` (mcp-json provider).
  *
  * Separately, `isSameMCPConnection` treats two differently-named entries with the
  * same command/args/env/cwd as aliases of one connection, keeping only the
@@ -24,7 +24,7 @@ import * as path from "node:path";
 import { validateJsonSchemaValue } from "@oh-my-pi/pi-ai/utils/schema/json-schema-validator";
 import { clearCache as clearFsCache } from "@oh-my-pi/pi-coding-agent/capability/fs";
 import { loadAllMCPConfigs } from "@oh-my-pi/pi-coding-agent/mcp/config";
-import { getConfigRootDir, logger, removeWithRetries, setAgentDir } from "@oh-my-pi/pi-utils";
+import { CONFIG_DIR_NAME, getConfigRootDir, logger, removeWithRetries, setAgentDir } from "@oh-my-pi/pi-utils";
 import mcpSchema from "../../src/config/mcp-schema.json" with { type: "json" };
 
 const originalAgentDirEnv = process.env.PI_CODING_AGENT_DIR;
@@ -69,8 +69,8 @@ async function loadFrom(file: string, mcpServers: Record<string, unknown>) {
 	return configs;
 }
 
-test("requestIdFormat from .omp/mcp.json reaches the transport config", async () => {
-	const configs = await loadFrom(path.join(".omp", "mcp.json"), {
+test("requestIdFormat from native mcp.json reaches the transport config", async () => {
+	const configs = await loadFrom(path.join(CONFIG_DIR_NAME, "mcp.json"), {
 		xcode: { type: "stdio", command: "/usr/bin/xcrun", args: ["mcpbridge"], requestIdFormat: "number" },
 		plain: { type: "stdio", command: "/bin/echo" },
 	});
@@ -89,7 +89,7 @@ test("requestIdFormat from a standalone .mcp.json reaches the transport config",
 });
 
 test("differing requestIdFormat prevents equivalence dedup from collapsing two aliases", async () => {
-	const configs = await loadFrom(path.join(".omp", "mcp.json"), {
+	const configs = await loadFrom(path.join(CONFIG_DIR_NAME, "mcp.json"), {
 		"xcode-string": { type: "stdio", command: "/usr/bin/xcrun", args: ["mcpbridge"], requestIdFormat: "string" },
 		"xcode-default": { type: "stdio", command: "/usr/bin/xcrun", args: ["mcpbridge"] },
 	});
@@ -105,7 +105,7 @@ test("differing requestIdFormat prevents equivalence dedup from collapsing two a
 });
 
 test('an explicit "number" is the default, so dedup collapses it with an unset alias', async () => {
-	const configs = await loadFrom(path.join(".omp", "mcp.json"), {
+	const configs = await loadFrom(path.join(CONFIG_DIR_NAME, "mcp.json"), {
 		"xcode-numeric": { type: "stdio", command: "/usr/bin/xcrun", args: ["mcpbridge"], requestIdFormat: "number" },
 		"xcode-default": { type: "stdio", command: "/usr/bin/xcrun", args: ["mcpbridge"] },
 	});
@@ -116,7 +116,7 @@ test('an explicit "number" is the default, so dedup collapses it with an unset a
 });
 
 for (const [provider, file] of [
-	["native", ".omp/mcp.json"],
+	["native", path.join(CONFIG_DIR_NAME, "mcp.json")],
 	["standalone", ".mcp.json"],
 	["plugin", "plugin/.mcp.json"],
 ] as const) {
@@ -157,7 +157,7 @@ for (const [provider, file] of [
 }
 
 test("instructions does not split one endpoint into two connections", async () => {
-	const configs = await loadFrom(".omp/mcp.json", {
+	const configs = await loadFrom(path.join(CONFIG_DIR_NAME, "mcp.json"), {
 		quiet: { command: "/bin/echo", instructions: false },
 		loud: { command: "/bin/echo" },
 	});

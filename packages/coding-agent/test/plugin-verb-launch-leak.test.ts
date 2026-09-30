@@ -21,6 +21,7 @@
  */
 import { describe, expect, test } from "bun:test";
 import { isSubcommand, resolveCliArgv } from "../src/cli-commands";
+import { APP_NAME } from "@oh-my-pi/pi-utils/dirs";
 
 describe("documented-but-unregistered plugin verbs do not leak to launch (#2935)", () => {
 	test("bare `omp list` hints at `omp plugin list` instead of launching with 'list' as the prompt", () => {
@@ -30,7 +31,7 @@ describe("documented-but-unregistered plugin verbs do not leak to launch (#2935)
 		expect(result).not.toHaveProperty("argv");
 		// Must point at the real command.
 		expect(result).toHaveProperty("error");
-		expect("error" in result && result.error).toContain("omp plugin list");
+		expect("error" in result && result.error).toContain(`${APP_NAME} plugin list`);
 	});
 
 	test("bare `omp remove` hints at `omp plugin uninstall` instead of launching with 'remove' as the prompt", () => {
@@ -38,7 +39,7 @@ describe("documented-but-unregistered plugin verbs do not leak to launch (#2935)
 		expect(result).not.toEqual({ argv: ["launch", "remove"] });
 		expect(result).not.toHaveProperty("argv");
 		expect(result).toHaveProperty("error");
-		expect("error" in result && result.error).toContain("omp plugin uninstall");
+		expect("error" in result && result.error).toContain(`${APP_NAME} plugin uninstall`);
 	});
 
 	test("genuine multi-word prompts beginning with these verbs still route to launch", () => {
@@ -56,21 +57,21 @@ describe("documented-but-unregistered plugin verbs do not leak to launch (#2935)
 		expect(result).not.toEqual({ argv: ["launch", "marketplace", "add", "xyz"] });
 		expect(result).not.toHaveProperty("argv");
 		expect(result).toHaveProperty("error");
-		expect("error" in result && result.error).toContain("omp plugin marketplace");
+		expect("error" in result && result.error).toContain(`${APP_NAME} plugin marketplace`);
 	});
 
 	test("bare marketplace-family verbs hint at their `omp plugin` command (#4845)", () => {
 		for (const [verb, hint] of [
-			["marketplace", "omp plugin marketplace"],
-			["discover", "omp plugin discover"],
-			["upgrade", "omp plugin upgrade"],
-			["uninstall", "omp plugin uninstall"],
-			["enable", "omp plugin enable"],
-			["disable", "omp plugin disable"],
+			["marketplace", "marketplace"],
+			["discover", "discover"],
+			["upgrade", "upgrade"],
+			["uninstall", "uninstall"],
+			["enable", "enable"],
+			["disable", "disable"],
 		] as const) {
 			const result = resolveCliArgv([verb]);
 			expect(result).not.toHaveProperty("argv");
-			expect("error" in result && result.error).toContain(hint);
+			expect("error" in result && result.error).toContain(`${APP_NAME} plugin ${hint}`);
 		}
 	});
 

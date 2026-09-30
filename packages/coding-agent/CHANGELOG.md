@@ -5,6 +5,9 @@
 ### Fixed
 
 - Project task agents under the configured directory are discovered for task descriptions and ACP plugin reloads, including when the app's config directory is not `.omp`.
+- Project extension package discovery now reads settings from the configured project directory, so project-scoped extension skills and tools remain visible after the config-directory rename.
+- Profile aliases now launch the Chudcode executable, reserve its name against alias shadowing, and target its fish completions.
+- Browser MP4 recording selects an available FFmpeg encoder rather than failing when `libx264` is absent.
 
 ## [18.4.4] - 2026-09-29
 

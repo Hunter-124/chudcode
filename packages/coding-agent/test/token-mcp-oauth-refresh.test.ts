@@ -68,7 +68,13 @@ test("token refreshes and persists a rotating local MCP OAuth grant", async () =
 		hostname: "127.0.0.1",
 		port: 0,
 		async fetch(request) {
+			// Unrelated GET / probes can reach this ephemeral server; only POST /token
+			// is an OAuth grant, so count exactly those requests as refresh attempts.
+			if (request.method !== "POST" || new URL(request.url).pathname !== "/token") {
+				return new Response("Not found", { status: 404 });
+			}
 			const body = new URLSearchParams(await request.text());
+			expect(body.get("grant_type")).toBe("refresh_token");
 			refreshTokens.push(body.get("refresh_token") ?? "");
 			return Response.json({
 				access_token: "access-1",

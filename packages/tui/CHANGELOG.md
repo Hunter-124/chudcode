@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- The Tools settings tab now groups Chudcode's vision model options under a visible Vision heading.
+
 ## [18.4.4] - 2026-09-29
 
 ### Added

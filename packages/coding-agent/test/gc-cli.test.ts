@@ -8,6 +8,7 @@ import { withStatsSyncLock } from "@oh-my-pi/omp-stats/aggregator";
 import { type GcResult, runGcCommand } from "@oh-my-pi/pi-coding-agent/cli/gc-cli";
 import { Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
 import {
+	CONFIG_DIR_NAME,
 	getAgentDir,
 	getBlobsDir,
 	getCustomSessionFilesDir,
@@ -113,7 +114,7 @@ async function writeConfig(agentDir: string, body: string): Promise<void> {
 }
 
 async function writeProjectConfig(projectDir: string, body: string): Promise<void> {
-	const configDir = path.join(projectDir, ".omp");
+	const configDir = path.join(projectDir, CONFIG_DIR_NAME);
 	await fs.mkdir(configDir, { recursive: true });
 	await Bun.write(path.join(configDir, "config.yml"), body);
 }

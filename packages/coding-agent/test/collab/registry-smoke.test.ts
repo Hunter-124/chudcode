@@ -12,6 +12,7 @@ import * as os from "node:os";
 import * as path from "node:path";
 import type { CollabListJsonOutput } from "@oh-my-pi/pi-coding-agent/cli/collab-cli";
 import { COLLAB_REGISTRY_VERSION, listCollabHosts } from "@oh-my-pi/pi-coding-agent/collab/registry";
+import { getConfigDirName } from "@oh-my-pi/pi-utils/dirs";
 
 const HELPER_PATH = path.resolve(import.meta.dir, "helpers/registry-host-process.ts");
 const CLI_PATH = path.resolve(import.meta.dir, "../../src/cli.ts");
@@ -165,7 +166,7 @@ describe("collab host registry (two-process smoke)", () => {
 		const listed = await runCli(["list", "--json"]);
 		expect({ code: listed.code, stderr: listed.stderr }).toEqual({ code: 0, stderr: "" });
 		const listJson: CollabListJsonOutput = JSON.parse(listed.stdout);
-		const hosts = await listCollabHosts({ dir: path.join(home, ".omp", "run", "collab-hosts") });
+		const hosts = await listCollabHosts({ dir: path.join(home, getConfigDirName(), "run", "collab-hosts") });
 		expect(listJson).toEqual({ version: COLLAB_REGISTRY_VERSION, hosts });
 		expect(listJson.hosts).toHaveLength(1);
 		expect(listJson.hosts[0]).toMatchObject({ instanceId, pid: child.pid });

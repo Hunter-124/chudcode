@@ -94,6 +94,19 @@ async function probeVideo(filePath: string): Promise<ProbeResult> {
 	return JSON.parse(stdout) as ProbeResult;
 }
 
+async function expectedMp4Codec(): Promise<"h264" | "mpeg4"> {
+	const ffmpeg = $which("ffmpeg");
+	if (!ffmpeg) throw new Error("ffmpeg disappeared after the test gate");
+	const child = Bun.spawn([ffmpeg, "-hide_banner", "-encoders"], { stdout: "pipe", stderr: "pipe" });
+	const [stdout, stderr, exitCode] = await Promise.all([
+		new Response(child.stdout).text(),
+		new Response(child.stderr).text(),
+		child.exited,
+	]);
+	if (exitCode !== 0) throw new Error(`ffmpeg encoder inspection failed: ${stderr}`);
+	return /^\s*V\S*\s+(?:libx264|libopenh264)\s/m.test(stdout) ? "h264" : "mpeg4";
+}
+
 const html = `<!doctype html><html><head><style>
 html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; }
 body { display: grid; place-items: center; font: 64px system-ui; }
@@ -194,7 +207,7 @@ return { overlay: true, transform };`,
 			expect(mp4Stop.path).toBe(mp4Start.path);
 			const mp4Probe = await probeVideo(mp4Stop.path);
 			const mp4Stream = mp4Probe.streams?.find(stream => stream.codec_type === "video");
-			expect(mp4Stream?.codec_name).toBe("h264");
+			expect(mp4Stream?.codec_name).toBe(await expectedMp4Codec());
 			expect(Number.parseFloat(mp4Probe.format?.duration ?? "0")).toBeGreaterThanOrEqual(1);
 			expect(mp4Stream?.width && mp4Stream.width % 2).toBe(0);
 			expect(mp4Stream?.height && mp4Stream.height % 2).toBe(0);

@@ -374,6 +374,22 @@ function concatPath(filePath: string): string {
 	return filePath.replaceAll("'", "'\\''");
 }
 
+async function mp4Encoder(): Promise<"libx264" | "libopenh264" | "mpeg4"> {
+	const ffmpeg = requireMediaBinary("ffmpeg");
+	const child = Bun.spawn([ffmpeg, "-hide_banner", "-encoders"], { stdout: "pipe", stderr: "pipe" });
+	const [encoders, stderr, exitCode] = await Promise.all([
+		new Response(child.stdout).text(),
+		new Response(child.stderr).text(),
+		child.exited,
+	]);
+	if (exitCode !== 0) throw new BrowserRecordingError(`Could not inspect ffmpeg encoders: ${stderr}`);
+	// Prefer H.264 for browser playback, including OpenH264 on systems where
+	// x264 is unavailable. Native MPEG-4 Part 2 remains a portable MP4 fallback.
+	if (/^\s*V\S*\s+libx264\s/m.test(encoders)) return "libx264";
+	if (/^\s*V\S*\s+libopenh264\s/m.test(encoders)) return "libopenh264";
+	return "mpeg4";
+}
+
 async function encodeRecording(active: ActiveRecording, durationMs: number, signal?: AbortSignal): Promise<void> {
 	const frames = active.frames;
 	const firstTimestamp = frames[0]!.timestampMs;
@@ -404,6 +420,7 @@ async function encodeRecording(active: ActiveRecording, durationMs: number, sign
 	const fpsFilter = `fps=${active.options.fps}`;
 	const extension = path.extname(active.path).toLowerCase();
 	if (extension === ".mp4") {
+		const encoder = await mp4Encoder();
 		await runFfmpeg(
 			[
 				"-f",
@@ -416,9 +433,12 @@ async function encodeRecording(active: ActiveRecording, durationMs: number, sign
 				"-vf",
 				`${fpsFilter},scale=trunc(iw/2)*2:trunc(ih/2)*2`,
 				"-c:v",
-				"libx264",
-				"-crf",
-				String(Math.round(((100 - quality) * 51) / 100)),
+				encoder,
+				...(encoder === "libx264"
+					? ["-crf", String(Math.round(((100 - quality) * 51) / 100))]
+					: encoder === "libopenh264"
+						? ["-qp", String(Math.max(1, Math.round(((100 - quality) * 51) / 100)))]
+						: ["-q:v", String(Math.max(1, Math.round(((100 - quality) * 30) / 100)))]),
 				"-pix_fmt",
 				"yuv420p",
 				"-movflags",

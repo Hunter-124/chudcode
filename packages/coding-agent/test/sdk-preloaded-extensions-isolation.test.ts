@@ -17,7 +17,7 @@ import * as os from "node:os";
 import * as path from "node:path";
 import { ModelRegistry } from "@oh-my-pi/pi-coding-agent/config/model-registry";
 import { Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
-import type { LoadExtensionsResult } from "@oh-my-pi/pi-coding-agent/extensibility/extensions/types";
+import { bindPreparedExtensions } from "@oh-my-pi/pi-coding-agent/extensibility/extensions/loader";
 import { createAgentSession } from "@oh-my-pi/pi-coding-agent/sdk";
 import type { AuthStorage } from "@oh-my-pi/pi-coding-agent/session/auth-storage";
 import { SessionManager } from "@oh-my-pi/pi-coding-agent/session/session-manager";
@@ -41,18 +41,39 @@ describe("createAgentSession preloadedExtensions isolation (issue #2190)", () =>
 	});
 
 	it("does not mutate the caller's extensions array when preloadedExtensions is provided", async () => {
-		const preloaded: LoadExtensionsResult = {
-			extensions: [],
-			errors: [],
-			runtime: {
-				flagValues: new Map(),
-				pendingProviderRegistrations: [],
-				// Cast: only the fields we touch matter; the SDK happily accepts a
-				// minimal runtime when no extension hooks fire.
-			} as unknown as LoadExtensionsResult["runtime"],
-		};
+		const preloaded = await bindPreparedExtensions(
+			[
+				{
+					path: "<inline-0>",
+					resolvedPath: "<inline-0>",
+					error: null,
+					factory: pi => {
+						pi.registerProvider("preloaded-provider", {
+							baseUrl: "https://runtime.example.com/v1",
+							apiKey: "PRELOADED_PROVIDER_KEY",
+							api: "openai-completions",
+							models: [
+								{
+									id: "preloaded-model",
+									name: "Preloaded Model",
+									reasoning: false,
+									input: ["text"],
+									cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+									contextWindow: 128000,
+									maxTokens: 8192,
+								},
+							],
+						});
+					},
+				},
+			],
+			sharedDir,
+		);
+		expect(preloaded.errors).toEqual([]);
+		expect(preloaded.runtime.pendingProviderRegistrations).toHaveLength(1);
 		const beforeLength = preloaded.extensions.length;
 		const beforeArrayRef = preloaded.extensions;
+		const beforeExtension = preloaded.extensions[0];
 
 		const { session } = await createAgentSession({
 			cwd: sharedDir,
@@ -79,6 +100,9 @@ describe("createAgentSession preloadedExtensions isolation (issue #2190)", () =>
 			// caller's array (and its identity) must be untouched.
 			expect(preloaded.extensions).toBe(beforeArrayRef);
 			expect(preloaded.extensions.length).toBe(beforeLength);
+			expect(preloaded.extensions[0]).toBe(beforeExtension);
+			expect(modelRegistry.find("preloaded-provider", "preloaded-model")?.name).toBe("Preloaded Model");
+			expect(preloaded.runtime.pendingProviderRegistrations).toEqual([]);
 		} finally {
 			await session.dispose();
 		}

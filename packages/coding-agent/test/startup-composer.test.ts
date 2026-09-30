@@ -375,7 +375,8 @@ describe("Composer prepaint", () => {
 			expect(adoptedEditor.startsWith("+")).toBe(true);
 			expect(adoptedEditor).not.toContain("╭");
 
-			terminal.sendInput("\x03");
+			// Escape preserves the draft; Ctrl+C now clears even when app.clear is remapped.
+			terminal.sendInput("\x1b");
 			expect(mode.editor.getExpandedText()).toBe(expectedDraft);
 			terminal.sendInput("\x18");
 			expect(mode.editor.getExpandedText()).toBe("");

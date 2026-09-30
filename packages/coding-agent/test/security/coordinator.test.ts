@@ -1,4 +1,4 @@
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, test, vi } from "bun:test";
+import { afterEach, beforeEach, describe, expect, test, vi } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
@@ -40,9 +40,9 @@ const gitAdapter: SecurityGitAdapter = {
 	untracked: async () => [],
 };
 
-// Credentials and the bundled-model view are immutable fixtures. Keep their SQLite
-// store and registry for the suite; repository/store state remains fresh per test.
-beforeAll(async () => {
+// OAuth auth storage is mutable across scan scenarios; isolate the credential
+// row and model registry so preflight never inherits another test's auth state.
+beforeEach(async () => {
 	registryRoot = await fs.mkdtemp(path.join(os.tmpdir(), "omp-security-coordinator-auth-"));
 	credentialStore = await SqliteAuthCredentialStore.open(path.join(registryRoot, "agent.db"));
 	authStorage = new AuthStorage(credentialStore);
@@ -60,9 +60,6 @@ beforeAll(async () => {
 	if (!account) throw new Error("expected fixture OAuth account");
 	credentialId = account.credentialId;
 	modelRegistry = new ModelRegistry(authStorage, path.join(registryRoot, "models.yml"));
-});
-
-beforeEach(async () => {
 	temporaryRoot = await fs.mkdtemp(path.join(os.tmpdir(), "omp-security-coordinator-"));
 	repositoryRoot = path.join(temporaryRoot, "repo");
 	stateRoot = path.join(temporaryRoot, "state");
@@ -77,9 +74,6 @@ afterEach(async () => {
 	unregisterCustomApis(MOCK_SOURCE_ID);
 	settings.cancelPendingSaves();
 	await fs.rm(temporaryRoot, { recursive: true, force: true });
-});
-
-afterAll(async () => {
 	credentialStore?.close();
 	credentialStore = null;
 	await fs.rm(registryRoot, { recursive: true, force: true });
@@ -172,6 +166,9 @@ describe("native security coordinator", () => {
 			initialCwd: repositoryRoot,
 		});
 		expect(reopened.getSessionId()).toBeTruthy();
+		expect(authStorage.oauth.accounts("openai-codex").some(account => account.credentialId === credentialId)).toBe(
+			true,
+		);
 	});
 
 	test("records a terminal failure when initial scan persistence fails", async () => {
@@ -332,6 +329,9 @@ describe("native security coordinator", () => {
 		expect(request).toContain("Requested base-to-head diff");
 		expect(request).toContain("+export const app = 'head';");
 		await expect(fs.stat(executionRoot)).rejects.toThrow();
+		expect(authStorage.oauth.accounts("openai-codex").some(account => account.credentialId === credentialId)).toBe(
+			true,
+		);
 	});
 
 	test("restart recovery reconciles an interrupted persisted operation", async () => {

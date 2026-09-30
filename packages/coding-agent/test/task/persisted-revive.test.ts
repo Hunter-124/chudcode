@@ -8,6 +8,7 @@ import { ModelRegistry } from "@oh-my-pi/pi-coding-agent/config/model-registry";
 import { Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
 import { cfgCompaction } from "@oh-my-pi/pi-coding-agent/session/context-settings";
 import type { PreparedExtension } from "@oh-my-pi/pi-coding-agent/extensibility/extensions/types";
+import { RpcHostToolBridge, type HostToolSource } from "@oh-my-pi/pi-coding-agent/modes/rpc/host-tools";
 import { MCPManager } from "@oh-my-pi/pi-coding-agent/mcp/manager";
 import { RpcSubagentRegistry } from "@oh-my-pi/pi-coding-agent/modes/rpc/rpc-subagents";
 import type { RpcSubagentFrame } from "@oh-my-pi/pi-coding-agent/modes/rpc/rpc-types";
@@ -182,6 +183,7 @@ async function createPersistedSession(
 interface ReviveOwnerOptions {
 	extensionRoots?: () => EffectiveExtensionRoots;
 	preparedExtensions?: readonly PreparedExtension[];
+	hostToolSource?: HostToolSource;
 	authStorage?: AuthStorage;
 	modelRegistry?: ModelRegistry;
 	settings?: Settings;
@@ -196,6 +198,7 @@ function createFactory(cwd: string, eventBus?: EventBus, owner: ReviveOwnerOptio
 		get sessionFile() {
 			return path.join(cwd, "parent.jsonl");
 		},
+		getHostToolSource: () => owner.hostToolSource,
 		get effectiveExtensionRoots() {
 			return (
 				owner.extensionRoots?.() ?? {
@@ -251,7 +254,9 @@ describe("persisted subagent revival", () => {
 
 	it("loads only extensions allowed by the live owner's root policy", async () => {
 		const cwd = makeTempDir("@pi-revive-owner-roots-");
-		const sessionFile = await createPersistedSession(cwd, false, "default");
+		const sessionFile = await createPersistedSession(cwd, false, "default", undefined, {
+			tools: ["read", "yield", "fixture_measure"],
+		});
 		const ownerExtension = path.join(cwd, "owner-extension.ts");
 		const ambientExtension = path.join(cwd, "ambient-extension.ts");
 		const blockedPath = path.join(cwd, "blocked.txt");
@@ -275,6 +280,10 @@ describe("persisted subagent revival", () => {
 			configuredLevel: "project",
 		};
 		const authStorage = await AuthStorage.create(path.join(cwd, "auth.db"));
+		const hostTools = new RpcHostToolBridge(() => {});
+		hostTools.setTools([
+			{ name: "fixture_measure", description: "Measure the fixture", parameters: { type: "object" } },
+		]);
 		authStorage.keys.setRuntime("anthropic", "test-key");
 		const modelRegistry = new ModelRegistry(authStorage, path.join(cwd, "models.yml"));
 		MCPManager.setInstance(new MCPManager(cwd));
@@ -283,6 +292,7 @@ describe("persisted subagent revival", () => {
 			extensionRoots: () => extensionRoots,
 			authStorage,
 			modelRegistry,
+			hostToolSource: hostTools,
 		})(ref);
 		if (!reviver) throw new Error("Expected a persisted reviver");
 
@@ -299,6 +309,7 @@ describe("persisted subagent revival", () => {
 			revived = await reviver(ref);
 			const read = revived.getToolByName("read");
 			if (!read) throw new Error("Missing revived read tool");
+			expect(revived.getAllToolNames()).toContain("fixture_measure");
 			await expect(read.execute("denied", { path: blockedPath })).rejects.toThrow("Owner policy denied the read");
 			expect(await Bun.file(ambientMarker).exists()).toBe(false);
 		} finally {
@@ -309,7 +320,9 @@ describe("persisted subagent revival", () => {
 
 	it("rebinds owner policy hooks for restricted revival without widening its tools", async () => {
 		const cwd = makeTempDir("@pi-revive-restricted-policy-");
-		const sessionFile = await createPersistedSession(cwd, true, "default");
+		const sessionFile = await createPersistedSession(cwd, true, "default", undefined, {
+			tools: ["read", "yield", "fixture_measure"],
+		});
 		const blockedPath = path.join(cwd, "blocked.txt");
 		await Bun.write(blockedPath, "private fixture");
 		const preparedExtensions: PreparedExtension[] = [
@@ -341,11 +354,16 @@ describe("persisted subagent revival", () => {
 		const authStorage = await AuthStorage.create(path.join(cwd, "auth.db"));
 		authStorage.keys.setRuntime("anthropic", "test-key");
 		const modelRegistry = new ModelRegistry(authStorage, path.join(cwd, "models.yml"));
+		const hostTools = new RpcHostToolBridge(() => {});
+		hostTools.setTools([
+			{ name: "fixture_measure", description: "Measure the fixture", parameters: { type: "object" } },
+		]);
 		const ref = AgentRegistry.global().register(createRef(sessionFile));
 		const reviver = await createFactory(cwd, undefined, {
 			preparedExtensions,
 			authStorage,
 			modelRegistry,
+			hostToolSource: hostTools,
 		})(ref);
 		if (!reviver) throw new Error("Expected a persisted reviver");
 
@@ -361,6 +379,7 @@ describe("persisted subagent revival", () => {
 			expect(revived.getActiveToolNames()).toContain("yield");
 			expect(revived.getEnabledToolNames()).not.toContain("bash");
 			expect(revived.getEnabledToolNames()).not.toContain("owner_policy_escalation");
+			expect(revived.getAllToolNames()).not.toContain("fixture_measure");
 		} finally {
 			await revived?.dispose();
 			authStorage.close();

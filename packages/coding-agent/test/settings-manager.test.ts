@@ -19,7 +19,7 @@ import * as discovery from "@oh-my-pi/pi-coding-agent/discovery";
 import { editVariantForModel } from "@oh-my-pi/pi-coding-agent/utils/edit-mode";
 import MODEL_PRIO from "../src/priority.json" with { type: "json" };
 import { AgentStorage } from "@oh-my-pi/pi-coding-agent/session/agent-storage";
-import { getAgentDbPath, getProjectAgentDir, logger, TempDir } from "@oh-my-pi/pi-utils";
+import { CONFIG_DIR_NAME, getAgentDbPath, getProjectAgentDir, logger, TempDir } from "@oh-my-pi/pi-utils";
 import * as fileLock from "@oh-my-pi/pi-utils/file-lock";
 import { YAML } from "bun";
 import { beginSettingsTest, restoreSettingsTestState, type SettingsTestState } from "./helpers/settings-test-state";
@@ -392,7 +392,7 @@ describe("Settings", () => {
 
 		it("backs up a corrupted project config and retains the pending project role for retry", async () => {
 			await writeSettings({});
-			const projectConfigPath = path.join(projectDir, ".omp", "config.yml");
+			const projectConfigPath = path.join(projectDir, CONFIG_DIR_NAME, "config.yml");
 			await Bun.write(
 				projectConfigPath,
 				YAML.stringify({ modelRoles: { default: "keep/default" }, custom: { keep: true } }, null, 2),
@@ -1075,7 +1075,7 @@ describe("Settings", () => {
 
 		it("leaves an unreadable project config untouched and retains its pending role", async () => {
 			await writeSettings({});
-			const projectConfigPath = path.join(projectDir, ".omp", "config.yml");
+			const projectConfigPath = path.join(projectDir, CONFIG_DIR_NAME, "config.yml");
 			const original = YAML.stringify({ modelRoles: { default: "keep/default" }, custom: { keep: true } }, null, 2);
 			await Bun.write(projectConfigPath, original);
 			const settings = await Settings.init({ cwd: projectDir, agentDir });
@@ -1101,7 +1101,7 @@ describe("Settings", () => {
 			const malformed = 'modelRoles:\n  default: "unterminated\n';
 			await Promise.all([
 				Bun.write(getConfigPath(), malformed),
-				Bun.write(path.join(projectDir, ".omp", "config.yml"), malformed),
+				Bun.write(path.join(projectDir, CONFIG_DIR_NAME, "config.yml"), malformed),
 			]);
 			const unhandled: unknown[] = [];
 			const onUnhandled = (reason: unknown): void => {
@@ -1113,7 +1113,9 @@ describe("Settings", () => {
 				expect(unhandled).toEqual([]);
 				expect(fs.readdirSync(agentDir).some(name => name.startsWith("config.yml.broken-"))).toBe(true);
 				expect(
-					fs.readdirSync(path.join(projectDir, ".omp")).some(name => name.startsWith("config.yml.broken-")),
+					fs
+						.readdirSync(path.join(projectDir, CONFIG_DIR_NAME))
+						.some(name => name.startsWith("config.yml.broken-")),
 				).toBe(true);
 			} finally {
 				process.removeListener("unhandledRejection", onUnhandled);
@@ -1123,7 +1125,7 @@ describe("Settings", () => {
 
 	describe("live persisted reload", () => {
 		it("rejects malformed live configs without moving them aside or replacing effective settings", async () => {
-			const projectConfigPath = path.join(projectDir, ".omp", "config.yml");
+			const projectConfigPath = path.join(projectDir, CONFIG_DIR_NAME, "config.yml");
 			await writeSettings({
 				setupVersion: 1,
 				modelRoles: { global_role: "openai/global" },
@@ -2897,11 +2899,12 @@ describe("Settings", () => {
 
 		it("drops user-level warnings that #readProjectSettings does not merge", async () => {
 			const projectSettingsJson = path.join(projectDir, ".claude", "settings.json");
+			const userWarning = `[Claude Code] Failed to parse JSON in ${path.join(tempDir.path(), "home", ".claude", "settings.json")}`;
 			vi.spyOn(discovery, "loadCapability").mockResolvedValue({
 				items: [],
 				all: [],
 				warnings: [
-					`[Claude Code] Failed to parse JSON in ${path.join(tempDir.path(), "home", ".claude", "settings.json")}`,
+					userWarning,
 					"[Claude Code] Failed to load: boom",
 					`[Claude Code] Failed to parse JSON in ${projectSettingsJson}`,
 				],
@@ -2911,7 +2914,7 @@ describe("Settings", () => {
 
 			await Settings.init({ cwd: projectDir, agentDir, inMemory: true });
 			expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining(projectSettingsJson));
-			expect(warnSpy.mock.calls.filter(args => String(args[0]).includes("home"))).toEqual([]);
+			expect(warnSpy).not.toHaveBeenCalledWith(expect.stringContaining(userWarning));
 			expect(warnSpy.mock.calls.filter(args => String(args[0]).includes("Failed to load"))).toEqual([]);
 		});
 

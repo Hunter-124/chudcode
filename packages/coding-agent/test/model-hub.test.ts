@@ -7,6 +7,7 @@ import { stripVTControlCharacters } from "node:util";
 import { ThinkingLevel } from "@oh-my-pi/pi-agent-core";
 import type { Model } from "@oh-my-pi/pi-ai";
 import { buildModel } from "@oh-my-pi/pi-catalog/build";
+import { CONFIG_DIR_NAME } from "@oh-my-pi/pi-utils";
 import { getBundledModel } from "@oh-my-pi/pi-catalog/models";
 import type { ModelRegistry } from "@oh-my-pi/pi-coding-agent/config/model-registry";
 import { Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
@@ -792,7 +793,7 @@ describe("ModelHub", () => {
 					`modelRoleStorage: project\nmodelRoles:\n  default: ${selector}\n  smol: ${selector}\n`,
 				);
 				await Bun.write(
-					path.join(cwd, ".omp", "config.yml"),
+					path.join(cwd, CONFIG_DIR_NAME, "config.yml"),
 					`modelRoles:\n  default: ${selector}\n  smol: ${selector}\n`,
 				);
 				await Bun.write(overlayPath, "modelRoles:\n  default: null\n  smol: null\n");

@@ -33,7 +33,7 @@ describe.skipIf(!hasFfmpeg)("processFileArguments video attachments", () => {
 			"-pix_fmt",
 			"yuv420p",
 			"-c:v",
-			"libx264",
+			"mpeg4",
 			videoPath,
 		]);
 		expect(await process.exited).toBe(0);
