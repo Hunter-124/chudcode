@@ -10,6 +10,13 @@ param(
 $ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
 
+[System.Diagnostics.Process]::GetCurrentProcess().PriorityClass = 'BelowNormal'
+$parallel = [Math]::Max(1, [Math]::Min(4, [Environment]::ProcessorCount))
+if ($env:CMAKE_BUILD_PARALLEL_LEVEL) {
+    $parallel = [int]$env:CMAKE_BUILD_PARALLEL_LEVEL
+    if ($parallel -lt 1) { throw 'CMAKE_BUILD_PARALLEL_LEVEL must be positive' }
+}
+
 $expected = if ($Target -eq "windows-x64") {
     @{ Host = "X64"; CMake = "x64"; Machine = 0x8664 }
 } else {
@@ -22,13 +29,13 @@ if ($hostArchitecture -ne $expected.Host) {
 }
 
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "../..")).Path
-$absoluteBuildDir = [System.IO.Path]::GetFullPath((Join-Path $repoRoot $BuildDir))
+$absoluteBuildDir = [System.IO.Path]::GetFullPath([System.IO.Path]::Combine($repoRoot, $BuildDir))
 
 cmake -S (Join-Path $repoRoot "gui") -B $absoluteBuildDir -G "Visual Studio 17 2022" -A $expected.CMake `
     -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON
 if ($LASTEXITCODE -ne 0) { throw "CMake configure failed" }
 
-cmake --build $absoluteBuildDir --config Release --parallel
+cmake --build $absoluteBuildDir --config Release --parallel $parallel -- /nodeReuse:false
 if ($LASTEXITCODE -ne 0) { throw "CMake build failed" }
 
 # app_ini launches an interactive GLFW window and is exercised on the Linux/Xvfb

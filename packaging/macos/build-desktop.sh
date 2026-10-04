@@ -41,7 +41,7 @@ cmake -S "$repo_root/gui" -B "$build_dir" -G Ninja \
 	-DCMAKE_OSX_ARCHITECTURES="$cmake_arch" \
 	-DCMAKE_OSX_DEPLOYMENT_TARGET=13.0 \
 	-DBUILD_TESTING=ON
-cmake --build "$build_dir" --parallel "$(sysctl -n hw.logicalcpu)"
+cmake --build "$build_dir" --parallel "${CMAKE_BUILD_PARALLEL_LEVEL:-$(sysctl -n hw.logicalcpu)}"
 
 # app_ini requires a live window server. All headless native test executables run
 # on both macOS architectures; the launch test is covered by Linux/Xvfb.

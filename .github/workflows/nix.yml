@@ -48,7 +48,7 @@ permissions:
 jobs:
   evaluate:
     name: Evaluate flake
-    runs-on: [self-hosted, cloudcastle-ci, cc-linux-hunter]
+    runs-on: [self-hosted, cloudcastle-ci, cc-linux-chudcode]
     steps:
       - uses: actions/checkout@v4
       - name: Evaluate every supported system in SELinux-compatible container

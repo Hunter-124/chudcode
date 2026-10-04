@@ -22,7 +22,7 @@ env:
 jobs:
   release_metadata:
     name: Validate release ref and product version
-    runs-on: [self-hosted, cloudcastle-ci, cc-linux-hunter]
+    runs-on: [self-hosted, cloudcastle-ci, cc-linux-chudcode]
     outputs:
       is-release: ${{ steps.tag.outputs.is-release }}
       release-tag: ${{ steps.tag.outputs.release-tag }}
@@ -58,7 +58,7 @@ jobs:
 
   check:
     name: Lint and type check
-    runs-on: [self-hosted, cloudcastle-ci, cc-linux-hunter]
+    runs-on: [self-hosted, cloudcastle-ci, cc-linux-chudcode]
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
       - uses: ./.github/actions/bun-install
@@ -66,7 +66,7 @@ jobs:
 
   rust_validate:
     name: Rust tests, clippy and pinned rustfmt
-    runs-on: [self-hosted, cloudcastle-ci, cc-linux-hunter]
+    runs-on: [self-hosted, cloudcastle-ci, cc-linux-chudcode]
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
       - uses: ./.github/actions/setup-bazelisk
@@ -95,7 +95,7 @@ jobs:
 
   native_addon_build:
     name: Build native addon ${{ matrix.target }}
-    runs-on: [self-hosted, cloudcastle-ci, cc-linux-hunter]
+    runs-on: [self-hosted, cloudcastle-ci, cc-linux-chudcode]
     strategy:
       fail-fast: false
       matrix:
@@ -129,7 +129,7 @@ jobs:
   native_addons:
     name: Assemble native addons
     needs: [native_addon_build]
-    runs-on: [self-hosted, cloudcastle-ci, cc-linux-hunter]
+    runs-on: [self-hosted, cloudcastle-ci, cc-linux-chudcode]
     steps:
       # No checkout here: the persistent workspace may hold a dangling bazel-bin
       # convenience symlink from another job's `clean --expunge`, so assemble in
@@ -160,7 +160,7 @@ jobs:
   test_typescript:
     name: TypeScript suites and desktop installer
     needs: [native_addons]
-    runs-on: [self-hosted, cloudcastle-ci, cc-linux-hunter]
+    runs-on: [self-hosted, cloudcastle-ci, cc-linux-chudcode]
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
       - uses: ./.github/actions/bun-install
@@ -185,7 +185,7 @@ jobs:
           - target: win32-x64
             addons: win32-x64-baseline
             asset: chudcode-windows-x64.exe
-    runs-on: [self-hosted, cloudcastle-ci, cc-linux-hunter]
+    runs-on: [self-hosted, cloudcastle-ci, cc-linux-chudcode]
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
       - uses: ./.github/actions/bun-install
@@ -211,7 +211,7 @@ jobs:
     name: Verify native Windows binary
     needs: [release_metadata, release_binary_linux_windows]
     if: needs.release_binary_linux_windows.result == 'success'
-    runs-on: [self-hosted, cloudcastle-ci, cc-win-laptop]
+    runs-on: [self-hosted, cloudcastle-ci, cc-win-chudcode]
     steps:
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
@@ -235,7 +235,7 @@ jobs:
     name: Release binary darwin-x64
     needs: [release_metadata]
     if: needs.release_metadata.outputs.is-release == 'true'
-    runs-on: [self-hosted, cloudcastle-ci, cc-mac-intel]
+    runs-on: [self-hosted, cloudcastle-ci, cc-mac-chudcode-intel]
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
@@ -268,15 +268,15 @@ jobs:
       matrix:
         include:
           - target: linux-x64
-            runner: cc-linux-hunter
+            runner: cc-linux-chudcode
             archive: chudcode-desktop-linux-x64.tar.gz
             addons: linux-x64-baseline linux-x64-modern
           - target: macos-x64
-            runner: cc-mac-intel
+            runner: cc-mac-chudcode-intel
             archive: chudcode-desktop-macos-x64.tar.gz
             addons: darwin-x64-baseline
           - target: windows-x64
-            runner: cc-win-laptop
+            runner: cc-win-chudcode
             archive: chudcode-desktop-windows-x64.zip
             addons: win32-x64-baseline
     runs-on: [self-hosted, cloudcastle-ci, '${{ matrix.runner }}']
@@ -293,7 +293,7 @@ jobs:
         if: runner.os != 'Windows'
         with:
           bun-version: '1.4.0'
-      - name: Install isolated Bun (Windows NETWORK SERVICE)
+      - name: Install isolated Bun (Windows product account)
         if: runner.os == 'Windows'
         shell: powershell
         run: |
@@ -344,14 +344,14 @@ jobs:
         if: runner.os == 'Windows'
         shell: powershell
         run: |
-          $tools = Join-Path $env:USERPROFILE 'chudware-ci-tools'
-          foreach ($dir in @((Join-Path $tools 'python'), (Join-Path $tools 'bin'))) {
-            if (Test-Path $dir) {
-              $env:PATH += ";$dir"
-              $dir | Out-File -Append -Encoding ascii $env:GITHUB_PATH
-            }
-          }
-          if (-not (Get-Command cmake -ErrorAction SilentlyContinue)) { throw 'Windows GUI build requires CMake and Visual Studio 2022' }
+          $vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer\vswhere.exe'
+          if (-not (Test-Path -LiteralPath $vswhere)) { throw 'Windows GUI build requires Visual Studio 2022' }
+          $vs = & $vswhere -latest -products '*' -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
+          if ($LASTEXITCODE -ne 0 -or -not $vs) { throw 'Cannot locate the installed Visual Studio C++ toolchain' }
+          $cmake = Join-Path $vs 'Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin'
+          if (-not (Test-Path -LiteralPath (Join-Path $cmake 'cmake.exe'))) { throw 'Visual Studio CMake component is missing' }
+          $env:PATH = "$cmake;$env:PATH"
+          $cmake | Out-File -Append -Encoding ascii $env:GITHUB_PATH
       - name: Build and test Linux GUI
         if: runner.os == 'Linux'
         run: |
@@ -405,7 +405,7 @@ jobs:
     name: Publish GitHub release
     needs: [release_metadata, check, rust_validate, test_typescript, release_binary_linux_windows, release_binary_windows_verify, release_binary_darwin, desktop_release]
     if: needs.release_metadata.outputs.is-release == 'true' && needs.check.result == 'success' && needs.rust_validate.result == 'success' && needs.test_typescript.result == 'success' && needs.release_binary_linux_windows.result == 'success' && needs.release_binary_windows_verify.result == 'success' && needs.release_binary_darwin.result == 'success' && needs.desktop_release.result == 'success'
-    runs-on: [self-hosted, cloudcastle-ci, cc-linux-hunter]
+    runs-on: [self-hosted, cloudcastle-ci, cc-linux-chudcode]
     permissions:
       contents: write
     steps:

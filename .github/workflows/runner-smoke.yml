@@ -1,0 +1,92 @@
+name: runner-smoke
+
+on:
+  workflow_dispatch:
+    inputs:
+      platform:
+        description: Product-private native test runner to qualify
+        required: true
+        type: choice
+        options: [Linux, Windows, macOS]
+        default: Linux
+
+permissions:
+  contents: read
+
+concurrency:
+  group: chudcode-runner-smoke-${{ inputs.platform }}
+  cancel-in-progress: false
+
+jobs:
+  native:
+    runs-on: ${{ fromJSON(inputs.platform == 'Windows' && '["chudcode-bootstrap"]' || inputs.platform == 'macOS' && '["self-hosted","macOS","X64","cc-mac-chudcode-intel-bootstrap"]' || '["self-hosted","Linux","X64","cc-linux-chudcode"]') }}
+    timeout-minutes: 30
+    env:
+      CMAKE_BUILD_PARALLEL_LEVEL: ${{ inputs.platform == 'macOS' && '1' || '4' }}
+      CTEST_PARALLEL_LEVEL: '1'
+      _MSPDBSRV_ENDPOINT_: chudcode-${{ github.run_id }}-${{ github.run_attempt }}-${{ github.job }}
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          submodules: recursive
+      - name: Verify product-private Unix state
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          set -euo pipefail
+          case "$(id -un)" in ccci-chudcode|chudcode-ci) ;; *) echo '::error::Not the Chudcode test account'; exit 1;; esac
+          test "$(stat -c %a "$HOME" 2>/dev/null || stat -f %Lp "$HOME")" = 700
+          test ! -e "$HOME/.omp/auth-gateway.token"
+          printf 'identity=%s home=%s temp=%s\n' "$(id -un)" "$HOME" "$RUNNER_TEMP"
+          if [[ "$RUNNER_OS" == Linux ]]; then
+            test "$(cat /etc/cloudcastle-ci/product)" = Chudcode
+            test "$(findmnt -no FSTYPE /)" = ext4
+            test ! -e /opt/actions-runner-cloudcastle
+            test ! -e /opt/actions-runner-chudware
+          fi
+      - name: Verify product-private Windows state and SDK
+        if: runner.os == 'Windows'
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
+          $sid = 'S-1-5-80-981087820-2964460381-395222365-695241176-998739721'
+          if ($identity.User.Value -ne $sid) { throw 'Not the Chudcode virtual service identity' }
+          $principal = New-Object Security.Principal.WindowsPrincipal($identity)
+          if ($principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) { throw 'Chudcode must not be an administrator' }
+          foreach ($name in @('USERPROFILE','HOME','APPDATA','LOCALAPPDATA','TEMP','TMP','CARGO_HOME','RUSTUP_HOME','BUN_INSTALL_CACHE_DIR','GITHUB_WORKSPACE','RUNNER_TEMP','RUNNER_TOOL_CACHE')) {
+            $value = [Environment]::GetEnvironmentVariable($name)
+            if (-not $value -or -not $value.StartsWith('D:\ChudcodeCI\Windows\', [StringComparison]::OrdinalIgnoreCase)) { throw "$name is outside Chudcode's private NVMe namespace" }
+          }
+          foreach ($other in @('D:\ChudwareCI\Windows\profile','D:\CloudCastleCI\Windows\cc\cargo')) {
+            $denied = $false
+            try { [IO.Directory]::GetFileSystemEntries($other) | Out-Null } catch [UnauthorizedAccessException] { $denied = $true }
+            if (-not $denied) { throw "Another product's mutable state is accessible: $other" }
+          }
+          $vs = 'C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools'
+          $cmake = Join-Path $vs 'Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin'
+          if (-not (Test-Path -LiteralPath (Join-Path $cmake 'cmake.exe'))) { throw 'Installed VS2022 CMake is missing' }
+          $cmake | Out-File -Append -Encoding ascii $env:GITHUB_PATH
+          Write-Host "identity=$($identity.Name) profile=$env:USERPROFILE temp=$env:RUNNER_TEMP"
+      - name: Build and execute native Linux GUI tests
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          set -euo pipefail
+          cmake -S gui -B "$RUNNER_TEMP/chudcode-gui" -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON
+          cmake --build "$RUNNER_TEMP/chudcode-gui" --parallel "$CMAKE_BUILD_PARALLEL_LEVEL"
+          ctest --test-dir "$RUNNER_TEMP/chudcode-gui" --output-on-failure
+      - name: Build and execute existing native macOS desktop gate
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash packaging/macos/build-desktop.sh macos-x64 "$RUNNER_TEMP/chudcode-gui"
+          echo 'Native macOS headless tests passed; app_ini retains its existing Linux/Xvfb coverage, not a customer GUI session.'
+      - name: Build and execute native Windows GUI tests
+        if: runner.os == 'Windows'
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          & packaging/windows/build-desktop.ps1 -Target windows-x64 -BuildDir (Join-Path $env:RUNNER_TEMP 'chudcode-gui')
+          echo 'Native Windows headless tests passed; app_ini retains its existing Linux/Xvfb coverage, not a customer GUI session.'
