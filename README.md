@@ -28,6 +28,17 @@ Its ext4 root, runner work, Bun/Bazel caches and temporary/container state are
 backed by `D:\ChudcodeCI\Linux` on the 4 TB NVMe. It does not share a kernel,
 network namespace, home or cleanup scope with CloudCastle or Chudware.
 
+CI jobs on this runner hand native addons to the TypeScript suites through
+`<runner work>/chudcode/ci-handoff/<repository>/<run id>/<source sha>/`
+(`scripts/ci-native-handoff.ts`) instead of GitHub artifact storage. Each
+target is published atomically with a manifest recording its exact target,
+source SHA, run id, producer attempt, byte count and SHA-256; consumers copy
+and verify the bytes and never fall back to another run, revision or artifact.
+Handoffs are retained on the NVMe: nothing prunes them automatically, since an
+age-based sweep could delete files a queued, long-running or re-run job still
+needs. Only release runs upload `native-addons` (2-day retention) for the
+Windows and Mac release jobs.
+
 Native Windows CI uses `cc-win-chudcode`, runner `chudcode-ryzen-windows`.
 Its non-administrator virtual service account owns
 `D:\ChudcodeCI\Windows`, including its profile, work, tool caches and temporary

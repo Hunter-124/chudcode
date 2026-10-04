@@ -1,7 +1,8 @@
 name: "Install native addon artifacts"
 description: >
-   Downloads the native addons built once by the Rust job and installs exact
-   targets without invoking Bazel.
+   Installs exact native addon targets without invoking Bazel, either from the
+   `native-addons` workflow artifact or, for jobs on the private Linux runner,
+   from this run's verified same-runner handoff (scripts/ci-native-handoff.ts).
 
 inputs:
    targets:
@@ -11,15 +12,35 @@ inputs:
       description: Destination directory for the .node files
       required: false
       default: packages/natives/native
+   from:
+      description: "`artifact` (native-addons workflow artifact) or `handoff` (same-runner handoff)"
+      required: false
+      default: artifact
 
 runs:
    using: composite
    steps:
+      - name: Reject unknown native addon source
+        if: inputs.from != 'artifact' && inputs.from != 'handoff'
+        shell: bash
+        run: |
+           echo "::error::native-artifacts input 'from' must be 'artifact' or 'handoff'"
+           exit 1
+
       - name: Download native addon artifacts
+        if: inputs.from == 'artifact'
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
            name: native-addons
            path: ${{ runner.temp }}/chudcode-native-artifacts
+
+      - name: Verify same-runner native addon handoff
+        if: inputs.from == 'handoff'
+        shell: bash
+        env:
+           HANDOFF_ROOT: ${{ runner.workspace }}/ci-handoff
+           NATIVE_TARGETS: ${{ inputs.targets }}
+        run: bun scripts/ci-native-handoff.ts assemble --root "$HANDOFF_ROOT" --targets "$NATIVE_TARGETS" --out "$RUNNER_TEMP/chudcode-native-artifacts"
 
       - name: Install native addon targets
         if: runner.os != 'Windows'

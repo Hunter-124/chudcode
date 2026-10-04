@@ -102,6 +102,9 @@ jobs:
         target: [linux-x64-baseline, linux-x64-modern, win32-x64-baseline]
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: '1.4.0'
       - uses: ./.github/actions/setup-bazelisk
       - name: Check Windows cross-toolchain disk headroom
         if: matrix.target == 'win32-x64-baseline'
@@ -119,38 +122,34 @@ jobs:
         run: |
           if [ "$(ulimit -Sn)" != unlimited ] && [ "$(ulimit -Sn)" -lt 65536 ]; then ulimit -Sn 65536 || true; fi
           bazelisk --bazelrc="${{ steps.cache.outputs.rc }}" build //:natives-${{ matrix.target }}
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: natives-${{ matrix.target }}
-          path: bazel-bin/natives-${{ matrix.target }}/*.node
-          if-no-files-found: error
-          retention-days: 2
+      # Every native consumer of this handoff runs on the same private runner;
+      # publish to its own storage instead of GitHub artifact storage.
+      - name: Publish native addon handoff
+        shell: bash
+        env:
+          HANDOFF_ROOT: ${{ runner.workspace }}/ci-handoff
+          TARGET: ${{ matrix.target }}
+        run: bun scripts/ci-native-handoff.ts publish --root "$HANDOFF_ROOT" --target "$TARGET" --file "bazel-bin/natives-$TARGET/pi_natives.$TARGET.node"
 
   native_addons:
     name: Assemble native addons
-    needs: [native_addon_build]
+    needs: [release_metadata, native_addon_build]
     runs-on: [self-hosted, cloudcastle-ci, cc-linux-chudcode]
     steps:
-      # No checkout here: the persistent workspace may hold a dangling bazel-bin
-      # convenience symlink from another job's `clean --expunge`, so assemble in
-      # this job's private temp dir.
-      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
         with:
-          pattern: natives-*
-          path: ${{ runner.temp }}/native-addons
+          bun-version: '1.4.0'
+      # Assemble in this job's private temp dir, never the persistent workspace.
       - name: Verify all required targets
         shell: bash
         env:
+          HANDOFF_ROOT: ${{ runner.workspace }}/ci-handoff
           ADDONS: ${{ runner.temp }}/native-addons
-        run: |
-          set -euo pipefail
-          for target in linux-x64-baseline linux-x64-modern win32-x64-baseline; do
-            test -s "$ADDONS/natives-$target/pi_natives.$target.node" || {
-              echo "::error::Missing native addon $target"
-              exit 1
-            }
-          done
+        run: bun scripts/ci-native-handoff.ts assemble --root "$HANDOFF_ROOT" --targets "linux-x64-baseline linux-x64-modern win32-x64-baseline" --out "$ADDONS"
+      # Release consumers on the Windows/Mac runners still need GitHub transport.
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: needs.release_metadata.outputs.is-release == 'true'
         with:
           name: native-addons
           path: ${{ runner.temp }}/native-addons/natives-*/*.node
@@ -167,6 +166,7 @@ jobs:
       - uses: ./.github/actions/native-artifacts
         with:
           targets: linux-x64-baseline linux-x64-modern
+          from: handoff
       - run: bun run ci:test:ts
       - name: Desktop installer safety and release manifest
         run: bun test scripts/install-desktop.test.ts scripts/ci-release-checksums.test.ts
@@ -206,6 +206,7 @@ jobs:
           name: chudcode-binary-${{ matrix.target }}
           path: packages/coding-agent/binaries/${{ matrix.asset }}
           if-no-files-found: error
+          retention-days: 2
 
   release_binary_windows_verify:
     name: Verify native Windows binary
@@ -258,6 +259,7 @@ jobs:
           name: chudcode-binary-darwin-x64
           path: packages/coding-agent/binaries/chudcode-darwin-x64
           if-no-files-found: error
+          retention-days: 2
 
   desktop_release:
     name: Desktop bundle ${{ matrix.target }}
@@ -364,6 +366,10 @@ jobs:
       - name: Build and test Windows GUI
         if: runner.os == 'Windows'
         shell: powershell
+        env:
+          # Same per-job PDB server endpoint as runner-smoke: service accounts
+          # on this host share session 0 and must not reuse another's mspdbsrv.
+          _MSPDBSRV_ENDPOINT_: chudcode-${{ github.run_id }}-${{ github.run_attempt }}-${{ github.job }}-${{ matrix.target }}
         run: |
           packaging/windows/build-desktop.ps1 -Target $env:DESKTOP_TARGET -BuildDir $env:GUI_BUILD_DIR
           if ($LASTEXITCODE -ne 0) { throw 'Windows GUI build failed' }
@@ -400,6 +406,7 @@ jobs:
             dist/desktop/${{ matrix.archive }}
             dist/desktop/${{ matrix.archive }}.sha256
           if-no-files-found: error
+          retention-days: 2
 
   release_github:
     name: Publish GitHub release
