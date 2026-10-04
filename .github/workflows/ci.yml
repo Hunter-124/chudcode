@@ -171,6 +171,105 @@ jobs:
       - name: Desktop installer safety and release manifest
         run: bun test scripts/install-desktop.test.ts scripts/ci-release-checksums.test.ts
 
+  # linux-arm64 addon for the emulated lane only. Its own job, so no x64/Windows
+  # producer or consumer waits for it; a failure here fails the arm64 lane.
+  native_addon_build_linux_arm64:
+    name: Build native addon linux-arm64
+    runs-on: [self-hosted, cloudcastle-ci, cc-linux-chudcode]
+    # Hard cap: setup plus the 25 min build deadline (exit 124 on expiry).
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: '1.4.0'
+      - uses: ./.github/actions/setup-bazelisk
+      - id: cache
+        uses: ./.github/actions/bazel-cache
+      - name: Build target (25 min deadline)
+        shell: bash
+        run: |
+          if [ "$(ulimit -Sn)" != unlimited ] && [ "$(ulimit -Sn)" -lt 65536 ]; then ulimit -Sn 65536 || true; fi
+          bun scripts/ci-deadline.ts 1500 -- bazelisk --bazelrc="${{ steps.cache.outputs.rc }}" build //:natives-linux-arm64
+      - name: Publish native addon handoff
+        shell: bash
+        env:
+          HANDOFF_ROOT: ${{ runner.workspace }}/ci-handoff
+        run: bun scripts/ci-native-handoff.ts publish --root "$HANDOFF_ROOT" --target linux-arm64 --file bazel-bin/natives-linux-arm64/pi_natives.linux-arm64.node
+
+  # Emulated ARM Linux on the private x86_64 runner: aarch64 ELF Rust tests and
+  # the real pi_natives suite on an aarch64 Bun, executed through the utility
+  # VM's own qemu-aarch64 binfmt handler. Not native ARM hardware evidence.
+  linux_arm64_emulated:
+    name: Linux arm64 under qemu-user (Rust tests and native addon consumer)
+    needs: [native_addon_build_linux_arm64]
+    runs-on: [self-hosted, cloudcastle-ci, cc-linux-chudcode]
+    # Hard cap for the whole lane. Each long command also has its own deadline
+    # so a hang is attributed (exit 124): bazel test 30 min, arm64 Bun download
+    # 3 min, probe 2 min, pi_natives suite 10 min. Nothing depends on this job.
+    timeout-minutes: 45
+    env:
+      QEMU_LD_PREFIX: /usr/aarch64-linux-gnu
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+      - uses: ./.github/actions/bun-install
+      - name: Verify qemu-aarch64 binfmt handler and GNU aarch64 sysroot
+        run: bun scripts/ci-arm64-emulation.ts verify-host
+      - uses: ./.github/actions/setup-bazelisk
+      - id: cache
+        uses: ./.github/actions/bazel-cache
+      - name: Rust tests as aarch64 ELF under qemu-user (30 min deadline)
+        run: |
+          if [ "$(ulimit -Sn)" != unlimited ] && [ "$(ulimit -Sn)" -lt 65536 ]; then ulimit -Sn 65536 || true; fi
+          bun scripts/ci-deadline.ts 1800 -- bazelisk --bazelrc="${{ steps.cache.outputs.rc }}" test --config=linux-arm64-qemu //crates/...
+      - uses: ./.github/actions/native-artifacts
+        with:
+          targets: linux-arm64
+          from: handoff
+      - name: Install pinned aarch64 Bun into this runner's tool cache
+        id: arm64-bun
+        run: echo "path=$(bun scripts/ci-arm64-emulation.ts install-bun --cache "$RUNNER_TOOL_CACHE/chudcode-bun-linux-aarch64")" >> "$GITHUB_OUTPUT"
+      - name: pi_natives suite on aarch64 Bun with the linux-arm64 addon
+        env:
+          ARM64_BUN: ${{ steps.arm64-bun.outputs.path }}
+        run: bun scripts/ci-arm64-emulation.ts consume --bun "$ARM64_BUN"
+
+  # Intel Mac compile-only darwin-arm64 proof. Outputs are never executed,
+  # published, signed or used as release inputs; native Apple silicon
+  # qualification and the trusted signing lane stay separate.
+  darwin_arm64_compile_only:
+    name: darwin-arm64 compile-only on Intel Mac (not executed)
+    runs-on: [self-hosted, cloudcastle-ci, cc-mac-chudcode-intel]
+    # Hard cap: 10 min checkout/tool setup plus the script's own 50 min
+    # deadline. Nothing depends on this job; no Apple silicon runner is used.
+    timeout-minutes: 60
+    env:
+      CMAKE_BUILD_PARALLEL_LEVEL: '1'
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+      - name: Verify product-private Intel Mac test account
+        shell: bash
+        run: |
+          set -euo pipefail
+          case "$(id -un)" in ccci-chudcode|chudcode-ci) ;; *) echo '::error::Not the Chudcode test account'; exit 1;; esac
+          test "$(stat -f %Lp "$HOME")" = 700
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: '1.4.0'
+      - run: bun install --frozen-lockfile
+      - uses: ./.github/actions/setup-bazelisk
+      - id: cache
+        uses: ./.github/actions/bazel-cache
+      - name: Install CMake and Ninja
+        run: |
+          python3 -m venv "$RUNNER_TEMP/darwin-arm64-build-tools"
+          "$RUNNER_TEMP/darwin-arm64-build-tools/bin/pip" install --disable-pip-version-check cmake==4.1.2 ninja==1.13.0
+          echo "$RUNNER_TEMP/darwin-arm64-build-tools/bin" >> "$GITHUB_PATH"
+      - name: Cross-compile darwin-arm64 addon, Rust tests and GUI; prove arm64 Mach-O
+        env:
+          OMP_BAZEL_RC: ${{ steps.cache.outputs.rc }}
+        run: bash scripts/ci-darwin-arm64-compile-only.sh "$RUNNER_TEMP/darwin-arm64"
+
   release_binary_linux_windows:
     name: Release binary ${{ matrix.target }}
     needs: [release_metadata, native_addons]

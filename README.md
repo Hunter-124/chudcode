@@ -53,6 +53,42 @@ Homebrew installation, and receives no signing keychain or desktop session.
 On the 8 GB Intel Mac, each product compiles with one worker and runs CTest
 serially.
 
+Ordinary CI checks ARM without the offline physical M2 or paid hosted Macs:
+
+- `linux_arm64_emulated` runs on `cc-linux-chudcode`. It builds every
+  `//crates/...` test with the pinned Bazel zig glibc 2.17 toolchain
+  (`--config=linux-arm64-qemu`) and executes the aarch64 ELF binaries through
+  the utility VM's own kernel `qemu-aarch64` binfmt handler, so child
+  processes and re-execs run as aarch64 too, against the GNU cross sysroot
+  `/usr/aarch64-linux-gnu`. It then installs this run's `linux-arm64` addon,
+  built by its own `native_addon_build_linux_arm64` job (not part of the
+  x64/Windows `native_addon_build` matrix, so nothing outside the ARM lane
+  waits for it), from the same-runner handoff and runs the `packages/natives`
+  suite on the official aarch64 Bun build of the pinned Bun version, SHA-256
+  verified and cached in the runner's own tool cache (x64 Bun cannot load an
+  aarch64 addon). `scripts/ci-arm64-emulation.ts` refuses to run without the binfmt
+  handler and sysroot, or with any addon other than the aarch64 one present.
+- `darwin_arm64_compile_only` runs on `cc-mac-chudcode-intel`
+  (`scripts/ci-darwin-arm64-compile-only.sh`). With the Xcode SDK it
+  cross-compiles `//:natives-darwin-arm64`, every Rust test binary
+  (`--config=darwin-arm64-compile-only`) and the GUI with its headless test
+  executables, and checks each is a thin arm64 Mach-O. Nothing is executed.
+
+Every ARM step has a hard budget and never retries. Jobs are capped at 30
+min (`native_addon_build_linux_arm64`), 45 min (`linux_arm64_emulated`) and
+60 min (`darwin_arm64_compile_only`). Inside them,
+`scripts/ci-deadline.ts <seconds> -- <command>` runs each long command in its
+own process group, sends SIGTERM and then SIGKILL after 15 s, and exits 124
+on expiry: arm64 addon build 25 min, emulated `bazel test` 30 min (per-test
+timeouts 300/1200/1500/1800 s), arm64 Bun download 3 min, probe 2 min,
+`packages/natives` suite 10 min, and the whole Darwin compile-only script 50
+min.
+
+Emulated Linux results are not native ARM hardware evidence, and Intel
+cross-compilation is neither native Apple silicon runtime evidence nor a
+release, signing or notarisation input. Native ARM qualification and the
+trusted Apple signing lane remain separate.
+
 Dispatch `runner-smoke` for a specific native platform before promoting a
 new runner. It verifies the actual private account/state and compiles, links
 and executes the existing native desktop gate. Linux exercises `app_ini`

@@ -76,6 +76,26 @@ build:rustfmt --@rules_rust//rust/settings:rustfmt.toml=//:rustfmt.toml
 test --test_output=errors
 test --test_summary=terse
 
+# --- Cross-architecture tests ---------------------------------------------------
+# linux-arm64: tests built with the pinned zig glibc-2.17 toolchain (the same
+# platform as //:natives-linux-arm64) and executed on a linux-x64 host as
+# aarch64 ELF through the kernel's qemu-aarch64 binfmt_misc handler, which also
+# emulates child processes. QEMU_LD_PREFIX points the emulator at the GNU
+# aarch64 cross sysroot for ld-linux-aarch64.so.1, libc and libgcc_s. CI first
+# runs `scripts/ci-arm64-emulation.ts verify-host` to prove both exist.
+build:linux-arm64-qemu --platforms=//bazel/platforms:linux-arm64
+build:linux-arm64-qemu --define=chudcode_cross_tests=linux-arm64-qemu
+test:linux-arm64-qemu --test_env=QEMU_LD_PREFIX=/usr/aarch64-linux-gnu
+# qemu-user runs CPU-bound suites roughly an order of magnitude slower:
+# pi_natives_test (default size, moderate) took 881 s emulated on a loaded
+# host. Raise short/moderate/long/eternal to 300/1200/1500/1800 s; 1800 s is
+# also the whole `bazel test` command budget in CI, so no test can exceed it.
+test:linux-arm64-qemu --test_timeout=300,1200,1500,1800
+# darwin-arm64: test and binary targets COMPILED on an Intel Mac. They are never
+# executed there (no Rosetta in that direction); `bazel test` fails, not passes.
+build:darwin-arm64-compile-only --platforms=//bazel/platforms:darwin-arm64
+build:darwin-arm64-compile-only --define=chudcode_cross_tests=darwin-arm64-compile-only
+
 # --- CI base -----------------------------------------------------------------
 build:ci --curses=no --color=yes --show_timestamps
 build:ci --announce_rc

@@ -96,3 +96,57 @@ _MSVC_EXEC_HOSTS = {
     )
     for name, exec_cv in _MSVC_EXEC_HOSTS.items()
 ]
+
+# Cross-architecture test execution. Bazel 9 runs a test on an execution
+# platform satisfying the TARGET platform's constraints, so aarch64 tests have
+# nowhere to run from an x86_64 host. These toolchains ride the `:all`
+# registration but are gated by target_settings on a --define that only the
+# matching .bazelrc config sets (together with the target platform).
+#
+# linux-arm64 tests on a linux-x64 host: the test binary is an aarch64 ELF
+# executed through the host kernel's qemu-aarch64 binfmt_misc handler, so child
+# processes and re-execs of the test binary are emulated too. Used only by
+# `--config=linux-arm64-qemu`; scripts/ci-arm64-emulation.ts verifies the
+# handler before Bazel runs anything.
+toolchain(
+    name = "test-linux-arm64-on-linux-x64-qemu",
+    exec_compatible_with = [
+        "@platforms//os:linux",
+        "@platforms//cpu:x86_64",
+    ],
+    target_compatible_with = [
+        "@platforms//os:linux",
+        "@platforms//cpu:aarch64",
+    ],
+    target_settings = [":linux_arm64_qemu_tests"],
+    toolchain = "@bazel_tools//tools/test:empty_toolchain",
+    toolchain_type = "@bazel_tools//tools/test:default_test_toolchain_type",
+)
+
+# darwin-arm64 test targets analysed on an Intel Mac so their binaries can be
+# COMPILED. Intel Macs cannot execute arm64 code; `bazel test` under
+# `--config=darwin-arm64-compile-only` fails at execution instead of passing.
+toolchain(
+    name = "test-darwin-arm64-on-darwin-x64-compile-only",
+    exec_compatible_with = [
+        "@platforms//os:macos",
+        "@platforms//cpu:x86_64",
+    ],
+    target_compatible_with = [
+        "@platforms//os:macos",
+        "@platforms//cpu:arm64",
+    ],
+    target_settings = [":darwin_arm64_compile_only"],
+    toolchain = "@bazel_tools//tools/test:empty_toolchain",
+    toolchain_type = "@bazel_tools//tools/test:default_test_toolchain_type",
+)
+
+config_setting(
+    name = "linux_arm64_qemu_tests",
+    define_values = {"chudcode_cross_tests": "linux-arm64-qemu"},
+)
+
+config_setting(
+    name = "darwin_arm64_compile_only",
+    define_values = {"chudcode_cross_tests": "darwin-arm64-compile-only"},
+)

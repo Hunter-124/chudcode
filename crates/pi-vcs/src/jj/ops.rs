@@ -1002,8 +1002,14 @@ mod tests {
 			.unwrap();
 	}
 
+	/// A successful `jj --version`, not merely a successful spawn: glibc's
+	/// vfork-based posix_spawn cannot report a failed exec under qemu-user (the
+	/// emulated linux-arm64 test lane), so a missing `jj` exits 127 instead.
 	fn jj_available() -> bool {
-		Command::new("jj").arg("--version").output().is_ok()
+		Command::new("jj")
+			.arg("--version")
+			.output()
+			.is_ok_and(|output| output.status.success())
 	}
 
 	fn run_jj(root: &Path, args: &[&str]) -> String {
