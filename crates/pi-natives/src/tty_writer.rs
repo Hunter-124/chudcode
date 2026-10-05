@@ -148,13 +148,15 @@ fn pump_loop(fd: i32, inner: &Inner) {
 				inner.pending.fetch_sub(n, Ordering::AcqRel);
 			});
 			if result.is_err() {
-				inner.dead.store(true, Ordering::Release);
 				// Chunks already written were subtracted above; drop the rest —
 				// the unwritten front remainder plus everything still queued.
 				let mut back = inner.back.lock();
 				let dropped = back.len() + (front.len() - written);
 				back.clear();
 				inner.pending.fetch_sub(dropped, Ordering::AcqRel);
+				// Publish death only after queue/accounting teardown. An
+				// acquiring observer of dead() must also see pending() == 0.
+				inner.dead.store(true, Ordering::Release);
 			}
 		}
 		front.clear();
@@ -246,6 +248,11 @@ impl TtyWriter {
 	fn append(&self, fill: impl FnOnce(&mut Vec<u8>) -> usize) -> u32 {
 		{
 			let mut back = self.inner.back.lock();
+			// The early JS-side check can race terminal death while waiting
+			// for this lock; do not accept output after teardown is published.
+			if self.inner.dead.load(Ordering::Acquire) {
+				return self.pending();
+			}
 			let added = fill(&mut back);
 			// Publish the pending-byte accounting while `back` is still locked.
 			// Once this lock is released, the pump may claim and drain the buffer;
@@ -569,6 +576,8 @@ mod tests {
 			std::thread::sleep(Duration::from_millis(5));
 		}
 		assert!(writer.dead());
+		assert_eq!(writer.pending(), 0);
+		push(&writer, b"after death");
 		assert_eq!(writer.pending(), 0);
 		writer.stop(100);
 		// SAFETY: closing test-owned fd.

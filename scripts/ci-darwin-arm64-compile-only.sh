@@ -11,16 +11,20 @@
 # Apple silicon runtime evidence, and none of these outputs is a release,
 # signing or notarisation input.
 #
-# The whole run, every child included, has a hard 50 min budget: the script
+# The whole run, every child included, has a hard 75 min budget: the script
 # re-executes itself under scripts/ci-deadline.ts, which owns a process group
 # for it, sends SIGTERM then SIGKILL after 15 s, and exits 124 on expiry. The
-# workflow job's 60 min cap leaves 10 min for checkout and tool setup.
+# workflow job's 90 min cap leaves 15 min for checkout, tool setup and cleanup.
+# The cold Intel 2013 Mac run #37235691367 was still building the addon at
+# action 2475/3233 when its old 50 min deadline expired with one compiler
+# worker. That run never reached Rust tests or the GUI; 75 min is the bounded
+# qualification budget for the complete work, not measured completion proof.
 #
 # Optional environment: OMP_BAZEL_RC (rc fragment from
 # .github/actions/bazel-cache), CMAKE_BUILD_PARALLEL_LEVEL.
 set -euo pipefail
 
-readonly BUDGET_SECONDS=3000
+readonly BUDGET_SECONDS=4500
 
 fail() {
 	printf 'error: %s\n' "$*" >&2
@@ -60,7 +64,11 @@ require_arm64() {
 
 # 1. Shipped addon, through the same driver and transition as release builds.
 #    bazel-natives.ts never probes it: darwin-arm64 is not this host's target.
-bun scripts/bazel-natives.ts darwin-arm64 --dest "$work/natives"
+#    Both Rust phases use the same compile-only config: matching the shipping
+#    transition's release profile and cross-test define lets Bazel reuse
+#    common dependency actions instead of rebuilding them in fastbuild.
+bun scripts/bazel-natives.ts darwin-arm64 --dest "$work/natives" -- \
+	--config=darwin-arm64-compile-only
 require_arm64 "$work/natives/pi_natives.darwin-arm64.node"
 
 # 2. Every Rust crate and test binary for aarch64-apple-darwin.

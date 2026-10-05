@@ -18,6 +18,10 @@ _ADDON_RUSTC_FLAGS = ["-Ccodegen-units=16"]
 _DARWIN_STRIP_FLAGS = ["-Cstrip=none", "-Clink-arg=-Wl,-x,-S"]
 _STRIP_FLAGS = ["-Cstrip=symbols"]
 
+# Use the repeatable setting so the compile-only .bazelrc can express exactly
+# this profile, including Darwin linker arguments containing commas. The
+# non-repeatable extra_rustc_flags setting splits those arguments on commas.
+
 def _addon_transition_impl(settings, attr):
     # Statically link the MSVC CRT for the shipped win32 addon: rustc gets
     # +crt-static via the crate's rustc_flags select, and the C dependencies
@@ -35,7 +39,7 @@ def _addon_transition_impl(settings, attr):
         "//command_line_option:compilation_mode": "opt",
         "//command_line_option:features": features,
         "@rules_rust//rust/settings:lto": "thin",
-        "@rules_rust//rust/settings:extra_rustc_flags": _ADDON_RUSTC_FLAGS + (
+        "@rules_rust//rust/settings:extra_rustc_flag": _ADDON_RUSTC_FLAGS + (
             _DARWIN_STRIP_FLAGS if "darwin" in str(attr.platform) else _STRIP_FLAGS
         ),
     }
@@ -48,7 +52,7 @@ _addon_transition = transition(
         "//command_line_option:compilation_mode",
         "//command_line_option:features",
         "@rules_rust//rust/settings:lto",
-        "@rules_rust//rust/settings:extra_rustc_flags",
+        "@rules_rust//rust/settings:extra_rustc_flag",
     ],
 )
 

@@ -71,30 +71,31 @@ pub(crate) fn mask_sigttou() -> Result<(), error::Error> {
 	Ok(())
 }
 
-pub(crate) fn poll_for_stopped_children() -> Result<bool, error::Error> {
-	let mut found_stopped = false;
-
+/// Consumes only this child's pending stop event, never another child's status.
+pub(crate) fn poll_for_stopped_child(
+	pid: Option<sys::process::ProcessId>,
+) -> Result<bool, error::Error> {
+	let Some(pid) = pid else { return Ok(false) };
 	loop {
-		let wait_status =
-			waitid_all(nix::sys::wait::WaitPidFlag::WUNTRACED | nix::sys::wait::WaitPidFlag::WNOHANG);
+		let wait_status = waitid_pid(
+			pid,
+			nix::sys::wait::WaitPidFlag::WSTOPPED | nix::sys::wait::WaitPidFlag::WNOHANG,
+		);
 		match wait_status {
-			Ok(nix::sys::wait::WaitStatus::Stopped(_stopped_pid, _signal)) => {
-				found_stopped = true;
-			},
-			Ok(_) => break,
-			Err(nix::errno::Errno::ECHILD) => break,
+			Ok(nix::sys::wait::WaitStatus::Stopped(_, _)) => return Ok(true),
+			Ok(_) | Err(nix::errno::Errno::ECHILD) => return Ok(false),
+			Err(nix::errno::Errno::EINTR) => continue,
 			Err(e) => return Err(e.into()),
 		}
 	}
-
-	Ok(found_stopped)
 }
 
 #[cfg(not(target_os = "macos"))]
-fn waitid_all(
+fn waitid_pid(
+	pid: sys::process::ProcessId,
 	flags: nix::sys::wait::WaitPidFlag,
 ) -> Result<nix::sys::wait::WaitStatus, nix::errno::Errno> {
-	nix::sys::wait::waitid(nix::sys::wait::Id::All, flags)
+	nix::sys::wait::waitid(nix::sys::wait::Id::Pid(nix::unistd::Pid::from_raw(pid)), flags)
 }
 
 //
@@ -104,7 +105,8 @@ fn waitid_all(
 //
 
 #[cfg(target_os = "macos")]
-fn waitid_all(
+fn waitid_pid(
+	pid: sys::process::ProcessId,
 	flags: nix::sys::wait::WaitPidFlag,
 ) -> Result<nix::sys::wait::WaitStatus, nix::errno::Errno> {
 	// SAFETY:
@@ -117,7 +119,7 @@ fn waitid_all(
 	// SAFETY:
 	// Code copied from nix::sys::wait implementation of waitid for other platforms.
 	nix::errno::Errno::result(unsafe {
-		nix::libc::waitid(nix::libc::P_ALL, 0, &raw mut siginfo, flags.bits())
+		nix::libc::waitid(nix::libc::P_PID, pid as nix::libc::id_t, &raw mut siginfo, flags.bits())
 	})?;
 
 	siginfo_to_wait_status(siginfo)

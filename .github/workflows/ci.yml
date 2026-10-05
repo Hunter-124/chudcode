@@ -127,7 +127,7 @@ jobs:
       - name: Publish native addon handoff
         shell: bash
         env:
-          HANDOFF_ROOT: ${{ runner.workspace }}/ci-handoff
+          HANDOFF_ROOT: ${{ github.workspace }}/../ci-handoff
           TARGET: ${{ matrix.target }}
         run: bun scripts/ci-native-handoff.ts publish --root "$HANDOFF_ROOT" --target "$TARGET" --file "bazel-bin/natives-$TARGET/pi_natives.$TARGET.node"
 
@@ -144,7 +144,7 @@ jobs:
       - name: Verify all required targets
         shell: bash
         env:
-          HANDOFF_ROOT: ${{ runner.workspace }}/ci-handoff
+          HANDOFF_ROOT: ${{ github.workspace }}/../ci-handoff
           ADDONS: ${{ runner.temp }}/native-addons
         run: bun scripts/ci-native-handoff.ts assemble --root "$HANDOFF_ROOT" --targets "linux-x64-baseline linux-x64-modern win32-x64-baseline" --out "$ADDONS"
       # Release consumers on the Windows/Mac runners still need GitHub transport.
@@ -171,10 +171,11 @@ jobs:
       - name: Desktop installer safety and release manifest
         run: bun test scripts/install-desktop.test.ts scripts/ci-release-checksums.test.ts
 
-  # linux-arm64 addon for the emulated lane only. Its own job, so no x64/Windows
-  # producer or consumer waits for it; a failure here fails the arm64 lane.
+  # ARM work starts after baseline suites so the single private Linux runner
+  # cannot starve x64/Windows handoff consumers. Nothing depends on ARM results.
   native_addon_build_linux_arm64:
     name: Build native addon linux-arm64
+    needs: [test_typescript, rust_validate, check]
     runs-on: [self-hosted, cloudcastle-ci, cc-linux-chudcode]
     # Hard cap: setup plus the 25 min build deadline (exit 124 on expiry).
     timeout-minutes: 30
@@ -194,7 +195,7 @@ jobs:
       - name: Publish native addon handoff
         shell: bash
         env:
-          HANDOFF_ROOT: ${{ runner.workspace }}/ci-handoff
+          HANDOFF_ROOT: ${{ github.workspace }}/../ci-handoff
         run: bun scripts/ci-native-handoff.ts publish --root "$HANDOFF_ROOT" --target linux-arm64 --file bazel-bin/natives-linux-arm64/pi_natives.linux-arm64.node
 
   # Emulated ARM Linux on the private x86_64 runner: aarch64 ELF Rust tests and
@@ -239,10 +240,11 @@ jobs:
   # qualification and the trusted signing lane stay separate.
   darwin_arm64_compile_only:
     name: darwin-arm64 compile-only on Intel Mac (not executed)
+    needs: [test_typescript, rust_validate, check]
     runs-on: [self-hosted, cloudcastle-ci, cc-mac-chudcode-intel]
-    # Hard cap: 10 min checkout/tool setup plus the script's own 50 min
-    # deadline. Nothing depends on this job; no Apple silicon runner is used.
-    timeout-minutes: 60
+    # Hard cap: 15 min checkout/tool setup plus the script's own 75 min
+    # cold-build deadline. No consumer depends on this qualification job.
+    timeout-minutes: 90
     env:
       CMAKE_BUILD_PARALLEL_LEVEL: '1'
     steps:

@@ -2684,12 +2684,28 @@ mod tests {
 	impl Drop for PidfileProcessCleanup {
 		fn drop(&mut self) {
 			for pidfile in &self.0 {
-				if let Some(process) = fs::read_to_string(pidfile)
+				let Some(pid) = fs::read_to_string(pidfile)
 					.ok()
 					.and_then(|pid| pid.trim().parse::<i32>().ok())
-					.and_then(process::Process::from_pid)
-				{
+				else {
+					continue;
+				};
+				if let Some(process) = process::Process::from_pid(pid) {
 					let _ = process.kill_tree(Some(libc::SIGKILL));
+				}
+				let deadline = std::time::Instant::now() + Duration::from_secs(1);
+				loop {
+					let mut status = 0;
+					// SAFETY: the pidfile names an owned child; status is writable.
+					let result = unsafe { libc::waitpid(pid, &raw mut status, libc::WNOHANG) };
+					if result == pid
+						|| (result == -1
+							&& std::io::Error::last_os_error().raw_os_error() == Some(libc::ECHILD))
+						|| std::time::Instant::now() >= deadline
+					{
+						break;
+					}
+					std::thread::sleep(Duration::from_millis(10));
 				}
 			}
 		}
@@ -3395,6 +3411,81 @@ mod tests {
 	}
 
 	#[cfg(unix)]
+	async fn wait_for_stopped_processes(pids: &[i32]) {
+		time::timeout(Duration::from_secs(5), async {
+			loop {
+				let processes = pi_builtins::ProcInfo::all();
+				if pids.iter().all(|pid| {
+					processes
+						.iter()
+						.any(|process| process.pid() == *pid && process.state() == 'T')
+				}) {
+					break;
+				}
+				time::sleep(Duration::from_millis(10)).await;
+			}
+		})
+		.await
+		.expect("owned processes did not enter the stopped state");
+	}
+
+	/// A stopped child must remain observable even before its waiter subscribes,
+	/// and consuming one child's stop must not steal its sibling's stop status.
+	#[cfg(unix)]
+	#[tokio::test(flavor = "multi_thread")]
+	async fn child_wait_preserves_stops_before_subscription_for_each_process() {
+		use brush_core::processes::{ChildProcess, ProcessWaitResult};
+
+		let dir = tempfile::tempdir().expect("stopped child directory");
+		let pidfiles = [dir.path().join("first.pid"), dir.path().join("second.pid")];
+		let _cleanup = PidfileProcessCleanup(pidfiles.to_vec());
+		let mut children = Vec::new();
+		let mut pids = Vec::new();
+		for (pidfile, code) in pidfiles.iter().zip([42, 43]) {
+			let child = Command::new("sh")
+				.args([
+					"-c",
+					"trap 'exit \"$2\"' TERM; echo $$ > \"$1\"; kill -STOP $$; while :; do :; done",
+					"sh",
+					pidfile.to_str().expect("utf8 pidfile"),
+					&code.to_string(),
+				])
+				.spawn()
+				.expect("self-stopping child");
+			let pid = i32::try_from(child.id().expect("child pid")).expect("pid fits i32");
+			pids.push(pid);
+			children.push(ChildProcess::new(child, Some(pid), None));
+		}
+		// No ChildProcess::wait has run yet. Both stop events must already be pending.
+		wait_for_stopped_processes(&pids).await;
+		for child in &mut children {
+			let result = time::timeout(Duration::from_secs(5), child.wait(None))
+				.await
+				.expect("pre-existing stop did not wake child wait")
+				.expect("wait stopped child");
+			assert!(matches!(result, ProcessWaitResult::Stopped));
+		}
+		for pid in &pids {
+			// SAFETY: these are live children owned by this test.
+			assert_eq!(unsafe { libc::kill(*pid, libc::SIGTERM) }, 0);
+			assert_eq!(unsafe { libc::kill(*pid, libc::SIGCONT) }, 0);
+		}
+		for (child, code) in children.iter_mut().zip([42, 43]) {
+			let result = time::timeout(Duration::from_secs(5), child.wait(None))
+				.await
+				.expect("continued child did not exit")
+				.expect("reap continued child");
+			let ProcessWaitResult::Completed(output) = result else {
+				panic!("continued child must complete");
+			};
+			assert_eq!(output.status.code(), Some(code), "TERM trap exit status");
+		}
+		for pid in pids {
+			assert!(process::Process::from_pid(pid).is_none(), "owned process {pid} survived");
+		}
+	}
+
+	#[cfg(unix)]
 	#[tokio::test(flavor = "multi_thread")]
 	async fn kill_builtin_signals_every_process_in_a_jobspec_pipeline() {
 		const MARKER: &str = "PI_SHELL_TEST_KILL_JOBSPEC_PIPELINE";
@@ -3414,10 +3505,10 @@ mod tests {
 		let _cleanup = PidfileProcessCleanup(vec![first_pidfile.clone(), second_pidfile.clone()]);
 		let first_ready = dir.path().join("first.ready");
 		let second_ready = dir.path().join("second.ready");
-		let first_script = "trap 'exit 42' TERM; echo $$ > \"$1\"; : > \"$2\"; kill -STOP $$; while \
-		                    :; do sleep 0.05; done";
-		let second_script = "trap 'exit 43' TERM; echo $$ > \"$1\"; : > \"$2\"; kill -STOP $$; \
-		                     while :; do sleep 0.05; done";
+		let first_script =
+			"trap 'exit 42' TERM; echo $$ > \"$1\"; : > \"$2\"; kill -STOP $$; while :; do :; done";
+		let second_script =
+			"trap 'exit 43' TERM; echo $$ > \"$1\"; : > \"$2\"; kill -STOP $$; while :; do :; done";
 		let command = format!(
 			"sh -c {} sh {} {} | sh -c {} sh {} {}",
 			quote_arg(first_script),
@@ -3462,18 +3553,69 @@ mod tests {
 				.parse::<i32>()
 				.expect("pipeline pid")
 		});
+		// A ready file precedes STOP; waiting for the kernel state avoids sending
+		// CONT too early to the second stage while it is still reaching STOP.
+		wait_for_stopped_processes(&pids).await;
 
 		let killed = session
 			.shell
-			.run_string("kill -CONT %1; kill %1", &source_info, &params)
+			.run_string("kill %1; kill -CONT %1", &source_info, &params)
 			.await
 			.expect("kill jobspec");
 		assert_eq!(exit_code(&killed), 0, "`kill %1` should signal every pipeline process");
-		let _ = session
-			.shell
-			.run_string("wait %1", &source_info, &params)
-			.await
-			.expect("reap jobspec");
+		// Observe each actual exit without reaping it: the shell still owns both
+		// children and must subsequently reap them through the jobspec.
+		time::timeout(Duration::from_secs(5), async {
+			loop {
+				let mut all_exited = true;
+				for (pid, code) in pids.iter().zip([42, 43]) {
+					// SAFETY: zero initialization is valid for siginfo_t; waitid
+					// fills it, or leaves si_pid zero when no exit is pending.
+					let mut info: libc::siginfo_t = unsafe { std::mem::zeroed() };
+					// SAFETY: info is writable, pid is an owned child, and WNOWAIT
+					// preserves its status for the shell's subsequent wait.
+					let result = unsafe {
+						libc::waitid(
+							libc::P_PID,
+							*pid as libc::id_t,
+							&raw mut info,
+							libc::WEXITED | libc::WNOHANG | libc::WNOWAIT,
+						)
+					};
+					if result != 0 {
+						let error = std::io::Error::last_os_error();
+						if error.raw_os_error() == Some(libc::EINTR) {
+							all_exited = false;
+							continue;
+						}
+						panic!("observe pipeline child: {error}");
+					}
+					// SAFETY: waitid initialized the siginfo fields.
+					if unsafe { info.si_pid() } == 0 {
+						all_exited = false;
+					} else {
+						assert_eq!(info.si_code, libc::CLD_EXITED, "TERM must run the trap");
+						// SAFETY: CLD_EXITED supplies the exit code in si_status.
+						assert_eq!(unsafe { info.si_status() }, code, "pipeline exit status");
+					}
+				}
+				if all_exited {
+					break;
+				}
+				time::sleep(Duration::from_millis(10)).await;
+			}
+		})
+		.await
+		.expect("jobspec TERM and CONT did not complete every pipeline process");
+		time::timeout(
+			Duration::from_secs(5),
+			session
+				.shell
+				.run_string("wait -f %1", &source_info, &params),
+		)
+		.await
+		.expect("jobspec reaping timed out")
+		.expect("reap jobspec");
 		for pid in pids {
 			assert!(process::Process::from_pid(pid).is_none(), "pipeline process {pid} survived");
 		}

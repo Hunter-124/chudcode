@@ -99,6 +99,13 @@ impl ChildProcess {
 		#[allow(unused_mut, reason = "only mutated on some platforms")]
 		let mut sigchld = sys::signal::chld_signal_listener()?;
 
+		// Spawning and pipeline setup can finish after the child has already stopped.
+		// Subscribe first, then check its pending status so no stop can fall between
+		// the status check and the signal subscription.
+		if sys::signal::poll_for_stopped_child(self.pid)? {
+			return Ok(ProcessWaitResult::Stopped);
+		}
+
 		let cancelled = async {
 			match &cancel_token {
 				Some(token) => token.cancelled().await,
@@ -126,7 +133,7 @@ impl ChildProcess {
 					break Ok(ProcessWaitResult::Stopped)
 				},
 				_ = sigchld.recv() => {
-					if sys::signal::poll_for_stopped_children()? {
+					if sys::signal::poll_for_stopped_child(self.pid)? {
 						break Ok(ProcessWaitResult::Stopped);
 					}
 				},

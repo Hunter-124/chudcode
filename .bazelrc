@@ -95,6 +95,18 @@ test:linux-arm64-qemu --test_timeout=300,1200,1500,1800
 # executed there (no Rosetta in that direction); `bazel test` fails, not passes.
 build:darwin-arm64-compile-only --platforms=//bazel/platforms:darwin-arm64
 build:darwin-arm64-compile-only --define=chudcode_cross_tests=darwin-arm64-compile-only
+# Match the Darwin shipping transition in bazel/defs.bzl so the addon and
+# every crate/test share common dependency actions, rather than compiling
+# both opt and fastbuild dependency graphs on the one-worker Intel Mac.
+# The compile-only driver applies this config to BOTH Rust build phases,
+# including the --define above; the shipping codegen flags are unchanged.
+build:darwin-arm64-compile-only --compilation_mode=opt
+build:darwin-arm64-compile-only --@rules_rust//rust/settings:lto=thin
+# Use repeatable extra_rustc_flag so commas in the linker argument stay
+# inside that one rustc flag; extra_rustc_flags would split them.
+build:darwin-arm64-compile-only --@rules_rust//rust/settings:extra_rustc_flag=-Ccodegen-units=16
+build:darwin-arm64-compile-only --@rules_rust//rust/settings:extra_rustc_flag=-Cstrip=none
+build:darwin-arm64-compile-only --@rules_rust//rust/settings:extra_rustc_flag=-Clink-arg=-Wl,-x,-S
 
 # --- CI base -----------------------------------------------------------------
 build:ci --curses=no --color=yes --show_timestamps

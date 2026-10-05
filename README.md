@@ -70,19 +70,30 @@ Ordinary CI checks ARM without the offline physical M2 or paid hosted Macs:
   handler and sysroot, or with any addon other than the aarch64 one present.
 - `darwin_arm64_compile_only` runs on `cc-mac-chudcode-intel`
   (`scripts/ci-darwin-arm64-compile-only.sh`). With the Xcode SDK it
-  cross-compiles `//:natives-darwin-arm64`, every Rust test binary
-  (`--config=darwin-arm64-compile-only`) and the GUI with its headless test
-  executables, and checks each is a thin arm64 Mach-O. Nothing is executed.
+  cross-compiles `//:natives-darwin-arm64` with the canonical addon driver,
+  every Rust test binary, the GUI and its headless tests. All use
+  `--config=darwin-arm64-compile-only`, including the same addon Rust flags,
+  so subsequent targets reuse that compilation. Each output must be a thin
+  arm64 Mach-O. Nothing is executed.
+
+The ARM addon producer and Darwin cross-build start only after the existing
+TypeScript, Rust-validation and check jobs pass. No non-ARM job needs either
+ARM producer or emulation, so the private runner serves baseline work first.
 
 Every ARM step has a hard budget and never retries. Jobs are capped at 30
 min (`native_addon_build_linux_arm64`), 45 min (`linux_arm64_emulated`) and
-60 min (`darwin_arm64_compile_only`). Inside them,
+90 min (`darwin_arm64_compile_only`). Inside them,
 `scripts/ci-deadline.ts <seconds> -- <command>` runs each long command in its
 own process group, sends SIGTERM and then SIGKILL after 15 s, and exits 124
 on expiry: arm64 addon build 25 min, emulated `bazel test` 30 min (per-test
 timeouts 300/1200/1500/1800 s), arm64 Bun download 3 min, probe 2 min,
-`packages/natives` suite 10 min, and the whole Darwin compile-only script 50
+`packages/natives` suite 10 min, and the whole Darwin compile-only script 75
 min.
+
+TTY teardown publishes `dead` only after queue cleanup, under the same lock
+that rejects late appends. Shell child-stop observation subscribes before
+checking a pending stop for that specific PID; one child cannot consume another
+child's stop status. Both paths are exercised natively and as Linux aarch64.
 
 Emulated Linux results are not native ARM hardware evidence, and Intel
 cross-compilation is neither native Apple silicon runtime evidence nor a
