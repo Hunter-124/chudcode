@@ -103,11 +103,11 @@ _MSVC_EXEC_HOSTS = {
 # registration but are gated by target_settings on a --define that only the
 # matching .bazelrc config sets (together with the target platform).
 #
-# linux-arm64 tests on a linux-x64 host: the test binary is an aarch64 ELF
-# executed through the host kernel's qemu-aarch64 binfmt_misc handler, so child
-# processes and re-execs of the test binary are emulated too. Used only by
-# `--config=linux-arm64-qemu`; scripts/ci-arm64-emulation.ts verifies the
-# handler before Bazel runs anything.
+# linux-arm64 tests on a linux-x64 host: the test binary is an aarch64 ELF run
+# under the pinned qemu-aarch64 (//bazel/toolchains/qemu, --run_under), while
+# child processes and re-execs of the test binary go through the host kernel's
+# qemu-aarch64 binfmt_misc handler. Used only by `--config=linux-arm64-qemu`;
+# scripts/ci-arm64-emulation.ts verifies the handler before Bazel runs anything.
 toolchain(
     name = "test-linux-arm64-on-linux-x64-qemu",
     exec_compatible_with = [

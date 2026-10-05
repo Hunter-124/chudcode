@@ -184,6 +184,7 @@ fn ps_end<U: Unit>(units: &[U], pos: usize) -> Option<usize> {
 #[cfg(test)]
 mod tests {
 	use super::*;
+	use crate::utok::pretoken::Splitter;
 
 	/// Chain pieces as `String`s for cross-flavor comparison.
 	fn scan_pieces<U: Unit>(units: &[U]) -> Vec<String> {
@@ -202,20 +203,18 @@ mod tests {
 		out
 	}
 
-	fn regex_pieces(text: &str) -> Vec<String> {
-		crate::utok::pretoken::Splitter::new(&[
+	/// Compile the three-stage Unicode regex oracle once per test, not per
+	/// input.
+	fn oracle() -> Splitter {
+		Splitter::new(&[
 			crate::utok::tables::DEEPSEEK_STAGE_DIGITS,
 			crate::utok::tables::DEEPSEEK_STAGE_CJK,
 			crate::utok::tables::DEEPSEEK_STAGE_MAIN,
 		])
-		.split(text)
-		.into_iter()
-		.map(str::to_owned)
-		.collect()
 	}
 
-	fn check(text: &str) {
-		let want = regex_pieces(text);
+	fn check(oracle: &Splitter, text: &str) {
+		let want: Vec<String> = oracle.split(text).into_iter().map(str::to_owned).collect();
 		assert_eq!(scan_pieces(text.as_bytes()), want, "u8 split drift on {text:?}");
 		let u16s: Vec<u16> = text.encode_utf16().collect();
 		assert_eq!(scan_pieces(u16s.as_slice()), want, "u16 split drift on {text:?}");
@@ -227,13 +226,15 @@ mod tests {
 	fn deepseek_scanner_matches_regex_on_fixtures() {
 		let raw = include_str!("../../../fixtures/deepseek3.json");
 		let v: serde_json::Value = serde_json::from_str(raw).unwrap();
+		let oracle = oracle();
 		for case in v["cases"].as_array().unwrap() {
-			check(case["text"].as_str().unwrap());
+			check(&oracle, case["text"].as_str().unwrap());
 		}
 	}
 
 	#[test]
 	fn deepseek_scanner_matches_regex_on_edges() {
+		let oracle = oracle();
 		for text in [
 			"",
 			".NET (foo) #include <stdio.h> C++ -O2",
@@ -258,7 +259,7 @@ mod tests {
 			// here; caught fleet-wide by QwenFamily).
 			"+\u{10953}上 a\u{10953}b \u{10953}\u{10953}",
 		] {
-			check(text);
+			check(&oracle, text);
 		}
 	}
 
@@ -279,6 +280,7 @@ mod tests {
 		)
 		.chars()
 		.collect();
+		let oracle = oracle();
 		for seed in [
 			0xdee9_5eec_0000_0000u64,
 			0x9e37_79b9_7f4a_7c15,
@@ -297,7 +299,7 @@ mod tests {
 				let text: String = (0..len)
 					.map(|_| pool[(rand() as usize) % pool.len()])
 					.collect();
-				check(&text);
+				check(&oracle, &text);
 			}
 		}
 	}

@@ -269,3 +269,9 @@ crate.annotation(
     crate = "ring",
 )
 # --- end msvc cross toolchain ---------------------------------------------------
+
+# Pinned static qemu-aarch64 that runs `--config=linux-arm64-qemu` tests
+# (--run_under in .bazelrc); see //bazel/toolchains/qemu:qemu_user.bzl.
+qemu_user_aarch64 = use_repo_rule("//bazel/toolchains/qemu:qemu_user.bzl", "qemu_user_aarch64_repository")
+
+qemu_user_aarch64(name = "qemu_user_aarch64")

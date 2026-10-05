@@ -79,12 +79,18 @@ test --test_summary=terse
 # --- Cross-architecture tests ---------------------------------------------------
 # linux-arm64: tests built with the pinned zig glibc-2.17 toolchain (the same
 # platform as //:natives-linux-arm64) and executed on a linux-x64 host as
-# aarch64 ELF through the kernel's qemu-aarch64 binfmt_misc handler, which also
-# emulates child processes. QEMU_LD_PREFIX points the emulator at the GNU
-# aarch64 cross sysroot for ld-linux-aarch64.so.1, libc and libgcc_s. CI first
-# runs `scripts/ci-arm64-emulation.ts verify-host` to prove both exist.
+# aarch64 ELF under the pinned static qemu-aarch64 from
+# //bazel/toolchains/qemu:qemu_user.bzl (--run_under), not the runner's own
+# qemu: Ubuntu noble's 8.2.2 crashes with "QEMU internal SIGSEGV
+# {code=MAPERR, addr=0x20}" when a multi-threaded test reads /proc/self/maps
+# (Rust backtrace symbolization) while another thread remaps memory. aarch64
+# children a test spawns still go through the kernel's qemu-aarch64
+# binfmt_misc handler. QEMU_LD_PREFIX points both at the GNU aarch64 cross
+# sysroot for ld-linux-aarch64.so.1, libc and libgcc_s. CI first runs
+# `scripts/ci-arm64-emulation.ts verify-host` to prove handler and sysroot exist.
 build:linux-arm64-qemu --platforms=//bazel/platforms:linux-arm64
 build:linux-arm64-qemu --define=chudcode_cross_tests=linux-arm64-qemu
+test:linux-arm64-qemu --run_under=@qemu_user_aarch64//:qemu-aarch64
 test:linux-arm64-qemu --test_env=QEMU_LD_PREFIX=/usr/aarch64-linux-gnu
 # qemu-user runs CPU-bound suites roughly an order of magnitude slower:
 # pi_natives_test (default size, moderate) took 881 s emulated on a loaded

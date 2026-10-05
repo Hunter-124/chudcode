@@ -15,7 +15,11 @@
  * evidence.
  *
  * `verify-host` fails unless that handler and sysroot exist. Bazel's Rust
- * tests (`--config=linux-arm64-qemu`, see .bazelrc) run only after it.
+ * tests (`--config=linux-arm64-qemu`, see .bazelrc) run only after it; their
+ * test binaries themselves run under Bazel's pinned qemu-aarch64
+ * (bazel/toolchains/qemu/qemu_user.bzl) because the runner's Ubuntu 8.2.2
+ * emulator crashes on concurrent /proc/self/maps reads, while aarch64 children
+ * they spawn still use this binfmt handler.
  *
  * `install-bun` installs the official bun-linux-aarch64 build of the Bun
  * version CI pins, verified against the SHA-256 published in that release's

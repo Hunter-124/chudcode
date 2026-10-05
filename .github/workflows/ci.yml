@@ -198,9 +198,10 @@ jobs:
           HANDOFF_ROOT: ${{ github.workspace }}/../ci-handoff
         run: bun scripts/ci-native-handoff.ts publish --root "$HANDOFF_ROOT" --target linux-arm64 --file bazel-bin/natives-linux-arm64/pi_natives.linux-arm64.node
 
-  # Emulated ARM Linux on the private x86_64 runner: aarch64 ELF Rust tests and
-  # the real pi_natives suite on an aarch64 Bun, executed through the utility
-  # VM's own qemu-aarch64 binfmt handler. Not native ARM hardware evidence.
+  # Emulated ARM Linux on the private x86_64 runner: aarch64 ELF Rust tests
+  # under Bazel's pinned qemu-aarch64 (children via the VM's own binfmt
+  # handler) and the real pi_natives suite on an aarch64 Bun, executed through
+  # that binfmt handler. Not native ARM hardware evidence.
   linux_arm64_emulated:
     name: Linux arm64 under qemu-user (Rust tests and native addon consumer)
     needs: [native_addon_build_linux_arm64]
@@ -242,8 +243,8 @@ jobs:
     name: darwin-arm64 compile-only on Intel Mac (not executed)
     needs: [test_typescript, rust_validate, check]
     runs-on: [self-hosted, cloudcastle-ci, cc-mac-chudcode-intel]
-    # Hard cap: 15 min checkout/tool setup plus the script's own 75 min
-    # cold-build deadline. No consumer depends on this qualification job.
+    # Hard cap: five minutes of tool setup/cleanup plus the script's own
+    # 85-minute deadline. No consumer depends on this qualification job.
     timeout-minutes: 90
     env:
       CMAKE_BUILD_PARALLEL_LEVEL: '1'

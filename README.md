@@ -57,10 +57,11 @@ Ordinary CI checks ARM without the offline physical M2 or paid hosted Macs:
 
 - `linux_arm64_emulated` runs on `cc-linux-chudcode`. It builds every
   `//crates/...` test with the pinned Bazel zig glibc 2.17 toolchain
-  (`--config=linux-arm64-qemu`) and executes the aarch64 ELF binaries through
-  the utility VM's own kernel `qemu-aarch64` binfmt handler, so child
-  processes and re-execs run as aarch64 too, against the GNU cross sysroot
-  `/usr/aarch64-linux-gnu`. It then installs this run's `linux-arm64` addon,
+  (`--config=linux-arm64-qemu`) and executes the aarch64 ELF test binaries
+  through Bazel's SHA-256-pinned QEMU 10.0.13. Child processes and re-execs use
+  the utility VM's independently pinned QEMU 10.0.13 kernel binfmt handler,
+  against the GNU cross sysroot `/usr/aarch64-linux-gnu`. It then installs this
+  run's `linux-arm64` addon,
   built by its own `native_addon_build_linux_arm64` job (not part of the
   x64/Windows `native_addon_build` matrix, so nothing outside the ARM lane
   waits for it), from the same-runner handoff and runs the `packages/natives`
@@ -87,11 +88,15 @@ min (`native_addon_build_linux_arm64`), 45 min (`linux_arm64_emulated`) and
 own process group, sends SIGTERM and then SIGKILL after 15 s, and exits 124
 on expiry: arm64 addon build 25 min, emulated `bazel test` 30 min (per-test
 timeouts 300/1200/1500/1800 s), arm64 Bun download 3 min, probe 2 min,
-`packages/natives` suite 10 min, and the whole Darwin compile-only script 75
+`packages/natives` suite 10 min, and the whole Darwin compile-only script 85
 min.
 Ordinary runs use per-run workflow concurrency, so a delayed ARM producer
 cannot lock out a newer native baseline or cancel its in-flight work. Pull
 requests retain same-ref cancellation; signed release tags retain serialization.
+
+The Kimi and DeepSeek scanner property tests compile their Unicode regex
+oracles once per test, retaining all 2,000 and 3,200 deterministic random
+inputs and UTF-8/UTF-16/UTF-32 comparisons within the same emulation budget.
 
 
 TTY teardown publishes `dead` only after queue cleanup, under the same lock

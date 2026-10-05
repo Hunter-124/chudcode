@@ -144,6 +144,7 @@ pub fn next_piece<U: Unit>(units: &[U], pos: usize) -> usize {
 #[cfg(test)]
 mod tests {
 	use super::*;
+	use crate::utok::{pretoken::Splitter, tables::KIMI_K2_PATTERN};
 
 	/// Split with the scanner over `U` units; pieces come back as decoded
 	/// strings for cross-flavor comparison.
@@ -166,16 +167,15 @@ mod tests {
 		out
 	}
 
-	fn regex_pieces(text: &str) -> Vec<String> {
-		crate::utok::pretoken::Splitter::new(&[crate::utok::tables::KIMI_K2_PATTERN])
-			.split(text)
-			.into_iter()
-			.map(str::to_owned)
-			.collect()
+	/// fancy-regex oracle for `KIMI_K2_PATTERN`. Compiling it builds the
+	/// Unicode-class delegates for every alternate, so each test compiles it
+	/// once and reuses it for all of its inputs.
+	fn oracle() -> Splitter {
+		Splitter::new(&[KIMI_K2_PATTERN])
 	}
 
-	fn check(text: &str) {
-		let want = regex_pieces(text);
+	fn check(oracle: &Splitter, text: &str) {
+		let want: Vec<String> = oracle.split(text).into_iter().map(str::to_owned).collect();
 		assert_eq!(scan_pieces(text.as_bytes()), want, "u8 split drift on {text:?}");
 		let u16s: Vec<u16> = text.encode_utf16().collect();
 		assert_eq!(scan_pieces(u16s.as_slice()), want, "u16 split drift on {text:?}");
@@ -187,13 +187,15 @@ mod tests {
 	fn kimi_scanner_matches_regex_on_fixtures() {
 		let raw = include_str!("../../../fixtures/kimi_k2.json");
 		let v: serde_json::Value = serde_json::from_str(raw).unwrap();
+		let oracle = oracle();
 		for case in v["cases"].as_array().unwrap() {
-			check(case["text"].as_str().unwrap());
+			check(&oracle, case["text"].as_str().unwrap());
 		}
 	}
 
 	#[test]
 	fn kimi_scanner_matches_regex_on_edges() {
+		let oracle = oracle();
 		for text in [
 			"",
 			"'",
@@ -215,7 +217,7 @@ mod tests {
 			"ᵃᵇᶜ modifier ʰʷ letters", // Lm in both A and B
 			"ǰŠŽ æÆœŒ ß ẞ",
 		] {
-			check(text);
+			check(&oracle, text);
 		}
 	}
 
@@ -235,6 +237,7 @@ mod tests {
 		)
 		.chars()
 		.collect();
+		let oracle = oracle();
 		let mut state = 0x9e37_79b9_7f4a_7c15u64;
 		let mut rand = move || {
 			state ^= state << 13;
@@ -247,7 +250,7 @@ mod tests {
 			let text: String = (0..len)
 				.map(|_| pool[(rand() as usize) % pool.len()])
 				.collect();
-			check(&text);
+			check(&oracle, &text);
 		}
 	}
 }
