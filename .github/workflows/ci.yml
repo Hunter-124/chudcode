@@ -9,8 +9,8 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/chudcode-v') }}
+  group: ${{ github.workflow }}-${{ (github.event_name == 'pull_request' || startsWith(github.ref, 'refs/tags/chudcode-v')) && github.ref || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: read

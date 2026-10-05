@@ -89,6 +89,15 @@ on expiry: arm64 addon build 25 min, emulated `bazel test` 30 min (per-test
 timeouts 300/1200/1500/1800 s), arm64 Bun download 3 min, probe 2 min,
 `packages/natives` suite 10 min, and the whole Darwin compile-only script 75
 min.
+Ordinary runs use per-run workflow concurrency, so a delayed ARM producer
+cannot lock out a newer native baseline or cancel its in-flight work. Pull
+requests retain same-ref cancellation; signed release tags retain serialization.
+
+
+TTY teardown publishes `dead` only after queue cleanup, under the same lock
+that rejects late appends. Shell child-stop observation subscribes before
+checking a pending stop for that specific PID; one child cannot consume another
+child's stop status. Both paths are exercised natively and as Linux aarch64.
 
 TTY teardown publishes `dead` only after queue cleanup, under the same lock
 that rejects late appends. Shell child-stop observation subscribes before
