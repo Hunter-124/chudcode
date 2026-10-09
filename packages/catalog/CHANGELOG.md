@@ -2,6 +2,14 @@
 
 ## [Unreleased]
 
+### Added
+
+- Added Claude Haiku 5.5 to the Anthropic catalog for API-key and subscription sessions, with adaptive thinking, the current tokenizer, and tier-aware pricing.
+
+### Fixed
+
+- Fixed newer Haiku models failing selection because legacy budget-thinking rules conflicted with adaptive thinking.
+
 ## [18.4.4] - 2026-09-29
 
 ### Added

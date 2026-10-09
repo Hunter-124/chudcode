@@ -7,6 +7,27 @@ class "anthropic" {
 			thinking-prefix-binding #true
 		}
 	}
+	// Haiku 5.5 replaces legacy budget thinking with adaptive thinking.
+	// https://platform.claude.com/docs/en/models/haiku-5-5/migration-guide
+	on-api "anthropic-messages" "bedrock-converse-stream" {
+		family "haiku" {
+			revision "=5.5" {
+				thinking-default-level "medium"
+				thinking-supports-display #true
+				thinking-prefix-binding #true
+			}
+		}
+	}
+	on-api "anthropic-messages" {
+		family "haiku" {
+			revision "=5.5" {
+				thinking-mode "anthropic-adaptive"
+				thinking-efforts "low" "medium" "high" "xhigh" "max"
+				thinking-upgrade-neutral #true
+				supports-sampling-params #false
+			}
+		}
+	}
 	// On-demand compaction (compact-2026-09-04) works on the Claude API, Vertex,
 	// and Amazon Bedrock's `/anthropic` routes, not Bedrock Converse.
 	// Foundry / Claude Platform on AWS are first-party Anthropic routes whose
@@ -77,6 +98,11 @@ class "anthropic" {
 		}
 	}
 	on "anthropic" "cloudflare-ai-gateway" "google-vertex" {
+		family "haiku" {
+			revision "=5.5" {
+				supports-thinking-binding-controls #true
+			}
+		}
 		family "fable" {
 			revision ">=5" {
 				supports-mid-conversation-system #true
@@ -136,7 +162,11 @@ class "anthropic" {
 	on "amazon-bedrock" "anthropic" "cloudflare-ai-gateway" "github-copilot" "gitlab-duo" \
 		"google-vertex" "opencode-zen" "vercel-ai-gateway" {
 		family "haiku" {
-			thinking-mode "budget"
+			// Legacy Haiku keeps manual budgets; adaptive revisions must not
+			// overlap the newer-generation rule below.
+			revision "<4.7" {
+				thinking-mode "budget"
+			}
 		}
 	}
 	on "amazon-bedrock" "anthropic" "cloudflare-ai-gateway" "github-copilot" "gitlab-duo" \
@@ -205,6 +235,29 @@ class "anthropic" {
 	}
 	// Reviewed catalog-metadata corrections (stale upstream pricing/limits).
 	on "anthropic" {
+		family "haiku" {
+			revision "=5.5" {
+				// /v1/models omits token limits and prices.
+				// https://platform.claude.com/docs/en/models/haiku-5-5/overview
+				cost-patch {
+					input 0.10
+					output 0.50
+					cache-read 0.01
+					cache-write 0.125
+				}
+				long-context-cost {
+					input-threshold 100000
+					input 0.50
+					output 2.50
+					cache-read 0.05
+					cache-write 0.625
+				}
+				limits-patch {
+					context-window 1000000
+					max-tokens 128000
+				}
+			}
+		}
 		family "opus" {
 			revision "=4.5" {
 				// stencil.so reports 3x the correct cache pricing.

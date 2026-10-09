@@ -27,6 +27,7 @@ function claudeTokenizer(identity: ModelIdentity): ModelTokenizer | undefined {
 	if (identity.family === "sonnet" || identity.family === "fable" || identity.family === "mythos") {
 		return revisionAtLeast(identity.revision, "5") ? "claude-v5-sonnet" : "claude-v3";
 	}
+	if (identity.family === "haiku" && revisionAtLeast(identity.revision, "5.5")) return "claude-v47";
 	return "claude-v3";
 }
 

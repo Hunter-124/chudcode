@@ -30,6 +30,10 @@ bun run gen:models   # upstream sources + rules -> src/models.json
 
 Model- or provider-conditional policy (identity, effort ladders, wire quirks, modality/limit/pricing corrections, API routing, roster exclusions) lives in the KDL tree — see `src/compat/rules/README.md` for the grammar and axis vocabulary. TypeScript changes are only for transport mechanics: provider entries in `provider-models/descriptors.ts`, discovery/request plumbing in `provider-models/openai-compat.ts`, and generator wiring in `scripts/generate-models.ts`. Commit `rules.json` (and a rebaked `models.json` when values change) alongside the `.kdl` edit.
 
+The bundled Anthropic seed includes [Claude Haiku 5.5](https://platform.claude.com/docs/en/models/haiku-5-5/overview) (`claude-haiku-5-5`) even before upstream discovery catalogs it. API-key and Claude Pro/Max OAuth credentials use the same `anthropic` provider. Haiku 5.5 uses adaptive thinking with `low`, `medium` (default), `high`, `xhigh`, and `max` effort, summarized thinking display, the newer Claude tokenizer, a 1M-token context window, and 128K-token output limit. Sampling parameters are omitted; older Haiku revisions retain their budget-thinking behavior. First-party pricing increases fivefold for prompts over 100,000 input tokens; other hosts keep their own catalog availability and deployment contracts.
+
+With extended context disabled, the coding-agent's existing long-context price guard compacts Haiku 5.5 at 100K tokens. Enabling `extendedContext` allows its full 1M-token window and the higher pricing tier; the catalog does not change that user-selected policy.
+
 ## Install
 
 ```sh
