@@ -191,6 +191,7 @@ class _RunnerState:
         self.last_install_marker: int = 0
         self.loop: asyncio.AbstractEventLoop | None = None
         self.active_executions: int = 0
+        self.execution_tasks: set[asyncio.Task] = set()
         # Best-effort attribution target for captured fd-1 bytes (child
         # processes inheriting stdout). With overlapping requests the most
         # recently started one wins — strictly better than dropping the bytes.
@@ -1933,9 +1934,25 @@ def _install_idle_sigint() -> None:
         pass
 
 
+def _interrupt_executions(_signum, _frame) -> None:
+    # A default KeyboardInterrupt raised in loop.select kills the whole kernel.
+    # Interrupt synchronous cell code directly; cancel parked cells through asyncio.
+    loop = _STATE.loop
+    if loop is None:
+        return
+    current = asyncio.current_task(loop)
+    for task in _STATE.execution_tasks:
+        if task is not current:
+            # Also wake the selector: a non-raising signal handler can leave it
+            # sleeping until the awaited tool or timer finishes.
+            loop.call_soon_threadsafe(task.cancel)
+    if current in _STATE.execution_tasks:
+        raise KeyboardInterrupt("Execution interrupted")
+
+
 def _install_exec_sigint() -> None:
     try:
-        signal.signal(signal.SIGINT, signal.default_int_handler)
+        signal.signal(signal.SIGINT, _interrupt_executions)
     except (OSError, ValueError):
         pass
 
@@ -2134,14 +2151,17 @@ async def _handle_request_async(req: dict) -> None:
         else:
             _begin_exec_sigint()
         execution_started = True
+        task = asyncio.current_task()
         try:
+            if task is not None:
+                _STATE.execution_tasks.add(task)
             await _exec_source_async(
                 transformed,
                 _STATE.user_ns,
                 filename=filename,
                 linecache_source=source,
             )
-        except KeyboardInterrupt:
+        except (KeyboardInterrupt, asyncio.CancelledError):
             cancelled = True
             status = "error"
             _emit_error(rid, KeyboardInterrupt("Execution interrupted"))
@@ -2152,6 +2172,8 @@ async def _handle_request_async(req: dict) -> None:
             status = "error"
             _emit_error(rid, exc, source_filename=filename)
         finally:
+            if task is not None:
+                _STATE.execution_tasks.discard(task)
             _end_exec_sigint()
             try:
                 _flush_matplotlib_figures()
@@ -2322,6 +2344,9 @@ async def _serve_posix(loop: asyncio.AbstractEventLoop, stdin) -> None:
             req = await queue.get()
             if req.get("type") == "exit":
                 break
+            if req.get("type") == "ping":
+                _emit({"type": "pong", "id": str(req.get("id"))})
+                continue
             if req.get("type") == "shadow_snapshot":
                 _emit_shadow_snapshot(req)
                 continue
@@ -2366,6 +2391,9 @@ async def _serve_windows(loop: asyncio.AbstractEventLoop, stdin) -> None:
             continue
         if req.get("type") == "exit":
             break
+        if req.get("type") == "ping":
+            _emit({"type": "pong", "id": str(req.get("id"))})
+            continue
         if req.get("type") == "shadow_snapshot":
             _emit_shadow_snapshot(req)
             continue

@@ -5,6 +5,7 @@ import { applyToolProxy } from "../../extensibility/tool-proxy";
 import type { Theme } from "@oh-my-pi/pi-tui/theme";
 import { defaultLoadModeForToolName } from "../../tools/essential-tools";
 import type {
+	RpcHostLoadableTools,
 	RpcHostToolCallRequest,
 	RpcHostToolCancelRequest,
 	RpcHostToolDefinition,
@@ -24,6 +25,13 @@ export interface HostToolAgentScope {
 export interface HostToolSource {
 	createTools(scope: HostToolAgentScope): AgentTool[];
 	subscribe(listener: () => void): () => void;
+	/** Whether the embedding host currently registers and executes `name`. */
+	hasTool(name: string): boolean;
+	/**
+	 * Host instruction for a tool the host can load but has not registered yet,
+	 * with `{name}` filled in. Undefined when the host does not list `name`.
+	 */
+	unloadedToolHint(name: string): string | undefined;
 }
 
 type PendingHostToolCall = {
@@ -94,6 +102,8 @@ class RpcHostToolAdapter<TParams extends TSchema = TSchema, TTheme extends Theme
 export class RpcHostToolBridge implements HostToolSource {
 	#output: RpcHostToolOutput;
 	#definitions = new Map<string, RpcHostToolDefinition>();
+	#loadableNames = new Set<string>();
+	#loadableHint = "";
 	#pendingCalls = new Map<string, PendingHostToolCall>();
 	#listeners = new Set<() => void>();
 	#closedError: Error | undefined;
@@ -106,8 +116,20 @@ export class RpcHostToolBridge implements HostToolSource {
 		return Array.from(this.#definitions.keys());
 	}
 
-	setTools(tools: RpcHostToolDefinition[]): AgentTool[] {
+	hasTool(name: string): boolean {
+		return this.#definitions.has(name);
+	}
+
+	unloadedToolHint(name: string): string | undefined {
+		if (this.#definitions.has(name) || !this.#loadableNames.has(name)) return undefined;
+		return this.#loadableHint.replaceAll("{name}", name);
+	}
+
+	/** Replace the host tool set; `loadable` replaces the host's loadable-tool hints (omitted clears them). */
+	setTools(tools: RpcHostToolDefinition[], loadable?: RpcHostLoadableTools): AgentTool[] {
 		this.#definitions = new Map(tools.map(tool => [tool.name, tool]));
+		this.#loadableNames = new Set(loadable?.names ?? []);
+		this.#loadableHint = loadable?.hint ?? "";
 		for (const listener of this.#listeners) listener();
 		return tools.map(tool => new RpcHostToolAdapter(tool, this));
 	}

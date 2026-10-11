@@ -9,9 +9,16 @@ import {
 	withBridgeTimeoutPause,
 } from "../../src/eval/bridge-timeout";
 import { executeWithKernelBase, type GenericKernel } from "../../src/eval/executor-base";
+import {
+	formatKernelReplacedNotice,
+	formatSessionKernelTimeoutAnnotation,
+} from "../../src/eval/kernel-session-registry";
+import { callSessionTool } from "../../src/eval/js/tool-bridge";
 import type { JsStatusEvent } from "../../src/eval/js/shared/types";
 import type { KernelDisplayOutput } from "../../src/eval/py/display";
 import * as pyToolBridge from "../../src/eval/py/tool-bridge";
+import { RpcHostToolBridge } from "../../src/modes/rpc/host-tools";
+import type { RpcHostToolCallRequest, RpcHostToolCancelRequest } from "../../src/modes/rpc/rpc-types";
 import type { ToolSession } from "../../src/tools";
 
 /** Minimal `ToolSession` exposing `tools` to the eval tool bridge. */
@@ -407,4 +414,152 @@ it("expires the wall-clock timeout through the shield so blocked bridge calls un
 	// ...the cell settled as a timed-out cancellation with the kernel alive.
 	expect(result.cancelled).toBe(true);
 	expect(result.output).toContain("kernel timed out");
+});
+
+describe("timed-out cell annotation", () => {
+	/** Run one cell that the eval watchdog times out, on a kernel in the given post-interrupt state. */
+	async function timedOutCell(kernelState: { alive: boolean; answersProbe: boolean }, outputPreamble?: string) {
+		const watchdog = new AbortController();
+		const kernel: GenericKernel<Record<string, string | null>> = {
+			async execute(_code, options) {
+				await options.onChunk("partial output\n");
+				watchdog.abort(new DOMException("Idle for 600s", "TimeoutError"));
+				return { status: "error", cancelled: true, timedOut: true };
+			},
+			isAlive: () => kernelState.alive,
+			probeAlive: async () => kernelState.answersProbe,
+		};
+		return await executeWithKernelBase({
+			kernel,
+			code: "long_study()",
+			options: { signal: watchdog.signal, idleTimeoutMs: 600_000, outputPreamble },
+			runIdPrefix: "test",
+			errorLogLabel: "test",
+			cancelledErrorClass: TestCancelledError,
+			buildKernelEnvPatch: () => ({}),
+			formatKernelTimeoutAnnotation: formatSessionKernelTimeoutAnnotation,
+			formatTimeoutAnnotation: () => "timed out",
+		});
+	}
+
+	it("says state is lost when the runner exits after it reports the interrupted cell", async () => {
+		const result = await timedOutCell({ alive: false, answersProbe: false });
+		expect(result.cancelled).toBe(true);
+		expect(result.output).toContain(formatSessionKernelTimeoutAnnotation(600_000, "killed"));
+		expect(result.output).not.toContain("still runs");
+	});
+
+	it("says state is kept only when the interrupted kernel answers the liveness probe", async () => {
+		expect((await timedOutCell({ alive: true, answersProbe: true })).output).toContain(
+			formatSessionKernelTimeoutAnnotation(600_000, "running"),
+		);
+		expect((await timedOutCell({ alive: true, answersProbe: false })).output).toContain(
+			formatSessionKernelTimeoutAnnotation(600_000, "unresponsive"),
+		);
+	});
+
+	it("puts the replacement-kernel notice before the cell output", async () => {
+		const notice = formatKernelReplacedNotice("Python");
+		const { output } = await timedOutCell({ alive: true, answersProbe: true }, notice);
+		expect(output.indexOf(notice)).toBeGreaterThanOrEqual(0);
+		expect(output.indexOf(notice)).toBeLessThan(output.indexOf("partial output"));
+	});
+});
+
+describe("eval-bridged host tool calls", () => {
+	/**
+	 * A session with one RPC host tool (`simulate_motion`), a `write` stand-in
+	 * whose `xd://` transport hands the device call to that host tool, and a
+	 * built-in tool. Status events are recorded at the moment each tool works,
+	 * so the test sees whether the cell watchdog was paused during that work.
+	 */
+	function harness() {
+		const events: string[] = [];
+		const frames: Array<RpcHostToolCallRequest | RpcHostToolCancelRequest> = [];
+		const hostCall = Promise.withResolvers<RpcHostToolCallRequest>();
+		const bridge = new RpcHostToolBridge(frame => {
+			frames.push(frame);
+			if (frame.type === "host_tool_call") {
+				events.push("host-call");
+				hostCall.resolve(frame);
+			}
+		});
+		const [hostTool] = bridge.setTools([
+			{
+				name: "simulate_motion",
+				label: "Simulate motion",
+				description: "Runs a motion study in the host",
+				parameters: { type: "object", properties: { steps: { type: "number" } }, additionalProperties: false },
+			},
+		]);
+		const writeParams = type({ path: "string", content: "string" });
+		const write: AgentTool<typeof writeParams> = {
+			name: "write",
+			label: "Write",
+			description: "Dispatches xd:// device writes",
+			parameters: writeParams,
+			execute: async (id, args, signal) => hostTool.execute(id, JSON.parse(args.content), signal),
+		};
+		const builtin: AgentTool = {
+			name: "builtin_work",
+			label: "Builtin work",
+			description: "Built-in work that runs inside the session",
+			parameters: type({}),
+			execute: async () => {
+				events.push("builtin-work");
+				return { content: [{ type: "text", text: "done" }] };
+			},
+		};
+		const session: ToolSession = {
+			...makeToolSession(hostTool, write, builtin),
+			getHostToolSource: () => bridge,
+		};
+		const emitStatus = (event: JsStatusEvent): void => {
+			if (isEvalTimeoutControlEvent(event)) events.push(event.op);
+		};
+		const answer = async (): Promise<void> => {
+			const call = await hostCall.promise;
+			bridge.handleResult({
+				type: "host_tool_result",
+				id: call.id,
+				result: { content: [{ type: "text", text: "study complete" }] },
+			});
+		};
+		return { events, frames, hostCall: hostCall.promise, session, emitStatus, answer };
+	}
+
+	for (const [label, name, args] of [
+		["a direct host tool call", "simulate_motion", { steps: 19 }],
+		["write xd://<host tool>", "write", { path: "xd://simulate_motion", content: JSON.stringify({ steps: 19 }) }],
+	] as const) {
+		it(`pauses the cell timeout for ${label} until the host answers`, async () => {
+			const { events, session, emitStatus, answer } = harness();
+			const call = callSessionTool(name, args, { session, emitStatus });
+			await answer();
+			expect(await call).toBe("study complete");
+			expect(events).toEqual([EVAL_TIMEOUT_PAUSE_OP, "host-call", EVAL_TIMEOUT_RESUME_OP]);
+		});
+	}
+
+	it("keeps built-in tool calls on the cell timeout", async () => {
+		const { events, session, emitStatus } = harness();
+		expect(await callSessionTool("builtin_work", {}, { session, emitStatus })).toBe("done");
+		expect(events).toEqual(["builtin-work"]);
+	});
+
+	it("cancels the host tool when the turn is cancelled during the paused call", async () => {
+		const { events, frames, hostCall, session, emitStatus } = harness();
+		const turn = new AbortController();
+		const call = callSessionTool(
+			"write",
+			{ path: "xd://simulate_motion", content: "{}" },
+			{ session, emitStatus, signal: turn.signal },
+		);
+		const request = await hostCall;
+		turn.abort(new Error("turn cancelled"));
+		await expect(call).rejects.toThrow("aborted");
+		expect(frames).toContainEqual(expect.objectContaining({ type: "host_tool_cancel", targetId: request.id }));
+		// The watchdog resumes after the cancel, so the cell timeout counts again.
+		expect(events).toEqual([EVAL_TIMEOUT_PAUSE_OP, "host-call", EVAL_TIMEOUT_RESUME_OP]);
+	});
 });

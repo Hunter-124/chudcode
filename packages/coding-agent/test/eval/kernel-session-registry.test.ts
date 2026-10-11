@@ -1,5 +1,9 @@
 import { describe, expect, it } from "bun:test";
-import { createKernelSessionRegistry, type KernelSession } from "../../src/eval/kernel-session-registry";
+import {
+	createKernelSessionRegistry,
+	formatKernelReplacedNotice,
+	type KernelSession,
+} from "../../src/eval/kernel-session-registry";
 
 interface TestOptions {
 	sessionId?: string;
@@ -8,6 +12,7 @@ interface TestOptions {
 	reset?: boolean;
 	signal?: AbortSignal;
 	deadlineMs?: number;
+	outputPreamble?: string;
 }
 
 interface TestResult {
@@ -85,6 +90,29 @@ describe("kernel session recovery", () => {
 			});
 			expect(effects).toEqual(["first effect", "next effect"]);
 			expect(kernels[0]?.shutdowns).toBe(1);
+		} finally {
+			await registry.disposeAll();
+		}
+	});
+
+	it("announces a replacement kernel once, and not for a fresh or reset session", async () => {
+		const preambles: Array<string | undefined> = [];
+		const { kernels, registry } = createFakeRegistry(async (_kernel, _code, options) => {
+			preambles.push(options.outputPreamble);
+			return { cancelled: false, value: "ok" };
+		});
+		const run = (code: string, reset = false) =>
+			registry.executeOnSession(code, "/tmp", { sessionId: "notice", reset });
+		try {
+			await run("setup");
+			await run("use setup");
+			// The kernel exits between cells (for example, after an interrupt).
+			kernels[0]!.alive = false;
+			await run("first cell on the new kernel");
+			await run("second cell on the new kernel");
+			await run("explicit reset", true);
+			expect(kernels).toHaveLength(3);
+			expect(preambles).toEqual([undefined, undefined, formatKernelReplacedNotice("Test"), undefined, undefined]);
 		} finally {
 			await registry.disposeAll();
 		}

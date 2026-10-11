@@ -167,6 +167,25 @@ describe("RpcHostToolBridge", () => {
 
 		expect(toolReadsSkillUris(tool)).toBe(true);
 	});
+
+	it("gives a load hint only for listed tools the host has not registered", () => {
+		const bridge = new RpcHostToolBridge(() => {});
+		bridge.setTools(
+			[
+				{
+					name: "simulate_motion",
+					description: "Runs a motion study",
+					parameters: { type: "object", properties: {}, additionalProperties: false },
+				},
+			],
+			{ names: ["simulate_motion", "run_shell"], hint: 'Call enable_tools(tools=["{name}"]) first.' },
+		);
+
+		expect(bridge.hasTool("simulate_motion")).toBe(true);
+		expect(bridge.unloadedToolHint("simulate_motion")).toBeUndefined();
+		expect(bridge.unloadedToolHint("run_shell")).toBe('Call enable_tools(tools=["run_shell"]) first.');
+		expect(bridge.unloadedToolHint("not_listed")).toBeUndefined();
+	});
 });
 
 describe("RpcClient custom tools", () => {

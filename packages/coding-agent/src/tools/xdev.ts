@@ -238,6 +238,11 @@ export interface XdevState {
 	readonly resolve?: (name: string) => Tool | undefined;
 	/** Optional execution-only decorator, such as the ACP permission gate. */
 	decorateExecution?(tool: Tool): Tool;
+	/**
+	 * Host instruction for a tool the embedding host can load but has not
+	 * registered yet (RPC `set_host_tools.loadableTools`); undefined otherwise.
+	 */
+	readonly unloadedToolHint?: (name: string) => string | undefined;
 }
 
 /** Full-doc character budget for system-prompt mounted-device sections. */
@@ -416,12 +421,12 @@ function shouldInlineXdevTool(
 
 function resolveRequiredXdevTool(state: XdevState, name: string): Tool {
 	const inst = resolveXdevTool(state, name);
-	if (!inst) {
-		throw new ToolError(
-			`No such tool: ${XD_URL_PREFIX}${name}. Mounted devices: ${[...state.mountedNames].join(", ")}. Active top-level tools are also dispatchable via ${XD_URL_PREFIX}<tool>.`,
-		);
-	}
-	return inst;
+	if (inst) return inst;
+	const hint = state.unloadedToolHint?.(name);
+	if (hint) throw new ToolError(`${XD_URL_PREFIX}${name} is not loaded. ${hint}`);
+	throw new ToolError(
+		`No such tool: ${XD_URL_PREFIX}${name}. Mounted devices: ${[...state.mountedNames].join(", ")}. Active top-level tools are also dispatchable via ${XD_URL_PREFIX}<tool>.`,
+	);
 }
 
 /** Execute an enabled canonical tool through `write xd://<tool>`. */

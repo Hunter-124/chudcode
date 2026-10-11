@@ -2,6 +2,7 @@ import type { AgentTool, AgentToolResult } from "@oh-my-pi/pi-agent-core";
 import { toolWireSchema, validateToolArguments } from "@oh-my-pi/pi-ai";
 import { isRecord } from "@oh-my-pi/pi-utils";
 import { INTENT_FIELD } from "@oh-my-pi/pi-wire";
+import { parseXdUrl } from "@oh-my-pi/pi-tui/tools/xd-url";
 import type { ToolSession } from "../../tools";
 import { committedTodoPhases } from "../../tools/todo";
 import { ToolError } from "@oh-my-pi/pi-tui/tools/tool-errors";
@@ -80,6 +81,21 @@ function normalizeArgs(args: unknown, defaultIntent?: string): unknown {
 		record[INTENT_FIELD] = defaultIntent;
 	}
 	return record;
+}
+
+/**
+ * Whether a bridged call hands its work to the embedding host: a direct call
+ * to an RPC host tool, or `write xd://<host tool>`. The host runs that work
+ * outside the cell runtime, like `agent()`, so the call must not use the
+ * cell's timeout budget.
+ */
+function delegatesToHostTool(session: ToolSession, name: string, args: unknown): boolean {
+	const hostTools = session.getHostToolSource?.();
+	if (!hostTools) return false;
+	if (hostTools.hasTool(name)) return true;
+	if (name !== "write" || !isRecord(args) || typeof args.path !== "string") return false;
+	const device = parseXdUrl(args.path)?.name;
+	return typeof device === "string" && hostTools.hasTool(device);
 }
 
 function parsePreludeRequest(args: unknown): { name: string; parameters: unknown } {
@@ -322,13 +338,14 @@ export async function callSessionTool(name: string, args: unknown, options: Tool
 		if (claimed) return bridgeValueFromToolResult(name, normalizedArgs, claimed, options.emitStatus);
 	}
 	try {
-		const result = await tool.execute(
-			toolCallId,
-			normalizedArgs,
-			options.signal,
-			undefined,
-			options.session.getToolContext?.(),
-		);
+		const execute = () =>
+			tool.execute(toolCallId, normalizedArgs, options.signal, undefined, options.session.getToolContext?.());
+		// Host tools run outside the runtime; pause the cell watchdog while the
+		// host works. The real signal still reaches the host, so a turn cancel
+		// sends `host_tool_cancel` at once.
+		const result = delegatesToHostTool(options.session, name, normalizedArgs)
+			? await withBridgeTimeoutPause(options.emitStatus, execute)
+			: await execute();
 		if (name === "todo") {
 			// A bridged call emits no `todo` toolResult entry, the only thing branch
 			// rehydration reads; without this the in-memory update is lost on the

@@ -136,7 +136,7 @@ Important edge behavior from runtime:
 - `{ id?, type: "get_entries", since?: string }`
 - `{ id?, type: "get_tree" }`
 - `{ id?, type: "set_todos", phases: TodoPhase[] }`
-- `{ id?, type: "set_host_tools", tools: RpcHostToolDefinition[] }`
+- `{ id?, type: "set_host_tools", tools: RpcHostToolDefinition[], loadableTools?: { names: string[], hint: string } }`
 - `{ id?, type: "set_host_uri_schemes", schemes: RpcHostUriSchemeDefinition[] }`
 - `{ id?, type: "set_subagent_subscription", level: "off" | "progress" | "events" }`
 - `{ id?, type: "set_event_filter", events: string[] | null }`
@@ -561,6 +561,36 @@ none. Child tools remain available to their own descendants. `--tools` also
 forms a ceiling for built-in tools in every descendant; host/custom/MCP names
 are admitted by the child's own tool list. `--no-lsp` and `--no-mcp` propagate
 through the spawn tree.
+
+#### Loadable host tools
+
+A host can list tools that it can load on request but has not registered yet
+(for example, tools that a host `enable_tools` tool registers on demand). Send
+them in the same `set_host_tools` command:
+
+```json
+{
+  "id": "req_4",
+  "type": "set_host_tools",
+  "tools": [ ... ],
+  "loadableTools": {
+    "names": ["run_shell", "simulate_motion"],
+    "hint": "Call enable_tools(tools=[\"{name}\"]) first; then read or write it."
+  }
+}
+```
+
+When the model reads or writes `xd://<name>` for a listed name that is not
+registered, the error is `xd://<name> is not loaded. <hint>`, with each `{name}`
+in `hint` replaced by the tool name. Names that are also in `tools` are
+ignored. Each `set_host_tools` replaces the list; omit `loadableTools` to clear
+it. `names` must be non-empty strings and `hint` must be a non-empty string, or
+the command fails and the previous host tools stay in place. Sub-agents share
+the list with their parent connection.
+
+Eval cells do not charge host tool calls to their `timeout`: a bridged call to a
+host tool (`tool.<host tool>(...)` or `write xd://<host tool>`) pauses the cell
+watchdog until the host answers. A turn cancel still sends `host_tool_cancel`.
 
 
 ### `set_host_uri_schemes` payload

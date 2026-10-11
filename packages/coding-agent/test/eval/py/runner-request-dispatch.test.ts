@@ -10,6 +10,7 @@ interface RunnerFrame {
 	revision?: number;
 	digest?: string;
 	admissionRejected?: boolean;
+	cancelled?: boolean;
 }
 
 const pythonPath = Bun.env.PYTHON ?? ($which("python3") ? "python3" : "python");
@@ -32,6 +33,7 @@ const numpyAvailable = (() => {
 interface Runner {
 	send(req: Record<string, unknown>): void;
 	nextFrame(): Promise<RunnerFrame>;
+	interrupt(): void;
 	dispose(): Promise<void>;
 }
 
@@ -52,6 +54,9 @@ function spawnRunner(): Runner {
 		send(req) {
 			proc.stdin.write(encoder.encode(`${JSON.stringify(req)}\n`));
 			proc.stdin.flush();
+		},
+		interrupt() {
+			proc.kill("SIGINT");
 		},
 		async nextFrame() {
 			while (true) {
@@ -106,6 +111,46 @@ async function collectDoneOrder(runner: Runner, ids: Set<string>): Promise<Runne
 // control channel until it finishes -- the regression that a naive fix for the
 // Windows numpy import hang (#7985) would introduce.
 describe("Python runner request dispatch", () => {
+	for (const [label, source] of [
+		["top-level await", "import asyncio\nawait asyncio.sleep(60)"],
+		// The shape of an eval-bridged host tool call: the cell awaits a worker
+		// thread that stays blocked in the bridge request.
+		["an await on a blocked worker thread", "import asyncio, time\nawait asyncio.to_thread(time.sleep, 60)"],
+		["synchronous code", "import time\ntime.sleep(60)"],
+	]) {
+		it.skipIf(process.platform === "win32")(
+			`interrupts ${label} without losing the retained namespace`,
+			async () => {
+				const runner = spawnRunner();
+				try {
+					runner.send({
+						id: "interrupted",
+						code: `retained = 42\nprint('interrupt-ready', flush=True)\n${source}`,
+					});
+					while (true) {
+						const frame = await runner.nextFrame();
+						if (frame.id === "interrupted" && frame.data?.includes("interrupt-ready")) break;
+					}
+					runner.interrupt();
+					const [interrupted] = await collectDoneOrder(runner, new Set(["interrupted"]));
+					expect(interrupted.status).toBe("error");
+					expect(interrupted.cancelled).toBe(true);
+					// The host's post-interrupt liveness probe gets an answer.
+					runner.send({ type: "ping", id: "probe" });
+					let pong = await runner.nextFrame();
+					while (pong.id !== "probe") pong = await runner.nextFrame();
+					expect(pong.type).toBe("pong");
+					runner.send({ id: "retained", code: "assert retained == 42" });
+					const [retained] = await collectDoneOrder(runner, new Set(["retained"]));
+					expect(retained.status).toBe("ok");
+				} finally {
+					await runner.dispose();
+				}
+			},
+			10_000,
+		);
+	}
+
 	it("interleaves a fast request past a slow one parked on a top-level await", async () => {
 		if (process.platform === "win32") return; // Windows dispatches serially by design; see _serve_windows.
 		const runner = spawnRunner();

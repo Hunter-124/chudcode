@@ -8,6 +8,7 @@ import { EVAL_TIMEOUT_PAUSE_OP, EVAL_TIMEOUT_RESUME_OP, isEvalTimeoutControlEven
 import type { JsStatusEvent } from "./js/shared/types";
 import type { KernelDisplayOutput } from "./py/display";
 import { registerPyToolBridge } from "./py/tool-bridge";
+import type { KernelInterruptState } from "./kernel-session-registry";
 import { getActiveEvalShadowCell } from "./speculation/runtime-context";
 
 /**
@@ -73,6 +74,8 @@ export interface KernelExecutorBaseOptions {
 	bridgeSessionId?: string;
 	artifactId?: string;
 	artifactPath?: string;
+	/** Text placed at the top of the cell output before the cell runs (kernel-replacement notice). */
+	outputPreamble?: string;
 }
 
 /** Normalised execution result produced by {@link executeWithKernelBase}. */
@@ -111,6 +114,30 @@ export interface GenericKernel<TEnv> {
 		kernelKilled?: boolean;
 		stdinRequested?: boolean;
 	}>;
+	/** Whether the kernel process is still up. */
+	isAlive?(): boolean;
+	/**
+	 * Ask the runtime to answer a no-op control request within `timeoutMs`.
+	 * Resolves `true` only when the request loop answered.
+	 */
+	probeAlive?(timeoutMs: number): Promise<boolean>;
+}
+
+/** How long a timed-out cell waits for the interrupted kernel to answer a liveness probe. */
+const INTERRUPT_LIVENESS_PROBE_MS = 2_000;
+
+/**
+ * Find the real kernel condition after a timed-out cell was interrupted. A
+ * runner can emit `done` and then exit, so a `done` frame alone does not prove
+ * that the kernel and its variables survived.
+ */
+async function kernelStateAfterInterrupt(
+	kernel: Pick<GenericKernel<unknown>, "isAlive" | "probeAlive">,
+	kernelKilled: boolean,
+): Promise<KernelInterruptState> {
+	if (kernelKilled || kernel.isAlive?.() === false) return "killed";
+	if (!kernel.probeAlive || (await kernel.probeAlive(INTERRUPT_LIVENESS_PROBE_MS))) return "running";
+	return kernel.isAlive?.() === false ? "killed" : "unresponsive";
 }
 
 // ---------------------------------------------------------------------------
@@ -417,7 +444,7 @@ export interface ExecuteWithKernelBaseParams<
 	errorLogLabel: string;
 	cancelledErrorClass: CancelledErrorClass;
 	buildKernelEnvPatch: (options: TOptions) => TEnv;
-	formatKernelTimeoutAnnotation: (executionTimeoutMs: number | undefined, kernelKilled: boolean) => string;
+	formatKernelTimeoutAnnotation: (executionTimeoutMs: number | undefined, state: KernelInterruptState) => string;
 	formatTimeoutAnnotation: (executionTimeoutMs: number | undefined) => string | undefined;
 }
 
@@ -507,6 +534,7 @@ export async function executeWithKernelBase<
 		if (remainingMs !== undefined && remainingMs <= 0) {
 			throw new cancelledErrorClass(true);
 		}
+		if (options?.outputPreamble) sink.push(`${options.outputPreamble}\n`);
 
 		const result = await kernel.execute(code, {
 			cwd: options?.cwd,
@@ -521,7 +549,10 @@ export async function executeWithKernelBase<
 		if (result.cancelled || abortShield.abortRequested) {
 			const timedOut = result.timedOut || abortShield.timedOut;
 			const annotation = timedOut
-				? formatKernelTimeoutAnnotation(executionTimeoutMs ?? options?.idleTimeoutMs, result.kernelKilled ?? false)
+				? formatKernelTimeoutAnnotation(
+						executionTimeoutMs ?? options?.idleTimeoutMs,
+						await kernelStateAfterInterrupt(kernel, result.kernelKilled ?? false),
+					)
 				: result.kernelKilled && !abortShield.abortRequested
 					? "Kernel died during execution; completion is uncertain. The cell was not replayed; check for partial side effects before retrying."
 					: undefined;

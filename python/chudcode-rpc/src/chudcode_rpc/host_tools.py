@@ -81,3 +81,19 @@ def host_tool(
         hidden=hidden,
         decode=decode,
     )
+
+
+@dataclass(slots=True, frozen=True)
+class LoadableHostTools:
+    """Tools the host can load on request but has not registered yet.
+
+    For a listed name, ``read``/``write xd://<name>`` fails with
+    ``xd://<name> is not loaded. <hint>``. Each ``{name}`` in ``hint`` is
+    replaced by the tool name.
+    """
+
+    names: tuple[str, ...]
+    hint: str
+
+    def to_payload(self) -> JsonObject:
+        return {"names": cast(JsonValue, list(self.names)), "hint": self.hint}

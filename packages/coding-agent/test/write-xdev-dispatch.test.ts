@@ -6,6 +6,7 @@ import { type } from "@oh-my-pi/omptype";
 import type { AgentTool } from "@oh-my-pi/pi-agent-core";
 import { Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
 import * as themeModule from "@oh-my-pi/pi-tui/theme";
+import { RpcHostToolBridge } from "@oh-my-pi/pi-coding-agent/modes/rpc/host-tools";
 import { ToolChoiceQueue } from "@oh-my-pi/pi-coding-agent/session/tool-choice-queue";
 import { createTools, type Tool, type ToolSession } from "@oh-my-pi/pi-coding-agent/tools";
 import { requiresApproval, resolveApproval } from "@oh-my-pi/pi-coding-agent/tools/approval";
@@ -757,6 +758,45 @@ describe("xd:// and top-level calls share the canonical tool map", () => {
 			expect(unknown.content.find(entry => entry.type === "text")?.text).toContain(
 				"No such tool: xd://no_such_tool",
 			);
+		} finally {
+			await removeWithRetries(tempDir);
+		}
+	});
+
+	it("names the host load step for a loadable host tool that is not registered", async () => {
+		const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "write-xdev-loadable-"));
+		try {
+			const hostTools = new RpcHostToolBridge(() => {});
+			hostTools.setTools([], {
+				names: ["run_shell"],
+				hint: 'Call enable_tools(tools=["{name}"]) first; then read or write it.',
+			});
+			const session = xdevSession(tempDir, { getHostToolSource: () => hostTools });
+			const tools = await createTools(session);
+			const write = tools.find(entry => entry.name === "write")!;
+			const read = tools.find(entry => entry.name === "read")!;
+			const expected =
+				'xd://run_shell is not loaded. Call enable_tools(tools=["run_shell"]) first; then read or write it.';
+
+			const written = await write.execute("write-xdev-loadable", { path: "xd://run_shell", content: "{}" });
+			expect(written.isError).toBe(true);
+			expect(written.content.find(entry => entry.type === "text")?.text).toContain(expected);
+			const readText = await read.execute("read-xdev-loadable", { path: "xd://run_shell" }).then(
+				result => result.content.find(entry => entry.type === "text")?.text,
+				(error: Error) => error.message,
+			);
+			expect(readText).toContain(expected);
+
+			// Names outside the host list keep the catalog error.
+			const unknown = await write.execute("write-xdev-unlisted", { path: "xd://no_such_tool", content: "{}" });
+			expect(unknown.content.find(entry => entry.type === "text")?.text).toContain(
+				"No such tool: xd://no_such_tool",
+			);
+
+			// A later set_host_tools without the list clears the hint.
+			hostTools.setTools([]);
+			const cleared = await write.execute("write-xdev-cleared", { path: "xd://run_shell", content: "{}" });
+			expect(cleared.content.find(entry => entry.type === "text")?.text).toContain("No such tool: xd://run_shell");
 		} finally {
 			await removeWithRetries(tempDir);
 		}

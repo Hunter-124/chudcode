@@ -13,7 +13,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable, Generic, Mapping, Sequence, TypeVar, cast
 
-from .host_tools import HostTool, HostToolContext
+from .host_tools import HostTool, HostToolContext, LoadableHostTools
 from .host_uris import HostUri, HostUriContext, normalize_read_result
 from .protocol import (
     ApiKeyValidationResult,
@@ -547,6 +547,7 @@ class RpcClient:
         self._provider_session_id = provider_session_id
         self._tools = tuple(tools) if tools is not None else None
         self._custom_tools = tuple(custom_tools) if custom_tools is not None else ()
+        self._loadable_tools: LoadableHostTools | None = None
         self._host_uris = tuple(host_uris) if host_uris is not None else ()
         self._no_session = no_session
         self._no_skills = no_skills
@@ -735,7 +736,7 @@ class RpcClient:
                 raise
 
         if self._custom_tools:
-            self.set_custom_tools(self._custom_tools)
+            self.set_custom_tools(self._custom_tools, loadable_tools=self._loadable_tools)
         if self._host_uris:
             self.set_host_uris(self._host_uris)
         return self
@@ -1303,14 +1304,20 @@ class RpcClient:
             next_cursor=raw_cursor,
         )
 
-    def set_custom_tools(self, tools: Sequence[HostTool[Any, Any]]) -> tuple[str, ...]:
+    def set_custom_tools(
+        self,
+        tools: Sequence[HostTool[Any, Any]],
+        *,
+        loadable_tools: LoadableHostTools | None = None,
+    ) -> tuple[str, ...]:
+        """Replace the host tools. ``loadable_tools`` replaces the loadable-tool hints; ``None`` clears them."""
         self._custom_tools = tuple(tools)
+        self._loadable_tools = loadable_tools
         if self._process is None:
             return tuple(tool.name for tool in self._custom_tools)
 
-        payload = self._request(
-            "set_host_tools",
-            tools=cast(
+        fields: dict[str, JsonValue] = {
+            "tools": cast(
                 JsonValue,
                 [
                     {
@@ -1323,7 +1330,10 @@ class RpcClient:
                     for tool in self._custom_tools
                 ],
             ),
-        )
+        }
+        if loadable_tools is not None:
+            fields["loadableTools"] = loadable_tools.to_payload()
+        payload = self._request("set_host_tools", **fields)
         tool_names = payload.get("toolNames") or []
         if not isinstance(tool_names, list):
             raise RpcError("set_host_tools response did not include toolNames")

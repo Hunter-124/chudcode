@@ -97,7 +97,8 @@ export type FrameType =
 	| "error"
 	| "done"
 	| "shadow_snapshot"
-	| "shadow_plan";
+	| "shadow_plan"
+	| "pong";
 
 export interface Frame {
 	type: FrameType;

@@ -154,20 +154,22 @@ The runner accepts a `{"type": "tool", "id", "op": "describe"|"call", ...}` requ
 
 ### Cell timeout
 
-`timeout` is in seconds and defaults to 30. `0` disables the cell timeout; nonzero values are clamped to `1..3600` seconds and by a positive `tools.maxTimeout` ceiling before being passed to `IdleTimeout`. The timeout is suspended while a host-side `wait()` on `agent()` / `completion()` handles is in flight: those calls emit reference-counted pause/resume events through `withBridgeTimeoutPause`, and a fresh timeout window begins when control returns.
+`timeout` is in seconds and defaults to 30. `0` disables the cell timeout; nonzero values are clamped to `1..3600` seconds and by a positive `tools.maxTimeout` ceiling before being passed to `IdleTimeout`. When a limit lowered the requested value and the cell times out, the output names the limit (`[The requested timeout of <r>s was lowered to <n>s by the tools.maxTimeout setting (<n>s).]`). The timeout is suspended while a host-side `wait()` on `agent()` / `completion()` handles is in flight, and while a call to a tool that the RPC host executes is in flight (`tool.<host tool>(...)` or `tool.write({path: "xd://<host tool>", ...})`): those calls emit reference-counted pause/resume events through `withBridgeTimeoutPause`, and a fresh timeout window begins when control returns. A turn cancel still reaches the host tool (`host_tool_cancel`).
 
-The pause/resume events are the sole mechanism that suspends the budget. Compute, `stdout`/`stderr`, `log()`/`phase()`, and ordinary tool calls count against it. The tool combines caller, session, and watchdog abort signals with `AbortSignal.any(...)`; the backend does not arm a competing deadline.
+The pause/resume events are the sole mechanism that suspends the budget. Compute, `stdout`/`stderr`, `log()`/`phase()`, and built-in tool calls count against it. The tool combines caller, session, and watchdog abort signals with `AbortSignal.any(...)`; the backend does not arm a competing deadline.
 
 ### Kernel execution cancellation
 
 On abort/timeout:
 
 - The host sends `kill("SIGINT")` to the runner subprocess.
-- The runner's exec-time signal handler raises `KeyboardInterrupt` inside the user code.
-- Result includes `cancelled=true`; a kernel timeout is annotated as `eval cell timed out after <n>s; kernel interrupted but remains running. Reset the kernel via { reset: true } if state appears corrupted.`
+- The runner's exec-time signal handler raises `KeyboardInterrupt` inside synchronous user code and cancels cells parked on an `await` through asyncio, so the runner's own event loop survives.
+- Result includes `cancelled=true`. After a timeout the host sends a `{"type": "ping"}` control request (2 s budget) before it writes the annotation, because a runner can emit `done` and then exit. The annotation starts with `eval cell timed out after <n>s.` and then says one of: the kernel still runs and its variables are kept; the kernel stopped and its state is lost; or the kernel did not answer and its state is unknown.
 - Between requests the runner installs `SIG_IGN` for SIGINT so a stray cancel does not tear down the kernel.
 
 If the runner does not emit `done` within 5s of the interrupt (`INTERRUPT_ESCALATION_MS` — e.g. stuck in C code holding the GIL), the host shuts the subprocess down (escalating `exit` → `SIGTERM` → `SIGKILL`), the cell is annotated as kernel-killed, and the kernel is recreated on the next call.
+
+When a session that already ran cells continues on a replacement kernel (the earlier kernel died or was killed; `reset: true` is not a replacement), the first cell on the new kernel starts its output with `[The previous Python kernel stopped. This cell runs in a new kernel. Variables, functions, and imports from earlier cells are gone. Run your setup code again before you use them.]`.
 
 ### stdin behavior
 

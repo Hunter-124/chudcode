@@ -42,7 +42,13 @@ export type RpcCommand =
 	| { id?: string; type: "get_entries"; since?: string }
 	| { id?: string; type: "get_tree" }
 	| { id?: string; type: "set_todos"; phases: TodoPhase[] }
-	| { id?: string; type: "set_host_tools"; tools: RpcHostToolDefinition[] }
+	| {
+			id?: string;
+			type: "set_host_tools";
+			tools: RpcHostToolDefinition[];
+			/** Tools the host can load on request but does not register yet. Omitted clears the previous list. */
+			loadableTools?: RpcHostLoadableTools;
+	  }
 	| { id?: string; type: "set_host_uri_schemes"; schemes: RpcHostUriSchemeDefinition[] }
 	| { id?: string; type: "set_subagent_subscription"; level: RpcSubagentSubscriptionLevel }
 	| { id?: string; type: "set_event_filter"; events: string[] | null }
@@ -705,6 +711,19 @@ export interface RpcHostToolDefinition {
 	loadMode?: ToolLoadMode;
 	/** Whether this host tool can read `skill://` instruction content. */
 	readsSkillUris?: boolean;
+}
+
+/**
+ * Tools the embedding host can load on request (for example through a host
+ * `enable_tools` tool) but has not registered yet. When the model reads or
+ * writes `xd://<name>` for a listed name, the error is
+ * `xd://<name> is not loaded. <hint>`.
+ */
+export interface RpcHostLoadableTools {
+	/** Loadable tool names. Names also registered in `tools` are ignored. */
+	names: string[];
+	/** Instruction that tells the model how to load one tool. Each `{name}` is replaced by the tool name. */
+	hint: string;
 }
 
 /** Emitted by the RPC server when it needs the host to execute a registered tool. */

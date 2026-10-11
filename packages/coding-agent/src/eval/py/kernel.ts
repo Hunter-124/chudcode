@@ -205,6 +205,22 @@ export class PythonKernel extends BaseKernel<PythonKernelExecuteOptions> {
 		return await this.submitRequest(id, JSON.stringify({ type: "tool", id, ...request }), options);
 	}
 
+	/**
+	 * Ask the runner's request loop to answer a no-op `ping`. A runner can emit
+	 * `done` for an interrupted cell and then exit; only an answer proves that
+	 * the loop and its namespace survived.
+	 */
+	async probeAlive(timeoutMs: number): Promise<boolean> {
+		if (!this.isAlive()) return false;
+		const id = Snowflake.next();
+		try {
+			const frame = await this.requestControl(JSON.stringify({ type: "ping", id }), id, timeoutMs);
+			return frame.type === "pong" && this.isAlive();
+		} catch {
+			return false;
+		}
+	}
+
 	/** Synchronize enabled capability snippets before the next user cell. */
 	async syncPreludes(
 		preludes: readonly PythonPreludeSource[],

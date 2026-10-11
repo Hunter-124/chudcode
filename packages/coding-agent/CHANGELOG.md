@@ -2,8 +2,17 @@
 
 ## [Unreleased]
 
+### Added
+
+- RPC `set_host_tools` accepts an optional `loadableTools: { names, hint }`: for a listed tool the host has not registered, `read`/`write xd://<name>` fails with `xd://<name> is not loaded. <hint>` (each `{name}` in `hint` is replaced) instead of the mounted-device catalog error. The Python RPC client sends it through `set_custom_tools(..., loadable_tools=LoadableHostTools(...))`.
+
 ### Fixed
 
+- Interrupting a Python eval cell parked on an async tool call now cancels the cell without killing its kernel or losing retained variables; synchronous cell interruption remains supported.
+- Eval calls to RPC host tools (`tool.<host tool>(...)` or `write xd://<host tool>`) no longer use the cell `timeout` budget, like `agent()` waits; a turn cancel still cancels the host call.
+- A timed-out Python cell now says whether the kernel kept its state: the host sends a liveness ping after the interrupt instead of assuming the kernel still runs.
+- The first Python cell that runs on a replacement kernel now starts with a notice that earlier variables and imports are gone.
+- A timed-out eval cell now names the limit (`tools.maxTimeout` or the eval maximum) when that limit lowered the requested `timeout`.
 - `--mode rpc` starts without any credential or model instead of exiting on "No models available", so embedding hosts can supply credentials afterwards (`set_api_key`, login, scoped environment).
 - Project task agents under the configured directory are discovered for task descriptions and ACP plugin reloads, including when the app's config directory is not `.omp`.
 - Project extension package discovery now reads settings from the configured project directory, so project-scoped extension skills and tools remain visible after the config-directory rename.

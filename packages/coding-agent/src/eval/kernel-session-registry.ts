@@ -20,6 +20,8 @@ interface KernelSessionRegistryOptions {
 	deadlineMs?: number;
 	bridge?: unknown;
 	bridgeSessionId?: string;
+	/** Text the executor puts at the top of the cell output (see {@link formatKernelReplacedNotice}). */
+	outputPreamble?: string;
 }
 
 interface RegistryKernelShutdownResult {
@@ -36,6 +38,8 @@ export interface KernelSession<TKernel extends RegistryKernel> extends SessionOw
 	sessionId: string;
 	cwd: string;
 	kernel: TKernel;
+	/** Kernel that ran this session's most recent cell; a different live kernel means earlier state is gone. */
+	lastRunKernel?: TKernel;
 }
 
 interface StartingKernelSession<TSession> extends SessionOwners {
@@ -121,13 +125,28 @@ export function formatSessionTimeoutAnnotation(timeoutMs?: number): string {
 	return `Command timed out after ${secs} seconds`;
 }
 
-export function formatSessionKernelTimeoutAnnotation(timeoutMs: number | undefined, kernelKilled: boolean): string {
+/** Kernel condition after a timed-out cell was interrupted. */
+export type KernelInterruptState = "running" | "killed" | "unresponsive";
+
+export function formatSessionKernelTimeoutAnnotation(
+	timeoutMs: number | undefined,
+	state: KernelInterruptState,
+): string {
 	const secs = timeoutMs === undefined ? undefined : Math.max(1, Math.round(timeoutMs / 1000));
-	if (kernelKilled) {
-		return "eval cell timed out and the kernel was unresponsive to interrupt; the kernel has been killed and will be recreated on the next call.";
+	const head = `eval cell timed out after ${secs === undefined ? "the configured timeout" : `${secs}s`}.`;
+	switch (state) {
+		case "killed":
+			return `${head} The kernel stopped after the interrupt. Its variables, functions, and imports are lost. The next cell starts a new kernel; run your setup code again.`;
+		case "unresponsive":
+			return `${head} The kernel did not answer after the interrupt, so its state is unknown. Use { reset: true } to start a new kernel.`;
+		case "running":
+			return `${head} The kernel was interrupted and still runs; its variables are kept. Use { reset: true } if its state is corrupted.`;
 	}
-	const duration = secs === undefined ? "the configured timeout" : `${secs}s`;
-	return `eval cell timed out after ${duration}; kernel interrupted but remains running. Reset the kernel via { reset: true } if state appears corrupted.`;
+}
+
+/** Cell-output notice for the first cell that runs on a replacement kernel. */
+export function formatKernelReplacedNotice(languageLabel: string): string {
+	return `[The previous ${languageLabel} kernel stopped. This cell runs in a new kernel. Variables, functions, and imports from earlier cells are gone. Run your setup code again before you use them.]`;
 }
 
 export function createKernelSessionRegistry<
@@ -451,11 +470,21 @@ export function createKernelSessionRegistry<
 		const kernel = await acquireLiveSessionKernel(session, cwd, options);
 		if (!isCurrent(session, kernel)) throw new descriptor.cancelledErrorClass(false);
 		throwIfCallerCancelled(options);
-		const runOptions = { ...options, cwd };
+		// A session that already ran cells on another kernel lost that kernel's
+		// state (it died or was replaced). Announce it in this cell's output, or
+		// the model keeps using names that no longer exist.
+		const replaced = session.lastRunKernel !== undefined && session.lastRunKernel !== kernel;
+		const runOptions = {
+			...options,
+			cwd,
+			...(replaced ? { outputPreamble: formatKernelReplacedNotice(descriptor.languageLabel) } : {}),
+		};
 		let result: R;
 		try {
 			result = await descriptor.executeWithKernel(kernel, code, runOptions);
 		} catch (err) {
+			// Keep the notice pending when this cell could not show it.
+			if (!replaced) session.lastRunKernel = kernel;
 			if (
 				descriptor.isCancellation?.(err) ||
 				isCancellationError(err, descriptor.cancelledErrorClass) ||
@@ -468,6 +497,7 @@ export function createKernelSessionRegistry<
 				{ cause: err },
 			);
 		}
+		session.lastRunKernel = kernel;
 		return result;
 	}
 

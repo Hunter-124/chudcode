@@ -23,6 +23,7 @@ from .host_tools import (
     HostToolContext,
     HostToolResultPayload,
     HostToolResultValue,
+    LoadableHostTools,
     host_tool,
 )
 from .host_uris import (
@@ -169,6 +170,7 @@ __all__ = [
     "ImageContent",
     "ListenerErrorEvent",
     "ListenerErrorListener",
+    "LoadableHostTools",
     "MessageEndEvent",
     "MessagesPage",
     "MessageStartEvent",

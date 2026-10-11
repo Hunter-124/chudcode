@@ -849,6 +849,7 @@ export function createXdevState(
 		// Card rendering reads the same predicate as execution: mounted devices
 		// plus active top-level tools, which the `write` transport also accepts.
 		resolve: name => resolveXdevTool(state, name),
+		unloadedToolHint: name => session.getHostToolSource?.()?.unloadedToolHint(name),
 	};
 	return state;
 }

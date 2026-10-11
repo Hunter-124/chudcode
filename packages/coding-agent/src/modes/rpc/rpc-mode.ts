@@ -71,6 +71,7 @@ import type {
 	RpcExtensionUIRequest,
 	RpcExtensionUIResponse,
 	RpcExtensionUISelectOptionDetail,
+	RpcHostLoadableTools,
 	RpcHostToolCallRequest,
 	RpcHostToolCancelRequest,
 	RpcHostToolDefinition,
@@ -729,6 +730,23 @@ function normalizeHostToolDefinitions(tools: RpcHostToolDefinition[]): RpcHostTo
 			readsSkillUris: tool.readsSkillUris,
 		};
 	});
+}
+
+function normalizeHostLoadableTools(loadable: unknown): RpcHostLoadableTools | undefined {
+	if (loadable === undefined || loadable === null) return undefined;
+	if (typeof loadable !== "object" || Array.isArray(loadable)) {
+		throw new Error("loadableTools must be an object with names and hint");
+	}
+	const { names, hint } = loadable as { names?: unknown; hint?: unknown };
+	if (!Array.isArray(names)) throw new Error("loadableTools.names must be an array of tool names");
+	const normalizedNames = names.map((name, index) => {
+		const trimmed = typeof name === "string" ? name.trim() : "";
+		if (!trimmed) throw new Error(`loadableTools.names[${index}] must be a non-empty string`);
+		return trimmed;
+	});
+	const normalizedHint = typeof hint === "string" ? hint.trim() : "";
+	if (!normalizedHint) throw new Error("loadableTools.hint must be a non-empty string");
+	return { names: normalizedNames, hint: normalizedHint };
 }
 
 function parseValueDialogResponse(
@@ -1568,7 +1586,7 @@ export async function runRpcMode(session: AgentSession, options: RpcModeOptions 
 
 			case "set_host_tools": {
 				const tools = normalizeHostToolDefinitions(command.tools);
-				const rpcTools = hostToolBridge.setTools(tools);
+				const rpcTools = hostToolBridge.setTools(tools, normalizeHostLoadableTools(command.loadableTools));
 				await session.refreshRpcHostTools(rpcTools);
 				return success(id, "set_host_tools", { toolNames: tools.map(tool => tool.name) });
 			}

@@ -50,7 +50,7 @@ import { ToolAbortError, throwIfAborted } from "./tool-errors";
 import { hasWaitTool } from "./wait";
 import { ToolError } from "@oh-my-pi/pi-tui/tools/tool-errors";
 import { toolResult } from "./tool-result";
-import { clampTimeout } from "./tool-timeouts";
+import { clampTimeout, TOOL_TIMEOUTS } from "./tool-timeouts";
 
 import {
 	cfgEvalAutoBackgroundEnabled,
@@ -292,6 +292,8 @@ interface ResolvedEvalCell {
 	packages?: string[];
 	environment?: "managed" | "project";
 	timeoutMs: number;
+	/** Set when the requested `timeout` was lowered by a limit; shown if the cell times out. */
+	timeoutCapNote?: string;
 	reset: boolean;
 	resolved: ResolvedBackend;
 }
@@ -551,6 +553,7 @@ export class EvalTool implements AgentTool<typeof evalSchema> {
 				environment:
 					source.environment ?? (this.#environmentModes[cellLanguage] === "project" ? "project" : undefined),
 				timeoutMs: cellTimeoutMs,
+				timeoutCapNote: describeTimeoutCap(params.timeout, cellTimeoutMs, cfgToolsMaxTimeout.get(session.settings)),
 				reset: params.reset ?? false,
 				resolved,
 			},
@@ -889,10 +892,11 @@ export class EvalTool implements AgentTool<typeof evalSchema> {
 				const cell = cells[i];
 				const backend = cell.resolved.backend;
 				// The per-cell `timeout` is a budget on the cell runtime's *own*
-				// work. Host-side waits on `agent()`/`completion()` handles suspend
-				// that budget entirely and restart a fresh timeout window when control
-				// returns to the active backend runtime. Compute, stdout, `log()`/`phase()`, and
-				// ordinary tool calls all count against the budget. The watchdog drives
+				// work. Host-side waits on `agent()`/`completion()` handles and
+				// calls to tools that the RPC host executes suspend that budget
+				// entirely and restart a fresh timeout window when control returns
+				// to the active backend runtime. Compute, stdout, `log()`/`phase()`,
+				// and built-in tool calls all count against the budget. The watchdog drives
 				// `combinedSignal`; we pass no wall-clock deadline downstream so the
 				// backends never arm a competing fixed timer.
 				const idleTimeoutMs =
@@ -1027,10 +1031,15 @@ export class EvalTool implements AgentTool<typeof evalSchema> {
 				const displayText = cellDisplayTexts.join("\n\n");
 				const visibleDisplayText =
 					displayText && imageText ? `${displayText}\n\n${imageText}` : displayText || imageText;
-				const cellOutput =
+				const timeoutCapNote = result.cancelled && idle?.signal.aborted ? cell.timeoutCapNote : undefined;
+				const cellOutput = [
 					stdoutTrimmed && visibleDisplayText
 						? `${stdoutTrimmed}\n\n${visibleDisplayText}`
-						: stdoutTrimmed || visibleDisplayText;
+						: stdoutTrimmed || visibleDisplayText,
+					timeoutCapNote,
+				]
+					.filter(Boolean)
+					.join("\n");
 				cellResult.output = cellOutput;
 				cellResult.exitCode = result.exitCode;
 				cellResult.durationMs = durationMs;
@@ -1111,6 +1120,25 @@ export class EvalTool implements AgentTool<typeof evalSchema> {
 			}
 		}
 	}
+}
+
+/**
+ * Explain why a cell's effective timeout is lower than the model asked for, so
+ * a timeout message never hides the limit that applied.
+ */
+function describeTimeoutCap(
+	requestedSec: number | undefined,
+	effectiveMs: number,
+	maxTimeoutSec: number,
+): string | undefined {
+	if (requestedSec === undefined || requestedSec <= 0) return undefined;
+	const effectiveSec = effectiveMs / 1000;
+	if (effectiveSec >= requestedSec) return undefined;
+	const limit =
+		maxTimeoutSec > 0 && effectiveSec === Math.max(TOOL_TIMEOUTS.eval.min, maxTimeoutSec)
+			? `the tools.maxTimeout setting (${maxTimeoutSec}s)`
+			: `the eval limit (${TOOL_TIMEOUTS.eval.max}s)`;
+	return `[The requested timeout of ${requestedSec}s was lowered to ${effectiveSec}s by ${limit}.]`;
 }
 
 async function summarizeFinal(
