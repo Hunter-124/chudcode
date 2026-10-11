@@ -23,10 +23,13 @@ jobs:
   release_metadata:
     name: Validate release ref and product version
     runs-on: [self-hosted, cloudcastle-ci, cc-linux-chudcode]
+    permissions:
+      contents: write
     outputs:
       is-release: ${{ steps.tag.outputs.is-release }}
       release-tag: ${{ steps.tag.outputs.release-tag }}
       product-version: ${{ steps.tag.outputs.product-version }}
+      release-id: ${{ steps.draft.outputs.release-id }}
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
@@ -55,6 +58,14 @@ jobs:
           else
             echo 'is-release=false' >> "$GITHUB_OUTPUT"
           fi
+      # Release files cross runners as assets of this tag's DRAFT release, not as
+      # workflow artifacts: artifacts count against the Actions storage quota.
+      - name: Create or reuse the draft release
+        id: draft
+        if: steps.tag.outputs.is-release == 'true'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: bun scripts/ci-release-transport.ts draft --tag "${{ steps.tag.outputs.release-tag }}"
 
   check:
     name: Lint and type check
@@ -135,6 +146,8 @@ jobs:
     name: Assemble native addons
     needs: [release_metadata, native_addon_build]
     runs-on: [self-hosted, cloudcastle-ci, cc-linux-chudcode]
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
@@ -147,14 +160,13 @@ jobs:
           HANDOFF_ROOT: ${{ github.workspace }}/../ci-handoff
           ADDONS: ${{ runner.temp }}/native-addons
         run: bun scripts/ci-native-handoff.ts assemble --root "$HANDOFF_ROOT" --targets "linux-x64-baseline linux-x64-modern win32-x64-baseline" --out "$ADDONS"
-      # Release consumers on the Windows/Mac runners still need GitHub transport.
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      # The Windows desktop bundle runs on another machine: stage its addons on the draft release.
+      - name: Stage native addons on the draft release
         if: needs.release_metadata.outputs.is-release == 'true'
-        with:
-          name: native-addons
-          path: ${{ runner.temp }}/native-addons/natives-*/*.node
-          if-no-files-found: error
-          retention-days: 2
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          ADDONS: ${{ runner.temp }}/native-addons
+        run: bun scripts/ci-release-transport.ts put-natives --release-id "${{ needs.release_metadata.outputs.release-id }}" --root "$ADDONS" --targets "linux-x64-baseline linux-x64-modern win32-x64-baseline"
 
   test_typescript:
     name: TypeScript suites and desktop installer
@@ -288,12 +300,15 @@ jobs:
             addons: win32-x64-baseline
             asset: chudcode-windows-x64.exe
     runs-on: [self-hosted, cloudcastle-ci, cc-linux-chudcode]
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
       - uses: ./.github/actions/bun-install
       - uses: ./.github/actions/native-artifacts
         with:
           targets: ${{ matrix.addons }}
+          from: handoff
       - name: Build release binary
         env:
           RELEASE_TARGETS: ${{ matrix.target }}
@@ -303,23 +318,37 @@ jobs:
         run: |
           test "$(packages/coding-agent/binaries/chudcode-linux-x64 --version)" = '${{ needs.release_metadata.outputs.product-version }}'
           packages/coding-agent/binaries/chudcode-linux-x64 --smoke-test
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: chudcode-binary-${{ matrix.target }}
-          path: packages/coding-agent/binaries/${{ matrix.asset }}
-          if-no-files-found: error
-          retention-days: 2
+      - name: Attach binary to the draft release
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: bun scripts/ci-release-transport.ts put --release-id "${{ needs.release_metadata.outputs.release-id }}" --file "packages/coding-agent/binaries/${{ matrix.asset }}"
 
   release_binary_windows_verify:
     name: Verify native Windows binary
     needs: [release_metadata, release_binary_linux_windows]
     if: needs.release_binary_linux_windows.result == 'success'
     runs-on: [self-hosted, cloudcastle-ci, cc-win-chudcode]
+    # Draft releases are listed only to tokens with write access.
+    permissions:
+      contents: write
     steps:
-      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
-        with:
-          name: chudcode-binary-win32-x64
-          path: ${{ runner.temp }}/chudcode-win32
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+      - name: Install isolated Bun (Windows product account)
+        shell: powershell
+        run: |
+          $archive = Join-Path $env:RUNNER_TEMP 'chudcode-bun.zip'
+          $root = Join-Path $env:RUNNER_TEMP 'chudcode-bun'
+          Invoke-WebRequest "https://github.com/oven-sh/bun/releases/download/bun-v${env:BUN_VERSION}/bun-windows-x64.zip" -OutFile $archive
+          Expand-Archive -Force -LiteralPath $archive -DestinationPath $root
+          if (-not (Test-Path (Join-Path $root 'bun-windows-x64\bun.exe'))) { throw 'Bun archive missing bun.exe' }
+          (Join-Path $root 'bun-windows-x64') | Out-File -Append -Encoding ascii $env:GITHUB_PATH
+      - name: Download Windows binary from the draft release
+        shell: powershell
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          bun scripts/ci-release-transport.ts get --release-id "${{ needs.release_metadata.outputs.release-id }}" --name chudcode-windows-x64.exe --out "$env:RUNNER_TEMP/chudcode-win32/chudcode-windows-x64.exe"
+          if ($LASTEXITCODE -ne 0) { throw 'Downloading the Windows binary failed' }
       - name: Smoke Windows release binary (PowerShell 5.1)
         shell: powershell
         env:
@@ -339,6 +368,8 @@ jobs:
     needs: [release_metadata]
     if: needs.release_metadata.outputs.is-release == 'true'
     runs-on: [self-hosted, cloudcastle-ci, cc-mac-chudcode-intel]
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
@@ -356,12 +387,10 @@ jobs:
         run: |
           test "$(packages/coding-agent/binaries/chudcode-darwin-x64 --version)" = '${{ needs.release_metadata.outputs.product-version }}'
           packages/coding-agent/binaries/chudcode-darwin-x64 --smoke-test
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: chudcode-binary-darwin-x64
-          path: packages/coding-agent/binaries/chudcode-darwin-x64
-          if-no-files-found: error
-          retention-days: 2
+      - name: Attach binary to the draft release
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: bun scripts/ci-release-transport.ts put --release-id "${{ needs.release_metadata.outputs.release-id }}" --file packages/coding-agent/binaries/chudcode-darwin-x64
 
   desktop_release:
     name: Desktop bundle ${{ matrix.target }}
@@ -384,6 +413,8 @@ jobs:
             archive: chudcode-desktop-windows-x64.zip
             addons: win32-x64-baseline
     runs-on: [self-hosted, cloudcastle-ci, '${{ matrix.runner }}']
+    permissions:
+      contents: write
     env:
       DESKTOP_TARGET: ${{ matrix.target }}
       DESKTOP_ARCHIVE: ${{ matrix.archive }}
@@ -417,9 +448,16 @@ jobs:
           bun install --frozen-lockfile
           if ($LASTEXITCODE -ne 0) { throw 'bun install failed' }
       - uses: ./.github/actions/native-artifacts
-        if: matrix.target != 'macos-x64'
+        if: matrix.target == 'linux-x64'
         with:
           targets: ${{ matrix.addons }}
+          from: handoff
+      - uses: ./.github/actions/native-artifacts
+        if: matrix.target == 'windows-x64'
+        with:
+          targets: ${{ matrix.addons }}
+          from: release
+          release-id: ${{ needs.release_metadata.outputs.release-id }}
       - uses: ./.github/actions/bazel-natives
         if: matrix.target == 'macos-x64'
         with:
@@ -501,14 +539,26 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Windows desktop archive verification failed' }
           $hash = (Get-FileHash -Algorithm SHA256 "dist/desktop/$env:DESKTOP_ARCHIVE").Hash.ToLowerInvariant()
           "$hash  $env:DESKTOP_ARCHIVE" | Set-Content -NoNewline -Encoding ascii "dist/desktop/$env:DESKTOP_ARCHIVE.sha256"
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: chudcode-desktop-${{ matrix.target }}
-          path: |
-            dist/desktop/${{ matrix.archive }}
-            dist/desktop/${{ matrix.archive }}.sha256
-          if-no-files-found: error
-          retention-days: 2
+      - name: Attach desktop archive to the draft release (Unix)
+        if: runner.os != 'Windows'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          RELEASE_ID: ${{ needs.release_metadata.outputs.release-id }}
+        run: |
+          set -euo pipefail
+          bun scripts/ci-release-transport.ts put --release-id "$RELEASE_ID" --file "dist/desktop/$DESKTOP_ARCHIVE"
+          bun scripts/ci-release-transport.ts put --release-id "$RELEASE_ID" --file "dist/desktop/$DESKTOP_ARCHIVE.sha256"
+      - name: Attach desktop archive to the draft release (Windows)
+        if: runner.os == 'Windows'
+        shell: powershell
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          RELEASE_ID: ${{ needs.release_metadata.outputs.release-id }}
+        run: |
+          bun scripts/ci-release-transport.ts put --release-id "$env:RELEASE_ID" --file "dist/desktop/$env:DESKTOP_ARCHIVE"
+          if ($LASTEXITCODE -ne 0) { throw 'Attaching the desktop archive failed' }
+          bun scripts/ci-release-transport.ts put --release-id "$env:RELEASE_ID" --file "dist/desktop/$env:DESKTOP_ARCHIVE.sha256"
+          if ($LASTEXITCODE -ne 0) { throw 'Attaching the desktop checksum failed' }
 
   release_github:
     name: Publish GitHub release
@@ -522,16 +572,19 @@ jobs:
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
         with:
           bun-version: '1.4.0'
-      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
-        with:
-          pattern: chudcode-binary-*
-          path: packages/coding-agent/binaries
-          merge-multiple: true
-      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
-        with:
-          pattern: chudcode-desktop-*
-          path: dist/desktop
-          merge-multiple: true
+      - name: Download release files from the draft release
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          RELEASE_ID: ${{ needs.release_metadata.outputs.release-id }}
+        run: |
+          set -euo pipefail
+          for name in chudcode-linux-x64 chudcode-darwin-x64 chudcode-windows-x64.exe; do
+            bun scripts/ci-release-transport.ts get --release-id "$RELEASE_ID" --name "$name" --out "packages/coding-agent/binaries/$name"
+          done
+          for name in chudcode-desktop-linux-x64.tar.gz chudcode-desktop-macos-x64.tar.gz chudcode-desktop-windows-x64.zip; do
+            bun scripts/ci-release-transport.ts get --release-id "$RELEASE_ID" --name "$name" --out "dist/desktop/$name"
+            bun scripts/ci-release-transport.ts get --release-id "$RELEASE_ID" --name "$name.sha256" --out "dist/desktop/$name.sha256"
+          done
       - name: Generate checksums and authenticated desktop manifest
         run: |
           bun scripts/ci-release-checksums.ts SHA256SUMS.txt \
@@ -544,18 +597,14 @@ jobs:
             dist/desktop/*.sha256 LICENSE NOTICE THIRD-PARTY-NOTICES.txt
       - name: Verify desktop release manifest
         run: bun scripts/ci-release-desktop.ts dist/desktop release-manifest.json
-      - uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2.6.2
-        with:
-          tag_name: ${{ needs.release_metadata.outputs.release-tag }}
-          files: |
-            packages/coding-agent/binaries/chudcode-linux-x64
-            packages/coding-agent/binaries/chudcode-darwin-x64
-            packages/coding-agent/binaries/chudcode-windows-x64.exe
-            dist/desktop/chudcode-desktop-*
-            LICENSE
-            NOTICE
-            THIRD-PARTY-NOTICES.txt
-            SHA256SUMS.txt
-            release-manifest.json
-          fail_on_unmatched_files: true
-          generate_release_notes: true
+      - name: Attach checksums, manifest and notices; publish the release
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          RELEASE_ID: ${{ needs.release_metadata.outputs.release-id }}
+          RELEASE_TAG: ${{ needs.release_metadata.outputs.release-tag }}
+        run: |
+          set -euo pipefail
+          for file in LICENSE NOTICE THIRD-PARTY-NOTICES.txt SHA256SUMS.txt release-manifest.json; do
+            bun scripts/ci-release-transport.ts put --release-id "$RELEASE_ID" --file "$file"
+          done
+          bun scripts/ci-release-transport.ts publish --release-id "$RELEASE_ID" --tag "$RELEASE_TAG"
