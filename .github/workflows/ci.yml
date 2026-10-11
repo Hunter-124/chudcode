@@ -285,7 +285,11 @@ jobs:
           OMP_BAZEL_RC: ${{ steps.cache.outputs.rc }}
         run: bash scripts/ci-darwin-arm64-compile-only.sh "$RUNNER_TEMP/darwin-arm64"
 
-  release_binary_linux_windows:
+  # The Windows CLI is not a Chudcode release asset: the Linux cross-compiled
+  # chudcode-windows-x64.exe segfaults at startup inside Bun 1.4.0 (verified on
+  # the Windows runner, chudcode-v0.4.3). Chudware builds its Windows runtime
+  # natively (CAD chudcode-runtime-windows-build.yml) and pins that build.
+  release_binary_linux:
     name: Release binary ${{ matrix.target }}
     needs: [release_metadata, native_addons]
     if: needs.release_metadata.outputs.is-release == 'true'
@@ -296,9 +300,6 @@ jobs:
           - target: linux-x64
             addons: linux-x64-baseline linux-x64-modern
             asset: chudcode-linux-x64
-          - target: win32-x64
-            addons: win32-x64-baseline
-            asset: chudcode-windows-x64.exe
     runs-on: [self-hosted, cloudcastle-ci, cc-linux-chudcode]
     permissions:
       contents: write
@@ -322,46 +323,6 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: bun scripts/ci-release-transport.ts put --release-id "${{ needs.release_metadata.outputs.release-id }}" --file "packages/coding-agent/binaries/${{ matrix.asset }}"
-
-  release_binary_windows_verify:
-    name: Verify native Windows binary
-    needs: [release_metadata, release_binary_linux_windows]
-    if: needs.release_binary_linux_windows.result == 'success'
-    runs-on: [self-hosted, cloudcastle-ci, cc-win-chudcode]
-    # Draft releases are listed only to tokens with write access.
-    permissions:
-      contents: write
-    steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
-      - name: Install isolated Bun (Windows product account)
-        shell: powershell
-        run: |
-          $archive = Join-Path $env:RUNNER_TEMP 'chudcode-bun.zip'
-          $root = Join-Path $env:RUNNER_TEMP 'chudcode-bun'
-          Invoke-WebRequest "https://github.com/oven-sh/bun/releases/download/bun-v${env:BUN_VERSION}/bun-windows-x64.zip" -OutFile $archive
-          Expand-Archive -Force -LiteralPath $archive -DestinationPath $root
-          if (-not (Test-Path (Join-Path $root 'bun-windows-x64\bun.exe'))) { throw 'Bun archive missing bun.exe' }
-          (Join-Path $root 'bun-windows-x64') | Out-File -Append -Encoding ascii $env:GITHUB_PATH
-      - name: Download Windows binary from the draft release
-        shell: powershell
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
-        run: |
-          bun scripts/ci-release-transport.ts get --release-id "${{ needs.release_metadata.outputs.release-id }}" --name chudcode-windows-x64.exe --out "$env:RUNNER_TEMP/chudcode-win32/chudcode-windows-x64.exe"
-          if ($LASTEXITCODE -ne 0) { throw 'Downloading the Windows binary failed' }
-      - name: Smoke Windows release binary (PowerShell 5.1)
-        shell: powershell
-        env:
-          PRODUCT_VERSION: ${{ needs.release_metadata.outputs.product-version }}
-        run: |
-          $env:USERPROFILE = Join-Path $env:RUNNER_TEMP 'chudcode-win32-smoke'
-          $env:APPDATA = Join-Path $env:USERPROFILE 'AppData\Roaming'
-          New-Item -ItemType Directory -Force -Path $env:APPDATA | Out-Null
-          $binary = Join-Path $env:RUNNER_TEMP 'chudcode-win32\chudcode-windows-x64.exe'
-          $version = & $binary --version
-          if ($LASTEXITCODE -ne 0 -or $version -ne $env:PRODUCT_VERSION) { throw "Unexpected Windows binary version: $version" }
-          & $binary --smoke-test
-          if ($LASTEXITCODE -ne 0) { throw 'Windows binary smoke failed' }
 
   release_binary_darwin:
     name: Release binary darwin-x64
@@ -562,8 +523,8 @@ jobs:
 
   release_github:
     name: Publish GitHub release
-    needs: [release_metadata, check, rust_validate, test_typescript, release_binary_linux_windows, release_binary_windows_verify, release_binary_darwin, desktop_release]
-    if: needs.release_metadata.outputs.is-release == 'true' && needs.check.result == 'success' && needs.rust_validate.result == 'success' && needs.test_typescript.result == 'success' && needs.release_binary_linux_windows.result == 'success' && needs.release_binary_windows_verify.result == 'success' && needs.release_binary_darwin.result == 'success' && needs.desktop_release.result == 'success'
+    needs: [release_metadata, check, rust_validate, test_typescript, release_binary_linux, release_binary_darwin, desktop_release]
+    if: needs.release_metadata.outputs.is-release == 'true' && needs.check.result == 'success' && needs.rust_validate.result == 'success' && needs.test_typescript.result == 'success' && needs.release_binary_linux.result == 'success' && needs.release_binary_darwin.result == 'success' && needs.desktop_release.result == 'success'
     runs-on: [self-hosted, cloudcastle-ci, cc-linux-chudcode]
     permissions:
       contents: write
@@ -578,7 +539,7 @@ jobs:
           RELEASE_ID: ${{ needs.release_metadata.outputs.release-id }}
         run: |
           set -euo pipefail
-          for name in chudcode-linux-x64 chudcode-darwin-x64 chudcode-windows-x64.exe; do
+          for name in chudcode-linux-x64 chudcode-darwin-x64; do
             bun scripts/ci-release-transport.ts get --release-id "$RELEASE_ID" --name "$name" --out "packages/coding-agent/binaries/$name"
           done
           for name in chudcode-desktop-linux-x64.tar.gz chudcode-desktop-macos-x64.tar.gz chudcode-desktop-windows-x64.zip; do
@@ -590,7 +551,6 @@ jobs:
           bun scripts/ci-release-checksums.ts SHA256SUMS.txt \
             packages/coding-agent/binaries/chudcode-linux-x64 \
             packages/coding-agent/binaries/chudcode-darwin-x64 \
-            packages/coding-agent/binaries/chudcode-windows-x64.exe \
             dist/desktop/chudcode-desktop-linux-x64.tar.gz \
             dist/desktop/chudcode-desktop-macos-x64.tar.gz \
             dist/desktop/chudcode-desktop-windows-x64.zip \
