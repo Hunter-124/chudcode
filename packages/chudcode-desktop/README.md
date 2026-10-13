@@ -267,6 +267,41 @@ xvfb-run -a python3 packages/chudcode-workbench/test/run_extension_host.py \
   --bundle "$candidate"
 ```
 
+For a distributable archive, run the native qualification command after building
+the launcher, engine, and extension:
+
+```sh
+python3 packages/chudcode-workbench/scripts/qualify.py \
+  --output /absolute/fresh-qualification-output \
+  --launcher target/release/chudcode-desktop \
+  --engine /absolute/built-engine
+```
+
+On Windows, use `python` and the `.exe` launcher. `--base-archive` can reuse an
+already downloaded pinned archive. The command verifies the base, safely
+round-trips the distributable archive, executes both worker probes and the real
+desktop/RPC/editor checks, then publishes an archive, checksum, and hash-bound
+qualification report without overwriting existing output. Linux requires
+`xvfb-run`; missing native execution is a failure, not a skip. macOS ad-hoc
+re-signing preserves observed Electron entitlements but is not Developer ID
+signing or notarization. Signing prerequisite observations do not imply trust.
+
+The manual **Workbench release qualification** workflow (`workbench.yml`) runs
+on the product-private Linux, Intel Mac, and Windows builders:
+
+```sh
+gh workflow run workbench.yml --repo Hunter-124/chudcode --ref main
+```
+
+It stages native addons and qualified outputs through a separate draft release,
+`chudcode-workbench-v<product-version>-rc.<run-number>`, bound to the exact source
+commit. It never modifies the published product release or latest-release
+pointer. Reports distinguish native execution from signing, live-provider,
+deployed-consumer, and accessibility qualification. Candidate tags must not
+become the product's latest release: the CLI updater expects the product tag
+namespace. Stable promotion belongs in a subsequent qualified product release,
+with existing published versions and downstream pins preserved.
+
 Observed on the current Linux host: `bun check`, the Rust gate (3087 passing
 tests, six skipped, plus doctests), desktop tests (146), compiled service tests
 (seven), isolated SDK tests (92 plus 19 subtests), and assembler tests (16)
@@ -283,8 +318,8 @@ The assembled Code-OSS extension-host integration passed. Interactive Linux
 verification exercised file edit/save, native terminal output, Git changes,
 draft restoration across session switches, workspace trust, no-folder startup,
 zero-tab catalog access and webview recreation, new sessions, and the live agent
-graph. No provider turn was executed; these checks do not certify every
-provider, accessibility workflow, or operating system.
+graph. These no-provider editor checks do not certify live providers,
+accessibility workflows, or other operating systems.
 
 Code graphs still require Graphify output or a trusted service-side LSP
 configuration. Installing an editor language extension alone does not configure
@@ -310,10 +345,10 @@ Stable goals and required promotion gates:
 - Qualify native Windows/macOS and ARM separately, and sign/notarize candidate
   distributions through trusted release lanes. None of those gates is claimed
   here.
-- Qualify baseline-x64 ISA on appropriate native builders/hardware. Only the
-  modern Linux addon is available locally; the manifest explicitly leaves
-  native ISA qualification unresolved. An x64 executable header is not proof
-  that the full payload runs on baseline-x64 CPUs.
+- Qualify baseline-x64 ISA on appropriate hardware. The Linux baseline addon
+  was built and forced through compiled workers, RPC, and editor qualification
+  on the current host using `PI_NATIVE_VARIANT=baseline`. This does not establish
+  behavior on a CPU lacking newer instruction sets; reports retain that gap.
 
 Until these gates pass, preserve the stable GUI/CLI rollback and release
 pipeline. This candidate is not a completed native overhaul or a stable release.

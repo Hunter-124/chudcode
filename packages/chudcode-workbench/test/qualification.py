@@ -54,6 +54,11 @@ def isolated_environment(root: Path) -> dict[str, str]:
         "XAUTHORITY",
     )
     environment = {name: os.environ[name] for name in names if name in os.environ}
+    native_variant = os.environ.get("PI_NATIVE_VARIANT")
+    if native_variant is not None:
+        if native_variant not in ("baseline", "modern"):
+            raise SmokeError("PI_NATIVE_VARIANT must be baseline or modern")
+        environment["PI_NATIVE_VARIANT"] = native_variant
     environment.update(
         {
             "HOME": str(root / "home"),
@@ -199,6 +204,15 @@ def run_process(
                 f"Command timed out: {command[0]} {command[1:]}"
             ) from error
         finally:
+            # Wrapper probes own their own process groups. Give their installed
+            # SIGTERM handler a chance to clean those descendants before the
+            # unconditional kill_tree; SIGKILL alone strands nested POSIX groups.
+            if os.name != "nt" and process.poll() is None:
+                try:
+                    process.send_signal(signal.SIGTERM)
+                    process.wait(timeout=15)
+                except (ProcessLookupError, subprocess.TimeoutExpired):
+                    pass
             kill_tree(process)
 
 

@@ -121,34 +121,34 @@ class DesktopSocket:
     def _send(self, opcode: int, payload: bytes) -> None:
         mask = os.urandom(4)
         length = len(payload)
-        header = (
-            bytes((0x80 | opcode, 0x80 | length))
-            if length < 126
-            else bytes((0x80 | opcode, 0x80 | 126)) + struct.pack("!H", length)
-        )
+        if length < 126:
+            header = bytes((0x80 | opcode, 0x80 | length))
+        elif length <= 65535:
+            header = bytes((0x80 | opcode, 0x80 | 126)) + struct.pack("!H", length)
+        elif length <= 1024 * 1024:
+            header = bytes((0x80 | opcode, 0x80 | 127)) + struct.pack("!Q", length)
+        else:
+            raise SmokeError("Excessive outgoing websocket frame")
         self.socket.sendall(
             header
             + mask
             + bytes(value ^ mask[index % 4] for index, value in enumerate(payload))
         )
 
-    def hello(self, timeout: float) -> dict:
+    def send_request(self, request_id: int, method: str, params: dict) -> None:
         self._send(
             1,
             json.dumps(
-                {
-                    "t": "request",
-                    "id": 1,
-                    "method": "runtime.hello",
-                    "params": {"protocol": 1},
-                }
+                {"t": "request", "id": request_id, "method": method, "params": params}
             ).encode("utf-8"),
         )
+
+    def receive(self, timeout: float) -> dict:
         deadline = time.monotonic() + timeout
         while True:
             remaining = deadline - time.monotonic()
             if remaining <= 0:
-                raise SmokeError("Timed out waiting for desktop protocol handshake")
+                raise SmokeError("Timed out waiting for desktop websocket frame")
             self.socket.settimeout(remaining)
             first, second = self._read(2)
             opcode = first & 0x0F
@@ -172,6 +172,16 @@ class DesktopSocket:
             frame = json.loads(payload.decode("utf-8", errors="strict"))
             if not isinstance(frame, dict):
                 raise SmokeError("Desktop websocket frame is not an object")
+            return frame
+
+    def hello(self, timeout: float) -> dict:
+        self.send_request(1, "runtime.hello", {"protocol": 1})
+        deadline = time.monotonic() + timeout
+        while True:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise SmokeError("Timed out waiting for desktop protocol handshake")
+            frame = self.receive(remaining)
             if frame.get("t") == "response" and frame.get("id") == 1:
                 result = frame.get("result")
                 if (

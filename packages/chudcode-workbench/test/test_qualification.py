@@ -2,6 +2,7 @@
 
 import ctypes
 import os
+import signal
 import subprocess
 import sys
 import tempfile
@@ -9,7 +10,7 @@ import unittest
 from ctypes import wintypes
 from pathlib import Path
 
-from qualification import JsonProcess, SmokeError, kill_tree, spawn
+from qualification import JsonProcess, SmokeError, kill_tree, run_process, spawn
 
 
 class JsonProcessTests(unittest.TestCase):
@@ -41,6 +42,40 @@ class JsonProcessTests(unittest.TestCase):
             )
             with self.assertRaisesRegex(SmokeError, "Invalid JSONL stdout"):
                 process.close(require_success=True)
+
+
+@unittest.skipUnless(os.name == "posix", "POSIX owner shutdown")
+class PosixOwnershipTests(unittest.TestCase):
+    def test_timeout_allows_owner_to_stop_separate_process_group(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            owned = spawn(
+                [sys.executable, "-c", "import signal; signal.pause()"],
+                root,
+                dict(os.environ),
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+            owner_source = (
+                "import os, signal, sys\n"
+                "def close_owned(signum, frame):\n"
+                "    os.kill(int(sys.argv[1]), signal.SIGTERM)\n"
+                "    sys.exit(0)\n"
+                "signal.signal(signal.SIGTERM, close_owned)\n"
+                "signal.pause()\n"
+            )
+            try:
+                with self.assertRaises(SmokeError):
+                    run_process(
+                        [sys.executable, "-c", owner_source, str(owned.pid)],
+                        root,
+                        dict(os.environ),
+                        2,
+                    )
+                self.assertEqual(owned.wait(timeout=2), -signal.SIGTERM)
+            finally:
+                kill_tree(owned)
 
 
 @unittest.skipUnless(os.name == "nt", "Windows Job Object lifecycle")

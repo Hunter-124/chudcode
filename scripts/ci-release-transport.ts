@@ -10,7 +10,7 @@
  * removes the staging-only assets and makes the draft public.
  *
  * Usage (GITHUB_TOKEN and GITHUB_REPOSITORY from the job environment):
- *   bun scripts/ci-release-transport.ts draft   --tag <tag>               (prints release-id=<id> to $GITHUB_OUTPUT)
+ *   bun scripts/ci-release-transport.ts draft   --tag <tag> [--target <sha>] (prints release-id=<id> to $GITHUB_OUTPUT)
  *   bun scripts/ci-release-transport.ts put     --release-id <id> --file <path> [--name <asset>]
  *   bun scripts/ci-release-transport.ts get     --release-id <id> --name <asset> --out <path>
  *   bun scripts/ci-release-transport.ts put-natives --release-id <id> --root <dir> --targets "<t>..."
@@ -22,6 +22,7 @@
  */
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
+import { PRODUCT_RELEASE_TAG_PREFIX, PRODUCT_SEMVER } from "../packages/coding-agent/src/brand";
 
 const API = "https://api.github.com";
 const UPLOADS = "https://uploads.github.com";
@@ -37,6 +38,7 @@ interface Release {
 	id: number;
 	tag_name: string;
 	draft: boolean;
+	target_commitish: string;
 }
 
 function fail(message: string): never {
@@ -89,10 +91,11 @@ function parseRelease(value: unknown): Release {
 		!isRecord(value) ||
 		typeof value.id !== "number" ||
 		typeof value.tag_name !== "string" ||
-		typeof value.draft !== "boolean"
+		typeof value.draft !== "boolean" ||
+		typeof value.target_commitish !== "string"
 	)
 		fail(`unexpected release shape: ${JSON.stringify(value).slice(0, 200)}`);
-	return { id: value.id, tag_name: value.tag_name, draft: value.draft };
+	return { id: value.id, tag_name: value.tag_name, draft: value.draft, target_commitish: value.target_commitish };
 }
 
 function parseList<T>(value: unknown, parse: (item: unknown) => T): T[] {
@@ -148,14 +151,17 @@ async function deleteAsset(asset: Asset): Promise<void> {
 	await request(`${API}/repos/${repo()}/releases/assets/${asset.id}`, { method: "DELETE" });
 }
 
-async function draft(tag: string): Promise<void> {
+async function draft(tag: string, target?: string): Promise<void> {
+	if (target && !/^[0-9a-f]{40}$/.test(target)) fail("--target must be a full Git commit SHA");
 	const existing = (await listReleases()).filter(r => r.tag_name === tag);
 	if (existing.some(r => !r.draft)) fail(`release ${tag} is already published`);
+	if (target && existing.some(r => r.target_commitish !== target))
+		fail(`draft release ${tag} belongs to a different source revision`);
 	let id = existing[0]?.id;
 	if (id === undefined) {
 		const res = await request(`${API}/repos/${repo()}/releases`, {
 			method: "POST",
-			body: JSON.stringify({ tag_name: tag, name: tag, draft: true }),
+			body: JSON.stringify({ tag_name: tag, name: tag, draft: true, target_commitish: target }),
 		});
 		id = parseRelease(await res.json()).id;
 		console.log(`created draft release ${id} for ${tag}`);
@@ -168,6 +174,7 @@ async function draft(tag: string): Promise<void> {
 }
 
 async function put(id: string, file: string, name: string): Promise<void> {
+	if (!(await releaseById(id)).draft) fail(`refusing to modify published release ${id}`);
 	const bytes = await fs.readFile(file);
 	if (bytes.length === 0) fail(`${file} is empty`);
 	for (const asset of await assets(id)) if (asset.name === name) await deleteAsset(asset);
@@ -221,7 +228,11 @@ async function getNatives(id: string, targets: string[], out: string): Promise<v
 }
 
 async function publish(id: string, tag: string): Promise<void> {
+	const expectedTag = `${PRODUCT_RELEASE_TAG_PREFIX}${PRODUCT_SEMVER}`;
+	if (tag !== expectedTag)
+		fail(`only the product release ${expectedTag} may become latest; ${tag} must remain a candidate`);
 	const release = await releaseById(id);
+	if (!release.draft) fail(`release ${id} is already published`);
 	if (release.tag_name !== tag) fail(`release ${id} is for ${release.tag_name}, not ${tag}`);
 	for (const asset of await assets(id)) if (asset.name.startsWith(STAGE_NATIVES)) await deleteAsset(asset);
 	const notes = await request(`${API}/repos/${repo()}/releases/generate-notes`, {
@@ -241,7 +252,7 @@ const [command, ...rest] = process.argv.slice(2);
 const opts = args(rest);
 switch (command) {
 	case "draft":
-		await draft(required(opts, "tag"));
+		await draft(required(opts, "tag"), opts.get("target"));
 		break;
 	case "put": {
 		const file = required(opts, "file");
