@@ -420,6 +420,9 @@ def qualify(options: argparse.Namespace) -> dict:
         )
         process_session = None
         if target == "darwin-x64":
+            own_gui = observed_command(
+                ["launchctl", "print", f"gui/{os.getuid()}"], state, environment, 15
+            )
             process_session = {
                 "uid": os.getuid(),
                 "consoleUid": Path("/dev/console").stat().st_uid,
@@ -429,6 +432,13 @@ def qualify(options: argparse.Namespace) -> dict:
                 "launchdManagerUid": observed_command(
                     ["launchctl", "manageruid"], state, environment, 15
                 ),
+                # Availability only: launchctl's full output can contain service
+                # environments. Never publish it or inspect another user's GUI.
+                "ownGuiDomain": {
+                    key: own_gui[key]
+                    for key in ("available", "exit")
+                    if key in own_gui
+                },
             }
             print(
                 json.dumps(

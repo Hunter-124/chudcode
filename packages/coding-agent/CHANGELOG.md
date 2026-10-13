@@ -19,6 +19,7 @@
 - Workbench candidates preserve dirty session drafts across tab switches and view recreation without clearing another connection's unsaved state.
 - Workbench editor shared storage remains separate from stock Code-OSS and VSCodium profiles.
 - Workbench sessions no longer appear to keep running solely because next-turn messages are queued; closing or deleting still protects pending work.
+- Live-provider workbench qualification rejects undersized explicit Ollama context settings before starting a model turn.
 - Interrupting a Python eval cell parked on an async tool call now cancels the cell without killing its kernel or losing retained variables; synchronous cell interruption remains supported.
 - Eval calls to RPC host tools (`tool.<host tool>(...)` or `write xd://<host tool>`) no longer use the cell `timeout` budget, like `agent()` waits; a turn cancel still cancels the host call.
 - A timed-out Python cell now says whether the kernel kept its state: the host sends a liveness ping after the interrupt instead of assuming the kernel still runs.

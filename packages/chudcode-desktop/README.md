@@ -297,8 +297,10 @@ ordinary path spelling before passing them to Code-OSS URI/module loaders.
 Editor probes enable verbose startup output; command timeouts retain bounded
 stdout/stderr diagnostics without preserving private application profiles.
 Native editor save checks preserve the document's LF or CRLF convention.
-Mac reports include the runner UID, console UID, and launchd manager observations;
-a headless Mac runner is not equivalent to a logged-in Aqua session.
+Mac reports include the runner UID, console UID, launchd manager, and availability
+of that account's own GUI bootstrap domain; a headless Mac runner is not
+equivalent to a logged-in Aqua session. Failed editor checks identify the
+operation and retain isolated catalog/file-path diagnostics, not transcripts.
 
 Live-provider qualification is a separate, explicit opt-in:
 
@@ -309,8 +311,10 @@ python3 packages/chudcode-workbench/test/run_live_provider.py \
 
 Use an already installed tool-capable Ollama model and a daemon configured for
 at least 32768 context tokens; the model's advertised maximum alone is
-insufficient. Prefer a separate daemon with `OLLAMA_CONTEXT_LENGTH=32768`
-rather than reconfiguring a shared provider. The probe isolates application
+insufficient. An explicit model `num_ctx` overrides the daemon default; the probe
+rejects overrides below 32768 before generation. Prefer a separate daemon with
+`OLLAMA_CONTEXT_LENGTH=32768` and a private model configuration rather than
+reconfiguring a shared provider. The probe isolates application
 state, disables other providers, and verifies model-generated tool calls,
 unchanged inputs, and computed file bytes through desktop v1 and public RPC v2.
 Its JSON evidence fingerprints the candidate manifest, tested engines, probe,
@@ -319,6 +323,15 @@ and prompt without retaining transcripts or credentials.
 The current Linux candidate passed both real-provider paths with `qwen3:8b`.
 Earlier trials failed provider/output gates; this is functional smoke evidence,
 not a completion-reliability or performance certification.
+
+A separate real Code-OSS run with a private `qwen3-coder-qualification:30b`
+configuration at 32768 context tokens completed one parent task call and two
+child agents. Private child transcripts established separate read/write
+authorship; nonce, integer sum, and parent result bytes matched independently
+computed expectations. The actual Tasks view showed 3/3 complete, and the Agents
+graph showed three nodes and two parent edges. The idle session reported no
+streaming, aborting, or queued messages. This is one successful functional run,
+not a reliability certification; earlier 8192-context runs failed.
 
 The manual **Workbench release qualification** workflow (`workbench.yml`) runs
 on the product-private Linux, Intel Mac, and Windows builders:
@@ -335,6 +348,14 @@ deployed-consumer, and accessibility qualification. Candidate tags must not
 become the product's latest release: the CLI updater expects the product tag
 namespace. Stable promotion belongs in a subsequent qualified product release,
 with existing published versions and downstream pins preserved.
+
+At commit `ed255aaf27`, repository CI and Nix passed, and the native Linux archive
+lane passed. Windows reached session operations but failed with “Session was not
+found”; that failure remains under diagnosis. The Mac runner reported UID 422
+under the System bootstrap while `/dev/console` belonged to UID 501, and the
+editor timed out. No other user's GUI session was borrowed. The Mac signing
+inventory contained no valid identities; Windows candidate executables were
+unsigned. Those observations do not qualify stable publication.
 
 Observed on the current Linux host: `bun check`, the Rust gate (3087 passing
 tests, six skipped, plus doctests), desktop tests (147), compiled service tests
@@ -405,10 +426,10 @@ Stable goals and required promotion gates:
 - Before replacing engine modules with Rust, prove behavior, restart,
   persistence/session-tree, inherited host-tool, plugin/provider, and compiled
   worker parity against the compatibility engine and actual consumers.
-- Complete populated task/subagent workflows, full accessibility verification,
-  and the remaining native-platform workflows. Local transport, Linux editor,
-  and isolated Ollama checks do not substitute for deployed CloudCastle or
-  live CAD/provider qualification.
+- Complete full accessibility verification, remaining native-platform workflows,
+  and deployed-consumer checks. One populated Linux task/subagent workflow
+  passed; local transport, editor, and isolated Ollama checks do not substitute
+  for deployed CloudCastle or live CAD/provider qualification.
 - Qualify native Windows/macOS and ARM separately, and sign/notarize candidate
   distributions through trusted release lanes. None of those gates is claimed
   here.

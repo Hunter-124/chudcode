@@ -116,6 +116,16 @@ def provider_metadata(base_url: str, model: str, deadline: Deadline) -> dict:
     ]
     if not context_lengths or min(context_lengths) < 32768:
         raise GateError("unsupported_model_context_window")
+    # A model's explicit num_ctx overrides the daemon's context default. Its
+    # architectural maximum does not prove enough context is actually enabled.
+    parameters = metadata.get("parameters", "")
+    configured_context = (
+        re.search(r"(?m)^\s*num_ctx\s+(-?\d+)\s*$", parameters)
+        if isinstance(parameters, str)
+        else None
+    )
+    if configured_context and int(configured_context.group(1)) < 32768:
+        raise GateError("configured_model_context_too_small")
     return {
         "context_window": min(32768, min(context_lengths)),
         "supports_tools": True,
