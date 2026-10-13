@@ -351,6 +351,50 @@ describe("real workbench service", () => {
 		expect((await restarted.stderr).includes(restarted.ready.token)).toBe(false);
 	}, 120_000);
 
+	it("keeps aliases of a persisted session in one live tab and reopens them after close", async () => {
+		const root = await fixture();
+		const host = await start(root);
+		const probe = new Probe(host.ready);
+		await deadline(probe.opened, "WebSocket open");
+		await deadline(probe.welcome, "session welcome");
+		const created = await probe.request("session.new", { cwd: path.join(root, "workspace") });
+		expect(created.error).toBeUndefined();
+		const session = created.result!.session;
+		let alias: string;
+		if (process.platform === "win32") {
+			// Code-OSS URIs and Bun's catalog can use different drive-letter case.
+			const drive = session.path[0];
+			alias = (drive === drive.toUpperCase() ? drive.toLowerCase() : drive.toUpperCase()) + session.path.slice(1);
+		} else {
+			const directory = path.join(root, "session-alias");
+			await fs.symlink(path.dirname(session.path), directory);
+			alias = path.join(directory, path.basename(session.path));
+		}
+		const before = (await probe.request("session.tabs", {})).result!.tabs;
+		expect((await probe.request("session.tab.draft", { path: alias, dirty: true })).error).toBeUndefined();
+		expect((await probe.request("session.tab.close", { path: session.path })).result).toMatchObject({
+			closed: false,
+			blockedReason: "dirty-draft",
+		});
+		const activated = await probe.request("session.activate", { path: alias });
+		expect(activated.error).toBeUndefined();
+		expect(activated.result!.tabs.map(tab => tab.path)).toEqual(before.map(tab => tab.path));
+		expect(activated.result!.tabs.find(tab => tab.path === session.path)).toMatchObject({
+			active: true,
+			draftDirty: true,
+		});
+		await probe.request("session.tab.draft", { path: alias, dirty: false });
+		expect((await probe.request("session.tab.close", { path: alias })).result?.closed).toBe(true);
+		const reopened = await probe.request("session.select", { path: alias });
+		expect(reopened.error).toBeUndefined();
+		expect(reopened.result!.header.id).toBe(session.id);
+		expect((await probe.request("session.tabs", {})).result!.tabs.map(tab => tab.path)).toEqual(
+			before.map(tab => tab.path),
+		);
+		host.child.stdin.end();
+		expect(await deadline(host.child.exited, "alias session EOF shutdown", 15_000)).toBe(0);
+	}, 120_000);
+
 	for (const signal of ["SIGINT", "SIGTERM"] as const) {
 		it(`closes the live service cleanly on ${signal}`, async () => {
 			const host = await start(await fixture());

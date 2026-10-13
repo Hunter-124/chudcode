@@ -11,6 +11,7 @@ import { USER_INTERRUPT_LABEL } from "@oh-my-pi/pi-coding-agent/session/messages
 import type { SessionEntry as StoredSessionEntry } from "@oh-my-pi/pi-coding-agent/session/session-entries";
 import { SessionManager } from "@oh-my-pi/pi-coding-agent/session/session-manager";
 import type { EventBus } from "@oh-my-pi/pi-coding-agent/utils/event-bus";
+import { normalizePathForComparison } from "@oh-my-pi/pi-utils/dirs";
 import type {
 	AgentSnapshot,
 	BusChannel,
@@ -1032,7 +1033,7 @@ export class DesktopRuntime {
 	}
 
 	#key(sessionPath: string): string {
-		return path.resolve(sessionPath);
+		return normalizePathForComparison(sessionPath);
 	}
 
 	#error(request: DesktopRequest, code: string, message: string): DesktopResponse {

@@ -446,6 +446,13 @@ def qualify(options: argparse.Namespace) -> dict:
                 ),
                 file=sys.stderr,
             )
+            if not own_gui["available"]:
+                raise ValueError(
+                    f"macOS editor qualification requires an accessible GUI bootstrap "
+                    f"domain for runner UID {os.getuid()}; run this lane in that "
+                    "account's logged-in Aqua session. Another user's console "
+                    "session is not a substitute."
+                )
         signing = native_signing_observation(bundle, target, state, environment)
         print(
             json.dumps({"nativeSigningObservation": signing}, sort_keys=True),

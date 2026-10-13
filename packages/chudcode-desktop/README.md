@@ -349,17 +349,24 @@ become the product's latest release: the CLI updater expects the product tag
 namespace. Stable promotion belongs in a subsequent qualified product release,
 with existing published versions and downstream pins preserved.
 
-At commit `ed255aaf27`, repository CI and Nix passed, and the native Linux archive
-lane passed. Windows reached session operations but failed with “Session was not
-found”; that failure remains under diagnosis. The Mac runner reported UID 422
-under the System bootstrap while `/dev/console` belonged to UID 501, and the
-editor timed out. No other user's GUI session was borrowed. The Mac signing
-inventory contained no valid identities; Windows candidate executables were
-unsigned. Those observations do not qualify stable publication.
+At commit `b385fb3d65`, the native Linux archive lane passed. Windows reached
+New Session but failed its catalog lookup despite the new file being listed;
+Code-OSS and the catalog used different native path spellings. Desktop session
+identities now use the shared real-path/case-comparison convention for catalog
+results, live tabs, and addressed operations. Native Windows requalification
+is still required.
+
+The Mac runner reported UID 422 under the System bootstrap while `/dev/console`
+belonged to UID 501; its own `gui/422` domain was unavailable, and the editor
+timed out. Qualification now fails with an explicit prerequisite error when
+the runner's GUI domain is inaccessible. Run the lane from the product account's
+logged-in Aqua session; no other user's GUI session is borrowed or reconfigured.
+The Mac signing inventory contained no valid identities; Windows candidate
+executables were unsigned. Those observations do not qualify stable publication.
 
 Observed on the current Linux host: `bun check`, the Rust gate (3087 passing
-tests, six skipped, plus doctests), desktop tests (147), compiled service tests
-(seven), isolated SDK tests (92 plus 19 subtests), and assembler tests (17)
+tests, six skipped, plus doctests), desktop tests (148), compiled service tests
+(eight), isolated SDK tests (92 plus 19 subtests), and assembler tests (17)
 passed. Real compiled CLI/service worker probes, assembled desktop v1/RPC v2
 smoke, owner-EOF cleanup, and the actual CAD
 `scripts/smoke_chudcode_runtime.py` with candidate `chud` 0.4.3 also passed.
@@ -375,6 +382,14 @@ draft restoration across session switches, workspace trust, no-folder startup,
 zero-tab catalog access and webview recreation, new sessions, and the live agent
 graph. These no-provider editor checks do not certify live providers,
 accessibility workflows, or other operating systems.
+
+A separate isolated Linux Orca/AT-SPI probe observed native editor text and
+focus transitions from Files Explorer to the editor. Keyboard Tab/Enter moved
+from Tasks to Graphs; the platform accessibility tree exposed the focused
+Graphs button, and Orca recorded Graphs, Agents, and List focus. The graph's
+ordered-list fallback was also inspected. Speech and braille were disabled in
+the private probe profile, so this verifies the native accessibility bridge and
+limited navigation, not audible output, physical braille, or full accessibility.
 
 The native editor regression also verifies that switching sessions preserves
 service-owned dirty-draft state. Initializing an empty webview composer does not

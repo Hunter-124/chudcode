@@ -11,6 +11,7 @@ import type { SessionInfo, SessionStatus } from "@oh-my-pi/pi-coding-agent/sessi
 import { SessionManager } from "@oh-my-pi/pi-coding-agent/session/session-manager";
 import { loadPinnedSessionIds, toggleSessionPin } from "@oh-my-pi/pi-coding-agent/session/session-pins";
 import { FileSessionStorage } from "@oh-my-pi/pi-coding-agent/session/session-storage";
+import { normalizePathForComparison } from "@oh-my-pi/pi-utils/dirs";
 import type {
 	AssistantContent,
 	AgentEvent as WireAgentEvent,
@@ -538,9 +539,9 @@ export class SessionCatalogService {
 	}
 
 	async requireSession(sessionPath: string, cwd?: string): Promise<SessionInfo> {
-		const requested = path.resolve(sessionPath);
+		const requested = normalizePathForComparison(sessionPath);
 		const sessions = await this.#catalog.list(cwd);
-		const stored = sessions.find(candidate => path.resolve(candidate.path) === requested);
+		const stored = sessions.find(candidate => normalizePathForComparison(candidate.path) === requested);
 		if (!stored) throw new SessionServiceError("SESSION_NOT_FOUND", "Session was not found");
 		return stored;
 	}
@@ -548,10 +549,12 @@ export class SessionCatalogService {
 	#toDesktopInfo(session: SessionInfo, pinned: boolean): DesktopSessionInfo {
 		return {
 			id: session.id,
-			path: session.path,
+			path: normalizePathForComparison(session.path),
 			cwd: session.cwd,
 			title: session.title,
-			parentSessionPath: session.parentSessionPath,
+			parentSessionPath: session.parentSessionPath
+				? normalizePathForComparison(session.parentSessionPath)
+				: undefined,
 			createdMs: session.created.getTime(),
 			modifiedMs: session.modified.getTime(),
 			messageCount: session.messageCount,
@@ -638,7 +641,7 @@ export class SessionService {
 		const resolvedCwd = path.resolve(cwd);
 		const created = await this.#session.newSession();
 		if (!created) throw new SessionServiceError("SESSION_CANCELLED", "Creating a session was cancelled");
-		if (path.resolve(this.#session.sessionManager.getCwd()) !== resolvedCwd)
+		if (normalizePathForComparison(this.#session.sessionManager.getCwd()) !== normalizePathForComparison(resolvedCwd))
 			await this.#session.moveSession(resolvedCwd);
 		await this.#materializeActiveSession();
 		return await this.#activeInfo(resolvedCwd);
@@ -649,7 +652,7 @@ export class SessionService {
 			throw new SessionServiceError("SESSION_BUSY", "Wait for the active run to finish before forking");
 		const stored = await this.catalog.requireSession(sessionPath);
 		const activePath = this.#session.sessionManager.getSessionFile();
-		if (!activePath || path.resolve(activePath) !== path.resolve(stored.path)) {
+		if (!activePath || normalizePathForComparison(activePath) !== normalizePathForComparison(stored.path)) {
 			const switched = await this.#session.switchSession(stored.path);
 			if (!switched) throw new SessionServiceError("SESSION_CANCELLED", "Session selection was cancelled");
 		}
@@ -671,7 +674,7 @@ export class SessionService {
 
 	async rename(sessionPath: string, title: string): Promise<DesktopSessionInfo> {
 		const activePath = this.#session.sessionManager.getSessionFile();
-		if (!activePath || path.resolve(activePath) !== path.resolve(sessionPath)) {
+		if (!activePath || normalizePathForComparison(activePath) !== normalizePathForComparison(sessionPath)) {
 			return await this.catalog.rename(sessionPath, title);
 		}
 		const cleanTitle = normalizeSessionTitle(title);

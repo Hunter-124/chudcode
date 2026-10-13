@@ -153,10 +153,15 @@ async function run() {
 			"Session must live only in isolated state",
 		);
 		await fs.access(first.path);
-		const selected = await request("session.select", { path: first.path });
+		const drive = first.path[0];
+		const firstAddress =
+			process.platform === "win32"
+				? (drive === drive.toUpperCase() ? drive.toLowerCase() : drive.toUpperCase()) + first.path.slice(1)
+				: first.path;
+		const selected = await request("session.select", { path: firstAddress });
 		assert.equal(selected.header.id, first.id);
 		assert.ok(Array.isArray(selected.entries));
-		const firstDraft = await request("session.tab.draft", { path: first.path, dirty: true });
+		const firstDraft = await request("session.tab.draft", { path: firstAddress, dirty: true });
 		assert.equal(firstDraft.tabs.find(tab => tab.path === first.path).draftDirty, true);
 		const second = (await request("session.new", { cwd })).session;
 		assert.notEqual(second.id, first.id);
@@ -178,7 +183,7 @@ async function run() {
 		const blocked = await request("session.tab.close", { path: first.path });
 		assert.equal(blocked.closed, false);
 		assert.equal(blocked.blockedReason, "dirty-draft");
-		tabs = (await request("session.activate", { path: first.path })).tabs;
+		tabs = (await request("session.activate", { path: firstAddress })).tabs;
 		assert.equal(tabs.find(tab => tab.path === first.path).active, true);
 		assert.equal(tabs.find(tab => tab.path === first.path).draftDirty, true);
 		const sessions = (await request("session.list", { cwd })).sessions;
