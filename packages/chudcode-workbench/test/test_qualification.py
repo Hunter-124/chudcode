@@ -17,7 +17,11 @@ class JsonProcessTests(unittest.TestCase):
     def test_background_invalid_json_fails_receive(self):
         with tempfile.TemporaryDirectory() as directory:
             process = JsonProcess(
-                [sys.executable, "-c", "print('{invalid', flush=True)"],
+                [
+                    sys.executable,
+                    "-c",
+                    "import time; print('{invalid', flush=True); time.sleep(120)",
+                ],
                 Path(directory),
                 dict(os.environ),
                 5,
@@ -27,6 +31,8 @@ class JsonProcessTests(unittest.TestCase):
                     process.receive(lambda _: True)
             finally:
                 process.close()
+            # Cleanup must be immediately possible even after forced shutdown.
+            (Path(directory) / "private-service-stderr.log").unlink()
 
     def test_background_invalid_utf8_fails_successful_exit(self):
         with tempfile.TemporaryDirectory() as directory:

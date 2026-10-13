@@ -159,14 +159,17 @@ def kill_tree(process: _OwnedProcess) -> None:
     if os.name == "nt":
         if process.windows_job is None:
             raise SmokeError("Qualification process has no owned Windows job")
+        # Kill-on-close already requests termination. A second Popen.kill()
+        # can cache an early Windows exit code and make wait() skip the real
+        # process-handle barrier while inherited file handles remain open.
         process.windows_job.close()
     else:
         try:
             os.killpg(process.pid, signal.SIGKILL)
         except ProcessLookupError:
             pass
-    if process.poll() is None:
-        process.kill()
+        if process.poll() is None:
+            process.kill()
     process.wait(timeout=15)
 
 

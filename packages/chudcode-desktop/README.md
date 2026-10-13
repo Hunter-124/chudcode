@@ -230,6 +230,11 @@ VSCodium, and the old GUI:
 | macOS | `~/Library/Application Support/Chudcode Workbench` | `~/.chudcode-workbench/extensions` |
 | Windows | `%APPDATA%/Chudcode Workbench` | `%USERPROFILE%/.chudcode-workbench/extensions` |
 
+Shared editor storage uses `.chudcode-workbench-shared` under the user's home,
+not stock Code-OSS storage. macOS keeps the upstream internal bundle/helper
+names required by Electron while using Chudcode's display name, bundle identifier,
+and editor profile.
+
 Explicit editor `--user-data-dir` and `--extensions-dir` arguments are honored
 for isolated qualification; choose separate directories rather than reusing
 another product's state. **Agent settings and session files still use the
@@ -326,7 +331,7 @@ with existing published versions and downstream pins preserved.
 
 Observed on the current Linux host: `bun check`, the Rust gate (3087 passing
 tests, six skipped, plus doctests), desktop tests (146), compiled service tests
-(seven), isolated SDK tests (92 plus 19 subtests), and assembler tests (16)
+(seven), isolated SDK tests (92 plus 19 subtests), and assembler tests (17)
 passed. Real compiled CLI/service worker probes, assembled desktop v1/RPC v2
 smoke, owner-EOF cleanup, and the actual CAD
 `scripts/smoke_chudcode_runtime.py` with candidate `chud` 0.4.3 also passed.
@@ -342,6 +347,10 @@ draft restoration across session switches, workspace trust, no-folder startup,
 zero-tab catalog access and webview recreation, new sessions, and the live agent
 graph. These no-provider editor checks do not certify live providers,
 accessibility workflows, or other operating systems.
+
+The native editor regression also verifies that switching sessions preserves
+service-owned dirty-draft state. Initializing an empty webview composer does not
+clear another connection's draft flag; observed closed-tab drafts are discarded.
 
 Code graphs still require Graphify output or a trusted service-side LSP
 configuration. Installing an editor language extension alone does not configure

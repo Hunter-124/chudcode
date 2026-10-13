@@ -445,8 +445,12 @@ def brand_macos(editor: Path) -> None:
     path = editor / "VSCodium.app" / "Contents" / "Info.plist"
     with path.open("rb") as source:
         info = plistlib.load(source)
+    # Electron's pre-JavaScript helper lookup uses CFBundleName as the prefix of
+    # "<name> Helper[ (Renderer|GPU|Plugin)].app/Contents/MacOS/<name> Helper...".
+    # Preserve that name and all upstream executable/helper identities; only the
+    # display name is branding. VS Code selects userData via product.nameShort,
+    # not CFBundleName, so the Chudcode product overlay still isolates profiles.
     info.update(
-        CFBundleName="Chudcode",
         CFBundleDisplayName="Chudcode Workbench",
         CFBundleIdentifier="dev.chudware.chudcode.workbench",
     )

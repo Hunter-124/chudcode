@@ -13,6 +13,7 @@ import io
 import json
 import os
 import platform
+import plistlib
 import sys
 import tarfile
 import tempfile
@@ -180,6 +181,113 @@ class ArchiveTests(unittest.TestCase):
                     assembler.copy_repository_notices(notices)
                 (repository / name).write_bytes(original)
 
+    def test_macos_branding_preserves_electron_helper_lookup_and_payload(self):
+        editor = self.root / "editor"
+        contents = editor / "VSCodium.app" / "Contents"
+        contents.mkdir(parents=True)
+        info = {
+            "CFBundleName": "VSCodium",
+            "CFBundleDisplayName": "VSCodium",
+            "CFBundleExecutable": "VSCodium",
+            "CFBundleIdentifier": "com.vscodium",
+            "CFBundleURLTypes": [
+                {
+                    "CFBundleURLName": "VSCodium",
+                    "CFBundleURLSchemes": ["vscodium"],
+                }
+            ],
+        }
+        plist_path = contents / "Info.plist"
+        plist_path.write_bytes(plistlib.dumps(info))
+        main_executable = contents / "MacOS" / info["CFBundleExecutable"]
+        main_executable.parent.mkdir()
+        main_executable.write_bytes(b"unchanged main executable fixture")
+        for suffix in ("", " (Renderer)", " (GPU)", " (Plugin)"):
+            name = info["CFBundleName"] + " Helper" + suffix
+            helper = contents / "Frameworks" / (name + ".app") / "Contents"
+            (helper / "MacOS").mkdir(parents=True)
+            (helper / "MacOS" / name).write_bytes(b"unchanged helper fixture")
+            (helper / "Info.plist").write_bytes(
+                plistlib.dumps(
+                    {
+                        "CFBundleName": name,
+                        "CFBundleExecutable": name,
+                        "CFBundleIdentifier": "com.vscodium.helper" + suffix,
+                    }
+                )
+            )
+            (helper / "_CodeSignature").mkdir()
+            (helper / "_CodeSignature" / "CodeResources").write_bytes(
+                b"unchanged upstream signature fixture"
+            )
+        app = contents / "Resources" / "app"
+        app.mkdir(parents=True)
+        assembler.dump_json(
+            app / "product.json",
+            {
+                "nameShort": "VSCodium",
+                "applicationName": "codium",
+                "dataFolderName": ".vscode-oss",
+                "sharedDataFolderName": ".vscode-oss-shared",
+                "darwinBundleIdentifier": "com.vscodium",
+            },
+        )
+        mutable = {
+            "VSCodium.app/Contents/Info.plist",
+            "VSCodium.app/Contents/Resources/app/product.json",
+        }
+        before = [
+            entry
+            for entry in assembler.file_inventory(editor)
+            if entry["path"] not in mutable
+        ]
+        assembler.overlay_product(
+            app,
+            assembler.load_json(assembler.CONFIG / "product-overrides.json"),
+            "0.4.3",
+        )
+        assembler.brand_macos(editor)
+        branded = plistlib.loads(plist_path.read_bytes())
+        self.assertEqual(branded["CFBundleName"], info["CFBundleName"])
+        self.assertEqual(branded["CFBundleExecutable"], info["CFBundleExecutable"])
+        self.assertEqual(branded["CFBundleDisplayName"], "Chudcode Workbench")
+        self.assertEqual(
+            branded["CFBundleIdentifier"], "dev.chudware.chudcode.workbench"
+        )
+        self.assertEqual(
+            branded["CFBundleURLTypes"],
+            [
+                {
+                    "CFBundleURLName": "Chudcode Workbench",
+                    "CFBundleURLSchemes": ["chudcode-workbench"],
+                }
+            ],
+        )
+        # Electron resolves these paths from the main CFBundleName, including
+        # when renderer/GPU/plugin helpers re-enter the native delegate.
+        for suffix in ("", " (Renderer)", " (GPU)", " (Plugin)"):
+            name = branded["CFBundleName"] + " Helper" + suffix
+            helper = contents / "Frameworks" / (name + ".app") / "Contents"
+            self.assertTrue((helper / "MacOS" / name).is_file())
+        self.assertEqual(
+            [
+                entry
+                for entry in assembler.file_inventory(editor)
+                if entry["path"] not in mutable
+            ],
+            before,
+        )
+        product = assembler.load_json(app / "product.json")
+        # VS Code overrides Electron's userData path using product.nameShort;
+        # its extension/argv and shared-data roots use these separate identities.
+        self.assertEqual(product["nameShort"], "Chudcode")
+        self.assertEqual(product["applicationName"], "chudcode-workbench")
+        self.assertEqual(product["dataFolderName"], ".chudcode-workbench")
+        self.assertEqual(product["sharedDataFolderName"], ".chudcode-workbench-shared")
+        self.assertEqual(
+            product["darwinBundleIdentifier"], branded["CFBundleIdentifier"]
+        )
+
     def test_atomic_publication_exposes_only_completed_candidate(self):
         staging = self.root / ".assembling"
         staging.mkdir()
@@ -346,6 +454,32 @@ class NativeConsumerTests(unittest.TestCase):
                 path = output / manifest["layout"][key]
                 self.assertEqual(
                     manifest["binaryEvidence"][key]["sha256"], assembler.digest(path)
+                )
+            if self.target == "darwin-x64":
+                contents = output / "editor" / "VSCodium.app" / "Contents"
+                info = plistlib.loads((contents / "Info.plist").read_bytes())
+                self.assertEqual(info["CFBundleName"], "VSCodium")
+                self.assertEqual(info["CFBundleExecutable"], "VSCodium")
+                self.assertEqual(info["CFBundleDisplayName"], "Chudcode Workbench")
+                self.assertEqual(
+                    output / manifest["layout"]["editor"],
+                    contents / "MacOS" / info["CFBundleExecutable"],
+                )
+                for suffix in ("", " (Renderer)", " (GPU)", " (Plugin)"):
+                    name = info["CFBundleName"] + " Helper" + suffix
+                    helper = contents / "Frameworks" / (name + ".app") / "Contents"
+                    helper_info = plistlib.loads((helper / "Info.plist").read_bytes())
+                    self.assertEqual(helper_info["CFBundleExecutable"], name)
+                    executable = helper / "MacOS" / name
+                    self.assertTrue(executable.is_file())
+                    self.assertTrue(os.access(executable, os.X_OK))
+                product = assembler.load_json(
+                    contents / "Resources" / "app" / "product.json"
+                )
+                self.assertEqual(product["nameShort"], "Chudcode")
+                self.assertEqual(product["dataFolderName"], ".chudcode-workbench")
+                self.assertEqual(
+                    product["sharedDataFolderName"], ".chudcode-workbench-shared"
                 )
             with self.assertRaisesRegex(ValueError, "Refusing to overwrite"):
                 assembler.assemble(options)

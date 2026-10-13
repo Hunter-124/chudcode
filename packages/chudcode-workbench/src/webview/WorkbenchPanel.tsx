@@ -52,7 +52,13 @@ const VIEW_LABELS: Record<PanelView, string> = {
 	graphs: "Graphs",
 	settings: "Settings",
 };
-const VIEW_ICONS = { chat: MessageSquare, sessions: Copy, tasks: ListTodo, graphs: GitBranch, settings: Settings };
+const VIEW_ICONS = {
+	chat: MessageSquare,
+	sessions: Copy,
+	tasks: ListTodo,
+	graphs: GitBranch,
+	settings: Settings,
+};
 const MAX_IMAGE_BYTES = 600 * 1024;
 
 function readImage(file: File): Promise<Attachment> {
@@ -143,7 +149,9 @@ function SessionsView({
 						onClick={() =>
 							void run(async () => {
 								if (!selected) return;
-								const result = await client.request("session.fork", { path: selected.path });
+								const result = await client.request("session.fork", {
+									path: selected.path,
+								});
 								if (!result.cancelled) {
 									await client.activateSession(result.session.path);
 									onOpenChat();
@@ -215,7 +223,10 @@ function SessionsView({
 								disabled={!live || busy}
 								onClick={() =>
 									void run(async () => {
-										await client.request("session.pin", { path: session.path, pinned: !session.pinned });
+										await client.request("session.pin", {
+											path: session.path,
+											pinned: !session.pinned,
+										});
 									})
 								}
 							>
@@ -252,7 +263,10 @@ function SessionsView({
 								onSubmit={event => {
 									event.preventDefault();
 									void run(async () => {
-										await client.request("session.rename", { path: session.path, title: title.trim() });
+										await client.request("session.rename", {
+											path: session.path,
+											title: title.trim(),
+										});
 										setRenamePath(undefined);
 									});
 								}}
@@ -281,7 +295,9 @@ function SessionsView({
 										disabled={!live || busy}
 										onClick={() =>
 											void run(async () => {
-												const result = await client.request("session.delete", { path: session.path });
+												const result = await client.request("session.delete", {
+													path: session.path,
+												});
 												if (result.deleted) {
 													onDelete(session.path);
 													setDeletePath(undefined);
@@ -331,6 +347,17 @@ export function WorkbenchPanel({ client, bridge }: { client: DesktopClient; brid
 	attachmentsRef.current = attachments;
 	const readingImagesRef = useRef(false);
 	const fileInput = useRef<HTMLInputElement>(null);
+	const [draftSync] = useState(
+		() =>
+			new Map<
+				string,
+				{
+					text: string;
+					images: readonly Attachment[] | undefined;
+					connectionId: string;
+				}
+			>(),
+	);
 	// The extension supplies the actual window workspace; a selected session
 	// is neither required to discover it nor allowed to replace it.
 	const cwd = workspace?.rootPath ?? workspaceRootPath;
@@ -411,18 +438,18 @@ export function WorkbenchPanel({ client, bridge }: { client: DesktopClient; brid
 	useEffect(() => {
 		if (view !== "graphs" || !live || !graphWorkspace) return;
 		let disposed = false;
-		void client.request("graph.snapshot", { workspaceId: graphWorkspace.id, kind: graphKind }).catch(cause => {
-			if (!disposed) setError(cause instanceof Error ? cause.message : String(cause));
-		});
+		void client
+			.request("graph.snapshot", {
+				workspaceId: graphWorkspace.id,
+				kind: graphKind,
+			})
+			.catch(cause => {
+				if (!disposed) setError(cause instanceof Error ? cause.message : String(cause));
+			});
 		return () => {
 			disposed = true;
 		};
 	}, [client, view, live, graphWorkspace, graphKind]);
-
-	useEffect(() => {
-		if (activePath && live)
-			client.setSessionDraft(activePath, !!drafts[activePath]?.trim() || (attachments[activePath]?.length ?? 0) > 0);
-	}, [client, activePath, live, drafts, attachments]);
 
 	useEffect(() => {
 		setSelectedAgentId(null);
@@ -440,6 +467,30 @@ export function WorkbenchPanel({ client, bridge }: { client: DesktopClient; brid
 			return next;
 		});
 	}, []);
+
+	useEffect(() => {
+		if (!live || !connectionId) return;
+		const synchronized = draftSync;
+		const openPaths = new Set(tabs.map(tab => tab.path));
+		for (const path of synchronized.keys()) {
+			if (!openPaths.has(path)) {
+				synchronized.delete(path);
+				removeDraft(path);
+			}
+		}
+		for (const { path } of tabs) {
+			const text = drafts[path] ?? "";
+			const images = attachments[path];
+			const previous = synchronized.get(path);
+			const changed = previous !== undefined && (previous.text !== text || previous.images !== images);
+			const dirty = !!text.trim() || (images?.length ?? 0) > 0;
+			// Selection and transport initialization do not own an empty draft.
+			// Only local edits may clear a service-owned flag; restored content
+			// reasserts dirty state for every open tab, including inactive tabs.
+			if (changed || (dirty && previous?.connectionId !== connectionId)) client.setSessionDraft(path, dirty);
+			synchronized.set(path, { text, images, connectionId });
+		}
+	}, [client, live, connectionId, tabs, drafts, attachments, removeDraft, draftSync]);
 
 	const composerClient = useMemo<SessionClient>(
 		() => ({
@@ -466,7 +517,11 @@ export function WorkbenchPanel({ client, bridge }: { client: DesktopClient; brid
 					return;
 				}
 				void client
-					.request("prompt.send", { sessionPath: path, text, ...(content.length ? { images: content } : {}) })
+					.request("prompt.send", {
+						sessionPath: path,
+						text,
+						...(content.length ? { images: content } : {}),
+					})
 					.then(() => {
 						const sent = new Set(pending.map(image => image.id));
 						setAttachments(current => ({
@@ -476,7 +531,10 @@ export function WorkbenchPanel({ client, bridge }: { client: DesktopClient; brid
 					})
 					.catch(cause => {
 						setError(cause instanceof Error ? cause.message : String(cause));
-						setDrafts(current => ({ ...current, [path]: current[path] ? `${text}\n${current[path]}` : text }));
+						setDrafts(current => ({
+							...current,
+							[path]: current[path] ? `${text}\n${current[path]}` : text,
+						}));
 					});
 			},
 			sendAbort: () => client.sendAbort(),
@@ -730,7 +788,11 @@ export function WorkbenchPanel({ client, bridge }: { client: DesktopClient; brid
 								snapshot={activePath ? snapshot : { ...snapshot, readOnly: true }}
 								draft={activePath ? (drafts[activePath] ?? "") : ""}
 								onDraftChange={value => {
-									if (activePath) setDrafts(current => ({ ...current, [activePath]: value }));
+									if (activePath)
+										setDrafts(current => ({
+											...current,
+											[activePath]: value,
+										}));
 								}}
 							/>
 							{!snapshot.uiRequest ? (
@@ -873,7 +935,10 @@ export function WorkbenchPanel({ client, bridge }: { client: DesktopClient; brid
 					progress={snapshot.progress.get(selectedAgent.id)}
 					client={client}
 					readOnly={!live || snapshot.readOnly}
-					host={{ hasAgent: id => snapshot.agents.some(agent => agent.id === id), openAgent: setSelectedAgentId }}
+					host={{
+						hasAgent: id => snapshot.agents.some(agent => agent.id === id),
+						openAgent: setSelectedAgentId,
+					}}
 					onClose={() => setSelectedAgentId(null)}
 				/>
 			) : null}

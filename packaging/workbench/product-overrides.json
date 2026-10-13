@@ -3,6 +3,7 @@
   "nameLong": "Chudcode Workbench",
   "applicationName": "chudcode-workbench",
   "dataFolderName": ".chudcode-workbench",
+  "sharedDataFolderName": ".chudcode-workbench-shared",
   "linuxIconName": "chudcode-workbench",
   "urlProtocol": "chudcode-workbench",
   "serverApplicationName": "chudcode-workbench-server",
