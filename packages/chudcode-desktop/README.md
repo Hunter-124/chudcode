@@ -285,6 +285,28 @@ qualification report without overwriting existing output. Linux requires
 `xvfb-run`; missing native execution is a failure, not a skip. macOS ad-hoc
 re-signing preserves observed Electron entitlements but is not Developer ID
 signing or notarization. Signing prerequisite observations do not imply trust.
+The probes support Python 3.9 and newer. The Windows lane uses `uv` to obtain
+portable Python in product-private storage, without a system Python installer.
+
+Live-provider qualification is a separate, explicit opt-in:
+
+```sh
+python3 packages/chudcode-workbench/test/run_live_provider.py \
+  --bundle "$candidate" --base-url http://127.0.0.1:19341 --model qwen3:8b
+```
+
+Use an already installed tool-capable Ollama model and a daemon configured for
+at least 32768 context tokens; the model's advertised maximum alone is
+insufficient. Prefer a separate daemon with `OLLAMA_CONTEXT_LENGTH=32768`
+rather than reconfiguring a shared provider. The probe isolates application
+state, disables other providers, and verifies model-generated tool calls,
+unchanged inputs, and computed file bytes through desktop v1 and public RPC v2.
+Its JSON evidence fingerprints the candidate manifest, tested engines, probe,
+and prompt without retaining transcripts or credentials.
+
+The current Linux candidate passed both real-provider paths with `qwen3:8b`.
+Earlier trials failed provider/output gates; this is functional smoke evidence,
+not a completion-reliability or performance certification.
 
 The manual **Workbench release qualification** workflow (`workbench.yml`) runs
 on the product-private Linux, Intel Mac, and Windows builders:
@@ -338,10 +360,10 @@ Stable goals and required promotion gates:
 - Before replacing engine modules with Rust, prove behavior, restart,
   persistence/session-tree, inherited host-tool, plugin/provider, and compiled
   worker parity against the compatibility engine and actual consumers.
-- Complete provider-backed chat/tool turns, populated task/subagent workflows,
-  full accessibility verification, and the remaining native-platform workflows.
-  Local transport and Linux editor checks do not substitute for deployed
-  CloudCastle or live CAD/provider qualification.
+- Complete populated task/subagent workflows, full accessibility verification,
+  and the remaining native-platform workflows. Local transport, Linux editor,
+  and isolated Ollama checks do not substitute for deployed CloudCastle or
+  live CAD/provider qualification.
 - Qualify native Windows/macOS and ARM separately, and sign/notarize candidate
   distributions through trusted release lanes. None of those gates is claimed
   here.

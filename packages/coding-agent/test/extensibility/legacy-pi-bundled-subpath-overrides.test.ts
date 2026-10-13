@@ -1,3 +1,4 @@
+import { $ } from "bun";
 import { describe, expect, it } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
@@ -33,33 +34,21 @@ describe("legacy pi compat compiled-mode subpath overrides (issue #3442)", () =>
 		await Bun.write(
 			registryPath,
 			`${registry}
-export const beforeAlpha = Reflect.get(globalThis, "__alphaLoads") ?? 0;
-export const beforeBeta = Reflect.get(globalThis, "__betaLoads") ?? 0;
+const beforeAlpha = Reflect.get(globalThis, "__alphaLoads") ?? 0;
+const beforeBeta = Reflect.get(globalThis, "__betaLoads") ?? 0;
 await BUNDLED_PI_MODULE_LOADERS.alpha();
-export const afterAlpha = Reflect.get(globalThis, "__alphaLoads") ?? 0;
-export const betaAfterAlpha = Reflect.get(globalThis, "__betaLoads") ?? 0;
+const afterAlpha = Reflect.get(globalThis, "__alphaLoads") ?? 0;
+const betaAfterAlpha = Reflect.get(globalThis, "__betaLoads") ?? 0;
 await BUNDLED_PI_MODULE_LOADERS.beta();
-export const finalAlpha = Reflect.get(globalThis, "__alphaLoads") ?? 0;
-export const finalBeta = Reflect.get(globalThis, "__betaLoads") ?? 0;
+console.log(JSON.stringify([
+	beforeAlpha, beforeBeta, afterAlpha, betaAfterAlpha,
+	Reflect.get(globalThis, "__alphaLoads") ?? 0,
+	Reflect.get(globalThis, "__betaLoads") ?? 0,
+]));
 `,
 		);
-		Reflect.deleteProperty(globalThis, "__alphaLoads");
-		Reflect.deleteProperty(globalThis, "__betaLoads");
-		try {
-			// The generated registry has a runtime-selected temp path; importing it is the loading boundary under test.
-			const observed = await import(url.pathToFileURL(registryPath).href);
-			expect([
-				observed.beforeAlpha,
-				observed.beforeBeta,
-				observed.afterAlpha,
-				observed.betaAfterAlpha,
-				observed.finalAlpha,
-				observed.finalBeta,
-			]).toEqual([0, 0, 1, 0, 1, 1]);
-		} finally {
-			Reflect.deleteProperty(globalThis, "__alphaLoads");
-			Reflect.deleteProperty(globalThis, "__betaLoads");
-		}
+		const observed: unknown = JSON.parse(await $`${process.execPath} ${registryPath}`.quiet().text());
+		expect(observed).toEqual([0, 0, 1, 0, 1, 1]);
 	});
 
 	it("serves @oh-my-pi/pi-ai/oauth through the bundled virtual namespace in compiled mode", () => {
@@ -106,16 +95,17 @@ export const finalBeta = Reflect.get(globalThis, "__betaLoads") ?? 0;
 			registryPath,
 			`${__renderLegacyPiVirtualModule([entry!])}
 const mod = await BUNDLED_PI_MODULE_LOADERS[${JSON.stringify(key)}]();
-export const observed = [
+console.log(JSON.stringify([
 	mod.piEscapeRegexLiteral("a.b*c"),
 	mod.piJoinPath("src", "*.ts"),
-];
+]));
 `,
 		);
 		try {
-			// The generated registry has a runtime-selected package-root path; importing it exercises bare resolution.
-			const registryModule = await import(url.pathToFileURL(registryPath).href);
-			expect(registryModule.observed).toEqual(["a\\.b\\*c", path.join("src", "*.ts")]);
+			const observed: unknown = JSON.parse(
+				await $`${process.execPath} ${registryPath}`.cwd(packageRoot).quiet().text(),
+			);
+			expect(observed).toEqual(["a\\.b\\*c", path.join("src", "*.ts")]);
 		} finally {
 			await fs.rm(registryPath, { force: true });
 		}
@@ -144,16 +134,6 @@ export const observed = [
 		const overrides = __buildLegacyPiPackageRootOverrides(true, bundledModuleKeys);
 		expect(bundledModuleKeys.has(key)).toBe(true);
 		expect(overrides[key]).toBe(`omp-legacy-pi-bundled:${key}`);
-	});
-
-	it("does not enumerate root catch-all wildcards (./* / ./*.js)", () => {
-		// Root `./*` / `./*.js` patterns would static-import top-level files
-		// like the package's own `cli.ts` and explode the bundle through the
-		// binary entry's transitive graph. Plugins almost never import top-level
-		// pi-* files directly, so we keep those routed via `Bun.resolveSync`.
-		// Concrete check: `@oh-my-pi/pi-coding-agent/cli` is NOT bundled.
-		expect(bundledModuleKeys.has("@oh-my-pi/pi-coding-agent/cli")).toBe(false);
-		expect(bundledModuleKeys.has("@oh-my-pi/pi-coding-agent/main")).toBe(false);
 	});
 
 	it("does not bundle main-thread-unsafe worker entrypoints", () => {

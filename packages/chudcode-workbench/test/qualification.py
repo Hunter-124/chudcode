@@ -195,8 +195,10 @@ def run_process(
             if process.returncode != 0:
                 stderr.seek(0)
                 diagnostic = stderr.read(8192).decode("utf-8", errors="replace")
+                standard_output = output[:8192].decode("utf-8", errors="replace")
                 raise SmokeError(
-                    f"Command failed ({process.returncode}): {command[0]} {command[1:]}; {diagnostic}"
+                    f"Command failed ({process.returncode}): {command[0]} {command[1:]}; "
+                    f"stderr: {diagnostic}; stdout: {standard_output}"
                 )
             return output.decode("utf-8", errors="strict").strip()
         except subprocess.TimeoutExpired as error:

@@ -119,6 +119,14 @@ jobs:
         with:
           node-version: '24'
           package-manager-cache: false
+      - name: Install portable Python tooling without a system installer
+        if: runner.os == 'Windows'
+        uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+        with:
+          version: latest-known
+          python-version: '3.11'
+          enable-cache: false
+          cache-local-path: ${{ runner.temp }}/workbench-uv-cache
       - name: Expose installed Git Bash for toolchain actions
         if: runner.os == 'Windows'
         shell: powershell
@@ -187,13 +195,14 @@ jobs:
       - name: Qualify and archive the actual Windows workbench
         env:
           PI_NATIVE_VARIANT: baseline
+          UV_PYTHON_INSTALL_DIR: ${{ runner.tool_cache }}/workbench-python
         if: runner.os == 'Windows'
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
-          python -m unittest discover -s packages/chudcode-workbench/test -p test_qualification.py -v
+          uv run --no-project python -m unittest discover -s packages/chudcode-workbench/test -p test_qualification.py -v
           if ($LASTEXITCODE -ne 0) { throw 'Qualification process ownership tests failed' }
-          python packages/chudcode-workbench/scripts/qualify.py --output "$env:RUNNER_TEMP/workbench-qualified" --launcher "$env:CARGO_TARGET_DIR/release/chudcode-desktop.exe" --engine "$env:RUNNER_TEMP/workbench-engine"
+          uv run --no-project python packages/chudcode-workbench/scripts/qualify.py --output "$env:RUNNER_TEMP/workbench-qualified" --launcher "$env:CARGO_TARGET_DIR/release/chudcode-desktop.exe" --engine "$env:RUNNER_TEMP/workbench-engine"
           if ($LASTEXITCODE -ne 0) { throw 'Native workbench qualification failed' }
       - name: Attach qualified Unix archive and evidence to the draft
         if: runner.os != 'Windows'

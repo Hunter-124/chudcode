@@ -25,6 +25,7 @@ sys.dont_write_bytecode = True
 sys.path.insert(
     0, str(Path(__file__).resolve().parents[1] / "packages/chudcode-workbench/test")
 )
+from package_chudcode_workbench import digest
 from qualification import (
     JsonProcess,
     SmokeError,
@@ -354,8 +355,6 @@ def main() -> int:
             check = check_candidate(binary, root, environment, arguments.timeout)
             service = smoke_service(check, root, environment, arguments.timeout)
             rpc = smoke_rpc(check, root, environment, arguments.timeout)
-            with binary.open("rb") as stream:
-                digest = hashlib.file_digest(stream, "sha256").hexdigest()
             print(
                 json.dumps(
                     {
@@ -363,7 +362,7 @@ def main() -> int:
                         "stable_ready": False,
                         "version": check["version"],
                         "target": check.get("target"),
-                        "launcher_sha256": digest,
+                        "launcher_sha256": digest(binary),
                         "launcher_check": "passed",
                         "service": service,
                         "retained_rpc": rpc,

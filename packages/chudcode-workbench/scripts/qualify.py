@@ -419,6 +419,10 @@ def qualify(options: argparse.Namespace) -> dict:
             )
         )
         signing = native_signing_observation(bundle, target, state, environment)
+        print(
+            json.dumps({"nativeSigningObservation": signing}, sort_keys=True),
+            file=sys.stderr,
+        )
         # Re-signing changes Electron binaries/resources: bind the resulting bytes.
         manifest_path = bundle / "candidate-manifest.json"
         manifest = assembler.load_json(manifest_path)
@@ -491,7 +495,7 @@ def qualify(options: argparse.Namespace) -> dict:
                 raise ValueError(
                     "Native Linux extension-host qualification requires xvfb-run"
                 )
-            command = [xvfb, "-a", *command]
+            command = [xvfb, "-a", "-e", "/dev/stderr", *command]
         extension_host = json_probe(command, state, environment, 300)
         if (
             extension_host.get("qualification") != "real-code-oss-extension-host-only"
