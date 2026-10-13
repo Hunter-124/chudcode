@@ -119,6 +119,15 @@ jobs:
         with:
           node-version: '24'
           package-manager-cache: false
+      - name: Expose installed Git Bash for toolchain actions
+        if: runner.os == 'Windows'
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $gitDirectory = Split-Path (Get-Command git.exe -ErrorAction Stop).Source
+          $bin = Join-Path $gitDirectory '..\bin'
+          if (-not (Test-Path -LiteralPath (Join-Path $bin 'bash.exe') -PathType Leaf)) { throw 'The installed Git for Windows Bash is missing' }
+          (Resolve-Path -LiteralPath $bin).Path | Out-File -Append -Encoding ascii $env:GITHUB_PATH
       - uses: dtolnay/rust-toolchain@686976e191b89faba57d3206551f0f330d8cb249
         with:
           toolchain: nightly-2026-08-12
