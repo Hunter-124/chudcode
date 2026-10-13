@@ -205,8 +205,13 @@ def run_process(
                 )
             return output.decode("utf-8", errors="strict").strip()
         except subprocess.TimeoutExpired as error:
+            stderr.seek(0)
+            diagnostic = stderr.read(8192).decode("utf-8", errors="replace")
+            stdout.seek(0)
+            standard_output = stdout.read(8192).decode("utf-8", errors="replace")
             raise SmokeError(
-                f"Command timed out: {command[0]} {command[1:]}"
+                f"Command timed out: {command[0]} {command[1:]}; "
+                f"stderr: {diagnostic}; stdout: {standard_output}"
             ) from error
         finally:
             # Wrapper probes own their own process groups. Give their installed
@@ -250,6 +255,14 @@ def check_candidate(
         value = check.get(name)
         if not isinstance(value, str) or not Path(value).is_absolute():
             raise SmokeError(f"Launcher --check omitted absolute {name} path")
+    root = Path(check["root"])
+    if not root.samefile(binary.parent):
+        raise SmokeError("Launcher --check points outside the invoked candidate")
+    # Rust canonicalization emits Windows verbatim paths. Rebase on Python's
+    # resolved executable spelling before passing paths to Code-OSS URI/module
+    # resolution, which cannot consume a verbatim extension-development path.
+    for name in ("root", "editor", "service", "chud", "extension"):
+        check[name] = str(binary.parent / Path(check[name]).relative_to(root))
     for name in ("editor", "service", "chud"):
         executable(Path(check[name]))
     extension = Path(check["extension"])

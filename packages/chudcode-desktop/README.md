@@ -292,6 +292,10 @@ re-signing preserves observed Electron entitlements but is not Developer ID
 signing or notarization. Signing prerequisite observations do not imply trust.
 The probes support Python 3.9 and newer. The Windows lane uses `uv` to obtain
 portable Python in product-private storage, without a system Python installer.
+Windows probes translate validated native canonical paths to the launcher's
+ordinary path spelling before passing them to Code-OSS URI/module loaders.
+Editor probes enable verbose startup output; command timeouts retain bounded
+stdout/stderr diagnostics without preserving private application profiles.
 
 Live-provider qualification is a separate, explicit opt-in:
 

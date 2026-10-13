@@ -95,6 +95,7 @@ def main() -> int:
                 [
                     str(binary),
                     "--new-window",
+                    "--verbose",
                     "--wait",
                     "--disable-workspace-trust",
                     "--skip-welcome",
