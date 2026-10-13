@@ -349,12 +349,13 @@ become the product's latest release: the CLI updater expects the product tag
 namespace. Stable promotion belongs in a subsequent qualified product release,
 with existing published versions and downstream pins preserved.
 
-At commit `b385fb3d65`, the native Linux archive lane passed. Windows reached
-New Session but failed its catalog lookup despite the new file being listed;
-Code-OSS and the catalog used different native path spellings. Desktop session
-identities now use the shared real-path/case-comparison convention for catalog
-results, live tabs, and addressed operations. Native Windows requalification
-is still required.
+At commit `75440f9757`, native Linux and Windows archive qualification passed in
+[run 38459771719](https://github.com/Hunter-124/chudcode/actions/runs/38459771719).
+Archives, checksums, and source-bound reports are staged in unpublished draft
+`chudcode-workbench-v0.4.3-rc.8`. The Windows New Session failure was fixed by
+using the shared real-path/case-comparison convention for catalog results,
+live tabs, and addressed operations. The native editor probe also exercised
+drive-letter aliases, dirty-draft protection, zero-tab reopen, and restart.
 
 The Mac runner reported UID 422 under the System bootstrap while `/dev/console`
 belonged to UID 501; its own `gui/422` domain was unavailable, and the editor
@@ -419,19 +420,24 @@ RSS/CPU at readiness. It does not measure peak/tree memory or GUI performance.
 Use release-profile native inputs for both variants and the shipping identifier
 minification setting; a development-built addon distorted earlier measurements.
 
-Observed on this Linux host against immutable published 0.4.3, with 40 pairs:
+Observed on this Linux host after the session-identity fix, against immutable
+published 0.4.3, with 40 pairs:
 
 | Measure | Published 0.4.3 | Candidate |
 |---|---:|---:|
-| RPC readiness median (ms) | 1410 | 1446 |
-| RPC readiness p95 (ms) | 2058 | 1987 |
-| `get_state` median (ms) | 0.698 | 0.717 |
-| Root-PID RSS at readiness, median (MiB) | 354.4 | 355.3 |
-| Root-PID CPU at readiness, median (s) | 1.52 | 1.52 |
+| RPC readiness median (ms) | 1317 | 1309 |
+| RPC readiness p95 (ms) | 1990 | 2414 |
+| `get_state` median (ms) | 0.603 | 0.593 |
+| Root-PID RSS at readiness, median (MiB) | 357.2 | 356.1 |
+| Root-PID RSS at readiness, maximum (MiB) | 362.2 | 861.4 |
+| Root-PID CPU at readiness, median (s) | 1.42 | 1.42 |
 
-The paired readiness delta median was +6.3 ms, with substantial timing variance.
-This is not evidence of a speedup. A larger decompression-buffer experiment was
-rejected because it retained substantially more memory; it is not shipped.
+The paired readiness delta median was +1.4 ms, with substantial timing variance.
+Candidate p95 readiness was higher, and one candidate run had a large readiness
+RSS outlier. All 40 pairs completed real RPC/EOF lifecycles, but these results
+do not establish a speedup or memory-stability certification. A larger
+decompression-buffer experiment was rejected because it retained substantially
+more memory; it is not shipped.
 
 Stable goals and required promotion gates:
 
@@ -445,9 +451,10 @@ Stable goals and required promotion gates:
   and deployed-consumer checks. One populated Linux task/subagent workflow
   passed; local transport, editor, and isolated Ollama checks do not substitute
   for deployed CloudCastle or live CAD/provider qualification.
-- Qualify native Windows/macOS and ARM separately, and sign/notarize candidate
-  distributions through trusted release lanes. None of those gates is claimed
-  here.
+- Complete native macOS and ARM execution, Windows interactive/assistive-technology
+  coverage beyond the extension-host probe, and trusted distribution
+  signing/notarization. Passing Linux/Windows candidate probes does not close
+  those remaining gates.
 - Qualify baseline-x64 ISA on appropriate hardware. The Linux baseline addon
   was built and forced through compiled workers, RPC, and editor qualification
   on the current host using `PI_NATIVE_VARIANT=baseline`. This does not establish
