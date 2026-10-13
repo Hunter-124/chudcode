@@ -8,11 +8,17 @@
 - Added an opt-in, unpublished Code-OSS workbench candidate with a Rust launcher and existing Chudcode agent compatibility service; stable GUI/CLI releases and downstream RPC/SDK pins remain unchanged.
 - Added native workbench archive qualification with checksum-bound reports and an isolated Linux, macOS, and Windows draft-release lane that leaves published releases and downstream pins untouched.
 - Added opt-in live-provider workbench qualification that verifies real file operations through desktop and public RPC transports without using existing application state.
+- Added a checksum-verified Linux RPC startup benchmark for comparing release candidates with published binaries using isolated profiles and paired measurements.
+
+### Changed
+
+- Workbench candidate binaries now use the same identifier minification as shipping CLI binaries.
 
 ### Fixed
 
 - Workbench candidates preserve dirty session drafts across tab switches and view recreation without clearing another connection's unsaved state.
 - Workbench editor shared storage remains separate from stock Code-OSS and VSCodium profiles.
+- Workbench sessions no longer appear to keep running solely because next-turn messages are queued; closing or deleting still protects pending work.
 - Interrupting a Python eval cell parked on an async tool call now cancels the cell without killing its kernel or losing retained variables; synchronous cell interruption remains supported.
 - Eval calls to RPC host tools (`tool.<host tool>(...)` or `write xd://<host tool>`) no longer use the cell `timeout` budget, like `agent()` waits; a turn cancel still cancels the host call.
 - A timed-out Python cell now says whether the kernel kept its state: the host sends a liveness ping after the interrupt instead of assuming the kernel still runs.

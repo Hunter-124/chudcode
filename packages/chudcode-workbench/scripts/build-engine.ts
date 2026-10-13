@@ -77,6 +77,7 @@ async function main(): Promise<void> {
 					outfile,
 					transformersVersion: manifest.version,
 					target: cross?.target,
+					minifyIdentifiers: true,
 					executablePath: Bun.env.BUN_COMPILE_EXECUTABLE_PATH || undefined,
 					skipBuiltinCodesign: sign,
 				});

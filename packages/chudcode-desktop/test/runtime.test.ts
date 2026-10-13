@@ -786,6 +786,53 @@ describe("desktop runtime", () => {
 		await harness.runtime.dispose();
 	});
 
+	it("shows queued-only sessions as idle without discarding their pending work on close or delete", async () => {
+		const harness = multiSessionHarness();
+		const one = harness.sessionFor("/sessions/one.jsonl");
+		one.queuedMessageCount = 3;
+		try {
+			const tabs = await harness.runtime.handleRequest({
+				t: "request",
+				id: 1,
+				method: "session.tabs",
+				params: {},
+			});
+			expect(tabs).toMatchObject({
+				result: { tabs: [expect.objectContaining({ path: "/sessions/one.jsonl", running: false })] },
+			});
+			expect(
+				await harness.runtime.handleRequest({
+					t: "request",
+					id: 2,
+					method: "session.tab.close",
+					params: { path: "/sessions/one.jsonl" },
+				}),
+			).toMatchObject({ result: { closed: false, blockedReason: "running" } });
+			expect(
+				await harness.runtime.handleRequest({
+					t: "request",
+					id: 3,
+					method: "session.delete",
+					params: { path: "/sessions/one.jsonl" },
+				}),
+			).toMatchObject({ result: { deleted: false } });
+			expect(one.disposed).toBe(0);
+			expect(one.queuedMessageCount).toBe(3);
+			expect(
+				await harness.runtime.handleRequest({
+					t: "request",
+					id: 4,
+					method: "session.tab.close",
+					params: { path: "/sessions/one.jsonl", force: true },
+				}),
+			).toMatchObject({ result: { closed: true } });
+			expect(one.abortCalls).toBe(1);
+			expect(one.disposed).toBe(1);
+		} finally {
+			await harness.runtime.dispose();
+		}
+	});
+
 	it("guards deletion before closing the runtime and deletes only after a clean close", async () => {
 		const harness = multiSessionHarness();
 		const one = harness.sessionFor("/sessions/one.jsonl");

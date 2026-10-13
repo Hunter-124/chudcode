@@ -68,12 +68,10 @@ async function run() {
 	assert.ok(typeof opened.workspace.id === "string" && opened.workspace.id.length > 0);
 	const workspaceId = opened.workspace.id;
 	const file = vscode.Uri.file(path.join(cwd, "qualification.txt"));
-	const initial = "Real isolated Code-OSS workspace\n";
-	const saved = "Saved through the native workbench document API\n";
 	const written = "Written through the real desktop service\n";
 	const external = "External update that must not be overwritten\n";
-	assert.equal(await fs.readFile(file.fsPath, "utf8"), initial);
 	const document = await vscode.workspace.openTextDocument(file);
+	const saved = `Saved through the native workbench document API${document.eol === vscode.EndOfLine.CRLF ? "\r\n" : "\n"}`;
 	await vscode.window.showTextDocument(document, { preview: false });
 	const edit = new vscode.WorkspaceEdit();
 	edit.replace(file, new vscode.Range(document.positionAt(0), document.positionAt(document.getText().length)), saved);
@@ -108,8 +106,9 @@ async function run() {
 	assert.equal(refreshed.document.text, external);
 	assert.equal(refreshed.document.stamp.sha256, sha256(external));
 	const outside = vscode.Uri.file(path.join(root, "outside.txt"));
+	const outsideBefore = await fs.readFile(outside.fsPath, "utf8");
 	await assert.rejects(request("workspace.read", { workspaceId, uri: outside.toString() }), /outside the workspace/i);
-	assert.equal(await fs.readFile(outside.fsPath, "utf8"), "Outside workspace sentinel\n");
+	assert.equal(await fs.readFile(outside.fsPath, "utf8"), outsideBefore);
 	assert.equal(api.serviceState, "ready");
 	evidence.checks.push("real workspace read/write hashes, stale-write rejection, and path containment");
 

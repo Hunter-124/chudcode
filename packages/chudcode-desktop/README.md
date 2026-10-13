@@ -296,6 +296,9 @@ Windows probes translate validated native canonical paths to the launcher's
 ordinary path spelling before passing them to Code-OSS URI/module loaders.
 Editor probes enable verbose startup output; command timeouts retain bounded
 stdout/stderr diagnostics without preserving private application profiles.
+Native editor save checks preserve the document's LF or CRLF convention.
+Mac reports include the runner UID, console UID, and launchd manager observations;
+a headless Mac runner is not equivalent to a logged-in Aqua session.
 
 Live-provider qualification is a separate, explicit opt-in:
 
@@ -334,7 +337,7 @@ namespace. Stable promotion belongs in a subsequent qualified product release,
 with existing published versions and downstream pins preserved.
 
 Observed on the current Linux host: `bun check`, the Rust gate (3087 passing
-tests, six skipped, plus doctests), desktop tests (146), compiled service tests
+tests, six skipped, plus doctests), desktop tests (147), compiled service tests
 (seven), isolated SDK tests (92 plus 19 subtests), and assembler tests (17)
 passed. Real compiled CLI/service worker probes, assembled desktop v1/RPC v2
 smoke, owner-EOF cleanup, and the actual CAD
@@ -355,15 +358,44 @@ accessibility workflows, or other operating systems.
 The native editor regression also verifies that switching sessions preserves
 service-owned dirty-draft state. Initializing an empty webview composer does not
 clear another connection's draft flag; observed closed-tab drafts are discarded.
+Queued next-turn messages do not keep an otherwise idle tab marked as running.
+They still block an ordinary close or delete; force-close explicitly aborts
+pending work before teardown.
 
 Code graphs still require Graphify output or a trusted service-side LSP
 configuration. Installing an editor language extension alone does not configure
 the compatibility service; missing graph sources fail visibly.
 
-Final-bundle current-host observations were service readiness **1723 ms** and
-CLI RPC readiness **338 ms**. They are not comparative benchmarks or evidence of
-a speedup. Profile comparative startup, latency, memory, and CPU distributions
-with controlled workloads before making performance claims.
+Linux RPC startup comparison is reproducible against an explicitly selected,
+checksum-verified published binary:
+
+```sh
+python3 packages/chudcode-workbench/scripts/benchmark_startup.py \
+  --baseline "$baseline" --baseline-sha256 "$baseline_sha256" \
+  --baseline-version 0.4.3 --candidate "$candidate/chud" \
+  --candidate-version 0.4.3 --pairs 40
+```
+
+The probe alternates baseline/candidate order, excludes two warmup pairs, and
+creates a private profile for every lifecycle. It measures real RPC readiness,
+v2 negotiation, `get_state`, successful stdin-EOF shutdown, and Linux root-PID
+RSS/CPU at readiness. It does not measure peak/tree memory or GUI performance.
+Use release-profile native inputs for both variants and the shipping identifier
+minification setting; a development-built addon distorted earlier measurements.
+
+Observed on this Linux host against immutable published 0.4.3, with 40 pairs:
+
+| Measure | Published 0.4.3 | Candidate |
+|---|---:|---:|
+| RPC readiness median (ms) | 1410 | 1446 |
+| RPC readiness p95 (ms) | 2058 | 1987 |
+| `get_state` median (ms) | 0.698 | 0.717 |
+| Root-PID RSS at readiness, median (MiB) | 354.4 | 355.3 |
+| Root-PID CPU at readiness, median (s) | 1.52 | 1.52 |
+
+The paired readiness delta median was +6.3 ms, with substantial timing variance.
+This is not evidence of a speedup. A larger decompression-buffer experiment was
+rejected because it retained substantially more memory; it is not shipped.
 
 Stable goals and required promotion gates:
 

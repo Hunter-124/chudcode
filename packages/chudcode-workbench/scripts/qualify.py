@@ -418,6 +418,24 @@ def qualify(options: argparse.Namespace) -> dict:
                 extension=options.extension,
             )
         )
+        process_session = None
+        if target == "darwin-x64":
+            process_session = {
+                "uid": os.getuid(),
+                "consoleUid": Path("/dev/console").stat().st_uid,
+                "launchdManager": observed_command(
+                    ["launchctl", "managername"], state, environment, 15
+                ),
+                "launchdManagerUid": observed_command(
+                    ["launchctl", "manageruid"], state, environment, 15
+                ),
+            }
+            print(
+                json.dumps(
+                    {"nativeSessionObservation": process_session}, sort_keys=True
+                ),
+                file=sys.stderr,
+            )
         signing = native_signing_observation(bundle, target, state, environment)
         print(
             json.dumps({"nativeSigningObservation": signing}, sort_keys=True),
@@ -564,6 +582,7 @@ def qualify(options: argparse.Namespace) -> dict:
             "payloadInventory": expected,
             "checks": checks,
             "signing": signing,
+            "nativeSession": process_session,
             "nativeCpu": {
                 "requestedVariant": environment.get("PI_NATIVE_VARIANT", "automatic"),
                 "baselineHardwareQualified": False,

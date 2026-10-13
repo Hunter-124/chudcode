@@ -391,7 +391,7 @@ export class DesktopRuntime {
 				}
 				case "session.delete": {
 					const managed = this.#managed.get(this.#key(request.params.path));
-					if (managed && (managed.service.running || managed.draftDirty)) {
+					if (managed && (managed.service.busy || managed.draftDirty)) {
 						return { t: "response", id: request.id, method: "session.delete", result: { deleted: false } };
 					}
 					const catalog = managed?.service.catalog ?? this.#catalog;
@@ -421,7 +421,7 @@ export class DesktopRuntime {
 							result: { closed: false, tabs: this.#tabs() },
 						};
 					}
-					if (!request.params.force && managed.service.running) {
+					if (!request.params.force && managed.service.busy) {
 						return {
 							t: "response",
 							id: request.id,
@@ -939,7 +939,7 @@ export class DesktopRuntime {
 	}
 
 	async #closeManaged(managed: ManagedSession, force: boolean): Promise<void> {
-		if (force && managed.service.running) await managed.service.abort();
+		if (force && managed.service.busy) await managed.service.abort();
 		await this.#teardownManaged(managed);
 		this.#managed.delete(managed.path);
 		if (this.#activePath === managed.path) {

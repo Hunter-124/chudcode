@@ -590,12 +590,12 @@ export class SessionService {
 	}
 
 	get running(): boolean {
-		return (
-			this.#promptInFlight > 0 ||
-			this.#session.isStreaming ||
-			this.#session.isAborting ||
-			this.#session.queuedMessageCount > 0
-		);
+		return this.#promptInFlight > 0 || this.#session.isStreaming || this.#session.isAborting;
+	}
+
+	/** Queued next-turn work must survive even when no response is running. */
+	get busy(): boolean {
+		return this.running || this.#session.queuedMessageCount > 0;
 	}
 
 	sendPrompt(text: string, images?: ImageContent[]): Promise<boolean> {
@@ -622,7 +622,7 @@ export class SessionService {
 	}
 
 	async abort(): Promise<boolean> {
-		const accepted = this.running;
+		const accepted = this.busy;
 		await this.#session.abort({ reason: USER_INTERRUPT_LABEL });
 		return accepted;
 	}
