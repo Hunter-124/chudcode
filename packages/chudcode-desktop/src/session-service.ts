@@ -482,15 +482,111 @@ const defaultCatalog: SessionCatalog = {
 	togglePin: async id => await toggleSessionPin(id),
 };
 
-/** Session protocol verbs backed only by AgentSession/SessionManager and the global pin store. */
+function normalizeSessionTitle(title: string): string {
+	const cleanTitle = title.trim();
+	if (!cleanTitle) throw new SessionServiceError("INVALID_TITLE", "Session title cannot be empty");
+	return cleanTitle;
+}
+
+/** Persisted-session operations with no live AgentSession or lifetime-bound resources. */
+export class SessionCatalogService {
+	readonly #catalog: SessionCatalog;
+
+	constructor(catalog: SessionCatalog = defaultCatalog) {
+		this.#catalog = catalog;
+	}
+
+	async list(cwd?: string): Promise<DesktopSessionInfo[]> {
+		const [sessions, pins] = await Promise.all([this.#catalog.list(cwd), this.#catalog.loadPins()]);
+		return sessions.map(session => this.#toDesktopInfo(session, pins.has(session.id)));
+	}
+
+	async rename(sessionPath: string, title: string): Promise<DesktopSessionInfo> {
+		const cleanTitle = normalizeSessionTitle(title);
+		const stored = await this.requireSession(sessionPath);
+		const manager = await this.#catalog.openForRename(stored);
+		try {
+			const renamed = await manager.setSessionName(cleanTitle, "user");
+			if (!renamed) throw new SessionServiceError("INVALID_TITLE", "Session title was rejected");
+		} finally {
+			await manager.close();
+		}
+		return await this.requireDesktopInfo(stored.path);
+	}
+
+	async pin(sessionPath: string, pinned: boolean): Promise<DesktopSessionInfo> {
+		const stored = await this.requireSession(sessionPath);
+		const pins = await this.#catalog.loadPins();
+		if (pins.has(stored.id) !== pinned) {
+			const actual = await this.#catalog.togglePin(stored.id);
+			if (actual !== pinned) throw new SessionServiceError("PIN_WRITE_FAILED", "Session pin state did not persist");
+		}
+		const refreshed = await this.requireSession(stored.path);
+		return this.#toDesktopInfo(refreshed, pinned);
+	}
+
+	async deleteStored(sessionPath: string): Promise<boolean> {
+		const stored = await this.requireSession(sessionPath);
+		await this.#catalog.delete(stored.path);
+		return true;
+	}
+
+	async requireDesktopInfo(sessionPath: string, cwd?: string): Promise<DesktopSessionInfo> {
+		const stored = await this.requireSession(sessionPath, cwd);
+		const pins = await this.#catalog.loadPins();
+		return this.#toDesktopInfo(stored, pins.has(stored.id));
+	}
+
+	async requireSession(sessionPath: string, cwd?: string): Promise<SessionInfo> {
+		const requested = path.resolve(sessionPath);
+		const sessions = await this.#catalog.list(cwd);
+		const stored = sessions.find(candidate => path.resolve(candidate.path) === requested);
+		if (!stored) throw new SessionServiceError("SESSION_NOT_FOUND", "Session was not found");
+		return stored;
+	}
+
+	#toDesktopInfo(session: SessionInfo, pinned: boolean): DesktopSessionInfo {
+		return {
+			id: session.id,
+			path: session.path,
+			cwd: session.cwd,
+			title: session.title,
+			parentSessionPath: session.parentSessionPath,
+			createdMs: session.created.getTime(),
+			modifiedMs: session.modified.getTime(),
+			messageCount: session.messageCount,
+			size: session.size,
+			status: this.#status(session.status),
+			pinned,
+		};
+	}
+
+	#status(status: SessionStatus | undefined): DesktopSessionInfo["status"] {
+		switch (status) {
+			case "complete":
+				return "completed";
+			case "error":
+				return "failed";
+			case "interrupted":
+			case "aborted":
+				return "interrupted";
+			case "pending":
+				return "active";
+			default:
+				return undefined;
+		}
+	}
+}
+
+/** Live-session protocol verbs backed by AgentSession and the shared persisted catalog. */
 export class SessionService {
 	readonly #session: DesktopAgentSession;
-	readonly #catalog: SessionCatalog;
+	readonly catalog: SessionCatalogService;
 	#promptInFlight = 0;
 
 	constructor(session: DesktopAgentSession, options: SessionServiceOptions = {}) {
 		this.#session = session;
-		this.#catalog = options.catalog ?? defaultCatalog;
+		this.catalog = new SessionCatalogService(options.catalog);
 	}
 
 	get running(): boolean {
@@ -531,13 +627,8 @@ export class SessionService {
 		return accepted;
 	}
 
-	async list(cwd?: string): Promise<DesktopSessionInfo[]> {
-		const [sessions, pins] = await Promise.all([this.#catalog.list(cwd), this.#catalog.loadPins()]);
-		return sessions.map(session => this.#toDesktopInfo(session, pins.has(session.id)));
-	}
-
 	async select(sessionPath: string): Promise<WireSessionSnapshot> {
-		const stored = await this.#requireSession(sessionPath);
+		const stored = await this.catalog.requireSession(sessionPath);
 		const switched = await this.#session.switchSession(stored.path);
 		if (!switched) throw new SessionServiceError("SESSION_CANCELLED", "Session selection was cancelled");
 		return toWireSessionSnapshot(this.#session.sessionManager.snapshotForReplication());
@@ -556,7 +647,7 @@ export class SessionService {
 	async fork(sessionPath: string, entryId?: string): Promise<SessionForkResult> {
 		if (this.#session.isStreaming)
 			throw new SessionServiceError("SESSION_BUSY", "Wait for the active run to finish before forking");
-		const stored = await this.#requireSession(sessionPath);
+		const stored = await this.catalog.requireSession(sessionPath);
 		const activePath = this.#session.sessionManager.getSessionFile();
 		if (!activePath || path.resolve(activePath) !== path.resolve(stored.path)) {
 			const switched = await this.#session.switchSession(stored.path);
@@ -579,45 +670,20 @@ export class SessionService {
 	}
 
 	async rename(sessionPath: string, title: string): Promise<DesktopSessionInfo> {
-		const cleanTitle = title.trim();
-		if (!cleanTitle) throw new SessionServiceError("INVALID_TITLE", "Session title cannot be empty");
-		const stored = await this.#requireSession(sessionPath);
 		const activePath = this.#session.sessionManager.getSessionFile();
-		if (activePath && path.resolve(activePath) === path.resolve(stored.path)) {
-			const renamed = await this.#session.setSessionName(cleanTitle, "user");
-			if (!renamed) throw new SessionServiceError("INVALID_TITLE", "Session title was rejected");
-		} else {
-			const manager = await this.#catalog.openForRename(stored);
-			try {
-				const renamed = await manager.setSessionName(cleanTitle, "user");
-				if (!renamed) throw new SessionServiceError("INVALID_TITLE", "Session title was rejected");
-			} finally {
-				await manager.close();
-			}
+		if (!activePath || path.resolve(activePath) !== path.resolve(sessionPath)) {
+			return await this.catalog.rename(sessionPath, title);
 		}
-		return await this.#requireDesktopInfo(stored.path);
-	}
-
-	async pin(sessionPath: string, pinned: boolean): Promise<DesktopSessionInfo> {
-		const stored = await this.#requireSession(sessionPath);
-		const pins = await this.#catalog.loadPins();
-		if (pins.has(stored.id) !== pinned) {
-			const actual = await this.#catalog.togglePin(stored.id);
-			if (actual !== pinned) throw new SessionServiceError("PIN_WRITE_FAILED", "Session pin state did not persist");
-		}
-		const refreshed = await this.#requireSession(stored.path);
-		return this.#toDesktopInfo(refreshed, pinned);
+		const cleanTitle = normalizeSessionTitle(title);
+		const stored = await this.catalog.requireSession(sessionPath);
+		const renamed = await this.#session.setSessionName(cleanTitle, "user");
+		if (!renamed) throw new SessionServiceError("INVALID_TITLE", "Session title was rejected");
+		return await this.catalog.requireDesktopInfo(stored.path);
 	}
 
 	async materializeActive(): Promise<DesktopSessionInfo> {
 		await this.#materializeActiveSession();
 		return await this.#activeInfo();
-	}
-
-	async deleteStored(sessionPath: string): Promise<boolean> {
-		const stored = await this.#requireSession(sessionPath);
-		await this.#catalog.delete(stored.path);
-		return true;
 	}
 
 	async #materializeActiveSession(): Promise<void> {
@@ -628,52 +694,6 @@ export class SessionService {
 	async #activeInfo(cwd?: string): Promise<DesktopSessionInfo> {
 		const activePath = this.#session.sessionManager.getSessionFile();
 		if (!activePath) throw new SessionServiceError("SESSION_NOT_PERSISTED", "Active session has no persisted path");
-		return await this.#requireDesktopInfo(activePath, cwd);
-	}
-
-	async #requireDesktopInfo(sessionPath: string, cwd?: string): Promise<DesktopSessionInfo> {
-		const stored = await this.#requireSession(sessionPath, cwd);
-		const pins = await this.#catalog.loadPins();
-		return this.#toDesktopInfo(stored, pins.has(stored.id));
-	}
-
-	async #requireSession(sessionPath: string, cwd?: string): Promise<SessionInfo> {
-		const requested = path.resolve(sessionPath);
-		const sessions = await this.#catalog.list(cwd);
-		const stored = sessions.find(candidate => path.resolve(candidate.path) === requested);
-		if (!stored) throw new SessionServiceError("SESSION_NOT_FOUND", "Session was not found");
-		return stored;
-	}
-
-	#toDesktopInfo(session: SessionInfo, pinned: boolean): DesktopSessionInfo {
-		return {
-			id: session.id,
-			path: session.path,
-			cwd: session.cwd,
-			title: session.title,
-			parentSessionPath: session.parentSessionPath,
-			createdMs: session.created.getTime(),
-			modifiedMs: session.modified.getTime(),
-			messageCount: session.messageCount,
-			size: session.size,
-			status: this.#status(session.status),
-			pinned,
-		};
-	}
-
-	#status(status: SessionStatus | undefined): DesktopSessionInfo["status"] {
-		switch (status) {
-			case "complete":
-				return "completed";
-			case "error":
-				return "failed";
-			case "interrupted":
-			case "aborted":
-				return "interrupted";
-			case "pending":
-				return "active";
-			default:
-				return undefined;
-		}
+		return await this.catalog.requireDesktopInfo(activePath, cwd);
 	}
 }

@@ -15,7 +15,10 @@
 		"url": "https://github.com/can1357/oh-my-pi/issues"
 	},
 	"license": "MIT",
-	"author": { "name": "Stencil Labs, Inc.", "url": "https://stencil.so" },
+	"author": {
+		"name": "Stencil Labs, Inc.",
+		"url": "https://stencil.so"
+	},
 	"contributors": [
 		"Mario Zechner"
 	],
@@ -55,6 +58,10 @@
 		"./*": {
 			"types": "./src/*.ts",
 			"import": "./src/*.ts"
+		},
+		"./cli": {
+			"types": "./src/cli-runtime.ts",
+			"import": "./src/cli-runtime.ts"
 		},
 		"./async": {
 			"types": "./src/async/index.ts",

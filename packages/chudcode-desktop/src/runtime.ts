@@ -31,6 +31,7 @@ import {
 } from "./protocol";
 import {
 	type DesktopAgentSession,
+	type SessionCatalogService,
 	type SessionForkResult,
 	SessionService,
 	SessionServiceError,
@@ -61,6 +62,11 @@ const TRANSCRIPT_ENTRY_TOO_LARGE_ERROR = `transcript entry exceeds transcript fe
 export interface DesktopFrameSink {
 	send(frame: DesktopFrame): boolean;
 	close(code?: number, reason?: string): void;
+}
+
+export interface DesktopClientCapabilities {
+	/** Defaults to true; control-only connections opt out of presenting extension UI. */
+	readonly presentsUi?: boolean;
 }
 
 interface RegistryRef {
@@ -218,9 +224,11 @@ export class DesktopRuntime {
 	readonly #snapshotChunkBytes: number;
 	readonly #maxOpenSessions: number;
 	readonly #clients = new Set<DesktopFrameSink>();
+	readonly #presentingClients = new Set<DesktopFrameSink>();
 	readonly #managed = new Map<string, ManagedSession>();
 	readonly #reportedWireOmissions = new WeakMap<DesktopFrameSink, Set<string>>();
 	readonly #opening = new Map<string, Promise<ManagedSession>>();
+	#catalog: SessionCatalogService;
 	#activePath: string;
 	#uiSequence = 0;
 	#pendingCreations = 0;
@@ -231,6 +239,7 @@ export class DesktopRuntime {
 		this.#snapshotChunkBytes = options.snapshotChunkBytes ?? SNAPSHOT_CHUNK_BYTES;
 		this.#maxOpenSessions = options.maxOpenSessions ?? MAX_OPEN_SESSIONS;
 		const initial = this.#createManaged(options);
+		this.#catalog = initial.service.catalog;
 		this.#activePath = initial.path;
 		this.#managed.set(initial.path, initial);
 		this.#installTaps(initial);
@@ -240,35 +249,38 @@ export class DesktopRuntime {
 		return this.#requireActive().session;
 	}
 
-	get sessions(): SessionService {
-		return this.#requireActive().service;
-	}
-
-	attach(client: DesktopFrameSink): void {
+	attach(client: DesktopFrameSink, capabilities?: DesktopClientCapabilities): void {
 		if (this.#disposed) {
 			client.close(1012, "runtime stopped");
 			return;
 		}
+		if (this.#clients.has(client)) return;
 		this.#clients.add(client);
+		if (capabilities?.presentsUi !== false) this.#presentingClients.add(client);
 		for (const managed of this.#managed.values()) this.#sendSnapshot(client, managed);
 		client.send({ t: "session-tabs", tabs: this.#tabs() });
-		for (const managed of this.#managed.values()) {
-			for (const pending of managed.pendingUi.values()) {
-				client.send({ t: "ui-request", sessionPath: managed.path, request: pending.request });
+		if (this.#presentingClients.has(client)) {
+			for (const managed of this.#managed.values()) {
+				for (const pending of managed.pendingUi.values()) {
+					client.send({ t: "ui-request", sessionPath: managed.path, request: pending.request });
+				}
 			}
 		}
 	}
 
 	detach(client: DesktopFrameSink): void {
 		this.#clients.delete(client);
-		if (this.#clients.size === 0) {
+		this.#presentingClients.delete(client);
+		if (this.#presentingClients.size === 0) {
 			for (const managed of this.#managed.values()) this.#settleAllUiRequests(managed);
 		}
 	}
 
 	broadcast(frame: DesktopEvent): void {
 		if (this.#disposed) return;
-		for (const client of this.#clients) client.send(frame);
+		const clients =
+			frame.t === "ui-request" || frame.t === "ui-request-end" ? this.#presentingClients : this.#clients;
+		for (const client of clients) client.send(frame);
 	}
 
 	async handleRequest(request: DesktopRequest): Promise<DesktopResponse> {
@@ -341,7 +353,7 @@ export class DesktopRuntime {
 					return { t: "response", id: request.id, method: "agent.transcript", result };
 				}
 				case "session.list": {
-					const sessions = await this.#catalogService().list(request.params.cwd);
+					const sessions = await this.#catalog.list(request.params.cwd);
 					return { t: "response", id: request.id, method: "session.list", result: { sessions } };
 				}
 				case "session.select": {
@@ -369,7 +381,7 @@ export class DesktopRuntime {
 				}
 				case "session.rename": {
 					const managed = this.#managed.get(this.#key(request.params.path));
-					const session = await (managed?.service ?? this.#catalogService()).rename(
+					const session = await (managed?.service ?? this.#catalog).rename(
 						request.params.path,
 						request.params.title,
 					);
@@ -382,14 +394,14 @@ export class DesktopRuntime {
 					if (managed && (managed.service.running || managed.draftDirty)) {
 						return { t: "response", id: request.id, method: "session.delete", result: { deleted: false } };
 					}
-					const service = managed?.service ?? this.#catalogService();
+					const catalog = managed?.service.catalog ?? this.#catalog;
 					if (managed) await this.#closeManaged(managed, false);
-					const deleted = await service.deleteStored(request.params.path);
-					if (this.#clients.size > 0) this.broadcast({ t: "sessions", sessions: await service.list() });
+					const deleted = await catalog.deleteStored(request.params.path);
+					if (this.#clients.size > 0) this.broadcast({ t: "sessions", sessions: await catalog.list() });
 					return { t: "response", id: request.id, method: "session.delete", result: { deleted } };
 				}
 				case "session.pin": {
-					const session = await this.#catalogService().pin(request.params.path, request.params.pinned);
+					const session = await this.#catalog.pin(request.params.path, request.params.pinned);
 					await this.#broadcastSessions();
 					return { t: "response", id: request.id, method: "session.pin", result: { session } };
 				}
@@ -532,6 +544,7 @@ export class DesktopRuntime {
 			}
 		}
 		this.#clients.clear();
+		this.#presentingClients.clear();
 		if (failures.length > 0) throw new AggregateError(failures, "Desktop runtime teardown failed");
 	}
 
@@ -590,8 +603,7 @@ export class DesktopRuntime {
 			throw new SessionServiceError("SESSION_FACTORY_UNAVAILABLE", "This runtime cannot open another live session");
 		}
 		const load = (async () => {
-			const stored = (await this.#catalogService().list()).find(candidate => this.#key(candidate.path) === key);
-			if (!stored) throw new SessionServiceError("SESSION_NOT_FOUND", "Session was not found");
+			const stored = await this.#catalog.requireSession(sessionPath);
 			const resources = await this.#sessionFactory?.({ cwd: stored.cwd, sessionPath: stored.path });
 			if (!resources) {
 				throw new SessionServiceError(
@@ -649,9 +661,7 @@ export class DesktopRuntime {
 		}
 		this.#pendingCreations += 1;
 		try {
-			const key = this.#key(sessionPath);
-			const stored = (await this.#catalogService().list()).find(candidate => this.#key(candidate.path) === key);
-			if (!stored) throw new SessionServiceError("SESSION_NOT_FOUND", "Session was not found");
+			const stored = await this.#catalog.requireSession(sessionPath);
 			const resources = await this.#sessionFactory({ cwd: stored.cwd, sessionPath: stored.path });
 			const service = resources.sessionService ?? new SessionService(resources.session);
 			resources.sessionService = service;
@@ -676,6 +686,7 @@ export class DesktopRuntime {
 
 	#setActive(managed: ManagedSession, sendSnapshot: boolean): void {
 		this.#activePath = managed.path;
+		this.#catalog = managed.service.catalog;
 		managed.unread = 0;
 		if (sendSnapshot) this.#broadcastSnapshot(managed);
 		this.#broadcastTabs();
@@ -868,8 +879,8 @@ export class DesktopRuntime {
 	}
 
 	async #broadcastSessions(): Promise<void> {
-		if (this.#clients.size === 0 || this.#managed.size === 0) return;
-		this.broadcast({ t: "sessions", sessions: await this.#catalogService().list() });
+		if (this.#clients.size === 0) return;
+		this.broadcast({ t: "sessions", sessions: await this.#catalog.list() });
 	}
 
 	#tabs(): DesktopSessionTab[] {
@@ -896,7 +907,7 @@ export class DesktopRuntime {
 		request: CollabUiRequestDraft,
 		signal?: AbortSignal,
 	): Promise<CollabUiResponseValue> {
-		if (this.#disposed || this.#clients.size === 0 || signal?.aborted) return Promise.resolve(undefined);
+		if (this.#disposed || this.#presentingClients.size === 0 || signal?.aborted) return Promise.resolve(undefined);
 		const reqId = ++this.#uiSequence;
 		const fullRequest: CollabUiRequest = { ...request, reqId };
 		const { promise, resolve } = Promise.withResolvers<CollabUiResponseValue>();
@@ -935,6 +946,7 @@ export class DesktopRuntime {
 			const replacement = this.#managed.values().next().value as ManagedSession | undefined;
 			this.#activePath = replacement?.path ?? "";
 			if (replacement) {
+				this.#catalog = replacement.service.catalog;
 				replacement.unread = 0;
 				this.#broadcastSnapshot(replacement);
 			}
@@ -1005,12 +1017,6 @@ export class DesktopRuntime {
 			"MAX_OPEN_SESSIONS",
 			`At most ${this.#maxOpenSessions} live sessions can be open; close a finished tab and try again`,
 		);
-	}
-
-	#catalogService(): SessionService {
-		const active = this.#managed.get(this.#activePath) ?? this.#managed.values().next().value;
-		if (!active) throw new SessionServiceError("NO_OPEN_SESSION", "Open a session before using the session catalog");
-		return active.service;
 	}
 
 	#requireActive(): ManagedSession {

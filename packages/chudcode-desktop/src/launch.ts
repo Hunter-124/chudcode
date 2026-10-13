@@ -4,7 +4,7 @@ import * as path from "node:path";
 import { getAgentDir, getProjectDir } from "@oh-my-pi/pi-utils";
 import { PRODUCT_SEMVER } from "../../coding-agent/src/brand";
 import type { DesktopFrame, DesktopRequest } from "./protocol";
-import { createDesktopRuntime, type DesktopFrameSink } from "./runtime";
+import { createDesktopRuntime, type DesktopClientCapabilities, type DesktopFrameSink } from "./runtime";
 import {
 	DesktopAlreadyRunningError,
 	type DesktopRuntimeHost,
@@ -103,12 +103,12 @@ class DeferredRuntimeHost implements DesktopRuntimeHost {
 		this.#runtime = runtime;
 	}
 
-	attach(client: DesktopFrameSink): void {
+	attach(client: DesktopFrameSink, capabilities?: DesktopClientCapabilities): void {
 		if (!this.#runtime) {
 			client.close(1012, "desktop runtime is starting");
 			return;
 		}
-		this.#runtime.attach(client);
+		this.#runtime.attach(client, capabilities);
 	}
 
 	detach(client: DesktopFrameSink): void {

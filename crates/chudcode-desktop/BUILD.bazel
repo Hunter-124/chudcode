@@ -1,0 +1,22 @@
+load("@rules_rust//rust:defs.bzl", "rust_binary", "rust_test")
+
+package(default_visibility = ["//visibility:public"])
+
+exports_files(["Cargo.toml"])
+
+rust_binary(
+    name = "chudcode-desktop",
+    srcs = ["src/main.rs"],
+    crate_name = "chudcode_desktop",
+    crate_root = "src/main.rs",
+    edition = "2024",
+    version = "0.4.3",
+)
+
+rust_test(
+    name = "chudcode-desktop_test",
+    srcs = ["src/main.rs"],
+    crate_name = "chudcode_desktop_test",
+    crate_root = "src/main.rs",
+    edition = "2024",
+)

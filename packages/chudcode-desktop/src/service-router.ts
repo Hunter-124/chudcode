@@ -19,7 +19,7 @@ import type {
 	WorkspaceDescriptor,
 	WorkspaceEntry,
 } from "./protocol";
-import type { DesktopFrameSink } from "./runtime";
+import type { DesktopClientCapabilities, DesktopFrameSink } from "./runtime";
 import type { DesktopRuntimeHost } from "./server";
 import { FileWatcher } from "./services/file-watcher";
 import { GitService } from "./services/git-service";
@@ -336,7 +336,7 @@ export class ServiceRouter implements DesktopRuntimeHost {
 		return workspace;
 	}
 
-	attach(client: DesktopFrameSink): void {
+	attach(client: DesktopFrameSink, capabilities?: DesktopClientCapabilities): void {
 		if (this.#disposed) {
 			client.close(1012, "desktop services stopped");
 			return;
@@ -350,7 +350,7 @@ export class ServiceRouter implements DesktopRuntimeHost {
 			close: (code, reason) => client.close(code, reason),
 		};
 		this.#clients.set(client, relay);
-		this.#runtime.attach(relay);
+		this.#runtime.attach(relay, capabilities);
 	}
 
 	detach(client: DesktopFrameSink): void {

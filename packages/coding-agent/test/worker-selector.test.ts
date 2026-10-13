@@ -1,7 +1,7 @@
 import * as path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "bun:test";
 import { isPidRunning } from "@oh-my-pi/pi-utils/procmgr";
-import { runCli } from "../src/cli";
+import { runCli } from "../src/cli-runtime";
 
 // The worker-host re-entry seam dispatches any `__omp_worker_*` selector to
 // `runWorkerEntrypoint`. An unrecognized selector must fail loudly rather than
@@ -33,7 +33,7 @@ describe("worker selector dispatch", () => {
 				"-e",
 				`
 				import { workerHostEntry } from "./packages/utils/src/worker-host.ts";
-				await import("./packages/coding-agent/src/cli.ts");
+				import "./packages/coding-agent/src/cli.ts";
 				process.stdout.write("ENTRY=" + (workerHostEntry() ?? "null"));
 				process.exit(0);
 				`,
@@ -184,7 +184,7 @@ describe("worker selector dispatch", () => {
 				if (pid === 1 && sig === 0) return true;
 				return originalKill.call(process, pid, sig);
 			};
-			const { runCli } = await import("./packages/coding-agent/src/cli.ts");
+			const { runCli } = await import("./packages/coding-agent/src/cli-runtime.ts");
 			await runCli(["__omp_worker_js_eval_process"]);
 		`;
 

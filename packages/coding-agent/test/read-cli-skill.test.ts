@@ -6,7 +6,7 @@ import * as url from "node:url";
 import { removeWithRetries } from "@oh-my-pi/pi-utils";
 import { CONFIG_DIR_NAME } from "@oh-my-pi/pi-utils/dirs";
 
-const CLI_ENTRY = path.join(import.meta.dir, "..", "src", "cli.ts");
+const CLI_ENTRY = path.join(import.meta.dir, "..", "src", "cli-runtime.ts");
 
 describe("omp read skill resources", () => {
 	let root: string;

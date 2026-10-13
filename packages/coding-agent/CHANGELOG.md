@@ -5,6 +5,7 @@
 ### Added
 
 - RPC `set_host_tools` accepts an optional `loadableTools: { names, hint }`: for a listed tool the host has not registered, `read`/`write xd://<name>` fails with `xd://<name> is not loaded. <hint>` (each `{name}` in `hint` is replaced) instead of the mounted-device catalog error. The Python RPC client sends it through `set_custom_tools(..., loadable_tools=LoadableHostTools(...))`.
+- Added an opt-in, unpublished Code-OSS workbench candidate with a Rust launcher and existing Chudcode agent compatibility service; stable GUI/CLI releases and downstream RPC/SDK pins remain unchanged.
 
 ### Fixed
 

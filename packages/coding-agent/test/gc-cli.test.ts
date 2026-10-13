@@ -18,7 +18,7 @@ import {
 	setAgentDir,
 	setProjectDir,
 } from "@oh-my-pi/pi-utils";
-import { runCli } from "../src/cli";
+import { runCli } from "../src/cli-runtime";
 import { beginSettingsTest, restoreSettingsTestState, type SettingsTestState } from "./helpers/settings-test-state";
 
 let root: string;

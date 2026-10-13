@@ -7,6 +7,10 @@ it over an authenticated loopback WebSocket.
 This package contains no CAD proprietary assets, CAD source, CAD runtime, CAD
 protocol, or CAD-derived presentation code.
 
+The browser shell documented below remains available unchanged for stable
+rollback. The separate [Code-OSS workbench candidate](#code-oss-workbench-candidate)
+uses this package's compatibility service, not its browser IDE shell.
+
 ## Architecture
 
 ```text
@@ -89,6 +93,230 @@ bun packages/chudcode-desktop/src/launch.ts --source-mode
 ```
 
 The launcher uses the current project directory as the initial workspace context, creates a single-instance lease under the agent runtime directory, and reuses the existing desktop process when one is already active.
+
+The isolated Code-OSS candidate uses `src/workbench-host.ts` instead. It opens
+`--workspace <absolute directory>` before emitting one authenticated readiness
+line, and stops on owner stdin EOF or SIGINT/SIGTERM. `--version` and
+`--build-info` return service identity without starting the desktop runtime.
+The host statically imports the ESM runtime graph to preserve Bun file-asset
+import attributes; it does not use a synchronous runtime `require` or
+module-level await. Bundled workers reuse the importable compatibility CLI
+dispatcher, and process lifetime cleanup uses the centralized postmortem path
+after runtime disposal rather than leaving background discovery alive.
+
+## Code-OSS workbench candidate
+
+This is an **opt-in, unpublished compatibility-first candidate**, separate from
+the existing desktop/CLI release pipeline. `crates/chudcode-desktop` supplies a
+native Rust launcher; `packages/chudcode-workbench` supplies a Node/esbuild-built
+Code-OSS extension. Bun and TypeScript remain the real agent/provider/plugin
+engine until native replacements pass parity gates. Electron/Node/TypeScript
+intentionally remain at the editor boundary; launching a compiled compatibility
+service does not make the agent engine Rust-native.
+
+### Architecture and provenance
+
+```mermaid
+flowchart TD
+    launcher["Rust chudcode-desktop"] --> editor["Pinned Code-OSS editor"]
+    editor --> native["Native editor, explorer, terminal, Git, language services"]
+    editor --> extension["ChudCode extension: agent, sessions, tasks, graphs"]
+    extension -->|"Authenticated desktop v1; private readiness pipe"| service["Bun-compiled compatibility engine"]
+```
+
+The editor base consists of official VSCodium **1.135.06055** archives pinned
+by URL, size, and SHA-256 in
+[`packaging/workbench/base.json`](../../packaging/workbench/base.json).
+The product overlay gives it ChudCode identity, retains **Open VSX** rather
+than Microsoft's Marketplace, and disables upstream auto-update so the candidate
+cannot silently update into plain VSCodium. Upstream licenses/notices and
+candidate provenance are retained. This is assembly from pinned upstream
+binaries, **not a published upstream source fork** and not a Microsoft-built
+or Microsoft-signed product. Modified upstream resources still need candidate
+signing/notarization qualification.
+
+The extension owns one service per trusted window/workspace. It starts no
+agent service before workspace trust is granted; no open folder means no
+workspace service. The service's private stdout readiness pipe carries its
+loopback URLs and token; diagnostics go to stderr. Owner EOF and termination
+dispose the transport, runtime, and owned children. Service failure is visible;
+restart is explicit through **ChudCode: Restart Service**, not a hidden
+fallback. The nonpresenting `/ws?client=control` connection does not hold UI
+requests open, and trusted `rootPath` bridge metadata survives zero session
+tabs. Existing default desktop-client behavior is unchanged.
+
+Persisted-session listing, rename, deletion, and pinning remain available after
+the final session tab closes. The catalog owns no live agent resources;
+selecting a stored session or creating a new one opens an explicit live session,
+while running and dirty tabs retain their close/delete protections. Workspace
+root metadata and graph access continue independently of session tabs.
+
+### Candidate layout and native-host assembly
+
+```text
+<candidate>/
+  chudcode-desktop[.exe]    Rust launcher
+  chud[.exe]               public compatibility CLI (0.4.3 / RPC v2)
+  chudcode-service[.exe]    private desktop v1 compatibility service
+  editor/                 pinned upstream editor and built-in extension
+  VERSION
+  candidate-manifest.json
+  notices/                repository notices and PROVENANCE.txt
+```
+
+The extension is installed under the editor's `resources/app/extensions/`
+tree (inside the app bundle on macOS). The launcher resolves trusted payload
+paths relative to itself, not the working directory or `PATH`, and forwards
+editor arguments without a shell.
+
+Build from the repository root with the pinned monorepo dependencies already
+installed, Node, Bun, Rust/Cargo, and matching native addon inputs available.
+Use absolute input/output paths and a new candidate directory; do not point
+assembly at an installed stable release. This Linux x64 example does not
+download the base archive or install dependencies:
+
+```sh
+engine=/absolute/path/to/new-engine
+candidate=/absolute/path/to/new-candidate
+base_archive=/absolute/path/to/pinned-VSCodium-archive.tar.gz
+
+bun packages/chudcode-workbench/scripts/build-engine.ts \
+  --output "$engine" --target linux-x64
+node packages/chudcode-workbench/scripts/build.mjs
+cargo build --release -p chudcode-desktop
+
+python3 scripts/package_chudcode_workbench.py \
+  --target linux-x64 \
+  --base-archive "$base_archive" \
+  --launcher "$PWD/target/release/chudcode-desktop" \
+  --service "$engine/chudcode-service" \
+  --chud "$engine/chud" \
+  --extension packages/chudcode-workbench \
+  --output "$candidate"
+```
+
+Supported assembler target names are `linux-x64`, `darwin-x64`, and
+`win32-x64`; the engine builder spells those targets `linux-x64`,
+`macos-x64`, and `windows-x64`. Windows executable inputs carry `.exe`.
+These are assembly targets, not claims of completed platform qualification.
+Assembly **must run on the matching native x64 host** for executable identity
+probes; cross-host assembly is rejected.
+
+The fail-closed assembler checks the archive size/SHA-256, safe extraction,
+native ELF/PE/Mach-O architecture, actual executable role/version, built
+extension outputs, and required notices. It records binary evidence, file
+inventory, provenance, and unresolved qualification in the candidate manifest.
+Publication to the local output directory is atomic and refuses to replace
+an existing destination. It does not publish a release, sign binaries, or
+replace user installations.
+
+### Launch, trust, privacy, and rollback
+
+```sh
+"$candidate/chudcode-desktop" --check
+"$candidate/chudcode-desktop" /absolute/path/to/trusted-workspace
+```
+
+`--check` reports native launcher metadata and required payload paths without
+opening the GUI. Normal launch preserves Electron's sandbox; do not pass
+`--no-sandbox` to bypass host setup.
+
+The default editor user-data/extensions locations are separate from VS Code,
+VSCodium, and the old GUI:
+
+| Host | Editor user data | User-installed extensions |
+| --- | --- | --- |
+| Linux | `${XDG_CONFIG_HOME:-~/.config}/chudcode-workbench` | `${XDG_DATA_HOME:-~/.local/share}/chudcode-workbench/extensions` |
+| macOS | `~/Library/Application Support/Chudcode Workbench` | `~/.chudcode-workbench/extensions` |
+| Windows | `%APPDATA%/Chudcode Workbench` | `%USERPROFILE%/.chudcode-workbench/extensions` |
+
+Explicit editor `--user-data-dir` and `--extensions-dir` arguments are honored
+for isolated qualification; choose separate directories rather than reusing
+another product's state. **Agent settings and session files still use the
+existing Chudcode runtime store**: editor isolation is not a copy or migration
+of that store. Back up important agent state before candidate evaluation.
+
+The bearer token stays in the extension host/private pipe, never the webview,
+settings, logs, disk, or command line. Webview network access is disabled by
+CSP; typed messages cross the extension bridge, and file navigation is confined
+to the trusted workspace, including symlinks. The service remains loopback-only,
+single-user, and unsuitable for tunnels or remote publication.
+
+Workspace trust and Electron's sandbox do not sandbox terminal/agent tools:
+they run with the user's permissions and may use existing provider credentials,
+plugins, host tools, Git credentials, and network access. Local transport does
+not imply that prompts/files stay local when a remote provider or tool is used.
+Review the workspace and installed extensions, use least privilege, and avoid
+credentials during isolated tests unless explicitly qualifying a provider.
+
+Rollback means close the candidate and launch the existing stable GUI or CLI.
+No stable installer, artifact name/version, downstream pin, or existing GUI
+source is replaced by this workflow. Candidate editor state can remain separate;
+do not delete the shared agent store as a rollback step.
+
+### Qualification evidence and stable promotion gates
+
+The following are candidate checks, not stable-release certification:
+
+```sh
+"$candidate/chudcode-desktop" --check
+"$candidate/chud" --smoke-test
+"$candidate/chudcode-service" --smoke-test
+python3 scripts/smoke_chudcode_workbench.py --bundle "$candidate"
+xvfb-run -a python3 packages/chudcode-workbench/test/run_extension_host.py \
+  --bundle "$candidate"
+```
+
+Observed on the current Linux host: `bun check`, the Rust gate (3087 passing
+tests, six skipped, plus doctests), desktop tests (146), compiled service tests
+(seven), isolated SDK tests (92 plus 19 subtests), and assembler tests (16)
+passed. Real compiled CLI/service worker probes, assembled desktop v1/RPC v2
+smoke, owner-EOF cleanup, and the actual CAD
+`scripts/smoke_chudcode_runtime.py` with candidate `chud` 0.4.3 also passed.
+The CAD script belongs to the downstream checkout, not this repository.
+Local CloudCastle context-engine and Discord integration suites passed all 198
+tests. Cargo and Bazel launcher builds, the Bazel launcher test target, and the
+Bazel-built launcher's role/version probe also passed. These local suites do not
+qualify deployed CloudCastle.
+
+The assembled Code-OSS extension-host integration passed. Interactive Linux
+verification exercised file edit/save, native terminal output, Git changes,
+draft restoration across session switches, workspace trust, no-folder startup,
+zero-tab catalog access and webview recreation, new sessions, and the live agent
+graph. No provider turn was executed; these checks do not certify every
+provider, accessibility workflow, or operating system.
+
+Code graphs still require Graphify output or a trusted service-side LSP
+configuration. Installing an editor language extension alone does not configure
+the compatibility service; missing graph sources fail visibly.
+
+Final-bundle current-host observations were service readiness **1723 ms** and
+CLI RPC readiness **338 ms**. They are not comparative benchmarks or evidence of
+a speedup. Profile comparative startup, latency, memory, and CPU distributions
+with controlled workloads before making performance claims.
+
+Stable goals and required promotion gates:
+
+- Freeze CAD's **Chudcode 0.4.3 / RPC v2 / Python SDK 0.3.1** and
+  CloudCastle's **18.1.11** integration surfaces. Keep public CLI/RPC/SDK
+  artifacts, provider policies, and downstream pins unchanged.
+- Before replacing engine modules with Rust, prove behavior, restart,
+  persistence/session-tree, inherited host-tool, plugin/provider, and compiled
+  worker parity against the compatibility engine and actual consumers.
+- Complete provider-backed chat/tool turns, populated task/subagent workflows,
+  full accessibility verification, and the remaining native-platform workflows.
+  Local transport and Linux editor checks do not substitute for deployed
+  CloudCastle or live CAD/provider qualification.
+- Qualify native Windows/macOS and ARM separately, and sign/notarize candidate
+  distributions through trusted release lanes. None of those gates is claimed
+  here.
+- Qualify baseline-x64 ISA on appropriate native builders/hardware. Only the
+  modern Linux addon is available locally; the manifest explicitly leaves
+  native ISA qualification unresolved. An x64 executable header is not proof
+  that the full payload runs on baseline-x64 CPUs.
+
+Until these gates pass, preserve the stable GUI/CLI rollback and release
+pipeline. This candidate is not a completed native overhaul or a stable release.
 
 ## Development
 

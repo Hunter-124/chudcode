@@ -16,10 +16,12 @@ import {
 	type DesktopSessionResources,
 } from "../src/runtime";
 import { OrderedSocketQueue, rejectUntrustedRequest, requestHasToken, startDesktopServer } from "../src/server";
+import { ServiceRouter } from "../src/service-router";
 import {
 	type DesktopAgentSession,
 	type DesktopSessionManager,
 	type SessionCatalog,
+	SessionCatalogService,
 	SessionService,
 } from "../src/session-service";
 
@@ -567,6 +569,178 @@ describe("desktop runtime", () => {
 		await runtime.dispose();
 	});
 
+	it("keeps control clients available for RPC without treating them as UI presenters", async () => {
+		const { runtime } = multiSessionHarness();
+		const control = new RecordingSink();
+		runtime.attach(control, { presentsUi: false });
+		try {
+			expect(control.frames.some(frame => frame.t === "welcome")).toBeTrue();
+			expect(control.frames.some(frame => frame.t === "session-tabs")).toBeTrue();
+			const hello = await runtime.handleRequest({
+				t: "request",
+				id: 1,
+				method: "runtime.hello",
+				params: { protocol: 1 },
+			});
+			expect(hello).toMatchObject({ result: { protocol: 1 } });
+
+			const ui = runtime.createUiContext("/sessions/one.jsonl");
+			expect(await ui.select("Unavailable", ["A", "B"])).toBeUndefined();
+			expect(await ui.editor("Unavailable")).toBeUndefined();
+			expect(await ui.confirm("Unavailable", "Continue?")).toBeFalse();
+			expect(control.frames.some(frame => frame.t === "ui-request")).toBeFalse();
+
+			const presenter = new RecordingSink();
+			runtime.attach(presenter);
+			const answer = ui.select("Pick", ["A", "B"]);
+			const request = presenter.frames.findLast(frame => frame.t === "ui-request");
+			if (request?.t !== "ui-request") throw new Error("ui request missing");
+			const secondControl = new RecordingSink();
+			runtime.attach(secondControl, { presentsUi: false });
+			expect(secondControl.frames.some(frame => frame.t === "ui-request")).toBeFalse();
+			runtime.detach(secondControl);
+			const response = await runtime.handleRequest({
+				t: "request",
+				id: 2,
+				method: "ui.respond",
+				params: { sessionPath: "/sessions/one.jsonl", reqId: request.request.reqId, value: "B" },
+			});
+			expect(response).toMatchObject({ result: { accepted: true } });
+			expect(await answer).toBe("B");
+			expect(presenter.frames).toContainEqual({
+				t: "ui-request-end",
+				sessionPath: "/sessions/one.jsonl",
+				reqId: request.request.reqId,
+			});
+			expect(control.frames.some(frame => frame.t === "ui-request" || frame.t === "ui-request-end")).toBeFalse();
+		} finally {
+			await runtime.dispose();
+		}
+	});
+
+	it("settles pending UI in every session when the last presenter detaches while control remains", async () => {
+		const { runtime } = multiSessionHarness();
+		await runtime.handleRequest({
+			t: "request",
+			id: 1,
+			method: "session.activate",
+			params: { path: "/sessions/two.jsonl" },
+		});
+		const control = new RecordingSink();
+		const presenter = new RecordingSink();
+		const otherPresenter = new RecordingSink();
+		runtime.attach(control, { presentsUi: false });
+		runtime.attach(presenter);
+		runtime.attach(otherPresenter);
+		try {
+			const oneAnswer = runtime.createUiContext("/sessions/one.jsonl").select("Pick", ["A", "B"]);
+			const twoAnswer = runtime.createUiContext("/sessions/two.jsonl").editor("Edit");
+			let settled = false;
+			const answers = Promise.all([oneAnswer, twoAnswer]).then(values => {
+				settled = true;
+				return values;
+			});
+			const requests = presenter.frames.filter(frame => frame.t === "ui-request");
+			expect(requests).toHaveLength(2);
+			runtime.detach(presenter);
+			await Promise.resolve();
+			expect(settled).toBeFalse();
+			runtime.detach(otherPresenter);
+			expect(await answers).toEqual([undefined, undefined]);
+
+			for (const request of requests) {
+				if (request.t !== "ui-request") throw new Error("ui request missing");
+				const lateResponse = await runtime.handleRequest({
+					t: "request",
+					id: 2,
+					method: "ui.respond",
+					params: { sessionPath: request.sessionPath, reqId: request.request.reqId, value: "late" },
+				});
+				expect(lateResponse).toMatchObject({ result: { accepted: false } });
+			}
+			expect(
+				await runtime.createUiContext("/sessions/one.jsonl").select("Still unavailable", ["A"]),
+			).toBeUndefined();
+			expect(control.closed).toBeUndefined();
+			expect(control.frames.some(frame => frame.t === "ui-request")).toBeFalse();
+			const response = await runtime.handleRequest({
+				t: "request",
+				id: 3,
+				method: "session.list",
+				params: {},
+			});
+			expect(response).toMatchObject({
+				result: {
+					sessions: expect.arrayContaining([
+						expect.objectContaining({ id: "one" }),
+						expect.objectContaining({ id: "two" }),
+					]),
+				},
+			});
+		} finally {
+			await runtime.dispose();
+		}
+	});
+
+	it("honors authenticated control sockets through the server and service router", async () => {
+		const { runtime } = multiSessionHarness();
+		const router = new ServiceRouter({ runtime });
+		const server = await startDesktopServer({ runtime: router, websocketOnly: true, singleInstance: false });
+		const sockets: WebSocket[] = [];
+		const connect = async (control: boolean) => {
+			const url = new URL("/ws", server.url.replace("http:", "ws:"));
+			if (control) url.searchParams.set("client", "control");
+			const socket = new WebSocket(url, {
+				headers: { Authorization: `Bearer ${server.token}`, Origin: server.url },
+			});
+			sockets.push(socket);
+			const frames: DesktopFrame[] = [];
+			const welcome = Promise.withResolvers<void>();
+			const response = Promise.withResolvers<DesktopFrame>();
+			const uiRequest = Promise.withResolvers<Extract<DesktopFrame, { t: "ui-request" }>>();
+			socket.onmessage = event => {
+				const frame = JSON.parse(String(event.data)) as DesktopFrame;
+				frames.push(frame);
+				if (frame.t === "welcome") welcome.resolve();
+				if (frame.t === "response") response.resolve(frame);
+				if (frame.t === "ui-request") uiRequest.resolve(frame);
+			};
+			socket.onerror = () => welcome.reject(new Error("Desktop socket failed"));
+			await welcome.promise;
+			return { socket, frames, response: response.promise, uiRequest: uiRequest.promise };
+		};
+		try {
+			const control = await connect(true);
+			control.socket.send(JSON.stringify({ t: "request", id: 1, method: "runtime.hello", params: { protocol: 1 } }));
+			expect(await control.response).toMatchObject({ result: { protocol: 1 } });
+			expect(await runtime.createUiContext("/sessions/one.jsonl").select("No panel", ["A"])).toBeUndefined();
+
+			const presenter = await connect(false);
+			const answered = runtime.createUiContext("/sessions/one.jsonl").select("Pick", ["A", "B"]);
+			const request = await presenter.uiRequest;
+			presenter.socket.send(
+				JSON.stringify({
+					t: "request",
+					id: 2,
+					method: "ui.respond",
+					params: { sessionPath: request.sessionPath, reqId: request.request.reqId, value: "B" },
+				}),
+			);
+			expect(await presenter.response).toMatchObject({ result: { accepted: true } });
+			expect(await answered).toBe("B");
+
+			const cancelled = runtime.createUiContext("/sessions/one.jsonl").editor("Unanswered");
+			presenter.socket.close();
+			expect(await cancelled).toBeUndefined();
+			expect(control.socket.readyState).toBe(WebSocket.OPEN);
+			expect(control.frames.some(frame => frame.t === "ui-request")).toBeFalse();
+			expect(await runtime.createUiContext("/sessions/one.jsonl").editor("No panel")).toBeUndefined();
+		} finally {
+			for (const socket of sockets) socket.close();
+			await server.stop();
+		}
+	});
+
 	it("guards running and dirty tabs, and force-close explicitly aborts, flushes, and disposes", async () => {
 		const harness = multiSessionHarness();
 		await harness.runtime.handleRequest({
@@ -647,6 +821,92 @@ describe("desktop runtime", () => {
 		expect(one.sessionManager.flushed).toBeGreaterThan(0);
 		expect(harness.sessions.some(item => item.id === "one")).toBeFalse();
 		await harness.runtime.dispose();
+	});
+
+	it("keeps the injected persisted catalog usable after closing the final live tab", async () => {
+		const harness = multiSessionHarness();
+		const sink = new RecordingSink();
+		harness.runtime.attach(sink);
+		try {
+			expect(
+				await harness.runtime.handleRequest({
+					t: "request",
+					id: 21,
+					method: "session.tab.close",
+					params: { path: "/sessions/one.jsonl" },
+				}),
+			).toMatchObject({ result: { closed: true, tabs: [] } });
+			expect(harness.live).toHaveLength(1);
+			expect(harness.live[0]?.disposed).toBe(1);
+			expect(harness.live[0]?.listeners.size).toBe(0);
+			expect(
+				await harness.runtime.handleRequest({ t: "request", id: 22, method: "session.list", params: {} }),
+			).toMatchObject({
+				result: { sessions: [expect.objectContaining({ id: "one" }), expect.objectContaining({ id: "two" })] },
+			});
+			expect(
+				await harness.runtime.handleRequest({
+					t: "request",
+					id: 23,
+					method: "session.rename",
+					params: { path: "/sessions/one.jsonl", title: "Closed session" },
+				}),
+			).toMatchObject({ result: { session: { title: "Closed session" } } });
+			expect(
+				await harness.runtime.handleRequest({
+					t: "request",
+					id: 24,
+					method: "session.pin",
+					params: { path: "/sessions/one.jsonl", pinned: true },
+				}),
+			).toMatchObject({ result: { session: { pinned: true } } });
+			expect(
+				await harness.runtime.handleRequest({
+					t: "request",
+					id: 25,
+					method: "session.delete",
+					params: { path: "/sessions/two.jsonl" },
+				}),
+			).toMatchObject({ result: { deleted: true } });
+			expect(sink.frames.at(-1)).toMatchObject({
+				t: "sessions",
+				sessions: [expect.objectContaining({ id: "one", title: "Closed session", pinned: true })],
+			});
+			expect(harness.live).toHaveLength(1);
+			expect(
+				await harness.runtime.handleRequest({ t: "request", id: 26, method: "session.tabs", params: {} }),
+			).toMatchObject({ result: { tabs: [] } });
+			expect(
+				await harness.runtime.handleRequest({
+					t: "request",
+					id: 27,
+					method: "session.select",
+					params: { path: "/sessions/one.jsonl" },
+				}),
+			).toMatchObject({ result: { header: { id: "one" } } });
+			expect(harness.live).toHaveLength(2);
+			expect(
+				await harness.runtime.handleRequest({
+					t: "request",
+					id: 28,
+					method: "session.tab.close",
+					params: { path: "/sessions/one.jsonl" },
+				}),
+			).toMatchObject({ result: { closed: true, tabs: [] } });
+			expect(
+				await harness.runtime.handleRequest({
+					t: "request",
+					id: 29,
+					method: "session.new",
+					params: { cwd: "/other" },
+				}),
+			).toMatchObject({ result: { session: { cwd: "/other" } } });
+			expect(harness.live).toHaveLength(3);
+			expect(harness.live.slice(0, 2).every(session => session.disposed === 1)).toBeTrue();
+		} finally {
+			await harness.runtime.dispose();
+		}
+		expect(harness.live.every(session => session.disposed === 1)).toBeTrue();
 	});
 
 	it("opens at most twelve live sessions and never evicts an existing tab", async () => {
@@ -741,12 +1001,12 @@ describe("desktop runtime", () => {
 		expect(sink.closed?.code).toBe(1001);
 	});
 
-	it("keeps authoritative SessionService catalog operations available", async () => {
+	it("shares authoritative persisted catalog operations with live-session verbs", async () => {
 		const fake = new FakeSession();
 		const { catalog, sessions, pins } = catalogFor(fake);
 		sessions.push(info("two"));
 		const service = new SessionService(fake, { catalog });
-		expect((await service.list()).map(item => item.id)).toEqual(["one", "two"]);
+		expect((await service.catalog.list()).map(item => item.id)).toEqual(["one", "two"]);
 		const selected = await service.select("/sessions/two.jsonl");
 		expect(selected.header.id).toBe("two");
 		const created = await service.newSession("/other");
@@ -755,11 +1015,36 @@ describe("desktop runtime", () => {
 		expect(forked.session.id).toStartWith("fork-");
 		const renamed = await service.rename("/sessions/one.jsonl", "Renamed");
 		expect(renamed.title).toBe("Renamed");
-		const pinned = await service.pin("/sessions/one.jsonl", true);
+		const pinned = await service.catalog.pin("/sessions/one.jsonl", true);
 		expect(pinned.pinned).toBeTrue();
 		expect(pins.has("one")).toBeTrue();
-		expect(await service.deleteStored("/sessions/one.jsonl")).toBeTrue();
+		expect(await service.catalog.deleteStored("/sessions/one.jsonl")).toBeTrue();
 		expect(sessions.some(item => item.id === "one")).toBeFalse();
+	});
+
+	it("closes persisted rename managers on cancellation and failure without touching live resources", async () => {
+		for (const fails of [false, true]) {
+			const fake = new FakeSession();
+			const { catalog } = catalogFor(fake);
+			let closed = 0;
+			catalog.openForRename = async () => ({
+				setSessionName: async () => {
+					if (fails) throw new Error("rename failed");
+					return false;
+				},
+				close: async () => {
+					closed += 1;
+				},
+			});
+			const persisted = new SessionCatalogService(catalog);
+			await expect(persisted.rename("/sessions/one.jsonl", "Renamed")).rejects.toThrow(
+				fails ? "rename failed" : "Session title was rejected",
+			);
+			expect(closed).toBe(1);
+			expect(fake.disposed).toBe(0);
+			expect(fake.listeners.size).toBe(0);
+			expect(fake.sessionName).toBeUndefined();
+		}
 	});
 });
 

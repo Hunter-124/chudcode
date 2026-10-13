@@ -1,0 +1,28 @@
+{
+  "nameShort": "Chudcode",
+  "nameLong": "Chudcode Workbench",
+  "applicationName": "chudcode-workbench",
+  "dataFolderName": ".chudcode-workbench",
+  "linuxIconName": "chudcode-workbench",
+  "urlProtocol": "chudcode-workbench",
+  "serverApplicationName": "chudcode-workbench-server",
+  "serverDataFolderName": ".chudcode-workbench-server",
+  "darwinBundleIdentifier": "dev.chudware.chudcode.workbench",
+  "win32AppUserModelId": "Chudware.Chudcode.Workbench",
+  "win32DirName": "Chudcode Workbench",
+  "win32MutexName": "chudcode-workbench",
+  "win32NameVersion": "Chudcode Workbench",
+  "win32RegValueName": "ChudcodeWorkbench",
+  "win32ShellNameShort": "Chudcode",
+  "reportIssueUrl": "https://github.com/Hunter-124/chudcode/issues/new",
+  "licenseUrl": "https://github.com/VSCodium/vscodium/blob/1.135.06055/LICENSE",
+  "updateUrl": null,
+  "downloadUrl": null,
+  "win32VersionedUpdate": false,
+  "extensionsGallery": {
+    "serviceUrl": "https://open-vsx.org/vscode/gallery",
+    "itemUrl": "https://open-vsx.org/vscode/item",
+    "latestUrlTemplate": "https://open-vsx.org/vscode/gallery/{publisher}/{name}/latest",
+    "controlUrl": "https://raw.githubusercontent.com/EclipseFdn/publish-extensions/refs/heads/master/extension-control/extensions.json"
+  }
+}

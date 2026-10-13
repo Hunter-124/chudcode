@@ -1,0 +1,757 @@
+/* Existing desktop/collab surfaces, themed exclusively by the workbench. */
+:root,
+:root[data-theme="dark"],
+:root[data-theme="light"] {
+	--color-window: var(--vscode-sideBar-background, #181818);
+	--color-panel: var(--vscode-editor-background, #1f1f1f);
+	--color-header: var(--vscode-sideBarSectionHeader-background, var(--color-window));
+	--color-popup: var(--vscode-editorWidget-background, var(--color-panel));
+	--color-editor: var(--vscode-editor-background, var(--color-window));
+	--color-border: var(--vscode-panel-border, var(--vscode-widget-border, #454545));
+	--color-status-bar: var(--color-window);
+	--color-text: var(--vscode-foreground, #cccccc);
+	--color-text-dim: var(--vscode-descriptionForeground, #999999);
+	--color-text-disabled: var(--vscode-disabledForeground, #777777);
+	--color-button: var(--vscode-button-secondaryBackground, #313131);
+	--color-button-hover: var(--vscode-button-secondaryHoverBackground, #414141);
+	--color-button-active: var(--vscode-list-activeSelectionBackground, #04395e);
+	--color-field: var(--vscode-input-background, #313131);
+	--color-field-hover: var(--color-field);
+	--color-field-active: var(--color-field);
+	--color-code: var(--vscode-textCodeBlock-background, var(--color-editor));
+	--color-prose: var(--color-panel);
+	--color-prose-text: var(--color-text);
+	--color-focus-ring: var(--vscode-focusBorder, #007fd4);
+	--color-selection: var(--vscode-editor-selectionBackground, #264f78);
+	--color-hover: var(--vscode-list-hoverBackground, #2a2d2e);
+	--color-tab-strip: var(--color-window);
+	--color-tab: var(--vscode-tab-inactiveBackground, var(--color-window));
+	--color-tab-hover: var(--vscode-tab-hoverBackground, var(--color-hover));
+	--color-tab-active: var(--vscode-tab-activeBackground, var(--color-panel));
+	--color-tab-border: var(--color-border);
+	--color-status-success: var(--vscode-testing-iconPassed, #73c991);
+	--color-status-warning: var(--vscode-editorWarning-foreground, #cca700);
+	--color-status-error: var(--vscode-errorForeground, #f48771);
+	--color-status-info: var(--vscode-editorInfo-foreground, #75beff);
+	--color-diagnostic-error: var(--color-status-error);
+	--color-diagnostic-warn: var(--color-status-warning);
+	--color-diagnostic-hint: var(--color-status-info);
+	--color-graph-node-neutral: var(--color-text-dim);
+	--color-graph-node-info: var(--color-status-info);
+	--color-graph-node-positive: var(--color-status-success);
+	--color-graph-node-warning: var(--color-status-warning);
+	--color-graph-node-negative: var(--color-status-error);
+	--color-editor-line-highlight: var(--vscode-editor-lineHighlightBackground, transparent);
+	--color-gauge-track: var(--color-border);
+	--color-gauge-value: var(--color-status-info);
+	--color-gauge-over: var(--color-status-warning);
+	--color-scrollbar-track: transparent;
+	--color-scrollbar-thumb: var(--vscode-scrollbarSlider-background, #66666680);
+	--color-scrollbar-thumb-hover: var(--vscode-scrollbarSlider-hoverBackground, #77777780);
+	--color-glass-bg: var(--color-popup);
+	--color-glass-border: var(--color-border);
+	--color-glass-shadow: var(--vscode-widget-shadow, #00000060);
+	--color-glass-text: var(--color-text);
+	--color-glass-text-dim: var(--color-text-dim);
+	--accent-primary: var(--vscode-textLink-foreground, #4daafc);
+	--accent-secondary: var(--vscode-textLink-activeForeground, var(--accent-primary));
+	--accent-soft: var(--vscode-list-inactiveSelectionBackground, #37373d);
+	--accent-mid: var(--color-selection);
+	--accent-tree-hover: var(--color-hover);
+	--accent-hover: var(--color-hover);
+	--accent-selection: var(--color-selection);
+	--accent-chip: var(--accent-soft);
+	--accent-overlay-border: var(--color-border);
+	--bg: var(--color-window);
+	--bg-raised: var(--color-panel);
+	--bg-inset: var(--color-editor);
+	--bg-overlay: var(--color-popup);
+	--fg: var(--color-text);
+	--fg-muted: var(--color-text-dim);
+	--fg-faint: var(--color-text-disabled);
+	--accent: var(--accent-primary);
+	--accent-fg: var(--vscode-button-foreground, #ffffff);
+	--accent-muted: var(--accent-soft);
+	--ok: var(--color-status-success);
+	--warn: var(--color-status-warning);
+	--err: var(--color-status-error);
+	--border: var(--color-border);
+	--border-strong: var(--color-border);
+	--ring: var(--color-focus-ring);
+	--ring-soft: transparent;
+	--hover: var(--color-hover);
+	--glass: var(--color-popup);
+	--font-body: var(--vscode-font-family, system-ui, sans-serif);
+	--font-code: var(--vscode-editor-font-family, ui-monospace, monospace);
+	--font-ui: var(--font-body);
+	--font-mono: var(--font-code);
+	--font-size-body: 13px;
+	--font-size-code: 12px;
+	--font-size-h1: 18px;
+	--font-size-h2: 13px;
+	--radius-window: 4px;
+	--radius-frame: 3px;
+	--radius-child: 4px;
+	--radius-tab: 3px;
+	--radius: 3px;
+	--radius-sm: 3px;
+	--radius-lg: 4px;
+	--radius-xl: 4px;
+	--control-height: 26px;
+	--shadow-card: none;
+	--shadow-overlay: 0 4px 16px var(--color-glass-shadow);
+}
+
+body {
+	padding: 0;
+	font-size: var(--vscode-font-size, 13px);
+	color-scheme: dark;
+}
+body.vscode-light {
+	color-scheme: light;
+}
+.wb-panel {
+	position: relative;
+	display: flex;
+	flex-direction: column;
+	height: 100%;
+	min-width: 0;
+	overflow: hidden;
+}
+.wb-panel button {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	gap: 5px;
+	border-radius: 3px;
+	background: transparent;
+	color: var(--fg);
+}
+.wb-panel button:hover {
+	background: var(--hover);
+}
+.wb-panel button:disabled {
+	opacity: 0.45;
+	cursor: default;
+}
+.wb-panel :focus-visible {
+	outline: 1px solid var(--ring);
+	outline-offset: -1px;
+}
+.wb-panel input:not([type="checkbox"]),
+.wb-panel select {
+	min-width: 0;
+	padding: 5px 7px;
+	border: 1px solid var(--vscode-input-border, var(--border));
+	border-radius: 2px;
+	background: var(--color-field);
+	color: var(--vscode-input-foreground, var(--fg));
+}
+.wb-panel input[type="checkbox"] {
+	accent-color: var(--vscode-checkbox-background, var(--accent));
+}
+.wb-panel .wb-primary,
+.wb-panel .sh-btn-primary {
+	background: var(--vscode-button-background, #0078d4);
+	color: var(--vscode-button-foreground, #ffffff);
+}
+.wb-panel .wb-primary:hover,
+.wb-panel .sh-btn-primary:hover {
+	background: var(--vscode-button-hoverBackground, #026ec1);
+}
+.wb-panel .wb-danger {
+	color: var(--err);
+}
+.wb-header {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 8px;
+	flex: none;
+	min-height: 35px;
+	padding: 4px 9px;
+	border-bottom: 1px solid var(--border);
+}
+.wb-brand {
+	display: flex;
+	align-items: center;
+	gap: 7px;
+	min-width: 0;
+}
+.wb-brand strong {
+	font-size: 12px;
+	font-weight: 600;
+}
+.wb-phase {
+	font-size: 10px;
+	text-transform: capitalize;
+	color: var(--fg-muted);
+}
+.wb-phase-live {
+	color: var(--ok);
+}
+.wb-phase-reconnecting,
+.wb-phase-ended {
+	color: var(--warn);
+}
+.wb-icon-button {
+	width: 26px;
+	height: 26px;
+}
+.wb-view-tabs {
+	display: flex;
+	flex: none;
+	gap: 1px;
+	padding: 0 5px;
+	border-bottom: 1px solid var(--border);
+}
+.wb-panel .wb-view-tabs button {
+	flex: 1;
+	min-width: 0;
+	min-height: 32px;
+	padding: 4px;
+	border-radius: 0;
+	border-bottom: 2px solid transparent;
+	font-size: 10px;
+	color: var(--fg-muted);
+}
+.wb-panel .wb-view-tabs button[aria-current="page"] {
+	border-bottom-color: var(--vscode-panelTitle-activeBorder, var(--accent));
+	color: var(--fg);
+}
+.wb-connection,
+.wb-error {
+	display: flex;
+	align-items: center;
+	gap: 7px;
+	padding: 7px 10px;
+	font-size: 11px;
+	overflow-wrap: anywhere;
+}
+.wb-error {
+	flex: none;
+	color: var(--err);
+	background: var(--vscode-inputValidation-errorBackground, var(--bg));
+	border-bottom: 1px solid var(--vscode-inputValidation-errorBorder, var(--err));
+}
+.wb-error span {
+	flex: 1;
+}
+.wb-no-workspace {
+	flex: none;
+	gap: 10px;
+	padding: 20px;
+}
+.wb-no-workspace p {
+	max-width: 320px;
+}
+.wb-no-workspace button {
+	padding: 6px 12px;
+}
+.wb-no-workspace small {
+	font-size: 11px;
+}
+.wb-content {
+	flex: 1;
+	min-height: 0;
+	min-width: 0;
+	overflow: hidden;
+}
+.wb-chat {
+	display: flex;
+	flex-direction: column;
+	height: 100%;
+	min-height: 0;
+}
+.wb-session-meta {
+	display: flex;
+	gap: 8px;
+	padding: 6px 10px;
+	flex: none;
+	color: var(--fg-muted);
+	font-size: 10px;
+	overflow: hidden;
+}
+.wb-session-meta span {
+	overflow: hidden;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+}
+.wb-transcript {
+	flex: 1;
+	min-height: 70px;
+	overflow: hidden;
+}
+.wb-panel .tr-root {
+	padding: 8px 10px 12px;
+	font-size: 12px;
+	line-height: 1.5;
+}
+.wb-panel .tr-row {
+	grid-template-columns: minmax(0, 1fr);
+	gap: 4px;
+	padding: 8px 0;
+}
+.wb-panel .tr-gutter {
+	padding-top: 0;
+	text-align: left;
+	font-size: 10px;
+	font-family: var(--font-ui);
+}
+.wb-panel .tr-row--user .tr-gutter {
+	padding-top: 0;
+}
+.wb-panel .tr-row--user .tr-body {
+	padding: 7px 9px;
+	width: 100%;
+}
+.wb-panel .tr-body {
+	overflow-wrap: anywhere;
+}
+.wb-panel .tr-empty {
+	padding: 24px 0;
+	font-size: 12px;
+}
+.wb-panel .tr-msg-img {
+	max-width: 100%;
+	max-height: 240px;
+	object-fit: contain;
+}
+.wb-agents {
+	display: flex;
+	flex-direction: column;
+	flex: none;
+	max-height: 28%;
+	min-height: 29px;
+	overflow: hidden;
+	border-top: 1px solid var(--border);
+}
+.wb-panel .wb-agents-toggle {
+	display: flex;
+	justify-content: flex-start;
+	width: 100%;
+	padding: 6px 10px;
+	border-radius: 0;
+	font-size: 10px;
+}
+.wb-agents-toggle h2 {
+	font-size: 10px;
+	font-weight: 600;
+}
+.wb-agents-toggle span {
+	margin-left: auto;
+	color: var(--fg-muted);
+}
+.wb-agents-toggle .is-collapsed {
+	transform: rotate(-90deg);
+}
+#wb-agents-list {
+	flex: 1;
+	min-height: 0;
+	max-height: min(180px, 20vh);
+	overflow: auto;
+}
+.wb-panel .ag-panel {
+	padding: 0 8px 7px;
+}
+.wb-composer-dock {
+	flex: none;
+	border-top: 1px solid var(--border);
+	background: var(--bg);
+	padding-top: 7px;
+}
+.wb-panel .sh-composer {
+	padding: 0 8px 3px;
+}
+.wb-panel .sh-composer-inner {
+	padding: 5px 7px;
+	background: var(--color-field);
+	border: 1px solid var(--vscode-input-border, var(--border));
+	border-radius: 4px;
+	box-shadow: none;
+}
+.wb-panel .sh-composer-inner:focus-within {
+	border-color: var(--ring);
+	box-shadow: none;
+}
+.wb-panel .sh-composer-input {
+	font-size: 12px;
+	line-height: 20px;
+}
+.wb-panel .sh-composer-actions .sh-btn {
+	width: auto;
+	height: 27px;
+	padding: 0 7px;
+	font-size: 11px;
+}
+.wb-panel .sh-composer-actions .sh-btn-label {
+	display: inline;
+}
+.wb-panel .sh-composer-ask {
+	max-height: 45vh;
+	overflow: auto;
+	padding-top: 5px;
+}
+.wb-panel .sh-ask-options {
+	max-height: 25vh;
+	overflow: auto;
+}
+.wb-composer-footer {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 6px;
+	padding: 2px 9px 7px;
+}
+.wb-composer-footer button {
+	padding: 3px;
+	font-size: 10px;
+	color: var(--fg-muted);
+}
+.wb-composer-footer small {
+	font-size: 9px;
+	color: var(--fg-faint);
+}
+.wb-attachments {
+	display: flex;
+	gap: 6px;
+	flex-wrap: wrap;
+	list-style: none;
+	padding: 0 8px 7px;
+	max-height: 120px;
+	overflow: auto;
+}
+.wb-attachments li {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	max-width: 150px;
+	padding: 3px;
+	border: 1px solid var(--border);
+	border-radius: 3px;
+}
+.wb-attachments img {
+	width: 32px;
+	height: 32px;
+	object-fit: cover;
+}
+.wb-attachments span {
+	min-width: 0;
+	font-size: 10px;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+.wb-statusbar {
+	display: flex;
+	justify-content: space-between;
+	gap: 8px;
+	min-height: 22px;
+	padding: 3px 9px;
+	border-top: 1px solid var(--border);
+	color: var(--fg-muted);
+	font-size: 10px;
+}
+.wb-statusbar span {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+.wb-panel .session-tabs-bar {
+	min-height: 31px;
+	flex: none;
+}
+.wb-panel .session-tab {
+	min-width: 110px;
+	max-width: 200px;
+}
+.wb-panel .session-tab-select {
+	padding: 5px 7px;
+	font-size: 11px;
+}
+.wb-panel .session-tab-project {
+	display: none;
+}
+.wb-panel .session-tabs-actions button {
+	width: 26px;
+	min-width: 26px;
+}
+.wb-panel .session-picker {
+	width: min(330px, calc(100vw - 12px));
+	right: 3px;
+}
+.wb-panel .session-picker button {
+	justify-content: flex-start;
+}
+.wb-panel .session-close-dialog {
+	max-width: calc(100vw - 24px);
+}
+.wb-sessions,
+.wb-tasks {
+	display: flex;
+	flex-direction: column;
+	height: 100%;
+	min-height: 0;
+}
+.wb-panel .panel-heading {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	padding: 9px 10px;
+	border-bottom: 1px solid var(--border);
+}
+.wb-panel .panel-heading h2 {
+	font-size: 12px;
+}
+.panel-heading small {
+	font-size: 10px;
+	color: var(--fg-muted);
+	font-weight: 400;
+}
+.wb-actions {
+	display: flex;
+	gap: 5px;
+}
+.wb-actions button {
+	min-height: 25px;
+	padding: 4px 6px;
+}
+.wb-filter {
+	padding: 8px 10px;
+}
+.wb-filter input {
+	width: 100%;
+	font-size: 12px;
+}
+.wb-panel .session-list {
+	flex: 1;
+	min-height: 0;
+}
+.wb-panel .session-row {
+	min-width: 0;
+}
+.wb-panel .session-row-actions {
+	display: flex;
+	padding-right: 6px;
+}
+.wb-panel .session-row-actions button {
+	width: 24px;
+	height: 26px;
+}
+.wb-panel .session-select {
+	justify-content: flex-start;
+	text-align: left;
+	min-width: 0;
+	padding: 8px;
+	gap: 7px;
+}
+.session-copy {
+	display: flex;
+	flex-direction: column;
+	overflow: hidden;
+	gap: 3px;
+}
+.session-copy strong {
+	font-size: 12px;
+	font-weight: 500;
+	text-overflow: ellipsis;
+	overflow: hidden;
+	white-space: nowrap;
+}
+.session-copy small {
+	font-size: 10px;
+	color: var(--fg-muted);
+	text-overflow: ellipsis;
+	overflow: hidden;
+	white-space: nowrap;
+}
+.wb-session-dialog {
+	grid-column: 1 / -1;
+	margin: 4px 8px 8px;
+	padding: 8px;
+	background: var(--color-panel);
+	border: 1px solid var(--border);
+	border-radius: 3px;
+	font-size: 11px;
+}
+.wb-session-dialog label {
+	display: grid;
+	gap: 5px;
+}
+.wb-session-dialog input {
+	width: 100%;
+}
+.wb-session-dialog .wb-actions {
+	justify-content: flex-end;
+	margin-top: 8px;
+}
+.wb-tasks > .utility-rail {
+	min-height: 0;
+}
+.wb-tasks .utility-tabs {
+	display: none;
+}
+.wb-panel .todo-item {
+	font-size: 12px;
+}
+.wb-graphs {
+	height: 100%;
+	display: flex;
+	flex-direction: column;
+	min-height: 0;
+}
+.wb-graphs .graph-kind-tabs {
+	flex: none;
+}
+.wb-panel .graph-panel {
+	flex: 1;
+	height: auto;
+	min-height: 0;
+}
+.wb-panel .graph-toolbar {
+	flex-wrap: wrap;
+	gap: 6px;
+	padding: 8px;
+}
+.wb-panel .graph-search {
+	flex: 1 1 100px;
+	width: auto;
+}
+.wb-panel .graph-summary {
+	font-size: 10px;
+}
+.wb-panel .graph-toolbar label {
+	max-width: 100%;
+}
+.wb-panel .graph-toolbar input {
+	width: 100%;
+}
+.wb-panel .graph-toolbar button {
+	padding-inline: 7px;
+}
+.wb-panel .graph-canvas {
+	min-height: 120px;
+}
+.wb-panel .graph-list {
+	max-width: 100%;
+}
+.wb-settings {
+	height: 100%;
+	overflow: auto;
+	padding: 12px;
+	font-size: 12px;
+}
+.wb-settings h2 {
+	font-size: 13px;
+	margin-bottom: 14px;
+}
+.wb-settings h3 {
+	font-size: 12px;
+	margin: 16px 0 5px;
+}
+.wb-settings label {
+	display: flex;
+	gap: 7px;
+	align-items: center;
+}
+.wb-settings p {
+	color: var(--fg-muted);
+	margin-bottom: 9px;
+}
+.wb-settings button {
+	padding: 6px 8px;
+	border: 1px solid var(--border);
+}
+.wb-panel .ag-drawer {
+	inset: 6px 6px 25px;
+	width: auto;
+	background: var(--color-popup);
+	backdrop-filter: none;
+}
+.wb-panel .ag-drawer-head {
+	padding: 8px;
+	flex-wrap: wrap;
+	gap: 5px;
+}
+.wb-panel .ag-drawer-title {
+	flex-wrap: wrap;
+}
+.wb-panel .ag-drawer-name {
+	font-size: 12px;
+}
+.wb-panel .ag-drawer-actions {
+	margin-left: auto;
+}
+.wb-panel .ag-btn {
+	font-size: 11px;
+	padding: 0 7px;
+}
+.wb-panel .ag-stats {
+	flex-wrap: wrap;
+	padding: 8px;
+}
+.wb-panel .sh-ended {
+	position: static;
+	display: block;
+	flex: none;
+	background: transparent;
+	inset: auto;
+	padding: 7px;
+}
+.wb-panel .sh-ended-card {
+	width: 100%;
+	max-width: none;
+	padding: 10px;
+	border: 1px solid var(--border);
+	background: var(--color-popup);
+	box-shadow: none;
+}
+.wb-panel .sh-ended-title {
+	font-size: 12px;
+}
+.wb-panel .sh-ended-reason {
+	font-size: 11px;
+	overflow-wrap: anywhere;
+}
+.wb-panel .sh-ended-actions button:last-child {
+	display: none;
+}
+.wb-panel .sh-ended-actions button {
+	padding: 5px 10px;
+}
+.wb-panel .sh-toasts {
+	right: 8px;
+	left: 8px;
+	bottom: 28px;
+	width: auto;
+	max-height: 35vh;
+	overflow: auto;
+}
+.wb-panel .sh-toast {
+	padding: 7px 9px;
+	font-size: 11px;
+}
+
+@media (max-width: 330px) {
+	.wb-view-tabs button span {
+		display: none;
+	}
+	.wb-composer-footer small {
+		display: none;
+	}
+	.wb-panel .session-tab {
+		min-width: 95px;
+	}
+}
+@media (prefers-reduced-motion: reduce) {
+	.wb-panel *,
+	.wb-panel *::before,
+	.wb-panel *::after {
+		animation: none !important;
+		transition: none !important;
+	}
+}
+body.vscode-high-contrast .wb-panel button[aria-current="page"],
+body.vscode-high-contrast-light .wb-panel button[aria-current="page"] {
+	outline: 1px solid var(--vscode-contrastActiveBorder, var(--ring));
+}

@@ -5,7 +5,7 @@ import * as path from "node:path";
 import * as url from "node:url";
 import { removeWithRetries } from "@oh-my-pi/pi-utils";
 
-const CLI_ENTRY = path.join(import.meta.dir, "..", "src", "cli.ts");
+const CLI_ENTRY = path.join(import.meta.dir, "..", "src", "cli-runtime.ts");
 const FIXTURE_PATH = path.join(import.meta.dir, "fixtures", "resources-no-templates-mcp.ts");
 
 // The fixture stalls its `initialize` reply for this long — comfortably past

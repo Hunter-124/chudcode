@@ -1,0 +1,12 @@
+[package]
+name = "chudcode-desktop"
+version = "0.4.3"
+edition = "2024"
+license = "MIT"
+publish = false
+
+[[bin]]
+name = "chudcode-desktop"
+path = "src/main.rs"
+
+[dependencies]

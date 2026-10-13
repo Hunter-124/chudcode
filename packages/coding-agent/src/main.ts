@@ -2568,6 +2568,8 @@ export async function runRootCommand(
 
 export async function main(args: string[]): Promise<void> {
 	registerLocalInferenceApi();
-	const { runCli } = await import("./cli");
+	// Late compatibility API entry: keep the CLI bootstrap prelude out of callers
+	// that load the agent command implementation without invoking the CLI.
+	const { runCli } = await import("./cli-runtime");
 	await runCli(args.length === 0 ? ["launch"] : args);
 }

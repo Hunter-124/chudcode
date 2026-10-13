@@ -1,0 +1,117 @@
+{
+	"name": "chudcode-workbench",
+	"displayName": "ChudCode Workbench",
+	"version": "0.1.0",
+	"private": true,
+	"description": "ChudCode agent sessions inside the native Code-OSS workbench.",
+	"categories": [
+		"AI",
+		"Other"
+	],
+	"license": "MIT",
+	"publisher": "chudware",
+	"files": [
+		"dist"
+	],
+	"main": "./dist/extension.cjs",
+	"scripts": {
+		"build": "node scripts/build.mjs",
+		"build:engine": "bun scripts/build-engine.ts",
+		"check:types": "tsgo --noEmit -p tsconfig.json && tsgo --noEmit -p tsconfig.web.json",
+		"test:integration": "python3 test/run_extension_host.py"
+	},
+	"dependencies": {
+		"@oh-my-pi/collab-web": "workspace:*",
+		"@oh-my-pi/pi-wire": "catalog:",
+		"d3": "catalog:",
+		"katex": "catalog:",
+		"lucide-react": "catalog:",
+		"react": "catalog:",
+		"react-dom": "catalog:",
+		"ws": "8.21.3"
+	},
+	"devDependencies": {
+		"@types/bun": "catalog:",
+		"@types/d3": "catalog:",
+		"@types/node": "26.6.2",
+		"@types/react": "catalog:",
+		"@types/react-dom": "catalog:",
+		"@types/vscode": "1.105.0",
+		"@types/ws": "8.18.1",
+		"esbuild": "0.28.2",
+		"typescript": "catalog:"
+	},
+	"contributes": {
+		"commands": [
+			{
+				"command": "chudcode.openChat",
+				"title": "Open Chat",
+				"category": "ChudCode"
+			},
+			{
+				"command": "chudcode.newSession",
+				"title": "New Session",
+				"category": "ChudCode"
+			},
+			{
+				"command": "chudcode.showSessions",
+				"title": "Show Sessions",
+				"category": "ChudCode"
+			},
+			{
+				"command": "chudcode.showTasks",
+				"title": "Show Tasks",
+				"category": "ChudCode"
+			},
+			{
+				"command": "chudcode.showGraphs",
+				"title": "Show Graphs",
+				"category": "ChudCode"
+			},
+			{
+				"command": "chudcode.restartService",
+				"title": "Restart Service",
+				"category": "ChudCode"
+			}
+		],
+		"viewsContainers": {
+			"secondarySidebar": [
+				{
+					"id": "chudcode",
+					"title": "ChudCode",
+					"icon": "./dist/chudcode.svg"
+				}
+			]
+		},
+		"views": {
+			"chudcode": [
+				{
+					"type": "webview",
+					"id": "chudcode.chat",
+					"name": "Agent",
+					"icon": "./dist/chudcode.svg",
+					"contextualTitle": "ChudCode"
+				}
+			]
+		},
+		"configurationDefaults": {
+			"workbench.secondarySideBar.defaultVisibility": "visible"
+		}
+	},
+	"activationEvents": [
+		"onStartupFinished",
+		"onView:chudcode.chat"
+	],
+	"engines": {
+		"vscode": "^1.135.0"
+	},
+	"capabilities": {
+		"untrustedWorkspaces": {
+			"supported": "limited",
+			"description": "The agent service only starts after workspace trust is granted."
+		},
+		"virtualWorkspaces": {
+			"supported": false
+		}
+	}
+}

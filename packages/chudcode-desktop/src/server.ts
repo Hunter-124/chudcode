@@ -3,7 +3,7 @@ import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { getAgentDir, getProjectDir, isEexist, isEnoent } from "@oh-my-pi/pi-utils";
 import type { DesktopFrame, DesktopRequest } from "./protocol";
-import { createDesktopRuntime, type DesktopFrameSink } from "./runtime";
+import { createDesktopRuntime, type DesktopClientCapabilities, type DesktopFrameSink } from "./runtime";
 
 const DEFAULT_MAX_OUTBOUND_BYTES = 4 * 1024 * 1024;
 const DEFAULT_MAX_OUTBOUND_FRAMES = 1_024;
@@ -26,6 +26,7 @@ interface SocketLike {
 
 interface DesktopSocketData {
 	connection?: DesktopConnection;
+	capabilities?: DesktopClientCapabilities;
 }
 
 interface DesktopLease {
@@ -34,7 +35,7 @@ interface DesktopLease {
 }
 
 export interface DesktopRuntimeHost {
-	attach(client: DesktopFrameSink): void;
+	attach(client: DesktopFrameSink, capabilities?: DesktopClientCapabilities): void;
 	detach(client: DesktopFrameSink): void;
 	handleRequest(request: DesktopRequest): Promise<DesktopFrame>;
 	dispose(): Promise<void>;
@@ -208,6 +209,8 @@ export interface DesktopServerOptions {
 	port?: number;
 	token?: string;
 	webDist?: string;
+	/** Serve only the authenticated WebSocket transport, without resolving browser assets. */
+	websocketOnly?: boolean;
 	runtime?: DesktopRuntimeHost;
 	runtimeDir?: string;
 	singleInstance?: boolean;
@@ -242,7 +245,7 @@ export async function startDesktopServer(options: DesktopServerOptions = {}): Pr
 	let stopped = false;
 	try {
 		runtime ??= await createDesktopRuntime({ cwd });
-		const webDist = await resolveWebDist(options.webDist);
+		const webDist = options.websocketOnly ? undefined : await resolveWebDist(options.webDist);
 		const token = options.token ?? randomBytes(32).toString("base64url");
 		if (Buffer.from(token).byteLength < 32) throw new Error("Desktop bearer token must contain at least 256 bits");
 		const configuredPort = options.port ?? readConfiguredPort();
@@ -269,9 +272,12 @@ export async function startDesktopServer(options: DesktopServerOptions = {}): Pr
 					if (request.headers.get("upgrade")?.toLowerCase() !== "websocket") {
 						return new Response("Not Found", { status: 404 });
 					}
-					const upgraded = bunServer.upgrade(request, { data: {} });
+					const upgraded = bunServer.upgrade(request, {
+						data: { capabilities: { presentsUi: url.searchParams.get("client") !== "control" } },
+					});
 					return upgraded ? undefined : new Response("WebSocket upgrade failed", { status: 400 });
 				}
+				if (webDist === undefined) return new Response("Not Found", { status: 404 });
 
 				if (request.method !== "GET" && request.method !== "HEAD") {
 					return new Response("Method Not Allowed", { status: 405, headers: { Allow: "GET, HEAD" } });
@@ -300,7 +306,7 @@ export async function startDesktopServer(options: DesktopServerOptions = {}): Pr
 					}
 					const connection = new DesktopConnection(runtime, socket, queueOptions);
 					socket.data.connection = connection;
-					runtime.attach(connection);
+					runtime.attach(connection, socket.data.capabilities);
 				},
 				message(socket, message) {
 					void socket.data.connection?.receive(message);
@@ -554,15 +560,34 @@ async function releaseDesktopLease(lease: DesktopLease): Promise<void> {
 	}
 }
 
+async function main(): Promise<void> {
+	const { promise: interrupted, resolve } = Promise.withResolvers<void>();
+	const shutdown = (): void => resolve();
+	process.once("SIGINT", shutdown);
+	process.once("SIGTERM", shutdown);
+	let handle: DesktopServerHandle | undefined;
+	try {
+		handle = await startDesktopServer();
+		process.stdout.write(`${handle.bootstrapUrl}\n`);
+		await interrupted;
+	} finally {
+		try {
+			await handle?.stop();
+		} finally {
+			process.removeListener("SIGINT", shutdown);
+			process.removeListener("SIGTERM", shutdown);
+		}
+	}
+}
+
+// The server is also synchronously required by the compiled workbench host.
+// Its standalone lifetime must not mark the imported module graph as async.
 if (import.meta.main) {
-	const handle = await startDesktopServer();
-	process.stdout.write(`${handle.bootstrapUrl}\n`);
-	let shuttingDown = false;
-	const shutdown = async () => {
-		if (shuttingDown) return;
-		shuttingDown = true;
-		await handle.stop();
-	};
-	process.once("SIGINT", () => void shutdown());
-	process.once("SIGTERM", () => void shutdown());
+	main().then(
+		() => process.exit(0),
+		error => {
+			console.error(`Chudcode desktop server failed: ${error instanceof Error ? error.message : "Unknown error"}`);
+			process.exit(1);
+		},
+	);
 }

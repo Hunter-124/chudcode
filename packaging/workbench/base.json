@@ -1,0 +1,42 @@
+{
+  "schemaVersion": 1,
+  "productVersion": "0.4.3",
+  "upstream": "VSCodium/vscodium",
+  "release": "1.135.06055",
+  "releaseId": 385335461,
+  "sourceApi": "https://api.github.com/repos/VSCodium/vscodium/releases/tags/1.135.06055",
+  "sourceUrl": "https://github.com/VSCodium/vscodium/releases/tag/1.135.06055",
+  "license": "MIT",
+  "targets": {
+    "linux-x64": {
+      "assetId": 552377075,
+      "name": "VSCodium-linux-x64-1.135.06055.tar.gz",
+      "url": "https://github.com/VSCodium/vscodium/releases/download/1.135.06055/VSCodium-linux-x64-1.135.06055.tar.gz",
+      "sha256": "c09d8ac8dd7f52b09ee159ee24b440541dfd8f937a0f6f88cc428c78e48ee1f2",
+      "size": 243185899,
+      "archive": "tar.gz",
+      "editor": "codium",
+      "app": "resources/app"
+    },
+    "darwin-x64": {
+      "assetId": 552448437,
+      "name": "VSCodium-darwin-x64-1.135.06055.zip",
+      "url": "https://github.com/VSCodium/vscodium/releases/download/1.135.06055/VSCodium-darwin-x64-1.135.06055.zip",
+      "sha256": "2fce180317a011576dc7e0910e1033d3287472b56e362b33175f5416415b604a",
+      "size": 243084648,
+      "archive": "zip",
+      "editor": "VSCodium.app/Contents/MacOS/VSCodium",
+      "app": "VSCodium.app/Contents/Resources/app"
+    },
+    "win32-x64": {
+      "assetId": 552500889,
+      "name": "VSCodium-win32-x64-1.135.06055.zip",
+      "url": "https://github.com/VSCodium/vscodium/releases/download/1.135.06055/VSCodium-win32-x64-1.135.06055.zip",
+      "sha256": "0bec978f201238624bc9ad43966f5e201ed8afacc37d77035a822252d9c9c200",
+      "size": 250898961,
+      "archive": "zip",
+      "editor": "VSCodium.exe",
+      "app": "resources/app"
+    }
+  }
+}

@@ -3,7 +3,7 @@ import { TempDir } from "@oh-my-pi/pi-utils";
 
 test("normal CLI startup keeps computer worker modules lazy", async () => {
 	using tempDir = TempDir.createSync("@omp-cli-computer-lazy-");
-	const cliUrl = new URL("../src/cli.ts", import.meta.url).href;
+	const cliUrl = new URL("../src/cli-runtime.ts", import.meta.url).href;
 	const probePath = tempDir.join("probe.ts");
 	// Import by file URL inside the child so only that fresh process evaluates the CLI graph.
 	await Bun.write(

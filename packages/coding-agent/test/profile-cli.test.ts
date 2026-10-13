@@ -15,11 +15,11 @@ import {
 	VERSION,
 } from "@oh-my-pi/pi-utils/dirs";
 import { Snowflake } from "@oh-my-pi/pi-utils/snowflake";
-import { runCli } from "../src/cli";
+import { runCli } from "../src/cli-runtime";
 import * as profileAliasCli from "../src/cli/profile-alias";
 
 const repoRoot = path.resolve(import.meta.dir, "..", "..", "..");
-const cliEntry = path.join(repoRoot, "packages", "coding-agent", "src", "cli.ts");
+const cliEntry = path.join(repoRoot, "packages", "coding-agent", "src", "cli-runtime.ts");
 
 async function readStream(stream: ReadableStream<Uint8Array>): Promise<string> {
 	const reader = stream.getReader();

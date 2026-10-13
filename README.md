@@ -7,6 +7,39 @@ See [`docs/rpc.md`](docs/rpc.md) for the protocol and
 [`packages/coding-agent/DEVELOPMENT.md`](packages/coding-agent/DEVELOPMENT.md)
 for the source layout.
 
+## Opt-in Code-OSS workbench candidate
+
+An isolated, unpublished candidate pairs a native Rust launcher
+(`crates/chudcode-desktop`) with a Code-OSS editor and the built-in
+`chudware.chudcode-workbench` extension (`packages/chudcode-workbench`).
+The editor owns files, search, terminals, Git, and language-service UI; the
+extension connects the existing agent/session surfaces to a private,
+authenticated desktop protocol v1 service. The bundled public `chud` remains
+Chudcode **0.4.3 / RPC v2**; existing release artifacts, installers, the GUI,
+and downstream pins are not replaced.
+
+The binary editor base is the official VSCodium **1.135.06055** distribution,
+SHA-256 pinned in [`packaging/workbench/base.json`](packaging/workbench/base.json),
+with ChudCode identity, Open VSX, and upstream auto-update disabled. This is
+candidate assembly from pinned upstream binaries, **not a published upstream
+source fork**. Bun/TypeScript remains the agent/provider/plugin compatibility
+engine until parity-gated native migration; Electron/TypeScript intentionally
+remains at the editor boundary. The Rust launcher is not a Rust agent engine.
+
+See the [candidate layout, build/assembly workflow, trust model, rollback, and
+qualification gates](packages/chudcode-desktop/README.md#code-oss-workbench-candidate).
+Editor data and user-installed extensions have separate workbench directories,
+but agent settings and sessions deliberately use the existing store. Open only
+trusted workspaces; editor isolation does not sandbox agent or terminal tools.
+
+Stable promotion requires freezing CAD's 0.4.3/RPC v2/Python SDK 0.3.1 and
+CloudCastle's 18.1.11 integration surfaces, proving behavior, restart,
+persistence, host-tool and worker parity before replacing engine modules with Rust, and
+completing provider/deployed-consumer, native platform/ISA, and signing gates.
+Comparative latency/resource distributions must be profiled before claiming
+performance gains. Actual final editor UI and platform qualification remain
+pending; this candidate is not a completed overhaul or stable release.
+
 ## Development
 
 From the repository root:

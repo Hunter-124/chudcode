@@ -5,7 +5,7 @@ import { runRootCommand } from "@oh-my-pi/pi-coding-agent/main";
 import type { CreateAgentSessionOptions } from "@oh-my-pi/pi-coding-agent/sdk";
 import { AuthStorage } from "@oh-my-pi/pi-coding-agent/session/auth-storage";
 import { APP_NAME, TempDir } from "@oh-my-pi/pi-utils";
-import { runCli } from "../src/cli";
+import { runCli } from "../src/cli-runtime";
 
 describe("parseArgs — --max-time flag", () => {
 	it("parses --max-time seconds as maxTime", () => {
