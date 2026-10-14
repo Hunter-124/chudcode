@@ -205,7 +205,7 @@ describe("RPC subagent registry", () => {
 
 				expect(result).toEqual(testCase.expected);
 				expect(registry.getSubagents()).toHaveLength(0);
-				expect(() => registry.resolveSessionFile({ subagentId: "SubagentA" })).toThrow(
+				await expect(registry.resolveSessionFile({ subagentId: "SubagentA" })).rejects.toThrow(
 					/Unknown subagent or session file unavailable/,
 				);
 			} finally {
@@ -244,14 +244,14 @@ describe("RPC subagent registry", () => {
 
 				expect(result).toEqual(testCase.expected);
 				expect(registry.getSubagents()).toMatchObject([{ id: "SubagentA" }]);
-				expect(registry.resolveSessionFile({ subagentId: "SubagentA" })).toBe("/tmp/subagent.jsonl");
+				expect(await registry.resolveSessionFile({ subagentId: "SubagentA" })).toBe("/tmp/subagent.jsonl");
 			} finally {
 				registry.dispose();
 			}
 		}
 	});
 
-	test("prunes terminal lifecycle snapshots while retaining transcript selectors", () => {
+	test("prunes terminal lifecycle snapshots while retaining transcript selectors", async () => {
 		const eventBus = new EventBus();
 		const registry = new RpcSubagentRegistry(eventBus, () => {});
 		const sessionFile = "/tmp/subagent.jsonl";
@@ -275,9 +275,108 @@ describe("RPC subagent registry", () => {
 		} satisfies SubagentLifecyclePayload);
 
 		expect(registry.getSubagents()).toHaveLength(0);
-		expect(registry.resolveSessionFile({ subagentId: "SubagentA" })).toBe(sessionFile);
-		expect(registry.resolveSessionFile({ sessionFile })).toBe(sessionFile);
+		expect(await registry.resolveSessionFile({ subagentId: "SubagentA" })).toBe(sessionFile);
+		expect(await registry.resolveSessionFile({ sessionFile })).toBe(sessionFile);
 		registry.dispose();
+	});
+
+	test("resolves persisted child and grandchild files after restart only within the current session tree", async () => {
+		const dir = fs.mkdtempSync(path.join(os.tmpdir(), "omp-rpc-subagent-resume-"));
+		tempPaths.push(dir);
+		const root = path.join(dir, "root.jsonl");
+		const child = path.join(dir, "root", "Child.jsonl");
+		const grandchild = path.join(dir, "root", "Child", "Child.Grandchild.jsonl");
+		const otherRoot = path.join(dir, "other.jsonl");
+		const outside = path.join(dir, "outside.jsonl");
+		const wrongParent = path.join(dir, "root", "WrongParent.jsonl");
+		const linked = path.join(dir, "root", "Linked.jsonl");
+		const forgedPrefix = path.join(dir, "root-forged", "Child.jsonl");
+		const linkedParent = path.join(dir, "root", "LinkedParent.jsonl");
+		const grandchildViaLinkedParent = path.join(dir, "root", "LinkedParent", "Grandchild.jsonl");
+		const linkedDirectory = path.join(dir, "root", "LinkedDirectory");
+		const grandchildViaLinkedDirectory = path.join(linkedDirectory, path.basename(grandchild));
+		fs.mkdirSync(path.dirname(grandchild), { recursive: true });
+		fs.mkdirSync(path.dirname(forgedPrefix), { recursive: true });
+		fs.mkdirSync(path.dirname(grandchildViaLinkedParent), { recursive: true });
+		const header = (id: string, parentSession?: string) =>
+			`${JSON.stringify({ type: "session", version: 3, id, cwd: dir, parentSession })}\n`;
+		fs.writeFileSync(root, header("root"));
+		fs.writeFileSync(otherRoot, header("other"));
+		fs.writeFileSync(child, header("child", root));
+		fs.writeFileSync(grandchild, header("grandchild", child));
+		fs.writeFileSync(outside, header("outside", root));
+		fs.writeFileSync(wrongParent, header("wrong-parent", otherRoot));
+		fs.writeFileSync(forgedPrefix, header("forged-prefix", root));
+		fs.writeFileSync(grandchildViaLinkedParent, header("linked-parent-grandchild", linkedParent));
+		fs.symlinkSync(outside, linked);
+		fs.symlinkSync(child, linkedParent);
+		fs.symlinkSync(path.dirname(grandchild), linkedDirectory, process.platform === "win32" ? "junction" : "dir");
+		const traversalOutside = path.join(dir, "traversal-outside");
+		fs.mkdirSync(path.join(traversalOutside, "nested"), { recursive: true });
+		const markerMessage = {
+			type: "message",
+			id: "inside-marker",
+			parentId: null,
+			timestamp: new Date(0).toISOString(),
+			message: { role: "user", content: [{ type: "text", text: "INSIDE-CURRENT-SESSION" }], timestamp: 0 },
+		};
+		fs.appendFileSync(child, `${JSON.stringify(markerMessage)}\n`);
+		markerMessage.id = "outside-marker";
+		markerMessage.message.content[0]!.text = "OUTSIDE-CURRENT-SESSION";
+		fs.writeFileSync(
+			path.join(traversalOutside, path.basename(child)),
+			header("outside-child", root) + `${JSON.stringify(markerMessage)}\n`,
+		);
+		const traversalLink = path.join(dir, "root", "TraversalLink");
+		fs.symlinkSync(
+			path.join(traversalOutside, "nested"),
+			traversalLink,
+			process.platform === "win32" ? "junction" : "dir",
+		);
+		const registry = new RpcSubagentRegistry(new EventBus(), () => {});
+		try {
+			expect(await registry.resolveSessionFile({ sessionFile: child }, root)).toBe(child);
+			expect(await registry.resolveSessionFile({ sessionFile: grandchild }, root)).toBe(grandchild);
+			const relativeAlias = `${path.dirname(child)}${path.sep}.${path.sep}${path.basename(child)}`;
+			expect(await registry.resolveSessionFile({ sessionFile: relativeAlias }, root)).toBe(
+				path.resolve(relativeAlias),
+			);
+			const caseAlias = child.toUpperCase();
+			if (fs.existsSync(caseAlias)) {
+				const selected = await registry.resolveSessionFile({ sessionFile: caseAlias }, root.toUpperCase());
+				expect(JSON.stringify((await readRpcSubagentTranscript(selected)).messages)).toContain(
+					"INSIDE-CURRENT-SESSION",
+				);
+			}
+			const traversalRequest = `${traversalLink}${path.sep}..${path.sep}${path.basename(child)}`;
+			const selected = await registry.resolveSessionFile({ sessionFile: traversalRequest }, root);
+			const selectedContent = JSON.stringify((await readRpcSubagentTranscript(selected)).messages);
+			expect(selectedContent).toContain("INSIDE-CURRENT-SESSION");
+			expect(selectedContent).not.toContain("OUTSIDE-CURRENT-SESSION");
+			expect(registry.getSubagents()).toEqual([]);
+			for (const sessionFile of [
+				root,
+				outside,
+				wrongParent,
+				linked,
+				forgedPrefix,
+				grandchildViaLinkedParent,
+				grandchildViaLinkedDirectory,
+				path.join(dir, "root", "missing.jsonl"),
+			]) {
+				await expect(registry.resolveSessionFile({ sessionFile }, root)).rejects.toThrow(
+					"Unknown subagent session file",
+				);
+			}
+			await expect(registry.resolveSessionFile({ sessionFile: child }, otherRoot)).rejects.toThrow(
+				"Unknown subagent session file",
+			);
+			await expect(registry.resolveSessionFile({ sessionFile: child })).rejects.toThrow(
+				"Unknown subagent session file",
+			);
+		} finally {
+			registry.dispose();
+		}
 	});
 
 	test("gates raw subagent events behind the events subscription level", () => {

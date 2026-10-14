@@ -8,7 +8,7 @@
 - Added an opt-in, unpublished Code-OSS workbench candidate with a Rust launcher and existing Chudcode agent compatibility service; stable GUI/CLI releases and downstream RPC/SDK pins remain unchanged.
 - Added native workbench archive qualification with checksum-bound reports and an isolated Linux, macOS, and Windows draft-release lane that leaves published releases and downstream pins untouched.
 - Added opt-in live-provider workbench qualification that verifies real file operations through desktop and public RPC transports without using existing application state.
-- Added a checksum-verified Linux RPC startup benchmark for comparing release candidates with published binaries using isolated profiles and paired measurements.
+- Added a checksum-verified Linux RPC startup benchmark with isolated paired measurements and optional root-resource tracing through post-state idle.
 
 ### Changed
 
@@ -21,6 +21,9 @@
 - Workbench sessions no longer appear to keep running solely because next-turn messages are queued; closing or deleting still protects pending work.
 - Live-provider workbench qualification rejects undersized explicit Ollama context settings before starting a model turn.
 - Workbench session operations recognize native path aliases without losing persisted sessions, creating duplicate tabs, or bypassing dirty-draft protections.
+- Workbench keyboard navigation now preserves focus across first-open initialization, service restart, session creation/closure, tab navigation, and session dialogs.
+- Opted-in RPC hosts now receive persisted session-name title changes across restarts, while `--no-ui` continues to suppress presentation frames.
+- Resumed RPC consumers can retrieve completed child and grandchild transcripts by `sessionFile` within the current persisted session tree.
 - Interrupting a Python eval cell parked on an async tool call now cancels the cell without killing its kernel or losing retained variables; synchronous cell interruption remains supported.
 - Eval calls to RPC host tools (`tool.<host tool>(...)` or `write xd://<host tool>`) no longer use the cell `timeout` budget, like `agent()` waits; a turn cancel still cancels the host call.
 - A timed-out Python cell now says whether the kernel kept its state: the host sends a liveness ping after the interrupt instead of assuming the kernel still runs.

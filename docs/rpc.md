@@ -759,6 +759,13 @@ Subagent forwarding defaults to `"off"`. `set_subagent_subscription` selects:
 `messages`. If `fromByte` exceeds the current file size, reading restarts at
 byte zero and reports `reset: true`.
 
+Completed subagents leave the active snapshot, while a bounded set of their
+transcript references remains available in the current process. After restarting
+and resuming a persisted parent, use `sessionFile` rather than a process-local
+`subagentId`. The file must belong to that parent's artifact tree with validated
+persisted parent lineage. Unrelated files, symlinked descendants, and the previous
+tree after `new_session` are rejected rather than granting arbitrary file access.
+
 ## Prompt/Queue Concurrency and Ordering
 
 This is the most important operational behavior.
@@ -825,7 +832,9 @@ Runtime note:
 - Automatic session title generation is disabled in RPC mode, and `setTitle` UI
   requests are also suppressed by default because most hosts do not have a
   meaningful terminal-title surface. Set `PI_RPC_EMIT_TITLE=1` to opt back in to
-  the UI event only.
+  the UI event only. Persisted session-name changes, including `set_session_name`,
+  emit that event when opted in, so embedding hosts can refresh their titles.
+  `--no-ui` suppresses these presentation frames even when the opt-in is set.
 
 Example:
 

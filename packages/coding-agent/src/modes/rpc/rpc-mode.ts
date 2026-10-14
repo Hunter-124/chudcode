@@ -1007,7 +1007,7 @@ export async function runRpcMode(session: AgentSession, options: RpcModeOptions 
 		if (isRecord(obj) && obj.type === "response" && obj.command === "negotiate_protocol" && obj.success === true)
 			frameEncoder.setProtocolVersion(2);
 	};
-	const emitRpcTitles = shouldEmitRpcTitles();
+	const emitRpcTitles = !headless && shouldEmitRpcTitles();
 
 	const success = <T extends RpcCommand["type"]>(
 		id: string | undefined,
@@ -1230,6 +1230,12 @@ export async function runRpcMode(session: AgentSession, options: RpcModeOptions 
 	// correct waiting promise regardless of which code path created the request.
 	const rpcUiContext = new RpcExtensionUIContext(pendingExtensionRequests, output);
 	setToolUIContext?.(rpcUiContext, true);
+	if (emitRpcTitles) {
+		session.sessionManager.onSessionNameChanged(() => {
+			const title = session.sessionName;
+			if (title) rpcUiContext.setTitle(title);
+		});
+	}
 	const onPromptError = (id: string | undefined, command: string) => (promptError: Error) =>
 		output(error(id, command, promptError.message));
 
@@ -1641,7 +1647,7 @@ export async function runRpcMode(session: AgentSession, options: RpcModeOptions 
 					if (command.fromByte !== undefined && !Number.isFinite(command.fromByte)) {
 						return error(id, "get_subagent_messages", "fromByte must be a finite number");
 					}
-					const sessionFile = subagentRegistry.resolveSessionFile(command);
+					const sessionFile = await subagentRegistry.resolveSessionFile(command, session.sessionFile);
 					const transcript = await readRpcSubagentTranscript(sessionFile, command.fromByte);
 					return success(id, "get_subagent_messages", transcript);
 				} catch (err) {

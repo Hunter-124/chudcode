@@ -23,6 +23,8 @@ export interface WorkbenchApi {
 class Workbench implements vscode.WebviewViewProvider {
 	readonly #context: vscode.ExtensionContext;
 	#view: vscode.WebviewView | undefined;
+	#viewReady = false;
+	#focusRequested = false;
 	#selection: AgentView = "chat";
 	#service: ServiceClient | undefined;
 	#serviceWorkspace: string | undefined;
@@ -108,6 +110,7 @@ class Workbench implements vscode.WebviewViewProvider {
 	resolveWebviewView(view: vscode.WebviewView): void {
 		this.#closeBridge();
 		this.#view = view;
+		this.#viewReady = false;
 		view.webview.options = {
 			enableScripts: true,
 			localResourceRoots: [vscode.Uri.joinPath(this.#context.extensionUri, "dist", "webview")],
@@ -124,6 +127,8 @@ class Workbench implements vscode.WebviewViewProvider {
 				if (this.#view === view) {
 					this.#closeBridge();
 					this.#view = undefined;
+					this.#viewReady = false;
+					this.#focusRequested = false;
 				}
 			},
 			undefined,
@@ -186,6 +191,11 @@ class Workbench implements vscode.WebviewViewProvider {
 					!/^[A-Za-z0-9_.:-]{1,128}$/.test(message.connectionId)
 				)
 					throw new Error("Invalid connection ID");
+				this.#viewReady = true;
+				if (this.#focusRequested) {
+					this.#focusRequested = false;
+					this.#view?.show(false);
+				}
 				this.#closeBridge();
 				const connectionId = message.connectionId;
 				this.#connectionId = connectionId;
@@ -299,12 +309,14 @@ class Workbench implements vscode.WebviewViewProvider {
 
 	async show(view: AgentView): Promise<void> {
 		this.#selection = view;
+		this.#focusRequested = !this.#viewReady;
 		await vscode.commands.executeCommand("chudcode.chat.focus");
 		this.#post({ type: "view", view });
 	}
 
 	reset(start: boolean): Promise<void> {
 		if (this.#resetting) return this.#resetting;
+		if (this.#view) this.#viewReady = false;
 		this.#closeBridge();
 		const service = this.#service;
 		this.#resetting = (async () => {

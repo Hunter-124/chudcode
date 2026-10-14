@@ -23,7 +23,7 @@ import {
 	Trash2,
 	X,
 } from "lucide-react";
-import type { ChangeEvent, MouseEvent, ReactNode } from "react";
+import type { ChangeEvent, KeyboardEvent as ReactKeyboardEvent, MouseEvent, ReactNode } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
 	DESKTOP_PROTOCOL_VERSION,
@@ -93,7 +93,7 @@ function readImage(file: File): Promise<Attachment> {
 }
 
 /** VS Code's webviews cannot use synchronous browser prompt/confirm dialogs. */
-function SessionsView({
+export function SessionsView({
 	client,
 	sessions,
 	activePath,
@@ -117,10 +117,43 @@ function SessionsView({
 	const [title, setTitle] = useState("");
 	const [deletePath, setDeletePath] = useState<string>();
 	const [query, setQuery] = useState("");
+	const sessionsRef = useRef<HTMLElement>(null);
+	const dialogTrigger = useRef<HTMLButtonElement>(null);
 	const selected = sessions.find(session => session.path === activePath);
 	const filtered = sessions.filter(session =>
 		`${session.title ?? ""} ${session.cwd} ${session.id}`.toLowerCase().includes(query.toLowerCase()),
 	);
+
+	useEffect(() => {
+		if (renamePath || deletePath) return;
+		const trigger = dialogTrigger.current;
+		if (!trigger) return;
+		if (trigger.isConnected) trigger.focus();
+		else sessionsRef.current?.querySelector<HTMLInputElement>(".wb-filter input")?.focus();
+		dialogTrigger.current = null;
+	}, [renamePath, deletePath]);
+
+	const cancelDialog = (event: ReactKeyboardEvent<HTMLElement>): void => {
+		if (event.nativeEvent.isComposing) return;
+		if (event.key === "Escape") {
+			event.preventDefault();
+			event.stopPropagation();
+			setRenamePath(undefined);
+			setDeletePath(undefined);
+		} else if (deletePath && event.key === "Tab") {
+			const buttons = event.currentTarget.querySelectorAll<HTMLButtonElement>("button:not(:disabled)");
+			const first = buttons[0];
+			const last = buttons[buttons.length - 1];
+			if (
+				(event.shiftKey && document.activeElement === first) ||
+				(!event.shiftKey && document.activeElement === last)
+			) {
+				event.preventDefault();
+				(event.shiftKey ? last : first)?.focus();
+			}
+			event.stopPropagation();
+		}
+	};
 
 	const run = async (action: () => Promise<void>): Promise<void> => {
 		if (!live || busy) return;
@@ -135,7 +168,7 @@ function SessionsView({
 	};
 
 	return (
-		<section className="wb-sessions" aria-labelledby="sessions-title">
+		<section className="wb-sessions" aria-labelledby="sessions-title" ref={sessionsRef}>
 			<header className="panel-heading">
 				<h2 id="sessions-title">
 					Sessions <small>{sessions.length}</small>
@@ -236,7 +269,8 @@ function SessionsView({
 								type="button"
 								aria-label="Rename session"
 								disabled={!live || busy}
-								onClick={() => {
+								onClick={event => {
+									dialogTrigger.current = event.currentTarget;
 									setRenamePath(session.path);
 									setTitle(session.title ?? "");
 									setDeletePath(undefined);
@@ -248,7 +282,8 @@ function SessionsView({
 								type="button"
 								aria-label="Delete session"
 								disabled={!live || busy}
-								onClick={() => {
+								onClick={event => {
+									dialogTrigger.current = event.currentTarget;
 									setDeletePath(session.path);
 									setRenamePath(undefined);
 								}}
@@ -260,6 +295,7 @@ function SessionsView({
 							<form
 								className="wb-session-dialog"
 								aria-label="Rename session"
+								onKeyDown={cancelDialog}
 								onSubmit={event => {
 									event.preventDefault();
 									void run(async () => {
@@ -286,8 +322,17 @@ function SessionsView({
 							</form>
 						) : null}
 						{deletePath === session.path ? (
-							<div className="wb-session-dialog" role="alertdialog" aria-label="Delete session confirmation">
-								<p>Delete “{session.title?.trim() || session.id}”? Its transcript cannot be restored.</p>
+							<div
+								className="wb-session-dialog"
+								role="alertdialog"
+								aria-label="Delete session confirmation"
+								aria-modal="true"
+								aria-describedby="session-delete-description"
+								onKeyDown={cancelDialog}
+							>
+								<p id="session-delete-description">
+									Delete “{session.title?.trim() || session.id}”? Its transcript cannot be restored.
+								</p>
 								<div className="wb-actions">
 									<button
 										type="button"
@@ -307,7 +352,7 @@ function SessionsView({
 									>
 										Delete
 									</button>
-									<button type="button" onClick={() => setDeletePath(undefined)}>
+									<button autoFocus type="button" onClick={() => setDeletePath(undefined)}>
 										Cancel
 									</button>
 								</div>

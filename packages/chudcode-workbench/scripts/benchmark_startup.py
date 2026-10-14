@@ -18,6 +18,7 @@ import statistics
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 from pathlib import Path
 
@@ -115,6 +116,28 @@ def version(
     return versions[0]
 
 
+def root_process_stat(pid: int) -> dict:
+    # stat's comm can contain spaces/parentheses; split after its final ')'.
+    text = Path(f"/proc/{pid}/stat").read_text(encoding="utf-8")
+    fields = text[text.rindex(")") + 2 :].split()
+    ticks = os.sysconf("SC_CLK_TCK")
+    pagesize = os.sysconf("SC_PAGE_SIZE")
+    user, system = int(fields[11]) / ticks, int(fields[12]) / ticks
+    return {
+        "status": "sampled",
+        "rss_bytes": int(fields[21]) * pagesize,
+        "cpu_user_seconds": user,
+        "cpu_system_seconds": system,
+        "cpu_total_seconds": user + system,
+        "cpu_clock_ticks_per_second": ticks,
+        "rss_page_size_bytes": pagesize,
+        "process_start_ticks_since_boot": int(fields[19]),
+        "minor_faults": int(fields[7]),
+        "major_faults": int(fields[9]),
+        "threads": int(fields[17]),
+    }
+
+
 def readiness_snapshot(pid: int, started: float, ready_at: float) -> dict:
     """Sample ONLY the spawned owned root PID, not descendants or peak RSS."""
     observed = time.perf_counter()
@@ -130,24 +153,7 @@ def readiness_snapshot(pid: int, started: float, ready_at: float) -> dict:
         "cpu_total_seconds": None,
     }
     try:
-        # stat's comm can contain spaces/parentheses; split only after its final ')'.
-        text = Path(f"/proc/{pid}/stat").read_text(encoding="utf-8")
-        fields = text[text.rindex(")") + 2 :].split()
-        ticks = os.sysconf("SC_CLK_TCK")
-        pagesize = os.sysconf("SC_PAGE_SIZE")
-        user, system = int(fields[11]) / ticks, int(fields[12]) / ticks
-        result.update(
-            {
-                "status": "sampled",
-                "rss_bytes": int(fields[21]) * pagesize,
-                "cpu_user_seconds": user,
-                "cpu_system_seconds": system,
-                "cpu_total_seconds": user + system,
-                "cpu_clock_ticks_per_second": ticks,
-                "rss_page_size_bytes": pagesize,
-                "process_start_ticks_since_boot": int(fields[19]),
-            }
-        )
+        result.update(root_process_stat(pid))
     except (OSError, ValueError, IndexError):
         result["status"] = "unavailable_proc_stat"
     result["sample_finished_after_ready_ms"] = (time.perf_counter() - ready_at) * 1000
@@ -155,11 +161,148 @@ def readiness_snapshot(pid: int, started: float, ready_at: float) -> dict:
     return result
 
 
-def sample(binary: Path, environment: dict, workspace: Path, timeout: float) -> dict:
+SMAPS_FIELDS = (
+    "Size",
+    "Rss",
+    "Pss",
+    "Private_Clean",
+    "Private_Dirty",
+    "Anonymous",
+    "AnonHugePages",
+    "Swap",
+)
+
+
+def mapping_snapshot(pid: int, binary: Path) -> dict:
+    """Classify OS mappings, not live JS objects or allocator-retained heap."""
+    mappings = []
+    for line in Path(f"/proc/{pid}/smaps").read_text(encoding="utf-8").splitlines():
+        if re.match(r"^[0-9a-f]+-[0-9a-f]+ ", line):
+            fields = line.split(maxsplit=5)
+            name = fields[5] if len(fields) == 6 else ""
+            category = (
+                "executable_file"
+                if name == str(binary)
+                else "brk_heap"
+                if name == "[heap]"
+                else "anonymous_mapping"
+                if not name or name.startswith("[anon:")
+                else "other_special_mapping"
+                if name.startswith("[")
+                else "other_file_mapping"
+            )
+            mappings.append(
+                {
+                    "address": fields[0],
+                    "permissions": fields[1],
+                    "name": name,
+                    "category": category,
+                    **{field + "_bytes": 0 for field in SMAPS_FIELDS},
+                }
+            )
+        elif mappings:
+            key, _, value = line.partition(":")
+            if key in SMAPS_FIELDS:
+                mappings[-1][key + "_bytes"] = int(value.split()[0]) * 1024
+    categories = {}
+    for mapping in mappings:
+        total = categories.setdefault(
+            mapping["category"],
+            {"mapping_count": 0, **{field + "_bytes": 0 for field in SMAPS_FIELDS}},
+        )
+        total["mapping_count"] += 1
+        for field in SMAPS_FIELDS:
+            total[field + "_bytes"] += mapping[field + "_bytes"]
+    return {
+        "categories": categories,
+        "largest_resident_mappings": sorted(
+            mappings, key=lambda mapping: mapping["Rss_bytes"], reverse=True
+        )[:8],
+    }
+
+
+class RootResourceTrace:
+    """Optional observer of the same JsonProcess-owned root; never a tree peak."""
+
+    def __init__(self, process: JsonProcess, binary: Path, started: float, interval: float):
+        self.process = process.process
+        self.binary = binary
+        self.started = started
+        self.interval = interval
+        self.samples = []
+        self.start_ticks = None
+        self.failure = None
+        self.lock = threading.Lock()
+        self.stopped = threading.Event()
+        self.thread = threading.Thread(target=self._run, daemon=True)
+        self.thread.start()
+
+    def capture(self, phase: str) -> None:
+        with self.lock:
+            if self.process.poll() is not None:
+                return
+            observed = time.perf_counter()
+            sample = {"phase": phase, "after_launch_ms": (observed - self.started) * 1000}
+            try:
+                stat = root_process_stat(self.process.pid)
+                if self.start_ticks is None:
+                    self.start_ticks = stat["process_start_ticks_since_boot"]
+                if self.start_ticks != stat["process_start_ticks_since_boot"]:
+                    raise ProbeError("root_pid_identity_changed")
+                sample["stat"] = stat
+                status = {}
+                for line in Path(f"/proc/{self.process.pid}/status").read_text(
+                    encoding="utf-8"
+                ).splitlines():
+                    key, _, value = line.partition(":")
+                    if key in ("VmRSS", "VmHWM", "VmSize", "RssAnon", "RssFile", "RssShmem"):
+                        status[key + "_bytes"] = int(value.split()[0]) * 1024
+                sample["status"] = status
+                # schedstat is ONLY the root main thread, unlike process stat CPU.
+                scheduler = Path(f"/proc/{self.process.pid}/schedstat").read_text().split()
+                sample["main_thread_schedstat"] = {
+                    "on_cpu_ns": int(scheduler[0]),
+                    "runqueue_wait_ns": int(scheduler[1]),
+                    "timeslices": int(scheduler[2]),
+                }
+                sample["smaps"] = mapping_snapshot(self.process.pid, self.binary)
+            except (OSError, ValueError, IndexError) as error:
+                sample["unavailable"] = type(error).__name__
+            except ProbeError as error:
+                self.failure = error
+                self.stopped.set()
+                sample["unavailable"] = str(error)
+            sample["observation_ms"] = (time.perf_counter() - observed) * 1000
+            self.samples.append(sample)
+
+    def _run(self) -> None:
+        while not self.stopped.is_set():
+            self.capture("periodic")
+            if self.stopped.wait(self.interval):
+                break
+
+    def close(self) -> None:
+        self.stopped.set()
+        self.thread.join(timeout=5)
+        if self.thread.is_alive():
+            raise ProbeError("resource_observer_did_not_stop")
+        if self.failure is not None:
+            raise self.failure
+
+
+def sample(
+    binary: Path,
+    environment: dict,
+    workspace: Path,
+    timeout: float,
+    trace_interval: float | None = None,
+    post_state_seconds: float = 0,
+) -> dict:
     started = time.perf_counter()
     end = time.monotonic() + timeout
     process = JsonProcess([str(binary), *FLAGS], workspace, environment, timeout)
     success = False
+    trace = None
 
     def remaining() -> float:
         value = end - time.monotonic()
@@ -192,6 +335,8 @@ def sample(binary: Path, environment: dict, workspace: Path, timeout: float) -> 
         return response["data"], elapsed
 
     try:
+        if trace_interval is not None:
+            trace = RootResourceTrace(process, binary, started, trace_interval)
         ready = receive(lambda _: True)
         ready_at = time.perf_counter()
         if (
@@ -202,6 +347,8 @@ def sample(binary: Path, environment: dict, workspace: Path, timeout: float) -> 
         ):
             raise ProbeError("rpc_v2_readiness_not_advertised")
         resources = readiness_snapshot(process.process.pid, started, ready_at)
+        if trace is not None:
+            trace.capture("ready")
         negotiated, negotiation_ms = request("negotiate_protocol", protocolVersion=2)
         if negotiated.get("protocolVersion") != 2:
             raise ProbeError("rpc_v2_negotiation_failed")
@@ -223,12 +370,29 @@ def sample(binary: Path, environment: dict, workspace: Path, timeout: float) -> 
             "state_idle": True,
             "state_message_count": 0,
         }
-        process.timeout = remaining()
+        if trace is not None:
+            trace.capture("get_state")
+            if post_state_seconds:
+                if remaining() <= post_state_seconds:
+                    raise ProbeError("post_state_observation_exceeds_lifecycle_deadline")
+                time.sleep(post_state_seconds)
+                trace.capture("post_state_idle")
+            result["root_resource_trace"] = trace.samples
         success = True
     finally:
         # Existing ownership helper kills the entire owned process group even
         # after successful EOF. Its bounded cleanup is outside readiness timing.
-        process.close(require_success=success)
+        try:
+            if trace is not None:
+                trace.close()
+        finally:
+            try:
+                if success:
+                    process.timeout = remaining()
+            except ProbeError:
+                process.close()
+                raise
+            process.close(require_success=success)
     result["lifecycle_ms"] = (time.perf_counter() - started) * 1000
     result["stdin_eof_exit"] = 0
     return result
@@ -310,7 +474,20 @@ def main() -> int:
         default=30.0,
         help="seconds per startup/handshake/state/EOF lifecycle, excluding helper cleanup",
     )
+    parser.add_argument(
+        "--trace-root-resources",
+        action="store_true",
+        help="opt in to intrusive root-PID stat/status/schedstat/smaps observations",
+    )
+    parser.add_argument("--trace-interval-seconds", type=positive_timeout, default=0.1)
+    parser.add_argument(
+        "--post-state-seconds",
+        type=positive_timeout,
+        help="with resource tracing, keep the idle RPC process alive before stdin EOF",
+    )
     args = parser.parse_args()
+    if args.post_state_seconds is not None and not args.trace_root_resources:
+        parser.error("--post-state-seconds requires --trace-root-resources")
     install_cleanup_signals()
     evidence = {
         "schema": "chudcode-real-rpc-startup-comparison-v1",
@@ -347,6 +524,16 @@ def main() -> int:
         "binaries": {},
         "pairs": [],
     }
+    if args.trace_root_resources:
+        evidence["method"]["cleanup_bounds_seconds"]["resource_observer_join"] = 5
+        evidence["method"]["root_resource_trace"] = {
+            "interval_seconds_after_each_observation": args.trace_interval_seconds,
+            "post_state_idle_seconds": args.post_state_seconds or 0,
+            "scope": "spawned owned root PID; stat CPU includes its threads; schedstat is main thread only",
+            "memory": "sampled stat RSS/status VmHWM and smaps mapping classes; not a tree peak or live JS heap",
+            "sampling": "periodic plus ready/get_state/post-state; proc files are sequential, non-atomic observations",
+            "confounder": "observer consumes CPU and smaps locks; readiness can shift; never compare traced and untraced distributions",
+        }
     stage = "prerequisites"
     try:
         if sys.platform != "linux":
@@ -425,7 +612,12 @@ def main() -> int:
                             Path(sample_name), provider_ids
                         )
                         measured = sample(
-                            binaries[label], environment, workspace, args.timeout
+                            binaries[label],
+                            environment,
+                            workspace,
+                            args.timeout,
+                            args.trace_interval_seconds if args.trace_root_resources else None,
+                            args.post_state_seconds or 0,
                         )
                     if not warmup:
                         pair["samples"][label] = measured

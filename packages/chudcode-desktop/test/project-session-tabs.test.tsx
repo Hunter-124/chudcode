@@ -2,7 +2,7 @@ import { afterAll, beforeEach, describe, expect, it } from "bun:test";
 import type { SessionSnapshot, TranscriptResult } from "@oh-my-pi/collab-web/session-client";
 import type { CollabUiResponseValue, ImageContent } from "@oh-my-pi/pi-wire";
 import { parseHTML } from "@oh-my-pi/pi-utils/dom";
-import { act, forwardRef, type ReactNode, useEffect, useImperativeHandle } from "react";
+import { act, forwardRef, type ReactNode, useEffect, useImperativeHandle, useState } from "react";
 import type { DesktopSessionInfo, DesktopSessionTab, WorkspaceDescriptor } from "../src/protocol";
 import type { AppComponents, AppEditorWorkspaceProps } from "../src/web/App";
 import { DEFAULT_REQUEST_TIMEOUT_MS, type DesktopClient } from "../src/web/desktop-client";
@@ -16,12 +16,24 @@ Object.defineProperty(testWindow, "matchMedia", {
 });
 const storage = new Map<string, string>();
 const localStorage = {
-	get length(): number { return storage.size; },
-	clear(): void { storage.clear(); },
-	getItem(key: string): string | null { return storage.get(key) ?? null; },
-	key(index: number): string | null { return [...storage.keys()][index] ?? null; },
-	removeItem(key: string): void { storage.delete(key); },
-	setItem(key: string, value: string): void { storage.set(key, value); },
+	get length(): number {
+		return storage.size;
+	},
+	clear(): void {
+		storage.clear();
+	},
+	getItem(key: string): string | null {
+		return storage.get(key) ?? null;
+	},
+	key(index: number): string | null {
+		return [...storage.keys()][index] ?? null;
+	},
+	removeItem(key: string): void {
+		storage.delete(key);
+	},
+	setItem(key: string, value: string): void {
+		storage.set(key, value);
+	},
 };
 const browserGlobals = {
 	window: testWindow,
@@ -95,21 +107,42 @@ function clickButton(container: HTMLElement, label: string): Promise<void> {
 	});
 }
 
-function dispatchKey(key: string, init: { ctrlKey?: boolean; metaKey?: boolean; shiftKey?: boolean } = {}): void {
+function keyboardEvent(
+	key: string,
+	init: { ctrlKey?: boolean; metaKey?: boolean; shiftKey?: boolean } = {},
+): InstanceType<typeof testWindow.Event> {
 	const event = new testWindow.Event("keydown", { bubbles: true, cancelable: true });
-	for (const [name, value] of Object.entries({ key, code: key === "Tab" ? "Tab" : `Key${key.toUpperCase()}`, isComposing: false, altKey: false, ctrlKey: false, metaKey: false, shiftKey: false, ...init })) {
+	for (const [name, value] of Object.entries({
+		key,
+		code: key === "Tab" ? "Tab" : `Key${key.toUpperCase()}`,
+		isComposing: false,
+		altKey: false,
+		ctrlKey: false,
+		metaKey: false,
+		shiftKey: false,
+		...init,
+	})) {
 		Object.defineProperty(event, name, { configurable: true, value });
 	}
-	testWindow.dispatchEvent(event);
+	return event;
+}
+
+function dispatchKey(key: string, init: { ctrlKey?: boolean; metaKey?: boolean; shiftKey?: boolean } = {}): void {
+	testWindow.dispatchEvent(keyboardEvent(key, init));
 }
 
 function textareaReactProps(textarea: HTMLTextAreaElement): { onChange(event: { target: HTMLTextAreaElement }): void } {
 	const key = Object.keys(textarea).find(candidate => candidate.startsWith("__reactProps$"));
 	if (!key) throw new Error("React textarea props were not attached");
-	return (textarea as unknown as Record<string, unknown>)[key] as { onChange(event: { target: HTMLTextAreaElement }): void };
+	return (textarea as unknown as Record<string, unknown>)[key] as {
+		onChange(event: { target: HTMLTextAreaElement }): void;
+	};
 }
 
-interface Call { method: string; params: Record<string, unknown> }
+interface Call {
+	method: string;
+	params: Record<string, unknown>;
+}
 
 function session(cwd: string, working = false): SessionSnapshot {
 	return {
@@ -131,9 +164,34 @@ function session(cwd: string, working = false): SessionSnapshot {
 	};
 }
 
-const tabA: DesktopSessionTab = { path: "/sessions/a.jsonl", title: "Build API", cwd: "/work/alpha", active: true, running: true, unread: 0, draftDirty: false };
-const tabB: DesktopSessionTab = { path: "/sessions/b.jsonl", title: "Review UI", cwd: "/work/beta", active: false, running: false, unread: 7, draftDirty: true };
-const oldSession: DesktopSessionInfo = { id: "old", path: "/sessions/old.jsonl", cwd: "/work/legacy", title: "Legacy fix", createdMs: 1, modifiedMs: 2, messageCount: 3, size: 4 };
+const tabA: DesktopSessionTab = {
+	path: "/sessions/a.jsonl",
+	title: "Build API",
+	cwd: "/work/alpha",
+	active: true,
+	running: true,
+	unread: 0,
+	draftDirty: false,
+};
+const tabB: DesktopSessionTab = {
+	path: "/sessions/b.jsonl",
+	title: "Review UI",
+	cwd: "/work/beta",
+	active: false,
+	running: false,
+	unread: 7,
+	draftDirty: true,
+};
+const oldSession: DesktopSessionInfo = {
+	id: "old",
+	path: "/sessions/old.jsonl",
+	cwd: "/work/legacy",
+	title: "Legacy fix",
+	createdMs: 1,
+	modifiedMs: 2,
+	messageCount: 3,
+	size: 4,
+};
 
 class FakeDesktopClient {
 	calls: Call[] = [];
@@ -176,21 +234,48 @@ class FakeDesktopClient {
 	getDesktopSnapshot = (): DesktopStoreSnapshot => this.snapshot;
 	connect(): void {}
 	close(): void {}
-	emit(): void { for (const listener of this.listeners) listener(); }
+	emit(): void {
+		for (const listener of this.listeners) listener();
+	}
 
 	async request(method: string, params: Record<string, unknown>, options?: { timeoutMs?: number }): Promise<unknown> {
 		this.calls.push({ method, params });
 		if (method === "workspace.pick") this.pickTimeoutMs = options?.timeoutMs;
-		if (method === "workspace.recent") return { projects: [
-			{ rootPath: "/work/alpha", displayName: "alpha", lastOpenedMs: 2 },
-			{ rootPath: "/work/deep/nested/beta", displayName: "beta", lastOpenedMs: 1 },
-		] };
+		if (method === "workspace.recent")
+			return {
+				projects: [
+					{ rootPath: "/work/alpha", displayName: "alpha", lastOpenedMs: 2 },
+					{ rootPath: "/work/deep/nested/beta", displayName: "beta", lastOpenedMs: 1 },
+				],
+			};
 		if (method === "workspace.pick") return { rootPath: this.pickedPath, cancelled: false };
 		if (method === "workspace.open") {
 			const rootPath = String(params.rootPath);
 			return { workspace: { id: `ws:${rootPath}`, rootPath, displayName: rootPath.split("/").at(-1) } };
 		}
-		if (method === "session.new") return { session: { ...oldSession, path: "/sessions/new.jsonl", cwd: String(params.cwd) } };
+		if (method === "session.new") {
+			const created = { ...oldSession, id: "new", path: "/sessions/new.jsonl", cwd: String(params.cwd) };
+			this.snapshot = {
+				...this.snapshot,
+				revision: this.snapshot.revision + 1,
+				sessions: [...this.snapshot.sessions, created],
+				sessionSnapshots: new Map([...this.snapshot.sessionSnapshots, [created.path, session(created.cwd)]]),
+				sessionTabs: [
+					...this.snapshot.sessionTabs,
+					{
+						path: created.path,
+						title: created.title ?? created.id,
+						cwd: created.cwd,
+						active: false,
+						running: false,
+						unread: 0,
+						draftDirty: false,
+					},
+				],
+			};
+			this.emit();
+			return { session: created };
+		}
 		if (method === "session.activate") {
 			const path = String(params.path);
 			const snapshots = this.snapshot.sessionSnapshots;
@@ -200,7 +285,11 @@ class FakeDesktopClient {
 				revision: this.snapshot.revision + 1,
 				activeSessionPath: path,
 				session: selected,
-				sessionTabs: this.snapshot.sessionTabs.map(tab => ({ ...tab, active: tab.path === path, unread: tab.path === path ? 0 : tab.unread })),
+				sessionTabs: this.snapshot.sessionTabs.map(tab => ({
+					...tab,
+					active: tab.path === path,
+					unread: tab.path === path ? 0 : tab.unread,
+				})),
 			};
 			this.emit();
 			return { tabs: this.snapshot.sessionTabs };
@@ -221,21 +310,33 @@ class FakeDesktopClient {
 
 	setSessionDraft(path: string, dirty: boolean): void {
 		this.calls.push({ method: "session.tab.draft", params: { path, dirty } });
-		this.snapshot = { ...this.snapshot, revision: this.snapshot.revision + 1, sessionTabs: this.snapshot.sessionTabs.map(tab => tab.path === path ? { ...tab, draftDirty: dirty } : tab) };
+		this.snapshot = {
+			...this.snapshot,
+			revision: this.snapshot.revision + 1,
+			sessionTabs: this.snapshot.sessionTabs.map(tab => (tab.path === path ? { ...tab, draftDirty: dirty } : tab)),
+		};
 		this.emit();
 	}
 	sendPrompt(_text: string, _images?: ImageContent[]): void {}
 	sendAbort(): void {}
 	sendUiResponse(_reqId: number, _value?: CollabUiResponseValue): void {}
 	sendAgentCmd(_cmd: "chat" | "kill" | "revive", _agentId: string, _text?: string): void {}
-	fetchTranscript(_agentId: string, _fromByte: number): Promise<TranscriptResult | null> { return Promise.resolve(null); }
+	fetchTranscript(_agentId: string, _fromByte: number): Promise<TranscriptResult | null> {
+		return Promise.resolve(null);
+	}
 }
 
 describe("project switcher", () => {
 	it("keeps the current full path prominent and exposes recent projects plus the native picker", async () => {
 		const client = new FakeDesktopClient();
 		const opened: WorkspaceDescriptor[] = [];
-		const mounted = await mount(<ProjectSwitcher client={client as unknown as DesktopClient} workspace={{ id: "alpha", rootPath: "/work/alpha", displayName: "alpha" }} onWorkspaceOpen={workspace => opened.push(workspace)} />);
+		const mounted = await mount(
+			<ProjectSwitcher
+				client={client as unknown as DesktopClient}
+				workspace={{ id: "alpha", rootPath: "/work/alpha", displayName: "alpha" }}
+				onWorkspaceOpen={workspace => opened.push(workspace)}
+			/>,
+		);
 		try {
 			const current = mounted.container.querySelector(".project-switcher-current");
 			expect(current?.textContent).toContain("alpha");
@@ -243,14 +344,32 @@ describe("project switcher", () => {
 
 			await clickButton(mounted.container, "Switch project");
 			expect(mounted.container.textContent).toContain("/work/deep/nested/beta");
-			const recent = Array.from(mounted.container.querySelectorAll(".project-recent-list button")).find(button => button.textContent?.includes("nested/beta")) as HTMLButtonElement;
-			await act(async () => { recent.click(); await Promise.resolve(); });
-			expect(client.calls).toContainEqual({ method: "workspace.open", params: { rootPath: "/work/deep/nested/beta" } });
+			const recent = Array.from(mounted.container.querySelectorAll(".project-recent-list button")).find(button =>
+				button.textContent?.includes("nested/beta"),
+			) as HTMLButtonElement;
+			await act(async () => {
+				recent.click();
+				await Promise.resolve();
+			});
+			expect(client.calls).toContainEqual({
+				method: "workspace.open",
+				params: { rootPath: "/work/deep/nested/beta" },
+			});
 
-			await act(async () => { dispatchKey("k", { ctrlKey: true }); dispatchKey("p"); await Promise.resolve(); });
+			await act(async () => {
+				dispatchKey("k", { ctrlKey: true });
+				dispatchKey("p");
+				await Promise.resolve();
+			});
 			expect(mounted.container.querySelector('[role="dialog"][aria-label="Projects"]')).not.toBeNull();
-			const openFolder = Array.from(mounted.container.querySelectorAll("button")).find(button => button.textContent?.includes("Open Folder")) as HTMLButtonElement;
-			await act(async () => { openFolder.click(); await Promise.resolve(); await Promise.resolve(); });
+			const openFolder = Array.from(mounted.container.querySelectorAll("button")).find(button =>
+				button.textContent?.includes("Open Folder"),
+			) as HTMLButtonElement;
+			await act(async () => {
+				openFolder.click();
+				await Promise.resolve();
+				await Promise.resolve();
+			});
 			expect(client.calls).toContainEqual({ method: "workspace.pick", params: { initialPath: "/work/alpha" } });
 			expect(client.calls).toContainEqual({ method: "workspace.open", params: { rootPath: client.pickedPath } });
 			expect(opened.at(-1)?.rootPath).toBe(client.pickedPath);
@@ -268,10 +387,19 @@ describe("project switcher", () => {
 describe("concurrent session tabs", () => {
 	it("renders accessible independent status, clears unread on activation, targets Stop, and ignores middle-click close", async () => {
 		const client = new FakeDesktopClient();
-		const mounted = await mount(<SessionTabs client={client as unknown as DesktopClient} tabs={[tabA, tabB]} sessions={[oldSession]} newSessionCwd="/work/alpha" />);
+		const mounted = await mount(
+			<SessionTabs
+				client={client as unknown as DesktopClient}
+				tabs={[tabA, tabB]}
+				sessions={[oldSession]}
+				newSessionCwd="/work/alpha"
+			/>,
+		);
 		try {
 			expect(mounted.container.querySelector('[role="tablist"]')?.getAttribute("aria-label")).toBe("Agent sessions");
-			expect(mounted.container.querySelector('[role="tablist"]')?.classList.contains("session-tabs-scroll")).toBe(true);
+			expect(mounted.container.querySelector('[role="tablist"]')?.classList.contains("session-tabs-scroll")).toBe(
+				true,
+			);
 			const tabs = mounted.container.querySelectorAll('[role="tab"]');
 			expect(tabs.length).toBe(2);
 			expect(tabs[0]?.getAttribute("aria-selected")).toBe("true");
@@ -279,7 +407,10 @@ describe("concurrent session tabs", () => {
 			expect(tabs[1]?.querySelector('[aria-label="7 unread"]')).not.toBeNull();
 			expect(tabs[1]?.querySelector('[aria-label="Unsaved draft"]')).not.toBeNull();
 
-			await act(async () => { (tabs[1] as HTMLButtonElement).click(); await Promise.resolve(); });
+			await act(async () => {
+				(tabs[1] as HTMLButtonElement).click();
+				await Promise.resolve();
+			});
 			expect(client.calls).toContainEqual({ method: "session.activate", params: { path: tabB.path } });
 			await clickButton(mounted.container, "Stop Build API");
 			expect(client.calls).toContainEqual({ method: "run.abort", params: { sessionPath: tabA.path } });
@@ -295,19 +426,35 @@ describe("concurrent session tabs", () => {
 
 	it("guards running and dirty tabs with explicit destructive actions", async () => {
 		const client = new FakeDesktopClient();
-		const mounted = await mount(<SessionTabs client={client as unknown as DesktopClient} tabs={[tabA, tabB]} sessions={[]} />);
+		const mounted = await mount(
+			<SessionTabs client={client as unknown as DesktopClient} tabs={[tabA, tabB]} sessions={[]} />,
+		);
 		try {
 			await clickButton(mounted.container, "Close Review UI");
-			expect(mounted.container.querySelector('[role="alertdialog"]')?.textContent).toContain("Discard Draft & Close");
-			const cancel = Array.from(mounted.container.querySelectorAll("button")).find(button => button.textContent === "Cancel") as HTMLButtonElement;
+			expect(mounted.container.querySelector('[role="alertdialog"]')?.textContent).toContain(
+				"Discard Draft & Close",
+			);
+			const cancel = Array.from(mounted.container.querySelectorAll("button")).find(
+				button => button.textContent === "Cancel",
+			) as HTMLButtonElement;
 			await act(async () => cancel.click());
 
 			await clickButton(mounted.container, "Close Build API");
-			const confirm = Array.from(mounted.container.querySelectorAll("button")).find(button => button.textContent === "Abort & Close") as HTMLButtonElement;
+			const confirm = Array.from(mounted.container.querySelectorAll("button")).find(
+				button => button.textContent === "Abort & Close",
+			) as HTMLButtonElement;
 			expect(confirm).toBeDefined();
-			await act(async () => { confirm.click(); await Promise.resolve(); await Promise.resolve(); });
-			const abortIndex = client.calls.findIndex(call => call.method === "run.abort" && call.params.sessionPath === tabA.path);
-			const closeIndex = client.calls.findIndex(call => call.method === "session.tab.close" && call.params.path === tabA.path);
+			await act(async () => {
+				confirm.click();
+				await Promise.resolve();
+				await Promise.resolve();
+			});
+			const abortIndex = client.calls.findIndex(
+				call => call.method === "run.abort" && call.params.sessionPath === tabA.path,
+			);
+			const closeIndex = client.calls.findIndex(
+				call => call.method === "session.tab.close" && call.params.path === tabA.path,
+			);
 			expect(abortIndex).toBeGreaterThanOrEqual(0);
 			expect(closeIndex).toBeGreaterThan(abortIndex);
 			expect(client.calls[closeIndex]?.params).toEqual({ path: tabA.path, force: true });
@@ -318,21 +465,153 @@ describe("concurrent session tabs", () => {
 
 	it("opens new and existing sessions and supports numeric and cycling shortcuts", async () => {
 		const client = new FakeDesktopClient();
-		const mounted = await mount(<SessionTabs client={client as unknown as DesktopClient} tabs={[tabA, tabB]} sessions={[oldSession]} newSessionCwd="/work/current" />);
+		const mounted = await mount(
+			<SessionTabs
+				client={client as unknown as DesktopClient}
+				tabs={[tabA, tabB]}
+				sessions={[oldSession]}
+				newSessionCwd="/work/current"
+			/>,
+		);
 		try {
 			await clickButton(mounted.container, "New agent session");
 			expect(client.calls).toContainEqual({ method: "session.new", params: { cwd: "/work/current" } });
 			expect(client.calls).toContainEqual({ method: "session.activate", params: { path: "/sessions/new.jsonl" } });
 
 			await clickButton(mounted.container, "Open existing session");
-			const existing = Array.from(mounted.container.querySelectorAll(".session-picker button")).find(button => button.textContent?.includes("Legacy fix")) as HTMLButtonElement;
-			await act(async () => { existing.click(); await Promise.resolve(); });
+			const existing = Array.from(mounted.container.querySelectorAll(".session-picker button")).find(button =>
+				button.textContent?.includes("Legacy fix"),
+			) as HTMLButtonElement;
+			await act(async () => {
+				existing.click();
+				await Promise.resolve();
+			});
 			expect(client.calls).toContainEqual({ method: "session.activate", params: { path: oldSession.path } });
 
-			await act(async () => { dispatchKey("2", { ctrlKey: true }); await Promise.resolve(); });
+			await act(async () => {
+				dispatchKey("2", { ctrlKey: true });
+				await Promise.resolve();
+			});
 			expect(client.calls.at(-1)).toEqual({ method: "session.activate", params: { path: tabB.path } });
-			await act(async () => { dispatchKey("Tab", { ctrlKey: true }); await Promise.resolve(); });
+			await act(async () => {
+				dispatchKey("Tab", { ctrlKey: true });
+				await Promise.resolve();
+			});
 			expect(client.calls.at(-1)).toEqual({ method: "session.activate", params: { path: tabB.path } });
+		} finally {
+			await mounted.unmount();
+		}
+	});
+});
+
+describe("session keyboard navigation", () => {
+	it("moves keyboard focus to a newly created tab after its busy control is disabled", async () => {
+		const client = new FakeDesktopClient();
+		const mounted = await mount(<App client={client as unknown as DesktopClient} components={appComponents} />);
+		try {
+			(mounted.container.querySelector('[aria-label="New agent session"]') as HTMLButtonElement).focus();
+			await clickButton(mounted.container, "New agent session");
+			const active = mounted.container.querySelector('[role="tab"][aria-selected="true"]') as HTMLButtonElement;
+			expect(client.snapshot.activeSessionPath).toBe("/sessions/new.jsonl");
+			expect(testWindow.document.activeElement).toBe(active);
+		} finally {
+			await mounted.unmount();
+		}
+	});
+	it("moves focus to the new-session action after closing the final clean tab", async () => {
+		const cleanTab = { ...tabA, running: false };
+		const client = new FakeDesktopClient([cleanTab]);
+		function ClosingTabs(): ReactNode {
+			const [tabs, setTabs] = useState<DesktopSessionTab[]>([cleanTab]);
+			return (
+				<SessionTabs
+					client={client as unknown as DesktopClient}
+					tabs={tabs}
+					sessions={[]}
+					newSessionCwd={cleanTab.cwd}
+					onClose={path => setTabs(current => current.filter(tab => tab.path !== path))}
+				/>
+			);
+		}
+		const mounted = await mount(<ClosingTabs />);
+		try {
+			const close = mounted.container.querySelector('[aria-label="Close Build API"]') as HTMLButtonElement;
+			close.focus();
+			await clickButton(mounted.container, "Close Build API");
+			expect(mounted.container.querySelectorAll('[role="tab"]')).toHaveLength(0);
+			expect(testWindow.document.activeElement).toBe(
+				mounted.container.querySelector('[aria-label="New agent session"]'),
+			);
+		} finally {
+			await mounted.unmount();
+		}
+	});
+
+	it("selects and focuses adjacent or boundary tabs without losing the active session draft", async () => {
+		const client = new FakeDesktopClient();
+		const mounted = await mount(<App client={client as unknown as DesktopClient} components={appComponents} />);
+		try {
+			const draft = mounted.container.querySelector("textarea") as HTMLTextAreaElement;
+			draft.value = "Keep this draft while navigating";
+			await act(async () => textareaReactProps(draft).onChange({ target: draft }));
+			const first = mounted.container.querySelector('[role="tab"][aria-selected="true"]') as HTMLButtonElement;
+			first.focus();
+			await act(async () => {
+				mounted.dispatchEvent(`#${first.id}`, keyboardEvent("ArrowLeft"));
+				await Promise.resolve();
+			});
+			const last = mounted.container.querySelector('[role="tab"][aria-selected="true"]') as HTMLButtonElement;
+			expect(testWindow.document.activeElement).toBe(last);
+			expect(client.snapshot.activeSessionPath).toBe(tabB.path);
+			expect((mounted.container.querySelector("textarea") as HTMLTextAreaElement).value).toBe("");
+
+			await act(async () => {
+				mounted.dispatchEvent(`#${last.id}`, keyboardEvent("ArrowRight"));
+				await Promise.resolve();
+			});
+			expect(testWindow.document.activeElement).toBe(first);
+			expect(client.snapshot.activeSessionPath).toBe(tabA.path);
+			expect((mounted.container.querySelector("textarea") as HTMLTextAreaElement).value).toBe(draft.value);
+			await act(async () => {
+				mounted.dispatchEvent(`#${first.id}`, keyboardEvent("End"));
+				await Promise.resolve();
+			});
+			expect(testWindow.document.activeElement).toBe(last);
+			await act(async () => {
+				mounted.dispatchEvent(`#${last.id}`, keyboardEvent("Home"));
+				await Promise.resolve();
+			});
+			expect(testWindow.document.activeElement).toBe(first);
+		} finally {
+			await mounted.unmount();
+		}
+	});
+
+	it("confines dirty-close confirmation focus and lets Escape preserve the session and return to its trigger", async () => {
+		const client = new FakeDesktopClient();
+		const mounted = await mount(
+			<SessionTabs client={client as unknown as DesktopClient} tabs={[tabA, tabB]} sessions={[]} />,
+		);
+		try {
+			const trigger = mounted.container.querySelector('[aria-label="Close Review UI"]') as HTMLButtonElement;
+			trigger.focus();
+			await clickButton(mounted.container, "Close Review UI");
+			const dialog = mounted.container.querySelector('[role="alertdialog"]') as HTMLElement;
+			const [cancel, discard] = dialog.querySelectorAll("button");
+			expect(testWindow.document.activeElement).toBe(cancel);
+			await act(async () =>
+				mounted.dispatchEvent('[role="alertdialog"] button', keyboardEvent("Tab", { shiftKey: true })),
+			);
+			expect(testWindow.document.activeElement).toBe(discard);
+			await act(async () => mounted.dispatchEvent('[role="alertdialog"] button:last-child', keyboardEvent("Tab")));
+			expect(testWindow.document.activeElement).toBe(cancel);
+			await act(async () => dispatchKey("2", { ctrlKey: true }));
+			expect(client.snapshot.activeSessionPath).toBe(tabA.path);
+			await act(async () => mounted.dispatchEvent('[role="alertdialog"] button', keyboardEvent("Escape")));
+			expect(mounted.container.querySelector('[role="alertdialog"]')).toBeNull();
+			expect(testWindow.document.activeElement).toBe(trigger);
+			expect(client.snapshot.sessionTabs.find(tab => tab.path === tabB.path)?.draftDirty).toBe(true);
+			expect(client.calls.some(call => call.method === "session.tab.close")).toBe(false);
 		} finally {
 			await mounted.unmount();
 		}
@@ -341,7 +620,9 @@ describe("concurrent session tabs", () => {
 
 let editorMounts = 0;
 const FakeEditor = forwardRef<EditorWorkspaceHandle, AppEditorWorkspaceProps>(function FakeEditor({ workspace }, ref) {
-	useEffect(() => { editorMounts += 1; }, []);
+	useEffect(() => {
+		editorMounts += 1;
+	}, []);
 	useImperativeHandle(ref, () => ({ async openLocation() {}, focus() {} }), []);
 	return <div className="fake-editor" data-workspace={workspace?.rootPath ?? ""} />;
 });
@@ -365,23 +646,41 @@ describe("App session composition", () => {
 			expect(client.calls).toContainEqual({ method: "session.tab.draft", params: { path: tabA.path, dirty: true } });
 
 			await clickButton(mounted.container, "Switch project");
-			const betaProject = Array.from(mounted.container.querySelectorAll(".project-recent-list button")).find(button => button.textContent?.includes("nested/beta")) as HTMLButtonElement;
-			await act(async () => { betaProject.click(); await Promise.resolve(); await Promise.resolve(); });
-			expect(mounted.container.querySelector(".fake-editor")?.getAttribute("data-workspace")).toBe("/work/deep/nested/beta");
+			const betaProject = Array.from(mounted.container.querySelectorAll(".project-recent-list button")).find(
+				button => button.textContent?.includes("nested/beta"),
+			) as HTMLButtonElement;
+			await act(async () => {
+				betaProject.click();
+				await Promise.resolve();
+				await Promise.resolve();
+			});
+			expect(mounted.container.querySelector(".fake-editor")?.getAttribute("data-workspace")).toBe(
+				"/work/deep/nested/beta",
+			);
 			expect(editorMounts).toBe(1);
 
-			await act(async () => { (mounted.container.querySelectorAll('[role="tab"]')[1] as HTMLButtonElement).click(); await Promise.resolve(); await Promise.resolve(); });
+			await act(async () => {
+				(mounted.container.querySelectorAll('[role="tab"]')[1] as HTMLButtonElement).click();
+				await Promise.resolve();
+				await Promise.resolve();
+			});
 			expect(mounted.container.querySelector('[aria-label="7 unread"]')).toBeNull();
 			textarea = mounted.container.querySelector("textarea") as HTMLTextAreaElement;
 			expect(textarea.value).toBe("");
 			textarea.value = "beta draft";
 			await act(async () => textareaReactProps(textarea).onChange({ target: textarea }));
 
-			await act(async () => { (mounted.container.querySelectorAll('[role="tab"]')[0] as HTMLButtonElement).click(); await Promise.resolve(); await Promise.resolve(); });
+			await act(async () => {
+				(mounted.container.querySelectorAll('[role="tab"]')[0] as HTMLButtonElement).click();
+				await Promise.resolve();
+				await Promise.resolve();
+			});
 			textarea = mounted.container.querySelector("textarea") as HTMLTextAreaElement;
 			expect(textarea.value).toBe("alpha draft");
 			expect(editorMounts).toBe(1);
-			expect(mounted.container.querySelector('[role="tabpanel"]')?.getAttribute("aria-labelledby")).toContain("agent-session-tab-");
+			expect(mounted.container.querySelector('[role="tabpanel"]')?.getAttribute("aria-labelledby")).toContain(
+				"agent-session-tab-",
+			);
 		} finally {
 			await mounted.unmount();
 		}

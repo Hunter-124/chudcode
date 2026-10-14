@@ -1,4 +1,4 @@
 {
 	"extends": "../chudcode-desktop/tsconfig.web.json",
-	"include": ["src/webview"]
+	"include": ["src/webview", "test/*.test.tsx"]
 }

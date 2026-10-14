@@ -377,6 +377,28 @@ tests. Cargo and Bazel launcher builds, the Bazel launcher test target, and the
 Bazel-built launcher's role/version probe also passed. These local suites do not
 qualify deployed CloudCastle.
 
+The exact compiled candidate also passed isolated title notification before and
+after restart through both the repository consumer and the installed
+CloudCastle 18.1.11 consumer module; `--no-ui` emitted no title frames. A
+read-only authenticated Discord inventory found all 17 mapped channels and six
+categories among 34 guild channels without mutating remote state. The deployed
+bot was not launched. An installed CloudCastle service and encrypted credential
+file are present outside this checkout, but deployed context-engine
+qualification still lacks an authorized normal credential-loader/decryption
+path plus the intended incident UUID and routes; file presence is not deployed
+system evidence.
+
+An isolated private `qwen3-coder-consumer:30b` CAD run with explicit
+`num_ctx 32768` passed against the exact compiled candidate. The root, child,
+and grandchild made five real CAD host-device calls with correct parent
+identity; the grandchild output's 51 bytes matched the input. After restart,
+explicit `sessionFile` queries returned both completed semantic transcripts
+from the persisted parent tree. Earlier model rounds that invented child work
+or omitted the grandchild remain recorded as failures. The private daemon and
+copied model store were removed afterward; the shared Ollama daemon and model
+metadata were unchanged. This is one successful model workflow, not provider
+reliability certification.
+
 The assembled Code-OSS extension-host integration passed. Interactive Linux
 verification exercised file edit/save, native terminal output, Git changes,
 draft restoration across session switches, workspace trust, no-folder startup,
@@ -384,13 +406,23 @@ zero-tab catalog access and webview recreation, new sessions, and the live agent
 graph. These no-provider editor checks do not certify live providers,
 accessibility workflows, or other operating systems.
 
-A separate isolated Linux Orca/AT-SPI probe observed native editor text and
-focus transitions from Files Explorer to the editor. Keyboard Tab/Enter moved
-from Tasks to Graphs; the platform accessibility tree exposed the focused
-Graphs button, and Orca recorded Graphs, Agents, and List focus. The graph's
-ordered-list fallback was also inspected. Speech and braille were disabled in
-the private probe profile, so this verifies the native accessibility bridge and
-limited navigation, not audible output, physical braille, or full accessibility.
+A separate isolated Linux Orca/AT-SPI probe exercised the packaged editor's
+keyboard paths. The first `ChudCode: Open Chat` command focused the initialized
+webview document; the same held after service restart. Arrow keys and
+`Home`/`End` select session tabs, closing the final clean tab focuses New
+Session, and creating a session focuses its new tab. Picker and destructive
+dialogs enter safe controls, support `Escape`, restore meaningful triggers,
+and confine destructive-confirmation Tab boundaries. Tasks remains reachable
+by keyboard, Tab moves to Graphs, and the Agents graph exposed both its
+keyboard application surface and one-item ordered-list fallback. AT-SPI
+reported the webview document and modal Cancel button as focused without tree
+errors.
+
+Speech, braille, and sound were disabled in the private Orca profile, and the
+host AT-SPI build lacks pointer-monitor capability. This proves bounded Linux
+keyboard/focus and native accessibility-tree behavior only—not audible speech,
+physical braille, pointer monitoring, Windows/macOS assistive technology, or
+full accessibility.
 
 The native editor regression also verifies that switching sessions preserves
 service-owned dirty-draft state. Initializing an empty webview composer does not
@@ -420,8 +452,18 @@ RSS/CPU at readiness. It does not measure peak/tree memory or GUI performance.
 Use release-profile native inputs for both variants and the shipping identifier
 minification setting; a development-built addon distorted earlier measurements.
 
-Observed on this Linux host after the session-identity fix, against immutable
-published 0.4.3, with 40 pairs:
+Add `--trace-root-resources --post-state-seconds 1` for bounded Linux root-PID
+`stat`, `status`, `schedstat`, and `smaps` observations through readiness and
+post-state idle. These sequential observations are non-atomic and intrusive:
+the observer consumes CPU and mapping locks. They describe resident mappings
+and root high-water marks, not process-tree peaks or live JavaScript objects.
+Keep traced and untraced timing distributions separate.
+
+Observed on this Linux host for candidate code at `75440f9757`, against immutable
+published 0.4.3, with an initial 40 pairs. The next four rows come from separate
+additional untraced and intrusive traced 40-pair cohorts. The final four rows
+come from a third 40-pair cohort using the final formatted-source candidate
+binary (`ce0d77cafadf`), without concurrent qualification:
 
 | Measure | Published 0.4.3 | Candidate |
 |---|---:|---:|
@@ -431,13 +473,33 @@ published 0.4.3, with 40 pairs:
 | Root-PID RSS at readiness, median (MiB) | 357.2 | 356.1 |
 | Root-PID RSS at readiness, maximum (MiB) | 362.2 | 861.4 |
 | Root-PID CPU at readiness, median (s) | 1.42 | 1.42 |
+| RPC readiness p95, additional untraced cohort (ms) | 2187 | 2083 |
+| RPC readiness p95, additional intrusive traced cohort (ms) | 2005 | 2315 |
+| Sampled root startup RSS peak, traced cohort median (GB) | 1.331 | 1.332 |
+| Root mapped RSS after 1 s idle, traced cohort median (GB) | 0.339 | 0.337 |
+| RPC readiness median, exact-final untraced cohort (ms) | 1806 | 1792 |
+| RPC readiness p95, exact-final untraced cohort (ms) | 1871 | 1879 |
+| Root-PID RSS at readiness, exact-final median (MiB) | 358.7 | 356.6 |
+| Root-PID RSS at readiness, exact-final maximum (MiB) | 1008.3 | 797.2 |
 
-The paired readiness delta median was +1.4 ms, with substantial timing variance.
-Candidate p95 readiness was higher, and one candidate run had a large readiness
-RSS outlier. All 40 pairs completed real RPC/EOF lifecycles, but these results
-do not establish a speedup or memory-stability certification. A larger
+The initial paired readiness delta median was +1.4 ms, with substantial timing
+variance. Candidate p95 readiness was higher in that cohort, and one candidate
+run had a large readiness RSS outlier. The final formatted-source cohort passed
+every real RPC/EOF lifecycle; median readiness differed by 14 ms, p95 differed
+by 8 ms, and both binaries again had large transient readiness RSS samples.
+Cohort-dependent tail direction remains unexplained, so these results do not
+establish a speedup or memory-stability certification. A larger
 decompression-buffer experiment was rejected because it retained substantially
 more memory; it is not shipped.
+
+The additional trace reproduced a large readiness RSS sample in the published
+baseline too; its anonymous resident pages subsequently fell while the virtual
+reservation remained. Native-cache-only priming removed most of the startup
+high-water event in both binaries, which extracted byte-identical addons.
+This supports a shared cold native-archive materialization mechanism, not
+candidate-specific sustained heap growth. The original outlier was not traced,
+so its precise allocation history is unknown. Cohort-dependent tail latency
+still has no established cause; no performance or stability gate was weakened.
 
 Stable goals and required promotion gates:
 
@@ -448,9 +510,10 @@ Stable goals and required promotion gates:
   persistence/session-tree, inherited host-tool, plugin/provider, and compiled
   worker parity against the compatibility engine and actual consumers.
 - Complete full accessibility verification, remaining native-platform workflows,
-  and deployed-consumer checks. One populated Linux task/subagent workflow
-  passed; local transport, editor, and isolated Ollama checks do not substitute
-  for deployed CloudCastle or live CAD/provider qualification.
+  and deployed-consumer checks. Populated Linux task/subagent and isolated real
+  CAD/provider workflows passed; local transport, editor, installed-module, and
+  read-only Discord checks do not substitute for deployed CloudCastle context
+  and incident execution.
 - Complete native macOS and ARM execution, Windows interactive/assistive-technology
   coverage beyond the extension-host probe, and trusted distribution
   signing/notarization. Passing Linux/Windows candidate probes does not close

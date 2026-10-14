@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "bun:test";
 import * as path from "node:path";
 import { isRecord, readJsonl, TempDir } from "@oh-my-pi/pi-utils";
+import { RpcClient } from "@oh-my-pi/pi-coding-agent/modes/rpc/rpc-client";
 import {
 	type PendingExtensionRequest,
 	requestRpcDialog,
@@ -23,6 +24,62 @@ function resolveSelection(pendingRequests: Map<string, PendingExtensionRequest>,
 }
 
 describe("RPC extension UI", () => {
+	it.each([
+		[false, false],
+		[true, false],
+		[true, true],
+	])(
+		"respects title opt-in (%s) and headless (%s) across restarts",
+		async (emitTitles, headless) => {
+			await using temp = await TempDir.create("@rpc-session-title-");
+			const blanked = Object.fromEntries(
+				Object.keys(process.env)
+					.filter(name => /(_API_KEY|_TOKEN|_OAUTH)/.test(name))
+					.map(name => [name, ""]),
+			);
+			using client = new RpcClient({
+				cliPath: path.join(import.meta.dir, "..", "src", "cli.ts"),
+				cwd: temp.path(),
+				args: [
+					"--no-session",
+					"--no-lsp",
+					"--no-mcp",
+					"--no-skills",
+					"--no-rules",
+					"--no-extensions",
+					"--no-title",
+					...(headless ? ["--no-ui"] : []),
+				],
+				env: {
+					...blanked,
+					HOME: temp.join("home"),
+					XDG_CONFIG_HOME: temp.join("config"),
+					XDG_DATA_HOME: temp.join("data"),
+					XDG_STATE_HOME: temp.join("state"),
+					XDG_CACHE_HOME: temp.join("cache"),
+					PI_CODING_AGENT_DIR: temp.join("agent"),
+					PI_RPC_EMIT_TITLE: emitTitles ? "1" : "0",
+					OLLAMA_BASE_URL: "http://127.0.0.1:9/v1",
+					LM_STUDIO_BASE_URL: "http://127.0.0.1:9/v1",
+					LLAMA_CPP_BASE_URL: "http://127.0.0.1:9/v1",
+				},
+			});
+			const titles: string[] = [];
+			client.onExtensionUiRequest(request => {
+				if (request.method === "setTitle") titles.push(request.title);
+			});
+			await client.start();
+			await client.setSessionName("Consumer title before restart");
+			await client.stop();
+			await client.start();
+			await client.setSessionName("Consumer title after restart");
+			expect(titles).toEqual(
+				emitTitles && !headless ? ["Consumer title before restart", "Consumer title after restart"] : [],
+			);
+		},
+		30_000,
+	);
+
 	it("keeps the label-only wire shape for bare options", async () => {
 		const pendingRequests = new Map<string, PendingExtensionRequest>();
 		const output = vi.fn<(frame: object) => void>();

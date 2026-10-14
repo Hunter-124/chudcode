@@ -1,7 +1,9 @@
 import * as fs from "node:fs/promises";
-import { isEnoent } from "@oh-my-pi/pi-utils";
+import * as path from "node:path";
+import { isEnoent, normalizePathForComparison, relativePathWithinNormalizedRoot } from "@oh-my-pi/pi-utils";
 import type { FileEntry, SessionMessageEntry } from "../../session/session-entries";
-import { parseSessionEntries } from "../../session/session-loader";
+import { parseSessionEntries, visitEntriesFromFileStream } from "../../session/session-loader";
+import { artifactsDirectoryFor } from "../../session/session-manager";
 import { type AgentProgress } from "@oh-my-pi/pi-tui/tools/task";
 import {
 	type SubagentEventPayload,
@@ -245,7 +247,62 @@ export class RpcSubagentRegistry {
 		this.#output({ type: "subagent_event", payload } satisfies RpcSubagentEventFrame);
 	}
 
-	resolveSessionFile(selector: RpcSubagentTranscriptSelector): string {
+	async #isPersistedSessionFile(sessionFile: string, parentSessionFile: string | undefined): Promise<boolean> {
+		if (!parentSessionFile) return false;
+		try {
+			const root = normalizePathForComparison(parentSessionFile);
+			const artifactsRoot = artifactsDirectoryFor(root);
+			if (!artifactsRoot || (await fs.lstat(artifactsRoot)).isSymbolicLink()) return false;
+			const normalizedArtifactsRoot = normalizePathForComparison(artifactsRoot);
+			let current = sessionFile;
+			let normalizedCurrent = normalizePathForComparison(current);
+			if (normalizedCurrent === root || !normalizedCurrent.endsWith(".jsonl")) return false;
+			while (normalizedCurrent !== root) {
+				if (relativePathWithinNormalizedRoot(normalizedArtifactsRoot, normalizedCurrent) === null) return false;
+				let component = current;
+				while (true) {
+					if ((await fs.lstat(component)).isSymbolicLink()) return false;
+					if (normalizePathForComparison(component) === normalizedArtifactsRoot) break;
+					const containingDirectory = path.dirname(component);
+					if (containingDirectory === component) return false;
+					component = containingDirectory;
+				}
+				let recordedParent: string | undefined;
+				await visitEntriesFromFileStream(
+					current,
+					entry => {
+						if (
+							entry.type === "session" &&
+							typeof entry.id === "string" &&
+							typeof entry.parentSession === "string"
+						) {
+							recordedParent = entry.parentSession;
+						}
+						return false;
+					},
+					{ maxRecords: 1 },
+				);
+				if (!recordedParent || (await fs.lstat(recordedParent)).isSymbolicLink()) return false;
+				const normalizedParent = normalizePathForComparison(recordedParent);
+				const parentArtifacts = artifactsDirectoryFor(normalizedParent);
+				if (
+					!parentArtifacts ||
+					(await fs.lstat(parentArtifacts)).isSymbolicLink() ||
+					normalizePathForComparison(path.dirname(current)) !== normalizePathForComparison(parentArtifacts)
+				) {
+					return false;
+				}
+				current = path.resolve(recordedParent);
+				normalizedCurrent = normalizedParent;
+			}
+			return true;
+		} catch (error) {
+			if (isEnoent(error)) return false;
+			throw error;
+		}
+	}
+
+	async resolveSessionFile(selector: RpcSubagentTranscriptSelector, parentSessionFile?: string): Promise<string> {
 		if (selector.subagentId) {
 			const snapshot = this.#subagents.get(selector.subagentId);
 			const sessionFile = snapshot?.sessionFile ?? this.#transcriptSessionFilesBySubagentId.get(selector.subagentId);
@@ -257,6 +314,8 @@ export class RpcSubagentRegistry {
 
 		if (selector.sessionFile) {
 			if (this.#hasTranscriptSessionFile(selector.sessionFile)) return selector.sessionFile;
+			const sessionFile = path.resolve(selector.sessionFile);
+			if (await this.#isPersistedSessionFile(sessionFile, parentSessionFile)) return sessionFile;
 			throw new Error("Unknown subagent session file");
 		}
 

@@ -1,6 +1,6 @@
 import { History, LoaderCircle, Plus, Square, X } from "lucide-react";
-import type { MouseEvent, ReactNode } from "react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import type { KeyboardEvent as ReactKeyboardEvent, MouseEvent, ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { DesktopSessionInfo, DesktopSessionTab } from "../protocol";
 import type { DesktopClient } from "./desktop-client";
 
@@ -44,6 +44,10 @@ export function SessionTabs({
 	const [pickerOpen, setPickerOpen] = useState(false);
 	const [closeCandidate, setCloseCandidate] = useState<DesktopSessionTab | null>(null);
 	const [busyPath, setBusyPath] = useState<string | null>(null);
+	const tabsRef = useRef<HTMLDivElement>(null);
+	const pickerRef = useRef<HTMLElement>(null);
+	const closeDialogRef = useRef<HTMLElement>(null);
+	const focusPath = useRef<string | null>(null);
 	const activeIndex = Math.max(
 		0,
 		tabs.findIndex(tab => tab.active),
@@ -61,13 +65,15 @@ export function SessionTabs({
 	);
 
 	const activate = useCallback(
-		async (path: string): Promise<void> => {
+		async (path: string, focusTab = false): Promise<void> => {
+			if (focusTab) focusPath.current = path;
 			setBusyPath(path);
 			try {
 				await client.activateSession(path);
 				setPickerOpen(false);
 				onActivate?.(path);
 			} catch (cause) {
+				if (focusPath.current === path) focusPath.current = null;
 				reportError(cause);
 			} finally {
 				setBusyPath(null);
@@ -77,8 +83,76 @@ export function SessionTabs({
 	);
 
 	useEffect(() => {
+		if (busyPath || focusPath.current === null) return;
+		const path = focusPath.current;
+		const target = path
+			? document.getElementById(sessionTabId(path))
+			: tabsRef.current?.querySelector<HTMLElement>(".session-tabs-actions button:not(:disabled)");
+		if (target) {
+			target.focus();
+			focusPath.current = null;
+		}
+	}, [busyPath, tabs]);
+
+	useEffect(() => {
+		const overlay = closeCandidate ? closeDialogRef.current : pickerOpen ? pickerRef.current : null;
+		if (!overlay) return;
+		const previousFocus = document.activeElement;
+		(overlay.querySelector<HTMLElement>("button:not(:disabled)") ?? overlay).focus();
+		return () => {
+			if (previousFocus instanceof HTMLElement && previousFocus.isConnected) previousFocus.focus();
+			else
+				tabsRef.current
+					?.querySelector<HTMLElement>('[role="tab"][aria-selected="true"], .session-tabs-actions button')
+					?.focus();
+		};
+	}, [closeCandidate, pickerOpen]);
+
+	const navigateTab = (event: ReactKeyboardEvent<HTMLButtonElement>, index: number): void => {
+		if (event.nativeEvent.isComposing || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
+		const nextIndex =
+			event.key === "ArrowRight"
+				? (index + 1) % tabs.length
+				: event.key === "ArrowLeft"
+					? (index + tabs.length - 1) % tabs.length
+					: event.key === "Home"
+						? 0
+						: event.key === "End"
+							? tabs.length - 1
+							: undefined;
+		const tab = nextIndex === undefined ? undefined : tabs[nextIndex];
+		if (!tab) return;
+		event.preventDefault();
+		document.getElementById(sessionTabId(tab.path))?.focus();
+		void activate(tab.path);
+	};
+
+	const overlayKeyDown = (event: ReactKeyboardEvent<HTMLElement>): void => {
+		if (event.nativeEvent.isComposing) return;
+		if (event.key === "Escape") {
+			event.preventDefault();
+			event.stopPropagation();
+			if (closeCandidate) setCloseCandidate(null);
+			else setPickerOpen(false);
+		} else if (closeCandidate && event.key === "Tab") {
+			const buttons = event.currentTarget.querySelectorAll<HTMLButtonElement>("button:not(:disabled)");
+			const first = buttons[0];
+			const last = buttons[buttons.length - 1];
+			if (
+				(event.shiftKey && document.activeElement === first) ||
+				(!event.shiftKey && document.activeElement === last)
+			) {
+				event.preventDefault();
+				(event.shiftKey ? last : first)?.focus();
+			}
+			event.stopPropagation();
+		}
+	};
+
+	useEffect(() => {
 		const onKeyDown = (event: KeyboardEvent): void => {
-			if (event.isComposing || event.altKey || !(event.ctrlKey || event.metaKey)) return;
+			if (closeCandidate || pickerOpen || event.isComposing || event.altKey || !(event.ctrlKey || event.metaKey))
+				return;
 			if (/^[1-9]$/.test(event.key) && !event.shiftKey) {
 				const tab = tabs[Number(event.key) - 1];
 				if (!tab) return;
@@ -96,7 +170,7 @@ export function SessionTabs({
 		};
 		window.addEventListener("keydown", onKeyDown);
 		return () => window.removeEventListener("keydown", onKeyDown);
-	}, [activate, activeIndex, tabs]);
+	}, [activate, activeIndex, tabs, closeCandidate, pickerOpen]);
 
 	const newSession = useCallback(async (): Promise<void> => {
 		if (!newSessionCwd) {
@@ -106,7 +180,7 @@ export function SessionTabs({
 		setBusyPath("new");
 		try {
 			const result = await client.request("session.new", { cwd: newSessionCwd });
-			await activate(result.session.path);
+			await activate(result.session.path, true);
 		} catch (cause) {
 			reportError(cause);
 		} finally {
@@ -137,8 +211,10 @@ export function SessionTabs({
 			setBusyPath(tab.path);
 			try {
 				const result = await client.closeSession(tab.path);
-				if (result.closed) onClose?.(tab.path);
-				else if (result.blockedReason)
+				if (result.closed) {
+					focusPath.current = result.tabs.find(candidate => candidate.active)?.path ?? "";
+					onClose?.(tab.path);
+				} else if (result.blockedReason)
 					setCloseCandidate({
 						...tab,
 						running: result.blockedReason === "running",
@@ -159,9 +235,12 @@ export function SessionTabs({
 		setBusyPath(tab.path);
 		try {
 			if (tab.running) await client.request("run.abort", { sessionPath: tab.path });
-			await client.closeSession(tab.path, true);
-			onClose?.(tab.path);
-			setCloseCandidate(null);
+			const result = await client.closeSession(tab.path, true);
+			if (result.closed) {
+				focusPath.current = result.tabs.find(candidate => candidate.active)?.path ?? "";
+				onClose?.(tab.path);
+				setCloseCandidate(null);
+			}
 		} catch (cause) {
 			reportError(cause);
 		} finally {
@@ -183,9 +262,9 @@ export function SessionTabs({
 
 	return (
 		<>
-			<div className="session-tabs-bar">
+			<div className="session-tabs-bar" ref={tabsRef}>
 				<div className="session-tabs-scroll" role="tablist" aria-label="Agent sessions">
-					{tabs.map(tab => (
+					{tabs.map((tab, index) => (
 						<div
 							key={tab.path}
 							className={`session-tab${tab.active ? " is-active" : ""}${tab.running ? " is-running" : ""}`}
@@ -200,6 +279,7 @@ export function SessionTabs({
 								tabIndex={tab.active ? 0 : -1}
 								onClick={() => void activate(tab.path)}
 								onAuxClick={preventAuxiliaryClose}
+								onKeyDown={event => navigateTab(event, index)}
 								title={`${tab.title} — ${tab.cwd}`}
 							>
 								{tab.running ? (
@@ -264,7 +344,14 @@ export function SessionTabs({
 					</button>
 				</div>
 				{pickerOpen ? (
-					<section className="session-picker" role="dialog" aria-label="Open existing session">
+					<section
+						className="session-picker"
+						role="dialog"
+						aria-label="Open existing session"
+						ref={pickerRef}
+						tabIndex={-1}
+						onKeyDown={overlayKeyDown}
+					>
 						<header>
 							<strong>Existing sessions</strong>
 							<span>{inactiveSessions.length}</span>
@@ -293,6 +380,9 @@ export function SessionTabs({
 						aria-modal="true"
 						aria-labelledby="session-close-title"
 						aria-describedby="session-close-description"
+						ref={closeDialogRef}
+						tabIndex={-1}
+						onKeyDown={overlayKeyDown}
 					>
 						<h2 id="session-close-title">Close {closeCandidate.title}?</h2>
 						<p id="session-close-description">
