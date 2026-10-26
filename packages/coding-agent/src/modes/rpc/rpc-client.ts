@@ -12,6 +12,7 @@ import { isRecord, ptree, readJsonl } from "@oh-my-pi/pi-utils";
 import type { FileSink } from "bun";
 import type { BashResult } from "../../exec/bash-executor";
 import type { AgentSessionEvent, SessionStats } from "../../session/agent-session";
+import type { CompactMode } from "../../session/compact-modes";
 import type { SessionEntry, SessionTreeNode } from "../../session/session-entries";
 import { MAX_RPC_FRAME_BYTES, MAX_RPC_REASSEMBLED_BYTES, RpcFrameDecoder, type RpcProtocolVersion } from "./rpc-frame";
 import {
@@ -882,10 +883,10 @@ export class RpcClient {
 	}
 
 	/**
-	 * Compact session context.
+	 * Compact session context. `mode` runs one `/compact` method for this compaction only.
 	 */
-	async compact(customInstructions?: string): Promise<CompactionResult> {
-		const response = await this.#send({ type: "compact", customInstructions });
+	async compact(customInstructions?: string, mode?: CompactMode): Promise<CompactionResult> {
+		const response = await this.#send({ type: "compact", customInstructions, mode });
 		return this.#getData(response);
 	}
 

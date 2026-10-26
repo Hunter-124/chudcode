@@ -320,6 +320,7 @@ FAKE_SERVER = textwrap.dedent(
     auto_retry_enabled = True
     session_name = "Scratchpad"
     last_assistant_text = None
+    pending_compact_id = None
 
     for raw_line in sys.stdin:
         raw_line = raw_line.strip()
@@ -386,6 +387,10 @@ FAKE_SERVER = textwrap.dedent(
             interrupt_mode = command["mode"]
             respond(request_id, "set_interrupt_mode", {})
         elif command_type == "compact":
+            if command.get("customInstructions") == "until-abort":
+                # A long summary: answered only when `abort` cancels it.
+                pending_compact_id = request_id
+                continue
             respond(
                 request_id,
                 "compact",
@@ -496,6 +501,9 @@ FAKE_SERVER = textwrap.dedent(
             if removed:
                 print(json.dumps({"type": "queue_update", "steering": queued_messages["steering"], "followUp": queued_messages["followUp"]}), flush=True)
         elif command_type == "abort":
+            if pending_compact_id is not None:
+                respond(pending_compact_id, "compact", success=False, error="Compaction cancelled")
+                pending_compact_id = None
             respond(request_id, command_type, {})
         elif command_type in {"prompt", "abort_and_prompt"}:
             message = command["message"]
@@ -1047,6 +1055,32 @@ class RpcClientTests(unittest.TestCase):
             request_timeout=2.0,
             **kwargs,
         )
+
+    def test_compact_outlasts_request_timeout_until_abort_cancels_it(self) -> None:
+        client = RpcClient(
+            command=[sys.executable, "-u", "-c", FAKE_SERVER],
+            startup_timeout=2.0,
+            request_timeout=0.2,
+        )
+        outcome: list[BaseException | object] = []
+
+        def compact() -> None:
+            try:
+                outcome.append(client.compact("until-abort"))
+            except BaseException as exc:  # noqa: BLE001 - recorded for the assertion
+                outcome.append(exc)
+
+        with client:
+            worker = threading.Thread(target=compact)
+            worker.start()
+            worker.join(0.6)
+            # Three request timeouts later the summary is still allowed to run.
+            self.assertTrue(worker.is_alive())
+            client.abort()
+            worker.join(2.0)
+        self.assertFalse(worker.is_alive())
+        self.assertIsInstance(outcome[0], RpcCommandError)
+        self.assertIn("Compaction cancelled", str(outcome[0]))
 
     def test_remove_queued_message_preserves_queue_and_duplicate_identity(self) -> None:
         with self.make_client() as client:

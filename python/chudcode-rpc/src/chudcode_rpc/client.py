@@ -55,6 +55,7 @@ from .protocol import (
     BranchMessage,
     BranchResult,
     CancellationResult,
+    CompactMode,
     CompactionResult,
     ExtensionError,
     ExtensionUiRequest,
@@ -152,6 +153,8 @@ THistoryItem = TypeVar("THistoryItem")
 
 _ASYNC_COMMANDS = frozenset({"prompt", "abort_and_prompt"})
 _DEFAULT_ERROR_HISTORY_LIMIT = 128
+# Sentinel for `_request_with_id(timeout=...)`: use the client's `request_timeout`.
+_CLIENT_TIMEOUT = object()
 _TODO_STATUS_VALUES = frozenset({"pending", "in_progress", "completed", "abandoned"})
 _MAX_RPC_FRAME_BYTES = 1024 * 1024
 _MAX_RPC_REASSEMBLED_BYTES = 64 * 1024 * 1024
@@ -1142,8 +1145,26 @@ class RpcClient:
     def set_interrupt_mode(self, mode: InterruptMode) -> None:
         self._request("set_interrupt_mode", mode=mode)
 
-    def compact(self, custom_instructions: str | None = None) -> CompactionResult:
-        payload = self._request("compact", customInstructions=custom_instructions)
+    def compact(
+        self,
+        custom_instructions: str | None = None,
+        *,
+        mode: CompactMode | None = None,
+        timeout: float | None = None,
+    ) -> CompactionResult:
+        """Compact the session, optionally with one ``/compact`` ``mode`` for this call only.
+
+        A large session's summary can take minutes, so by default the request waits until
+        the runtime answers rather than for ``request_timeout``; ``abort()`` from another
+        thread cancels it (the call then raises ``RpcCommandError``), and a dead process
+        fails it. ``timeout`` (seconds) bounds the wait explicitly.
+        """
+        payload = self._request_with_id(
+            "compact",
+            self._next_request_id(),
+            {"customInstructions": custom_instructions, "mode": mode},
+            timeout=timeout,
+        )
         return parse_compaction_result(payload)
 
     def set_auto_compaction(self, enabled: bool) -> None:
@@ -1761,6 +1782,7 @@ class RpcClient:
         payload: Mapping[str, JsonValue],
         *,
         drop_none: bool = True,
+        timeout: float | None | object = _CLIENT_TIMEOUT,
     ) -> JsonObject:
         process = self._require_process()
         envelope: JsonObject = {"id": request_id, "type": command_type}
@@ -1782,7 +1804,12 @@ class RpcClient:
             raise
 
         try:
-            response = response_queue.get(timeout=self._request_timeout)
+            wait = (
+                self._request_timeout
+                if timeout is _CLIENT_TIMEOUT
+                else cast("float | None", timeout)
+            )
+            response = response_queue.get(timeout=wait)
         except queue.Empty as exc:
             with self._state_lock:
                 self._pending.pop(request_id, None)

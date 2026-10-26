@@ -15,7 +15,7 @@ An isolated, unpublished candidate pairs a native Rust launcher
 The editor owns files, search, terminals, Git, and language-service UI; the
 extension connects the existing agent/session surfaces to a private,
 authenticated desktop protocol v1 service. The bundled public `chud` remains
-Chudcode **0.4.3 / RPC v2**; existing release artifacts, installers, the GUI,
+Chudcode **0.4.4 / RPC v2**; existing release artifacts, installers, the GUI,
 and downstream pins are not replaced.
 
 The binary editor base is the official VSCodium **1.135.06055** distribution,
@@ -32,7 +32,7 @@ Editor data and user-installed extensions have separate workbench directories,
 but agent settings and sessions deliberately use the existing store. Open only
 trusted workspaces; editor isolation does not sandbox agent or terminal tools.
 
-Stable promotion requires freezing CAD's 0.4.3/RPC v2/Python SDK 0.3.1 and
+Stable promotion requires freezing CAD's 0.4.4/RPC v2/Python SDK 0.3.2 and
 CloudCastle's 18.1.11 integration surfaces, proving behavior, restart,
 persistence, host-tool and worker parity before replacing engine modules with Rust, and
 completing provider/deployed-consumer, native platform/ISA, and signing gates.

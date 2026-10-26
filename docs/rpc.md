@@ -163,7 +163,9 @@ Important edge behavior from runtime:
 
 ### Compaction
 
-- `{ id?, type: "compact", customInstructions?: string }`
+- `{ id?, type: "compact", customInstructions?: string, mode?: "soft" | "remote" | "snapcompact" }`
+  - `mode` is the `/compact <mode>` subcommand: it runs that method order for this compaction only and never changes settings. An unknown `mode` is an error; `snapcompact` rejects `customInstructions`.
+  - The response arrives when the compaction commits or fails, which can take minutes on a large session. `abort` cancels an in-flight compaction; the `compact` request then fails.
 - `{ id?, type: "set_auto_compaction", enabled: boolean }`
 
 ### Retry

@@ -4,6 +4,7 @@
 
 ### Added
 
+- RPC `compact` accepts an optional `mode` (`soft`, `remote` or `snapcompact`), the `/compact <mode>` subcommand: that method order runs for this compaction only; an unknown mode is an error. The Python RPC client sends it with `compact(..., mode=...)` (chudcode-rpc 0.3.2).
 - RPC `set_host_tools` accepts an optional `loadableTools: { names, hint }`: for a listed tool the host has not registered, `read`/`write xd://<name>` fails with `xd://<name> is not loaded. <hint>` (each `{name}` in `hint` is replaced) instead of the mounted-device catalog error. The Python RPC client sends it through `set_custom_tools(..., loadable_tools=LoadableHostTools(...))`.
 - Added an opt-in, unpublished Code-OSS workbench candidate with a Rust launcher and existing Chudcode agent compatibility service; stable GUI/CLI releases and downstream RPC/SDK pins remain unchanged.
 - Added native workbench archive qualification with checksum-bound reports and an isolated Linux, macOS, and Windows draft-release lane that leaves published releases and downstream pins untouched.
@@ -16,6 +17,7 @@
 
 ### Fixed
 
+- RPC `abort` now cancels an in-flight manual `compact` instead of waiting behind it on the serial command lane; the `compact` request then fails. The Python client's `compact()` no longer gives up after `request_timeout` while a large summary is still being written (an explicit `timeout=` bounds it).
 - Workbench candidates preserve dirty session drafts across tab switches and view recreation without clearing another connection's unsaved state.
 - Workbench editor shared storage remains separate from stock Code-OSS and VSCodium profiles.
 - Workbench sessions no longer appear to keep running solely because next-turn messages are queued; closing or deleting still protects pending work.

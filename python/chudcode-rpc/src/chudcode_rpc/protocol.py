@@ -19,6 +19,8 @@ StreamingBehavior: TypeAlias = Literal["steer", "followUp"]
 QueuedMessageQueue: TypeAlias = Literal["steering", "followUp"]
 SteeringMode: TypeAlias = Literal["all", "one-at-a-time"]
 InterruptMode: TypeAlias = Literal["immediate", "wait"]
+#: `/compact <mode>` subcommand: one compaction method order for a single compaction.
+CompactMode: TypeAlias = Literal["soft", "remote", "snapcompact"]
 StopReason: TypeAlias = Literal["stop", "length", "toolUse", "error", "aborted"]
 PromptStatus: TypeAlias = Literal["completed", "aborted", "error"]
 NotifyType: TypeAlias = Literal["info", "warning", "error"]

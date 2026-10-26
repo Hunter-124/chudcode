@@ -156,7 +156,7 @@ root metadata and graph access continue independently of session tabs.
 ```text
 <candidate>/
   chudcode-desktop[.exe]    Rust launcher
-  chud[.exe]               public compatibility CLI (0.4.3 / RPC v2)
+  chud[.exe]               public compatibility CLI (0.4.4 / RPC v2)
   chudcode-service[.exe]    private desktop v1 compatibility service
   editor/                 pinned upstream editor and built-in extension
   VERSION
@@ -503,7 +503,7 @@ still has no established cause; no performance or stability gate was weakened.
 
 Stable goals and required promotion gates:
 
-- Freeze CAD's **Chudcode 0.4.3 / RPC v2 / Python SDK 0.3.1** and
+- Freeze CAD's **Chudcode 0.4.4 / RPC v2 / Python SDK 0.3.2** and
   CloudCastle's **18.1.11** integration surfaces. Keep public CLI/RPC/SDK
   artifacts, provider policies, and downstream pins unchanged.
 - Before replacing engine modules with Rust, prove behavior, restart,

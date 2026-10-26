@@ -38,6 +38,7 @@ import {
 import { createSessionMemoryRuntimeContext, type MemoryBackendStatus } from "../../memory-backend";
 import { type Theme, theme } from "@oh-my-pi/pi-tui/theme";
 import type { AgentSession } from "../../session/agent-session";
+import { COMPACT_MODES, type CompactMode, findCompactMode } from "../../session/compact-modes";
 import { findMostRecentNonEmptySession } from "../../session/session-listing";
 import { SKILL_PROMPT_MESSAGE_TYPE, USER_INTERRUPT_LABEL } from "../../session/messages";
 import { executeAcpBuiltinSlashCommand } from "../../slash-commands/acp-builtins";
@@ -473,10 +474,15 @@ export function dispatchRpcControlFrame(parsed: unknown, deps: RpcInputFrameDeps
 	return false;
 }
 
-/** Commands that must not hold the serial lane while cancellation is pending. */
+/**
+ * Commands that must not hold the serial lane while cancellation is pending. A
+ * manual `compact` can summarize for minutes; `abort` must overtake it (it
+ * cancels the compaction), and a prompt sent meanwhile parks until it settles.
+ */
 export function isRpcBackgroundCommand(command: RpcCommand): boolean {
 	return (
 		command.type === "bash" ||
+		command.type === "compact" ||
 		command.type === "stt_status" ||
 		command.type === "stt_start" ||
 		command.type === "stt_stop" ||
@@ -1745,7 +1751,22 @@ export async function runRpcMode(session: AgentSession, options: RpcModeOptions 
 			// =================================================================
 
 			case "compact": {
-				const result = await session.compact(command.customInstructions);
+				// `mode` is the `/compact <mode>` subcommand: a one-off method override for
+				// this compaction only. An unknown mode is refused, never ignored, so a caller
+				// is never compacted with a method it did not ask for.
+				let mode: CompactMode | undefined;
+				if (command.mode !== undefined) {
+					const modeDef = typeof command.mode === "string" ? findCompactMode(command.mode) : undefined;
+					if (!modeDef) {
+						return error(
+							id,
+							"compact",
+							`mode must be one of: ${COMPACT_MODES.map(compactMode => compactMode.name).join(", ")}`,
+						);
+					}
+					mode = modeDef.name;
+				}
+				const result = await session.compact(command.customInstructions, mode ? { mode } : undefined);
 				return success(id, "compact", result);
 			}
 

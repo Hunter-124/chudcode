@@ -322,6 +322,32 @@ describe("RpcInputDispatcher", () => {
 		expect((outputs[1] as RpcResponse).command).toBe("get_state");
 	});
 
+	test("abort overtakes a running compaction, which then answers its own request", async () => {
+		const compactionCancelled = Promise.withResolvers<void>();
+		const { deps, outputs } = makeDeps(async command => {
+			if (command.type === "compact") {
+				await compactionCancelled.promise;
+				throw new Error("Compaction cancelled");
+			}
+			if (command.type === "abort") {
+				compactionCancelled.resolve();
+				return { id: command.id, type: "response", command: "abort", success: true };
+			}
+			throw new Error(`unexpected command type: ${command.type}`);
+		});
+		const dispatcher = new RpcInputDispatcher({ deps });
+
+		dispatcher.dispatch({ id: "compact-1", type: "compact" });
+		dispatcher.dispatch({ id: "abort-1", type: "abort" });
+		await dispatcher.drain();
+		await flushMicrotasks();
+
+		expect(outputs).toEqual([
+			{ id: "abort-1", type: "response", command: "abort", success: true },
+			{ id: "compact-1", type: "response", command: "compact", success: false, error: "Compaction cancelled" },
+		]);
+	});
+
 	test("serial command rejection emits an error response and does not poison the queue", async () => {
 		const started: string[] = [];
 		const { deps, outputs } = makeDeps(async command => {

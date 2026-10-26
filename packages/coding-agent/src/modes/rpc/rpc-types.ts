@@ -10,6 +10,7 @@ import type { Effort, ImageContent, Model, ToolExample } from "@oh-my-pi/pi-ai";
 import type { BashResult } from "../../exec/bash-executor";
 import type { ContextUsage } from "../../extensibility/extensions/types";
 import type { AgentSessionEvent, SessionStats } from "../../session/agent-session";
+import type { CompactMode } from "../../session/compact-modes";
 import type { FileEntry, SessionEntry, SessionTreeNode } from "../../session/session-entries";
 import type { AvailableSlashCommandSource } from "../../slash-commands/available-commands";
 import type { AgentProgress } from "@oh-my-pi/pi-tui/tools/task";
@@ -77,7 +78,7 @@ export type RpcCommand =
 	| { id?: string; type: "set_interrupt_mode"; mode: "immediate" | "wait" }
 
 	// Compaction
-	| { id?: string; type: "compact"; customInstructions?: string }
+	| { id?: string; type: "compact"; customInstructions?: string; mode?: CompactMode }
 	| { id?: string; type: "set_auto_compaction"; enabled: boolean }
 
 	// Retry
