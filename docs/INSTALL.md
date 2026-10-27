@@ -44,18 +44,18 @@ The installer detects the operating system and architecture, chooses exactly one
 canonical archive, and fails closed unless all of these agree:
 
 1. `release-manifest.json` has the expected Chudcode and protocol versions.
-2. `SHA256SUMS.txt` authenticates the manifest and selected archive hashes.
+2. The manifest and selected archive match their `SHA256SUMS.txt` entries.
 3. The selected archive hash also matches its manifest record.
 4. The archive name, manifest target, and detected host OS/architecture agree.
 5. The archive is path-safe and contains no checkout, `node_modules`, TypeScript,
    source tree, Bun lockfile, or package manifest.
-6. `VERSION`, all three executable `--version` results, required assets, and the
-   legal notices agree with the installer version.
+6. `VERSION`, the `chud` and `chudcode-desktop` version results, required assets,
+   and legal notices agree with the installer version.
 
 macOS and Windows release jobs additionally validate their native platform code
-signatures before publication. Hash and manifest mismatches, a wrong binary
-architecture (which cannot pass the native startup check), missing or incomplete
-notices, and source-bearing payloads abort before installation changes.
+signatures before publication. Hash or manifest mismatches, CLI or desktop-server
+startup failures, missing or incomplete notices, and source-bearing payloads abort
+before installation changes.
 
 The default locations are:
 
