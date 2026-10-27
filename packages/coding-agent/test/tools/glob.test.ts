@@ -92,7 +92,12 @@ describe("GlobTool.execute", () => {
 					throw new Error("Missing native cancellation signal");
 				}
 				const nativeSignal = options.signal;
-				nativeSignal.addEventListener("abort", () => timeoutObserved.resolve(), { once: true });
+				// Preparation can outlast the deadline; abort events are not replayed.
+				if (nativeSignal.aborted) {
+					timeoutObserved.resolve();
+				} else {
+					nativeSignal.addEventListener("abort", () => timeoutObserved.resolve(), { once: true });
+				}
 				started.resolve();
 				await timeoutObserved.promise;
 				await release.promise;
@@ -120,8 +125,7 @@ describe("GlobTool.execute", () => {
 		const result = await execution;
 
 		expect(nativeSettled).toBe(true);
-		const text = result.content[0]?.type === "text" ? result.content[0].text : "";
-		expect(text).toContain("Glob timed out after 0.1s");
+		expect(result.details?.truncated).toBe(true);
 	});
 
 	test("waits for every native scan to settle before rejecting an abort", async () => {
