@@ -76,6 +76,28 @@ This creates:
 
 The packaging script `scripts/package-chudcode-desktop.ts` assembles the compiled CLI, desktop launcher, native GUI, adjacent runtime assets, version metadata, and repository notices. The archive contains no source tree, `node_modules`, or Bun interpreter dependency.
 
+Both compiled executables use the shared coding-agent compile pipeline. The
+packager first generates the real stats dashboard archive (`gen:stats`),
+HTML-export tool views (`gen:tool-views`), and target-native addon (`gen:native`),
+then resets the generated stats/native placeholders even if compilation fails.
+Supplying `--chud` or `--desktop` reuses prebuilt inputs; their embedded assets
+still need qualification in the final archive.
+
+Before publishing, validate each archive on its matching native host:
+
+```sh
+bun scripts/ci-release-desktop.ts --archive /absolute/path/to/chudcode-desktop-linux-x64.tar.gz
+```
+
+Use the corresponding canonical macOS or Windows archive on those hosts. In
+addition to payload, notice, and version checks, host validation executes the
+archived CLI's real `--smoke-test` from a new empty profile outside the checkout.
+That probe starts the bundled workers and serves the embedded stats dashboard;
+version/help output alone does not qualify a release. Run Linux runtime
+qualification in a fresh network namespace with only its own loopback enabled.
+Keep already-published assets immutable: a repaired payload requires a new
+release and fresh manifest/checksums after the rebuilt archives pass validation.
+
 ## Run
 
 Inside an unpacked release archive, the compiled launcher resolves `chud`, `chudcode-gui`, `web/`, `assets/`, `VERSION`, and notices only beside its own executable. It launches the adjacent native GUI by default:
@@ -156,7 +178,7 @@ root metadata and graph access continue independently of session tabs.
 ```text
 <candidate>/
   chudcode-desktop[.exe]    Rust launcher
-  chud[.exe]               public compatibility CLI (0.4.4 / RPC v2)
+  chud[.exe]               public CLI (RPC v2)
   chudcode-service[.exe]    private desktop v1 compatibility service
   editor/                 pinned upstream editor and built-in extension
   VERSION

@@ -7,7 +7,7 @@ variable names remain those of OMP.
 
 ## Getting started
 
-- [Install the pinned 0.4.4 runtime](docs/INSTALL.md) without a source checkout.
+- [Install the pinned 0.4.5 runtime](docs/INSTALL.md) without a source checkout.
 - [Install the Python SDK](python/chudcode-rpc/README.md#installation)
   (`chudcode-rpc` 0.3.2, Python ≥3.11); the runtime is installed separately.
 - [Contribute](CONTRIBUTING.md) or [report a security vulnerability privately](.github/SECURITY.md).
@@ -22,9 +22,9 @@ An isolated, unpublished candidate pairs a native Rust launcher
 `chudware.chudcode-workbench` extension (`packages/chudcode-workbench`).
 The editor owns files, search, terminals, Git, and language-service UI; the
 extension connects the existing agent/session surfaces to a private,
-authenticated desktop protocol v1 service. The bundled public `chud` remains
-Chudcode **0.4.4 / RPC v2**; existing release artifacts, installers, the GUI,
-and downstream pins are not replaced.
+authenticated desktop protocol v1 service. The candidate retains the public
+**RPC v2** CLI; it does not replace existing release artifacts, the standalone
+GUI, or downstream version pins.
 
 The binary editor base is the official VSCodium **1.135.06055** distribution,
 SHA-256 pinned in [`packaging/workbench/base.json`](packaging/workbench/base.json),
@@ -56,12 +56,12 @@ development files, CMake and Ninja. On Debian/Ubuntu the native prerequisites
 include `build-essential clang libclang-dev pkg-config libssl-dev cmake ninja-build`.
 Use the corresponding platform development tools on macOS or Windows.
 
-Build the pinned source revision:
+Build the pinned release source:
 
 ```sh
 git -c credential.helper= clone https://github.com/Hunter-124/chudcode.git
 cd chudcode
-git checkout --detach 8f70d216879be0cfe6bfeb5520f2370521224330
+git checkout --detach chudcode-v0.4.5
 bun install --frozen-lockfile
 bun run build:native
 bun --cwd=packages/coding-agent run build

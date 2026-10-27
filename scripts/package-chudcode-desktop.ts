@@ -513,12 +513,16 @@ async function buildExecutables(
 	const web = path.join(outputDirectory, "web");
 	await fs.mkdir(outputDirectory, { recursive: true });
 	await buildWeb(repoRoot, web);
-	await run(["bun", "run", "gen:native"], repoRoot, {
-		...process.env,
-		TARGET_PLATFORM: spec.platform,
-		TARGET_ARCH: spec.arch,
-	});
 	try {
+		// Like the standalone CLI build, embed the real dashboard and HTML-export
+		// assets before compiling either executable's coding-agent dependency graph.
+		await run(["bun", "run", "gen:stats"], repoRoot);
+		await run(["bun", "run", "gen:tool-views"], repoRoot);
+		await run(["bun", "run", "gen:native"], repoRoot, {
+			...process.env,
+			TARGET_PLATFORM: spec.platform,
+			TARGET_ARCH: spec.arch,
+		});
 		const desktop = path.join(outputDirectory, `chudcode-desktop${spec.exe}`);
 		await compileStandalone(repoRoot, path.join(repoRoot, "packages/chudcode-desktop/src/launch.ts"), desktop, spec);
 		let chud: string | undefined;
@@ -528,7 +532,11 @@ async function buildExecutables(
 		}
 		return { chud, desktop, web };
 	} finally {
-		await run(["bun", "run", "gen:native:reset"], repoRoot);
+		try {
+			await run(["bun", "run", "gen:native:reset"], repoRoot);
+		} finally {
+			await run(["bun", "run", "gen:stats:reset"], repoRoot);
+		}
 	}
 }
 

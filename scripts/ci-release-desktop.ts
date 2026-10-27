@@ -7,14 +7,14 @@ import { PRODUCT_SEMVER, PRODUCT_VERSION } from "../packages/coding-agent/src/br
 import { DESKTOP_RELEASE_TARGETS, verifyReleaseManifest } from "./ci-release-checksums";
 import { type DesktopTarget, validatePayloadTree } from "./package-chudcode-desktop";
 
-async function run(command: string[]): Promise<string> {
-	const child = Bun.spawn(command, { stdout: "pipe", stderr: "pipe" });
+async function run(command: string[], options: { cwd?: string; env?: NodeJS.ProcessEnv } = {}): Promise<string> {
+	const child = Bun.spawn(command, { ...options, stdin: "ignore", stdout: "pipe", stderr: "pipe" });
 	const [code, stdout, stderr] = await Promise.all([
 		child.exited,
 		new Response(child.stdout).text(),
 		new Response(child.stderr).text(),
 	]);
-	if (code !== 0) throw new Error(`Command failed: ${command.join(" ")} (${code}): ${stderr}`);
+	if (code !== 0) throw new Error(`Command failed: ${command.join(" ")} (${code}): ${stderr || stdout}`);
 	return stdout.trim();
 }
 
@@ -44,10 +44,48 @@ export async function verifyDesktopArchive(archivePath: string, version = PRODUC
 				throw new Error(`${artifact.file} omits ${notice}`);
 		}
 		if (hostTarget === artifact.target) {
+			// Run outside any source checkout and without the release runner's
+			// credentials, configuration, sessions, or pre-existing runtime caches.
+			const profile = path.join(extracted, ".verify-profile");
+			const temporary = path.join(profile, "tmp");
+			const runtime = path.join(profile, "runtime");
+			await Promise.all(
+				[temporary, runtime].map(directory => fs.mkdir(directory, { recursive: true, mode: 0o700 })),
+			);
+			const options = {
+				cwd: profile,
+				env: {
+					PATH: process.env.PATH,
+					SystemRoot: process.env.SystemRoot,
+					WINDIR: process.env.WINDIR,
+					ComSpec: process.env.ComSpec,
+					PATHEXT: process.env.PATHEXT,
+					HOME: profile,
+					USERPROFILE: profile,
+					APPDATA: path.join(profile, "config"),
+					LOCALAPPDATA: path.join(profile, "data"),
+					XDG_CONFIG_HOME: path.join(profile, "config"),
+					XDG_DATA_HOME: path.join(profile, "data"),
+					XDG_STATE_HOME: path.join(profile, "state"),
+					XDG_CACHE_HOME: path.join(profile, "cache"),
+					XDG_RUNTIME_DIR: runtime,
+					TMPDIR: temporary,
+					TMP: temporary,
+					TEMP: temporary,
+					PI_CODING_AGENT_DIR: path.join(profile, "agent"),
+					PI_PACKAGE_DIR: path.join(profile, "packages"),
+					PI_NOTIFICATIONS: "off",
+					NO_COLOR: "1",
+				},
+			};
 			const suffix = process.platform === "win32" ? ".exe" : "";
-			const cliVersion = await run([path.join(extracted, `chud${suffix}`), "--version"]);
+			const cli = path.join(extracted, `chud${suffix}`);
+			const cliVersion = await run([cli, "--version"], options);
 			if (cliVersion !== PRODUCT_VERSION) throw new Error(`${artifact.file} CLI version mismatch: ${cliVersion}`);
-			const desktopVersion = await run([path.join(extracted, `chudcode-desktop${suffix}`), "--version"]);
+			const smokeOutput = await run([cli, "--smoke-test"], options);
+			if (!smokeOutput.split(/\r?\n/).includes("smoke-test: ok"))
+				throw new Error(`${artifact.file} bundled worker/assets smoke did not complete`);
+			const desktopVersion = await run([path.join(extracted, `chudcode-desktop${suffix}`), "--version"], options);
 			if (desktopVersion !== version)
 				throw new Error(`${artifact.file} desktop version mismatch: ${desktopVersion}`);
 		}

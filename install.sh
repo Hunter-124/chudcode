@@ -2,7 +2,7 @@
 set -eu
 
 PRODUCT_NAME="Chudcode"
-PRODUCT_VERSION="0.4.4"
+PRODUCT_VERSION="0.4.5"
 RELEASE_TAG="chudcode-v${PRODUCT_VERSION}"
 RELEASE_REPOSITORY="Hunter-124/chudcode"
 INSTALL_DIR="${CHUDCODE_INSTALL_DIR:-${HOME}/.local/bin}"
@@ -141,7 +141,7 @@ checksum_for() {
 manifest_hash_for() {
 	wanted=$1; manifest=$2
 	awk -v wanted="$wanted" '
-		$0 ~ "\\\"file\\\": \\\"" wanted "\\\"" { found=1; next }
+		index($0, "\"file\": \"" wanted "\"") { found=1; next }
 		found && /"sha256":/ { gsub(/.*"sha256": "/, ""); gsub(/".*/, ""); print; exit }
 	' "$manifest"
 }
@@ -150,7 +150,7 @@ manifest_target_for() {
 	wanted=$1; manifest=$2
 	awk -v wanted="$wanted" '
 		/"target":/ { target=$0; gsub(/.*"target": "/, "", target); gsub(/".*/, "", target) }
-		$0 ~ "\\\"file\\\": \\\"" wanted "\\\"" { print target; exit }
+		index($0, "\"file\": \"" wanted "\"") { print target; exit }
 	' "$manifest"
 }
 

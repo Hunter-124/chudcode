@@ -19,20 +19,24 @@ contains `SHA256SUMS.txt` and `release-manifest.json`. The manifest records the
 product version, RPC and desktop protocol versions, target/architecture, size,
 and SHA-256 hash for each canonical archive.
 
+Release **0.4.5** repairs missing dashboard and HTML-export assets in the 0.4.4
+desktop archives and verifies the bundled workers/assets before publication.
+Existing 0.4.4 assets and Chudware's independently verified runtime mirror remain
+unchanged; RPC v2 and Python SDK 0.3.2 remain compatible.
+
 ## Install
 
-Download the installer from source revision
-`8f70d216879be0cfe6bfeb5520f2370521224330`, inspect it, then install the
-**0.4.4** release. `install.sh` is a source file, not a release asset.
+Download the installer from the `chudcode-v0.4.5` release tag, inspect it, then
+install the **0.4.5** release. `install.sh` is a source file, not a release asset.
 These HTTPS commands do not use `gh` or require a GitHub token:
 
 ```sh
 installer_dir=$(mktemp -d)
 curl -q -fsSL \
-  https://raw.githubusercontent.com/Hunter-124/chudcode/8f70d216879be0cfe6bfeb5520f2370521224330/install.sh \
+  https://raw.githubusercontent.com/Hunter-124/chudcode/chudcode-v0.4.5/install.sh \
   -o "$installer_dir/install.sh"
 # Inspect "$installer_dir/install.sh" before running it.
-CHUDCODE_RELEASE_BASE_URL=https://github.com/Hunter-124/chudcode/releases/download/chudcode-v0.4.4 \
+CHUDCODE_RELEASE_BASE_URL=https://github.com/Hunter-124/chudcode/releases/download/chudcode-v0.4.5 \
   sh "$installer_dir/install.sh"
 ```
 
@@ -52,10 +56,11 @@ canonical archive, and fails closed unless all of these agree:
 6. `VERSION`, the `chud` and `chudcode-desktop` version results, required assets,
    and legal notices agree with the installer version.
 
-macOS and Windows release jobs additionally validate their native platform code
-signatures before publication. Hash or manifest mismatches, CLI or desktop-server
-startup failures, missing or incomplete notices, and source-bearing payloads abort
-before installation changes.
+On matching hosts, release jobs also execute the CLI's full bundled-worker/assets
+smoke from an empty profile. These checks do not assert Apple notarization or
+trusted Windows Authenticode signing. Hash or manifest mismatches, CLI or
+desktop-server startup failures, missing or incomplete notices, and source-bearing
+payloads abort before installation changes.
 
 The default locations are:
 
@@ -79,7 +84,7 @@ The desktop archive always carries the complete, verified payload, but command
 exposure can remain CLI-only:
 
 ```sh
-CHUDCODE_RELEASE_BASE_URL=https://github.com/Hunter-124/chudcode/releases/download/chudcode-v0.4.4 \
+CHUDCODE_RELEASE_BASE_URL=https://github.com/Hunter-124/chudcode/releases/download/chudcode-v0.4.5 \
   CHUDCODE_INSTALL_DESKTOP=0 sh "$installer_dir/install.sh"
 ```
 

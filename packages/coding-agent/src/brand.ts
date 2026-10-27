@@ -1,7 +1,7 @@
 export const PRODUCT_NAME = "Chudcode";
 export const PRODUCT_CLI_NAME = "chud";
 /** This product's release line; upstream's runtime VERSION is independent. */
-export const PRODUCT_SEMVER = "0.4.4";
+export const PRODUCT_SEMVER = "0.4.5";
 export const PRODUCT_VERSION = `${PRODUCT_NAME} v${PRODUCT_SEMVER}`;
 export const PRODUCT_RELEASE_REPO = "Hunter-124/chudcode";
 export const PRODUCT_RELEASE_TAG_PREFIX = "chudcode-v";
