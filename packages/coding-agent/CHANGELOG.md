@@ -19,6 +19,7 @@
 
 - RPC `abort` now cancels an in-flight manual `compact` instead of waiting behind it on the serial command lane; the `compact` request then fails. The Python client's `compact()` no longer gives up after `request_timeout` while a large summary is still being written (an explicit `timeout=` bounds it).
 - The glob cancellation regression handles deadlines that expire during filesystem preparation, while still requiring native work to settle before returning an incomplete result.
+- Cold public Intel Mac builds have a 150-minute deadline for the complete release-optimised ARM64 compile-only qualification; Rust targets, GUI outputs and architecture checks are unchanged.
 - Workbench candidates preserve dirty session drafts across tab switches and view recreation without clearing another connection's unsaved state.
 - Workbench editor shared storage remains separate from stock Code-OSS and VSCodium profiles.
 - Workbench sessions no longer appear to keep running solely because next-turn messages are queued; closing or deleting still protects pending work.

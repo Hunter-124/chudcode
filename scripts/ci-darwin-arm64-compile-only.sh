@@ -11,20 +11,20 @@
 # Apple silicon runtime evidence, and none of these outputs is a release,
 # signing or notarisation input.
 #
-# The whole run, every child included, has a hard 85 min budget: the script
+# The whole run, every child included, has a hard 150 min budget: the script
 # re-executes itself under scripts/ci-deadline.ts, which owns a process group
 # for it, sends SIGTERM then SIGKILL after 15 s, and exits 124 on expiry. The
-# workflow job's 90 min cap leaves five minutes for tool setup and cleanup.
-# Cold run #37253090246 built the addon and reached action 3344/3352 of the
-# Rust phase before its 75 min deadline expired with one compiler worker.
-# The 85 min budget retains the complete Rust/GUI proof and a finite deadline;
-# no native consumer depends on this compile-only qualification.
+# workflow job's 155 min cap leaves five minutes for tool setup and cleanup.
+# Cold public run #40509246866 was still compiling Rust action 3356/3362
+# when its 85 min deadline expired. Keep shipping optimisation, every Rust
+# target and the complete GUI proof; allow the cold build to finish.
+# No native consumer depends on this compile-only qualification.
 #
 # Optional environment: OMP_BAZEL_RC (rc fragment from
 # .github/actions/bazel-cache), CMAKE_BUILD_PARALLEL_LEVEL.
 set -euo pipefail
 
-readonly BUDGET_SECONDS=5100
+readonly BUDGET_SECONDS=9000
 
 fail() {
 	printf 'error: %s\n' "$*" >&2

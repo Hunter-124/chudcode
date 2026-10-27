@@ -246,8 +246,8 @@ jobs:
     needs: [test_typescript, rust_validate, check]
     runs-on: macos-15-intel
     # Hard cap: five minutes of tool setup/cleanup plus the script's own
-    # 85-minute deadline. No consumer depends on this qualification job.
-    timeout-minutes: 90
+    # 150-minute deadline. No consumer depends on this qualification job.
+    timeout-minutes: 155
     env:
       CMAKE_BUILD_PARALLEL_LEVEL: '1'
     steps:
