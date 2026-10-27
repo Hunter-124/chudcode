@@ -9,7 +9,8 @@
  * the tag's draft release and consumers download them from it. `publish`
  * removes the staging-only assets and makes the draft public.
  *
- * Usage (GITHUB_TOKEN and GITHUB_REPOSITORY from the job environment):
+ * Usage (GITHUB_TOKEN and GITHUB_REPOSITORY from the job environment;
+ * private controllers set CHUDCODE_RELEASE_REPOSITORY to the source repository):
  *   bun scripts/ci-release-transport.ts draft   --tag <tag> [--target <sha>] (prints release-id=<id> to $GITHUB_OUTPUT)
  *   bun scripts/ci-release-transport.ts put     --release-id <id> --file <path> [--name <asset>]
  *   bun scripts/ci-release-transport.ts get     --release-id <id> --name <asset> --out <path>
@@ -69,7 +70,14 @@ function required(opts: Map<string, string>, key: string): string {
 	return value;
 }
 
-const repo = (): string => env("GITHUB_REPOSITORY");
+const repo = (): string => {
+	const name = Bun.env.CHUDCODE_RELEASE_REPOSITORY === undefined ? "GITHUB_REPOSITORY" : "CHUDCODE_RELEASE_REPOSITORY";
+	const value = env(name);
+	if (!/^[A-Za-z0-9][A-Za-z0-9-]*\/(?!\.{1,2}$)[A-Za-z0-9_.-]+$/.test(value)) {
+		fail(`${name} must be an owner/repository name`);
+	}
+	return value;
+};
 
 function isRecord(value: unknown): value is Record<string, unknown> {
 	return typeof value === "object" && value !== null && !Array.isArray(value);

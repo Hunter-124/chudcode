@@ -292,6 +292,15 @@ re-signing preserves observed Electron entitlements but is not Developer ID
 signing or notarization. Signing prerequisite observations do not imply trust.
 The probes support Python 3.9 and newer. The Windows lane uses `uv` to obtain
 portable Python in product-private storage, without a system Python installer.
+
+Qualification report schema 2 keeps source and workflow provenance separate.
+For a checkout built by another repository's workflow, pass both
+`--source-revision <full-commit-sha>` and `--source-repository <owner/repository>`.
+The report's `source.repository` and `source.revision` describe those inputs;
+`source.workflow` retains the actual workflow repository, commit, run ID and
+attempt. Do not overwrite `GITHUB_REPOSITORY` or `GITHUB_SHA` to describe the
+source checkout. Caller-supplied provenance is not a clean-tree attestation.
+
 Windows probes translate validated native canonical paths to the launcher's
 ordinary path spelling before passing them to Code-OSS URI/module loaders.
 Editor probes enable verbose startup output; command timeouts retain bounded

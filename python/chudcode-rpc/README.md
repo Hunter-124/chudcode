@@ -1,6 +1,7 @@
 # chudcode-rpc
 
-Typed Python bindings for the internal agent runtime's `chud --mode rpc` protocol.
+Typed Python bindings for Chudcode's `chud --mode rpc` protocol. Chudcode is the
+MIT-licensed agent-runtime dependency used by Chudware.
 
 This package wraps the newline-delimited JSON RPC transport exposed by the CLI and
 provides:
@@ -16,6 +17,33 @@ provides:
 - typed host-tool helpers so Python RPC owners can expose custom tools with JSON Schema metadata
 - typed, secret-safe provider authentication and project-memory commands for embedding hosts
 - typed local speech status/start/stop/cancel wrappers with bounded transcripts
+
+## Installation
+
+The SDK is **0.3.2** and requires **Python ≥3.11**. It does not install `chud`;
+install the separate [0.4.4 runtime](../../docs/INSTALL.md), or follow the
+[native source build](../../README.md#development). Put the installed `chud`
+command on `PATH`, or supply its absolute path as `RpcClient(executable=...)`.
+
+From the repository root:
+
+```sh
+python3 -m venv .venv
+.venv/bin/python -m pip install ./python/chudcode-rpc
+```
+
+Alternatively, install the SDK from the pinned public source archive into that
+environment, without cloning or GitHub credentials:
+
+```sh
+.venv/bin/python -m pip install \
+  'chudcode-rpc @ https://github.com/Hunter-124/chudcode/archive/8f70d216879be0cfe6bfeb5520f2370521224330.tar.gz#subdirectory=python/chudcode-rpc'
+```
+
+Chudware's own provisioning uses its separately mirrored, SHA-256-pinned source
+archive; do not replace its requirements or runtime lock with this standalone
+installation command. See [contributing](../../CONTRIBUTING.md) and the
+[private security reporting policy](../../.github/SECURITY.md).
 
 ## Basic Usage
 
@@ -40,11 +68,27 @@ Background jobs can resume the session after a yield: use
 `get_state()` exposes `is_settled`, `has_pending_async_work`, and the queued
 steering/follow-up messages. `on_queue_update()` receives queue snapshots.
 
-For an isolated installed-client smoke invocation without a provider call:
+For an isolated installed-client smoke invocation without a prompt or provider call:
 
-```bash
-python -c 'from chudcode_rpc import RpcClient; c = RpcClient(command=["chud", "--mode", "rpc"], no_session=True); c.start(); print(c.get_state().session_id); c.stop()'
+```sh
+.venv/bin/python - <<'PY'
+from tempfile import TemporaryDirectory
+from chudcode_rpc import RpcClient
+
+with TemporaryDirectory() as project:
+    with RpcClient(
+        executable="chud", cwd=project, no_session=True,
+        no_skills=True, no_rules=True, no_ui=True, tools=(),
+        extra_args=("--no-mcp", "--no-extensions"),
+    ) as client:
+        print(client.get_state().session_id)
+PY
 ```
+
+For a source-built CLI, replace `"chud"` with the absolute path to
+`packages/coding-agent/dist/omp`. Use `executable=`, not an explicit `command=`,
+so the client appends the isolation/startup options. Prompt examples require a
+configured provider and your own credentials.
 
 The wrapper also exposes the common RPC startup flags directly, so scripts do not
 need to build `extra_args` by hand:

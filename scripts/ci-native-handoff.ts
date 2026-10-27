@@ -10,6 +10,8 @@
  * runner, so producers publish into that runner's own storage instead of
  * GitHub artifact storage. Handoffs live under
  * `<root>/<repository>/<run_id>/<source sha>/`:
+ * Private controllers set CHUDCODE_SOURCE_SHA to the exact checked-out source
+ * commit; GITHUB_SHA is only the fallback for workflows in the source repo.
  *
  *   objects/<target>.attempt-<n>.<uuid>/{<addon>,manifest.json}
  *   <target> -> objects/<target>.attempt-<n>.<uuid>
@@ -65,7 +67,10 @@ function requireEnv(name: string, pattern: RegExp): string {
 function runContext(root: string): RunContext {
 	const repository = requireEnv("GITHUB_REPOSITORY", /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/);
 	const runId = requireEnv("GITHUB_RUN_ID", /^[0-9]+$/);
-	const sourceSha = requireEnv("GITHUB_SHA", /^[0-9a-f]{40}$/);
+	const sourceSha = requireEnv(
+		Bun.env.CHUDCODE_SOURCE_SHA === undefined ? "GITHUB_SHA" : "CHUDCODE_SOURCE_SHA",
+		/^[0-9a-f]{40}$/,
+	);
 	return {
 		repository,
 		runId,

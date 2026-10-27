@@ -1,13 +1,7 @@
-# Contributing to omp
+# Contributing to Chudcode
 
 Pull requests are welcome. Keep them focused, understand the work you submit,
 and be prepared to explain and maintain it.
-
-> [!NOTE]
-> Pull requests are **temporarily open to everyone** as a trial. We previously
-> required a vouch before accepting PRs; that requirement is lifted for now
-> while we evaluate how open contributions go. Depending on the results, the
-> vouch system may return.
 
 ## Before you start
 
@@ -18,22 +12,15 @@ straight to a pull request.
 
 ### Major changes
 
-Discuss major features and broad architectural or behavioral changes in
-[Discord](https://discord.gg/4NMW9cdXZa) **before writing the implementation**.
-This includes new subsystems, large UI changes, new dependencies, and changes
-that span several packages. A GitHub issue is not a substitute for this
-discussion, and prior discussion does not guarantee that a pull request will be
-merged.
+Discuss major features and broad architectural or behavioral changes in a
+[repository issue](https://github.com/Hunter-124/chudcode/issues) before writing
+the implementation. This includes new subsystems, large UI changes, new
+dependencies, and changes that span several packages. Prior discussion does not
+guarantee that a pull request will be merged.
 
-### Do not open an issue for work you are about to submit
-
-If you intend to implement a change yourself, **do not create an issue for it
-first**. robomp treats actionable issues as work to pick up and may start the
-same fix in parallel, wasting compute and maintainer time.
-
-Open an issue when you are reporting a problem or proposing work that you are
-not already turning into a pull request. If a relevant issue already exists,
-link it from your pull request instead of creating another one.
+Search existing issues and pull requests first, and link relevant discussions
+from your pull request. Report vulnerabilities through the
+[security policy](.github/SECURITY.md), not a public issue.
 
 ## AI-assisted contributions
 
@@ -75,14 +62,19 @@ result in the pull request:
 development commands and repository structure, see
 [`packages/coding-agent/DEVELOPMENT.md`](packages/coding-agent/DEVELOPMENT.md).
 
+For installation and native build prerequisites, start with the
+[repository README](README.md#development). Chudcode is Chudware's runtime
+dependency; CAD host integration changes belong in
+[Chudware](https://github.com/Hunter-124/Chudware).
+
 Keep each pull request to one logical change. Avoid unrelated cleanup,
 drive-by refactors, generated noise, or features that were not part of the
 agreed scope.
 
 ## Contribution licensing
 
-A contribution intentionally submitted for inclusion in OMP is licensed under
-the MIT License.
+A contribution intentionally submitted for inclusion in Chudcode is licensed
+under the MIT License.
 
 This policy does not relicense third-party or vendored code. You must have the
 right to submit your contribution and must preserve applicable copyright,

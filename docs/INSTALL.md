@@ -21,19 +21,24 @@ and SHA-256 hash for each canonical archive.
 
 ## Install
 
-Download `install.sh` from the same release, inspect it, then run it:
+Download the installer from source revision
+`8f70d216879be0cfe6bfeb5520f2370521224330`, inspect it, then install the
+**0.4.4** release. `install.sh` is a source file, not a release asset.
+These HTTPS commands do not use `gh` or require a GitHub token:
 
 ```sh
-gh api \
-  -H 'Accept: application/vnd.github.raw+json' \
-  /repos/Hunter-124/chudcode/contents/install.sh?ref=chudcode-v0.2.0 \
-  > /tmp/chudcode-install.sh
-sh /tmp/chudcode-install.sh
+installer_dir=$(mktemp -d)
+curl -q -fsSL \
+  https://raw.githubusercontent.com/Hunter-124/chudcode/8f70d216879be0cfe6bfeb5520f2370521224330/install.sh \
+  -o "$installer_dir/install.sh"
+# Inspect "$installer_dir/install.sh" before running it.
+CHUDCODE_RELEASE_BASE_URL=https://github.com/Hunter-124/chudcode/releases/download/chudcode-v0.4.4 \
+  sh "$installer_dir/install.sh"
 ```
 
-Without `gh`, set `CHUDCODE_RELEASE_BASE_URL` to an authenticated or public
-release-asset URL and run the script. `curl` or `wget` is required. Linux and
-macOS need `sha256sum` or `shasum`; Windows archive extraction needs `unzip`.
+The explicit release base URL selects HTTPS downloads instead of `gh`. A POSIX
+shell, `curl` or `wget`, and archive extraction tools are required. Linux and
+macOS need `sha256sum` or `shasum`; Windows (Git Bash/MSYS2) needs `unzip`.
 
 The installer detects the operating system and architecture, chooses exactly one
 canonical archive, and fails closed unless all of these agree:
@@ -74,7 +79,8 @@ The desktop archive always carries the complete, verified payload, but command
 exposure can remain CLI-only:
 
 ```sh
-CHUDCODE_INSTALL_DESKTOP=0 sh /tmp/chudcode-install.sh
+CHUDCODE_RELEASE_BASE_URL=https://github.com/Hunter-124/chudcode/releases/download/chudcode-v0.4.4 \
+  CHUDCODE_INSTALL_DESKTOP=0 sh "$installer_dir/install.sh"
 ```
 
 This installs/exposes `chud` and its `chudcode` compatibility alias without
@@ -106,3 +112,12 @@ shasum -a 256 -c SHA256SUMS.txt  # macOS
 Then inspect `release-manifest.json` and the archive's `VERSION`, `NOTICE`, and
 `THIRD-PARTY-NOTICES.txt`. Do not install a release whose three-target set or
 metadata is incomplete.
+
+## Build from source and embed
+
+For the pinned source checkout, native prerequisites, addon build and compiled
+CLI commands, see [Development](../README.md#development). The compiled source
+CLI is `packages/coding-agent/dist/omp`, not `dist/chud`.
+The [Python SDK installation guide](../python/chudcode-rpc/README.md#installation)
+covers Python ≥3.11 and a provider-free RPC smoke command; installing the SDK
+does not install the runtime.

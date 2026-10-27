@@ -48,11 +48,13 @@ permissions:
 jobs:
   evaluate:
     name: Evaluate flake
-    runs-on: [self-hosted, cloudcastle-ci, cc-linux-chudcode]
+    runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
-      - name: Evaluate every supported system in SELinux-compatible container
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          persist-credentials: false
+      - name: Evaluate every supported system in an isolated container
         shell: bash
         run: |
-          podman run --rm --security-opt label=disable -v "$PWD":/src:ro -w /src docker.io/nixos/nix:2.32.4 sh -c \
+          docker run --rm -v "$PWD":/src:ro -w /src docker.io/nixos/nix:2.32.4 sh -c \
             "git config --global --add safe.directory '*' && nix --extra-experimental-features 'nix-command flakes' --option accept-flake-config true flake check --all-systems --no-build --show-trace"

@@ -1,11 +1,19 @@
 # Chudcode
 
-Chudcode (`chud`) is a private fork of OMP built for the Chudware CAD agent
-integration. It also ships a standalone CLI and desktop runtime. Upstream
-packages and environment variable names remain those of OMP.
-See [`docs/rpc.md`](docs/rpc.md) for the protocol and
-[`packages/coding-agent/DEVELOPMENT.md`](packages/coding-agent/DEVELOPMENT.md)
-for the source layout.
+Chudcode (`chud`) is the MIT-licensed agent-runtime dependency used by
+[Chudware](https://github.com/Hunter-124/Chudware), based on OMP. Its CLI and
+desktop runtime can also run independently. Upstream package and environment
+variable names remain those of OMP.
+
+## Getting started
+
+- [Install the pinned 0.4.4 runtime](docs/INSTALL.md) without a source checkout.
+- [Install the Python SDK](python/chudcode-rpc/README.md#installation)
+  (`chudcode-rpc` 0.3.2, Python ≥3.11); the runtime is installed separately.
+- [Contribute](CONTRIBUTING.md) or [report a security vulnerability privately](.github/SECURITY.md).
+- See [`docs/rpc.md`](docs/rpc.md) for the embedding protocol and
+  [`packages/coding-agent/DEVELOPMENT.md`](packages/coding-agent/DEVELOPMENT.md)
+  for the source layout.
 
 ## Opt-in Code-OSS workbench candidate
 
@@ -42,121 +50,58 @@ pending; this candidate is not a completed overhaul or stable release.
 
 ## Development
 
-From the repository root:
+For a native CLI build, install Git, Bun **1.4.0**, rustup (the checkout selects
+**nightly-2026-08-12**), a C/C++ toolchain, Clang/libclang, pkg-config, OpenSSL
+development files, CMake and Ninja. On Debian/Ubuntu the native prerequisites
+include `build-essential clang libclang-dev pkg-config libssl-dev cmake ninja-build`.
+Use the corresponding platform development tools on macOS or Windows.
+
+Build the pinned source revision:
 
 ```sh
+git -c credential.helper= clone https://github.com/Hunter-124/chudcode.git
+cd chudcode
+git checkout --detach 8f70d216879be0cfe6bfeb5520f2370521224330
 bun install --frozen-lockfile
-bun --cwd packages/coding-agent run check
-bun --cwd packages/coding-agent run test
-bun --cwd packages/coding-agent run build
+bun run build:native
+bun --cwd=packages/coding-agent run build
+packages/coding-agent/dist/omp --version
+packages/coding-agent/dist/omp --smoke-test
 ```
 
-These commands are documented in [`packages/coding-agent/DEVELOPMENT.md`](packages/coding-agent/DEVELOPMENT.md). Other packages have their own development and test commands. Local user state lives in `~/.chudcode` (or XDG `chudcode` directories); agent and package overrides retain the upstream `PI_CODING_AGENT_DIR` and `PI_PACKAGE_DIR` names.
+The source build outputs `packages/coding-agent/dist/omp`, despite the Chudcode
+identity; release installations expose `chud`. Build the native addon before
+building or running the CLI. For contributions, create a branch from the current
+default branch rather than the pinned detached revision, and use the checks in
+[`packages/coding-agent/DEVELOPMENT.md`](packages/coding-agent/DEVELOPMENT.md).
+Other packages have their own development and test commands. Local user state
+lives in `~/.chudcode` (or XDG `chudcode` directories); agent and package overrides
+retain the upstream `PI_CODING_AGENT_DIR` and `PI_PACKAGE_DIR` names.
 
-### Isolated CI runners
+### CI and releases
 
-Linux CI uses `cc-linux-chudcode`: the `Chudcode-CI` utility VM on
-GarrisonGamingPC, owned by the batch-only `ChudcodeLinuxCI` Windows account.
-Its ext4 root, runner work, Bun/Bazel caches and temporary/container state are
-backed by `D:\ChudcodeCI\Linux` on the 4 TB NVMe. It does not share a kernel,
-network namespace, home or cleanup scope with CloudCastle or Chudware.
+Pull requests and pushes run on disposable GitHub-hosted VMs with read-only
+repository permissions. Contributors do not need maintainer credentials,
+private caches, or access to the project's hardware. Native addons cross jobs
+through artifacts from the same workflow run, retained for one day.
 
-CI jobs on this runner hand native addons to the TypeScript suites through
-`<runner work>/chudcode/ci-handoff/<repository>/<run id>/<source sha>/`
-(`scripts/ci-native-handoff.ts`) instead of GitHub artifact storage. Each
-target is published atomically with a manifest recording its exact target,
-source SHA, run id, producer attempt, byte count and SHA-256; consumers copy
-and verify the bytes and never fall back to another run, revision or artifact.
-Handoffs are retained on the NVMe: nothing prunes them automatically, since an
-age-based sweep could delete files a queued, long-running or re-run job still
-needs. Only release runs upload `native-addons` (2-day retention) for the
-Windows and Mac release jobs.
+The public checks include TypeScript, Rust, Linux aarch64 execution under
+QEMU, and Darwin arm64 compile-only checks on an Intel Mac. Emulation is not
+native ARM hardware evidence; cross-compilation does not certify Apple
+silicon execution, signing, or notarization.
 
-Native Windows CI uses `cc-win-chudcode`, runner `chudcode-ryzen-windows`.
-Its non-administrator virtual service account owns
-`D:\ChudcodeCI\Windows`, including its profile, work, tool caches and temporary
-files. Read-only Visual Studio SDKs may be shared; Chudware's private Python,
-CMake, Cargo or Bun locations must never be borrowed.
+Maintainer hardware qualification and release publication run separately in a
+private, manually dispatched controller. Its source checkout is pinned to an
+authorized commit rather than a pull-request ref. Public forks cannot schedule
+jobs on those runners or obtain the controller's release credentials. The
+private controller is not required to install Chudcode or build it from source.
 
-Native Intel Mac CI uses `cc-mac-chudcode-intel`, hidden account
-`ccci-chudcode` with a private 0700 home and runner under
-`/Library/CloudCastleCI/ccci-chudcode`. It owns its Bun/Bazel/XDG state and
-temporary files, cannot write other products' homes or the operator's
-Homebrew installation, and receives no signing keychain or desktop session.
-On the 8 GB Intel Mac, each product compiles with one worker and runs CTest
-serially.
-
-Ordinary CI checks ARM without the offline physical M2 or paid hosted Macs:
-
-- `linux_arm64_emulated` runs on `cc-linux-chudcode`. It builds every
-  `//crates/...` test with the pinned Bazel zig glibc 2.17 toolchain
-  (`--config=linux-arm64-qemu`) and executes the aarch64 ELF test binaries
-  through Bazel's SHA-256-pinned QEMU 10.0.13. Child processes and re-execs use
-  the utility VM's independently pinned QEMU 10.0.13 kernel binfmt handler,
-  against the GNU cross sysroot `/usr/aarch64-linux-gnu`. It then installs this
-  run's `linux-arm64` addon,
-  built by its own `native_addon_build_linux_arm64` job (not part of the
-  x64/Windows `native_addon_build` matrix, so nothing outside the ARM lane
-  waits for it), from the same-runner handoff and runs the `packages/natives`
-  suite on the official aarch64 Bun build of the pinned Bun version, SHA-256
-  verified and cached in the runner's own tool cache (x64 Bun cannot load an
-  aarch64 addon). `scripts/ci-arm64-emulation.ts` refuses to run without the binfmt
-  handler and sysroot, or with any addon other than the aarch64 one present.
-- `darwin_arm64_compile_only` runs on `cc-mac-chudcode-intel`
-  (`scripts/ci-darwin-arm64-compile-only.sh`). With the Xcode SDK it
-  cross-compiles `//:natives-darwin-arm64` with the canonical addon driver,
-  every Rust test binary, the GUI and its headless tests. All use
-  `--config=darwin-arm64-compile-only`, including the same addon Rust flags,
-  so subsequent targets reuse that compilation. Each output must be a thin
-  arm64 Mach-O. Nothing is executed.
-
-The ARM addon producer and Darwin cross-build start only after the existing
-TypeScript, Rust-validation and check jobs pass. No non-ARM job needs either
-ARM producer or emulation, so the private runner serves baseline work first.
-
-Every ARM step has a hard budget and never retries. Jobs are capped at 30
-min (`native_addon_build_linux_arm64`), 45 min (`linux_arm64_emulated`) and
-90 min (`darwin_arm64_compile_only`). Inside them,
-`scripts/ci-deadline.ts <seconds> -- <command>` runs each long command in its
-own process group, sends SIGTERM and then SIGKILL after 15 s, and exits 124
-on expiry: arm64 addon build 25 min, emulated `bazel test` 30 min (per-test
-timeouts 300/1200/1500/1800 s), arm64 Bun download 3 min, probe 2 min,
-`packages/natives` suite 10 min, and the whole Darwin compile-only script 85
-min.
-Ordinary runs use per-run workflow concurrency, so a delayed ARM producer
-cannot lock out a newer native baseline or cancel its in-flight work. Pull
-requests retain same-ref cancellation; signed release tags retain serialization.
-
-The Kimi and DeepSeek scanner property tests compile their Unicode regex
-oracles once per test, retaining all 2,000 and 3,200 deterministic random
-inputs and UTF-8/UTF-16/UTF-32 comparisons within the same emulation budget.
-
-
-TTY teardown publishes `dead` only after queue cleanup, under the same lock
-that rejects late appends. Shell child-stop observation subscribes before
-checking a pending stop for that specific PID; one child cannot consume another
-child's stop status. Both paths are exercised natively and as Linux aarch64.
-
-TTY teardown publishes `dead` only after queue cleanup, under the same lock
-that rejects late appends. Shell child-stop observation subscribes before
-checking a pending stop for that specific PID; one child cannot consume another
-child's stop status. Both paths are exercised natively and as Linux aarch64.
-
-Emulated Linux results are not native ARM hardware evidence, and Intel
-cross-compilation is neither native Apple silicon runtime evidence nor a
-release, signing or notarisation input. Native ARM qualification and the
-trusted Apple signing lane remain separate.
-
-Dispatch `runner-smoke` for a specific native platform before promoting a
-new runner. It verifies the actual private account/state and compiles, links
-and executes the existing native desktop gate. Linux exercises `app_ini`
-under Xvfb; the existing Windows and Mac headless gates exclude that
-interactive-window test. Windows bootstrap qualification uses only
-`chudcode-bootstrap`; Mac uses `cc-mac-chudcode-intel-bootstrap`.
-Production labels are added after qualification. Retire old shared-account
-workstation/laptop runners only after replacement consumer proof. Existing
-native signing identities are not test-account credentials.
-
+On trusted hardware, `scripts/ci-native-handoff.ts` binds each native addon to
+the workflow repository, run, source revision, target, and producer attempt.
+`CHUDCODE_SOURCE_SHA` identifies the source revision when the workflow lives
+in another repository; it must not be confused with the controller's
+`GITHUB_SHA`. Consumers verify artifact sizes and hashes and never fall back
+to another run or revision.
 
 ## Fork layer
 

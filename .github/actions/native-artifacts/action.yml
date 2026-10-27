@@ -1,10 +1,8 @@
 name: "Install native addon artifacts"
 description: >
-   Installs exact native addon targets without invoking Bazel, either from this
-   run's verified same-runner handoff (scripts/ci-native-handoff.ts, private
-   Linux runner) or, on other machines, from the addons staged on the release's
-   draft GitHub release (scripts/ci-release-transport.ts). Workflow artifacts are
-   not used: they count against the Actions storage quota.
+   Installs exact native addon targets without invoking Bazel. Private
+   controller jobs use the verified same-runner handoff or draft release;
+   hosted jobs download artifacts only from their own workflow run.
 
 inputs:
    targets:
@@ -15,11 +13,23 @@ inputs:
       required: false
       default: packages/natives/native
    from:
-      description: "`handoff` (same-runner handoff) or `release` (draft release staging)"
+      description: "`handoff` (private same-runner), `release` (draft release), or `workflow` (hosted same-run artifacts)"
       required: false
       default: handoff
    release-id:
       description: Draft release id that holds the staged addons (required for `release`)
+      required: false
+      default: ""
+   repository:
+      description: Repository holding the draft release
+      required: false
+      default: ${{ github.repository }}
+   token:
+      description: Source-repository Contents-write token (GitHub requires write access for unpublished drafts)
+      required: false
+      default: ${{ github.token }}
+   source-sha:
+      description: Exact checked-out source commit for same-runner handoff verification
       required: false
       default: ""
 
@@ -27,17 +37,33 @@ runs:
    using: composite
    steps:
       - name: Reject unknown native addon source
-        if: inputs.from != 'handoff' && inputs.from != 'release'
+        if: inputs.from != 'handoff' && inputs.from != 'release' && inputs.from != 'workflow'
         shell: bash
         run: |
-           echo "::error::native-artifacts input 'from' must be 'handoff' or 'release'"
+           echo "::error::native-artifacts input 'from' must be 'handoff', 'release' or 'workflow'"
            exit 1
+
+      - name: Reject workflow artifacts outside hosted jobs
+        if: inputs.from == 'workflow' && runner.environment != 'github-hosted'
+        shell: bash
+        run: |
+           echo "::error::Workflow native artifacts are restricted to GitHub-hosted jobs"
+           exit 1
+
+      - name: Download this workflow run's native addons
+        if: inputs.from == 'workflow' && runner.environment == 'github-hosted'
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+           pattern: natives-*
+           merge-multiple: false
+           path: ${{ runner.temp }}/chudcode-native-artifacts
 
       - name: Download staged native addons from the draft release
         if: inputs.from == 'release' && runner.os != 'Windows'
         shell: bash
         env:
-           GITHUB_TOKEN: ${{ github.token }}
+           CHUDCODE_RELEASE_REPOSITORY: ${{ inputs.repository }}
+           GITHUB_TOKEN: ${{ inputs.token }}
            RELEASE_ID: ${{ inputs.release-id }}
            NATIVE_TARGETS: ${{ inputs.targets }}
         run: bun scripts/ci-release-transport.ts get-natives --release-id "$RELEASE_ID" --targets "$NATIVE_TARGETS" --out "$RUNNER_TEMP/chudcode-native-artifacts"
@@ -46,7 +72,8 @@ runs:
         if: inputs.from == 'release' && runner.os == 'Windows'
         shell: powershell
         env:
-           GITHUB_TOKEN: ${{ github.token }}
+           CHUDCODE_RELEASE_REPOSITORY: ${{ inputs.repository }}
+           GITHUB_TOKEN: ${{ inputs.token }}
            RELEASE_ID: ${{ inputs.release-id }}
            NATIVE_TARGETS: ${{ inputs.targets }}
         run: |
@@ -57,7 +84,8 @@ runs:
         if: inputs.from == 'handoff'
         shell: bash
         env:
-           HANDOFF_ROOT: ${{ runner.workspace }}/ci-handoff
+           CHUDCODE_SOURCE_SHA: ${{ inputs.source-sha || env.CHUDCODE_SOURCE_SHA || github.sha }}
+           HANDOFF_ROOT: ${{ github.workspace }}/../ci-handoff
            NATIVE_TARGETS: ${{ inputs.targets }}
         run: bun scripts/ci-native-handoff.ts assemble --root "$HANDOFF_ROOT" --targets "$NATIVE_TARGETS" --out "$RUNNER_TEMP/chudcode-native-artifacts"
 

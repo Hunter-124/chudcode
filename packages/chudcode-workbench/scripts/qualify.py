@@ -46,11 +46,14 @@ def sha_json(value: object) -> str:
     ).hexdigest()
 
 
-def source_evidence(revision: str | None) -> dict:
+def source_evidence(revision: str | None, repository: str | None) -> dict:
+    if repository is not None and revision is None:
+        raise ValueError("Source repository requires an explicit source revision")
     if revision is not None:
         kind = "caller-supplied"
     elif os.environ.get("GITHUB_ACTIONS") == "true":
         revision = os.environ.get("GITHUB_SHA")
+        repository = os.environ.get("GITHUB_REPOSITORY")
         if not revision:
             raise ValueError("GitHub Actions checkout omitted GITHUB_SHA")
         kind = "github-actions-checkout"
@@ -58,6 +61,10 @@ def source_evidence(revision: str | None) -> dict:
         kind = "unattested-local-source"
     if revision is not None and not re.fullmatch(r"[0-9a-fA-F]{40}", revision):
         raise ValueError("Source revision must be a full 40-character commit SHA")
+    if repository is not None and not re.fullmatch(
+        r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", repository
+    ):
+        raise ValueError("Source repository must be an owner/repository name")
     paths = [
         Path(__file__),
         REPO / "scripts/package_chudcode_workbench.py",
@@ -72,9 +79,13 @@ def source_evidence(revision: str | None) -> dict:
     return {
         "revision": revision.lower() if revision else None,
         "kind": kind,
-        "repository": os.environ.get("GITHUB_REPOSITORY"),
-        "runId": os.environ.get("GITHUB_RUN_ID"),
-        "runAttempt": os.environ.get("GITHUB_RUN_ATTEMPT"),
+        "repository": repository,
+        "workflow": {
+            "repository": os.environ.get("GITHUB_REPOSITORY"),
+            "revision": os.environ.get("GITHUB_SHA"),
+            "runId": os.environ.get("GITHUB_RUN_ID"),
+            "runAttempt": os.environ.get("GITHUB_RUN_ATTEMPT"),
+        },
         "cleanWorkingTreeAttested": False,
         "qualificationSources": {
             str(path.relative_to(REPO)): assembler.digest(path) for path in paths
@@ -371,7 +382,7 @@ def qualify(options: argparse.Namespace) -> dict:
     assembler.require_native_host(target)
     pins = assembler.load_json(assembler.CONFIG / "base.json")
     pin = pins["targets"][target]
-    source = source_evidence(options.source_revision)
+    source = source_evidence(options.source_revision, options.source_repository)
     output = Path(os.path.abspath(options.output.expanduser()))
     output.mkdir(parents=True, exist_ok=True)
     root_name = f"chudcode-workbench-{target}"
@@ -548,7 +559,7 @@ def qualify(options: argparse.Namespace) -> dict:
         ):
             raise ValueError("Candidate or archive changed during native qualification")
         # Bind scripts as executed; reject concurrent source changes as well.
-        if source_evidence(options.source_revision) != source:
+        if source_evidence(options.source_revision, options.source_repository) != source:
             raise ValueError("Qualification source changed during native execution")
         checks = {
             "workers": workers,
@@ -558,7 +569,7 @@ def qualify(options: argparse.Namespace) -> dict:
             "postExecutionIntegrity": "passed",
         }
         report = {
-            "schemaVersion": 1,
+            "schemaVersion": 2,
             "kind": "chudcode-workbench-native-qualification",
             "qualified": True,
             "stable_ready": False,
@@ -642,6 +653,10 @@ def main() -> int:
     parser.add_argument(
         "--source-revision",
         help="Full source commit SHA; recorded as caller-supplied, never as a clean-tree attestation",
+    )
+    parser.add_argument(
+        "--source-repository",
+        help="Source owner/repository paired with --source-revision; workflow provenance is recorded separately",
     )
     options = parser.parse_args()
     try:

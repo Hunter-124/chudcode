@@ -7,6 +7,13 @@ description: >-
 runs:
    using: composite
    steps:
+      # The Windows LLVM archive alone needs 15 GiB of headroom. Hosted
+      # images include an unused Android SDK; never prune a persistent host.
+      - name: Reserve disk for disposable Linux builds
+        if: runner.environment == 'github-hosted' && runner.os == 'Linux'
+        shell: bash
+        run: sudo rm -rf /usr/local/lib/android
+
       - name: Install Bazelisk 1.29.0
         shell: bash
         run: |

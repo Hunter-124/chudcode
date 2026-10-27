@@ -1,9 +1,9 @@
 name: "Compose bazel cache config"
 description: >
-   Selects the CI cache backend and emits a bazelrc fragment. Cluster jobs
-   use their remote cache; Cloudcastle machines keep Bazel's content-addressed
-   disk and repository caches on persistent local storage. Build caches never
-   enter GitHub Actions cache storage.
+   Selects the CI cache backend and emits a bazelrc fragment. GitHub-hosted
+   jobs use only disposable runner-local storage, never remote credentials.
+   Private cluster jobs use their remote cache; Cloudcastle machines keep
+   persistent local caches. Build caches never enter Actions cache storage.
 
 outputs:
    rc:
@@ -16,10 +16,12 @@ runs:
       - name: Detect bazel cache backend
         id: backend
         shell: bash
+        env:
+           RUNNER_ENVIRONMENT: ${{ runner.environment }}
         run: |
            set -euo pipefail
            remote=false
-           if [ -n "${BAZEL_REMOTE_USER:-}" ] || [ -n "${BAZEL_REMOTE_PASSWORD:-}" ]; then
+           if [ "$RUNNER_ENVIRONMENT" != github-hosted ] && { [ -n "${BAZEL_REMOTE_USER:-}" ] || [ -n "${BAZEL_REMOTE_PASSWORD:-}" ]; }; then
              if [ -z "${BAZEL_REMOTE_USER:-}" ] || [ -z "${BAZEL_REMOTE_PASSWORD:-}" ]; then
                echo "::error::BAZEL_REMOTE_USER and BAZEL_REMOTE_PASSWORD must both be set"
                exit 1
@@ -33,6 +35,7 @@ runs:
         shell: bash
         env:
            REMOTE: ${{ steps.backend.outputs.remote }}
+           RUNNER_ENVIRONMENT: ${{ runner.environment }}
         run: |
            set -euo pipefail
 
@@ -59,6 +62,15 @@ runs:
                echo "common --tls_certificate=infra/bazel-remote/ca.crt"
                echo "common --remote_header='authorization=Basic ${auth}'"
                echo "common --remote_download_toplevel"
+             } > "$rc"
+           elif [ "$RUNNER_ENVIRONMENT" = github-hosted ]; then
+             # No shared cache or private paths on a disposable hosted VM.
+             mkdir -p "$RUNNER_TEMP/bazel-repo"
+             {
+               echo "startup --output_user_root=$RUNNER_TEMP/bazel-root"
+               echo "build --config=ci"
+               echo "build --action_env=CCACHE_DISABLE=1"
+               echo "common --repository_cache=$RUNNER_TEMP/bazel-repo"
              } > "$rc"
            else
              # RUNNER_TEMP is isolated per runner instance. Bazel outputs must
