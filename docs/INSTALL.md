@@ -83,9 +83,9 @@ CHUDCODE_RELEASE_BASE_URL=https://github.com/Hunter-124/chudcode/releases/downlo
   CHUDCODE_INSTALL_DESKTOP=0 sh "$installer_dir/install.sh"
 ```
 
-This installs/exposes `chud` and its `chudcode` compatibility alias without
-adding `chudcode-desktop` or `chudcode-gui` command links. Set the value back to
-`1` on a later run to expose the desktop commands.
+This installs/exposes `chud` without adding `chudcode-desktop` or `chudcode-gui`
+command links. Set the value back to `1` on a later run to expose the desktop
+commands.
 
 ## Offline installation
 
